@@ -100,6 +100,16 @@ let is_empty = _ => failwith("todo Piece.is_empty");
 
 // let is_porous = p => Token.is_empty(p.text);
 
+let zip = (l: t, r: t) =>
+  if (Id.eq(l.id, r.id)) {
+    assert(Mold.equal(l.lbl.mold, r.lbl.mold));
+    let mtrl = Mtrl.Label.zip(l.lbl.mtrl, r.lbl.mtrl);
+    let lbl = {...l.lbl, mtrl};
+    Some({...l, lbl, text: l.text ++ r.text});
+  } else {
+    None;
+  };
+
 let unzip = (n: int, tok: t): Result.t((t, t), Dir.t) =>
   switch (tok.lbl.mtrl, StringUtil.unzip_opt(n, tok.text)) {
   | (_, Some(("", _))) => Error(L)

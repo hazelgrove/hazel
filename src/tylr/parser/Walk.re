@@ -6,7 +6,7 @@ module Stride = {
   [@deriving (show({with_path: false}), sexp, yojson, ord)]
   type t = Chain.t(Bound.t(Molded.Sort.t), unit);
   let height = Chain.length;
-  let eq = Chain.of_loop;
+  let eq = Chain.unit;
   let is_eq = s => height(s) == 1;
   let base = Chain.lst;
 };
@@ -24,7 +24,7 @@ let lst = Chain.lst;
 let is_eq = w => List.for_all(Stride.is_eq, Chain.loops(w));
 let is_neq = w => !is_eq(w);
 
-let singleton = Chain.of_loop;
+let singleton = Chain.unit;
 
 let append = Chain.append;
 

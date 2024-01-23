@@ -5,6 +5,8 @@ type t = {
   rctx: RCtx.t(Mtrl.Sym.t),
 };
 
+let equal = (==);
+
 let push = (~onto: Util.Dir.t, msym: Mtrl.Sym.t, mold: t) => {
   ...mold,
   rctx: RCtx.push(~onto, Atom(msym), mold.rctx),

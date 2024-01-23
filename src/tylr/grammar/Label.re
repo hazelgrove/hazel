@@ -46,11 +46,11 @@ let unzip = (n: int, lbl: t) =>
   | _ => (lbl, lbl)
   };
 
-let zip = (l: t, r: t): option(t) =>
+let zip = (l: t, r: t): t =>
   switch (l, r) {
-  | (Const(l), Const(r)) => Some(Const(l ++ r))
-  | _ when l == r => Some(l)
-  | _ => None
+  | (Const(l), Const(r)) => Const(l ++ r)
+  | _ when l == r => l
+  | _ => raise(Invalid_argument("Label.zip"))
   };
 
 let consistent = (l: t, r: t): bool =>

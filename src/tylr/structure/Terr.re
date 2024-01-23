@@ -1,17 +1,16 @@
 module Base = {
-  [@deriving (show({with_path: false}), sexp, yojson, ord)]
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     cell: Cell.t,
     wald: Wald.t,
   };
 };
+include Base;
 
 module L = {
-  include Base;
-  // include L;
+  type t = Base.t;
 };
 
 module R = {
-  include Base;
-  // include R;
+  type t = Base.t;
 };

@@ -7,20 +7,10 @@ let height = List.length;
 
 let fold = List.fold_left;
 
-let bake = List.map(Terr.bake);
-
 // Dn and Up slopes named based on left-to-right order of terraces
 // as displayed on screen, but terraces are always maintained
 // in list order low-to-high
 module Dn = {
-  // let bake = (~cell=ECell.empty, ~face: Piece.t, w: GWalk.R.t) => {
-  //   let (slope, cell) =
-  //     GWalk.R.to_slope(w)
-  //     |> List.fold_left_map(cell => ETerr.bake(~cell), cell);
-  //   assert(Cell.is_empty(cell));
-  //   put_face(face, slope);
-  // };
-
   // L2R: dn slot
   let rec roll = (~cell=Cell.Empty, dn: t) =>
     switch (dn) {

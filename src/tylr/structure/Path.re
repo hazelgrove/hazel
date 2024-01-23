@@ -13,12 +13,14 @@ include Base;
 
 exception Invalid;
 
-module Map = Map.Make(Base);
+module Map = Util.MapUtil.Make(Base);
 
 let cons = (n, path) => {...path, cells: [n, ...path.cells]};
 
 module Cursor = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type offset = int;
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = option((Base.t, offset));
   let cons = n => Option.map(((path, offset)) => (cons(n, path), offset));
   let uncons = (n, c) =>
@@ -37,6 +39,7 @@ module Cursor = {
 };
 module Ghosts = {
   include Map;
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Map.t(Mold.t);
   let to_list = bindings;
   let of_list = bindings => of_seq(List.to_seq(bindings));
@@ -56,10 +59,13 @@ module Ghosts = {
   let union = union((_, m, _) => Some(m));
 };
 module Marks = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     cursor: Cursor.t,
     ghosts: Ghosts.t,
   };
+  let mk = (~cursor=None, ~ghosts=Ghosts.empty, ()) => {cursor, ghosts};
+  let empty = mk();
   let cons = (n, {cursor, ghosts}) => {
     cursor: Cursor.cons(n, cursor),
     ghosts: Ghosts.cons(n, ghosts),

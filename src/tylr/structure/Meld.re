@@ -1,7 +1,8 @@
-// open Sexplib.Std;
+open Sexplib.Std;
 open Util;
 
 module Cell = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t('sort, 'meld) = {
     marks: Path.Marks.t,
     sort: 'sort,
@@ -9,11 +10,16 @@ module Cell = {
   };
 };
 
+module Wald = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t('cell) =
+    | W(Chain.t(Token.t, 'cell));
+};
+
 module Base = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | M(cell, wald, cell)
-  and wald =
-    | W(Chain.t(Token.t, cell))
+    | M(cell, Wald.t(cell), cell)
   and cell = Cell.t(Bound.t(Molded.Sort.t), t);
 };
 include Base;
@@ -26,7 +32,7 @@ let link = (c: cell, t: Token.t, M(l, W(w), r): t) =>
 let rev = (M(l, W(w), r): t) => M(r, W(Chain.rev(w)), l);
 
 // let singleton = (~l=Cell.empty, ~r=Cell.empty, t) =>
-//   mk(~l, W(Chain.of_loop(t)), ~r);
+//   mk(~l, W(Chain.unit(t)), ~r);
 
 // let of_piece = (~l=empty(), ~r=empty(), p: Piece.t) =>
 //   of_chain(Chain.mk([l, r], [p])) |> aggregate;
