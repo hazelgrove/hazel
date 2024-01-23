@@ -42,8 +42,9 @@ let precedence_bin_string_op = (bso: TermBase.UExp.op_bin_string) =>
   | Concat => DHDoc_common.precedence_Plus
   | Equals => DHDoc_common.precedence_Equals
   };
-let rec precedence = (~show_casts: bool, d: DHExp.t) => {
-  let precedence' = precedence(~show_casts);
+let rec precedence =
+        (~settings: CoreSettings.Evaluation.t, ~show_casts: bool, d: DHExp.t) => {
+  let precedence' = precedence(~settings, ~show_casts);
   switch (d) {
   | BoundVar(_)
   | FreeVar(_)
@@ -71,7 +72,9 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Cons(_) => DHDoc_common.precedence_Cons
   | ListConcat(_) => DHDoc_common.precedence_Plus
   | Tuple(_) => DHDoc_common.precedence_Comma
-  | Fun(_) => DHDoc_common.precedence_max
+  | Fun(_) =>
+    settings.show_fn_bodies
+      ? DHDoc_common.precedence_max : DHDoc_common.precedence_const
   | Let(_)
   | FixF(_)
   | ConsistentCase(_)
@@ -112,7 +115,7 @@ let mk =
       d: DHExp.t,
     )
     : DHDoc.t => {
-  let precedence = precedence(~show_casts=settings.show_casts);
+  let precedence = precedence(~show_casts=settings.show_casts, ~settings);
   let rec go =
           (
             d: DHExp.t,
