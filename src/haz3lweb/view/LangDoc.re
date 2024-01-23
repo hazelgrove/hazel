@@ -427,7 +427,7 @@ let example_view =
               DHExp.Filter(
                 Filter(
                   Filter.mk(
-                    Constructor("$Expr"),
+                    Constructor("$e"),
                     (FilterAction.Eval, FilterAction.All),
                   ),
                 ),
