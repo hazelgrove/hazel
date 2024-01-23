@@ -38,8 +38,8 @@ let lexeme = Sedlexing.Latin1.lexeme;
 let pop = buf => {
   let mk = (lbl: Label.t) => {
     let text = lexeme(buf);
-    let lbls = [lbl, ...Labels.completions(lbl)];
-    Some(Token.Labeled.mk(~text, Tile(lbls)));
+    let lbls = [lbl, ...Labels.completions(text)];
+    Some(Token.Labeled.mk(~text, Mtrl.Tile(lbls)));
   };
   switch%sedlex (buf) {
   | space => mk(Space)
@@ -55,8 +55,8 @@ let pop = buf => {
 
   | Plus(Sub(any, white_space)) =>
     let text = lexeme(buf);
-    let lbls = Labels.completions(t);
-    Some(Token.Labeled.mk(~text, Tile(lbls)));
+    let lbls = Labels.completions(text);
+    Some(Token.Labeled.mk(~text, Mtrl.Tile(lbls)));
 
   | eof => None
 

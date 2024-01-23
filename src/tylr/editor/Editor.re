@@ -16,13 +16,13 @@ let move = (d: Dir.t, z: Zipper.t): option(Zipper.t) => {
   | Point =>
     open OptUtil.Syntax;
     let+ (t, ctx) = Ctx.pull(~from=d, z.ctx);
-    let n = Dir.choose(d, Token.length(t) - 1, 1);
+    let n = Dir.pick(d, (Token.length(t) - 1, 1));
     switch (Token.unzip(n, p)) {
     | Error(_) => ctx |> Melder.Ctx.push(~onto=b, t) |> Zipper.mk
     | Ok((l, r)) =>
       ctx
-      |> Melder.Ctx_.push(~onto=d, Dir.choose(d, l, r))
-      |> Melder.Ctx_.push(~onto=b, Dir.choose(b, l, r))
+      |> Melder.Ctx_.push(~onto=d, Dir.pick(d, (l, r)))
+      |> Melder.Ctx_.push(~onto=b, Dir.pick(b, (l, r)))
       |> Zipper.mk
     };
   | Select(_, sel) =>

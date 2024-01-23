@@ -19,6 +19,7 @@ module Label = {
 module Sort = {
   [@deriving (show({with_path: false}), sexp, yojson, ord)]
   type t = Base.t(Sort.t);
+  let root = Tile(Sort.root);
   module Map =
     Map.Make({
       type nonrec t = t;

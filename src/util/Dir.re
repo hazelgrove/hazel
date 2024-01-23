@@ -13,6 +13,5 @@ let order = (d, (x, y)) =>
   | L => (x, y)
   | R => (y, x)
   };
-let unorder = order;
 
-let choose = (d, p) => fst(order(d, p));
+let pick = (d, p) => fst(order(d, p));

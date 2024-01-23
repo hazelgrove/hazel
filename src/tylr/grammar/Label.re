@@ -5,6 +5,7 @@ open Sexplib.Std;
 [@deriving (show({with_path: false}), sexp, yojson, ord)]
 type t =
   | Const(string)
+  | Space
   | Id_lower
   | Id_upper
   | Int_lit
@@ -61,6 +62,7 @@ let consistent = (l: t, r: t): bool =>
 
 let is_complete = text =>
   fun
+  | Space
   | Id_lower
   | Id_upper
   | Int_lit

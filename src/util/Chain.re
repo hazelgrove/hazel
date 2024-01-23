@@ -44,9 +44,11 @@ let map_lst = (f: 'loop => 'loop, c: t('loop, 'link)): t('loop, 'link) => {
 };
 let put_lst = lp => map_lst(_ => lp);
 
-let rev = (rev_a, rev_b, (lps, lks): t('loop, 'link)): t('loop, 'link) => (
-  List.rev_map(rev_a, lps),
-  List.rev_map(rev_b, lks),
+let rev =
+    (~rev_loop=Fun.id, ~rev_link=Fun.id, (lps, lks): t('loop, 'link))
+    : t('loop, 'link) => (
+  List.rev_map(rev_loop, lps),
+  List.rev_map(rev_link, lks),
 );
 
 let link =

@@ -17,4 +17,5 @@ module Label = {
 module Sort = {
   [@deriving (show({with_path: false}), sexp, yojson, ord)]
   type t = Base.t(Mtrl.Sort.t);
+  let bounds = _ => failwith("todo Molded.Sort.bounds");
 };
