@@ -675,12 +675,12 @@ select {
   width: fit-content;
 }
 
-.cell-container .cell-item:first-child {
+.cell-item:first-child {
   border-top-left-radius: 0.4em;
   border-top-right-radius: 0.4em;
 }
 
-.cell-container .cell-item:last-child {
+.cell-item:last-child {
   border-bottom-left-radius: 0.4em;
   border-bottom-right-radius: 0.4em;
 }
@@ -1516,52 +1516,56 @@ svg.tile-selected {
   border-left: 0.6px solid #c7b480;
 }
 
-.lang-doc {
-  width: 18em;
-  padding: 0.2em;
+.explain-this {
+  display: flex;
+  width: 20em;
+  padding: 0.4em;
   white-space: nowrap;
+  flex-direction: column;
+  gap: 1em;
 }
 
 .comment {
   color: #a0c1aa;
 }
 
-.lang-doc #examples {
+.explain-this #examples {
   display: flex;
   flex-direction: column;
-  gap: 0.6em;
+  gap: 0.75em;
 }
 
-.lang-doc .example {
+.explain-this .example {
   display: flex;
   flex-direction: column;
+  gap: 0.75em;
 }
 
-.lang-doc .example + .example {
+.explain-this .example + .example {
   border-top: 1px dotted #c7b480;
-  padding-top: 0.6em;
+  padding-top: 0.75em;
 }
 
-.lang-doc .example .code-text {
+.explain-this .example .code-text {
   position: relative;
 }
 
-.lang-doc .example .ex-result {
+.explain-this .example .ex-result {
   display: flex;
   align-items: center;
   gap: 0.5em;
   padding-top: 5px;
 }
 
-.lang-doc .code-container {
+.explain-this .code-container {
   margin-bottom: 0em;
 }
 
-.lang-doc .explanation {
+.explain-this .explanation {
   white-space: normal;
 }
 
-.lang-doc .code-text {
+.explain-this .code-text {
   position: relative;
 }
 
@@ -1578,17 +1582,17 @@ svg.tile-selected {
   filter: brightness(0.9);
 }
 
-.lang-doc-button {
+.explain-this-button {
   text-transform: none;
 }
 
-.lang-doc .top-bar {
+.explain-this .top-bar {
   display: flex;
-  justify-content: space-between;
-  padding: 0.25em;
+  justify-content: flex-start;
+  gap: 0.75em;
 }
 
-.lang-doc .top-bar .close {
+.explain-this .top-bar .close {
   cursor: pointer;
   font-family: "Source Code Pro";
   color: var(--top_bar_icon_fill);
@@ -1598,33 +1602,34 @@ svg.tile-selected {
   display: flex;
   align-items: end;
   justify-content: center;
+  margin-left: auto;
 }
 
-.lang-doc .top-bar .close:hover {
+.explain-this .top-bar .close:hover {
   animation: wobble 0.4s ease 0s 1 normal none;
   color: var(--light-page-color);
   background-color: #c7b480;
 }
 
-.lang-doc .section {
+.explain-this .section {
   display: flex;
   flex-direction: column;
-  padding: 1em;
+  padding: 0 0.75em;
+  gap: 0.5em;
 }
 
-.lang-doc .section .explanation-contents .code {
+.explain-this .section .explanation-contents .code {
   font-family: "Source Code Pro", monospace;
 }
 
-.lang-doc .section .section-title {
+.explain-this .section .section-title {
   text-transform: uppercase;
   font-weight: bold;
   color: #a69460;
   font-size: 0.8em;
-  padding: 0 0 0.5em 0;
 }
 
-.lang-doc .section .explanation-contents {
+.explain-this .section .explanation-contents {
   white-space: normal;
 }
 

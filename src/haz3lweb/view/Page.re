@@ -18,7 +18,7 @@ let exercises_view =
       ~exercise,
       {
         settings,
-        langDocMessages,
+        explainThisModel,
         meta: {
           ui_state: {font_metrics, show_backpack_targets, mousedown, _},
           results,
@@ -32,7 +32,7 @@ let exercises_view =
       ~settings,
       ~exercise,
       ~results=settings.core.dynamics ? Some(results) : None,
-      ~langDocMessages,
+      ~explainThisModel,
     );
   [top_bar_view(~inject, ~model)]
   @ ExerciseMode.view(

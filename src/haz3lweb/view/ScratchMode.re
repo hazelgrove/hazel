@@ -13,7 +13,7 @@ let view =
         {
           editors,
           settings,
-          langDocMessages,
+          explainThisModel,
           meta: {
             results,
             ui_state: {font_metrics, show_backpack_targets, mousedown, _},
@@ -30,8 +30,15 @@ let view =
       ModelResults.lookup(results, ScratchSlide.scratch_key),
     );
   let color_highlighting: option(ColorSteps.colorMap) =
-    if (langDocMessages.highlight && langDocMessages.show) {
-      Some(LangDoc.get_color_map(~settings, ~doc=langDocMessages, zipper));
+    if (explainThisModel.highlight && explainThisModel.show) {
+      //TODO(andrew): is indicated index appropriate below?
+      Some(
+        ExplainThis.get_color_map(
+          ~doc=explainThisModel,
+          Indicated.index(zipper),
+          info_map,
+        ),
+      );
     } else {
       None;
     };
@@ -57,17 +64,17 @@ let view =
     CursorInspector.view(
       ~inject,
       ~settings,
-      ~show_lang_doc=langDocMessages.show,
+      ~show_explain_this=explainThisModel.show,
       zipper,
       info_map,
     );
   let sidebar =
-    langDocMessages.show && settings.core.statics
-      ? LangDoc.view(
+    explainThisModel.show && settings.core.statics
+      ? ExplainThis.view(
           ~inject,
           ~font_metrics,
           ~settings,
-          ~doc=langDocMessages,
+          ~doc=explainThisModel,
           Indicated.index(zipper),
           info_map,
         )

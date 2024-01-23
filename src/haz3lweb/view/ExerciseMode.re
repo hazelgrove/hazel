@@ -6,7 +6,7 @@ type t = {
   exercise: Exercise.state,
   results: option(ModelResults.t),
   settings: Settings.t,
-  langDocMessages: LangDocMessages.t,
+  explainThisModel: ExplainThisModel.t,
   stitched_dynamics: Exercise.stitched(Exercise.DynamicsItem.t),
   grading_report: Grading.GradingReport.t,
 };
@@ -16,7 +16,7 @@ let mk =
       ~exercise: Exercise.state,
       ~results: option(ModelResults.t),
       ~settings: Settings.t,
-      ~langDocMessages,
+      ~explainThisModel,
     )
     : t => {
   let Exercise.{eds, _} = exercise;
@@ -31,7 +31,7 @@ let mk =
     exercise,
     results,
     settings,
-    langDocMessages,
+    explainThisModel,
     stitched_dynamics,
     grading_report,
   };
@@ -60,7 +60,7 @@ let view =
     settings,
     stitched_dynamics,
     grading_report,
-    langDocMessages,
+    explainThisModel,
   } = self;
   let Exercise.{pos, eds} = exercise;
   let Exercise.{
@@ -76,9 +76,14 @@ let view =
     Exercise.focus(exercise, stitched_dynamics);
   let score_view = Grading.GradingReport.view_overall_score(grading_report);
   let color_highlighting: option(ColorSteps.colorMap) =
-    if (langDocMessages.highlight && langDocMessages.show) {
+    if (explainThisModel.highlight && explainThisModel.show) {
+      //TODO(andrew): is indicated index appropriate below?
       Some(
-        LangDoc.get_color_map(~settings, ~doc=langDocMessages, focal_zipper),
+        ExplainThis.get_color_map(
+          ~doc=explainThisModel,
+          None,
+          focal_info_map,
+        ),
       );
     } else {
       None;
@@ -333,19 +338,19 @@ let view =
         CursorInspector.view(
           ~inject,
           ~settings,
-          ~show_lang_doc=langDocMessages.show,
+          ~show_explain_this=explainThisModel.show,
           focal_zipper,
           focal_info_map,
         ),
       ]
       : [];
   let sidebar =
-    langDocMessages.show && settings.core.statics
-      ? LangDoc.view(
+    explainThisModel.show && settings.core.statics
+      ? ExplainThis.view(
           ~inject,
           ~font_metrics,
           ~settings,
-          ~doc=langDocMessages,
+          ~doc=explainThisModel,
           Indicated.index(focal_zipper),
           focal_info_map,
         )
