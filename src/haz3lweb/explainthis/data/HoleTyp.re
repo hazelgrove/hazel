@@ -1,11 +1,12 @@
 open Example;
 open ExplainThisForm;
+open Haz3lcore;
 
 let empty_hole_typ: form = {
   let explanation = "This marks a type that needs to be filled in.";
   {
     id: EmptyHoleTyp,
-    syntactic_form: [typ("EmptyHole")],
+    syntactic_form: [Grout({id: Id.mk(), shape: Convex})],
     expandable_id: None,
     explanation,
     examples: [],

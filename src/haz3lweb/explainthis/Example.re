@@ -71,8 +71,6 @@ let pat = v => mk_monotile(Form.mk(Form.ss, [v], Mold.(mk_op(Pat, []))));
 let typ = t => mk_monotile(Form.mk(Form.ss, [t], Mold.(mk_op(Typ, []))));
 let tpat = v => mk_monotile(Form.mk(Form.ss, [v], Mold.(mk_op(TPat, []))));
 let typ_pat_var = t => mk_monotile(Form.mk_atomic(TPat, t));
-let int = n => mk_monotile(Form.mk_atomic(Exp, n));
-let bool = b => mk_monotile(Form.mk_atomic(Exp, b));
 let mk_parens_exp = mk_tile(Form.get("parens_exp"));
 let mk_parens_pat = mk_tile(Form.get("parens_pat"));
 let mk_parens_typ = mk_tile(Form.get("parens_typ"));
@@ -132,3 +130,6 @@ let mk_example = str => {
   | Some(z) => Zipper.zip(z)
   };
 };
+
+/* Int param below should be ~ width of sidebar */
+let abbreviate = Util.StringUtil.abbreviate(20);

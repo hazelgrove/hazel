@@ -1,6 +1,7 @@
 open ExplainThisForm;
+open Haz3lcore;
 
-let empty_hole_template = (sort, str, id): form => {
+let empty_hole_template = (_sort, str, id): form => {
   let explanation =
     Printf.sprintf(
       "This should be filled with %s to complete the program.",
@@ -8,7 +9,7 @@ let empty_hole_template = (sort, str, id): form => {
     );
   {
     id,
-    syntactic_form: [sort("EmptyHole")],
+    syntactic_form: [Grout({id: Id.mk(), shape: Convex})],
     expandable_id: None,
     explanation,
     examples: [],
