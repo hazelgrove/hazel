@@ -17,7 +17,6 @@ let is_action_logged: UpdateAction.t => bool =
   | DoTheThing
   | Assistant(_)
   | Set(_)
-  | UpdateLangDocMessages(_)
   | SwitchScratchSlide(_)
   | SwitchExampleSlide(_)
   | SwitchEditor(_)
@@ -29,7 +28,8 @@ let is_action_logged: UpdateAction.t => bool =
   | Paste(_)
   | Undo
   | Redo
-  | MoveToNextHole(_) => true;
+  | MoveToNextHole(_)
+  | UpdateExplainThisModel(_) => true;
 
 module DB = {
   open Ezjs_idb;

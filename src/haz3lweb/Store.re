@@ -58,42 +58,42 @@ module Settings = {
   };
 };
 
-// LangDocMessages serialization
-module LangDocMessages = {
-  let save_langDocMessages_key: string = "LANGDOCMESSAGES";
+// ExplainThisModel serialization
+module ExplainThisModel = {
+  let save_ExplainThisModel_key: string = "ExplainThisModel";
 
-  let serialize = langDocMessages =>
-    LangDocMessages.serialize(langDocMessages);
+  let serialize = explainThisModel =>
+    explainThisModel |> ExplainThisModel.sexp_of_t |> Sexplib.Sexp.to_string;
 
   let deserialize = data =>
-    try(LangDocMessages.deserialize(data)) {
+    try(data |> Sexplib.Sexp.of_string |> ExplainThisModel.t_of_sexp) {
     | _ =>
-      print_endline("Could not deserialize langDocMessages.");
-      LangDocMessages.init;
+      print_endline("Could not deserialize ExplainThisModel.");
+      ExplainThisModel.init;
     };
 
-  let save = (langDocMessages: LangDocMessages.t): unit =>
+  let save = (explainThisModel: ExplainThisModel.t): unit =>
     JsUtil.set_localstore(
-      save_langDocMessages_key,
-      serialize(langDocMessages),
+      save_ExplainThisModel_key,
+      serialize(explainThisModel),
     );
 
   let init = () => {
     JsUtil.set_localstore(
-      save_langDocMessages_key,
-      serialize(LangDocMessages.init),
+      save_ExplainThisModel_key,
+      serialize(ExplainThisModel.init),
     );
-    LangDocMessages.init;
+    ExplainThisModel.init;
   };
 
-  let load = (): LangDocMessages.t =>
-    switch (JsUtil.get_localstore(save_langDocMessages_key)) {
+  let load = (): ExplainThisModel.t =>
+    switch (JsUtil.get_localstore(save_ExplainThisModel_key)) {
     | None => init()
     | Some(data) => deserialize(data)
     };
 
   let rec export = () =>
-    switch (JsUtil.get_localstore(save_langDocMessages_key)) {
+    switch (JsUtil.get_localstore(save_ExplainThisModel_key)) {
     | None =>
       let _ = init();
       export();
@@ -101,8 +101,8 @@ module LangDocMessages = {
     };
 
   let import = data => {
-    let langDocMessages = deserialize(data);
-    save(langDocMessages);
+    let explainThisModel = deserialize(data);
+    save(explainThisModel);
   };
 };
 
