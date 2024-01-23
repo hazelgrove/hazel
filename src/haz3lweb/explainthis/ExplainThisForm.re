@@ -283,40 +283,80 @@ type group = {
   forms: list(form) // Ordered - more specific to less specific
 };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type simple = {
-  group,
-  explanation: string,
-  colorings: list((Id.t, Id.t)),
-};
+module Simple = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    group_id,
+    form_id,
+    abstract: (Segment.t, list((Id.t, Id.t))),
+    explanation: string,
+    examples: list(example),
+  };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type single_doc = {
-  explanation: string,
-  colorings: list((Id.t, Id.t)),
-  group_id,
-  form_id,
-  syntactic_form: Segment.t,
-  examples: list(example),
-};
+  let to_group =
+      (
+        {
+          explanation,
+          abstract: (syntactic_form, colorings),
+          group_id,
+          form_id,
+          examples,
+        }: t,
+      ) => (
+    explanation,
+    colorings,
+    {
+      id: group_id,
+      forms: [
+        {
+          id: form_id,
+          syntactic_form,
+          expandable_id: None,
+          explanation: "",
+          examples,
+        },
+      ],
+    },
+  );
 
-let single_to_group =
+  let mk_1 =
+      ((n: string, id: Id.t), mk_form: Piece.t => Segment.t)
+      : (Segment.t, list((Id.t, Id.t))) => {
+    let p = Example.exp(n);
+    (mk_form(p), [(Piece.id(p), id)]);
+  };
+
+  let mk_2 =
+      (
+        (n1: string, id_1: Id.t),
+        (n2: string, id_2: Id.t),
+        mk_form: (Piece.t, Piece.t) => Segment.t,
+      )
+      : (Segment.t, list((Id.t, Id.t))) => {
+    let (p1, p2) = (Example.exp(n1), Example.exp(n2));
+    (mk_form(p1, p2), [(Piece.id(p1), id_1), (Piece.id(p2), id_2)]);
+  };
+
+  let mk_3 =
+      (
+        (n1: string, id_1: Id.t),
+        (n2: string, id_2: Id.t),
+        (n3: string, id_3: Id.t),
+        mk_form: (Piece.t, Piece.t, Piece.t) => Segment.t,
+      )
+      : (Segment.t, list((Id.t, Id.t))) => {
+    let (p1, p2, p3) = (
+      Example.exp(n1),
+      Example.exp(n2),
+      Example.exp(n3),
+    );
     (
-      {explanation, colorings, group_id, form_id, syntactic_form, examples}: single_doc,
-    )
-    : simple => {
-  explanation,
-  colorings,
-  group: {
-    id: group_id,
-    forms: [
-      {
-        id: form_id,
-        syntactic_form,
-        expandable_id: None,
-        explanation: "",
-        examples,
-      },
-    ],
-  },
+      mk_form(p1, p2, p3),
+      [
+        (Piece.id(p1), id_1),
+        (Piece.id(p2), id_2),
+        (Piece.id(p3), id_3),
+      ],
+    );
+  };
 };

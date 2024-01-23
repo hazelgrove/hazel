@@ -607,9 +607,8 @@ let get_doc =
   };
 
   /* Use this when adding new entries */
-  let get_message_new = (sd: ExplainThisForm.single_doc) => {
-    let ExplainThisForm.{colorings, explanation, group} =
-      ExplainThisForm.single_to_group(sd);
+  let message_single = (e: ExplainThisForm.Simple.t) => {
+    let (explanation, colorings, group) = ExplainThisForm.Simple.to_group(e);
     get_message(~colorings, ~format=None, ~explanation, group);
   };
 
@@ -1622,7 +1621,7 @@ let get_doc =
         | TypeAnn(_) => default // Shouldn't get hit?
         };
       | Pipeline(arg, fn) =>
-        get_message_new(
+        message_single(
           PipelineExp.single(
             ~arg_id=Term.UExp.rep_id(arg),
             ~fn_id=Term.UExp.rep_id(fn),
