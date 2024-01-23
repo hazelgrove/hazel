@@ -11,7 +11,7 @@ let export_persistent_data = (~inject: Update.t => 'a) =>
     ~tooltip="Export All Persistent Data",
   );
 
-let reset_hazel_button =
+let reset_hazel =
   button(
     Icons.bomb,
     _ => {
@@ -22,101 +22,83 @@ let reset_hazel_button =
       if (confirmed) {
         DebugAction.perform(DebugAction.ClearStore);
         Dom_html.window##.location##reload;
-        Virtual_dom.Vdom.Effect.Ignore;
-      } else {
-        Virtual_dom.Vdom.Effect.Ignore;
       };
+      Virtual_dom.Vdom.Effect.Ignore;
     },
     ~tooltip="Clear Local Storage and Reload (LOSE ALL DATA)",
   );
 
 let settings_menu =
-    (
-      ~inject: Update.t => 'a,
-      {
-        core: {statics, elaborate, assist, dynamics},
-        benchmark,
-        secondary_icons,
-        _,
-      }: Settings.t,
-    ) => {
-  let set = (icon, tooltip, bool, setting) =>
+    (~inject, ~settings as {core, benchmark, secondary_icons, _}: Settings.t) => {
+  let toggle = (icon, tooltip, bool, setting) =>
     toggle_named(icon, ~tooltip, bool, _ =>
       inject(UpdateAction.Set(setting))
     );
-  div(
-    ~attr=clss(["submenu", "settings"]),
-    [
-      set("τ", "Toggle Statics", statics, Statics),
-      set("⇲", "Toggle Completion", assist, Assist),
-      set("𝛿", "Toggle Dynamics", dynamics, Dynamics),
-      set("𝑒", "Show Elaboration", elaborate, Elaborate),
-      set("↵", "Show Whitespace", secondary_icons, SecondaryIcons),
-      set("✓", "Print Benchmarks", benchmark, Benchmark),
-    ],
-  );
+  [
+    toggle("τ", "Toggle Statics", core.statics, Statics),
+    toggle("⇲", "Toggle Completion", core.assist, Assist),
+    toggle("𝛿", "Toggle Dynamics", core.dynamics, Dynamics),
+    toggle("𝑒", "Show Elaboration", core.elaborate, Elaborate),
+    toggle("↵", "Show Whitespace", secondary_icons, SecondaryIcons),
+    toggle("✓", "Print Benchmarks", benchmark, Benchmark),
+  ];
 };
 
 let export_menu = (~inject, ~settings: Settings.t, editors: Editors.t) =>
-  div(
-    ~attr=clss(["submenu", "export"]),
-    switch (editors) {
-    | DebugLoad => []
-    | Scratch(slide_idx, slides) =>
-      let state = List.nth(slides, slide_idx);
-      [ScratchMode.export_button(state)];
-    | Examples(name, slides) =>
-      let state = List.assoc(name, slides);
-      [ScratchMode.export_button(state)];
-    | Exercise(_, _, exercise) when settings.instructor_mode => [
-        export_persistent_data(~inject),
-        ExerciseMode.export_submission(~settings),
-        ExerciseMode.instructor_export(exercise),
-        ExerciseMode.instructor_transitionary_export(exercise),
-        ExerciseMode.instructor_grading_export(exercise),
-      ]
-    | Exercise(_) => [ExerciseMode.export_submission(~settings)]
-    },
-  );
+  switch (editors) {
+  | DebugLoad => []
+  | Scratch(slide_idx, slides) =>
+    let state = List.nth(slides, slide_idx);
+    [ScratchMode.export_button(state)];
+  | Examples(name, slides) =>
+    let state = List.assoc(name, slides);
+    [ScratchMode.export_button(state)];
+  | Exercise(_, _, exercise) when settings.instructor_mode => [
+      export_persistent_data(~inject),
+      ExerciseMode.export_submission(~settings),
+      ExerciseMode.instructor_export(exercise),
+      ExerciseMode.instructor_transitionary_export(exercise),
+      ExerciseMode.instructor_grading_export(exercise),
+    ]
+  | Exercise(_) => [ExerciseMode.export_submission(~settings)]
+  };
 
 let import_menu = (~inject, editors: Editors.t) =>
-  div(
-    ~attr=clss(["submenu", "export"]),
-    switch (editors) {
-    | DebugLoad => []
-    | Scratch(_)
-    | Examples(_) => [
-        ScratchMode.import_button(inject),
-        ScratchMode.reset_button(inject),
-      ]
-    | Exercise(_) => [
-        ExerciseMode.import_submission(~inject),
-        ExerciseMode.reset_button(inject),
-      ]
-    },
-  );
+  switch (editors) {
+  | DebugLoad => []
+  | Scratch(_)
+  | Examples(_) => [
+      ScratchMode.import_button(inject),
+      ScratchMode.reset_button(inject),
+    ]
+  | Exercise(_) => [
+      ExerciseMode.import_submission(~inject),
+      ExerciseMode.reset_button(inject),
+    ]
+  };
 
 let submenu = (~tooltip, ~icon, menu) =>
   div(
     ~attr=clss(["top-menu-item"]),
     [
       div(
-        ~attr=Attr.many([clss(["menu-item-iconic"]), Attr.title(tooltip)]),
-        [div(~attr=Attr.many([clss(["icon"])]), [icon])],
+        ~attr=Attr.many([clss(["submenu-icon"]), Attr.title(tooltip)]),
+        [div(~attr=clss(["icon"]), [icon])],
       ),
-      menu,
+      div(~attr=clss(["submenu"]), menu),
     ],
   );
 
-let view = (~inject: Update.t => 'a, {settings, editors, _}: Model.t) => [
-  a(~attr=clss(["menu-icon"]), [Icons.hazelnut]),
+let view =
+    (~inject: Update.t => 'a, ~settings: Settings.t, ~editors: Editors.t) => [
+  a(~attr=clss(["nut-icon"]), [Icons.hazelnut]),
   div(
-    ~attr=clss(["menu"]),
+    ~attr=clss(["nut-menu"]),
     [
       submenu(
         ~tooltip="Settings",
         ~icon=Icons.gear,
-        settings_menu(~inject, settings),
+        settings_menu(~inject, ~settings),
       ),
       submenu(
         ~tooltip="Export",
@@ -128,7 +110,7 @@ let view = (~inject: Update.t => 'a, {settings, editors, _}: Model.t) => [
         ~icon=Icons.import,
         import_menu(~inject, editors),
       ),
-      reset_hazel_button,
+      reset_hazel,
       link(
         Icons.github,
         "https://github.com/hazelgrove/hazel",
