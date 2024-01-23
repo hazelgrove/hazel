@@ -36,6 +36,14 @@ let length = _ => failwith("todo Label.length");
 //     Token.unzip(n, t) |> Result.map(~f=((l, r)) => (Const(l), Const(r)))
 //   | _ => Ok((lbl, lbl))
 //   };
+let unzip = (n: int, lbl: t) =>
+  switch (lbl) {
+  | Const(c) =>
+    let l = String.sub(c, 0, n);
+    let r = String.sub(c, n, length(c));
+    (Const(l), Const(r));
+  | _ => (lbl, lbl)
+  };
 
 let zip = (l: t, r: t): option(t) =>
   switch (l, r) {
@@ -51,17 +59,12 @@ let consistent = (l: t, r: t): bool =>
   | _ => l == r
   };
 
-let regexp = (r, s) => Re.Str.string_match(Re.Str.regexp(r), s, 0);
-
-let is_arbitary_int = regexp("^[0-9_]*$");
-let is_int_lit = str =>
-  is_arbitary_int(str) && int_of_string_opt(str) != None;
-
-let is_arbitary_float = x => x != "." && regexp("^[0-9]*\\.[0-9]*$", x);
-let is_float_lit = str =>
-  !is_arbitary_int(str)
-  && is_arbitary_float(str)
-  && float_of_string_opt(str) != None;
-
-let is_id_lower = regexp("^[a-z][A-Za-z0-9_]*$");
-let is_id_upper = regexp("^[A-Z][A-Za-z0-9_]*$");
+let is_complete = text =>
+  fun
+  | Id_lower
+  | Id_upper
+  | Int_lit
+  | Float_lit =>
+    // assuming text is consistent with lbl
+    true
+  | Const(c) => String.equal(c, text);

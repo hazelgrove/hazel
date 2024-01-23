@@ -1,11 +1,11 @@
 open Sexplib.Std;
 
 module Base = {
+  // top-down
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    // top-down
-    slots: list(int),
-    piece: int,
+    cells: list(int),
+    token: int,
   };
   let compare = (_, _) => failwith("todo");
 };
@@ -15,7 +15,7 @@ exception Invalid;
 
 module Map = Map.Make(Base);
 
-let cons = (n, path) => {...path, slots: [n, ...path.slots]};
+let cons = (n, path) => {...path, cells: [n, ...path.cells]};
 
 module Cursor = {
   type offset = int;
@@ -23,15 +23,23 @@ module Cursor = {
   let cons = n => Option.map(((path, offset)) => (cons(n, path), offset));
   let uncons = (n, c) =>
     Option.bind(c, ((path, offset)) =>
-      switch (path.slots) {
-      | [m, ...slots] when m == n => Some(({...path, offset}, offset))
+      switch (path.cells) {
+      | [m, ...cells] when m == n => Some(({...path, cells}, offset))
       | _ => None
       }
     );
+  let union = (l, r) =>
+    switch (l, r) {
+    | (None, None) => None
+    | (Some(_), _) => l
+    | (_, Some(_)) => r
+    };
 };
 module Ghosts = {
   include Map;
   type t = Map.t(Mold.t);
+  let to_list = bindings;
+  let of_list = bindings => of_seq(List.to_seq(bindings));
   let cons = (n, ghosts) =>
     to_list(ghosts)
     |> List.rev_map(((path, mold)) => (cons(n, path), mold))
@@ -39,12 +47,13 @@ module Ghosts = {
   let uncons = (n, ghosts) =>
     to_list(ghosts)
     |> List.filter_map(((path, mold)) =>
-         switch (path.slots) {
-         | [m, ...slots] when m == n => Some(({...path, slots}, mold))
+         switch (path.cells) {
+         | [m, ...cells] when m == n => Some(({...path, cells}, mold))
          | _ => None
          }
        )
     |> of_list;
+  let union = union((_, m, _) => Some(m));
 };
 module Marks = {
   type t = {
@@ -63,9 +72,4 @@ module Marks = {
     cursor: Cursor.union(l.cursor, r.cursor),
     ghosts: Ghosts.union(l.ghosts, r.ghosts),
   };
-};
-
-module Marked = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t('a) = (Marks.t, 'a);
 };

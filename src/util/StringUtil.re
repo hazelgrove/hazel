@@ -25,10 +25,12 @@ let insert_nth = (n, s, t) => {
   String.sub(t, 0, n) ++ s ++ String.sub(t, n, String.length(t) - n);
 };
 
-let split_nth = (n, t) => {
-  assert(n < String.length(t));
-  (String.sub(t, 0, n), String.sub(t, n, String.length(t) - n));
-};
+let unzip = (n, t) => String.(sub(t, 0, n), sub(t, n, length(t) - n));
+let unzip_opt = (n, t) =>
+  switch (unzip(n, t)) {
+  | (l, r) => Some((l, r))
+  | exception (Invalid_argument(_)) => None
+  };
 
 let to_list = s => List.init(String.length(s), i => String.make(1, s.[i]));
 

@@ -7,6 +7,11 @@ module Base = {
 };
 include Base;
 
+let is_space =
+  fun
+  | Space => true
+  | _ => false;
+
 module Label = {
   [@deriving (show({with_path: false}), sexp, yojson, ord)]
   type t = Base.t(Label.t);

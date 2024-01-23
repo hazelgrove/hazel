@@ -19,10 +19,8 @@ let record = (f, x): (_, list(recorded)) => {
   let effc: 'a. t('a) => option(continuation('a, _) => _) =
     (type a, eff: t(a)) =>
       switch (eff) {
-      | Insert(t) =>
-        recorded := [R(eff), ...recorded^];
-        Some((k: continuation(a, _)) => continue(k, ()));
-      | Remove(t) =>
+      | Insert(_)
+      | Remove(_) =>
         recorded := [R(eff), ...recorded^];
         Some((k: continuation(a, _)) => continue(k, ()));
       | _ => None

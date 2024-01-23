@@ -2,11 +2,11 @@ open Util;
 
 let expect_lbl =
   fun
-  | Sym.NT(_) => raise(MGrammar.Non_alternating_form)
+  | Sym.NT(_) => failwith("expected alternating form")
   | T(mlbl) => mlbl;
 let expect_srt =
   fun
-  | Sym.T(_) => raise(MGrammar.Non_alternating_form)
+  | Sym.T(_) => failwith("expected alternating form")
   | NT(msrt) => msrt;
 
 let enter =
@@ -21,7 +21,7 @@ let enter =
          // for each prec level. this may need to change.
          RZipper.enter(~from, rgx)
          |> List.filter_map(((msym, rctx)) => {
-              let msrt = expect_sort(msym);
+              let msrt = expect_srt(msym);
               let mold = Mold.{sort: s, prec: p, rctx};
               bounded || Mtrl.is_space(msrt)
                 ? Some(Molded.{mtrl: msrt, mold}) : None;

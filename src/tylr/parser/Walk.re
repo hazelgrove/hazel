@@ -16,8 +16,8 @@ module Base = {
 include Base;
 
 let height = Chain.length;
-let is_eq = (~prime=false, w) => List.for_all(Stride.is_eq, Chain.loops(w));
-let is_neq = (~prime=false, w) => !is_eq(w);
+let is_eq = w => List.for_all(Stride.is_eq, Chain.loops(w));
+let is_neq = w => !is_eq(w);
 let bound = (bound: Bound.t(Molded.Sort.t)) =>
   Chain.map_fst(Chain.link(bound, ()));
 

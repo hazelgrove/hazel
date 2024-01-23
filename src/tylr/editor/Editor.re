@@ -18,17 +18,17 @@ let move = (d: Dir.t, z: Zipper.t): option(Zipper.t) => {
     let+ (t, ctx) = Ctx.pull(~from=d, z.ctx);
     let n = Dir.choose(d, Token.length(t) - 1, 1);
     switch (Token.unzip(n, p)) {
-    | None => ctx |> Melder.Ctx.push(~onto=b, t) |> Zipper.mk
-    | Some((l, r)) =>
+    | Error(_) => ctx |> Melder.Ctx.push(~onto=b, t) |> Zipper.mk
+    | Ok((l, r)) =>
       ctx
-      |> Melder.Ctx.push(~onto=d, Dir.choose(d, l, r))
-      |> Melder.Ctx.push(~onto=b, Dir.choose(b, l, r))
+      |> Melder.Ctx_.push(~onto=d, Dir.choose(d, l, r))
+      |> Melder.Ctx_.push(~onto=b, Dir.choose(b, l, r))
       |> Zipper.mk
     };
   | Select(_, sel) =>
     z.ctx
-    |> Melder.Ctx.push_zigg(~onto=b, sel)
-    |> Melder.Ctx.close
+    |> Melder.Ctx_.push_zigg(~onto=b, sel)
+    |> Melder.Ctx_.close
     |> Zipper.mk
     |> Option.some
   };

@@ -1,6 +1,6 @@
 open Sexplib.Std;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, hash)]
 type t = int;
 let eq = Int.equal;
 let compare = Int.compare;
@@ -16,4 +16,9 @@ module Gen = {
     t := id + 1;
     id;
   };
+
+  let value =
+    fun
+    | Some(id) => id
+    | None => next();
 };
