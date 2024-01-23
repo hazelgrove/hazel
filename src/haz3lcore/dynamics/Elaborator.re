@@ -371,6 +371,7 @@ let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t =>
   | None => DoesNotElaborate
   | Some(d) =>
     //let d = uexp_elab_wrap_builtins(d);
+    // print_endline("Elaborated: " ++ DHExp.show(d));
     let ty =
       switch (fixed_exp_typ(m, uexp)) {
       | Some(ty) => ty

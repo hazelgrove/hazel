@@ -482,15 +482,17 @@ module Transition = (EV: EV_MODE) => {
       let (new_env, guard_res) = guard_of_rules(rules, n, env, d1);
       let. _ = otherwise((d1, _) => ConsistentCase(Case(d1, rules, n)))
       and. d1' = req_final(req(state, env), 0, d1)
-      and. guard = req_final(req(state, new_env), 0, guard_res);
+      and. guard = req_final(req(state, new_env), 1, guard_res);
+      // print_endline(show(guard));
       switch (List.nth_opt(rules, n)) {
       | None => Indet
       | Some(Rule((dp, _), d2)) =>
         switch (matches(dp, d1'), guard) {
-        | (Matches(_), BoolLit(true)) =>
+        | (Matches(env'), BoolLit(true)) =>
           // TODO: Evaluate the guard here
+          // print_endline("Matched!");
           Step({
-            apply: () => Closure(new_env, d2),
+            apply: () => Closure(evaluate_extend_env(env', env), d2),
             kind: CaseApply,
             value: false,
           })
