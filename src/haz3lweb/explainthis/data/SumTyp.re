@@ -21,22 +21,22 @@ let labelled_sum_typ: form = {
     examples: [],
   };
 };
-let sum_typ_unary_constructor_def: form = {
+let sum_typ_unary_constructor_def = (c: string): form => {
   let explanation = "This specifies one possible way of constructing the parent sum type, when applied to a parameter of the specified parameter type.";
   {
     id: SumTypUnaryConstructorDef,
-    syntactic_form: [typ("Constructor(type)")],
+    syntactic_form: [c ++ "(Type)" |> abbreviate |> typ],
     expandable_id: None,
     explanation,
     examples: [],
   };
 };
 
-let sum_typ_nullary_constructor_def: form = {
+let sum_typ_nullary_constructor_def = (c: string): form => {
   let explanation = "This specifies one possible way of constructing the parent sum type.";
   {
     id: SumTypNullaryConstructorDef,
-    syntactic_form: [typ("Constructor")],
+    syntactic_form: [c |> abbreviate |> typ],
     expandable_id: None,
     explanation,
     examples: [],
@@ -48,12 +48,12 @@ let labelled_sum_typs: group = {
   forms: [labelled_sum_typ],
 };
 
-let sum_typ_unary_constructor_defs: group = {
+let sum_typ_unary_constructor_defs = (c: string): group => {
   id: SumTypUnaryConstructorDef,
-  forms: [sum_typ_unary_constructor_def],
+  forms: [sum_typ_unary_constructor_def(c)],
 };
 
-let sum_typ_nullary_constructor_defs: group = {
+let sum_typ_nullary_constructor_defs = (c: string): group => {
   id: SumTypNullaryConstructorDef,
-  forms: [sum_typ_nullary_constructor_def],
+  forms: [sum_typ_nullary_constructor_def(c)],
 };

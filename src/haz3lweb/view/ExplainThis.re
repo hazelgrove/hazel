@@ -286,7 +286,12 @@ let deco =
                   ((id: ExplainThisForm.form_id, segment: Segment.t)): Node.t => {
                     let map = Measured.of_segment(segment);
                     let code_view =
-                      Code.simple_view(~unselected=segment, ~map, ~settings);
+                      Code.simple_view(
+                        ~font_metrics,
+                        ~unselected=segment,
+                        ~map,
+                        ~settings,
+                      );
                     let classes =
                       id == form_id
                         ? ["selected"] @ get_clss(segment)
@@ -376,7 +381,8 @@ let syntactic_form_view =
       ~form_id,
     ) => {
   let map = Measured.of_segment(unselected);
-  let code_view = Code.simple_view(~unselected, ~map, ~settings);
+  let code_view =
+    Code.simple_view(~font_metrics, ~unselected, ~map, ~settings);
   let deco_view =
     deco(
       ~doc,
@@ -416,7 +422,12 @@ let example_view =
           ({term, message, _} as example: ExplainThisForm.example) => {
             let map_code = Measured.of_segment(term);
             let code_view =
-              Code.simple_view(~unselected=term, ~map=map_code, ~settings);
+              Code.simple_view(
+                ~font_metrics,
+                ~unselected=term,
+                ~map=map_code,
+                ~settings,
+              );
             let (uhexp, _) = MakeTerm.go(term);
             let info_map = Interface.Statics.mk_map(settings.core, uhexp);
             let result_view =
@@ -626,10 +637,10 @@ let get_doc =
           TyAliasExp.tyalias_exps,
         );
       | Triv => get_message(TerminalExp.triv_exps)
-      | Bool(_bool_lit) => get_message(TerminalExp.bool_exps)
-      | Int(_int_lit) => get_message(TerminalExp.int_exps)
-      | Float(_float_lit) => get_message(TerminalExp.float_exps)
-      | String(_str_lit) => get_message(TerminalExp.string_exps)
+      | Bool(b) => get_message(TerminalExp.bool_exps(b))
+      | Int(i) => get_message(TerminalExp.int_exps(i))
+      | Float(f) => get_message(TerminalExp.float_exps(f))
+      | String(s) => get_message(TerminalExp.string_exps(s))
       | ListLit(terms) =>
         get_message(
           ~format=
@@ -1167,7 +1178,7 @@ let get_doc =
           }
         | _ => basic(TupleExp.tuples)
         };
-      | Var(_var) => get_message(TerminalExp.var_exps)
+      | Var(n) => get_message(TerminalExp.var_exps(n))
       | Let(pat, def, body) =>
         let pat = bypass_parens_and_annot_pat(pat);
         let pat_id = List.nth(pat.ids, 0);
@@ -1842,7 +1853,7 @@ let get_doc =
             Some(
               msg => Printf.sprintf(Scanf.format_from_string(msg, "%s"), v),
             ),
-          TerminalExp.ctr,
+          TerminalExp.ctr(v),
         )
       };
     get_message_exp(term.term);
@@ -1858,7 +1869,7 @@ let get_doc =
             msg =>
               Printf.sprintf(Scanf.format_from_string(msg, "%i%i"), i, i),
           ),
-        TerminalPat.intlit,
+        TerminalPat.intlit(i),
       )
     | Float(f) =>
       get_message(
@@ -1867,7 +1878,7 @@ let get_doc =
             msg =>
               Printf.sprintf(Scanf.format_from_string(msg, "%f%f"), f, f),
           ),
-        TerminalPat.floatlit,
+        TerminalPat.floatlit(f),
       )
     | Bool(b) =>
       get_message(
@@ -1876,7 +1887,7 @@ let get_doc =
             msg =>
               Printf.sprintf(Scanf.format_from_string(msg, "%b%b"), b, b),
           ),
-        TerminalPat.boollit,
+        TerminalPat.boollit(b),
       )
     | String(s) =>
       get_message(
@@ -1885,7 +1896,7 @@ let get_doc =
             msg =>
               Printf.sprintf(Scanf.format_from_string(msg, "%s%s"), s, s),
           ),
-        TerminalPat.strlit,
+        TerminalPat.strlit(s),
       )
     | Triv => get_message(TerminalPat.triv)
     | ListLit(elements) =>
@@ -1956,7 +1967,7 @@ let get_doc =
           Some(
             msg => Printf.sprintf(Scanf.format_from_string(msg, "%s"), v),
           ),
-        TerminalPat.var,
+        TerminalPat.var(v),
       )
     | Tuple(elements) =>
       let basic = group =>
@@ -2046,7 +2057,7 @@ let get_doc =
           Some(
             msg => Printf.sprintf(Scanf.format_from_string(msg, "%s"), con),
           ),
-        TerminalPat.ctr,
+        TerminalPat.ctr(con),
       )
     | TypeAnn(pat, typ) =>
       let pat_id = List.nth(pat.ids, 0);
@@ -2210,19 +2221,22 @@ let get_doc =
         }
       | _ => basic(TupleTyp.tuple)
       };
-    | Constructor(_) => get_message(SumTyp.sum_typ_nullary_constructor_defs)
-    | Var(_) when cls == Typ(Constructor) =>
-      get_message(SumTyp.sum_typ_nullary_constructor_defs)
+    | Constructor(c) =>
+      get_message(SumTyp.sum_typ_nullary_constructor_defs(c))
+    | Var(c) when cls == Typ(Constructor) =>
+      get_message(SumTyp.sum_typ_nullary_constructor_defs(c))
     | Var(v) =>
       get_message(
         ~format=
           Some(
             msg => Printf.sprintf(Scanf.format_from_string(msg, "%s"), v),
           ),
-        TerminalTyp.var,
+        TerminalTyp.var(v),
       )
     | Sum(_) => get_message(SumTyp.labelled_sum_typs)
-    | Ap(_) => get_message(SumTyp.sum_typ_unary_constructor_defs)
+    | Ap({term: Constructor(c), _}, _) =>
+      get_message(SumTyp.sum_typ_unary_constructor_defs(c))
+    | Ap(_) => default
     | Invalid(_) // Shouldn't be hit
     | Parens(_) => default // Shouldn't be hit?
     }
@@ -2237,7 +2251,7 @@ let get_doc =
           Some(
             msg => Printf.sprintf(Scanf.format_from_string(msg, "%s"), v),
           ),
-        VarTPat.var_typ_pats,
+        VarTPat.var_typ_pats(v),
       )
     }
   | None => default

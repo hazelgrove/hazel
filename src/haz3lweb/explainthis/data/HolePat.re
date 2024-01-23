@@ -1,10 +1,11 @@
 open Example;
 open ExplainThisForm;
+open Haz3lcore;
 let empty_hole_pat: form = {
   let explanation = "Expressions are not matched against the *empty hole pattern* until it is filled.";
   {
     id: EmptyHolePat,
-    syntactic_form: [pat("EmptyHole")],
+    syntactic_form: [Grout({id: Id.mk(), shape: Convex})],
     expandable_id: None,
     explanation,
     examples: [],

@@ -45,11 +45,11 @@ let str_typ: form = {
   };
 };
 
-let var_typ: form = {
+let var_typ = (name: string): form => {
   let explanation = "`%s` is a type variable.";
   {
     id: VarTyp,
-    syntactic_form: [typ("T")],
+    syntactic_form: [name |> abbreviate |> typ],
     expandable_id: None,
     explanation,
     examples: [],
@@ -64,4 +64,4 @@ let bool: group = {id: BoolTyp, forms: [bool_typ]};
 
 let str: group = {id: StrTyp, forms: [str_typ]};
 
-let var: group = {id: VarTyp, forms: [var_typ]};
+let var = (name: string): group => {id: VarTyp, forms: [var_typ(name)]};

@@ -109,7 +109,7 @@ let function_exp: form = {
   };
 };
 
-let _pat = pat("EmptyHole");
+let _pat = Piece.Grout({id: Id.mk(), shape: Convex});
 let _exp = exp("e");
 let function_empty_hole_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
@@ -119,7 +119,8 @@ let function_empty_hole_exp: form = {
   {
     id: FunctionExp(EmptyHole),
     syntactic_form: form,
-    expandable_id: Some((Piece.id(_pat), [pat("EMPTYHOLE")])),
+    expandable_id:
+      Some((Piece.id(_pat), [Grout({id: Id.mk(), shape: Convex})])),
     explanation,
     examples: [basic_fun_ex],
   };
