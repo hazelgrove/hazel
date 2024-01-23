@@ -160,6 +160,9 @@
 
   --result-z: 30;
 
+  --modal-z: 10001;
+  --modal-back-z: 10000;
+
   --shadow-color: 44deg 28% 59%;
   --shadow-elevation-low:
     0.3px 0.5px 0.7px hsl(var(--shadow-color) / 0.34),
@@ -615,6 +618,7 @@ select {
 .editor.single {
   width: fit-content;
   padding: 2em 0em 4em 2em;
+  flex-direction: column;
 }
 
 #mousedown-overlay {
@@ -2087,4 +2091,67 @@ svg.expandable path {
 .substituted {
   text-decoration: line-through;
   color: #AC985E;
+}
+
+.settings-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 300px;
+  max-width: 100%;
+  max-height: 100%;
+  background-color: var(--light-page-color);
+  border-radius: 0.4em;
+  z-index: var(--modal-z);
+  box-sizing: border-box;
+  padding: 1em;
+}
+
+.settings-modal-top {
+  justify-content: right;
+  display: flex;
+}
+
+.modal-back {
+  z-index: var(--modal-back-z);
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: #00000060;
+}
+
+.settings-toggle .toggle-switch {
+  margin-right: 1em;
+}
+
+.settings-toggle {
+  margin-bottom: 0.3em;
+}
+
+.settings-modal .icon:hover svg {
+  animation: wobble 0.6s ease 0s 1 normal forwards;
+  transform: scale(130%);
+  filter: brightness(1.1);
+}
+
+.settings-modal .icon {
+  cursor: pointer;
+  color: var(--top_bar_icon_fill);
+  height: 20px;
+}
+
+.settings-modal .icon svg {
+  fill: var(--top_bar_icon_fill);
+}
+
+.settings-modal .icon.disabled {
+  opacity: 0.35;
+}
+
+.settings-modal .icon.disabled:hover svg {
+  transform: scale(100%);
+  cursor: not-allowed;
 }

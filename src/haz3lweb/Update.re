@@ -89,6 +89,10 @@ let update_settings =
           ...evaluation,
           show_stepper_filters: !evaluation.show_stepper_filters,
         }
+      | ShowSettings => {
+          ...evaluation,
+          show_settings: !evaluation.show_settings,
+        }
       };
     };
     {
@@ -169,6 +173,7 @@ let reevaluate_post_update = (settings: Settings.t) =>
     | InstructorMode
     | ContextInspector
     | Mode(_) => true
+    | Evaluation(ShowSettings) => false
     }
   | SetMeta(meta_action) =>
     switch (meta_action) {
