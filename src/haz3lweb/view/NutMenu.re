@@ -34,7 +34,7 @@ let settings_menu =
     (
       ~inject: Update.t => 'a,
       {
-        core: {statics, elaborate, assist, dynamics, _},
+        core: {statics, elaborate, assist, dynamics, evaluation},
         benchmark,
         secondary_icons,
         _,
@@ -47,11 +47,47 @@ let settings_menu =
   div(
     ~attr=clss(["submenu", "settings"]),
     [
-      set("τ", "Toggle Statics", statics, Statics),
       set("⇲", "Toggle Completion", assist, Assist),
-      set("𝛿", "Toggle Dynamics", dynamics, Dynamics),
       set("𝑒", "Show Elaboration", elaborate, Elaborate),
+      set(
+        "λ",
+        "Show Function Bodies",
+        evaluation.show_fn_bodies,
+        Evaluation(ShowFnBodies),
+      ),
+      set(
+        "|",
+        "Show Case Clauses",
+        evaluation.show_case_clauses,
+        Evaluation(ShowCaseClauses),
+      ),
+      set(
+        "f",
+        "Show fixpoints",
+        evaluation.show_fixpoints,
+        Evaluation(ShowCaseClauses),
+      ),
+      set(
+        Unicode.castArrowSym,
+        "Show casts",
+        evaluation.show_casts,
+        Evaluation(ShowCasts),
+      ),
+      set(
+        "🔍",
+        "Show Lookup Steps",
+        evaluation.show_lookup_steps,
+        Evaluation(ShowLookups),
+      ),
+      set(
+        "⏯️",
+        "Show Stepper Filters",
+        evaluation.show_stepper_filters,
+        Evaluation(ShowFilters),
+      ),
       set("↵", "Show Whitespace", secondary_icons, SecondaryIcons),
+      set("τ", "Toggle Statics", statics, Statics),
+      set("𝛿", "Toggle Dynamics", dynamics, Dynamics),
       set("✓", "Print Benchmarks", benchmark, Benchmark),
     ],
   );
