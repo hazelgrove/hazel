@@ -584,7 +584,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       term:
         TermBase.UExp.Filter(
           FilterAction.(act, One),
-          {term: Constructor("$Expr"), ids: [Id.mk()]},
+          {term: Constructor("$e"), ids: [Id.mk()]},
           term_item,
         ),
       ids: [Id.mk()],
