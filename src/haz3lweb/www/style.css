@@ -368,13 +368,72 @@ select {
   top: 2.75em;
   left: 0;
   width: 2.75em;
-  padding-top: 1em;
+  /*padding-top: 1em;
   padding-bottom: 1em;
-  gap: 1em;
+  gap: 1em;*/
   flex-direction: column;
   justify-content: center;
   align-items: center;
   background-color: #a69461;
+}
+
+#top-bar .menu .submenu {
+  display: none;
+  transform-origin: top;
+  transform: scaleY(0);
+  transition: transform 0.07s ease;
+  position: absolute;
+  width: max-content;
+  top: 0em;
+  left: 2.75em;
+  flex-direction: column;
+  justify-content: center;
+  /*align-items: center;*/
+  background-color: #bba874;
+  border-radius: 0 0 1.3em 0;
+}
+
+#top-bar .menu .menu-item-iconic {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 2.75em;
+  height: 2.75em;
+}
+
+#top-bar .menu .named-menu-item {
+  height: 2.75em;
+  display: flex;
+  align-items: center;
+  color: antiquewhite;
+  cursor: pointer;
+  padding-right: 1em;
+}
+#top-bar .menu .named-menu-item:last-child {
+  border-radius: 0 0 1.3em 0;
+}
+#top-bar .menu .named-menu-item:hover {
+  background-color: #c7b480;
+  color: white;
+}
+#top-bar .menu .named-menu-item .toggle-switch {
+  margin-left:0.5em;
+  margin-right:0.5em;
+}
+
+#top-bar .menu .menu-item-iconic:hover + .submenu,
+#top-bar .menu .menu-item-iconic + .submenu:hover {
+  display: flex;
+  transform: scaleY(1);
+}
+
+#top-bar .menu .top-menu-item:hover,
+#top-bar .menu .top-menu-item:has(+ .submenu:hover) {
+  background-color: #bba874;/*c7b480*/
+}
+#top-bar .menu .top-menu-item:hover .icon svg,
+#top-bar .menu .top-menu-item:has(+ .submenu:hover) .icon svg {
+  fill: var(--light-page-color);
 }
 
 #top-bar .menu:hover,
@@ -382,6 +441,25 @@ select {
   transform: scaleY(1);
   display: flex;
   border-radius: 0 0 1.3em 0;
+}
+
+#top-bar .menu .top-menu-item {
+  position: relative;
+}
+#top-bar .menu .icon,
+#top-bar .menu .link {
+  display: flex;
+  height: 2.75em;
+  width: 2.75em;
+  align-items: center;
+  justify-content: center;
+}
+#top-bar .menu .top-menu-item:last-child {
+  border-radius: 0 0 1.3em 0;
+}
+#top-bar .menu .top-menu-item:hover {
+  background-color: #bba874;
+  color: white;
 }
 
 #top-bar .menu-icon {
@@ -1818,15 +1896,16 @@ svg.expandable path {
 }
 
 .test-percent {
+  position: absolute;
+  right: 0;
+  margin: 1em;
   height: 1.7em;
   display: flex;
   padding: 0 1em 0 1em;
   font-size: 0.7em;
-  border-radius: 1em;
+  border-radius: 1.08em;
   background-color: #c7b480;
   align-items: center;
-  margin-left: auto;
-  margin-right: 1em;
 }
 
 .test-percent.all-pass {
@@ -1932,7 +2011,7 @@ svg.expandable path {
 }
 
 .toggle-switch.active {
-  background-color: #c7b480;
+  background-color: #4fad66;/*#c7b480;*/
   /*#f6cb3f;*/
   border: solid 1px transparent;
 }
@@ -1940,7 +2019,7 @@ svg.expandable path {
 .toggle-switch.active .toggle-knob {
   margin-left: 0.9em;
   margin-right: 1px;
-  color: #c7b480;
+  color: #4fad66;
 }
 
 /* END TOGGLE */

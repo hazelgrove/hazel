@@ -392,104 +392,94 @@ let view =
   @ bottom_bar;
 };
 
-let toolbar_buttons = (~inject, editors: Editors.t, ~settings: Settings.t) => {
-  let (_idx, _specs, exercise): Editors.exercises =
-    switch (editors) {
-    | Exercise(idx, specs, exercise) => (idx, specs, exercise)
-    | _ => assert(false)
-    };
-  let Exercise.{pos: _, eds} = exercise;
+let reset_button = inject =>
+  Widgets.button_named(
+    Icons.trash,
+    _ => {
+      let confirmed =
+        JsUtil.confirm(
+          "Are you SURE you want to reset this exercise? You will lose any existing code that you have written, and course staff have no way to restore it!",
+        );
+      if (confirmed) {
+        inject(UpdateAction.ResetCurrentEditor);
+      } else {
+        Virtual_dom.Vdom.Effect.Ignore;
+      };
+    },
+    ~tooltip="Reset Exercise",
+  );
 
-  let reset_button =
-    Widgets.button(
-      Icons.trash,
-      _ => {
-        let confirmed =
-          JsUtil.confirm(
-            "Are you SURE you want to reset this exercise? You will lose any existing code that you have written, and course staff have no way to restore it!",
-          );
-        if (confirmed) {
-          inject(Update.ResetCurrentEditor);
-        } else {
-          Virtual_dom.Vdom.Effect.Ignore;
-        };
-      },
-      ~tooltip="Reset Exercise",
-    );
+let instructor_export = (exercise: Exercise.state) =>
+  Widgets.button_named(
+    Icons.star,
+    _ => {
+      // .ml files because show uses OCaml syntax (dune handles seamlessly)
+      let module_name = exercise.eds.module_name;
+      let filename = exercise.eds.module_name ++ ".ml";
+      let content_type = "text/plain";
+      let contents = Exercise.export_module(module_name, exercise);
+      JsUtil.download_string_file(~filename, ~content_type, ~contents);
+      Virtual_dom.Vdom.Effect.Ignore;
+    },
+    ~tooltip="Export Exercise Module",
+  );
 
-  let instructor_export =
-    settings.instructor_mode
-      ? Some(
-          Widgets.button(
-            Icons.export, // TODO(cyrus) distinct icon
-            _ => {
-              // .ml files because show uses OCaml syntax (dune handles seamlessly)
-              let module_name = eds.module_name;
-              let filename = eds.module_name ++ ".ml";
-              let content_type = "text/plain";
-              let contents = Exercise.export_module(module_name, exercise);
-              JsUtil.download_string_file(
-                ~filename,
-                ~content_type,
-                ~contents,
-              );
-              Virtual_dom.Vdom.Effect.Ignore;
-            },
-            ~tooltip="Export Exercise Module (Instructor Mode)",
-          ),
-        )
-      : None;
+let instructor_transitionary_export = (exercise: Exercise.state) =>
+  Widgets.button_named(
+    Icons.star,
+    _ => {
+      // .ml files because show uses OCaml syntax (dune handles seamlessly)
+      let module_name = exercise.eds.module_name;
+      let filename = exercise.eds.module_name ++ ".ml";
+      let content_type = "text/plain";
+      let contents =
+        Exercise.export_transitionary_module(module_name, exercise);
+      JsUtil.download_string_file(~filename, ~content_type, ~contents);
+      Virtual_dom.Vdom.Effect.Ignore;
+    },
+    ~tooltip="Export Transitionary Exercise Module",
+  );
 
-  let instructor_transitionary_export =
-    settings.instructor_mode
-      ? Some(
-          Widgets.button(
-            Icons.export, // TODO(cyrus) distinct icon
-            _ => {
-              // .ml files because show uses OCaml syntax (dune handles seamlessly)
-              let module_name = eds.module_name;
-              let filename = eds.module_name ++ ".ml";
-              let content_type = "text/plain";
-              let contents =
-                Exercise.export_transitionary_module(module_name, exercise);
-              JsUtil.download_string_file(
-                ~filename,
-                ~content_type,
-                ~contents,
-              );
-              Virtual_dom.Vdom.Effect.Ignore;
-            },
-            ~tooltip="Export Transitionary Exercise Module (Instructor Mode)",
-          ),
-        )
-      : None;
+let instructor_grading_export = (exercise: Exercise.state) =>
+  Widgets.button_named(
+    Icons.star,
+    _ => {
+      // .ml files because show uses OCaml syntax (dune handles seamlessly)
+      let module_name = exercise.eds.module_name;
+      let filename = exercise.eds.module_name ++ "_grading.ml";
+      let content_type = "text/plain";
+      let contents = Exercise.export_grading_module(module_name, exercise);
+      JsUtil.download_string_file(~filename, ~content_type, ~contents);
+      Virtual_dom.Vdom.Effect.Ignore;
+    },
+    ~tooltip="Export Grading Exercise Module",
+  );
 
-  let instructor_grading_export =
-    settings.instructor_mode
-      ? Some(
-          Widgets.button(
-            Icons.export, // TODO(cyrus) distinct icon
-            _ => {
-              // .ml files because show uses OCaml syntax (dune handles seamlessly)
-              let module_name = eds.module_name;
-              let filename = eds.module_name ++ "_grading.ml";
-              let content_type = "text/plain";
-              let contents =
-                Exercise.export_grading_module(module_name, exercise);
-              JsUtil.download_string_file(
-                ~filename,
-                ~content_type,
-                ~contents,
-              );
-              Virtual_dom.Vdom.Effect.Ignore;
-            },
-            ~tooltip="Export Grading Exercise Module (Instructor Mode)",
-          ),
-        )
-      : None;
+let download_editor_state = (~instructor_mode) =>
+  Log.get_and(log => {
+    let data = Export.export_all(~instructor_mode, ~log);
+    JsUtil.download_json(ExerciseSettings.filename, data);
+  });
 
-  [reset_button]
-  @ Option.to_list(instructor_export)
-  @ Option.to_list(instructor_transitionary_export)
-  @ Option.to_list(instructor_grading_export);
-};
+let export_submission = (~settings: Settings.t) =>
+  Widgets.button_named(
+    Icons.star,
+    _ => {
+      download_editor_state(~instructor_mode=settings.instructor_mode);
+      Virtual_dom.Vdom.Effect.Ignore;
+    },
+    ~tooltip="Export Submission",
+  );
+
+let import_submission = (~inject) =>
+  Widgets.file_select_button_named(
+    "import-submission",
+    Icons.star,
+    file => {
+      switch (file) {
+      | None => Virtual_dom.Vdom.Effect.Ignore
+      | Some(file) => inject(UpdateAction.InitImportAll(file))
+      }
+    },
+    ~tooltip="Import Submission",
+  );
