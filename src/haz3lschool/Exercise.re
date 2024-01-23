@@ -578,6 +578,19 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     hidden_tests: 'a,
   };
 
+  let wrap_filter =
+      (act: FilterAction.action, term_item: TermItem.t): TermItem.t => {
+    TermBase.UExp.{
+      term:
+        TermBase.UExp.Filter(
+          FilterAction.(act, One),
+          {term: Constructor("$e"), ids: [Id.mk()]},
+          term_item,
+        ),
+      ids: [Id.mk()],
+    };
+  };
+
   let stitch_term = ({eds, _}: state): stitched(TermItem.t) => {
     let instructor =
       EditorUtil.stitch([
@@ -585,6 +598,13 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         eds.correct_impl,
         eds.hidden_tests.tests,
       ]);
+    let (your_impl_term, _) =
+      MakeTerm.from_zip_for_view(eds.your_impl.state.zipper);
+    let your_impl_term' = your_impl_term |> wrap_filter(FilterAction.Step);
+    let (prelude_term, _) =
+      MakeTerm.from_zip_for_view(eds.prelude.state.zipper);
+    let prelude_term' = prelude_term |> wrap_filter(FilterAction.Eval);
+    let user_impl = EditorUtil.append_exp(prelude_term', your_impl_term');
     {
       test_validation:
         EditorUtil.stitch([
@@ -592,7 +612,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
           eds.correct_impl,
           eds.your_tests.tests,
         ]),
-      user_impl: EditorUtil.stitch([eds.prelude, eds.your_impl]),
+      user_impl,
       user_tests:
         EditorUtil.stitch([eds.prelude, eds.your_impl, eds.your_tests.tests]),
       prelude: instructor, // works as long as you don't shadow anything in the prelude

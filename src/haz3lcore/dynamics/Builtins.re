@@ -272,8 +272,7 @@ module Pervasives = {
 };
 
 let ctx_init: Ctx.t = {
-  let meta_cons_map =
-    ConstructorMap.of_list([("$Expr", None), ("$Value", None)]);
+  let meta_cons_map = ConstructorMap.of_list([("$e", None), ("$v", None)]);
   let meta =
     Ctx.TVarEntry({
       name: "$Meta",
