@@ -4,6 +4,9 @@ open Util.Web;
 open Haz3lcore;
 open Widgets;
 
+/* If you are adding docs here for new syntax, see PipelineExp.re
+ * which documents the simplest way to add a new form. */
+
 let feedback_view = (message, up_active, up_action, down_active, down_action) => {
   div(
     ~attr=clss(["feedback"]),
