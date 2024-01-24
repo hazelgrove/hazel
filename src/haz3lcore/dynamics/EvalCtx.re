@@ -60,9 +60,9 @@ type t =
   | FixF(Var.t, Typ.t, t)
   | Ap1(t, DHExp.t)
   | Ap2(DHExp.t, t)
-  | IfThenElse1(bool, t, DHExp.t, DHExp.t)
-  | IfThenElse2(bool, DHExp.t, t, DHExp.t)
-  | IfThenElse3(bool, DHExp.t, DHExp.t, t)
+  | IfThenElse1(if_consistency, t, DHExp.t, DHExp.t)
+  | IfThenElse2(if_consistency, DHExp.t, t, DHExp.t)
+  | IfThenElse3(if_consistency, DHExp.t, DHExp.t, t)
   | BinBoolOp1(TermBase.UExp.op_bin_bool, t, DHExp.t)
   | BinBoolOp2(TermBase.UExp.op_bin_bool, DHExp.t, t)
   | BinIntOp1(TermBase.UExp.op_bin_int, t, DHExp.t)
@@ -238,32 +238,20 @@ let rec unwrap = (ctx: t, sel: cls): option(t) => {
   | (Sequence1, Sequence2(_))
   | (Sequence2, Sequence1(_))
   | (ListConcat1, ListConcat2(_))
-  | (ListConcat2, ListConcat1(_))
-  | (ConsistentCase, ConsistentCaseRule(_))
-  | (ConsistentCaseRule(_), ConsistentCase(_))
-  | (InconsistentBranches, InconsistentBranchesRule(_))
-  | (InconsistentBranchesRule(_), InconsistentBranches(_)) => None
+  | (ListConcat2, ListConcat1(_)) => None
   | (Closure, _) => Some(ctx)
   | (tag, Closure(_, c)) => unwrap(c, tag)
   | (Filter, _) => Some(ctx)
   | (tag, Filter(_, c)) => unwrap(c, tag)
   | (Cast, _) => Some(ctx)
   | (tag, Cast(c, _, _)) => unwrap(c, tag)
-  | (tag, ctx) =>
-    print_endline(
-      Sexplib.Sexp.to_string_hum(sexp_of_cls(tag))
-      ++ " does not match with "
-      ++ Sexplib.Sexp.to_string_hum(sexp_of_t(ctx)),
-    );
-    raise(EvaluatorError.Exception(StepDoesNotMatch));
+  | (_, _) =>
+    // print_endline(
+    //   Sexplib.Sexp.to_string_hum(sexp_of_cls(tag))
+    //   ++ " does not match with "
+    //   ++ Sexplib.Sexp.to_string_hum(sexp_of_t(ctx)),
+    // );
+    None
+  // raise(EvaluatorError.Exception(StepDoesNotMatch));
   };
 };
-
-/* unwrap_unsafe is like unwrap, but will return None instead of an
-   exception if the selector is not valid for the expression. It is a
-   hack to prevent exceptions until we get ids in dynamics */
-let unwrap_unsafe = (ctx, sel) =>
-  switch (unwrap(ctx, sel)) {
-  | exception (EvaluatorError.Exception(StepDoesNotMatch)) => None
-  | _ => None
-  };

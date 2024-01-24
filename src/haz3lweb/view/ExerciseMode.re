@@ -6,7 +6,7 @@ type t = {
   exercise: Exercise.state,
   results: option(ModelResults.t),
   settings: Settings.t,
-  langDocMessages: LangDocMessages.t,
+  explainThisModel: ExplainThisModel.t,
   stitched_dynamics: Exercise.stitched(Exercise.DynamicsItem.t),
   grading_report: Grading.GradingReport.t,
 };
@@ -16,7 +16,7 @@ let mk =
       ~exercise: Exercise.state,
       ~results: option(ModelResults.t),
       ~settings: Settings.t,
-      ~langDocMessages,
+      ~explainThisModel,
     )
     : t => {
   let Exercise.{eds, _} = exercise;
@@ -31,7 +31,7 @@ let mk =
     exercise,
     results,
     settings,
-    langDocMessages,
+    explainThisModel,
     stitched_dynamics,
     grading_report,
   };
@@ -60,7 +60,7 @@ let view =
     settings,
     stitched_dynamics,
     grading_report,
-    langDocMessages,
+    explainThisModel,
   } = self;
   let Exercise.{pos, eds} = exercise;
   let Exercise.{
@@ -74,11 +74,16 @@ let view =
       } = stitched_dynamics;
   let (focal_zipper, focal_info_map) =
     Exercise.focus(exercise, stitched_dynamics);
-
+  let score_view = Grading.GradingReport.view_overall_score(grading_report);
   let color_highlighting: option(ColorSteps.colorMap) =
-    if (langDocMessages.highlight && langDocMessages.show) {
+    if (explainThisModel.highlight && explainThisModel.show) {
+      //TODO(andrew): is indicated index appropriate below?
       Some(
-        LangDoc.get_color_map(~settings, ~doc=langDocMessages, focal_zipper),
+        ExplainThis.get_color_map(
+          ~doc=explainThisModel,
+          None,
+          focal_info_map,
+        ),
       );
     } else {
       None;
@@ -342,30 +347,34 @@ let view =
         CursorInspector.view(
           ~inject,
           ~settings,
-          ~show_lang_doc=langDocMessages.show,
+          ~show_explain_this=explainThisModel.show,
           focal_zipper,
           focal_info_map,
         ),
       ]
       : [];
   let sidebar =
-    langDocMessages.show && settings.core.statics
-      ? LangDoc.view(
+    explainThisModel.show && settings.core.statics
+      ? ExplainThis.view(
           ~inject,
           ~font_metrics,
           ~settings,
-          ~doc=langDocMessages,
+          ~doc=explainThisModel,
           Indicated.index(focal_zipper),
           focal_info_map,
         )
       : div([]);
   [
     div(
-      ~attr=Attr.id("main"),
+      ~attr=
+        Attr.many([
+          Attr.id("main"),
+          Attr.classes([Settings.show_mode(settings.mode)]),
+        ]),
       [
         div(
           ~attr=Attr.classes(["editor", "column"]),
-          [title_view, prompt_view]
+          [score_view, title_view, prompt_view]
           @ render_cells(
               settings,
               [
@@ -392,104 +401,94 @@ let view =
   @ bottom_bar;
 };
 
-let toolbar_buttons = (~inject, editors: Editors.t, ~settings: Settings.t) => {
-  let (_idx, _specs, exercise): Editors.exercises =
-    switch (editors) {
-    | Exercise(idx, specs, exercise) => (idx, specs, exercise)
-    | _ => assert(false)
-    };
-  let Exercise.{pos: _, eds} = exercise;
+let reset_button = inject =>
+  Widgets.button_named(
+    Icons.trash,
+    _ => {
+      let confirmed =
+        JsUtil.confirm(
+          "Are you SURE you want to reset this exercise? You will lose any existing code that you have written, and course staff have no way to restore it!",
+        );
+      if (confirmed) {
+        inject(UpdateAction.ResetCurrentEditor);
+      } else {
+        Virtual_dom.Vdom.Effect.Ignore;
+      };
+    },
+    ~tooltip="Reset Exercise",
+  );
 
-  let reset_button =
-    Widgets.button(
-      Icons.trash,
-      _ => {
-        let confirmed =
-          JsUtil.confirm(
-            "Are you SURE you want to reset this exercise? You will lose any existing code that you have written, and course staff have no way to restore it!",
-          );
-        if (confirmed) {
-          inject(Update.ResetCurrentEditor);
-        } else {
-          Virtual_dom.Vdom.Effect.Ignore;
-        };
-      },
-      ~tooltip="Reset Exercise",
-    );
+let instructor_export = (exercise: Exercise.state) =>
+  Widgets.button_named(
+    Icons.star,
+    _ => {
+      // .ml files because show uses OCaml syntax (dune handles seamlessly)
+      let module_name = exercise.eds.module_name;
+      let filename = exercise.eds.module_name ++ ".ml";
+      let content_type = "text/plain";
+      let contents = Exercise.export_module(module_name, exercise);
+      JsUtil.download_string_file(~filename, ~content_type, ~contents);
+      Virtual_dom.Vdom.Effect.Ignore;
+    },
+    ~tooltip="Export Exercise Module",
+  );
 
-  let instructor_export =
-    settings.instructor_mode
-      ? Some(
-          Widgets.button(
-            Icons.export, // TODO(cyrus) distinct icon
-            _ => {
-              // .ml files because show uses OCaml syntax (dune handles seamlessly)
-              let module_name = eds.module_name;
-              let filename = eds.module_name ++ ".ml";
-              let content_type = "text/plain";
-              let contents = Exercise.export_module(module_name, exercise);
-              JsUtil.download_string_file(
-                ~filename,
-                ~content_type,
-                ~contents,
-              );
-              Virtual_dom.Vdom.Effect.Ignore;
-            },
-            ~tooltip="Export Exercise Module (Instructor Mode)",
-          ),
-        )
-      : None;
+let instructor_transitionary_export = (exercise: Exercise.state) =>
+  Widgets.button_named(
+    Icons.star,
+    _ => {
+      // .ml files because show uses OCaml syntax (dune handles seamlessly)
+      let module_name = exercise.eds.module_name;
+      let filename = exercise.eds.module_name ++ ".ml";
+      let content_type = "text/plain";
+      let contents =
+        Exercise.export_transitionary_module(module_name, exercise);
+      JsUtil.download_string_file(~filename, ~content_type, ~contents);
+      Virtual_dom.Vdom.Effect.Ignore;
+    },
+    ~tooltip="Export Transitionary Exercise Module",
+  );
 
-  let instructor_transitionary_export =
-    settings.instructor_mode
-      ? Some(
-          Widgets.button(
-            Icons.export, // TODO(cyrus) distinct icon
-            _ => {
-              // .ml files because show uses OCaml syntax (dune handles seamlessly)
-              let module_name = eds.module_name;
-              let filename = eds.module_name ++ ".ml";
-              let content_type = "text/plain";
-              let contents =
-                Exercise.export_transitionary_module(module_name, exercise);
-              JsUtil.download_string_file(
-                ~filename,
-                ~content_type,
-                ~contents,
-              );
-              Virtual_dom.Vdom.Effect.Ignore;
-            },
-            ~tooltip="Export Transitionary Exercise Module (Instructor Mode)",
-          ),
-        )
-      : None;
+let instructor_grading_export = (exercise: Exercise.state) =>
+  Widgets.button_named(
+    Icons.star,
+    _ => {
+      // .ml files because show uses OCaml syntax (dune handles seamlessly)
+      let module_name = exercise.eds.module_name;
+      let filename = exercise.eds.module_name ++ "_grading.ml";
+      let content_type = "text/plain";
+      let contents = Exercise.export_grading_module(module_name, exercise);
+      JsUtil.download_string_file(~filename, ~content_type, ~contents);
+      Virtual_dom.Vdom.Effect.Ignore;
+    },
+    ~tooltip="Export Grading Exercise Module",
+  );
 
-  let instructor_grading_export =
-    settings.instructor_mode
-      ? Some(
-          Widgets.button(
-            Icons.export, // TODO(cyrus) distinct icon
-            _ => {
-              // .ml files because show uses OCaml syntax (dune handles seamlessly)
-              let module_name = eds.module_name;
-              let filename = eds.module_name ++ "_grading.ml";
-              let content_type = "text/plain";
-              let contents =
-                Exercise.export_grading_module(module_name, exercise);
-              JsUtil.download_string_file(
-                ~filename,
-                ~content_type,
-                ~contents,
-              );
-              Virtual_dom.Vdom.Effect.Ignore;
-            },
-            ~tooltip="Export Grading Exercise Module (Instructor Mode)",
-          ),
-        )
-      : None;
+let download_editor_state = (~instructor_mode) =>
+  Log.get_and(log => {
+    let data = Export.export_all(~instructor_mode, ~log);
+    JsUtil.download_json(ExerciseSettings.filename, data);
+  });
 
-  [reset_button]
-  @ Option.to_list(instructor_export)
-  @ Option.to_list(instructor_transitionary_export)
-  @ Option.to_list(instructor_grading_export);
-};
+let export_submission = (~settings: Settings.t) =>
+  Widgets.button_named(
+    Icons.star,
+    _ => {
+      download_editor_state(~instructor_mode=settings.instructor_mode);
+      Virtual_dom.Vdom.Effect.Ignore;
+    },
+    ~tooltip="Export Submission",
+  );
+
+let import_submission = (~inject) =>
+  Widgets.file_select_button_named(
+    "import-submission",
+    Icons.star,
+    file => {
+      switch (file) {
+      | None => Virtual_dom.Vdom.Effect.Ignore
+      | Some(file) => inject(UpdateAction.InitImportAll(file))
+      }
+    },
+    ~tooltip="Import Submission",
+  );

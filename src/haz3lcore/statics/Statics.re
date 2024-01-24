@@ -228,8 +228,8 @@ and uexp_to_info_map =
       ids: e.ids,
       term:
         switch (e.term) {
-        | Var("e") => UExp.Constructor("$Expr")
-        | Var("v") => UExp.Constructor("$Value")
+        | Var("e") => UExp.Constructor("$e")
+        | Var("v") => UExp.Constructor("$v")
         | _ => e.term
         },
     };

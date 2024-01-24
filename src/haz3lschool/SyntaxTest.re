@@ -238,3 +238,19 @@ let check =
       length == 0 ? 1. : float_of_int(passing) /. float_of_int(length),
   };
 };
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type predicate =
+  | VarApplied(string)
+  | IsRecursive(string)
+  | IsNotRecursive(string)
+  | IsTailRecursive(string);
+
+let predicate_fn = predicate => {
+  switch (predicate) {
+  | VarApplied(name) => var_applied(name)
+  | IsRecursive(name) => is_recursive(name)
+  | IsNotRecursive(name) => (uexp => !is_recursive(name, uexp))
+  | IsTailRecursive(name) => is_tail_recursive(name)
+  };
+};

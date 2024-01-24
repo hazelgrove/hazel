@@ -42,7 +42,7 @@ type t = {
   editors: Editors.t,
   settings: Settings.t,
   results: ModelResults.t,
-  langDocMessages: LangDocMessages.t,
+  explainThisModel: ExplainThisModel.t,
   meta,
 };
 
@@ -52,7 +52,7 @@ let mk = (editors, results) => {
   editors,
   settings: Init.startup.settings,
   results,
-  langDocMessages: LangDocMessages.init,
+  explainThisModel: ExplainThisModel.init,
   meta: meta_init,
 };
 
@@ -132,14 +132,14 @@ let update_elabs = (model: t): t => {
 
 let load = (init_model: t): t => {
   let settings = Store.Settings.load();
-  let langDocMessages = Store.LangDocMessages.load();
+  let explainThisModel = Store.ExplainThisModel.load();
   let (editors, results) =
     load_editors(
       ~mode=settings.mode,
       ~instructor_mode=settings.instructor_mode,
     );
   let meta = init_model.meta;
-  let m = {editors, settings, results, langDocMessages, meta};
+  let m = {editors, settings, results, explainThisModel, meta};
   let m = update_elabs(m);
   {
     ...m,
@@ -147,9 +147,9 @@ let load = (init_model: t): t => {
   };
 };
 
-let save = ({editors, settings, langDocMessages, results, _}: t) => {
+let save = ({editors, settings, explainThisModel, results, _}: t) => {
   save_editors(editors, results, ~instructor_mode=settings.instructor_mode);
-  Store.LangDocMessages.save(langDocMessages);
+  Store.ExplainThisModel.save(explainThisModel);
   Store.Settings.save(settings);
 };
 
@@ -162,7 +162,7 @@ let reset = (model: t): t => {
      but don't otherwise erase localstorage, allowing
      e.g. api keys to persist */
   ignore(Store.Settings.init());
-  ignore(Store.LangDocMessages.init());
+  ignore(Store.ExplainThisModel.init());
   ignore(Store.Scratch.init());
   ignore(Store.Examples.init());
   ignore(Store.Exercise.init(~instructor_mode=true));
