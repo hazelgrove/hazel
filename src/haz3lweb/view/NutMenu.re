@@ -38,53 +38,50 @@ let settings_menu =
     toggle_named(icon, ~tooltip, bool, _ =>
       inject(UpdateAction.Set(setting))
     );
-  div(
-    ~attr=clss(["submenu", "settings"]),
-    [
-      toggle("⇲", "Toggle Completion", core.assist, Assist),
-      toggle("𝑒", "Show Elaboration", core.elaborate, Elaborate),
-      toggle(
-        "λ",
-        "Show Function Bodies",
-        evaluation.show_fn_bodies,
-        Evaluation(ShowFnBodies),
-      ),
-      toggle(
-        "|",
-        "Show Case Clauses",
-        evaluation.show_case_clauses,
-        Evaluation(ShowCaseClauses),
-      ),
-      toggle(
-        "f",
-        "Show fixpoints",
-        evaluation.show_fixpoints,
-        Evaluation(ShowCaseClauses),
-      ),
-      toggle(
-        Unicode.castArrowSym,
-        "Show casts",
-        evaluation.show_casts,
-        Evaluation(ShowCasts),
-      ),
-      toggle(
-        "🔍",
-        "Show Lookup Steps",
-        evaluation.show_lookup_steps,
-        Evaluation(ShowLookups),
-      ),
-      toggle(
-        "⏯️",
-        "Show Stepper Filters",
-        evaluation.show_stepper_filters,
-        Evaluation(ShowFilters),
-      ),
-      toggle("↵", "Show Whitespace", secondary_icons, SecondaryIcons),
-      toggle("τ", "Toggle Statics", core.statics, Statics),
-      toggle("𝛿", "Toggle Dynamics", core.dynamics, Dynamics),
-      toggle("✓", "Print Benchmarks", benchmark, Benchmark),
-    ],
-  );
+  [
+    toggle("⇲", "Toggle Completion", core.assist, Assist),
+    toggle("𝑒", "Show Elaboration", core.elaborate, Elaborate),
+    toggle(
+      "λ",
+      "Show Function Bodies",
+      evaluation.show_fn_bodies,
+      Evaluation(ShowFnBodies),
+    ),
+    toggle(
+      "|",
+      "Show Case Clauses",
+      evaluation.show_case_clauses,
+      Evaluation(ShowCaseClauses),
+    ),
+    toggle(
+      "f",
+      "Show fixpoints",
+      evaluation.show_fixpoints,
+      Evaluation(ShowCaseClauses),
+    ),
+    toggle(
+      Unicode.castArrowSym,
+      "Show casts",
+      evaluation.show_casts,
+      Evaluation(ShowCasts),
+    ),
+    toggle(
+      "🔍",
+      "Show Lookup Steps",
+      evaluation.show_lookup_steps,
+      Evaluation(ShowLookups),
+    ),
+    toggle(
+      "⏯️",
+      "Show Stepper Filters",
+      evaluation.show_stepper_filters,
+      Evaluation(ShowFilters),
+    ),
+    toggle("↵", "Show Whitespace", secondary_icons, SecondaryIcons),
+    toggle("τ", "Toggle Statics", core.statics, Statics),
+    toggle("𝛿", "Toggle Dynamics", core.dynamics, Dynamics),
+    toggle("✓", "Print Benchmarks", benchmark, Benchmark),
+  ];
 };
 
 let export_menu = (~inject, ~settings: Settings.t, editors: Editors.t) =>
@@ -141,7 +138,7 @@ let view =
       submenu(
         ~tooltip="Settings",
         ~icon=Icons.gear,
-        [settings_menu(~inject, ~settings)],
+        settings_menu(~inject, ~settings),
       ),
       submenu(
         ~tooltip="Export",
