@@ -236,6 +236,15 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
     | ApBuiltin(s, ctx) =>
       let d' = compose(ctx, d);
       ApBuiltin(s, d');
+    | IfThenElse1(c, ctx, d2, d3) =>
+      let d' = compose(ctx, d);
+      IfThenElse(c, d', d2, d3);
+    | IfThenElse2(c, d1, ctx, d3) =>
+      let d' = compose(ctx, d);
+      IfThenElse(c, d1, d', d3);
+    | IfThenElse3(c, d1, d2, ctx) =>
+      let d' = compose(ctx, d);
+      IfThenElse(c, d1, d2, d');
     | Test(lit, ctx) =>
       let d1 = compose(ctx, d);
       Test(lit, d1);

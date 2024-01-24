@@ -61,6 +61,7 @@ type step_kind =
   | BinIntOp(TermBase.UExp.op_bin_int)
   | BinFloatOp(TermBase.UExp.op_bin_float)
   | BinStringOp(TermBase.UExp.op_bin_string)
+  | Conditional(bool)
   | Projection
   | ListCons
   | ListConcat
@@ -312,6 +313,36 @@ module Transition = (EV: EV_MODE) => {
     | BuiltinFun(_) =>
       let. _ = otherwise(env, d);
       Constructor;
+    | IfThenElse(consistent, c, d1, d2) =>
+      let. _ = otherwise(env, c => IfThenElse(consistent, c, d1, d2))
+      and. c' =
+        req_value(
+          req(state, env),
+          c => IfThenElse1(consistent, c, d1, d2),
+          c,
+        );
+      switch (consistent, c') {
+      | (ConsistentIf, BoolLit(b)) =>
+        Step({
+          apply: () => {
+            b ? d1 : d2;
+          },
+          // Attach c' to indicate which branch taken.
+          kind: Conditional(b),
+          value: false,
+        })
+      // Use a seperate case for invalid conditionals. Makes extracting the bool from BoolLit (above) easier.
+      | (ConsistentIf, _) =>
+        Step({
+          apply: () => {
+            raise(EvaluatorError.Exception(InvalidBoxedBoolLit(c')));
+          },
+          kind: InvalidStep,
+          value: true,
+        })
+      // Inconsistent branches should be Indet
+      | (InconsistentIf, _) => Indet
+      };
     | BinBoolOp(And, d1, d2) =>
       let. _ = otherwise(env, d1 => BinBoolOp(And, d1, d2))
       and. d1' =
@@ -629,6 +660,7 @@ let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
   | CaseApply
   | Projection // TODO(Matt): We don't want to show projection to the user
   | Skip
+  | Conditional(_)
   | InvalidStep => false
   | VarLookup => !settings.show_lookup_steps
   | CastAp

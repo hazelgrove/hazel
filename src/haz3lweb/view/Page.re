@@ -5,13 +5,10 @@ open Widgets;
 open Haz3lcore;
 
 let top_bar_view =
-    (
-      ~inject: Update.t => 'a,
-      ~model as {editors, settings, _} as model: Model.t,
-    ) =>
+    (~inject: Update.t => 'a, ~model as {editors, settings, _}: Model.t) =>
   div(
     ~attr=Attr.id("top-bar"),
-    NutMenu.view(~inject, model)
+    NutMenu.view(~inject, ~settings, ~editors)
     @ [div(~attr=Attr.id("title"), [text("hazel")])]
     @ [EditorModeView.view(~inject, ~settings, ~editors)],
   );
@@ -22,7 +19,7 @@ let exercises_view =
       ~exercise,
       {
         settings,
-        langDocMessages,
+        explainThisModel,
         results,
         meta: {
           ui_state: {font_metrics, show_backpack_targets, mousedown, _},
@@ -36,10 +33,9 @@ let exercises_view =
       ~settings,
       ~exercise,
       ~results=settings.core.dynamics ? Some(results) : None,
-      ~langDocMessages,
+      ~explainThisModel,
     );
   [top_bar_view(~inject, ~model)]
-  @ [Grading.GradingReport.view_overall_score(exercise_mode.grading_report)]
   @ ExerciseMode.view(
       ~inject,
       ~font_metrics,

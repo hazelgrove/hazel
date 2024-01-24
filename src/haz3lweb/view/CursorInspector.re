@@ -12,16 +12,16 @@ let div_ok = div(~attr=clss([okc]));
 let code_err = (code: string): Node.t =>
   div(~attr=clss(["code"]), [text(code)]);
 
-let lang_doc_toggle = (~inject, ~show_lang_doc: bool): Node.t => {
+let explain_this_toggle = (~inject, ~show_explain_this: bool): Node.t => {
   let tooltip = "Toggle language documentation";
-  let toggle_landocs = _ =>
+  let toggle_explain_this = _ =>
     Virtual_dom.Vdom.Effect.Many([
-      inject(Update.UpdateLangDocMessages(ToggleShow)),
+      inject(Update.UpdateExplainThisModel(ToggleShow)),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   div(
-    ~attr=clss(["lang-doc-button"]),
-    [Widgets.toggle(~tooltip, "?", show_lang_doc, toggle_landocs)],
+    ~attr=clss(["explain-this-button"]),
+    [Widgets.toggle(~tooltip, "?", show_explain_this, toggle_explain_this)],
   );
 };
 
@@ -41,7 +41,7 @@ let ctx_toggle = (~inject, context_inspector: bool): Node.t =>
     [text("Γ")],
   );
 
-let term_view = (~inject, ~settings: Settings.t, ~show_lang_doc, ci) => {
+let term_view = (~inject, ~settings: Settings.t, ~show_explain_this, ci) => {
   let sort = ci |> Info.sort_of |> Sort.show;
   div(
     ~attr=clss(["ci-header", sort] @ (Info.is_error(ci) ? [errc] : [])),
@@ -49,7 +49,7 @@ let term_view = (~inject, ~settings: Settings.t, ~show_lang_doc, ci) => {
       ctx_toggle(~inject, settings.context_inspector),
       CtxInspector.view(~inject, ~settings, ci),
       div(~attr=clss(["term-tag"]), [text(sort)]),
-      lang_doc_toggle(~inject, ~show_lang_doc),
+      explain_this_toggle(~inject, ~show_explain_this),
       cls_view(ci),
     ],
   );
@@ -198,11 +198,11 @@ let tpat_view = (_: Term.Cls.t, status: Info.status_tpat) =>
   };
 
 let view_of_info =
-    (~inject, ~settings, ~show_lang_doc: bool, ci: Statics.Info.t): Node.t => {
+    (~inject, ~settings, ~show_explain_this: bool, ci: Statics.Info.t): Node.t => {
   let wrapper = status_view =>
     div(
       ~attr=clss(["info"]),
-      [term_view(~inject, ~settings, ~show_lang_doc, ci), status_view],
+      [term_view(~inject, ~settings, ~show_explain_this, ci), status_view],
     );
   switch (ci) {
   | InfoExp({cls, status, _}) => wrapper(exp_view(cls, status))
@@ -212,17 +212,17 @@ let view_of_info =
   };
 };
 
-let inspector_view = (~inject, ~settings, ~show_lang_doc, ci): Node.t =>
+let inspector_view = (~inject, ~settings, ~show_explain_this, ci): Node.t =>
   div(
     ~attr=clss(["cursor-inspector"] @ [Info.is_error(ci) ? errc : okc]),
-    [view_of_info(~inject, ~settings, ~show_lang_doc, ci)],
+    [view_of_info(~inject, ~settings, ~show_explain_this, ci)],
   );
 
 let view =
     (
       ~inject,
       ~settings: Settings.t,
-      ~show_lang_doc: bool,
+      ~show_explain_this: bool,
       zipper: Zipper.t,
       info_map: Statics.Map.t,
     ) => {
@@ -244,7 +244,7 @@ let view =
     | None => err_view("Whitespace or Comment")
     | Some(ci) =>
       bar_view([
-        inspector_view(~inject, ~settings, ~show_lang_doc, ci),
+        inspector_view(~inject, ~settings, ~show_explain_this, ci),
         div(
           ~attr=clss(["id"]),
           [text(String.sub(Id.to_string(id), 0, 4))],

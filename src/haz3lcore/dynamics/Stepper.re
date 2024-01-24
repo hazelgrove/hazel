@@ -90,6 +90,15 @@ let rec matches =
     | Ap2(d1, ctx) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       Ap2(d1, ctx);
+    | IfThenElse1(c, ctx, d2, d3) =>
+      let+ ctx = matches(env, flt, ctx, exp, act, idx);
+      IfThenElse1(c, ctx, d2, d3);
+    | IfThenElse2(c, d1, ctx, d3) =>
+      let+ ctx = matches(env, flt, ctx, exp, act, idx);
+      IfThenElse2(c, d1, ctx, d3);
+    | IfThenElse3(c, d1, d2, ctx) =>
+      let+ ctx = matches(env, flt, ctx, exp, act, idx);
+      IfThenElse3(c, d1, d2, ctx);
     | BinBoolOp1(op, ctx, d1) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       BinBoolOp1(op, ctx, d1);
@@ -400,6 +409,7 @@ let get_justification: step_kind => string =
   | BinStringOp(Equals) => "check equality"
   | BinStringOp(Concat) => "string manipulation"
   | BinBoolOp(_) => "boolean logic"
+  | Conditional(_) => "conditional"
   | ListCons => "list manipulation"
   | ListConcat => "list manipulation"
   | CaseApply => "case selection"

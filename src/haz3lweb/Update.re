@@ -192,7 +192,7 @@ let reevaluate_post_update = (settings: Settings.t) =>
   | Copy
   | InitImportAll(_)
   | InitImportScratchpad(_)
-  | UpdateLangDocMessages(_)
+  | UpdateExplainThisModel(_)
   | DoTheThing => false
   | ExportPersistentData
   | UpdateResult(_)
@@ -278,7 +278,7 @@ let should_scroll_to_caret =
   | Save
   | InitImportAll(_)
   | InitImportScratchpad(_)
-  | UpdateLangDocMessages(_)
+  | UpdateExplainThisModel(_)
   | ExportPersistentData
   | DebugConsole(_)
   | Benchmark(_) => false;
@@ -364,10 +364,10 @@ let rec apply =
       Ok(Model.load(model));
     | SetMeta(action) =>
       Ok({...model, meta: meta_update(model, action, ~schedule_action)})
-    | UpdateLangDocMessages(u) =>
-      let langDocMessages =
-        LangDocMessages.set_update(model.langDocMessages, u);
-      Model.save_and_return({...model, langDocMessages});
+    | UpdateExplainThisModel(u) =>
+      let explainThisModel =
+        ExplainThisUpdate.set_update(model.explainThisModel, u);
+      Model.save_and_return({...model, explainThisModel});
     | DebugConsole(key) =>
       DebugConsole.print(model, key);
       Ok(model);

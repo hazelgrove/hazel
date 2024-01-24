@@ -149,6 +149,7 @@ let is_bool = regexp("^(" ++ String.concat("|", bools) ++ ")$");
 
 let is_var = str =>
   !is_bool(str)
+  && str != "_"
   //&& !is_keyword(str)
   //&& !is_reserved(str)
   && regexp(
