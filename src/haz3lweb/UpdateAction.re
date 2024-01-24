@@ -59,7 +59,7 @@ type t =
   | Reset
   | Set(settings_action)
   | SetMeta(set_meta)
-  | UpdateLangDocMessages(LangDocMessages.update)
+  | UpdateExplainThisModel(ExplainThisUpdate.update)
   | ExportPersistentData
   | DebugConsole(string)
   /* editors */
@@ -130,7 +130,7 @@ let is_edit: t => bool =
   | ReparseCurrentEditor
   | Copy
   | SetMeta(_)
-  | UpdateLangDocMessages(_)
+  | UpdateExplainThisModel(_)
   | DebugConsole(_)
   | InitImportAll(_)
   | FinishImportAll(_)

@@ -60,9 +60,9 @@ type t =
   | FixF(Var.t, Typ.t, t)
   | Ap1(t, DHExp.t)
   | Ap2(DHExp.t, t)
-  | IfThenElse1(bool, t, DHExp.t, DHExp.t)
-  | IfThenElse2(bool, DHExp.t, t, DHExp.t)
-  | IfThenElse3(bool, DHExp.t, DHExp.t, t)
+  | IfThenElse1(if_consistency, t, DHExp.t, DHExp.t)
+  | IfThenElse2(if_consistency, DHExp.t, t, DHExp.t)
+  | IfThenElse3(if_consistency, DHExp.t, DHExp.t, t)
   | BinBoolOp1(TermBase.UExp.op_bin_bool, t, DHExp.t)
   | BinBoolOp2(TermBase.UExp.op_bin_bool, DHExp.t, t)
   | BinIntOp1(TermBase.UExp.op_bin_int, t, DHExp.t)
@@ -245,13 +245,13 @@ let rec unwrap = (ctx: t, sel: cls): option(t) => {
   | (tag, Filter(_, c)) => unwrap(c, tag)
   | (Cast, _) => Some(ctx)
   | (tag, Cast(c, _, _)) => unwrap(c, tag)
-  | (tag, ctx) =>
-    print_endline(
-      Sexplib.Sexp.to_string_hum(sexp_of_cls(tag))
-      ++ " does not match with "
-      ++ Sexplib.Sexp.to_string_hum(sexp_of_t(ctx)),
-    );
-    None;
+  | (_, _) =>
+    // print_endline(
+    //   Sexplib.Sexp.to_string_hum(sexp_of_cls(tag))
+    //   ++ " does not match with "
+    //   ++ Sexplib.Sexp.to_string_hum(sexp_of_t(ctx)),
+    // );
+    None
   // raise(EvaluatorError.Exception(StepDoesNotMatch));
   };
 };
