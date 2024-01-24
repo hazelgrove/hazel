@@ -4,7 +4,7 @@ let bake_eq = (~fill=[], sort: Bound.t(Molded.Sort.t)) => {
   open OptUtil.Syntax;
   let (l, r) =
     switch (fill) {
-    | [] => Molded.Label.(space, space)
+    | [] => Mtrl.(Space, Space)
     | [_, ..._] =>
       Meld.(face(L, List.hd(fill)), face(R, ListUtil.last(fill)))
     };
@@ -19,7 +19,7 @@ let bake_lt = (~fill=[], bound: Bound.t(Molded.Sort.t), sort: Molded.Sort.t) => 
   open OptUtil.Syntax;
   let (l, r) =
     switch (fill) {
-    | None => Molded.Label.(space, space)
+    | None => Mtrl.(Space, Space)
     | Some(m) => Meld.faces(m)
     };
   let+ _w_l = ListUtil.hd_opt(Walker.walk_into(~from=L, bound, Node(l)))
@@ -34,7 +34,7 @@ let bake_gt = (~fill=[], sort: Molded.Sort.t, bound: Bound.t(Molded.Sort.t)) => 
   open OptUtil.Syntax;
   let (l, r) =
     switch (fill) {
-    | None => Molded.Label.(space, space)
+    | None => Mtrl.(Space, Space)
     | Some(m) => Meld.faces(m)
     };
   let+ w_l =
