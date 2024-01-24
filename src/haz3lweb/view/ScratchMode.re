@@ -14,8 +14,8 @@ let view =
           editors,
           settings,
           explainThisModel,
+          results,
           meta: {
-            results,
             ui_state: {font_metrics, show_backpack_targets, mousedown, _},
             _,
           },
@@ -25,10 +25,17 @@ let view =
   let zipper = editor.state.zipper;
   let (term, _) = MakeTerm.from_zip_for_sem(zipper);
   let info_map = Interface.Statics.mk_map_ctx(settings.core, ctx_init, term);
+  let result_key =
+    switch (editors) {
+    | Scratch(slide_idx, _) =>
+      ScratchSlide.scratch_key(string_of_int(slide_idx))
+    | Examples(name, _) => ScratchSlide.scratch_key(name)
+    | Exercise(_) => ""
+    | DebugLoad => ""
+    };
   let result =
-    ModelResult.get_simple(
-      ModelResults.lookup(results, ScratchSlide.scratch_key),
-    );
+    ModelResults.lookup(results, result_key)
+    |> Option.value(~default=ModelResult.NoElab);
   let color_highlighting: option(ColorSteps.colorMap) =
     if (explainThisModel.highlight && explainThisModel.show) {
       //TODO(andrew): is indicated index appropriate below?
@@ -56,7 +63,7 @@ let view =
       ~settings,
       ~color_highlighting,
       ~info_map,
-      ~term,
+      ~result_key,
       ~result,
       editor,
     );

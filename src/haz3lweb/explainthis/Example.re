@@ -121,6 +121,11 @@ let mk_if = mk_tile(Form.get("if_"));
 let mk_test = mk_tile(Form.get("test"));
 let mk_case = mk_tile(Form.get("case"));
 let mk_rule = mk_tile(Form.get("rule"));
+let mk_hide = mk_tile(Form.get("filter_hide"));
+let mk_eval = mk_tile(Form.get("filter_eval"));
+let mk_pause = mk_tile(Form.get("filter_pause"));
+let mk_debug = mk_tile(Form.get("filter_debug"));
+let mk_unquote = mk_tile(Form.get("unquote"));
 let linebreak = () => mk_secondary(Form.linebreak);
 let space = () => mk_secondary(Form.space);
 

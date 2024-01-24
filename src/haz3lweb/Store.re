@@ -113,13 +113,23 @@ module Scratch = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = PersistentData.scratch;
 
-  let to_persistent = ((idx, slides)): persistent => (
+  let to_persistent = ((idx, slides, results)): persistent => (
     idx,
     List.map(ScratchSlide.persist, slides),
+    results
+    |> ModelResults.map(ModelResult.to_persistent)
+    |> ModelResults.bindings,
   );
 
-  let of_persistent = ((idx, slides): persistent) => {
-    (idx, List.map(ScratchSlide.unpersist, slides));
+  let of_persistent = ((idx, slides, results): persistent) => {
+    (
+      idx,
+      List.map(ScratchSlide.unpersist, slides),
+      results
+      |> List.to_seq
+      |> ModelResults.of_seq
+      |> ModelResults.map(ModelResult.of_persistent),
+    );
   };
 
   let serialize = scratch => {
@@ -168,13 +178,23 @@ module Examples = {
     (name, Editor.init(zipper, ~read_only=false));
   };
 
-  let to_persistent = ((string, slides)): persistent => (
+  let to_persistent = ((string, slides, results)): persistent => (
     string,
     List.map(persist, slides),
+    results
+    |> ModelResults.map(ModelResult.to_persistent)
+    |> ModelResults.bindings,
   );
 
-  let of_persistent = ((string, slides): persistent) => {
-    (string, List.map(unpersist, slides));
+  let of_persistent = ((string, slides, results): persistent) => {
+    (
+      string,
+      List.map(unpersist, slides),
+      results
+      |> List.to_seq
+      |> ModelResults.of_seq
+      |> ModelResults.map(ModelResult.of_persistent),
+    );
   };
 
   let serialize = examples => {

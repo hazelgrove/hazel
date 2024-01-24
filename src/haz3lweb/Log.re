@@ -29,6 +29,9 @@ let is_action_logged: UpdateAction.t => bool =
   | Undo
   | Redo
   | MoveToNextHole(_)
+  | UpdateResult(_)
+  | ToggleStepper(_)
+  | StepperAction(_, StepForward(_) | StepBackward)
   | UpdateExplainThisModel(_) => true;
 
 module DB = {

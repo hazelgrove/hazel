@@ -3,6 +3,7 @@ open Sexplib.Std;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | OutOfFuel
+  | StepDoesNotMatch
   | FreeInvalidVar(Var.t)
   | BadPatternMatch
   | CastBVHoleGround(DHExp.t)
@@ -17,4 +18,5 @@ type t =
   | BadBuiltinAp(string, list(DHExp.t))
   | InvalidProjection(int);
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 exception Exception(t);

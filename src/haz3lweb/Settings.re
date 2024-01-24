@@ -33,18 +33,3 @@ let fix_instructor_mode = settings =>
   } else {
     settings;
   };
-
-module Evaluation = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    show_case_clauses: bool,
-    show_fn_bodies: bool,
-    show_casts: bool,
-  };
-
-  let init = {
-    show_case_clauses: true,
-    show_fn_bodies: true,
-    show_casts: true,
-  };
-};

@@ -123,8 +123,14 @@ let evaluate =
   | (es, BoxedValue(_) as r)
   | (es, Indet(_) as r) =>
     // let ((d, hii), es) = postprocess(es, d);
-    (r, es, HoleInstanceInfo.empty)
+    (r, es)
   };
+};
+
+let init = (d: DHExp.t): ProgramResult.t => {
+  let es = EvaluatorState.init;
+  let env = ClosureEnvironment.of_environment(Builtins.env_init);
+  (Indet(Closure(env, d)), es);
 };
 
 let eval_z =
@@ -144,11 +150,9 @@ let eval_z =
 let eval_d2d = (~settings: CoreSettings.t, d: DHExp.t): DHExp.t =>
   //NOTE: assumes empty init ctx, env
   switch (evaluate(~settings, d)) {
-  | (result, _, _) => EvaluatorResult.unbox(result)
+  | (result, _) => EvaluatorResult.unbox(result)
   };
 
 let eval_u2d = (~settings: CoreSettings.t, map, term): DHExp.t =>
   //NOTE: assumes empty init ctx, env
   term |> elaborate(~settings, map) |> eval_d2d(~settings);
-
-include TestResults;

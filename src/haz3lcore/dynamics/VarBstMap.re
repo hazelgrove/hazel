@@ -201,6 +201,10 @@ module Ordered = {
     let rev_order = bindings |> List.map(((x, _)) => (x, ())) |> List.rev;
     {map, rev_order};
   };
+
+  let without_keys = (keys, m) => {
+    filterk(((s, _)) => !List.exists(x => x == s, keys), m);
+  };
 };
 
 include VarBstMap0;
