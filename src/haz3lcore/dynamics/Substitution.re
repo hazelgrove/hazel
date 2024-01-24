@@ -111,6 +111,11 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   | InvalidOperation(d, err) =>
     let d' = subst_var(d1, x, d);
     InvalidOperation(d', err);
+  | IfThenElse(d3, d4, d5, d6) =>
+    let d4' = subst_var(d1, x, d4);
+    let d5' = subst_var(d1, x, d5);
+    let d6' = subst_var(d1, x, d6);
+    IfThenElse(d3, d4', d5', d6');
   }
 
 and subst_var_rules =
