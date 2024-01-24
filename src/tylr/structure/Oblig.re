@@ -1,3 +1,5 @@
+open Util;
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Missing_meld // convex grout
@@ -7,7 +9,23 @@ type t =
 
 // low to high severity
 let all = [Missing_meld, Missing_tile, Incon_meld, Extra_meld];
-let severity = o => Option.get(List.find_index((==)(o), all));
+let severity = o => Option.get(ListUtil.find_index((==)(o), all));
+
+let of_token = (tok: Token.t) =>
+  switch (tok.lbl.mtrl) {
+  | Space => None
+  | Grout =>
+    let null_l = Mold.nullable(~side=L, tok.lbl.mold);
+    let null_r = Mold.nullable(~side=R, tok.lbl.mold);
+    if (null_l && null_r) {
+      Some(Missing_meld);
+    } else if (null_l || null_r) {
+      Some(Incon_meld);
+    } else {
+      Some(Extra_meld);
+    };
+  | Tile(lbl) => Label.is_complete(tok.text, lbl) ? None : Some(Missing_tile)
+  };
 
 module Ord = {
   type nonrec t = t;
@@ -20,6 +38,10 @@ module Delta = {
   type t = Map.t(int);
   let find = (o, map) => Option.value(find_opt(o, map), ~default=0);
 
+  let zero = empty;
+  let decr = (o, map) => add(o, find(o, map) - 1, map);
+  let incr = (o, map) => add(o, find(o, map) + 1, map);
+
   let compare = (l, r) =>
     List.fold_right(
       (o, c) => c != 0 ? c : Int.compare(find(o, l), find(o, r)),
@@ -29,12 +51,12 @@ module Delta = {
 
   let add_effect = (R(eff): Effects.recorded) =>
     switch (eff) {
-    | Insert(t) =>
+    | Effects.Insert(t) =>
       switch (of_token(t)) {
       | None => Fun.id
       | Some(o) => incr(o)
       }
-    | Remove(t) =>
+    | Effects.Remove(t) =>
       switch (of_token(t)) {
       | None => Fun.id
       | Some(o) => decr(o)
@@ -52,9 +74,8 @@ module Delta = {
       |> List.filter_map(((y_opt, effs)) =>
            y_opt |> Option.map(y => (y, effs, of_effects(effs)))
          )
-      |> ListUtil.min(((_, _, l), (_, _, r)) => compare(l, r))
-      |> ListUtil.hd_opt;
-    if (!to_zero || delta == zero) {
+      |> ListUtil.min(((_, _, l), (_, _, r)) => compare(l, r));
+    if (!to_zero || compare(delta, zero) <= 0) {
       Effects.commit(effs);
       Some(y);
     } else {
