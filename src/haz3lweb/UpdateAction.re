@@ -43,7 +43,7 @@ type t =
   | Reset
   | Set(settings_action)
   | SetMeta(set_meta)
-  | UpdateLangDocMessages(LangDocMessages.update)
+  | UpdateExplainThisModel(ExplainThisUpdate.update)
   | ExportPersistentData
   | DebugConsole(string)
   /* editors */
