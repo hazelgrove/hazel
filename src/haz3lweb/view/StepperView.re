@@ -81,9 +81,9 @@ let stepper_view =
           div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
           dh_code_current(d),
           button_back,
+          eval_settings,
           show_history,
           hide_stepper,
-          eval_settings,
         ],
       )
     // TODO[Matt]: show errors and waiting
