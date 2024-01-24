@@ -11,27 +11,24 @@ module Action = {
 };
 
 let move = (d: Dir.t, z: Zipper.t): option(Zipper.t) => {
+  open OptUtil.Syntax;
   let b = Dir.toggle(d);
-  switch (z.foc) {
-  | Point =>
-    open OptUtil.Syntax;
-    let+ (t, ctx) = Ctx.pull(~from=d, z.ctx);
-    let n = Dir.pick(d, (Token.length(t) - 1, 1));
-    switch (Token.unzip(n, p)) {
-    | Error(_) => ctx |> Melder.Ctx.push(~onto=b, t) |> Zipper.mk
-    | Ok((l, r)) =>
-      ctx
-      |> Melder.Ctx.push(~onto=d, Dir.pick(d, (l, r)))
-      |> Melder.Ctx.push(~onto=b, Dir.pick(b, (l, r)))
-      |> Zipper.mk
+  let+ ctx =
+    switch (z.foc) {
+    | Point =>
+      let+ (tok, ctx) = Melder.Ctx.pull(~from=d, z.ctx);
+      switch (Token.pull(~from=b, tok)) {
+      | None => Melder.Ctx.push(~onto=b, tok, ctx)
+      | Some((c, tok)) =>
+        ctx |> Melder.Ctx.push(~onto=d, tok) |> Melder.Ctx.push(~onto=b, c)
+      };
+    | Select(_, sel) =>
+      z.ctx
+      |> Melder.Ctx.push_zigg(~onto=b, sel)
+      |> Melder.Ctx.close
+      |> Option.some
     };
-  | Select(_, sel) =>
-    z.ctx
-    |> Melder.Ctx.push_zigg(~onto=b, sel)
-    |> Melder.Ctx.close
-    |> Zipper.mk
-    |> Option.some
-  };
+  Zipper.mk(ctx);
 };
 
 let rec move_n = (n: int, z: Zipper.t): Zipper.t => {
@@ -52,12 +49,12 @@ let select = (d: Dir.t, z: Zipper.t): option(Zipper.t) => {
   | (L, Select(L, _))
   | (R, Select(R, _)) =>
     open OptUtil.Syntax;
-    let+ (t, ctx) = Ctx.pull(~from=d, z.ctx);
+    let+ (t, ctx) = Melder.Ctx.pull(~from=d, z.ctx);
     let sel = Melder.Zigg.push(~onto=d, t, sel);
     Zipper.mk(~foc=Select(d, sel), ctx);
   | (L, Select(R as b, _))
   | (R, Select(L as b, _)) =>
-    let (t, rest) = EZigg.pull(~from=d, sel);
+    let (t, rest) = Melder.Zigg.pull(~from=d, sel);
     let foc =
       switch (rest) {
       | None => Zipper.Focus.Point

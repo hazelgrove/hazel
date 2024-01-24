@@ -150,26 +150,20 @@ module Slope = {
     go(fill, slope);
   };
 
-  let pull = (~char=false, ~from: Dir.t, slope: S.t): option((Token.t, S.t)) =>
+  let pull = (~from: Dir.t, slope: S.t): option((Token.t, S.t)) =>
     switch (slope) {
     | [] => None
     | [hd, ...tl] =>
       let (tok, rest) = W.split_hd(hd.wald);
-      switch (Token.pull(~from=Dir.toggle(from), tok)) {
-      | Some((c, tok)) when char =>
-        let hd = {...hd, wald: W.zip(tok, ~suf=rest)};
-        Some((c, [hd, ...tl]));
-      | _ =>
-        let unroll = unroll(Dir.toggle(from));
-        let slope =
-          switch (rest) {
-          | ([], _) => S.cat(unroll(hd.cell), tl)
-          | ([cell, ...cells], toks) =>
-            let hd = {...hd, wald: Wald.mk(toks, cells)};
-            S.cat(unroll(cell), [hd, ...tl]);
-          };
-        Some((tok, slope));
-      };
+      let unroll = unroll(Dir.toggle(from));
+      let slope =
+        switch (rest) {
+        | ([], _) => S.cat(unroll(hd.cell), tl)
+        | ([cell, ...cells], toks) =>
+          let hd = {...hd, wald: Wald.mk(toks, cells)};
+          S.cat(unroll(cell), [hd, ...tl]);
+        };
+      Some((tok, slope));
     };
 
   module Dn = {
@@ -254,20 +248,17 @@ module Ctx = {
       };
     };
 
-  let rec pull =
-          (~char=false, ~from as d: Dir.t, ctx: C.t): option((Token.t, C.t)) => {
+  let rec pull = (~from as d: Dir.t, ctx: C.t): option((Token.t, C.t)) => {
     open OptUtil.Syntax;
-    let go = pull(~char, ~from=d);
     let order = Dir.order(d);
-    let pull = Slope.pull(~char, ~from=d);
     switch (Ctx.unlink(ctx)) {
     | Error(slopes) =>
       let (s_d, s_b) = order(slopes);
-      let+ (tok, s_d) = pull(s_d);
+      let+ (tok, s_d) = Slope.pull(~from=d, s_d);
       (tok, Ctx.unit(order((s_d, s_b))));
     | Ok((slopes, terrs, ctx)) =>
       let (s_d, s_b) = order(slopes);
-      switch (pull(s_d)) {
+      switch (Slope.pull(~from=d, s_d)) {
       | Some((tok, s_d)) =>
         Some((tok, Ctx.link(order((s_d, s_b)), terrs, ctx)))
       | None =>
