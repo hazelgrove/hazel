@@ -17,7 +17,6 @@ let is_action_logged: UpdateAction.t => bool =
   | DoTheThing
   | Assistant(_)
   | Set(_)
-  | UpdateLangDocMessages(_)
   | SwitchScratchSlide(_)
   | SwitchExampleSlide(_)
   | SwitchEditor(_)
@@ -32,7 +31,8 @@ let is_action_logged: UpdateAction.t => bool =
   | MoveToNextHole(_)
   | UpdateResult(_)
   | ToggleStepper(_)
-  | StepperAction(_, StepForward(_) | StepBackward) => true;
+  | StepperAction(_, StepForward(_) | StepBackward)
+  | UpdateExplainThisModel(_) => true;
 
 module DB = {
   open Ezjs_idb;

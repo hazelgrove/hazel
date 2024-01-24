@@ -1,8 +1,8 @@
 let rec matches_exp =
         (env: ClosureEnvironment.t, d: DHExp.t, f: DHExp.t): bool => {
   switch (d, f) {
-  | (Constructor("$Expr"), _) => failwith("$Expr in matched expression")
-  | (Constructor("$Value"), _) => failwith("$Value in matched expression")
+  | (Constructor("$e"), _) => failwith("$e in matched expression")
+  | (Constructor("$v"), _) => failwith("$v in matched expression")
 
   // HACK[Matt]: ignore fixpoints in comparison, to allow pausing on fixpoint steps
   | (FixF(dp, _, dc), f) =>
@@ -24,7 +24,7 @@ let rec matches_exp =
       ),
     )
 
-  | (_, Constructor("$Value")) =>
+  | (_, Constructor("$v")) =>
     switch (ValueChecker.check_value(env, d)) {
     | Indet
     | Value => true
@@ -32,7 +32,7 @@ let rec matches_exp =
     }
 
   | (_, EmptyHole(_))
-  | (_, Constructor("$Expr")) => true
+  | (_, Constructor("$e")) => true
 
   | (_, Closure(env, f)) => matches_exp(env, d, f)
   | (_, Cast(f, _, _)) => matches_exp(env, d, f)

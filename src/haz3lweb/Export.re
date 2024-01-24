@@ -3,7 +3,7 @@ open Sexplib.Std;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type all = {
   settings: string,
-  langDocMessages: string,
+  explainThisModel: string,
   scratch: string,
   exercise: string,
   examples: string,
@@ -21,7 +21,7 @@ type all_f22 = {
 
 let mk_all = (~instructor_mode, ~log) => {
   let settings = Store.Settings.export();
-  let langDocMessages = Store.LangDocMessages.export();
+  let explainThisModel = Store.ExplainThisModel.export();
   let scratch = Store.Scratch.export();
   let examples = Store.Examples.export();
   let exercise =
@@ -29,7 +29,7 @@ let mk_all = (~instructor_mode, ~log) => {
       ~specs=ExerciseSettings.exercises,
       ~instructor_mode,
     );
-  {settings, langDocMessages, scratch, examples, exercise, log};
+  {settings, explainThisModel, scratch, examples, exercise, log};
 };
 
 let export_all = (~instructor_mode, ~log) => {
@@ -47,11 +47,11 @@ let import_all = (data, ~specs) => {
         examples: "",
         exercise: all_f22.exercise,
         log: all_f22.log,
-        langDocMessages: "",
+        explainThisModel: "",
       };
     };
   let settings = Store.Settings.import(all.settings);
-  Store.LangDocMessages.import(all.langDocMessages);
+  Store.ExplainThisModel.import(all.explainThisModel);
   let instructor_mode = settings.instructor_mode;
   Store.Scratch.import(all.scratch);
   Store.Exercise.import(all.exercise, ~specs, ~instructor_mode);

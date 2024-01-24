@@ -71,7 +71,7 @@ let stepper_view =
       inject(Set(Evaluation(ShowRecord)))
     );
   let eval_settings =
-    Widgets.button(Icons.cog, _ => inject(Set(Evaluation(ShowSettings))));
+    Widgets.button(Icons.gear, _ => inject(Set(Evaluation(ShowSettings))));
   let current =
     switch (stepper.current) {
     | StepperOK(d, _) =>

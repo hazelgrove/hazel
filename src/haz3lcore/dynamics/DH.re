@@ -1,5 +1,10 @@
 open Sexplib.Std;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type if_consistency =
+  | ConsistentIf
+  | InconsistentIf;
+
 module rec DHExp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -38,7 +43,7 @@ module rec DHExp: {
     | Cast(t, Typ.t, Typ.t)
     | FailedCast(t, Typ.t, Typ.t)
     | InvalidOperation(t, InvalidOperationError.t)
-    | IfThenElse(bool, t, t, t) // use bool tag to track if branches are consistent
+    | IfThenElse(if_consistency, t, t, t) // use bool tag to track if branches are consistent
   and case =
     | Case(t, list(rule), int)
   and rule =
@@ -95,7 +100,7 @@ module rec DHExp: {
     | Cast(t, Typ.t, Typ.t)
     | FailedCast(t, Typ.t, Typ.t)
     | InvalidOperation(t, InvalidOperationError.t)
-    | IfThenElse(bool, t, t, t)
+    | IfThenElse(if_consistency, t, t, t)
   and case =
     | Case(t, list(rule), int)
   and rule =
@@ -248,7 +253,8 @@ module rec DHExp: {
     | (ApBuiltin(f1, d1), ApBuiltin(f2, d2)) => f1 == f2 && d1 == d2
     | (BuiltinFun(f1), BuiltinFun(f2)) => f1 == f2
     | (ListLit(_, _, _, ds1), ListLit(_, _, _, ds2)) =>
-      List.for_all2(fast_equal, ds1, ds2)
+      List.length(ds1) == List.length(ds2)
+      && List.for_all2(fast_equal, ds1, ds2)
     | (BinBoolOp(op1, d11, d21), BinBoolOp(op2, d12, d22)) =>
       op1 == op2 && fast_equal(d11, d12) && fast_equal(d21, d22)
     | (BinIntOp(op1, d11, d21), BinIntOp(op2, d12, d22)) =>
@@ -264,8 +270,8 @@ module rec DHExp: {
       fast_equal(d1, d2) && reason1 == reason2
     | (ConsistentCase(case1), ConsistentCase(case2)) =>
       fast_equal_case(case1, case2)
-    | (IfThenElse(d10, d11, d12, d13), IfThenElse(d20, d21, d22, d23)) =>
-      d10 == d20
+    | (IfThenElse(c1, d11, d12, d13), IfThenElse(c2, d21, d22, d23)) =>
+      c1 == c2
       && fast_equal(d11, d21)
       && fast_equal(d12, d22)
       && fast_equal(d13, d23)
