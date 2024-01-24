@@ -19,18 +19,6 @@ let em = content => span(~attr=Attr.class_("em"), [text(content)]);
 
 let get_content =
   fun
-  | Scratch(0, _) =>
-    Some(
-      img(
-        ~key="slide",
-        ~attr=
-          Attr.many([
-            Attr.src("img/slides/forest_1.jpeg"),
-            Attr.class_("slide-img"),
-          ]),
-        [],
-      ),
-    )
   | Examples("Programming Expressively", _) =>
     Some(
       slide(
