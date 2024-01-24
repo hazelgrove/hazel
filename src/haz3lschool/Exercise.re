@@ -24,13 +24,10 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type predicate = Term.UExp.t => bool;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
   type hint = string;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type syntax_test = (hint, predicate);
+  type syntax_test = (hint, SyntaxTest.predicate);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type syntax_tests = list(syntax_test);
