@@ -45,25 +45,6 @@ let exercises_view =
     );
 };
 
-let slide_view = (~inject, ~model, ~ctx_init) => {
-  [top_bar_view(~inject, ~model)]
-  @ ScratchMode.view(~inject, ~model, ~ctx_init);
-};
-
-let editors_view = (~inject, model: Model.t) => {
-  let ctx_init =
-    Editors.get_ctx_init(~settings=model.settings, model.editors);
-  switch (model.editors) {
-  | DebugLoad => [DebugMode.view(~inject)]
-  | Scratch(_)
-  | Examples(_) => slide_view(~inject, ~model, ~ctx_init)
-  | Exercise(_, _, exercise) => exercises_view(~inject, ~exercise, model)
-  };
-};
-
-let get_selection = (model: Model.t): string =>
-  model.editors |> Editors.get_editor |> Printer.to_string_selection;
-
 let stepper_settings_modal = (~inject, settings: Settings.t) => {
   let modal = div(~attr=Attr.many([Attr.class_("settings-modal")]));
   let setting = (icon, name, current, action: UpdateAction.settings_action) =>
@@ -137,6 +118,25 @@ let stepper_settings_modal = (~inject, settings: Settings.t) => {
     ),
   ];
 };
+
+let slide_view = (~inject, ~model, ~ctx_init) => {
+  [top_bar_view(~inject, ~model)]
+  @ ScratchMode.view(~inject, ~model, ~ctx_init);
+};
+
+let editors_view = (~inject, model: Model.t) => {
+  let ctx_init =
+    Editors.get_ctx_init(~settings=model.settings, model.editors);
+  switch (model.editors) {
+  | DebugLoad => [DebugMode.view(~inject)]
+  | Scratch(_)
+  | Examples(_) => slide_view(~inject, ~model, ~ctx_init)
+  | Exercise(_, _, exercise) => exercises_view(~inject, ~exercise, model)
+  };
+};
+
+let get_selection = (model: Model.t): string =>
+  model.editors |> Editors.get_editor |> Printer.to_string_selection;
 
 let view = (~inject, ~handlers, model: Model.t) =>
   div(
