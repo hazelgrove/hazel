@@ -8,10 +8,11 @@ let toggle =
   | L => R
   | R => L;
 
-let order = (d, (x, y)) =>
-  switch (d) {
-  | L => (x, y)
-  | R => (y, x)
-  };
+let order: 'a. (t, ('a, 'a)) => ('a, 'a) =
+  (d, (x, y)) =>
+    switch (d) {
+    | L => (x, y)
+    | R => (y, x)
+    };
 
 let pick = (d, p) => fst(order(d, p));

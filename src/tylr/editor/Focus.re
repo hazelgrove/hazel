@@ -1,7 +1,7 @@
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Point
-  | Select(Dir.t, Zigg.t);
+  | Select(Util.Dir.t, Zigg.t);
 
 let is_empty =
   fun

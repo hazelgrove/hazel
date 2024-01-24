@@ -198,7 +198,7 @@ module Zigg = {
       };
     | R =>
       let top = W.rev(zigg.top);
-      switch (Slope.Dn.push(~top, zigg.dn, ~fill, w)) {
+      switch (Slope.Dn.push(w, ~fill, zigg.dn, ~top)) {
       | Ok(dn) => Some({...zigg, dn})
       | Error(fill) =>
         Wald.meld_eq(~from=L, top, ~fill, w)
@@ -236,35 +236,51 @@ module C = Ctx;
 module Ctx = {
   open OptUtil.Syntax;
 
-  let push = (~onto: Dir.t, w: W.t, ~fill=[], ctx: C.t): option(C.t) =>
-    switch (onto, C.unlink(ctx)) {
-    | (L, Error((dn, up))) =>
-      let+ dn = Slope.Dn.push(dn, ~fill, w);
-      C.unit((dn, up));
-    | (R, Error((dn, up))) =>
-      let+ up = Slope.Up.push(w, ~fill, up);
-      C.unit((dn, up));
-    | (L, Ok(((dn, up), (l, r), ctx))) =>
-      switch (Slope.Dn.push(~top=Node(l.wald), dn, ~fill, w)) {
-      | Ok(dn) => Some(C.link((dn, up), (l, r), ctx))
+  let push = (~onto as d: Dir.t, w: W.t, ~fill=[], ctx: C.t): option(C.t) =>
+    switch (C.unlink(ctx)) {
+    | Error(slopes) =>
+      let (s_d, s_b) = Dir.order(d, slopes);
+      let+ s_d = Result.to_option(Slope.push(~onto=d, w, ~fill, s_d));
+      C.unit(Dir.order(d, (s_d, s_b)));
+    | Ok((slopes, terrs, ctx)) =>
+      let (s_d, s_b) = Dir.order(d, slopes);
+      switch (Slope.push(~onto=d, w, ~fill, s_d)) {
+      | Ok(s_d) => Some(C.link(Dir.order(d, (s_d, s_b)), terrs, ctx))
       | Error(fill) =>
-        let+ wald = Wald.meld_eq(l.wald, ~fill, w);
-        let (dn, up) = ([{...l, wald}], up @ [r]);
-        C.map_fst(Frame.Open.cat((dn, up)), ctx);
-      }
-    | (R, Ok(((dn, up), (l, r), ctx))) =>
-      switch (Slope.Up.push(w, ~fill, up, ~top=Node(r.wald))) {
-      | Ok(up) => Some(C.link((dn, up), (l, r), ctx))
-      | Error(fill) =>
-        let+ wald = Wald.meld_eq(w, ~fill, r.wald);
-        let (dn, up) = (dn @ [l], [{...r, wald}]);
-        C.map_fst(Frame.Open.cat((dn, up)), ctx);
-      }
+        let (t_d, t_b) = Dir.order(d, terrs);
+        let+ wald = Wald.meld_eq(~from=d, t_d.wald, ~fill, w);
+        let slopes = Dir.order(d, ([{...t_d, wald}], s_b @ [t_b]));
+        C.map_fst(Frame.Open.cat(slopes), ctx);
+      };
     };
+
+  let rec pull =
+          (~char=false, ~from as d: Dir.t, ctx: C.t): option((Token.t, C.t)) => {
+    open OptUtil.Syntax;
+    let go = pull(~char, ~from=d);
+    let order = Dir.order(d);
+    let pull = Slope.pull(~char, ~from=d);
+    switch (Ctx.unlink(ctx)) {
+    | Error(slopes) =>
+      let (s_d, s_b) = order(slopes);
+      let+ (tok, s_d) = pull(s_d);
+      (tok, Ctx.unit(order((s_d, s_b))));
+    | Ok((slopes, terrs, ctx)) =>
+      let (s_d, s_b) = order(slopes);
+      switch (pull(s_d)) {
+      | Some((tok, s_d)) =>
+        Some((tok, Ctx.link(order((s_d, s_b)), terrs, ctx)))
+      | None =>
+        let (t_d, t_b) = Dir.order(d, terrs);
+        let slopes = order(([t_d], s_b @ [t_b]));
+        go(Ctx.map_fst(Frame.Open.cat(slopes), ctx));
+      };
+    };
+  };
 
   let close = (~sel=?, ctx: C.t) => {
     let rec go = ctx =>
-      switch (C.fst(frame)) {
+      switch (C.fst(ctx)) {
       | ([], _)
       | (_, []) => ctx
       | ([l, ..._] as pre, [r, ...suf]) when W.lt(l, r) =>
@@ -293,16 +309,4 @@ module Ctx = {
       |> C.map_fst(Frame.Open.cat((pre_geq, suf_leq)));
     };
   };
-
-  let pull_lexeme = (~char=false, ~from: Dir.t, well: Stepwell.t) =>
-    switch (Slopes.pull_lexeme(~char, ~from, Stepwell.get_slopes(well))) {
-    | Some((a, sib)) => Some((a, Stepwell.put_slopes(sib, well)))
-    | None =>
-      open OptUtil.Syntax;
-      let+ (slopes, bridge, well) = Chain.unlink(well);
-      let (lx, slopes') = Bridge.pull_lexeme(~char, ~from, bridge);
-      let well =
-        well |> push_slopes(Slopes.cat(slopes, slopes')) |> assemble;
-      (lx, well);
-    };
 };
