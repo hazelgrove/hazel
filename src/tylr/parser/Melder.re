@@ -54,11 +54,12 @@ let meld_eq =
   | _ => None
   };
 
+module T = Terr;
 module Terr = {
   module R = {
     include Terr.R;
 
-    let connect = (terr: Terr.R.t, bake) =>
+    let connect = (terr: T.R.t, bake) =>
       bake
       |> Chain.fold_left(
            cell => Meld.M(terr.cell, terr.wald, cell),
@@ -66,9 +67,9 @@ module Terr = {
          )
       |> Meld.rev;
 
-    let round = (~fill=[], terr: Terr.R.t) => {
+    let round = (~fill=[], terr: T.R.t) => {
       let bake = Baker.bake(~from=L);
-      let exited = Walker.exit(R, Terr.face(terr));
+      let exited = Walker.exit(R, T.face(terr));
       switch (Oblig.Delta.minimize(bake(~fill), exited)) {
       | Some(baked) => [connect(terr, baked)]
       | None =>
@@ -86,61 +87,59 @@ module Terr = {
   };
 };
 
-module Slope_ = {
-  let rec push_dn =
-          (
-            ~repair=false,
-            ~top=Bound.Root,
-            dn: Slope.Dn.t,
-            ~fill=[],
-            w: Wald.t,
-          )
-          : Result.t(Slope.Dn.t, list(Meld.t)) => {
-    let meld = meld(~repair, ~from=L);
-    let rec go = (dn, fill) =>
+module S = Slope;
+module Slope = {
+  module Dn = {
+    let push =
+        (~repair=false, ~top=Bound.Root, dn: S.Dn.t, ~fill=[], w: Wald.t)
+        : Result.t(S.Dn.t, list(Meld.t)) => {
+      let meld = meld(~repair, ~from=L);
+      let rec go = (dn, fill) =>
+        switch (dn) {
+        | [] =>
+          switch (meld(Root, ~fill, w)) {
+          | None
+          | Some(Eq(_)) => Error(fill)
+          | Some(Neq(dn)) => Ok(dn)
+          }
+        | [hd, ...tl] =>
+          switch (meld(Node(hd.wald), ~fill, w)) {
+          | None => go(tl, Terr.R.round(hd, ~fill))
+          | Some(Eq(wald)) => Ok([{...hd, wald}, ...tl])
+          | Some(Neq(dn')) => Ok(S.cat(dn', dn))
+          }
+        };
       switch (dn) {
-      | [] =>
-        switch (meld(Root, ~fill, w)) {
-        | None
-        | Some(Eq(_)) => Error(fill)
-        | Some(Neq(dn)) => Ok(dn)
-        }
+      | [] => go(dn, fill)
       | [hd, ...tl] =>
-        switch (meld(Node(hd.wald), ~fill, w)) {
-        | None => go(tl, Terr.R.round(hd, ~fill))
-        | Some(Eq(wald)) => Ok([{...hd, wald}, ...tl])
-        | Some(Neq(dn')) => Ok(Slope.cat(dn', dn))
+        switch (Wald.zip(~from=L, hd.wald, w)) {
+        | Some(wald) => Ok([{...hd, wald}, ...tl])
+        | None =>
+          switch (Wald.split_fst(hd.wald)) {
+          | (tok, ([], [])) when Token.is_grout(tok) =>
+            Effect.perform(Remove(tok));
+            let dn = S.Dn.unroll_cell(hd.cell);
+            go(S.cat(dn, tl), fill);
+          | (tok, ([cell, ...cells], toks)) when Token.is_grout(tok) =>
+            Effect.perform(Remove(tok));
+            let hd = {...hd, wald: Wald.mk(toks, cells)};
+            let dn = S.Dn.unroll_cell(hd.cell);
+            go(S.cat(dn, [hd, ...tl]), fill);
+          | _ => go(dn, fill)
+          }
         }
       };
-    switch (dn) {
-    | [] => go(dn, fill)
-    | [hd, ...tl] =>
-      switch (Wald.zip(~from=L, hd.wald, w)) {
-      | Some(wald) => Ok([{...hd, wald}, ...tl])
-      | None =>
-        switch (Wald.split_fst(hd.wald)) {
-        | (tok, ([], [])) when Token.is_grout(tok) =>
-          Effect.perform(Remove(tok));
-          let dn = Slope.Dn.unroll_cell(hd.cell);
-          go(Slope.cat(dn, tl), fill);
-        | (tok, ([cell, ...cells], toks)) when Token.is_grout(tok) =>
-          Effect.perform(Remove(tok));
-          let hd = {...hd, wald: Wald.mk(toks, cells)};
-          let dn = Slope.Dn.unroll_cell(hd.cell);
-          go(Slope.cat(dn, [hd, ...tl]), fill);
-        | _ => go(dn, fill)
-        }
-      }
     };
   };
 };
 
-module Zigg_ = {
-  let push = (~onto: Dir.t, w: Wald.t, ~fill=[], zigg: t): option(Zigg.t) =>
+module Z = Zigg;
+module Zigg = {
+  let push = (~onto: Dir.t, w: Wald.t, ~fill=[], zigg: Z.t): option(Z.t) =>
     switch (onto) {
     | L =>
       let top = zigg.top;
-      switch (Slope_.push_up(w, ~fill, zigg.up, ~top)) {
+      switch (Slope.Up.push(w, ~fill, zigg.up, ~top)) {
       | Ok(up) => Some({...zigg, up})
       | Error(fill) =>
         meld_eq(~from=R, w, ~fill, top)
@@ -148,15 +147,15 @@ module Zigg_ = {
       };
     | R =>
       let top = Wald.rev(zigg.top);
-      switch (Slope_.push_dn(~top, zigg.dn, ~fill, w)) {
+      switch (Slope.Dn.push(~top, zigg.dn, ~fill, w)) {
       | Ok(dn) => Some({...zigg, dn})
       | Error(fill) =>
-        Wald_.meld_eq(~from=L, top, ~fill, w)
+        meld_eq(~from=L, top, ~fill, w)
         |> Option.map(top => {...zigg, top, dn: []})
       };
     };
 
-  let rec take_leq = (zigg: t, ~fill=[], suf: Slope.Up.t) =>
+  let rec take_leq = (zigg: t, ~fill=[], suf: S.Up.t) =>
     switch (suf) {
     | [] => ([], suf)
     | [hd, ...tl] =>
@@ -168,7 +167,7 @@ module Zigg_ = {
         ([hd, ...leq], gt);
       }
     };
-  let rec take_geq = (pre: Slope.Dn.t, ~fill=[], zigg: t) =>
+  let rec take_geq = (pre: S.Dn.t, ~fill=[], zigg: t) =>
     switch (pre) {
     | [] => (pre, [])
     | [hd, ...tl] =>
@@ -182,64 +181,65 @@ module Zigg_ = {
     };
 };
 
-module Ctx_ = {
+module C = Ctx;
+module Ctx = {
   open OptUtil.Syntax;
 
-  let push = (~onto: Dir.t, w: Wald.t, ~fill=[], ctx: Ctx.t): option(Ctx.t) =>
-    switch (onto, Ctx.unlink(ctx)) {
+  let push = (~onto: Dir.t, w: Wald.t, ~fill=[], ctx: C.t): option(C.t) =>
+    switch (onto, C.unlink(ctx)) {
     | (L, Error((dn, up))) =>
-      let+ dn = Slope_.push_dn(dn, ~fill, w);
-      Ctx.unit((dn, up));
+      let+ dn = Slope.Dn.push(dn, ~fill, w);
+      C.unit((dn, up));
     | (R, Error((dn, up))) =>
       let+ up = Slope_.push_up(w, ~fill, up);
-      Ctx.unit((dn, up));
+      C.unit((dn, up));
     | (L, Ok(((dn, up), (l, r), ctx))) =>
-      switch (Slope_.push_dn(~top=Node(l.wald), dn, ~fill, w)) {
-      | Ok(dn) => Some(Ctx.link((dn, up), (l, r), ctx))
+      switch (Slope.Dn.push(~top=Node(l.wald), dn, ~fill, w)) {
+      | Ok(dn) => Some(C.link((dn, up), (l, r), ctx))
       | Error(fill) =>
         let+ wald = meld_eq(l.wald, ~fill, w);
         let (dn, up) = ([{...l, wald}], up @ [r]);
-        Ctx.map_fst(Frame.Open.cat((dn, up)), ctx);
+        C.map_fst(Frame.Open.cat((dn, up)), ctx);
       }
     | (R, Ok(((dn, up), (l, r), ctx))) =>
-      switch (Slope_.push_up(w, ~fill, up, ~top=Node(r.wald))) {
-      | Ok(up) => Some(Ctx.link((dn, up), (l, r), ctx))
+      switch (Slope.Up.push(w, ~fill, up, ~top=Node(r.wald))) {
+      | Ok(up) => Some(C.link((dn, up), (l, r), ctx))
       | Error(fill) =>
         let+ wald = meld_eq(w, ~fill, r.wald);
         let (dn, up) = (dn @ [l], [{...r, wald}]);
-        Ctx.map_fst(Frame.Open.cat((dn, up)), ctx);
+        C.map_fst(Frame.Open.cat((dn, up)), ctx);
       }
     };
 
-  let close = (~sel=?, ctx: Ctx.t) => {
+  let close = (~sel=?, ctx: C.t) => {
     let rec go = ctx =>
-      switch (Ctx.fst(frame)) {
+      switch (C.fst(frame)) {
       | ([], _)
       | (_, []) => ctx
       | ([l, ..._] as pre, [r, ...suf]) when Wald.lt(l, r) =>
         ctx
-        |> Ctx.put_fst((pre, suf))
+        |> C.put_fst((pre, suf))
         |> go
-        |> Ctx.map_fst(Frame.Open.cons(~onto=R, r))
+        |> C.map_fst(Frame.Open.cons(~onto=R, r))
       | ([l, ...pre], [r, ..._] as suf) when Wald.gt(l, r) =>
         ctx
-        |> Ctx.put_fst((pre, suf))
+        |> C.put_fst((pre, suf))
         |> go
-        |> Ctx.map_fst(Frame.Open.cons(~onto=L, l))
+        |> C.map_fst(Frame.Open.cons(~onto=L, l))
       | ([l, ...pre], [r, ...suf]) =>
         assert(Wald.eq(l, r));
-        ctx |> Ctx.put_fst((pre, suf)) |> go |> Ctx.link((l, r));
+        ctx |> C.put_fst((pre, suf)) |> go |> C.link((l, r));
       };
     switch (sel) {
     | None => go(ctx)
     | Some(zigg) =>
-      let (pre, suf) = Ctx.fst(ctx);
+      let (pre, suf) = C.fst(ctx);
       let (pre_lt, pre_geq) = Zigg.take_geq(pre, zigg);
       let (suf_leq, suf_gt) = Zigg.take_leq(zigg, suf);
       ctx
-      |> Ctx.put_fst((pre_lt, suf_gt))
+      |> C.put_fst((pre_lt, suf_gt))
       |> go
-      |> Ctx.map_fst(Frame.Open.cat((pre_geq, suf_leq)));
+      |> C.map_fst(Frame.Open.cat((pre_geq, suf_leq)));
     };
   };
 

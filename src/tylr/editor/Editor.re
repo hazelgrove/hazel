@@ -21,14 +21,14 @@ let move = (d: Dir.t, z: Zipper.t): option(Zipper.t) => {
     | Error(_) => ctx |> Melder.Ctx.push(~onto=b, t) |> Zipper.mk
     | Ok((l, r)) =>
       ctx
-      |> Melder.Ctx_.push(~onto=d, Dir.pick(d, (l, r)))
-      |> Melder.Ctx_.push(~onto=b, Dir.pick(b, (l, r)))
+      |> Melder.Ctx.push(~onto=d, Dir.pick(d, (l, r)))
+      |> Melder.Ctx.push(~onto=b, Dir.pick(b, (l, r)))
       |> Zipper.mk
     };
   | Select(_, sel) =>
     z.ctx
-    |> Melder.Ctx_.push_zigg(~onto=b, sel)
-    |> Melder.Ctx_.close
+    |> Melder.Ctx.push_zigg(~onto=b, sel)
+    |> Melder.Ctx.close
     |> Zipper.mk
     |> Option.some
   };
