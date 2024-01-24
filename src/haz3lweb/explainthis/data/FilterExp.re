@@ -99,7 +99,7 @@ let filter_debug = (~p_id: Id.t, ~body_id: Id.t): Simple.t => {
 let unquote = (~sel_id: Id.t): Simple.t => {
   group_id: FilterSelector,
   form_id: FilterSelector,
-  abstract: Simple.mk_1(("sel", sel_id), sel' => [mk_unquote([[sel']])]),
+  abstract: Simple.mk_1(("sel", sel_id), sel' => [mk_unquote([]), sel']),
   explanation:
     Printf.sprintf(
       "Selector expression for a stepper filter pattern. When [*sel*](%s) is 'e', it matches any expression, when [*sel*](%s) is 'v' it only matches values.",
