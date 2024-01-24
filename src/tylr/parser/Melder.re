@@ -113,11 +113,11 @@ module Slope = {
           switch (W.split_fst(hd.wald)) {
           | (tok, ([], [])) when Token.is_grout(tok) =>
             Effect.perform(Remove(tok));
-            go(S.cat(unroll_cell(hd.cell), tl), fill);
+            go(S.cat(unroll(hd.cell), tl), fill);
           | (tok, ([cell, ...cells], toks)) when Token.is_grout(tok) =>
             Effect.perform(Remove(tok));
             let hd = {...hd, wald: W.mk(toks, cells)};
-            go(S.cat(unroll_cell(hd.cell), [hd, ...tl]), fill);
+            go(S.cat(unroll(hd.cell), [hd, ...tl]), fill);
           | _ =>
             switch (meld(Node(hd.wald), ~fill, w)) {
             | None => go(tl, Terr.R.round(hd, ~fill))
@@ -128,6 +128,27 @@ module Slope = {
         };
       go(dn, fill);
     };
+
+    let pull = (~char=false, dn: S.Dn.t): option((S.Dn.t, Token.t)) =>
+      switch (dn) {
+      | [] => None
+      | [hd, ...tl] =>
+        let (tok, rest) = W.split_hd(hd.wald);
+        switch (Token.unsnoc(tok)) {
+        | Some((tok, c)) when char =>
+          let hd = {...hd, wald: W.zip(tok, ~suf=rest)};
+          Some(([hd, ...tl], c));
+        | _ =>
+          let dn =
+            switch (rest) {
+            | ([], _) => S.cat(unroll(hd.cell), tl)
+            | ([cell, ...cells], toks) =>
+              let hd = {...hd, wald: Wald.mk(toks, cells)};
+              S.cat(unroll(cell), [hd, ...tl]);
+            };
+          Some((dn, tok));
+        };
+      };
   };
 };
 

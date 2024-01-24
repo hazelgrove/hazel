@@ -63,8 +63,11 @@ let put_text = (text, tok: t) => {...tok, text};
 //   };
 // let token_length = p => Token.length(p.text);
 
-// todo: review uses and replace with one of above
-let length = _ => failwith("todo: Piece.length");
+let length = (tok: t) =>
+  switch (tok.lbl.mtrl) {
+  | Tile(Const(c)) => String.length(c)
+  | _ => String.length(tok.text)
+  };
 
 // let is_grout = p => label_length(p) == 0;
 
@@ -100,6 +103,7 @@ let is_empty = _ => failwith("todo Piece.is_empty");
 
 // let is_porous = p => Token.is_empty(p.text);
 
+// rename merge
 let zip = (l: t, r: t) =>
   if (Id.eq(l.id, r.id)) {
     assert(Mold.equal(l.lbl.mold, r.lbl.mold));
@@ -110,6 +114,7 @@ let zip = (l: t, r: t) =>
     None;
   };
 
+// rename split
 let unzip = (n: int, tok: t): Result.t((t, t), Dir.t) =>
   switch (tok.lbl.mtrl, StringUtil.unzip_opt(n, tok.text)) {
   | (_, Some(("", _))) => Error(L)

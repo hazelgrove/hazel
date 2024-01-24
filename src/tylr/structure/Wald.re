@@ -19,7 +19,7 @@ let split_hd = (W(w)) => Chain.split_fst(w);
 let map = (f, W(w)) => W(f(w));
 let link = (tok, cell) => map(Chain.link(tok, cell));
 
-let zip = (~from: Dir.t, src: t, dst: t): option(t) => {
+let merge = (~from: Dir.t, src: t, dst: t): option(t) => {
   let (hd_src, tl_src) = split_hd(src);
   let (hd_dst, tl_dst) = split_hd(dst);
   let (hd_l, hd_r) = Dir.order(from, (hd_src, hd_dst));

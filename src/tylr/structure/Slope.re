@@ -12,24 +12,7 @@ let fold = List.fold_left;
 // in list order low-to-high
 module Dn = {
   type t = list(Terr.R.t);
-
-  let pull = (~char=false, dn: p): option((p, Piece.t)) =>
-    switch (dn) {
-    | [] => None
-    | [hd, ...tl] =>
-      let (rest, p) = Terr.R.pull(~char, hd);
-      Some((rest @ tl, p));
-    };
 };
-
 module Up = {
   type t = list(Terr.L.t);
-
-  let pull = (~char=false, up: p): option((Piece.t, p)) =>
-    switch (up) {
-    | [] => None
-    | [hd, ...tl] =>
-      let (p, rest) = Terr.L.pull(~char, hd);
-      Some((p, rest @ tl));
-    };
 };
