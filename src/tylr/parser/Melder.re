@@ -11,48 +11,52 @@ module Melded = {
     Bake.is_eq(bake) ? mk_eq(src, bake, dst) : mk_neq(bake, dst);
 };
 
-let meld =
-    (
-      ~repair=false,
-      ~from: Dir.t,
-      src: Bound.t(Wald.t),
-      ~fill=[],
-      dst: Wald.t,
-    )
-    : option(Melded.t) => {
-  let rec go = (src, fill) => {
+module W = Wald;
+module Wald = {
+  let meld =
+      (~repair=false, ~from: Dir.t, src: Bound.t(W.t), ~fill=[], dst: W.t)
+      : option(Melded.t) => {
     open OptUtil.Syntax;
-    let/ () = repair ? rm_ghost_and_go(src, fill) : None;
-    let face_src = src |> Bound.map(w => Wald.face(w).mtrl);
-    let face_dst = Wald.face(dst).mtrl;
-    let walk = repair ? Walker.walk : Walker.step;
-    let+ bake =
-      walk(~from, face_src, Node(face_dst))
-      |> Oblig.Delta.minimize(~to_zero=!repair, Baker.bake(~from, ~fill));
-    Melded.mk(src, bake, dst);
-  }
-  and rm_ghost_and_go = (src, fill) =>
-    switch (Wald.unlink(src)) {
-    | Ok((hd, cell, tl)) when Token.is_ghost(hd) =>
-      let fill = Option.to_list(cell.meld) @ fill;
-      switch (go(tl, fill)) {
-      // require eq match further in to accept removing hd
-      | Some(Eq(_)) as r =>
-        Effect.perform(Remove(hd));
-        r;
+    let rec go = (src, fill) => {
+      let/ () = repair ? rm_ghost_and_go(src, fill) : None;
+      let face_src = src |> Bound.map(w => W.face(w).mtrl);
+      let face_dst = W.face(dst).mtrl;
+      let walk = repair ? Walker.walk : Walker.step;
+      let+ bake =
+        walk(~from, face_src, Node(face_dst))
+        |> Oblig.Delta.minimize(~to_zero=!repair, Baker.bake(~from, ~fill));
+      Melded.mk(src, bake, dst);
+    }
+    and rm_ghost_and_go = (src, fill) =>
+      switch (W.unlink(src)) {
+      | Ok((hd, cell, tl)) when Token.is_ghost(hd) =>
+        let fill = Option.to_list(cell.meld) @ fill;
+        switch (go(tl, fill)) {
+        // require eq match further in to accept removing hd
+        | Some(Eq(_)) as r =>
+          Effect.perform(Remove(hd));
+          r;
+        | _ => None
+        };
       | _ => None
       };
+    let/ () = {
+      // first try zipping
+      let* src = Bound.to_opt(src);
+      let+ zipped = W.zip(~from, src, dst);
+      assert(fill == []);
+      Melded.Eq(zipped);
+    };
+    go(src, fill);
+  };
+
+  let meld_eq =
+      (~repair=false, ~from: Dir.t, l: W.t, ~fill=[], r: W.t): option(W.t) =>
+    switch (meld(~repair, ~from, Node(l), ~fill, r)) {
+    | Some(Eq(w)) => Some(w)
     | _ => None
     };
-  go(src, fill);
 };
-let meld_eq =
-    (~repair=false, ~from: Dir.t, l: Wald.t, ~fill=[], r: Wald.t)
-    : option(Wald.t) =>
-  switch (meld(~repair, ~from, l, ~fill, r)) {
-  | Some(Eq(w)) => Some(w)
-  | _ => None
-  };
 
 module T = Terr;
 module Terr = {
@@ -90,10 +94,12 @@ module Terr = {
 module S = Slope;
 module Slope = {
   module Dn = {
+    let unroll = _ => failwith("todo");
+
     let push =
-        (~repair=false, ~top=Bound.Root, dn: S.Dn.t, ~fill=[], w: Wald.t)
+        (~repair=false, ~top=Bound.Root, dn: S.Dn.t, ~fill=[], w: W.t)
         : Result.t(S.Dn.t, list(Meld.t)) => {
-      let meld = meld(~repair, ~from=L);
+      let meld = Wald.meld(~repair, ~from=L);
       let rec go = (dn, fill) =>
         switch (dn) {
         | [] =>
@@ -103,39 +109,31 @@ module Slope = {
           | Some(Neq(dn)) => Ok(dn)
           }
         | [hd, ...tl] =>
-          switch (meld(Node(hd.wald), ~fill, w)) {
-          | None => go(tl, Terr.R.round(hd, ~fill))
-          | Some(Eq(wald)) => Ok([{...hd, wald}, ...tl])
-          | Some(Neq(dn')) => Ok(S.cat(dn', dn))
-          }
-        };
-      switch (dn) {
-      | [] => go(dn, fill)
-      | [hd, ...tl] =>
-        switch (Wald.zip(~from=L, hd.wald, w)) {
-        | Some(wald) => Ok([{...hd, wald}, ...tl])
-        | None =>
-          switch (Wald.split_fst(hd.wald)) {
+          // todo: flatten
+          switch (W.split_fst(hd.wald)) {
           | (tok, ([], [])) when Token.is_grout(tok) =>
             Effect.perform(Remove(tok));
-            let dn = S.Dn.unroll_cell(hd.cell);
-            go(S.cat(dn, tl), fill);
+            go(S.cat(unroll_cell(hd.cell), tl), fill);
           | (tok, ([cell, ...cells], toks)) when Token.is_grout(tok) =>
             Effect.perform(Remove(tok));
-            let hd = {...hd, wald: Wald.mk(toks, cells)};
-            let dn = S.Dn.unroll_cell(hd.cell);
-            go(S.cat(dn, [hd, ...tl]), fill);
-          | _ => go(dn, fill)
+            let hd = {...hd, wald: W.mk(toks, cells)};
+            go(S.cat(unroll_cell(hd.cell), [hd, ...tl]), fill);
+          | _ =>
+            switch (meld(Node(hd.wald), ~fill, w)) {
+            | None => go(tl, Terr.R.round(hd, ~fill))
+            | Some(Eq(wald)) => Ok([{...hd, wald}, ...tl])
+            | Some(Neq(dn')) => Ok(S.cat(dn', dn))
+            }
           }
-        }
-      };
+        };
+      go(dn, fill);
     };
   };
 };
 
 module Z = Zigg;
 module Zigg = {
-  let push = (~onto: Dir.t, w: Wald.t, ~fill=[], zigg: Z.t): option(Z.t) =>
+  let push = (~onto: Dir.t, w: W.t, ~fill=[], zigg: Z.t): option(Z.t) =>
     switch (onto) {
     | L =>
       let top = zigg.top;
@@ -146,7 +144,7 @@ module Zigg = {
         |> Option.map(top => {...zigg, up: [], top})
       };
     | R =>
-      let top = Wald.rev(zigg.top);
+      let top = W.rev(zigg.top);
       switch (Slope.Dn.push(~top, zigg.dn, ~fill, w)) {
       | Ok(dn) => Some({...zigg, dn})
       | Error(fill) =>
@@ -159,7 +157,7 @@ module Zigg = {
     switch (suf) {
     | [] => ([], suf)
     | [hd, ...tl] =>
-      switch (meld(~onto=R, hd.wald, ~fill, zigg)) {
+      switch (push(~onto=R, hd.wald, ~fill, zigg)) {
       | None => ([], suf)
       | Some(zigg) =>
         let fill = Option.to_list(hd.cell.meld);
@@ -171,7 +169,7 @@ module Zigg = {
     switch (pre) {
     | [] => (pre, [])
     | [hd, ...tl] =>
-      switch (meld(~onto=L, hd.wald, ~fill, zigg)) {
+      switch (push(~onto=L, hd.wald, ~fill, zigg)) {
       | None => (pre, [])
       | Some(zigg) =>
         let fill = Option.to_list(hd.cell.meld);
@@ -185,19 +183,19 @@ module C = Ctx;
 module Ctx = {
   open OptUtil.Syntax;
 
-  let push = (~onto: Dir.t, w: Wald.t, ~fill=[], ctx: C.t): option(C.t) =>
+  let push = (~onto: Dir.t, w: W.t, ~fill=[], ctx: C.t): option(C.t) =>
     switch (onto, C.unlink(ctx)) {
     | (L, Error((dn, up))) =>
       let+ dn = Slope.Dn.push(dn, ~fill, w);
       C.unit((dn, up));
     | (R, Error((dn, up))) =>
-      let+ up = Slope_.push_up(w, ~fill, up);
+      let+ up = Slope.Up.push(w, ~fill, up);
       C.unit((dn, up));
     | (L, Ok(((dn, up), (l, r), ctx))) =>
       switch (Slope.Dn.push(~top=Node(l.wald), dn, ~fill, w)) {
       | Ok(dn) => Some(C.link((dn, up), (l, r), ctx))
       | Error(fill) =>
-        let+ wald = meld_eq(l.wald, ~fill, w);
+        let+ wald = Wald.meld_eq(l.wald, ~fill, w);
         let (dn, up) = ([{...l, wald}], up @ [r]);
         C.map_fst(Frame.Open.cat((dn, up)), ctx);
       }
@@ -205,7 +203,7 @@ module Ctx = {
       switch (Slope.Up.push(w, ~fill, up, ~top=Node(r.wald))) {
       | Ok(up) => Some(C.link((dn, up), (l, r), ctx))
       | Error(fill) =>
-        let+ wald = meld_eq(w, ~fill, r.wald);
+        let+ wald = Wald.meld_eq(w, ~fill, r.wald);
         let (dn, up) = (dn @ [l], [{...r, wald}]);
         C.map_fst(Frame.Open.cat((dn, up)), ctx);
       }
@@ -216,18 +214,18 @@ module Ctx = {
       switch (C.fst(frame)) {
       | ([], _)
       | (_, []) => ctx
-      | ([l, ..._] as pre, [r, ...suf]) when Wald.lt(l, r) =>
+      | ([l, ..._] as pre, [r, ...suf]) when W.lt(l, r) =>
         ctx
         |> C.put_fst((pre, suf))
         |> go
         |> C.map_fst(Frame.Open.cons(~onto=R, r))
-      | ([l, ...pre], [r, ..._] as suf) when Wald.gt(l, r) =>
+      | ([l, ...pre], [r, ..._] as suf) when W.gt(l, r) =>
         ctx
         |> C.put_fst((pre, suf))
         |> go
         |> C.map_fst(Frame.Open.cons(~onto=L, l))
       | ([l, ...pre], [r, ...suf]) =>
-        assert(Wald.eq(l, r));
+        assert(W.eq(l, r));
         ctx |> C.put_fst((pre, suf)) |> go |> C.link((l, r));
       };
     switch (sel) {

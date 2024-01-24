@@ -8,7 +8,7 @@ let map = f =>
   | Root => Root
   | Node(a) => Node(f(a));
 
-let to_option =
+let to_opt =
   fun
   | Root => None
   | Node(a) => Some(a);
