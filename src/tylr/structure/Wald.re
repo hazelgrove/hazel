@@ -5,7 +5,7 @@ include Meld.Wald;
 type t = Meld.Wald.t(Meld.cell);
 
 let mk = (toks: list(_), cells: list(Cell.t)) => W(Chain.mk(toks, cells));
-let singleton = tok => mk([tok], []);
+let unit = tok => mk([tok], []);
 
 let split_hd = (W(w)) => Chain.split_fst(w);
 

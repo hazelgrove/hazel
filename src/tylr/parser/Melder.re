@@ -199,6 +199,15 @@ module Zigg = {
         |> Option.map(top => {...zigg, top, dn: []})
       };
     };
+  let grow = (~side: Dir.t, tok: Token.t, zigg: Z.t) =>
+    switch (push(~onto=side, W.unit(tok), zigg)) {
+    | Some(z) => z
+    | None =>
+      switch (side) {
+      | L =>
+
+      }
+    }
 
   let rec take_leq = (zigg: t, ~fill=[], suf: S.Up.t) =>
     switch (suf) {

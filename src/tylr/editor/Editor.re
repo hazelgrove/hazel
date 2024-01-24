@@ -17,6 +17,7 @@ let move = (d: Dir.t, z: Zipper.t): option(Zipper.t) => {
     switch (z.foc) {
     | Point =>
       let+ (tok, ctx) = Melder.Ctx.pull(~from=d, z.ctx);
+      // todo: add movement granularity
       switch (Token.pull(~from=b, tok)) {
       | None => Melder.Ctx.push(~onto=b, tok, ctx)
       | Some((c, tok)) =>
@@ -43,27 +44,32 @@ let rec move_n = (n: int, z: Zipper.t): Zipper.t => {
 
 let select = (d: Dir.t, z: Zipper.t): option(Zipper.t) => {
   open OptUtil.Syntax;
-  let sel = Zipper.selected(z);
-  switch (d, z.foc) {
-  | (_, Point)
-  | (L, Select(L, _))
-  | (R, Select(R, _)) =>
-    open OptUtil.Syntax;
-    let+ (t, ctx) = Melder.Ctx.pull(~from=d, z.ctx);
-    let sel = Melder.Zigg.push(~onto=d, t, sel);
-    Zipper.mk(~foc=Select(d, sel), ctx);
-  | (L, Select(R as b, _))
-  | (R, Select(L as b, _)) =>
-    let (t, rest) = Melder.Zigg.pull(~from=d, sel);
-    let foc =
-      switch (rest) {
-      | None => Zipper.Focus.Point
-      | Some(sel) => Select(b, sel)
+  let b = Dir.toggle(d);
+  switch (z.foc) {
+  | Point =>
+    let+ (tok, ctx) = Melder.Ctx.pull(~from=d, z.ctx);
+    let foc = Focus.Select(d, Zigg.of_tok(tok));
+    Zipper.mk(~foc, ctx);
+  | Select(side, zigg) =>
+    if (side == d) {
+      let+ (tok, ctx) = Melder.Ctx.pull(~from=d, z.ctx);
+      let zigg =
+      switch (Melder.Zigg.push(~onto=b, tok, zigg)) {
+      | Some(z) => z
+      | None =>
       };
-    z.ctx
-    |> Melder.Ctx.push(~onto=b, t)
-    |> Zipper.mk(~close=true, ~foc)
-    |> Option.some;
+    } else {
+      let (t, rest) = Melder.Zigg.pull(~from=d, sel);
+      let foc =
+        switch (rest) {
+        | None => Zipper.Focus.Point
+        | Some(sel) => Select(b, sel)
+        };
+      z.ctx
+      |> Melder.Ctx.push(~onto=b, t)
+      |> Zipper.mk(~close=true, ~foc)
+      |> Option.some;
+    }
   };
 };
 
