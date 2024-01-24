@@ -70,6 +70,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     /* Forms with special ana rules but no particular typing requirements */
     | ConsistentCase(_)
     | InconsistentBranches(_)
+    | IfThenElse(_)
     | Sequence(_)
     | Let(_)
     | FixF(_) => d
@@ -243,17 +244,15 @@ let rec dhexp_of_uexp =
         let* c_fn = dhexp_of_uexp(m, fn);
         let+ c_arg = dhexp_of_uexp(m, arg);
         DHExp.Ap(c_fn, c_arg);
-      | If(scrut, e1, e2) =>
-        let* d_scrut = dhexp_of_uexp(m, scrut);
+      | If(c, e1, e2) =>
+        let* c' = dhexp_of_uexp(m, c);
         let* d1 = dhexp_of_uexp(m, e1);
         let+ d2 = dhexp_of_uexp(m, e2);
-        let d_rules =
-          DHExp.[Rule(BoolLit(true), d1), Rule(BoolLit(false), d2)];
-        let d = DHExp.Case(d_scrut, d_rules, 0);
+        // Use tag to mark inconsistent branches
         switch (err_status) {
         | InHole(Common(Inconsistent(Internal(_)))) =>
-          DHExp.InconsistentBranches(id, 0, d)
-        | _ => ConsistentCase(d)
+          DHExp.IfThenElse(DH.InconsistentIf, c', d1, d2)
+        | _ => DHExp.IfThenElse(DH.ConsistentIf, c', d1, d2)
         };
       | Match(scrut, rules) =>
         let* d_scrut = dhexp_of_uexp(m, scrut);

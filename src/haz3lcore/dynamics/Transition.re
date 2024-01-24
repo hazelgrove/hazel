@@ -59,6 +59,7 @@ type step_kind =
   | BinIntOp(TermBase.UExp.op_bin_int)
   | BinFloatOp(TermBase.UExp.op_bin_float)
   | BinStringOp(TermBase.UExp.op_bin_string)
+  | Conditional(bool)
   | Projection
   | ListCons
   | ListConcat
@@ -293,6 +294,31 @@ module Transition = (EV: EV_MODE) => {
     | BuiltinFun(_) =>
       let. _ = otherwise(d);
       Constructor;
+    | IfThenElse(consistent, c, d1, d2) =>
+      let. _ = otherwise(c => IfThenElse(consistent, c, d1, d2))
+      and. c' = req_value(req(state, env), 0, c);
+      switch (consistent, c') {
+      | (DH.ConsistentIf, BoolLit(b)) =>
+        Step({
+          apply: () => {
+            b ? d1 : d2;
+          },
+          // Attach c' to indicate which branch taken.
+          kind: Conditional(b),
+          value: false,
+        })
+      // Use a seperate case for invalid conditionals. Makes extracting the bool from BoolLit (above) easier.
+      | (DH.ConsistentIf, _) =>
+        Step({
+          apply: () => {
+            raise(EvaluatorError.Exception(InvalidBoxedBoolLit(c')));
+          },
+          kind: InvalidStep,
+          value: true,
+        })
+      // Inconsistent branches should be Indet
+      | (DH.InconsistentIf, _) => Indet
+      };
     | BinBoolOp(And, d1, d2) =>
       let. _ = otherwise(d1 => BinBoolOp(And, d1, d2))
       // TODO(Matt): Make "And" able to evaluate when the left-hand side is not fully evaluated
