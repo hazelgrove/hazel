@@ -322,7 +322,7 @@ module Transition = (EV: EV_MODE) => {
           c,
         );
       switch (consistent, c') {
-      | (true, BoolLit(b)) =>
+      | (ConsistentIf, BoolLit(b)) =>
         Step({
           apply: () => {
             b ? d1 : d2;
@@ -332,7 +332,7 @@ module Transition = (EV: EV_MODE) => {
           value: false,
         })
       // Use a seperate case for invalid conditionals. Makes extracting the bool from BoolLit (above) easier.
-      | (true, _) =>
+      | (ConsistentIf, _) =>
         Step({
           apply: () => {
             raise(EvaluatorError.Exception(InvalidBoxedBoolLit(c')));
@@ -341,7 +341,7 @@ module Transition = (EV: EV_MODE) => {
           value: true,
         })
       // Inconsistent branches should be Indet
-      | (false, _) => Indet
+      | (InconsistentIf, _) => Indet
       };
     | BinBoolOp(And, d1, d2) =>
       let. _ = otherwise(env, d1 => BinBoolOp(And, d1, d2))

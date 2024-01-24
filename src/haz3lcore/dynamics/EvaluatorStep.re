@@ -12,6 +12,10 @@ type step = {
 let unwrap = (step, sel: EvalCtx.cls) =>
   EvalCtx.unwrap(step.ctx, sel) |> Option.map(ctx => {...step, ctx});
 
+let unwrap_unsafe = (step, sel: EvalCtx.cls) =>
+  // TODO[Matt]: bring back "safe" version
+  EvalCtx.unwrap(step.ctx, sel) |> Option.map(ctx => {...step, ctx});
+
 module EvalObj = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {

@@ -70,6 +70,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     /* Forms with special ana rules but no particular typing requirements */
     | ConsistentCase(_)
     | InconsistentBranches(_)
+    | IfThenElse(_)
     | Sequence(_)
     | Let(_)
     | FixF(_) => d
@@ -99,8 +100,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | BinIntOp(_)
     | BinFloatOp(_)
     | BinStringOp(_)
-    | Test(_)
-    | IfThenElse(_) => DHExp.cast(d, self_ty, ana_ty)
+    | Test(_) => DHExp.cast(d, self_ty, ana_ty)
     };
   };
 
@@ -165,8 +165,8 @@ let rec dhexp_of_uexp =
         DHExp.ListConcat(dc1, dc2);
       | UnOp(Meta(Unquote), e) =>
         switch (e.term) {
-        | Var("e") when in_filter => Some(Constructor("$Expr"))
-        | Var("v") when in_filter => Some(Constructor("$Value"))
+        | Var("e") when in_filter => Some(Constructor("$e"))
+        | Var("v") when in_filter => Some(Constructor("$v"))
         | _ => Some(DHExp.EmptyHole(id, 0))
         }
       | UnOp(Int(Minus), e) =>
@@ -266,8 +266,8 @@ let rec dhexp_of_uexp =
         // Use tag to mark inconsistent branches
         switch (err_status) {
         | InHole(Common(Inconsistent(Internal(_)))) =>
-          DHExp.IfThenElse(false, c', d1, d2)
-        | _ => DHExp.IfThenElse(true, c', d1, d2)
+          DHExp.IfThenElse(DH.InconsistentIf, c', d1, d2)
+        | _ => DHExp.IfThenElse(DH.ConsistentIf, c', d1, d2)
         };
       | Match(scrut, rules) =>
         let* d_scrut = dhexp_of_uexp(m, scrut);
