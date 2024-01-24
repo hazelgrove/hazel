@@ -60,6 +60,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | FailedCast(_)
   | InvalidOperation(_)
   | Fun(_)
+  | IfThenElse(_)
   | Closure(_)
   | BuiltinFun(_) => DHDoc_common.precedence_const
   | Cast(d1, _, _) =>
@@ -156,6 +157,7 @@ let rec mk =
       | Cast(_, _, ty) => Some(ty)
       | _ => None
       };
+    // if then else follows Fun
     let rec fdoc = (~enforce_inline, ~d: DHExp.t) =>
       switch (d) {
       | Closure(_, d') => fdoc(~enforce_inline, ~d=d')
@@ -310,6 +312,30 @@ let rec mk =
        };
        */
 
+      | IfThenElse(_, c, d1, d2) =>
+        let c_doc = (~enforce_inline) => mk_cast(go(~enforce_inline, c));
+        let d1_doc = (~enforce_inline) => mk_cast(go(~enforce_inline, d1));
+        let d2_doc = (~enforce_inline) => mk_cast(go(~enforce_inline, d2));
+        hcats([
+          DHDoc_common.Delim.mk("if"),
+          c_doc
+          |> DHDoc_common.pad_child(
+               ~inline_padding=(space(), space()),
+               ~enforce_inline=false,
+             ),
+          DHDoc_common.Delim.mk("then"),
+          d1_doc
+          |> DHDoc_common.pad_child(
+               ~inline_padding=(space(), space()),
+               ~enforce_inline=false,
+             ),
+          DHDoc_common.Delim.mk("else"),
+          d2_doc
+          |> DHDoc_common.pad_child(
+               ~inline_padding=(space(), empty()),
+               ~enforce_inline=false,
+             ),
+        ]);
       | Fun(dp, ty, dbody, s) =>
         if (settings.show_fn_bodies) {
           let body_doc = (~enforce_inline) =>

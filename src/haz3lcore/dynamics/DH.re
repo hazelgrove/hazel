@@ -1,5 +1,10 @@
 open Sexplib.Std;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type if_consistency =
+  | ConsistentIf
+  | InconsistentIf;
+
 module rec DHExp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -37,6 +42,7 @@ module rec DHExp: {
     | Cast(t, Typ.t, Typ.t)
     | FailedCast(t, Typ.t, Typ.t)
     | InvalidOperation(t, InvalidOperationError.t)
+    | IfThenElse(if_consistency, t, t, t) // use bool tag to track if branches are consistent
   and case =
     | Case(t, list(rule), int)
   and rule =
@@ -92,6 +98,7 @@ module rec DHExp: {
     | Cast(t, Typ.t, Typ.t)
     | FailedCast(t, Typ.t, Typ.t)
     | InvalidOperation(t, InvalidOperationError.t)
+    | IfThenElse(if_consistency, t, t, t)
   and case =
     | Case(t, list(rule), int)
   and rule =
@@ -133,6 +140,7 @@ module rec DHExp: {
     | Cast(_, _, _) => "Cast"
     | FailedCast(_, _, _) => "FailedCast"
     | InvalidOperation(_) => "InvalidOperation"
+    | IfThenElse(_, _, _, _) => "IfThenElse"
     };
 
   let mk_tuple: list(t) => t =
@@ -196,6 +204,13 @@ module rec DHExp: {
     | StringLit(_) as d
     | Constructor(_) as d
     | InvalidOperation(_) as d => d
+    | IfThenElse(consistent, c, d1, d2) =>
+      IfThenElse(
+        consistent,
+        strip_casts(c),
+        strip_casts(d1),
+        strip_casts(d2),
+      )
   and strip_casts_rule = (Rule(a, d)) => Rule(a, strip_casts(d));
 
   let rec fast_equal = (d1: t, d2: t): bool => {
@@ -248,6 +263,11 @@ module rec DHExp: {
       fast_equal(d1, d2) && reason1 == reason2
     | (ConsistentCase(case1), ConsistentCase(case2)) =>
       fast_equal_case(case1, case2)
+    | (IfThenElse(c1, d11, d12, d13), IfThenElse(c2, d21, d22, d23)) =>
+      c1 == c2
+      && fast_equal(d11, d21)
+      && fast_equal(d12, d22)
+      && fast_equal(d13, d23)
     /* We can group these all into a `_ => false` clause; separating
        these so that we get exhaustiveness checking. */
     | (Sequence(_), _)
@@ -270,6 +290,7 @@ module rec DHExp: {
     | (Cast(_), _)
     | (FailedCast(_), _)
     | (InvalidOperation(_), _)
+    | (IfThenElse(_), _)
     | (ConsistentCase(_), _) => false
 
     /* Hole forms: when checking environments, only check that
