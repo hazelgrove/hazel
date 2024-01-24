@@ -83,6 +83,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     /* DHExp-specific forms: Don't cast */
     | Cast(_)
     | Closure(_)
+    | Filter(_)
     | FailedCast(_)
     | InvalidOperation(_) => d
     /* Normal cases: wrap */
@@ -118,7 +119,11 @@ let wrap = (ctx: Ctx.t, u: Id.t, mode: Mode.t, self, d: DHExp.t): DHExp.t =>
   };
 
 let rec dhexp_of_uexp =
-        (m: Statics.Map.t, uexp: Term.UExp.t): option(DHExp.t) => {
+        (m: Statics.Map.t, uexp: Term.UExp.t, in_filter: bool)
+        : option(DHExp.t) => {
+  let dhexp_of_uexp = (~in_filter=in_filter, m, uexp) => {
+    dhexp_of_uexp(m, uexp, in_filter);
+  };
   switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
   | Some(InfoExp({mode, self, ctx, _})) =>
     let err_status = Info.status_exp(ctx, mode, self);
@@ -158,6 +163,12 @@ let rec dhexp_of_uexp =
         let* dc1 = dhexp_of_uexp(m, e1);
         let+ dc2 = dhexp_of_uexp(m, e2);
         DHExp.ListConcat(dc1, dc2);
+      | UnOp(Meta(Unquote), e) =>
+        switch (e.term) {
+        | Var("e") when in_filter => Some(Constructor("$e"))
+        | Var("v") when in_filter => Some(Constructor("$v"))
+        | _ => Some(DHExp.EmptyHole(id, 0))
+        }
       | UnOp(Int(Minus), e) =>
         let+ dc = dhexp_of_uexp(m, e);
         DHExp.BinIntOp(Minus, IntLit(0), dc);
@@ -187,6 +198,10 @@ let rec dhexp_of_uexp =
       | Test(test) =>
         let+ dtest = dhexp_of_uexp(m, test);
         DHExp.Test(id, dtest);
+      | Filter(act, cond, body) =>
+        let* dcond = dhexp_of_uexp(~in_filter=true, m, cond);
+        let+ dbody = dhexp_of_uexp(m, body);
+        DHExp.Filter(Filter(Filter.mk(dcond, act)), dbody);
       | Var(name) =>
         switch (err_status) {
         | InHole(FreeVariable(_)) => Some(FreeVar(id, 0, name))
@@ -341,7 +356,7 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
 //let dhexp_of_uexp = Core.Memo.general(~cache_size_bound=1000, dhexp_of_uexp);
 
 let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t =>
-  switch (dhexp_of_uexp(m, uexp)) {
+  switch (dhexp_of_uexp(m, uexp, false)) {
   | None => DoesNotElaborate
   | Some(d) =>
     //let d = uexp_elab_wrap_builtins(d);

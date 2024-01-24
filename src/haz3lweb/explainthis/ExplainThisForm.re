@@ -98,7 +98,12 @@ type example_id =
   | CaseWildTuple
   | CaseInt
   | CaseBool
-  | Pipeline1;
+  | Pipeline1
+  | FilterStep
+  | FilterEval
+  | FilterHide
+  | FilterDebug
+  | FilterSelector;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type example = {
@@ -195,7 +200,12 @@ type form_id =
   | EmptyHoleTPat
   | MultiHoleTPat
   | VarTPat
-  | PipelineExp;
+  | PipelineExp
+  | FilterPause
+  | FilterEval
+  | FilterDebug
+  | FilterHide
+  | FilterSelector;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type form = {
@@ -275,7 +285,12 @@ type group_id =
   | SumTypNullaryConstructorDef
   | EmptyHoleTPat
   | MultiHoleTPat
-  | VarTPat;
+  | VarTPat
+  | FilterPause
+  | FilterEval
+  | FilterDebug
+  | FilterHide
+  | FilterSelector;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type group = {

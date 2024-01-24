@@ -137,6 +137,7 @@
 
   --line-height: 1.45;
 
+  --step-hole-color: green;
   --selection-box-z: 1;
   --genie-z: 1;
   --empty-hole-z: 5;
@@ -158,6 +159,9 @@
   --test-panel-z: 20;
 
   --result-z: 30;
+
+  --modal-z: 10001;
+  --modal-back-z: 10000;
 
   --shadow-color: 44deg 28% 59%;
   --shadow-elevation-low: 0.3px 0.5px 0.7px hsl(var(--shadow-color) / 0.34),
@@ -1742,7 +1746,6 @@ svg.expandable path {
   min-height: 1.6em;
   overflow-y: auto;*/
   border-top: 1px dotted #d2c7ad;
-  border-radius: 0 0 0.4em 0.4em;
   /* padding-left: 1em; */
   padding: 0.5em;
   padding-left: 1.2em;
@@ -1785,6 +1788,35 @@ svg.expandable path {
   font-family: "Helvetica Neue";
   font-size: 1rem;
   padding: 0.1em 0.4em 0.1em 0.4em;
+}
+
+.cell-result .icon:hover svg {
+  animation: wobble 0.6s ease 0s 1 normal forwards;
+  transform: scale(130%);
+  filter: brightness(1.1);
+}
+
+.cell-result .icon {
+  cursor: pointer;
+  color: var(--top_bar_icon_fill);
+  height: 20px;
+}
+
+.cell-result .icon svg {
+  fill: var(--top_bar_icon_fill);
+}
+
+.cell-result .icon.disabled {
+  opacity: 0.35;
+}
+
+.cell-result .icon.disabled:hover svg {
+  transform: scale(100%);
+  cursor: not-allowed;
+}
+
+.stepper-justification {
+  width: 260px;
 }
 
 /* DYNAMICS - DHEXP */
@@ -2135,7 +2167,7 @@ svg.expandable path {
   border: solid 1px rgba(126, 126, 126, 0.07);
   box-shadow: 0 1px 3px rgb(107 106 106 / 26%), 0 5px 1px rgb(107 106 106 / 13%);
   border-radius: 1.5em;
-  margin: 1px 1px;
+  margin: 1px 0.9em 1px 1px;
   align-items: center;
   justify-content: center;
 }
@@ -2146,6 +2178,8 @@ svg.expandable path {
 }
 .toggle-switch.active .toggle-knob {
   margin-left: 0.9em;
+  margin-right: 1px;
+  color: #4fad66;
 }
 
 /* END TOGGLE */
@@ -2156,9 +2190,28 @@ svg.expandable path {
   font-family: "Source Code Pro", monospace;
 }
 
-.equiv {
+.equiv,
+.equiv span {
   white-space: nowrap;
   font-family: "Source Code Pro", monospace;
+}
+
+.step-expand,
+.step-back {
+  cursor: pointer;
+}
+
+.step-expand:hover span,
+.step-back:hover span {
+  display: none;
+}
+
+.step-expand:hover:before {
+  content: "↕";
+}
+
+.step-back:hover:before {
+  content: "←";
 }
 
 /* File Select */
@@ -2175,4 +2228,86 @@ svg.expandable path {
   height: 1em;
   top: -1em;
   left: -1em;
+}
+
+.steppable,.steppable * {
+  border: 1px var(--step-hole-color);
+  background-color:rgb(232, 255, 196);
+  margin: -1px;
+  cursor: pointer;
+}
+
+
+.stepped, .stepped * {
+  border: 1px var(--step-hole-color);
+  background-color:#ddcda3;
+  margin: -1px;
+}
+
+.substituted {
+  text-decoration: line-through;
+  color: #AC985E;
+}
+
+.settings-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 300px;
+  max-width: 100%;
+  max-height: 100%;
+  background-color: var(--light-page-color);
+  border-radius: 0.4em;
+  z-index: var(--modal-z);
+  box-sizing: border-box;
+  padding: 1em;
+}
+
+.settings-modal-top {
+  justify-content: right;
+  display: flex;
+}
+
+.modal-back {
+  z-index: var(--modal-back-z);
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: #00000060;
+}
+
+.settings-toggle .toggle-switch {
+  margin-right: 1em;
+}
+
+.settings-toggle {
+  margin-bottom: 0.3em;
+}
+
+.settings-modal .icon:hover svg {
+  animation: wobble 0.6s ease 0s 1 normal forwards;
+  transform: scale(130%);
+  filter: brightness(1.1);
+}
+
+.settings-modal .icon {
+  cursor: pointer;
+  color: var(--top_bar_icon_fill);
+  height: 20px;
+}
+
+.settings-modal .icon svg {
+  fill: var(--top_bar_icon_fill);
+}
+
+.settings-modal .icon.disabled {
+  opacity: 0.35;
+}
+
+.settings-modal .icon.disabled:hover svg {
+  transform: scale(100%);
+  cursor: not-allowed;
 }

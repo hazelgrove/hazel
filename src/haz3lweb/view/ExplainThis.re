@@ -433,18 +433,83 @@ let example_view =
               );
             let (uhexp, _) = MakeTerm.go(term);
             let info_map = Interface.Statics.mk_map(settings.core, uhexp);
-            let result_view =
-              DHCode.view(
-                ~settings={
-                  show_case_clauses: true,
-                  show_fn_bodies: true,
-                  show_casts: false,
-                },
-                ~selected_hole_instance=None,
-                ~font_metrics,
-                ~width=80,
-                Interface.eval_u2d(~settings=settings.core, info_map, uhexp),
+            let dhexp =
+              uhexp |> Interface.elaborate(~settings=settings.core, info_map);
+            let dhexp =
+              DHExp.Filter(
+                Filter(
+                  Filter.mk(
+                    Constructor("$e"),
+                    (FilterAction.Eval, FilterAction.All),
+                  ),
+                ),
+                dhexp,
               );
+            let stepper =
+              dhexp
+              |> Stepper.init
+              |> Stepper.evaluate_full(~settings=settings.core.evaluation);
+            let (hidden, previous) =
+              Stepper.get_history(
+                ~settings=settings.core.evaluation,
+                stepper,
+              );
+            let dh_code_current =
+              div(
+                ~attr=Attr.classes(["result"]),
+                [
+                  DHCode.view(
+                    ~inject,
+                    ~settings=settings.core.evaluation,
+                    ~selected_hole_instance=None,
+                    ~font_metrics,
+                    ~width=80,
+                    ~previous_step=
+                      previous
+                      |> List.nth_opt(_, 0)
+                      |> Option.map((x: Stepper.step_with_previous) => x.step),
+                    ~next_steps=stepper.next,
+                    ~hidden_steps=
+                      List.map((x: EvaluatorStep.step) => x, hidden),
+                    ~result_key="",
+                    Stepper.current_expr(stepper),
+                  ),
+                ],
+              );
+            let dh_code_previous =
+                (step_with_previous: Stepper.step_with_previous) =>
+              div(
+                ~attr=Attr.classes(["result"]),
+                [
+                  DHCode.view(
+                    ~inject,
+                    ~settings=settings.core.evaluation,
+                    ~selected_hole_instance=None,
+                    ~font_metrics,
+                    ~width=80,
+                    ~previous_step=
+                      Option.map(
+                        (x: EvaluatorStep.step) => x,
+                        step_with_previous.previous,
+                      ),
+                    ~chosen_step=Some(step_with_previous.step),
+                    ~hidden_steps=
+                      List.map(
+                        (x: EvaluatorStep.step) => x,
+                        step_with_previous.hidden,
+                      ),
+                    ~result_key="",
+                    step_with_previous.step.d,
+                  ),
+                ],
+              );
+            let result_view =
+              previous
+              |> List.map(dh_code_previous)
+              |> List.fold_left(
+                   (x, y) => List.cons(y, x),
+                   [dh_code_current],
+                 );
             let code_container = view =>
               div(~attr=clss(["code-container"]), view);
             let feedback =
@@ -473,7 +538,7 @@ let example_view =
                       ~attr=clss(["cell-result", "cell-item", "selected"]),
                       [
                         div_c("equiv", [text("≡")]),
-                        code_container([result_view]),
+                        code_container(result_view),
                       ],
                     ),
                   ],
@@ -1696,6 +1761,34 @@ let get_doc =
             ),
           SeqExp.seqs,
         );
+      | Filter((Step, One), pat, body) =>
+        message_single(
+          FilterExp.filter_pause(
+            ~p_id=Term.UExp.rep_id(pat),
+            ~body_id=Term.UExp.rep_id(body),
+          ),
+        )
+      | Filter((Step, All), pat, body) =>
+        message_single(
+          FilterExp.filter_debug(
+            ~p_id=Term.UExp.rep_id(pat),
+            ~body_id=Term.UExp.rep_id(body),
+          ),
+        )
+      | Filter((Eval, All), pat, body) =>
+        message_single(
+          FilterExp.filter_eval(
+            ~p_id=Term.UExp.rep_id(pat),
+            ~body_id=Term.UExp.rep_id(body),
+          ),
+        )
+      | Filter((Eval, One), pat, body) =>
+        message_single(
+          FilterExp.filter_hide(
+            ~p_id=Term.UExp.rep_id(pat),
+            ~body_id=Term.UExp.rep_id(body),
+          ),
+        )
       | Test(body) =>
         let body_id = List.nth(body.ids, 0);
         get_message(
@@ -1773,6 +1866,8 @@ let get_doc =
               ),
             OpExp.int_un_minus,
           );
+        | Meta(Unquote) =>
+          message_single(FilterExp.unquote(~sel_id=Term.UExp.rep_id(exp)))
         }
       | BinOp(op, left, right) =>
         open OpExp;

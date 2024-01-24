@@ -121,8 +121,11 @@ let view =
           ),
         ~code_id="prelude",
         ~info_map=prelude.info_map,
-        ~test_results=ModelResult.unwrap_test_results(prelude.simple_result),
-        ~footer=None,
+        ~test_results=
+          TestResults.unwrap_test_results(
+            ModelResult.get_simple(prelude.result),
+          ),
+        ~footer=[],
         eds.prelude,
       ),
     );
@@ -137,8 +140,10 @@ let view =
           ~code_id="correct-impl",
           ~info_map=instructor.info_map,
           ~test_results=
-            ModelResult.unwrap_test_results(instructor.simple_result),
-          ~footer=None,
+            TestResults.unwrap_test_results(
+              ModelResult.get_simple(instructor.result),
+            ),
+          ~footer=[],
           eds.correct_impl,
         ),
     );
@@ -200,15 +205,16 @@ let view =
         ~code_id="your-tests",
         ~info_map=test_validation.info_map,
         ~test_results=
-          ModelResult.unwrap_test_results(test_validation.simple_result),
-        ~footer=
-          Some(
-            Grading.TestValidationReport.view(
-              ~inject,
-              grading_report.test_validation_report,
-              grading_report.point_distribution.test_validation,
-            ),
+          TestResults.unwrap_test_results(
+            ModelResult.get_simple(test_validation.result),
           ),
+        ~footer=[
+          Grading.TestValidationReport.view(
+            ~inject,
+            grading_report.test_validation_report,
+            grading_report.point_distribution.test_validation,
+          ),
+        ],
         eds.your_tests.tests,
       ),
     );
@@ -217,10 +223,7 @@ let view =
     List.mapi(
       (
         i,
-        (
-          Exercise.{impl, _},
-          Exercise.DynamicsItem.{info_map, simple_result, _},
-        ),
+        (Exercise.{impl, _}, Exercise.DynamicsItem.{info_map, result, _}),
       ) => {
         InstructorOnly(
           () =>
@@ -233,8 +236,11 @@ let view =
                 ),
               ~code_id="wrong-implementation-" ++ string_of_int(i + 1),
               ~info_map,
-              ~test_results=ModelResult.unwrap_test_results(simple_result),
-              ~footer=None,
+              ~test_results=
+                TestResults.unwrap_test_results(
+                  ModelResult.get_simple(result),
+                ),
+              ~footer=[],
               impl,
             ),
         )
@@ -251,7 +257,8 @@ let view =
       ),
     );
 
-  let your_impl_view =
+  let your_impl_view = {
+    let simple = ModelResult.get_simple(user_impl.result);
     Always(
       editor_view(
         YourImpl,
@@ -259,24 +266,25 @@ let view =
         ~caption=Cell.bolded_caption("Your Implementation"),
         ~code_id="your-impl",
         ~info_map=user_impl.info_map,
-        ~test_results=
-          ModelResult.unwrap_test_results(user_impl.simple_result),
+        ~test_results=TestResults.unwrap_test_results(simple),
         ~footer=
-          Some(
-            Cell.eval_result_footer_view(
-              ~settings,
-              ~inject,
-              ~font_metrics,
-              ~elab=Haz3lcore.DHExp.Tuple([]), //TODO: placeholder
-              user_impl.simple_result,
-            ),
+          Cell.footer(
+            ~settings,
+            ~inject,
+            ~font_metrics,
+            ~result_key=Exercise.user_impl_key,
+            ~simple,
+            ~result=user_impl.result,
           ),
         eds.your_impl,
       ),
     );
+  };
 
   let testing_results =
-    ModelResult.unwrap_test_results(user_tests.simple_result);
+    TestResults.unwrap_test_results(
+      ModelResult.get_simple(user_tests.result),
+    );
 
   let syntax_grading_view =
     Always(Grading.SyntaxReport.view(grading_report.syntax_report));
@@ -295,13 +303,12 @@ let view =
         ~code_id="your-tests-testing-view",
         ~info_map=user_tests.info_map,
         ~test_results=testing_results,
-        ~footer=
-          Some(
-            Cell.test_report_footer_view(
-              ~inject,
-              ~test_results=testing_results,
-            ),
+        ~footer=[
+          Cell.test_report_footer_view(
+            ~inject,
+            ~test_results=testing_results,
           ),
+        ],
         eds.your_tests.tests,
       ),
     );
@@ -316,8 +323,10 @@ let view =
           ~code_id="hidden-tests",
           ~info_map=instructor.info_map,
           ~test_results=
-            ModelResult.unwrap_test_results(instructor.simple_result),
-          ~footer=None,
+            TestResults.unwrap_test_results(
+              ModelResult.get_simple(instructor.result),
+            ),
+          ~footer=[],
           eds.hidden_tests.tests,
         ),
     );

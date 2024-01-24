@@ -81,12 +81,22 @@ let get_spliced_elabs =
       | Scratch(idx, slides) =>
         let current_slide = List.nth(slides, idx);
         let (key, d) =
-          ScratchSlide.spliced_elab(~settings, ~ctx_init, current_slide);
+          ScratchSlide.spliced_elab(
+            ~settings,
+            ~ctx_init,
+            string_of_int(idx),
+            current_slide,
+          );
         [(key, d)];
       | Examples(name, slides) =>
         let current_slide = List.assoc(name, slides);
         let (key, d) =
-          ScratchSlide.spliced_elab(~settings, ~ctx_init, current_slide);
+          ScratchSlide.spliced_elab(
+            ~settings,
+            ~ctx_init,
+            name,
+            current_slide,
+          );
         [(key, d)];
       | Exercise(_, _, exercise) =>
         Exercise.spliced_elabs(settings.core, exercise)
@@ -109,13 +119,15 @@ let set_instructor_mode = (editors: t, instructor_mode: bool): t =>
   };
 
 let reset_nth_slide = (n, slides) => {
-  let data = List.nth(Init.startup.scratch |> snd, n);
+  let (_, init_editors, _) = Init.startup.scratch;
+  let data = List.nth(init_editors, n);
   let init_nth = ScratchSlide.unpersist(data);
   Util.ListUtil.put_nth(n, init_nth, slides);
 };
 
 let reset_named_slide = (name, slides) => {
-  let data = List.assoc(name, Init.startup.examples |> snd);
+  let (_, init_editors, _) = Init.startup.examples;
+  let data = List.assoc(name, init_editors);
   let init_name = ScratchSlide.unpersist(data);
   slides |> List.remove_assoc(name) |> List.cons((name, init_name));
 };

@@ -5,7 +5,23 @@ let startup : PersistentData.t =
         captions = true;
         secondary_icons = false;
         core =
-          { statics = true; elaborate = false; assist = true; dynamics = true };
+          {
+            statics = true;
+            elaborate = false;
+            assist = true;
+            dynamics = true;
+            evaluation =
+              {
+                show_case_clauses = true;
+                show_fn_bodies = true;
+                show_fixpoints = false;
+                show_casts = false;
+                show_lookup_steps = false;
+                show_stepper_filters = false;
+                stepper_history = false;
+                show_settings = false;
+              };
+          };
         async_evaluation = false;
         context_inspector = false;
         instructor_mode = true;
@@ -107,7 +123,8 @@ let startup : PersistentData.t =
                Convex))))))(ancestors())))(caret Outer))";
             backup_text = "     ";
           };
-        ] );
+        ],
+        [] );
     examples =
       ( "Introduction",
         [
@@ -13976,5 +13993,6 @@ let startup : PersistentData.t =
                  # Check out the research papers at hazel.org for more on #\n\
                  # how Hazel works. #";
             } );
-        ] );
+        ],
+        [] );
   }
