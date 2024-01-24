@@ -86,6 +86,26 @@ let view =
           info_map,
         )
       : div_empty;
+  let info =
+    SlideContent.get_content(editors)
+    |> Option.map(i => div(~attr=Attr.id("slide"), [i]))
+    |> Option.to_list;
+  // let img =
+  //   img
+  //   |> Option.map(i =>
+  //        div(
+  //          ~attr=Attr.id("slide"),
+  //          [
+  //            Node.create(
+  //              "img",
+  //              ~key="slide",
+  //              ~attr=Attr.many([Attr.src(i), Attr.class_("slide-img")]),
+  //              [],
+  //            ),
+  //          ],
+  //        )
+  //      )
+  //   |> Option.to_list;
   [
     div(
       ~attr=
@@ -93,7 +113,7 @@ let view =
           Attr.id("main"),
           Attr.classes([Settings.show_mode(settings.mode)]),
         ]),
-      [div(~attr=clss(["editor", "single"]), [editor_view])],
+      [div(~attr=clss(["editor", "single"]), info @ [editor_view])],
     ),
     sidebar,
     bottom_bar,
