@@ -93,62 +93,94 @@ module Terr = {
 
 module S = Slope;
 module Slope = {
-  module Dn = {
-    let unroll = _ => failwith("todo");
+  // distribute paths
+  let unroll = (side: Dir.t, cell: Cell.t) => {
+    let rec go = (cell, unrolled) =>
+      switch (cell.meld) {
+      | None => unrolled
+      | Some(M(l, W(w), r)) =>
+        let (cell, terr) =
+          switch (side) {
+          | L => (l, Terr.{wald: w, cell: r})
+          | R => (r, Terr.{wald: Wald.rev(w), cell: l})
+          };
+        go(cell, [terr, ...unrolled]);
+      };
+    go(cell, []);
+  };
 
-    let push =
-        (~repair=false, ~top=Bound.Root, dn: S.Dn.t, ~fill=[], w: W.t)
-        : Result.t(S.Dn.t, list(Meld.t)) => {
-      let meld = Wald.meld(~repair, ~from=L);
-      let rec go = (dn, fill) =>
-        switch (dn) {
-        | [] =>
-          switch (meld(Root, ~fill, w)) {
-          | None
-          | Some(Eq(_)) => Error(fill)
-          | Some(Neq(dn)) => Ok(dn)
-          }
-        | [hd, ...tl] =>
-          // todo: flatten
-          switch (W.split_fst(hd.wald)) {
-          | (tok, ([], [])) when Token.is_grout(tok) =>
-            Effect.perform(Remove(tok));
-            go(S.cat(unroll(hd.cell), tl), fill);
-          | (tok, ([cell, ...cells], toks)) when Token.is_grout(tok) =>
-            Effect.perform(Remove(tok));
-            let hd = {...hd, wald: W.mk(toks, cells)};
-            go(S.cat(unroll(hd.cell), [hd, ...tl]), fill);
-          | _ =>
-            switch (meld(Node(hd.wald), ~fill, w)) {
-            | None => go(tl, Terr.R.round(hd, ~fill))
-            | Some(Eq(wald)) => Ok([{...hd, wald}, ...tl])
-            | Some(Neq(dn')) => Ok(S.cat(dn', dn))
-            }
-          }
-        };
-      go(dn, fill);
+  let push =
+      (
+        ~repair=false,
+        ~onto: Dir.t,
+        ~top=Bound.Root,
+        w: W.t,
+        ~fill=[],
+        slope: S.t,
+      )
+      : Result.t(S.t, list(Meld.t)) => {
+    let meld = Wald.meld(~repair, ~from=onto);
+    let round = Dir.pick(onto, (Terr.R.round, Terr.L.round));
+    let rec go = (fill, slope) =>
+      switch (slope) {
+      | [] =>
+        switch (meld(top, ~fill, w)) {
+        | None
+        | Some(Eq(_)) => Error(fill)
+        | Some(Neq(slope)) => Ok(slope)
+        }
+      | [{wald: W(([tok, ...toks], cells)), cell}, ...tl]
+          when Token.is_grout(tok) =>
+        Effect.perform(Remove(tok));
+        let (cell, slope) =
+          switch (cells) {
+          | [] => (cell, tl)
+          | [c, ...cs] =>
+            let hd = Terr.{wald: W.mk(toks, cs), cell};
+            (c, [hd, ...tl]);
+          };
+        go(fill, S.cat(unroll(cell), slope));
+      | [hd, ...tl] =>
+        switch (meld(Node(hd.wald), ~fill, w)) {
+        | None => go(round(~fill, hd), tl)
+        | Some(Eq(wald)) => Ok([{...hd, wald}, ...tl])
+        | Some(Neq(s)) => Ok(S.cat(s, slope))
+        }
+      };
+    go(fill, slope);
+  };
+
+  let pull = (~char=false, ~from: Dir.t, slope: S.t): option((Token.t, S.t)) =>
+    switch (slope) {
+    | [] => None
+    | [hd, ...tl] =>
+      let (tok, rest) = W.split_hd(hd.wald);
+      switch (Token.pull(~from=Dir.toggle(from), tok)) {
+      | Some((c, tok)) when char =>
+        let hd = {...hd, wald: W.zip(tok, ~suf=rest)};
+        Some((c, [hd, ...tl]));
+      | _ =>
+        let unroll = unroll(Dir.toggle(from));
+        let slope =
+          switch (rest) {
+          | ([], _) => S.cat(unroll(hd.cell), tl)
+          | ([cell, ...cells], toks) =>
+            let hd = {...hd, wald: Wald.mk(toks, cells)};
+            S.cat(unroll(cell), [hd, ...tl]);
+          };
+        Some((tok, slope));
+      };
     };
 
-    let pull = (~char=false, dn: S.Dn.t): option((S.Dn.t, Token.t)) =>
-      switch (dn) {
-      | [] => None
-      | [hd, ...tl] =>
-        let (tok, rest) = W.split_hd(hd.wald);
-        switch (Token.unsnoc(tok)) {
-        | Some((tok, c)) when char =>
-          let hd = {...hd, wald: W.zip(tok, ~suf=rest)};
-          Some(([hd, ...tl], c));
-        | _ =>
-          let dn =
-            switch (rest) {
-            | ([], _) => S.cat(unroll(hd.cell), tl)
-            | ([cell, ...cells], toks) =>
-              let hd = {...hd, wald: Wald.mk(toks, cells)};
-              S.cat(unroll(cell), [hd, ...tl]);
-            };
-          Some((dn, tok));
-        };
-      };
+  module Dn = {
+    let unroll = unroll(R);
+    let push = push(~onto=L);
+    let pull = pull(~from=L);
+  };
+  module Up = {
+    let unroll = unroll(L);
+    let push = push(~onto=R);
+    let pull = pull(~from=R);
   };
 };
 
@@ -161,7 +193,7 @@ module Zigg = {
       switch (Slope.Up.push(w, ~fill, zigg.up, ~top)) {
       | Ok(up) => Some({...zigg, up})
       | Error(fill) =>
-        meld_eq(~from=R, w, ~fill, top)
+        Wald.meld_eq(~from=R, w, ~fill, top)
         |> Option.map(top => {...zigg, up: [], top})
       };
     | R =>
@@ -169,7 +201,7 @@ module Zigg = {
       switch (Slope.Dn.push(~top, zigg.dn, ~fill, w)) {
       | Ok(dn) => Some({...zigg, dn})
       | Error(fill) =>
-        meld_eq(~from=L, top, ~fill, w)
+        Wald.meld_eq(~from=L, top, ~fill, w)
         |> Option.map(top => {...zigg, top, dn: []})
       };
     };
