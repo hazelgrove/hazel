@@ -1,15 +1,11 @@
-module Base = {
-  include Meld.Cell;
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t('sort) = Meld.Cell.t('sort, Meld.t);
-};
+include Meld.Cell;
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = Base.t(Bound.t(Molded.Sort.t));
+type t = Meld.Cell.t(Meld.t);
 
-let mk = (~marks=Path.Marks.empty, ~meld=?, sort): t => {
-  let _ = failwith("todo: lift marks from meld");
-  {marks, sort, meld};
-};
+// let mk = (~marks=Path.Marks.empty, ~meld=?, ()): t => {
+//   let _ = failwith("todo: lift marks from meld");
+//   {marks, meld};
+// };
 
 // returns a cell carrying the input meld repaired for sort consistency,
 // provided that such repair is possible. otherwise return empty cell.

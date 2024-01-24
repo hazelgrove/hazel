@@ -1,5 +1,5 @@
 open Util;
 
-type t = Chain.t(Cell.Base.t(Walk.Stride.t), Token.t);
+type t = Chain.t(Rel.t(Cell.t, Cell.t), Token.t);
 
 let height = Chain.length;

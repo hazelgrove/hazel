@@ -53,22 +53,17 @@ let select = (d: Dir.t, z: Zipper.t): option(Zipper.t) => {
   | Select(side, zigg) =>
     if (side == d) {
       let+ (tok, ctx) = Melder.Ctx.pull(~from=d, z.ctx);
-      let zigg =
-      switch (Melder.Zigg.push(~onto=b, tok, zigg)) {
-      | Some(z) => z
-      | None =>
-      };
+      let zigg = Melder.Zigg.grow(~side, tok, zigg);
+      Zipper.mk(~foc, ctx);
     } else {
-      let (t, rest) = Melder.Zigg.pull(~from=d, sel);
+      let (tok, rest) = Melder.Zigg.pull(~from=d, sel);
+      let ctx = Melder.Ctx.(close(push(~onto=b, tok, ctx)));
       let foc =
         switch (rest) {
-        | None => Zipper.Focus.Point
+        | None => Focus.Point
         | Some(sel) => Select(b, sel)
         };
-      z.ctx
-      |> Melder.Ctx.push(~onto=b, t)
-      |> Zipper.mk(~close=true, ~foc)
-      |> Option.some;
+      Some(Zipper.mk(~foc, ctx));
     }
   };
 };

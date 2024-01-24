@@ -1,9 +1,7 @@
 open Util;
 
 module Melded = {
-  type t =
-    | Eq(Wald.t)
-    | Neq(Slope.t);
+  type t = Rel.t(Wald.t, Slope.t);
 
   let mk_eq = (src: Wald.t, bake: Bake.t, dst: Wald.t) => failwith("todo");
   let mk_neq = (bake: Bake.t, dst: Wald.t) => failwith("todo");
@@ -93,21 +91,31 @@ module Terr = {
 
 module S = Slope;
 module Slope = {
-  // distribute paths
-  let unroll = (side: Dir.t, cell: Cell.t) => {
+  // todo: distribute paths
+  let unroll = (~from: Dir.t, cell: Cell.t) => {
     let rec go = (cell, unrolled) =>
       switch (cell.meld) {
       | None => unrolled
       | Some(M(l, W(w), r)) =>
         let (cell, terr) =
-          switch (side) {
-          | L => (l, Terr.{wald: w, cell: r})
-          | R => (r, Terr.{wald: Wald.rev(w), cell: l})
+          switch (from) {
+          | L => (r, Terr.{wald: Wald.rev(w), cell: l})
+          | R => (l, Terr.{wald: w, cell: r})
           };
         go(cell, [terr, ...unrolled]);
       };
     go(cell, []);
   };
+
+  let roll = (~onto: Dir.t, slope: t) =>
+    List.fold_left(
+      (cell, terr) => {
+        let w = onto == L ? Wald.rev(terr.wald) : terr.wald;
+        let (l, r) = Dir.order(onto, (terr.cell, cell));
+        Cell.mk(Meld.mk(~l, w, ~r));
+      },
+      Cell.empty,
+    );
 
   let push =
       (
@@ -167,12 +175,14 @@ module Slope = {
     };
 
   module Dn = {
-    let unroll = unroll(R);
+    let unroll = unroll(~from=L);
+    let roll = roll(~onto=L);
     let push = push(~onto=L);
     let pull = pull(~from=L);
   };
   module Up = {
-    let unroll = unroll(L);
+    let unroll = unroll(~from=R);
+    let roll = roll(~onto=R);
     let push = push(~onto=R);
     let pull = pull(~from=R);
   };
@@ -180,7 +190,7 @@ module Slope = {
 
 module Z = Zigg;
 module Zigg = {
-  let push = (~onto: Dir.t, w: W.t, ~fill=[], zigg: Z.t): option(Z.t) =>
+  let push_wald = (~onto: Dir.t, w: W.t, ~fill=[], zigg: Z.t): option(Z.t) =>
     switch (onto) {
     | L =>
       let top = zigg.top;
@@ -199,15 +209,23 @@ module Zigg = {
         |> Option.map(top => {...zigg, top, dn: []})
       };
     };
+  let push = (~onto: Dir.t, tok: Token.t) => push_wald(~onto, W.unit(tok));
+
   let grow = (~side: Dir.t, tok: Token.t, zigg: Z.t) =>
-    switch (push(~onto=side, W.unit(tok), zigg)) {
+    switch (push(~onto=side, tok, zigg)) {
     | Some(z) => z
     | None =>
       switch (side) {
       | L =>
-
+        let cell = Slope.Up.roll(zigg.up);
+        let dn = zigg.dn @ [T.{wald: Wald.rev(zigg.top), cell}];
+        Zigg.mk(W.unit(tok), ~dn);
+      | R =>
+        let cell = Slope.Dn.roll(zigg.dn);
+        let up = zigg.up @ [T.{wald: zigg.top, cell}];
+        Zigg.mk(~up, W.unit(tok));
       }
-    }
+    };
 
   let rec take_leq = (zigg: t, ~fill=[], suf: S.Up.t) =>
     switch (suf) {

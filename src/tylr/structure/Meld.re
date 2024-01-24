@@ -3,11 +3,11 @@ open Util;
 
 module Cell = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t('sort, 'meld) = {
+  type t('meld) = {
     marks: Path.Marks.t,
-    sort: 'sort,
     meld: option('meld),
   };
+  let empty = {marks: Path.Marks.empty, meld: None};
 };
 
 module Wald = {
@@ -16,18 +16,14 @@ module Wald = {
     | W(Chain.t(Token.t, 'cell));
 };
 
-module Base = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | M(cell, Wald.t(cell), cell)
-  and cell = Cell.t(Bound.t(Molded.Sort.t), t);
-};
-include Base;
+[@deriving (show({with_path: false}), sexp, yojson)]
+type t =
+  | M(Cell.t(t), Wald.t(Cell.t(t)), Cell.t(t));
 
-let mk = (~l: cell, ~r: cell, w) => M(l, w, r);
+let mk = (~l=Cell.empty, ~r=Cell.empty, w) => M(l, w, r);
 
-let link = (c: cell, t: Token.t, M(l, W(w), r): t) =>
-  M(c, W(Chain.link(t, l, w)), r);
+let link = (~cell=Cell.empty, t: Token.t, M(l, W(w), r): t) =>
+  M(cell, W(Chain.link(t, l, w)), r);
 
 let rev = (M(l, W(w), r): t) => M(r, W(Chain.rev(w)), l);
 
