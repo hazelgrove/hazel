@@ -13,9 +13,14 @@ type step_with_previous = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type current =
   | StepperOK(DHExp.t, EvaluatorState.t)
-  | StepperError(ProgramEvaluatorError.t) // Must have at least one in previous
-  | StepTimeout // Must have at least one in previous
-  | StepPending(DHExp.t, EvaluatorState.t, option(EvalObj.t)); // StepPending(_,Some(_)) cannot be saved
+  | StepperError(
+      DHExp.t,
+      EvaluatorState.t,
+      EvalObj.t,
+      ProgramEvaluatorError.t,
+    ) // Must have at least one in previous
+  | StepTimeout(DHExp.t, EvaluatorState.t, EvalObj.t) // Must have at least one in previous
+  | StepPending(DHExp.t, EvaluatorState.t, option(EvalObj.t)); // none
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
@@ -216,11 +221,11 @@ let get_elab = ({elab, _}: t) => elab;
 let get_next_steps = s => s.next;
 
 let current_expr = (s: t) =>
-  switch (s.current, s.previous) {
-  | (StepperOK(d, _), _)
-  | (StepPending(d, _, _), _) => d
-  | (StepperError(_) | StepTimeout, [x, ..._]) => x.d
-  | (StepperError(_) | StepTimeout, []) => s.elab
+  switch (s.current) {
+  | StepperOK(d, _)
+  | StepPending(d, _, _)
+  | StepperError(d, _, _, _)
+  | StepTimeout(d, _, _) => d
   };
 
 let step_pending = (eo: EvalObj.t, {elab, previous, current, next}: t) =>
@@ -232,7 +237,7 @@ let step_pending = (eo: EvalObj.t, {elab, previous, current, next}: t) =>
       next,
     }
   | StepperError(_)
-  | StepTimeout => {
+  | StepTimeout(_) => {
       elab,
       previous: List.tl(previous),
       current:
@@ -280,7 +285,7 @@ let rec evaluate_pending = (~settings, s: t) => {
   switch (s.current) {
   | StepperOK(_)
   | StepperError(_)
-  | StepTimeout => s
+  | StepTimeout(_) => s
   | StepPending(d, state, Some(eo)) =>
     let state_ref = ref(state);
     let d_loc' =
@@ -292,7 +297,7 @@ let rec evaluate_pending = (~settings, s: t) => {
     {
       elab: s.elab,
       previous: [
-        {d, d_loc: eo.d_loc, ctx: eo.ctx, knd: eo.knd, state},
+        {d, d_loc: eo.d_loc, d_loc', ctx: eo.ctx, knd: eo.knd, state},
         ...s.previous,
       ],
       current: StepPending(d', state_ref^, None),
@@ -323,7 +328,7 @@ let rec evaluate_pending = (~settings, s: t) => {
 let rec evaluate_full = (~settings, s: t) => {
   switch (s.current) {
   | StepperError(_)
-  | StepTimeout => s
+  | StepTimeout(_) => s
   | StepperOK(_) when s.next == [] => s
   | StepperOK(_) =>
     s |> step_pending(List.hd(s.next)) |> evaluate_full(~settings)
@@ -336,16 +341,14 @@ let timeout =
   fun
   | {elab, previous, current: StepPending(d, state, Some(eo)), next} => {
       elab,
-      previous: [
-        {d, d_loc: eo.d_loc, ctx: eo.ctx, knd: eo.knd, state},
-        ...previous,
-      ],
-      current: StepTimeout,
+      previous,
+      current: StepTimeout(d, state, eo),
       next,
     }
   | {
       current:
-        StepperError(_) | StepTimeout | StepperOK(_) | StepPending(_, _, None),
+        StepperError(_) | StepTimeout(_) | StepperOK(_) |
+        StepPending(_, _, None),
       _,
     } as s => s;
 
