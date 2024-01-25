@@ -1418,7 +1418,6 @@ svg.tile-selected {
 
 .context-entry:hover {
   max-width: 400em;
-  -webkit-mask-image: none;
   background-image: linear-gradient(
     0deg,
     rgb(138 99 32),
