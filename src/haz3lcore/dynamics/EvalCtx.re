@@ -245,8 +245,7 @@ let rec unwrap = (ctx: t, sel: cls): option(t) => {
   | (tag, Closure(_, c)) => unwrap(c, tag)
   | (Cast, _) => Some(ctx)
   | (tag, Cast(c, _, _)) => unwrap(c, tag)
-  | (_, Mark) =>
-    None;
+  | (_, Mark) => None
   | (_, _) =>
     // print_endline(
     //   Sexplib.Sexp.to_string_hum(sexp_of_cls(tag))
