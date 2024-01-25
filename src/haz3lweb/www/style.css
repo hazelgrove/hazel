@@ -315,21 +315,21 @@ body {
 #main.Documentation {
   padding: 0.8em;
 }
-#main.Exercise {
+#main.Exercises {
   padding: 1.2em 0.8em 1.2em 0.8em;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   gap: 1.2em;
 }
-#main.Exercise .editor {
+#main.Exercises .editor {
   /* TODO deprecate */
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   gap: 1.2em;
 }
-#main.Exercise .cell-container {
+#main.Exercises .cell-container {
   width: auto;
 }
 
