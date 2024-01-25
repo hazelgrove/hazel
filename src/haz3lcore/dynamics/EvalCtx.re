@@ -245,10 +245,7 @@ let rec unwrap = (ctx: t, sel: cls): option(t) => {
   | (tag, Closure(_, c)) => unwrap(c, tag)
   | (Cast, _) => Some(ctx)
   | (tag, Cast(c, _, _)) => unwrap(c, tag)
-  | (tag, Mark) =>
-    print_endline("==== unwrap(_, Mark) ====");
-    print_endline("tag = " ++ show_cls(tag));
-    print_endline("---- unwrap(_, Mark) ----");
+  | (_, Mark) =>
     None;
   | (_, _) =>
     // print_endline(
