@@ -209,7 +209,7 @@ let reevaluate_post_update = (settings: Settings.t) =>
   | ResetCurrentEditor
   | SwitchEditor(_)
   | SwitchScratchSlide(_)
-  | SwitchExampleSlide(_)
+  | SwitchDocumentationSlide(_)
   | Cut
   | Paste(_)
   | Assistant(_)
@@ -250,7 +250,7 @@ let should_scroll_to_caret =
   | ResetCurrentEditor
   | SwitchEditor(_)
   | SwitchScratchSlide(_)
-  | SwitchExampleSlide(_)
+  | SwitchDocumentationSlide(_)
   | ReparseCurrentEditor
   | Reset
   | Copy
@@ -301,29 +301,29 @@ let switch_scratch_slide =
     (editors: Editors.t, ~instructor_mode, idx: int): option(Editors.t) =>
   switch (editors) {
   | DebugLoad
-  | Examples(_) => None
+  | Documentation(_) => None
   | Scratch(n, _) when n == idx => None
   | Scratch(_, slides) when idx >= List.length(slides) => None
   | Scratch(_, slides) => Some(Scratch(idx, slides))
-  | Exercise(_, specs, _) when idx >= List.length(specs) => None
-  | Exercise(_, specs, _) =>
+  | Exercises(_, specs, _) when idx >= List.length(specs) => None
+  | Exercises(_, specs, _) =>
     let spec = List.nth(specs, idx);
     let key = Exercise.key_of(spec);
     let exercise = Store.Exercise.load_exercise(key, spec, ~instructor_mode);
-    Some(Exercise(idx, specs, exercise));
+    Some(Exercises(idx, specs, exercise));
   };
 
 let switch_exercise_editor =
     (editors: Editors.t, ~pos, ~instructor_mode): option(Editors.t) =>
   switch (editors) {
   | DebugLoad
-  | Examples(_)
+  | Documentation(_)
   | Scratch(_) => None
-  | Exercise(m, specs, exercise) =>
+  | Exercises(m, specs, exercise) =>
     let exercise = Exercise.switch_editor(~pos, instructor_mode, ~exercise);
     //Note: now saving after each edit (delayed by 1 second) so no need to save here
     //Store.Exercise.save_exercise(exercise, ~instructor_mode);
-    Some(Exercise(m, specs, exercise));
+    Some(Exercises(m, specs, exercise));
   };
 
 /* This action saves a file which serializes all current editor
@@ -337,7 +337,8 @@ let switch_exercise_editor =
    due to the more complex architecture of Exercises. */
 let export_persistent_data = () => {
   let data: PersistentData.t = {
-    examples: Store.Examples.load() |> Store.Examples.to_persistent,
+    documentation:
+      Store.Documentation.load() |> Store.Documentation.to_persistent,
     scratch: Store.Scratch.load() |> Store.Scratch.to_persistent,
     settings: Store.Settings.load(),
   };
@@ -403,7 +404,7 @@ let rec apply =
       | None => Error(FailedToSwitch)
       | Some(editors) => Model.save_and_return({...model, editors})
       };
-    | SwitchExampleSlide(name) =>
+    | SwitchDocumentationSlide(name) =>
       switch (Editors.switch_example_slide(model.editors, name)) {
       | None => Error(FailedToSwitch)
       | Some(editors) => Model.save_and_return({...model, editors})
