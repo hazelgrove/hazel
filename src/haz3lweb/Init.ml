@@ -13,7 +13,7 @@ let startup : PersistentData.t =
             evaluation =
               {
                 show_case_clauses = true;
-                show_fn_bodies = true;
+                show_fn_bodies = false;
                 show_fixpoints = false;
                 show_casts = false;
                 show_lookup_steps = false;
@@ -26,7 +26,7 @@ let startup : PersistentData.t =
         context_inspector = false;
         instructor_mode = true;
         benchmark = false;
-        mode = Examples;
+        mode = Documentation;
       };
     scratch =
       ( 0,
@@ -125,7 +125,7 @@ let startup : PersistentData.t =
           };
         ],
         [] );
-    examples =
+    documentation =
       ( "Programming Expressively",
         [
           ( "Casting",

@@ -97,28 +97,28 @@ let export_menu = (~inject, ~settings: Settings.t, editors: Editors.t) =>
   | Scratch(slide_idx, slides) =>
     let state = List.nth(slides, slide_idx);
     [ScratchMode.export_button(state)];
-  | Examples(name, slides) =>
+  | Documentation(name, slides) =>
     let state = List.assoc(name, slides);
     [ScratchMode.export_button(state)];
-  | Exercise(_, _, exercise) when settings.instructor_mode => [
+  | Exercises(_, _, exercise) when settings.instructor_mode => [
       export_persistent_data(~inject),
       ExerciseMode.export_submission(~settings),
       ExerciseMode.instructor_export(exercise),
       ExerciseMode.instructor_transitionary_export(exercise),
       ExerciseMode.instructor_grading_export(exercise),
     ]
-  | Exercise(_) => [ExerciseMode.export_submission(~settings)]
+  | Exercises(_) => [ExerciseMode.export_submission(~settings)]
   };
 
 let import_menu = (~inject, editors: Editors.t) =>
   switch (editors) {
   | DebugLoad => []
   | Scratch(_)
-  | Examples(_) => [
+  | Documentation(_) => [
       ScratchMode.import_button(inject),
       ScratchMode.reset_button(inject),
     ]
-  | Exercise(_) => [
+  | Exercises(_) => [
       ExerciseMode.import_submission(~inject),
       ExerciseMode.reset_button(inject),
     ]

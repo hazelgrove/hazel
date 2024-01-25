@@ -312,24 +312,24 @@ body {
 }
 
 #main.Scratch,
-#main.Examples {
+#main.Documentation {
   padding: 0.8em;
 }
-#main.Exercise {
+#main.Exercises {
   padding: 1.2em 0.8em 1.2em 0.8em;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   gap: 1.2em;
 }
-#main.Exercise .editor {
+#main.Exercises .editor {
   /* TODO deprecate */
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   gap: 1.2em;
 }
-#main.Exercise .cell-container {
+#main.Exercises .cell-container {
   width: auto;
 }
 
@@ -1410,7 +1410,6 @@ svg.tile-selected {
   display: flex;
   gap: 0.5em;
   max-width: 17em;
-  -webkit-mask-image: linear-gradient(to right, black 13em, transparent);
   border-top: 0.5px solid #0000;
   border-bottom: 0.5px solid #e2d4a9;
   padding-left: 0.3em;
@@ -1419,7 +1418,6 @@ svg.tile-selected {
 
 .context-entry:hover {
   max-width: 400em;
-  -webkit-mask-image: none;
   background-image: linear-gradient(
     0deg,
     rgb(138 99 32),

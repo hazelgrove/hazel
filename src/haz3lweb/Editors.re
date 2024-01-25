@@ -15,8 +15,8 @@ type exercises = (int, list(Exercise.spec), Exercise.state);
 type t =
   | DebugLoad
   | Scratch(int, list(ScratchSlide.state))
-  | Examples(string, list((string, ScratchSlide.state)))
-  | Exercise(int, list(Exercise.spec), Exercise.state);
+  | Documentation(string, list((string, ScratchSlide.state)))
+  | Exercises(int, list(Exercise.spec), Exercise.state);
 
 let get_editor = (editors: t): Editor.t =>
   switch (editors) {
@@ -24,10 +24,10 @@ let get_editor = (editors: t): Editor.t =>
   | Scratch(n, slides) =>
     assert(n < List.length(slides));
     List.nth(slides, n);
-  | Examples(name, slides) =>
+  | Documentation(name, slides) =>
     assert(List.mem_assoc(name, slides));
     List.assoc(name, slides);
-  | Exercise(_, _, exercise) => Exercise.editor_of_state(exercise)
+  | Exercises(_, _, exercise) => Exercise.editor_of_state(exercise)
   };
 
 let put_editor = (ed: Editor.t, eds: t): t =>
@@ -36,11 +36,11 @@ let put_editor = (ed: Editor.t, eds: t): t =>
   | Scratch(n, slides) =>
     assert(n < List.length(slides));
     Scratch(n, Util.ListUtil.put_nth(n, ed, slides));
-  | Examples(name, slides) =>
+  | Documentation(name, slides) =>
     assert(List.mem_assoc(name, slides));
-    Examples(name, slides |> ListUtil.update_assoc((name, ed)));
-  | Exercise(n, specs, exercise) =>
-    Exercise(n, specs, Exercise.put_editor(exercise, ed))
+    Documentation(name, slides |> ListUtil.update_assoc((name, ed)));
+  | Exercises(n, specs, exercise) =>
+    Exercises(n, specs, Exercise.put_editor(exercise, ed))
   };
 
 let active_zipper = (editors: t): Zipper.t =>
@@ -50,16 +50,16 @@ let get_ctx_init = (~settings as _: Settings.t, editors: t): Ctx.t =>
   switch (editors) {
   | Scratch(_)
   | DebugLoad
-  | Exercise(_)
-  | Examples(_) => Builtins.ctx_init
+  | Exercises(_)
+  | Documentation(_) => Builtins.ctx_init
   };
 
 let get_env_init = (~settings as _: Settings.t, editors: t): Environment.t =>
   switch (editors) {
   | Scratch(_)
   | DebugLoad
-  | Exercise(_)
-  | Examples(_) => Builtins.env_init
+  | Exercises(_)
+  | Documentation(_) => Builtins.env_init
   };
 
 /* Each mode (e.g. Scratch, School) requires
@@ -86,7 +86,7 @@ let get_spliced_elabs =
             current_slide,
           );
         [(key, d)];
-      | Examples(name, slides) =>
+      | Documentation(name, slides) =>
         let current_slide = List.assoc(name, slides);
         let (key, d) =
           ScratchSlide.spliced_elab(
@@ -96,7 +96,7 @@ let get_spliced_elabs =
             current_slide,
           );
         [(key, d)];
-      | Exercise(_, _, exercise) =>
+      | Exercises(_, _, exercise) =>
         Exercise.spliced_elabs(settings.core, exercise)
       };
     }
@@ -107,9 +107,9 @@ let set_instructor_mode = (editors: t, instructor_mode: bool): t =>
   switch (editors) {
   | DebugLoad => failwith("no editors in debug load mode")
   | Scratch(_)
-  | Examples(_) => editors
-  | Exercise(n, specs, exercise) =>
-    Exercise(
+  | Documentation(_) => editors
+  | Exercises(n, specs, exercise) =>
+    Exercises(
       n,
       specs,
       Exercise.set_instructor_mode(exercise, instructor_mode),
@@ -124,7 +124,7 @@ let reset_nth_slide = (n, slides) => {
 };
 
 let reset_named_slide = (name, slides) => {
-  let (_, init_editors, _) = Init.startup.examples;
+  let (_, init_editors, _) = Init.startup.documentation;
   let data = List.assoc(name, init_editors);
   let init_name = ScratchSlide.unpersist(data);
   slides |> List.remove_assoc(name) |> List.cons((name, init_name));
@@ -134,10 +134,10 @@ let reset_current = (editors: t, ~instructor_mode: bool): t =>
   switch (editors) {
   | DebugLoad => failwith("impossible")
   | Scratch(n, slides) => Scratch(n, reset_nth_slide(n, slides))
-  | Examples(name, slides) =>
-    Examples(name, reset_named_slide(name, slides))
-  | Exercise(n, specs, _) =>
-    Exercise(
+  | Documentation(name, slides) =>
+    Documentation(name, reset_named_slide(name, slides))
+  | Exercises(n, specs, _) =>
+    Exercises(
       n,
       specs,
       List.nth(specs, n) |> Exercise.state_of_spec(~instructor_mode),
@@ -147,8 +147,8 @@ let reset_current = (editors: t, ~instructor_mode: bool): t =>
 let import_current = (editors: t, data: option(string)): t =>
   switch (editors) {
   | DebugLoad
-  | Examples(_)
-  | Exercise(_) => failwith("impossible")
+  | Documentation(_)
+  | Exercises(_) => failwith("impossible")
   | Scratch(idx, slides) =>
     switch (data) {
     | None => editors
@@ -163,8 +163,9 @@ let switch_example_slide = (editors: t, name: string): option(t) =>
   switch (editors) {
   | DebugLoad
   | Scratch(_)
-  | Exercise(_) => None
-  | Examples(cur, slides) when !List.mem_assoc(name, slides) || cur == name =>
+  | Exercises(_) => None
+  | Documentation(cur, slides)
+      when !List.mem_assoc(name, slides) || cur == name =>
     None
-  | Examples(_, slides) => Some(Examples(name, slides))
+  | Documentation(_, slides) => Some(Documentation(name, slides))
   };

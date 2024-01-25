@@ -67,7 +67,7 @@ type t =
   | InitImportAll([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
   | FinishImportAll(option(string))
   | SwitchEditor(Exercise.pos) //exercisemode only
-  | SwitchExampleSlide(string) //examplemode only
+  | SwitchDocumentationSlide(string) //examplemode only
   // editors: scratchmode only
   | InitImportScratchpad([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
   | FinishImportScratchpad(option(string))
@@ -117,7 +117,7 @@ let is_edit: t => bool =
   | Set(_)
   | Paste(_)
   | SwitchScratchSlide(_)
-  | SwitchExampleSlide(_)
+  | SwitchDocumentationSlide(_)
   | ToggleStepper(_)
   | StepperAction(_, _)
   | UpdateResult(_, _) => true
