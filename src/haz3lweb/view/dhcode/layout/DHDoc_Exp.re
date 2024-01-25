@@ -436,13 +436,6 @@ let mk =
           fail();
         } else {
           let bindings = DHPat.bound_vars(dp);
-          print_endline("===");
-          print_endline(ClosureEnvironment.show(env));
-          print_endline(
-            ClosureEnvironment.show(
-              ClosureEnvironment.without_keys(bindings, env),
-            ),
-          );
           let def_doc = go_formattable(ddef, Let1);
           vseps([
             hcats([
@@ -520,7 +513,6 @@ let mk =
           DHDoc_common.Delim.mk(")"),
         ]);
       | Fun(dp, ty, Closure(env', d), s) =>
-        print_endline(DHExp.show(d));
         if (settings.show_fn_bodies) {
           let bindings = DHPat.bound_vars(dp);
           let body_doc =
@@ -568,7 +560,7 @@ let mk =
           | None => annot(DHAnnot.Collapsed, text("<anon fn>"))
           | Some(name) => annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"))
           };
-        };
+        }
       | Fun(dp, ty, dbody, s) =>
         if (settings.show_fn_bodies) {
           let bindings = DHPat.bound_vars(dp);
