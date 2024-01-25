@@ -6,7 +6,7 @@ type all = {
   explainThisModel: string,
   scratch: string,
   exercise: string,
-  examples: string,
+  documentation: string,
   log: string,
 };
 
@@ -23,13 +23,13 @@ let mk_all = (~instructor_mode, ~log) => {
   let settings = Store.Settings.export();
   let explainThisModel = Store.ExplainThisModel.export();
   let scratch = Store.Scratch.export();
-  let examples = Store.Examples.export();
+  let documentation = Store.Documentation.export();
   let exercise =
     Store.Exercise.export(
       ~specs=ExerciseSettings.exercises,
       ~instructor_mode,
     );
-  {settings, explainThisModel, scratch, examples, exercise, log};
+  {settings, explainThisModel, scratch, documentation, exercise, log};
 };
 
 let export_all = (~instructor_mode, ~log) => {
@@ -44,7 +44,7 @@ let import_all = (data, ~specs) => {
       {
         settings: all_f22.settings,
         scratch: all_f22.scratch,
-        examples: "",
+        documentation: "",
         exercise: all_f22.exercise,
         log: all_f22.log,
         explainThisModel: "",
