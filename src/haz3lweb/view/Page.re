@@ -1,16 +1,14 @@
 open Virtual_dom.Vdom;
 open Js_of_ocaml;
 open Node;
+open Widgets;
 open Haz3lcore;
 
 let top_bar_view =
-    (
-      ~inject: Update.t => 'a,
-      ~model as {editors, settings, _} as model: Model.t,
-    ) =>
+    (~inject: Update.t => 'a, ~model as {editors, settings, _}: Model.t) =>
   div(
     ~attr=Attr.id("top-bar"),
-    NutMenu.view(~inject, model)
+    NutMenu.view(~inject, ~settings, ~editors)
     @ [div(~attr=Attr.id("title"), [text("hazel")])]
     @ [EditorModeView.view(~inject, ~settings, ~editors)],
   );
@@ -21,10 +19,10 @@ let exercises_view =
       ~exercise,
       {
         settings,
-        langDocMessages,
+        explainThisModel,
+        results,
         meta: {
           ui_state: {font_metrics, show_backpack_targets, mousedown, _},
-          results,
           _,
         },
         _,
@@ -35,10 +33,9 @@ let exercises_view =
       ~settings,
       ~exercise,
       ~results=settings.core.dynamics ? Some(results) : None,
-      ~langDocMessages,
+      ~explainThisModel,
     );
   [top_bar_view(~inject, ~model)]
-  @ [Grading.GradingReport.view_overall_score(exercise_mode.grading_report)]
   @ ExerciseMode.view(
       ~inject,
       ~font_metrics,
@@ -46,6 +43,80 @@ let exercises_view =
       ~show_backpack_targets,
       exercise_mode,
     );
+};
+
+let stepper_settings_modal = (~inject, settings: Settings.t) => {
+  let modal = div(~attr=Attr.many([Attr.class_("settings-modal")]));
+  let setting = (icon, name, current, action: UpdateAction.settings_action) =>
+    div(
+      ~attr=Attr.many([Attr.class_("settings-toggle")]),
+      [
+        toggle(~tooltip=name, icon, current, _ => inject(Update.Set(action))),
+        text(name),
+      ],
+    );
+  [
+    modal([
+      div(
+        ~attr=Attr.many([Attr.class_("settings-modal-top")]),
+        [
+          button(Icons.x, _ => inject(Update.Set(Evaluation(ShowSettings)))),
+        ],
+      ),
+      setting(
+        "h",
+        "show full step trace",
+        settings.core.evaluation.stepper_history,
+        Evaluation(ShowRecord),
+      ),
+      setting(
+        "|",
+        "show case clauses",
+        settings.core.evaluation.show_case_clauses,
+        Evaluation(ShowCaseClauses),
+      ),
+      setting(
+        "λ",
+        "show function bodies",
+        settings.core.evaluation.show_fn_bodies,
+        Evaluation(ShowFnBodies),
+      ),
+      setting(
+        "x",
+        "show fixpoints",
+        settings.core.evaluation.show_fixpoints,
+        Evaluation(ShowFixpoints),
+      ),
+      setting(
+        Unicode.castArrowSym,
+        "show casts",
+        settings.core.evaluation.show_casts,
+        Evaluation(ShowCasts),
+      ),
+      setting(
+        "🔍",
+        "show lookup steps",
+        settings.core.evaluation.show_lookup_steps,
+        Evaluation(ShowLookups),
+      ),
+      setting(
+        "⏯️",
+        "show stepper filters",
+        settings.core.evaluation.show_stepper_filters,
+        Evaluation(ShowFilters),
+      ),
+    ]),
+    div(
+      ~attr=
+        Attr.many([
+          Attr.class_("modal-back"),
+          Attr.on_mousedown(_ =>
+            inject(Update.Set(Evaluation(ShowSettings)))
+          ),
+        ]),
+      [],
+    ),
+  ];
 };
 
 let slide_view = (~inject, ~model, ~ctx_init) => {
@@ -65,8 +136,8 @@ let editors_view = (~inject, model: Model.t) => {
   switch (model.editors) {
   | DebugLoad => [DebugMode.view(~inject)]
   | Scratch(_)
-  | Examples(_) => slide_view(~inject, ~model, ~ctx_init)
-  | Exercise(_, _, exercise) => exercises_view(~inject, ~exercise, model)
+  | Documentation(_) => slide_view(~inject, ~model, ~ctx_init)
+  | Exercises(_, _, exercise) => exercises_view(~inject, ~exercise, model)
   };
 };
 
@@ -112,5 +183,9 @@ let view = (~inject, ~handlers, model: Model.t) =>
       DecUtil.filters,
       JsUtil.clipboard_shim,
     ]
-    @ editors_view(~inject, model),
+    @ editors_view(~inject, model)
+    @ (
+      model.settings.core.evaluation.show_settings
+        ? stepper_settings_modal(~inject, model.settings) : []
+    ),
   );

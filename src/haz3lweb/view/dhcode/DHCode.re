@@ -6,7 +6,9 @@ open Haz3lcore;
 
 let with_cls = cls => Node.span(~attr=Attr.classes([cls]));
 
-let view_of_layout = (~font_metrics: FontMetrics.t, l: DHLayout.t): Node.t => {
+let view_of_layout =
+    (~inject, ~font_metrics: FontMetrics.t, ~result_key, l: DHLayout.t)
+    : Node.t => {
   let corner_radii = Decoration_common.corner_radii(font_metrics);
   let (text, decorations) =
     DHMeasuredLayout.mk(l)
@@ -21,7 +23,42 @@ let view_of_layout = (~font_metrics: FontMetrics.t, l: DHLayout.t): Node.t => {
            (~go, ~indent, ~start, annot: DHAnnot.t, m) => {
              let (txt, ds) = go(m);
              switch (annot) {
+             | Steppable(obj) => (
+                 [
+                   Node.span(
+                     ~attr=
+                       Attr.many([
+                         Attr.class_("steppable"),
+                         Attr.on_click(_ =>
+                           inject(
+                             UpdateAction.StepperAction(
+                               result_key,
+                               StepForward(obj),
+                             ),
+                           )
+                         ),
+                       ]),
+                     txt,
+                   ),
+                 ],
+                 ds,
+               )
+             | Stepped => (
+                 [
+                   Node.span(~attr=Attr.many([Attr.class_("stepped")]), txt),
+                 ],
+                 ds,
+               )
              | Step(_)
+             | Substituted => (
+                 [
+                   Node.span(
+                     ~attr=Attr.many([Attr.class_("substituted")]),
+                     txt,
+                   ),
+                 ],
+                 ds,
+               )
              | Term => (txt, ds)
              | Collapsed => ([with_cls("Collapsed", txt)], ds)
              | HoleLabel => ([with_cls("HoleLabel", txt)], ds)
@@ -97,21 +134,36 @@ let view_of_layout = (~font_metrics: FontMetrics.t, l: DHLayout.t): Node.t => {
 
 let view =
     (
-      ~settings: Settings.Evaluation.t,
+      ~inject,
+      ~settings: CoreSettings.Evaluation.t,
       ~selected_hole_instance: option(HoleInstance.t),
       ~font_metrics: FontMetrics.t,
       ~width: int,
       ~pos=0,
+      ~previous_step: option(EvaluatorStep.step)=None, // The step that will be displayed above this one
+      ~hidden_steps: list(EvaluatorStep.step)=[], // The hidden steps between the above and the current one
+      ~chosen_step: option(EvaluatorStep.step)=None, // The step that will be taken next
+      ~next_steps: list(EvaluatorStep.EvalObj.t)=[],
+      ~result_key: string,
       d: DHExp.t,
     )
     : Node.t => {
-  d
-  |> DHDoc_Exp.mk(~settings, ~enforce_inline=false, ~selected_hole_instance)
+  DHDoc_Exp.mk(
+    ~previous_step,
+    ~hidden_steps,
+    ~chosen_step,
+    ~next_steps,
+    ~env=ClosureEnvironment.empty,
+    ~settings,
+    ~enforce_inline=false,
+    ~selected_hole_instance,
+    d,
+  )
   |> LayoutOfDoc.layout_of_doc(~width, ~pos)
   |> OptUtil.get(() =>
        failwith("unimplemented: view_of_dhexp on layout failure")
      )
-  |> view_of_layout(~font_metrics);
+  |> view_of_layout(~inject, ~font_metrics, ~result_key);
 };
 
 type font_metrics = FontMetrics.t;

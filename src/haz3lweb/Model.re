@@ -11,7 +11,7 @@ open Haz3lcore;
 
       Meta on the other hand consists of everything which is not
       peristant, including transitory ui_state such as whether the mouse
-      is held down, and cached evaluation results.
+      is held down.
 
    */
 
@@ -34,18 +34,16 @@ let ui_state_init = {
 
 /* Non-persistent application state */
 [@deriving (show({with_path: false}), yojson, sexp)]
-type meta = {
-  ui_state,
-  results: ModelResults.t,
-};
+type meta = {ui_state};
 
-let meta_init = {ui_state: ui_state_init, results: ModelResults.empty};
+let meta_init = {ui_state: ui_state_init};
 
 type t = {
   tylr: Tylr.Meld.t,
   editors: Editors.t,
   settings: Settings.t,
-  langDocMessages: LangDocMessages.t,
+  results: ModelResults.t,
+  explainThisModel: ExplainThisModel.t,
   meta,
 };
 
@@ -53,65 +51,111 @@ let cutoff = (===);
 
 let s = sort => Some(Tylr.Sort.of_string(sort));
 
-let mk = editors => {
+let mk = (editors, results) => {
   // tylr: Tylr.Segment.empty,
   tylr: Tylr.(Meld.of_grout(Grout.mk(Mold.mk_operand(s("Exp"))))),
   editors,
   settings: Init.startup.settings,
-  langDocMessages: LangDocMessages.init,
+  results,
+  explainThisModel: ExplainThisModel.init,
   meta: meta_init,
 };
 
-let blank = mk(Editors.Scratch(0, []));
-let debug = mk(Editors.DebugLoad);
+let blank = mk(Editors.Scratch(0, []), ModelResults.empty);
+let debug = mk(Editors.DebugLoad, ModelResults.empty);
 
-let load_editors = (~mode: Settings.mode, ~instructor_mode: bool): Editors.t =>
+let load_editors =
+    (~mode: Settings.mode, ~instructor_mode: bool)
+    : (Editors.t, ModelResults.t) =>
   switch (mode) {
-  | DebugLoad => DebugLoad
+  | DebugLoad => (DebugLoad, ModelResults.empty)
   | Scratch =>
-    let (idx, slides) = Store.Scratch.load();
-    Scratch(idx, slides);
-  | Examples =>
-    let (name, slides) = Store.Examples.load();
-    Examples(name, slides);
-  | Exercise =>
+    let (idx, slides, results) = Store.Scratch.load();
+    (Scratch(idx, slides), results);
+  | Documentation =>
+    let (name, slides, results) = Store.Documentation.load();
+    (Documentation(name, slides), results);
+  | Exercises =>
     let (n, specs, exercise) =
       Store.Exercise.load(
         ~specs=ExerciseSettings.exercises,
         ~instructor_mode,
       );
-    Exercise(n, specs, exercise);
+    (Exercises(n, specs, exercise), ModelResults.empty);
   };
 
-let save_editors = (editors: Editors.t, ~instructor_mode: bool): unit =>
+let save_editors =
+    (editors: Editors.t, results: ModelResults.t, ~instructor_mode: bool)
+    : unit =>
   switch (editors) {
   | DebugLoad => failwith("no editors in debug load mode")
-  | Scratch(n, slides) => Store.Scratch.save((n, slides))
-  | Examples(name, slides) => Store.Examples.save((name, slides))
-  | Exercise(n, specs, exercise) =>
+  | Scratch(n, slides) => Store.Scratch.save((n, slides, results))
+  | Documentation(name, slides) =>
+    Store.Documentation.save((name, slides, results))
+  | Exercises(n, specs, exercise) =>
     Store.Exercise.save((n, specs, exercise), ~instructor_mode)
   };
 
+let update_elabs = (model: t): t => {
+  let model = {
+    ...model,
+    results:
+      Util.TimeUtil.measure_time(
+        "ModelResults.init", model.settings.benchmark, ()
+        //ModelResults.init performs evaluation on the DHExp value.
+        =>
+          ModelResults.update_elabs(
+            //Editors.get_spliced_elabs generates the DHExp.t of the editor.
+            Editors.get_spliced_elabs(
+              ~settings=model.settings,
+              model.editors,
+            ),
+            model.results,
+          )
+        ),
+  };
+
+  // if (model.settings.core.dynamics) {
+  //   Editors.get_spliced_elabs(model.editors)
+  //   |> List.iter(((key, d)) => {
+  //        /* Send evaluation request. */
+  //        let pushed = State.evaluator_next(state, key, d);
+
+  //        /* Set evaluation to pending after short timeout. */
+  //        /* FIXME: This is problematic if evaluation finished in time, but UI hasn't
+  //         * updated before below action is scheduled. */
+  //        Delay.delay(
+  //          () =>
+  //            if (pushed |> Lwt.is_sleeping) {
+  //              schedule_action(UpdateResult(key, ResultPending));
+  //            },
+  //          300,
+  //        );
+  //      });
+  // };
+  model;
+};
+
 let load = (init_model: t): t => {
   let settings = Store.Settings.load();
-  let langDocMessages = Store.LangDocMessages.load();
-  let editors =
+  let explainThisModel = Store.ExplainThisModel.load();
+  let (editors, results) =
     load_editors(
       ~mode=settings.mode,
       ~instructor_mode=settings.instructor_mode,
     );
-  let results =
-    ModelResults.init(
-      ~settings=settings.core,
-      Editors.get_spliced_elabs(~settings, editors),
-    );
-  let meta = {...init_model.meta, results};
-  {editors, settings, langDocMessages, meta};
+  let meta = init_model.meta;
+  let m = {editors, settings, results, explainThisModel, meta};
+  let m = update_elabs(m);
+  {
+    ...m,
+    results: ModelResults.run_pending(~settings=m.settings.core, m.results),
+  };
 };
 
-let save = ({editors, settings, langDocMessages, _}: t) => {
-  save_editors(editors, ~instructor_mode=settings.instructor_mode);
-  Store.LangDocMessages.save(langDocMessages);
+let save = ({editors, settings, explainThisModel, results, _}: t) => {
+  save_editors(editors, results, ~instructor_mode=settings.instructor_mode);
+  Store.ExplainThisModel.save(explainThisModel);
   Store.Settings.save(settings);
 };
 
@@ -124,15 +168,14 @@ let reset = (model: t): t => {
      but don't otherwise erase localstorage, allowing
      e.g. api keys to persist */
   ignore(Store.Settings.init());
-  ignore(Store.LangDocMessages.init());
+  ignore(Store.ExplainThisModel.init());
   ignore(Store.Scratch.init());
-  ignore(Store.Examples.init());
+  ignore(Store.Documentation.init());
   ignore(Store.Exercise.init(~instructor_mode=true));
   let new_model = load(blank);
   {
     ...new_model,
     meta: {
-      ...model.meta,
       ui_state: {
         ...model.meta.ui_state,
         font_metrics: model.meta.ui_state.font_metrics,

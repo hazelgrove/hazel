@@ -100,7 +100,7 @@ let code_cell_view =
       ~code_id: string,
       ~caption: option(Node.t)=?,
       code: Node.t,
-      footer: option(Node.t),
+      footer: list(Node.t),
     )
     : Node.t => {
   // TODO: why is this in here? doesn't it cover the whole screen?
@@ -108,11 +108,6 @@ let code_cell_view =
     selected && mousedown
       ? [mousedown_overlay(~inject, ~font_metrics, ~target_id=code_id)] : [];
   let code = mousedown_overlay @ [code];
-  let footer =
-    switch (footer) {
-    | None => []
-    | Some(node) => [node]
-    };
   Node.div(
     ~attr=Attr.class_("cell-container"),
     [
@@ -158,7 +153,7 @@ let test_result_layer =
     (
       ~font_metrics,
       ~measured: Measured.t,
-      test_results: Interface.test_results,
+      test_results: TestResults.test_results,
     )
     : list(Node.t) => {
   //print_endline(Interface.show_test_results(test_results));
@@ -183,7 +178,7 @@ let deco =
       ~show_backpack_targets,
       ~selected,
       ~info_map,
-      ~test_results: option(Interface.test_results),
+      ~test_results: option(TestResults.test_results),
       ~color_highlighting: option(ColorSteps.colorMap),
     ) => {
   module Deco =
@@ -212,39 +207,53 @@ let deco =
 
 let eval_result_footer_view =
     (
-      ~settings as _: Settings.t,
-      ~inject as _,
+      ~inject,
       ~font_metrics,
       ~elab,
-      results: ModelResult.simple,
+      ~settings: Settings.t,
+      ~result_key,
+      simple: TestResults.simple,
     ) => {
-  let dhcode_view = (~show_casts) =>
-    DHCode.view(
-      ~settings={...Settings.Evaluation.init, show_casts},
-      ~selected_hole_instance=None,
-      ~font_metrics,
-      ~width=80,
+  let show_stepper =
+    Widgets.toggle(~tooltip="Show Stepper", "s", false, _ =>
+      inject(UpdateAction.ToggleStepper(result_key))
     );
   let d_view =
-    switch (results) {
+    switch (simple) {
     | None => [
-        Node.text("Evaluation disabled. Elaboration follows:"),
-        dhcode_view(~show_casts=true, elab),
+        Node.text("No result available. Elaboration follows:"),
+        DHCode.view(
+          ~inject,
+          ~settings=settings.core.evaluation,
+          ~selected_hole_instance=None,
+          ~font_metrics,
+          ~width=80,
+          ~result_key,
+          elab,
+        ),
       ]
-    | Some({eval_result, _}) =>
-      /* Disabling casts in this case as large casts
-       * can blow up UI perf unexpectedly */
-      [dhcode_view(~show_casts=false, eval_result)]
+    | Some({eval_result, _}) => [
+        DHCode.view(
+          ~inject,
+          ~settings=settings.core.evaluation,
+          ~selected_hole_instance=None,
+          ~font_metrics,
+          ~width=80,
+          ~result_key,
+          eval_result,
+        ),
+      ]
     };
-  Node.(
+  Node.[
     div(
       ~attr=Attr.classes(["cell-item", "cell-result"]),
       [
         div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
         div(~attr=Attr.classes(["result"]), d_view),
+        show_stepper,
       ],
-    )
-  );
+    ),
+  ];
 };
 
 let editor_view =
@@ -260,8 +269,8 @@ let editor_view =
       ~caption: option(Node.t)=?,
       ~code_id: string,
       ~info_map: Statics.Map.t,
-      ~test_results: option(Interface.test_results),
-      ~footer: option(Node.t),
+      ~test_results: option(TestResults.test_results),
+      ~footer: list(Node.t),
       ~color_highlighting: option(ColorSteps.colorMap),
       editor: Editor.t,
     ) => {
@@ -323,6 +332,40 @@ let editor_view =
   );
 };
 
+let footer =
+    (
+      ~inject,
+      ~font_metrics,
+      ~settings: Settings.t,
+      ~result_key: string,
+      ~result: ModelResult.t,
+      ~simple: TestResults.simple,
+    ) =>
+  if (!settings.core.statics) {
+    [];
+  } else {
+    switch (result) {
+    | NoElab => []
+    | Evaluation({elab, _}) =>
+      eval_result_footer_view(
+        ~inject,
+        ~font_metrics,
+        ~elab,
+        ~settings,
+        ~result_key,
+        simple,
+      )
+    | Stepper(s) =>
+      StepperView.stepper_view(
+        ~inject,
+        ~settings=settings.core.evaluation,
+        ~font_metrics,
+        ~result_key,
+        s,
+      )
+    };
+  };
+
 let editor_with_result_view =
     (
       ~inject,
@@ -336,24 +379,14 @@ let editor_with_result_view =
       ~caption: option(Node.t)=?,
       ~code_id: string,
       ~info_map: Statics.Map.t,
-      ~term,
-      ~result: ModelResult.simple,
+      ~result_key: string,
+      ~result: ModelResult.t,
       editor: Editor.t,
     ) => {
-  let test_results = ModelResult.unwrap_test_results(result);
+  let simple = ModelResult.get_simple(result);
+  let test_results = TestResults.unwrap_test_results(simple);
   let eval_result_footer =
-    settings.core.statics
-      ? eval_result_footer_view(
-          ~settings,
-          ~inject,
-          ~font_metrics,
-          ~elab=
-            settings.core.elaborate
-              ? Interface.elaborate(~settings=settings.core, info_map, term)
-              : Interface.dh_err("Elaboration disabled"),
-          result,
-        )
-      : None;
+    footer(~inject, ~font_metrics, ~settings, ~result_key, ~result, ~simple);
   editor_view(
     ~inject,
     ~font_metrics,
@@ -367,26 +400,19 @@ let editor_with_result_view =
     ~code_id,
     ~info_map,
     ~test_results,
-    ~footer=Some(eval_result_footer),
+    ~footer=eval_result_footer,
     ~color_highlighting,
     editor,
   );
 };
-// switch (simple_result) {
-//     | None => None
-//     | Some(simple) =>
-//       Option.map(
-//         (simple_data: ModelResult.simple_data) => simple_data.test_results,
-//         simple,
-//       )
-//     };
 
 let test_view =
     (
+      ~settings,
       ~title,
       ~inject,
       ~font_metrics,
-      ~test_results: option(Interface.test_results),
+      ~test_results: option(TestResults.test_results),
     )
     : Node.t =>
   Node.(
@@ -394,7 +420,12 @@ let test_view =
       ~attr=Attr.classes(["cell-item", "panel", "test-panel"]),
       [
         TestView.view_of_main_title_bar(title),
-        TestView.test_reports_view(~inject, ~font_metrics, ~test_results),
+        TestView.test_reports_view(
+          ~settings,
+          ~inject,
+          ~font_metrics,
+          ~test_results,
+        ),
         TestView.test_summary(~inject, ~test_results),
       ],
     )
@@ -405,7 +436,7 @@ let report_footer_view = content => {
 };
 
 let test_report_footer_view =
-    (~inject, ~test_results: option(Interface.test_results)) => {
+    (~inject, ~test_results: option(TestResults.test_results)) => {
   report_footer_view([TestView.test_summary(~inject, ~test_results)]);
 };
 
