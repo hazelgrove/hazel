@@ -67,16 +67,16 @@ let load_editors =
   | Scratch =>
     let (idx, slides, results) = Store.Scratch.load();
     (Scratch(idx, slides), results);
-  | Examples =>
-    let (name, slides, results) = Store.Examples.load();
-    (Examples(name, slides), results);
-  | Exercise =>
+  | Documentation =>
+    let (name, slides, results) = Store.Documentation.load();
+    (Documentation(name, slides), results);
+  | Exercises =>
     let (n, specs, exercise) =
       Store.Exercise.load(
         ~specs=ExerciseSettings.exercises,
         ~instructor_mode,
       );
-    (Exercise(n, specs, exercise), ModelResults.empty);
+    (Exercises(n, specs, exercise), ModelResults.empty);
   };
 
 let save_editors =
@@ -85,8 +85,9 @@ let save_editors =
   switch (editors) {
   | DebugLoad => failwith("no editors in debug load mode")
   | Scratch(n, slides) => Store.Scratch.save((n, slides, results))
-  | Examples(name, slides) => Store.Examples.save((name, slides, results))
-  | Exercise(n, specs, exercise) =>
+  | Documentation(name, slides) =>
+    Store.Documentation.save((name, slides, results))
+  | Exercises(n, specs, exercise) =>
     Store.Exercise.save((n, specs, exercise), ~instructor_mode)
   };
 
@@ -164,7 +165,7 @@ let reset = (model: t): t => {
   ignore(Store.Settings.init());
   ignore(Store.ExplainThisModel.init());
   ignore(Store.Scratch.init());
-  ignore(Store.Examples.init());
+  ignore(Store.Documentation.init());
   ignore(Store.Exercise.init(~instructor_mode=true));
   let new_model = load(blank);
   {
