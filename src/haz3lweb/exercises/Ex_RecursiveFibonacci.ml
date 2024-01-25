@@ -12,7 +12,7 @@ let exercise : Exercise.spec =
       { test_validation = 1; mutation_testing = 1; impl_grading = 2 };
     prelude =
       {
-        selection = { focus = Left; content = [] };
+        selection = { focus = Left; content = []; mode = Normal };
         backpack = [];
         relatives =
           {
@@ -23,7 +23,7 @@ let exercise : Exercise.spec =
       };
     correct_impl =
       {
-        selection = { focus = Left; content = [] };
+        selection = { focus = Left; content = []; mode = Normal };
         backpack = [];
         relatives =
           {
@@ -479,7 +479,7 @@ let exercise : Exercise.spec =
       {
         tests =
           {
-            selection = { focus = Left; content = [] };
+            selection = { focus = Left; content = []; mode = Normal };
             backpack = [];
             relatives =
               {
@@ -493,7 +493,7 @@ let exercise : Exercise.spec =
       };
     your_impl =
       {
-        selection = { focus = Left; content = [] };
+        selection = { focus = Left; content = []; mode = Normal };
         backpack = [];
         relatives =
           {
@@ -680,7 +680,7 @@ let exercise : Exercise.spec =
         {
           impl =
             {
-              selection = { focus = Left; content = [] };
+              selection = { focus = Left; content = []; mode = Normal };
               backpack = [];
               relatives =
                 {
@@ -1397,12 +1397,12 @@ let exercise : Exercise.spec =
                 };
               caret = Outer;
             };
-          hint = "TODO: hint 0";
+          hint = "incorrect base cases";
         };
         {
           impl =
             {
-              selection = { focus = Left; content = [] };
+              selection = { focus = Left; content = []; mode = Normal };
               backpack = [];
               relatives =
                 {
@@ -1978,14 +1978,14 @@ let exercise : Exercise.spec =
                 };
               caret = Outer;
             };
-          hint = "TODO: hint 1";
+          hint = "incorrect recursion";
         };
       ];
     hidden_tests =
       {
         tests =
           {
-            selection = { focus = Left; content = [] };
+            selection = { focus = Left; content = []; mode = Normal };
             backpack = [];
             relatives =
               {
@@ -3161,5 +3161,5 @@ let exercise : Exercise.spec =
         hints = [];
       };
     syntax_tests =
-      [ ("fib is recursive", Haz3lschool.SyntaxTest.is_recursive "fib") ];
+      [ ("fib is recursive", Haz3lschool.SyntaxTest.IsRecursive "fib") ];
   }

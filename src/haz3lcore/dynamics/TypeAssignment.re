@@ -102,7 +102,7 @@ let rec typ_of_dhexp =
   | FixF(name, ty1, d) =>
     let entry = Ctx.VarEntry({name, id: Id.invalid, typ: ty1});
     typ_of_dhexp(Ctx.extend(ctx, entry), m, d);
-  | Ap(TestLit(_), dtest) =>
+  | Ap(Test(_), dtest) =>
     let* ty = typ_of_dhexp(ctx, m, dtest);
     if (Typ.eq(ty, Bool)) {
       Some(Typ.Prod([]));
@@ -277,6 +277,9 @@ let property_test = (uexp_typ: Typ.t, dhexp: DHExp.t, m: Statics.Map.t): bool =>
 
   switch (dhexp_typ) {
   | None => false
-  | Some(dh_typ) => Typ.eq(dh_typ, uexp_typ)
+  | Some(dh_typ) =>
+    print_endline(Typ.show(dh_typ));
+    print_endline(Typ.show(uexp_typ));
+    Typ.eq(dh_typ, uexp_typ);
   };
 };

@@ -4,25 +4,21 @@ open Sexplib.Std;
 
 let is_action_logged: UpdateAction.t => bool =
   fun
-  | Mousedown
-  | Mouseup
+  | SetMeta(_)
   | Save
-  | SetFontMetrics(_)
-  | SetLogoFontMetrics(_)
-  | SetShowBackpackTargets(_)
   | InitImportAll(_)
   | InitImportScratchpad(_)
-  | UpdateResult(_)
-  | DebugAction(_)
   | ExportPersistentData
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
-  | Benchmark(_) => false
+  | Benchmark(_)
+  | DebugConsole(_) => false
+  | Reset
+  | DoTheThing
+  | Assistant(_)
   | Set(_)
-  | SetMode(_)
-  | UpdateLangDocMessages(_)
   | SwitchScratchSlide(_)
-  | SwitchExampleSlide(_)
+  | SwitchDocumentationSlide(_)
   | SwitchEditor(_)
   | ResetCurrentEditor
   | ReparseCurrentEditor
@@ -32,7 +28,11 @@ let is_action_logged: UpdateAction.t => bool =
   | Paste(_)
   | Undo
   | Redo
-  | MoveToNextHole(_) => true;
+  | MoveToNextHole(_)
+  | UpdateResult(_)
+  | ToggleStepper(_)
+  | StepperAction(_, StepForward(_) | StepBackward)
+  | UpdateExplainThisModel(_) => true;
 
 module DB = {
   open Ezjs_idb;

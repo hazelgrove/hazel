@@ -7,14 +7,10 @@ open Haz3lcore;
 type key = string;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type request = (key, DHExp.t);
+type request = (key, ModelResult.t, CoreSettings.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type eval_result =
-  | EvaluationOk(ProgramResult.t)
-  | EvaluationFail(ProgramEvaluatorError.t);
-[@deriving (show({with_path: false}), sexp, yojson)]
-type response = (key, eval_result);
+type response = (key, ModelResult.t);
 
 module type M = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -37,20 +33,13 @@ module Sync: M with type response = response = {
 
   let init = () => ();
 
-  let get_response = ((): t, (key, d): request) => {
+  let get_response = ((): t, (key, mr, settings): request) => {
     let lwt = {
-      let+ r = Lwt.wrap(() => d |> Interface.evaluate);
-      let res =
-        switch (r) {
-        | r => EvaluationOk(r)
-        | exception (Interface.EvalError(error)) =>
-          EvaluationFail(Program_EvalError(error))
-        | exception Interface.DoesNotElaborate =>
-          EvaluationFail(Program_DoesNotElaborate)
-        };
+      /* NOTE(andrew): I'm not sure how to properly route settings
+         through the abstractions here; this should be done if this is renabled */
+      let+ res = Lwt.wrap(() => mr |> ModelResult.run_pending(~settings));
       (key, res);
     };
-
     (lwt, ());
   };
 };
@@ -104,13 +93,11 @@ module Worker: M with type response = response = {
 
 module WorkerImpl = W.Worker;
 
-module WorkerPool: M with type response = (key, option(eval_result)) = {
+module WorkerPool: M with type response = (key, option(ModelResult.t)) = {
   module Pool = WebWorkerPool.Make(W.Client);
 
-  // [@deriving (show({with_path: false}), sexp, yojson)]
-  // type response' = response;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type response = (key, option(eval_result));
+  type response = (key, option(ModelResult.t));
 
   type t = Pool.t;
 
@@ -129,7 +116,7 @@ module WorkerPool: M with type response = (key, option(eval_result)) = {
   };
 
   let get_response =
-      (pool: t, (k, _) as req: request): (Lwt.t(response), t) => {
+      (pool: t, (k, _, _) as req: request): (Lwt.t(response), t) => {
     let res = Pool.request(pool, req);
     let _ = Pool.add(pool);
     (Lwt.map(r => (k, Option.map(snd, r)), res), pool);

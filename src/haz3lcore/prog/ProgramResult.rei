@@ -4,7 +4,7 @@
   ({!type:HoleInstanceInfo.t}). Constructed by {!val:Program.get_result}.
  */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = (EvaluatorResult.t, EvaluatorState.t, HoleInstanceInfo.t);
+type t = (EvaluatorResult.t, EvaluatorState.t);
 
 /**
   [get_dhexp r] is the {!type:DHExp.t} in [r].
@@ -12,14 +12,3 @@ type t = (EvaluatorResult.t, EvaluatorState.t, HoleInstanceInfo.t);
 let get_dhexp: t => DHExp.t;
 
 let get_state: t => EvaluatorState.t;
-
-/**
-  [get_hii r] is the {!type:HoleInstanceInfo.t} in [r].
- */
-let get_hii: t => HoleInstanceInfo.t;
-
-/**
-  [fast_equal (r1, hii1, _, _) (r2, hii2, _, _) ] is checks if [hii1] and
-  [hii2] are equal and computes [EvaluatorResult.fast_equal r1 r2].
- */
-let fast_equal: (t, t) => bool;

@@ -2,6 +2,7 @@
  * https://ocaml.janestreet.com/ocaml-core/v0.13/doc/base/Base__/Monad_intf/index.html */
 
 module type MONAD_BASIC = {
+  [@deriving sexp]
   type t('a);
   let return: 'a => t('a);
   let bind: (t('a), 'a => t('b)) => t('b);

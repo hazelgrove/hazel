@@ -4,14 +4,14 @@ open Sexplib.Std;
 type mode =
   | DebugLoad
   | Scratch
-  | Examples
-  | Exercise;
+  | Documentation
+  | Exercises;
 
 let mode_of_string = (s: string): mode =>
   switch (s) {
   | "Scratch" => Scratch
-  | "Examples" => Examples
-  | "Exercise" => Exercise
+  | "Documentation" => Documentation
+  | "Exercises" => Exercises
   | _ => failwith("mode_of_string: unknown mode:" ++ s)
   };
 
@@ -19,8 +19,7 @@ let mode_of_string = (s: string): mode =>
 type t = {
   captions: bool,
   secondary_icons: bool,
-  statics: bool,
-  dynamics: bool,
+  core: Haz3lcore.CoreSettings.t,
   async_evaluation: bool,
   context_inspector: bool,
   instructor_mode: bool,
