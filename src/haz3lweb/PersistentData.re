@@ -9,7 +9,7 @@ type scratch = (
 );
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type examples = (
+type documentation = (
   string,
   list((string, ScratchSlide.persistent_state)),
   [@default []] list((string, ModelResult.persistent)),
@@ -19,5 +19,5 @@ type examples = (
 type t = {
   settings: Settings.t,
   scratch,
-  examples,
+  documentation,
 };

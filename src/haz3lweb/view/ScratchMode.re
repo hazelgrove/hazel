@@ -29,8 +29,8 @@ let view =
     switch (editors) {
     | Scratch(slide_idx, _) =>
       ScratchSlide.scratch_key(string_of_int(slide_idx))
-    | Examples(name, _) => ScratchSlide.scratch_key(name)
-    | Exercise(_) => ""
+    | Documentation(name, _) => ScratchSlide.scratch_key(name)
+    | Exercises(_) => ""
     | DebugLoad => ""
     };
   let result =
