@@ -6,13 +6,12 @@ type state = Editor.t;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type persistent_state = PersistentZipper.t;
 
-let scratch_key = "scratch";
-let spliced_elabs = editor => {
-  let seg = Editor.get_seg(editor);
-  let (term, _) = MakeTerm.go(seg);
-  let info_map = Statics.mk_map(term);
-  [(scratch_key, Interface.elaborate(info_map, term))];
-};
+let scratch_key = n => "scratch_" ++ n;
+let spliced_elab =
+    (~settings: Settings.t, ~ctx_init: Ctx.t, n, editor: Editor.t) => (
+  scratch_key(n),
+  Interface.elaborate_editor(~settings=settings.core, ~ctx_init, editor),
+);
 
 let persist = (editor: Editor.t) => {
   PersistentZipper.persist(editor.state.zipper);

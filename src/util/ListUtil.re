@@ -53,6 +53,20 @@ let rec mk_frame = (n: int, xs: list('x)): frame('x) => {
   };
 };
 
+let rec split =
+        (l: list('x), cond: 'x => bool): (list('x), option('x), list('x)) => {
+  switch (l) {
+  | [] => ([], None, [])
+  | [x, ...xs] =>
+    if (cond(x)) {
+      ([], Some(x), xs);
+    } else {
+      let (pre, x', post) = split(xs, cond);
+      ([x, ...pre], x', post);
+    }
+  };
+};
+
 let rec split_frame = (n: int, xs: list('x)): ('x, frame('x)) =>
   switch (n, xs) {
   | (_, []) => failwith("list index out of bounds")
@@ -436,3 +450,6 @@ let assoc_err = (x, xs, err: string) =>
   | None => failwith(err)
   | Some(y) => y
   };
+
+let update_assoc = ((k, v)) =>
+  List.map(((k', v')) => k == k' ? (k, v) : (k', v'));

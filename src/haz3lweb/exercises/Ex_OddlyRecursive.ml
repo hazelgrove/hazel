@@ -12,7 +12,7 @@ let exercise : Exercise.spec =
       { test_validation = 1; mutation_testing = 1; impl_grading = 2 };
     prelude =
       {
-        selection = { focus = Left; content = [] };
+        selection = { focus = Left; content = []; mode = Normal };
         backpack = [];
         relatives =
           {
@@ -258,7 +258,7 @@ let exercise : Exercise.spec =
       };
     correct_impl =
       {
-        selection = { focus = Left; content = [] };
+        selection = { focus = Left; content = []; mode = Normal };
         backpack = [];
         relatives =
           {
@@ -800,7 +800,7 @@ let exercise : Exercise.spec =
       {
         tests =
           {
-            selection = { focus = Right; content = [] };
+            selection = { focus = Right; content = []; mode = Normal };
             backpack = [];
             relatives =
               {
@@ -1054,7 +1054,7 @@ let exercise : Exercise.spec =
       };
     your_impl =
       {
-        selection = { focus = Left; content = [] };
+        selection = { focus = Left; content = []; mode = Normal };
         backpack = [];
         relatives =
           {
@@ -1238,7 +1238,7 @@ let exercise : Exercise.spec =
         {
           impl =
             {
-              selection = { focus = Left; content = [] };
+              selection = { focus = Left; content = []; mode = Normal };
               backpack = [];
               relatives =
                 {
@@ -1444,7 +1444,7 @@ let exercise : Exercise.spec =
         {
           impl =
             {
-              selection = { focus = Left; content = [] };
+              selection = { focus = Left; content = []; mode = Normal };
               backpack = [];
               relatives =
                 {
@@ -1650,7 +1650,7 @@ let exercise : Exercise.spec =
         {
           impl =
             {
-              selection = { focus = Left; content = [] };
+              selection = { focus = Left; content = []; mode = Normal };
               backpack = [];
               relatives =
                 {
@@ -2449,7 +2449,7 @@ let exercise : Exercise.spec =
       {
         tests =
           {
-            selection = { focus = Left; content = [] };
+            selection = { focus = Left; content = []; mode = Normal };
             backpack = [];
             relatives =
               {
@@ -3156,8 +3156,5 @@ let exercise : Exercise.spec =
         hints = [ "zero" ];
       };
     syntax_tests =
-      [
-        ("not is applied", Haz3lschool.SyntaxTest.var_applied "not");
-        ("odd is recursive", Haz3lschool.SyntaxTest.is_recursive "odd");
-      ];
+      [ ("odd is recursive", Haz3lschool.SyntaxTest.IsRecursive "odd") ];
   }

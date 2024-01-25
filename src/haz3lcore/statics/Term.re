@@ -433,12 +433,15 @@ module UExp = {
     | Fun
     | Tuple
     | Var
+    | MetaVar
     | Let
     | TyAlias
     | Ap
+    | Pipeline
     | If
     | Seq
     | Test
+    | Filter
     | Parens
     | Cons
     | UnOp(op_un)
@@ -475,15 +478,21 @@ module UExp = {
     | Let(_) => Let
     | TyAlias(_) => TyAlias
     | Ap(_) => Ap
+    | Pipeline(_) => Pipeline
     | If(_) => If
     | Seq(_) => Seq
     | Test(_) => Test
+    | Filter(_) => Filter
     | Parens(_) => Parens
     | Cons(_) => Cons
     | ListConcat(_) => ListConcat
     | UnOp(op, _) => UnOp(op)
     | BinOp(op, _, _) => BinOp(op)
     | Match(_) => Match;
+
+  let show_op_un_meta: op_un_meta => string =
+    fun
+    | Unquote => "Un-quotation";
 
   let show_op_un_bool: op_un_bool => string =
     fun
@@ -495,6 +504,7 @@ module UExp = {
 
   let show_unop: op_un => string =
     fun
+    | Meta(op) => show_op_un_meta(op)
     | Bool(op) => show_op_un_bool(op)
     | Int(op) => show_op_un_int(op);
 
@@ -548,7 +558,7 @@ module UExp = {
     | Invalid => "Invalid expression"
     | MultiHole => "Broken expression"
     | EmptyHole => "Empty expression hole"
-    | Triv => "Trivial litera"
+    | Triv => "Trivial literal"
     | Bool => "Boolean literal"
     | Int => "Integer literal"
     | Float => "Float literal"
@@ -558,12 +568,15 @@ module UExp = {
     | Fun => "Function literal"
     | Tuple => "Tuple literal"
     | Var => "Variable reference"
+    | MetaVar => "Meta variable reference"
     | Let => "Let expression"
     | TyAlias => "Type Alias definition"
     | Ap => "Application"
+    | Pipeline => "Pipeline expression"
     | If => "If expression"
     | Seq => "Sequence expression"
     | Test => "Test"
+    | Filter => "Filter"
     | Parens => "Parenthesized expression"
     | Cons => "Cons"
     | ListConcat => "List Concatenation"
@@ -589,9 +602,11 @@ module UExp = {
     | Let(_)
     | TyAlias(_)
     | Ap(_)
+    | Pipeline(_)
     | If(_)
     | Seq(_)
     | Test(_)
+    | Filter(_)
     | Cons(_)
     | ListConcat(_)
     | UnOp(_)
@@ -621,9 +636,11 @@ module UExp = {
       | Let(_)
       | TyAlias(_)
       | Ap(_)
+      | Pipeline(_)
       | If(_)
       | Seq(_)
       | Test(_)
+      | Filter(_)
       | Cons(_)
       | ListConcat(_)
       | UnOp(_)
