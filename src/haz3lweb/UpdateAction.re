@@ -29,6 +29,7 @@ type settings_action =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type stepper_action =
+  | CoqExport
   | StepForward(EvaluatorStep.EvalObj.t)
   | StepBackward;
 

@@ -62,6 +62,10 @@ let stepper_view =
         ),
       ],
     );
+  let coq_button =
+    Widgets.button(Icons.star, _ =>
+      inject(StepperAction(result_key, CoqExport))
+    );
   let hide_stepper =
     Widgets.toggle(~tooltip="Show Stepper", "s", true, _ =>
       inject(UpdateAction.ToggleStepper(result_key))
@@ -81,6 +85,7 @@ let stepper_view =
           div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
           dh_code_current(d),
           button_back,
+          coq_button,
           show_history,
           hide_stepper,
           eval_settings,

@@ -12,7 +12,8 @@ let is_action_logged: UpdateAction.t => bool =
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
   | Benchmark(_)
-  | DebugConsole(_) => false
+  | DebugConsole(_)
+  | StepperAction(_, CoqExport) => false
   | Reset
   | DoTheThing
   | Assistant(_)

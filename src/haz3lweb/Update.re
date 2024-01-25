@@ -196,7 +196,8 @@ let reevaluate_post_update = (settings: Settings.t) =>
   | DoTheThing => false
   | ExportPersistentData
   | UpdateResult(_)
-  | DebugConsole(_) => false
+  | DebugConsole(_)
+  | StepperAction(_, CoqExport) => false
   | Benchmark(_)
   // may not be necessary on all of these
   // TODO review and prune
@@ -281,6 +282,7 @@ let should_scroll_to_caret =
   | UpdateExplainThisModel(_)
   | ExportPersistentData
   | DebugConsole(_)
+  | StepperAction(_, CoqExport)
   | Benchmark(_) => false;
 
 let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
@@ -521,6 +523,14 @@ let rec apply =
         |> ModelResults.find(key)
         |> ModelResult.step_backward(~settings=model.settings.core.evaluation);
       Ok({...model, results: model.results |> ModelResults.add(key, r)});
+    | StepperAction(key, CoqExport) =>
+      let result = ModelResults.find(key, model.results);
+      switch (result) {
+      | NoElab
+      | Evaluation(_) => ()
+      | Stepper(_stepper) => print_endline("Hello world!")
+      };
+      Ok(model);
     | ToggleStepper(key) =>
       Ok({
         ...model,
