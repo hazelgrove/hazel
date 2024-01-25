@@ -5,6 +5,7 @@ type step = {
   d: DHExp.t, // technically can be calculated from d_loc and ctx
   state: EvaluatorState.t,
   d_loc: DHExp.t, // the expression at the location given by ctx
+  d_loc': DHExp.t,
   ctx: EvalCtx.t,
   knd: step_kind,
 };
