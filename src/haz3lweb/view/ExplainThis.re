@@ -528,14 +528,14 @@ let example_view =
               ~attr=clss(["example"]),
               [
                 div(
-                  ~attr=clss(["container"]),
+                  ~attr=clss(["cell-container"]),
                   [
                     div(
-                      ~attr=clss(["cell", "cell-item", "selected", "single"]),
+                      ~attr=clss(["cell-item"]),
                       [code_container([code_view])],
                     ),
                     div(
-                      ~attr=clss(["cell-result", "cell-item", "selected"]),
+                      ~attr=clss(["cell-item", "cell-result"]),
                       [
                         div_c("equiv", [text("≡")]),
                         code_container(result_view),
@@ -2448,12 +2448,10 @@ let view =
                   | Some(info) => Info.cls_of(info) |> Term.Cls.show
                   },
                 [
-                  div([
-                    div(
-                      ~attr=clss(["cell", "cell-item", "single"]),
-                      syn_form,
-                    ),
-                  ]),
+                  div(
+                    ~attr=clss(["cell-container"]),
+                    [div(~attr=clss(["cell-item"]), syn_form)],
+                  ),
                 ]
                 @ explanation,
               ),

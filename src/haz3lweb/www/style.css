@@ -653,7 +653,7 @@ select {
   color: #f8d36f;
 }
 
-/* END TOP BAR */
+/* CELL */
 
 #mousedown-overlay {
   cursor: text;
@@ -677,6 +677,22 @@ select {
 .cell-container {
   min-width: 30em;
   width: fit-content;
+  border-radius: 0.4em;
+  border-left: 2px solid var(--top_bar_icon_fill);
+}
+
+.cell-container.selected {
+  border-left: 2px solid var(--cell-selected-accent);
+  background-color: #fffcf3;
+}
+
+.cell-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1em;
+  padding-left: 1em;
+  padding: 1em;
+  padding-left: 1.2em;
 }
 
 .cell-item:first-child {
@@ -705,25 +721,11 @@ select {
   font-size: 1rem;
 }
 
-.cell {
-  display: flex;
-  flex-direction: column;
-  gap: 1em;
-  /* border-radius: 0.4em; */
-  padding-left: 1em;
-  padding: 1em;
-  padding-left: 1.2em;
-  border-left: 1px solid var(--top_bar_icon_fill);
-}
-
-.cell.selected {
-  border-left: 1px solid var(--cell-selected-accent);
-  background-color: #fffcf3;
-}
-
 .cell-caption {
   color: var(--top-bar-text);
 }
+
+/* CODE EDITOR */
 
 .code-text {
   position: relative;
@@ -1755,15 +1757,7 @@ svg.expandable path {
   border-left: 1px solid rgba(0, 0, 0, 0);
 }
 
-.cell.selected + .cell-item {
-  border-left: 1px solid var(--cell-selected-accent);
-}
-
-.cell.deselected + .cell-item {
-  border-left: 1px solid var(--top_bar_icon_fill);
-}
-
-.cell.selected + .cell-result {
+.selected .cell-result {
   background-color: #efe7d6;
 }
 
@@ -1849,9 +1843,9 @@ svg.expandable path {
 }
 
 .cell-result .DHCode .EmptyHole {
-  background-color: #d4c7a5;
+  background-color: #d4c7a5 !important;
   color: #fdf6e3;
-  border-bottom: 1px solid #aa8926;
+  border-bottom: 1px solid #aa8926 !important;
 }
 
 .DHCode .Collapsed {
@@ -2177,7 +2171,6 @@ svg.expandable path {
 .toggle-switch.active .toggle-knob {
   margin-left: 0.9em;
   margin-right: 1px;
-  color: #4fad66;
 }
 
 /* END TOGGLE */
@@ -2228,7 +2221,7 @@ svg.expandable path {
   left: -1em;
 }
 
-.steppable,.steppable * {
+.steppable,.steppable *:not(.DHCode .EmptyHole *,.DHCode .EmptyHole) {
   border: 1px var(--step-hole-color);
   background-color:rgb(232, 255, 196);
   margin: -1px;
@@ -2236,7 +2229,7 @@ svg.expandable path {
 }
 
 
-.stepped, .stepped * {
+.stepped,.stepped *:not(.DHCode .EmptyHole *,.DHCode .EmptyHole) {
   border: 1px var(--step-hole-color);
   background-color:#ddcda3;
   margin: -1px;

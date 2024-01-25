@@ -110,6 +110,7 @@ module Result = {
 
 let is_edit: t => bool =
   fun
+  | Set(Evaluation(ShowSettings | ShowRecord))
   | Cut
   | Undo
   | Redo
