@@ -13,7 +13,7 @@ let startup : PersistentData.t =
             evaluation =
               {
                 show_case_clauses = true;
-                show_fn_bodies = true;
+                show_fn_bodies = false;
                 show_fixpoints = false;
                 show_casts = false;
                 show_lookup_steps = false;
