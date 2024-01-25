@@ -130,8 +130,8 @@ let editors_view = (~inject, model: Model.t) => {
   switch (model.editors) {
   | DebugLoad => [DebugMode.view(~inject)]
   | Scratch(_)
-  | Examples(_) => slide_view(~inject, ~model, ~ctx_init)
-  | Exercise(_, _, exercise) => exercises_view(~inject, ~exercise, model)
+  | Documentation(_) => slide_view(~inject, ~model, ~ctx_init)
+  | Exercises(_, _, exercise) => exercises_view(~inject, ~exercise, model)
   };
 };
 

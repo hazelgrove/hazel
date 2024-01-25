@@ -163,11 +163,11 @@ module Scratch = {
   let import = data => save(deserialize(data));
 };
 
-module Examples = {
-  let save_examples_key: string = "SAVE_EXAMPLES";
+module Documentation = {
+  let save_documentation_key: string = "SAVE_DOCUMENTATION";
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = PersistentData.examples;
+  type persistent = PersistentData.documentation;
 
   let persist = ((name, editor: Editor.t)) => {
     (name, PersistentZipper.persist(editor.state.zipper));
@@ -197,26 +197,26 @@ module Examples = {
     );
   };
 
-  let serialize = examples => {
-    examples |> to_persistent |> sexp_of_persistent |> Sexplib.Sexp.to_string;
+  let serialize = slides => {
+    slides |> to_persistent |> sexp_of_persistent |> Sexplib.Sexp.to_string;
   };
 
   let deserialize = data => {
     data |> Sexplib.Sexp.of_string |> persistent_of_sexp |> of_persistent;
   };
 
-  let save = (examples): unit => {
-    JsUtil.set_localstore(save_examples_key, serialize(examples));
+  let save = (slides): unit => {
+    JsUtil.set_localstore(save_documentation_key, serialize(slides));
   };
 
   let init = () => {
-    let examples = of_persistent(Init.startup.examples);
-    save(examples);
-    examples;
+    let documentation = of_persistent(Init.startup.documentation);
+    save(documentation);
+    documentation;
   };
 
   let load = () =>
-    switch (JsUtil.get_localstore(save_examples_key)) {
+    switch (JsUtil.get_localstore(save_documentation_key)) {
     | None => init()
     | Some(data) =>
       try(deserialize(data)) {
