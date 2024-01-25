@@ -20,6 +20,9 @@ let length = ((lps, _)) => List.length(lps);
 
 module Tl = {
   type t('link, 'loop) = (list('link), list('loop));
+  let empty = ([], []);
+  let cons = (lk, lp, (lks, lps): t(_)) => ([lk, ...lks], [lp, ...lps]);
+  let snoc = ((lks, lps): t(_), lk, lp) => (lks @ [lk], lps @ [lp]);
 };
 
 let split_fst = ((lps, lks): t('lp, 'lk)): ('lp, Tl.t('lk, 'lp)) => {
@@ -47,14 +50,6 @@ let map_lst = (f: 'lp => 'lp, c: t('lp, 'lk)): t('lp, 'lk) => {
   (lps @ [f(a)], lks);
 };
 let put_lst = lp => map_lst(_ => lp);
-
-let zip = (pre: Tl.t(_, 'lp), lp: 'lp, suf: Tl.t(_, 'lp)) => {
-  let (lks_pre, lps_pre) = pre;
-  let (lks_suf, lps_suf) = suf;
-  let lps = List.rev(lps_pre) @ [lp, ...lps_suf];
-  let lks = List.rev(lks_pre) @ lks_suf;
-  mk(lps, lks);
-};
 
 let rev =
     (~rev_loop=Fun.id, ~rev_link=Fun.id, (lps, lks): t('lp, 'lk))
@@ -173,3 +168,27 @@ let trim = ((lps, lks): t('lp, 'lk)): option(('lp, t('lk, 'lp), 'lp)) =>
     Some((l, mk(lks, lps), r));
   };
 let untrim = (l, (lks, lps), r) => mk([l, ...lps] @ [r], lks);
+
+let zip = (pre: Tl.t(_, 'lp), lp: 'lp, suf: Tl.t(_, 'lp)) => {
+  let (lks_pre, lps_pre) = pre;
+  let (lks_suf, lps_suf) = suf;
+  let lps = List.rev(lps_pre) @ [lp, ...lps_suf];
+  let lks = List.rev(lks_pre) @ lks_suf;
+  mk(lps, lks);
+};
+
+let unzip = (c: t('lp, 'lk)): list((Tl.t('lk, 'lp) as 'tl, 'lp, 'tl)) =>
+  c
+  |> fold_right(
+       (lp, lk, unzipped) => {
+         let (_, foc, suf) = List.hd(unzipped);
+         let hd = (Tl.empty, lp, Tl.cons(lk, foc, suf));
+         let tl =
+           unzipped
+           |> List.map(((pre, foc, suf)) =>
+                (Tl.snoc(pre, lk, lp), foc, suf)
+              );
+         [hd, ...tl];
+       },
+       lp => [(Tl.empty, lp, Tl.empty)],
+     );
