@@ -2,10 +2,12 @@ include Meld.Cell;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = Meld.Cell.t(Meld.t);
 
-// let mk = (~marks=Path.Marks.empty, ~meld=?, ()): t => {
-//   let _ = failwith("todo: lift marks from meld");
-//   {marks, meld};
-// };
+let mk = (~marks=Path.Marks.empty, ~meld=?, ()): t => {
+  let _ = failwith("todo: lift marks from meld");
+  {marks, meld};
+};
+
+let fill = (~l as _=false, ~r as _=false, _, _) => failwith("todo");
 
 // returns a cell carrying the input meld repaired for sort consistency,
 // provided that such repair is possible. otherwise return empty cell.

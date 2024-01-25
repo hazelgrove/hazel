@@ -48,6 +48,7 @@ include Molded;
 //   };
 
 let id_ = (tok: t) => tok.id;
+let text_ = (tok: t) => tok.text;
 // let label = p => Mtrl.Labeled.of_molded(p.lbl);
 let sort = (tok: t) => tok.lbl.mold.sort;
 // let prec = p => Mtrl.map(Mold.prec_, p.material);
@@ -55,53 +56,20 @@ let sort = (tok: t) => tok.lbl.mold.sort;
 // let put_label = (_, _) => failwith("todo Piece.put_label");
 let put_text = (text, tok: t) => {...tok, text};
 
-// None if non constant label
-// let label_length = p =>
-//   switch (label(p)) {
-//   | Grout () => None
-//   | Tile(lbl) => Label.length(lbl)
-//   };
-// let token_length = p => Token.length(p.text);
-
 let length = (tok: t) =>
   switch (tok.lbl.mtrl) {
   | Tile(Const(c)) => String.length(c)
   | _ => String.length(tok.text)
   };
 
-// let is_grout = p => label_length(p) == 0;
-
-// todo: review uses and rename
-let is_empty = _ => failwith("todo Piece.is_empty");
-
-// let tip = (side, p) => Mold.tip(side, mold(p));
-// let tips = (side, p) => Mold.tips(side, mold(p));
-// let convexable = (side, p) => List.mem(Tip.Convex, tips(side, p));
-
-// let mk = (~id=?, ~paths=[], shape: Shape.t) => {
-//   let id = id |> OptUtil.get(() => Id.Gen.next());
-//   {id, paths, shape};
-// };
-// let of_grout = (~id=?, ~paths=[], g) => mk(~id?, ~paths, G(g));
-// let of_tile = (~id=?, ~paths=[], t) => mk(~id?, ~paths, T(t));
-
-// let is_finished = p =>
-//   switch (p.material) {
-//   | Grout(_) => false
-//   | Tile(_) => label_length(p) == Some(token_length(p))
-//   };
-
-// let is_complete = p =>
-//   // assumes well-labeled
-//   switch (Label.length(label(p))) {
-//   | None => true
-//   | Some(0) =>
-//     assert(is_grout(p));
-//     true;
-//   | Some(n) => Token.length(p.text) == n
-//   };
-
-// let is_porous = p => Token.is_empty(p.text);
+let merge_text =
+  fun
+  | [] => None
+  | [hd, ...tl] => {
+      // may need to perform effect here
+      let text = (hd: t).text ++ String.concat("", List.map(text_, tl));
+      Some({...hd, text});
+    };
 
 // rename merge
 let zip = (l: t, r: t) =>

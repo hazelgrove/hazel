@@ -14,6 +14,10 @@ module Wald = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t('cell) =
     | W(Chain.t(Token.t, 'cell));
+
+  let of_tok = tok => W(Chain.unit(tok));
+  let face = (~side: Dir.t, W(w): t(_)) =>
+    Dir.pick(side, (Chain.fst, Chain.lst), w).lbl;
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -22,10 +26,19 @@ type t =
 
 let mk = (~l=Cell.empty, ~r=Cell.empty, w) => M(l, w, r);
 
+let of_tok = tok => mk(Wald.of_tok(tok));
+
 let link = (~cell=Cell.empty, t: Token.t, M(l, W(w), r): t) =>
   M(cell, W(Chain.link(t, l, w)), r);
 
 let rev = (M(l, W(w), r): t) => M(r, W(Chain.rev(w)), l);
+
+let face = (~side: Dir.t, M(_, w, _)) => Wald.face(~side, w);
+
+let is_space =
+  fun
+  | M(_, W(([tok], [])), _) when tok.lbl.mtrl == Mtrl.Space => Some(tok)
+  | _ => None;
 
 // let singleton = (~l=Cell.empty, ~r=Cell.empty, t) =>
 //   mk(~l, W(Chain.unit(t)), ~r);

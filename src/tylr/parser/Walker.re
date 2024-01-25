@@ -43,7 +43,7 @@ let enter =
 
 let stride_over = (~from: Dir.t, sort: Bound.t(Molded.Sort.t)): Index.t =>
   switch (sort) {
-  | Root => Index.singleton(Root, [singleton(Stride.eq(Bound.Root))])
+  | Root => Index.singleton(Root, [singleton(Stride.mk_eq(Bound.Root))])
   | Node(s) =>
     (Sym.NT(s.mtrl), s.mold.rctx)
     |> RZipper.step(Dir.toggle(from))
@@ -54,7 +54,7 @@ let stride_over = (~from: Dir.t, sort: Bound.t(Molded.Sort.t)): Index.t =>
            Molded.{mold, mtrl: mlbl};
          }),
        )
-    |> List.map(lbl => (lbl, [singleton(Stride.eq(sort))]))
+    |> List.map(lbl => (lbl, [singleton(Stride.mk_eq(sort))]))
     |> Index.of_list
   };
 
@@ -110,14 +110,14 @@ let lt = (l: End.t, r: End.t): list(Bound.t(Molded.Sort.t)) =>
   |> Index.find(r)
   |> List.filter_map(walk => {
        let stride = fst(walk);
-       Stride.is_eq(stride) ? None : Some(Stride.base(stride));
+       Stride.is_eq(stride) ? None : Some(Stride.bot(stride));
      });
 let gt = (l: End.t, r: End.t) =>
   step(~from=R, r)
   |> Index.find(l)
   |> List.filter_map(walk => {
        let stride = fst(walk);
-       Stride.is_eq(stride) ? None : Some(Stride.base(stride));
+       Stride.is_eq(stride) ? None : Some(Stride.bot(stride));
      });
 let eq = (l: End.t, r: End.t) =>
   step(~from=L, l)

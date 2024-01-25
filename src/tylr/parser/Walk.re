@@ -6,9 +6,19 @@ module Stride = {
   [@deriving (show({with_path: false}), sexp, yojson, ord)]
   type t = Chain.t(Bound.t(Molded.Sort.t), unit);
   let height = Chain.length;
-  let eq = Chain.unit;
+  let mk_eq = Chain.unit;
   let is_eq = s => height(s) == 1;
-  let base = Chain.lst;
+  let is_neq = s => !is_eq(s);
+  let top = Chain.fst;
+  let bot = Chain.lst;
+  let has_sort = s =>
+    Chain.loops(s)
+    |> List.exists(
+         fun
+         | Bound.Root
+         | Node(Molded.{mtrl: Mtrl.Tile(_), _}) => true
+         | Node({mtrl: Space | Grout, _}) => false,
+       );
 };
 module Base = {
   [@deriving (show({with_path: false}), sexp, yojson, ord)]
@@ -16,7 +26,11 @@ module Base = {
 };
 include Base;
 
-let height = Chain.length;
+let strides = Chain.loops;
+let height = w =>
+  strides(w) |> List.filter(Stride.is_neq) |> List.length |> (+)(1);
+
+let has_sort = w => List.exists(Stride.has_sort, strides(w));
 
 let fst = Chain.fst;
 let lst = Chain.lst;
