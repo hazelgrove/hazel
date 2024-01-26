@@ -218,6 +218,42 @@ let inspector_view = (~inject, ~settings, ~show_explain_this, ci): Node.t =>
     [view_of_info(~inject, ~settings, ~show_explain_this, ci)],
   );
 
+let cls_view_ws = (_ci: Info.t, what): Node.t =>
+  div(~attr=clss(["syntax-class"]), [text(what)]);
+let term_view_ws =
+    (~inject, ~settings: Settings.t, ~show_explain_this, ci, what) => {
+  let sort = ci |> Info.sort_of |> Sort.show;
+  div(
+    ~attr=clss(["ci-header", sort] @ (Info.is_error(ci) ? [errc] : [])),
+    [
+      ctx_toggle(~inject, settings.context_inspector),
+      CtxInspector.view(~inject, ~settings, ci),
+      div(~attr=clss(["term-tag"]), [text(sort)]),
+      explain_this_toggle(~inject, ~show_explain_this),
+      cls_view_ws(ci, what),
+    ],
+  );
+};
+let view_of_info_ws =
+    (~inject, ~settings, ~show_explain_this: bool, ci: Statics.Info.t, what)
+    : Node.t => {
+  let wrapper = status_view =>
+    div(
+      ~attr=clss(["info"]),
+      [
+        term_view_ws(~inject, ~settings, ~show_explain_this, ci, what),
+        status_view,
+      ],
+    );
+  wrapper(div_ok([]));
+};
+let inspector_view_ws =
+    (~inject, ~settings, ~show_explain_this, ci, what): Node.t =>
+  div(
+    ~attr=clss(["cursor-inspector"] @ [Info.is_error(ci) ? errc : okc]),
+    [view_of_info_ws(~inject, ~settings, ~show_explain_this, ci, what)],
+  );
+
 let view =
     (
       ~inject,
@@ -234,17 +270,29 @@ let view =
         [div(~attr=clss(["icon"]), [Icons.magnify]), text(err)],
       ),
     ]);
-  switch (zipper.backpack, Indicated.index(zipper)) {
+  switch (zipper.backpack, Indicated.index_ci(zipper)) {
   | _ when !settings.core.statics => div_empty
   | _ when Id.Map.is_empty(info_map) =>
     err_view("No Static information available")
-  | (_, None) => err_view("No cursor in program")
-  | (_, Some(id)) =>
+
+  | (_, Normal(id)) =>
     switch (Id.Map.find_opt(id, info_map)) {
     | None => err_view("Whitespace or Comment")
     | Some(ci) =>
       bar_view([
         inspector_view(~inject, ~settings, ~show_explain_this, ci),
+        div(
+          ~attr=clss(["id"]),
+          [text(String.sub(Id.to_string(id), 0, 4))],
+        ),
+      ])
+    }
+  | (_, Secondary(id, what)) =>
+    switch (Id.Map.find_opt(id, info_map)) {
+    | None => err_view("Whitespace or Comment")
+    | Some(ci) =>
+      bar_view([
+        inspector_view_ws(~inject, ~settings, ~show_explain_this, ci, what),
         div(
           ~attr=clss(["id"]),
           [text(String.sub(Id.to_string(id), 0, 4))],
