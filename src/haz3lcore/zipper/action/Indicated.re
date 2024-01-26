@@ -6,15 +6,18 @@ type relation =
   | Sibling;
 
 let piece' =
-    (~no_ws: bool, ~ign: Piece.t => bool, z: Zipper.t)
+    (~no_ws: bool, ~ign: Piece.t => bool, ~trim_secondary=false, z: Zipper.t)
     : option((Piece.t, Direction.t, relation)) => {
+  let sibs =
+    trim_secondary
+      ? sibs_with_sel(z) |> Siblings.trim_secondary : sibs_with_sel(z);
   /* Returns the piece currently indicated (if any) and which side of
      that piece the caret is on. We favor indicating the piece to the
      (R)ight, but may end up indicating the (P)arent or the (L)eft.
      We don't indicate secondary tiles. This function ignores whether
      or not there is a selection so this can be used to get the caret
      direction, but the caller shouldn't indicate if there's a selection */
-  switch (Siblings.neighbors(sibs_with_sel(z)), parent(z)) {
+  switch (Siblings.neighbors(sibs), parent(z)) {
   /* Non-empty selection => no indication */
   //| _ when z.selection.content != [] => None
   /* Empty syntax => no indication */
@@ -84,10 +87,53 @@ let shard_index = (z: Zipper.t): option(int) =>
 let index = (z: Zipper.t): option(Id.t) =>
   switch (piece'(~no_ws=false, ~ign=Piece.is_secondary, z)) {
   | None => None
-  | Some((p, _, _)) =>
-    switch (p) {
-    | Secondary({id, _}) => Some(id)
-    | Grout({id, _}) => Some(id)
-    | Tile({id, _}) => Some(id)
-    }
+  | Some((p, _, _)) => Some(Piece.id(p))
+  };
+
+type res =
+  | Normal(Id.t)
+  | Secondary(Id.t, string);
+
+let what = z =>
+  switch (
+    piece'(~no_ws=false, ~ign=Piece.is_secondary, ~trim_secondary=false, z)
+  ) {
+  | Some((Secondary(w), _, _)) when Secondary.is_comment(w) => "Comment"
+  | Some((Secondary(_), _, _)) => "Whitespace"
+  | _ => failwith("Indicated.index_ci: impossible3")
+  };
+let index_ci = (z: Zipper.t): res =>
+  switch (
+    piece'(~no_ws=true, ~ign=Piece.is_secondary, ~trim_secondary=false, z)
+  ) {
+  | Some((p, _, _)) => Normal(Piece.id(p))
+  | None =>
+    let z_rev = {
+      ...z,
+      relatives: {
+        ...z.relatives,
+        siblings: (
+          snd(z.relatives.siblings) |> List.rev,
+          fst(z.relatives.siblings) |> List.rev,
+        ),
+      },
+    };
+    switch (
+      piece'(
+        ~no_ws=false,
+        ~ign=Piece.is_secondary,
+        ~trim_secondary=true,
+        z_rev,
+      )
+    ) {
+    | None => failwith("Indicated.index_ci: impossible")
+    | Some((p, _, Sibling)) => Secondary(Piece.id(p), what(z_rev))
+    | Some((_, _, Parent)) =>
+      switch (
+        piece'(~no_ws=false, ~ign=Piece.is_secondary, ~trim_secondary=true, z)
+      ) {
+      | None => failwith("Indicated.index_ci: impossible2")
+      | Some((p, _, _)) => Secondary(Piece.id(p), what(z))
+      }
+    };
   };
