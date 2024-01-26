@@ -155,6 +155,7 @@ let rec dhexp_of_uexp =
         let* dp = dhpat_of_upat(m, p);
         let* d1 = dhexp_of_uexp(m, body);
         let+ ty = fixed_pat_typ(m, p);
+        let ty = Typ.normalize(ctx, ty);
         DHExp.Fun(dp, ty, d1, None);
       | Tuple(es) =>
         let+ ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
@@ -240,6 +241,7 @@ let rec dhexp_of_uexp =
         let* ddef = dhexp_of_uexp(m, def);
         let* dbody = dhexp_of_uexp(m, body);
         let+ ty = fixed_pat_typ(m, p);
+        let ty = Typ.normalize(ctx, ty);
         switch (Term.UPat.get_recursive_bindings(p)) {
         | None =>
           /* not recursive */
