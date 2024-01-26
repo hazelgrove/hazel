@@ -7,8 +7,9 @@ type formattable_child = (~enforce_inline: bool) => t;
 module P = Precedence;
 let precedence_const = P.max;
 let precedence_Ap = P.ap;
-let precedence_Times = P.mult;
 let precedence_Power = P.power;
+
+let precedence_Times = P.mult;
 let precedence_Divide = P.mult;
 let precedence_Plus = P.plus;
 let precedence_Minus = P.plus;
@@ -62,13 +63,12 @@ module Delim = {
 
   let sym_Fun = mk("fun");
   let colon_Fun = mk(":");
-  let open_Fun = mk("{");
-  let close_Fun = mk("}");
+  let arrow_Fun = mk("->");
 
   let fix_FixF = mk("fix");
+
+  let arrow_FixF = mk("->");
   let colon_FixF = mk(":");
-  let open_FixF = mk(".{");
-  let close_FixF = mk("}");
 
   let projection_dot = mk(".");
 

@@ -1,3 +1,4 @@
+open Sexplib.Std;
 open Util;
 open PatternMatch;
 open DH;
@@ -43,6 +44,7 @@ open DH;
     closures immediately inside them do not count as values).
    */
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type step_kind =
   | InvalidStep
   | VarLookup
@@ -53,18 +55,22 @@ type step_kind =
   | UpdateTest
   | FunAp
   | CastAp
-  | Builtin(string)
+  | BuiltinWrap
+  | BuiltinAp(string)
   | BinBoolOp(TermBase.UExp.op_bin_bool)
   | BinIntOp(TermBase.UExp.op_bin_int)
   | BinFloatOp(TermBase.UExp.op_bin_float)
   | BinStringOp(TermBase.UExp.op_bin_string)
+  | Conditional(bool)
   | Projection
   | ListCons
   | ListConcat
   | CaseApply
   | CaseNext
   | CompleteClosure
-  | Cast;
+  | CompleteFilter
+  | Cast
+  | Skip;
 
 module CastHelpers = {
   [@deriving sexp]
@@ -147,18 +153,32 @@ module type EV_MODE = {
   type requirement('a);
   type requirements('a, 'b);
 
-  let req_value: (DHExp.t => result, int, DHExp.t) => requirement(DHExp.t);
+  let req_value:
+    (DHExp.t => result, EvalCtx.t => EvalCtx.t, DHExp.t) =>
+    requirement(DHExp.t);
   let req_all_value:
-    (DHExp.t => result, int, list(DHExp.t)) => requirement(list(DHExp.t));
-  let req_final: (DHExp.t => result, int, DHExp.t) => requirement(DHExp.t);
+    (
+      DHExp.t => result,
+      (EvalCtx.t, (list(DHExp.t), list(DHExp.t))) => EvalCtx.t,
+      list(DHExp.t)
+    ) =>
+    requirement(list(DHExp.t));
+  let req_final:
+    (DHExp.t => result, EvalCtx.t => EvalCtx.t, DHExp.t) =>
+    requirement(DHExp.t);
   let req_all_final:
-    (DHExp.t => result, int, list(DHExp.t)) => requirement(list(DHExp.t));
+    (
+      DHExp.t => result,
+      (EvalCtx.t, (list(DHExp.t), list(DHExp.t))) => EvalCtx.t,
+      list(DHExp.t)
+    ) =>
+    requirement(list(DHExp.t));
 
   let (let.): (requirements('a, DHExp.t), 'a => rule) => result;
   let (and.):
     (requirements('a, 'c => 'b), requirement('c)) =>
     requirements(('a, 'c), 'b);
-  let otherwise: 'a => requirements(unit, 'a);
+  let otherwise: (ClosureEnvironment.t, 'a) => requirements(unit, 'a);
 
   let update_test: (state, KeywordID.t, TestMap.instance_report) => unit;
 };
@@ -176,7 +196,7 @@ module Transition = (EV: EV_MODE) => {
   let transition = (req, state, env, d): 'a =>
     switch (d) {
     | BoundVar(x) =>
-      let. _ = otherwise(BoundVar(x));
+      let. _ = otherwise(env, BoundVar(x));
       let d =
         ClosureEnvironment.lookup(env, x)
         |> OptUtil.get(() => {
@@ -184,26 +204,26 @@ module Transition = (EV: EV_MODE) => {
            });
       Step({apply: () => d, kind: VarLookup, value: false});
     | Sequence(d1, d2) =>
-      let. _ = otherwise(d1 => Sequence(d1, d2))
-      and. _ = req_final(req(state, env), 0, d1);
+      let. _ = otherwise(env, d1 => Sequence(d1, d2))
+      and. _ = req_final(req(state, env), d1 => Sequence1(d1, d2), d1);
       Step({apply: () => d2, kind: Sequence, value: false});
     | Let(dp, d1, d2) =>
-      let. _ = otherwise(d1 => Let(dp, d1, d2))
-      and. d1' = req_final(req(state, env), 0, d1);
+      let. _ = otherwise(env, d1 => Let(dp, d1, d2))
+      and. d1' = req_final(req(state, env), d1 => Let1(dp, d1, d2), d1);
       let.match env' = (env, matches(dp, d1'));
       Step({apply: () => Closure(env', d2), kind: LetBind, value: false});
     | Fun(_, _, Closure(_), _) =>
-      let. _ = otherwise(d);
+      let. _ = otherwise(env, d);
       Constructor;
     | Fun(p, t, d, v) =>
-      let. _ = otherwise(Fun(p, t, d, v));
+      let. _ = otherwise(env, Fun(p, t, d, v));
       Step({
         apply: () => Fun(p, t, Closure(env, d), v),
         kind: FunClosure,
         value: true,
       });
     | FixF(f, t, d1) =>
-      let. _ = otherwise(FixF(f, t, d1));
+      let. _ = otherwise(env, FixF(f, t, d1));
       Step({
         apply: () =>
           Closure(
@@ -214,29 +234,29 @@ module Transition = (EV: EV_MODE) => {
         value: false,
       });
     | Test(id, d) =>
-      let. _ = otherwise(d => Test(id, d))
-      and. d' = req_final(req(state, env), 0, d);
+      let. _ = otherwise(env, d => Test(id, d))
+      and. d' = req_final(req(state, env), d => Test(id, d), d);
       Step({
         apply: () =>
           switch (d') {
           | BoolLit(true) =>
             update_test(state, id, (d', Pass));
-            d;
+            Tuple([]);
           | BoolLit(false) =>
             update_test(state, id, (d', Fail));
-            d;
+            Tuple([]);
           /* Hack: assume if final and not Bool, then Indet; this won't catch errors in statics */
           | _ =>
             update_test(state, id, (d', Indet));
-            d;
+            Tuple([]);
           },
         kind: UpdateTest,
         value: true,
       });
     | Ap(d1, d2) =>
-      let. _ = otherwise((d1, d2) => Ap(d1, d2))
-      and. d1' = req_value(req(state, env), 0, d1)
-      and. d2' = req_final(req(state, env), 1, d2);
+      let. _ = otherwise(env, (d1, d2) => Ap(d1, d2))
+      and. d1' = req_value(req(state, env), d1 => Ap1(d1, d2), d1)
+      and. d2' = req_final(req(state, env), d2 => Ap2(d1, d2), d2);
       switch (d1') {
       | Constructor(_) => Constructor
       | Fun(dp, _, Closure(env', d3), _) =>
@@ -248,6 +268,18 @@ module Transition = (EV: EV_MODE) => {
           kind: CastAp,
           value: false,
         })
+      | BuiltinFun(ident) =>
+        Step({
+          apply: () => {
+            //HACK[Matt]: This step is just so we can check that d2' is not indet
+            ApBuiltin(
+              ident,
+              d2',
+            );
+          },
+          kind: BuiltinWrap,
+          value: false // Not necessarily a value because of InvalidOperations
+        })
       | _ =>
         Step({
           apply: () => {
@@ -257,9 +289,10 @@ module Transition = (EV: EV_MODE) => {
           value: true,
         })
       };
-    | ApBuiltin(ident, args) =>
-      let. _ = otherwise(args => ApBuiltin(ident, args))
-      and. args' = req_all_value(req(state, env), 0, args);
+    | ApBuiltin(ident, arg) =>
+      let. _ = otherwise(env, arg => ApBuiltin(ident, arg))
+      and. arg' =
+        req_value(req(state, env), arg => ApBuiltin(ident, arg), arg);
       Step({
         apply: () => {
           let builtin =
@@ -267,22 +300,53 @@ module Transition = (EV: EV_MODE) => {
             |> OptUtil.get(() => {
                  raise(EvaluatorError.Exception(InvalidBuiltin(ident)))
                });
-          builtin(args');
+          builtin(arg');
         },
-        kind: Builtin(ident),
+        kind: BuiltinAp(ident),
         value: false // Not necessarily a value because of InvalidOperations
       });
     | BoolLit(_)
     | IntLit(_)
     | FloatLit(_)
     | StringLit(_)
-    | Constructor(_) =>
-      let. _ = otherwise(d);
+    | Constructor(_)
+    | BuiltinFun(_) =>
+      let. _ = otherwise(env, d);
       Constructor;
+    | IfThenElse(consistent, c, d1, d2) =>
+      let. _ = otherwise(env, c => IfThenElse(consistent, c, d1, d2))
+      and. c' =
+        req_value(
+          req(state, env),
+          c => IfThenElse1(consistent, c, d1, d2),
+          c,
+        );
+      switch (consistent, c') {
+      | (ConsistentIf, BoolLit(b)) =>
+        Step({
+          apply: () => {
+            b ? d1 : d2;
+          },
+          // Attach c' to indicate which branch taken.
+          kind: Conditional(b),
+          value: false,
+        })
+      // Use a seperate case for invalid conditionals. Makes extracting the bool from BoolLit (above) easier.
+      | (ConsistentIf, _) =>
+        Step({
+          apply: () => {
+            raise(EvaluatorError.Exception(InvalidBoxedBoolLit(c')));
+          },
+          kind: InvalidStep,
+          value: true,
+        })
+      // Inconsistent branches should be Indet
+      | (InconsistentIf, _) => Indet
+      };
     | BinBoolOp(And, d1, d2) =>
-      let. _ = otherwise(d1 => BinBoolOp(And, d1, d2))
-      // TODO(Matt): Make "And" able to evaluate when the left-hand side is not fully evaluated
-      and. d1' = req_value(req(state, env), 0, d1);
+      let. _ = otherwise(env, d1 => BinBoolOp(And, d1, d2))
+      and. d1' =
+        req_value(req(state, env), d1 => BinBoolOp1(And, d1, d2), d1);
       Step({
         apply: () =>
           switch (d1') {
@@ -294,8 +358,9 @@ module Transition = (EV: EV_MODE) => {
         value: false,
       });
     | BinBoolOp(Or, d1, d2) =>
-      let. _ = otherwise(d1 => BinBoolOp(Or, d1, d2))
-      and. d1' = req_value(req(state, env), 0, d1);
+      let. _ = otherwise(env, d1 => BinBoolOp(Or, d1, d2))
+      and. d1' =
+        req_value(req(state, env), d1 => BinBoolOp1(Or, d1, d2), d1);
       Step({
         apply: () =>
           switch (d1') {
@@ -307,9 +372,10 @@ module Transition = (EV: EV_MODE) => {
         value: false,
       });
     | BinIntOp(op, d1, d2) =>
-      let. _ = otherwise((d1, d2) => BinIntOp(op, d1, d2))
-      and. d1' = req_value(req(state, env), 0, d1)
-      and. d2' = req_value(req(state, env), 1, d2);
+      let. _ = otherwise(env, (d1, d2) => BinIntOp(op, d1, d2))
+      and. d1' = req_value(req(state, env), d1 => BinIntOp1(op, d1, d2), d1)
+      and. d2' =
+        req_value(req(state, env), d2 => BinIntOp2(op, d1, d2), d2);
       Step({
         apply: () =>
           switch (d1', d2') {
@@ -346,15 +412,17 @@ module Transition = (EV: EV_MODE) => {
         value: false,
       });
     | BinFloatOp(op, d1, d2) =>
-      let. _ = otherwise((d1, d2) => BinFloatOp(op, d1, d2))
-      and. d1' = req_value(req(state, env), 0, d1)
-      and. d2' = req_value(req(state, env), 1, d2);
+      let. _ = otherwise(env, (d1, d2) => BinFloatOp(op, d1, d2))
+      and. d1' =
+        req_value(req(state, env), d1 => BinFloatOp1(op, d1, d2), d1)
+      and. d2' =
+        req_value(req(state, env), d2 => BinFloatOp2(op, d1, d2), d2);
       Step({
         apply: () =>
           switch (d1', d2') {
           | (FloatLit(n1), FloatLit(n2)) =>
             switch (op) {
-            | Plus => FloatLit(n1 +. n1)
+            | Plus => FloatLit(n1 +. n2)
             | Minus => FloatLit(n1 -. n2)
             | Power => FloatLit(n1 ** n2)
             | Times => FloatLit(n1 *. n2)
@@ -374,9 +442,11 @@ module Transition = (EV: EV_MODE) => {
         value: true,
       });
     | BinStringOp(op, d1, d2) =>
-      let. _ = otherwise((d1, d2) => BinStringOp(op, d1, d2))
-      and. d1' = req_value(req(state, env), 0, d1)
-      and. d2' = req_value(req(state, env), 1, d2);
+      let. _ = otherwise(env, (d1, d2) => BinStringOp(op, d1, d2))
+      and. d1' =
+        req_value(req(state, env), d1 => BinStringOp1(op, d1, d2), d1)
+      and. d2' =
+        req_value(req(state, env), d2 => BinStringOp2(op, d1, d2), d2);
       Step({
         apply: () =>
           switch (d1', d2') {
@@ -393,12 +463,13 @@ module Transition = (EV: EV_MODE) => {
         value: true,
       });
     | Tuple(ds) =>
-      let. _ = otherwise(ds => Tuple(ds))
-      and. _ = req_all_final(req(state, env), 0, ds);
+      let. _ = otherwise(env, ds => Tuple(ds))
+      and. _ =
+        req_all_final(req(state, env), (d1, ds) => Tuple(d1, ds), ds);
       Constructor;
     | Prj(d1, n) =>
-      let. _ = otherwise(d1 => Prj(d1, n))
-      and. d1' = req_final(req(state, env), 0, d1);
+      let. _ = otherwise(env, d1 => Prj(d1, n))
+      and. d1' = req_final(req(state, env), d1 => Prj(d1, n), d1);
       Step({
         apply: () =>
           switch (d1') {
@@ -416,9 +487,9 @@ module Transition = (EV: EV_MODE) => {
       });
     // TODO(Matt): Can we do something cleverer when the list structure is complete but the contents aren't?
     | Cons(d1, d2) =>
-      let. _ = otherwise((d1, d2) => Cons(d1, d2))
-      and. d1' = req_final(req(state, env), 0, d1)
-      and. d2' = req_value(req(state, env), 1, d2);
+      let. _ = otherwise(env, (d1, d2) => Cons(d1, d2))
+      and. d1' = req_final(req(state, env), d1 => Cons1(d1, d2), d1)
+      and. d2' = req_value(req(state, env), d2 => Cons2(d1, d2), d2);
       Step({
         apply: () =>
           switch (d2') {
@@ -430,9 +501,9 @@ module Transition = (EV: EV_MODE) => {
       });
     | ListConcat(d1, d2) =>
       // TODO(Matt): Can we do something cleverer when the list structure is complete but the contents aren't?
-      let. _ = otherwise((d1, d2) => ListConcat(d1, d2))
-      and. d1' = req_value(req(state, env), 0, d1)
-      and. d2' = req_value(req(state, env), 1, d2);
+      let. _ = otherwise(env, (d1, d2) => ListConcat(d1, d2))
+      and. d1' = req_value(req(state, env), d1 => ListConcat1(d1, d2), d1)
+      and. d2' = req_value(req(state, env), d2 => ListConcat2(d1, d2), d2);
       Step({
         apply: () =>
           switch (d1', d2') {
@@ -447,13 +518,23 @@ module Transition = (EV: EV_MODE) => {
         value: true,
       });
     | ListLit(u, i, ty, ds) =>
-      let. _ = otherwise(ds => ListLit(u, i, ty, ds))
-      and. _ = req_all_final(req(state, env), 0, ds);
+      let. _ = otherwise(env, ds => ListLit(u, i, ty, ds))
+      and. _ =
+        req_all_final(
+          req(state, env),
+          (d1, ds) => ListLit(u, i, ty, d1, ds),
+          ds,
+        );
       Constructor;
     // TODO(Matt): This will currently re-traverse d1 if it is a large constructor
     | ConsistentCase(Case(d1, rules, n)) =>
-      let. _ = otherwise(d1 => ConsistentCase(Case(d1, rules, n)))
-      and. d1' = req_final(req(state, env), 0, d1);
+      let. _ = otherwise(env, d1 => ConsistentCase(Case(d1, rules, n)))
+      and. d1' =
+        req_final(
+          req(state, env),
+          d1 => ConsistentCase(Case(d1, rules, n)),
+          d1,
+        );
       switch (List.nth_opt(rules, n)) {
       | None => Indet
       | Some(Rule(dp, d2)) =>
@@ -474,28 +555,33 @@ module Transition = (EV: EV_MODE) => {
         }
       };
     | InconsistentBranches(_) as d =>
-      let. _ = otherwise(d);
+      let. _ = otherwise(env, d);
       Indet;
     | Closure(env', d) =>
-      let. _ = otherwise(d => Closure(env', d))
-      and. d' = req_value(req(state, env'), 0, d);
+      let. _ = otherwise(env, d => Closure(env', d))
+      and. d' = req_value(req(state, env'), d1 => Closure(env', d1), d);
       Step({apply: () => d', kind: CompleteClosure, value: true});
     | NonEmptyHole(reason, u, i, d1) =>
-      let. _ = otherwise(d1 => NonEmptyHole(reason, u, i, d1))
-      and. _ = req_final(req(state, env), 0, d1);
+      let. _ = otherwise(env, d1 => NonEmptyHole(reason, u, i, d1))
+      and. _ =
+        req_final(
+          req(state, env),
+          d1 => NonEmptyHole(reason, u, i, d1),
+          d1,
+        );
       Indet;
     | EmptyHole(_)
     | FreeVar(_)
     | InvalidText(_)
     | InvalidOperation(_)
     | ExpandingKeyword(_) =>
-      let. _ = otherwise(d);
+      let. _ = otherwise(env, d);
       Indet;
     | Cast(d, t1, t2) =>
       open CastHelpers; /* Cast calculus */
 
-      let. _ = otherwise(d => Cast(d, t1, t2))
-      and. d' = req_final(req(state, env), 0, d);
+      let. _ = otherwise(env, d => Cast(d, t1, t2))
+      and. d' = req_final(req(state, env), d => Cast(d, t1, t2), d);
       switch (ground_cases_of(t1), ground_cases_of(t2)) {
       | (Hole, Hole)
       | (Ground, Ground) =>
@@ -548,8 +634,40 @@ module Transition = (EV: EV_MODE) => {
         }
       };
     | FailedCast(d1, t1, t2) =>
-      let. _ = otherwise(d1 => FailedCast(d1, t1, t2))
-      and. _ = req_final(req(state, env), 0, d1);
+      let. _ = otherwise(env, d1 => FailedCast(d1, t1, t2))
+      and. _ = req_final(req(state, env), d1 => FailedCast(d1, t1, t2), d1);
       Indet;
+    | Filter(f1, d1) =>
+      let. _ = otherwise(env, d1 => Filter(f1, d1))
+      and. d1 = req_final(req(state, env), d1 => Filter(f1, d1), d1);
+      Step({apply: () => d1, kind: CompleteFilter, value: true});
     };
 };
+
+let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
+  fun
+  | LetBind
+  | Sequence
+  | UpdateTest
+  | FunAp
+  | BuiltinAp(_)
+  | BinBoolOp(_)
+  | BinIntOp(_)
+  | BinFloatOp(_)
+  | BinStringOp(_)
+  | ListCons
+  | ListConcat
+  | CaseApply
+  | Projection // TODO(Matt): We don't want to show projection to the user
+  | Skip
+  | Conditional(_)
+  | InvalidStep => false
+  | VarLookup => !settings.show_lookup_steps
+  | CastAp
+  | Cast => !settings.show_casts
+  | CaseNext
+  | CompleteClosure
+  | CompleteFilter
+  | FixUnwrap
+  | BuiltinWrap
+  | FunClosure => true;
