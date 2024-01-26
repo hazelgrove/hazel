@@ -74,7 +74,7 @@
   --nul-text-color: red;
   --nul-off-color: var(--nul-text-color);
   --nul-token-color: var(--nul-text-color);
-  --nul-shadow-color: var(--nul-text-color);
+  --nul-shadow-color: #ffa000;;
   --nul-bg-color: #ffacac;
   --nul-bg-off-color: var(--nul-bg-color);
 
