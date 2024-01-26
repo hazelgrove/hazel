@@ -2,7 +2,7 @@
 
 (test
  (name haz3ltest)
- (libraries haz3lcore tezt)
+ (libraries haz3lcore alcotest)
  (modes js)
  (preprocess
   (pps js_of_ocaml-ppx)))
