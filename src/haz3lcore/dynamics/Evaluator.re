@@ -1,11 +1,13 @@
 open EvaluatorResult;
 open Transition;
 
-module Evaluator: {
+module EvaluatorEVMode: {
   type result_unfinished =
     | BoxedValue(DHExp.t)
     | Indet(DHExp.t)
     | Uneval(DHExp.t);
+  let unbox: result_unfinished => DHExp.t;
+
   include
     EV_MODE with
       type state = ref(EvaluatorState.t) and type result = result_unfinished;
@@ -26,7 +28,7 @@ module Evaluator: {
 
   type requirement('a) = (reqstate, 'a);
 
-  type requirements('a, 'b) = (reqstate, 'a, 'b); // thing, satisfies, indet, otherwise
+  type requirements('a, 'b) = (reqstate, 'a, 'b); // cumulative state, cumulative arguments, cumulative 'undo'
 
   type state = ref(EvaluatorState.t);
   let update_test = (state, id, v) =>
@@ -39,6 +41,12 @@ module Evaluator: {
 
   type result = result_unfinished;
 
+  let unbox =
+    fun
+    | BoxedValue(x)
+    | Indet(x)
+    | Uneval(x) => x;
+
   let req_value = (f, _, x) =>
     switch (f(x)) {
     | BoxedValue(x) => (BoxedReady, x)
@@ -50,8 +58,8 @@ module Evaluator: {
     fun
     | [] => (BoxedReady, [])
     | [x, ...xs] => {
-        let (r1, x') = req_value(f, i, x);
-        let (r2, xs') = req_all_value(f, i + 1, xs);
+        let (r1, x') = req_value(f, x => x, x);
+        let (r2, xs') = req_all_value(f, i, xs);
         (r1 && r2, [x', ...xs']);
       };
 
@@ -66,12 +74,12 @@ module Evaluator: {
     fun
     | [] => (BoxedReady, [])
     | [x, ...xs] => {
-        let (r1, x') = req_final(f, i, x);
-        let (r2, xs') = req_all_final(f, i + 1, xs);
+        let (r1, x') = req_final(f, x => x, x);
+        let (r2, xs') = req_all_final(f, i, xs);
         (r1 && r2, [x', ...xs']);
       };
 
-  let otherwise = c => (BoxedReady, (), c);
+  let otherwise = (_, c) => (BoxedReady, (), c);
 
   let (and.) = ((r1, x1, c1), (r2, x2)) => (r1 && r2, (x1, x2), c1(x2));
 
@@ -87,7 +95,7 @@ module Evaluator: {
     | (_, Indet) => Indet(c)
     };
 };
-module Eval = Transition(Evaluator);
+module Eval = Transition(EvaluatorEVMode);
 
 let rec evaluate = (state, env, d) => {
   let u = Eval.transition(evaluate, state, env, d);

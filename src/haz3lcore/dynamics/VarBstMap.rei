@@ -169,4 +169,9 @@ module Ordered: {
     order given by element order.
    */
   let of_list: list((Var.t, 'a)) => t_('a);
+
+  /**
+    [without_keys] removes all entires with the given keys from the map
+   */
+  let without_keys: (list(Var.t), t_('a)) => t_('a);
 };
