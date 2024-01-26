@@ -42,9 +42,10 @@ let simple_shard =
     (
       ~font_metrics,
       ~shapes,
-      ~measurement: Measured.measurement,
       ~path_cls,
       ~base_cls,
+      ~fudge=DecUtil.fzero,
+      measurement: Measured.measurement,
     )
     : t =>
   DecUtil.code_svg_sized(
@@ -52,14 +53,27 @@ let simple_shard =
     ~measurement,
     ~base_cls,
     ~path_cls,
+    ~fudge,
     simple_shard_path(shapes, measurement.last.col - measurement.origin.col),
   );
 
 let simple_shard_selected =
     (~font_metrics, ~shapes, ~measurement: Measured.measurement, ~buffer): t => {
-  let path_cls = ["tile-path", buffer ? "selected-buffer" : "selected"];
+  let path_cls = [
+    "tile-path",
+    "raised",
+    buffer ? "selected-buffer" : "selected",
+  ];
   let base_cls = ["tile-selected"];
-  simple_shard(~font_metrics, ~measurement, ~shapes, ~path_cls, ~base_cls);
+  simple_shard(
+    /* Increase height slightly to avoid leaving spaces between selected lines */
+    ~fudge={height: 0.3, top: 0., width: 0., left: 0.},
+    ~font_metrics,
+    ~shapes,
+    ~path_cls,
+    ~base_cls,
+    measurement,
+  );
 };
 
 let simple_shard_indicated =
@@ -75,7 +89,7 @@ let simple_shard_indicated =
     ["tile-path", "raised", Sort.to_string(sort)]
     @ (has_caret ? ["indicated-caret"] : ["indicated"]);
   let base_cls = ["tile-indicated"];
-  simple_shard(~font_metrics, ~measurement, ~shapes, ~path_cls, ~base_cls);
+  simple_shard(~font_metrics, ~shapes, ~path_cls, ~base_cls, measurement);
 };
 
 let simple_shards_indicated =

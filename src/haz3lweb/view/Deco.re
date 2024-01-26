@@ -29,25 +29,27 @@ module Deco =
     [CaretDec.view(~font_metrics, ~profile={side, origin, shape})];
   };
 
-  let sel_shard_svg = (~index=?, ~buffer, ~start_shape, measurement, p) => {
-    let mold = Piece.mold_of(~shape=start_shape, p);
-    PieceDec.simple_shard_selected(
-      ~buffer,
-      ~font_metrics,
-      ~measurement,
-      ~shapes=Mold.nib_shapes(~index?, mold),
-    );
-  };
+  type shard_data = (Measured.measurement, Nibs.shapes);
 
-  let rec sel_of_piece = (~buffer, start_shape: Nib.Shape.t, p: Piece.t) => {
-    let profile =
+  let sel_shard_svg =
+      (~index=?, ~start_shape, measurement: Measured.measurement, p)
+      : (Measured.measurement, Nibs.shapes) => (
+    measurement,
+    Mold.nib_shapes(~index?, Piece.mold_of(~shape=start_shape, p)),
+  );
+
+  let rec sel_of_piece =
+          (start_shape: Nib.Shape.t, p: Piece.t)
+          : (Nib.Shape.t, list(option(shard_data))) => {
+    let shard_data =
       switch (p) {
-      | Tile(t) => sel_of_tile(~buffer, ~start_shape, t)
+      | Tile(t) => sel_of_tile(~start_shape, t)
       | Grout(g) => [
-          sel_shard_svg(~buffer, ~start_shape, Measured.find_g(g, M.map), p),
+          Some(sel_shard_svg(~start_shape, Measured.find_g(g, M.map), p)),
         ]
+      | Secondary(w) when Secondary.is_linebreak(w) => [None]
       | Secondary(w) => [
-          sel_shard_svg(~buffer, ~start_shape, Measured.find_w(w, M.map), p),
+          Some(sel_shard_svg(~start_shape, Measured.find_w(w, M.map), p)),
         ]
       };
     let start_shape =
@@ -55,40 +57,52 @@ module Deco =
       | None => start_shape
       | Some((_, {shape, _})) => shape
       };
-    (start_shape, profile);
+    (start_shape, shard_data);
   }
-  and sel_of_tile = (~buffer, ~start_shape, t: Tile.t): list(Node.t) => {
+  and sel_of_tile = (~start_shape, t: Tile.t): list(option(shard_data)) => {
     let tile_shards =
       Measured.find_shards(t, M.map)
       |> List.filter(((i, _)) => List.mem(i, t.shards))
       |> List.map(((index, measurement)) =>
-           sel_shard_svg(~buffer, ~start_shape, ~index, measurement, Tile(t))
+           [
+             Some(sel_shard_svg(~start_shape, ~index, measurement, Tile(t))),
+           ]
          );
     let shape_at = index => snd(Mold.nibs(~index, t.mold)).shape;
     let children_shards =
-      t.children
-      |> List.mapi(index => sel_of_segment(buffer, shape_at(index)))
-      |> List.flatten;
-    tile_shards @ children_shards;
+      t.children |> List.mapi(index => sel_of_segment(shape_at(index)));
+    ListUtil.interleave(tile_shards, children_shards) |> List.flatten;
   }
   and sel_of_segment =
-      (buffer: bool, start_shape: Nib.Shape.t, seg: Segment.t): list(Node.t) => {
+      (start_shape: Nib.Shape.t, seg: Segment.t): list(option(shard_data)) => {
     seg
-    |> List.filter(
-         fun
-         | Piece.Secondary(w) when Secondary.is_linebreak(w) => false
-         | _ => true,
-       )
-    |> ListUtil.fold_left_map(sel_of_piece(~buffer), start_shape)
+    |> ListUtil.fold_left_map(sel_of_piece, start_shape)
     |> snd
     |> List.flatten;
   }
   and selected_pieces = (z: Zipper.t): list(Node.t) =>
+    /* We draw a single deco per row by dividing partionining the shards
+     * into linebreak-seperated segments, then combining the measurements
+     * and shapes of the first and last shard of each segment. Ideally we
+     * could just get this info from the row measurements, but we have no
+     * current way of figuring out shapes for whitespace without traversing */
     sel_of_segment(
-      Selection.is_buffer(z.selection),
       fst(Siblings.shapes(z.relatives.siblings)),
       z.selection.content,
-    );
+    )
+    |> ListUtil.split_at_nones
+    |> ListUtil.first_and_last
+    |> List.map((((m1, (l1, _)): shard_data, (m2, (_, r2)): shard_data)) =>
+         (({origin: m1.origin, last: m2.last}, (l1, r2)): shard_data)
+       )
+    |> List.map(((measurement, shapes)) =>
+         PieceDec.simple_shard_selected(
+           ~buffer=Selection.is_buffer(z.selection),
+           ~font_metrics,
+           ~measurement,
+           ~shapes,
+         )
+       );
 
   let indicated_piece_deco = (z: Zipper.t): list(Node.t) => {
     switch (Indicated.piece(z)) {
