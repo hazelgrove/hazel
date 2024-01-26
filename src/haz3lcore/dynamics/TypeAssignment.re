@@ -1,8 +1,14 @@
 open Util;
 open OptUtil.Syntax;
 
-let equal_typ_case = (l: list(Typ.t), ty: Typ.t): bool => {
-  List.fold_left((acc, t) => {acc && Typ.eq(t, ty)}, true, l);
+let equal_typ_case = (l: list(Typ.t)): option(Typ.t) => {
+  switch (l) {
+  | [] => None
+  | _ =>
+    let ty = List.hd(l);
+    List.fold_left((acc, t) => {acc && Typ.eq(t, ty)}, true, l)
+      ? Some(ty) : None;
+  };
 };
 
 let rule_prj = (dr: DHExp.rule): (DHPat.t, DHExp.t) => {
@@ -152,40 +158,29 @@ let rec typ_of_dhexp =
       None;
     }
   | InconsistentBranches(_, _, Case(d_scrut, d_rules, _)) =>
-    switch (typ_of_dhexp(ctx, m, d_scrut)) {
-    | Some(ty') =>
-      let typ_cases =
-        d_rules
-        |> List.map(rule_prj)
-        |> List.map(((dhp, de)) => {
-             typ_of_dhexp(dhpat_extend_ctx(dhp, ty', ctx), m, de)
-           })
-        |> OptUtil.sequence;
+    let* ty' = typ_of_dhexp(ctx, m, d_scrut);
+    let typ_cases =
+      d_rules
+      |> List.map(rule_prj)
+      |> List.map(((dhp, de)) => {
+           typ_of_dhexp(dhpat_extend_ctx(dhp, ty', ctx), m, de)
+         })
+      |> OptUtil.sequence;
 
-      switch (typ_cases) {
-      | None => None
-      | Some(_) => Some(Unknown(Internal))
-      };
-    | _ => None
-    }
+    switch (typ_cases) {
+    | None => None
+    | Some(_) => Some(Typ.Unknown(Internal))
+    };
   | ConsistentCase(Case(d_scrut, d_rules, _)) =>
-    switch (typ_of_dhexp(ctx, m, d_scrut)) {
-    | Some(ty') =>
-      let* typ_cases =
-        d_rules
-        |> List.map(rule_prj)
-        |> List.map(((dhp, de)) => {
-             typ_of_dhexp(dhpat_extend_ctx(dhp, ty', ctx), m, de)
-           })
-        |> OptUtil.sequence;
-      let hd = List.hd(typ_cases);
-      if (equal_typ_case(typ_cases, hd)) {
-        Some(hd);
-      } else {
-        None;
-      };
-    | _ => None
-    }
+    let* ty': Typ.t = typ_of_dhexp(ctx, m, d_scrut);
+    let* typ_cases: list(Typ.t) =
+      d_rules
+      |> List.map(rule_prj)
+      |> List.map(((dhp, de)) => {
+           typ_of_dhexp(dhpat_extend_ctx(dhp, ty', ctx), m, de)
+         })
+      |> OptUtil.sequence;
+    equal_typ_case(typ_cases);
   | Sequence(d1, d2) =>
     let* _ = typ_of_dhexp(ctx, m, d1);
     typ_of_dhexp(ctx, m, d2);
@@ -277,9 +272,6 @@ let property_test = (uexp_typ: Typ.t, dhexp: DHExp.t, m: Statics.Map.t): bool =>
 
   switch (dhexp_typ) {
   | None => false
-  | Some(dh_typ) =>
-    print_endline(Typ.show(dh_typ));
-    print_endline(Typ.show(uexp_typ));
-    Typ.eq(dh_typ, uexp_typ);
+  | Some(dh_typ) => Typ.eq(dh_typ, uexp_typ)
   };
 };
