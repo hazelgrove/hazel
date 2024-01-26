@@ -146,6 +146,7 @@ let walk = (~from: Dir.t, src: End.t) => {
     };
   go(src);
 };
+
 let walk_into = (~from: Dir.t, sort: Bound.t(Molded.Sort.t)) => {
   open Index.Syntax;
   let* (src_mid, mid) = stride_into(~from, sort);
@@ -157,17 +158,16 @@ let walk_into = (~from: Dir.t, sort: Bound.t(Molded.Sort.t)) => {
   };
 };
 
+let step = (~from: Dir.t, src: End.t, dst: End.t): list(t) =>
+  Index.find(dst, step(~from, src));
 let walk = (~from: Dir.t, src: End.t, dst: End.t): list(t) =>
-  walk(~from, src) |> Index.find(dst);
+  Index.find(dst, walk(~from, src));
+
 let walk_eq = (~from, src, dst) =>
   List.filter(is_eq, walk(~from, src, dst));
 let walk_neq = (~from, src, dst) =>
   List.filter(is_neq, walk(~from, src, dst));
 
-let walk_into = (~from: Dir.t, sort: Bound.t(Molded.Sort.t), dst: End.t) =>
-  walk_into(~from, sort) |> Index.find(dst);
-
-let exit = (~from: Dir.t, src: End.t) => walk_eq(~from, src, Root);
-
 let enter = (~from: Dir.t, sort: Bound.t(Molded.Sort.t), dst: End.t) =>
-  Index.find(dst, stride_into(~from, sort));
+  Index.find(dst, walk_into(~from, sort));
+let exit = (~from: Dir.t, src: End.t) => walk_eq(~from, src, Root);

@@ -9,8 +9,8 @@ let faces =
 let bake_eq = (~fill=[], sort: Bound.t(Molded.Sort.t)) => {
   open OptUtil.Syntax;
   let (f_l, f_r) = faces(fill);
-  let* w_l = ListUtil.hd_opt(Walker.walk_into(~from=L, sort, Node(f_l)));
-  let* w_r = ListUtil.hd_opt(Walker.walk_into(~from=R, sort, Node(f_r)));
+  let* w_l = ListUtil.hd_opt(Walker.enter(~from=L, sort, Node(f_l)));
+  let* w_r = ListUtil.hd_opt(Walker.enter(~from=R, sort, Node(f_r)));
   let (l, r) = Walk.(height(w_l) > 2, height(w_r) > 2);
   let+ cell = Cell.fill(~l, ~r, fill, sort);
   Rel.Eq(cell);
@@ -20,8 +20,8 @@ let bake_lt =
     (~fill=[], bound: Bound.t(Molded.Sort.t), sort: Bound.t(Molded.Sort.t)) => {
   open OptUtil.Syntax;
   let (f_l, f_r) = faces(fill);
-  let* _w_l = ListUtil.hd_opt(Walker.walk_into(~from=L, bound, Node(f_l)));
-  let* w_r = ListUtil.hd_opt(Walker.walk_into(~from=R, sort, Node(f_r)));
+  let* _w_l = ListUtil.hd_opt(Walker.enter(~from=L, bound, Node(f_l)));
+  let* w_r = ListUtil.hd_opt(Walker.enter(~from=R, sort, Node(f_r)));
   let+ cell = Cell.fill(~r=Walk.height(w_r) > 2, fill, sort);
   Rel.Neq(cell);
 };
@@ -30,8 +30,8 @@ let bake_gt =
     (~fill=[], sort: Bound.t(Molded.Sort.t), bound: Bound.t(Molded.Sort.t)) => {
   open OptUtil.Syntax;
   let (l, r) = faces(fill);
-  let* w_l = ListUtil.hd_opt(Walker.walk_into(~from=L, sort, Node(l)));
-  let* _w_r = ListUtil.hd_opt(Walker.walk_into(~from=R, bound, Node(r)));
+  let* w_l = ListUtil.hd_opt(Walker.enter(~from=L, sort, Node(l)));
+  let* _w_r = ListUtil.hd_opt(Walker.enter(~from=R, bound, Node(r)));
   let+ cell = Cell.fill(~r=Walk.height(w_l) > 2, fill, sort);
   Rel.Neq(cell);
 };
@@ -61,5 +61,5 @@ let bake = (~from: Dir.t, ~fill=[], w: Walk.t): option(Bake.t) =>
        let+ cell = bake_stride(~fill, ~from, str)
        and+ pre = bake_tl(pre)
        and+ suf = bake_tl(suf);
-       Chain.zip(pre, cell, suf);
+       Chain.zip(~pre, cell, ~suf);
      });

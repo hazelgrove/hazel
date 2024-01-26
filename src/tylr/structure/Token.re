@@ -51,15 +51,18 @@ let id_ = (tok: t) => tok.id;
 let text_ = (tok: t) => tok.text;
 // let label = p => Mtrl.Labeled.of_molded(p.lbl);
 let sort = (tok: t) => tok.lbl.mold.sort;
-// let prec = p => Mtrl.map(Mold.prec_, p.material);
-
-// let put_label = (_, _) => failwith("todo Piece.put_label");
-let put_text = (text, tok: t) => {...tok, text};
 
 let length = (tok: t) =>
   switch (tok.lbl.mtrl) {
   | Tile(Const(c)) => String.length(c)
   | _ => String.length(tok.text)
+  };
+
+let is_ghost = (tok: t) =>
+  switch (tok.lbl.mtrl) {
+  | Space
+  | Grout => false
+  | Tile(lbl) => !Label.is_complete(tok.text, lbl)
   };
 
 let merge_text =

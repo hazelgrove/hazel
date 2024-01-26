@@ -3,25 +3,32 @@ open Util;
 module Melded = {
   type t = Rel.t(Wald.t, Slope.t);
 
-  let mk_eq = (src: Wald.t, bake: Bake.t, dst: Wald.t) => failwith("todo");
+  let mk_eq = (src: Wald.t, bake, dst: Wald.t) => failwith("todo");
   let mk_neq = (bake: Bake.t, dst: Wald.t) => failwith("todo");
   let mk = (src: Wald.t, bake: Bake.t, dst: Wald.t) =>
-    Bake.is_eq(bake) ? mk_eq(src, bake, dst) : mk_neq(bake, dst);
+    switch (Bake.is_eq(bake)) {
+    | Some(eq) => Rel.Eq(mk_eq(src, eq, dst))
+    | None => Rel.Neq(mk_neq(bake, dst))
+    };
 };
 
 module W = Wald;
 module Wald = {
+  let meld_root =
+      (~repair=false, ~from: Dir.t, ~fill=[], dst: W.t): option(Slope.t) =>
+    Walker.walk(~from, Root, Node(W.face(dst)))
+    |> Oblig.Delta.minimize(~to_zero=!repair, Baker.bake(~from, ~fill))
+    |> Option.map(bake => Melded.mk_neq(bake, dst));
+
   let meld =
-      (~repair=false, ~from: Dir.t, src: Bound.t(W.t), ~fill=[], dst: W.t)
+      (~repair=false, ~from: Dir.t, src: W.t, ~fill=[], dst: W.t)
       : option(Melded.t) => {
     open OptUtil.Syntax;
+    let walk = repair ? Walker.walk : Walker.step;
     let rec go = (src, fill) => {
       let/ () = repair ? rm_ghost_and_go(src, fill) : None;
-      let face_src = src |> Bound.map(w => W.face(w).mtrl);
-      let face_dst = W.face(dst).mtrl;
-      let walk = repair ? Walker.walk : Walker.step;
       let+ bake =
-        walk(~from, face_src, Node(face_dst))
+        walk(~from, Node(W.face(src)), Node(W.face(dst)))
         |> Oblig.Delta.minimize(~to_zero=!repair, Baker.bake(~from, ~fill));
       Melded.mk(src, bake, dst);
     }
@@ -31,8 +38,8 @@ module Wald = {
         let fill = Option.to_list(cell.meld) @ fill;
         switch (go(tl, fill)) {
         // require eq match further in to accept removing hd
-        | Some(Eq(_)) as r =>
-          Effect.perform(Remove(hd));
+        | Some(Rel.Eq(_)) as r =>
+          Effects.remove(hd);
           r;
         | _ => None
         };
@@ -40,20 +47,12 @@ module Wald = {
       };
     let/ () = {
       // first try zipping
-      let* src = Bound.to_opt(src);
-      let+ zipped = W.zip(~from, src, dst);
+      let+ zipped = W.merge(~from, src, dst);
       assert(fill == []);
-      Melded.Eq(zipped);
+      Rel.Eq(zipped);
     };
     go(src, fill);
   };
-
-  let meld_eq =
-      (~repair=false, ~from: Dir.t, l: W.t, ~fill=[], r: W.t): option(W.t) =>
-    switch (meld(~repair, ~from, Node(l), ~fill, r)) {
-    | Some(Eq(w)) => Some(w)
-    | _ => None
-    };
 };
 
 module T = Terr;
@@ -65,13 +64,13 @@ module Terr = {
       bake
       |> Chain.fold_left(
            cell => Meld.M(terr.cell, terr.wald, cell),
-           (meld, tok, cell) => Meld.link(cell, tok, meld),
+           (meld, tok, cell) => Meld.link(~cell, tok, meld),
          )
       |> Meld.rev;
 
     let round = (~fill=[], terr: T.R.t) => {
       let bake = Baker.bake(~from=L);
-      let exited = Walker.exit(R, T.face(terr));
+      let exited = Walker.exit(R, Node(T.face(terr)));
       switch (Oblig.Delta.minimize(bake(~fill), exited)) {
       | Some(baked) => [connect(terr, baked)]
       | None =>
@@ -93,7 +92,7 @@ module S = Slope;
 module Slope = {
   // todo: distribute paths
   let unroll = (~from: Dir.t, cell: Cell.t) => {
-    let rec go = (cell, unrolled) =>
+    let rec go = (cell: Cell.t, unrolled) =>
       switch (cell.meld) {
       | None => unrolled
       | Some(M(l, W(w), r)) =>
@@ -118,38 +117,26 @@ module Slope = {
     );
 
   let push =
-      (
-        ~repair=false,
-        ~onto: Dir.t,
-        ~top=Bound.Root,
-        w: W.t,
-        ~fill=[],
-        slope: S.t,
-      )
+      (~repair=false, ~onto: Dir.t, w: W.t, ~fill=[], slope: S.t)
       : Result.t(S.t, list(Meld.t)) => {
     let meld = Wald.meld(~repair, ~from=onto);
     let round = Dir.pick(onto, (Terr.R.round, Terr.L.round));
-    let rec go = (fill, slope) =>
+    let rec go = (fill, slope: S.t) =>
       switch (slope) {
-      | [] =>
-        switch (meld(top, ~fill, w)) {
-        | None
-        | Some(Eq(_)) => Error(fill)
-        | Some(Neq(slope)) => Ok(slope)
-        }
+      | [] => Error(fill)
       | [{wald: W(([tok, ...toks], cells)), cell}, ...tl]
           when Token.is_grout(tok) =>
-        Effect.perform(Remove(tok));
+        Effects.remove(tok);
         let (cell, slope) =
           switch (cells) {
           | [] => (cell, tl)
           | [c, ...cs] =>
-            let hd = Terr.{wald: W.mk(toks, cs), cell};
+            let hd = T.{wald: W.mk(toks, cs), cell};
             (c, [hd, ...tl]);
           };
         go(fill, S.cat(unroll(cell), slope));
       | [hd, ...tl] =>
-        switch (meld(Node(hd.wald), ~fill, w)) {
+        switch (meld(hd.wald, ~fill, w)) {
         | None => go(round(~fill, hd), tl)
         | Some(Eq(wald)) => Ok([{...hd, wald}, ...tl])
         | Some(Neq(s)) => Ok(S.cat(s, slope))
@@ -255,25 +242,33 @@ module Zigg = {
 
 module C = Ctx;
 module Ctx = {
-  open OptUtil.Syntax;
-
-  let push = (~onto as d: Dir.t, w: W.t, ~fill=[], ctx: C.t): option(C.t) =>
-    switch (C.unlink(ctx)) {
-    | Error(slopes) =>
-      let (s_d, s_b) = Dir.order(d, slopes);
-      let+ s_d = Result.to_option(Slope.push(~onto=d, w, ~fill, s_d));
-      C.unit(Dir.order(d, (s_d, s_b)));
-    | Ok((slopes, terrs, ctx)) =>
-      let (s_d, s_b) = Dir.order(d, slopes);
-      switch (Slope.push(~onto=d, w, ~fill, s_d)) {
-      | Ok(s_d) => Some(C.link(Dir.order(d, (s_d, s_b)), terrs, ctx))
-      | Error(fill) =>
+  let push = (~onto as d: Dir.t, w: W.t, ~fill=[], ctx: C.t): option(C.t) => {
+    open OptUtil.Syntax;
+    let (slopes, tl) = Ctx.split_fst(ctx);
+    let (s_d, s_b) = Dir.order(d, slopes);
+    switch (Slope.push(~onto=d, w, ~fill, s_d)) {
+    | Ok(s_d) =>
+      let slopes = Dir.order(d, (s_d, s_b));
+      Some(Ctx.zip(slopes, ~suf=tl));
+    | Error(fill) =>
+      switch (Ctx.Tl.split_fst(tl)) {
+      | None =>
+        let+ s_d = Wald.meld_root(~from=d, ~fill, w);
+        C.unit(Dir.order(d, (s_d, s_b)));
+      | Some((terrs, ctx)) =>
         let (t_d, t_b) = Dir.order(d, terrs);
-        let+ wald = Wald.meld_eq(~from=d, t_d.wald, ~fill, w);
-        let slopes = Dir.order(d, ([{...t_d, wald}], s_b @ [t_b]));
-        C.map_fst(Frame.Open.cat(slopes), ctx);
-      };
+        let+ melded = Wald.meld(~from=d, t_d.wald, ~fill, w);
+        switch (melded) {
+        | Neq(s_d) =>
+          let slopes = Dir.order(d, (s_d, s_b));
+          C.link(slopes, terrs, ctx);
+        | Eq(wald) =>
+          let slopes = Dir.order(d, ([T.{...t_d, wald}], s_b @ [t_b]));
+          C.map_fst(Frame.Open.cat(slopes), ctx);
+        };
+      }
     };
+  };
 
   let rec pull = (~from as d: Dir.t, ctx: C.t): option((Token.t, C.t)) => {
     open OptUtil.Syntax;
@@ -291,7 +286,7 @@ module Ctx = {
       | None =>
         let (t_d, t_b) = Dir.order(d, terrs);
         let slopes = order(([t_d], s_b @ [t_b]));
-        go(Ctx.map_fst(Frame.Open.cat(slopes), ctx));
+        pull(~from=d, Ctx.map_fst(Frame.Open.cat(slopes), ctx));
       };
     };
   };

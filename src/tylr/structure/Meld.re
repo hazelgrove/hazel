@@ -16,7 +16,7 @@ module Wald = {
     | W(Chain.t(Token.t, 'cell));
 
   let of_tok = tok => W(Chain.unit(tok));
-  let face = (~side: Dir.t, W(w): t(_)) =>
+  let face = (~side=Dir.L, W(w): t(_)) =>
     Dir.pick(side, (Chain.fst, Chain.lst), w).lbl;
 };
 

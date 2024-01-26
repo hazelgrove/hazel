@@ -5,6 +5,9 @@ type t(_) +=
   | Insert(Token.t): t(unit)
   | Remove(Token.t): t(unit);
 
+let insert = tok => perform(Insert(tok));
+let remove = tok => perform(Remove(tok));
+
 // necessary to wrap recorded effects in existential wrapper for reasons
 // I don't fully understand:
 // https://stackoverflow.com/questions/49538251/heterogeneous-list-of-gadt-in-ocaml

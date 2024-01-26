@@ -1,8 +1,11 @@
 open Sexplib.Std;
 
-// invariant: List.length(loops) == List.length(links) + 1
-[@deriving (show({with_path: false}), sexp, yojson, ord)]
-type t('loop, 'link) = (list('loop), list('link));
+module Base = {
+  // invariant: List.length(loops) == List.length(links) + 1
+  [@deriving (show({with_path: false}), sexp, yojson, ord)]
+  type t('loop, 'link) = (list('loop), list('link));
+};
+include Base;
 
 let mk = (lps: list('lp), lks: list('lk)): t('lp, 'lk) => {
   if (List.length(lps) != List.length(lks) + 1) {
@@ -23,6 +26,12 @@ module Tl = {
   let empty = ([], []);
   let cons = (lk, lp, (lks, lps): t(_)) => ([lk, ...lks], [lp, ...lps]);
   let snoc = ((lks, lps): t(_), lk, lp) => (lks @ [lk], lps @ [lp]);
+  let split_fst =
+      ((lks, lps): t('lk, 'lp)): option(('lk, Base.t('lp, 'lk))) =>
+    switch (lks) {
+    | [] => None
+    | [lk, ...lks] => Some((lk, (lps, lks)))
+    };
 };
 
 let split_fst = ((lps, lks): t('lp, 'lk)): ('lp, Tl.t('lk, 'lp)) => {
@@ -169,10 +178,10 @@ let trim = ((lps, lks): t('lp, 'lk)): option(('lp, t('lk, 'lp), 'lp)) =>
   };
 let untrim = (l, (lks, lps), r) => mk([l, ...lps] @ [r], lks);
 
-let zip = (pre: Tl.t(_, 'lp), lp: 'lp, suf: Tl.t(_, 'lp)) => {
+let zip = (~pre=Tl.empty, ~suf=Tl.empty, foc) => {
   let (lks_pre, lps_pre) = pre;
   let (lks_suf, lps_suf) = suf;
-  let lps = List.rev(lps_pre) @ [lp, ...lps_suf];
+  let lps = List.rev(lps_pre) @ [foc, ...lps_suf];
   let lks = List.rev(lks_pre) @ lks_suf;
   mk(lps, lks);
 };
