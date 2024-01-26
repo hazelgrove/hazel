@@ -29,85 +29,66 @@ module Deco =
     [CaretDec.view(~font_metrics, ~profile={side, origin, shape})];
   };
 
-  let selected_piece_profile =
-      (~buffer, p: Piece.t, nib_shape: Nib.Shape.t): PieceDec.Profile.t => {
-    // TODO(d) fix sorts
-    let mold =
-      switch (p) {
-      | Secondary(_) => Mold.of_secondary({sort: Any, shape: nib_shape})
-      | Grout(g) => Mold.of_grout(g, Any)
-      | Tile(t) => t.mold
-      };
-    // TODO(d) awkward
-    let shards =
-      switch (p) {
-      | Secondary(w) => [(0, Measured.find_w(w, M.map))]
-      | Grout(g) => [(0, Measured.find_g(g, M.map))]
-      | Tile(t) =>
-        Measured.find_shards(t, M.map)
-        |> List.filter(((i, _)) => List.mem(i, t.shards))
-      };
-    let id = Piece.id(p);
-    let tiles = [(id, mold, shards)];
-    let l = fst(List.hd(shards));
-    let r = fst(ListUtil.last(shards));
-    // TODO this is ignored in view, clean this up
-    let caret = (id, (-1));
-    let style: PieceDec.Profile.style =
-      buffer
-        ? SelectedBuffer((id, l), (id, r)) : Selected((id, l), (id, r));
-    PieceDec.Profile.{tiles, caret, style};
+  let sel_shard_svg = (~index=?, ~buffer, ~start_shape, measurement, p) => {
+    let mold = Piece.mold_of(~shape=start_shape, p);
+    PieceDec.simple_shard_selected(
+      ~buffer,
+      ~font_metrics,
+      ~measurement,
+      ~shapes=Mold.nib_shapes(~index?, mold),
+    );
   };
 
-  let root_piece_profile =
-      (index: int, p: Piece.t, (l, r)): PieceDec.Profile.t => {
-    let tiles =
-      Id.Map.find(Piece.id(p), M.terms)
-      |> Term.ids
-      /* NOTE(andrew): dark_ids were originally filtered here.
-       * Leaving this comment in place in case issues in the
-       * future are traced back to here.
-       * |> List.filter(id => id >= 0)*/
-      |> List.map(id => {
-           let t = tile(id);
-           (id, t.mold, Measured.find_shards(t, M.map));
-         });
-    PieceDec.Profile.{
-      tiles,
-      caret: (Piece.id(p), index),
-      style: Root(l, r),
-    };
-  };
-
-  let selected_pieces = (z: Zipper.t): list(Node.t) =>
-    // TODO(d) mold/nibs/selemdec clean up pass
-    z.selection.content
+  let rec sel_of_piece = (~buffer, start_shape: Nib.Shape.t, p: Piece.t) => {
+    let profile =
+      switch (p) {
+      | Tile(t) => sel_of_tile(~buffer, ~start_shape, t)
+      | Grout(g) => [
+          sel_shard_svg(~buffer, ~start_shape, Measured.find_g(g, M.map), p),
+        ]
+      | Secondary(w) => [
+          sel_shard_svg(~buffer, ~start_shape, Measured.find_w(w, M.map), p),
+        ]
+      };
+    let start_shape =
+      switch (Piece.nibs(p)) {
+      | None => start_shape
+      | Some((_, {shape, _})) => shape
+      };
+    (start_shape, profile);
+  }
+  and sel_of_tile = (~buffer, ~start_shape, t: Tile.t): list(Node.t) => {
+    let tile_shards =
+      Measured.find_shards(t, M.map)
+      |> List.filter(((i, _)) => List.mem(i, t.shards))
+      |> List.map(((index, measurement)) =>
+           sel_shard_svg(~buffer, ~start_shape, ~index, measurement, Tile(t))
+         );
+    let shape_at = index => snd(Mold.nibs(~index, t.mold)).shape;
+    let children_shards =
+      t.children
+      |> List.mapi(index => sel_of_segment(buffer, shape_at(index)))
+      |> List.flatten;
+    tile_shards @ children_shards;
+  }
+  and sel_of_segment =
+      (buffer: bool, start_shape: Nib.Shape.t, seg: Segment.t): list(Node.t) => {
+    seg
     |> List.filter(
          fun
          | Piece.Secondary(w) when Secondary.is_linebreak(w) => false
          | _ => true,
        )
-    |> ListUtil.fold_left_map(
-         (l: Nib.Shape.t, p: Piece.t) => {
-           let profile =
-             selected_piece_profile(
-               ~buffer=Selection.is_buffer(z.selection),
-               p,
-               l,
-             );
-           let shape =
-             switch (Piece.nibs(p)) {
-             | None => l
-             | Some((_, {shape, _})) => shape
-             };
-           // TODO(andrew): do something different for the caret
-           // adjacent piece so it lines up nice
-           (shape, PieceDec.view(~font_metrics, ~rows=M.map.rows, profile));
-         },
-         fst(Siblings.shapes(z.relatives.siblings)),
-       )
+    |> ListUtil.fold_left_map(sel_of_piece(~buffer), start_shape)
     |> snd
     |> List.flatten;
+  }
+  and selected_pieces = (z: Zipper.t): list(Node.t) =>
+    sel_of_segment(
+      Selection.is_buffer(z.selection),
+      fst(Siblings.shapes(z.relatives.siblings)),
+      z.selection.content,
+    );
 
   let indicated_piece_deco = (z: Zipper.t): list(Node.t) => {
     switch (Indicated.piece(z)) {
@@ -140,12 +121,24 @@ module Deco =
       switch (range) {
       | None => []
       | Some(range) =>
-        PieceDec.view(
+        let tiles =
+          Id.Map.find(Piece.id(p), M.terms)
+          |> Term.ids
+          /* NOTE(andrew): dark_ids were originally filtered here.
+           * Leaving this comment in place in case issues in the
+           * future are traced back to here.
+           * |> List.filter(id => id >= 0)*/
+          |> List.map(id => {
+               let t = tile(id);
+               (id, t.mold, Measured.find_shards(t, M.map));
+             });
+        PieceDec.indicated(
           ~font_metrics,
           ~rows=M.map.rows,
-          ~segs=[],
-          root_piece_profile(index, p, range),
-        )
+          ~caret=(Piece.id(p), index),
+          ~tiles,
+          range,
+        );
       };
     };
   };
