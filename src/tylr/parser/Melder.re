@@ -3,8 +3,8 @@ open Util;
 module Melded = {
   type t = Rel.t(Wald.t, Slope.t);
 
-  let mk_eq = (src: Wald.t, bake, dst: Wald.t) => failwith("todo");
-  let mk_neq = (bake: Bake.t, dst: Wald.t) => failwith("todo");
+  let mk_eq = (_src: Wald.t, _bake, _dst: Wald.t) => failwith("todo");
+  let mk_neq = (_bake: Bake.t, _dst: Wald.t) => failwith("todo");
   let mk = (src: Wald.t, bake: Bake.t, dst: Wald.t) =>
     switch (Bake.is_eq(bake)) {
     | Some(eq) => Rel.Eq(mk_eq(src, eq, dst))
@@ -14,11 +14,12 @@ module Melded = {
 
 module W = Wald;
 module Wald = {
-  let meld_root =
-      (~repair=false, ~from: Dir.t, ~fill=[], dst: W.t): option(Slope.t) =>
-    Walker.walk(~from, Root, Node(W.face(dst)))
-    |> Oblig.Delta.minimize(~to_zero=!repair, Baker.bake(~from, ~fill))
-    |> Option.map(bake => Melded.mk_neq(bake, dst));
+  let lt = (l: W.t, r: W.t) =>
+    Walker.lt(Node(W.face(l)), Node(W.face(r))) != [];
+  let gt = (l: W.t, r: W.t) =>
+    Walker.gt(Node(W.face(l)), Node(W.face(r))) != [];
+  let eq = (l: W.t, r: W.t) =>
+    Walker.eq(Node(W.face(l)), Node(W.face(r))) != [];
 
   let meld =
       (~repair=false, ~from: Dir.t, src: W.t, ~fill=[], dst: W.t)
@@ -53,38 +54,53 @@ module Wald = {
     };
     go(src, fill);
   };
+
+  let meld_root =
+      (~repair=false, ~from: Dir.t, ~fill=[], dst: W.t): option(Slope.t) =>
+    Walker.walk(~from, Root, Node(W.face(dst)))
+    |> Oblig.Delta.minimize(~to_zero=!repair, Baker.bake(~from, ~fill))
+    |> Option.map(bake => Melded.mk_neq(bake, dst));
 };
 
 module T = Terr;
 module Terr = {
-  module R = {
-    include Terr.R;
+  let attach = (bake: Bake.t, terr: T.t) =>
+    bake
+    |> Chain.fold_left(
+         fun
+         | Rel.Neq(_) => raise(Invalid_argument("Melder.Terr.R.connect"))
+         | Eq(cell) => Meld.M(terr.cell, terr.wald, cell),
+         (meld, tok) =>
+         fun
+         | Rel.Neq(_) => raise(Invalid_argument("Melder.Terr.R.connect"))
+         | Eq(cell) => Meld.link(~cell, tok, meld)
+       )
+    |> Meld.rev;
 
-    let connect = (terr: T.R.t, bake) =>
-      bake
-      |> Chain.fold_left(
-           cell => Meld.M(terr.cell, terr.wald, cell),
-           (meld, tok, cell) => Meld.link(~cell, tok, meld),
-         )
-      |> Meld.rev;
-
-    let round = (~fill=[], terr: T.R.t) => {
-      let bake = Baker.bake(~from=L);
-      let exited = Walker.exit(R, Node(T.face(terr)));
-      switch (Oblig.Delta.minimize(bake(~fill), exited)) {
-      | Some(baked) => [connect(terr, baked)]
-      | None =>
-        let exited =
-          ListUtil.hd_opt(exited)
-          |> OptUtil.get_or_fail("bug: expected at least one exit");
-        let baked =
-          bake(exited)
-          |> OptUtil.get_or_fail(
-               "bug: bake expected to succeed if no fill required",
-             );
-        [connect(terr, baked), ...fill];
-      };
+  let round = (~from: Dir.t, ~fill=[], terr: T.t): list(Meld.t) => {
+    let bake = Baker.bake(~from);
+    let exited = Walker.exit(~from, Node(T.face(terr)));
+    let orient = Dir.pick(from, (Meld.rev, Fun.id));
+    switch (Oblig.Delta.minimize(bake(~fill), exited)) {
+    | Some(baked) => [orient(attach(baked, terr))]
+    | None =>
+      let exited =
+        ListUtil.hd_opt(exited)
+        |> OptUtil.get_or_fail("bug: expected at least one exit");
+      let baked =
+        bake(exited)
+        |> OptUtil.get_or_fail(
+             "bug: bake expected to succeed if no fill required",
+           );
+      [orient(attach(baked, terr)), ...fill];
     };
+  };
+
+  module L = {
+    let round = round(~from=R);
+  };
+  module R = {
+    let round = round(~from=L);
   };
 };
 
@@ -95,23 +111,23 @@ module Slope = {
     let rec go = (cell: Cell.t, unrolled) =>
       switch (cell.meld) {
       | None => unrolled
-      | Some(M(l, W(w), r)) =>
+      | Some(M(l, w, r)) =>
         let (cell, terr) =
           switch (from) {
-          | L => (r, Terr.{wald: Wald.rev(w), cell: l})
-          | R => (l, Terr.{wald: w, cell: r})
+          | L => (r, T.{wald: W.rev(w), cell: l})
+          | R => (l, T.{wald: w, cell: r})
           };
         go(cell, [terr, ...unrolled]);
       };
     go(cell, []);
   };
 
-  let roll = (~onto: Dir.t, slope: t) =>
-    List.fold_left(
+  let roll = (~onto: Dir.t) =>
+    S.fold(
       (cell, terr) => {
-        let w = onto == L ? Wald.rev(terr.wald) : terr.wald;
+        let w = onto == L ? W.rev(terr.wald) : terr.wald;
         let (l, r) = Dir.order(onto, (terr.cell, cell));
-        Cell.mk(Meld.mk(~l, w, ~r));
+        Cell.mk(~meld=Meld.mk(~l, w, ~r), ());
       },
       Cell.empty,
     );
@@ -134,7 +150,7 @@ module Slope = {
             let hd = T.{wald: W.mk(toks, cs), cell};
             (c, [hd, ...tl]);
           };
-        go(fill, S.cat(unroll(cell), slope));
+        go(fill, S.cat(unroll(~from=onto, cell), slope));
       | [hd, ...tl] =>
         switch (meld(hd.wald, ~fill, w)) {
         | None => go(round(~fill, hd), tl)
@@ -150,13 +166,12 @@ module Slope = {
     | [] => None
     | [hd, ...tl] =>
       let (tok, rest) = W.split_hd(hd.wald);
-      let unroll = unroll(Dir.toggle(from));
       let slope =
         switch (rest) {
-        | ([], _) => S.cat(unroll(hd.cell), tl)
+        | ([], _) => S.cat(unroll(~from, hd.cell), tl)
         | ([cell, ...cells], toks) =>
-          let hd = {...hd, wald: Wald.mk(toks, cells)};
-          S.cat(unroll(cell), [hd, ...tl]);
+          let hd = {...hd, wald: W.mk(toks, cells)};
+          S.cat(unroll(~from, cell), [hd, ...tl]);
         };
       Some((tok, slope));
     };
@@ -177,25 +192,30 @@ module Slope = {
 
 module Z = Zigg;
 module Zigg = {
-  let push_wald = (~onto: Dir.t, w: W.t, ~fill=[], zigg: Z.t): option(Z.t) =>
-    switch (onto) {
-    | L =>
-      let top = zigg.top;
-      switch (Slope.Up.push(w, ~fill, zigg.up, ~top)) {
-      | Ok(up) => Some({...zigg, up})
-      | Error(fill) =>
-        Wald.meld_eq(~from=R, w, ~fill, top)
-        |> Option.map(top => {...zigg, up: [], top})
-      };
-    | R =>
-      let top = W.rev(zigg.top);
-      switch (Slope.Dn.push(w, ~fill, zigg.dn, ~top)) {
-      | Ok(dn) => Some({...zigg, dn})
-      | Error(fill) =>
-        Wald.meld_eq(~from=L, top, ~fill, w)
-        |> Option.map(top => {...zigg, top, dn: []})
-      };
+  let push_wald =
+      (~onto as d: Dir.t, w: W.t, ~fill=[], zigg: Z.t): option(Z.t) => {
+    let b = Dir.toggle(d);
+    let (s_d, s_b) = Dir.order(d, (zigg.up, zigg.dn));
+    let melded_neq = s_d => {
+      let (up, dn) = Dir.order(d, (s_d, s_b));
+      {...zigg, up, dn};
     };
+    switch (Slope.push(~onto=b, w, ~fill, s_d)) {
+    | Ok(s_d) => Some(melded_neq(s_d))
+    | Error(fill) =>
+      let orient = Dir.pick(d, (Fun.id, W.rev));
+      Wald.meld(~from=b, orient(zigg.top), ~fill, w)
+      |> Option.map(
+           fun
+           | Rel.Neq(s_d) => melded_neq(s_d)
+           | Eq(top) => {
+               let top = orient(top);
+               let (up, dn) = Dir.order(d, (s_d, s_b));
+               Z.{up, top, dn};
+             },
+         );
+    };
+  };
   let push = (~onto: Dir.t, tok: Token.t) => push_wald(~onto, W.unit(tok));
 
   let grow = (~side: Dir.t, tok: Token.t, zigg: Z.t) =>
@@ -205,7 +225,7 @@ module Zigg = {
       switch (side) {
       | L =>
         let cell = Slope.Up.roll(zigg.up);
-        let dn = zigg.dn @ [T.{wald: Wald.rev(zigg.top), cell}];
+        let dn = zigg.dn @ [T.{wald: W.rev(zigg.top), cell}];
         Zigg.mk(W.unit(tok), ~dn);
       | R =>
         let cell = Slope.Dn.roll(zigg.dn);
@@ -214,11 +234,11 @@ module Zigg = {
       }
     };
 
-  let rec take_leq = (zigg: t, ~fill=[], suf: S.Up.t) =>
+  let rec take_leq = (zigg: Z.t, ~fill=[], suf: S.Up.t) =>
     switch (suf) {
     | [] => ([], suf)
     | [hd, ...tl] =>
-      switch (push(~onto=R, hd.wald, ~fill, zigg)) {
+      switch (push_wald(~onto=R, hd.wald, ~fill, zigg)) {
       | None => ([], suf)
       | Some(zigg) =>
         let fill = Option.to_list(hd.cell.meld);
@@ -226,11 +246,11 @@ module Zigg = {
         ([hd, ...leq], gt);
       }
     };
-  let rec take_geq = (pre: S.Dn.t, ~fill=[], zigg: t) =>
+  let rec take_geq = (pre: S.Dn.t, ~fill=[], zigg: Z.t) =>
     switch (pre) {
     | [] => (pre, [])
     | [hd, ...tl] =>
-      switch (push(~onto=L, hd.wald, ~fill, zigg)) {
+      switch (push_wald(~onto=L, hd.wald, ~fill, zigg)) {
       | None => (pre, [])
       | Some(zigg) =>
         let fill = Option.to_list(hd.cell.meld);
@@ -292,23 +312,23 @@ module Ctx = {
   };
 
   let close = (~sel=?, ctx: C.t) => {
-    let rec go = ctx =>
+    let rec go = (ctx: C.t) =>
       switch (C.fst(ctx)) {
       | ([], _)
       | (_, []) => ctx
-      | ([l, ..._] as pre, [r, ...suf]) when W.lt(l, r) =>
+      | ([l, ..._] as pre, [r, ...suf]) when Wald.lt(l.wald, r.wald) =>
         ctx
         |> C.put_fst((pre, suf))
         |> go
         |> C.map_fst(Frame.Open.cons(~onto=R, r))
-      | ([l, ...pre], [r, ..._] as suf) when W.gt(l, r) =>
+      | ([l, ...pre], [r, ..._] as suf) when Wald.gt(l.wald, r.wald) =>
         ctx
         |> C.put_fst((pre, suf))
         |> go
         |> C.map_fst(Frame.Open.cons(~onto=L, l))
       | ([l, ...pre], [r, ...suf]) =>
-        assert(W.eq(l, r));
-        ctx |> C.put_fst((pre, suf)) |> go |> C.link((l, r));
+        assert(Wald.eq(l.wald, r.wald));
+        ctx |> C.put_fst((pre, suf)) |> go |> C.link(([], []), (l, r));
       };
     switch (sel) {
     | None => go(ctx)

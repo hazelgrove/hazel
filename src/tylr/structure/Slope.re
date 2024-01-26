@@ -8,7 +8,7 @@ let singleton = t => [t];
 // let of_piece = p => of_terr(Terr.of_piece(p));
 let height = List.length;
 
-let fold = List.fold_left;
+let fold: (('acc, Terr.t) => 'acc, 'acc, t) => 'acc = List.fold_left;
 
 let cat = (@);
 

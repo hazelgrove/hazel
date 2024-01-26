@@ -17,6 +17,7 @@ let split_hd = (W(w)) => Chain.split_fst(w);
 //   | R => lst;
 
 let map = (f, W(w)) => W(f(w));
+let rev: t => t = map(Chain.rev);
 let link = (tok, cell) => map(Chain.link(tok, cell));
 let unlink = (W(w)) =>
   Chain.unlink(w)

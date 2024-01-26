@@ -58,6 +58,12 @@ let length = (tok: t) =>
   | _ => String.length(tok.text)
   };
 
+let is_grout = (tok: t) =>
+  switch (tok.lbl.mtrl) {
+  | Space
+  | Tile(_) => false
+  | Grout => true
+  };
 let is_ghost = (tok: t) =>
   switch (tok.lbl.mtrl) {
   | Space
