@@ -1,4 +1,5 @@
 HTML_DIR=$(shell pwd)/_build/default/src/haz3lweb/www
+TEST_DIR=$(shell pwd)/_build/default/src/haz3ltest
 SERVER="http://0.0.0.0:8000/"
 
 all: dev
@@ -51,7 +52,7 @@ repl:
 
 test:
 	dune build @src/fmt --auto-promote src --profile dev || true
-	node _build/default/src/haz3ltest2/haz3ltest.bc.js test
+	node $(TEST_DIR)/haz3ltest.bc.js test
 
 fix-test-answers:
 	dune promote || true
