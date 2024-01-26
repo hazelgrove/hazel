@@ -21,7 +21,16 @@ module Make = (ST: STATE) => {
     let return = (x, s) => (s, x);
 
     let bind = (xf, f, s) => {
-      let (s', x) = xf(s);
+      let (s', x) =
+        switch (xf(s)) {
+        | r => r
+        | exception exn =>
+          print_endline(
+            "bind exception: "
+            ++ Sexplib.Sexp.to_string_hum(Sexplib.Std.sexp_of_exn(exn)),
+          );
+          raise(exn);
+        };
       f(x, s');
     };
 
