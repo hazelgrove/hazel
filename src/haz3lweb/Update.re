@@ -358,6 +358,7 @@ let rec apply =
   let m: Result.t(Model.t) =
     switch (update) {
     | Reset => Ok(Model.reset(model))
+    | Set(Evaluation(_) as s_action) => Ok(update_settings(s_action, model))
     | Set(s_action) =>
       let model = update_settings(s_action, model);
       Model.save(model);
