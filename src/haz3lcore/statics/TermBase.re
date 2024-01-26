@@ -135,7 +135,7 @@ and UExp: {
     | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
-    | Triv
+    | Triv // TODO: Replace with empty tuple
     | Bool(bool)
     | Int(int)
     | Float(float)
@@ -263,36 +263,41 @@ and UExp: {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(string)
-    | EmptyHole
-    | MultiHole(list(Any.t))
-    | Triv
-    | Bool(bool)
-    | Int(int)
-    | Float(float)
-    | String(string)
-    | ListLit(list(t))
-    | Constructor(string)
-    | Fun(UPat.t, t)
-    | Tuple(list(t))
-    | Var(Var.t)
-    | Let(UPat.t, t, t)
-    | TyAlias(UTPat.t, UTyp.t, t)
-    | Ap(t, t)
-    | Pipeline(t, t)
-    | If(t, t, t)
-    | Seq(t, t)
-    | Test(t)
-    | Filter(FilterAction.t, t, t)
-    | Parens(t) // (
-    | Cons(t, t)
-    | ListConcat(t, t)
-    | UnOp(op_un, t)
-    | BinOp(op_bin, t, t)
-    | Match(t, list((UPat.t, t)))
+    /* TODO: ADD:
+         Filter()
+         ApBuiltin(string, t) // These two are different to `var` to allow shadowing of builtins
+         BuiltinFun(string)
+       */
+    | Invalid(string) // TODO: Reconcile the invalids
+    | EmptyHole // DONE
+    | MultiHole(list(Any.t)) // TODO: Reconcile the invalids
+    | Triv // REMOVE, REPLACE WITH EMPTY TUPLE
+    | Bool(bool) // DONE [DH CHANGED]
+    | Int(int) // DONE [DH CHANGED]
+    | Float(float) // DONE [DH CHANGED]
+    | String(string) // DONE [DH CHANGED]
+    | ListLit(list(t)) // DONE [DH TO BE CHANGED]
+    | Constructor(string) // DONE [ALREADY]
+    | Fun(UPat.t, t) // TODO: Add option(Var.t) name field to end
+    | Tuple(list(t)) // DONE [EXCEPT FOR TRIV]
+    | Var(Var.t) // DONE [ALREADY]
+    | Let(UPat.t, t, t) // DONE [ALREADY]
+    | TyAlias(UTPat.t, UTyp.t, t) // [TO ADD TO DHEXP]
+    | Ap(t, t) // TODO: Combine Ap and Pipeline? [alt: add pipeline to dhexp]
+    | Pipeline(t, t) // TODO: Above
+    | If(t, t, t) // TODO: What to do about consistency?
+    | Seq(t, t) // DONE [ALREADY]
+    | Test(t) // [DHEXP TO CHANGE]
+    | Filter(FilterAction.t, t, t) // TODO: Change to reflect DHExp
+    | Parens(t) // [TO ADD TO DHEXP]
+    | Cons(t, t) // DONE [ALREADY]
+    | ListConcat(t, t) // DONE [ALREADY]
+    | UnOp(op_un, t) // [TO ADD TO DHEXP]
+    | BinOp(op_bin, t, t) // DONE [DH CHANGED]
+    | Match(t, list((UPat.t, t))) // DONE [DH TO CHANGE]
   and t = {
     // invariant: nonempty
-    ids: list(Id.t),
+    ids: list(Id.t), // > DHEXP // Multiple ids?? // Add source??
     term,
   };
 

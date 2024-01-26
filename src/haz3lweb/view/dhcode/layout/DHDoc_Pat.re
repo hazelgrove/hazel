@@ -10,10 +10,10 @@ let precedence = (dp: DHPat.t) =>
   | InvalidText(_)
   | BadConstructor(_)
   | Var(_)
-  | IntLit(_)
-  | FloatLit(_)
-  | BoolLit(_)
-  | StringLit(_)
+  | Int(_)
+  | Float(_)
+  | Bool(_)
+  | String(_)
   | ListLit(_)
   | Constructor(_) => DHDoc_common.precedence_const
   | Tuple(_) => DHDoc_common.precedence_Comma
@@ -44,10 +44,10 @@ let rec mk =
     | Var(x) => Doc.text(x)
     | Wild => DHDoc_common.Delim.wild
     | Constructor(name) => DHDoc_common.mk_ConstructorLit(name)
-    | IntLit(n) => DHDoc_common.mk_IntLit(n)
-    | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
-    | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
-    | StringLit(s) => DHDoc_common.mk_StringLit(s)
+    | Int(n) => DHDoc_common.mk_IntLit(n)
+    | Float(f) => DHDoc_common.mk_FloatLit(f)
+    | Bool(b) => DHDoc_common.mk_BoolLit(b)
+    | String(s) => DHDoc_common.mk_StringLit(s)
     | ListLit(_, d_list) =>
       let ol = List.map(mk', d_list);
       DHDoc_common.mk_ListLit(ol);

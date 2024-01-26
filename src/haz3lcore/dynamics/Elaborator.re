@@ -8,13 +8,6 @@ module ElaborationResult = {
     | DoesNotElaborate;
 };
 
-let exp_binop_of: Term.UExp.op_bin => (Typ.t, (_, _) => DHExp.t) =
-  fun
-  | Int(op) => (Int, ((e1, e2) => BinIntOp(op, e1, e2)))
-  | Float(op) => (Float, ((e1, e2) => BinFloatOp(op, e1, e2)))
-  | Bool(op) => (Bool, ((e1, e2) => BinBoolOp(op, e1, e2)))
-  | String(op) => (String, ((e1, e2) => BinStringOp(op, e1, e2)));
-
 let fixed_exp_typ = (m: Statics.Map.t, e: Term.UExp.t): option(Typ.t) =>
   switch (Id.Map.find_opt(Term.UExp.rep_id(e), m)) {
   | Some(InfoExp({ty, _})) => Some(ty)
@@ -70,8 +63,8 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     /* Forms with special ana rules but no particular typing requirements */
     | ConsistentCase(_)
     | InconsistentBranches(_)
-    | IfThenElse(_)
-    | Sequence(_)
+    | If(_)
+    | Seq(_)
     | Let(_)
     | FixF(_) => d
     /* Hole-like forms: Don't cast */
@@ -87,19 +80,16 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | FailedCast(_)
     | InvalidOperation(_) => d
     /* Normal cases: wrap */
-    | BoundVar(_)
+    | Var(_)
     | Ap(_)
     | ApBuiltin(_)
     | BuiltinFun(_)
     | Prj(_)
-    | BoolLit(_)
-    | IntLit(_)
-    | FloatLit(_)
-    | StringLit(_)
-    | BinBoolOp(_)
-    | BinIntOp(_)
-    | BinFloatOp(_)
-    | BinStringOp(_)
+    | Bool(_)
+    | Int(_)
+    | Float(_)
+    | String(_)
+    | BinOp(_)
     | Test(_) => DHExp.cast(d, self_ty, ana_ty)
     };
   };
@@ -138,10 +128,10 @@ let rec dhexp_of_uexp =
            to avoid casting issues. */
         Some(EmptyHole(id, 0))
       | Triv => Some(Tuple([]))
-      | Bool(b) => Some(BoolLit(b))
-      | Int(n) => Some(IntLit(n))
-      | Float(n) => Some(FloatLit(n))
-      | String(s) => Some(StringLit(s))
+      | Bool(b) => Some(Bool(b))
+      | Int(n) => Some(Int(n))
+      | Float(n) => Some(Float(n))
+      | String(s) => Some(String(s))
       | ListLit(es) =>
         let* ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
         let+ ty = fixed_exp_typ(m, uexp);
@@ -171,13 +161,13 @@ let rec dhexp_of_uexp =
         }
       | UnOp(Int(Minus), e) =>
         let+ dc = dhexp_of_uexp(m, e);
-        DHExp.BinIntOp(Minus, IntLit(0), dc);
+        DHExp.BinOp(Int(Minus), Int(0), dc);
       | UnOp(Bool(Not), e) =>
         let+ d_scrut = dhexp_of_uexp(m, e);
         let d_rules =
           DHExp.[
-            Rule(BoolLit(true), BoolLit(false)),
-            Rule(BoolLit(false), BoolLit(true)),
+            Rule(Bool(true), Bool(false)),
+            Rule(Bool(false), Bool(true)),
           ];
         let d = DHExp.ConsistentCase(DHExp.Case(d_scrut, d_rules, 0));
         /* Manually construct cast (case is not otherwise cast) */
@@ -186,15 +176,14 @@ let rec dhexp_of_uexp =
         | _ => d
         };
       | BinOp(op, e1, e2) =>
-        let (_, cons) = exp_binop_of(op);
         let* dc1 = dhexp_of_uexp(m, e1);
         let+ dc2 = dhexp_of_uexp(m, e2);
-        cons(dc1, dc2);
+        DHExp.BinOp(op, dc1, dc2);
       | Parens(e) => dhexp_of_uexp(m, e)
       | Seq(e1, e2) =>
         let* d1 = dhexp_of_uexp(m, e1);
         let+ d2 = dhexp_of_uexp(m, e2);
-        DHExp.Sequence(d1, d2);
+        DHExp.Seq(d1, d2);
       | Test(test) =>
         let+ dtest = dhexp_of_uexp(m, test);
         DHExp.Test(id, dtest);
@@ -205,7 +194,7 @@ let rec dhexp_of_uexp =
       | Var(name) =>
         switch (err_status) {
         | InHole(FreeVariable(_)) => Some(FreeVar(id, 0, name))
-        | _ => Some(BoundVar(name))
+        | _ => Some(Var(name))
         }
       | Constructor(name) =>
         switch (err_status) {
@@ -241,7 +230,7 @@ let rec dhexp_of_uexp =
             };
           let uniq_id = List.nth(def.ids, 0);
           let self_id = "__mutual__" ++ Id.to_string(uniq_id);
-          let self_var = DHExp.BoundVar(self_id);
+          let self_var = DHExp.Var(self_id);
           let (_, substituted_def) =
             fs
             |> List.fold_left(
@@ -266,8 +255,8 @@ let rec dhexp_of_uexp =
         // Use tag to mark inconsistent branches
         switch (err_status) {
         | InHole(Common(Inconsistent(Internal(_)))) =>
-          DHExp.IfThenElse(DH.InconsistentIf, c', d1, d2)
-        | _ => DHExp.IfThenElse(DH.ConsistentIf, c', d1, d2)
+          DHExp.If(DH.InconsistentIf, c', d1, d2)
+        | _ => DHExp.If(DH.ConsistentIf, c', d1, d2)
         };
       | Match(scrut, rules) =>
         let* d_scrut = dhexp_of_uexp(m, scrut);
@@ -316,10 +305,10 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
       // TODO: dhexp, eval for multiholes
       Some(EmptyHole(u, 0))
     | Wild => wrap(Wild)
-    | Bool(b) => wrap(BoolLit(b))
-    | Int(n) => wrap(IntLit(n))
-    | Float(n) => wrap(FloatLit(n))
-    | String(s) => wrap(StringLit(s))
+    | Bool(b) => wrap(Bool(b))
+    | Int(n) => wrap(Int(n))
+    | Float(n) => wrap(Float(n))
+    | String(s) => wrap(String(s))
     | Triv => wrap(Tuple([]))
     | ListLit(ps) =>
       let* ds = ps |> List.map(dhpat_of_upat(m)) |> OptUtil.sequence;

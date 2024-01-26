@@ -7,25 +7,19 @@ type cls =
   | Closure
   | FilterPattern
   | Filter
-  | Sequence1
-  | Sequence2
+  | Seq1
+  | Seq2
   | Let1
   | Let2
   | Ap1
   | Ap2
   | Fun
   | FixF
-  | BinBoolOp1
-  | BinBoolOp2
-  | BinIntOp1
-  | BinIntOp2
-  | BinFloatOp1
-  | BinFloatOp2
-  | BinStringOp1
-  | BinStringOp2
-  | IfThenElse1
-  | IfThenElse2
-  | IfThenElse3
+  | BinOp1
+  | BinOp2
+  | If1
+  | If2
+  | If3
   | Tuple(int)
   | ListLit(int)
   | ApBuiltin
@@ -52,25 +46,19 @@ type t =
   | Mark
   | Closure([@show.opaque] ClosureEnvironment.t, t)
   | Filter(DH.DHFilter.t, t)
-  | Sequence1(t, DHExp.t)
-  | Sequence2(DHExp.t, t)
+  | Seq1(t, DHExp.t)
+  | Seq2(DHExp.t, t)
   | Let1(DHPat.t, t, DHExp.t)
   | Let2(DHPat.t, DHExp.t, t)
   | Fun(DHPat.t, Typ.t, t, option(Var.t))
   | FixF(Var.t, Typ.t, t)
   | Ap1(t, DHExp.t)
   | Ap2(DHExp.t, t)
-  | IfThenElse1(if_consistency, t, DHExp.t, DHExp.t)
-  | IfThenElse2(if_consistency, DHExp.t, t, DHExp.t)
-  | IfThenElse3(if_consistency, DHExp.t, DHExp.t, t)
-  | BinBoolOp1(TermBase.UExp.op_bin_bool, t, DHExp.t)
-  | BinBoolOp2(TermBase.UExp.op_bin_bool, DHExp.t, t)
-  | BinIntOp1(TermBase.UExp.op_bin_int, t, DHExp.t)
-  | BinIntOp2(TermBase.UExp.op_bin_int, DHExp.t, t)
-  | BinFloatOp1(TermBase.UExp.op_bin_float, t, DHExp.t)
-  | BinFloatOp2(TermBase.UExp.op_bin_float, DHExp.t, t)
-  | BinStringOp1(TermBase.UExp.op_bin_string, t, DHExp.t)
-  | BinStringOp2(TermBase.UExp.op_bin_string, DHExp.t, t)
+  | If1(if_consistency, t, DHExp.t, DHExp.t)
+  | If2(if_consistency, DHExp.t, t, DHExp.t)
+  | If3(if_consistency, DHExp.t, DHExp.t, t)
+  | BinOp1(TermBase.UExp.op_bin, t, DHExp.t)
+  | BinOp2(TermBase.UExp.op_bin, DHExp.t, t)
   | Tuple(t, (list(DHExp.t), list(DHExp.t)))
   | ApBuiltin(string, t)
   | Test(KeywordID.t, t)
@@ -120,25 +108,19 @@ let rec fuzzy_mark =
   | Cast(x, _, _)
   | FailedCast(x, _, _)
   | Filter(_, x) => fuzzy_mark(x)
-  | Sequence1(_)
-  | Sequence2(_)
+  | Seq1(_)
+  | Seq2(_)
   | Let1(_)
   | Let2(_)
   | Fun(_)
   | FixF(_)
   | Ap1(_)
   | Ap2(_)
-  | IfThenElse1(_)
-  | IfThenElse2(_)
-  | IfThenElse3(_)
-  | BinBoolOp1(_)
-  | BinBoolOp2(_)
-  | BinIntOp1(_)
-  | BinIntOp2(_)
-  | BinFloatOp1(_)
-  | BinFloatOp2(_)
-  | BinStringOp1(_)
-  | BinStringOp2(_)
+  | If1(_)
+  | If2(_)
+  | If3(_)
+  | BinOp1(_)
+  | BinOp2(_)
   | Tuple(_)
   | ApBuiltin(_)
   | ListLit(_)
@@ -166,25 +148,19 @@ let rec unwrap = (ctx: t, sel: cls): option(t) => {
   | (NonEmptyHole, NonEmptyHole(_, _, _, c))
   | (Closure, Closure(_, c))
   | (Filter, Filter(_, c))
-  | (Sequence1, Sequence1(c, _))
-  | (Sequence2, Sequence2(_, c))
+  | (Seq1, Seq1(c, _))
+  | (Seq2, Seq2(_, c))
   | (Let1, Let1(_, c, _))
   | (Let2, Let2(_, _, c))
   | (Fun, Fun(_, _, c, _))
   | (FixF, FixF(_, _, c))
   | (Ap1, Ap1(c, _))
   | (Ap2, Ap2(_, c))
-  | (BinBoolOp1, BinBoolOp1(_, c, _))
-  | (BinBoolOp2, BinBoolOp2(_, _, c))
-  | (BinIntOp1, BinIntOp1(_, c, _))
-  | (BinIntOp2, BinIntOp2(_, _, c))
-  | (BinFloatOp1, BinFloatOp1(_, c, _))
-  | (BinFloatOp2, BinFloatOp2(_, _, c))
-  | (BinStringOp1, BinStringOp1(_, c, _))
-  | (BinStringOp2, BinStringOp2(_, _, c))
-  | (IfThenElse1, IfThenElse1(_, c, _, _))
-  | (IfThenElse2, IfThenElse2(_, _, c, _))
-  | (IfThenElse3, IfThenElse3(_, _, _, c))
+  | (BinOp1, BinOp1(_, c, _))
+  | (BinOp2, BinOp2(_, _, c))
+  | (If1, If1(_, c, _, _))
+  | (If2, If2(_, _, c, _))
+  | (If3, If3(_, _, _, c))
   | (Cons1, Cons1(c, _))
   | (Cons2, Cons2(_, c))
   | (ListConcat1, ListConcat1(c, _))
@@ -216,26 +192,20 @@ let rec unwrap = (ctx: t, sel: cls): option(t) => {
   | (FailedCast, FailedCast(c, _, _)) => Some(c)
   | (Ap1, Ap2(_, _))
   | (Ap2, Ap1(_, _))
-  | (IfThenElse1, IfThenElse2(_))
-  | (IfThenElse1, IfThenElse3(_))
-  | (IfThenElse2, IfThenElse1(_))
-  | (IfThenElse2, IfThenElse3(_))
-  | (IfThenElse3, IfThenElse1(_))
-  | (IfThenElse3, IfThenElse2(_))
+  | (If1, If2(_))
+  | (If1, If3(_))
+  | (If2, If1(_))
+  | (If2, If3(_))
+  | (If3, If1(_))
+  | (If3, If2(_))
   | (Let1, Let2(_))
   | (Let2, Let1(_))
-  | (BinBoolOp1, BinBoolOp2(_))
-  | (BinBoolOp2, BinBoolOp1(_))
-  | (BinIntOp1, BinIntOp2(_))
-  | (BinIntOp2, BinIntOp1(_))
-  | (BinFloatOp1, BinFloatOp2(_))
-  | (BinFloatOp2, BinFloatOp1(_))
-  | (BinStringOp1, BinStringOp2(_))
-  | (BinStringOp2, BinStringOp1(_))
+  | (BinOp1, BinOp2(_))
+  | (BinOp2, BinOp1(_))
   | (Cons1, Cons2(_))
   | (Cons2, Cons1(_))
-  | (Sequence1, Sequence2(_))
-  | (Sequence2, Sequence1(_))
+  | (Seq1, Seq2(_))
+  | (Seq2, Seq1(_))
   | (ListConcat1, ListConcat2(_))
   | (ListConcat2, ListConcat1(_)) => None
   | (FilterPattern, _) => None

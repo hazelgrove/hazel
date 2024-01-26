@@ -30,7 +30,7 @@ let cast_sum_maps =
 
 let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   switch (dp, d) {
-  | (_, BoundVar(_)) => DoesNotMatch
+  | (_, Var(_)) => DoesNotMatch
   | (EmptyHole(_), _)
   | (NonEmptyHole(_), _) => IndetMatch
   | (Wild, _) => Matches(Environment.empty)
@@ -49,51 +49,49 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (_, Let(_)) => IndetMatch
   | (_, FixF(_)) => DoesNotMatch
   | (_, Fun(_)) => DoesNotMatch
-  | (_, BinBoolOp(_)) => IndetMatch
-  | (_, BinIntOp(_)) => IndetMatch
-  | (_, BinFloatOp(_)) => IndetMatch
+  | (_, BinOp(_)) => IndetMatch
   | (_, ConsistentCase(Case(_))) => IndetMatch
 
   /* Closure should match like underlying expression. */
   | (_, Closure(_, d'))
   | (_, Filter(_, d')) => matches(dp, d')
 
-  | (BoolLit(b1), BoolLit(b2)) =>
+  | (Bool(b1), Bool(b2)) =>
     if (b1 == b2) {
       Matches(Environment.empty);
     } else {
       DoesNotMatch;
     }
-  | (BoolLit(_), Cast(d, Bool, Unknown(_))) => matches(dp, d)
-  | (BoolLit(_), Cast(d, Unknown(_), Bool)) => matches(dp, d)
-  | (BoolLit(_), _) => DoesNotMatch
-  | (IntLit(n1), IntLit(n2)) =>
+  | (Bool(_), Cast(d, Bool, Unknown(_))) => matches(dp, d)
+  | (Bool(_), Cast(d, Unknown(_), Bool)) => matches(dp, d)
+  | (Bool(_), _) => DoesNotMatch
+  | (Int(n1), Int(n2)) =>
     if (n1 == n2) {
       Matches(Environment.empty);
     } else {
       DoesNotMatch;
     }
-  | (IntLit(_), Cast(d, Int, Unknown(_))) => matches(dp, d)
-  | (IntLit(_), Cast(d, Unknown(_), Int)) => matches(dp, d)
-  | (IntLit(_), _) => DoesNotMatch
-  | (FloatLit(n1), FloatLit(n2)) =>
+  | (Int(_), Cast(d, Int, Unknown(_))) => matches(dp, d)
+  | (Int(_), Cast(d, Unknown(_), Int)) => matches(dp, d)
+  | (Int(_), _) => DoesNotMatch
+  | (Float(n1), Float(n2)) =>
     if (n1 == n2) {
       Matches(Environment.empty);
     } else {
       DoesNotMatch;
     }
-  | (FloatLit(_), Cast(d, Float, Unknown(_))) => matches(dp, d)
-  | (FloatLit(_), Cast(d, Unknown(_), Float)) => matches(dp, d)
-  | (FloatLit(_), _) => DoesNotMatch
-  | (StringLit(s1), StringLit(s2)) =>
+  | (Float(_), Cast(d, Float, Unknown(_))) => matches(dp, d)
+  | (Float(_), Cast(d, Unknown(_), Float)) => matches(dp, d)
+  | (Float(_), _) => DoesNotMatch
+  | (String(s1), String(s2)) =>
     if (s1 == s2) {
       Matches(Environment.empty);
     } else {
       DoesNotMatch;
     }
-  | (StringLit(_), Cast(d, String, Unknown(_))) => matches(dp, d)
-  | (StringLit(_), Cast(d, Unknown(_), String)) => matches(dp, d)
-  | (StringLit(_), _) => DoesNotMatch
+  | (String(_), Cast(d, String, Unknown(_))) => matches(dp, d)
+  | (String(_), Cast(d, Unknown(_), String)) => matches(dp, d)
+  | (String(_), _) => DoesNotMatch
 
   | (Ap(dp1, dp2), Ap(d1, d2)) =>
     switch (matches(dp1, d1)) {
@@ -242,10 +240,7 @@ and matches_cast_Sum =
   | Let(_)
   | Ap(_)
   | ApBuiltin(_)
-  | BinBoolOp(_)
-  | BinIntOp(_)
-  | BinFloatOp(_)
-  | BinStringOp(_)
+  | BinOp(_)
   | InconsistentBranches(_)
   | EmptyHole(_)
   | NonEmptyHole(_)
@@ -254,19 +249,19 @@ and matches_cast_Sum =
   | InvalidOperation(_)
   | ConsistentCase(_)
   | Prj(_)
-  | IfThenElse(_)
+  | If(_)
   | BuiltinFun(_) => IndetMatch
   | Cast(_)
-  | BoundVar(_)
+  | Var(_)
   | FixF(_)
   | Fun(_)
-  | BoolLit(_)
-  | IntLit(_)
-  | FloatLit(_)
-  | StringLit(_)
+  | Bool(_)
+  | Int(_)
+  | Float(_)
+  | String(_)
   | ListLit(_)
   | Tuple(_)
-  | Sequence(_, _)
+  | Seq(_, _)
   | Closure(_)
   | Filter(_)
   | Cons(_)
@@ -328,7 +323,7 @@ and matches_cast_Tuple =
       List.map2(List.cons, List.combine(tys, tys'), elt_casts),
     );
   | Cast(_, _, _) => DoesNotMatch
-  | BoundVar(_) => DoesNotMatch
+  | Var(_) => DoesNotMatch
   | FreeVar(_) => IndetMatch
   | InvalidText(_) => IndetMatch
   | ExpandingKeyword(_) => IndetMatch
@@ -340,17 +335,14 @@ and matches_cast_Tuple =
   | Filter(_, _) => IndetMatch
   | Ap(_, _) => IndetMatch
   | ApBuiltin(_, _) => IndetMatch
-  | BinBoolOp(_, _, _)
-  | BinIntOp(_, _, _)
-  | BinFloatOp(_, _, _)
-  | BinStringOp(_)
-  | BoolLit(_) => DoesNotMatch
-  | IntLit(_) => DoesNotMatch
-  | Sequence(_)
+  | BinOp(_, _, _)
+  | Bool(_) => DoesNotMatch
+  | Int(_) => DoesNotMatch
+  | Seq(_)
   | BuiltinFun(_)
   | Test(_) => DoesNotMatch
-  | FloatLit(_) => DoesNotMatch
-  | StringLit(_) => DoesNotMatch
+  | Float(_) => DoesNotMatch
+  | String(_) => DoesNotMatch
   | ListLit(_) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
   | ListConcat(_) => DoesNotMatch
@@ -362,7 +354,7 @@ and matches_cast_Tuple =
   | NonEmptyHole(_) => IndetMatch
   | FailedCast(_, _, _) => IndetMatch
   | InvalidOperation(_) => IndetMatch
-  | IfThenElse(_) => IndetMatch
+  | If(_) => IndetMatch
   }
 and matches_cast_Cons =
     (dp: DHPat.t, d: DHExp.t, elt_casts: list((Typ.t, Typ.t))): match_result =>
@@ -468,7 +460,7 @@ and matches_cast_Cons =
   | Cast(d', Unknown(_), List(ty2)) =>
     matches_cast_Cons(dp, d', [(Unknown(Internal), ty2), ...elt_casts])
   | Cast(_, _, _) => DoesNotMatch
-  | BoundVar(_) => DoesNotMatch
+  | Var(_) => DoesNotMatch
   | FreeVar(_) => IndetMatch
   | InvalidText(_) => IndetMatch
   | ExpandingKeyword(_) => IndetMatch
@@ -479,18 +471,15 @@ and matches_cast_Cons =
   | Filter(_, d') => matches_cast_Cons(dp, d', elt_casts)
   | Ap(_, _) => IndetMatch
   | ApBuiltin(_, _) => IndetMatch
-  | BinBoolOp(_, _, _)
-  | BinIntOp(_, _, _)
-  | BinFloatOp(_, _, _)
-  | BinStringOp(_)
+  | BinOp(_, _, _)
   | ListConcat(_)
   | BuiltinFun(_) => DoesNotMatch
-  | BoolLit(_) => DoesNotMatch
-  | IntLit(_) => DoesNotMatch
-  | Sequence(_)
+  | Bool(_) => DoesNotMatch
+  | Int(_) => DoesNotMatch
+  | Seq(_)
   | Test(_) => DoesNotMatch
-  | FloatLit(_) => DoesNotMatch
-  | StringLit(_) => DoesNotMatch
+  | Float(_) => DoesNotMatch
+  | String(_) => DoesNotMatch
   | Tuple(_) => DoesNotMatch
   | Prj(_) => IndetMatch
   | Constructor(_) => DoesNotMatch
@@ -500,5 +489,5 @@ and matches_cast_Cons =
   | NonEmptyHole(_) => IndetMatch
   | FailedCast(_, _, _) => IndetMatch
   | InvalidOperation(_) => IndetMatch
-  | IfThenElse(_) => IndetMatch
+  | If(_) => IndetMatch
   };

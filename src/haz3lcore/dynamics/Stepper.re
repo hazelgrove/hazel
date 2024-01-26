@@ -66,12 +66,12 @@ let rec matches =
       } else {
         (ract, ridx, rctx);
       };
-    | Sequence1(ctx, d2) =>
+    | Seq1(ctx, d2) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Sequence1(ctx, d2);
-    | Sequence2(d1, ctx) =>
+      Seq1(ctx, d2);
+    | Seq2(d1, ctx) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Sequence2(d1, ctx);
+      Seq2(d1, ctx);
     | Let1(d1, ctx, d3) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       Let1(d1, ctx, d3);
@@ -90,39 +90,21 @@ let rec matches =
     | Ap2(d1, ctx) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       Ap2(d1, ctx);
-    | IfThenElse1(c, ctx, d2, d3) =>
+    | If1(c, ctx, d2, d3) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      IfThenElse1(c, ctx, d2, d3);
-    | IfThenElse2(c, d1, ctx, d3) =>
+      If1(c, ctx, d2, d3);
+    | If2(c, d1, ctx, d3) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      IfThenElse2(c, d1, ctx, d3);
-    | IfThenElse3(c, d1, d2, ctx) =>
+      If2(c, d1, ctx, d3);
+    | If3(c, d1, d2, ctx) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      IfThenElse3(c, d1, d2, ctx);
-    | BinBoolOp1(op, ctx, d1) =>
+      If3(c, d1, d2, ctx);
+    | BinOp1(op, ctx, d1) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      BinBoolOp1(op, ctx, d1);
-    | BinBoolOp2(op, d1, ctx) =>
+      BinOp1(op, ctx, d1);
+    | BinOp2(op, d1, ctx) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      BinBoolOp2(op, d1, ctx);
-    | BinIntOp1(op, ctx, d2) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      BinIntOp1(op, ctx, d2);
-    | BinIntOp2(op, d1, ctx) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      BinIntOp2(op, d1, ctx);
-    | BinFloatOp1(op, ctx, d2) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      BinFloatOp1(op, ctx, d2);
-    | BinFloatOp2(op, d1, ctx) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      BinFloatOp2(op, d1, ctx);
-    | BinStringOp1(op, ctx, d2) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      BinStringOp1(op, ctx, d2);
-    | BinStringOp2(op, d1, ctx) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      BinStringOp2(op, d1, ctx);
+      BinOp2(op, d1, ctx);
     | Tuple(ctx, ds) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       Tuple(ctx, ds);
@@ -394,7 +376,7 @@ let step_backward = (~settings, s: t) =>
 let get_justification: step_kind => string =
   fun
   | LetBind => "substitution"
-  | Sequence => "sequence"
+  | Seq => "sequence"
   | FixUnwrap => "unroll fixpoint"
   | UpdateTest => "update test"
   | FunAp => "apply function"
