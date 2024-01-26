@@ -42,8 +42,8 @@ let rec matches_exp =
   | (Cast(d, _, _), _) => matches_exp(env, d, f)
   | (FailedCast(d, _, _), _) => matches_exp(env, d, f)
 
-  | (BoundVar(dx), BoundVar(fx)) => dx == fx
-  | (BoundVar(dx), _) =>
+  | (Var(dx), Var(fx)) => dx == fx
+  | (Var(dx), _) =>
     let d =
       ClosureEnvironment.lookup(env, dx)
       |> Util.OptUtil.get(() => {
@@ -51,7 +51,7 @@ let rec matches_exp =
            raise(EvaluatorError.Exception(FreeInvalidVar(dx)));
          });
     matches_exp(env, d, f);
-  | (_, BoundVar(fx)) =>
+  | (_, Var(fx)) =>
     switch (ClosureEnvironment.lookup(env, fx)) {
     | Some(f) => matches_exp(env, d, f)
     | None => false
@@ -63,17 +63,17 @@ let rec matches_exp =
     DH.DHFilter.fast_equal(df, ff) && matches_exp(env, dd, fd)
   | (Filter(_), _) => false
 
-  | (BoolLit(dv), BoolLit(fv)) => dv == fv
-  | (BoolLit(_), _) => false
+  | (Bool(dv), Bool(fv)) => dv == fv
+  | (Bool(_), _) => false
 
-  | (IntLit(dv), IntLit(fv)) => dv == fv
-  | (IntLit(_), _) => false
+  | (Int(dv), Int(fv)) => dv == fv
+  | (Int(_), _) => false
 
-  | (FloatLit(dv), FloatLit(fv)) => dv == fv
-  | (FloatLit(_), _) => false
+  | (Float(dv), Float(fv)) => dv == fv
+  | (Float(_), _) => false
 
-  | (StringLit(dv), StringLit(fv)) => dv == fv
-  | (StringLit(_), _) => false
+  | (String(dv), String(fv)) => dv == fv
+  | (String(_), _) => false
 
   | (Constructor(_), Ap(Constructor("~MVal"), Tuple([]))) => true
   | (Constructor(dt), Constructor(ft)) => dt == ft
@@ -103,16 +103,16 @@ let rec matches_exp =
     matches_exp(env, d1, f1) && matches_exp(env, d2, f2)
   | (Ap(_), _) => false
 
-  | (IfThenElse(dc, d1, d2, d3), IfThenElse(fc, f1, f2, f3)) =>
+  | (If(dc, d1, d2, d3), If(fc, f1, f2, f3)) =>
     dc == fc
     && matches_exp(env, d1, f1)
     && matches_exp(env, d2, f2)
     && matches_exp(env, d3, f3)
-  | (IfThenElse(_), _) => false
+  | (If(_), _) => false
 
-  | (Sequence(d1, d2), Sequence(f1, f2)) =>
+  | (Seq(d1, d2), Seq(f1, f2)) =>
     matches_exp(env, d1, f1) && matches_exp(env, d2, f2)
-  | (Sequence(_), _) => false
+  | (Seq(_), _) => false
 
   | (Test(id1, d2), Test(id2, f2)) =>
     id1 == id2 && matches_exp(env, d2, f2)
@@ -141,31 +141,12 @@ let rec matches_exp =
     )
   | (Tuple(_), _) => false
 
-  | (BinBoolOp(d_op_bin, d1, d2), BinBoolOp(f_op_bin, f1, f2)) =>
-    d_op_bin == f_op_bin
-    && matches_exp(env, d1, f1)
-    && matches_exp(env, d2, f2)
+  | (BinOp(d_op, d1, d2), BinOp(f_op, f1, f2)) =>
+    d_op == f_op && matches_exp(env, d1, f1) && matches_exp(env, d2, f2)
+  | (BinOp(_), _) => false
 
-  | (BinBoolOp(_), _) => false
-
-  | (BinIntOp(d_op_bin, d1, d2), BinIntOp(f_op_bin, f1, f2)) =>
-    d_op_bin == f_op_bin
-    && matches_exp(env, d1, f1)
-    && matches_exp(env, d2, f2)
-  | (BinIntOp(_), _) => false
-
-  | (BinFloatOp(d_op_bin, d1, d2), BinFloatOp(f_op_bin, f1, f2)) =>
-    d_op_bin == f_op_bin
-    && matches_exp(env, d1, f1)
-    && matches_exp(env, d2, f2)
-  | (BinFloatOp(_), _) => false
-
-  | (BinStringOp(d_op_bin, d1, d2), BinStringOp(f_op_bin, f1, f2)) =>
-    d_op_bin == f_op_bin
-    && matches_exp(env, d1, f1)
-    && matches_exp(env, d2, f2)
-  | (BinStringOp(_), _) => false
-
+  | (ListConcat(d1, d2), ListConcat(f1, f2)) =>
+    matches_exp(env, d1, f1) && matches_exp(env, d2, f2)
   | (ListConcat(_), _) => false
 
   | (
@@ -211,14 +192,14 @@ and matches_pat = (d: DHPat.t, f: DHPat.t): bool => {
   | (_, EmptyHole(_)) => true
   | (Wild, Wild) => true
   | (Wild, _) => false
-  | (IntLit(dv), IntLit(fv)) => dv == fv
-  | (IntLit(_), _) => false
-  | (FloatLit(dv), FloatLit(fv)) => dv == fv
-  | (FloatLit(_), _) => false
-  | (BoolLit(dv), BoolLit(fv)) => dv == fv
-  | (BoolLit(_), _) => false
-  | (StringLit(dv), StringLit(fv)) => dv == fv
-  | (StringLit(_), _) => false
+  | (Int(dv), Int(fv)) => dv == fv
+  | (Int(_), _) => false
+  | (Float(dv), Float(fv)) => dv == fv
+  | (Float(_), _) => false
+  | (Bool(dv), Bool(fv)) => dv == fv
+  | (Bool(_), _) => false
+  | (String(dv), String(fv)) => dv == fv
+  | (String(_), _) => false
   | (ListLit(dty1, dl), ListLit(fty1, fl)) =>
     switch (
       List.fold_left2((res, d, f) => res && matches_pat(d, f), true, dl, fl)

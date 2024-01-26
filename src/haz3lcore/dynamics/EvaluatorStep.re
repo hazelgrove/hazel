@@ -222,12 +222,12 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
     | Filter(flt, ctx) =>
       let d = compose(ctx, d);
       Filter(flt, d);
-    | Sequence1(ctx, d2) =>
+    | Seq1(ctx, d2) =>
       let d1 = compose(ctx, d);
-      Sequence(d1, d2);
-    | Sequence2(d1, ctx) =>
+      Seq(d1, d2);
+    | Seq2(d1, ctx) =>
       let d2 = compose(ctx, d);
-      Sequence(d1, d2);
+      Seq(d1, d2);
     | Ap1(ctx, d2) =>
       let d1 = compose(ctx, d);
       Ap(d1, d2);
@@ -237,42 +237,24 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
     | ApBuiltin(s, ctx) =>
       let d' = compose(ctx, d);
       ApBuiltin(s, d');
-    | IfThenElse1(c, ctx, d2, d3) =>
+    | If1(c, ctx, d2, d3) =>
       let d' = compose(ctx, d);
-      IfThenElse(c, d', d2, d3);
-    | IfThenElse2(c, d1, ctx, d3) =>
+      If(c, d', d2, d3);
+    | If2(c, d1, ctx, d3) =>
       let d' = compose(ctx, d);
-      IfThenElse(c, d1, d', d3);
-    | IfThenElse3(c, d1, d2, ctx) =>
+      If(c, d1, d', d3);
+    | If3(c, d1, d2, ctx) =>
       let d' = compose(ctx, d);
-      IfThenElse(c, d1, d2, d');
+      If(c, d1, d2, d');
     | Test(lit, ctx) =>
       let d1 = compose(ctx, d);
       Test(lit, d1);
-    | BinBoolOp1(op, ctx, d2) =>
+    | BinOp1(op, ctx, d2) =>
       let d1 = compose(ctx, d);
-      BinBoolOp(op, d1, d2);
-    | BinBoolOp2(op, d1, ctx) =>
+      BinOp(op, d1, d2);
+    | BinOp2(op, d1, ctx) =>
       let d2 = compose(ctx, d);
-      BinBoolOp(op, d1, d2);
-    | BinIntOp1(op, ctx, d2) =>
-      let d1 = compose(ctx, d);
-      BinIntOp(op, d1, d2);
-    | BinIntOp2(op, d1, ctx) =>
-      let d2 = compose(ctx, d);
-      BinIntOp(op, d1, d2);
-    | BinFloatOp1(op, ctx, d2) =>
-      let d1 = compose(ctx, d);
-      BinFloatOp(op, d1, d2);
-    | BinFloatOp2(op, d1, ctx) =>
-      let d2 = compose(ctx, d);
-      BinFloatOp(op, d1, d2);
-    | BinStringOp1(op, ctx, d2) =>
-      let d1 = compose(ctx, d);
-      BinStringOp(op, d1, d2);
-    | BinStringOp2(op, d1, ctx) =>
-      let d2 = compose(ctx, d);
-      BinStringOp(op, d1, d2);
+      BinOp(op, d1, d2);
     | Cons1(ctx, d2) =>
       let d1 = compose(ctx, d);
       Cons(d1, d2);

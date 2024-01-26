@@ -8,44 +8,48 @@ type if_consistency =
 module rec DHExp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
+    // TODO: Add IDs
+    /* TODO: ADD:
+        UnOp
+        TyAlias [and ignore]
+        Parens
+       */
+    // TODO: Work out how to reconcile the invalids
     | EmptyHole(MetaVar.t, HoleInstanceId.t)
     | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t)
     | ExpandingKeyword(MetaVar.t, HoleInstanceId.t, ExpandingKeyword.t)
     | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t)
     | InvalidText(MetaVar.t, HoleInstanceId.t, string)
     | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
-    | Closure([@show.opaque] ClosureEnvironment.t, t)
-    | Filter(DHFilter.t, t)
-    | BoundVar(Var.t)
-    | Sequence(t, t)
-    | Let(DHPat.t, t, t)
-    | FixF(Var.t, Typ.t, t)
-    | Fun(DHPat.t, Typ.t, t, option(Var.t))
-    | Ap(t, t)
-    | ApBuiltin(string, t)
-    | BuiltinFun(string)
-    | Test(KeywordID.t, t)
-    | BoolLit(bool)
-    | IntLit(int)
-    | FloatLit(float)
-    | StringLit(string)
-    | BinBoolOp(TermBase.UExp.op_bin_bool, t, t)
-    | BinIntOp(TermBase.UExp.op_bin_int, t, t)
-    | BinFloatOp(TermBase.UExp.op_bin_float, t, t)
-    | BinStringOp(TermBase.UExp.op_bin_string, t, t)
-    | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t))
-    | Cons(t, t)
-    | ListConcat(t, t)
-    | Tuple(list(t))
-    | Prj(t, int)
-    | Constructor(string)
-    | ConsistentCase(case)
-    | Cast(t, Typ.t, Typ.t)
-    | FailedCast(t, Typ.t, Typ.t)
     | InvalidOperation(t, InvalidOperationError.t)
-    | IfThenElse(if_consistency, t, t, t) // use bool tag to track if branches are consistent
+    | FailedCast(t, Typ.t, Typ.t)
+    | Closure([@show.opaque] ClosureEnvironment.t, t) // > UEXP
+    | Filter(DHFilter.t, t) // DONE [UEXP TO BE CHANGED]
+    | Var(Var.t) // DONE [ALREADY]
+    | Seq(t, t) // DONE [ALREADY]
+    | Let(DHPat.t, t, t) // DONE [ALREADY]
+    | FixF(Var.t, Typ.t, t) // TODO: ! REMOVE, LEAVE AS LETS?
+    | Fun(DHPat.t, Typ.t, t, option(Var.t)) // TODO: Move type into pattern?; name > UEXP
+    | Ap(t, t) // TODO: Add reverse application
+    | ApBuiltin(string, t) // DONE [TO ADD TO UEXP]
+    | BuiltinFun(string) // DONE [TO ADD TO UEXP]
+    | Test(KeywordID.t, t) // TODO: ! ID
+    | Bool(bool) // DONE
+    | Int(int) // DONE
+    | Float(float) // DONE
+    | String(string) // DONE
+    | BinOp(TermBase.UExp.op_bin, t, t) // DONE
+    | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t)) // TODO: afaict the first three arguments here are never used?
+    | Cons(t, t) // DONE [ALREADY]
+    | ListConcat(t, t) // DONE [ALREADY]
+    | Tuple(list(t)) // DONE [ALREADY]
+    | Prj(t, int) // TODO: ! REMOVE, LEAVE AS LETS?
+    | Constructor(string) // DONE [ALREADY]
+    | ConsistentCase(case) // TODO: CONSISTENCY?
+    | Cast(t, Typ.t, Typ.t) // TODO: Add to uexp or remove
+    | If(if_consistency, t, t, t) // TODO: CONSISTENCY? use bool tag to track if branches are consistent
   and case =
-    | Case(t, list(rule), int)
+    | Case(t, list(rule), int) // is the int really necessary?
   and rule =
     | Rule(DHPat.t, t);
 
@@ -69,12 +73,14 @@ module rec DHExp: {
     | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t)
     | InvalidText(MetaVar.t, HoleInstanceId.t, string)
     | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
+    | InvalidOperation(t, InvalidOperationError.t)
+    | FailedCast(t, Typ.t, Typ.t)
     /* Generalized closures */
     | Closure([@show.opaque] ClosureEnvironment.t, t)
     | Filter(DHFilter.t, t)
     /* Other expressions forms */
-    | BoundVar(Var.t)
-    | Sequence(t, t)
+    | Var(Var.t)
+    | Seq(t, t)
     | Let(DHPat.t, t, t)
     | FixF(Var.t, Typ.t, t)
     | Fun(DHPat.t, Typ.t, t, option(Var.t))
@@ -82,14 +88,11 @@ module rec DHExp: {
     | ApBuiltin(string, t)
     | BuiltinFun(string)
     | Test(KeywordID.t, t)
-    | BoolLit(bool)
-    | IntLit(int)
-    | FloatLit(float)
-    | StringLit(string)
-    | BinBoolOp(TermBase.UExp.op_bin_bool, t, t)
-    | BinIntOp(TermBase.UExp.op_bin_int, t, t)
-    | BinFloatOp(TermBase.UExp.op_bin_float, t, t)
-    | BinStringOp(TermBase.UExp.op_bin_string, t, t)
+    | Bool(bool)
+    | Int(int)
+    | Float(float)
+    | String(string)
+    | BinOp(TermBase.UExp.op_bin, t, t)
     | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t))
     | Cons(t, t)
     | ListConcat(t, t)
@@ -98,9 +101,7 @@ module rec DHExp: {
     | Constructor(string)
     | ConsistentCase(case)
     | Cast(t, Typ.t, Typ.t)
-    | FailedCast(t, Typ.t, Typ.t)
-    | InvalidOperation(t, InvalidOperationError.t)
-    | IfThenElse(if_consistency, t, t, t)
+    | If(if_consistency, t, t, t)
   and case =
     | Case(t, list(rule), int)
   and rule =
@@ -113,8 +114,8 @@ module rec DHExp: {
     | ExpandingKeyword(_, _, _) => "ExpandingKeyword"
     | FreeVar(_, _, _) => "FreeVar"
     | InvalidText(_) => "InvalidText"
-    | BoundVar(_) => "BoundVar"
-    | Sequence(_, _) => "Sequence"
+    | Var(_) => "Var"
+    | Seq(_, _) => "Seq"
     | Filter(_, _) => "Filter"
     | Let(_, _, _) => "Let"
     | FixF(_, _, _) => "FixF"
@@ -124,14 +125,11 @@ module rec DHExp: {
     | ApBuiltin(_, _) => "ApBuiltin"
     | BuiltinFun(_) => "BuiltinFun"
     | Test(_) => "Test"
-    | BoolLit(_) => "BoolLit"
-    | IntLit(_) => "IntLit"
-    | FloatLit(_) => "FloatLit"
-    | StringLit(_) => "StringLit"
-    | BinBoolOp(_, _, _) => "BinBoolOp"
-    | BinIntOp(_, _, _) => "BinIntOp"
-    | BinFloatOp(_, _, _) => "BinFloatOp"
-    | BinStringOp(_, _, _) => "BinStringOp"
+    | Bool(_) => "Bool"
+    | Int(_) => "Int"
+    | Float(_) => "Float"
+    | String(_) => "String"
+    | BinOp(_, _, _) => "BinOp"
     | ListLit(_) => "ListLit"
     | Cons(_, _) => "Cons"
     | ListConcat(_, _) => "ListConcat"
@@ -143,7 +141,7 @@ module rec DHExp: {
     | Cast(_, _, _) => "Cast"
     | FailedCast(_, _, _) => "FailedCast"
     | InvalidOperation(_) => "InvalidOperation"
-    | IfThenElse(_, _, _, _) => "IfThenElse"
+    | If(_, _, _, _) => "If"
     };
 
   let mk_tuple: list(t) => t =
@@ -173,7 +171,7 @@ module rec DHExp: {
     | ListConcat(d1, d2) => ListConcat(strip_casts(d1), strip_casts(d2))
     | ListLit(a, b, c, ds) => ListLit(a, b, c, List.map(strip_casts, ds))
     | NonEmptyHole(err, u, i, d) => NonEmptyHole(err, u, i, strip_casts(d))
-    | Sequence(a, b) => Sequence(strip_casts(a), strip_casts(b))
+    | Seq(a, b) => Seq(strip_casts(a), strip_casts(b))
     | Filter(f, b) => Filter(DHFilter.strip_casts(f), strip_casts(b))
     | Let(dp, b, c) => Let(dp, strip_casts(b), strip_casts(c))
     | FixF(a, b, c) => FixF(a, b, strip_casts(c))
@@ -182,11 +180,7 @@ module rec DHExp: {
     | Test(id, a) => Test(id, strip_casts(a))
     | ApBuiltin(fn, args) => ApBuiltin(fn, strip_casts(args))
     | BuiltinFun(fn) => BuiltinFun(fn)
-    | BinBoolOp(a, b, c) => BinBoolOp(a, strip_casts(b), strip_casts(c))
-    | BinIntOp(a, b, c) => BinIntOp(a, strip_casts(b), strip_casts(c))
-    | BinFloatOp(a, b, c) => BinFloatOp(a, strip_casts(b), strip_casts(c))
-    | BinStringOp(a, b, c) =>
-      BinStringOp(a, strip_casts(b), strip_casts(c))
+    | BinOp(a, b, c) => BinOp(a, strip_casts(b), strip_casts(c))
     | ConsistentCase(Case(a, rs, b)) =>
       ConsistentCase(
         Case(strip_casts(a), List.map(strip_casts_rule, rs), b),
@@ -201,37 +195,32 @@ module rec DHExp: {
     | ExpandingKeyword(_) as d
     | FreeVar(_) as d
     | InvalidText(_) as d
-    | BoundVar(_) as d
-    | BoolLit(_) as d
-    | IntLit(_) as d
-    | FloatLit(_) as d
-    | StringLit(_) as d
+    | Var(_) as d
+    | Bool(_) as d
+    | Int(_) as d
+    | Float(_) as d
+    | String(_) as d
     | Constructor(_) as d
     | InvalidOperation(_) as d => d
-    | IfThenElse(consistent, c, d1, d2) =>
-      IfThenElse(
-        consistent,
-        strip_casts(c),
-        strip_casts(d1),
-        strip_casts(d2),
-      )
+    | If(consistent, c, d1, d2) =>
+      If(consistent, strip_casts(c), strip_casts(d1), strip_casts(d2))
   and strip_casts_rule = (Rule(a, d)) => Rule(a, strip_casts(d));
 
   let rec fast_equal = (d1: t, d2: t): bool => {
     switch (d1, d2) {
     /* Primitive forms: regular structural equality */
-    | (BoundVar(_), _)
+    | (Var(_), _)
     /* TODO: Not sure if this is right... */
-    | (BoolLit(_), _)
-    | (IntLit(_), _)
-    | (FloatLit(_), _)
+    | (Bool(_), _)
+    | (Int(_), _)
+    | (Float(_), _)
     | (Constructor(_), _) => d1 == d2
-    | (StringLit(s1), StringLit(s2)) => String.equal(s1, s2)
-    | (StringLit(_), _) => false
+    | (String(s1), String(s2)) => String.equal(s1, s2)
+    | (String(_), _) => false
 
     /* Non-hole forms: recurse */
     | (Test(id1, d1), Test(id2, d2)) => id1 == id2 && fast_equal(d1, d2)
-    | (Sequence(d11, d21), Sequence(d12, d22)) =>
+    | (Seq(d11, d21), Seq(d12, d22)) =>
       fast_equal(d11, d12) && fast_equal(d21, d22)
     | (Filter(f1, d1), Filter(f2, d2)) =>
       DHFilter.fast_equal(f1, f2) && fast_equal(d1, d2)
@@ -255,13 +244,7 @@ module rec DHExp: {
     | (ListLit(_, _, _, ds1), ListLit(_, _, _, ds2)) =>
       List.length(ds1) == List.length(ds2)
       && List.for_all2(fast_equal, ds1, ds2)
-    | (BinBoolOp(op1, d11, d21), BinBoolOp(op2, d12, d22)) =>
-      op1 == op2 && fast_equal(d11, d12) && fast_equal(d21, d22)
-    | (BinIntOp(op1, d11, d21), BinIntOp(op2, d12, d22)) =>
-      op1 == op2 && fast_equal(d11, d12) && fast_equal(d21, d22)
-    | (BinFloatOp(op1, d11, d21), BinFloatOp(op2, d12, d22)) =>
-      op1 == op2 && fast_equal(d11, d12) && fast_equal(d21, d22)
-    | (BinStringOp(op1, d11, d21), BinStringOp(op2, d12, d22)) =>
+    | (BinOp(op1, d11, d21), BinOp(op2, d12, d22)) =>
       op1 == op2 && fast_equal(d11, d12) && fast_equal(d21, d22)
     | (Cast(d1, ty11, ty21), Cast(d2, ty12, ty22))
     | (FailedCast(d1, ty11, ty21), FailedCast(d2, ty12, ty22)) =>
@@ -270,14 +253,14 @@ module rec DHExp: {
       fast_equal(d1, d2) && reason1 == reason2
     | (ConsistentCase(case1), ConsistentCase(case2)) =>
       fast_equal_case(case1, case2)
-    | (IfThenElse(c1, d11, d12, d13), IfThenElse(c2, d21, d22, d23)) =>
+    | (If(c1, d11, d12, d13), If(c2, d21, d22, d23)) =>
       c1 == c2
       && fast_equal(d11, d21)
       && fast_equal(d12, d22)
       && fast_equal(d13, d23)
     /* We can group these all into a `_ => false` clause; separating
        these so that we get exhaustiveness checking. */
-    | (Sequence(_), _)
+    | (Seq(_), _)
     | (Filter(_), _)
     | (Let(_), _)
     | (FixF(_), _)
@@ -291,14 +274,11 @@ module rec DHExp: {
     | (ListLit(_), _)
     | (Tuple(_), _)
     | (Prj(_), _)
-    | (BinBoolOp(_), _)
-    | (BinIntOp(_), _)
-    | (BinFloatOp(_), _)
-    | (BinStringOp(_), _)
+    | (BinOp(_), _)
     | (Cast(_), _)
     | (FailedCast(_), _)
     | (InvalidOperation(_), _)
-    | (IfThenElse(_), _)
+    | (If(_), _)
     | (ConsistentCase(_), _) => false
 
     /* Hole forms: when checking environments, only check that

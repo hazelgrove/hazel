@@ -1,7 +1,7 @@
 /* closed substitution [d1/x]d2 */
 let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   switch (d2) {
-  | BoundVar(y) =>
+  | Var(y) =>
     if (Var.eq(x, y)) {
       d1;
     } else {
@@ -10,10 +10,10 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   | FreeVar(_) => d2
   | InvalidText(_) => d2
   | ExpandingKeyword(_) => d2
-  | Sequence(d3, d4) =>
+  | Seq(d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
-    Sequence(d3, d4);
+    Seq(d3, d4);
   | Filter(filter, dbody) =>
     let dbody = subst_var(d1, x, dbody);
     let filter = subst_var_filter(d1, x, filter);
@@ -57,10 +57,10 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     ApBuiltin(ident, d2);
   | BuiltinFun(ident) => BuiltinFun(ident)
   | Test(id, d3) => Test(id, subst_var(d1, x, d3))
-  | BoolLit(_)
-  | IntLit(_)
-  | FloatLit(_)
-  | StringLit(_)
+  | Bool(_)
+  | Int(_)
+  | Float(_)
+  | String(_)
   | Constructor(_) => d2
   | ListLit(a, b, c, ds) =>
     ListLit(a, b, c, List.map(subst_var(d1, x), ds))
@@ -74,22 +74,10 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     ListConcat(d3, d4);
   | Tuple(ds) => Tuple(List.map(subst_var(d1, x), ds))
   | Prj(d, n) => Prj(subst_var(d1, x, d), n)
-  | BinBoolOp(op, d3, d4) =>
+  | BinOp(op, d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
-    BinBoolOp(op, d3, d4);
-  | BinIntOp(op, d3, d4) =>
-    let d3 = subst_var(d1, x, d3);
-    let d4 = subst_var(d1, x, d4);
-    BinIntOp(op, d3, d4);
-  | BinFloatOp(op, d3, d4) =>
-    let d3 = subst_var(d1, x, d3);
-    let d4 = subst_var(d1, x, d4);
-    BinFloatOp(op, d3, d4);
-  | BinStringOp(op, d3, d4) =>
-    let d3 = subst_var(d1, x, d3);
-    let d4 = subst_var(d1, x, d4);
-    BinStringOp(op, d3, d4);
+    BinOp(op, d3, d4);
   | ConsistentCase(Case(d3, rules, n)) =>
     let d3 = subst_var(d1, x, d3);
     let rules = subst_var_rules(d1, x, rules);
@@ -111,11 +99,11 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   | InvalidOperation(d, err) =>
     let d' = subst_var(d1, x, d);
     InvalidOperation(d', err);
-  | IfThenElse(d3, d4, d5, d6) =>
+  | If(d3, d4, d5, d6) =>
     let d4' = subst_var(d1, x, d4);
     let d5' = subst_var(d1, x, d5);
     let d6' = subst_var(d1, x, d6);
-    IfThenElse(d3, d4', d5', d6');
+    If(d3, d4', d5', d6');
   }
 
 and subst_var_rules =

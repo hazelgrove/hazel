@@ -32,13 +32,13 @@ let fn =
 module Pervasives = {
   module Impls = {
     /* constants */
-    let infinity = DHExp.FloatLit(Float.infinity);
-    let neg_infinity = DHExp.FloatLit(Float.neg_infinity);
-    let nan = DHExp.FloatLit(Float.nan);
-    let epsilon_float = DHExp.FloatLit(epsilon_float);
-    let pi = DHExp.FloatLit(Float.pi);
-    let max_int = DHExp.IntLit(Int.max_int);
-    let min_int = DHExp.IntLit(Int.min_int);
+    let infinity = DHExp.Float(Float.infinity);
+    let neg_infinity = DHExp.Float(Float.neg_infinity);
+    let nan = DHExp.Float(Float.nan);
+    let epsilon_float = DHExp.Float(epsilon_float);
+    let pi = DHExp.Float(Float.pi);
+    let max_int = DHExp.Int(Int.max_int);
+    let min_int = DHExp.Int(Int.min_int);
 
     let unary = (f: DHExp.t => result, r: DHExp.t) =>
       switch (f(r)) {
@@ -49,70 +49,70 @@ module Pervasives = {
     let is_finite =
       unary(
         fun
-        | FloatLit(f) => Ok(BoolLit(Float.is_finite(f)))
+        | Float(f) => Ok(Bool(Float.is_finite(f)))
         | d => Error(InvalidBoxedFloatLit(d)),
       );
 
     let is_infinite =
       unary(
         fun
-        | FloatLit(f) => Ok(BoolLit(Float.is_infinite(f)))
+        | Float(f) => Ok(Bool(Float.is_infinite(f)))
         | d => Error(InvalidBoxedFloatLit(d)),
       );
 
     let is_nan =
       unary(
         fun
-        | FloatLit(f) => Ok(BoolLit(Float.is_nan(f)))
+        | Float(f) => Ok(Bool(Float.is_nan(f)))
         | d => Error(InvalidBoxedFloatLit(d)),
       );
 
     let string_of_int =
       unary(
         fun
-        | IntLit(n) => Ok(StringLit(string_of_int(n)))
+        | Int(n) => Ok(String(string_of_int(n)))
         | d => Error(InvalidBoxedIntLit(d)),
       );
 
     let string_of_float =
       unary(
         fun
-        | FloatLit(f) => Ok(StringLit(string_of_float(f)))
+        | Float(f) => Ok(String(string_of_float(f)))
         | d => Error(InvalidBoxedFloatLit(d)),
       );
 
     let string_of_bool =
       unary(
         fun
-        | BoolLit(b) => Ok(StringLit(string_of_bool(b)))
+        | Bool(b) => Ok(String(string_of_bool(b)))
         | d => Error(InvalidBoxedBoolLit(d)),
       );
 
     let int_of_float =
       unary(
         fun
-        | FloatLit(f) => Ok(IntLit(int_of_float(f)))
+        | Float(f) => Ok(Int(int_of_float(f)))
         | d => Error(InvalidBoxedFloatLit(d)),
       );
 
     let float_of_int =
       unary(
         fun
-        | IntLit(n) => Ok(FloatLit(float_of_int(n)))
+        | Int(n) => Ok(Float(float_of_int(n)))
         | d => Error(InvalidBoxedIntLit(d)),
       );
 
     let abs =
       unary(
         fun
-        | IntLit(n) => Ok(IntLit(abs(n)))
+        | Int(n) => Ok(Int(abs(n)))
         | d => Error(InvalidBoxedIntLit(d)),
       );
 
     let float_op = fn =>
       unary(
         fun
-        | FloatLit(f) => Ok(FloatLit(fn(f)))
+        | Float(f) => Ok(Float(fn(f)))
         | d => Error(InvalidBoxedFloatLit(d)),
       );
 
@@ -134,7 +134,7 @@ module Pervasives = {
         (convert: string => option('a), wrap: 'a => DHExp.t, name: string) =>
       unary(
         fun
-        | StringLit(s) as d =>
+        | String(s) as d =>
           switch (convert(s)) {
           | Some(n) => Ok(wrap(n))
           | None =>
@@ -144,20 +144,20 @@ module Pervasives = {
         | d => Error(InvalidBoxedStringLit(d)),
       );
 
-    let int_of_string = of_string(int_of_string_opt, n => IntLit(n));
-    let float_of_string = of_string(float_of_string_opt, f => FloatLit(f));
-    let bool_of_string = of_string(bool_of_string_opt, b => BoolLit(b));
+    let int_of_string = of_string(int_of_string_opt, n => Int(n));
+    let float_of_string = of_string(float_of_string_opt, f => Float(f));
+    let bool_of_string = of_string(bool_of_string_opt, b => Bool(b));
 
     let int_mod = (name, d1) =>
       switch (d1) {
-      | Tuple([IntLit(n), IntLit(m)]) =>
+      | Tuple([Int(n), Int(m)]) =>
         switch (m) {
         | 0 =>
           InvalidOperation(
             DHExp.Ap(DHExp.BuiltinFun(name), d1),
             DivideByZero,
           )
-        | _ => IntLit(n mod m)
+        | _ => Int(n mod m)
         }
       | d1 => raise(EvaluatorError.Exception(InvalidBoxedTuple(d1)))
       };
@@ -165,37 +165,37 @@ module Pervasives = {
     let string_length =
       unary(
         fun
-        | StringLit(s) => Ok(IntLit(String.length(s)))
+        | String(s) => Ok(Int(String.length(s)))
         | d => Error(InvalidBoxedStringLit(d)),
       );
 
     let string_compare =
       unary(
         fun
-        | Tuple([StringLit(s1), StringLit(s2)]) =>
-          Ok(IntLit(String.compare(s1, s2)))
+        | Tuple([String(s1), String(s2)]) =>
+          Ok(Int(String.compare(s1, s2)))
         | d => Error(InvalidBoxedTuple(d)),
       );
 
     let string_trim =
       unary(
         fun
-        | StringLit(s) => Ok(StringLit(String.trim(s)))
+        | String(s) => Ok(String(String.trim(s)))
         | d => Error(InvalidBoxedStringLit(d)),
       );
 
     let string_of: DHExp.t => option(string) =
       fun
-      | StringLit(s) => Some(s)
+      | String(s) => Some(s)
       | _ => None;
 
     let string_concat =
       unary(
         fun
-        | Tuple([StringLit(s1), ListLit(_, _, _, xs)]) =>
+        | Tuple([String(s1), ListLit(_, _, _, xs)]) =>
           switch (xs |> List.map(string_of) |> Util.OptUtil.sequence) {
           | None => Error(InvalidBoxedStringLit(List.hd(xs)))
-          | Some(xs) => Ok(StringLit(String.concat(s1, xs)))
+          | Some(xs) => Ok(String(String.concat(s1, xs)))
           }
         | d => Error(InvalidBoxedTuple(d)),
       );
@@ -203,8 +203,8 @@ module Pervasives = {
     let string_sub = name =>
       unary(
         fun
-        | Tuple([StringLit(s), IntLit(idx), IntLit(len)]) as d =>
-          try(Ok(StringLit(String.sub(s, idx, len)))) {
+        | Tuple([String(s), Int(idx), Int(len)]) as d =>
+          try(Ok(String(String.sub(s, idx, len)))) {
           | _ =>
             let d' = DHExp.Ap(DHExp.BuiltinFun(name), d);
             Ok(InvalidOperation(d', IndexOutOfBounds));

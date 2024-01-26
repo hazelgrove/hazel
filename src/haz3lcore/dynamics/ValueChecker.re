@@ -82,7 +82,7 @@ let check_value = check_value();
 
 let rec check_value_mod_ctx = ((), env) =>
   fun
-  | BoundVar(x) =>
+  | Var(x) =>
     check_value_mod_ctx(
       (),
       env,

@@ -45,23 +45,23 @@ let precedence_bin_string_op = (bso: TermBase.UExp.op_bin_string) =>
 let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   let precedence' = precedence(~show_casts);
   switch (d) {
-  | BoundVar(_)
+  | Var(_)
   | FreeVar(_)
   | InvalidText(_)
   | ExpandingKeyword(_)
-  | BoolLit(_)
-  | IntLit(_)
-  | Sequence(_)
+  | Bool(_)
+  | Int(_)
+  | Seq(_)
   | Test(_)
-  | FloatLit(_)
-  | StringLit(_)
+  | Float(_)
+  | String(_)
   | ListLit(_)
   | Prj(_)
   | EmptyHole(_)
   | Constructor(_)
   | FailedCast(_)
   | InvalidOperation(_)
-  | IfThenElse(_)
+  | If(_)
   | Closure(_)
   | BuiltinFun(_)
   | Filter(_) => DHDoc_common.precedence_const
@@ -78,10 +78,10 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | ConsistentCase(_)
   | InconsistentBranches(_) => DHDoc_common.precedence_max
 
-  | BinBoolOp(op, _, _) => precedence_bin_bool_op(op)
-  | BinIntOp(op, _, _) => precedence_bin_int_op(op)
-  | BinFloatOp(op, _, _) => precedence_bin_float_op(op)
-  | BinStringOp(op, _, _) => precedence_bin_string_op(op)
+  | BinOp(Bool(op), _, _) => precedence_bin_bool_op(op)
+  | BinOp(Int(op), _, _) => precedence_bin_int_op(op)
+  | BinOp(Float(op), _, _) => precedence_bin_float_op(op)
+  | BinOp(String(op), _, _) => precedence_bin_string_op(op)
 
   | NonEmptyHole(_, _, _, d) => precedence'(d)
   };
@@ -139,7 +139,7 @@ let mk =
         | (FixUnwrap, _) // TODO[Matt]: Could do something here?
         | (InvalidStep, _)
         | (VarLookup, _)
-        | (Sequence, _)
+        | (Seq, _)
         | (FunClosure, _)
         | (UpdateTest, _)
         | (CastAp, _)
@@ -318,15 +318,15 @@ let mk =
       | InconsistentBranches(u, i, Case(dscrut, drs, _)) =>
         go_case(dscrut, drs, false)
         |> annot(DHAnnot.InconsistentBranches((u, i)))
-      | BoundVar(x) when List.mem(x, recursive_calls) => text(x)
-      | BoundVar(x) when settings.show_lookup_steps => text(x)
-      | BoundVar(x) =>
+      | Var(x) when List.mem(x, recursive_calls) => text(x)
+      | Var(x) when settings.show_lookup_steps => text(x)
+      | Var(x) =>
         switch (ClosureEnvironment.lookup(env, x)) {
         | None => text(x)
         | Some(d') =>
           if (List.mem(x, recent_subst)) {
             hcats([
-              go'(~env=ClosureEnvironment.empty, BoundVar(x), BoundVar)
+              go'(~env=ClosureEnvironment.empty, Var(x), BoundVar)
               |> annot(DHAnnot.Substituted),
               go'(~env=ClosureEnvironment.empty, d', BoundVar),
             ]);
@@ -336,13 +336,13 @@ let mk =
         }
       | BuiltinFun(f) => text(f)
       | Constructor(name) => DHDoc_common.mk_ConstructorLit(name)
-      | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
-      | IntLit(n) => DHDoc_common.mk_IntLit(n)
-      | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
-      | StringLit(s) => DHDoc_common.mk_StringLit(s)
+      | Bool(b) => DHDoc_common.mk_BoolLit(b)
+      | Int(n) => DHDoc_common.mk_IntLit(n)
+      | Float(f) => DHDoc_common.mk_FloatLit(f)
+      | String(s) => DHDoc_common.mk_StringLit(s)
       | Test(_, d) => DHDoc_common.mk_Test(go'(d, Test))
-      | Sequence(d1, d2) =>
-        let (doc1, doc2) = (go'(d1, Sequence1), go'(d2, Sequence2));
+      | Seq(d1, d2) =>
+        let (doc1, doc2) = (go'(d1, Seq1), go'(d2, Seq2));
         DHDoc_common.mk_Sequence(doc1, doc2);
       | ListLit(_, _, _, d_list) =>
         let ol = d_list |> List.mapi((i, d) => go'(d, ListLit(i)));
@@ -360,31 +360,31 @@ let mk =
           go_formattable(d, ApBuiltin)
           |> parenthesize(precedence(d) > DHDoc_common.precedence_Ap),
         )
-      | BinIntOp(op, d1, d2) =>
+      | BinOp(Int(op), d1, d2) =>
         // TODO assumes all bin int ops are left associative
         let (doc1, doc2) =
           mk_left_associative_operands(
             precedence_bin_int_op(op),
-            (d1, BinIntOp1),
-            (d2, BinIntOp2),
+            (d1, BinOp1),
+            (d2, BinOp2),
           );
         hseps([doc1, mk_bin_int_op(op), doc2]);
-      | BinFloatOp(op, d1, d2) =>
+      | BinOp(Float(op), d1, d2) =>
         // TODO assumes all bin float ops are left associative
         let (doc1, doc2) =
           mk_left_associative_operands(
             precedence_bin_float_op(op),
-            (d1, BinFloatOp1),
-            (d2, BinFloatOp2),
+            (d1, BinOp1),
+            (d2, BinOp2),
           );
         hseps([doc1, mk_bin_float_op(op), doc2]);
-      | BinStringOp(op, d1, d2) =>
+      | BinOp(String(op), d1, d2) =>
         // TODO assumes all bin string ops are left associative
         let (doc1, doc2) =
           mk_left_associative_operands(
             precedence_bin_string_op(op),
-            (d1, BinStringOp1),
-            (d2, BinStringOp2),
+            (d1, BinOp1),
+            (d2, BinOp2),
           );
         hseps([doc1, mk_bin_string_op(op), doc2]);
       | Cons(d1, d2) =>
@@ -403,12 +403,12 @@ let mk =
             (d2, ListConcat2),
           );
         DHDoc_common.mk_ListConcat(doc1, doc2);
-      | BinBoolOp(op, d1, d2) =>
+      | BinOp(Bool(op), d1, d2) =>
         let (doc1, doc2) =
           mk_right_associative_operands(
             precedence_bin_bool_op(op),
-            (d1, BinBoolOp1),
-            (d2, BinBoolOp2),
+            (d1, BinOp1),
+            (d2, BinOp2),
           );
         hseps([doc1, mk_bin_bool_op(op), doc2]);
       | Tuple([]) => DHDoc_common.Delim.triv
@@ -486,10 +486,10 @@ let mk =
           |> annot(DHAnnot.OperationError(err));
         hcats([d_doc, decoration]);
 
-      | IfThenElse(_, c, d1, d2) =>
-        let c_doc = go_formattable(c, IfThenElse1);
-        let d1_doc = go_formattable(d1, IfThenElse2);
-        let d2_doc = go_formattable(d2, IfThenElse3);
+      | If(_, c, d1, d2) =>
+        let c_doc = go_formattable(c, If1);
+        let d1_doc = go_formattable(d1, If2);
+        let d2_doc = go_formattable(d2, If3);
         hcats([
           DHDoc_common.Delim.mk("("),
           DHDoc_common.Delim.mk("if"),
@@ -648,7 +648,7 @@ let mk =
          );
     let doc =
       switch (substitution) {
-      | Some({d_loc: BoundVar(v), _}) when List.mem(v, recent_subst) =>
+      | Some({d_loc: Var(v), _}) when List.mem(v, recent_subst) =>
         hcats([text(v) |> annot(DHAnnot.Substituted), doc])
       | Some(_)
       | None => doc

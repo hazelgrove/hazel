@@ -8,12 +8,12 @@ open DH;
    This module defines the evaluation semantics of Hazel in terms of small step
    evaluation. These small steps are wrapped up into a big step in Evaluator.re.
 
-   I'll use the Sequence case as an example:
+   I'll use the Seq case as an example:
 
-    | Sequence(d1, d2) =>
-        let. _ = otherwise(d1 => Sequence(d1, d2))
+    | Seq(d1, d2) =>
+        let. _ = otherwise(d1 => Seq(d1, d2))
         and. _ = req_final(req(state, env), 0, d1);
-        Step({apply: () => d2, kind: Sequence, final: false});
+        Step({apply: () => d2, kind: Seq, final: false});
 
 
     Each step semantics starts with a `let. () = otherwise(...)` that defines how
@@ -48,7 +48,7 @@ open DH;
 type step_kind =
   | InvalidStep
   | VarLookup
-  | Sequence
+  | Seq
   | LetBind
   | FunClosure
   | FixUnwrap
@@ -195,18 +195,18 @@ module Transition = (EV: EV_MODE) => {
 
   let transition = (req, state, env, d): 'a =>
     switch (d) {
-    | BoundVar(x) =>
-      let. _ = otherwise(env, BoundVar(x));
+    | Var(x) =>
+      let. _ = otherwise(env, Var(x));
       let d =
         ClosureEnvironment.lookup(env, x)
         |> OptUtil.get(() => {
              raise(EvaluatorError.Exception(FreeInvalidVar(x)))
            });
       Step({apply: () => d, kind: VarLookup, value: false});
-    | Sequence(d1, d2) =>
-      let. _ = otherwise(env, d1 => Sequence(d1, d2))
-      and. _ = req_final(req(state, env), d1 => Sequence1(d1, d2), d1);
-      Step({apply: () => d2, kind: Sequence, value: false});
+    | Seq(d1, d2) =>
+      let. _ = otherwise(env, d1 => Seq(d1, d2))
+      and. _ = req_final(req(state, env), d1 => Seq1(d1, d2), d1);
+      Step({apply: () => d2, kind: Seq, value: false});
     | Let(dp, d1, d2) =>
       let. _ = otherwise(env, d1 => Let(dp, d1, d2))
       and. d1' = req_final(req(state, env), d1 => Let1(dp, d1, d2), d1);
@@ -239,10 +239,10 @@ module Transition = (EV: EV_MODE) => {
       Step({
         apply: () =>
           switch (d') {
-          | BoolLit(true) =>
+          | Bool(true) =>
             update_test(state, id, (d', Pass));
             Tuple([]);
-          | BoolLit(false) =>
+          | Bool(false) =>
             update_test(state, id, (d', Fail));
             Tuple([]);
           /* Hack: assume if final and not Bool, then Indet; this won't catch errors in statics */
@@ -305,24 +305,20 @@ module Transition = (EV: EV_MODE) => {
         kind: BuiltinAp(ident),
         value: false // Not necessarily a value because of InvalidOperations
       });
-    | BoolLit(_)
-    | IntLit(_)
-    | FloatLit(_)
-    | StringLit(_)
+    | Bool(_)
+    | Int(_)
+    | Float(_)
+    | String(_)
     | Constructor(_)
     | BuiltinFun(_) =>
       let. _ = otherwise(env, d);
       Constructor;
-    | IfThenElse(consistent, c, d1, d2) =>
-      let. _ = otherwise(env, c => IfThenElse(consistent, c, d1, d2))
+    | If(consistent, c, d1, d2) =>
+      let. _ = otherwise(env, c => If(consistent, c, d1, d2))
       and. c' =
-        req_value(
-          req(state, env),
-          c => IfThenElse1(consistent, c, d1, d2),
-          c,
-        );
+        req_value(req(state, env), c => If1(consistent, c, d1, d2), c);
       switch (consistent, c') {
-      | (ConsistentIf, BoolLit(b)) =>
+      | (ConsistentIf, Bool(b)) =>
         Step({
           apply: () => {
             b ? d1 : d2;
@@ -343,67 +339,68 @@ module Transition = (EV: EV_MODE) => {
       // Inconsistent branches should be Indet
       | (InconsistentIf, _) => Indet
       };
-    | BinBoolOp(And, d1, d2) =>
-      let. _ = otherwise(env, d1 => BinBoolOp(And, d1, d2))
+    | BinOp(Bool(And), d1, d2) =>
+      let. _ = otherwise(env, d1 => BinOp(Bool(And), d1, d2))
       and. d1' =
-        req_value(req(state, env), d1 => BinBoolOp1(And, d1, d2), d1);
+        req_value(req(state, env), d1 => BinOp1(Bool(And), d1, d2), d1);
       Step({
         apply: () =>
           switch (d1') {
-          | BoolLit(true) => d2
-          | BoolLit(false) => BoolLit(false)
+          | Bool(true) => d2
+          | Bool(false) => Bool(false)
           | _ => raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1')))
           },
         kind: BinBoolOp(And),
         value: false,
       });
-    | BinBoolOp(Or, d1, d2) =>
-      let. _ = otherwise(env, d1 => BinBoolOp(Or, d1, d2))
+    | BinOp(Bool(Or), d1, d2) =>
+      let. _ = otherwise(env, d1 => BinOp(Bool(Or), d1, d2))
       and. d1' =
-        req_value(req(state, env), d1 => BinBoolOp1(Or, d1, d2), d1);
+        req_value(req(state, env), d1 => BinOp1(Bool(Or), d1, d2), d1);
       Step({
         apply: () =>
           switch (d1') {
-          | BoolLit(true) => BoolLit(true)
-          | BoolLit(false) => d2
+          | Bool(true) => Bool(true)
+          | Bool(false) => d2
           | _ => raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d2)))
           },
         kind: BinBoolOp(Or),
         value: false,
       });
-    | BinIntOp(op, d1, d2) =>
-      let. _ = otherwise(env, (d1, d2) => BinIntOp(op, d1, d2))
-      and. d1' = req_value(req(state, env), d1 => BinIntOp1(op, d1, d2), d1)
+    | BinOp(Int(op), d1, d2) =>
+      let. _ = otherwise(env, (d1, d2) => BinOp(Int(op), d1, d2))
+      and. d1' =
+        req_value(req(state, env), d1 => BinOp1(Int(op), d1, d2), d1)
       and. d2' =
-        req_value(req(state, env), d2 => BinIntOp2(op, d1, d2), d2);
+        req_value(req(state, env), d2 => BinOp2(Int(op), d1, d2), d2);
       Step({
         apply: () =>
           switch (d1', d2') {
-          | (IntLit(n1), IntLit(n2)) =>
+          | (Int(n1), Int(n2)) =>
             switch (op) {
-            | Plus => IntLit(n1 + n2)
-            | Minus => IntLit(n1 - n2)
+            | Plus => Int(n1 + n2)
+            | Minus => Int(n1 - n2)
             | Power when n2 < 0 =>
               InvalidOperation(
-                BinIntOp(op, IntLit(n1), IntLit(n2)),
+                BinOp(Int(op), Int(n1), Int(n2)),
                 NegativeExponent,
               )
-            | Power => IntLit(IntUtil.ipow(n1, n2))
-            | Times => IntLit(n1 * n2)
+            | Power => Int(IntUtil.ipow(n1, n2))
+            | Times => Int(n1 * n2)
             | Divide when n2 == 0 =>
               InvalidOperation(
-                BinIntOp(op, IntLit(n1), IntLit(n2)),
+                BinOp(Int(op), Int(n1), Int(n2)),
                 DivideByZero,
               )
-            | Divide => IntLit(n1 / n2)
-            | LessThan => BoolLit(n1 < n2)
-            | LessThanOrEqual => BoolLit(n1 <= n2)
-            | GreaterThan => BoolLit(n1 > n2)
-            | GreaterThanOrEqual => BoolLit(n1 >= n2)
-            | Equals => BoolLit(n1 == n2)
-            | NotEquals => BoolLit(n1 != n2)
+            | Divide => Int(n1 / n2)
+            | LessThan => Bool(n1 < n2)
+            | LessThanOrEqual => Bool(n1 <= n2)
+            | GreaterThan => Bool(n1 > n2)
+            | GreaterThanOrEqual => Bool(n1 >= n2)
+            | Equals => Bool(n1 == n2)
+            | NotEquals => Bool(n1 != n2)
             }
-          | (IntLit(_), _) =>
+          | (Int(_), _) =>
             raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2')))
           | _ => raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1')))
           },
@@ -411,51 +408,51 @@ module Transition = (EV: EV_MODE) => {
         // False so that InvalidOperations are caught and made indet by the next step
         value: false,
       });
-    | BinFloatOp(op, d1, d2) =>
-      let. _ = otherwise(env, (d1, d2) => BinFloatOp(op, d1, d2))
+    | BinOp(Float(op), d1, d2) =>
+      let. _ = otherwise(env, (d1, d2) => BinOp(Float(op), d1, d2))
       and. d1' =
-        req_value(req(state, env), d1 => BinFloatOp1(op, d1, d2), d1)
+        req_value(req(state, env), d1 => BinOp1(Float(op), d1, d2), d1)
       and. d2' =
-        req_value(req(state, env), d2 => BinFloatOp2(op, d1, d2), d2);
+        req_value(req(state, env), d2 => BinOp2(Float(op), d1, d2), d2);
       Step({
         apply: () =>
           switch (d1', d2') {
-          | (FloatLit(n1), FloatLit(n2)) =>
+          | (Float(n1), Float(n2)) =>
             switch (op) {
-            | Plus => FloatLit(n1 +. n2)
-            | Minus => FloatLit(n1 -. n2)
-            | Power => FloatLit(n1 ** n2)
-            | Times => FloatLit(n1 *. n2)
-            | Divide => FloatLit(n1 /. n2)
-            | LessThan => BoolLit(n1 < n2)
-            | LessThanOrEqual => BoolLit(n1 <= n2)
-            | GreaterThan => BoolLit(n1 > n2)
-            | GreaterThanOrEqual => BoolLit(n1 >= n2)
-            | Equals => BoolLit(n1 == n2)
-            | NotEquals => BoolLit(n1 != n2)
+            | Plus => Float(n1 +. n2)
+            | Minus => Float(n1 -. n2)
+            | Power => Float(n1 ** n2)
+            | Times => Float(n1 *. n2)
+            | Divide => Float(n1 /. n2)
+            | LessThan => Bool(n1 < n2)
+            | LessThanOrEqual => Bool(n1 <= n2)
+            | GreaterThan => Bool(n1 > n2)
+            | GreaterThanOrEqual => Bool(n1 >= n2)
+            | Equals => Bool(n1 == n2)
+            | NotEquals => Bool(n1 != n2)
             }
-          | (FloatLit(_), _) =>
+          | (Float(_), _) =>
             raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d2')))
           | _ => raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1')))
           },
         kind: BinFloatOp(op),
         value: true,
       });
-    | BinStringOp(op, d1, d2) =>
-      let. _ = otherwise(env, (d1, d2) => BinStringOp(op, d1, d2))
+    | BinOp(String(op), d1, d2) =>
+      let. _ = otherwise(env, (d1, d2) => BinOp(String(op), d1, d2))
       and. d1' =
-        req_value(req(state, env), d1 => BinStringOp1(op, d1, d2), d1)
+        req_value(req(state, env), d1 => BinOp1(String(op), d1, d2), d1)
       and. d2' =
-        req_value(req(state, env), d2 => BinStringOp2(op, d1, d2), d2);
+        req_value(req(state, env), d2 => BinOp2(String(op), d1, d2), d2);
       Step({
         apply: () =>
           switch (d1', d2') {
-          | (StringLit(s1), StringLit(s2)) =>
+          | (String(s1), String(s2)) =>
             switch (op) {
-            | Concat => StringLit(s1 ++ s2)
-            | Equals => BoolLit(s1 == s2)
+            | Concat => String(s1 ++ s2)
+            | Equals => Bool(s1 == s2)
             }
-          | (StringLit(_), _) =>
+          | (String(_), _) =>
             raise(EvaluatorError.Exception(InvalidBoxedStringLit(d2')))
           | _ => raise(EvaluatorError.Exception(InvalidBoxedStringLit(d1')))
           },
@@ -647,7 +644,7 @@ module Transition = (EV: EV_MODE) => {
 let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
   fun
   | LetBind
-  | Sequence
+  | Seq
   | UpdateTest
   | FunAp
   | BuiltinAp(_)

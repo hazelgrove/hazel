@@ -3,16 +3,19 @@ open Sexplib.Std;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | EmptyHole(MetaVar.t, MetaVarInst.t)
+  // TODO: Work out what to do with invalids
   | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, MetaVarInst.t, t)
-  | Wild
   | ExpandingKeyword(MetaVar.t, MetaVarInst.t, ExpandingKeyword.t)
+  // Same
+  | Wild
+  | Int(int)
+  | Float(float)
+  | Bool(bool)
+  | String(string)
+  // TODO:
   | InvalidText(MetaVar.t, MetaVarInst.t, string)
   | BadConstructor(MetaVar.t, MetaVarInst.t, string)
   | Var(Var.t)
-  | IntLit(int)
-  | FloatLit(float)
-  | BoolLit(bool)
-  | StringLit(string)
   | ListLit(Typ.t, list(t))
   | Cons(t, t)
   | Tuple(list(t))
@@ -35,10 +38,10 @@ let rec binds_var = (x: Var.t, dp: t): bool =>
   | Wild
   | InvalidText(_)
   | BadConstructor(_)
-  | IntLit(_)
-  | FloatLit(_)
-  | BoolLit(_)
-  | StringLit(_)
+  | Int(_)
+  | Float(_)
+  | Bool(_)
+  | String(_)
   | Constructor(_)
   | ExpandingKeyword(_, _, _) => false
   | Var(y) => Var.eq(x, y)
@@ -57,10 +60,10 @@ let rec bound_vars = (dp: t): list(Var.t) =>
   | Wild
   | InvalidText(_)
   | BadConstructor(_)
-  | IntLit(_)
-  | FloatLit(_)
-  | BoolLit(_)
-  | StringLit(_)
+  | Int(_)
+  | Float(_)
+  | Bool(_)
+  | String(_)
   | Constructor(_)
   | ExpandingKeyword(_, _, _) => []
   | Var(y) => [y]
