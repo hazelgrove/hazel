@@ -70,7 +70,9 @@ module Rows = {
 };
 
 module Shards = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type shard = (int, measurement);
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = list(shard);
 
   // elements of returned list are nonempty

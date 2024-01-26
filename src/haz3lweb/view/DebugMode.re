@@ -1,9 +1,15 @@
 open Virtual_dom.Vdom;
 
-let btn = (~inject, caption, action) => {
+let btn = (~inject as _, caption, action) => {
   Node.(
     button(
-      ~attr=Attr.many([Attr.on_click(_ => inject(action))]),
+      ~attr=
+        Attr.many([
+          Attr.on_click(_ => {
+            DebugAction.perform(action);
+            Ui_effect.Ignore;
+          }),
+        ]),
       [text(caption)],
     )
   );
@@ -12,16 +18,8 @@ let btn = (~inject, caption, action) => {
 let view = (~inject) => {
   Node.(
     div([
-      btn(
-        ~inject,
-        "turn off dynamics",
-        UpdateAction.DebugAction(TurnOffDynamics),
-      ),
-      btn(
-        ~inject,
-        "clear local storage (LOSE ALL DATA!)",
-        UpdateAction.DebugAction(ClearStore),
-      ),
+      btn(~inject, "turn off dynamics", TurnOffDynamics),
+      btn(~inject, "clear local storage (LOSE ALL DATA!)", ClearStore),
     ])
   );
 };

@@ -29,6 +29,7 @@ let nibs = (t: t) => {
   let (_, r) = Mold.nibs(~index=r_shard(t), t.mold);
   (l, r);
 };
+
 let shapes = (t: t) => {
   let (l, r) = nibs(t);
   (l.shape, r.shape);

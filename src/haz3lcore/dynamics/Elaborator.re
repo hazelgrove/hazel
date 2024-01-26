@@ -60,7 +60,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
       | _ => d
       }
     | Fun(_) =>
-      /* See regression tests in Examples/Dynamics */
+      /* See regression tests in Documentation/Dynamics */
       let (_, ana_out) = Typ.matched_arrow(ctx, ana_ty);
       let (self_in, _) = Typ.matched_arrow(ctx, self_ty);
       DHExp.cast(d, Arrow(self_in, ana_out), ana_ty);
@@ -81,6 +81,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     /* Forms with special ana rules but no particular typing requirements */
     | ConsistentCase(_)
     | InconsistentBranches(_)
+    | IfThenElse(_)
     | Sequence(_)
     | Let(_)
     | FixF(_) => d
@@ -93,12 +94,14 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     /* DHExp-specific forms: Don't cast */
     | Cast(_)
     | Closure(_)
+    | Filter(_)
     | FailedCast(_)
     | InvalidOperation(_) => d
     /* Normal cases: wrap */
     | BoundVar(_)
     | Ap(_)
     | ApBuiltin(_)
+    | BuiltinFun(_)
     | Prj(_)
     | BoolLit(_)
     | IntLit(_)
@@ -127,7 +130,11 @@ let wrap = (ctx: Ctx.t, u: Id.t, mode: Mode.t, self, d: DHExp.t): DHExp.t =>
   };
 
 let rec dhexp_of_uexp =
-        (m: Statics.Map.t, uexp: Term.UExp.t): option(DHExp.t) => {
+        (m: Statics.Map.t, uexp: Term.UExp.t, in_filter: bool)
+        : option(DHExp.t) => {
+  let dhexp_of_uexp = (~in_filter=in_filter, m, uexp) => {
+    dhexp_of_uexp(m, uexp, in_filter);
+  };
   switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
   | Some(InfoExp({mode, self, ctx, _})) =>
     let err_status = Info.status_exp(ctx, mode, self);
@@ -167,6 +174,12 @@ let rec dhexp_of_uexp =
         let* dc1 = dhexp_of_uexp(m, e1);
         let+ dc2 = dhexp_of_uexp(m, e2);
         DHExp.ListConcat(dc1, dc2);
+      | UnOp(Meta(Unquote), e) =>
+        switch (e.term) {
+        | Var("e") when in_filter => Some(Constructor("$e"))
+        | Var("v") when in_filter => Some(Constructor("$v"))
+        | _ => Some(DHExp.EmptyHole(id, 0))
+        }
       | UnOp(Int(Minus), e) =>
         let+ dc = dhexp_of_uexp(m, e);
         DHExp.BinIntOp(Minus, IntLit(0), dc);
@@ -196,6 +209,10 @@ let rec dhexp_of_uexp =
       | Test(test) =>
         let+ dtest = dhexp_of_uexp(m, test);
         DHExp.Test(id, dtest);
+      | Filter(act, cond, body) =>
+        let* dcond = dhexp_of_uexp(~in_filter=true, m, cond);
+        let+ dbody = dhexp_of_uexp(m, body);
+        DHExp.Filter(Filter(Filter.mk(dcond, act)), dbody);
       | Var(name) =>
         switch (err_status) {
         | InHole(FreeVariable(_)) => Some(FreeVar(id, 0, name))
@@ -253,17 +270,15 @@ let rec dhexp_of_uexp =
         let* c_fn = dhexp_of_uexp(m, fn);
         let+ c_arg = dhexp_of_uexp(m, arg);
         DHExp.Ap(c_fn, c_arg);
-      | If(scrut, e1, e2) =>
-        let* d_scrut = dhexp_of_uexp(m, scrut);
+      | If(c, e1, e2) =>
+        let* c' = dhexp_of_uexp(m, c);
         let* d1 = dhexp_of_uexp(m, e1);
         let+ d2 = dhexp_of_uexp(m, e2);
-        let d_rules =
-          DHExp.[Rule(BoolLit(true), d1), Rule(BoolLit(false), d2)];
-        let d = DHExp.Case(d_scrut, d_rules, 0);
+        // Use tag to mark inconsistent branches
         switch (err_status) {
         | InHole(Common(Inconsistent(Internal(_)))) =>
-          DHExp.InconsistentBranches(id, 0, d)
-        | _ => ConsistentCase(d)
+          DHExp.IfThenElse(DH.InconsistentIf, c', d1, d2)
+        | _ => DHExp.IfThenElse(DH.ConsistentIf, c', d1, d2)
         };
       | Match(scrut, rules) =>
         let* d_scrut = dhexp_of_uexp(m, scrut);
@@ -352,7 +367,7 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
 //let dhexp_of_uexp = Core.Memo.general(~cache_size_bound=1000, dhexp_of_uexp);
 
 let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t =>
-  switch (dhexp_of_uexp(m, uexp)) {
+  switch (dhexp_of_uexp(m, uexp, false)) {
   | None => DoesNotElaborate
   | Some(d) =>
     //let d = uexp_elab_wrap_builtins(d);
