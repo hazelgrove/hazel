@@ -453,3 +453,30 @@ let assoc_err = (x, xs, err: string) =>
 
 let update_assoc = ((k, v)) =>
   List.map(((k', v')) => k == k' ? (k, v) : (k', v'));
+
+/* Give a list of optional 'a, split the
+ * list up using the Nones as dividers */
+let split_at_nones = (xs: list(option('a))): list(list('a)) => {
+  let rec go = (xs, acc) =>
+    switch (xs) {
+    | [] => acc
+    | [None, ...xs] => go(xs, [[], ...acc])
+    | [Some(x), ...xs] =>
+      switch (acc) {
+      | [acc, ...accs] => go(xs, [[x, ...acc], ...accs])
+      | [] => go(xs, [[x]])
+      }
+    };
+  go(xs, []) |> List.map(List.rev) |> List.rev;
+};
+
+/* Give a list of lists, return a list of pairs of
+ * the first and last element of each list. */
+let first_and_last = (xss: list(list('a))): list(('a, 'a)) =>
+  xss
+  |> List.filter_map(
+       fun
+       | [] => None
+       | [x] => Some((x, x))
+       | [x, ...xs] => Some((x, last(xs))),
+     );
