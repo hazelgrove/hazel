@@ -2,7 +2,6 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
 open Haz3lcore;
-open Widgets;
 
 /* If you are adding docs here for new syntax, see PipelineExp.re
  * which documents the simplest way to add a new form. */
@@ -105,6 +104,12 @@ let highlight =
     | Some(inject) =>
       Attr.many([
         classes,
+        Attr.on_mouseenter(_ =>
+          inject(UpdateAction.UpdateExplainThisModel(SetHighlight(true)))
+        ),
+        Attr.on_mouseleave(_ =>
+          inject(UpdateAction.UpdateExplainThisModel(SetHighlight(false)))
+        ),
         Attr.on_click(_ =>
           inject(UpdateAction.PerformAction(Jump(TileId(id))))
         ),
@@ -122,9 +127,7 @@ let highlight =
  code: `code`
  italics: *word*
  */
-let mk_translation =
-    (~inject, text: string, show_highlight: bool)
-    : (list(Node.t), ColorSteps.t) => {
+let mk_translation = (~inject, text: string): (list(Node.t), ColorSteps.t) => {
   let omd = Omd.of_string(text);
   //print_markdown(omd);
   let rec translate =
@@ -153,29 +156,7 @@ let mk_translation =
             | Some(id) => id
             | None => Id.invalid
             };
-          let (inner_msg, mapping) =
-            if (show_highlight) {
-              highlight(~inject, d, id, mapping);
-            } else {
-              switch (inject) {
-              | Some(inject) => (
-                  Node.span(
-                    ~attr=
-                      Attr.many([
-                        clss(["clickable"]),
-                        Attr.on_click(_ =>
-                          inject(
-                            UpdateAction.PerformAction(Jump(TileId(id))),
-                          )
-                        ),
-                      ]),
-                    d,
-                  ),
-                  mapping,
-                )
-              | None => (Node.span(d), mapping)
-              };
-            };
+          let (inner_msg, mapping) = highlight(~inject, d, id, mapping);
           (List.append(msg, [inner_msg]), mapping);
         | Emph(d) =>
           let (d, mapping) = translate(d, mapping);
@@ -206,17 +187,16 @@ let mk_translation =
 let mk_explanation =
     (
       ~inject,
+      ~settings: Settings.t,
       group_id,
       form_id,
       text: string,
-      show_highlight: bool,
       model: ExplainThisModel.t,
     )
     : (Node.t, ColorSteps.t) => {
-  let (msg, color_map) =
-    mk_translation(~inject=Some(inject), text, show_highlight);
+  let (msg, color_map) = mk_translation(~inject=Some(inject), text);
   let feedback =
-    model.show_feedback
+    settings.explainThis.show_feedback
       ? [explanation_feedback_view(~inject, group_id, form_id, model)] : [];
   (
     div([div(~attr=clss(["explanation-contents"]), msg)] @ feedback),
@@ -359,14 +339,7 @@ let deco =
         ),
       ]
     };
-
-  let color_highlight =
-    if (doc.highlight) {
-      Deco.color_highlights(colorings);
-    } else {
-      [];
-    };
-  color_highlight @ term_explain_this;
+  Deco.color_highlights(colorings) @ term_explain_this;
 };
 
 let syntactic_form_view =
@@ -513,7 +486,7 @@ let example_view =
             let code_container = view =>
               div(~attr=clss(["code-container"]), view);
             let feedback =
-              model.show_feedback
+              settings.explainThis.show_feedback
                 ? [
                   example_feedback_view(
                     ~inject,
@@ -626,11 +599,11 @@ let get_doc =
     | MessageContent(inject, font_metrics, settings) =>
       let (explanation, color_map) =
         mk_explanation(
+          ~settings,
           ~inject,
           group.id,
           doc.id,
           explanation_msg,
-          docs.highlight,
           docs,
         );
       let syntactic_form_view =
@@ -666,8 +639,7 @@ let get_doc =
         );
       ([syntactic_form_view], ([explanation], color_map), example_view);
     | Colorings =>
-      let (_, color_map) =
-        mk_translation(~inject=None, explanation_msg, docs.highlight);
+      let (_, color_map) = mk_translation(~inject=None, explanation_msg);
       ([], ([], color_map), []);
     };
   };
@@ -2370,7 +2342,12 @@ let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
   );
 
 let get_color_map =
-    (~doc: ExplainThisModel.t, index': option(Id.t), info_map: Statics.Map.t) => {
+    (
+      ~settings: Settings.t,
+      ~explainThisModel: ExplainThisModel.t,
+      index': option(Id.t),
+      info_map: Statics.Map.t,
+    ) => {
   let info: option(Statics.Info.t) =
     switch (index') {
     | Some(index) =>
@@ -2380,8 +2357,13 @@ let get_color_map =
       }
     | None => None
     };
-  let (_, (_, (color_map, _)), _) = get_doc(~docs=doc, info, Colorings);
-  color_map;
+  if (explainThisModel.highlight && settings.explainThis.show) {
+    let (_, (_, (color_map, _)), _) =
+      get_doc(~docs=explainThisModel, info, Colorings);
+    Some(color_map);
+  } else {
+    None;
+  };
 };
 
 let view =
@@ -2403,30 +2385,12 @@ let view =
           div(
             ~attr=clss(["top-bar"]),
             [
-              toggle(~tooltip="Toggle highlighting", "🔆", doc.highlight, _ =>
-                inject(
-                  UpdateAction.UpdateExplainThisModel(
-                    ExplainThisUpdate.ToggleHighlight,
-                  ),
-                )
-              ),
-              toggle(~tooltip="Toggle feedback", "👍", doc.show_feedback, _ =>
-                inject(
-                  UpdateAction.UpdateExplainThisModel(
-                    ExplainThisUpdate.ToggleShowFeedback,
-                  ),
-                )
-              ),
               div(
                 ~attr=
                   Attr.many([
                     clss(["close"]),
                     Attr.on_click(_ =>
-                      inject(
-                        UpdateAction.UpdateExplainThisModel(
-                          ExplainThisUpdate.ToggleShow,
-                        ),
-                      )
+                      inject(UpdateAction.Set(ExplainThis(ToggleShow)))
                     ),
                   ]),
                 [text("x")],

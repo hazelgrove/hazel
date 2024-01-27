@@ -88,6 +88,14 @@ let settings_menu =
     toggle("τ", "Toggle Statics", core.statics, Statics),
     toggle("𝛿", "Toggle Dynamics", core.dynamics, Dynamics),
     toggle("✓", "Print Benchmarks", benchmark, Benchmark),
+    //TODO(andrew):
+    /*toggle("👍","Toggle feedback", doc.show_feedback, _ =>
+        inject(
+          UpdateAction.UpdateExplainThisModel(
+            ExplainThisUpdate.ToggleShowFeedback,
+          ),
+        )
+      ),*/
   ];
 };
 

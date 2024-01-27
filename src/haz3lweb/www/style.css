@@ -1373,7 +1373,7 @@ svg.tile-selected {
   direction: rtl;
   position: absolute;
   z-index: 20;
-  bottom: 1.9em;
+  bottom: 2em;
   min-width: 10em;
   max-height: 11.26em;
   overflow: auto;
@@ -1385,9 +1385,9 @@ svg.tile-selected {
   white-space: nowrap;
   border-radius: 0 0.2em 0em 0;
   color: #586e75;
-  border-top: 1px solid #e6ce8f;
-  border-right: 1px solid #c7b480;
-  border-bottom: 1px solid #c7b480;
+  border-top: 0.6px solid #e6ce8f;
+  border-right: 0.6px solid #c7b480;
+  border-bottom: 0.6px solid #c7b480;
   background-color: #f7ebc5;
   box-shadow: 0px 20px 20px #77580255;
   scrollbar-color: #c7b480 #e4d6a6;
@@ -1463,7 +1463,7 @@ svg.tile-selected {
   justify-content: space-between;
   align-items: stretch;
   background-color: #fbecaa;
-  border-top: 0.6px solid #c7b480;
+  outline: 0.6px solid #c7b480;
 }
 
 #bottom-bar .icon {
@@ -1508,6 +1508,7 @@ svg.tile-selected {
   padding-right: 0.7em;
   color: var(--light-page-color);
   height: 100%;
+  mix-blend-mode: luminosity;
 }
 
 #bottom-bar .cursor-inspector .gamma:hover,
