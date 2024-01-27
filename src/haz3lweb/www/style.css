@@ -1509,6 +1509,7 @@ svg.tile-selected {
   padding-right: 0.7em;
   color: var(--light-page-color);
   height: 100%;
+  mix-blend-mode: luminosity;
 }
 
 #bottom-bar .cursor-inspector .gamma:hover,
