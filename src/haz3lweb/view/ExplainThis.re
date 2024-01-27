@@ -2,6 +2,7 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
 open Haz3lcore;
+open Util.OptUtil.Syntax;
 
 /* If you are adding docs here for new syntax, see PipelineExp.re
  * which documents the simplest way to add a new form. */
@@ -105,10 +106,12 @@ let highlight =
       Attr.many([
         classes,
         Attr.on_mouseenter(_ =>
-          inject(UpdateAction.UpdateExplainThisModel(SetHighlight(true)))
+          inject(
+            UpdateAction.UpdateExplainThisModel(SetHighlight(Some(id))),
+          )
         ),
         Attr.on_mouseleave(_ =>
-          inject(UpdateAction.UpdateExplainThisModel(SetHighlight(false)))
+          inject(UpdateAction.UpdateExplainThisModel(SetHighlight(None)))
         ),
         Attr.on_click(_ =>
           inject(UpdateAction.PerformAction(Jump(TileId(id))))
@@ -2345,26 +2348,18 @@ let get_color_map =
     (
       ~settings: Settings.t,
       ~explainThisModel: ExplainThisModel.t,
-      index': option(Id.t),
+      index: option(Id.t),
       info_map: Statics.Map.t,
-    ) => {
-  let info: option(Statics.Info.t) =
-    switch (index') {
-    | Some(index) =>
-      switch (Id.Map.find_opt(index, info_map)) {
-      | Some(ci) => Some(ci)
-      | None => None
-      }
-    | None => None
-    };
-  if (explainThisModel.highlight && settings.explainThis.show) {
+    ) =>
+  switch (explainThisModel.highlight) {
+  | Some(id) when settings.explainThis.show =>
+    let* index = index;
+    let info = Id.Map.find_opt(index, info_map);
     let (_, (_, (color_map, _)), _) =
       get_doc(~docs=explainThisModel, info, Colorings);
-    Some(color_map);
-  } else {
-    None;
+    Some(Id.Map.filter((id', _) => id == id', color_map));
+  | _ => None
   };
-};
 
 let view =
     (

@@ -31,7 +31,7 @@ type group_model = {
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
-  highlight: bool,
+  highlight: option(Id.t),
   specificity_open: bool,
   forms: list(form_model),
   groups: list(group_model),
@@ -53,7 +53,7 @@ module Settings = {
 };
 
 let init: t = {
-  highlight: false,
+  highlight: None,
   specificity_open: false,
   forms: [],
   groups: [],
