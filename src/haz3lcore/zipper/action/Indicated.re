@@ -1,5 +1,6 @@
 open Util;
 open Zipper;
+open OptUtil.Syntax;
 
 type relation =
   | Parent
@@ -85,55 +86,44 @@ let shard_index = (z: Zipper.t): option(int) =>
   };
 
 let index = (z: Zipper.t): option(Id.t) =>
-  switch (piece'(~no_ws=false, ~ign=Piece.is_secondary, z)) {
+  switch (
+    piece'(~no_ws=false, ~ign=Piece.is_secondary, ~trim_secondary=false, z)
+  ) {
   | None => None
   | Some((p, _, _)) => Some(Piece.id(p))
   };
 
-type res =
-  | Normal(Id.t)
-  | Secondary(Id.t, string);
-
-let what = z =>
-  switch (
-    piece'(~no_ws=false, ~ign=Piece.is_secondary, ~trim_secondary=false, z)
-  ) {
-  | Some((Secondary(w), _, _)) when Secondary.is_comment(w) => "Comment"
-  | Some((Secondary(_), _, _)) => "Whitespace"
-  | _ => failwith("Indicated.index_ci: impossible3")
-  };
-let index_ci = (z: Zipper.t): res =>
+let ci_of = (z: Zipper.t, info_map: Statics.Map.t): option(Statics.Info.t) =>
+  /* This version takes into accounts Secondary, while accounting for the
+   * fact that Secondary is not currently added to the infomap. First we
+   * try the basic indication function, specifying that we do not want
+   * Secondary. But if this doesn't succeed, then we create a 'virtual'
+   * info map entry representing the Secondary notation, which takes on
+   * some of the semantic context of a nearby 'proxy' term */
   switch (
     piece'(~no_ws=true, ~ign=Piece.is_secondary, ~trim_secondary=false, z)
   ) {
-  | Some((p, _, _)) => Normal(Piece.id(p))
+  | Some((p, _, _)) => Id.Map.find_opt(Piece.id(p), info_map)
   | None =>
-    let z_rev = {
-      ...z,
-      relatives: {
-        ...z.relatives,
-        siblings: (
-          snd(z.relatives.siblings) |> List.rev,
-          fst(z.relatives.siblings) |> List.rev,
-        ),
-      },
-    };
-    switch (
-      piece'(
-        ~no_ws=false,
-        ~ign=Piece.is_secondary,
-        ~trim_secondary=true,
-        z_rev,
-      )
-    ) {
-    | None => failwith("Indicated.index_ci: impossible")
-    | Some((p, _, Sibling)) => Secondary(Piece.id(p), what(z_rev))
-    | Some((_, _, Parent)) =>
-      switch (
-        piece'(~no_ws=false, ~ign=Piece.is_secondary, ~trim_secondary=true, z)
-      ) {
-      | None => failwith("Indicated.index_ci: impossible2")
-      | Some((p, _, _)) => Secondary(Piece.id(p), what(z))
-      }
-    };
+    let sibs = sibs_with_sel(z);
+    /* Favoring left over right here is nicer for comments */
+    let* cls =
+      switch (Siblings.neighbors(sibs)) {
+      | (_, Some(Secondary(s)))
+      | (Some(Secondary(s)), _) => Some(Secondary.cls_of(s))
+      | _ => None
+      };
+    let* proxy_id =
+      switch (Siblings.neighbors(Siblings.trim_secondary(sibs))) {
+      | (_, Some(p))
+      | (Some(p), _) => Some(Piece.id(p))
+      | _ => None
+      };
+    let+ ci = Id.Map.find_opt(proxy_id, info_map);
+    Info.Secondary({
+      id: proxy_id,
+      cls: Secondary(cls),
+      sort: Info.sort_of(ci),
+      ctx: Info.ctx_of(ci),
+    });
   };

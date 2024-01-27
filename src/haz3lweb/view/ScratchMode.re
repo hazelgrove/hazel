@@ -82,8 +82,7 @@ let view =
           ~font_metrics,
           ~settings,
           ~doc=explainThisModel,
-          Indicated.index(zipper),
-          info_map,
+          Indicated.ci_of(zipper, info_map),
         )
       : div_empty;
   let info =

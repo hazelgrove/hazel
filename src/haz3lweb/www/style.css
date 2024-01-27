@@ -1305,6 +1305,11 @@ svg.tile-selected {
   /* HACK(andrew) */
 }
 
+.ci-header .toggle-switch {
+  mix-blend-mode: luminosity;
+  background-color: #ccc;
+}
+
 .term-tag {
   font-weight: bolder;
   text-transform: uppercase;
@@ -1522,7 +1527,7 @@ svg.tile-selected {
   display: flex;
   width: 20em;
   padding: 0.4em;
-  white-space: nowrap;
+  /*white-space: nowrap;*/
   flex-direction: column;
   gap: 1em;
 }
