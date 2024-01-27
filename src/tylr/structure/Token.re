@@ -9,36 +9,34 @@ module Base = {
     lbl: 'lbl,
     text: string,
   };
-  let mk = (~id=?, ~text="", lbl) => {
-    let id = Id.Gen.value(id);
-    {id, lbl, text};
-  };
-  let is_empty = p => String.equal(p.text, "");
+};
+include Base;
+[@deriving (show({with_path: false}), sexp, yojson)]
+type t = Base.t(Molded.Label.t);
+
+let mk = (~id=?, ~text="", lbl) => {
+  let id = Id.Gen.value(id);
+  {id, lbl, text};
 };
 
 module Labeled = {
-  include Base;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Base.t(Mtrl.t(list(Label.t)));
-  // let mk: (~id: _=?, ~text: string=?, _) => t = mk;
+  let unlabel = (tok: t) =>
+    mk(~id=tok.id, ~text=tok.text, Molded.Label.space);
 };
 
-module Molded = {
-  include Base;
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Base.t(Molded.Label.t);
+let is_empty = (tok: t) => String.equal(tok.text, "");
 
-  let to_labeled = (p: t): Labeled.t => {
-    let mk = Labeled.mk(~id=p.id, ~text=p.text);
-    switch (p.lbl.mtrl) {
-    | Space => mk(Mtrl.Space)
-    | Grout => mk(Grout)
-    | Tile(lbl) when is_empty(p) => mk(Mtrl.Tile([lbl]))
-    | Tile(_) => mk(Tile(Labels.completions(p.text)))
-    };
+let to_labeled = (p: t): Labeled.t => {
+  let mk = mk(~id=p.id, ~text=p.text);
+  switch (p.lbl.mtrl) {
+  | Space => mk(Mtrl.Space)
+  | Grout => mk(Grout)
+  | Tile(lbl) when is_empty(p) => mk(Mtrl.Tile([lbl]))
+  | Tile(_) => mk(Tile(Labels.completions(p.text)))
   };
 };
-include Molded;
 
 // let clear = (p: t) =>
 //   switch (p.material) {

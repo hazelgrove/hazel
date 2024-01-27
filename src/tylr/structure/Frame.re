@@ -1,7 +1,9 @@
 open Util;
 
 module Open = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = (Slope.Dn.t, Slope.Up.t);
+  let empty = Slope.(empty, empty);
   let cons = (~onto: Dir.t, terr: Terr.t, (dn, up)) =>
     switch (onto) {
     | L => ([terr, ...dn], up)
@@ -11,5 +13,6 @@ module Open = {
 };
 
 module Closed = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = (Terr.R.t, Terr.L.t);
 };

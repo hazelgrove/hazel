@@ -262,7 +262,8 @@ module Zigg = {
 
 module C = Ctx;
 module Ctx = {
-  let push = (~onto as d: Dir.t, w: W.t, ~fill=[], ctx: C.t): option(C.t) => {
+  let push_wald =
+      (~onto as d: Dir.t, w: W.t, ~fill=[], ctx: C.t): option(C.t) => {
     open OptUtil.Syntax;
     let (slopes, tl) = Ctx.split_fst(ctx);
     let (s_d, s_b) = Dir.order(d, slopes);
@@ -289,6 +290,7 @@ module Ctx = {
       }
     };
   };
+  let push = (~onto: Dir.t, t: Token.t) => push_wald(~onto, W.unit(t));
 
   let rec pull = (~from as d: Dir.t, ctx: C.t): option((Token.t, C.t)) => {
     open OptUtil.Syntax;

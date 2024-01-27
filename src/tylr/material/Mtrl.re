@@ -22,6 +22,11 @@ module Label = {
     | (Tile(l), Tile(r)) => Tile(Label.zip(l, r))
     | _ => raise(Invalid_argument("Mtrl.Label.zip"))
     };
+  module Map =
+    Map.Make({
+      type nonrec t = t;
+      let compare = compare;
+    });
 };
 module Sort = {
   [@deriving (show({with_path: false}), sexp, yojson, ord)]

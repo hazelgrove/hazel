@@ -13,14 +13,14 @@ let mk = (~foc=Focus.Point, ctx) => {foc, ctx};
 
 let unselect = (~toward=?, z: t) =>
   switch (z.foc) {
-  | Pointing => z
-  | Selecting(d, sel) =>
+  | Point => z
+  | Select(d, sel) =>
     let onto = Dir.toggle(Option.value(toward, ~default=d));
-    mk(Melder.Stepwell.push_zigg(~onto, sel, z.ctx));
+    mk(Melder.Ctx.push_zigg(~onto, sel, z.ctx));
   };
 
 let rec unzip = (zipped: ESlot.Marked.t) => {
-  let go = (~ctx=EStepwell.empty, zipped) =>
+  let go = (~ctx=Ctx.empty, zipped) =>
     switch (zipped) {
     | Empty => ctx
     | Full((marks, _) as m) =>

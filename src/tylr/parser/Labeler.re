@@ -39,7 +39,7 @@ let pop = buf => {
   let mk = (lbl: Label.t) => {
     let text = lexeme(buf);
     let lbls = [lbl, ...Labels.completions(text)];
-    Some(Token.Labeled.mk(~text, Mtrl.Tile(lbls)));
+    Some(Token.mk(~text, Mtrl.Tile(lbls)));
   };
   switch%sedlex (buf) {
   | space => mk(Space)
@@ -56,7 +56,7 @@ let pop = buf => {
   | Plus(Sub(any, white_space)) =>
     let text = lexeme(buf);
     let lbls = Labels.completions(text);
-    Some(Token.Labeled.mk(~text, Mtrl.Tile(lbls)));
+    Some(Token.mk(~text, Mtrl.Tile(lbls)));
 
   | eof => None
 

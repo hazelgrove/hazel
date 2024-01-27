@@ -21,6 +21,27 @@ open Util;
 // let x = 1 in <> + 2 >< <in> >< x + 1
 
 module Molds = {
+  include Mtrl.Label.Map;
+  type t = Mtrl.Label.Map.t(list(Mold.t));
+  let map: t =
+    Walker.walk_into(~from=L, Root)
+    |> Walk.Index.to_list
+    |> List.rev_map(fst)
+    |> List.fold_left(
+         map =>
+           fun
+           | Bound.Root => map
+           | Node(Molded.{mtrl, mold}) =>
+             map
+             |> update(
+                  mtrl,
+                  fun
+                  | None => Some([mold])
+                  | Some(ms) => Some([mold, ...ms]),
+                ),
+         empty,
+       );
+
   let map = failwith("todo");
 
   let with_label = lbl =>
@@ -32,15 +53,15 @@ module Molds = {
 
 let candidates = (t: Token.Labeled.t): list(Token.t) =>
   List.map(
-    Token.mk(~id=t.id, ~token=t.token),
-    switch (t.mtrl) {
+    Token.mk(~id=t.id, ~text=t.text),
+    switch (t.lbl) {
     | Space => [Molded.Label.space]
     | Grout => failwith("bug: attempted to mold grout")
     | Tile(lbls) =>
       lbls
       |> List.concat_map(lbl =>
-           Molds.with_label(lbl)
-           |> List.map(mold => Molded.{mold, mtrl: Tile(lbl)})
+           Molds.with_label(Tile(lbl))
+           |> List.map(mold => Molded.{mold, mtrl: Mtrl.Tile(lbl)})
          )
     },
   );
@@ -53,13 +74,13 @@ let mold = (ctx: Ctx.t, ~fill=[], t: Token.Labeled.t) => {
   | Some(ctx) => ctx
   | None =>
     ctx
-    |> Melder.Ctx.push(~onto=L, Token.unlabel(t))
+    |> Melder.Ctx.push(~onto=L, Token.Labeled.unlabel(t))
     |> OptUtil.get_or_fail("bug: failed to meld unmolded token")
   };
 };
 
 let rec remold = (~fill=[], ctx: Ctx.t) =>
-  switch (Ctx.pull_terr(~from=R, ctx)) {
+  switch (Melder.Ctx.pull_terr(~from=R, ctx)) {
   | None =>
     let unrolled = fill |> List.rev_map(Slope.Dn.unroll_meld) |> List.concat;
     Ctx.map_fst(Frame.Open.cat((unrolled, [])), ctx);
