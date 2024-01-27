@@ -33,7 +33,7 @@ type jump_target =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type rel =
   | Current
-  | Id(Id.t);
+  | Id(Id.t, Direction.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type select =

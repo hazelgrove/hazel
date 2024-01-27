@@ -114,7 +114,7 @@ let highlight =
           inject(UpdateAction.UpdateExplainThisModel(SetHighlight(None)))
         ),
         Attr.on_click(_ =>
-          inject(UpdateAction.PerformAction(Jump(TileId(id))))
+          inject(UpdateAction.PerformAction(Select(Term(Id(id, Left)))))
         ),
       ])
     | None => classes
