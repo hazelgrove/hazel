@@ -1469,6 +1469,7 @@ svg.tile-selected {
 #bottom-bar .icon {
   display: flex;
   padding: 0.2em;
+  mix-blend-mode: luminosity;
 }
 
 #bottom-bar .id {
