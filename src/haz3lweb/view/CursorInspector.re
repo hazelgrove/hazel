@@ -197,14 +197,17 @@ let tpat_view = (_: Term.Cls.t, status: Info.status_tpat) =>
     div_err([text("Can't shadow existing alias"), Type.view(Var(name))])
   };
 
-let view_of_info =
-    (~inject, ~settings, ~show_explain_this: bool, ci: Statics.Info.t): Node.t => {
+let secondary_view = (cls: Term.Cls.t) =>
+  div_ok([text(cls |> Term.Cls.show)]);
+
+let view_of_info = (~inject, ~settings, ~show_explain_this: bool, ci): Node.t => {
   let wrapper = status_view =>
     div(
       ~attr=clss(["info"]),
       [term_view(~inject, ~settings, ~show_explain_this, ci), status_view],
     );
   switch (ci) {
+  | Secondary(_) => wrapper(div([]))
   | InfoExp({cls, status, _}) => wrapper(exp_view(cls, status))
   | InfoPat({cls, status, _}) => wrapper(pat_view(cls, status))
   | InfoTyp({cls, status, _}) => wrapper(typ_view(cls, status))
@@ -216,42 +219,6 @@ let inspector_view = (~inject, ~settings, ~show_explain_this, ci): Node.t =>
   div(
     ~attr=clss(["cursor-inspector"] @ [Info.is_error(ci) ? errc : okc]),
     [view_of_info(~inject, ~settings, ~show_explain_this, ci)],
-  );
-
-let cls_view_ws = (_ci: Info.t, what): Node.t =>
-  div(~attr=clss(["syntax-class"]), [text(what)]);
-let term_view_ws =
-    (~inject, ~settings: Settings.t, ~show_explain_this, ci, what) => {
-  let sort = ci |> Info.sort_of |> Sort.show;
-  div(
-    ~attr=clss(["ci-header", sort] @ (Info.is_error(ci) ? [errc] : [])),
-    [
-      ctx_toggle(~inject, settings.context_inspector),
-      CtxInspector.view(~inject, ~settings, ci),
-      div(~attr=clss(["term-tag"]), [text(sort)]),
-      explain_this_toggle(~inject, ~show_explain_this),
-      cls_view_ws(ci, what),
-    ],
-  );
-};
-let view_of_info_ws =
-    (~inject, ~settings, ~show_explain_this: bool, ci: Statics.Info.t, what)
-    : Node.t => {
-  let wrapper = status_view =>
-    div(
-      ~attr=clss(["info"]),
-      [
-        term_view_ws(~inject, ~settings, ~show_explain_this, ci, what),
-        status_view,
-      ],
-    );
-  wrapper(div_ok([]));
-};
-let inspector_view_ws =
-    (~inject, ~settings, ~show_explain_this, ci, what): Node.t =>
-  div(
-    ~attr=clss(["cursor-inspector"] @ [Info.is_error(ci) ? errc : okc]),
-    [view_of_info_ws(~inject, ~settings, ~show_explain_this, ci, what)],
   );
 
 let view =
@@ -270,34 +237,16 @@ let view =
         [div(~attr=clss(["icon"]), [Icons.magnify]), text(err)],
       ),
     ]);
-  switch (zipper.backpack, Indicated.index_ci(zipper)) {
+  switch (Indicated.ci_of(zipper, info_map)) {
   | _ when !settings.core.statics => div_empty
-  | _ when Id.Map.is_empty(info_map) =>
-    err_view("No Static information available")
-
-  | (_, Normal(id)) =>
-    switch (Id.Map.find_opt(id, info_map)) {
-    | None => err_view("Whitespace or Comment")
-    | Some(ci) =>
-      bar_view([
-        inspector_view(~inject, ~settings, ~show_explain_this, ci),
-        div(
-          ~attr=clss(["id"]),
-          [text(String.sub(Id.to_string(id), 0, 4))],
-        ),
-      ])
-    }
-  | (_, Secondary(id, what)) =>
-    switch (Id.Map.find_opt(id, info_map)) {
-    | None => err_view("Whitespace or Comment")
-    | Some(ci) =>
-      bar_view([
-        inspector_view_ws(~inject, ~settings, ~show_explain_this, ci, what),
-        div(
-          ~attr=clss(["id"]),
-          [text(String.sub(Id.to_string(id), 0, 4))],
-        ),
-      ])
-    }
+  | None => err_view("No Static information available")
+  | Some(ci) =>
+    bar_view([
+      inspector_view(~inject, ~settings, ~show_explain_this, ci),
+      div(
+        ~attr=clss(["id"]),
+        [text(String.sub(Id.to_string(Info.id_of(ci)), 0, 4))],
+      ),
+    ])
   };
 };
