@@ -115,7 +115,7 @@ let update_settings =
   | ExplainThis(ToggleShowFeedback) =>
     let explainThis = {
       ...settings.explainThis,
-      show: !settings.explainThis.show_feedback,
+      show_feedback: !settings.explainThis.show_feedback,
     };
     let settings = {...settings, explainThis};
     {...model, settings};
