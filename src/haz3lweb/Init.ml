@@ -27,6 +27,7 @@ let startup : PersistentData.t =
         instructor_mode = true;
         benchmark = false;
         mode = Documentation;
+        explainThis = { show = true; show_feedback = false };
       };
     scratch =
       ( 0,
