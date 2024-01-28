@@ -84,13 +84,15 @@ let bake_gt =
   Rel.Neq(cell);
 };
 
-let bake_stride = (~fill=[], ~from: Dir.t, str: Walk.Stride.t) =>
+let bake_stride = (~fill=[], ~from: Dir.t, str: Walk.Stride.t) => {
+  let fill = Dir.pick(from, (Fun.id, List.rev), fill);
   switch (from) {
   | _ when Walk.Stride.height(str) <= 1 =>
     bake_eq(~fill, Walk.Stride.bot(str))
   | L => bake_lt(~fill, Walk.Stride.top(str), Walk.Stride.bot(str))
   | R => bake_gt(~fill, Walk.Stride.bot(str), Walk.Stride.top(str))
   };
+};
 
 let bake = (~from: Dir.t, ~fill: list(Cell.t)=[], w: Walk.t): option(Bake.t) =>
   w
