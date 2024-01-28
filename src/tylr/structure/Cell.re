@@ -6,8 +6,21 @@ let mk = (~marks=Path.Marks.empty, ~meld=?, ()): t => {
   let _ = failwith("todo: lift marks from meld");
   {marks, meld};
 };
+let empty = mk();
+let is_empty = (==)(empty);
+
+let is_space = (cell: t) =>
+  switch (cell.meld) {
+  | Some(M(_, W(([tok], [])), _)) when Token.is_space(tok) => true
+  | _ => false
+  };
 
 let fill = (~l as _=false, ~r as _=false, _, _) => failwith("todo");
+
+// let face = (~side: Dir.t, cell: t) =>
+//   switch (cell.meld) {
+//   | None => Molded.Label.
+//   }
 
 // returns a cell carrying the input meld repaired for sort consistency,
 // provided that such repair is possible. otherwise return empty cell.

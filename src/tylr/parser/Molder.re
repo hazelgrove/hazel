@@ -79,6 +79,14 @@ let mold = (ctx: Ctx.t, ~fill=[], t: Token.Labeled.t) => {
   };
 };
 
+let rec remold = (~fill=[], ctx: Ctx.t) => {
+  switch (Ctx.split_fst(ctx)) {
+  | ((_, []), _) =>
+    let unrolled = fill |> List.rev_map(Slope.Dn.unroll_meld) |> List.concat;
+    Ctx.map_fst(Frame.Open.cat((unrolled, [])), ctx);
+  };
+};
+
 let rec remold = (~fill=[], ctx: Ctx.t) =>
   switch (Melder.Ctx.pull_terr(~from=R, ctx)) {
   | None =>

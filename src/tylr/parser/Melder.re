@@ -36,7 +36,7 @@ module Wald = {
     and rm_ghost_and_go = (src, fill) =>
       switch (W.unlink(src)) {
       | Ok((hd, cell, tl)) when Token.is_ghost(hd) =>
-        let fill = Option.to_list(cell.meld) @ fill;
+        let fill = [cell, ...fill];
         switch (go(tl, fill)) {
         // require eq match further in to accept removing hd
         | Some(Rel.Eq(_)) as r =>
@@ -77,12 +77,13 @@ module Terr = {
        )
     |> Meld.rev;
 
-  let round = (~from: Dir.t, ~fill=[], terr: T.t): list(Meld.t) => {
+  let round =
+      (~from: Dir.t, ~fill: list(Cell.t)=[], terr: T.t): list(Cell.t) => {
     let bake = Baker.bake(~from);
     let exited = Walker.exit(~from, Node(T.face(terr)));
     let orient = Dir.pick(from, (Meld.rev, Fun.id));
     switch (Oblig.Delta.minimize(bake(~fill), exited)) {
-    | Some(baked) => [orient(attach(baked, terr))]
+    | Some(baked) => [Cell.mk(~meld=orient(attach(baked, terr)), ())]
     | None =>
       let exited =
         ListUtil.hd_opt(exited)
@@ -92,7 +93,7 @@ module Terr = {
         |> OptUtil.get_or_fail(
              "bug: bake expected to succeed if no fill required",
            );
-      [orient(attach(baked, terr)), ...fill];
+      [Cell.mk(~meld=orient(attach(baked, terr)), ()), ...fill];
     };
   };
 

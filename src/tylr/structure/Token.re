@@ -19,6 +19,11 @@ let mk = (~id=?, ~text="", lbl) => {
   {id, lbl, text};
 };
 
+let mk_grout = (~id=?, ~l=false, ~r=false, sort) => {
+  let lbl = Molded.Label.mk_grout(~l, sort, ~r);
+  mk(~id?, ~text=failwith("grout text"), lbl);
+};
+
 module Labeled = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Base.t(Mtrl.t(list(Label.t)));
@@ -56,6 +61,11 @@ let length = (tok: t) =>
   | _ => String.length(tok.text)
   };
 
+let is_space = (tok: t) =>
+  switch (tok.lbl.mtrl) {
+  | Space => true
+  | _ => false
+  };
 let is_grout = (tok: t) =>
   switch (tok.lbl.mtrl) {
   | Space

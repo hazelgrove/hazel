@@ -21,6 +21,27 @@ module Label = {
       rctx: [Seq_([Atom(NT(Space))], [Atom(NT(Space))])],
     },
   };
+
+  let mk_grout = (~l=false, ~r=false, sort: Mtrl.Sort.t) => {
+    let rctx: RCtx.t(Mtrl.Sym.t) =
+      if (l && r) {
+        [Seq_([Atom(NT(Grout))], [Atom(NT(Grout))])];
+      } else if (l) {
+        [Seq_([Atom(NT(Grout))], [])];
+      } else if (r) {
+        [Seq_([], [Atom(NT(Grout))])];
+      } else {
+        [];
+      };
+    {
+      mtrl: Mtrl.Grout,
+      mold: {
+        sort,
+        prec: 0,
+        rctx,
+      },
+    };
+  };
 };
 
 module Sort = {
