@@ -1,5 +1,3 @@
-open Util;
-
 module Step = Molded.Label;
 module Stride = {
   open Sexplib.Std;

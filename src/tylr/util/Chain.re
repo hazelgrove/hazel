@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open Util;
 
 module Base = {
   // invariant: List.length(loops) == List.length(links) + 1

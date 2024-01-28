@@ -33,14 +33,8 @@ module Label = {
       } else {
         [];
       };
-    {
-      mtrl: Mtrl.Grout,
-      mold: {
-        sort,
-        prec: 0,
-        rctx,
-      },
-    };
+    let mold = Mold.{sort, prec: 0, rctx};
+    {mold, mtrl: Mtrl.Grout};
   };
 };
 

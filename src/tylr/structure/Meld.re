@@ -1,5 +1,4 @@
 open Sexplib.Std;
-open Util;
 
 module Cell = {
   [@deriving (show({with_path: false}), sexp, yojson)]

@@ -1,4 +1,3 @@
-open Util;
 open Walk;
 
 let expect_lbl =

@@ -11,7 +11,7 @@ let zip = (f: t(_), r: Regex.t(_)) =>
   | Seq_(ls, rs) => Seq(List.rev(ls) @ [r, ...rs])
   };
 
-let nullable = (side: Util.Dir.t, f: t(_)) =>
+let nullable = (side: Dir.t, f: t(_)) =>
   switch (side, f) {
   | (_, Star_ | Alt_(_)) => true
   | (L, Seq_(gs_l, _)) => Regex.nullable(Seq(gs_l))

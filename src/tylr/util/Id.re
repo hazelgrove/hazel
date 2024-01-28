@@ -14,7 +14,6 @@ module Gen = {
   let next = (): t => {
     let id = t^;
     t := id + 1;
-
     id;
   };
 
