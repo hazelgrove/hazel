@@ -9,6 +9,8 @@ include Base;
 
 let face = (terr: t) => Wald.face(terr.wald);
 
+let sort = (terr: t) => Wald.sort(terr.wald);
+
 module L = {
   // L2R: wald cell
   [@deriving (show({with_path: false}), sexp, yojson)]

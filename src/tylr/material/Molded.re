@@ -7,6 +7,8 @@ module Base = {
 };
 include Base;
 
+let mtrl_ = (m: t(_)) => m.mtrl;
+
 let map = (f, m) => {...m, mtrl: f(m)};
 
 module Label = {

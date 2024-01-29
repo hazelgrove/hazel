@@ -4,9 +4,9 @@ module Melded = {
   type t = Rel.t(Wald.t, Slope.t);
 
   let mk_eq = (_src: Wald.t, _bake, _dst: Wald.t) => failwith("todo");
-  let mk_neq = (_bake: Bake.t, _dst: Wald.t) => failwith("todo");
-  let mk = (src: Wald.t, bake: Bake.t, dst: Wald.t) =>
-    switch (Bake.is_eq(bake)) {
+  let mk_neq = (_bake: Baked.t, _dst: Wald.t) => failwith("todo");
+  let mk = (src: Wald.t, bake: Baked.t, dst: Wald.t) =>
+    switch (Baked.is_eq(bake)) {
     | Some(eq) => Rel.Eq(mk_eq(src, eq, dst))
     | None => Rel.Neq(mk_neq(bake, dst))
     };
@@ -135,7 +135,7 @@ module Slope = {
 
   let push =
       (~repair=false, ~onto: Dir.t, w: W.t, ~fill=[], slope: S.t)
-      : Result.t(S.t, list(Meld.t)) => {
+      : Result.t(S.t, Baked.Fill.t) => {
     let meld = Wald.meld(~repair, ~from=onto);
     let round = Dir.pick(onto, (Terr.R.round, Terr.L.round));
     let rec go = (fill, slope: S.t) =>
@@ -242,7 +242,7 @@ module Zigg = {
       switch (push_wald(~onto=R, hd.wald, ~fill, zigg)) {
       | None => ([], suf)
       | Some(zigg) =>
-        let fill = Option.to_list(hd.cell.meld);
+        let fill = Baked.Fill.cons(hd.cell, fill);
         let (leq, gt) = take_leq(zigg, ~fill, tl);
         ([hd, ...leq], gt);
       }
@@ -254,7 +254,7 @@ module Zigg = {
       switch (push_wald(~onto=L, hd.wald, ~fill, zigg)) {
       | None => (pre, [])
       | Some(zigg) =>
-        let fill = Option.to_list(hd.cell.meld);
+        let fill = Baked.Fill.cons(hd.cell, fill);
         let (lt, geq) = take_geq(tl, ~fill, zigg);
         (lt, [hd, ...geq]);
       }

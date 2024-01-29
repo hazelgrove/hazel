@@ -7,6 +7,7 @@ module Cell = {
     meld: option('meld),
   };
   let empty = {marks: Path.Marks.empty, meld: None};
+  let full = m => {marks: Path.Marks.empty, meld: Some(m)};
 };
 
 module Wald = {
@@ -24,6 +25,12 @@ type t =
   | M(Cell.t(t), Wald.t(Cell.t(t)), Cell.t(t));
 
 let mk = (~l=Cell.empty, ~r=Cell.empty, w) => M(l, w, r);
+
+let rec mk_grout = (~l=false, ~r=false, sort: Mtrl.Sort.t) => {
+  let c_l = l ? Cell.full(mk_grout(Grout)) : Cell.empty;
+  let c_r = r ? Cell.full(mk_grout(Grout)) : Cell.empty;
+  mk(~l=c_l, Wald.of_tok(Token.mk_grout(~l, sort, ~r)), ~r=c_r);
+};
 
 let of_tok = tok => mk(Wald.of_tok(tok));
 

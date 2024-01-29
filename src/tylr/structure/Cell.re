@@ -63,6 +63,11 @@ let rec pad = (~side as d: Dir.t, ~pad as p: t, cell: t) =>
     put(M(l, w, r));
   };
 
+let face = (~side: Dir.t, cell: t) =>
+  cell.meld
+  |> Option.map(Meld.face(~side))
+  |> Option.value(~default=Molded.Label.space);
+
 // let face = (~side: Dir.t, cell: t) =>
 //   switch (cell.meld) {
 //   | None => Molded.Label.

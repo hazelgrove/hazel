@@ -26,4 +26,9 @@ module Fill = {
         [cell, ...fill];
       }
     };
+  let faces =
+    fun
+    | [] => Molded.Label.(space, space)
+    | [hd, ..._] as fill =>
+      Cell.(face(~side=L, hd), face(~side=R, ListUtil.last(fill)));
 };
