@@ -8,22 +8,13 @@ let view =
       ~ui_state: Model.ui_state,
       ~settings: Settings.t,
       ~color_highlighting,
-      ~results,
+      ~result: option(ModelResult.t),
+      ~result_key,
       ~statics as {editor, error_ids, _}: Editor.statics,
     ) => {
-  let result = ModelResults.get(results, ScratchSlide.scratch_key);
-  // let footer =
-  //   settings.core.statics
-  //     ? {
-  //       let elab =
-  //         settings.core.elaborate
-  //           ? Some(
-  //               Interface.elaborate(~settings=settings.core, info_map, term),
-  //             )
-  //           : None;
-  //       Some(Cell.footer(~settings, ~inject, ~ui_state, result));
-  //     }
-  //     : None;
+  //TODO(andrew): cleanup
+  let simple = result |> Util.OptUtil.and_then(ModelResult.get_simple);
+  let test_results = TestResults.unwrap_test_results(simple);
   [
     Cell.editor_view(
       ~inject,
@@ -32,10 +23,22 @@ let view =
       ~settings,
       ~code_id="code-container",
       ~error_ids,
-      ~test_results=result.tests,
+      ~test_results,
       ~footer=
         settings.core.statics
-          ? Some(Cell.footer(~settings, ~inject, ~ui_state, result)) : None,
+          ? result
+            |> Option.map(result =>
+                 Cell.footer(
+                   ~settings,
+                   ~inject,
+                   ~ui_state,
+                   ~result,
+                   ~result_key,
+                 )
+               )
+            |> Option.to_list
+            |> List.flatten
+          : [],
       ~color_highlighting,
       Editor.get_syntax(editor),
     ),

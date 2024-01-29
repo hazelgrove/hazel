@@ -733,3 +733,24 @@ let rec holes = (segment: t): list(Grout.t) =>
     | Grout(g) => [g],
     segment,
   );
+
+let get_childrens: t => list(t) =
+  List.concat_map(
+    fun
+    | Piece.Tile(t) => t.children
+    | _ => [],
+  );
+
+let rec get_incomplete_ids = (seg: t): list(Id.t) =>
+  List.concat_map(
+    fun
+    | Piece.Tile(t) => {
+        let ids = List.concat_map(get_incomplete_ids, t.children);
+        Tile.is_complete(t) ? ids : [t.id, ...ids];
+      }
+    | _ => [],
+    seg,
+  );
+
+let ids_of_incomplete_tiles_in_bidelimiteds = (seg: t): list(Id.t) =>
+  get_childrens(seg) |> List.concat |> get_incomplete_ids;

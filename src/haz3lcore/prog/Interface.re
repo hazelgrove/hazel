@@ -151,5 +151,3 @@ let eval_d2d = (~settings: CoreSettings.t, d: DHExp.t): DHExp.t =>
 let eval_u2d = (~settings: CoreSettings.t, map, term): DHExp.t =>
   /* NOTE: assumes empty init ctx, env */
   term |> elaborate(~settings, map) |> eval_d2d(~settings);
-
-include TestResults;

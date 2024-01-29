@@ -5,12 +5,29 @@ let startup : PersistentData.t =
         captions = true;
         secondary_icons = false;
         core =
-          { statics = true; elaborate = false; assist = true; dynamics = true };
+          {
+            statics = true;
+            elaborate = false;
+            assist = true;
+            dynamics = true;
+            evaluation =
+              {
+                show_case_clauses = true;
+                show_fn_bodies = false;
+                show_fixpoints = false;
+                show_casts = false;
+                show_lookup_steps = false;
+                show_stepper_filters = false;
+                stepper_history = false;
+                show_settings = false;
+              };
+          };
         async_evaluation = false;
         context_inspector = false;
         instructor_mode = true;
         benchmark = false;
-        mode = Examples;
+        mode = Documentation;
+        explainThis = { show = true; show_feedback = false };
       };
     scratch =
       ( 0,
@@ -107,9 +124,10 @@ let startup : PersistentData.t =
                Convex))))))(ancestors())))(caret Outer))";
             backup_text = "     ";
           };
-        ] );
-    examples =
-      ( "Introduction",
+        ],
+        [] );
+    documentation =
+      ( "Programming Expressively",
         [
           ( "Casting",
             {
@@ -13895,86 +13913,16 @@ let startup : PersistentData.t =
                  eval(Ap(Lam(\"yo\", Var(\"yo\")), Lam(\"bro\", Var(\"bro\")))),\n\
                  Ok(Lam(\"bro\", Var(\"bro\")))) end";
             } );
-          ( "Introduction",
-            {
-              zipper =
-                "((selection((focus Left)(content())(mode \
-                 Normal)))(backpack())(relatives((siblings(((Secondary((id \
-                 a74105fa-7e1d-4ebf-a5d2-2ca7738db2e9)(content(Comment\"# \
-                 Welcome to Hazel! #\"))))(Secondary((id \
-                 ae96e703-aa27-4c8b-8d2d-5655f82573fd)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
-                 534ab578-af26-4590-91ad-b41d9fe1aa32)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
-                 dd18c1c2-7b79-45df-93c9-3d0df3cffd7e)(content(Comment\"# To \
-                 get started, type 2 * 3 + 4 into the hole below, \
-                 #\"))))(Secondary((id \
-                 8ec6cc02-b3dd-479a-982d-c59ff48b3bfc)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
-                 c4cd2a21-e300-4ba9-896f-161b07843130)(content(Comment\"# \
-                 stopping between each character to observe how holes \
-                 #\"))))(Secondary((id \
-                 8c341fbd-314c-4791-970e-a0ff79477ed0)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
-                 6b66713a-1650-4509-a5ec-a34557616ebf)(content(Comment\"# \
-                 appear at each step to ensure that every editor state \
-                 #\"))))(Secondary((id \
-                 b0d0bfa2-a8a3-4853-b414-b9d56c718475)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
-                 1da69959-d7cd-4d92-9218-c7c0b68a29d1)(content(Comment\"# is \
-                 meaningful. #\"))))(Secondary((id \
-                 76c8fcbe-f994-4976-a957-da42136a4a21)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
-                 c297f7fa-8b11-41a7-90ec-e663b13ca871)(content(Whitespace\"\\226\\143\\142\"))))(Tile((id \
-                 3f8aa464-6195-4d59-88fe-f3b1b7bf99af)(label(2))(mold((out \
-                 Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape \
-                 Convex)(sort Exp))))))(shards(0))(children())))(Secondary((id \
-                 dca6a71f-4a1d-4334-8495-c442b0d449fd)(content(Whitespace\" \
-                 \"))))(Tile((id \
-                 54392010-bf2b-44c5-bf64-1ffffcb89f70)(label(+))(mold((out \
-                 Exp)(in_())(nibs(((shape(Concave 5))(sort \
-                 Exp))((shape(Concave 5))(sort \
-                 Exp))))))(shards(0))(children())))(Secondary((id \
-                 5558a956-147b-4e71-a6c4-761d8360d0e3)(content(Whitespace\" \
-                 \")))))((Grout((id \
-                 a06c6ec9-b6f5-44d6-97ec-d64bc07168a6)(shape \
-                 Convex)))(Secondary((id \
-                 b8d9a0fe-1172-455e-a083-9bd2bebe6672)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
-                 3ca611b4-d0f7-4e36-87ae-03d286519182)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
-                 eb90bd50-c85e-461f-b4f1-f9304222ef74)(content(Comment\"# Once \
-                 you are finished, navigate the menu in the top bar \
-                 #\"))))(Secondary((id \
-                 944c2529-9a86-464e-979c-fb89639104d5)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
-                 7138238a-1897-4c40-9361-79abf418d970)(content(Comment\"# to \
-                 see other examples, enter Scratch mode to play with \
-                 #\"))))(Secondary((id \
-                 5d74dc8f-e13e-4397-af3a-866aab823c4a)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
-                 6cf73953-4728-49d3-9c05-eae696375f9a)(content(Comment\"# \
-                 Hazel, or enter Exercises mode to do some introductory \
-                 #\"))))(Secondary((id \
-                 7adbd1c5-9171-4733-b458-79f2bcea219b)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
-                 81776275-d07b-4334-a190-e30a2ce678a0)(content(Comment\"# \
-                 exercises. Hazel is a work-in-progress research project, \
-                 #\"))))(Secondary((id \
-                 b3ee4319-e4fb-42a5-bb32-956a8d4380df)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
-                 979279e3-4545-4edf-ad55-bd89cf19d111)(content(Comment\"# so \
-                 there is not much public educational material yet. \
-                 #\"))))(Secondary((id \
-                 ea95ea96-c730-4327-8ea4-dd19de042f10)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
-                 bf896e4a-cbbd-42ba-ba75-093716915b1a)(content(Comment\"# \
-                 Check out the research papers at hazel.org for more on \
-                 #\"))))(Secondary((id \
-                 73066a1f-6ab9-4195-bd6e-fa3a78ecbe48)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
-                 40bc0153-30e3-4f98-bfe1-834d6adec36d)(content(Comment\"# how \
-                 Hazel works. #\")))))))(ancestors())))(caret Outer))";
-              backup_text =
-                "# Welcome to Hazel! #\n\n\
-                 # To get started, type 2 * 3 + 4 into the hole below, #\n\
-                 # stopping between each character to observe how holes #\n\
-                 # appear at each step to ensure that every editor state #\n\
-                 # is meaningful. #\n\n\
-                 2 +  \n\n\
-                 # Once you are finished, navigate the menu in the top bar #\n\
-                 # to see other examples, enter Scratch mode to play with #\n\
-                 # Hazel, or enter Exercises mode to do some introductory #\n\
-                 # exercises. Hazel is a work-in-progress research project, #\n\
-                 # so there is not much public educational material yet. #\n\
-                 # Check out the research papers at hazel.org for more on #\n\
-                 # how Hazel works. #";
-            } );
-        ] );
+          ("Programming Expressively", { zipper = ""; backup_text = "" });
+          ("Composing Arithmetic Expressions", { zipper = ""; backup_text = "" });
+          ("Computing Equationally", { zipper = ""; backup_text = "" });
+          ("Variables", { zipper = ""; backup_text = "" });
+          ("Compositionality", { zipper = ""; backup_text = "" });
+          ("Scope", { zipper = ""; backup_text = "" });
+          ("Shadowing", { zipper = ""; backup_text = "" });
+          ("Booleans and Types", { zipper = ""; backup_text = "" });
+          ("Conditional Expressions", { zipper = ""; backup_text = "" });
+          ("Functions", { zipper = ""; backup_text = "" });
+        ],
+        [] );
   }

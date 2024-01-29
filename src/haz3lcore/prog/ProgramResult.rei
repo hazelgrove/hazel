@@ -19,14 +19,3 @@ let init: string => t;
 let get_dhexp: t => DHExp.t;
 let get_state: t => EvaluatorState.t;
 let get_elab: t => DHExp.t;
-
-/**
-  [get_hii r] is the {!type:HoleInstanceInfo.t} in [r].
- */
-let get_hii: t => HoleInstanceInfo.t;
-
-/**
-  [fast_equal (r1, hii1, _, _) (r2, hii2, _, _) ] is checks if [hii1] and
-  [hii2] are equal and computes [EvaluatorResult.fast_equal r1 r2].
- */
-let fast_equal: (t, t) => bool;
