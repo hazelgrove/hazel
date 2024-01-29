@@ -4,7 +4,7 @@ open Sexplib.Std;
 type count = option(int);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type textobject_key =
+type text_object_key =
   | Term // w
   | Parenthesis; // ()
 
@@ -25,13 +25,13 @@ type query_key =
 type query_op = (option(query_decoration), query_key);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type query = (textobject, query_op)
-and textobject =
-  | Inner(textobject_key) // i
-  | Query(query); // q
+type query = (text_object, query_op)
+and text_object =
+  | Inner(text_object_key) // i
+  | Queried(query); // q
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type action = (textobject, action_key);
+type action = (text_object, action_key);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type command =
