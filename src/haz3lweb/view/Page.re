@@ -1,4 +1,5 @@
 open Js_of_ocaml;
+open Widgets;
 open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
@@ -51,10 +52,10 @@ let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit), model) => {
 let main_view =
     (
       ~inject: UpdateAction.t => Ui_effect.t(unit),
-      {settings, editors, langDocMessages, meta: {ui_state, results, _}, _}: Model.t,
+      {settings, editors, explainThisModel, results, meta: {ui_state, _}, _}: Model.t,
     ) => {
   let statics = Editors.get_statics(~settings, editors);
-  let {cursor_info, info_map, indicated_id, zipper, _}: Editor.statics = statics;
+  let {cursor_info, info_map, indicated_id, _}: Editor.statics = statics;
   let top_bar =
     div(
       ~attr=Attr.id("top-bar"),
@@ -62,44 +63,52 @@ let main_view =
       @ [div(~attr=Attr.id("title"), [text("hazel")])]
       @ [EditorModeView.view(~inject, ~settings, ~editors)],
     );
-  let bottom_bar =
-    CursorInspector.view(
-      ~inject,
-      ~settings,
-      ~show_lang_doc=langDocMessages.show,
-      ~cursor_info,
-    );
+  let bottom_bar = CursorInspector.view(~inject, ~settings, cursor_info);
   let sidebar =
-    langDocMessages.show && settings.core.statics
-      ? LangDoc.view(
+    settings.explainThis.show && settings.core.statics
+      ? ExplainThis.view(
           ~inject,
           ~font_metrics=ui_state.font_metrics,
           ~settings,
-          ~doc=langDocMessages,
-          indicated_id,
-          info_map,
+          ~doc=explainThisModel,
+          cursor_info,
         )
       : div([]);
-  let color_highlighting: option(ColorSteps.colorMap) =
-    if (langDocMessages.highlight && langDocMessages.show) {
-      Some(LangDoc.get_color_map(~settings, ~doc=langDocMessages, zipper));
-    } else {
-      None;
-    };
+  let color_highlighting =
+    ExplainThis.get_color_map(
+      ~settings,
+      ~explainThisModel,
+      indicated_id,
+      info_map,
+    );
   let editors_view =
     switch (editors) {
     | DebugLoad => [DebugMode.view(~inject)]
-    | Scratch(_)
-    | Examples(_) =>
+    | Scratch(idx, _) =>
+      let result_key = ScratchSlide.scratch_key(string_of_int(idx));
+      let result = ModelResults.get(results, result_key);
       ScratchMode.view(
         ~inject,
         ~ui_state,
         ~settings,
         ~color_highlighting,
-        ~results,
+        ~result,
+        ~result_key,
         ~statics,
-      )
-    | Exercise(_, _, exercise) =>
+      );
+    | Documentation(name, _) =>
+      let result_key = ScratchSlide.scratch_key(name);
+      let result = ModelResults.get(results, result_key);
+      ScratchMode.view(
+        ~inject,
+        ~ui_state,
+        ~settings,
+        ~color_highlighting,
+        ~result,
+        ~result_key,
+        ~statics,
+      );
+    | Exercises(_, _, exercise) =>
       ExerciseMode.view(
         ~inject,
         ~ui_state,
@@ -124,6 +133,85 @@ let main_view =
   ];
 };
 
+let stepper_settings_modal = (~inject, settings: Settings.t) => {
+  let modal = div(~attr=Attr.many([Attr.class_("settings-modal")]));
+  let setting = (icon, name, current, action: UpdateAction.settings_action) =>
+    div(
+      ~attr=Attr.many([Attr.class_("settings-toggle")]),
+      [
+        toggle(~tooltip=name, icon, current, _ => inject(Update.Set(action))),
+        text(name),
+      ],
+    );
+  [
+    modal([
+      div(
+        ~attr=Attr.many([Attr.class_("settings-modal-top")]),
+        [
+          Widgets.button(Icons.x, _ =>
+            inject(Update.Set(Evaluation(ShowSettings)))
+          ),
+        ],
+      ),
+      setting(
+        "h",
+        "show full step trace",
+        settings.core.evaluation.stepper_history,
+        Evaluation(ShowRecord),
+      ),
+      setting(
+        "|",
+        "show case clauses",
+        settings.core.evaluation.show_case_clauses,
+        Evaluation(ShowCaseClauses),
+      ),
+      setting(
+        "λ",
+        "show function bodies",
+        settings.core.evaluation.show_fn_bodies,
+        Evaluation(ShowFnBodies),
+      ),
+      setting(
+        "x",
+        "show fixpoints",
+        settings.core.evaluation.show_fixpoints,
+        Evaluation(ShowFixpoints),
+      ),
+      setting(
+        Unicode.castArrowSym,
+        "show casts",
+        settings.core.evaluation.show_casts,
+        Evaluation(ShowCasts),
+      ),
+      setting(
+        "🔍",
+        "show lookup steps",
+        settings.core.evaluation.show_lookup_steps,
+        Evaluation(ShowLookups),
+      ),
+      setting(
+        "⏯️",
+        "show stepper filters",
+        settings.core.evaluation.show_stepper_filters,
+        Evaluation(ShowFilters),
+      ),
+    ]),
+    div(
+      ~attr=
+        Attr.many([
+          Attr.class_("modal-back"),
+          Attr.on_mousedown(_ =>
+            inject(Update.Set(Evaluation(ShowSettings)))
+          ),
+        ]),
+      [],
+    ),
+  ];
+};
+
+let get_selection = (model: Model.t): string =>
+  model.editors |> Editors.get_editor |> Printer.to_string_selection;
+
 let view = (~inject: UpdateAction.t => Ui_effect.t(unit), model: Model.t) =>
   div(
     ~attr=Attr.many(Attr.[id("page"), ...handlers(~inject, model)]),
@@ -132,5 +220,9 @@ let view = (~inject: UpdateAction.t => Ui_effect.t(unit), model: Model.t) =>
       DecUtil.filters,
       JsUtil.clipboard_shim,
     ]
-    @ main_view(~inject, model),
+    @ main_view(~inject, model)
+    @ (
+      model.settings.core.evaluation.show_settings
+        ? stepper_settings_modal(~inject, model.settings) : []
+    ),
   );

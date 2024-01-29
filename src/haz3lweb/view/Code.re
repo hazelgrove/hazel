@@ -130,15 +130,20 @@ let rec holes =
          ],
      );
 
-let simple_view = (~unselected, ~map, ~settings: Settings.t): Node.t => {
+let simple_view =
+    (~font_metrics, ~unselected, ~map, ~settings: Settings.t): Node.t => {
   module Text =
     Text({
       let map = map;
       let settings = settings;
     });
+  let holes = holes(~map, ~font_metrics, unselected);
   div(
     ~attr=Attr.class_("code"),
-    [span_c("code-text", Text.of_segment([], false, Sort.Any, unselected))],
+    [
+      span_c("code-text", Text.of_segment([], false, Sort.Any, unselected)),
+      ...holes,
+    ],
   );
 };
 

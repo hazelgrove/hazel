@@ -225,13 +225,22 @@ type tpat = {
   status: status_tpat,
 };
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type secondary = {
+  id: Id.t, // Id of term static info is sourced from
+  cls: Term.Cls.t, // Cls of secondary, not source term
+  sort: Sort.t, // from source term
+  ctx: Ctx.t // from source term
+};
+
 /* The static information collated for each term */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | InfoExp(exp)
   | InfoPat(pat)
   | InfoTyp(typ)
-  | InfoTPat(tpat);
+  | InfoTPat(tpat)
+  | Secondary(secondary);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error =
@@ -245,35 +254,40 @@ let sort_of: t => Sort.t =
   | InfoExp(_) => Exp
   | InfoPat(_) => Pat
   | InfoTyp(_) => Typ
-  | InfoTPat(_) => TPat;
+  | InfoTPat(_) => TPat
+  | Secondary(s) => s.sort;
 
 let id_of: t => Id.t =
   fun
   | InfoExp({term, _}) => UExp.rep_id(term)
   | InfoPat({term, _}) => UPat.rep_id(term)
   | InfoTyp({term, _}) => UTyp.rep_id(term)
-  | InfoTPat({term, _}) => UTPat.rep_id(term);
+  | InfoTPat({term, _}) => UTPat.rep_id(term)
+  | Secondary(s) => s.id;
 
 let cls_of: t => Cls.t =
   fun
   | InfoExp({cls, _})
   | InfoPat({cls, _})
   | InfoTyp({cls, _})
-  | InfoTPat({cls, _}) => cls;
+  | InfoTPat({cls, _})
+  | Secondary({cls, _}) => cls;
 
 let ctx_of: t => Ctx.t =
   fun
   | InfoExp({ctx, _})
   | InfoPat({ctx, _})
   | InfoTyp({ctx, _})
-  | InfoTPat({ctx, _}) => ctx;
+  | InfoTPat({ctx, _})
+  | Secondary({ctx, _}) => ctx;
 
 let ancestors_of: t => ancestors =
   fun
   | InfoExp({ancestors, _})
   | InfoPat({ancestors, _})
   | InfoTyp({ancestors, _})
-  | InfoTPat({ancestors, _}) => ancestors;
+  | InfoTPat({ancestors, _}) => ancestors
+  | Secondary(_) => []; //TODO
 
 let error_of: t => option(error) =
   fun
@@ -284,7 +298,8 @@ let error_of: t => option(error) =
   | InfoExp({status: InHole(err), _}) => Some(Exp(err))
   | InfoPat({status: InHole(err), _}) => Some(Pat(err))
   | InfoTyp({status: InHole(err), _}) => Some(Typ(err))
-  | InfoTPat({status: InHole(err), _}) => Some(TPat(err));
+  | InfoTPat({status: InHole(err), _}) => Some(TPat(err))
+  | Secondary(_) => None;
 
 let exp_co_ctx: exp => CoCtx.t = ({co_ctx, _}) => co_ctx;
 let exp_ty: exp => Typ.t = ({ty, _}) => ty;
@@ -446,6 +461,7 @@ let is_error = (ci: t): bool => {
     | InHole(_) => true
     | NotInHole(_) => false
     }
+  | Secondary(_) => false
   };
 };
 

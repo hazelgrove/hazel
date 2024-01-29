@@ -69,7 +69,7 @@ let view =
       ~caption=Cell.caption(caption, ~rest=?subcaption),
       ~code_id=Exercise.show_pos(this_pos),
       ~test_results,
-      ~footer,
+      ~footer=Option.to_list(footer),
       Editor.get_syntax(editor),
     );
   };
@@ -89,7 +89,10 @@ let view =
         ~subcaption=settings.instructor_mode ? "" : " (Read-Only)",
         ~editor=eds.prelude,
         ~info_map=prelude.info_map,
-        ~test_results=ModelResult.unwrap_test_results(prelude.simple_result),
+        ~test_results=
+          TestResults.unwrap_test_results(
+            ModelResult.get_simple(prelude.result),
+          ),
       ),
     );
 
@@ -102,7 +105,9 @@ let view =
           ~editor=eds.correct_impl,
           ~info_map=instructor.info_map,
           ~test_results=
-            ModelResult.unwrap_test_results(instructor.simple_result),
+            TestResults.unwrap_test_results(
+              ModelResult.get_simple(instructor.result),
+            ),
         ),
     );
 
@@ -159,7 +164,9 @@ let view =
         ~editor=eds.your_tests.tests,
         ~info_map=test_validation.info_map,
         ~test_results=
-          ModelResult.unwrap_test_results(test_validation.simple_result),
+          TestResults.unwrap_test_results(
+            ModelResult.get_simple(test_validation.result),
+          ),
         ~footer=
           Grading.TestValidationReport.view(
             ~inject,
@@ -173,10 +180,7 @@ let view =
     List.mapi(
       (
         i,
-        (
-          Exercise.{impl, _},
-          Exercise.DynamicsItem.{info_map, simple_result, _},
-        ),
+        (Exercise.{impl, _}, Exercise.DynamicsItem.{info_map, result, _}),
       ) => {
         InstructorOnly(
           () =>
@@ -185,7 +189,10 @@ let view =
               ~caption="Wrong Implementation " ++ string_of_int(i + 1),
               ~editor=impl,
               ~info_map,
-              ~test_results=ModelResult.unwrap_test_results(simple_result),
+              ~test_results=
+                TestResults.unwrap_test_results(
+                  ModelResult.get_simple(result),
+                ),
             ),
         )
       },
@@ -201,7 +208,7 @@ let view =
       ),
     );
 
-  let your_impl_view =
+  let your_impl_view = {
     Always(
       editor_view(
         YourImpl,
@@ -209,19 +216,29 @@ let view =
         ~editor=eds.your_impl,
         ~info_map=user_impl.info_map,
         ~test_results=
-          ModelResult.unwrap_test_results(user_impl.simple_result),
+          TestResults.unwrap_test_results(
+            ModelResult.get_simple(user_impl.result),
+          ),
+        //TODO(andrew): wrapping
         ~footer=
-          Cell.footer(
-            ~settings,
-            ~inject,
-            ~ui_state,
-            ModelResult.unwrap'(user_impl.simple_result),
+          div(
+            ~attr=Attr.id("temmmmp"),
+            Cell.footer(
+              ~settings,
+              ~inject,
+              ~ui_state,
+              ~result=user_impl.result,
+              ~result_key=Exercise.user_impl_key,
+            ),
           ),
       ),
     );
+  };
 
   let testing_results =
-    ModelResult.unwrap_test_results(user_tests.simple_result);
+    TestResults.unwrap_test_results(
+      ModelResult.get_simple(user_tests.result),
+    );
 
   let syntax_grading_view =
     Always(Grading.SyntaxReport.view(grading_report.syntax_report));
@@ -253,7 +270,9 @@ let view =
           ~editor=eds.hidden_tests.tests,
           ~info_map=instructor.info_map,
           ~test_results=
-            ModelResult.unwrap_test_results(instructor.simple_result),
+            TestResults.unwrap_test_results(
+              ModelResult.get_simple(instructor.result),
+            ),
         ),
     );
 

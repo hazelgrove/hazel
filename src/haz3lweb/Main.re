@@ -91,15 +91,7 @@ module App = {
     let _ =
       State.evaluator_subscribe(
         state,
-        ((key, r)) => {
-          let cr: Haz3lcore.ModelResult.current =
-            switch (r) {
-            | Some(EvaluationOk(r)) => ResultOk(r)
-            | Some(EvaluationFail(reason)) => ResultFail(reason)
-            | None => ResultTimeout
-            };
-          schedule_action(Update.SetMeta(Result(key, cr)));
-        },
+        ((key, mr)) => {schedule_action(UpdateResult(key, mr))},
         () => (),
       );
 

@@ -103,7 +103,7 @@ let test_result_layer =
     (
       ~font_metrics,
       ~measured: Measured.t,
-      test_results: Interface.test_results,
+      test_results: TestResults.test_results,
     )
     : list(t) =>
   List.filter_map(
@@ -123,7 +123,7 @@ let deco =
       ~show_backpack_targets,
       ~selected,
       ~error_ids,
-      ~test_results: option(Interface.test_results),
+      ~test_results: option(TestResults.test_results),
       ~color_highlighting: option(ColorSteps.colorMap),
     ) => {
   module Deco =
@@ -152,26 +152,32 @@ let deco =
 
 let footer =
     (
-      ~inject as _,
+      ~inject,
       ~settings: Settings.t,
       ~ui_state as {font_metrics, _}: Model.ui_state,
-      result: ModelResult.optional_simple_data,
+      ~result_key: string,
+      result: ModelResult.elab_eval,
     ) => {
+  let show_stepper =
+    Widgets.toggle(~tooltip="Show Stepper", "s", false, _ =>
+      inject(UpdateAction.ToggleStepper(result_key))
+    );
   let dhcode_view = (~show_casts) =>
     DHCode.view(
-      ~settings={show_case_clauses: true, show_fn_bodies: true, show_casts},
+      ~settings={...CoreSettings.Evaluation.init, show_casts},
       ~selected_hole_instance=None,
       ~font_metrics,
       ~width=80,
     );
-  let d_view =
-    switch (result.value, result.elab) {
-    | (Some(dhexp), _) when settings.core.dynamics =>
+  let d_view: list(t) =
+    switch (result.evaluation, result.elab) {
+    | (ResultOk(res), _) when settings.core.dynamics =>
+      let dhexp = ProgramResult.get_dhexp(res);
       /* Disabling casts in this case as large casts can blow up UI perf */
-      [dhcode_view(~show_casts=false, dhexp)]
-    | (_, Some(elab)) when settings.core.elaborate && !settings.core.dynamics => [
+      [dhcode_view(~inject, ~result_key, ~show_casts=false, dhexp)];
+    | (_, elab) when settings.core.elaborate && !settings.core.dynamics => [
         text("Evaluation disabled, elaboration follows:"),
-        dhcode_view(~show_casts=true, elab),
+        dhcode_view(~inject, ~result_key, ~show_casts=true, elab),
       ]
     | _ => [text("Evaluation & elaboration display disabled")]
     };
@@ -180,6 +186,7 @@ let footer =
     [
       div(~attr=Attr.class_("equiv"), [text("≡")]),
       div(~attr=Attr.classes(["result"]), d_view),
+      show_stepper,
     ],
   );
 };
@@ -195,8 +202,8 @@ let editor_view =
       ~mousedown_updates: list(Update.t)=[],
       ~selected: bool=true,
       ~caption: option(Node.t)=?,
-      ~test_results: option(Interface.test_results),
-      ~footer: option(Node.t),
+      ~test_results: option(TestResults.test_results),
+      ~footer: list(Node.t),
       ~color_highlighting: option(ColorSteps.colorMap),
       ~error_ids: list(Id.t),
       syntax: Editor.syntax,
@@ -241,23 +248,90 @@ let editor_view =
         Option.to_list(caption) @ mousedown_overlay @ [code_view],
       ),
     ]
-    @ Option.to_list(footer),
+    @ footer,
+  );
+};
+
+let footer =
+    (
+      ~inject,
+      ~ui_state as {font_metrics, _} as ui_state: Model.ui_state,
+      ~settings: Settings.t,
+      ~result: ModelResult.t,
+      ~result_key,
+    ) =>
+  if (!settings.core.statics) {
+    [];
+  } else {
+    switch (result) {
+    | NoElab => []
+    | Evaluation(result) => [
+        footer(~inject, ~ui_state, ~settings, ~result_key, result),
+      ]
+    | Stepper(s) =>
+      StepperView.stepper_view(
+        ~inject,
+        ~settings=settings.core.evaluation,
+        ~font_metrics,
+        ~result_key,
+        s,
+      )
+    };
+  };
+
+let editor_with_result_view =
+    (
+      ~inject,
+      ~ui_state,
+      ~clss=[],
+      ~settings: Settings.t,
+      ~color_highlighting: option(ColorSteps.colorMap),
+      ~selected: bool,
+      ~caption: option(Node.t)=?,
+      ~code_id: string,
+      ~result_key: string,
+      ~result: ModelResult.t,
+      editor,
+    ) => {
+  let simple = ModelResult.get_simple(result);
+  let test_results = TestResults.unwrap_test_results(simple);
+  let eval_result_footer =
+    footer(~inject, ~ui_state, ~settings, ~result_key, ~result);
+  editor_view(
+    ~inject,
+    ~ui_state,
+    ~clss,
+    ~mousedown_updates=[],
+    ~settings,
+    ~selected,
+    ~caption?,
+    ~code_id,
+    ~test_results,
+    ~footer=eval_result_footer,
+    ~color_highlighting,
+    editor,
   );
 };
 
 let test_view =
     (
+      ~settings,
       ~title,
       ~inject,
       ~font_metrics,
-      ~test_results: option(Interface.test_results),
+      ~test_results: option(TestResults.test_results),
     )
     : Node.t =>
   div(
     ~attr=Attr.classes(["cell-item", "panel", "test-panel"]),
     [
       TestView.view_of_main_title_bar(title),
-      TestView.test_reports_view(~inject, ~font_metrics, ~test_results),
+      TestView.test_reports_view(
+        ~settings,
+        ~inject,
+        ~font_metrics,
+        ~test_results,
+      ),
       TestView.test_summary(~inject, ~test_results),
     ],
   );
@@ -267,7 +341,7 @@ let report_footer_view = content => {
 };
 
 let test_report_footer_view =
-    (~inject, ~test_results: option(Interface.test_results)) => {
+    (~inject, ~test_results: option(TestResults.test_results)) => {
   report_footer_view([TestView.test_summary(~inject, ~test_results)]);
 };
 
