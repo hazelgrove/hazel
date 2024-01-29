@@ -70,7 +70,7 @@ let settings_menu =
       "f",
       "Show fixpoints",
       evaluation.show_fixpoints,
-      Evaluation(ShowCaseClauses),
+      Evaluation(ShowFixpoints),
     ),
     toggle(
       Unicode.castArrowSym,
