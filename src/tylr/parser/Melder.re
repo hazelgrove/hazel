@@ -64,15 +64,15 @@ module Wald = {
 
 module T = Terr;
 module Terr = {
-  let attach = (bake: Bake.t, terr: T.t) =>
-    bake
+  let attach = (baked: Baked.t, terr: T.t) =>
+    baked
     |> Chain.fold_left(
          fun
-         | Rel.Neq(_) => raise(Invalid_argument("Melder.Terr.R.connect"))
+         | Rel.Neq(_) => raise(Invalid_argument("Melder.Terr.attach"))
          | Eq(cell) => Meld.M(terr.cell, terr.wald, cell),
          (meld, tok) =>
          fun
-         | Rel.Neq(_) => raise(Invalid_argument("Melder.Terr.R.connect"))
+         | Rel.Neq(_) => raise(Invalid_argument("Melder.Terr.attach"))
          | Eq(cell) => Meld.link(~cell, tok, meld)
        )
     |> Meld.rev;

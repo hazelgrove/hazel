@@ -78,4 +78,5 @@ module Marks = {
     cursor: Cursor.union(l.cursor, r.cursor),
     ghosts: Ghosts.union(l.ghosts, r.ghosts),
   };
+  let union_all = List.fold_left(union, empty);
 };

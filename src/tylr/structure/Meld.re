@@ -39,6 +39,12 @@ let is_space =
   | M(_, W(([tok], [])), _) when tok.lbl.mtrl == Mtrl.Space => Some(tok)
   | _ => None;
 
+let map_cells = (f, M(l, W((toks, cells)), r)) => {
+  let (l, r) = (f(l), f(r));
+  let cells = List.map(f, cells);
+  M(l, W((toks, cells)), r);
+};
+
 // let singleton = (~l=Cell.empty, ~r=Cell.empty, t) =>
 //   mk(~l, W(Chain.unit(t)), ~r);
 
