@@ -242,7 +242,7 @@ module Zigg = {
       switch (push_wald(~onto=R, hd.wald, ~fill, zigg)) {
       | None => ([], suf)
       | Some(zigg) =>
-        let fill = Baked.Fill.cons(hd.cell, fill);
+        let fill = Baked.Fill.init(hd.cell);
         let (leq, gt) = take_leq(zigg, ~fill, tl);
         ([hd, ...leq], gt);
       }
@@ -254,7 +254,7 @@ module Zigg = {
       switch (push_wald(~onto=L, hd.wald, ~fill, zigg)) {
       | None => (pre, [])
       | Some(zigg) =>
-        let fill = Baked.Fill.cons(hd.cell, fill);
+        let fill = Baked.Fill.init(hd.cell);
         let (lt, geq) = take_geq(tl, ~fill, zigg);
         (lt, [hd, ...geq]);
       }
@@ -292,6 +292,24 @@ module Ctx = {
     };
   };
   let push = (~onto: Dir.t, t: Token.t) => push_wald(~onto, W.unit(t));
+
+  let rec push_slope = (~onto: Dir.t, s: S.t, ~fill=[], ctx: C.t) =>
+    switch (s) {
+    | [] => Some(ctx)
+    | [hd, ...tl] =>
+      open OptUtil.Syntax;
+      let* ctx = push_wald(~onto, hd.wald, ~fill, ctx);
+      push_slope(~onto, tl, ~fill=[hd.cell], ctx);
+    };
+  let push_zigg = (~onto as d: Dir.t, zigg: Z.t, ctx: C.t) => {
+    open OptUtil.Syntax;
+    let (s_d, s_b) = Dir.order(d, (zigg.dn, zigg.up));
+    let* ctx = push_slope(~onto=d, s_d, ctx);
+    let top = Dir.pick(d, (Fun.id, W.rev), zigg.top);
+    let+ ctx = push_wald(~onto=d, top, ctx);
+    let rest = Dir.order(d, ([], s_b));
+    Ctx.map_fst(Frame.Open.cat(rest), ctx);
+  };
 
   let rec pull = (~from as d: Dir.t, ctx: C.t): option((Token.t, C.t)) => {
     open OptUtil.Syntax;

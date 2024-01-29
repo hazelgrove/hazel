@@ -8,6 +8,16 @@ let singleton = t => [t];
 // let of_piece = p => of_terr(Terr.of_piece(p));
 let height = List.length;
 
+let face =
+  fun
+  | [] => None
+  | [hd, ..._] => Some(Terr.face(hd));
+
+let extend = tl =>
+  fun
+  | [] => None
+  | [hd, ...rest] => Some([Terr.extend(tl, hd), ...rest]);
+
 let fold: (('acc, Terr.t) => 'acc, 'acc, t) => 'acc = List.fold_left;
 
 let cat = (@);

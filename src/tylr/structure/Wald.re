@@ -24,6 +24,10 @@ let unlink = (W(w)) =>
   Chain.unlink(w)
   |> Result.map(~f=((tok, cell, tl)) => (tok, cell, W(tl)));
 
+let cells = (W((_, cells))) => cells;
+
+let extend = tl => map(Chain.extend(tl));
+
 let face = (~side=Dir.L, W((toks, _)): t) =>
   Dir.pick(side, (List.hd, ListUtil.last), toks).lbl;
 

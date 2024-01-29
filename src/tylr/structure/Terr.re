@@ -7,9 +7,11 @@ module Base = {
 };
 include Base;
 
-let face = (terr: t) => Wald.face(terr.wald);
-
 let sort = (terr: t) => Wald.sort(terr.wald);
+let face = (terr: t) => Wald.face(terr.wald);
+let cells = (terr: t) => Wald.cells(terr.wald) @ [terr.cell];
+
+let extend = (tl, terr: t) => {...terr, wald: Wald.extend(tl, terr.wald)};
 
 module L = {
   // L2R: wald cell

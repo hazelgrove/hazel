@@ -8,6 +8,13 @@ module Open = {
     | R => (dn, [terr, ...up])
     };
   let cat = ((dn', up'), (dn, up)) => Slope.(cat(dn', dn), cat(up', up));
+  let face = (~side: Dir.t, (dn, up): t) =>
+    Slope.face(Dir.pick(side, (dn, up)));
+  let extend = (~side: Dir.t, tl, (dn, up): t) =>
+    switch (side) {
+    | L => Slope.extend(tl, dn) |> Option.map(dn => (dn, up))
+    | R => Slope.extend(tl, up) |> Option.map(up => (dn, up))
+    };
 };
 
 module Closed = {

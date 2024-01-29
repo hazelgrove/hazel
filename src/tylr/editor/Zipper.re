@@ -16,7 +16,10 @@ let unselect = (~toward=?, z: t) =>
   | Point => z
   | Select(d, sel) =>
     let onto = Dir.toggle(Option.value(toward, ~default=d));
-    mk(Melder.Ctx.push_zigg(~onto, sel, z.ctx));
+    let ctx =
+      Melder.Ctx.push_zigg(~onto, sel, z.ctx)
+      |> OptUtil.get_or_fail("bug: failed to push selection onto ctx");
+    mk(ctx);
   };
 
 let rec unzip = (zipped: ESlot.Marked.t) => {

@@ -42,8 +42,6 @@ module Molds = {
          empty,
        );
 
-  let map = failwith("todo");
-
   let with_label = lbl =>
     switch (find_opt(lbl, map)) {
     | None => []
@@ -79,25 +77,28 @@ let mold = (ctx: Ctx.t, ~fill=[], t: Token.Labeled.t) => {
   };
 };
 
-let rec remold = (~fill=[], ctx: Ctx.t) =>
-  switch (Melder.Ctx.pull_terr(~from=R, ctx)) {
-  | None =>
+let rec remold = (~fill=[], ctx: Ctx.t) => {
+  let ((dn, up), tl) = Ctx.split_fst(ctx);
+  switch (up) {
+  | [] =>
     let unrolled =
       fill |> List.rev_map(Melder.Slope.Dn.unroll) |> List.concat;
-    Ctx.map_fst(Frame.Open.cat((unrolled, [])), ctx);
-  | Some((terr, ctx)) when Terr.sort(terr) == Mtrl.Grout =>
-    let up = Terr.cells(terr) |> List.concat_map(Melder.Slope.Up.unroll);
-    ctx |> Ctx.map_fst(Frame.Open.cat(([], up))) |> remold(~fill);
-  | Some((terr, ctx)) =>
+    Ctx.zip((Slope.cat(unrolled, dn), []), ~suf=tl);
+  | [terr, ...up] when Terr.sort(terr) == Mtrl.Grout =>
+    let unrolled =
+      Terr.cells(terr) |> List.concat_map(Melder.Slope.Up.unroll);
+    remold(Ctx.zip((dn, Slope.cat(unrolled, up)), ~suf=tl));
+  | [terr, ...up] =>
+    let ctx = Ctx.put_fst((dn, up), ctx);
     let (hd, rest) = Wald.split_hd(terr.wald);
     let molded = mold(ctx, ~fill, Token.to_labeled(hd));
     switch (Ctx.face(~side=L, molded)) {
-    | Some(t) when t.mtrl == face.mtrl =>
+    | Some(lbl) when lbl == hd.lbl =>
       // fast path for when face piece retains mold
-      let _ = failwith("todo: make sure cell distributes paths");
       molded
-      |> Ctx.extend_face(~side=L, rest)
-      |> remold(~fill=Option.to_list(terr.cell.meld));
+      |> Ctx.extend(~side=L, rest)
+      |> Option.get  // must succeed if Ctx.face succeeded
+      |> remold(~fill=Baked.Fill.init(terr.cell))
     | _ =>
       // otherwise add rest of wald to suffix queue
       let up =
@@ -111,3 +112,4 @@ let rec remold = (~fill=[], ctx: Ctx.t) =>
       ctx |> Ctx.map_fst(Frame.Open.cat(([], up))) |> remold;
     };
   };
+};

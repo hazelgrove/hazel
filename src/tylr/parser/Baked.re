@@ -26,6 +26,7 @@ module Fill = {
         [cell, ...fill];
       }
     };
+  let init = cell => cons(cell, empty);
   let faces =
     fun
     | [] => Molded.Label.(space, space)

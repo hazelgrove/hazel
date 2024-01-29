@@ -22,6 +22,30 @@ let links: t(_, 'lk) => list('lk) = snd;
 
 let length = ((lps, _)) => List.length(lps);
 
+let link = (a: 'lp, b: 'lk, (lps, lks): t('lp, 'lk)): t('lp, 'lk) => (
+  [a, ...lps],
+  [b, ...lks],
+);
+let unlink =
+    ((lps, lks): t('lp, 'lk)): Result.t(('lp, 'lk, t('lp, 'lk)), 'lp) =>
+  switch (lks) {
+  | [] => Error(List.hd(lps))
+  | [b, ...lks] => Ok((List.hd(lps), b, (List.tl(lps), lks)))
+  };
+
+let knil = ((lps, lks): t('lp, 'lk), b: 'lk, a: 'lp): t('lp, 'lk) => (
+  lps @ [a],
+  lks @ [b],
+);
+let unknil =
+    ((lps, lks): t('lp, 'lk)): Result.t((t('lp, 'lk), 'lk, 'lp), 'lp) =>
+  ListUtil.split_last_opt(lks)
+  |> Result.of_option(~error=List.hd(lps))
+  |> Result.map(~f=((lks, link)) => {
+       let (lps, loop) = ListUtil.split_last(lps);
+       ((lps, lks), link, loop);
+     });
+
 module Tl = {
   type t('link, 'loop) = (list('link), list('loop));
   let empty = ([], []);
@@ -34,6 +58,12 @@ module Tl = {
     | [lk, ...lks] => Some((lk, (lps, lks)))
     };
 };
+
+let rec extend = (tl: Tl.t('lk, 'lp), c: t('lp, 'lk)) =>
+  switch (tl) {
+  | ([lk, ...lks], [lp, ...lps]) => extend((lks, lps), link(lp, lk, c))
+  | _ => c
+  };
 
 let split_fst = ((lps, lks): t('lp, 'lk)): ('lp, Tl.t('lk, 'lp)) => {
   assert(lps != []);
@@ -67,30 +97,6 @@ let rev =
   List.rev_map(rev_loop, lps),
   List.rev_map(rev_link, lks),
 );
-
-let link = (a: 'lp, b: 'lk, (lps, lks): t('lp, 'lk)): t('lp, 'lk) => (
-  [a, ...lps],
-  [b, ...lks],
-);
-let unlink =
-    ((lps, lks): t('lp, 'lk)): Result.t(('lp, 'lk, t('lp, 'lk)), 'lp) =>
-  switch (lks) {
-  | [] => Error(List.hd(lps))
-  | [b, ...lks] => Ok((List.hd(lps), b, (List.tl(lps), lks)))
-  };
-
-let knil = ((lps, lks): t('lp, 'lk), b: 'lk, a: 'lp): t('lp, 'lk) => (
-  lps @ [a],
-  lks @ [b],
-);
-let unknil =
-    ((lps, lks): t('lp, 'lk)): Result.t((t('lp, 'lk), 'lk, 'lp), 'lp) =>
-  ListUtil.split_last_opt(lks)
-  |> Result.of_option(~error=List.hd(lps))
-  |> Result.map(~f=((lks, link)) => {
-       let (lps, loop) = ListUtil.split_last(lps);
-       ((lps, lks), link, loop);
-     });
 
 let map_loop = (f_lp: 'lp1 => 'lp2, (lps, lks): t('lp1, 'lk)): t('lp2, 'lk) => (
   List.map(f_lp, lps),
