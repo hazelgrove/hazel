@@ -185,6 +185,10 @@ let trim = ((lps, lks): t('lp, 'lk)): option(('lp, t('lk, 'lp), 'lp)) =>
   };
 let untrim = (l, (lks, lps), r) => mk([l, ...lps] @ [r], lks);
 
+module Unzipped = {
+  type t('lp, 'lk) = (Tl.t('lk, 'lp), 'lp, Tl.t('lk, 'lp));
+};
+
 let zip = (~pre=Tl.empty, ~suf=Tl.empty, foc) => {
   let (lks_pre, lps_pre) = pre;
   let (lks_suf, lps_suf) = suf;
@@ -193,7 +197,7 @@ let zip = (~pre=Tl.empty, ~suf=Tl.empty, foc) => {
   mk(lps, lks);
 };
 
-let unzip = (c: t('lp, 'lk)): list((Tl.t('lk, 'lp) as 'tl, 'lp, 'tl)) =>
+let unzip = (c: t('lp, 'lk)): list(Unzipped.t('lp, 'lk)) =>
   c
   |> fold_right(
        (lp, lk, unzipped) => {
@@ -208,3 +212,5 @@ let unzip = (c: t('lp, 'lk)): list((Tl.t('lk, 'lp) as 'tl, 'lp, 'tl)) =>
        },
        lp => [(Tl.empty, lp, Tl.empty)],
      );
+
+let unzip_nth = (n, c) => List.nth(unzip(c), n);

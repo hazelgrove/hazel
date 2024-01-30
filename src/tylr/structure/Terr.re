@@ -7,6 +7,12 @@ module Base = {
 };
 include Base;
 
+let mk = (toks, cells) =>
+  switch (Util.ListUtil.split_last_opt(cells)) {
+  | None => raise(Invalid_argument("Terr.mk"))
+  | Some((cells, cell)) => {wald: Wald.mk(toks, cells), cell}
+  };
+
 let sort = (terr: t) => Wald.sort(terr.wald);
 let face = (terr: t) => Wald.face(terr.wald);
 let cells = (terr: t) => Wald.cells(terr.wald) @ [terr.cell];

@@ -34,6 +34,12 @@ let rec mk_grout = (~l=false, ~r=false, sort: Mtrl.Sort.t) => {
 
 let of_tok = tok => mk(Wald.of_tok(tok));
 
+let to_chain = (M(l, W((toks, cells)), r)) => (
+  [l, ...cells] @ [r],
+  toks,
+);
+let unzip = (n, m) => Chain.unzip_nth(n, to_chain(m));
+
 let link = (~cell=Cell.empty, t: Token.t, M(l, W(w), r): t) =>
   M(cell, W(Chain.link(t, l, w)), r);
 

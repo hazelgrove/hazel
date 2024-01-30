@@ -17,14 +17,18 @@ let hd = w => fst(split_hd(w));
 //   | Dir.L => fst
 //   | R => lst;
 
+let get = (f, W(w)) => f(w);
 let map = (f, W(w)) => W(f(w));
+
+let length: t => int = get(Chain.length);
 let rev: t => t = map(Chain.rev);
+
 let link = (tok, cell) => map(Chain.link(tok, cell));
 let unlink = (W(w)) =>
   Chain.unlink(w)
   |> Result.map(~f=((tok, cell, tl)) => (tok, cell, W(tl)));
 
-let cells = (W((_, cells))) => cells;
+let cells: t => list(Cell.t) = get(Chain.links);
 
 let extend = tl => map(Chain.extend(tl));
 
@@ -32,6 +36,19 @@ let face = (~side=Dir.L, W((toks, _)): t) =>
   Dir.pick(side, (List.hd, ListUtil.last), toks).lbl;
 
 let sort = w => Token.sort(hd(w));
+
+module Tl = {
+  include Chain.Tl;
+  type t = Chain.Tl.t(Cell.t, Token.t);
+};
+let zip = (~pre=Tl.empty, ~suf=Tl.empty, tok) =>
+  W(Chain.zip(~pre, tok, ~suf));
+let unzip_cell = (n, W((toks, cells)): t) => {
+  let (tok, (toks_l, toks_r)) = ListUtil.split_frame(n, toks);
+  let (cell, (cs_l, cs_r)) = ListUtil.split_frame(n, cells);
+  (mk([tok, ...toks_l], cs_l), cell, mk(toks_r, cs_r));
+};
+let unzip_tok = (n, W(w)) => Chain.unzip_nth(n, w);
 
 let merge = (~from: Dir.t, src: t, dst: t): option(t) => {
   let (hd_src, tl_src) = split_hd(src);

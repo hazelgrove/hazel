@@ -283,7 +283,7 @@ module Ctx = {
         switch (melded) {
         | Neq(s_d) =>
           let slopes = Dir.order(d, (s_d, s_b));
-          C.link(slopes, terrs, ctx);
+          C.link(~slopes, terrs, ctx);
         | Eq(wald) =>
           let slopes = Dir.order(d, ([T.{...t_d, wald}], s_b @ [t_b]));
           C.map_fst(Frame.Open.cat(slopes), ctx);
@@ -323,7 +323,7 @@ module Ctx = {
       let (s_d, s_b) = order(slopes);
       switch (Slope.pull(~from=d, s_d)) {
       | Some((tok, s_d)) =>
-        Some((tok, Ctx.link(order((s_d, s_b)), terrs, ctx)))
+        Some((tok, Ctx.link(~slopes=order((s_d, s_b)), terrs, ctx)))
       | None =>
         let (t_d, t_b) = Dir.order(d, terrs);
         let slopes = order(([t_d], s_b @ [t_b]));
@@ -349,7 +349,7 @@ module Ctx = {
         |> C.map_fst(Frame.Open.cons(~onto=L, l))
       | ([l, ...pre], [r, ...suf]) =>
         assert(Wald.eq(l.wald, r.wald));
-        ctx |> C.put_fst((pre, suf)) |> go |> C.link(([], []), (l, r));
+        ctx |> C.put_fst((pre, suf)) |> go |> C.link((l, r));
       };
     switch (sel) {
     | None => go(ctx)

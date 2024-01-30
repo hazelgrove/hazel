@@ -4,6 +4,8 @@ type t = Chain.t(Frame.Open.t, Frame.Closed.t);
 
 let empty = Chain.unit(Frame.Open.empty);
 
+let link = (~slopes=Frame.Open.empty) => link(slopes);
+
 let face = (~side: Dir.t, ctx: t) => {
   open Util.OptUtil.Syntax;
   let/ () = Frame.Open.face(~side, fst(ctx));
@@ -19,6 +21,6 @@ let extend = (~side as d: Dir.t, tl, ctx) => {
     let+ (slopes, terrs, ctx) = Result.to_option(unlink(ctx));
     let (t_d, t_b) = Dir.order(d, terrs);
     let terrs = Dir.order(d, (Terr.extend(tl, t_d), t_b));
-    link(slopes, terrs, ctx);
+    link(~slopes, terrs, ctx);
   };
 };

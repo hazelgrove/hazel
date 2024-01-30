@@ -22,40 +22,46 @@ let unselect = (~toward=?, z: t) =>
     mk(ctx);
   };
 
-let rec unzip = (zipped: ESlot.Marked.t) => {
-  let go = (~ctx=Ctx.empty, zipped) =>
-    switch (zipped) {
-    | Empty => ctx
-    | Full((marks, _) as m) =>
-      let m = EMeld.Marked.unmk(m);
-      let get = OptUtil.get_or_raise(EPath.Invalid);
-      switch (marks.cursor) {
-      | None => EStepwell.cons_slopes(([], ESlope.Up.unroll(m)), ctx)
-      | Some(({slots: [hd, ...slots], _}, _)) =>
-        let (l, slot, r) = get(EMeld.unzip_slot(hd, m));
-        let ctx = EStepwell.cons_unzipped((l, r), ctx);
-        unzip(~ctx, ({...p, slots}, slot));
-      | Some(({slots: [], piece}, offset)) =>
-        let (pre, p, suf) = get(EMeld.unzip_piece(piece, m));
-        switch (Piece.unzip(offset, p)) {
-        | Ok((l, r)) =>
-          let l = Terr.L.of_prefix(pre, l);
-          let r = Terr.R.of_suffix(r, suf);
-          EStepwell.cons_slopes(([l], [r]), ctx);
-        | Error(side) =>
-          // ignore prev unzip to piece, re-unzip to neighbor slot
-          let (l, slot, r) =
-            EMeld.unzip_slot(side == L ? piece : piece + 1, m);
-          ctx
-          |> EStepwell.cons_unzipped((l, r))
-          |> cons_slopes(
-               side == L
-                 ? (ESlope.Dn.unroll(m), []) : ([], ESlope.Up.unroll(m)),
-             );
-        };
+let unzip = (cell: Cell.t) => {
+  let get = OptUtil.get_or_raise(Path.Invalid);
+  let rec go = (~ctx=Ctx.empty, cell: Cell.t) =>
+    switch (cell.marks.cursor) {
+    | None =>
+      Ctx.map_fst(Frame.Open.cat(([], Melder.Slope.Up.unroll(cell))), ctx)
+    | Some(({cells: [], token}, offset)) =>
+      let M(l, w, r) = get(Cell.get(cell));
+      let (pre, tok, suf) = Wald.unzip_tok(token, w);
+      switch (Token.unzip(offset, tok)) {
+      | Error(side) =>
+        // normalize to overlapping cursor position in neighboring cell
+        let n = Dir.pick(side, (token - 1, token));
+        let path = Path.{cells: [n], token: 0};
+        let marks = {...cell.marks, cursor: Some((path, 0))};
+        go(~ctx, {...cell, marks});
+      | Ok((tok_l, tok_r)) =>
+        let l = Terr.{cell: l, wald: Wald.zip(~suf=pre, tok_l)};
+        let r = Terr.{wald: Wald.zip(tok_r, ~suf), cell: r};
+        // should this become a closed frame?
+        Ctx.map_fst(Frame.Open.cat(([l], [r])), ctx);
+      };
+    | Some(({cells: [n, ..._], _}, _)) =>
+      let M(l, w, r) = get(Cell.get(cell));
+      if (n == 0) {
+        let terr = Terr.{wald: w, cell: r};
+        let ctx = Ctx.map_fst(Frame.Open.cat(([], [terr])), ctx);
+        go(~ctx, l);
+      } else if (n == Wald.length(w)) {
+        let terr = Terr.{cell: l, wald: Wald.rev(w)};
+        let ctx = Ctx.map_fst(Frame.Open.cat(([terr], [])), ctx);
+        go(~ctx, r);
+      } else {
+        let (pre, cell, suf) = Wald.unzip_cell(n - 1, w);
+        let terrs = Terr.({cell: l, wald: pre}, {wald: suf, cell: r});
+        let ctx = Ctx.link(terrs, ctx);
+        go(~ctx, cell);
       };
     };
-  mk(go(zipped));
+  mk(go(cell));
 };
 
 let zip_up = (_, _) => failwith("todo");
