@@ -26,7 +26,7 @@ let startup : PersistentData.t =
         context_inspector = false;
         instructor_mode = true;
         benchmark = false;
-        mode = Exercises;
+        mode = Documentation;
       };
     scratch =
       ( 0,
@@ -126,7 +126,7 @@ let startup : PersistentData.t =
         ],
         [ ("scratch_0", Evaluation) ] );
     documentation =
-      ( "Basic Reference",
+      ( "Programming Expressively",
         [
           ( "Casting",
             {
