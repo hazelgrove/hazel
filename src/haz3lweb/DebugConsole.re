@@ -5,7 +5,7 @@ open Haz3lcore;
    dependency on the model, which is technically against architecture */
 
 let print = ({settings, editors, _}: Model.t, key: string): unit => {
-  let z = Editors.active_zipper(editors);
+  let z = Editors.get_zipper(editors);
   let print = str => str |> print_endline;
   let settings = settings;
   let term = z => z |> MakeTerm.from_zip_for_view |> fst;

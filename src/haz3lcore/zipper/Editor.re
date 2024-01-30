@@ -3,19 +3,34 @@ open Util;
 
 module Meta = {
   type t = {
+    col_target: int,
     touched: Touched.t,
     measured: Measured.t,
     term_ranges: TermRanges.t,
-    col_target: int,
+    unselected: Segment.t,
+    segment: Segment.t,
+    view_term: Term.UExp.t,
+    terms: TermMap.t,
+    tiles: TileMap.t,
+    holes: list(Grout.t),
+    buffer_ids: list(Id.t),
   };
 
   let init = (z: Zipper.t) => {
     let unselected = Zipper.unselect_and_zip(z);
+    let (view_term, terms) = MakeTerm.go(unselected);
     {
+      col_target: 0,
       touched: Touched.empty,
       measured: Measured.of_segment(unselected),
+      unselected,
       term_ranges: TermRanges.mk(unselected),
-      col_target: 0,
+      segment: Zipper.zip(z),
+      tiles: TileMap.mk(unselected),
+      view_term,
+      terms,
+      holes: Segment.holes(unselected),
+      buffer_ids: Selection.buffer_ids(z.selection),
     };
   };
 
@@ -44,16 +59,32 @@ module Meta = {
       (~effects: list(Effect.t)=[], a: Action.t, z: Zipper.t, meta: t): t => {
     let {touched, measured, col_target, _} = meta;
     let touched = Touched.update(Time.tick(), effects, touched);
-    let unselected = Zipper.unselect_and_zip(z);
-    let measured = Measured.of_segment(~touched, ~old=measured, unselected);
-    let term_ranges = TermRanges.mk(unselected);
+    let is_edit = Action.is_edit(a);
+    let unselected = is_edit ? Zipper.unselect_and_zip(z) : meta.unselected;
+    let measured =
+      is_edit
+        ? Measured.of_segment(~touched, ~old=measured, unselected) : measured;
     let col_target =
       switch (a) {
       | Move(Local(Up | Down))
       | Select(Resize(Local(Up | Down))) => col_target
       | _ => Zipper.caret_point(measured, z).col
       };
-    {touched, measured, term_ranges, col_target};
+    let (view_term, terms) =
+      is_edit ? MakeTerm.go(unselected) : (meta.view_term, meta.terms);
+    {
+      col_target,
+      touched,
+      measured,
+      unselected,
+      term_ranges: is_edit ? TermRanges.mk(unselected) : meta.term_ranges,
+      segment: Zipper.zip(z),
+      tiles: is_edit ? TileMap.mk(unselected) : meta.tiles,
+      view_term,
+      terms,
+      holes: is_edit ? Segment.holes(unselected) : meta.holes,
+      buffer_ids: Selection.buffer_ids(z.selection),
+    };
   };
 };
 
@@ -170,76 +201,3 @@ let trailing_hole_ctx = (ed: t, info_map: Statics.Map.t) => {
     };
   };
 };
-
-type syntax = {
-  zipper: Zipper.t,
-  indicated_id: option(Id.t),
-  measured: Measured.t,
-  segment: Segment.t,
-  unselected: Segment.t,
-  terms: TermMap.t,
-  term_ranges: TermRanges.t,
-  tiles: TileMap.t,
-  holes: list(Grout.t),
-  buffer_ids: list(Id.t),
-};
-
-type statics = {
-  editor: t,
-  zipper: Zipper.t,
-  indicated_id: option(Id.t),
-  term: Term.UExp.t,
-  info_map: Statics.Map.t,
-  cursor_info: option(Info.t),
-  error_ids: list(Id.t),
-};
-
-let get_syntax = (editor: t): syntax => {
-  let zipper = editor.state.zipper;
-  let term_ranges = editor.state.meta.term_ranges;
-  let measured = editor.state.meta.measured;
-  let indicated_id = Indicated.index(zipper);
-  let segment = Zipper.zip(zipper);
-  let unselected = Zipper.unselect_and_zip(zipper);
-  let tiles = TileMap.mk(unselected);
-  let terms = MakeTerm.go(unselected) |> snd;
-  let holes = Segment.holes(unselected);
-  let buffer_ids = {
-    /* Collect ids of tokens in buffer for styling purposes. This is
-     * currently necessary as the selection is not persisted through
-     * unzipping for display */
-    let buffer =
-      Selection.is_buffer(zipper.selection) ? zipper.selection.content : [];
-    Id.Map.bindings(Measured.of_segment(buffer).tiles) |> List.map(fst);
-  };
-  {
-    zipper,
-    indicated_id,
-    segment,
-    unselected,
-    measured,
-    terms,
-    term_ranges,
-    tiles,
-    holes,
-    buffer_ids,
-  };
-};
-
-let error_ids =
-    (term_ranges: TermRanges.t, info_map: Statics.Map.t): list(Id.t) =>
-  Id.Map.fold(
-    (id, info, acc) =>
-      /* Because of artefacts in Maketerm ID handling,
-       * there are be situations where ids appear in the
-       * info_map which do not occur in term_ranges. These
-       * ids should be purely duplicative, so skipping them
-       * when iterating over the info_map should have no
-       * effect, beyond supressing the resulting Not_found exs */
-      switch (Id.Map.find_opt(id, term_ranges)) {
-      | Some(_) when Info.is_error(info) => [id, ...acc]
-      | _ => acc
-      },
-    info_map,
-    [],
-  );

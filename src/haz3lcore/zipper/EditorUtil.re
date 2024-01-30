@@ -80,18 +80,3 @@ let rec append_exp = (e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
     TermBase.UExp.{ids: e1.ids, term: TyAlias(tp, tdef, ebody')};
   };
 };
-
-let stitch = (editors: list(Editor.t)) => {
-  let exps =
-    List.map(
-      (ed: Editor.t) => ed.state.zipper |> MakeTerm.from_zip_for_view |> fst,
-      editors,
-    );
-  switch (exps) {
-  | [] => failwith("cannot stitch zero expressions")
-  | [e] => e
-  | [e1, ...tl] =>
-    let e = List.fold_left(append_exp, e1, tl);
-    e;
-  };
-};

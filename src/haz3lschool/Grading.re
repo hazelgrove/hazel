@@ -171,7 +171,7 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
     };
 
     let mk = (~your_impl: Editor.t, ~tests: syntax_tests): t => {
-      let user_impl_term = EditorUtil.stitch([your_impl]);
+      let user_impl_term = your_impl.state.meta.view_term;
 
       let predicates =
         List.map(((_, p)) => SyntaxTest.predicate_fn(p), tests);

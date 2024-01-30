@@ -43,8 +43,7 @@ let put_editor = (ed: Editor.t, eds: t): t =>
     Exercises(n, specs, Exercise.put_editor(exercise, ed))
   };
 
-let active_zipper = (editors: t): Zipper.t =>
-  get_editor(editors).state.zipper;
+let get_zipper = (editors: t): Zipper.t => get_editor(editors).state.zipper;
 
 let get_ctx_init = (~settings as _: Settings.t, editors: t): Ctx.t =>
   switch (editors) {
@@ -62,6 +61,41 @@ let get_env_init = (~settings as _: Settings.t, editors: t): Environment.t =>
   | Documentation(_) => Builtins.env_init
   };
 
+let mk_statics = (~settings: Settings.t, editors: t): CachedStatics.t => {
+  let editor = get_editor(editors);
+  let ctx_init = get_ctx_init(~settings, editors);
+  switch (editors) {
+  | DebugLoad => CachedStatics.mk([])
+  | _ when !settings.core.statics => CachedStatics.mk([])
+  | Scratch(idx, _) =>
+    let key = ScratchSlide.scratch_key(string_of_int(idx));
+    [(key, ScratchSlide.mk_statics(~settings, editor, ctx_init))]
+    |> CachedStatics.mk;
+  | Documentation(name, _) =>
+    let key = ScratchSlide.scratch_key(name);
+    [(key, ScratchSlide.mk_statics(~settings, editor, ctx_init))]
+    |> CachedStatics.mk;
+  | Exercises(_, _, exercise) =>
+    Exercise.mk_statics(settings.core, exercise) |> CachedStatics.mk
+  };
+};
+
+let lookup_statics =
+    (~settings: Settings.t, ~statics, editors: t): CachedStatics.statics =>
+  switch (editors) {
+  | DebugLoad => CachedStatics.empty_statics
+  | _ when !settings.core.statics => CachedStatics.empty_statics
+  | Scratch(idx, _) =>
+    let key = ScratchSlide.scratch_key(string_of_int(idx));
+    CachedStatics.lookup(statics, key);
+  | Documentation(name, _) =>
+    let key = ScratchSlide.scratch_key(name);
+    CachedStatics.lookup(statics, key);
+  | Exercises(_, _, exercise) =>
+    let key = Exercise.key_for_statics(exercise);
+    CachedStatics.lookup(statics, key);
+  };
+
 /* Each mode (e.g. Scratch, School) requires
    elaborating on some number of expressions
    that are spliced together from the editors
@@ -70,71 +104,25 @@ let get_env_init = (~settings as _: Settings.t, editors: t): Environment.t =>
 
    Used in the Update module */
 let get_spliced_elabs =
-    (~settings: Settings.t, editors: t): list((ModelResults.key, DHExp.t)) => {
-  let ctx_init = get_ctx_init(~settings, editors);
+    (~settings: Settings.t, statics, editors: t)
+    : list((ModelResults.key, DHExp.t)) =>
   switch (editors) {
   | DebugLoad => []
-  | Scratch(idx, slides) =>
-    let current_slide = List.nth(slides, idx);
-    //TODO(andrew): is idx the right key?
-    let (key, d) =
-      ScratchSlide.spliced_elab(
-        ~settings,
-        ~ctx_init,
-        string_of_int(idx),
-        current_slide,
-      );
+  | Scratch(idx, _) =>
+    let key = ScratchSlide.scratch_key(idx |> string_of_int);
+    let CachedStatics.{term, info_map, _} =
+      lookup_statics(~settings, ~statics, editors);
+    let d = Interface.elaborate(~settings=settings.core, info_map, term);
     [(key, d)];
-  | Documentation(name, slides) =>
-    let current_slide = List.assoc(name, slides);
-    //TODO(andrew): is name the right key?
-    let (key, d) =
-      ScratchSlide.spliced_elab(~settings, ~ctx_init, name, current_slide);
+  | Documentation(name, _) =>
+    let key = ScratchSlide.scratch_key(name);
+    let CachedStatics.{term, info_map, _} =
+      lookup_statics(~settings, ~statics, editors);
+    let d = Interface.elaborate(~settings=settings.core, info_map, term);
     [(key, d)];
   | Exercises(_, _, exercise) =>
     Exercise.spliced_elabs(settings.core, exercise)
   };
-};
-
-let get_ci = (id, info_map) =>
-  id |> Util.OptUtil.and_then(id => Id.Map.find_opt(id, info_map));
-
-let get_statics = (~settings: Settings.t, editors: t): Editor.statics => {
-  switch (editors) {
-  | DebugLoad => failwith("no editors in debug load mode")
-  | _ when !settings.core.statics =>
-    let editor = get_editor(editors);
-    let zipper = active_zipper(editors);
-    let indicated_id = Indicated.index(zipper);
-    /* Use empty or dummy data when statics is off */
-    let term = Term.UExp.{ids: [Id.invalid], term: Triv};
-    let info_map = Id.Map.empty;
-    let cursor_info = None;
-    let error_ids = [];
-    {editor, zipper, term, info_map, indicated_id, cursor_info, error_ids};
-  | Scratch(_)
-  | Documentation(_) =>
-    let editor = get_editor(editors);
-    let zipper = active_zipper(editors);
-    let indicated_id = Indicated.index(zipper);
-    let ctx_init = get_ctx_init(~settings, editors);
-    let (term, _) = MakeTerm.from_zip_for_sem(zipper);
-    let info_map =
-      Interface.Statics.mk_map_ctx(settings.core, ctx_init, term);
-    let cursor_info = get_ci(indicated_id, info_map);
-    let error_ids = Editor.error_ids(editor.state.meta.term_ranges, info_map);
-    {editor, zipper, term, info_map, indicated_id, cursor_info, error_ids};
-  | Exercises(_, _, exercise) =>
-    let editor = get_editor(editors);
-    let zipper = active_zipper(editors);
-    let indicated_id = Indicated.index(zipper);
-    let Exercise.StaticsItem.{term, info_map} =
-      Exercise.statics_of(~settings=settings.core, exercise);
-    let cursor_info = get_ci(indicated_id, info_map);
-    let error_ids = Editor.error_ids(editor.state.meta.term_ranges, info_map);
-    {editor, zipper, term, info_map, indicated_id, cursor_info, error_ids};
-  };
-};
 
 let set_instructor_mode = (editors: t, instructor_mode: bool): t =>
   switch (editors) {

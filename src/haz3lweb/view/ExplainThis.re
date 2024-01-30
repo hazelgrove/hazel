@@ -2,7 +2,6 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
 open Haz3lcore;
-open Util.OptUtil.Syntax;
 
 /* If you are adding docs here for new syntax, see PipelineExp.re
  * which documents the simplest way to add a new form. */
@@ -2345,16 +2344,9 @@ let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
   );
 
 let get_color_map =
-    (
-      ~settings: Settings.t,
-      ~explainThisModel: ExplainThisModel.t,
-      index: option(Id.t),
-      info_map: Statics.Map.t,
-    ) =>
+    (~settings: Settings.t, ~explainThisModel: ExplainThisModel.t, info) =>
   switch (explainThisModel.highlight) {
   | Some(id) when settings.explainThis.show =>
-    let* index = index;
-    let info = Id.Map.find_opt(index, info_map);
     let (_, (_, (color_map, _)), _) =
       get_doc(~docs=explainThisModel, info, Colorings);
     Some(Id.Map.filter((id', _) => id == id', color_map));

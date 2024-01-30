@@ -120,23 +120,23 @@ let is_edit: t => bool =
   | SwitchScratchSlide(_)
   | SwitchDocumentationSlide(_)
   | ToggleStepper(_)
-  | StepperAction(_, _)
-  | UpdateResult(_, _) => true
+  | StepperAction(_)
+  | UpdateResult(_)
+  | ResetCurrentEditor
+  | ReparseCurrentEditor
+  | FinishImportAll(_)
+  | FinishImportScratchpad(_)
+  | Benchmark(_)
+  | Assistant(_) => true
   | PerformAction(a) => Action.is_edit(a)
   | SwitchEditor(_)
   | Reset
   | ExportPersistentData
-  | ResetCurrentEditor
   | Save
-  | ReparseCurrentEditor
   | Copy
   | SetMeta(_)
   | UpdateExplainThisModel(_)
   | DebugConsole(_)
   | InitImportAll(_)
-  | FinishImportAll(_)
   | InitImportScratchpad(_)
-  | FinishImportScratchpad(_)
-  | MoveToNextHole(_)
-  | Benchmark(_)
-  | Assistant(_) => false;
+  | MoveToNextHole(_) => false;
