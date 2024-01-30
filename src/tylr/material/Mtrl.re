@@ -15,13 +15,6 @@ let is_space =
 module Label = {
   [@deriving (show({with_path: false}), sexp, yojson, ord)]
   type t = Base.t(Label.t);
-  let zip = (l: t, r: t) =>
-    switch (l, r) {
-    | (Space, Space) => Space
-    | (Grout, Grout) => Grout
-    | (Tile(l), Tile(r)) => Tile(Label.zip(l, r))
-    | _ => raise(Invalid_argument("Mtrl.Label.zip"))
-    };
   module Map =
     Map.Make({
       type nonrec t = t;

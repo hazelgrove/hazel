@@ -6,6 +6,8 @@ let empty = Chain.unit(Frame.Open.empty);
 
 let link = (~slopes=Frame.Open.empty) => link(slopes);
 
+let fold = Chain.fold_left;
+
 let face = (~side: Dir.t, ctx: t) => {
   open Util.OptUtil.Syntax;
   let/ () = Frame.Open.face(~side, fst(ctx));

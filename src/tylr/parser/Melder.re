@@ -123,14 +123,14 @@ module Slope = {
     go(cell, []);
   };
 
-  let roll = (~onto: Dir.t) =>
+  let roll = (~onto: Dir.t, ~init=Cell.empty) =>
     S.fold(
       (cell, terr) => {
         let w = onto == L ? W.rev(terr.wald) : terr.wald;
         let (l, r) = Dir.order(onto, (terr.cell, cell));
         Cell.mk(~meld=Meld.mk(~l, w, ~r), ());
       },
-      Cell.empty,
+      init,
     );
 
   let push =

@@ -31,7 +31,7 @@ let unzip = (cell: Cell.t) => {
     | Some(({cells: [], token}, offset)) =>
       let M(l, w, r) = get(Cell.get(cell));
       let (pre, tok, suf) = Wald.unzip_tok(token, w);
-      switch (Token.unzip(offset, tok)) {
+      switch (Token.split(offset, tok)) {
       | Error(side) =>
         // normalize to overlapping cursor position in neighboring cell
         let n = Dir.pick(side, (token - 1, token));
@@ -39,10 +39,9 @@ let unzip = (cell: Cell.t) => {
         let marks = {...cell.marks, cursor: Some((path, 0))};
         go(~ctx, {...cell, marks});
       | Ok((tok_l, tok_r)) =>
-        let l = Terr.{cell: l, wald: Wald.zip(~suf=pre, tok_l)};
-        let r = Terr.{wald: Wald.zip(tok_r, ~suf), cell: r};
-        // should this become a closed frame?
-        Ctx.map_fst(Frame.Open.cat(([l], [r])), ctx);
+        let l = Terr.{cell: l, wald: Wald.zip_tok(~suf=pre, tok_l)};
+        let r = Terr.{wald: Wald.zip_tok(tok_r, ~suf), cell: r};
+        Ctx.link((l, r), ctx);
       };
     | Some(({cells: [n, ..._], _}, _)) =>
       let M(l, w, r) = get(Cell.get(cell));
@@ -64,48 +63,26 @@ let unzip = (cell: Cell.t) => {
   mk(go(cell));
 };
 
-let zip_up = (_, _) => failwith("todo");
-let zip_dn = (_, _) => failwith("todo");
-let rec zip_slopes = ((dn, up): Slopes.t, z: Zipped.t) =>
+let zip_closed = ((l, r): Frame.Closed.t, zipped: Cell.t) => {
+  let w = Wald.zip_cell(l.wald, zipped, r.wald);
+  Cell.put(Meld.mk(~l=l.cell, w, ~r=r.cell));
+};
+let rec zip_open = ((dn, up): Frame.Open.t, zipped: Cell.t) =>
   switch (dn, up) {
-  | ([], []) => z
-  | ([], [_, ..._] as up) => Slope.Up.zip(z, up)
-  | ([_, ..._] as dn, []) => Slope.Dn.zip(dn, z)
-  | ([hd_dn, ...tl_dn], [hd_up, ...tl_up]) =>
-    let (p, slot) = z;
-    let check = b => b ? () : raise(Invalid_argument("Slopes.zip"));
-    // expecting no error-correction to take place
-    switch (Melder.Wald.cmp(hd_dn.wal, ~slot, hd_up.wal)) {
-    | {up: [], dn: [], top} =>
-      // eq
-      let p = Path.cons(Wald.length(hd_dn.wal), p);
-      let slot = Slot.full((hd_dn.mel, top, hd_up.mel));
-      zip_slopes((tl_dn, tl_up), (p, slot));
-    | {up: [], dn: [hd, ...tl], _} =>
-      // lt
-      check(tl == []);
-      let p = Path.cons(0, p);
-      let slot = Slot.full((hd.mel, hd.wal, hd_up.mel));
-      zip_slopes((dn, tl_up), slot);
-    | {up: [hd, ...tl], _} =>
-      // gt
-      check(tl == []);
-      let p = Path.cons(Wald.length(hd_dn.wal), p);
-      let slot = Slot.full((hd_dn.mel, hd.wal, hd.mel));
-      zip_slopes((tl_dn, up), slot);
-    };
+  | ([], []) => zipped
+  | ([], [_, ..._]) => Melder.Slope.Up.roll(~init=zipped, up)
+  | ([_, ..._], []) => Melder.Slope.Dn.roll(dn, ~init=zipped)
+  | ([l, ..._] as dn, [r, ..._]) when Melder.Wald.lt(l.wald, r.wald) =>
+    Cell.put(Meld.mk(~l=zipped, r.wald, ~r=r.cell)) |> zip_open((dn, up))
+  | ([l, ...dn], [r, ..._] as up) when Melder.Wald.gt(l.wald, r.wald) =>
+    Cell.put(Meld.mk(~l=l.cell, l.wald, ~r=zipped)) |> zip_open((dn, up))
+  | ([l, ...dn], [r, ...up]) =>
+    zipped |> zip_closed((l, r)) |> zip_open((dn, up))
   };
-let zip = (z: t): Zipped.t =>
-  unselect(z).ctx |> Stepwell.break_bridges |> zip_slopes;
-
-// todo: cleanup
-// let push_sel = (lx: Lexeme.t, foc: Dir.t, sel) =>
-//   switch (foc) {
-//   | L => Result.unwrap(Ziggurat.push_lexeme(lx, sel))
-//   | R => Result.unwrap(Ziggurat.hsup_lexeme(sel, lx))
-//   };
-// let pull_sel = (~char=false, foc: Dir.t, sel) =>
-//   switch (foc) {
-//   | L => Ziggurat.pull_lexeme(~char, sel)
-//   | R => Ziggurat.llup_lexeme(~char, sel) |> Option.map(((a, b)) => (b, a))
-//   };
+let zip = (z: t) =>
+  z.ctx
+  |> Ctx.fold(
+       open_ => zip_open(open_, Cell.cursor),
+       (zipped, closed, open_) =>
+         zipped |> zip_closed(closed) |> zip_open(open_),
+     );

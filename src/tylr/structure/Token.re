@@ -88,19 +88,15 @@ let merge_text =
       Some({...hd, text});
     };
 
-// rename merge
-let zip = (l: t, r: t) =>
+let merge = (l: t, r: t) =>
   if (Id.eq(l.id, r.id)) {
     assert(Mold.equal(l.lbl.mold, r.lbl.mold));
-    let mtrl = Mtrl.Label.zip(l.lbl.mtrl, r.lbl.mtrl);
-    let lbl = {...l.lbl, mtrl};
-    Some({...l, lbl, text: l.text ++ r.text});
+    Some({...l, text: l.text ++ r.text});
   } else {
     None;
   };
 
-// rename split
-let unzip = (n: int, tok: t): Result.t((t, t), Dir.t) =>
+let split = (n: int, tok: t): Result.t((t, t), Dir.t) =>
   switch (tok.lbl.mtrl, StringUtil.unzip_opt(n, tok.text)) {
   | (_, Some(("", _))) => Error(L)
   | (Space | Grout, Some((_, ""))) => Error(R)
@@ -109,12 +105,9 @@ let unzip = (n: int, tok: t): Result.t((t, t), Dir.t) =>
   | (Space | Grout, None) => raise(Invalid_argument("Token.unzip"))
   | (Tile(lbl), Some((_, ""))) when Label.is_complete(tok.text, lbl) =>
     Error(R)
-  | (Tile(lbl), Some((txt_l, txt_r))) =>
-    let (l, r) = Label.unzip(String.length(tok.text), lbl);
-    let lbl_l = {...tok.lbl, mtrl: Mtrl.Tile(l)};
-    let lbl_r = {...tok.lbl, mtrl: Mtrl.Tile(r)};
-    let l = {...tok, lbl: lbl_l, text: txt_l};
-    let r = {...tok, lbl: lbl_r, text: txt_r};
+  | (Tile(_), Some((txt_l, txt_r))) =>
+    let l = {...tok, text: txt_l};
+    let r = {...tok, text: txt_r};
     Ok((l, r));
   | (Tile(lbl), None) =>
     n > 0 && !Label.is_complete(tok.text, lbl)

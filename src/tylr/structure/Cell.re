@@ -11,6 +11,8 @@ let mk = (~marks=Path.Marks.empty, ~meld=?, ()): t => {
 let empty = mk();
 let is_empty = (==)(empty);
 
+let cursor = mk(~marks=Path.Marks.mk(~cursor=Path.Cursor.point(), ()), ());
+
 let has_space = (cell: t) =>
   switch (cell.meld) {
   | Some(M(_, W(([tok], [])), _)) when Token.is_space(tok) => true

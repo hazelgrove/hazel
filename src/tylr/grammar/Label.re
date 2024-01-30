@@ -28,38 +28,6 @@ let is_const =
   | Const(_) => true
   | _ => false;
 
-let length = _ => failwith("todo Label.length");
-
-// succeeds on and duplicates labels of empty and dynamic length
-// let unzip = (n: int, lbl: t): Result.t((t, t), Dir.t) =>
-//   switch (lbl) {
-//   | Const(t) when Token.length(t) > 0 =>
-//     Token.unzip(n, t) |> Result.map(~f=((l, r)) => (Const(l), Const(r)))
-//   | _ => Ok((lbl, lbl))
-//   };
-let unzip = (n: int, lbl: t) =>
-  switch (lbl) {
-  | Const(c) =>
-    let l = String.sub(c, 0, n);
-    let r = String.sub(c, n, length(c));
-    (Const(l), Const(r));
-  | _ => (lbl, lbl)
-  };
-
-let zip = (l: t, r: t): t =>
-  switch (l, r) {
-  | (Const(l), Const(r)) => Const(l ++ r)
-  | _ when l == r => l
-  | _ => raise(Invalid_argument("Label.zip"))
-  };
-
-let consistent = (l: t, r: t): bool =>
-  switch (l, r) {
-  | (Const(""), _)
-  | (_, Const("")) => true
-  | _ => l == r
-  };
-
 let is_complete = text =>
   fun
   | Space

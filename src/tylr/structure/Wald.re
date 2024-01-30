@@ -37,23 +37,33 @@ let face = (~side=Dir.L, W((toks, _)): t) =>
 
 let sort = w => Token.sort(hd(w));
 
+let fold = (f, g, W(w)) => Chain.fold_left(f, g, w);
+
 module Tl = {
   include Chain.Tl;
   type t = Chain.Tl.t(Cell.t, Token.t);
 };
-let zip = (~pre=Tl.empty, ~suf=Tl.empty, tok) =>
+
+let unzip_tok = (n, W(w)) => Chain.unzip_nth(n, w);
+let zip_tok = (~pre=Tl.empty, ~suf=Tl.empty, tok) =>
   W(Chain.zip(~pre, tok, ~suf));
+
 let unzip_cell = (n, W((toks, cells)): t) => {
   let (tok, (toks_l, toks_r)) = ListUtil.split_frame(n, toks);
   let (cell, (cs_l, cs_r)) = ListUtil.split_frame(n, cells);
   (mk([tok, ...toks_l], cs_l), cell, mk(toks_r, cs_r));
 };
-let unzip_tok = (n, W(w)) => Chain.unzip_nth(n, w);
+let zip_cell = (pre: t, cell: Cell.t, suf: t) =>
+  pre
+  |> fold(
+       tok => link(tok, cell, suf),
+       (zipped, cell, tok) => link(tok, cell, zipped),
+     );
 
 let merge = (~from: Dir.t, src: t, dst: t): option(t) => {
   let (hd_src, tl_src) = split_hd(src);
   let (hd_dst, tl_dst) = split_hd(dst);
   let (hd_l, hd_r) = Dir.order(from, (hd_src, hd_dst));
-  Token.zip(hd_l, hd_r)
+  Token.merge(hd_l, hd_r)
   |> Option.map(tok => W(Chain.zip(~pre=tl_dst, tok, ~suf=tl_src)));
 };
