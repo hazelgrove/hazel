@@ -1,5 +1,4 @@
 open Js_of_ocaml;
-open Widgets;
 open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
@@ -68,9 +67,9 @@ let main_view =
     settings.explainThis.show && settings.core.statics
       ? ExplainThis.view(
           ~inject,
-          ~font_metrics=ui_state.font_metrics,
+          ~ui_state,
           ~settings,
-          ~doc=explainThisModel,
+          ~explainThisModel,
           cursor_info,
         )
       : div([]);
@@ -86,26 +85,24 @@ let main_view =
     | DebugLoad => [DebugMode.view(~inject)]
     | Scratch(idx, _) =>
       let result_key = ScratchSlide.scratch_key(string_of_int(idx));
-      let result = ModelResults.get(results, result_key);
       ScratchMode.view(
+        ~result_key,
         ~inject,
         ~ui_state,
         ~settings,
         ~color_highlighting,
-        ~result,
-        ~result_key,
+        ~results,
         ~statics,
       );
     | Documentation(name, _) =>
       let result_key = ScratchSlide.scratch_key(name);
-      let result = ModelResults.get(results, result_key);
       ScratchMode.view(
+        ~result_key,
         ~inject,
         ~ui_state,
         ~settings,
         ~color_highlighting,
-        ~result,
-        ~result_key,
+        ~results,
         ~statics,
       );
     | Exercises(_, _, exercise) =>
@@ -133,82 +130,6 @@ let main_view =
   ];
 };
 
-let stepper_settings_modal = (~inject, settings: Settings.t) => {
-  let modal = div(~attr=Attr.many([Attr.class_("settings-modal")]));
-  let setting = (icon, name, current, action: UpdateAction.settings_action) =>
-    div(
-      ~attr=Attr.many([Attr.class_("settings-toggle")]),
-      [
-        toggle(~tooltip=name, icon, current, _ => inject(Update.Set(action))),
-        text(name),
-      ],
-    );
-  [
-    modal([
-      div(
-        ~attr=Attr.many([Attr.class_("settings-modal-top")]),
-        [
-          Widgets.button(Icons.x, _ =>
-            inject(Update.Set(Evaluation(ShowSettings)))
-          ),
-        ],
-      ),
-      setting(
-        "h",
-        "show full step trace",
-        settings.core.evaluation.stepper_history,
-        Evaluation(ShowRecord),
-      ),
-      setting(
-        "|",
-        "show case clauses",
-        settings.core.evaluation.show_case_clauses,
-        Evaluation(ShowCaseClauses),
-      ),
-      setting(
-        "λ",
-        "show function bodies",
-        settings.core.evaluation.show_fn_bodies,
-        Evaluation(ShowFnBodies),
-      ),
-      setting(
-        "x",
-        "show fixpoints",
-        settings.core.evaluation.show_fixpoints,
-        Evaluation(ShowFixpoints),
-      ),
-      setting(
-        Unicode.castArrowSym,
-        "show casts",
-        settings.core.evaluation.show_casts,
-        Evaluation(ShowCasts),
-      ),
-      setting(
-        "🔍",
-        "show lookup steps",
-        settings.core.evaluation.show_lookup_steps,
-        Evaluation(ShowLookups),
-      ),
-      setting(
-        "⏯️",
-        "show stepper filters",
-        settings.core.evaluation.show_stepper_filters,
-        Evaluation(ShowFilters),
-      ),
-    ]),
-    div(
-      ~attr=
-        Attr.many([
-          Attr.class_("modal-back"),
-          Attr.on_mousedown(_ =>
-            inject(Update.Set(Evaluation(ShowSettings)))
-          ),
-        ]),
-      [],
-    ),
-  ];
-};
-
 let get_selection = (model: Model.t): string =>
   model.editors |> Editors.get_editor |> Printer.to_string_selection;
 
@@ -220,9 +141,5 @@ let view = (~inject: UpdateAction.t => Ui_effect.t(unit), model: Model.t) =>
       DecUtil.filters,
       JsUtil.clipboard_shim,
     ]
-    @ main_view(~inject, model)
-    @ (
-      model.settings.core.evaluation.show_settings
-        ? stepper_settings_modal(~inject, model.settings) : []
-    ),
+    @ main_view(~inject, model),
   );

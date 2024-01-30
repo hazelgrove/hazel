@@ -51,24 +51,23 @@ let view =
   let editor_view =
       (
         ~editor: Editor.t,
-        ~info_map,
         ~caption: string,
         ~subcaption: option(string)=?,
-        ~test_results,
         ~footer=?,
+        ~di: Exercise.DynamicsItem.t,
         this_pos,
       ) => {
     Cell.editor_view(
       ~selected=pos == this_pos,
-      ~error_ids=Editor.error_ids(editor.state.meta.term_ranges, info_map),
+      ~error_ids=Editor.error_ids(editor.state.meta.term_ranges, di.info_map),
       ~inject,
       ~ui_state,
       ~mousedown_updates=[SwitchEditor(this_pos)],
       ~settings,
       ~color_highlighting,
       ~caption=Cell.caption(caption, ~rest=?subcaption),
-      ~code_id=Exercise.show_pos(this_pos),
-      ~test_results,
+      ~target_id=Exercise.show_pos(this_pos),
+      ~test_results=ModelResult.test_results(di.result),
       ~footer=Option.to_list(footer),
       Editor.get_syntax(editor),
     );
@@ -88,11 +87,7 @@ let view =
         ~caption="Prelude",
         ~subcaption=settings.instructor_mode ? "" : " (Read-Only)",
         ~editor=eds.prelude,
-        ~info_map=prelude.info_map,
-        ~test_results=
-          TestResults.unwrap_test_results(
-            ModelResult.get_simple(prelude.result),
-          ),
+        ~di=prelude,
       ),
     );
 
@@ -103,11 +98,7 @@ let view =
           CorrectImpl,
           ~caption="Correct Implementation",
           ~editor=eds.correct_impl,
-          ~info_map=instructor.info_map,
-          ~test_results=
-            TestResults.unwrap_test_results(
-              ModelResult.get_simple(instructor.result),
-            ),
+          ~di=instructor,
         ),
     );
 
@@ -162,11 +153,7 @@ let view =
         ~caption="Test Validation",
         ~subcaption=": Your Tests vs. Correct Implementation",
         ~editor=eds.your_tests.tests,
-        ~info_map=test_validation.info_map,
-        ~test_results=
-          TestResults.unwrap_test_results(
-            ModelResult.get_simple(test_validation.result),
-          ),
+        ~di=test_validation,
         ~footer=
           Grading.TestValidationReport.view(
             ~inject,
@@ -178,21 +165,14 @@ let view =
 
   let wrong_impl_views =
     List.mapi(
-      (
-        i,
-        (Exercise.{impl, _}, Exercise.DynamicsItem.{info_map, result, _}),
-      ) => {
+      (i, (Exercise.{impl, _}, di)) => {
         InstructorOnly(
           () =>
             editor_view(
               HiddenBugs(i),
               ~caption="Wrong Implementation " ++ string_of_int(i + 1),
               ~editor=impl,
-              ~info_map,
-              ~test_results=
-                TestResults.unwrap_test_results(
-                  ModelResult.get_simple(result),
-                ),
+              ~di,
             ),
         )
       },
@@ -214,12 +194,8 @@ let view =
         YourImpl,
         ~caption="Your Implementation",
         ~editor=eds.your_impl,
-        ~info_map=user_impl.info_map,
-        ~test_results=
-          TestResults.unwrap_test_results(
-            ModelResult.get_simple(user_impl.result),
-          ),
-        //TODO(andrew): wrapping
+        ~di=user_impl,
+        //TODO(andrew): undo wrapping
         ~footer=
           div(
             ~attr=Attr.id("temmmmp"),
@@ -235,11 +211,6 @@ let view =
     );
   };
 
-  let testing_results =
-    TestResults.unwrap_test_results(
-      ModelResult.get_simple(user_tests.result),
-    );
-
   let syntax_grading_view =
     Always(Grading.SyntaxReport.view(grading_report.syntax_report));
 
@@ -251,12 +222,11 @@ let view =
         ~subcaption=
           ": Your Tests (code synchronized with Test Validation cell above) vs. Your Implementation",
         ~editor=eds.your_tests.tests,
-        ~info_map=user_tests.info_map,
-        ~test_results=testing_results,
+        ~di=user_tests,
         ~footer=
           Cell.test_report_footer_view(
             ~inject,
-            ~test_results=testing_results,
+            ~test_results=ModelResult.test_results(user_tests.result),
           ),
       ),
     );
@@ -268,11 +238,7 @@ let view =
           HiddenTests,
           ~caption="Hidden Tests",
           ~editor=eds.hidden_tests.tests,
-          ~info_map=instructor.info_map,
-          ~test_results=
-            TestResults.unwrap_test_results(
-              ModelResult.get_simple(instructor.result),
-            ),
+          ~di=instructor,
         ),
     );
 

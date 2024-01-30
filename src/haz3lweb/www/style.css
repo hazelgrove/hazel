@@ -329,9 +329,6 @@ body {
   justify-content: space-between;
   gap: 1.2em;
 }
-#main.Exercises .cell-container {
-  width: auto;
-}
 
 #main::-webkit-scrollbar {
   width: 0.8em;
@@ -674,14 +671,20 @@ select {
   /*white-space: nowrap;*/
 }
 
-.cell-container {
-  min-width: 30em;
+.cell {
   width: fit-content;
   border-radius: 0.4em;
   border-left: 2px solid var(--top_bar_icon_fill);
 }
+#main.Exercises .cell {
+  width: auto;
+}
+#main.Scratch .cell,
+#main.Documentation .cell  {
+  min-width: 30em;
+}
 
-.cell-container.selected {
+.cell.selected {
   border-left: 2px solid var(--cell-selected-accent);
   background-color: #fffcf3;
 }

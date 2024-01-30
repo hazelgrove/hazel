@@ -79,25 +79,20 @@ let toggle_stepper =
   | Evaluation({elab, _}) => Stepper(Stepper.init(elab))
   | Stepper({elab, _}) => Evaluation({elab, evaluation: ResultPending});
 
-let get_simple =
-  fun
+let test_results = (result: t) =>
+  switch (result) {
   | NoElab => None
   | Evaluation({evaluation: ResultOk(pr), _}) =>
-    Some(
-      {
-        elab: pr |> ProgramResult.get_elab,
-        result: pr |> ProgramResult.get_dhexp,
-        test_results:
-          pr
-          |> ProgramResult.get_state
-          |> EvaluatorState.get_tests
-          |> TestResults.mk_results,
-      }: TestResults.simple_data,
-    )
+    pr
+    |> ProgramResult.get_state
+    |> EvaluatorState.get_tests
+    |> TestResults.mk_results
+    |> Option.some
   | Evaluation({evaluation: ResultFail(_), _})
   | Evaluation({evaluation: ResultTimeout, _})
   | Evaluation({evaluation: ResultPending, _})
-  | Stepper(_) => None;
+  | Stepper(_) => None
+  };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type persistent =

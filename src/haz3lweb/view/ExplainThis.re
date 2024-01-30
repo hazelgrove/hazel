@@ -504,7 +504,7 @@ let example_view =
               ~attr=clss(["example"]),
               [
                 div(
-                  ~attr=clss(["cell-container"]),
+                  ~attr=clss(["cell", "selected"]),
                   [
                     div(
                       ~attr=clss(["cell-item"]),
@@ -2364,13 +2364,17 @@ let get_color_map =
 let view =
     (
       ~inject,
-      ~font_metrics: FontMetrics.t,
+      ~ui_state as {font_metrics, _}: Model.ui_state,
       ~settings: Settings.t,
-      ~doc: ExplainThisModel.t,
+      ~explainThisModel: ExplainThisModel.t,
       info: option(Info.t),
     ) => {
   let (syn_form, (explanation, _), example) =
-    get_doc(~docs=doc, info, MessageContent(inject, font_metrics, settings));
+    get_doc(
+      ~docs=explainThisModel,
+      info,
+      MessageContent(inject, font_metrics, settings),
+    );
   div(
     ~attr=Attr.id("side-bar"),
     [
@@ -2406,7 +2410,7 @@ let view =
                   },
                 [
                   div(
-                    ~attr=clss(["cell-container"]),
+                    ~attr=clss(["cell"]),
                     [div(~attr=clss(["cell-item"]), syn_form)],
                   ),
                 ]

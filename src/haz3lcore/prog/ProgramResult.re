@@ -1,3 +1,8 @@
+/**
+  The result of a program evaluation. Includes the {!type:EvaluatorResult.t},
+  the {!type:EvaluatorState}, and the tracked hole instance information
+  ({!type:HoleInstanceInfo.t}). Constructed by {!val:Program.get_result}.
+ */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   result: EvaluatorResult.t,
@@ -16,4 +21,3 @@ let init = (err: string): t => {
 
 let get_dhexp = (r: t) => EvaluatorResult.unbox(r.result);
 let get_state = (r: t) => r.state;
-let get_elab = (r: t) => r.elab;
