@@ -38,5 +38,4 @@ let update_elabs =
 
 let lookup = (results: t, key: Key.t) => find_opt(key, results);
 
-let get = (results: t, key: Key.t) => lookup(results, key);
 let run_pending = (~settings) => M.map(ModelResult.run_pending(~settings));
