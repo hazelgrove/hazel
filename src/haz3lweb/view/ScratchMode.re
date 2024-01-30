@@ -13,7 +13,7 @@ let view =
       ~statics as {editor, error_ids, _}: Editor.statics,
     ) => {
   //TODO(andrew): cleanup footer
-  let result = ModelResults.get(results, result_key);
+  let result = ModelResults.lookup(results, result_key);
   let footer =
     settings.core.statics
       ? result

@@ -257,14 +257,6 @@ let sort_of: t => Sort.t =
   | InfoTPat(_) => TPat
   | Secondary(s) => s.sort;
 
-let id_of: t => Id.t =
-  fun
-  | InfoExp({term, _}) => UExp.rep_id(term)
-  | InfoPat({term, _}) => UPat.rep_id(term)
-  | InfoTyp({term, _}) => UTyp.rep_id(term)
-  | InfoTPat({term, _}) => UTPat.rep_id(term)
-  | Secondary(s) => s.id;
-
 let cls_of: t => Cls.t =
   fun
   | InfoExp({cls, _})
@@ -288,6 +280,14 @@ let ancestors_of: t => ancestors =
   | InfoTyp({ancestors, _})
   | InfoTPat({ancestors, _}) => ancestors
   | Secondary(_) => []; //TODO
+
+let id_of: t => Id.t =
+  fun
+  | InfoExp({term, _}) => UExp.rep_id(term)
+  | InfoPat({term, _}) => UPat.rep_id(term)
+  | InfoTyp({term, _}) => UTyp.rep_id(term)
+  | InfoTPat({term, _}) => UTPat.rep_id(term)
+  | Secondary(s) => s.id;
 
 let error_of: t => option(error) =
   fun

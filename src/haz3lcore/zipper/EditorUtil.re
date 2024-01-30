@@ -84,7 +84,7 @@ let rec append_exp = (e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
 let stitch = (editors: list(Editor.t)) => {
   let exps =
     List.map(
-      (ed: Editor.t) => MakeTerm.from_zip_for_view(ed.state.zipper) |> fst,
+      (ed: Editor.t) => ed.state.zipper |> MakeTerm.from_zip_for_view |> fst,
       editors,
     );
   switch (exps) {

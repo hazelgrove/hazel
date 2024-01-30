@@ -554,16 +554,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   // # Stitching
 
-  type stitched('a) = {
-    test_validation: 'a, // prelude + correct_impl + your_tests
-    user_impl: 'a, // prelude + your_impl
-    user_tests: 'a, // prelude + your_impl + your_tests
-    prelude: 'a, // prelude
-    instructor: 'a, // prelude + correct_impl + hidden_tests.tests // TODO only needs to run in instructor mode
-    hidden_bugs: list('a), // prelude + hidden_bugs[i].impl + your_tests,
-    hidden_tests: 'a,
-  };
-
   module TermItem = {
     type t = TermBase.UExp.t;
   };
@@ -573,6 +563,16 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       term: TermBase.UExp.t,
       info_map: Statics.Map.t,
     };
+  };
+
+  type stitched('a) = {
+    test_validation: 'a, // prelude + correct_impl + your_tests
+    user_impl: 'a, // prelude + your_impl
+    user_tests: 'a, // prelude + your_impl + your_tests
+    prelude: 'a, // prelude
+    instructor: 'a, // prelude + correct_impl + hidden_tests.tests // TODO only needs to run in instructor mode
+    hidden_bugs: list('a), // prelude + hidden_bugs[i].impl + your_tests,
+    hidden_tests: 'a,
   };
 
   let wrap_filter =
