@@ -93,16 +93,21 @@ let main_view =
       );
     | Documentation(name, _) =>
       let result_key = ScratchSlide.scratch_key(name);
-      ScratchMode.view(
-        ~inject,
-        ~ui_state,
-        ~settings,
-        ~highlights,
-        ~results,
-        ~result_key,
-        ~statics,
-        editor,
-      );
+      let info =
+        SlideContent.get_content(editors)
+        |> Option.map(i => div(~attr=Attr.id("slide"), [i]))
+        |> Option.to_list;
+      info
+      @ ScratchMode.view(
+          ~inject,
+          ~ui_state,
+          ~settings,
+          ~highlights,
+          ~results,
+          ~result_key,
+          ~statics,
+          editor,
+        );
     | Exercises(_, _, exercise) =>
       ExerciseMode.view(
         ~inject,
