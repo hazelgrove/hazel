@@ -78,14 +78,19 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     BinOp(op, d3, d4);
-  | ConsistentCase(Case(d3, rules, n)) =>
-    let d3 = subst_var(d1, x, d3);
-    let rules = subst_var_rules(d1, x, rules);
-    ConsistentCase(Case(d3, rules, n));
-  | InconsistentBranches(u, i, Case(d3, rules, n)) =>
-    let d3 = subst_var(d1, x, d3);
-    let rules = subst_var_rules(d1, x, rules);
-    InconsistentBranches(u, i, Case(d3, rules, n));
+  | Match(c, ds, rules) =>
+    let ds = subst_var(d1, x, ds);
+    let rules =
+      List.map(
+        ((p, v)) =>
+          if (DHPat.binds_var(x, p)) {
+            (p, v);
+          } else {
+            (p, subst_var(d1, x, v));
+          },
+        rules,
+      );
+    Match(c, ds, rules);
   | EmptyHole(u, i) => EmptyHole(u, i)
   | NonEmptyHole(reason, u, i, d3) =>
     let d3' = subst_var(d1, x, d3);
@@ -105,20 +110,6 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d6' = subst_var(d1, x, d6);
     If(d3, d4', d5', d6');
   }
-
-and subst_var_rules =
-    (d1: DHExp.t, x: Var.t, rules: list(DHExp.rule)): list(DHExp.rule) =>
-  rules
-  |> List.map((r: DHExp.rule) =>
-       switch (r) {
-       | Rule(dp, d2) =>
-         if (DHPat.binds_var(x, dp)) {
-           r;
-         } else {
-           Rule(dp, subst_var(d1, x, d2));
-         }
-       }
-     )
 
 and subst_var_env =
     (d1: DHExp.t, x: Var.t, env: ClosureEnvironment.t): ClosureEnvironment.t => {

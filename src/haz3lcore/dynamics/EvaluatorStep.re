@@ -300,24 +300,12 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
     | NonEmptyHole(reason, u, i, ctx) =>
       let d = compose(ctx, d);
       NonEmptyHole(reason, u, i, d);
-    | ConsistentCase(Case(ctx, rule, n)) =>
+    | MatchScrut(c, ctx, rules) =>
       let d = compose(ctx, d);
-      ConsistentCase(Case(d, rule, n));
-    | ConsistentCaseRule(scr, p, ctx, (lr, rr), n) =>
+      Match(c, d, rules);
+    | MatchRule(c, scr, p, ctx, (lr, rr)) =>
       let d = compose(ctx, d);
-      ConsistentCase(
-        Case(scr, rev_concat(lr, [(Rule(p, d): DHExp.rule), ...rr]), n),
-      );
-    | InconsistentBranches(u, i, Case(ctx, rule, n)) =>
-      let d = compose(ctx, d);
-      InconsistentBranches(u, i, Case(d, rule, n));
-    | InconsistentBranchesRule(scr, mv, hi, p, ctx, (lr, rr), n) =>
-      let d = compose(ctx, d);
-      InconsistentBranches(
-        mv,
-        hi,
-        Case(scr, rev_concat(lr, [(Rule(p, d): DHExp.rule), ...rr]), n),
-      );
+      Match(c, scr, rev_concat(lr, [(p, d), ...rr]));
     }
   );
 };

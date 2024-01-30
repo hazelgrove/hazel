@@ -149,20 +149,14 @@ let rec matches_exp =
     matches_exp(env, d1, f1) && matches_exp(env, d2, f2)
   | (ListConcat(_), _) => false
 
-  | (
-      ConsistentCase(Case(dscrut, drule, _)),
-      ConsistentCase(Case(fscrut, frule, _)),
-    )
-  | (
-      InconsistentBranches(_, _, Case(dscrut, drule, _)),
-      InconsistentBranches(_, _, Case(fscrut, frule, _)),
-    ) =>
-    matches_exp(env, dscrut, fscrut)
+  | (Match(dc, dscrut, drule), Match(fc, fscrut, frule)) =>
+    dc == fc
+    && matches_exp(env, dscrut, fscrut)
     && (
       switch (
-        List.fold_left2(
-          (res, drule, frule) => res && matches_rul(env, drule, frule),
-          true,
+        List.for_all2(
+          ((dk, dv), (fk, fv)) =>
+            matches_pat(dk, fk) && matches_exp(env, dv, fv),
           drule,
           frule,
         )
@@ -171,8 +165,7 @@ let rec matches_exp =
       | res => res
       }
     )
-  | (ConsistentCase(_), _)
-  | (InconsistentBranches(_), _) => false
+  | (Match(_), _) => false
 
   | (NonEmptyHole(_), _) => false
   | (ExpandingKeyword(_), _) => false
@@ -236,11 +229,8 @@ and matches_pat = (d: DHPat.t, f: DHPat.t): bool => {
 and matches_typ = (d: Typ.t, f: Typ.t) => {
   Typ.eq(d, f);
 }
-and matches_rul = (env, d: DHExp.rule, f: DHExp.rule) => {
-  switch (d, f) {
-  | (Rule(dp, d), Rule(fp, f)) =>
-    matches_pat(dp, fp) && matches_exp(env, d, f)
-  };
+and matches_rul = (env, (dp, d), (fp, f)) => {
+  matches_pat(dp, fp) && matches_exp(env, d, f);
 };
 
 let matches =

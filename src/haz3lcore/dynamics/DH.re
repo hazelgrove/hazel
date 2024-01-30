@@ -1,9 +1,9 @@
 open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type if_consistency =
-  | ConsistentIf
-  | InconsistentIf;
+type consistency =
+  | Consistent
+  | Inconsistent(MetaVar.t, HoleInstanceId.t);
 
 module rec DHExp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -20,7 +20,6 @@ module rec DHExp: {
     | ExpandingKeyword(MetaVar.t, HoleInstanceId.t, ExpandingKeyword.t)
     | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t)
     | InvalidText(MetaVar.t, HoleInstanceId.t, string)
-    | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
     | InvalidOperation(t, InvalidOperationError.t)
     | FailedCast(t, Typ.t, Typ.t)
     | Closure([@show.opaque] ClosureEnvironment.t, t) // > UEXP
@@ -45,13 +44,9 @@ module rec DHExp: {
     | Tuple(list(t)) // DONE [ALREADY]
     | Prj(t, int) // TODO: ! REMOVE, LEAVE AS LETS?
     | Constructor(string) // DONE [ALREADY]
-    | ConsistentCase(case) // TODO: CONSISTENCY?
+    | Match(consistency, t, list((DHPat.t, t)))
     | Cast(t, Typ.t, Typ.t) // TODO: Add to uexp or remove
-    | If(if_consistency, t, t, t) // TODO: CONSISTENCY? use bool tag to track if branches are consistent
-  and case =
-    | Case(t, list(rule), int) // is the int really necessary?
-  and rule =
-    | Rule(DHPat.t, t);
+    | If(consistency, t, t, t); // TODO: CONSISTENCY? use bool tag to track if branches are consistent
 
   let constructor_string: t => string;
 
@@ -72,7 +67,6 @@ module rec DHExp: {
     | ExpandingKeyword(MetaVar.t, HoleInstanceId.t, ExpandingKeyword.t)
     | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t)
     | InvalidText(MetaVar.t, HoleInstanceId.t, string)
-    | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
     | InvalidOperation(t, InvalidOperationError.t)
     | FailedCast(t, Typ.t, Typ.t)
     /* Generalized closures */
@@ -99,13 +93,9 @@ module rec DHExp: {
     | Tuple(list(t))
     | Prj(t, int)
     | Constructor(string)
-    | ConsistentCase(case)
+    | Match(consistency, t, list((DHPat.t, t)))
     | Cast(t, Typ.t, Typ.t)
-    | If(if_consistency, t, t, t)
-  and case =
-    | Case(t, list(rule), int)
-  and rule =
-    | Rule(DHPat.t, t);
+    | If(consistency, t, t, t);
 
   let constructor_string = (d: t): string =>
     switch (d) {
@@ -136,8 +126,7 @@ module rec DHExp: {
     | Tuple(_) => "Tuple"
     | Prj(_) => "Prj"
     | Constructor(_) => "Constructor"
-    | ConsistentCase(_) => "ConsistentCase"
-    | InconsistentBranches(_, _, _) => "InconsistentBranches"
+    | Match(_) => "Match"
     | Cast(_, _, _) => "Cast"
     | FailedCast(_, _, _) => "FailedCast"
     | InvalidOperation(_) => "InvalidOperation"
@@ -181,15 +170,11 @@ module rec DHExp: {
     | ApBuiltin(fn, args) => ApBuiltin(fn, strip_casts(args))
     | BuiltinFun(fn) => BuiltinFun(fn)
     | BinOp(a, b, c) => BinOp(a, strip_casts(b), strip_casts(c))
-    | ConsistentCase(Case(a, rs, b)) =>
-      ConsistentCase(
-        Case(strip_casts(a), List.map(strip_casts_rule, rs), b),
-      )
-    | InconsistentBranches(u, i, Case(scrut, rules, n)) =>
-      InconsistentBranches(
-        u,
-        i,
-        Case(strip_casts(scrut), List.map(strip_casts_rule, rules), n),
+    | Match(c, a, rules) =>
+      Match(
+        c,
+        strip_casts(a),
+        List.map(((k, v)) => (k, strip_casts(v)), rules),
       )
     | EmptyHole(_) as d
     | ExpandingKeyword(_) as d
@@ -203,8 +188,7 @@ module rec DHExp: {
     | Constructor(_) as d
     | InvalidOperation(_) as d => d
     | If(consistent, c, d1, d2) =>
-      If(consistent, strip_casts(c), strip_casts(d1), strip_casts(d2))
-  and strip_casts_rule = (Rule(a, d)) => Rule(a, strip_casts(d));
+      If(consistent, strip_casts(c), strip_casts(d1), strip_casts(d2));
 
   let rec fast_equal = (d1: t, d2: t): bool => {
     switch (d1, d2) {
@@ -251,8 +235,15 @@ module rec DHExp: {
       fast_equal(d1, d2) && ty11 == ty12 && ty21 == ty22
     | (InvalidOperation(d1, reason1), InvalidOperation(d2, reason2)) =>
       fast_equal(d1, d2) && reason1 == reason2
-    | (ConsistentCase(case1), ConsistentCase(case2)) =>
-      fast_equal_case(case1, case2)
+    | (Match(c1, s1, rs1), Match(c2, s2, rs2)) =>
+      c1 == c2
+      && fast_equal(s1, s2)
+      && List.length(rs2) == List.length(rs2)
+      && List.for_all2(
+           ((k1, v1), (k2, v2)) => k1 == k2 && fast_equal(v1, v2),
+           rs1,
+           rs2,
+         )
     | (If(c1, d11, d12, d13), If(c2, d21, d22, d23)) =>
       c1 == c2
       && fast_equal(d11, d21)
@@ -279,7 +270,7 @@ module rec DHExp: {
     | (FailedCast(_), _)
     | (InvalidOperation(_), _)
     | (If(_), _)
-    | (ConsistentCase(_), _) => false
+    | (Match(_), _) => false
 
     /* Hole forms: when checking environments, only check that
        environment ID's are equal, don't check structural equality.
@@ -296,30 +287,13 @@ module rec DHExp: {
       u1 == u2 && i1 == i2 && text1 == text2
     | (Closure(sigma1, d1), Closure(sigma2, d2)) =>
       ClosureEnvironment.id_equal(sigma1, sigma2) && fast_equal(d1, d2)
-    | (
-        InconsistentBranches(u1, i1, case1),
-        InconsistentBranches(u2, i2, case2),
-      ) =>
-      u1 == u2 && i1 == i2 && fast_equal_case(case1, case2)
     | (EmptyHole(_), _)
     | (NonEmptyHole(_), _)
     | (ExpandingKeyword(_), _)
     | (FreeVar(_), _)
     | (InvalidText(_), _)
-    | (Closure(_), _)
-    | (InconsistentBranches(_), _) => false
+    | (Closure(_), _) => false
     };
-  }
-  and fast_equal_case = (Case(d1, rules1, i1), Case(d2, rules2, i2)) => {
-    fast_equal(d1, d2)
-    && List.length(rules1) == List.length(rules2)
-    && List.for_all2(
-         (Rule(dp1, d1), Rule(dp2, d2)) =>
-           dp1 == dp2 && fast_equal(d1, d2),
-         rules1,
-         rules2,
-       )
-    && i1 == i2;
   };
 }
 

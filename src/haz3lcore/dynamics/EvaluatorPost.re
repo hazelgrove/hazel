@@ -131,17 +131,18 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     let* d2' = pp_eval(d2);
     If(consistent, c', d1', d2') |> return;
 
+  // TODO: Add consistent case
+
   /* These expression forms should not exist outside closure in evaluated result */
   | Var(_)
   | Let(_)
-  | ConsistentCase(_)
+  | Match(_)
   | Fun(_)
   | EmptyHole(_)
   | NonEmptyHole(_)
   | ExpandingKeyword(_)
   | FreeVar(_)
-  | InvalidText(_)
-  | InconsistentBranches(_) => raise(Exception(UnevalOutsideClosure))
+  | InvalidText(_) => raise(Exception(UnevalOutsideClosure))
 
   | FixF(_) => raise(Exception(FixFOutsideClosureEnv))
 
@@ -167,7 +168,7 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
       let* d2 = pp_uneval(env, d2);
       Let(dp, d1, d2) |> return;
 
-    | ConsistentCase(Case(scrut, rules, i)) =>
+    | Match(Consistent, scrut, rules) =>
       /* scrut should already be evaluated, rule bodies are not */
       let* scrut =
         Util.TimeUtil.measure_time("pp_eval(scrut)", true, () =>
@@ -177,7 +178,7 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
         Util.TimeUtil.measure_time("pp_uneval_rules", true, () =>
           pp_uneval_rules(env, rules)
         );
-      ConsistentCase(Case(scrut, rules, i)) |> return;
+      Match(Consistent, scrut, rules) |> return;
 
     /* Hole constructs inside closures.
 
@@ -191,11 +192,10 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
       let* i = hii_add_instance(u, env);
       Closure(env, NonEmptyHole(reason, u, i, d)) |> return;
 
-    | InconsistentBranches(u, _, Case(scrut, rules, case_i)) =>
+    | Match(Inconsistent(u, _), scrut, rules) =>
       let* scrut = pp_eval(scrut);
       let* i = hii_add_instance(u, env);
-      Closure(env, InconsistentBranches(u, i, Case(scrut, rules, case_i)))
-      |> return;
+      Closure(env, Match(Inconsistent(u, i), scrut, rules)) |> return;
 
     | EmptyHole(_)
     | ExpandingKeyword(_)
@@ -356,10 +356,10 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* d'' = pp_uneval(env, d');
     InvalidOperation(d'', reason) |> return;
 
-  | ConsistentCase(Case(scrut, rules, i)) =>
+  | Match(Consistent, scrut, rules) =>
     let* scrut' = pp_uneval(env, scrut);
     let* rules' = pp_uneval_rules(env, rules);
-    ConsistentCase(Case(scrut', rules', i)) |> return;
+    Match(Consistent, scrut', rules') |> return;
 
   /* Closures shouldn't exist inside other closures */
   | Closure(_) => raise(Exception(ClosureInsideClosure))
@@ -390,21 +390,20 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* i = hii_add_instance(u, env);
     Closure(env, InvalidText(u, i, text)) |> return;
 
-  | InconsistentBranches(u, _, Case(scrut, rules, case_i)) =>
+  | Match(Inconsistent(u, _), scrut, rules) =>
     let* scrut = pp_uneval(env, scrut);
     let* rules = pp_uneval_rules(env, rules);
     let* i = hii_add_instance(u, env);
-    Closure(env, InconsistentBranches(u, i, Case(scrut, rules, case_i)))
-    |> return;
+    Closure(env, Match(Inconsistent(u, i), scrut, rules)) |> return;
   }
 
 and pp_uneval_rules =
-    (env: ClosureEnvironment.t, rules: list(DHExp.rule))
-    : m(list(DHExp.rule)) => {
+    (env: ClosureEnvironment.t, rules: list((DHPat.t, DHExp.t)))
+    : m(list((DHPat.t, DHExp.t))) => {
   rules
-  |> List.map((Rule(dp, d)) => {
+  |> List.map(((dp, d)) => {
        let* d' = pp_uneval(env, d);
-       Rule(dp, d') |> return;
+       (dp, d') |> return;
      })
   |> sequence;
 };
@@ -467,7 +466,7 @@ let rec track_children_of_hole =
     let hii = track_children_of_hole(hii, parent, d1);
     track_children_of_hole(hii, parent, d2);
 
-  | ConsistentCase(Case(scrut, rules, _)) =>
+  | Match(Consistent, scrut, rules) =>
     let hii =
       Util.TimeUtil.measure_time("track_children_of_hole(scrut)", true, () =>
         track_children_of_hole(hii, parent, scrut)
@@ -482,7 +481,7 @@ let rec track_children_of_hole =
   | NonEmptyHole(_, u, i, d) =>
     let hii = track_children_of_hole(hii, parent, d);
     hii |> HoleInstanceInfo.add_parent((u, i), parent);
-  | InconsistentBranches(u, i, Case(scrut, rules, _)) =>
+  | Match(Inconsistent(u, i), scrut, rules) =>
     let hii = track_children_of_hole(hii, parent, scrut);
     let hii = track_children_of_hole_rules(hii, parent, rules);
     hii |> HoleInstanceInfo.add_parent((u, i), parent);
@@ -503,11 +502,11 @@ and track_children_of_hole_rules =
     (
       hii: HoleInstanceInfo.t,
       parent: HoleInstanceParents.t_,
-      rules: list(DHExp.rule),
+      rules: list((DHPat.t, DHExp.t)),
     )
     : HoleInstanceInfo.t =>
   List.fold_right(
-    (DHExp.Rule(_, d), hii) => track_children_of_hole(hii, parent, d),
+    ((_, d), hii) => track_children_of_hole(hii, parent, d),
     rules,
     hii,
   );
