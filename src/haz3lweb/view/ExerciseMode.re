@@ -24,7 +24,7 @@ let view =
       ~settings: Settings.t,
       ~exercise,
       ~results,
-      ~color_highlighting,
+      ~highlights,
     ) => {
   let Exercise.{eds, pos} = exercise;
   let stitched_dynamics =
@@ -59,17 +59,18 @@ let view =
       ) => {
     Cell.editor_view(
       ~selected=pos == this_pos,
-      ~error_ids=Editor.error_ids(editor.state.meta.term_ranges, di.info_map),
+      ~error_ids=
+        Statics.Map.error_ids(editor.state.meta.term_ranges, di.info_map),
       ~inject,
       ~ui_state,
       ~mousedown_updates=[SwitchEditor(this_pos)],
       ~settings,
-      ~color_highlighting,
+      ~highlights,
       ~caption=Cell.caption(caption, ~rest=?subcaption),
       ~target_id=Exercise.show_pos(this_pos),
       ~test_results=ModelResult.test_results(di.result),
       ~footer=Option.to_list(footer),
-      Editor.get_syntax(editor),
+      editor,
     );
   };
 

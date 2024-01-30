@@ -161,8 +161,8 @@ let view =
     (
       ~sort: Sort.t,
       ~font_metrics,
-      ~syntax as {measured, buffer_ids, unselected, holes, _}: Editor.syntax,
       ~settings: Settings.t,
+      {state: {meta: {measured, buffer_ids, unselected, holes, _}, _}, _}: Editor.t,
     )
     : Node.t => {
   module Text =

@@ -51,10 +51,11 @@ let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit), model) => {
 let main_view =
     (
       ~inject: UpdateAction.t => Ui_effect.t(unit),
-      {settings, editors, explainThisModel, results, meta: {ui_state, _}, _}: Model.t,
+      {settings, editors, explainThisModel, results, statics, ui_state, _}: Model.t,
     ) => {
-  let statics = Editors.get_statics(~settings, editors);
-  let {cursor_info, info_map, indicated_id, _}: Editor.statics = statics;
+  let editor = Editors.get_editor(editors);
+  let statics = Editors.lookup_statics(~settings, ~statics, editors);
+  let cursor_info = Indicated.ci_of(editor.state.zipper, statics.info_map);
   let top_bar =
     div(
       ~attr=Attr.id("top-bar"),
@@ -73,44 +74,41 @@ let main_view =
           cursor_info,
         )
       : div([]);
-  let color_highlighting =
-    ExplainThis.get_color_map(
-      ~settings,
-      ~explainThisModel,
-      indicated_id,
-      info_map,
-    );
+  let highlights =
+    ExplainThis.get_color_map(~settings, ~explainThisModel, cursor_info);
   let editors_view =
     switch (editors) {
     | DebugLoad => [DebugMode.view(~inject)]
     | Scratch(idx, _) =>
       let result_key = ScratchSlide.scratch_key(string_of_int(idx));
       ScratchMode.view(
-        ~result_key,
         ~inject,
         ~ui_state,
         ~settings,
-        ~color_highlighting,
+        ~highlights,
         ~results,
+        ~result_key,
         ~statics,
+        editor,
       );
     | Documentation(name, _) =>
       let result_key = ScratchSlide.scratch_key(name);
       ScratchMode.view(
-        ~result_key,
         ~inject,
         ~ui_state,
         ~settings,
-        ~color_highlighting,
+        ~highlights,
         ~results,
+        ~result_key,
         ~statics,
+        editor,
       );
     | Exercises(_, _, exercise) =>
       ExerciseMode.view(
         ~inject,
         ~ui_state,
         ~settings,
-        ~color_highlighting,
+        ~highlights,
         ~results,
         ~exercise,
       )

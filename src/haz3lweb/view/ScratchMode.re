@@ -7,10 +7,11 @@ let view =
       ~inject,
       ~ui_state: Model.ui_state,
       ~settings: Settings.t,
-      ~color_highlighting,
+      ~highlights,
       ~results: ModelResults.t,
       ~result_key,
-      ~statics as {editor, error_ids, _}: Editor.statics,
+      ~statics as {error_ids, _}: CachedStatics.statics,
+      editor: Editor.t,
     ) => {
   //TODO(andrew): cleanup footer
   let result = ModelResults.lookup(results, result_key);
@@ -32,8 +33,8 @@ let view =
       ~error_ids,
       ~test_results=result |> Util.OptUtil.and_then(ModelResult.test_results),
       ~footer,
-      ~color_highlighting,
-      Editor.get_syntax(editor),
+      ~highlights,
+      editor,
     ),
   ];
 };

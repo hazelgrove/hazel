@@ -113,14 +113,20 @@ let test_result_layer =
 
 let deco =
     (
-      ~syntax as
-        {zipper, term_ranges, segment, measured, terms, tiles, _}: Editor.syntax,
       ~font_metrics,
       ~show_backpack_targets,
       ~selected,
       ~error_ids,
       ~test_results: option(TestResults.t),
-      ~color_highlighting: option(ColorSteps.colorMap),
+      ~highlights: option(ColorSteps.colorMap),
+      {
+        state: {
+          zipper,
+          meta: {term_ranges, segment, measured, terms, tiles, _},
+          _,
+        },
+        _,
+      }: Editor.t,
     ) => {
   module Deco =
     Deco.Deco({
@@ -139,7 +145,7 @@ let deco =
     | Some(test_results) =>
       decos @ test_result_layer(~font_metrics, ~measured, test_results) // TODO move into decos
     };
-  switch (color_highlighting, selected) {
+  switch (highlights, selected) {
   | (Some(colorMap), true) =>
     decos @ Deco.color_highlights(ColorSteps.to_list(colorMap))
   | _ => decos
@@ -199,21 +205,21 @@ let editor_view =
       ~caption: option(Node.t)=?,
       ~test_results: option(TestResults.t),
       ~footer: list(Node.t),
-      ~color_highlighting: option(ColorSteps.colorMap),
+      ~highlights: option(ColorSteps.colorMap),
       ~error_ids: list(Id.t),
-      syntax: Editor.syntax,
+      editor: Editor.t,
     ) => {
   let code_text_view =
-    Code.view(~sort=Sort.root, ~font_metrics, ~syntax, ~settings);
+    Code.view(~sort=Sort.root, ~font_metrics, ~settings, editor);
   let deco_view =
     deco(
-      ~syntax,
       ~font_metrics,
       ~show_backpack_targets,
       ~selected,
       ~error_ids,
       ~test_results,
-      ~color_highlighting,
+      ~highlights,
+      editor,
     );
   let code_view =
     div(
