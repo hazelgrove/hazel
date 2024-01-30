@@ -144,18 +144,12 @@ let rec matches =
     | InvalidOperation(ctx, error) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       InvalidOperation(ctx, error);
-    | ConsistentCase(Case(ctx, rs, i)) =>
+    | MatchScrut(c, ctx, rs) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      ConsistentCase(Case(ctx, rs, i));
-    | ConsistentCaseRule(dexp, dpat, ctx, rs, i) =>
+      MatchScrut(c, ctx, rs);
+    | MatchRule(c, scr, p, ctx, rs) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      ConsistentCaseRule(dexp, dpat, ctx, rs, i);
-    | InconsistentBranches(u, i, Case(ctx, rs, ri)) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      InconsistentBranches(u, i, Case(ctx, rs, ri));
-    | InconsistentBranchesRule(dexp, u, i, dpat, ctx, rs, ri) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      InconsistentBranchesRule(dexp, u, i, dpat, ctx, rs, ri);
+      MatchRule(c, scr, p, ctx, rs);
     };
   switch (ctx) {
   | Filter(_) => (ract, ridx, rctx)
@@ -395,7 +389,6 @@ let get_justification: step_kind => string =
   | ListCons => "list manipulation"
   | ListConcat => "list manipulation"
   | CaseApply => "case selection"
-  | CaseNext => "case discarding"
   | Projection => "projection" // TODO(Matt): We don't want to show projection to the user
   | InvalidStep => "error"
   | VarLookup => "variable lookup"

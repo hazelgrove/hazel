@@ -50,7 +50,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (_, FixF(_)) => DoesNotMatch
   | (_, Fun(_)) => DoesNotMatch
   | (_, BinOp(_)) => IndetMatch
-  | (_, ConsistentCase(Case(_))) => IndetMatch
+  | (_, Match(Consistent, _, _)) => IndetMatch
 
   /* Closure should match like underlying expression. */
   | (_, Closure(_, d'))
@@ -241,13 +241,12 @@ and matches_cast_Sum =
   | Ap(_)
   | ApBuiltin(_)
   | BinOp(_)
-  | InconsistentBranches(_)
   | EmptyHole(_)
   | NonEmptyHole(_)
   | FailedCast(_, _, _)
   | Test(_)
   | InvalidOperation(_)
-  | ConsistentCase(_)
+  | Match(_)
   | Prj(_)
   | If(_)
   | BuiltinFun(_) => IndetMatch
@@ -348,8 +347,7 @@ and matches_cast_Tuple =
   | ListConcat(_) => DoesNotMatch
   | Prj(_) => IndetMatch
   | Constructor(_) => DoesNotMatch
-  | ConsistentCase(_)
-  | InconsistentBranches(_) => IndetMatch
+  | Match(_) => IndetMatch
   | EmptyHole(_) => IndetMatch
   | NonEmptyHole(_) => IndetMatch
   | FailedCast(_, _, _) => IndetMatch
@@ -483,8 +481,7 @@ and matches_cast_Cons =
   | Tuple(_) => DoesNotMatch
   | Prj(_) => IndetMatch
   | Constructor(_) => DoesNotMatch
-  | ConsistentCase(_)
-  | InconsistentBranches(_) => IndetMatch
+  | Match(_) => IndetMatch
   | EmptyHole(_) => IndetMatch
   | NonEmptyHole(_) => IndetMatch
   | FailedCast(_, _, _) => IndetMatch

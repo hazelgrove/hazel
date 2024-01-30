@@ -61,8 +61,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
       | _ => d
       }
     /* Forms with special ana rules but no particular typing requirements */
-    | ConsistentCase(_)
-    | InconsistentBranches(_)
+    | Match(_)
     | If(_)
     | Seq(_)
     | Let(_)
@@ -164,12 +163,11 @@ let rec dhexp_of_uexp =
         DHExp.BinOp(Int(Minus), Int(0), dc);
       | UnOp(Bool(Not), e) =>
         let+ d_scrut = dhexp_of_uexp(m, e);
-        let d_rules =
-          DHExp.[
-            Rule(Bool(true), Bool(false)),
-            Rule(Bool(false), Bool(true)),
-          ];
-        let d = DHExp.ConsistentCase(DHExp.Case(d_scrut, d_rules, 0));
+        let d_rules = [
+          (DHPat.Bool(true), DHExp.Bool(false)),
+          (DHPat.Bool(false), DHExp.Bool(true)),
+        ];
+        let d = DHExp.(Match(Consistent, d_scrut, d_rules));
         /* Manually construct cast (case is not otherwise cast) */
         switch (mode) {
         | Ana(ana_ty) => DHExp.cast(d, Bool, ana_ty)
@@ -255,8 +253,8 @@ let rec dhexp_of_uexp =
         // Use tag to mark inconsistent branches
         switch (err_status) {
         | InHole(Common(Inconsistent(Internal(_)))) =>
-          DHExp.If(DH.InconsistentIf, c', d1, d2)
-        | _ => DHExp.If(DH.ConsistentIf, c', d1, d2)
+          DHExp.If(DH.Inconsistent(id, 0), c', d1, d2)
+        | _ => DHExp.If(DH.Consistent, c', d1, d2)
         };
       | Match(scrut, rules) =>
         let* d_scrut = dhexp_of_uexp(m, scrut);
@@ -265,16 +263,15 @@ let rec dhexp_of_uexp =
             ((p, e)) => {
               let* d_p = dhpat_of_upat(m, p);
               let+ d_e = dhexp_of_uexp(m, e);
-              DHExp.Rule(d_p, d_e);
+              (d_p, d_e);
             },
             rules,
           )
           |> OptUtil.sequence;
-        let d = DHExp.Case(d_scrut, d_rules, 0);
         switch (err_status) {
         | InHole(Common(Inconsistent(Internal(_)))) =>
-          DHExp.InconsistentBranches(id, 0, d)
-        | _ => ConsistentCase(d)
+          DHExp.Match(Inconsistent(id, 0), d_scrut, d_rules)
+        | _ => DHExp.Match(Consistent, d_scrut, d_rules)
         };
       | TyAlias(_, _, e) => dhexp_of_uexp(m, e)
       };

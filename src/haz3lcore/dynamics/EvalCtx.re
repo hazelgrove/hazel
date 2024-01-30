@@ -33,10 +33,8 @@ type cls =
   | Cast
   | FailedCast
   | InvalidOperation
-  | ConsistentCase
-  | ConsistentCaseRule(int)
-  | InconsistentBranches
-  | InconsistentBranchesRule(int)
+  | MatchScrut
+  | MatchRule(int)
   | FailedCastCast
   // Used when entering a bound variable expression in substitution mode
   | BoundVar;
@@ -54,9 +52,9 @@ type t =
   | FixF(Var.t, Typ.t, t)
   | Ap1(t, DHExp.t)
   | Ap2(DHExp.t, t)
-  | If1(if_consistency, t, DHExp.t, DHExp.t)
-  | If2(if_consistency, DHExp.t, t, DHExp.t)
-  | If3(if_consistency, DHExp.t, DHExp.t, t)
+  | If1(consistency, t, DHExp.t, DHExp.t)
+  | If2(consistency, DHExp.t, t, DHExp.t)
+  | If3(consistency, DHExp.t, DHExp.t, t)
   | BinOp1(TermBase.UExp.op_bin, t, DHExp.t)
   | BinOp2(TermBase.UExp.op_bin, DHExp.t, t)
   | Tuple(t, (list(DHExp.t), list(DHExp.t)))
@@ -78,27 +76,14 @@ type t =
   | Cast(t, Typ.t, Typ.t)
   | FailedCast(t, Typ.t, Typ.t)
   | InvalidOperation(t, InvalidOperationError.t)
-  | ConsistentCase(case)
-  | ConsistentCaseRule(
+  | MatchScrut(DH.consistency, t, list((DHPat.t, DHExp.t)))
+  | MatchRule(
+      DH.consistency,
       DHExp.t,
       DHPat.t,
       t,
-      (list(DHExp.rule), list(DHExp.rule)),
-      int,
-    )
-  | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
-  | InconsistentBranchesRule(
-      DHExp.t,
-      MetaVar.t,
-      HoleInstanceId.t,
-      DHPat.t,
-      t,
-      (list(DHExp.rule), list(DHExp.rule)),
-      int,
-    )
-and case =
-  | Case(t, list(rule), int)
-and rule = DHExp.rule;
+      (list((DHPat.t, DHExp.t)), list((DHPat.t, DHExp.t))),
+    );
 
 let rec fuzzy_mark =
   fun
@@ -131,10 +116,8 @@ let rec fuzzy_mark =
   | Prj(_)
   | NonEmptyHole(_)
   | InvalidOperation(_)
-  | ConsistentCase(_)
-  | ConsistentCaseRule(_)
-  | InconsistentBranches(_)
-  | InconsistentBranchesRule(_) => false;
+  | MatchScrut(_)
+  | MatchRule(_) => false;
 
 let rec unwrap = (ctx: t, sel: cls): option(t) => {
   switch (sel, ctx) {
@@ -174,19 +157,13 @@ let rec unwrap = (ctx: t, sel: cls): option(t) => {
     } else {
       None;
     }
-  | (ConsistentCaseRule(n), ConsistentCaseRule(_, _, c, (ld, _), _))
-  | (
-      InconsistentBranchesRule(n),
-      InconsistentBranchesRule(_, _, _, _, c, (ld, _), _),
-    ) =>
+  | (MatchScrut, MatchScrut(_, scr, _)) => Some(scr)
+  | (MatchRule(n), MatchRule(_, _, _, c, (ld, _))) =>
     if (List.length(ld) == n) {
       Some(c);
     } else {
       None;
     }
-  | (InconsistentBranches, InconsistentBranches(_, _, Case(scrut, _, _))) =>
-    Some(scrut)
-  | (ConsistentCase, ConsistentCase(Case(scrut, _, _))) => Some(scrut)
   | (Cast, Cast(c, _, _))
   | (FailedCastCast, FailedCast(Cast(c, _, _), _, _))
   | (FailedCast, FailedCast(c, _, _)) => Some(c)
@@ -209,6 +186,8 @@ let rec unwrap = (ctx: t, sel: cls): option(t) => {
   | (ListConcat1, ListConcat2(_))
   | (ListConcat2, ListConcat1(_)) => None
   | (FilterPattern, _) => None
+  | (MatchScrut, MatchRule(_))
+  | (MatchRule(_), MatchScrut(_)) => None
   | (Filter, _) => Some(ctx)
   | (tag, Filter(_, c)) => unwrap(c, tag)
   | (Closure, _) => Some(ctx)

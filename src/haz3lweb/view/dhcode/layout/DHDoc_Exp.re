@@ -75,8 +75,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Fun(_) => DHDoc_common.precedence_max
   | Let(_)
   | FixF(_)
-  | ConsistentCase(_)
-  | InconsistentBranches(_) => DHDoc_common.precedence_max
+  | Match(_) => DHDoc_common.precedence_max
 
   | BinOp(Bool(op), _, _) => precedence_bin_bool_op(op)
   | BinOp(Int(op), _, _) => precedence_bin_int_op(op)
@@ -153,7 +152,6 @@ let mk =
         | (ListCons, _)
         | (ListConcat, _)
         | (CaseApply, _)
-        | (CaseNext, _)
         | (CompleteClosure, _)
         | (CompleteFilter, _)
         | (Cast, _)
@@ -204,15 +202,8 @@ let mk =
       } else {
         doc(~enforce_inline);
       };
-    let go_case_rule =
-        (consistent: bool, rule_idx: int, Rule(dp, dclause): DHExp.rule)
-        : DHDoc.t => {
-      let kind: EvalCtx.cls =
-        if (consistent) {
-          ConsistentCaseRule(rule_idx);
-        } else {
-          InconsistentBranchesRule(rule_idx);
-        };
+    let go_case_rule = (rule_idx: int, (dp, dclause)): DHDoc.t => {
+      let kind: EvalCtx.cls = MatchRule(rule_idx);
       let hidden_clause = annot(DHAnnot.Collapsed, text(Unicode.ellipsis));
       let clause_doc =
         settings.show_case_clauses
@@ -235,24 +226,24 @@ let mk =
         clause_doc,
       ]);
     };
-    let go_case = (dscrut, drs, consistent) =>
+    let go_case = (dscrut, drs) =>
       if (enforce_inline) {
         fail();
       } else {
-        let kind: EvalCtx.cls =
-          if (consistent) {ConsistentCase} else {InconsistentBranches};
         let scrut_doc =
           choices([
-            hcats([space(), go'(~enforce_inline=true, dscrut, kind)]),
+            hcats([space(), go'(~enforce_inline=true, dscrut, MatchScrut)]),
             hcats([
               linebreak(),
-              indent_and_align(go'(~enforce_inline=false, dscrut, kind)),
+              indent_and_align(
+                go'(~enforce_inline=false, dscrut, MatchScrut),
+              ),
             ]),
           ]);
         vseps(
           List.concat([
             [hcat(DHDoc_common.Delim.open_Case, scrut_doc)],
-            drs |> List.mapi(go_case_rule(consistent)),
+            drs |> List.mapi(go_case_rule),
             [DHDoc_common.Delim.close_Case],
           ]),
         );
@@ -315,9 +306,8 @@ let mk =
       | FreeVar(u, i, x) =>
         text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
       | InvalidText(u, i, t) => DHDoc_common.mk_InvalidText(t, (u, i))
-      | InconsistentBranches(u, i, Case(dscrut, drs, _)) =>
-        go_case(dscrut, drs, false)
-        |> annot(DHAnnot.InconsistentBranches((u, i)))
+      | Match(Inconsistent(u, i), dscrut, drs) =>
+        go_case(dscrut, drs) |> annot(DHAnnot.InconsistentBranches((u, i)))
       | Var(x) when List.mem(x, recursive_calls) => text(x)
       | Var(x) when settings.show_lookup_steps => text(x)
       | Var(x) =>
@@ -415,7 +405,7 @@ let mk =
       | Tuple(ds) =>
         DHDoc_common.mk_Tuple(ds |> List.mapi((i, d) => go'(d, Tuple(i))))
       | Prj(d, n) => DHDoc_common.mk_Prj(go'(d, Prj), n)
-      | ConsistentCase(Case(dscrut, drs, _)) => go_case(dscrut, drs, true)
+      | Match(Consistent, dscrut, drs) => go_case(dscrut, drs)
       | Cast(d, _, ty) when settings.show_casts =>
         // TODO[Matt]: Roll multiple casts into one cast
         let doc = go'(d, Cast);

@@ -66,7 +66,6 @@ type step_kind =
   | ListCons
   | ListConcat
   | CaseApply
-  | CaseNext
   | CompleteClosure
   | CompleteFilter
   | Cast
@@ -318,7 +317,7 @@ module Transition = (EV: EV_MODE) => {
       and. c' =
         req_value(req(state, env), c => If1(consistent, c, d1, d2), c);
       switch (consistent, c') {
-      | (ConsistentIf, Bool(b)) =>
+      | (Consistent, Bool(b)) =>
         Step({
           apply: () => {
             b ? d1 : d2;
@@ -328,7 +327,7 @@ module Transition = (EV: EV_MODE) => {
           value: false,
         })
       // Use a seperate case for invalid conditionals. Makes extracting the bool from BoolLit (above) easier.
-      | (ConsistentIf, _) =>
+      | (Consistent, _) =>
         Step({
           apply: () => {
             raise(EvaluatorError.Exception(InvalidBoxedBoolLit(c')));
@@ -337,7 +336,7 @@ module Transition = (EV: EV_MODE) => {
           value: true,
         })
       // Inconsistent branches should be Indet
-      | (InconsistentIf, _) => Indet
+      | (Inconsistent(_), _) => Indet
       };
     | BinOp(Bool(And), d1, d2) =>
       let. _ = otherwise(env, d1 => BinOp(Bool(And), d1, d2))
@@ -523,35 +522,34 @@ module Transition = (EV: EV_MODE) => {
           ds,
         );
       Constructor;
-    // TODO(Matt): This will currently re-traverse d1 if it is a large constructor
-    | ConsistentCase(Case(d1, rules, n)) =>
-      let. _ = otherwise(env, d1 => ConsistentCase(Case(d1, rules, n)))
-      and. d1' =
+    | Match(Consistent, d1, rules) =>
+      let. _ = otherwise(env, d1 => Match(Consistent, d1, rules))
+      and. d1 =
         req_final(
           req(state, env),
-          d1 => ConsistentCase(Case(d1, rules, n)),
+          d1 => MatchScrut(Consistent, d1, rules),
           d1,
         );
-      switch (List.nth_opt(rules, n)) {
+      let rec next_rule = (
+        fun
+        | [] => None
+        | [(dp, d2), ...rules] =>
+          switch (matches(dp, d1)) {
+          | Matches(env') => Some((env', d2))
+          | DoesNotMatch => next_rule(rules)
+          | IndetMatch => None
+          }
+      );
+      switch (next_rule(rules)) {
+      | Some((env', d2)) =>
+        Step({
+          apply: () => Closure(evaluate_extend_env(env', env), d2),
+          kind: CaseApply,
+          value: false,
+        })
       | None => Indet
-      | Some(Rule(dp, d2)) =>
-        switch (matches(dp, d1')) {
-        | Matches(env') =>
-          Step({
-            apply: () => Closure(evaluate_extend_env(env', env), d2),
-            kind: CaseApply,
-            value: false,
-          })
-        | DoesNotMatch =>
-          Step({
-            apply: () => ConsistentCase(Case(d1', rules, n + 1)),
-            kind: CaseNext,
-            value: false,
-          })
-        | IndetMatch => Indet
-        }
       };
-    | InconsistentBranches(_) as d =>
+    | Match(Inconsistent(_, _), _, _) as d =>
       let. _ = otherwise(env, d);
       Indet;
     | Closure(env', d) =>
@@ -662,7 +660,6 @@ let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
   | VarLookup => !settings.show_lookup_steps
   | CastAp
   | Cast => !settings.show_casts
-  | CaseNext
   | CompleteClosure
   | CompleteFilter
   | FixUnwrap
