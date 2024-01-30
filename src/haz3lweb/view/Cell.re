@@ -68,12 +68,12 @@ let mousedown_handler =
 
 let narrative_cell = (content: Node.t) =>
   div(
-    ~attr=Attr.class_("cell-container"),
+    ~attr=Attr.class_("cell"),
     [div(~attr=Attr.class_("cell-chapter"), [content])],
   );
 
 let simple_cell_item = (content: list(Node.t)) =>
-  div(~attr=Attr.classes(["cell", "cell-item"]), content);
+  div(~attr=Attr.classes(["cell-item"]), content);
 
 let caption = (~rest: option(string)=?, bolded: string) =>
   div(
@@ -82,7 +82,7 @@ let caption = (~rest: option(string)=?, bolded: string) =>
   );
 
 let simple_cell_view = (items: list(t)) =>
-  div(~attr=Attr.class_("cell-container"), items);
+  div(~attr=Attr.class_("cell"), items);
 
 let test_status_icon_view =
     (~font_metrics, insts, ms: Measured.Shards.t): option(t) =>
@@ -100,11 +100,7 @@ let test_status_icon_view =
   };
 
 let test_result_layer =
-    (
-      ~font_metrics,
-      ~measured: Measured.t,
-      test_results: TestResults.test_results,
-    )
+    (~font_metrics, ~measured: Measured.t, test_results: TestResults.t)
     : list(t) =>
   List.filter_map(
     ((id, insts)) =>
@@ -123,7 +119,7 @@ let deco =
       ~show_backpack_targets,
       ~selected,
       ~error_ids,
-      ~test_results: option(TestResults.test_results),
+      ~test_results: option(TestResults.t),
       ~color_highlighting: option(ColorSteps.colorMap),
     ) => {
   module Deco =
@@ -197,12 +193,11 @@ let editor_view =
       ~ui_state as
         {font_metrics, show_backpack_targets, mousedown, _}: Model.ui_state,
       ~settings: Settings.t,
-      ~code_id: string,
-      ~clss=[],
+      ~target_id: string,
       ~mousedown_updates: list(Update.t)=[],
       ~selected: bool=true,
       ~caption: option(Node.t)=?,
-      ~test_results: option(TestResults.test_results),
+      ~test_results: option(TestResults.t),
       ~footer: list(Node.t),
       ~color_highlighting: option(ColorSteps.colorMap),
       ~error_ids: list(Id.t),
@@ -222,28 +217,23 @@ let editor_view =
     );
   let code_view =
     div(
-      ~attr=Attr.many([Attr.id(code_id), Attr.classes(["code-container"])]),
+      ~attr=
+        Attr.many([Attr.id(target_id), Attr.classes(["code-container"])]),
       [code_text_view] @ deco_view,
     );
   let mousedown_overlay =
     selected && mousedown
-      ? [mousedown_overlay(~inject, ~font_metrics, ~target_id=code_id)] : [];
-  let classes = ["cell-item", "cell", selected ? "selected" : "deselected"];
+      ? [mousedown_overlay(~inject, ~font_metrics, ~target_id)] : [];
+  let on_mousedown =
+    mousedown_handler(~inject, ~font_metrics, ~target_id, ~mousedown_updates);
   div(
-    ~attr=Attr.class_("cell-container"),
+    ~attr=Attr.classes(["cell", selected ? "selected" : "deselected"]),
     [
       div(
         ~attr=
           Attr.many([
-            Attr.classes(classes @ clss),
-            Attr.on_mousedown(
-              mousedown_handler(
-                ~inject,
-                ~font_metrics,
-                ~target_id=code_id,
-                ~mousedown_updates,
-              ),
-            ),
+            Attr.classes(["cell-item"]),
+            Attr.on_mousedown(on_mousedown),
           ]),
         Option.to_list(caption) @ mousedown_overlay @ [code_view],
       ),
@@ -252,6 +242,7 @@ let editor_view =
   );
 };
 
+//TODO(andrew): why are there two of these?
 let footer =
     (
       ~inject,
@@ -279,69 +270,11 @@ let footer =
     };
   };
 
-let editor_with_result_view =
-    (
-      ~inject,
-      ~ui_state,
-      ~clss=[],
-      ~settings: Settings.t,
-      ~color_highlighting: option(ColorSteps.colorMap),
-      ~selected: bool,
-      ~caption: option(Node.t)=?,
-      ~code_id: string,
-      ~result_key: string,
-      ~result: ModelResult.t,
-      editor,
-    ) => {
-  let simple = ModelResult.get_simple(result);
-  let test_results = TestResults.unwrap_test_results(simple);
-  let eval_result_footer =
-    footer(~inject, ~ui_state, ~settings, ~result_key, ~result);
-  editor_view(
-    ~inject,
-    ~ui_state,
-    ~clss,
-    ~mousedown_updates=[],
-    ~settings,
-    ~selected,
-    ~caption?,
-    ~code_id,
-    ~test_results,
-    ~footer=eval_result_footer,
-    ~color_highlighting,
-    editor,
-  );
-};
-
-let test_view =
-    (
-      ~settings,
-      ~title,
-      ~inject,
-      ~font_metrics,
-      ~test_results: option(TestResults.test_results),
-    )
-    : Node.t =>
-  div(
-    ~attr=Attr.classes(["cell-item", "panel", "test-panel"]),
-    [
-      TestView.view_of_main_title_bar(title),
-      TestView.test_reports_view(
-        ~settings,
-        ~inject,
-        ~font_metrics,
-        ~test_results,
-      ),
-      TestView.test_summary(~inject, ~test_results),
-    ],
-  );
-
 let report_footer_view = content => {
   div(~attr=Attr.classes(["cell-item", "cell-report"]), content);
 };
 
-let test_report_footer_view =
-    (~inject, ~test_results: option(TestResults.test_results)) => {
+let test_report_footer_view = (~inject, ~test_results: option(TestResults.t)) => {
   report_footer_view([TestView.test_summary(~inject, ~test_results)]);
 };
 

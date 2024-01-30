@@ -8,37 +8,30 @@ let view =
       ~ui_state: Model.ui_state,
       ~settings: Settings.t,
       ~color_highlighting,
-      ~result: option(ModelResult.t),
+      ~results: ModelResults.t,
       ~result_key,
       ~statics as {editor, error_ids, _}: Editor.statics,
     ) => {
-  //TODO(andrew): cleanup
-  let simple = result |> Util.OptUtil.and_then(ModelResult.get_simple);
-  let test_results = TestResults.unwrap_test_results(simple);
+  //TODO(andrew): cleanup footer
+  let result = ModelResults.get(results, result_key);
+  let footer =
+    settings.core.statics
+      ? result
+        |> Option.map(result =>
+             Cell.footer(~settings, ~inject, ~ui_state, ~result, ~result_key)
+           )
+        |> Option.to_list
+        |> List.flatten
+      : [];
   [
     Cell.editor_view(
       ~inject,
       ~ui_state,
-      ~clss=["single"],
       ~settings,
-      ~code_id="code-container",
+      ~target_id="code-container",
       ~error_ids,
-      ~test_results,
-      ~footer=
-        settings.core.statics
-          ? result
-            |> Option.map(result =>
-                 Cell.footer(
-                   ~settings,
-                   ~inject,
-                   ~ui_state,
-                   ~result,
-                   ~result_key,
-                 )
-               )
-            |> Option.to_list
-            |> List.flatten
-          : [],
+      ~test_results=result |> Util.OptUtil.and_then(ModelResult.test_results),
+      ~footer,
       ~color_highlighting,
       Editor.get_syntax(editor),
     ),
