@@ -6,14 +6,42 @@
   (source_tree www)))
 
 (library
+ (name simpleWorker)
+ (modules SimpleWorker)
+ (libraries
+  str
+  incr_dom
+  virtual_dom.input_widgets
+  util
+  ppx_yojson_conv.expander
+  haz3lcore
+  haz3lschool
+  pretty
+  lwt
+  lwtutil
+  omd)
+ (js_of_ocaml
+  (flags
+   (:include js-of-ocaml-flags-%{profile})))
+ (preprocess
+  (pps
+   ppx_yojson_conv
+   js_of_ocaml-ppx
+   ppx_let
+   ppx_sexp_conv
+   ppx_deriving.show)))
+
+(library
  (name haz3lweb)
  (modules
   (:standard \ Main)
   \
-  Worker)
+  Worker
+  SimpleWorker)
  (libraries
-  ; ezjs_min
-  ; ezjs_idb
+  ezjs_min
+  ezjs_idb
+  simpleWorker
   str
   incr_dom
   virtual_dom.input_widgets
@@ -55,7 +83,7 @@
 (executable
  (name worker)
  (modules Worker)
- (libraries haz3lweb)
+ (libraries simpleWorker)
  (modes js)
  (preprocess
   (pps js_of_ocaml-ppx)))

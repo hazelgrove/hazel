@@ -254,7 +254,7 @@ let evaluate_and_schedule =
          print_endline("666 about to call State.evaluator_next");
          //let pushed = State.evaluator_next(state, key, d);
 
-         let () = SimpleWorker.EvalClient.request(schedule_action, (key, d));
+         let () = EvalClient.request(schedule_action, (key, d));
 
          /* Set evaluation to pending after short timeout. */
          /* FIXME: This is problematic if evaluation finished in time, but UI hasn't
