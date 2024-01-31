@@ -28,6 +28,13 @@ let reset_hazel =
     ~tooltip="Clear Local Storage and Reload (LOSE ALL DATA)",
   );
 
+let reparse = (~inject: Update.t => 'a) =>
+  button(
+    Icons.backpack,
+    _ => inject(ReparseCurrentEditor),
+    ~tooltip="Reparse Current Editor",
+  );
+
 let settings_menu =
     (
       ~inject,
@@ -150,6 +157,7 @@ let view =
         ~icon=Icons.import,
         import_menu(~inject, editors),
       ),
+      reparse(~inject),
       reset_hazel,
       link(
         Icons.github,
