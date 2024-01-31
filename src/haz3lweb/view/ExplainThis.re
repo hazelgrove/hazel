@@ -601,7 +601,7 @@ let get_doc =
       mode: message_mode,
     )
     : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
-  let simple = msg => ([text(msg)], ([], (Id.Map.empty, 0)), []);
+  let simple = msg => ([], ([text(msg)], (Id.Map.empty, 0)), []);
   let default = simple("No docs available");
   let get_specificity_level = group_id =>
     fst(ExplainThisModel.get_form_and_options(group_id, docs)).id;
@@ -2356,7 +2356,7 @@ let get_doc =
     switch (s.cls) {
     | Secondary(Whitespace) => simple("A semantic void, pervading but inert")
     | Secondary(Comment) =>
-      simple("Comments are ignored by compilers but treasured by readers")
+      simple("Comments are ignored by systems but treasured by readers")
     | _ => failwith("ExplainThis: Secondary Impossible")
     }
   | None => default
@@ -2434,27 +2434,27 @@ let view =
             ],
           ),
         ]
-        @ (
-          syn_form == []
-            ? []
-            : [
-              section(
-                ~section_clss="syntactic-form",
-                ~title=
-                  switch (info) {
-                  | None => "Whitespace or Comment"
-                  | Some(info) => Info.cls_of(info) |> Term.Cls.show
-                  },
-                [
+        @ [
+          section(
+            ~section_clss="syntactic-form",
+            ~title=
+              switch (info) {
+              | None => "Whitespace or Comment"
+              | Some(info) => Info.cls_of(info) |> Term.Cls.show
+              },
+            (
+              syn_form == []
+                ? []
+                : [
                   div(
                     ~attr=clss(["cell-container"]),
                     [div(~attr=clss(["cell-item"]), syn_form)],
                   ),
                 ]
-                @ explanation,
-              ),
-            ]
-        )
+            )
+            @ explanation,
+          ),
+        ]
         @ (
           example == []
             ? []
