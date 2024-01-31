@@ -601,7 +601,8 @@ let get_doc =
       mode: message_mode,
     )
     : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
-  let default = ([text("No docs available")], ([], ColorSteps.empty), []);
+  let simple = msg => ([text(msg)], ([], (Id.Map.empty, 0)), []);
+  let default = simple("No docs available");
   let get_specificity_level = group_id =>
     fst(ExplainThisModel.get_form_and_options(group_id, docs)).id;
   let get_message =
@@ -683,7 +684,7 @@ let get_doc =
             (term)
             : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) =>
       switch (term) {
-      | TermBase.UExp.Invalid(_) => default
+      | TermBase.UExp.Invalid(_) => simple("Not a valid expression")
       | EmptyHole => get_message(HoleExp.empty_hole_exps)
       | MultiHole(_children) => get_message(HoleExp.multi_hole_exps)
       | TyAlias(ty_pat, ty_def, _body) =>
@@ -2172,7 +2173,7 @@ let get_doc =
           ),
         TypAnnPat.typann,
       );
-    | Invalid(_) // Shouldn't be hit
+    | Invalid(_) => simple("Not a valid pattern")
     | Parens(_) =>
       // Shouldn't be hit?
       default
@@ -2333,13 +2334,13 @@ let get_doc =
     | Sum(_) => get_message(SumTyp.labelled_sum_typs)
     | Ap({term: Constructor(c), _}, _) =>
       get_message(SumTyp.sum_typ_unary_constructor_defs(c))
-    | Ap(_) => default
-    | Invalid(_) // Shouldn't be hit
+    | Invalid(_) => simple("Not a type or type operator")
+    | Ap(_)
     | Parens(_) => default // Shouldn't be hit?
     }
   | Some(InfoTPat(info)) =>
     switch (info.term.term) {
-    | Invalid(_) => default
+    | Invalid(_) => simple("Type names must begin with a capital letter")
     | EmptyHole => get_message(HoleTPat.empty_hole_tpats)
     | MultiHole(_) => get_message(HoleTPat.multi_hole_tpats)
     | Var(v) =>
@@ -2350,6 +2351,13 @@ let get_doc =
           ),
         VarTPat.var_typ_pats(v),
       )
+    }
+  | Some(Secondary(s)) =>
+    switch (s.cls) {
+    | Secondary(Whitespace) => simple("A semantic void, pervading but inert")
+    | Secondary(Comment) =>
+      simple("Comments are ignored by compilers but treasured by readers")
+    | _ => failwith("ExplainThis: Secondary Impossible")
     }
   | None => default
   };
@@ -2382,18 +2390,8 @@ let view =
       ~font_metrics: FontMetrics.t,
       ~settings: Settings.t,
       ~doc: ExplainThisModel.t,
-      index': option(Id.t),
-      info_map: Statics.Map.t,
+      info: option(Info.t),
     ) => {
-  let info: option(Statics.Info.t) =
-    switch (index') {
-    | Some(index) =>
-      switch (Id.Map.find_opt(index, info_map)) {
-      | Some(ci) => Some(ci)
-      | None => None
-      }
-    | None => None
-    };
   let (syn_form, (explanation, _), example) =
     get_doc(~docs=doc, info, MessageContent(inject, font_metrics, settings));
   div(
