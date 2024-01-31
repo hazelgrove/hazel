@@ -162,7 +162,6 @@ let rec unwrap = (ctx: t, sel: cls): option(t) => {
       ++ Sexplib.Sexp.to_string_hum(sexp_of_t(ctx)),
     );
     raise(EvaluatorError.Exception(StepDoesNotMatch));
-  | (_, Mark) => None
   | (BoundVar, c)
   | (NonEmptyHole, NonEmptyHole(_, _, _, c))
   | (Closure, Closure(_, c))
@@ -239,12 +238,14 @@ let rec unwrap = (ctx: t, sel: cls): option(t) => {
   | (Sequence2, Sequence1(_))
   | (ListConcat1, ListConcat2(_))
   | (ListConcat2, ListConcat1(_)) => None
-  | (Closure, _) => Some(ctx)
-  | (tag, Closure(_, c)) => unwrap(c, tag)
+  | (FilterPattern, _) => None
   | (Filter, _) => Some(ctx)
   | (tag, Filter(_, c)) => unwrap(c, tag)
+  | (Closure, _) => Some(ctx)
+  | (tag, Closure(_, c)) => unwrap(c, tag)
   | (Cast, _) => Some(ctx)
   | (tag, Cast(c, _, _)) => unwrap(c, tag)
+  | (_, Mark) => None
   | (_, _) =>
     // print_endline(
     //   Sexplib.Sexp.to_string_hum(sexp_of_cls(tag))

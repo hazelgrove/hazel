@@ -76,6 +76,10 @@ let common_err_view = (cls: Term.Cls.t, err: Info.error_common) =>
       text("inconsistent with"),
       Type.view(Prod([])),
     ]
+  | NoType(BadSumAp(ty)) => [
+      text("Application of sum type"),
+      Type.view(ty),
+    ]
   | NoType(FreeConstructor(name)) => [code_err(name), text("not found")]
   | Inconsistent(WithArrow(typ)) => [
       text(":"),
