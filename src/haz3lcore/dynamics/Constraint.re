@@ -197,6 +197,7 @@ let rec to_upat_term = (xi, ctx, ty): Term.UPat.term => {
     }
   | (_, Sum(sm)) => to_upat_term'(sm)
   | (_, Rec(_) as ty) =>
+    // Assumes that anonymous recursive types are not implemented
     switch (Typ.get_sum_constructors(ctx, ty)) {
     | Some(sm) => to_upat_term'(sm)
     | None => assert(false) // impossible
