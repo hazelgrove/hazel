@@ -25,39 +25,44 @@ let unselect = (~toward=?, z: t) =>
 let unzip = (cell: Cell.t) => {
   let get = OptUtil.get_or_raise(Path.Invalid);
   let rec go = (~ctx=Ctx.empty, cell: Cell.t) =>
-    switch (cell.marks.cursor) {
+    switch (cell.marks.focus) {
     | None =>
       Ctx.map_fst(Frame.Open.cat(([], Melder.Slope.Up.unroll(cell))), ctx)
-    | Some(({cells: [], token}, offset)) =>
-      let M(l, w, r) = get(Cell.get(cell));
-      let (pre, tok, suf) = Wald.unzip_tok(token, w);
-      switch (Token.split(offset, tok)) {
-      | Error(side) =>
-        // normalize to overlapping cursor position in neighboring cell
-        let n = Dir.pick(side, (token - 1, token));
-        let path = Path.{cells: [n], token: 0};
-        let marks = {...cell.marks, cursor: Some((path, 0))};
-        go(~ctx, {...cell, marks});
-      | Ok((tok_l, tok_r)) =>
-        let l = Terr.{cell: l, wald: Wald.zip_tok(~suf=pre, tok_l)};
-        let r = Terr.{wald: Wald.zip_tok(tok_r, ~suf), cell: r};
-        Ctx.link((l, r), ctx);
-      };
-    | Some(({cells: [n, ..._], _}, _)) =>
-      let M(l, w, r) = get(Cell.get(cell));
-      if (n == 0) {
-        let terr = Terr.{wald: w, cell: r};
-        let ctx = Ctx.map_fst(Frame.Open.cat(([], [terr])), ctx);
-        go(~ctx, l);
-      } else if (n == Wald.length(w)) {
-        let terr = Terr.{cell: l, wald: Wald.rev(w)};
-        let ctx = Ctx.map_fst(Frame.Open.cat(([terr], [])), ctx);
-        go(~ctx, r);
-      } else {
-        let (pre, cell, suf) = Wald.unzip_cell(n - 1, w);
-        let terrs = Terr.({cell: l, wald: pre}, {wald: suf, cell: r});
-        let ctx = Ctx.link(terrs, ctx);
-        go(~ctx, cell);
+    | Some(cursor) =>
+      switch (Path.Cursor.uncons(cursor)) {
+      | None when Path.Cursor.is_point(cursor) =>
+        let P(j, T(i, C(_empty))) = Path.Cursor.origin(cursor);
+        let M(l, w, r) = get(Cell.get(cell));
+        let (pre, tok, suf) = Wald.unzip_tok(i, w);
+        switch (Token.split(j, tok)) {
+        | Error(side) =>
+          // normalize to overlapping cursor position in neighboring cell
+          let n = Dir.pick(side, (i - 1, i));
+          let path = Path.{cells: [n], token: 0};
+          let marks = {...cell.marks, focus: Some((path, 0))};
+          go(~ctx, {...cell, marks});
+        | Ok((tok_l, tok_r)) =>
+          let l = Terr.{cell: l, wald: Wald.zip_tok(~suf=pre, tok_l)};
+          let r = Terr.{wald: Wald.zip_tok(tok_r, ~suf), cell: r};
+          Ctx.link((l, r), ctx);
+        };
+      | None => x
+      | Some((n, cursor)) =>
+        let M(l, w, r) = get(Cell.get(cell));
+        if (n == 0) {
+          let terr = Terr.{wald: w, cell: r};
+          let ctx = Ctx.map_fst(Frame.Open.cat(([], [terr])), ctx);
+          go(~ctx, l);
+        } else if (n == Wald.length(w)) {
+          let terr = Terr.{cell: l, wald: Wald.rev(w)};
+          let ctx = Ctx.map_fst(Frame.Open.cat(([terr], [])), ctx);
+          go(~ctx, r);
+        } else {
+          let (pre, cell, suf) = Wald.unzip_cell(n - 1, w);
+          let terrs = Terr.({cell: l, wald: pre}, {wald: suf, cell: r});
+          let ctx = Ctx.link(terrs, ctx);
+          go(~ctx, cell);
+        };
       };
     };
   mk(go(cell));
