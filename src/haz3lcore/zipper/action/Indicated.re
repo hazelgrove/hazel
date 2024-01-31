@@ -106,9 +106,15 @@ let ci_of = (z: Zipper.t, info_map: Statics.Map.t): option(Statics.Info.t) =>
   | Some((p, _, _)) => Id.Map.find_opt(Piece.id(p), info_map)
   | None =>
     let sibs = sibs_with_sel(z);
-    /* Favoring left over right here is nicer for comments */
     let* cls =
       switch (Siblings.neighbors(sibs)) {
+      /* If on side of comment, say we're on comment */
+      | (Some(Secondary(sl)), Some(Secondary(_)))
+          when Secondary.is_comment(sl) =>
+        Some(Secondary.cls_of(sl))
+      | (Some(Secondary(_)), Some(Secondary(sr)))
+          when Secondary.is_comment(sr) =>
+        Some(Secondary.cls_of(sr))
       | (_, Some(Secondary(s)))
       | (Some(Secondary(s)), _) => Some(Secondary.cls_of(s))
       | _ => None
