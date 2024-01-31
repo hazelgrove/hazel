@@ -1016,6 +1016,7 @@ let normalize_token = tok =>
   | "~EXTEND-TYPVAR~" => "extend-typvar"
   | "~CONSTRUCTOR~" => "constructor"
   | "~EXTEND-CONSTRUCTOR~" => "extend-constructor"
+  | "~WHITESPACE~" => "whitespace"
   | "\\/" => {|"\\/"|}
   | tok => "\"" ++ tok ++ "\""
   };
@@ -1046,10 +1047,10 @@ let mk_grammar = (pre_grammar: pre_grammar): string => {
   // Note addition of whitespace token
   let sort_new_tokens = {
     let new_tokens =
-      ["whitespace", ...pre_grammar.new_tokens]
+      ["~WHITESPACE~", ...pre_grammar.new_tokens]
       |> List.map(normalize_token)
       |> String.concat(" | ");
-    pre_grammar.new_tokens == [] ? "" : "\nnew_tokens ::= " ++ new_tokens;
+    pre_grammar.new_tokens == [] ? "" : "\nnew-tokens ::= " ++ new_tokens;
   };
   let sort_root =
     switch (pre_grammar.completions, pre_grammar.new_tokens) {
