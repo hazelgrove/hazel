@@ -329,6 +329,10 @@ body {
   justify-content: space-between;
   gap: 1.2em;
 }
+#main.Scratch .cell-container,
+#main.Documentation .cell-container {
+  min-width: 30em;
+}
 #main.Exercises .cell-container {
   width: auto;
 }
@@ -675,7 +679,6 @@ select {
 }
 
 .cell-container {
-  min-width: 30em;
   width: fit-content;
   border-radius: 0.4em;
   border-left: 2px solid var(--top_bar_icon_fill);
