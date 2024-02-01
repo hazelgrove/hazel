@@ -74,7 +74,7 @@
   --nul-text-color: red;
   --nul-off-color: var(--nul-text-color);
   --nul-token-color: var(--nul-text-color);
-  --nul-shadow-color: #ffa000;;
+  --nul-shadow-color: #ffa000;
   --nul-bg-color: #ffacac;
   --nul-bg-off-color: var(--nul-bg-color);
 
@@ -328,6 +328,13 @@ body {
   flex-direction: column;
   justify-content: space-between;
   gap: 1.2em;
+}
+#main.Scratch .cell,
+#main.Documentation .cell {
+  min-width: 30em;
+}
+#main.Exercises .cell {
+  width: auto;
 }
 
 #main::-webkit-scrollbar {
@@ -675,13 +682,6 @@ select {
   width: fit-content;
   border-radius: 0.4em;
   border-left: 2px solid var(--top_bar_icon_fill);
-}
-#main.Exercises .cell {
-  width: auto;
-}
-#main.Scratch .cell,
-#main.Documentation .cell  {
-  min-width: 30em;
 }
 
 .cell.selected {
@@ -2236,23 +2236,24 @@ svg.expandable path {
   left: -1em;
 }
 
-.steppable,.steppable *:not(.DHCode .EmptyHole *,.DHCode .EmptyHole) {
+.steppable,
+.steppable *:not(.DHCode .EmptyHole *, .DHCode .EmptyHole) {
   border: 1px var(--step-hole-color);
-  background-color:rgb(232, 255, 196);
+  background-color: rgb(232, 255, 196);
   margin: -1px;
   cursor: pointer;
 }
 
-
-.stepped,.stepped *:not(.DHCode .EmptyHole *,.DHCode .EmptyHole) {
+.stepped,
+.stepped *:not(.DHCode .EmptyHole *, .DHCode .EmptyHole) {
   border: 1px var(--step-hole-color);
-  background-color:#ddcda3;
+  background-color: #ddcda3;
   margin: -1px;
 }
 
 .substituted {
   text-decoration: line-through;
-  color: #AC985E;
+  color: #ac985e;
 }
 
 .settings-modal {
