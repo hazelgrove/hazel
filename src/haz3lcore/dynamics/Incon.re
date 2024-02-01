@@ -84,6 +84,8 @@ let is_inconsistent_string = (xis: list(Constraint.t)): b => {
 };
 
 let rec is_inconsistent = (xis: list(Constraint.t)): b =>
+  is_inconsistent'(xis)
+and is_inconsistent' = (xis: list(Constraint.t)): b =>
   switch (xis) {
   | [] => False(Constraint.Truth)
   | _
