@@ -29,7 +29,7 @@ let cast_sum_maps =
 };
 
 let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
-  switch (dp, d) {
+  switch (dp, DHExp.term_of(d)) {
   | (_, Var(_)) => DoesNotMatch
   | (EmptyHole(_), _)
   | (NonEmptyHole(_), _) => IndetMatch
@@ -207,7 +207,7 @@ and matches_cast_Sum =
       castmaps: list(ConstructorMap.t((Typ.t, Typ.t))),
     )
     : match_result =>
-  switch (d) {
+  switch (DHExp.term_of(d)) {
   | Constructor(ctr') =>
     switch (
       dp,
@@ -217,14 +217,20 @@ and matches_cast_Sum =
       ctr == ctr' ? Matches(Environment.empty) : DoesNotMatch
     | _ => DoesNotMatch
     }
-  | Ap(Constructor(ctr'), d') =>
-    switch (
-      dp,
-      castmaps |> List.map(ConstructorMap.find_opt(ctr')) |> OptUtil.sequence,
-    ) {
-    | (Some(dp), Some(side_casts)) =>
-      matches(dp, DHExp.apply_casts(d', side_casts))
-    | _ => DoesNotMatch
+  | Ap(d1, d2) =>
+    switch (DHExp.term_of(d1)) {
+    | Constructor(ctr') =>
+      switch (
+        dp,
+        castmaps
+        |> List.map(ConstructorMap.find_opt(ctr'))
+        |> OptUtil.sequence,
+      ) {
+      | (Some(dp), Some(side_casts)) =>
+        matches(dp, DHExp.apply_casts(d2, side_casts))
+      | _ => DoesNotMatch
+      }
+    | _ => IndetMatch
     }
   | Cast(d', Sum(sm1) | Rec(_, Sum(sm1)), Sum(sm2) | Rec(_, Sum(sm2))) =>
     switch (cast_sum_maps(sm1, sm2)) {
@@ -238,7 +244,6 @@ and matches_cast_Sum =
   | ExpandingKeyword(_)
   | InvalidText(_)
   | Let(_)
-  | Ap(_)
   | ApBuiltin(_)
   | BinOp(_)
   | EmptyHole(_)
@@ -273,7 +278,7 @@ and matches_cast_Tuple =
       elt_casts: list(list((Typ.t, Typ.t))),
     )
     : match_result =>
-  switch (d) {
+  switch (DHExp.term_of(d)) {
   | Tuple(ds) =>
     if (List.length(dps) != List.length(ds)) {
       DoesNotMatch;
@@ -328,8 +333,7 @@ and matches_cast_Tuple =
   | ExpandingKeyword(_) => IndetMatch
   | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
-  | Fun(_, _, _, _) => DoesNotMatch
-  | Closure(_, Fun(_)) => DoesNotMatch
+  | Fun(_, _, _, _, _) => DoesNotMatch
   | Closure(_, _) => IndetMatch
   | Filter(_, _) => IndetMatch
   | Ap(_, _) => IndetMatch
@@ -356,7 +360,7 @@ and matches_cast_Tuple =
   }
 and matches_cast_Cons =
     (dp: DHPat.t, d: DHExp.t, elt_casts: list((Typ.t, Typ.t))): match_result =>
-  switch (d) {
+  switch (DHExp.term_of(d)) {
   | ListLit(_, _, _, []) =>
     switch (dp) {
     | ListLit(_, []) => Matches(Environment.empty)
@@ -377,7 +381,7 @@ and matches_cast_Cons =
             },
             elt_casts,
           );
-        let d2 = DHExp.ListLit(u, i, ty, dtl);
+        let d2 = DHExp.ListLit(u, i, ty, dtl) |> DHExp.fresh;
         switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
         | DoesNotMatch => DoesNotMatch
         | IndetMatch => IndetMatch
@@ -464,7 +468,7 @@ and matches_cast_Cons =
   | ExpandingKeyword(_) => IndetMatch
   | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
-  | Fun(_, _, _, _) => DoesNotMatch
+  | Fun(_, _, _, _, _) => DoesNotMatch
   | Closure(_, d') => matches_cast_Cons(dp, d', elt_casts)
   | Filter(_, d') => matches_cast_Cons(dp, d', elt_casts)
   | Ap(_, _) => IndetMatch

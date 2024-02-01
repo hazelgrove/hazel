@@ -33,7 +33,7 @@ module Statics = {
 };
 
 let dh_err = (error: string): DHExp.t =>
-  InvalidText(Id.invalid, -666, error);
+  InvalidText(Id.invalid, -666, error) |> DHExp.fresh;
 
 let elaborate =
   Core.Memo.general(~cache_size_bound=1000, Elaborator.uexp_elab);
@@ -130,7 +130,7 @@ let evaluate =
 let init = (d: DHExp.t): ProgramResult.t => {
   let es = EvaluatorState.init;
   let env = ClosureEnvironment.of_environment(Builtins.env_init);
-  (Indet(Closure(env, d)), es);
+  (Indet(Closure(env, d) |> DHExp.fresh), es);
 };
 
 let eval_z =

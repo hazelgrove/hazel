@@ -8,6 +8,8 @@ type step = {
   d_loc': DHExp.t,
   ctx: EvalCtx.t,
   knd: step_kind,
+  from_id: Id.t,
+  to_id: Id.t,
 };
 
 let unwrap = (step, sel: EvalCtx.cls) =>
@@ -150,11 +152,13 @@ module Decompose = {
 
   module Decomp = Transition(DecomposeEVMode);
   let rec decompose = (state, env, exp) => {
-    switch (exp) {
+    let (term, rewrap) = DHExp.unwrap(exp);
+    switch (term) {
     | DHExp.Filter(flt, d1) =>
       DecomposeEVMode.(
         {
-          let. _ = otherwise(env, (d1) => (Filter(flt, d1): DHExp.t))
+          let. _ =
+            otherwise(env, (d1) => (Filter(flt, d1) |> rewrap: DHExp.t))
           and. d1 =
             req_final(decompose(state, env), d1 => Filter(flt, d1), d1);
           Step({apply: () => d1, kind: CompleteFilter, value: true});
@@ -219,94 +223,94 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
     | Mark => d
     | Closure(env, ctx) =>
       let d = compose(ctx, d);
-      Closure(env, d);
+      Closure(env, d) |> fresh;
     | Filter(flt, ctx) =>
       let d = compose(ctx, d);
-      Filter(flt, d);
+      Filter(flt, d) |> fresh;
     | Seq1(ctx, d2) =>
       let d1 = compose(ctx, d);
-      Seq(d1, d2);
+      Seq(d1, d2) |> fresh;
     | Seq2(d1, ctx) =>
       let d2 = compose(ctx, d);
-      Seq(d1, d2);
+      Seq(d1, d2) |> fresh;
     | Ap1(ctx, d2) =>
       let d1 = compose(ctx, d);
-      Ap(d1, d2);
+      Ap(d1, d2) |> fresh;
     | Ap2(d1, ctx) =>
       let d2 = compose(ctx, d);
-      Ap(d1, d2);
+      Ap(d1, d2) |> fresh;
     | ApBuiltin(s, ctx) =>
       let d' = compose(ctx, d);
-      ApBuiltin(s, d');
+      ApBuiltin(s, d') |> fresh;
     | If1(c, ctx, d2, d3) =>
       let d' = compose(ctx, d);
-      If(c, d', d2, d3);
+      If(c, d', d2, d3) |> fresh;
     | If2(c, d1, ctx, d3) =>
       let d' = compose(ctx, d);
-      If(c, d1, d', d3);
+      If(c, d1, d', d3) |> fresh;
     | If3(c, d1, d2, ctx) =>
       let d' = compose(ctx, d);
-      If(c, d1, d2, d');
+      If(c, d1, d2, d') |> fresh;
     | Test(lit, ctx) =>
       let d1 = compose(ctx, d);
-      Test(lit, d1);
+      Test(lit, d1) |> fresh;
     | BinOp1(op, ctx, d2) =>
       let d1 = compose(ctx, d);
-      BinOp(op, d1, d2);
+      BinOp(op, d1, d2) |> fresh;
     | BinOp2(op, d1, ctx) =>
       let d2 = compose(ctx, d);
-      BinOp(op, d1, d2);
+      BinOp(op, d1, d2) |> fresh;
     | Cons1(ctx, d2) =>
       let d1 = compose(ctx, d);
-      Cons(d1, d2);
+      Cons(d1, d2) |> fresh;
     | Cons2(d1, ctx) =>
       let d2 = compose(ctx, d);
-      Cons(d1, d2);
+      Cons(d1, d2) |> fresh;
     | ListConcat1(ctx, d2) =>
       let d1 = compose(ctx, d);
-      ListConcat(d1, d2);
+      ListConcat(d1, d2) |> fresh;
     | ListConcat2(d1, ctx) =>
       let d2 = compose(ctx, d);
-      ListConcat(d1, d2);
+      ListConcat(d1, d2) |> fresh;
     | Tuple(ctx, (ld, rd)) =>
       let d = compose(ctx, d);
-      Tuple(rev_concat(ld, [d, ...rd]));
+      Tuple(rev_concat(ld, [d, ...rd])) |> fresh;
     | ListLit(m, i, t, ctx, (ld, rd)) =>
       let d = compose(ctx, d);
-      ListLit(m, i, t, rev_concat(ld, [d, ...rd]));
+      ListLit(m, i, t, rev_concat(ld, [d, ...rd])) |> fresh;
     | Let1(dp, ctx, d2) =>
       let d = compose(ctx, d);
-      Let(dp, d, d2);
+      Let(dp, d, d2) |> fresh;
     | Let2(dp, d1, ctx) =>
       let d = compose(ctx, d);
-      Let(dp, d1, d);
-    | Fun(dp, t, ctx, v) =>
+      Let(dp, d1, d) |> fresh;
+    | Fun(dp, t, ctx, env, v) =>
       let d = compose(ctx, d);
-      Fun(dp, t, d, v);
+      Fun(dp, t, d, env, v) |> fresh;
     | FixF(v, t, ctx) =>
       let d = compose(ctx, d);
-      FixF(v, t, d);
+      FixF(v, t, d) |> fresh;
     | Prj(ctx, n) =>
       let d = compose(ctx, d);
-      Prj(d, n);
+      Prj(d, n) |> fresh;
     | Cast(ctx, ty1, ty2) =>
       let d = compose(ctx, d);
-      Cast(d, ty1, ty2);
+      Cast(d, ty1, ty2) |> fresh;
     | FailedCast(ctx, ty1, ty2) =>
       let d = compose(ctx, d);
-      FailedCast(d, ty1, ty2);
+      FailedCast(d, ty1, ty2) |> fresh;
     | InvalidOperation(ctx, err) =>
       let d = compose(ctx, d);
-      InvalidOperation(d, err);
+      InvalidOperation(d, err) |> fresh;
     | NonEmptyHole(reason, u, i, ctx) =>
       let d = compose(ctx, d);
-      NonEmptyHole(reason, u, i, d);
+      NonEmptyHole(reason, u, i, d) |> fresh;
     | MatchScrut(c, ctx, rules) =>
       let d = compose(ctx, d);
-      Match(c, d, rules);
+      Match(c, d, rules) |> fresh;
     | MatchRule(c, scr, p, ctx, (lr, rr)) =>
       let d = compose(ctx, d);
-      Match(c, scr, rev_concat(lr, [(p, d), ...rr]));
+      Match(c, scr, rev_concat(lr, [(p, d), ...rr])) |> fresh;
     }
   );
 };

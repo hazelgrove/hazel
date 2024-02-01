@@ -80,8 +80,8 @@ let rec check_value = ((), env, d) => CV.transition(check_value, (), env, d);
 
 let check_value = check_value();
 
-let rec check_value_mod_ctx = ((), env) =>
-  fun
+let rec check_value_mod_ctx = ((), env, d) =>
+  switch (DHExp.term_of(d)) {
   | Var(x) =>
     check_value_mod_ctx(
       (),
@@ -92,6 +92,7 @@ let rec check_value_mod_ctx = ((), env) =>
            raise(EvaluatorError.Exception(FreeInvalidVar(x)));
          }),
     )
-  | d => CV.transition(check_value_mod_ctx, (), env, d);
+  | _ => CV.transition(check_value_mod_ctx, (), env, d)
+  };
 
 let check_value_mod_ctx = check_value_mod_ctx();

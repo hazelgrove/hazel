@@ -22,12 +22,6 @@ type t =
   | Constructor(string)
   | Ap(t, t);
 
-let mk_tuple: list(t) => t =
-  fun
-  | []
-  | [_] => failwith("mk_tuple: expected at least 2 elements")
-  | dps => Tuple(dps);
-
 /**
  * Whether dp contains the variable x outside of a hole.
  */

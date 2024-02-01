@@ -38,8 +38,9 @@ exception Exception(error);
 /**
   Postprocess inside evaluation boundary.
  */
-let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
-  switch (d) {
+let rec pp_eval = (d: DHExp.t): m(DHExp.t) => {
+  let (term, rewrap) = DHExp.unwrap(d);
+  switch (term) {
   /* Non-hole expressions: recurse through subexpressions */
   | Test(_)
   | Bool(_)
@@ -51,37 +52,37 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
   | Seq(d1, d2) =>
     let* d1' = pp_eval(d1);
     let+ d2' = pp_eval(d2);
-    Seq(d1', d2');
+    Seq(d1', d2') |> rewrap;
 
   | Filter(f, dbody) =>
     let+ dbody' = pp_eval(dbody);
-    Filter(f, dbody');
+    Filter(f, dbody') |> rewrap;
 
   | Ap(d1, d2) =>
     let* d1' = pp_eval(d1);
     let* d2' = pp_eval(d2);
-    Ap(d1', d2') |> return;
+    Ap(d1', d2') |> rewrap |> return;
 
   | ApBuiltin(f, d1) =>
     let* d1' = pp_eval(d1);
-    ApBuiltin(f, d1') |> return;
+    ApBuiltin(f, d1') |> rewrap |> return;
 
   | BinOp(op, d1, d2) =>
     let* d1' = pp_eval(d1);
     let* d2' = pp_eval(d2);
-    BinOp(op, d1', d2') |> return;
+    BinOp(op, d1', d2') |> rewrap |> return;
 
-  | BuiltinFun(f) => BuiltinFun(f) |> return
+  | BuiltinFun(f) => BuiltinFun(f) |> rewrap |> return
 
   | Cons(d1, d2) =>
     let* d1' = pp_eval(d1);
     let* d2' = pp_eval(d2);
-    Cons(d1', d2') |> return;
+    Cons(d1', d2') |> rewrap |> return;
 
   | ListConcat(d1, d2) =>
     let* d1' = pp_eval(d1);
     let* d2' = pp_eval(d2);
-    ListConcat(d1', d2') |> return;
+    ListConcat(d1', d2') |> rewrap |> return;
 
   | ListLit(a, b, c, ds) =>
     let+ ds =
@@ -94,7 +95,7 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
            },
            return([]),
          );
-    ListLit(a, b, c, ds);
+    ListLit(a, b, c, ds) |> rewrap;
 
   | Tuple(ds) =>
     let+ ds =
@@ -107,37 +108,37 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
            },
            return([]),
          );
-    Tuple(ds);
+    Tuple(ds) |> rewrap;
 
   | Prj(d, n) =>
     let+ d = pp_eval(d);
-    Prj(d, n);
+    Prj(d, n) |> rewrap;
 
   | Cast(d', ty1, ty2) =>
     let* d'' = pp_eval(d');
-    Cast(d'', ty1, ty2) |> return;
+    Cast(d'', ty1, ty2) |> rewrap |> return;
 
   | FailedCast(d', ty1, ty2) =>
     let* d'' = pp_eval(d');
-    FailedCast(d'', ty1, ty2) |> return;
+    FailedCast(d'', ty1, ty2) |> rewrap |> return;
 
   | InvalidOperation(d', reason) =>
     let* d'' = pp_eval(d');
-    InvalidOperation(d'', reason) |> return;
+    InvalidOperation(d'', reason) |> rewrap |> return;
 
   | If(consistent, c, d1, d2) =>
     let* c' = pp_eval(c);
     let* d1' = pp_eval(d1);
     let* d2' = pp_eval(d2);
-    If(consistent, c', d1', d2') |> return;
+    If(consistent, c', d1', d2') |> rewrap |> return;
 
   // TODO: Add consistent case
 
   /* These expression forms should not exist outside closure in evaluated result */
   | Var(_)
   | Let(_)
+  | Fun(_, _, _, None, _)
   | Match(_)
-  | Fun(_)
   | EmptyHole(_)
   | NonEmptyHole(_)
   | ExpandingKeyword(_)
@@ -151,22 +152,27 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
      Some parts of `d'` may lie inside and outside the evaluation boundary,
      use `pp_eval` and `pp_uneval` as necessary.
      */
+  | Fun(dp, ty, d, Some(env), s) =>
+    let* env =
+      Util.TimeUtil.measure_time("pp_eval_env/FunClosure", true, () =>
+        pp_eval_env(env)
+      );
+    let* d = pp_uneval(env, d);
+    Fun(dp, ty, d, Some(env), s) |> rewrap |> return;
+
   | Closure(env, d) =>
     let* env =
       Util.TimeUtil.measure_time("pp_eval_env/Closure", true, () =>
         pp_eval_env(env)
       );
-    switch (d) {
+    let (term, rewrap) = DHExp.unwrap(d);
+    switch (term) {
     /* Non-hole constructs inside closures. */
-    | Fun(dp, ty, d, s) =>
-      let* d = pp_uneval(env, d);
-      Fun(dp, ty, d, s) |> return;
-
     | Let(dp, d1, d2) =>
       /* d1 should already be evaluated, d2 is not */
       let* d1 = pp_eval(d1);
       let* d2 = pp_uneval(env, d2);
-      Let(dp, d1, d2) |> return;
+      Let(dp, d1, d2) |> rewrap |> return;
 
     | Match(Consistent, scrut, rules) =>
       /* scrut should already be evaluated, rule bodies are not */
@@ -178,7 +184,7 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
         Util.TimeUtil.measure_time("pp_uneval_rules", true, () =>
           pp_uneval_rules(env, rules)
         );
-      Match(Consistent, scrut, rules) |> return;
+      Match(Consistent, scrut, rules) |> rewrap |> return;
 
     /* Hole constructs inside closures.
 
@@ -190,12 +196,16 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     | NonEmptyHole(reason, u, _, d) =>
       let* d = pp_eval(d);
       let* i = hii_add_instance(u, env);
-      Closure(env, NonEmptyHole(reason, u, i, d)) |> return;
+      Closure(env, NonEmptyHole(reason, u, i, d) |> rewrap)
+      |> fresh
+      |> return;
 
     | Match(Inconsistent(u, _), scrut, rules) =>
       let* scrut = pp_eval(scrut);
       let* i = hii_add_instance(u, env);
-      Closure(env, Match(Inconsistent(u, i), scrut, rules)) |> return;
+      Closure(env, Match(Inconsistent(u, i), scrut, rules) |> rewrap)
+      |> fresh
+      |> return;
 
     | EmptyHole(_)
     | ExpandingKeyword(_)
@@ -205,7 +215,8 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     /* Other expression forms cannot be directly in a closure. */
     | _ => raise(Exception(InvalidClosureBody))
     };
-  }
+  };
+}
 
 /* Recurse through environments, using memoized result if available. */
 and pp_eval_env = (env: ClosureEnvironment.t): m(ClosureEnvironment.t) => {
@@ -220,13 +231,15 @@ and pp_eval_env = (env: ClosureEnvironment.t): m(ClosureEnvironment.t) => {
       |> ClosureEnvironment.fold(
            ((x, d), env') => {
              let* env' = env';
-             let* d' =
-               switch (d) {
+             let* d' = {
+               let (term, rewrap) = DHExp.unwrap(d);
+               switch (term) {
                | FixF(f, ty, d1) =>
                  let+ d1 = pp_uneval(env', d1);
-                 FixF(f, ty, d1);
-               | d => pp_eval(d)
+                 FixF(f, ty, d1) |> rewrap;
+               | _ => pp_eval(d)
                };
+             };
              ClosureEnvironment.extend(env', (x, d')) |> return;
            },
            Environment.empty |> ClosureEnvironment.wrap(ei) |> return,
@@ -241,8 +254,9 @@ and pp_eval_env = (env: ClosureEnvironment.t): m(ClosureEnvironment.t) => {
   Postprocess inside evaluation boundary. Environment should already be
   postprocessed.
  */
-and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
-  switch (d) {
+and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) => {
+  let (term, rewrap) = DHExp.unwrap(d);
+  switch (term) {
   /* Bound variables should be looked up within the closure
      environment. If lookup fails, then variable is not bound. */
   | Var(x) =>
@@ -260,59 +274,59 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
 
   | Test(id, d1) =>
     let+ d1' = pp_uneval(env, d1);
-    Test(id, d1');
+    Test(id, d1') |> rewrap;
 
   | Seq(d1, d2) =>
     let* d1' = pp_uneval(env, d1);
     let+ d2' = pp_uneval(env, d2);
-    Seq(d1', d2');
+    Seq(d1', d2') |> rewrap;
 
   | Filter(flt, dbody) =>
     let+ dbody' = pp_uneval(env, dbody);
-    Filter(flt, dbody');
+    Filter(flt, dbody') |> rewrap;
   | Let(dp, d1, d2) =>
     let* d1' = pp_uneval(env, d1);
     let* d2' = pp_uneval(env, d2);
-    Let(dp, d1', d2') |> return;
+    Let(dp, d1', d2') |> rewrap |> return;
 
   | FixF(f, ty, d1) =>
     let* d1' = pp_uneval(env, d1);
-    FixF(f, ty, d1') |> return;
+    FixF(f, ty, d1') |> rewrap |> return;
 
-  | Fun(dp, ty, d', s) =>
+  | Fun(dp, ty, d', None, s) =>
     let* d'' = pp_uneval(env, d');
-    Fun(dp, ty, d'', s) |> return;
+    Fun(dp, ty, d'', None, s) |> rewrap |> return;
 
   | Ap(d1, d2) =>
     let* d1' = pp_uneval(env, d1);
     let* d2' = pp_uneval(env, d2);
-    Ap(d1', d2') |> return;
+    Ap(d1', d2') |> rewrap |> return;
 
   | ApBuiltin(f, d1) =>
     let* d1' = pp_uneval(env, d1);
-    ApBuiltin(f, d1') |> return;
-  | BuiltinFun(f) => BuiltinFun(f) |> return
+    ApBuiltin(f, d1') |> rewrap |> return;
+  | BuiltinFun(f) => BuiltinFun(f) |> rewrap |> return
 
   | BinOp(op, d1, d2) =>
     let* d1' = pp_uneval(env, d1);
     let* d2' = pp_uneval(env, d2);
-    BinOp(op, d1', d2') |> return;
+    BinOp(op, d1', d2') |> rewrap |> return;
 
   | If(consistent, c, d1, d2) =>
     let* c' = pp_uneval(env, c);
     let* d1' = pp_uneval(env, d1);
     let* d2' = pp_uneval(env, d2);
-    If(consistent, c', d1', d2') |> return;
+    If(consistent, c', d1', d2') |> rewrap |> return;
 
   | Cons(d1, d2) =>
     let* d1' = pp_uneval(env, d1);
     let* d2' = pp_uneval(env, d2);
-    Cons(d1', d2') |> return;
+    Cons(d1', d2') |> rewrap |> return;
 
   | ListConcat(d1, d2) =>
     let* d1' = pp_uneval(env, d1);
     let* d2' = pp_uneval(env, d2);
-    ListConcat(d1', d2') |> return;
+    ListConcat(d1', d2') |> rewrap |> return;
 
   | ListLit(a, b, c, ds) =>
     let+ ds =
@@ -325,7 +339,7 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
            },
            return([]),
          );
-    ListLit(a, b, c, ds);
+    ListLit(a, b, c, ds) |> rewrap;
 
   | Tuple(ds) =>
     let+ ds =
@@ -338,30 +352,31 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
            },
            return([]),
          );
-    Tuple(ds);
+    Tuple(ds) |> rewrap;
 
   | Prj(d, n) =>
     let+ d = pp_uneval(env, d);
-    Prj(d, n);
+    Prj(d, n) |> rewrap;
 
   | Cast(d', ty1, ty2) =>
     let* d'' = pp_uneval(env, d');
-    Cast(d'', ty1, ty2) |> return;
+    Cast(d'', ty1, ty2) |> rewrap |> return;
 
   | FailedCast(d', ty1, ty2) =>
     let* d'' = pp_uneval(env, d');
-    FailedCast(d'', ty1, ty2) |> return;
+    FailedCast(d'', ty1, ty2) |> rewrap |> return;
 
   | InvalidOperation(d', reason) =>
     let* d'' = pp_uneval(env, d');
-    InvalidOperation(d'', reason) |> return;
+    InvalidOperation(d'', reason) |> rewrap |> return;
 
   | Match(Consistent, scrut, rules) =>
     let* scrut' = pp_uneval(env, scrut);
     let* rules' = pp_uneval_rules(env, rules);
-    Match(Consistent, scrut', rules') |> return;
+    Match(Consistent, scrut', rules') |> rewrap |> return;
 
   /* Closures shouldn't exist inside other closures */
+  | Fun(_, _, _, Some(_), _)
   | Closure(_) => raise(Exception(ClosureInsideClosure))
 
   /* Hole expressions:
@@ -371,31 +386,34 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
      */
   | EmptyHole(u, _) =>
     let* i = hii_add_instance(u, env);
-    Closure(env, EmptyHole(u, i)) |> return;
+    Closure(env, EmptyHole(u, i) |> rewrap) |> fresh |> return;
 
   | NonEmptyHole(reason, u, _, d') =>
     let* d' = pp_uneval(env, d');
     let* i = hii_add_instance(u, env);
-    Closure(env, NonEmptyHole(reason, u, i, d')) |> return;
+    Closure(env, NonEmptyHole(reason, u, i, d') |> rewrap) |> fresh |> return;
 
   | ExpandingKeyword(u, _, kw) =>
     let* i = hii_add_instance(u, env);
-    Closure(env, ExpandingKeyword(u, i, kw)) |> return;
+    Closure(env, ExpandingKeyword(u, i, kw) |> rewrap) |> fresh |> return;
 
   | FreeVar(u, _, x) =>
     let* i = hii_add_instance(u, env);
-    Closure(env, FreeVar(u, i, x)) |> return;
+    Closure(env, FreeVar(u, i, x) |> rewrap) |> fresh |> return;
 
   | InvalidText(u, _, text) =>
     let* i = hii_add_instance(u, env);
-    Closure(env, InvalidText(u, i, text)) |> return;
+    Closure(env, InvalidText(u, i, text) |> rewrap) |> fresh |> return;
 
   | Match(Inconsistent(u, _), scrut, rules) =>
     let* scrut = pp_uneval(env, scrut);
     let* rules = pp_uneval_rules(env, rules);
     let* i = hii_add_instance(u, env);
-    Closure(env, Match(Inconsistent(u, i), scrut, rules)) |> return;
-  }
+    Closure(env, Match(Inconsistent(u, i), scrut, rules) |> rewrap)
+    |> fresh
+    |> return;
+  };
+}
 
 and pp_uneval_rules =
     (env: ClosureEnvironment.t, rules: list((DHPat.t, DHExp.t)))
@@ -422,7 +440,7 @@ and pp_uneval_rules =
 let rec track_children_of_hole =
         (hii: HoleInstanceInfo.t, parent: HoleInstanceParents.t_, d: DHExp.t)
         : HoleInstanceInfo.t =>
-  switch (d) {
+  switch (DHExp.term_of(d)) {
   | Constructor(_)
   | Bool(_)
   | Int(_)
@@ -432,7 +450,7 @@ let rec track_children_of_hole =
   | Var(_) => hii
   | Test(_, d)
   | FixF(_, _, d)
-  | Fun(_, _, d, _)
+  | Fun(_, _, d, _, _)
   | Prj(d, _)
   | Cast(d, _, _)
   | FailedCast(d, _, _)

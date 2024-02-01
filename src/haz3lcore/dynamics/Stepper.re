@@ -83,9 +83,10 @@ let rec matches =
     | Let2(d1, d2, ctx) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       Let2(d1, d2, ctx);
-    | Fun(dp, ty, ctx, name) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Fun(dp, ty, ctx, name);
+    | Fun(dp, ty, ctx, env', name) =>
+      let+ ctx =
+        matches(Option.value(~default=env, env'), flt, ctx, exp, act, idx);
+      Fun(dp, ty, ctx, env', name);
     | FixF(name, ty, ctx) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       FixF(name, ty, ctx);
@@ -273,7 +274,16 @@ let rec evaluate_pending = (~settings, s: t) => {
     {
       elab: s.elab,
       previous: [
-        {d, d_loc: eo.d_loc, d_loc', ctx: eo.ctx, knd: eo.knd, state},
+        {
+          d,
+          d_loc: eo.d_loc,
+          d_loc',
+          ctx: eo.ctx,
+          knd: eo.knd,
+          state,
+          from_id: DHExp.rep_id(eo.d_loc),
+          to_id: DHExp.rep_id(d_loc'),
+        },
         ...s.previous,
       ],
       current: StepPending(d', state_ref^, None),
