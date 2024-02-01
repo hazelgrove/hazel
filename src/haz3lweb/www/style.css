@@ -329,11 +329,11 @@ body {
   justify-content: space-between;
   gap: 1.2em;
 }
-#main.Scratch .cell-container,
-#main.Documentation .cell-container {
+#main.Scratch .cell,
+#main.Documentation .cell {
   min-width: 30em;
 }
-#main.Exercises .cell-container {
+#main.Exercises .cell {
   width: auto;
 }
 
@@ -678,13 +678,13 @@ select {
   /*white-space: nowrap;*/
 }
 
-.cell-container {
+.cell {
   width: fit-content;
   border-radius: 0.4em;
   border-left: 2px solid var(--top_bar_icon_fill);
 }
 
-.cell-container.selected {
+.cell.selected {
   border-left: 2px solid var(--cell-selected-accent);
   background-color: #fffcf3;
 }
@@ -1553,6 +1553,10 @@ svg.tile-selected {
   display: flex;
   flex-direction: column;
   gap: 0.75em;
+}
+
+.explain-this .example .cell {
+  width: auto;
 }
 
 .explain-this .example + .example {

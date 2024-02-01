@@ -502,7 +502,7 @@ let example_view =
               ~attr=clss(["example"]),
               [
                 div(
-                  ~attr=clss(["cell-container"]),
+                  ~attr=clss(["cell", "selected"]),
                   [
                     div(
                       ~attr=clss(["cell-item"]),
@@ -2417,7 +2417,7 @@ let view =
                 ? []
                 : [
                   div(
-                    ~attr=clss(["cell-container"]),
+                    ~attr=clss(["cell"]),
                     [div(~attr=clss(["cell-item"]), syn_form)],
                   ),
                 ]
