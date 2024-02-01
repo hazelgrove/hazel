@@ -1,12 +1,36 @@
 open Virtual_dom.Vdom;
 
-let btn = (~inject as _, caption, action) => {
+[@deriving (show({with_path: false}), sexp, yojson)]
+type action =
+  | TurnOffDynamics
+  | ClearStore;
+
+let perform = (action: action): unit => {
+  switch (action) {
+  | TurnOffDynamics =>
+    let settings = Store.Settings.load();
+    Store.Settings.save({
+      ...settings,
+      core: {
+        ...settings.core,
+        dynamics: false,
+      },
+    });
+  | ClearStore => JsUtil.clear_localstore()
+  };
+  Js_of_ocaml.Dom_html.window##.location##replace(
+    Js_of_ocaml.Js.string("#"),
+  );
+  Js_of_ocaml.Dom_html.window##.location##reload;
+};
+
+let btn = (caption, action) => {
   Node.(
     button(
       ~attr=
         Attr.many([
           Attr.on_click(_ => {
-            DebugAction.perform(action);
+            perform(action);
             Ui_effect.Ignore;
           }),
         ]),
@@ -15,16 +39,44 @@ let btn = (~inject as _, caption, action) => {
   );
 };
 
-let view = (~inject) => {
+let view = {
   Node.(
     div([
-      btn(~inject, "turn off dynamics", TurnOffDynamics),
-      btn(~inject, "clear local storage (LOSE ALL DATA!)", ClearStore),
-      /* The following exist to satisfy various unchecked getElement calls */
-      div(~attr=Attr.id("caret"), []),
-      div(~attr=Attr.id("clipboard-shim"), []),
-      div(~attr=Attr.id("font-specimen"), []),
-      div(~attr=Attr.id("main"), []),
+      btn("turn off dynamics", TurnOffDynamics),
+      btn("clear local storage (LOSE ALL DATA!)", ClearStore),
     ])
   );
 };
+
+module App = {
+  module Model = {
+    type t = unit;
+    let cutoff = (_, _) => false;
+  };
+  module Action = {
+    type t = unit;
+    let sexp_of_t = _ => Sexplib.Sexp.unit;
+  };
+  module State = {
+    type t = unit;
+  };
+  let on_startup = (~schedule_action as _, _) =>
+    Async_kernel.Deferred.return();
+  let create = (_, ~old_model as _, ~inject as _) =>
+    Incr_dom.Incr.return()
+    |> Incr_dom.Incr.map(~f=_ =>
+         Incr_dom.Component.create(
+           ~apply_action=(_, _, ~schedule_action as _) => (),
+           (),
+           view,
+         )
+       );
+};
+
+let go = () =>
+  Incr_dom.Start_app.start(
+    (module App),
+    ~debug=false,
+    ~bind_to_element_with_id="container",
+    ~initial_model=(),
+  );
