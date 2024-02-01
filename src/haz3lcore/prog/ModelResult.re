@@ -21,7 +21,7 @@ let update_elab = elab =>
   fun
   | NoElab
   | Evaluation(_) => Evaluation({elab, evaluation: ResultPending})
-  | Stepper({elab: elab2, _}) as s when DHExp.fast_equal(elab, elab2) => s
+  | Stepper(s) as s' when DHExp.fast_equal(elab, Stepper.get_elab(s)) => s'
   | Stepper(_) => Stepper(Stepper.init(elab));
 
 let update_stepper = f =>
@@ -74,7 +74,8 @@ let toggle_stepper =
   fun
   | NoElab => NoElab
   | Evaluation({elab, _}) => Stepper(Stepper.init(elab))
-  | Stepper({elab, _}) => Evaluation({elab, evaluation: ResultPending});
+  | Stepper(s) =>
+    Evaluation({elab: Stepper.get_elab(s), evaluation: ResultPending});
 
 let get_simple =
   fun

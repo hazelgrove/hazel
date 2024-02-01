@@ -1,35 +1,26 @@
 open Sexplib.Std;
 open EvaluatorStep;
 open Transition;
+open Util;
 
 exception Exception;
 
-type step_with_previous = {
-  step,
-  previous: option(step),
-  hidden: list(step),
-};
+[@deriving (show({with_path: false}), sexp, yojson)]
+type stepper_state =
+  | StepPending(EvalObj.t)
+  | StepperReady
+  | StepperDone
+  | StepperError(EvalObj.t, ProgramEvaluatorError.t)
+  | StepTimeout(EvalObj.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type current =
-  | StepperOK(DHExp.t, EvaluatorState.t)
-  | StepperError(
-      DHExp.t,
-      EvaluatorState.t,
-      EvalObj.t,
-      ProgramEvaluatorError.t,
-    ) // Must have at least one in previous
-  | StepTimeout(DHExp.t, EvaluatorState.t, EvalObj.t) // Must have at least one in previous
-  | StepPending(DHExp.t, EvaluatorState.t, option(EvalObj.t)); // none
+type history = Aba.t((DHExp.t, EvaluatorState.t), step);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
-  /* Might be different to first expression in previous because
-     steps are taken automatically (this may no longer be true - Matt) */
-  elab: DHExp.t,
-  previous: list(step),
-  current,
-  next: list(EvalObj.t),
+  history,
+  next_options: list(EvalObj.t),
+  stepper_state,
 };
 
 let rec matches =
@@ -193,77 +184,39 @@ let should_hide_step = (~settings, x: step): (FilterAction.action, step) =>
     };
   };
 
-let get_elab = ({elab, _}: t) => elab;
+let get_elab = ({history, _}: t) => Aba.last_a(history) |> fst;
 
-let get_next_steps = s => s.next;
+let get_next_steps = s => s.next_options;
 
-let current_expr = (s: t) =>
-  switch (s.current) {
-  | StepperOK(d, _)
-  | StepPending(d, _, _)
-  | StepperError(d, _, _, _)
-  | StepTimeout(d, _, _) => d
-  };
+let current_expr = ({history, _}: t) => Aba.hd(history);
 
-let step_pending = (eo: EvalObj.t, {elab, previous, current, next}: t) =>
-  switch (current) {
-  | StepperOK(d, s) => {
-      elab,
-      previous,
-      current: StepPending(d, s, Some(eo)),
-      next,
-    }
-  | StepperError(_)
-  | StepTimeout(_) => {
-      elab,
-      previous: List.tl(previous),
-      current:
-        StepPending(
-          List.hd(previous).d,
-          List.hd(previous).state,
-          Some(eo),
-        ),
-      next,
-    }
-  | StepPending(d, s, _) => {
-      elab,
-      previous,
-      current: StepPending(d, s, Some(eo)),
-      next,
-    }
-  };
+let step_pending = (eo: EvalObj.t, stepper: t) => {
+  ...stepper,
+  stepper_state: StepPending(eo),
+};
 
 let init = (elab: DHExp.t) => {
   {
-    elab,
-    previous: [],
-    current: StepPending(elab, EvaluatorState.init, None),
-    next: decompose(elab),
+    history: Aba.singleton((elab, EvaluatorState.init)),
+    next_options: decompose(elab),
+    stepper_state: StepperReady,
   };
 };
 
-let update_result =
-    (
-      (
-        d: DHExp.t,
-        state: EvaluatorState.t,
-        next_eval_objs: list(EvalObj.t),
-        skipped_steps: list(step),
-      ),
-      s: t,
-    ) => {
-  previous: skipped_steps @ s.previous,
-  current: StepperOK(d, state),
-  next: next_eval_objs,
-  elab: s.elab,
-};
-
 let rec evaluate_pending = (~settings, s: t) => {
-  switch (s.current) {
-  | StepperOK(_)
+  switch (s.stepper_state) {
+  | StepperDone
   | StepperError(_)
   | StepTimeout(_) => s
-  | StepPending(d, state, Some(eo)) =>
+  | StepperReady =>
+    let next' = s.next_options |> List.map(should_hide_eval_obj(~settings));
+    switch (List.find_opt(((act, _)) => act == FilterAction.Eval, next')) {
+    | Some((_, eo)) =>
+      {...s, stepper_state: StepPending(eo)} |> evaluate_pending(~settings)
+    | None => {...s, stepper_state: StepperDone}
+    };
+  | StepPending(eo) =>
+    let (d, state) = Aba.hd(s.history);
     let state_ref = ref(state);
     let d_loc' =
       switch (take_step(state_ref, eo.env, eo.d_loc)) {
@@ -271,53 +224,31 @@ let rec evaluate_pending = (~settings, s: t) => {
       | None => raise(Exception)
       };
     let d' = compose(eo.ctx, d_loc');
+    let new_step = {
+      d,
+      d_loc: eo.d_loc,
+      d_loc',
+      ctx: eo.ctx,
+      knd: eo.knd,
+      state,
+    };
     {
-      elab: s.elab,
-      previous: [
-        {
-          d,
-          d_loc: eo.d_loc,
-          d_loc',
-          ctx: eo.ctx,
-          knd: eo.knd,
-          state,
-          from_id: DHExp.rep_id(eo.d_loc),
-          to_id: DHExp.rep_id(d_loc'),
-        },
-        ...s.previous,
-      ],
-      current: StepPending(d', state_ref^, None),
-      next: decompose(d'),
+      history: s.history |> Aba.cons((d', state_ref^), new_step),
+      stepper_state: StepperReady,
+      next_options: decompose(d'),
     }
     |> evaluate_pending(~settings);
-  | StepPending(d, state, None) =>
-    let next' = s.next |> List.map(should_hide_eval_obj(~settings));
-    switch (List.find_opt(((act, _)) => act == FilterAction.Eval, next')) {
-    | Some((_, eo)) =>
-      {
-        elab: s.elab,
-        previous: s.previous,
-        current: StepPending(d, state, Some(eo)),
-        next: next' |> List.map(snd),
-      }
-      |> evaluate_pending(~settings)
-    | None => {
-        elab: s.elab,
-        previous: s.previous,
-        current: StepperOK(d, state),
-        next: next' |> List.map(snd),
-      }
-    };
   };
 };
 
 let rec evaluate_full = (~settings, s: t) => {
-  switch (s.current) {
+  switch (s.stepper_state) {
   | StepperError(_)
   | StepTimeout(_) => s
-  | StepperOK(_) when s.next == [] => s
-  | StepperOK(_) =>
-    s |> step_pending(List.hd(s.next)) |> evaluate_full(~settings)
+  | StepperDone when s.next_options == [] => s
+  | StepperDone =>
+    s |> step_pending(List.hd(s.next_options)) |> evaluate_full(~settings)
+  | StepperReady
   | StepPending(_) =>
     evaluate_pending(~settings, s) |> evaluate_full(~settings)
   };
@@ -325,60 +256,38 @@ let rec evaluate_full = (~settings, s: t) => {
 
 let timeout =
   fun
-  | {elab, previous, current: StepPending(d, state, Some(eo)), next} => {
-      elab,
-      previous,
-      current: StepTimeout(d, state, eo),
-      next,
+  | {stepper_state: StepPending(eo), _} as s => {
+      ...s,
+      stepper_state: StepTimeout(eo),
     }
   | {
-      current:
-        StepperError(_) | StepTimeout(_) | StepperOK(_) |
-        StepPending(_, _, None),
+      stepper_state:
+        StepperError(_) | StepTimeout(_) | StepperReady | StepperDone,
       _,
     } as s => s;
 
-// let rec step_forward = (~settings, e: EvalObj.t, s: t) => {
-//   let current = compose(e.ctx, e.apply());
-//   skip_steps(
-//     ~settings,
-//     {
-//       current,
-//       previous: [{d: s.current, step: e}, ...s.previous],
-//       next: decompose(current),
-//     },
-//   );
-// }
-// and skip_steps = (~settings, s) => {
-//   switch (
-//     List.find_opt(
-//       (x: EvalObj.t) => should_hide_step(~settings, x.knd),
-//       s.next,
-//     )
-//   ) {
-//   | None => s
-//   | Some(e) => step_forward(~settings, e, s)
-//   };
-// };
-
-let rec undo_point =
-        (~settings): (list(step) => option((step, list(step)))) =>
+let rec truncate_history = (~settings) =>
   fun
-  | [] => None
-  | [x, ...xs] when should_hide_step(~settings, x) |> fst == Eval =>
-    undo_point(~settings, xs)
-  | [x, ...xs] => Some((x, xs));
+  | ([_, ...as_], [b, ...bs])
+      when should_hide_step(~settings, b) |> fst == Eval =>
+    truncate_history(~settings, (as_, bs))
+  | ([_, ...as_], [_, ...bs]) => Some((as_, bs))
+  | _ => None;
 
-let step_backward = (~settings, s: t) =>
-  switch (undo_point(~settings, s.previous)) {
-  | None => failwith("cannot step backwards")
-  | Some((x, xs)) => {
-      current: StepperOK(x.d, x.state),
-      next: decompose(x.d),
-      previous: xs,
-      elab: s.elab,
-    }
+let step_backward = (~settings, s: t) => {
+  let h' =
+    truncate_history(~settings, s.history)
+    |> Option.value(~default=s.history);
+  {
+    history: h',
+    next_options: decompose(Aba.hd(h') |> fst),
+    stepper_state: StepperDone,
   };
+};
+
+let can_undo = (~settings, s: t) => {
+  truncate_history(~settings, s.history) |> Option.is_some;
+};
 
 let get_justification: step_kind => string =
   fun
@@ -412,54 +321,78 @@ let get_justification: step_kind => string =
   | FunClosure => "unidentified step"
   | Skip => "skipped steps";
 
+type step_info = {
+  d: DHExp.t,
+  previous_step: option((step, Id.t)), // The step that will be displayed above this one (an Id in included because it may have changed since the step was taken)
+  hidden_steps: list((step, Id.t)), // The hidden steps between previous_step and the current one (an Id in included because it may have changed since the step was taken)
+  chosen_step: option(step) // The step that was taken next
+};
+
 let get_history = (~settings, stepper) => {
-  let rec get_history':
-    list(step) => (list(step), list(step_with_previous)) =
-    fun
-    | [] => ([], [])
-    | [step, ...steps] => {
-        let (hidden, ss) = get_history'(steps);
-        switch (step |> should_hide_step(~settings) |> fst) {
-        | Eval => ([step, ...hidden], ss)
-        | Step => (
-            [],
-            [
-              {
-                step,
-                previous:
-                  Option.map(
-                    (x: step_with_previous) => x.step,
-                    List.nth_opt(ss, 0),
-                  ),
-                hidden,
-              },
-              ...ss,
-            ],
-          )
-        };
-      };
-  stepper.previous |> get_history';
+  let should_skip_step = step =>
+    step |> should_hide_step(~settings) |> fst == Eval;
+  let _ = print_int(List.length(fst(stepper.history)));
+  let grouped_steps =
+    stepper.history
+    |> Aba.fold_right(
+         ((d, _), step, result) => {
+           print_string("e");
+           print_int(result |> fst |> List.length);
+           print_int(result |> snd |> List.length);
+           if (should_skip_step(step)) {
+             Aba.map_hd(((_, hs)) => (d, [step, ...hs]), result);
+           } else {
+             Aba.cons((d, []), step, result);
+           };
+         },
+         ((d, _)) => Aba.singleton((d, [])),
+       );
+  let _ = print_int(List.length(fst(grouped_steps)));
+  let _ = print_int(List.length(snd(grouped_steps)));
+  let replace_id = (x, y, (s, z)) => (s, x == z ? y : z);
+  let track_ids =
+      (
+        (
+          chosen_step: option(step),
+          (d: DHExp.t, hidden_steps: list(step)),
+          previous_step: option(step),
+        ),
+      ) => {
+    let (previous_step, hidden_steps) =
+      List.fold_left(
+        ((ps, hs), h: step) => {
+          let replacement =
+            replace_id(h.d_loc |> DHExp.rep_id, h.d_loc' |> DHExp.rep_id);
+          (
+            Option.map(replacement, ps),
+            [(h, h.d_loc' |> DHExp.rep_id), ...List.map(replacement, hs)],
+          );
+        },
+        (Option.map(x => (x, x.d_loc' |> DHExp.rep_id), previous_step), []),
+        hidden_steps,
+      );
+    {d, previous_step, hidden_steps, chosen_step};
+  };
+  let padded = grouped_steps |> Aba.bab_triples;
+  let _ = print_int(List.length(padded));
+  let result = padded |> List.map(track_ids);
+  let _ = print_int(List.length(result));
+  print_endline("");
+  result;
+  //grouped_steps |> Aba.bab_triples |> List.map(track_ids);
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type persistent = {
-  elab: DHExp.t,
-  previous: list(step),
-  current,
-};
+type persistent = {history};
 
 // Remove EvalObj.t objects from stepper to prevent problems when loading
-let to_persistent: t => persistent =
-  fun
-  | {elab, previous, current: StepPending(d, state, Some(_)), _} => {
-      elab,
-      previous,
-      current: StepPending(d, state, None),
-    }
-  | {elab, previous, current, _} => {elab, previous, current};
+let to_persistent: t => persistent = ({history, _}) => {history: history};
 
 let from_persistent: persistent => t =
-  ({elab, previous, current}) => {
-    let s = {elab, previous, current, next: []};
-    {elab, previous, current, next: decompose(current_expr(s))};
+  ({history}) => {
+    {
+      history,
+      next_options: decompose(Aba.hd(history) |> fst),
+      stepper_state: StepperDone,
+    };
   };
