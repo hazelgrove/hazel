@@ -1,27 +1,29 @@
 let rec matches_exp =
         (env: ClosureEnvironment.t, d: DHExp.t, f: DHExp.t): bool => {
-  switch (d, f) {
+  switch (DHExp.term_of(d), DHExp.term_of(f)) {
   | (Constructor("$e"), _) => failwith("$e in matched expression")
   | (Constructor("$v"), _) => failwith("$v in matched expression")
 
   // HACK[Matt]: ignore fixpoints in comparison, to allow pausing on fixpoint steps
-  | (FixF(dp, _, dc), f) =>
+  | (FixF(dp, _, dc), _) =>
     matches_exp(
       env,
       Closure(
         Transition.evaluate_extend_env(Environment.singleton((dp, dc)), env),
         dc,
-      ),
+      )
+      |> DHExp.fresh,
       f,
     )
-  | (d, FixF(fp, _, fc)) =>
+  | (_, FixF(fp, _, fc)) =>
     matches_exp(
       env,
       d,
       Closure(
         Transition.evaluate_extend_env(Environment.singleton((fp, fc)), env),
         fc,
-      ),
+      )
+      |> DHExp.fresh,
     )
 
   | (_, Constructor("$v")) =>
@@ -75,14 +77,19 @@ let rec matches_exp =
   | (String(dv), String(fv)) => dv == fv
   | (String(_), _) => false
 
-  | (Constructor(_), Ap(Constructor("~MVal"), Tuple([]))) => true
+  | (Constructor(_), Ap(d1, d2)) =>
+    switch (DHExp.term_of(d1), DHExp.term_of(d2)) {
+    | (Constructor("~MVal"), Tuple([])) => true
+    | _ => false
+    }
   | (Constructor(dt), Constructor(ft)) => dt == ft
   | (Constructor(_), _) => false
 
   | (BuiltinFun(dn), BuiltinFun(fn)) => dn == fn
   | (BuiltinFun(_), _) => false
 
-  | (Fun(dp1, dty1, d1, dname1), Fun(fp1, fty1, f1, fname1)) =>
+  // Not sure if we should be checking functions for closures here
+  | (Fun(dp1, dty1, d1, _, dname1), Fun(fp1, fty1, f1, _, fname1)) =>
     matches_pat(dp1, fp1)
     && dty1 == fty1
     && matches_exp(env, d1, f1)

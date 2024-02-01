@@ -32,88 +32,121 @@ let fn =
 module Pervasives = {
   module Impls = {
     /* constants */
-    let infinity = DHExp.Float(Float.infinity);
-    let neg_infinity = DHExp.Float(Float.neg_infinity);
-    let nan = DHExp.Float(Float.nan);
-    let epsilon_float = DHExp.Float(epsilon_float);
-    let pi = DHExp.Float(Float.pi);
-    let max_int = DHExp.Int(Int.max_int);
-    let min_int = DHExp.Int(Int.min_int);
+    let infinity = DHExp.Float(Float.infinity) |> fresh;
+    let neg_infinity = DHExp.Float(Float.neg_infinity) |> fresh;
+    let nan = DHExp.Float(Float.nan) |> fresh;
+    let epsilon_float = DHExp.Float(epsilon_float) |> fresh;
+    let pi = DHExp.Float(Float.pi) |> fresh;
+    let max_int = DHExp.Int(Int.max_int) |> fresh;
+    let min_int = DHExp.Int(Int.min_int) |> fresh;
 
-    let unary = (f: DHExp.t => result, r: DHExp.t) =>
-      switch (f(r)) {
+    let unary = (f: DHExp.t => result, d: DHExp.t) => {
+      switch (f(d)) {
       | Ok(r') => r'
       | Error(e) => EvaluatorError.Exception(e) |> raise
       };
+    };
+
+    let binary = (f: (DHExp.t, DHExp.t) => result, d: DHExp.t) => {
+      switch (term_of(d)) {
+      | Tuple([d1, d2]) =>
+        switch (f(d1, d2)) {
+        | Ok(r) => r
+        | Error(e) => EvaluatorError.Exception(e) |> raise
+        }
+      | _ => raise(EvaluatorError.Exception(InvalidBoxedTuple(d)))
+      };
+    };
+
+    let ternary = (f: (DHExp.t, DHExp.t, DHExp.t) => result, d: DHExp.t) => {
+      switch (term_of(d)) {
+      | Tuple([d1, d2, d3]) =>
+        switch (f(d1, d2, d3)) {
+        | Ok(r) => r
+        | Error(e) => EvaluatorError.Exception(e) |> raise
+        }
+      | _ => raise(EvaluatorError.Exception(InvalidBoxedTuple(d)))
+      };
+    };
 
     let is_finite =
-      unary(
-        fun
-        | Float(f) => Ok(Bool(Float.is_finite(f)))
-        | d => Error(InvalidBoxedFloatLit(d)),
+      unary(d =>
+        switch (term_of(d)) {
+        | Float(f) => Ok(fresh(Bool(Float.is_finite(f))))
+        | _ => Error(InvalidBoxedFloatLit(d))
+        }
       );
 
     let is_infinite =
-      unary(
-        fun
-        | Float(f) => Ok(Bool(Float.is_infinite(f)))
-        | d => Error(InvalidBoxedFloatLit(d)),
+      unary(d =>
+        switch (term_of(d)) {
+        | Float(f) => Ok(fresh(Bool(Float.is_infinite(f))))
+        | _ => Error(InvalidBoxedFloatLit(d))
+        }
       );
 
     let is_nan =
-      unary(
-        fun
-        | Float(f) => Ok(Bool(Float.is_nan(f)))
-        | d => Error(InvalidBoxedFloatLit(d)),
+      unary(d =>
+        switch (term_of(d)) {
+        | Float(f) => Ok(fresh(Bool(Float.is_nan(f))))
+        | _ => Error(InvalidBoxedFloatLit(d))
+        }
       );
 
     let string_of_int =
-      unary(
-        fun
-        | Int(n) => Ok(String(string_of_int(n)))
-        | d => Error(InvalidBoxedIntLit(d)),
+      unary(d =>
+        switch (term_of(d)) {
+        | Int(n) => Ok(fresh(String(string_of_int(n))))
+        | _ => Error(InvalidBoxedIntLit(d))
+        }
       );
 
     let string_of_float =
-      unary(
-        fun
-        | Float(f) => Ok(String(string_of_float(f)))
-        | d => Error(InvalidBoxedFloatLit(d)),
+      unary(d =>
+        switch (term_of(d)) {
+        | Float(f) => Ok(fresh(String(string_of_float(f))))
+        | _ => Error(InvalidBoxedFloatLit(d))
+        }
       );
 
     let string_of_bool =
-      unary(
-        fun
-        | Bool(b) => Ok(String(string_of_bool(b)))
-        | d => Error(InvalidBoxedBoolLit(d)),
+      unary(d =>
+        switch (term_of(d)) {
+        | Bool(b) => Ok(fresh(String(string_of_bool(b))))
+        | _ => Error(InvalidBoxedBoolLit(d))
+        }
       );
 
     let int_of_float =
-      unary(
-        fun
-        | Float(f) => Ok(Int(int_of_float(f)))
-        | d => Error(InvalidBoxedFloatLit(d)),
+      unary(d =>
+        switch (term_of(d)) {
+        | Float(f) => Ok(fresh(Int(int_of_float(f))))
+        | _ => Error(InvalidBoxedFloatLit(d))
+        }
       );
 
     let float_of_int =
-      unary(
-        fun
-        | Int(n) => Ok(Float(float_of_int(n)))
-        | d => Error(InvalidBoxedIntLit(d)),
+      unary(d =>
+        switch (term_of(d)) {
+        | Int(n) => Ok(fresh(Float(float_of_int(n))))
+        | _ => Error(InvalidBoxedIntLit(d))
+        }
       );
 
     let abs =
-      unary(
-        fun
-        | Int(n) => Ok(Int(abs(n)))
-        | d => Error(InvalidBoxedIntLit(d)),
+      unary(d =>
+        switch (term_of(d)) {
+        | Int(n) => Ok(fresh(Int(abs(n))))
+        | _ => Error(InvalidBoxedIntLit(d))
+        }
       );
 
     let float_op = fn =>
-      unary(
-        fun
-        | Float(f) => Ok(Float(fn(f)))
-        | d => Error(InvalidBoxedFloatLit(d)),
+      unary(d =>
+        switch (term_of(d)) {
+        | Float(f) => Ok(fresh(Float(fn(f))))
+        | _ => Error(InvalidBoxedFloatLit(d))
+        }
       );
 
     let abs_float = float_op(abs_float);
@@ -132,84 +165,109 @@ module Pervasives = {
 
     let of_string =
         (convert: string => option('a), wrap: 'a => DHExp.t, name: string) =>
-      unary(
-        fun
-        | String(s) as d =>
+      unary(d =>
+        switch (term_of(d)) {
+        | String(s) =>
           switch (convert(s)) {
           | Some(n) => Ok(wrap(n))
           | None =>
-            let d' = DHExp.Ap(DHExp.BuiltinFun(name), d);
-            Ok(InvalidOperation(d', InvalidOfString));
+            let d' = DHExp.BuiltinFun(name) |> DHExp.fresh;
+            let d' = DHExp.Ap(d', d) |> DHExp.fresh;
+            let d' = InvalidOperation(d', InvalidOfString) |> DHExp.fresh;
+            Ok(d');
           }
-        | d => Error(InvalidBoxedStringLit(d)),
+        | _ => Error(InvalidBoxedStringLit(d))
+        }
       );
 
-    let int_of_string = of_string(int_of_string_opt, n => Int(n));
-    let float_of_string = of_string(float_of_string_opt, f => Float(f));
-    let bool_of_string = of_string(bool_of_string_opt, b => Bool(b));
+    let int_of_string =
+      of_string(int_of_string_opt, n => Int(n) |> DHExp.fresh);
+    let float_of_string =
+      of_string(float_of_string_opt, f => Float(f) |> DHExp.fresh);
+    let bool_of_string =
+      of_string(bool_of_string_opt, b => Bool(b) |> DHExp.fresh);
 
     let int_mod = (name, d1) =>
-      switch (d1) {
-      | Tuple([Int(n), Int(m)]) =>
-        switch (m) {
-        | 0 =>
-          InvalidOperation(
-            DHExp.Ap(DHExp.BuiltinFun(name), d1),
-            DivideByZero,
-          )
-        | _ => Int(n mod m)
-        }
-      | d1 => raise(EvaluatorError.Exception(InvalidBoxedTuple(d1)))
-      };
+      binary(
+        (d1, d2) =>
+          switch (term_of(d1), term_of(d2)) {
+          | (Int(_), Int(0)) =>
+            Ok(
+              fresh(
+                InvalidOperation(
+                  DHExp.Ap(DHExp.BuiltinFun(name) |> fresh, d1) |> fresh,
+                  DivideByZero,
+                ),
+              ),
+            )
+          | (Int(n), Int(m)) => Ok(Int(n mod m) |> fresh)
+          | (Int(_), _) =>
+            raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2)))
+          | (_, _) =>
+            raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
+          },
+        d1,
+      );
 
     let string_length =
-      unary(
-        fun
-        | String(s) => Ok(Int(String.length(s)))
-        | d => Error(InvalidBoxedStringLit(d)),
+      unary(d =>
+        switch (term_of(d)) {
+        | String(s) => Ok(Int(String.length(s)) |> fresh)
+        | _ => Error(InvalidBoxedStringLit(d))
+        }
       );
 
     let string_compare =
-      unary(
-        fun
-        | Tuple([String(s1), String(s2)]) =>
-          Ok(Int(String.compare(s1, s2)))
-        | d => Error(InvalidBoxedTuple(d)),
+      binary((d1, d2) =>
+        switch (term_of(d1), term_of(d2)) {
+        | (String(s1), String(s2)) =>
+          Ok(Int(String.compare(s1, s2)) |> fresh)
+        | (String(_), _) => Error(InvalidBoxedStringLit(d2))
+        | (_, _) => Error(InvalidBoxedStringLit(d1))
+        }
       );
 
     let string_trim =
-      unary(
-        fun
-        | String(s) => Ok(String(String.trim(s)))
-        | d => Error(InvalidBoxedStringLit(d)),
+      unary(d =>
+        switch (term_of(d)) {
+        | String(s) => Ok(String(String.trim(s)) |> fresh)
+        | _ => Error(InvalidBoxedStringLit(d))
+        }
       );
 
     let string_of: DHExp.t => option(string) =
-      fun
-      | String(s) => Some(s)
-      | _ => None;
+      d =>
+        switch (term_of(d)) {
+        | String(s) => Some(s)
+        | _ => None
+        };
 
     let string_concat =
-      unary(
-        fun
-        | Tuple([String(s1), ListLit(_, _, _, xs)]) =>
+      binary((d1, d2) =>
+        switch (term_of(d1), term_of(d2)) {
+        | (String(s1), ListLit(_, _, _, xs)) =>
           switch (xs |> List.map(string_of) |> Util.OptUtil.sequence) {
           | None => Error(InvalidBoxedStringLit(List.hd(xs)))
-          | Some(xs) => Ok(String(String.concat(s1, xs)))
+          | Some(xs) => Ok(String(String.concat(s1, xs)) |> fresh)
           }
-        | d => Error(InvalidBoxedTuple(d)),
+        | (String(_), _) => Error(InvalidBoxedListLit(d2))
+        | (_, _) => Error(InvalidBoxedStringLit(d1))
+        }
       );
 
-    let string_sub = name =>
-      unary(
-        fun
-        | Tuple([String(s), Int(idx), Int(len)]) as d =>
-          try(Ok(String(String.sub(s, idx, len)))) {
+    let string_sub = _ =>
+      ternary((d1, d2, d3) =>
+        switch (term_of(d1), term_of(d2), term_of(d3)) {
+        | (String(s), Int(idx), Int(len)) =>
+          try(Ok(String(String.sub(s, idx, len)) |> fresh)) {
           | _ =>
-            let d' = DHExp.Ap(DHExp.BuiltinFun(name), d);
-            Ok(InvalidOperation(d', IndexOutOfBounds));
+            // TODO: make it clear that the problem could be with d3 too
+            Ok(InvalidOperation(d2, IndexOutOfBounds) |> fresh)
           }
-        | d => Error(InvalidBoxedTuple(d)),
+        | (String(_), Int(_), _) => Error(InvalidBoxedIntLit(d3))
+        | (String(_), _, _) => Error(InvalidBoxedIntLit(d2))
+        | (_, _, _) => Error(InvalidBoxedIntLit(d1))
+        }
       );
   };
 
@@ -303,7 +361,8 @@ let env_init: Environment.t =
     env =>
       fun
       | (name, Const(_, d)) => Environment.extend(env, (name, d))
-      | (name, Fn(_)) => Environment.extend(env, (name, BuiltinFun(name))),
+      | (name, Fn(_)) =>
+        Environment.extend(env, (name, BuiltinFun(name) |> fresh)),
     Environment.empty,
     Pervasives.builtins,
   );

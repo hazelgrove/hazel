@@ -7,7 +7,7 @@ type consistency =
 
 module rec DHExp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
+  type term =
     // TODO: Add IDs
     /* TODO: ADD:
         UnOp
@@ -28,7 +28,7 @@ module rec DHExp: {
     | Seq(t, t) // DONE [ALREADY]
     | Let(DHPat.t, t, t) // DONE [ALREADY]
     | FixF(Var.t, Typ.t, t) // TODO: ! REMOVE, LEAVE AS LETS?
-    | Fun(DHPat.t, Typ.t, t, option(Var.t)) // TODO: Move type into pattern?; name > UEXP
+    | Fun(DHPat.t, Typ.t, t, option(ClosureEnvironment.t), option(Var.t)) // TODO: Move type into pattern?; name > UEXP
     | Ap(t, t) // TODO: Add reverse application
     | ApBuiltin(string, t) // DONE [TO ADD TO UEXP]
     | BuiltinFun(string) // DONE [TO ADD TO UEXP]
@@ -46,13 +46,20 @@ module rec DHExp: {
     | Constructor(string) // DONE [ALREADY]
     | Match(consistency, t, list((DHPat.t, t)))
     | Cast(t, Typ.t, Typ.t) // TODO: Add to uexp or remove
-    | If(consistency, t, t, t); // TODO: CONSISTENCY? use bool tag to track if branches are consistent
+    | If(consistency, t, t, t)
+  and t; // TODO: CONSISTENCY? use bool tag to track if branches are consistent
+
+  let rep_id: t => Id.t;
+  let term_of: t => term;
+  let fast_copy: (Id.t, t) => t;
+  // All children of term must have expression-unique ids.
+  let fresh: term => t;
+  let mk: (list(Id.t), term) => t;
+  let unwrap: t => (term, term => t);
 
   let constructor_string: t => string;
 
-  let mk_tuple: list(t) => t;
-
-  let cast: (t, Typ.t, Typ.t) => t;
+  let fresh_cast: (t, Typ.t, Typ.t) => t;
 
   let apply_casts: (t, list((Typ.t, Typ.t))) => t;
   let strip_casts: t => t;
@@ -60,7 +67,7 @@ module rec DHExp: {
   let fast_equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
+  type term =
     /* Hole types */
     | EmptyHole(MetaVar.t, HoleInstanceId.t)
     | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t)
@@ -77,7 +84,7 @@ module rec DHExp: {
     | Seq(t, t)
     | Let(DHPat.t, t, t)
     | FixF(Var.t, Typ.t, t)
-    | Fun(DHPat.t, Typ.t, t, option(Var.t))
+    | Fun(DHPat.t, Typ.t, t, option(ClosureEnvironment.t), option(Var.t))
     | Ap(t, t)
     | ApBuiltin(string, t)
     | BuiltinFun(string)
@@ -95,9 +102,37 @@ module rec DHExp: {
     | Constructor(string)
     | Match(consistency, t, list((DHPat.t, t)))
     | Cast(t, Typ.t, Typ.t)
-    | If(consistency, t, t, t);
+    | If(consistency, t, t, t)
+  and t = {
+    /* invariant: nonempty, TODO: what happens to later ids in DHExp */
+    ids: list(Id.t),
+    /*TODO: Verify: Always true in UExp, not necessarily in DHExp
+      if some id is not unique, then one of its parents will be flagged false */
+    ids_are_unique: bool,
+    term,
+  };
 
-  let constructor_string = (d: t): string =>
+  let rep_id = ({ids, _}) => List.hd(ids);
+  let term_of = ({term, _}) => term;
+  let fast_copy = (id, {term, _}) => {
+    ids: [id],
+    term,
+    ids_are_unique: false,
+  };
+  // All children of term must have expression-unique ids.
+  let fresh = term => {
+    {ids: [Id.mk()], ids_are_unique: true, term};
+  };
+  let unwrap = ({ids, term, ids_are_unique}) => (
+    term,
+    term => {ids, term, ids_are_unique},
+  );
+
+  let mk = (ids, term) => {
+    {ids, ids_are_unique: true, term};
+  };
+
+  let constructor_string = ({term: d, _}: t): string =>
     switch (d) {
     | EmptyHole(_, _) => "EmptyHole"
     | NonEmptyHole(_, _, _, _) => "NonEmptyHole"
@@ -109,7 +144,7 @@ module rec DHExp: {
     | Filter(_, _) => "Filter"
     | Let(_, _, _) => "Let"
     | FixF(_, _, _) => "FixF"
-    | Fun(_, _, _, _) => "Fun"
+    | Fun(_, _, _, _, _) => "Fun"
     | Closure(_, _) => "Closure"
     | Ap(_, _) => "Ap"
     | ApBuiltin(_, _) => "ApBuiltin"
@@ -133,49 +168,50 @@ module rec DHExp: {
     | If(_, _, _, _) => "If"
     };
 
-  let mk_tuple: list(t) => t =
-    fun
-    | []
-    | [_] => failwith("mk_tuple: expected at least 2 elements")
-    | xs => Tuple(xs);
-
-  let cast = (d: t, t1: Typ.t, t2: Typ.t): t =>
+  // All children of d must have expression-unique ids.
+  let fresh_cast = (d: t, t1: Typ.t, t2: Typ.t): t =>
     if (Typ.eq(t1, t2) || t2 == Unknown(SynSwitch)) {
       d;
     } else {
-      Cast(d, t1, t2);
+      fresh(Cast(d, t1, t2));
     };
 
   let apply_casts = (d: t, casts: list((Typ.t, Typ.t))): t =>
-    List.fold_left((d, (ty1, ty2)) => cast(d, ty1, ty2), d, casts);
+    List.fold_left((d, (ty1, ty2)) => fresh_cast(d, ty1, ty2), d, casts);
 
-  let rec strip_casts =
-    fun
-    | Closure(ei, d) => Closure(ei, strip_casts(d))
+  let rec strip_casts = d => {
+    let (term, rewrap) = unwrap(d);
+    switch (term) {
+    | Closure(ei, d) => Closure(ei, strip_casts(d)) |> rewrap
     | Cast(d, _, _) => strip_casts(d)
     | FailedCast(d, _, _) => strip_casts(d)
-    | Tuple(ds) => Tuple(ds |> List.map(strip_casts))
-    | Prj(d, n) => Prj(strip_casts(d), n)
-    | Cons(d1, d2) => Cons(strip_casts(d1), strip_casts(d2))
-    | ListConcat(d1, d2) => ListConcat(strip_casts(d1), strip_casts(d2))
-    | ListLit(a, b, c, ds) => ListLit(a, b, c, List.map(strip_casts, ds))
-    | NonEmptyHole(err, u, i, d) => NonEmptyHole(err, u, i, strip_casts(d))
-    | Seq(a, b) => Seq(strip_casts(a), strip_casts(b))
-    | Filter(f, b) => Filter(DHFilter.strip_casts(f), strip_casts(b))
-    | Let(dp, b, c) => Let(dp, strip_casts(b), strip_casts(c))
-    | FixF(a, b, c) => FixF(a, b, strip_casts(c))
-    | Fun(a, b, c, d) => Fun(a, b, strip_casts(c), d)
-    | Ap(a, b) => Ap(strip_casts(a), strip_casts(b))
-    | Test(id, a) => Test(id, strip_casts(a))
-    | ApBuiltin(fn, args) => ApBuiltin(fn, strip_casts(args))
-    | BuiltinFun(fn) => BuiltinFun(fn)
-    | BinOp(a, b, c) => BinOp(a, strip_casts(b), strip_casts(c))
+    | Tuple(ds) => Tuple(ds |> List.map(strip_casts)) |> rewrap
+    | Prj(d, n) => Prj(strip_casts(d), n) |> rewrap
+    | Cons(d1, d2) => Cons(strip_casts(d1), strip_casts(d2)) |> rewrap
+    | ListConcat(d1, d2) =>
+      ListConcat(strip_casts(d1), strip_casts(d2)) |> rewrap
+    | ListLit(a, b, c, ds) =>
+      ListLit(a, b, c, List.map(strip_casts, ds)) |> rewrap
+    | NonEmptyHole(err, u, i, d) =>
+      NonEmptyHole(err, u, i, strip_casts(d)) |> rewrap
+    | Seq(a, b) => Seq(strip_casts(a), strip_casts(b)) |> rewrap
+    | Filter(f, b) =>
+      Filter(DHFilter.strip_casts(f), strip_casts(b)) |> rewrap
+    | Let(dp, b, c) => Let(dp, strip_casts(b), strip_casts(c)) |> rewrap
+    | FixF(a, b, c) => FixF(a, b, strip_casts(c)) |> rewrap
+    | Fun(a, b, c, e, d) => Fun(a, b, strip_casts(c), e, d) |> rewrap
+    | Ap(a, b) => Ap(strip_casts(a), strip_casts(b)) |> rewrap
+    | Test(id, a) => Test(id, strip_casts(a)) |> rewrap
+    | ApBuiltin(fn, args) => ApBuiltin(fn, strip_casts(args)) |> rewrap
+    | BuiltinFun(fn) => BuiltinFun(fn) |> rewrap
+    | BinOp(a, b, c) => BinOp(a, strip_casts(b), strip_casts(c)) |> rewrap
     | Match(c, a, rules) =>
       Match(
         c,
         strip_casts(a),
         List.map(((k, v)) => (k, strip_casts(v)), rules),
       )
+      |> rewrap
     | EmptyHole(_) as d
     | ExpandingKeyword(_) as d
     | FreeVar(_) as d
@@ -186,11 +222,14 @@ module rec DHExp: {
     | Float(_) as d
     | String(_) as d
     | Constructor(_) as d
-    | InvalidOperation(_) as d => d
+    | InvalidOperation(_) as d => d |> rewrap
     | If(consistent, c, d1, d2) =>
-      If(consistent, strip_casts(c), strip_casts(d1), strip_casts(d2));
+      If(consistent, strip_casts(c), strip_casts(d1), strip_casts(d2))
+      |> rewrap
+    };
+  };
 
-  let rec fast_equal = (d1: t, d2: t): bool => {
+  let rec fast_equal = ({term: d1, _}, {term: d2, _}): bool => {
     switch (d1, d2) {
     /* Primitive forms: regular structural equality */
     | (Var(_), _)
@@ -212,8 +251,17 @@ module rec DHExp: {
       dp1 == dp2 && fast_equal(d11, d12) && fast_equal(d21, d22)
     | (FixF(f1, ty1, d1), FixF(f2, ty2, d2)) =>
       f1 == f2 && ty1 == ty2 && fast_equal(d1, d2)
-    | (Fun(dp1, ty1, d1, s1), Fun(dp2, ty2, d2, s2)) =>
+    | (Fun(dp1, ty1, d1, None, s1), Fun(dp2, ty2, d2, None, s2)) =>
       dp1 == dp2 && ty1 == ty2 && fast_equal(d1, d2) && s1 == s2
+    | (
+        Fun(dp1, ty1, d1, Some(env1), s1),
+        Fun(dp2, ty2, d2, Some(env2), s2),
+      ) =>
+      dp1 == dp2
+      && ty1 == ty2
+      && fast_equal(d1, d2)
+      && ClosureEnvironment.id_equal(env1, env2)
+      && s1 == s2
     | (Ap(d11, d21), Ap(d12, d22))
     | (Cons(d11, d21), Cons(d12, d22)) =>
       fast_equal(d11, d12) && fast_equal(d21, d22)
@@ -453,7 +501,6 @@ and Filter: {
   let fast_equal = (f1: t, f2: t): bool => {
     DHExp.fast_equal(f1.pat, f2.pat) && f1.act == f2.act;
   };
-
   let strip_casts = (f: t): t => {...f, pat: f.pat |> DHExp.strip_casts};
 }
 

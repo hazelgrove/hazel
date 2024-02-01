@@ -439,7 +439,7 @@ let example_view =
               DHExp.Filter(
                 Filter(
                   Filter.mk(
-                    Constructor("$e"),
+                    Constructor("$e") |> DHExp.fresh,
                     (FilterAction.Eval, FilterAction.All),
                   ),
                 ),
@@ -447,6 +447,7 @@ let example_view =
               );
             let stepper =
               dhexp
+              |> DHExp.fresh
               |> Stepper.init
               |> Stepper.evaluate_full(~settings=settings.core.evaluation);
             let (hidden, previous) =

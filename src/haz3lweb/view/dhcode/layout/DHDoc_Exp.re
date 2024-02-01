@@ -44,7 +44,7 @@ let precedence_bin_string_op = (bso: TermBase.UExp.op_bin_string) =>
   };
 let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   let precedence' = precedence(~show_casts);
-  switch (d) {
+  switch (DHExp.term_of(d)) {
   | Var(_)
   | FreeVar(_)
   | InvalidText(_)
@@ -130,8 +130,12 @@ let mk =
     let recent_subst =
       switch (previous_step) {
       | Some(ps) when ps.ctx == Mark =>
-        switch (ps.knd, ps.d_loc) {
-        | (FunAp, Ap(Fun(p, _, _, _), _)) => DHPat.bound_vars(p)
+        switch (ps.knd, DHExp.term_of(ps.d_loc)) {
+        | (FunAp, Ap(d2, _)) =>
+          switch (DHExp.term_of(d2)) {
+          | Fun(p, _, _, _, _) => DHPat.bound_vars(p)
+          | _ => []
+          }
         | (FunAp, _) => []
         | (LetBind, Let(p, _, _)) => DHPat.bound_vars(p)
         | (LetBind, _) => []
@@ -258,7 +262,7 @@ let mk =
       go_formattable(d2, r) |> parenthesize(precedence(d2) > precedence_op),
     );
     let doc = {
-      switch (d) {
+      switch (DHExp.term_of(d)) {
       | Closure(env', d') => go'(d', Closure, ~env=env')
       | Filter(flt, d') =>
         if (settings.show_stepper_filters) {
@@ -316,7 +320,7 @@ let mk =
         | Some(d') =>
           if (List.mem(x, recent_subst)) {
             hcats([
-              go'(~env=ClosureEnvironment.empty, Var(x), BoundVar)
+              go'(~env=ClosureEnvironment.empty, d, BoundVar)
               |> annot(DHAnnot.Substituted),
               go'(~env=ClosureEnvironment.empty, d', BoundVar),
             ]);
@@ -453,22 +457,24 @@ let mk =
             ),
           ]);
         }
-      | FailedCast(Cast(d, ty1, ty2), ty2', ty3) when Typ.eq(ty2, ty2') =>
-        let d_doc = go'(d, FailedCastCast);
-        let cast_decoration =
-          hcats([
-            DHDoc_common.Delim.open_FailedCast,
-            hseps([
-              DHDoc_Typ.mk(~enforce_inline=true, ty1),
-              DHDoc_common.Delim.arrow_FailedCast,
-              DHDoc_Typ.mk(~enforce_inline=true, ty3),
-            ]),
-            DHDoc_common.Delim.close_FailedCast,
-          ])
-          |> annot(DHAnnot.FailedCastDecoration);
-        hcats([d_doc, cast_decoration]);
-      | FailedCast(_d, _ty1, _ty2) =>
-        failwith("unexpected FailedCast without inner cast")
+      | FailedCast(d1, ty2', ty3) =>
+        switch (DHExp.term_of(d1)) {
+        | Cast(d, ty1, ty2) when Typ.eq(ty2, ty2') =>
+          let d_doc = go'(d, FailedCastCast);
+          let cast_decoration =
+            hcats([
+              DHDoc_common.Delim.open_FailedCast,
+              hseps([
+                DHDoc_Typ.mk(~enforce_inline=true, ty1),
+                DHDoc_common.Delim.arrow_FailedCast,
+                DHDoc_Typ.mk(~enforce_inline=true, ty3),
+              ]),
+              DHDoc_common.Delim.close_FailedCast,
+            ])
+            |> annot(DHAnnot.FailedCastDecoration);
+          hcats([d_doc, cast_decoration]);
+        | _ => failwith("unexpected FailedCast without inner cast")
+        }
       | InvalidOperation(d, err) =>
         let d_doc = go'(d, InvalidOperation);
         let decoration =
@@ -502,7 +508,7 @@ let mk =
              ),
           DHDoc_common.Delim.mk(")"),
         ]);
-      | Fun(dp, ty, Closure(env', d), s) =>
+      | Fun(dp, ty, d, Some(env'), s) =>
         if (settings.show_fn_bodies) {
           let bindings = DHPat.bound_vars(dp);
           let body_doc =
@@ -510,7 +516,8 @@ let mk =
               Closure(
                 ClosureEnvironment.without_keys(Option.to_list(s), env'),
                 d,
-              ),
+              )
+              |> DHExp.fresh,
               ~env=
                 ClosureEnvironment.without_keys(
                   DHPat.bound_vars(dp) @ Option.to_list(s),
@@ -551,7 +558,7 @@ let mk =
           | Some(name) => annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"))
           };
         }
-      | Fun(dp, ty, dbody, s) =>
+      | Fun(dp, ty, dbody, None, s) =>
         if (settings.show_fn_bodies) {
           let bindings = DHPat.bound_vars(dp);
           let body_doc =
@@ -638,9 +645,12 @@ let mk =
          );
     let doc =
       switch (substitution) {
-      | Some({d_loc: Var(v), _}) when List.mem(v, recent_subst) =>
-        hcats([text(v) |> annot(DHAnnot.Substituted), doc])
-      | Some(_)
+      | Some(step) =>
+        switch (DHExp.term_of(step.d_loc)) {
+        | Var(v) when List.mem(v, recent_subst) =>
+          hcats([text(v) |> annot(DHAnnot.Substituted), doc])
+        | _ => doc
+        }
       | None => doc
       };
     let doc =
