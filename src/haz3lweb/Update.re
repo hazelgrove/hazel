@@ -329,7 +329,6 @@ let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
 let switch_scratch_slide =
     (editors: Editors.t, ~instructor_mode, idx: int): option(Editors.t) =>
   switch (editors) {
-  | DebugLoad
   | Documentation(_) => None
   | Scratch(n, _) when n == idx => None
   | Scratch(_, slides) when idx >= List.length(slides) => None
@@ -345,7 +344,6 @@ let switch_scratch_slide =
 let switch_exercise_editor =
     (editors: Editors.t, ~pos, ~instructor_mode): option(Editors.t) =>
   switch (editors) {
-  | DebugLoad
   | Documentation(_)
   | Scratch(_) => None
   | Exercises(m, specs, exercise) =>

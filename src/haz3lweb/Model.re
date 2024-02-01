@@ -24,12 +24,14 @@ type ui_state = {
   font_metrics: FontMetrics.t,
   show_backpack_targets: bool,
   mousedown: bool,
+  debug_mode: bool,
 };
 
 let ui_state_init = {
   font_metrics: FontMetrics.init,
   show_backpack_targets: false,
   mousedown: false,
+  debug_mode: false,
 };
 
 type t = {
@@ -54,13 +56,11 @@ let mk = (editors, results, statics) => {
 
 let blank =
   mk(Editors.Scratch(0, []), ModelResults.empty, CachedStatics.empty);
-let debug = mk(Editors.DebugLoad, ModelResults.empty, CachedStatics.empty);
 
 let load_editors =
     (~mode: Settings.mode, ~instructor_mode: bool)
     : (Editors.t, ModelResults.t) =>
   switch (mode) {
-  | DebugLoad => (DebugLoad, ModelResults.empty)
   | Scratch =>
     let (idx, slides, results) = Store.Scratch.load();
     (Scratch(idx, slides), results);
@@ -80,7 +80,6 @@ let save_editors =
     (editors: Editors.t, results: ModelResults.t, ~instructor_mode: bool)
     : unit =>
   switch (editors) {
-  | DebugLoad => failwith("no editors in debug load mode")
   | Scratch(n, slides) => Store.Scratch.save((n, slides, results))
   | Documentation(name, slides) =>
     Store.Documentation.save((name, slides, results))

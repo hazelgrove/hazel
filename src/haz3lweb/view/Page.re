@@ -78,7 +78,6 @@ let main_view =
     ExplainThis.get_color_map(~settings, ~explainThisModel, cursor_info);
   let editors_view =
     switch (editors) {
-    | DebugLoad => [DebugMode.view(~inject)]
     | Scratch(idx, _) =>
       let result_key = ScratchSlide.scratch_key(string_of_int(idx));
       ScratchMode.view(

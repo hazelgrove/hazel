@@ -111,7 +111,6 @@ let settings_menu =
 
 let export_menu = (~inject, ~settings: Settings.t, editors: Editors.t) =>
   switch (editors) {
-  | DebugLoad => []
   | Scratch(slide_idx, slides) =>
     let state = List.nth(slides, slide_idx);
     [ScratchMode.export_button(state)];
@@ -130,7 +129,6 @@ let export_menu = (~inject, ~settings: Settings.t, editors: Editors.t) =>
 
 let import_menu = (~inject, editors: Editors.t) =>
   switch (editors) {
-  | DebugLoad => []
   | Scratch(_)
   | Documentation(_) => [
       ScratchMode.import_button(inject),
