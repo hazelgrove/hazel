@@ -2,11 +2,9 @@ open Sexplib.Std;
 open ExplainThisForm;
 open ExplainThisModel;
 open Util;
-open Haz3lcore;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type update =
-  | SetHighlight(option(Id.t))
   | SpecificityOpen(bool)
   | ToggleExplanationFeedback(group_id, form_id, feedback_option)
   | ToggleExampleFeedback(group_id, form_id, example_id, feedback_option)
@@ -15,7 +13,6 @@ type update =
 let set_update =
     (explainThisModel: ExplainThisModel.t, u: update): ExplainThisModel.t => {
   switch (u) {
-  | SetHighlight(highlight) => {...explainThisModel, highlight}
   | SpecificityOpen(b) => {...explainThisModel, specificity_open: b}
   | ToggleExplanationFeedback(group_id, form_id, feedback_option) =>
     let (pre, form, post) =
