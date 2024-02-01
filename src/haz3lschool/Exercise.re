@@ -691,7 +691,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   let hidden_bugs_key = n => "hidden_bugs_" ++ string_of_int(n);
   let hidden_tests_key = "hidden_tests";
 
-  //TODO(andrew): consolidate with key_of_state?
   let key_for_statics = (state: state): string =>
     switch (state.pos) {
     | Prelude => prelude_key

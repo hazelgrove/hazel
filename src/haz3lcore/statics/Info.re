@@ -283,10 +283,10 @@ let ancestors_of: t => ancestors =
 
 let id_of: t => Id.t =
   fun
-  | InfoExp({term, _}) => UExp.rep_id(term)
-  | InfoPat({term, _}) => UPat.rep_id(term)
-  | InfoTyp({term, _}) => UTyp.rep_id(term)
-  | InfoTPat({term, _}) => UTPat.rep_id(term)
+  | InfoExp(i) => Term.UExp.rep_id(i.term)
+  | InfoPat(i) => Term.UPat.rep_id(i.term)
+  | InfoTyp(i) => Term.UTyp.rep_id(i.term)
+  | InfoTPat(i) => Term.UTPat.rep_id(i.term)
   | Secondary(s) => s.id;
 
 let error_of: t => option(error) =
