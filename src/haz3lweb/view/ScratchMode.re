@@ -15,7 +15,7 @@ let view =
     ) => {
   let result = ModelResults.lookup(results, result_key);
   let footer =
-    settings.core.statics
+    settings.core.elaborate || settings.core.dynamics
       ? result
         |> Option.map(result =>
              Cell.footer(

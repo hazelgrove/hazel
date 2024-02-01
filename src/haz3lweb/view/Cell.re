@@ -145,8 +145,8 @@ let deco =
     | Some(test_results) =>
       decos @ test_result_layer(~font_metrics, ~measured, test_results) // TODO move into decos
     };
-  switch (highlights, selected) {
-  | (Some(colorMap), true) =>
+  switch (highlights) {
+  | Some(colorMap) =>
     decos @ Deco.color_highlights(ColorSteps.to_list(colorMap))
   | _ => decos
   };
@@ -214,10 +214,11 @@ let editor_view =
       ~footer: list(Node.t),
       ~highlights: option(ColorSteps.colorMap),
       ~error_ids: list(Id.t),
+      ~overlayer: option(Node.t)=None,
+      ~sort=Sort.root,
       editor: Editor.t,
     ) => {
-  let code_text_view =
-    Code.view(~sort=Sort.root, ~font_metrics, ~settings, editor);
+  let code_text_view = Code.view(~sort, ~font_metrics, ~settings, editor);
   let deco_view =
     deco(
       ~font_metrics,
@@ -232,7 +233,7 @@ let editor_view =
     div(
       ~attr=
         Attr.many([Attr.id(target_id), Attr.classes(["code-container"])]),
-      [code_text_view] @ deco_view,
+      [code_text_view] @ deco_view @ Option.to_list(overlayer),
     );
   let mousedown_overlay =
     selected && mousedown
@@ -268,7 +269,7 @@ let editor_view =
   );
 };
 
-//TODO(andrew): why are there two of these?
+//TODO(andrew): ask matt why this is divided from the above footer fn
 let footer =
     (
       ~locked,
@@ -326,4 +327,93 @@ let title_cell = title => {
       [div(~attr=Attr.class_("title-text"), [text(title)])],
     ),
   ]);
+};
+
+/* An editor view that is not selectable or editable,
+ * and does not show error holes or test results.
+ * Used in Docs to display the header example */
+let locked_no_statics =
+    (
+      ~inject,
+      ~ui_state,
+      ~segment,
+      ~highlights,
+      ~settings,
+      ~sort,
+      ~expander_deco,
+      ~target_id,
+    ) => [
+  editor_view(
+    ~locked=true,
+    ~selected=false,
+    ~highlights,
+    ~inject,
+    ~ui_state,
+    ~settings,
+    ~target_id,
+    ~footer=[],
+    ~test_results=None,
+    ~error_ids=[],
+    ~overlayer=Some(expander_deco),
+    ~sort,
+    segment |> Zipper.unzip |> Editor.init(~read_only=true),
+  ),
+];
+
+/* An editor view that is not selectable or editable,
+ * but does show static errors, test results, and live values.
+ * Used in Docs for examples */
+let locked =
+    (
+      ~ui_state,
+      ~settings: Settings.t,
+      ~inject,
+      ~target_id,
+      ~segment: Segment.t,
+    ) => {
+  let editor = segment |> Zipper.unzip |> Editor.init(~read_only=true);
+  let statics =
+    settings.core.statics
+      ? ScratchSlide.mk_statics(~settings, editor, Builtins.ctx_init)
+      : CachedStatics.empty_statics;
+  let elab =
+    settings.core.elaborate || settings.core.dynamics
+      ? Interface.elaborate(
+          ~settings=settings.core,
+          statics.info_map,
+          editor.state.meta.view_term,
+        )
+      : DHExp.BoolLit(true);
+  let result: ModelResult.t =
+    settings.core.dynamics
+      ? Evaluation({
+          elab,
+          evaluation:
+            ResultOk(Interface.evaluate(~settings=settings.core, elab)),
+        })
+      : NoElab;
+  let footer =
+    settings.core.elaborate || settings.core.dynamics
+      ? footer(
+          ~locked=true,
+          ~inject,
+          ~settings,
+          ~ui_state,
+          ~result_key=target_id,
+          ~result,
+        )
+      : [];
+  editor_view(
+    ~locked=true,
+    ~selected=false,
+    ~highlights=None,
+    ~inject,
+    ~ui_state,
+    ~settings,
+    ~target_id,
+    ~footer,
+    ~test_results=ModelResult.test_results(result),
+    ~error_ids=statics.error_ids,
+    editor,
+  );
 };

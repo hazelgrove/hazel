@@ -689,10 +689,6 @@ select {
   background-color: #fffcf3;
 }
 
-.cell.locked {
-  background-color: #f7ebd3;
-}
-
 .cell-item {
   display: flex;
   flex-direction: column;
@@ -1561,36 +1557,22 @@ svg.tile-selected {
   gap: 0.75em;
 }
 
-.explain-this .example .cell {
-  width: auto;
-}
-
 .explain-this .example + .example {
   border-top: 1px dotted #c7b480;
   padding-top: 0.75em;
 }
 
-.explain-this .example .code-text {
-  position: relative;
+.explain-this .example .cell {
+  width: auto;
+  background-color: #f7ebd3;
 }
 
-.explain-this .example .ex-result {
-  display: flex;
-  align-items: center;
-  gap: 0.5em;
-  padding-top: 5px;
-}
-
-.explain-this .code-container {
-  margin-bottom: 0em;
+.explain-this .example .cell-result {
+  background-color: #ede0c6;
 }
 
 .explain-this .explanation {
   white-space: normal;
-}
-
-.explain-this .code-text {
-  position: relative;
 }
 
 .specificity-options-menu {
