@@ -105,12 +105,10 @@ let highlight =
       Attr.many([
         classes,
         Attr.on_mouseenter(_ =>
-          inject(
-            UpdateAction.UpdateExplainThisModel(SetHighlight(Some(id))),
-          )
+          inject(UpdateAction.Set(ExplainThis(SetHighlight(Hover(id)))))
         ),
         Attr.on_mouseleave(_ =>
-          inject(UpdateAction.UpdateExplainThisModel(SetHighlight(None)))
+          inject(UpdateAction.Set(ExplainThis(SetHighlight(UnsetHover))))
         ),
         Attr.on_click(_ =>
           inject(UpdateAction.PerformAction(Select(Term(Id(id, Left)))))
@@ -576,7 +574,7 @@ let get_doc =
       mode: message_mode,
     )
     : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
-  let simple = msg => ([text(msg)], ([], (Id.Map.empty, 0)), []);
+  let simple = msg => ([], ([text(msg)], (Id.Map.empty, 0)), []);
   let default = simple("No docs available");
   let get_specificity_level = group_id =>
     fst(ExplainThisModel.get_form_and_options(group_id, docs)).id;
@@ -2330,7 +2328,7 @@ let get_doc =
     switch (s.cls) {
     | Secondary(Whitespace) => simple("A semantic void, pervading but inert")
     | Secondary(Comment) =>
-      simple("Comments are ignored by compilers but treasured by readers")
+      simple("Comments are ignored by systems but treasured by readers")
     | _ => failwith("ExplainThis: Secondary Impossible")
     }
   | None => default
@@ -2345,8 +2343,12 @@ let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
 
 let get_color_map =
     (~settings: Settings.t, ~explainThisModel: ExplainThisModel.t, info) =>
-  switch (explainThisModel.highlight) {
-  | Some(id) when settings.explainThis.show =>
+  switch (settings.explainThis.highlight) {
+  | All when settings.explainThis.show =>
+    let (_, (_, (color_map, _)), _) =
+      get_doc(~docs=explainThisModel, info, Colorings);
+    Some(color_map);
+  | One(id) when settings.explainThis.show =>
     let (_, (_, (color_map, _)), _) =
       get_doc(~docs=explainThisModel, info, Colorings);
     Some(Id.Map.filter((id', _) => id == id', color_map));
@@ -2376,6 +2378,13 @@ let view =
           div(
             ~attr=clss(["top-bar"]),
             [
+              Widgets.toggle(
+                ~tooltip="Toggle highlighting",
+                "🔆",
+                settings.explainThis.highlight == All,
+                _ =>
+                inject(UpdateAction.Set(ExplainThis(SetHighlight(Toggle))))
+              ),
               div(
                 ~attr=
                   Attr.many([
@@ -2389,27 +2398,27 @@ let view =
             ],
           ),
         ]
-        @ (
-          syn_form == []
-            ? []
-            : [
-              section(
-                ~section_clss="syntactic-form",
-                ~title=
-                  switch (info) {
-                  | None => "Whitespace or Comment"
-                  | Some(info) => Info.cls_of(info) |> Term.Cls.show
-                  },
-                [
+        @ [
+          section(
+            ~section_clss="syntactic-form",
+            ~title=
+              switch (info) {
+              | None => "Whitespace or Comment"
+              | Some(info) => Info.cls_of(info) |> Term.Cls.show
+              },
+            (
+              syn_form == []
+                ? []
+                : [
                   div(
                     ~attr=clss(["cell"]),
                     [div(~attr=clss(["cell-item"]), syn_form)],
                   ),
                 ]
-                @ explanation,
-              ),
-            ]
-        )
+            )
+            @ explanation,
+          ),
+        ]
         @ (
           example == []
             ? []

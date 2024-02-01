@@ -1556,6 +1556,10 @@ svg.tile-selected {
   gap: 0.75em;
 }
 
+.explain-this .example .cell {
+  width: auto;
+}
+
 .explain-this .example + .example {
   border-top: 1px dotted #c7b480;
   padding-top: 0.75em;
