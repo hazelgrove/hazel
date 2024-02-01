@@ -88,11 +88,6 @@ let rec is_inconsistent = (xis: list(Constraint.t)): b =>
 and is_inconsistent' = (xis: list(Constraint.t)): b =>
   switch (xis) {
   | [] => False(Constraint.Truth)
-  | _
-      when
-        List.exists(Constraint.is_injL, xis)
-        && List.exists(Constraint.is_injR, xis) =>
-    True
   | [xi, ...xis'] =>
     switch (xi) {
     | Truth => is_inconsistent(xis')
@@ -105,22 +100,30 @@ and is_inconsistent' = (xis: list(Constraint.t)): b =>
       | f => f
       }
     | InjL(_) =>
-      switch (List.partition(Constraint.is_injL, xis)) {
-      | (injLs, []) =>
-        switch (injLs |> List.map(Constraint.unwrapL) |> is_inconsistent) {
-        | True => True
-        | False(xi) => False(InjL(xi))
-        }
-      | (injLs, others) => is_inconsistent(others @ injLs)
+      if (List.exists(Constraint.is_injR, xis)) {
+        True;
+      } else {
+        switch (List.partition(Constraint.is_injL, xis)) {
+        | (injLs, []) =>
+          switch (injLs |> List.map(Constraint.unwrapL) |> is_inconsistent) {
+          | True => True
+          | False(xi) => False(InjL(xi))
+          }
+        | (injLs, others) => is_inconsistent(others @ injLs)
+        };
       }
     | InjR(_) =>
-      switch (List.partition(Constraint.is_injR, xis)) {
-      | (injRs, []) =>
-        switch (injRs |> List.map(Constraint.unwrapR) |> is_inconsistent) {
-        | True => True
-        | False(xi) => False(InjR(xi))
-        }
-      | (injRs, others) => is_inconsistent(others @ injRs)
+      if (List.exists(Constraint.is_injL, xis)) {
+        True;
+      } else {
+        switch (List.partition(Constraint.is_injR, xis)) {
+        | (injRs, []) =>
+          switch (injRs |> List.map(Constraint.unwrapR) |> is_inconsistent) {
+          | True => True
+          | False(xi) => False(InjR(xi))
+          }
+        | (injRs, others) => is_inconsistent(others @ injRs)
+        };
       }
     | Int(_)
     | NotInt(_) =>
