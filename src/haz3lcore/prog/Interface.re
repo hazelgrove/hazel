@@ -40,12 +40,12 @@ let elaborate =
 exception DoesNotElaborate;
 let elaborate = (~settings: CoreSettings.t, map, term): DHExp.t =>
   switch () {
-  | _ when !settings.statics => dh_err("Statics disabled: No elaboration")
+  | _ when !settings.statics => dh_err("Statics disabled")
   | _ when !settings.dynamics && !settings.elaborate =>
-    dh_err("Dynamics & Elaboration disabled: No elaboration")
+    dh_err("Dynamics & Elaboration disabled")
   | _ =>
     switch (elaborate(map, term)) {
-    | DoesNotElaborate => dh_err("Internal error: Elaboration returns None")
+    | DoesNotElaborate => dh_err("Elaboration returns None")
     | Elaborates(d, _, _) => d
     }
   };

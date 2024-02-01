@@ -379,11 +379,145 @@ let syntactic_form_view =
   );
 };
 
+let example_cell2 = (idx, term, ~font_metrics, ~settings: Settings.t, ~inject) => {
+  let name = "example" ++ string_of_int(idx);
+  let ui_state = {...Model.ui_state_init, font_metrics};
+  let z = Zipper.unzip(term);
+  let editor = Editor.init(~read_only=true, z);
+  let statics =
+    settings.core.statics
+      ? ScratchSlide.mk_statics(~settings, editor, Builtins.ctx_init)
+      : CachedStatics.empty_statics;
+  let footer =
+    settings.core.elaborate
+      ? {
+        let elab =
+          Interface.elaborate(
+            ~settings=settings.core,
+            statics.info_map,
+            editor.state.meta.view_term,
+          );
+        let result = Interface.evaluate(~settings=settings.core, elab);
+        Cell.footer(
+          ~locked=true,
+          ~inject,
+          ~settings,
+          ~ui_state,
+          ~result_key=name,
+          ~result=Evaluation({elab, evaluation: ResultOk(result)}),
+        );
+      }
+      : [];
+  Cell.editor_view(
+    ~locked=true,
+    ~selected=false,
+    ~inject,
+    ~ui_state,
+    ~settings,
+    ~target_id=name,
+    ~test_results=None,
+    ~footer,
+    ~highlights=None,
+    //~test_results=result |> Util.OptUtil.and_then(ModelResult.test_results),
+    ~error_ids=statics.error_ids,
+    editor,
+  );
+};
+
+let example_cell = (term, ~font_metrics, ~settings: Settings.t, ~inject) => {
+  let map_code = Measured.of_segment(term);
+  let code_view =
+    Code.simple_view(
+      ~font_metrics,
+      ~unselected=term,
+      ~map=map_code,
+      ~settings,
+    );
+  let (uhexp, _) = MakeTerm.go(term);
+  let info_map = Interface.Statics.mk_map(settings.core, uhexp);
+  let dhexp = uhexp |> Interface.elaborate(~settings=settings.core, info_map);
+  let dhexp =
+    DHExp.Filter(
+      Filter(
+        Filter.mk(Constructor("$e"), (FilterAction.Eval, FilterAction.All)),
+      ),
+      dhexp,
+    );
+  let stepper =
+    dhexp
+    |> Stepper.init
+    |> Stepper.evaluate_full(~settings=settings.core.evaluation);
+  let (hidden, previous) =
+    Stepper.get_history(~settings=settings.core.evaluation, stepper);
+  let dh_code_current =
+    div(
+      ~attr=Attr.classes(["result"]),
+      [
+        DHCode.view(
+          ~inject,
+          ~settings=settings.core.evaluation,
+          ~selected_hole_instance=None,
+          ~font_metrics,
+          ~width=80,
+          ~previous_step=
+            previous
+            |> List.nth_opt(_, 0)
+            |> Option.map((x: Stepper.step_with_previous) => x.step),
+          ~next_steps=stepper.next,
+          ~hidden_steps=List.map((x: EvaluatorStep.step) => x, hidden),
+          ~result_key="",
+          Stepper.current_expr(stepper),
+        ),
+      ],
+    );
+  let dh_code_previous = (step_with_previous: Stepper.step_with_previous) =>
+    div(
+      ~attr=Attr.classes(["result"]),
+      [
+        DHCode.view(
+          ~inject,
+          ~settings=settings.core.evaluation,
+          ~selected_hole_instance=None,
+          ~font_metrics,
+          ~width=80,
+          ~previous_step=
+            Option.map(
+              (x: EvaluatorStep.step) => x,
+              step_with_previous.previous,
+            ),
+          ~chosen_step=Some(step_with_previous.step),
+          ~hidden_steps=
+            List.map(
+              (x: EvaluatorStep.step) => x,
+              step_with_previous.hidden,
+            ),
+          ~result_key="",
+          step_with_previous.step.d,
+        ),
+      ],
+    );
+  let result_view =
+    previous
+    |> List.map(dh_code_previous)
+    |> List.fold_left((x, y) => List.cons(y, x), [dh_code_current]);
+  let code_container = div(~attr=clss(["code-container"]));
+  div(
+    ~attr=clss(["cell", "selected"]),
+    [
+      div(~attr=clss(["cell-item"]), [code_container([code_view])]),
+      div(
+        ~attr=clss(["cell-item", "cell-result"]),
+        [div_c("equiv", [text("≡")]), code_container(result_view)],
+      ),
+    ],
+  );
+};
+
 let example_view =
     (
       ~inject,
       ~font_metrics,
-      ~settings,
+      ~settings: Settings.t,
       ~group_id,
       ~form_id,
       ~examples: list(ExplainThisForm.example),
@@ -394,97 +528,8 @@ let example_view =
     : [
       div(
         ~attr=Attr.id("examples"),
-        List.map(
-          ({term, message, _} as example: ExplainThisForm.example) => {
-            let map_code = Measured.of_segment(term);
-            let code_view =
-              Code.simple_view(
-                ~font_metrics,
-                ~unselected=term,
-                ~map=map_code,
-                ~settings,
-              );
-            let (uhexp, _) = MakeTerm.go(term);
-            let info_map = Interface.Statics.mk_map(settings.core, uhexp);
-            let dhexp =
-              uhexp |> Interface.elaborate(~settings=settings.core, info_map);
-            let dhexp =
-              DHExp.Filter(
-                Filter(
-                  Filter.mk(
-                    Constructor("$e"),
-                    (FilterAction.Eval, FilterAction.All),
-                  ),
-                ),
-                dhexp,
-              );
-            let stepper =
-              dhexp
-              |> Stepper.init
-              |> Stepper.evaluate_full(~settings=settings.core.evaluation);
-            let (hidden, previous) =
-              Stepper.get_history(
-                ~settings=settings.core.evaluation,
-                stepper,
-              );
-            let dh_code_current =
-              div(
-                ~attr=Attr.classes(["result"]),
-                [
-                  DHCode.view(
-                    ~inject,
-                    ~settings=settings.core.evaluation,
-                    ~selected_hole_instance=None,
-                    ~font_metrics,
-                    ~width=80,
-                    ~previous_step=
-                      previous
-                      |> List.nth_opt(_, 0)
-                      |> Option.map((x: Stepper.step_with_previous) => x.step),
-                    ~next_steps=stepper.next,
-                    ~hidden_steps=
-                      List.map((x: EvaluatorStep.step) => x, hidden),
-                    ~result_key="",
-                    Stepper.current_expr(stepper),
-                  ),
-                ],
-              );
-            let dh_code_previous =
-                (step_with_previous: Stepper.step_with_previous) =>
-              div(
-                ~attr=Attr.classes(["result"]),
-                [
-                  DHCode.view(
-                    ~inject,
-                    ~settings=settings.core.evaluation,
-                    ~selected_hole_instance=None,
-                    ~font_metrics,
-                    ~width=80,
-                    ~previous_step=
-                      Option.map(
-                        (x: EvaluatorStep.step) => x,
-                        step_with_previous.previous,
-                      ),
-                    ~chosen_step=Some(step_with_previous.step),
-                    ~hidden_steps=
-                      List.map(
-                        (x: EvaluatorStep.step) => x,
-                        step_with_previous.hidden,
-                      ),
-                    ~result_key="",
-                    step_with_previous.step.d,
-                  ),
-                ],
-              );
-            let result_view =
-              previous
-              |> List.map(dh_code_previous)
-              |> List.fold_left(
-                   (x, y) => List.cons(y, x),
-                   [dh_code_current],
-                 );
-            let code_container = view =>
-              div(~attr=clss(["code-container"]), view);
+        List.mapi(
+          (idx, {term, message, _} as example: ExplainThisForm.example) => {
             let feedback =
               settings.explainThis.show_feedback
                 ? [
@@ -500,22 +545,8 @@ let example_view =
             div(
               ~attr=clss(["example"]),
               [
-                div(
-                  ~attr=clss(["cell", "selected"]),
-                  [
-                    div(
-                      ~attr=clss(["cell-item"]),
-                      [code_container([code_view])],
-                    ),
-                    div(
-                      ~attr=clss(["cell-item", "cell-result"]),
-                      [
-                        div_c("equiv", [text("≡")]),
-                        code_container(result_view),
-                      ],
-                    ),
-                  ],
-                ),
+                //example_cell(term, ~font_metrics, ~settings, ~inject),
+                example_cell2(idx, term, ~font_metrics, ~settings, ~inject),
                 div(
                   ~attr=clss(["explanation"]),
                   [text(message)] @ feedback,
