@@ -445,71 +445,17 @@ let example_view =
                 ),
                 dhexp,
               );
-            let stepper =
+            let result_view =
               dhexp
               |> DHExp.fresh
               |> Stepper.init
-              |> Stepper.evaluate_full(~settings=settings.core.evaluation);
-            let (hidden, previous) =
-              Stepper.get_history(
-                ~settings=settings.core.evaluation,
-                stepper,
-              );
-            let dh_code_current =
-              div(
-                ~attr=Attr.classes(["result"]),
-                [
-                  DHCode.view(
-                    ~inject,
-                    ~settings=settings.core.evaluation,
-                    ~selected_hole_instance=None,
-                    ~font_metrics,
-                    ~width=80,
-                    ~previous_step=
-                      previous
-                      |> List.nth_opt(_, 0)
-                      |> Option.map((x: Stepper.step_with_previous) => x.step),
-                    ~next_steps=stepper.next,
-                    ~hidden_steps=
-                      List.map((x: EvaluatorStep.step) => x, hidden),
-                    ~result_key="",
-                    Stepper.current_expr(stepper),
-                  ),
-                ],
-              );
-            let dh_code_previous =
-                (step_with_previous: Stepper.step_with_previous) =>
-              div(
-                ~attr=Attr.classes(["result"]),
-                [
-                  DHCode.view(
-                    ~inject,
-                    ~settings=settings.core.evaluation,
-                    ~selected_hole_instance=None,
-                    ~font_metrics,
-                    ~width=80,
-                    ~previous_step=
-                      Option.map(
-                        (x: EvaluatorStep.step) => x,
-                        step_with_previous.previous,
-                      ),
-                    ~chosen_step=Some(step_with_previous.step),
-                    ~hidden_steps=
-                      List.map(
-                        (x: EvaluatorStep.step) => x,
-                        step_with_previous.hidden,
-                      ),
-                    ~result_key="",
-                    step_with_previous.step.d,
-                  ),
-                ],
-              );
-            let result_view =
-              previous
-              |> List.map(dh_code_previous)
-              |> List.fold_left(
-                   (x, y) => List.cons(y, x),
-                   [dh_code_current],
+              |> Stepper.evaluate_full(~settings=settings.core.evaluation)
+              |> StepperView.stepper_view(
+                   ~inject,
+                   ~settings=settings.core.evaluation,
+                   ~font_metrics,
+                   ~result_key="",
+                   ~read_only=true,
                  );
             let code_container = view =>
               div(~attr=clss(["code-container"]), view);

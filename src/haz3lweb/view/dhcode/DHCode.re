@@ -140,8 +140,8 @@ let view =
       ~font_metrics: FontMetrics.t,
       ~width: int,
       ~pos=0,
-      ~previous_step: option(EvaluatorStep.step)=None, // The step that will be displayed above this one
-      ~hidden_steps: list(EvaluatorStep.step)=[], // The hidden steps between the above and the current one
+      ~previous_step: option((EvaluatorStep.step, Id.t))=None, // The step that will be displayed above this one
+      ~hidden_steps: list((EvaluatorStep.step, Id.t))=[], // The hidden steps between the above and the current one
       ~chosen_step: option(EvaluatorStep.step)=None, // The step that will be taken next
       ~next_steps: list(EvaluatorStep.EvalObj.t)=[],
       ~result_key: string,

@@ -359,6 +359,7 @@ let footer =
         ~settings=settings.core.evaluation,
         ~font_metrics,
         ~result_key,
+        ~read_only=false,
         s,
       )
     };
