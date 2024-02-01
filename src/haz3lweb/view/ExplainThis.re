@@ -106,12 +106,10 @@ let highlight =
       Attr.many([
         classes,
         Attr.on_mouseenter(_ =>
-          inject(
-            UpdateAction.UpdateExplainThisModel(SetHighlight(Some(id))),
-          )
+          inject(UpdateAction.Set(ExplainThis(SetHighlight(Hover(id)))))
         ),
         Attr.on_mouseleave(_ =>
-          inject(UpdateAction.UpdateExplainThisModel(SetHighlight(None)))
+          inject(UpdateAction.Set(ExplainThis(SetHighlight(UnsetHover))))
         ),
         Attr.on_click(_ =>
           inject(UpdateAction.PerformAction(Select(Term(Id(id, Left)))))
@@ -2351,8 +2349,14 @@ let get_color_map =
       index: option(Id.t),
       info_map: Statics.Map.t,
     ) =>
-  switch (explainThisModel.highlight) {
-  | Some(id) when settings.explainThis.show =>
+  switch (settings.explainThis.highlight) {
+  | All when settings.explainThis.show =>
+    let* index = index;
+    let info = Id.Map.find_opt(index, info_map);
+    let (_, (_, (color_map, _)), _) =
+      get_doc(~docs=explainThisModel, info, Colorings);
+    Some(color_map);
+  | One(id) when settings.explainThis.show =>
     let* index = index;
     let info = Id.Map.find_opt(index, info_map);
     let (_, (_, (color_map, _)), _) =
@@ -2380,6 +2384,13 @@ let view =
           div(
             ~attr=clss(["top-bar"]),
             [
+              Widgets.toggle(
+                ~tooltip="Toggle highlighting",
+                "🔆",
+                settings.explainThis.highlight == All,
+                _ =>
+                inject(UpdateAction.Set(ExplainThis(SetHighlight(Toggle))))
+              ),
               div(
                 ~attr=
                   Attr.many([

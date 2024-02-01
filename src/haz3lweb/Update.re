@@ -119,6 +119,19 @@ let update_settings =
     };
     let settings = {...settings, explainThis};
     {...model, settings};
+  | ExplainThis(SetHighlight(a)) =>
+    let highlight: ExplainThisModel.Settings.highlight =
+      switch (a, settings.explainThis.highlight) {
+      | (Toggle, All) => NoHighlight
+      | (Toggle, _) => All
+      | (Hover(_), All) => All
+      | (Hover(id), _) => One(id)
+      | (UnsetHover, All) => All
+      | (UnsetHover, _) => NoHighlight
+      };
+    let explainThis = {...settings.explainThis, highlight};
+    let settings = {...settings, explainThis};
+    {...model, settings};
   | Benchmark => {
       ...model,
       settings: {
