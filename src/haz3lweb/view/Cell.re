@@ -152,20 +152,26 @@ let deco =
   };
 };
 
-let footer =
+let live_footer =
     (
       ~inject,
       ~settings: Settings.t,
       ~ui_state as {font_metrics, _}: Model.ui_state,
       ~result_key: string,
+      ~locked,
       result: ModelResult.elab_eval,
     ) => {
   let show_stepper =
-    Widgets.toggle(~tooltip="Show Stepper", "s", false, _ =>
-      inject(UpdateAction.ToggleStepper(result_key))
-    );
+    locked
+      ? []
+      : [
+        Widgets.toggle(~tooltip="Show Stepper", "s", false, _ =>
+          inject(UpdateAction.ToggleStepper(result_key))
+        ),
+      ];
   let dhcode_view = (~show_casts) =>
     DHCode.view(
+      ~locked,
       ~settings={...CoreSettings.Evaluation.init, show_casts},
       ~selected_hole_instance=None,
       ~font_metrics,
@@ -188,8 +194,8 @@ let footer =
     [
       div(~attr=Attr.class_("equiv"), [text("≡")]),
       div(~attr=Attr.classes(["result"]), d_view),
-      show_stepper,
-    ],
+    ]
+    @ show_stepper,
   );
 };
 
@@ -202,6 +208,7 @@ let editor_view =
       ~target_id: string,
       ~mousedown_updates: list(Update.t)=[],
       ~selected: bool=true,
+      ~locked=false,
       ~caption: option(Node.t)=?,
       ~test_results: option(TestResults.t),
       ~footer: list(Node.t),
@@ -231,9 +238,22 @@ let editor_view =
     selected && mousedown
       ? [mousedown_overlay(~inject, ~font_metrics, ~target_id)] : [];
   let on_mousedown =
-    mousedown_handler(~inject, ~font_metrics, ~target_id, ~mousedown_updates);
+    locked
+      ? _ =>
+          Virtual_dom.Vdom.Effect.(Many([Prevent_default, Stop_propagation]))
+      : mousedown_handler(
+          ~inject,
+          ~font_metrics,
+          ~target_id,
+          ~mousedown_updates,
+        );
   div(
-    ~attr=Attr.classes(["cell", selected ? "selected" : "deselected"]),
+    ~attr=
+      Attr.classes([
+        "cell",
+        selected ? "selected" : "deselected",
+        locked ? "locked" : "unlocked",
+      ]),
     [
       div(
         ~attr=
@@ -251,6 +271,7 @@ let editor_view =
 //TODO(andrew): why are there two of these?
 let footer =
     (
+      ~locked,
       ~inject,
       ~ui_state as {font_metrics, _} as ui_state: Model.ui_state,
       ~settings: Settings.t,
@@ -263,7 +284,14 @@ let footer =
     switch (result) {
     | NoElab => []
     | Evaluation(result) => [
-        footer(~inject, ~ui_state, ~settings, ~result_key, result),
+        live_footer(
+          ~locked,
+          ~inject,
+          ~ui_state,
+          ~settings,
+          ~result_key,
+          result,
+        ),
       ]
     | Stepper(s) =>
       StepperView.stepper_view(

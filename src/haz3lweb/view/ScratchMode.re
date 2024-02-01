@@ -13,13 +13,19 @@ let view =
       ~statics as {error_ids, _}: CachedStatics.statics,
       editor: Editor.t,
     ) => {
-  //TODO(andrew): cleanup footer
   let result = ModelResults.lookup(results, result_key);
   let footer =
     settings.core.statics
       ? result
         |> Option.map(result =>
-             Cell.footer(~settings, ~inject, ~ui_state, ~result, ~result_key)
+             Cell.footer(
+               ~locked=false,
+               ~settings,
+               ~inject,
+               ~ui_state,
+               ~result,
+               ~result_key,
+             )
            )
         |> Option.to_list
         |> List.flatten

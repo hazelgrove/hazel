@@ -201,6 +201,7 @@ let view =
           div(
             ~attr=Attr.id("temmmmp"),
             Cell.footer(
+              ~locked=false,
               ~settings,
               ~inject,
               ~ui_state,

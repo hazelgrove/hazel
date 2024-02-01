@@ -689,6 +689,10 @@ select {
   background-color: #fffcf3;
 }
 
+.cell.locked {
+  background-color: #f7ebd3;
+}
+
 .cell-item {
   display: flex;
   flex-direction: column;
@@ -1461,6 +1465,7 @@ svg.tile-selected {
 /* END STATICS*/
 
 #bottom-bar {
+  z-index: 1;
   grid-row: 3 / span 1;
   grid-column: 1 / span 2;
   display: flex;
