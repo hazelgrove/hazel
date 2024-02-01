@@ -20,7 +20,7 @@ let reset_hazel =
           "Are you SURE you want to reset Hazel to its initial state? You will lose any existing code that you have written, and course staff have no way to restore it!",
         );
       if (confirmed) {
-        DebugAction.perform(DebugAction.ClearStore);
+        JsUtil.clear_localstore();
         Dom_html.window##.location##reload;
       };
       Virtual_dom.Vdom.Effect.Ignore;

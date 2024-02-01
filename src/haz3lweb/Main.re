@@ -117,8 +117,7 @@ module App = {
     Component.create(
       ~apply_action=apply(model),
       model,
-      model.ui_state.debug_mode
-        ? DebugMode.view(~inject) : Haz3lweb.Page.view(~inject, model),
+      Haz3lweb.Page.view(~inject, model),
       ~on_display=(_, ~schedule_action) => {
         if (edit_action_applied^
             && JsUtil.timestamp()
@@ -138,27 +137,13 @@ module App = {
   };
 };
 
-let fragment =
-  switch (JsUtil.Fragment.get_current()) {
-  | None => ""
-  | Some(frag) => frag
-  };
-
-let initial_model: Model.t =
-  switch (fragment) {
-  | "debug" => {
-      ...Model.blank,
-      ui_state: {
-        ...Model.blank.ui_state,
-        debug_mode: true,
-      },
-    }
-  | _ => Model.load(Model.blank)
-  };
-
-Incr_dom.Start_app.start(
-  (module App),
-  ~debug=false,
-  ~bind_to_element_with_id="container",
-  ~initial_model,
-);
+switch (JsUtil.Fragment.get_current()) {
+| Some("debug") => DebugMode.go()
+| _ =>
+  Incr_dom.Start_app.start(
+    (module App),
+    ~debug=false,
+    ~bind_to_element_with_id="container",
+    ~initial_model=Model.load(Model.blank),
+  )
+};
