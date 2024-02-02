@@ -6,8 +6,8 @@
   (source_tree www)))
 
 (library
- (name simpleWorker)
- (modules SimpleWorker)
+ (name workerServer)
+ (modules WorkerServer)
  (libraries
   str
   incr_dom
@@ -37,11 +37,11 @@
   (:standard \ Main)
   \
   Worker
-  SimpleWorker)
+  WorkerServer)
  (libraries
   ezjs_min
   ezjs_idb
-  simpleWorker
+  workerServer
   str
   incr_dom
   virtual_dom.input_widgets
@@ -83,7 +83,7 @@
 (executable
  (name worker)
  (modules Worker)
- (libraries simpleWorker)
+ (libraries workerServer)
  (modes js)
  (preprocess
   (pps js_of_ocaml-ppx)))

@@ -11,7 +11,5 @@ type t =
     Program_EvalError(
       EvaluatorError.t,
     )
-  | TimedOut
-  | UnknownError
   | /** A caught {!exception:Program.DoesNotElaborate}. */
     Program_DoesNotElaborate;
