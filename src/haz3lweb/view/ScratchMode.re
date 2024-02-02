@@ -51,6 +51,7 @@ let view =
       ~info_map,
       ~term,
       ~result,
+      ~result_full=ModelResults.lookup(results, ScratchSlide.scratch_key),
       editor,
     );
   let bottom_bar =

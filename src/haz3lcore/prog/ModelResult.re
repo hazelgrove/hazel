@@ -33,6 +33,9 @@ let get_current_ok = res =>
   );
 
 let update_current = (current, res) => {
+  print_endline("update_current");
+  print_endline("res: " ++ show(res));
+  print_endline("current: " ++ show_current(current));
   let res =
     switch (res.current) {
     | ResultOk(r) => put_previous(r, res)
