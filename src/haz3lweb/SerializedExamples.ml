@@ -66,7 +66,7 @@ let intro : ScratchSlide.persistent_state =
        aa945ef1-522b-4660-aedb-c128b76d2982)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
        c79a6006-21b0-4106-b78d-cb8ba4495536)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
        c9d02ee3-46a3-493a-8698-88bcea88c1a9)(content(Comment\"# Select \
-       Examples Mode from the upper left dialog to pick from   \
+       Documentation Mode from the upper left dialog to pick from   \
        #\"))))(Secondary((id \
        92c2e652-d433-49c9-8e8d-32a9a84f5698)(content(Whitespace\"\\226\\143\\142\"))))(Secondary((id \
        27b9d738-b928-4f10-a684-07f76110935c)(content(Comment\"# a list of \
@@ -111,7 +111,7 @@ let intro : ScratchSlide.persistent_state =
        in\n\n\
        # Here in Scratch Mode, you can use the upper left arrows to     #\n\
        # switch between blank cells where you can store programs.       #\n\n\
-       # Select Examples Mode from the upper left dialog to pick from   #\n\
+       # Select Documentation Mode from the upper left dialog to pick from   #\n\
        # a list of references for Hazel language and editor features.   #\n\n\
        # Select Exercise for a small functional programming tutorial.   #\n\n\
        your_function(\"argument\") + 1\n";

@@ -1,93 +1,121 @@
-[@deriving (show({with_path: false}), sexp, yojson)]
-type previous = ProgramResult.t;
+open EvaluatorStep;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type current =
+type evaluation =
   | ResultOk(ProgramResult.t)
   | ResultFail(ProgramEvaluatorError.t)
   | ResultTimeout
   | ResultPending;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = {
-  previous,
-  current,
+type eval_elab = {
+  elab: DHExp.t,
+  evaluation,
+  previous: evaluation,
 };
 
-let init = previous => {previous, current: ResultPending};
+[@deriving (show({with_path: false}), sexp, yojson)]
+type t =
+  | NoElab
+  | Evaluation(eval_elab)
+  | Stepper(Stepper.t);
 
-let get_previous = ({previous, _}) => previous;
-let put_previous = (previous, cr) => {...cr, previous};
-let get_previous_dhexp = cr => cr |> get_previous |> ProgramResult.get_dhexp;
+let init_eval = elab =>
+  Evaluation({elab, evaluation: ResultPending, previous: ResultPending});
+let update_elab = elab =>
+  fun
+  | NoElab =>
+    Evaluation({elab, evaluation: ResultPending, previous: ResultPending})
+  | Evaluation({evaluation, _}) =>
+    Evaluation({elab, evaluation: ResultPending, previous: evaluation})
+  | Stepper({elab: elab2, _}) as s when DHExp.fast_equal(elab, elab2) => s
+  | Stepper(_) => Stepper(Stepper.init(elab));
 
-let get_current = ({current, _}) => current;
-let get_current_ok = res =>
-  res
-  |> get_current
-  |> (
-    fun
-    | ResultOk(r) => Some(r)
-    | ResultFail(_)
-    | ResultTimeout
-    | ResultPending => None
-  );
+let update_stepper = f =>
+  fun
+  | NoElab as e
+  | Evaluation(_) as e => e
+  | Stepper(s) => Stepper(f(s));
 
-let update_current = (current, res) => {
-  print_endline("update_current");
-  print_endline("res: " ++ show(res));
-  print_endline("current: " ++ show_current(current));
-  let res =
-    switch (res.current) {
-    | ResultOk(r) => put_previous(r, res)
-    | ResultFail(_)
-    | ResultTimeout
-    | ResultPending => res
-    };
+let step_forward = (x: EvalObj.t, mr: t) =>
+  mr |> update_stepper(Stepper.step_pending(x));
 
-  let res = {...res, current};
-  res;
-};
+let step_backward = (~settings, mr: t) =>
+  mr |> update_stepper(Stepper.step_backward(~settings));
 
-type optional_simple_data = {
-  opt_eval_result: option(DHExp.t),
-  opt_test_results: option(TestResults.test_results),
-};
+let run_pending = (~settings) =>
+  fun
+  | NoElab => NoElab
+  | Evaluation({elab, evaluation: ResultPending, previous}) =>
+    Evaluation({
+      elab,
+      previous,
+      evaluation:
+        switch (Interface.evaluate(~settings, elab)) {
+        | r => ResultOk(r)
+        | exception (Interface.EvalError(error)) =>
+          let serialized =
+            error |> EvaluatorError.sexp_of_t |> Sexplib.Sexp.to_string_hum;
+          print_endline(
+            "[Program.EvalError(EvaluatorError.Exception("
+            ++ serialized
+            ++ "))]",
+          );
+          ResultFail(Program_EvalError(error));
+        | exception Interface.DoesNotElaborate =>
+          ResultFail(Program_DoesNotElaborate)
+        },
+    })
+  | Evaluation(_) as e => e
+  | Stepper(s) =>
+    Stepper(Stepper.evaluate_pending(~settings=settings.evaluation, s));
 
-// simple definitions are moved to TestResults
+let timeout =
+  fun
+  | NoElab => NoElab
+  | Evaluation({elab, evaluation: ResultPending, previous}) =>
+    Evaluation({elab, evaluation: ResultTimeout, previous})
+  | Evaluation({evaluation: ResultFail(_) | ResultOk(_) | ResultTimeout, _}) as r => r
+  | Stepper(s) => Stepper(Stepper.timeout(s));
 
-type simple_data =
-  TestResults.simple_data = {
-    eval_result: DHExp.t,
-    test_results: TestResults.test_results,
-  };
-type simple = TestResults.simple;
+let toggle_stepper =
+  fun
+  | NoElab => NoElab
+  | Evaluation({elab, _}) => Stepper(Stepper.init(elab))
+  | Stepper({elab, _}) =>
+    Evaluation({elab, evaluation: ResultPending, previous: ResultPending});
 
-let get_simple = (res: option(t)): simple =>
-  res
-  |> Option.map(res =>
-       res |> get_current_ok |> Option.value(~default=get_previous(res))
-     )
-  |> Option.map(r => {
-       let eval_result = r |> ProgramResult.get_dhexp;
-       let test_results =
-         r
-         |> ProgramResult.get_state
-         |> EvaluatorState.get_tests
-         |> Interface.mk_results;
-       {eval_result, test_results};
-     });
+let get_simple =
+  fun
+  | NoElab => None
+  | Evaluation({evaluation: ResultOk(pr), _}) =>
+    Some(
+      {
+        eval_result: pr |> ProgramResult.get_dhexp,
+        test_results:
+          pr
+          |> ProgramResult.get_state
+          |> EvaluatorState.get_tests
+          |> TestResults.mk_results,
+      }: TestResults.simple_data,
+    )
+  | Evaluation({evaluation: ResultFail(_), _})
+  | Evaluation({evaluation: ResultTimeout, _})
+  | Evaluation({evaluation: ResultPending, _})
+  | Stepper(_) => None;
 
-let unwrap_test_results = TestResults.unwrap_test_results;
+[@deriving (show({with_path: false}), sexp, yojson)]
+type persistent =
+  | Evaluation
+  | Stepper(Stepper.persistent);
 
-let unwrap_eval_result = (simple: simple): option(DHExp.t) => {
-  Option.map(simple_data => simple_data.eval_result, simple);
-};
+let to_persistent: t => persistent =
+  fun
+  | NoElab
+  | Evaluation(_) => Evaluation
+  | Stepper(s) => Stepper(Stepper.to_persistent(s));
 
-let unwrap_simple = (simple: simple): optional_simple_data =>
-  switch (simple) {
-  | None => {opt_eval_result: None, opt_test_results: None}
-  | Some({eval_result, test_results}) => {
-      opt_eval_result: Some(eval_result),
-      opt_test_results: Some(test_results),
-    }
-  };
+let of_persistent: persistent => t =
+  fun
+  | Evaluation => NoElab
+  | Stepper(s) => Stepper(Stepper.from_persistent(s));

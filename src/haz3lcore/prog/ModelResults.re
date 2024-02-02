@@ -19,17 +19,23 @@ include M;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = M.t(ModelResult.t);
 
-let init = (~settings, ds: list((Key.t, DHExp.t))): t =>
-  ds
-  |> List.map(((key, d)) =>
-       (
-         key,
-         ModelResult.init(
-           Interface.evaluate(~settings, ~env=Builtins.env_init, d),
-         ),
-       )
-     )
-  |> List.to_seq
-  |> of_seq;
+let init_eval = (ds: list((Key.t, DHExp.t))): t =>
+  ds |> List.to_seq |> of_seq |> map(ModelResult.init_eval);
+
+let update_elabs =
+  List.fold_right(((k, elab), acc) =>
+    update(
+      k,
+      v =>
+        Some(
+          v
+          |> Option.value(~default=ModelResult.NoElab)
+          |> ModelResult.update_elab(elab),
+        ),
+      acc,
+    )
+  );
 
 let lookup = (results: t, key: Key.t) => find_opt(key, results);
+
+let run_pending = (~settings) => M.map(ModelResult.run_pending(~settings));

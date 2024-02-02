@@ -8,16 +8,18 @@ module TestResults = Haz3lcore.TestResults;
 module Interface = Haz3lcore.Interface;
 
 let test_instance_view =
-    (~font_metrics, (d, status): TestMap.instance_report) =>
+    (~settings, ~inject, ~font_metrics, (d, status): TestMap.instance_report) =>
   div(
     ~attr=
       Attr.many([clss(["test-instance", TestStatus.to_string(status)])]),
     [
       DHCode.view(
-        ~settings=Settings.Evaluation.init,
+        ~inject,
+        ~settings,
         ~selected_hole_instance=None,
         ~font_metrics,
         ~width=40,
+        ~result_key="",
         d,
       ),
     ],
@@ -31,6 +33,7 @@ let jump_to_test = (~inject, pos, id, _) => {
 
 let test_report_view =
     (
+      ~settings,
       ~inject,
       ~font_metrics,
       ~description: option(string)=None,
@@ -53,7 +56,10 @@ let test_report_view =
       ),
       div(
         ~attr=Attr.class_("test-instances"),
-        List.map(test_instance_view(~font_metrics), instance_reports),
+        List.map(
+          test_instance_view(~settings, ~inject, ~font_metrics),
+          instance_reports,
+        ),
       ),
     ]
     @ (
@@ -66,7 +72,12 @@ let test_report_view =
 };
 
 let test_reports_view =
-    (~inject, ~font_metrics, ~test_results: option(Interface.test_results)) =>
+    (
+      ~settings,
+      ~inject,
+      ~font_metrics,
+      ~test_results: option(TestResults.test_results),
+    ) =>
   div(
     ~attr=clss(["panel-body", "test-reports"]),
     switch (test_results) {
@@ -75,6 +86,7 @@ let test_reports_view =
       List.mapi(
         (i, r) =>
           test_report_view(
+            ~settings,
             ~inject,
             ~font_metrics,
             ~description=List.nth_opt(test_results.descriptions, i),
@@ -98,7 +110,7 @@ let test_bar_segment = (~inject, pos, (id, reports)) => {
   );
 };
 
-let test_bar = (~inject, ~test_results: Interface.test_results, pos) =>
+let test_bar = (~inject, ~test_results: TestResults.test_results, pos) =>
   div(
     ~attr=Attr.class_("test-bar"),
     List.map(test_bar_segment(~inject, pos), test_results.test_map),
@@ -115,10 +127,10 @@ let percent_view = (n: int, p: int): Node.t => {
   );
 };
 
-let test_percentage = (test_results: Interface.test_results): Node.t =>
+let test_percentage = (test_results: TestResults.test_results): Node.t =>
   percent_view(test_results.total, test_results.passing);
 
-let test_text = (test_results: Interface.test_results): Node.t =>
+let test_text = (test_results: TestResults.test_results): Node.t =>
   div(
     ~attr=Attr.class_("test-text"),
     [
@@ -128,7 +140,7 @@ let test_text = (test_results: Interface.test_results): Node.t =>
     ],
   );
 
-let test_summary = (~inject, ~test_results: option(Interface.test_results)) => {
+let test_summary = (~inject, ~test_results: option(TestResults.test_results)) => {
   div(
     ~attr=clss(["test-summary"]),
     {
@@ -150,7 +162,13 @@ let view_of_main_title_bar = (title_text: string) =>
   );
 
 let inspector_view =
-    (~inject as _, ~font_metrics, ~test_map: TestMap.t, id: Haz3lcore.Id.t)
+    (
+      ~settings,
+      ~inject,
+      ~font_metrics,
+      ~test_map: TestMap.t,
+      id: Haz3lcore.Id.t,
+    )
     : option(t) => {
   switch (TestMap.lookup(id, test_map)) {
   | Some(instances) when TestMap.joint_status(instances) != Indet =>
@@ -160,7 +178,10 @@ let inspector_view =
         [
           div(
             ~attr=Attr.class_("test-instances"),
-            List.map(test_instance_view(~font_metrics), instances),
+            List.map(
+              test_instance_view(~settings, ~inject, ~font_metrics),
+              instances,
+            ),
           ),
         ],
       ),

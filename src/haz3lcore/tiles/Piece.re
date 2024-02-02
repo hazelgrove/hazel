@@ -137,3 +137,11 @@ let get_outside_sorts = (~default_sort=Sort.Any, p: t): list(Sort.t) =>
     | (Concave(_), Concave(_)) => [sort_l, sort_r]
     };
   };
+
+let mold_of = (~shape=Nib.Shape.Convex, p: t) =>
+  // TODO(d) fix sorts
+  switch (p) {
+  | Tile(t) => t.mold
+  | Grout(g) => Mold.of_grout(g, Any)
+  | Secondary(_) => Mold.of_secondary({sort: Any, shape})
+  };
