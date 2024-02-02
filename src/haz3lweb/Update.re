@@ -528,7 +528,7 @@ let rec apply =
       switch (result) {
       | NoElab
       | Evaluation(_) => ()
-      | Stepper(_stepper) => CoqExport.exportCoq(_stepper.previous)
+      | Stepper(stepper) => CoqExport.exportCoq(stepper.previous)
       };
       Ok(model);
     | ToggleStepper(key) =>

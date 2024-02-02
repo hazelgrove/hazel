@@ -31,7 +31,7 @@ let rec index_of_like_terms_helper_ctx = (d: EvalCtx.t, v: int) => {
   };
 };
 
-// For some integer literal t and context AST d, find out how many occurrences of t do not occur to the right of the Mark in D.
+// For some integer literal t and context AST d, find out how many occurrences of t do not occur to the right of the Mark in d.
 
 let index_of_like_terms = (d: EvalCtx.t, v: DHExp.t) => {
   switch (v) {
