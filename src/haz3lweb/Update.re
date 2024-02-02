@@ -288,15 +288,15 @@ let evaluate_and_schedule = (~schedule_action, model: Model.t): unit =>
     Editors.get_spliced_elabs(~settings=model.settings, model.editors)
     |> List.iter(((key, elab)) => {
          switch (ModelResults.lookup(model.results, key)) {
-         | Some(Stepper(_)) =>
-           let r: ModelResult.t = Stepper(Stepper.init(elab));
+         | Some(Evaluation({evaluation: previous, _})) =>
+           let r: ModelResult.t =
+             Evaluation({elab, evaluation: ResultPending, previous});
            schedule_action(UpdateResult((key, Some(r))));
            WorkerClient.request((key, r), ((key, res)) =>
              schedule_action(UpdateResult((key, Some(res))))
            );
-         | Some(Evaluation({evaluation: previous, _})) =>
-           let r: ModelResult.t =
-             Evaluation({elab, evaluation: ResultPending, previous});
+         | Some(r) =>
+           //let r: ModelResult.t = Stepper(Stepper.init(elab));
            schedule_action(UpdateResult((key, Some(r))));
            WorkerClient.request((key, r), ((key, res)) =>
              schedule_action(UpdateResult((key, Some(res))))
