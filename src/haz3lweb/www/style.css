@@ -1,53 +1,53 @@
 @font-face {
-  font-family: 'Fira Code';
+  font-family: "Fira Code";
   font-style: normal;
   font-weight: normal;
-  src: url('fonts/FiraCode-Regular.woff2') format('woff2');
+  src: url("fonts/FiraCode-Regular.woff2") format("woff2");
 }
 
 @font-face {
-  font-family: 'Fira Code';
+  font-family: "Fira Code";
   font-style: normal;
   font-weight: bold;
-  src: url('fonts/FiraCode-Bold.woff2') format('woff2');
+  src: url("fonts/FiraCode-Bold.woff2") format("woff2");
 }
 
 @font-face {
-  font-family: 'Helvetica Neue';
+  font-family: "Helvetica Neue";
   font-style: normal;
   font-weight: normal;
-  src: url('fonts/HelveticaNeue-Regular.woff2') format('woff2');
+  src: url("fonts/HelveticaNeue-Regular.woff2") format("woff2");
 }
 
 @font-face {
-  font-family: 'Helvetica Neue';
+  font-family: "Helvetica Neue";
   font-style: normal;
   font-weight: bold;
-  src: url('fonts/HelveticaNeue-Bold.woff2') format('woff2');
+  src: url("fonts/HelveticaNeue-Bold.woff2") format("woff2");
 }
 
 @font-face {
-  font-family: 'Source Code Pro';
+  font-family: "Source Code Pro";
   font-weight: normal;
   font-style: normal;
   font-stretch: normal;
-  src: url('fonts/SourceCodePro-Regular.otf.woff2') format('woff2');
+  src: url("fonts/SourceCodePro-Regular.otf.woff2") format("woff2");
 }
 
 @font-face {
-  font-family: 'Source Code Pro';
+  font-family: "Source Code Pro";
   font-weight: bold;
   font-style: normal;
   font-stretch: normal;
-  src: url('fonts/SourceCodePro-Bold.otf.woff2') format('woff2');
+  src: url("fonts/SourceCodePro-Bold.otf.woff2") format("woff2");
 }
 
 @font-face {
-  font-family: 'Source Code Pro';
+  font-family: "Source Code Pro";
   font-weight: 900;
   font-style: normal;
   font-stretch: normal;
-  src: url('fonts/SourceCodePro-Black.otf.woff2') format('woff2');
+  src: url("fonts/SourceCodePro-Black.otf.woff2") format("woff2");
 }
 
 :root {
@@ -150,7 +150,7 @@
   --caret-position-z: 13;
   --current-caret-pos-z: 15;
   --caret-z: 14;
-  --docs-highlight-z:8;
+  --docs-highlight-z: 8;
 
   --type-inspector-z: 14;
   --top-bar-z: 15;
@@ -160,17 +160,14 @@
   --result-z: 30;
 
   --shadow-color: 44deg 28% 59%;
-  --shadow-elevation-low:
-    0.3px 0.5px 0.7px hsl(var(--shadow-color) / 0.34),
+  --shadow-elevation-low: 0.3px 0.5px 0.7px hsl(var(--shadow-color) / 0.34),
     0.4px 0.8px 1px -1.2px hsl(var(--shadow-color) / 0.34),
     1px 2px 2.5px -2.5px hsl(var(--shadow-color) / 0.34);
-  --shadow-elevation-medium:
-    0.3px 0.5px 0.7px hsl(var(--shadow-color) / 0.36),
+  --shadow-elevation-medium: 0.3px 0.5px 0.7px hsl(var(--shadow-color) / 0.36),
     0.8px 1.6px 2px -0.8px hsl(var(--shadow-color) / 0.36),
     2.1px 4.1px 5.2px -1.7px hsl(var(--shadow-color) / 0.36),
     5px 10px 12.6px -2.5px hsl(var(--shadow-color) / 0.36);
-  --shadow-elevation-high:
-    0.3px 0.5px 0.7px hsl(var(--shadow-color) / 0.34),
+  --shadow-elevation-high: 0.3px 0.5px 0.7px hsl(var(--shadow-color) / 0.34),
     1.5px 2.9px 3.7px -0.4px hsl(var(--shadow-color) / 0.34),
     2.7px 5.4px 6.8px -0.7px hsl(var(--shadow-color) / 0.34),
     4.5px 8.9px 11.2px -1.1px hsl(var(--shadow-color) / 0.34),
@@ -178,7 +175,6 @@
     11.2px 22.3px 28.1px -1.8px hsl(var(--shadow-color) / 0.34),
     17px 33.9px 42.7px -2.1px hsl(var(--shadow-color) / 0.34),
     25px 50px 62.9px -2.5px hsl(var(--shadow-color) / 0.34);
-
 }
 
 /* BASE ELEMENTS */
@@ -220,7 +216,6 @@ svg {
 }
 
 @keyframes wobble {
-
   0%,
   100% {
     transform: translateX(0%);
@@ -250,7 +245,7 @@ svg {
 
 body {
   /* Default UI font */
-  font-family: 'Helvetica Neue';
+  font-family: "Helvetica Neue";
 }
 
 /* LOADING: This shows before the app is loaded */
@@ -377,7 +372,7 @@ select {
 }
 
 #top-bar .menu:hover,
-#top-bar .menu-icon:hover+.menu {
+#top-bar .menu-icon:hover + .menu {
   transform: scaleY(1);
   display: flex;
   border-radius: 0 0 1.3em 0;
@@ -476,7 +471,7 @@ select {
   background-color: #99854a;
 }
 
-#top-bar #editor-mode .mode-name{
+#top-bar #editor-mode .mode-name {
   border-radius: 0.4em 1em 1em 0.4em;
   padding: 0 0.5em 0 0.5em;
   background-color: #a69460;
@@ -725,7 +720,7 @@ select {
 }
 
 .code .token.in-buffer {
-  color:#d7cdb2 !important;
+  color: #d7cdb2 !important;
 }
 
 .code .token.sort-inconsistent {
@@ -733,7 +728,7 @@ select {
   /*TODO(andrew): less shouty for now*/
   color: #938870 !important;
 }
-  
+
 .code .token.incomplete {
   color: var(--code-emphasis) !important;
 }
@@ -742,7 +737,6 @@ select {
   color: #ffd04f !important;
   text-shadow: 1px 1px 0px rgb(45, 34, 6), -0.5px -0.5px 0 #ff9b00;
 }
-
 
 .child-backing {
   z-index: -1;
@@ -776,7 +770,7 @@ svg.tile-selected {
 }
 
 @property --color {
-  syntax: '<color>';
+  syntax: "<color>";
   /* <- defined as type number for the transition to work */
   initial-value: #000000;
   inherits: false;
@@ -794,69 +788,181 @@ svg.tile-selected {
 
 /* TOKEN COLORS */
 
-.code .token.Nul { color: var(--nul-text-color); }
-.code .token.Any { color: var(--any-text-color); }
-.code .token.Exp { color: var(--exp-text-color); }
-.code .token.Pat { color: var(--pat-text-color); }
-.code .token.Typ { color: var(--typ-text-color); }
-.code .token.Rul { color: var(--rul-text-color); }
-.code .token.TPat { color: var(--tpat-text-color); }
+.code .token.Nul {
+  color: var(--nul-text-color);
+}
+.code .token.Any {
+  color: var(--any-text-color);
+}
+.code .token.Exp {
+  color: var(--exp-text-color);
+}
+.code .token.Pat {
+  color: var(--pat-text-color);
+}
+.code .token.Typ {
+  color: var(--typ-text-color);
+}
+.code .token.Rul {
+  color: var(--rul-text-color);
+}
+.code .token.TPat {
+  color: var(--tpat-text-color);
+}
 
-.tile-path.Nul { filter: url(#drop-shadow-Nul); }
-.tile-path.Any { filter: url(#drop-shadow-Any); }
-.tile-path.Exp { filter: url(#drop-shadow-Exp); }
-.tile-path.Pat { filter: url(#drop-shadow-Pat); }
-.tile-path.Typ { filter: url(#drop-shadow-Typ); }
-.tile-path.Rul { filter: url(#drop-shadow-Rul); }
-.tile-path.TPat { filter: url(#drop-shadow-TPat); }
+.tile-path.Nul {
+  filter: url(#drop-shadow-Nul);
+}
+.tile-path.Any {
+  filter: url(#drop-shadow-Any);
+}
+.tile-path.Exp {
+  filter: url(#drop-shadow-Exp);
+}
+.tile-path.Pat {
+  filter: url(#drop-shadow-Pat);
+}
+.tile-path.Typ {
+  filter: url(#drop-shadow-Typ);
+}
+.tile-path.Rul {
+  filter: url(#drop-shadow-Rul);
+}
+.tile-path.TPat {
+  filter: url(#drop-shadow-TPat);
+}
 
-.tile-path.Nul.indicated { fill: var(--nul-bg-color); }
-.tile-path.Any.indicated { fill: var(--any-bg-color); }
-.tile-path.Exp.indicated { fill: var(--exp-bg-color); }
-.tile-path.Pat.indicated { fill: var(--pat-bg-off-color); }
-.tile-path.Typ.indicated { fill: var(--typ-bg-off-color); }
-.tile-path.Rul.indicated { fill: var(--rul-bg-color); }
-.tile-path.TPat.indicated { fill: var(--tpat-bg-off-color); }
+.tile-path.Nul.indicated {
+  fill: var(--nul-bg-color);
+}
+.tile-path.Any.indicated {
+  fill: var(--any-bg-color);
+}
+.tile-path.Exp.indicated {
+  fill: var(--exp-bg-color);
+}
+.tile-path.Pat.indicated {
+  fill: var(--pat-bg-off-color);
+}
+.tile-path.Typ.indicated {
+  fill: var(--typ-bg-off-color);
+}
+.tile-path.Rul.indicated {
+  fill: var(--rul-bg-color);
+}
+.tile-path.TPat.indicated {
+  fill: var(--tpat-bg-off-color);
+}
 
-.tile-path.Nul.indicated-caret { fill: var(--nul-bg-color); }
-.tile-path.Any.indicated-caret { fill: var(--any-bg-color); }
-.tile-path.Exp.indicated-caret { fill: var(--exp-bg-off-color); }
-.tile-path.Pat.indicated-caret { fill: var(--pat-bg-color); }
-.tile-path.Typ.indicated-caret { fill: var(--typ-bg-color); }
-.tile-path.Rul.indicated-caret { fill: var(--rul-bg-color); }
-.tile-path.TPat.indicated-caret { fill: var(--tpat-bg-color); }
+.tile-path.Nul.indicated-caret {
+  fill: var(--nul-bg-color);
+}
+.tile-path.Any.indicated-caret {
+  fill: var(--any-bg-color);
+}
+.tile-path.Exp.indicated-caret {
+  fill: var(--exp-bg-off-color);
+}
+.tile-path.Pat.indicated-caret {
+  fill: var(--pat-bg-color);
+}
+.tile-path.Typ.indicated-caret {
+  fill: var(--typ-bg-color);
+}
+.tile-path.Rul.indicated-caret {
+  fill: var(--rul-bg-color);
+}
+.tile-path.TPat.indicated-caret {
+  fill: var(--tpat-bg-color);
+}
 
-.tile-path.Nul.raised { filter: url(#raised-drop-shadow-Nul); }
-.tile-path.Any.raised { filter: url(#raised-drop-shadow-Any); }
-.tile-path.Exp.raised { filter: url(#raised-drop-shadow-Exp); }
-.tile-path.Pat.raised { filter: url(#raised-drop-shadow-Pat); }
-.tile-path.Typ.raised { filter: url(#raised-drop-shadow-Typ); }
-.tile-path.Rul.raised { filter: url(#raised-drop-shadow-Rul); }
-.tile-path.TPat.raised { filter: url(#raised-drop-shadow-TPat); }
+.tile-path.Nul.raised {
+  filter: url(#raised-drop-shadow-Nul);
+}
+.tile-path.Any.raised {
+  filter: url(#raised-drop-shadow-Any);
+}
+.tile-path.Exp.raised {
+  filter: url(#raised-drop-shadow-Exp);
+}
+.tile-path.Pat.raised {
+  filter: url(#raised-drop-shadow-Pat);
+}
+.tile-path.Typ.raised {
+  filter: url(#raised-drop-shadow-Typ);
+}
+.tile-path.Rul.raised {
+  filter: url(#raised-drop-shadow-Rul);
+}
+.tile-path.TPat.raised {
+  filter: url(#raised-drop-shadow-TPat);
+}
 
-.child-line.Nul { stroke: var(--nul-shadow-color); }
-.child-line.Any { stroke: var(--any-shadow-color); }
-.child-line.Exp { stroke: var(--exp-shadow-color); }
-.child-line.Pat { stroke: var(--pat-shadow-color); }
-.child-line.Typ { stroke: var(--typ-shadow-color); }
-.child-line.Rul { stroke: var(--rul-shadow-color); }
-.child-line.TPat { stroke: var(--tpat-shadow-color); }
+.child-line.Nul {
+  stroke: var(--nul-shadow-color);
+}
+.child-line.Any {
+  stroke: var(--any-shadow-color);
+}
+.child-line.Exp {
+  stroke: var(--exp-shadow-color);
+}
+.child-line.Pat {
+  stroke: var(--pat-shadow-color);
+}
+.child-line.Typ {
+  stroke: var(--typ-shadow-color);
+}
+.child-line.Rul {
+  stroke: var(--rul-shadow-color);
+}
+.child-line.TPat {
+  stroke: var(--tpat-shadow-color);
+}
 
-#drop-shadow-Nul .tile-drop-shadow { flood-color: var(--nul-shadow-color); }
-#drop-shadow-Any .tile-drop-shadow { flood-color: var(--any-shadow-color); }
-#drop-shadow-Exp .tile-drop-shadow { flood-color: var(--exp-shadow-color); }
-#drop-shadow-Pat .tile-drop-shadow { flood-color: var(--pat-shadow-color); }
-#drop-shadow-Typ .tile-drop-shadow { flood-color: var(--typ-shadow-color); }
-#drop-shadow-Rul .tile-drop-shadow { flood-color: var(--rul-shadow-color); }
-#drop-shadow-TPat .tile-drop-shadow { flood-color: var(--tpat-shadow-color); }
+#drop-shadow-Nul .tile-drop-shadow {
+  flood-color: var(--nul-shadow-color);
+}
+#drop-shadow-Any .tile-drop-shadow {
+  flood-color: var(--any-shadow-color);
+}
+#drop-shadow-Exp .tile-drop-shadow {
+  flood-color: var(--exp-shadow-color);
+}
+#drop-shadow-Pat .tile-drop-shadow {
+  flood-color: var(--pat-shadow-color);
+}
+#drop-shadow-Typ .tile-drop-shadow {
+  flood-color: var(--typ-shadow-color);
+}
+#drop-shadow-Rul .tile-drop-shadow {
+  flood-color: var(--rul-shadow-color);
+}
+#drop-shadow-TPat .tile-drop-shadow {
+  flood-color: var(--tpat-shadow-color);
+}
 
-#raised-drop-shadow-Nul .tile-drop-shadow { flood-color: var(--nul-shadow-color); }
-#raised-drop-shadow-Any .tile-drop-shadow { flood-color: var(--any-shadow-color); }
-#raised-drop-shadow-Exp .tile-drop-shadow { flood-color: var(--exp-shadow-color); }
-#raised-drop-shadow-Pat .tile-drop-shadow { flood-color: var(--pat-shadow-color); }
-#raised-drop-shadow-Typ .tile-drop-shadow { flood-color: var(--typ-shadow-color); }
-#raised-drop-shadow-Rul .tile-drop-shadow { flood-color: var(--rul-shadow-color); }
-#raised-drop-shadow-TPat .tile-drop-shadow { flood-color: var(--tpat-shadow-color); }
+#raised-drop-shadow-Nul .tile-drop-shadow {
+  flood-color: var(--nul-shadow-color);
+}
+#raised-drop-shadow-Any .tile-drop-shadow {
+  flood-color: var(--any-shadow-color);
+}
+#raised-drop-shadow-Exp .tile-drop-shadow {
+  flood-color: var(--exp-shadow-color);
+}
+#raised-drop-shadow-Pat .tile-drop-shadow {
+  flood-color: var(--pat-shadow-color);
+}
+#raised-drop-shadow-Typ .tile-drop-shadow {
+  flood-color: var(--typ-shadow-color);
+}
+#raised-drop-shadow-Rul .tile-drop-shadow {
+  flood-color: var(--rul-shadow-color);
+}
+#raised-drop-shadow-TPat .tile-drop-shadow {
+  flood-color: var(--tpat-shadow-color);
+}
 
 /* OTHER SORT COLORS */
 
@@ -925,15 +1031,14 @@ svg.tile-selected {
 
 /* END SORT COLORS */
 
-
 .keyboard-arrow {
   position: relative;
-  font-family: 'Fira Code';
+  font-family: "Fira Code";
   top: 1px;
 }
 
 .delete-action-arrow {
-  font-family: 'Fira Code';
+  font-family: "Fira Code";
 }
 
 .secondary {
@@ -1010,7 +1115,6 @@ svg.tile-selected {
 }
 
 @keyframes blink {
-
   from,
   to {
     opacity: 100%;
@@ -1020,7 +1124,6 @@ svg.tile-selected {
     opacity: 0%;
   }
 }
-
 
 /* STATICS */
 
@@ -1166,8 +1269,10 @@ svg.tile-selected {
   scrollbar-color: #c7b480 #e4d6a6;
   scrollbar-width: thin;
 }
-@supports (-moz-appearance:none) {
-  .context-inspector  { scroll-snap-type: y mandatory; }
+@supports (-moz-appearance: none) {
+  .context-inspector {
+    scroll-snap-type: y mandatory;
+  }
 }
 
 .context-inspector::-webkit-scrollbar {
@@ -1196,13 +1301,20 @@ svg.tile-selected {
 .context-entry:hover {
   max-width: 400em;
   -webkit-mask-image: none;
-  background-image: linear-gradient(0deg, rgb(138 99 32), 1%, #f0e1b2, 10%, #f3e6be);
+  background-image: linear-gradient(
+    0deg,
+    rgb(138 99 32),
+    1%,
+    #f0e1b2,
+    10%,
+    #f3e6be
+  );
   border-radius: 0.1em 0.6em 0.1em 0.6em;
   border-top: 0.5px solid #ffffff;
   border-bottom: 0.5px solid rgb(51 36 11);
 }
 
-.context-entry .name{
+.context-entry .name {
   cursor: pointer;
 }
 
@@ -1363,7 +1475,7 @@ svg.tile-selected {
 
 .lang-doc .top-bar .close {
   cursor: pointer;
-  font-family: 'Source Code Pro';
+  font-family: "Source Code Pro";
   color: var(--top_bar_icon_fill);
   width: 1.2em;
   height: 1.2em;
@@ -1467,7 +1579,6 @@ div.expandable-target {
   border-top: 10px solid var(--light-text-color);
 }
 
-
 svg.expandable {
   fill: rgb(199 180 128 / 0%);
   stroke-dasharray: 3, 3;
@@ -1503,36 +1614,32 @@ svg.expandable path {
 
 .cell-result {
   display: flex;
-  flex-direction: row;
+  background-color: #efe7d6;
+  align-items: baseline;
   gap: 0.5em;
-  /*box-shadow: 0px 1px 0px #ddcda3;*/
   color: #7a6219;
-  /*max-height: 4.5em;
-  min-height: 1.6em;
-  overflow-y: auto;*/
   border-top: 1px dotted #d2c7ad;
   border-radius: 0 0 0.4em 0.4em;
-  /* padding-left: 1em; */
   padding: 0.5em;
   padding-left: 1.2em;
 }
 
-.cell-report {
-  padding: 1.2em;
-  background-color: var(--test-panel-bkg);
-  border-left: 1px solid rgba(0, 0, 0, 0);
+.equiv {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1em;
+  height: 1em;
+  white-space: nowrap;
+  font-family: "Source Code Pro", monospace;
 }
-
-.cell.selected+.cell-item {
-  border-left: 1px solid var(--cell-selected-accent);
-}
-
-.cell.deselected+.cell-item {
-  border-left: 1px solid var(--top_bar_icon_fill)
-}
-
-.cell-result {
-  background-color: #efe7d6;
+.equiv .loading {
+  background: url("img/loading.gif");
+  background-repeat: round;
+  filter: sepia(1);
+  opacity: 0.5;
+  height: 100%;
+  width: 100%;
 }
 
 .result {
@@ -1542,18 +1649,35 @@ svg.expandable path {
   overflow-y: hidden;
   overflow-x: auto;
 }
-
-.cell-item.cell-result:has(.exception) {
-  background-color: #ffa2a2;
-}
-
 .result .exception {
   background-color: #ffa2a2;
   color: #7d0000;
   border-radius: 0.3em;
-  font-family: 'Helvetica Neue';
+  font-family: "Helvetica Neue";
   font-size: 1rem;
   padding: 0.1em 0.4em 0.1em 0.4em;
+}
+.result.pending {
+  /* text-decoration: line-through; */
+  opacity: 0.3;
+}
+
+.cell-report {
+  padding: 1.2em;
+  background-color: var(--test-panel-bkg);
+  border-left: 1px solid rgba(0, 0, 0, 0);
+}
+
+.cell.selected + .cell-item {
+  border-left: 1px solid var(--cell-selected-accent);
+}
+
+.cell.deselected + .cell-item {
+  border-left: 1px solid var(--top_bar_icon_fill);
+}
+
+.cell-item.cell-result:has(.exception) {
+  background-color: #ffa2a2;
 }
 
 /* DYNAMICS - DHEXP */
@@ -1577,7 +1701,7 @@ svg.expandable path {
 .DHCode .InVarHole {
   border: 1px dotted var(--err-color);
   border-radius: 0.2em;
-  color: var(--err-color)
+  color: var(--err-color);
 }
 
 .DHCode .EmptyHole {
@@ -1665,7 +1789,6 @@ svg.expandable path {
 .test-id.Fail {
   color: var(--err-color);
 }
-
 
 .test-result:after {
   position: relative;
@@ -1852,7 +1975,8 @@ svg.expandable path {
   background-color: rgb(255, 199, 125);
 }
 
-.test-inspector {}
+.test-inspector {
+}
 
 .test-inspector .test-instance.Pass .DHCode {
   color: green;
@@ -1878,7 +2002,8 @@ svg.expandable path {
   border-radius: 2em;
   cursor: pointer;
   border: solid 1px #dccfad;
-  box-shadow: inset 1px 1px 9px -3px rgb(4 4 4 / 8%), 1px 2px 6px -2px rgb(0 0 0 / 1%);
+  box-shadow: inset 1px 1px 9px -3px rgb(4 4 4 / 8%),
+    1px 2px 6px -2px rgb(0 0 0 / 1%);
 }
 
 .toggle-switch:hover {
@@ -1891,7 +2016,7 @@ svg.expandable path {
   height: 0.9em;
   /* display: inline-block; */
   display: flex;
-  font-family: 'Helvetica Neue';
+  font-family: "Helvetica Neue";
   background-color: #fefcf3;
   color: #c7b480;
   border: solid 1px rgba(126, 126, 126, 0.07);
@@ -1917,11 +2042,6 @@ svg.expandable path {
 
 /* Exercise */
 .exercise-code {
-  white-space: nowrap;
-  font-family: "Source Code Pro", monospace;
-}
-
-.equiv {
   white-space: nowrap;
   font-family: "Source Code Pro", monospace;
 }

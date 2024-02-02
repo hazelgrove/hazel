@@ -216,8 +216,10 @@ let eval_result_footer_view =
       ~inject as _,
       ~font_metrics,
       ~elab,
+      ~result_full: option(ModelResult.t)=None,
       results: ModelResult.simple,
     ) => {
+  open Node;
   let dhcode_view = (~show_casts) =>
     DHCode.view(
       ~settings={...Settings.Evaluation.init, show_casts},
@@ -226,25 +228,44 @@ let eval_result_footer_view =
       ~width=80,
     );
   let d_view =
-    switch (results) {
-    | None => [
-        Node.text("Evaluation disabled. Elaboration follows:"),
-        dhcode_view(~show_casts=true, elab),
+    switch (result_full, results) {
+    | (Some({current: ResultPending, previous: _}), Some({eval_result, _})) =>
+      //<img width="100px" height="100px" src="img/loading.gif" />
+
+      [
+        div(
+          ~attr=Attr.class_("equiv"),
+          [Node.div(~attr=Attr.class_("loading"), [Node.text(".")])],
+        ),
+        div(
+          ~attr=Attr.classes(["result", "pending"]),
+          [dhcode_view(~show_casts=false, eval_result)],
+        ),
       ]
-    | Some({eval_result, _}) =>
+    | (_, Some({eval_result, _})) =>
       /* Disabling casts in this case as large casts
        * can blow up UI perf unexpectedly */
-      [dhcode_view(~show_casts=false, eval_result)]
-    };
-  Node.(
-    div(
-      ~attr=Attr.classes(["cell-item", "cell-result"]),
       [
         div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
-        div(~attr=Attr.classes(["result"]), d_view),
-      ],
-    )
-  );
+        div(
+          ~attr=Attr.classes(["result"]),
+          [dhcode_view(~show_casts=false, eval_result)],
+        ),
+      ]
+
+    | (_, None) => [
+        div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
+        div(
+          ~attr=Attr.classes(["result"]),
+          [
+            Node.text("Evaluation disabled. Elaboration follows:"),
+            dhcode_view(~show_casts=true, elab),
+          ],
+        ),
+      ]
+    };
+
+  div(~attr=Attr.classes(["cell-item", "cell-result"]), d_view);
 };
 
 let editor_view =
@@ -336,6 +357,7 @@ let editor_with_result_view =
       ~info_map: Statics.Map.t,
       ~term,
       ~result: ModelResult.simple,
+      ~result_full=None,
       editor: Editor.t,
     ) => {
   let test_results = ModelResult.unwrap_test_results(result);
@@ -349,6 +371,7 @@ let editor_with_result_view =
             settings.core.elaborate
               ? Interface.elaborate(~settings=settings.core, info_map, term)
               : Interface.dh_err("Elaboration disabled"),
+          ~result_full,
           result,
         )
       : None;

@@ -1,5 +1,6 @@
 open Sexplib.Std;
 open Haz3lcore;
+//open Js_of_ocaml;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type key = string;
@@ -61,6 +62,60 @@ module EvalWorker = {
   };
 };
 
+/*
+ module EvalWorker = {
+   let timeoutDuration = 1; // Adjust the timeout duration as needed
+
+   let onTimeout = (key, ()) => {
+     Js_of_ocaml.Firebug.console##log(
+       Js.string("Evaluation timed out, terminating worker"),
+     );
+     let res = EvaluationFail(TimedOut);
+     (key, res) |> Response.serialize |> Js_of_ocaml.Worker.post_message;
+     Js_of_ocaml.Dom_html.window##close; // Terminate the worker
+   };
+
+   let on_request = ((key, d): request) => {
+     print_endline("EvalWorker: Received request, evaluating program");
+
+     let timeoutId = ref(None);
+
+     timeoutId.contents =
+       Some(
+         Js_of_ocaml.Dom_html.window##setTimeout(
+           Js.wrap_callback(onTimeout(key)),
+           float_of_int(timeoutDuration),
+         ),
+       );
+
+     let res =
+       try(EvaluationOk(Interface.evaluate(~settings=CoreSettings.on, d))) {
+       | Interface.EvalError(error) =>
+         EvaluationFail(Program_EvalError(error))
+       | Interface.DoesNotElaborate => EvaluationFail(Program_DoesNotElaborate)
+       | _ => EvaluationFail(UnknownError)
+       };
+     switch (timeoutId.contents) {
+     | Some(id) => Js_of_ocaml.Dom_html.window##clearTimeout(id)
+     | None => ()
+     };
+     (key, res);
+   };
+
+   let on_request = (req: Request.u) => {
+     req
+     |> Request.deserialize
+     |> on_request
+     |> Response.serialize
+     |> Js_of_ocaml.Worker.post_message;
+   };
+
+   let register = () => {
+     print_endline("EvalWorker: Setting onmessage");
+     Js_of_ocaml.Worker.set_onmessage(on_request);
+   };
+ };
+ */
 /*
  1. Main.on_startup calls:
     1.1 State.init() to initialize the worker
