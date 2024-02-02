@@ -4,6 +4,42 @@
 
 open EvaluatorStep;
 
+// Count all occurrences of an integer v in the AST v
+let rec index_of_like_terms_helper_dhexp = (d: DHExp.t, v: int) => {
+  switch (d) {
+  | BinIntOp(_, argL, argR) =>
+    index_of_like_terms_helper_dhexp(argL, v)
+    + index_of_like_terms_helper_dhexp(argR, v)
+  | IntLit(arg) when arg == v => 1
+  | _ => 0
+  };
+};
+
+// Count all occurrences of integer v that are not to the right of the marker,
+// including the marker itself. This function assumes there is always
+// a marker somewhere in the AST.
+let rec index_of_like_terms_helper_ctx = (d: EvalCtx.t, v: int) => {
+  switch (d) {
+  // When the left argument is a context (contains the mark) and the right one doesn't
+  | BinIntOp1(_, argL, _) => index_of_like_terms_helper_ctx(argL, v)
+  // vice versa
+  | BinIntOp2(_, argL, argR) =>
+    index_of_like_terms_helper_dhexp(argL, v)
+    + index_of_like_terms_helper_ctx(argR, v)
+  | Mark => 1
+  | _ => 0
+  };
+};
+
+// For some integer literal t and context AST d, find out how many occurrences of t do not occur to the right of the Mark in D.
+
+let index_of_like_terms = (d: EvalCtx.t, v: DHExp.t) => {
+  switch (v) {
+  | IntLit(arg) => index_of_like_terms_helper_ctx(d, arg)
+  | _ => 0
+  };
+};
+
 let rec string_of_d = (d: DHExp.t) => {
   switch (d) {
   | BinIntOp(op, arg1, arg2) =>
@@ -46,14 +82,16 @@ let single_step_export = (ind, step) => {
     | BinIntOp(Plus, _, _) => "repeat rewrite Nat.add_assoc. "
     | _ => ""
     };
+  let rewriteIndex = index_of_like_terms(ctx, d_loc');
   let coqLemmaString =
     Printf.sprintf(
-      "Lemma equiv_exp%d:%s = %s.\nProof.\nintros.\ncut (%s=%s).\n- intros. rewrite <- H at 1. %s reflexivity.\n- intros. cbv. reflexivity.\nQed.",
+      "Lemma equiv_exp%d:%s = %s.\nProof.\nintros.\ncut (%s=%s).\n- intros. rewrite <- H at %d. %s reflexivity.\n- intros. cbv. reflexivity.\nQed.",
       ind,
       newExprString,
       oldExprString,
       oldFragmentString,
       newFragmentString,
+      rewriteIndex,
       extraTactic,
     );
   //Printf.printf("Coq proof:\n%s\n", coqLemmaString);
