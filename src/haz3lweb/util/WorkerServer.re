@@ -17,7 +17,7 @@ module Request = {
 
 module Response = {
   [@deriving (sexp, yojson)]
-  type value = ModelResult.current;
+  type value = ModelResult.evaluation;
   [@deriving (sexp, yojson)]
   type t = (key, value);
 

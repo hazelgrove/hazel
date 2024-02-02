@@ -7,6 +7,7 @@
    In any case, that's a good reference. */
 
 module type MONAD_BASIC = {
+  [@deriving sexp]
   type t('a);
   let return: 'a => t('a);
   let bind: (t('a), 'a => t('b)) => t('b);
