@@ -229,13 +229,10 @@ let eval_result_footer_view =
     );
   let d_view =
     switch (result_full, results) {
-    | (Some({current: ResultPending, previous: _}), Some({eval_result, _})) =>
-      //<img width="100px" height="100px" src="img/loading.gif" />
-
-      [
+    | (Some({current: ResultPending, previous: _}), Some({eval_result, _})) => [
         div(
           ~attr=Attr.class_("equiv"),
-          [Node.div(~attr=Attr.class_("loading"), [Node.text(".")])],
+          [Node.div(~attr=Attr.class_("loading"), [])],
         ),
         div(
           ~attr=Attr.classes(["result", "pending"]),
@@ -252,7 +249,6 @@ let eval_result_footer_view =
           [dhcode_view(~show_casts=false, eval_result)],
         ),
       ]
-
     | (_, None) => [
         div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
         div(

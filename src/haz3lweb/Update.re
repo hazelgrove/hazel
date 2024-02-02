@@ -224,55 +224,16 @@ let should_scroll_to_caret =
   | DebugConsole(_)
   | Benchmark(_) => false;
 
-let evaluate_and_schedule =
-    (_state: State.t, ~schedule_action, model: Model.t): Model.t => {
-  /*let model = {
-      ...model,
-      meta: {
-        ...model.meta,
-        results:
-          Util.TimeUtil.measure_time(
-            "ModelResults.init", model.settings.benchmark, ()
-            //ModelResults.init performs evaluation on the DHExp value.
-            =>
-              ModelResults.init(
-                ~settings=model.settings.core,
-                //Editors.get_spliced_elabs generates the DHExp.t of the editor.
-                Editors.get_spliced_elabs(
-                  ~settings=model.settings,
-                  model.editors,
-                ),
-              )
-            ),
-      },
-    };*/
-
+let evaluate_and_schedule = (~schedule_action, model: Model.t): unit =>
   if (model.settings.core.dynamics) {
     Editors.get_spliced_elabs(~settings=model.settings, model.editors)
-    |> List.iter(((key, d)) => {
-         //TODO(andrew): cleanup
-         /* Send evaluation request. */
-         //print_endline("666 about to call State.evaluator_next");
-         //let pushed = State.evaluator_next(state, key, d);
+    |> List.iter(((key, elab)) => {
          schedule_action(SetMeta(Result(key, ResultPending)));
-         let () = EvalClient.request(schedule_action, (key, d));
-         ();
-         /* Set evaluation to pending after short timeout. */
-         /* FIXME: This is problematic if evaluation finished in time, but UI hasn't
-          * updated before below action is scheduled. */
-         //  Delay.delay(
-         //    () => {
-         //      //if (pushed |> Lwt.is_sleeping) {
-         //      let () = EvalClient.request(schedule_action, (key, d));
-         //      ();
-         //    },
-         //    //},
-         //    1,
-         //  );
+         WorkerClient.request((key, elab), ((key, res)) =>
+           schedule_action(SetMeta(Result(key, res)))
+         );
        });
   };
-  model;
-};
 
 let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
   switch (
@@ -504,8 +465,10 @@ let rec apply =
       Benchmark.finish();
       Ok(model);
     };
-  reevaluate_post_update(model.settings, update)
-    ? m |> Result.map(~f=evaluate_and_schedule(state, ~schedule_action)) : m;
+  if (reevaluate_post_update(model.settings, update)) {
+    Result.iter(~f=m => evaluate_and_schedule(~schedule_action, m), m);
+  };
+  m;
 }
 and meta_update =
     (model: Model.t, update: set_meta, ~schedule_action as _): Model.meta => {
