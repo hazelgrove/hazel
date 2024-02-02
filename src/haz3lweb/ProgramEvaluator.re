@@ -35,13 +35,7 @@ module Sync: M with type response = response = {
 
   let get_response = ((): t, (key, mr, settings): request) => {
     let lwt = {
-      /* NOTE(andrew): I'm not sure how to properly route settings
-         through the abstractions here; this should be done if this is renabled */
-      print_endline("Evaluating program");
-      // let+ r =
-      //   Lwt.wrap(() => d |> Interface.evaluate(~settings=CoreSettings.on));
-      //TODO(andrew): merge??
-      let+ r = Lwt.wrap(() => mr |> ModelResult.run_pending(~settings));
+      let+ r = Lwt.wrap(() => ModelResult.run_pending(~settings, mr));
       (key, r);
     };
     (lwt, ());
