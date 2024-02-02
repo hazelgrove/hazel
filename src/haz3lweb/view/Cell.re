@@ -234,6 +234,7 @@ let eval_result_footer_view =
           [Node.div(~attr=Attr.class_("loading"), [])],
         ),
         div(~attr=Attr.classes(["result", "pending"]), [dhcode_view(d)]),
+        show_stepper,
       ];
     | {evaluation: ResultPending, elab, _} => [
         div(
@@ -244,6 +245,7 @@ let eval_result_footer_view =
           ~attr=Attr.classes(["result", "pending"]),
           [dhcode_view(elab)],
         ),
+        show_stepper,
       ]
     | {evaluation: ResultOk(pr), _} =>
       let d = ProgramResult.get_dhexp(pr);

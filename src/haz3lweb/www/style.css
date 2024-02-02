@@ -1743,7 +1743,7 @@ svg.expandable path {
   display: flex;
   flex-direction: row;
   background-color: #efe7d6;
-  align-items: baseline;
+  align-items: center;
   gap: 0.5em;
   color: #7a6219;
   border-top: 1px dotted #d2c7ad;
@@ -1757,10 +1757,10 @@ svg.expandable path {
 
 .equiv {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  width: 1em;
-  height: 1em;
+  width: 1.6em;
+  height: 1.6em;
   white-space: nowrap;
   font-family: "Source Code Pro", monospace;
 }
@@ -1769,8 +1769,8 @@ svg.expandable path {
   background-repeat: round;
   filter: sepia(1);
   opacity: 0.5;
-  height: 100%;
-  width: 100%;
+  height: 70%;
+  width: 70%;
 }
 
 
@@ -1794,9 +1794,8 @@ svg.expandable path {
   opacity: 0.3;
 }
 
-.cell-result:has(.exception) .toggle-switch {
-  /* HACK */
-  display: none;
+.cell-result .toggle-switch {
+  mix-blend-mode: luminosity;
 }
 
 .cell-report {
