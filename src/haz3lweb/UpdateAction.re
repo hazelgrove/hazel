@@ -87,7 +87,7 @@ type t =
   | Assistant(agent_action)
   | ToggleStepper(ModelResults.Key.t)
   | StepperAction(ModelResults.Key.t, stepper_action)
-  | UpdateResult(ModelResults.Key.t, option(ModelResult.t));
+  | UpdateResult((ModelResults.Key.t, option(ModelResult.t)));
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -120,7 +120,7 @@ let is_edit: t => bool =
   | SwitchDocumentationSlide(_)
   | ToggleStepper(_)
   | StepperAction(_, _)
-  | UpdateResult(_, _) => true
+  | UpdateResult(_) => true
   | PerformAction(a) => Action.is_edit(a)
   | SwitchEditor(_)
   | Reset

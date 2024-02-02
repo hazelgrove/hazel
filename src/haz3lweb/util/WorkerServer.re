@@ -6,7 +6,7 @@ type key = string;
 
 module Request = {
   [@deriving (sexp, yojson)]
-  type value = DHExp.t;
+  type value = ModelResult.t;
   [@deriving (sexp, yojson)]
   type t = (key, value);
   type u = string;
@@ -17,7 +17,7 @@ module Request = {
 
 module Response = {
   [@deriving (sexp, yojson)]
-  type value = ModelResult.evaluation;
+  type value = ModelResult.t;
   [@deriving (sexp, yojson)]
   type t = (key, value);
 
@@ -25,14 +25,8 @@ module Response = {
   let deserialize = sexp => sexp |> Sexplib.Sexp.of_string |> t_of_sexp;
 };
 
-let work = (d: Request.value): Response.value =>
-  switch (Interface.evaluate(~settings=CoreSettings.on, d)) {
-  | r => ResultOk(r)
-  | exception (Interface.EvalError(error)) =>
-    ResultFail(Program_EvalError(error))
-  | exception Interface.DoesNotElaborate =>
-    ResultFail(Program_DoesNotElaborate)
-  };
+let work = (res: Request.value): Response.value =>
+  ModelResult.run_pending(~settings=CoreSettings.on, res);
 
 let on_request = (req: Request.u) => {
   req

@@ -287,25 +287,32 @@ let evaluate_and_schedule = (~schedule_action, model: Model.t): unit =>
   if (model.settings.core.dynamics) {
     Editors.get_spliced_elabs(~settings=model.settings, model.editors)
     |> List.iter(((key, elab)) => {
-         let previous =
-           switch (ModelResults.lookup(model.results, key)) {
-           | Some(Evaluation({evaluation, _})) => evaluation
-           | _ => ResultPending
-           };
-         schedule_action(
-           UpdateResult(
-             key,
-             Some(Evaluation({elab, evaluation: ResultPending, previous})),
-           ),
-         );
-         WorkerClient.request((key, elab), ((key, evaluation)) =>
-           schedule_action(
-             UpdateResult(
-               key,
-               Some(Evaluation({elab, evaluation, previous: ResultPending})),
-             ),
-           )
-         );
+         switch (ModelResults.lookup(model.results, key)) {
+         | Some(Stepper(_)) =>
+           let r: ModelResult.t = Stepper(Stepper.init(elab));
+           schedule_action(UpdateResult((key, Some(r))));
+           WorkerClient.request((key, r), ((key, res)) =>
+             schedule_action(UpdateResult((key, Some(res))))
+           );
+         | Some(Evaluation({evaluation: previous, _})) =>
+           let r: ModelResult.t =
+             Evaluation({elab, evaluation: ResultPending, previous});
+           schedule_action(UpdateResult((key, Some(r))));
+           WorkerClient.request((key, r), ((key, res)) =>
+             schedule_action(UpdateResult((key, Some(res))))
+           );
+         | _ =>
+           let r: ModelResult.t =
+             Evaluation({
+               elab,
+               evaluation: ResultPending,
+               previous: ResultPending,
+             });
+           schedule_action(UpdateResult((key, Some(r))));
+           WorkerClient.request((key, r), ((key, res)) =>
+             schedule_action(UpdateResult((key, Some(res))))
+           );
+         }
        });
   };
 
@@ -562,7 +569,7 @@ let rec apply =
                )
              ),
       })
-    | UpdateResult(k, mr) =>
+    | UpdateResult((k, mr)) =>
       switch (mr) {
       | Some(mr) =>
         Ok({...model, results: model.results |> ModelResults.add(k, mr)})
