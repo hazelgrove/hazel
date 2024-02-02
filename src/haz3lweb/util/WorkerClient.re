@@ -11,6 +11,11 @@ let workerRef: ref(Js.t(Worker.worker(string, string))) =
 
 let timeoutId = ref(None);
 
+let restart_worker = (): unit => {
+  workerRef.contents##terminate;
+  workerRef.contents = initWorker();
+};
+
 let request = (req: Request.t, handler: Response.t => unit): unit => {
   let setupWorkerMessageHandler = worker => {
     worker##.onmessage :=
@@ -20,8 +25,7 @@ let request = (req: Request.t, handler: Response.t => unit): unit => {
         | None => ()
         };
         timeoutId.contents = None; /* Clear timeout after response */
-        let res = evt##.data |> Response.deserialize;
-        handler(res);
+        evt##.data |> Response.deserialize |> handler;
         Js._true;
       });
   };
@@ -30,18 +34,16 @@ let request = (req: Request.t, handler: Response.t => unit): unit => {
   switch (timeoutId.contents) {
   | Some(id) =>
     Dom_html.window##clearTimeout(id);
-    workerRef.contents##terminate;
-    workerRef.contents = initWorker();
+    restart_worker();
   | None => ()
   };
 
   setupWorkerMessageHandler(workerRef.contents);
 
-  workerRef.contents##postMessage(req |> Request.serialize);
+  workerRef.contents##postMessage(Request.serialize(req));
 
-  let onTimeout = () => {
-    workerRef.contents##terminate;
-    workerRef.contents = initWorker();
+  let onTimeout = (): unit => {
+    restart_worker();
     setupWorkerMessageHandler(workerRef.contents);
   };
 

@@ -426,6 +426,10 @@ and ClosureEnvironment: {
 
   let empty = Environment.empty |> of_environment;
 
+  // let sexp_of_t: t => Sexplib.Sexp.t =
+  //   _ => Sexplib.Sexp.Atom("ClosureEnvironment");
+  // let t_of_sexp: Sexplib.Sexp.t => t = _ => empty;
+
   let is_empty = env => env |> map_of |> Environment.is_empty;
 
   let length = env => Environment.length(map_of(env));
