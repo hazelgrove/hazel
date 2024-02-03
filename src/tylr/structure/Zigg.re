@@ -7,6 +7,7 @@ type t = {
 };
 
 let mk = (~up=Slope.empty, ~dn=Slope.empty, top) => {up, top, dn};
+let of_tok = tok => mk(Wald.of_tok(tok));
 
 // let x = (1 + [a + b ? c / d : e * f] + 3) + 4 * 5 in x + 1
 

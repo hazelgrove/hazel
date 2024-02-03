@@ -192,6 +192,8 @@ module Slope = {
 };
 
 module Z = Zigg;
+// note: naming convention for from and onto directional parameters
+// for zigg functions are reverse of convention for parameters, not ideal
 module Zigg = {
   let unroll = (c: Cell.t) => {
     open OptUtil.Syntax;
@@ -199,7 +201,6 @@ module Zigg = {
     let (up, dn) = Slope.(Up.unroll(l), Dn.unroll(r));
     Z.{up, top, dn};
   };
-
   let of_dn = dn =>
     ListUtil.split_last_opt(dn)
     |> Option.map(((dn, t: T.t)) =>
@@ -236,6 +237,27 @@ module Zigg = {
     };
   };
   let push = (~onto: Dir.t, tok: Token.t) => push_wald(~onto, W.unit(tok));
+
+  let pull = (~from as d: Dir.t, zigg: Z.t): (Token.t, option(Z.t)) => {
+    let b = Dir.toggle(d);
+    let (s_d, s_b) = Dir.order(d, (zigg.up, zigg.dn));
+    switch (Slope.pull(~from=b, s_d)) {
+    | Some((tok, s_d)) =>
+      let (up, dn) = Dir.order(d, (s_d, s_b));
+      (tok, Some({...zigg, up, dn}));
+    | None =>
+      let top = Dir.pick(d, (Fun.id, W.rev), zigg.top);
+      let (tok, rest) = W.split_hd(top);
+      switch (rest) {
+      | ([], _) => (tok, Dir.pick(d, (of_up, of_dn), s_b))
+      | ([c, ...cs], ts) =>
+        let s_d = Slope.unroll(~from=b, c);
+        let (up, dn) = Dir.order(d, (s_d, s_b));
+        let top = Dir.pick(d, (Fun.id, W.rev), W.mk(ts, cs));
+        (tok, Some(Z.{up, top, dn}));
+      };
+    };
+  };
 
   let grow = (~side: Dir.t, tok: Token.t, zigg: Z.t) =>
     switch (push(~onto=side, tok, zigg)) {
@@ -310,6 +332,8 @@ module Ctx = {
     };
   };
   let push = (~onto: Dir.t, t: Token.t) => push_wald(~onto, W.unit(t));
+  let push_fail = (~onto: Dir.t, tok, ctx) =>
+    push(~onto, tok, ctx) |> OptUtil.get_or_fail("bug: failed push");
 
   let rec push_slope = (~onto: Dir.t, s: S.t, ~fill=[], ctx: C.t) =>
     switch (s) {
@@ -320,11 +344,11 @@ module Ctx = {
       push_slope(~onto, tl, ~fill=[hd.cell], ctx);
     };
   let push_zigg = (~onto as d: Dir.t, zigg: Z.t, ctx: C.t) => {
-    open OptUtil.Syntax;
+    let get_fail = OptUtil.get_or_fail("bug: failed to push zigg");
     let (s_d, s_b) = Dir.order(d, (zigg.dn, zigg.up));
-    let* ctx = push_slope(~onto=d, s_d, ctx);
+    let ctx = get_fail(push_slope(~onto=d, s_d, ctx));
     let top = Dir.pick(d, (Fun.id, W.rev), zigg.top);
-    let+ ctx = push_wald(~onto=d, top, ctx);
+    let ctx = get_fail(push_wald(~onto=d, top, ctx));
     let rest = Dir.order(d, ([], s_b));
     Ctx.map_fst(Frame.Open.cat(rest), ctx);
   };

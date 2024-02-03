@@ -15,10 +15,7 @@ let unselect = (~toward=?, z: t) =>
   | Point => z
   | Select(d, sel) =>
     let onto = Dir.toggle(Option.value(toward, ~default=d));
-    let ctx =
-      Melder.Ctx.push_zigg(~onto, sel, z.ctx)
-      |> OptUtil.get_or_fail("bug: failed to push selection onto ctx");
-    mk(ctx);
+    mk(Melder.Ctx.push_zigg(~onto, sel, z.ctx));
   };
 
 let unroll_cell = (~ctx=Ctx.empty, side: Dir.t, cell: Cell.t) => {
@@ -100,3 +97,5 @@ let zip = (z: t) =>
        (zipped, closed, open_) =>
          zipped |> zip_closed(closed) |> zip_open(open_),
      );
+
+let move_to_cursor = (z: t) => unzip(zip(z));
