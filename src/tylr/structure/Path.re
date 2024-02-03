@@ -85,54 +85,25 @@ module Point = {
     };
 };
 
-module Range = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = (Point.t, Point.t);
-  let origin = fst;
-  let compare = (l, r) => Point.compare(origin(l), origin(r));
-  let point = p => (p, p);
-  let is_point = ((l, r)) => l == r;
-  let here = point(Point.here);
-  let cons = (n, (l, r): t) => Point.(cons(n, l), cons(n, r));
-  let uncons = ((l, r): t) => {
-    open OptUtil.Syntax;
-    let* (m, l) = Point.uncons(l);
-    let* (n, r) = Point.uncons(r);
-    m == n ? Some((m, (l, r))) : None;
-  };
-  let peel = (n, (l, r)) =>
-    switch (Point.peel(n, l), Point.peel(n, r)) {
-    | (None, None) => None
-    | (None, Some(r)) => Some(point(r))
-    | (Some(l), None) => Some(point(l))
-    | (Some(l), Some(r)) => Some((l, r))
-    };
-  let union = ((l, _), (_, r)) => (l, r);
-};
-
 // ----------------------------------------------------------------
 
 module Cursor = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = option((Dir.t, Range.t));
-  let cons = n => Option.map(PairUtil.map_snd(Range.cons(n)));
+  type t = option(Point.t);
+  let here = Some(Point.here);
+  let cons = n => Option.map(Point.cons(n));
   open OptUtil.Syntax;
-  let uncons = c => {
-    let* (d, r) = c;
-    let+ (n, r) = Range.uncons(r);
-    (n, (d, r));
+  let uncons = (c: t): option((Cell.Idx.t, t)) => {
+    let* p = c;
+    let+ (n, p) = Point.uncons(p);
+    (n, Some(p));
   };
-  let peel = (n, c) => {
-    let* (d, r) = c;
-    let+ r = Range.peel(n, r);
-    (d, r);
-  };
+  let peel = (n, c) => Option.bind(c, Point.peel(n));
   let union = (l, r) =>
     switch (l, r) {
     | (None, None) => None
-    | (None, Some(r)) => Some(r)
-    | (Some(l), None) => Some(l)
-    | (Some((d, l)), Some((_, r))) => Some((d, Range.union(l, r)))
+    | (Some(l), _) => Some(l)
+    | (_, Some(r)) => Some(r)
     };
 };
 
@@ -165,7 +136,7 @@ module Marks = {
   };
   let mk = (~cursor=?, ~ghosts=Ghosts.empty, ()) => {cursor, ghosts};
   let empty = mk();
-  let cursor = mk(~cursor=Range.here, ());
+  let cursor = mk(~cursor=?Cursor.here, ());
   let cons = (n, {cursor, ghosts}) => {
     cursor: Cursor.cons(n, cursor),
     ghosts: Ghosts.cons(n, ghosts),

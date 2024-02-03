@@ -135,6 +135,6 @@ let split_range = ((m, n), tok: t): Result.t(Split.t, Dir.t) => {
     | Error(L) => Ok(Point(l, r))
     | Error(R) => Ok(Range(Some(l), r, None))
     | Ok((m, r)) => Ok(Range(Some(l), m, Some(r)))
-    };
+    }
   };
 };

@@ -203,21 +203,13 @@ module Zigg = {
   let of_dn = dn =>
     ListUtil.split_last_opt(dn)
     |> Option.map(((dn, t: T.t)) =>
-      Z.{
-        up: Slope.Up.unroll(t.cell),
-        top: W.rev(t.wald),
-        dn,
-      }
-    );
+         Z.{up: Slope.Up.unroll(t.cell), top: W.rev(t.wald), dn}
+       );
   let of_up = up =>
     ListUtil.split_last_opt(up)
     |> Option.map(((up, t: T.t)) =>
-      Z.{
-        up,
-        top: W.rev(t.wald),
-        dn: Slope.Up.unroll(t.cell),
-      }
-    );
+         Z.{up, top: W.rev(t.wald), dn: Slope.Up.unroll(t.cell)}
+       );
 
   let push_wald =
       (~onto as d: Dir.t, w: W.t, ~fill=[], zigg: Z.t): option(Z.t) => {
