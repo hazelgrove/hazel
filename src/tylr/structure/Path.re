@@ -1,64 +1,83 @@
 open Sexplib.Std;
 open Util;
 
-module Cell = {
-  // top-down path from root cell to a subcell
+module Int_ppx = {
+  include Int;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | C(list(int));
-  let compare = (C(ls), C(rs)) => List.compare(Int.compare, ls, rs);
-  let here = C([]);
-  let cons = (n, C(ns)) => C([n, ...ns]);
+  type t = int;
+};
+
+module Cell = {
+  module Idx = Int_ppx;
+  // absolute path from root cell to a subcell
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = list(Idx.t);
+  let compare = List.compare(Idx.compare);
+  let here = [];
+  let cons = List.cons;
   let uncons =
     fun
-    | C([]) => None
-    | C([n, ...ns]) => Some((n, C(ns)));
-  let peel = (n, c: t) =>
-    switch (uncons(c)) {
-    | Some((m, c)) when m == n => Some(c)
-    | _ => None
-    };
+    | [] => None
+    | [n, ...ns] => Some((n, ns));
+  let peel = n =>
+    fun
+    | [m, ...ms] when m == n => Some(ms)
+    | _ => None;
 };
+
 module Token = {
+  module Idx = Int_ppx;
   module Base = {
-    // path to a token within root cell
+    // absolute path from root cell to a token within
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      | T(int, Cell.t);
-    let compare = (T(t_l, c_l), T(t_r, c_r)) => {
+    type t = (Cell.t, Idx.t);
+    let compare = ((c_l, t_l), (c_r, t_r)) => {
       let c = Cell.compare(c_l, c_r);
-      c == 0 ? Int.compare(t_l, t_r) : c;
+      c == 0 ? Idx.compare(t_l, t_r) : 0;
     };
   };
   include Base;
   module Map = MapUtil.Make(Base);
-  let cons = (n, T(tok, cell)) => T(tok, Cell.cons(n, cell));
-  let uncons = (T(tok, cell)) =>
-    Cell.uncons(cell) |> Option.map(((n, cell)) => (n, T(tok, cell)));
+  let cons = n => PairUtil.map_fst(Cell.cons(n));
+  let uncons = ((cell, t)) =>
+    Cell.uncons(cell) |> Option.map(((n, cell)) => (n, (cell, t)));
   let peel = (n, t: t) =>
     switch (uncons(t)) {
     | Some((m, t)) when m == n => Some(t)
     | _ => None
     };
 };
+
 module Point = {
-  // path to a zero-width point within root cell.
-  // int index indicates point between characters within given token path.
-  // we wish to consider empty cells as containing a single point, which
-  // has the cell path [], while any token and point indices are considered
-  // valid (ie they are ignored when a cell path arrives at an empty cell).
+  module Idx = {
+    // relative path from a given cell to zero-width point at
+    // its root, either within a root token or one of the ends.
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t =
+      | End(Dir.t)
+      | Tok(Token.Idx.t, int);
+    let compare = (l, r) =>
+      switch (l, r) {
+      | (End(l), End(r)) => l == r ? 0 : Dir.pick(l, ((-1), 1))
+      | (End(d), _) => Dir.pick(d, ((-1), 1))
+      | (_, End(d)) => Dir.pick(d, (1, (-1)))
+      | (Tok(i, j), Tok(k, l)) =>
+        let c = Token.Idx.compare(i, k);
+        c == 0 ? Int.compare(j, l) : c;
+      };
+  };
+  // absolute path from root cell to a zero-width point within
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | P(int, Token.t);
-  let compare = (P(i_l, t_l): t, P(i_r, t_r): t) => {
-    let c = Token.compare(t_l, t_r);
-    c == 0 ? Int.compare(i_l, i_r) : c;
+  type t = (Cell.t, Idx.t);
+  let compare = ((c_l, p_l), (c_r, p_r)) => {
+    let c = Cell.compare(c_l, c_r);
+    c == 0 ? Idx.compare(p_l, p_r) : c;
   };
   let min = (l, r) => compare(l, r) <= 0 ? l : r;
-  let here = P(0, T(0, Cell.here));
-  let cons = (n, P(i, tok)) => P(i, Token.cons(n, tok));
-  let uncons = (P(i, tok)) =>
-    Token.uncons(tok) |> Option.map(((n, tok)) => (n, P(i, tok)));
+  let here = (Cell.here, Idx.End(L));
+  let cons = n => PairUtil.map_fst(Cell.cons(n));
+  let uncons = ((cell, p)) =>
+    Cell.uncons(cell) |> Option.map(((n, cell)) => (n, (cell, p)));
   let peel = (n, p: t) =>
     switch (uncons(p)) {
     | Some((m, p)) when m == n => Some(p)
@@ -66,13 +85,13 @@ module Point = {
     };
 };
 
-module Cursor = {
-  // path to user selection range, possibly empty
+module Range = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = (Point.t, Point.t);
   let origin = fst;
   let compare = (l, r) => Point.compare(origin(l), origin(r));
   let point = p => (p, p);
+  let is_point = ((l, r)) => l == r;
   let here = point(Point.here);
   let cons = (n, (l, r): t) => Point.(cons(n, l), cons(n, r));
   let uncons = ((l, r): t) => {
@@ -93,20 +112,30 @@ module Cursor = {
 
 // ----------------------------------------------------------------
 
-module Focus = {
+module Cursor = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = option(Cursor.t);
-  let cons = n => Option.map(Cursor.cons(n));
-  let uncons = foc => Option.bind(foc, Cursor.uncons);
-  let peel = (n, foc) => Option.bind(foc, Cursor.peel(n));
+  type t = option((Dir.t, Range.t));
+  let cons = n => Option.map(PairUtil.map_snd(Range.cons(n)));
+  open OptUtil.Syntax;
+  let uncons = c => {
+    let* (d, r) = c;
+    let+ (n, r) = Range.uncons(r);
+    (n, (d, r));
+  };
+  let peel = (n, c) => {
+    let* (d, r) = c;
+    let+ r = Range.peel(n, r);
+    (d, r);
+  };
   let union = (l, r) =>
     switch (l, r) {
     | (None, None) => None
     | (None, Some(r)) => Some(r)
     | (Some(l), None) => Some(l)
-    | (Some(l), Some(r)) => Some(Cursor.union(l, r))
+    | (Some((d, l)), Some((_, r))) => Some((d, Range.union(l, r)))
     };
 };
+
 module Ghosts = {
   include Token.Map;
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -121,8 +150,7 @@ module Ghosts = {
     to_list(ghosts)
     |> List.filter_map(((tok, mold)) =>
          switch (tok) {
-         | Token.T(idx, C([m, ...ms])) when m == n =>
-           Some((Token.T(idx, C(ms)), mold))
+         | ([m, ...ms], t) when m == n => Some(((ms, t), mold))
          | _ => None
          }
        )
@@ -132,22 +160,22 @@ module Ghosts = {
 module Marks = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    focus: Focus.t,
+    cursor: Cursor.t,
     ghosts: Ghosts.t,
   };
-  let mk = (~focus=?, ~ghosts=Ghosts.empty, ()) => {focus, ghosts};
+  let mk = (~cursor=?, ~ghosts=Ghosts.empty, ()) => {cursor, ghosts};
   let empty = mk();
-  let cursor = mk(~focus=Cursor.here, ());
-  let cons = (n, {focus, ghosts}) => {
-    focus: Focus.cons(n, focus),
+  let cursor = mk(~cursor=Range.here, ());
+  let cons = (n, {cursor, ghosts}) => {
+    cursor: Cursor.cons(n, cursor),
     ghosts: Ghosts.cons(n, ghosts),
   };
-  let peel = (n, {focus, ghosts}) => {
-    focus: Focus.peel(n, focus),
+  let peel = (n, {cursor, ghosts}) => {
+    cursor: Cursor.peel(n, cursor),
     ghosts: Ghosts.peel(n, ghosts),
   };
   let union = (l: t, r: t) => {
-    focus: Focus.union(l.focus, r.focus),
+    cursor: Cursor.union(l.cursor, r.cursor),
     ghosts: Ghosts.union(l.ghosts, r.ghosts),
   };
   let union_all = List.fold_left(union, empty);

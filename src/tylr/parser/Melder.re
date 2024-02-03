@@ -193,6 +193,32 @@ module Slope = {
 
 module Z = Zigg;
 module Zigg = {
+  let unroll = (c: Cell.t) => {
+    open OptUtil.Syntax;
+    let+ M(l, top, r) = Cell.get(c);
+    let (up, dn) = Slope.(Up.unroll(l), Dn.unroll(r));
+    Z.{up, top, dn};
+  };
+
+  let of_dn = dn =>
+    ListUtil.split_last_opt(dn)
+    |> Option.map(((dn, t: T.t)) =>
+      Z.{
+        up: Slope.Up.unroll(t.cell),
+        top: W.rev(t.wald),
+        dn,
+      }
+    );
+  let of_up = up =>
+    ListUtil.split_last_opt(up)
+    |> Option.map(((up, t: T.t)) =>
+      Z.{
+        up,
+        top: W.rev(t.wald),
+        dn: Slope.Up.unroll(t.cell),
+      }
+    );
+
   let push_wald =
       (~onto as d: Dir.t, w: W.t, ~fill=[], zigg: Z.t): option(Z.t) => {
     let b = Dir.toggle(d);

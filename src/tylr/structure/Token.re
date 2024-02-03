@@ -113,3 +113,28 @@ let split = (n: int, tok: t): Result.t((t, t), Dir.t) =>
     n > 0 && !Label.is_complete(tok.text, lbl)
       ? Error(R) : raise(Invalid_argument("Token.unzip"))
   };
+
+module Split = {
+  type nonrec t =
+    | Point(t, t)
+    | Range(option(t), t, option(t));
+};
+
+let split_range = ((m, n), tok: t): Result.t(Split.t, Dir.t) => {
+  assert(m <= n);
+  switch (split(m, tok)) {
+  | Error(L) =>
+    switch (split(n, tok)) {
+    | Error(L) => Error(L)
+    | Error(R) => Ok(Range(None, tok, None))
+    | Ok((l, r)) => Ok(Range(None, l, Some(r)))
+    }
+  | Error(R) => Error(R)
+  | Ok((l, r)) =>
+    switch (split(n - m, r)) {
+    | Error(L) => Ok(Point(l, r))
+    | Error(R) => Ok(Range(Some(l), r, None))
+    | Ok((m, r)) => Ok(Range(Some(l), m, Some(r)))
+    };
+  };
+};
