@@ -121,13 +121,7 @@ let load = (init_model: t): t => {
       ~instructor_mode=settings.instructor_mode,
     );
   let meta = init_model.meta;
-  let m = {editors, settings, results, explainThisModel, meta};
-  //let m = update_elabs(m);
-  // {
-  //   ...m,
-  //   results: ModelResults.run_pending(~settings=m.settings.core, m.results),
-  // };
-  m;
+  {editors, settings, results, explainThisModel, meta};
 };
 
 let save = ({editors, settings, explainThisModel, results, _}: t) => {
