@@ -5,8 +5,9 @@ include Meld.Cell;
 type t = Meld.Cell.t(Meld.t);
 
 let mk = (~marks=Path.Marks.empty, ~meld=?, ()): t => {
-  let _ = failwith("todo: lift marks from meld");
-  {marks, meld};
+  let dims =
+    meld |> Option.map(Meld.dims) |> Option.value(~default=Dims.zero);
+  {marks, dims, meld};
 };
 let empty = mk();
 let is_empty = (==)(empty);
@@ -25,7 +26,7 @@ let add_marks = (marks, cell) => {
 };
 let clear_marks = cell => {...cell, marks: Path.Marks.empty};
 
-let get = ({marks, meld}: t) => {
+let get = ({marks, meld, dims: _}: t) => {
   open OptUtil.Syntax;
   let+ Meld.M(l, W((toks, cells)), r) = meld;
   let n = List.length(toks);

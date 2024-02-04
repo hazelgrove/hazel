@@ -4,20 +4,22 @@ module Cell = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t('meld) = {
     marks: Path.Marks.t,
+    dims: Dims.t,
     meld: option('meld),
   };
-  let empty = {marks: Path.Marks.empty, meld: None};
-  let full = m => {marks: Path.Marks.empty, meld: Some(m)};
+  let empty = {marks: Path.Marks.empty, dims: Dims.zero, meld: None};
+  let full = (dims, m) => {marks: Path.Marks.empty, dims, meld: Some(m)};
 };
 
 module Wald = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t('cell) =
     | W(Chain.t(Token.t, 'cell));
-
   let of_tok = tok => W(Chain.unit(tok));
   let face = (~side=Dir.L, W(w): t(_)) =>
     Dir.pick(side, (Chain.fst, Chain.lst), w).lbl;
+  let dims = (W(w)) =>
+    w |> Chain.to_list(Token.dims, c => Cell.(c.dims)) |> Dims.sum;
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -25,14 +27,14 @@ type t =
   | M(Cell.t(t), Wald.t(Cell.t(t)), Cell.t(t));
 
 let mk = (~l=Cell.empty, ~r=Cell.empty, w) => M(l, w, r);
-
 let rec mk_grout = (~l=false, ~r=false, sort: Mtrl.Sort.t) => {
-  let c_l = l ? Cell.full(mk_grout(Grout)) : Cell.empty;
-  let c_r = r ? Cell.full(mk_grout(Grout)) : Cell.empty;
+  let c_l = l ? Cell.full(Dims.mk(1), mk_grout(Grout)) : Cell.empty;
+  let c_r = r ? Cell.full(Dims.mk(1), mk_grout(Grout)) : Cell.empty;
   mk(~l=c_l, Wald.of_tok(Token.mk_grout(~l, sort, ~r)), ~r=c_r);
 };
-
 let of_tok = tok => mk(Wald.of_tok(tok));
+
+let dims = (M(l, w, r)) => Dims.sum([l.dims, Wald.dims(w), r.dims]);
 
 let to_chain = (M(l, W((toks, cells)), r)) => (
   [l, ...cells] @ [r],

@@ -22,6 +22,7 @@ let length = (tok: t) =>
   | Tile(Const(c)) => String.length(c)
   | _ => String.length(tok.text)
   };
+let dims = tok => Dims.mk(length(tok));
 
 let mk = (~id=?, ~text="", lbl) => {
   let id = Id.Gen.value(id);
