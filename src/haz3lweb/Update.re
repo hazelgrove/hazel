@@ -286,33 +286,41 @@ let should_scroll_to_caret =
 let evaluate_and_schedule = (~schedule_action, model: Model.t): unit =>
   if (model.settings.core.dynamics) {
     Editors.get_spliced_elabs(~settings=model.settings, model.editors)
-    |> List.iter(((key, elab)) => {
-         switch (ModelResults.lookup(model.results, key)) {
-         | Some(Stepper(_) as r) =>
+    |> List.map(((key, elab)) =>
+         (
+           {
+             switch (ModelResults.lookup(model.results, key)) {
+             | Some(Stepper(_) as r) => (key, r)
+             | Some(Evaluation({evaluation: previous, _})) => (
+                 key,
+                 Evaluation({elab, evaluation: ResultPending, previous}),
+               )
+
+             | Some(NoElab)
+             | None => (
+                 key,
+                 Evaluation({
+                   elab,
+                   evaluation: ResultPending,
+                   previous: ResultPending,
+                 }),
+               )
+             };
+           }: (
+             string,
+             ModelResult.t,
+           )
            /* Don't send stepper to worker for now */
-           let r = ModelResult.run_pending(~settings=CoreSettings.on, r);
-           schedule_action(UpdateResult((key, r)));
-         | Some(Evaluation({evaluation: previous, _})) =>
-           let r: ModelResult.t =
-             Evaluation({elab, evaluation: ResultPending, previous});
-           schedule_action(UpdateResult((key, r)));
-           WorkerClient.request((key, r), ((key, r')) =>
-             schedule_action(UpdateResult((key, r')))
-           );
-         | Some(NoElab)
-         | None =>
-           let r: ModelResult.t =
-             Evaluation({
-               elab,
-               evaluation: ResultPending,
-               previous: ResultPending,
-             });
-           schedule_action(UpdateResult((key, r)));
-           WorkerClient.request((key, r), ((key, r')) =>
-             schedule_action(UpdateResult((key, r')))
-           );
-         }
-       });
+         )
+       )
+    |> List.to_seq
+    |> ModelResults.of_seq
+    |> (
+      rs => {
+        schedule_action(UpdateResult(rs));
+        WorkerClient.request(rs, rs' => schedule_action(UpdateResult(rs')));
+      }
+    );
   };
 
 let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
@@ -568,8 +576,7 @@ let rec apply =
                )
              ),
       })
-    | UpdateResult((k, mr)) =>
-      Ok({...model, results: ModelResults.add(k, mr, model.results)})
+    | UpdateResult(results) => Ok({...model, results})
     };
   if (reevaluate_post_update(model.settings, update)) {
     Result.iter(~f=m => evaluate_and_schedule(~schedule_action, m), m);

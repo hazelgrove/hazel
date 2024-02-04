@@ -87,7 +87,7 @@ type t =
   | Assistant(agent_action)
   | ToggleStepper(ModelResults.Key.t)
   | StepperAction(ModelResults.Key.t, stepper_action)
-  | UpdateResult((ModelResults.Key.t, ModelResult.t));
+  | UpdateResult(ModelResults.t);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]

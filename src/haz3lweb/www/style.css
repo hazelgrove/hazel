@@ -1755,6 +1755,7 @@ svg.expandable path {
 }
 
 .cell-result .status {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
