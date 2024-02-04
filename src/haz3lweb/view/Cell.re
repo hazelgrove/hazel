@@ -215,6 +215,18 @@ let eval_result_footer_view =
     Widgets.toggle(~tooltip="Show Stepper", "s", false, _ =>
       inject(UpdateAction.ToggleStepper(result_key))
     );
+  let dhexp =
+    switch (result.evaluation, result.previous) {
+    | (ResultPending, ResultOk(prev)) => ProgramResult.get_dhexp(prev)
+    | (ResultOk(cur), _) => ProgramResult.get_dhexp(cur)
+    | _ => result.elab
+    };
+  let status =
+    switch (result.evaluation) {
+    | ResultPending => "pending"
+    | ResultOk(_) => "done"
+    | _ => "eval-off"
+    };
   let dhcode_view =
     DHCode.view(
       ~inject,
@@ -223,49 +235,23 @@ let eval_result_footer_view =
       ~font_metrics,
       ~width=80,
       ~result_key,
+      dhexp,
     );
-  let d_view =
-    switch (result) {
-    | {evaluation: ResultPending, previous: ResultOk(pr), _} =>
-      let d = ProgramResult.get_dhexp(pr);
-      [
-        div(
-          ~attr=Attr.class_("equiv"),
-          [Node.div(~attr=Attr.class_("loading"), [])],
-        ),
-        div(~attr=Attr.classes(["result", "pending"]), [dhcode_view(d)]),
-        show_stepper,
-      ];
-    | {evaluation: ResultPending, elab, _} => [
-        div(
-          ~attr=Attr.class_("equiv"),
-          [Node.div(~attr=Attr.class_("loading"), [])],
-        ),
-        div(
-          ~attr=Attr.classes(["result", "pending"]),
-          [dhcode_view(elab)],
-        ),
-        show_stepper,
-      ]
-    | {evaluation: ResultOk(pr), _} =>
-      let d = ProgramResult.get_dhexp(pr);
-      [
-        div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
-        div(~attr=Attr.classes(["result"]), [dhcode_view(d)]),
-        show_stepper,
-      ];
-    | {elab, _} => [
-        div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
-        div(
-          ~attr=Attr.classes(["result"]),
-          [
-            Node.text("Evaluation disabled. Elaboration follows:"),
-            dhcode_view(elab),
-          ],
-        ),
-      ]
-    };
-  div(~attr=Attr.classes(["cell-item", "cell-result"]), d_view);
+  div(
+    ~attr=Attr.classes(["cell-item", "cell-result"]),
+    [
+      div(
+        ~attr=Attr.classes(["status", status]),
+        [
+          div(~attr=Attr.classes(["spinner"]), []),
+          div(~attr=Attr.classes(["eq"]), [text("≡")]),
+        ],
+      ),
+      div(~attr=Attr.classes(["result", status]), [dhcode_view]),
+      status == "eval-off"
+        ? text("Evaluation disabled. Elaboration follows:") : show_stepper,
+    ],
+  );
 };
 
 let editor_view =

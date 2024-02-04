@@ -288,15 +288,20 @@ let evaluate_and_schedule = (~schedule_action, model: Model.t): unit =>
     Editors.get_spliced_elabs(~settings=model.settings, model.editors)
     |> List.iter(((key, elab)) => {
          switch (ModelResults.lookup(model.results, key)) {
+         | Some(Stepper(_) as r) =>
+           // skip worker for stepper
+           let mr = ModelResult.run_pending(~settings=CoreSettings.on, r);
+           schedule_action(UpdateResult((key, Some(mr))));
          | Some(Evaluation({evaluation: previous, _})) =>
            let r: ModelResult.t =
              Evaluation({elab, evaluation: ResultPending, previous});
-           schedule_action(UpdateResult((key, Some(r))));
-           WorkerClient.request((key, r), ((key, res)) =>
-             schedule_action(UpdateResult((key, Some(res))))
-           );
-         | Some(r) =>
-           //let r: ModelResult.t = Stepper(Stepper.init(elab));
+           //  Delay.delay(
+           //    () =>
+           //      //if (WorkerClient.timeoutId.contents != None) {
+           //      schedule_action(UpdateResult((key, Some(r)))),
+           //    /// },
+           //    300,
+           //  );
            schedule_action(UpdateResult((key, Some(r))));
            WorkerClient.request((key, r), ((key, res)) =>
              schedule_action(UpdateResult((key, Some(res))))
@@ -571,6 +576,9 @@ let rec apply =
       })
     | UpdateResult((k, mr)) =>
       switch (mr) {
+      | Some(Evaluation({evaluation: ResultPending, _}))
+          when WorkerClient.timeoutId.contents == None =>
+        Ok(model)
       | Some(mr) =>
         Ok({...model, results: model.results |> ModelResults.add(k, mr)})
       | None =>
