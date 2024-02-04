@@ -91,26 +91,26 @@ let save_editors =
     Store.Exercise.save((n, specs, exercise), ~instructor_mode)
   };
 
-let update_elabs = (model: t): t => {
-  let model = {
-    ...model,
-    results:
-      Util.TimeUtil.measure_time(
-        "ModelResults.init", model.settings.benchmark, ()
-        //ModelResults.init performs evaluation on the DHExp value.
-        =>
-          ModelResults.update_elabs(
-            //Editors.get_spliced_elabs generates the DHExp.t of the editor.
-            Editors.get_spliced_elabs(
-              ~settings=model.settings,
-              model.editors,
-            ),
-            model.results,
-          )
-        ),
-  };
-  model;
-};
+// let update_elabs = (model: t): t => {
+//   let model = {
+//     ...model,
+//     results:
+//       Util.TimeUtil.measure_time(
+//         "ModelResults.init", model.settings.benchmark, ()
+//         //ModelResults.init performs evaluation on the DHExp value.
+//         =>
+//           ModelResults.update_elabs(
+//             //Editors.get_spliced_elabs generates the DHExp.t of the editor.
+//             Editors.get_spliced_elabs(
+//               ~settings=model.settings,
+//               model.editors,
+//             ),
+//             model.results,
+//           )
+//         ),
+//   };
+//   model;
+// };
 
 let load = (init_model: t): t => {
   let settings = Store.Settings.load();
@@ -122,11 +122,12 @@ let load = (init_model: t): t => {
     );
   let meta = init_model.meta;
   let m = {editors, settings, results, explainThisModel, meta};
-  let m = update_elabs(m);
-  {
-    ...m,
-    results: ModelResults.run_pending(~settings=m.settings.core, m.results),
-  };
+  //let m = update_elabs(m);
+  // {
+  //   ...m,
+  //   results: ModelResults.run_pending(~settings=m.settings.core, m.results),
+  // };
+  m;
 };
 
 let save = ({editors, settings, explainThisModel, results, _}: t) => {

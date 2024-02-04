@@ -74,7 +74,7 @@
   --nul-text-color: red;
   --nul-off-color: var(--nul-text-color);
   --nul-token-color: var(--nul-text-color);
-  --nul-shadow-color: #ffa000;;
+  --nul-shadow-color: #ffa000;
   --nul-bg-color: #ffacac;
   --nul-bg-off-color: var(--nul-bg-color);
 
@@ -1743,7 +1743,6 @@ svg.expandable path {
   display: flex;
   flex-direction: row;
   background-color: #efe7d6;
-  align-items: center;
   gap: 0.5em;
   color: #7a6219;
   border-top: 1px dotted #d2c7ad;
@@ -1755,43 +1754,57 @@ svg.expandable path {
   background-color: #efe7d6;
 }
 
-.equiv {
+.cell-result .status {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
   width: 1.6em;
   height: 1.6em;
   white-space: nowrap;
   font-family: "Source Code Pro", monospace;
 }
-.equiv .loading {
+.cell-result .status .spinner {
+  height: 50%;
+  width: 60%;
   background: url("img/loading.gif");
   background-repeat: round;
   filter: sepia(1);
+  opacity: 0;
+  transition: all 0.2s linear;
+}
+.cell-result .status.pending .spinner {
   opacity: 0.5;
-  height: 70%;
-  width: 70%;
+  transition: all 0.2s linear;
+}
+.cell-result .status .eq {
+  position: absolute;
+  opacity: 1;
+  transition: all 0.6s cubic-bezier(0.65, 0, 0.35, 1);
+}
+.cell-result .status.pending .eq {
+  opacity: 0;
+  transition: all 0.6s cubic-bezier(0.65, 0, 0.35, 1);
 }
 
-
-.result {
+.cell-result .result {
   padding-top: 0.1em;
   min-height: 1.6em;
   width: 100%;
   overflow-y: hidden;
   overflow-x: auto;
+  transition: all 0.2s linear;
 }
-.result .exception {
+.cell-result .result.pending {
+  opacity: 0.3;
+  transition: all 0.6s cubic-bezier(0.65, 0, 0.35, 1);
+}
+.cell-result .result .exception {
   background-color: #ffa2a2;
   color: #7d0000;
   border-radius: 0.3em;
   font-family: "Helvetica Neue";
   font-size: 1rem;
   padding: 0.1em 0.4em 0.1em 0.4em;
-}
-.result.pending {
-  /* text-decoration: line-through; */
-  opacity: 0.3;
 }
 
 .cell-result .toggle-switch {
@@ -2215,12 +2228,6 @@ svg.expandable path {
   font-family: "Source Code Pro", monospace;
 }
 
-.equiv,
-.equiv span {
-  white-space: nowrap;
-  font-family: "Source Code Pro", monospace;
-}
-
 .step-expand,
 .step-back {
   cursor: pointer;
@@ -2255,23 +2262,24 @@ svg.expandable path {
   left: -1em;
 }
 
-.steppable,.steppable *:not(.DHCode .EmptyHole *,.DHCode .EmptyHole) {
+.steppable,
+.steppable *:not(.DHCode .EmptyHole *, .DHCode .EmptyHole) {
   border: 1px var(--step-hole-color);
-  background-color:rgb(232, 255, 196);
+  background-color: rgb(232, 255, 196);
   margin: -1px;
   cursor: pointer;
 }
 
-
-.stepped,.stepped *:not(.DHCode .EmptyHole *,.DHCode .EmptyHole) {
+.stepped,
+.stepped *:not(.DHCode .EmptyHole *, .DHCode .EmptyHole) {
   border: 1px var(--step-hole-color);
-  background-color:#ddcda3;
+  background-color: #ddcda3;
   margin: -1px;
 }
 
 .substituted {
   text-decoration: line-through;
-  color: #AC985E;
+  color: #ac985e;
 }
 
 .settings-modal {
