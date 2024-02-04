@@ -289,33 +289,27 @@ let evaluate_and_schedule = (~schedule_action, model: Model.t): unit =>
     |> List.iter(((key, elab)) => {
          switch (ModelResults.lookup(model.results, key)) {
          | Some(Stepper(_) as r) =>
-           // skip worker for stepper
-           let mr = ModelResult.run_pending(~settings=CoreSettings.on, r);
-           schedule_action(UpdateResult((key, Some(mr))));
+           /* Don't send stepper to worker for now */
+           let r = ModelResult.run_pending(~settings=CoreSettings.on, r);
+           schedule_action(UpdateResult((key, r)));
          | Some(Evaluation({evaluation: previous, _})) =>
            let r: ModelResult.t =
              Evaluation({elab, evaluation: ResultPending, previous});
-           //  Delay.delay(
-           //    () =>
-           //      //if (WorkerClient.timeoutId.contents != None) {
-           //      schedule_action(UpdateResult((key, Some(r)))),
-           //    /// },
-           //    300,
-           //  );
-           schedule_action(UpdateResult((key, Some(r))));
-           WorkerClient.request((key, r), ((key, res)) =>
-             schedule_action(UpdateResult((key, Some(res))))
+           schedule_action(UpdateResult((key, r)));
+           WorkerClient.request((key, r), ((key, r')) =>
+             schedule_action(UpdateResult((key, r')))
            );
-         | _ =>
+         | Some(NoElab)
+         | None =>
            let r: ModelResult.t =
              Evaluation({
                elab,
                evaluation: ResultPending,
                previous: ResultPending,
              });
-           schedule_action(UpdateResult((key, Some(r))));
-           WorkerClient.request((key, r), ((key, res)) =>
-             schedule_action(UpdateResult((key, Some(res))))
+           schedule_action(UpdateResult((key, r)));
+           WorkerClient.request((key, r), ((key, r')) =>
+             schedule_action(UpdateResult((key, r')))
            );
          }
        });
@@ -575,21 +569,7 @@ let rec apply =
              ),
       })
     | UpdateResult((k, mr)) =>
-      switch (mr) {
-      | Some(Evaluation({evaluation: ResultPending, _}))
-          when WorkerClient.timeoutId.contents == None =>
-        Ok(model)
-      | Some(mr) =>
-        Ok({...model, results: model.results |> ModelResults.add(k, mr)})
-      | None =>
-        Ok({
-          ...model,
-          results:
-            ModelResults.lookup(model.results, k)
-            |> Option.value(~default=ModelResult.NoElab)
-            |> ModelResults.add(k, _, model.results),
-        })
-      }
+      Ok({...model, results: ModelResults.add(k, mr, model.results)})
     };
   if (reevaluate_post_update(model.settings, update)) {
     Result.iter(~f=m => evaluate_and_schedule(~schedule_action, m), m);
