@@ -285,42 +285,22 @@ let should_scroll_to_caret =
 
 let evaluate_and_schedule = (~schedule_action, model: Model.t): unit =>
   if (model.settings.core.dynamics) {
-    Editors.get_spliced_elabs(~settings=model.settings, model.editors)
-    |> List.map(((key, elab)) =>
-         (
-           {
-             switch (ModelResults.lookup(model.results, key)) {
-             | Some(Stepper(_) as r) => (key, r)
-             | Some(Evaluation({evaluation: previous, _})) => (
-                 key,
-                 Evaluation({elab, evaluation: ResultPending, previous}),
-               )
-
-             | Some(NoElab)
-             | None => (
-                 key,
-                 Evaluation({
-                   elab,
-                   evaluation: ResultPending,
-                   previous: ResultPending,
-                 }),
-               )
-             };
-           }: (
-             string,
-             ModelResult.t,
-           )
-           /* Don't send stepper to worker for now */
-         )
-       )
-    |> List.to_seq
-    |> ModelResults.of_seq
-    |> (
-      rs => {
-        schedule_action(UpdateResult(rs));
-        WorkerClient.request(rs, rs' => schedule_action(UpdateResult(rs')));
-      }
-    );
+    let elabs =
+      Editors.get_spliced_elabs(~settings=model.settings, model.editors);
+    let eval_rs = ModelResults.to_evaluate(model.results, elabs);
+    if (!ModelResults.is_empty(eval_rs)) {
+      schedule_action(UpdateResult(eval_rs));
+      WorkerClient.request(eval_rs, rs' =>
+        schedule_action(UpdateResult(rs'))
+      );
+    };
+    /* Not sending stepper to worker for now bc closure perf */
+    let step_rs = ModelResults.to_step(model.results);
+    if (!ModelResults.is_empty(step_rs)) {
+      let new_rs =
+        ModelResults.run_pending(~settings=model.settings.core, step_rs);
+      schedule_action(UpdateResult(new_rs));
+    };
   };
 
 let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
@@ -576,7 +556,10 @@ let rec apply =
                )
              ),
       })
-    | UpdateResult(results) => Ok({...model, results})
+    | UpdateResult(results) =>
+      let results =
+        ModelResults.union((_, _a, b) => Some(b), model.results, results);
+      Ok({...model, results});
     };
   if (reevaluate_post_update(model.settings, update)) {
     Result.iter(~f=m => evaluate_and_schedule(~schedule_action, m), m);
