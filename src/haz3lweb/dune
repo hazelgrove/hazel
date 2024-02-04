@@ -17,8 +17,6 @@
   haz3lcore
   haz3lschool
   pretty
-  lwt
-  lwtutil
   omd)
  (js_of_ocaml
   (flags
@@ -50,8 +48,6 @@
   haz3lcore
   haz3lschool
   pretty
-  lwt
-  lwtutil
   omd)
  (js_of_ocaml
   (flags

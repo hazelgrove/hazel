@@ -1,9 +1,18 @@
 open EvaluatorStep;
 
+/**
+  This exists mainly because exceptions on a web worker thread are not
+  forwarded back to the main thread.
+ */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type program_eval_error =
+  | Program_EvalError(EvaluatorError.t)
+  | Program_DoesNotElaborate;
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type evaluation =
   | ResultOk(ProgramResult.t)
-  | ResultFail(ProgramEvaluatorError.t)
+  | ResultFail(program_eval_error)
   | ResultTimeout
   | ResultPending;
 
@@ -22,6 +31,7 @@ type t =
 
 let init_eval = elab =>
   Evaluation({elab, evaluation: ResultPending, previous: ResultPending});
+
 let update_elab = elab =>
   fun
   | NoElab =>
@@ -70,14 +80,6 @@ let run_pending = (~settings) =>
   | Stepper(s) =>
     Stepper(Stepper.evaluate_pending(~settings=settings.evaluation, s));
 
-let timeout =
-  fun
-  | NoElab => NoElab
-  | Evaluation({elab, evaluation: ResultPending, previous}) =>
-    Evaluation({elab, evaluation: ResultTimeout, previous})
-  | Evaluation({evaluation: ResultFail(_) | ResultOk(_) | ResultTimeout, _}) as r => r
-  | Stepper(s) => Stepper(Stepper.timeout(s));
-
 let toggle_stepper =
   fun
   | NoElab => NoElab
@@ -87,7 +89,6 @@ let toggle_stepper =
 
 let get_simple =
   fun
-  | NoElab => None
   | Evaluation({evaluation: ResultOk(pr), _}) =>
     Some(
       {
@@ -99,9 +100,8 @@ let get_simple =
           |> TestResults.mk_results,
       }: TestResults.simple_data,
     )
-  | Evaluation({evaluation: ResultFail(_), _})
-  | Evaluation({evaluation: ResultTimeout, _})
-  | Evaluation({evaluation: ResultPending, _})
+  | Evaluation({evaluation: ResultFail(_) | ResultTimeout | ResultPending, _})
+  | NoElab
   | Stepper(_) => None;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
