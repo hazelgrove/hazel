@@ -767,7 +767,7 @@ let of_ops = (ctx, expected_ty: Typ.t, child_ty: Typ.t, ty1, ty2, ops) =>
 
 let sug_exp_infix = (ctx: Ctx.t, l_child_ty: Typ.t, expected_ty: Typ.t) => {
   let of_ops = of_ops(ctx, expected_ty, l_child_ty);
-  let bb = of_ops(Bool, Bool, ["&&", "\\|/"]);
+  let bb = of_ops(Bool, Bool, ["&&", "\\/"]);
   let bs = of_ops(Bool, String, ["$=="]);
   let bi = of_ops(Bool, Int, ["==", "!=", "<=", ">=", "<", ">"]);
   let bf = of_ops(Bool, Float, ["==.", "!=.", "<=.", ">=.", "<.", ">."]);
