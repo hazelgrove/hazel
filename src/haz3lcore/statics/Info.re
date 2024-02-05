@@ -52,7 +52,6 @@ type error_no_type =
   | BadToken(Token.t)
   /* Empty application of function with inconsistent type */
   | BadTrivAp(Typ.t)
-  | BadSumAp(Typ.t)
   /* Sum constructor neiter bound nor in ana type */
   | FreeConstructor(Constructor.t);
 
@@ -314,7 +313,6 @@ let rec status_common =
     }
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
   | (BadTrivAp(ty), _) => InHole(NoType(BadTrivAp(ty)))
-  | (BadSumAp(ty), _) => InHole(NoType(BadSumAp(ty)))
   | (IsMulti, _) => NotInHole(Syn(Unknown(Internal)))
   | (NoJoin(wrap, tys), Ana(ana)) =>
     let syn: Typ.t = Self.join_of(wrap, Unknown(Internal));
