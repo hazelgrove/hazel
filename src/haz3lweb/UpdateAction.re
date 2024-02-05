@@ -110,32 +110,39 @@ module Result = {
 
 let is_edit: t => bool =
   fun
+  | PerformAction(a) => Action.is_edit(a)
+  | Set(_) => true
+  | SetMeta(meta_action) =>
+    switch (meta_action) {
+    | Mousedown
+    | Mouseup
+    | ShowBackpackTargets(_)
+    | FontMetrics(_) => false
+    }
   | Cut
   | Undo
   | Redo
-  | DoTheThing
-  | Set(_)
   | Paste(_)
   | SwitchScratchSlide(_)
   | SwitchDocumentationSlide(_)
   | ToggleStepper(_)
-  | StepperAction(_, _)
-  | UpdateResult(_) => true
-  | PerformAction(a) => Action.is_edit(a)
+  | StepperAction(_)
+  | ReparseCurrentEditor
+  | FinishImportAll(_)
+  | FinishImportScratchpad(_)
+  | Assistant(AcceptSuggestion) => true
+  | UpdateResult(_)
   | SwitchEditor(_)
   | Reset
   | ExportPersistentData
   | ResetCurrentEditor
   | Save
-  | ReparseCurrentEditor
   | Copy
-  | SetMeta(_)
   | UpdateExplainThisModel(_)
   | DebugConsole(_)
   | InitImportAll(_)
-  | FinishImportAll(_)
   | InitImportScratchpad(_)
-  | FinishImportScratchpad(_)
   | MoveToNextHole(_)
   | Benchmark(_)
-  | Assistant(_) => false;
+  | DoTheThing
+  | Assistant(Prompt(_)) => false;

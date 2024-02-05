@@ -155,25 +155,26 @@ let update_settings =
 let reevaluate_post_update = (settings: Settings.t) =>
   fun
   | _ when !settings.core.dynamics => false
+  | PerformAction(a) => Action.is_edit(a)
   | Set(s_action) =>
     switch (s_action) {
+    | Assist
     | Captions
     | SecondaryIcons
     | Statics
+    | ContextInspector
     | Benchmark
     | Evaluation(
         ShowCaseClauses | ShowFnBodies | ShowCasts | ShowRecord | ShowFixpoints |
         ShowLookups |
-        ShowFilters,
+        ShowFilters |
+        ShowSettings,
       ) =>
       false
-    | Assist
     | Elaborate
     | Dynamics
     | InstructorMode
-    | ContextInspector
     | Mode(_) => true
-    | Evaluation(ShowSettings) => false
     }
   | SetMeta(meta_action) =>
     switch (meta_action) {
@@ -182,40 +183,33 @@ let reevaluate_post_update = (settings: Settings.t) =>
     | ShowBackpackTargets(_)
     | FontMetrics(_) => false
     }
-  | PerformAction(
-      Move(_) | MoveToNextHole(_) | Select(_) | Unselect(_) | RotateBackpack |
-      MoveToBackpackTarget(_) |
-      Jump(_),
-    )
+  | Assistant(AcceptSuggestion) => true
+  | Assistant(Prompt(_)) => false
   | MoveToNextHole(_)
   | Save
   | Copy
   | InitImportAll(_)
   | InitImportScratchpad(_)
   | UpdateExplainThisModel(_)
-  | DoTheThing => false
   | ExportPersistentData
   | UpdateResult(_)
-  | DebugConsole(_) => false
-  | Benchmark(_)
-  // may not be necessary on all of these
-  // TODO review and prune
+  | SwitchEditor(_)
+  | DebugConsole(_)
+  | DoTheThing
+  | Benchmark(_) => false
   | StepperAction(_, StepForward(_) | StepBackward)
   | ToggleStepper(_)
   | ReparseCurrentEditor
-  | PerformAction(Destruct(_) | Insert(_) | Pick_up | Put_down)
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
   | ResetCurrentEditor
-  | SwitchEditor(_)
   | SwitchScratchSlide(_)
   | SwitchDocumentationSlide(_)
+  | Reset
   | Cut
   | Paste(_)
-  | Assistant(_)
   | Undo
-  | Redo
-  | Reset => true;
+  | Redo => true;
 
 let should_scroll_to_caret =
   fun
