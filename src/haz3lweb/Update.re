@@ -152,9 +152,8 @@ let update_settings =
     }
   };
 
-let reevaluate_post_update = (settings: Settings.t) =>
+let reevaluate_post_update: t => bool =
   fun
-  | _ when !settings.core.dynamics => false
   | PerformAction(a) => Action.is_edit(a)
   | Set(s_action) =>
     switch (s_action) {
@@ -555,7 +554,7 @@ let rec apply =
         ModelResults.union((_, _a, b) => Some(b), model.results, results);
       Ok({...model, results});
     };
-  if (reevaluate_post_update(model.settings, update)) {
+  if (reevaluate_post_update(update)) {
     Result.iter(~f=m => evaluate_and_schedule(~schedule_action, m), m);
   };
   m;
