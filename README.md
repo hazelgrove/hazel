@@ -193,7 +193,7 @@ If Hazel is hanging on load or when you perform certain actions, you can load in
 #### Testing
 You can run all of the unit tests located in `src/haz3ltest` by running `make test`.
 
-Unit tests are written using the [Tezt framework](https://gitlab.com/nomadic-labs/tezt/).
+Unit tests are written using the [Alcotest framework](https://github.com/mirage/alcotest).
 
 ### Continuous Integration
 
