@@ -1,5 +1,5 @@
-HTML_DIR=$(shell pwd)/_build/default/src/haz3lweb/www
-TEST_DIR=$(shell pwd)/_build/default/src/haz3ltest
+TEST_DIR="$(shell pwd)/_build/default/src/haz3ltest"
+HTML_DIR="$(shell pwd)/_build/default/src/haz3lweb/www"
 SERVER="http://0.0.0.0:8000/"
 
 all: dev
@@ -39,7 +39,7 @@ release-student: setup-student
 	dune build @src/fmt --auto-promote src --profile dev
 
 echo-html-dir:
-	@echo "$(HTML_DIR)"
+	@echo $(HTML_DIR)
 
 serve:
 	cd $(HTML_DIR); python3 -m http.server 8000

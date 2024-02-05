@@ -56,7 +56,7 @@ let view =
       ~inject,
       ~font_metrics,
       ~show_backpack_targets,
-      ~clss=["single"],
+      ~clss=[],
       ~selected=true,
       ~mousedown,
       ~code_id,
@@ -82,8 +82,7 @@ let view =
           ~font_metrics,
           ~settings,
           ~doc=explainThisModel,
-          Indicated.index(zipper),
-          info_map,
+          Indicated.ci_of(zipper, info_map),
         )
       : div_empty;
   let info =
@@ -113,7 +112,7 @@ let view =
           Attr.id("main"),
           Attr.classes([Settings.show_mode(settings.mode)]),
         ]),
-      [div(~attr=clss(["editor", "single"]), info @ [editor_view])],
+      [div(~attr=clss(["editor"]), info @ [editor_view])],
     ),
     sidebar,
     bottom_bar,
