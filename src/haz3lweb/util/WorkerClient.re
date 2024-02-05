@@ -16,7 +16,13 @@ let restart_worker = (): unit => {
   workerRef.contents = initWorker();
 };
 
-let request = (req: Request.t, handler: Response.t => unit): unit => {
+let request =
+    (
+      req: Request.t,
+      ~handler: Response.t => unit,
+      ~timeout: Request.t => unit,
+    )
+    : unit => {
   let setupWorkerMessageHandler = worker => {
     worker##.onmessage :=
       Dom.handler(evt => {
@@ -45,6 +51,7 @@ let request = (req: Request.t, handler: Response.t => unit): unit => {
   let onTimeout = (): unit => {
     restart_worker();
     setupWorkerMessageHandler(workerRef.contents);
+    timeout(req);
   };
 
   timeoutId.contents =
