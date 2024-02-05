@@ -303,12 +303,37 @@ body {
   user-select: none;
 }
 
+:root {
+  scrollbar-color: #dac898 #0000;
+  scrollbar-width: thin;
+}
+
+:root::-webkit-scrollbar {
+  width: 0.8em;
+}
+:root::-webkit-scrollbar:horizontal {
+  height: 0.8em;
+}
+:root::-webkit-scrollbar-track {
+  background-color: #fdf6e300;
+}
+:root::-webkit-scrollbar-thumb {
+  background-color: #e1d1a6;
+  border-radius: 1em;
+  border: 0.2em solid #fdf6e3;
+}
+/* set button(top and bottom of the scrollbar) */
+:root::-webkit-scrollbar-button,
+:root::-webkit-scrollbar-corner {
+  display: none;
+}
+
+
 #main {
   grid-row: 2;
   grid-column: 1 / span 1;
   overflow: auto;
-  scrollbar-color: #dac898 #0000;
-  scrollbar-width: thin;
+  
 }
 
 #main.Scratch,
@@ -337,29 +362,8 @@ body {
   width: auto;
 }
 
-#main::-webkit-scrollbar {
-  width: 0.8em;
-}
-::-webkit-scrollbar:horizontal {
-  height: 0.8em;
-}
-#main::-webkit-scrollbar-track {
-  background-color: #fdf6e300;
-}
-#main::-webkit-scrollbar-thumb {
-  background-color: #e1d1a6;
-  border-radius: 1em;
-  border: 0.2em solid #fdf6e3;
-}
-
 #main .code-container {
   cursor: text;
-}
-
-/* set button(top and bottom of the scrollbar) */
-#main::-webkit-scrollbar-button,
-#main::-webkit-scrollbar-corner {
-  display: none;
 }
 
 select {
@@ -1461,7 +1465,6 @@ svg.tile-selected {
 /* END STATICS*/
 
 #bottom-bar {
-  z-index: 1;
   grid-row: 3 / span 1;
   grid-column: 1 / span 2;
   display: flex;
@@ -1530,6 +1533,9 @@ svg.tile-selected {
   grid-row: 2 / span 1;
   grid-column: 2 / span 1;
   border-left: 0.6px solid #c7b480;
+  overflow-y: visible;
+  overflow-x: hidden;
+  width: max-content;
 }
 
 .explain-this {
