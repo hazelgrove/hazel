@@ -304,35 +304,55 @@ and matches_cast_Tuple =
       DoesNotMatch;
     } else {
       assert(List.length(List.combine(dps, ds)) == List.length(elt_casts));
-      List.fold_right(
-        ((((pp, dp), (p, d)), casts), result) => {
-          switch (result) {
-          | DoesNotMatch
-          | IndetMatch => result
-          | Matches(env) =>
-            switch (pp, p) {
-            | (Some(sp), Some(s)) =>
-              if (LabeledTuple.compare(sp, s) == 0) {
-                switch (matches(dp, DHExp.apply_casts(d, casts))) {
-                | DoesNotMatch => DoesNotMatch
-                | IndetMatch => IndetMatch
-                | Matches(env') => Matches(Environment.union(env, env'))
-                };
-              } else {
-                DoesNotMatch;
-              }
-            | (None, None) =>
-              switch (matches(dp, DHExp.apply_casts(d, casts))) {
-              | DoesNotMatch => DoesNotMatch
-              | IndetMatch => IndetMatch
-              | Matches(env') => Matches(Environment.union(env, env'))
-              }
-            | (_, _) => DoesNotMatch
-            }
+      // List.fold_right(
+      //   ((((pp, dp), (p, d)), casts), result) => {
+      //     switch (result) {
+      //     | DoesNotMatch
+      //     | IndetMatch => result
+      //     | Matches(env) =>
+      //       switch (pp, p) {
+      //       | (Some(sp), Some(s)) =>
+      //         if (LabeledTuple.compare(sp, s) == 0) {
+      //           switch (matches(dp, DHExp.apply_casts(d, casts))) {
+      //           | DoesNotMatch => DoesNotMatch
+      //           | IndetMatch => IndetMatch
+      //           | Matches(env') => Matches(Environment.union(env, env'))
+      //           };
+      //         } else {
+      //           DoesNotMatch;
+      //         }
+      //       | (None, None) =>
+      //         switch (matches(dp, DHExp.apply_casts(d, casts))) {
+      //         | DoesNotMatch => DoesNotMatch
+      //         | IndetMatch => IndetMatch
+      //         | Matches(env') => Matches(Environment.union(env, env'))
+      //         }
+      //       | (_, _) => DoesNotMatch
+      //       }
+      //     }
+      //   },
+      //   List.combine(List.combine(dps, ds), elt_casts),
+      //   Matches(Environment.empty),
+      // );
+      let f = (result, dp, (d, casts)) => {
+        switch (result) {
+        | DoesNotMatch => DoesNotMatch
+        | IndetMatch => IndetMatch
+        | Matches(env) =>
+          switch (matches(dp, DHExp.apply_casts(d, casts))) {
+          | DoesNotMatch => DoesNotMatch
+          | IndetMatch => IndetMatch
+          | Matches(env') => Matches(Environment.union(env, env'))
           }
-        },
-        List.combine(List.combine(dps, ds), elt_casts),
+        };
+      };
+      let (dlabs, dvals) = List.split(ds);
+      LabeledTuple.ana_tuple(
+        f,
         Matches(Environment.empty),
+        DoesNotMatch,
+        dps,
+        List.combine(dlabs, List.combine(dvals, elt_casts)),
       );
     };
   | Cast(d', Prod(tys), Prod(tys')) =>

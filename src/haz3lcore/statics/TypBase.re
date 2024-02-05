@@ -280,25 +280,81 @@ module rec Typ: {
       Arrow(ty1, ty2);
     | (Arrow(_), _) => None
     | (Prod(tys1), Prod(tys2)) =>
-      let (tysp, _) = List.split(tys1);
-      let* tys =
-        ListUtil.map2_opt(
-          ((p1, t1), (p2, t2)) =>
-            switch (p1, p2) {
-            | (Some(ap), Some(bp)) =>
-              if (LabeledTuple.compare(ap, bp) == 0) {
-                join'(t1, t2);
-              } else {
-                None;
+      let (tysp, _) = List.split(tys1); // assuming tys1 is the proper order.
+      let f = (b, tys1_val, tys2_val) => {
+        switch (b) {
+        | false => false
+        | true => eq(tys1_val, tys2_val)
+        };
+      };
+      let valid = LabeledTuple.ana_tuple(f, true, false, tys1, tys2);
+      valid
+        ? {
+          let l2_lab = List.filter(((p, _)) => p != None, tys2);
+          let l2_none = List.filter(((p, _)) => p == None, tys1);
+          // is this custom function necessary?
+          let rec f =
+                  (l1: list('a), l2_lab: list('a), l2_none: list('a))
+                  : list(option(t)) =>
+            switch (l1) {
+            | [hd, ...tl] =>
+              switch (hd) {
+              | (Some(_), l1_val) =>
+                let l2_item =
+                  List.find_opt(
+                    l2_item => {
+                      switch (hd, l2_item) {
+                      | ((Some(s1), _), (Some(s2), _)) =>
+                        compare(s1, s2) == 0
+                      | ((None, _), (None, _)) => true
+                      | (_, _) => false
+                      }
+                    },
+                    l2_lab,
+                  );
+                switch (l2_item) {
+                | Some((_, l2_val)) =>
+                  [join'(l1_val, l2_val)] @ f(tl, l2_lab, l2_none)
+                | None => [None] @ f(tl, l2_lab, l2_none)
+                };
+              | (None, l1_val) =>
+                switch (l2_none) {
+                | [(_, t2), ...tl2] =>
+                  [join'(l1_val, t2)] @ f(tl, l2_lab, tl2)
+                | [] => [None] @ f(tl, l2_lab, l2_none)
+                }
               }
-            | (None, None) => join'(t1, t2)
-            | (_, _) => None
-            },
-          tys1,
-          tys2,
-        );
-      let+ tys = OptUtil.sequence(tys);
-      Prod(List.combine(tysp, tys)); //TODO: Fix this
+            | [] => []
+            };
+          let* tys = Some(f(tys1, l2_lab, l2_none));
+          // let fail_val = List.init(List.length(tys1), _ => None);
+          // let f = (l, tys1_val, tys2_val) => {
+          //   l @ [join'(tys1_val, tys2_val)]
+          // };
+          // let* tys = Some(LabeledTuple.ana_tuple(f, [], fail_val, tys1, tys2));
+          // ListUtil.map2_opt(
+          //   ((p1, t1), (p2, t2)) =>
+          //     switch (p1, p2) {
+          //     | (Some(ap), Some(bp)) =>
+          //       if (LabeledTuple.compare(ap, bp) == 0) {
+          //         join'(t1, t2);
+          //       } else {
+          //         None;
+          //       }
+          //     | (None, None) => join'(t1, t2)
+          //     | (_, _) => None
+          //     },
+          //   tys1,
+          //   tys2,
+          // );
+          let+ tys = OptUtil.sequence(tys);
+          Prod(List.combine(tysp, tys));
+        }  //TODO: Fix this
+        : {
+          let* tys = Some(List.init(List.length(tys1), _ => None));
+          let+ tys = OptUtil.sequence(tys);
+          Prod(List.combine(tysp, tys));
+        };
     | (Prod(_), _) => None
     | (Sum(sm1), Sum(sm2)) =>
       let (sorted1, sorted2) =
