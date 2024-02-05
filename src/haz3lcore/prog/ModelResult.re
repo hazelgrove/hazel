@@ -96,7 +96,12 @@ let toggle_stepper =
 
 let get_simple =
   fun
-  | Evaluation({evaluation: ResultOk(pr), _}) =>
+  | Evaluation({evaluation: ResultOk(pr), _})
+  | Evaluation({
+      evaluation: ResultFail(_) | ResultTimeout | ResultPending,
+      previous: ResultOk(pr),
+      _,
+    }) =>
     Some(
       {
         eval_result: pr |> ProgramResult.get_dhexp,
