@@ -124,7 +124,23 @@ let get_args = (): list(string) => {
   );
 };
 
-let process_prelude = (~db=ignore, ~init_ctx, str: string): Ctx.t => {
+let hash_of_string = (str: string): string =>
+  str |> Digest.string |> Digest.to_hex;
+
+let serialize_ctx = (ctx: Ctx.t, filename: string) => {
+  let channel = open_out_bin(filename);
+  Marshal.to_channel(channel, ctx, []);
+  close_out(channel);
+};
+
+let deserialize_ctx = (filename: string): Ctx.t => {
+  let channel = open_in_bin(filename);
+  let ctx: Ctx.t = Marshal.from_channel(channel);
+  close_in(channel);
+  ctx;
+};
+
+let pp_inner = (~db=ignore, ~init_ctx, str: string): Ctx.t => {
   let sym = 666;
   let str = str ++ "\n" ++ string_of_int(sym);
   let ctx_if_sym = (_, info: Info.t, acc) =>
@@ -145,7 +161,24 @@ let process_prelude = (~db=ignore, ~init_ctx, str: string): Ctx.t => {
   switch (get_ctx_thing(info_map)) {
   | Some(ctx) => ctx
   | None =>
-    failwith("LSP: Prelude: EXN: Couldn't find sym:" ++ string_of_int(sym))
+    failwith(
+      "LSP: Prelude: EXN: Couldn't find sym to extract ctx:"
+      ++ string_of_int(sym),
+    )
+  };
+};
+
+let process_prelude = (~db=ignore, ~init_ctx, str: string): Ctx.t => {
+  let hashed_str = hash_of_string(str);
+  let serialized_filename = hashed_str ++ ".ctx.seralized";
+  if (_is_file(serialized_filename)) {
+    db("LSP: Prelude: Found serialized file, deserializing");
+    deserialize_ctx(serialized_filename);
+  } else {
+    db("LSP: Prelude: No serialized file, processing string");
+    let ctx = pp_inner(~db, ~init_ctx, str);
+    serialize_ctx(ctx, serialized_filename);
+    ctx;
   };
 };
 
@@ -1083,6 +1116,7 @@ main(get_args());
 //(above are monkeypatched to be too liberal for now)
 
 //BUG: too general type in interior tuple elems (FIX: maybe actually insert commas at end)
+// e.g. "let _:(Int, String, Float) =1," suggests everything
 
 /* TODO: Restict new tokens and whitespace logic.
    1. (DONE)
