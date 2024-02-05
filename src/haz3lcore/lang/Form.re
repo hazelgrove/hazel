@@ -150,6 +150,8 @@ let is_bool = regexp("^(" ++ String.concat("|", bools) ++ ")$");
 
 let is_var = str =>
   !is_bool(str)
+  && str != "_"
+  //TODO(andrew): de-hackify (this condition inserted as was causing LSP bug)
   //&& !is_keyword(str)
   //&& !is_reserved(str)
   && regexp(
