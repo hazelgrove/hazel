@@ -263,10 +263,15 @@ module Deco =
   };
 
   let color_highlights = (colorings: list((Id.t, string))) => {
-    List.map(
-      ((id, color)) => {
-        term_highlight(~clss=["highlight-code-" ++ color], id)
-      },
+    List.filter_map(
+      ((id, color)) =>
+        /* HACK(andrew): Catching exceptions since when showing
+           term highlights when the backpack is non-empty, the
+           prospective completion may have different term ids
+           than the displayed code. */
+        try(Some(term_highlight(~clss=["highlight-code-" ++ color], id))) {
+        | Not_found => None
+        },
       colorings,
     );
   };
