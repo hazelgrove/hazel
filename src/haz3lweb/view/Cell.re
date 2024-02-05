@@ -66,13 +66,10 @@ let mousedown_handler =
   };
 
 let narrative_cell = (content: Node.t) =>
-  Node.div(
-    ~attr=Attr.class_("cell-container"),
-    [Node.div(~attr=Attr.class_("cell-chapter"), [content])],
-  );
+  Node.div(~attr=Attr.class_("cell-chapter"), [content]);
 
 let simple_cell_item = (content: list(Node.t)) =>
-  Node.div(~attr=Attr.classes(["cell", "cell-item"]), content);
+  Node.div(~attr=Attr.classes(["cell-item"]), content);
 
 let cell_caption = (content: list(Node.t)) =>
   Node.div(~attr=Attr.many([Attr.classes(["cell-caption"])]), content);
@@ -109,15 +106,15 @@ let code_cell_view =
       ? [mousedown_overlay(~inject, ~font_metrics, ~target_id=code_id)] : [];
   let code = mousedown_overlay @ [code];
   Node.div(
-    ~attr=Attr.class_("cell-container"),
+    ~attr=
+      Attr.classes(
+        ["cell-container"] @ (selected ? ["selected"] : ["deselected"]),
+      ),
     [
       Node.div(
         ~attr=
           Attr.many([
-            Attr.classes(
-              ["cell-item", "cell", ...clss]
-              @ (selected ? ["selected"] : ["deselected"]),
-            ),
+            Attr.classes(["cell-item", ...clss]),
             Attr.on_mousedown(
               mousedown_handler(
                 ~inject,
