@@ -1533,7 +1533,7 @@ svg.tile-selected {
   grid-row: 2 / span 1;
   grid-column: 2 / span 1;
   border-left: 0.6px solid #c7b480;
-  overflow-y: visible;
+  overflow-y: scroll;
   overflow-x: hidden;
   width: max-content;
 }
@@ -1613,7 +1613,7 @@ svg.tile-selected {
   border-radius: 2em;
   display: flex;
   align-items: end;
-  justify-content: center;
+  justify-content: right;
   margin-left: auto;
 }
 
