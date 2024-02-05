@@ -7,7 +7,15 @@ let dhexp_eq = (d1: option(DHExp.t), d2: option(DHExp.t)): bool =>
   | _ => false
   };
 
-let dhexp_typ = testable(Fmt.nop, dhexp_eq);
+let dhexp_print = (d: option(DHExp.t)): string =>
+  switch (d) {
+  | None => "None"
+  | Some(d) => DHExp.show(d)
+  };
+
+/*Create a testable type for dhexp which requires
+  an equal function (dhexp_eq) and a print function (dhexp_print) */
+let dhexp_typ = testable(Fmt.using(dhexp_print, Fmt.string), dhexp_eq);
 
 let ids = List.init(12, _ => Id.mk());
 let id_at = x => x |> List.nth(ids);
