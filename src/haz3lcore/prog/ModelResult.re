@@ -17,7 +17,7 @@ type evaluation =
   | ResultPending;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type eval_elab = {
+type eval_result = {
   elab: DHExp.t,
   evaluation,
   previous: evaluation,
@@ -26,7 +26,7 @@ type eval_elab = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | NoElab
-  | Evaluation(eval_elab)
+  | Evaluation(eval_result)
   | Stepper(Stepper.t);
 
 let init_eval = elab =>
@@ -79,6 +79,13 @@ let run_pending = (~settings) =>
   | Evaluation(_) as e => e
   | Stepper(s) =>
     Stepper(Stepper.evaluate_pending(~settings=settings.evaluation, s));
+
+let timeout: t => t =
+  fun
+  | NoElab => NoElab
+  | Evaluation({evaluation, _} as e) =>
+    Evaluation({...e, evaluation: ResultTimeout, previous: evaluation})
+  | Stepper(s) => Stepper(Stepper.timeout(s));
 
 let toggle_stepper =
   fun

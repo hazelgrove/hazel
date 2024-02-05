@@ -208,7 +208,7 @@ let eval_result_footer_view =
       ~font_metrics,
       ~result_key,
       ~settings: Settings.t,
-      result: ModelResult.eval_elab,
+      result: ModelResult.eval_result,
     ) => {
   open Node;
   let show_stepper =
@@ -225,7 +225,8 @@ let eval_result_footer_view =
     switch (result.evaluation) {
     | ResultPending => "pending"
     | ResultOk(_) => "done"
-    | _ => "eval-off"
+    | ResultTimeout => "timeout"
+    | ResultFail(_) => "eval-off"
     };
   let dhcode_view =
     DHCode.view(
@@ -237,6 +238,21 @@ let eval_result_footer_view =
       ~result_key,
       dhexp,
     );
+  let exception_or_stepper =
+    switch (result.evaluation) {
+    | ResultFail(_) =>
+      div(
+        ~attr=Attr.classes(["exception-msg"]),
+        [text("Evaluation off, showing elaboration")],
+      )
+    | ResultTimeout =>
+      div(
+        ~attr=Attr.classes(["exception-msg"]),
+        [text("Evaluation timed out")],
+      )
+    | ResultPending
+    | ResultOk(_) => show_stepper
+    };
   div(
     ~attr=Attr.classes(["cell-item", "cell-result"]),
     [
@@ -248,8 +264,7 @@ let eval_result_footer_view =
         ],
       ),
       div(~attr=Attr.classes(["result", status]), [dhcode_view]),
-      status == "eval-off"
-        ? text("Evaluation disabled. Elaboration follows:") : show_stepper,
+      exception_or_stepper,
     ],
   );
 };

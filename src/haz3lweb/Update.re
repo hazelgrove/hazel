@@ -283,8 +283,12 @@ let evaluate_and_schedule = (~schedule_action, model: Model.t): unit =>
     let eval_rs = ModelResults.to_evaluate(model.results, elabs);
     if (!ModelResults.is_empty(eval_rs)) {
       schedule_action(UpdateResult(eval_rs));
-      WorkerClient.request(eval_rs, rs' =>
-        schedule_action(UpdateResult(rs'))
+      WorkerClient.request(
+        eval_rs,
+        ~handler=rs' => schedule_action(UpdateResult(rs')),
+        ~timeout=
+          rqs =>
+            schedule_action(UpdateResult(ModelResults.timeout_all(rqs))),
       );
     };
     /* Not sending stepper to worker for now bc closure perf */

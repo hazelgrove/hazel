@@ -1826,9 +1826,15 @@ svg.expandable path {
   border-left: 1px solid var(--top_bar_icon_fill);
 }
 
+.cell-item.cell-result:has(.timeout),
 .cell-item.cell-result:has(.exception) {
   background-color: #ffa2a2;
 }
+
+.cell-item.cell-result .exception-msg {
+  padding: 0.25em;
+  color: black;
+};
 
 .cell-result .icon:hover svg {
   animation: wobble 0.6s ease 0s 1 normal forwards;

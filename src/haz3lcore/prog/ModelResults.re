@@ -40,6 +40,8 @@ let lookup = (results: t, key: Key.t) => find_opt(key, results);
 
 let run_pending = (~settings) => M.map(ModelResult.run_pending(~settings));
 
+let timeout_all = map(ModelResult.timeout);
+
 let advance_evaluator_result =
     (results: t, (key: Key.t, elab: DHExp.t))
     : option((Key.t, ModelResult.t)) =>
