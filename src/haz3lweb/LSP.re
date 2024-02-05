@@ -539,7 +539,7 @@ let get_backpack_sugs = (~convex, z: Zipper.t): Suggestion.s =>
     AssistantBackpack.suggest(z),
   );
 
-let suggest_comma = (bidi_ctx_ci: Info.t) =>
+let suggest_comma = (bidi_ctx_ci: Info.t) => {
   //TODO: cleanup
   switch (bidi_ctx_ci) {
   | InfoExp({mode: Syn, _})
@@ -579,14 +579,36 @@ let suggest_comma = (bidi_ctx_ci: Info.t) =>
     | (Prod([t1_ana, ..._]), t_syn) => Typ.is_consistent(ctx, t1_ana, t_syn)
     | _ => false
     }
+  /* What follows is to handle cases like:
+      PAT: "let find: (Bool, Int) -> Int = fun b"
+      EXP: "let a:  =  in let _: (Bool, Int) = a"
+      Which don't suggest commas though they should.
+     These are not handled by above as there is no error.
+     TODO: Find a way to remove error assumption and integrate these cases */
+  | InfoExp({
+      self: Common(Just(Unknown(_))),
+      mode: Ana(Prod(_) | Unknown(_)),
+      _,
+    })
+  | InfoPat({
+      self: Common(Just(Unknown(_))),
+      mode: Ana(Prod(_) | Unknown(_)),
+      _,
+    }) =>
+    //TODO: Find a more general way of expressing this condition
+    true
   | InfoExp(_)
   | InfoPat(_) => false
   | InfoTyp(_) => true
   | InfoTPat(_) => false
   };
+};
 
 let n_ary_sugs = (~settings, ~db as _, bidi_ci): Suggestion.s => {
   let comma_sug = Suggestion.mk(",");
+  print_endline(
+    "LSP666: n-ary sugs: comma?=" ++ string_of_bool(suggest_comma(bidi_ci)),
+  );
   switch (settings.constrain) {
   | Types => suggest_comma(bidi_ci) ? [comma_sug] : []
   | Context
