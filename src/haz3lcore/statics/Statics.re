@@ -277,13 +277,9 @@ and uexp_to_info_map =
     let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
     let (arg, m) = go(~mode=Ana(ty_in), arg, m);
     let self: Self.t =
-      switch (fn.ty) {
-      | Sum(_) => BadSumAp(fn.ty)
-      | _ =>
-        Id.is_nullary_ap_flag(arg.term.ids)
-        && !Typ.is_consistent(ctx, ty_in, Prod([]))
-          ? BadTrivAp(ty_in) : Just(ty_out)
-      };
+      Id.is_nullary_ap_flag(arg.term.ids)
+      && !Typ.is_consistent(ctx, ty_in, Prod([]))
+        ? BadTrivAp(ty_in) : Just(ty_out);
     add(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
   | Fun(p, e) =>
     let (mode_pat, mode_body) = Mode.of_arrow(ctx, mode);
@@ -503,12 +499,7 @@ and upat_to_info_map =
     let (fn, m) = go(~ctx, ~mode=fn_mode, fn, m);
     let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
     let (arg, m) = go(~ctx, ~mode=Ana(ty_in), arg, m);
-    let self: Self.t =
-      switch (fn.ty) {
-      | Sum(_) => BadSumAp(fn.ty)
-      | _ => Just(ty_out)
-      };
-    add(~self, ~ctx=arg.ctx, m);
+    add(~self=Just(ty_out), ~ctx=arg.ctx, m);
   | TypeAnn(p, ann) =>
     let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
     let (p, m) = go(~ctx, ~mode=Ana(ann.ty), p, m);

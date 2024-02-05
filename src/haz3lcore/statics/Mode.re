@@ -96,7 +96,14 @@ let ctr_ana_typ = (ctx: Ctx.t, mode: t, ctr: Constructor.t): option(Typ.t) => {
 
 let of_ctr_in_ap = (ctx: Ctx.t, mode: t, ctr: Constructor.t): option(t) =>
   switch (ctr_ana_typ(ctx, mode, ctr)) {
-  | Some(ty_ana) => Some(Ana(ty_ana))
+  | Some(Arrow(_) as ty_ana) => Some(Ana(ty_ana))
+  | Some(ty_ana) =>
+    /* Consider for example "let _ : +Yo = Yo("lol") in..."
+       Here, the 'Yo' constructor should be in a hole, as it
+       is nullary but used as unary; we reflect this by analyzing
+       against an arrow type. Since we can't guess at what the
+       parameter type might have be, we use Unknown. */
+    Some(Ana(Arrow(Unknown(Internal), ty_ana)))
   | _ => None
   };
 
