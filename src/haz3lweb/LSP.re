@@ -14,6 +14,7 @@ type constrain =
 type arguments = {
   debug: bool,
   constrain,
+  new_token: option(string),
   program: string,
   ctx: Ctx.t,
 };
@@ -74,7 +75,11 @@ type pre_grammar = {
 };
 
 let default_settings = {
-  {debug: false, constrain: Types, program: "", ctx: []};
+  debug: false,
+  constrain: Types,
+  program: "",
+  ctx: [],
+  new_token: None,
 };
 
 let show_settings = (s: arguments): string =>
@@ -140,6 +145,60 @@ let deserialize_ctx = (filename: string): Ctx.t => {
   ctx;
 };
 
+let serialize_zipper = (z: Zipper.t, filename: string) => {
+  let channel = open_out_bin(filename);
+  Marshal.to_channel(channel, z, []);
+  close_out(channel);
+};
+
+let deserialize_zipper = (filename: string): Zipper.t => {
+  let channel = open_in_bin(filename);
+  let z: Zipper.t = Marshal.from_channel(channel);
+  close_in(channel);
+  z;
+};
+
+let serialized_filename_z = program_str =>
+  hash_of_string(program_str) ++ ".zipper.seralized";
+
+let process_zipper = (~db=ignore, program_str: string): Zipper.t => {
+  let serialized_filename = serialized_filename_z(program_str);
+  if (_is_file(serialized_filename)) {
+    db("LSP: Get Zipper: Found serialized zipper, deserializing");
+    deserialize_zipper(serialized_filename);
+  } else {
+    db("LSP: Get Zipper: No serialized zipper, processing string");
+    let z =
+      OptUtil.get_or_fail(
+        "LSP: EXN: Couldn't parse string",
+        Printer.zipper_of_string(program_str),
+      );
+    serialize_zipper(z, serialized_filename);
+    z;
+  };
+};
+
+let get_zipper = (~db, settings) => {
+  let program_str = settings.program;
+  switch (settings.new_token) {
+  | None =>
+    db("LSP: Recieved string: " ++ program_str);
+    let z = process_zipper(~db, program_str);
+    db("LSP: String parsed successfully to zipper");
+    z;
+  | Some(new_token) =>
+    db("LSP: New token mode: " ++ program_str ++ new_token);
+    let base_z = process_zipper(~db, program_str);
+    let new_z =
+      OptUtil.get_or_fail(
+        "LSP: EXN: New token mode: Couldn't paste into zipper",
+        Printer.paste_into_zip(base_z, new_token),
+      );
+    serialize_zipper(new_z, serialized_filename_z(program_str ++ new_token));
+    new_z;
+  };
+};
+
 let pp_inner = (~db=ignore, ~init_ctx, str: string): Ctx.t => {
   let sym = 666;
   let str = str ++ "\n" ++ string_of_int(sym);
@@ -186,6 +245,7 @@ let usage_debug = "[--debug <true|false>]";
 let usage_constrain = "[--constrain <grammar|context|types>]";
 let usage_ctx = "[--ctx <empty|init>]";
 let usage_prelude = "[--prelude <path>]";
+let usage_new_token = "[--new-token <new-token-to-append>]";
 let usage_str =
   String.concat(
     " ",
@@ -228,6 +288,9 @@ let rec parse_args = (args, currentSettings) =>
       parse_args(rest, {...currentSettings, ctx});
     }
   | ["--prelude", ..._] => failwith("LSP: EXN: Usage: " ++ usage_prelude)
+  | ["--new-token", new_token, ...rest] =>
+    parse_args(rest, {...currentSettings, new_token: Some(new_token)})
+  | ["--new-token", ..._] => failwith("LSP: EXN: Usage: " ++ usage_new_token)
   | [arg, ..._] when String.starts_with(~prefix="--", arg) =>
     failwith("LSP: EXN: Unrecognized argument: " ++ arg)
   | [program] => {...currentSettings, program}
@@ -979,14 +1042,8 @@ let mk_new_left_concave =
   |> List.sort_uniq(String.compare);
 };
 
-let dispatch_generation = (~settings: arguments, ~db, s: string): pre_grammar => {
-  db("LSP: Init: Recieved string: " ++ s);
-  let z =
-    OptUtil.get_or_fail(
-      "LSP: Init: EXN: Couldn't parse string",
-      Printer.zipper_of_string(s),
-    );
-  db("LSP: Init: String parsed successfully");
+let dispatch_generation =
+    (~settings: arguments, ~db, z: Zipper.t): pre_grammar => {
   let seg_before = z.relatives.siblings |> fst |> List.rev;
   let seg_after = z.relatives.siblings |> snd;
   if (seg_before == [] && seg_after == []) {
@@ -1091,10 +1148,10 @@ let mk_grammar = (pre_grammar: pre_grammar): string => {
 
 let main = args => {
   let settings = parse_args(args, default_settings);
-  let s = settings.program;
   let db = s => settings.debug ? print_endline(s) : ();
   db(show_settings(settings));
-  let grammar = s |> dispatch_generation(~settings, ~db) |> mk_grammar;
+  let z = get_zipper(~db, settings);
+  let grammar = z |> dispatch_generation(~settings, ~db) |> mk_grammar;
   db("LSP: Grammar:");
   print_endline(grammar);
 };
