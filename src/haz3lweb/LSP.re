@@ -539,76 +539,44 @@ let get_backpack_sugs = (~convex, z: Zipper.t): Suggestion.s =>
     AssistantBackpack.suggest(z),
   );
 
-let suggest_comma = (bidi_ctx_ci: Info.t) => {
-  //TODO: cleanup
+let rec is_strict_prefix_up_to_consistency = (ctx, p_syn, p_ana) =>
+  switch (p_syn, p_ana) {
+  | (_, []) => false
+  | ([], _) => true
+  | ([ty_syn, ...p_syn], [ty_ana, ...p_ana]) =>
+    Typ.is_consistent(ctx, ty_syn, ty_ana)
+    && is_strict_prefix_up_to_consistency(ctx, p_syn, p_ana)
+  };
+let suggest_comma = (bidi_ctx_ci: Info.t) =>
   switch (bidi_ctx_ci) {
-  | InfoExp({mode: Syn, _})
-  | InfoPat({mode: Syn, _}) => true
-  | InfoExp({
-      ctx,
-      status: InHole(Common(Inconsistent(Expectation({ana, syn})))),
-      _,
-    })
-  | InfoPat({
-      ctx,
-      status: InHole(Common(Inconsistent(Expectation({ana, syn})))),
-      _,
-    }) =>
-    switch (ana, syn) {
-    | (Prod(p_ana), Prod(p_syn)) =>
-      // true if syn type p_syn is a prefix of the list expected_type p_ana
-      // or more specifically, each type in p_syn should be consistent with it's
-      // corresponding type in p_ana, up to the length of p_syn
-      print_endline(
-        "LSP: suggest comma case. p_ana is "
-        ++ String.concat(" ", List.map(Typ.show, p_ana)),
-      );
-      print_endline(
-        "LSP: suggest comma case. p_syn is "
-        ++ String.concat(" ", List.map(Typ.show, p_syn)),
-      );
-      let rec is_strict_prefix = (p_syn, p_ana) =>
-        switch (p_syn, p_ana) {
-        | (_, []) => false
-        | ([], _) => true
-        | ([ty_syn, ...p_syn], [ty_ana, ...p_ana]) =>
-          Typ.is_consistent(ctx, ty_syn, ty_ana)
-          && is_strict_prefix(p_syn, p_ana)
-        };
-      is_strict_prefix(p_syn, p_ana);
-    | (Prod([t1_ana, ..._]), t_syn) => Typ.is_consistent(ctx, t1_ana, t_syn)
+  | InfoExp({mode: Syn | Ana(Unknown(_)), _})
+  | InfoPat({mode: Syn | Ana(Unknown(_)), _}) => true
+  | InfoExp({mode: Ana(Prod(p_ana)), self: Common(Just(syn)), ctx, _})
+  | InfoPat({mode: Ana(Prod(p_ana)), self: Common(Just(syn)), ctx, _}) =>
+    /*  For reference: Orginially based on their being an inconsistency error,
+        but updated to deal with cases without errors e.g.:
+        PAT: "let find: (Bool, Int) -> Int = fun b"
+        EXP: "let a:  =  in let _: (Bool, Int) = a"  */
+    print_endline(
+      "LSP: commas: p_ana is prod: "
+      ++ String.concat(" ", List.map(Typ.show, p_ana)),
+    );
+    print_endline("LSP: commas: self syn is " ++ Typ.show(syn));
+    switch (p_ana, syn) {
+    | (_, Unknown(_)) => true // technically redundant?
+    | (_, Prod(p_syn)) =>
+      is_strict_prefix_up_to_consistency(ctx, p_syn, p_ana)
+    | ([t1_ana, ..._], _) => Typ.is_consistent(ctx, t1_ana, syn)
     | _ => false
-    }
-  /* What follows is to handle cases like:
-      PAT: "let find: (Bool, Int) -> Int = fun b"
-      EXP: "let a:  =  in let _: (Bool, Int) = a"
-      Which don't suggest commas though they should.
-     These are not handled by above as there is no error.
-     TODO: Find a way to remove error assumption and integrate these cases */
-  | InfoExp({
-      self: Common(Just(Unknown(_))),
-      mode: Ana(Prod(_) | Unknown(_)),
-      _,
-    })
-  | InfoPat({
-      self: Common(Just(Unknown(_))),
-      mode: Ana(Prod(_) | Unknown(_)),
-      _,
-    }) =>
-    //TODO: Find a more general way of expressing this condition
-    true
-  | InfoExp(_)
-  | InfoPat(_) => false
+    };
+  | InfoExp({mode: SynFun | Ana(_), _})
+  | InfoPat({mode: SynFun | Ana(_), _}) => false
   | InfoTyp(_) => true
   | InfoTPat(_) => false
   };
-};
 
 let n_ary_sugs = (~settings, ~db as _, bidi_ci): Suggestion.s => {
   let comma_sug = Suggestion.mk(",");
-  print_endline(
-    "LSP666: n-ary sugs: comma?=" ++ string_of_bool(suggest_comma(bidi_ci)),
-  );
   switch (settings.constrain) {
   | Types => suggest_comma(bidi_ci) ? [comma_sug] : []
   | Context
