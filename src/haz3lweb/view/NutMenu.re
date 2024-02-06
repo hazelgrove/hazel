@@ -57,7 +57,7 @@ let settings_menu =
     toggle("↵", "Show Whitespace", secondary_icons, SecondaryIcons),
     toggle("✓", "Print Benchmarks", benchmark, Benchmark),
     toggle("𝛿", "Toggle Dynamics", core.dynamics, Dynamics),
-    //toggle("𝑒", "Show Elaboration", core.elaborate, Elaborate),
+    toggle("𝑒", "Show Elaboration", core.elaborate, Elaborate),
     toggle(
       "λ",
       "Show Function Bodies",

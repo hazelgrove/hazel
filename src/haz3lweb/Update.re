@@ -214,7 +214,7 @@ let update_cached_data = (~schedule_action, update, m: Model.t): Model.t => {
     update_statics || update_dynamics && m.settings.core.statics
       ? {...m, statics: Editors.mk_statics(~settings=m.settings, m.editors)}
       : m;
-  if (update_dynamics && m.settings.core.dynamics && !m.settings.core.elaborate) {
+  if (update_dynamics && m.settings.core.dynamics) {
     schedule_evaluation(~schedule_action, m);
     m;
   } else {
