@@ -2,41 +2,6 @@ open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
 
-type t = {
-  exercise: Exercise.state,
-  results: option(ModelResults.t),
-  settings: Settings.t,
-  explainThisModel: ExplainThisModel.t,
-  stitched_dynamics: Exercise.stitched(Exercise.DynamicsItem.t),
-  grading_report: Grading.GradingReport.t,
-};
-
-let mk =
-    (
-      ~exercise: Exercise.state,
-      ~results: option(ModelResults.t),
-      ~settings: Settings.t,
-      ~explainThisModel,
-    )
-    : t => {
-  let Exercise.{eds, _} = exercise;
-  let stitched_dynamics =
-    Util.TimeUtil.measure_time("stitch_dynamics", true, () =>
-      Exercise.stitch_dynamic(settings.core, exercise, results)
-    );
-
-  let grading_report = Grading.GradingReport.mk(eds, ~stitched_dynamics);
-
-  {
-    exercise,
-    results,
-    settings,
-    explainThisModel,
-    stitched_dynamics,
-    grading_report,
-  };
-};
-
 type vis_marked('a) =
   | InstructorOnly(unit => 'a)
   | Always('a);
@@ -53,52 +18,59 @@ let render_cells = (settings: Settings.t, v: list(vis_marked(Node.t))) => {
 };
 
 let view =
-    (~inject, ~font_metrics, ~show_backpack_targets, ~mousedown, self: t) => {
-  let {
-    exercise,
-    results: _,
-    settings,
-    stitched_dynamics,
-    grading_report,
-    explainThisModel,
-  } = self;
-  let Exercise.{pos, eds} = exercise;
-  let Exercise.{
-        test_validation,
-        user_impl,
-        user_tests,
-        prelude,
-        instructor,
-        hidden_bugs,
-        hidden_tests: _,
-      } = stitched_dynamics;
-  let (focal_zipper, focal_info_map) =
-    Exercise.focus(exercise, stitched_dynamics);
-  let score_view = Grading.GradingReport.view_overall_score(grading_report);
-  let color_highlighting: option(ColorSteps.colorMap) =
-    if (explainThisModel.highlight && explainThisModel.show) {
-      //TODO(andrew): is indicated index appropriate below?
-      Some(
-        ExplainThis.get_color_map(
-          ~doc=explainThisModel,
-          None,
-          focal_info_map,
-        ),
-      );
-    } else {
-      None;
-    };
-
-  // partially apply for convenience below
-  let editor_view = pos => {
-    Cell.editor_view(
+    (
       ~inject,
-      ~font_metrics,
-      ~show_backpack_targets,
-      ~mousedown,
-      ~mousedown_updates=[Update.SwitchEditor(pos)],
+      ~ui_state: Model.ui_state,
+      ~settings: Settings.t,
+      ~exercise,
+      ~results,
+      ~highlights,
+    ) => {
+  let Exercise.{eds, pos} = exercise;
+  let stitched_dynamics =
+    Exercise.stitch_dynamic(
+      settings.core,
+      exercise,
+      settings.core.dynamics ? Some(results) : None,
+    );
+  let {
+    test_validation,
+    user_impl,
+    user_tests,
+    prelude,
+    instructor,
+    hidden_bugs,
+    hidden_tests: _,
+  }:
+    Exercise.stitched(Exercise.DynamicsItem.t) = stitched_dynamics;
+
+  let grading_report = Grading.GradingReport.mk(eds, ~stitched_dynamics);
+
+  let score_view = Grading.GradingReport.view_overall_score(grading_report);
+
+  let editor_view =
+      (
+        ~editor: Editor.t,
+        ~caption: string,
+        ~subcaption: option(string)=?,
+        ~footer=?,
+        ~di: Exercise.DynamicsItem.t,
+        this_pos,
+      ) => {
+    Cell.editor_view(
+      ~selected=pos == this_pos,
+      ~error_ids=
+        Statics.Map.error_ids(editor.state.meta.term_ranges, di.info_map),
+      ~inject,
+      ~ui_state,
+      ~mousedown_updates=[SwitchEditor(this_pos)],
       ~settings,
-      ~color_highlighting,
+      ~highlights,
+      ~caption=Cell.caption(caption, ~rest=?subcaption),
+      ~target_id=Exercise.show_pos(this_pos),
+      ~test_results=ModelResult.test_results(di.result),
+      ~footer?,
+      editor,
     );
   };
 
@@ -113,20 +85,10 @@ let view =
     Always(
       editor_view(
         Prelude,
-        ~selected=pos == Prelude,
-        ~caption=
-          Cell.bolded_caption(
-            "Prelude",
-            ~rest=?settings.instructor_mode ? None : Some(" (Read-Only)"),
-          ),
-        ~code_id="prelude",
-        ~info_map=prelude.info_map,
-        ~test_results=
-          TestResults.unwrap_test_results(
-            ModelResult.get_simple(prelude.result),
-          ),
-        ~footer=[],
-        eds.prelude,
+        ~caption="Prelude",
+        ~subcaption=settings.instructor_mode ? "" : " (Read-Only)",
+        ~editor=eds.prelude,
+        ~di=prelude,
       ),
     );
 
@@ -135,16 +97,9 @@ let view =
       () =>
         editor_view(
           CorrectImpl,
-          ~selected=pos == CorrectImpl,
-          ~caption=Cell.bolded_caption("Correct Implementation"),
-          ~code_id="correct-impl",
-          ~info_map=instructor.info_map,
-          ~test_results=
-            TestResults.unwrap_test_results(
-              ModelResult.get_simple(instructor.result),
-            ),
-          ~footer=[],
-          eds.correct_impl,
+          ~caption="Correct Implementation",
+          ~editor=eds.correct_impl,
+          ~di=instructor,
         ),
     );
 
@@ -182,7 +137,7 @@ let view =
         };
         Cell.simple_cell_view([
           Cell.simple_cell_item([
-            Cell.bolded_caption(
+            Cell.caption(
               "Correct Implementation",
               ~rest=" (Type Signatures Only)",
             ),
@@ -196,18 +151,10 @@ let view =
     Always(
       editor_view(
         YourTestsValidation,
-        ~selected=pos == YourTestsValidation,
-        ~caption=
-          Cell.bolded_caption(
-            "Test Validation",
-            ~rest=": Your Tests vs. Correct Implementation",
-          ),
-        ~code_id="your-tests",
-        ~info_map=test_validation.info_map,
-        ~test_results=
-          TestResults.unwrap_test_results(
-            ModelResult.get_simple(test_validation.result),
-          ),
+        ~caption="Test Validation",
+        ~subcaption=": Your Tests vs. Correct Implementation",
+        ~editor=eds.your_tests.tests,
+        ~di=test_validation,
         ~footer=[
           Grading.TestValidationReport.view(
             ~inject,
@@ -215,33 +162,19 @@ let view =
             grading_report.point_distribution.test_validation,
           ),
         ],
-        eds.your_tests.tests,
       ),
     );
 
   let wrong_impl_views =
     List.mapi(
-      (
-        i,
-        (Exercise.{impl, _}, Exercise.DynamicsItem.{info_map, result, _}),
-      ) => {
+      (i, (Exercise.{impl, _}, di)) => {
         InstructorOnly(
           () =>
             editor_view(
               HiddenBugs(i),
-              ~selected=pos == HiddenBugs(i),
-              ~caption=
-                Cell.bolded_caption(
-                  "Wrong Implementation " ++ string_of_int(i + 1),
-                ),
-              ~code_id="wrong-implementation-" ++ string_of_int(i + 1),
-              ~info_map,
-              ~test_results=
-                TestResults.unwrap_test_results(
-                  ModelResult.get_simple(result),
-                ),
-              ~footer=[],
-              impl,
+              ~caption="Wrong Implementation " ++ string_of_int(i + 1),
+              ~editor=impl,
+              ~di,
             ),
         )
       },
@@ -258,32 +191,24 @@ let view =
     );
 
   let your_impl_view = {
-    let simple = ModelResult.get_simple(user_impl.result);
     Always(
       editor_view(
         YourImpl,
-        ~selected=pos == YourImpl,
-        ~caption=Cell.bolded_caption("Your Implementation"),
-        ~code_id="your-impl",
-        ~info_map=user_impl.info_map,
-        ~test_results=TestResults.unwrap_test_results(simple),
+        ~caption="Your Implementation",
+        ~editor=eds.your_impl,
+        ~di=user_impl,
         ~footer=
           Cell.footer(
+            ~locked=false,
             ~settings,
             ~inject,
-            ~font_metrics,
-            ~result_key=Exercise.user_impl_key,
+            ~ui_state,
             ~result=user_impl.result,
+            ~result_key=Exercise.user_impl_key,
           ),
-        eds.your_impl,
       ),
     );
   };
-
-  let testing_results =
-    TestResults.unwrap_test_results(
-      ModelResult.get_simple(user_tests.result),
-    );
 
   let syntax_grading_view =
     Always(Grading.SyntaxReport.view(grading_report.syntax_report));
@@ -292,23 +217,17 @@ let view =
     Always(
       editor_view(
         YourTestsTesting,
-        ~selected=pos == YourTestsTesting,
-        ~caption=
-          Cell.bolded_caption(
-            "Implementation Validation",
-            ~rest=
-              ": Your Tests (code synchronized with Test Validation cell above) vs. Your Implementation",
-          ),
-        ~code_id="your-tests-testing-view",
-        ~info_map=user_tests.info_map,
-        ~test_results=testing_results,
+        ~caption="Implementation Validation",
+        ~subcaption=
+          ": Your Tests (code synchronized with Test Validation cell above) vs. Your Implementation",
+        ~editor=eds.your_tests.tests,
+        ~di=user_tests,
         ~footer=[
           Cell.test_report_footer_view(
             ~inject,
-            ~test_results=testing_results,
+            ~test_results=ModelResult.test_results(user_tests.result),
           ),
         ],
-        eds.your_tests.tests,
       ),
     );
 
@@ -317,16 +236,9 @@ let view =
       () =>
         editor_view(
           HiddenTests,
-          ~selected=pos == HiddenTests,
-          ~caption=Cell.bolded_caption("Hidden Tests"),
-          ~code_id="hidden-tests",
-          ~info_map=instructor.info_map,
-          ~test_results=
-            TestResults.unwrap_test_results(
-              ModelResult.get_simple(instructor.result),
-            ),
-          ~footer=[],
-          eds.hidden_tests.tests,
+          ~caption="Hidden Tests",
+          ~editor=eds.hidden_tests.tests,
+          ~di=instructor,
         ),
     );
 
@@ -340,63 +252,25 @@ let view =
       ),
     );
 
-  let bottom_bar =
-    settings.core.statics
-      ? [
-        CursorInspector.view(
-          ~inject,
-          ~settings,
-          ~show_explain_this=explainThisModel.show,
-          focal_zipper,
-          focal_info_map,
-        ),
-      ]
-      : [];
-  let sidebar =
-    explainThisModel.show && settings.core.statics
-      ? ExplainThis.view(
-          ~inject,
-          ~font_metrics,
-          ~settings,
-          ~doc=explainThisModel,
-          Indicated.ci_of(focal_zipper, focal_info_map),
-        )
-      : div([]);
-  [
-    div(
-      ~attr=
-        Attr.many([
-          Attr.id("main"),
-          Attr.classes([Settings.show_mode(settings.mode)]),
-        ]),
+  [score_view, title_view, prompt_view]
+  @ render_cells(
+      settings,
       [
-        div(
-          ~attr=Attr.classes(["editor", "column"]),
-          [score_view, title_view, prompt_view]
-          @ render_cells(
-              settings,
-              [
-                prelude_view,
-                correct_impl_view,
-                correct_impl_ctx_view,
-                your_tests_view,
-              ]
-              @ wrong_impl_views
-              @ [
-                mutation_testing_view,
-                your_impl_view,
-                syntax_grading_view,
-                impl_validation_view,
-                hidden_tests_view,
-                impl_grading_view,
-              ],
-            ),
-        ),
+        prelude_view,
+        correct_impl_view,
+        correct_impl_ctx_view,
+        your_tests_view,
+      ]
+      @ wrong_impl_views
+      @ [
+        mutation_testing_view,
+        your_impl_view,
+        syntax_grading_view,
+        impl_validation_view,
+        hidden_tests_view,
+        impl_grading_view,
       ],
-    ),
-    sidebar,
-  ]
-  @ bottom_bar;
+    );
 };
 
 let reset_button = inject =>

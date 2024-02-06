@@ -2,7 +2,6 @@ open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type mode =
-  | DebugLoad
   | Scratch
   | Documentation
   | Exercises;
@@ -24,6 +23,7 @@ type t = {
   context_inspector: bool,
   instructor_mode: bool,
   benchmark: bool,
+  explainThis: ExplainThisModel.Settings.t,
   mode,
 };
 
