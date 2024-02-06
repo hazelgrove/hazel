@@ -18,7 +18,7 @@ open Haz3lcore;
 [@deriving (show({with_path: false}), yojson, sexp)]
 type timestamp = float;
 
-/* Non-persistent UI state */
+/* Non-persistent application state */
 [@deriving (show({with_path: false}), yojson, sexp)]
 type ui_state = {
   font_metrics: FontMetrics.t,
@@ -32,38 +32,33 @@ let ui_state_init = {
   mousedown: false,
 };
 
-/* Non-persistent application state */
-[@deriving (show({with_path: false}), yojson, sexp)]
-type meta = {ui_state};
-
-let meta_init = {ui_state: ui_state_init};
-
 type t = {
   editors: Editors.t,
   settings: Settings.t,
   results: ModelResults.t,
+  statics: CachedStatics.t,
   explainThisModel: ExplainThisModel.t,
-  meta,
+  ui_state,
 };
 
 let cutoff = (===);
 
-let mk = (editors, results) => {
+let mk = (editors, results, statics) => {
   editors,
   settings: Init.startup.settings,
   results,
+  statics,
   explainThisModel: ExplainThisModel.init,
-  meta: meta_init,
+  ui_state: ui_state_init,
 };
 
-let blank = mk(Editors.Scratch(0, []), ModelResults.empty);
-let debug = mk(Editors.DebugLoad, ModelResults.empty);
+let blank =
+  mk(Editors.Scratch(0, []), ModelResults.empty, CachedStatics.empty);
 
 let load_editors =
     (~mode: Settings.mode, ~instructor_mode: bool)
     : (Editors.t, ModelResults.t) =>
   switch (mode) {
-  | DebugLoad => (DebugLoad, ModelResults.empty)
   | Scratch =>
     let (idx, slides, results) = Store.Scratch.load();
     (Scratch(idx, slides), results);
@@ -83,34 +78,12 @@ let save_editors =
     (editors: Editors.t, results: ModelResults.t, ~instructor_mode: bool)
     : unit =>
   switch (editors) {
-  | DebugLoad => failwith("no editors in debug load mode")
   | Scratch(n, slides) => Store.Scratch.save((n, slides, results))
   | Documentation(name, slides) =>
     Store.Documentation.save((name, slides, results))
   | Exercises(n, specs, exercise) =>
     Store.Exercise.save((n, specs, exercise), ~instructor_mode)
   };
-
-// let update_elabs = (model: t): t => {
-//   let model = {
-//     ...model,
-//     results:
-//       Util.TimeUtil.measure_time(
-//         "ModelResults.init", model.settings.benchmark, ()
-//         //ModelResults.init performs evaluation on the DHExp value.
-//         =>
-//           ModelResults.update_elabs(
-//             //Editors.get_spliced_elabs generates the DHExp.t of the editor.
-//             Editors.get_spliced_elabs(
-//               ~settings=model.settings,
-//               model.editors,
-//             ),
-//             model.results,
-//           )
-//         ),
-//   };
-//   model;
-// };
 
 let load = (init_model: t): t => {
   let settings = Store.Settings.load();
@@ -120,8 +93,9 @@ let load = (init_model: t): t => {
       ~mode=settings.mode,
       ~instructor_mode=settings.instructor_mode,
     );
-  let meta = init_model.meta;
-  {editors, settings, results, explainThisModel, meta};
+  let ui_state = init_model.ui_state;
+  let statics = Editors.mk_statics(~settings, editors);
+  {editors, settings, results, statics, explainThisModel, ui_state};
 };
 
 let save = ({editors, settings, explainThisModel, results, _}: t) => {
@@ -146,11 +120,9 @@ let reset = (model: t): t => {
   let new_model = load(blank);
   {
     ...new_model,
-    meta: {
-      ui_state: {
-        ...model.meta.ui_state,
-        font_metrics: model.meta.ui_state.font_metrics,
-      },
+    ui_state: {
+      ...model.ui_state,
+      font_metrics: model.ui_state.font_metrics,
     },
   };
 };

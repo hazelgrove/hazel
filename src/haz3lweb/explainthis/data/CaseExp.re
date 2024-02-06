@@ -15,12 +15,12 @@ let case_example_wild_tuple = {
 let case_example_int = {
   sub_id: CaseInt,
   term: mk_example("case 1 \n| 1 => 1.1 \n| 2 => 2.2 \n| _ => 3.3 \nend"),
-  message: "The scrutinee of the case expression is 1. Since the scrutinee matches the first pattern 1, the first branch is taken. The whole expression evaluates to the first clause 1.1.",
+  message: "The scrutinee of the case expression is 1. Since the scrutinee matches the first pattern, the first branch is taken, and the case evaluates to the first clause.",
 };
 let case_example_bool = {
   sub_id: CaseBool,
   term: mk_example("case false \n| true => 1 \n| false => 2 \nend"),
-  message: "The scrutinee of the case expression is false. The scrutinee does not match the first pattern true. Since, scrutinee does match the second pattern false, the second branch is taken. The whole expression evaluates to the second clause 2.",
+  message: "The scrutinee of the case expression is false. The scrutinee does not match the first pattern but does match the second pattern, so the second branch is taken.",
 };
 // TODO - I don't think changing specificity on the number of cases is really the most
 // beneficial specificity change - I think instead have generic at top level
