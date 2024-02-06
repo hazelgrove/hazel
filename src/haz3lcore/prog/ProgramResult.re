@@ -12,22 +12,16 @@ type inner = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type off =
-  | StaticsOff
-  | ElaborationOff
-  | DynamicsOff(DHExp.t);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type program_eval_error =
+type error =
   | Timeout
   | EvaulatorError(EvaluatorError.t)
   | UnknownException(string);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
-  | Off(off)
+  | Off(DHExp.t) //elab
   | ResultOk(inner)
-  | ResultFail(program_eval_error)
+  | ResultFail(error)
   | ResultPending;
 
 let get_dhexp = (r: inner) => EvaluatorResult.unbox(r.result);

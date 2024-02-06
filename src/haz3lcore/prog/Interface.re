@@ -54,9 +54,7 @@ let evaluate =
     (~settings: CoreSettings.t, ~env=Builtins.env_init, elab: DHExp.t)
     : ProgramResult.t =>
   switch () {
-  | _ when !settings.statics => Off(StaticsOff)
-  | _ when !settings.dynamics && settings.elaborate => Off(DynamicsOff(elab))
-  | _ when !settings.dynamics && !settings.elaborate => Off(ElaborationOff)
+  | _ when !settings.dynamics => Off(elab)
   | _ =>
     switch (Evaluator.evaluate(env, elab)) {
     | exception (EvaluatorError.Exception(reason)) =>

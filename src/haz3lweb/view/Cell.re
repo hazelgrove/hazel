@@ -152,6 +152,20 @@ let deco =
   };
 };
 
+let error_msg = (err: ProgramResult.error) =>
+  switch (err) {
+  | EvaulatorError(err) => EvaluatorError.show(err)
+  | UnknownException(str) => str
+  | Timeout => "Evaluation timed out"
+  };
+
+let status_of: ProgramResult.t => string =
+  fun
+  | ResultPending => "pending"
+  | ResultOk(_) => "ok"
+  | ResultFail(_) => "fail"
+  | Off(_) => "off";
+
 let live_eval =
     (
       ~inject,
@@ -179,47 +193,31 @@ let live_eval =
       ~result_key,
       dhexp,
     );
-  let status =
+  let exn_view =
     switch (result.evaluation) {
-    | ResultPending => "pending"
-    | ResultOk(_) => "ok"
-    | ResultFail(_) => "fail"
-    | Off(_) => "off"
-    };
-  let exception_or_stepper =
-    switch (result.evaluation) {
-    | _ when locked => div([])
-    | Off(StaticsOff | ElaborationOff | DynamicsOff(_)) => div([])
-    | ResultFail(EvaulatorError(err)) =>
-      div(
-        ~attr=Attr.classes(["exception-msg"]),
-        [text(EvaluatorError.show(err))],
-      )
-    | ResultFail(UnknownException(str)) =>
-      div(~attr=Attr.classes(["exception-msg"]), [text(str)])
-    | ResultFail(Timeout) =>
-      div(
-        ~attr=Attr.classes(["exception-msg"]),
-        [text("Evaluation timed out")],
-      )
-    | ResultPending
-    | ResultOk(_) =>
-      Widgets.toggle(~tooltip="Show Stepper", "s", false, _ =>
-        inject(UpdateAction.ToggleStepper(result_key))
-      )
+    | ResultFail(err) => [
+        div(~attr=Attr.classes(["error-msg"]), [text(error_msg(err))]),
+      ]
+    | _ => []
     };
   div(
     ~attr=Attr.classes(["cell-item", "cell-result"]),
-    [
+    exn_view
+    @ [
       div(
-        ~attr=Attr.classes(["status", status]),
+        ~attr=Attr.classes(["status", status_of(result.evaluation)]),
         [
           div(~attr=Attr.classes(["spinner"]), []),
           div(~attr=Attr.classes(["eq"]), [text("≡")]),
         ],
       ),
-      div(~attr=Attr.classes(["result", status]), [dhcode_view]),
-      exception_or_stepper,
+      div(
+        ~attr=Attr.classes(["result", status_of(result.evaluation)]),
+        [dhcode_view],
+      ),
+      Widgets.toggle(~tooltip="Show Stepper", "s", false, _ =>
+        inject(UpdateAction.ToggleStepper(result_key))
+      ),
     ],
   );
 };
@@ -234,7 +232,7 @@ let footer =
       ~result_key,
     ) =>
   switch (result) {
-  | _ when !settings.core.statics => []
+  | _ when !settings.core.dynamics => []
   | NoElab => []
   | Evaluation(result) => [
       live_eval(~locked, ~inject, ~ui_state, ~settings, ~result_key, result),
