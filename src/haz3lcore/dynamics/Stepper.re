@@ -462,6 +462,12 @@ type persistent = {
   current,
 };
 
+let (sexp_of_persistent, persistent_of_sexp) =
+  StructureShareSexp.structure_share_in(
+    sexp_of_persistent,
+    persistent_of_sexp,
+  );
+
 // Remove EvalObj.t objects from stepper to prevent problems when loading
 let to_persistent: t => persistent =
   fun
