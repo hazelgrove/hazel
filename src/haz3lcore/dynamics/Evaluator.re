@@ -112,9 +112,9 @@ let evaluate = (env, d): (EvaluatorState.t, EvaluatorResult.t) => {
   let result = evaluate(state, env, d);
   let result =
     switch (result) {
-    | BoxedValue(x) => BoxedValue(x)
-    | Indet(x) => Indet(x)
-    | Uneval(x) => Indet(x)
+    | BoxedValue(x) => BoxedValue(x |> DHExp.repair_ids)
+    | Indet(x) => Indet(x |> DHExp.repair_ids)
+    | Uneval(x) => Indet(x |> DHExp.repair_ids)
     };
   (state^, result);
 };

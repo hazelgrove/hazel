@@ -224,6 +224,7 @@ let rec evaluate_pending = (~settings, s: t) => {
       | None => raise(Exception)
       };
     let d' = compose(eo.ctx, d_loc');
+    let d' = DHExp.repair_ids(d');
     let new_step = {
       d,
       d_loc: eo.d_loc,
@@ -331,24 +332,17 @@ type step_info = {
 let get_history = (~settings, stepper) => {
   let should_skip_step = step =>
     step |> should_hide_step(~settings) |> fst == Eval;
-  let _ = print_int(List.length(fst(stepper.history)));
   let grouped_steps =
     stepper.history
     |> Aba.fold_right(
-         ((d, _), step, result) => {
-           print_string("e");
-           print_int(result |> fst |> List.length);
-           print_int(result |> snd |> List.length);
+         ((d, _), step, result) =>
            if (should_skip_step(step)) {
              Aba.map_hd(((_, hs)) => (d, [step, ...hs]), result);
            } else {
              Aba.cons((d, []), step, result);
-           };
-         },
+           },
          ((d, _)) => Aba.singleton((d, [])),
        );
-  let _ = print_int(List.length(fst(grouped_steps)));
-  let _ = print_int(List.length(snd(grouped_steps)));
   let replace_id = (x, y, (s, z)) => (s, x == z ? y : z);
   let track_ids =
       (
@@ -374,10 +368,7 @@ let get_history = (~settings, stepper) => {
     {d, previous_step, hidden_steps, chosen_step};
   };
   let padded = grouped_steps |> Aba.bab_triples;
-  let _ = print_int(List.length(padded));
   let result = padded |> List.map(track_ids);
-  let _ = print_int(List.length(result));
-  print_endline("");
   result;
   //grouped_steps |> Aba.bab_triples |> List.map(track_ids);
 };
