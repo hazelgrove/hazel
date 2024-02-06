@@ -267,6 +267,7 @@ and UExp: {
          Filter()
          ApBuiltin(string, t) // These two are different to `var` to allow shadowing of builtins
          BuiltinFun(string)
+         FixF()
        */
     | Invalid(string) // TODO: Reconcile the invalids
     | EmptyHole // DONE

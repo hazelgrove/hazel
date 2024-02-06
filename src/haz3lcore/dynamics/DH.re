@@ -15,22 +15,22 @@ module rec DHExp: {
         Parens
        */
     // TODO: Work out how to reconcile the invalids
-    | EmptyHole(MetaVar.t, HoleInstanceId.t)
-    | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t)
-    | ExpandingKeyword(MetaVar.t, HoleInstanceId.t, ExpandingKeyword.t)
-    | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t)
-    | InvalidText(MetaVar.t, HoleInstanceId.t, string)
-    | InvalidOperation(t, InvalidOperationError.t)
+    | EmptyHole(MetaVar.t, HoleInstanceId.t) // TODO: Remove metavar/Holeinstanceid, for now?
+    | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t) // TODO: Remove, use infomap
+    | ExpandingKeyword(MetaVar.t, HoleInstanceId.t, ExpandingKeyword.t) // TODO: Remove, use infomap
+    | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t) // TODO: Remove, use infomap
+    | InvalidText(MetaVar.t, HoleInstanceId.t, string) // DONE [ALREADY]
+    | InvalidOperation(t, InvalidOperationError.t) // Warning will robinson
     | FailedCast(t, Typ.t, Typ.t)
     | Closure([@show.opaque] ClosureEnvironment.t, t) // > UEXP
     | Filter(DHFilter.t, t) // DONE [UEXP TO BE CHANGED]
     | Var(Var.t) // DONE [ALREADY]
     | Seq(t, t) // DONE [ALREADY]
     | Let(DHPat.t, t, t) // DONE [ALREADY]
-    | FixF(Var.t, Typ.t, t) // TODO: ! REMOVE, LEAVE AS LETS?
-    | Fun(DHPat.t, Typ.t, t, option(ClosureEnvironment.t), option(Var.t)) // TODO: Move type into pattern?; name > UEXP
+    | FixF(Var.t, Typ.t, t) // TODO: surface fix
+    | Fun(DHPat.t, Typ.t, t, option(ClosureEnvironment.t), option(Var.t)) // TODO: Use infomap for Typ.t
     | Ap(t, t) // TODO: Add reverse application
-    | ApBuiltin(string, t) // DONE [TO ADD TO UEXP]
+    | ApBuiltin(string, t) // DONE [TO ADD TO UEXP] TODO: Add a loooong comment here
     | BuiltinFun(string) // DONE [TO ADD TO UEXP]
     | Test(KeywordID.t, t) // TODO: ! ID
     | Bool(bool) // DONE
@@ -38,16 +38,16 @@ module rec DHExp: {
     | Float(float) // DONE
     | String(string) // DONE
     | BinOp(TermBase.UExp.op_bin, t, t) // DONE
-    | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t)) // TODO: afaict the first three arguments here are never used?
+    | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t)) // TODO: afaict the first three arguments here are never used? 3rd one might be infomap
     | Cons(t, t) // DONE [ALREADY]
     | ListConcat(t, t) // DONE [ALREADY]
     | Tuple(list(t)) // DONE [ALREADY]
-    | Prj(t, int) // TODO: ! REMOVE, LEAVE AS LETS?
+    | Prj(t, int) // TODO: Add to uexp
     | Constructor(string) // DONE [ALREADY]
     | Match(consistency, t, list((DHPat.t, t)))
     | Cast(t, Typ.t, Typ.t) // TODO: Add to uexp or remove
     | If(consistency, t, t, t)
-  and t; // TODO: CONSISTENCY? use bool tag to track if branches are consistent
+  and t; // TODO: CONSISTENCY? from statics
 
   let rep_id: t => Id.t;
   let term_of: t => term;
