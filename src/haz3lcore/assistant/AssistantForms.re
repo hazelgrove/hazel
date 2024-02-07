@@ -32,7 +32,7 @@ module Typ = {
   ];
 
   let of_infix_delim: list((Token.t, Typ.t)) = [
-    //("|>", unk), /* */
+    ("|>", unk), /* */
     (",", Prod([unk, unk])), /* NOTE: Current approach doesn't work for this, but irrelevant as 1-char */
     ("::", List(unk)),
     ("@", List(unk)),
