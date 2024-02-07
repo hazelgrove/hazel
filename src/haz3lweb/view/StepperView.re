@@ -63,8 +63,19 @@ let stepper_view =
       ],
     );
   let coq_button =
-    Widgets.button(Icons.star, _ =>
-      inject(StepperAction(result_key, CoqExport))
+    Widgets.button(
+      Icons.star,
+      _ => {
+        // Call the stepper export method
+        let coq_data = CoqExport.exportCoq(stepper.previous);
+        // Output to a file
+        JsUtil.download_string_file(
+          ~filename="stepper-coq-export.v",
+          ~content_type="text/plain",
+          ~contents=coq_data,
+        );
+        Virtual_dom.Vdom.Effect.Ignore;
+      },
     );
   let hide_stepper =
     Widgets.toggle(~tooltip="Show Stepper", "s", true, _ =>
