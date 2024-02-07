@@ -1837,8 +1837,6 @@ svg.expandable path {
 }
 
 .DHCode .InVarHole {
-  /* border: 1px dotted var(--err-color);
-  border-radius: 0.2em; */
   color: var(--err-color);
 }
 
