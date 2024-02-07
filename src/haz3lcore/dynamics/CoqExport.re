@@ -101,7 +101,7 @@ let single_step_export = (ind, step) => {
 // Takes a list of steps and generates the Coq proof of equivalence between the first and last steps
 let exportCoq = steps =>
   if (List.length(steps) == 0) {
-    print_endline("Not exporting proof with no steps");
+    "Not exporting proof with no steps";
   } else {
     let lemmasAndInvocations =
       List.mapi(
@@ -118,12 +118,12 @@ let exportCoq = steps =>
     let (lemmas, invocations) = List.split(lemmasAndInvocations);
     let finalExpr = string_of_d(List.hd(steps).d_loc');
     let firstExpr = string_of_d(List.nth(steps, List.length(steps) - 1).d);
-    Printf.printf(
+    // Return a string that is the Coq proof but don't print to console
+    Printf.sprintf(
       "Require Import Nat.\nRequire Export Plus.\nRequire Export Mult.\n%s\nTheorem equiv_exp:%s=%s.\nProof.\nintros.\n%s\nreflexivity. Qed.",
       String.concat("\n", lemmas),
       finalExpr,
       firstExpr,
       String.concat("\n", invocations),
     );
-    ();
   };
