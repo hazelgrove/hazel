@@ -528,7 +528,9 @@ let rec apply =
       switch (result) {
       | NoElab
       | Evaluation(_) => ()
-      | Stepper(stepper) => CoqExport.exportCoq(stepper.previous)
+      // TODO(jiawei): make this unit type or decide to keep print_endline
+      | Stepper(stepper) =>
+        CoqExport.exportCoq(stepper.previous) |> print_endline
       };
       Ok(model);
     | ToggleStepper(key) =>
