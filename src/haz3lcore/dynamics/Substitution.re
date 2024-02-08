@@ -95,7 +95,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
         rules,
       );
     Match(c, ds, rules) |> rewrap;
-  | EmptyHole(u, i) => EmptyHole(u, i) |> rewrap
+  | EmptyHole => EmptyHole |> rewrap
   | NonEmptyHole(reason, u, i, d3) =>
     let d3' = subst_var(d1, x, d3);
     NonEmptyHole(reason, u, i, d3') |> rewrap;

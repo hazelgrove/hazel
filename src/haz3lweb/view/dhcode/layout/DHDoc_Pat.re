@@ -34,7 +34,7 @@ let rec mk =
   );
   let doc =
     switch (dp) {
-    | EmptyHole(u, i) => DHDoc_common.mk_EmptyHole((u, i))
+    | EmptyHole(_, _) => DHDoc_common.mk_EmptyHole(ClosureEnvironment.empty)
     | NonEmptyHole(reason, u, i, dp) =>
       mk'(dp) |> Doc.annot(DHAnnot.NonEmptyHole(reason, (u, i)))
     | ExpandingKeyword(u, i, k) =>

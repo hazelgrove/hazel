@@ -57,46 +57,6 @@ let elaborate_editor =
 };
 
 exception EvalError(EvaluatorError.t);
-exception PostprocessError(EvaluatorPost.error);
-
-// let postprocess = (es: EvaluatorState.t, d: DHExp.t) => {
-//   let ((d, hii), es) =
-//     es
-//     |> EvaluatorState.with_eig(eig => {
-//          let ((hii, d), eig) =
-//            switch (EvaluatorPost.postprocess(d, eig)) {
-//            | d => d
-//            | exception (EvaluatorPost.Exception(reason)) =>
-//              raise(PostprocessError(reason))
-//            };
-//          ((d, hii), eig);
-//        });
-//   let (tests, es) =
-//     es
-//     |> EvaluatorState.with_eig(eig => {
-//          let (eig, tests) =
-//            EvaluatorState.get_tests(es)
-//            |> List.fold_left_map(
-//                 (eig, (k, instance_reports)) => {
-//                   let (eig, instance_reports) =
-//                     instance_reports
-//                     |> List.fold_left_map(
-//                          (eig, (d, status)) =>
-//                            switch (EvaluatorPost.postprocess(d, eig)) {
-//                            | ((_, d), eig) => (eig, (d, status))
-//                            | exception (EvaluatorPost.Exception(reason)) =>
-//                              raise(PostprocessError(reason))
-//                            },
-//                          eig,
-//                        );
-//                   (eig, (k, instance_reports));
-//                 },
-//                 eig,
-//               );
-//          (tests, eig);
-//        });
-//   ((d, hii), EvaluatorState.put_tests(tests, es));
-// };
 
 let evaluate =
     (~settings: CoreSettings.t, ~env=Builtins.env_init, d: DHExp.t)
@@ -118,12 +78,9 @@ let evaluate =
       | exn => err_wrap("System exception: " ++ Printexc.to_string(exn))
       }
     };
-  // TODO(cyrus): disabling post-processing for now, it has bad performance characteristics when you have deeply nested indet cases (and probably other situations) and we aren't using it in the UI for anything
   switch (result) {
   | (es, BoxedValue(_) as r)
-  | (es, Indet(_) as r) =>
-    // let ((d, hii), es) = postprocess(es, d);
-    (r, es)
+  | (es, Indet(_) as r) => (r, es)
   };
 };
 

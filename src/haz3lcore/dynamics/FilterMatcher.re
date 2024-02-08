@@ -33,7 +33,7 @@ let rec matches_exp =
     | Expr => false
     }
 
-  | (_, EmptyHole(_))
+  | (_, EmptyHole)
   | (_, Constructor("$e")) => true
 
   | (_, Closure(env, f)) => matches_exp(env, d, f)
@@ -59,7 +59,7 @@ let rec matches_exp =
     | None => false
     }
 
-  | (EmptyHole(_), _) => false
+  | (EmptyHole, _) => false
 
   | (Filter(df, dd), Filter(ff, fd)) =>
     DH.DHFilter.fast_equal(df, ff) && matches_exp(env, dd, fd)
