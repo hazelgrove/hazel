@@ -57,7 +57,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | String(_)
   | ListLit(_)
   | Prj(_)
-  | EmptyHole(_)
+  | EmptyHole
   | Constructor(_)
   | FailedCast(_)
   | InvalidOperation(_)
@@ -102,7 +102,7 @@ let mk =
     (
       ~settings: CoreSettings.Evaluation.t,
       ~enforce_inline: bool,
-      ~selected_hole_instance: option(HoleInstance.t),
+      ~selected_hole_instance: option(Id.t),
       // The next four are used when drawing the stepper to track where we can annotate changes
       ~previous_step: option((step, Id.t)), // The step that will be displayed above this one (an Id in included because it may have changed since the step was taken)
       ~hidden_steps: list((step, Id.t)), // The hidden steps between the above and the current one (an Id in included because it may have changed since the step was taken)
@@ -266,13 +266,11 @@ let mk =
 
       /* Hole expressions must appear within a closure in
          the postprocessed result */
-      | EmptyHole(u, i) =>
-        let selected =
-          switch (selected_hole_instance) {
-          | None => false
-          | Some((u', i')) => u == u' && i == i'
-          };
-        DHDoc_common.mk_EmptyHole(~selected, (u, i));
+      | EmptyHole =>
+        DHDoc_common.mk_EmptyHole(
+          ~selected=Some(DHExp.rep_id(d)) == selected_hole_instance,
+          env,
+        )
       | NonEmptyHole(reason, u, i, d') =>
         go'(d') |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
       | ExpandingKeyword(u, i, k) =>

@@ -86,7 +86,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | InvalidText(_)
     | FreeVar(_)
     | ExpandingKeyword(_)
-    | EmptyHole(_)
+    | EmptyHole
     | NonEmptyHole(_) => d
     /* DHExp-specific forms: Don't cast */
     | Cast(_)
@@ -136,12 +136,12 @@ let rec dhexp_of_uexp =
     let+ d: DHExp.t =
       switch (uexp.term) {
       | Invalid(t) => Some(DHExp.InvalidText(id, 0, t) |> rewrap)
-      | EmptyHole => Some(DHExp.EmptyHole(id, 0) |> rewrap)
+      | EmptyHole => Some(DHExp.EmptyHole |> rewrap)
       | MultiHole(_tms) =>
         /* TODO: add a dhexp case and eval logic for multiholes.
            Make sure new dhexp form is properly considered Indet
            to avoid casting issues. */
-        Some(EmptyHole(id, 0) |> rewrap)
+        Some(EmptyHole |> rewrap)
       | Triv => Some(Tuple([]) |> rewrap)
       | Bool(b) => Some(Bool(b) |> rewrap)
       | Int(n) => Some(Int(n) |> rewrap)
@@ -172,7 +172,7 @@ let rec dhexp_of_uexp =
         switch (e.term) {
         | Var("e") when in_filter => Some(Constructor("$e") |> DHExp.fresh)
         | Var("v") when in_filter => Some(Constructor("$v") |> DHExp.fresh)
-        | _ => Some(DHExp.EmptyHole(id, 0) |> rewrap)
+        | _ => Some(DHExp.EmptyHole |> rewrap)
         }
       | UnOp(Int(Minus), e) =>
         let+ dc = dhexp_of_uexp(m, e);

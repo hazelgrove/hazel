@@ -15,13 +15,13 @@ module rec DHExp: {
         Parens
        */
     // TODO: Work out how to reconcile the invalids
-    | EmptyHole(MetaVar.t, HoleInstanceId.t) // TODO: Remove metavar/Holeinstanceid, for now?
+    | EmptyHole
     | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t) // TODO: Remove, use infomap
     | ExpandingKeyword(MetaVar.t, HoleInstanceId.t, ExpandingKeyword.t) // TODO: Remove, use infomap
     | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t) // TODO: Remove, use infomap
     | InvalidText(MetaVar.t, HoleInstanceId.t, string) // DONE [ALREADY]
     | InvalidOperation(t, InvalidOperationError.t) // Warning will robinson
-    | FailedCast(t, Typ.t, Typ.t)
+    | FailedCast(t, Typ.t, Typ.t) // TODO: Add to TermBase
     | Closure([@show.opaque] ClosureEnvironment.t, t) // > UEXP
     | Filter(DHFilter.t, t) // DONE [UEXP TO BE CHANGED]
     | Var(Var.t) // DONE [ALREADY]
@@ -71,7 +71,7 @@ module rec DHExp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
     /* Hole types */
-    | EmptyHole(MetaVar.t, HoleInstanceId.t)
+    | EmptyHole
     | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t)
     | ExpandingKeyword(MetaVar.t, HoleInstanceId.t, ExpandingKeyword.t)
     | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t)
@@ -136,7 +136,7 @@ module rec DHExp: {
 
   let constructor_string = ({term: d, _}: t): string =>
     switch (d) {
-    | EmptyHole(_, _) => "EmptyHole"
+    | EmptyHole => "EmptyHole"
     | NonEmptyHole(_, _, _, _) => "NonEmptyHole"
     | ExpandingKeyword(_, _, _) => "ExpandingKeyword"
     | FreeVar(_, _, _) => "FreeVar"
@@ -193,7 +193,7 @@ module rec DHExp: {
     };
     (
       switch (term) {
-      | EmptyHole(_)
+      | EmptyHole
       | ExpandingKeyword(_)
       | FreeVar(_)
       | InvalidText(_)
@@ -272,7 +272,7 @@ module rec DHExp: {
         List.map(((k, v)) => (k, strip_casts(v)), rules),
       )
       |> rewrap
-    | EmptyHole(_) as d
+    | EmptyHole as d
     | ExpandingKeyword(_) as d
     | FreeVar(_) as d
     | InvalidText(_) as d
@@ -384,7 +384,7 @@ module rec DHExp: {
        environment ID's are equal, don't check structural equality.
 
        (This resolves a performance issue with many nested holes.) */
-    | (EmptyHole(u1, i1), EmptyHole(u2, i2)) => u1 == u2 && i1 == i2
+    | (EmptyHole, EmptyHole) => true
     | (NonEmptyHole(reason1, u1, i1, d1), NonEmptyHole(reason2, u2, i2, d2)) =>
       reason1 == reason2 && u1 == u2 && i1 == i2 && fast_equal(d1, d2)
     | (ExpandingKeyword(u1, i1, kw1), ExpandingKeyword(u2, i2, kw2)) =>
@@ -395,7 +395,7 @@ module rec DHExp: {
       u1 == u2 && i1 == i2 && text1 == text2
     | (Closure(sigma1, d1), Closure(sigma2, d2)) =>
       ClosureEnvironment.id_equal(sigma1, sigma2) && fast_equal(d1, d2)
-    | (EmptyHole(_), _)
+    | (EmptyHole, _)
     | (NonEmptyHole(_), _)
     | (ExpandingKeyword(_), _)
     | (FreeVar(_), _)

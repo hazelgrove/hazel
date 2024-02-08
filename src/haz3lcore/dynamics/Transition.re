@@ -598,7 +598,7 @@ module Transition = (EV: EV_MODE) => {
           d1,
         );
       Indet;
-    | EmptyHole(_)
+    | EmptyHole
     | FreeVar(_)
     | InvalidText(_)
     | InvalidOperation(_)

@@ -45,7 +45,7 @@ module Delim = {
   let mk = (delim_text: string): t =>
     Doc.text(delim_text) |> Doc.annot(DHAnnot.Delim);
 
-  let empty_hole = ((_u, _i): HoleInstance.t): t => {
+  let empty_hole = (_env: ClosureEnvironment.t): t => {
     let lbl =
       //StringUtil.cat([string_of_int(u + 1), ":", string_of_int(i + 1)]);
       "?";
@@ -88,8 +88,8 @@ module Delim = {
   let close_FailedCast = close_Cast |> Doc.annot(DHAnnot.FailedCastDelim);
 };
 
-let mk_EmptyHole = (~selected=false, hc: HoleInstance.t) =>
-  Delim.empty_hole(hc) |> Doc.annot(DHAnnot.EmptyHole(selected, hc));
+let mk_EmptyHole = (~selected=false, env: ClosureEnvironment.t) =>
+  Delim.empty_hole(env) |> Doc.annot(DHAnnot.EmptyHole(selected, env));
 
 let mk_ExpandingKeyword = (hc, k) =>
   Doc.text(ExpandingKeyword.to_string(k))

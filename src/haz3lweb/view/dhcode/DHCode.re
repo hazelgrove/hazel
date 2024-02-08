@@ -136,7 +136,7 @@ let view =
     (
       ~inject,
       ~settings: CoreSettings.Evaluation.t,
-      ~selected_hole_instance: option(HoleInstance.t),
+      ~selected_hole_instance: option(Id.t),
       ~font_metrics: FontMetrics.t,
       ~width: int,
       ~pos=0,
