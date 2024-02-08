@@ -141,6 +141,7 @@ let mk =
         | (VarLookup, _)
         | (Sequence, _)
         | (FunClosure, _)
+        | (FixClosure, _)
         | (UpdateTest, _)
         | (CastAp, _)
         | (BuiltinWrap, _)

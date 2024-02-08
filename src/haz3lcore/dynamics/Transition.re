@@ -52,6 +52,7 @@ type step_kind =
   | LetBind
   | FunClosure
   | FixUnwrap
+  | FixClosure
   | UpdateTest
   | FunAp
   | CastAp
@@ -222,15 +223,15 @@ module Transition = (EV: EV_MODE) => {
         kind: FunClosure,
         value: true,
       });
+    | FixF(f, _, Closure(env, d1)) =>
+      let. _ = otherwise(env, d);
+      let env' = evaluate_extend_env(Environment.singleton((f, d)), env);
+      Step({apply: () => Closure(env', d1), kind: FixUnwrap, value: false});
     | FixF(f, t, d1) =>
       let. _ = otherwise(env, FixF(f, t, d1));
       Step({
-        apply: () =>
-          Closure(
-            evaluate_extend_env(Environment.singleton((f, d1)), env),
-            d1,
-          ),
-        kind: FixUnwrap,
+        apply: () => FixF(f, t, Closure(env, d1)),
+        kind: FixClosure,
         value: false,
       });
     | Test(id, d) =>
@@ -668,6 +669,7 @@ let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
   | CaseNext
   | CompleteClosure
   | CompleteFilter
+  | FixClosure
   | FixUnwrap
   | BuiltinWrap
   | FunClosure => true;

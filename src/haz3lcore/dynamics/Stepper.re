@@ -419,8 +419,9 @@ let get_justification: step_kind => string =
   | VarLookup => "variable lookup"
   | CastAp
   | Cast => "cast calculus"
-  | CompleteFilter => "unidentified step"
-  | CompleteClosure => "unidentified step"
+  | FixClosure
+  | CompleteFilter
+  | CompleteClosure
   | FunClosure => "unidentified step"
   | Skip => "skipped steps";
 
