@@ -33,7 +33,7 @@ let rec matches =
           idx: int,
         )
         : (FilterAction.t, int, EvalCtx.t) => {
-  let composed = compose(ctx, exp);
+  let composed = EvalCtx.compose(ctx, exp);
   let (pact, pidx) = (act, idx);
   let (mact, midx) = FilterMatcher.matches(~env, ~exp=composed, ~act, flt);
   let (act, idx) =
@@ -219,12 +219,14 @@ let rec evaluate_pending = (~settings, s: t) => {
     let (d, state) = Aba.hd(s.history);
     let state_ref = ref(state);
     let d_loc' =
-      switch (take_step(state_ref, eo.env, eo.d_loc)) {
-      | Some(d) => d
-      | None => raise(Exception)
-      };
-    let d' = compose(eo.ctx, d_loc');
-    let d' = DHExp.repair_ids(d');
+      (
+        switch (take_step(state_ref, eo.env, eo.d_loc)) {
+        | Some(d) => d
+        | None => raise(Exception)
+        }
+      )
+      |> DHExp.repair_ids;
+    let d' = EvalCtx.compose(eo.ctx, d_loc');
     let new_step = {
       d,
       d_loc: eo.d_loc,
@@ -324,9 +326,9 @@ let get_justification: step_kind => string =
 
 type step_info = {
   d: DHExp.t,
-  previous_step: option((step, Id.t)), // The step that will be displayed above this one (an Id in included because it may have changed since the step was taken)
+  chosen_step: option(step), // The step that was taken next
   hidden_steps: list((step, Id.t)), // The hidden steps between previous_step and the current one (an Id in included because it may have changed since the step was taken)
-  chosen_step: option(step) // The step that was taken next
+  previous_step: option((step, Id.t)) // The step that will be displayed above this one (an Id in included because it may have changed since the step was taken)
 };
 
 let get_history = (~settings, stepper) => {
