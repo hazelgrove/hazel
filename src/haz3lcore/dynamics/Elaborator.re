@@ -34,7 +34,14 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     switch (self_ty) {
     | Unknown(prov) =>
       switch (d) {
-      | Cast(_) => d
+      /* If an empty hole is placed in the function section of an Ap
+         expression, then the cast from ? to ? -> ? should be applied only once
+         this checks to see if the cast has already been applied */
+      | Cast(
+          EmptyHole(_),
+          Unknown(Internal),
+          Arrow(Unknown(Internal), Unknown(Internal)),
+        ) => d
       | _ =>
         DHExp.cast(d, Unknown(prov), Arrow(Unknown(prov), Unknown(prov)))
       }
