@@ -480,3 +480,11 @@ let first_and_last = (xss: list(list('a))): list(('a, 'a)) =>
        | [x] => Some((x, x))
        | [x, ...xs] => Some((x, last(xs))),
      );
+
+let rec rev_concat: (list('a), list('a)) => list('a) =
+  (ls, rs) => {
+    switch (ls) {
+    | [] => rs
+    | [hd, ...tl] => rev_concat(tl, [hd, ...rs])
+    };
+  };
