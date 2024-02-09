@@ -108,30 +108,27 @@ module rec DHExp: {
   and t = {
     /* invariant: nonempty, TODO: what happens to later ids in DHExp */
     ids: list(Id.t),
-    /*TODO: Verify: Always true in UExp, not necessarily in DHExp
-      if some id is not unique, then one of its parents will be flagged false */
-    ids_are_unique: bool,
+    /*TODO: Verify: Always false in UExp, if an expression has been copied as part of
+      evaluation (e.g. fun x -> x + x), then this will be flagged as true. This means
+      the ids should be replaced after evaluation. */
+    copied: bool,
     term,
   };
 
   let rep_id = ({ids, _}) => List.hd(ids);
   let term_of = ({term, _}) => term;
-  let fast_copy = (id, {term, _}) => {
-    ids: [id],
-    term,
-    ids_are_unique: false,
-  };
+  let fast_copy = (id, {term, _}) => {ids: [id], term, copied: true};
   // All children of term must have expression-unique ids.
   let fresh = term => {
-    {ids: [Id.mk()], ids_are_unique: true, term};
+    {ids: [Id.mk()], copied: false, term};
   };
-  let unwrap = ({ids, term, ids_are_unique}) => (
+  let unwrap = ({ids, term, copied}) => (
     term,
-    term => {ids, term, ids_are_unique},
+    term => {ids, term, copied},
   );
 
   let mk = (ids, term) => {
-    {ids, ids_are_unique: true, term};
+    {ids, copied: true, term};
   };
 
   let constructor_string = ({term: d, _}: t): string =>
@@ -181,14 +178,22 @@ module rec DHExp: {
   let apply_casts = (d: t, casts: list((Typ.t, Typ.t))): t =>
     List.fold_left((d, (ty1, ty2)) => fresh_cast(d, ty1, ty2), d, casts);
 
-  // preorder traversal
   let rec repair_ids = (require: bool, d: t) => {
-    let child_require = require || !d.ids_are_unique;
+    let child_require = require || d.copied;
     let repair_ids = repair_ids(child_require);
     let term = term_of(d);
     let rewrap = term => {
-      ids: require ? [Id.mk()] : d.ids,
-      ids_are_unique: true,
+      ids:
+        child_require
+          ? {
+            print_endline("copied!");
+            let id = Id.mk();
+            print_endline(Id.show(id));
+            print_endline(Id.show(List.hd(d.ids)));
+            [id];
+          }
+          : d.ids,
+      copied: false,
       term,
     };
     (
