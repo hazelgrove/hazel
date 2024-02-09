@@ -1,6 +1,7 @@
 open Haz3lcore;
 open EvaluatorStep;
 open Transition;
+open Util;
 module Doc = Pretty.Doc;
 
 let precedence_bin_bool_op = (op: TermBase.UExp.op_bin_bool) =>
@@ -118,6 +119,7 @@ let mk =
           (
             d: DHExp.t,
             env: ClosureEnvironment.t,
+            full_ctx: EvalCtx.t,
             enforce_inline: bool,
             previous_step: option(step),
             hidden_steps: list(step),
@@ -158,6 +160,7 @@ let mk =
         | (CompleteFilter, _)
         | (Cast, _)
         | (Conditional(_), _)
+        | (Rewrite(_), _)
         | (Skip, _) => []
         }
       | _ => recent_subst
@@ -170,10 +173,12 @@ let mk =
           ~recursive_calls=recursive_calls,
           d,
           ctx,
+          full_ctx,
         ) => {
       go(
         d,
         env,
+        full_ctx,
         enforce_inline,
         Option.join(
           Option.map(EvaluatorStep.unwrap(_, ctx), previous_step),
@@ -205,7 +210,15 @@ let mk =
         doc(~enforce_inline);
       };
     let go_case_rule =
-        (consistent: bool, rule_idx: int, Rule(dp, dclause): DHExp.rule)
+        (
+          consistent: bool,
+          rule_idx: int,
+          Rule(dp, dclause): DHExp.rule,
+          dscrut,
+          ll,
+          lr,
+          i,
+        )
         : DHDoc.t => {
       let kind: EvalCtx.cls =
         if (consistent) {
@@ -213,14 +226,34 @@ let mk =
         } else {
           InconsistentBranchesRule(rule_idx);
         };
+      let fctx: EvalCtx.t =
+        if (consistent) {
+          ConsistentCaseRule(dscrut, dp, full_ctx, (ll, lr), i);
+        } else {
+          // TODO[Matt]: put correct id in here
+          InconsistentBranchesRule(
+            dscrut,
+            Id.invalid,
+            0,
+            dp,
+            full_ctx,
+            (ll, lr),
+            i,
+          );
+        };
       let hidden_clause = annot(DHAnnot.Collapsed, text(Unicode.ellipsis));
       let clause_doc =
         settings.show_case_clauses
           ? choices([
-              hcats([space(), go'(~enforce_inline=true, dclause, kind)]),
+              hcats([
+                space(),
+                go'(~enforce_inline=true, dclause, kind, fctx),
+              ]),
               hcats([
                 linebreak(),
-                indent_and_align(go'(~enforce_inline=false, dclause, kind)),
+                indent_and_align(
+                  go'(~enforce_inline=false, dclause, kind, fctx),
+                ),
               ]),
             ])
           : hcat(space(), hidden_clause);
@@ -235,18 +268,32 @@ let mk =
         clause_doc,
       ]);
     };
-    let go_case = (dscrut, drs, consistent) =>
+    let go_case = (dscrut, drs, rule_id, consistent, ctx) =>
       if (enforce_inline) {
         fail();
       } else {
         let kind: EvalCtx.cls =
           if (consistent) {ConsistentCase} else {InconsistentBranches};
+        let case = Case(dscrut, drs, rule_id);
+        let ctx: EvalCtx.t =
+          if (consistent) {
+            ConsistentCase(case);
+          } else {
+            // TODO: Put the correct Id in here!!
+            InconsistentBranches(
+              Id.invalid,
+              0,
+              case,
+            );
+          };
         let scrut_doc =
           choices([
-            hcats([space(), go'(~enforce_inline=true, dscrut, kind)]),
+            hcats([space(), go'(~enforce_inline=true, dscrut, kind, ctx)]),
             hcats([
               linebreak(),
-              indent_and_align(go'(~enforce_inline=false, dscrut, kind)),
+              indent_and_align(
+                go'(~enforce_inline=false, dscrut, kind, ctx),
+              ),
             ]),
           ]);
         vseps(
@@ -258,23 +305,31 @@ let mk =
         );
       };
     let go_formattable = (~enforce_inline) => go'(~enforce_inline);
-    let mk_left_associative_operands = (precedence_op, (d1, l), (d2, r)) => (
-      go_formattable(d1, l) |> parenthesize(precedence(d1) > precedence_op),
-      go_formattable(d2, r) |> parenthesize(precedence(d2) >= precedence_op),
+    let mk_left_associative_operands =
+        (precedence_op, (d1, l, ctxl), (d2, r, ctxr)) => (
+      go_formattable(d1, l, ctxl)
+      |> parenthesize(precedence(d1) > precedence_op),
+      go_formattable(d2, r, ctxr)
+      |> parenthesize(precedence(d2) >= precedence_op),
     );
-    let mk_right_associative_operands = (precedence_op, (d1, l), (d2, r)) => (
-      go_formattable(d1, l) |> parenthesize(precedence(d1) >= precedence_op),
-      go_formattable(d2, r) |> parenthesize(precedence(d2) > precedence_op),
+    let mk_right_associative_operands =
+        (precedence_op, (d1, l, ctxl), (d2, r, ctxr)) => (
+      go_formattable(d1, l, ctxl)
+      |> parenthesize(precedence(d1) >= precedence_op),
+      go_formattable(d2, r, ctxr)
+      |> parenthesize(precedence(d2) > precedence_op),
     );
     let doc = {
       switch (d) {
-      | Closure(env', d') => go'(d', Closure, ~env=env')
+      | Closure(env', d') =>
+        go'(d', Closure, Closure(env', full_ctx), ~env=env')
       | Filter(flt, d') =>
         if (settings.show_stepper_filters) {
           switch (flt) {
           | Filter({pat, act}) =>
             let keyword = FilterAction.string_of_t(act);
-            let flt_doc = go_formattable(pat, FilterPattern);
+            // HACK[Matt]: Replace env
+            let flt_doc = go_formattable(pat, FilterPattern, env);
             vseps([
               hcats([
                 DHDoc_common.Delim.mk(keyword),
@@ -285,7 +340,7 @@ let mk =
                    ),
                 DHDoc_common.Delim.mk("in"),
               ]),
-              go'(d', Filter),
+              go'(d', Filter, Filter(flt, ctx)),
             ]);
           | Residue(_, act) =>
             let keyword = FilterAction.string_of_t(act);
@@ -308,7 +363,7 @@ let mk =
           };
         DHDoc_common.mk_EmptyHole(~selected, (u, i));
       | NonEmptyHole(reason, u, i, d') =>
-        go'(d', NonEmptyHole)
+        go'(d', NonEmptyHole, NonEmptyHole(reason, u, i, d', full_ctx))
         |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
       | ExpandingKeyword(u, i, k) =>
         DHDoc_common.mk_ExpandingKeyword((u, i), k)
@@ -326,12 +381,17 @@ let mk =
         | Some(d') =>
           if (List.mem(x, recent_subst)) {
             hcats([
-              go'(~env=ClosureEnvironment.empty, BoundVar(x), BoundVar)
+              go'(
+                ~env=ClosureEnvironment.empty,
+                BoundVar(x),
+                BoundVar,
+                full_ctx,
+              )
               |> annot(DHAnnot.Substituted),
-              go'(~env=ClosureEnvironment.empty, d', BoundVar),
+              go'(~env=ClosureEnvironment.empty, d', BoundVar, full_ctx),
             ]);
           } else {
-            go'(~env=ClosureEnvironment.empty, d', BoundVar);
+            go'(~env=ClosureEnvironment.empty, d', BoundVar, full_ctx);
           }
         }
       | BuiltinFun(f) => text(f)
@@ -340,18 +400,22 @@ let mk =
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
       | StringLit(s) => DHDoc_common.mk_StringLit(s)
-      | Test(_, d) => DHDoc_common.mk_Test(go'(d, Test))
+      | Test(id, d) =>
+        DHDoc_common.mk_Test(go'(d, Test, Test(id, full_ctx)))
       | Sequence(d1, d2) =>
-        let (doc1, doc2) = (go'(d1, Sequence1), go'(d2, Sequence2));
+        let (doc1, doc2) = (
+          go'(d1, Sequence1, Sequence1(full_ctx, d2)),
+          go'(d2, Sequence2, Sequence2(d1, full_ctx)),
+        );
         DHDoc_common.mk_Sequence(doc1, doc2);
       | ListLit(_, _, _, d_list) =>
         let ol = d_list |> List.mapi((i, d) => go'(d, ListLit(i)));
         DHDoc_common.mk_ListLit(ol);
       | Ap(d1, d2) =>
         let (doc1, doc2) = (
-          go_formattable(d1, Ap1)
+          go_formattable(d1, Ap1, Ap1(full_ctx, d2))
           |> parenthesize(precedence(d1) > DHDoc_common.precedence_Ap),
-          go'(d2, Ap2),
+          go'(d2, Ap2, Ap2(d1, full_ctx)),
         );
         DHDoc_common.mk_Ap(doc1, doc2);
       | ApBuiltin(ident, d) =>
@@ -365,8 +429,8 @@ let mk =
         let (doc1, doc2) =
           mk_left_associative_operands(
             precedence_bin_int_op(op),
-            (d1, BinIntOp1),
-            (d2, BinIntOp2),
+            (d1, BinIntOp1, BinIntOp1(op, full_ctx, d2)),
+            (d2, BinIntOp2, BinIntOp2(op, d1, full_ctx)),
           );
         hseps([doc1, mk_bin_int_op(op), doc2]);
       | BinFloatOp(op, d1, d2) =>
@@ -374,8 +438,8 @@ let mk =
         let (doc1, doc2) =
           mk_left_associative_operands(
             precedence_bin_float_op(op),
-            (d1, BinFloatOp1),
-            (d2, BinFloatOp2),
+            (d1, BinFloatOp1, BinFloatOp1(op, full_ctx, d2)),
+            (d2, BinFloatOp2, BinFloatOp2(op, d1, full_ctx)),
           );
         hseps([doc1, mk_bin_float_op(op), doc2]);
       | BinStringOp(op, d1, d2) =>
@@ -383,42 +447,49 @@ let mk =
         let (doc1, doc2) =
           mk_left_associative_operands(
             precedence_bin_string_op(op),
-            (d1, BinStringOp1),
-            (d2, BinStringOp2),
+            (d1, BinStringOp1, BinStringOp1(op, full_ctx, d2)),
+            (d2, BinStringOp2, BinStringOp2(op, d1, full_ctx)),
           );
         hseps([doc1, mk_bin_string_op(op), doc2]);
       | Cons(d1, d2) =>
         let (doc1, doc2) =
           mk_right_associative_operands(
             DHDoc_common.precedence_Cons,
-            (d1, Cons1),
-            (d2, Cons2),
+            (d1, Cons1, Cons1(full_ctx, d2)),
+            (d2, Cons2, Cons2(d1, full_ctx)),
           );
         DHDoc_common.mk_Cons(doc1, doc2);
       | ListConcat(d1, d2) =>
         let (doc1, doc2) =
           mk_right_associative_operands(
             DHDoc_common.precedence_Plus,
-            (d1, ListConcat1),
-            (d2, ListConcat2),
+            (d1, ListConcat1, ListConcat1(full_ctx, d2)),
+            (d2, ListConcat2, ListConcat2(d1, full_ctx)),
           );
         DHDoc_common.mk_ListConcat(doc1, doc2);
       | BinBoolOp(op, d1, d2) =>
         let (doc1, doc2) =
           mk_right_associative_operands(
             precedence_bin_bool_op(op),
-            (d1, BinBoolOp1),
-            (d2, BinBoolOp2),
+            (d1, BinBoolOp1, BinBoolOp1(op, full_ctx, d2)),
+            (d2, BinBoolOp2, BinBoolOp2(op, d1, full_ctx)),
           );
         hseps([doc1, mk_bin_bool_op(op), doc2]);
       | Tuple([]) => DHDoc_common.Delim.triv
       | Tuple(ds) =>
-        DHDoc_common.mk_Tuple(ds |> List.mapi((i, d) => go'(d, Tuple(i))))
-      | Prj(d, n) => DHDoc_common.mk_Prj(go'(d, Prj), n)
+        DHDoc_common.mk_Tuple(
+          ds
+          |> List.mapi((i, d) => {
+               let (ll, lr) = ListUtil.split_n(i, ds);
+               let lr = List.tl(lr);
+               go'(d, Tuple(i), Tuple(full_ctx, (List.rev(ll), lr)));
+             }),
+        )
+      | Prj(d, n) => DHDoc_common.mk_Prj(go'(d, Prj, Prj(full_ctx, n)), n)
       | ConsistentCase(Case(dscrut, drs, _)) => go_case(dscrut, drs, true)
-      | Cast(d, _, ty) when settings.show_casts =>
+      | Cast(d, t1, ty) when settings.show_casts =>
         // TODO[Matt]: Roll multiple casts into one cast
-        let doc = go'(d, Cast);
+        let doc = go'(d, Cast, Cast(full_ctx, t1, ty));
         Doc.(
           hcat(
             doc,
@@ -428,8 +499,8 @@ let mk =
             ),
           )
         );
-      | Cast(d, _, _) =>
-        let doc = go'(d, Cast);
+      | Cast(d, t1, t2) =>
+        let doc = go'(d, Cast, Cast(full_ctx, t1, t2));
         doc;
       | Let(dp, ddef, dbody) =>
         if (enforce_inline) {
@@ -467,11 +538,12 @@ let mk =
                 List.filter(x => !List.mem(x, bindings), recent_subst),
               dbody,
               Let2,
+              Let2(dp, ddef, full_ctx),
             ),
           ]);
         }
       | FailedCast(Cast(d, ty1, ty2), ty2', ty3) when Typ.eq(ty2, ty2') =>
-        let d_doc = go'(d, FailedCastCast);
+        let d_doc = go'(d, FailedCastCast, FailedCast(full_ctx, ty1, ty2));
         let cast_decoration =
           hcats([
             DHDoc_common.Delim.open_FailedCast,
@@ -487,16 +559,20 @@ let mk =
       | FailedCast(_d, _ty1, _ty2) =>
         failwith("unexpected FailedCast without inner cast")
       | InvalidOperation(d, err) =>
-        let d_doc = go'(d, InvalidOperation);
+        let d_doc =
+          go'(d, InvalidOperation, InvalidOperation(full_ctx, err));
         let decoration =
           Doc.text(InvalidOperationError.err_msg(err))
           |> annot(DHAnnot.OperationError(err));
         hcats([d_doc, decoration]);
 
-      | IfThenElse(_, c, d1, d2) =>
-        let c_doc = go_formattable(c, IfThenElse1);
-        let d1_doc = go_formattable(d1, IfThenElse2);
-        let d2_doc = go_formattable(d2, IfThenElse3);
+      | IfThenElse(t, c, d1, d2) =>
+        let c_doc =
+          go_formattable(c, IfThenElse1, IfThenElse1(t, full_ctx, d1, d2));
+        let d1_doc =
+          go_formattable(d1, IfThenElse2, IfThenElse2(t, c, full_ctx, d2));
+        let d2_doc =
+          go_formattable(d2, IfThenElse3, IfThenElse3(t, c, d1, full_ctx));
         hcats([
           DHDoc_common.Delim.mk("("),
           DHDoc_common.Delim.mk("if"),
@@ -670,6 +746,7 @@ let mk =
         | None => doc
         };
       };
+    //annot(StepTransform(dhexp, eval_ctx), doc)
     doc;
   };
   go(

@@ -70,7 +70,8 @@ type step_kind =
   | CompleteClosure
   | CompleteFilter
   | Cast
-  | Skip;
+  | Skip
+  | Rewrite(TransformRules.rule);
 
 module CastHelpers = {
   [@deriving sexp]
@@ -661,6 +662,7 @@ let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
   | Projection // TODO(Matt): We don't want to show projection to the user
   | Skip
   | Conditional(_)
+  | Rewrite(_)
   | InvalidStep => false
   | VarLookup => !settings.show_lookup_steps
   | CastAp

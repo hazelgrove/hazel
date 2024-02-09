@@ -43,6 +43,34 @@ let view_of_layout =
                  ],
                  ds,
                )
+             | StepTransform(focus, ctx) => (
+                 [
+                   Node.span(
+                     ~attr=
+                       Attr.many([
+                         Attr.class_("steppable-transform"),
+                         Attr.on_click(evt =>
+                           Vdom.Effect.Many([
+                             Vdom.Effect.Prevent_default,
+                             Vdom.Effect.Stop_propagation,
+                             inject(
+                               StepperAction(
+                                 result_key,
+                                 Transform({
+                                   clicks: JsUtil.num_clicks(evt),
+                                   focus,
+                                   ctx,
+                                 }),
+                               ),
+                             ),
+                           ])
+                         ),
+                       ]),
+                     txt,
+                   ),
+                 ],
+                 ds,
+               )
              | Stepped => (
                  [
                    Node.span(~attr=Attr.many([Attr.class_("stepped")]), txt),

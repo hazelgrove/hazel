@@ -281,6 +281,38 @@ let update_result =
   elab: s.elab,
 };
 
+let add_step =
+    (d_loc, d_loc', ctx, rule, {current, elab, previous, next: _} as s: t) =>
+  switch (current) {
+  | StepPending(d, state, _)
+  | StepperOK(d, state) => {
+      elab,
+      previous: [
+        {d, state, d_loc, d_loc', ctx, knd: Rewrite(rule)},
+        ...previous,
+      ],
+      current: StepperOK(d_loc' |> EvaluatorStep.compose(ctx), state),
+      next: decompose(d_loc' |> EvaluatorStep.compose(ctx)),
+    }
+  | StepperError(_)
+  | StepTimeout(_) => s
+  };
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type transform = {
+  clicks: int,
+  focus: DHExp.t,
+  ctx: EvalCtx.t,
+};
+
+let step_transform = ({focus, ctx, clicks}: transform, stepper: t) => {
+  let rule = TransformRules.n_to_rule(clicks);
+  switch (TransformRules.transform(rule, focus)) {
+  | Some(d_loc') => add_step(focus, d_loc', ctx, rule, stepper)
+  | None => stepper
+  };
+};
+
 let rec evaluate_pending = (~settings, s: t) => {
   switch (s.current) {
   | StepperOK(_)
@@ -425,7 +457,8 @@ let get_justification: step_kind => string =
   | CompleteFilter => "unidentified step"
   | CompleteClosure => "unidentified step"
   | FunClosure => "unidentified step"
-  | Skip => "skipped steps";
+  | Skip => "skipped steps"
+  | Rewrite(rule) => TransformRules.string_of_rule(rule);
 
 let get_history = (~settings, stepper) => {
   let rec get_history':

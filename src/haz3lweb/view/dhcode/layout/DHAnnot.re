@@ -18,5 +18,6 @@ type t =
   | CastDecoration
   | OperationError(InvalidOperationError.t)
   | Steppable(EvaluatorStep.EvalObj.t)
+  | StepTransform(DHExp.t, EvalCtx.t)
   | Stepped
   | Substituted;
