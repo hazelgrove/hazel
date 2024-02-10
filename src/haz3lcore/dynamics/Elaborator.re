@@ -289,7 +289,10 @@ let rec dhexp_of_uexp =
         };
       | TyAlias(_, _, e) => dhexp_of_uexp(m, e)
       };
-    wrap(ctx, id, mode, self, d);
+    switch (uexp.term) {
+    | Parens(_) => d
+    | _ => wrap(ctx, id, mode, self, d)
+    };
   | Some(InfoPat(_) | InfoTyp(_) | InfoTPat(_) | Secondary(_))
   | None => None
   };
