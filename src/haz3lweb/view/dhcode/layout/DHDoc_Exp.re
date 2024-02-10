@@ -211,13 +211,11 @@ let mk =
       };
     let go_case_rule =
         (
+          dscrut,
+          all_rules,
           consistent: bool,
           rule_idx: int,
           Rule(dp, dclause): DHExp.rule,
-          dscrut,
-          ll,
-          lr,
-          i,
         )
         : DHDoc.t => {
       let kind: EvalCtx.cls =
@@ -226,9 +224,11 @@ let mk =
         } else {
           InconsistentBranchesRule(rule_idx);
         };
-      let fctx: EvalCtx.t =
+      let fctx: EvalCtx.t = {
+        let (ll, lr) = ListUtil.split_n(rule_idx, all_rules);
+        let lr = List.tl(lr);
         if (consistent) {
-          ConsistentCaseRule(dscrut, dp, full_ctx, (ll, lr), i);
+          ConsistentCaseRule(dscrut, dp, full_ctx, (ll, lr), rule_idx);
         } else {
           // TODO[Matt]: put correct id in here
           InconsistentBranchesRule(
@@ -238,9 +238,10 @@ let mk =
             dp,
             full_ctx,
             (ll, lr),
-            i,
+            rule_idx,
           );
         };
+      };
       let hidden_clause = annot(DHAnnot.Collapsed, text(Unicode.ellipsis));
       let clause_doc =
         settings.show_case_clauses
@@ -268,13 +269,13 @@ let mk =
         clause_doc,
       ]);
     };
-    let go_case = (dscrut, drs, rule_id, consistent, ctx) =>
+    let go_case = (dscrut: DHExp.t, drs, rule_id, consistent, ctx) =>
       if (enforce_inline) {
         fail();
       } else {
         let kind: EvalCtx.cls =
           if (consistent) {ConsistentCase} else {InconsistentBranches};
-        let case = Case(dscrut, drs, rule_id);
+        let case: EvalCtx.case = Case(ctx, drs, rule_id);
         let ctx: EvalCtx.t =
           if (consistent) {
             ConsistentCase(case);
@@ -299,7 +300,7 @@ let mk =
         vseps(
           List.concat([
             [hcat(DHDoc_common.Delim.open_Case, scrut_doc)],
-            drs |> List.mapi(go_case_rule(consistent)),
+            drs |> List.mapi(go_case_rule(dscrut, drs, consistent)),
             [DHDoc_common.Delim.close_Case],
           ]),
         );
@@ -328,8 +329,8 @@ let mk =
           switch (flt) {
           | Filter({pat, act}) =>
             let keyword = FilterAction.string_of_t(act);
-            // HACK[Matt]: Replace env
-            let flt_doc = go_formattable(pat, FilterPattern, env);
+            // HACK[Matt]: Replace full_ctx
+            let flt_doc = go_formattable(pat, FilterPattern, full_ctx);
             vseps([
               hcats([
                 DHDoc_common.Delim.mk(keyword),
@@ -340,16 +341,21 @@ let mk =
                    ),
                 DHDoc_common.Delim.mk("in"),
               ]),
-              go'(d', Filter, Filter(flt, ctx)),
+              go'(d', Filter, Filter(flt, full_ctx)),
             ]);
           | Residue(_, act) =>
             let keyword = FilterAction.string_of_t(act);
-            vseps([DHDoc_common.Delim.mk(keyword), go'(d', Filter)]);
+            // HACK[Matt]: Replace full_ctx
+            vseps([
+              DHDoc_common.Delim.mk(keyword),
+              go'(d', Filter, full_ctx),
+            ]);
           };
         } else {
           switch (flt) {
-          | Residue(_) => go'(d', Filter)
-          | Filter(_) => go'(d', Filter)
+          // HACK[Matt]: Replace full_ctx
+          | Residue(_) => go'(d', Filter, full_ctx)
+          | Filter(_) => go'(d', Filter, full_ctx)
           };
         }
 
@@ -363,7 +369,7 @@ let mk =
           };
         DHDoc_common.mk_EmptyHole(~selected, (u, i));
       | NonEmptyHole(reason, u, i, d') =>
-        go'(d', NonEmptyHole, NonEmptyHole(reason, u, i, d', full_ctx))
+        go'(d', NonEmptyHole, NonEmptyHole(reason, u, i, full_ctx))
         |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
       | ExpandingKeyword(u, i, k) =>
         DHDoc_common.mk_ExpandingKeyword((u, i), k)
@@ -371,7 +377,7 @@ let mk =
         text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
       | InvalidText(u, i, t) => DHDoc_common.mk_InvalidText(t, (u, i))
       | InconsistentBranches(u, i, Case(dscrut, drs, _)) =>
-        go_case(dscrut, drs, false)
+        go_case(dscrut, drs, i, false, full_ctx)
         |> annot(DHAnnot.InconsistentBranches((u, i)))
       | BoundVar(x) when List.mem(x, recursive_calls) => text(x)
       | BoundVar(x) when settings.show_lookup_steps => text(x)
@@ -408,8 +414,14 @@ let mk =
           go'(d2, Sequence2, Sequence2(d1, full_ctx)),
         );
         DHDoc_common.mk_Sequence(doc1, doc2);
-      | ListLit(_, _, _, d_list) =>
-        let ol = d_list |> List.mapi((i, d) => go'(d, ListLit(i)));
+      | ListLit(mv, mvi, t, d_list) =>
+        let ol =
+          d_list
+          |> List.mapi((i, d) => {
+               let (ll, lr) = ListUtil.split_n(i, d_list);
+               let lr = List.tl(lr);
+               go'(d, ListLit(i), ListLit(mv, mvi, t, full_ctx, (ll, lr)));
+             });
         DHDoc_common.mk_ListLit(ol);
       | Ap(d1, d2) =>
         let (doc1, doc2) = (
@@ -421,7 +433,7 @@ let mk =
       | ApBuiltin(ident, d) =>
         DHDoc_common.mk_Ap(
           text(ident),
-          go_formattable(d, ApBuiltin)
+          go_formattable(d, ApBuiltin, ApBuiltin(ident, full_ctx))
           |> parenthesize(precedence(d) > DHDoc_common.precedence_Ap),
         )
       | BinIntOp(op, d1, d2) =>
@@ -486,7 +498,8 @@ let mk =
              }),
         )
       | Prj(d, n) => DHDoc_common.mk_Prj(go'(d, Prj, Prj(full_ctx, n)), n)
-      | ConsistentCase(Case(dscrut, drs, _)) => go_case(dscrut, drs, true)
+      | ConsistentCase(Case(dscrut, drs, i)) =>
+        go_case(dscrut, drs, i, true, full_ctx)
       | Cast(d, t1, ty) when settings.show_casts =>
         // TODO[Matt]: Roll multiple casts into one cast
         let doc = go'(d, Cast, Cast(full_ctx, t1, ty));
@@ -514,7 +527,8 @@ let mk =
               ClosureEnvironment.without_keys(bindings, env),
             ),
           );
-          let def_doc = go_formattable(ddef, Let1);
+          let def_doc =
+            go_formattable(ddef, Let1, Let1(dp, full_ctx, dbody));
           vseps([
             hcats([
               DHDoc_common.Delim.mk("let"),
@@ -599,12 +613,11 @@ let mk =
         print_endline(DHExp.show(d));
         if (settings.show_fn_bodies) {
           let bindings = DHPat.bound_vars(dp);
+          let new_env =
+            ClosureEnvironment.without_keys(Option.to_list(s), env');
           let body_doc =
             go_formattable(
-              Closure(
-                ClosureEnvironment.without_keys(Option.to_list(s), env'),
-                d,
-              ),
+              Closure(new_env, d),
               ~env=
                 ClosureEnvironment.without_keys(
                   DHPat.bound_vars(dp) @ Option.to_list(s),
@@ -613,6 +626,7 @@ let mk =
               ~recent_subst=
                 List.filter(x => !List.mem(x, bindings), recent_subst),
               Fun,
+              Fun(dp, ty, full_ctx, s),
             );
           hcats(
             [
@@ -656,6 +670,7 @@ let mk =
                 List.filter(x => !List.mem(x, bindings), recent_subst),
               ~recursive_calls=Option.to_list(s) @ recursive_calls,
               Fun,
+              Fun(dp, ty, full_ctx, s),
             );
           hcats(
             [
@@ -694,6 +709,7 @@ let mk =
             dbody,
             ~env=ClosureEnvironment.without_keys([x], env),
             FixF,
+            FixF(x, ty, full_ctx),
           );
         hcats(
           [DHDoc_common.Delim.fix_FixF, space(), text(x)]
@@ -713,8 +729,13 @@ let mk =
             doc_body |> DHDoc_common.pad_child(~enforce_inline),
           ],
         );
-      | FixF(x, _, d) =>
-        go'(~env=ClosureEnvironment.without_keys([x], env), d, FixF)
+      | FixF(x, ty, d) =>
+        go'(
+          ~env=ClosureEnvironment.without_keys([x], env),
+          d,
+          FixF,
+          FixF(x, ty, full_ctx),
+        )
       };
     };
     let steppable =
@@ -752,6 +773,7 @@ let mk =
   go(
     d,
     env,
+    Mark,
     enforce_inline,
     previous_step,
     hidden_steps,
