@@ -21,6 +21,7 @@ roots: [
 ]
 installed: [
   "abstract_algebra.v0.15.0"
+  "alcotest.1.7.0"
   "angstrom.0.16.0"
   "astring.0.8.5"
   "async_js.v0.15.1"
