@@ -52,10 +52,10 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
     let env' = subst_var_env(d1, x, env);
     let d3' = subst_var(d1, x, d3);
     Closure(env', d3') |> rewrap;
-  | Ap(d3, d4) =>
+  | Ap(dir, d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
-    Ap(d3, d4) |> rewrap;
+    Ap(dir, d3, d4) |> rewrap;
   | ApBuiltin(ident, d1) =>
     let d2 = subst_var(d1, x, d1);
     ApBuiltin(ident, d2) |> rewrap;

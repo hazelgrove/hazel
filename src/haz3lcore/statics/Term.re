@@ -478,7 +478,6 @@ module UExp = {
     | Let(_) => Let
     | TyAlias(_) => TyAlias
     | Ap(_) => Ap
-    | Pipeline(_) => Pipeline
     | If(_) => If
     | Seq(_) => Seq
     | Test(_) => Test
@@ -602,7 +601,6 @@ module UExp = {
     | Let(_)
     | TyAlias(_)
     | Ap(_)
-    | Pipeline(_)
     | If(_)
     | Seq(_)
     | Test(_)
@@ -636,7 +634,6 @@ module UExp = {
       | Let(_)
       | TyAlias(_)
       | Ap(_)
-      | Pipeline(_)
       | If(_)
       | Seq(_)
       | Test(_)

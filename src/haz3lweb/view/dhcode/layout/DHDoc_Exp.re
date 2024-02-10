@@ -127,7 +127,7 @@ let mk =
       switch (previous_step) {
       | Some((ps, id)) when id == DHExp.rep_id(d) =>
         switch (ps.knd, DHExp.term_of(ps.d_loc)) {
-        | (FunAp, Ap(d2, _)) =>
+        | (FunAp, Ap(_, d2, _)) =>
           switch (DHExp.term_of(d2)) {
           | Fun(p, _, _, _, _) => DHPat.bound_vars(p)
           | _ => []
@@ -309,13 +309,20 @@ let mk =
       | ListLit(_, _, _, d_list) =>
         let ol = d_list |> List.map(d => go'(d));
         DHDoc_common.mk_ListLit(ol);
-      | Ap(d1, d2) =>
+      | Ap(Forward, d1, d2) =>
         let (doc1, doc2) = (
           go_formattable(d1)
           |> parenthesize(precedence(d1) > DHDoc_common.precedence_Ap),
           go'(d2),
         );
         DHDoc_common.mk_Ap(doc1, doc2);
+      | Ap(Reverse, d1, d2) =>
+        let (doc1, doc2) = (
+          go_formattable(d1)
+          |> parenthesize(precedence(d1) > DHDoc_common.precedence_Ap),
+          go'(d2),
+        );
+        DHDoc_common.mk_rev_Ap(doc2, doc1);
       | ApBuiltin(ident, d) =>
         DHDoc_common.mk_Ap(
           text(ident),

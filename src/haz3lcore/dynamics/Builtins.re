@@ -172,7 +172,7 @@ module Pervasives = {
           | Some(n) => Ok(wrap(n))
           | None =>
             let d' = DHExp.BuiltinFun(name) |> DHExp.fresh;
-            let d' = DHExp.Ap(d', d) |> DHExp.fresh;
+            let d' = DHExp.Ap(Forward, d', d) |> DHExp.fresh;
             let d' = InvalidOperation(d', InvalidOfString) |> DHExp.fresh;
             Ok(d');
           }
@@ -195,7 +195,8 @@ module Pervasives = {
             Ok(
               fresh(
                 InvalidOperation(
-                  DHExp.Ap(DHExp.BuiltinFun(name) |> fresh, d1) |> fresh,
+                  DHExp.Ap(Forward, DHExp.BuiltinFun(name) |> fresh, d1)
+                  |> fresh,
                   DivideByZero,
                 ),
               ),

@@ -207,8 +207,8 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     | ([(_id, t)], []) =>
       switch (t) {
       | (["()"], []) =>
-        ret(Ap(l, {ids: [Id.nullary_ap_flag], term: Triv}))
-      | (["(", ")"], [Exp(arg)]) => ret(Ap(l, arg))
+        ret(Ap(Forward, l, {ids: [Id.nullary_ap_flag], term: Triv}))
+      | (["(", ")"], [Exp(arg)]) => ret(Ap(Forward, l, arg))
       | _ => ret(hole(tm))
       }
     | _ => ret(hole(tm))
@@ -249,7 +249,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | ([";"], []) => Seq(l, r)
           | (["++"], []) => BinOp(String(Concat), l, r)
           | (["$=="], []) => BinOp(String(Equals), l, r)
-          | (["|>"], []) => Pipeline(l, r)
+          | (["|>"], []) => Ap(Reverse, l, r)
           | (["@"], []) => ListConcat(l, r)
           | _ => hole(tm)
           },
