@@ -14,6 +14,8 @@ let view =
       editor: Editor.t,
     ) => {
   let result = ModelResults.lookup(results, result_key);
+  let test_results = Util.OptUtil.and_then(ModelResult.test_results, result);
+  let target_id = "code-container";
   let footer =
     settings.core.elaborate || settings.core.dynamics
       ? result
@@ -27,18 +29,16 @@ let view =
                ~result_key,
              )
            )
-        |> Option.to_list
-        |> List.flatten
-      : [];
+      : None;
   [
     Cell.editor_view(
       ~inject,
       ~ui_state,
       ~settings,
-      ~target_id="code-container",
+      ~target_id,
       ~error_ids,
-      ~test_results=result |> Util.OptUtil.and_then(ModelResult.test_results),
-      ~footer,
+      ~test_results,
+      ~footer?,
       ~highlights,
       editor,
     ),

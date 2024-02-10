@@ -76,7 +76,7 @@ module App = {
   module Action = Update;
   module State = State;
 
-  let on_startup = (~schedule_action, _) => {
+  let on_startup = (~schedule_action, m: Model.t) => {
     let _ =
       observe_font_specimen("font-specimen", fm =>
         schedule_action(Haz3lweb.Update.SetMeta(FontMetrics(fm)))
@@ -87,20 +87,14 @@ module App = {
     /* initialize state. */
     let state = State.init();
 
-    /* create subscription to evaluator, updating model on each result. */
-    let _ =
-      State.evaluator_subscribe(
-        state,
-        ((key, mr)) => {schedule_action(UpdateResult(key, mr))},
-        () => (),
-      );
+    /* Initial evaluation on a worker */
+    Update.schedule_evaluation(~schedule_action, m);
 
     Os.is_mac :=
       Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
         Js.string("MAC"),
       )
       >= 0;
-
     Async_kernel.Deferred.return(state);
   };
 

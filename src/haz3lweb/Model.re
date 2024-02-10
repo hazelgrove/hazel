@@ -85,47 +85,6 @@ let save_editors =
     Store.Exercise.save((n, specs, exercise), ~instructor_mode)
   };
 
-let update_elabs = (model: t): t => {
-  let model = {
-    ...model,
-    results:
-      Util.TimeUtil.measure_time(
-        "ModelResults.init", model.settings.benchmark, ()
-        //ModelResults.init performs evaluation on the DHExp value.
-        =>
-          ModelResults.update_elabs(
-            //Editors.get_spliced_elabs generates the DHExp.t of the editor.
-            Editors.get_spliced_elabs(
-              ~settings=model.settings,
-              model.statics,
-              model.editors,
-            ),
-            model.results,
-          )
-        ),
-  };
-
-  // if (model.settings.core.dynamics) {
-  //   Editors.get_spliced_elabs(model.editors)
-  //   |> List.iter(((key, d)) => {
-  //        /* Send evaluation request. */
-  //        let pushed = State.evaluator_next(state, key, d);
-
-  //        /* Set evaluation to pending after short timeout. */
-  //        /* FIXME: This is problematic if evaluation finished in time, but UI hasn't
-  //         * updated before below action is scheduled. */
-  //        Delay.delay(
-  //          () =>
-  //            if (pushed |> Lwt.is_sleeping) {
-  //              schedule_action(UpdateResult(key, ResultPending));
-  //            },
-  //          300,
-  //        );
-  //      });
-  // };
-  model;
-};
-
 let load = (init_model: t): t => {
   let settings = Store.Settings.load();
   let explainThisModel = Store.ExplainThisModel.load();
@@ -136,12 +95,7 @@ let load = (init_model: t): t => {
     );
   let ui_state = init_model.ui_state;
   let statics = Editors.mk_statics(~settings, editors);
-  let m = {editors, settings, results, statics, explainThisModel, ui_state};
-  let m = update_elabs(m);
-  {
-    ...m,
-    results: ModelResults.run_pending(~settings=m.settings.core, m.results),
-  };
+  {editors, settings, results, statics, explainThisModel, ui_state};
 };
 
 let save = ({editors, settings, explainThisModel, results, _}: t) => {
