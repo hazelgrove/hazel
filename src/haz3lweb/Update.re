@@ -540,11 +540,11 @@ let rec apply =
     | Benchmark(Finish) =>
       Benchmark.finish();
       Ok(model);
-    | StepperAction(key, StepForward(obj)) =>
+    | StepperAction(key, StepForward(idx)) =>
       let r =
         model.results
         |> ModelResults.find(key)
-        |> ModelResult.step_forward(obj);
+        |> ModelResult.step_forward(idx);
       Ok({...model, results: model.results |> ModelResults.add(key, r)});
     | StepperAction(key, StepBackward) =>
       let r =
