@@ -329,6 +329,10 @@ body {
   justify-content: space-between;
   gap: 1.2em;
 }
+#main.Scratch .cell-container,
+#main.Documentation .cell-container {
+  min-width: 30em;
+}
 #main.Exercises .cell-container {
   width: auto;
 }
@@ -653,7 +657,7 @@ select {
   color: #f8d36f;
 }
 
-/* END TOP BAR */
+/* CELL */
 
 #mousedown-overlay {
   cursor: text;
@@ -675,8 +679,23 @@ select {
 }
 
 .cell-container {
-  min-width: 30em;
   width: fit-content;
+  border-radius: 0.4em;
+  border-left: 2px solid var(--top_bar_icon_fill);
+}
+
+.cell-container.selected {
+  border-left: 2px solid var(--cell-selected-accent);
+  background-color: #fffcf3;
+}
+
+.cell-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1em;
+  padding-left: 1em;
+  padding: 1em;
+  padding-left: 1.2em;
 }
 
 .cell-item:first-child {
@@ -705,25 +724,11 @@ select {
   font-size: 1rem;
 }
 
-.cell {
-  display: flex;
-  flex-direction: column;
-  gap: 1em;
-  /* border-radius: 0.4em; */
-  padding-left: 1em;
-  padding: 1em;
-  padding-left: 1.2em;
-  border-left: 1px solid var(--top_bar_icon_fill);
-}
-
-.cell.selected {
-  border-left: 1px solid var(--cell-selected-accent);
-  background-color: #fffcf3;
-}
-
 .cell-caption {
   color: var(--top-bar-text);
 }
+
+/* CODE EDITOR */
 
 .code-text {
   position: relative;
@@ -1305,6 +1310,11 @@ svg.tile-selected {
   /* HACK(andrew) */
 }
 
+.ci-header .toggle-switch {
+  mix-blend-mode: luminosity;
+  background-color: #ccc;
+}
+
 .term-tag {
   font-weight: bolder;
   text-transform: uppercase;
@@ -1368,7 +1378,7 @@ svg.tile-selected {
   direction: rtl;
   position: absolute;
   z-index: 20;
-  bottom: 1.9em;
+  bottom: 2em;
   min-width: 10em;
   max-height: 11.26em;
   overflow: auto;
@@ -1380,9 +1390,9 @@ svg.tile-selected {
   white-space: nowrap;
   border-radius: 0 0.2em 0em 0;
   color: #586e75;
-  border-top: 1px solid #e6ce8f;
-  border-right: 1px solid #c7b480;
-  border-bottom: 1px solid #c7b480;
+  border-top: 0.6px solid #e6ce8f;
+  border-right: 0.6px solid #c7b480;
+  border-bottom: 0.6px solid #c7b480;
   background-color: #f7ebc5;
   box-shadow: 0px 20px 20px #77580255;
   scrollbar-color: #c7b480 #e4d6a6;
@@ -1458,12 +1468,13 @@ svg.tile-selected {
   justify-content: space-between;
   align-items: stretch;
   background-color: #fbecaa;
-  border-top: 0.6px solid #c7b480;
+  outline: 0.6px solid #c7b480;
 }
 
 #bottom-bar .icon {
   display: flex;
   padding: 0.2em;
+  mix-blend-mode: luminosity;
 }
 
 #bottom-bar .id {
@@ -1503,6 +1514,7 @@ svg.tile-selected {
   padding-right: 0.7em;
   color: var(--light-page-color);
   height: 100%;
+  mix-blend-mode: luminosity;
 }
 
 #bottom-bar .cursor-inspector .gamma:hover,
@@ -1522,7 +1534,7 @@ svg.tile-selected {
   display: flex;
   width: 20em;
   padding: 0.4em;
-  white-space: nowrap;
+  /*white-space: nowrap;*/
   flex-direction: column;
   gap: 1em;
 }
@@ -1755,15 +1767,7 @@ svg.expandable path {
   border-left: 1px solid rgba(0, 0, 0, 0);
 }
 
-.cell.selected + .cell-item {
-  border-left: 1px solid var(--cell-selected-accent);
-}
-
-.cell.deselected + .cell-item {
-  border-left: 1px solid var(--top_bar_icon_fill);
-}
-
-.cell.selected + .cell-result {
+.selected .cell-result {
   background-color: #efe7d6;
 }
 
@@ -1849,9 +1853,9 @@ svg.expandable path {
 }
 
 .cell-result .DHCode .EmptyHole {
-  background-color: #d4c7a5;
+  background-color: #d4c7a5 !important;
   color: #fdf6e3;
-  border-bottom: 1px solid #aa8926;
+  border-bottom: 1px solid #aa8926 !important;
 }
 
 .DHCode .Collapsed {
@@ -2177,7 +2181,6 @@ svg.expandable path {
 .toggle-switch.active .toggle-knob {
   margin-left: 0.9em;
   margin-right: 1px;
-  color: #4fad66;
 }
 
 /* END TOGGLE */
@@ -2228,7 +2231,7 @@ svg.expandable path {
   left: -1em;
 }
 
-.steppable,.steppable * {
+.steppable,.steppable *:not(.DHCode .EmptyHole *,.DHCode .EmptyHole) {
   border: 1px var(--step-hole-color);
   background-color:rgb(232, 255, 196);
   margin: -1px;
@@ -2236,7 +2239,7 @@ svg.expandable path {
 }
 
 
-.stepped, .stepped * {
+.stepped,.stepped *:not(.DHCode .EmptyHole *,.DHCode .EmptyHole) {
   border: 1px var(--step-hole-color);
   background-color:#ddcda3;
   margin: -1px;

@@ -358,6 +358,7 @@ let rec apply =
   let m: Result.t(Model.t) =
     switch (update) {
     | Reset => Ok(Model.reset(model))
+    | Set(Evaluation(_) as s_action) => Ok(update_settings(s_action, model))
     | Set(s_action) =>
       let model = update_settings(s_action, model);
       Model.save(model);
@@ -510,11 +511,11 @@ let rec apply =
     | Benchmark(Finish) =>
       Benchmark.finish();
       Ok(model);
-    | StepperAction(key, StepForward(obj)) =>
+    | StepperAction(key, StepForward(idx)) =>
       let r =
         model.results
         |> ModelResults.find(key)
-        |> ModelResult.step_forward(obj);
+        |> ModelResult.step_forward(idx);
       Ok({...model, results: model.results |> ModelResults.add(key, r)});
     | StepperAction(key, StepBackward) =>
       let r =

@@ -76,7 +76,7 @@ let stepper_view =
     switch (stepper.current) {
     | StepperOK(d, _) =>
       div(
-        ~attr=Attr.classes(["cell-result"]),
+        ~attr=Attr.classes(["cell-item", "cell-result"]),
         [
           div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
           dh_code_current(d),
@@ -94,7 +94,7 @@ let stepper_view =
 
   let previous_step = (step: Stepper.step_with_previous) => {
     div(
-      ~attr=Attr.classes(["cell-result"]),
+      ~attr=Attr.classes(["cell-item", "cell-result"]),
       [
         div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
         dh_code_previous(step),
