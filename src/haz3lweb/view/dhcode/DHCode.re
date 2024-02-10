@@ -134,6 +134,7 @@ let view_of_layout =
 
 let view =
     (
+      ~locked as _=false, // NOTE: When we add mouse events to this, ignore them if locked
       ~inject,
       ~settings: CoreSettings.Evaluation.t,
       ~selected_hole_instance: option(HoleInstance.t),

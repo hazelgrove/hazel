@@ -5,6 +5,7 @@ SERVER="http://0.0.0.0:8000/"
 all: dev
 
 deps:
+	opam update
 	opam switch import opam.export
 
 change-deps:
