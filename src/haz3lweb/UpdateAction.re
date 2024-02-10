@@ -30,7 +30,7 @@ type settings_action =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type stepper_action =
-  | StepForward(EvaluatorStep.EvalObj.t)
+  | StepForward(int)
   | StepBackward;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
