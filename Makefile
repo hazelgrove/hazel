@@ -1,4 +1,4 @@
-TEST_DIR="$(shell pwd)/_build/default/src/haz3ltest"
+TEST_DIR="$(shell pwd)/_build/default/src/test"
 HTML_DIR="$(shell pwd)/_build/default/src/haz3lweb/www"
 SERVER="http://0.0.0.0:8000/"
 
