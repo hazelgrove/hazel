@@ -118,7 +118,6 @@ let view =
     : Node.t => {
   let contents =
     switch (editors) {
-    | DebugLoad => []
     | Scratch(cur_slide, slides) =>
       scratch_view(~inject, ~cur_slide, ~slides)
     | Documentation(name, editors) =>

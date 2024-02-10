@@ -1,7 +1,6 @@
 open Js_of_ocaml;
 open Incr_dom;
 open Haz3lweb;
-open Virtual_dom.Vdom;
 
 let scroll_to_caret = ref(true);
 let edit_action_applied = ref(true);
@@ -72,33 +71,12 @@ let apply = (model, action, state, ~schedule_action): Model.t => {
   };
 };
 
-let update_handler =
-    (
-      ~inject: UpdateAction.t => Ui_effect.t(unit),
-      ~dir: Key.dir,
-      evt: Js.t(Dom_html.keyboardEvent),
-    )
-    : Effect.t(unit) =>
-  Effect.(
-    switch (Keyboard.handle_key_event(Key.mk(dir, evt))) {
-    | None => Ignore
-    | Some(action) =>
-      Many([Prevent_default, Stop_propagation, inject(action)])
-    }
-  );
-
-let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit)) => [
-  Attr.on_keypress(_ => Effect.Prevent_default),
-  Attr.on_keyup(update_handler(~inject, ~dir=KeyUp)),
-  Attr.on_keydown(update_handler(~inject, ~dir=KeyDown)),
-];
-
 module App = {
   module Model = Model;
   module Action = Update;
   module State = State;
 
-  let on_startup = (~schedule_action, _) => {
+  let on_startup = (~schedule_action, m: Model.t) => {
     let _ =
       observe_font_specimen("font-specimen", fm =>
         schedule_action(Haz3lweb.Update.SetMeta(FontMetrics(fm)))
@@ -109,20 +87,14 @@ module App = {
     /* initialize state. */
     let state = State.init();
 
-    /* create subscription to evaluator, updating model on each result. */
-    let _ =
-      State.evaluator_subscribe(
-        state,
-        ((key, mr)) => {schedule_action(UpdateResult(key, mr))},
-        () => (),
-      );
+    /* Initial evaluation on a worker */
+    Update.schedule_evaluation(~schedule_action, m);
 
     Os.is_mac :=
       Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
         Js.string("MAC"),
       )
       >= 0;
-
     Async_kernel.Deferred.return(state);
   };
 
@@ -139,7 +111,7 @@ module App = {
     Component.create(
       ~apply_action=apply(model),
       model,
-      Haz3lweb.Page.view(~inject, ~handlers, model),
+      Haz3lweb.Page.view(~inject, model),
       ~on_display=(_, ~schedule_action) => {
         if (edit_action_applied^
             && JsUtil.timestamp()
@@ -159,22 +131,13 @@ module App = {
   };
 };
 
-let fragment =
-  switch (JsUtil.Fragment.get_current()) {
-  | None => ""
-  | Some(frag) => frag
-  };
-
-let initial_model = {
-  switch (fragment) {
-  | "debug" => Model.debug
-  | _ => Model.load(Model.blank)
-  };
+switch (JsUtil.Fragment.get_current()) {
+| Some("debug") => DebugMode.go()
+| _ =>
+  Incr_dom.Start_app.start(
+    (module App),
+    ~debug=false,
+    ~bind_to_element_with_id="container",
+    ~initial_model=Model.load(Model.blank),
+  )
 };
-
-Incr_dom.Start_app.start(
-  (module App),
-  ~debug=false,
-  ~bind_to_element_with_id="container",
-  ~initial_model,
-);

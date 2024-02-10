@@ -725,6 +725,15 @@ let expected_sorts = (sort: Sort.t, seg: t): list((int, Sort.t)) => {
   |> List.concat_map(((ns, s)) => List.map(n => (n, s), ns));
 };
 
+let rec holes = (segment: t): list(Grout.t) =>
+  List.concat_map(
+    fun
+    | Piece.Secondary(_) => []
+    | Tile(t) => List.concat_map(holes, t.children)
+    | Grout(g) => [g],
+    segment,
+  );
+
 let get_childrens: t => list(t) =
   List.concat_map(
     fun
