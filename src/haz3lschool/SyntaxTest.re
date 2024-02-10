@@ -55,8 +55,7 @@ let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
   | UnOp(_, u)
   | TyAlias(_, _, u)
   | Filter(_, _, u) => var_mention(name, u)
-  | Ap(u1, u2)
-  | Pipeline(u1, u2)
+  | Ap(_, u1, u2)
   | Seq(u1, u2)
   | Cons(u1, u2)
   | ListConcat(u1, u2)
@@ -101,14 +100,9 @@ let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
   | UnOp(_, u)
   | TyAlias(_, _, u)
   | Filter(_, _, u) => var_applied(name, u)
-  | Ap(u1, u2) =>
+  | Ap(_, u1, u2) =>
     switch (u1.term) {
     | Var(x) => x == name ? true : var_applied(name, u2)
-    | _ => var_applied(name, u1) || var_applied(name, u2)
-    }
-  | Pipeline(u1, u2) =>
-    switch (u2.term) {
-    | Var(x) => x == name ? true : var_applied(name, u1)
     | _ => var_applied(name, u1) || var_applied(name, u2)
     }
   | Cons(u1, u2)
@@ -190,8 +184,7 @@ let rec find_fn =
   | TyAlias(_, _, u1)
   | Test(u1)
   | Filter(_, _, u1) => l |> find_fn(name, u1)
-  | Ap(u1, u2)
-  | Pipeline(u1, u2)
+  | Ap(_, u1, u2)
   | Seq(u1, u2)
   | Cons(u1, u2)
   | ListConcat(u1, u2)
@@ -241,8 +234,7 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   | Float(_)
   | String(_)
   | Constructor(_)
-  | Var(_)
-  | Pipeline(_, _) => true
+  | Var(_) => true
   | Fun(args, body) =>
     find_var_upat(name, args) ? false : tail_check(name, body)
   | Let(p, def, body) =>
@@ -257,7 +249,7 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   | Filter(_, _, u)
   | Parens(u) => tail_check(name, u)
   | UnOp(_, u) => !var_mention(name, u)
-  | Ap(u1, u2) => var_mention(name, u2) ? false : tail_check(name, u1)
+  | Ap(_, u1, u2) => var_mention(name, u2) ? false : tail_check(name, u1)
   | Seq(u1, u2) => var_mention(name, u1) ? false : tail_check(name, u2)
   | Cons(u1, u2)
   | ListConcat(u1, u2)

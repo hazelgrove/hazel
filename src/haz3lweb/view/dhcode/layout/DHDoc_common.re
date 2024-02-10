@@ -139,5 +139,7 @@ let mk_Tuple = elts => mk_comma_seq("", "", elts);
 let mk_Ap = (doc1, doc2) =>
   Doc.(hcats([doc1, text("("), doc2, text(")")]));
 
+let mk_rev_Ap = (doc1, doc2) => Doc.(hcats([doc1, text(" |> "), doc2]));
+
 let mk_Prj = (targ, n) =>
   Doc.hcats([targ, Delim.projection_dot, Doc.text(string_of_int(n))]);

@@ -1632,14 +1632,14 @@ let get_doc =
         | Parens(_) => default // Shouldn't get hit?
         | TypeAnn(_) => default // Shouldn't get hit?
         };
-      | Pipeline(arg, fn) =>
+      | Ap(Reverse, arg, fn) =>
         message_single(
           PipelineExp.single(
             ~arg_id=Term.UExp.rep_id(arg),
             ~fn_id=Term.UExp.rep_id(fn),
           ),
         )
-      | Ap(x, arg) =>
+      | Ap(Forward, x, arg) =>
         let x_id = List.nth(x.ids, 0);
         let arg_id = List.nth(arg.ids, 0);
         let basic = (group, format, coloring_ids) => {

@@ -103,6 +103,11 @@ and UExp: {
     | String(op_bin_string);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type ap_direction =
+    | Forward
+    | Reverse;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Invalid
     | EmptyHole
@@ -118,7 +123,7 @@ and UExp: {
     | Tuple
     | Var
     | Let
-    | Ap
+    | Ap(ap_direction)
     | If
     | Seq
     | Test
@@ -147,8 +152,7 @@ and UExp: {
     | Var(Var.t)
     | Let(UPat.t, t, t)
     | TyAlias(UTPat.t, UTyp.t, t)
-    | Ap(t, t)
-    | Pipeline(t, t)
+    | Ap(ap_direction, t, t)
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
@@ -234,6 +238,11 @@ and UExp: {
     | String(op_bin_string);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type ap_direction =
+    | Forward
+    | Reverse;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Invalid
     | EmptyHole
@@ -249,7 +258,7 @@ and UExp: {
     | Tuple
     | Var
     | Let
-    | Ap
+    | Ap(ap_direction)
     | If
     | Seq
     | Test
@@ -284,8 +293,8 @@ and UExp: {
     | Var(Var.t) // DONE [ALREADY]
     | Let(UPat.t, t, t) // DONE [ALREADY]
     | TyAlias(UTPat.t, UTyp.t, t) // [TO ADD TO DHEXP]
-    | Ap(t, t) // TODO: Combine Ap and Pipeline? [alt: add pipeline to dhexp]
-    | Pipeline(t, t) // TODO: Above
+    // note: function is always first then argument; even in reverse
+    | Ap(ap_direction, t, t) // TODO: Combine Ap and Pipeline? [alt: add pipeline to dhexp]
     | If(t, t, t) // TODO: What to do about consistency?
     | Seq(t, t) // DONE [ALREADY]
     | Test(t) // [DHEXP TO CHANGE]

@@ -269,10 +269,10 @@ module Transition = (EV: EV_MODE) => {
         kind: UpdateTest,
         value: true,
       });
-    | Ap(d1, d2) =>
-      let. _ = otherwise(env, (d1, d2) => Ap(d1, d2) |> rewrap)
-      and. d1' = req_value(req(state, env), d1 => Ap1(d1, d2), d1)
-      and. d2' = req_final(req(state, env), d2 => Ap2(d1, d2), d2);
+    | Ap(dir, d1, d2) =>
+      let. _ = otherwise(env, (d1, d2) => Ap(dir, d1, d2) |> rewrap)
+      and. d1' = req_value(req(state, env), d1 => Ap1(dir, d1, d2), d1)
+      and. d2' = req_final(req(state, env), d2 => Ap2(dir, d1, d2), d2);
       switch (DHExp.term_of(d1')) {
       | Constructor(_) => Constructor
       | Fun(dp, _, d3, Some(env'), _) =>
@@ -285,7 +285,11 @@ module Transition = (EV: EV_MODE) => {
       | Cast(d3', Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
         Step({
           apply: () =>
-            Cast(Ap(d3', Cast(d2', ty1', ty1) |> fresh) |> fresh, ty2, ty2')
+            Cast(
+              Ap(dir, d3', Cast(d2', ty1', ty1) |> fresh) |> fresh,
+              ty2,
+              ty2',
+            )
             |> fresh,
           kind: CastAp,
           value: false,

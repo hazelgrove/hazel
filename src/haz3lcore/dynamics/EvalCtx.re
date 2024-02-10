@@ -13,8 +13,8 @@ type t =
   | Let2(DHPat.t, DHExp.t, t)
   | Fun(DHPat.t, Typ.t, t, option(ClosureEnvironment.t), option(Var.t))
   | FixF(Var.t, Typ.t, t)
-  | Ap1(t, DHExp.t)
-  | Ap2(DHExp.t, t)
+  | Ap1(TermBase.UExp.ap_direction, t, DHExp.t)
+  | Ap2(TermBase.UExp.ap_direction, DHExp.t, t)
   | If1(consistency, t, DHExp.t, DHExp.t)
   | If2(consistency, DHExp.t, t, DHExp.t)
   | If3(consistency, DHExp.t, DHExp.t, t)
@@ -64,12 +64,12 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
     | Seq2(d1, ctx) =>
       let d2 = compose(ctx, d);
       Seq(d1, d2) |> fresh;
-    | Ap1(ctx, d2) =>
+    | Ap1(dir, ctx, d2) =>
       let d1 = compose(ctx, d);
-      Ap(d1, d2) |> fresh;
-    | Ap2(d1, ctx) =>
+      Ap(dir, d1, d2) |> fresh;
+    | Ap2(dir, d1, ctx) =>
       let d2 = compose(ctx, d);
-      Ap(d1, d2) |> fresh;
+      Ap(dir, d1, d2) |> fresh;
     | ApBuiltin(s, ctx) =>
       let d' = compose(ctx, d);
       ApBuiltin(s, d') |> fresh;

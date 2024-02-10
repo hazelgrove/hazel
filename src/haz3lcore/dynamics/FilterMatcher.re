@@ -77,7 +77,7 @@ let rec matches_exp =
   | (String(dv), String(fv)) => dv == fv
   | (String(_), _) => false
 
-  | (Constructor(_), Ap(d1, d2)) =>
+  | (Constructor(_), Ap(_, d1, d2)) =>
     switch (DHExp.term_of(d1), DHExp.term_of(d2)) {
     | (Constructor("~MVal"), Tuple([])) => true
     | _ => false
@@ -106,7 +106,8 @@ let rec matches_exp =
     && matches_exp(env, d2, f2)
   | (Let(_), _) => false
 
-  | (Ap(d1, d2), Ap(f1, f2)) =>
+  // TODO: do we want f(x) to match x |> f ???
+  | (Ap(_, d1, d2), Ap(_, f1, f2)) =>
     matches_exp(env, d1, f1) && matches_exp(env, d2, f2)
   | (Ap(_), _) => false
 

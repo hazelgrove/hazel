@@ -93,7 +93,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (String(_), Cast(d, Unknown(_), String)) => matches(dp, d)
   | (String(_), _) => DoesNotMatch
 
-  | (Ap(dp1, dp2), Ap(d1, d2)) =>
+  | (Ap(dp1, dp2), Ap(_, d1, d2)) =>
     switch (matches(dp1, d1)) {
     | DoesNotMatch => DoesNotMatch
     | IndetMatch =>
@@ -217,7 +217,7 @@ and matches_cast_Sum =
       ctr == ctr' ? Matches(Environment.empty) : DoesNotMatch
     | _ => DoesNotMatch
     }
-  | Ap(d1, d2) =>
+  | Ap(_, d1, d2) =>
     switch (DHExp.term_of(d1)) {
     | Constructor(ctr') =>
       switch (
@@ -336,7 +336,7 @@ and matches_cast_Tuple =
   | Fun(_, _, _, _, _) => DoesNotMatch
   | Closure(_, _) => IndetMatch
   | Filter(_, _) => IndetMatch
-  | Ap(_, _) => IndetMatch
+  | Ap(_, _, _) => IndetMatch
   | ApBuiltin(_, _) => IndetMatch
   | BinOp(_, _, _)
   | Bool(_) => DoesNotMatch
@@ -471,7 +471,7 @@ and matches_cast_Cons =
   | Fun(_, _, _, _, _) => DoesNotMatch
   | Closure(_, d') => matches_cast_Cons(dp, d', elt_casts)
   | Filter(_, d') => matches_cast_Cons(dp, d', elt_casts)
-  | Ap(_, _) => IndetMatch
+  | Ap(_, _, _) => IndetMatch
   | ApBuiltin(_, _) => IndetMatch
   | BinOp(_, _, _)
   | ListConcat(_)

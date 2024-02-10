@@ -65,7 +65,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
         DHExp.fresh_cast(d, self_ty, Unknown(prov))
       | _ => d
       }
-    | Ap(f, _) =>
+    | Ap(_, f, _) =>
       switch (DHExp.term_of(f)) {
       | Constructor(_) =>
         switch (ana_ty, self_ty) {
@@ -274,11 +274,10 @@ let rec dhexp_of_uexp =
           Let(dp, FixF(self_id, ty, substituted_def) |> DHExp.fresh, dbody)
           |> rewrap;
         };
-      | Ap(fn, arg)
-      | Pipeline(arg, fn) =>
+      | Ap(dir, fn, arg) =>
         let* c_fn = dhexp_of_uexp(m, fn);
         let+ c_arg = dhexp_of_uexp(m, arg);
-        DHExp.Ap(c_fn, c_arg) |> rewrap;
+        DHExp.Ap(dir, c_fn, c_arg) |> rewrap;
       | If(c, e1, e2) =>
         let* c' = dhexp_of_uexp(m, c);
         let* d1 = dhexp_of_uexp(m, e1);

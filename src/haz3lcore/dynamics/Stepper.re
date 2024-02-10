@@ -81,12 +81,12 @@ let rec matches =
     | FixF(name, ty, ctx) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       FixF(name, ty, ctx);
-    | Ap1(ctx, d2) =>
+    | Ap1(dir, ctx, d2) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Ap1(ctx, d2);
-    | Ap2(d1, ctx) =>
+      Ap1(dir, ctx, d2);
+    | Ap2(dir, d1, ctx) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Ap2(d1, ctx);
+      Ap2(dir, d1, ctx);
     | If1(c, ctx, d2, d3) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       If1(c, ctx, d2, d3);

@@ -29,7 +29,7 @@ module rec DHExp: {
     | Let(DHPat.t, t, t) // DONE [ALREADY]
     | FixF(Var.t, Typ.t, t) // TODO: surface fix
     | Fun(DHPat.t, Typ.t, t, option(ClosureEnvironment.t), option(Var.t)) // TODO: Use infomap for Typ.t
-    | Ap(t, t) // TODO: Add reverse application
+    | Ap(TermBase.UExp.ap_direction, t, t) // TODO: Add reverse application
     | ApBuiltin(string, t) // DONE [TO ADD TO UEXP] TODO: Add a loooong comment here
     | BuiltinFun(string) // DONE [TO ADD TO UEXP]
     | Test(KeywordID.t, t) // TODO: ! ID
@@ -56,8 +56,6 @@ module rec DHExp: {
   let fresh: term => t;
   let mk: (list(Id.t), term) => t;
   let unwrap: t => (term, term => t);
-
-  let constructor_string: t => string;
 
   let fresh_cast: (t, Typ.t, Typ.t) => t;
 
@@ -87,7 +85,7 @@ module rec DHExp: {
     | Let(DHPat.t, t, t)
     | FixF(Var.t, Typ.t, t)
     | Fun(DHPat.t, Typ.t, t, option(ClosureEnvironment.t), option(Var.t))
-    | Ap(t, t)
+    | Ap(TermBase.UExp.ap_direction, t, t)
     | ApBuiltin(string, t)
     | BuiltinFun(string)
     | Test(KeywordID.t, t)
@@ -130,42 +128,6 @@ module rec DHExp: {
   let mk = (ids, term) => {
     {ids, copied: true, term};
   };
-
-  let constructor_string = ({term: d, _}: t): string =>
-    switch (d) {
-    | EmptyHole => "EmptyHole"
-    | NonEmptyHole(_, _, _, _) => "NonEmptyHole"
-    | ExpandingKeyword(_, _, _) => "ExpandingKeyword"
-    | FreeVar(_, _, _) => "FreeVar"
-    | InvalidText(_) => "InvalidText"
-    | Var(_) => "Var"
-    | Seq(_, _) => "Seq"
-    | Filter(_, _) => "Filter"
-    | Let(_, _, _) => "Let"
-    | FixF(_, _, _) => "FixF"
-    | Fun(_, _, _, _, _) => "Fun"
-    | Closure(_, _) => "Closure"
-    | Ap(_, _) => "Ap"
-    | ApBuiltin(_, _) => "ApBuiltin"
-    | BuiltinFun(_) => "BuiltinFun"
-    | Test(_) => "Test"
-    | Bool(_) => "Bool"
-    | Int(_) => "Int"
-    | Float(_) => "Float"
-    | String(_) => "String"
-    | BinOp(_, _, _) => "BinOp"
-    | ListLit(_) => "ListLit"
-    | Cons(_, _) => "Cons"
-    | ListConcat(_, _) => "ListConcat"
-    | Tuple(_) => "Tuple"
-    | Prj(_) => "Prj"
-    | Constructor(_) => "Constructor"
-    | Match(_) => "Match"
-    | Cast(_, _, _) => "Cast"
-    | FailedCast(_, _, _) => "FailedCast"
-    | InvalidOperation(_) => "InvalidOperation"
-    | If(_, _, _, _) => "If"
-    };
 
   // All children of d must have expression-unique ids.
   let fresh_cast = (d: t, t1: Typ.t, t2: Typ.t): t =>
@@ -218,7 +180,7 @@ module rec DHExp: {
       | Let(dp, d1, d2) => Let(dp, repair_ids(d1), repair_ids(d2))
       | FixF(f, t, d1) => FixF(f, t, repair_ids(d1))
       | Fun(dp, t, d1, env, f) => Fun(dp, t, repair_ids(d1), env, f)
-      | Ap(d1, d2) => Ap(repair_ids(d1), repair_ids(d2))
+      | Ap(dir, d1, d2) => Ap(dir, repair_ids(d1), repair_ids(d2))
       | ApBuiltin(s, d1) => ApBuiltin(s, repair_ids(d1))
       | Test(id, d1) => Test(id, repair_ids(d1))
       | BinOp(op, d1, d2) => BinOp(op, repair_ids(d1), repair_ids(d2))
@@ -265,7 +227,7 @@ module rec DHExp: {
     | Let(dp, b, c) => Let(dp, strip_casts(b), strip_casts(c)) |> rewrap
     | FixF(a, b, c) => FixF(a, b, strip_casts(c)) |> rewrap
     | Fun(a, b, c, e, d) => Fun(a, b, strip_casts(c), e, d) |> rewrap
-    | Ap(a, b) => Ap(strip_casts(a), strip_casts(b)) |> rewrap
+    | Ap(dir, a, b) => Ap(dir, strip_casts(a), strip_casts(b)) |> rewrap
     | Test(id, a) => Test(id, strip_casts(a)) |> rewrap
     | ApBuiltin(fn, args) => ApBuiltin(fn, strip_casts(args)) |> rewrap
     | BuiltinFun(fn) => BuiltinFun(fn) |> rewrap
@@ -327,7 +289,8 @@ module rec DHExp: {
       && fast_equal(d1, d2)
       && ClosureEnvironment.id_equal(env1, env2)
       && s1 == s2
-    | (Ap(d11, d21), Ap(d12, d22))
+    | (Ap(dir1, d11, d21), Ap(dir2, d12, d22)) =>
+      dir1 == dir2 && fast_equal(d11, d12) && fast_equal(d21, d22)
     | (Cons(d11, d21), Cons(d12, d22)) =>
       fast_equal(d11, d12) && fast_equal(d21, d22)
     | (ListConcat(d11, d21), ListConcat(d12, d22)) =>
