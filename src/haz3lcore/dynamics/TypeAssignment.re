@@ -260,7 +260,7 @@ let rec typ_of_dhexp =
     if (Typ.eq(ty, Bool)) {
       let* ty1 = typ_of_dhexp(ctx, m, d1);
       let* ty2 = typ_of_dhexp(ctx, m, d2);
-      Typ.eq(ty1, ty2) ? Some(ty1) : None;
+      Typ.join(~fix=true, ctx, ty1, ty2) ? Some(ty1) : None;
     } else {
       None;
     };
