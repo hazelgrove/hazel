@@ -410,6 +410,8 @@ and ClosureEnvironment: {
 
     let id_of = ((ei, _)) => ei;
     let map_of = ((_, map)) => map;
+    let (sexp_of_t, t_of_sexp) =
+      StructureShareSexp.structure_share_here(id_of, sexp_of_t, t_of_sexp);
   };
   include Inner;
 
