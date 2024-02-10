@@ -19,8 +19,8 @@
 haz3lcore implements the semantics of Hazel, independent of any particular user interface.
 
 
-- dynamics
-- lang
+- dynamics -> docs/dynamics.md
+- lang -
 - prog
 - statics
 - tiles
