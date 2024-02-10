@@ -102,6 +102,20 @@ type ok_exp = ok_common;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type ok_pat = ok_common;
 
+/*
+ [@deriving (show({with_path: false}), sexp, yojson)]
+ type warning_common =
+   | PlaceholderWarning;
+ */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type warning_pat =
+  | UnusedVariable;
+/*
+ [@deriving (show({with_path: false}), sexp, yojson)]
+ type warning_exp =
+   | PlaceholderWarning
+   | Common(warning_common);
+ */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type status_common =
   | InHole(error_common)
@@ -115,6 +129,7 @@ type status_exp =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type status_pat =
   | InHole(error_pat)
+  | Warning(ok_pat, warning_pat)
   | NotInHole(ok_pat);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -274,6 +289,10 @@ let error_of: t => option(error) =
   | InfoPat({status: NotInHole(_), _})
   | InfoTyp({status: NotInHole(_), _})
   | InfoTPat({status: NotInHole(_), _}) => None
+  //| InfoExp({status: NotInHole(_), _})
+  | InfoPat({status: Warning(_, _), _}) => None
+  //| InfoTyp({status: NotInHole(_), _})
+  //| InfoTPat({status: NotInHole(_), _}) => None
   | InfoExp({status: InHole(err), _}) => Some(Exp(err))
   | InfoPat({status: InHole(err), _}) => Some(Pat(err))
   | InfoTyp({status: InHole(err), _}) => Some(Typ(err))
@@ -326,7 +345,8 @@ let rec status_common =
     InHole(Inconsistent(Internal(Typ.of_source(tys))))
   };
 
-let status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
+let status_pat =
+    (ctx: Ctx.t, co_ctx: CoCtx.t, mode: Mode.t, self: Self.pat): status_pat =>
   switch (mode, self) {
   | (Syn | Ana(_), Common(self_pat))
   | (SynFun, Common(IsConstructor(_) as self_pat)) =>
@@ -337,7 +357,19 @@ let status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
        avoid capturing the second case above, as these will ultimately
        get a (more precise) unbound ctr  via status_common */
     switch (status_common(ctx, mode, self_pat)) {
-    | NotInHole(ok_exp) => NotInHole(ok_exp)
+    | NotInHole(ok_pat) =>
+      switch (self_pat) {
+      | Just(Var(name)) =>
+        switch (VarMap.lookup(co_ctx, name)) {
+        | Some(_) =>
+          print_endline("some");
+          NotInHole(ok_pat);
+        | None =>
+          print_endline("warn");
+          Warning(ok_pat, UnusedVariable);
+        }
+      | _ => NotInHole(ok_pat)
+      }
     | InHole(err_pat) => InHole(Common(err_pat))
     }
   | (SynFun, _) => InHole(ExpectedConstructor)
@@ -353,6 +385,7 @@ let status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
   | (Common(self_pat), _) =>
     switch (status_common(ctx, mode, self_pat)) {
     | NotInHole(ok_exp) => NotInHole(ok_exp)
+    //| Warning(ok_exp, warning_exp) => Warning(ok_exp, Common(warning_exp))
     | InHole(err_pat) => InHole(Common(err_pat))
     }
   };
@@ -424,9 +457,10 @@ let is_error = (ci: t): bool => {
     | InHole(_) => true
     | NotInHole(_) => false
     }
-  | InfoPat({mode, self, ctx, _}) =>
-    switch (status_pat(ctx, mode, self)) {
+  | InfoPat({mode, self, ctx, co_ctx, _}) =>
+    switch (status_pat(ctx, co_ctx, mode, self)) {
     | InHole(_) => true
+    | Warning(_, _) => false
     | NotInHole(_) => false
     }
   | InfoTyp({expects, ctx, term, ty, _}) =>
@@ -442,6 +476,15 @@ let is_error = (ci: t): bool => {
   };
 };
 
+let is_warning = (ci: t): bool => {
+  switch (ci) {
+  | InfoPat({status: Warning(_, _), _}) =>
+    print_endline("warning noticed");
+    true;
+  | _ => false
+  };
+};
+
 /* Determined the type of an expression or pattern 'after hole fixing';
    that is, all ill-typed terms are considered to be 'wrapped in
    non-empty holes', i.e. assigned Unknown type. */
@@ -451,10 +494,11 @@ let fixed_typ_ok: ok_pat => Typ.t =
   | Ana(Consistent({join, _})) => join
   | Ana(InternallyInconsistent({ana, _})) => ana;
 
-let fixed_typ_pat = (ctx, mode: Mode.t, self: Self.pat): Typ.t =>
-  switch (status_pat(ctx, mode, self)) {
+let fixed_typ_pat = (ctx, co_ctx, mode: Mode.t, self: Self.pat): Typ.t =>
+  switch (status_pat(ctx, co_ctx, mode, self)) {
   | InHole(_) => Unknown(Internal)
-  | NotInHole(ok) => fixed_typ_ok(ok)
+  | Warning(ok_pat, _)
+  | NotInHole(ok_pat) => fixed_typ_ok(ok_pat)
   };
 
 let fixed_typ_exp = (ctx, mode: Mode.t, self: Self.exp): Typ.t =>
@@ -476,8 +520,8 @@ let derived_exp =
 let derived_pat =
     (~upat: UPat.t, ~ctx, ~co_ctx, ~mode, ~ancestors, ~self): pat => {
   let cls = Cls.Pat(UPat.cls_of_term(upat.term));
-  let status = status_pat(ctx, mode, self);
-  let ty = fixed_typ_pat(ctx, mode, self);
+  let status = status_pat(ctx, co_ctx, mode, self);
+  let ty = fixed_typ_pat(ctx, co_ctx, mode, self);
   {cls, self, mode, ty, status, ctx, co_ctx, ancestors, term: upat};
 };
 

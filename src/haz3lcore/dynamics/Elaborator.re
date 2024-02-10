@@ -281,11 +281,12 @@ let rec dhexp_of_uexp =
 }
 and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
   switch (Id.Map.find_opt(Term.UPat.rep_id(upat), m)) {
-  | Some(InfoPat({mode, self, ctx, _})) =>
-    let err_status = Info.status_pat(ctx, mode, self);
+  | Some(InfoPat({mode, self, ctx, co_ctx, _})) =>
+    let err_status = Info.status_pat(ctx, co_ctx, mode, self);
     let maybe_reason: option(ErrStatus.HoleReason.t) =
       switch (err_status) {
-      | NotInHole(_) => None
+      | NotInHole(_)
+      | Warning(_, _) => None
       | InHole(_) => Some(TypeInconsistent)
       };
     let u = Term.UPat.rep_id(upat); /* NOTE: using term uids for hole ids */

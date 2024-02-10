@@ -90,50 +90,6 @@ let typ_exp_unop: UExp.op_un => (Typ.t, Typ.t) =
   | Bool(Not) => (Bool, Bool)
   | Int(Minus) => (Int, Int);
 
-// eventually list of unused vars given co-ctx and pattern
-let rec check_is_unused_var = (co_ctx: CoCtx.t, pat: UPat.t): bool =>
-  switch (pat.term) {
-  | Var(name) =>
-    switch (name) {
-    | "_" => false // if underscore allowed to be unused
-    | _ =>
-      switch (VarMap.lookup(co_ctx, name)) {
-      | Some(_) =>
-        print_endline(name ++ " found");
-        false;
-      | None =>
-        print_endline(name ++ " not found");
-        true;
-      }
-    }
-  | MultiHole(tms) =>
-    // Deal with a list of patterns
-    let check_ = check_is_unused_var(co_ctx);
-    let check' = (tm): bool =>
-      switch (tm) {
-      | Pat(p) => check_(p)
-      | _ => false
-      };
-    List.for_all(check', tms);
-  | Invalid(_)
-  | EmptyHole
-  | Int(_)
-  | Float(_)
-  | Triv
-  | Bool(_)
-  | String(_) => false // non-variable patterns
-  | ListLit(lt) => List.for_all(check_is_unused_var(co_ctx), lt) // list of literals -> check all
-  | Cons(t1, t2) =>
-    check_is_unused_var(co_ctx, t1) && check_is_unused_var(co_ctx, t2) // check both sides of cons
-  | Wild => false // TODO: check if this is correct
-  | Tuple(lt) => List.for_all(check_is_unused_var(co_ctx), lt) // tuple of literals -> check all
-  | Ap(t1, t2) =>
-    check_is_unused_var(co_ctx, t1) && check_is_unused_var(co_ctx, t2) // check both sides of ap? not sure here
-  | Parens(t) => check_is_unused_var(co_ctx, t) // check inside parens
-  | Constructor(_)
-  | TypeAnn(_, _) => false // Unsure here as well
-  };
-
 let rec any_to_info_map =
         (~ctx: Ctx.t, ~ancestors, any: any, m: Map.t): (CoCtx.t, Map.t) =>
   switch (any) {
@@ -291,7 +247,6 @@ and uexp_to_info_map =
         ? BadTrivAp(ty_in) : Just(ty_out);
     add(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
   | Fun(p, e) =>
-    let p'' = p;
     let (mode_pat, mode_body) = Mode.of_arrow(ctx, mode);
     let (p', _) =
       go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~mode=mode_pat, p, m);
@@ -299,15 +254,6 @@ and uexp_to_info_map =
     /* add co_ctx to pattern */
     let (p, m) =
       go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~mode=mode_pat, p, m);
-    // need to support things with multiple args here, product types
-    let name =
-      switch (p''.term) {
-      | Var(name) => name
-      | _ => "not a var"
-      };
-    print_endline("name " ++ name);
-    check_is_unused_var(e.co_ctx, p'')
-      ? print_endline("FUN unused var") : ();
     add(
       ~self=Just(Arrow(p.ty, e.ty)),
       ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx),
@@ -339,12 +285,6 @@ and uexp_to_info_map =
       );
     let co_ctx_union =
       CoCtx.union([def.co_ctx, CoCtx.mk(ctx, p_ana.ctx, body.co_ctx)]);
-    // if it is not in the co-context, then it is an unused variable
-    // let _ = print_endline("co_ctx_union " ++ CoCtx.show(co_ctx_union));
-    // let _ = print_endline("body co_ctx " ++ CoCtx.show(body.co_ctx));
-
-    check_is_unused_var(body.co_ctx, p)
-      ? print_endline("LET unused var") : ();
     add(~self=Just(body.ty), ~co_ctx=co_ctx_union, m);
   | If(e0, e1, e2) =>
     let branch_ids = List.map(UExp.rep_id, [e1, e2]);
@@ -386,12 +326,7 @@ and uexp_to_info_map =
     let (_, m) =
       map_m(
         ((p, co_ctx)) => {
-          // for each expression, call the check_is_unused_var function on its pattern
-          let _ =
-            if (check_is_unused_var(co_ctx, p)) {
-              print_endline("CASE unused var");
-            }; // temp
-          go_pat(~is_synswitch=false, ~co_ctx, ~mode=Mode.Ana(scrut.ty), p);
+          go_pat(~is_synswitch=false, ~co_ctx, ~mode=Mode.Ana(scrut.ty), p)
         },
         List.combine(ps, e_co_ctxs),
         m,
@@ -515,8 +450,17 @@ and upat_to_info_map =
        may be SynSwitch, but SynSwitch is never added to the context;
        Unknown(Internal) is used in this case */
     let ctx_typ =
-      Info.fixed_typ_pat(ctx, mode, Common(Just(Unknown(Internal))));
-    let entry = Ctx.VarEntry({name, id: UPat.rep_id(upat), typ: ctx_typ});
+      Info.fixed_typ_pat(
+        ctx,
+        co_ctx,
+        mode,
+        Common(Just(Unknown(Internal))),
+      );
+    /*switch (VarMap.lookup(co_ctx, name)) {
+      | Some(_) => print_endline(name ++ " used") // want to do something with the variable's information
+      | None => print_endline(name ++ " unused")
+      }; */
+    let entry = Ctx.VarEntry({name, id: UPat.rep_id(upat), typ: ctx_typ}); //
     add(~self=Just(unknown), ~ctx=Ctx.extend(ctx, entry), m);
   | Tuple(ps) =>
     let modes = Mode.of_prod(ctx, mode, List.length(ps));

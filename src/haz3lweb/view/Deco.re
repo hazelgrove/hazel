@@ -273,12 +273,17 @@ module Deco =
       | None => false
       | Some(info) => Info.is_error(info)
       };
+    let is_warn = (id: Id.t) =>
+      switch (Id.Map.find_opt(id, M.info_map)) {
+      | None => false
+      | Some(info) => Info.is_warning(info)
+      };
     let is_rep = (id: Id.t) =>
       switch (Id.Map.find_opt(id, M.terms)) {
       | None => false
       | Some(term) => id == Term.rep_id(term)
       };
-    let rec go_seg = (seg: Segment.t): list(Id.t) => {
+    let rec go_seg = (pred: Id.t => bool, seg: Segment.t): list(Id.t) => {
       let rec go_skel = (skel: Skel.t): list(Id.t) => {
         let root = Skel.root(skel);
         let root_ids =
@@ -286,7 +291,7 @@ module Deco =
           |> List.map(List.nth(seg))
           |> List.map(Piece.id)
           |> List.filter(is_rep)
-          |> List.filter(is_err);
+          |> List.filter(pred);
         let between_ids = Aba.get_bs(root) |> List.concat_map(go_skel);
         let uni_ids =
           switch (skel) {
@@ -299,11 +304,15 @@ module Deco =
       };
       let bi_ids =
         seg
-        |> List.concat_map(p => List.concat_map(go_seg, Piece.children(p)));
-
+        |> List.concat_map(p =>
+             List.concat_map(go_seg(pred), Piece.children(p))
+           );
       go_skel(Segment.skel(seg)) @ bi_ids;
     };
-    go_seg(seg) |> List.map(term_highlight(~clss=["err-hole"]));
+    (go_seg(is_err, seg) |> List.map(term_highlight(~clss=["err-hole"])))
+    @ (
+      go_seg(is_warn, seg) |> List.map(term_highlight(~clss=["warn-hole"]))
+    );
   };
 
   // faster infomap traversal
@@ -328,6 +337,21 @@ module Deco =
     );
   };
 
+  let warn_holes = (_z: Zipper.t) => {
+    Id.Map.fold(
+      (id, info, acc) =>
+        switch (Id.Map.find_opt(id, M.term_ranges)) {
+        | Some(_) when Info.is_warning(info) => [
+            term_highlight(~clss=["warn"], id),
+            ...acc,
+          ]
+        | _ => acc
+        },
+      M.info_map,
+      [],
+    );
+  };
+
   let all = (zipper, sel_seg) =>
     List.concat([
       caret(zipper),
@@ -336,5 +360,6 @@ module Deco =
       backback(zipper),
       targets'(zipper.backpack, sel_seg),
       err_holes(zipper),
+      warn_holes(zipper),
     ]);
 };

@@ -6,9 +6,11 @@ open Haz3lcore;
 
 let errc = "error";
 let okc = "ok";
+let warnc = "warn";
 let div_err = div(~attr=clss([errc]));
-let div_ok = div(~attr=clss([okc]));
 
+let div_ok = div(~attr=clss([okc]));
+let div_warn = div(~attr=clss([warnc]));
 let code_err = (code: string): Node.t =>
   div(~attr=clss(["code"]), [text(code)]);
 
@@ -176,6 +178,9 @@ let pat_view = (cls: Term.Cls.t, status: Info.status_pat) =>
   | InHole(ExpectedConstructor) => div_err([text("Expected a constructor")])
   | InHole(Common(error)) => div_err(common_err_view(cls, error))
   | NotInHole(ok) => div_ok(common_ok_view(cls, ok))
+  | Warning(ok, UnusedVariable) =>
+    print_endline("warn");
+    div_warn(common_ok_view(cls, ok));
   };
 
 let typ_view = (cls: Term.Cls.t, status: Info.status_typ) =>
@@ -214,7 +219,11 @@ let view_of_info =
 
 let inspector_view = (~inject, ~settings, ~show_lang_doc, ci): Node.t =>
   div(
-    ~attr=clss(["cursor-inspector"] @ [Info.is_error(ci) ? errc : okc]),
+    ~attr=
+      clss(
+        ["cursor-inspector"]
+        @ [Info.is_error(ci) ? errc : Info.is_warning(ci) ? warnc : okc],
+      ),
     [view_of_info(~inject, ~settings, ~show_lang_doc, ci)],
   );
 
