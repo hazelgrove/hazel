@@ -1,7 +1,9 @@
 include Id.Map;
 type t = Id.Map.t(Time.t);
 
-module type S = {let touched: t;};
+module type S = {
+  let touched: t;
+};
 
 let update = (t: Time.t, es: list(Effect.t), td: t) =>
   es
