@@ -255,12 +255,21 @@ let rec typ_of_dhexp =
       None;
     }
   | InvalidOperation(_) => None
-  | IfThenElse(_, d_scrut, d1, d2) =>
+  | IfThenElse(ConsistentIf, d_scrut, d1, d2) =>
     let* ty = typ_of_dhexp(ctx, m, d_scrut);
     if (Typ.eq(ty, Bool)) {
       let* ty1 = typ_of_dhexp(ctx, m, d1);
       let* ty2 = typ_of_dhexp(ctx, m, d2);
       Typ.eq(ty1, ty2) ? Some(ty1) : None;
+    } else {
+      None;
+    };
+  | IfThenElse(InconsistentIf, d_scrut, d1, d2) =>
+    let* ty = typ_of_dhexp(ctx, m, d_scrut);
+    if (Typ.eq(ty, Bool)) {
+      let* _ = typ_of_dhexp(ctx, m, d1);
+      let+ _ = typ_of_dhexp(ctx, m, d2);
+      Typ.Unknown(Internal);
     } else {
       None;
     };

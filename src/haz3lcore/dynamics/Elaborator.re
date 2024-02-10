@@ -71,6 +71,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
         DHExp.cast(d, Prod(us), Unknown(prov));
       | _ => d
       }
+    | Ap(NonEmptyHole(_, _, _, Constructor(_)), _)
     | Ap(Constructor(_), _)
     | Constructor(_) =>
       switch (ana_ty, self_ty) {
