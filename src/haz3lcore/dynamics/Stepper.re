@@ -223,7 +223,9 @@ let current_expr = (s: t) =>
   | (StepperError(_) | StepTimeout, []) => s.elab
   };
 
-let step_pending = (eo: EvalObj.t, {elab, previous, current, next}: t) =>
+let step_pending = (idx: int, {elab, previous, current, next}: t) => {
+  // TODO[Matt]: change to nth_opt after refactor
+  let eo = List.nth(next, idx);
   switch (current) {
   | StepperOK(d, s) => {
       elab,
@@ -250,6 +252,7 @@ let step_pending = (eo: EvalObj.t, {elab, previous, current, next}: t) =>
       next,
     }
   };
+};
 
 let init = (elab: DHExp.t) => {
   {
@@ -325,8 +328,7 @@ let rec evaluate_full = (~settings, s: t) => {
   | StepperError(_)
   | StepTimeout => s
   | StepperOK(_) when s.next == [] => s
-  | StepperOK(_) =>
-    s |> step_pending(List.hd(s.next)) |> evaluate_full(~settings)
+  | StepperOK(_) => s |> step_pending(0) |> evaluate_full(~settings)
   | StepPending(_) =>
     evaluate_pending(~settings, s) |> evaluate_full(~settings)
   };
@@ -459,6 +461,12 @@ type persistent = {
   previous: list(step),
   current,
 };
+
+let (sexp_of_persistent, persistent_of_sexp) =
+  StructureShareSexp.structure_share_in(
+    sexp_of_persistent,
+    persistent_of_sexp,
+  );
 
 // Remove EvalObj.t objects from stepper to prevent problems when loading
 let to_persistent: t => persistent =

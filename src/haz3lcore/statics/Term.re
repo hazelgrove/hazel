@@ -693,7 +693,8 @@ module Cls = {
     | Pat(UPat.cls)
     | Typ(UTyp.cls)
     | TPat(UTPat.cls)
-    | Rul(URul.cls);
+    | Rul(URul.cls)
+    | Secondary(Secondary.cls);
 
   let show = (cls: t) =>
     switch (cls) {
@@ -702,6 +703,7 @@ module Cls = {
     | Typ(cls) => UTyp.show_cls(cls)
     | TPat(cls) => UTPat.show_cls(cls)
     | Rul(cls) => URul.show_cls(cls)
+    | Secondary(cls) => Secondary.show_cls(cls)
     };
 };
 

@@ -360,8 +360,7 @@ let view =
           ~font_metrics,
           ~settings,
           ~doc=explainThisModel,
-          Indicated.index(focal_zipper),
-          focal_info_map,
+          Indicated.ci_of(focal_zipper, focal_info_map),
         )
       : div([]);
   [
