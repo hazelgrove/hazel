@@ -329,7 +329,6 @@ let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
 let switch_scratch_slide =
     (editors: Editors.t, ~instructor_mode, idx: int): option(Editors.t) =>
   switch (editors) {
-  | DebugLoad
   | Documentation(_) => None
   | Scratch(n, _) when n == idx => None
   | Scratch(_, slides) when idx >= List.length(slides) => None
@@ -345,7 +344,6 @@ let switch_scratch_slide =
 let switch_exercise_editor =
     (editors: Editors.t, ~pos, ~instructor_mode): option(Editors.t) =>
   switch (editors) {
-  | DebugLoad
   | Documentation(_)
   | Scratch(_) => None
   | Exercises(m, specs, exercise) =>
@@ -381,6 +379,22 @@ let export_persistent_data = () => {
   print_endline("INFO: Persistent data exported to Init.ml");
 };
 
+let update_statics = (update: UpdateAction.t, m: Model.t): Model.t =>
+  is_edit(update)
+    ? {...m, statics: Editors.mk_statics(~settings=m.settings, m.editors)}
+    : m;
+
+let update_elabs = (update: UpdateAction.t, m: Model.t) =>
+  reevaluate_post_update(m.settings, update) ? Model.update_elabs(m) : m;
+
+let update_evals = (m: Model.t) => {
+  ...m,
+  results: ModelResults.run_pending(~settings=m.settings.core, m.results),
+};
+
+let post_update = (update: UpdateAction.t, m: Model.t): Model.t =>
+  m |> update_statics(update) |> update_elabs(update) |> update_evals;
+
 let rec apply =
         (model: Model.t, update: t, state: State.t, ~schedule_action)
         : Result.t(Model.t) => {
@@ -394,7 +408,10 @@ let rec apply =
       // NOTE: Load here necessary to load editors on switching mode
       Ok(Model.load(model));
     | SetMeta(action) =>
-      Ok({...model, meta: meta_update(model, action, ~schedule_action)})
+      Ok({
+        ...model,
+        ui_state: ui_state_update(model, action, ~schedule_action),
+      })
     | UpdateExplainThisModel(u) =>
       let explainThisModel =
         ExplainThisUpdate.set_update(model.explainThisModel, u);
@@ -579,46 +596,14 @@ let rec apply =
         })
       }
     };
-  let m =
-    reevaluate_post_update(model.settings, update)
-      ? m |> Result.map(~f=Model.update_elabs) : m;
-  Result.map(
-    ~f=
-      m =>
-        {
-          ...m,
-          results:
-            ModelResults.run_pending(~settings=m.settings.core, m.results),
-        },
-    m,
-  );
+  m |> Result.map(~f=post_update(update));
 }
-and meta_update =
-    (model: Model.t, update: set_meta, ~schedule_action as _): Model.meta => {
+and ui_state_update =
+    (model: Model.t, update: set_meta, ~schedule_action as _): Model.ui_state => {
   switch (update) {
-  | Mousedown => {
-      ui_state: {
-        ...model.meta.ui_state,
-        mousedown: true,
-      },
-    }
-  | Mouseup => {
-      ui_state: {
-        ...model.meta.ui_state,
-        mousedown: false,
-      },
-    }
-  | ShowBackpackTargets(b) => {
-      ui_state: {
-        ...model.meta.ui_state,
-        show_backpack_targets: b,
-      },
-    }
-  | FontMetrics(font_metrics) => {
-      ui_state: {
-        ...model.meta.ui_state,
-        font_metrics,
-      },
-    }
+  | Mousedown => {...model.ui_state, mousedown: true}
+  | Mouseup => {...model.ui_state, mousedown: false}
+  | ShowBackpackTargets(b) => {...model.ui_state, show_backpack_targets: b}
+  | FontMetrics(font_metrics) => {...model.ui_state, font_metrics}
   };
 };

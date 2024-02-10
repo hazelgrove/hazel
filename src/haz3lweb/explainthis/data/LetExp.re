@@ -69,7 +69,7 @@ let let_tuple2_ex = {
 };
 let let_tuple3_ex = {
   sub_id: Let(Tuple3),
-  term: mk_example("let (x, y, z) = (1, 2, 3) in \nx + y + z"),
+  term: mk_example("let (x, y, z) = (1, 2, 3)\nin x + y + z"),
   message: "The variable x is bound to 1, the y is bound to 2, and the z is bound to 3, so the expression evaluates to 1 + 2 + 3, which is 6.",
 };
 let let_ctr_ex = {

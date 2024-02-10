@@ -2,7 +2,6 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
 open Haz3lcore;
-open Util.OptUtil.Syntax;
 
 /* If you are adding docs here for new syntax, see PipelineExp.re
  * which documents the simplest way to add a new form. */
@@ -205,287 +204,147 @@ let mk_explanation =
   );
 };
 
-let deco =
+let expander_deco =
     (
-      ~doc: ExplainThisModel.t,
+      ~docs: ExplainThisModel.t,
       ~settings: Settings.t,
-      ~colorings,
-      ~expandable: option((Id.t, Segment.t)),
-      ~unselected,
-      ~map,
       ~inject,
-      ~font_metrics,
+      ~ui_state as {font_metrics, _}: Model.ui_state,
       ~options: list((ExplainThisForm.form_id, Segment.t)),
-      ~group_id,
-      ~form_id,
+      ~group: ExplainThisForm.group,
+      ~doc: ExplainThisForm.form,
     ) => {
   module Deco =
     Deco.Deco({
       let font_metrics = font_metrics;
-      let map = map;
+      let map = Measured.of_segment(doc.syntactic_form);
       let show_backpack_targets = false;
-      let (term, terms) = MakeTerm.go(unselected);
-      let info_map = Interface.Statics.mk_map(settings.core, term);
-      let term_ranges = TermRanges.mk(unselected);
-      let tiles = TileMap.mk(unselected);
+      let (_term, terms) = MakeTerm.go(doc.syntactic_form);
+      let term_ranges = TermRanges.mk(doc.syntactic_form);
+      let tiles = TileMap.mk(doc.syntactic_form);
+      let error_ids = [];
     });
+  switch (doc.expandable_id, List.length(options)) {
+  | (None, _)
+  | (_, 0 | 1) => div([])
+  | (Some((expandable, _)), _) =>
+    Deco.term_decoration(
+      ~id=expandable,
+      ((origin, _, path)) => {
+        let specificity_pos =
+          Printf.sprintf(
+            "position: absolute; top: %fpx;",
+            font_metrics.row_height,
+          );
 
-  let term_explain_this =
-    switch (expandable, List.length(options)) {
-    | (None, _)
-    | (_, 0 | 1) => []
-    | (Some((expandable, _)), _) => [
-        Deco.term_decoration(
-          ~id=expandable,
-          ((origin, _, path)) => {
-            let specificity_pos =
-              Printf.sprintf(
-                "position: absolute; top: %fpx;",
-                font_metrics.row_height,
-              );
+        let specificity_style =
+          Attr.create(
+            "style",
+            specificity_pos
+            ++ (docs.specificity_open ? "transform: scaleY(1);" : ""),
+          );
 
-            let specificity_style =
-              Attr.create(
-                "style",
-                specificity_pos
-                ++ (doc.specificity_open ? "transform: scaleY(1);" : ""),
-              );
+        let get_clss = segment =>
+          switch (List.nth(segment, 0)) {
+          | Base.Tile({mold, _}) => [
+              "ci-header-" ++ Sort.to_string(mold.out) // TODO the brown on brown isn't the greatest... but okay
+            ]
+          | _ => []
+          };
 
-            let get_clss = segment =>
-              switch (List.nth(segment, 0)) {
-              | Base.Tile({mold, _}) => [
-                  "ci-header-" ++ Sort.to_string(mold.out) // TODO the brown on brown isn't the greatest... but okay
-                ]
-              | _ => []
-              };
+        let specificity_menu =
+          Node.div(
+            ~attr=
+              Attr.many([
+                clss(["specificity-options-menu", "expandable"]),
+                specificity_style,
+              ]),
+            List.map(
+              ((id: ExplainThisForm.form_id, segment: Segment.t)): Node.t => {
+                let map = Measured.of_segment(segment);
+                let code_view =
+                  Code.simple_view(
+                    ~font_metrics,
+                    ~unselected=segment,
+                    ~map,
+                    ~settings,
+                  );
+                let classes =
+                  id == doc.id
+                    ? ["selected"] @ get_clss(segment) : get_clss(segment);
+                let update_group_selection = _ =>
+                  inject(
+                    UpdateAction.UpdateExplainThisModel(
+                      ExplainThisUpdate.UpdateGroupSelection(group.id, id),
+                    ),
+                  );
+                Node.div(
+                  ~attr=
+                    Attr.many([
+                      clss(classes),
+                      Attr.on_click(update_group_selection),
+                    ]),
+                  [code_view],
+                );
+              },
+              options,
+            ),
+          );
 
-            let specificity_menu =
-              Node.div(
-                ~attr=
-                  Attr.many([
-                    clss(["specificity-options-menu", "expandable"]),
-                    specificity_style,
-                  ]),
-                List.map(
-                  ((id: ExplainThisForm.form_id, segment: Segment.t)): Node.t => {
-                    let map = Measured.of_segment(segment);
-                    let code_view =
-                      Code.simple_view(
-                        ~font_metrics,
-                        ~unselected=segment,
-                        ~map,
-                        ~settings,
-                      );
-                    let classes =
-                      id == form_id
-                        ? ["selected"] @ get_clss(segment)
-                        : get_clss(segment);
-                    let update_group_selection = _ =>
-                      inject(
-                        UpdateAction.UpdateExplainThisModel(
-                          ExplainThisUpdate.UpdateGroupSelection(
-                            group_id,
-                            id,
-                          ),
-                        ),
-                      );
-                    Node.div(
-                      ~attr=
-                        Attr.many([
-                          clss(classes),
-                          Attr.on_click(update_group_selection),
-                        ]),
-                      [code_view],
-                    );
-                  },
-                  options,
-                ),
-              );
+        let expand_arrow_style = Attr.create("style", specificity_pos);
+        let expand_arrow =
+          Node.div(
+            ~attr=Attr.many([clss(["arrow"]), expand_arrow_style]),
+            [],
+          );
 
-            let expand_arrow_style = Attr.create("style", specificity_pos);
-            let expand_arrow =
-              Node.div(
-                ~attr=Attr.many([clss(["arrow"]), expand_arrow_style]),
-                [],
-              );
+        let expandable_deco =
+          DecUtil.code_svg(
+            ~font_metrics,
+            ~origin,
+            ~base_cls=["expandable"],
+            ~abs_pos=false,
+            path,
+          );
 
-            let expandable_deco =
-              DecUtil.code_svg(
-                ~font_metrics,
-                ~origin,
-                ~base_cls=["expandable"],
-                ~abs_pos=false,
-                path,
-              );
-
-            Node.div(
-              ~attr=
-                Attr.many([
-                  clss(["expandable-target"]),
-                  DecUtil.abs_position(~font_metrics, origin),
-                  Attr.on_click(_ => {
-                    inject(
-                      UpdateAction.UpdateExplainThisModel(
-                        ExplainThisUpdate.SpecificityOpen(
-                          !doc.specificity_open,
-                        ),
-                      ),
-                    )
-                  }),
-                ]),
-              [expandable_deco, specificity_menu]
-              @ (doc.specificity_open ? [] : [expand_arrow]),
-            );
-          },
-        ),
-      ]
-    };
-  Deco.color_highlights(colorings) @ term_explain_this;
-};
-
-let syntactic_form_view =
-    (
-      ~doc,
-      ~colorings,
-      ~expandable,
-      ~inject,
-      ~font_metrics,
-      ~unselected,
-      ~settings,
-      ~id,
-      ~options: list((ExplainThisForm.form_id, Segment.t)),
-      ~group_id,
-      ~form_id,
-    ) => {
-  let map = Measured.of_segment(unselected);
-  let code_view =
-    Code.simple_view(~font_metrics, ~unselected, ~map, ~settings);
-  let deco_view =
-    deco(
-      ~doc,
-      ~settings,
-      ~colorings,
-      ~expandable,
-      ~unselected,
-      ~map,
-      ~inject,
-      ~font_metrics,
-      ~options,
-      ~group_id,
-      ~form_id,
-    );
-  div(
-    ~attr=Attr.many([Attr.id(id), clss(["code-container"])]),
-    [code_view] @ deco_view,
-  );
+        Node.div(
+          ~attr=
+            Attr.many([
+              clss(["expandable-target"]),
+              DecUtil.abs_position(~font_metrics, origin),
+              Attr.on_click(_ => {
+                inject(
+                  UpdateAction.UpdateExplainThisModel(
+                    ExplainThisUpdate.SpecificityOpen(!docs.specificity_open),
+                  ),
+                )
+              }),
+            ]),
+          [expandable_deco, specificity_menu]
+          @ (docs.specificity_open ? [] : [expand_arrow]),
+        );
+      },
+    )
+  };
 };
 
 let example_view =
     (
       ~inject,
-      ~font_metrics,
-      ~settings,
+      ~ui_state,
+      ~settings: Settings.t,
       ~group_id,
       ~form_id,
       ~examples: list(ExplainThisForm.example),
       ~model: ExplainThisModel.t,
     ) => {
-  List.length(examples) == 0
+  examples == []
     ? []
     : [
       div(
         ~attr=Attr.id("examples"),
-        List.map(
-          ({term, message, _} as example: ExplainThisForm.example) => {
-            let map_code = Measured.of_segment(term);
-            let code_view =
-              Code.simple_view(
-                ~font_metrics,
-                ~unselected=term,
-                ~map=map_code,
-                ~settings,
-              );
-            let (uhexp, _) = MakeTerm.go(term);
-            let info_map = Interface.Statics.mk_map(settings.core, uhexp);
-            let dhexp =
-              uhexp |> Interface.elaborate(~settings=settings.core, info_map);
-            let dhexp =
-              DHExp.Filter(
-                Filter(
-                  Filter.mk(
-                    Constructor("$e"),
-                    (FilterAction.Eval, FilterAction.All),
-                  ),
-                ),
-                dhexp,
-              );
-            let stepper =
-              dhexp
-              |> Stepper.init
-              |> Stepper.evaluate_full(~settings=settings.core.evaluation);
-            let (hidden, previous) =
-              Stepper.get_history(
-                ~settings=settings.core.evaluation,
-                stepper,
-              );
-            let dh_code_current =
-              div(
-                ~attr=Attr.classes(["result"]),
-                [
-                  DHCode.view(
-                    ~inject,
-                    ~settings=settings.core.evaluation,
-                    ~selected_hole_instance=None,
-                    ~font_metrics,
-                    ~width=80,
-                    ~previous_step=
-                      previous
-                      |> List.nth_opt(_, 0)
-                      |> Option.map((x: Stepper.step_with_previous) => x.step),
-                    ~next_steps=stepper.next,
-                    ~hidden_steps=
-                      List.map((x: EvaluatorStep.step) => x, hidden),
-                    ~result_key="",
-                    Stepper.current_expr(stepper),
-                  ),
-                ],
-              );
-            let dh_code_previous =
-                (step_with_previous: Stepper.step_with_previous) =>
-              div(
-                ~attr=Attr.classes(["result"]),
-                [
-                  DHCode.view(
-                    ~inject,
-                    ~settings=settings.core.evaluation,
-                    ~selected_hole_instance=None,
-                    ~font_metrics,
-                    ~width=80,
-                    ~previous_step=
-                      Option.map(
-                        (x: EvaluatorStep.step) => x,
-                        step_with_previous.previous,
-                      ),
-                    ~chosen_step=Some(step_with_previous.step),
-                    ~hidden_steps=
-                      List.map(
-                        (x: EvaluatorStep.step) => x,
-                        step_with_previous.hidden,
-                      ),
-                    ~result_key="",
-                    step_with_previous.step.d,
-                  ),
-                ],
-              );
-            let result_view =
-              previous
-              |> List.map(dh_code_previous)
-              |> List.fold_left(
-                   (x, y) => List.cons(y, x),
-                   [dh_code_current],
-                 );
-            let code_container = view =>
-              div(~attr=clss(["code-container"]), view);
+        List.mapi(
+          (idx, {term, message, sub_id, _}: ExplainThisForm.example) => {
             let feedback =
               settings.explainThis.show_feedback
                 ? [
@@ -493,7 +352,7 @@ let example_view =
                     ~inject,
                     group_id,
                     form_id,
-                    example.sub_id,
+                    sub_id,
                     model,
                   ),
                 ]
@@ -501,21 +360,12 @@ let example_view =
             div(
               ~attr=clss(["example"]),
               [
-                div(
-                  ~attr=clss(["cell", "selected"]),
-                  [
-                    div(
-                      ~attr=clss(["cell-item"]),
-                      [code_container([code_view])],
-                    ),
-                    div(
-                      ~attr=clss(["cell-item", "cell-result"]),
-                      [
-                        div_c("equiv", [text("≡")]),
-                        code_container(result_view),
-                      ],
-                    ),
-                  ],
+                Cell.locked(
+                  ~segment=term,
+                  ~target_id="example" ++ string_of_int(idx),
+                  ~ui_state,
+                  ~settings,
+                  ~inject,
                 ),
                 div(
                   ~attr=clss(["explanation"]),
@@ -563,7 +413,7 @@ let rec bypass_parens_typ = (typ: TermBase.UTyp.t) => {
 type message_mode =
   | MessageContent(
       UpdateAction.t => Virtual_dom.Vdom.Effect.t(unit),
-      FontMetrics.t,
+      Model.ui_state,
       Settings.t,
     )
   | Colorings;
@@ -597,7 +447,7 @@ let get_doc =
       | (_, None) => doc.explanation
       };
     switch (mode) {
-    | MessageContent(inject, font_metrics, settings) =>
+    | MessageContent(inject, ui_state, settings) =>
       let (explanation, color_map) =
         mk_explanation(
           ~settings,
@@ -607,38 +457,52 @@ let get_doc =
           explanation_msg,
           docs,
         );
-      let syntactic_form_view =
-        syntactic_form_view(
-          ~doc=docs,
-          ~colorings=
-            List.map(
-              ((syntactic_form_id: Id.t, code_id: Id.t)) => {
-                let (color, _) = ColorSteps.get_color(code_id, color_map);
-                (syntactic_form_id, color);
-              },
-              colorings,
-            ),
-          ~expandable=doc.expandable_id,
-          ~inject,
-          ~font_metrics,
-          ~unselected=doc.syntactic_form,
+      let sort =
+        switch (info) {
+        | None => Sort.Any
+        | Some(ci) => Info.sort_of(ci)
+        };
+      let highlights =
+        colorings
+        |> List.map(((syntactic_form_id: Id.t, code_id: Id.t)) => {
+             let (color, _) = ColorSteps.get_color(code_id, color_map);
+             (syntactic_form_id, color);
+           })
+        |> List.to_seq
+        |> Id.Map.of_seq
+        |> Option.some;
+      let expander_deco =
+        expander_deco(
+          ~docs,
           ~settings,
-          ~id="syntactic-form-code",
+          ~inject,
+          ~ui_state,
           ~options,
-          ~group_id=group.id,
-          ~form_id=doc.id,
+          ~group,
+          ~doc,
+        );
+      let syntactic_form_view =
+        Cell.locked_no_statics(
+          ~target_id="explainThisSyntacticForm",
+          ~inject,
+          ~ui_state,
+          ~segment=doc.syntactic_form,
+          ~highlights,
+          ~settings,
+          ~sort,
+          ~expander_deco,
         );
       let example_view =
         example_view(
           ~inject,
-          ~font_metrics,
+          ~ui_state,
           ~settings,
           ~group_id=group.id,
           ~form_id=doc.id,
           ~examples=doc.examples,
           ~model=docs,
         );
-      ([syntactic_form_view], ([explanation], color_map), example_view);
+      (syntactic_form_view, ([explanation], color_map), example_view);
     | Colorings =>
       let (_, color_map) = mk_translation(~inject=None, explanation_msg);
       ([], ([], color_map), []);
@@ -2343,22 +2207,13 @@ let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
   );
 
 let get_color_map =
-    (
-      ~settings: Settings.t,
-      ~explainThisModel: ExplainThisModel.t,
-      index: option(Id.t),
-      info_map: Statics.Map.t,
-    ) =>
+    (~settings: Settings.t, ~explainThisModel: ExplainThisModel.t, info) =>
   switch (settings.explainThis.highlight) {
   | All when settings.explainThis.show =>
-    let* index = index;
-    let info = Id.Map.find_opt(index, info_map);
     let (_, (_, (color_map, _)), _) =
       get_doc(~docs=explainThisModel, info, Colorings);
     Some(color_map);
   | One(id) when settings.explainThis.show =>
-    let* index = index;
-    let info = Id.Map.find_opt(index, info_map);
     let (_, (_, (color_map, _)), _) =
       get_doc(~docs=explainThisModel, info, Colorings);
     Some(Id.Map.filter((id', _) => id == id', color_map));
@@ -2368,13 +2223,17 @@ let get_color_map =
 let view =
     (
       ~inject,
-      ~font_metrics: FontMetrics.t,
+      ~ui_state: Model.ui_state,
       ~settings: Settings.t,
-      ~doc: ExplainThisModel.t,
+      ~explainThisModel: ExplainThisModel.t,
       info: option(Info.t),
     ) => {
   let (syn_form, (explanation, _), example) =
-    get_doc(~docs=doc, info, MessageContent(inject, font_metrics, settings));
+    get_doc(
+      ~docs=explainThisModel,
+      info,
+      MessageContent(inject, ui_state, settings),
+    );
   div(
     ~attr=Attr.id("side-bar"),
     [
@@ -2412,17 +2271,7 @@ let view =
               | None => "Whitespace or Comment"
               | Some(info) => Info.cls_of(info) |> Term.Cls.show
               },
-            (
-              syn_form == []
-                ? []
-                : [
-                  div(
-                    ~attr=clss(["cell"]),
-                    [div(~attr=clss(["cell-item"]), syn_form)],
-                  ),
-                ]
-            )
-            @ explanation,
+            syn_form @ explanation,
           ),
         ]
         @ (
