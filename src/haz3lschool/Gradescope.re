@@ -67,7 +67,10 @@ module Main = {
     };
     let settings = CoreSettings.on;
     let model_results =
-      ModelResults.init(~settings, spliced_elabs(settings, exercise));
+      spliced_elabs(settings, exercise)
+      |> ModelResults.init_eval
+      //TODO[Matt]: Make sure this times out correctly
+      |> ModelResults.run_pending(~settings);
     let stitched_dynamics =
       stitch_dynamic(settings, exercise, Some(model_results));
     let grading_report = exercise.eds |> GradingReport.mk(~stitched_dynamics);
