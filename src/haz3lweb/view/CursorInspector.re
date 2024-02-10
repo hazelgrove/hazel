@@ -224,13 +224,7 @@ let inspector_view = (~inject, ~settings, ci): Node.t =>
     [view_of_info(~inject, ~settings, ci)],
   );
 
-let view =
-    (
-      ~inject,
-      ~settings: Settings.t,
-      zipper: Zipper.t,
-      info_map: Statics.Map.t,
-    ) => {
+let view = (~inject, ~settings: Settings.t, cursor_info: option(Info.t)) => {
   let bar_view = div(~attr=Attr.id("bottom-bar"));
   let err_view = err =>
     bar_view([
@@ -239,9 +233,9 @@ let view =
         [div(~attr=clss(["icon"]), [Icons.magnify]), text(err)],
       ),
     ]);
-  switch (Indicated.ci_of(zipper, info_map)) {
+  switch (cursor_info) {
   | _ when !settings.core.statics => div_empty
-  | None => err_view("No Static information available")
+  | None => err_view("Whitespace or Comment")
   | Some(ci) =>
     bar_view([
       inspector_view(~inject, ~settings, ci),

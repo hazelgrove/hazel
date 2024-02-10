@@ -89,6 +89,16 @@ let delete_parent = (z: t): t => {
 let zip = (z: t): Segment.t =>
   Relatives.zip(~sel=z.selection.content, z.relatives);
 
+let unzip = (seg: Segment.t): t => {
+  selection: Selection.mk([]),
+  backpack: [],
+  relatives: {
+    siblings: (seg, []),
+    ancestors: [],
+  },
+  caret: Outer,
+};
+
 let sibs_with_sel =
     (
       {

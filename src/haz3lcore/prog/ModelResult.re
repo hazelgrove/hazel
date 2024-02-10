@@ -6,12 +6,15 @@ type evaluation =
   | ResultPending;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type elab_eval = {
+  elab: DHExp.t,
+  evaluation,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | NoElab
-  | Evaluation({
-      elab: DHExp.t,
-      evaluation,
-    })
+  | Evaluation(elab_eval)
   | Stepper(Stepper.t);
 
 let init_eval = elab => Evaluation({elab, evaluation: ResultPending});
@@ -34,7 +37,7 @@ let step_forward = (idx: int, mr: t) =>
 let step_backward = (~settings, mr: t) =>
   mr |> update_stepper(Stepper.step_backward(~settings));
 
-let run_pending = (~settings) =>
+let run_pending = (~settings: CoreSettings.t) =>
   fun
   | NoElab => NoElab
   | Evaluation({elab, evaluation: ResultPending}) =>
@@ -74,24 +77,20 @@ let toggle_stepper =
   | Evaluation({elab, _}) => Stepper(Stepper.init(elab))
   | Stepper({elab, _}) => Evaluation({elab, evaluation: ResultPending});
 
-let get_simple =
-  fun
+let test_results = (result: t) =>
+  switch (result) {
   | NoElab => None
   | Evaluation({evaluation: ResultOk(pr), _}) =>
-    Some(
-      {
-        eval_result: pr |> ProgramResult.get_dhexp,
-        test_results:
-          pr
-          |> ProgramResult.get_state
-          |> EvaluatorState.get_tests
-          |> TestResults.mk_results,
-      }: TestResults.simple_data,
-    )
+    pr
+    |> ProgramResult.get_state
+    |> EvaluatorState.get_tests
+    |> TestResults.mk_results
+    |> Option.some
   | Evaluation({evaluation: ResultFail(_), _})
   | Evaluation({evaluation: ResultTimeout, _})
   | Evaluation({evaluation: ResultPending, _})
-  | Stepper(_) => None;
+  | Stepper(_) => None
+  };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type persistent =
