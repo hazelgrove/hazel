@@ -84,7 +84,7 @@ let bolded_caption = (~rest: option(string)=?, bolded: string) =>
   );
 
 let simple_cell_view = (items: list(Node.t)) =>
-  Node.div(~attr=Attr.class_("cell-container"), items);
+  Node.div(~attr=Attr.class_("cell"), items);
 
 let code_cell_view =
     (
@@ -107,9 +107,7 @@ let code_cell_view =
   let code = mousedown_overlay @ [code];
   Node.div(
     ~attr=
-      Attr.classes(
-        ["cell-container"] @ (selected ? ["selected"] : ["deselected"]),
-      ),
+      Attr.classes(["cell"] @ (selected ? ["selected"] : ["deselected"])),
     [
       Node.div(
         ~attr=

@@ -36,19 +36,13 @@ let view =
   let result =
     ModelResults.lookup(results, result_key)
     |> Option.value(~default=ModelResult.NoElab);
-  let color_highlighting: option(ColorSteps.colorMap) =
-    if (explainThisModel.highlight && explainThisModel.show) {
-      //TODO(andrew): is indicated index appropriate below?
-      Some(
-        ExplainThis.get_color_map(
-          ~doc=explainThisModel,
-          Indicated.index(zipper),
-          info_map,
-        ),
-      );
-    } else {
-      None;
-    };
+  let color_highlighting =
+    ExplainThis.get_color_map(
+      ~settings,
+      ~explainThisModel,
+      Indicated.index(zipper),
+      info_map,
+    );
 
   let code_id = "code-container";
   let editor_view =
@@ -67,16 +61,9 @@ let view =
       ~result,
       editor,
     );
-  let bottom_bar =
-    CursorInspector.view(
-      ~inject,
-      ~settings,
-      ~show_explain_this=explainThisModel.show,
-      zipper,
-      info_map,
-    );
+  let bottom_bar = CursorInspector.view(~inject, ~settings, zipper, info_map);
   let sidebar =
-    explainThisModel.show && settings.core.statics
+    settings.explainThis.show && settings.core.statics
       ? ExplainThis.view(
           ~inject,
           ~font_metrics,

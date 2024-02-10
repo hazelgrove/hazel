@@ -105,6 +105,33 @@ let update_settings =
         },
       },
     };
+  | ExplainThis(ToggleShow) =>
+    let explainThis = {
+      ...settings.explainThis,
+      show: !settings.explainThis.show,
+    };
+    let settings = {...settings, explainThis};
+    {...model, settings};
+  | ExplainThis(ToggleShowFeedback) =>
+    let explainThis = {
+      ...settings.explainThis,
+      show_feedback: !settings.explainThis.show_feedback,
+    };
+    let settings = {...settings, explainThis};
+    {...model, settings};
+  | ExplainThis(SetHighlight(a)) =>
+    let highlight: ExplainThisModel.Settings.highlight =
+      switch (a, settings.explainThis.highlight) {
+      | (Toggle, All) => NoHighlight
+      | (Toggle, _) => All
+      | (Hover(_), All) => All
+      | (Hover(id), _) => One(id)
+      | (UnsetHover, All) => All
+      | (UnsetHover, _) => NoHighlight
+      };
+    let explainThis = {...settings.explainThis, highlight};
+    let settings = {...settings, explainThis};
+    {...model, settings};
   | Benchmark => {
       ...model,
       settings: {
@@ -173,7 +200,8 @@ let reevaluate_post_update = (settings: Settings.t) =>
     | InstructorMode
     | ContextInspector
     | Mode(_) => true
-    | Evaluation(ShowSettings) => false
+    | Evaluation(ShowSettings)
+    | ExplainThis(_) => false
     }
   | SetMeta(meta_action) =>
     switch (meta_action) {
@@ -231,7 +259,8 @@ let should_scroll_to_caret =
     | Benchmark
     | ContextInspector
     | InstructorMode
-    | Evaluation(_) => false
+    | Evaluation(_)
+    | ExplainThis(_) => false
     }
   | SetMeta(meta_action) =>
     switch (meta_action) {

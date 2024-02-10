@@ -75,19 +75,13 @@ let view =
   let (focal_zipper, focal_info_map) =
     Exercise.focus(exercise, stitched_dynamics);
   let score_view = Grading.GradingReport.view_overall_score(grading_report);
-  let color_highlighting: option(ColorSteps.colorMap) =
-    if (explainThisModel.highlight && explainThisModel.show) {
-      //TODO(andrew): is indicated index appropriate below?
-      Some(
-        ExplainThis.get_color_map(
-          ~doc=explainThisModel,
-          None,
-          focal_info_map,
-        ),
-      );
-    } else {
-      None;
-    };
+  let color_highlighting =
+    ExplainThis.get_color_map(
+      ~settings,
+      ~explainThisModel,
+      Indicated.index(focal_zipper),
+      focal_info_map,
+    );
 
   // partially apply for convenience below
   let editor_view = pos => {
@@ -347,14 +341,13 @@ let view =
         CursorInspector.view(
           ~inject,
           ~settings,
-          ~show_explain_this=explainThisModel.show,
           focal_zipper,
           focal_info_map,
         ),
       ]
       : [];
   let sidebar =
-    explainThisModel.show && settings.core.statics
+    settings.explainThis.show && settings.core.statics
       ? ExplainThis.view(
           ~inject,
           ~font_metrics,
