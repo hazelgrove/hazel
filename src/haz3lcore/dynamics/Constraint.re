@@ -109,7 +109,6 @@ let rec or_constraints = (lst: list(t)): t =>
   | [xi, ...xis] => Or(xi, or_constraints(xis))
   };
 
-// Temporary name
 let rec ctr_of_nth_variant = (num_variants, nth): (t => t) =>
   if (num_variants == 1) {
     Fun.id;
@@ -119,15 +118,36 @@ let rec ctr_of_nth_variant = (num_variants, nth): (t => t) =>
     xi => InjR(xi |> ctr_of_nth_variant(num_variants - 1, nth - 1));
   };
 
-let of_ap = (ctx, ctr: option(Constructor.t), arg: t): t =>
+let of_ap = (ctx, mode, ctr: option(Constructor.t), arg: t, syn_ty): t =>
   switch (ctr) {
   | Some(name) =>
-    switch (Ctx.lookup_ctr(ctx, name)) {
-    | None => Falsity // TODO: review
-    | Some({num_variants, nth, _}) =>
-      arg |> ctr_of_nth_variant(num_variants, nth)
-    }
-  | None => Falsity // TODO: review
+    let ty =
+      switch (mode) {
+      | Mode.Ana(ty) => Some(ty)
+      | Syn => syn_ty
+      | _ => None
+      };
+    switch (ty) {
+    | Some(ty) =>
+      switch (Typ.weak_head_normalize(ctx, ty)) {
+      | Sum(map) =>
+        let num_variants = ConstructorMap.cardinal(map);
+        switch (ConstructorMap.nth(map, name)) {
+        | Some(nth) => arg |> ctr_of_nth_variant(num_variants, nth)
+        | None => Falsity
+        };
+      | _ => Falsity
+      }
+    | None => Falsity
+    };
+  | None => Falsity
   };
 
-let of_ctr = (ctx, name) => of_ap(ctx, Some(name), Truth);
+let of_ctr = (ctx, mode, name, self) => {
+  let syn_ty =
+    switch (self) {
+    | Self.IsConstructor({syn_ty, _}) => syn_ty
+    | _ => assert(false) // impossible
+    };
+  of_ap(ctx, mode, Some(name), Truth, syn_ty);
+};
