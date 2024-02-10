@@ -23,26 +23,66 @@ let view_of_layout =
            (~go, ~indent, ~start, annot: DHAnnot.t, m) => {
              let (txt, ds) = go(m);
              switch (annot) {
-             | Steppable(obj) => (
+             | Steppable(obj) =>
+               let step = _ =>
+                 inject(
+                   UpdateAction.StepperAction(result_key, StepForward(obj)),
+                 );
+               let transform_of = name =>
+                 Node.div(
+                   ~attr=
+                     Attr.many([
+                       Attr.class_("transform"),
+                       Attr.on_click(_ => Vdom.Effect.Ignore),
+                     ]),
+                   [Node.text(name)],
+                 );
+               let menu =
+                 Node.div(
+                   ~attr=
+                     Attr.many([Attr.class_("menu"), Attr.on_click(step)]),
+                   List.map(
+                     transform_of,
+                     ["Step", "Assoc +", "Dist + ×", "1 / x"],
+                   ),
+                 );
+               let handle = Node.div(~attr=Attr.class_("handle"), []);
+               let pre_handle =
+                 Node.div(~attr=Attr.class_("pre-handle"), []);
+               let handle_back =
+                 Node.div(
+                   ~attr=
+                     Attr.many([
+                       Attr.class_("handle-back"),
+                       Attr.on_click(step),
+                     ]),
+                   [],
+                 );
+               (
                  [
-                   Node.span(
-                     ~attr=
-                       Attr.many([
-                         Attr.class_("steppable"),
-                         Attr.on_click(_ =>
-                           inject(
-                             UpdateAction.StepperAction(
-                               result_key,
-                               StepForward(obj),
+                   Node.div(
+                     ~attr=Attr.class_("steppable-wrapper"),
+                     [
+                       Node.span(
+                         ~attr=
+                           Attr.many([
+                             Attr.class_("steppable"),
+                             Attr.on_click(_ =>
+                               inject(
+                                 UpdateAction.StepperAction(
+                                   result_key,
+                                   StepForward(obj),
+                                 ),
+                               )
                              ),
-                           )
-                         ),
-                       ]),
-                     txt,
+                           ]),
+                         [pre_handle, handle, handle_back, menu] @ txt,
+                       ),
+                     ],
                    ),
                  ],
                  ds,
-               )
+               );
              | Stepped => (
                  [
                    Node.span(~attr=Attr.many([Attr.class_("stepped")]), txt),
