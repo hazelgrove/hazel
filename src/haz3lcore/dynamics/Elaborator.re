@@ -33,18 +33,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
   | SynFun =>
     switch (self_ty) {
     | Unknown(prov) =>
-      switch (d) {
-      /* If an empty hole is placed in the function section of an Ap
-         expression, then the cast from ? to ? -> ? should be applied only once
-         this checks to see if the cast has already been applied */
-      | Cast(
-          EmptyHole(_),
-          Unknown(Internal),
-          Arrow(Unknown(Internal), Unknown(Internal)),
-        ) => d
-      | _ =>
-        DHExp.cast(d, Unknown(prov), Arrow(Unknown(prov), Unknown(prov)))
-      }
+      DHExp.cast(d, Unknown(prov), Arrow(Unknown(prov), Unknown(prov)))
     | Arrow(_) => d
     | _ => failwith("Elaborator.wrap: SynFun non-arrow-type")
     }
@@ -300,7 +289,10 @@ let rec dhexp_of_uexp =
         };
       | TyAlias(_, _, e) => dhexp_of_uexp(m, e)
       };
-    wrap(ctx, id, mode, self, d);
+    switch (uexp.term) {
+    | Parens(_) => d
+    | _ => wrap(ctx, id, mode, self, d)
+    };
   | Some(InfoPat(_) | InfoTyp(_) | InfoTPat(_) | Secondary(_))
   | None => None
   };
