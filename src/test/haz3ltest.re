@@ -1,4 +1,3 @@
 open Alcotest;
-open Test_Elaboration;
 
-run("Dynamics", [("Elaboration", elaboration_tests)]);
+run("Dynamics", [("Elaboration", Test_Elaboration.elaboration_tests)]);
