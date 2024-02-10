@@ -24,6 +24,7 @@ type t = {
   context_inspector: bool,
   instructor_mode: bool,
   benchmark: bool,
+  explainThis: ExplainThisModel.Settings.t,
   mode,
 };
 

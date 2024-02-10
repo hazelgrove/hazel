@@ -5,9 +5,6 @@ open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type update =
-  | ToggleShow
-  | ToggleHighlight
-  | ToggleShowFeedback
   | SpecificityOpen(bool)
   | ToggleExplanationFeedback(group_id, form_id, feedback_option)
   | ToggleExampleFeedback(group_id, form_id, example_id, feedback_option)
@@ -16,15 +13,6 @@ type update =
 let set_update =
     (explainThisModel: ExplainThisModel.t, u: update): ExplainThisModel.t => {
   switch (u) {
-  | ToggleShow => {...explainThisModel, show: !explainThisModel.show}
-  | ToggleShowFeedback => {
-      ...explainThisModel,
-      show_feedback: !explainThisModel.show_feedback,
-    }
-  | ToggleHighlight => {
-      ...explainThisModel,
-      highlight: !explainThisModel.highlight,
-    }
   | SpecificityOpen(b) => {...explainThisModel, specificity_open: b}
   | ToggleExplanationFeedback(group_id, form_id, feedback_option) =>
     let (pre, form, post) =

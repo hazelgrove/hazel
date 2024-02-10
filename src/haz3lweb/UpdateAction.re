@@ -25,6 +25,7 @@ type settings_action =
   | ContextInspector
   | InstructorMode
   | Evaluation(evaluation_settings_action)
+  | ExplainThis(ExplainThisModel.Settings.action)
   | Mode(Settings.mode);
 
 [@deriving (show({with_path: false}), sexp, yojson)]

@@ -39,7 +39,13 @@ let settings_menu =
     (
       ~inject,
       ~settings as
-        {core: {evaluation, _} as core, benchmark, secondary_icons, _}: Settings.t,
+        {
+          core: {evaluation, _} as core,
+          benchmark,
+          secondary_icons,
+          explainThis,
+          _,
+        }: Settings.t,
     ) => {
   let toggle = (icon, tooltip, bool, setting) =>
     toggle_named(icon, ~tooltip, bool, _ =>
@@ -88,6 +94,18 @@ let settings_menu =
     toggle("τ", "Toggle Statics", core.statics, Statics),
     toggle("𝛿", "Toggle Dynamics", core.dynamics, Dynamics),
     toggle("✓", "Print Benchmarks", benchmark, Benchmark),
+    toggle(
+      "?",
+      "Show Docs Sidebar",
+      explainThis.show,
+      ExplainThis(ToggleShow),
+    ),
+    toggle(
+      "👍",
+      "Show Docs Feedback",
+      explainThis.show_feedback,
+      ExplainThis(ToggleShowFeedback),
+    ),
   ];
 };
 
