@@ -316,7 +316,7 @@ let rec dhexp_of_uexp =
       | TyAlias(_, _, e) => dhexp_of_uexp(m, e)
       };
     wrap(ctx, id, mode, self, d);
-  | Some(InfoPat(_) | InfoTyp(_) | InfoTPat(_))
+  | Some(InfoPat(_) | InfoTyp(_) | InfoTPat(_) | Secondary(_))
   | None => None
   };
 }
@@ -381,7 +381,7 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
       let* dp = dhpat_of_upat(m, p);
       wrap(dp);
     };
-  | Some(InfoExp(_) | InfoTyp(_) | InfoTPat(_))
+  | Some(InfoExp(_) | InfoTyp(_) | InfoTPat(_) | Secondary(_))
   | None => None
   };
 };

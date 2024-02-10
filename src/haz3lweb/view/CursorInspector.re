@@ -197,14 +197,17 @@ let tpat_view = (_: Term.Cls.t, status: Info.status_tpat) =>
     div_err([text("Can't shadow existing alias"), Type.view(Var(name))])
   };
 
-let view_of_info =
-    (~inject, ~settings, ~show_explain_this: bool, ci: Statics.Info.t): Node.t => {
+let secondary_view = (cls: Term.Cls.t) =>
+  div_ok([text(cls |> Term.Cls.show)]);
+
+let view_of_info = (~inject, ~settings, ~show_explain_this: bool, ci): Node.t => {
   let wrapper = status_view =>
     div(
       ~attr=clss(["info"]),
       [term_view(~inject, ~settings, ~show_explain_this, ci), status_view],
     );
   switch (ci) {
+  | Secondary(_) => wrapper(div([]))
   | InfoExp({cls, status, _}) => wrapper(exp_view(cls, status))
   | InfoPat({cls, status, _}) => wrapper(pat_view(cls, status))
   | InfoTyp({cls, status, _}) => wrapper(typ_view(cls, status))
@@ -234,22 +237,16 @@ let view =
         [div(~attr=clss(["icon"]), [Icons.magnify]), text(err)],
       ),
     ]);
-  switch (zipper.backpack, Indicated.index(zipper)) {
+  switch (Indicated.ci_of(zipper, info_map)) {
   | _ when !settings.core.statics => div_empty
-  | _ when Id.Map.is_empty(info_map) =>
-    err_view("No Static information available")
-  | (_, None) => err_view("No cursor in program")
-  | (_, Some(id)) =>
-    switch (Id.Map.find_opt(id, info_map)) {
-    | None => err_view("Whitespace or Comment")
-    | Some(ci) =>
-      bar_view([
-        inspector_view(~inject, ~settings, ~show_explain_this, ci),
-        div(
-          ~attr=clss(["id"]),
-          [text(String.sub(Id.to_string(id), 0, 4))],
-        ),
-      ])
-    }
+  | None => err_view("No Static information available")
+  | Some(ci) =>
+    bar_view([
+      inspector_view(~inject, ~settings, ~show_explain_this, ci),
+      div(
+        ~attr=clss(["id"]),
+        [text(String.sub(Id.to_string(Info.id_of(ci)), 0, 4))],
+      ),
+    ])
   };
 };
