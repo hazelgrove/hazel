@@ -241,12 +241,9 @@ let rec typ_of_dhexp =
       |> OptUtil.sequence;
     Typ.join_all(~empty=Unknown(Internal), ctx, typ_cases);
   | Cast(d, ty1, ty2) =>
-    switch (Typ.join(~fix=true, ctx, ty1, ty2)) {
-    | None => None
-    | Some(_) =>
-      let* tyd = typ_of_dhexp(ctx, m, d);
-      Typ.eq(tyd, ty1) ? Some(ty2) : None;
-    }
+    let* _ = Typ.join(~fix=true, ctx, ty1, ty2);
+    let* tyd = typ_of_dhexp(ctx, m, d);
+    Typ.eq(tyd, ty1) ? Some(ty2) : None;
   | FailedCast(d, ty1, ty2) =>
     if (ground(ty1) && ground(ty2) && !Typ.eq(ty1, ty2)) {
       let* tyd = typ_of_dhexp(ctx, m, d);
@@ -260,7 +257,7 @@ let rec typ_of_dhexp =
     if (Typ.eq(ty, Bool)) {
       let* ty1 = typ_of_dhexp(ctx, m, d1);
       let* ty2 = typ_of_dhexp(ctx, m, d2);
-      Typ.join(~fix=true, ctx, ty1, ty2) ? Some(ty1) : None;
+      Typ.join_all(~empty=Unknown(Internal), ctx, [ty1, ty2]);
     } else {
       None;
     };
