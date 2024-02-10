@@ -1,5 +1,3 @@
-open EvaluatorStep;
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type evaluation =
   | ResultOk(ProgramResult.t)
@@ -33,8 +31,8 @@ let update_stepper = f =>
   | Evaluation(_) as e => e
   | Stepper(s) => Stepper(f(s));
 
-let step_forward = (x: EvalObj.t, mr: t) =>
-  mr |> update_stepper(Stepper.step_pending(x));
+let step_forward = (idx: int, mr: t) =>
+  mr |> update_stepper(Stepper.step_pending(idx));
 
 let step_backward = (~settings, mr: t) =>
   mr |> update_stepper(Stepper.step_backward(~settings));
