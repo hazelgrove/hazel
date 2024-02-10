@@ -69,7 +69,7 @@ let view =
       ~caption=Cell.caption(caption, ~rest=?subcaption),
       ~target_id=Exercise.show_pos(this_pos),
       ~test_results=ModelResult.test_results(di.result),
-      ~footer=Option.to_list(footer),
+      ~footer?,
       editor,
     );
   };
@@ -155,12 +155,13 @@ let view =
         ~subcaption=": Your Tests vs. Correct Implementation",
         ~editor=eds.your_tests.tests,
         ~di=test_validation,
-        ~footer=
+        ~footer=[
           Grading.TestValidationReport.view(
             ~inject,
             grading_report.test_validation_report,
             grading_report.point_distribution.test_validation,
           ),
+        ],
       ),
     );
 
@@ -196,18 +197,14 @@ let view =
         ~caption="Your Implementation",
         ~editor=eds.your_impl,
         ~di=user_impl,
-        //TODO(andrew): undo wrapping
         ~footer=
-          div(
-            ~attr=Attr.id("temmmmp"),
-            Cell.footer(
-              ~locked=false,
-              ~settings,
-              ~inject,
-              ~ui_state,
-              ~result=user_impl.result,
-              ~result_key=Exercise.user_impl_key,
-            ),
+          Cell.footer(
+            ~locked=false,
+            ~settings,
+            ~inject,
+            ~ui_state,
+            ~result=user_impl.result,
+            ~result_key=Exercise.user_impl_key,
           ),
       ),
     );
@@ -225,11 +222,12 @@ let view =
           ": Your Tests (code synchronized with Test Validation cell above) vs. Your Implementation",
         ~editor=eds.your_tests.tests,
         ~di=user_tests,
-        ~footer=
+        ~footer=[
           Cell.test_report_footer_view(
             ~inject,
             ~test_results=ModelResult.test_results(user_tests.result),
           ),
+        ],
       ),
     );
 

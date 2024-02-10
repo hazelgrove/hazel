@@ -1432,14 +1432,6 @@ svg.tile-selected {
 .context-entry:hover {
   max-width: 400em;
   -webkit-mask-image: none;
-  background-image: linear-gradient(
-    0deg,
-    rgb(138 99 32),
-    1%,
-    #f0e1b2,
-    10%,
-    #f3e6be
-  );
   border-radius: 0.1em 0.6em 0.1em 0.6em;
   border-top: 0.5px solid #ffffff;
   border-bottom: 0.5px solid rgb(51 36 11);
@@ -1471,7 +1463,7 @@ svg.tile-selected {
   gap: 1em;
   justify-content: space-between;
   align-items: stretch;
-  background-color: #fbecaa;
+  background-color: #f9e8bb;
   outline: 0.6px solid #c7b480;
 }
 
@@ -1605,21 +1597,17 @@ svg.tile-selected {
 
 .explain-this .top-bar .close {
   cursor: pointer;
-  font-family: "Source Code Pro";
   color: var(--top_bar_icon_fill);
-  width: 1.2em;
-  height: 1.2em;
-  border-radius: 2em;
   display: flex;
-  align-items: end;
-  justify-content: right;
   margin-left: auto;
+  align-items: flex-start;
 }
 
 .explain-this .top-bar .close:hover {
-  animation: wobble 0.4s ease 0s 1 normal none;
-  color: var(--light-page-color);
-  background-color: #c7b480;
+  color: #f55c27;
+  text-shadow: 0.3px 0.3px 0px black;
+  border-radius: 0.2em;
+  scale: 1.8;
 }
 
 .explain-this .section {
@@ -1746,16 +1734,74 @@ svg.expandable path {
 .cell-result {
   display: flex;
   flex-direction: row;
+  background-color: #efe7d6;
   gap: 0.5em;
-  /*box-shadow: 0px 1px 0px #ddcda3;*/
   color: #7a6219;
-  /*max-height: 4.5em;
-  min-height: 1.6em;
-  overflow-y: auto;*/
   border-top: 1px dotted #d2c7ad;
-  /* padding-left: 1em; */
+  border-radius: 0 0 0.4em 0.4em;
   padding: 0.5em;
   padding-left: 1.2em;
+}
+.selected .cell-result {
+  background-color: #efe7d6;
+}
+
+.cell-result .status {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6em;
+  height: 1.6em;
+  white-space: nowrap;
+  font-family: "Source Code Pro", monospace;
+}
+.cell-result .status .spinner {
+  height: 50%;
+  width: 60%;
+  background: url("img/loading.gif");
+  background-repeat: round;
+  filter: sepia(1);
+  opacity: 0;
+  transition: opacity 0.2s linear;
+}
+.cell-result .status.pending .spinner {
+  opacity: 0.5;
+  transition: all 0.2s linear;
+}
+.cell-result .status .eq {
+  position: absolute;
+  opacity: 1;
+  transition: opacity 0.6s cubic-bezier(0.65, 0, 0.35, 1);
+}
+.cell-result .status.pending .eq {
+  opacity: 0;
+  transition: opacity 0.6s cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+.cell-result .result {
+  padding-top: 0.1em;
+  min-height: 1.6em;
+  width: 100%;
+  overflow-y: hidden;
+  overflow-x: auto;
+  transition: opacity 0.2s linear;
+}
+.cell-result .result.pending {
+  opacity: 0.3;
+  transition: opacity 0.6s cubic-bezier(0.65, 0, 0.35, 1);
+}
+.cell-result .result .exception {
+  background-color: #ffa2a2;
+  color: #7d0000;
+  border-radius: 0.3em;
+  font-family: "Helvetica Neue";
+  font-size: 1rem;
+  padding: 0.1em 0.4em 0.1em 0.4em;
+}
+
+.cell-result .toggle-switch {
+  mix-blend-mode: luminosity;
 }
 
 .cell-report {
@@ -1764,30 +1810,23 @@ svg.expandable path {
   border-left: 1px solid rgba(0, 0, 0, 0);
 }
 
-.selected .cell-result {
-  background-color: #efe7d6;
+.cell.selected + .cell-item {
+  border-left: 1px solid var(--cell-selected-accent);
 }
 
-.result {
-  padding-top: 0.1em;
-  min-height: 1.6em;
-  width: 100%;
-  overflow-y: hidden;
-  overflow-x: auto;
+.cell.deselected + .cell-item {
+  border-left: 1px solid var(--top_bar_icon_fill);
 }
 
+.cell-item.cell-result:has(.fail),
 .cell-item.cell-result:has(.exception) {
   background-color: #ffa2a2;
 }
 
-.result .exception {
-  background-color: #ffa2a2;
-  color: #7d0000;
-  border-radius: 0.3em;
-  font-family: "Helvetica Neue";
-  font-size: 1rem;
-  padding: 0.1em 0.4em 0.1em 0.4em;
-}
+.cell-item.cell-result .error-msg {
+  padding: 0.25em;
+  color: black;
+};
 
 .cell-result .icon:hover svg {
   animation: wobble 0.6s ease 0s 1 normal forwards;
@@ -2184,12 +2223,6 @@ svg.expandable path {
 
 /* Exercise */
 .exercise-code {
-  white-space: nowrap;
-  font-family: "Source Code Pro", monospace;
-}
-
-.equiv,
-.equiv span {
   white-space: nowrap;
   font-family: "Source Code Pro", monospace;
 }

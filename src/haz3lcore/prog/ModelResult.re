@@ -1,27 +1,25 @@
 [@deriving (show({with_path: false}), sexp, yojson)]
-type evaluation =
-  | ResultOk(ProgramResult.t)
-  | ResultFail(ProgramEvaluatorError.t)
-  | ResultTimeout
-  | ResultPending;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type elab_eval = {
+type eval_result = {
   elab: DHExp.t,
-  evaluation,
+  evaluation: ProgramResult.t,
+  previous: ProgramResult.t,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | NoElab
-  | Evaluation(elab_eval)
+  | Evaluation(eval_result)
   | Stepper(Stepper.t);
 
-let init_eval = elab => Evaluation({elab, evaluation: ResultPending});
+let init_eval = elab =>
+  Evaluation({elab, evaluation: ResultPending, previous: ResultPending});
+
 let update_elab = elab =>
   fun
-  | NoElab
-  | Evaluation(_) => Evaluation({elab, evaluation: ResultPending})
+  | NoElab =>
+    Evaluation({elab, evaluation: ResultPending, previous: ResultPending})
+  | Evaluation({evaluation, _}) =>
+    Evaluation({elab, evaluation: ResultPending, previous: evaluation})
   | Stepper({elab: elab2, _}) as s when DHExp.fast_equal(elab, elab2) => s
   | Stepper(_) => Stepper(Stepper.init(elab));
 
@@ -40,55 +38,45 @@ let step_backward = (~settings, mr: t) =>
 let run_pending = (~settings: CoreSettings.t) =>
   fun
   | NoElab => NoElab
-  | Evaluation({elab, evaluation: ResultPending}) =>
+  | Evaluation({elab, evaluation: ResultPending, previous}) =>
     Evaluation({
       elab,
-      evaluation:
-        switch (Interface.evaluate(~settings, elab)) {
-        | r => ResultOk(r)
-        | exception (Interface.EvalError(error)) =>
-          let serialized =
-            error |> EvaluatorError.sexp_of_t |> Sexplib.Sexp.to_string_hum;
-          print_endline(
-            "[Program.EvalError(EvaluatorError.Exception("
-            ++ serialized
-            ++ "))]",
-          );
-          ResultFail(Program_EvalError(error));
-        | exception Interface.DoesNotElaborate =>
-          ResultFail(Program_DoesNotElaborate)
-        },
+      previous,
+      evaluation: Interface.evaluate(~settings, elab),
     })
   | Evaluation(_) as e => e
   | Stepper(s) =>
     Stepper(Stepper.evaluate_pending(~settings=settings.evaluation, s));
 
-let timeout =
+let timeout: t => t =
   fun
   | NoElab => NoElab
-  | Evaluation({elab, evaluation: ResultPending}) =>
-    Evaluation({elab, evaluation: ResultTimeout})
-  | Evaluation({evaluation: ResultFail(_) | ResultOk(_) | ResultTimeout, _}) as r => r
+  | Evaluation({evaluation, _} as e) =>
+    Evaluation({...e, evaluation: ResultFail(Timeout), previous: evaluation})
   | Stepper(s) => Stepper(Stepper.timeout(s));
 
 let toggle_stepper =
   fun
   | NoElab => NoElab
   | Evaluation({elab, _}) => Stepper(Stepper.init(elab))
-  | Stepper({elab, _}) => Evaluation({elab, evaluation: ResultPending});
+  | Stepper({elab, _}) =>
+    Evaluation({elab, evaluation: ResultPending, previous: ResultPending});
 
 let test_results = (result: t) =>
   switch (result) {
-  | NoElab => None
-  | Evaluation({evaluation: ResultOk(pr), _}) =>
+  | Evaluation({evaluation: ResultOk(pr), _})
+  | Evaluation({
+      evaluation: Off(_) | ResultFail(_) | ResultPending,
+      previous: ResultOk(pr),
+      _,
+    }) =>
     pr
     |> ProgramResult.get_state
     |> EvaluatorState.get_tests
     |> TestResults.mk_results
     |> Option.some
-  | Evaluation({evaluation: ResultFail(_), _})
-  | Evaluation({evaluation: ResultTimeout, _})
-  | Evaluation({evaluation: ResultPending, _})
+  | Evaluation({evaluation: Off(_) | ResultFail(_) | ResultPending, _})
+  | NoElab
   | Stepper(_) => None
   };
 

@@ -152,52 +152,100 @@ let deco =
   };
 };
 
-let live_footer =
+let error_msg = (err: ProgramResult.error) =>
+  switch (err) {
+  | EvaulatorError(err) => EvaluatorError.show(err)
+  | UnknownException(str) => str
+  | Timeout => "Evaluation timed out"
+  };
+
+let status_of: ProgramResult.t => string =
+  fun
+  | ResultPending => "pending"
+  | ResultOk(_) => "ok"
+  | ResultFail(_) => "fail"
+  | Off(_) => "off";
+
+let live_eval =
     (
       ~inject,
-      ~settings: Settings.t,
       ~ui_state as {font_metrics, _}: Model.ui_state,
       ~result_key: string,
+      ~settings: Settings.t,
       ~locked,
-      result: ModelResult.elab_eval,
+      result: ModelResult.eval_result,
     ) => {
-  let show_stepper =
-    locked
-      ? []
-      : [
-        Widgets.toggle(~tooltip="Show Stepper", "s", false, _ =>
-          inject(UpdateAction.ToggleStepper(result_key))
-        ),
-      ];
-  let dhcode_view = (~show_casts) =>
+  open Node;
+  let dhexp =
+    switch (result.evaluation, result.previous) {
+    | (ResultOk(res), _) => ProgramResult.get_dhexp(res)
+    | (ResultPending, ResultOk(res)) => ProgramResult.get_dhexp(res)
+    | _ => result.elab
+    };
+  let dhcode_view =
     DHCode.view(
       ~locked,
-      ~settings={...CoreSettings.Evaluation.init, show_casts},
+      ~inject,
+      ~settings=settings.core.evaluation,
       ~selected_hole_instance=None,
       ~font_metrics,
       ~width=80,
+      ~result_key,
+      dhexp,
     );
-  let d_view: list(t) =
-    switch (result.evaluation, result.elab) {
-    | (ResultOk(res), _) when settings.core.dynamics =>
-      let dhexp = ProgramResult.get_dhexp(res);
-      /* Disabling casts in this case as large casts can blow up UI perf */
-      [dhcode_view(~inject, ~result_key, ~show_casts=false, dhexp)];
-    | (_, elab) when settings.core.elaborate && !settings.core.dynamics => [
-        text("Evaluation disabled, elaboration follows:"),
-        dhcode_view(~inject, ~result_key, ~show_casts=true, elab),
+  let exn_view =
+    switch (result.evaluation) {
+    | ResultFail(err) => [
+        div(~attr=Attr.classes(["error-msg"]), [text(error_msg(err))]),
       ]
-    | _ => [text("Evaluation & elaboration display disabled")]
+    | _ => []
     };
   div(
     ~attr=Attr.classes(["cell-item", "cell-result"]),
-    [
-      div(~attr=Attr.class_("equiv"), [text("≡")]),
-      div(~attr=Attr.classes(["result"]), d_view),
-    ]
-    @ show_stepper,
+    exn_view
+    @ [
+      div(
+        ~attr=Attr.classes(["status", status_of(result.evaluation)]),
+        [
+          div(~attr=Attr.classes(["spinner"]), []),
+          div(~attr=Attr.classes(["eq"]), [text("≡")]),
+        ],
+      ),
+      div(
+        ~attr=Attr.classes(["result", status_of(result.evaluation)]),
+        [dhcode_view],
+      ),
+      Widgets.toggle(~tooltip="Show Stepper", "s", false, _ =>
+        inject(UpdateAction.ToggleStepper(result_key))
+      ),
+    ],
   );
 };
+
+let footer =
+    (
+      ~locked,
+      ~inject,
+      ~ui_state as {font_metrics, _} as ui_state: Model.ui_state,
+      ~settings: Settings.t,
+      ~result: ModelResult.t,
+      ~result_key,
+    ) =>
+  switch (result) {
+  | _ when !settings.core.dynamics => []
+  | NoElab => []
+  | Evaluation(result) => [
+      live_eval(~locked, ~inject, ~ui_state, ~settings, ~result_key, result),
+    ]
+  | Stepper(s) =>
+    StepperView.stepper_view(
+      ~inject,
+      ~settings=settings.core.evaluation,
+      ~font_metrics,
+      ~result_key,
+      s,
+    )
+  };
 
 let editor_view =
     (
@@ -211,10 +259,10 @@ let editor_view =
       ~locked=false,
       ~caption: option(Node.t)=?,
       ~test_results: option(TestResults.t),
-      ~footer: list(Node.t),
+      ~footer: option(list(Node.t))=?,
       ~highlights: option(ColorSteps.colorMap),
-      ~error_ids: list(Id.t),
       ~overlayer: option(Node.t)=None,
+      ~error_ids: list(Id.t),
       ~sort=Sort.root,
       editor: Editor.t,
     ) => {
@@ -265,45 +313,9 @@ let editor_view =
         Option.to_list(caption) @ mousedown_overlay @ [code_view],
       ),
     ]
-    @ footer,
+    @ (footer |> Option.to_list |> List.concat),
   );
 };
-
-//TODO(andrew): ask matt why this is divided from the above footer fn
-let footer =
-    (
-      ~locked,
-      ~inject,
-      ~ui_state as {font_metrics, _} as ui_state: Model.ui_state,
-      ~settings: Settings.t,
-      ~result: ModelResult.t,
-      ~result_key,
-    ) =>
-  if (!settings.core.statics) {
-    [];
-  } else {
-    switch (result) {
-    | NoElab => []
-    | Evaluation(result) => [
-        live_footer(
-          ~locked,
-          ~inject,
-          ~ui_state,
-          ~settings,
-          ~result_key,
-          result,
-        ),
-      ]
-    | Stepper(s) =>
-      StepperView.stepper_view(
-        ~inject,
-        ~settings=settings.core.evaluation,
-        ~font_metrics,
-        ~result_key,
-        s,
-      )
-    };
-  };
 
 let report_footer_view = content => {
   div(~attr=Attr.classes(["cell-item", "cell-report"]), content);
@@ -388,8 +400,8 @@ let locked =
     settings.core.dynamics
       ? Evaluation({
           elab,
-          evaluation:
-            ResultOk(Interface.evaluate(~settings=settings.core, elab)),
+          evaluation: Interface.evaluate(~settings=settings.core, elab),
+          previous: ResultPending,
         })
       : NoElab;
   let footer =

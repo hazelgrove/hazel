@@ -165,7 +165,6 @@ let stepper_view =
         ],
       )
     // TODO[Matt]: show errors and waiting
-    | StepperError(_)
     | StepTimeout
     | StepPending(_, _, _) => div([])
     };

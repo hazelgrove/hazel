@@ -50,85 +50,22 @@ let elaborate = (~settings: CoreSettings.t, map, term): DHExp.t =>
     }
   };
 
-let elaborate_editor =
-    (~settings: CoreSettings.t, ~ctx_init: Ctx.t, editor: Editor.t): DHExp.t => {
-  let (term, _) = MakeTerm.from_zip_for_sem(editor.state.zipper);
-  let info_map = Statics.mk_map_ctx(settings, ctx_init, term);
-  elaborate(~settings, info_map, term);
-};
-
-exception EvalError(EvaluatorError.t);
-exception PostprocessError(EvaluatorPost.error);
-
-// let postprocess = (es: EvaluatorState.t, d: DHExp.t) => {
-//   let ((d, hii), es) =
-//     es
-//     |> EvaluatorState.with_eig(eig => {
-//          let ((hii, d), eig) =
-//            switch (EvaluatorPost.postprocess(d, eig)) {
-//            | d => d
-//            | exception (EvaluatorPost.Exception(reason)) =>
-//              raise(PostprocessError(reason))
-//            };
-//          ((d, hii), eig);
-//        });
-//   let (tests, es) =
-//     es
-//     |> EvaluatorState.with_eig(eig => {
-//          let (eig, tests) =
-//            EvaluatorState.get_tests(es)
-//            |> List.fold_left_map(
-//                 (eig, (k, instance_reports)) => {
-//                   let (eig, instance_reports) =
-//                     instance_reports
-//                     |> List.fold_left_map(
-//                          (eig, (d, status)) =>
-//                            switch (EvaluatorPost.postprocess(d, eig)) {
-//                            | ((_, d), eig) => (eig, (d, status))
-//                            | exception (EvaluatorPost.Exception(reason)) =>
-//                              raise(PostprocessError(reason))
-//                            },
-//                          eig,
-//                        );
-//                   (eig, (k, instance_reports));
-//                 },
-//                 eig,
-//               );
-//          (tests, eig);
-//        });
-//   ((d, hii), EvaluatorState.put_tests(tests, es));
-// };
-
 let evaluate =
     (~settings: CoreSettings.t, ~env=Builtins.env_init, elab: DHExp.t)
-    : ProgramResult.t => {
+    : ProgramResult.t =>
   switch () {
-  | _ when !settings.statics => ProgramResult.init("Statics disabled")
-  | _ when !settings.dynamics && settings.elaborate => {
-      result: Indet(dh_err("Evaluation disabled")),
-      state: EvaluatorState.init,
-      hii: HoleInstanceInfo.empty,
-      elab,
-    }
-  | _ when !settings.dynamics && !settings.elaborate => {
-      result: Indet(dh_err("Evaluation disabled")),
-      state: EvaluatorState.init,
-      hii: HoleInstanceInfo.empty,
-      elab: dh_err("Elaboration disabled"),
-    }
+  | _ when !settings.dynamics => Off(elab)
   | _ =>
     switch (Evaluator.evaluate(env, elab)) {
-    | exception (EvaluatorPost.Exception(reason)) =>
-      ProgramResult.init("Internal: " ++ EvaluatorPost.show_error(reason))
+    | exception (EvaluatorError.Exception(reason)) =>
+      print_endline("EvaluatorError:" ++ EvaluatorError.show(reason));
+      ResultFail(EvaulatorError(reason));
     | exception exn =>
-      ProgramResult.init("System exception: " ++ Printexc.to_string(exn))
-    | (state, result) =>
-      // TODO(cyrus): disabling post-processing for now, it has bad performance characteristics when you have deeply nested indet cases (and probably other situations) and we aren't using it in the UI for anything
-      // let ((result, hii), state) = postprocess(state, unbox(result));
-      {result, state, hii: HoleInstanceInfo.empty, elab}
+      print_endline("EXN:" ++ Printexc.to_string(exn));
+      ResultFail(UnknownException(Printexc.to_string(exn)));
+    | (state, result) => ResultOk({result, state})
     }
   };
-};
 
 let eval_z =
     (
@@ -143,11 +80,3 @@ let eval_z =
   let d = elaborate(~settings, info_map, term);
   evaluate(~settings, ~env=env_init, d);
 };
-
-let eval_d2d = (~settings: CoreSettings.t, d: DHExp.t): DHExp.t =>
-  /* NOTE: assumes empty init ctx, env */
-  evaluate(~settings, d) |> ProgramResult.get_dhexp;
-
-let eval_u2d = (~settings: CoreSettings.t, map, term): DHExp.t =>
-  /* NOTE: assumes empty init ctx, env */
-  term |> elaborate(~settings, map) |> eval_d2d(~settings);
