@@ -22,11 +22,14 @@ jobs:
         with:
           path: '/home/runner/.opam/'
           key: ${{ runner.os }}-modules-${{ hashFiles('./source/opam.export') }}
-      - name: Install dependencies and build hazel # STEP 3
+      - name: Install dependencies
         run: |
           sudo apt --assume-yes install curl m4 opam
           export OPAMYES=1
           opam init --compiler=ocaml-base-compiler.5.0.0
+        working-directory: ./source
+      - name: Build Hazel
+        run: |
           eval $(opam env)
           make deps 
           make release
@@ -63,11 +66,14 @@ jobs:
         with:
           path: ./source/_build'
           key: ${{ runner.os }}-build-${{ hashFiles('./source/**', '!./source/_build/**', '!./source/.git/**') }}
-      - name: Install dependencies and build hazel # STEP 3
+      - name: Install dependencies
         run: |
           sudo apt --assume-yes install curl m4 opam
           export OPAMYES=1
           opam init --compiler=ocaml-base-compiler.5.0.0
+        working-directory: ./source
+      - name: Build Hazel
+        run: |
           eval $(opam env)
           make deps 
           make release
@@ -114,11 +120,14 @@ jobs:
         with:
           path: ./source/_build'
           key: ${{ runner.os }}-build-${{ hashFiles('./source/**', '!./source/_build/**', '!./source/.git/**') }}
-      - name: Install dependencies and build hazel
+      - name: Install dependencies
         run: |
           sudo apt --assume-yes install curl m4 opam
           export OPAMYES=1
           opam init --compiler=ocaml-base-compiler.5.0.0
+        working-directory: ./source
+      - name: Build Hazel
+        run: |
           eval $(opam env)
           make deps 
           make release
@@ -126,5 +135,5 @@ jobs:
       - name: Run Tests
         run: |
           eval $(opam env)
-          dune runtest
+          make test
         working-directory: ./source
