@@ -31,6 +31,10 @@ jobs:
           make deps 
           make release
         working-directory: ./source
+      - name: Run Tests
+        run: |
+          eval $(opam env)
+          make test
       - name: Checkout the website build artifacts repo # STEP 4
         uses: actions/checkout@v2
         with:
