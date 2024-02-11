@@ -36,7 +36,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: ./source/_build'
-          key: ${{ runner.os }}-build-${{ hashFiles('./source/', '!./source/_build/**') }}
+          key: ${{ runner.os }}-build-${{ hashFiles('./source/**', '!./source/_build/**', '!./source/.git/**') }}
   Deploy:
     runs-on: ubuntu-latest
     needs: Build
@@ -62,7 +62,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: ./source/_build'
-          key: ${{ runner.os }}-build-${{ hashFiles('./source/', '!./source/_build/**') }}
+          key: ${{ runner.os }}-build-${{ hashFiles('./source/**', '!./source/_build/**', '!./source/.git/**') }}
       - name: Install dependencies and build hazel # STEP 3
         run: |
           sudo apt --assume-yes install curl m4 opam
@@ -113,7 +113,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: ./source/_build'
-          key: ${{ runner.os }}-build-${{ hashFiles('./source/', '!./source/_build/**') }}
+          key: ${{ runner.os }}-build-${{ hashFiles('./source/**', '!./source/_build/**', '!./source/.git/**') }}
       - name: Install dependencies and build hazel
         run: |
           sudo apt --assume-yes install curl m4 opam
