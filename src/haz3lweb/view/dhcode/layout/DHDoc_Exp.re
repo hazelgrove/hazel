@@ -110,7 +110,7 @@ let mk =
       ~hidden_steps: list(step), // The hidden steps between the above and the current one
       ~chosen_step: option(step), // The step that will be taken next
       ~next_steps: list(EvalObj.t), // The options for the next step, if it hasn't been chosen yet
-      ~show_steppable: bool=true, // Whether to show the steppable annotation
+      ~show_steppable: bool=false, // Whether to show the steppable annotation
       ~env: ClosureEnvironment.t,
       d: DHExp.t,
     )
@@ -369,6 +369,9 @@ let mk =
           | Some((u', i')) => u == u' && i == i'
           };
         DHDoc_common.mk_EmptyHole(~selected, (u, i));
+      //HACK(andrew): suppress err holes for free vars for demo
+      | NonEmptyHole(reason, u, i, FreeVar(_) as d') =>
+        go'(d', NonEmptyHole, NonEmptyHole(reason, u, i, full_ctx))
       | NonEmptyHole(reason, u, i, d') =>
         go'(d', NonEmptyHole, NonEmptyHole(reason, u, i, full_ctx))
         |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))

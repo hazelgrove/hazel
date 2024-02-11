@@ -14,6 +14,8 @@ type rule =
   | AssocTimesR
   | DistPlusTimesL
   | DistPlusTimesR
+  | DistPlusDivL
+  | DistPlusDivR
   | DivDefL
   | DivDefR;
 
@@ -38,6 +40,8 @@ let string_of = r =>
   | AssocTimesR => "Assoc(R, *)"
   | DistPlusTimesL => "Dist(L, +, *)"
   | DistPlusTimesR => "Dist(R, +, *)"
+  | DistPlusDivL => "Dist(L, +, /)"
+  | DistPlusDivR => "Dist(R, +, /)"
   | DivDefL => "DivDef(L)"
   | DivDefR => "DivDef(R)"
   };
@@ -113,14 +117,14 @@ let rewrites: list(t) = [
     t:
       fun
       | BinIntOp(Divide, e1, e2) =>
-        Some(BinIntOp(Times, e1, BinIntOp(Divide, IntLit(2), e2)))
+        Some(BinIntOp(Times, e1, BinIntOp(Divide, IntLit(1), e2)))
       | _ => None,
   },
   {
     name: DivDefR,
     t:
       fun
-      | BinIntOp(Times, e1, BinIntOp(Divide, IntLit(2), e2)) =>
+      | BinIntOp(Times, e1, BinIntOp(Divide, IntLit(1), e2)) =>
         Some(BinIntOp(Divide, e1, e2))
       | _ => None,
   },
@@ -136,6 +140,29 @@ let rewrites: list(t) = [
     t:
       fun
       | BinIntOp(Plus, e1, IntLit(0)) => Some(e1)
+      | _ => None,
+  },
+  {
+    name: DistPlusDivL,
+    t:
+      fun
+      | BinIntOp(Divide, BinIntOp(Plus, e1, e2), e3) =>
+        Some(
+          BinIntOp(
+            Plus,
+            BinIntOp(Divide, e1, e3),
+            BinIntOp(Divide, e2, e3),
+          ),
+        )
+      | _ => None,
+  },
+  {
+    name: DistPlusDivR,
+    t:
+      fun
+      | BinIntOp(Plus, BinIntOp(Divide, e1, e3), BinIntOp(Divide, e2, e3'))
+          when e3 == e3' =>
+        Some(BinIntOp(Divide, BinIntOp(Plus, e1, e2), e3))
       | _ => None,
   },
 ];

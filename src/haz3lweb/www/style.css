@@ -1837,9 +1837,9 @@ svg.expandable path {
 }
 
 .DHCode .InVarHole {
-  border: 1px dotted var(--err-color);
-  border-radius: 0.2em;
-  color: var(--err-color);
+  /* HACK(andrew): suppress err holes for free vars for demo */
+  /* color: var(--err-color); */
+  color: rgb(37, 164, 255);
 }
 
 .DHCode .EmptyHole {
@@ -2348,7 +2348,7 @@ svg.expandable path {
 .stepped, .stepped * {
   border: 1px var(--step-hole-color);
   background-color:#ddcda3;
-  margin: -1px;
+  border-radius: 0.2em;
 }
 
 .substituted {

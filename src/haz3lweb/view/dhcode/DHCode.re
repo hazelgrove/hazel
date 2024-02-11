@@ -19,7 +19,7 @@ let stepper_action = (inject, result_key, action: UpdateAction.stepper_action) =
     ~attr=
       Attr.many([
         Attr.class_("rewrite"),
-        Attr.on_click(_ =>
+        Attr.on_mousedown(_ =>
           Effect.Many([
             Effect.Prevent_default,
             Effect.Stop_propagation,
@@ -168,7 +168,7 @@ let view =
       ~hidden_steps: list(EvaluatorStep.step)=[], // The hidden steps between the above and the current one
       ~chosen_step: option(EvaluatorStep.step)=None, // The step that will be taken next
       ~next_steps: list(EvaluatorStep.EvalObj.t)=[],
-      ~show_steppable: bool=true,
+      ~show_steppable: bool=false,
       ~result_key: string,
       d: DHExp.t,
     )
