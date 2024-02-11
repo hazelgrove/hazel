@@ -1,10 +1,50 @@
 open Virtual_dom;
 open Virtual_dom.Vdom;
+open Haz3lcore;
+open Node;
 open Util;
 open Pretty;
-open Haz3lcore;
+open Virtual_dom.Vdom;
 
 let with_cls = cls => Node.span(~attr=Attr.classes([cls]));
+
+let string_of_stepper_action = (action: UpdateAction.stepper_action) =>
+  switch (action) {
+  | Rewrite(r) => RewriteStep.string_of(r.rule)
+  | _ => "Step"
+  };
+
+let stepper_action = (inject, result_key, action: UpdateAction.stepper_action) =>
+  div(
+    ~attr=
+      Attr.many([
+        Attr.class_("rewrite"),
+        Attr.on_click(_ =>
+          Effect.Many([
+            Effect.Prevent_default,
+            Effect.Stop_propagation,
+            inject(UpdateAction.StepperAction(result_key, action)),
+          ])
+        ),
+      ]),
+    [action |> string_of_stepper_action |> Node.text],
+  );
+
+let steppable = (inject, txt, result_key, actions) => [
+  div(
+    ~attr=Attr.class_("steppable-wrapper"),
+    [span(~attr=Attr.class_("steppable"), txt)]
+    @ [
+      div(~attr=Attr.class_("handle-pre"), []),
+      div(~attr=Attr.class_("handle"), []),
+      div(~attr=Attr.class_("handle-back"), []),
+      div(
+        ~attr=Attr.many([Attr.class_("menu")]),
+        List.map(stepper_action(inject, result_key), actions),
+      ),
+    ],
+  ),
+];
 
 let view_of_layout =
     (~inject, ~font_metrics: FontMetrics.t, ~result_key, l: DHLayout.t)
@@ -23,52 +63,8 @@ let view_of_layout =
            (~go, ~indent, ~start, annot: DHAnnot.t, m) => {
              let (txt, ds) = go(m);
              switch (annot) {
-             | Steppable(obj) => (
-                 [
-                   Node.span(
-                     ~attr=
-                       Attr.many([
-                         Attr.class_("steppable"),
-                         Attr.on_click(_ =>
-                           inject(
-                             UpdateAction.StepperAction(
-                               result_key,
-                               StepForward(obj),
-                             ),
-                           )
-                         ),
-                       ]),
-                     txt,
-                   ),
-                 ],
-                 ds,
-               )
-             | StepTransform(focus, ctx) => (
-                 [
-                   Node.span(
-                     ~attr=
-                       Attr.many([
-                         Attr.class_("steppable-transform"),
-                         Attr.on_click(evt =>
-                           Vdom.Effect.Many([
-                             Vdom.Effect.Prevent_default,
-                             Vdom.Effect.Stop_propagation,
-                             inject(
-                               StepperAction(
-                                 result_key,
-                                 Transform({
-                                   clicks: JsUtil.num_clicks(evt),
-                                   focus,
-                                   ctx,
-                                 }),
-                               ),
-                             ),
-                           ])
-                         ),
-                       ]),
-                     txt,
-                   ),
-                 ],
+             | Steppable(actions) => (
+                 steppable(inject, txt, result_key, actions),
                  ds,
                )
              | Stepped => (
@@ -172,6 +168,7 @@ let view =
       ~hidden_steps: list(EvaluatorStep.step)=[], // The hidden steps between the above and the current one
       ~chosen_step: option(EvaluatorStep.step)=None, // The step that will be taken next
       ~next_steps: list(EvaluatorStep.EvalObj.t)=[],
+      ~show_steppable: bool=true,
       ~result_key: string,
       d: DHExp.t,
     )
@@ -183,6 +180,7 @@ let view =
     ~next_steps,
     ~env=ClosureEnvironment.empty,
     ~settings,
+    ~show_steppable,
     ~enforce_inline=false,
     ~selected_hole_instance,
     d,

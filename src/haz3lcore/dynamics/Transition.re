@@ -71,7 +71,7 @@ type step_kind =
   | CompleteFilter
   | Cast
   | Skip
-  | Rewrite(TransformRules.rule);
+  | Rewrite(RewriteStep.t);
 
 module CastHelpers = {
   [@deriving sexp]

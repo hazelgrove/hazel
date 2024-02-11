@@ -17,7 +17,6 @@ type t =
   | FailedCastDecoration
   | CastDecoration
   | OperationError(InvalidOperationError.t)
-  | Steppable(EvaluatorStep.EvalObj.t)
-  | StepTransform(DHExp.t, EvalCtx.t)
+  | Steppable(list(UpdateAction.stepper_action))
   | Stepped
   | Substituted;

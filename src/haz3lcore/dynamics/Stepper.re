@@ -32,6 +32,13 @@ type t = {
   next: list(EvalObj.t),
 };
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type rewrite = {
+  focus: DHExp.t,
+  ctx: EvalCtx.t,
+  rule: RewriteStep.t,
+};
+
 let rec matches =
         (
           env: ClosureEnvironment.t,
@@ -298,20 +305,11 @@ let add_step =
   | StepTimeout(_) => s
   };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type transform = {
-  clicks: int,
-  focus: DHExp.t,
-  ctx: EvalCtx.t,
-};
-
-let step_transform = ({focus, ctx, clicks}: transform, stepper: t) => {
-  let rule = TransformRules.n_to_rule(clicks);
-  switch (TransformRules.transform(rule, focus)) {
+let step_rewrite = ({focus, ctx, rule}: rewrite, stepper: t) =>
+  switch (RewriteStep.go(rule, focus)) {
   | Some(d_loc') => add_step(focus, d_loc', ctx, rule, stepper)
   | None => stepper
   };
-};
 
 let rec evaluate_pending = (~settings, s: t) => {
   switch (s.current) {
@@ -458,7 +456,7 @@ let get_justification: step_kind => string =
   | CompleteClosure => "unidentified step"
   | FunClosure => "unidentified step"
   | Skip => "skipped steps"
-  | Rewrite(rule) => TransformRules.string_of_rule(rule);
+  | Rewrite(rule) => RewriteStep.string_of(rule);
 
 let get_history = (~settings, stepper) => {
   let rec get_history':

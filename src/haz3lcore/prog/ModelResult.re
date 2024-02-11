@@ -36,8 +36,8 @@ let step_forward = (x: EvalObj.t, mr: t) =>
 let step_backward = (~settings, mr: t) =>
   mr |> update_stepper(Stepper.step_backward(~settings));
 
-let step_transform = (transform: Stepper.transform, mr: t) =>
-  mr |> update_stepper(Stepper.step_transform(transform));
+let step_rewrite = (rewrite: Stepper.rewrite, mr: t) =>
+  mr |> update_stepper(Stepper.step_rewrite(rewrite));
 
 let run_pending = (~settings) =>
   fun

@@ -57,6 +57,7 @@ let stepper_view =
           ~previous_step=step_with_previous.previous,
           ~chosen_step=Some(step_with_previous.step),
           ~hidden_steps=step_with_previous.hidden,
+          ~show_steppable=false,
           ~result_key,
           step_with_previous.step.d,
         ),

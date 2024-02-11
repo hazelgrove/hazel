@@ -201,7 +201,7 @@ let reevaluate_post_update = (settings: Settings.t) =>
   | Benchmark(_)
   // may not be necessary on all of these
   // TODO review and prune
-  | StepperAction(_, StepForward(_) | StepBackward | Transform(_))
+  | StepperAction(_, StepForward(_) | StepBackward | Rewrite(_))
   | ToggleStepper(_)
   | ReparseCurrentEditor
   | PerformAction(Destruct(_) | Insert(_) | Pick_up | Put_down)
@@ -244,7 +244,7 @@ let should_scroll_to_caret =
   | Assistant(Prompt(_))
   | UpdateResult(_)
   | ToggleStepper(_)
-  | StepperAction(_, StepBackward | StepForward(_) | Transform(_)) => false
+  | StepperAction(_, StepBackward | StepForward(_) | Rewrite(_)) => false
   | Assistant(AcceptSuggestion) => true
   | FinishImportScratchpad(_)
   | FinishImportAll(_)
@@ -533,11 +533,11 @@ let rec apply =
         CoqExport.exportCoq(stepper.previous) |> print_endline
       };
       Ok(model);
-    | StepperAction(key, Transform(transform)) =>
+    | StepperAction(key, Rewrite(transform)) =>
       let r =
         model.results
         |> ModelResults.find(key)
-        |> ModelResult.step_transform(transform);
+        |> ModelResult.step_rewrite(transform);
       Ok({...model, results: model.results |> ModelResults.add(key, r)});
     | ToggleStepper(key) =>
       Ok({

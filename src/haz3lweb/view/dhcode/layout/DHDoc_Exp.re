@@ -110,6 +110,7 @@ let mk =
       ~hidden_steps: list(step), // The hidden steps between the above and the current one
       ~chosen_step: option(step), // The step that will be taken next
       ~next_steps: list(EvalObj.t), // The options for the next step, if it hasn't been chosen yet
+      ~show_steppable: bool=true, // Whether to show the steppable annotation
       ~env: ClosureEnvironment.t,
       d: DHExp.t,
     )
@@ -758,17 +759,19 @@ let mk =
       | Some(_)
       | None => doc
       };
-    let doc =
-      if (stepped) {
-        annot(DHAnnot.Stepped, doc);
-      } else {
-        switch (steppable) {
-        | Some((_, full)) => annot(DHAnnot.Steppable(full), doc)
-        | None => doc
-        };
-      };
-    //annot(StepTransform(dhexp, eval_ctx), doc)
-    doc;
+    let rewrite_action_of = (r): UpdateAction.stepper_action =>
+      Rewrite({focus: d, ctx: full_ctx, rule: r});
+    let rewrite_actions: list(UpdateAction.stepper_action) =
+      List.map(rewrite_action_of, RewriteStep.matching_rewrites(d));
+    switch (steppable) {
+    | _ when stepped => annot(DHAnnot.Stepped, doc)
+    | Some((_, full)) when show_steppable =>
+      let step_action = UpdateAction.StepForward(full);
+      annot(DHAnnot.Steppable([step_action] @ rewrite_actions), doc);
+    | _ when show_steppable && RewriteStep.matching_rewrites(d) != [] =>
+      annot(DHAnnot.Steppable(rewrite_actions), doc)
+    | _ => doc
+    };
   };
   go(
     d,

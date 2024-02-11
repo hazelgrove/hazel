@@ -32,7 +32,7 @@ let is_action_logged: UpdateAction.t => bool =
   | MoveToNextHole(_)
   | UpdateResult(_)
   | ToggleStepper(_)
-  | StepperAction(_, StepForward(_) | StepBackward | Transform(_))
+  | StepperAction(_, StepForward(_) | StepBackward | Rewrite(_))
   | UpdateExplainThisModel(_) => true;
 
 module DB = {
