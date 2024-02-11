@@ -27,11 +27,12 @@ jobs:
           sudo apt --assume-yes install curl m4 opam
           export OPAMYES=1
           opam init --compiler=ocaml-base-compiler.5.0.0
+          eval $(opam env)
+          make deps 
         working-directory: ./source
       - name: Build Hazel
         run: |
           eval $(opam env)
-          make deps 
           make release
         working-directory: ./source
       - name: Cache the build
@@ -71,11 +72,12 @@ jobs:
           sudo apt --assume-yes install curl m4 opam
           export OPAMYES=1
           opam init --compiler=ocaml-base-compiler.5.0.0
+          eval $(opam env)
+          make deps 
         working-directory: ./source
       - name: Build Hazel
         run: |
           eval $(opam env)
-          make deps 
           make release
         working-directory: ./source
       - name: Checkout the website build artifacts repo # STEP 4
@@ -125,11 +127,12 @@ jobs:
           sudo apt --assume-yes install curl m4 opam
           export OPAMYES=1
           opam init --compiler=ocaml-base-compiler.5.0.0
+          eval $(opam env)
+          make deps 
         working-directory: ./source
       - name: Build Hazel
         run: |
           eval $(opam env)
-          make deps 
           make release
         working-directory: ./source
       - name: Run Tests
