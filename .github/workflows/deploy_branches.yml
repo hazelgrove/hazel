@@ -37,7 +37,7 @@ jobs:
         working-directory: ./source
       - name: Cache the build
         id: build-cache
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: ./source/_build'
           key: ${{ runner.os }}-build-${{ hashFiles('./source/**', '!./source/_build/**', '!./source/.git/**') }}
@@ -63,7 +63,7 @@ jobs:
           key: ${{ runner.os }}-modules-${{ hashFiles('./source/opam.export') }}
       - name: Retrieve the build cache
         id: build-cache
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: ./source/_build'
           key: ${{ runner.os }}-build-${{ hashFiles('./source/**', '!./source/_build/**', '!./source/.git/**') }}
@@ -118,7 +118,7 @@ jobs:
           key: ${{ runner.os }}-modules-${{ hashFiles('./source/opam.export') }}
       - name: Retrieve the build if cached
         id: build-cache
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: ./source/_build'
           key: ${{ runner.os }}-build-${{ hashFiles('./source/**', '!./source/_build/**', '!./source/.git/**') }}
