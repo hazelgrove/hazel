@@ -1,6 +1,6 @@
 # General notes on github actions: Note that both the working directory
 # and environment variables generally are not shared between steps.
-name: Deploy Hazel
+name: Build and Deploy Hazel
 on: [push]
 jobs:
   Deploy:
