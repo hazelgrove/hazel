@@ -52,35 +52,37 @@ jobs:
           git diff-index --quiet HEAD || (git commit -m "github-deploy-action-${BRANCH_NAME}"; git push)
         working-directory: ./server
   Tests:
-    - name: Checkout the hazel repo on the current branch
-      uses: actions/checkout@v2
-      with:
-        path: source
-    - name: Add the name of the current branch to the environment as BRANCH_NAME
-      uses: nelonoel/branch-name@v1.0.1
-    - name: Retrieve the build environment if cached
-      id: opam-cache
-      uses: actions/cache@v4
-      with:
-        path: '/home/runner/.opam/'
-        key: ${{ runner.os }}-modules-${{ hashFiles('./source/opam.export') }}
-    - name: Install dependencies and build hazel
-      run: |
-        sudo apt --assume-yes install curl m4 opam
-        export OPAMYES=1
-        opam init --compiler=ocaml-base-compiler.5.0.0
-        eval $(opam env)
-        make deps 
-        make release
-      working-directory: ./source
-    - name: Retrieve the build if cached
-      id: build-cache
-      uses: actions/cache@v2
-      with:
-        path: ./source/_build'
-        key: ${{ runner.os }}-build-${{ hashFiles('./source/') }}
-    - name: Run Tests
-      run: |
-        eval $(opam env)
-        make test
-      working-directory: ./source
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the hazel repo on the current branch
+        uses: actions/checkout@v2
+        with:
+          path: source
+      - name: Add the name of the current branch to the environment as BRANCH_NAME
+        uses: nelonoel/branch-name@v1.0.1
+      - name: Retrieve the build environment if cached
+        id: opam-cache
+        uses: actions/cache@v4
+        with:
+          path: '/home/runner/.opam/'
+          key: ${{ runner.os }}-modules-${{ hashFiles('./source/opam.export') }}
+      - name: Install dependencies and build hazel
+        run: |
+          sudo apt --assume-yes install curl m4 opam
+          export OPAMYES=1
+          opam init --compiler=ocaml-base-compiler.5.0.0
+          eval $(opam env)
+          make deps 
+          make release
+        working-directory: ./source
+      - name: Retrieve the build if cached
+        id: build-cache
+        uses: actions/cache@v2
+        with:
+          path: ./source/_build'
+          key: ${{ runner.os }}-build-${{ hashFiles('./source/') }}
+      - name: Run Tests
+        run: |
+          eval $(opam env)
+          make test
+        working-directory: ./source
