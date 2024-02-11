@@ -126,5 +126,5 @@ jobs:
       - name: Run Tests
         run: |
           eval $(opam env)
-          make test
+          dune runtest
         working-directory: ./source
