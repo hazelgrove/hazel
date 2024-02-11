@@ -35,6 +35,7 @@ jobs:
         run: |
           eval $(opam env)
           make test
+        working-directory: ./source
       - name: Checkout the website build artifacts repo # STEP 4
         uses: actions/checkout@v2
         with:
