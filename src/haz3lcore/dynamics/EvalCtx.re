@@ -112,6 +112,68 @@ and case =
   | Case(t, list(rule), int)
 and rule = DHExp.rule;
 
+let rec flip_ctx = (from, onto) =>
+  switch (from) {
+  | Mark => onto
+  | Closure(env, ctx) => Closure(env, onto) |> flip_ctx(ctx)
+  | Filter(flt, ctx) => Filter(flt, onto) |> flip_ctx(ctx)
+  | Sequence1(ctx, d) => Sequence1(onto, d) |> flip_ctx(ctx)
+  | Sequence2(d, ctx) => Sequence2(d, onto) |> flip_ctx(ctx)
+  | Let1(pat, ctx, d) => Let1(pat, onto, d) |> flip_ctx(ctx)
+  | Let2(pat, d, ctx) => Let2(pat, d, onto) |> flip_ctx(ctx)
+  | Fun(pat, t, ctx, v) => Fun(pat, t, onto, v) |> flip_ctx(ctx)
+  | FixF(v, t, ctx) => FixF(v, t, onto) |> flip_ctx(ctx)
+  | Ap1(ctx, d) => Ap1(onto, d) |> flip_ctx(ctx)
+  | Ap2(d, ctx) => Ap2(d, onto) |> flip_ctx(ctx)
+  | IfThenElse1(if_consistency, ctx, d2, d3) =>
+    IfThenElse1(if_consistency, onto, d2, d3) |> flip_ctx(ctx)
+  | IfThenElse2(if_consistency, d1, ctx, d3) =>
+    IfThenElse2(if_consistency, d1, onto, d3) |> flip_ctx(ctx)
+  | IfThenElse3(if_consistency, d1, d2, ctx) =>
+    IfThenElse3(if_consistency, d1, d2, onto) |> flip_ctx(ctx)
+  | BinBoolOp1(op_bin_bool, ctx, d) =>
+    BinBoolOp1(op_bin_bool, onto, d) |> flip_ctx(ctx)
+  | BinBoolOp2(op_bin_bool, d, ctx) =>
+    BinBoolOp2(op_bin_bool, d, onto) |> flip_ctx(ctx)
+  | BinIntOp1(op_bin_int, ctx, d) =>
+    BinIntOp1(op_bin_int, onto, d) |> flip_ctx(ctx)
+  | BinIntOp2(op_bin_int, d, ctx) =>
+    BinIntOp2(op_bin_int, d, onto) |> flip_ctx(ctx)
+  | BinFloatOp1(op_bin_float, ctx, d) =>
+    BinFloatOp1(op_bin_float, onto, d) |> flip_ctx(ctx)
+  | BinFloatOp2(op_bin_float, d, ctx) =>
+    BinFloatOp2(op_bin_float, d, onto) |> flip_ctx(ctx)
+  | BinStringOp1(op_bin_string, ctx, d) =>
+    BinStringOp1(op_bin_string, onto, d) |> flip_ctx(ctx)
+  | BinStringOp2(op_bin_string, d, ctx) =>
+    BinStringOp2(op_bin_string, d, onto) |> flip_ctx(ctx)
+  | Tuple(ctx, xs) => Tuple(onto, xs) |> flip_ctx(ctx)
+  | ApBuiltin(string, ctx) => ApBuiltin(string, onto) |> flip_ctx(ctx)
+  | Test(id, ctx) => Test(id, onto) |> flip_ctx(ctx)
+  | ListLit(a, b, t, ctx, ll) => ListLit(a, b, t, onto, ll) |> flip_ctx(ctx)
+  | Cons1(ctx, d) => Cons1(onto, d) |> flip_ctx(ctx)
+  | Cons2(d, ctx) => Cons2(d, onto) |> flip_ctx(ctx)
+  | ListConcat1(ctx, d) => ListConcat1(onto, d) |> flip_ctx(ctx)
+  | ListConcat2(d, ctx) => ListConcat2(d, onto) |> flip_ctx(ctx)
+  | Prj(ctx, int) => Prj(onto, int) |> flip_ctx(ctx)
+  | NonEmptyHole(a, b, c, ctx) =>
+    NonEmptyHole(a, b, c, onto) |> flip_ctx(ctx)
+  | Cast(ctx, t1, t2) => Cast(onto, t1, t2) |> flip_ctx(ctx)
+  | FailedCast(ctx, t1, t2) => FailedCast(onto, t1, t2) |> flip_ctx(ctx)
+  | InvalidOperation(ctx, ioe) =>
+    InvalidOperation(onto, ioe) |> flip_ctx(ctx)
+  | ConsistentCase(Case(ctx, l, i)) =>
+    ConsistentCase(Case(onto, l, i)) |> flip_ctx(ctx)
+  | ConsistentCaseRule(d, pat, ctx, ls, int) =>
+    ConsistentCaseRule(d, pat, onto, ls, int) |> flip_ctx(ctx)
+  | InconsistentBranches(a, b, Case(ctx, l, i)) =>
+    InconsistentBranches(a, b, Case(onto, l, i)) |> flip_ctx(ctx)
+  | InconsistentBranchesRule(d, a, b, pat, ctx, ls, int) =>
+    InconsistentBranchesRule(d, a, b, pat, onto, ls, int) |> flip_ctx(ctx)
+  };
+
+let flip_ctx = flip_ctx(_, Mark);
+
 let rec fuzzy_mark =
   fun
   | Mark => true

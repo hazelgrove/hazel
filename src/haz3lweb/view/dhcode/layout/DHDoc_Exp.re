@@ -763,7 +763,7 @@ let mk =
       | None => doc
       };
     let rewrite_action_of = (r): UpdateAction.stepper_action =>
-      Rewrite({focus: d, ctx: full_ctx, rule: r});
+      Rewrite({focus: d, ctx: full_ctx |> EvalCtx.flip_ctx, rule: r});
     let rewrite_actions: list(UpdateAction.stepper_action) =
       List.map(rewrite_action_of, RewriteStep.matching_rewrites(d));
     switch (steppable) {

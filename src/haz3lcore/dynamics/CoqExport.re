@@ -78,21 +78,8 @@ let rec string_of_d = (d: DHExp.t) => {
 // Takes a single step
 let single_step_export = (ind, step, forall_str) => {
   let {d_loc, d_loc', ctx, _} = step;
-  let oldFragmentString =
-    switch (d_loc) {
-    | BinIntOp(op, IntLit(arg1), IntLit(arg2)) =>
-      let oldExprOperString = TermBase.UExp.int_op_to_string(op);
-      String.concat(
-        "",
-        [string_of_int(arg1), oldExprOperString, string_of_int(arg2)],
-      );
-    | _ => "ERROR"
-    };
-  let newFragmentString =
-    switch (d_loc') {
-    | IntLit(arg) => string_of_int(arg)
-    | _ => "ERROR"
-    };
+  let oldFragmentString = string_of_d(d_loc);
+  let newFragmentString = string_of_d(d_loc');
 
   //Printf.printf("Step: %s -> %s\n", oldFragmentString, newFragmentString);
   let oldExprString = string_of_d(compose(ctx, d_loc));
