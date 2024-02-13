@@ -336,8 +336,13 @@ and uexp_to_info_map =
         p,
         m,
       );
-    add(
-      ~self=Just(body.ty),
+    // TODO: factor out code
+    let unwrapped_self: Self.exp = Common(Just(body.ty));
+    let is_exhaustive = p_ana |> Info.pat_constraint |> Incon.is_exhaustive;
+    let self =
+      is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
+    add'(
+      ~self,
       ~co_ctx=
         CoCtx.union([def.co_ctx, CoCtx.mk(ctx, p_ana.ctx, body.co_ctx)]),
       m,
