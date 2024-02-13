@@ -27,12 +27,12 @@ let unique_vars_in_ast = (d: DHExp.t) => {
 };
 
 // Count all occurrences of an integer v in the AST v
-let rec index_of_like_terms_helper_dhexp = (d: DHExp.t, v: int) => {
+let rec index_of_like_terms_helper_dhexp = (d: DHExp.t, v: DHExp.t) => {
   switch (d) {
+  | _ when DHExp.fast_equal(d, v) => 1
   | BinIntOp(_, argL, argR) =>
     index_of_like_terms_helper_dhexp(argL, v)
     + index_of_like_terms_helper_dhexp(argR, v)
-  | IntLit(arg) when arg == v => 1
   | _ => 0
   };
 };
@@ -40,7 +40,7 @@ let rec index_of_like_terms_helper_dhexp = (d: DHExp.t, v: int) => {
 // Count all occurrences of integer v that are not to the right of the marker,
 // including the marker itself. This function assumes there is always
 // a marker somewhere in the AST.
-let rec index_of_like_terms_helper_ctx = (d: EvalCtx.t, v: int) => {
+let rec index_of_like_terms_helper_ctx = (d: EvalCtx.t, v: DHExp.t) => {
   switch (d) {
   // When the left argument is a context (contains the mark) and the right one doesn't
   | BinIntOp1(_, argL, _) => index_of_like_terms_helper_ctx(argL, v)
@@ -56,10 +56,7 @@ let rec index_of_like_terms_helper_ctx = (d: EvalCtx.t, v: int) => {
 // For some integer literal t and context AST d, find out how many occurrences of t do not occur to the right of the Mark in d.
 
 let index_of_like_terms = (d: EvalCtx.t, v: DHExp.t) => {
-  switch (v) {
-  | IntLit(arg) => index_of_like_terms_helper_ctx(d, arg)
-  | _ => 0
-  };
+  index_of_like_terms_helper_ctx(d, v);
 };
 
 let rec string_of_d = (d: DHExp.t) => {
