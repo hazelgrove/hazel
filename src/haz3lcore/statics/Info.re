@@ -72,6 +72,7 @@ type error_exp =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_pat =
   | ExpectedConstructor /* Only construtors can be applied */
+  | Redundant(option(error_pat))
   | Common(error_common);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -351,8 +352,20 @@ let rec status_common =
     InHole(Inconsistent(Internal(Typ.of_source(tys))))
   };
 
-let status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
+let rec status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
   switch (mode, self) {
+  | (_, Redundant(self)) =>
+    let additional_err =
+      switch (status_pat(ctx, mode, self)) {
+      | InHole(Common(Inconsistent(Internal(_) | Expectation(_))) as err)
+      | InHole(Common(NoType(_)) as err) => Some(err)
+      | NotInHole(_) => None
+      | InHole(Common(Inconsistent(WithArrow(_))))
+      | InHole(ExpectedConstructor | Redundant(_)) =>
+        // ExpectedConstructor cannot be a reason to hole-wrap the entire pattern
+        failwith("InHole(Redundant(impossible_err))")
+      };
+    InHole(Redundant(additional_err));
   | (Syn | Ana(_), Common(self_pat))
   | (SynFun, Common(IsConstructor(_) as self_pat)) =>
     /* Little bit of a hack. Anything other than a bound ctr will, in
@@ -489,11 +502,18 @@ let fixed_typ_ok: ok_pat => Typ.t =
   | Ana(Consistent({join, _})) => join
   | Ana(InternallyInconsistent({ana, _})) => ana;
 
-let fixed_typ_pat = (ctx, mode: Mode.t, self: Self.pat): Typ.t =>
+let fixed_typ_pat = (ctx, mode: Mode.t, self: Self.pat): Typ.t => {
+  // TODO: get rid of unwrapping (probably by changing the implementation of error_exp.Redundant)
+  let self =
+    switch (self) {
+    | Redundant(self) => self
+    | _ => self
+    };
   switch (status_pat(ctx, mode, self)) {
   | InHole(_) => Unknown(Internal)
   | NotInHole(ok) => fixed_typ_ok(ok)
   };
+};
 
 let fixed_constraint_pat =
     (ctx, mode: Mode.t, self: Self.pat, constraint_: Constraint.t)
