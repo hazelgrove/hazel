@@ -60,17 +60,21 @@ let index_of_like_terms = (d: EvalCtx.t, v: DHExp.t) => {
 };
 
 let rec string_of_d = (d: DHExp.t) => {
-  switch (d) {
-  | BinIntOp(op, arg1, arg2) =>
-    string_of_d(arg1)
-    ++ ""
-    ++ TermBase.UExp.int_op_to_string(op)
-    ++ ""
-    ++ string_of_d(arg2)
-  | IntLit(n) => string_of_int(n)
-  | NonEmptyHole(_, _, _, FreeVar(_, _, x)) => x
-  | _ => "ERROR"
-  };
+  "("
+  ++ (
+    switch (d) {
+    | BinIntOp(op, arg1, arg2) =>
+      string_of_d(arg1)
+      ++ ""
+      ++ TermBase.UExp.int_op_to_string(op)
+      ++ ""
+      ++ string_of_d(arg2)
+    | IntLit(n) => string_of_int(n)
+    | NonEmptyHole(_, _, _, FreeVar(_, _, x)) => x
+    | _ => "ERROR"
+    }
+  )
+  ++ ")";
 };
 // Takes a single step
 let single_step_export = (ind, step, forall_str) => {
