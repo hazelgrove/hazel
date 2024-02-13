@@ -516,11 +516,21 @@ let fixed_typ_pat = (ctx, mode: Mode.t, self: Self.pat): Typ.t => {
 };
 
 let fixed_constraint_pat =
-    (ctx, mode: Mode.t, self: Self.pat, constraint_: Constraint.t)
+    (
+      upat: UPat.t,
+      ctx,
+      mode: Mode.t,
+      self: Self.pat,
+      constraint_: Constraint.t,
+    )
     : Constraint.t =>
-  switch (fixed_typ_pat(ctx, mode, self)) {
-  | Unknown(_) => Constraint.Hole
-  | _ => constraint_
+  switch (upat.term) {
+  | TypeAnn(_) => constraint_
+  | _ =>
+    switch (fixed_typ_pat(ctx, mode, self)) {
+    | Unknown(_) => Constraint.Hole
+    | _ => constraint_
+    }
   };
 
 let fixed_typ_exp = (ctx, mode: Mode.t, self: Self.exp): Typ.t =>
@@ -545,7 +555,7 @@ let derived_pat =
   let cls = Cls.Pat(UPat.cls_of_term(upat.term));
   let status = status_pat(ctx, mode, self);
   let ty = fixed_typ_pat(ctx, mode, self);
-  let constraint_ = fixed_constraint_pat(ctx, mode, self, constraint_);
+  let constraint_ = fixed_constraint_pat(upat, ctx, mode, self, constraint_);
   {
     cls,
     self,
