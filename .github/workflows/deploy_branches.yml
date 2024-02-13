@@ -3,9 +3,8 @@
 name: Build and Deploy Hazel
 on: [push]
 jobs:
-  Build:
+  Deploy:
     runs-on: ubuntu-latest
-    needs: Build
     steps:
       # NOTE: position the below lines in the code between two steps
       # and uncomment them to open an ssh connection at that point:
