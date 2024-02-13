@@ -87,15 +87,41 @@ let single_step_export = (ind, step, forall_str) => {
   let newExprString = string_of_d(newExpr);
   //Printf.printf("old: %s\n", oldExprString);
   //Printf.printf("new: %s\n", newExprString);
+  let evalTactic =
+    switch (step) {
+    | RewriteStep(rule) =>
+      switch (rule) {
+      | IdPlusL
+      | CommPlus(_, _) => "rewrite Nat.add_comm. "
+      | AssocPlusL(_, _, _) => "rewrite Nat.add_assoc. "
+      | AssocPlusR(_, _, _) => "rewrite Nat.add_assoc. "
+      | IdTimesL(_, _) => "rewrite Nat.mul_1_l. "
+      | CommTimes(_, _) => "rewrite Nat.mul_comm. "
+      | AssocTimesL(_, _, _) => "rewrite Nat.mul_assoc. "
+      | AssocTimesR(_, _, _) => "rewrite Nat.mul_assoc. "
+      | DistPlusTimesL(_, _, _) => "rewrite Nat.mul_add_distr_l. "
+      | DistPlusTimesR(_, _, _) => "rewrite Nat.mul_add_distr_r. "
+      | DistPlusDivL(_, _, _) => "rewrite Nat.div_add_l. "
+      | DistPlusDivR(_, _, _) => "rewrite Nat.div_add_r. "
+      | DivDefL(_, _) => "rewrite Nat.div_mod. "
+      | DivDefR(_, _) => "rewrite Nat.div_mod. "
+      | _ => "cbv"
+      }
+    };
   let extraTactic =
-    switch (d_loc) {
-    | BinIntOp(Plus, _, _) => "repeat rewrite Nat.add_assoc. "
-    | _ => ""
+    // Only add extra tactics for cbv
+    if (evalTactic == "cbv") {
+      switch (d_loc) {
+      | BinIntOp(Plus, _, _) => "repeat rewrite Nat.add_assoc. "
+      | _ => ""
+      };
+    } else {
+      "";
     };
   let rewriteIndex = index_of_like_terms(ctx, d_loc');
   let coqLemmaString =
     Printf.sprintf(
-      "Lemma equiv_exp%d:%s%s = %s.\nProof.\nintros.\ncut (%s=%s).\n- intros. rewrite <- H at %d. %s reflexivity.\n- intros. cbv. reflexivity.\nQed.",
+      "Lemma equiv_exp%d:%s%s = %s.\nProof.\nintros.\ncut (%s=%s).\n- intros. rewrite <- H at %d. %s reflexivity.\n- intros. %s. reflexivity.\nQed.",
       ind,
       forall_str,
       newExprString,
@@ -103,7 +129,8 @@ let single_step_export = (ind, step, forall_str) => {
       oldFragmentString,
       newFragmentString,
       rewriteIndex,
-      extraTactic,
+      extraTactic, // Make sure to turn this of if
+      evalTactic,
     );
   //Printf.printf("Coq proof:\n%s\n", coqLemmaString);
   coqLemmaString;
