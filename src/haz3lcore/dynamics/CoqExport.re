@@ -88,25 +88,24 @@ let single_step_export = (ind, step, forall_str) => {
   //Printf.printf("old: %s\n", oldExprString);
   //Printf.printf("new: %s\n", newExprString);
   let evalTactic =
-    switch (step) {
-    | RewriteStep(step.knd) =>
-      switch (step.knd) {
+    switch (step.knd) {
+    | Rewrite(step) =>
+      switch (step.name) {
       | IdPlusL => "rewrite Nat.add_0_l. "
-      | CommPlus(_, _) => "rewrite Nat.add_comm. "
-      | AssocPlusL(_, _, _) => "rewrite Nat.add_assoc. "
-      | AssocPlusR(_, _, _) => "rewrite Nat.add_assoc. "
-      | IdTimesL(_, _) => "rewrite Nat.mul_1_l. "
-      | CommTimes(_, _) => "rewrite Nat.mul_comm. "
-      | AssocTimesL(_, _, _) => "rewrite Nat.mul_assoc. "
-      | AssocTimesR(_, _, _) => "rewrite Nat.mul_assoc. "
-      | DistPlusTimesL(_, _, _) => "rewrite Nat.mul_add_distr_l. "
-      | DistPlusTimesR(_, _, _) => "rewrite Nat.mul_add_distr_r. "
-      | DistPlusDivL(_, _, _) => "rewrite Nat.div_add_l. "
-      | DistPlusDivR(_, _, _) => "rewrite Nat.div_add_r. "
-      | DivDefL(_, _) => "rewrite Nat.div_mod. "
-      | DivDefR(_, _) => "rewrite Nat.div_mod. "
-      | _ => "cbv"
-      };
+      | CommPlus => "rewrite Nat.add_comm. "
+      | AssocPlusL => "rewrite Nat.add_assoc. "
+      | AssocPlusR => "rewrite Nat.add_assoc. "
+      | IdTimesL => "rewrite Nat.mul_1_l. "
+      | CommTimes => "rewrite Nat.mul_comm. "
+      | AssocTimesL => "rewrite Nat.mul_assoc. "
+      | AssocTimesR => "rewrite Nat.mul_assoc. "
+      | DistPlusTimesL => "rewrite Nat.mul_add_distr_l. "
+      | DistPlusTimesR => "rewrite Nat.mul_add_distr_r. "
+      | DistPlusDivL => "rewrite Nat.div_add_l. "
+      | DistPlusDivR => "rewrite Nat.div_add_r. "
+      | DivDefL => "rewrite Nat.div_mod. "
+      | DivDefR => "rewrite Nat.div_mod. "
+      }
     | _ => "cbv"
     };
   let extraTactic =
