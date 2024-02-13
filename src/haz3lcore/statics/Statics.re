@@ -90,46 +90,6 @@ let typ_exp_unop: UExp.op_un => (Typ.t, Typ.t) =
   | Bool(Not) => (Bool, Bool)
   | Int(Minus) => (Int, Int);
 
-// // The input contains only NotInt(_) by default
-// let get_unmatched_int = (xs: list(Constraint.t)): int => {
-//   let first_int =
-//     switch (List.hd(xs)) {
-//     | NotInt(y) => y
-//     | _ => 0
-//     };
-//   let max_int =
-//     List.fold_left(
-//       (x, y) =>
-//         switch (y) {
-//         | Constraint.NotInt(z) => x < z ? z : x
-//         | _ => x
-//         },
-//       first_int,
-//       List.tl(xs),
-//     );
-//   max_int + 1;
-// };
-
-// // The input contains only NotFloat(_) by default
-// let get_unmatched_float = (xs: list(Constraint.t)): float => {
-//   let first_float =
-//     switch (List.hd(xs)) {
-//     | NotFloat(y) => y
-//     | _ => 0.0
-//     };
-//   let max_float =
-//     List.fold_left(
-//       (x, y) =>
-//         switch (y) {
-//         | Constraint.NotFloat(z) => x < z ? z : x
-//         | _ => x
-//         },
-//       first_float,
-//       List.tl(xs),
-//     );
-//   max_float +. 1.0;
-// };
-
 let rec any_to_info_map =
         (~ctx: Ctx.t, ~ancestors, any: any, m: Map.t): (CoCtx.t, Map.t) =>
   switch (any) {
@@ -420,58 +380,6 @@ and uexp_to_info_map =
           Constraint.to_upat(xi, ctx, scrut.ty),
         )
       };
-    // if (!is_exhaustive) {
-    //   // Dual constraint: the unwrapped version of dual.
-    //   // Note that its elements are virtually connected via AND.
-    //   let dual_constraints =
-    //     Constraint.unwrap_and(Constraint.dual(final_constraint));
-    //   switch (dual_constraints) {
-    //   | [] => print_endline("The constraint is empty")
-    //   | _ =>
-    //     switch (List.hd(dual_constraints)) {
-    //     | NotInt(_) =>
-    //       let (ns, _) =
-    //         List.partition(
-    //           fun
-    //           | Constraint.NotInt(_) => true
-    //           | _ => false,
-    //           dual_constraints,
-    //         );
-    //       let unmatched = get_unmatched_int(ns);
-    //       print_endline(string_of_int(unmatched));
-    //     | NotFloat(_) =>
-    //       let (ns, _) =
-    //         List.partition(
-    //           fun
-    //           | Constraint.NotFloat(_) => true
-    //           | _ => false,
-    //           dual_constraints,
-    //         );
-    //       let unmatched = get_unmatched_float(ns);
-    //       print_endline(string_of_float(unmatched));
-    //     | Or(InjR(_), InjL(Truth))
-    //     | Or(InjL(_), InjR(Truth)) =>
-    //       // List or constructor, now only considering the first
-    //       // Or(InjL(_), InjR(Truth)) only corresponds to empty list
-    //       let (_, _) =
-    //         List.partition(
-    //           fun
-    //           | Constraint.Or(InjR(_), InjL(Truth))
-    //           | Or(InjL(_), InjR(Truth)) => true
-    //           | _ => false,
-    //           dual_constraints,
-    //         );
-    //       // The first element of the pair is useful here; there is too much nested or's and inj's,
-    //       // so I am unable to proceed -- Weijia
-    //       (); // TODO
-    //     | _ => () // TODO
-    //     }
-    //   };
-    //   // print_endline(Constraint.show(dual_constraint));
-    //   ();
-    //   // TODO
-    // };
-
     add'(~self, ~co_ctx=CoCtx.union([scrut.co_ctx] @ e_co_ctxs), m);
   | TyAlias(typat, utyp, body) =>
     let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;
