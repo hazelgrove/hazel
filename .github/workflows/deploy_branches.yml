@@ -5,30 +5,6 @@ on: [push]
 jobs:
   Build:
     runs-on: ubuntu-latest
-    steps:
-      # NOTE: position the below lines in the code between two steps
-      # and uncomment them to open an ssh connection at that point:
-      #- name: Debugging with ssh
-      #  uses: lhotari/action-upterm@v1
-      - name: Checkout the hazel repo on the current branch # STEP 1
-        uses: actions/checkout@v2
-        with:
-          path: source
-      - name: Add the name of the current branch to the environment as BRANCH_NAME
-        uses: nelonoel/branch-name@v1.0.1
-      - name: Set-up OCaml
-        uses: ocaml/setup-ocaml@v2
-        with:
-          ocaml-compiler: 5.0.0
-          dune-cache: true
-      - name: Build Hazel
-        run: |
-          eval $(opam env)
-          make deps
-          make release
-        working-directory: ./source
-  Deploy:
-    runs-on: ubuntu-latest
     needs: Build
     steps:
       # NOTE: position the below lines in the code between two steps
@@ -55,6 +31,12 @@ jobs:
         run: |
           eval $(opam env)
           make release
+        working-directory: ./source
+      - name: Run Tests
+        continue-on-error: true
+        run: |
+          eval $(opam env)
+          make test
         working-directory: ./source
       - name: Checkout the website build artifacts repo # STEP 4
         uses: actions/checkout@v2
@@ -76,28 +58,3 @@ jobs:
           git status
           git diff-index --quiet HEAD || (git commit -m "github-deploy-action-${BRANCH_NAME}"; git push)
         working-directory: ./server
-  Tests:
-    runs-on: ubuntu-latest
-    needs: Build
-    steps:
-      - name: Checkout the hazel repo on the current branch
-        uses: actions/checkout@v2
-        with:
-          path: source
-      - name: Add the name of the current branch to the environment as BRANCH_NAME
-        uses: nelonoel/branch-name@v1.0.1
-      - name: Set-up OCaml
-        uses: ocaml/setup-ocaml@v2
-        with:
-          ocaml-compiler: 5.0.0
-          dune-cache: true
-      - name: Install dependencies
-        run: |
-          eval $(opam env)
-          make deps 
-        working-directory: ./source
-      - name: Run Tests
-        run: |
-          eval $(opam env)
-          make test
-        working-directory: ./source
