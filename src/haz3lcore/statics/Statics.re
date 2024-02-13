@@ -366,7 +366,6 @@ and uexp_to_info_map =
           ps,
           m,
         );
-      let p_constraints = List.map(Info.pat_constraint, ps');
       let p_ctxs = List.map(Info.pat_ctx, ps');
       let (es, m) =
         List.fold_left2(
@@ -379,25 +378,44 @@ and uexp_to_info_map =
       let e_co_ctxs =
         List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es));
       /* Add co-ctxs to patterns */
-      let (_, m) =
-        map_m(
-          ((p, co_ctx)) =>
-            go_pat(
-              ~is_synswitch=false,
-              ~co_ctx,
-              ~mode=Mode.Ana(scrut.ty),
-              p,
-            ),
+      let (m, final_constraint) =
+        List.fold_left(
+          ((m, acc_constraint), (p, co_ctx)) => {
+            let (p, m) =
+              go_pat(
+                ~is_synswitch=false,
+                ~co_ctx,
+                ~mode=Mode.Ana(scrut.ty),
+                p,
+                m,
+              );
+            let p_constraint = Info.pat_constraint(p);
+            if (!Incon.is_redundant(p_constraint, acc_constraint)) {
+              (m, Constraint.Or(p_constraint, acc_constraint));
+            } else {
+              let info =
+                Info.derived_pat(
+                  ~upat=p.term,
+                  ~ctx=p.ctx,
+                  ~co_ctx=p.co_ctx,
+                  ~mode=p.mode,
+                  ~ancestors=p.ancestors,
+                  ~self=Redundant(p.self),
+                  // Mark patterns as redundant at the top level
+                  // because redundancy doesn't make sense in a smaller context
+                  ~constraint_=p_constraint,
+                );
+              (
+                // Override the info for the single upat
+                add_info(p.term.ids, InfoPat(info), m),
+                acc_constraint // Redundant patterns are ignored
+              );
+            };
+          },
+          (m, Constraint.Falsity),
           List.combine(ps, e_co_ctxs),
-          m,
         );
-      (
-        es,
-        e_co_ctxs,
-        branch_ids,
-        Constraint.or_constraints(p_constraints),
-        m,
-      );
+      (es, e_co_ctxs, branch_ids, final_constraint, m);
     };
     let (es, e_co_ctxs, branch_ids, final_constraint, m) =
       rules_to_info_map(rules, m);
