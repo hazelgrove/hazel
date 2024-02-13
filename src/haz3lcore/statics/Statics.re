@@ -306,11 +306,12 @@ and uexp_to_info_map =
     /* add co_ctx to pattern */
     let (p, m) =
       go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~mode=mode_pat, p, m);
-    add(
-      ~self=Just(Arrow(p.ty, e.ty)),
-      ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx),
-      m,
-    );
+    // TODO: factor out code
+    let unwrapped_self: Self.exp = Common(Just(Arrow(p.ty, e.ty)));
+    let is_exhaustive = p |> Info.pat_constraint |> Incon.is_exhaustive;
+    let self =
+      is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
+    add'(~self, ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx), m);
   | Let(p, def, body) =>
     let (p_syn, _) =
       go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~mode=Syn, p, m);
