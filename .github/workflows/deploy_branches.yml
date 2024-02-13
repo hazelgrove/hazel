@@ -30,14 +30,9 @@ jobs:
       - name: Build Hazel
         run: |
           eval $(opam env)
+          make deps
           make release
         working-directory: ./source
-      - name: Cache the build
-        id: build-cache
-        uses: actions/cache@v4
-        with:
-          path: ./source/_build'
-          key: ${{ runner.os }}-build-${{ hashFiles('./source/**', '!./source/_build/**', '!./source/.git/**') }}
   Deploy:
     runs-on: ubuntu-latest
     needs: Build
