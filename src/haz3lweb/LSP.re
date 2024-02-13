@@ -11,11 +11,20 @@ type constrain =
   | Types;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type check =
+  | DontCheck
+  | Syntax
+  | Static
+  | Dynamic(string); // tests file content
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type arguments = {
   debug: bool,
+  check,
   constrain,
   new_token: option(string),
   program: string,
+  prelude: option(string),
   ctx: Ctx.t,
 };
 
@@ -78,8 +87,10 @@ let default_settings = {
   debug: false,
   constrain: Types,
   program: "",
+  prelude: None,
   ctx: [],
   new_token: None,
+  check: DontCheck,
 };
 
 let show_settings = (s: arguments): string =>
@@ -98,14 +109,6 @@ let get_info_map = (~init_ctx=[], z: Zipper.t) =>
   |> MakeTerm.from_zip_for_sem
   |> fst
   |> Interface.Statics.mk_map_ctx(CoreSettings.on, init_ctx);
-
-let _is_file = (path: string): bool => {
-  Js.Unsafe.(
-    [|inject(Js.string(path))|]
-    |> fun_call(get(js_expr("require('fs')"), "existsSync"))
-    |> Js.to_bool
-  );
-};
 
 let string_of_file = (~encoding: string="utf8", path: string): string => {
   Js.Unsafe.(
@@ -149,6 +152,14 @@ let tempFilePath = (filename: string): string => {
   tempDir ++ "/" ++ filename;
 };
 
+let is_file = (path: string): bool => {
+  Js.Unsafe.(
+    [|inject(Js.string(tempFilePath(path)))|]
+    |> fun_call(get(js_expr("require('fs')"), "existsSync"))
+    |> Js.to_bool
+  );
+};
+
 let serialize_a = (a: 'a, filename: string): unit => {
   let tempFilename = tempFilePath(filename);
   let channel = open_out_bin(tempFilename);
@@ -175,7 +186,7 @@ let serialized_filename_z = program_str =>
 
 let process_zipper = (~db=ignore, program_str: string): Zipper.t => {
   let serialized_filename = serialized_filename_z(program_str);
-  if (_is_file(serialized_filename)) {
+  if (is_file(serialized_filename)) {
     db("LSP: Get Zipper: Found serialized zipper, deserializing");
     deserialize_zipper(serialized_filename);
   } else {
@@ -241,8 +252,8 @@ let pp_inner = (~db=ignore, ~init_ctx, str: string): Ctx.t => {
 
 let process_prelude = (~db=ignore, ~init_ctx, str: string): Ctx.t => {
   let hashed_str = hash_of_string(str);
-  let serialized_filename = hashed_str ++ ".ctx.seralized";
-  if (_is_file(serialized_filename)) {
+  let serialized_filename = hashed_str ++ ".ctx.serialized";
+  if (is_file(serialized_filename)) {
     db("LSP: Prelude: Found serialized file, deserializing");
     deserialize_ctx(serialized_filename);
   } else {
@@ -258,6 +269,7 @@ let usage_constrain = "[--constrain <grammar|context|types>]";
 let usage_ctx = "[--ctx <empty|init>]";
 let usage_prelude = "[--prelude <path>]";
 let usage_new_token = "[--new-token <new-token-to-append>]";
+let usage_check = "[--check <syntax|static|dynamic <path>>]";
 let usage_str =
   String.concat(
     " ",
@@ -267,6 +279,8 @@ let usage_str =
       usage_constrain,
       usage_ctx,
       usage_prelude,
+      usage_new_token,
+      usage_check,
       "<program>",
     ],
   );
@@ -297,12 +311,23 @@ let rec parse_args = (args, currentSettings) =>
       failwith("LSP: EXN: Could not load prelude from path: " ++ maybe_path)
     | str =>
       let ctx = process_prelude(str, ~init_ctx=currentSettings.ctx);
-      parse_args(rest, {...currentSettings, ctx});
+      parse_args(rest, {...currentSettings, prelude: Some(str), ctx});
     }
   | ["--prelude", ..._] => failwith("LSP: EXN: Usage: " ++ usage_prelude)
   | ["--new-token", new_token, ...rest] =>
     parse_args(rest, {...currentSettings, new_token: Some(new_token)})
   | ["--new-token", ..._] => failwith("LSP: EXN: Usage: " ++ usage_new_token)
+  | ["--check", "syntax", ...rest] =>
+    parse_args(rest, {...currentSettings, check: Syntax})
+  | ["--check", "static", ...rest] =>
+    parse_args(rest, {...currentSettings, check: Static})
+  | ["--check", "dynamic", maybe_path, ...rest] =>
+    switch (string_of_file(maybe_path)) {
+    | exception _ =>
+      failwith("LSP: EXN: Could not load tests from path: " ++ maybe_path)
+    | str => parse_args(rest, {...currentSettings, check: Dynamic(str)})
+    }
+  | ["--check", ..._] => failwith("LSP: EXN: Usage: " ++ usage_check)
   | [arg, ..._] when String.starts_with(~prefix="--", arg) =>
     failwith("LSP: EXN: Unrecognized argument: " ++ arg)
   | [program] => {...currentSettings, program}
@@ -1158,14 +1183,107 @@ let mk_grammar = (pre_grammar: pre_grammar): string => {
   ++ sort_root;
 };
 
-let main = args => {
-  let settings = parse_args(args, default_settings);
-  let db = s => settings.debug ? print_endline(s) : ();
-  db(show_settings(settings));
+let generate = (~db, ~settings, ~get_zipper): unit => {
   let z = get_zipper(~db, settings);
   let grammar = z |> dispatch_generation(~settings, ~db) |> mk_grammar;
   db("LSP: Grammar:");
   print_endline(grammar);
+};
+
+let syntax_error_report = (~db, ~settings) =>
+  switch (
+    try(Some(get_zipper(~db, settings))) {
+    | _ => None
+    }
+  ) {
+  | None =>
+    print_endline(
+      "LSP: Check Syntax: Incorrect syntax: Unknown exception in parse",
+    )
+  | Some(z) =>
+    //TODO(andrew): look for holes in the syntax, Invalids, etc.
+    switch (Printer.of_backpack(z)) {
+    | [] => print_endline("LSP: Check Syntax: Syntax OK")
+    | orphans =>
+      print_endline(
+        "LSP: Check Syntax: Incorrect syntax: Unmatched delimiters:"
+        ++ String.concat(", ", orphans),
+      )
+    }
+  };
+
+let static_error_report = (~db, ~settings) => {
+  let z = get_zipper(~db, settings);
+  let init_ctx = settings.ctx;
+  let info_map = get_info_map(~init_ctx, z);
+  switch (ErrorPrint.collect_static(info_map)) {
+  | [] => print_endline("LSP: Check Statics: No static errors")
+  | errs =>
+    let num_errs = errs |> List.length |> string_of_int;
+    print_endline(
+      "LSP: Check Statics: " ++ num_errs ++ " static error(s) found: ",
+    );
+    print_endline(errs |> String.concat("\n"));
+  };
+};
+
+let dynamic_error_report = (~db, ~settings, tests: string) => {
+  let init_ctx = settings.ctx;
+  let init_env = Builtins.env_init;
+  let prelude_term: Term.UExp.t =
+    switch (settings.prelude) {
+    | None =>
+      //TODO(andrew): make sure this makes sense as a default prelude
+      {ids: [Id.mk()], term: Triv}
+    | Some(prelude) =>
+      let z_prelude = process_zipper(~db, prelude);
+      MakeTerm.from_zip_for_sem(z_prelude) |> fst;
+    };
+  let main_term: Term.UExp.t = {
+    let z_main = get_zipper(~db, settings);
+    MakeTerm.from_zip_for_sem(z_main) |> fst;
+  };
+  let tests_term: Term.UExp.t = {
+    let z_tests = process_zipper(~db, tests);
+    MakeTerm.from_zip_for_sem(z_tests) |> fst;
+  };
+  let combined_term =
+    EditorUtil.append_exp(
+      EditorUtil.append_exp(prelude_term, main_term),
+      tests_term,
+    );
+  let info_map =
+    Interface.Statics.mk_map_ctx(CoreSettings.on, init_ctx, combined_term);
+  let elab =
+    Interface.elaborate(~settings=CoreSettings.on, info_map, combined_term);
+  let res =
+    Interface.evaluate(~settings=CoreSettings.on, ~env=init_env, elab);
+  let test_results: list(TestStatus.t) =
+    res
+    |> ProgramResult.get_state
+    |> EvaluatorState.get_tests
+    |> List.map(((_id, instance_report)) =>
+         switch (instance_report) {
+         | [] => TestStatus.Indet
+         | [(_, status, _), ..._] => status
+         }
+       );
+  print_endline("LSP: Check Dynamics: Test results: ");
+  print_endline(
+    test_results |> List.map(TestStatus.to_string) |> String.concat(", "),
+  );
+};
+
+let main = args => {
+  let settings = parse_args(args, default_settings);
+  let db = s => settings.debug ? print_endline(s) : ();
+  db(show_settings(settings));
+  switch (settings.check) {
+  | DontCheck => generate(~db, ~settings, ~get_zipper)
+  | Syntax => syntax_error_report(~db, ~settings)
+  | Static => static_error_report(~db, ~settings)
+  | Dynamic(str) => dynamic_error_report(~db, ~settings, str)
+  };
 };
 
 main(get_args());
