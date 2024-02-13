@@ -22,14 +22,11 @@ jobs:
         with:
           path: '/home/runner/.opam/'
           key: ${{ runner.os }}-modules-${{ hashFiles('./source/opam.export') }}
-      - name: Install dependencies
-        run: |
-          sudo apt --assume-yes install curl m4 opam
-          export OPAMYES=1
-          opam init --compiler=ocaml-base-compiler.5.0.0
-          eval $(opam env)
-          make deps 
-        working-directory: ./source
+      - name: Set-up OCam
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: 5.0.0
+        dune-cache: true
       - name: Build Hazel
         run: |
           eval $(opam env)
