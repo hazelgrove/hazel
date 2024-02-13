@@ -132,34 +132,55 @@ let get_args = (): list(string) => {
 let hash_of_string = (str: string): string =>
   str |> Digest.string |> Digest.to_hex;
 
+let tempDir = "tmp"; // Name of the temporary directory
+
+/* Ensure the temporary directory exists */
+let ensureTempDir = () =>
+  if (!Sys.file_exists(tempDir)) {
+    Sys.mkdir(
+      tempDir,
+      0o755 // Uses Unix permissions, adjust as necessary
+    );
+  };
+
+/* Construct a path within the temporary directory for a given filename */
+let tempFilePath = (filename: string): string => {
+  ensureTempDir();
+  tempDir ++ "/" ++ filename; // Simple path concatenation
+};
+
 let serialize_ctx = (ctx: Ctx.t, filename: string) => {
-  let channel = open_out_bin(filename);
+  let tempFilename = tempFilePath(filename);
+  let channel = open_out_bin(tempFilename);
   Marshal.to_channel(channel, ctx, []);
   close_out(channel);
 };
 
 let deserialize_ctx = (filename: string): Ctx.t => {
-  let channel = open_in_bin(filename);
+  let tempFilename = tempFilePath(filename);
+  let channel = open_in_bin(tempFilename);
   let ctx: Ctx.t = Marshal.from_channel(channel);
   close_in(channel);
   ctx;
 };
 
 let serialize_zipper = (z: Zipper.t, filename: string) => {
-  let channel = open_out_bin(filename);
+  let tempFilename = tempFilePath(filename);
+  let channel = open_out_bin(tempFilename);
   Marshal.to_channel(channel, z, []);
   close_out(channel);
 };
 
 let deserialize_zipper = (filename: string): Zipper.t => {
-  let channel = open_in_bin(filename);
+  let tempFilename = tempFilePath(filename);
+  let channel = open_in_bin(tempFilename);
   let z: Zipper.t = Marshal.from_channel(channel);
   close_in(channel);
   z;
 };
 
 let serialized_filename_z = program_str =>
-  hash_of_string(program_str) ++ ".zipper.seralized";
+  hash_of_string(program_str) ++ ".zipper.serialized";
 
 let process_zipper = (~db=ignore, program_str: string): Zipper.t => {
   let serialized_filename = serialized_filename_z(program_str);
