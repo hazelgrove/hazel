@@ -41,7 +41,7 @@ type t =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type exp =
   | Free(Var.t)
-  | InexhaustiveMatch(exp)
+  | InexhaustiveMatch(exp, Term.UPat.t)
   | Common(t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]

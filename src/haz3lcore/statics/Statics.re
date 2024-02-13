@@ -372,7 +372,14 @@ and uexp_to_info_map =
       Common(Self.match(ctx, e_tys, branch_ids));
     let is_exhaustive = Incon.is_exhaustive(final_constraint);
     let self =
-      is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
+      switch (is_exhaustive) {
+      | True => unwrapped_self
+      | False(xi) =>
+        InexhaustiveMatch(
+          unwrapped_self,
+          Constraint.to_upat(xi, ctx, scrut.ty),
+        )
+      };
     add'(~self, ~co_ctx=CoCtx.union([scrut.co_ctx] @ e_co_ctxs), m);
   | TyAlias(typat, utyp, body) =>
     let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;
