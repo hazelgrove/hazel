@@ -277,36 +277,6 @@ module Deco =
   };
 
   // faster infomap traversal
-  let err_holes = (_z: Zipper.t) => {
-    let is_rep = (id: Id.t) =>
-      switch (Id.Map.find_opt(id, M.terms)) {
-      | None => false
-      | Some(term) => id == Term.rep_id(term)
-      };
-    Id.Map.fold(
-      (id, info, acc) =>
-        /* Because of artefacts in Maketerm ID handling,
-         * there are be situations where ids appear in the
-         * info_map which do not occur in term_ranges. These
-         * ids should be purely duplicative, so skipping them
-         * when iterating over the info_map should have no
-         * effect, beyond supressing the resulting Not_found exs */
-        switch (Id.Map.find_opt(id, M.term_ranges)) {
-        /* Without filtering out non-rep ids, there will be
-         * multiple error holes wrapping around a case expression
-         * or a list literal that has at least one comma, since the
-         * rules of case expressions and the inner commas of list
-         * literals are technically different forms */
-        | Some(_) when is_rep(id) && Info.is_error(info) => [
-            term_highlight(~clss=["err-hole"], id),
-            ...acc,
-          ]
-        | _ => acc
-        },
-      M.info_map,
-      [],
-    );
-  };
   let err_holes = (_z: Zipper.t) =>
     List.map(term_highlight(~clss=["err-hole"]), M.error_ids);
 
