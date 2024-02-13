@@ -16,13 +16,7 @@ jobs:
           path: source
       - name: Add the name of the current branch to the environment as BRANCH_NAME
         uses: nelonoel/branch-name@v1.0.1
-      - name: Retrieve the build environment if cached # STEP 2
-        id: opam-cache
-        uses: actions/cache@v2
-        with:
-          path: '/home/runner/.opam/'
-          key: ${{ runner.os }}-modules-${{ hashFiles('./source/opam.export') }}
-      - name: Set-up OCam
+      - name: Set-up OCaml
         uses: ocaml/setup-ocaml@v2
         with:
           ocaml-compiler: 5.0.0
@@ -47,23 +41,13 @@ jobs:
           path: source
       - name: Add the name of the current branch to the environment as BRANCH_NAME
         uses: nelonoel/branch-name@v1.0.1
-      - name: Retrieve the build environment if cached # STEP 2
-        id: opam-cache
-        uses: actions/cache@v2
+      - name: Set-up OCaml
+        uses: ocaml/setup-ocaml@v2
         with:
-          path: '/home/runner/.opam/'
-          key: ${{ runner.os }}-modules-${{ hashFiles('./source/opam.export') }}
-      - name: Retrieve the build cache
-        id: build-cache
-        uses: actions/cache@v4
-        with:
-          path: ./source/_build'
-          key: ${{ runner.os }}-build-${{ hashFiles('./source/**', '!./source/_build/**', '!./source/.git/**') }}
+          ocaml-compiler: 5.0.0
+          dune-cache: true
       - name: Install dependencies
         run: |
-          sudo apt --assume-yes install curl m4 opam
-          export OPAMYES=1
-          opam init --compiler=ocaml-base-compiler.5.0.0
           eval $(opam env)
           make deps 
         working-directory: ./source
@@ -102,30 +86,15 @@ jobs:
           path: source
       - name: Add the name of the current branch to the environment as BRANCH_NAME
         uses: nelonoel/branch-name@v1.0.1
-      - name: Retrieve the build environment if cached
-        id: opam-cache
-        uses: actions/cache@v4
+      - name: Set-up OCaml
+        uses: ocaml/setup-ocaml@v2
         with:
-          path: '/home/runner/.opam/'
-          key: ${{ runner.os }}-modules-${{ hashFiles('./source/opam.export') }}
-      - name: Retrieve the build if cached
-        id: build-cache
-        uses: actions/cache@v4
-        with:
-          path: ./source/_build'
-          key: ${{ runner.os }}-build-${{ hashFiles('./source/**', '!./source/_build/**', '!./source/.git/**') }}
+          ocaml-compiler: 5.0.0
+          dune-cache: true
       - name: Install dependencies
         run: |
-          sudo apt --assume-yes install curl m4 opam
-          export OPAMYES=1
-          opam init --compiler=ocaml-base-compiler.5.0.0
           eval $(opam env)
           make deps 
-        working-directory: ./source
-      - name: Build Hazel
-        run: |
-          eval $(opam env)
-          make release
         working-directory: ./source
       - name: Run Tests
         run: |
