@@ -92,20 +92,34 @@ let single_step_export = (ind, step, forall_str) => {
     switch (step.knd) {
     | Rewrite(step) =>
       switch (step.name) {
-      | IdPlusL => "rewrite Nat.add_0_l"
-      | CommPlus => "rewrite Nat.add_comm"
-      | AssocPlusL => "rewrite Nat.add_assoc"
-      | AssocPlusR => "rewrite Nat.add_assoc"
-      | IdTimesL => "rewrite Nat.mul_1_l"
-      | CommTimes => "rewrite Nat.mul_comm"
-      | AssocTimesL => "rewrite Nat.mul_assoc"
-      | AssocTimesR => "rewrite Nat.mul_assoc"
-      | DistPlusTimesL => "rewrite Nat.mul_add_distr_l"
-      | DistPlusTimesR => "rewrite Nat.mul_add_distr_r"
-      | DistPlusDivL => "rewrite Nat.div_add_l"
-      | DistPlusDivR => "rewrite Nat.div_add_r"
-      | DivDefL => "rewrite Nat.div_mod"
-      | DivDefR => "rewrite Nat.div_mod"
+      // | IdPlusL => "rewrite Nat.add_0_l"
+      // | CommPlus => "rewrite Nat.add_comm"
+      // | AssocPlusL => "rewrite Nat.add_assoc"
+      // | AssocPlusR => "rewrite Nat.add_assoc"
+      // | IdTimesL => "rewrite Nat.mul_1_l"
+      // | CommTimes => "rewrite Nat.mul_comm"
+      // | AssocTimesL => "rewrite Nat.mul_assoc"
+      // | AssocTimesR => "rewrite Nat.mul_assoc"
+      // | DistPlusTimesL => "rewrite Nat.mul_add_distr_l"
+      // | DistPlusTimesR => "rewrite Nat.mul_add_distr_r"
+      // | DistPlusDivL => "rewrite Nat.div_add_l"
+      // | DistPlusDivR => "rewrite Nat.div_add_r"
+      // | DivDefL => "rewrite Nat.div_mod"
+      // | DivDefR => "rewrite Nat.div_mod"
+      | IdPlusL => "rewrite Qplus_0_l"
+      | CommPlus => "rewrite Qplus_comm"
+      | AssocPlusL => "rewrite Qplus_assoc"
+      | AssocPlusR => "rewrite Qplus_assoc"
+      | IdTimesL => "rewrite Qmult_1_l"
+      | CommTimes => "rewrite Qmult_comm"
+      | AssocTimesL => "rewrite Qmult_assoc"
+      | AssocTimesR => "rewrite Qmult_assoc"
+      | DistPlusTimesL => "rewrite Qmult_plus_distr_l"
+      | DistPlusTimesR => "rewrite Qmult_plus_distr_r"
+      | DistPlusDivL => "rewrite Qdiv_plus_l"
+      | DistPlusDivR => "rewrite Qdiv_plus_r"
+      | DivDefL => "rewrite Qdiv_mod"
+      | DivDefR => "rewrite Qdiv_mod"
       }
     | _ => "cbv"
     };
@@ -113,7 +127,8 @@ let single_step_export = (ind, step, forall_str) => {
     // Only add extra tactics for cbv
     if (evalTactic == "cbv") {
       switch (d_loc) {
-      | BinIntOp(Plus, _, _) => "repeat rewrite Nat.add_assoc. "
+      // | BinIntOp(Plus, _, _) => "repeat rewrite Nat.add_assoc. "
+      | BinIntOp(Plus, _, _) => "repeat rewrite QArith.Qplus_assoc. "
       | _ => ""
       };
     } else {
@@ -122,7 +137,8 @@ let single_step_export = (ind, step, forall_str) => {
   let rewriteIndex = index_of_like_terms(ctx, d_loc');
   let coqLemmaString =
     Printf.sprintf(
-      "Lemma equiv_exp%d:%s%s = %s.\nProof.\nintros.\ncut (%s=%s).\n- intros. rewrite <- H at %d. %s reflexivity.\n- intros. %s. reflexivity.\nQed.",
+      // "Lemma equiv_exp%d:%s%s = %s.\nProof.\nintros.\ncut (%s=%s).\n- intros. rewrite <- H at %d. %s reflexivity.\n- intros. %s. reflexivity.\nQed.",
+      "Lemma equiv_exp%d:%s%s == %s.\nProof.\nintros.\ncut (%s==%s).\n- intros. rewrite <- H at %d. %s reflexivity.\n- intros. %s. reflexivity.\nQed.",
       ind,
       forall_str,
       newExprString,
@@ -168,7 +184,8 @@ let exportCoq = steps =>
     let firstExpr = string_of_d(firstD);
     // Return a string that is the Coq proof but don't print to console
     Printf.sprintf(
-      "Require Import Nat.\nRequire Export Plus.\nRequire Export Mult.\n%s\nTheorem equiv_exp:%s%s=%s.\nProof.\nintros.\n%s\nreflexivity. Qed.",
+      // "Require Import QArith.\nRequire Export Plus.\nRequire Export Mult.\n%s\nTheorem equiv_exp:%s%s=%s.\nProof.\nintros.\n%s\nreflexivity. Qed.",
+      "Require Import QArith.\nRequire Export Plus.\nRequire Export Mult.\n%s\nTheorem equiv_exp:%s%s==%s.\nProof.\nintros.\n%s\nreflexivity. Qed.",
       String.concat("\n", lemmas),
       forall_str,
       finalExpr,
