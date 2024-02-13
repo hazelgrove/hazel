@@ -89,9 +89,9 @@ let single_step_export = (ind, step, forall_str) => {
   //Printf.printf("new: %s\n", newExprString);
   let evalTactic =
     switch (step) {
-    | RewriteStep(rule) =>
-      switch (rule) {
-      | IdPlusL
+    | RewriteStep(step.knd) =>
+      switch (step.knd) {
+      | IdPlusL => "rewrite Nat.add_0_l. "
       | CommPlus(_, _) => "rewrite Nat.add_comm. "
       | AssocPlusL(_, _, _) => "rewrite Nat.add_assoc. "
       | AssocPlusR(_, _, _) => "rewrite Nat.add_assoc. "
@@ -106,7 +106,8 @@ let single_step_export = (ind, step, forall_str) => {
       | DivDefL(_, _) => "rewrite Nat.div_mod. "
       | DivDefR(_, _) => "rewrite Nat.div_mod. "
       | _ => "cbv"
-      }
+      };
+    | _ => "cbv"
     };
   let extraTactic =
     // Only add extra tactics for cbv
