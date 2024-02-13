@@ -271,14 +271,24 @@ module Pervasives = {
        );
 };
 
-let ctx_init: Ctx.t =
+let ctx_init: Ctx.t = {
+  let meta_cons_map = ConstructorMap.of_list([("$e", None), ("$v", None)]);
+  let meta =
+    Ctx.TVarEntry({
+      name: "$Meta",
+      id: Id.invalid,
+      kind: Kind.Singleton(Sum(meta_cons_map)),
+    });
   List.map(
     fun
     | (name, Const(typ, _)) => Ctx.VarEntry({name, typ, id: Id.invalid})
     | (name, Fn(t1, t2, _)) =>
       Ctx.VarEntry({name, typ: Arrow(t1, t2), id: Id.invalid}),
     Pervasives.builtins,
-  );
+  )
+  |> Ctx.extend(_, meta)
+  |> Ctx.add_ctrs(_, "$Meta", Id.invalid, meta_cons_map);
+};
 
 let forms_init: forms =
   List.filter_map(

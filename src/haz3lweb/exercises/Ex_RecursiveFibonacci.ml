@@ -1397,7 +1397,7 @@ let exercise : Exercise.spec =
                 };
               caret = Outer;
             };
-          hint = "TODO: hint 0";
+          hint = "incorrect base cases";
         };
         {
           impl =
@@ -1978,7 +1978,7 @@ let exercise : Exercise.spec =
                 };
               caret = Outer;
             };
-          hint = "TODO: hint 1";
+          hint = "incorrect recursion";
         };
       ];
     hidden_tests =
@@ -3161,5 +3161,5 @@ let exercise : Exercise.spec =
         hints = [];
       };
     syntax_tests =
-      [ ("fib is recursive", Haz3lschool.SyntaxTest.is_recursive "fib") ];
+      [ ("fib is recursive", Haz3lschool.SyntaxTest.IsRecursive "fib") ];
   }
