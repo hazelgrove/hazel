@@ -171,14 +171,16 @@ let rec exp_view = (cls: Term.Cls.t, status: Info.status_exp) =>
   | InHole(FreeVariable(name)) =>
     div_err([code_err(name), text("not found")])
   | InHole(InexhaustiveMatch(additional_err)) =>
+    let cls_str = Term.Cls.show(cls);
     switch (additional_err) {
-    | None => div_err([text("Case expression is inexhaustive")])
+    | None => div_err([text(cls_str ++ " is inexhaustive")])
     | Some(err) =>
+      let cls_str = String.uncapitalize_ascii(cls_str);
       div_err([
         exp_view(cls, InHole(Common(err))),
-        text("; case expression is inexhaustive"),
-      ])
-    }
+        text("; " ++ cls_str ++ " is inexhaustive"),
+      ]);
+    };
   | InHole(Common(error)) => div_err(common_err_view(cls, error))
   | NotInHole(ok) => div_ok(common_ok_view(cls, ok))
   };
