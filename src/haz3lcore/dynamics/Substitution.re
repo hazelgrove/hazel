@@ -14,6 +14,10 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     Sequence(d3, d4);
+  | Filter(filter, dbody) =>
+    let dbody = subst_var(d1, x, dbody);
+    let filter = subst_var_filter(d1, x, filter);
+    Filter(filter, dbody);
   | Let(dp, d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 =
@@ -107,6 +111,11 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   | InvalidOperation(d, err) =>
     let d' = subst_var(d1, x, d);
     InvalidOperation(d', err);
+  | IfThenElse(d3, d4, d5, d6) =>
+    let d4' = subst_var(d1, x, d4);
+    let d5' = subst_var(d1, x, d5);
+    let d6' = subst_var(d1, x, d6);
+    IfThenElse(d3, d4', d5', d6');
   }
 
 and subst_var_rules =
@@ -152,6 +161,11 @@ and subst_var_env =
        );
 
   ClosureEnvironment.wrap(id, map);
+}
+
+and subst_var_filter =
+    (d1: DHExp.t, x: Var.t, flt: DH.DHFilter.t): DH.DHFilter.t => {
+  flt |> DH.DHFilter.map(subst_var(d1, x));
 };
 
 let subst = (env: Environment.t, d: DHExp.t): DHExp.t =>

@@ -68,7 +68,7 @@ module Text = (M: {
   let m = p => Measured.find_p(p, M.map);
   let rec of_segment =
           (buffer_ids, no_sorts, sort, seg: Segment.t): list(Node.t) => {
-    /* note: no_sorts flag is used for backback view;
+    /* note: no_sorts flag is used for backpack view;
        otherwise Segment.expected_sorts call crashes for some reason */
     let expected_sorts =
       no_sorts
@@ -130,27 +130,39 @@ let rec holes =
          ],
      );
 
-let simple_view = (~unselected, ~map, ~settings: Settings.t): Node.t => {
+let simple_view =
+    (~font_metrics, ~unselected, ~map, ~settings: Settings.t): Node.t => {
   module Text =
     Text({
       let map = map;
       let settings = settings;
     });
+  let holes = holes(~map, ~font_metrics, unselected);
   div(
     ~attr=Attr.class_("code"),
-    [span_c("code-text", Text.of_segment([], false, Sort.Any, unselected))],
+    [
+      span_c("code-text", Text.of_segment([], false, Sort.Any, unselected)),
+      ...holes,
+    ],
   );
 };
 
+let of_hole = (~font_metrics, ~measured, g: Grout.t) =>
+  // TODO(d) fix sort
+  EmptyHoleDec.view(
+    ~font_metrics,
+    {
+      measurement: Measured.find_g(g, measured),
+      mold: Mold.of_grout(g, Any),
+    },
+  );
+
 let view =
     (
-      ~buffer_ids: list(Uuidm.t),
       ~sort: Sort.t,
       ~font_metrics,
-      ~segment,
-      ~unselected,
-      ~measured,
       ~settings: Settings.t,
+      {state: {meta: {measured, buffer_ids, unselected, holes, _}, _}, _}: Editor.t,
     )
     : Node.t => {
   module Text =
@@ -158,10 +170,7 @@ let view =
       let map = measured;
       let settings = settings;
     });
-  let unselected = Text.of_segment(buffer_ids, false, sort, unselected);
-  let holes = holes(~map=measured, ~font_metrics, segment);
-  div(
-    ~attr=Attr.class_("code"),
-    [span_c("code-text", unselected), ...holes],
-  );
+  let code = Text.of_segment(buffer_ids, false, sort, unselected);
+  let holes = List.map(of_hole(~measured, ~font_metrics), holes);
+  div(~attr=Attr.class_("code"), [span_c("code-text", code), ...holes]);
 };
