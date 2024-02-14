@@ -315,13 +315,14 @@ let add_sum_alias = (name: string, sum_map: Typ.sum_map, ctx: Ctx.t) =>
 
 let mvu_builtins: Ctx.t = add_sum_alias("StyleAttr", styles, []);
 
-let ctx_init: Ctx.t =
-  mvu_builtins
-  @ List.map(
-      ((name, Builtin.{typ, _})) =>
-        Ctx.VarEntry({name, typ, id: Id.invalid}),
-      Pervasives.builtins,
-    );
+let ctx_base =
+  List.map(
+    ((name, Builtin.{typ, _})) =>
+      Ctx.VarEntry({name, typ, id: Id.invalid}),
+    Pervasives.builtins,
+  );
+
+let ctx_init: Ctx.t = mvu_builtins @ ctx_base;
 
 let forms_init: forms =
   List.map(

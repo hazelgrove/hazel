@@ -15,17 +15,18 @@ type check =
   | DontCheck
   | Syntax
   | Static
-  | Dynamic(string); // tests file content
+  | Dynamic;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type arguments = {
   debug: bool,
+  ctx: Ctx.t,
   check,
   constrain,
-  new_token: option(string),
-  program: string,
   prelude: option(string),
-  ctx: Ctx.t,
+  program: string,
+  new_token: option(string),
+  epilogue: option(string),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -85,12 +86,13 @@ type pre_grammar = {
 
 let default_settings = {
   debug: false,
-  constrain: Types,
-  program: "",
-  prelude: None,
-  ctx: [],
-  new_token: None,
+  ctx: Builtins.ctx_base,
   check: DontCheck,
+  constrain: Types,
+  prelude: None,
+  program: "",
+  new_token: None,
+  epilogue: None,
 };
 
 let show_settings = (s: arguments): string =>
@@ -103,12 +105,6 @@ let show_settings = (s: arguments): string =>
     | Types => "Types"
     },
   );
-
-let get_info_map = (~init_ctx=[], z: Zipper.t) =>
-  z
-  |> MakeTerm.from_zip_for_sem
-  |> fst
-  |> Interface.Statics.mk_map_ctx(CoreSettings.on, init_ctx);
 
 let string_of_file = (~encoding: string="utf8", path: string): string => {
   Js.Unsafe.(
@@ -184,43 +180,30 @@ let deserialize_zipper: string => Zipper.t = deserialize_a;
 let serialized_filename_z = program_str =>
   hash_of_string(program_str) ++ ".zipper.serialized";
 
-let process_zipper = (~db=ignore, program_str: string): Zipper.t => {
-  let serialized_filename = serialized_filename_z(program_str);
+let process_zipper = (~db=ignore, z_str: string): Zipper.t => {
+  let serialized_filename = serialized_filename_z(z_str);
+  db("LSP: Process zipper: Recieved string:");
+  db(z_str);
   if (is_file(serialized_filename)) {
-    db("LSP: Get Zipper: Found serialized zipper, deserializing");
+    db("LSP: Process Zipper: Found serialized zipper, deserializing");
     deserialize_zipper(serialized_filename);
   } else {
-    db("LSP: Get Zipper: No serialized zipper, processing string");
+    db("LSP: Process Zipper: No serialized zipper, processing string");
     let z =
       OptUtil.get_or_fail(
         "LSP: EXN: Couldn't parse string",
-        Printer.zipper_of_string(program_str),
+        Printer.zipper_of_string(z_str),
       );
     serialize_zipper(z, serialized_filename);
     z;
   };
 };
 
-let get_zipper = (~db, settings) => {
-  let program_str = settings.program;
-  switch (settings.new_token) {
-  | None =>
-    db("LSP: Recieved string: " ++ program_str);
-    let z = process_zipper(~db, program_str);
-    db("LSP: String parsed successfully to zipper");
-    z;
-  | Some(new_token) =>
-    db("LSP: New token mode: " ++ program_str ++ new_token);
-    let base_z = process_zipper(~db, program_str);
-    let new_z =
-      OptUtil.get_or_fail(
-        "LSP: EXN: New token mode: Couldn't paste into zipper",
-        Printer.paste_into_zip(base_z, new_token),
-      );
-    serialize_zipper(new_z, serialized_filename_z(program_str ++ new_token));
-    new_z;
-  };
-};
+let get_info_map = (~init_ctx, z: Zipper.t) =>
+  z
+  |> MakeTerm.from_zip_for_sem
+  |> fst
+  |> Interface.Statics.mk_map_ctx(CoreSettings.on, init_ctx);
 
 let pp_inner = (~db=ignore, ~init_ctx, str: string): Ctx.t => {
   let sym = 666;
@@ -264,76 +247,220 @@ let process_prelude = (~db=ignore, ~init_ctx, str: string): Ctx.t => {
   };
 };
 
-let usage_debug = "[--debug <true|false>]";
-let usage_constrain = "[--constrain <grammar|context|types>]";
-let usage_ctx = "[--ctx <empty|init>]";
+let usage_check = "<syntax|statics|dynamics>";
+let usage_constrain = "<grammar|context|types>";
+let usage_command =
+  "<CHECK " ++ usage_check ++ " | COMPLETIONS " ++ usage_constrain ++ ">";
+let usage_debug = "[--debug]";
+let usage_ctx = "[--empty-init-ctx]";
 let usage_prelude = "[--prelude <path>]";
+let usage_main = "[--main <path>]";
+let usage_epilogue = "[--epilogue <path>]";
 let usage_new_token = "[--new-token <new-token-to-append>]";
-let usage_check = "[--check <syntax|static|dynamic <path>>]";
+
 let usage_str =
   String.concat(
     " ",
     [
       "lsp",
-      usage_debug,
+      usage_command,
       usage_constrain,
+      usage_check,
+      usage_debug,
       usage_ctx,
       usage_prelude,
+      usage_main,
       usage_new_token,
-      usage_check,
+      usage_epilogue,
       "<program>",
     ],
   );
 
-let rec parse_args = (args, currentSettings) =>
+let rec parse = (args, currentSettings) =>
   switch (args) {
-  | [] => failwith("LSP: EXN: No program specified. Usage: " ++ usage_str)
-  | ["--debug", "false", ...rest] =>
-    parse_args(rest, {...currentSettings, debug: false})
-  | ["--debug", "true", ...rest] =>
-    parse_args(rest, {...currentSettings, debug: true})
-  | ["--debug", ..._] => failwith("LSP: EXN: Usage: " ++ usage_debug)
-  | ["--constrain", "grammar", ...rest] =>
-    parse_args(rest, {...currentSettings, constrain: Grammar})
-  | ["--constrain", "context", ...rest] =>
-    parse_args(rest, {...currentSettings, constrain: Context})
-  | ["--constrain", "types", ...rest] =>
-    parse_args(rest, {...currentSettings, constrain: Types})
-  | ["--constrain", ..._] => failwith("LSP: EXN: Usage: " ++ usage_constrain)
-  | ["--ctx", "empty", ...rest] =>
-    parse_args(rest, {...currentSettings, ctx: []})
-  | ["--ctx", "init", ...rest] =>
-    parse_args(rest, {...currentSettings, ctx: Builtins.ctx_init})
-  | ["--ctx", ..._] => failwith("LSP: EXN: Usage: " ++ usage_ctx)
-  | ["--prelude", maybe_path, ...rest] =>
-    switch (string_of_file(maybe_path)) {
+  | ["CHECK", ...rest] => parse_check(rest, currentSettings)
+  | ["COMPLETIONS", ...rest] => parse_completions(rest, currentSettings)
+  | _ => failwith("LSP: Command not recognized: " ++ usage_command)
+  }
+and parse_base = (args, currentSettings) =>
+  switch (args) {
+  | ["--debug", ...rest] =>
+    parse_base(rest, {...currentSettings, debug: true})
+  | ["--empty-init-ctx", ...rest] =>
+    parse_base(rest, {...currentSettings, ctx: []})
+  | ["--prelude", path, ...rest] =>
+    switch (string_of_file(path)) {
     | exception _ =>
-      failwith("LSP: EXN: Could not load prelude from path: " ++ maybe_path)
-    | str =>
-      let ctx = process_prelude(str, ~init_ctx=currentSettings.ctx);
-      parse_args(rest, {...currentSettings, prelude: Some(str), ctx});
+      failwith("LSP: EXN: Could not load prelude from path: " ++ path)
+    | prelude =>
+      let ctx = process_prelude(prelude, ~init_ctx=currentSettings.ctx);
+      parse_base(rest, {...currentSettings, prelude: Some(prelude), ctx});
     }
   | ["--prelude", ..._] => failwith("LSP: EXN: Usage: " ++ usage_prelude)
-  | ["--new-token", new_token, ...rest] =>
-    parse_args(rest, {...currentSettings, new_token: Some(new_token)})
-  | ["--new-token", ..._] => failwith("LSP: EXN: Usage: " ++ usage_new_token)
-  | ["--check", "syntax", ...rest] =>
-    parse_args(rest, {...currentSettings, check: Syntax})
-  | ["--check", "static", ...rest] =>
-    parse_args(rest, {...currentSettings, check: Static})
-  | ["--check", "dynamic", maybe_path, ...rest] =>
-    switch (string_of_file(maybe_path)) {
+  | ["--epilogue", path, ...rest] =>
+    switch (string_of_file(path)) {
     | exception _ =>
-      failwith("LSP: EXN: Could not load tests from path: " ++ maybe_path)
-    | str => parse_args(rest, {...currentSettings, check: Dynamic(str)})
+      failwith("LSP: EXN: Could not load epilogue from path: " ++ path)
+    | epilogue =>
+      parse_base(rest, {...currentSettings, epilogue: Some(epilogue)})
     }
-  | ["--check", ..._] => failwith("LSP: EXN: Usage: " ++ usage_check)
+  | ["--epilogue", ..._] => failwith("LSP: EXN: Usage: " ++ usage_epilogue)
+  | ["--main", path, ...rest] =>
+    switch (string_of_file(path)) {
+    | exception _ =>
+      failwith("LSP: EXN: Could not load main from path: " ++ path)
+    | program => parse_base(rest, {...currentSettings, program})
+    }
+  | ["--main", ..._] => failwith("LSP: EXN: Usage: " ++ usage_main)
+  | ["--new-token", new_token, ...rest] =>
+    parse_base(rest, {...currentSettings, new_token: Some(new_token)})
+  | ["--new-token", ..._] => failwith("LSP: EXN: Usage: " ++ usage_new_token)
   | [arg, ..._] when String.starts_with(~prefix="--", arg) =>
     failwith("LSP: EXN: Unrecognized argument: " ++ arg)
   | [program] => {...currentSettings, program}
+  | [] when currentSettings.program != "" => currentSettings
+  | [] => failwith("LSP: EXN: No program specified. Usage: " ++ usage_str)
   | [_, ..._] =>
     failwith("LSP: EXN: Multiple unnamed arguments. Usage: " ++ usage_str)
+  }
+and parse_check = (args, parsed: arguments) =>
+  switch (args) {
+  | ["syntax", ...rest] => parse_base(rest, {...parsed, check: Syntax})
+  | ["statics", ...rest] => parse_base(rest, {...parsed, check: Static})
+  | ["dynamics", ...rest] => parse_base(rest, {...parsed, check: Dynamic})
+  | _ => failwith("LSP: EXN: Usage: " ++ usage_check)
+  }
+and parse_completions = (args, parsed: arguments) =>
+  switch (args) {
+  | ["grammar", ...rest] =>
+    parse_base(rest, {...parsed, constrain: Grammar})
+  | ["context", ...rest] =>
+    parse_base(rest, {...parsed, constrain: Context})
+  | ["types", ...rest] => parse_base(rest, {...parsed, constrain: Types})
+  | _ => failwith("LSP: EXN: Usage: " ++ usage_constrain)
   };
+
+/* CHECKERS */
+
+let get_zipper = (~db, settings) => {
+  let program_str = settings.program;
+  switch (settings.new_token) {
+  | None =>
+    db("LSP: Recieved string: " ++ program_str);
+    let z = process_zipper(~db, program_str);
+    db("LSP: String parsed successfully to zipper");
+    z;
+  | Some(new_token) =>
+    db("LSP: New token mode: " ++ program_str ++ new_token);
+    let base_z = process_zipper(~db, program_str);
+    let new_z =
+      OptUtil.get_or_fail(
+        "LSP: EXN: New token mode: Couldn't paste into zipper",
+        Printer.paste_into_zip(base_z, new_token),
+      );
+    serialize_zipper(new_z, serialized_filename_z(program_str ++ new_token));
+    new_z;
+  };
+};
+
+let syntax_error_report = (~db, ~settings) =>
+  switch (
+    try(Some(get_zipper(~db, settings))) {
+    | _ => None
+    }
+  ) {
+  | None =>
+    print_endline(
+      "LSP: Check Syntax: Incorrect syntax: Unknown exception in parse",
+    )
+  | Some(z) =>
+    //TODO(andrew): look for holes in the syntax, Invalids, etc.
+    switch (Printer.of_backpack(z)) {
+    | [] => print_endline("LSP: Check Syntax: Syntax OK")
+    | orphans =>
+      print_endline(
+        "LSP: Check Syntax: Incorrect syntax: Unmatched delimiters:"
+        ++ String.concat(", ", orphans),
+      )
+    }
+  };
+
+let get_static_errors = (~db, ~settings): list(string) => {
+  let z = get_zipper(~db, settings);
+  let init_ctx = settings.ctx;
+  let info_map = get_info_map(~init_ctx, z);
+  ErrorPrint.collect_static(info_map);
+};
+
+let static_error_report = (~db, ~settings) =>
+  switch (get_static_errors(~db, ~settings)) {
+  | [] => print_endline("LSP: Check Statics: No static errors")
+  | errs =>
+    let num_errs = errs |> List.length |> string_of_int;
+    print_endline(
+      "LSP: Check Statics: " ++ num_errs ++ " static error(s) found: ",
+    );
+    print_endline(errs |> String.concat("\n"));
+  };
+
+let get_zips = (settings, ~db): list(Zipper.t) => {
+  let prelude_term =
+    switch (settings.prelude) {
+    | None => Zipper.init()
+    | Some(prelude) => process_zipper(~db, prelude)
+    };
+  let main_term = get_zipper(~db, settings);
+  let epilogue_term =
+    switch (settings.epilogue) {
+    | None => Zipper.init()
+    | Some(epilogue) => process_zipper(~db, epilogue)
+    };
+
+  [prelude_term, main_term, epilogue_term];
+};
+
+let splice_terms = terms =>
+  List.fold_left(
+    EditorUtil.append_exp,
+    Term.UExp.{ids: [Id.mk()], term: Triv},
+    terms,
+  );
+
+let eval_spliced = (~init_ctx, terms) => {
+  let combined_term = splice_terms(terms);
+  let info_map =
+    Interface.Statics.mk_map_ctx(CoreSettings.on, init_ctx, combined_term);
+  combined_term
+  |> Interface.elaborate(~settings=CoreSettings.on, info_map)
+  |> Interface.evaluate(~settings=CoreSettings.on, ~env=Builtins.env_init);
+};
+
+let test_results = (res: ProgramResult.t): list(string) =>
+  res
+  |> ProgramResult.get_state
+  |> EvaluatorState.get_tests
+  |> List.map(((_id, instance_report)) =>
+       switch (instance_report) {
+       | [] => Indet |> TestStatus.to_string
+       | [(_, status, _), ..._] => status |> TestStatus.to_string
+       }
+     );
+
+let eval_prelude_main_tests = (settings, ~db) =>
+  get_zips(settings, ~db)
+  |> List.map(MakeTerm.from_zip_for_sem)
+  |> List.map(fst)
+  |> eval_spliced(~init_ctx=settings.ctx);
+
+let dynamic_error_report = (~db, ~settings) =>
+  switch (eval_prelude_main_tests(settings, ~db) |> test_results) {
+  | [] => print_endline("LSP: Check Dynamics: No tests found")
+  | results =>
+    print_endline("LSP: Check Dynamics: Test results:");
+    print_endline(String.concat("\n", results));
+  };
+
+/* COMPLETIONS */
 
 /* Assume for now left-to-right entry, so the present shards are
    a prefix of the complete tile. this means that regardless of
@@ -1190,99 +1317,15 @@ let generate = (~db, ~settings, ~get_zipper): unit => {
   print_endline(grammar);
 };
 
-let syntax_error_report = (~db, ~settings) =>
-  switch (
-    try(Some(get_zipper(~db, settings))) {
-    | _ => None
-    }
-  ) {
-  | None =>
-    print_endline(
-      "LSP: Check Syntax: Incorrect syntax: Unknown exception in parse",
-    )
-  | Some(z) =>
-    //TODO(andrew): look for holes in the syntax, Invalids, etc.
-    switch (Printer.of_backpack(z)) {
-    | [] => print_endline("LSP: Check Syntax: Syntax OK")
-    | orphans =>
-      print_endline(
-        "LSP: Check Syntax: Incorrect syntax: Unmatched delimiters:"
-        ++ String.concat(", ", orphans),
-      )
-    }
-  };
-
-let static_error_report = (~db, ~settings) => {
-  let z = get_zipper(~db, settings);
-  let init_ctx = settings.ctx;
-  let info_map = get_info_map(~init_ctx, z);
-  switch (ErrorPrint.collect_static(info_map)) {
-  | [] => print_endline("LSP: Check Statics: No static errors")
-  | errs =>
-    let num_errs = errs |> List.length |> string_of_int;
-    print_endline(
-      "LSP: Check Statics: " ++ num_errs ++ " static error(s) found: ",
-    );
-    print_endline(errs |> String.concat("\n"));
-  };
-};
-
-let dynamic_error_report = (~db, ~settings, tests: string) => {
-  let init_ctx = settings.ctx;
-  let init_env = Builtins.env_init;
-  let prelude_term: Term.UExp.t =
-    switch (settings.prelude) {
-    | None =>
-      //TODO(andrew): make sure this makes sense as a default prelude
-      {ids: [Id.mk()], term: Triv}
-    | Some(prelude) =>
-      let z_prelude = process_zipper(~db, prelude);
-      MakeTerm.from_zip_for_sem(z_prelude) |> fst;
-    };
-  let main_term: Term.UExp.t = {
-    let z_main = get_zipper(~db, settings);
-    MakeTerm.from_zip_for_sem(z_main) |> fst;
-  };
-  let tests_term: Term.UExp.t = {
-    let z_tests = process_zipper(~db, tests);
-    MakeTerm.from_zip_for_sem(z_tests) |> fst;
-  };
-  let combined_term =
-    EditorUtil.append_exp(
-      EditorUtil.append_exp(prelude_term, main_term),
-      tests_term,
-    );
-  let info_map =
-    Interface.Statics.mk_map_ctx(CoreSettings.on, init_ctx, combined_term);
-  let elab =
-    Interface.elaborate(~settings=CoreSettings.on, info_map, combined_term);
-  let res =
-    Interface.evaluate(~settings=CoreSettings.on, ~env=init_env, elab);
-  let test_results: list(TestStatus.t) =
-    res
-    |> ProgramResult.get_state
-    |> EvaluatorState.get_tests
-    |> List.map(((_id, instance_report)) =>
-         switch (instance_report) {
-         | [] => TestStatus.Indet
-         | [(_, status, _), ..._] => status
-         }
-       );
-  print_endline("LSP: Check Dynamics: Test results: ");
-  print_endline(
-    test_results |> List.map(TestStatus.to_string) |> String.concat(", "),
-  );
-};
-
 let main = args => {
-  let settings = parse_args(args, default_settings);
+  let settings = parse(args, default_settings);
   let db = s => settings.debug ? print_endline(s) : ();
   db(show_settings(settings));
   switch (settings.check) {
   | DontCheck => generate(~db, ~settings, ~get_zipper)
   | Syntax => syntax_error_report(~db, ~settings)
   | Static => static_error_report(~db, ~settings)
-  | Dynamic(str) => dynamic_error_report(~db, ~settings, str)
+  | Dynamic => dynamic_error_report(~db, ~settings)
   };
 };
 
