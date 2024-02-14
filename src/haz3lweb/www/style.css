@@ -720,6 +720,12 @@ select {
   border-left: 1px solid var(--cell-selected-accent);
   background-color: #fffcf3;
 }
+.cell.selected ~ .cell-result {
+  border-left: 1px solid var(--cell-selected-accent);
+}
+.cell.selected ~ .cell-result:last-child {
+  border-radius: 0 0 0.4em 0.4em;
+}
 
 .cell-caption {
   color: var(--top-bar-text);
@@ -1740,6 +1746,7 @@ svg.expandable path {
   display: flex;
   flex-direction: row;
   gap: 0.5em;
+  align-items: center;
   /*box-shadow: 0px 1px 0px #ddcda3;*/
   color: #7a6219;
   /*max-height: 4.5em;
