@@ -12,12 +12,16 @@ type rule =
   | CommTimes
   | AssocTimesL
   | AssocTimesR
+  | NilTimesL
   | DistPlusTimesL
   | DistPlusTimesR
+  | DistPlusTimesLC
+  | DistPlusTimesRC
   | DistPlusDivL
   | DistPlusDivR
   | DivDefL
-  | DivDefR;
+  | DivDefR
+  | AssocTimesDiv;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
@@ -35,6 +39,7 @@ let string_of = r =>
   | AssocPlusL => "Assoc(L, +)"
   | AssocPlusR => "Assoc(R, +)"
   | IdTimesL => "Iden(L, ×)"
+  | NilTimesL => "Nil(L, ×)"
   | CommTimes => "Comm(×)"
   | AssocTimesL => "Assoc(L, ×)"
   | AssocTimesR => "Assoc(R, ×)"
@@ -42,8 +47,11 @@ let string_of = r =>
   | DistPlusTimesR => "Dist(R, +, ×)"
   | DistPlusDivL => "Dist(L, +, /)"
   | DistPlusDivR => "Dist(R, +, /)"
+  | DistPlusTimesLC => "Dist(L, +, ×)∘C"
+  | DistPlusTimesRC => "Dist(R, +, ×)∘C"
   | DivDefL => "DivDef(L)"
   | DivDefR => "DivDef(R)"
+  | AssocTimesDiv => "Assoc*(×, ÷)"
   };
 
 let rewrites: list(t) = [
@@ -104,12 +112,31 @@ let rewrites: list(t) = [
       | _ => None,
   },
   {
+    name: DistPlusTimesLC,
+    t:
+      fun
+      | BinIntOp(Times, e1, BinIntOp(Plus, e2, e3)) =>
+        Some(
+          BinIntOp(Plus, BinIntOp(Times, e1, e2), BinIntOp(Times, e1, e3)),
+        )
+      | _ => None,
+  },
+  {
     name: DistPlusTimesR,
     t:
       fun
       | BinIntOp(Plus, BinIntOp(Times, e1, e3), BinIntOp(Times, e2, e3'))
           when e3 == e3' =>
         Some(BinIntOp(Times, BinIntOp(Plus, e1, e2), e3))
+      | _ => None,
+  },
+  {
+    name: DistPlusTimesRC,
+    t:
+      fun
+      | BinIntOp(Plus, BinIntOp(Times, e1, e2), BinIntOp(Times, e1', e3))
+          when e1 == e1' =>
+        Some(BinIntOp(Times, e1, BinIntOp(Plus, e2, e3)))
       | _ => None,
   },
   {
@@ -143,6 +170,13 @@ let rewrites: list(t) = [
       | _ => None,
   },
   {
+    name: NilTimesL,
+    t:
+      fun
+      | BinIntOp(Times, _, IntLit(0)) => Some(IntLit(0))
+      | _ => None,
+  },
+  {
     name: DistPlusDivL,
     t:
       fun
@@ -163,6 +197,14 @@ let rewrites: list(t) = [
       | BinIntOp(Plus, BinIntOp(Divide, e1, e3), BinIntOp(Divide, e2, e3'))
           when e3 == e3' =>
         Some(BinIntOp(Divide, BinIntOp(Plus, e1, e2), e3))
+      | _ => None,
+  },
+  {
+    name: AssocTimesDiv,
+    t:
+      fun
+      | BinIntOp(Times, e1, BinIntOp(Divide, e2, e3)) =>
+        Some(BinIntOp(Divide, BinIntOp(Times, e1, e2), e3))
       | _ => None,
   },
 ];
