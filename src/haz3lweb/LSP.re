@@ -2,31 +2,61 @@ open Js_of_ocaml;
 open Util;
 open Haz3lcore;
 
-let unk = Typ.Unknown(Internal);
-
 [@deriving (show({with_path: false}), sexp, yojson)]
-type constrain =
+type completions =
   | Grammar
   | Context
   | Types;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type check =
-  | DontCheck
   | Syntax
   | Static
   | Dynamic;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type arguments = {
-  debug: bool,
-  ctx: Ctx.t,
-  check,
-  constrain,
+type command =
+  | Check(check)
+  | Completions(completions);
+
+let show_command = (c: command): string =>
+  switch (c) {
+  | Check(Syntax) => "Check(Syntax)"
+  | Check(Static) => "Check(Static)"
+  | Check(Dynamic) => "Check(Dynamic)"
+  | Completions(Grammar) => "Completions(Grammar)"
+  | Completions(Context) => "Completions(Context)"
+  | Completions(Types) => "Completions(Types)"
+  };
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type data = {
   prelude: option(string),
   program: string,
   new_token: option(string),
   epilogue: option(string),
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type arguments = {
+  debug: bool,
+  ctx: Ctx.t,
+  command,
+  data,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type args_completion = {
+  ctx: Ctx.t,
+  completions,
+  data,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type args_check = {
+  ctx: Ctx.t,
+  check,
+  data,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -84,27 +114,20 @@ type pre_grammar = {
   new_tokens: list(string),
 };
 
-let default_settings = {
-  debug: false,
-  ctx: Builtins.ctx_base,
-  check: DontCheck,
-  constrain: Types,
+let default_data: data = {
   prelude: None,
   program: "",
   new_token: None,
   epilogue: None,
 };
+let default_settings: arguments = {
+  debug: false,
+  ctx: Builtins.ctx_base,
+  command: Completions(Types),
+  data: default_data,
+};
 
-let show_settings = (s: arguments): string =>
-  Printf.sprintf(
-    "Debug: %b, Constrain: %s",
-    s.debug,
-    switch (s.constrain) {
-    | Grammar => "Grammar"
-    | Context => "Context"
-    | Types => "Types"
-    },
-  );
+/* File handling */
 
 let string_of_file = (~encoding: string="utf8", path: string): string => {
   Js.Unsafe.(
@@ -248,9 +271,9 @@ let process_prelude = (~db=ignore, ~init_ctx, str: string): Ctx.t => {
 };
 
 let usage_check = "<syntax|statics|dynamics>";
-let usage_constrain = "<grammar|context|types>";
+let usage_completions = "<grammar|context|types>";
 let usage_command =
-  "<CHECK " ++ usage_check ++ " | COMPLETIONS " ++ usage_constrain ++ ">";
+  "<CHECK " ++ usage_check ++ " | COMPLETIONS " ++ usage_completions ++ ">";
 let usage_debug = "[--debug]";
 let usage_ctx = "[--empty-init-ctx]";
 let usage_prelude = "[--prelude <path>]";
@@ -264,7 +287,7 @@ let usage_str =
     [
       "lsp",
       usage_command,
-      usage_constrain,
+      usage_completions,
       usage_check,
       usage_debug,
       usage_ctx,
@@ -276,25 +299,24 @@ let usage_str =
     ],
   );
 
-let rec parse = (args, currentSettings) =>
-  switch (args) {
-  | ["CHECK", ...rest] => parse_check(rest, currentSettings)
-  | ["COMPLETIONS", ...rest] => parse_completions(rest, currentSettings)
+let rec parse = (args: arguments, strs): arguments =>
+  switch (strs) {
+  | ["CHECK", ...rest] => parse_check(rest, args)
+  | ["COMPLETIONS", ...rest] => parse_completions(rest, args)
   | _ => failwith("LSP: Command not recognized: " ++ usage_command)
   }
-and parse_base = (args, currentSettings) =>
-  switch (args) {
-  | ["--debug", ...rest] =>
-    parse_base(rest, {...currentSettings, debug: true})
-  | ["--empty-init-ctx", ...rest] =>
-    parse_base(rest, {...currentSettings, ctx: []})
+and parse_base = (strs, args: arguments): arguments =>
+  switch (strs) {
+  | ["--debug", ...rest] => parse_base(rest, {...args, debug: true})
+  | ["--empty-init-ctx", ...rest] => parse_base(rest, {...args, ctx: []})
   | ["--prelude", path, ...rest] =>
     switch (string_of_file(path)) {
     | exception _ =>
       failwith("LSP: EXN: Could not load prelude from path: " ++ path)
     | prelude =>
-      let ctx = process_prelude(prelude, ~init_ctx=currentSettings.ctx);
-      parse_base(rest, {...currentSettings, prelude: Some(prelude), ctx});
+      let ctx = process_prelude(prelude, ~init_ctx=args.ctx);
+      let data = {...args.data, prelude: Some(prelude)};
+      parse_base(rest, {...args, data, ctx});
     }
   | ["--prelude", ..._] => failwith("LSP: EXN: Usage: " ++ usage_prelude)
   | ["--epilogue", path, ...rest] =>
@@ -302,49 +324,59 @@ and parse_base = (args, currentSettings) =>
     | exception _ =>
       failwith("LSP: EXN: Could not load epilogue from path: " ++ path)
     | epilogue =>
-      parse_base(rest, {...currentSettings, epilogue: Some(epilogue)})
+      let data = {...args.data, epilogue: Some(epilogue)};
+      parse_base(rest, {...args, data});
     }
   | ["--epilogue", ..._] => failwith("LSP: EXN: Usage: " ++ usage_epilogue)
   | ["--main", path, ...rest] =>
     switch (string_of_file(path)) {
     | exception _ =>
       failwith("LSP: EXN: Could not load main from path: " ++ path)
-    | program => parse_base(rest, {...currentSettings, program})
+    | program =>
+      let data = {...args.data, program};
+      parse_base(rest, {...args, data});
     }
   | ["--main", ..._] => failwith("LSP: EXN: Usage: " ++ usage_main)
   | ["--new-token", new_token, ...rest] =>
-    parse_base(rest, {...currentSettings, new_token: Some(new_token)})
+    let data = {...args.data, new_token: Some(new_token)};
+    parse_base(rest, {...args, data});
   | ["--new-token", ..._] => failwith("LSP: EXN: Usage: " ++ usage_new_token)
   | [arg, ..._] when String.starts_with(~prefix="--", arg) =>
     failwith("LSP: EXN: Unrecognized argument: " ++ arg)
-  | [program] => {...currentSettings, program}
-  | [] when currentSettings.program != "" => currentSettings
+  | [program] =>
+    let data = {...args.data, program};
+    {...args, data};
+  | [] when args.data.program != "" => args
   | [] => failwith("LSP: EXN: No program specified. Usage: " ++ usage_str)
   | [_, ..._] =>
     failwith("LSP: EXN: Multiple unnamed arguments. Usage: " ++ usage_str)
   }
-and parse_check = (args, parsed: arguments) =>
-  switch (args) {
-  | ["syntax", ...rest] => parse_base(rest, {...parsed, check: Syntax})
-  | ["statics", ...rest] => parse_base(rest, {...parsed, check: Static})
-  | ["dynamics", ...rest] => parse_base(rest, {...parsed, check: Dynamic})
+and parse_check = (strs, args: arguments): arguments =>
+  switch (strs) {
+  | ["syntax", ...rest] =>
+    parse_base(rest, {...args, command: Check(Syntax)})
+  | ["statics", ...rest] =>
+    parse_base(rest, {...args, command: Check(Static)})
+  | ["dynamics", ...rest] =>
+    parse_base(rest, {...args, command: Check(Dynamic)})
   | _ => failwith("LSP: EXN: Usage: " ++ usage_check)
   }
-and parse_completions = (args, parsed: arguments) =>
-  switch (args) {
+and parse_completions = (strs, args: arguments): arguments =>
+  switch (strs) {
   | ["grammar", ...rest] =>
-    parse_base(rest, {...parsed, constrain: Grammar})
+    parse_base(rest, {...args, command: Completions(Grammar)})
   | ["context", ...rest] =>
-    parse_base(rest, {...parsed, constrain: Context})
-  | ["types", ...rest] => parse_base(rest, {...parsed, constrain: Types})
-  | _ => failwith("LSP: EXN: Usage: " ++ usage_constrain)
+    parse_base(rest, {...args, command: Completions(Context)})
+  | ["types", ...rest] =>
+    parse_base(rest, {...args, command: Completions(Types)})
+  | _ => failwith("LSP: EXN: Usage: " ++ usage_completions)
   };
 
 /* CHECKERS */
 
-let get_zipper = (~db, settings) => {
-  let program_str = settings.program;
-  switch (settings.new_token) {
+let get_zipper = (~db, data) => {
+  let program_str = data.program;
+  switch (data.new_token) {
   | None =>
     db("LSP: Recieved string: " ++ program_str);
     let z = process_zipper(~db, program_str);
@@ -363,9 +395,9 @@ let get_zipper = (~db, settings) => {
   };
 };
 
-let syntax_error_report = (~db, ~settings) =>
+let syntax_error_report = (~db, ~settings: args_check) =>
   switch (
-    try(Some(get_zipper(~db, settings))) {
+    try(Some(get_zipper(~db, settings.data))) {
     | _ => None
     }
   ) {
@@ -385,15 +417,14 @@ let syntax_error_report = (~db, ~settings) =>
     }
   };
 
-let get_static_errors = (~db, ~settings): list(string) => {
-  let z = get_zipper(~db, settings);
-  let init_ctx = settings.ctx;
+let get_static_errors = (~db, ~init_ctx, ~data): list(string) => {
+  let z = get_zipper(~db, data);
   let info_map = get_info_map(~init_ctx, z);
   ErrorPrint.collect_static(info_map);
 };
 
-let static_error_report = (~db, ~settings) =>
-  switch (get_static_errors(~db, ~settings)) {
+let static_error_report = (~db, ~settings as {ctx, data, _}: args_check) =>
+  switch (get_static_errors(~db, ~init_ctx=ctx, ~data)) {
   | [] => print_endline("LSP: Check Statics: No static errors")
   | errs =>
     let num_errs = errs |> List.length |> string_of_int;
@@ -447,7 +478,7 @@ let test_results = (res: ProgramResult.t): list(string) =>
      );
 
 let eval_prelude_main_tests = (settings, ~db) =>
-  get_zips(settings, ~db)
+  get_zips(settings.data, ~db)
   |> List.map(MakeTerm.from_zip_for_sem)
   |> List.map(fst)
   |> eval_spliced(~init_ctx=settings.ctx);
@@ -460,7 +491,16 @@ let dynamic_error_report = (~db, ~settings) =>
     print_endline(String.concat("\n", results));
   };
 
+let checks = (~db, ~settings, check): unit =>
+  switch (check) {
+  | Syntax => syntax_error_report(~db, ~settings)
+  | Static => static_error_report(~db, ~settings)
+  | Dynamic => dynamic_error_report(~db, ~settings)
+  };
+
 /* COMPLETIONS */
+
+let unk = Typ.Unknown(Internal);
 
 /* Assume for now left-to-right entry, so the present shards are
    a prefix of the complete tile. this means that regardless of
@@ -678,7 +718,8 @@ let get_bidi_id = (z: Zipper.t, indicated_id: Id.t) => {
   |> Piece.id;
 };
 
-let collate_info = (~settings, ~db, z: Zipper.t, id: Id.t): infodump => {
+let collate_info =
+    (~settings: args_completion, ~db, z: Zipper.t, id: Id.t): infodump => {
   let init_ctx = settings.ctx;
   let info_map = get_info_map(~init_ctx, z);
   let get_info = id => Id.Map.find_opt(id, info_map);
@@ -739,7 +780,7 @@ let collate_info = (~settings, ~db, z: Zipper.t, id: Id.t): infodump => {
   };
 };
 
-let generation_options = (~db, ~settings, z: Zipper.t) => {
+let generation_options = (~db, ~settings: args_completion, z: Zipper.t) => {
   let get_info = collate_info(~db, ~settings, z);
   switch (piece_to_left(~db, z), thing_to_right(~db, z)) {
   | (None, Nothing) => failwith("LSP: EXN: Nothing to left or right")
@@ -759,7 +800,8 @@ let generation_options = (~db, ~settings, z: Zipper.t) => {
           db("  LSP: Syntax: Bad token; only completion");
           OnlyCompletion(left_info, left_token);
         | Contextual
-            when settings.constrain == Types || settings.constrain == Context =>
+            when
+              settings.completions == Types || settings.completions == Context =>
           db("  LSP: Syntax: Free token; only completion");
           OnlyCompletion(left_info, left_token);
         | _ => CompletionOrNewRightConcave(left_info, left_token)
@@ -781,7 +823,8 @@ let generation_options = (~db, ~settings, z: Zipper.t) => {
           db("  LSP: Syntax: Bad token; only completion");
           OnlyCompletion(left_info, left_tok);
         | Contextual
-            when settings.constrain == Types || settings.constrain == Context =>
+            when
+              settings.completions == Types || settings.completions == Context =>
           db("  LSP: Syntax: Free token; only completion");
           OnlyCompletion(left_info, left_tok);
         | _ =>
@@ -835,9 +878,9 @@ let suggest_comma = (bidi_ctx_ci: Info.t) =>
   | InfoTPat(_) => false
   };
 
-let n_ary_sugs = (~settings, ~db as _, bidi_ci): Suggestion.s => {
+let n_ary_sugs = (~settings: args_completion, ~db as _, bidi_ci): Suggestion.s => {
   let comma_sug = Suggestion.mk(",");
-  switch (settings.constrain) {
+  switch (settings.completions) {
   | Types => suggest_comma(bidi_ci) ? [comma_sug] : []
   | Context
   | Grammar => [comma_sug]
@@ -862,8 +905,8 @@ let suggest_typ = (ctx: Ctx.t): Suggestion.s =>
 let suggest_tpat = (ctx: Ctx.t): Suggestion.s =>
   AssistantForms.suggest_all_ty_convex(TPat, ctx, unk);
 
-let convex_sugs = (~settings, ci: Info.t) =>
-  switch (settings.constrain) {
+let convex_sugs = (~settings: args_completion, ci: Info.t) =>
+  switch (settings.completions) {
   | Types =>
     switch (ci) {
     | InfoExp({mode, ctx, _}) =>
@@ -894,8 +937,8 @@ let convex_sugs = (~settings, ci: Info.t) =>
     }
   };
 
-let convex_lookahead_sugs = (~settings, ~db, ci: Info.t) => {
-  switch (settings.constrain) {
+let convex_lookahead_sugs = (~settings: args_completion, ~db, ci: Info.t) => {
+  switch (settings.completions) {
   | Context
   | Grammar => []
   | Types =>
@@ -929,7 +972,7 @@ let convex_lookahead_sugs = (~settings, ~db, ci: Info.t) => {
 
 let postfix_sugs =
     (
-      ~settings,
+      ~settings: args_completion,
       ~db as _,
       ci: Info.t,
       bidi_ctx_cls: Term.Cls.t,
@@ -953,7 +996,7 @@ let postfix_sugs =
     } else {
       [];
     };
-  switch (settings.constrain) {
+  switch (settings.completions) {
   | Grammar =>
     switch (ci) {
     | InfoExp(_) => postfix_ap_sug([], unk) @ case_rule_sug
@@ -1013,14 +1056,14 @@ let sug_exp_infix = (ctx: Ctx.t, l_child_ty: Typ.t, expected_ty: Typ.t) => {
 let infix_sugs =
     (
       ~completion: bool,
-      ~settings,
+      ~settings: args_completion,
       ~db,
       ci: Info.t,
       bidi_ctx_expected_ty: Typ.t,
     )
     : Suggestion.s => {
   let infix_mono_sugs = AssistantForms.suggest_infix_mono(ci);
-  switch (settings.constrain) {
+  switch (settings.completions) {
   | Grammar =>
     switch (ci) {
     | InfoExp(_) => sug_exp_infix([], unk, unk)
@@ -1179,7 +1222,13 @@ let left_concave_sugs = (~info_dump, ~completion, ~settings, ~db, z) => {
 };
 
 let mk_completions =
-    (~settings: arguments, ~db, ~tok_to_left: string, z: Zipper.t, info_dump)
+    (
+      ~settings: args_completion,
+      ~db,
+      ~tok_to_left: string,
+      z: Zipper.t,
+      info_dump,
+    )
     : list(string) => {
   /* Note that for completion suggestions, we ignore shape expectations,
      as the left tile might get keyword-completed or remolded */
@@ -1191,7 +1240,7 @@ let mk_completions =
 };
 
 let mk_new_left_convex =
-    (~settings: arguments, ~db, z: Zipper.t, info_dump): list(string) => {
+    (~settings: args_completion, ~db, z: Zipper.t, info_dump): list(string) => {
   db("LSP: Generating new left convex tokens");
   left_convex_sugs(~settings, ~info_dump, ~db, z)
   |> List.map(Suggestion.content_of)
@@ -1199,7 +1248,7 @@ let mk_new_left_convex =
 };
 
 let mk_new_left_concave =
-    (~settings: arguments, ~db, z: Zipper.t, info_dump): list(string) => {
+    (~settings: args_completion, ~db, z: Zipper.t, info_dump): list(string) => {
   db("LSP: Generating new left concave tokens");
   left_concave_sugs(~completion=false, ~settings, ~db, ~info_dump, z)
   |> List.map(Suggestion.content_of)
@@ -1207,7 +1256,7 @@ let mk_new_left_concave =
 };
 
 let dispatch_generation =
-    (~settings: arguments, ~db, z: Zipper.t): pre_grammar => {
+    (~settings: args_completion, ~db, z: Zipper.t): pre_grammar => {
   let seg_before = z.relatives.siblings |> fst |> List.rev;
   let seg_after = z.relatives.siblings |> snd;
   if (seg_before == [] && seg_after == []) {
@@ -1310,26 +1359,26 @@ let mk_grammar = (pre_grammar: pre_grammar): string => {
   ++ sort_root;
 };
 
-let generate = (~db, ~settings, ~get_zipper): unit => {
-  let z = get_zipper(~db, settings);
+let generate = (~db, ~settings: args_completion, ~get_zipper): unit => {
+  let z = get_zipper(~db, settings.data);
   let grammar = z |> dispatch_generation(~settings, ~db) |> mk_grammar;
   db("LSP: Grammar:");
   print_endline(grammar);
 };
 
-let main = args => {
-  let settings = parse(args, default_settings);
-  let db = s => settings.debug ? print_endline(s) : ();
-  db(show_settings(settings));
-  switch (settings.check) {
-  | DontCheck => generate(~db, ~settings, ~get_zipper)
-  | Syntax => syntax_error_report(~db, ~settings)
-  | Static => static_error_report(~db, ~settings)
-  | Dynamic => dynamic_error_report(~db, ~settings)
+/* Main entry point */
+
+let main = ({debug, data, command, ctx}: arguments) => {
+  let db = s => debug ? print_endline(s) : ();
+  db(Printf.sprintf("LSP: Command: %s", show_command(command)));
+  switch (command) {
+  | Completions(completions) =>
+    generate(~db, ~settings={data, completions, ctx}, ~get_zipper)
+  | Check(check) => checks(~db, ~settings={data, check, ctx}, check)
   };
 };
 
-main(get_args());
+get_args() |> parse(default_settings) |> main;
 
 //MAYBE: consider reducing generation of duplicate lookahead suggestions
 //MAYBE: abstract out default forms of any type eg case if let etc.
