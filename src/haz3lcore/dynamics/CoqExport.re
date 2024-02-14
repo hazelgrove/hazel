@@ -27,12 +27,12 @@ let unique_vars_in_ast = (d: DHExp.t) => {
 };
 
 // Count all occurrences of an integer v in the AST v
-let rec index_of_like_terms_helper_dhexp = (d: DHExp.t, v: int) => {
+let rec index_of_like_terms_helper_dhexp = (d: DHExp.t, v: DHExp.t) => {
   switch (d) {
+  | _ when DHExp.fast_equal(d, v) => 1
   | BinIntOp(_, argL, argR) =>
     index_of_like_terms_helper_dhexp(argL, v)
     + index_of_like_terms_helper_dhexp(argR, v)
-  | IntLit(arg) when arg == v => 1
   | _ => 0
   };
 };
@@ -40,7 +40,7 @@ let rec index_of_like_terms_helper_dhexp = (d: DHExp.t, v: int) => {
 // Count all occurrences of integer v that are not to the right of the marker,
 // including the marker itself. This function assumes there is always
 // a marker somewhere in the AST.
-let rec index_of_like_terms_helper_ctx = (d: EvalCtx.t, v: int) => {
+let rec index_of_like_terms_helper_ctx = (d: EvalCtx.t, v: DHExp.t) => {
   switch (d) {
   // When the left argument is a context (contains the mark) and the right one doesn't
   | BinIntOp1(_, argL, _) => index_of_like_terms_helper_ctx(argL, v)
@@ -56,24 +56,25 @@ let rec index_of_like_terms_helper_ctx = (d: EvalCtx.t, v: int) => {
 // For some integer literal t and context AST d, find out how many occurrences of t do not occur to the right of the Mark in d.
 
 let index_of_like_terms = (d: EvalCtx.t, v: DHExp.t) => {
-  switch (v) {
-  | IntLit(arg) => index_of_like_terms_helper_ctx(d, arg)
-  | _ => 0
-  };
+  index_of_like_terms_helper_ctx(d, v);
 };
 
 let rec string_of_d = (d: DHExp.t) => {
-  switch (d) {
-  | BinIntOp(op, arg1, arg2) =>
-    string_of_d(arg1)
-    ++ ""
-    ++ TermBase.UExp.int_op_to_string(op)
-    ++ ""
-    ++ string_of_d(arg2)
-  | IntLit(n) => string_of_int(n)
-  | NonEmptyHole(_, _, _, FreeVar(_, _, x)) => x
-  | _ => "ERROR"
-  };
+  "("
+  ++ (
+    switch (d) {
+    | BinIntOp(op, arg1, arg2) =>
+      string_of_d(arg1)
+      ++ ""
+      ++ TermBase.UExp.int_op_to_string(op)
+      ++ ""
+      ++ string_of_d(arg2)
+    | IntLit(n) => string_of_int(n)
+    | NonEmptyHole(_, _, _, FreeVar(_, _, x)) => x
+    | _ => "ERROR"
+    }
+  )
+  ++ ")";
 };
 // Takes a single step
 let single_step_export = (ind, step, forall_str) => {
@@ -87,15 +88,36 @@ let single_step_export = (ind, step, forall_str) => {
   let newExprString = string_of_d(newExpr);
   //Printf.printf("old: %s\n", oldExprString);
   //Printf.printf("new: %s\n", newExprString);
-  let extraTactic =
-    switch (d_loc) {
-    | BinIntOp(Plus, _, _) => "repeat rewrite Nat.add_assoc. "
-    | _ => ""
+  let evalTactic =
+    switch (step.knd) {
+    | Rewrite(step) =>
+      switch (step.name) {
+      | IdPlusL => "rewrite Qplus_0_l"
+      | CommPlus => "rewrite Qplus_comm"
+      | AssocPlusL => "rewrite Qplus_assoc"
+      | AssocPlusR => "rewrite Qplus_assoc"
+      | IdTimesL => "rewrite Qmult_1_r"
+      | CommTimes => "rewrite Qmult_comm"
+      | AssocTimesL => "rewrite Qmult_assoc"
+      | AssocTimesR => "rewrite Qmult_assoc"
+      | DistPlusTimesL => "rewrite Qmult_plus_distr_l"
+      | DistPlusTimesR => "rewrite Qmult_plus_distr_l"
+      | DistPlusTimesLC => "rewrite Qmult_plus_distr_r"
+      | DistPlusTimesRC => "rewrite Qmult_plus_distr_r"
+      | DistPlusDivL => "unfold Qdiv. rewrite Qmult_plus_distr_l"
+      | DistPlusDivR => "unfold Qdiv. rewrite Qmult_plus_distr_l"
+      | DefDivL => "unfold Qdiv. rewrite Qmult_1_l"
+      | DefDivR => "unfold Qdiv. rewrite Qmult_1_l"
+      | NilTimesL => "rewrite Qmult_0_l"
+      | AssocTimesDivL => "unfold Qdiv. rewrite Qmult_assoc"
+      | AssocTimesDivR => "unfold Qdiv. rewrite Qmult_assoc"
+      }
+    | _ => "cbv"
     };
   let rewriteIndex = index_of_like_terms(ctx, d_loc');
   let coqLemmaString =
     Printf.sprintf(
-      "Lemma equiv_exp%d:%s%s = %s.\nProof.\nintros.\ncut (%s=%s).\n- intros. rewrite <- H at %d. %s reflexivity.\n- intros. cbv. reflexivity.\nQed.",
+      "Lemma equiv_exp%d:%s%s == %s.\nProof.\nintros.\ncut (%s==%s).\n- intros. rewrite <- H at %d. reflexivity.\n- intros. %s. reflexivity.\nQed.",
       ind,
       forall_str,
       newExprString,
@@ -103,7 +125,7 @@ let single_step_export = (ind, step, forall_str) => {
       oldFragmentString,
       newFragmentString,
       rewriteIndex,
-      extraTactic,
+      evalTactic,
     );
   //Printf.printf("Coq proof:\n%s\n", coqLemmaString);
   coqLemmaString;
@@ -140,7 +162,7 @@ let exportCoq = steps =>
     let firstExpr = string_of_d(firstD);
     // Return a string that is the Coq proof but don't print to console
     Printf.sprintf(
-      "Require Import Nat.\nRequire Export Plus.\nRequire Export Mult.\n%s\nTheorem equiv_exp:%s%s=%s.\nProof.\nintros.\n%s\nreflexivity. Qed.",
+      "Require Import QArith.\nRequire Export Plus.\nRequire Export Mult.\n%s\nTheorem equiv_exp:%s%s==%s.\nProof.\nintros.\n%s\nreflexivity. Qed.",
       String.concat("\n", lemmas),
       forall_str,
       finalExpr,

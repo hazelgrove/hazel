@@ -71,7 +71,7 @@ let stepper_view =
         let coq_data = CoqExport.exportCoq(stepper.previous);
         // Output to a file
         JsUtil.download_string_file(
-          ~filename="stepper-coq-export.v",
+          ~filename="stepper_coq_export.v",
           ~content_type="text/plain",
           ~contents=coq_data,
         );
