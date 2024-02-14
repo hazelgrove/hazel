@@ -10,7 +10,7 @@ let with_cls = cls => Node.span(~attr=Attr.classes([cls]));
 
 let string_of_stepper_action = (action: UpdateAction.stepper_action) =>
   switch (action) {
-  | Rewrite(r) => RewriteStep.string_of(r.rule)
+  | Rewrite(r) => RewriteStep.symbolic_string_of(r.rule)
   | _ => "Step"
   };
 

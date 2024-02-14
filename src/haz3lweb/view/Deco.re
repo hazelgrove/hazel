@@ -317,10 +317,13 @@ module Deco =
          * when iterating over the info_map should have no
          * effect, beyond supressing the resulting Not_found exs */
         switch (Id.Map.find_opt(id, M.term_ranges)) {
-        | Some(_) when Info.is_error(info) => [
-            term_highlight(~clss=["err-hole"], id),
-            ...acc,
-          ]
+        | Some(_) when Info.is_error(info) =>
+          switch (info) {
+          //HACK(andrew): skip free var errors for stepper rewrite demos
+          | InfoExp({status: InHole(FreeVariable(_)), _}) => []
+          | _ => [term_highlight(~clss=["err-hole"], id), ...acc]
+          }
+
         | _ => acc
         },
       M.info_map,

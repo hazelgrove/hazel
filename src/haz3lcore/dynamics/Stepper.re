@@ -456,7 +456,7 @@ let get_justification: step_kind => string =
   | CompleteClosure => "unidentified step"
   | FunClosure => "unidentified step"
   | Skip => "skipped steps"
-  | Rewrite(rule) => RewriteStep.string_of(rule);
+  | Rewrite(rule) => RewriteStep.symbolic_string_of(rule);
 
 let get_history = (~settings, stepper) => {
   let rec get_history':
