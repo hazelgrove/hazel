@@ -19,9 +19,10 @@ type rule =
   | DistPlusTimesRC
   | DistPlusDivL
   | DistPlusDivR
-  | DivDefL
-  | DivDefR
-  | AssocTimesDiv;
+  | DefDivL
+  | DefDivR
+  | AssocTimesDivL
+  | AssocTimesDivR;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
@@ -34,24 +35,48 @@ type s = list(t);
 
 let string_of = r =>
   switch (r.name) {
-  | IdPlusL => "Iden(L, +)"
-  | CommPlus => "Comm(+)"
-  | AssocPlusL => "Assoc(L, +)"
-  | AssocPlusR => "Assoc(R, +)"
-  | IdTimesL => "Iden(L, ×)"
-  | NilTimesL => "Nil(L, ×)"
-  | CommTimes => "Comm(×)"
-  | AssocTimesL => "Assoc(L, ×)"
-  | AssocTimesR => "Assoc(R, ×)"
-  | DistPlusTimesL => "Dist(L, +, ×)"
-  | DistPlusTimesR => "Dist(R, +, ×)"
-  | DistPlusDivL => "Dist(L, +, /)"
-  | DistPlusDivR => "Dist(R, +, /)"
-  | DistPlusTimesLC => "Dist(L, +, ×)∘C"
-  | DistPlusTimesRC => "Dist(R, +, ×)∘C"
-  | DivDefL => "DivDef(L)"
-  | DivDefR => "DivDef(R)"
-  | AssocTimesDiv => "Assoc*(×, ÷)"
+  | IdPlusL => "Iden(+)L" // A+0=A
+  | CommPlus => "Comm(+)" // A+B=B+A
+  | AssocPlusL => "Assoc(+)L" // A+(B+C)=(A+B)+C
+  | AssocPlusR => "Assoc(+)R" // (A+B)+C=A+(B+C)
+  | IdTimesL => "Iden(×)L" // A*1=A
+  | NilTimesL => "Nil(×)L" // A*0=0
+  | CommTimes => "Comm(×)" // A*B=B*A
+  | AssocTimesL => "Assoc(×)L" // A*(B*C)=(A*B)*C
+  | AssocTimesR => "Assoc(×)R" // (A*B)*C=A*(B*C)
+  | DistPlusTimesL => "Dist(+ ×)L" // (A+B)*C=A*C+B*C
+  | DistPlusTimesR => "Dist(+ ×)R" // A*C+B*C=(A+B)*C
+  | DistPlusTimesLC => "Dist(+ ×)L∘C" // A*(B+C)=A*B+A*C
+  | DistPlusTimesRC => "Dist(+ ×)R∘C" // A*B+A*C=A*(B+C)
+  | DefDivL => "Def(÷)L" // A/B=A*1/B
+  | DefDivR => "Def(÷)R" // A*1/B=A/B
+  | DistPlusDivL => "Dist(+ ÷)L" // (A+B)/C=A/C+B/C
+  | DistPlusDivR => "Dist(+ ÷)R" // A/C+B/C=(A+B)/C
+  | AssocTimesDivL => "Assoc(×)L∘Def(÷)" // A*(B/C)=(A*B)/C
+  | AssocTimesDivR => "Assoc*(×)R∘Def(÷)" // (A*B)/C=A*(B/C)
+  };
+
+let symbolic_string_of = r =>
+  switch (r.name) {
+  | IdPlusL => "A+0=A"
+  | CommPlus => "A+B=B+A"
+  | AssocPlusL => "A+(B+C)=(A+B)+C"
+  | AssocPlusR => "(A+B)+C=A+(B+C)"
+  | IdTimesL => "A×1=A"
+  | NilTimesL => "A×0=0"
+  | CommTimes => "A×B=B×A"
+  | AssocTimesL => "A×(B×C)=(A×B)×C"
+  | AssocTimesR => "(A×B)×C=A×(B×C)"
+  | DistPlusTimesL => "(A+B)×C=A×C+B×C"
+  | DistPlusTimesR => "A×C+B×C=(A+B)×C"
+  | DistPlusTimesLC => "A×(B+C)=A×B+A×C"
+  | DistPlusTimesRC => "A×B+A*C=A×(B+C)"
+  | DefDivL => "A÷B=A×1÷B"
+  | DefDivR => "A×1÷B=A÷B"
+  | DistPlusDivL => "(A+B)÷C=A÷C+B÷C"
+  | DistPlusDivR => "A÷C+B÷C=(A+B)÷C"
+  | AssocTimesDivL => "A×(B÷C)=(A×B)÷C"
+  | AssocTimesDivR => "(A×B)÷C=A×(B÷C)"
   };
 
 let rewrites: list(t) = [
@@ -140,7 +165,7 @@ let rewrites: list(t) = [
       | _ => None,
   },
   {
-    name: DivDefL,
+    name: DefDivL,
     t:
       fun
       | BinIntOp(Divide, e1, e2) =>
@@ -148,7 +173,7 @@ let rewrites: list(t) = [
       | _ => None,
   },
   {
-    name: DivDefR,
+    name: DefDivR,
     t:
       fun
       | BinIntOp(Times, e1, BinIntOp(Divide, IntLit(1), e2)) =>
@@ -200,11 +225,19 @@ let rewrites: list(t) = [
       | _ => None,
   },
   {
-    name: AssocTimesDiv,
+    name: AssocTimesDivL,
     t:
       fun
       | BinIntOp(Times, e1, BinIntOp(Divide, e2, e3)) =>
         Some(BinIntOp(Divide, BinIntOp(Times, e1, e2), e3))
+      | _ => None,
+  },
+  {
+    name: AssocTimesDivR,
+    t:
+      fun
+      | BinIntOp(Divide, BinIntOp(Times, e1, e2), e3) =>
+        Some(BinIntOp(Times, e1, BinIntOp(Divide, e2, e3)))
       | _ => None,
   },
 ];
