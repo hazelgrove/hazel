@@ -267,6 +267,7 @@ let should_scroll_to_caret =
   | TAB => true
   | PerformAction(a) =>
     switch (a) {
+    | Project(_)
     | Move(_)
     | MoveToNextHole(_)
     | Jump(_)

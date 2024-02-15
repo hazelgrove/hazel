@@ -58,6 +58,7 @@ let zipper: Zipper.t = {
     ancestors,
   },
   caret: Outer,
+  projectors: Projector.Map.empty,
 };
 
 // TODO Make sure using this for all the forms that should, like wild and nil

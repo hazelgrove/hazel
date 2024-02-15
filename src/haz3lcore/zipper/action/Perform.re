@@ -8,6 +8,7 @@ let is_write_action = (a: Action.t) => {
   | Unselect(_)
   | Jump(_)
   | Select(_) => false
+  | Project(_) //TODO(andrew): ??
   | Destruct(_)
   | Insert(_)
   | Pick_up
@@ -15,6 +16,21 @@ let is_write_action = (a: Action.t) => {
   | RotateBackpack
   | MoveToBackpackTarget(_) => true
   };
+};
+
+module Project = {
+  let go = (p: Action.project, z: t) =>
+    switch (p) {
+    | ToggleFold(id) =>
+      switch (Projector.Map.find(id, z.projectors)) {
+      | Some(p) => {
+          ...z,
+          projectors:
+            Projector.Map.add(id, Projector.toggle_fold(p), z.projectors),
+        }
+      | None => z
+      }
+    };
 };
 
 let go_z =
@@ -45,6 +61,7 @@ let go_z =
     };
 
   switch (a) {
+  | Project(p) => Ok(Project.go(p, z))
   | Move(d) =>
     Move.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move)
   | MoveToNextHole(d) =>

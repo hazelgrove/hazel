@@ -67,7 +67,14 @@ module Text = (M: {
                }) => {
   let m = p => Measured.find_p(p, M.map);
   let rec of_segment =
-          (buffer_ids, no_sorts, sort, seg: Segment.t): list(Node.t) => {
+          (
+            projectors: Projector.Map.t,
+            buffer_ids,
+            no_sorts,
+            sort,
+            seg: Segment.t,
+          )
+          : list(Node.t) => {
     /* note: no_sorts flag is used for backpack view;
        otherwise Segment.expected_sorts call crashes for some reason */
     let expected_sorts =
@@ -82,19 +89,22 @@ module Text = (M: {
     seg
     |> List.mapi((i, p) => (i, p))
     |> List.concat_map(((i, p)) =>
-         of_piece(buffer_ids, sort_of_p_idx(i), p)
+         of_piece(projectors, buffer_ids, sort_of_p_idx(i), p)
        );
   }
   and of_piece =
-      (buffer_ids, expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
+      (projectors, buffer_ids, expected_sort: Sort.t, p: Piece.t)
+      : list(Node.t) => {
     switch (p) {
-    | Tile(t) => of_tile(buffer_ids, expected_sort, t)
+    | Tile(t) => of_tile(projectors, buffer_ids, expected_sort, t)
     | Grout(_) => of_grout
     | Secondary({content, _}) =>
       of_secondary((content, M.settings.secondary_icons, m(p).last.col))
     };
   }
-  and of_tile = (buffer_ids, expected_sort: Sort.t, t: Tile.t): list(Node.t) => {
+  and of_tile =
+      (projectors, buffer_ids, expected_sort: Sort.t, t: Tile.t)
+      : list(Node.t) => {
     let children_and_sorts =
       List.mapi(
         (i, (l, child, r)) =>
@@ -106,7 +116,7 @@ module Text = (M: {
     let is_in_buffer = List.mem(t.id, buffer_ids);
     Aba.mk(t.shards, children_and_sorts)
     |> Aba.join(of_delim(is_in_buffer, is_consistent, t), ((seg, sort)) =>
-         of_segment(buffer_ids, false, sort, seg)
+         of_segment(projectors, buffer_ids, false, sort, seg)
        )
     |> List.concat;
   };
@@ -141,7 +151,10 @@ let simple_view =
   div(
     ~attr=Attr.class_("code"),
     [
-      span_c("code-text", Text.of_segment([], false, Sort.Any, unselected)),
+      span_c(
+        "code-text",
+        Text.of_segment(Projector.Map.empty, [], false, Sort.Any, unselected),
+      ),
       ...holes,
     ],
   );
@@ -162,7 +175,14 @@ let view =
       ~sort: Sort.t,
       ~font_metrics,
       ~settings: Settings.t,
-      {state: {meta: {measured, buffer_ids, unselected, holes, _}, _}, _}: Editor.t,
+      {
+        state: {
+          meta: {measured, buffer_ids, unselected, holes, _},
+          zipper,
+          _,
+        },
+        _,
+      }: Editor.t,
     )
     : Node.t => {
   module Text =
@@ -170,7 +190,8 @@ let view =
       let map = measured;
       let settings = settings;
     });
-  let code = Text.of_segment(buffer_ids, false, sort, unselected);
+  let code =
+    Text.of_segment(zipper.projectors, buffer_ids, false, sort, unselected);
   let holes = List.map(of_hole(~measured, ~font_metrics), holes);
   div(~attr=Attr.class_("code"), [span_c("code-text", code), ...holes]);
 };
