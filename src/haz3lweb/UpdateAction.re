@@ -25,11 +25,12 @@ type settings_action =
   | ContextInspector
   | InstructorMode
   | Evaluation(evaluation_settings_action)
+  | ExplainThis(ExplainThisModel.Settings.action)
   | Mode(Settings.mode);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type stepper_action =
-  | StepForward(EvaluatorStep.EvalObj.t)
+  | StepForward(int)
   | StepBackward;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -73,7 +74,7 @@ type t =
   | FinishImportScratchpad(option(string))
   | SwitchScratchSlide(int)
   /* editor */
-  | DoTheThing
+  | TAB
   | Save
   | PerformAction(Action.t)
   | ReparseCurrentEditor
@@ -87,7 +88,7 @@ type t =
   | Assistant(agent_action)
   | ToggleStepper(ModelResults.Key.t)
   | StepperAction(ModelResults.Key.t, stepper_action)
-  | UpdateResult(ModelResults.Key.t, option(ModelResult.t));
+  | UpdateResult(ModelResults.t);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -110,32 +111,179 @@ module Result = {
 
 let is_edit: t => bool =
   fun
+  | PerformAction(a) => Action.is_edit(a)
+  | Set(s_action) =>
+    switch (s_action) {
+    | Mode(_) => true
+    | Captions
+    | SecondaryIcons
+    | Statics
+    | Assist
+    | Elaborate
+    | ExplainThis(_)
+    | Dynamics
+    | Benchmark
+    | ContextInspector
+    | InstructorMode
+    | Evaluation(_) => false
+    }
+  | SetMeta(meta_action) =>
+    switch (meta_action) {
+    | Mousedown
+    | Mouseup
+    | ShowBackpackTargets(_)
+    | FontMetrics(_) => false
+    }
   | Cut
   | Undo
   | Redo
-  | DoTheThing
-  | Set(_)
   | Paste(_)
   | SwitchScratchSlide(_)
   | SwitchDocumentationSlide(_)
   | ToggleStepper(_)
-  | StepperAction(_, _)
-  | UpdateResult(_, _) => true
-  | PerformAction(a) => Action.is_edit(a)
-  | SwitchEditor(_)
-  | Reset
-  | ExportPersistentData
-  | ResetCurrentEditor
-  | Save
+  | StepperAction(_)
   | ReparseCurrentEditor
+  | FinishImportAll(_)
+  | FinishImportScratchpad(_)
+  | ResetCurrentEditor
+  | Assistant(AcceptSuggestion)
+  | Reset => true
+  | UpdateResult(_)
+  | SwitchEditor(_)
+  | ExportPersistentData
+  | Save
   | Copy
-  | SetMeta(_)
   | UpdateExplainThisModel(_)
   | DebugConsole(_)
   | InitImportAll(_)
-  | FinishImportAll(_)
   | InitImportScratchpad(_)
-  | FinishImportScratchpad(_)
   | MoveToNextHole(_)
   | Benchmark(_)
-  | Assistant(_) => false;
+  | TAB
+  | Assistant(Prompt(_)) => false;
+
+let reevaluate_post_update: t => bool =
+  fun
+  | PerformAction(a) => Action.is_edit(a)
+  | Set(s_action) =>
+    switch (s_action) {
+    | Assist
+    | Captions
+    | SecondaryIcons
+    | Statics
+    | ContextInspector
+    | Benchmark
+    | ExplainThis(_)
+    | Evaluation(
+        ShowCaseClauses | ShowFnBodies | ShowCasts | ShowRecord | ShowFixpoints |
+        ShowLookups |
+        ShowFilters |
+        ShowSettings,
+      ) =>
+      false
+    | Elaborate
+    | Dynamics
+    | InstructorMode
+    | Mode(_) => true
+    }
+  | SetMeta(meta_action) =>
+    switch (meta_action) {
+    | Mousedown
+    | Mouseup
+    | ShowBackpackTargets(_)
+    | FontMetrics(_) => false
+    }
+  | Assistant(AcceptSuggestion) => true
+  | Assistant(Prompt(_)) => false
+  | MoveToNextHole(_)
+  | Save
+  | Copy
+  | InitImportAll(_)
+  | InitImportScratchpad(_)
+  | UpdateExplainThisModel(_)
+  | ExportPersistentData
+  | UpdateResult(_)
+  | SwitchEditor(_)
+  | DebugConsole(_)
+  | TAB
+  | Benchmark(_) => false
+  | StepperAction(_, StepForward(_) | StepBackward)
+  | ToggleStepper(_)
+  | ReparseCurrentEditor
+  | FinishImportAll(_)
+  | FinishImportScratchpad(_)
+  | ResetCurrentEditor
+  | SwitchScratchSlide(_)
+  | SwitchDocumentationSlide(_)
+  | Reset
+  | Cut
+  | Paste(_)
+  | Undo
+  | Redo => true;
+
+let should_scroll_to_caret =
+  fun
+  | Set(s_action) =>
+    switch (s_action) {
+    | Mode(_) => true
+    | Captions
+    | SecondaryIcons
+    | Statics
+    | Assist
+    | Elaborate
+    | ExplainThis(_)
+    | Dynamics
+    | Benchmark
+    | ContextInspector
+    | InstructorMode
+    | Evaluation(_) => false
+    }
+  | SetMeta(meta_action) =>
+    switch (meta_action) {
+    | FontMetrics(_) => true
+    | Mousedown
+    | Mouseup
+    | ShowBackpackTargets(_) => false
+    }
+  | Assistant(Prompt(_))
+  | UpdateResult(_)
+  | ToggleStepper(_)
+  | StepperAction(_, StepBackward | StepForward(_)) => false
+  | Assistant(AcceptSuggestion) => true
+  | FinishImportScratchpad(_)
+  | FinishImportAll(_)
+  | ResetCurrentEditor
+  | SwitchEditor(_)
+  | SwitchScratchSlide(_)
+  | SwitchDocumentationSlide(_)
+  | ReparseCurrentEditor
+  | Reset
+  | Copy
+  | Paste(_)
+  | Cut
+  | Undo
+  | Redo
+  | MoveToNextHole(_)
+  | TAB => true
+  | PerformAction(a) =>
+    switch (a) {
+    | Move(_)
+    | MoveToNextHole(_)
+    | Jump(_)
+    | Select(Resize(_) | Term(_) | Smart | Tile(_))
+    | Destruct(_)
+    | Insert(_)
+    | Pick_up
+    | Put_down
+    | RotateBackpack
+    | MoveToBackpackTarget(_) => true
+    | Unselect(_)
+    | Select(All) => false
+    }
+  | Save
+  | InitImportAll(_)
+  | InitImportScratchpad(_)
+  | UpdateExplainThisModel(_)
+  | ExportPersistentData
+  | DebugConsole(_)
+  | Benchmark(_) => false;

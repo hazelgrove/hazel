@@ -72,12 +72,7 @@ let test_report_view =
 };
 
 let test_reports_view =
-    (
-      ~settings,
-      ~inject,
-      ~font_metrics,
-      ~test_results: option(TestResults.test_results),
-    ) =>
+    (~settings, ~inject, ~font_metrics, ~test_results: option(TestResults.t)) =>
   div(
     ~attr=clss(["panel-body", "test-reports"]),
     switch (test_results) {
@@ -110,7 +105,7 @@ let test_bar_segment = (~inject, pos, (id, reports)) => {
   );
 };
 
-let test_bar = (~inject, ~test_results: TestResults.test_results, pos) =>
+let test_bar = (~inject, ~test_results: TestResults.t, pos) =>
   div(
     ~attr=Attr.class_("test-bar"),
     List.map(test_bar_segment(~inject, pos), test_results.test_map),
@@ -127,10 +122,10 @@ let percent_view = (n: int, p: int): Node.t => {
   );
 };
 
-let test_percentage = (test_results: TestResults.test_results): Node.t =>
+let test_percentage = (test_results: TestResults.t): Node.t =>
   percent_view(test_results.total, test_results.passing);
 
-let test_text = (test_results: TestResults.test_results): Node.t =>
+let test_text = (test_results: TestResults.t): Node.t =>
   div(
     ~attr=Attr.class_("test-text"),
     [
@@ -140,7 +135,7 @@ let test_text = (test_results: TestResults.test_results): Node.t =>
     ],
   );
 
-let test_summary = (~inject, ~test_results: option(TestResults.test_results)) => {
+let test_summary = (~inject, ~test_results: option(TestResults.t)) => {
   div(
     ~attr=clss(["test-summary"]),
     {
