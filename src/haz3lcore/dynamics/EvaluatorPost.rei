@@ -48,7 +48,7 @@
     - PostprocessedNoneHoleInClosure
     - PostprocessedHoleOutsideClosure
    */
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type error =
   | ClosureInsideClosure
   | FixFOutsideClosureEnv
@@ -57,7 +57,7 @@ type error =
   | PostprocessedNonHoleInClosure
   | PostprocessedHoleOutsideClosure;
 
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 exception Exception(error);
 
 /**

@@ -31,6 +31,14 @@ let is_buffer: t => bool =
   | {mode: Buffer(_), _} => true
   | _ => false;
 
+let buffer_ids = (sel: t): list(Id.t) => {
+  /* Collect ids of tokens in buffer for styling purposes. This is
+   * currently necessary as the selection is not persisted through
+   * unzipping for display */
+  let buffer = is_buffer(sel) ? sel.content : [];
+  Id.Map.bindings(Measured.of_segment(buffer).tiles) |> List.map(fst);
+};
+
 let empty = mk(Segment.empty);
 
 let map = (f, sel) => {...sel, content: f(sel.content)};
