@@ -27,7 +27,7 @@ type t = {
   backpack: Backpack.t,
   relatives: Relatives.t,
   caret: Caret.t,
-  // col_target: int,
+  projectors: Projector.Map.t,
 };
 
 let init: unit => t =
@@ -39,7 +39,7 @@ let init: unit => t =
       ancestors: [],
     },
     caret: Outer,
-    // col_target: 0,
+    projectors: Projector.Map.empty,
   };
 
 let next_blank = _ => Id.mk();
@@ -97,6 +97,7 @@ let unzip = (seg: Segment.t): t => {
     ancestors: [],
   },
   caret: Outer,
+  projectors: Projector.Map.empty,
 };
 
 let sibs_with_sel =

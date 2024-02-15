@@ -44,7 +44,12 @@ type select =
   | Term(rel);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type project =
+  | ToggleFold(Id.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
+  | Project(project)
   | Move(move)
   | MoveToNextHole(Direction.t)
   | Jump(jump_target)
