@@ -6,8 +6,8 @@ let intsOneElseAdd: ((Int, Int)) -> Int =
         end
 in
 
-let ap_and_inc: ((Int, Int) -> Int, Int) = 
-    fun (f, x) -> f(x) + 1
+let ap_and_inc: (((Int, Int) -> Int), Int) -> Int = 
+    fun (f, x) -> f((x, 2)) + 1
 in
 
-z(1)
+ap_and_inc((intsOneElseAdd, 1))

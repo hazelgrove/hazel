@@ -359,6 +359,8 @@ module rec DHExp: {
 
             // raise(Invalid_argument("Menhir Case -> DHExp not yet implemented")); //TODO: add in the slightly irritating translation of the list from the AST form to the DHExp form ConsistentCase(case(of_menhir_ast(e), , 0))
         }
+        
+        | Cast(e, t1, t2) => Cast(of_menhir_ast(e), Typ.of_menhir_ast(t1), Typ.of_menhir_ast(t2))
 
         // | _ => raise(Invalid_argument("Menhir AST -> DHExp not yet implemented"))
     }
