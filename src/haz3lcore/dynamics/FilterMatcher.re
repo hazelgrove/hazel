@@ -41,6 +41,7 @@ let rec matches_exp =
   | (Closure(env, d), _) => matches_exp(env, d, f)
   | (Cast(d, _, _), _) => matches_exp(env, d, f)
   | (FailedCast(d, _, _), _) => matches_exp(env, d, f)
+  | (Filter(Residue(_), d), _) => matches_exp(env, d, f)
 
   | (BoundVar(dx), BoundVar(fx)) => dx == fx
   | (BoundVar(dx), _) =>
