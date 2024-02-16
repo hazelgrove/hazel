@@ -176,7 +176,7 @@ let rec matches =
     };
   switch (ctx) {
   | Filter(_) => (ract, ridx, rctx)
-  | _ when midx == ridx && midx > pidx && mact |> snd == All => (
+  | _ when mact |> snd == All => (
       ract,
       ridx,
       Filter(Residue(midx, mact), rctx),
