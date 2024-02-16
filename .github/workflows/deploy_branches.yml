@@ -43,7 +43,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           name: Test Results
-          conclusion: ${{ steps.test.outputs.status }}
+          conclusion: "failure"
           output: |
             {"summary":"${{ steps.test.outputs.summary }}"}
       - name: Checkout the website build artifacts repo # STEP 4
