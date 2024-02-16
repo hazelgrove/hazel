@@ -32,11 +32,20 @@ jobs:
           make release
         working-directory: ./source
       - name: Run Tests
+        id: test
         continue-on-error: true
         run: |
           eval $(opam env)
           make test
         working-directory: ./source
+      - uses: LouisBrunner/checks-action@v2.0.0
+        if: always()
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          name: Test Results
+          conclusion: ${{ steps.test.outputs.status }}
+          output: |
+            {"summary":"${{ steps.test.outputs.summary }}"}
       - name: Checkout the website build artifacts repo # STEP 4
         uses: actions/checkout@v2
         with:
