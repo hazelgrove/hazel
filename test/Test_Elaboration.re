@@ -287,4 +287,6 @@ let elaboration_tests = [
   test_case("Application of function on free variable", `Quick, ap_fun),
   test_case("Inconsistent case statement", `Quick, inconsistent_case),
   test_case("Let expression for a function", `Quick, let_fun),
+  test_case("Sample failure", `Quick, Alcotest.fail("Sample failure")),
+
 ];
