@@ -1,5 +1,31 @@
+; (executable
+;  (name MenhirTest)
+;  (libraries base ptmap incr_dom hazel_menhir haz3lcore)
+;  (preprocess
+;   (pps ppx_let ppx_sexp_conv ppx_deriving.show ppx_yojson_conv)))
+
+
 (executable
  (name MenhirTest)
- (libraries base ptmap incr_dom hazel_menhir haz3lcore)
+ (libraries sexplib base ptmap incr_dom hazel_menhir haz3lcore)
+ (modes js)
+ (js_of_ocaml
+  (flags
+   (:include js-of-ocaml-flags-%{profile})))
  (preprocess
-  (pps ppx_let ppx_sexp_conv ppx_deriving.show ppx_yojson_conv)))
+  (pps js_of_ocaml-ppx ppx_let ppx_sexp_conv ppx_deriving.show ppx_yojson_conv)))
+
+(env
+ (dev
+  (js_of_ocaml
+   (flags (:standard))))
+ (release
+  (js_of_ocaml
+   (flags (:standard)))))
+
+
+(rule
+ (write-file js-of-ocaml-flags-dev "(:standard --debuginfo --noinline)"))
+
+(rule
+ (write-file js-of-ocaml-flags-release "(:standard)"))

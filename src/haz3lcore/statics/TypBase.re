@@ -1,6 +1,7 @@
 open Sexplib.Std;
 open Util;
 open OptUtil.Syntax;
+open Hazel_menhir.AST;
 
 let precedence_Prod = 1;
 let precedence_Arrow = 2;
@@ -68,6 +69,9 @@ module rec Typ: {
   let sum_entry: (Constructor.t, sum_map) => option(sum_entry);
   let get_sum_constructors: (Ctx.t, t) => option(sum_map);
   let is_unknown: t => bool;
+
+  let of_menhir_ast: Hazel_menhir.AST.typ => t;
+
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type type_provenance =
@@ -424,6 +428,21 @@ module rec Typ: {
     | Unknown(_) => true
     | _ => false
     };
+
+  let rec of_menhir_ast = (typ: Hazel_menhir.AST.typ) : t => {
+        switch (typ) {
+            | IntType => Int
+            | FloatType => Float
+            | BoolType => Bool
+            | StringType => String
+            | UnitType => Prod([])
+            | TupleType(ts) => Prod(List.map(of_menhir_ast, ts))
+            | ArrayType(t) => List(of_menhir_ast(t))
+            | ArrowType(t1, t2) => Arrow(of_menhir_ast(t1), of_menhir_ast(t2))
+            // | _ => raise(Invalid_argument("Menhir AST -> DHExp not yet implemented"))
+        }
+  }
+
 }
 and Ctx: {
   [@deriving (show({with_path: false}), sexp, yojson)]

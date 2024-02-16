@@ -341,10 +341,15 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
 
 //let dhexp_of_uexp = Core.Memo.general(~cache_size_bound=1000, dhexp_of_uexp);
 
-let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t =>
+let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t => {
+  let _ = print_endline("uexp_elab");
   switch (dhexp_of_uexp(m, uexp)) {
-  | None => DoesNotElaborate
+  | None => {
+        print_endline("dne");
+      DoesNotElaborate
+  }
   | Some(d) =>
+     print_endline(DH.DHExp.show(d));
     //let d = uexp_elab_wrap_builtins(d);
     let ty =
       switch (fixed_exp_typ(m, uexp)) {
@@ -353,3 +358,4 @@ let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t =>
       };
     Elaborates(d, ty, Delta.empty);
   };
+};

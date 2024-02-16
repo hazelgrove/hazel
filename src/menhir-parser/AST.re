@@ -89,4 +89,5 @@ type exp =
   | CaseExp(exp, list((pat, exp)))
   | ApExp(exp, exp)
   | Bool(bool)
+  | Cast(exp, typ, typ)
   | If(exp, exp, exp);
