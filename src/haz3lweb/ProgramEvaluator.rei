@@ -37,20 +37,10 @@ type key = string;
   The type of an evaluation request.
  */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type request = (key, DHExp.t);
+type request = (key, ModelResult.t, CoreSettings.t);
 
-/**
-  The type of the evaluation response. [EvaluationFail] indicates some
-  (exceptional) error was encountered.
- */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type eval_result =
-  | /** Evaluation succeeded. */
-    EvaluationOk(ProgramResult.t)
-  | /** Evaluation failed. */
-    EvaluationFail(ProgramEvaluatorError.t);
-[@deriving (show({with_path: false}), sexp, yojson)]
-type response = (key, eval_result);
+type response = (key, ModelResult.t);
 
 /**
   The signature of a promise-based program evaluator.
@@ -124,7 +114,7 @@ module WorkerImpl: WebWorker.WorkerS;
   Web-worker based evaluator, which uses a pool of workers. See above module
   level documentation.
  */
-module WorkerPool: M with type response = (key, option(eval_result));
+module WorkerPool: M with type response = (key, option(ModelResult.t));
 
 /**
   Memoized evaluator. See above module level documentation.

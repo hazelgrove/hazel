@@ -10,19 +10,24 @@ open DHExp;
  */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = VarMap.t_(Builtin.t);
+type builtin =
+  | Const(Typ.t, DHExp.t)
+  | Fn(Typ.t, Typ.t, DHExp.t => DHExp.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type forms = VarMap.t_(Builtin.builtin_evaluate);
+type t = VarMap.t_(builtin);
 
-type pervasive = DHExp.t => DHExp.t;
+[@deriving (show({with_path: false}), sexp, yojson)]
+type forms = VarMap.t_(DHExp.t => DHExp.t);
 
 type result = Result.t(DHExp.t, EvaluatorError.t);
 
 let const = (name: Var.t, typ: Typ.t, v: DHExp.t, builtins: t): t =>
-  VarMap.extend(builtins, (name, Builtin.mk_zero(name, typ, v)));
-let fn = (name: Var.t, typ: Typ.t, impl: pervasive, builtins: t): t =>
-  VarMap.extend(builtins, (name, Builtin.mk_one(name, typ, impl)));
+  VarMap.extend(builtins, (name, Const(typ, v)));
+let fn =
+    (name: Var.t, t1: Typ.t, t2: Typ.t, impl: DHExp.t => DHExp.t, builtins: t)
+    : t =>
+  VarMap.extend(builtins, (name, Fn(t1, t2, impl)));
 
 module Pervasives = {
   module Impls = {
@@ -133,7 +138,7 @@ module Pervasives = {
           switch (convert(s)) {
           | Some(n) => Ok(wrap(n))
           | None =>
-            let d' = DHExp.ApBuiltin(name, [d]);
+            let d' = DHExp.Ap(DHExp.BuiltinFun(name), d);
             Ok(InvalidOperation(d', InvalidOfString));
           }
         | d => Error(InvalidBoxedStringLit(d)),
@@ -147,7 +152,11 @@ module Pervasives = {
       switch (d1) {
       | Tuple([IntLit(n), IntLit(m)]) =>
         switch (m) {
-        | 0 => InvalidOperation(ApBuiltin(name, [d1]), DivideByZero)
+        | 0 =>
+          InvalidOperation(
+            DHExp.Ap(DHExp.BuiltinFun(name), d1),
+            DivideByZero,
+          )
         | _ => IntLit(n mod m)
         }
       | d1 => raise(EvaluatorError.Exception(InvalidBoxedTuple(d1)))
@@ -197,7 +206,7 @@ module Pervasives = {
         | Tuple([StringLit(s), IntLit(idx), IntLit(len)]) as d =>
           try(Ok(StringLit(String.sub(s, idx, len)))) {
           | _ =>
-            let d' = DHExp.ApBuiltin(name, [d]);
+            let d' = DHExp.Ap(DHExp.BuiltinFun(name), d);
             Ok(InvalidOperation(d', IndexOutOfBounds));
           }
         | d => Error(InvalidBoxedTuple(d)),
@@ -214,80 +223,87 @@ module Pervasives = {
     |> const("pi", Float, pi)
     |> const("max_int", Int, max_int)
     |> const("min_int", Int, min_int)
-    |> fn("is_finite", Arrow(Float, Bool), is_finite)
-    |> fn("is_infinite", Arrow(Float, Bool), is_infinite)
-    |> fn("is_nan", Arrow(Float, Bool), is_nan)
-    |> fn("int_of_float", Arrow(Float, Int), int_of_float)
-    |> fn("float_of_int", Arrow(Int, Float), float_of_int)
-    |> fn("string_of_int", Arrow(Int, String), string_of_int)
-    |> fn("string_of_float", Arrow(Float, String), string_of_float)
-    |> fn("string_of_bool", Arrow(Bool, String), string_of_bool)
-    |> fn(
-         "int_of_string",
-         Arrow(String, Int),
-         int_of_string("int_of_string"),
-       )
+    |> fn("is_finite", Float, Bool, is_finite)
+    |> fn("is_infinite", Float, Bool, is_infinite)
+    |> fn("is_nan", Float, Bool, is_nan)
+    |> fn("int_of_float", Float, Int, int_of_float)
+    |> fn("float_of_int", Int, Float, float_of_int)
+    |> fn("string_of_int", Int, String, string_of_int)
+    |> fn("string_of_float", Float, String, string_of_float)
+    |> fn("string_of_bool", Bool, String, string_of_bool)
+    |> fn("int_of_string", String, Int, int_of_string("int_of_string"))
     |> fn(
          "float_of_string",
-         Arrow(String, Float),
+         String,
+         Float,
          float_of_string("float_of_string"),
        )
-    |> fn(
-         "bool_of_string",
-         Arrow(String, Bool),
-         bool_of_string("bool_of_string"),
-       )
-    |> fn("abs", Arrow(Int, Int), abs)
-    |> fn("abs_float", Arrow(Float, Float), abs_float)
-    |> fn("ceil", Arrow(Float, Float), ceil)
-    |> fn("floor", Arrow(Float, Float), floor)
-    |> fn("exp", Arrow(Float, Float), exp)
-    |> fn("log", Arrow(Float, Float), log)
-    |> fn("log10", Arrow(Float, Float), log10)
-    |> fn("sqrt", Arrow(Float, Float), sqrt)
-    |> fn("sin", Arrow(Float, Float), sin)
-    |> fn("cos", Arrow(Float, Float), cos)
-    |> fn("tan", Arrow(Float, Float), tan)
-    |> fn("asin", Arrow(Float, Float), asin)
-    |> fn("acos", Arrow(Float, Float), acos)
-    |> fn("atan", Arrow(Float, Float), atan)
-    |> fn("mod", Arrow(Prod([Int, Int]), Int), int_mod("mod"))
-    |> fn("string_length", Arrow(String, Int), string_length)
-    |> fn(
-         "string_compare",
-         Arrow(Prod([String, String]), Int),
-         string_compare,
-       )
-    |> fn("string_trim", Arrow(String, String), string_trim)
+    |> fn("bool_of_string", String, Bool, bool_of_string("bool_of_string"))
+    |> fn("abs", Int, Int, abs)
+    |> fn("abs_float", Float, Float, abs_float)
+    |> fn("ceil", Float, Float, ceil)
+    |> fn("floor", Float, Float, floor)
+    |> fn("exp", Float, Float, exp)
+    |> fn("log", Float, Float, log)
+    |> fn("log10", Float, Float, log10)
+    |> fn("sqrt", Float, Float, sqrt)
+    |> fn("sin", Float, Float, sin)
+    |> fn("cos", Float, Float, cos)
+    |> fn("tan", Float, Float, tan)
+    |> fn("asin", Float, Float, asin)
+    |> fn("acos", Float, Float, acos)
+    |> fn("atan", Float, Float, atan)
+    |> fn("mod", Prod([Int, Int]), Int, int_mod("mod"))
+    |> fn("string_length", String, Int, string_length)
+    |> fn("string_compare", Prod([String, String]), Int, string_compare)
+    |> fn("string_trim", String, String, string_trim)
     |> fn(
          "string_concat",
-         Arrow(Prod([String, List(String)]), String),
+         Prod([String, List(String)]),
+         String,
          string_concat,
        )
     |> fn(
          "string_sub",
-         Arrow(Prod([String, Int, Int]), String),
+         Prod([String, Int, Int]),
+         String,
          string_sub("string_sub"),
        );
 };
 
-let ctx_init: Ctx.t =
+let ctx_init: Ctx.t = {
+  let meta_cons_map = ConstructorMap.of_list([("$e", None), ("$v", None)]);
+  let meta =
+    Ctx.TVarEntry({
+      name: "$Meta",
+      id: Id.invalid,
+      kind: Kind.Singleton(Sum(meta_cons_map)),
+    });
   List.map(
-    ((name, Builtin.{typ, _})) =>
-      Ctx.VarEntry({name, typ, id: Id.invalid}),
+    fun
+    | (name, Const(typ, _)) => Ctx.VarEntry({name, typ, id: Id.invalid})
+    | (name, Fn(t1, t2, _)) =>
+      Ctx.VarEntry({name, typ: Arrow(t1, t2), id: Id.invalid}),
     Pervasives.builtins,
-  );
+  )
+  |> Ctx.extend(_, meta)
+  |> Ctx.add_ctrs(_, "$Meta", Id.invalid, meta_cons_map);
+};
 
 let forms_init: forms =
-  List.map(
-    ((name, Builtin.{eval, _})) => (name, eval),
+  List.filter_map(
+    fun
+    | (_, Const(_)) => None
+    | (name, Fn(_, _, f)) => Some((name, f)),
     Pervasives.builtins,
   );
 
 let env_init: Environment.t =
   List.fold_left(
-    (env, (name, Builtin.{elab, _})) =>
-      Environment.extend(env, (name, elab)),
+    env =>
+      fun
+      | (name, Const(_, d)) => Environment.extend(env, (name, d))
+      | (name, Fn(_)) => Environment.extend(env, (name, BuiltinFun(name))),
     Environment.empty,
     Pervasives.builtins,
   );
