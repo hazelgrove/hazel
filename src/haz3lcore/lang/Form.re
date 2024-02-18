@@ -114,12 +114,17 @@ let is_reserved_keyword =
 
 /* Potential tokens: These are fallthrough classes which determine
  * the behavior when inserting a character in contact with a token */
-let is_potential_operand = regexp("^[a-zA-Z0-9_'\\.?]+$");
+let is_potential_operand =
+    /* gensofubi: "." is used as a operator for module,
+       only recognized as potential operand if not appearing with letters */
+    x =>
+  regexp("^[a-zA-Z0-9_'?]+$", x) || regexp("^[0-9_'\\.?]+$", x);
 /* Anything else is considered a potential operator, as long
  *  as it does not contain any whitespace, linebreaks, comment
  *  delimiters, string delimiters, or the instant expanding paired
- *  delimiters: ()[]| */
-let is_potential_operator = regexp("^[^a-zA-Z0-9_'?\"#⏎\\s\\[\\]\\(\\)]+$");
+ *  delimiters: ()[]|{} */
+let is_potential_operator =
+  regexp("^[^a-zA-Z0-9_'?\"#⏎\\s\\[\\]\\(\\)\\{\\}]+$");
 let is_potential_token = t =>
   is_potential_operand(t)
   || is_potential_operator(t)
@@ -149,6 +154,7 @@ let is_bool = regexp("^(" ++ String.concat("|", bools) ++ ")$");
 
 let is_var = str =>
   !is_bool(str)
+  && str != "_"
   //&& !is_keyword(str)
   //&& !is_reserved(str)
   && regexp(
@@ -283,6 +289,7 @@ let forms: list((string, t)) = [
   ("not", mk(ii, ["!"], mk_pre(5, Exp, []))), //TODO: precedence
   ("typ_sum_single", mk(ss, ["+"], mk_pre(P.or_, Typ, []))),
   ("unary_minus", mk(ss, ["-"], mk_pre(P.neg, Exp, []))),
+  ("unquote", mk(ss, ["$"], mk_pre(P.unquote, Exp, []))),
   // N-ARY OPS (on the semantics level)
   ("comma_exp", mk_infix(",", Exp, P.prod)),
   ("comma_pat", mk_infix(",", Pat, P.prod)),
@@ -307,6 +314,11 @@ let forms: list((string, t)) = [
     mk(ds, ["|", "=>"], mk_bin'(P.rule_sep, Rul, Exp, [Pat], Exp)),
   ),
   ("pipeline", mk_infix("|>", Exp, P.eqs)), // in OCaml, pipeline precedence is in same class as '=', '<', etc.
+  // DOUBLE DELIMITERS
+  ("filter_hide", mk(ds, ["hide", "in"], mk_pre(P.let_, Exp, [Exp]))),
+  ("filter_eval", mk(ds, ["eval", "in"], mk_pre(P.let_, Exp, [Exp]))),
+  ("filter_pause", mk(ds, ["pause", "in"], mk_pre(P.let_, Exp, [Exp]))),
+  ("filter_debug", mk(ds, ["debug", "in"], mk_pre(P.let_, Exp, [Exp]))),
   // TRIPLE DELIMITERS
   ("let_", mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))),
   (

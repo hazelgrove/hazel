@@ -97,4 +97,6 @@ let pos_fold:
 let next_position:
   (~indent: int, MeasuredPosition.t, t(_)) => MeasuredPosition.t;
 
-module Make: (MemoTbl.S) => {let mk: Layout.t('annot) => t('annot);};
+module Make: (MemoTbl.S) => {
+                              let mk: Layout.t('annot) => t('annot);
+                            };

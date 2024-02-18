@@ -1,11 +1,13 @@
 open EvaluatorResult;
 open Transition;
 
-module Evaluator: {
+module EvaluatorEVMode: {
   type result_unfinished =
     | BoxedValue(DHExp.t)
     | Indet(DHExp.t)
     | Uneval(DHExp.t);
+  let unbox: result_unfinished => DHExp.t;
+
   include
     EV_MODE with
       type state = ref(EvaluatorState.t) and type result = result_unfinished;
@@ -26,7 +28,7 @@ module Evaluator: {
 
   type requirement('a) = (reqstate, 'a);
 
-  type requirements('a, 'b) = (reqstate, 'a, 'b); // thing, satisfies, indet, otherwise
+  type requirements('a, 'b) = (reqstate, 'a, 'b); // cumulative state, cumulative arguments, cumulative 'undo'
 
   type state = ref(EvaluatorState.t);
   let update_test = (state, id, v) =>
@@ -39,6 +41,12 @@ module Evaluator: {
 
   type result = result_unfinished;
 
+  let unbox =
+    fun
+    | BoxedValue(x)
+    | Indet(x)
+    | Uneval(x) => x;
+
   let req_value = (f, _, x) =>
     switch (f(x)) {
     | BoxedValue(x) => (BoxedReady, x)
@@ -50,8 +58,8 @@ module Evaluator: {
     fun
     | [] => (BoxedReady, [])
     | [x, ...xs] => {
-        let (r1, x') = req_value(f, i, x);
-        let (r2, xs') = req_all_value(f, i + 1, xs);
+        let (r1, x') = req_value(f, x => x, x);
+        let (r2, xs') = req_all_value(f, i, xs);
         (r1 && r2, [x', ...xs']);
       };
 
@@ -66,12 +74,12 @@ module Evaluator: {
     fun
     | [] => (BoxedReady, [])
     | [x, ...xs] => {
-        let (r1, x') = req_final(f, i, x);
-        let (r2, xs') = req_all_final(f, i + 1, xs);
+        let (r1, x') = req_final(f, x => x, x);
+        let (r2, xs') = req_all_final(f, i, xs);
         (r1 && r2, [x', ...xs']);
       };
 
-  let otherwise = c => (BoxedReady, (), c);
+  let otherwise = (_, c) => (BoxedReady, (), c);
 
   let (and.) = ((r1, x1, c1), (r2, x2)) => (r1 && r2, (x1, x2), c1(x2));
 
@@ -87,44 +95,48 @@ module Evaluator: {
     | (_, Indet) => Indet(c)
     };
 };
-module Eval = Transition(Evaluator);
+module Eval = Transition(EvaluatorEVMode);
 
-let rec module_evaluate = (state, env, env_in, d: DHExp.t): Evaluator.result => {
-  switch (d) {
-  | Let(dp, d1, d2) =>
-    let r1: Evaluator.result_unfinished = evaluate(state, env, d1);
-    switch (r1) {
-    | BoxedValue(d1)
-    | Indet(d1)
-    | Uneval(d1) =>
-      switch (PatternMatch.matches(dp, d1)) {
-      | IndetMatch
-      | DoesNotMatch => Indet(Closure(env, Let(dp, d1, d2)))
-      | Matches(env') =>
-        let env = evaluate_extend_env(env', env);
-        let env_in = evaluate_extend_env(env', env_in);
-        module_evaluate(state, env, env_in, d2);
-      }
+let rec module_evaluate =
+        (state, env, d: DHExp.t): EvaluatorEVMode.result_unfinished => {
+  let rec module_evaluate =
+          (state, env, env_in, d: DHExp.t): EvaluatorEVMode.result_unfinished =>
+    switch (d) {
+    | Let(dp, d1, d2) =>
+      let r1: EvaluatorEVMode.result_unfinished = evaluate(state, env, d1);
+      switch (r1) {
+      | BoxedValue(d1)
+      | Indet(d1)
+      | Uneval(d1) =>
+        switch (PatternMatch.matches(dp, d1)) {
+        | IndetMatch
+        | DoesNotMatch => Indet(Closure(env, Let(dp, d1, d2)))
+        | Matches(env') =>
+          let env = evaluate_extend_env(env', env);
+          let env_in = evaluate_extend_env(env', env_in);
+          module_evaluate(state, env, env_in, d2);
+        }
+      };
+    | Module(dp, d1, d2) =>
+      let empty_env = ClosureEnvironment.empty;
+      let r1: EvaluatorEVMode.result_unfinished =
+        module_evaluate(state, env, empty_env, d1);
+      switch (r1) {
+      | BoxedValue(d1)
+      | Indet(d1)
+      | Uneval(d1) =>
+        switch (PatternMatch.matches(dp, d1)) {
+        | IndetMatch
+        | DoesNotMatch => Indet(Closure(env, Module(dp, d1, d2)))
+        | Matches(env') =>
+          let env = evaluate_extend_env(env', env);
+          let env_in = evaluate_extend_env(env', env_in);
+          module_evaluate(state, env, env_in, d2);
+        }
+      };
+    | _ => BoxedValue(ModuleVal(env_in))
     };
-  | Module(dp, d1, d2) =>
-    let empty_env = ClosureEnvironment.empty;
-    let r1: Evaluator.result_unfinished =
-      module_evaluate(state, env, empty_env, d1);
-    switch (r1) {
-    | BoxedValue(d1)
-    | Indet(d1)
-    | Uneval(d1) =>
-      switch (PatternMatch.matches(dp, d1)) {
-      | IndetMatch
-      | DoesNotMatch => Indet(Closure(env, Module(dp, d1, d2)))
-      | Matches(env') =>
-        let env = evaluate_extend_env(env', env);
-        let env_in = evaluate_extend_env(env', env_in);
-        module_evaluate(state, env, env_in, d2);
-      }
-    };
-  | _ => BoxedValue(ModuleVal(env_in))
-  };
+  module_evaluate(state, env, ClosureEnvironment.empty, d);
 }
 
 and evaluate = (state, env, d) => {
