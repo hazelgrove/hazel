@@ -158,7 +158,8 @@ let show_type_path = (paths: type_path): string =>
      )
   |> String.concat("\n");
 
-let rec get_lookahead_tys_exp = (ty_expected: Typ.t): list(list(Typ.t)) => {
+let rec get_lookahead_tys_exp =
+        (ctx: Ctx.t, ty_expected: Typ.t): list(list(Typ.t)) => {
   //let to_arr = t => Typ.Arrow(Unknown(Internal), t);
   //TODO(andrew): also ?->(?->t), etc.
   /* Interesting that this doesn't blow up due to anonymous functions due
@@ -176,12 +177,15 @@ let rec get_lookahead_tys_exp = (ty_expected: Typ.t): list(list(Typ.t)) => {
      you actually use one, unlike for reverse. */
   [[ty_expected]]  //, to_arr(ty_expected)]]
   @ (
-    switch (ty_expected) {
+    switch (Typ.normalize(ctx, ty_expected)) {
     | List(ty)
     | Prod([ty, ..._]) =>
       [[ty_expected, ty]]
       //@ [[ty_expected, ty, to_arr(ty)]]
-      @ List.map(tys => [ty_expected, ...tys], get_lookahead_tys_exp(ty))
+      @ List.map(
+          tys => [ty_expected, ...tys],
+          get_lookahead_tys_exp(ctx, ty),
+        )
     | Bool =>
       let from_bool = t => [[ty_expected, t]]; // @ [[ty_expected, to_arr(t)]];
       from_bool(Int) @ from_bool(Float) @ from_bool(String);

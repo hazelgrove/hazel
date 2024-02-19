@@ -945,7 +945,7 @@ let convex_lookahead_sugs = (~settings: args_completion, ~db, ci: Info.t) => {
     switch (ci) {
     | InfoExp({mode, ctx, _}) =>
       let ty = Mode.ty_of(mode);
-      let ty_paths = AssistantCtx.get_lookahead_tys_exp(ty);
+      let ty_paths = AssistantCtx.get_lookahead_tys_exp(ctx, ty);
       db(
         "  LSP: Convex: Ty paths:\n " ++ AssistantCtx.show_type_path(ty_paths),
       );
@@ -1109,7 +1109,8 @@ let infix_sugs =
       );
       let base = sug_exp_infix(ctx, self_ty, expected_ty);
       db("  LSP: Concave: Infix: Base: " ++ of_sugs(base));
-      let ty_paths = AssistantCtx.get_lookahead_tys_exp(bidi_ctx_expected_ty);
+      let ty_paths =
+        AssistantCtx.get_lookahead_tys_exp(ctx, bidi_ctx_expected_ty);
       let tys =
         List.map(Util.ListUtil.last, ty_paths) |> List.sort_uniq(compare);
       db(
