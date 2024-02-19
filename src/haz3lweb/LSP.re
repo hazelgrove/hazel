@@ -854,24 +854,28 @@ let suggest_comma = (bidi_ctx_ci: Info.t) =>
   switch (bidi_ctx_ci) {
   | InfoExp({mode: Syn | Ana(Unknown(_)), _})
   | InfoPat({mode: Syn | Ana(Unknown(_)), _}) => true
-  | InfoExp({mode: Ana(Prod(p_ana)), self: Common(Just(syn)), ctx, _})
-  | InfoPat({mode: Ana(Prod(p_ana)), self: Common(Just(syn)), ctx, _}) =>
-    /*  For reference: Orginially based on their being an inconsistency error,
-        but updated to deal with cases without errors e.g.:
-        PAT: "let find: (Bool, Int) -> Int = fun b"
-        EXP: "let a:  =  in let _: (Bool, Int) = a"  */
-    print_endline(
-      "LSP: commas: p_ana is prod: "
-      ++ String.concat(" ", List.map(Typ.show, p_ana)),
-    );
-    print_endline("LSP: commas: self syn is " ++ Typ.show(syn));
-    switch (p_ana, syn) {
-    | (_, Unknown(_)) => true // technically redundant?
-    | (_, Prod(p_syn)) =>
-      is_strict_prefix_up_to_consistency(ctx, p_syn, p_ana)
-    | ([t1_ana, ..._], _) => Typ.is_consistent(ctx, t1_ana, syn)
+  | InfoExp({mode: Ana(ana), self: Common(Just(syn)), ctx, _})
+  | InfoPat({mode: Ana(ana), self: Common(Just(syn)), ctx, _}) =>
+    switch (Typ.normalize(ctx, ana)) {
+    | Prod(p_ana) =>
+      /*  For reference: Orginially based on their being an inconsistency error,
+          but updated to deal with cases without errors e.g.:
+          PAT: "let find: (Bool, Int) -> Int = fun b"
+          EXP: "let a:  =  in let _: (Bool, Int) = a"  */
+      print_endline(
+        "LSP: commas: p_ana is prod: "
+        ++ String.concat(" ", List.map(Typ.show, p_ana)),
+      );
+      print_endline("LSP: commas: self syn is " ++ Typ.show(syn));
+      switch (p_ana, syn) {
+      | (_, Unknown(_)) => true // technically redundant?
+      | (_, Prod(p_syn)) =>
+        is_strict_prefix_up_to_consistency(ctx, p_syn, p_ana)
+      | ([t1_ana, ..._], _) => Typ.is_consistent(ctx, t1_ana, syn)
+      | _ => false
+      };
     | _ => false
-    };
+    }
   | InfoExp({mode: SynFun | Ana(_), _})
   | InfoPat({mode: SynFun | Ana(_), _}) => false
   | InfoTyp(_) => true
