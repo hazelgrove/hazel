@@ -50,6 +50,8 @@ jobs:
           name: Test Results
           conclusion: ${{ steps.test.outputs.tests_passed == 'true' && 'success' || 'failure' }}
           output_text_description_file: ./source/test_output
+          output: |
+            {"summary":"${{ steps.test.outputs.tests_passed == 'true' && 'Tests Passed' || 'Tests Failed' }}"}
       - name: Checkout the website build artifacts repo # STEP 4
         uses: actions/checkout@v2
         with:
