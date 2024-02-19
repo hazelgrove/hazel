@@ -23,9 +23,10 @@ jobs:
           path: '/home/runner/.opam/'
           key: ${{ runner.os }}-modules-${{ hashFiles('./source/opam.export') }}
       - name: Set-up OCaml
-        uses: ocaml/setup-ocaml@v2
-        with:
-          ocaml-compiler: 5.0.0
+        run: |
+          sudo apt --assume-yes install curl m4 opam
+          export OPAMYES=1
+          opam init --compiler=ocaml-base-compiler.5.0.0
       - name: Install dependencies
         run: |
           eval $(opam env)
