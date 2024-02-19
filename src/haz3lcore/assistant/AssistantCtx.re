@@ -200,6 +200,7 @@ let suggest_lookahead_variable_pat =
     suggest_free_var(ty, ctx, co_ctx)
     @ suggest_bound_ctr(~fns=true, x => Pat(Common(x)), ty, ctx);
   let pat_aps = ty => bound_constructor_aps(x => Pat(Common(x)), ty, ctx);
+  let ty_expected = Typ.normalize(ctx, ty_expected);
   let from_current_type = pat_aps(ty_expected);
   let from_specific_type =
     switch (ty_expected) {
