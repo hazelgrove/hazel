@@ -36,16 +36,20 @@ jobs:
         continue-on-error: true
         run: |
           eval $(opam env)
-          make test
+          make test > test_output
+          if [ $? -eq 0 ]; then
+            echo "::set-output name=tests_passed::true"
+          else
+            echo "::set-output name=tests_passed::false"
+          fi
         working-directory: ./source
       - uses: LouisBrunner/checks-action@v2.0.0
         if: always()
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           name: Test Results
-          conclusion: "failure"
-          output: |
-            {"summary":"${{ steps.test.outputs.summary }}"}
+          conclusion: ${{ steps.test.outputs.tests_passed == 'true' && 'success' || 'failure' }}
+          output: ./source/test_output
       - name: Checkout the website build artifacts repo # STEP 4
         uses: actions/checkout@v2
         with:
