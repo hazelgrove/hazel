@@ -58,18 +58,18 @@ jobs:
           output_text_description_file: ./source/test_output
           output: |
             {"summary":"${{ steps.test.outputs.tests_passed == 'true' && 'Tests Passed' || 'Tests Failed' }}"}
-      - name: Checkout the website build artifacts repo # STEP 4
+      - name: Checkout the website build artifacts repo
         uses: actions/checkout@v2
         with:
           repository: hazelgrove/build
           token: ${{ secrets.ACCESS_TOKEN }}
           path: server
-      - name: Clear any old build of this branch # STEP 5
+      - name: Clear any old build of this branch
         run: if [ -d "${BRANCH_NAME}" ] ; then rm -rf "${BRANCH_NAME}" ; fi 
         working-directory: ./server
-      - name: Copy in the newly built source # STEP 6
+      - name: Copy in the newly built source
         run: mkdir "./server/${BRANCH_NAME}" && cp -r "./source/_build/default/src/haz3lweb/www"/* "./server/${BRANCH_NAME}"
-      - name : Commit to the website aka deploy # STEP 7
+      - name : Commit to the website aka deploy
         run: |
           git config user.name github-deploy-action
           git config user.email hazel-deploy@hazel.org
