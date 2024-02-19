@@ -30,6 +30,7 @@ jobs:
       - name: Install dependencies
         run: |
           eval $(opam env)
+          export OPAMYES=1
           make deps 
         working-directory: ./source
       - name: Build Hazel
