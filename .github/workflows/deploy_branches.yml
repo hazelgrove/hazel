@@ -36,7 +36,7 @@ jobs:
         continue-on-error: true
         run: |
           eval $(opam env)
-          make test > test_output
+          make test > test_output 2>&1
           if [ $? -eq 0 ]; then
             echo "::set-output name=tests_passed::true"
           else
