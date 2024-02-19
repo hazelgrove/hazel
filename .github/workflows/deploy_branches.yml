@@ -10,7 +10,7 @@ jobs:
       # and uncomment them to open an ssh connection at that point:
       #- name: Debugging with ssh
       #  uses: lhotari/action-upterm@v1
-      - name: Checkout the hazel repo on the current branch # STEP 1
+      - name: Checkout the hazel repo on the current branch
         uses: actions/checkout@v2
         with:
           path: source
@@ -21,6 +21,12 @@ jobs:
         with:
           ocaml-compiler: 5.0.0
           dune-cache: true
+      - name: Retrieve the build environment if cached
+        id: opam-cache
+        uses: actions/cache@v2
+        with:
+          path: '/home/runner/.opam/'
+          key: ${{ runner.os }}-modules-${{ hashFiles('./source/opam.export') }}
       - name: Install dependencies
         run: |
           eval $(opam env)
