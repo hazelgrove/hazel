@@ -49,7 +49,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           name: Test Results
           conclusion: ${{ steps.test.outputs.tests_passed == 'true' && 'success' || 'failure' }}
-          output: ./source/test_output
+          output_text_description_file: ./source/test_output
       - name: Checkout the website build artifacts repo # STEP 4
         uses: actions/checkout@v2
         with:
