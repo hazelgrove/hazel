@@ -396,7 +396,7 @@ let locked =
           statics.info_map,
           editor.state.meta.view_term,
         )
-      : DHExp.BoolLit(true);
+      : DHExp.Bool(true) |> DHExp.fresh;
   let result: ModelResult.t =
     settings.core.dynamics
       ? Evaluation({

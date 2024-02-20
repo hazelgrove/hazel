@@ -7,7 +7,7 @@ exception Exception;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type stepper_state =
-  | StepPending(EvalObj.t)
+  | StepPending(int)
   | StepperReady
   | StepperDone
   | StepTimeout(EvalObj.t);
@@ -189,9 +189,9 @@ let get_next_steps = s => s.next_options;
 
 let current_expr = ({history, _}: t) => Aba.hd(history);
 
-let step_pending = (eo: EvalObj.t, stepper: t) => {
+let step_pending = (idx: int, stepper: t) => {
   ...stepper,
-  stepper_state: StepPending(eo),
+  stepper_state: StepPending(idx),
 };
 
 let init = (elab: DHExp.t) => {
@@ -205,16 +205,19 @@ let init = (elab: DHExp.t) => {
 let rec evaluate_pending = (~settings, s: t) => {
   switch (s.stepper_state) {
   | StepperDone
-  | StepperError(_)
   | StepTimeout(_) => s
   | StepperReady =>
     let next' = s.next_options |> List.map(should_hide_eval_obj(~settings));
-    switch (List.find_opt(((act, _)) => act == FilterAction.Eval, next')) {
-    | Some((_, eo)) =>
-      {...s, stepper_state: StepPending(eo)} |> evaluate_pending(~settings)
+    let next'' = List.mapi((i, x) => (i, x), next');
+    switch (
+      List.find_opt(((_, (act, _))) => act == FilterAction.Eval, next'')
+    ) {
+    | Some((i, (_, _))) =>
+      {...s, stepper_state: StepPending(i)} |> evaluate_pending(~settings)
     | None => {...s, stepper_state: StepperDone}
     };
-  | StepPending(eo) =>
+  | StepPending(i) =>
+    let eo = List.nth(s.next_options, i);
     let (d, state) = Aba.hd(s.history);
     let state_ref = ref(state);
     let d_loc' =
@@ -245,11 +248,9 @@ let rec evaluate_pending = (~settings, s: t) => {
 
 let rec evaluate_full = (~settings, s: t) => {
   switch (s.stepper_state) {
-  | StepperError(_)
   | StepTimeout(_) => s
   | StepperDone when s.next_options == [] => s
-  | StepperDone =>
-    s |> step_pending(List.hd(s.next_options)) |> evaluate_full(~settings)
+  | StepperDone => s |> step_pending(0) |> evaluate_full(~settings)
   | StepperReady
   | StepPending(_) =>
     evaluate_pending(~settings, s) |> evaluate_full(~settings)
@@ -258,15 +259,11 @@ let rec evaluate_full = (~settings, s: t) => {
 
 let timeout =
   fun
-  | {stepper_state: StepPending(eo), _} as s => {
+  | {stepper_state: StepPending(idx), _} as s => {
       ...s,
-      stepper_state: StepTimeout(eo),
+      stepper_state: StepTimeout(List.nth(s.next_options, idx)),
     }
-  | {
-      stepper_state:
-        StepperError(_) | StepTimeout(_) | StepperReady | StepperDone,
-      _,
-    } as s => s;
+  | {stepper_state: StepTimeout(_) | StepperReady | StepperDone, _} as s => s;
 
 let rec truncate_history = (~settings) =>
   fun

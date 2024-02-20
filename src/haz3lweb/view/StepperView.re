@@ -145,7 +145,15 @@ let stepper_view =
           ]
           : [
             div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
-            step_dh_code(~next_steps=Stepper.get_next_steps(stepper), hd),
+            step_dh_code(
+              ~next_steps=
+                List.mapi(
+                  (i, x: EvaluatorStep.EvalObj.t) =>
+                    (i, x.d_loc |> DHExp.rep_id),
+                  Stepper.get_next_steps(stepper),
+                ),
+              hd,
+            ),
             button_back,
             eval_settings,
             show_history,
