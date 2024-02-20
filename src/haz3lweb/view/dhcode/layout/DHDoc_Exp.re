@@ -107,7 +107,7 @@ let mk =
       ~previous_step: option((step, Id.t)), // The step that will be displayed above this one (an Id in included because it may have changed since the step was taken)
       ~hidden_steps: list((step, Id.t)), // The hidden steps between the above and the current one (an Id in included because it may have changed since the step was taken)
       ~chosen_step: option(step), // The step that will be taken next
-      ~next_steps: list(EvalObj.t), // The options for the next step, if it hasn't been chosen yet
+      ~next_steps: list((int, Id.t)), // The options for the next step, if it hasn't been chosen yet
       ~env: ClosureEnvironment.t,
       d: DHExp.t,
     )
@@ -497,7 +497,7 @@ let mk =
             @ [
               DHDoc_common.Delim.arrow_Fun,
               space(),
-              body_doc |> DHDoc_common.pad_child(~enforce_inline),
+              body_doc |> DHDoc_common.pad_child(~enforce_inline=false),
             ],
           );
         } else {
@@ -577,10 +577,7 @@ let mk =
       };
     };
     let steppable =
-      next_steps
-      |> List.find_opt((eo: EvalObj.t) =>
-           DHExp.rep_id(eo.d_loc) == DHExp.rep_id(d)
-         );
+      next_steps |> List.find_opt(((_, id)) => id == DHExp.rep_id(d));
     let stepped =
       chosen_step
       |> Option.map(x => DHExp.rep_id(x.d_loc) == DHExp.rep_id(d))
@@ -607,7 +604,7 @@ let mk =
         annot(DHAnnot.Stepped, doc);
       } else {
         switch (steppable) {
-        | Some(eo) => annot(DHAnnot.Steppable(eo), doc)
+        | Some((i, _)) => annot(DHAnnot.Steppable(i), doc)
         | None => doc
         };
       };

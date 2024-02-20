@@ -35,6 +35,23 @@ module Info = Info;
 module Map = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Id.Map.t(Info.t);
+
+  let error_ids = (term_ranges: TermRanges.t, info_map: t): list(Id.t) =>
+    Id.Map.fold(
+      (id, info, acc) =>
+        /* Because of artefacts in Maketerm ID handling,
+         * there are be situations where ids appear in the
+         * info_map which do not occur in term_ranges. These
+         * ids should be purely duplicative, so skipping them
+         * when iterating over the info_map should have no
+         * effect, beyond supressing the resulting Not_found exs */
+        switch (Id.Map.find_opt(id, term_ranges)) {
+        | Some(_) when Info.is_error(info) => [id, ...acc]
+        | _ => acc
+        },
+      info_map,
+      [],
+    );
 };
 
 let map_m = (f, xs, m: Map.t) =>

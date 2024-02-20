@@ -77,7 +77,7 @@ module rec DHExp: {
     | InvalidOperation(t, InvalidOperationError.t)
     | FailedCast(t, Typ.t, Typ.t)
     /* Generalized closures */
-    | Closure([@show.opaque] ClosureEnvironment.t, t)
+    | Closure(ClosureEnvironment.t, t)
     | Filter(DHFilter.t, t)
     /* Other expressions forms */
     | Var(Var.t)
@@ -440,6 +440,8 @@ and ClosureEnvironment: {
 
     let id_of = ((ei, _)) => ei;
     let map_of = ((_, map)) => map;
+    let (sexp_of_t, t_of_sexp) =
+      StructureShareSexp.structure_share_here(id_of, sexp_of_t, t_of_sexp);
   };
   include Inner;
 

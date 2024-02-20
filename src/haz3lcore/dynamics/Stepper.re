@@ -10,7 +10,6 @@ type stepper_state =
   | StepPending(EvalObj.t)
   | StepperReady
   | StepperDone
-  | StepperError(EvalObj.t, ProgramEvaluatorError.t)
   | StepTimeout(EvalObj.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -377,6 +376,18 @@ let get_history = (~settings, stepper) => {
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type persistent = {history};
+
+let (sexp_of_persistent, persistent_of_sexp) =
+  StructureShareSexp.structure_share_in(
+    sexp_of_persistent,
+    persistent_of_sexp,
+  );
+
+let (sexp_of_persistent, persistent_of_sexp) =
+  StructureShareSexp.structure_share_in(
+    sexp_of_persistent,
+    persistent_of_sexp,
+  );
 
 // Remove EvalObj.t objects from stepper to prevent problems when loading
 let to_persistent: t => persistent = ({history, _}) => {history: history};
