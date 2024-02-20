@@ -16,8 +16,7 @@ module JsMap = {
   let mk: 'k 'v. unit => t('k, 'v) =
     () => {
       let c = Js.Unsafe.global##._Map;
-      %js
-      new c;
+      [%js new c];
     };
 };
 
@@ -27,8 +26,7 @@ module JsWeakMap = {
   let mk: 'k 'v. unit => t('k, 'v) =
     () => {
       let c = Js.Unsafe.global##._WeakMap;
-      %js
-      new c;
+      [%js new c];
     };
 };
 

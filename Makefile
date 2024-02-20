@@ -1,9 +1,11 @@
+TEST_DIR="$(shell pwd)/_build/default/src/test"
 HTML_DIR="$(shell pwd)/_build/default/src/haz3lweb/www"
 SERVER="http://0.0.0.0:8000/"
 
 all: dev
 
 deps:
+	opam update
 	opam switch import opam.export
 
 change-deps:
@@ -50,14 +52,8 @@ repl:
 	dune utop src/haz3lcore
 
 test:
-	dune build @src/fmt --auto-promote || true
-	dune exec src/hazeltest/hazeltest.exe -- --regression-dir src/hazeltest/regressions
-
-reset-regression-tests:
-	dune exec src/hazeltest/hazeltest.exe -- regression --regression-dir src/hazeltest/regressions --reset-regressions
-
-fix-test-answers:
-	dune promote || true
+	dune build @src/fmt --auto-promote src --profile dev
+	node $(TEST_DIR)/haz3ltest.bc.js test
 
 clean:
 	dune clean
