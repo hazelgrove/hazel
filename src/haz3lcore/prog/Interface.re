@@ -1,5 +1,5 @@
 module Statics = {
-  let mk_map =
+  let mk_map' =
     Core.Memo.general(~cache_size_bound=1000, e => {
       Statics.uexp_to_info_map(
         ~ctx=Builtins.ctx_init,
@@ -10,7 +10,7 @@ module Statics = {
       |> snd
     });
   let mk_map = (core: CoreSettings.t, exp) =>
-    core.statics ? mk_map(exp) : Id.Map.empty;
+    core.statics ? mk_map'(exp) : Id.Map.empty;
 
   let mk_map_and_info_ctx =
     Core.Memo.general(~cache_size_bound=1000, (ctx, e) => {
@@ -32,63 +32,40 @@ module Statics = {
     core.statics ? mk_map_ctx(ctx, exp) : Id.Map.empty;
 };
 
-let dh_err = (error: string): DHExp.t =>
-  InvalidText(Id.invalid, -666, error) |> DHExp.fresh;
+let dh_err = (error: string): DHExp.t => BoundVar(error) |> DHExp.fresh;
 
 let elaborate =
   Core.Memo.general(~cache_size_bound=1000, Elaborator.uexp_elab);
 
 exception DoesNotElaborate;
 let elaborate = (~settings: CoreSettings.t, map, term): DHExp.t =>
-  switch (settings.statics) {
-  | false => dh_err("Statics disabled: No elaboration")
-  | true =>
+  switch () {
+  | _ when !settings.statics => dh_err("Statics disabled")
+  | _ when !settings.dynamics && !settings.elaborate =>
+    dh_err("Dynamics & Elaboration disabled")
+  | _ =>
     switch (elaborate(map, term)) {
-    | DoesNotElaborate => dh_err("Internal error: Elaboration returns None")
+    | DoesNotElaborate => dh_err("Elaboration returns None")
     | Elaborates(d, _, _) => d
     }
   };
 
-let elaborate_editor =
-    (~settings: CoreSettings.t, ~ctx_init: Ctx.t, editor: Editor.t): DHExp.t => {
-  let (term, _) = MakeTerm.from_zip_for_sem(editor.state.zipper);
-  let info_map = Statics.mk_map_ctx(settings, ctx_init, term);
-  elaborate(~settings, info_map, term);
-};
-
-exception EvalError(EvaluatorError.t);
-
 let evaluate =
-    (~settings: CoreSettings.t, ~env=Builtins.env_init, d: DHExp.t)
-    : ProgramResult.t => {
-  let err_wrap = (error): (EvaluatorState.t, EvaluatorResult.t) => (
-    EvaluatorState.init,
-    Indet(dh_err(error)),
-  );
-  let result =
-    switch () {
-    | _ when !settings.statics =>
-      err_wrap("Statics disabled: No elaboration or evaluation")
-    | _ when !settings.dynamics =>
-      err_wrap("Dynamics disabled: No evaluation")
-    | _ =>
-      try(Evaluator.evaluate(env, d)) {
-      | EvaluatorError.Exception(reason) =>
-        err_wrap("Internal exception: " ++ EvaluatorError.show(reason))
-      | exn => err_wrap("System exception: " ++ Printexc.to_string(exn))
-      }
-    };
-  switch (result) {
-  | (es, BoxedValue(_) as r)
-  | (es, Indet(_) as r) => (r, es)
+    (~settings: CoreSettings.t, ~env=Builtins.env_init, elab: DHExp.t)
+    : ProgramResult.t =>
+  switch () {
+  | _ when !settings.dynamics => Off(elab)
+  | _ =>
+    switch (Evaluator.evaluate(env, elab)) {
+    | exception (EvaluatorError.Exception(reason)) =>
+      print_endline("EvaluatorError:" ++ EvaluatorError.show(reason));
+      ResultFail(EvaulatorError(reason));
+    | exception exn =>
+      print_endline("EXN:" ++ Printexc.to_string(exn));
+      ResultFail(UnknownException(Printexc.to_string(exn)));
+    | (state, result) => ResultOk({result, state})
+    }
   };
-};
-
-let init = (d: DHExp.t): ProgramResult.t => {
-  let es = EvaluatorState.init;
-  let env = ClosureEnvironment.of_environment(Builtins.env_init);
-  (Indet(Closure(env, d) |> DHExp.fresh), es);
-};
 
 let eval_z =
     (
@@ -103,13 +80,3 @@ let eval_z =
   let d = elaborate(~settings, info_map, term);
   evaluate(~settings, ~env=env_init, d);
 };
-
-let eval_d2d = (~settings: CoreSettings.t, d: DHExp.t): DHExp.t =>
-  //NOTE: assumes empty init ctx, env
-  switch (evaluate(~settings, d)) {
-  | (result, _) => EvaluatorResult.unbox(result)
-  };
-
-let eval_u2d = (~settings: CoreSettings.t, map, term): DHExp.t =>
-  //NOTE: assumes empty init ctx, env
-  term |> elaborate(~settings, map) |> eval_d2d(~settings);

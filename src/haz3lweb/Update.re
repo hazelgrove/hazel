@@ -105,6 +105,33 @@ let update_settings =
         },
       },
     };
+  | ExplainThis(ToggleShow) =>
+    let explainThis = {
+      ...settings.explainThis,
+      show: !settings.explainThis.show,
+    };
+    let settings = {...settings, explainThis};
+    {...model, settings};
+  | ExplainThis(ToggleShowFeedback) =>
+    let explainThis = {
+      ...settings.explainThis,
+      show_feedback: !settings.explainThis.show_feedback,
+    };
+    let settings = {...settings, explainThis};
+    {...model, settings};
+  | ExplainThis(SetHighlight(a)) =>
+    let highlight: ExplainThisModel.Settings.highlight =
+      switch (a, settings.explainThis.highlight) {
+      | (Toggle, All) => NoHighlight
+      | (Toggle, _) => All
+      | (Hover(_), All) => All
+      | (Hover(id), _) => One(id)
+      | (UnsetHover, All) => All
+      | (UnsetHover, _) => NoHighlight
+      };
+    let explainThis = {...settings.explainThis, highlight};
+    let settings = {...settings, explainThis};
+    {...model, settings};
   | Benchmark => {
       ...model,
       settings: {
@@ -152,136 +179,48 @@ let update_settings =
     }
   };
 
-let reevaluate_post_update = (settings: Settings.t) =>
-  fun
-  | _ when !settings.core.dynamics => false
-  | Set(s_action) =>
-    switch (s_action) {
-    | Captions
-    | SecondaryIcons
-    | Statics
-    | Benchmark
-    | Evaluation(
-        ShowCaseClauses | ShowFnBodies | ShowCasts | ShowRecord | ShowFixpoints |
-        ShowLookups |
-        ShowFilters,
-      ) =>
-      false
-    | Assist
-    | Elaborate
-    | Dynamics
-    | InstructorMode
-    | ContextInspector
-    | Mode(_) => true
-    | Evaluation(ShowSettings) => false
-    }
-  | SetMeta(meta_action) =>
-    switch (meta_action) {
-    | Mousedown
-    | Mouseup
-    | ShowBackpackTargets(_)
-    | FontMetrics(_) => false
-    }
-  | PerformAction(
-      Move(_) | MoveToNextHole(_) | Select(_) | Unselect(_) | RotateBackpack |
-      MoveToBackpackTarget(_) |
-      Jump(_),
-    )
-  | MoveToNextHole(_)
-  | Save
-  | Copy
-  | InitImportAll(_)
-  | InitImportScratchpad(_)
-  | UpdateExplainThisModel(_)
-  | DoTheThing => false
-  | ExportPersistentData
-  | UpdateResult(_)
-  | DebugConsole(_) => false
-  | Benchmark(_)
-  // may not be necessary on all of these
-  // TODO review and prune
-  | StepperAction(_, StepForward(_) | StepBackward)
-  | ToggleStepper(_)
-  | ReparseCurrentEditor
-  | PerformAction(Destruct(_) | Insert(_) | Pick_up | Put_down)
-  | FinishImportAll(_)
-  | FinishImportScratchpad(_)
-  | ResetCurrentEditor
-  | SwitchEditor(_)
-  | SwitchScratchSlide(_)
-  | SwitchDocumentationSlide(_)
-  | Cut
-  | Paste(_)
-  | Assistant(_)
-  | Undo
-  | Redo
-  | Reset => true;
+let schedule_evaluation = (~schedule_action, model: Model.t): unit =>
+  if (model.settings.core.dynamics) {
+    let elabs =
+      Editors.get_spliced_elabs(
+        ~settings=model.settings,
+        model.statics,
+        model.editors,
+      );
+    let eval_rs = ModelResults.to_evaluate(model.results, elabs);
+    if (!ModelResults.is_empty(eval_rs)) {
+      schedule_action(UpdateResult(eval_rs));
+      WorkerClient.request(
+        eval_rs,
+        ~handler=rs => schedule_action(UpdateResult(rs)),
+        ~timeout=
+          rqs =>
+            schedule_action(UpdateResult(ModelResults.timeout_all(rqs))),
+      );
+    };
+    /* Not sending stepper to worker for now bc closure perf */
+    let step_rs = ModelResults.to_step(model.results);
+    if (!ModelResults.is_empty(step_rs)) {
+      let new_rs =
+        ModelResults.run_pending(~settings=model.settings.core, step_rs);
+      schedule_action(UpdateResult(new_rs));
+    };
+  };
 
-let should_scroll_to_caret =
-  fun
-  | Set(s_action) =>
-    switch (s_action) {
-    | Mode(_) => true
-    | Captions
-    | SecondaryIcons
-    | Statics
-    | Assist
-    | Elaborate
-    | Dynamics
-    | Benchmark
-    | ContextInspector
-    | InstructorMode
-    | Evaluation(_) => false
-    }
-  | SetMeta(meta_action) =>
-    switch (meta_action) {
-    | FontMetrics(_) => true
-    | Mousedown
-    | Mouseup
-    | ShowBackpackTargets(_) => false
-    }
-  | Assistant(Prompt(_))
-  | UpdateResult(_)
-  | ToggleStepper(_)
-  | StepperAction(_, StepBackward | StepForward(_)) => false
-  | Assistant(AcceptSuggestion) => true
-  | FinishImportScratchpad(_)
-  | FinishImportAll(_)
-  | ResetCurrentEditor
-  | SwitchEditor(_)
-  | SwitchScratchSlide(_)
-  | SwitchDocumentationSlide(_)
-  | ReparseCurrentEditor
-  | Reset
-  | Copy
-  | Paste(_)
-  | Cut
-  | Undo
-  | Redo
-  | MoveToNextHole(_)
-  | DoTheThing => true
-  | PerformAction(a) =>
-    switch (a) {
-    | Move(_)
-    | MoveToNextHole(_)
-    | Jump(_)
-    | Select(Resize(_) | Term(_) | Smart | Tile(_))
-    | Destruct(_)
-    | Insert(_)
-    | Pick_up
-    | Put_down
-    | RotateBackpack
-    | MoveToBackpackTarget(_) => true
-    | Unselect(_)
-    | Select(All) => false
-    }
-  | Save
-  | InitImportAll(_)
-  | InitImportScratchpad(_)
-  | UpdateExplainThisModel(_)
-  | ExportPersistentData
-  | DebugConsole(_)
-  | Benchmark(_) => false;
+let update_cached_data = (~schedule_action, update, m: Model.t): Model.t => {
+  let update_statics = is_edit(update) || reevaluate_post_update(update);
+  let update_dynamics = reevaluate_post_update(update);
+  let m =
+    update_statics || update_dynamics && m.settings.core.statics
+      ? {...m, statics: Editors.mk_statics(~settings=m.settings, m.editors)}
+      : m;
+  if (update_dynamics && m.settings.core.dynamics) {
+    schedule_evaluation(~schedule_action, m);
+    m;
+  } else {
+    m;
+  };
+};
 
 let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
   switch (
@@ -300,7 +239,6 @@ let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
 let switch_scratch_slide =
     (editors: Editors.t, ~instructor_mode, idx: int): option(Editors.t) =>
   switch (editors) {
-  | DebugLoad
   | Documentation(_) => None
   | Scratch(n, _) when n == idx => None
   | Scratch(_, slides) when idx >= List.length(slides) => None
@@ -316,7 +254,6 @@ let switch_scratch_slide =
 let switch_exercise_editor =
     (editors: Editors.t, ~pos, ~instructor_mode): option(Editors.t) =>
   switch (editors) {
-  | DebugLoad
   | Documentation(_)
   | Scratch(_) => None
   | Exercises(m, specs, exercise) =>
@@ -352,19 +289,36 @@ let export_persistent_data = () => {
   print_endline("INFO: Persistent data exported to Init.ml");
 };
 
+let ui_state_update =
+    (ui_state: Model.ui_state, update: set_meta, ~schedule_action as _)
+    : Model.ui_state => {
+  switch (update) {
+  | Mousedown => {...ui_state, mousedown: true}
+  | Mouseup => {...ui_state, mousedown: false}
+  | ShowBackpackTargets(b) => {...ui_state, show_backpack_targets: b}
+  | FontMetrics(font_metrics) => {...ui_state, font_metrics}
+  };
+};
+
 let rec apply =
         (model: Model.t, update: t, state: State.t, ~schedule_action)
         : Result.t(Model.t) => {
   let m: Result.t(Model.t) =
     switch (update) {
     | Reset => Ok(Model.reset(model))
+    | Set(Evaluation(_) as s_action) => Ok(update_settings(s_action, model))
     | Set(s_action) =>
       let model = update_settings(s_action, model);
       Model.save(model);
+      switch (update) {
       // NOTE: Load here necessary to load editors on switching mode
-      Ok(Model.load(model));
+      | Set(Mode(_)) => Ok(Model.load(model))
+      | _ => Ok(model)
+      };
     | SetMeta(action) =>
-      Ok({...model, meta: meta_update(model, action, ~schedule_action)})
+      let ui_state =
+        ui_state_update(model.ui_state, action, ~schedule_action);
+      Ok({...model, ui_state});
     | UpdateExplainThisModel(u) =>
       let explainThisModel =
         ExplainThisUpdate.set_update(model.explainThisModel, u);
@@ -415,7 +369,7 @@ let rec apply =
       | None => Error(FailedToSwitch)
       | Some(editors) => Ok({...model, editors})
       };
-    | DoTheThing =>
+    | TAB =>
       /* Attempt to act intelligently when TAB is pressed.
        * TODO(andrew): Consider more advanced TAB logic. Instead
        * of simply moving to next hole, if the backpack is non-empty
@@ -510,11 +464,11 @@ let rec apply =
     | Benchmark(Finish) =>
       Benchmark.finish();
       Ok(model);
-    | StepperAction(key, StepForward(obj)) =>
+    | StepperAction(key, StepForward(idx)) =>
       let r =
         model.results
         |> ModelResults.find(key)
-        |> ModelResult.step_forward(obj);
+        |> ModelResult.step_forward(idx);
       Ok({...model, results: model.results |> ModelResults.add(key, r)});
     | StepperAction(key, StepBackward) =>
       let r =
@@ -535,60 +489,10 @@ let rec apply =
                )
              ),
       })
-    | UpdateResult(k, mr) =>
-      switch (mr) {
-      | Some(mr) =>
-        Ok({...model, results: model.results |> ModelResults.add(k, mr)})
-      | None =>
-        Ok({
-          ...model,
-          results:
-            ModelResults.lookup(model.results, k)
-            |> Option.value(~default=ModelResult.NoElab)
-            |> ModelResults.add(k, _, model.results),
-        })
-      }
+    | UpdateResult(results) =>
+      let results =
+        ModelResults.union((_, _a, b) => Some(b), model.results, results);
+      Ok({...model, results});
     };
-  let m =
-    reevaluate_post_update(model.settings, update)
-      ? m |> Result.map(~f=Model.update_elabs) : m;
-  Result.map(
-    ~f=
-      m =>
-        {
-          ...m,
-          results:
-            ModelResults.run_pending(~settings=m.settings.core, m.results),
-        },
-    m,
-  );
-}
-and meta_update =
-    (model: Model.t, update: set_meta, ~schedule_action as _): Model.meta => {
-  switch (update) {
-  | Mousedown => {
-      ui_state: {
-        ...model.meta.ui_state,
-        mousedown: true,
-      },
-    }
-  | Mouseup => {
-      ui_state: {
-        ...model.meta.ui_state,
-        mousedown: false,
-      },
-    }
-  | ShowBackpackTargets(b) => {
-      ui_state: {
-        ...model.meta.ui_state,
-        show_backpack_targets: b,
-      },
-    }
-  | FontMetrics(font_metrics) => {
-      ui_state: {
-        ...model.meta.ui_state,
-        font_metrics,
-      },
-    }
-  };
+  m |> Result.map(~f=update_cached_data(~schedule_action, update));
 };

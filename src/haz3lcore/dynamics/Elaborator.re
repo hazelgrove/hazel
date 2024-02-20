@@ -74,6 +74,17 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
           DHExp.fresh_cast(d, self_ty, Unknown(prov))
         | _ => d
         }
+      | NonEmptyHole(_, _, _, g) =>
+        switch (DHExp.term_of(g)) {
+        | Constructor(_) =>
+          switch (ana_ty, self_ty) {
+          | (Unknown(prov), Rec(_, Sum(_)))
+          | (Unknown(prov), Sum(_)) =>
+            DHExp.fresh_cast(d, self_ty, Unknown(prov))
+          | _ => d
+          }
+           _ => DHExp.fresh_cast(d, self_ty, ana_ty)
+        }
       | _ => DHExp.fresh_cast(d, self_ty, ana_ty)
       }
     /* Forms with special ana rules but no particular typing requirements */
@@ -307,8 +318,11 @@ let rec dhexp_of_uexp =
         };
       | TyAlias(_, _, e) => dhexp_of_uexp(m, e)
       };
-    wrap(ctx, id, mode, self, d);
-  | Some(InfoPat(_) | InfoTyp(_) | InfoTPat(_))
+    switch (uexp.term) {
+    | Parens(_) => d
+    | _ => wrap(ctx, id, mode, self, d)
+    };
+  | Some(InfoPat(_) | InfoTyp(_) | InfoTPat(_) | Secondary(_))
   | None => None
   };
 }
@@ -366,7 +380,7 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
       let* dp = dhpat_of_upat(m, p);
       wrap(dp);
     };
-  | Some(InfoExp(_) | InfoTyp(_) | InfoTPat(_))
+  | Some(InfoExp(_) | InfoTyp(_) | InfoTPat(_) | Secondary(_))
   | None => None
   };
 };

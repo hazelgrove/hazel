@@ -1,20 +1,24 @@
 open Util;
 open Zipper;
+open OptUtil.Syntax;
 
 type relation =
   | Parent
   | Sibling;
 
 let piece' =
-    (~no_ws: bool, ~ign: Piece.t => bool, z: Zipper.t)
+    (~no_ws: bool, ~ign: Piece.t => bool, ~trim_secondary=false, z: Zipper.t)
     : option((Piece.t, Direction.t, relation)) => {
+  let sibs =
+    trim_secondary
+      ? sibs_with_sel(z) |> Siblings.trim_secondary : sibs_with_sel(z);
   /* Returns the piece currently indicated (if any) and which side of
      that piece the caret is on. We favor indicating the piece to the
      (R)ight, but may end up indicating the (P)arent or the (L)eft.
      We don't indicate secondary tiles. This function ignores whether
      or not there is a selection so this can be used to get the caret
      direction, but the caller shouldn't indicate if there's a selection */
-  switch (Siblings.neighbors(sibs_with_sel(z)), parent(z)) {
+  switch (Siblings.neighbors(sibs), parent(z)) {
   /* Non-empty selection => no indication */
   //| _ when z.selection.content != [] => None
   /* Empty syntax => no indication */
@@ -82,12 +86,50 @@ let shard_index = (z: Zipper.t): option(int) =>
   };
 
 let index = (z: Zipper.t): option(Id.t) =>
-  switch (piece'(~no_ws=false, ~ign=Piece.is_secondary, z)) {
+  switch (
+    piece'(~no_ws=false, ~ign=Piece.is_secondary, ~trim_secondary=false, z)
+  ) {
   | None => None
-  | Some((p, _, _)) =>
-    switch (p) {
-    | Secondary({id, _}) => Some(id)
-    | Grout({id, _}) => Some(id)
-    | Tile({id, _}) => Some(id)
-    }
+  | Some((p, _, _)) => Some(Piece.id(p))
+  };
+
+let ci_of = (z: Zipper.t, info_map: Statics.Map.t): option(Statics.Info.t) =>
+  /* This version takes into accounts Secondary, while accounting for the
+   * fact that Secondary is not currently added to the infomap. First we
+   * try the basic indication function, specifying that we do not want
+   * Secondary. But if this doesn't succeed, then we create a 'virtual'
+   * info map entry representing the Secondary notation, which takes on
+   * some of the semantic context of a nearby 'proxy' term */
+  switch (
+    piece'(~no_ws=true, ~ign=Piece.is_secondary, ~trim_secondary=false, z)
+  ) {
+  | Some((p, _, _)) => Id.Map.find_opt(Piece.id(p), info_map)
+  | None =>
+    let sibs = sibs_with_sel(z);
+    let* cls =
+      switch (Siblings.neighbors(sibs)) {
+      /* If on side of comment, say we're on comment */
+      | (Some(Secondary(sl)), Some(Secondary(_)))
+          when Secondary.is_comment(sl) =>
+        Some(Secondary.cls_of(sl))
+      | (Some(Secondary(_)), Some(Secondary(sr)))
+          when Secondary.is_comment(sr) =>
+        Some(Secondary.cls_of(sr))
+      | (_, Some(Secondary(s)))
+      | (Some(Secondary(s)), _) => Some(Secondary.cls_of(s))
+      | _ => None
+      };
+    let* proxy_id =
+      switch (Siblings.neighbors(Siblings.trim_secondary(sibs))) {
+      | (_, Some(p))
+      | (Some(p), _) => Some(Piece.id(p))
+      | _ => None
+      };
+    let+ ci = Id.Map.find_opt(proxy_id, info_map);
+    Info.Secondary({
+      id: proxy_id,
+      cls: Secondary(cls),
+      sort: Info.sort_of(ci),
+      ctx: Info.ctx_of(ci),
+    });
   };
