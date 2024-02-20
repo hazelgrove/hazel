@@ -1,5 +1,6 @@
 open Alcotest;
 open Haz3lcore;
+open DHExp;
 
 let dhexp_eq = (d1: option(DHExp.t), d2: option(DHExp.t)): bool =>
   switch (d1, d2) {
@@ -25,22 +26,28 @@ let alco_check = dhexp_typ |> Alcotest.check;
 
 let u1: Term.UExp.t = {ids: [id_at(0)], term: Int(8)};
 let single_integer = () =>
-  alco_check("Integer literal 8", Some(IntLit(8)), dhexp_of_uexp(u1));
+  alco_check(
+    "Integer literal 8",
+    Some(Int(8) |> fresh),
+    dhexp_of_uexp(u1),
+  );
 
 let u2: Term.UExp.t = {ids: [id_at(0)], term: EmptyHole};
 let empty_hole = () =>
-  alco_check(
-    "Empty hole",
-    Some(EmptyHole(id_at(0), 0)),
-    dhexp_of_uexp(u2),
-  );
+  alco_check("Empty hole", Some(EmptyHole |> fresh), dhexp_of_uexp(u2));
 
 let u3: Term.UExp.t = {
   ids: [id_at(0)],
   term: Parens({ids: [id_at(1)], term: Var("y")}),
 };
 let d3: DHExp.t =
-  NonEmptyHole(TypeInconsistent, id_at(1), 0, FreeVar(id_at(1), 0, "y"));
+  NonEmptyHole(
+    TypeInconsistent,
+    id_at(1),
+    0,
+    FreeVar(id_at(1), 0, "y") |> fresh,
+  )
+  |> fresh;
 let free_var = () =>
   alco_check(
     "Nonempty hole with free variable",
@@ -82,9 +89,10 @@ let u4: Term.UExp.t = {
 let d4: DHExp.t =
   Let(
     Tuple([Var("a"), Var("b")]),
-    Tuple([IntLit(4), IntLit(6)]),
-    BinIntOp(Minus, BoundVar("a"), BoundVar("b")),
-  );
+    Tuple([Int(4) |> fresh, Int(6) |> fresh]) |> fresh,
+    BinOp(Int(Minus), Var("a") |> fresh, Var("b") |> fresh) |> fresh,
+  )
+  |> fresh;
 let let_exp = () =>
   alco_check(
     "Let expression for tuple (a, b)",
@@ -102,11 +110,19 @@ let u5: Term.UExp.t = {
     ),
 };
 let d5: DHExp.t =
-  BinIntOp(
-    Plus,
-    NonEmptyHole(TypeInconsistent, id_at(1), 0, BoolLit(false)),
-    NonEmptyHole(TypeInconsistent, id_at(2), 0, FreeVar(id_at(2), 0, "y")),
-  );
+  BinOp(
+    Int(Plus),
+    NonEmptyHole(TypeInconsistent, id_at(1), 0, Bool(false) |> fresh)
+    |> fresh,
+    NonEmptyHole(
+      TypeInconsistent,
+      id_at(2),
+      0,
+      FreeVar(id_at(2), 0, "y") |> fresh,
+    )
+    |> fresh,
+  )
+  |> fresh;
 let bin_op = () =>
   alco_check(
     "Inconsistent binary integer operation (plus)",
@@ -124,7 +140,8 @@ let u6: Term.UExp.t = {
     ),
 };
 let d6: DHExp.t =
-  IfThenElse(DH.ConsistentIf, BoolLit(false), IntLit(8), IntLit(6));
+  If(DH.Consistent, Bool(false) |> fresh, Int(8) |> fresh, Int(6) |> fresh)
+  |> fresh;
 let consistent_if = () =>
   alco_check(
     "Consistent case with rules (BoolLit(true), IntLit(8)) and (BoolLit(false), IntLit(6))",
@@ -136,6 +153,7 @@ let u7: Term.UExp.t = {
   ids: [id_at(0)],
   term:
     Ap(
+      Forward,
       {
         ids: [id_at(1)],
         term:
@@ -157,18 +175,29 @@ let u7: Term.UExp.t = {
 };
 let d7: DHExp.t =
   Ap(
+    Forward,
     Fun(
       Var("x"),
       Unknown(Internal),
-      BinIntOp(
-        Plus,
-        IntLit(4),
-        Cast(BoundVar("x"), Unknown(Internal), Int),
-      ),
+      BinOp(
+        Int(Plus),
+        Int(4) |> fresh,
+        Cast(Var("x") |> fresh, Unknown(Internal), Int) |> fresh,
+      )
+      |> fresh,
       None,
-    ),
-    NonEmptyHole(TypeInconsistent, id_at(6), 0, FreeVar(id_at(6), 0, "y")),
-  );
+      None,
+    )
+    |> fresh,
+    NonEmptyHole(
+      TypeInconsistent,
+      id_at(6),
+      0,
+      FreeVar(id_at(6), 0, "y") |> fresh,
+    )
+    |> fresh,
+  )
+  |> fresh;
 let ap_fun = () =>
   alco_check(
     "Application of a function of a free variable wrapped inside a nonempty hole constructor",
@@ -201,15 +230,16 @@ let u8: Term.UExp.t = {
       ],
     ),
 };
-let d8scrut: DHExp.t = BinIntOp(Equals, IntLit(4), IntLit(3));
+let d8scrut: DHExp.t =
+  BinOp(Int(Equals), Int(4) |> fresh, Int(3) |> fresh) |> fresh;
 let d8rules =
   DHExp.[
-    Rule(BoolLit(true), IntLit(24)),
-    Rule(BoolLit(false), BoolLit(false)),
+    (Bool(true): DHPat.t, Int(24) |> fresh),
+    (Bool(false): DHPat.t, Bool(false) |> fresh),
   ];
 let d8a: DHExp.t =
-  InconsistentBranches(id_at(0), 0, Case(d8scrut, d8rules, 0));
-let d8: DHExp.t = NonEmptyHole(TypeInconsistent, id_at(0), 0, d8a);
+  Match(Inconsistent(id_at(0), 0), d8scrut, d8rules) |> fresh;
+let d8: DHExp.t = NonEmptyHole(TypeInconsistent, id_at(0), 0, d8a) |> fresh;
 let inconsistent_case = () =>
   alco_check(
     "Inconsistent branches where the first branch is an integer and second branch is a boolean",
@@ -264,12 +294,16 @@ let d9: DHExp.t =
       Fun(
         Var("x"),
         Int,
-        BinIntOp(Plus, IntLit(1), BoundVar("x")),
+        BinOp(Int(Plus), Int(1) |> fresh, Var("x") |> fresh) |> fresh,
+        None,
         Some("f"),
-      ),
-    ),
-    IntLit(55),
-  );
+      )
+      |> fresh,
+    )
+    |> fresh,
+    Int(55) |> fresh,
+  )
+  |> fresh;
 let let_fun = () =>
   alco_check(
     "Let expression for function which wraps a fix point constructor around the function",

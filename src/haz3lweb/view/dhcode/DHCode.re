@@ -144,7 +144,7 @@ let view =
       ~previous_step: option((EvaluatorStep.step, Id.t))=None, // The step that will be displayed above this one
       ~hidden_steps: list((EvaluatorStep.step, Id.t))=[], // The hidden steps between the above and the current one
       ~chosen_step: option(EvaluatorStep.step)=None, // The step that will be taken next
-      ~next_steps: list(EvaluatorStep.EvalObj.t)=[],
+      ~next_steps: list((int, Id.t))=[],
       ~result_key: string,
       d: DHExp.t,
     )

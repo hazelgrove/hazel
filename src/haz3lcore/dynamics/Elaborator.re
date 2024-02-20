@@ -83,7 +83,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
             DHExp.fresh_cast(d, self_ty, Unknown(prov))
           | _ => d
           }
-           _ => DHExp.fresh_cast(d, self_ty, ana_ty)
+        | _ => DHExp.fresh_cast(d, self_ty, ana_ty)
         }
       | _ => DHExp.fresh_cast(d, self_ty, ana_ty)
       }
