@@ -852,8 +852,12 @@ let rec is_strict_prefix_up_to_consistency = (ctx, p_syn, p_ana) =>
   };
 let suggest_comma = (bidi_ctx_ci: Info.t) =>
   switch (bidi_ctx_ci) {
+  | InfoExp({mode: SynFun, _})
+  | InfoPat({mode: SynFun, _}) => false
   | InfoExp({mode: Syn | Ana(Unknown(_)), _})
-  | InfoPat({mode: Syn | Ana(Unknown(_)), _}) => true
+  | InfoPat({mode: Syn | Ana(Unknown(_)), _}) =>
+    //TODO(andrew): do we need to capture and normalize the ana type here?
+    true
   | InfoExp({mode: Ana(ana), self: Common(Just(syn)), ctx, _})
   | InfoPat({mode: Ana(ana), self: Common(Just(syn)), ctx, _}) =>
     switch (Typ.normalize(ctx, ana)) {
@@ -876,8 +880,8 @@ let suggest_comma = (bidi_ctx_ci: Info.t) =>
       };
     | _ => false
     }
-  | InfoExp({mode: SynFun | Ana(_), _})
-  | InfoPat({mode: SynFun | Ana(_), _}) => false
+  | InfoExp({mode: Ana(_), self: Free(_) | Common(_), _})
+  | InfoPat({mode: Ana(_), self: Common(_), _}) => false
   | InfoTyp(_) => true
   | InfoTPat(_) => false
   };
@@ -965,7 +969,7 @@ let convex_lookahead_sugs = (~settings: args_completion, ~db, ci: Info.t) => {
       @ (List.map(suggest_exp(~fns=true, ctx), tys) |> List.flatten);
     | InfoPat({mode, ctx, co_ctx, _}) =>
       let ty = Mode.ty_of(mode);
-      let tys = AssistantCtx.get_lookahead_tys_pat(ty);
+      let tys = AssistantCtx.get_lookahead_tys_pat(ctx, ty);
       suggest_pat(~fns=true, ctx, co_ctx, ty)
       @ (List.map(suggest_pat(~fns=true, ctx, co_ctx), tys) |> List.flatten);
     | InfoTyp(_) => []

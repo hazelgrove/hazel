@@ -135,13 +135,14 @@ let restrategize = (suffix, {content, strategy}) => {
   strategy,
 };
 
-let rec get_lookahead_tys_pat = (ty_expected: Typ.t): list(Typ.t) => {
+let rec get_lookahead_tys_pat = (ctx: Ctx.t, ty_expected: Typ.t): list(Typ.t) => {
   let to_arr = t => Typ.Arrow(Unknown(Internal), t);
+  let ty_expected = Typ.normalize(ctx, ty_expected);
   [to_arr(ty_expected)]
   @ (
     switch (ty_expected) {
     | List(ty)
-    | Prod([ty, ..._]) => [ty, to_arr(ty)] @ get_lookahead_tys_pat(ty)
+    | Prod([ty, ..._]) => [ty, to_arr(ty)] @ get_lookahead_tys_pat(ctx, ty)
     | _ => []
     }
   );
@@ -233,6 +234,7 @@ let suggest_lookahead_variable_exp =
   let exp_aps = ty =>
     bound_aps(ty, ctx)
     @ bound_constructor_aps(x => Exp(Common(x)), ty, ctx);
+  let ty_expected = Typ.normalize(ctx, ty_expected);
   let from_current_type = exp_aps(ty_expected);
   let from_specific_type =
     switch (ty_expected) {
