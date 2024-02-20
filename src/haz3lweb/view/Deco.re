@@ -158,7 +158,6 @@ module Deco =
   };
 
   let rec targets = (~container_shards=?, bp: Backpack.t, seg: Segment.t) => {
-    let seg = seg;
     let with_container_shards = ((pre, suf) as sibs) =>
       switch (container_shards) {
       | None => sibs
@@ -284,8 +283,7 @@ module Deco =
   let all = (zipper, sel_seg) =>
     List.concat([
       caret(zipper),
-      //TODO(andrew): renable; causing Not_found exn
-      //indicated_piece_deco(zipper),
+      indicated_piece_deco(zipper),
       selected_pieces(zipper),
       backpack(zipper),
       targets'(zipper.backpack, sel_seg),
