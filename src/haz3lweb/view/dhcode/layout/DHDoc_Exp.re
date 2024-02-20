@@ -48,7 +48,6 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Var(_)
   | FreeVar(_)
   | InvalidText(_)
-  | ExpandingKeyword(_)
   | Bool(_)
   | Int(_)
   | Seq(_)
@@ -286,8 +285,6 @@ let mk =
         )
       | NonEmptyHole(reason, u, i, d') =>
         go'(d') |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
-      | ExpandingKeyword(u, i, k) =>
-        DHDoc_common.mk_ExpandingKeyword((u, i), k)
       | FreeVar(u, i, x) =>
         text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
       | InvalidText(u, i, t) => DHDoc_common.mk_InvalidText(t, (u, i))

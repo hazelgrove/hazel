@@ -16,9 +16,8 @@ module rec DHExp: {
        */
     // TODO: Work out how to reconcile the invalids
     | EmptyHole
-    | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t) // TODO: Remove, use infomap
-    | ExpandingKeyword(MetaVar.t, HoleInstanceId.t, ExpandingKeyword.t) // TODO: Remove, use infomap
-    | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t) // TODO: Remove, use infomap
+    | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t) // TODO: Remove, use infomap      /// --------------------------------------------------------------------------------------------------------
+    | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t) // TODO: Remove, use infomap      /// --------------------------------------------------------------------------------------------------------
     | InvalidText(MetaVar.t, HoleInstanceId.t, string) // DONE [ALREADY]
     | InvalidOperation(t, InvalidOperationError.t) // Warning will robinson
     | FailedCast(t, Typ.t, Typ.t) // TODO: Add to TermBase
@@ -77,7 +76,6 @@ module rec DHExp: {
     /* Hole types */
     | EmptyHole
     | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t)
-    | ExpandingKeyword(MetaVar.t, HoleInstanceId.t, ExpandingKeyword.t)
     | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t)
     | InvalidText(MetaVar.t, HoleInstanceId.t, string)
     | InvalidOperation(t, InvalidOperationError.t)
@@ -173,7 +171,6 @@ module rec DHExp: {
     (
       switch (term) {
       | EmptyHole
-      | ExpandingKeyword(_)
       | FreeVar(_)
       | InvalidText(_)
       | Var(_)
@@ -252,7 +249,6 @@ module rec DHExp: {
       )
       |> rewrap
     | EmptyHole as d
-    | ExpandingKeyword(_) as d
     | FreeVar(_) as d
     | InvalidText(_) as d
     | Var(_) as d
@@ -367,8 +363,7 @@ module rec DHExp: {
     | (EmptyHole, EmptyHole) => true
     | (NonEmptyHole(reason1, u1, i1, d1), NonEmptyHole(reason2, u2, i2, d2)) =>
       reason1 == reason2 && u1 == u2 && i1 == i2 && fast_equal(d1, d2)
-    | (ExpandingKeyword(u1, i1, kw1), ExpandingKeyword(u2, i2, kw2)) =>
-      u1 == u2 && i1 == i2 && kw1 == kw2
+
     | (FreeVar(u1, i1, x1), FreeVar(u2, i2, x2)) =>
       u1 == u2 && i1 == i2 && x1 == x2
     | (InvalidText(u1, i1, text1), InvalidText(u2, i2, text2)) =>
@@ -377,7 +372,6 @@ module rec DHExp: {
       ClosureEnvironment.id_equal(sigma1, sigma2) && fast_equal(d1, d2)
     | (EmptyHole, _)
     | (NonEmptyHole(_), _)
-    | (ExpandingKeyword(_), _)
     | (FreeVar(_), _)
     | (InvalidText(_), _)
     | (Closure(_), _) => false

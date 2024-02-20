@@ -241,7 +241,6 @@ and matches_cast_Sum =
   | Cast(d', Unknown(_), Sum(_) | Rec(_, Sum(_))) =>
     matches_cast_Sum(ctr, dp, d', castmaps)
   | FreeVar(_)
-  | ExpandingKeyword(_)
   | InvalidText(_)
   | Let(_)
   | ApBuiltin(_)
@@ -330,7 +329,6 @@ and matches_cast_Tuple =
   | Var(_) => DoesNotMatch
   | FreeVar(_) => IndetMatch
   | InvalidText(_) => IndetMatch
-  | ExpandingKeyword(_) => IndetMatch
   | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _, _, _) => DoesNotMatch
@@ -465,7 +463,6 @@ and matches_cast_Cons =
   | Var(_) => DoesNotMatch
   | FreeVar(_) => IndetMatch
   | InvalidText(_) => IndetMatch
-  | ExpandingKeyword(_) => IndetMatch
   | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _, _, _) => DoesNotMatch
