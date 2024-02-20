@@ -28,7 +28,13 @@ module rec DHExp: {
     | Seq(t, t) // DONE [ALREADY]
     | Let(DHPat.t, t, t) // DONE [ALREADY]
     | FixF(Var.t, Typ.t, t) // TODO: surface fix
-    | Fun(DHPat.t, Typ.t, t, option(ClosureEnvironment.t), option(Var.t)) // TODO: Use infomap for Typ.t
+    | Fun(
+        DHPat.t,
+        Typ.t,
+        t,
+        [@show.opaque] option(ClosureEnvironment.t),
+        option(Var.t),
+      ) // TODO: Use infomap for Typ.t
     | Ap(TermBase.UExp.ap_direction, t, t) // TODO: Add reverse application
     | ApBuiltin(string, t) // DONE [TO ADD TO UEXP] TODO: Add a loooong comment here
     | BuiltinFun(string) // DONE [TO ADD TO UEXP]
@@ -84,7 +90,13 @@ module rec DHExp: {
     | Seq(t, t)
     | Let(DHPat.t, t, t)
     | FixF(Var.t, Typ.t, t)
-    | Fun(DHPat.t, Typ.t, t, option(ClosureEnvironment.t), option(Var.t))
+    | Fun(
+        DHPat.t,
+        Typ.t,
+        t,
+        [@show.opaque] option(ClosureEnvironment.t),
+        option(Var.t),
+      )
     | Ap(TermBase.UExp.ap_direction, t, t)
     | ApBuiltin(string, t)
     | BuiltinFun(string)

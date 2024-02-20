@@ -151,7 +151,12 @@ module Decompose = {
           let. _ =
             otherwise(env, (d1) => (Filter(flt, d1) |> rewrap: DHExp.t))
           and. d1 =
-            req_final(decompose(state, env), d1 => Filter(flt, d1), d1);
+            req_final(
+              decompose(state, env),
+              d1 =>
+                Term({term: Filter(flt, d1), ids: [DHExp.rep_id(exp)]}),
+              d1,
+            );
           Step({apply: () => d1, kind: CompleteFilter, value: true});
         }
       )

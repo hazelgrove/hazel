@@ -37,122 +37,126 @@ let rec matches =
   let (mact, midx) = FilterMatcher.matches(~env, ~exp=composed, ~act, flt);
   let (act, idx) =
     switch (ctx) {
-    | Filter(_, _) => (pact, pidx)
+    | Term({term: Filter(_, _), _}) => (pact, pidx)
     | _ => midx > idx ? (mact, midx) : (pact, pidx)
     };
-  let map = ((a, i, c), f: EvalCtx.t => EvalCtx.t) => {
+  let map = ((a, i, c), f) => {
     (a, i, f(c));
   };
   let (let+) = map;
   let (ract, ridx, rctx) =
     switch (ctx) {
     | Mark => (act, idx, EvalCtx.Mark)
-    | Closure(env, ctx) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Closure(env, ctx);
-    | Filter(Filter(flt'), ctx) =>
-      let flt = flt |> FilterEnvironment.extends(flt');
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Filter(Filter(flt'), ctx);
-    | Filter(Residue(idx, act), ctx) =>
-      let (ract, ridx, rctx) = matches(env, flt, ctx, exp, act, idx);
-      if (ridx == idx && ract |> snd == All) {
-        (ract, ridx, Filter(Residue(idx, act), rctx));
-      } else {
-        (ract, ridx, rctx);
+    | Term({term, ids}) =>
+      let rewrap = term => EvalCtx.Term({term, ids});
+      switch ((term: EvalCtx.term)) {
+      | Closure(env, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Closure(env, ctx) |> rewrap;
+      | Filter(Filter(flt'), ctx) =>
+        let flt = flt |> FilterEnvironment.extends(flt');
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Filter(Filter(flt'), ctx) |> rewrap;
+      | Filter(Residue(idx, act), ctx) =>
+        let (ract, ridx, rctx) = matches(env, flt, ctx, exp, act, idx);
+        if (ridx == idx && ract |> snd == All) {
+          (ract, ridx, Filter(Residue(idx, act), rctx) |> rewrap);
+        } else {
+          (ract, ridx, rctx);
+        };
+      | Seq1(ctx, d2) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Seq1(ctx, d2) |> rewrap;
+      | Seq2(d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Seq2(d1, ctx) |> rewrap;
+      | Let1(d1, ctx, d3) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Let1(d1, ctx, d3) |> rewrap;
+      | Let2(d1, d2, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Let2(d1, d2, ctx) |> rewrap;
+      | Fun(dp, ty, ctx, env', name) =>
+        let+ ctx =
+          matches(Option.value(~default=env, env'), flt, ctx, exp, act, idx);
+        Fun(dp, ty, ctx, env', name) |> rewrap;
+      | FixF(name, ty, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        FixF(name, ty, ctx) |> rewrap;
+      | Ap1(dir, ctx, d2) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Ap1(dir, ctx, d2) |> rewrap;
+      | Ap2(dir, d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Ap2(dir, d1, ctx) |> rewrap;
+      | If1(c, ctx, d2, d3) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        If1(c, ctx, d2, d3) |> rewrap;
+      | If2(c, d1, ctx, d3) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        If2(c, d1, ctx, d3) |> rewrap;
+      | If3(c, d1, d2, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        If3(c, d1, d2, ctx) |> rewrap;
+      | BinOp1(op, ctx, d1) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        BinOp1(op, ctx, d1) |> rewrap;
+      | BinOp2(op, d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        BinOp2(op, d1, ctx) |> rewrap;
+      | Tuple(ctx, ds) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Tuple(ctx, ds) |> rewrap;
+      | ApBuiltin(name, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        ApBuiltin(name, ctx) |> rewrap;
+      | Test(id, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Test(id, ctx) |> rewrap;
+      | ListLit(u, i, ty, ctx, ds) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        ListLit(u, i, ty, ctx, ds) |> rewrap;
+      | Cons1(ctx, d2) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Cons1(ctx, d2) |> rewrap;
+      | Cons2(d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Cons2(d1, ctx) |> rewrap;
+      | ListConcat1(ctx, d2) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        ListConcat1(ctx, d2) |> rewrap;
+      | ListConcat2(d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        ListConcat2(d1, ctx) |> rewrap;
+      | Prj(ctx, n) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Prj(ctx, n) |> rewrap;
+      | NonEmptyHole(e, u, i, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        NonEmptyHole(e, u, i, ctx) |> rewrap;
+      | Cast(ctx, ty, ty') =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Cast(ctx, ty, ty') |> rewrap;
+      | FailedCast(ctx, ty, ty') =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        FailedCast(ctx, ty, ty') |> rewrap;
+      | InvalidOperation(ctx, error) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        InvalidOperation(ctx, error) |> rewrap;
+      | MatchScrut(c, ctx, rs) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        MatchScrut(c, ctx, rs) |> rewrap;
+      | MatchRule(c, scr, p, ctx, rs) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        MatchRule(c, scr, p, ctx, rs) |> rewrap;
       };
-    | Seq1(ctx, d2) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Seq1(ctx, d2);
-    | Seq2(d1, ctx) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Seq2(d1, ctx);
-    | Let1(d1, ctx, d3) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Let1(d1, ctx, d3);
-    | Let2(d1, d2, ctx) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Let2(d1, d2, ctx);
-    | Fun(dp, ty, ctx, env', name) =>
-      let+ ctx =
-        matches(Option.value(~default=env, env'), flt, ctx, exp, act, idx);
-      Fun(dp, ty, ctx, env', name);
-    | FixF(name, ty, ctx) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      FixF(name, ty, ctx);
-    | Ap1(dir, ctx, d2) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Ap1(dir, ctx, d2);
-    | Ap2(dir, d1, ctx) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Ap2(dir, d1, ctx);
-    | If1(c, ctx, d2, d3) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      If1(c, ctx, d2, d3);
-    | If2(c, d1, ctx, d3) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      If2(c, d1, ctx, d3);
-    | If3(c, d1, d2, ctx) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      If3(c, d1, d2, ctx);
-    | BinOp1(op, ctx, d1) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      BinOp1(op, ctx, d1);
-    | BinOp2(op, d1, ctx) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      BinOp2(op, d1, ctx);
-    | Tuple(ctx, ds) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Tuple(ctx, ds);
-    | ApBuiltin(name, ctx) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      ApBuiltin(name, ctx);
-    | Test(id, ctx) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Test(id, ctx);
-    | ListLit(u, i, ty, ctx, ds) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      ListLit(u, i, ty, ctx, ds);
-    | Cons1(ctx, d2) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Cons1(ctx, d2);
-    | Cons2(d1, ctx) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Cons2(d1, ctx);
-    | ListConcat1(ctx, d2) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      ListConcat1(ctx, d2);
-    | ListConcat2(d1, ctx) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      ListConcat2(d1, ctx);
-    | Prj(ctx, n) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Prj(ctx, n);
-    | NonEmptyHole(e, u, i, ctx) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      NonEmptyHole(e, u, i, ctx);
-    | Cast(ctx, ty, ty') =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Cast(ctx, ty, ty');
-    | FailedCast(ctx, ty, ty') =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      FailedCast(ctx, ty, ty');
-    | InvalidOperation(ctx, error) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      InvalidOperation(ctx, error);
-    | MatchScrut(c, ctx, rs) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      MatchScrut(c, ctx, rs);
-    | MatchRule(c, scr, p, ctx, rs) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      MatchRule(c, scr, p, ctx, rs);
     };
   switch (ctx) {
-  | Filter(_) => (ract, ridx, rctx)
+  | Term({term: Filter(_), _}) => (ract, ridx, rctx)
   | _ when midx == ridx && midx > pidx && mact |> snd == All => (
       ract,
       ridx,
-      Filter(Residue(midx, mact), rctx),
+      Term({term: Filter(Residue(midx, mact), rctx), ids: [Id.mk()]}),
     )
   | _ => (ract, ridx, rctx)
   };
