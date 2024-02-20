@@ -30,6 +30,16 @@ type t = {
   projectors: Projector.Map.t,
 };
 
+let get_projectors = (z: t): Projector.Map.t => z.projectors;
+
+let get_projector = (id: Id.t, z: t): option(Projector.t) =>
+  Projector.Map.find(id, z.projectors);
+
+let add_projector = (id: Id.t, p: Projector.t, z: t): t => {
+  ...z,
+  projectors: Projector.Map.add(id, p, z.projectors),
+};
+
 let init: unit => t =
   () => {
     selection: Selection.mk([]),
