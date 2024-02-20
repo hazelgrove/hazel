@@ -68,7 +68,16 @@ let go_z =
     };
 
   switch (a) {
-  | Project(p) => Ok(Project.go(p, z))
+  | Project(p) =>
+    switch (Indicated.index(z)) {
+    | None => Error(Action.Failure.Cant_move)
+    | Some(id) =>
+      switch (Move.jump_to_id(z, id)) {
+      | None => Error(Action.Failure.Cant_move)
+      | Some(z) => Ok(Project.go(p, z))
+      }
+    }
+
   | Move(d) =>
     Move.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move)
   | MoveToNextHole(d) =>
