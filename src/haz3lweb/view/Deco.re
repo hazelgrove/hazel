@@ -284,7 +284,8 @@ module Deco =
   let all = (zipper, sel_seg) =>
     List.concat([
       caret(zipper),
-      indicated_piece_deco(zipper),
+      //TODO(andrew): renable; causing Not_found exn
+      //indicated_piece_deco(zipper),
       selected_pieces(zipper),
       backpack(zipper),
       targets'(zipper.backpack, sel_seg),

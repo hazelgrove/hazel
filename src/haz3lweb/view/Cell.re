@@ -115,13 +115,14 @@ let deco =
     (
       ~font_metrics,
       ~show_backpack_targets,
-      ~selected as _,
+      ~selected,
       ~error_ids,
       ~test_results: option(TestResults.t),
       ~highlights: option(ColorSteps.colorMap),
       {
         state: {
-          meta: {term_ranges, segment: _, measured, terms, tiles, _},
+          zipper,
+          meta: {term_ranges, segment, measured, terms, tiles, _},
           _,
         },
         _,
@@ -137,7 +138,7 @@ let deco =
       let show_backpack_targets = show_backpack_targets;
       let error_ids = error_ids;
     });
-  let decos = []; //selected ? Deco.all(zipper, segment) : Deco.err_holes(zipper);
+  let decos = selected ? Deco.all(zipper, segment) : Deco.err_holes(zipper);
   let decos =
     switch (test_results) {
     | None => decos
