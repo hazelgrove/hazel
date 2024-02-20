@@ -136,19 +136,19 @@ let rec holes =
      );
 
 let simple_view =
-    (~font_metrics, ~unselected, ~map, ~settings: Settings.t): Node.t => {
+    (~font_metrics, ~segment, ~map, ~settings: Settings.t): Node.t => {
   module Text =
     Text({
       let map = map;
       let settings = settings;
     });
-  let holes = holes(~map, ~font_metrics, unselected);
+  let holes = holes(~map, ~font_metrics, segment);
   div(
     ~attr=Attr.class_("code"),
     [
       span_c(
         "code-text",
-        Text.of_segment(Projector.Map.empty, [], false, Sort.Any, unselected),
+        Text.of_segment(Projector.Map.empty, [], false, Sort.Any, segment),
       ),
       ...holes,
     ],
@@ -172,7 +172,7 @@ let view =
       ~settings: Settings.t,
       {
         state: {
-          meta: {measured, buffer_ids, unselected, holes, term_ranges, _},
+          meta: {measured, buffer_ids, segment, holes, term_ranges, _},
           zipper,
           _,
         },
@@ -185,13 +185,8 @@ let view =
       let map = measured;
       let settings = settings;
     });
-  //TODO(andrew): cleanup
-  print_endline(
-    "Code: projectors size:"
-    ++ string_of_int(Projector.Map.cardinal(zipper.projectors)),
-  );
   let projectors = Projector.mk_nu_proj_map(zipper.projectors, term_ranges);
-  let code = Text.of_segment(projectors, buffer_ids, false, sort, unselected);
+  let code = Text.of_segment(projectors, buffer_ids, false, sort, segment);
   let holes = List.map(of_hole(~measured, ~font_metrics), holes);
   div(~attr=Attr.class_("code"), [span_c("code-text", code), ...holes]);
 };
