@@ -176,7 +176,6 @@ let rec matches_exp =
   | (Match(_), _) => false
 
   | (NonEmptyHole(_), _) => false
-  | (ExpandingKeyword(_), _) => false
   | (InvalidText(_), _) => false
   | (InvalidOperation(_), _) => false
 
