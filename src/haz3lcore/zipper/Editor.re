@@ -7,7 +7,6 @@ module Meta = {
     touched: Touched.t,
     measured: Measured.t,
     term_ranges: TermRanges.t,
-    unselected: Segment.t,
     segment: Segment.t,
     view_term: Term.UExp.t,
     terms: TermMap.t,
@@ -17,28 +16,24 @@ module Meta = {
   };
 
   let init = (z: Zipper.t) => {
-    let unselected' = Zipper.unselect_and_zip(z);
-
-    let term_ranges = TermRanges.mk(unselected');
+    let segment' = Zipper.unselect_and_zip(z);
+    let term_ranges = TermRanges.mk(segment');
     let projectors = Projector.mk_nu_proj_map(z.projectors, term_ranges);
-    print_endline("AAAAA");
-    let unselected = Projector.of_segment(projectors, unselected');
-    /*NOTE(andrew): consider using unselected' for view_term (but terms problematic) */
-    let (view_term, terms) = MakeTerm.go(unselected);
-    let term_ranges = TermRanges.mk(unselected);
-    let measured = Measured.of_segment(unselected);
-    print_endline("BBBBB");
+    let segment = Projector.of_segment(projectors, segment');
+    /*NOTE(andrew): consider using segment' for view_term (but terms problematic) */
+    let (view_term, terms) = MakeTerm.go(segment);
+    let term_ranges = TermRanges.mk(segment);
+    let measured = Measured.of_segment(segment);
     {
       col_target: 0,
       touched: Touched.empty,
       measured,
-      unselected,
+      segment,
       term_ranges,
-      segment: Projector.of_segment(projectors, Zipper.zip(z)),
-      tiles: TileMap.mk(unselected),
+      tiles: TileMap.mk(segment),
       view_term,
       terms,
-      holes: Segment.holes(unselected),
+      holes: Segment.holes(segment),
       buffer_ids: Selection.buffer_ids(z.selection),
     };
   };
@@ -69,12 +64,12 @@ module Meta = {
     let {touched, measured, col_target, term_ranges, _} = meta;
     let touched = Touched.update(Time.tick(), effects, touched);
     let is_edit = Action.is_edit(a);
-    let unselected' = is_edit ? Zipper.unselect_and_zip(z) : meta.unselected;
+    let segment' = is_edit ? Zipper.unselect_and_zip(z) : meta.segment;
     let projectors = Projector.mk_nu_proj_map(z.projectors, term_ranges);
-    let unselected = Projector.of_segment(projectors, unselected');
+    let segment = Projector.of_segment(projectors, segment');
     let measured =
       is_edit
-        ? Measured.of_segment(~touched, ~old=measured, unselected) : measured;
+        ? Measured.of_segment(~touched, ~old=measured, segment) : measured;
     let col_target =
       switch (a) {
       | Move(Local(Up | Down))
@@ -83,18 +78,17 @@ module Meta = {
       };
     let (view_term, terms) =
       //NOTE(andrew): could use unprojected version here, might be dangerous
-      is_edit ? MakeTerm.go(unselected) : (meta.view_term, meta.terms);
+      is_edit ? MakeTerm.go(segment) : (meta.view_term, meta.terms);
     {
       col_target,
       touched,
       measured,
-      unselected,
-      term_ranges: is_edit ? TermRanges.mk(unselected) : meta.term_ranges,
-      segment: Projector.of_segment(projectors, Zipper.zip(z)),
-      tiles: is_edit ? TileMap.mk(unselected) : meta.tiles,
+      segment,
+      term_ranges: is_edit ? TermRanges.mk(segment) : meta.term_ranges,
+      tiles: is_edit ? TileMap.mk(segment) : meta.tiles,
       view_term,
       terms,
-      holes: is_edit ? Segment.holes(unselected) : meta.holes,
+      holes: is_edit ? Segment.holes(segment) : meta.holes,
       buffer_ids: Selection.buffer_ids(z.selection),
     };
   };
