@@ -158,6 +158,7 @@ module Deco =
   };
 
   let rec targets = (~container_shards=?, bp: Backpack.t, seg: Segment.t) => {
+    let seg = seg;
     let with_container_shards = ((pre, suf) as sibs) =>
       switch (container_shards) {
       | None => sibs

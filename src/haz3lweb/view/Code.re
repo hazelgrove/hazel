@@ -67,14 +67,9 @@ module Text = (M: {
                }) => {
   let m = p => Measured.find_p(p, M.map);
   let rec of_segment =
-          (
-            projectors: Projector.Map.t,
-            buffer_ids,
-            no_sorts,
-            sort,
-            seg: Segment.t,
-          )
+          (projectors, buffer_ids, no_sorts, sort, seg: Segment.t)
           : list(Node.t) => {
+    let seg = Projector.project_seg(projectors, seg);
     /* note: no_sorts flag is used for backpack view;
        otherwise Segment.expected_sorts call crashes for some reason */
     let expected_sorts =
@@ -177,7 +172,7 @@ let view =
       ~settings: Settings.t,
       {
         state: {
-          meta: {measured, buffer_ids, unselected, holes, _},
+          meta: {measured, buffer_ids, unselected, holes, term_ranges, _},
           zipper,
           _,
         },
@@ -190,8 +185,13 @@ let view =
       let map = measured;
       let settings = settings;
     });
-  let code =
-    Text.of_segment(zipper.projectors, buffer_ids, false, sort, unselected);
+  //TODO(andrew): cleanup
+  print_endline(
+    "Code: projectors size:"
+    ++ string_of_int(Projector.Map.cardinal(zipper.projectors)),
+  );
+  let projectors = Projector.mk_nu_proj_map(zipper.projectors, term_ranges);
+  let code = Text.of_segment(projectors, buffer_ids, false, sort, unselected);
   let holes = List.map(of_hole(~measured, ~font_metrics), holes);
   div(~attr=Attr.class_("code"), [span_c("code-text", code), ...holes]);
 };

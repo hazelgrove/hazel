@@ -21,15 +21,22 @@ let is_write_action = (a: Action.t) => {
 module Project = {
   let go = (p: Action.project, z: t) =>
     switch (p) {
-    | ToggleFold(id) =>
-      switch (Projector.Map.find(id, z.projectors)) {
-      | Some(p) => {
-          ...z,
-          projectors:
-            Projector.Map.add(id, Projector.toggle_fold(p), z.projectors),
+    | ToggleFold =>
+      print_endline("Project.go: ToggleFold");
+      switch (Indicated.index(z)) {
+      | Some(id) =>
+        switch (Projector.Map.find(id, z.projectors)) {
+        | Some(_p) => {
+            ...z,
+            projectors: Projector.Map.remove(id, z.projectors),
+          }
+        | None => {
+            ...z,
+            projectors: Projector.Map.add(id, Projector.Fold, z.projectors),
+          }
         }
       | None => z
-      }
+      };
     };
 };
 

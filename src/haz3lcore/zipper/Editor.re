@@ -19,13 +19,20 @@ module Meta = {
   let init = (z: Zipper.t) => {
     let unselected = Zipper.unselect_and_zip(z);
     let (view_term, terms) = MakeTerm.go(unselected);
+    let term_ranges = TermRanges.mk(unselected);
+    let projectors = Projector.mk_nu_proj_map(z.projectors, term_ranges);
+    print_endline("AAAAA");
+    let unselected = Projector.of_segment(projectors, unselected);
+    let term_ranges = TermRanges.mk(unselected);
+    let measured = Measured.of_segment(unselected);
+    print_endline("BBBBB");
     {
       col_target: 0,
       touched: Touched.empty,
-      measured: Measured.of_segment(unselected),
+      measured,
       unselected,
-      term_ranges: TermRanges.mk(unselected),
-      segment: Zipper.zip(z),
+      term_ranges,
+      segment: Projector.of_segment(projectors, Zipper.zip(z)),
       tiles: TileMap.mk(unselected),
       view_term,
       terms,
@@ -57,10 +64,12 @@ module Meta = {
 
   let next =
       (~effects: list(Effect.t)=[], a: Action.t, z: Zipper.t, meta: t): t => {
-    let {touched, measured, col_target, _} = meta;
+    let {touched, measured, col_target, term_ranges, _} = meta;
     let touched = Touched.update(Time.tick(), effects, touched);
     let is_edit = Action.is_edit(a);
     let unselected = is_edit ? Zipper.unselect_and_zip(z) : meta.unselected;
+    let projectors = Projector.mk_nu_proj_map(z.projectors, term_ranges);
+    let unselected = Projector.of_segment(projectors, unselected);
     let measured =
       is_edit
         ? Measured.of_segment(~touched, ~old=measured, unselected) : measured;
@@ -78,7 +87,7 @@ module Meta = {
       measured,
       unselected,
       term_ranges: is_edit ? TermRanges.mk(unselected) : meta.term_ranges,
-      segment: Zipper.zip(z),
+      segment: Projector.of_segment(projectors, Zipper.zip(z)),
       tiles: is_edit ? TileMap.mk(unselected) : meta.tiles,
       view_term,
       terms,
@@ -201,3 +210,11 @@ let trailing_hole_ctx = (ed: t, info_map: Statics.Map.t) => {
     };
   };
 };
+
+let get_projectors = (ed: t) => ed.state.zipper.projectors;
+
+let get_projector = (id: Id.t, ed: t) =>
+  Projector.Map.find(id, ed.state.zipper.projectors);
+
+let add_projector = (id: Id.t, p: Projector.t, ed: t) =>
+  update_z(_ => Zipper.add_projector(id, p, ed.state.zipper), ed);

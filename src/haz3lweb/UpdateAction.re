@@ -267,7 +267,6 @@ let should_scroll_to_caret =
   | TAB => true
   | PerformAction(a) =>
     switch (a) {
-    | Project(_)
     | Move(_)
     | MoveToNextHole(_)
     | Jump(_)
@@ -278,6 +277,7 @@ let should_scroll_to_caret =
     | Put_down
     | RotateBackpack
     | MoveToBackpackTarget(_) => true
+    | Project(_) //TODO(andrew)
     | Unselect(_)
     | Select(All) => false
     }

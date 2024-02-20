@@ -63,7 +63,8 @@ let main_view =
       @ [div(~attr=Attr.id("title"), [text("hazel")])]
       @ [EditorModeView.view(~inject, ~settings, ~editors)],
     );
-  let bottom_bar = CursorInspector.view(~inject, ~settings, cursor_info);
+  let bottom_bar =
+    CursorInspector.view(~inject, ~settings, editor, cursor_info);
   let sidebar =
     settings.explainThis.show && settings.core.statics
       ? ExplainThis.view(

@@ -123,8 +123,8 @@ module App = {
           schedule_action(Update.Save);
         };
         if (scroll_to_caret.contents) {
-          scroll_to_caret := false;
-          JsUtil.scroll_cursor_into_view_if_needed();
+          scroll_to_caret := false; //TODO(andrew): re-enable
+                                  //JsUtil.scroll_cursor_into_view_if_needed();
         };
       },
     );
