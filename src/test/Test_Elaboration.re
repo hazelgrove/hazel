@@ -23,7 +23,7 @@ let mk_map = CoreSettings.on |> Interface.Statics.mk_map;
 let dhexp_of_uexp = u => Elaborator.dhexp_of_uexp(mk_map(u), u, false);
 let alco_check = dhexp_typ |> Alcotest.check;
 
-let u1: Term.UExp.t = {ids: [id_at(0)], term: Int(8)};
+let u1: Term.UExp.t = {ids: [id_at(0)], term: Int(9)};
 let single_integer = () =>
   alco_check("Integer literal 8", Some(IntLit(8)), dhexp_of_uexp(u1));
 
