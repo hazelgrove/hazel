@@ -198,6 +198,7 @@ module Transition = (EV: EV_MODE) => {
 
   let transition = (req, state, env, d): 'a => {
     let (term, rewrap) = DHExp.unwrap(d);
+    let wrap_ctx = (term): EvalCtx.t => Term({term, ids: [rep_id(d)]});
     switch (term) {
     | Var(x) =>
       let. _ = otherwise(env, Var(x) |> rewrap);
@@ -216,11 +217,13 @@ module Transition = (EV: EV_MODE) => {
       });
     | Seq(d1, d2) =>
       let. _ = otherwise(env, d1 => Seq(d1, d2) |> rewrap)
-      and. _ = req_final(req(state, env), d1 => Seq1(d1, d2), d1);
+      and. _ =
+        req_final(req(state, env), d1 => Seq1(d1, d2) |> wrap_ctx, d1);
       Step({apply: () => d2, kind: Seq, value: false});
     | Let(dp, d1, d2) =>
       let. _ = otherwise(env, d1 => Let(dp, d1, d2) |> rewrap)
-      and. d1' = req_final(req(state, env), d1 => Let1(dp, d1, d2), d1);
+      and. d1' =
+        req_final(req(state, env), d1 => Let1(dp, d1, d2) |> wrap_ctx, d1);
       let.match env' = (env, matches(dp, d1'));
       Step({
         apply: () => Closure(env', d2) |> fresh,
@@ -251,7 +254,7 @@ module Transition = (EV: EV_MODE) => {
       });
     | Test(id, d) =>
       let. _ = otherwise(env, d => Test(id, d) |> rewrap)
-      and. d' = req_final(req(state, env), d => Test(id, d), d);
+      and. d' = req_final(req(state, env), d => Test(id, d) |> wrap_ctx, d);
       Step({
         apply: () =>
           switch (DHExp.term_of(d')) {
@@ -271,8 +274,10 @@ module Transition = (EV: EV_MODE) => {
       });
     | Ap(dir, d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => Ap(dir, d1, d2) |> rewrap)
-      and. d1' = req_value(req(state, env), d1 => Ap1(dir, d1, d2), d1)
-      and. d2' = req_final(req(state, env), d2 => Ap2(dir, d1, d2), d2);
+      and. d1' =
+        req_value(req(state, env), d1 => Ap1(dir, d1, d2) |> wrap_ctx, d1)
+      and. d2' =
+        req_final(req(state, env), d2 => Ap2(dir, d1, d2) |> wrap_ctx, d2);
       switch (DHExp.term_of(d1')) {
       | Constructor(_) => Constructor
       | Fun(dp, _, d3, Some(env'), _) =>
@@ -315,7 +320,11 @@ module Transition = (EV: EV_MODE) => {
     | ApBuiltin(ident, arg) =>
       let. _ = otherwise(env, arg => ApBuiltin(ident, arg) |> rewrap)
       and. arg' =
-        req_value(req(state, env), arg => ApBuiltin(ident, arg), arg);
+        req_value(
+          req(state, env),
+          arg => ApBuiltin(ident, arg) |> wrap_ctx,
+          arg,
+        );
       Step({
         apply: () => {
           let builtin =
@@ -339,7 +348,11 @@ module Transition = (EV: EV_MODE) => {
     | If(consistent, c, d1, d2) =>
       let. _ = otherwise(env, c => If(consistent, c, d1, d2) |> rewrap)
       and. c' =
-        req_value(req(state, env), c => If1(consistent, c, d1, d2), c);
+        req_value(
+          req(state, env),
+          c => If1(consistent, c, d1, d2) |> wrap_ctx,
+          c,
+        );
       switch (consistent, DHExp.term_of(c')) {
       | (Consistent, Bool(b)) =>
         Step({
@@ -365,7 +378,11 @@ module Transition = (EV: EV_MODE) => {
     | BinOp(Bool(And), d1, d2) =>
       let. _ = otherwise(env, d1 => BinOp(Bool(And), d1, d2) |> rewrap)
       and. d1' =
-        req_value(req(state, env), d1 => BinOp1(Bool(And), d1, d2), d1);
+        req_value(
+          req(state, env),
+          d1 => BinOp1(Bool(And), d1, d2) |> wrap_ctx,
+          d1,
+        );
       Step({
         apply: () =>
           switch (DHExp.term_of(d1')) {
@@ -379,7 +396,11 @@ module Transition = (EV: EV_MODE) => {
     | BinOp(Bool(Or), d1, d2) =>
       let. _ = otherwise(env, d1 => BinOp(Bool(Or), d1, d2) |> rewrap)
       and. d1' =
-        req_value(req(state, env), d1 => BinOp1(Bool(Or), d1, d2), d1);
+        req_value(
+          req(state, env),
+          d1 => BinOp1(Bool(Or), d1, d2) |> wrap_ctx,
+          d1,
+        );
       Step({
         apply: () =>
           switch (DHExp.term_of(d1')) {
@@ -393,9 +414,17 @@ module Transition = (EV: EV_MODE) => {
     | BinOp(Int(op), d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => BinOp(Int(op), d1, d2) |> rewrap)
       and. d1' =
-        req_value(req(state, env), d1 => BinOp1(Int(op), d1, d2), d1)
+        req_value(
+          req(state, env),
+          d1 => BinOp1(Int(op), d1, d2) |> wrap_ctx,
+          d1,
+        )
       and. d2' =
-        req_value(req(state, env), d2 => BinOp2(Int(op), d1, d2), d2);
+        req_value(
+          req(state, env),
+          d2 => BinOp2(Int(op), d1, d2) |> wrap_ctx,
+          d2,
+        );
       Step({
         apply: () =>
           switch (DHExp.term_of(d1'), DHExp.term_of(d2')) {
@@ -440,9 +469,17 @@ module Transition = (EV: EV_MODE) => {
       let. _ =
         otherwise(env, (d1, d2) => BinOp(Float(op), d1, d2) |> rewrap)
       and. d1' =
-        req_value(req(state, env), d1 => BinOp1(Float(op), d1, d2), d1)
+        req_value(
+          req(state, env),
+          d1 => BinOp1(Float(op), d1, d2) |> wrap_ctx,
+          d1,
+        )
       and. d2' =
-        req_value(req(state, env), d2 => BinOp2(Float(op), d1, d2), d2);
+        req_value(
+          req(state, env),
+          d2 => BinOp2(Float(op), d1, d2) |> wrap_ctx,
+          d2,
+        );
       Step({
         apply: () =>
           switch (DHExp.term_of(d1'), DHExp.term_of(d2')) {
@@ -474,9 +511,17 @@ module Transition = (EV: EV_MODE) => {
       let. _ =
         otherwise(env, (d1, d2) => BinOp(String(op), d1, d2) |> rewrap)
       and. d1' =
-        req_value(req(state, env), d1 => BinOp1(String(op), d1, d2), d1)
+        req_value(
+          req(state, env),
+          d1 => BinOp1(String(op), d1, d2) |> wrap_ctx,
+          d1,
+        )
       and. d2' =
-        req_value(req(state, env), d2 => BinOp2(String(op), d1, d2), d2);
+        req_value(
+          req(state, env),
+          d2 => BinOp2(String(op), d1, d2) |> wrap_ctx,
+          d2,
+        );
       Step({
         apply: () =>
           switch (DHExp.term_of(d1'), DHExp.term_of(d2')) {
@@ -495,11 +540,16 @@ module Transition = (EV: EV_MODE) => {
     | Tuple(ds) =>
       let. _ = otherwise(env, ds => Tuple(ds) |> rewrap)
       and. _ =
-        req_all_final(req(state, env), (d1, ds) => Tuple(d1, ds), ds);
+        req_all_final(
+          req(state, env),
+          (d1, ds) => Tuple(d1, ds) |> wrap_ctx,
+          ds,
+        );
       Constructor;
     | Prj(d1, n) =>
       let. _ = otherwise(env, d1 => Prj(d1, n) |> rewrap)
-      and. d1' = req_final(req(state, env), d1 => Prj(d1, n), d1);
+      and. d1' =
+        req_final(req(state, env), d1 => Prj(d1, n) |> wrap_ctx, d1);
       Step({
         apply: () => {
           switch (DHExp.term_of(d1')) {
@@ -520,8 +570,10 @@ module Transition = (EV: EV_MODE) => {
     // TODO(Matt): Can we do something cleverer when the list structure is complete but the contents aren't?
     | Cons(d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => Cons(d1, d2) |> rewrap)
-      and. d1' = req_final(req(state, env), d1 => Cons1(d1, d2), d1)
-      and. d2' = req_value(req(state, env), d2 => Cons2(d1, d2), d2);
+      and. d1' =
+        req_final(req(state, env), d1 => Cons1(d1, d2) |> wrap_ctx, d1)
+      and. d2' =
+        req_value(req(state, env), d2 => Cons2(d1, d2) |> wrap_ctx, d2);
       Step({
         apply: () =>
           switch (term_of(d2')) {
@@ -535,8 +587,18 @@ module Transition = (EV: EV_MODE) => {
     | ListConcat(d1, d2) =>
       // TODO(Matt): Can we do something cleverer when the list structure is complete but the contents aren't?
       let. _ = otherwise(env, (d1, d2) => ListConcat(d1, d2) |> rewrap)
-      and. d1' = req_value(req(state, env), d1 => ListConcat1(d1, d2), d1)
-      and. d2' = req_value(req(state, env), d2 => ListConcat2(d1, d2), d2);
+      and. d1' =
+        req_value(
+          req(state, env),
+          d1 => ListConcat1(d1, d2) |> wrap_ctx,
+          d1,
+        )
+      and. d2' =
+        req_value(
+          req(state, env),
+          d2 => ListConcat2(d1, d2) |> wrap_ctx,
+          d2,
+        );
       Step({
         apply: () =>
           switch (term_of(d1'), term_of(d2')) {
@@ -555,7 +617,7 @@ module Transition = (EV: EV_MODE) => {
       and. _ =
         req_all_final(
           req(state, env),
-          (d1, ds) => ListLit(u, i, ty, d1, ds),
+          (d1, ds) => ListLit(u, i, ty, d1, ds) |> wrap_ctx,
           ds,
         );
       Constructor;
@@ -564,7 +626,7 @@ module Transition = (EV: EV_MODE) => {
       and. d1 =
         req_final(
           req(state, env),
-          d1 => MatchScrut(Consistent, d1, rules),
+          d1 => MatchScrut(Consistent, d1, rules) |> wrap_ctx,
           d1,
         );
       let rec next_rule = (
@@ -591,14 +653,15 @@ module Transition = (EV: EV_MODE) => {
       Indet;
     | Closure(env', d) =>
       let. _ = otherwise(env, d => Closure(env', d) |> rewrap)
-      and. d' = req_value(req(state, env'), d1 => Closure(env', d1), d);
+      and. d' =
+        req_value(req(state, env'), d1 => Closure(env', d1) |> wrap_ctx, d);
       Step({apply: () => d', kind: CompleteClosure, value: true});
     | NonEmptyHole(reason, u, i, d1) =>
       let. _ = otherwise(env, d1 => NonEmptyHole(reason, u, i, d1) |> rewrap)
       and. _ =
         req_final(
           req(state, env),
-          d1 => NonEmptyHole(reason, u, i, d1),
+          d1 => NonEmptyHole(reason, u, i, d1) |> wrap_ctx,
           d1,
         );
       Indet;
@@ -613,7 +676,8 @@ module Transition = (EV: EV_MODE) => {
       open CastHelpers; /* Cast calculus */
 
       let. _ = otherwise(env, d => Cast(d, t1, t2) |> rewrap)
-      and. d' = req_final(req(state, env), d => Cast(d, t1, t2), d);
+      and. d' =
+        req_final(req(state, env), d => Cast(d, t1, t2) |> wrap_ctx, d);
       switch (ground_cases_of(t1), ground_cases_of(t2)) {
       | (Hole, Hole)
       | (Ground, Ground) =>
@@ -669,11 +733,17 @@ module Transition = (EV: EV_MODE) => {
       };
     | FailedCast(d1, t1, t2) =>
       let. _ = otherwise(env, d1 => FailedCast(d1, t1, t2) |> rewrap)
-      and. _ = req_final(req(state, env), d1 => FailedCast(d1, t1, t2), d1);
+      and. _ =
+        req_final(
+          req(state, env),
+          d1 => FailedCast(d1, t1, t2) |> wrap_ctx,
+          d1,
+        );
       Indet;
     | Filter(f1, d1) =>
       let. _ = otherwise(env, d1 => Filter(f1, d1) |> rewrap)
-      and. d1 = req_final(req(state, env), d1 => Filter(f1, d1), d1);
+      and. d1 =
+        req_final(req(state, env), d1 => Filter(f1, d1) |> wrap_ctx, d1);
       Step({apply: () => d1, kind: CompleteFilter, value: true});
     };
   };
