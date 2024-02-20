@@ -24,8 +24,8 @@ module Map = {
   let add = add;
   let remove = remove;
   let find = find_opt;
-  let update = update;
-  let to_list = x => x |> List.to_seq |> Id.Map.of_seq;
+  //let update = update;
+  //let to_list = x => x |> List.to_seq |> Id.Map.of_seq;
   //let mapi = mapi;
   let fold = fold;
   let cardinal = cardinal;
@@ -54,18 +54,9 @@ let split_seg =
   | None => None
   | Some(pr) =>
     let (pre, rest) =
-      ListUtil.take_while(
-        (p: Piece.t) =>
-          switch (Id.Map.find_opt(Piece.id(p), ps)) {
-          | Some(_) => false
-          | None => true
-          },
-        seg,
-      );
+      ListUtil.take_while(p => !Id.Map.mem(Piece.id(p), ps), seg);
     let (mid, suf) =
-      rest
-      |> List.rev
-      |> ListUtil.take_while((p: Piece.t) => Piece.id(p) != pr.last_id);
+      rest |> List.rev |> ListUtil.take_while(p => Piece.id(p) != pr.last_id);
     Some((pre, suf |> List.rev, mid |> List.rev, pr.proj_id, pr.t));
   };
 };
@@ -81,7 +72,7 @@ let proj_info = (term_ranges, id: Id.t, t: proj_ty, acc: nu_proj_map) => {
   print_endline("proj_info for id: " ++ Id.to_string(id));
   switch (Id.Map.find_opt(id, term_ranges)) {
   | Some(range) =>
-    print_endline("proj_info: found term range for projector");
+    //print_endline("proj_info: found term range for projector");
     let guy = guy_of(id, t, range);
     Id.Map.add(guy.start_id, guy, acc);
   | _ =>
@@ -94,10 +85,19 @@ let mk_nu_proj_map =
     (projectors: Map.t, term_ranges: TermRanges.t): nu_proj_map =>
   Map.fold(proj_info(term_ranges), projectors, Id.Map.empty);
 
+let placeholder_tile = (s: string, id: Id.t): Tile.t => {
+  id,
+  label: [s],
+  mold: Mold.mk_op(Any, []),
+  shards: [0],
+  children: [],
+};
+
 let project_mid = (id, p: proj_ty, mid): Segment.t =>
-  //TODO(andrew): prrobably shouldn't just duplicate this id in the general case
+  //TODO(andrew): prrobably shouldn't just duplicate this id in the general case?
   switch (p) {
-  | Fold => [Grout({id, shape: Convex})]
+  | Fold => [Tile(placeholder_tile("%", id))]
+  //[Grout({id, shape: Convex})]
   | Normal => mid
   };
 
