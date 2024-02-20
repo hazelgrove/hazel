@@ -14,7 +14,7 @@ let is_action_logged: UpdateAction.t => bool =
   | Benchmark(_)
   | DebugConsole(_) => false
   | Reset
-  | DoTheThing
+  | TAB
   | Assistant(_)
   | Set(_)
   | SwitchScratchSlide(_)
