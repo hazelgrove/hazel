@@ -269,16 +269,8 @@ let is_indented_map = (seg: Segment.t) => {
   go(seg);
 };
 
-let of_segment =
-    (
-      ~projectors=Projector.Map.empty,
-      ~old: t=empty,
-      ~touched=Touched.empty,
-      seg: Segment.t,
-    )
-    : t => {
+let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
   let is_indented = is_indented_map(seg);
-  let seg = Projector.project_seg(projectors, seg);
 
   // recursive across seg's bidelimited containers
   let rec go_nested =
