@@ -72,10 +72,16 @@ let go_z =
     switch (Indicated.index(z)) {
     | None => Error(Action.Failure.Cant_move)
     | Some(id) =>
-      switch (Move.jump_to_id(z, id)) {
+      let z = Project.go(p, z);
+      //TODO(andrew): clean up hacky movement
+      switch (Move.to_start(z)) {
       | None => Error(Action.Failure.Cant_move)
-      | Some(z) => Ok(Project.go(p, z))
-      }
+      | Some(z) =>
+        switch (Move.jump_to_id(z, id)) {
+        | None => Error(Action.Failure.Cant_move)
+        | Some(z) => Ok(z)
+        }
+      };
     }
 
   | Move(d) =>

@@ -24,66 +24,75 @@ module Map = {
   let add = add;
   let remove = remove;
   let find = find_opt;
-  //let update = update;
-  //let to_list = x => x |> List.to_seq |> Id.Map.of_seq;
-  //let mapi = mapi;
   let fold = fold;
   let cardinal = cardinal;
 };
 
 type t = p;
 
-type proj = Map.t;
-type proj_ty = t;
+let rep_id = (seg, r) => r |> Aba.first_a |> List.nth(seg) |> Piece.id;
 
-type nu_proj_info = {
-  proj_id: Id.t, //projector id
-  t,
-  start_id: Id.t, //first piece id
-  last_id: Id.t //last piece id
+let id_at = (seg: Segment.t, skel: Skel.t) => rep_id(seg, Skel.root(skel));
+
+let rec left_idx = (skel: Skel.t): int => {
+  switch (skel) {
+  | Op(r)
+  | Pre(r, _) => Aba.first_a(r)
+  | Post(s, _)
+  | Bin(s, _, _) => left_idx(s)
+  };
 };
-/* map indexed by start_id instead of proj_id */
-type nu_proj_map = Id.Map.t(nu_proj_info);
+
+let rec right_idx = (skel: Skel.t): int => {
+  switch (skel) {
+  | Op(r)
+  | Post(_, r) => Aba.last_a(r)
+  | Pre(_, s)
+  | Bin(_, _, s) => right_idx(s)
+  };
+};
+
+let get_extreme_idxs = (skel: Skel.t): (int, int) => (
+  left_idx(skel),
+  right_idx(skel),
+);
+
+let get_range = (seg: Segment.t, ps: Map.t): option((Id.t, (int, int))) => {
+  let rec go = (skel: Skel.t) => {
+    let id = id_at(seg, skel);
+    switch (Id.Map.find_opt(id, ps)) {
+    | Some(_) =>
+      let (l, r) = get_extreme_idxs(skel);
+      Some((id, (l, r)));
+    | None =>
+      switch (skel) {
+      | Op(_) => None
+      | Pre(_, r) => go(r)
+      | Post(l, _) => go(l)
+      | Bin(l, _, r) =>
+        switch (go(l)) {
+        | Some(x) => Some(x)
+        | None => go(r)
+        }
+      }
+    };
+  };
+  go(Segment.skel(seg));
+};
 
 let split_seg =
-    (seg: Segment.t, ps: nu_proj_map)
-    : option((Segment.t, Segment.t, Segment.t, Id.t, proj_ty)) => {
-  let res =
-    List.find_map((p: Piece.t) => Id.Map.find_opt(Piece.id(p), ps), seg);
-  switch (res) {
+    (seg: Segment.t, ps: Map.t)
+    : option((Segment.t, Segment.t, Segment.t, Id.t)) => {
+  switch (get_range(seg, ps)) {
   | None => None
-  | Some(pr) =>
-    let (pre, rest) =
-      ListUtil.take_while(p => !Id.Map.mem(Piece.id(p), ps), seg);
-    let (mid, suf) =
-      rest |> List.rev |> ListUtil.take_while(p => Piece.id(p) != pr.last_id);
-    Some((pre, suf |> List.rev, mid |> List.rev, pr.proj_id, pr.t));
+  | Some((id, (start, last))) =>
+    //TODO(andrew): numeric edge cases?
+    switch (ListUtil.split_sublist_opt(start, last + 1, seg)) {
+    | Some((pre, mid, suf)) => Some((pre, mid, suf, id))
+    | _ => None
+    }
   };
 };
-
-let guy_of = (id, t, (start, last)) => {
-  proj_id: id,
-  t,
-  start_id: Piece.id(start),
-  last_id: Piece.id(last),
-};
-
-let proj_info = (term_ranges, id: Id.t, t: proj_ty, acc: nu_proj_map) => {
-  print_endline("proj_info for id: " ++ Id.to_string(id));
-  switch (Id.Map.find_opt(id, term_ranges)) {
-  | Some(range) =>
-    //print_endline("proj_info: found term range for projector");
-    let guy = guy_of(id, t, range);
-    Id.Map.add(guy.start_id, guy, acc);
-  | _ =>
-    print_endline("ERROR: mk_nu_proj_map: no term range for projector");
-    acc;
-  };
-};
-
-let mk_nu_proj_map =
-    (projectors: Map.t, term_ranges: TermRanges.t): nu_proj_map =>
-  Map.fold(proj_info(term_ranges), projectors, Id.Map.empty);
 
 let placeholder_tile = (s: string, id: Id.t): Tile.t => {
   id,
@@ -93,39 +102,33 @@ let placeholder_tile = (s: string, id: Id.t): Tile.t => {
   children: [],
 };
 
-let project_mid = (id, p: proj_ty, mid): Segment.t =>
+let project_mid = (id, p: option(t), mid): Segment.t =>
   //TODO(andrew): prrobably shouldn't just duplicate this id in the general case?
   switch (p) {
-  | Fold => [Tile(placeholder_tile("%", id))]
+  | Some(Fold) => [Tile(placeholder_tile("%", id))]
   //[Grout({id, shape: Convex})]
-  | Normal => mid
+  | Some(Normal)
+  | None => mid
   };
 
-let project_seg = (p: nu_proj_map, seg: Segment.t): Segment.t => {
-  /* needed input: a map/assoc list of projector first piece ids to projector (and last piece id) (don't even need id here maybe?) */
-  /* find first idx in seg where is matches a projector range */
-  /* check other side of range exists */
-  /* split segment three ways. prefix and suffix left alone */
-  /* dispatch on projector type */
-  /* Fold will turn middle of suffix into singleton padding token */
-  /* stitch seg back together */
-  print_endline("project_seg");
+let project_seg = (p, seg: Segment.t): Segment.t => {
+  // print_endline("project_seg");
   switch (split_seg(seg, p)) {
-  | Some((pre, mid_og, suf, proj_id, p)) =>
-    print_endline(
-      "split: segment length: "
-      ++ string_of_int(List.length(seg))
-      ++ " as divided into: "
-      ++ string_of_int(List.length(pre))
-      ++ " "
-      ++ string_of_int(List.length(mid_og))
-      ++ " "
-      ++ string_of_int(List.length(suf)),
-    );
-    pre @ project_mid(proj_id, p, mid_og) @ suf;
+  | Some((pre, mid_og, suf, proj_id)) =>
+    // print_endline(
+    //   "split: segment length: "
+    //   ++ string_of_int(List.length(seg))
+    //   ++ " as divided into: "
+    //   ++ string_of_int(List.length(pre))
+    //   ++ " "
+    //   ++ string_of_int(List.length(mid_og))
+    //   ++ " "
+    //   ++ string_of_int(List.length(suf)),
+    // );
+    pre @ project_mid(proj_id, Map.find(proj_id, p), mid_og) @ suf
   | None =>
-    print_endline("no split");
-    seg;
+    // print_endline("no split");
+    seg
   };
 };
 

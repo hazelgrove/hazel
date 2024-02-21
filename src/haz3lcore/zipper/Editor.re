@@ -17,9 +17,7 @@ module Meta = {
 
   let init = (z: Zipper.t) => {
     let segment' = Zipper.unselect_and_zip(z);
-    let term_ranges = TermRanges.mk(segment');
-    let projectors = Projector.mk_nu_proj_map(z.projectors, term_ranges);
-    let segment = Projector.of_segment(projectors, segment');
+    let segment = Projector.of_segment(z.projectors, segment');
     /*NOTE(andrew): consider using segment' for view_term (but terms problematic) */
     let (view_term, terms) = MakeTerm.go(segment);
     let term_ranges = TermRanges.mk(segment);
@@ -61,12 +59,11 @@ module Meta = {
 
   let next =
       (~effects: list(Effect.t)=[], a: Action.t, z: Zipper.t, meta: t): t => {
-    let {touched, measured, col_target, term_ranges, _} = meta;
+    let {touched, measured, col_target, _} = meta;
     let touched = Touched.update(Time.tick(), effects, touched);
     let is_edit = Action.is_edit(a);
     let segment' = is_edit ? Zipper.unselect_and_zip(z) : meta.segment;
-    let projectors = Projector.mk_nu_proj_map(z.projectors, term_ranges);
-    let segment = Projector.of_segment(projectors, segment');
+    let segment = Projector.of_segment(z.projectors, segment');
     let measured =
       is_edit
         ? Measured.of_segment(~touched, ~old=measured, segment) : measured;
