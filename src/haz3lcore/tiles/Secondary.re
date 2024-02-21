@@ -1,12 +1,26 @@
 open Sexplib.Std;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type cls =
+  | Whitespace
+  | Comment;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type secondary_content =
+  | Whitespace(string)
+  | Comment(string);
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   id: Id.t,
   content: secondary_content,
-}
-and secondary_content =
-  | Whitespace(string)
-  | Comment(string);
+};
+
+let cls_of = (s: t): cls =>
+  switch (s.content) {
+  | Whitespace(_) => Whitespace
+  | Comment(_) => Comment
+  };
 
 let mk_space = id => {content: Whitespace(Form.space), id};
 

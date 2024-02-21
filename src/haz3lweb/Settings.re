@@ -2,16 +2,15 @@ open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type mode =
-  | DebugLoad
   | Scratch
-  | Examples
-  | Exercise;
+  | Documentation
+  | Exercises;
 
 let mode_of_string = (s: string): mode =>
   switch (s) {
   | "Scratch" => Scratch
-  | "Examples" => Examples
-  | "Exercise" => Exercise
+  | "Documentation" => Documentation
+  | "Exercises" => Exercises
   | _ => failwith("mode_of_string: unknown mode:" ++ s)
   };
 
@@ -24,6 +23,7 @@ type t = {
   context_inspector: bool,
   instructor_mode: bool,
   benchmark: bool,
+  explainThis: ExplainThisModel.Settings.t,
   mode,
 };
 

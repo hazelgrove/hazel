@@ -15,11 +15,11 @@ let is_action_logged: UpdateAction.t => bool =
   | DebugConsole(_)
   | StepperAction(_, CoqExport) => false
   | Reset
-  | DoTheThing
+  | TAB
   | Assistant(_)
   | Set(_)
   | SwitchScratchSlide(_)
-  | SwitchExampleSlide(_)
+  | SwitchDocumentationSlide(_)
   | SwitchEditor(_)
   | ResetCurrentEditor
   | ReparseCurrentEditor

@@ -31,22 +31,41 @@ type group_model = {
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
-  show: bool,
-  show_feedback: bool,
-  highlight: bool,
   specificity_open: bool,
   forms: list(form_model),
   groups: list(group_model),
 };
 
-let init: t = {
-  show: true,
-  show_feedback: false,
-  highlight: false,
-  specificity_open: false,
-  forms: [],
-  groups: [],
+module Settings = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type highlight =
+    | NoHighlight
+    | One(Id.t)
+    | All;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    show: bool,
+    show_feedback: bool,
+    highlight,
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type highlight_action =
+    | Toggle
+    | Hover(Id.t)
+    | UnsetHover;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type action =
+    | ToggleShow
+    | ToggleShowFeedback
+    | SetHighlight(highlight_action);
+
+  let init = {show: true, show_feedback: false, highlight: NoHighlight};
 };
+
+let init: t = {specificity_open: false, forms: [], groups: []};
 
 let get_explanation_feedback =
     (group_id: group_id, form_id: form_id, model: t): option(feedback_option) => {

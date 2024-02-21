@@ -71,12 +71,12 @@ let pretty_print = (~measured: Measured.t, z: Zipper.t): string =>
   |> String.concat("\n");
 
 let to_string_editor =
-    (~holes: option(string)=None, editor: Editor.t): string =>
+    (~holes: option(string)=Some(""), editor: Editor.t): string =>
   to_rows(
     ~holes,
     ~measured=editor.state.meta.measured,
     ~caret=None,
-    ~indent=" ",
+    ~indent="",
     ~segment=seg_of_zip(editor.state.zipper),
   )
   |> String.concat("\n");

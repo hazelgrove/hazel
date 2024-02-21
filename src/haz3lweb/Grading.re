@@ -240,7 +240,7 @@ module MutationTestingReport = {
       Cell.panel(
         ~classes=["test-panel"],
         [
-          Cell.bolded_caption(
+          Cell.caption(
             "Mutation Testing",
             ~rest=": Your Tests vs. Buggy Implementations (hidden)",
           ),
@@ -286,7 +286,7 @@ module SyntaxReport = {
     Cell.panel(
       ~classes=["test-panel"],
       [
-        Cell.bolded_caption(
+        Cell.caption(
           "Syntax Validation",
           ~rest=
             ": Does your implementation satisfy the syntactic requirements?",
@@ -416,7 +416,7 @@ module ImplGradingReport = {
     Cell.panel(
       ~classes=["cell-item", "panel", "test-panel"],
       [
-        Cell.bolded_caption(
+        Cell.caption(
           "Implementation Grading",
           ~rest=": Hidden Tests vs. Your Implementation",
         ),

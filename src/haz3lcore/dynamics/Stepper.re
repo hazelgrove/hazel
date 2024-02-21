@@ -13,14 +13,8 @@ type step_with_previous = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type current =
   | StepperOK(DHExp.t, EvaluatorState.t)
-  | StepperError(
-      DHExp.t,
-      EvaluatorState.t,
-      EvalObj.t,
-      ProgramEvaluatorError.t,
-    ) // Must have at least one in previous
   | StepTimeout(DHExp.t, EvaluatorState.t, EvalObj.t) // Must have at least one in previous
-  | StepPending(DHExp.t, EvaluatorState.t, option(EvalObj.t)); // none
+  | StepPending(DHExp.t, EvaluatorState.t, option(EvalObj.t));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
@@ -231,11 +225,12 @@ let current_expr = (s: t) =>
   switch (s.current) {
   | StepperOK(d, _)
   | StepPending(d, _, _)
-  | StepperError(d, _, _, _)
   | StepTimeout(d, _, _) => d
   };
 
-let step_pending = (eo: EvalObj.t, {elab, previous, current, next}: t) =>
+let step_pending = (idx: int, {elab, previous, current, next}: t) => {
+  // TODO[Matt]: change to nth_opt after refactor
+  let eo = List.nth(next, idx);
   switch (current) {
   | StepperOK(d, s) => {
       elab,
@@ -262,6 +257,7 @@ let step_pending = (eo: EvalObj.t, {elab, previous, current, next}: t) =>
       next,
     }
   };
+};
 
 let init = (elab: DHExp.t) => {
   {
@@ -357,11 +353,9 @@ let rec evaluate_pending = (~settings, s: t) => {
 
 let rec evaluate_full = (~settings, s: t) => {
   switch (s.current) {
-  | StepperError(_)
   | StepTimeout(_) => s
   | StepperOK(_) when s.next == [] => s
-  | StepperOK(_) =>
-    s |> step_pending(List.hd(s.next)) |> evaluate_full(~settings)
+  | StepperOK(_) => s |> step_pending(0) |> evaluate_full(~settings)
   | StepPending(_) =>
     evaluate_pending(~settings, s) |> evaluate_full(~settings)
   };
@@ -375,12 +369,7 @@ let timeout =
       current: StepTimeout(d, state, eo),
       next,
     }
-  | {
-      current:
-        StepperError(_) | StepTimeout(_) | StepperOK(_) |
-        StepPending(_, _, None),
-      _,
-    } as s => s;
+  | {current: StepTimeout(_) | StepperOK(_) | StepPending(_, _, None), _} as s => s;
 
 // let rec step_forward = (~settings, e: EvalObj.t, s: t) => {
 //   let current = compose(e.ctx, e.apply());
@@ -493,6 +482,12 @@ type persistent = {
   previous: list(step),
   current,
 };
+
+let (sexp_of_persistent, persistent_of_sexp) =
+  StructureShareSexp.structure_share_in(
+    sexp_of_persistent,
+    persistent_of_sexp,
+  );
 
 // Remove EvalObj.t objects from stepper to prevent problems when loading
 let to_persistent: t => persistent =

@@ -20,7 +20,7 @@ let reset_hazel =
           "Are you SURE you want to reset Hazel to its initial state? You will lose any existing code that you have written, and course staff have no way to restore it!",
         );
       if (confirmed) {
-        DebugAction.perform(DebugAction.ClearStore);
+        JsUtil.clear_localstore();
         Dom_html.window##.location##reload;
       };
       Virtual_dom.Vdom.Effect.Ignore;
@@ -28,93 +28,113 @@ let reset_hazel =
     ~tooltip="Clear Local Storage and Reload (LOSE ALL DATA)",
   );
 
+let reparse = (~inject: Update.t => 'a) =>
+  button(
+    Icons.backpack,
+    _ => inject(ReparseCurrentEditor),
+    ~tooltip="Reparse Current Editor",
+  );
+
 let settings_menu =
     (
       ~inject,
       ~settings as
-        {core: {evaluation, _} as core, benchmark, secondary_icons, _}: Settings.t,
+        {
+          core: {evaluation, _} as core,
+          benchmark,
+          secondary_icons,
+          explainThis,
+          _,
+        }: Settings.t,
     ) => {
   let toggle = (icon, tooltip, bool, setting) =>
     toggle_named(icon, ~tooltip, bool, _ =>
       inject(UpdateAction.Set(setting))
     );
-  div(
-    ~attr=clss(["submenu", "settings"]),
-    [
-      toggle("⇲", "Toggle Completion", core.assist, Assist),
-      toggle("𝑒", "Show Elaboration", core.elaborate, Elaborate),
-      toggle(
-        "λ",
-        "Show Function Bodies",
-        evaluation.show_fn_bodies,
-        Evaluation(ShowFnBodies),
-      ),
-      toggle(
-        "|",
-        "Show Case Clauses",
-        evaluation.show_case_clauses,
-        Evaluation(ShowCaseClauses),
-      ),
-      toggle(
-        "f",
-        "Show fixpoints",
-        evaluation.show_fixpoints,
-        Evaluation(ShowCaseClauses),
-      ),
-      toggle(
-        Unicode.castArrowSym,
-        "Show casts",
-        evaluation.show_casts,
-        Evaluation(ShowCasts),
-      ),
-      toggle(
-        "🔍",
-        "Show Lookup Steps",
-        evaluation.show_lookup_steps,
-        Evaluation(ShowLookups),
-      ),
-      toggle(
-        "⏯️",
-        "Show Stepper Filters",
-        evaluation.show_stepper_filters,
-        Evaluation(ShowFilters),
-      ),
-      toggle("↵", "Show Whitespace", secondary_icons, SecondaryIcons),
-      toggle("τ", "Toggle Statics", core.statics, Statics),
-      toggle("𝛿", "Toggle Dynamics", core.dynamics, Dynamics),
-      toggle("✓", "Print Benchmarks", benchmark, Benchmark),
-    ],
-  );
+  [
+    toggle("τ", "Toggle Statics", core.statics, Statics),
+    toggle("⇲", "Toggle Completion", core.assist, Assist),
+    toggle("↵", "Show Whitespace", secondary_icons, SecondaryIcons),
+    toggle("✓", "Print Benchmarks", benchmark, Benchmark),
+    toggle("𝛿", "Toggle Dynamics", core.dynamics, Dynamics),
+    toggle("𝑒", "Show Elaboration", core.elaborate, Elaborate),
+    toggle(
+      "λ",
+      "Show Function Bodies",
+      evaluation.show_fn_bodies,
+      Evaluation(ShowFnBodies),
+    ),
+    toggle(
+      "|",
+      "Show Case Clauses",
+      evaluation.show_case_clauses,
+      Evaluation(ShowCaseClauses),
+    ),
+    toggle(
+      "f",
+      "Show fixpoints",
+      evaluation.show_fixpoints,
+      Evaluation(ShowFixpoints),
+    ),
+    toggle(
+      Unicode.castArrowSym,
+      "Show casts",
+      evaluation.show_casts,
+      Evaluation(ShowCasts),
+    ),
+    toggle(
+      "🔍",
+      "Show Lookup Steps",
+      evaluation.show_lookup_steps,
+      Evaluation(ShowLookups),
+    ),
+    toggle(
+      "⏯️",
+      "Show Stepper Filters",
+      evaluation.show_stepper_filters,
+      Evaluation(ShowFilters),
+    ),
+    toggle(
+      "?",
+      "Show Docs Sidebar",
+      explainThis.show,
+      ExplainThis(ToggleShow),
+    ),
+    toggle(
+      "👍",
+      "Show Docs Feedback",
+      explainThis.show_feedback,
+      ExplainThis(ToggleShowFeedback),
+    ),
+  ];
 };
 
 let export_menu = (~inject, ~settings: Settings.t, editors: Editors.t) =>
   switch (editors) {
-  | DebugLoad => []
   | Scratch(slide_idx, slides) =>
     let state = List.nth(slides, slide_idx);
     [ScratchMode.export_button(state)];
-  | Examples(name, slides) =>
+  | Documentation(name, slides) =>
     let state = List.assoc(name, slides);
     [ScratchMode.export_button(state)];
-  | Exercise(_, _, exercise) when settings.instructor_mode => [
+  | Exercises(_, _, exercise) when settings.instructor_mode => [
       export_persistent_data(~inject),
       ExerciseMode.export_submission(~settings),
       ExerciseMode.instructor_export(exercise),
       ExerciseMode.instructor_transitionary_export(exercise),
       ExerciseMode.instructor_grading_export(exercise),
     ]
-  | Exercise(_) => [ExerciseMode.export_submission(~settings)]
+  | Exercises(_) => [ExerciseMode.export_submission(~settings)]
   };
 
 let import_menu = (~inject, editors: Editors.t) =>
   switch (editors) {
-  | DebugLoad => []
   | Scratch(_)
-  | Examples(_) => [
+  | Documentation(_) => [
       ScratchMode.import_button(inject),
       ScratchMode.reset_button(inject),
     ]
-  | Exercise(_) => [
+  | Exercises(_) => [
       ExerciseMode.import_submission(~inject),
       ExerciseMode.reset_button(inject),
     ]
@@ -141,7 +161,7 @@ let view =
       submenu(
         ~tooltip="Settings",
         ~icon=Icons.gear,
-        [settings_menu(~inject, ~settings)],
+        settings_menu(~inject, ~settings),
       ),
       submenu(
         ~tooltip="Export",
@@ -153,6 +173,7 @@ let view =
         ~icon=Icons.import,
         import_menu(~inject, editors),
       ),
+      reparse(~inject),
       reset_hazel,
       link(
         Icons.github,

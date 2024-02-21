@@ -125,7 +125,7 @@ let mk =
             previous_step: option(step),
             hidden_steps: list(step),
             chosen_step: option(step),
-            next_steps: list((EvalCtx.t, EvalObj.t)),
+            next_steps: list((EvalCtx.t, int)),
             recent_subst: list(Var.t),
             recursive_calls: list(Var.t),
           )
@@ -524,13 +524,6 @@ let mk =
           fail();
         } else {
           let bindings = DHPat.bound_vars(dp);
-          print_endline("===");
-          print_endline(ClosureEnvironment.show(env));
-          print_endline(
-            ClosureEnvironment.show(
-              ClosureEnvironment.without_keys(bindings, env),
-            ),
-          );
           let def_doc =
             go_formattable(ddef, Let1, Let1(dp, full_ctx, dbody));
           vseps([
@@ -614,7 +607,6 @@ let mk =
           DHDoc_common.Delim.mk(")"),
         ]);
       | Fun(dp, ty, Closure(env', d), s) =>
-        print_endline(DHExp.show(d));
         if (settings.show_fn_bodies) {
           let bindings = DHPat.bound_vars(dp);
           let new_env =
@@ -654,7 +646,7 @@ let mk =
             @ [
               DHDoc_common.Delim.arrow_Fun,
               space(),
-              body_doc |> DHDoc_common.pad_child(~enforce_inline),
+              body_doc |> DHDoc_common.pad_child(~enforce_inline=false),
             ],
           );
         } else {
@@ -662,7 +654,7 @@ let mk =
           | None => annot(DHAnnot.Collapsed, text("<anon fn>"))
           | Some(name) => annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"))
           };
-        };
+        }
       | Fun(dp, ty, dbody, s) =>
         if (settings.show_fn_bodies) {
           let bindings = DHPat.bound_vars(dp);
@@ -784,7 +776,7 @@ let mk =
     previous_step,
     hidden_steps,
     chosen_step,
-    List.map((x: EvalObj.t) => (x.ctx, x), next_steps),
+    List.mapi((idx, x: EvalObj.t) => (x.ctx, idx), next_steps),
     [],
     [],
   );

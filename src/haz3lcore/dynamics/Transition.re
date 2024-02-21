@@ -423,7 +423,7 @@ module Transition = (EV: EV_MODE) => {
           switch (d1', d2') {
           | (FloatLit(n1), FloatLit(n2)) =>
             switch (op) {
-            | Plus => FloatLit(n1 +. n1)
+            | Plus => FloatLit(n1 +. n2)
             | Minus => FloatLit(n1 -. n2)
             | Power => FloatLit(n1 ** n2)
             | Times => FloatLit(n1 *. n2)
