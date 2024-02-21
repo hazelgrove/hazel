@@ -171,6 +171,7 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
     };
 
     let mk = (~your_impl: Editor.t, ~tests: syntax_tests): t => {
+      //TODO(andrew): this is the wrong term
       let user_impl_term = your_impl.state.meta.view_term;
 
       let predicates =

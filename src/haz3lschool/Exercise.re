@@ -592,6 +592,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   };
 
   let term_of = (editor: Editor.t): Term.UExp.t =>
+    //TODO(andrew): this is the wrong term
     editor.state.meta.view_term;
 
   let stitch3 = (ed1: Editor.t, ed2: Editor.t, ed3: Editor.t) =>

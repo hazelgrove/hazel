@@ -393,7 +393,7 @@ let locked =
       ? Interface.elaborate(
           ~settings=settings.core,
           statics.info_map,
-          editor.state.meta.view_term,
+          editor.state.meta.view_term //TODO(andrew): use semantics term
         )
       : DHExp.BoolLit(true);
   let result: ModelResult.t =
