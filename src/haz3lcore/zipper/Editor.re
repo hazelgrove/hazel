@@ -14,6 +14,7 @@ module Meta = {
     holes: list(Grout.t),
     buffer_ids: list(Id.t),
     start_map: Projector.start_map,
+    last_map: Projector.start_map,
   };
 
   let init = (z: Zipper.t) => {
@@ -35,6 +36,7 @@ module Meta = {
       holes: Segment.holes(segment),
       buffer_ids: Selection.buffer_ids(z.selection),
       start_map: Projector.mk_start_map(z.projectors, term_ranges),
+      last_map: Projector.mk_last_map(z.projectors, term_ranges),
     };
   };
 
@@ -43,6 +45,7 @@ module Meta = {
     let measured: Measured.t;
     let term_ranges: TermRanges.t;
     let start_map: Projector.start_map;
+    let last_map: Projector.start_map;
     let col_target: int;
   };
   let module_of_t = (m: t): (module S) =>
@@ -53,6 +56,7 @@ module Meta = {
        let term_ranges = m.term_ranges;
        let col_target = m.col_target;
        let start_map = m.start_map;
+       let last_map = m.last_map;
      });
 
   // should not be serializing
@@ -68,6 +72,8 @@ module Meta = {
     let is_edit = Action.is_edit(a);
     let segment' = is_edit ? Zipper.unselect_and_zip(z) : meta.segment;
     let segment = Projector.of_segment(z.projectors, segment');
+    print_endline("projected segment:");
+    segment |> Segment.show |> print_endline;
     let measured =
       is_edit
         ? Measured.of_segment(~touched, ~old=measured, segment) : measured;
@@ -75,7 +81,13 @@ module Meta = {
       switch (a) {
       | Move(Local(Up | Down))
       | Select(Resize(Local(Up | Down))) => col_target
-      | _ => Zipper.caret_point(measured, z).col
+      | _ =>
+        switch (Indicated.index(z)) {
+        | Some(i) => print_endline("indicated_id:" ++ Id.show(i))
+        //let x = Id.Map.find(i, measured.tiles);
+        | None => print_endline("no indicated_id")
+        };
+        Zipper.caret_point(measured, z).col;
       };
     let (view_term, terms) =
       //NOTE(andrew): could use unprojected version here, might be dangerous
@@ -93,6 +105,7 @@ module Meta = {
       holes: is_edit ? Segment.holes(segment) : meta.holes,
       buffer_ids: Selection.buffer_ids(z.selection),
       start_map: Projector.mk_start_map(z.projectors, term_ranges),
+      last_map: Projector.mk_last_map(z.projectors, term_ranges),
     };
   };
 };
@@ -161,11 +174,6 @@ let new_state =
   let state = State.next(~effects, a, z, ed.state);
   let history = History.add(a, ed.state, ed.history);
   {state, history, read_only: ed.read_only};
-};
-
-let caret_point = (ed: t): Measured.Point.t => {
-  let State.{zipper, meta} = ed.state;
-  Zipper.caret_point(meta.measured, zipper);
 };
 
 let undo = (ed: t) =>

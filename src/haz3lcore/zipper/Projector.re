@@ -171,14 +171,19 @@ let proj_info = (term_ranges, id: Id.t, t: t, acc: start_map) => {
   print_endline("proj_info for id: " ++ Id.to_string(id));
   switch (Id.Map.find_opt(id, term_ranges)) {
   | Some(range) =>
-    //print_endline("proj_info: found term range for projector");
     let guy = guy_of(id, t, range);
-    let guy_rev = guy_of_rev(id, t, range);
-    Id.Map.add(
-      guy.start_id,
-      guy,
-      Id.Map.add(guy_rev.start_id, guy_rev, acc),
-    );
+    Id.Map.add(guy.start_id, guy, acc);
+  | _ =>
+    print_endline("ERROR: mk_nu_proj_map: no term range for projector");
+    acc;
+  };
+};
+let proj_info_rev = (term_ranges, id: Id.t, t: t, acc: start_map) => {
+  print_endline("proj_info for id: " ++ Id.to_string(id));
+  switch (Id.Map.find_opt(id, term_ranges)) {
+  | Some(range) =>
+    let guy = guy_of(id, t, range);
+    Id.Map.add(guy.last_id, guy, acc);
   | _ =>
     print_endline("ERROR: mk_nu_proj_map: no term range for projector");
     acc;
@@ -186,7 +191,8 @@ let proj_info = (term_ranges, id: Id.t, t: t, acc: start_map) => {
 };
 let mk_start_map = (projectors: Map.t, term_ranges: TermRanges.t): start_map =>
   Map.fold(proj_info(term_ranges), projectors, Id.Map.empty);
-
+let mk_last_map = (projectors: Map.t, term_ranges: TermRanges.t): start_map =>
+  Map.fold(proj_info_rev(term_ranges), projectors, Id.Map.empty);
 /*
  projector map has ids of projectors
  can use infomap to get ancestors of projectors

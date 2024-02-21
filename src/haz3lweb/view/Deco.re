@@ -45,11 +45,23 @@ module Deco =
       switch (p) {
       | Tile(t) => sel_of_tile(~start_shape, t)
       | Grout(g) => [
-          Some(sel_shard_svg(~start_shape, Measured.find_g(g, M.map), p)),
+          Some(
+            sel_shard_svg(
+              ~start_shape,
+              Measured.find_g(~msg="Deco.sel_of_piece", g, M.map),
+              p,
+            ),
+          ),
         ]
       | Secondary(w) when Secondary.is_linebreak(w) => [None]
       | Secondary(w) => [
-          Some(sel_shard_svg(~start_shape, Measured.find_w(w, M.map), p)),
+          Some(
+            sel_shard_svg(
+              ~start_shape,
+              Measured.find_w(~msg="Deco.sel_of_piece", w, M.map),
+              p,
+            ),
+          ),
         ]
       };
     let start_shape =
@@ -61,7 +73,7 @@ module Deco =
   }
   and sel_of_tile = (~start_shape, t: Tile.t): list(option(shard_data)) => {
     let tile_shards =
-      Measured.find_shards(t, M.map)
+      Measured.find_shards(~msg="sel_of_tile", t, M.map)
       |> List.filter(((i, _)) => List.mem(i, t.shards))
       |> List.map(((index, measurement)) =>
            [
@@ -122,8 +134,8 @@ module Deco =
         switch (TermRanges.find_opt(Piece.id(p), M.term_ranges)) {
         | None => None
         | Some((p_l, p_r)) =>
-          let l = Measured.find_p(p_l, M.map).origin;
-          let r = Measured.find_p(p_r, M.map).last;
+          let l = Measured.find_p(~msg="Deco.indicated", p_l, M.map).origin;
+          let r = Measured.find_p(~msg="Deco.indicated", p_r, M.map).last;
           Some((l, r));
         };
       };
@@ -144,7 +156,11 @@ module Deco =
            * |> List.filter(id => id >= 0)*/
           |> List.map(id => {
                let t = tile(id);
-               (id, t.mold, Measured.find_shards(t, M.map));
+               (
+                 id,
+                 t.mold,
+                 Measured.find_shards(~msg="Deco.indicated", t, M.map),
+               );
              });
         PieceDec.indicated(
           ~font_metrics,
@@ -177,10 +193,10 @@ module Deco =
                switch (Siblings.neighbors((l, r))) {
                | (None, None) => failwith("impossible")
                | (_, Some(p)) =>
-                 let m = Measured.find_p(p, M.map);
+                 let m = Measured.find_p(~msg="Deco.targets", p, M.map);
                  Measured.{origin: m.origin, last: m.origin};
                | (Some(p), _) =>
-                 let m = Measured.find_p(p, M.map);
+                 let m = Measured.find_p(~msg="Deco.targets", p, M.map);
                  Measured.{origin: m.last, last: m.last};
                };
              let profile =
@@ -227,8 +243,8 @@ module Deco =
           ((Measured.Point.t, Measured.Point.t, SvgUtil.Path.t)) => Node.t,
       ) => {
     let (p_l, p_r) = TermRanges.find(id, M.term_ranges);
-    let l = Measured.find_p(p_l, M.map).origin;
-    let r = Measured.find_p(p_r, M.map).last;
+    let l = Measured.find_p(~msg="Deco.term", p_l, M.map).origin;
+    let r = Measured.find_p(~msg="Deco.term", p_r, M.map).last;
     open SvgUtil.Path;
     let r_edge =
       ListUtil.range(~lo=l.row, r.row + 1)

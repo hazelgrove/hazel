@@ -169,7 +169,10 @@ let singleton_s = (id, shard, m) => empty |> add_s(id, shard, m);
 
 // TODO(d) rename
 let find_opt_shards = (t: Tile.t, map) => Id.Map.find_opt(t.id, map.tiles);
-let find_shards = (t: Tile.t, map) => Id.Map.find(t.id, map.tiles);
+let find_shards = (~msg="", t: Tile.t, map) =>
+  try(Id.Map.find(t.id, map.tiles)) {
+  | _ => failwith("find_shards: " ++ msg)
+  };
 
 let find_opt_lb = (id, map) => Id.Map.find_opt(id, map.linebreaks);
 
@@ -179,25 +182,43 @@ let find_shards' = (id: Id.t, map) =>
   | Some(ss) => ss
   };
 
-let find_w = (w: Secondary.t, map): measurement =>
-  Id.Map.find(w.id, map.secondary);
-let find_g = (g: Grout.t, map): measurement => Id.Map.find(g.id, map.grout);
+let find_w = (~msg="", w: Secondary.t, map): measurement =>
+  try(Id.Map.find(w.id, map.secondary)) {
+  | _ => failwith("find_w: " ++ msg)
+  };
+let find_g = (~msg="", g: Grout.t, map): measurement =>
+  try(Id.Map.find(g.id, map.grout)) {
+  | _ => failwith("find_g: " ++ msg)
+  };
 // returns the measurement spanning the whole tile
 let find_t = (t: Tile.t, map): measurement => {
   let shards = Id.Map.find(t.id, map.tiles);
-  let first = ListUtil.assoc_err(Tile.l_shard(t), shards, "find_t");
-  let last = ListUtil.assoc_err(Tile.r_shard(t), shards, "find_t");
+  let (first, last) =
+    try({
+      let first = ListUtil.assoc_err(Tile.l_shard(t), shards, "find_t");
+      let last = ListUtil.assoc_err(Tile.r_shard(t), shards, "find_t");
+      (first, last);
+    }) {
+    | _ =>
+      print_endline("FuCkNASTY hackzz");
+      let s = shards |> List.hd;
+      (s |> snd, s |> snd);
+    };
   {origin: first.origin, last: last.last};
 };
 // let find_a = ({shards: (l, r), _} as a: Ancestor.t, map) =>
 //   List.assoc(l @ r, Id.Map.find(a.id, map.tiles));
-let find_p = (p: Piece.t, map): measurement =>
-  p
-  |> Piece.get(
-       w => find_w(w, map),
-       g => find_g(g, map),
-       t => find_t(t, map),
-     );
+let find_p = (~msg="", p: Piece.t, map): measurement =>
+  try(
+    p
+    |> Piece.get(
+         w => find_w(w, map),
+         g => find_g(g, map),
+         t => find_t(t, map),
+       )
+  ) {
+  | _ => failwith("find_p: " ++ msg ++ "id: " ++ Id.to_string(p |> Piece.id))
+  };
 
 let find_by_id = (id: Id.t, map: t): option(measurement) => {
   switch (Id.Map.find_opt(id, map.secondary)) {
