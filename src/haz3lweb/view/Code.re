@@ -65,7 +65,7 @@ module Text = (M: {
                  let map: Measured.t;
                  let settings: Settings.t;
                }) => {
-  let m = p => Measured.find_p(p, M.map);
+  let m = p => Measured.find_p(~msg="Text", p, M.map);
   let rec of_segment =
           (buffer_ids, no_sorts, sort, seg: Segment.t): list(Node.t) => {
     /* note: no_sorts flag is used for backpack view;
@@ -123,7 +123,7 @@ let rec holes =
            EmptyHoleDec.view(
              ~font_metrics, // TODO(d) fix sort
              {
-               measurement: Measured.find_g(g, map),
+               measurement: Measured.find_g(~msg="Code.holes", g, map),
                mold: Mold.of_grout(g, Any),
              },
            ),
@@ -152,7 +152,7 @@ let of_hole = (~font_metrics, ~measured, g: Grout.t) =>
   EmptyHoleDec.view(
     ~font_metrics,
     {
-      measurement: Measured.find_g(g, measured),
+      measurement: Measured.find_g(~msg="Code.of_hole", g, measured),
       mold: Mold.of_grout(g, Any),
     },
   );

@@ -364,11 +364,11 @@ let base_point = (measured: Measured.t, z: t): Measured.Point.t => {
     switch (d) {
     | Left =>
       let p = ListUtil.last(seg);
-      let m = Measured.find_p(p, measured);
+      let m = Measured.find_p(~msg="base_point", p, measured);
       m.last;
     | Right =>
       let p = List.hd(seg);
-      let m = Measured.find_p(p, measured);
+      let m = Measured.find_p(~msg="base_point", p, measured);
       m.origin;
     };
   | None => {row: 0, col: 0}

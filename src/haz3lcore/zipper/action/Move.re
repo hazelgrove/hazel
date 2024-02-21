@@ -25,6 +25,7 @@ let movability = (chunkiness: chunkiness, label, delim_idx): movability => {
 let neighbor_movability =
     (
       start_map: Projector.start_map,
+      last_map: Projector.start_map,
       chunkiness: chunkiness,
       {relatives: {siblings, ancestors}, projectors, _}: t,
     )
@@ -39,20 +40,25 @@ let neighbor_movability =
       )
     };
   let (l_nhbr, r_nhbr) = Siblings.neighbors(siblings);
+  let seg = (siblings |> fst) @ (siblings |> snd);
+  "seg:" |> print_endline;
+  seg |> Segment.show |> print_endline;
   let l =
     switch (l_nhbr) {
-    | Some(p) when Projector.Map.mem(Piece.id(p), start_map) =>
-      let seg = (siblings |> fst |> List.rev) @ (siblings |> snd);
-      let next_id =
+    | Some(p) when Projector.Map.mem(Piece.id(p), last_map) =>
+      let prev_id =
         switch (Projector.split_seg(seg, projectors)) {
-        | Some(([_, ..._] as xs, _, _, _)) =>
-          Piece.id(List.hd(List.rev(xs)))
-        | _ => Id.invalid //TODO(andrew)
+        | Some(([_, ..._] as xs, _, _, _)) => Piece.id(ListUtil.last(xs))
+        | Some(([], _, _, _)) =>
+          print_endline("prev_id: empty pre");
+          Id.invalid; //TODO(andrew)
+        | None =>
+          print_endline("prev_id: None");
+          Id.invalid; //TODO(andrew)
         };
-      Projected(
-        next_id,
-        // (Projector.Map.find(Piece.id(p), start_map) |> Option.get).last_id,
-      );
+      "prev_id:" |> print_endline;
+      prev_id |> Id.show |> print_endline;
+      Projected(prev_id);
     | Some(Tile({label, _})) => movability(label, List.length(label) - 1)
     | Some(Secondary(w)) when Secondary.is_comment(w) =>
       // Comments are always length >= 2
@@ -67,16 +73,12 @@ let neighbor_movability =
   let r =
     switch (r_nhbr) {
     | Some(p) when Projector.Map.mem(Piece.id(p), start_map) =>
-      let seg = (siblings |> fst |> List.rev) @ (siblings |> snd);
       let next_id =
         switch (Projector.split_seg(seg, projectors)) {
         | Some((_, _, [hd, ..._], _)) => Piece.id(hd)
         | _ => Id.invalid //TODO(andrew)
         };
-      Projected(
-        next_id,
-        // (Projector.Map.find(Piece.id(p), start_map) |> Option.get).last_id,
-      );
+      Projected(next_id);
     | Some(Tile({label, _})) => movability(label, 0)
     | Some(Secondary(w)) when Secondary.is_comment(w) =>
       // Comments are always length >= 2
@@ -121,7 +123,11 @@ module Make = (M: Editor.Meta.S) => {
   };
 
   let primary = (chunkiness: chunkiness, d: Direction.t, z: t): option(t) => {
-    switch (d, z.caret, neighbor_movability(M.start_map, chunkiness, z)) {
+    switch (
+      d,
+      z.caret,
+      neighbor_movability(M.start_map, M.last_map, chunkiness, z),
+    ) {
     /* this case maybe shouldn't be necessary but currently covers an edge
        (select an open parens to left of a multichar token and press left) */
     | _ when z.selection.content != [] => pop_move(d, z)
@@ -133,8 +139,7 @@ module Make = (M: Editor.Meta.S) => {
         z => Zipper.move(Left, z),
         z =>
           switch (z.relatives.siblings) {
-          | ([_, ..._] as ls, _) =>
-            Piece.id(List.hd(List.rev(ls))) == last_id
+          | ([_, ..._] as ls, _) => Piece.id(ListUtil.last(ls)) == last_id
           | _ => false
           },
         z,
@@ -155,10 +160,17 @@ module Make = (M: Editor.Meta.S) => {
         z =>
           switch (z.relatives.siblings) {
           | (_, [r, ..._]) => Piece.id(r) == last_id
+          // | ([_, ..._] as ls, _) =>
+          //   Piece.id(List.hd(List.rev(ls))) == last_id
           | _ => false
           },
         z,
-      );
+      )
+      |> Option.map(z => {
+           print_endline("Right Projected Done");
+           z |> Zipper.show |> print_endline;
+           z;
+         });
     // |> OptUtil.and_then(z =>
     //      do_until(
     //        z => Zipper.move(Right, z),
