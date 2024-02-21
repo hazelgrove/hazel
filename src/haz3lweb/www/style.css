@@ -2298,6 +2298,104 @@ svg.expandable path {
   /* background-color: rgb(232, 255, 196); */
   /* margin: -1px; */
   cursor: pointer;
+  position: relative;
+  border-radius: 0.2em;
+}
+
+.steppable-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+/* :not(:has(.steppable-wrapper:hover)) */
+
+.steppable-wrapper:hover:not(:has(.steppable-wrapper:hover)) > .menu,
+.steppable-wrapper:hover:not(:has(.steppable-wrapper:hover)) > .handle,
+.steppable-wrapper:hover:not(:has(.steppable-wrapper:hover)) > .handle-back {
+  display: flex;
+}
+.steppable-wrapper:hover:not(:has(.steppable-wrapper:hover)) > .steppable,
+.steppable-wrapper:hover:not(:has(.steppable-wrapper:hover)) > .steppable,
+.steppable-wrapper:hover:not(:has(.steppable-wrapper:hover)) > .steppable > .Align {
+  background-color: cornsilk; /* #ffdc4f*/
+}
+
+.steppable-wrapper .handle-pre {
+  position: absolute;
+  left: 100%;
+  top: 100%;
+  translate: -50% -50%;
+  z-index: 0;
+  height: 0.3em;
+  width: 0.3em;
+  background-color: rgb(232 255 196);
+  border: 0.5px solid #d0c0a1;
+  border-radius: 0.3em;
+}
+
+.steppable-wrapper .handle {
+  position: absolute;
+  left: 100%;
+  top: 100%;
+  translate: -50% -50%;
+  z-index: 2;
+  display: none;
+  height: 0.6em;
+  width: 0.6em;
+  background-color: cornsilk;
+  border: 0.3px solid #c7b480;
+  border-radius: 0.3em;
+}
+
+.steppable-wrapper .handle-back {
+  position: absolute;
+  left: 100%;
+  top: 100%;
+  translate: -50% -50%;
+  z-index: 1;
+  display: none;
+  height: 2.6em;
+  width: 2.6em;
+  border-radius: 2em;
+  background-color: rgba(212, 183, 133, 0.05);
+}
+.steppable-wrapper .handle:hover,
+.steppable-wrapper .handle:has(~ .menu:hover) {
+  background: #fbebaa;
+  color: #b37800;
+}
+
+.steppable-wrapper .menu {
+  position: absolute;
+  left: 100%;
+  top: 100%;
+  z-index: 1;
+  display: none;
+  flex-direction: column;
+  border: 0.3px solid #c7b480;
+  border-radius: 0.2em;
+  background-color: cornsilk;
+  font-family: "Helvetica Neue";
+  font-size: 0.9em;
+}
+.steppable-wrapper .handle-back:hover + .menu {
+  display: flex;
+}
+.steppable-wrapper .menu * + .rewrite {
+  border-top: 0.8px dotted #c7b480;
+}
+.steppable-wrapper .menu .rewrite:hover {
+  background: #fbebaa;
+  color: #b37800;
+}
+.steppable-wrapper .menu .rewrite {
+  padding: 0 0.5em 0 0.5em;
+}
+.steppable-wrapper .menu .rewrite:first-child {
+  border-radius: 0.2em 0.2em 0 0;
+}
+.steppable-wrapper .menu .rewrite:last-child {
+  border-radius: 0 0 0.2em 0.2em;
 }
 
 

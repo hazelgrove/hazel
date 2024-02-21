@@ -238,7 +238,6 @@ let step_pending = (idx: int, {elab, previous, current, next}: t) => {
       current: StepPending(d, s, Some(eo)),
       next,
     }
-  | StepperError(_)
   | StepTimeout(_) => {
       elab,
       previous: List.tl(previous),
@@ -297,7 +296,6 @@ let add_step =
       current: StepperOK(d_loc' |> EvaluatorStep.compose(ctx), state),
       next: decompose(d_loc' |> EvaluatorStep.compose(ctx)),
     }
-  | StepperError(_)
   | StepTimeout(_) => s
   };
 
@@ -310,7 +308,6 @@ let step_rewrite = ({focus, ctx, rule}: rewrite, stepper: t) =>
 let rec evaluate_pending = (~settings, s: t) => {
   switch (s.current) {
   | StepperOK(_)
-  | StepperError(_)
   | StepTimeout(_) => s
   | StepPending(d, state, Some(eo)) =>
     let state_ref = ref(state);

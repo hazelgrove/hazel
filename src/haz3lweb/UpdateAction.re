@@ -31,8 +31,7 @@ type settings_action =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type stepper_action =
   | Rewrite(Stepper.rewrite)
-  | CoqExport
-  | StepForward(EvaluatorStep.EvalObj.t)
+  | StepForward(int)
   | StepBackward;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -209,7 +208,7 @@ let reevaluate_post_update: t => bool =
   | DebugConsole(_)
   | TAB
   | Benchmark(_) => false
-  | StepperAction(_, StepForward(_) | StepBackward)
+  | StepperAction(_, StepForward(_) | StepBackward | Rewrite(_))
   | ToggleStepper(_)
   | ReparseCurrentEditor
   | FinishImportAll(_)
@@ -250,7 +249,7 @@ let should_scroll_to_caret =
   | Assistant(Prompt(_))
   | UpdateResult(_)
   | ToggleStepper(_)
-  | StepperAction(_, StepBackward | StepForward(_)) => false
+  | StepperAction(_, StepBackward | StepForward(_) | Rewrite(_)) => false
   | Assistant(AcceptSuggestion) => true
   | FinishImportScratchpad(_)
   | FinishImportAll(_)

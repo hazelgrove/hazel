@@ -478,16 +478,6 @@ let rec apply =
         |> ModelResults.find(key)
         |> ModelResult.step_backward(~settings=model.settings.core.evaluation);
       Ok({...model, results: model.results |> ModelResults.add(key, r)});
-    | StepperAction(key, CoqExport) =>
-      let result = ModelResults.find(key, model.results);
-      switch (result) {
-      | NoElab
-      | Evaluation(_) => ()
-      // TODO(jiawei): make this unit type or decide to keep print_endline
-      | Stepper(stepper) =>
-        CoqExport.exportCoq(stepper.previous) |> print_endline
-      };
-      Ok(model);
     | StepperAction(key, Rewrite(transform)) =>
       let r =
         model.results
