@@ -6,6 +6,7 @@ open Sexplib.Std;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type movability =
   | CanEnter(int, int)
+  | Projected(Id.t)
   | CanPass
   | CantEven;
 
@@ -22,7 +23,11 @@ let movability = (chunkiness: chunkiness, label, delim_idx): movability => {
 };
 
 let neighbor_movability =
-    (chunkiness: chunkiness, {relatives: {siblings, ancestors}, _}: t)
+    (
+      start_map: Projector.start_map,
+      chunkiness: chunkiness,
+      {relatives: {siblings, ancestors}, projectors, _}: t,
+    )
     : (movability, movability) => {
   let movability = movability(chunkiness);
   let (supernhbr_l, supernhbr_r) =
@@ -36,6 +41,18 @@ let neighbor_movability =
   let (l_nhbr, r_nhbr) = Siblings.neighbors(siblings);
   let l =
     switch (l_nhbr) {
+    | Some(p) when Projector.Map.mem(Piece.id(p), start_map) =>
+      let seg = (siblings |> fst |> List.rev) @ (siblings |> snd);
+      let next_id =
+        switch (Projector.split_seg(seg, projectors)) {
+        | Some(([_, ..._] as xs, _, _, _)) =>
+          Piece.id(List.hd(List.rev(xs)))
+        | _ => Id.invalid //TODO(andrew)
+        };
+      Projected(
+        next_id,
+        // (Projector.Map.find(Piece.id(p), start_map) |> Option.get).last_id,
+      );
     | Some(Tile({label, _})) => movability(label, List.length(label) - 1)
     | Some(Secondary(w)) when Secondary.is_comment(w) =>
       // Comments are always length >= 2
@@ -49,6 +66,17 @@ let neighbor_movability =
     };
   let r =
     switch (r_nhbr) {
+    | Some(p) when Projector.Map.mem(Piece.id(p), start_map) =>
+      let seg = (siblings |> fst |> List.rev) @ (siblings |> snd);
+      let next_id =
+        switch (Projector.split_seg(seg, projectors)) {
+        | Some((_, _, [hd, ..._], _)) => Piece.id(hd)
+        | _ => Id.invalid //TODO(andrew)
+        };
+      Projected(
+        next_id,
+        // (Projector.Map.find(Piece.id(p), start_map) |> Option.get).last_id,
+      );
     | Some(Tile({label, _})) => movability(label, 0)
     | Some(Secondary(w)) when Secondary.is_comment(w) =>
       // Comments are always length >= 2
@@ -73,17 +101,77 @@ module Make = (M: Editor.Meta.S) => {
   let inner_end = (d, d_init, c_max, z) =>
     z |> Zipper.set_caret(Inner(d_init, c_max)) |> Zipper.move(d);
 
+  /* Do move_action until the indicated piece is such that piece_p is true.
+     If no such piece is found, don't move. */
+  let rec do_until_sib =
+          (
+            ~move_first=true,
+            move_action: t => option(t),
+            z_pred: Zipper.t => bool,
+            z: t,
+          )
+          : option(t) => {
+    let* z = move_first ? move_action(z) : Some(z);
+    if (z_pred(z)) {
+      Some(z);
+    } else {
+      let* z = move_first ? Some(z) : move_action(z);
+      do_until_sib(~move_first, move_action, z_pred, z);
+    };
+  };
+
   let primary = (chunkiness: chunkiness, d: Direction.t, z: t): option(t) => {
-    switch (d, z.caret, neighbor_movability(chunkiness, z)) {
+    switch (d, z.caret, neighbor_movability(M.start_map, chunkiness, z)) {
     /* this case maybe shouldn't be necessary but currently covers an edge
        (select an open parens to left of a multichar token and press left) */
     | _ when z.selection.content != [] => pop_move(d, z)
+    | (Left, Outer, (Projected(last_id), _)) =>
+      print_endline("Left Projected");
+      z |> Zipper.show |> print_endline;
+      do_until_sib(
+        ~move_first=false,
+        z => Zipper.move(Left, z),
+        z =>
+          switch (z.relatives.siblings) {
+          | ([_, ..._] as ls, _) =>
+            Piece.id(List.hd(List.rev(ls))) == last_id
+          | _ => false
+          },
+        z,
+      );
     | (Left, Outer, (CanEnter(dlm, c_max), _)) =>
       inner_end(d, dlm, c_max, z)
     | (Left, Outer, _) => Zipper.move(d, z)
     | (Left, Inner(_), _) when chunkiness == ByToken => pop_out(z)
     | (Left, Inner(_), _) =>
       Some(Zipper.update_caret(Zipper.Caret.decrement, z))
+    | (Right, Outer, (_, Projected(last_id))) =>
+      print_endline("Right Projected");
+      z |> Zipper.show |> print_endline;
+      // let z = Zipper.set_caret(Outer, z);
+      do_until_sib(
+        ~move_first=false,
+        z => Zipper.move(Right, z),
+        z =>
+          switch (z.relatives.siblings) {
+          | (_, [r, ..._]) => Piece.id(r) == last_id
+          | _ => false
+          },
+        z,
+      );
+    // |> OptUtil.and_then(z =>
+    //      do_until(
+    //        z => Zipper.move(Right, z),
+    //        piece => Piece.id(piece) != last_id,
+    //        z,
+    //      )
+    //    )
+    // |> Option.map(z => {
+    //      print_endline("Right Projected Done");
+    //      z |> Zipper.show |> print_endline;
+    //      z;
+    //    });
+
     | (Right, Outer, (_, CanEnter(d_init, _))) => inner_start(d_init, z)
     | (Right, Outer, _) => Zipper.move(d, z)
     | (Right, Inner(_, c), (_, CanEnter(_, c_max))) when c == c_max =>

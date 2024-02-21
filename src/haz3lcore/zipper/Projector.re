@@ -24,6 +24,7 @@ module Map = {
   let add = add;
   let remove = remove;
   let find = find_opt;
+  let mem = mem;
   let fold = fold;
   let cardinal = cardinal;
 };
@@ -46,7 +47,7 @@ let rec left_idx = (skel: Skel.t): int => {
 let rec right_idx = (skel: Skel.t): int => {
   switch (skel) {
   | Op(r)
-  | Post(_, r) => Aba.last_a(r)
+  | Post(_, r) => Aba.first_a(r)
   | Pre(_, s)
   | Bin(_, _, s) => right_idx(s)
   };
@@ -145,6 +146,46 @@ and of_piece = (projectors, p: Piece.t): Piece.t => {
 and of_tile = (projectors, t: Tile.t): Tile.t => {
   {...t, children: List.map(of_segment(projectors), t.children)};
 };
+
+type start_entry = {
+  proj_id: Id.t,
+  t,
+  start_id: Id.t,
+  last_id: Id.t,
+};
+/* map indexed by start_id instead of proj_id */
+type start_map = Id.Map.t(start_entry);
+let guy_of = (id, t, (start, last)) => {
+  proj_id: id,
+  t,
+  start_id: Piece.id(start),
+  last_id: Piece.id(last),
+};
+let guy_of_rev = (id, t, (start, last)) => {
+  proj_id: id,
+  t,
+  start_id: Piece.id(last),
+  last_id: Piece.id(start),
+};
+let proj_info = (term_ranges, id: Id.t, t: t, acc: start_map) => {
+  print_endline("proj_info for id: " ++ Id.to_string(id));
+  switch (Id.Map.find_opt(id, term_ranges)) {
+  | Some(range) =>
+    //print_endline("proj_info: found term range for projector");
+    let guy = guy_of(id, t, range);
+    let guy_rev = guy_of_rev(id, t, range);
+    Id.Map.add(
+      guy.start_id,
+      guy,
+      Id.Map.add(guy_rev.start_id, guy_rev, acc),
+    );
+  | _ =>
+    print_endline("ERROR: mk_nu_proj_map: no term range for projector");
+    acc;
+  };
+};
+let mk_start_map = (projectors: Map.t, term_ranges: TermRanges.t): start_map =>
+  Map.fold(proj_info(term_ranges), projectors, Id.Map.empty);
 
 /*
  projector map has ids of projectors

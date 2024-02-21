@@ -13,6 +13,7 @@ module Meta = {
     tiles: TileMap.t,
     holes: list(Grout.t),
     buffer_ids: list(Id.t),
+    start_map: Projector.start_map,
   };
 
   let init = (z: Zipper.t) => {
@@ -33,6 +34,7 @@ module Meta = {
       terms,
       holes: Segment.holes(segment),
       buffer_ids: Selection.buffer_ids(z.selection),
+      start_map: Projector.mk_start_map(z.projectors, term_ranges),
     };
   };
 
@@ -40,6 +42,7 @@ module Meta = {
     let touched: Touched.t;
     let measured: Measured.t;
     let term_ranges: TermRanges.t;
+    let start_map: Projector.start_map;
     let col_target: int;
   };
   let module_of_t = (m: t): (module S) =>
@@ -49,6 +52,7 @@ module Meta = {
        let measured = m.measured;
        let term_ranges = m.term_ranges;
        let col_target = m.col_target;
+       let start_map = m.start_map;
      });
 
   // should not be serializing
@@ -76,17 +80,19 @@ module Meta = {
     let (view_term, terms) =
       //NOTE(andrew): could use unprojected version here, might be dangerous
       is_edit ? MakeTerm.go(segment) : (meta.view_term, meta.terms);
+    let term_ranges = is_edit ? TermRanges.mk(segment) : meta.term_ranges;
     {
       col_target,
       touched,
       measured,
       segment,
-      term_ranges: is_edit ? TermRanges.mk(segment) : meta.term_ranges,
+      term_ranges,
       tiles: is_edit ? TileMap.mk(segment) : meta.tiles,
       view_term,
       terms,
       holes: is_edit ? Segment.holes(segment) : meta.holes,
       buffer_ids: Selection.buffer_ids(z.selection),
+      start_map: Projector.mk_start_map(z.projectors, term_ranges),
     };
   };
 };
