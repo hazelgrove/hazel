@@ -413,10 +413,10 @@ let get_justification: step_kind => string =
   | VarLookup => "variable lookup"
   | CastAp
   | Cast => "cast calculus"
-  | FixClosure
-  | CompleteFilter
-  | CompleteClosure
-  | FunClosure => "unidentified step"
+  | FixClosure => "fixpoint closure"
+  | CompleteFilter => "complete filter"
+  | CompleteClosure => "complete closure"
+  | FunClosure => "function closure"
   | Skip => "skipped steps";
 
 let get_history = (~settings, stepper) => {
