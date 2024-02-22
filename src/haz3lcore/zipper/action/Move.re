@@ -41,8 +41,8 @@ let neighbor_movability =
     };
   let (l_nhbr, r_nhbr) = Siblings.neighbors(siblings);
   let seg = (siblings |> fst) @ (siblings |> snd);
-  "seg:" |> print_endline;
-  seg |> Segment.show |> print_endline;
+  // "seg:" |> print_endline;
+  //seg |> Segment.show |> print_endline;
   let l =
     switch (l_nhbr) {
     | Some(p) when Projector.Map.mem(Piece.id(p), last_map) =>
@@ -50,14 +50,14 @@ let neighbor_movability =
         switch (Projector.split_seg(seg, projectors)) {
         | Some(([_, ..._] as xs, _, _, _)) => Piece.id(ListUtil.last(xs))
         | Some(([], _, _, _)) =>
-          print_endline("prev_id: empty pre");
-          Id.invalid; //TODO(andrew)
+          //print_endline("prev_id: empty pre");
+          Id.invalid //TODO(andrew)
         | None =>
-          print_endline("prev_id: None");
-          Id.invalid; //TODO(andrew)
+          //print_endline("prev_id: None");
+          Id.invalid //TODO(andrew)
         };
-      "prev_id:" |> print_endline;
-      prev_id |> Id.show |> print_endline;
+      //"prev_id:" |> print_endline;
+      //prev_id |> Id.show |> print_endline;
       Projected(prev_id);
     | Some(Tile({label, _})) => movability(label, List.length(label) - 1)
     | Some(Secondary(w)) when Secondary.is_comment(w) =>

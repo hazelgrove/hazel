@@ -328,12 +328,10 @@ body {
   display: none;
 }
 
-
 #main {
   grid-row: 2;
   grid-column: 1 / span 1;
   overflow: auto;
-  
 }
 
 #main.Scratch,
@@ -676,6 +674,24 @@ select {
 
 .code-container {
   position: relative;
+}
+
+.code-container .fold {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  justify-content: center;
+  outline: 0.3px solid #c7b480;
+  border-radius: 0.2em;
+  background-color: #f0e7d6;
+  color: #c7b480;
+}
+.code-container .fold:hover {
+  color: rgb(0, 0, 0);
+  background-color: #c7b480;
+}
+.code-container .fold svg {
+  filter: invert(1);
 }
 
 .code {
@@ -1826,7 +1842,7 @@ svg.expandable path {
 .cell-item.cell-result .error-msg {
   padding: 0.25em;
   color: black;
-};
+}
 
 .cell-result .icon:hover svg {
   animation: wobble 0.6s ease 0s 1 normal forwards;

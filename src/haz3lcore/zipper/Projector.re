@@ -106,7 +106,7 @@ let placeholder_tile = (s: string, id: Id.t): Tile.t => {
 let project_mid = (id, p: option(t), mid): Segment.t =>
   //TODO(andrew): prrobably shouldn't just duplicate this id in the general case?
   switch (p) {
-  | Some(Fold) => [Tile(placeholder_tile("%", id))]
+  | Some(Fold) => [Tile(placeholder_tile("  ", id))]
   //[Grout({id, shape: Convex})]
   | Some(Normal)
   | None => mid
