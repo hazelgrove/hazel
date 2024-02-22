@@ -16,8 +16,8 @@ module rec DHExp: {
        */
     // TODO: Work out how to reconcile the invalids
     | EmptyHole
-    | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t) // TODO: Remove, use infomap      /// --------------------------------------------------------------------------------------------------------
-    | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t) // TODO: Remove, use infomap      /// --------------------------------------------------------------------------------------------------------
+    | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t) // TODO: Remove, use info_map      /// --------------------------------------------------------------------------------------------------------
+    | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t) // TODO: Remove, use info_map      /// --------------------------------------------------------------------------------------------------------
     | InvalidText(MetaVar.t, HoleInstanceId.t, string) // DONE [ALREADY]
     | InvalidOperation(t, InvalidOperationError.t) // Warning will robinson
     | FailedCast(t, Typ.t, Typ.t) // TODO: Add to TermBase
@@ -33,7 +33,7 @@ module rec DHExp: {
         t,
         [@show.opaque] option(ClosureEnvironment.t),
         option(Var.t),
-      ) // TODO: Use infomap for Typ.t
+      ) // TODO: Use info_map for Typ.t
     | Ap(TermBase.UExp.ap_direction, t, t) // TODO: Add reverse application
     | ApBuiltin(string, t) // DONE [TO ADD TO UEXP] TODO: Add a loooong comment here
     | BuiltinFun(string) // DONE [TO ADD TO UEXP]
@@ -43,7 +43,7 @@ module rec DHExp: {
     | Float(float) // DONE
     | String(string) // DONE
     | BinOp(TermBase.UExp.op_bin, t, t) // DONE
-    | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t)) // TODO: afaict the first three arguments here are never used? 3rd one might be infomap
+    | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t)) // TODO: afaict the first three arguments here are never used? 3rd one might be info_map
     | Cons(t, t) // DONE [ALREADY]
     | ListConcat(t, t) // DONE [ALREADY]
     | Tuple(list(t)) // DONE [ALREADY]
@@ -158,10 +158,7 @@ module rec DHExp: {
       ids:
         child_require
           ? {
-            print_endline("copied!");
             let id = Id.mk();
-            print_endline(Id.show(id));
-            print_endline(Id.show(List.hd(d.ids)));
             [id];
           }
           : d.ids,

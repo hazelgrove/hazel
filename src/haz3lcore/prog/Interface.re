@@ -1,3 +1,5 @@
+module CoreStatics = Statics;
+
 module Statics = {
   let mk_map' =
     Core.Memo.general(~cache_size_bound=1000, e => {
@@ -51,7 +53,11 @@ let elaborate = (~settings: CoreSettings.t, map, term): DHExp.t =>
   };
 
 let evaluate =
-    (~settings: CoreSettings.t, ~env=Builtins.env_init, elab: DHExp.t)
+    (
+      ~settings: CoreSettings.t,
+      ~env=Builtins.env_init,
+      elab: Elaborator.Elaboration.t,
+    )
     : ProgramResult.t =>
   switch () {
   | _ when !settings.dynamics => Off(elab)
@@ -78,5 +84,5 @@ let eval_z =
   let (term, _) = MakeTerm.from_zip_for_sem(z);
   let info_map = Statics.mk_map_ctx(settings, ctx_init, term);
   let d = elaborate(~settings, info_map, term);
-  evaluate(~settings, ~env=env_init, d);
+  evaluate(~settings, ~env=env_init, {d, info_map});
 };

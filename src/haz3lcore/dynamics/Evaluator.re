@@ -34,6 +34,11 @@ module EvaluatorEVMode: {
   let update_test = (state, id, v) =>
     state := EvaluatorState.add_test(state^, id, v);
 
+  let get_info_map = (state: state) => EvaluatorState.get_info_map(state^);
+
+  let set_info_map = (info_map: Statics.Map.t, state: state) =>
+    state := EvaluatorState.put_info_map(info_map, state^);
+
   type result_unfinished =
     | BoxedValue(DHExp.t)
     | Indet(DHExp.t)
@@ -106,8 +111,8 @@ let rec evaluate = (state, env, d) => {
   };
 };
 
-let evaluate = (env, d): (EvaluatorState.t, EvaluatorResult.t) => {
-  let state = ref(EvaluatorState.init);
+let evaluate = (env, {d, info_map}: Elaborator.Elaboration.t) => {
+  let state = ref(EvaluatorState.init(info_map));
   let env = ClosureEnvironment.of_environment(env);
   let result = evaluate(state, env, d);
   let result =

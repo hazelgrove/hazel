@@ -139,6 +139,10 @@ module Decompose = {
     let otherwise = (env, o) => (o, Result.BoxedValue, env, ());
     let update_test = (state, id, v) =>
       state := EvaluatorState.add_test(state^, id, v);
+    let get_info_map = (state: state) => EvaluatorState.get_info_map(state^);
+
+    let set_info_map = (info_map: Statics.Map.t, state: state) =>
+      state := EvaluatorState.put_info_map(info_map, state^);
   };
 
   module Decomp = Transition(DecomposeEVMode);
@@ -195,6 +199,10 @@ module TakeStep = {
 
     let update_test = (state, id, v) =>
       state := EvaluatorState.add_test(state^, id, v);
+    let get_info_map = (state: state) => EvaluatorState.get_info_map(state^);
+
+    let set_info_map = (info_map: Statics.Map.t, state: state) =>
+      state := EvaluatorState.put_info_map(info_map, state^);
   };
 
   module TakeStepEV = Transition(TakeStepEVMode);
@@ -205,17 +213,16 @@ module TakeStep = {
 
 let take_step = TakeStep.take_step;
 
-let decompose = (d: DHExp.t) => {
-  let es = EvaluatorState.init;
+let decompose = (d: DHExp.t, es: EvaluatorState.t) => {
   let env = ClosureEnvironment.of_environment(Builtins.env_init);
   let rs = Decompose.decompose(ref(es), env, d);
   Decompose.Result.unbox(rs);
 };
 
-let evaluate_with_history = d => {
-  let state = ref(EvaluatorState.init);
+let evaluate_with_history = (d, info_map) => {
+  let state = ref(EvaluatorState.init(info_map));
   let rec go = d =>
-    switch (decompose(d)) {
+    switch (decompose(d, state^)) {
     | [] => []
     | [x, ..._] =>
       switch (take_step(state, x.env, x.d_loc)) {

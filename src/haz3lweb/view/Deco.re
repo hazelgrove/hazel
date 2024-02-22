@@ -276,7 +276,7 @@ module Deco =
     );
   };
 
-  // faster infomap traversal
+  // faster info_map traversal
   let err_holes = (_z: Zipper.t) =>
     List.map(term_highlight(~clss=["err-hole"]), M.error_ids);
 
