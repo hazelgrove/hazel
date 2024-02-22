@@ -666,10 +666,10 @@ let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
   | VarLookup => !settings.show_lookup_steps
   | CastAp
   | Cast => !settings.show_casts
+  | FixUnwrap => !settings.show_fixpoints
   | CaseNext
   | CompleteClosure
   | CompleteFilter
-  | FixClosure
-  | FixUnwrap
   | BuiltinWrap
-  | FunClosure => true;
+  | FunClosure
+  | FixClosure => true;
