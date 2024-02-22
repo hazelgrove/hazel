@@ -19,7 +19,7 @@ include M;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = M.t(ModelResult.t);
 
-let init_eval = (ds: list((Key.t, DHExp.t))): t =>
+let init_eval = (ds: list((Key.t, Elaborator.Elaboration.t))): t =>
   ds |> List.to_seq |> of_seq |> map(ModelResult.init_eval);
 
 let lookup = (results: t, key: Key.t) => find_opt(key, results);
@@ -29,7 +29,7 @@ let run_pending = (~settings) => M.map(ModelResult.run_pending(~settings));
 let timeout_all = map(ModelResult.timeout);
 
 let advance_evaluator_result =
-    (results: t, (key: Key.t, elab: DHExp.t))
+    (results: t, (key: Key.t, elab: Elaborator.Elaboration.t))
     : option((Key.t, ModelResult.t)) =>
   switch (lookup(results, key)) {
   | Some(Stepper(_)) => None
@@ -50,7 +50,8 @@ let stepper_result_opt =
   | _ => None
   };
 
-let to_evaluate = (results: t, elabs: list((Key.t, DHExp.t))): t =>
+let to_evaluate =
+    (results: t, elabs: list((Key.t, Elaborator.Elaboration.t))): t =>
   elabs
   |> List.filter_map(advance_evaluator_result(results))
   |> List.to_seq

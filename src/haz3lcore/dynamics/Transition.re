@@ -180,6 +180,9 @@ module type EV_MODE = {
   let otherwise: (ClosureEnvironment.t, 'a) => requirements(unit, 'a);
 
   let update_test: (state, KeywordID.t, TestMap.instance_report) => unit;
+
+  let get_info_map: state => Statics.Map.t;
+  let set_info_map: (Statics.Map.t, state) => unit;
 };
 
 module Transition = (EV: EV_MODE) => {
@@ -197,8 +200,25 @@ module Transition = (EV: EV_MODE) => {
      children change, we use rewrap */
 
   let transition = (req, state, env, d): 'a => {
+    // If there is an error at this location, swap out the rule for indet.
+    let info_map = get_info_map(state);
+    let err_info = Statics.get_error_at(info_map, DHExp.rep_id(d));
+    let (let.) =
+      switch (err_info) {
+      | Some(FreeVariable(_) | Common(NoType(_) | Inconsistent(_))) => (
+          (x, _) => {
+            let. _ = x;
+            Indet;
+          }
+        )
+      | None => (let.)
+      };
+
+    // Split DHExp into term and id information
     let (term, rewrap) = DHExp.unwrap(d);
     let wrap_ctx = (term): EvalCtx.t => Term({term, ids: [rep_id(d)]});
+
+    // Transition rules
     switch (term) {
     | Var(x) =>
       let. _ = otherwise(env, Var(x) |> rewrap);

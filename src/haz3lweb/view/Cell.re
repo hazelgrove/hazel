@@ -180,7 +180,7 @@ let live_eval =
     switch (result.evaluation, result.previous) {
     | (ResultOk(res), _) => ProgramResult.get_dhexp(res)
     | (ResultPending, ResultOk(res)) => ProgramResult.get_dhexp(res)
-    | _ => result.elab
+    | _ => result.elab.d
     };
   let dhcode_view =
     DHCode.view(
@@ -397,6 +397,7 @@ let locked =
           editor.state.meta.view_term,
         )
       : DHExp.Bool(true) |> DHExp.fresh;
+  let elab: Elaborator.Elaboration.t = {d: elab, info_map: statics.info_map};
   let result: ModelResult.t =
     settings.core.dynamics
       ? Evaluation({

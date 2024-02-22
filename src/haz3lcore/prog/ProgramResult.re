@@ -19,7 +19,7 @@ type error =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
-  | Off(DHExp.t) //elab
+  | Off(Elaborator.Elaboration.t)
   | ResultOk(inner)
   | ResultFail(error)
   | ResultPending;

@@ -8,9 +8,9 @@ type t =
   | Expr;
 
 module ValueCheckerEVMode: {
-  include EV_MODE with type result = t and type state = unit;
+  include EV_MODE with type result = t and type state = Statics.Map.t;
 } = {
-  type state = unit;
+  type state = Statics.Map.t;
   type result = t;
 
   type requirement('a) = ('a, (result, bool));
@@ -71,20 +71,22 @@ module ValueCheckerEVMode: {
     ((v1, v2), combine(r1, r2));
   };
 
-  let update_test = ((), _, _) => ();
+  let update_test = (_, _, _) => ();
+  let get_info_map = (info_map: state) => info_map;
+
+  let set_info_map = (_, _) => ();
 };
 
 module CV = Transition(ValueCheckerEVMode);
 
-let rec check_value = ((), env, d) => CV.transition(check_value, (), env, d);
+let rec check_value = (state, env, d) =>
+  CV.transition(check_value, state, env, d);
 
-let check_value = check_value();
-
-let rec check_value_mod_ctx = ((), env, d) =>
+let rec check_value_mod_ctx = (info_map: Statics.Map.t, env, d) =>
   switch (DHExp.term_of(d)) {
   | Var(x) =>
     check_value_mod_ctx(
-      (),
+      info_map,
       env,
       ClosureEnvironment.lookup(env, x)
       |> OptUtil.get(() => {
@@ -92,7 +94,5 @@ let rec check_value_mod_ctx = ((), env, d) =>
            raise(EvaluatorError.Exception(FreeInvalidVar(x)));
          }),
     )
-  | _ => CV.transition(check_value_mod_ctx, (), env, d)
+  | _ => CV.transition(check_value_mod_ctx, info_map, env, d)
   };
-
-let check_value_mod_ctx = check_value_mod_ctx();

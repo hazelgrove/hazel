@@ -1,6 +1,14 @@
 open Util;
 open OptUtil.Syntax;
 
+module Elaboration = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    d: DHExp.t,
+    info_map: Statics.Map.t,
+  };
+};
+
 module ElaborationResult = {
   [@deriving sexp]
   type t =

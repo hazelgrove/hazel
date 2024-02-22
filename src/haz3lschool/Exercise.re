@@ -704,7 +704,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   let spliced_elabs =
       (settings: CoreSettings.t, state: state)
-      : list((ModelResults.key, DHExp.t)) => {
+      : list((ModelResults.key, Elaborator.Elaboration.t)) => {
     let {
       test_validation,
       user_impl,
@@ -715,8 +715,10 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       hidden_tests,
     } =
       stitch_static(settings, stitch_term(state));
-    let elab = (s: CachedStatics.statics) =>
-      Interface.elaborate(~settings, s.info_map, s.term);
+    let elab = (s: CachedStatics.statics): Elaborator.Elaboration.t => {
+      d: Interface.elaborate(~settings, s.info_map, s.term),
+      info_map: s.info_map,
+    };
     [
       (test_validation_key, elab(test_validation)),
       (user_impl_key, elab(user_impl)),

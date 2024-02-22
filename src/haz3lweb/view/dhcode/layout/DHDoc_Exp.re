@@ -111,19 +111,16 @@ let mk =
       d: DHExp.t,
     )
     : DHDoc.t => {
-  let _ = print_endline("[mmpp] New Expression");
-  let _ = print_endline(DHExp.show(d));
-  let _ = print_int(List.length(hidden_steps));
-  print_endline("");
-  let _ =
-    List.map(
-      ((x, y)) => {
-        print_endline(Id.show(y));
-        print_endline(show_step_kind(x.knd));
-      },
-      hidden_steps,
-    );
-  let _ = print_endline("============");
+  // // print_endline("");
+  // // let _ =
+  // //   List.map(
+  // //     ((x, y)) => {
+  // //       print_endline(Id.show(y));
+  // //       print_endline(show_step_kind(x.knd));
+  // //     },
+  // //     hidden_steps,
+  // //   );
+  // let _ = print_endline("============");
   let precedence = precedence(~show_casts=settings.show_casts);
   let rec go =
           (
