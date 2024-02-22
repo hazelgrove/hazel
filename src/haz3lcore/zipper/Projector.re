@@ -116,6 +116,8 @@ let project_seg = (p, seg: Segment.t): Segment.t => {
   // print_endline("project_seg");
   switch (split_seg(seg, p)) {
   | Some((pre, mid_og, suf, proj_id)) =>
+    /*TODO(andrew): need to find a way to handle multiple projectors per segment,
+      i.e. wasn't thinking about ones in disjoint subtrees */
     // print_endline(
     //   "split: segment length: "
     //   ++ string_of_int(List.length(seg))
