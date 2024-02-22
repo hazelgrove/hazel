@@ -59,14 +59,15 @@ let pos_str = (~d: dims, ~fudge: fdims=fzero, font_metrics: FontMetrics.t) =>
     Float.of_int(d.height) *. (font_metrics.row_height +. fudge.height),
   );
 
-let abs_style = ({origin, last}: Haz3lcore.Measured.measurement): dims => {
-  let (left, top) = (origin.col, origin.row);
-  let (width, height) = (
-    abs(last.col - origin.col),
-    abs(last.row - origin.row + 1),
-  );
-  {left, top, width, height};
+let abs_dims = ({origin, last}: Haz3lcore.Measured.measurement): dims => {
+  left: origin.col,
+  top: origin.row,
+  width: abs(last.col - origin.col),
+  height: abs(last.row - origin.row + 1),
 };
+
+let abs_style = (~font_metrics, measurement): Attr.t =>
+  Attr.create("style", pos_str(~d=abs_dims(measurement), font_metrics));
 
 let code_svg_sized =
     (
@@ -77,7 +78,7 @@ let code_svg_sized =
       ~fudge: fdims=fzero,
       paths: list(SvgUtil.Path.cmd),
     ) => {
-  let d = abs_style(measurement);
+  let d = abs_dims(measurement);
   let style = pos_str(~d, ~fudge, font_metrics);
   create_svg(
     "svg",
