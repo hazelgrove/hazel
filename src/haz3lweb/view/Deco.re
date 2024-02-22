@@ -296,13 +296,50 @@ module Deco =
   let err_holes = (_z: Zipper.t) =>
     List.map(term_highlight(~clss=["err-hole"]), M.error_ids);
 
+  let get = (id, projectors) =>
+    switch (Projector.Map.find(id, projectors)) {
+    | Some(p) =>
+      switch (Measured.find_by_id(id, M.map)) {
+      | Some(measurement) => Some((p, measurement))
+      | _ => None
+      }
+    | None => None
+    };
+
+  let projectors = (z: Zipper.t) =>
+    List.filter_map(
+      ((id, p: Projector.t)) =>
+        switch (p, Measured.find_by_id(id, M.map)) {
+        | (Fold, Some(measurement)) =>
+          Some(FoldView.base(~font_metrics, measurement))
+        | _ => None
+        },
+      Id.Map.bindings(z.projectors),
+    );
+
+  let indication_deco = (z: Zipper.t) =>
+    switch (Indicated.index(z)) {
+    | Some(id) =>
+      switch (Projector.Map.find(id, z.projectors)) {
+      | Some(p) =>
+        switch (p, Measured.find_by_id(id, M.map)) {
+        | (Fold, Some(measurement)) =>
+          FoldView.indicated(~font_metrics, measurement)
+        | _ => indicated_piece_deco(z)
+        }
+      | None => indicated_piece_deco(z)
+      }
+    | _ => indicated_piece_deco(z)
+    };
+
   let all = (zipper, sel_seg) =>
     List.concat([
       caret(zipper),
-      indicated_piece_deco(zipper),
+      indication_deco(zipper),
       selected_pieces(zipper),
       backpack(zipper),
       targets'(zipper.backpack, sel_seg),
       err_holes(zipper),
+      projectors(zipper),
     ]);
 };
