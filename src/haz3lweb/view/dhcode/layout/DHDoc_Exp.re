@@ -47,7 +47,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   switch (DHExp.term_of(d)) {
   | Var(_)
   | FreeVar(_)
-  | InvalidText(_)
+  | Invalid(_)
   | Bool(_)
   | Int(_)
   | Seq(_)
@@ -285,7 +285,7 @@ let mk =
         go'(d') |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
       | FreeVar(u, i, x) =>
         text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
-      | InvalidText(u, i, t) => DHDoc_common.mk_InvalidText(t, (u, i))
+      | Invalid(t) => DHDoc_common.mk_InvalidText(t)
       | Match(Inconsistent(u, i), dscrut, drs) =>
         go_case(dscrut, drs) |> annot(DHAnnot.InconsistentBranches((u, i)))
       | Var(x) when List.mem(x, recursive_calls) => text(x)

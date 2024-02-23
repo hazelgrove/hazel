@@ -45,7 +45,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (_, FailedCast(_)) => IndetMatch
   | (_, InvalidOperation(_)) => IndetMatch
   | (_, FreeVar(_)) => IndetMatch
-  | (_, InvalidText(_)) => IndetMatch
+  | (_, Invalid(_)) => IndetMatch
   | (_, Let(_)) => IndetMatch
   | (_, FixF(_)) => DoesNotMatch
   | (_, Fun(_)) => DoesNotMatch
@@ -241,7 +241,7 @@ and matches_cast_Sum =
   | Cast(d', Unknown(_), Sum(_) | Rec(_, Sum(_))) =>
     matches_cast_Sum(ctr, dp, d', castmaps)
   | FreeVar(_)
-  | InvalidText(_)
+  | Invalid(_)
   | Let(_)
   | ApBuiltin(_)
   | BinOp(_)
@@ -327,7 +327,7 @@ and matches_cast_Tuple =
   | Cast(_, _, _) => DoesNotMatch
   | Var(_) => DoesNotMatch
   | FreeVar(_) => IndetMatch
-  | InvalidText(_) => IndetMatch
+  | Invalid(_) => IndetMatch
   | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _, _, _) => DoesNotMatch
@@ -460,7 +460,7 @@ and matches_cast_Cons =
   | Cast(_, _, _) => DoesNotMatch
   | Var(_) => DoesNotMatch
   | FreeVar(_) => IndetMatch
-  | InvalidText(_) => IndetMatch
+  | Invalid(_) => IndetMatch
   | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _, _, _) => DoesNotMatch

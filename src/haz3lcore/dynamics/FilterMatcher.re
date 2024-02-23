@@ -164,7 +164,7 @@ let rec matches_exp =
   | (Match(_), _) => false
 
   | (NonEmptyHole(_), _) => false
-  | (InvalidText(_), _) => false
+  | (Invalid(_), _) => false
   | (InvalidOperation(_), _) => false
 
   | (ApBuiltin(dname, darg), ApBuiltin(fname, farg)) =>
