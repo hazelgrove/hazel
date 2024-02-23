@@ -139,6 +139,9 @@ let rec matches =
       | ListConcat2(d1, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
         ListConcat2(d1, ctx) |> rewrap;
+      | MultiHole(ctx, (dl, dr)) =>
+        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
+        MultiHole(ctx, (dl, dr)) |> rewrap;
       | NonEmptyHole(e, u, i, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
         NonEmptyHole(e, u, i, ctx) |> rewrap;

@@ -80,6 +80,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | BinOp(Float(op), _, _) => precedence_bin_float_op(op)
   | BinOp(String(op), _, _) => precedence_bin_string_op(op)
 
+  | MultiHole(_) => DHDoc_common.precedence_max
   | NonEmptyHole(_, _, _, d) => precedence'(d)
   };
 };
@@ -281,6 +282,7 @@ let mk =
           ~selected=Some(DHExp.rep_id(d)) == selected_hole_instance,
           env,
         )
+      | MultiHole(ds) => ds |> List.map(go') |> Doc.hcats
       | NonEmptyHole(reason, u, i, d') =>
         go'(d') |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
       | FreeVar(u, i, x) =>

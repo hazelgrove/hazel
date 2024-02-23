@@ -246,6 +246,7 @@ and matches_cast_Sum =
   | ApBuiltin(_)
   | BinOp(_)
   | EmptyHole
+  | MultiHole(_)
   | NonEmptyHole(_)
   | FailedCast(_, _, _)
   | Test(_)
@@ -349,6 +350,7 @@ and matches_cast_Tuple =
   | Constructor(_) => DoesNotMatch
   | Match(_) => IndetMatch
   | EmptyHole => IndetMatch
+  | MultiHole(_) => IndetMatch
   | NonEmptyHole(_) => IndetMatch
   | FailedCast(_, _, _) => IndetMatch
   | InvalidOperation(_) => IndetMatch
@@ -481,6 +483,7 @@ and matches_cast_Cons =
   | Constructor(_) => DoesNotMatch
   | Match(_) => IndetMatch
   | EmptyHole => IndetMatch
+  | MultiHole(_) => IndetMatch
   | NonEmptyHole(_) => IndetMatch
   | FailedCast(_, _, _) => IndetMatch
   | InvalidOperation(_) => IndetMatch
