@@ -528,7 +528,7 @@ let derived_exp =
   let cls = Cls.Exp(UExp.cls_of_term(uexp.term));
   let cls =
     switch (self, cls) {
-    | (Common(_), Exp(Constructor)) => Cls.Exp(ModuleVar)
+    | (Common(Just(_)), Exp(Constructor)) => Cls.Exp(ModuleVar)
     | _ => cls
     };
   let status = status_exp(ctx, mode, self);

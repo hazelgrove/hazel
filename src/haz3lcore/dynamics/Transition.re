@@ -225,13 +225,12 @@ module Transition = (EV: EV_MODE) => {
       let.match env' = (env, matches(dp, d1'));
       Step({apply: () => Closure(env', d2), kind: ModuleBind, value: false});
     | Dot(d1, d2) =>
-      let. _ = otherwise(env, (d1, d2) => Dot(d1, d2))
-      and. d1' = req_value(req(state, env), d1 => Dot1(d1, d2), d1)
-      and. d2' = req_final(req(state, env), d2 => Dot2(d1, d2), d2);
+      let. _ = otherwise(env, d1 => Dot(d1, d2))
+      and. d1' = req_final(req(state, env), d1 => Dot1(d1, d2), d1);
       Step({
         apply: () =>
           switch (d1') {
-          | ModuleVal(inner_env) => Closure(inner_env, d2')
+          | ModuleVal(inner_env) => Closure(inner_env, d2)
           | _ => raise(EvaluatorError.Exception(InvalidBoxedModule(d1')))
           },
         kind: BinBoolOp(Or),

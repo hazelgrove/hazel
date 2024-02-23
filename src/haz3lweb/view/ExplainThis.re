@@ -1690,60 +1690,20 @@ let get_doc =
         | TypeAnn(_) => default // Shouldn't get hit?
         };
       | Module(pat, def, body) =>
-        let pat = bypass_parens_and_annot_pat(pat);
-        let v =
-          switch (pat.term) {
-          | Constructor(v) => v
-          | _ => ""
-          };
-        let (doc, options) =
-          LangDocMessages.get_form_and_options(
-            LangDocMessages.module_exp_group,
-            docs,
-          );
-        let pat_id = List.nth(pat.ids, 0);
-        let def_id = List.nth(def.ids, 0);
-        let body_id = List.nth(body.ids, 0);
-        get_message(
-          ~colorings=LetExp.let_base_exp_coloring_ids(~pat_id, ~def_id),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s%s"),
-                  Id.to_string(def_id),
-                  Id.to_string(pat_id),
-                ),
-            ),
-          group_id,
-          doc,
-          options,
-          LangDocMessages.module_exp_group,
-          Printf.sprintf(
-            Scanf.format_from_string(doc.explanation.message, "%s%s%s%s"),
-            def_id |> Id.to_string,
-            pat_id |> Id.to_string,
-            v,
-            body_id |> Id.to_string,
+        message_single(
+          ModuleExp.single(
+            ~pat_id=Term.UPat.rep_id(pat),
+            ~def_id=Term.UExp.rep_id(def),
+            ~body_id=Term.UExp.rep_id(body),
           ),
-          LangDocMessages.module_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
-        );
+        )
       | Dot(e_mod, e_mem) =>
-        let mod_id = List.nth(e_mod.ids, 0);
-        let mem_id = List.nth(e_mem.ids, 0);
-        get_message(
-          ~colorings=DotExp.dot_exp_coloring_ids(~mod_id, ~mem_id),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(doc.explanation.message, "%s%s"),
-                  mem_id |> Id.to_string,
-                  mod_id |> Id.to_string,
-                ),
-            ),
-          DotExp.dots,
-        );
+        message_single(
+          DotExp.single(
+            ~mod_id=Term.UExp.rep_id(e_mod),
+            ~mem_id=Term.UExp.rep_id(e_mem),
+          ),
+        )
       | Pipeline(arg, fn) =>
         message_single(
           PipelineExp.single(
@@ -2004,13 +1964,26 @@ let get_doc =
           CaseExp.case,
         );
       | Constructor(v) =>
-        get_message(
-          ~format=
-            Some(
-              msg => Printf.sprintf(Scanf.format_from_string(msg, "%s"), v),
-            ),
-          TerminalExp.ctr(v),
-        )
+        switch (cls) {
+        | Exp(ModuleVar) =>
+          get_message(
+            ~format=
+              Some(
+                msg =>
+                  Printf.sprintf(Scanf.format_from_string(msg, "%s"), v),
+              ),
+            TerminalExp.module_var(v),
+          )
+        | _ =>
+          get_message(
+            ~format=
+              Some(
+                msg =>
+                  Printf.sprintf(Scanf.format_from_string(msg, "%s"), v),
+              ),
+            TerminalExp.ctr(v),
+          )
+        }
       };
     get_message_exp(term.term);
   | Some(InfoPat({term, _})) =>
@@ -2018,6 +1991,23 @@ let get_doc =
     | EmptyHole => get_message(HolePat.empty_hole)
     | MultiHole(_) => get_message(HolePat.multi_hole)
     | Wild => get_message(TerminalPat.wild)
+    | TyAlias(ty_pat, ty_def) =>
+      let tpat_id = List.nth(ty_pat.ids, 0);
+      let def_id = List.nth(ty_def.ids, 0);
+      get_message(
+        ~colorings=
+          TyAliasPat.tyalias_base_pat_coloring_ids(~tpat_id, ~def_id),
+        ~format=
+          Some(
+            msg =>
+              Printf.sprintf(
+                Scanf.format_from_string(msg, "%s%s"),
+                Id.to_string(def_id),
+                Id.to_string(tpat_id),
+              ),
+          ),
+        TyAliasPat.tyalias_pats,
+      );
     | Int(i) =>
       get_message(
         ~format=
@@ -2392,6 +2382,14 @@ let get_doc =
     | Sum(_) => get_message(SumTyp.labelled_sum_typs)
     | Ap({term: Constructor(c), _}, _) =>
       get_message(SumTyp.sum_typ_unary_constructor_defs(c))
+    | Module(_) => get_message(TerminalTyp.moduletyp)
+    | Dot(t_mod, t_mem) =>
+      message_single(
+        DotTyp.single(
+          ~mod_id=Term.UTyp.rep_id(t_mod),
+          ~mem_id=Term.UTyp.rep_id(t_mem),
+        ),
+      )
     | Invalid(_) => simple("Not a type or type operator")
     | Ap(_)
     | Parens(_) => default // Shouldn't be hit?
