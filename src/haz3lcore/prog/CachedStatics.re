@@ -8,7 +8,7 @@ type statics = {
 };
 
 let empty_statics: statics = {
-  term: Term.UExp.{ids: [Id.invalid], term: Triv},
+  term: Term.UExp.{ids: [Id.invalid], term: Tuple([])},
   info_map: Id.Map.empty,
   error_ids: [],
 };

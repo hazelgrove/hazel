@@ -34,7 +34,6 @@ let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
   switch (uexp.term) {
   | Var(x) => x == name
   | EmptyHole
-  | Triv
   | Invalid(_)
   | MultiHole(_)
   | Bool(_)
@@ -80,7 +79,6 @@ let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
   switch (uexp.term) {
   | Var(_)
   | EmptyHole
-  | Triv
   | Invalid(_)
   | MultiHole(_)
   | Bool(_)
@@ -201,7 +199,6 @@ let rec find_fn =
       ul,
     )
   | EmptyHole
-  | Triv
   | Invalid(_)
   | MultiHole(_)
   | Bool(_)
@@ -229,7 +226,6 @@ let is_recursive = (name: string, uexp: Term.UExp.t): bool => {
 let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   switch (uexp.term) {
   | EmptyHole
-  | Triv
   | Invalid(_)
   | MultiHole(_)
   | Bool(_)

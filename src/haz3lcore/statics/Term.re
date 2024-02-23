@@ -423,7 +423,6 @@ module UExp = {
     | Invalid
     | EmptyHole
     | MultiHole
-    | Triv
     | Bool
     | Int
     | Float
@@ -466,7 +465,6 @@ module UExp = {
     | Invalid(_) => Invalid
     | EmptyHole => EmptyHole
     | MultiHole(_) => MultiHole
-    | Triv => Triv
     | Bool(_) => Bool
     | Int(_) => Int
     | Float(_) => Float
@@ -559,7 +557,6 @@ module UExp = {
     | Invalid => "Invalid expression"
     | MultiHole => "Broken expression"
     | EmptyHole => "Empty expression hole"
-    | Triv => "Trivial literal"
     | Bool => "Boolean literal"
     | Int => "Integer literal"
     | Float => "Float literal"
@@ -593,7 +590,6 @@ module UExp = {
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
-    | Triv
     | Bool(_)
     | Int(_)
     | Float(_)
@@ -627,7 +623,6 @@ module UExp = {
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
-      | Triv
       | Bool(_)
       | Int(_)
       | Float(_)
