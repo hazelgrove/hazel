@@ -89,6 +89,16 @@ let delete_parent = (z: t): t => {
 let zip = (z: t): Segment.t =>
   Relatives.zip(~sel=z.selection.content, z.relatives);
 
+let unzip = (seg: Segment.t): t => {
+  selection: Selection.mk([]),
+  backpack: [],
+  relatives: {
+    siblings: (seg, []),
+    ancestors: [],
+  },
+  caret: Outer,
+};
+
 let sibs_with_sel =
     (
       {
@@ -181,6 +191,11 @@ let shrink_selection = (z: t): option(t) => {
       |> Relatives.reassemble;
     Some({...z, selection, relatives});
   };
+};
+
+let toggle_focus = (z: t): t => {
+  ...z,
+  selection: Selection.toggle_focus(z.selection),
 };
 
 let directional_unselect = (d: Direction.t, z: t): t => {
