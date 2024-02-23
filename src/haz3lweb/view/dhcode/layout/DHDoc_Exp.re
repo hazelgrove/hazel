@@ -55,7 +55,6 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Float(_)
   | String(_)
   | ListLit(_)
-  | Prj(_)
   | EmptyHole
   | Constructor(_)
   | FailedCast(_)
@@ -144,11 +143,13 @@ let mk =
         | (FunAp, _) => []
         | (LetBind, Let(p, _, _)) => DHPat.bound_vars(p)
         | (LetBind, _) => []
-        | (FixUnwrap, _) // TODO[Matt]: Could do something here?
+        | (FixUnwrap, FixF(p, _, _)) => DHPat.bound_vars(p)
+        | (FixUnwrap, _) => []
         | (InvalidStep, _)
         | (VarLookup, _)
         | (Seq, _)
         | (FunClosure, _)
+        | (FixClosure, _)
         | (UpdateTest, _)
         | (CastAp, _)
         | (BuiltinWrap, _)
@@ -365,7 +366,6 @@ let mk =
         hseps([doc1, mk_bin_bool_op(op), doc2]);
       | Tuple([]) => DHDoc_common.Delim.triv
       | Tuple(ds) => DHDoc_common.mk_Tuple(ds |> List.map(d => go'(d)))
-      | Prj(d, n) => DHDoc_common.mk_Prj(go'(d), n)
       | Match(Consistent, dscrut, drs) => go_case(dscrut, drs)
       | Cast(d, _, ty) when settings.show_casts =>
         // TODO[Matt]: Roll multiple casts into one cast
@@ -555,14 +555,18 @@ let mk =
           | Some(name) => annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"))
           };
         }
-      | FixF(x, ty, dbody) when settings.show_fixpoints =>
+      | FixF(dp, ty, dbody) when settings.show_fixpoints =>
         let doc_body =
           go_formattable(
             dbody,
-            ~env=ClosureEnvironment.without_keys([x], env),
+            ~env=ClosureEnvironment.without_keys(DHPat.bound_vars(dp), env),
           );
         hcats(
-          [DHDoc_common.Delim.fix_FixF, space(), text(x)]
+          [
+            DHDoc_common.Delim.fix_FixF,
+            space(),
+            DHDoc_Pat.mk(dp, ~enforce_inline=true),
+          ]
           @ (
             settings.show_casts
               ? [
@@ -579,8 +583,11 @@ let mk =
             doc_body |> DHDoc_common.pad_child(~enforce_inline),
           ],
         );
-      | FixF(x, _, d) =>
-        go'(~env=ClosureEnvironment.without_keys([x], env), d)
+      | FixF(dp, _, d) =>
+        go'(
+          ~env=ClosureEnvironment.without_keys(DHPat.bound_vars(dp), env),
+          d,
+        )
       };
     };
     let steppable =

@@ -52,6 +52,7 @@ type step_kind =
   | LetBind
   | FunClosure
   | FixUnwrap
+  | FixClosure
   | UpdateTest
   | FunAp
   | CastAp
@@ -260,18 +261,58 @@ module Transition = (EV: EV_MODE) => {
         kind: FunClosure,
         value: true,
       });
-    | FixF(f, t, d1) =>
-      let. _ = otherwise(env, FixF(f, t, d1) |> rewrap);
-      Step({
-        apply: () =>
-          Closure(
-            evaluate_extend_env(Environment.singleton((f, d1)), env),
-            d1,
-          )
-          |> fresh,
-        kind: FixUnwrap,
-        value: false,
-      });
+    | FixF(dp, t, d1) =>
+      let (term1, rewrap1) = DHExp.unwrap(d1);
+      switch (term1, DHPat.get_var(dp)) {
+      // Simple Recursion case
+      | (Closure(env, d1), Some(f)) =>
+        let. _ = otherwise(env, d);
+        let env'' =
+          evaluate_extend_env(
+            Environment.singleton((
+              f,
+              FixF(dp, t, Closure(env, d1) |> rewrap1) |> rewrap,
+            )),
+            env,
+          );
+        Step({
+          apply: () => Closure(env'', d1) |> fresh,
+          kind: FixUnwrap,
+          value: false,
+        });
+      // Mutual Recursion case
+      | (Closure(env, d1), None) =>
+        let. _ = otherwise(env, d);
+        let bindings = DHPat.bound_vars(dp);
+        let substitutions =
+          List.map(
+            binding =>
+              (
+                binding,
+                Let(
+                  dp,
+                  FixF(dp, t, Closure(env, d1) |> rewrap1) |> rewrap,
+                  Var(binding) |> fresh,
+                )
+                |> fresh,
+              ),
+            bindings,
+          );
+        let env'' =
+          evaluate_extend_env(Environment.of_list(substitutions), env);
+        Step({
+          apply: () => Closure(env'', d1) |> fresh,
+          kind: FixUnwrap,
+          value: false,
+        });
+      | _ =>
+        let. _ = otherwise(env, FixF(dp, t, d1) |> rewrap);
+        Step({
+          apply: () => FixF(dp, t, Closure(env, d1) |> fresh) |> rewrap,
+          kind: FixClosure,
+          value: false,
+        });
+      };
     | Test(id, d) =>
       let. _ = otherwise(env, d => Test(id, d) |> rewrap)
       and. d' = req_final(req(state, env), d => Test(id, d) |> wrap_ctx, d);
@@ -566,27 +607,6 @@ module Transition = (EV: EV_MODE) => {
           ds,
         );
       Constructor;
-    | Prj(d1, n) =>
-      let. _ = otherwise(env, d1 => Prj(d1, n) |> rewrap)
-      and. d1' =
-        req_final(req(state, env), d1 => Prj(d1, n) |> wrap_ctx, d1);
-      Step({
-        apply: () => {
-          switch (DHExp.term_of(d1')) {
-          | Tuple(ds) when n < 0 || List.length(ds) <= n =>
-            raise(EvaluatorError.Exception(InvalidProjection(n)))
-          | Tuple(ds) => List.nth(ds, n)
-          | Cast(_, Prod(ts), Prod(_)) when n < 0 || List.length(ts) <= n =>
-            raise(EvaluatorError.Exception(InvalidProjection(n)))
-          | Cast(d2, Prod(ts1), Prod(ts2)) =>
-            Cast(Prj(d2, n) |> rewrap, List.nth(ts1, n), List.nth(ts2, n))
-            |> fresh
-          | _ => raise(EvaluatorError.Exception(InvalidProjection(n)))
-          };
-        },
-        kind: Projection,
-        value: false,
-      });
     // TODO(Matt): Can we do something cleverer when the list structure is complete but the contents aren't?
     | Cons(d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => Cons(d1, d2) |> rewrap)
@@ -789,8 +809,9 @@ let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
   | VarLookup => !settings.show_lookup_steps
   | CastAp
   | Cast => !settings.show_casts
+  | FixUnwrap => !settings.show_fixpoints
   | CompleteClosure
   | CompleteFilter
-  | FixUnwrap
   | BuiltinWrap
-  | FunClosure => true;
+  | FunClosure
+  | FixClosure => true;

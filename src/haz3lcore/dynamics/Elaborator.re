@@ -116,7 +116,6 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | Var(_)
     | ApBuiltin(_)
     | BuiltinFun(_)
-    | Prj(_)
     | Bool(_)
     | Int(_)
     | Float(_)
@@ -254,43 +253,14 @@ let rec dhexp_of_uexp =
           /* not recursive */
           DHExp.Let(dp, add_name(Term.UPat.get_var(p), ddef), dbody)
           |> rewrap
-        | Some([f]) =>
-          /* simple recursion */
-          Let(
+        | Some(b) =>
+          DHExp.Let(
             dp,
-            FixF(f, ty, add_name(Some(f), ddef)) |> DHExp.fresh,
+            FixF(dp, ty, add_name(Some(String.concat(",", b)), ddef))
+            |> DHExp.fresh,
             dbody,
           )
           |> rewrap
-        | Some(fs) =>
-          /* mutual recursion */
-          let ddef =
-            switch (DHExp.term_of(ddef)) {
-            | Tuple(a) =>
-              DHExp.Tuple(List.map2(s => add_name(Some(s)), fs, a))
-              |> DHExp.fresh
-            | _ => ddef
-            };
-          let uniq_id = List.nth(def.ids, 0);
-          let self_id = "__mutual__" ++ Id.to_string(uniq_id);
-          // TODO: Re-use IDs here instead of using fresh
-          let self_var = DHExp.Var(self_id) |> DHExp.fresh;
-          let (_, substituted_def) =
-            fs
-            |> List.fold_left(
-                 ((i, ddef), f) => {
-                   let ddef =
-                     Substitution.subst_var(
-                       DHExp.Prj(self_var, i) |> DHExp.fresh,
-                       f,
-                       ddef,
-                     );
-                   (i + 1, ddef);
-                 },
-                 (0, ddef),
-               );
-          Let(dp, FixF(self_id, ty, substituted_def) |> DHExp.fresh, dbody)
-          |> rewrap;
         };
       | Ap(dir, fn, arg) =>
         let* c_fn = dhexp_of_uexp(m, fn);

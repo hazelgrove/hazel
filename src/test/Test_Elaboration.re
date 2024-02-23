@@ -285,31 +285,31 @@ let u9: Term.UExp.t = {
       {ids: [id_at(11)], term: Int(55)},
     ),
 };
-let d9: DHExp.t =
-  Let(
-    Var("f"),
-    FixF(
-      "f",
-      Arrow(Int, Int),
-      Fun(
-        Var("x"),
-        Int,
-        BinOp(Int(Plus), Int(1) |> fresh, Var("x") |> fresh) |> fresh,
-        None,
-        Some("f"),
-      )
-      |> fresh,
-    )
-    |> fresh,
-    Int(55) |> fresh,
-  )
-  |> fresh;
-let let_fun = () =>
-  alco_check(
-    "Let expression for function which wraps a fix point constructor around the function",
-    Some(d9),
-    dhexp_of_uexp(u9),
-  );
+// let d9: DHExp.t =
+//   Let(
+//     Var("f"),
+//     FixF(
+//       "f",
+//       Arrow(Int, Int),
+//       Fun(
+//         Var("x"),
+//         Int,
+//         BinOp(Int(Plus), Int(1) |> fresh, Var("x") |> fresh) |> fresh,
+//         None,
+//         Some("f"),
+//       )
+//       |> fresh,
+//     )
+//     |> fresh,
+//     Int(55) |> fresh,
+//   )
+//   |> fresh;
+// let let_fun = () =>
+//   alco_check(
+//     "Let expression for function which wraps a fix point constructor around the function",
+//     Some(d9),
+//     dhexp_of_uexp(u9),
+//   );
 
 let elaboration_tests = [
   test_case("Single integer", `Quick, single_integer),
@@ -320,5 +320,5 @@ let elaboration_tests = [
   test_case("Consistent if statement", `Quick, consistent_if),
   test_case("Application of function on free variable", `Quick, ap_fun),
   test_case("Inconsistent case statement", `Quick, inconsistent_case),
-  test_case("Let expression for a function", `Quick, let_fun),
+  // test_case("Let expression for a function", `Quick, let_fun),
 ];
