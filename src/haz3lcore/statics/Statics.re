@@ -198,7 +198,6 @@ and uexp_to_info_map =
     add(~self=IsMulti, ~co_ctx=CoCtx.union(co_ctxs), m);
   | Invalid(token) => atomic(BadToken(token))
   | EmptyHole => atomic(Just(Unknown(Internal)))
-  | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))

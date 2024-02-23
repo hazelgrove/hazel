@@ -541,7 +541,6 @@ let get_doc =
             ),
           TyAliasExp.tyalias_exps,
         );
-      | Triv => get_message(TerminalExp.triv_exps)
       | Bool(b) => get_message(TerminalExp.bool_exps(b))
       | Int(i) => get_message(TerminalExp.int_exps(i))
       | Float(f) => get_message(TerminalExp.float_exps(f))
@@ -867,6 +866,7 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_var);
           }
+        | Tuple([]) => get_message(TerminalExp.triv_exps)
         | Tuple(elements) =>
           let pat_id = List.nth(pat.ids, 0);
           let body_id = List.nth(body.ids, 0);

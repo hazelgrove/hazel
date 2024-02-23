@@ -140,7 +140,6 @@ and UExp: {
     | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
-    | Triv // TODO: Replace with empty tuple
     | Bool(bool)
     | Int(int)
     | Float(float)
@@ -282,7 +281,6 @@ and UExp: {
     | Invalid(string) // TODO: Reconcile the invalids
     | EmptyHole // DONE
     | MultiHole(list(Any.t)) // TODO: Reconcile the invalids
-    | Triv // REMOVE, REPLACE WITH EMPTY TUPLE
     | Bool(bool) // DONE [DH CHANGED]
     | Int(int) // DONE [DH CHANGED]
     | Float(float) // DONE [DH CHANGED]

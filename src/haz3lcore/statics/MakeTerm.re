@@ -149,7 +149,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     // single-tile case
     | ([(_id, t)], []) =>
       switch (t) {
-      | ([t], []) when Form.is_empty_tuple(t) => ret(Triv)
+      | ([t], []) when Form.is_empty_tuple(t) => ret(Tuple([]))
       | ([t], []) when Form.is_empty_list(t) => ret(ListLit([]))
       | ([t], []) when Form.is_bool(t) => ret(Bool(bool_of_string(t)))
       | ([t], []) when Form.is_int(t) => ret(Int(int_of_string(t)))
@@ -208,7 +208,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     | ([(_id, t)], []) =>
       switch (t) {
       | (["()"], []) =>
-        ret(Ap(Forward, l, {ids: [Id.nullary_ap_flag], term: Triv}))
+        ret(Ap(Forward, l, {ids: [Id.nullary_ap_flag], term: Tuple([])}))
       | (["(", ")"], [Exp(arg)]) => ret(Ap(Forward, l, arg))
       | _ => ret(hole(tm))
       }

@@ -159,7 +159,6 @@ let rec dhexp_of_uexp =
            Make sure new dhexp form is properly considered Indet
            to avoid casting issues. */
         Some(EmptyHole |> rewrap)
-      | Triv => Some(Tuple([]) |> rewrap)
       | Bool(b) => Some(Bool(b) |> rewrap)
       | Int(n) => Some(Int(n) |> rewrap)
       | Float(n) => Some(Float(n) |> rewrap)
