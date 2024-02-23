@@ -21,6 +21,7 @@ let rec find_var_upat = (name: string, upat: Term.UPat.t): bool => {
   | String(_)
   | Constructor(_) => false
   | Cons(up1, up2) => find_var_upat(name, up1) || find_var_upat(name, up2)
+  | TupLabel(_, up) => find_var_upat(name, up)
   | ListLit(l)
   | Tuple(l) =>
     List.fold_left((acc, up) => {acc || find_var_upat(name, up)}, false, l)
@@ -50,6 +51,7 @@ let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
   | Let(p, def, body) =>
     find_var_upat(name, p)
       ? false : var_mention(name, def) || var_mention(name, body)
+  | TupLabel(_, u)
   | Test(u)
   | Parens(u)
   | UnOp(_, u)
@@ -100,6 +102,7 @@ let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
   | Parens(u)
   | UnOp(_, u)
   | TyAlias(_, _, u)
+  | TupLabel(_, u)
   | Filter(_, _, u) => var_applied(name, u)
   | Ap(u1, u2) =>
     switch (u1.term) {
@@ -149,6 +152,8 @@ let rec find_in_let =
     } else {
       l;
     }
+  | (TupLabel(_, up), TupLabel(_, ue)) => find_in_let(name, up, ue, l)
+  | (TupLabel(_, up), _) => find_in_let(name, up, def, l)
   | (Tuple(pl), Tuple(ul)) =>
     if (List.length(pl) != List.length(ul)) {
       l;
@@ -185,6 +190,7 @@ let rec find_fn =
   | Tuple(ul) =>
     List.fold_left((acc, u1) => {find_fn(name, u1, acc)}, l, ul)
   | Fun(_, body) => l |> find_fn(name, body)
+  | TupLabel(_, u1)
   | Parens(u1)
   | UnOp(_, u1)
   | TyAlias(_, _, u1)
@@ -255,6 +261,7 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   | Test(_) => false
   | TyAlias(_, _, u)
   | Filter(_, _, u)
+  | TupLabel(_, u) => tail_check(name, u)
   | Parens(u) => tail_check(name, u)
   | UnOp(_, u) => !var_mention(name, u)
   | Ap(u1, u2) => var_mention(name, u2) ? false : tail_check(name, u1)

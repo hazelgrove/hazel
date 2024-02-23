@@ -26,6 +26,7 @@ type cls =
   | IfThenElse1
   | IfThenElse2
   | IfThenElse3
+  | TupLabel
   | Tuple(int)
   | ListLit(int)
   | ApBuiltin
@@ -71,6 +72,7 @@ type t =
   | BinFloatOp2(TermBase.UExp.op_bin_float, DHExp.t, t)
   | BinStringOp1(TermBase.UExp.op_bin_string, t, DHExp.t)
   | BinStringOp2(TermBase.UExp.op_bin_string, DHExp.t, t)
+  | TupLabel(LabeledTuple.t, t)
   | Tuple(t, (list(DHExp.t), list(DHExp.t)))
   | ApBuiltin(string, t)
   | Test(KeywordID.t, t)
@@ -139,6 +141,7 @@ let rec fuzzy_mark =
   | BinFloatOp2(_)
   | BinStringOp1(_)
   | BinStringOp2(_)
+  | TupLabel(_)
   | Tuple(_)
   | ApBuiltin(_)
   | ListLit(_)
@@ -190,6 +193,7 @@ let rec unwrap = (ctx: t, sel: cls): option(t) => {
   | (ListConcat1, ListConcat1(c, _))
   | (ListConcat2, ListConcat2(_, c))
   | (Test, Test(_, c))
+  | (TupLabel, TupLabel(_, c))
   | (Prj, Prj(c, _)) => Some(c)
   | (ListLit(n), ListLit(_, _, _, c, (ld, _)))
   | (Tuple(n), Tuple(c, (ld, _))) =>

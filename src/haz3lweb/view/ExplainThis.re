@@ -686,6 +686,8 @@ let get_doc =
       switch (term) {
       | TermBase.UExp.Invalid(_) => simple("Not a valid expression")
       | EmptyHole => get_message(HoleExp.empty_hole_exps)
+      // TODO (Anthony): put in a real message
+      | TupLabel(_, _) => get_message(HoleExp.empty_hole_exps)
       | MultiHole(_children) => get_message(HoleExp.multi_hole_exps)
       | TyAlias(ty_pat, ty_def, _body) =>
         let tpat_id = List.nth(ty_pat.ids, 0);
@@ -744,6 +746,8 @@ let get_doc =
         let pat_id = List.nth(pat.ids, 0);
         let body_id = List.nth(body.ids, 0);
         switch (pat.term) {
+        // TODO (Anthony): put in a real message
+        | TupLabel(_, _)
         | EmptyHole =>
           if (FunctionExp.function_empty_hole_exp.id
               == get_specificity_level(FunctionExp.functions_empty_hole)) {
@@ -1268,6 +1272,8 @@ let get_doc =
           );
         };
         switch (pat.term) {
+        // TODO (Anthony): put in a real message
+        | TupLabel(_, _)
         | EmptyHole =>
           if (LetExp.let_empty_hole_exp.id
               == get_specificity_level(LetExp.lets_emptyhole)) {
@@ -1957,6 +1963,8 @@ let get_doc =
     get_message_exp(term.term);
   | Some(InfoPat({term, _})) =>
     switch (bypass_parens_pat(term).term) {
+    // TODO (Anthony): put in a real message
+    | TupLabel(_, _)
     | EmptyHole => get_message(HolePat.empty_hole)
     | MultiHole(_) => get_message(HolePat.multi_hole)
     | Wild => get_message(TerminalPat.wild)
@@ -2180,6 +2188,8 @@ let get_doc =
     }
   | Some(InfoTyp({term, cls, _})) =>
     switch (bypass_parens_typ(term).term) {
+    // TODO (Anthony): put in a real message
+    | TupLabel(_, _)
     | EmptyHole => get_message(HoleTyp.empty_hole)
     | MultiHole(_) => get_message(HoleTyp.multi_hole)
     | Int => get_message(TerminalTyp.int)

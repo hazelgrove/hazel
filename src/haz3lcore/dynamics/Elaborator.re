@@ -27,6 +27,7 @@ let fixed_pat_typ = (m: Statics.Map.t, p: Term.UPat.t): option(Typ.t) =>
   | _ => None
   };
 
+// TODO (Anthony): Where to put TupLabel?
 let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
   switch (mode) {
   | Syn => d
@@ -73,6 +74,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | IfThenElse(_)
     | Sequence(_)
     | Let(_)
+    | TupLabel(_, _)
     | FixF(_) => d
     /* Hole-like forms: Don't cast */
     | InvalidText(_)
@@ -152,6 +154,9 @@ let rec dhexp_of_uexp =
         let* d1 = dhexp_of_uexp(m, body);
         let+ ty = fixed_pat_typ(m, p);
         DHExp.Fun(dp, ty, d1, None);
+      | TupLabel(s, e) =>
+        let+ de = dhexp_of_uexp(m, e);
+        DHExp.TupLabel(s, de);
       | Tuple(es) =>
         let+ ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
         DHExp.Tuple(ds);
@@ -335,9 +340,12 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
       let* d_hd = dhpat_of_upat(m, hd);
       let* d_tl = dhpat_of_upat(m, tl);
       wrap(Cons(d_hd, d_tl));
+    | TupLabel(s, dp) =>
+      let* dp2 = dhpat_of_upat(m, dp);
+      wrap(TupLabel(s, dp2));
     | Tuple(ps) =>
       let* ds = ps |> List.map(dhpat_of_upat(m)) |> OptUtil.sequence;
-      wrap(DHPat.Tuple(ds));
+      wrap(Tuple(ds));
     | Var(name) => Some(Var(name))
     | Parens(p) => dhpat_of_upat(m, p)
     | Ap(p1, p2) =>

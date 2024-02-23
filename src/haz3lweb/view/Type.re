@@ -34,6 +34,7 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
   | String => ty_view("String", "String")
   | Bool => ty_view("Bool", "Bool")
   | Var(name) => ty_view("Var", name)
+  | Label(_, ty) => view_ty(ty) // TODO (Anthony): What to do here?
   | Rec(x, t) =>
     div(
       ~attr=clss(["typ-view", "Rec"]),

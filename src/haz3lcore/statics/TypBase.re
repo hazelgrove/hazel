@@ -33,6 +33,7 @@ module rec Typ: {
     | Sum(sum_map)
     | Prod(list(t))
     | Rec(TypVar.t, t)
+    | Label(string, t)
   and sum_map = ConstructorMap.t(option(t));
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -52,7 +53,9 @@ module rec Typ: {
   let join_type_provenance:
     (type_provenance, type_provenance) => type_provenance;
   let matched_arrow: (Ctx.t, t) => (t, t);
-  let matched_prod: (Ctx.t, int, t) => list(t);
+  let matched_label: (Ctx.t, t) => t;
+  let matched_prod:
+    (Ctx.t, list('a), 'a => option(LabeledTuple.t), t) => list(t);
   let matched_list: (Ctx.t, t) => t;
   let precedence: t => int;
   let subst: (t, TypVar.t, t) => t;
@@ -90,6 +93,7 @@ module rec Typ: {
     | Sum(sum_map)
     | Prod(list(t))
     | Rec(TypVar.t, t)
+    | Label(string, t)
   and sum_map = ConstructorMap.t(option(t));
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -130,6 +134,7 @@ module rec Typ: {
     | Unknown(_)
     | Var(_)
     | Rec(_)
+    | Label(_, _) => precedence_Sum
     | Sum(_) => precedence_Sum
     | List(_) => precedence_Const
     | Prod(_) => precedence_Prod
@@ -150,6 +155,7 @@ module rec Typ: {
     | Rec(y, ty) => Rec(y, subst(s, x, ty))
     | List(ty) => List(subst(s, x, ty))
     | Var(y) => TypVar.eq(x, y) ? s : Var(y)
+    | Label(st, ty) => Label(st, subst(s, x, ty))
     };
   };
 
@@ -163,6 +169,9 @@ module rec Typ: {
      but this will change when polymorphic types are implemented */
   let rec eq = (t1: t, t2: t): bool => {
     switch (t1, t2) {
+    | (Label(s1, t1), Label(s2, t2)) => compare(s1, s2) == 0 && eq(t1, t2)
+    | (Label(_, t1), t2) => eq(t1, t2)
+    | (t1, Label(_, t2)) => eq(t1, t2)
     | (Rec(x1, t1), Rec(x2, t2)) => eq(t1, subst(Var(x1), x2, t2))
     | (Rec(_), _) => false
     | (Int, Int) => true
@@ -177,7 +186,22 @@ module rec Typ: {
     | (Unknown(_), _) => false
     | (Arrow(t1, t2), Arrow(t1', t2')) => eq(t1, t1') && eq(t2, t2')
     | (Arrow(_), _) => false
-    | (Prod(tys1), Prod(tys2)) => List.equal(eq, tys1, tys2)
+    | (Prod(tys1), Prod(tys2)) =>
+      let filt: t => option(LabeledTuple.t) = (
+        d =>
+          switch (d) {
+          | Label(s, _) => Some(s)
+          | _ => None
+          }
+      );
+      let f = (b, tys1_val, tys2_val) => {
+        switch (b) {
+        | false => false
+        | true => eq(tys1_val, tys2_val)
+        };
+      };
+      List.length(tys1) == List.length(tys2)
+      && LabeledTuple.ana_tuple(filt, filt, f, true, false, tys1, tys2);
     | (Prod(_), _) => false
     | (List(t1), List(t2)) => eq(t1, t2)
     | (List(_), _) => false
@@ -208,6 +232,7 @@ module rec Typ: {
       )
     | Prod(tys) => ListUtil.flat_map(free_vars(~bound), tys)
     | Rec(x, ty) => free_vars(~bound=[x, ...bound], ty)
+    | Label(_, ty) => free_vars(~bound, ty)
     };
 
   /* Lattice join on types. This is a LUB join in the hazel2
@@ -255,6 +280,19 @@ module rec Typ: {
       let+ ty_body =
         join(~resolve, ~fix, ctx, ty1, subst(Var(x1), x2, ty2));
       Rec(x1, ty_body);
+    | (Label(s1, ty1), Label(s2, ty2)) =>
+      if (compare(s1, s2) == 0) {
+        let+ ty = join'(ty1, ty2);
+        Label(s1, ty);
+      } else {
+        None;
+      }
+    | (Label(s1, ty1), ty2) =>
+      let+ ty = join'(ty1, ty2);
+      Label(s1, ty);
+    | (ty1, Label(s2, ty2)) =>
+      let+ ty = join'(ty1, ty2);
+      Label(s2, ty);
     | (Rec(_), _) => None
     | (Int, Int) => Some(Int)
     | (Int, _) => None
@@ -270,9 +308,68 @@ module rec Typ: {
       Arrow(ty1, ty2);
     | (Arrow(_), _) => None
     | (Prod(tys1), Prod(tys2)) =>
-      let* tys = ListUtil.map2_opt(join', tys1, tys2);
-      let+ tys = OptUtil.sequence(tys);
-      Prod(tys);
+      let filt: t => option(LabeledTuple.t) = (
+        d =>
+          switch (d) {
+          | Label(s, _) => Some(s)
+          | _ => None
+          }
+      );
+      let filt2: t => (option(LabeledTuple.t), t) = (
+        d =>
+          switch (d) {
+          | Label(s, ty) => (Some(s), ty)
+          | ty => (None, ty)
+          }
+      );
+      //TODO (Anthony): Clean up the repetition
+      let (l1_valid, _, l1_none) =
+        LabeledTuple.validate_uniqueness(filt, tys1);
+      let (l2_valid, l2_lab, l2_none) =
+        LabeledTuple.validate_uniqueness(filt, tys2);
+      // TODO (Anthony): clean up error handling
+      if (!l1_valid
+          || !l2_valid
+          || List.length(l1_none) != List.length(l2_none)) {
+        let* tys = Some(List.init(List.length(tys1), _ => None));
+        let+ tys = OptUtil.sequence(tys);
+        Prod(tys);
+      } else {
+        let l1 = List.map(filt2, tys1);
+        let rec f =
+                (l1: list('a), l2_lab: list('a), l2_none: list('b))
+                : list(option(t)) =>
+          switch (l1) {
+          | [hd, ...tl] =>
+            switch (hd) {
+            | (Some(s1), l1_val) =>
+              let l2_item =
+                List.find_opt(
+                  l2_item => {
+                    switch (l2_item) {
+                    | (Some(s2), _) => compare(s1, s2) == 0
+                    | (_, _) => false
+                    }
+                  },
+                  l2_lab,
+                );
+              switch (l2_item) {
+              | Some((_, l2_val)) =>
+                [join'(l1_val, l2_val)] @ f(tl, l2_lab, l2_none)
+              | None => [None] @ f(tl, l2_lab, l2_none)
+              };
+            | (None, l1_val) =>
+              switch (l2_none) {
+              | [t2, ...tl2] => [join'(l1_val, t2)] @ f(tl, l2_lab, tl2)
+              | [] => [None] @ f(tl, l2_lab, l2_none)
+              }
+            }
+          | [] => []
+          };
+        let* tys = Some(f(l1, l2_lab, l2_none));
+        let+ tys = OptUtil.sequence(tys);
+        Prod(tys);
+      };
     | (Prod(_), _) => None
     | (Sum(sm1), Sum(sm2)) =>
       let (sorted1, sorted2) =
@@ -355,6 +452,7 @@ module rec Typ: {
          as in current implementation Recs do not occur in the
          surface syntax, so we won't try to jump to them. */
       Rec(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty))
+    | Label(s, t) => Label(s, normalize(ctx, t))
     };
   };
 
@@ -365,12 +463,81 @@ module rec Typ: {
     | _ => (Unknown(Internal), Unknown(Internal))
     };
 
-  let matched_prod = (ctx, length, ty) =>
+  let matched_label = (ctx, ty) =>
     switch (weak_head_normalize(ctx, ty)) {
-    | Prod(tys) when List.length(tys) == length => tys
-    | Unknown(SynSwitch) => List.init(length, _ => Unknown(SynSwitch))
-    | _ => List.init(length, _ => Unknown(Internal))
+    | Label(_, ty) => ty
+    | Unknown(SynSwitch) => Unknown(SynSwitch)
+    | _ => Unknown(Internal)
     };
+
+  let matched_prod = (ctx, ts, filt, ty) => {
+    // TODO: rearrange tys to fit ts
+    //TODO (Anthony): Clean up the repetition
+    let filt2 = d =>
+      switch (d) {
+      | Label(s, _) => Some(s)
+      | _ => None
+      };
+    switch (weak_head_normalize(ctx, ty)) {
+    | Prod(tys)
+        when
+          List.length(tys) == List.length(ts)
+          && LabeledTuple.ana_tuple(
+               filt,
+               filt2,
+               (a, _, _) => a,
+               true,
+               false,
+               ts,
+               tys,
+             ) =>
+      let (l1_valid, _, l1_none) =
+        LabeledTuple.validate_uniqueness(filt, ts);
+      let (l2_valid, l2_lab, l2_none) =
+        LabeledTuple.validate_uniqueness(filt2, tys);
+      if (!l1_valid
+          || !l2_valid
+          || List.length(l1_none) != List.length(l2_none)) {
+        List.init(List.length(ts), _ => Unknown(Internal));
+      } else {
+        print_endline("of_prod");
+        let rec f =
+                (l1: list('a), l2_lab: list('b), l2_none: list('c))
+                : list(t) =>
+          switch (l1) {
+          | [hd, ...tl] =>
+            switch (filt(hd)) {
+            | Some(s1) =>
+              let l2_item =
+                List.find_opt(
+                  l2_item => {
+                    switch (l2_item) {
+                    | (Some(s2), _) => compare(s1, s2) == 0
+                    | (_, _) => false
+                    }
+                  },
+                  l2_lab,
+                );
+              switch (l2_item) {
+              | Some((_, l2_val)) => [l2_val] @ f(tl, l2_lab, l2_none)
+              | None => [Unknown(Internal)] @ f(tl, l2_lab, l2_none)
+              };
+            | None =>
+              switch (l2_none) {
+              | [t2, ...tl2] => [t2] @ f(tl, l2_lab, tl2)
+              | [] => [Unknown(Internal)] @ f(tl, l2_lab, l2_none)
+              }
+            }
+          | [] => []
+          };
+        let tys = f(ts, l2_lab, l2_none);
+        tys;
+      };
+    | Unknown(SynSwitch) =>
+      List.init(List.length(ts), _ => Unknown(SynSwitch))
+    | _ => List.init(List.length(ts), _ => Unknown(Internal))
+    };
+  };
 
   let matched_list = (ctx, ty) =>
     switch (weak_head_normalize(ctx, ty)) {

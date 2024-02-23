@@ -317,6 +317,9 @@ let forms: list((string, t)) = [
     "type_alias",
     mk(ds, ["type", "=", "in"], mk_pre(P.let_, Exp, [TPat, Typ])),
   ),
+  ("tuple_label_exp", mk(ss, ["="], mk_bin'(P.ann, Exp, Pat, [], Exp))), // TODO: Rename
+  ("tuple_label_pat", mk(ss, ["="], mk_bin'(P.ann, Pat, Pat, [], Pat))), // TODO: Rename
+  ("tuple_label_typ", mk(ss, ["="], mk_bin'(P.ann, Typ, Pat, [], Typ))), // TODO: Rename
   ("if_", mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))),
 ];
 

@@ -71,6 +71,8 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | ApBuiltin(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
   | ListConcat(_) => DHDoc_common.precedence_Plus
+  // TODO (Anthony): what should this be?
+  | TupLabel(_) => DHDoc_common.precedence_Comma
   | Tuple(_) => DHDoc_common.precedence_Comma
   | Fun(_) => DHDoc_common.precedence_max
   | Let(_)
@@ -411,6 +413,13 @@ let mk =
             (d2, BinBoolOp2),
           );
         hseps([doc1, mk_bin_bool_op(op), doc2]);
+      // TODO(Anthony): what to do here?
+      | TupLabel(s, d) =>
+        Doc.hcats([
+          Doc.text(s),
+          DHDoc_common.Delim.mk("="),
+          go'(d, TupLabel),
+        ])
       | Tuple([]) => DHDoc_common.Delim.triv
       | Tuple(ds) =>
         DHDoc_common.mk_Tuple(ds |> List.mapi((i, d) => go'(d, Tuple(i))))
