@@ -74,7 +74,7 @@ let tuple2_fun_ex = {
 };
 let tuple3_fun_ex = {
   sub_id: Fun(Tuple3),
-  term: mk_example("fun (a, b, c) -> a && b && c"),
+  term: mk_example("fun (a, b, c) ->\na && b && c"),
   message: "When given a 3-tuple of booleans, the function evaluates to the logical-and of the three booleans.",
 };
 let ctr_fun_ex = {
