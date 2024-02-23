@@ -105,6 +105,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | Invalid(_)
     | FreeVar(_)
     | EmptyHole
+    | MultiHole(_)
     | NonEmptyHole(_) => d
     /* DHExp-specific forms: Don't cast */
     | Cast(_)
@@ -154,11 +155,24 @@ let rec dhexp_of_uexp =
       switch (uexp.term) {
       | Invalid(t) => Some(DHExp.Invalid(t) |> rewrap)
       | EmptyHole => Some(DHExp.EmptyHole |> rewrap)
-      | MultiHole(_tms) =>
-        /* TODO: add a dhexp case and eval logic for multiholes.
-           Make sure new dhexp form is properly considered Indet
-           to avoid casting issues. */
-        Some(EmptyHole |> rewrap)
+      | MultiHole(us: list(TermBase.Any.t)) =>
+        switch (
+          us
+          |> List.filter_map(
+               fun
+               | TermBase.Any.Exp(x) => Some(x)
+               | _ => None,
+             )
+        ) {
+        | [] => Some(DHExp.EmptyHole |> rewrap)
+        | us =>
+          let+ ds = us |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
+          DHExp.MultiHole(ds) |> rewrap;
+        }
+
+      /* TODO: add a dhexp case and eval logic for multiholes.
+         Make sure new dhexp form is properly considered Indet
+         to avoid casting issues. */
       | Bool(b) => Some(Bool(b) |> rewrap)
       | Int(n) => Some(Int(n) |> rewrap)
       | Float(n) => Some(Float(n) |> rewrap)

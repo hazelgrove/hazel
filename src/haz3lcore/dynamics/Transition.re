@@ -705,6 +705,15 @@ module Transition = (EV: EV_MODE) => {
           d1,
         );
       Indet;
+    | MultiHole(ds) =>
+      let. _ = otherwise(env, ds => MultiHole(ds) |> rewrap)
+      and. _ =
+        req_all_final(
+          req(state, env),
+          (d1, ds) => MultiHole(d1, ds) |> wrap_ctx,
+          ds,
+        );
+      Indet;
     | EmptyHole
     | FreeVar(_)
     | Invalid(_)

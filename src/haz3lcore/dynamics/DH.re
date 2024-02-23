@@ -17,6 +17,7 @@ module rec DHExp: {
     // TODO: Work out how to reconcile the invalids
     | Invalid(string)
     | EmptyHole
+    | MultiHole(list(DHExp.t))
     | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t) // TODO: Remove, use info_map      /// --------------------------------------------------------------------------------------------------------
     | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t) // TODO: Remove, use info_map      /// --------------------------------------------------------------------------------------------------------
     | InvalidOperation(t, InvalidOperationError.t) // Warning will robinson
@@ -75,6 +76,7 @@ module rec DHExp: {
     /* Hole types */
     | Invalid(string)
     | EmptyHole
+    | MultiHole(list(DHExp.t))
     | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t)
     | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t)
     | InvalidOperation(t, InvalidOperationError.t)
@@ -193,6 +195,7 @@ module rec DHExp: {
       | Cons(d1, d2) => Cons(repair_ids(d1), repair_ids(d2))
       | ListConcat(d1, d2) => ListConcat(repair_ids(d1), repair_ids(d2))
       | Tuple(ds) => Tuple(List.map(repair_ids, ds))
+      | MultiHole(ds) => MultiHole(List.map(repair_ids, ds))
       | Match(c, d1, rls) =>
         Match(
           c,
@@ -221,6 +224,7 @@ module rec DHExp: {
       ListConcat(strip_casts(d1), strip_casts(d2)) |> rewrap
     | ListLit(a, b, c, ds) =>
       ListLit(a, b, c, List.map(strip_casts, ds)) |> rewrap
+    | MultiHole(ds) => MultiHole(List.map(strip_casts, ds)) |> rewrap
     | NonEmptyHole(err, u, i, d) =>
       NonEmptyHole(err, u, i, strip_casts(d)) |> rewrap
     | Seq(a, b) => Seq(strip_casts(a), strip_casts(b)) |> rewrap
@@ -352,15 +356,18 @@ module rec DHExp: {
 
        (This resolves a performance issue with many nested holes.) */
     | (EmptyHole, EmptyHole) => true
+    | (MultiHole(ds1), MultiHole(ds2)) =>
+      List.length(ds1) == List.length(ds2)
+      && List.for_all2(fast_equal, ds1, ds2)
     | (NonEmptyHole(reason1, u1, i1, d1), NonEmptyHole(reason2, u2, i2, d2)) =>
       reason1 == reason2 && u1 == u2 && i1 == i2 && fast_equal(d1, d2)
-
     | (FreeVar(u1, i1, x1), FreeVar(u2, i2, x2)) =>
       u1 == u2 && i1 == i2 && x1 == x2
     | (Invalid(text1), Invalid(text2)) => text1 == text2
     | (Closure(sigma1, d1), Closure(sigma2, d2)) =>
       ClosureEnvironment.id_equal(sigma1, sigma2) && fast_equal(d1, d2)
     | (EmptyHole, _)
+    | (MultiHole(_), _)
     | (NonEmptyHole(_), _)
     | (FreeVar(_), _)
     | (Invalid(_), _)

@@ -29,6 +29,7 @@ type term =
       t,
       (list(DHExp.t), list(DHExp.t)),
     )
+  | MultiHole(t, (list(DHExp.t), list(DHExp.t)))
   | Cons1(t, DHExp.t)
   | Cons2(DHExp.t, t)
   | ListConcat1(t, DHExp.t)
@@ -116,6 +117,9 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
       | ListLit(m, i, t, ctx, (ld, rd)) =>
         let d = compose(ctx, d);
         ListLit(m, i, t, ListUtil.rev_concat(ld, [d, ...rd])) |> wrap;
+      | MultiHole(ctx, (ld, rd)) =>
+        let d = compose(ctx, d);
+        MultiHole(ListUtil.rev_concat(ld, [d, ...rd])) |> wrap;
       | Let1(dp, ctx, d2) =>
         let d = compose(ctx, d);
         Let(dp, d, d2) |> wrap;
