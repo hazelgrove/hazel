@@ -26,7 +26,7 @@ module rec DHExp: {
     | Var(Var.t) // DONE [ALREADY]
     | Seq(t, t) // DONE [ALREADY]
     | Let(DHPat.t, t, t) // DONE [ALREADY]
-    | FixF(Var.t, Typ.t, t) // TODO: surface fix
+    | FixF(DHPat.t, Typ.t, t) // TODO: surface fix
     | Fun(
         DHPat.t,
         Typ.t,
@@ -47,7 +47,6 @@ module rec DHExp: {
     | Cons(t, t) // DONE [ALREADY]
     | ListConcat(t, t) // DONE [ALREADY]
     | Tuple(list(t)) // DONE [ALREADY]
-    | Prj(t, int) // TODO: Add to uexp
     | Constructor(string) // DONE [ALREADY]
     | Match(consistency, t, list((DHPat.t, t)))
     | Cast(t, Typ.t, Typ.t) // TODO: Add to uexp or remove
@@ -87,7 +86,7 @@ module rec DHExp: {
     | Var(Var.t)
     | Seq(t, t)
     | Let(DHPat.t, t, t)
-    | FixF(Var.t, Typ.t, t)
+    | FixF(DHPat.t, Typ.t, t)
     | Fun(
         DHPat.t,
         Typ.t,
@@ -108,7 +107,6 @@ module rec DHExp: {
     | Cons(t, t)
     | ListConcat(t, t)
     | Tuple(list(t))
-    | Prj(t, int)
     | Constructor(string)
     | Match(consistency, t, list((DHPat.t, t)))
     | Cast(t, Typ.t, Typ.t)
@@ -195,7 +193,6 @@ module rec DHExp: {
       | Cons(d1, d2) => Cons(repair_ids(d1), repair_ids(d2))
       | ListConcat(d1, d2) => ListConcat(repair_ids(d1), repair_ids(d2))
       | Tuple(ds) => Tuple(List.map(repair_ids, ds))
-      | Prj(d1, i) => Prj(repair_ids(d1), i)
       | Match(c, d1, rls) =>
         Match(
           c,
@@ -219,7 +216,6 @@ module rec DHExp: {
     | Cast(d, _, _) => strip_casts(d)
     | FailedCast(d, _, _) => strip_casts(d)
     | Tuple(ds) => Tuple(ds |> List.map(strip_casts)) |> rewrap
-    | Prj(d, n) => Prj(strip_casts(d), n) |> rewrap
     | Cons(d1, d2) => Cons(strip_casts(d1), strip_casts(d2)) |> rewrap
     | ListConcat(d1, d2) =>
       ListConcat(strip_casts(d1), strip_casts(d2)) |> rewrap
@@ -303,7 +299,6 @@ module rec DHExp: {
     | (Tuple(ds1), Tuple(ds2)) =>
       List.length(ds1) == List.length(ds2)
       && List.for_all2(fast_equal, ds1, ds2)
-    | (Prj(d1, n), Prj(d2, m)) => n == m && fast_equal(d1, d2)
     | (ApBuiltin(f1, d1), ApBuiltin(f2, d2)) => f1 == f2 && d1 == d2
     | (BuiltinFun(f1), BuiltinFun(f2)) => f1 == f2
     | (ListLit(_, _, _, ds1), ListLit(_, _, _, ds2)) =>
@@ -345,7 +340,6 @@ module rec DHExp: {
     | (ListConcat(_), _)
     | (ListLit(_), _)
     | (Tuple(_), _)
-    | (Prj(_), _)
     | (BinOp(_), _)
     | (Cast(_), _)
     | (FailedCast(_), _)

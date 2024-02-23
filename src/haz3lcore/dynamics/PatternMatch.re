@@ -251,7 +251,6 @@ and matches_cast_Sum =
   | Test(_)
   | InvalidOperation(_)
   | Match(_)
-  | Prj(_)
   | If(_)
   | BuiltinFun(_) => IndetMatch
   | Cast(_)
@@ -347,7 +346,6 @@ and matches_cast_Tuple =
   | ListLit(_) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
   | ListConcat(_) => DoesNotMatch
-  | Prj(_) => IndetMatch
   | Constructor(_) => DoesNotMatch
   | Match(_) => IndetMatch
   | EmptyHole => IndetMatch
@@ -480,7 +478,6 @@ and matches_cast_Cons =
   | Float(_) => DoesNotMatch
   | String(_) => DoesNotMatch
   | Tuple(_) => DoesNotMatch
-  | Prj(_) => IndetMatch
   | Constructor(_) => DoesNotMatch
   | Match(_) => IndetMatch
   | EmptyHole => IndetMatch

@@ -11,7 +11,7 @@ type term =
   | Let1(DHPat.t, t, DHExp.t)
   | Let2(DHPat.t, DHExp.t, t)
   | Fun(DHPat.t, Typ.t, t, option(ClosureEnvironment.t), option(Var.t))
-  | FixF(Var.t, Typ.t, t)
+  | FixF(DHPat.t, Typ.t, t)
   | Ap1(TermBase.UExp.ap_direction, t, DHExp.t)
   | Ap2(TermBase.UExp.ap_direction, DHExp.t, t)
   | If1(consistency, t, DHExp.t, DHExp.t)
@@ -33,7 +33,6 @@ type term =
   | Cons2(DHExp.t, t)
   | ListConcat1(t, DHExp.t)
   | ListConcat2(DHExp.t, t)
-  | Prj(t, int)
   | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t)
   | Cast(t, Typ.t, Typ.t)
   | FailedCast(t, Typ.t, Typ.t)
@@ -129,9 +128,6 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
       | FixF(v, t, ctx) =>
         let d = compose(ctx, d);
         FixF(v, t, d) |> wrap;
-      | Prj(ctx, n) =>
-        let d = compose(ctx, d);
-        Prj(d, n) |> wrap;
       | Cast(ctx, ty1, ty2) =>
         let d = compose(ctx, d);
         Cast(d, ty1, ty2) |> wrap;

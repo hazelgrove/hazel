@@ -139,9 +139,6 @@ let rec matches =
       | ListConcat2(d1, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
         ListConcat2(d1, ctx) |> rewrap;
-      | Prj(ctx, n) =>
-        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
-        Prj(ctx, n) |> rewrap;
       | NonEmptyHole(e, u, i, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
         NonEmptyHole(e, u, i, ctx) |> rewrap;
@@ -363,9 +360,10 @@ let get_justification: step_kind => string =
   | VarLookup => "variable lookup"
   | CastAp
   | Cast => "cast calculus"
-  | CompleteFilter => "unidentified step"
-  | CompleteClosure => "unidentified step"
-  | FunClosure => "unidentified step"
+  | FixClosure => "fixpoint closure"
+  | CompleteFilter => "complete filter"
+  | CompleteClosure => "complete closure"
+  | FunClosure => "function closure"
   | Skip => "skipped steps";
 
 type step_info = {

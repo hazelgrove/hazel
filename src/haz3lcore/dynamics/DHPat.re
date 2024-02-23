@@ -66,3 +66,24 @@ let rec bound_vars = (dp: t): list(Var.t) =>
   | ListLit(_, dps) => List.flatten(List.map(bound_vars, dps))
   | Ap(_, dp1) => bound_vars(dp1)
   };
+
+let get_var = (pat: t) => {
+  switch (pat) {
+  | Var(x) => Some(x)
+  | Wild
+  | Int(_)
+  | Float(_)
+  | Bool(_)
+  | String(_)
+  | ListLit(_)
+  | Cons(_, _)
+  | Tuple(_)
+  | Constructor(_)
+  | EmptyHole(_)
+  | NonEmptyHole(_)
+  | ExpandingKeyword(_)
+  | InvalidText(_)
+  | BadConstructor(_)
+  | Ap(_) => None
+  };
+};

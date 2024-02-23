@@ -10,29 +10,6 @@ let rec matches_exp =
   switch (DHExp.term_of(d), DHExp.term_of(f)) {
   | (Constructor("$e"), _) => failwith("$e in matched expression")
   | (Constructor("$v"), _) => failwith("$v in matched expression")
-
-  // HACK[Matt]: ignore fixpoints in comparison, to allow pausing on fixpoint steps
-  | (FixF(dp, _, dc), _) =>
-    matches_exp(
-      env,
-      Closure(
-        Transition.evaluate_extend_env(Environment.singleton((dp, dc)), env),
-        dc,
-      )
-      |> DHExp.fresh,
-      f,
-    )
-  | (_, FixF(fp, _, fc)) =>
-    matches_exp(
-      env,
-      d,
-      Closure(
-        Transition.evaluate_extend_env(Environment.singleton((fp, fc)), env),
-        fc,
-      )
-      |> DHExp.fresh,
-    )
-
   | (_, Constructor("$v")) =>
     switch (ValueChecker.check_value(info_map, env, d)) {
     | Indet
@@ -102,6 +79,10 @@ let rec matches_exp =
     && matches_exp(env, d1, f1)
     && dname1 == fname1
   | (Fun(_), _) => false
+
+  | (FixF(dp, dt, d1), FixF(fp, ft, f1)) =>
+    matches_pat(dp, fp) && dt == ft && matches_exp(env, d1, f1)
+  | (FixF(_), _) => false
 
   | (FreeVar(du, di, dx), FreeVar(fu, fi, fx)) =>
     du == fu && di == fi && dx == fx
@@ -189,9 +170,6 @@ let rec matches_exp =
   | (ApBuiltin(dname, darg), ApBuiltin(fname, farg)) =>
     dname == fname && matches_exp(env, darg, farg)
   | (ApBuiltin(_), _) => false
-
-  | (Prj(dv, di), Prj(fv, fi)) => matches_exp(env, dv, fv) && di == fi
-  | (Prj(_), _) => false
   };
 }
 and matches_pat = (d: DHPat.t, f: DHPat.t): bool => {
