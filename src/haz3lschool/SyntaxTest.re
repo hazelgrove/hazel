@@ -42,6 +42,7 @@ let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
   | Float(_)
   | String(_)
   | Constructor(_) => false
+  | FixF(args, body)
   | Fun(args, body) =>
     find_var_upat(name, args) ? false : var_mention(name, body)
   | ListLit(l)
@@ -87,6 +88,7 @@ let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
   | Float(_)
   | String(_)
   | Constructor(_) => false
+  | FixF(args, body)
   | Fun(args, body) =>
     find_var_upat(name, args) ? false : var_applied(name, body)
   | ListLit(l)
@@ -178,6 +180,7 @@ let rec find_fn =
   | ListLit(ul)
   | Tuple(ul) =>
     List.fold_left((acc, u1) => {find_fn(name, u1, acc)}, l, ul)
+  | FixF(_, body)
   | Fun(_, body) => l |> find_fn(name, body)
   | Parens(u1)
   | UnOp(_, u1)
@@ -235,6 +238,7 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   | String(_)
   | Constructor(_)
   | Var(_) => true
+  | FixF(args, body)
   | Fun(args, body) =>
     find_var_upat(name, args) ? false : tail_check(name, body)
   | Let(p, def, body) =>

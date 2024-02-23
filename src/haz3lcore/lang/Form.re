@@ -301,6 +301,7 @@ let forms: list((string, t)) = [
   ("case", mk(ds, ["case", "end"], mk_op(Exp, [Rul]))),
   ("test", mk(ds, ["test", "end"], mk_op(Exp, [Exp]))),
   ("fun_", mk(ds, ["fun", "->"], mk_pre(P.fun_, Exp, [Pat]))),
+  ("fix", mk(ds, ["fix", "->"], mk_pre(P.fun_, Exp, [Pat]))),
   (
     "rule",
     mk(ds, ["|", "=>"], mk_bin'(P.rule_sep, Rul, Exp, [Pat], Exp)),

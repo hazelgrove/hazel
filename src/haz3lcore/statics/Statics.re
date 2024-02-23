@@ -340,6 +340,17 @@ and uexp_to_info_map =
         CoCtx.union([def.co_ctx, CoCtx.mk(ctx, p_ana.ctx, body.co_ctx)]),
       m,
     );
+  | FixF(p, e) =>
+    let (p', _) =
+      go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~mode, p, m);
+    let (e', m) = go'(~ctx=p'.ctx, ~mode=Ana(p'.ty), e, m);
+    let (p'', m) =
+      go_pat(~is_synswitch=false, ~co_ctx=e'.co_ctx, ~mode, p, m);
+    add(
+      ~self=Just(p'.ty),
+      ~co_ctx=CoCtx.union([CoCtx.mk(ctx, p''.ctx, e'.co_ctx)]),
+      m,
+    );
   | If(e0, e1, e2) =>
     let branch_ids = List.map(UExp.rep_id, [e1, e2]);
     let (cond, m) = go(~mode=Ana(Bool), e0, m);

@@ -435,6 +435,7 @@ module UExp = {
     | Var
     | MetaVar
     | Let
+    | FixF
     | TyAlias
     | Ap
     | Pipeline
@@ -476,6 +477,7 @@ module UExp = {
     | Tuple(_) => Tuple
     | Var(_) => Var
     | Let(_) => Let
+    | FixF(_) => FixF
     | TyAlias(_) => TyAlias
     | Ap(_) => Ap
     | If(_) => If
@@ -569,6 +571,7 @@ module UExp = {
     | Var => "Variable reference"
     | MetaVar => "Meta variable reference"
     | Let => "Let expression"
+    | FixF => "Fixpoint operator"
     | TyAlias => "Type Alias definition"
     | Ap => "Application"
     | Pipeline => "Pipeline expression"
@@ -599,6 +602,7 @@ module UExp = {
     | Tuple(_)
     | Var(_)
     | Let(_)
+    | FixF(_)
     | TyAlias(_)
     | Ap(_)
     | If(_)
@@ -632,6 +636,7 @@ module UExp = {
       | Fun(_)
       | Var(_)
       | Let(_)
+      | FixF(_)
       | TyAlias(_)
       | Ap(_)
       | If(_)
