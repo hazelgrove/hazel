@@ -707,7 +707,7 @@ module Transition = (EV: EV_MODE) => {
       Indet;
     | EmptyHole
     | FreeVar(_)
-    | InvalidText(_)
+    | Invalid(_)
     | InvalidOperation(_) =>
       let. _ = otherwise(env, d);
       Indet;

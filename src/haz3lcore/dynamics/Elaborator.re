@@ -102,7 +102,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | Let(_)
     | FixF(_) => d
     /* Hole-like forms: Don't cast */
-    | InvalidText(_)
+    | Invalid(_)
     | FreeVar(_)
     | EmptyHole
     | NonEmptyHole(_) => d
@@ -152,7 +152,7 @@ let rec dhexp_of_uexp =
     let rewrap = DHExp.mk(uexp.ids);
     let+ d: DHExp.t =
       switch (uexp.term) {
-      | Invalid(t) => Some(DHExp.InvalidText(id, 0, t) |> rewrap)
+      | Invalid(t) => Some(DHExp.Invalid(t) |> rewrap)
       | EmptyHole => Some(DHExp.EmptyHole |> rewrap)
       | MultiHole(_tms) =>
         /* TODO: add a dhexp case and eval logic for multiholes.

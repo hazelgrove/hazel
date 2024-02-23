@@ -12,7 +12,7 @@ type t =
   | NonEmptyHole(ErrStatus.HoleReason.t, HoleInstance.t)
   | VarHole(VarErrStatus.HoleReason.t, HoleInstance.t)
   | InconsistentBranches(HoleInstance.t)
-  | Invalid(HoleInstance.t)
+  | Invalid
   | FailedCastDelim
   | FailedCastDecoration
   | CastDecoration

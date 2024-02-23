@@ -105,12 +105,9 @@ let view_of_layout =
                  ds,
                )
              | VarHole(_) => ([with_cls("InVarHole", txt)], ds)
-             | Invalid((_, (-666))) =>
-               /* Evaluation and Elaboration exceptions */
-               ([with_cls("exception", txt)], ds)
              | NonEmptyHole(_)
              | InconsistentBranches(_)
-             | Invalid(_) =>
+             | Invalid =>
                let offset = start.col - indent;
                let decoration =
                  Decoration_common.container(

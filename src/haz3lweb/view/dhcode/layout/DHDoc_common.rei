@@ -67,7 +67,7 @@ let mk_EmptyHole:
 let mk_ExpandingKeyword:
   (HoleInstance.t, ExpandingKeyword.t) => Pretty.Doc.t(DHAnnot.t);
 
-let mk_InvalidText: (string, HoleInstance.t) => Pretty.Doc.t(DHAnnot.t);
+let mk_InvalidText: string => Pretty.Doc.t(DHAnnot.t);
 
 let mk_Sequence: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 

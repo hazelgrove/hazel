@@ -15,10 +15,10 @@ module rec DHExp: {
         Parens
        */
     // TODO: Work out how to reconcile the invalids
+    | Invalid(string)
     | EmptyHole
     | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t) // TODO: Remove, use info_map      /// --------------------------------------------------------------------------------------------------------
     | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t) // TODO: Remove, use info_map      /// --------------------------------------------------------------------------------------------------------
-    | InvalidText(MetaVar.t, HoleInstanceId.t, string) // DONE [ALREADY]
     | InvalidOperation(t, InvalidOperationError.t) // Warning will robinson
     | FailedCast(t, Typ.t, Typ.t) // TODO: Add to TermBase
     | Closure([@show.opaque] ClosureEnvironment.t, t) // > UEXP
@@ -73,10 +73,10 @@ module rec DHExp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
     /* Hole types */
+    | Invalid(string)
     | EmptyHole
     | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t)
     | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t)
-    | InvalidText(MetaVar.t, HoleInstanceId.t, string)
     | InvalidOperation(t, InvalidOperationError.t)
     | FailedCast(t, Typ.t, Typ.t)
     /* Generalized closures */
@@ -167,7 +167,7 @@ module rec DHExp: {
       switch (term) {
       | EmptyHole
       | FreeVar(_)
-      | InvalidText(_)
+      | Invalid(_)
       | Var(_)
       | BuiltinFun(_)
       | Bool(_)
@@ -243,7 +243,7 @@ module rec DHExp: {
       |> rewrap
     | EmptyHole as d
     | FreeVar(_) as d
-    | InvalidText(_) as d
+    | Invalid(_) as d
     | Var(_) as d
     | Bool(_) as d
     | Int(_) as d
@@ -357,14 +357,13 @@ module rec DHExp: {
 
     | (FreeVar(u1, i1, x1), FreeVar(u2, i2, x2)) =>
       u1 == u2 && i1 == i2 && x1 == x2
-    | (InvalidText(u1, i1, text1), InvalidText(u2, i2, text2)) =>
-      u1 == u2 && i1 == i2 && text1 == text2
+    | (Invalid(text1), Invalid(text2)) => text1 == text2
     | (Closure(sigma1, d1), Closure(sigma2, d2)) =>
       ClosureEnvironment.id_equal(sigma1, sigma2) && fast_equal(d1, d2)
     | (EmptyHole, _)
     | (NonEmptyHole(_), _)
     | (FreeVar(_), _)
-    | (InvalidText(_), _)
+    | (Invalid(_), _)
     | (Closure(_), _) => false
     };
   };
