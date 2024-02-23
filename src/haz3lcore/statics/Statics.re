@@ -246,8 +246,19 @@ and uexp_to_info_map =
     let (e1, m) = go(~mode=Ana(ty1), e1, m);
     let (e2, m) = go(~mode=Ana(ty2), e2, m);
     add(~self=Just(ty_out), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
+  | TupLabel(s, e) =>
+    let mode = Mode.of_label(ctx, mode);
+    let (e, m) = go(~mode, e, m);
+    add(~self=Just(Label(s, e.ty)), ~co_ctx=e.co_ctx, m);
   | Tuple(es) =>
-    let modes = Mode.of_prod(ctx, mode, List.length(es));
+    let filt: UExp.t => option(LabeledTuple.t) = (
+      e =>
+        switch (e.term) {
+        | TupLabel(s, _) => Some(s)
+        | _ => None
+        }
+    );
+    let modes = Mode.of_prod(ctx, mode, es, filt);
     let (es, m) = map_m_go(m, modes, es);
     add(
       ~self=Just(Prod(List.map(Info.exp_ty, es))),
@@ -486,8 +497,19 @@ and upat_to_info_map =
       Info.fixed_typ_pat(ctx, mode, Common(Just(Unknown(Internal))));
     let entry = Ctx.VarEntry({name, id: UPat.rep_id(upat), typ: ctx_typ});
     add(~self=Just(unknown), ~ctx=Ctx.extend(ctx, entry), m);
+  | TupLabel(s, p) =>
+    let mode = Mode.of_label(ctx, mode);
+    let (p, m) = go(~ctx, ~mode, p, m);
+    add(~self=Just(Label(s, p.ty)), ~ctx=p.ctx, m);
   | Tuple(ps) =>
-    let modes = Mode.of_prod(ctx, mode, List.length(ps));
+    let filt: UPat.t => option(LabeledTuple.t) = (
+      p =>
+        switch (p.term) {
+        | TupLabel(s, _) => Some(s)
+        | _ => None
+        }
+    );
+    let modes = Mode.of_prod(ctx, mode, ps, filt);
     let (ctx, tys, m) = ctx_fold(ctx, m, ps, modes);
     add(~self=Just(Prod(tys)), ~ctx, m);
   | Parens(p) =>
@@ -538,6 +560,7 @@ and utyp_to_info_map =
     /* Names are resolved in Info.status_typ */
     add(m)
   | List(t)
+  | TupLabel(_, t)
   | Parens(t) => add(go(t, m) |> snd)
   | Arrow(t1, t2) =>
     let m = go(t1, m) |> snd;

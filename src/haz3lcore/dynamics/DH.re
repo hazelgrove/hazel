@@ -36,6 +36,7 @@ module rec DHExp: {
     | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t))
     | Cons(t, t)
     | ListConcat(t, t)
+    | TupLabel(LabeledTuple.t, t)
     | Tuple(list(t))
     | Prj(t, int)
     | Constructor(string)
@@ -93,6 +94,7 @@ module rec DHExp: {
     | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t))
     | Cons(t, t)
     | ListConcat(t, t)
+    | TupLabel(LabeledTuple.t, t)
     | Tuple(list(t))
     | Prj(t, int)
     | Constructor(string)
@@ -135,6 +137,7 @@ module rec DHExp: {
     | ListLit(_) => "ListLit"
     | Cons(_, _) => "Cons"
     | ListConcat(_, _) => "ListConcat"
+    | TupLabel(_) => "Labeled Tuple Item"
     | Tuple(_) => "Tuple"
     | Prj(_) => "Prj"
     | Constructor(_) => "Constructor"
@@ -167,6 +170,7 @@ module rec DHExp: {
     | Closure(ei, d) => Closure(ei, strip_casts(d))
     | Cast(d, _, _) => strip_casts(d)
     | FailedCast(d, _, _) => strip_casts(d)
+    | TupLabel(s, d) => TupLabel(s, strip_casts(d))
     | Tuple(ds) => Tuple(ds |> List.map(strip_casts))
     | Prj(d, n) => Prj(strip_casts(d), n)
     | Cons(d1, d2) => Cons(strip_casts(d1), strip_casts(d2))
@@ -246,9 +250,24 @@ module rec DHExp: {
       fast_equal(d11, d12) && fast_equal(d21, d22)
     | (ListConcat(d11, d21), ListConcat(d12, d22)) =>
       fast_equal(d11, d12) && fast_equal(d21, d22)
+    | (TupLabel(s1, d1), TupLabel(s2, d2)) =>
+      LabeledTuple.compare(s1, s2) == 0 && fast_equal(d1, d2)
     | (Tuple(ds1), Tuple(ds2)) =>
+      let filt: t => option(LabeledTuple.t) = (
+        d =>
+          switch (d) {
+          | TupLabel(s, _) => Some(s)
+          | _ => None
+          }
+      );
+      let f = (b, ds1_val, ds2_val) => {
+        switch (b) {
+        | false => false
+        | true => fast_equal(ds1_val, ds2_val)
+        };
+      };
       List.length(ds1) == List.length(ds2)
-      && List.for_all2(fast_equal, ds1, ds2)
+      && LabeledTuple.ana_tuple(filt, filt, f, true, false, ds1, ds2);
     | (Prj(d1, n), Prj(d2, m)) => n == m && fast_equal(d1, d2)
     | (ApBuiltin(f1, d1), ApBuiltin(f2, d2)) => f1 == f2 && d1 == d2
     | (BuiltinFun(f1), BuiltinFun(f2)) => f1 == f2
@@ -289,6 +308,7 @@ module rec DHExp: {
     | (Cons(_), _)
     | (ListConcat(_), _)
     | (ListLit(_), _)
+    | (TupLabel(_, _), _)
     | (Tuple(_), _)
     | (Prj(_), _)
     | (BinBoolOp(_), _)

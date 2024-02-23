@@ -30,6 +30,7 @@ module UTyp = {
     | Bool
     | String
     | Arrow
+    | TupLabel
     | Tuple
     | Sum
     | List
@@ -64,6 +65,7 @@ module UTyp = {
     | Arrow(_) => Arrow
     | Var(_) => Var
     | Constructor(_) => Constructor
+    | TupLabel(_) => TupLabel
     | Tuple(_) => Tuple
     | Parens(_) => Parens
     | Ap(_) => Ap
@@ -82,6 +84,7 @@ module UTyp = {
     | Constructor => "Sum constructor"
     | List => "List type"
     | Arrow => "Function type"
+    | TupLabel => "Labeled Tuple Item type"
     | Tuple => "Product type"
     | Sum => "Sum type"
     | Parens => "Parenthesized type"
@@ -90,6 +93,7 @@ module UTyp = {
   let rec is_arrow = (typ: t) => {
     switch (typ.term) {
     | Parens(typ) => is_arrow(typ)
+    | TupLabel(_, typ) => is_arrow(typ)
     | Arrow(_) => true
     | Invalid(_)
     | EmptyHole
@@ -124,6 +128,7 @@ module UTyp = {
         | None => Unknown(Free(name))
         }
       | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
+      | TupLabel(s, ut) => Label(s, to_typ(ctx, ut))
       | Tuple(us) => Prod(List.map(to_typ(ctx), us))
       | Sum(uts) => Sum(to_ctr_map(ctx, uts))
       | List(u) => List(to_typ(ctx, u))
@@ -201,6 +206,7 @@ module UPat = {
     | Constructor
     | Cons
     | Var
+    | TupLabel
     | Tuple
     | Parens
     | Ap
@@ -234,6 +240,7 @@ module UPat = {
     | Constructor(_) => Constructor
     | Cons(_) => Cons
     | Var(_) => Var
+    | TupLabel(_) => TupLabel
     | Tuple(_) => Tuple
     | Parens(_) => Parens
     | Ap(_) => Ap
@@ -254,6 +261,7 @@ module UPat = {
     | Constructor => "Constructor"
     | Cons => "Cons"
     | Var => "Variable binding"
+    | TupLabel => "Labeled Tuple Item pattern"
     | Tuple => "Tuple"
     | Parens => "Parenthesized pattern"
     | Ap => "Constructor application"
@@ -262,6 +270,7 @@ module UPat = {
   let rec is_var = (pat: t) => {
     switch (pat.term) {
     | Parens(pat) => is_var(pat)
+    | TupLabel(_, pat) => is_var(pat)
     | Var(_) => true
     | TypeAnn(_)
     | Invalid(_)
@@ -284,6 +293,7 @@ module UPat = {
   let rec is_fun_var = (pat: t) => {
     switch (pat.term) {
     | Parens(pat) => is_fun_var(pat)
+    | TupLabel(_, pat) => is_fun_var(pat)
     | TypeAnn(pat, typ) => is_var(pat) && UTyp.is_arrow(typ)
     | Invalid(_)
     | EmptyHole
@@ -308,6 +318,7 @@ module UPat = {
     || (
       switch (pat.term) {
       | Parens(pat) => is_tuple_of_arrows(pat)
+      | TupLabel(_, pat) => is_tuple_of_arrows(pat)
       | Tuple(pats) => pats |> List.for_all(is_fun_var)
       | Invalid(_)
       | EmptyHole
@@ -330,6 +341,7 @@ module UPat = {
   let rec get_var = (pat: t) => {
     switch (pat.term) {
     | Parens(pat) => get_var(pat)
+    | TupLabel(_, pat) => get_var(pat)
     | Var(x) => Some(x)
     | TypeAnn(_)
     | Invalid(_)
@@ -352,6 +364,7 @@ module UPat = {
   let rec get_fun_var = (pat: t) => {
     switch (pat.term) {
     | Parens(pat) => get_fun_var(pat)
+    | TupLabel(_, pat) => get_fun_var(pat)
     | TypeAnn(pat, typ) =>
       if (UTyp.is_arrow(typ)) {
         get_var(pat) |> Option.map(var => var);
@@ -382,6 +395,7 @@ module UPat = {
     | None =>
       switch (pat.term) {
       | Parens(pat) => get_recursive_bindings(pat)
+      | TupLabel(_, pat) => get_recursive_bindings(pat)
       | Tuple(pats) =>
         let fun_vars = pats |> List.map(get_fun_var);
         if (List.exists(Option.is_none, fun_vars)) {
@@ -431,6 +445,7 @@ module UExp = {
     | ListLit
     | Constructor
     | Fun
+    | TupLabel
     | Tuple
     | Var
     | MetaVar
@@ -473,6 +488,7 @@ module UExp = {
     | ListLit(_) => ListLit
     | Constructor(_) => Constructor
     | Fun(_) => Fun
+    | TupLabel(_, _) => TupLabel
     | Tuple(_) => Tuple
     | Var(_) => Var
     | Let(_) => Let
@@ -566,6 +582,7 @@ module UExp = {
     | ListLit => "List literal"
     | Constructor => "Constructor"
     | Fun => "Function literal"
+    | TupLabel => "Labeled Tuple literal"
     | Tuple => "Tuple literal"
     | Var => "Variable reference"
     | MetaVar => "Meta variable reference"
@@ -587,6 +604,7 @@ module UExp = {
   let rec is_fun = (e: t) => {
     switch (e.term) {
     | Parens(e) => is_fun(e)
+    | TupLabel(_, e) => is_fun(e)
     | Fun(_) => true
     | Invalid(_)
     | EmptyHole
@@ -621,6 +639,7 @@ module UExp = {
     || (
       switch (e.term) {
       | Parens(e) => is_tuple_of_functions(e)
+      | TupLabel(_, e) => is_tuple_of_functions(e)
       | Tuple(es) => es |> List.for_all(is_fun)
       | Invalid(_)
       | EmptyHole

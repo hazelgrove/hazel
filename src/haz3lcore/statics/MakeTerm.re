@@ -213,6 +213,15 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       }
     | _ => ret(hole(tm))
     }
+  | Bin(Pat(p), tiles, Exp(e)) as tm =>
+    switch (tiles) {
+    | ([(_id, (["="], []))], []) =>
+      switch (p.term) {
+      | Var(s) => ret(TupLabel(s, e))
+      | _ => ret(hole(tm))
+      }
+    | _ => ret(hole(tm))
+    }
   | Bin(Exp(l), tiles, Exp(r)) as tm =>
     switch (is_tuple_exp(tiles)) {
     | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
@@ -321,6 +330,11 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
     | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
     | None =>
       switch (tiles) {
+      | ([(_id, (["="], []))], []) =>
+        switch (l.term) {
+        | Var(s) => ret(TupLabel(s, r))
+        | _ => ret(hole(tm))
+        }
       | ([(_id, (["::"], []))], []) => ret(Cons(l, r))
       | _ => ret(hole(tm))
       }
@@ -377,6 +391,15 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
     | Some(between_kids) =>
       ret(Sum(List.map(parse_sum_term, [t1] @ between_kids @ [t2])))
     | None => ret(hole(tm))
+    }
+  | Bin(Pat(p), tiles, Typ(t)) as tm =>
+    switch (tiles) {
+    | ([(_id, (["="], []))], []) =>
+      switch (p.term) {
+      | Var(s) => ret(TupLabel(s, t))
+      | _ => ret(hole(tm))
+      }
+    | _ => ret(hole(tm))
     }
   | Bin(Typ(l), tiles, Typ(r)) as tm =>
     switch (is_tuple_typ(tiles)) {

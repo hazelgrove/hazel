@@ -125,6 +125,7 @@ module CastHelpers = {
         ? Ground : grounded_Sum(sm)
     | Arrow(_, _) => grounded_Arrow
     | List(_) => grounded_List
+    | Label(_, ty) => ground_cases_of(ty) // TODO (Anthony): what to do here?
     };
   };
 };
@@ -462,6 +463,11 @@ module Transition = (EV: EV_MODE) => {
         kind: BinStringOp(op),
         value: true,
       });
+    | TupLabel(p, d1) =>
+      // TODO (Anthony): Fix this if needed
+      let. _ = otherwise(env, d1 => TupLabel(p, d1))
+      and. _ = req_final(req(state, env), d1 => TupLabel(p, d1), d1);
+      Constructor;
     | Tuple(ds) =>
       let. _ = otherwise(env, ds => Tuple(ds))
       and. _ =

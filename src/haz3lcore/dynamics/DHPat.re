@@ -15,6 +15,7 @@ type t =
   | StringLit(string)
   | ListLit(Typ.t, list(t))
   | Cons(t, t)
+  | TupLabel(LabeledTuple.t, t)
   | Tuple(list(t))
   | Constructor(string)
   | Ap(t, t);
@@ -42,6 +43,7 @@ let rec binds_var = (x: Var.t, dp: t): bool =>
   | Constructor(_)
   | ExpandingKeyword(_, _, _) => false
   | Var(y) => Var.eq(x, y)
+  | TupLabel(_, dp) => binds_var(x, dp)
   | Tuple(dps) => dps |> List.exists(binds_var(x))
   | Cons(dp1, dp2) => binds_var(x, dp1) || binds_var(x, dp2)
   | ListLit(_, d_list) =>
@@ -64,6 +66,7 @@ let rec bound_vars = (dp: t): list(Var.t) =>
   | Constructor(_)
   | ExpandingKeyword(_, _, _) => []
   | Var(y) => [y]
+  | TupLabel(_, dp) => bound_vars(dp)
   | Tuple(dps) => List.flatten(List.map(bound_vars, dps))
   | Cons(dp1, dp2) => bound_vars(dp1) @ bound_vars(dp2)
   | ListLit(_, dps) => List.flatten(List.map(bound_vars, dps))

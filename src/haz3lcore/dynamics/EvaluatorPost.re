@@ -111,6 +111,10 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
          );
     ListLit(a, b, c, ds);
 
+  | TupLabel(dp, d1) =>
+    let* d1' = pp_eval(d1);
+    TupLabel(dp, d1') |> return;
+
   | Tuple(ds) =>
     let+ ds =
       ds
@@ -356,6 +360,10 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
          );
     ListLit(a, b, c, ds);
 
+  | TupLabel(dp, d1) =>
+    let* d1' = pp_uneval(env, d1);
+    TupLabel(dp, d1') |> return;
+
   | Tuple(ds) =>
     let+ ds =
       ds
@@ -466,6 +474,7 @@ let rec track_children_of_hole =
   | Prj(d, _)
   | Cast(d, _, _)
   | FailedCast(d, _, _)
+  | TupLabel(_, d)
   | InvalidOperation(d, _) => track_children_of_hole(hii, parent, d)
   | Sequence(d1, d2)
   | Let(_, d1, d2)
