@@ -151,6 +151,7 @@ and UExp: {
     | Tuple(list(t))
     | Var(Var.t)
     | Let(UPat.t, t, t)
+    | FixF(UPat.t, t)
     | TyAlias(UTPat.t, UTyp.t, t)
     | Ap(ap_direction, t, t)
     | If(t, t, t)
@@ -292,6 +293,7 @@ and UExp: {
     | Tuple(list(t)) // DONE [EXCEPT FOR TRIV]
     | Var(Var.t) // DONE [ALREADY]
     | Let(UPat.t, t, t) // DONE [ALREADY]
+    | FixF(UPat.t, t) // DONE [CHECK WITH SOMEONE THAT I GOT THE STATIC SEMANTICS RIGHT]
     | TyAlias(UTPat.t, UTyp.t, t) // [TO ADD TO DHEXP]
     // note: function is always first then argument; even in reverse
     | Ap(ap_direction, t, t) // TODO: Combine Ap and Pipeline? [alt: add pipeline to dhexp]

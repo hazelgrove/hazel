@@ -1523,6 +1523,13 @@ let get_doc =
         | Parens(_) => default // Shouldn't get hit?
         | TypeAnn(_) => default // Shouldn't get hit?
         };
+      | FixF(pat, body) =>
+        message_single(
+          FixFExp.single(
+            ~pat_id=Term.UPat.rep_id(pat),
+            ~body_id=Term.UExp.rep_id(body),
+          ),
+        )
       | Ap(Reverse, arg, fn) =>
         message_single(
           PipelineExp.single(

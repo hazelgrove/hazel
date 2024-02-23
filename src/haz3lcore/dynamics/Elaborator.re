@@ -262,6 +262,11 @@ let rec dhexp_of_uexp =
           )
           |> rewrap
         };
+      | FixF(p, e) =>
+        let* dp = dhpat_of_upat(m, p);
+        let* de = dhexp_of_uexp(m, e);
+        let+ ty = fixed_pat_typ(m, p);
+        DHExp.FixF(dp, ty, de) |> rewrap;
       | Ap(dir, fn, arg) =>
         let* c_fn = dhexp_of_uexp(m, fn);
         let+ c_arg = dhexp_of_uexp(m, arg);
