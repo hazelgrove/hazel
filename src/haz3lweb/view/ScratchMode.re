@@ -42,9 +42,6 @@ let view =
       ~highlights,
       editor,
     ),
-    sidebar,
-    bottom_bar,
-    Acceessibility.view(~inject),
   ];
 };
 
