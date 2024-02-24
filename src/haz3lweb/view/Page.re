@@ -64,6 +64,7 @@ let main_view =
       @ [EditorModeView.view(~inject, ~settings, ~editors)],
     );
   let bottom_bar = CursorInspector.view(~inject, ~settings, cursor_info);
+  let prompt_bar = Accessibility.view(~inject);
   let sidebar =
     settings.explainThis.show && settings.core.statics
       ? ExplainThis.view(
@@ -129,6 +130,7 @@ let main_view =
     ),
     sidebar,
     bottom_bar,
+    prompt_bar,
   ];
 };
 

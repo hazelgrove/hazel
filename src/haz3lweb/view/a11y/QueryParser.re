@@ -1,4 +1,4 @@
-open Acceessibility;
+open Accessibility;
 
 let get_input_value = (): string => {
   let input_elem = JsUtil.get_elem_by_id(query_input_id)##.textContent;
