@@ -114,6 +114,7 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
     | (_, "Alt") => Some(SetMeta(ShowBackpackTargets(true)))
     | (_, "ArrowUp") => now(MoveToBackpackTarget(Up))
     | (_, "ArrowDown") => now(MoveToBackpackTarget(Down))
+    | (_, "a") => Some(Set(Accessibility(ToggleIsEditing)))
     | _ => None
     }
   | _ => None

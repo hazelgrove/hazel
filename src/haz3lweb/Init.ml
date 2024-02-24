@@ -29,7 +29,7 @@ let startup : PersistentData.t =
         mode = Documentation;
         explainThis =
           { show = true; show_feedback = false; highlight = NoHighlight };
-        accessibility = { enable = true };
+        accessibility = { enable = true; is_editing = false };
       };
     scratch =
       ( 0,

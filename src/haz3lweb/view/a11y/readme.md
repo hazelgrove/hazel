@@ -3,4 +3,4 @@
 ## TODO
 
 - [ ] Add documentation.
-- [ ] `Accessibility.Settings` in `Model` needs a toggle.
+- [ ] Add buttons for toggling `Accessibility.Settings`.
