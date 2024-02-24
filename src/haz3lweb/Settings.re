@@ -24,6 +24,7 @@ type t = {
   instructor_mode: bool,
   benchmark: bool,
   explainThis: ExplainThisModel.Settings.t,
+  accessibility: AccessibilityModel.Settings.t,
   mode,
 };
 
