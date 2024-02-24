@@ -8,19 +8,17 @@ let is_action_logged: UpdateAction.t => bool =
   | Save
   | InitImportAll(_)
   | InitImportScratchpad(_)
-  | DebugAction(_)
   | ExportPersistentData
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
   | Benchmark(_)
   | DebugConsole(_) => false
   | Reset
-  | DoTheThing
+  | TAB
   | Assistant(_)
   | Set(_)
-  | UpdateLangDocMessages(_)
   | SwitchScratchSlide(_)
-  | SwitchExampleSlide(_)
+  | SwitchDocumentationSlide(_)
   | SwitchEditor(_)
   | ResetCurrentEditor
   | ReparseCurrentEditor
@@ -32,7 +30,11 @@ let is_action_logged: UpdateAction.t => bool =
   | Redo
   | QueryInput
   | PerformQuery(_)
-  | MoveToNextHole(_) => true;
+  | MoveToNextHole(_)
+  | UpdateResult(_)
+  | ToggleStepper(_)
+  | StepperAction(_, StepForward(_) | StepBackward)
+  | UpdateExplainThisModel(_) => true;
 
 module DB = {
   open Ezjs_idb;
