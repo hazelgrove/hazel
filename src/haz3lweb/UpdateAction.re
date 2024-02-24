@@ -87,7 +87,7 @@ type t =
   | Benchmark(benchmark_action)
   | Assistant(agent_action)
   | QueryInput
-  | PerformQuery(Query.t);
+  | PerformQuery(Query.t)
   | ToggleStepper(ModelResults.Key.t)
   | StepperAction(ModelResults.Key.t, stepper_action)
   | UpdateResult(ModelResults.t);
@@ -162,7 +162,9 @@ let is_edit: t => bool =
   | MoveToNextHole(_)
   | Benchmark(_)
   | TAB
-  | Assistant(Prompt(_)) => false;
+  | Assistant(Prompt(_))
+  | QueryInput
+  | PerformQuery(_) => false;
 
 let reevaluate_post_update: t => bool =
   fun
@@ -208,7 +210,9 @@ let reevaluate_post_update: t => bool =
   | SwitchEditor(_)
   | DebugConsole(_)
   | TAB
-  | Benchmark(_) => false
+  | Benchmark(_)
+  | QueryInput
+  | PerformQuery(_) => false
   | StepperAction(_, StepForward(_) | StepBackward)
   | ToggleStepper(_)
   | ReparseCurrentEditor
@@ -288,4 +292,6 @@ let should_scroll_to_caret =
   | UpdateExplainThisModel(_)
   | ExportPersistentData
   | DebugConsole(_)
-  | Benchmark(_) => false;
+  | Benchmark(_)
+  | QueryInput
+  | PerformQuery(_) => false;

@@ -33,12 +33,16 @@ let info_typ_str = (typ: Info.typ): string =>
 let info_tpat_str = (tpat: Info.tpat): string =>
   "Type Pattern. " ++ (tpat.cls |> Term.Cls.show);
 
+let info_sec_str = (sec: Info.secondary): string =>
+  "Secondary. " ++ (sec.cls |> Term.Cls.show);
+
 let info_str = (info: Info.t): string =>
   switch (info) {
   | InfoExp(exp) => info_exp_str(exp)
   | InfoPat(pat) => info_pat_str(pat)
   | InfoTyp(typ) => info_typ_str(typ)
   | InfoTPat(tpat) => info_tpat_str(tpat)
+  | Secondary(sec) => info_sec_str(sec)
   };
 
 let query_reply = (~settings: Settings.t, query: t, editor: Editor.t) => {
