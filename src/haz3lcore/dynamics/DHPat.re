@@ -61,3 +61,23 @@ let rec of_menhir_ast = (pat: Hazel_menhir.AST.pat): t => {
         | ApPat(pat1, pat2) => Ap(of_menhir_ast(pat1), of_menhir_ast(pat2))
     }
 };
+
+let rec bound_vars = (dp: t): list(Var.t) =>
+  switch (dp) {
+  | EmptyHole(_, _)
+  | NonEmptyHole(_, _, _, _)
+  | Wild
+  | InvalidText(_)
+  | BadConstructor(_)
+  | IntLit(_)
+  | FloatLit(_)
+  | BoolLit(_)
+  | StringLit(_)
+  | Constructor(_)
+  | ExpandingKeyword(_, _, _) => []
+  | Var(y) => [y]
+  | Tuple(dps) => List.flatten(List.map(bound_vars, dps))
+  | Cons(dp1, dp2) => bound_vars(dp1) @ bound_vars(dp2)
+  | ListLit(_, dps) => List.flatten(List.map(bound_vars, dps))
+  | Ap(_, dp1) => bound_vars(dp1)
+  };
