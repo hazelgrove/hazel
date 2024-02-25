@@ -406,6 +406,7 @@ let rec apply =
       let accessibilityModel =
         AccessibilityModel.update(model.accessibilityModel, Edit(a));
       let model = {...model, accessibilityModel};
+      JsUtil.log(model.accessibilityModel.input);
       Ok(model);
     | PerformAction(a)
         when model.settings.core.assist && model.settings.core.statics =>

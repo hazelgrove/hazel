@@ -5,15 +5,7 @@ let inputField_id = "a11y-input";
 let outputArea_id = "a11y-output";
 
 let input_view = (id, input): Node.t => {
-  Node.input(
-    ~attr=
-      Attr.many([
-        Attr.type_("text"),
-        Attr.id(id),
-        Attr.placeholder("Your input..."),
-      ]),
-    [Node.text(input)],
-  );
+  Node.div(~attr=Attr.id(id), [Node.text(":" ++ input)]);
 };
 
 let output_view = (id, content): Node.t => {

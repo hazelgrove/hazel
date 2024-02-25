@@ -33,7 +33,7 @@ let remove_last_char = (str: string) =>
 let perform_action = (model: t, action: Action.t) => {
   switch (action) {
   | Action.Insert(s) => {...model, input: model.input ++ s}
-  | Action.Destruct(Right) => {
+  | Action.Destruct(Left) => {
       ...model,
       input: remove_last_char(model.input),
     }
