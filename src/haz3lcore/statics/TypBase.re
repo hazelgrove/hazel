@@ -71,7 +71,6 @@ module rec Typ: {
   let is_unknown: t => bool;
 
   let of_menhir_ast: Hazel_menhir.AST.typ => t;
-
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type type_provenance =
@@ -429,20 +428,19 @@ module rec Typ: {
     | _ => false
     };
 
-  let rec of_menhir_ast = (typ: Hazel_menhir.AST.typ) : t => {
-        switch (typ) {
-            | IntType => Int
-            | FloatType => Float
-            | BoolType => Bool
-            | StringType => String
-            | UnitType => Prod([])
-            | TupleType(ts) => Prod(List.map(of_menhir_ast, ts))
-            | ArrayType(t) => List(of_menhir_ast(t))
-            | ArrowType(t1, t2) => Arrow(of_menhir_ast(t1), of_menhir_ast(t2))
-            // | _ => raise(Invalid_argument("Menhir AST -> DHExp not yet implemented"))
-        }
-  }
-
+  let rec of_menhir_ast = (typ: Hazel_menhir.AST.typ): t => {
+    switch (typ) {
+    | IntType => Int
+    | FloatType => Float
+    | BoolType => Bool
+    | StringType => String
+    | UnitType => Prod([])
+    | TupleType(ts) => Prod(List.map(of_menhir_ast, ts))
+    | ArrayType(t) => List(of_menhir_ast(t))
+    | ArrowType(t1, t2) => Arrow(of_menhir_ast(t1), of_menhir_ast(t2))
+    // | _ => raise(Invalid_argument("Menhir AST -> DHExp not yet implemented"))
+    };
+  };
 }
 and Ctx: {
   [@deriving (show({with_path: false}), sexp, yojson)]

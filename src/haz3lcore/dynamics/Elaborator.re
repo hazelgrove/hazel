@@ -362,12 +362,11 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
 let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t => {
   let _ = print_endline("uexp_elab");
   switch (dhexp_of_uexp(m, uexp, false)) {
-  | None => {
-        print_endline("dne");
-      DoesNotElaborate
-  }
+  | None =>
+    print_endline("dne");
+    DoesNotElaborate;
   | Some(d) =>
-     print_endline(DH.DHExp.show(d));
+    print_endline(DH.DHExp.show(d));
     //let d = uexp_elab_wrap_builtins(d);
     let ty =
       switch (fixed_exp_typ(m, uexp)) {
