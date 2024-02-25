@@ -402,8 +402,11 @@ let rec apply =
           : Zipper.can_put_down(z)
               ? PerformAction(Put_down) : MoveToNextHole(Right);
       apply(model, a, state, ~schedule_action);
-    | PerformAction(_) when model.settings.accessibility.is_editing =>
-      Ok(model)
+    | PerformAction(a) when model.settings.accessibility.is_editing =>
+      let accessibilityModel =
+        AccessibilityModel.update(model.accessibilityModel, Edit(a));
+      let model = {...model, accessibilityModel};
+      Ok(model);
     | PerformAction(a)
         when model.settings.core.assist && model.settings.core.statics =>
       let model = UpdateAssistant.reset_buffer(model);

@@ -1,31 +1,34 @@
 open Virtual_dom.Vdom;
-//open Node;
-open Util.Web;
-// open Util;
-// open Haz3lcore;
+//open Util.Web;
 
-let query_input_id = "query-input";
+let inputField_id = "a11y-input";
+let outputArea_id = "a11y-output";
 
-let button_view = (~inject, name): Node.t => {
-  Node.button(
+let input_view = (id, input): Node.t => {
+  Node.input(
     ~attr=
       Attr.many([
-        Attr.classes(["button"]),
-        Attr.on_mousedown(_ => inject(UpdateAction.QueryInput)),
+        Attr.type_("text"),
+        Attr.id(id),
+        Attr.placeholder("Your input..."),
       ]),
-    [Node.text(name)],
+    [Node.text(input)],
   );
 };
 
-let input_view = (id): Node.t => {
-  Node.input(~attr=Attr.many([Attr.type_("text"), Attr.id(id)]), []);
+let output_view = (id, content): Node.t => {
+  Node.div(~attr=Attr.id(id), [Node.text(content)]);
 };
 
-let buttons_view = (~inject): Node.t => {
+let view = (~_inject, model: AccessibilityModel.t): Node.t => {
   Node.div(
-    ~attr=clss(["query"]),
-    [input_view(query_input_id), button_view(~inject, "Submit")],
+    ~attr=Attr.classes(["a11y"]),
+    [
+      input_view(inputField_id, model.input),
+      output_view(
+        outputArea_id,
+        model.query_result |> Option.value(~default=""),
+      ),
+    ],
   );
 };
-
-let view = (~inject): Node.t => buttons_view(~inject);

@@ -40,3 +40,11 @@ let perform_action = (model: t, action: Action.t) => {
   | _ => model
   };
 };
+
+type update =
+  | Edit(Action.t);
+
+let update = (model: t, update: update): t =>
+  switch (update) {
+  | Edit(action) => perform_action(model, action)
+  };

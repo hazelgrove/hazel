@@ -51,7 +51,16 @@ let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit), model) => {
 let main_view =
     (
       ~inject: UpdateAction.t => Ui_effect.t(unit),
-      {settings, editors, explainThisModel, results, statics, ui_state, _}: Model.t,
+      {
+        settings,
+        editors,
+        explainThisModel,
+        accessibilityModel,
+        results,
+        statics,
+        ui_state,
+        _,
+      }: Model.t,
     ) => {
   let editor = Editors.get_editor(editors);
   let statics = Editors.lookup_statics(~settings, ~statics, editors);
@@ -64,7 +73,7 @@ let main_view =
       @ [EditorModeView.view(~inject, ~settings, ~editors)],
     );
   let bottom_bar = CursorInspector.view(~inject, ~settings, cursor_info);
-  let prompt_bar = Accessibility.view(~inject);
+  let a11y_bar = Accessibility.view(~_inject=inject, accessibilityModel);
   let sidebar =
     settings.explainThis.show && settings.core.statics
       ? ExplainThis.view(
@@ -130,7 +139,7 @@ let main_view =
     ),
     sidebar,
     bottom_bar,
-    prompt_bar,
+    a11y_bar,
   ];
 };
 
