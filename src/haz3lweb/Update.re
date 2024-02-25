@@ -404,7 +404,14 @@ let rec apply =
       apply(model, a, state, ~schedule_action);
     | PerformAction(a) when model.settings.accessibility.is_editing =>
       let accessibilityModel =
-        AccessibilityModel.update(model.accessibilityModel, Edit(a));
+        AccessibilityUpdate.update_model(
+          ~settings=model.settings,
+          ~ctx_init=
+            model.editors |> Editors.get_ctx_init(~settings=model.settings),
+          ~editor=model.editors |> Editors.get_editor,
+          model.accessibilityModel,
+          Edit(a),
+        );
       let model = {...model, accessibilityModel};
       JsUtil.log(model.accessibilityModel.input);
       Ok(model);
@@ -423,27 +430,6 @@ let rec apply =
       | x => x
       };
     | PerformAction(a) => perform_action(model, a)
-    | QueryInput =>
-      let _command = QueryParser.query_parser();
-      Ok(model);
-    | PerformQuery(query) =>
-      //TODO
-      print_endline(
-        Query.query_reply(
-          ~settings=model.settings,
-          Query.CursorMove,
-          Editors.get_editor(model.editors),
-        ),
-      );
-      print_endline(Query.to_string(query));
-      print_endline(
-        Query.query_reply(
-          ~settings=model.settings,
-          query,
-          Editors.get_editor(model.editors),
-        ),
-      );
-      Ok(model);
     | ReparseCurrentEditor =>
       /* This serializes the current editor to text, resets the current
          editor, and then deserializes. It is intended as a (tactical)
