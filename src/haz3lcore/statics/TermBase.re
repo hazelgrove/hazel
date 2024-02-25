@@ -284,7 +284,7 @@ and UExp: {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   let float_op_of_menhir_ast =
-          (op: Hazel_menhir.AST.op_bin_float): op_bin_float => {
+      (op: Hazel_menhir.AST.op_bin_float): op_bin_float => {
     switch (op) {
     | Plus => Plus
     | Minus => Minus
@@ -301,8 +301,7 @@ and UExp: {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  let bool_op_of_menhir_ast =
-          (op: Hazel_menhir.AST.op_bin_bool): op_bin_bool => {
+  let bool_op_of_menhir_ast = (op: Hazel_menhir.AST.op_bin_bool): op_bin_bool => {
     switch (op) {
     | And => And
     | Or => Or

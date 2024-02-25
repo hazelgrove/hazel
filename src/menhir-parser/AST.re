@@ -1,57 +1,56 @@
 open Sexplib.Std;
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type op_bin_float =
-    | Plus
-    | Minus
-    | Times
-    | Power
-    | Divide
-    | LessThan
-    | LessThanOrEqual
-    | GreaterThan
-    | GreaterThanOrEqual
-    | Equals
-    | NotEquals;
+[@deriving (show({with_path: false}), sexp, yojson)]
+type op_bin_float =
+  | Plus
+  | Minus
+  | Times
+  | Power
+  | Divide
+  | LessThan
+  | LessThanOrEqual
+  | GreaterThan
+  | GreaterThanOrEqual
+  | Equals
+  | NotEquals;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-  type op_bin_bool =
-    | And
-    | Or;
-
+type op_bin_bool =
+  | And
+  | Or;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type op_bin_int =
-     | Plus
-    | Minus
-    | Times
-    | Power
-    | Divide
-    | LessThan
-    | LessThanOrEqual
-    | GreaterThan
-    | GreaterThanOrEqual
-    | Equals
-    | NotEquals;
-  // | Equals
-  // | NotEqual
-  // | Plus
-  // | Minus
-  // | Times
-  // | Divide
-  // | Power
-  // | LessThan
-  // | GreaterThan
-  // | LessThanEqual
-  // | GreaterThanEqual
-  // | Logical_And
-  // | Logical_Or
+  | Plus
+  | Minus
+  | Times
+  | Power
+  | Divide
+  | LessThan
+  | LessThanOrEqual
+  | GreaterThan
+  | GreaterThanOrEqual
+  | Equals
+  | NotEquals;
+// | Equals
+// | NotEqual
+// | Plus
+// | Minus
+// | Times
+// | Divide
+// | Power
+// | LessThan
+// | GreaterThan
+// | LessThanEqual
+// | GreaterThanEqual
+// | Logical_And
+// | Logical_Or
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type binOp = 
-    | IntOp(op_bin_int)
-    | FloatOp(op_bin_float)
-    | BoolOp(op_bin_bool);
+type binOp =
+  | IntOp(op_bin_int)
+  | FloatOp(op_bin_float)
+  | BoolOp(op_bin_bool);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type typ =

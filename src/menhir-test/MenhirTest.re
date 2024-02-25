@@ -17,4 +17,4 @@ let file_contents = read_whole_file(test_file);
 let prog: AST.exp = Hazel_menhir.Interface.parse_program(file_contents);
 
 let dhexp = of_menhir_ast(prog);
-print_endline(show(dhexp))
+print_endline(show(dhexp));
