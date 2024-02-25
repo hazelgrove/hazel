@@ -76,7 +76,7 @@ let tests = [
   test_case(
     "Integer Literal",
     `Quick,
-    parser_test("Same Integer", Int(7), "7"),
+    parser_test("Same Integer", Int(7), "8"),
   ),
   test_case(
     "String Literal",
