@@ -160,3 +160,8 @@ let evaluate = (env, d): (EvaluatorState.t, EvaluatorResult.t) => {
     };
   (state^, result);
 };
+
+let module_evaluate = (env, d): DHExp.t => {
+  let state = ref(EvaluatorState.init);
+  module_evaluate(state, env, d) |> EvaluatorEVMode.unbox;
+};
