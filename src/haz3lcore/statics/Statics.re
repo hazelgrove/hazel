@@ -558,7 +558,7 @@ and uexp_to_info_map =
         ~constraints=
           constraints_body
           @ [
-            (Var(name), ty_escape),
+            (Var(name), ty_def),
             ...subsumption_constraints(Just(ty_escape)),
           ],
         ~co_ctx,
