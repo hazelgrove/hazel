@@ -29,13 +29,13 @@ let cast_sum_maps =
 };
 
 let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
-  switch (dp, DHExp.term_of(d)) {
+  switch (DHPat.term_of(dp), DHExp.term_of(d)) {
   | (_, Var(_)) => DoesNotMatch
-  | (EmptyHole(_), _)
+  | (EmptyHole, _)
   | (NonEmptyHole(_), _) => IndetMatch
   | (Wild, _) => Matches(Environment.empty)
   | (ExpandingKeyword(_), _) => DoesNotMatch
-  | (InvalidText(_), _) => IndetMatch
+  | (Invalid(_), _) => IndetMatch
   | (BadConstructor(_), _) => IndetMatch
   | (Var(x), _) =>
     let env = Environment.extend(Environment.empty, (x, d));
@@ -110,7 +110,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
       }
     }
   | (
-      Ap(Constructor(ctr), dp_opt),
+      Ap({term: Constructor(ctr), _}, dp_opt),
       Cast(d, Sum(sm1) | Rec(_, Sum(sm1)), Sum(sm2) | Rec(_, Sum(sm2))),
     ) =>
     switch (cast_sum_maps(sm1, sm2)) {
@@ -194,7 +194,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Cons(_) | ListLit(_), Cast(d, List(ty1), Unknown(_))) =>
     matches_cast_Cons(dp, d, [(ty1, Unknown(Internal))])
   | (Cons(_, _), Cons(_, _))
-  | (ListLit(_, _), Cons(_, _))
+  | (ListLit(_), Cons(_, _))
   | (Cons(_, _), ListLit(_))
   | (ListLit(_), ListLit(_)) => matches_cast_Cons(dp, d, [])
   | (Cons(_) | ListLit(_), _) => DoesNotMatch
@@ -360,12 +360,12 @@ and matches_cast_Cons =
     (dp: DHPat.t, d: DHExp.t, elt_casts: list((Typ.t, Typ.t))): match_result =>
   switch (DHExp.term_of(d)) {
   | ListLit(_, _, _, []) =>
-    switch (dp) {
-    | ListLit(_, []) => Matches(Environment.empty)
+    switch (DHPat.term_of(dp)) {
+    | ListLit([]) => Matches(Environment.empty)
     | _ => DoesNotMatch
     }
   | ListLit(u, i, ty, [dhd, ...dtl] as ds) =>
-    switch (dp) {
+    switch (DHPat.term_of(dp)) {
     | Cons(dp1, dp2) =>
       switch (matches(dp1, DHExp.apply_casts(dhd, elt_casts))) {
       | DoesNotMatch => DoesNotMatch
@@ -386,7 +386,7 @@ and matches_cast_Cons =
         | Matches(env2) => Matches(Environment.union(env1, env2))
         };
       }
-    | ListLit(_, dps) =>
+    | ListLit(dps) =>
       switch (ListUtil.opt_zip(dps, ds)) {
       | None => DoesNotMatch
       | Some(lst) =>
@@ -410,7 +410,7 @@ and matches_cast_Cons =
     | _ => failwith("called matches_cast_Cons with non-list pattern")
     }
   | Cons(d1, d2) =>
-    switch (dp) {
+    switch (DHPat.term_of(dp)) {
     | Cons(dp1, dp2) =>
       switch (matches(dp1, DHExp.apply_casts(d1, elt_casts))) {
       | DoesNotMatch => DoesNotMatch
@@ -430,8 +430,8 @@ and matches_cast_Cons =
         | Matches(env2) => Matches(Environment.union(env1, env2))
         };
       }
-    | ListLit(_, []) => DoesNotMatch
-    | ListLit(ty, [dphd, ...dptl]) =>
+    | ListLit([]) => DoesNotMatch
+    | ListLit([dphd, ...dptl]) =>
       switch (matches(dphd, DHExp.apply_casts(d1, elt_casts))) {
       | DoesNotMatch => DoesNotMatch
       | IndetMatch => IndetMatch
@@ -444,7 +444,7 @@ and matches_cast_Cons =
             },
             elt_casts,
           );
-        let dp2 = DHPat.ListLit(ty, dptl);
+        let dp2 = DHPat.ListLit(dptl) |> DHPat.fresh;
         switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
         | DoesNotMatch => DoesNotMatch
         | IndetMatch => IndetMatch

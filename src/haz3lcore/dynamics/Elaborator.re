@@ -210,8 +210,8 @@ let rec dhexp_of_uexp =
       | UnOp(Bool(Not), e) =>
         let+ d_scrut = dhexp_of_uexp(m, e);
         let d_rules = [
-          (DHPat.Bool(true), DHExp.(fresh(Bool(false)))),
-          (DHPat.Bool(false), DHExp.(fresh(Bool(true)))),
+          (DHPat.(fresh(Bool(true))), DHExp.(fresh(Bool(false)))),
+          (DHPat.(fresh(Bool(false))), DHExp.(fresh(Bool(true)))),
         ];
         let d = DHExp.(fresh(Match(Consistent, d_scrut, d_rules)));
         /* Manually construct cast (case is not otherwise cast) */
@@ -334,43 +334,46 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
     let wrap = (d: DHPat.t): option(DHPat.t) =>
       switch (maybe_reason) {
       | None => Some(d)
-      | Some(reason) => Some(NonEmptyHole(reason, u, 0, d))
+      | Some(reason) => Some(NonEmptyHole(reason, u, 0, d) |> DHPat.fresh)
       };
-    switch (upat.term) {
-    | Invalid(t) => Some(DHPat.InvalidText(u, 0, t))
-    | EmptyHole => Some(EmptyHole(u, 0))
+    let (pterm, prewrap) = (
+      upat.term,
+      ((term) => ({ids: upat.ids, copied: false, term}: DHPat.t)),
+    );
+    switch (pterm) {
+    | Invalid(t) => Some(DHPat.Invalid(t) |> prewrap)
+    | EmptyHole => Some(EmptyHole |> prewrap)
     | MultiHole(_) =>
       // TODO: dhexp, eval for multiholes
-      Some(EmptyHole(u, 0))
-    | Wild => wrap(Wild)
-    | Bool(b) => wrap(Bool(b))
-    | Int(n) => wrap(Int(n))
-    | Float(n) => wrap(Float(n))
-    | String(s) => wrap(String(s))
-    | Triv => wrap(Tuple([]))
+      Some(EmptyHole |> prewrap)
+    | Wild => wrap(Wild |> prewrap)
+    | Bool(b) => wrap(Bool(b) |> prewrap)
+    | Int(n) => wrap(Int(n) |> prewrap)
+    | Float(n) => wrap(Float(n) |> prewrap)
+    | String(s) => wrap(String(s) |> prewrap)
+    | Triv => wrap(Tuple([]) |> prewrap)
     | ListLit(ps) =>
       let* ds = ps |> List.map(dhpat_of_upat(m)) |> OptUtil.sequence;
-      let* ty = fixed_pat_typ(m, upat);
-      wrap(ListLit(Typ.matched_list(ctx, ty), ds));
+      wrap(ListLit(ds) |> prewrap);
     | Constructor(name) =>
       switch (err_status) {
       | InHole(Common(NoType(FreeConstructor(_)))) =>
-        Some(BadConstructor(u, 0, name))
-      | _ => wrap(Constructor(name))
+        Some(BadConstructor(u, 0, name) |> prewrap)
+      | _ => wrap(Constructor(name) |> prewrap)
       }
     | Cons(hd, tl) =>
       let* d_hd = dhpat_of_upat(m, hd);
       let* d_tl = dhpat_of_upat(m, tl);
-      wrap(Cons(d_hd, d_tl));
+      wrap(Cons(d_hd, d_tl) |> prewrap);
     | Tuple(ps) =>
       let* ds = ps |> List.map(dhpat_of_upat(m)) |> OptUtil.sequence;
-      wrap(DHPat.Tuple(ds));
-    | Var(name) => Some(Var(name))
+      wrap(DHPat.Tuple(ds) |> prewrap);
+    | Var(name) => Some(Var(name) |> prewrap)
     | Parens(p) => dhpat_of_upat(m, p)
     | Ap(p1, p2) =>
       let* d_p1 = dhpat_of_upat(m, p1);
       let* d_p2 = dhpat_of_upat(m, p2);
-      wrap(Ap(d_p1, d_p2));
+      wrap(Ap(d_p1, d_p2) |> prewrap);
     | TypeAnn(p, _ty) =>
       let* dp = dhpat_of_upat(m, p);
       wrap(dp);
