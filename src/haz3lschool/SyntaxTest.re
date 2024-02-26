@@ -12,7 +12,6 @@ let rec find_var_upat = (name: string, upat: Term.UPat.t): bool => {
   | Var(x) => x == name
   | EmptyHole
   | Wild
-  | Triv
   | Invalid(_)
   | MultiHole(_)
   | Int(_)
@@ -157,8 +156,7 @@ let rec find_in_let =
   | (Var(_), _)
   | (Tuple(_), _)
   | (
-      EmptyHole | Wild | Triv | Invalid(_) | MultiHole(_) | Int(_) | Float(_) |
-      Bool(_) |
+      EmptyHole | Wild | Invalid(_) | MultiHole(_) | Int(_) | Float(_) | Bool(_) |
       String(_) |
       ListLit(_) |
       Constructor(_) |

@@ -351,7 +351,6 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
     | Int(n) => wrap(Int(n) |> prewrap)
     | Float(n) => wrap(Float(n) |> prewrap)
     | String(s) => wrap(String(s) |> prewrap)
-    | Triv => wrap(Tuple([]) |> prewrap)
     | ListLit(ps) =>
       let* ds = ps |> List.map(dhpat_of_upat(m)) |> OptUtil.sequence;
       wrap(ListLit(ds) |> prewrap);

@@ -196,7 +196,6 @@ module UPat = {
     | Float
     | Bool
     | String
-    | Triv
     | ListLit
     | Constructor
     | Cons
@@ -229,7 +228,6 @@ module UPat = {
     | Float(_) => Float
     | Bool(_) => Bool
     | String(_) => String
-    | Triv => Triv
     | ListLit(_) => ListLit
     | Constructor(_) => Constructor
     | Cons(_) => Cons
@@ -249,7 +247,6 @@ module UPat = {
     | Float => "Float literal"
     | Bool => "Boolean literal"
     | String => "String literal"
-    | Triv => "Trivial literal"
     | ListLit => "List literal"
     | Constructor => "Constructor"
     | Cons => "Cons"
@@ -272,7 +269,6 @@ module UPat = {
     | Float(_)
     | Bool(_)
     | String(_)
-    | Triv
     | ListLit(_)
     | Cons(_, _)
     | Tuple(_)
@@ -293,7 +289,6 @@ module UPat = {
     | Float(_)
     | Bool(_)
     | String(_)
-    | Triv
     | ListLit(_)
     | Cons(_, _)
     | Var(_)
@@ -317,7 +312,6 @@ module UPat = {
       | Float(_)
       | Bool(_)
       | String(_)
-      | Triv
       | ListLit(_)
       | Cons(_, _)
       | Var(_)
@@ -340,7 +334,6 @@ module UPat = {
     | Float(_)
     | Bool(_)
     | String(_)
-    | Triv
     | ListLit(_)
     | Cons(_, _)
     | Tuple(_)
@@ -366,7 +359,6 @@ module UPat = {
     | Float(_)
     | Bool(_)
     | String(_)
-    | Triv
     | ListLit(_)
     | Cons(_, _)
     | Var(_)
@@ -397,7 +389,6 @@ module UPat = {
       | Float(_)
       | Bool(_)
       | String(_)
-      | Triv
       | ListLit(_)
       | Cons(_, _)
       | Var(_)

@@ -112,7 +112,6 @@ and UExp: {
     | Invalid
     | EmptyHole
     | MultiHole
-    | Triv
     | Bool
     | Int
     | Float
@@ -247,7 +246,6 @@ and UExp: {
     | Invalid
     | EmptyHole
     | MultiHole
-    | Triv
     | Bool
     | Int
     | Float
@@ -368,7 +366,6 @@ and UPat: {
     | Float(float)
     | Bool(bool)
     | String(string)
-    | Triv
     | ListLit(list(t))
     | Constructor(string)
     | Cons(t, t)
@@ -392,7 +389,6 @@ and UPat: {
     | Float(float)
     | Bool(bool)
     | String(string)
-    | Triv
     | ListLit(list(t))
     | Constructor(string)
     | Cons(t, t)
