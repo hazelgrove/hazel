@@ -556,7 +556,11 @@ and uexp_to_info_map =
       add(
         ~self=Just(ty_escape),
         ~constraints=
-          constraints_body @ subsumption_constraints(Just(ty_escape)),
+          constraints_body
+          @ [
+            (Var(name), ty_escape),
+            ...subsumption_constraints(Just(ty_escape)),
+          ],
         ~co_ctx,
         m,
       );
@@ -867,6 +871,9 @@ let mk_map_and_inference_solutions =
           e,
           Id.Map.empty,
         );
+
+      print_endline("!!PRINTING CONSTRAINTS: ");
+      info.constraints |> Typ.constraints_to_string |> print_endline;
 
       let pts_graph = Inference.solve_constraints(info.constraints);
       let solutions = InferenceResult.get_desired_solutions(pts_graph);
