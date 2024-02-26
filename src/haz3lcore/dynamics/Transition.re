@@ -183,7 +183,6 @@ module type EV_MODE = {
   let update_test: (state, KeywordID.t, TestMap.instance_report) => unit;
 
   let get_info_map: state => Statics.Map.t;
-  let set_info_map: (Statics.Map.t, state) => unit;
 };
 
 module Transition = (EV: EV_MODE) => {

@@ -73,8 +73,6 @@ module ValueCheckerEVMode: {
 
   let update_test = (_, _, _) => ();
   let get_info_map = (info_map: state) => info_map;
-
-  let set_info_map = (_, _) => ();
 };
 
 module CV = Transition(ValueCheckerEVMode);

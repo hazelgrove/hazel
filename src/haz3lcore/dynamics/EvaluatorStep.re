@@ -140,9 +140,6 @@ module Decompose = {
     let update_test = (state, id, v) =>
       state := EvaluatorState.add_test(state^, id, v);
     let get_info_map = (state: state) => EvaluatorState.get_info_map(state^);
-
-    let set_info_map = (info_map: Statics.Map.t, state: state) =>
-      state := EvaluatorState.put_info_map(info_map, state^);
   };
 
   module Decomp = Transition(DecomposeEVMode);
@@ -200,9 +197,6 @@ module TakeStep = {
     let update_test = (state, id, v) =>
       state := EvaluatorState.add_test(state^, id, v);
     let get_info_map = (state: state) => EvaluatorState.get_info_map(state^);
-
-    let set_info_map = (info_map: Statics.Map.t, state: state) =>
-      state := EvaluatorState.put_info_map(info_map, state^);
   };
 
   module TakeStepEV = Transition(TakeStepEVMode);
