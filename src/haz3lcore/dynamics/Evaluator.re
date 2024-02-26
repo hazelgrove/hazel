@@ -36,9 +36,6 @@ module EvaluatorEVMode: {
 
   let get_info_map = (state: state) => EvaluatorState.get_info_map(state^);
 
-  let set_info_map = (info_map: Statics.Map.t, state: state) =>
-    state := EvaluatorState.put_info_map(info_map, state^);
-
   type result_unfinished =
     | BoxedValue(DHExp.t)
     | Indet(DHExp.t)
