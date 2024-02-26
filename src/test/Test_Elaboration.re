@@ -88,7 +88,7 @@ let u4: Term.UExp.t = {
 };
 let d4: DHExp.t =
   Let(
-    Tuple([Var("a"), Var("b")]),
+    Tuple([Var("a") |> DHPat.fresh, Var("b") |> DHPat.fresh]) |> DHPat.fresh,
     Tuple([Int(4) |> fresh, Int(6) |> fresh]) |> fresh,
     BinOp(Int(Minus), Var("a") |> fresh, Var("b") |> fresh) |> fresh,
   )
@@ -177,7 +177,7 @@ let d7: DHExp.t =
   Ap(
     Forward,
     Fun(
-      Var("x"),
+      Var("x") |> DHPat.fresh,
       Unknown(Internal),
       BinOp(
         Int(Plus),
@@ -234,8 +234,8 @@ let d8scrut: DHExp.t =
   BinOp(Int(Equals), Int(4) |> fresh, Int(3) |> fresh) |> fresh;
 let d8rules =
   DHExp.[
-    (Bool(true): DHPat.t, Int(24) |> fresh),
-    (Bool(false): DHPat.t, Bool(false) |> fresh),
+    (Bool(true) |> DHPat.fresh, Int(24) |> fresh),
+    (Bool(false) |> DHPat.fresh, Bool(false) |> fresh),
   ];
 let d8a: DHExp.t =
   Match(Inconsistent(id_at(0), 0), d8scrut, d8rules) |> fresh;

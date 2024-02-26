@@ -174,8 +174,8 @@ let rec matches_exp =
   };
 }
 and matches_pat = (d: DHPat.t, f: DHPat.t): bool => {
-  switch (d, f) {
-  | (_, EmptyHole(_)) => true
+  switch (d |> DHPat.term_of, f |> DHPat.term_of) {
+  | (_, EmptyHole) => true
   | (Wild, Wild) => true
   | (Wild, _) => false
   | (Int(dv), Int(fv)) => dv == fv
@@ -186,12 +186,12 @@ and matches_pat = (d: DHPat.t, f: DHPat.t): bool => {
   | (Bool(_), _) => false
   | (String(dv), String(fv)) => dv == fv
   | (String(_), _) => false
-  | (ListLit(dty1, dl), ListLit(fty1, fl)) =>
+  | (ListLit(dl), ListLit(fl)) =>
     switch (
       List.fold_left2((res, d, f) => res && matches_pat(d, f), true, dl, fl)
     ) {
     | exception (Invalid_argument(_)) => false
-    | res => matches_typ(dty1, fty1) && res
+    | res => res
     }
   | (ListLit(_), _) => false
   | (Constructor(dt), Constructor(ft)) => dt == ft
@@ -213,10 +213,10 @@ and matches_pat = (d: DHPat.t, f: DHPat.t): bool => {
   | (Cons(d1, d2), Cons(f1, f2)) =>
     matches_pat(d1, f1) && matches_pat(d2, f2)
   | (Cons(_), _) => false
-  | (EmptyHole(_), _) => false
+  | (EmptyHole, _) => false
   | (NonEmptyHole(_), _) => false
   | (ExpandingKeyword(_), _) => false
-  | (InvalidText(_), _) => false
+  | (Invalid(_), _) => false
   };
 }
 and matches_typ = (d: Typ.t, f: Typ.t) => {

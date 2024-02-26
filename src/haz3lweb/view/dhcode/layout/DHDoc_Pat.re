@@ -2,12 +2,12 @@ open Pretty;
 open Haz3lcore;
 
 let precedence = (dp: DHPat.t) =>
-  switch (dp) {
-  | EmptyHole(_)
+  switch (DHPat.term_of(dp)) {
+  | EmptyHole
   | NonEmptyHole(_)
   | Wild
   | ExpandingKeyword(_)
-  | InvalidText(_)
+  | Invalid(_)
   | BadConstructor(_)
   | Var(_)
   | Int(_)
@@ -33,13 +33,13 @@ let rec mk =
     mk'(~parenthesize=precedence(dp2) > precedence_op, dp2),
   );
   let doc =
-    switch (dp) {
-    | EmptyHole(_, _) => DHDoc_common.mk_EmptyHole(ClosureEnvironment.empty)
+    switch (DHPat.term_of(dp)) {
+    | EmptyHole => DHDoc_common.mk_EmptyHole(ClosureEnvironment.empty)
     | NonEmptyHole(reason, u, i, dp) =>
       mk'(dp) |> Doc.annot(DHAnnot.NonEmptyHole(reason, (u, i)))
     | ExpandingKeyword(u, i, k) =>
       DHDoc_common.mk_ExpandingKeyword((u, i), k)
-    | InvalidText(_, _, t) => DHDoc_common.mk_InvalidText(t)
+    | Invalid(t) => DHDoc_common.mk_InvalidText(t)
     | BadConstructor(_, _, t) => DHDoc_common.mk_InvalidText(t)
     | Var(x) => Doc.text(x)
     | Wild => DHDoc_common.Delim.wild
@@ -48,7 +48,7 @@ let rec mk =
     | Float(f) => DHDoc_common.mk_FloatLit(f)
     | Bool(b) => DHDoc_common.mk_BoolLit(b)
     | String(s) => DHDoc_common.mk_StringLit(s)
-    | ListLit(_, d_list) =>
+    | ListLit(d_list) =>
       let ol = List.map(mk', d_list);
       DHDoc_common.mk_ListLit(ol);
     | Cons(dp1, dp2) =>
