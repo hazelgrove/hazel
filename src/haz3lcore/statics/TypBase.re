@@ -96,8 +96,8 @@ module rec Typ: {
   let sum_entry: (Constructor.t, sum_map) => option(sum_entry);
   let get_sum_constructors: (Ctx.t, t) => option(sum_map);
   let is_unknown: t => bool;
-  let typ_to_string: (t, bool) => string;
-  let typ_to_string_with_parens: (bool, t, bool) => string;
+  let typ_to_string: (~list: bool=?, t, bool) => string;
+  let typ_to_string_with_parens: (~list: bool=?, bool, t, bool) => string;
   let contains_hole: t => bool;
   let constraints_to_string: constraints => string;
   let equivalence_to_string: equivalence => string;
@@ -288,19 +288,21 @@ module rec Typ: {
     };
   };
 
-  let rec typ_to_string = (ty: t, debug): string => {
-    typ_to_string_with_parens(false, ty, debug);
+  let rec typ_to_string = (~list=false, ty: t, debug): string => {
+    typ_to_string_with_parens(~list, false, ty, debug);
   }
-  and typ_to_string_with_parens = (is_left_child: bool, ty: t, debug): string => {
+  and typ_to_string_with_parens =
+      (~list=false, is_left_child: bool, ty: t, debug): string => {
     let parenthesize_if_left_child = s => is_left_child ? "(" ++ s ++ ")" : s;
     switch (ty) {
-    | Unknown(prov, _) => "?" ++ (debug ? prov_to_string(prov) : "")
+    | Unknown(prov, _) =>
+      debug ? "?" ++ prov_to_string(prov) : list ? " " : "?"
     | Int => "Int"
     | Float => "Float"
     | String => "String"
     | Bool => "Bool"
     | Var(name) => name
-    | List(t) => "[" ++ typ_to_string(t, debug) ++ "]"
+    | List(t) => "[" ++ typ_to_string(~list=true, t, debug) ++ "]"
     | Arrow(t1, t2) =>
       typ_to_string_with_parens(true, t1, debug)
       ++ " -> "

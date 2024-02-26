@@ -232,17 +232,24 @@ and uexp_to_info_map =
   | String(_) => atomic(Just(String))
   | ListLit(es) =>
     let ids = List.map(UExp.rep_id, es);
+    let list_id = UExp.rep_id(uexp);
     let (modes, mode_cs) =
-      Mode.of_list_lit(ctx, List.length(es), UExp.rep_id(uexp), mode);
+      Mode.of_list_lit(ctx, List.length(es), list_id, mode);
     let (es, m) = map_m_go(m, modes, es);
     let tys = List.map(Info.exp_ty, es);
-    let self =
-      Self.listlit(~empty=Unknown(NoProvenance, false), ctx, tys, ids);
+    let (elt_ty, term_cs) =
+      Typ.matched_list(
+        ctx,
+        list_id,
+        Unknown(ExpHole(Internal, list_id), false),
+      );
+    let self = Self.listlit(~empty=elt_ty, ctx, tys, ids);
     add(
       ~self,
       ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es)),
       ~constraints=
         mode_cs
+        @ term_cs
         @ ListUtil.flat_map(Info.exp_constraints, es)
         @ subsumption_constraints(self),
       m,
@@ -648,16 +655,19 @@ and upat_to_info_map =
     let ids = List.map(UPat.rep_id, ps);
     let (modes, mode_cs) = Mode.of_list_lit(ctx, List.length(ps), id, mode);
     let ((ctx, constraints), tys, m) = ctx_fold(ctx, m, ps, modes);
+    let (elt_ty, term_cs) = Typ.matched_list(ctx, id, unknown);
+    let self = Self.listlit(~empty=elt_ty, ctx, tys, ids);
     add(
-      ~self=Self.listlit(~empty=unknown, ctx, tys, ids),
+      ~self,
       ~ctx,
-      ~constraints=mode_cs @ constraints,
+      ~constraints=
+        mode_cs @ term_cs @ constraints @ subsumption_constraints(self),
       m,
     );
   | Cons(hd, tl) =>
     let (mode_hd, mode_cs_hd) = Mode.of_cons_hd(ctx, mode, id);
     let (hd, m) = go(~ctx, ~mode=mode_hd, hd, m);
-    let (mode_tl, mode_cs_tl) = Mode.of_cons_tl(ctx, mode_hd, hd.ty, id);
+    let (mode_tl, mode_cs_tl) = Mode.of_cons_tl(ctx, mode, hd.ty, id);
     let (tl, m) = go(~ctx=hd.ctx, ~mode=mode_tl, tl, m);
     add(
       ~self=Just(List(hd.ty)),
