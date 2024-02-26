@@ -746,7 +746,7 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_str);
           }
-        | Triv =>
+        | Tuple([]) =>
           if (FunctionExp.function_triv_exp.id
               == get_specificity_level(FunctionExp.functions_triv)) {
             get_message(
@@ -866,7 +866,6 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_var);
           }
-        | Tuple([]) => get_message(TerminalExp.triv_exps)
         | Tuple(elements) =>
           let pat_id = List.nth(pat.ids, 0);
           let body_id = List.nth(body.ids, 0);
@@ -1270,7 +1269,7 @@ let get_doc =
               LetExp.lets_str,
             );
           }
-        | Triv =>
+        | Tuple([]) =>
           if (LetExp.let_triv_exp.id
               == get_specificity_level(LetExp.lets_triv)) {
             get_message(
@@ -1840,7 +1839,7 @@ let get_doc =
           ),
         TerminalPat.strlit(s),
       )
-    | Triv => get_message(TerminalPat.triv)
+    | Tuple([]) => get_message(TerminalPat.triv)
     | ListLit(elements) =>
       if (List.length(elements) == 0) {
         get_message(ListPat.listnil);
