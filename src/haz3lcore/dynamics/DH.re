@@ -26,6 +26,7 @@ module rec DHExp: {
     | Var(Var.t)
     | Let(DHPat.t, t, t)
     | FixF(DHPat.t, Typ.t, t) // TODO: Remove type
+    | TyAlias(TermBase.UTPat.t, TermBase.UTyp.t, t)
     // TODO: Add TyAlias
     | Ap(TermBase.UExp.ap_direction, t, t)
     | If(t, t, t)
@@ -86,6 +87,7 @@ module rec DHExp: {
     | Var(Var.t)
     | Let(DHPat.t, t, t)
     | FixF(DHPat.t, Typ.t, t) // TODO: Remove type
+    | TyAlias(TermBase.UTPat.t, TermBase.UTyp.t, t)
     // TODO: Add TyAlias
     | Ap(TermBase.UExp.ap_direction, t, t)
     | If(t, t, t)
@@ -174,6 +176,7 @@ module rec DHExp: {
       | Seq(d1, d2) => Seq(repair_ids(d1), repair_ids(d2))
       | Let(dp, d1, d2) => Let(dp, repair_ids(d1), repair_ids(d2))
       | FixF(f, t, d1) => FixF(f, t, repair_ids(d1))
+      | TyAlias(tp, t, d) => TyAlias(tp, t, repair_ids(d))
       | Fun(dp, t, d1, env, f) => Fun(dp, t, repair_ids(d1), env, f)
       | Ap(dir, d1, d2) => Ap(dir, repair_ids(d1), repair_ids(d2))
       | ApBuiltin(s, d1) => ApBuiltin(s, repair_ids(d1))
@@ -218,6 +221,7 @@ module rec DHExp: {
       Filter(DHFilter.strip_casts(f), strip_casts(b)) |> rewrap
     | Let(dp, b, c) => Let(dp, strip_casts(b), strip_casts(c)) |> rewrap
     | FixF(a, b, c) => FixF(a, b, strip_casts(c)) |> rewrap
+    | TyAlias(tp, t, d) => TyAlias(tp, t, strip_casts(d)) |> rewrap
     | Fun(a, b, c, e, d) => Fun(a, b, strip_casts(c), e, d) |> rewrap
     | Ap(dir, a, b) => Ap(dir, strip_casts(a), strip_casts(b)) |> rewrap
     | Test(id, a) => Test(id, strip_casts(a)) |> rewrap
@@ -294,6 +298,8 @@ module rec DHExp: {
       && List.for_all2(fast_equal, ds1, ds2)
     | (BinOp(op1, d11, d21), BinOp(op2, d12, d22)) =>
       op1 == op2 && fast_equal(d11, d12) && fast_equal(d21, d22)
+    | (TyAlias(tp1, ut1, d1), TyAlias(tp2, ut2, d2)) =>
+      tp1 == tp2 && ut1 == ut2 && fast_equal(d1, d2)
     | (Cast(d1, ty11, ty21), Cast(d2, ty12, ty22))
     | (FailedCast(d1, ty11, ty21), FailedCast(d2, ty12, ty22)) =>
       fast_equal(d1, d2) && ty11 == ty12 && ty21 == ty22
@@ -327,6 +333,7 @@ module rec DHExp: {
     | (BinOp(_), _)
     | (Cast(_), _)
     | (FailedCast(_), _)
+    | (TyAlias(_), _)
     | (DynamicErrorHole(_), _)
     | (If(_), _)
     | (Match(_), _) => false

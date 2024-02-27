@@ -70,7 +70,7 @@ type step_kind =
   | CompleteClosure
   | CompleteFilter
   | Cast
-  | Skip;
+  | RemoveTypeAlias;
 
 module CastHelpers = {
   [@deriving sexp]
@@ -777,6 +777,9 @@ module Transition = (EV: EV_MODE) => {
           d1,
         );
       Indet;
+    | TyAlias(_, _, d) =>
+      let. _ = otherwise(env, d);
+      Step({apply: () => d, kind: RemoveTypeAlias, value: false});
     | Filter(f1, d1) =>
       let. _ = otherwise(env, d1 => Filter(f1, d1) |> rewrap)
       and. d1 =
@@ -801,8 +804,8 @@ let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
   | ListConcat
   | CaseApply
   | Projection // TODO(Matt): We don't want to show projection to the user
-  | Skip
   | Conditional(_)
+  | RemoveTypeAlias
   | InvalidStep => false
   | VarLookup => !settings.show_lookup_steps
   | CastAp
