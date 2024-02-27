@@ -41,7 +41,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     let env = Environment.extend(Environment.empty, (x, d));
     Matches(env);
   | (_, EmptyHole) => IndetMatch
-  | (_, NonEmptyHole(_)) => IndetMatch
+  | (_, StaticErrorHole(_)) => IndetMatch
   | (_, FailedCast(_)) => IndetMatch
   | (_, InvalidOperation(_)) => IndetMatch
   | (_, FreeVar(_)) => IndetMatch
@@ -247,7 +247,7 @@ and matches_cast_Sum =
   | BinOp(_)
   | EmptyHole
   | MultiHole(_)
-  | NonEmptyHole(_)
+  | StaticErrorHole(_)
   | FailedCast(_, _, _)
   | Test(_)
   | InvalidOperation(_)
@@ -351,7 +351,7 @@ and matches_cast_Tuple =
   | Match(_) => IndetMatch
   | EmptyHole => IndetMatch
   | MultiHole(_) => IndetMatch
-  | NonEmptyHole(_) => IndetMatch
+  | StaticErrorHole(_) => IndetMatch
   | FailedCast(_, _, _) => IndetMatch
   | InvalidOperation(_) => IndetMatch
   | If(_) => IndetMatch
@@ -484,7 +484,7 @@ and matches_cast_Cons =
   | Match(_) => IndetMatch
   | EmptyHole => IndetMatch
   | MultiHole(_) => IndetMatch
-  | NonEmptyHole(_) => IndetMatch
+  | StaticErrorHole(_) => IndetMatch
   | FailedCast(_, _, _) => IndetMatch
   | InvalidOperation(_) => IndetMatch
   | If(_) => IndetMatch

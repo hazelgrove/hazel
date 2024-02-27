@@ -34,7 +34,7 @@ type term =
   | Cons2(DHExp.t, t)
   | ListConcat1(t, DHExp.t)
   | ListConcat2(DHExp.t, t)
-  | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t)
+  | StaticErrorHole(Id.t, t)
   | Cast(t, Typ.t, Typ.t)
   | FailedCast(t, Typ.t, Typ.t)
   | InvalidOperation(t, InvalidOperationError.t)
@@ -141,9 +141,9 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
       | InvalidOperation(ctx, err) =>
         let d = compose(ctx, d);
         InvalidOperation(d, err) |> wrap;
-      | NonEmptyHole(reason, u, i, ctx) =>
+      | StaticErrorHole(i, ctx) =>
         let d = compose(ctx, d);
-        NonEmptyHole(reason, u, i, d) |> wrap;
+        StaticErrorHole(i, d) |> wrap;
       | MatchScrut(c, ctx, rules) =>
         let d = compose(ctx, d);
         Match(c, d, rules) |> wrap;

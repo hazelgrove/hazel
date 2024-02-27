@@ -18,7 +18,7 @@ module rec DHExp: {
     | Invalid(string)
     | EmptyHole
     | MultiHole(list(DHExp.t))
-    | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t) // TODO: Remove, use info_map      /// --------------------------------------------------------------------------------------------------------
+    | StaticErrorHole(Id.t, t)
     | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t) // TODO: Remove, use info_map      /// --------------------------------------------------------------------------------------------------------
     | InvalidOperation(t, InvalidOperationError.t) // Warning will robinson
     | FailedCast(t, Typ.t, Typ.t) // TODO: Add to TermBase
@@ -77,7 +77,7 @@ module rec DHExp: {
     | Invalid(string)
     | EmptyHole
     | MultiHole(list(DHExp.t))
-    | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t)
+    | StaticErrorHole(Id.t, t)
     | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t)
     | InvalidOperation(t, InvalidOperationError.t)
     | FailedCast(t, Typ.t, Typ.t)
@@ -177,7 +177,8 @@ module rec DHExp: {
       | Float(_)
       | String(_)
       | Constructor(_) => term
-      | NonEmptyHole(x, y, z, d1) => NonEmptyHole(x, y, z, repair_ids(d1))
+      | StaticErrorHole(static_id, d1) =>
+        StaticErrorHole(static_id, repair_ids(d1))
       | InvalidOperation(d1, x) => InvalidOperation(repair_ids(d1), x)
       | FailedCast(d1, t1, t2) => FailedCast(repair_ids(d1), t1, t2)
       | Closure(env, d1) => Closure(env, repair_ids(d1))
@@ -212,6 +213,7 @@ module rec DHExp: {
 
   let repair_ids = repair_ids(false);
 
+  // Also strips static error holes - kinda like unelaboration
   let rec strip_casts = d => {
     let (term, rewrap) = unwrap(d);
     switch (term) {
@@ -225,8 +227,7 @@ module rec DHExp: {
     | ListLit(a, b, c, ds) =>
       ListLit(a, b, c, List.map(strip_casts, ds)) |> rewrap
     | MultiHole(ds) => MultiHole(List.map(strip_casts, ds)) |> rewrap
-    | NonEmptyHole(err, u, i, d) =>
-      NonEmptyHole(err, u, i, strip_casts(d)) |> rewrap
+    | StaticErrorHole(_, d) => strip_casts(d)
     | Seq(a, b) => Seq(strip_casts(a), strip_casts(b)) |> rewrap
     | Filter(f, b) =>
       Filter(DHFilter.strip_casts(f), strip_casts(b)) |> rewrap
@@ -359,8 +360,8 @@ module rec DHExp: {
     | (MultiHole(ds1), MultiHole(ds2)) =>
       List.length(ds1) == List.length(ds2)
       && List.for_all2(fast_equal, ds1, ds2)
-    | (NonEmptyHole(reason1, u1, i1, d1), NonEmptyHole(reason2, u2, i2, d2)) =>
-      reason1 == reason2 && u1 == u2 && i1 == i2 && fast_equal(d1, d2)
+    | (StaticErrorHole(sid1, d1), StaticErrorHole(sid2, d2)) =>
+      sid1 == sid2 && d1 == d2
     | (FreeVar(u1, i1, x1), FreeVar(u2, i2, x2)) =>
       u1 == u2 && i1 == i2 && x1 == x2
     | (Invalid(text1), Invalid(text2)) => text1 == text2
@@ -368,7 +369,7 @@ module rec DHExp: {
       ClosureEnvironment.id_equal(sigma1, sigma2) && fast_equal(d1, d2)
     | (EmptyHole, _)
     | (MultiHole(_), _)
-    | (NonEmptyHole(_), _)
+    | (StaticErrorHole(_), _)
     | (FreeVar(_), _)
     | (Invalid(_), _)
     | (Closure(_), _) => false

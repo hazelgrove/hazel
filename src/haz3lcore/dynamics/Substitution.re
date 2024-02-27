@@ -95,9 +95,9 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
     Match(c, ds, rules) |> rewrap;
   | EmptyHole => EmptyHole |> rewrap
   | MultiHole(ds) => MultiHole(List.map(subst_var(d1, x), ds)) |> rewrap
-  | NonEmptyHole(reason, u, i, d3) =>
+  | StaticErrorHole(u, d3) =>
     let d3' = subst_var(d1, x, d3);
-    NonEmptyHole(reason, u, i, d3') |> rewrap;
+    StaticErrorHole(u, d3') |> rewrap;
   | Cast(d, ty1, ty2) =>
     let d' = subst_var(d1, x, d);
     Cast(d', ty1, ty2) |> rewrap;
