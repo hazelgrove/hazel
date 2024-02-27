@@ -75,10 +75,10 @@ let go_z =
       let z = Project.go(p, z);
       //TODO(andrew): clean up hacky movement
       switch (Move.to_start(z)) {
-      | None => Error(Action.Failure.Cant_move)
+      | None => Ok(z)
       | Some(z) =>
         switch (Move.jump_to_id(z, id)) {
-        | None => Error(Action.Failure.Cant_move)
+        | None => Ok(z)
         | Some(z) => Ok(z)
         }
       };

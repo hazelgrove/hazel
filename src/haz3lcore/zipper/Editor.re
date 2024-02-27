@@ -23,7 +23,12 @@ module Meta = {
     /*NOTE(andrew): consider using segment' for view_term (but terms problematic) */
     let (view_term, terms) = MakeTerm.go(segment);
     let term_ranges = TermRanges.mk(segment);
-    let measured = Measured.of_segment(segment);
+    let measured =
+      Projector.fake_measured(
+        z.projectors,
+        Measured.of_segment(segment),
+        TermRanges.mk(segment') //TODO(andrew): fix perf
+      );
     {
       col_target: 0,
       touched: Touched.empty,
@@ -72,11 +77,19 @@ module Meta = {
     let is_edit = Action.is_edit(a);
     let segment' = is_edit ? Zipper.unselect_and_zip(z) : meta.segment;
     let segment = Projector.of_segment(z.projectors, segment');
-    print_endline("projected segment:");
-    segment |> Segment.show |> print_endline;
+    //print_endline("projected segment:");
+    //segment |> Segment.show |> print_endline;
+
     let measured =
       is_edit
-        ? Measured.of_segment(~touched, ~old=measured, segment) : measured;
+        ? Projector.fake_measured(
+            z.projectors,
+            Measured.of_segment(~touched, ~old=measured, segment),
+            //TODO(andrew): needs to be nonprojected segment; fix perf!!
+            TermRanges.mk(segment'),
+          )
+        : measured;
+    let term_ranges = is_edit ? TermRanges.mk(segment) : meta.term_ranges;
     let col_target =
       switch (a) {
       | Move(Local(Up | Down))
@@ -87,12 +100,12 @@ module Meta = {
         //let x = Id.Map.find(i, measured.tiles);
         | None => print_endline("no indicated_id")
         };
+        print_endline("Editor.next.caret_point");
         Zipper.caret_point(measured, z).col;
       };
     let (view_term, terms) =
       //NOTE(andrew): could use unprojected version here, might be dangerous
       is_edit ? MakeTerm.go(segment) : (meta.view_term, meta.terms);
-    let term_ranges = is_edit ? TermRanges.mk(segment) : meta.term_ranges;
     {
       col_target,
       touched,

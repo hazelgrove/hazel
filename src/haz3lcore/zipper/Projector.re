@@ -33,8 +33,6 @@ type t = p;
 
 let rep_id = (seg, r) => r |> Aba.first_a |> List.nth(seg) |> Piece.id;
 
-let id_at = (seg: Segment.t, skel: Skel.t) => rep_id(seg, Skel.root(skel));
-
 let rec left_idx = (skel: Skel.t): int => {
   switch (skel) {
   | Op(r)
@@ -58,9 +56,15 @@ let get_extreme_idxs = (skel: Skel.t): (int, int) => (
   right_idx(skel),
 );
 
+type projector_range = {
+  id: Id.t,
+  start: int,
+  last: int,
+};
+
 let get_range = (seg: Segment.t, ps: Map.t): option((Id.t, (int, int))) => {
   let rec go = (skel: Skel.t) => {
-    let id = id_at(seg, skel);
+    let id = rep_id(seg, Skel.root(skel));
     switch (Id.Map.find_opt(id, ps)) {
     | Some(_) =>
       let (l, r) = get_extreme_idxs(skel);
@@ -191,10 +195,43 @@ let proj_info_rev = (term_ranges, id: Id.t, t: t, acc: start_map) => {
     acc;
   };
 };
+
 let mk_start_map = (projectors: Map.t, term_ranges: TermRanges.t): start_map =>
   Map.fold(proj_info(term_ranges), projectors, Id.Map.empty);
+
 let mk_last_map = (projectors: Map.t, term_ranges: TermRanges.t): start_map =>
   Map.fold(proj_info_rev(term_ranges), projectors, Id.Map.empty);
+
+let fake_measured =
+    (p: Map.t, measured: Measured.t, term_ranges: TermRanges.t): Measured.t =>
+  Map.fold(
+    (id, _p: t, measured: Measured.t) => {
+      switch (
+        Measured.find_by_id(id, measured),
+        Id.Map.find_opt(id, term_ranges),
+      ) {
+      | (Some(m), Some((p_start, p_last))) =>
+        let p_start = Piece.Tile(placeholder_tile("  ", Piece.id(p_start)));
+        let p_last = Piece.Tile(placeholder_tile("  ", Piece.id(p_last)));
+        let measured = Measured.add_p(p_start, m, measured);
+        let measured = Measured.add_p(p_last, m, measured);
+        print_endline("fake_measured: added placeholder tiles:");
+        print_endline("root_id:" ++ Id.to_string(id));
+        print_endline("start_id:" ++ Id.to_string(Piece.id(p_start)));
+        print_endline("last_id:" ++ Id.to_string(Piece.id(p_last)));
+        measured;
+      | (Some(_), None) =>
+        print_endline("fake_measured: no term range for projector");
+        measured;
+      | _ =>
+        print_endline("fake_measured: no measurement for projector");
+        measured;
+      }
+    },
+    p,
+    measured,
+  );
+
 /*
  projector map has ids of projectors
  can use infomap to get ancestors of projectors
@@ -293,6 +330,53 @@ let mk_last_map = (projectors: Map.t, term_ranges: TermRanges.t): start_map =>
    a subcell. if so, we (phase i) skip over it or (phase ii) move into it, ie set caret
    position to Subcell(Id.t,og_caret_pos)
 
+  2024-02-26
+  want to add some entries to Measured
+  right now the placeholder approach is that a monotoken is introduced
+  with the same id as the projector root term. this seems to work well
+  in the case where the projector root tile is convex, as this means that
+  the delims on the left and right of the projected segment are shards of
+  the same tile. but actually even this creates some issues actually,
+  see the FuCkNASTY hackzz in Measured.
+
+  in general we are concerned with caret positions to the left and right
+  of the projected segment. caret_point/base_point is excepting there
+  because they are looking for ids not found in measured, in the case
+  of infix operators on both sides so they can't currently be folded.
+
+  not sure if its a good idea, but one approach is to make sure that
+  the ids in Measured include the left and right delims of the projected
+  segment instead of the root id.
+
+  but we probably dont want to add multiple tiles to the projection zipper.
+  but maybe we could add ids after the fact, copying some measurements
+  by querying the measurements of the placeholder tile.
+
+  collapsed segments:
+
+  [1]: root is 1, L is 1, R is 1
+  [(1)]: root is [(,)], L is [(], R is [)]
+  [1+2] : root is +, L is 1, R is 2
+  [let x = 1 in 4] root is [let,=,in], L is [let], R is 4
+  (mythical postfix operator:)
+  [5!] root is [,], L is 5, L is [!]
+
+  ideally the placeholder tile should correspond to the left and right
+  delims of the projected segment so as to make measured accesses
+  seamless. so what if:
+  placeholder tiles uses two shards, one for the left delim and
+  one for the right delim
+  then after we run Measured we get the placeholder measurement,
+  and create (up to) two new entries in the Measured map, one for
+  the left delim and one for the right delim,
+
+  NOTE: currently the FuCkNASTY occurs on the right delim
+  of a collapsed "(1+2)" segment, but not a "1" segment
+
+  can fold [fun, ->], but crash (base_point find_p) if we try
+  to move right when on left side of collapse
+
+  can't fold "1+2" from any side (crash)
 
 
  */

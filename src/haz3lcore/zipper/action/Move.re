@@ -91,7 +91,10 @@ let neighbor_movability =
 };
 
 module Make = (M: Editor.Meta.S) => {
-  let caret_point = Zipper.caret_point(M.measured);
+  let caret_point = t => {
+    print_endline("Move.caret_point");
+    Zipper.caret_point(M.measured, t);
+  };
 
   let pop_out = z => Some(z |> Zipper.set_caret(Outer));
   let pop_move = (d, z) => z |> Zipper.set_caret(Outer) |> Zipper.move(d);
@@ -132,18 +135,15 @@ module Make = (M: Editor.Meta.S) => {
        (select an open parens to left of a multichar token and press left) */
     | _ when z.selection.content != [] => pop_move(d, z)
     | (Left, Outer, (Projected(last_id), _)) =>
-      print_endline("Left Projected");
-      z |> Zipper.show |> print_endline;
-      do_until_sib(
-        ~move_first=false,
-        z => Zipper.move(Left, z),
-        z =>
-          switch (z.relatives.siblings) {
-          | ([_, ..._] as ls, _) => Piece.id(ListUtil.last(ls)) == last_id
-          | _ => false
-          },
-        z,
-      );
+      //print_endline("Left Projected");
+      //z |> Zipper.show |> print_endline;
+      //TODO: infinite loop stopping condition?
+      let left_of_proj = z =>
+        switch (z.relatives.siblings) {
+        | ([_, ..._] as ls, _) => Piece.id(ListUtil.last(ls)) == last_id
+        | _ => false
+        };
+      do_until_sib(~move_first=false, Zipper.move(Left), left_of_proj, z);
     | (Left, Outer, (CanEnter(dlm, c_max), _)) =>
       inner_end(d, dlm, c_max, z)
     | (Left, Outer, _) => Zipper.move(d, z)
@@ -151,39 +151,15 @@ module Make = (M: Editor.Meta.S) => {
     | (Left, Inner(_), _) =>
       Some(Zipper.update_caret(Zipper.Caret.decrement, z))
     | (Right, Outer, (_, Projected(last_id))) =>
-      print_endline("Right Projected");
-      z |> Zipper.show |> print_endline;
-      // let z = Zipper.set_caret(Outer, z);
-      do_until_sib(
-        ~move_first=false,
-        z => Zipper.move(Right, z),
-        z =>
-          switch (z.relatives.siblings) {
-          | (_, [r, ..._]) => Piece.id(r) == last_id
-          // | ([_, ..._] as ls, _) =>
-          //   Piece.id(List.hd(List.rev(ls))) == last_id
-          | _ => false
-          },
-        z,
-      )
-      |> Option.map(z => {
-           print_endline("Right Projected Done");
-           z |> Zipper.show |> print_endline;
-           z;
-         });
-    // |> OptUtil.and_then(z =>
-    //      do_until(
-    //        z => Zipper.move(Right, z),
-    //        piece => Piece.id(piece) != last_id,
-    //        z,
-    //      )
-    //    )
-    // |> Option.map(z => {
-    //      print_endline("Right Projected Done");
-    //      z |> Zipper.show |> print_endline;
-    //      z;
-    //    });
-
+      //print_endline("Right Projected");
+      //z |> Zipper.show |> print_endline;
+      //TODO: infinite loop stopping condition?
+      let right_of_proj = z =>
+        switch (z.relatives.siblings) {
+        | (_, [r, ..._]) => Piece.id(r) == last_id
+        | _ => false
+        };
+      do_until_sib(~move_first=false, Zipper.move(Right), right_of_proj, z);
     | (Right, Outer, (_, CanEnter(d_init, _))) => inner_start(d_init, z)
     | (Right, Outer, _) => Zipper.move(d, z)
     | (Right, Inner(_, c), (_, CanEnter(_, c_max))) when c == c_max =>
