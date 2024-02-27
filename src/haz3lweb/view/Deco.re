@@ -19,6 +19,7 @@ module Deco =
   let tile = id => Id.Map.find(id, M.tiles);
 
   let caret = (z: Zipper.t): list(Node.t) => {
+    print_endline("Deco.caret_point");
     let origin = Zipper.caret_point(M.map, z);
     let shape = Zipper.caret_direction(z);
     let side =
@@ -223,13 +224,16 @@ module Deco =
     };
   };
 
-  let backpack = (z: Zipper.t): list(Node.t) => [
-    BackpackView.view(
-      ~font_metrics,
-      ~origin=Zipper.caret_point(M.map, z),
-      z,
-    ),
-  ];
+  let backpack = (z: Zipper.t): list(Node.t) => {
+    print_endline("Deco.backpack.caret_point");
+    [
+      BackpackView.view(
+        ~font_metrics,
+        ~origin=Zipper.caret_point(M.map, z),
+        z,
+      ),
+    ];
+  };
 
   let targets' = (backpack, seg) => {
     M.show_backpack_targets && Backpack.restricted(backpack)
@@ -296,7 +300,7 @@ module Deco =
   let err_holes = (_z: Zipper.t) =>
     List.map(term_highlight(~clss=["err-hole"]), M.error_ids);
 
-  let get = (id, projectors) =>
+  let get_proj_measure = (id, projectors) =>
     switch (Projector.Map.find(id, projectors)) {
     | Some(p) =>
       switch (Measured.find_by_id(id, M.map)) {
@@ -308,10 +312,13 @@ module Deco =
 
   let projectors = (z: Zipper.t) =>
     List.filter_map(
-      ((id, p: Projector.t)) =>
-        switch (p, Measured.find_by_id(id, M.map)) {
-        | (Fold, Some(measurement)) =>
-          Some(FoldView.base(~font_metrics, measurement))
+      ((id, _p)) =>
+        switch (get_proj_measure(id, z.projectors)) {
+        | Some((p, measurement)) =>
+          switch (p) {
+          | Fold => Some(FoldView.base(~font_metrics, measurement))
+          | Normal => None
+          }
         | _ => None
         },
       Id.Map.bindings(z.projectors),
@@ -320,12 +327,11 @@ module Deco =
   let indication_deco = (z: Zipper.t) =>
     switch (Indicated.index(z)) {
     | Some(id) =>
-      switch (Projector.Map.find(id, z.projectors)) {
-      | Some(p) =>
-        switch (p, Measured.find_by_id(id, M.map)) {
-        | (Fold, Some(measurement)) =>
-          FoldView.indicated(~font_metrics, measurement)
-        | _ => indicated_piece_deco(z)
+      switch (get_proj_measure(id, z.projectors)) {
+      | Some((p, measurement)) =>
+        switch (p) {
+        | Fold => FoldView.indicated(~font_metrics, measurement)
+        | Normal => indicated_piece_deco(z)
         }
       | None => indicated_piece_deco(z)
       }
@@ -334,6 +340,7 @@ module Deco =
 
   let all = (zipper, sel_seg) =>
     List.concat([
+      //[Node.div(~attr=Attr.id("caret"), [])],
       caret(zipper),
       indication_deco(zipper),
       selected_pieces(zipper),
