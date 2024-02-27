@@ -55,7 +55,7 @@ jobs:
         with:
           name: Test Report
           path: junit_tests*.xml
-          reporter: jest-junit
+          reporter: java-junit
           working-directory: ./source
       - name: Checkout the website build artifacts repo
         uses: actions/checkout@v2
