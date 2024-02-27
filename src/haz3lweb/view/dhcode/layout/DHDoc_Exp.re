@@ -46,7 +46,6 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   let precedence' = precedence(~show_casts);
   switch (DHExp.term_of(d)) {
   | Var(_)
-  | FreeVar(_)
   | Invalid(_)
   | Bool(_)
   | Int(_)
@@ -58,7 +57,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | EmptyHole
   | Constructor(_)
   | FailedCast(_)
-  | InvalidOperation(_)
+  | DynamicErrorHole(_)
   | If(_)
   | Closure(_)
   | BuiltinFun(_)
@@ -285,11 +284,7 @@ let mk =
       | MultiHole(ds) => ds |> List.map(go') |> Doc.hcats
       | StaticErrorHole(u, d') =>
         go'(d') |> annot(DHAnnot.NonEmptyHole(TypeInconsistent, (u, 0)))
-      | FreeVar(u, i, x) =>
-        text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
       | Invalid(t) => DHDoc_common.mk_InvalidText(t)
-      | Match(Inconsistent(u, i), dscrut, drs) =>
-        go_case(dscrut, drs) |> annot(DHAnnot.InconsistentBranches((u, i)))
       | Var(x) when List.mem(x, recursive_calls) => text(x)
       | Var(x) when settings.show_lookup_steps => text(x)
       | Var(x) =>
@@ -316,7 +311,7 @@ let mk =
       | Seq(d1, d2) =>
         let (doc1, doc2) = (go'(d1), go'(d2));
         DHDoc_common.mk_Sequence(doc1, doc2);
-      | ListLit(_, _, _, d_list) =>
+      | ListLit(_, d_list) =>
         let ol = d_list |> List.map(d => go'(d));
         DHDoc_common.mk_ListLit(ol);
       | Ap(Forward, d1, d2) =>
@@ -368,7 +363,7 @@ let mk =
         hseps([doc1, mk_bin_bool_op(op), doc2]);
       | Tuple([]) => DHDoc_common.Delim.triv
       | Tuple(ds) => DHDoc_common.mk_Tuple(ds |> List.map(d => go'(d)))
-      | Match(Consistent, dscrut, drs) => go_case(dscrut, drs)
+      | Match(dscrut, drs) => go_case(dscrut, drs)
       | Cast(d, _, ty) when settings.show_casts =>
         // TODO[Matt]: Roll multiple casts into one cast
         let doc = go'(d);
@@ -433,14 +428,14 @@ let mk =
           hcats([d_doc, cast_decoration]);
         | _ => failwith("unexpected FailedCast without inner cast")
         }
-      | InvalidOperation(d, err) =>
+      | DynamicErrorHole(d, err) =>
         let d_doc = go'(d);
         let decoration =
           Doc.text(InvalidOperationError.err_msg(err))
           |> annot(DHAnnot.OperationError(err));
         hcats([d_doc, decoration]);
 
-      | If(_, c, d1, d2) =>
+      | If(c, d1, d2) =>
         let c_doc = go_formattable(c);
         let d1_doc = go_formattable(d1);
         let d2_doc = go_formattable(d2);

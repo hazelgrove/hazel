@@ -1,33 +1,20 @@
 open Sexplib.Std;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type consistency =
-  | Consistent
-  | Inconsistent(MetaVar.t, HoleInstanceId.t);
-
 module rec DHExp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    // TODO: Add IDs
-    /* TODO: ADD:
-        UnOp
-        TyAlias [and ignore]
-        Parens
-       */
-    // TODO: Work out how to reconcile the invalids
     | Invalid(string)
     | EmptyHole
     | MultiHole(list(DHExp.t))
-    | StaticErrorHole(Id.t, t)
-    | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t) // TODO: Remove, use info_map      /// --------------------------------------------------------------------------------------------------------
-    | InvalidOperation(t, InvalidOperationError.t) // Warning will robinson
-    | FailedCast(t, Typ.t, Typ.t) // TODO: Add to TermBase
-    | Closure([@show.opaque] ClosureEnvironment.t, t) // > UEXP
-    | Filter(DHFilter.t, t) // DONE [UEXP TO BE CHANGED]
-    | Var(Var.t) // DONE [ALREADY]
-    | Seq(t, t) // DONE [ALREADY]
-    | Let(DHPat.t, t, t) // DONE [ALREADY]
-    | FixF(DHPat.t, Typ.t, t) // TODO: surface fix
+    | StaticErrorHole(Id.t, t) // TODO: Add to TermBase
+    | DynamicErrorHole(t, InvalidOperationError.t) // TODO: Add to TermBase or remove from here
+    | FailedCast(t, Typ.t, Typ.t) // TODO: Add to TermBase or remove from here
+    | Bool(bool)
+    | Int(int)
+    | Float(float)
+    | String(string)
+    | ListLit(Typ.t, list(t))
+    | Constructor(string)
     | Fun(
         DHPat.t,
         Typ.t,
@@ -35,24 +22,27 @@ module rec DHExp: {
         [@show.opaque] option(ClosureEnvironment.t),
         option(Var.t),
       ) // TODO: Use info_map for Typ.t
-    | Ap(TermBase.UExp.ap_direction, t, t) // TODO: Add reverse application
+    | Tuple(list(t))
+    | Var(Var.t)
+    | Let(DHPat.t, t, t)
+    | FixF(DHPat.t, Typ.t, t) // TODO: Remove type
+    // TODO: Add TyAlias
+    | Ap(TermBase.UExp.ap_direction, t, t)
+    | If(t, t, t)
+    | Seq(t, t)
+    | Test(KeywordID.t, t) // TODO: ! ID
+    | Filter(DHFilter.t, t) // DONE [UEXP TO BE CHANGED]
+    | Closure([@show.opaque] ClosureEnvironment.t, t) // > UEXP
+    // TODO: Add Parens
+    | Cons(t, t)
+    | ListConcat(t, t)
     | ApBuiltin(string, t) // DONE [TO ADD TO UEXP] TODO: Add a loooong comment here
     | BuiltinFun(string) // DONE [TO ADD TO UEXP]
-    | Test(KeywordID.t, t) // TODO: ! ID
-    | Bool(bool) // DONE
-    | Int(int) // DONE
-    | Float(float) // DONE
-    | String(string) // DONE
+    // TODO: Add UnOp
     | BinOp(TermBase.UExp.op_bin, t, t) // DONE
-    | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t)) // TODO: afaict the first three arguments here are never used? 3rd one might be info_map
-    | Cons(t, t) // DONE [ALREADY]
-    | ListConcat(t, t) // DONE [ALREADY]
-    | Tuple(list(t)) // DONE [ALREADY]
-    | Constructor(string) // DONE [ALREADY]
-    | Match(consistency, t, list((DHPat.t, t)))
+    | Match(t, list((DHPat.t, t)))
     | Cast(t, Typ.t, Typ.t) // TODO: Add to uexp or remove
-    | If(consistency, t, t, t)
-  and t; // TODO: CONSISTENCY? from statics
+  and t;
 
   let rep_id: t => Id.t;
   let term_of: t => term;
@@ -73,46 +63,45 @@ module rec DHExp: {
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    /* Hole types */
     | Invalid(string)
     | EmptyHole
     | MultiHole(list(DHExp.t))
-    | StaticErrorHole(Id.t, t)
-    | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t)
-    | InvalidOperation(t, InvalidOperationError.t)
-    | FailedCast(t, Typ.t, Typ.t)
-    /* Generalized closures */
-    | Closure(ClosureEnvironment.t, t)
-    | Filter(DHFilter.t, t)
-    /* Other expressions forms */
-    | Var(Var.t)
-    | Seq(t, t)
-    | Let(DHPat.t, t, t)
-    | FixF(DHPat.t, Typ.t, t)
+    | StaticErrorHole(Id.t, t) // TODO: Add to TermBase
+    | DynamicErrorHole(t, InvalidOperationError.t) // TODO: Add to TermBase or remove from here
+    | FailedCast(t, Typ.t, Typ.t) // TODO: Add to TermBase or remove from here
+    | Bool(bool)
+    | Int(int)
+    | Float(float)
+    | String(string)
+    | ListLit(Typ.t, list(t))
+    | Constructor(string)
     | Fun(
         DHPat.t,
         Typ.t,
         t,
         [@show.opaque] option(ClosureEnvironment.t),
         option(Var.t),
-      )
+      ) // TODO: Use info_map for Typ.t
+    | Tuple(list(t))
+    | Var(Var.t)
+    | Let(DHPat.t, t, t)
+    | FixF(DHPat.t, Typ.t, t) // TODO: Remove type
+    // TODO: Add TyAlias
     | Ap(TermBase.UExp.ap_direction, t, t)
-    | ApBuiltin(string, t)
-    | BuiltinFun(string)
-    | Test(KeywordID.t, t)
-    | Bool(bool)
-    | Int(int)
-    | Float(float)
-    | String(string)
-    | BinOp(TermBase.UExp.op_bin, t, t)
-    | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t))
+    | If(t, t, t)
+    | Seq(t, t)
+    | Test(KeywordID.t, t) // TODO: ! ID
+    | Filter(DHFilter.t, t) // DONE [UEXP TO BE CHANGED]
+    | Closure([@show.opaque] ClosureEnvironment.t, t) // > UEXP
+    // TODO: Add Parens
     | Cons(t, t)
     | ListConcat(t, t)
-    | Tuple(list(t))
-    | Constructor(string)
-    | Match(consistency, t, list((DHPat.t, t)))
-    | Cast(t, Typ.t, Typ.t)
-    | If(consistency, t, t, t)
+    | ApBuiltin(string, t) // DONE [TO ADD TO UEXP] TODO: Add a loooong comment here
+    | BuiltinFun(string) // DONE [TO ADD TO UEXP]
+    // TODO: Add UnOp
+    | BinOp(TermBase.UExp.op_bin, t, t) // DONE
+    | Match(t, list((DHPat.t, t)))
+    | Cast(t, Typ.t, Typ.t) // TODO: Add to uexp or remove
   and t = {
     /* invariant: nonempty, TODO: what happens to later ids in DHExp */
     ids: list(Id.t),
@@ -168,7 +157,6 @@ module rec DHExp: {
     (
       switch (term) {
       | EmptyHole
-      | FreeVar(_)
       | Invalid(_)
       | Var(_)
       | BuiltinFun(_)
@@ -179,7 +167,7 @@ module rec DHExp: {
       | Constructor(_) => term
       | StaticErrorHole(static_id, d1) =>
         StaticErrorHole(static_id, repair_ids(d1))
-      | InvalidOperation(d1, x) => InvalidOperation(repair_ids(d1), x)
+      | DynamicErrorHole(d1, x) => DynamicErrorHole(repair_ids(d1), x)
       | FailedCast(d1, t1, t2) => FailedCast(repair_ids(d1), t1, t2)
       | Closure(env, d1) => Closure(env, repair_ids(d1))
       | Filter(flt, d1) => Filter(flt, repair_ids(d1))
@@ -191,21 +179,19 @@ module rec DHExp: {
       | ApBuiltin(s, d1) => ApBuiltin(s, repair_ids(d1))
       | Test(id, d1) => Test(id, repair_ids(d1))
       | BinOp(op, d1, d2) => BinOp(op, repair_ids(d1), repair_ids(d2))
-      | ListLit(mv, mvi, t, ds) =>
-        ListLit(mv, mvi, t, List.map(repair_ids, ds))
+      | ListLit(t, ds) => ListLit(t, List.map(repair_ids, ds))
       | Cons(d1, d2) => Cons(repair_ids(d1), repair_ids(d2))
       | ListConcat(d1, d2) => ListConcat(repair_ids(d1), repair_ids(d2))
       | Tuple(ds) => Tuple(List.map(repair_ids, ds))
       | MultiHole(ds) => MultiHole(List.map(repair_ids, ds))
-      | Match(c, d1, rls) =>
+      | Match(d1, rls) =>
         Match(
-          c,
           repair_ids(d1),
           List.map(((p, d)) => (p, repair_ids(d)), rls),
         )
       | Cast(d1, t1, t2) => Cast(repair_ids(d1), t1, t2)
-      | If(c, d1, d2, d3) =>
-        If(c, repair_ids(d1), repair_ids(d2), repair_ids(d3))
+      | If(d1, d2, d3) =>
+        If(repair_ids(d1), repair_ids(d2), repair_ids(d3))
       }
     )
     |> rewrap;
@@ -224,8 +210,7 @@ module rec DHExp: {
     | Cons(d1, d2) => Cons(strip_casts(d1), strip_casts(d2)) |> rewrap
     | ListConcat(d1, d2) =>
       ListConcat(strip_casts(d1), strip_casts(d2)) |> rewrap
-    | ListLit(a, b, c, ds) =>
-      ListLit(a, b, c, List.map(strip_casts, ds)) |> rewrap
+    | ListLit(t, ds) => ListLit(t, List.map(strip_casts, ds)) |> rewrap
     | MultiHole(ds) => MultiHole(List.map(strip_casts, ds)) |> rewrap
     | StaticErrorHole(_, d) => strip_casts(d)
     | Seq(a, b) => Seq(strip_casts(a), strip_casts(b)) |> rewrap
@@ -239,15 +224,13 @@ module rec DHExp: {
     | ApBuiltin(fn, args) => ApBuiltin(fn, strip_casts(args)) |> rewrap
     | BuiltinFun(fn) => BuiltinFun(fn) |> rewrap
     | BinOp(a, b, c) => BinOp(a, strip_casts(b), strip_casts(c)) |> rewrap
-    | Match(c, a, rules) =>
+    | Match(a, rules) =>
       Match(
-        c,
         strip_casts(a),
         List.map(((k, v)) => (k, strip_casts(v)), rules),
       )
       |> rewrap
     | EmptyHole as d
-    | FreeVar(_) as d
     | Invalid(_) as d
     | Var(_) as d
     | Bool(_) as d
@@ -255,10 +238,9 @@ module rec DHExp: {
     | Float(_) as d
     | String(_) as d
     | Constructor(_) as d
-    | InvalidOperation(_) as d => d |> rewrap
-    | If(consistent, c, d1, d2) =>
-      If(consistent, strip_casts(c), strip_casts(d1), strip_casts(d2))
-      |> rewrap
+    | DynamicErrorHole(_) as d => d |> rewrap
+    | If(c, d1, d2) =>
+      If(strip_casts(c), strip_casts(d1), strip_casts(d2)) |> rewrap
     };
   };
 
@@ -306,30 +288,27 @@ module rec DHExp: {
       && List.for_all2(fast_equal, ds1, ds2)
     | (ApBuiltin(f1, d1), ApBuiltin(f2, d2)) => f1 == f2 && d1 == d2
     | (BuiltinFun(f1), BuiltinFun(f2)) => f1 == f2
-    | (ListLit(_, _, _, ds1), ListLit(_, _, _, ds2)) =>
-      List.length(ds1) == List.length(ds2)
+    | (ListLit(t1, ds1), ListLit(t2, ds2)) =>
+      t1 == t2
+      && List.length(ds1) == List.length(ds2)
       && List.for_all2(fast_equal, ds1, ds2)
     | (BinOp(op1, d11, d21), BinOp(op2, d12, d22)) =>
       op1 == op2 && fast_equal(d11, d12) && fast_equal(d21, d22)
     | (Cast(d1, ty11, ty21), Cast(d2, ty12, ty22))
     | (FailedCast(d1, ty11, ty21), FailedCast(d2, ty12, ty22)) =>
       fast_equal(d1, d2) && ty11 == ty12 && ty21 == ty22
-    | (InvalidOperation(d1, reason1), InvalidOperation(d2, reason2)) =>
+    | (DynamicErrorHole(d1, reason1), DynamicErrorHole(d2, reason2)) =>
       fast_equal(d1, d2) && reason1 == reason2
-    | (Match(c1, s1, rs1), Match(c2, s2, rs2)) =>
-      c1 == c2
-      && fast_equal(s1, s2)
+    | (Match(s1, rs1), Match(s2, rs2)) =>
+      fast_equal(s1, s2)
       && List.length(rs2) == List.length(rs2)
       && List.for_all2(
            ((k1, v1), (k2, v2)) => k1 == k2 && fast_equal(v1, v2),
            rs1,
            rs2,
          )
-    | (If(c1, d11, d12, d13), If(c2, d21, d22, d23)) =>
-      c1 == c2
-      && fast_equal(d11, d21)
-      && fast_equal(d12, d22)
-      && fast_equal(d13, d23)
+    | (If(d11, d12, d13), If(d21, d22, d23)) =>
+      fast_equal(d11, d21) && fast_equal(d12, d22) && fast_equal(d13, d23)
     /* We can group these all into a `_ => false` clause; separating
        these so that we get exhaustiveness checking. */
     | (Seq(_), _)
@@ -348,7 +327,7 @@ module rec DHExp: {
     | (BinOp(_), _)
     | (Cast(_), _)
     | (FailedCast(_), _)
-    | (InvalidOperation(_), _)
+    | (DynamicErrorHole(_), _)
     | (If(_), _)
     | (Match(_), _) => false
 
@@ -362,15 +341,12 @@ module rec DHExp: {
       && List.for_all2(fast_equal, ds1, ds2)
     | (StaticErrorHole(sid1, d1), StaticErrorHole(sid2, d2)) =>
       sid1 == sid2 && d1 == d2
-    | (FreeVar(u1, i1, x1), FreeVar(u2, i2, x2)) =>
-      u1 == u2 && i1 == i2 && x1 == x2
     | (Invalid(text1), Invalid(text2)) => text1 == text2
     | (Closure(sigma1, d1), Closure(sigma2, d2)) =>
       ClosureEnvironment.id_equal(sigma1, sigma2) && fast_equal(d1, d2)
     | (EmptyHole, _)
     | (MultiHole(_), _)
     | (StaticErrorHole(_), _)
-    | (FreeVar(_), _)
     | (Invalid(_), _)
     | (Closure(_), _) => false
     };

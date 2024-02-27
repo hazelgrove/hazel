@@ -14,21 +14,15 @@ type term =
   | FixF(DHPat.t, Typ.t, t)
   | Ap1(TermBase.UExp.ap_direction, t, DHExp.t)
   | Ap2(TermBase.UExp.ap_direction, DHExp.t, t)
-  | If1(consistency, t, DHExp.t, DHExp.t)
-  | If2(consistency, DHExp.t, t, DHExp.t)
-  | If3(consistency, DHExp.t, DHExp.t, t)
+  | If1(t, DHExp.t, DHExp.t)
+  | If2(DHExp.t, t, DHExp.t)
+  | If3(DHExp.t, DHExp.t, t)
   | BinOp1(TermBase.UExp.op_bin, t, DHExp.t)
   | BinOp2(TermBase.UExp.op_bin, DHExp.t, t)
   | Tuple(t, (list(DHExp.t), list(DHExp.t)))
   | ApBuiltin(string, t)
   | Test(KeywordID.t, t)
-  | ListLit(
-      MetaVar.t,
-      MetaVarInst.t,
-      Typ.t,
-      t,
-      (list(DHExp.t), list(DHExp.t)),
-    )
+  | ListLit(Typ.t, t, (list(DHExp.t), list(DHExp.t)))
   | MultiHole(t, (list(DHExp.t), list(DHExp.t)))
   | Cons1(t, DHExp.t)
   | Cons2(DHExp.t, t)
@@ -37,10 +31,9 @@ type term =
   | StaticErrorHole(Id.t, t)
   | Cast(t, Typ.t, Typ.t)
   | FailedCast(t, Typ.t, Typ.t)
-  | InvalidOperation(t, InvalidOperationError.t)
-  | MatchScrut(DH.consistency, t, list((DHPat.t, DHExp.t)))
+  | DynamicErrorHole(t, InvalidOperationError.t)
+  | MatchScrut(t, list((DHPat.t, DHExp.t)))
   | MatchRule(
-      DH.consistency,
       DHExp.t,
       DHPat.t,
       t,
@@ -81,15 +74,15 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
       | ApBuiltin(s, ctx) =>
         let d' = compose(ctx, d);
         ApBuiltin(s, d') |> wrap;
-      | If1(c, ctx, d2, d3) =>
+      | If1(ctx, d2, d3) =>
         let d' = compose(ctx, d);
-        If(c, d', d2, d3) |> wrap;
-      | If2(c, d1, ctx, d3) =>
+        If(d', d2, d3) |> wrap;
+      | If2(d1, ctx, d3) =>
         let d' = compose(ctx, d);
-        If(c, d1, d', d3) |> wrap;
-      | If3(c, d1, d2, ctx) =>
+        If(d1, d', d3) |> wrap;
+      | If3(d1, d2, ctx) =>
         let d' = compose(ctx, d);
-        If(c, d1, d2, d') |> wrap;
+        If(d1, d2, d') |> wrap;
       | Test(lit, ctx) =>
         let d1 = compose(ctx, d);
         Test(lit, d1) |> wrap;
@@ -114,9 +107,9 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
       | Tuple(ctx, (ld, rd)) =>
         let d = compose(ctx, d);
         Tuple(ListUtil.rev_concat(ld, [d, ...rd])) |> wrap;
-      | ListLit(m, i, t, ctx, (ld, rd)) =>
+      | ListLit(t, ctx, (ld, rd)) =>
         let d = compose(ctx, d);
-        ListLit(m, i, t, ListUtil.rev_concat(ld, [d, ...rd])) |> wrap;
+        ListLit(t, ListUtil.rev_concat(ld, [d, ...rd])) |> wrap;
       | MultiHole(ctx, (ld, rd)) =>
         let d = compose(ctx, d);
         MultiHole(ListUtil.rev_concat(ld, [d, ...rd])) |> wrap;
@@ -138,18 +131,18 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
       | FailedCast(ctx, ty1, ty2) =>
         let d = compose(ctx, d);
         FailedCast(d, ty1, ty2) |> wrap;
-      | InvalidOperation(ctx, err) =>
+      | DynamicErrorHole(ctx, err) =>
         let d = compose(ctx, d);
-        InvalidOperation(d, err) |> wrap;
+        DynamicErrorHole(d, err) |> wrap;
       | StaticErrorHole(i, ctx) =>
         let d = compose(ctx, d);
         StaticErrorHole(i, d) |> wrap;
-      | MatchScrut(c, ctx, rules) =>
+      | MatchScrut(ctx, rules) =>
         let d = compose(ctx, d);
-        Match(c, d, rules) |> wrap;
-      | MatchRule(c, scr, p, ctx, (lr, rr)) =>
+        Match(d, rules) |> wrap;
+      | MatchRule(scr, p, ctx, (lr, rr)) =>
         let d = compose(ctx, d);
-        Match(c, scr, ListUtil.rev_concat(lr, [(p, d), ...rr])) |> wrap;
+        Match(scr, ListUtil.rev_concat(lr, [(p, d), ...rr])) |> wrap;
       }
     );
   };

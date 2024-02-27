@@ -84,10 +84,6 @@ let rec matches_exp =
     matches_pat(dp, fp) && dt == ft && matches_exp(env, d1, f1)
   | (FixF(_), _) => false
 
-  | (FreeVar(du, di, dx), FreeVar(fu, fi, fx)) =>
-    du == fu && di == fi && dx == fx
-  | (FreeVar(_), _) => false
-
   | (Let(dp, d1, d2), Let(fp, f1, f2)) =>
     matches_pat(dp, fp)
     && matches_exp(env, d1, f1)
@@ -99,9 +95,8 @@ let rec matches_exp =
     matches_exp(env, d1, f1) && matches_exp(env, d2, f2)
   | (Ap(_), _) => false
 
-  | (If(dc, d1, d2, d3), If(fc, f1, f2, f3)) =>
-    dc == fc
-    && matches_exp(env, d1, f1)
+  | (If(d1, d2, d3), If(f1, f2, f3)) =>
+    matches_exp(env, d1, f1)
     && matches_exp(env, d2, f2)
     && matches_exp(env, d3, f3)
   | (If(_), _) => false
@@ -118,7 +113,7 @@ let rec matches_exp =
     matches_exp(env, d1, f1) && matches_exp(env, d2, f2)
   | (Cons(_), _) => false
 
-  | (ListLit(_, _, dt, dv), ListLit(_, _, ft, fv)) =>
+  | (ListLit(dt, dv), ListLit(ft, fv)) =>
     dt == ft
     && List.fold_left2(
          (acc, d, f) => acc && matches_exp(env, d, f),
@@ -145,9 +140,8 @@ let rec matches_exp =
     matches_exp(env, d1, f1) && matches_exp(env, d2, f2)
   | (ListConcat(_), _) => false
 
-  | (Match(dc, dscrut, drule), Match(fc, fscrut, frule)) =>
-    dc == fc
-    && matches_exp(env, dscrut, fscrut)
+  | (Match(dscrut, drule), Match(fscrut, frule)) =>
+    matches_exp(env, dscrut, fscrut)
     && (
       switch (
         List.for_all2(
@@ -166,7 +160,7 @@ let rec matches_exp =
   | (MultiHole(_), _) => false
   | (StaticErrorHole(_), _) => false
   | (Invalid(_), _) => false
-  | (InvalidOperation(_), _) => false
+  | (DynamicErrorHole(_), _) => false
 
   | (ApBuiltin(dname, darg), ApBuiltin(fname, farg)) =>
     dname == fname && matches_exp(env, darg, farg)

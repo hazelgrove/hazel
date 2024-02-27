@@ -43,14 +43,13 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (_, EmptyHole) => IndetMatch
   | (_, StaticErrorHole(_)) => IndetMatch
   | (_, FailedCast(_)) => IndetMatch
-  | (_, InvalidOperation(_)) => IndetMatch
-  | (_, FreeVar(_)) => IndetMatch
+  | (_, DynamicErrorHole(_)) => IndetMatch
   | (_, Invalid(_)) => IndetMatch
   | (_, Let(_)) => IndetMatch
   | (_, FixF(_)) => DoesNotMatch
   | (_, Fun(_)) => DoesNotMatch
   | (_, BinOp(_)) => IndetMatch
-  | (_, Match(Consistent, _, _)) => IndetMatch
+  | (_, Match(_, _)) => IndetMatch
 
   /* Closure should match like underlying expression. */
   | (_, Closure(_, d'))
@@ -240,7 +239,6 @@ and matches_cast_Sum =
   | Cast(d', Sum(_) | Rec(_, Sum(_)), Unknown(_))
   | Cast(d', Unknown(_), Sum(_) | Rec(_, Sum(_))) =>
     matches_cast_Sum(ctr, dp, d', castmaps)
-  | FreeVar(_)
   | Invalid(_)
   | Let(_)
   | ApBuiltin(_)
@@ -250,7 +248,7 @@ and matches_cast_Sum =
   | StaticErrorHole(_)
   | FailedCast(_, _, _)
   | Test(_)
-  | InvalidOperation(_)
+  | DynamicErrorHole(_)
   | Match(_)
   | If(_)
   | BuiltinFun(_) => IndetMatch
@@ -327,7 +325,6 @@ and matches_cast_Tuple =
     );
   | Cast(_, _, _) => DoesNotMatch
   | Var(_) => DoesNotMatch
-  | FreeVar(_) => IndetMatch
   | Invalid(_) => IndetMatch
   | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
@@ -353,18 +350,18 @@ and matches_cast_Tuple =
   | MultiHole(_) => IndetMatch
   | StaticErrorHole(_) => IndetMatch
   | FailedCast(_, _, _) => IndetMatch
-  | InvalidOperation(_) => IndetMatch
+  | DynamicErrorHole(_) => IndetMatch
   | If(_) => IndetMatch
   }
 and matches_cast_Cons =
     (dp: DHPat.t, d: DHExp.t, elt_casts: list((Typ.t, Typ.t))): match_result =>
   switch (DHExp.term_of(d)) {
-  | ListLit(_, _, _, []) =>
+  | ListLit(_, []) =>
     switch (DHPat.term_of(dp)) {
     | ListLit([]) => Matches(Environment.empty)
     | _ => DoesNotMatch
     }
-  | ListLit(u, i, ty, [dhd, ...dtl] as ds) =>
+  | ListLit(ty, [dhd, ...dtl] as ds) =>
     switch (DHPat.term_of(dp)) {
     | Cons(dp1, dp2) =>
       switch (matches(dp1, DHExp.apply_casts(dhd, elt_casts))) {
@@ -379,7 +376,7 @@ and matches_cast_Cons =
             },
             elt_casts,
           );
-        let d2 = DHExp.ListLit(u, i, ty, dtl) |> DHExp.fresh;
+        let d2 = DHExp.ListLit(ty, dtl) |> DHExp.fresh;
         switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
         | DoesNotMatch => DoesNotMatch
         | IndetMatch => IndetMatch
@@ -461,7 +458,6 @@ and matches_cast_Cons =
     matches_cast_Cons(dp, d', [(Unknown(Internal), ty2), ...elt_casts])
   | Cast(_, _, _) => DoesNotMatch
   | Var(_) => DoesNotMatch
-  | FreeVar(_) => IndetMatch
   | Invalid(_) => IndetMatch
   | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
@@ -486,6 +482,6 @@ and matches_cast_Cons =
   | MultiHole(_) => IndetMatch
   | StaticErrorHole(_) => IndetMatch
   | FailedCast(_, _, _) => IndetMatch
-  | InvalidOperation(_) => IndetMatch
+  | DynamicErrorHole(_) => IndetMatch
   | If(_) => IndetMatch
   };

@@ -408,16 +408,12 @@ module Transition = (EV: EV_MODE) => {
     | BuiltinFun(_) =>
       let. _ = otherwise(env, d);
       Constructor;
-    | If(consistent, c, d1, d2) =>
-      let. _ = otherwise(env, c => If(consistent, c, d1, d2) |> rewrap)
+    | If(c, d1, d2) =>
+      let. _ = otherwise(env, c => If(c, d1, d2) |> rewrap)
       and. c' =
-        req_value(
-          req(state, env),
-          c => If1(consistent, c, d1, d2) |> wrap_ctx,
-          c,
-        );
-      switch (consistent, DHExp.term_of(c')) {
-      | (Consistent | Inconsistent(_), Bool(b)) =>
+        req_value(req(state, env), c => If1(c, d1, d2) |> wrap_ctx, c);
+      switch (DHExp.term_of(c')) {
+      | Bool(b) =>
         Step({
           apply: () => {
             b ? d1 : d2;
@@ -427,7 +423,7 @@ module Transition = (EV: EV_MODE) => {
           value: false,
         })
       // Use a seperate case for invalid conditionals. Makes extracting the bool from BoolLit (above) easier.
-      | (Consistent | Inconsistent(_), _) =>
+      | _ =>
         Step({
           apply: () => {
             raise(EvaluatorError.Exception(InvalidBoxedBoolLit(c')));
@@ -495,17 +491,15 @@ module Transition = (EV: EV_MODE) => {
               | Plus => Int(n1 + n2)
               | Minus => Int(n1 - n2)
               | Power when n2 < 0 =>
-                InvalidOperation(
-                  BinOp(Int(op), Int(n1) |> fresh, Int(n2) |> fresh)
-                  |> fresh,
+                DynamicErrorHole(
+                  BinOp(Int(op), d1', d2') |> rewrap,
                   NegativeExponent,
                 )
               | Power => Int(IntUtil.ipow(n1, n2))
               | Times => Int(n1 * n2)
               | Divide when n2 == 0 =>
-                InvalidOperation(
-                  BinOp(Int(op), Int(n1) |> fresh, Int(n2) |> fresh)
-                  |> fresh,
+                DynamicErrorHole(
+                  BinOp(Int(op), d1', d1') |> rewrap,
                   DivideByZero,
                 )
               | Divide => Int(n1 / n2)
@@ -617,8 +611,7 @@ module Transition = (EV: EV_MODE) => {
       Step({
         apply: () =>
           switch (term_of(d2')) {
-          | ListLit(u, i, ty, ds) =>
-            ListLit(u, i, ty, [d1', ...ds]) |> fresh
+          | ListLit(ty, ds) => ListLit(ty, [d1', ...ds]) |> fresh
           | _ => raise(EvaluatorError.Exception(InvalidBoxedListLit(d2')))
           },
         kind: ListCons,
@@ -642,8 +635,8 @@ module Transition = (EV: EV_MODE) => {
       Step({
         apply: () =>
           switch (term_of(d1'), term_of(d2')) {
-          | (ListLit(u1, i1, t1, ds1), ListLit(_, _, _, ds2)) =>
-            ListLit(u1, i1, t1, ds1 @ ds2) |> fresh
+          | (ListLit(t1, ds1), ListLit(_, ds2)) =>
+            ListLit(t1, ds1 @ ds2) |> fresh
           | (ListLit(_), _) =>
             raise(EvaluatorError.Exception(InvalidBoxedListLit(d2')))
           | (_, _) =>
@@ -652,21 +645,21 @@ module Transition = (EV: EV_MODE) => {
         kind: ListConcat,
         value: true,
       });
-    | ListLit(u, i, ty, ds) =>
-      let. _ = otherwise(env, ds => ListLit(u, i, ty, ds) |> rewrap)
+    | ListLit(t, ds) =>
+      let. _ = otherwise(env, ds => ListLit(t, ds) |> rewrap)
       and. _ =
         req_all_final(
           req(state, env),
-          (d1, ds) => ListLit(u, i, ty, d1, ds) |> wrap_ctx,
+          (d1, ds) => ListLit(t, d1, ds) |> wrap_ctx,
           ds,
         );
       Constructor;
-    | Match(Consistent, d1, rules) =>
-      let. _ = otherwise(env, d1 => Match(Consistent, d1, rules) |> rewrap)
+    | Match(d1, rules) =>
+      let. _ = otherwise(env, d1 => Match(d1, rules) |> rewrap)
       and. d1 =
         req_final(
           req(state, env),
-          d1 => MatchScrut(Consistent, d1, rules) |> wrap_ctx,
+          d1 => MatchScrut(d1, rules) |> wrap_ctx,
           d1,
         );
       let rec next_rule = (
@@ -688,9 +681,6 @@ module Transition = (EV: EV_MODE) => {
         })
       | None => Indet
       };
-    | Match(Inconsistent(_, _), _, _) =>
-      let. _ = otherwise(env, d);
-      Indet;
     | Closure(env', d) =>
       let. _ = otherwise(env, d => Closure(env', d) |> rewrap)
       and. d' =
@@ -715,9 +705,8 @@ module Transition = (EV: EV_MODE) => {
         );
       Indet;
     | EmptyHole
-    | FreeVar(_)
     | Invalid(_)
-    | InvalidOperation(_) =>
+    | DynamicErrorHole(_) =>
       let. _ = otherwise(env, d);
       Indet;
     | Cast(d, t1, t2) =>

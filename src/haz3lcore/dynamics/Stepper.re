@@ -100,15 +100,15 @@ let rec matches =
       | Ap2(dir, d1, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
         Ap2(dir, d1, ctx) |> rewrap;
-      | If1(c, ctx, d2, d3) =>
+      | If1(ctx, d2, d3) =>
         let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
-        If1(c, ctx, d2, d3) |> rewrap;
-      | If2(c, d1, ctx, d3) =>
+        If1(ctx, d2, d3) |> rewrap;
+      | If2(d1, ctx, d3) =>
         let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
-        If2(c, d1, ctx, d3) |> rewrap;
-      | If3(c, d1, d2, ctx) =>
+        If2(d1, ctx, d3) |> rewrap;
+      | If3(d1, d2, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
-        If3(c, d1, d2, ctx) |> rewrap;
+        If3(d1, d2, ctx) |> rewrap;
       | BinOp1(op, ctx, d1) =>
         let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
         BinOp1(op, ctx, d1) |> rewrap;
@@ -124,9 +124,9 @@ let rec matches =
       | Test(id, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
         Test(id, ctx) |> rewrap;
-      | ListLit(u, i, ty, ctx, ds) =>
+      | ListLit(ty, ctx, ds) =>
         let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
-        ListLit(u, i, ty, ctx, ds) |> rewrap;
+        ListLit(ty, ctx, ds) |> rewrap;
       | Cons1(ctx, d2) =>
         let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
         Cons1(ctx, d2) |> rewrap;
@@ -151,15 +151,15 @@ let rec matches =
       | FailedCast(ctx, ty, ty') =>
         let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
         FailedCast(ctx, ty, ty') |> rewrap;
-      | InvalidOperation(ctx, error) =>
+      | DynamicErrorHole(ctx, error) =>
         let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
-        InvalidOperation(ctx, error) |> rewrap;
-      | MatchScrut(c, ctx, rs) =>
+        DynamicErrorHole(ctx, error) |> rewrap;
+      | MatchScrut(ctx, rs) =>
         let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
-        MatchScrut(c, ctx, rs) |> rewrap;
-      | MatchRule(c, scr, p, ctx, rs) =>
+        MatchScrut(ctx, rs) |> rewrap;
+      | MatchRule(scr, p, ctx, rs) =>
         let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
-        MatchRule(c, scr, p, ctx, rs) |> rewrap;
+        MatchRule(scr, p, ctx, rs) |> rewrap;
       };
     };
   switch (ctx) {
