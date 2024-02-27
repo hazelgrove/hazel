@@ -173,7 +173,7 @@ module Pervasives = {
           | None =>
             let d' = DHExp.BuiltinFun(name) |> DHExp.fresh;
             let d' = DHExp.Ap(Forward, d', d) |> DHExp.fresh;
-            let d' = InvalidOperation(d', InvalidOfString) |> DHExp.fresh;
+            let d' = DynamicErrorHole(d', InvalidOfString) |> DHExp.fresh;
             Ok(d');
           }
         | _ => Error(InvalidBoxedStringLit(d))
@@ -194,7 +194,7 @@ module Pervasives = {
           | (Int(_), Int(0)) =>
             Ok(
               fresh(
-                InvalidOperation(
+                DynamicErrorHole(
                   DHExp.Ap(Forward, DHExp.BuiltinFun(name) |> fresh, d1)
                   |> fresh,
                   DivideByZero,
@@ -246,7 +246,7 @@ module Pervasives = {
     let string_concat =
       binary((d1, d2) =>
         switch (term_of(d1), term_of(d2)) {
-        | (String(s1), ListLit(_, _, _, xs)) =>
+        | (String(s1), ListLit(_, xs)) =>
           switch (xs |> List.map(string_of) |> Util.OptUtil.sequence) {
           | None => Error(InvalidBoxedStringLit(List.hd(xs)))
           | Some(xs) => Ok(String(String.concat(s1, xs)) |> fresh)
@@ -263,7 +263,7 @@ module Pervasives = {
           try(Ok(String(String.sub(s, idx, len)) |> fresh)) {
           | _ =>
             // TODO: make it clear that the problem could be with d3 too
-            Ok(InvalidOperation(d2, IndexOutOfBounds) |> fresh)
+            Ok(DynamicErrorHole(d2, IndexOutOfBounds) |> fresh)
           }
         | (String(_), Int(_), _) => Error(InvalidBoxedIntLit(d3))
         | (String(_), _, _) => Error(InvalidBoxedIntLit(d2))

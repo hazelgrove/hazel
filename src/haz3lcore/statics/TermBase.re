@@ -270,39 +270,37 @@ and UExp: {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    /* TODO: ADD:
-         Filter()
-         ApBuiltin(string, t) // These two are different to `var` to allow shadowing of builtins
-         BuiltinFun(string)
-         FixF()
-       */
-    | Invalid(string) // TODO: Reconcile the invalids
-    | EmptyHole // DONE
-    | MultiHole(list(Any.t)) // TODO: Reconcile the invalids
-    | Bool(bool) // DONE [DH CHANGED]
-    | Int(int) // DONE [DH CHANGED]
-    | Float(float) // DONE [DH CHANGED]
-    | String(string) // DONE [DH CHANGED]
-    | ListLit(list(t)) // DONE [DH TO BE CHANGED]
-    | Constructor(string) // DONE [ALREADY]
-    | Fun(UPat.t, t) // TODO: Add option(Var.t) name field to end
-    | Tuple(list(t)) // DONE [EXCEPT FOR TRIV]
-    | Var(Var.t) // DONE [ALREADY]
-    | Let(UPat.t, t, t) // DONE [ALREADY]
+    | Invalid(string)
+    | EmptyHole
+    | MultiHole(list(Any.t))
+    // TODO: Add StaticErrorHole, DynamicErrorHole, FailedCast
+    | Bool(bool)
+    | Int(int)
+    | Float(float)
+    | String(string)
+    | ListLit(list(t))
+    | Constructor(string)
+    | Fun(UPat.t, t) // TODO: Add option(Var.t) name field to end; Add optional closure to function
+    | Tuple(list(t))
+    | Var(Var.t)
+    | Let(UPat.t, t, t)
     | FixF(UPat.t, t) // DONE [CHECK WITH SOMEONE THAT I GOT THE STATIC SEMANTICS RIGHT]
-    | TyAlias(UTPat.t, UTyp.t, t) // [TO ADD TO DHEXP]
+    | TyAlias(UTPat.t, UTyp.t, t)
     // note: function is always first then argument; even in reverse
-    | Ap(ap_direction, t, t) // TODO: Combine Ap and Pipeline? [alt: add pipeline to dhexp]
-    | If(t, t, t) // TODO: What to do about consistency?
-    | Seq(t, t) // DONE [ALREADY]
-    | Test(t) // [DHEXP TO CHANGE]
+    | Ap(ap_direction, t, t)
+    | If(t, t, t)
+    | Seq(t, t)
+    | Test(t)
     | Filter(FilterAction.t, t, t) // TODO: Change to reflect DHExp
-    | Parens(t) // [TO ADD TO DHEXP]
-    | Cons(t, t) // DONE [ALREADY]
-    | ListConcat(t, t) // DONE [ALREADY]
-    | UnOp(op_un, t) // [TO ADD TO DHEXP]
-    | BinOp(op_bin, t, t) // DONE [DH CHANGED]
-    | Match(t, list((UPat.t, t))) // DONE [DH TO CHANGE]
+    // TODO: Add closures
+    | Parens(t)
+    | Cons(t, t)
+    | ListConcat(t, t)
+    // TODO: Add Builtins
+    | UnOp(op_un, t)
+    | BinOp(op_bin, t, t)
+    | Match(t, list((UPat.t, t)))
+  // TODO: Add Casts
   and t = {
     // invariant: nonempty
     ids: list(Id.t), // > DHEXP // Multiple ids?? // Add source??

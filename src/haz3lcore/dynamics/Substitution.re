@@ -8,7 +8,6 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
     } else {
       d2;
     }
-  | FreeVar(_) => d2
   | Invalid(_) => d2
   | Seq(d3, d4) =>
     let d3 = subst_var(d1, x, d3);
@@ -65,8 +64,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
   | Float(_)
   | String(_)
   | Constructor(_) => d2
-  | ListLit(a, b, c, ds) =>
-    ListLit(a, b, c, List.map(subst_var(d1, x), ds)) |> rewrap
+  | ListLit(t, ds) => ListLit(t, List.map(subst_var(d1, x), ds)) |> rewrap
   | Cons(d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
@@ -80,7 +78,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     BinOp(op, d3, d4) |> rewrap;
-  | Match(c, ds, rules) =>
+  | Match(ds, rules) =>
     let ds = subst_var(d1, x, ds);
     let rules =
       List.map(
@@ -92,7 +90,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
           },
         rules,
       );
-    Match(c, ds, rules) |> rewrap;
+    Match(ds, rules) |> rewrap;
   | EmptyHole => EmptyHole |> rewrap
   | MultiHole(ds) => MultiHole(List.map(subst_var(d1, x), ds)) |> rewrap
   | StaticErrorHole(u, d3) =>
@@ -104,14 +102,14 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
   | FailedCast(d, ty1, ty2) =>
     let d' = subst_var(d1, x, d);
     FailedCast(d', ty1, ty2) |> rewrap;
-  | InvalidOperation(d, err) =>
+  | DynamicErrorHole(d, err) =>
     let d' = subst_var(d1, x, d);
-    InvalidOperation(d', err) |> rewrap;
-  | If(d3, d4, d5, d6) =>
+    DynamicErrorHole(d', err) |> rewrap;
+  | If(d4, d5, d6) =>
     let d4' = subst_var(d1, x, d4);
     let d5' = subst_var(d1, x, d5);
     let d6' = subst_var(d1, x, d6);
-    If(d3, d4', d5', d6') |> rewrap;
+    If(d4', d5', d6') |> rewrap;
   };
 }
 

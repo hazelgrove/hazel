@@ -40,8 +40,7 @@ let u3: Term.UExp.t = {
   ids: [id_at(0)],
   term: Parens({ids: [id_at(1)], term: Var("y")}),
 };
-let d3: DHExp.t =
-  StaticErrorHole(id_at(1), FreeVar(id_at(1), 0, "y") |> fresh) |> fresh;
+let d3: DHExp.t = StaticErrorHole(id_at(1), Var("y") |> fresh) |> fresh;
 let free_var = () =>
   alco_check(
     "Nonempty hole with free variable",
@@ -107,7 +106,7 @@ let d5: DHExp.t =
   BinOp(
     Int(Plus),
     StaticErrorHole(id_at(1), Bool(false) |> fresh) |> fresh,
-    StaticErrorHole(id_at(2), FreeVar(id_at(2), 0, "y") |> fresh) |> fresh,
+    StaticErrorHole(id_at(2), Var("y") |> fresh) |> fresh,
   )
   |> fresh;
 let bin_op = () =>
@@ -127,8 +126,7 @@ let u6: Term.UExp.t = {
     ),
 };
 let d6: DHExp.t =
-  If(DH.Consistent, Bool(false) |> fresh, Int(8) |> fresh, Int(6) |> fresh)
-  |> fresh;
+  If(Bool(false) |> fresh, Int(8) |> fresh, Int(6) |> fresh) |> fresh;
 let consistent_if = () =>
   alco_check(
     "Consistent case with rules (BoolLit(true), IntLit(8)) and (BoolLit(false), IntLit(6))",
@@ -176,7 +174,7 @@ let d7: DHExp.t =
       None,
     )
     |> fresh,
-    StaticErrorHole(id_at(6), FreeVar(id_at(6), 0, "y") |> fresh) |> fresh,
+    StaticErrorHole(id_at(6), Var("y") |> fresh) |> fresh,
   )
   |> fresh;
 let ap_fun = () =>
@@ -218,8 +216,7 @@ let d8rules =
     (Bool(true) |> DHPat.fresh, Int(24) |> fresh),
     (Bool(false) |> DHPat.fresh, Bool(false) |> fresh),
   ];
-let d8a: DHExp.t =
-  Match(Inconsistent(id_at(0), 0), d8scrut, d8rules) |> fresh;
+let d8a: DHExp.t = Match(d8scrut, d8rules) |> fresh;
 let d8: DHExp.t = StaticErrorHole(id_at(0), d8a) |> fresh;
 let inconsistent_case = () =>
   alco_check(

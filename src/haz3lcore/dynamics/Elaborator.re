@@ -103,7 +103,6 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | FixF(_) => d
     /* Hole-like forms: Don't cast */
     | Invalid(_)
-    | FreeVar(_)
     | EmptyHole
     | MultiHole(_)
     | StaticErrorHole(_) => d
@@ -112,7 +111,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | Closure(_)
     | Filter(_)
     | FailedCast(_)
-    | InvalidOperation(_) => d
+    | DynamicErrorHole(_) => d
     /* Normal cases: wrap */
     | Var(_)
     | ApBuiltin(_)
@@ -186,7 +185,7 @@ let rec dhexp_of_uexp =
         let* ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
         let+ ty = fixed_exp_typ(m, uexp);
         let ty = Typ.matched_list(ctx, ty);
-        DHExp.ListLit(id, 0, ty, ds) |> rewrap;
+        DHExp.ListLit(ty, ds) |> rewrap;
       | Fun(p, body) =>
         let* dp = dhpat_of_upat(m, p);
         let* d1 = dhexp_of_uexp(m, body);
@@ -218,7 +217,7 @@ let rec dhexp_of_uexp =
           (DHPat.(fresh(Bool(true))), DHExp.(fresh(Bool(false)))),
           (DHPat.(fresh(Bool(false))), DHExp.(fresh(Bool(true)))),
         ];
-        let d = DHExp.(fresh(Match(Consistent, d_scrut, d_rules)));
+        let d = DHExp.(fresh(Match(d_scrut, d_rules)));
         /* Manually construct cast (case is not otherwise cast) */
         switch (mode) {
         | Ana(ana_ty) => DHExp.fresh_cast(d, Bool, ana_ty)
@@ -240,17 +239,8 @@ let rec dhexp_of_uexp =
         let* dcond = dhexp_of_uexp(~in_filter=true, m, cond);
         let+ dbody = dhexp_of_uexp(m, body);
         DHExp.Filter(Filter(Filter.mk(dcond, act)), dbody) |> rewrap;
-      | Var(name) =>
-        switch (err_status) {
-        | InHole(FreeVariable(_)) => Some(FreeVar(id, 0, name) |> rewrap)
-        | _ => Some(Var(name) |> rewrap)
-        }
-      | Constructor(name) =>
-        switch (err_status) {
-        | InHole(Common(NoType(FreeConstructor(_)))) =>
-          Some(FreeVar(id, 0, name) |> rewrap)
-        | _ => Some(Constructor(name) |> rewrap)
-        }
+      | Var(name) => Some(Var(name) |> rewrap)
+      | Constructor(name) => Some(Constructor(name) |> rewrap)
       | Let(p, def, body) =>
         let add_name: (option(string), DHExp.t) => DHExp.t = (
           (name, d) => {
@@ -296,8 +286,8 @@ let rec dhexp_of_uexp =
         // Use tag to mark inconsistent branches
         switch (err_status) {
         | InHole(Common(Inconsistent(Internal(_)))) =>
-          DHExp.If(DH.Inconsistent(id, 0), c', d1, d2) |> rewrap
-        | _ => DHExp.If(DH.Consistent, c', d1, d2) |> rewrap
+          DHExp.If(c', d1, d2) |> rewrap
+        | _ => DHExp.If(c', d1, d2) |> rewrap
         };
       | Match(scrut, rules) =>
         let* d_scrut = dhexp_of_uexp(m, scrut);
@@ -313,8 +303,8 @@ let rec dhexp_of_uexp =
           |> OptUtil.sequence;
         switch (err_status) {
         | InHole(Common(Inconsistent(Internal(_)))) =>
-          DHExp.Match(Inconsistent(id, 0), d_scrut, d_rules) |> rewrap
-        | _ => DHExp.Match(Consistent, d_scrut, d_rules) |> rewrap
+          DHExp.Match(d_scrut, d_rules) |> rewrap
+        | _ => DHExp.Match(d_scrut, d_rules) |> rewrap
         };
       | TyAlias(_, _, e) => dhexp_of_uexp(m, e)
       };
