@@ -71,6 +71,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Tuple(_) => DHDoc_common.precedence_Comma
   | Fun(_) => DHDoc_common.precedence_max
   | Let(_)
+  | TyAlias(_)
   | FixF(_)
   | Match(_) => DHDoc_common.precedence_max
 
@@ -166,7 +167,7 @@ let mk =
         | (CompleteFilter, _)
         | (Cast, _)
         | (Conditional(_), _)
-        | (Skip, _) => []
+        | (RemoveTypeAlias, _) => [] // Maybe this last one could count as a substitution?
         }
       | _ => recent_subst
       };
@@ -364,6 +365,7 @@ let mk =
       | Tuple([]) => DHDoc_common.Delim.triv
       | Tuple(ds) => DHDoc_common.mk_Tuple(ds |> List.map(d => go'(d)))
       | Match(dscrut, drs) => go_case(dscrut, drs)
+      | TyAlias(_, _, d) => go'(d)
       | Cast(d, _, ty) when settings.show_casts =>
         // TODO[Matt]: Roll multiple casts into one cast
         let doc = go'(d);

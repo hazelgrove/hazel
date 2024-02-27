@@ -1,6 +1,15 @@
 open Util;
 open OptUtil.Syntax;
 
+/*
+ Currently, Elaboration does the following things:
+
+  - Insert casts
+  - Insert non-empty holes
+  - Remove TyAlias
+  - Annotate functions with types, and names
+  */
+
 module Elaboration = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -121,6 +130,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | Float(_)
     | String(_)
     | BinOp(_)
+    | TyAlias(_)
     | Test(_) => DHExp.fresh_cast(d, self_ty, ana_ty)
     };
   };

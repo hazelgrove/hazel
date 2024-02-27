@@ -110,6 +110,9 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
     let d5' = subst_var(d1, x, d5);
     let d6' = subst_var(d1, x, d6);
     If(d4', d5', d6') |> rewrap;
+  | TyAlias(tp, ut, d4) =>
+    let d4' = subst_var(d1, x, d4);
+    TyAlias(tp, ut, d4') |> rewrap;
   };
 }
 

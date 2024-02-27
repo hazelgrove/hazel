@@ -165,6 +165,10 @@ let rec matches_exp =
   | (ApBuiltin(dname, darg), ApBuiltin(fname, farg)) =>
     dname == fname && matches_exp(env, darg, farg)
   | (ApBuiltin(_), _) => false
+
+  | (TyAlias(dtp, dut, dd), TyAlias(ftp, fut, fd)) =>
+    dtp == ftp && dut == fut && matches_exp(env, dd, fd)
+  | (TyAlias(_), _) => false
   };
 }
 and matches_pat = (d: DHPat.t, f: DHPat.t): bool => {

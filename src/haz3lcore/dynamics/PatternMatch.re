@@ -251,6 +251,7 @@ and matches_cast_Sum =
   | DynamicErrorHole(_)
   | Match(_)
   | If(_)
+  | TyAlias(_)
   | BuiltinFun(_) => IndetMatch
   | Cast(_)
   | Var(_)
@@ -333,6 +334,7 @@ and matches_cast_Tuple =
   | Filter(_, _) => IndetMatch
   | Ap(_, _, _) => IndetMatch
   | ApBuiltin(_, _) => IndetMatch
+  | TyAlias(_) => IndetMatch
   | BinOp(_, _, _)
   | Bool(_) => DoesNotMatch
   | Int(_) => DoesNotMatch
@@ -466,6 +468,7 @@ and matches_cast_Cons =
   | Filter(_, d') => matches_cast_Cons(dp, d', elt_casts)
   | Ap(_, _, _) => IndetMatch
   | ApBuiltin(_, _) => IndetMatch
+  | TyAlias(_) => IndetMatch
   | BinOp(_, _, _)
   | ListConcat(_)
   | BuiltinFun(_) => DoesNotMatch

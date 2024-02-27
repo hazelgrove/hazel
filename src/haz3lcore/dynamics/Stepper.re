@@ -367,7 +367,7 @@ let get_justification: step_kind => string =
   | CompleteFilter => "complete filter"
   | CompleteClosure => "complete closure"
   | FunClosure => "function closure"
-  | Skip => "skipped steps";
+  | RemoveTypeAlias => "define type";
 
 type step_info = {
   d: DHExp.t,
