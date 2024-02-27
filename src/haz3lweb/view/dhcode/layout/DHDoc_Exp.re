@@ -81,7 +81,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | BinOp(String(op), _, _) => precedence_bin_string_op(op)
 
   | MultiHole(_) => DHDoc_common.precedence_max
-  | NonEmptyHole(_, _, _, d) => precedence'(d)
+  | StaticErrorHole(_, d) => precedence'(d)
   };
 };
 
@@ -283,8 +283,8 @@ let mk =
           env,
         )
       | MultiHole(ds) => ds |> List.map(go') |> Doc.hcats
-      | NonEmptyHole(reason, u, i, d') =>
-        go'(d') |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
+      | StaticErrorHole(u, d') =>
+        go'(d') |> annot(DHAnnot.NonEmptyHole(TypeInconsistent, (u, 0)))
       | FreeVar(u, i, x) =>
         text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
       | Invalid(t) => DHDoc_common.mk_InvalidText(t)

@@ -41,13 +41,7 @@ let u3: Term.UExp.t = {
   term: Parens({ids: [id_at(1)], term: Var("y")}),
 };
 let d3: DHExp.t =
-  NonEmptyHole(
-    TypeInconsistent,
-    id_at(1),
-    0,
-    FreeVar(id_at(1), 0, "y") |> fresh,
-  )
-  |> fresh;
+  StaticErrorHole(id_at(1), FreeVar(id_at(1), 0, "y") |> fresh) |> fresh;
 let free_var = () =>
   alco_check(
     "Nonempty hole with free variable",
@@ -112,15 +106,8 @@ let u5: Term.UExp.t = {
 let d5: DHExp.t =
   BinOp(
     Int(Plus),
-    NonEmptyHole(TypeInconsistent, id_at(1), 0, Bool(false) |> fresh)
-    |> fresh,
-    NonEmptyHole(
-      TypeInconsistent,
-      id_at(2),
-      0,
-      FreeVar(id_at(2), 0, "y") |> fresh,
-    )
-    |> fresh,
+    StaticErrorHole(id_at(1), Bool(false) |> fresh) |> fresh,
+    StaticErrorHole(id_at(2), FreeVar(id_at(2), 0, "y") |> fresh) |> fresh,
   )
   |> fresh;
 let bin_op = () =>
@@ -189,13 +176,7 @@ let d7: DHExp.t =
       None,
     )
     |> fresh,
-    NonEmptyHole(
-      TypeInconsistent,
-      id_at(6),
-      0,
-      FreeVar(id_at(6), 0, "y") |> fresh,
-    )
-    |> fresh,
+    StaticErrorHole(id_at(6), FreeVar(id_at(6), 0, "y") |> fresh) |> fresh,
   )
   |> fresh;
 let ap_fun = () =>
@@ -239,7 +220,7 @@ let d8rules =
   ];
 let d8a: DHExp.t =
   Match(Inconsistent(id_at(0), 0), d8scrut, d8rules) |> fresh;
-let d8: DHExp.t = NonEmptyHole(TypeInconsistent, id_at(0), 0, d8a) |> fresh;
+let d8: DHExp.t = StaticErrorHole(id_at(0), d8a) |> fresh;
 let inconsistent_case = () =>
   alco_check(
     "Inconsistent branches where the first branch is an integer and second branch is a boolean",

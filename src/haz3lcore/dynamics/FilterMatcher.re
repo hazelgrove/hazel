@@ -164,7 +164,7 @@ let rec matches_exp =
   | (Match(_), _) => false
   // TODO: should these not default to false?
   | (MultiHole(_), _) => false
-  | (NonEmptyHole(_), _) => false
+  | (StaticErrorHole(_), _) => false
   | (Invalid(_), _) => false
   | (InvalidOperation(_), _) => false
 

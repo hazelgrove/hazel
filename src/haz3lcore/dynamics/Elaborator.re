@@ -82,7 +82,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
           DHExp.fresh_cast(d, self_ty, Unknown(prov))
         | _ => d
         }
-      | NonEmptyHole(_, _, _, g) =>
+      | StaticErrorHole(_, g) =>
         switch (DHExp.term_of(g)) {
         | Constructor(_) =>
           switch (ana_ty, self_ty) {
@@ -106,7 +106,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | FreeVar(_)
     | EmptyHole
     | MultiHole(_)
-    | NonEmptyHole(_) => d
+    | StaticErrorHole(_) => d
     /* DHExp-specific forms: Don't cast */
     | Cast(_)
     | Closure(_)
@@ -137,7 +137,12 @@ let wrap = (ctx: Ctx.t, u: Id.t, mode: Mode.t, self, d: DHExp.t): DHExp.t =>
       | None => Unknown(Internal)
       };
     cast(ctx, mode, self_ty, d);
-  | InHole(_) => DHExp.fresh(NonEmptyHole(TypeInconsistent, u, 0, d))
+  | InHole(
+      FreeVariable(_) | Common(NoType(_)) |
+      Common(Inconsistent(Internal(_))),
+    ) => d
+  | InHole(Common(Inconsistent(Expectation(_) | WithArrow(_)))) =>
+    DHExp.fresh(StaticErrorHole(u, d))
   };
 
 let rec dhexp_of_uexp =

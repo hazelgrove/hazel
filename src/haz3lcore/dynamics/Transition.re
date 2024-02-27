@@ -205,12 +205,15 @@ module Transition = (EV: EV_MODE) => {
     let err_info = Statics.get_error_at(info_map, DHExp.rep_id(d));
     let (let.) =
       switch (err_info) {
-      | Some(FreeVariable(_) | Common(NoType(_) | Inconsistent(_))) => (
+      | Some(
+          FreeVariable(_) | Common(NoType(_) | Inconsistent(Internal(_))),
+        ) => (
           (x, _) => {
             let. _ = x;
             Indet;
           }
         )
+      | Some(Common(Inconsistent(Expectation(_) | WithArrow(_))))
       | None => (let.)
       };
 
@@ -414,7 +417,7 @@ module Transition = (EV: EV_MODE) => {
           c,
         );
       switch (consistent, DHExp.term_of(c')) {
-      | (Consistent, Bool(b)) =>
+      | (Consistent | Inconsistent(_), Bool(b)) =>
         Step({
           apply: () => {
             b ? d1 : d2;
@@ -424,7 +427,7 @@ module Transition = (EV: EV_MODE) => {
           value: false,
         })
       // Use a seperate case for invalid conditionals. Makes extracting the bool from BoolLit (above) easier.
-      | (Consistent, _) =>
+      | (Consistent | Inconsistent(_), _) =>
         Step({
           apply: () => {
             raise(EvaluatorError.Exception(InvalidBoxedBoolLit(c')));
@@ -432,8 +435,6 @@ module Transition = (EV: EV_MODE) => {
           kind: InvalidStep,
           value: true,
         })
-      // Inconsistent branches should be Indet
-      | (Inconsistent(_), _) => Indet
       };
     | BinOp(Bool(And), d1, d2) =>
       let. _ = otherwise(env, d1 => BinOp(Bool(And), d1, d2) |> rewrap)
@@ -695,12 +696,12 @@ module Transition = (EV: EV_MODE) => {
       and. d' =
         req_value(req(state, env'), d1 => Closure(env', d1) |> wrap_ctx, d);
       Step({apply: () => d', kind: CompleteClosure, value: true});
-    | NonEmptyHole(reason, u, i, d1) =>
-      let. _ = otherwise(env, d1 => NonEmptyHole(reason, u, i, d1) |> rewrap)
+    | StaticErrorHole(sid, d1) =>
+      let. _ = otherwise(env, d1 => StaticErrorHole(sid, d1) |> rewrap)
       and. _ =
         req_final(
           req(state, env),
-          d1 => NonEmptyHole(reason, u, i, d1) |> wrap_ctx,
+          d1 => StaticErrorHole(sid, d1) |> wrap_ctx,
           d1,
         );
       Indet;
