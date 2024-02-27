@@ -159,8 +159,7 @@ let breadcrumb_bar = (~inject, ~settings, ~editors) => {
           [];
         } else {
           switch (Id.Map.find_opt(List.hd(ancestors_lst), info_map)) {
-          | Some(Info.InfoExp({term, ancestors, _}))
-              when List.length(ancestors) >= 1 =>
+          | Some(Info.InfoExp({term, _})) =>
             switch (term.term) {
             | Let({term: Var(name), _}, _, _)
             | Module({term: Constructor(name), _}, _, _) =>
