@@ -56,6 +56,13 @@ module ValueCheckerEVMode: {
       ([], (Value, true)),
     );
 
+  let req_final_or_value = (vc, _, d) =>
+    switch (vc(d)) {
+    | Value => ((d, true), (Value, true))
+    | Indet => ((d, false), (Value, true))
+    | Expr => ((d, false), (Value, false))
+    };
+
   let otherwise = (_, _) => ((), (Value, true));
 
   let (let.) = ((v, (r, b)), rule) =>

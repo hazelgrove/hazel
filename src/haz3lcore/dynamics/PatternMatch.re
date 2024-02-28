@@ -242,7 +242,6 @@ and matches_cast_Sum =
     matches_cast_Sum(ctr, dp, d', castmaps)
   | Invalid(_)
   | Let(_)
-  | ApBuiltin(_)
   | UnOp(_)
   | BinOp(_)
   | EmptyHole
@@ -335,7 +334,6 @@ and matches_cast_Tuple =
   | Closure(_, _) => IndetMatch
   | Filter(_, _) => IndetMatch
   | Ap(_, _, _) => IndetMatch
-  | ApBuiltin(_, _) => IndetMatch
   | TyAlias(_) => IndetMatch
   | UnOp(_, _)
   | BinOp(_, _, _) => DoesNotMatch
@@ -470,7 +468,6 @@ and matches_cast_Cons =
   | Closure(_, d') => matches_cast_Cons(dp, d', elt_casts)
   | Filter(_, d') => matches_cast_Cons(dp, d', elt_casts)
   | Ap(_, _, _) => IndetMatch
-  | ApBuiltin(_, _) => IndetMatch
   | TyAlias(_) => IndetMatch
   | UnOp(_, _)
   | BinOp(_, _, _)

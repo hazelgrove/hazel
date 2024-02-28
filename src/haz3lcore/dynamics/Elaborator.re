@@ -123,7 +123,6 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | DynamicErrorHole(_) => d
     /* Normal cases: wrap */
     | Var(_)
-    | ApBuiltin(_)
     | BuiltinFun(_)
     | Bool(_)
     | Int(_)
