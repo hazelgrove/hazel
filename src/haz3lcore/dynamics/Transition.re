@@ -174,6 +174,9 @@ module type EV_MODE = {
       list(DHExp.t)
     ) =>
     requirement(list(DHExp.t));
+  let req_final_or_value:
+    (DHExp.t => result, EvalCtx.t => EvalCtx.t, DHExp.t) =>
+    requirement((DHExp.t, bool));
 
   let (let.): (requirements('a, DHExp.t), 'a => rule) => result;
   let (and.):
@@ -337,11 +340,15 @@ module Transition = (EV: EV_MODE) => {
         value: true,
       });
     | Ap(dir, d1, d2) =>
-      let. _ = otherwise(env, (d1, d2) => Ap(dir, d1, d2) |> rewrap)
+      let. _ = otherwise(env, (d1, (d2, _)) => Ap(dir, d1, d2) |> rewrap)
       and. d1' =
         req_value(req(state, env), d1 => Ap1(dir, d1, d2) |> wrap_ctx, d1)
-      and. d2' =
-        req_final(req(state, env), d2 => Ap2(dir, d1, d2) |> wrap_ctx, d2);
+      and. (d2', d2_is_value) =
+        req_final_or_value(
+          req(state, env),
+          d2 => Ap2(dir, d1, d2) |> wrap_ctx,
+          d2,
+        );
       switch (DHExp.term_of(d1')) {
       | Constructor(_) => Constructor
       | Fun(dp, _, d3, Some(env'), _) =>
@@ -364,14 +371,22 @@ module Transition = (EV: EV_MODE) => {
           value: false,
         })
       | BuiltinFun(ident) =>
-        Step({
-          apply: () => {
-            //HACK[Matt]: This step is just so we can check that d2' is not indet
-            ApBuiltin(ident, d2') |> fresh;
-          },
-          kind: BuiltinWrap,
-          value: false // Not necessarily a value because of InvalidOperations
-        })
+        if (d2_is_value) {
+          Step({
+            apply: () => {
+              let builtin =
+                VarMap.lookup(Builtins.forms_init, ident)
+                |> OptUtil.get(() => {
+                     raise(EvaluatorError.Exception(InvalidBuiltin(ident)))
+                   });
+              builtin(d2);
+            },
+            kind: BuiltinAp(ident),
+            value: false // Not necessarily a value because of InvalidOperations
+          });
+        } else {
+          Indet;
+        }
       | _ =>
         Step({
           apply: () => {
@@ -381,26 +396,6 @@ module Transition = (EV: EV_MODE) => {
           value: true,
         })
       };
-    | ApBuiltin(ident, arg) =>
-      let. _ = otherwise(env, arg => ApBuiltin(ident, arg) |> rewrap)
-      and. arg' =
-        req_value(
-          req(state, env),
-          arg => ApBuiltin(ident, arg) |> wrap_ctx,
-          arg,
-        );
-      Step({
-        apply: () => {
-          let builtin =
-            VarMap.lookup(Builtins.forms_init, ident)
-            |> OptUtil.get(() => {
-                 raise(EvaluatorError.Exception(InvalidBuiltin(ident)))
-               });
-          builtin(arg');
-        },
-        kind: BuiltinAp(ident),
-        value: false // Not necessarily a value because of InvalidOperations
-      });
     | Bool(_)
     | Int(_)
     | Float(_)

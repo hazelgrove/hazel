@@ -37,7 +37,6 @@ module rec DHExp: {
     // TODO: Add Parens
     | Cons(t, t)
     | ListConcat(t, t)
-    | ApBuiltin(string, t) // DONE [TO ADD TO UEXP] TODO: Add a loooong comment here
     | BuiltinFun(string) // DONE [TO ADD TO UEXP]
     | UnOp(TermBase.UExp.op_un, t)
     | BinOp(TermBase.UExp.op_bin, t, t) // DONE
@@ -98,7 +97,6 @@ module rec DHExp: {
     // TODO: Add Parens
     | Cons(t, t)
     | ListConcat(t, t)
-    | ApBuiltin(string, t) // DONE [TO ADD TO UEXP] TODO: Add a loooong comment here
     | BuiltinFun(string) // DONE [TO ADD TO UEXP]
     | UnOp(TermBase.UExp.op_un, t)
     | BinOp(TermBase.UExp.op_bin, t, t) // DONE
@@ -179,7 +177,6 @@ module rec DHExp: {
       | TyAlias(tp, t, d) => TyAlias(tp, t, repair_ids(d))
       | Fun(dp, t, d1, env, f) => Fun(dp, t, repair_ids(d1), env, f)
       | Ap(dir, d1, d2) => Ap(dir, repair_ids(d1), repair_ids(d2))
-      | ApBuiltin(s, d1) => ApBuiltin(s, repair_ids(d1))
       | Test(id, d1) => Test(id, repair_ids(d1))
       | UnOp(op, d1) => UnOp(op, repair_ids(d1))
       | BinOp(op, d1, d2) => BinOp(op, repair_ids(d1), repair_ids(d2))
@@ -226,7 +223,6 @@ module rec DHExp: {
     | Fun(a, b, c, e, d) => Fun(a, b, strip_casts(c), e, d) |> rewrap
     | Ap(dir, a, b) => Ap(dir, strip_casts(a), strip_casts(b)) |> rewrap
     | Test(id, a) => Test(id, strip_casts(a)) |> rewrap
-    | ApBuiltin(fn, args) => ApBuiltin(fn, strip_casts(args)) |> rewrap
     | BuiltinFun(fn) => BuiltinFun(fn) |> rewrap
     | UnOp(op, d) => UnOp(op, strip_casts(d)) |> rewrap
     | BinOp(a, b, c) => BinOp(a, strip_casts(b), strip_casts(c)) |> rewrap
@@ -292,7 +288,6 @@ module rec DHExp: {
     | (Tuple(ds1), Tuple(ds2)) =>
       List.length(ds1) == List.length(ds2)
       && List.for_all2(fast_equal, ds1, ds2)
-    | (ApBuiltin(f1, d1), ApBuiltin(f2, d2)) => f1 == f2 && d1 == d2
     | (BuiltinFun(f1), BuiltinFun(f2)) => f1 == f2
     | (ListLit(t1, ds1), ListLit(t2, ds2)) =>
       t1 == t2
@@ -327,7 +322,6 @@ module rec DHExp: {
     | (Fun(_), _)
     | (Test(_), _)
     | (Ap(_), _)
-    | (ApBuiltin(_), _)
     | (BuiltinFun(_), _)
     | (Cons(_), _)
     | (ListConcat(_), _)

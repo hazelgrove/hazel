@@ -121,9 +121,6 @@ let rec matches =
       | Tuple(ctx, ds) =>
         let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
         Tuple(ctx, ds) |> rewrap;
-      | ApBuiltin(name, ctx) =>
-        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
-        ApBuiltin(name, ctx) |> rewrap;
       | Test(id, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
         Test(id, ctx) |> rewrap;

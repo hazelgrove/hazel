@@ -105,6 +105,17 @@ module Decompose = {
       );
     };
 
+    let req_final_or_value = (cont, wr, d) => {
+      switch (cont(d)) {
+      | Result.Indet => (Result.BoxedValue, (d, false))
+      | Result.BoxedValue => (Result.BoxedValue, (d, true))
+      | Result.Step(objs) => (
+          Result.Step(List.map(EvalObj.wrap(wr), objs)),
+          (d, false),
+        )
+      };
+    };
+
     let rec req_all_final' = (cont, wr, ds') =>
       fun
       | [] => (Result.BoxedValue, [])
@@ -182,6 +193,8 @@ module TakeStep = {
     let req_all_value = (_, _, ds) => ds;
     let req_final = (_, _, d) => d;
     let req_all_final = (_, _, ds) => ds;
+
+    let req_final_or_value = (_, _, d) => (d, true);
 
     let (let.) = (rq: requirements('a, DHExp.t), rl: 'a => rule) =>
       switch (rl(rq)) {

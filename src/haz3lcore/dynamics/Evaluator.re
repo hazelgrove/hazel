@@ -81,6 +81,13 @@ module EvaluatorEVMode: {
         (r1 && r2, [x', ...xs']);
       };
 
+  let req_final_or_value = (f, _, x) =>
+    switch (f(x)) {
+    | BoxedValue(x) => (BoxedReady, (x, true))
+    | Indet(x) => (IndetReady, (x, false))
+    | Uneval(_) => failwith("Unexpected Uneval")
+    };
+
   let otherwise = (_, c) => (BoxedReady, (), c);
 
   let (and.) = ((r1, x1, c1), (r2, x2)) => (r1 && r2, (x1, x2), c1(x2));

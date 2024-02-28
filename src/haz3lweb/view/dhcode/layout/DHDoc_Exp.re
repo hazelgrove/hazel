@@ -65,7 +65,6 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
   | Ap(_) => DHDoc_common.precedence_Ap
-  | ApBuiltin(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
   | ListConcat(_) => DHDoc_common.precedence_Plus
   | Tuple(_) => DHDoc_common.precedence_Comma
@@ -332,12 +331,6 @@ let mk =
           go'(d2),
         );
         DHDoc_common.mk_rev_Ap(doc2, doc1);
-      | ApBuiltin(ident, d) =>
-        DHDoc_common.mk_Ap(
-          text(ident),
-          go_formattable(d)
-          |> parenthesize(precedence(d) > DHDoc_common.precedence_Ap),
-        )
       | UnOp(Meta(Unquote), d) =>
         DHDoc_common.mk_Ap(
           text("$"),

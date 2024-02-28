@@ -21,7 +21,6 @@ type term =
   | BinOp1(TermBase.UExp.op_bin, t, DHExp.t)
   | BinOp2(TermBase.UExp.op_bin, DHExp.t, t)
   | Tuple(t, (list(DHExp.t), list(DHExp.t)))
-  | ApBuiltin(string, t)
   | Test(KeywordID.t, t)
   | ListLit(Typ.t, t, (list(DHExp.t), list(DHExp.t)))
   | MultiHole(t, (list(DHExp.t), list(DHExp.t)))
@@ -72,9 +71,6 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
       | Ap2(dir, d1, ctx) =>
         let d2 = compose(ctx, d);
         Ap(dir, d1, d2) |> wrap;
-      | ApBuiltin(s, ctx) =>
-        let d' = compose(ctx, d);
-        ApBuiltin(s, d') |> wrap;
       | If1(ctx, d2, d3) =>
         let d' = compose(ctx, d);
         If(d', d2, d3) |> wrap;
