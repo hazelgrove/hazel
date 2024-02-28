@@ -363,7 +363,7 @@ let rec matches =
   let (act, idx) =
     switch (ctx) {
     | Filter(_, _) => (pact, pidx)
-    | _ => midx > idx ? (mact, midx) : (pact, pidx)
+    | _ => midx > pidx ? (mact, midx) : (pact, pidx)
     };
   let map = ((a, i, c), f: EvalCtx.t => EvalCtx.t) => {
     (a, i, f(c));
@@ -379,10 +379,15 @@ let rec matches =
       let flt = flt |> FilterEnvironment.extends(flt');
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       Filter(Filter(flt'), ctx);
-    | Filter(Residue(idx, act), ctx) =>
-      let (ract, ridx, rctx) = matches(env, flt, ctx, exp, act, idx);
-      if (ridx == idx && ract |> snd == All) {
-        (ract, ridx, Filter(Residue(idx, act), rctx));
+    | Filter(Residue(idx', act'), ctx) =>
+      let (ract, ridx, rctx) =
+        if (idx > idx') {
+          matches(env, flt, ctx, exp, act, idx);
+        } else {
+          matches(env, flt, ctx, exp, act', idx');
+        };
+      if (act' |> snd == All) {
+        (ract, ridx, Filter(Residue(idx', act'), rctx));
       } else {
         (ract, ridx, rctx);
       };
@@ -497,7 +502,7 @@ let rec matches =
     };
   switch (ctx) {
   | Filter(_) => (ract, ridx, rctx)
-  | _ when mact |> snd == All => (
+  | _ when midx > pidx && mact |> snd == All => (
       ract,
       ridx,
       Filter(Residue(midx, mact), rctx),
