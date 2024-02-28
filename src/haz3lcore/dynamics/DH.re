@@ -37,9 +37,9 @@ module rec DHExp: {
     // TODO: Add Parens
     | Cons(t, t)
     | ListConcat(t, t)
-    | BuiltinFun(string) // DONE [TO ADD TO UEXP]
     | UnOp(TermBase.UExp.op_un, t)
     | BinOp(TermBase.UExp.op_bin, t, t) // DONE
+    | BuiltinFun(string) // DONE [TO ADD TO UEXP]
     | Match(t, list((DHPat.t, t)))
     | Cast(t, Typ.t, Typ.t) // TODO: Add to uexp or remove
   and t;
@@ -97,9 +97,9 @@ module rec DHExp: {
     // TODO: Add Parens
     | Cons(t, t)
     | ListConcat(t, t)
-    | BuiltinFun(string) // DONE [TO ADD TO UEXP]
     | UnOp(TermBase.UExp.op_un, t)
     | BinOp(TermBase.UExp.op_bin, t, t) // DONE
+    | BuiltinFun(string) // DONE [TO ADD TO UEXP]
     | Match(t, list((DHPat.t, t)))
     | Cast(t, Typ.t, Typ.t) // TODO: Add to uexp or remove
   and t = {

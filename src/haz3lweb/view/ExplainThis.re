@@ -522,6 +522,7 @@ let get_doc =
             : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) =>
       switch (term) {
       | TermBase.UExp.Invalid(_) => simple("Not a valid expression")
+      | BuiltinFun(_) => simple("Internal expression")
       | EmptyHole => get_message(HoleExp.empty_hole_exps)
       | MultiHole(_children) => get_message(HoleExp.multi_hole_exps)
       | TyAlias(ty_pat, ty_def, _body) =>

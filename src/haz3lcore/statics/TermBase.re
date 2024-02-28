@@ -161,6 +161,7 @@ and UExp: {
     | ListConcat(t, t)
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
+    | BuiltinFun(string)
     | Match(t, list((UPat.t, t)))
   and t = {
     // invariant: nonempty
@@ -299,6 +300,7 @@ and UExp: {
     // TODO: Add Builtins
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
+    | BuiltinFun(string)
     | Match(t, list((UPat.t, t)))
   // TODO: Add Casts
   and t = {

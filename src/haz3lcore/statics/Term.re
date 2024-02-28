@@ -437,6 +437,7 @@ module UExp = {
     | Cons
     | UnOp(op_un)
     | BinOp(op_bin)
+    | BuiltinFun
     | Match
     | ListConcat;
 
@@ -478,6 +479,7 @@ module UExp = {
     | ListConcat(_) => ListConcat
     | UnOp(op, _) => UnOp(op)
     | BinOp(op, _, _) => BinOp(op)
+    | BuiltinFun(_) => BuiltinFun
     | Match(_) => Match;
 
   let show_op_un_meta: op_un_meta => string =
@@ -572,12 +574,14 @@ module UExp = {
     | ListConcat => "List Concatenation"
     | BinOp(op) => show_binop(op)
     | UnOp(op) => show_unop(op)
+    | BuiltinFun => "Built-in Function"
     | Match => "Case expression";
 
   let rec is_fun = (e: t) => {
     switch (e.term) {
     | Parens(e) => is_fun(e)
-    | Fun(_) => true
+    | Fun(_)
+    | BuiltinFun(_) => true
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -620,6 +624,7 @@ module UExp = {
       | String(_)
       | ListLit(_)
       | Fun(_)
+      | BuiltinFun(_)
       | Var(_)
       | Let(_)
       | FixF(_)

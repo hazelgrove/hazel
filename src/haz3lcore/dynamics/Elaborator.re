@@ -228,6 +228,7 @@ let rec dhexp_of_uexp =
         let* dc1 = dhexp_of_uexp(m, e1);
         let+ dc2 = dhexp_of_uexp(m, e2);
         DHExp.BinOp(op, dc1, dc2) |> rewrap;
+      | BuiltinFun(name) => Some(DHExp.BuiltinFun(name) |> rewrap)
       | Parens(e) => dhexp_of_uexp(m, e)
       | Seq(e1, e2) =>
         let* d1 = dhexp_of_uexp(m, e1);
