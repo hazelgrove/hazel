@@ -39,7 +39,8 @@ let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
   | Int(_)
   | Float(_)
   | String(_)
-  | Constructor(_) => false
+  | Constructor(_)
+  | BuiltinFun(_) => false
   | FixF(args, body)
   | Fun(args, body) =>
     find_var_upat(name, args) ? false : var_mention(name, body)
@@ -84,7 +85,8 @@ let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
   | Int(_)
   | Float(_)
   | String(_)
-  | Constructor(_) => false
+  | Constructor(_)
+  | BuiltinFun(_) => false
   | FixF(args, body)
   | Fun(args, body) =>
     find_var_upat(name, args) ? false : var_applied(name, body)
@@ -204,6 +206,7 @@ let rec find_fn =
   | Float(_)
   | String(_)
   | Constructor(_)
+  | BuiltinFun(_)
   | Var(_) => l
   };
 };
@@ -231,7 +234,8 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   | Float(_)
   | String(_)
   | Constructor(_)
-  | Var(_) => true
+  | Var(_)
+  | BuiltinFun(_) => true
   | FixF(args, body)
   | Fun(args, body) =>
     find_var_upat(name, args) ? false : tail_check(name, body)

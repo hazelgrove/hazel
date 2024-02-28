@@ -262,6 +262,12 @@ and uexp_to_info_map =
     let (e1, m) = go(~mode=Ana(ty1), e1, m);
     let (e2, m) = go(~mode=Ana(ty2), e2, m);
     add(~self=Just(ty_out), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
+  | BuiltinFun(string) =>
+    add'(
+      ~self=Self.of_exp_var(Builtins.ctx_init, string),
+      ~co_ctx=CoCtx.empty,
+      m,
+    )
   | Tuple(es) =>
     let modes = Mode.of_prod(ctx, mode, List.length(es));
     let (es, m) = map_m_go(m, modes, es);
