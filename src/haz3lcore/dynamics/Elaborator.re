@@ -129,6 +129,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | Int(_)
     | Float(_)
     | String(_)
+    | UnOp(_)
     | BinOp(_)
     | TyAlias(_)
     | Test(_) => DHExp.fresh_cast(d, self_ty, ana_ty)
@@ -220,19 +221,10 @@ let rec dhexp_of_uexp =
         }
       | UnOp(Int(Minus), e) =>
         let+ dc = dhexp_of_uexp(m, e);
-        DHExp.BinOp(Int(Minus), DHExp.fresh(Int(0)), dc) |> rewrap;
+        DHExp.UnOp(Int(Minus), dc) |> rewrap;
       | UnOp(Bool(Not), e) =>
-        let+ d_scrut = dhexp_of_uexp(m, e);
-        let d_rules = [
-          (DHPat.(fresh(Bool(true))), DHExp.(fresh(Bool(false)))),
-          (DHPat.(fresh(Bool(false))), DHExp.(fresh(Bool(true)))),
-        ];
-        let d = DHExp.(fresh(Match(d_scrut, d_rules)));
-        /* Manually construct cast (case is not otherwise cast) */
-        switch (mode) {
-        | Ana(ana_ty) => DHExp.fresh_cast(d, Bool, ana_ty)
-        | _ => d
-        };
+        let+ dc = dhexp_of_uexp(m, e);
+        DHExp.UnOp(Bool(Not), dc) |> rewrap;
       | BinOp(op, e1, e2) =>
         let* dc1 = dhexp_of_uexp(m, e1);
         let+ dc2 = dhexp_of_uexp(m, e2);

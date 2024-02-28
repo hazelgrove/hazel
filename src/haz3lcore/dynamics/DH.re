@@ -39,7 +39,7 @@ module rec DHExp: {
     | ListConcat(t, t)
     | ApBuiltin(string, t) // DONE [TO ADD TO UEXP] TODO: Add a loooong comment here
     | BuiltinFun(string) // DONE [TO ADD TO UEXP]
-    // TODO: Add UnOp
+    | UnOp(TermBase.UExp.op_un, t)
     | BinOp(TermBase.UExp.op_bin, t, t) // DONE
     | Match(t, list((DHPat.t, t)))
     | Cast(t, Typ.t, Typ.t) // TODO: Add to uexp or remove
@@ -100,7 +100,7 @@ module rec DHExp: {
     | ListConcat(t, t)
     | ApBuiltin(string, t) // DONE [TO ADD TO UEXP] TODO: Add a loooong comment here
     | BuiltinFun(string) // DONE [TO ADD TO UEXP]
-    // TODO: Add UnOp
+    | UnOp(TermBase.UExp.op_un, t)
     | BinOp(TermBase.UExp.op_bin, t, t) // DONE
     | Match(t, list((DHPat.t, t)))
     | Cast(t, Typ.t, Typ.t) // TODO: Add to uexp or remove
@@ -181,6 +181,7 @@ module rec DHExp: {
       | Ap(dir, d1, d2) => Ap(dir, repair_ids(d1), repair_ids(d2))
       | ApBuiltin(s, d1) => ApBuiltin(s, repair_ids(d1))
       | Test(id, d1) => Test(id, repair_ids(d1))
+      | UnOp(op, d1) => UnOp(op, repair_ids(d1))
       | BinOp(op, d1, d2) => BinOp(op, repair_ids(d1), repair_ids(d2))
       | ListLit(t, ds) => ListLit(t, List.map(repair_ids, ds))
       | Cons(d1, d2) => Cons(repair_ids(d1), repair_ids(d2))
@@ -227,6 +228,7 @@ module rec DHExp: {
     | Test(id, a) => Test(id, strip_casts(a)) |> rewrap
     | ApBuiltin(fn, args) => ApBuiltin(fn, strip_casts(args)) |> rewrap
     | BuiltinFun(fn) => BuiltinFun(fn) |> rewrap
+    | UnOp(op, d) => UnOp(op, strip_casts(d)) |> rewrap
     | BinOp(a, b, c) => BinOp(a, strip_casts(b), strip_casts(c)) |> rewrap
     | Match(a, rules) =>
       Match(
@@ -296,6 +298,7 @@ module rec DHExp: {
       t1 == t2
       && List.length(ds1) == List.length(ds2)
       && List.for_all2(fast_equal, ds1, ds2)
+    | (UnOp(op1, d1), UnOp(op2, d2)) => op1 == op2 && fast_equal(d1, d2)
     | (BinOp(op1, d11, d21), BinOp(op2, d12, d22)) =>
       op1 == op2 && fast_equal(d11, d12) && fast_equal(d21, d22)
     | (TyAlias(tp1, ut1, d1), TyAlias(tp2, ut2, d2)) =>
@@ -330,6 +333,7 @@ module rec DHExp: {
     | (ListConcat(_), _)
     | (ListLit(_), _)
     | (Tuple(_), _)
+    | (UnOp(_), _)
     | (BinOp(_), _)
     | (Cast(_), _)
     | (FailedCast(_), _)

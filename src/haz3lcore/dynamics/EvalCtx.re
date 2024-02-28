@@ -17,6 +17,7 @@ type term =
   | If1(t, DHExp.t, DHExp.t)
   | If2(DHExp.t, t, DHExp.t)
   | If3(DHExp.t, DHExp.t, t)
+  | UnOp(TermBase.UExp.op_un, t)
   | BinOp1(TermBase.UExp.op_bin, t, DHExp.t)
   | BinOp2(TermBase.UExp.op_bin, DHExp.t, t)
   | Tuple(t, (list(DHExp.t), list(DHExp.t)))
@@ -86,6 +87,9 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
       | Test(lit, ctx) =>
         let d1 = compose(ctx, d);
         Test(lit, d1) |> wrap;
+      | UnOp(op, ctx) =>
+        let d1 = compose(ctx, d);
+        UnOp(op, d1) |> wrap;
       | BinOp1(op, ctx, d2) =>
         let d1 = compose(ctx, d);
         BinOp(op, d1, d2) |> wrap;

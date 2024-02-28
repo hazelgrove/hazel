@@ -74,7 +74,9 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | TyAlias(_)
   | FixF(_)
   | Match(_) => DHDoc_common.precedence_max
-
+  | UnOp(Meta(Unquote), _) => DHDoc_common.precedence_Ap
+  | UnOp(Bool(Not), _) => DHDoc_common.precedence_Not
+  | UnOp(Int(Minus), _) => DHDoc_common.precedence_Minus
   | BinOp(Bool(op), _, _) => precedence_bin_bool_op(op)
   | BinOp(Int(op), _, _) => precedence_bin_int_op(op)
   | BinOp(Float(op), _, _) => precedence_bin_float_op(op)
@@ -154,6 +156,7 @@ let mk =
         | (UpdateTest, _)
         | (CastAp, _)
         | (BuiltinWrap, _)
+        | (UnOp(_), _)
         | (BuiltinAp(_), _)
         | (BinBoolOp(_), _)
         | (BinIntOp(_), _)
@@ -334,6 +337,24 @@ let mk =
           text(ident),
           go_formattable(d)
           |> parenthesize(precedence(d) > DHDoc_common.precedence_Ap),
+        )
+      | UnOp(Meta(Unquote), d) =>
+        DHDoc_common.mk_Ap(
+          text("$"),
+          go_formattable(d)
+          |> parenthesize(precedence(d) > DHDoc_common.precedence_Ap),
+        )
+      | UnOp(Bool(Not), d) =>
+        DHDoc_common.mk_Ap(
+          text("!"),
+          go_formattable(d)
+          |> parenthesize(precedence(d) > DHDoc_common.precedence_Not),
+        )
+      | UnOp(Int(Minus), d) =>
+        DHDoc_common.mk_Ap(
+          text("-"),
+          go_formattable(d)
+          |> parenthesize(precedence(d) > DHDoc_common.precedence_Minus),
         )
       | BinOp(Int(op), d1, d2) =>
         // TODO assumes all bin int ops are left associative

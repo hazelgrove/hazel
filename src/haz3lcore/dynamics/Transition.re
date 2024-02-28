@@ -58,6 +58,7 @@ type step_kind =
   | CastAp
   | BuiltinWrap
   | BuiltinAp(string)
+  | UnOp(TermBase.UExp.op_un)
   | BinBoolOp(TermBase.UExp.op_bin_bool)
   | BinIntOp(TermBase.UExp.op_bin_int)
   | BinFloatOp(TermBase.UExp.op_bin_float)
@@ -432,6 +433,43 @@ module Transition = (EV: EV_MODE) => {
           value: true,
         })
       };
+    | UnOp(Meta(Unquote), _) =>
+      let. _ = otherwise(env, d);
+      Indet;
+    | UnOp(Int(Minus), d1) =>
+      let. _ = otherwise(env, d1 => UnOp(Int(Minus), d1) |> rewrap)
+      and. d1' =
+        req_value(
+          req(state, env),
+          c => UnOp(Int(Minus), c) |> wrap_ctx,
+          d1,
+        );
+      Step({
+        apply: () =>
+          switch (DHExp.term_of(d1')) {
+          | Int(n) => Int(- n) |> fresh
+          | _ => raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1')))
+          },
+        kind: UnOp(Int(Minus)),
+        value: true,
+      });
+    | UnOp(Bool(Not), d1) =>
+      let. _ = otherwise(env, d1 => UnOp(Bool(Not), d1) |> rewrap)
+      and. d1' =
+        req_value(
+          req(state, env),
+          c => UnOp(Bool(Not), c) |> wrap_ctx,
+          d1,
+        );
+      Step({
+        apply: () =>
+          switch (DHExp.term_of(d1')) {
+          | Bool(b) => Bool(!b) |> fresh
+          | _ => raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1')))
+          },
+        kind: UnOp(Bool(Not)),
+        value: true,
+      });
     | BinOp(Bool(And), d1, d2) =>
       let. _ = otherwise(env, d1 => BinOp(Bool(And), d1, d2) |> rewrap)
       and. d1' =
@@ -800,6 +838,7 @@ let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
   | BinIntOp(_)
   | BinFloatOp(_)
   | BinStringOp(_)
+  | UnOp(_)
   | ListCons
   | ListConcat
   | CaseApply

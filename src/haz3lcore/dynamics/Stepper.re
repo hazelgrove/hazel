@@ -109,6 +109,9 @@ let rec matches =
       | If3(d1, d2, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
         If3(d1, d2, ctx) |> rewrap;
+      | UnOp(op, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
+        UnOp(op, ctx) |> rewrap;
       | BinOp1(op, ctx, d1) =>
         let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
         BinOp1(op, ctx, d1) |> rewrap;
@@ -345,6 +348,7 @@ let get_justification: step_kind => string =
   | FunAp => "apply function"
   | BuiltinWrap => "wrap builtin"
   | BuiltinAp(s) => "evaluate " ++ s
+  | UnOp(Int(Minus))
   | BinIntOp(Plus | Minus | Times | Power | Divide)
   | BinFloatOp(Plus | Minus | Times | Power | Divide) => "arithmetic"
   | BinIntOp(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual)
@@ -353,6 +357,7 @@ let get_justification: step_kind => string =
   | BinFloatOp(Equals | NotEquals)
   | BinStringOp(Equals) => "check equality"
   | BinStringOp(Concat) => "string manipulation"
+  | UnOp(Bool(Not))
   | BinBoolOp(_) => "boolean logic"
   | Conditional(_) => "conditional"
   | ListCons => "list manipulation"
@@ -367,7 +372,8 @@ let get_justification: step_kind => string =
   | CompleteFilter => "complete filter"
   | CompleteClosure => "complete closure"
   | FunClosure => "function closure"
-  | RemoveTypeAlias => "define type";
+  | RemoveTypeAlias => "define type"
+  | UnOp(Meta(Unquote)) => failwith("INVALID STEP");
 
 type step_info = {
   d: DHExp.t,

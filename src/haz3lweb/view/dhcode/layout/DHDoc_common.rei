@@ -9,6 +9,7 @@ let precedence_Power: int;
 let precedence_Divide: int;
 let precedence_Plus: int;
 let precedence_Minus: int;
+let precedence_Not: int;
 let precedence_Cons: int;
 let precedence_Equals: int;
 let precedence_LessThan: int;
