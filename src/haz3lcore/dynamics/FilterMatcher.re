@@ -132,6 +132,10 @@ let rec matches_exp =
     )
   | (Tuple(_), _) => false
 
+  | (UnOp(d_op, d1), UnOp(f_op, f1)) =>
+    d_op == f_op && matches_exp(env, d1, f1)
+  | (UnOp(_), _) => false
+
   | (BinOp(d_op, d1, d2), BinOp(f_op, f1, f2)) =>
     d_op == f_op && matches_exp(env, d1, f1) && matches_exp(env, d2, f2)
   | (BinOp(_), _) => false

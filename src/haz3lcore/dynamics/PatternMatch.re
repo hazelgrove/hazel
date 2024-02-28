@@ -49,6 +49,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (_, FixF(_)) => DoesNotMatch
   | (_, Fun(_)) => DoesNotMatch
   | (_, BinOp(_)) => IndetMatch
+  | (_, UnOp(_)) => IndetMatch
   | (_, Match(_, _)) => IndetMatch
 
   /* Closure should match like underlying expression. */
@@ -242,6 +243,7 @@ and matches_cast_Sum =
   | Invalid(_)
   | Let(_)
   | ApBuiltin(_)
+  | UnOp(_)
   | BinOp(_)
   | EmptyHole
   | MultiHole(_)
@@ -335,7 +337,8 @@ and matches_cast_Tuple =
   | Ap(_, _, _) => IndetMatch
   | ApBuiltin(_, _) => IndetMatch
   | TyAlias(_) => IndetMatch
-  | BinOp(_, _, _)
+  | UnOp(_, _)
+  | BinOp(_, _, _) => DoesNotMatch
   | Bool(_) => DoesNotMatch
   | Int(_) => DoesNotMatch
   | Seq(_)
@@ -469,6 +472,7 @@ and matches_cast_Cons =
   | Ap(_, _, _) => IndetMatch
   | ApBuiltin(_, _) => IndetMatch
   | TyAlias(_) => IndetMatch
+  | UnOp(_, _)
   | BinOp(_, _, _)
   | ListConcat(_)
   | BuiltinFun(_) => DoesNotMatch

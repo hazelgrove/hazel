@@ -14,6 +14,8 @@ let ap = 2;
 let neg = 3;
 let power = 4;
 let mult = 5;
+
+let not_ = 5;
 let plus = 6;
 let cons = 7;
 let concat = 8;

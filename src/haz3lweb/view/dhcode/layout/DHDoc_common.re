@@ -8,7 +8,7 @@ module P = Precedence;
 let precedence_const = P.max;
 let precedence_Ap = P.ap;
 let precedence_Power = P.power;
-
+let precedence_Not = P.not_;
 let precedence_Times = P.mult;
 let precedence_Divide = P.mult;
 let precedence_Plus = P.plus;
