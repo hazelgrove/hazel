@@ -39,7 +39,7 @@ module rec DHExp: {
     | Ap(TermBase.UExp.ap_direction, t, t)
     | If(t, t, t)
     | Seq(t, t)
-    | Test(KeywordID.t, t) // TODO: ! ID
+    | Test(t) // Id refers to original static id of test
     | Filter(DHFilter.t, t) // DONE [UEXP TO BE CHANGED]
     | Closure([@show.opaque] ClosureEnvironment.t, t) // > UEXP
     // TODO: Add Parens
@@ -99,7 +99,7 @@ module rec DHExp: {
     | Ap(TermBase.UExp.ap_direction, t, t)
     | If(t, t, t)
     | Seq(t, t)
-    | Test(KeywordID.t, t) // TODO: ! ID
+    | Test(t)
     | Filter(DHFilter.t, t) // DONE [UEXP TO BE CHANGED]
     | Closure([@show.opaque] ClosureEnvironment.t, t) // > UEXP
     // TODO: Add Parens
@@ -147,6 +147,7 @@ module rec DHExp: {
   let apply_casts = (d: t, casts: list((Typ.t, Typ.t))): t =>
     List.fold_left((d, (ty1, ty2)) => fresh_cast(d, ty1, ty2), d, casts);
 
+  // TODO: make this function emit a map of changes
   let rec repair_ids = (require: bool, d: t) => {
     let child_require = require || d.copied;
     let repair_ids = repair_ids(child_require);
@@ -185,7 +186,7 @@ module rec DHExp: {
       | TyAlias(tp, t, d) => TyAlias(tp, t, repair_ids(d))
       | Fun(dp, t, d1, env, f) => Fun(dp, t, repair_ids(d1), env, f)
       | Ap(dir, d1, d2) => Ap(dir, repair_ids(d1), repair_ids(d2))
-      | Test(id, d1) => Test(id, repair_ids(d1))
+      | Test(d1) => Test(repair_ids(d1))
       | UnOp(op, d1) => UnOp(op, repair_ids(d1))
       | BinOp(op, d1, d2) => BinOp(op, repair_ids(d1), repair_ids(d2))
       | ListLit(t, ds) => ListLit(t, List.map(repair_ids, ds))
@@ -230,7 +231,7 @@ module rec DHExp: {
     | TyAlias(tp, t, d) => TyAlias(tp, t, strip_casts(d)) |> rewrap
     | Fun(a, b, c, e, d) => Fun(a, b, strip_casts(c), e, d) |> rewrap
     | Ap(dir, a, b) => Ap(dir, strip_casts(a), strip_casts(b)) |> rewrap
-    | Test(id, a) => Test(id, strip_casts(a)) |> rewrap
+    | Test(a) => Test(strip_casts(a)) |> rewrap
     | BuiltinFun(fn) => BuiltinFun(fn) |> rewrap
     | UnOp(op, d) => UnOp(op, strip_casts(d)) |> rewrap
     | BinOp(a, b, c) => BinOp(a, strip_casts(b), strip_casts(c)) |> rewrap
@@ -267,7 +268,7 @@ module rec DHExp: {
     | (String(_), _) => false
 
     /* Non-hole forms: recurse */
-    | (Test(id1, d1), Test(id2, d2)) => id1 == id2 && fast_equal(d1, d2)
+    | (Test(d1), Test(d2)) => fast_equal(d1, d2)
     | (Seq(d11, d21), Seq(d12, d22)) =>
       fast_equal(d11, d12) && fast_equal(d21, d22)
     | (Filter(f1, d1), Filter(f2, d2)) =>

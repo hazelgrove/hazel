@@ -319,21 +319,21 @@ module Transition = (EV: EV_MODE) => {
           value: false,
         });
       };
-    | Test(id, d) =>
-      let. _ = otherwise(env, d => Test(id, d) |> rewrap)
-      and. d' = req_final(req(state, env), d => Test(id, d) |> wrap_ctx, d);
+    | Test(d) =>
+      let. _ = otherwise(env, d => Test(d) |> rewrap)
+      and. d' = req_final(req(state, env), d => Test(d) |> wrap_ctx, d);
       Step({
         apply: () =>
           switch (DHExp.term_of(d')) {
           | Bool(true) =>
-            update_test(state, id, (d', info_map, Pass));
+            update_test(state, DHExp.rep_id(d), (d', info_map, Pass));
             Tuple([]) |> fresh;
           | Bool(false) =>
-            update_test(state, id, (d', info_map, Fail));
+            update_test(state, DHExp.rep_id(d), (d', info_map, Fail));
             Tuple([]) |> fresh;
           /* Hack: assume if final and not Bool, then Indet; this won't catch errors in statics */
           | _ =>
-            update_test(state, id, (d', info_map, Indet));
+            update_test(state, DHExp.rep_id(d), (d', info_map, Indet));
             Tuple([]) |> fresh;
           },
         kind: UpdateTest,

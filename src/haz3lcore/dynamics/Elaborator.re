@@ -245,7 +245,7 @@ let rec dhexp_of_uexp =
         DHExp.Seq(d1, d2) |> rewrap;
       | Test(test) =>
         let+ dtest = dhexp_of_uexp(m, test);
-        DHExp.Test(id, dtest) |> rewrap;
+        DHExp.Test(dtest) |> rewrap;
       | Filter(act, cond, body) =>
         let* dcond = dhexp_of_uexp(~in_filter=true, m, cond);
         let+ dbody = dhexp_of_uexp(m, body);

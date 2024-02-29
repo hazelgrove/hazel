@@ -121,9 +121,9 @@ let rec matches =
       | Tuple(ctx, ds) =>
         let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
         Tuple(ctx, ds) |> rewrap;
-      | Test(id, ctx) =>
+      | Test(ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
-        Test(id, ctx) |> rewrap;
+        Test(ctx) |> rewrap;
       | ListLit(ty, ctx, ds) =>
         let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
         ListLit(ty, ctx, ds) |> rewrap;
