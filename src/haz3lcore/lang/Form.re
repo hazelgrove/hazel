@@ -329,6 +329,18 @@ let forms: list((string, t)) = [
   // TRIPLE DELIMITERS
   ("let_", mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))),
   (
+    "letStar",
+    mk(ds, ["let*", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp])),
+  ),
+  (
+    "letPlus",
+    mk(ds, ["let+", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp])),
+  ),
+  (
+    "letMinus",
+    mk(ds, ["let-", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp])),
+  ),
+  (
     "type_alias",
     mk(ds, ["type", "=", "in"], mk_pre(P.let_, Exp, [TPat, Typ])),
   ),

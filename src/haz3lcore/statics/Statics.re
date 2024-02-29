@@ -539,11 +539,14 @@ and upat_to_info_map =
     /* NOTE: The self type assigned to pattern variables (Unknown)
        may be SynSwitch, but SynSwitch is never added to the context;
        Unknown(Internal) is used in this case */
-    if (Form.is_op_in_let(name)
-        && List.mem(
-             String.sub(name, 1, String.length(name) - 2),
-             Form.delims,
-           )) {
+    if ((
+          Form.is_op_in_let(name)
+          && List.mem(
+               String.sub(name, 1, String.length(name) - 2),
+               Form.delims,
+             )
+        )
+        && !Form.is_let_op_in_let(name)) {
       atomic(BuiltinOpExists);
     } else {
       let ctx_typ =
