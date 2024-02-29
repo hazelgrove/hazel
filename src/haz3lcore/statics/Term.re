@@ -443,8 +443,8 @@ module UExp = {
     | Cons
     | UnOp(op_un)
     | BinOp(op_bin)
-    | UserOp(string)
     | LetOp(string)
+    | UserOp
     | Match
     | ListConcat;
 
@@ -485,8 +485,8 @@ module UExp = {
     | ListConcat(_) => ListConcat
     | UnOp(op, _) => UnOp(op)
     | BinOp(op, _, _) => BinOp(op)
-    | UserOp(op, _, _) => UserOp(op)
     | LetOp(op, _, _, _) => LetOp(op)
+    | UserOp(_) => UserOp
     | Match(_) => Match;
 
   let show_op_un_bool: op_un_bool => string =
@@ -573,8 +573,8 @@ module UExp = {
     | ListConcat => "List Concatenation"
     | BinOp(op) => show_binop(op)
     | UnOp(op) => show_unop(op)
-    | UserOp(op) => "User Operator: " ++ Var.show(op)
     | LetOp(op) => "Let" ++ Var.show(op) ++ " Operator: "
+    | UserOp => "User Operator"
     | Match => "Case expression";
 
   let rec is_fun = (e: t) => {

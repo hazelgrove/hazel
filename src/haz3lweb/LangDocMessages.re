@@ -1780,8 +1780,8 @@ let float_neq_group = "float_neq_group";
 let bool_and_group = "bool_and_group";
 let bool_or_group = "bool_or_group";
 let str_eq_group = "str_eq_group";
-let userop_exp_group = "userop_exp_group";
 let str_concat_group = "str_concat_group";
+let userop_exp_group = "userop_exp_group";
 let int_unary_minus_ex = {
   sub_id: "int_unary_minus_ex",
   term: mk_example("-1"),
@@ -2142,7 +2142,7 @@ let int_power_exp_coloring_ids =
   );
 let int_power_exp: form = {
   let explanation = {
-    message: "Integer exponentiation. Gives the result of raising [*left*](%s) ro the [*right*](%s).",
+    message: "Integer exponentiation. Gives the result of raising [*left*](%s) to the [*right*](%s).",
     feedback: Unselected,
   };
   {
@@ -2604,7 +2604,7 @@ let userop_exp_coloring_ids =
   );
 let userop_exp: form = {
   let explanation = {
-    message: "A user-defined operator. Evaluate [*left operand*](%i) and [*right operand*](%i) based on the user-defined operator.",
+    message: "A user-defined operator. Evaluate [*left operand*](%s) and [*right operand*](%s) based on the user-defined operator.",
     feedback: Unselected,
   };
   {

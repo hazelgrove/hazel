@@ -2164,7 +2164,12 @@ let get_doc =
           ),
           coloring_ids(~left_id, ~right_id),
         );
-      | UserOp(_, left, right) =>
+      | UserOp(_, args) =>
+        let (left, right) =
+          switch (args) {
+          | {term: Tuple([l, r]), _} => (l, r)
+          | _ => raise(Invalid_argument("Non-tuple passed to UserOp"))
+          };
         let (doc, options) =
           LangDocMessages.get_form_and_options(
             LangDocMessages.userop_exp_group,

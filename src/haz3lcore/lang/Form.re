@@ -273,18 +273,6 @@ let forms: list((string, t)) = [
   ("ap_typ", mk(ii, ["(", ")"], mk_post(P.ap, Typ, [Typ]))),
   ("let_", mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))),
   (
-    "letStar",
-    mk(ds, ["let*", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp])),
-  ),
-  (
-    "letPlus",
-    mk(ds, ["let+", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp])),
-  ),
-  (
-    "letMinus",
-    mk(ds, ["let-", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp])),
-  ),
-  (
     "type_alias",
     mk(ds, ["type", "=", "in"], mk_pre(P.let_, Exp, [TPat, Typ])),
   ),
