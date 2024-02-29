@@ -443,6 +443,7 @@ module UExp = {
     | BinOp(op_bin)
     | BuiltinFun
     | Match
+    | Cast
     | ListConcat;
 
   let hole = (tms: list(any)): term =>
@@ -488,7 +489,8 @@ module UExp = {
     | UnOp(op, _) => UnOp(op)
     | BinOp(op, _, _) => BinOp(op)
     | BuiltinFun(_) => BuiltinFun
-    | Match(_) => Match;
+    | Match(_) => Match
+    | Cast(_) => Cast;
 
   let show_op_un_meta: op_un_meta => string =
     fun
@@ -587,11 +589,13 @@ module UExp = {
     | BinOp(op) => show_binop(op)
     | UnOp(op) => show_unop(op)
     | BuiltinFun => "Built-in Function"
-    | Match => "Case expression";
+    | Match => "Case expression"
+    | Cast => "Cast expression";
 
   let rec is_fun = (e: t) => {
     switch (e.term) {
     | Parens(e) => is_fun(e)
+    | Cast(e, _, _) => is_fun(e)
     | Fun(_)
     | BuiltinFun(_) => true
     | Invalid(_)
@@ -629,6 +633,7 @@ module UExp = {
     is_fun(e)
     || (
       switch (e.term) {
+      | Cast(e, _, _)
       | Parens(e) => is_tuple_of_functions(e)
       | Tuple(es) => es |> List.for_all(is_fun)
       | Invalid(_)

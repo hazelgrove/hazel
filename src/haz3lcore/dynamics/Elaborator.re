@@ -177,6 +177,9 @@ let rec dhexp_of_uexp =
       switch (uexp.term) {
       // TODO: make closure actually convert
       | Closure(_, d) => dhexp_of_uexp(m, d)
+      | Cast(d1, t1, t2) =>
+        let+ d1' = dhexp_of_uexp(m, d1);
+        Cast(d1', t1, t2) |> rewrap;
       | Invalid(t) => Some(DHExp.Invalid(t) |> rewrap)
       | EmptyHole => Some(DHExp.EmptyHole |> rewrap)
       | MultiHole(us: list(TermBase.Any.t)) =>
