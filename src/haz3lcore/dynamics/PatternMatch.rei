@@ -3,4 +3,4 @@ type match_result =
   | DoesNotMatch
   | IndetMatch;
 
-let matches: (DHPat.t, DHExp.t) => match_result;
+let matches: (TermBase.UPat.t, DHExp.t) => match_result;

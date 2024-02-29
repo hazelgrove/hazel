@@ -9,7 +9,7 @@ type t =
   | HoleLabel
   | Delim
   | EmptyHole(bool, ClosureEnvironment.t)
-  | NonEmptyHole(ErrStatus.HoleReason.t, HoleInstance.t)
+  | NonEmptyHole
   | VarHole(VarErrStatus.HoleReason.t, HoleInstance.t)
   | InconsistentBranches(HoleInstance.t)
   | Invalid

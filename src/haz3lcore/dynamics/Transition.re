@@ -289,7 +289,7 @@ module Transition = (EV: EV_MODE) => {
       // Mutual Recursion case
       | (Closure(env, d1), None) =>
         let. _ = otherwise(env, d);
-        let bindings = DHPat.bound_vars(dp);
+        let bindings = DHPat.bound_vars(info_map, dp);
         let substitutions =
           List.map(
             binding =>
@@ -326,14 +326,14 @@ module Transition = (EV: EV_MODE) => {
         apply: () =>
           switch (DHExp.term_of(d')) {
           | Bool(true) =>
-            update_test(state, id, (d', Pass));
+            update_test(state, id, (d', info_map, Pass));
             Tuple([]) |> fresh;
           | Bool(false) =>
-            update_test(state, id, (d', Fail));
+            update_test(state, id, (d', info_map, Fail));
             Tuple([]) |> fresh;
           /* Hack: assume if final and not Bool, then Indet; this won't catch errors in statics */
           | _ =>
-            update_test(state, id, (d', Indet));
+            update_test(state, id, (d', info_map, Indet));
             Tuple([]) |> fresh;
           },
         kind: UpdateTest,

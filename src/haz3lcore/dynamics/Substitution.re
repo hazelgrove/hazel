@@ -1,5 +1,5 @@
 /* closed substitution [d1/x]d2 */
-let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
+let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
   let (term, rewrap) = DHExp.unwrap(d2);
   switch (term) {
   | Var(y) =>
@@ -10,114 +10,116 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
     }
   | Invalid(_) => d2
   | Seq(d3, d4) =>
-    let d3 = subst_var(d1, x, d3);
-    let d4 = subst_var(d1, x, d4);
+    let d3 = subst_var(m, d1, x, d3);
+    let d4 = subst_var(m, d1, x, d4);
     Seq(d3, d4) |> rewrap;
   | Filter(filter, dbody) =>
-    let dbody = subst_var(d1, x, dbody);
-    let filter = subst_var_filter(d1, x, filter);
+    let dbody = subst_var(m, d1, x, dbody);
+    let filter = subst_var_filter(m, d1, x, filter);
     Filter(filter, dbody) |> rewrap;
   | Let(dp, d3, d4) =>
-    let d3 = subst_var(d1, x, d3);
+    let d3 = subst_var(m, d1, x, d3);
     let d4 =
-      if (DHPat.binds_var(x, dp)) {
+      if (DHPat.binds_var(m, x, dp)) {
         d4;
       } else {
-        subst_var(d1, x, d4);
+        subst_var(m, d1, x, d4);
       };
     Let(dp, d3, d4) |> rewrap;
   | FixF(y, ty, d3) =>
     let d3 =
-      if (DHPat.binds_var(x, y)) {
+      if (DHPat.binds_var(m, x, y)) {
         d3;
       } else {
-        subst_var(d1, x, d3);
+        subst_var(m, d1, x, d3);
       };
     FixF(y, ty, d3) |> rewrap;
   | Fun(dp, ty, d3, env, s) =>
     /* Function closure shouldn't appear during substitution
        (which only is called from elaboration currently) */
-    let env' = Option.map(subst_var_env(d1, x), env);
-    if (DHPat.binds_var(x, dp)) {
+    let env' = Option.map(subst_var_env(m, d1, x), env);
+    if (DHPat.binds_var(m, x, dp)) {
       Fun(dp, ty, d3, env', s) |> rewrap;
     } else {
-      let d3 = subst_var(d1, x, d3);
+      let d3 = subst_var(m, d1, x, d3);
       Fun(dp, ty, d3, env', s) |> rewrap;
     };
   | Closure(env, d3) =>
     /* Closure shouldn't appear during substitution (which
        only is called from elaboration currently) */
-    let env' = subst_var_env(d1, x, env);
-    let d3' = subst_var(d1, x, d3);
+    let env' = subst_var_env(m, d1, x, env);
+    let d3' = subst_var(m, d1, x, d3);
     Closure(env', d3') |> rewrap;
   | Ap(dir, d3, d4) =>
-    let d3 = subst_var(d1, x, d3);
-    let d4 = subst_var(d1, x, d4);
+    let d3 = subst_var(m, d1, x, d3);
+    let d4 = subst_var(m, d1, x, d4);
     Ap(dir, d3, d4) |> rewrap;
   | BuiltinFun(_) => d2
-  | Test(id, d3) => Test(id, subst_var(d1, x, d3)) |> rewrap
+  | Test(id, d3) => Test(id, subst_var(m, d1, x, d3)) |> rewrap
   | Bool(_)
   | Int(_)
   | Float(_)
   | String(_)
   | Constructor(_) => d2
-  | ListLit(t, ds) => ListLit(t, List.map(subst_var(d1, x), ds)) |> rewrap
+  | ListLit(t, ds) =>
+    ListLit(t, List.map(subst_var(m, d1, x), ds)) |> rewrap
   | Cons(d3, d4) =>
-    let d3 = subst_var(d1, x, d3);
-    let d4 = subst_var(d1, x, d4);
+    let d3 = subst_var(m, d1, x, d3);
+    let d4 = subst_var(m, d1, x, d4);
     Cons(d3, d4) |> rewrap;
   | ListConcat(d3, d4) =>
-    let d3 = subst_var(d1, x, d3);
-    let d4 = subst_var(d1, x, d4);
+    let d3 = subst_var(m, d1, x, d3);
+    let d4 = subst_var(m, d1, x, d4);
     ListConcat(d3, d4) |> rewrap;
-  | Tuple(ds) => Tuple(List.map(subst_var(d1, x), ds)) |> rewrap
+  | Tuple(ds) => Tuple(List.map(subst_var(m, d1, x), ds)) |> rewrap
   | UnOp(op, d3) =>
-    let d3 = subst_var(d1, x, d3);
+    let d3 = subst_var(m, d1, x, d3);
     UnOp(op, d3) |> rewrap;
   | BinOp(op, d3, d4) =>
-    let d3 = subst_var(d1, x, d3);
-    let d4 = subst_var(d1, x, d4);
+    let d3 = subst_var(m, d1, x, d3);
+    let d4 = subst_var(m, d1, x, d4);
     BinOp(op, d3, d4) |> rewrap;
   | Match(ds, rules) =>
-    let ds = subst_var(d1, x, ds);
+    let ds = subst_var(m, d1, x, ds);
     let rules =
       List.map(
         ((p, v)) =>
-          if (DHPat.binds_var(x, p)) {
+          if (DHPat.binds_var(m, x, p)) {
             (p, v);
           } else {
-            (p, subst_var(d1, x, v));
+            (p, subst_var(m, d1, x, v));
           },
         rules,
       );
     Match(ds, rules) |> rewrap;
   | EmptyHole => EmptyHole |> rewrap
-  | MultiHole(ds) => MultiHole(List.map(subst_var(d1, x), ds)) |> rewrap
+  | MultiHole(ds) => MultiHole(List.map(subst_var(m, d1, x), ds)) |> rewrap
   | StaticErrorHole(u, d3) =>
-    let d3' = subst_var(d1, x, d3);
+    let d3' = subst_var(m, d1, x, d3);
     StaticErrorHole(u, d3') |> rewrap;
   | Cast(d, ty1, ty2) =>
-    let d' = subst_var(d1, x, d);
+    let d' = subst_var(m, d1, x, d);
     Cast(d', ty1, ty2) |> rewrap;
   | FailedCast(d, ty1, ty2) =>
-    let d' = subst_var(d1, x, d);
+    let d' = subst_var(m, d1, x, d);
     FailedCast(d', ty1, ty2) |> rewrap;
   | DynamicErrorHole(d, err) =>
-    let d' = subst_var(d1, x, d);
+    let d' = subst_var(m, d1, x, d);
     DynamicErrorHole(d', err) |> rewrap;
   | If(d4, d5, d6) =>
-    let d4' = subst_var(d1, x, d4);
-    let d5' = subst_var(d1, x, d5);
-    let d6' = subst_var(d1, x, d6);
+    let d4' = subst_var(m, d1, x, d4);
+    let d5' = subst_var(m, d1, x, d5);
+    let d6' = subst_var(m, d1, x, d6);
     If(d4', d5', d6') |> rewrap;
   | TyAlias(tp, ut, d4) =>
-    let d4' = subst_var(d1, x, d4);
+    let d4' = subst_var(m, d1, x, d4);
     TyAlias(tp, ut, d4') |> rewrap;
   };
 }
 
 and subst_var_env =
-    (d1: DHExp.t, x: Var.t, env: ClosureEnvironment.t): ClosureEnvironment.t => {
+    (m, d1: DHExp.t, x: Var.t, env: ClosureEnvironment.t)
+    : ClosureEnvironment.t => {
   let id = env |> ClosureEnvironment.id_of;
   let map =
     env
@@ -131,14 +133,14 @@ and subst_var_env =
              | FixF(_) =>
                map
                |> Environment.foldo(
-                    ((x'', d''), d) => subst_var(d'', x'', d),
+                    ((x'', d''), d) => subst_var(m, d'', x'', d),
                     d',
                   )
              | _ => d'
              };
 
            /* Substitute. */
-           let d' = subst_var(d1, x, d');
+           let d' = subst_var(m, d1, x, d');
            Environment.extend(map, (x', d'));
          },
          Environment.empty,
@@ -148,16 +150,16 @@ and subst_var_env =
 }
 
 and subst_var_filter =
-    (d1: DHExp.t, x: Var.t, flt: DH.DHFilter.t): DH.DHFilter.t => {
-  flt |> DH.DHFilter.map(subst_var(d1, x));
+    (m, d1: DHExp.t, x: Var.t, flt: DH.DHFilter.t): DH.DHFilter.t => {
+  flt |> DH.DHFilter.map(subst_var(m, d1, x));
 };
 
-let subst = (env: Environment.t, d: DHExp.t): DHExp.t =>
+let subst = (m, env: Environment.t, d: DHExp.t): DHExp.t =>
   env
   |> Environment.foldo(
        (xd: (Var.t, DHExp.t), d2) => {
          let (x, d1) = xd;
-         subst_var(d1, x, d2);
+         subst_var(m, d1, x, d2);
        },
        d,
      );

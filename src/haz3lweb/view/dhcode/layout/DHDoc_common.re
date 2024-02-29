@@ -89,10 +89,6 @@ module Delim = {
 let mk_EmptyHole = (~selected=false, env: ClosureEnvironment.t) =>
   Delim.empty_hole(env) |> Doc.annot(DHAnnot.EmptyHole(selected, env));
 
-let mk_ExpandingKeyword = (hc, k) =>
-  Doc.text(ExpandingKeyword.to_string(k))
-  |> Doc.annot(DHAnnot.VarHole(ExpandingKeyword(k), hc));
-
 let mk_InvalidText = t => Doc.text(t) |> Doc.annot(DHAnnot.Invalid);
 
 let mk_Sequence = (doc1, doc2) => Doc.(hcats([doc1, linebreak(), doc2]));

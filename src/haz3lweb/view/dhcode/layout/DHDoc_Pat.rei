@@ -1,5 +1,12 @@
 open Haz3lcore;
 
-let precedence: DHPat.t => int;
+let precedence: TermBase.UPat.t => int;
 
-let mk: (~parenthesize: bool=?, ~enforce_inline: bool, DHPat.t) => DHDoc.t;
+let mk:
+  (
+    ~infomap: Statics.Map.t,
+    ~parenthesize: bool=?,
+    ~enforce_inline: bool,
+    TermBase.UPat.t
+  ) =>
+  DHDoc.t;

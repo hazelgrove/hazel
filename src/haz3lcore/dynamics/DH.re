@@ -16,7 +16,7 @@ module rec DHExp: {
     | ListLit(Typ.t, list(t))
     | Constructor(string)
     | Fun(
-        DHPat.t,
+        TermBase.UPat.t,
         Typ.t,
         t,
         [@show.opaque] option(ClosureEnvironment.t),
@@ -24,8 +24,8 @@ module rec DHExp: {
       ) // TODO: Use info_map for Typ.t
     | Tuple(list(t))
     | Var(Var.t)
-    | Let(DHPat.t, t, t)
-    | FixF(DHPat.t, Typ.t, t) // TODO: Remove type
+    | Let(TermBase.UPat.t, t, t)
+    | FixF(TermBase.UPat.t, Typ.t, t) // TODO: Remove type
     | TyAlias(TermBase.UTPat.t, TermBase.UTyp.t, t)
     // TODO: Add TyAlias
     | Ap(TermBase.UExp.ap_direction, t, t)
@@ -40,7 +40,7 @@ module rec DHExp: {
     | UnOp(TermBase.UExp.op_un, t)
     | BinOp(TermBase.UExp.op_bin, t, t) // DONE
     | BuiltinFun(string) // DONE [TO ADD TO UEXP]
-    | Match(t, list((DHPat.t, t)))
+    | Match(t, list((TermBase.UPat.t, t)))
     | Cast(t, Typ.t, Typ.t) // TODO: Add to uexp or remove
   and t;
 
@@ -76,7 +76,7 @@ module rec DHExp: {
     | ListLit(Typ.t, list(t))
     | Constructor(string)
     | Fun(
-        DHPat.t,
+        TermBase.UPat.t,
         Typ.t,
         t,
         [@show.opaque] option(ClosureEnvironment.t),
@@ -84,8 +84,8 @@ module rec DHExp: {
       ) // TODO: Use info_map for Typ.t
     | Tuple(list(t))
     | Var(Var.t)
-    | Let(DHPat.t, t, t)
-    | FixF(DHPat.t, Typ.t, t) // TODO: Remove type
+    | Let(TermBase.UPat.t, t, t)
+    | FixF(TermBase.UPat.t, Typ.t, t) // TODO: Remove type
     | TyAlias(TermBase.UTPat.t, TermBase.UTyp.t, t)
     // TODO: Add TyAlias
     | Ap(TermBase.UExp.ap_direction, t, t)
@@ -100,7 +100,7 @@ module rec DHExp: {
     | UnOp(TermBase.UExp.op_un, t)
     | BinOp(TermBase.UExp.op_bin, t, t) // DONE
     | BuiltinFun(string) // DONE [TO ADD TO UEXP]
-    | Match(t, list((DHPat.t, t)))
+    | Match(t, list((TermBase.UPat.t, t)))
     | Cast(t, Typ.t, Typ.t) // TODO: Add to uexp or remove
   and t = {
     /* invariant: nonempty, TODO: what happens to later ids in DHExp */

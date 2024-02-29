@@ -191,6 +191,7 @@ let live_eval =
       ~font_metrics,
       ~width=80,
       ~result_key,
+      ~infomap=result.elab.info_map,
       dhexp,
     );
   let exn_view =

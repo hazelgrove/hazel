@@ -28,15 +28,15 @@ let cast_sum_maps =
   };
 };
 
-let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
+let rec matches = (dp: TermBase.UPat.t, d: DHExp.t): match_result =>
   switch (DHPat.term_of(dp), DHExp.term_of(d)) {
+  | (Parens(x), _) => matches(x, d)
+  | (TypeAnn(x, _), _) => matches(x, d)
   | (_, Var(_)) => DoesNotMatch
   | (EmptyHole, _)
-  | (NonEmptyHole(_), _) => IndetMatch
+  | (MultiHole(_), _)
   | (Wild, _) => Matches(Environment.empty)
-  | (ExpandingKeyword(_), _) => DoesNotMatch
   | (Invalid(_), _) => IndetMatch
-  | (BadConstructor(_), _) => IndetMatch
   | (Var(x), _) =>
     let env = Environment.extend(Environment.empty, (x, d));
     Matches(env);
@@ -202,7 +202,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
 and matches_cast_Sum =
     (
       ctr: string,
-      dp: option(DHPat.t),
+      dp: option(TermBase.UPat.t),
       d: DHExp.t,
       castmaps: list(ConstructorMap.t((Typ.t, Typ.t))),
     )
@@ -272,7 +272,7 @@ and matches_cast_Sum =
   }
 and matches_cast_Tuple =
     (
-      dps: list(DHPat.t),
+      dps: list(TermBase.UPat.t),
       d: DHExp.t,
       elt_casts: list(list((Typ.t, Typ.t))),
     )
@@ -357,7 +357,8 @@ and matches_cast_Tuple =
   | If(_) => IndetMatch
   }
 and matches_cast_Cons =
-    (dp: DHPat.t, d: DHExp.t, elt_casts: list((Typ.t, Typ.t))): match_result =>
+    (dp: TermBase.UPat.t, d: DHExp.t, elt_casts: list((Typ.t, Typ.t)))
+    : match_result =>
   switch (DHExp.term_of(d)) {
   | ListLit(_, []) =>
     switch (DHPat.term_of(dp)) {
@@ -444,7 +445,7 @@ and matches_cast_Cons =
             },
             elt_casts,
           );
-        let dp2 = DHPat.ListLit(dptl) |> DHPat.fresh;
+        let dp2 = TermBase.UPat.ListLit(dptl) |> DHPat.fresh;
         switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
         | DoesNotMatch => DoesNotMatch
         | IndetMatch => IndetMatch

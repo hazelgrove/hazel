@@ -109,6 +109,7 @@ let mk =
       ~chosen_step: option(step), // The step that will be taken next
       ~next_steps: list((int, Id.t)), // The options for the next step, if it hasn't been chosen yet
       ~env: ClosureEnvironment.t,
+      ~infomap: Statics.Map.t,
       d: DHExp.t,
     )
     : DHDoc.t => {
@@ -139,13 +140,13 @@ let mk =
         switch (ps.knd, DHExp.term_of(ps.d_loc)) {
         | (FunAp, Ap(_, d2, _)) =>
           switch (DHExp.term_of(d2)) {
-          | Fun(p, _, _, _, _) => DHPat.bound_vars(p)
+          | Fun(p, _, _, _, _) => DHPat.bound_vars(infomap, p)
           | _ => []
           }
         | (FunAp, _) => []
-        | (LetBind, Let(p, _, _)) => DHPat.bound_vars(p)
+        | (LetBind, Let(p, _, _)) => DHPat.bound_vars(infomap, p)
         | (LetBind, _) => []
-        | (FixUnwrap, FixF(p, _, _)) => DHPat.bound_vars(p)
+        | (FixUnwrap, FixF(p, _, _)) => DHPat.bound_vars(infomap, p)
         | (FixUnwrap, _) => []
         | (InvalidStep, _)
         | (VarLookup, _)
@@ -207,7 +208,7 @@ let mk =
           : hcat(space(), hidden_clause);
       hcats([
         DHDoc_common.Delim.bar_Rule,
-        DHDoc_Pat.mk(dp)
+        DHDoc_Pat.mk(~infomap, dp)
         |> DHDoc_common.pad_child(
              ~inline_padding=(space(), space()),
              ~enforce_inline=false,
@@ -285,8 +286,7 @@ let mk =
           env,
         )
       | MultiHole(ds) => ds |> List.map(go') |> Doc.hcats
-      | StaticErrorHole(u, d') =>
-        go'(d') |> annot(DHAnnot.NonEmptyHole(TypeInconsistent, (u, 0)))
+      | StaticErrorHole(_, d') => go'(d') |> annot(DHAnnot.NonEmptyHole)
       | Invalid(t) => DHDoc_common.mk_InvalidText(t)
       | Var(x) when List.mem(x, recursive_calls) => text(x)
       | Var(x) when settings.show_lookup_steps => text(x)
@@ -399,12 +399,12 @@ let mk =
         if (enforce_inline) {
           fail();
         } else {
-          let bindings = DHPat.bound_vars(dp);
+          let bindings = DHPat.bound_vars(infomap, dp);
           let def_doc = go_formattable(ddef);
           vseps([
             hcats([
               DHDoc_common.Delim.mk("let"),
-              DHDoc_Pat.mk(dp)
+              DHDoc_Pat.mk(~infomap, dp)
               |> DHDoc_common.pad_child(
                    ~inline_padding=(space(), space()),
                    ~enforce_inline,
@@ -479,7 +479,7 @@ let mk =
         ]);
       | Fun(dp, ty, d, Some(env'), s) =>
         if (settings.show_fn_bodies) {
-          let bindings = DHPat.bound_vars(dp);
+          let bindings = DHPat.bound_vars(infomap, dp);
           let body_doc =
             go_formattable(
               Closure(
@@ -489,7 +489,7 @@ let mk =
               |> DHExp.fresh,
               ~env=
                 ClosureEnvironment.without_keys(
-                  DHPat.bound_vars(dp) @ Option.to_list(s),
+                  DHPat.bound_vars(infomap, dp) @ Option.to_list(s),
                   env,
                 ),
               ~recent_subst=
@@ -498,7 +498,7 @@ let mk =
           hcats(
             [
               DHDoc_common.Delim.sym_Fun,
-              DHDoc_Pat.mk(dp)
+              DHDoc_Pat.mk(~infomap, dp)
               |> DHDoc_common.pad_child(
                    ~inline_padding=(space(), space()),
                    ~enforce_inline,
@@ -528,7 +528,7 @@ let mk =
         }
       | Fun(dp, ty, dbody, None, s) =>
         if (settings.show_fn_bodies) {
-          let bindings = DHPat.bound_vars(dp);
+          let bindings = DHPat.bound_vars(infomap, dp);
           let body_doc =
             go_formattable(
               dbody,
@@ -540,7 +540,7 @@ let mk =
           hcats(
             [
               DHDoc_common.Delim.sym_Fun,
-              DHDoc_Pat.mk(dp)
+              DHDoc_Pat.mk(~infomap, dp)
               |> DHDoc_common.pad_child(
                    ~inline_padding=(space(), space()),
                    ~enforce_inline,
@@ -572,13 +572,17 @@ let mk =
         let doc_body =
           go_formattable(
             dbody,
-            ~env=ClosureEnvironment.without_keys(DHPat.bound_vars(dp), env),
+            ~env=
+              ClosureEnvironment.without_keys(
+                DHPat.bound_vars(infomap, dp),
+                env,
+              ),
           );
         hcats(
           [
             DHDoc_common.Delim.fix_FixF,
             space(),
-            DHDoc_Pat.mk(dp, ~enforce_inline=true),
+            DHDoc_Pat.mk(~infomap, dp, ~enforce_inline=true),
           ]
           @ (
             settings.show_casts
@@ -598,7 +602,11 @@ let mk =
         );
       | FixF(dp, _, d) =>
         go'(
-          ~env=ClosureEnvironment.without_keys(DHPat.bound_vars(dp), env),
+          ~env=
+            ClosureEnvironment.without_keys(
+              DHPat.bound_vars(infomap, dp),
+              env,
+            ),
           d,
         )
       };

@@ -108,6 +108,7 @@ let stepper_view =
           ~hidden_steps,
           ~result_key,
           ~next_steps,
+          ~infomap=Stepper.get_elab(stepper).info_map,
           d,
         ),
       ],
