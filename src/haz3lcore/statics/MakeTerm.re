@@ -138,7 +138,7 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
 and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  return(e => Exp(e), ids, {ids, term});
+  return(e => Exp(e), ids, {ids, copied: false, term});
 }
 and exp_term: unsorted => (UExp.term, list(Id.t)) = {
   let ret = (tm: UExp.term) => (tm, []);
@@ -161,7 +161,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
       | (["[", "]"], [Exp(body)]) =>
         switch (body) {
-        | {ids, term: Tuple(es)} => (ListLit(es), ids)
+        | {ids, copied: false, term: Tuple(es)} => (ListLit(es), ids)
         | term => ret(ListLit([term]))
         }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
@@ -208,7 +208,13 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     | ([(_id, t)], []) =>
       switch (t) {
       | (["()"], []) =>
-        ret(Ap(Forward, l, {ids: [Id.nullary_ap_flag], term: Tuple([])}))
+        ret(
+          Ap(
+            Forward,
+            l,
+            {ids: [Id.nullary_ap_flag], copied: false, term: Tuple([])},
+          ),
+        )
       | (["(", ")"], [Exp(arg)]) => ret(Ap(Forward, l, arg))
       | _ => ret(hole(tm))
       }

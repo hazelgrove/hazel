@@ -24,7 +24,7 @@ let mk_map = CoreSettings.on |> Interface.Statics.mk_map;
 let dhexp_of_uexp = u => Elaborator.dhexp_of_uexp(mk_map(u), u, false);
 let alco_check = dhexp_typ |> Alcotest.check;
 
-let u1: Term.UExp.t = {ids: [id_at(0)], term: Int(8)};
+let u1: Term.UExp.t = {ids: [id_at(0)], copied: false, term: Int(8)};
 let single_integer = () =>
   alco_check(
     "Integer literal 8",
@@ -32,13 +32,14 @@ let single_integer = () =>
     dhexp_of_uexp(u1),
   );
 
-let u2: Term.UExp.t = {ids: [id_at(0)], term: EmptyHole};
+let u2: Term.UExp.t = {ids: [id_at(0)], copied: false, term: EmptyHole};
 let empty_hole = () =>
   alco_check("Empty hole", Some(EmptyHole |> fresh), dhexp_of_uexp(u2));
 
 let u3: Term.UExp.t = {
   ids: [id_at(0)],
-  term: Parens({ids: [id_at(1)], term: Var("y")}),
+  copied: false,
+  term: Parens({ids: [id_at(1)], copied: false, term: Var("y")}),
 };
 let d3: DHExp.t = StaticErrorHole(id_at(1), Var("y") |> fresh) |> fresh;
 let free_var = () =>
@@ -50,6 +51,7 @@ let free_var = () =>
 
 let u4: Term.UExp.t = {
   ids: [id_at(0)],
+  copied: false,
   term:
     Let(
       {
@@ -62,19 +64,21 @@ let u4: Term.UExp.t = {
       },
       {
         ids: [id_at(4)],
+        copied: false,
         term:
           Tuple([
-            {ids: [id_at(5)], term: Int(4)},
-            {ids: [id_at(6)], term: Int(6)},
+            {ids: [id_at(5)], copied: false, term: Int(4)},
+            {ids: [id_at(6)], copied: false, term: Int(6)},
           ]),
       },
       {
         ids: [id_at(7)],
+        copied: false,
         term:
           BinOp(
             Int(Minus),
-            {ids: [id_at(8)], term: Var("a")},
-            {ids: [id_at(9)], term: Var("b")},
+            {ids: [id_at(8)], copied: false, term: Var("a")},
+            {ids: [id_at(9)], copied: false, term: Var("b")},
           ),
       },
     ),
@@ -95,11 +99,12 @@ let let_exp = () =>
 
 let u5: Term.UExp.t = {
   ids: [id_at(0)],
+  copied: false,
   term:
     BinOp(
       Int(Plus),
-      {ids: [id_at(1)], term: Bool(false)},
-      {ids: [id_at(2)], term: Var("y")},
+      {ids: [id_at(1)], copied: false, term: Bool(false)},
+      {ids: [id_at(2)], copied: false, term: Var("y")},
     ),
 };
 let d5: DHExp.t =
@@ -118,11 +123,12 @@ let bin_op = () =>
 
 let u6: Term.UExp.t = {
   ids: [id_at(0)],
+  copied: false,
   term:
     If(
-      {ids: [id_at(1)], term: Bool(false)},
-      {ids: [id_at(2)], term: Int(8)},
-      {ids: [id_at(3)], term: Int(6)},
+      {ids: [id_at(1)], copied: false, term: Bool(false)},
+      {ids: [id_at(2)], copied: false, term: Int(8)},
+      {ids: [id_at(3)], copied: false, term: Int(6)},
     ),
 };
 let d6: DHExp.t =
@@ -136,26 +142,29 @@ let consistent_if = () =>
 
 let u7: Term.UExp.t = {
   ids: [id_at(0)],
+  copied: false,
   term:
     Ap(
       Forward,
       {
         ids: [id_at(1)],
+        copied: false,
         term:
           Fun(
             {ids: [id_at(2)], term: Var("x")},
             {
               ids: [id_at(3)],
+              copied: false,
               term:
                 BinOp(
                   Int(Plus),
-                  {ids: [id_at(4)], term: Int(4)},
-                  {ids: [id_at(5)], term: Var("x")},
+                  {ids: [id_at(4)], copied: false, term: Int(4)},
+                  {ids: [id_at(5)], copied: false, term: Var("x")},
                 ),
             },
           ),
       },
-      {ids: [id_at(6)], term: Var("y")},
+      {ids: [id_at(6)], copied: false, term: Var("y")},
     ),
 };
 let d7: DHExp.t =
@@ -185,25 +194,27 @@ let ap_fun = () =>
 
 let u8: Term.UExp.t = {
   ids: [id_at(0)],
+  copied: false,
   term:
     Match(
       {
         ids: [id_at(1)],
+        copied: false,
         term:
           BinOp(
             Int(Equals),
-            {ids: [id_at(2)], term: Int(4)},
-            {ids: [id_at(3)], term: Int(3)},
+            {ids: [id_at(2)], copied: false, term: Int(4)},
+            {ids: [id_at(3)], copied: false, term: Int(3)},
           ),
       },
       [
         (
           {ids: [id_at(6)], term: Bool(true)},
-          {ids: [id_at(4)], term: Int(24)},
+          {ids: [id_at(4)], copied: false, term: Int(24)},
         ),
         (
           {ids: [id_at(7)], term: Bool(false)},
-          {ids: [id_at(5)], term: Bool(false)},
+          {ids: [id_at(5)], copied: false, term: Bool(false)},
         ),
       ],
     ),
@@ -226,6 +237,7 @@ let inconsistent_case = () =>
 
 let u9: Term.UExp.t = {
   ids: [id_at(0)],
+  copied: false,
   term:
     Let(
       {
@@ -245,21 +257,23 @@ let u9: Term.UExp.t = {
       },
       {
         ids: [id_at(6)],
+        copied: false,
         term:
           Fun(
             {ids: [id_at(7)], term: Var("x")},
             {
               ids: [id_at(8)],
+              copied: false,
               term:
                 BinOp(
                   Int(Plus),
-                  {ids: [id_at(9)], term: Int(1)},
-                  {ids: [id_at(10)], term: Var("x")},
+                  {ids: [id_at(9)], copied: false, term: Int(1)},
+                  {ids: [id_at(10)], copied: false, term: Var("x")},
                 ),
             },
           ),
       },
-      {ids: [id_at(11)], term: Int(55)},
+      {ids: [id_at(11)], copied: false, term: Int(55)},
     ),
 };
 // let d9: DHExp.t =

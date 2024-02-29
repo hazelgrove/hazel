@@ -68,18 +68,27 @@ let rec append_exp = (e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   | UnOp(_)
   | BinOp(_)
   | BuiltinFun(_)
-  | Match(_) => TermBase.UExp.{ids: [Id.mk()], term: Seq(e1, e2)}
+  | Match(_) =>
+    TermBase.UExp.{ids: [Id.mk()], copied: false, term: Seq(e1, e2)}
   | Seq(e11, e12) =>
     let e12' = append_exp(e12, e2);
-    TermBase.UExp.{ids: e1.ids, term: Seq(e11, e12')};
+    TermBase.UExp.{ids: e1.ids, copied: false, term: Seq(e11, e12')};
   | Filter(act, econd, ebody) =>
     let ebody' = append_exp(ebody, e2);
-    TermBase.UExp.{ids: e1.ids, term: Filter(act, econd, ebody')};
+    TermBase.UExp.{
+      ids: e1.ids,
+      copied: false,
+      term: Filter(act, econd, ebody'),
+    };
   | Let(p, edef, ebody) =>
     let ebody' = append_exp(ebody, e2);
-    TermBase.UExp.{ids: e1.ids, term: Let(p, edef, ebody')};
+    TermBase.UExp.{ids: e1.ids, copied: false, term: Let(p, edef, ebody')};
   | TyAlias(tp, tdef, ebody) =>
     let ebody' = append_exp(ebody, e2);
-    TermBase.UExp.{ids: e1.ids, term: TyAlias(tp, tdef, ebody')};
+    TermBase.UExp.{
+      ids: e1.ids,
+      copied: false,
+      term: TyAlias(tp, tdef, ebody'),
+    };
   };
 };
