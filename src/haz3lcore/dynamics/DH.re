@@ -1,14 +1,23 @@
 open Sexplib.Std;
 
+/*
+ To discuss:
+
+ 1. putting info inside expressions
+ 2. The issue with recursion capture
+
+
+ */
+
 module rec DHExp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
     | Invalid(string)
     | EmptyHole
     | MultiHole(list(DHExp.t))
-    | StaticErrorHole(Id.t, t) // TODO: Add to TermBase
-    | DynamicErrorHole(t, InvalidOperationError.t) // TODO: Add to TermBase or remove from here
-    | FailedCast(t, Typ.t, Typ.t) // TODO: Add to TermBase or remove from here
+    | StaticErrorHole(Id.t, t)
+    | DynamicErrorHole(t, InvalidOperationError.t)
+    | FailedCast(t, Typ.t, Typ.t)
     | Bool(bool)
     | Int(int)
     | Float(float)
@@ -16,8 +25,8 @@ module rec DHExp: {
     | ListLit(Typ.t, list(t))
     | Constructor(string)
     | Fun(
-        TermBase.UPat.t,
-        Typ.t,
+        TermBase.UPat.t, // INVARIANT: always has type assignment on outside
+        Typ.t, // Would be nice to move this into the pattern, but we'd need to merge UTyp.t and Typ.t
         t,
         [@show.opaque] option(ClosureEnvironment.t),
         option(Var.t),
@@ -25,9 +34,8 @@ module rec DHExp: {
     | Tuple(list(t))
     | Var(Var.t)
     | Let(TermBase.UPat.t, t, t)
-    | FixF(TermBase.UPat.t, Typ.t, t) // TODO: Remove type
+    | FixF(TermBase.UPat.t, Typ.t, t) // INVARIANT: always has type assignment on outside // Would be nice to move this into the pattern, but we'd need to merge UTyp.t and Typ.t
     | TyAlias(TermBase.UTPat.t, TermBase.UTyp.t, t)
-    // TODO: Add TyAlias
     | Ap(TermBase.UExp.ap_direction, t, t)
     | If(t, t, t)
     | Seq(t, t)
@@ -39,7 +47,7 @@ module rec DHExp: {
     | ListConcat(t, t)
     | UnOp(TermBase.UExp.op_un, t)
     | BinOp(TermBase.UExp.op_bin, t, t) // DONE
-    | BuiltinFun(string) // DONE [TO ADD TO UEXP]
+    | BuiltinFun(string) // DONE
     | Match(t, list((TermBase.UPat.t, t)))
     | Cast(t, Typ.t, Typ.t) // TODO: Add to uexp or remove
   and t;

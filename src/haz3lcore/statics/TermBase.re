@@ -112,6 +112,9 @@ and UExp: {
     | Invalid
     | EmptyHole
     | MultiHole
+    | StaticErrorHole
+    | DynamicErrorHole
+    | FailedCast
     | Bool
     | Int
     | Float
@@ -139,6 +142,9 @@ and UExp: {
     | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
+    | StaticErrorHole(Id.t, t)
+    | DynamicErrorHole(t, InvalidOperationError.t)
+    | FailedCast(t, Typ.t, Typ.t)
     | Bool(bool)
     | Int(int)
     | Float(float)
@@ -247,6 +253,9 @@ and UExp: {
     | Invalid
     | EmptyHole
     | MultiHole
+    | StaticErrorHole
+    | DynamicErrorHole
+    | FailedCast
     | Bool
     | Int
     | Float
@@ -274,7 +283,9 @@ and UExp: {
     | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
-    // TODO: Add StaticErrorHole, DynamicErrorHole, FailedCast
+    | StaticErrorHole(Id.t, t)
+    | DynamicErrorHole(t, InvalidOperationError.t)
+    | FailedCast(t, Typ.t, Typ.t)
     | Bool(bool)
     | Int(int)
     | Float(float)

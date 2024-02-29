@@ -414,6 +414,9 @@ module UExp = {
     | Invalid
     | EmptyHole
     | MultiHole
+    | StaticErrorHole
+    | DynamicErrorHole
+    | FailedCast
     | Bool
     | Int
     | Float
@@ -457,6 +460,9 @@ module UExp = {
     | Invalid(_) => Invalid
     | EmptyHole => EmptyHole
     | MultiHole(_) => MultiHole
+    | StaticErrorHole(_) => StaticErrorHole
+    | DynamicErrorHole(_) => DynamicErrorHole
+    | FailedCast(_) => FailedCast
     | Bool(_) => Bool
     | Int(_) => Int
     | Float(_) => Float
@@ -550,6 +556,9 @@ module UExp = {
     | Invalid => "Invalid expression"
     | MultiHole => "Broken expression"
     | EmptyHole => "Empty expression hole"
+    | StaticErrorHole => "Static error hole"
+    | DynamicErrorHole => "Dynamic error hole"
+    | FailedCast => "Failed cast"
     | Bool => "Boolean literal"
     | Int => "Integer literal"
     | Float => "Float literal"
@@ -585,6 +594,9 @@ module UExp = {
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
+    | StaticErrorHole(_)
+    | DynamicErrorHole(_)
+    | FailedCast(_)
     | Bool(_)
     | Int(_)
     | Float(_)
@@ -618,6 +630,9 @@ module UExp = {
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
+      | StaticErrorHole(_)
+      | DynamicErrorHole(_)
+      | FailedCast(_)
       | Bool(_)
       | Int(_)
       | Float(_)

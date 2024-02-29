@@ -46,6 +46,9 @@ let rec append_exp = (e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   | EmptyHole
   | Invalid(_)
   | MultiHole(_)
+  | StaticErrorHole(_)
+  | DynamicErrorHole(_)
+  | FailedCast(_)
   | Bool(_)
   | Int(_)
   | Float(_)

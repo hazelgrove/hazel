@@ -35,6 +35,10 @@ let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
   | EmptyHole
   | Invalid(_)
   | MultiHole(_)
+  // TODO: are we interested in mentions inside these holes?
+  | StaticErrorHole(_)
+  | DynamicErrorHole(_)
+  | FailedCast(_)
   | Bool(_)
   | Int(_)
   | Float(_)
@@ -79,6 +83,9 @@ let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
   switch (uexp.term) {
   | Var(_)
   | EmptyHole
+  | StaticErrorHole(_)
+  | DynamicErrorHole(_)
+  | FailedCast(_)
   | Invalid(_)
   | MultiHole(_)
   | Bool(_)
@@ -201,6 +208,9 @@ let rec find_fn =
   | EmptyHole
   | Invalid(_)
   | MultiHole(_)
+  | StaticErrorHole(_)
+  | DynamicErrorHole(_)
+  | FailedCast(_)
   | Bool(_)
   | Int(_)
   | Float(_)
@@ -229,6 +239,9 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   | EmptyHole
   | Invalid(_)
   | MultiHole(_)
+  | StaticErrorHole(_)
+  | DynamicErrorHole(_)
+  | FailedCast(_)
   | Bool(_)
   | Int(_)
   | Float(_)

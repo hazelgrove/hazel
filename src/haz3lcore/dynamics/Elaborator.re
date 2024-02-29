@@ -9,6 +9,9 @@ open OptUtil.Syntax;
   - Remove TyAlias [should we do this??]
   - Annotate functions with types, and names
   - Insert implicit fixpoints (in types and expressions)
+
+  Going the other way:
+  - There's going to be a horrible case with
   */
 
 module Elaboration = {
@@ -184,7 +187,13 @@ let rec dhexp_of_uexp =
           let+ ds = us |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
           DHExp.MultiHole(ds) |> rewrap;
         }
-
+      | StaticErrorHole(_, e) => dhexp_of_uexp(m, e)
+      | DynamicErrorHole(e, err) =>
+        let+ d1 = dhexp_of_uexp(m, e);
+        DHExp.DynamicErrorHole(d1, err) |> rewrap;
+      | FailedCast(e, t1, t2) =>
+        let+ d1 = dhexp_of_uexp(m, e);
+        DHExp.FailedCast(d1, t1, t2) |> rewrap;
       /* TODO: add a dhexp case and eval logic for multiholes.
          Make sure new dhexp form is properly considered Indet
          to avoid casting issues. */
