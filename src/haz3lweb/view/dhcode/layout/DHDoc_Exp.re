@@ -80,8 +80,8 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | BinOp(Int(op), _, _) => precedence_bin_int_op(op)
   | BinOp(Float(op), _, _) => precedence_bin_float_op(op)
   | BinOp(String(op), _, _) => precedence_bin_string_op(op)
-
   | MultiHole(_) => DHDoc_common.precedence_max
+  | Parens(d)
   | StaticErrorHole(_, d) => precedence'(d)
   };
 };
@@ -170,6 +170,7 @@ let mk =
         | (CompleteFilter, _)
         | (Cast, _)
         | (Conditional(_), _)
+        | (RemoveParens, _)
         | (RemoveTypeAlias, _) => [] // Maybe this last one could count as a substitution?
         }
       | _ => recent_subst
@@ -248,6 +249,7 @@ let mk =
     );
     let doc = {
       switch (DHExp.term_of(d)) {
+      | Parens(d') => go'(d')
       | Closure(env', d') => go'(d', ~env=env')
       | Filter(flt, d') =>
         if (settings.show_stepper_filters) {
