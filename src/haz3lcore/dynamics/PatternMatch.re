@@ -208,6 +208,7 @@ and matches_cast_Sum =
     )
     : match_result =>
   switch (DHExp.term_of(d)) {
+  | Parens(d) => matches_cast_Sum(ctr, dp, d, castmaps)
   | Constructor(ctr') =>
     switch (
       dp,
@@ -278,6 +279,7 @@ and matches_cast_Tuple =
     )
     : match_result =>
   switch (DHExp.term_of(d)) {
+  | Parens(d) => matches_cast_Tuple(dps, d, elt_casts)
   | Tuple(ds) =>
     if (List.length(dps) != List.length(ds)) {
       DoesNotMatch;
@@ -360,6 +362,7 @@ and matches_cast_Cons =
     (dp: TermBase.UPat.t, d: DHExp.t, elt_casts: list((Typ.t, Typ.t)))
     : match_result =>
   switch (DHExp.term_of(d)) {
+  | Parens(d) => matches_cast_Cons(dp, d, elt_casts)
   | ListLit(_, []) =>
     switch (DHPat.term_of(dp)) {
     | ListLit([]) => Matches(Environment.empty)

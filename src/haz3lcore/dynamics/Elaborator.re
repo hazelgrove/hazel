@@ -9,9 +9,12 @@ open OptUtil.Syntax;
   - Remove TyAlias [should we do this??]
   - Annotate functions with types, and names
   - Insert implicit fixpoints (in types and expressions)
+  - Remove parentheses
 
   Going the other way:
-  - There's going to be a horrible case with
+  - There's going to be a horrible case with implicit fixpoint shadowing
+
+  A nice property would be that elaboration is idempotent...
   */
 
 module Elaboration = {
@@ -128,6 +131,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     /* Normal cases: wrap */
     | Var(_)
     | BuiltinFun(_)
+    | Parens(_)
     | Bool(_)
     | Int(_)
     | Float(_)

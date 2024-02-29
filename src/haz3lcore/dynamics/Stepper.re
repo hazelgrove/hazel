@@ -370,6 +370,7 @@ let get_justification: step_kind => string =
   | CompleteClosure => "complete closure"
   | FunClosure => "function closure"
   | RemoveTypeAlias => "define type"
+  | RemoveParens => "remove parentheses"
   | UnOp(Meta(Unquote)) => failwith("INVALID STEP");
 
 type step_info = {

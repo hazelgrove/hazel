@@ -41,13 +41,15 @@ module rec DHExp: {
     | Seq(t, t)
     | Test(t) // Id refers to original static id of test
     | Filter(DHFilter.t, t) // DONE [UEXP TO BE CHANGED]
+    /* In the long term, it might be nice to have closures be the same as
+       module opening */
     | Closure([@show.opaque] ClosureEnvironment.t, t) // > UEXP
-    // TODO: Add Parens
+    | Parens(t)
     | Cons(t, t)
     | ListConcat(t, t)
     | UnOp(TermBase.UExp.op_un, t)
-    | BinOp(TermBase.UExp.op_bin, t, t) // DONE
-    | BuiltinFun(string) // DONE
+    | BinOp(TermBase.UExp.op_bin, t, t)
+    | BuiltinFun(string)
     | Match(t, list((TermBase.UPat.t, t)))
     | Cast(t, Typ.t, Typ.t) // TODO: Add to uexp or remove
   and t;
@@ -102,7 +104,7 @@ module rec DHExp: {
     | Test(t)
     | Filter(DHFilter.t, t) // DONE [UEXP TO BE CHANGED]
     | Closure([@show.opaque] ClosureEnvironment.t, t) // > UEXP
-    // TODO: Add Parens
+    | Parens(t)
     | Cons(t, t)
     | ListConcat(t, t)
     | UnOp(TermBase.UExp.op_un, t)
@@ -191,6 +193,7 @@ module rec DHExp: {
       | BinOp(op, d1, d2) => BinOp(op, repair_ids(d1), repair_ids(d2))
       | ListLit(t, ds) => ListLit(t, List.map(repair_ids, ds))
       | Cons(d1, d2) => Cons(repair_ids(d1), repair_ids(d2))
+      | Parens(d1) => Parens(repair_ids(d1))
       | ListConcat(d1, d2) => ListConcat(repair_ids(d1), repair_ids(d2))
       | Tuple(ds) => Tuple(List.map(repair_ids, ds))
       | MultiHole(ds) => MultiHole(List.map(repair_ids, ds))
@@ -241,6 +244,7 @@ module rec DHExp: {
         List.map(((k, v)) => (k, strip_casts(v)), rules),
       )
       |> rewrap
+    | Parens(d1) => Parens(strip_casts(d1)) |> rewrap
     | EmptyHole as d
     | Invalid(_) as d
     | Var(_) as d
@@ -255,7 +259,8 @@ module rec DHExp: {
     };
   };
 
-  let rec fast_equal = ({term: d1, _}, {term: d2, _}): bool => {
+  let rec fast_equal =
+          ({term: d1, _} as d1exp, {term: d2, _} as d2exp): bool => {
     switch (d1, d2) {
     /* Primitive forms: regular structural equality */
     | (Var(_), _)
@@ -266,6 +271,9 @@ module rec DHExp: {
     | (Constructor(_), _) => d1 == d2
     | (String(s1), String(s2)) => String.equal(s1, s2)
     | (String(_), _) => false
+
+    | (Parens(x), _) => fast_equal(x, d2exp)
+    | (_, Parens(x)) => fast_equal(d1exp, x)
 
     /* Non-hole forms: recurse */
     | (Test(d1), Test(d2)) => fast_equal(d1, d2)

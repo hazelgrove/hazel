@@ -71,7 +71,8 @@ type step_kind =
   | CompleteClosure
   | CompleteFilter
   | Cast
-  | RemoveTypeAlias;
+  | RemoveTypeAlias
+  | RemoveParens;
 
 module CastHelpers = {
   [@deriving sexp]
@@ -810,6 +811,9 @@ module Transition = (EV: EV_MODE) => {
           d1,
         );
       Indet;
+    | Parens(d) =>
+      let. _ = otherwise(env, d);
+      Step({apply: () => d, kind: RemoveParens, value: false});
     | TyAlias(_, _, d) =>
       let. _ = otherwise(env, d);
       Step({apply: () => d, kind: RemoveTypeAlias, value: false});
@@ -849,4 +853,5 @@ let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
   | CompleteFilter
   | BuiltinWrap
   | FunClosure
-  | FixClosure => true;
+  | FixClosure
+  | RemoveParens => true;

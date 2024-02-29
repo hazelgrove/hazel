@@ -8,6 +8,8 @@ let rec matches_exp =
         : bool => {
   let matches_exp = matches_exp(info_map);
   switch (DHExp.term_of(d), DHExp.term_of(f)) {
+  | (Parens(x), _) => matches_exp(env, x, f)
+  | (_, Parens(x)) => matches_exp(env, d, x)
   | (Constructor("$e"), _) => failwith("$e in matched expression")
   | (Constructor("$v"), _) => failwith("$v in matched expression")
   | (_, Constructor("$v")) =>
