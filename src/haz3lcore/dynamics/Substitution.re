@@ -55,7 +55,7 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
     let d4 = subst_var(m, d1, x, d4);
     Ap(dir, d3, d4) |> rewrap;
   | BuiltinFun(_) => d2
-  | Test(id, d3) => Test(id, subst_var(m, d1, x, d3)) |> rewrap
+  | Test(d3) => Test(subst_var(m, d1, x, d3)) |> rewrap
   | Bool(_)
   | Int(_)
   | Float(_)

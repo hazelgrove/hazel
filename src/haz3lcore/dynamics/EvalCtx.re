@@ -27,7 +27,7 @@ type term =
   | BinOp1(TermBase.UExp.op_bin, t, DHExp.t)
   | BinOp2(TermBase.UExp.op_bin, DHExp.t, t)
   | Tuple(t, (list(DHExp.t), list(DHExp.t)))
-  | Test(KeywordID.t, t)
+  | Test(t)
   | ListLit(Typ.t, t, (list(DHExp.t), list(DHExp.t)))
   | MultiHole(t, (list(DHExp.t), list(DHExp.t)))
   | Cons1(t, DHExp.t)
@@ -89,9 +89,9 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
       | If3(d1, d2, ctx) =>
         let d' = compose(ctx, d);
         If(d1, d2, d') |> wrap;
-      | Test(lit, ctx) =>
+      | Test(ctx) =>
         let d1 = compose(ctx, d);
-        Test(lit, d1) |> wrap;
+        Test(d1) |> wrap;
       | UnOp(op, ctx) =>
         let d1 = compose(ctx, d);
         UnOp(op, d1) |> wrap;

@@ -105,8 +105,7 @@ let rec matches_exp =
     matches_exp(env, d1, f1) && matches_exp(env, d2, f2)
   | (Seq(_), _) => false
 
-  | (Test(id1, d2), Test(id2, f2)) =>
-    id1 == id2 && matches_exp(env, d2, f2)
+  | (Test(d2), Test(f2)) => matches_exp(env, d2, f2)
   | (Test(_), _) => false
 
   | (Cons(d1, d2), Cons(f1, f2)) =>

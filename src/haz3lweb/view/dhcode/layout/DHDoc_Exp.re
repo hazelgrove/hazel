@@ -310,7 +310,7 @@ let mk =
       | Int(n) => DHDoc_common.mk_IntLit(n)
       | Float(f) => DHDoc_common.mk_FloatLit(f)
       | String(s) => DHDoc_common.mk_StringLit(s)
-      | Test(_, d) => DHDoc_common.mk_Test(go'(d))
+      | Test(d) => DHDoc_common.mk_Test(go'(d))
       | Seq(d1, d2) =>
         let (doc1, doc2) = (go'(d1), go'(d2));
         DHDoc_common.mk_Sequence(doc1, doc2);
