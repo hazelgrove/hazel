@@ -150,15 +150,6 @@ module Decompose = {
   module Decomp = Transition(DecomposeEVMode);
   let rec decompose = (state, env, exp) => {
     switch (exp) {
-    | DHExp.Filter(flt, d1) =>
-      DecomposeEVMode.(
-        {
-          let. _ = otherwise(env, (d1) => (Filter(flt, d1): DHExp.t))
-          and. d1 =
-            req_final(decompose(state, env), d1 => Filter(flt, d1), d1);
-          Step({apply: () => d1, kind: CompleteFilter, value: true});
-        }
-      )
     | _ => Decomp.transition(decompose, state, env, exp)
     };
   };
