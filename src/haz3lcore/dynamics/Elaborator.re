@@ -175,6 +175,8 @@ let rec dhexp_of_uexp =
     let rewrap = DHExp.mk(uexp.ids);
     let+ d: DHExp.t =
       switch (uexp.term) {
+      // TODO: make closure actually convert
+      | Closure(_, d) => dhexp_of_uexp(m, d)
       | Invalid(t) => Some(DHExp.Invalid(t) |> rewrap)
       | EmptyHole => Some(DHExp.EmptyHole |> rewrap)
       | MultiHole(us: list(TermBase.Any.t)) =>
@@ -210,7 +212,7 @@ let rec dhexp_of_uexp =
         let+ ty = fixed_exp_typ(m, uexp);
         let ty = Typ.matched_list(ctx, ty);
         DHExp.ListLit(ty, ds) |> rewrap;
-      | Fun(p, body) =>
+      | Fun(p, body, _, _) =>
         let+ d1 = dhexp_of_uexp(m, body);
         DHExp.Fun(p, d1, None, None) |> rewrap;
       | Tuple(es) =>
@@ -275,15 +277,15 @@ let rec dhexp_of_uexp =
         | Some(b) =>
           DHExp.Let(
             p,
-            FixF(p, add_name(Some(String.concat(",", b)), ddef))
+            FixF(p, add_name(Some(String.concat(",", b)), ddef), None)
             |> DHExp.fresh,
             dbody,
           )
           |> rewrap
         };
-      | FixF(p, e) =>
+      | FixF(p, e, _) =>
         let+ de = dhexp_of_uexp(m, e);
-        DHExp.FixF(p, de) |> rewrap;
+        DHExp.FixF(p, de, None) |> rewrap;
       | Ap(dir, fn, arg) =>
         let* c_fn = dhexp_of_uexp(m, fn);
         let+ c_arg = dhexp_of_uexp(m, arg);

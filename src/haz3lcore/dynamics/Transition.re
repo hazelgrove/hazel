@@ -268,18 +268,21 @@ module Transition = (EV: EV_MODE) => {
         kind: FunClosure,
         value: true,
       });
-    | FixF(dp, d1) =>
-      let (term1, rewrap1) = DHExp.unwrap(d1);
-      switch (term1, DHPat.get_var(dp)) {
+    | FixF(dp, d1, None) =>
+      let. _ = otherwise(env, FixF(dp, d1, None) |> rewrap);
+      Step({
+        apply: () => FixF(dp, d1, Some(env)) |> rewrap,
+        kind: FixClosure,
+        value: false,
+      });
+    | FixF(dp, d1, Some(env)) =>
+      switch (DHPat.get_var(dp)) {
       // Simple Recursion case
-      | (Closure(env, d1), Some(f)) =>
+      | Some(f) =>
         let. _ = otherwise(env, d);
         let env'' =
           evaluate_extend_env(
-            Environment.singleton((
-              f,
-              FixF(dp, Closure(env, d1) |> rewrap1) |> rewrap,
-            )),
+            Environment.singleton((f, FixF(dp, d1, Some(env)) |> rewrap)),
             env,
           );
         Step({
@@ -288,7 +291,7 @@ module Transition = (EV: EV_MODE) => {
           value: false,
         });
       // Mutual Recursion case
-      | (Closure(env, d1), None) =>
+      | None =>
         let. _ = otherwise(env, d);
         let bindings = DHPat.bound_vars(info_map, dp);
         let substitutions =
@@ -298,7 +301,7 @@ module Transition = (EV: EV_MODE) => {
                 binding,
                 Let(
                   dp,
-                  FixF(dp, Closure(env, d1) |> rewrap1) |> rewrap,
+                  FixF(dp, d1, Some(env)) |> rewrap,
                   Var(binding) |> fresh,
                 )
                 |> fresh,
@@ -312,14 +315,7 @@ module Transition = (EV: EV_MODE) => {
           kind: FixUnwrap,
           value: false,
         });
-      | _ =>
-        let. _ = otherwise(env, FixF(dp, d1) |> rewrap);
-        Step({
-          apply: () => FixF(dp, Closure(env, d1) |> fresh) |> rewrap,
-          kind: FixClosure,
-          value: false,
-        });
-      };
+      }
     | Test(d) =>
       let. _ = otherwise(env, d => Test(d) |> rewrap)
       and. d' = req_final(req(state, env), d => Test(d) |> wrap_ctx, d);

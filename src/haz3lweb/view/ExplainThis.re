@@ -525,6 +525,7 @@ let get_doc =
       | DynamicErrorHole(_)
       | StaticErrorHole(_)
       | FailedCast(_)
+      | Closure(_)
       | BuiltinFun(_) => simple("Internal expression")
       | EmptyHole => get_message(HoleExp.empty_hole_exps)
       | MultiHole(_children) => get_message(HoleExp.multi_hole_exps)
@@ -561,7 +562,7 @@ let get_doc =
             ),
           ListExp.listlits,
         )
-      | Fun(pat, body) =>
+      | Fun(pat, body, _, _) =>
         let basic = group_id => {
           let pat_id = List.nth(pat.ids, 0);
           let body_id = List.nth(body.ids, 0);
@@ -1526,7 +1527,7 @@ let get_doc =
         | Parens(_) => default // Shouldn't get hit?
         | TypeAnn(_) => default // Shouldn't get hit?
         };
-      | FixF(pat, body) =>
+      | FixF(pat, body, _) =>
         message_single(
           FixFExp.single(
             ~pat_id=Term.UPat.rep_id(pat),

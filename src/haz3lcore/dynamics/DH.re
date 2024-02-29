@@ -59,7 +59,7 @@ module rec DHExp: {
     | Tuple(list(t))
     | Var(Var.t)
     | Let(TermBase.UPat.t, t, t)
-    | FixF(TermBase.UPat.t, t) // TODO: add closure // INVARIANT: always has type assignment on outside // Would be nice to move this into the pattern, but we'd need to merge UTyp.t and Typ.t
+    | FixF(TermBase.UPat.t, t, [@show.opaque] option(ClosureEnvironment.t)) // TODO: add closure // INVARIANT: always has type assignment on outside // Would be nice to move this into the pattern, but we'd need to merge UTyp.t and Typ.t
     | TyAlias(TermBase.UTPat.t, TermBase.UTyp.t, t)
     | Ap(TermBase.UExp.ap_direction, t, t)
     | If(t, t, t)
@@ -119,7 +119,7 @@ module rec DHExp: {
     | Tuple(list(t))
     | Var(Var.t)
     | Let(TermBase.UPat.t, t, t)
-    | FixF(TermBase.UPat.t, t) // TODO: Remove type
+    | FixF(TermBase.UPat.t, t, [@show.opaque] option(ClosureEnvironment.t))
     | TyAlias(TermBase.UTPat.t, TermBase.UTyp.t, t)
     | Ap(TermBase.UExp.ap_direction, t, t)
     | If(t, t, t)
@@ -207,7 +207,7 @@ module rec DHExp: {
       | Filter(flt, d1) => Filter(flt, repair_ids(d1))
       | Seq(d1, d2) => Seq(repair_ids(d1), repair_ids(d2))
       | Let(dp, d1, d2) => Let(dp, repair_ids(d1), repair_ids(d2))
-      | FixF(f, d1) => FixF(f, repair_ids(d1))
+      | FixF(f, d1, env) => FixF(f, repair_ids(d1), env)
       | TyAlias(tp, t, d) => TyAlias(tp, t, repair_ids(d))
       | Fun(dp, d1, env, f) => Fun(dp, repair_ids(d1), env, f)
       | Ap(dir, d1, d2) => Ap(dir, repair_ids(d1), repair_ids(d2))
@@ -253,7 +253,7 @@ module rec DHExp: {
     | Filter(f, b) =>
       Filter(DHFilter.strip_casts(f), strip_casts(b)) |> rewrap
     | Let(dp, b, c) => Let(dp, strip_casts(b), strip_casts(c)) |> rewrap
-    | FixF(a, c) => FixF(a, strip_casts(c)) |> rewrap
+    | FixF(a, c, env) => FixF(a, strip_casts(c), env) |> rewrap
     | TyAlias(tp, t, d) => TyAlias(tp, t, strip_casts(d)) |> rewrap
     | Fun(a, c, e, d) => Fun(a, strip_casts(c), e, d) |> rewrap
     | Ap(dir, a, b) => Ap(dir, strip_casts(a), strip_casts(b)) |> rewrap
@@ -306,7 +306,10 @@ module rec DHExp: {
       DHFilter.fast_equal(f1, f2) && fast_equal(d1, d2)
     | (Let(dp1, d11, d21), Let(dp2, d12, d22)) =>
       dp1 == dp2 && fast_equal(d11, d12) && fast_equal(d21, d22)
-    | (FixF(f1, d1), FixF(f2, d2)) => f1 == f2 && fast_equal(d1, d2)
+    | (FixF(f1, d1, sigma1), FixF(f2, d2, sigma2)) =>
+      f1 == f2
+      && fast_equal(d1, d2)
+      && Option.equal(ClosureEnvironment.id_equal, sigma1, sigma2)
     | (Fun(dp1, d1, None, s1), Fun(dp2, d2, None, s2)) =>
       dp1 == dp2 && fast_equal(d1, d2) && s1 == s2
     | (Fun(dp1, d1, Some(env1), s1), Fun(dp2, d2, Some(env2), s2)) =>

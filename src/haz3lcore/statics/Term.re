@@ -436,6 +436,7 @@ module UExp = {
     | Seq
     | Test
     | Filter
+    | Closure
     | Parens
     | Cons
     | UnOp(op_un)
@@ -480,6 +481,7 @@ module UExp = {
     | Seq(_) => Seq
     | Test(_) => Test
     | Filter(_) => Filter
+    | Closure(_) => Closure
     | Parens(_) => Parens
     | Cons(_) => Cons
     | ListConcat(_) => ListConcat
@@ -578,6 +580,7 @@ module UExp = {
     | Seq => "Sequence expression"
     | Test => "Test"
     | Filter => "Filter"
+    | Closure => "Closure"
     | Parens => "Parenthesized expression"
     | Cons => "Cons"
     | ListConcat => "List Concatenation"
@@ -614,6 +617,7 @@ module UExp = {
     | Filter(_)
     | Cons(_)
     | ListConcat(_)
+    | Closure(_)
     | UnOp(_)
     | BinOp(_)
     | Match(_)
@@ -639,6 +643,7 @@ module UExp = {
       | String(_)
       | ListLit(_)
       | Fun(_)
+      | Closure(_)
       | BuiltinFun(_)
       | Var(_)
       | Let(_)

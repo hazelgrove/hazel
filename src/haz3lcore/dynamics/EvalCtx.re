@@ -11,7 +11,7 @@ type term =
   | Let1(TermBase.UPat.t, t, DHExp.t)
   | Let2(TermBase.UPat.t, DHExp.t, t)
   | Fun(TermBase.UPat.t, t, option(ClosureEnvironment.t), option(Var.t))
-  | FixF(TermBase.UPat.t, t)
+  | FixF(TermBase.UPat.t, t, option(ClosureEnvironment.t))
   | Ap1(TermBase.UExp.ap_direction, t, DHExp.t)
   | Ap2(TermBase.UExp.ap_direction, DHExp.t, t)
   | If1(t, DHExp.t, DHExp.t)
@@ -125,9 +125,9 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
       | Fun(dp, ctx, env, v) =>
         let d = compose(ctx, d);
         Fun(dp, d, env, v) |> wrap;
-      | FixF(v, ctx) =>
+      | FixF(v, ctx, env) =>
         let d = compose(ctx, d);
-        FixF(v, d) |> wrap;
+        FixF(v, d, env) |> wrap;
       | Cast(ctx, ty1, ty2) =>
         let d = compose(ctx, d);
         Cast(d, ty1, ty2) |> wrap;

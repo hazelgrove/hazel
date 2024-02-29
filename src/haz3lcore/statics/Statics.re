@@ -193,6 +193,10 @@ and uexp_to_info_map =
   let go_pat = upat_to_info_map(~ctx, ~ancestors);
   let atomic = self => add(~self, ~co_ctx=CoCtx.empty, m);
   switch (term) {
+  | Closure(_) =>
+    failwith(
+      "TODO: implement closure type checking - see how dynamic type assignment does it",
+    )
   | MultiHole(tms) =>
     let (co_ctxs, m) = multi(~ctx, ~ancestors, m, tms);
     add(~self=IsMulti, ~co_ctx=CoCtx.union(co_ctxs), m);
@@ -308,7 +312,7 @@ and uexp_to_info_map =
       && !Typ.is_consistent(ctx, ty_in, Prod([]))
         ? BadTrivAp(ty_in) : Just(ty_out);
     add(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
-  | Fun(p, e) =>
+  | Fun(p, e, _, _) =>
     let (mode_pat, mode_body) = Mode.of_arrow(ctx, mode);
     let (p', _) =
       go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~mode=mode_pat, p, m);
@@ -351,7 +355,7 @@ and uexp_to_info_map =
         CoCtx.union([def.co_ctx, CoCtx.mk(ctx, p_ana.ctx, body.co_ctx)]),
       m,
     );
-  | FixF(p, e) =>
+  | FixF(p, e, _) =>
     let (p', _) =
       go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~mode, p, m);
     let (e', m) = go'(~ctx=p'.ctx, ~mode=Ana(p'.ty), e, m);

@@ -45,8 +45,8 @@ let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
   | String(_)
   | Constructor(_)
   | BuiltinFun(_) => false
-  | FixF(args, body)
-  | Fun(args, body) =>
+  | FixF(args, body, _)
+  | Fun(args, body, _, _) =>
     find_var_upat(name, args) ? false : var_mention(name, body)
   | ListLit(l)
   | Tuple(l) =>
@@ -54,6 +54,8 @@ let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
   | Let(p, def, body) =>
     find_var_upat(name, p)
       ? false : var_mention(name, def) || var_mention(name, body)
+  // TODO: should we check within the closure?
+  | Closure(_, u)
   | Test(u)
   | Parens(u)
   | UnOp(_, u)
@@ -94,8 +96,8 @@ let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
   | String(_)
   | Constructor(_)
   | BuiltinFun(_) => false
-  | FixF(args, body)
-  | Fun(args, body) =>
+  | FixF(args, body, _)
+  | Fun(args, body, _, _) =>
     find_var_upat(name, args) ? false : var_applied(name, body)
   | ListLit(l)
   | Tuple(l) =>
@@ -107,6 +109,7 @@ let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
   | Parens(u)
   | UnOp(_, u)
   | TyAlias(_, _, u)
+  | Closure(_, u)
   | Filter(_, _, u) => var_applied(name, u)
   | Ap(_, u1, u2) =>
     switch (u1.term) {
@@ -185,12 +188,13 @@ let rec find_fn =
   | ListLit(ul)
   | Tuple(ul) =>
     List.fold_left((acc, u1) => {find_fn(name, u1, acc)}, l, ul)
-  | FixF(_, body)
-  | Fun(_, body) => l |> find_fn(name, body)
+  | FixF(_, body, _)
+  | Fun(_, body, _, _) => l |> find_fn(name, body)
   | Parens(u1)
   | UnOp(_, u1)
   | TyAlias(_, _, u1)
   | Test(u1)
+  | Closure(_, u1)
   | Filter(_, _, u1) => l |> find_fn(name, u1)
   | Ap(_, u1, u2)
   | Seq(u1, u2)
@@ -249,8 +253,8 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   | Constructor(_)
   | Var(_)
   | BuiltinFun(_) => true
-  | FixF(args, body)
-  | Fun(args, body) =>
+  | FixF(args, body, _)
+  | Fun(args, body, _, _) =>
     find_var_upat(name, args) ? false : tail_check(name, body)
   | Let(p, def, body) =>
     find_var_upat(name, p) || var_mention(name, def)
@@ -262,6 +266,7 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   | Test(_) => false
   | TyAlias(_, _, u)
   | Filter(_, _, u)
+  | Closure(_, u)
   | Parens(u) => tail_check(name, u)
   | UnOp(_, u) => !var_mention(name, u)
   | Ap(_, u1, u2) => var_mention(name, u2) ? false : tail_check(name, u1)
