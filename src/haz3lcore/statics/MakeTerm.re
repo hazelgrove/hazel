@@ -268,7 +268,6 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
 }
 
 and pat = unsorted => {
-  Printf.printf("pat: %s\n", unsorted |> show_unsorted);
   let (term, inner_ids) = pat_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
   return(p => Pat(p), ids, {ids, term});
@@ -291,9 +290,7 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
           let s = Re.Str.string_after(t, 1);
           let s = Re.Str.string_before(s, String.length(s) - 1);
           String(s);
-        | ([t], []) when Form.is_var(t) =>
-          Printf.printf("var: %s\n", t);
-          Var(t);
+        | ([t], []) when Form.is_var(t) => Var(t)
         | ([t], []) when Form.is_wild(t) => Wild
         | ([t], []) when Form.is_ctr(t) => Constructor(t)
         | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>

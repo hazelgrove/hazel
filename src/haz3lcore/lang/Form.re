@@ -107,6 +107,13 @@ let keywords = [
   "then",
   "else",
 ];
+let is_op_in_let_precursor = regexp("^_[let]*[~?!$%&*+\\.:<=>@^-]*$");
+let is_let_op_in_let = regexp("^_let[~?!$%&*+\\.:<=>@^-]+_$");
+let is_op_in_let = str =>
+  regexp("^_[~?!$%&*+\\.:<=>@^-]+_$", str) || is_let_op_in_let(str);
+let is_let_op = regexp("^let[~?!$%&*+\\.:<=>@^-]+$");
+let is_op = str => regexp("^[~?!$%&*+\\.:<=>@^-]+$", str) || is_let_op(str);
+
 let reserved_keywords = ["of", "when", "with", "switch", "match"];
 let is_keyword = regexp("^(" ++ String.concat("|", keywords) ++ ")$");
 let is_reserved_keyword =
@@ -119,12 +126,16 @@ let is_potential_operand = regexp("^[a-zA-Z0-9_'\\.?]+$");
  *  as it does not contain any whitespace, linebreaks, comment
  *  delimiters, string delimiters, or the instant expanding paired
  *  delimiters: ()[]| */
-let is_potential_operator = regexp("^[^a-zA-Z0-9_'?\"#⏎\\s\\[\\]\\(\\)]+$");
+let is_potential_operator = str => {
+  regexp("^[^a-zA-Z0-9_'?\"#⏎\\s\\[\\]\\(\\)]+$", str) || is_op(str);
+};
 let is_potential_token = t =>
   is_potential_operand(t)
   || is_potential_operator(t)
   || is_string(t)
-  || is_comment(t);
+  || is_comment(t)
+  || is_op_in_let_precursor(t)
+  || is_let_op_in_let(t);
 
 let is_arbitary_int = regexp("^-?\\d+[0-9_]*$");
 let is_arbitary_float = x =>
@@ -146,13 +157,6 @@ let is_float = str =>
 let is_bad_float = str => is_arbitary_float(str) && !is_float(str);
 let bools = ["true", "false"];
 let is_bool = regexp("^(" ++ String.concat("|", bools) ++ ")$");
-let is_op_in_let_precursor = regexp("^_[let]*[~?!$%&*+\\.:<=>@^-]*$");
-let is_let_op_in_let = regexp("^_let[~?!$%&*+\\.:<=>@^-]+_$");
-let is_op_in_let = str =>
-  regexp("^_[~?!$%&*+\\.:<=>@^-]+_$", str) || is_let_op_in_let(str);
-let is_let_op = regexp("^let[~?!$%&*+\\.:<=>@^-]+$");
-let is_op = str => regexp("^[~?!$%&*+\\.:<=>@^-]+$", str) || is_let_op(str);
-
 let is_var = str => {
   !is_bool(str)
   && str != "_"
@@ -324,18 +328,6 @@ let forms: list((string, t)) = [
   ("filter_debug", mk(ds, ["debug", "in"], mk_pre(P.let_, Exp, [Exp]))),
   // TRIPLE DELIMITERS
   ("let_", mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))),
-  (
-    "letStar",
-    mk(ds, ["let*", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp])),
-  ),
-  (
-    "letPlus",
-    mk(ds, ["let+", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp])),
-  ),
-  (
-    "letMinus",
-    mk(ds, ["let-", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp])),
-  ),
   (
     "type_alias",
     mk(ds, ["type", "=", "in"], mk_pre(P.let_, Exp, [TPat, Typ])),
