@@ -300,7 +300,7 @@ and UExp: {
     // TODO: Add Builtins
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
-    | BuiltinFun(string)
+    | BuiltinFun(string) /// Doesn't currently have a distinguishable syntax...
     | Match(t, list((UPat.t, t)))
   // TODO: Add Casts
   and t = {
