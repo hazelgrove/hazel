@@ -146,7 +146,7 @@ let mk =
         | (FunAp, _) => []
         | (LetBind, Let(p, _, _)) => DHPat.bound_vars(infomap, p)
         | (LetBind, _) => []
-        | (FixUnwrap, FixF(p, _)) => DHPat.bound_vars(infomap, p)
+        | (FixUnwrap, FixF(p, _, _)) => DHPat.bound_vars(infomap, p)
         | (FixUnwrap, _) => []
         | (InvalidStep, _)
         | (VarLookup, _)
@@ -550,7 +550,7 @@ let mk =
           | Some(name) => annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"))
           };
         }
-      | FixF(dp, dbody) when settings.show_fixpoints =>
+      | FixF(dp, dbody, _) when settings.show_fixpoints =>
         let doc_body =
           go_formattable(
             dbody,
@@ -572,7 +572,7 @@ let mk =
             doc_body |> DHDoc_common.pad_child(~enforce_inline),
           ],
         );
-      | FixF(dp, d) =>
+      | FixF(dp, d, _) =>
         go'(
           ~env=
             ClosureEnvironment.without_keys(

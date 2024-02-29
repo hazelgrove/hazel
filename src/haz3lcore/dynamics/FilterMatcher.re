@@ -79,7 +79,7 @@ let rec matches_exp =
     matches_pat(dp1, fp1) && matches_exp(env, d1, f1) && dname1 == fname1
   | (Fun(_), _) => false
 
-  | (FixF(dp, d1), FixF(fp, f1)) =>
+  | (FixF(dp, d1, _), FixF(fp, f1, _)) =>
     matches_pat(dp, fp) && matches_exp(env, d1, f1)
   | (FixF(_), _) => false
 

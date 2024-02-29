@@ -91,9 +91,18 @@ let rec matches =
             idx,
           );
         Fun(dp, ctx, env', name) |> rewrap;
-      | FixF(name, ctx) =>
-        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
-        FixF(name, ctx) |> rewrap;
+      | FixF(name, ctx, env') =>
+        let+ ctx =
+          matches(
+            Option.value(~default=env, env'),
+            flt,
+            ctx,
+            exp,
+            exp_info_map,
+            act,
+            idx,
+          );
+        FixF(name, ctx, env') |> rewrap;
       | Ap1(dir, ctx, d2) =>
         let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
         Ap1(dir, ctx, d2) |> rewrap;

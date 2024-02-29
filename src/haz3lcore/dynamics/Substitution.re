@@ -26,14 +26,15 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
         subst_var(m, d1, x, d4);
       };
     Let(dp, d3, d4) |> rewrap;
-  | FixF(y, d3) =>
+  | FixF(y, d3, env) =>
+    let env' = Option.map(subst_var_env(m, d1, x), env);
     let d3 =
       if (DHPat.binds_var(m, x, y)) {
         d3;
       } else {
         subst_var(m, d1, x, d3);
       };
-    FixF(y, d3) |> rewrap;
+    FixF(y, d3, env') |> rewrap;
   | Fun(dp, d3, env, s) =>
     /* Function closure shouldn't appear during substitution
        (which only is called from elaboration currently) */

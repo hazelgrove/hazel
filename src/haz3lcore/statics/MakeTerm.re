@@ -183,8 +183,8 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         | (["$"], []) => UnOp(Meta(Unquote), r)
         | (["-"], []) => UnOp(Int(Minus), r)
         | (["!"], []) => UnOp(Bool(Not), r)
-        | (["fun", "->"], [Pat(pat)]) => Fun(pat, r)
-        | (["fix", "->"], [Pat(pat)]) => FixF(pat, r)
+        | (["fun", "->"], [Pat(pat)]) => Fun(pat, r, None, None)
+        | (["fix", "->"], [Pat(pat)]) => FixF(pat, r, None)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
         | (["hide", "in"], [Exp(filter)]) =>
           Filter((Eval, One), filter, r)
