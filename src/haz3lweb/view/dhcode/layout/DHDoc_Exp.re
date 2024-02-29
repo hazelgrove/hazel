@@ -636,12 +636,13 @@ let mk =
               : []
           )
           @ [
+            space(),
             DHDoc_common.Delim.arrow_FixF,
             space(),
             doc_body |> DHDoc_common.pad_child(~enforce_inline),
           ],
         );
-      | FixF(x, _, _) => annot(DHAnnot.Collapsed, text("<" ++ x ++ ">"))
+      | FixF(x, _, _) => annot(DHAnnot.Collapsed, text("<" ++ x ++ "*>"))
       };
     };
     let steppable =
