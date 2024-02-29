@@ -75,15 +75,12 @@ let rec matches_exp =
   | (BuiltinFun(_), _) => false
 
   // Not sure if we should be checking functions for closures here
-  | (Fun(dp1, dty1, d1, _, dname1), Fun(fp1, fty1, f1, _, fname1)) =>
-    matches_pat(dp1, fp1)
-    && dty1 == fty1
-    && matches_exp(env, d1, f1)
-    && dname1 == fname1
+  | (Fun(dp1, d1, _, dname1), Fun(fp1, f1, _, fname1)) =>
+    matches_pat(dp1, fp1) && matches_exp(env, d1, f1) && dname1 == fname1
   | (Fun(_), _) => false
 
-  | (FixF(dp, dt, d1), FixF(fp, ft, f1)) =>
-    matches_pat(dp, fp) && dt == ft && matches_exp(env, d1, f1)
+  | (FixF(dp, d1), FixF(fp, f1)) =>
+    matches_pat(dp, fp) && matches_exp(env, d1, f1)
   | (FixF(_), _) => false
 
   | (Let(dp, d1, d2), Let(fp, f1, f2)) =>

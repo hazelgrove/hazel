@@ -79,7 +79,7 @@ let rec matches =
       | Let2(d1, d2, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
         Let2(d1, d2, ctx) |> rewrap;
-      | Fun(dp, ty, ctx, env', name) =>
+      | Fun(dp, ctx, env', name) =>
         let+ ctx =
           matches(
             Option.value(~default=env, env'),
@@ -90,10 +90,10 @@ let rec matches =
             act,
             idx,
           );
-        Fun(dp, ty, ctx, env', name) |> rewrap;
-      | FixF(name, ty, ctx) =>
+        Fun(dp, ctx, env', name) |> rewrap;
+      | FixF(name, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
-        FixF(name, ty, ctx) |> rewrap;
+        FixF(name, ctx) |> rewrap;
       | Ap1(dir, ctx, d2) =>
         let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
         Ap1(dir, ctx, d2) |> rewrap;

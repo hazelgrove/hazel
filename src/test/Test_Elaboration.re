@@ -163,7 +163,6 @@ let d7: DHExp.t =
     Forward,
     Fun(
       Var("x") |> DHPat.fresh,
-      Unknown(Internal),
       BinOp(
         Int(Plus),
         Int(4) |> fresh,
