@@ -8,10 +8,16 @@ type term =
   | Filter(DH.DHFilter.t, t)
   | Seq1(t, DHExp.t)
   | Seq2(DHExp.t, t)
-  | Let1(DHPat.t, t, DHExp.t)
-  | Let2(DHPat.t, DHExp.t, t)
-  | Fun(DHPat.t, Typ.t, t, option(ClosureEnvironment.t), option(Var.t))
-  | FixF(DHPat.t, Typ.t, t)
+  | Let1(TermBase.UPat.t, t, DHExp.t)
+  | Let2(TermBase.UPat.t, DHExp.t, t)
+  | Fun(
+      TermBase.UPat.t,
+      Typ.t,
+      t,
+      option(ClosureEnvironment.t),
+      option(Var.t),
+    )
+  | FixF(TermBase.UPat.t, Typ.t, t)
   | Ap1(TermBase.UExp.ap_direction, t, DHExp.t)
   | Ap2(TermBase.UExp.ap_direction, DHExp.t, t)
   | If1(t, DHExp.t, DHExp.t)
@@ -32,12 +38,15 @@ type term =
   | Cast(t, Typ.t, Typ.t)
   | FailedCast(t, Typ.t, Typ.t)
   | DynamicErrorHole(t, InvalidOperationError.t)
-  | MatchScrut(t, list((DHPat.t, DHExp.t)))
+  | MatchScrut(t, list((TermBase.UPat.t, DHExp.t)))
   | MatchRule(
       DHExp.t,
-      DHPat.t,
+      TermBase.UPat.t,
       t,
-      (list((DHPat.t, DHExp.t)), list((DHPat.t, DHExp.t))),
+      (
+        list((TermBase.UPat.t, DHExp.t)),
+        list((TermBase.UPat.t, DHExp.t)),
+      ),
     )
 and t =
   | Mark

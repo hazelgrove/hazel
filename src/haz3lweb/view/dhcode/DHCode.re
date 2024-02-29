@@ -105,7 +105,7 @@ let view_of_layout =
                  ds,
                )
              | VarHole(_) => ([with_cls("InVarHole", txt)], ds)
-             | NonEmptyHole(_)
+             | NonEmptyHole
              | InconsistentBranches(_)
              | Invalid =>
                let offset = start.col - indent;
@@ -143,6 +143,7 @@ let view =
       ~chosen_step: option(EvaluatorStep.step)=None, // The step that will be taken next
       ~next_steps: list((int, Id.t))=[],
       ~result_key: string,
+      ~infomap,
       d: DHExp.t,
     )
     : Node.t => {
@@ -155,6 +156,7 @@ let view =
     ~settings,
     ~enforce_inline=false,
     ~selected_hole_instance,
+    ~infomap,
     d,
   )
   |> LayoutOfDoc.layout_of_doc(~width, ~pos)

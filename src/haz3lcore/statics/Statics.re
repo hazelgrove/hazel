@@ -660,6 +660,23 @@ let get_error_at = (info_map: Map.t, id: Id.t) => {
      );
 };
 
+let get_pat_error_at = (info_map: Map.t, id: Id.t) => {
+  id
+  |> Id.Map.find_opt(_, info_map)
+  |> Option.bind(
+       _,
+       fun
+       | InfoPat(e) => Some(e)
+       | _ => None,
+     )
+  |> Option.bind(_, e =>
+       switch (e.status) {
+       | InHole(err_info) => Some(err_info)
+       | NotInHole(_) => None
+       }
+     );
+};
+
 let collect_errors = (map: Map.t): list((Id.t, Info.error)) =>
   Id.Map.fold(
     (id, info: Info.t, acc) =>

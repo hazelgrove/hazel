@@ -171,9 +171,16 @@ let rec matches_exp =
   | (TyAlias(_), _) => false
   };
 }
-and matches_pat = (d: DHPat.t, f: DHPat.t): bool => {
+and matches_pat = (d: TermBase.UPat.t, f: TermBase.UPat.t): bool => {
   switch (d |> DHPat.term_of, f |> DHPat.term_of) {
+  // Matt: I'm not sure what the exact semantics of matching should be here.
+  | (Parens(x), _) => matches_pat(x, f)
+  | (_, Parens(x)) => matches_pat(d, x)
+  | (TypeAnn(x, _), _) => matches_pat(x, f)
+  | (_, TypeAnn(x, _)) => matches_pat(d, x)
   | (_, EmptyHole) => true
+  | (MultiHole(_), MultiHole(_)) => true
+  | (MultiHole(_), _) => false
   | (Wild, Wild) => true
   | (Wild, _) => false
   | (Int(dv), Int(fv)) => dv == fv
@@ -206,14 +213,10 @@ and matches_pat = (d: DHPat.t, f: DHPat.t): bool => {
   | (Tuple(_), _) => false
   | (Ap(d1, d2), Ap(f1, f2)) => matches_pat(d1, f1) && matches_pat(d2, f2)
   | (Ap(_), _) => false
-  | (BadConstructor(_, _, dt), BadConstructor(_, _, ft)) => dt == ft
-  | (BadConstructor(_), _) => false
   | (Cons(d1, d2), Cons(f1, f2)) =>
     matches_pat(d1, f1) && matches_pat(d2, f2)
   | (Cons(_), _) => false
   | (EmptyHole, _) => false
-  | (NonEmptyHole(_), _) => false
-  | (ExpandingKeyword(_), _) => false
   | (Invalid(_), _) => false
   };
 }

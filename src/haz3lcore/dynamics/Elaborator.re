@@ -197,10 +197,9 @@ let rec dhexp_of_uexp =
         let ty = Typ.matched_list(ctx, ty);
         DHExp.ListLit(ty, ds) |> rewrap;
       | Fun(p, body) =>
-        let* dp = dhpat_of_upat(m, p);
         let* d1 = dhexp_of_uexp(m, body);
         let+ ty = fixed_pat_typ(m, p);
-        DHExp.Fun(dp, ty, d1, None, None) |> rewrap;
+        DHExp.Fun(p, ty, d1, None, None) |> rewrap;
       | Tuple(es) =>
         let+ ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
         DHExp.Tuple(ds) |> rewrap;
@@ -254,29 +253,27 @@ let rec dhexp_of_uexp =
             };
           }
         );
-        let* dp = dhpat_of_upat(m, p);
         let* ddef = dhexp_of_uexp(m, def);
         let* dbody = dhexp_of_uexp(m, body);
         let+ ty = fixed_pat_typ(m, p);
         switch (Term.UPat.get_recursive_bindings(p)) {
         | None =>
           /* not recursive */
-          DHExp.Let(dp, add_name(Term.UPat.get_var(p), ddef), dbody)
+          DHExp.Let(p, add_name(Term.UPat.get_var(p), ddef), dbody)
           |> rewrap
         | Some(b) =>
           DHExp.Let(
-            dp,
-            FixF(dp, ty, add_name(Some(String.concat(",", b)), ddef))
+            p,
+            FixF(p, ty, add_name(Some(String.concat(",", b)), ddef))
             |> DHExp.fresh,
             dbody,
           )
           |> rewrap
         };
       | FixF(p, e) =>
-        let* dp = dhpat_of_upat(m, p);
         let* de = dhexp_of_uexp(m, e);
         let+ ty = fixed_pat_typ(m, p);
-        DHExp.FixF(dp, ty, de) |> rewrap;
+        DHExp.FixF(p, ty, de) |> rewrap;
       | Ap(dir, fn, arg) =>
         let* c_fn = dhexp_of_uexp(m, fn);
         let+ c_arg = dhexp_of_uexp(m, arg);
@@ -296,9 +293,8 @@ let rec dhexp_of_uexp =
         let+ d_rules =
           List.map(
             ((p, e)) => {
-              let* d_p = dhpat_of_upat(m, p);
               let+ d_e = dhexp_of_uexp(m, e);
-              (d_p, d_e);
+              (p, d_e);
             },
             rules,
           )
@@ -315,66 +311,6 @@ let rec dhexp_of_uexp =
     | _ => wrap(ctx, id, mode, self, d)
     };
   | Some(InfoPat(_) | InfoTyp(_) | InfoTPat(_) | Secondary(_))
-  | None => None
-  };
-}
-and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
-  switch (Id.Map.find_opt(Term.UPat.rep_id(upat), m)) {
-  | Some(InfoPat({mode, self, ctx, _})) =>
-    let err_status = Info.status_pat(ctx, mode, self);
-    let maybe_reason: option(ErrStatus.HoleReason.t) =
-      switch (err_status) {
-      | NotInHole(_) => None
-      | InHole(_) => Some(TypeInconsistent)
-      };
-    let u = Term.UPat.rep_id(upat); /* NOTE: using term uids for hole ids */
-    let wrap = (d: DHPat.t): option(DHPat.t) =>
-      switch (maybe_reason) {
-      | None => Some(d)
-      | Some(reason) => Some(NonEmptyHole(reason, u, 0, d) |> DHPat.fresh)
-      };
-    let (pterm, prewrap) = (
-      upat.term,
-      ((term) => ({ids: upat.ids, copied: false, term}: DHPat.t)),
-    );
-    switch (pterm) {
-    | Invalid(t) => Some(DHPat.Invalid(t) |> prewrap)
-    | EmptyHole => Some(EmptyHole |> prewrap)
-    | MultiHole(_) =>
-      // TODO: dhexp, eval for multiholes
-      Some(EmptyHole |> prewrap)
-    | Wild => wrap(Wild |> prewrap)
-    | Bool(b) => wrap(Bool(b) |> prewrap)
-    | Int(n) => wrap(Int(n) |> prewrap)
-    | Float(n) => wrap(Float(n) |> prewrap)
-    | String(s) => wrap(String(s) |> prewrap)
-    | ListLit(ps) =>
-      let* ds = ps |> List.map(dhpat_of_upat(m)) |> OptUtil.sequence;
-      wrap(ListLit(ds) |> prewrap);
-    | Constructor(name) =>
-      switch (err_status) {
-      | InHole(Common(NoType(FreeConstructor(_)))) =>
-        Some(BadConstructor(u, 0, name) |> prewrap)
-      | _ => wrap(Constructor(name) |> prewrap)
-      }
-    | Cons(hd, tl) =>
-      let* d_hd = dhpat_of_upat(m, hd);
-      let* d_tl = dhpat_of_upat(m, tl);
-      wrap(Cons(d_hd, d_tl) |> prewrap);
-    | Tuple(ps) =>
-      let* ds = ps |> List.map(dhpat_of_upat(m)) |> OptUtil.sequence;
-      wrap(DHPat.Tuple(ds) |> prewrap);
-    | Var(name) => Some(Var(name) |> prewrap)
-    | Parens(p) => dhpat_of_upat(m, p)
-    | Ap(p1, p2) =>
-      let* d_p1 = dhpat_of_upat(m, p1);
-      let* d_p2 = dhpat_of_upat(m, p2);
-      wrap(Ap(d_p1, d_p2) |> prewrap);
-    | TypeAnn(p, _ty) =>
-      let* dp = dhpat_of_upat(m, p);
-      wrap(dp);
-    };
-  | Some(InfoExp(_) | InfoTyp(_) | InfoTPat(_) | Secondary(_))
   | None => None
   };
 };
