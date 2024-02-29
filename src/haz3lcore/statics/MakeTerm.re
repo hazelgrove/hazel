@@ -109,7 +109,7 @@ let parse_sum_term: UTyp.t => UTyp.variant =
     Variant(ctr, ids_ctr @ ids_ap, Some(u))
   | t => BadEntry(t);
 
-let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
+let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any => {
   switch (s) {
   | Pat => Pat(pat(unsorted(skel, seg)))
   | TPat => TPat(tpat(unsorted(skel, seg)))
@@ -133,8 +133,8 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
         }
       }
     };
-  }
-
+  };
+}
 and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
@@ -169,7 +169,8 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           Match(scrut, rules),
           ids,
         )
-      | ([t], []) when t != " " => ret(Invalid(t))
+      | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
+        ret(Invalid(t))
       | _ => ret(hole(tm))
       }
     | _ => ret(hole(tm))
@@ -179,12 +180,21 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     | ([(_id, t)], []) =>
       ret(
         switch (t) {
+        | (["$"], []) => UnOp(Meta(Unquote), r)
         | (["-"], []) => UnOp(Int(Minus), r)
         | (["!"], []) => UnOp(Bool(Not), r)
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
         | ([t, "=", "in"], [Pat(pat), Exp(def)]) when Form.is_let_op(t) =>
           LetOp("_" ++ t ++ "_", pat, def, r)
+        | (["hide", "in"], [Exp(filter)]) =>
+          Filter((Eval, One), filter, r)
+        | (["eval", "in"], [Exp(filter)]) =>
+          Filter((Eval, All), filter, r)
+        | (["pause", "in"], [Exp(filter)]) =>
+          Filter((Step, One), filter, r)
+        | (["debug", "in"], [Exp(filter)]) =>
+          Filter((Step, All), filter, r)
         | (["type", "=", "in"], [TPat(tpat), Typ(def)]) =>
           TyAlias(tpat, def, r)
         | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
@@ -198,7 +208,8 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     switch (tiles) {
     | ([(_id, t)], []) =>
       switch (t) {
-      | (["()"], []) => (l.term, l.ids) //TODO(andrew): new ap error
+      | (["()"], []) =>
+        ret(Ap(l, {ids: [Id.nullary_ap_flag], term: Triv}))
       | (["(", ")"], [Exp(arg)]) => ret(Ap(l, arg))
       | _ => ret(hole(tm))
       }
@@ -235,11 +246,12 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | (["==."], []) => BinOp(Float(Equals), l, r)
           | (["!=."], []) => BinOp(Float(NotEquals), l, r)
           | (["&&"], []) => BinOp(Bool(And), l, r)
-          | (["\\/"], []) => BinOp(Bool(Or), l, r)
+          | (["||"], []) => BinOp(Bool(Or), l, r)
           | (["::"], []) => Cons(l, r)
           | ([";"], []) => Seq(l, r)
           | (["++"], []) => BinOp(String(Concat), l, r)
           | (["$=="], []) => BinOp(String(Equals), l, r)
+          | (["|>"], []) => Pipeline(l, r)
           | (["@"], []) => ListConcat(l, r)
           | ([t], []) when Form.is_op(t) =>
             UserOp(
@@ -256,6 +268,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
 }
 
 and pat = unsorted => {
+  Printf.printf("pat: %s\n", unsorted |> show_unsorted);
   let (term, inner_ids) = pat_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
   return(p => Pat(p), ids, {ids, term});
@@ -278,10 +291,13 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
           let s = Re.Str.string_after(t, 1);
           let s = Re.Str.string_before(s, String.length(s) - 1);
           String(s);
-        | ([t], []) when Form.is_var(t) => Var(t)
+        | ([t], []) when Form.is_var(t) =>
+          Printf.printf("var: %s\n", t);
+          Var(t);
         | ([t], []) when Form.is_wild(t) => Wild
         | ([t], []) when Form.is_ctr(t) => Constructor(t)
-        | ([t], []) when t != " " => Invalid(t)
+        | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
+          Invalid(t)
         | (["(", ")"], [Pat(body)]) => Parens(body)
         | (["[", "]"], [Pat(body)]) =>
           switch (body) {
@@ -343,7 +359,8 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
         | ([t], []) when Form.is_typ_var(t) => Var(t)
         | (["(", ")"], [Typ(body)]) => Parens(body)
         | (["[", "]"], [Typ(body)]) => List(body)
-        | ([t], []) when t != " " => Invalid(t)
+        | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
+          Invalid(t)
         | _ => hole(tm)
         },
       )
@@ -397,7 +414,8 @@ and tpat_term: unsorted => UTPat.term = {
       ret(
         switch (tile) {
         | ([t], []) when Form.is_typ_var(t) => Var(t)
-        | ([t], []) when t != " " => Invalid(t)
+        | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
+          Invalid(t)
         | _ => hole(tm)
         },
       )
@@ -487,4 +505,21 @@ let go =
       let e = exp(unsorted(Segment.skel(seg), seg));
       (e, map^);
     },
+  );
+
+let from_zip = (~dump_backpack: bool, ~erase_buffer: bool, z: Zipper.t) => {
+  let seg = Zipper.smart_seg(~dump_backpack, ~erase_buffer, z);
+  go(seg);
+};
+
+let from_zip_for_view =
+  Core.Memo.general(
+    ~cache_size_bound=1000,
+    from_zip(~dump_backpack=false, ~erase_buffer=true),
+  );
+
+let from_zip_for_sem =
+  Core.Memo.general(
+    ~cache_size_bound=1000,
+    from_zip(~dump_backpack=true, ~erase_buffer=true),
   );

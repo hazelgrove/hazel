@@ -6,7 +6,6 @@ type t =
   | DivideByZero
   | NegativeExponent
   | OutOfFuel
-  | InvalidProjection
   | LetOperatorsNotDefined(string);
 
 let err_msg = (err: t): string =>
@@ -16,7 +15,6 @@ let err_msg = (err: t): string =>
   | DivideByZero => "Error: Divide by Zero"
   | NegativeExponent => "Error: Negative Exponent in Integer Exponentiation (Consider using **.)"
   | OutOfFuel => "Error: Out of Fuel"
-  | InvalidProjection => "Error: Invalid Projection"
   | LetOperatorsNotDefined(string) =>
     "Error: Let Operators(" ++ string ++ ") Not Defined"
   };

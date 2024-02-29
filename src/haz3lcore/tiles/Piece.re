@@ -111,13 +111,6 @@ let monotile: t => option(Token.t) =
     Some(Secondary.get_string(w.content))
   | _ => None;
 
-let is_length_one_monotile: t => bool =
-  p =>
-    switch (monotile(p)) {
-    | Some(t) => String.length(t) == 1
-    | None => false
-    };
-
 let has_ends = get(_ => true, _ => true, Tile.has_ends);
 
 let is_complete: t => bool =
@@ -143,4 +136,12 @@ let get_outside_sorts = (~default_sort=Sort.Any, p: t): list(Sort.t) =>
     | (Concave(_), Convex) => [sort_l]
     | (Concave(_), Concave(_)) => [sort_l, sort_r]
     };
+  };
+
+let mold_of = (~shape=Nib.Shape.Convex, p: t) =>
+  // TODO(d) fix sorts
+  switch (p) {
+  | Tile(t) => t.mold
+  | Grout(g) => Mold.of_grout(g, Any)
+  | Secondary(_) => Mold.of_secondary({sort: Any, shape})
   };

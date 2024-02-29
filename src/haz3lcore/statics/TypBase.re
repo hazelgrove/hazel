@@ -222,7 +222,7 @@ module rec Typ: {
     | (_, Unknown(TypeHole | Free(_)) as ty) when fix =>
       /* NOTE(andrew): This is load bearing
          for ensuring that function literals get appropriate
-         casts. Examples/Dynamics has regression tests */
+         casts. Documentation/Dynamics has regression tests */
       Some(ty)
     | (Unknown(p1), Unknown(p2)) =>
       Some(Unknown(join_type_provenance(p1, p2)))
@@ -393,11 +393,28 @@ module rec Typ: {
     | Sum(sm) => Some(sm)
     | Rec(_) =>
       /* Note: We must unroll here to get right ctr types;
-         otherwise the rec parameter will leak */
-      switch (unroll(ty)) {
+         otherwise the rec parameter will leak. However, seeing
+         as substitution is too expensive to be used here, we
+         currently making the optimization that, since all
+         recursive types are type alises which use the alias name
+         as the recursive parameter, and type aliases cannot be
+         shadowed, it is safe to simply remove the Rec constructor,
+         provided we haven't escaped the context in which the alias
+         is bound. If either of the above assumptions become invalid,
+         the below code will be incorrect! */
+      let ty =
+        switch (ty) {
+        | Rec(x, ty_body) =>
+          switch (Ctx.lookup_alias(ctx, x)) {
+          | None => unroll(ty)
+          | Some(_) => ty_body
+          }
+        | _ => ty
+        };
+      switch (ty) {
       | Sum(sm) => Some(sm)
       | _ => None
-      }
+      };
     | _ => None
     };
   };

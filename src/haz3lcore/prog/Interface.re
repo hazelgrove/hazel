@@ -1,97 +1,82 @@
-exception DoesNotElaborate;
-let elaborate = (map, term): DHExp.t =>
-  switch (Elaborator.uexp_elab(map, term)) {
-  | DoesNotElaborate =>
-    let error = "Internal error: Elaboration returns None";
-    print_endline("Interface.elaborate: " ++ error);
-    InvalidText(Id.invalid, -666, error);
-  | Elaborates(d, _, _) => d
-  };
+module Statics = {
+  let mk_map' =
+    Core.Memo.general(~cache_size_bound=1000, e => {
+      Statics.uexp_to_info_map(
+        ~ctx=Builtins.ctx_init,
+        ~ancestors=[],
+        e,
+        Id.Map.empty,
+      )
+      |> snd
+    });
+  let mk_map = (core: CoreSettings.t, exp) =>
+    core.statics ? mk_map'(exp) : Id.Map.empty;
 
-exception EvalError(EvaluatorError.t);
-exception PostprocessError(EvaluatorPost.error);
-let evaluate =
-  Core.Memo.general(
-    ~cache_size_bound=1000,
-    Evaluator.evaluate(Builtins.env_init),
-  );
+  let mk_map_and_info_ctx =
+    Core.Memo.general(~cache_size_bound=1000, (ctx, e) => {
+      Statics.uexp_to_info_map(~ctx, ~ancestors=[], e, Id.Map.empty)
+    });
+  let mk_map_and_info_ctx = (core: CoreSettings.t, ctx, exp) =>
+    core.statics
+      ? {
+        let (info, map) = mk_map_and_info_ctx(ctx, exp);
+        (Some(info), map);
+      }
+      : (None, Id.Map.empty);
 
-// let postprocess = (es: EvaluatorState.t, d: DHExp.t) => {
-//   let ((d, hii), es) =
-//     es
-//     |> EvaluatorState.with_eig(eig => {
-//          let ((hii, d), eig) =
-//            switch (EvaluatorPost.postprocess(d, eig)) {
-//            | d => d
-//            | exception (EvaluatorPost.Exception(reason)) =>
-//              raise(PostprocessError(reason))
-//            };
-//          ((d, hii), eig);
-//        });
-//   let (tests, es) =
-//     es
-//     |> EvaluatorState.with_eig(eig => {
-//          let (eig, tests) =
-//            EvaluatorState.get_tests(es)
-//            |> List.fold_left_map(
-//                 (eig, (k, instance_reports)) => {
-//                   let (eig, instance_reports) =
-//                     instance_reports
-//                     |> List.fold_left_map(
-//                          (eig, (d, status)) =>
-//                            switch (EvaluatorPost.postprocess(d, eig)) {
-//                            | ((_, d), eig) => (eig, (d, status))
-//                            | exception (EvaluatorPost.Exception(reason)) =>
-//                              raise(PostprocessError(reason))
-//                            },
-//                          eig,
-//                        );
-//                   (eig, (k, instance_reports));
-//                 },
-//                 eig,
-//               );
-//          (tests, eig);
-//        });
-//   ((d, hii), EvaluatorState.put_tests(tests, es));
-// };
-
-let evaluate = (d: DHExp.t): ProgramResult.t => {
-  let result =
-    //Printf.printf("Evaluating: %s\n", DHExp.show(d));
-    try(evaluate(d)) {
-    | EvaluatorError.Exception(reason) =>
-      let error = "Internal exception: " ++ EvaluatorError.show(reason);
-      print_endline("Interface.evaluate: " ++ error);
-      (EvaluatorState.init, Indet(InvalidText(Id.invalid, -666, error)));
-    | exn =>
-      let error = "System exception: " ++ Printexc.to_string(exn);
-      print_endline("Interface.evaluate: " ++ error);
-      (EvaluatorState.init, Indet(InvalidText(Id.invalid, -666, error)));
-    };
-  // TODO(cyrus): disabling post-processing for now, it has bad performance characteristics when you have deeply nested indet cases (and probably other situations) and we aren't using it in the UI for anything
-  switch (result) {
-  | (es, BoxedValue(_) as r) =>
-    // let ((d, hii), es) = postprocess(es, d);
-    (r, es, HoleInstanceInfo.empty)
-  | (es, Indet(_) as r) =>
-    // let ((d, hii), es) = postprocess(es, d);
-    (r, es, HoleInstanceInfo.empty)
-  };
+  let mk_map_ctx =
+    Core.Memo.general(~cache_size_bound=1000, (ctx, e) => {
+      Statics.uexp_to_info_map(~ctx, ~ancestors=[], e, Id.Map.empty) |> snd
+    });
+  let mk_map_ctx = (core: CoreSettings.t, ctx, exp) =>
+    core.statics ? mk_map_ctx(ctx, exp) : Id.Map.empty;
 };
 
-let get_result = (map, term): ProgramResult.t =>
-  term |> elaborate(map) |> evaluate;
+let dh_err = (error: string): DHExp.t => BoundVar(error);
 
-let evaluation_result = (map, term): option(DHExp.t) =>
-  switch (get_result(map, term)) {
-  | (result, _, _) => Some(EvaluatorResult.unbox(result))
+let elaborate =
+  Core.Memo.general(~cache_size_bound=1000, Elaborator.uexp_elab);
+
+exception DoesNotElaborate;
+let elaborate = (~settings: CoreSettings.t, map, term): DHExp.t =>
+  switch () {
+  | _ when !settings.statics => dh_err("Statics disabled")
+  | _ when !settings.dynamics && !settings.elaborate =>
+    dh_err("Dynamics & Elaboration disabled")
+  | _ =>
+    switch (elaborate(map, term)) {
+    | DoesNotElaborate => dh_err("Elaboration returns None")
+    | Elaborates(d, _, _) => d
+    }
   };
 
-include TestResults;
-
-let test_results = (~descriptions=[], map, term): option(test_results) => {
-  switch (get_result(map, term)) {
-  | (_, state, _) =>
-    Some(mk_results(~descriptions, EvaluatorState.get_tests(state)))
+let evaluate =
+    (~settings: CoreSettings.t, ~env=Builtins.env_init, elab: DHExp.t)
+    : ProgramResult.t =>
+  switch () {
+  | _ when !settings.dynamics => Off(elab)
+  | _ =>
+    switch (Evaluator.evaluate(env, elab)) {
+    | exception (EvaluatorError.Exception(reason)) =>
+      print_endline("EvaluatorError:" ++ EvaluatorError.show(reason));
+      ResultFail(EvaulatorError(reason));
+    | exception exn =>
+      print_endline("EXN:" ++ Printexc.to_string(exn));
+      ResultFail(UnknownException(Printexc.to_string(exn)));
+    | (state, result) => ResultOk({result, state})
+    }
   };
+
+let eval_z =
+    (
+      ~settings: CoreSettings.t,
+      ~ctx_init: Ctx.t,
+      ~env_init: Environment.t,
+      z: Zipper.t,
+    )
+    : ProgramResult.t => {
+  let (term, _) = MakeTerm.from_zip_for_sem(z);
+  let info_map = Statics.mk_map_ctx(settings, ctx_init, term);
+  let d = elaborate(~settings, info_map, term);
+  evaluate(~settings, ~env=env_init, d);
 };

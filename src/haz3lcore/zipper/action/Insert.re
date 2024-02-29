@@ -115,10 +115,9 @@ type appendability =
 let sibling_appendability: (string, Siblings.t) => appendability =
   (char, siblings) =>
     switch (neighbor_monotiles(siblings)) {
-    | (Some(t), _) when Form.is_valid_token(t ++ char) =>
+    | (Some(t), _) when Molds.allow_append_right(t, char) =>
       AppendLeft(t ++ char)
-    | (_, Some(t))
-        when Form.is_valid_token(char ++ t) && !Form.is_comment_delim(char) =>
+    | (_, Some(t)) when Molds.allow_append_left(char, t) =>
       AppendRight(char ++ t)
     | _ => MakeNew
     };
@@ -147,6 +146,12 @@ let insert_monos = (l: Token.t, r: Token.t, z: option(t)): option(t) =>
   |> Option.map(Zipper.construct_mono(Left, l));
 
 let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
+  /* Current this necessarily creates three tokens; two from splitting
+   * the existing one, and a new one. The two splitting tokens may become
+   * delimiters of the same time (e.g. `[|]`=>`[<>|]`). In the future it
+   * may be prudent to relax this by, after splitting, first attempting
+   * to append the new char to the left half, and then the right half,
+   * and only if those fail creating a new center token. */
   let (l, r) = Token.split_nth(idx, t);
   z
   |> Zipper.set_caret(Outer)
@@ -176,33 +181,37 @@ let move_into_if_stringlit_or_comment = (char, z) =>
       }
     : z;
 
+let closing_stringlit_or_comment = (char, t) =>
+  Form.is_string(t)
+  && Form.is_string_delim(char)
+  || Form.is_comment(t)
+  && Form.is_comment_delim(char);
+
 let go =
     (char: string, {caret, relatives: {siblings, _}, _} as z: t): option(t) => {
   /* If there's a selection, delete it before proceeding */
   let z = z.selection.content != [] ? Zipper.destruct(z) : z;
   switch (caret, neighbor_monotiles(siblings)) {
-  /* Special cases for insertion of quotes when the caret is
-     in or is adjacent to a string/comment. This is necessary to
-     avoid breaking paste. */
-  | (_, (_, Some(t)))
-      when
-        Form.is_string(t)
-        && Form.is_string_delim(char)
-        || Form.is_comment(t)
-        && Form.is_comment_delim(char) =>
+  /* If we try to insert a quote inside an existing string, or a #
+   * in a comment, we are instead moved to the righthand side of
+   * the operand. Note that this behavior is load-bearing for the
+   * current parsing approach including Paste */
+  | (_, (_, Some(t))) when closing_stringlit_or_comment(char, t) =>
     z |> Zipper.set_caret(Outer) |> Zipper.move(Right)
-  | (Outer, (Some(t), _))
-      when
-        Form.is_string(t)
-        && Form.is_string_delim(char)
-        || Form.is_comment(t)
-        && Form.is_comment_delim(char) =>
+  | (Outer, (Some(t), _)) when closing_stringlit_or_comment(char, t) =>
     Some(z)
   | (Inner(d_idx, n), (_, Some(t))) =>
     let idx = n + 1;
     let new_t = Token.insert_nth(idx, char, t);
-    /* If inserting wouldn't produce a valid token, split */
-    Form.is_valid_token(new_t)
+    /* If inserting wouldn't produce a valid token, split. This is
+     * mostly targetting the case of inserting an infix operator
+     * inside an operand (or more rarely vice-versa). In such cases,
+     * due to the current MOSTLY disjointedness of these character
+     * classes, ALL (ish?) current splits should be 3-way
+     * splits (as opposed to 2-way). This is currently the only
+     * kind of splitting supported; this should be revisited if
+     * we move to more subtle token division logic */
+    Molds.allow_insertion(char, t, new_t)
       ? z
         |> Zipper.set_caret(Inner(d_idx, idx))
         |> Zipper.replace_mono(Right, new_t)
@@ -212,9 +221,11 @@ let go =
   | (Inner(_, _), (_, None)) => None
   | (Outer, (_, Some(_))) =>
     let caret: Zipper.Caret.t =
-      /* If we're adding to the right, move caret inside right nhbr */
       switch (sibling_appendability(char, siblings)) {
-      | AppendRight(_) => Inner(0, 0) //Note: assumption of monotile
+      | AppendRight(_) =>
+        /* If we're adding to the right, move caret inside right nhbr.
+         * Note the assumption that this is a monotile */
+        Inner(0, 0)
       | MakeNew
       | AppendLeft(_) => Outer
       };
@@ -224,9 +235,9 @@ let go =
     |> opt_regrold(Left)
     |> Option.map(move_into_if_stringlit_or_comment(char));
   | (Outer, (_, None)) =>
-    let z' = insert_outer(char, z);
-    z'
+    z
+    |> insert_outer(char)
     |> opt_regrold(Left)
-    |> Option.map(move_into_if_stringlit_or_comment(char));
+    |> Option.map(move_into_if_stringlit_or_comment(char))
   };
 };
