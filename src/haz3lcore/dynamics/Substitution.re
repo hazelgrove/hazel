@@ -26,23 +26,23 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
         subst_var(m, d1, x, d4);
       };
     Let(dp, d3, d4) |> rewrap;
-  | FixF(y, ty, d3) =>
+  | FixF(y, d3) =>
     let d3 =
       if (DHPat.binds_var(m, x, y)) {
         d3;
       } else {
         subst_var(m, d1, x, d3);
       };
-    FixF(y, ty, d3) |> rewrap;
-  | Fun(dp, ty, d3, env, s) =>
+    FixF(y, d3) |> rewrap;
+  | Fun(dp, d3, env, s) =>
     /* Function closure shouldn't appear during substitution
        (which only is called from elaboration currently) */
     let env' = Option.map(subst_var_env(m, d1, x), env);
     if (DHPat.binds_var(m, x, dp)) {
-      Fun(dp, ty, d3, env', s) |> rewrap;
+      Fun(dp, d3, env', s) |> rewrap;
     } else {
       let d3 = subst_var(m, d1, x, d3);
-      Fun(dp, ty, d3, env', s) |> rewrap;
+      Fun(dp, d3, env', s) |> rewrap;
     };
   | Closure(env, d3) =>
     /* Closure shouldn't appear during substitution (which

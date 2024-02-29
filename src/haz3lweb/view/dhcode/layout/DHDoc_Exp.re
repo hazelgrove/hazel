@@ -140,13 +140,13 @@ let mk =
         switch (ps.knd, DHExp.term_of(ps.d_loc)) {
         | (FunAp, Ap(_, d2, _)) =>
           switch (DHExp.term_of(d2)) {
-          | Fun(p, _, _, _, _) => DHPat.bound_vars(infomap, p)
+          | Fun(p, _, _, _) => DHPat.bound_vars(infomap, p)
           | _ => []
           }
         | (FunAp, _) => []
         | (LetBind, Let(p, _, _)) => DHPat.bound_vars(infomap, p)
         | (LetBind, _) => []
-        | (FixUnwrap, FixF(p, _, _)) => DHPat.bound_vars(infomap, p)
+        | (FixUnwrap, FixF(p, _)) => DHPat.bound_vars(infomap, p)
         | (FixUnwrap, _) => []
         | (InvalidStep, _)
         | (VarLookup, _)
@@ -479,7 +479,7 @@ let mk =
              ),
           DHDoc_common.Delim.mk(")"),
         ]);
-      | Fun(dp, ty, d, Some(env'), s) =>
+      | Fun(dp, d, Some(env'), s) =>
         if (settings.show_fn_bodies) {
           let bindings = DHPat.bound_vars(infomap, dp);
           let body_doc =
@@ -506,16 +506,6 @@ let mk =
                    ~enforce_inline,
                  ),
             ]
-            @ (
-              settings.show_casts
-                ? [
-                  DHDoc_common.Delim.colon_Fun,
-                  space(),
-                  DHDoc_Typ.mk(~enforce_inline=true, ty),
-                  space(),
-                ]
-                : []
-            )
             @ [
               DHDoc_common.Delim.arrow_Fun,
               space(),
@@ -528,7 +518,7 @@ let mk =
           | Some(name) => annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"))
           };
         }
-      | Fun(dp, ty, dbody, None, s) =>
+      | Fun(dp, dbody, None, s) =>
         if (settings.show_fn_bodies) {
           let bindings = DHPat.bound_vars(infomap, dp);
           let body_doc =
@@ -548,16 +538,6 @@ let mk =
                    ~enforce_inline,
                  ),
             ]
-            @ (
-              settings.show_casts
-                ? [
-                  DHDoc_common.Delim.colon_Fun,
-                  space(),
-                  DHDoc_Typ.mk(~enforce_inline=true, ty),
-                  space(),
-                ]
-                : []
-            )
             @ [
               DHDoc_common.Delim.arrow_Fun,
               space(),
@@ -570,7 +550,7 @@ let mk =
           | Some(name) => annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"))
           };
         }
-      | FixF(dp, ty, dbody) when settings.show_fixpoints =>
+      | FixF(dp, dbody) when settings.show_fixpoints =>
         let doc_body =
           go_formattable(
             dbody,
@@ -586,23 +566,13 @@ let mk =
             space(),
             DHDoc_Pat.mk(~infomap, dp, ~enforce_inline=true),
           ]
-          @ (
-            settings.show_casts
-              ? [
-                DHDoc_common.Delim.colon_Fun,
-                space(),
-                DHDoc_Typ.mk(~enforce_inline=true, ty),
-                space(),
-              ]
-              : []
-          )
           @ [
             DHDoc_common.Delim.arrow_FixF,
             space(),
             doc_body |> DHDoc_common.pad_child(~enforce_inline),
           ],
         );
-      | FixF(dp, _, d) =>
+      | FixF(dp, d) =>
         go'(
           ~env=
             ClosureEnvironment.without_keys(

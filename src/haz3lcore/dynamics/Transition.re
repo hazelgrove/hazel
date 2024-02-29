@@ -258,17 +258,17 @@ module Transition = (EV: EV_MODE) => {
         kind: LetBind,
         value: false,
       });
-    | Fun(_, _, _, Some(_), _) =>
+    | Fun(_, _, Some(_), _) =>
       let. _ = otherwise(env, d);
       Constructor;
-    | Fun(p, t, d1, None, v) =>
+    | Fun(p, d1, None, v) =>
       let. _ = otherwise(env, d);
       Step({
-        apply: () => Fun(p, t, d1, Some(env), v) |> rewrap,
+        apply: () => Fun(p, d1, Some(env), v) |> rewrap,
         kind: FunClosure,
         value: true,
       });
-    | FixF(dp, t, d1) =>
+    | FixF(dp, d1) =>
       let (term1, rewrap1) = DHExp.unwrap(d1);
       switch (term1, DHPat.get_var(dp)) {
       // Simple Recursion case
@@ -278,7 +278,7 @@ module Transition = (EV: EV_MODE) => {
           evaluate_extend_env(
             Environment.singleton((
               f,
-              FixF(dp, t, Closure(env, d1) |> rewrap1) |> rewrap,
+              FixF(dp, Closure(env, d1) |> rewrap1) |> rewrap,
             )),
             env,
           );
@@ -298,7 +298,7 @@ module Transition = (EV: EV_MODE) => {
                 binding,
                 Let(
                   dp,
-                  FixF(dp, t, Closure(env, d1) |> rewrap1) |> rewrap,
+                  FixF(dp, Closure(env, d1) |> rewrap1) |> rewrap,
                   Var(binding) |> fresh,
                 )
                 |> fresh,
@@ -313,9 +313,9 @@ module Transition = (EV: EV_MODE) => {
           value: false,
         });
       | _ =>
-        let. _ = otherwise(env, FixF(dp, t, d1) |> rewrap);
+        let. _ = otherwise(env, FixF(dp, d1) |> rewrap);
         Step({
-          apply: () => FixF(dp, t, Closure(env, d1) |> fresh) |> rewrap,
+          apply: () => FixF(dp, Closure(env, d1) |> fresh) |> rewrap,
           kind: FixClosure,
           value: false,
         });
@@ -352,7 +352,7 @@ module Transition = (EV: EV_MODE) => {
         );
       switch (DHExp.term_of(d1')) {
       | Constructor(_) => Constructor
-      | Fun(dp, _, d3, Some(env'), _) =>
+      | Fun(dp, d3, Some(env'), _) =>
         let.match env'' = (env', matches(dp, d2'));
         Step({
           apply: () => Closure(env'', d3) |> fresh,

@@ -211,9 +211,8 @@ let rec dhexp_of_uexp =
         let ty = Typ.matched_list(ctx, ty);
         DHExp.ListLit(ty, ds) |> rewrap;
       | Fun(p, body) =>
-        let* d1 = dhexp_of_uexp(m, body);
-        let+ ty = fixed_pat_typ(m, p);
-        DHExp.Fun(p, ty, d1, None, None) |> rewrap;
+        let+ d1 = dhexp_of_uexp(m, body);
+        DHExp.Fun(p, d1, None, None) |> rewrap;
       | Tuple(es) =>
         let+ ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
         DHExp.Tuple(ds) |> rewrap;
@@ -261,15 +260,13 @@ let rec dhexp_of_uexp =
           (name, d) => {
             let (term, rewrap) = DHExp.unwrap(d);
             switch (term) {
-            | Fun(p, ty, e, ctx, _) =>
-              DHExp.Fun(p, ty, e, ctx, name) |> rewrap
+            | Fun(p, e, ctx, _) => DHExp.Fun(p, e, ctx, name) |> rewrap
             | _ => d
             };
           }
         );
         let* ddef = dhexp_of_uexp(m, def);
-        let* dbody = dhexp_of_uexp(m, body);
-        let+ ty = fixed_pat_typ(m, p);
+        let+ dbody = dhexp_of_uexp(m, body);
         switch (Term.UPat.get_recursive_bindings(p)) {
         | None =>
           /* not recursive */
@@ -278,16 +275,15 @@ let rec dhexp_of_uexp =
         | Some(b) =>
           DHExp.Let(
             p,
-            FixF(p, ty, add_name(Some(String.concat(",", b)), ddef))
+            FixF(p, add_name(Some(String.concat(",", b)), ddef))
             |> DHExp.fresh,
             dbody,
           )
           |> rewrap
         };
       | FixF(p, e) =>
-        let* de = dhexp_of_uexp(m, e);
-        let+ ty = fixed_pat_typ(m, p);
-        DHExp.FixF(p, ty, de) |> rewrap;
+        let+ de = dhexp_of_uexp(m, e);
+        DHExp.FixF(p, de) |> rewrap;
       | Ap(dir, fn, arg) =>
         let* c_fn = dhexp_of_uexp(m, fn);
         let+ c_arg = dhexp_of_uexp(m, arg);
