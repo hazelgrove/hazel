@@ -526,6 +526,7 @@ let get_doc =
       | StaticErrorHole(_)
       | FailedCast(_)
       | Closure(_)
+      | Cast(_)
       | BuiltinFun(_) => simple("Internal expression")
       | EmptyHole => get_message(HoleExp.empty_hole_exps)
       | MultiHole(_children) => get_message(HoleExp.multi_hole_exps)

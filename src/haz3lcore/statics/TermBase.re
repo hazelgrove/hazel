@@ -175,6 +175,7 @@ and UExp: {
     | BinOp(op_bin, t, t)
     | BuiltinFun(string)
     | Match(t, list((UPat.t, t)))
+    | Cast(t, Typ.t, Typ.t)
   and t = {
     // invariant: nonempty
     ids: list(Id.t),
@@ -323,7 +324,7 @@ and UExp: {
     | BinOp(op_bin, t, t)
     | BuiltinFun(string) /// Doesn't currently have a distinguishable syntax...
     | Match(t, list((UPat.t, t)))
-  // TODO: Add Casts
+    | Cast(t, Typ.t, Typ.t)
   and t = {
     // invariant: nonempty
     ids: list(Id.t), // > DHEXP // Multiple ids?? // Add source??

@@ -69,6 +69,7 @@ let rec append_exp = (e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   | UnOp(_)
   | BinOp(_)
   | BuiltinFun(_)
+  | Cast(_)
   | Match(_) =>
     TermBase.UExp.{ids: [Id.mk()], copied: false, term: Seq(e1, e2)}
   | Seq(e11, e12) =>

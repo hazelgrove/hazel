@@ -200,6 +200,7 @@ and uexp_to_info_map =
   | MultiHole(tms) =>
     let (co_ctxs, m) = multi(~ctx, ~ancestors, m, tms);
     add(~self=IsMulti, ~co_ctx=CoCtx.union(co_ctxs), m);
+  | Cast(e, t1, t2)
   | FailedCast(e, t1, t2) =>
     let (e, m) = go(~mode=Ana(t1), e, m);
     add(~self=Just(t2), ~co_ctx=e.co_ctx, m);

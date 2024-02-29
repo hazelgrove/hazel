@@ -126,15 +126,15 @@ module rec DHExp: {
     | Seq(t, t)
     | Test(t)
     | Filter(DHFilter.t, t) // DONE [UEXP TO BE CHANGED]
-    | Closure([@show.opaque] ClosureEnvironment.t, t) // > UEXP
+    | Closure([@show.opaque] ClosureEnvironment.t, t)
     | Parens(t)
     | Cons(t, t)
     | ListConcat(t, t)
     | UnOp(TermBase.UExp.op_un, t)
-    | BinOp(TermBase.UExp.op_bin, t, t) // DONE
+    | BinOp(TermBase.UExp.op_bin, t, t)
     | BuiltinFun(string) // DONE [TO ADD TO UEXP]
     | Match(t, list((TermBase.UPat.t, t)))
-    | Cast(t, Typ.t, Typ.t) // TODO: Add to uexp or remove
+    | Cast(t, Typ.t, Typ.t) // TODO: Perhaps merge with failedcast?
   and t = {
     /* invariant: nonempty, TODO: what happens to later ids in DHExp */
     ids: list(Id.t),
