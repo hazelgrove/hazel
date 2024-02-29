@@ -580,9 +580,10 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       term:
         TermBase.UExp.Filter(
           FilterAction.(act, One),
-          {term: Constructor("$e"), ids: [Id.mk()]},
+          {term: Constructor("$e"), copied: false, ids: [Id.mk()]},
           term,
         ),
+      copied: false,
       ids: [Id.mk()],
     };
 
@@ -761,6 +762,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     let empty: t = {
       term: {
         term: Tuple([]),
+        copied: false,
         ids: [Id.mk()],
       },
       info_map: Id.Map.empty,

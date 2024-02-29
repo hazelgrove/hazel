@@ -154,7 +154,7 @@ and uexp_to_info_map =
       ~mode=Mode.Syn,
       ~is_in_filter=false,
       ~ancestors,
-      {ids, term} as uexp: UExp.t,
+      {ids, copied: _, term} as uexp: UExp.t,
       m: Map.t,
     )
     : (Info.exp, Map.t) => {
@@ -247,6 +247,7 @@ and uexp_to_info_map =
   | UnOp(Meta(Unquote), e) when is_in_filter =>
     let e: UExp.t = {
       ids: e.ids,
+      copied: false,
       term:
         switch (e.term) {
         | Var("e") => UExp.Constructor("$e")

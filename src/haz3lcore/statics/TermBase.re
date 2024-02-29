@@ -172,6 +172,7 @@ and UExp: {
   and t = {
     // invariant: nonempty
     ids: list(Id.t),
+    copied: bool,
     term,
   };
 
@@ -298,8 +299,7 @@ and UExp: {
     | Let(UPat.t, t, t)
     | FixF(UPat.t, t) // DONE [CHECK WITH SOMEONE THAT I GOT THE STATIC SEMANTICS RIGHT]
     | TyAlias(UTPat.t, UTyp.t, t)
-    // note: function is always first then argument; even in reverse
-    | Ap(ap_direction, t, t)
+    | Ap(ap_direction, t, t) // note: function is always first then argument; even in pipe mode
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
@@ -308,7 +308,6 @@ and UExp: {
     | Parens(t)
     | Cons(t, t)
     | ListConcat(t, t)
-    // TODO: Add Builtins
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
     | BuiltinFun(string) /// Doesn't currently have a distinguishable syntax...
@@ -317,6 +316,7 @@ and UExp: {
   and t = {
     // invariant: nonempty
     ids: list(Id.t), // > DHEXP // Multiple ids?? // Add source??
+    copied: bool,
     term,
   };
 
