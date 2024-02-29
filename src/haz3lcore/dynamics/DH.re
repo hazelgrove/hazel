@@ -9,6 +9,26 @@ open Sexplib.Std;
 
  */
 
+/*
+ DHExps that can appear during evaluation, and thus won't have static information.
+
+ - Closure
+ - Var [for mutual recursion; could probably get rid of if needed...]
+ - Let [for mutual recursion]
+ - Tuple([])
+ - Cast
+ - Ap [in the casting rules for functions & in builtins]
+ - DynamicErrorHole
+ - FailedCast
+ - Int
+ - Bool
+ - Float
+ - String
+ - ListLit
+ - BuiltinFun
+
+ */
+
 module rec DHExp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
@@ -34,7 +54,7 @@ module rec DHExp: {
     | Tuple(list(t))
     | Var(Var.t)
     | Let(TermBase.UPat.t, t, t)
-    | FixF(TermBase.UPat.t, Typ.t, t) // INVARIANT: always has type assignment on outside // Would be nice to move this into the pattern, but we'd need to merge UTyp.t and Typ.t
+    | FixF(TermBase.UPat.t, Typ.t, t) // TODO: add closure // INVARIANT: always has type assignment on outside // Would be nice to move this into the pattern, but we'd need to merge UTyp.t and Typ.t
     | TyAlias(TermBase.UTPat.t, TermBase.UTyp.t, t)
     | Ap(TermBase.UExp.ap_direction, t, t)
     | If(t, t, t)
@@ -76,9 +96,9 @@ module rec DHExp: {
     | Invalid(string)
     | EmptyHole
     | MultiHole(list(DHExp.t))
-    | StaticErrorHole(Id.t, t) // TODO: Add to TermBase
-    | DynamicErrorHole(t, InvalidOperationError.t) // TODO: Add to TermBase or remove from here
-    | FailedCast(t, Typ.t, Typ.t) // TODO: Add to TermBase or remove from here
+    | StaticErrorHole(Id.t, t)
+    | DynamicErrorHole(t, InvalidOperationError.t)
+    | FailedCast(t, Typ.t, Typ.t)
     | Bool(bool)
     | Int(int)
     | Float(float)
@@ -97,7 +117,6 @@ module rec DHExp: {
     | Let(TermBase.UPat.t, t, t)
     | FixF(TermBase.UPat.t, Typ.t, t) // TODO: Remove type
     | TyAlias(TermBase.UTPat.t, TermBase.UTyp.t, t)
-    // TODO: Add TyAlias
     | Ap(TermBase.UExp.ap_direction, t, t)
     | If(t, t, t)
     | Seq(t, t)

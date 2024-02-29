@@ -264,7 +264,7 @@ module Transition = (EV: EV_MODE) => {
     | Fun(p, t, d1, None, v) =>
       let. _ = otherwise(env, d);
       Step({
-        apply: () => Fun(p, t, d1, Some(env), v) |> fresh,
+        apply: () => Fun(p, t, d1, Some(env), v) |> rewrap,
         kind: FunClosure,
         value: true,
       });
