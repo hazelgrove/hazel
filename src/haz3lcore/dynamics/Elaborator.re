@@ -5,9 +5,10 @@ open OptUtil.Syntax;
  Currently, Elaboration does the following things:
 
   - Insert casts
-  - Insert non-empty holes
-  - Remove TyAlias
+  - Insert non-empty hole wrappers
+  - Remove TyAlias [should we do this??]
   - Annotate functions with types, and names
+  - Insert implicit fixpoints (in types and expressions)
   */
 
 module Elaboration = {
