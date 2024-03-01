@@ -316,7 +316,7 @@ let mk =
       | Seq(d1, d2) =>
         let (doc1, doc2) = (go'(d1), go'(d2));
         DHDoc_common.mk_Sequence(doc1, doc2);
-      | ListLit(_, d_list) =>
+      | ListLit(d_list) =>
         let ol = d_list |> List.map(d => go'(d));
         DHDoc_common.mk_ListLit(ol);
       | Ap(Forward, d1, d2) =>

@@ -22,7 +22,7 @@ type term =
   | BinOp2(TermBase.UExp.op_bin, DHExp.t, t)
   | Tuple(t, (list(DHExp.t), list(DHExp.t)))
   | Test(t)
-  | ListLit(Typ.t, t, (list(DHExp.t), list(DHExp.t)))
+  | ListLit(t, (list(DHExp.t), list(DHExp.t)))
   | MultiHole(t, (list(DHExp.t), list(DHExp.t)))
   | Cons1(t, DHExp.t)
   | Cons2(DHExp.t, t)
@@ -110,9 +110,9 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
       | Tuple(ctx, (ld, rd)) =>
         let d = compose(ctx, d);
         Tuple(ListUtil.rev_concat(ld, [d, ...rd])) |> wrap;
-      | ListLit(t, ctx, (ld, rd)) =>
+      | ListLit(ctx, (ld, rd)) =>
         let d = compose(ctx, d);
-        ListLit(t, ListUtil.rev_concat(ld, [d, ...rd])) |> wrap;
+        ListLit(ListUtil.rev_concat(ld, [d, ...rd])) |> wrap;
       | MultiHole(ctx, (ld, rd)) =>
         let d = compose(ctx, d);
         MultiHole(ListUtil.rev_concat(ld, [d, ...rd])) |> wrap;

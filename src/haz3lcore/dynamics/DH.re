@@ -48,10 +48,10 @@ module rec DHExp: {
     | Int(int)
     | Float(float)
     | String(string)
-    | ListLit(Typ.t, list(t))
+    | ListLit(list(t))
     | Constructor(string)
     | Fun(
-        TermBase.UPat.t, // INVARIANT: always has type assignment on outside
+        TermBase.UPat.t,
         t,
         [@show.opaque] option(ClosureEnvironment.t),
         option(Var.t),
@@ -59,12 +59,12 @@ module rec DHExp: {
     | Tuple(list(t))
     | Var(Var.t)
     | Let(TermBase.UPat.t, t, t)
-    | FixF(TermBase.UPat.t, t, [@show.opaque] option(ClosureEnvironment.t)) // TODO: add closure // INVARIANT: always has type assignment on outside // Would be nice to move this into the pattern, but we'd need to merge UTyp.t and Typ.t
+    | FixF(TermBase.UPat.t, t, [@show.opaque] option(ClosureEnvironment.t))
     | TyAlias(TermBase.UTPat.t, TermBase.UTyp.t, t)
     | Ap(TermBase.UExp.ap_direction, t, t)
     | If(t, t, t)
     | Seq(t, t)
-    | Test(t) // Id refers to original static id of test
+    | Test(t)
     | Filter(DHFilter.t, t) // DONE [UEXP TO BE CHANGED]
     /* In the long term, it might be nice to have closures be the same as
        module opening */
@@ -76,7 +76,7 @@ module rec DHExp: {
     | BinOp(TermBase.UExp.op_bin, t, t)
     | BuiltinFun(string)
     | Match(t, list((TermBase.UPat.t, t)))
-    | Cast(t, Typ.t, Typ.t) // TODO: Add to uexp or remove
+    | Cast(t, Typ.t, Typ.t)
   and t;
 
   let rep_id: t => Id.t;
@@ -108,14 +108,14 @@ module rec DHExp: {
     | Int(int)
     | Float(float)
     | String(string)
-    | ListLit(Typ.t, list(t))
+    | ListLit(list(t))
     | Constructor(string)
     | Fun(
         TermBase.UPat.t,
         t,
         [@show.opaque] option(ClosureEnvironment.t),
         option(Var.t),
-      ) // TODO: Use info_map for Typ.t
+      )
     | Tuple(list(t))
     | Var(Var.t)
     | Let(TermBase.UPat.t, t, t)
@@ -132,7 +132,7 @@ module rec DHExp: {
     | ListConcat(t, t)
     | UnOp(TermBase.UExp.op_un, t)
     | BinOp(TermBase.UExp.op_bin, t, t)
-    | BuiltinFun(string) // DONE [TO ADD TO UEXP]
+    | BuiltinFun(string)
     | Match(t, list((TermBase.UPat.t, t)))
     | Cast(t, Typ.t, Typ.t) // TODO: Perhaps merge with failedcast?
   and t = {
@@ -214,7 +214,7 @@ module rec DHExp: {
       | Test(d1) => Test(repair_ids(d1))
       | UnOp(op, d1) => UnOp(op, repair_ids(d1))
       | BinOp(op, d1, d2) => BinOp(op, repair_ids(d1), repair_ids(d2))
-      | ListLit(t, ds) => ListLit(t, List.map(repair_ids, ds))
+      | ListLit(ds) => ListLit(List.map(repair_ids, ds))
       | Cons(d1, d2) => Cons(repair_ids(d1), repair_ids(d2))
       | Parens(d1) => Parens(repair_ids(d1))
       | ListConcat(d1, d2) => ListConcat(repair_ids(d1), repair_ids(d2))
@@ -246,7 +246,7 @@ module rec DHExp: {
     | Cons(d1, d2) => Cons(strip_casts(d1), strip_casts(d2)) |> rewrap
     | ListConcat(d1, d2) =>
       ListConcat(strip_casts(d1), strip_casts(d2)) |> rewrap
-    | ListLit(t, ds) => ListLit(t, List.map(strip_casts, ds)) |> rewrap
+    | ListLit(ds) => ListLit(List.map(strip_casts, ds)) |> rewrap
     | MultiHole(ds) => MultiHole(List.map(strip_casts, ds)) |> rewrap
     | StaticErrorHole(_, d) => strip_casts(d)
     | Seq(a, b) => Seq(strip_casts(a), strip_casts(b)) |> rewrap
@@ -327,9 +327,8 @@ module rec DHExp: {
       List.length(ds1) == List.length(ds2)
       && List.for_all2(fast_equal, ds1, ds2)
     | (BuiltinFun(f1), BuiltinFun(f2)) => f1 == f2
-    | (ListLit(t1, ds1), ListLit(t2, ds2)) =>
-      t1 == t2
-      && List.length(ds1) == List.length(ds2)
+    | (ListLit(ds1), ListLit(ds2)) =>
+      List.length(ds1) == List.length(ds2)
       && List.for_all2(fast_equal, ds1, ds2)
     | (UnOp(op1, d1), UnOp(op2, d2)) => op1 == op2 && fast_equal(d1, d2)
     | (BinOp(op1, d11, d21), BinOp(op2, d12, d22)) =>

@@ -211,10 +211,8 @@ let rec dhexp_of_uexp =
       | Float(n) => Some(Float(n) |> rewrap)
       | String(s) => Some(String(s) |> rewrap)
       | ListLit(es) =>
-        let* ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
-        let+ ty = fixed_exp_typ(m, uexp);
-        let ty = Typ.matched_list(ctx, ty);
-        DHExp.ListLit(ty, ds) |> rewrap;
+        let+ ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
+        DHExp.ListLit(ds) |> rewrap;
       | Fun(p, body, _, _) =>
         let+ d1 = dhexp_of_uexp(m, body);
         DHExp.Fun(p, d1, None, None) |> rewrap;
