@@ -30,6 +30,7 @@ let fixed_pat_typ = (m: Statics.Map.t, p: Term.UPat.t): option(Typ.t) =>
 let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
   switch (mode) {
   | Syn => d
+  | SynInfix
   | SynFun =>
     switch (self_ty) {
     | Unknown(prov) =>
@@ -37,6 +38,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | Arrow(_) => d
     | _ => failwith("Elaborator.wrap: SynFun non-arrow-type")
     }
+  | AnaInfix(ana_ty)
   | Ana(ana_ty) =>
     let ana_ty = Typ.normalize(ctx, ana_ty);
     /* Forms with special ana rules get cast from their appropriate Matched types */
@@ -183,6 +185,7 @@ let rec dhexp_of_uexp =
         let d = DHExp.ConsistentCase(DHExp.Case(d_scrut, d_rules, 0));
         /* Manually construct cast (case is not otherwise cast) */
         switch (mode) {
+        | AnaInfix(ana_ty)
         | Ana(ana_ty) => DHExp.cast(d, Bool, ana_ty)
         | _ => d
         };
@@ -191,6 +194,10 @@ let rec dhexp_of_uexp =
         let* dc1 = dhexp_of_uexp(m, e1);
         let+ dc2 = dhexp_of_uexp(m, e2);
         cons(dc1, dc2);
+      | UserOp(op, args_tup) =>
+        let* dop = dhexp_of_uexp(m, op);
+        let+ dargs_tup = dhexp_of_uexp(m, args_tup);
+        DHExp.Ap(dop, dargs_tup);
       | Parens(e) => dhexp_of_uexp(m, e)
       | Seq(e1, e2) =>
         let* d1 = dhexp_of_uexp(m, e1);
@@ -270,6 +277,52 @@ let rec dhexp_of_uexp =
           DHExp.IfThenElse(DH.InconsistentIf, c', d1, d2)
         | _ => DHExp.IfThenElse(DH.ConsistentIf, c', d1, d2)
         };
+      | LetOp(op, pat, def, body) =>
+        let var = Ctx.lookup_var(ctx, op);
+        let var_term: DHExp.t =
+          switch (var) {
+          | Some(var) => BoundVar(var.name)
+          | None => FreeVar(id, 0, op)
+          };
+        let name: string =
+          switch (pat.term) {
+          | Var(s) => s
+          | _ => ""
+          };
+        let* dpat = dhpat_of_upat(m, pat);
+        let* ddef = dhexp_of_uexp(m, def);
+        let* ty = fixed_exp_typ(m, def);
+        let+ dbody = dhexp_of_uexp(m, body);
+        //Printf.printf(
+        //  "dpat: %s, ddef: %s, dbody: %s, ty: %s\n",
+        //  DHPat.show(dpat),
+        //  DHExp.show(ddef),
+        //  DHExp.show(dbody),
+        //  Typ.show(ty),
+        //);
+        //DHExp.Ap(var_term, Tuple([ddef, Fun(dpat, ty, dbody, None)]));
+        let d =
+          DHExp.Ap(
+            var_term,
+            Tuple([
+              Cast(ddef, ty, Unknown(Internal)),
+              Cast(
+                Fun(
+                  dpat,
+                  Unknown(Internal),
+                  Cast(
+                    DHExp.apply_cast_onBoundVar(name, ty, dbody),
+                    ty,
+                    Unknown(Internal),
+                  ),
+                  None,
+                ),
+                Arrow(Unknown(Internal), Unknown(Internal)),
+                Unknown(Internal),
+              ),
+            ]),
+          );
+        d;
       | Match(scrut, rules) =>
         let* d_scrut = dhexp_of_uexp(m, scrut);
         let+ d_rules =

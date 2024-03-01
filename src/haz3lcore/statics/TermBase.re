@@ -158,6 +158,8 @@ and UExp: {
     | ListConcat(t, t)
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
+    | LetOp(Var.t, UPat.t, t, t)
+    | UserOp(t, t)
     | Match(t, list((UPat.t, t)))
   and t = {
     // invariant: nonempty
@@ -289,6 +291,8 @@ and UExp: {
     | ListConcat(t, t)
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
+    | LetOp(Var.t, UPat.t, t, t)
+    | UserOp(t, t)
     | Match(t, list((UPat.t, t)))
   and t = {
     // invariant: nonempty

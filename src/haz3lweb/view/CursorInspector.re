@@ -85,6 +85,10 @@ let common_err_view = (cls: Term.Cls.t, err: Info.error_common) =>
       Type.view(typ),
       text("inconsistent with arrow type"),
     ]
+  | NoType(UnboundUserOp) => [text("Operator is not bound")]
+  | NoType(BuiltinOpExists) => [
+      text("Operator exists as a built-in operator"),
+    ]
   | Inconsistent(Expectation({ana, syn})) => [
       text(":"),
       Type.view(syn),
@@ -94,6 +98,10 @@ let common_err_view = (cls: Term.Cls.t, err: Info.error_common) =>
   | Inconsistent(Internal(tys)) => [
       text(elements_noun(cls) ++ " have inconsistent types:"),
       ...ListUtil.join(text(","), List.map(Type.view, tys)),
+    ]
+  | Inconsistent(InvalidUserOp) => [text("Operators must be functions")]
+  | Inconsistent(InvalidUserOpArgs) => [
+      text("Operators must be functions of two arguments or fewer"),
     ]
   };
 

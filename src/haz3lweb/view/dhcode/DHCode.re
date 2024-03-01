@@ -104,6 +104,11 @@ let view_of_layout =
                  [with_cls("OperationError", txt)],
                  ds,
                )
+             | OperationError(LetOperatorsNotDefined(_)) => (
+                 //TODO: custom class
+                 [with_cls("DivideByZero", txt)],
+                 ds,
+               )
              | VarHole(_) => ([with_cls("InVarHole", txt)], ds)
              | Invalid((_, (-666))) =>
                /* Evaluation and Elaboration exceptions */

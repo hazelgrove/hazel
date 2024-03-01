@@ -17,7 +17,7 @@
    without correponding syntax classes */
 
 include TermBase.Any;
-
+open Sexplib.Std;
 type any = t;
 module UTyp = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -446,6 +446,8 @@ module UExp = {
     | Cons
     | UnOp(op_un)
     | BinOp(op_bin)
+    | LetOp(string)
+    | UserOp
     | Match
     | ListConcat;
 
@@ -488,6 +490,8 @@ module UExp = {
     | ListConcat(_) => ListConcat
     | UnOp(op, _) => UnOp(op)
     | BinOp(op, _, _) => BinOp(op)
+    | LetOp(op, _, _, _) => LetOp(op)
+    | UserOp(_) => UserOp
     | Match(_) => Match;
 
   let show_op_un_meta: op_un_meta => string =
@@ -582,6 +586,8 @@ module UExp = {
     | ListConcat => "List Concatenation"
     | BinOp(op) => show_binop(op)
     | UnOp(op) => show_unop(op)
+    | LetOp(op) => "Let" ++ Var.show(op) ++ " Operator: "
+    | UserOp => "User Operator"
     | Match => "Case expression";
 
   let rec is_fun = (e: t) => {
@@ -611,6 +617,8 @@ module UExp = {
     | ListConcat(_)
     | UnOp(_)
     | BinOp(_)
+    | UserOp(_)
+    | LetOp(_)
     | Match(_)
     | Constructor(_) => false
     };
@@ -645,7 +653,9 @@ module UExp = {
       | ListConcat(_)
       | UnOp(_)
       | BinOp(_)
+      | UserOp(_)
       | Match(_)
+      | LetOp(_)
       | Constructor(_) => false
       }
     );

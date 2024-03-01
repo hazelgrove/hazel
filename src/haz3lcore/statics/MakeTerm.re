@@ -109,7 +109,7 @@ let parse_sum_term: UTyp.t => UTyp.variant =
     Variant(ctr, ids_ctr @ ids_ap, Some(u))
   | t => BadEntry(t);
 
-let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
+let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any => {
   switch (s) {
   | Pat => Pat(pat(unsorted(skel, seg)))
   | TPat => TPat(tpat(unsorted(skel, seg)))
@@ -133,8 +133,8 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): any =>
         }
       }
     };
-  }
-
+  };
+}
 and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
@@ -185,6 +185,8 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         | (["!"], []) => UnOp(Bool(Not), r)
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
+        | ([t, "=", "in"], [Pat(pat), Exp(def)]) when Form.is_let_op(t) =>
+          LetOp("_" ++ t ++ "_", pat, def, r)
         | (["hide", "in"], [Exp(filter)]) =>
           Filter((Eval, One), filter, r)
         | (["eval", "in"], [Exp(filter)]) =>
@@ -251,6 +253,11 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | (["$=="], []) => BinOp(String(Equals), l, r)
           | (["|>"], []) => Pipeline(l, r)
           | (["@"], []) => ListConcat(l, r)
+          | ([t], []) when Form.is_op(t) =>
+            UserOp(
+              UExp.{term: Var("_" ++ t ++ "_"), ids: [Id.mk()]},
+              UExp.{term: Tuple([l, r]), ids: [Id.mk()]},
+            )
           | _ => hole(tm)
           },
         )

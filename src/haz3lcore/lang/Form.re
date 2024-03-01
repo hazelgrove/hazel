@@ -107,6 +107,13 @@ let keywords = [
   "then",
   "else",
 ];
+let is_op_in_let_precursor = regexp("^_[let]*[~?!$%&*+\\.:<=>@^-]*$");
+let is_let_op_in_let = regexp("^_let[~?!$%&*+\\.:<=>@^-]+_$");
+let is_op_in_let = str =>
+  regexp("^_[~?!$%&*+\\.:<=>@^-]+_$", str) || is_let_op_in_let(str);
+let is_let_op = regexp("^let[~?!$%&*+\\.:<=>@^-]+$");
+let is_op = str => regexp("^[~?!$%&*+\\.:<=>@^-]+$", str) || is_let_op(str);
+
 let reserved_keywords = ["of", "when", "with", "switch", "match"];
 let is_keyword = regexp("^(" ++ String.concat("|", keywords) ++ ")$");
 let is_reserved_keyword =
@@ -119,12 +126,16 @@ let is_potential_operand = regexp("^[a-zA-Z0-9_'\\.?]+$");
  *  as it does not contain any whitespace, linebreaks, comment
  *  delimiters, string delimiters, or the instant expanding paired
  *  delimiters: ()[]| */
-let is_potential_operator = regexp("^[^a-zA-Z0-9_'?\"#⏎\\s\\[\\]\\(\\)]+$");
+let is_potential_operator = str => {
+  regexp("^[^a-zA-Z0-9_'?\"#⏎\\s\\[\\]\\(\\)]+$", str) || is_op(str);
+};
 let is_potential_token = t =>
   is_potential_operand(t)
   || is_potential_operator(t)
   || is_string(t)
-  || is_comment(t);
+  || is_comment(t)
+  || is_op_in_let_precursor(t)
+  || is_let_op_in_let(t);
 
 let is_arbitary_int = regexp("^-?\\d+[0-9_]*$");
 let is_arbitary_float = x =>
@@ -146,8 +157,7 @@ let is_float = str =>
 let is_bad_float = str => is_arbitary_float(str) && !is_float(str);
 let bools = ["true", "false"];
 let is_bool = regexp("^(" ++ String.concat("|", bools) ++ ")$");
-
-let is_var = str =>
+let is_var = str => {
   !is_bool(str)
   && str != "_"
   //&& !is_keyword(str)
@@ -155,7 +165,10 @@ let is_var = str =>
   && regexp(
        {|(^[a-z_][A-Za-z0-9_']*$)|(^[A-Z][A-Za-z0-9_']*\.[a-z][A-Za-z0-9_']*$)|},
        str,
-     );
+     )
+  || is_op_in_let(str)
+  || is_let_op(str);
+};
 let is_capitalized_name = regexp("^[A-Z][A-Za-z0-9_]*$");
 let is_ctr = is_capitalized_name;
 let base_typs = ["String", "Int", "Float", "Bool"];
@@ -213,6 +226,7 @@ let bad_token_cls: string => bad_token_cls =
    Order in this list determines relative remolding
    priority for forms with overlapping regexps */
 let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
+  ("op", (is_op, [mk_bin(P.plus, Exp, [])])), // HACK infix expansion
   ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
   (
     "explicit_hole",
@@ -222,6 +236,7 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
     ),
   ),
   ("wild", (is_wild, [mk_op(Pat, [])])),
+  ("op_in_let_prec", (is_op_in_let_precursor, [mk_op(Pat, [])])),
   ("string", (is_string, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("int_lit", (is_int, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("float_lit", (is_float, [mk_op(Exp, []), mk_op(Pat, [])])),
@@ -314,6 +329,18 @@ let forms: list((string, t)) = [
   // TRIPLE DELIMITERS
   ("let_", mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))),
   (
+    "letStar",
+    mk(ds, ["let*", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp])),
+  ),
+  (
+    "letPlus",
+    mk(ds, ["let+", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp])),
+  ),
+  (
+    "letMinus",
+    mk(ds, ["let-", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp])),
+  ),
+  (
     "type_alias",
     mk(ds, ["type", "=", "in"], mk_pre(P.let_, Exp, [TPat, Typ])),
   ),
@@ -328,15 +355,16 @@ let delims: list(Token.t) =
   |> List.fold_left((acc, (_, {label, _}: t)) => {label @ acc}, [])
   |> List.sort_uniq(compare);
 
-let atomic_molds: Token.t => list(Mold.t) =
-  s =>
-    List.fold_left(
-      (acc, (_, (test, molds))) => test(s) ? molds @ acc : acc,
-      [],
-      atomic_forms,
-    );
+let atomic_molds =
+    (s: Token.t, forms: list((string, (string => bool, list(Mold.t)))))
+    : list(Mold.t) =>
+  List.fold_left(
+    (acc, (_, (test, molds))) => test(s) ? molds @ acc : acc,
+    [],
+    forms,
+  );
 
-let is_atomic = t => atomic_molds(t) != [];
+let is_atomic = t => atomic_molds(t, atomic_forms) != [];
 
 let is_delim = t => List.mem(t, delims);
 
@@ -345,4 +373,34 @@ let is_valid_token = t => is_atomic(t) || is_secondary(t) || is_delim(t);
 let mk_atomic = (sort: Sort.t, t: Token.t) => {
   assert(is_atomic(t));
   mk(ss, [t], Mold.(mk_op(sort, [])));
+};
+
+let prec_of_op = (op_name: string): P.t => {
+  switch (op_name) {
+  | "" => P.plus /* error should be called before this point */
+  | _ =>
+    switch (op_name.[0]) {
+    | ';' => 10
+    | '+'
+    | '-' => P.plus
+    | '*'
+    | '/'
+    | '%' => P.mult
+    | '@'
+    | '^' => P.power
+    | '~'
+    | '?'
+    | '!'
+    | '='
+    | '$'
+    | '>'
+    | '<' => P.eqs
+    | '&' => P.and_
+    | '|' => P.or_
+    | '.'
+    | ',' => P.prod
+    | ':' => P.ann
+    | _ => P.plus
+    }
+  };
 };

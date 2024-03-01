@@ -1,10 +1,12 @@
+open Sexplib.Std;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | InvalidOfString
   | IndexOutOfBounds
   | DivideByZero
   | NegativeExponent
-  | OutOfFuel;
+  | OutOfFuel
+  | LetOperatorsNotDefined(string);
 
 let err_msg = (err: t): string =>
   switch (err) {
@@ -13,4 +15,6 @@ let err_msg = (err: t): string =>
   | DivideByZero => "Error: Divide by Zero"
   | NegativeExponent => "Error: Negative Exponent in Integer Exponentiation (Consider using **.)"
   | OutOfFuel => "Error: Out of Fuel"
+  | LetOperatorsNotDefined(string) =>
+    "Error: Let Operators(" ++ string ++ ") Not Defined"
   };
