@@ -24,7 +24,7 @@ let mk_map = CoreSettings.on |> Interface.Statics.mk_map;
 let dhexp_of_uexp = u => Elaborator.dhexp_of_uexp(mk_map(u), u, false);
 let alco_check = dhexp_typ |> Alcotest.check;
 
-let u1: Term.UExp.t = {ids: [id_at(0)], copied: false, term: Int(8)};
+let u1: UExp.t = {ids: [id_at(0)], copied: false, term: Int(8)};
 let single_integer = () =>
   alco_check(
     "Integer literal 8",
@@ -32,11 +32,11 @@ let single_integer = () =>
     dhexp_of_uexp(u1),
   );
 
-let u2: Term.UExp.t = {ids: [id_at(0)], copied: false, term: EmptyHole};
+let u2: UExp.t = {ids: [id_at(0)], copied: false, term: EmptyHole};
 let empty_hole = () =>
   alco_check("Empty hole", Some(EmptyHole |> fresh), dhexp_of_uexp(u2));
 
-let u3: Term.UExp.t = {
+let u3: UExp.t = {
   ids: [id_at(0)],
   copied: false,
   term: Parens({ids: [id_at(1)], copied: false, term: Var("y")}),
@@ -49,7 +49,7 @@ let free_var = () =>
     dhexp_of_uexp(u3),
   );
 
-let u4: Term.UExp.t = {
+let u4: UExp.t = {
   ids: [id_at(0)],
   copied: false,
   term:
@@ -97,7 +97,7 @@ let let_exp = () =>
     dhexp_of_uexp(u4),
   );
 
-let u5: Term.UExp.t = {
+let u5: UExp.t = {
   ids: [id_at(0)],
   copied: false,
   term:
@@ -121,7 +121,7 @@ let bin_op = () =>
     dhexp_of_uexp(u5),
   );
 
-let u6: Term.UExp.t = {
+let u6: UExp.t = {
   ids: [id_at(0)],
   copied: false,
   term:
@@ -140,7 +140,7 @@ let consistent_if = () =>
     dhexp_of_uexp(u6),
   );
 
-let u7: Term.UExp.t = {
+let u7: UExp.t = {
   ids: [id_at(0)],
   copied: false,
   term:
@@ -194,7 +194,7 @@ let ap_fun = () =>
     dhexp_of_uexp(u7),
   );
 
-let u8: Term.UExp.t = {
+let u8: UExp.t = {
   ids: [id_at(0)],
   copied: false,
   term:
@@ -237,7 +237,7 @@ let inconsistent_case = () =>
     dhexp_of_uexp(u8),
   );
 
-let u9: Term.UExp.t = {
+let u9: UExp.t = {
   ids: [id_at(0)],
   copied: false,
   term:

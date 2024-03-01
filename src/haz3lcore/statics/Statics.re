@@ -1,5 +1,3 @@
-open Term;
-
 /* STATICS.re
 
    This module determines the statics semantics of a program.
@@ -72,7 +70,7 @@ let extend_let_def_ctx =
     ctx;
   };
 
-let typ_exp_binop_bin_int: UExp.op_bin_int => Typ.t =
+let typ_exp_binop_bin_int: Operators.op_bin_int => Typ.t =
   fun
   | (Plus | Minus | Times | Power | Divide) as _op => Int
   | (
@@ -81,7 +79,7 @@ let typ_exp_binop_bin_int: UExp.op_bin_int => Typ.t =
     ) as _op =>
     Bool;
 
-let typ_exp_binop_bin_float: UExp.op_bin_float => Typ.t =
+let typ_exp_binop_bin_float: Operators.op_bin_float => Typ.t =
   fun
   | (Plus | Minus | Times | Power | Divide) as _op => Float
   | (
@@ -90,26 +88,26 @@ let typ_exp_binop_bin_float: UExp.op_bin_float => Typ.t =
     ) as _op =>
     Bool;
 
-let typ_exp_binop_bin_string: UExp.op_bin_string => Typ.t =
+let typ_exp_binop_bin_string: Operators.op_bin_string => Typ.t =
   fun
   | Concat => String
   | Equals => Bool;
 
-let typ_exp_binop: UExp.op_bin => (Typ.t, Typ.t, Typ.t) =
+let typ_exp_binop: Operators.op_bin => (Typ.t, Typ.t, Typ.t) =
   fun
   | Bool(And | Or) => (Bool, Bool, Bool)
   | Int(op) => (Int, Int, typ_exp_binop_bin_int(op))
   | Float(op) => (Float, Float, typ_exp_binop_bin_float(op))
   | String(op) => (String, String, typ_exp_binop_bin_string(op));
 
-let typ_exp_unop: UExp.op_un => (Typ.t, Typ.t) =
+let typ_exp_unop: Operators.op_un => (Typ.t, Typ.t) =
   fun
   | Meta(Unquote) => (Var("$Meta"), Unknown(Free("$Meta")))
   | Bool(Not) => (Bool, Bool)
   | Int(Minus) => (Int, Int);
 
 let rec any_to_info_map =
-        (~ctx: Ctx.t, ~ancestors, any: any, m: Map.t): (CoCtx.t, Map.t) =>
+        (~ctx: Ctx.t, ~ancestors, any: Any.t, m: Map.t): (CoCtx.t, Map.t) =>
   switch (any) {
   | Exp(e) =>
     let ({co_ctx, _}: Info.exp, m) =
@@ -229,7 +227,7 @@ and uexp_to_info_map =
       m,
     );
   | ListConcat(e1, e2) =>
-    let ids = List.map(Term.UExp.rep_id, [e1, e2]);
+    let ids = List.map(UExp.rep_id, [e1, e2]);
     let mode = Mode.of_list_concat(ctx, mode);
     let (e1, m) = go(~mode, e1, m);
     let (e2, m) = go(~mode, e2, m);
@@ -439,11 +437,11 @@ and uexp_to_info_map =
           //let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
           let ty_rec = Typ.Rec(name, ty_pre);
           let ctx_def =
-            Ctx.extend_alias(ctx, name, UTPat.rep_id(typat), ty_rec);
+            Ctx.extend_alias(ctx, name, TPat.rep_id(typat), ty_rec);
           (ty_rec, ctx_def, ctx_def);
         | _ =>
           let ty = UTyp.to_typ(ctx, utyp);
-          (ty, ctx, Ctx.extend_alias(ctx, name, UTPat.rep_id(typat), ty));
+          (ty, ctx, Ctx.extend_alias(ctx, name, TPat.rep_id(typat), ty));
         };
       };
       let ctx_body =
@@ -614,13 +612,13 @@ and utyp_to_info_map =
   };
 }
 and utpat_to_info_map =
-    (~ctx, ~ancestors, {ids, term} as utpat: UTPat.t, m: Map.t)
+    (~ctx, ~ancestors, {ids, term} as utpat: TPat.t, m: Map.t)
     : (Info.tpat, Map.t) => {
   let add = m => {
     let info = Info.derived_tpat(~utpat, ~ctx, ~ancestors);
     (info, add_info(ids, InfoTPat(info), m));
   };
-  let ancestors = [UTPat.rep_id(utpat)] @ ancestors;
+  let ancestors = [TPat.rep_id(utpat)] @ ancestors;
   switch (term) {
   | MultiHole(tms) =>
     let (_, m) = multi(~ctx, ~ancestors, m, tms);

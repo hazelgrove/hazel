@@ -32,14 +32,14 @@ module ElaborationResult = {
     | DoesNotElaborate;
 };
 
-let fixed_exp_typ = (m: Statics.Map.t, e: Term.UExp.t): option(Typ.t) =>
-  switch (Id.Map.find_opt(Term.UExp.rep_id(e), m)) {
+let fixed_exp_typ = (m: Statics.Map.t, e: UExp.t): option(Typ.t) =>
+  switch (Id.Map.find_opt(UExp.rep_id(e), m)) {
   | Some(InfoExp({ty, _})) => Some(ty)
   | _ => None
   };
 
-let fixed_pat_typ = (m: Statics.Map.t, p: Term.UPat.t): option(Typ.t) =>
-  switch (Id.Map.find_opt(Term.UPat.rep_id(p), m)) {
+let fixed_pat_typ = (m: Statics.Map.t, p: UPat.t): option(Typ.t) =>
+  switch (Id.Map.find_opt(UPat.rep_id(p), m)) {
   | Some(InfoPat({ty, _})) => Some(ty)
   | _ => None
   };
@@ -163,15 +163,14 @@ let wrap = (ctx: Ctx.t, u: Id.t, mode: Mode.t, self, d: DHExp.t): DHExp.t =>
   };
 
 let rec dhexp_of_uexp =
-        (m: Statics.Map.t, uexp: Term.UExp.t, in_filter: bool)
-        : option(DHExp.t) => {
+        (m: Statics.Map.t, uexp: UExp.t, in_filter: bool): option(DHExp.t) => {
   let dhexp_of_uexp = (~in_filter=in_filter, m, uexp) => {
     dhexp_of_uexp(m, uexp, in_filter);
   };
-  switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
+  switch (Id.Map.find_opt(UExp.rep_id(uexp), m)) {
   | Some(InfoExp({mode, self, ctx, _})) =>
     let err_status = Info.status_exp(ctx, mode, self);
-    let id = Term.UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
+    let id = UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
     let rewrap = DHExp.mk(uexp.ids);
     let+ d: DHExp.t =
       switch (uexp.term) {
@@ -273,11 +272,10 @@ let rec dhexp_of_uexp =
         );
         let* ddef = dhexp_of_uexp(m, def);
         let+ dbody = dhexp_of_uexp(m, body);
-        switch (Term.UPat.get_recursive_bindings(p)) {
+        switch (UPat.get_recursive_bindings(p)) {
         | None =>
           /* not recursive */
-          DHExp.Let(p, add_name(Term.UPat.get_var(p), ddef), dbody)
-          |> rewrap
+          DHExp.Let(p, add_name(UPat.get_var(p), ddef), dbody) |> rewrap
         | Some(b) =>
           DHExp.Let(
             p,
@@ -333,7 +331,7 @@ let rec dhexp_of_uexp =
 
 //let dhexp_of_uexp = Core.Memo.general(~cache_size_bound=1000, dhexp_of_uexp);
 
-let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t =>
+let uexp_elab = (m: Statics.Map.t, uexp: UExp.t): ElaborationResult.t =>
   switch (dhexp_of_uexp(m, uexp, false)) {
   | None => DoesNotElaborate
   | Some(d) =>
