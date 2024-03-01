@@ -552,7 +552,7 @@ let mk =
             @ [
               DHDoc_common.Delim.arrow_Fun,
               space(),
-              body_doc |> DHDoc_common.pad_child(~enforce_inline),
+              body_doc |> DHDoc_common.pad_child(~enforce_inline=false),
             ],
           );
         } else {

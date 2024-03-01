@@ -20,7 +20,7 @@ let reset_hazel =
           "Are you SURE you want to reset Hazel to its initial state? You will lose any existing code that you have written, and course staff have no way to restore it!",
         );
       if (confirmed) {
-        DebugAction.perform(DebugAction.ClearStore);
+        JsUtil.clear_localstore();
         Dom_html.window##.location##reload;
       };
       Virtual_dom.Vdom.Effect.Ignore;
@@ -39,14 +39,24 @@ let settings_menu =
     (
       ~inject,
       ~settings as
-        {core: {evaluation, _} as core, benchmark, secondary_icons, _}: Settings.t,
+        {
+          core: {evaluation, _} as core,
+          benchmark,
+          secondary_icons,
+          explainThis,
+          _,
+        }: Settings.t,
     ) => {
   let toggle = (icon, tooltip, bool, setting) =>
     toggle_named(icon, ~tooltip, bool, _ =>
       inject(UpdateAction.Set(setting))
     );
   [
+    toggle("τ", "Toggle Statics", core.statics, Statics),
     toggle("⇲", "Toggle Completion", core.assist, Assist),
+    toggle("↵", "Show Whitespace", secondary_icons, SecondaryIcons),
+    toggle("✓", "Print Benchmarks", benchmark, Benchmark),
+    toggle("𝛿", "Toggle Dynamics", core.dynamics, Dynamics),
     toggle("𝑒", "Show Elaboration", core.elaborate, Elaborate),
     toggle(
       "λ",
@@ -84,16 +94,29 @@ let settings_menu =
       evaluation.show_stepper_filters,
       Evaluation(ShowFilters),
     ),
-    toggle("↵", "Show Whitespace", secondary_icons, SecondaryIcons),
-    toggle("τ", "Toggle Statics", core.statics, Statics),
-    toggle("𝛿", "Toggle Dynamics", core.dynamics, Dynamics),
-    toggle("✓", "Print Benchmarks", benchmark, Benchmark),
+    toggle(
+      "🤫",
+      "Show Hidden Steps",
+      evaluation.show_hidden_steps,
+      Evaluation(ShowHiddenSteps),
+    ),
+    toggle(
+      "?",
+      "Show Docs Sidebar",
+      explainThis.show,
+      ExplainThis(ToggleShow),
+    ),
+    toggle(
+      "👍",
+      "Show Docs Feedback",
+      explainThis.show_feedback,
+      ExplainThis(ToggleShowFeedback),
+    ),
   ];
 };
 
 let export_menu = (~inject, ~settings: Settings.t, editors: Editors.t) =>
   switch (editors) {
-  | DebugLoad => []
   | Scratch(slide_idx, slides) =>
     let state = List.nth(slides, slide_idx);
     [ScratchMode.export_button(state)];
@@ -112,7 +135,6 @@ let export_menu = (~inject, ~settings: Settings.t, editors: Editors.t) =>
 
 let import_menu = (~inject, editors: Editors.t) =>
   switch (editors) {
-  | DebugLoad => []
   | Scratch(_)
   | Documentation(_) => [
       ScratchMode.import_button(inject),

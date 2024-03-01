@@ -31,7 +31,7 @@ follow these instructions instead of the shorter instructions in the
 
 - If you are on MacOS, make sure you have [Homebrew](https://brew.sh/) installed.
 
-- Make sure `gcc`, `git`, `make`, and `m4` are installed.
+- Make sure `gcc`, `git`, `make`, `nodejs`, and `m4` are installed.
 
   - If you are on Ubuntu or Windows, you can do this by running the following
     commands:
@@ -41,12 +41,12 @@ follow these instructions instead of the shorter instructions in the
     ```
 
     ```sh
-    sudo apt install gcc git make m4 pkg-config
+    sudo apt install gcc git make m4 nodejs pkg-config
     ```
 
   - If you are on MacOS, we recommend using the built-in `m4` (i.e., not the one from Homebrew).
 
-    You can install the remaining programs (i.e., `gcc`, `git`, and `make`) by
+    You can install the remaining programs (i.e., `gcc`, `git`, `node`, and `make`) by
     running the following commands:
 
     ```sh
@@ -54,7 +54,7 @@ follow these instructions instead of the shorter instructions in the
     ```
 
     ```sh
-    brew install gcc git make pkg-config
+    brew install gcc git make node pkg-config
     ```
 
 ## Install and Initialize `opam`

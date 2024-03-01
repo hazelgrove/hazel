@@ -74,7 +74,7 @@
   --nul-text-color: red;
   --nul-off-color: var(--nul-text-color);
   --nul-token-color: var(--nul-text-color);
-  --nul-shadow-color: #ffa000;;
+  --nul-shadow-color: #ffa000;
   --nul-bg-color: #ffacac;
   --nul-bg-off-color: var(--nul-bg-color);
 
@@ -303,12 +303,37 @@ body {
   user-select: none;
 }
 
+:root {
+  scrollbar-color: #dac898 #0000;
+  scrollbar-width: thin;
+}
+
+:root::-webkit-scrollbar {
+  width: 0.8em;
+}
+:root::-webkit-scrollbar:horizontal {
+  height: 0.8em;
+}
+:root::-webkit-scrollbar-track {
+  background-color: #fdf6e300;
+}
+:root::-webkit-scrollbar-thumb {
+  background-color: #e1d1a6;
+  border-radius: 1em;
+  border: 0.2em solid #fdf6e3;
+}
+/* set button(top and bottom of the scrollbar) */
+:root::-webkit-scrollbar-button,
+:root::-webkit-scrollbar-corner {
+  display: none;
+}
+
+
 #main {
   grid-row: 2;
   grid-column: 1 / span 1;
   overflow: auto;
-  scrollbar-color: #dac898 #0000;
-  scrollbar-width: thin;
+  
 }
 
 #main.Scratch,
@@ -329,37 +354,16 @@ body {
   justify-content: space-between;
   gap: 1.2em;
 }
-#main.Scratch .cell-container,
-#main.Documentation .cell-container {
+#main.Scratch .cell,
+#main.Documentation .cell {
   min-width: 30em;
 }
-#main.Exercises .cell-container {
+#main.Exercises .cell {
   width: auto;
-}
-
-#main::-webkit-scrollbar {
-  width: 0.8em;
-}
-::-webkit-scrollbar:horizontal {
-  height: 0.8em;
-}
-#main::-webkit-scrollbar-track {
-  background-color: #fdf6e300;
-}
-#main::-webkit-scrollbar-thumb {
-  background-color: #e1d1a6;
-  border-radius: 1em;
-  border: 0.2em solid #fdf6e3;
 }
 
 #main .code-container {
   cursor: text;
-}
-
-/* set button(top and bottom of the scrollbar) */
-#main::-webkit-scrollbar-button,
-#main::-webkit-scrollbar-corner {
-  display: none;
 }
 
 select {
@@ -678,13 +682,13 @@ select {
   /*white-space: nowrap;*/
 }
 
-.cell-container {
+.cell {
   width: fit-content;
   border-radius: 0.4em;
   border-left: 2px solid var(--top_bar_icon_fill);
 }
 
-.cell-container.selected {
+.cell.selected {
   border-left: 2px solid var(--cell-selected-accent);
   background-color: #fffcf3;
 }
@@ -710,7 +714,6 @@ select {
 
 .title-cell {
   padding-left: 1em;
-  margin-bottom: -2rem;
 }
 
 .title-cell .title-text {
@@ -1428,14 +1431,7 @@ svg.tile-selected {
 
 .context-entry:hover {
   max-width: 400em;
-  background-image: linear-gradient(
-    0deg,
-    rgb(138 99 32),
-    1%,
-    #f0e1b2,
-    10%,
-    #f3e6be
-  );
+  -webkit-mask-image: none;
   border-radius: 0.1em 0.6em 0.1em 0.6em;
   border-top: 0.5px solid #ffffff;
   border-bottom: 0.5px solid rgb(51 36 11);
@@ -1467,7 +1463,7 @@ svg.tile-selected {
   gap: 1em;
   justify-content: space-between;
   align-items: stretch;
-  background-color: #fbecaa;
+  background-color: #f9e8bb;
   outline: 0.6px solid #c7b480;
 }
 
@@ -1528,6 +1524,9 @@ svg.tile-selected {
   grid-row: 2 / span 1;
   grid-column: 2 / span 1;
   border-left: 0.6px solid #c7b480;
+  overflow-y: scroll;
+  overflow-x: hidden;
+  width: max-content;
 }
 
 .explain-this {
@@ -1560,27 +1559,17 @@ svg.tile-selected {
   padding-top: 0.75em;
 }
 
-.explain-this .example .code-text {
-  position: relative;
+.explain-this .example .cell {
+  width: auto;
+  background-color: #f7ebd3;
 }
 
-.explain-this .example .ex-result {
-  display: flex;
-  align-items: center;
-  gap: 0.5em;
-  padding-top: 5px;
-}
-
-.explain-this .code-container {
-  margin-bottom: 0em;
+.explain-this .example .cell-result {
+  background-color: #ede0c6;
 }
 
 .explain-this .explanation {
   white-space: normal;
-}
-
-.explain-this .code-text {
-  position: relative;
 }
 
 .specificity-options-menu {
@@ -1608,21 +1597,17 @@ svg.tile-selected {
 
 .explain-this .top-bar .close {
   cursor: pointer;
-  font-family: "Source Code Pro";
   color: var(--top_bar_icon_fill);
-  width: 1.2em;
-  height: 1.2em;
-  border-radius: 2em;
   display: flex;
-  align-items: end;
-  justify-content: center;
   margin-left: auto;
+  align-items: flex-start;
 }
 
 .explain-this .top-bar .close:hover {
-  animation: wobble 0.4s ease 0s 1 normal none;
-  color: var(--light-page-color);
-  background-color: #c7b480;
+  color: #f55c27;
+  text-shadow: 0.3px 0.3px 0px black;
+  border-radius: 0.2em;
+  scale: 1.8;
 }
 
 .explain-this .section {
@@ -1749,16 +1734,80 @@ svg.expandable path {
 .cell-result {
   display: flex;
   flex-direction: row;
+  background-color: #efe7d6;
   gap: 0.5em;
-  /*box-shadow: 0px 1px 0px #ddcda3;*/
   color: #7a6219;
-  /*max-height: 4.5em;
-  min-height: 1.6em;
-  overflow-y: auto;*/
   border-top: 1px dotted #d2c7ad;
-  /* padding-left: 1em; */
   padding: 0.5em;
   padding-left: 1.2em;
+}
+.selected .cell-result {
+  background-color: #efe7d6;
+}
+
+.cell-result .status {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6em;
+  height: 1.6em;
+  white-space: nowrap;
+  font-family: "Source Code Pro", monospace;
+}
+.cell-result .status .spinner {
+  height: 50%;
+  width: 60%;
+  background: url("img/loading.gif");
+  background-repeat: round;
+  filter: sepia(1);
+  opacity: 0;
+  transition: opacity 0.2s linear;
+}
+.cell-result .status.pending .spinner {
+  opacity: 0.5;
+  transition: all 0.2s linear;
+}
+.cell-result .status .eq {
+  position: absolute;
+  opacity: 1;
+  transition: opacity 0.6s cubic-bezier(0.65, 0, 0.35, 1);
+}
+.cell-result .status.pending .eq {
+  opacity: 0;
+  transition: opacity 0.6s cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+.cell-result .result {
+  padding-top: 0.1em;
+  min-height: 1.6em;
+  width: 100%;
+  /* overflow-y: hidden;
+  overflow-x: auto; */
+  transition: opacity 0.2s linear;
+}
+.cell-result .result.pending {
+  opacity: 0.3;
+  transition: opacity 0.6s cubic-bezier(0.65, 0, 0.35, 1);
+}
+.cell-result .result .exception {
+  background-color: #ffa2a2;
+  color: #7d0000;
+  border-radius: 0.3em;
+  font-family: "Helvetica Neue";
+  font-size: 1rem;
+  padding: 0.1em 0.4em 0.1em 0.4em;
+}
+
+.cell-result.hidden {
+  background-color: #E8DCBF;
+}
+
+.cell-result .toggle-switch {
+  mix-blend-mode: luminosity;
+}
+.cell-result .equiv {
+  font-family: 'Source Code Pro';
 }
 
 .cell-report {
@@ -1767,30 +1816,26 @@ svg.expandable path {
   border-left: 1px solid rgba(0, 0, 0, 0);
 }
 
-.selected .cell-result {
-  background-color: #efe7d6;
+.cell.selected + .cell-item {
+  border-left: 1px solid var(--cell-selected-accent);
 }
 
 .result {
-  padding-top: 0.1em;
-  min-height: 1.6em;
   width: 100%;
-  overflow-y: hidden;
-  overflow-x: auto;
+}
+.cell.deselected + .cell-item {
+  border-left: 1px solid var(--top_bar_icon_fill);
 }
 
+.cell-item.cell-result:has(.fail),
 .cell-item.cell-result:has(.exception) {
   background-color: #ffa2a2;
 }
 
-.result .exception {
-  background-color: #ffa2a2;
-  color: #7d0000;
-  border-radius: 0.3em;
-  font-family: "Helvetica Neue";
-  font-size: 1rem;
-  padding: 0.1em 0.4em 0.1em 0.4em;
-}
+.cell-item.cell-result .error-msg {
+  padding: 0.25em;
+  color: black;
+};
 
 .cell-result .icon:hover svg {
   animation: wobble 0.6s ease 0s 1 normal forwards;
@@ -1829,6 +1874,7 @@ svg.expandable path {
 
 .DHCode .decoration-container {
   position: absolute;
+  pointer-events: none;
 }
 
 .DHCode svg.err-hole {
@@ -1840,8 +1886,6 @@ svg.expandable path {
 }
 
 .DHCode .InVarHole {
-  border: 1px dotted var(--err-color);
-  border-radius: 0.2em;
   color: var(--err-color);
 }
 
@@ -2191,12 +2235,6 @@ svg.expandable path {
   font-family: "Source Code Pro", monospace;
 }
 
-.equiv,
-.equiv span {
-  white-space: nowrap;
-  font-family: "Source Code Pro", monospace;
-}
-
 .step-expand,
 .step-back {
   cursor: pointer;
@@ -2231,23 +2269,22 @@ svg.expandable path {
   left: -1em;
 }
 
-.steppable,.steppable *:not(.DHCode .EmptyHole *,.DHCode .EmptyHole) {
-  border: 1px var(--step-hole-color);
-  background-color:rgb(232, 255, 196);
-  margin: -1px;
+.steppable,
+.steppable *:not(.DHCode .EmptyHole *, .DHCode .EmptyHole) {
+  outline: 1px var(--step-hole-color);
+  background-color: rgb(232, 255, 196);
   cursor: pointer;
 }
 
-
-.stepped,.stepped *:not(.DHCode .EmptyHole *,.DHCode .EmptyHole) {
+.stepped,
+.stepped *:not(.DHCode .EmptyHole *, .DHCode .EmptyHole) {
   border: 1px var(--step-hole-color);
-  background-color:#ddcda3;
-  margin: -1px;
+  background-color: #ddcda3;
 }
 
 .substituted {
   text-decoration: line-through;
-  color: #AC985E;
+  color: #ac985e;
 }
 
 .settings-modal {

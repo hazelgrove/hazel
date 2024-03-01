@@ -20,6 +20,7 @@ let startup : PersistentData.t =
                 show_stepper_filters = false;
                 stepper_history = false;
                 show_settings = false;
+                show_hidden_steps = false;
               };
           };
         async_evaluation = false;
@@ -27,6 +28,8 @@ let startup : PersistentData.t =
         instructor_mode = true;
         benchmark = false;
         mode = Documentation;
+        explainThis =
+          { show = true; show_feedback = false; highlight = NoHighlight };
       };
     scratch =
       ( 0,
