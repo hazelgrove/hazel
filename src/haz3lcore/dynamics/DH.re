@@ -8,7 +8,7 @@
  */
 
 /*
- DHExps that can appear during evaluation, and thus won't have static information.
+ DExps that can appear during evaluation, and thus won't have static information.
 
  - Closure
  - Var [for mutual recursion; could probably get rid of if needed...]
@@ -33,7 +33,7 @@
 
  */
 
-module DHExp: {
+module DExp: {
   include (module type of TermBase.UExp);
 
   let rep_id: t => Id.t;

@@ -2,10 +2,10 @@ open Transition;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type step = {
-  d: DHExp.t, // technically can be calculated from d_loc and ctx
+  d: DExp.t, // technically can be calculated from d_loc and ctx
   state: EvaluatorState.t,
-  d_loc: DHExp.t, // the expression at the location given by ctx
-  d_loc': DHExp.t,
+  d_loc: DExp.t, // the expression at the location given by ctx
+  d_loc': DExp.t,
   ctx: EvalCtx.t,
   knd: step_kind,
 };
@@ -14,7 +14,7 @@ module EvalObj = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     env: ClosureEnvironment.t, // technically can be calculated from ctx
-    d_loc: DHExp.t,
+    d_loc: DExp.t,
     ctx: EvalCtx.t,
     knd: step_kind,
   };
@@ -129,7 +129,7 @@ module Decompose = {
       req_all_final'(cont, wr, [], ds);
     };
 
-    let (let.): (requirements('a, DHExp.t), 'a => rule) => result =
+    let (let.): (requirements('a, DExp.t), 'a => rule) => result =
       (rq, rl) =>
         switch (rq) {
         | (_, Result.Indet, _, _) => Result.Indet
@@ -155,18 +155,16 @@ module Decompose = {
 
   module Decomp = Transition(DecomposeEVMode);
   let rec decompose = (state, env, exp) => {
-    let (term, rewrap) = DHExp.unwrap(exp);
+    let (term, rewrap) = DExp.unwrap(exp);
     switch (term) {
-    | DHExp.Filter(flt, d1) =>
+    | DExp.Filter(flt, d1) =>
       DecomposeEVMode.(
         {
-          let. _ =
-            otherwise(env, (d1) => (Filter(flt, d1) |> rewrap: DHExp.t))
+          let. _ = otherwise(env, (d1) => (Filter(flt, d1) |> rewrap: DExp.t))
           and. d1 =
             req_final(
               decompose(state, env),
-              d1 =>
-                Term({term: Filter(flt, d1), ids: [DHExp.rep_id(exp)]}),
+              d1 => Term({term: Filter(flt, d1), ids: [DExp.rep_id(exp)]}),
               d1,
             );
           Step({apply: () => d1, kind: CompleteFilter, value: true});
@@ -181,12 +179,12 @@ module TakeStep = {
   module TakeStepEVMode: {
     include
       EV_MODE with
-        type result = option(DHExp.t) and type state = ref(EvaluatorState.t);
+        type result = option(DExp.t) and type state = ref(EvaluatorState.t);
   } = {
     type state = ref(EvaluatorState.t);
     type requirement('a) = 'a;
     type requirements('a, 'b) = 'a;
-    type result = option(DHExp.t);
+    type result = option(DExp.t);
 
     // Assume that everything is either value or final as required.
     let req_value = (_, _, d) => d;
@@ -196,7 +194,7 @@ module TakeStep = {
 
     let req_final_or_value = (_, _, d) => (d, true);
 
-    let (let.) = (rq: requirements('a, DHExp.t), rl: 'a => rule) =>
+    let (let.) = (rq: requirements('a, DExp.t), rl: 'a => rule) =>
       switch (rl(rq)) {
       | Step({apply, _}) => Some(apply())
       | Constructor
@@ -220,7 +218,7 @@ module TakeStep = {
 
 let take_step = TakeStep.take_step;
 
-let decompose = (d: DHExp.t, es: EvaluatorState.t) => {
+let decompose = (d: DExp.t, es: EvaluatorState.t) => {
   let env = ClosureEnvironment.of_environment(Builtins.env_init);
   let rs = Decompose.decompose(ref(es), env, d);
   Decompose.Result.unbox(rs);

@@ -3,10 +3,10 @@ open Transition;
 
 module EvaluatorEVMode: {
   type result_unfinished =
-    | BoxedValue(DHExp.t)
-    | Indet(DHExp.t)
-    | Uneval(DHExp.t);
-  let unbox: result_unfinished => DHExp.t;
+    | BoxedValue(DExp.t)
+    | Indet(DExp.t)
+    | Uneval(DExp.t);
+  let unbox: result_unfinished => DExp.t;
 
   include
     EV_MODE with
@@ -37,9 +37,9 @@ module EvaluatorEVMode: {
   let get_info_map = (state: state) => EvaluatorState.get_info_map(state^);
 
   type result_unfinished =
-    | BoxedValue(DHExp.t)
-    | Indet(DHExp.t)
-    | Uneval(DHExp.t);
+    | BoxedValue(DExp.t)
+    | Indet(DExp.t)
+    | Uneval(DExp.t);
 
   type result = result_unfinished;
 
@@ -121,9 +121,9 @@ let evaluate = (env, {d, info_map}: Elaborator.Elaboration.t) => {
   let result = evaluate(state, env, d);
   let result =
     switch (result) {
-    | BoxedValue(x) => BoxedValue(x |> DHExp.repair_ids)
-    | Indet(x) => Indet(x |> DHExp.repair_ids)
-    | Uneval(x) => Indet(x |> DHExp.repair_ids)
+    | BoxedValue(x) => BoxedValue(x |> DExp.repair_ids)
+    | Indet(x) => Indet(x |> DExp.repair_ids)
+    | Uneval(x) => Indet(x |> DExp.repair_ids)
     };
   (state^, result);
 };

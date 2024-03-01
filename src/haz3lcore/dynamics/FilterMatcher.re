@@ -2,12 +2,12 @@ let rec matches_exp =
         (
           info_map: Statics.Map.t,
           env: ClosureEnvironment.t,
-          d: DHExp.t,
-          f: DHExp.t,
+          d: DExp.t,
+          f: DExp.t,
         )
         : bool => {
   let matches_exp = matches_exp(info_map);
-  switch (DHExp.term_of(d), DHExp.term_of(f)) {
+  switch (DExp.term_of(d), DExp.term_of(f)) {
   | (Parens(x), _) => matches_exp(env, x, f)
   | (_, Parens(x)) => matches_exp(env, d, x)
   | (Constructor("$e"), _) => failwith("$e in matched expression")
@@ -48,7 +48,7 @@ let rec matches_exp =
   | (EmptyHole, _) => false
 
   | (Filter(df, dd), Filter(ff, fd)) =>
-    DHExp.filter_fast_equal(df, ff) && matches_exp(env, dd, fd)
+    DExp.filter_fast_equal(df, ff) && matches_exp(env, dd, fd)
   | (Filter(_), _) => false
 
   | (Bool(dv), Bool(fv)) => dv == fv
@@ -64,7 +64,7 @@ let rec matches_exp =
   | (String(_), _) => false
 
   | (Constructor(_), Ap(_, d1, d2)) =>
-    switch (DHExp.term_of(d1), DHExp.term_of(d2)) {
+    switch (DExp.term_of(d1), DExp.term_of(d2)) {
     | (Constructor("~MVal"), Tuple([])) => true
     | _ => false
     }
@@ -228,7 +228,7 @@ let matches =
     (
       info_map,
       ~env: ClosureEnvironment.t,
-      ~exp: DHExp.t,
+      ~exp: DExp.t,
       ~flt: TermBase.StepperFilterKind.filter,
     )
     : option(FilterAction.t) =>
@@ -241,7 +241,7 @@ let matches =
 let matches =
     (
       ~env: ClosureEnvironment.t,
-      ~exp: DHExp.t,
+      ~exp: DExp.t,
       ~exp_info_map: Statics.Map.t,
       ~act: FilterAction.t,
       flt_env,

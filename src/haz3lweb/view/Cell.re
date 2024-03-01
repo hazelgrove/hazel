@@ -397,7 +397,7 @@ let locked =
           statics.info_map,
           editor.state.meta.view_term,
         )
-      : DHExp.Bool(true) |> DHExp.fresh;
+      : DExp.Bool(true) |> DExp.fresh;
   let elab: Elaborator.Elaboration.t = {d: elab, info_map: statics.info_map};
   let result: ModelResult.t =
     settings.core.dynamics
