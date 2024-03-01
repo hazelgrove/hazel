@@ -1,7 +1,6 @@
 open Sexplib.Std;
 open Util;
 open OptUtil.Syntax;
-open Term;
 
 /* INFO.re
 
@@ -187,7 +186,7 @@ type exp = {
   mode: Mode.t, /* Parental type expectations  */
   self: Self.exp, /* Expectation-independent type info */
   co_ctx: CoCtx.t, /* Locally free variables */
-  cls: Term.Cls.t, /* DERIVED: Syntax class (i.e. form name) */
+  cls: Cls.t, /* DERIVED: Syntax class (i.e. form name) */
   status: status_exp, /* DERIVED: Ok/Error statuses for display */
   ty: Typ.t /* DERIVED: Type after nonempty hole fixing */
 };
@@ -200,7 +199,7 @@ type pat = {
   co_ctx: CoCtx.t,
   mode: Mode.t,
   self: Self.pat,
-  cls: Term.Cls.t,
+  cls: Cls.t,
   status: status_pat,
   ty: Typ.t,
 };
@@ -211,24 +210,24 @@ type typ = {
   ancestors,
   ctx: Ctx.t,
   expects: typ_expects,
-  cls: Term.Cls.t,
+  cls: Cls.t,
   status: status_typ,
   ty: Typ.t,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type tpat = {
-  term: UTPat.t,
+  term: TPat.t,
   ancestors,
   ctx: Ctx.t,
-  cls: Term.Cls.t,
+  cls: Cls.t,
   status: status_tpat,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type secondary = {
   id: Id.t, // Id of term static info is sourced from
-  cls: Term.Cls.t, // Cls of secondary, not source term
+  cls: Cls.t, // Cls of secondary, not source term
   sort: Sort.t, // from source term
   ctx: Ctx.t // from source term
 };
@@ -283,10 +282,10 @@ let ancestors_of: t => ancestors =
 
 let id_of: t => Id.t =
   fun
-  | InfoExp(i) => Term.UExp.rep_id(i.term)
-  | InfoPat(i) => Term.UPat.rep_id(i.term)
-  | InfoTyp(i) => Term.UTyp.rep_id(i.term)
-  | InfoTPat(i) => Term.UTPat.rep_id(i.term)
+  | InfoExp(i) => Exp.rep_id(i.term)
+  | InfoPat(i) => Pat.rep_id(i.term)
+  | InfoTyp(i) => TypTerm.rep_id(i.term)
+  | InfoTPat(i) => TPat.rep_id(i.term)
   | Secondary(s) => s.id;
 
 let error_of: t => option(error) =
@@ -427,7 +426,7 @@ let status_typ =
     }
   };
 
-let status_tpat = (ctx: Ctx.t, utpat: UTPat.t): status_tpat =>
+let status_tpat = (ctx: Ctx.t, utpat: TPat.t): status_tpat =>
   switch (utpat.term) {
   | EmptyHole => NotInHole(Empty)
   | Var(name)
@@ -518,8 +517,8 @@ let derived_typ = (~utyp: UTyp.t, ~ctx, ~ancestors, ~expects): typ => {
 };
 
 /* Add derivable attributes for type patterns */
-let derived_tpat = (~utpat: UTPat.t, ~ctx, ~ancestors): tpat => {
-  let cls = Cls.TPat(UTPat.cls_of_term(utpat.term));
+let derived_tpat = (~utpat: TPat.t, ~ctx, ~ancestors): tpat => {
+  let cls = Cls.TPat(TPat.cls_of_term(utpat.term));
   let status = status_tpat(ctx, utpat);
   {cls, ancestors, status, ctx, term: utpat};
 };

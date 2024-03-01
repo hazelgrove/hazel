@@ -575,7 +575,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     hidden_tests: 'a,
   };
 
-  let wrap_filter = (act: FilterAction.action, term: Term.UExp.t): Term.UExp.t =>
+  let wrap_filter = (act: FilterAction.action, term: UExp.t): UExp.t =>
     TermBase.UExp.{
       term:
         TermBase.UExp.Filter(
@@ -598,8 +598,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     term_ranges: editor.state.meta.term_ranges,
   };
 
-  let term_of = (editor: Editor.t): Term.UExp.t =>
-    editor.state.meta.view_term;
+  let term_of = (editor: Editor.t): UExp.t => editor.state.meta.view_term;
 
   let stitch3 = (ed1: Editor.t, ed2: Editor.t, ed3: Editor.t) =>
     EditorUtil.append_exp(

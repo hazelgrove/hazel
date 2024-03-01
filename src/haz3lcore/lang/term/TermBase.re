@@ -6,137 +6,22 @@ module rec Any: {
     | Exp(UExp.t)
     | Pat(UPat.t)
     | Typ(UTyp.t)
-    | TPat(UTPat.t)
-    | Rul(URul.t)
+    | TPat(TPat.t)
+    | Rul(Rul.t)
     | Nul(unit)
     | Any(unit);
-
-  let is_exp: t => option(UExp.t);
-  let is_pat: t => option(UPat.t);
-  let is_typ: t => option(UTyp.t);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Exp(UExp.t)
     | Pat(UPat.t)
     | Typ(UTyp.t)
-    | TPat(UTPat.t)
-    | Rul(URul.t)
+    | TPat(TPat.t)
+    | Rul(Rul.t)
     | Nul(unit)
     | Any(unit);
-
-  let is_exp: t => option(UExp.t) =
-    fun
-    | Exp(e) => Some(e)
-    | _ => None;
-  let is_pat: t => option(UPat.t) =
-    fun
-    | Pat(p) => Some(p)
-    | _ => None;
-  let is_typ: t => option(UTyp.t) =
-    fun
-    | Typ(t) => Some(t)
-    | _ => None;
 }
 and UExp: {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type op_un_bool =
-    | Not;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type op_un_meta =
-    | Unquote;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type op_un_int =
-    | Minus;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type op_bin_bool =
-    | And
-    | Or;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type op_bin_int =
-    | Plus
-    | Minus
-    | Times
-    | Power
-    | Divide
-    | LessThan
-    | LessThanOrEqual
-    | GreaterThan
-    | GreaterThanOrEqual
-    | Equals
-    | NotEquals;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type op_bin_float =
-    | Plus
-    | Minus
-    | Times
-    | Power
-    | Divide
-    | LessThan
-    | LessThanOrEqual
-    | GreaterThan
-    | GreaterThanOrEqual
-    | Equals
-    | NotEquals;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type op_bin_string =
-    | Concat
-    | Equals;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type op_un =
-    | Meta(op_un_meta)
-    | Int(op_un_int)
-    | Bool(op_un_bool);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type op_bin =
-    | Int(op_bin_int)
-    | Float(op_bin_float)
-    | Bool(op_bin_bool)
-    | String(op_bin_string);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type ap_direction =
-    | Forward
-    | Reverse;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type cls =
-    | Invalid
-    | EmptyHole
-    | MultiHole
-    | StaticErrorHole
-    | DynamicErrorHole
-    | FailedCast
-    | Bool
-    | Int
-    | Float
-    | String
-    | ListLit
-    | Tag
-    | Fun
-    | Tuple
-    | Var
-    | Let
-    | Ap(ap_direction)
-    | If
-    | Seq
-    | Test
-    | Filter
-    | Parens
-    | Cons
-    | ListConcat
-    | UnOp(op_un)
-    | BinOp(op_bin)
-    | Match;
-
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
     | Invalid(string)
@@ -161,8 +46,8 @@ and UExp: {
     | Var(Var.t)
     | Let(UPat.t, t, t)
     | FixF(UPat.t, t, [@show.opaque] option(ClosureEnvironment.t))
-    | TyAlias(UTPat.t, UTyp.t, t)
-    | Ap(ap_direction, t, t)
+    | TyAlias(TPat.t, UTyp.t, t)
+    | Ap(Operators.ap_direction, t, t)
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
@@ -171,8 +56,8 @@ and UExp: {
     | Parens(t) // (
     | Cons(t, t)
     | ListConcat(t, t)
-    | UnOp(op_un, t)
-    | BinOp(op_bin, t, t)
+    | UnOp(Operators.op_un, t)
+    | BinOp(Operators.op_bin, t, t)
     | BuiltinFun(string)
     | Match(t, list((UPat.t, t)))
     | Cast(t, Typ.t, Typ.t)
@@ -182,110 +67,7 @@ and UExp: {
     copied: bool,
     term,
   };
-
-  let bool_op_to_string: op_bin_bool => string;
-  let int_op_to_string: op_bin_int => string;
-  let float_op_to_string: op_bin_float => string;
-  let string_op_to_string: op_bin_string => string;
 } = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type op_un_bool =
-    | Not;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type op_un_meta =
-    | Unquote;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type op_un_int =
-    | Minus;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type op_bin_bool =
-    | And
-    | Or;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type op_bin_int =
-    | Plus
-    | Minus
-    | Times
-    | Power
-    | Divide
-    | LessThan
-    | LessThanOrEqual
-    | GreaterThan
-    | GreaterThanOrEqual
-    | Equals
-    | NotEquals;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type op_bin_float =
-    | Plus
-    | Minus
-    | Times
-    | Power
-    | Divide
-    | LessThan
-    | LessThanOrEqual
-    | GreaterThan
-    | GreaterThanOrEqual
-    | Equals
-    | NotEquals;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type op_bin_string =
-    | Concat
-    | Equals;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type op_un =
-    | Meta(op_un_meta)
-    | Int(op_un_int)
-    | Bool(op_un_bool);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type op_bin =
-    | Int(op_bin_int)
-    | Float(op_bin_float)
-    | Bool(op_bin_bool)
-    | String(op_bin_string);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type ap_direction =
-    | Forward
-    | Reverse;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type cls =
-    | Invalid
-    | EmptyHole
-    | MultiHole
-    | StaticErrorHole
-    | DynamicErrorHole
-    | FailedCast
-    | Bool
-    | Int
-    | Float
-    | String
-    | ListLit
-    | Tag
-    | Fun
-    | Tuple
-    | Var
-    | Let
-    | Ap(ap_direction)
-    | If
-    | Seq
-    | Test
-    | Filter
-    | Parens
-    | Cons
-    | ListConcat
-    | UnOp(op_un)
-    | BinOp(op_bin)
-    | Match;
-
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
     | Invalid(string)
@@ -305,13 +87,13 @@ and UExp: {
         t,
         [@show.opaque] option(ClosureEnvironment.t),
         option(Var.t),
-      ) // TODO: Add option(Var.t) name field to end; Add optional closure to function
+      )
     | Tuple(list(t))
     | Var(Var.t)
     | Let(UPat.t, t, t)
-    | FixF(UPat.t, t, [@show.opaque] option(ClosureEnvironment.t)) // DONE [CHECK WITH SOMEONE THAT I GOT THE STATIC SEMANTICS RIGHT]
-    | TyAlias(UTPat.t, UTyp.t, t)
-    | Ap(ap_direction, t, t) // note: function is always first then argument; even in pipe mode
+    | FixF(UPat.t, t, [@show.opaque] option(ClosureEnvironment.t)) // TODO[Matt]: CHECK WITH SOMEONE THAT I GOT THE STATIC SEMANTICS RIGHT
+    | TyAlias(TPat.t, UTyp.t, t)
+    | Ap(Operators.ap_direction, t, t) // note: function is always first then argument; even in pipe mode
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
@@ -320,8 +102,8 @@ and UExp: {
     | Parens(t)
     | Cons(t, t)
     | ListConcat(t, t)
-    | UnOp(op_un, t)
-    | BinOp(op_bin, t, t)
+    | UnOp(Operators.op_un, t)
+    | BinOp(Operators.op_bin, t, t)
     | BuiltinFun(string) /// Doesn't currently have a distinguishable syntax...
     | Match(t, list((UPat.t, t)))
     | Cast(t, Typ.t, Typ.t)
@@ -330,52 +112,6 @@ and UExp: {
     ids: list(Id.t), // > DHEXP // Multiple ids?? // Add source??
     copied: bool,
     term,
-  };
-
-  let bool_op_to_string = (op: op_bin_bool): string => {
-    switch (op) {
-    | And => "&&"
-    | Or => "||"
-    };
-  };
-
-  let int_op_to_string = (op: op_bin_int): string => {
-    switch (op) {
-    | Plus => "+"
-    | Minus => "-"
-    | Times => "*"
-    | Power => "**"
-    | Divide => "/"
-    | LessThan => "<"
-    | LessThanOrEqual => "<="
-    | GreaterThan => ">"
-    | GreaterThanOrEqual => ">="
-    | Equals => "=="
-    | NotEquals => "!="
-    };
-  };
-
-  let float_op_to_string = (op: op_bin_float): string => {
-    switch (op) {
-    | Plus => "+."
-    | Minus => "-."
-    | Times => "*."
-    | Power => "**."
-    | Divide => "/."
-    | LessThan => "<."
-    | LessThanOrEqual => "<=."
-    | GreaterThan => ">."
-    | GreaterThanOrEqual => ">=."
-    | Equals => "==."
-    | NotEquals => "!=."
-    };
-  };
-
-  let string_op_to_string = (op: op_bin_string): string => {
-    switch (op) {
-    | Concat => "++"
-    | Equals => "$=="
-    };
   };
 }
 and UPat: {
@@ -476,7 +212,7 @@ and UTyp: {
     term,
   };
 }
-and UTPat: {
+and TPat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
     | Invalid(string)
@@ -499,7 +235,7 @@ and UTPat: {
     term,
   };
 }
-and URul: {
+and Rul: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
     | Invalid(string)

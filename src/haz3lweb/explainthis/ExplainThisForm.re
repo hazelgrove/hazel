@@ -160,8 +160,8 @@ type form_id =
   | IfExp
   | SeqExp
   | TestExp
-  | UnOpExp(Term.UExp.op_un)
-  | BinOpExp(Term.UExp.op_bin)
+  | UnOpExp(Operators.op_un)
+  | BinOpExp(Operators.op_bin)
   | CaseExp
   | TyAliasExp
   | EmptyHolePat
@@ -246,8 +246,8 @@ type group_id =
   | IfExp
   | SeqExp
   | TestExp
-  | UnOpExp(Term.UExp.op_un)
-  | BinOpExp(Term.UExp.op_bin)
+  | UnOpExp(Operators.op_un)
+  | BinOpExp(Operators.op_bin)
   | CaseExp
   | TyAliasExp
   | PipelineExp

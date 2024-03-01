@@ -7,7 +7,7 @@ type syntax_result = {
   percentage: float,
 };
 
-let rec find_var_upat = (name: string, upat: Term.UPat.t): bool => {
+let rec find_var_upat = (name: string, upat: UPat.t): bool => {
   switch (upat.term) {
   | Var(x) => x == name
   | EmptyHole
@@ -29,7 +29,7 @@ let rec find_var_upat = (name: string, upat: Term.UPat.t): bool => {
   };
 };
 
-let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
+let rec var_mention = (name: string, uexp: UExp.t): bool => {
   switch (uexp.term) {
   | Var(x) => x == name
   | EmptyHole
@@ -82,7 +82,7 @@ let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
   };
 };
 
-let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
+let rec var_applied = (name: string, uexp: UExp.t): bool => {
   switch (uexp.term) {
   | Var(_)
   | EmptyHole
@@ -138,13 +138,8 @@ let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
 };
 
 let rec find_in_let =
-        (
-          name: string,
-          upat: Term.UPat.t,
-          def: Term.UExp.t,
-          l: list(Term.UExp.t),
-        )
-        : list(Term.UExp.t) => {
+        (name: string, upat: UPat.t, def: UExp.t, l: list(UExp.t))
+        : list(UExp.t) => {
   switch (upat.term, def.term) {
   | (Parens(up), Parens(ue)) => find_in_let(name, up, ue, l)
   | (Parens(up), _) => find_in_let(name, up, def, l)
@@ -182,8 +177,7 @@ let rec find_in_let =
 };
 
 let rec find_fn =
-        (name: string, uexp: Term.UExp.t, l: list(Term.UExp.t))
-        : list(Term.UExp.t) => {
+        (name: string, uexp: UExp.t, l: list(UExp.t)): list(UExp.t) => {
   switch (uexp.term) {
   | Let(up, def, body) =>
     l |> find_in_let(name, up, def) |> find_fn(name, body)
@@ -228,7 +222,7 @@ let rec find_fn =
   };
 };
 
-let is_recursive = (name: string, uexp: Term.UExp.t): bool => {
+let is_recursive = (name: string, uexp: UExp.t): bool => {
   let fn_bodies = [] |> find_fn(name, uexp);
   if (List.length(fn_bodies) == 0) {
     false;
@@ -241,7 +235,7 @@ let is_recursive = (name: string, uexp: Term.UExp.t): bool => {
   };
 };
 
-let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
+let rec tail_check = (name: string, uexp: UExp.t): bool => {
   switch (uexp.term) {
   | EmptyHole
   | Invalid(_)
@@ -294,7 +288,7 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   };
 };
 
-let is_tail_recursive = (name: string, uexp: Term.UExp.t): bool => {
+let is_tail_recursive = (name: string, uexp: UExp.t): bool => {
   let fn_bodies = [] |> find_fn(name, uexp);
   if (List.length(fn_bodies) == 0) {
     false;
@@ -307,8 +301,7 @@ let is_tail_recursive = (name: string, uexp: Term.UExp.t): bool => {
   };
 };
 
-let check =
-    (uexp: Term.UExp.t, predicates: list(Term.UExp.t => bool)): syntax_result => {
+let check = (uexp: UExp.t, predicates: list(UExp.t => bool)): syntax_result => {
   let results = List.map(pred => {uexp |> pred}, predicates);
   let length = List.length(predicates);
   let passing = Util.ListUtil.count_pred(res => res, results);

@@ -58,11 +58,11 @@ type step_kind =
   | CastAp
   | BuiltinWrap
   | BuiltinAp(string)
-  | UnOp(TermBase.UExp.op_un)
-  | BinBoolOp(TermBase.UExp.op_bin_bool)
-  | BinIntOp(TermBase.UExp.op_bin_int)
-  | BinFloatOp(TermBase.UExp.op_bin_float)
-  | BinStringOp(TermBase.UExp.op_bin_string)
+  | UnOp(Operators.op_un)
+  | BinBoolOp(Operators.op_bin_bool)
+  | BinIntOp(Operators.op_bin_int)
+  | BinFloatOp(Operators.op_bin_float)
+  | BinStringOp(Operators.op_bin_string)
   | Conditional(bool)
   | Projection
   | ListCons
