@@ -133,9 +133,9 @@ let rec matches =
       | Test(ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
         Test(ctx) |> rewrap;
-      | ListLit(ty, ctx, ds) =>
+      | ListLit(ctx, ds) =>
         let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
-        ListLit(ty, ctx, ds) |> rewrap;
+        ListLit(ctx, ds) |> rewrap;
       | Cons1(ctx, d2) =>
         let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
         Cons1(ctx, d2) |> rewrap;

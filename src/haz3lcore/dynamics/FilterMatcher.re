@@ -111,14 +111,13 @@ let rec matches_exp =
     matches_exp(env, d1, f1) && matches_exp(env, d2, f2)
   | (Cons(_), _) => false
 
-  | (ListLit(dt, dv), ListLit(ft, fv)) =>
-    dt == ft
-    && List.fold_left2(
-         (acc, d, f) => acc && matches_exp(env, d, f),
-         true,
-         dv,
-         fv,
-       )
+  | (ListLit(dv), ListLit(fv)) =>
+    List.fold_left2(
+      (acc, d, f) => acc && matches_exp(env, d, f),
+      true,
+      dv,
+      fv,
+    )
   | (ListLit(_), _) => false
 
   | (Tuple(dv), Tuple(fv)) =>

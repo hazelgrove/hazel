@@ -641,7 +641,7 @@ module Transition = (EV: EV_MODE) => {
       Step({
         apply: () =>
           switch (term_of(d2')) {
-          | ListLit(ty, ds) => ListLit(ty, [d1', ...ds]) |> fresh
+          | ListLit(ds) => ListLit([d1', ...ds]) |> fresh
           | _ => raise(EvaluatorError.Exception(InvalidBoxedListLit(d2')))
           },
         kind: ListCons,
@@ -665,8 +665,7 @@ module Transition = (EV: EV_MODE) => {
       Step({
         apply: () =>
           switch (term_of(d1'), term_of(d2')) {
-          | (ListLit(t1, ds1), ListLit(_, ds2)) =>
-            ListLit(t1, ds1 @ ds2) |> fresh
+          | (ListLit(ds1), ListLit(ds2)) => ListLit(ds1 @ ds2) |> fresh
           | (ListLit(_), _) =>
             raise(EvaluatorError.Exception(InvalidBoxedListLit(d2')))
           | (_, _) =>
@@ -675,12 +674,12 @@ module Transition = (EV: EV_MODE) => {
         kind: ListConcat,
         value: true,
       });
-    | ListLit(t, ds) =>
-      let. _ = otherwise(env, ds => ListLit(t, ds) |> rewrap)
+    | ListLit(ds) =>
+      let. _ = otherwise(env, ds => ListLit(ds) |> rewrap)
       and. _ =
         req_all_final(
           req(state, env),
-          (d1, ds) => ListLit(t, d1, ds) |> wrap_ctx,
+          (d1, ds) => ListLit(d1, ds) |> wrap_ctx,
           ds,
         );
       Constructor;

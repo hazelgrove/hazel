@@ -246,7 +246,7 @@ module Pervasives = {
     let string_concat =
       binary((d1, d2) =>
         switch (term_of(d1), term_of(d2)) {
-        | (String(s1), ListLit(_, xs)) =>
+        | (String(s1), ListLit(xs)) =>
           switch (xs |> List.map(string_of) |> Util.OptUtil.sequence) {
           | None => Error(InvalidBoxedStringLit(List.hd(xs)))
           | Some(xs) => Ok(String(String.concat(s1, xs)) |> fresh)

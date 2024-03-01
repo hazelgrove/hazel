@@ -363,12 +363,12 @@ and matches_cast_Cons =
     : match_result =>
   switch (DHExp.term_of(d)) {
   | Parens(d) => matches_cast_Cons(dp, d, elt_casts)
-  | ListLit(_, []) =>
+  | ListLit([]) =>
     switch (DHPat.term_of(dp)) {
     | ListLit([]) => Matches(Environment.empty)
     | _ => DoesNotMatch
     }
-  | ListLit(ty, [dhd, ...dtl] as ds) =>
+  | ListLit([dhd, ...dtl] as ds) =>
     switch (DHPat.term_of(dp)) {
     | Cons(dp1, dp2) =>
       switch (matches(dp1, DHExp.apply_casts(dhd, elt_casts))) {
@@ -383,7 +383,7 @@ and matches_cast_Cons =
             },
             elt_casts,
           );
-        let d2 = DHExp.ListLit(ty, dtl) |> DHExp.fresh;
+        let d2 = DHExp.ListLit(dtl) |> DHExp.fresh;
         switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
         | DoesNotMatch => DoesNotMatch
         | IndetMatch => IndetMatch
