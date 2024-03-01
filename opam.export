@@ -21,6 +21,7 @@ roots: [
 ]
 installed: [
   "abstract_algebra.v0.15.0"
+  "alcotest.1.7.0"
   "angstrom.0.16.0"
   "astring.0.8.5"
   "async_js.v0.15.1"
@@ -77,6 +78,8 @@ installed: [
   "js_of_ocaml-ppx.5.6.0"
   "jsonm.1.0.2"
   "jst-config.v0.15.1"
+  "junit.2.0.2"
+  "junit_alcotest.2.0.1"
   "lambda-term.3.3.2"
   "lambdasoup.1.0.0"
   "logs.0.7.0"

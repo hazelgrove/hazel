@@ -1,0 +1,8 @@
+(include_subdirs unqualified)
+
+(test
+ (name haz3ltest)
+ (libraries haz3lcore alcotest junit junit_alcotest)
+ (modes js)
+ (preprocess
+  (pps js_of_ocaml-ppx)))

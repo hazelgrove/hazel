@@ -33,7 +33,7 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
     | (Up, "Backspace") => now(Destruct(Left))
     | (Up, "Delete") => now(Destruct(Right))
     | (Up, "Escape") => now(Unselect(None))
-    | (Up, "Tab") => Some(DoTheThing)
+    | (Up, "Tab") => Some(TAB)
     | (Up, "F12") => now(Jump(BindingSiteOfIndicatedVar))
     | (Down, "Tab") => Some(MoveToNextHole(Left))
     | (Down, "ArrowLeft") => now(Select(Resize(Local(Left(ByToken)))))

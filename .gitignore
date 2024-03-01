@@ -50,3 +50,6 @@ setup.log
 .vscode
 .history
 .code-workspace
+
+# unit tests
+*.xml

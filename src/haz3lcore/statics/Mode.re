@@ -104,7 +104,7 @@ let of_ctr_in_ap = (ctx: Ctx.t, mode: t, ctr: Constructor.t): option(t) =>
        against an arrow type. Since we can't guess at what the
        parameter type might have be, we use Unknown. */
     Some(Ana(Arrow(Unknown(Internal), ty_ana)))
-  | _ => None
+  | None => None
   };
 
 let of_ap = (ctx, mode, ctr: option(Constructor.t)): t =>
