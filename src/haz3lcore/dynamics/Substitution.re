@@ -1,6 +1,6 @@
 /* closed substitution [d1/x]d2 */
-let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
-  let (term, rewrap) = DHExp.unwrap(d2);
+let rec subst_var = (m, d1: DExp.t, x: Var.t, d2: DExp.t): DExp.t => {
+  let (term, rewrap) = DExp.unwrap(d2);
   switch (term) {
   | Var(y) =>
     if (Var.eq(x, y)) {
@@ -122,16 +122,15 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
 }
 
 and subst_var_env =
-    (m, d1: DHExp.t, x: Var.t, env: ClosureEnvironment.t)
-    : ClosureEnvironment.t => {
+    (m, d1: DExp.t, x: Var.t, env: ClosureEnvironment.t): ClosureEnvironment.t => {
   let id = env |> ClosureEnvironment.id_of;
   let map =
     env
     |> ClosureEnvironment.map_of
     |> Environment.foldo(
-         ((x', d': DHExp.t), map) => {
+         ((x', d': DExp.t), map) => {
            let d' =
-             switch (DHExp.term_of(d')) {
+             switch (DExp.term_of(d')) {
              /* Substitute each previously substituted binding into the
               * fixpoint. */
              | FixF(_) =>
@@ -154,15 +153,15 @@ and subst_var_env =
 }
 
 and subst_var_filter =
-    (m, d1: DHExp.t, x: Var.t, flt: TermBase.StepperFilterKind.t)
+    (m, d1: DExp.t, x: Var.t, flt: TermBase.StepperFilterKind.t)
     : TermBase.StepperFilterKind.t => {
   flt |> TermBase.StepperFilterKind.map(subst_var(m, d1, x));
 };
 
-let subst = (m, env: Environment.t, d: DHExp.t): DHExp.t =>
+let subst = (m, env: Environment.t, d: DExp.t): DExp.t =>
   env
   |> Environment.foldo(
-       (xd: (Var.t, DHExp.t), d2) => {
+       (xd: (Var.t, DExp.t), d2) => {
          let (x, d1) = xd;
          subst_var(m, d1, x, d2);
        },

@@ -1,4 +1,4 @@
-open DHExp;
+open DExp;
 
 /*
    Built-in functions for Hazel.
@@ -11,43 +11,43 @@ open DHExp;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type builtin =
-  | Const(Typ.t, DHExp.t)
-  | Fn(Typ.t, Typ.t, DHExp.t => DHExp.t);
+  | Const(Typ.t, DExp.t)
+  | Fn(Typ.t, Typ.t, DExp.t => DExp.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = VarMap.t_(builtin);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type forms = VarMap.t_(DHExp.t => DHExp.t);
+type forms = VarMap.t_(DExp.t => DExp.t);
 
-type result = Result.t(DHExp.t, EvaluatorError.t);
+type result = Result.t(DExp.t, EvaluatorError.t);
 
-let const = (name: Var.t, typ: Typ.t, v: DHExp.t, builtins: t): t =>
+let const = (name: Var.t, typ: Typ.t, v: DExp.t, builtins: t): t =>
   VarMap.extend(builtins, (name, Const(typ, v)));
 let fn =
-    (name: Var.t, t1: Typ.t, t2: Typ.t, impl: DHExp.t => DHExp.t, builtins: t)
+    (name: Var.t, t1: Typ.t, t2: Typ.t, impl: DExp.t => DExp.t, builtins: t)
     : t =>
   VarMap.extend(builtins, (name, Fn(t1, t2, impl)));
 
 module Pervasives = {
   module Impls = {
     /* constants */
-    let infinity = DHExp.Float(Float.infinity) |> fresh;
-    let neg_infinity = DHExp.Float(Float.neg_infinity) |> fresh;
-    let nan = DHExp.Float(Float.nan) |> fresh;
-    let epsilon_float = DHExp.Float(epsilon_float) |> fresh;
-    let pi = DHExp.Float(Float.pi) |> fresh;
-    let max_int = DHExp.Int(Int.max_int) |> fresh;
-    let min_int = DHExp.Int(Int.min_int) |> fresh;
+    let infinity = DExp.Float(Float.infinity) |> fresh;
+    let neg_infinity = DExp.Float(Float.neg_infinity) |> fresh;
+    let nan = DExp.Float(Float.nan) |> fresh;
+    let epsilon_float = DExp.Float(epsilon_float) |> fresh;
+    let pi = DExp.Float(Float.pi) |> fresh;
+    let max_int = DExp.Int(Int.max_int) |> fresh;
+    let min_int = DExp.Int(Int.min_int) |> fresh;
 
-    let unary = (f: DHExp.t => result, d: DHExp.t) => {
+    let unary = (f: DExp.t => result, d: DExp.t) => {
       switch (f(d)) {
       | Ok(r') => r'
       | Error(e) => EvaluatorError.Exception(e) |> raise
       };
     };
 
-    let binary = (f: (DHExp.t, DHExp.t) => result, d: DHExp.t) => {
+    let binary = (f: (DExp.t, DExp.t) => result, d: DExp.t) => {
       switch (term_of(d)) {
       | Tuple([d1, d2]) =>
         switch (f(d1, d2)) {
@@ -58,7 +58,7 @@ module Pervasives = {
       };
     };
 
-    let ternary = (f: (DHExp.t, DHExp.t, DHExp.t) => result, d: DHExp.t) => {
+    let ternary = (f: (DExp.t, DExp.t, DExp.t) => result, d: DExp.t) => {
       switch (term_of(d)) {
       | Tuple([d1, d2, d3]) =>
         switch (f(d1, d2, d3)) {
@@ -164,16 +164,16 @@ module Pervasives = {
     let atan = float_op(atan);
 
     let of_string =
-        (convert: string => option('a), wrap: 'a => DHExp.t, name: string) =>
+        (convert: string => option('a), wrap: 'a => DExp.t, name: string) =>
       unary(d =>
         switch (term_of(d)) {
         | String(s) =>
           switch (convert(s)) {
           | Some(n) => Ok(wrap(n))
           | None =>
-            let d' = DHExp.BuiltinFun(name) |> DHExp.fresh;
-            let d' = DHExp.Ap(Forward, d', d) |> DHExp.fresh;
-            let d' = DynamicErrorHole(d', InvalidOfString) |> DHExp.fresh;
+            let d' = DExp.BuiltinFun(name) |> DExp.fresh;
+            let d' = DExp.Ap(Forward, d', d) |> DExp.fresh;
+            let d' = DynamicErrorHole(d', InvalidOfString) |> DExp.fresh;
             Ok(d');
           }
         | _ => Error(InvalidBoxedStringLit(d))
@@ -181,11 +181,11 @@ module Pervasives = {
       );
 
     let int_of_string =
-      of_string(int_of_string_opt, n => Int(n) |> DHExp.fresh);
+      of_string(int_of_string_opt, n => Int(n) |> DExp.fresh);
     let float_of_string =
-      of_string(float_of_string_opt, f => Float(f) |> DHExp.fresh);
+      of_string(float_of_string_opt, f => Float(f) |> DExp.fresh);
     let bool_of_string =
-      of_string(bool_of_string_opt, b => Bool(b) |> DHExp.fresh);
+      of_string(bool_of_string_opt, b => Bool(b) |> DExp.fresh);
 
     let int_mod = (name, d1) =>
       binary(
@@ -195,7 +195,7 @@ module Pervasives = {
             Ok(
               fresh(
                 DynamicErrorHole(
-                  DHExp.Ap(Forward, DHExp.BuiltinFun(name) |> fresh, d1)
+                  DExp.Ap(Forward, DExp.BuiltinFun(name) |> fresh, d1)
                   |> fresh,
                   DivideByZero,
                 ),
@@ -236,7 +236,7 @@ module Pervasives = {
         }
       );
 
-    let string_of: DHExp.t => option(string) =
+    let string_of: DExp.t => option(string) =
       d =>
         switch (term_of(d)) {
         | String(s) => Some(s)

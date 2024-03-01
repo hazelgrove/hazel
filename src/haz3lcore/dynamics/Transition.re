@@ -142,7 +142,7 @@ let evaluate_extend_env =
 
 type rule =
   | Step({
-      apply: unit => DHExp.t,
+      apply: unit => DExp.t,
       kind: step_kind,
       value: bool,
     })
@@ -156,30 +156,28 @@ module type EV_MODE = {
   type requirements('a, 'b);
 
   let req_value:
-    (DHExp.t => result, EvalCtx.t => EvalCtx.t, DHExp.t) =>
-    requirement(DHExp.t);
+    (DExp.t => result, EvalCtx.t => EvalCtx.t, DExp.t) => requirement(DExp.t);
   let req_all_value:
     (
-      DHExp.t => result,
-      (EvalCtx.t, (list(DHExp.t), list(DHExp.t))) => EvalCtx.t,
-      list(DHExp.t)
+      DExp.t => result,
+      (EvalCtx.t, (list(DExp.t), list(DExp.t))) => EvalCtx.t,
+      list(DExp.t)
     ) =>
-    requirement(list(DHExp.t));
+    requirement(list(DExp.t));
   let req_final:
-    (DHExp.t => result, EvalCtx.t => EvalCtx.t, DHExp.t) =>
-    requirement(DHExp.t);
+    (DExp.t => result, EvalCtx.t => EvalCtx.t, DExp.t) => requirement(DExp.t);
   let req_all_final:
     (
-      DHExp.t => result,
-      (EvalCtx.t, (list(DHExp.t), list(DHExp.t))) => EvalCtx.t,
-      list(DHExp.t)
+      DExp.t => result,
+      (EvalCtx.t, (list(DExp.t), list(DExp.t))) => EvalCtx.t,
+      list(DExp.t)
     ) =>
-    requirement(list(DHExp.t));
+    requirement(list(DExp.t));
   let req_final_or_value:
-    (DHExp.t => result, EvalCtx.t => EvalCtx.t, DHExp.t) =>
-    requirement((DHExp.t, bool));
+    (DExp.t => result, EvalCtx.t => EvalCtx.t, DExp.t) =>
+    requirement((DExp.t, bool));
 
-  let (let.): (requirements('a, DHExp.t), 'a => rule) => result;
+  let (let.): (requirements('a, DExp.t), 'a => rule) => result;
   let (and.):
     (requirements('a, 'c => 'b), requirement('c)) =>
     requirements(('a, 'c), 'b);
@@ -192,7 +190,7 @@ module type EV_MODE = {
 
 module Transition = (EV: EV_MODE) => {
   open EV;
-  open DHExp;
+  open DExp;
   let (let.match) = ((env, match_result), r) =>
     switch (match_result) {
     | IndetMatch
@@ -207,7 +205,7 @@ module Transition = (EV: EV_MODE) => {
   let transition = (req, state, env, d): 'a => {
     // If there is an error at this location, swap out the rule for indet.
     let info_map = get_info_map(state);
-    let err_info = Statics.get_error_at(info_map, DHExp.rep_id(d));
+    let err_info = Statics.get_error_at(info_map, DExp.rep_id(d));
     let (let.) =
       switch (err_info) {
       | Some(
@@ -222,8 +220,8 @@ module Transition = (EV: EV_MODE) => {
       | None => (let.)
       };
 
-    // Split DHExp into term and id information
-    let (term, rewrap) = DHExp.unwrap(d);
+    // Split DExp into term and id information
+    let (term, rewrap) = DExp.unwrap(d);
     let wrap_ctx = (term): EvalCtx.t => Term({term, ids: [rep_id(d)]});
 
     // Transition rules
@@ -321,16 +319,16 @@ module Transition = (EV: EV_MODE) => {
       and. d' = req_final(req(state, env), d => Test(d) |> wrap_ctx, d);
       Step({
         apply: () =>
-          switch (DHExp.term_of(d')) {
+          switch (DExp.term_of(d')) {
           | Bool(true) =>
-            update_test(state, DHExp.rep_id(d), (d', info_map, Pass));
+            update_test(state, DExp.rep_id(d), (d', info_map, Pass));
             Tuple([]) |> fresh;
           | Bool(false) =>
-            update_test(state, DHExp.rep_id(d), (d', info_map, Fail));
+            update_test(state, DExp.rep_id(d), (d', info_map, Fail));
             Tuple([]) |> fresh;
           /* Hack: assume if final and not Bool, then Indet; this won't catch errors in statics */
           | _ =>
-            update_test(state, DHExp.rep_id(d), (d', info_map, Indet));
+            update_test(state, DExp.rep_id(d), (d', info_map, Indet));
             Tuple([]) |> fresh;
           },
         kind: UpdateTest,
@@ -346,7 +344,7 @@ module Transition = (EV: EV_MODE) => {
           d2 => Ap2(dir, d1, d2) |> wrap_ctx,
           d2,
         );
-      switch (DHExp.term_of(d1')) {
+      switch (DExp.term_of(d1')) {
       | Constructor(_) => Constructor
       | Fun(dp, d3, Some(env'), _) =>
         let.match env'' = (env', matches(dp, d2'));
@@ -405,7 +403,7 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, c => If(c, d1, d2) |> rewrap)
       and. c' =
         req_value(req(state, env), c => If1(c, d1, d2) |> wrap_ctx, c);
-      switch (DHExp.term_of(c')) {
+      switch (DExp.term_of(c')) {
       | Bool(b) =>
         Step({
           apply: () => {
@@ -438,7 +436,7 @@ module Transition = (EV: EV_MODE) => {
         );
       Step({
         apply: () =>
-          switch (DHExp.term_of(d1')) {
+          switch (DExp.term_of(d1')) {
           | Int(n) => Int(- n) |> fresh
           | _ => raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1')))
           },
@@ -455,7 +453,7 @@ module Transition = (EV: EV_MODE) => {
         );
       Step({
         apply: () =>
-          switch (DHExp.term_of(d1')) {
+          switch (DExp.term_of(d1')) {
           | Bool(b) => Bool(!b) |> fresh
           | _ => raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1')))
           },
@@ -472,7 +470,7 @@ module Transition = (EV: EV_MODE) => {
         );
       Step({
         apply: () =>
-          switch (DHExp.term_of(d1')) {
+          switch (DExp.term_of(d1')) {
           | Bool(true) => d2
           | Bool(false) => Bool(false) |> fresh
           | _ => raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1')))
@@ -490,7 +488,7 @@ module Transition = (EV: EV_MODE) => {
         );
       Step({
         apply: () =>
-          switch (DHExp.term_of(d1')) {
+          switch (DExp.term_of(d1')) {
           | Bool(true) => Bool(true) |> fresh
           | Bool(false) => d2
           | _ => raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d2)))
@@ -514,7 +512,7 @@ module Transition = (EV: EV_MODE) => {
         );
       Step({
         apply: () =>
-          switch (DHExp.term_of(d1'), DHExp.term_of(d2')) {
+          switch (DExp.term_of(d1'), DExp.term_of(d2')) {
           | (Int(n1), Int(n2)) =>
             (
               switch (op) {
@@ -567,7 +565,7 @@ module Transition = (EV: EV_MODE) => {
         );
       Step({
         apply: () =>
-          switch (DHExp.term_of(d1'), DHExp.term_of(d2')) {
+          switch (DExp.term_of(d1'), DExp.term_of(d2')) {
           | (Float(n1), Float(n2)) =>
             (
               switch (op) {
@@ -609,7 +607,7 @@ module Transition = (EV: EV_MODE) => {
         );
       Step({
         apply: () =>
-          switch (DHExp.term_of(d1'), DHExp.term_of(d2')) {
+          switch (DExp.term_of(d1'), DExp.term_of(d2')) {
           | (String(s1), String(s2)) =>
             switch (op) {
             | Concat => String(s1 ++ s2) |> fresh
@@ -771,7 +769,7 @@ module Transition = (EV: EV_MODE) => {
         /* ITExpand rule */
         Step({
           apply: () =>
-            DHExp.Cast(Cast(d', t1, t2_grounded) |> fresh, t2_grounded, t2)
+            DExp.Cast(Cast(d', t1, t2_grounded) |> fresh, t2_grounded, t2)
             |> fresh,
           kind: Cast,
           value: false,
@@ -780,7 +778,7 @@ module Transition = (EV: EV_MODE) => {
         /* ITGround rule */
         Step({
           apply: () =>
-            DHExp.Cast(Cast(d', t1, t1_grounded) |> fresh, t1_grounded, t2)
+            DExp.Cast(Cast(d', t1, t1_grounded) |> fresh, t1_grounded, t2)
             |> fresh,
           kind: Cast,
           value: false,

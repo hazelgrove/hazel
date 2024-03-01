@@ -6,16 +6,16 @@ type t =
   | StepDoesNotMatch
   | FreeInvalidVar(Var.t)
   | BadPatternMatch
-  | CastBVHoleGround(DHExp.t)
-  | InvalidBoxedFun(DHExp.t)
-  | InvalidBoxedBoolLit(DHExp.t)
-  | InvalidBoxedIntLit(DHExp.t)
-  | InvalidBoxedFloatLit(DHExp.t)
-  | InvalidBoxedListLit(DHExp.t)
-  | InvalidBoxedStringLit(DHExp.t)
-  | InvalidBoxedTuple(DHExp.t)
+  | CastBVHoleGround(DExp.t)
+  | InvalidBoxedFun(DExp.t)
+  | InvalidBoxedBoolLit(DExp.t)
+  | InvalidBoxedIntLit(DExp.t)
+  | InvalidBoxedFloatLit(DExp.t)
+  | InvalidBoxedListLit(DExp.t)
+  | InvalidBoxedStringLit(DExp.t)
+  | InvalidBoxedTuple(DExp.t)
   | InvalidBuiltin(string)
-  | BadBuiltinAp(string, list(DHExp.t))
+  | BadBuiltinAp(string, list(DExp.t))
   | InvalidProjection(int);
 
 exception Exception(t);

@@ -42,9 +42,9 @@ let precedence_bin_string_op = (bso: Operators.op_bin_string) =>
   | Concat => DHDoc_common.precedence_Plus
   | Equals => DHDoc_common.precedence_Equals
   };
-let rec precedence = (~show_casts: bool, d: DHExp.t) => {
+let rec precedence = (~show_casts: bool, d: DExp.t) => {
   let precedence' = precedence(~show_casts);
-  switch (DHExp.term_of(d)) {
+  switch (DExp.term_of(d)) {
   | Var(_)
   | Invalid(_)
   | Bool(_)
@@ -110,7 +110,7 @@ let mk =
       ~next_steps: list((int, Id.t)), // The options for the next step, if it hasn't been chosen yet
       ~env: ClosureEnvironment.t,
       ~infomap: Statics.Map.t,
-      d: DHExp.t,
+      d: DExp.t,
     )
     : DHDoc.t => {
   // // print_endline("");
@@ -126,7 +126,7 @@ let mk =
   let precedence = precedence(~show_casts=settings.show_casts);
   let rec go =
           (
-            d: DHExp.t,
+            d: DExp.t,
             env: ClosureEnvironment.t,
             enforce_inline: bool,
             recent_subst: list(Var.t),
@@ -136,10 +136,10 @@ let mk =
     open Doc;
     let recent_subst =
       switch (previous_step) {
-      | Some((ps, id)) when id == DHExp.rep_id(d) =>
-        switch (ps.knd, DHExp.term_of(ps.d_loc)) {
+      | Some((ps, id)) when id == DExp.rep_id(d) =>
+        switch (ps.knd, DExp.term_of(ps.d_loc)) {
         | (FunAp, Ap(_, d2, _)) =>
-          switch (DHExp.term_of(d2)) {
+          switch (DExp.term_of(d2)) {
           | Fun(p, _, _, _) => DHPat.bound_vars(infomap, p)
           | _ => []
           }
@@ -248,7 +248,7 @@ let mk =
       go_formattable(d2) |> parenthesize(precedence(d2) > precedence_op),
     );
     let doc = {
-      switch (DHExp.term_of(d)) {
+      switch (DExp.term_of(d)) {
       | Parens(d') => go'(d')
       | Closure(env', d') => go'(d', ~env=env')
       | Filter(flt, d') =>
@@ -284,13 +284,13 @@ let mk =
          the postprocessed result */
       | EmptyHole =>
         DHDoc_common.mk_EmptyHole(
-          ~selected=Some(DHExp.rep_id(d)) == selected_hole_instance,
+          ~selected=Some(DExp.rep_id(d)) == selected_hole_instance,
           env,
         )
       | MultiHole(_ds) =>
         //ds |> List.map(go') |> Doc.hcats
         DHDoc_common.mk_EmptyHole(
-          ~selected=Some(DHExp.rep_id(d)) == selected_hole_instance,
+          ~selected=Some(DExp.rep_id(d)) == selected_hole_instance,
           env,
         )
       | StaticErrorHole(_, d') => go'(d') |> annot(DHAnnot.NonEmptyHole)
@@ -434,7 +434,7 @@ let mk =
           ]);
         }
       | FailedCast(d1, ty2', ty3) =>
-        switch (DHExp.term_of(d1)) {
+        switch (DExp.term_of(d1)) {
         | Cast(d, ty1, ty2) when Typ.eq(ty2, ty2') =>
           let d_doc = go'(d);
           let cast_decoration =
@@ -493,7 +493,7 @@ let mk =
                 ClosureEnvironment.without_keys(Option.to_list(s), env'),
                 d,
               )
-              |> DHExp.fresh,
+              |> DExp.fresh,
               ~env=
                 ClosureEnvironment.without_keys(
                   DHPat.bound_vars(infomap, dp) @ Option.to_list(s),
@@ -589,22 +589,22 @@ let mk =
       };
     };
     let steppable =
-      next_steps |> List.find_opt(((_, id)) => id == DHExp.rep_id(d));
+      next_steps |> List.find_opt(((_, id)) => id == DExp.rep_id(d));
     let stepped =
       chosen_step
-      |> Option.map(x => DHExp.rep_id(x.d_loc) == DHExp.rep_id(d))
+      |> Option.map(x => DExp.rep_id(x.d_loc) == DExp.rep_id(d))
       |> Option.value(~default=false);
     let substitution =
       hidden_steps
       |> List.find_opt(((step, id)) =>
            step.knd == VarLookup
            // HACK[Matt]: to prevent substitutions hiding inside casts
-           && id == DHExp.rep_id(d)
+           && id == DExp.rep_id(d)
          );
     let doc =
       switch (substitution) {
       | Some((step, _)) =>
-        switch (DHExp.term_of(step.d_loc)) {
+        switch (DExp.term_of(step.d_loc)) {
         | Var(v) when List.mem(v, recent_subst) =>
           hcats([text(v) |> annot(DHAnnot.Substituted), doc])
         | _ => doc
