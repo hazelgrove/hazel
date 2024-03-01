@@ -269,13 +269,31 @@ let rec dhexp_of_uexp =
         let* ddef = dhexp_of_uexp(m, def);
         let* dbody = dhexp_of_uexp(m, body);
         let+ ty_body = fixed_exp_typ(m, body);
+        /* if get module type, apply alias(Let).*/
+        let is_alias =
+          switch (Id.Map.find_opt(Term.UExp.rep_id(def), m)) {
+          | Some(InfoExp({ty, _})) =>
+            switch (ty) {
+            | Module(_) => true
+            | _ => false
+            }
+          | _ => false
+          };
         switch (Term.UPat.get_recursive_bindings(p)) {
         | None =>
           /* not recursive */
-          DHExp.Module(dp, ddef, dbody)
+          if (is_alias) {
+            DHExp.Let(dp, ddef, dbody);
+          } else {
+            DHExp.Module(dp, ddef, dbody);
+          }
         | Some([f]) =>
           /* simple recursion */
-          Module(dp, FixF(f, ty_body, add_name(Some(f), ddef)), dbody)
+          if (is_alias) {
+            Let(dp, FixF(f, ty_body, add_name(Some(f), ddef)), dbody);
+          } else {
+            Module(dp, FixF(f, ty_body, add_name(Some(f), ddef)), dbody);
+          }
         | Some(fs) =>
           /* mutual recursion */
           let ddef =
@@ -297,7 +315,11 @@ let rec dhexp_of_uexp =
                  },
                  (0, ddef),
                );
-          Module(dp, FixF(self_id, ty_body, substituted_def), dbody);
+          if (is_alias) {
+            Let(dp, FixF(self_id, ty_body, substituted_def), dbody);
+          } else {
+            Module(dp, FixF(self_id, ty_body, substituted_def), dbody);
+          };
         };
       | Dot(e_mod, e_mem) =>
         let* e_mod = dhexp_of_uexp(m, e_mod);
