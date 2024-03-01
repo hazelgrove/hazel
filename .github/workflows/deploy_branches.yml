@@ -50,15 +50,15 @@ jobs:
             echo "::set-output name=tests_passed::false"
           fi
         working-directory: ./source
-      - uses: LouisBrunner/checks-action@v2.0.0
-        if: always()
+      - name: Test Report
+        uses: dorny/test-reporter@v1
+        continue-on-error: true
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          name: Test Results
-          conclusion: ${{ steps.test.outputs.tests_passed == 'true' && 'success' || 'failure' }}
-          output_text_description_file: ./source/test_output
-          output: |
-            {"summary":"${{ steps.test.outputs.tests_passed == 'true' && 'Tests Passed' || 'Tests Failed' }}"}
+          name: Test Report
+          path: junit_tests*.xml
+          reporter: java-junit
+          fail-on-error: true
+          working-directory: ./source
       - name: Checkout the website build artifacts repo
         uses: actions/checkout@v2
         with:
