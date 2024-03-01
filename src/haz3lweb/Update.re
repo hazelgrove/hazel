@@ -93,6 +93,10 @@ let update_settings =
           ...evaluation,
           show_settings: !evaluation.show_settings,
         }
+      | ShowHiddenSteps => {
+          ...evaluation,
+          show_hidden_steps: !evaluation.show_hidden_steps,
+        }
       };
     };
     {
