@@ -182,20 +182,20 @@ let rec dhexp_of_uexp =
         Cast(d1', t1, t2) |> rewrap;
       | Invalid(t) => Some(DHExp.Invalid(t) |> rewrap)
       | EmptyHole => Some(DHExp.EmptyHole |> rewrap)
-      | MultiHole(us: list(TermBase.Any.t)) =>
-        switch (
-          us
-          |> List.filter_map(
-               fun
-               | TermBase.Any.Exp(x) => Some(x)
-               | _ => None,
-             )
-        ) {
-        | [] => Some(DHExp.EmptyHole |> rewrap)
-        | us =>
-          let+ ds = us |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
-          DHExp.MultiHole(ds) |> rewrap;
-        }
+      | MultiHole(_: list(TermBase.Any.t)) => Some(EmptyHole |> rewrap)
+      // switch (
+      //   us
+      //   |> List.filter_map(
+      //        fun
+      //        | TermBase.Any.Exp(x) => Some(x)
+      //        | _ => None,
+      //      )
+      // ) {
+      // | [] => Some(DHExp.EmptyHole |> rewrap)
+      // | us =>
+      //   let+ ds = us |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
+      //   DHExp.MultiHole(ds) |> rewrap;
+      // }
       | StaticErrorHole(_, e) => dhexp_of_uexp(m, e)
       | DynamicErrorHole(e, err) =>
         let+ d1 = dhexp_of_uexp(m, e);
@@ -252,10 +252,13 @@ let rec dhexp_of_uexp =
       | Test(test) =>
         let+ dtest = dhexp_of_uexp(m, test);
         DHExp.Test(dtest) |> rewrap;
-      | Filter(act, cond, body) =>
+      | Filter(Filter({act, pat: cond}), body) =>
         let* dcond = dhexp_of_uexp(~in_filter=true, m, cond);
         let+ dbody = dhexp_of_uexp(m, body);
-        DHExp.Filter(Filter(Filter.mk(dcond, act)), dbody) |> rewrap;
+        DHExp.Filter(Filter({act, pat: dcond}), dbody) |> rewrap;
+      | Filter(Residue(_) as residue, body) =>
+        let+ dbody = dhexp_of_uexp(m, body);
+        DHExp.Filter(residue, dbody) |> rewrap;
       | Var(name) => Some(Var(name) |> rewrap)
       | Constructor(name) => Some(Constructor(name) |> rewrap)
       | Let(p, def, body) =>

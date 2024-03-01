@@ -61,7 +61,7 @@ let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
   | Cast(u, _, _)
   | UnOp(_, u)
   | TyAlias(_, _, u)
-  | Filter(_, _, u) => var_mention(name, u)
+  | Filter(_, u) => var_mention(name, u)
   | Ap(_, u1, u2)
   | Seq(u1, u2)
   | Cons(u1, u2)
@@ -112,7 +112,7 @@ let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
   | UnOp(_, u)
   | TyAlias(_, _, u)
   | Closure(_, u)
-  | Filter(_, _, u) => var_applied(name, u)
+  | Filter(_, u) => var_applied(name, u)
   | Ap(_, u1, u2) =>
     switch (u1.term) {
     | Var(x) => x == name ? true : var_applied(name, u2)
@@ -198,7 +198,7 @@ let rec find_fn =
   | TyAlias(_, _, u1)
   | Test(u1)
   | Closure(_, u1)
-  | Filter(_, _, u1) => l |> find_fn(name, u1)
+  | Filter(_, u1) => l |> find_fn(name, u1)
   | Ap(_, u1, u2)
   | Seq(u1, u2)
   | Cons(u1, u2)
@@ -269,7 +269,7 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   | Test(_) => false
   | TyAlias(_, _, u)
   | Cast(u, _, _)
-  | Filter(_, _, u)
+  | Filter(_, u)
   | Closure(_, u)
   | Parens(u) => tail_check(name, u)
   | UnOp(_, u) => !var_mention(name, u)

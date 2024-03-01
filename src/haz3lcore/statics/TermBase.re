@@ -166,7 +166,7 @@ and UExp: {
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
-    | Filter(FilterAction.t, t, t)
+    | Filter(StepperFilterKind.t, t)
     | Closure([@show.opaque] ClosureEnvironment.t, t)
     | Parens(t) // (
     | Cons(t, t)
@@ -315,7 +315,7 @@ and UExp: {
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
-    | Filter(FilterAction.t, t, t) // TODO: Change to reflect UExp
+    | Filter(StepperFilterKind.t, t) // TODO: Change to reflect UExp
     | Closure([@show.opaque] ClosureEnvironment.t, t)
     | Parens(t)
     | Cons(t, t)
@@ -646,4 +646,36 @@ and ClosureEnvironment: {
   let placeholder = wrap(EnvironmentId.invalid, Environment.empty);
 
   let without_keys = keys => update(Environment.without_keys(keys));
+}
+and StepperFilterKind: {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type filter = {
+    pat: UExp.t,
+    act: FilterAction.t,
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Filter(filter)
+    | Residue(int, FilterAction.t);
+
+  let map: (UExp.t => UExp.t, t) => t;
+} = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type filter = {
+    pat: UExp.t,
+    act: FilterAction.t,
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Filter(filter)
+    | Residue(int, FilterAction.t);
+
+  let map = (mapper, filter) => {
+    switch (filter) {
+    | Filter({act, pat}) => Filter({act, pat: mapper(pat)})
+    | Residue(idx, act) => Residue(idx, act)
+    };
+  };
 };

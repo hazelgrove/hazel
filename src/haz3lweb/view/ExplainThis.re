@@ -1611,34 +1611,35 @@ let get_doc =
             ),
           SeqExp.seqs,
         );
-      | Filter((Step, One), pat, body) =>
+      | Filter(Filter({act: (Step, One), pat}), body) =>
         message_single(
           FilterExp.filter_pause(
             ~p_id=Term.UExp.rep_id(pat),
             ~body_id=Term.UExp.rep_id(body),
           ),
         )
-      | Filter((Step, All), pat, body) =>
+      | Filter(Filter({act: (Step, All), pat}), body) =>
         message_single(
           FilterExp.filter_debug(
             ~p_id=Term.UExp.rep_id(pat),
             ~body_id=Term.UExp.rep_id(body),
           ),
         )
-      | Filter((Eval, All), pat, body) =>
+      | Filter(Filter({act: (Eval, All), pat}), body) =>
         message_single(
           FilterExp.filter_eval(
             ~p_id=Term.UExp.rep_id(pat),
             ~body_id=Term.UExp.rep_id(body),
           ),
         )
-      | Filter((Eval, One), pat, body) =>
+      | Filter(Filter({act: (Eval, One), pat}), body) =>
         message_single(
           FilterExp.filter_hide(
             ~p_id=Term.UExp.rep_id(pat),
             ~body_id=Term.UExp.rep_id(body),
           ),
         )
+      | Filter(_) => simple("Internal expression")
       | Test(body) =>
         let body_id = List.nth(body.ids, 0);
         get_message(

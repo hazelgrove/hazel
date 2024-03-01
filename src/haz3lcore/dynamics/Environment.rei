@@ -1,1 +1,2 @@
-include  (module type of DH.Environment) with type t = DH.Environment.t;
+include
+   (module type of TermBase.Environment) with type t = TermBase.Environment.t;

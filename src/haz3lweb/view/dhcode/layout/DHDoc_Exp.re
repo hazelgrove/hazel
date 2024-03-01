@@ -287,7 +287,12 @@ let mk =
           ~selected=Some(DHExp.rep_id(d)) == selected_hole_instance,
           env,
         )
-      | MultiHole(ds) => ds |> List.map(go') |> Doc.hcats
+      | MultiHole(_ds) =>
+        //ds |> List.map(go') |> Doc.hcats
+        DHDoc_common.mk_EmptyHole(
+          ~selected=Some(DHExp.rep_id(d)) == selected_hole_instance,
+          env,
+        )
       | StaticErrorHole(_, d') => go'(d') |> annot(DHAnnot.NonEmptyHole)
       | Invalid(t) => DHDoc_common.mk_InvalidText(t)
       | Var(x) when List.mem(x, recursive_calls) => text(x)

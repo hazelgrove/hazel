@@ -75,13 +75,9 @@ let rec append_exp = (e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   | Seq(e11, e12) =>
     let e12' = append_exp(e12, e2);
     TermBase.UExp.{ids: e1.ids, copied: false, term: Seq(e11, e12')};
-  | Filter(act, econd, ebody) =>
+  | Filter(kind, ebody) =>
     let ebody' = append_exp(ebody, e2);
-    TermBase.UExp.{
-      ids: e1.ids,
-      copied: false,
-      term: Filter(act, econd, ebody'),
-    };
+    TermBase.UExp.{ids: e1.ids, copied: false, term: Filter(kind, ebody')};
   | Let(p, edef, ebody) =>
     let ebody' = append_exp(ebody, e2);
     TermBase.UExp.{ids: e1.ids, copied: false, term: Let(p, edef, ebody')};

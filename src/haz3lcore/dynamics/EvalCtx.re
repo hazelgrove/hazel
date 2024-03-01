@@ -5,7 +5,7 @@ open DH;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type term =
   | Closure([@show.opaque] ClosureEnvironment.t, t)
-  | Filter(DH.DHFilter.t, t)
+  | Filter(TermBase.StepperFilterKind.t, t)
   | Seq1(t, DHExp.t)
   | Seq2(DHExp.t, t)
   | Let1(TermBase.UPat.t, t, DHExp.t)
@@ -23,7 +23,7 @@ type term =
   | Tuple(t, (list(DHExp.t), list(DHExp.t)))
   | Test(t)
   | ListLit(t, (list(DHExp.t), list(DHExp.t)))
-  | MultiHole(t, (list(DHExp.t), list(DHExp.t)))
+  | MultiHole(t, (list(TermBase.Any.t), list(TermBase.Any.t)))
   | Cons1(t, DHExp.t)
   | Cons2(DHExp.t, t)
   | ListConcat1(t, DHExp.t)
@@ -115,7 +115,8 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
         ListLit(ListUtil.rev_concat(ld, [d, ...rd])) |> wrap;
       | MultiHole(ctx, (ld, rd)) =>
         let d = compose(ctx, d);
-        MultiHole(ListUtil.rev_concat(ld, [d, ...rd])) |> wrap;
+        MultiHole(ListUtil.rev_concat(ld, [TermBase.Any.Exp(d), ...rd]))
+        |> wrap;
       | Let1(dp, ctx, d2) =>
         let d = compose(ctx, d);
         Let(dp, d, d2) |> wrap;

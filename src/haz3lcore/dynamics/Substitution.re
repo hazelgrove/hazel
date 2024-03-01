@@ -93,7 +93,8 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
       );
     Match(ds, rules) |> rewrap;
   | EmptyHole => EmptyHole |> rewrap
-  | MultiHole(ds) => MultiHole(List.map(subst_var(m, d1, x), ds)) |> rewrap
+  // TODO: handle multihole
+  | MultiHole(_d2) => d2 //MultiHole(List.map(subst_var(m, d1, x), ds)) |> rewrap
   | StaticErrorHole(u, d3) =>
     let d3' = subst_var(m, d1, x, d3);
     StaticErrorHole(u, d3') |> rewrap;
@@ -153,8 +154,9 @@ and subst_var_env =
 }
 
 and subst_var_filter =
-    (m, d1: DHExp.t, x: Var.t, flt: DH.DHFilter.t): DH.DHFilter.t => {
-  flt |> DH.DHFilter.map(subst_var(m, d1, x));
+    (m, d1: DHExp.t, x: Var.t, flt: TermBase.StepperFilterKind.t)
+    : TermBase.StepperFilterKind.t => {
+  flt |> TermBase.StepperFilterKind.map(subst_var(m, d1, x));
 };
 
 let subst = (m, env: Environment.t, d: DHExp.t): DHExp.t =>
