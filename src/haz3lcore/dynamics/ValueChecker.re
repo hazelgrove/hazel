@@ -76,7 +76,8 @@ module ValueCheckerEVMode: {
 
 module CV = Transition(ValueCheckerEVMode);
 
-let rec check_value = ((), env, d) => CV.transition(check_value, (), env, d);
+let rec check_value = ((), env, d) =>
+  CV.transition(check_value, check_value, (), env, d);
 
 let check_value = check_value();
 
@@ -92,6 +93,6 @@ let rec check_value_mod_ctx = ((), env) =>
            raise(EvaluatorError.Exception(FreeInvalidVar(x)));
          }),
     )
-  | d => CV.transition(check_value_mod_ctx, (), env, d);
+  | d => CV.transition(check_value_mod_ctx, check_value_mod_ctx, (), env, d);
 
 let check_value_mod_ctx = check_value_mod_ctx();

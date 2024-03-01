@@ -48,8 +48,11 @@ open DH;
 type step_kind =
   | InvalidStep
   | VarLookup
+  | ModuleLookup
   | Sequence
   | LetBind
+  | ModuleBind
+  | DotAccess
   | FunClosure
   | FixUnwrap
   | UpdateTest
@@ -105,6 +108,7 @@ module CastHelpers = {
     | Int
     | Float
     | String
+    | Module(_)
     | Var(_)
     | Rec(_)
     | Arrow(Unknown(_), Unknown(_))
@@ -125,6 +129,7 @@ module CastHelpers = {
         ? Ground : grounded_Sum(sm)
     | Arrow(_, _) => grounded_Arrow
     | List(_) => grounded_List
+    | Member(_, ty) => ground_cases_of(ty)
     };
   };
 };
@@ -186,6 +191,7 @@ module type EV_MODE = {
 module Transition = (EV: EV_MODE) => {
   open EV;
   open DHExp;
+
   let (let.match) = ((env, match_result), r) =>
     switch (match_result) {
     | IndetMatch
@@ -193,7 +199,7 @@ module Transition = (EV: EV_MODE) => {
     | Matches(env') => r(evaluate_extend_env(env', env))
     };
 
-  let transition = (req, state, env, d): 'a =>
+  let transition = (req, mod_req, state, env, d): 'a =>
     switch (d) {
     | BoundVar(x) =>
       let. _ = otherwise(env, BoundVar(x));
@@ -212,6 +218,25 @@ module Transition = (EV: EV_MODE) => {
       and. d1' = req_final(req(state, env), d1 => Let1(dp, d1, d2), d1);
       let.match env' = (env, matches(dp, d1'));
       Step({apply: () => Closure(env', d2), kind: LetBind, value: false});
+    | Module(dp, d1, d2) =>
+      let. _ = otherwise(env, d1 => Module(dp, d1, d2))
+      and. d1' =
+        req_final(mod_req(state, env), d1 => Module1(dp, d1, d2), d1);
+      let.match env' = (env, matches(dp, d1'));
+      Step({apply: () => Closure(env', d2), kind: ModuleBind, value: false});
+    | Dot(d1, d2) =>
+      let. _ = otherwise(env, d1 => Dot(d1, d2))
+      and. d1' = req_final(req(state, env), d1 => Dot1(d1, d2), d1);
+      Step({
+        apply: () =>
+          switch (d1') {
+          | ModuleVal(inner_env) => Closure(inner_env, d2)
+          | _ => raise(EvaluatorError.Exception(InvalidBoxedModule(d1')))
+          },
+        kind: BinBoolOp(Or),
+        value: false,
+      });
+
     | Fun(_, _, Closure(_), _) =>
       let. _ = otherwise(env, d);
       Constructor;
@@ -309,7 +334,16 @@ module Transition = (EV: EV_MODE) => {
     | IntLit(_)
     | FloatLit(_)
     | StringLit(_)
-    | Constructor(_)
+    | ModuleVal(_) =>
+      let. _ = otherwise(env, d);
+      Constructor;
+    | Constructor(x) =>
+      let. _ = otherwise(env, d);
+      switch (ClosureEnvironment.lookup(env, x)) {
+      | None => Constructor
+      | Some(d) => Step({apply: () => d, kind: ModuleLookup, value: false})
+      };
+
     | BuiltinFun(_) =>
       let. _ = otherwise(env, d);
       Constructor;
@@ -647,6 +681,9 @@ module Transition = (EV: EV_MODE) => {
 let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
   fun
   | LetBind
+  | ModuleBind
+  | ModuleLookup
+  | DotAccess
   | Sequence
   | UpdateTest
   | FunAp

@@ -61,7 +61,8 @@ let main_view =
       ~attr=Attr.id("top-bar"),
       NutMenu.view(~inject, ~settings, ~editors)
       @ [div(~attr=Attr.id("title"), [text("hazel")])]
-      @ [EditorModeView.view(~inject, ~settings, ~editors)],
+      @ [EditorModeView.view(~inject, ~settings, ~editors)]
+      @ ScratchMode.breadcrumb_bar(~inject, ~settings, ~editors),
     );
   let bottom_bar = CursorInspector.view(~inject, ~settings, cursor_info);
   let sidebar =

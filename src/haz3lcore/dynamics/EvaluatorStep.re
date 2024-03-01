@@ -159,7 +159,7 @@ module Decompose = {
           Step({apply: () => d1, kind: CompleteFilter, value: true});
         }
       )
-    | _ => Decomp.transition(decompose, state, env, exp)
+    | _ => Decomp.transition(decompose, decompose, state, env, exp)
     };
   };
 };
@@ -199,7 +199,13 @@ module TakeStep = {
   module TakeStepEV = Transition(TakeStepEVMode);
 
   let take_step = (state, env, d) =>
-    TakeStepEV.transition((_, _, _) => None, state, env, d);
+    TakeStepEV.transition(
+      (_, _, _) => None,
+      (_, _, _) => None,
+      state,
+      env,
+      d,
+    );
 };
 
 let take_step = TakeStep.take_step;
@@ -297,6 +303,18 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
     | Let2(dp, d1, ctx) =>
       let d = compose(ctx, d);
       Let(dp, d1, d);
+    | Module1(dp, ctx, d2) =>
+      let d = compose(ctx, d);
+      Module(dp, d, d2);
+    | Module2(dp, d1, ctx) =>
+      let d = compose(ctx, d);
+      Module(dp, d1, d);
+    | Dot1(ctx, d2) =>
+      let d1 = compose(ctx, d);
+      Dot(d1, d2);
+    | Dot2(d1, ctx) =>
+      let d2 = compose(ctx, d);
+      Dot(d1, d2);
     | Fun(dp, t, ctx, v) =>
       let d = compose(ctx, d);
       Fun(dp, t, d, v);

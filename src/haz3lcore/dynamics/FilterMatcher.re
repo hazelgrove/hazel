@@ -98,6 +98,15 @@ let rec matches_exp =
     && matches_exp(env, d1, f1)
     && matches_exp(env, d2, f2)
   | (Let(_), _) => false
+  | (Module(dp, d1, d2), Module(fp, f1, f2)) =>
+    matches_pat(dp, fp)
+    && matches_exp(env, d1, f1)
+    && matches_exp(env, d2, f2)
+  | (Module(_), _) => false
+  | (Dot(d1, d2), Dot(f1, f2)) =>
+    matches_exp(env, d1, f1) && matches_exp(env, d2, f2)
+  | (Dot(_), _) => false
+  | (ModuleVal(_), _) => false
 
   | (Ap(d1, d2), Ap(f1, f2)) =>
     matches_exp(env, d1, f1) && matches_exp(env, d2, f2)

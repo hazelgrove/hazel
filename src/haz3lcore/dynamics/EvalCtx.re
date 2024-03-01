@@ -11,6 +11,10 @@ type cls =
   | Sequence2
   | Let1
   | Let2
+  | Module1
+  | Module2
+  | Dot1
+  | Dot2
   | Ap1
   | Ap2
   | Fun
@@ -56,6 +60,10 @@ type t =
   | Sequence2(DHExp.t, t)
   | Let1(DHPat.t, t, DHExp.t)
   | Let2(DHPat.t, DHExp.t, t)
+  | Module1(DHPat.t, t, DHExp.t)
+  | Module2(DHPat.t, DHExp.t, t)
+  | Dot1(t, DHExp.t)
+  | Dot2(DHExp.t, t)
   | Fun(DHPat.t, Typ.t, t, option(Var.t))
   | FixF(Var.t, Typ.t, t)
   | Ap1(t, DHExp.t)
@@ -124,6 +132,10 @@ let rec fuzzy_mark =
   | Sequence2(_)
   | Let1(_)
   | Let2(_)
+  | Module1(_)
+  | Module2(_)
+  | Dot1(_)
+  | Dot2(_)
   | Fun(_)
   | FixF(_)
   | Ap1(_)

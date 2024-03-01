@@ -6,6 +6,7 @@ type t =
   | BadPatternMatch
   | CastBVHoleGround(DHExp.t)
   | InvalidBoxedFun(DHExp.t)
+  | InvalidBoxedModule(DHExp.t)
   | InvalidBoxedBoolLit(DHExp.t)
   | InvalidBoxedIntLit(DHExp.t)
   | InvalidBoxedFloatLit(DHExp.t)

@@ -32,6 +32,8 @@ module rec Typ: {
     | Arrow(t, t)
     | Sum(sum_map)
     | Prod(list(t))
+    | Module(Ctx.t)
+    | Member(Token.t, t)
     | Rec(TypVar.t, t)
   and sum_map = ConstructorMap.t(option(t));
 
@@ -89,6 +91,8 @@ module rec Typ: {
     | Arrow(t, t)
     | Sum(sum_map)
     | Prod(list(t))
+    | Module(Ctx.t)
+    | Member(Token.t, t)
     | Rec(TypVar.t, t)
   and sum_map = ConstructorMap.t(option(t));
 
@@ -129,6 +133,8 @@ module rec Typ: {
     | String
     | Unknown(_)
     | Var(_)
+    | Module(_)
+    | Member(_)
     | Rec(_)
     | Sum(_) => precedence_Sum
     | List(_) => precedence_Const
@@ -149,6 +155,17 @@ module rec Typ: {
     | Rec(y, ty) when TypVar.eq(x, y) => Rec(y, ty)
     | Rec(y, ty) => Rec(y, subst(s, x, ty))
     | List(ty) => List(subst(s, x, ty))
+    | Module(inner_ctx) =>
+      let ctx_entry_subst = (e: Ctx.entry): Ctx.entry => {
+        switch (e) {
+        | VarEntry(t) => VarEntry({...t, typ: subst(s, x, t.typ)})
+        | ConstructorEntry(t) =>
+          ConstructorEntry({...t, typ: subst(s, x, t.typ)})
+        | TVarEntry(_) => e
+        };
+      };
+      Module(List.map(ctx_entry_subst, inner_ctx));
+    | Member(name, ty) => Member(name, subst(s, x, ty))
     | Var(y) => TypVar.eq(x, y) ? s : Var(y)
     };
   };
@@ -163,6 +180,8 @@ module rec Typ: {
      but this will change when polymorphic types are implemented */
   let rec eq = (t1: t, t2: t): bool => {
     switch (t1, t2) {
+    | (Member(_, ty1), ty2) => eq(ty1, ty2)
+    | (ty1, Member(_, ty2)) => eq(ty1, ty2)
     | (Rec(x1, t1), Rec(x2, t2)) => eq(t1, subst(Var(x1), x2, t2))
     | (Rec(_), _) => false
     | (Int, Int) => true
@@ -186,6 +205,8 @@ module rec Typ: {
     | (Sum(_), _) => false
     | (Var(n1), Var(n2)) => n1 == n2
     | (Var(_), _) => false
+    | (Module(ctx1), Module(ctx2)) => List.equal((==), ctx1, ctx2)
+    | (Module(_), _) => false
     };
   };
 
@@ -207,6 +228,16 @@ module rec Typ: {
         List.map(snd, sm),
       )
     | Prod(tys) => ListUtil.flat_map(free_vars(~bound), tys)
+    | Module(inner_ctx) =>
+      let ctx_entry_subst = (l: list(Token.t), e: Ctx.entry): list(Token.t) => {
+        switch (e) {
+        | VarEntry(t)
+        | ConstructorEntry(t) => l @ free_vars(t.typ)
+        | TVarEntry(_) => l
+        };
+      };
+      List.fold_left(ctx_entry_subst, [], inner_ctx);
+    | Member(_, ty) => free_vars(ty)
     | Rec(x, ty) => free_vars(~bound=[x, ...bound], ty)
     };
 
@@ -219,6 +250,20 @@ module rec Typ: {
           (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let join' = join(~resolve, ~fix, ctx);
     switch (ty1, ty2) {
+    | (Member(_, Unknown(Internal)), ty)
+    | (ty, Member(_, Unknown(Internal))) => Some(ty)
+    | (Member(n1, ty1), Member(n2, ty2)) =>
+      if (n1 == n2) {
+        let* ty = join'(ty1, ty2);
+        Some(Member(n1, ty));
+      } else {
+        let+ ty_join = join'(ty1, ty2);
+        resolve ? ty_join : Member(n1, ty_join);
+      }
+    | (Member(name, ty1), ty2)
+    | (ty2, Member(name, ty1)) =>
+      let+ ty_join = join'(ty1, ty2);
+      resolve ? ty_join : Member(name, ty_join);
     | (_, Unknown(TypeHole | Free(_)) as ty) when fix =>
       /* NOTE(andrew): This is load bearing
          for ensuring that function literals get appropriate
@@ -293,6 +338,8 @@ module rec Typ: {
       let+ ty = join'(ty1, ty2);
       List(ty);
     | (List(_), _) => None
+    | (Module(ctx1), Module(ctx2)) => Some(Module(ctx1 @ ctx2))
+    | (Module(_), _) => None
     };
   }
   and join_sum_entries =
@@ -350,6 +397,17 @@ module rec Typ: {
     | Arrow(t1, t2) => Arrow(normalize(ctx, t1), normalize(ctx, t2))
     | Prod(ts) => Prod(List.map(normalize(ctx), ts))
     | Sum(ts) => Sum(ConstructorMap.map(Option.map(normalize(ctx)), ts))
+    | Module(inner_ctx) =>
+      let ctx_entry_subst = (e: Ctx.entry): Ctx.entry => {
+        switch (e) {
+        | VarEntry(t) => VarEntry({...t, typ: normalize(ctx, t.typ)})
+        | ConstructorEntry(t) =>
+          ConstructorEntry({...t, typ: normalize(ctx, t.typ)})
+        | TVarEntry(_) => e
+        };
+      };
+      Module(List.map(ctx_entry_subst, inner_ctx));
+    | Member(_, ty) => normalize(ctx, ty)
     | Rec(name, ty) =>
       /* NOTE: Dummy tvar added has fake id but shouldn't matter
          as in current implementation Recs do not occur in the
@@ -387,9 +445,10 @@ module rec Typ: {
       ctrs,
     );
 
-  let get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
+  let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
     let ty = weak_head_normalize(ctx, ty);
     switch (ty) {
+    | Member(_, ty) => get_sum_constructors(ctx, ty)
     | Sum(sm) => Some(sm)
     | Rec(_) =>
       /* Note: We must unroll here to get right ctr types;
@@ -463,6 +522,7 @@ and Ctx: {
   let subtract_prefix: (t, t) => option(t);
   let added_bindings: (t, t) => t;
   let filter_duplicates: t => t;
+  let modulize: (Typ.t, string) => Typ.t;
   let shadows_typ: (t, TypVar.t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -604,6 +664,55 @@ and Ctx: {
          ([], VarSet.empty, VarSet.empty),
        )
     |> (((ctx, _, _)) => List.rev(ctx));
+  let rec modulize_item = (ctx: t, x: Token.t, ty: Typ.t): Typ.t => {
+    switch (ty) {
+    | Int => Int
+    | Float => Float
+    | Bool => Bool
+    | String => String
+    | Member(name, ty) => Member(x ++ "." ++ name, ty)
+    | Unknown(prov) => Unknown(prov)
+    | Arrow(ty1, ty2) =>
+      Arrow(modulize_item(ctx, x, ty1), modulize_item(ctx, x, ty2))
+    | Prod(tys) => Prod(List.map(modulize_item(ctx, x), tys))
+    | Sum(sm) =>
+      Sum(ConstructorMap.map(Option.map(modulize_item(ctx, x)), sm))
+    | Rec(y, ty) => Rec(y, modulize_item(ctx, x, ty))
+    | List(ty) => List(modulize_item(ctx, x, ty))
+    | Var(n) => Member(x ++ "." ++ n, Typ.weak_head_normalize(ctx, ty))
+    | Module(inner_ctx) =>
+      let ctx_entry_modulize = (e: entry): entry => {
+        switch (e) {
+        | VarEntry(t) => VarEntry({...t, typ: modulize_item(ctx, x, t.typ)})
+        | ConstructorEntry(t) =>
+          ConstructorEntry({...t, typ: modulize_item(ctx, x, t.typ)})
+        | TVarEntry(_) => e
+        };
+      };
+      Module(List.map(ctx_entry_modulize, inner_ctx));
+    };
+  };
+
+  let modulize = (ty: Typ.t, x: string): Typ.t => {
+    switch (ty) {
+    | Module(ctx) =>
+      Module(
+        List.map(
+          (e: entry): entry => {
+            switch (e) {
+            | VarEntry(t) =>
+              VarEntry({...t, typ: modulize_item(ctx, x, t.typ)})
+            | ConstructorEntry(t) =>
+              ConstructorEntry({...t, typ: modulize_item(ctx, x, t.typ)})
+            | TVarEntry(_) => e
+            }
+          },
+          ctx,
+        ),
+      )
+    | _ => ty
+    };
+  };
 
   let shadows_typ = (ctx: t, name: TypVar.t): bool =>
     Form.is_base_typ(name) || lookup_alias(ctx, name) != None;

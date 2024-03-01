@@ -70,6 +70,7 @@ type error_exp =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_pat =
+  | ExpectedModule(string)
   | ExpectedConstructor /* Only construtors can be applied */
   | Common(error_common);
 
@@ -128,6 +129,8 @@ type status_variant =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type typ_expects =
   | TypeExpected
+  | ModuleExpected
+  | AnaTypeExpected(Typ.t)
   | ConstructorExpected(status_variant, Typ.t)
   | VariantExpected(status_variant, Typ.t);
 
@@ -141,6 +144,12 @@ type error_typ =
   | FreeTypeVariable(TypVar.t) /* Free type variable */
   | DuplicateConstructor(Constructor.t) /* Duplicate ctr in same sum */
   | WantTypeFoundAp
+  | FreeTypeMember(Token.t)
+  | WantModule
+  | InconsistentMember({
+      ana: Typ.t,
+      syn: Typ.t,
+    })
   | WantConstructorFoundType(Typ.t)
   | WantConstructorFoundAp;
 
@@ -150,6 +159,7 @@ type ok_typ =
   | Variant(Constructor.t, Typ.t)
   | VariantIncomplete(Typ.t)
   | TypeAlias(TypVar.t, Typ.t)
+  | Module(Constructor.t, Ctx.t)
   | Type(Typ.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -350,6 +360,8 @@ let rec status_common =
 
 let status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
   switch (mode, self) {
+  | (Ana(Module(_)), Common(BadToken(name))) =>
+    InHole(ExpectedModule(name))
   | (Syn | Ana(_), Common(self_pat))
   | (SynFun, Common(IsConstructor(_) as self_pat)) =>
     /* Little bit of a hack. Anything other than a bound ctr will, in
@@ -399,6 +411,12 @@ let status_typ =
     | ConstructorExpected(Unique, sum_ty) =>
       NotInHole(Variant(name, sum_ty))
     | VariantExpected(Duplicate, _)
+    | ModuleExpected =>
+      switch (Module.get_module("", ctx, term)) {
+      | Some((name, Some(inner_ctx))) => NotInHole(Module(name, inner_ctx))
+      | _ => InHole(WantModule)
+      }
+
     | ConstructorExpected(Duplicate, _) =>
       InHole(DuplicateConstructor(name))
     | TypeExpected =>
@@ -406,6 +424,7 @@ let status_typ =
       | false => InHole(FreeTypeVariable(name))
       | true => NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
       }
+    | AnaTypeExpected(ana) => InHole(InconsistentMember({ana, syn: ty}))
     }
   | Ap(t1, t2) =>
     switch (expects) {
@@ -416,12 +435,29 @@ let status_typ =
         NotInHole(Variant(name, Arrow(ty_in, ty_variant)))
       | _ => NotInHole(VariantIncomplete(Arrow(ty_in, ty_variant)))
       };
+    | ModuleExpected => InHole(WantModule)
     | ConstructorExpected(_) => InHole(WantConstructorFoundAp)
     | TypeExpected => InHole(WantTypeFoundAp)
+    | AnaTypeExpected(ana) => InHole(InconsistentMember({ana, syn: ty}))
     }
+  | Dot(_, _) =>
+    switch (expects, ty) {
+    | (ModuleExpected, _) =>
+      switch (Module.get_module("", ctx, term)) {
+      | Some((name, Some(inner_ctx))) => NotInHole(Module(name, inner_ctx))
+      | _ => InHole(WantModule)
+      }
+    | (_, Member(name, Typ.Unknown(Internal))) =>
+      InHole(FreeTypeMember(name))
+    | (_, Member(name, ty)) => NotInHole(TypeAlias(name, ty))
+    | _ => InHole(BadToken("")) // Shouldn't reach
+    }
+
   | _ =>
     switch (expects) {
     | TypeExpected => NotInHole(Type(ty))
+    | ModuleExpected => InHole(WantModule)
+    | AnaTypeExpected(ana) => InHole(InconsistentMember({ana, syn: ty}))
     | ConstructorExpected(_)
     | VariantExpected(_) => InHole(WantConstructorFoundType(ty))
     }
@@ -488,8 +524,13 @@ let fixed_typ_exp = (ctx, mode: Mode.t, self: Self.exp): Typ.t =>
 
 /* Add derivable attributes for expression terms */
 let derived_exp =
-    (~uexp: UExp.t, ~ctx, ~mode, ~ancestors, ~self, ~co_ctx): exp => {
+    (~uexp: UExp.t, ~ctx, ~mode, ~ancestors, ~self: Self.exp, ~co_ctx): exp => {
   let cls = Cls.Exp(UExp.cls_of_term(uexp.term));
+  let cls =
+    switch (self, cls) {
+    | (Common(Just(_)), Exp(Constructor)) => Cls.Exp(ModuleVar)
+    | _ => cls
+    };
   let status = status_exp(ctx, mode, self);
   let ty = fixed_typ_exp(ctx, mode, self);
   {cls, self, ty, mode, status, ctx, co_ctx, ancestors, term: uexp};
@@ -499,6 +540,11 @@ let derived_exp =
 let derived_pat =
     (~upat: UPat.t, ~ctx, ~co_ctx, ~mode, ~ancestors, ~self): pat => {
   let cls = Cls.Pat(UPat.cls_of_term(upat.term));
+  let cls =
+    switch (Mode.is_module_ana(mode, ctx), cls) {
+    | (true, Pat(Constructor)) => Cls.Pat(ModuleVar)
+    | _ => cls
+    };
   let status = status_pat(ctx, mode, self);
   let ty = fixed_typ_pat(ctx, mode, self);
   {cls, self, mode, ty, status, ctx, co_ctx, ancestors, term: upat};
@@ -510,6 +556,7 @@ let derived_typ = (~utyp: UTyp.t, ~ctx, ~ancestors, ~expects): typ => {
     /* Hack to improve CI display */
     switch (expects, UTyp.cls_of_term(utyp.term)) {
     | (VariantExpected(_), Var) => Cls.Typ(Constructor)
+    | (ModuleExpected, Var) => Cls.Typ(ModuleVar)
     | (_, cls) => Cls.Typ(cls)
     };
   let ty = UTyp.to_typ(ctx, utyp);

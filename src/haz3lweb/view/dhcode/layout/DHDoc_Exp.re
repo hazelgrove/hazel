@@ -63,17 +63,20 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | InvalidOperation(_)
   | IfThenElse(_)
   | Closure(_)
+  | ModuleVal(_)
   | BuiltinFun(_)
   | Filter(_) => DHDoc_common.precedence_const
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
   | Ap(_) => DHDoc_common.precedence_Ap
   | ApBuiltin(_) => DHDoc_common.precedence_Ap
+  | Dot(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
   | ListConcat(_) => DHDoc_common.precedence_Plus
   | Tuple(_) => DHDoc_common.precedence_Comma
   | Fun(_) => DHDoc_common.precedence_max
   | Let(_)
+  | Module(_)
   | FixF(_)
   | ConsistentCase(_)
   | InconsistentBranches(_) => DHDoc_common.precedence_max
@@ -136,9 +139,13 @@ let mk =
         | (FunAp, _) => []
         | (LetBind, Let(p, _, _)) => DHPat.bound_vars(p)
         | (LetBind, _) => []
+        | (ModuleBind, Module(p, _, _)) => DHPat.bound_vars(p)
+        | (ModuleBind, _) => []
         | (FixUnwrap, _) // TODO[Matt]: Could do something here?
         | (InvalidStep, _)
         | (VarLookup, _)
+        | (ModuleLookup, _)
+        | (DotAccess, _)
         | (Sequence, _)
         | (FunClosure, _)
         | (UpdateTest, _)
@@ -339,6 +346,18 @@ let mk =
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
+      | ModuleVal(e) =>
+        let envlist =
+          ClosureEnvironment.to_list(e)
+          |> List.map(((name, v)) =>
+               [
+                 Doc.text("  " ++ name ++ " = "),
+                 go'(v, Mark),
+                 Doc.text(";\n"),
+               ]
+             )
+          |> List.flatten;
+        DHDoc_common.mk_ModuleVal(envlist);
       | StringLit(s) => DHDoc_common.mk_StringLit(s)
       | Test(_, d) => DHDoc_common.mk_Test(go'(d, Test))
       | Sequence(d1, d2) =>
@@ -354,6 +373,10 @@ let mk =
           go'(d2, Ap2),
         );
         DHDoc_common.mk_Ap(doc1, doc2);
+      | Dot(d1, d2) =>
+        let doc1 = go'(d1, Dot1);
+        let doc2 = go'(d2, Dot2);
+        DHDoc_common.mk_Dot(doc1, doc2);
       | ApBuiltin(ident, d) =>
         DHDoc_common.mk_Ap(
           text(ident),
@@ -460,6 +483,38 @@ let mk =
                 List.filter(x => !List.mem(x, bindings), recent_subst),
               dbody,
               Let2,
+            ),
+          ]);
+        }
+      | Module(dp, ddef, dbody) =>
+        if (enforce_inline) {
+          fail();
+        } else {
+          let bindings = DHPat.bound_vars(dp);
+          let def_doc = go_formattable(ddef, Module1);
+          vseps([
+            hcats([
+              DHDoc_common.Delim.mk("module"),
+              DHDoc_Pat.mk(dp)
+              |> DHDoc_common.pad_child(
+                   ~inline_padding=(space(), space()),
+                   ~enforce_inline,
+                 ),
+              DHDoc_common.Delim.mk("="),
+              def_doc
+              |> DHDoc_common.pad_child(
+                   ~inline_padding=(space(), space()),
+                   ~enforce_inline=false,
+                 ),
+              DHDoc_common.Delim.mk("in"),
+            ]),
+            go'(
+              ~enforce_inline=false,
+              ~env=ClosureEnvironment.without_keys(bindings, env),
+              ~recent_subst=
+                List.filter(x => !List.mem(x, bindings), recent_subst),
+              dbody,
+              Module2,
             ),
           ]);
         }

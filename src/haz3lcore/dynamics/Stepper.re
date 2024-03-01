@@ -77,6 +77,18 @@ let rec matches =
     | Let2(d1, d2, ctx) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       Let2(d1, d2, ctx);
+    | Module1(d1, ctx, d3) =>
+      let+ ctx = matches(env, flt, ctx, exp, act, idx);
+      Module1(d1, ctx, d3);
+    | Module2(d1, d2, ctx) =>
+      let+ ctx = matches(env, flt, ctx, exp, act, idx);
+      Module2(d1, d2, ctx);
+    | Dot1(ctx, d2) =>
+      let+ ctx = matches(env, flt, ctx, exp, act, idx);
+      Dot1(ctx, d2);
+    | Dot2(d1, ctx) =>
+      let+ ctx = matches(env, flt, ctx, exp, act, idx);
+      Dot2(d1, ctx);
     | Fun(dp, ty, ctx, name) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       Fun(dp, ty, ctx, name);
@@ -388,6 +400,7 @@ let step_backward = (~settings, s: t) =>
 let get_justification: step_kind => string =
   fun
   | LetBind => "substitution"
+  | ModuleBind => "module substitution"
   | Sequence => "sequence"
   | FixUnwrap => "unroll fixpoint"
   | UpdateTest => "update test"
@@ -411,6 +424,8 @@ let get_justification: step_kind => string =
   | Projection => "projection" // TODO(Matt): We don't want to show projection to the user
   | InvalidStep => "error"
   | VarLookup => "variable lookup"
+  | ModuleLookup => "module lookup"
+  | DotAccess => "access member"
   | CastAp
   | Cast => "cast calculus"
   | CompleteFilter => "complete filter"
