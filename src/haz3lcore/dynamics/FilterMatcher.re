@@ -48,7 +48,7 @@ let rec matches_exp =
   | (EmptyHole, _) => false
 
   | (Filter(df, dd), Filter(ff, fd)) =>
-    DH.DHFilter.fast_equal(df, ff) && matches_exp(env, dd, fd)
+    DHExp.filter_fast_equal(df, ff) && matches_exp(env, dd, fd)
   | (Filter(_), _) => false
 
   | (Bool(dv), Bool(fv)) => dv == fv
@@ -225,7 +225,12 @@ and matches_rul = (info_map, env, (dp, d), (fp, f)) => {
 };
 
 let matches =
-    (info_map, ~env: ClosureEnvironment.t, ~exp: DHExp.t, ~flt: Filter.t)
+    (
+      info_map,
+      ~env: ClosureEnvironment.t,
+      ~exp: DHExp.t,
+      ~flt: TermBase.StepperFilterKind.filter,
+    )
     : option(FilterAction.t) =>
   if (matches_exp(info_map, env, exp, flt.pat)) {
     Some(flt.act);

@@ -579,8 +579,14 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     TermBase.UExp.{
       term:
         TermBase.UExp.Filter(
-          FilterAction.(act, One),
-          {term: Constructor("$e"), copied: false, ids: [Id.mk()]},
+          Filter({
+            act: FilterAction.(act, One),
+            pat: {
+              term: Constructor("$e"),
+              copied: false,
+              ids: [Id.mk()],
+            },
+          }),
           term,
         ),
       copied: false,

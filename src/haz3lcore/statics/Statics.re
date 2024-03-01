@@ -290,7 +290,7 @@ and uexp_to_info_map =
   | Test(e) =>
     let (e, m) = go(~mode=Ana(Bool), e, m);
     add(~self=Just(Prod([])), ~co_ctx=e.co_ctx, m);
-  | Filter(_, cond, body) =>
+  | Filter(Filter({pat: cond, _}), body) =>
     let (cond, m) = go(~mode, cond, m, ~is_in_filter=true);
     let (body, m) = go(~mode, body, m);
     add(
@@ -298,6 +298,9 @@ and uexp_to_info_map =
       ~co_ctx=CoCtx.union([cond.co_ctx, body.co_ctx]),
       m,
     );
+  | Filter(Residue(_), body) =>
+    let (body, m) = go(~mode, body, m);
+    add(~self=Just(body.ty), ~co_ctx=CoCtx.union([body.co_ctx]), m);
   | Seq(e1, e2) =>
     let (e1, m) = go(~mode=Syn, e1, m);
     let (e2, m) = go(~mode, e2, m);

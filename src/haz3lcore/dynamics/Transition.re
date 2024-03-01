@@ -724,14 +724,14 @@ module Transition = (EV: EV_MODE) => {
           d1,
         );
       Indet;
-    | MultiHole(ds) =>
-      let. _ = otherwise(env, ds => MultiHole(ds) |> rewrap)
-      and. _ =
-        req_all_final(
-          req(state, env),
-          (d1, ds) => MultiHole(d1, ds) |> wrap_ctx,
-          ds,
-        );
+    | MultiHole(_) =>
+      let. _ = otherwise(env, d);
+      // and. _ =
+      //   req_all_final(
+      //     req(state, env),
+      //     (d1, ds) => MultiHole(d1, ds) |> wrap_ctx,
+      //     ds,
+      //   );
       Indet;
     | EmptyHole
     | Invalid(_)

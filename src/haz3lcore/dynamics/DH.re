@@ -1,5 +1,3 @@
-open Sexplib.Std;
-
 /*
  To discuss:
 
@@ -35,49 +33,8 @@ open Sexplib.Std;
 
  */
 
-module rec DHExp: {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type term =
-    | Invalid(string)
-    | EmptyHole
-    | MultiHole(list(DHExp.t))
-    | StaticErrorHole(Id.t, t)
-    | DynamicErrorHole(t, InvalidOperationError.t)
-    | FailedCast(t, Typ.t, Typ.t)
-    | Bool(bool)
-    | Int(int)
-    | Float(float)
-    | String(string)
-    | ListLit(list(t))
-    | Constructor(string)
-    | Fun(
-        TermBase.UPat.t,
-        t,
-        [@show.opaque] option(ClosureEnvironment.t),
-        option(Var.t),
-      ) // TODO: Use info_map for Typ.t
-    | Tuple(list(t))
-    | Var(Var.t)
-    | Let(TermBase.UPat.t, t, t)
-    | FixF(TermBase.UPat.t, t, [@show.opaque] option(ClosureEnvironment.t))
-    | TyAlias(TermBase.UTPat.t, TermBase.UTyp.t, t)
-    | Ap(TermBase.UExp.ap_direction, t, t)
-    | If(t, t, t)
-    | Seq(t, t)
-    | Test(t)
-    | Filter(DHFilter.t, t) // DONE [UEXP TO BE CHANGED]
-    /* In the long term, it might be nice to have closures be the same as
-       module opening */
-    | Closure([@show.opaque] ClosureEnvironment.t, t) // > UEXP
-    | Parens(t)
-    | Cons(t, t)
-    | ListConcat(t, t)
-    | UnOp(TermBase.UExp.op_un, t)
-    | BinOp(TermBase.UExp.op_bin, t, t)
-    | BuiltinFun(string)
-    | Match(t, list((TermBase.UPat.t, t)))
-    | Cast(t, Typ.t, Typ.t)
-  and t;
+module DHExp: {
+  include (module type of TermBase.UExp);
 
   let rep_id: t => Id.t;
   let term_of: t => term;
@@ -95,55 +52,11 @@ module rec DHExp: {
   let repair_ids: t => t;
 
   let fast_equal: (t, t) => bool;
+  let filter_fast_equal:
+    (TermBase.StepperFilterKind.t, TermBase.StepperFilterKind.t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type term =
-    | Invalid(string)
-    | EmptyHole
-    | MultiHole(list(DHExp.t))
-    | StaticErrorHole(Id.t, t)
-    | DynamicErrorHole(t, InvalidOperationError.t)
-    | FailedCast(t, Typ.t, Typ.t)
-    | Bool(bool)
-    | Int(int)
-    | Float(float)
-    | String(string)
-    | ListLit(list(t))
-    | Constructor(string)
-    | Fun(
-        TermBase.UPat.t,
-        t,
-        [@show.opaque] option(ClosureEnvironment.t),
-        option(Var.t),
-      )
-    | Tuple(list(t))
-    | Var(Var.t)
-    | Let(TermBase.UPat.t, t, t)
-    | FixF(TermBase.UPat.t, t, [@show.opaque] option(ClosureEnvironment.t))
-    | TyAlias(TermBase.UTPat.t, TermBase.UTyp.t, t)
-    | Ap(TermBase.UExp.ap_direction, t, t)
-    | If(t, t, t)
-    | Seq(t, t)
-    | Test(t)
-    | Filter(DHFilter.t, t) // DONE [UEXP TO BE CHANGED]
-    | Closure([@show.opaque] ClosureEnvironment.t, t)
-    | Parens(t)
-    | Cons(t, t)
-    | ListConcat(t, t)
-    | UnOp(TermBase.UExp.op_un, t)
-    | BinOp(TermBase.UExp.op_bin, t, t)
-    | BuiltinFun(string)
-    | Match(t, list((TermBase.UPat.t, t)))
-    | Cast(t, Typ.t, Typ.t) // TODO: Perhaps merge with failedcast?
-  and t = {
-    /* invariant: nonempty, TODO: what happens to later ids in DHExp */
-    ids: list(Id.t),
-    /*TODO: Verify: Always false in UExp, if an expression has been copied as part of
-      evaluation (e.g. fun x -> x + x), then this will be flagged as true. This means
-      the ids should be replaced after evaluation. */
-    copied: bool,
-    term,
-  };
+  include TermBase.UExp;
 
   let rep_id = ({ids, _}) => List.hd(ids);
   let term_of = ({term, _}) => term;
@@ -219,7 +132,8 @@ module rec DHExp: {
       | Parens(d1) => Parens(repair_ids(d1))
       | ListConcat(d1, d2) => ListConcat(repair_ids(d1), repair_ids(d2))
       | Tuple(ds) => Tuple(List.map(repair_ids, ds))
-      | MultiHole(ds) => MultiHole(List.map(repair_ids, ds))
+      // TODO: repair ids inside multihole
+      | MultiHole(ds) => MultiHole(ds)
       | Match(d1, rls) =>
         Match(
           repair_ids(d1),
@@ -247,11 +161,12 @@ module rec DHExp: {
     | ListConcat(d1, d2) =>
       ListConcat(strip_casts(d1), strip_casts(d2)) |> rewrap
     | ListLit(ds) => ListLit(List.map(strip_casts, ds)) |> rewrap
-    | MultiHole(ds) => MultiHole(List.map(strip_casts, ds)) |> rewrap
+    // TODO[Matt]: Strip multihole casts
+    | MultiHole(ds) => MultiHole(ds) |> rewrap
     | StaticErrorHole(_, d) => strip_casts(d)
     | Seq(a, b) => Seq(strip_casts(a), strip_casts(b)) |> rewrap
     | Filter(f, b) =>
-      Filter(DHFilter.strip_casts(f), strip_casts(b)) |> rewrap
+      Filter(strip_filter_casts(f), strip_casts(b)) |> rewrap
     | Let(dp, b, c) => Let(dp, strip_casts(b), strip_casts(c)) |> rewrap
     | FixF(a, c, env) => FixF(a, strip_casts(c), env) |> rewrap
     | TyAlias(tp, t, d) => TyAlias(tp, t, strip_casts(d)) |> rewrap
@@ -280,6 +195,12 @@ module rec DHExp: {
     | If(c, d1, d2) =>
       If(strip_casts(c), strip_casts(d1), strip_casts(d2)) |> rewrap
     };
+  }
+  and strip_filter_casts = f => {
+    switch (f) {
+    | Filter({act, pat}) => Filter({act, pat: pat |> strip_casts})
+    | Residue(idx, act) => Residue(idx, act)
+    };
   };
 
   let rec fast_equal =
@@ -303,7 +224,7 @@ module rec DHExp: {
     | (Seq(d11, d21), Seq(d12, d22)) =>
       fast_equal(d11, d12) && fast_equal(d21, d22)
     | (Filter(f1, d1), Filter(f2, d2)) =>
-      DHFilter.fast_equal(f1, f2) && fast_equal(d1, d2)
+      filter_fast_equal(f1, f2) && fast_equal(d1, d2)
     | (Let(dp1, d11, d21), Let(dp2, d12, d22)) =>
       dp1 == dp2 && fast_equal(d11, d12) && fast_equal(d21, d22)
     | (FixF(f1, d1, sigma1), FixF(f2, d2, sigma2)) =>
@@ -378,9 +299,7 @@ module rec DHExp: {
 
        (This resolves a performance issue with many nested holes.) */
     | (EmptyHole, EmptyHole) => true
-    | (MultiHole(ds1), MultiHole(ds2)) =>
-      List.length(ds1) == List.length(ds2)
-      && List.for_all2(fast_equal, ds1, ds2)
+    | (MultiHole(_), MultiHole(_)) => rep_id(d1exp) == rep_id(d2exp)
     | (StaticErrorHole(sid1, d1), StaticErrorHole(sid2, d2)) =>
       sid1 == sid2 && d1 == d2
     | (Invalid(text1), Invalid(text2)) => text1 == text2
@@ -392,213 +311,14 @@ module rec DHExp: {
     | (Invalid(_), _)
     | (Closure(_), _) => false
     };
-  };
-}
-
-and Environment: {
-  include
-     (module type of VarBstMap.Ordered) with
-      type t_('a) = VarBstMap.Ordered.t_('a);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = t_(DHExp.t);
-} = {
-  include VarBstMap.Ordered;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = t_(DHExp.t);
-}
-
-and ClosureEnvironment: {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t;
-
-  let wrap: (EnvironmentId.t, Environment.t) => t;
-
-  let id_of: t => EnvironmentId.t;
-  let map_of: t => Environment.t;
-
-  let to_list: t => list((Var.t, DHExp.t));
-
-  let of_environment: Environment.t => t;
-
-  let id_equal: (t, t) => bool;
-
-  let empty: t;
-  let is_empty: t => bool;
-  let length: t => int;
-
-  let lookup: (t, Var.t) => option(DHExp.t);
-  let contains: (t, Var.t) => bool;
-  let update: (Environment.t => Environment.t, t) => t;
-  let update_keep_id: (Environment.t => Environment.t, t) => t;
-  let extend: (t, (Var.t, DHExp.t)) => t;
-  let extend_keep_id: (t, (Var.t, DHExp.t)) => t;
-  let union: (t, t) => t;
-  let union_keep_id: (t, t) => t;
-  let map: (((Var.t, DHExp.t)) => DHExp.t, t) => t;
-  let map_keep_id: (((Var.t, DHExp.t)) => DHExp.t, t) => t;
-  let filter: (((Var.t, DHExp.t)) => bool, t) => t;
-  let filter_keep_id: (((Var.t, DHExp.t)) => bool, t) => t;
-  let fold: (((Var.t, DHExp.t), 'b) => 'b, 'b, t) => 'b;
-
-  let without_keys: (list(Var.t), t) => t;
-
-  let placeholder: t;
-} = {
-  module Inner: {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t;
-
-    let wrap: (EnvironmentId.t, Environment.t) => t;
-
-    let id_of: t => EnvironmentId.t;
-    let map_of: t => Environment.t;
-  } = {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = (EnvironmentId.t, Environment.t);
-
-    let wrap = (ei, map): t => (ei, map);
-
-    let id_of = ((ei, _)) => ei;
-    let map_of = ((_, map)) => map;
-    let (sexp_of_t, t_of_sexp) =
-      StructureShareSexp.structure_share_here(id_of, sexp_of_t, t_of_sexp);
-  };
-  include Inner;
-
-  let to_list = env => env |> map_of |> Environment.to_listo;
-
-  let of_environment = map => {
-    let ei = Id.mk();
-    wrap(ei, map);
-  };
-
-  /* Equals only needs to check environment id's (faster than structural equality
-   * checking.) */
-  let id_equal = (env1, env2) => id_of(env1) == id_of(env2);
-
-  let empty = Environment.empty |> of_environment;
-
-  let is_empty = env => env |> map_of |> Environment.is_empty;
-
-  let length = env => Environment.length(map_of(env));
-
-  let lookup = (env, x) =>
-    env |> map_of |> (map => Environment.lookup(map, x));
-
-  let contains = (env, x) =>
-    env |> map_of |> (map => Environment.contains(map, x));
-
-  let update = (f, env) => env |> map_of |> f |> of_environment;
-
-  let update_keep_id = (f, env) => env |> map_of |> f |> wrap(env |> id_of);
-
-  let extend = (env, xr) =>
-    env |> update(map => Environment.extend(map, xr));
-
-  let extend_keep_id = (env, xr) =>
-    env |> update_keep_id(map => Environment.extend(map, xr));
-
-  let union = (env1, env2) =>
-    env2 |> update(map2 => Environment.union(env1 |> map_of, map2));
-
-  let union_keep_id = (env1, env2) =>
-    env2 |> update_keep_id(map2 => Environment.union(env1 |> map_of, map2));
-
-  let map = (f, env) => env |> update(Environment.mapo(f));
-
-  let map_keep_id = (f, env) => env |> update_keep_id(Environment.mapo(f));
-
-  let filter = (f, env) => env |> update(Environment.filtero(f));
-
-  let filter_keep_id = (f, env) =>
-    env |> update_keep_id(Environment.filtero(f));
-
-  let fold = (f, init, env) => env |> map_of |> Environment.foldo(f, init);
-
-  let placeholder = wrap(EnvironmentId.invalid, Environment.empty);
-
-  let without_keys = keys => update(Environment.without_keys(keys));
-}
-
-and Filter: {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    pat: DHExp.t,
-    act: FilterAction.t,
-  };
-
-  let mk: (DHExp.t, FilterAction.t) => t;
-
-  let map: (DHExp.t => DHExp.t, t) => t;
-
-  let strip_casts: t => t;
-
-  let fast_equal: (t, t) => bool;
-} = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    pat: DHExp.t,
-    act: FilterAction.t,
-  };
-
-  let mk = (pat: DHExp.t, act: FilterAction.t): t => {pat, act};
-
-  let map = (f: DHExp.t => DHExp.t, filter: t): t => {
-    ...filter,
-    pat: f(filter.pat),
-  };
-
-  let fast_equal = (f1: t, f2: t): bool => {
-    DHExp.fast_equal(f1.pat, f2.pat) && f1.act == f2.act;
-  };
-  let strip_casts = (f: t): t => {...f, pat: f.pat |> DHExp.strip_casts};
-}
-
-and DHFilter: {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | Filter(Filter.t)
-    | Residue(int, FilterAction.t);
-  let fast_equal: (t, t) => bool;
-  let strip_casts: t => t;
-  let map: (DHExp.t => DHExp.t, t) => t;
-} = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | Filter(Filter.t)
-    | Residue(int, FilterAction.t);
-  let fast_equal = (f1: t, f2: t) => {
+  }
+  and filter_fast_equal = (f1, f2) => {
     switch (f1, f2) {
-    | (Filter(flt1), Filter(flt2)) => Filter.fast_equal(flt1, flt2)
+    | (Filter(f1), Filter(f2)) =>
+      fast_equal(f1.pat, f2.pat) && f1.act == f2.act
     | (Residue(idx1, act1), Residue(idx2, act2)) =>
       idx1 == idx2 && act1 == act2
     | _ => false
     };
   };
-  let strip_casts = f => {
-    switch (f) {
-    | Filter(flt) => Filter(Filter.strip_casts(flt))
-    | Residue(idx, act) => Residue(idx, act)
-    };
-  };
-  let map = (mapper, filter) => {
-    switch (filter) {
-    | Filter(flt) => Filter(Filter.map(mapper, flt))
-    | Residue(idx, act) => Residue(idx, act)
-    };
-  };
-}
-
-and FilterEnvironment: {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = list(Filter.t);
-
-  let extends: (Filter.t, t) => t;
-} = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = list(Filter.t);
-
-  let extends = (flt, env) => [flt, ...env];
 };
