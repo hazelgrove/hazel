@@ -279,21 +279,20 @@ let rec dhexp_of_uexp =
             }
           | _ => false
           };
+        let rec body_modulize: DHExp.t => DHExp.t = (
+          fun
+          | Let(dp, d1, d2) => Let(dp, d1, body_modulize(d2))
+          | Module(dp, d1, d2) => Module(dp, d1, body_modulize(d2))
+          | _ as d => is_alias ? d : ModuleVal(ClosureEnvironment.empty)
+        );
+        let ddef = ddef |> body_modulize;
         switch (Term.UPat.get_recursive_bindings(p)) {
         | None =>
           /* not recursive */
-          if (is_alias) {
-            DHExp.Let(dp, ddef, dbody);
-          } else {
-            DHExp.Module(dp, ddef, dbody);
-          }
+          DHExp.Module(dp, ddef, dbody)
         | Some([f]) =>
           /* simple recursion */
-          if (is_alias) {
-            Let(dp, FixF(f, ty_body, add_name(Some(f), ddef)), dbody);
-          } else {
-            Module(dp, FixF(f, ty_body, add_name(Some(f), ddef)), dbody);
-          }
+          Module(dp, FixF(f, ty_body, add_name(Some(f), ddef)), dbody)
         | Some(fs) =>
           /* mutual recursion */
           let ddef =
@@ -315,11 +314,7 @@ let rec dhexp_of_uexp =
                  },
                  (0, ddef),
                );
-          if (is_alias) {
-            Let(dp, FixF(self_id, ty_body, substituted_def), dbody);
-          } else {
-            Module(dp, FixF(self_id, ty_body, substituted_def), dbody);
-          };
+          Module(dp, FixF(self_id, ty_body, substituted_def), dbody);
         };
       | Dot(e_mod, e_mem) =>
         let* e_mod = dhexp_of_uexp(m, e_mod);
