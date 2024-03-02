@@ -13,6 +13,7 @@ type cls =
   | Let2
   | Module1
   | Module2
+  | ModuleVal
   | Dot1
   | Dot2
   | Ap1

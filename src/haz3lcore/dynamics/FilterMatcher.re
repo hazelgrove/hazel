@@ -106,6 +106,7 @@ let rec matches_exp =
   | (Dot(d1, d2), Dot(f1, f2)) =>
     matches_exp(env, d1, f1) && matches_exp(env, d2, f2)
   | (Dot(_), _) => false
+  | (ModuleVal(_), ModuleVal(_)) => true
   | (ModuleVal(_), _) => false
 
   | (Ap(d1, d2), Ap(f1, f2)) =>

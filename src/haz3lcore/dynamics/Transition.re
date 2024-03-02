@@ -255,7 +255,7 @@ module Transition = (EV: EV_MODE) => {
           | ModuleVal(inner_env) => Closure(inner_env, d2)
           | _ => raise(EvaluatorError.Exception(InvalidBoxedModule(d1')))
           },
-        kind: BinBoolOp(Or),
+        kind: DotAccess,
         value: false,
       });
 
@@ -704,7 +704,6 @@ let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
   fun
   | LetBind
   | ModuleBind
-  | ModuleLookup
   | DotAccess
   | Sequence
   | UpdateTest
@@ -721,6 +720,7 @@ let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
   | Skip
   | Conditional(_)
   | InvalidStep => false
+  | ModuleLookup
   | VarLookup => !settings.show_lookup_steps
   | CastAp
   | Cast => !settings.show_casts

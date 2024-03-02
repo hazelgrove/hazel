@@ -342,7 +342,20 @@ let mk =
           }
         }
       | BuiltinFun(f) => text(f)
-      | Constructor(name) => DHDoc_common.mk_ConstructorLit(name)
+      | Constructor(name) =>
+        switch (ClosureEnvironment.lookup(env, name)) {
+        | None => DHDoc_common.mk_ConstructorLit(name)
+        | Some(d') =>
+          if (List.mem(name, recent_subst)) {
+            hcats([
+              go'(~env=ClosureEnvironment.empty, BoundVar(name), BoundVar)
+              |> annot(DHAnnot.Substituted),
+              go'(~env=ClosureEnvironment.empty, d', BoundVar),
+            ]);
+          } else {
+            go'(~env=ClosureEnvironment.empty, d', BoundVar);
+          }
+        }
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
@@ -352,7 +365,7 @@ let mk =
           |> List.map(((name, v)) =>
                [
                  Doc.text("  " ++ name ++ " = "),
-                 go'(v, Mark),
+                 go'(v, ModuleVal),
                  Doc.text(";\n"),
                ]
              )
