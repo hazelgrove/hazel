@@ -984,14 +984,6 @@ and uexp_to_module =
     let new_inner = p_ana2.ctx;
     let (ty_module, body, m) =
       go_module(~ctx=ctx_body, ~mode, body, m1, new_inner);
-    let (p_ana1, m) =
-      go_pat(
-        ~is_synswitch=false,
-        ~co_ctx=body.co_ctx,
-        ~mode=Ana(def.ty),
-        p,
-        m,
-      );
     add(
       ~self=Just(body.ty),
       ~co_ctx=
