@@ -1,3 +1,24 @@
+let rec find_keys = (dp: DHPat.t): list(string) => {
+  switch (dp) {
+  | DHPat.EmptyHole(_, _)
+  | DHPat.NonEmptyHole(_, _, _, _)
+  | DHPat.Wild
+  | DHPat.ExpandingKeyword(_, _, _)
+  | DHPat.InvalidText(_, _, _)
+  | DHPat.BadConstructor(_, _, _) => []
+  | DHPat.Var(x) => [x]
+  | DHPat.IntLit(_)
+  | DHPat.FloatLit(_)
+  | DHPat.BoolLit(_)
+  | DHPat.StringLit(_)
+  | DHPat.Constructor(_) => []
+  | DHPat.ListLit(_, dps)
+  | DHPat.Tuple(dps) => List.concat_map(find_keys, dps)
+  | DHPat.Cons(dp1, dp2)
+  | DHPat.Ap(dp1, dp2) => find_keys(dp1) @ find_keys(dp2)
+  };
+};
+
 let rec matches_exp =
         (
           ~denv: ClosureEnvironment.t,
@@ -6,6 +27,8 @@ let rec matches_exp =
           f: DHExp.t,
         )
         : bool => {
+  print_endline("d = " ++ DHExp.show(d));
+  print_endline("f = " ++ DHExp.show(f));
   let matches_exp = (~denv=denv, ~fenv=fenv, d, f) =>
     matches_exp(~denv, d, ~fenv, f);
   if (d == f) {
@@ -41,6 +64,8 @@ let rec matches_exp =
     | (_, Constructor("$e")) => true
 
     | (Cast(d, _, _), Cast(f, _, _)) => matches_exp(d, f)
+    | (Closure(denv, d), Closure(fenv, f)) =>
+      matches_exp(~denv, d, ~fenv, f)
 
     | (_, Closure(fenv, f)) => matches_exp(~fenv, d, f)
     | (_, Cast(f, _, _)) => matches_exp(d, f)
@@ -51,15 +76,29 @@ let rec matches_exp =
     | (FailedCast(d, _, _), _) => matches_exp(d, f)
     | (Filter(Residue(_), d), _) => matches_exp(d, f)
 
+    | (BoundVar(dx), BoundVar(fx))
+        when String.starts_with(dx, ~prefix="__mutual__") =>
+      String.starts_with(fx, ~prefix="__mutual__") && dx == fx
     | (BoundVar(dx), BoundVar(fx)) =>
       switch (
         ClosureEnvironment.lookup(denv, dx),
         ClosureEnvironment.lookup(fenv, fx),
       ) {
+      | (
+          Some(Fun(_, _, d, Some(dname))),
+          Some(Fun(_, _, f, Some(fname))),
+        )
+          when dx == dname && fx == fname =>
+        matches_exp(
+          ~denv=ClosureEnvironment.without_keys([dname], denv),
+          d,
+          ~fenv=ClosureEnvironment.without_keys([fname], denv),
+          f,
+        )
       | (Some(d), Some(f)) => matches_exp(d, f)
       | (Some(_), None) => false
       | (None, Some(_)) => false
-      | (None, None) => true
+      | (None, None) => dx == fx
       }
     | (BoundVar(dx), _) =>
       switch (ClosureEnvironment.lookup(denv, dx)) {
@@ -104,7 +143,12 @@ let rec matches_exp =
         if (d1 == f1) {
           true;
         } else {
-          matches_exp(d1, f1);
+          matches_exp(
+            ~denv=ClosureEnvironment.without_keys(find_keys(dp1), denv),
+            d1,
+            ~fenv=ClosureEnvironment.without_keys(find_keys(fp1), fenv),
+            f1,
+          );
         }
       )
     | (Fun(_), _) => false
