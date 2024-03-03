@@ -493,6 +493,7 @@ module UExp = {
     | TypFun
     | Tuple
     | Var
+    | MetaVar
     | Let
     | TyAlias
     | Ap
@@ -501,6 +502,7 @@ module UExp = {
     | If
     | Seq
     | Test
+    | Filter
     | Parens
     | Cons
     | UnOp(op_un)
@@ -543,12 +545,17 @@ module UExp = {
     | If(_) => If
     | Seq(_) => Seq
     | Test(_) => Test
+    | Filter(_) => Filter
     | Parens(_) => Parens
     | Cons(_) => Cons
     | ListConcat(_) => ListConcat
     | UnOp(op, _) => UnOp(op)
     | BinOp(op, _, _) => BinOp(op)
     | Match(_) => Match;
+
+  let show_op_un_meta: op_un_meta => string =
+    fun
+    | Unquote => "Un-quotation";
 
   let show_op_un_bool: op_un_bool => string =
     fun
@@ -560,6 +567,7 @@ module UExp = {
 
   let show_unop: op_un => string =
     fun
+    | Meta(op) => show_op_un_meta(op)
     | Bool(op) => show_op_un_bool(op)
     | Int(op) => show_op_un_int(op);
 
@@ -624,6 +632,7 @@ module UExp = {
     | TypFun => "Type Function Literal"
     | Tuple => "Tuple literal"
     | Var => "Variable reference"
+    | MetaVar => "Meta variable reference"
     | Let => "Let expression"
     | TyAlias => "Type Alias definition"
     | Ap => "Application"
@@ -632,6 +641,7 @@ module UExp = {
     | If => "If expression"
     | Seq => "Sequence expression"
     | Test => "Test"
+    | Filter => "Filter"
     | Parens => "Parenthesized expression"
     | Cons => "Cons"
     | ListConcat => "List Concatenation"
@@ -665,6 +675,7 @@ module UExp = {
     | If(_)
     | Seq(_)
     | Test(_)
+    | Filter(_)
     | Cons(_)
     | ListConcat(_)
     | UnOp(_)
@@ -700,6 +711,7 @@ module UExp = {
       | If(_)
       | Seq(_)
       | Test(_)
+      | Filter(_)
       | Cons(_)
       | ListConcat(_)
       | UnOp(_)
@@ -752,7 +764,8 @@ module Cls = {
     | Pat(UPat.cls)
     | Typ(UTyp.cls)
     | TPat(UTPat.cls)
-    | Rul(URul.cls);
+    | Rul(URul.cls)
+    | Secondary(Secondary.cls);
 
   let show = (cls: t) =>
     switch (cls) {
@@ -761,6 +774,7 @@ module Cls = {
     | Typ(cls) => UTyp.show_cls(cls)
     | TPat(cls) => UTPat.show_cls(cls)
     | Rul(cls) => URul.show_cls(cls)
+    | Secondary(cls) => Secondary.show_cls(cls)
     };
 };
 

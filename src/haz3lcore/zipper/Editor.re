@@ -3,19 +3,34 @@ open Util;
 
 module Meta = {
   type t = {
+    col_target: int,
     touched: Touched.t,
     measured: Measured.t,
     term_ranges: TermRanges.t,
-    col_target: int,
+    unselected: Segment.t,
+    segment: Segment.t,
+    view_term: Term.UExp.t,
+    terms: TermMap.t,
+    tiles: TileMap.t,
+    holes: list(Grout.t),
+    buffer_ids: list(Id.t),
   };
 
   let init = (z: Zipper.t) => {
     let unselected = Zipper.unselect_and_zip(z);
+    let (view_term, terms) = MakeTerm.go(unselected);
     {
+      col_target: 0,
       touched: Touched.empty,
       measured: Measured.of_segment(unselected),
+      unselected,
       term_ranges: TermRanges.mk(unselected),
-      col_target: 0,
+      segment: Zipper.zip(z),
+      tiles: TileMap.mk(unselected),
+      view_term,
+      terms,
+      holes: Segment.holes(unselected),
+      buffer_ids: Selection.buffer_ids(z.selection),
     };
   };
 
@@ -44,16 +59,32 @@ module Meta = {
       (~effects: list(Effect.t)=[], a: Action.t, z: Zipper.t, meta: t): t => {
     let {touched, measured, col_target, _} = meta;
     let touched = Touched.update(Time.tick(), effects, touched);
-    let unselected = Zipper.unselect_and_zip(z);
-    let measured = Measured.of_segment(~touched, ~old=measured, unselected);
-    let term_ranges = TermRanges.mk(unselected);
+    let is_edit = Action.is_edit(a);
+    let unselected = is_edit ? Zipper.unselect_and_zip(z) : meta.unselected;
+    let measured =
+      is_edit
+        ? Measured.of_segment(~touched, ~old=measured, unselected) : measured;
     let col_target =
       switch (a) {
       | Move(Local(Up | Down))
       | Select(Resize(Local(Up | Down))) => col_target
       | _ => Zipper.caret_point(measured, z).col
       };
-    {touched, measured, term_ranges, col_target};
+    let (view_term, terms) =
+      is_edit ? MakeTerm.go(unselected) : (meta.view_term, meta.terms);
+    {
+      col_target,
+      touched,
+      measured,
+      unselected,
+      term_ranges: is_edit ? TermRanges.mk(unselected) : meta.term_ranges,
+      segment: Zipper.zip(z),
+      tiles: is_edit ? TileMap.mk(unselected) : meta.tiles,
+      view_term,
+      terms,
+      holes: is_edit ? Segment.holes(unselected) : meta.holes,
+      buffer_ids: Selection.buffer_ids(z.selection),
+    };
   };
 };
 

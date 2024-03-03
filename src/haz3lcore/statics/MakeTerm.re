@@ -180,11 +180,20 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     | ([(_id, t)], []) =>
       ret(
         switch (t) {
+        | (["$"], []) => UnOp(Meta(Unquote), r)
         | (["-"], []) => UnOp(Int(Minus), r)
         | (["!"], []) => UnOp(Bool(Not), r)
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r)
         | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
+        | (["hide", "in"], [Exp(filter)]) =>
+          Filter((Eval, One), filter, r)
+        | (["eval", "in"], [Exp(filter)]) =>
+          Filter((Eval, All), filter, r)
+        | (["pause", "in"], [Exp(filter)]) =>
+          Filter((Step, One), filter, r)
+        | (["debug", "in"], [Exp(filter)]) =>
+          Filter((Step, All), filter, r)
         | (["type", "=", "in"], [TPat(tpat), Typ(def)]) =>
           TyAlias(tpat, def, r)
         | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
