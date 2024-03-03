@@ -23,7 +23,7 @@ open DHExp;
 
 type m('a) = PpMonad.t('a);
 
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type error =
   | ClosureInsideClosure
   | FixFOutsideClosureEnv
@@ -32,7 +32,7 @@ type error =
   | PostprocessedNonHoleInClosure
   | PostprocessedHoleOutsideClosure;
 
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 exception Exception(error);
 
 /**
@@ -53,6 +53,10 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     let+ d2' = pp_eval(d2);
     Sequence(d1', d2');
 
+  | Filter(f, dbody) =>
+    let+ dbody' = pp_eval(dbody);
+    Filter(f, dbody');
+
   | Ap(d1, d2) =>
     let* d1' = pp_eval(d1);
     let* d2' = pp_eval(d2);
@@ -62,14 +66,16 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     let* d1' = pp_eval(d1);
     TypAp(d1', ty) |> return;
 
-  | ApBuiltin(f, args) =>
-    let* args' = args |> List.map(pp_eval) |> sequence;
-    ApBuiltin(f, args') |> return;
+  | ApBuiltin(f, d1) =>
+    let* d1' = pp_eval(d1);
+    ApBuiltin(f, d1') |> return;
 
   | BinBoolOp(op, d1, d2) =>
     let* d1' = pp_eval(d1);
     let* d2' = pp_eval(d2);
     BinBoolOp(op, d1', d2') |> return;
+
+  | BuiltinFun(f) => BuiltinFun(f) |> return
 
   | BinIntOp(op, d1, d2) =>
     let* d1' = pp_eval(d1);
@@ -137,6 +143,12 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
   | InvalidOperation(d', reason) =>
     let* d'' = pp_eval(d');
     InvalidOperation(d'', reason) |> return;
+
+  | IfThenElse(consistent, c, d1, d2) =>
+    let* c' = pp_eval(c);
+    let* d1' = pp_eval(d1);
+    let* d2' = pp_eval(d2);
+    IfThenElse(consistent, c', d1', d2') |> return;
 
   /* These expression forms should not exist outside closure in evaluated result */
   | BoundVar(_)
@@ -279,6 +291,9 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let+ d2' = pp_uneval(env, d2);
     Sequence(d1', d2');
 
+  | Filter(flt, dbody) =>
+    let+ dbody' = pp_uneval(env, dbody);
+    Filter(flt, dbody');
   | Let(dp, d1, d2) =>
     let* d1' = pp_uneval(env, d1);
     let* d2' = pp_uneval(env, d2);
@@ -305,9 +320,11 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* d1' = pp_uneval(env, d1);
     TypAp(d1', ty) |> return;
 
-  | ApBuiltin(f, args) =>
-    let* args' = args |> List.map(pp_uneval(env)) |> sequence;
-    ApBuiltin(f, args') |> return;
+  | ApBuiltin(f, d1) =>
+    let* d1' = pp_uneval(env, d1);
+    ApBuiltin(f, d1') |> return;
+
+  | BuiltinFun(f) => BuiltinFun(f) |> return
 
   | BinBoolOp(op, d1, d2) =>
     let* d1' = pp_uneval(env, d1);
@@ -327,6 +344,12 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* d1' = pp_uneval(env, d1);
     let* d2' = pp_uneval(env, d2);
     BinStringOp(op, d1', d2') |> return;
+
+  | IfThenElse(consistent, c, d1, d2) =>
+    let* c' = pp_uneval(env, c);
+    let* d1' = pp_uneval(env, d1);
+    let* d2' = pp_uneval(env, d2);
+    IfThenElse(consistent, c', d1', d2') |> return;
 
   | Cons(d1, d2) =>
     let* d1' = pp_uneval(env, d1);
@@ -453,6 +476,7 @@ let rec track_children_of_hole =
   | IntLit(_)
   | FloatLit(_)
   | StringLit(_)
+  | BuiltinFun(_)
   | BoundVar(_) => hii
   | Test(_, d)
   | FixF(_, _, d)
@@ -490,6 +514,10 @@ let rec track_children_of_hole =
       ds,
       hii,
     )
+  | IfThenElse(_, c, d1, d2) =>
+    let hii = track_children_of_hole(hii, parent, c);
+    let hii = track_children_of_hole(hii, parent, d1);
+    track_children_of_hole(hii, parent, d2);
 
   | ConsistentCase(Case(scrut, rules, _)) =>
     let hii =
@@ -500,12 +528,7 @@ let rec track_children_of_hole =
       track_children_of_hole_rules(hii, parent, rules)
     );
 
-  | ApBuiltin(_, args) =>
-    List.fold_right(
-      (arg, hii) => track_children_of_hole(hii, parent, arg),
-      args,
-      hii,
-    )
+  | ApBuiltin(_, d) => track_children_of_hole(hii, parent, d)
 
   /* Hole types */
   | NonEmptyHole(_, u, i, d) =>
@@ -524,6 +547,7 @@ let rec track_children_of_hole =
   /* The only thing that should exist in closures at this point
      are holes. Ignore the hole environment, not necessary for
      parent tracking. */
+  | Filter(_, d)
   | Closure(_, d) => track_children_of_hole(hii, parent, d)
   }
 
