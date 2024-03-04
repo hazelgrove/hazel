@@ -26,8 +26,6 @@ module Eval: {
     (
       (EvaluatorEVMode.state, ClosureEnvironment.t, DHExp.t) =>
       EvaluatorEVMode.result_unfinished,
-      (EvaluatorEVMode.state, ClosureEnvironment.t, DHExp.t) =>
-      EvaluatorEVMode.result_unfinished,
       EvaluatorEVMode.state,
       ClosureEnvironment.t,
       DHExp.t
