@@ -117,6 +117,10 @@ let common_ok_view = (cls: Term.Cls.t, ok: Info.ok_pat) => {
       text(":"),
       Type.view(ana),
     ]
+  | (Pat(ModuleVar), Ana(Consistent({ana: Module(_) as ana, _}))) => [
+      text(":"),
+      Type.view(ana),
+    ]
   | (_, Ana(Consistent({ana, syn, _}))) when ana == syn => [
       text(":"),
       Type.view(syn),
