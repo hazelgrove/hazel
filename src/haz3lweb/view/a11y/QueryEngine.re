@@ -34,16 +34,15 @@ module QueryResult = {
   };
 };
 
-let execute_query = // TODO: change the input to zipper and info_map
-    (
-      ~settings: Settings.t,
-      ~ctx_init,
-      ~editor: Editor.t,
-      command: QueryAst.command,
-    )
-    : QueryResult.t => {
-  switch (command) {
-  | Query((Inner(Term), (None, Type))) =>
+let rec evaluate_text_object =
+        (
+          ~settings: Settings.t,
+          ~ctx_init,
+          ~editor: Editor.t,
+          text_obj: text_object,
+        ) => {
+  switch (text_obj) {
+  | Inner(Term) =>
     let zipper = editor.state.zipper;
     let (term, _) = MakeTerm.from_zip_for_sem(zipper);
     let info_map =
@@ -60,20 +59,49 @@ let execute_query = // TODO: change the input to zipper and info_map
         | Some(ci) => QueryResult.mk("info", Some(QueryResult.Info(ci))) //TODO: return the result instead of "info"
         }
       };
-    let oci =
-      switch (result.t_object) {
-      | Some(QueryResult.Info(ci)) => Some(ci)
-      | _ => None
-      };
-    switch (oci) {
-    | Some(InfoExp(e)) =>
+    result;
+  | Inner(Parenthesis) => QueryResult.empty
+  | Queried(query) => evaluate_query(~settings, ~ctx_init, ~editor, query)
+  };
+}
+
+and evaluate_query =
+    (
+      ~settings: Settings.t,
+      ~ctx_init,
+      ~editor: Editor.t,
+      query: QueryAst.query,
+    )
+    : QueryResult.t => {
+  let (text_obj_command, q_op) = query;
+  let text_obj_result =
+    evaluate_text_object(~settings, ~ctx_init, ~editor, text_obj_command);
+  switch (text_obj_result.t_object, q_op) {
+  | (Some(Info(ci)), (None, Type)) =>
+    switch (ci) {
+    | InfoExp(e) =>
       QueryResult.mk(e.ty |> Typ.show, Some(QueryResult.Type(e.ty)))
-    | Some(InfoPat(p)) =>
+    | InfoPat(p) =>
       QueryResult.mk(p.ty |> Typ.show, Some(QueryResult.Type(p.ty)))
-    | Some(InfoTyp(t)) =>
+    | InfoTyp(t) =>
       QueryResult.mk(t.ty |> Typ.show, Some(QueryResult.Type(t.ty)))
     | _ => QueryResult.error("No type information available")
-    };
+    }
+  | (_, (None, Type)) => QueryResult.error("No type information available")
+  | _ => QueryResult.error("No information available")
+  };
+};
+
+let evaluate_command =
+    (
+      ~settings: Settings.t,
+      ~ctx_init,
+      ~editor: Editor.t,
+      command: QueryAst.command,
+    )
+    : QueryResult.t => {
+  switch (command) {
+  | Query(query) => evaluate_query(~settings, ~ctx_init, ~editor, query)
   | _ => QueryResult.empty
   };
 };

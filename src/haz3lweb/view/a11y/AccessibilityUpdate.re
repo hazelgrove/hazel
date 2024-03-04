@@ -35,7 +35,7 @@ let update_model =
     | None => model
     | Some(command) =>
       let r =
-        QueryEngine.execute_query(~settings, ~ctx_init, ~editor, command);
+        QueryEngine.evaluate_command(~settings, ~ctx_init, ~editor, command);
       let query_result = Some(r.result);
       {...model, query_result};
     };
