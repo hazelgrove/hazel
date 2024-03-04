@@ -66,6 +66,12 @@ let settings_modal = (~inject, settings: CoreSettings.Evaluation.t) => {
         settings.show_stepper_filters,
         Evaluation(ShowFilters),
       ),
+      setting(
+        "🤫",
+        "show hidden steps",
+        settings.show_hidden_steps,
+        Evaluation(ShowHiddenSteps),
+      ),
     ]),
     div(
       ~attr=
@@ -124,11 +130,11 @@ let stepper_view =
         ~disabled=!Stepper.can_undo(~settings, stepper),
         ~tooltip="Step Backwards",
       );
-    let hide_stepper =
+    let button_hide_stepper =
       Widgets.toggle(~tooltip="Show Stepper", "s", true, _ =>
         inject(UpdateAction.ToggleStepper(result_key))
       );
-    let show_history =
+    let toggle_show_history =
       Widgets.toggle(~tooltip="Show History", "h", settings.stepper_history, _ =>
         inject(Set(Evaluation(ShowRecord)))
       );
@@ -157,29 +163,53 @@ let stepper_view =
             ),
             button_back,
             eval_settings,
-            show_history,
-            hide_stepper,
+            toggle_show_history,
+            button_hide_stepper,
           ],
       );
     let dh_code_previous = step_dh_code;
-    let previous_step = (step: Stepper.step_info) => {
-      div(
-        ~attr=Attr.classes(["cell-item", "cell-result"]),
-        [
-          div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
-          dh_code_previous(~next_steps=[], step),
-          div(
-            ~attr=Attr.classes(["stepper-justification"]),
-            step.chosen_step
-            |> Option.map((chosen_step: EvaluatorStep.step) =>
-                 chosen_step.knd |> Stepper.get_justification |> Node.text
-               )
-            |> Option.to_list,
-          ),
-        ],
-      );
+    let rec previous_step =
+            (~hidden: bool, step: Stepper.step_info): list(Node.t) => {
+      let hidden_steps =
+        Stepper.hidden_steps_of_info(step)
+        |> List.rev_map(previous_step(~hidden=true))
+        |> List.flatten;
+      [
+        div(
+          ~attr=
+            Attr.classes(
+              ["cell-item", "cell-result"] @ (hidden ? ["hidden"] : []),
+            ),
+          [
+            div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
+            dh_code_previous(~next_steps=[], step),
+            div(
+              ~attr=Attr.classes(["stepper-justification"]),
+              step.chosen_step
+              |> Option.map((chosen_step: EvaluatorStep.step) =>
+                   chosen_step.knd |> Stepper.get_justification |> Node.text
+                 )
+              |> Option.to_list,
+            ),
+          ],
+        ),
+      ]
+      @ hidden_steps;
     };
-    (List.map(previous_step, tl) |> List.rev_append(_, [current]))
+    (
+      List.map(previous_step(~hidden=false), tl)
+      |> List.flatten
+      |> List.rev_append(
+           _,
+           (
+             hd
+             |> Stepper.hidden_steps_of_info
+             |> List.map(previous_step(~hidden=true))
+             |> List.flatten
+           )
+           @ [current],
+         )
+    )
     @ (settings.show_settings ? settings_modal(~inject, settings) : []);
   };
 };

@@ -433,6 +433,20 @@ let get_history = (~settings, stepper) => {
   //grouped_steps |> Aba.bab_triples |> List.map(track_ids);
 };
 
+let hidden_steps_of_info = (info: step_info): list(step_info) => {
+  // note the previous_step field is fudged because it is currently usused.next_options
+  List.map(
+    ((hs: step, _)) =>
+      {
+        d: hs.d,
+        chosen_step: Some(hs),
+        hidden_steps: [],
+        previous_step: None,
+      },
+    info.hidden_steps,
+  );
+};
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type persistent = {history};
 
