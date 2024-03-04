@@ -1738,7 +1738,6 @@ svg.expandable path {
   gap: 0.5em;
   color: #7a6219;
   border-top: 1px dotted #d2c7ad;
-  border-radius: 0 0 0.4em 0.4em;
   padding: 0.5em;
   padding-left: 1.2em;
 }
@@ -1798,6 +1797,10 @@ svg.expandable path {
   font-family: "Helvetica Neue";
   font-size: 1rem;
   padding: 0.1em 0.4em 0.1em 0.4em;
+}
+
+.cell-result.hidden {
+  background-color: #E8DCBF;
 }
 
 .cell-result .toggle-switch {
