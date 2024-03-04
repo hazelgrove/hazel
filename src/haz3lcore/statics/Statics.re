@@ -408,6 +408,20 @@ and uexp_to_info_map =
     switch (info_modul.ty) {
     | Module(inner_ctx) =>
       let (body, m) = go'(~ctx=inner_ctx, ~mode, e_mem, m);
+      let m =
+        e_mem.ids
+        |> List.fold_left(
+             (m, id) =>
+               Id.Map.update(
+                 id,
+                 fun
+                 | Some(Info.InfoExp(exp)) =>
+                   Some(Info.InfoExp({...exp, ctx}))
+                 | _ as info => info,
+                 m,
+               ),
+             m,
+           );
       add(
         ~self=Just(body.ty),
         // Accessing member variables in the module shouldn't change co_ctx
