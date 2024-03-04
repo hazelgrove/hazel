@@ -214,7 +214,7 @@ module Transition = (EV: EV_MODE) => {
     };
   };
 
-  let transition = (req, _mod_rec, state, env, d): 'a =>
+  let transition = (req, state, env, d): 'a =>
     switch (d) {
     | BoundVar(x) =>
       let. _ = otherwise(env, BoundVar(x));

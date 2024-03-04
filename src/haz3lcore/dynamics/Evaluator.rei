@@ -34,5 +34,3 @@ module Eval: {
     ) =>
     EvaluatorEVMode.result_unfinished;
 };
-
-let module_evaluate: (ClosureEnvironment.t, DHExp.t) => DHExp.t;

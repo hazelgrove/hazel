@@ -97,50 +97,8 @@ module EvaluatorEVMode: {
 };
 module Eval = Transition(EvaluatorEVMode);
 
-let rec module_evaluate =
-        (state, env, d: DHExp.t): EvaluatorEVMode.result_unfinished => {
-  let rec module_evaluate =
-          (state, env, env_in, d: DHExp.t): EvaluatorEVMode.result_unfinished =>
-    switch (d) {
-    | Let(dp, d1, d2) =>
-      let r1: EvaluatorEVMode.result_unfinished = evaluate(state, env, d1);
-      switch (r1) {
-      | BoxedValue(d1)
-      | Indet(d1)
-      | Uneval(d1) =>
-        switch (PatternMatch.matches(dp, d1)) {
-        | IndetMatch
-        | DoesNotMatch => Indet(Closure(env, Let(dp, d1, d2)))
-        | Matches(env') =>
-          let env = evaluate_extend_env(env', env);
-          let env_in = evaluate_extend_env(env', env_in);
-          module_evaluate(state, env, env_in, d2);
-        }
-      };
-    | Module(dp, d1, d2) =>
-      let empty_env = ClosureEnvironment.empty;
-      let r1: EvaluatorEVMode.result_unfinished =
-        module_evaluate(state, env, empty_env, d1);
-      switch (r1) {
-      | BoxedValue(d1)
-      | Indet(d1)
-      | Uneval(d1) =>
-        switch (PatternMatch.matches(dp, d1)) {
-        | IndetMatch
-        | DoesNotMatch => Indet(Closure(env, Module(dp, d1, d2)))
-        | Matches(env') =>
-          let env = evaluate_extend_env(env', env);
-          let env_in = evaluate_extend_env(env', env_in);
-          module_evaluate(state, env, env_in, d2);
-        }
-      };
-    | _ => BoxedValue(ModuleVal(env_in))
-    };
-  module_evaluate(state, env, ClosureEnvironment.empty, d);
-}
-
-and evaluate = (state, env, d) => {
-  let u = Eval.transition(evaluate, module_evaluate, state, env, d);
+let rec evaluate = (state, env, d) => {
+  let u = Eval.transition(evaluate, state, env, d);
   switch (u) {
   | BoxedValue(x) => BoxedValue(x)
   | Indet(x) => Indet(x)
@@ -159,9 +117,4 @@ let evaluate = (env, d): (EvaluatorState.t, EvaluatorResult.t) => {
     | Uneval(x) => Indet(x)
     };
   (state^, result);
-};
-
-let module_evaluate = (env, d): DHExp.t => {
-  let state = ref(EvaluatorState.init);
-  module_evaluate(state, env, d) |> EvaluatorEVMode.unbox;
 };

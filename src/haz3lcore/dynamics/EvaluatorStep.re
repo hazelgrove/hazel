@@ -159,7 +159,7 @@ module Decompose = {
           Step({apply: () => d1, kind: CompleteFilter, value: true});
         }
       )
-    | _ => Decomp.transition(decompose, decompose, state, env, exp)
+    | _ => Decomp.transition(decompose, state, env, exp)
     };
   };
 };
@@ -199,13 +199,7 @@ module TakeStep = {
   module TakeStepEV = Transition(TakeStepEVMode);
 
   let take_step = (state, env, d) =>
-    TakeStepEV.transition(
-      (_, _, _) => None,
-      (_, _, _) => None,
-      state,
-      env,
-      d,
-    );
+    TakeStepEV.transition((_, _, _) => None, state, env, d);
 };
 
 let take_step = TakeStep.take_step;
