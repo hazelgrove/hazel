@@ -1,7 +1,7 @@
 open Pretty;
 open Haz3lcore;
 
-let precedence = (dp: TermBase.UPat.t) =>
+let precedence = (dp: Pat.t) =>
   switch (DHPat.term_of(dp)) {
   | EmptyHole
   | MultiHole(_)
@@ -26,7 +26,7 @@ let rec mk =
           ~infomap: Statics.Map.t,
           ~parenthesize=false,
           ~enforce_inline: bool,
-          dp: TermBase.UPat.t,
+          dp: Pat.t,
         )
         : DHDoc.t => {
   let mk' = mk(~enforce_inline, ~infomap);

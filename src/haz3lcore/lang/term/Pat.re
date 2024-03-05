@@ -17,7 +17,7 @@ type cls =
   | Ap
   | TypeAnn;
 
-include TermBase.UPat;
+include TermBase.Pat;
 
 let rep_id = ({ids, _}: t) => {
   assert(ids != []);

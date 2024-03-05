@@ -386,8 +386,7 @@ let status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
    such as whether or not a type variable reference is
    free, and whether a ctr name is a dupe. */
 let status_typ =
-    (ctx: Ctx.t, expects: typ_expects, term: TermBase.UTyp.t, ty: Typ.t)
-    : status_typ =>
+    (ctx: Ctx.t, expects: typ_expects, term: TypTerm.t, ty: Typ.t): status_typ =>
   switch (term.term) {
   | Invalid(token) => InHole(BadToken(token))
   | EmptyHole => NotInHole(Type(ty))

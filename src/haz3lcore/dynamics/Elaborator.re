@@ -205,10 +205,10 @@ let rec dhexp_of_uexp =
       /* TODO: add a dhexp case and eval logic for multiholes.
          Make sure new dhexp form is properly considered Indet
          to avoid casting issues. */
-      | Bool(b) => Some(Bool(b) |> rewrap)
-      | Int(n) => Some(Int(n) |> rewrap)
-      | Float(n) => Some(Float(n) |> rewrap)
-      | String(s) => Some(String(s) |> rewrap)
+      | Bool(_)
+      | Int(_)
+      | Float(_)
+      | String(_) => Some(uexp)
       | ListLit(es) =>
         let+ ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
         DExp.ListLit(ds) |> rewrap;

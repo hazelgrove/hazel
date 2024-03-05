@@ -28,7 +28,7 @@ let cast_sum_maps =
   };
 };
 
-let rec matches = (dp: TermBase.UPat.t, d: DExp.t): match_result =>
+let rec matches = (dp: Pat.t, d: DExp.t): match_result =>
   switch (DHPat.term_of(dp), DExp.term_of(d)) {
   | (Parens(x), _) => matches(x, d)
   | (TypeAnn(x, _), _) => matches(x, d)
@@ -202,7 +202,7 @@ let rec matches = (dp: TermBase.UPat.t, d: DExp.t): match_result =>
 and matches_cast_Sum =
     (
       ctr: string,
-      dp: option(TermBase.UPat.t),
+      dp: option(Pat.t),
       d: DExp.t,
       castmaps: list(ConstructorMap.t((Typ.t, Typ.t))),
     )
@@ -272,11 +272,7 @@ and matches_cast_Sum =
   | ListConcat(_) => DoesNotMatch
   }
 and matches_cast_Tuple =
-    (
-      dps: list(TermBase.UPat.t),
-      d: DExp.t,
-      elt_casts: list(list((Typ.t, Typ.t))),
-    )
+    (dps: list(Pat.t), d: DExp.t, elt_casts: list(list((Typ.t, Typ.t))))
     : match_result =>
   switch (DExp.term_of(d)) {
   | Parens(d) => matches_cast_Tuple(dps, d, elt_casts)
@@ -359,8 +355,7 @@ and matches_cast_Tuple =
   | If(_) => IndetMatch
   }
 and matches_cast_Cons =
-    (dp: TermBase.UPat.t, d: DExp.t, elt_casts: list((Typ.t, Typ.t)))
-    : match_result =>
+    (dp: Pat.t, d: DExp.t, elt_casts: list((Typ.t, Typ.t))): match_result =>
   switch (DExp.term_of(d)) {
   | Parens(d) => matches_cast_Cons(dp, d, elt_casts)
   | ListLit([]) =>
@@ -448,7 +443,7 @@ and matches_cast_Cons =
             },
             elt_casts,
           );
-        let dp2 = TermBase.UPat.ListLit(dptl) |> DHPat.fresh;
+        let dp2 = Pat.ListLit(dptl) |> DHPat.fresh;
         switch (matches(dp2, DExp.apply_casts(d2, list_casts))) {
         | DoesNotMatch => DoesNotMatch
         | IndetMatch => IndetMatch

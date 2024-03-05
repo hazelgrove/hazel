@@ -16,7 +16,7 @@ type cls =
   | Parens
   | Ap;
 
-include TermBase.UTyp;
+include TermBase.TypTerm;
 
 let rep_id = ({ids, _}: t) => {
   assert(ids != []);

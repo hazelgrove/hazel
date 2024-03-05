@@ -41,7 +41,7 @@ let editors_of_strings = (~read_only=false, xs: list(string)) => {
   (i, List.map(((_, oe)) => Option.get(oe), aes));
 };
 
-let rec append_exp = (e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
+let rec append_exp = (e1: Exp.t, e2: Exp.t) => {
   switch (e1.term) {
   | EmptyHole
   | Invalid(_)
@@ -70,23 +70,18 @@ let rec append_exp = (e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   | BinOp(_)
   | BuiltinFun(_)
   | Cast(_)
-  | Match(_) =>
-    TermBase.UExp.{ids: [Id.mk()], copied: false, term: Seq(e1, e2)}
+  | Match(_) => Exp.{ids: [Id.mk()], copied: false, term: Seq(e1, e2)}
   | Seq(e11, e12) =>
     let e12' = append_exp(e12, e2);
-    TermBase.UExp.{ids: e1.ids, copied: false, term: Seq(e11, e12')};
+    Exp.{ids: e1.ids, copied: false, term: Seq(e11, e12')};
   | Filter(kind, ebody) =>
     let ebody' = append_exp(ebody, e2);
-    TermBase.UExp.{ids: e1.ids, copied: false, term: Filter(kind, ebody')};
+    Exp.{ids: e1.ids, copied: false, term: Filter(kind, ebody')};
   | Let(p, edef, ebody) =>
     let ebody' = append_exp(ebody, e2);
-    TermBase.UExp.{ids: e1.ids, copied: false, term: Let(p, edef, ebody')};
+    Exp.{ids: e1.ids, copied: false, term: Let(p, edef, ebody')};
   | TyAlias(tp, tdef, ebody) =>
     let ebody' = append_exp(ebody, e2);
-    TermBase.UExp.{
-      ids: e1.ids,
-      copied: false,
-      term: TyAlias(tp, tdef, ebody'),
-    };
+    Exp.{ids: e1.ids, copied: false, term: TyAlias(tp, tdef, ebody')};
   };
 };

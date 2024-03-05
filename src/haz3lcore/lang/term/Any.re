@@ -1,14 +1,14 @@
 include TermBase.Any;
 
-let is_exp: t => option(TermBase.UExp.t) =
+let is_exp: t => option(TermBase.Exp.t) =
   fun
   | Exp(e) => Some(e)
   | _ => None;
-let is_pat: t => option(TermBase.UPat.t) =
+let is_pat: t => option(TermBase.Pat.t) =
   fun
   | Pat(p) => Some(p)
   | _ => None;
-let is_typ: t => option(TermBase.UTyp.t) =
+let is_typ: t => option(TermBase.TypTerm.t) =
   fun
   | Typ(t) => Some(t)
   | _ => None;
