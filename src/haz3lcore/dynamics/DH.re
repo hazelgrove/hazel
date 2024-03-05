@@ -34,7 +34,7 @@
  */
 
 module DExp: {
-  include (module type of TermBase.UExp);
+  include (module type of TermBase.Exp);
 
   let rep_id: t => Id.t;
   let term_of: t => term;
@@ -56,7 +56,7 @@ module DExp: {
     (TermBase.StepperFilterKind.t, TermBase.StepperFilterKind.t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  include TermBase.UExp;
+  include TermBase.Exp;
 
   let rep_id = ({ids, _}) => List.hd(ids);
   let term_of = ({term, _}) => term;

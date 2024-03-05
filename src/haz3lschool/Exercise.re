@@ -556,7 +556,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   module TermItem = {
     type t = {
-      term: TermBase.UExp.t,
+      term: Exp.t,
       term_ranges: TermRanges.t,
     };
   };
@@ -576,9 +576,9 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   };
 
   let wrap_filter = (act: FilterAction.action, term: UExp.t): UExp.t =>
-    TermBase.UExp.{
+    Exp.{
       term:
-        TermBase.UExp.Filter(
+        Exp.Filter(
           Filter({
             act: FilterAction.(act, One),
             pat: {
@@ -760,7 +760,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   module DynamicsItem = {
     type t = {
-      term: TermBase.UExp.t,
+      term: Exp.t,
       info_map: Statics.Map.t,
       result: ModelResult.t,
     };

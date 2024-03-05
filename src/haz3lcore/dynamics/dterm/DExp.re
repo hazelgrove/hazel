@@ -2,7 +2,6 @@
  To discuss:
 
  1. putting info inside expressions
- 2. The issue with recursion capture
 
 
  */

@@ -380,7 +380,7 @@ let example_view =
     ];
 };
 
-let rec bypass_parens_and_annot_pat = (pat: TermBase.UPat.t) => {
+let rec bypass_parens_and_annot_pat = (pat: Pat.t) => {
   switch (pat.term) {
   | Parens(p)
   | TypeAnn(p, _) => bypass_parens_and_annot_pat(p)
@@ -388,21 +388,21 @@ let rec bypass_parens_and_annot_pat = (pat: TermBase.UPat.t) => {
   };
 };
 
-let rec bypass_parens_pat = (pat: TermBase.UPat.t) => {
+let rec bypass_parens_pat = (pat: Pat.t) => {
   switch (pat.term) {
   | Parens(p) => bypass_parens_pat(p)
   | _ => pat
   };
 };
 
-let rec bypass_parens_exp = (exp: TermBase.UExp.t) => {
+let rec bypass_parens_exp = (exp: Exp.t) => {
   switch (exp.term) {
   | Parens(e) => bypass_parens_exp(e)
   | _ => exp
   };
 };
 
-let rec bypass_parens_typ = (typ: TermBase.UTyp.t) => {
+let rec bypass_parens_typ = (typ: TypTerm.t) => {
   switch (typ.term) {
   | Parens(t) => bypass_parens_typ(t)
   | _ => typ
@@ -520,8 +520,8 @@ let get_doc =
     let rec get_message_exp =
             (term)
             : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) =>
-      switch (term) {
-      | TermBase.UExp.Invalid(_) => simple("Not a valid expression")
+      switch ((term: Exp.term)) {
+      | Exp.Invalid(_) => simple("Not a valid expression")
       | DynamicErrorHole(_)
       | StaticErrorHole(_)
       | FailedCast(_)
@@ -1881,7 +1881,7 @@ let get_doc =
           doc,
         );
       switch (tl.term) {
-      | TermBase.UPat.Cons(hd2, tl2) =>
+      | Pat.Cons(hd2, tl2) =>
         if (ListPat.cons2_pat.id == get_specificity_level(ListPat.cons2)) {
           let hd2_id = List.nth(hd2.ids, 0);
           let tl2_id = List.nth(tl2.ids, 0);
@@ -2068,7 +2068,7 @@ let get_doc =
           doc,
         );
       switch (result.term) {
-      | TermBase.UTyp.Arrow(arg2, result2) =>
+      | TypTerm.Arrow(arg2, result2) =>
         if (ArrowTyp.arrow3_typ.id == get_specificity_level(ArrowTyp.arrow3)) {
           let arg2_id = List.nth(arg2.ids, 0);
           let result2_id = List.nth(result2.ids, 0);

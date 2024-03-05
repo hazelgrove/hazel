@@ -8,10 +8,10 @@ type term =
   | Filter(TermBase.StepperFilterKind.t, t)
   | Seq1(t, DExp.t)
   | Seq2(DExp.t, t)
-  | Let1(TermBase.UPat.t, t, DExp.t)
-  | Let2(TermBase.UPat.t, DExp.t, t)
-  | Fun(TermBase.UPat.t, t, option(ClosureEnvironment.t), option(Var.t))
-  | FixF(TermBase.UPat.t, t, option(ClosureEnvironment.t))
+  | Let1(Pat.t, t, DExp.t)
+  | Let2(Pat.t, DExp.t, t)
+  | Fun(Pat.t, t, option(ClosureEnvironment.t), option(Var.t))
+  | FixF(Pat.t, t, option(ClosureEnvironment.t))
   | Ap1(Operators.ap_direction, t, DExp.t)
   | Ap2(Operators.ap_direction, DExp.t, t)
   | If1(t, DExp.t, DExp.t)
@@ -23,7 +23,7 @@ type term =
   | Tuple(t, (list(DExp.t), list(DExp.t)))
   | Test(t)
   | ListLit(t, (list(DExp.t), list(DExp.t)))
-  | MultiHole(t, (list(TermBase.Any.t), list(TermBase.Any.t)))
+  | MultiHole(t, (list(Any.t), list(Any.t)))
   | Cons1(t, DExp.t)
   | Cons2(DExp.t, t)
   | ListConcat1(t, DExp.t)
@@ -32,12 +32,12 @@ type term =
   | Cast(t, Typ.t, Typ.t)
   | FailedCast(t, Typ.t, Typ.t)
   | DynamicErrorHole(t, InvalidOperationError.t)
-  | MatchScrut(t, list((TermBase.UPat.t, DExp.t)))
+  | MatchScrut(t, list((UPat.t, DExp.t)))
   | MatchRule(
       DExp.t,
-      TermBase.UPat.t,
+      UPat.t,
       t,
-      (list((TermBase.UPat.t, DExp.t)), list((TermBase.UPat.t, DExp.t))),
+      (list((UPat.t, DExp.t)), list((UPat.t, DExp.t))),
     )
 and t =
   | Mark

@@ -1,4 +1,4 @@
-open TermBase.UPat;
+open TermBase.Pat;
 
 // [@deriving (show({with_path: false}), sexp, yojson)]
 // type term =

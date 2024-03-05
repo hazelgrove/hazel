@@ -168,7 +168,7 @@ let rec matches_exp =
   | (TyAlias(_), _) => false
   };
 }
-and matches_pat = (d: TermBase.UPat.t, f: TermBase.UPat.t): bool => {
+and matches_pat = (d: Pat.t, f: Pat.t): bool => {
   switch (d |> DHPat.term_of, f |> DHPat.term_of) {
   // Matt: I'm not sure what the exact semantics of matching should be here.
   | (Parens(x), _) => matches_pat(x, f)
