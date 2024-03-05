@@ -2,6 +2,7 @@ open Js_of_ocaml;
 open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
+open Util;
 
 let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit), model) => {
   let get_selection = (model: Model.t): string =>
@@ -86,6 +87,14 @@ let main_view =
       : div([]);
   let highlights =
     ExplainThis.get_color_map(~settings, ~explainThisModel, cursor_info);
+  let highlights =
+    Some(
+      accessibilityModel.colorings
+      |> List.fold_left(
+           (map, (id, color)) => Id.Map.add(id, color, map),
+           highlights |> OptUtil.get(() => Id.Map.empty),
+         ),
+    );
   let editors_view =
     switch (editors) {
     | Scratch(idx, _) =>

@@ -18,6 +18,7 @@ open QueryAst
 main:
   | action EOF { Action($1) }
   | query EOF { Query($1) }
+  | text_object EOF {Partial($1)}
 
 action:
   | text_object ACTION_KEY { ($1, $2) }

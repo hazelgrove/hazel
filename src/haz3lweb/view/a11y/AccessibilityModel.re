@@ -1,6 +1,6 @@
 open Sexplib.Std;
 module Sexp = Sexplib.Sexp;
-
+open Haz3lcore;
 module Settings = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -18,6 +18,7 @@ module Settings = {
 type t = {
   input: string,
   query_result: option(string),
+  colorings: list((Id.t, string)),
 };
 
-let init = {input: "", query_result: None};
+let init = {input: "", query_result: None, colorings: []};

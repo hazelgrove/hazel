@@ -22,15 +22,26 @@ module QueryResult = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    result: string,
+    msg: string,
     t_object: option(textobject),
   };
 
-  let empty = {result: "nothing", t_object: None};
-  let error = (msg: string) => {result: msg, t_object: None};
+  let empty = {msg: "nothing", t_object: None};
+  let error = (msg: string) => {msg, t_object: None};
 
-  let mk = (result, t_object): t => {
-    {result, t_object};
+  let mk = (msg, t_object): t => {
+    {msg, t_object};
+  };
+
+  let change_msg = (msg: string, result: t): t => {
+    {msg, t_object: result.t_object};
+  };
+
+  let get_id = (result: t): option(Id.t) => {
+    switch (result.t_object) {
+    | Some(Info(ci)) => Some(Info.id_of(ci))
+    | _ => None
+    };
   };
 };
 
@@ -102,6 +113,9 @@ let evaluate_command =
     : QueryResult.t => {
   switch (command) {
   | Query(query) => evaluate_query(~settings, ~ctx_init, ~editor, query)
-  | _ => QueryResult.empty
+  | Partial(text_object) =>
+    evaluate_text_object(~settings, ~ctx_init, ~editor, text_object)
+    |> QueryResult.change_msg("The selected text is highlighted")
+  | Action(_) => QueryResult.empty
   };
 };

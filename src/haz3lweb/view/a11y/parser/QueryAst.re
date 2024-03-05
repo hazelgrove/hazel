@@ -36,4 +36,5 @@ type action = (text_object, action_key);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type command =
   | Action(action)
-  | Query(query);
+  | Query(query)
+  | Partial(text_object);

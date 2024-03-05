@@ -1,5 +1,4 @@
 open Haz3lcore;
-
 let remove_last_char = (str: string) =>
   if (String.length(str) > 0) {
     String.sub(str, 0, String.length(str) - 1);
@@ -31,8 +30,9 @@ let update_model =
     let input = edit_input(model.input, action);
     let parseResult = AccessibilityEngine.query_parser(input);
     let model = {...model, input};
+
     switch (parseResult) {
-    | None => model
+    | None => {...model, query_result: None, colorings: []}
     | Some(command) =>
       let r =
         AccessibilityEngine.evaluate_command(
@@ -41,7 +41,12 @@ let update_model =
           ~editor,
           command,
         );
-      let query_result = Some(r.result);
-      {...model, query_result};
+      let query_result = Some(r.msg);
+      let colorings =
+        switch (AccessibilityEngine.QueryResult.get_id(r)) {
+        | None => []
+        | Some(id) => [(id, "purple")]
+        };
+      {...model, query_result, colorings};
     };
   };
