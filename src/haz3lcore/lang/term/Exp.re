@@ -48,6 +48,8 @@ let rep_id = ({ids, _}) => {
   List.hd(ids);
 };
 
+let unwrap = ({ids, term, copied}) => (term, term => {ids, term, copied});
+
 let cls_of_term: term => cls =
   fun
   | Invalid(_) => Invalid

@@ -21,20 +21,20 @@ let dhexp_typ = testable(Fmt.using(dhexp_print, Fmt.string), dhexp_eq);
 let ids = List.init(12, _ => Id.mk());
 let id_at = x => x |> List.nth(ids);
 let mk_map = CoreSettings.on |> Interface.Statics.mk_map;
-let dhexp_of_uexp = u => Elaborator.dhexp_of_uexp(mk_map(u), u, false);
+let dexp_of_uexp = u =>
+  switch (Elaborator.dexp_of_uexp(mk_map(u), u, ~in_filter=false)) {
+  | x => Some(x)
+  | exception Elaborator.MissingTypeInfo => None
+  };
 let alco_check = dhexp_typ |> Alcotest.check;
 
 let u1: UExp.t = {ids: [id_at(0)], copied: false, term: Int(8)};
 let single_integer = () =>
-  alco_check(
-    "Integer literal 8",
-    Some(Int(8) |> fresh),
-    dhexp_of_uexp(u1),
-  );
+  alco_check("Integer literal 8", Some(Int(8) |> fresh), dexp_of_uexp(u1));
 
 let u2: UExp.t = {ids: [id_at(0)], copied: false, term: EmptyHole};
 let empty_hole = () =>
-  alco_check("Empty hole", Some(EmptyHole |> fresh), dhexp_of_uexp(u2));
+  alco_check("Empty hole", Some(EmptyHole |> fresh), dexp_of_uexp(u2));
 
 let u3: UExp.t = {
   ids: [id_at(0)],
@@ -46,7 +46,7 @@ let free_var = () =>
   alco_check(
     "Nonempty hole with free variable",
     Some(d3),
-    dhexp_of_uexp(u3),
+    dexp_of_uexp(u3),
   );
 
 let u4: UExp.t = {
@@ -91,11 +91,7 @@ let d4: DExp.t =
   )
   |> fresh;
 let let_exp = () =>
-  alco_check(
-    "Let expression for tuple (a, b)",
-    Some(d4),
-    dhexp_of_uexp(u4),
-  );
+  alco_check("Let expression for tuple (a, b)", Some(d4), dexp_of_uexp(u4));
 
 let u5: UExp.t = {
   ids: [id_at(0)],
@@ -118,7 +114,7 @@ let bin_op = () =>
   alco_check(
     "Inconsistent binary integer operation (plus)",
     Some(d5),
-    dhexp_of_uexp(u5),
+    dexp_of_uexp(u5),
   );
 
 let u6: UExp.t = {
@@ -137,7 +133,7 @@ let consistent_if = () =>
   alco_check(
     "Consistent case with rules (BoolLit(true), IntLit(8)) and (BoolLit(false), IntLit(6))",
     Some(d6),
-    dhexp_of_uexp(u6),
+    dexp_of_uexp(u6),
   );
 
 let u7: UExp.t = {
@@ -191,7 +187,7 @@ let ap_fun = () =>
   alco_check(
     "Application of a function of a free variable wrapped inside a nonempty hole constructor",
     Some(d7),
-    dhexp_of_uexp(u7),
+    dexp_of_uexp(u7),
   );
 
 let u8: UExp.t = {
@@ -234,7 +230,7 @@ let inconsistent_case = () =>
   alco_check(
     "Inconsistent branches where the first branch is an integer and second branch is a boolean",
     Some(d8),
-    dhexp_of_uexp(u8),
+    dexp_of_uexp(u8),
   );
 
 let u9: UExp.t = {
@@ -303,7 +299,7 @@ let u9: UExp.t = {
 //   alco_check(
 //     "Let expression for function which wraps a fix point constructor around the function",
 //     Some(d9),
-//     dhexp_of_uexp(u9),
+//     dexp_of_uexp(u9),
 //   );
 
 let elaboration_tests = [
