@@ -56,7 +56,7 @@ let rec evaluate_text_object =
       | (_, Some(id)) =>
         switch (Id.Map.find_opt(id, info_map)) {
         | None => QueryResult.error("Whitespace or Comment")
-        | Some(ci) => QueryResult.mk("info", Some(QueryResult.Info(ci))) //TODO: return the result instead of "info"
+        | Some(ci) => QueryResult.mk("info", Some(QueryResult.Info(ci)))
         }
       };
     result;

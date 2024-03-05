@@ -29,13 +29,18 @@ let update_model =
   switch (update) {
   | Edit(action) =>
     let input = edit_input(model.input, action);
-    let parseResult = QueryEngine.query_parser(input);
+    let parseResult = AccessibilityEngine.query_parser(input);
     let model = {...model, input};
     switch (parseResult) {
     | None => model
     | Some(command) =>
       let r =
-        QueryEngine.evaluate_command(~settings, ~ctx_init, ~editor, command);
+        AccessibilityEngine.evaluate_command(
+          ~settings,
+          ~ctx_init,
+          ~editor,
+          command,
+        );
       let query_result = Some(r.result);
       {...model, query_result};
     };
