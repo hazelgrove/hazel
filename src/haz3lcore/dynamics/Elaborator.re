@@ -1,21 +1,10 @@
-open Util;
-open OptUtil.Syntax;
-
 /*
- Currently, Elaboration does the following things:
 
-  - Insert casts
-  - Insert non-empty hole wrappers
-  - Remove TyAlias [should we do this??]
-  - Annotate functions with types, and names
-  - Insert implicit fixpoints (in types and expressions)
-  - Remove parentheses
 
-  Going the other way:
-  - There's going to be a horrible case with implicit fixpoint shadowing
+ A nice property would be that elaboration is idempotent...
+ */
 
-  A nice property would be that elaboration is idempotent...
-  */
+exception MissingTypeInfo;
 
 module Elaboration = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -44,6 +33,9 @@ let fixed_pat_typ = (m: Statics.Map.t, p: UPat.t): option(Typ.t) =>
   | _ => None
   };
 
+/* Adds casts if required.
+
+   When adding a new construct, [TODO: write something helpful here] */
 let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DExp.t) =>
   switch (mode) {
   | Syn => d
@@ -145,7 +137,12 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DExp.t) =>
 
 /* Handles cast insertion and non-empty-hole wrapping
    for elaborated expressions */
-let wrap = (ctx: Ctx.t, u: Id.t, mode: Mode.t, self, d: DExp.t): DExp.t =>
+let wrap = (m, exp: Exp.t): DExp.t => {
+  let (mode, self, ctx) =
+    switch (Id.Map.find_opt(Exp.rep_id(exp), m)) {
+    | Some(Info.InfoExp({mode, self, ctx, _})) => (mode, self, ctx)
+    | _ => raise(MissingTypeInfo)
+    };
   switch (Info.status_exp(ctx, mode, self)) {
   | NotInHole(_) =>
     let self_ty =
@@ -153,188 +150,131 @@ let wrap = (ctx: Ctx.t, u: Id.t, mode: Mode.t, self, d: DExp.t): DExp.t =>
       | Some(self_ty) => Typ.normalize(ctx, self_ty)
       | None => Unknown(Internal)
       };
-    cast(ctx, mode, self_ty, d);
+    cast(ctx, mode, self_ty, exp);
   | InHole(
       FreeVariable(_) | Common(NoType(_)) |
       Common(Inconsistent(Internal(_))),
-    ) => d
+    ) => exp
   | InHole(Common(Inconsistent(Expectation(_) | WithArrow(_)))) =>
-    DExp.fresh(StaticErrorHole(u, d))
+    DExp.fresh(StaticErrorHole(Exp.rep_id(exp), exp))
   };
+};
 
-let rec dhexp_of_uexp =
-        (m: Statics.Map.t, uexp: UExp.t, in_filter: bool): option(DExp.t) => {
-  let dhexp_of_uexp = (~in_filter=in_filter, m, uexp) => {
-    dhexp_of_uexp(m, uexp, in_filter);
-  };
-  switch (Id.Map.find_opt(UExp.rep_id(uexp), m)) {
-  | Some(InfoExp({mode, self, ctx, _})) =>
-    let err_status = Info.status_exp(ctx, mode, self);
-    let id = UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
-    let rewrap = DExp.mk(uexp.ids);
-    let+ d: DExp.t =
-      switch (uexp.term) {
-      // TODO: make closure actually convert
-      | Closure(_, d) => dhexp_of_uexp(m, d)
-      | Cast(d1, t1, t2) =>
-        let+ d1' = dhexp_of_uexp(m, d1);
-        Cast(d1', t1, t2) |> rewrap;
-      | Invalid(t) => Some(DExp.Invalid(t) |> rewrap)
-      | EmptyHole => Some(DExp.EmptyHole |> rewrap)
-      | MultiHole(_: list(TermBase.Any.t)) => Some(EmptyHole |> rewrap)
-      // switch (
-      //   us
-      //   |> List.filter_map(
-      //        fun
-      //        | TermBase.Any.Exp(x) => Some(x)
-      //        | _ => None,
-      //      )
-      // ) {
-      // | [] => Some(DExp.EmptyHole |> rewrap)
-      // | us =>
-      //   let+ ds = us |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
-      //   DExp.MultiHole(ds) |> rewrap;
-      // }
-      | StaticErrorHole(_, e) => dhexp_of_uexp(m, e)
-      | DynamicErrorHole(e, err) =>
-        let+ d1 = dhexp_of_uexp(m, e);
-        DExp.DynamicErrorHole(d1, err) |> rewrap;
-      | FailedCast(e, t1, t2) =>
-        let+ d1 = dhexp_of_uexp(m, e);
-        DExp.FailedCast(d1, t1, t2) |> rewrap;
-      /* TODO: add a dhexp case and eval logic for multiholes.
-         Make sure new dhexp form is properly considered Indet
-         to avoid casting issues. */
-      | Bool(_)
-      | Int(_)
-      | Float(_)
-      | String(_) => Some(uexp)
-      | ListLit(es) =>
-        let+ ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
-        DExp.ListLit(ds) |> rewrap;
-      | Fun(p, body, _, _) =>
-        let+ d1 = dhexp_of_uexp(m, body);
-        DExp.Fun(p, d1, None, None) |> rewrap;
-      | Tuple(es) =>
-        let+ ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
-        DExp.Tuple(ds) |> rewrap;
-      | Cons(e1, e2) =>
-        let* dc1 = dhexp_of_uexp(m, e1);
-        let+ dc2 = dhexp_of_uexp(m, e2);
-        DExp.Cons(dc1, dc2) |> rewrap;
-      | ListConcat(e1, e2) =>
-        let* dc1 = dhexp_of_uexp(m, e1);
-        let+ dc2 = dhexp_of_uexp(m, e2);
-        DExp.ListConcat(dc1, dc2) |> rewrap;
-      | UnOp(Meta(Unquote), e) =>
-        switch (e.term) {
-        | Var("e") when in_filter => Some(Constructor("$e") |> DExp.fresh)
-        | Var("v") when in_filter => Some(Constructor("$v") |> DExp.fresh)
-        | _ => Some(DExp.EmptyHole |> rewrap)
-        }
-      | UnOp(Int(Minus), e) =>
-        let+ dc = dhexp_of_uexp(m, e);
-        DExp.UnOp(Int(Minus), dc) |> rewrap;
-      | UnOp(Bool(Not), e) =>
-        let+ dc = dhexp_of_uexp(m, e);
-        DExp.UnOp(Bool(Not), dc) |> rewrap;
-      | BinOp(op, e1, e2) =>
-        let* dc1 = dhexp_of_uexp(m, e1);
-        let+ dc2 = dhexp_of_uexp(m, e2);
-        DExp.BinOp(op, dc1, dc2) |> rewrap;
-      | BuiltinFun(name) => Some(DExp.BuiltinFun(name) |> rewrap)
-      | Parens(e) => dhexp_of_uexp(m, e)
-      | Seq(e1, e2) =>
-        let* d1 = dhexp_of_uexp(m, e1);
-        let+ d2 = dhexp_of_uexp(m, e2);
-        DExp.Seq(d1, d2) |> rewrap;
-      | Test(test) =>
-        let+ dtest = dhexp_of_uexp(m, test);
-        DExp.Test(dtest) |> rewrap;
-      | Filter(Filter({act, pat: cond}), body) =>
-        let* dcond = dhexp_of_uexp(~in_filter=true, m, cond);
-        let+ dbody = dhexp_of_uexp(m, body);
-        DExp.Filter(Filter({act, pat: dcond}), dbody) |> rewrap;
-      | Filter(Residue(_) as residue, body) =>
-        let+ dbody = dhexp_of_uexp(m, body);
-        DExp.Filter(residue, dbody) |> rewrap;
-      | Var(name) => Some(Var(name) |> rewrap)
-      | Constructor(name) => Some(Constructor(name) |> rewrap)
-      | Let(p, def, body) =>
-        let add_name: (option(string), DExp.t) => DExp.t = (
-          (name, d) => {
-            let (term, rewrap) = DExp.unwrap(d);
-            switch (term) {
-            | Fun(p, e, ctx, _) => DExp.Fun(p, e, ctx, name) |> rewrap
-            | _ => d
-            };
+/*
+  This function converts user-expressions (UExp.t) to dynamic expressions (DExp.t). They
+  have the same datatype but there are some small differences so that UExp.t can be edited
+  and DExp.t can be evaluated.
+
+ Currently, Elaboration does the following things:
+
+   - Insert casts
+   - Insert non-empty hole wrappers
+   - Annotate functions with names
+   - Insert implicit fixpoints
+   - Remove parentheses [not strictly necessary]
+   - Remove TyAlias [not strictly necessary]
+
+ When adding a new construct you can probably just add it to the default cases.
+  */
+let rec dexp_of_uexp = (m, uexp, ~in_filter) => {
+  Exp.map_term(
+    ~f_exp=
+      (continue, exp) => {
+        let (term, rewrap) = Exp.unwrap(exp);
+        switch (term) {
+        // Default cases: do not need to change at elaboration
+        | Closure(_)
+        | Cast(_)
+        | Invalid(_)
+        | EmptyHole
+        | MultiHole(_)
+        | StaticErrorHole(_)
+        | DynamicErrorHole(_)
+        | FailedCast(_)
+        | Bool(_)
+        | Int(_)
+        | Float(_)
+        | String(_)
+        | ListLit(_)
+        | Tuple(_)
+        | Cons(_)
+        | ListConcat(_)
+        | UnOp(Int(_) | Bool(_), _)
+        | BinOp(_)
+        | BuiltinFun(_)
+        | Seq(_)
+        | Test(_)
+        | Filter(Residue(_), _)
+        | Var(_)
+        | Constructor(_)
+        | Ap(_)
+        | If(_)
+        | Fun(_)
+        | FixF(_)
+        | Match(_) => continue(exp) |> wrap(m)
+
+        // Unquote operator: should be turned into constructor if inside filter body.
+        | UnOp(Meta(Unquote), e) =>
+          switch (e.term) {
+          | Var("e") when in_filter =>
+            Constructor("$e") |> DExp.fresh |> wrap(m)
+          | Var("v") when in_filter =>
+            Constructor("$v") |> DExp.fresh |> wrap(m)
+          | _ => DExp.EmptyHole |> DHExp.fresh |> wrap(m)
           }
-        );
-        let* ddef = dhexp_of_uexp(m, def);
-        let+ dbody = dhexp_of_uexp(m, body);
-        switch (UPat.get_recursive_bindings(p)) {
-        | None =>
-          /* not recursive */
-          DExp.Let(p, add_name(UPat.get_var(p), ddef), dbody) |> rewrap
-        | Some(b) =>
-          DExp.Let(
-            p,
-            FixF(p, add_name(Some(String.concat(",", b)), ddef), None)
-            |> DExp.fresh,
-            dbody,
+        | Filter(Filter({act, pat}), body) =>
+          Filter(
+            Filter({act, pat: dexp_of_uexp(m, pat, ~in_filter=true)}),
+            dexp_of_uexp(m, body, ~in_filter),
           )
           |> rewrap
+          |> wrap(m)
+
+        // Let bindings: insert implicit fixpoints and label functions with their names.
+        | Let(p, def, body) =>
+          let add_name: (option(string), DExp.t) => DExp.t = (
+            (name, d) => {
+              let (term, rewrap) = DExp.unwrap(d);
+              switch (term) {
+              | Fun(p, e, ctx, _) => DExp.Fun(p, e, ctx, name) |> rewrap
+              | _ => d
+              };
+            }
+          );
+          let ddef = dexp_of_uexp(m, def, ~in_filter);
+          let dbody = dexp_of_uexp(m, body, ~in_filter);
+          switch (UPat.get_recursive_bindings(p)) {
+          | None =>
+            /* not recursive */
+            DExp.Let(p, add_name(UPat.get_var(p), ddef), dbody)
+            |> rewrap
+            |> wrap(m)
+          | Some(b) =>
+            DExp.Let(
+              p,
+              FixF(p, add_name(Some(String.concat(",", b)), ddef), None)
+              |> DExp.fresh,
+              dbody,
+            )
+            |> rewrap
+            |> wrap(m)
+          };
+
+        // type alias and parentheses: remove during elaboration
+        | TyAlias(_, _, e)
+        | Parens(e) => dexp_of_uexp(m, e, ~in_filter)
         };
-      | FixF(p, e, _) =>
-        let+ de = dhexp_of_uexp(m, e);
-        DExp.FixF(p, de, None) |> rewrap;
-      | Ap(dir, fn, arg) =>
-        let* c_fn = dhexp_of_uexp(m, fn);
-        let+ c_arg = dhexp_of_uexp(m, arg);
-        DExp.Ap(dir, c_fn, c_arg) |> rewrap;
-      | If(c, e1, e2) =>
-        let* c' = dhexp_of_uexp(m, c);
-        let* d1 = dhexp_of_uexp(m, e1);
-        let+ d2 = dhexp_of_uexp(m, e2);
-        // Use tag to mark inconsistent branches
-        switch (err_status) {
-        | InHole(Common(Inconsistent(Internal(_)))) =>
-          DExp.If(c', d1, d2) |> rewrap
-        | _ => DExp.If(c', d1, d2) |> rewrap
-        };
-      | Match(scrut, rules) =>
-        let* d_scrut = dhexp_of_uexp(m, scrut);
-        let+ d_rules =
-          List.map(
-            ((p, e)) => {
-              let+ d_e = dhexp_of_uexp(m, e);
-              (p, d_e);
-            },
-            rules,
-          )
-          |> OptUtil.sequence;
-        switch (err_status) {
-        | InHole(Common(Inconsistent(Internal(_)))) =>
-          DExp.Match(d_scrut, d_rules) |> rewrap
-        | _ => DExp.Match(d_scrut, d_rules) |> rewrap
-        };
-      | TyAlias(_, _, e) => dhexp_of_uexp(m, e)
-      };
-    switch (uexp.term) {
-    | Parens(_) => d
-    | _ => wrap(ctx, id, mode, self, d)
-    };
-  | Some(InfoPat(_) | InfoTyp(_) | InfoTPat(_) | Secondary(_))
-  | None => None
-  };
+      },
+    uexp,
+  );
 };
 
 //let dhexp_of_uexp = Core.Memo.general(~cache_size_bound=1000, dhexp_of_uexp);
 
 let uexp_elab = (m: Statics.Map.t, uexp: UExp.t): ElaborationResult.t =>
-  switch (dhexp_of_uexp(m, uexp, false)) {
-  | None => DoesNotElaborate
-  | Some(d) =>
+  switch (dexp_of_uexp(m, uexp, ~in_filter=false)) {
+  | exception MissingTypeInfo => DoesNotElaborate
+  | d =>
     //let d = uexp_elab_wrap_builtins(d);
     let ty =
       switch (fixed_exp_typ(m, uexp)) {
