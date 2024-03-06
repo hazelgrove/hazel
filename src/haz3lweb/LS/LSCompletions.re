@@ -1,63 +1,7 @@
-open Js_of_ocaml;
 open Util;
 open Haz3lcore;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type completions =
-  | Grammar
-  | Context
-  | Types;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type check =
-  | Syntax
-  | Static
-  | Dynamic;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type command =
-  | Check(check)
-  | Completions(completions);
-
-let show_command = (c: command): string =>
-  switch (c) {
-  | Check(Syntax) => "Check(Syntax)"
-  | Check(Static) => "Check(Static)"
-  | Check(Dynamic) => "Check(Dynamic)"
-  | Completions(Grammar) => "Completions(Grammar)"
-  | Completions(Context) => "Completions(Context)"
-  | Completions(Types) => "Completions(Types)"
-  };
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type data = {
-  prelude: option(string),
-  program: string,
-  new_token: option(string),
-  epilogue: option(string),
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type arguments = {
-  debug: bool,
-  ctx: Ctx.t,
-  command,
-  data,
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type args_completion = {
-  ctx: Ctx.t,
-  completions,
-  data,
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type args_check = {
-  ctx: Ctx.t,
-  check,
-  data,
-};
+open Sexplib.Std;
+open LSActions;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type completability =
@@ -114,392 +58,6 @@ type pre_grammar = {
   new_tokens: list(string),
 };
 
-let default_data: data = {
-  prelude: None,
-  program: "",
-  new_token: None,
-  epilogue: None,
-};
-let default_settings: arguments = {
-  debug: false,
-  ctx: Builtins.ctx_base,
-  command: Completions(Types),
-  data: default_data,
-};
-
-/* File handling */
-
-let string_of_file = (~encoding: string="utf8", path: string): string => {
-  Js.Unsafe.(
-    Array.map(inject, [|Js.string(path), Js.string(encoding)|])
-    |> fun_call(get(js_expr("require('fs')"), "readFileSync"))
-    |> Js.to_string
-  );
-};
-
-let get_args = (): list(string) => {
-  Js.Unsafe.(
-    switch (
-      get(js_expr("require('process')"), "argv")
-      |> Js.to_array
-      |> Array.map(Js.to_string)
-      |> Array.to_list
-    ) {
-    | [_, _, ...args] => args
-    | _ => failwith("LSP: EXN: Args malformed")
-    }
-  );
-};
-
-let hash_of_string = (str: string): string =>
-  str |> Digest.string |> Digest.to_hex;
-
-let tempDir = "tmp"; // Name of the temporary directory
-
-/* Ensure the temporary directory exists */
-let ensureTempDir = (): unit =>
-  if (!Sys.file_exists(tempDir)) {
-    Sys.mkdir(
-      tempDir,
-      0o755 // Uses Unix permissions, adjust as necessary
-    );
-  };
-
-/* Construct a path within the temporary directory for a given filename */
-let tempFilePath = (filename: string): string => {
-  ensureTempDir();
-  tempDir ++ "/" ++ filename;
-};
-
-let is_file = (path: string): bool => {
-  Js.Unsafe.(
-    [|inject(Js.string(tempFilePath(path)))|]
-    |> fun_call(get(js_expr("require('fs')"), "existsSync"))
-    |> Js.to_bool
-  );
-};
-
-let serialize_a = (a: 'a, filename: string): unit => {
-  let tempFilename = tempFilePath(filename);
-  let channel = open_out_bin(tempFilename);
-  Marshal.to_channel(channel, a, []);
-  close_out(channel);
-};
-
-let deserialize_a = (filename: string): 'a => {
-  let tempFilename = tempFilePath(filename);
-  let channel = open_in_bin(tempFilename);
-  let a: 'a = Marshal.from_channel(channel);
-  close_in(channel);
-  a;
-};
-
-let serialize_ctx: (Ctx.t, string) => unit = serialize_a;
-let serialize_zipper: (Zipper.t, string) => unit = serialize_a;
-
-let deserialize_ctx: string => Ctx.t = deserialize_a;
-let deserialize_zipper: string => Zipper.t = deserialize_a;
-
-let serialized_filename_z = program_str =>
-  hash_of_string(program_str) ++ ".zipper.serialized";
-
-let process_zipper = (~db=ignore, z_str: string): Zipper.t => {
-  let serialized_filename = serialized_filename_z(z_str);
-  db("LSP: Process zipper: Recieved string:");
-  db(z_str);
-  if (is_file(serialized_filename)) {
-    db("LSP: Process Zipper: Found serialized zipper, deserializing");
-    deserialize_zipper(serialized_filename);
-  } else {
-    db("LSP: Process Zipper: No serialized zipper, processing string");
-    let z =
-      OptUtil.get_or_fail(
-        "LSP: EXN: Couldn't parse string",
-        Printer.zipper_of_string(z_str),
-      );
-    serialize_zipper(z, serialized_filename);
-    z;
-  };
-};
-
-let get_info_map = (~init_ctx, z: Zipper.t) =>
-  z
-  |> MakeTerm.from_zip_for_sem
-  |> fst
-  |> Interface.Statics.mk_map_ctx(CoreSettings.on, init_ctx);
-
-let pp_inner = (~db=ignore, ~init_ctx, str: string): Ctx.t => {
-  let sym = 666;
-  let str = str ++ "\n" ++ string_of_int(sym);
-  let ctx_if_sym = (_, info: Info.t, acc) =>
-    switch (info) {
-    | InfoExp({ctx, term: {term: Int(n), _}, _}) when n == sym => Some(ctx)
-    | _ => acc
-    };
-  let get_ctx_thing = (map: Statics.Map.t): option(Ctx.t) =>
-    Id.Map.fold(ctx_if_sym, map, None);
-  db("LSP: Prelude: Recieved string: " ++ str);
-  let z =
-    OptUtil.get_or_fail(
-      "LSP: Prelude: EXN: Couldn't parse string",
-      Printer.zipper_of_string(str),
-    );
-  db("LSP: Prelude: String parsed successfully");
-  let info_map = get_info_map(~init_ctx, z);
-  switch (get_ctx_thing(info_map)) {
-  | Some(ctx) => ctx
-  | None =>
-    failwith(
-      "LSP: Prelude: EXN: Couldn't find sym to extract ctx:"
-      ++ string_of_int(sym),
-    )
-  };
-};
-
-let process_prelude = (~db=ignore, ~init_ctx, str: string): Ctx.t => {
-  let hashed_str = hash_of_string(str);
-  let serialized_filename = hashed_str ++ ".ctx.serialized";
-  if (is_file(serialized_filename)) {
-    db("LSP: Prelude: Found serialized file, deserializing");
-    deserialize_ctx(serialized_filename);
-  } else {
-    db("LSP: Prelude: No serialized file, processing string");
-    let ctx = pp_inner(~db, ~init_ctx, str);
-    serialize_ctx(ctx, serialized_filename);
-    ctx;
-  };
-};
-
-let usage_check = "<syntax|statics|dynamics>";
-let usage_completions = "<grammar|context|types>";
-let usage_command =
-  "<CHECK " ++ usage_check ++ " | COMPLETIONS " ++ usage_completions ++ ">";
-let usage_debug = "[--debug]";
-let usage_ctx = "[--empty-init-ctx]";
-let usage_prelude = "[--prelude <path>]";
-let usage_main = "[--main <path>]";
-let usage_epilogue = "[--epilogue <path>]";
-let usage_new_token = "[--new-token <new-token-to-append>]";
-
-let usage_str =
-  String.concat(
-    " ",
-    [
-      "lsp",
-      usage_command,
-      usage_completions,
-      usage_check,
-      usage_debug,
-      usage_ctx,
-      usage_prelude,
-      usage_main,
-      usage_new_token,
-      usage_epilogue,
-      "<program>",
-    ],
-  );
-
-let rec parse = (args: arguments, strs): arguments =>
-  switch (strs) {
-  | ["CHECK", ...rest] => parse_check(rest, args)
-  | ["COMPLETIONS", ...rest] => parse_completions(rest, args)
-  | _ => failwith("LSP: Command not recognized: " ++ usage_command)
-  }
-and parse_base = (strs, args: arguments): arguments =>
-  switch (strs) {
-  | ["--debug", ...rest] => parse_base(rest, {...args, debug: true})
-  | ["--empty-init-ctx", ...rest] => parse_base(rest, {...args, ctx: []})
-  | ["--prelude", path, ...rest] =>
-    switch (string_of_file(path)) {
-    | exception _ =>
-      failwith("LSP: EXN: Could not load prelude from path: " ++ path)
-    | prelude =>
-      let ctx = process_prelude(prelude, ~init_ctx=args.ctx);
-      let data = {...args.data, prelude: Some(prelude)};
-      parse_base(rest, {...args, data, ctx});
-    }
-  | ["--prelude", ..._] => failwith("LSP: EXN: Usage: " ++ usage_prelude)
-  | ["--epilogue", path, ...rest] =>
-    switch (string_of_file(path)) {
-    | exception _ =>
-      failwith("LSP: EXN: Could not load epilogue from path: " ++ path)
-    | epilogue =>
-      let data = {...args.data, epilogue: Some(epilogue)};
-      parse_base(rest, {...args, data});
-    }
-  | ["--epilogue", ..._] => failwith("LSP: EXN: Usage: " ++ usage_epilogue)
-  | ["--main", path, ...rest] =>
-    switch (string_of_file(path)) {
-    | exception _ =>
-      failwith("LSP: EXN: Could not load main from path: " ++ path)
-    | program =>
-      let data = {...args.data, program};
-      parse_base(rest, {...args, data});
-    }
-  | ["--main", ..._] => failwith("LSP: EXN: Usage: " ++ usage_main)
-  | ["--new-token", new_token, ...rest] =>
-    let data = {...args.data, new_token: Some(new_token)};
-    parse_base(rest, {...args, data});
-  | ["--new-token", ..._] => failwith("LSP: EXN: Usage: " ++ usage_new_token)
-  | [arg, ..._] when String.starts_with(~prefix="--", arg) =>
-    failwith("LSP: EXN: Unrecognized argument: " ++ arg)
-  | [program] =>
-    let data = {...args.data, program};
-    {...args, data};
-  | [] when args.data.program != "" => args
-  | [] => failwith("LSP: EXN: No program specified. Usage: " ++ usage_str)
-  | [_, ..._] =>
-    failwith("LSP: EXN: Multiple unnamed arguments. Usage: " ++ usage_str)
-  }
-and parse_check = (strs, args: arguments): arguments =>
-  switch (strs) {
-  | ["syntax", ...rest] =>
-    parse_base(rest, {...args, command: Check(Syntax)})
-  | ["statics", ...rest] =>
-    parse_base(rest, {...args, command: Check(Static)})
-  | ["dynamics", ...rest] =>
-    parse_base(rest, {...args, command: Check(Dynamic)})
-  | _ => failwith("LSP: EXN: Usage: " ++ usage_check)
-  }
-and parse_completions = (strs, args: arguments): arguments =>
-  switch (strs) {
-  | ["grammar", ...rest] =>
-    parse_base(rest, {...args, command: Completions(Grammar)})
-  | ["context", ...rest] =>
-    parse_base(rest, {...args, command: Completions(Context)})
-  | ["types", ...rest] =>
-    parse_base(rest, {...args, command: Completions(Types)})
-  | _ => failwith("LSP: EXN: Usage: " ++ usage_completions)
-  };
-
-/* CHECKERS */
-
-let get_zipper = (~db, data) => {
-  let program_str = data.program;
-  switch (data.new_token) {
-  | None =>
-    db("LSP: Recieved string: " ++ program_str);
-    let z = process_zipper(~db, program_str);
-    db("LSP: String parsed successfully to zipper");
-    z;
-  | Some(new_token) =>
-    db("LSP: New token mode: " ++ program_str ++ new_token);
-    let base_z = process_zipper(~db, program_str);
-    let new_z =
-      OptUtil.get_or_fail(
-        "LSP: EXN: New token mode: Couldn't paste into zipper",
-        Printer.paste_into_zip(base_z, new_token),
-      );
-    serialize_zipper(new_z, serialized_filename_z(program_str ++ new_token));
-    new_z;
-  };
-};
-
-let syntax_error_report = (~db, ~settings: args_check) =>
-  switch (
-    try(Some(get_zipper(~db, settings.data))) {
-    | _ => None
-    }
-  ) {
-  | None =>
-    print_endline(
-      "LSP: Check Syntax: Incorrect syntax: Unknown exception in parse",
-    )
-  | Some(z) =>
-    //TODO(andrew): look for holes in the syntax, Invalids, etc.
-    switch (Printer.of_backpack(z)) {
-    | [] => print_endline("LSP: Check Syntax: Syntax OK")
-    | orphans =>
-      print_endline(
-        "LSP: Check Syntax: Incorrect syntax: Unmatched delimiters:"
-        ++ String.concat(", ", orphans),
-      )
-    }
-  };
-
-let get_static_errors = (~db, ~init_ctx, ~data): list(string) => {
-  let z = get_zipper(~db, data);
-  let info_map = get_info_map(~init_ctx, z);
-  ErrorPrint.collect_static(info_map);
-};
-
-let static_error_report = (~db, ~settings as {ctx, data, _}: args_check) =>
-  switch (get_static_errors(~db, ~init_ctx=ctx, ~data)) {
-  | [] => print_endline("LSP: Check Statics: No static errors")
-  | errs =>
-    let num_errs = errs |> List.length |> string_of_int;
-    print_endline(
-      "LSP: Check Statics: " ++ num_errs ++ " static error(s) found: ",
-    );
-    print_endline(errs |> String.concat("\n"));
-  };
-
-let get_zips = (settings, ~db): list(Zipper.t) => {
-  let prelude_term =
-    switch (settings.prelude) {
-    | None => Zipper.init()
-    | Some(prelude) => process_zipper(~db, prelude)
-    };
-  let main_term = get_zipper(~db, settings);
-  let epilogue_term =
-    switch (settings.epilogue) {
-    | None => Zipper.init()
-    | Some(epilogue) => process_zipper(~db, epilogue)
-    };
-
-  [prelude_term, main_term, epilogue_term];
-};
-
-let splice_terms = terms =>
-  List.fold_left(
-    EditorUtil.append_exp,
-    Term.UExp.{ids: [Id.mk()], term: Triv},
-    terms,
-  );
-
-let eval_spliced = (~init_ctx, terms) => {
-  let combined_term = splice_terms(terms);
-  let info_map =
-    Interface.Statics.mk_map_ctx(CoreSettings.on, init_ctx, combined_term);
-  combined_term
-  |> Interface.elaborate(~settings=CoreSettings.on, info_map)
-  |> Interface.evaluate(~settings=CoreSettings.on, ~env=Builtins.env_init);
-};
-
-let test_results = (res: ProgramResult.t): list(string) =>
-  res
-  |> ProgramResult.get_state
-  |> EvaluatorState.get_tests
-  |> List.map(((_id, instance_report)) =>
-       switch (instance_report) {
-       | [] => Indet |> TestStatus.to_string
-       | [(_, status, _), ..._] => status |> TestStatus.to_string
-       }
-     );
-
-let eval_prelude_main_tests = (settings, ~db) =>
-  get_zips(settings.data, ~db)
-  |> List.map(MakeTerm.from_zip_for_sem)
-  |> List.map(fst)
-  |> eval_spliced(~init_ctx=settings.ctx);
-
-let dynamic_error_report = (~db, ~settings) =>
-  switch (eval_prelude_main_tests(settings, ~db) |> test_results) {
-  | [] => print_endline("LSP: Check Dynamics: No tests found")
-  | results =>
-    print_endline("LSP: Check Dynamics: Test results:");
-    print_endline(String.concat("\n", results));
-  };
-
-let checks = (~db, ~settings, check): unit =>
-  switch (check) {
-  | Syntax => syntax_error_report(~db, ~settings)
-  | Static => static_error_report(~db, ~settings)
-  | Dynamic => dynamic_error_report(~db, ~settings)
-  };
-
-/* COMPLETIONS */
-
 let unk = Typ.Unknown(Internal);
 
 /* Assume for now left-to-right entry, so the present shards are
@@ -531,14 +89,14 @@ let thing_to_right = (~db, z: Zipper.t): right_neighbor_info =>
      token insertions (but NOT completions of the token to the left) */
   switch (z.relatives.siblings |> snd) {
   | [] =>
-    db("  LSP: Syntax: No rightwards piece");
+    db("  LS: Syntax: No rightwards piece");
     Nothing;
   | [Grout({id, shape: Convex, _})] =>
     /* If the leftward neighbor has a rightwards concave nib,
        a convex grout will be inserted to the right of the caret.
        We record its ID as its CI can be used to inform
        new token insertions */
-    db("  LSP: Syntax: Rightwards piece is Convex Grout");
+    db("  LS: Syntax: Rightwards piece is Convex Grout");
     ConvexHole(id);
   | [Tile({label: [str], _})] when Form.is_string(str) =>
     /* Special case: When we insert a quote, another quote is inserted
@@ -549,9 +107,9 @@ let thing_to_right = (~db, z: Zipper.t): right_neighbor_info =>
        pure left-to-right entry */
     StringLit(str)
   | [_, ..._] as rhs =>
-    db("  LSP: Syntax: Rightwards segment is: " ++ Segment.show(rhs));
+    db("  LS: Syntax: Rightwards segment is: " ++ Segment.show(rhs));
     failwith(
-      "  LSP: Syntax: EXN: Nonempty Rightwards segment not single Convex Grout or String literal",
+      "  LS: Syntax: EXN: Nonempty Rightwards segment not single Convex Grout or String literal",
     );
   };
 
@@ -579,15 +137,15 @@ let piece_to_left = (~db, z: Zipper.t): left_neighbor_info =>
   | [] => None
   | [lht, ..._] as seg =>
     if (Piece.is_secondary(lht)) {
-      db("  LSP: Syntax: Leftward is Secondary: trimming");
+      db("  LS: Syntax: Leftward is Secondary: trimming");
     };
     switch (Segment.trim_secondary(Left, seg)) {
-    | [] => failwith("  LSP: Syntax: EXN: Rightwards seg empty after trim")
+    | [] => failwith("  LS: Syntax: EXN: Rightwards seg empty after trim")
     | [lht', ..._] =>
       switch (lht') {
       | Tile(t) =>
         db(
-          "  LSP: Syntax: Leftward is "
+          "  LS: Syntax: Leftward is "
           ++ (Tile.is_complete(t) ? "Complete" : "Incomplete")
           ++ " Tile: "
           ++ tile_str(t),
@@ -598,10 +156,10 @@ let piece_to_left = (~db, z: Zipper.t): left_neighbor_info =>
         Some((p, d, c));
       | Grout({id: _, shape, _}) =>
         failwith(
-          "  LSP: Syntax: EXN: Leftward Grout " ++ Grout.show_shape(shape),
+          "  LS: Syntax: EXN: Leftward Grout " ++ Grout.show_shape(shape),
         )
       | Secondary(_) =>
-        failwith("  LSP: Syntax: EXN: Secondary after trimming secondaries")
+        failwith("  LS: Syntax: EXN: Secondary after trimming secondaries")
       }
     };
   };
@@ -669,38 +227,38 @@ let show_info =
   let expected_ty = AssistantForms.Typ.expected(ci);
   let backpack_tokens = AssistantBackpack.to_token_list(z.backpack);
   let errors = Haz3lcore.ErrorPrint.collect_static(info_map);
-  db("  LSP: Info: Cls: " ++ Term.Cls.show(cls));
-  db("  LSP: Info: Sort: " ++ Sort.to_string(sort));
-  db("  LSP: Info: Expected type: " ++ Typ.to_string(expected_ty));
-  db("  LSP: Info: Seft type: " ++ Typ.to_string(self_ty(ci)));
-  db("  LSP: Info: Error Status: " ++ error_str(ci));
-  db("  LSP: Info: Typing Context: " ++ Ctx.to_string(ctx));
-  db("  LSP: Info: Backpack stack: " ++ String.concat(" ", backpack_tokens));
+  db("  LS: Info: Cls: " ++ Term.Cls.show(cls));
+  db("  LS: Info: Sort: " ++ Sort.to_string(sort));
+  db("  LS: Info: Expected type: " ++ Typ.to_string(expected_ty));
+  db("  LS: Info: Seft type: " ++ Typ.to_string(self_ty(ci)));
+  db("  LS: Info: Error Status: " ++ error_str(ci));
+  db("  LS: Info: Typing Context: " ++ Ctx.to_string(ctx));
+  db("  LS: Info: Backpack stack: " ++ String.concat(" ", backpack_tokens));
   if (errors != []) {
-    db("  LSP: Info: ALL errors:\n" ++ String.concat("  \n", errors));
+    db("  LS: Info: ALL errors:\n" ++ String.concat("  \n", errors));
   };
   let expected_ty = AssistantForms.Typ.expected(bidi_ci);
-  db("  LSP: Info: BidiCtx: Cls: " ++ Term.Cls.show(Info.cls_of(bidi_ci)));
-  db("  LSP: Info: BidiCtx: Expected type: " ++ Typ.to_string(expected_ty));
+  db("  LS: Info: BidiCtx: Cls: " ++ Term.Cls.show(Info.cls_of(bidi_ci)));
+  db("  LS: Info: BidiCtx: Expected type: " ++ Typ.to_string(expected_ty));
   switch (bidi_parent_ci) {
   | Some(ci) =>
-    db("  LSP: Info: Bidi Parent Cls: " ++ Term.Cls.show(Info.cls_of(ci)))
-  | None => db("  LSP: Info: Bidi Parent: Root")
+    db("  LS: Info: Bidi Parent Cls: " ++ Term.Cls.show(Info.cls_of(ci)))
+  | None => db("  LS: Info: Bidi Parent: Root")
   };
 };
 
 let print_gen_option = (~db, gen_options: generation_options): unit =>
   switch (gen_options) {
-  | NewRightConvex(_id) => db("  LSP: Syntax: Can insert left-convex")
-  | NewRightConcave(_id) => db("  LSP: Syntax: Can insert left-concave")
+  | NewRightConvex(_id) => db("  LS: Syntax: Can insert left-convex")
+  | NewRightConcave(_id) => db("  LS: Syntax: Can insert left-concave")
   | CompletionOrNewRightConvex(_id_l, tok_to_left, _id_new) =>
-    db("  LSP: Syntax: Can insert left-convex or complete: " ++ tok_to_left)
+    db("  LS: Syntax: Can insert left-convex or complete: " ++ tok_to_left)
   | CompletionOrNewRightConcave(_id_l, tok_to_left) =>
-    db("  LSP: Syntax: Can insert left-concave or complete: " ++ tok_to_left)
+    db("  LS: Syntax: Can insert left-concave or complete: " ++ tok_to_left)
   | OnlyCompletionString(stringlit) =>
-    db("LSP: Must extend/complete stringlit: " ++ stringlit)
+    db("LS: Must extend/complete stringlit: " ++ stringlit)
   | OnlyCompletion(_id, tok_to_left) =>
-    db("  LSP: Syntax: Must complete: " ++ tok_to_left)
+    db("  LS: Syntax: Must complete: " ++ tok_to_left)
   };
 
 let get_bidi_id = (z: Zipper.t, indicated_id: Id.t) => {
@@ -718,6 +276,12 @@ let get_bidi_id = (z: Zipper.t, indicated_id: Id.t) => {
   |> Piece.id;
 };
 
+let get_info_map = (~init_ctx, z: Zipper.t) =>
+  z
+  |> MakeTerm.from_zip_for_sem
+  |> fst
+  |> Interface.Statics.mk_map_ctx(CoreSettings.on, init_ctx);
+
 let collate_info =
     (~settings: args_completion, ~db, z: Zipper.t, id: Id.t): infodump => {
   let init_ctx = settings.ctx;
@@ -725,12 +289,12 @@ let collate_info =
   let get_info = id => Id.Map.find_opt(id, info_map);
   let ci =
     OptUtil.get_or_fail(
-      "LSP: Gen: EXN: Couldn't find CI for id " ++ Id.to_string(id),
+      "LS: Gen: EXN: Couldn't find CI for id " ++ Id.to_string(id),
       get_info(id),
     );
   let bidi_ci =
     OptUtil.get_or_fail(
-      "LSP: Gen: EXN: Couldn't find Bidi CI for id " ++ Id.to_string(id),
+      "LS: Gen: EXN: Couldn't find Bidi CI for id " ++ Id.to_string(id),
       get_info(get_bidi_id(z, id)),
     );
   let bidi_parent_ci =
@@ -783,11 +347,10 @@ let collate_info =
 let generation_options = (~db, ~settings: args_completion, z: Zipper.t) => {
   let get_info = collate_info(~db, ~settings, z);
   switch (piece_to_left(~db, z), thing_to_right(~db, z)) {
-  | (None, Nothing) => failwith("LSP: EXN: Nothing to left or right")
+  | (None, Nothing) => failwith("LS: EXN: Nothing to left or right")
   | (Some((to_left, shape, compl)), Nothing) =>
     switch (shape) {
-    | LeftConcave =>
-      failwith("LSP: EXN: Concave to left and nothing to right")
+    | LeftConcave => failwith("LS: EXN: Concave to left and nothing to right")
     | LeftConvex =>
       switch (to_left, compl) {
       | (Just, Inert(id_l))
@@ -797,12 +360,12 @@ let generation_options = (~db, ~settings: args_completion, z: Zipper.t) => {
         let left_info = get_info(id_l);
         switch (is_incomplete(left_info.ci)) {
         | Grammatical =>
-          db("  LSP: Syntax: Bad token; only completion");
+          db("  LS: Syntax: Bad token; only completion");
           OnlyCompletion(left_info, left_token);
         | Contextual
             when
               settings.completions == Types || settings.completions == Context =>
-          db("  LSP: Syntax: Free token; only completion");
+          db("  LS: Syntax: Free token; only completion");
           OnlyCompletion(left_info, left_token);
         | _ => CompletionOrNewRightConcave(left_info, left_token)
         };
@@ -811,7 +374,7 @@ let generation_options = (~db, ~settings: args_completion, z: Zipper.t) => {
   | (None, ConvexHole(id)) => NewRightConvex(get_info(id))
   | (Some((to_left, shape, compl)), ConvexHole(id_r)) =>
     switch (shape) {
-    | LeftConvex => failwith("LSP: EXN: Convex to left and right")
+    | LeftConvex => failwith("LS: EXN: Convex to left and right")
     | LeftConcave =>
       switch (to_left, compl) {
       | (Just, Inert(_))
@@ -820,12 +383,12 @@ let generation_options = (~db, ~settings: args_completion, z: Zipper.t) => {
         let left_info = get_info(id_l);
         switch (is_incomplete(get_info(id_l).ci)) {
         | Grammatical =>
-          db("  LSP: Syntax: Bad token; only completion");
+          db("  LS: Syntax: Bad token; only completion");
           OnlyCompletion(left_info, left_tok);
         | Contextual
             when
               settings.completions == Types || settings.completions == Context =>
-          db("  LSP: Syntax: Free token; only completion");
+          db("  LS: Syntax: Free token; only completion");
           OnlyCompletion(left_info, left_tok);
         | _ =>
           CompletionOrNewRightConvex(left_info, left_tok, get_info(id_r))
@@ -867,10 +430,10 @@ let suggest_comma = (bidi_ctx_ci: Info.t) =>
           PAT: "let find: (Bool, Int) -> Int = fun b"
           EXP: "let a:  =  in let _: (Bool, Int) = a"  */
       print_endline(
-        "LSP: commas: p_ana is prod: "
+        "LS: commas: p_ana is prod: "
         ++ String.concat(" ", List.map(Typ.show, p_ana)),
       );
-      print_endline("LSP: commas: self syn is " ++ Typ.show(syn));
+      print_endline("LS: commas: self syn is " ++ Typ.show(syn));
       switch (p_ana, syn) {
       | (_, Unknown(_)) => true // technically redundant?
       | (_, Prod(p_syn)) =>
@@ -955,14 +518,14 @@ let convex_lookahead_sugs = (~settings: args_completion, ~db, ci: Info.t) => {
       let ty = Mode.ty_of(mode);
       let ty_paths = AssistantCtx.get_lookahead_tys_exp(ctx, ty);
       db(
-        "  LSP: Convex: Ty paths:\n " ++ AssistantCtx.show_type_path(ty_paths),
+        "  LS: Convex: Ty paths:\n " ++ AssistantCtx.show_type_path(ty_paths),
       );
       let tys =
         List.map(Util.ListUtil.last, ty_paths) |> List.sort_uniq(compare);
       // Filter out the current type
       //let tys = List.filter((!=)(ty), tys);
       db(
-        "  LSP: Convex: Target types: "
+        "  LS: Convex: Target types: "
         ++ (List.map(Typ.to_string, tys) |> String.concat(", ")),
       );
       suggest_exp(~fns=true, ctx, ty)
@@ -1112,24 +675,22 @@ let infix_sugs =
         | None => unk
         };
       db(
-        "  LSP: Concave: Infix: Left child Self type: "
+        "  LS: Concave: Infix: Left child Self type: "
         ++ Typ.to_string(self_ty),
       );
       let base = sug_exp_infix(ctx, self_ty, expected_ty);
-      db("  LSP: Concave: Infix: Base: " ++ of_sugs(base));
+      db("  LS: Concave: Infix: Base: " ++ of_sugs(base));
       let ty_paths =
         AssistantCtx.get_lookahead_tys_exp(ctx, bidi_ctx_expected_ty);
       let tys =
         List.map(Util.ListUtil.last, ty_paths) |> List.sort_uniq(compare);
       db(
-        "  LSP: Concave: Infix: Lookahead types: "
+        "  LS: Concave: Infix: Lookahead types: "
         ++ (List.map(Typ.to_string, tys) |> String.concat(", ")),
       );
       let lookahead =
         List.map(sug_exp_infix(ctx, self_ty), tys) |> List.flatten;
-      db(
-        "  LSP: Concave: Infix: Lookahead: " ++ of_sugs(lookahead |> dedup),
-      );
+      db("  LS: Concave: Infix: Lookahead: " ++ of_sugs(lookahead |> dedup));
       base @ lookahead;
     //TODO: get self_ty of actual prospective child, on a per-operator basis
     | InfoPat(_)
@@ -1192,11 +753,9 @@ let left_convex_sugs = (~settings, ~info_dump, ~db, z) => {
   let convex_sugs = convex_sugs(~settings, ci);
   let convex_lookahead_sugs = convex_lookahead_sugs(~settings, ~db, ci);
   //TODO: should prefix be factored out here somewhere?
-  db("  LSP: Convex: Backpack: " ++ of_sugs(left_convex_backpack_sugs));
-  db("  LSP: Convex: Base: " ++ of_sugs(convex_sugs));
-  db(
-    "  LSP: Convex: Lookahead: " ++ of_sugs(convex_lookahead_sugs |> dedup),
-  );
+  db("  LS: Convex: Backpack: " ++ of_sugs(left_convex_backpack_sugs));
+  db("  LS: Convex: Base: " ++ of_sugs(convex_sugs));
+  db("  LS: Convex: Lookahead: " ++ of_sugs(convex_lookahead_sugs |> dedup));
   left_convex_backpack_sugs
   @ convex_sugs
   @ convex_lookahead_sugs
@@ -1219,10 +778,10 @@ let left_concave_sugs = (~info_dump, ~completion, ~settings, ~db, z) => {
   let postfix_sugs =
     postfix_sugs(~settings, ~db, ci, bidi_ctx_cls, bidi_parent_ctx_cls);
   let n_ary_sugs = n_ary_sugs(~settings, ~db, bidi_ci);
-  db("  LSP: Concave: Backpack: " ++ of_sugs(left_concave_backpack_sugs));
-  db("  LSP: Concave: N-ary: " ++ of_sugs(n_ary_sugs));
-  db("  LSP: Concave: Infix: " ++ of_sugs(infix_sugs));
-  db("  LSP: Concave: Postfix: " ++ of_sugs(postfix_sugs));
+  db("  LS: Concave: Backpack: " ++ of_sugs(left_concave_backpack_sugs));
+  db("  LS: Concave: N-ary: " ++ of_sugs(n_ary_sugs));
+  db("  LS: Concave: Infix: " ++ of_sugs(infix_sugs));
+  db("  LS: Concave: Postfix: " ++ of_sugs(postfix_sugs));
   left_concave_backpack_sugs
   @ n_ary_sugs
   @ infix_sugs
@@ -1241,7 +800,7 @@ let mk_completions =
     : list(string) => {
   /* Note that for completion suggestions, we ignore shape expectations,
      as the left tile might get keyword-completed or remolded */
-  db("LSP: Generating Completions for prefix: " ++ tok_to_left);
+  db("LS: Generating Completions for prefix: " ++ tok_to_left);
   left_convex_sugs(~settings, ~db, ~info_dump, z)
   @ left_concave_sugs(~completion=true, ~settings, ~info_dump, ~db, z)
   |> List.filter_map(completion_filter(z.caret, tok_to_left))
@@ -1250,7 +809,7 @@ let mk_completions =
 
 let mk_new_left_convex =
     (~settings: args_completion, ~db, z: Zipper.t, info_dump): list(string) => {
-  db("LSP: Generating new left convex tokens");
+  db("LS: Generating new left convex tokens");
   left_convex_sugs(~settings, ~info_dump, ~db, z)
   |> List.map(Suggestion.content_of)
   |> List.sort_uniq(String.compare);
@@ -1258,7 +817,7 @@ let mk_new_left_convex =
 
 let mk_new_left_concave =
     (~settings: args_completion, ~db, z: Zipper.t, info_dump): list(string) => {
-  db("LSP: Generating new left concave tokens");
+  db("LS: Generating new left concave tokens");
   left_concave_sugs(~completion=false, ~settings, ~db, ~info_dump, z)
   |> List.map(Suggestion.content_of)
   |> List.sort_uniq(String.compare);
@@ -1269,7 +828,7 @@ let dispatch_generation =
   let seg_before = z.relatives.siblings |> fst |> List.rev;
   let seg_after = z.relatives.siblings |> snd;
   if (seg_before == [] && seg_after == []) {
-    failwith("LSP: EXN: Empty segment");
+    failwith("LS: EXN: Empty segment");
   };
   let gen_options = generation_options(~settings, ~db, z);
   print_gen_option(~db, gen_options);
@@ -1356,7 +915,7 @@ let mk_grammar = (pre_grammar: pre_grammar): string => {
   };
   let sort_root =
     switch (pre_grammar.completions, pre_grammar.new_tokens) {
-    | ([], []) => failwith("LSP: EXN: No completions or new tokens")
+    | ([], []) => failwith("LS: EXN: No completions or new tokens")
     | ([], _) => "new-tokens"
     | (_, []) => "completions"
     | _ => "completions | new-tokens"
@@ -1368,26 +927,9 @@ let mk_grammar = (pre_grammar: pre_grammar): string => {
   ++ sort_root;
 };
 
-let generate = (~db, ~settings: args_completion, ~get_zipper): unit => {
-  let z = get_zipper(~db, settings.data);
-  let grammar = z |> dispatch_generation(~settings, ~db) |> mk_grammar;
-  db("LSP: Grammar:");
-  print_endline(grammar);
+let go = (z, ~db, ~settings: args_completion): string => {
+  z |> dispatch_generation(~settings, ~db) |> mk_grammar;
 };
-
-/* Main entry point */
-
-let main = ({debug, data, command, ctx}: arguments) => {
-  let db = s => debug ? print_endline(s) : ();
-  db(Printf.sprintf("LSP: Command: %s", show_command(command)));
-  switch (command) {
-  | Completions(completions) =>
-    generate(~db, ~settings={data, completions, ctx}, ~get_zipper)
-  | Check(check) => checks(~db, ~settings={data, check, ctx}, check)
-  };
-};
-
-get_args() |> parse(default_settings) |> main;
 
 //MAYBE: consider reducing generation of duplicate lookahead suggestions
 //MAYBE: abstract out default forms of any type eg case if let etc.

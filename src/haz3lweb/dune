@@ -11,7 +11,7 @@
   (:standard \ Main)
   \
   Worker
-  LSP)
+  LS)
  (libraries
   ezjs_min
   ezjs_idb
@@ -54,9 +54,9 @@
    ppx_deriving.show)))
 
 (executable
- (name LSP)
- (modules LSP)
- (libraries haz3lcore)
+ (name LS)
+ (modules LS)
+ (libraries haz3lcore haz3lweb)
  (modes js)
  (preprocess
   (pps js_of_ocaml-ppx)))

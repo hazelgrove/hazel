@@ -172,7 +172,7 @@ let ctx_prompt = (ctx: Ctx.t, expected_ty: Typ.t): string => {
        to strings and seperte with commas.
      */
   switch (expected_ty) {
-  | Unknown(_) => "LSP: No variables in scope are obviously relevant here\n"
+  | Unknown(_) => "LS: No variables in scope are obviously relevant here\n"
   | expected_ty =>
     let nontrivially_consistent =
         (ctx: Ctx.t, ty_expect: Typ.t, ty_given: Typ.t): bool =>
@@ -195,7 +195,7 @@ let ctx_prompt = (ctx: Ctx.t, expected_ty: Typ.t): string => {
         | _ => None,
         ctx,
       );
-    "LSP: Consider using the following functions and constructors relevant to the expected type:\n  "
+    "LS: Consider using the following functions and constructors relevant to the expected type:\n  "
     ++ String.concat(",\n  ", ctx')
     ++ "\n";
   };

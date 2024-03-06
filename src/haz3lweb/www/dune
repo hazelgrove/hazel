@@ -5,4 +5,4 @@
  (copy ../worker.bc.js worker.js))
 
 (rule
- (copy ../LSP.bc.js lsp.js))
+ (copy ../LS.bc.js hazeLS.js))
