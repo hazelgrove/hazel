@@ -138,13 +138,21 @@ let suggest_lookahead_variable = (ci: Info.t): list(Suggestion.t) => {
       @ bound_constructor_aps(x => Exp(Common(x)), ty, ctx);
     switch (Mode.ty_of(mode)) {
     | List(ty) =>
-      List.map(restrategize(" )::"), exp_aps(ty))
+      /* List.map(restrategize(" )::"), exp_aps(ty))
+         @ List.map(restrategize("::"), exp_refs(ty))*/
+      exp_aps(ty)
       @ List.map(restrategize("::"), exp_refs(ty))
-    | Prod([ty, ...tys]) =>
-      let commas =
-        List.init(List.length(tys), _ => ",") |> String.concat(" ");
-      List.map(restrategize(" )" ++ commas), exp_aps(ty))
-      @ List.map(restrategize(commas), exp_refs(ty));
+      @ AssistantForms.suggest_all_ty_convex(Exp, ctx, ty)
+    //TODO(andrew): hack for LSP
+    | Prod([ty, ..._tys]) =>
+      /*let commas =
+          List.init(List.length(tys), _ => ",") |> String.concat(" ");
+        List.map(restrategize(" )" ++ commas), exp_aps(ty))
+        @ List.map(restrategize(commas), exp_refs(ty));*/
+      exp_aps(ty)
+      @ exp_refs(ty)
+      @ AssistantForms.suggest_all_ty_convex(Exp, ctx, ty)
+    //TODO(andrew): hack for LSP
     | Bool =>
       /* TODO: Find a UI to make these less confusing */
       exp_refs(Int)
@@ -162,13 +170,21 @@ let suggest_lookahead_variable = (ci: Info.t): list(Suggestion.t) => {
     let pat_aps = ty => bound_constructor_aps(x => Pat(Common(x)), ty, ctx);
     switch (Mode.ty_of(mode)) {
     | List(ty) =>
-      List.map(restrategize(" )::"), pat_aps(ty))
+      /*List.map(restrategize(" )::"), pat_aps(ty))
+        @ List.map(restrategize("::"), pat_refs(ty))*/
+      pat_aps(ty)
       @ List.map(restrategize("::"), pat_refs(ty))
-    | Prod([ty, ...tys]) =>
-      let commas =
-        List.init(List.length(tys), _ => ",") |> String.concat(" ");
-      List.map(restrategize(" )" ++ commas), pat_aps(ty))
-      @ List.map(restrategize(commas), pat_refs(ty));
+      @ AssistantForms.suggest_all_ty_convex(Pat, ctx, ty)
+    //TODO(andrew): hack for LSP
+    | Prod([ty, ..._tys]) =>
+      /*let commas =
+          List.init(List.length(tys), _ => ",") |> String.concat(" ");
+        List.map(restrategize(" )" ++ commas), pat_aps(ty))
+        @ List.map(restrategize(commas), pat_refs(ty));*/
+      pat_aps(ty)
+      @ pat_refs(ty)
+      @ AssistantForms.suggest_all_ty_convex(Pat, ctx, ty)
+    //TODO(andrew): hack for LSP
     | _ => []
     };
   | InfoTyp(_) => []

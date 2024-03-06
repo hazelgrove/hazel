@@ -1,36 +1,21 @@
 open Util.OptUtil.Syntax;
 open Suggestion;
 
-/* Suggest the token at the top of the backpack, if we can put it down */
-let suggest_backpack = (z: Zipper.t): list(Suggestion.t) => {
-  /* Note: Sort check unnecessary here as wouldn't be able to put down */
-  switch (z.backpack) {
-  | [] => []
-  | [{content, _}, ..._] =>
-    switch (content) {
-    | [Tile({label, shards: [idx], _})] when Zipper.can_put_down(z) => [
-        {content: List.nth(label, idx), strategy: Any(FromBackpack)},
-      ]
-    | _ => []
-    }
-  };
-};
-
 let suggest = (ci: Info.t, z: Zipper.t): list(Suggestion.t) => {
   /* NOTE: Sorting ensures that if we have an exact match already,
    * we won't suggest extending it, but straight-up lexical sorting
    * may not be desirable in other ways, for example maybe we want
    * recency bias in ctx. Revisit this later. I'm sorting before
    * combination because we want backpack candidates to show up first */
-  suggest_backpack(z)
+  AssistantBackpack.suggest(z)
   @ (
-    AssistantForms.suggest_operand(ci)
-    @ AssistantForms.suggest_leading(ci)
+    AssistantForms.suggest_const_mono(ci)
+    @ AssistantForms.suggest_prefix_leading(ci)
     @ AssistantCtx.suggest_variable(ci)
     @ AssistantCtx.suggest_lookahead_variable(ci)
     |> List.sort(Suggestion.compare)
   )
-  @ (AssistantForms.suggest_operator(ci) |> List.sort(Suggestion.compare));
+  @ (AssistantForms.suggest_infix_mono(ci) |> List.sort(Suggestion.compare));
 };
 
 /* If there is a monotile to the left of the caret, return it. We
@@ -91,12 +76,6 @@ let set_buffer = (~settings, ~ctx: Ctx.t, z: Zipper.t): option(Zipper.t) => {
   let* tok_to_left = token_to_left(z);
   let* ci = z_to_ci(~settings, ~ctx, z);
   let suggestions = suggest(ci, z);
-  /*print_endline("suggestions:");
-    print_endline(
-      suggestions
-      |> List.map((s: Suggestion.t) => s.content)
-      |> String.concat(", "),
-    );*/
   let suggestions =
     suggestions
     |> List.filter(({content, _}: Suggestion.t) =>

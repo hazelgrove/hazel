@@ -3,3 +3,6 @@
 
 (rule
  (copy ../worker.bc.js worker.js))
+
+(rule
+ (copy ../LSP.bc.js lsp.js))

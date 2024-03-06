@@ -112,6 +112,16 @@ let is_infix_op = (mold: t): bool =>
   | _ => false
   };
 
+let is_prefix_op = (mold: t): bool =>
+  switch (mold.nibs, mold.in_) {
+  | (({shape: Convex, _}, {shape: Concave(_), _}), []) => true
+  | _ => false
+  };
+
+let is_left_convex = (mold: t): bool => fst(mold.nibs).shape == Convex;
+
+let is_left_concave = (mold: t): bool => fst(mold.nibs).shape != Convex;
+
 let chevron = (sort: Sort.t, p: Precedence.t, d: Util.Direction.t): t =>
   switch (d) {
   | Right => mk_post(p, sort, [])

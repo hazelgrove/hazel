@@ -101,7 +101,8 @@ module Type = {
     | Some(Ana(ty)) =>
       let defs =
         switch (collate_aliases(ctx, expected_ty_no_lookup(mode))) {
-        | Some(defs) => " which references the following definitions:\n" ++ defs
+        | Some(defs) =>
+          " which references the following definitions:\n" ++ defs
         | None => "\n"
         };
       prefix ++ "a type consistent with " ++ Typ.to_string(ty) ++ defs;
