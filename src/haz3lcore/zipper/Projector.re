@@ -373,10 +373,11 @@ let fake_measured =
   NOTE: currently the FuCkNASTY occurs on the right delim
   of a collapsed "(1+2)" segment, but not a "1" segment
 
-  can fold [fun, ->], but crash (base_point find_p) if we try
-  to move right when on left side of collapse
 
-  can't fold "1+2" from any side (crash)
-
+  Current status:
+  singletons and convex seem to work fine
+  can fold [fun, ->] and [let, =, in], can unfold (from one side at least),
+  some movement problems
+  can fold infix ops if surrounded by parens; movement bugged, cant unfold
 
  */
