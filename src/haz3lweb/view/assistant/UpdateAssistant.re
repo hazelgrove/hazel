@@ -107,7 +107,9 @@ let apply =
           | (Some(init_ctx), Some(mode)) =>
             add_round(AddRoundOne(settings, init_ctx, mode, reply));
             switch (Filler.error_reply(~settings, ~init_ctx, ~mode, reply)) {
-            | None =>
+            | None
+            | Some("") =>
+              /* TODO(andrew): empty string kinda hacky here; refactor */
               print_endline("first round response:\n " ++ reply.content);
               schedule_action(
                 Assistant(SetBuffer(trim_indents(reply.content))),
