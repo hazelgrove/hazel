@@ -279,6 +279,9 @@ module Transition = (EV: EV_MODE) => {
           /* Treat a hole or invalid tyvar name as a unique type variable that doesn't appear anywhere else. Thus instantiating it at anything doesn't produce any substitutions. */
           Step({apply: () => tfbody, kind: TypFunAp, value: false})
         }
+      | Constructor(name) =>
+        /* Rule ITTCon */
+        Step({apply: () => Constructor(name), kind: TypFunAp, value: false})
       | Cast(d'', Forall(x, t), Forall(x', t')) =>
         /* Rule ITTApCast */
         Step({

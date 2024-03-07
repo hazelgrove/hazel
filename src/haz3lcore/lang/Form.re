@@ -217,10 +217,10 @@ let bad_token_cls: string => bad_token_cls =
    Order in this list determines relative remolding
    priority for forms with overlapping regexps */
 let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
-  //("ty_var", (is_typ_var, [mk_op(Typ, [])])),
-  //("ty_var_p", (is_typ_var, [mk_op(TPat, [])])),
-  //("ctr", (is_ctr, [mk_op(Exp, []), mk_op(Pat, [])])),
-  //("type", (is_base_typ, [mk_op(Typ, [])])),
+  ("ty_var", (is_typ_var, [mk_op(Typ, [])])),
+  ("ty_var_p", (is_typ_var, [mk_op(TPat, [])])),
+  ("ctr", (is_ctr, [mk_op(Exp, []), mk_op(Pat, [])])),
+  ("type", (is_base_typ, [mk_op(Typ, [])])),
   ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
   (
     "explicit_hole",

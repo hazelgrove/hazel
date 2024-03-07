@@ -366,7 +366,9 @@ module rec Typ: {
     | (ty2, Ap(Var(name), ty))
     | (Ap(Var(name), ty), ty2) =>
       switch (Ctx.lookup_higher_kind(ctx, name)) {
-      | Some((arg, ty_out)) => join'(subst(ty, arg, ty_out), ty2)
+      | Some((arg, ty_out)) =>
+        Printf.printf("ty2: %s\n", show(ty2));
+        join'(subst(ty, arg, ty_out), ty2);
       | _ => None
       }
     | (ty, Ap(Forall(name, t1), t2))

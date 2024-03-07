@@ -408,6 +408,7 @@ and tpat = unsorted => {
   return(ty => TPat(ty), ids, {ids, term});
 }
 and tpat_term = (unsorted: unsorted): UTPat.term => {
+  Printf.printf("tpat_term: %s\n", show_unsorted(unsorted));
   let ret = (term: UTPat.term) => term;
   let hole = unsorted => Term.UTPat.hole(kids_of_unsorted(unsorted));
   switch (unsorted) {
@@ -431,7 +432,7 @@ and tpat_term = (unsorted: unsorted): UTPat.term => {
         switch (tile) {
         | (["(", ")"], [TPat(arg)]) =>
           switch (arg.term) {
-          | Invalid(s) when Form.is_type_input(s) =>
+          | Var(s) when Form.is_type_input(s) =>
             Ap(l, {ids: arg.ids, term: Var(s)})
           | _ => ret(hole(tm))
           }
