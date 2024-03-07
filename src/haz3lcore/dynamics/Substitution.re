@@ -1,6 +1,6 @@
 /* closed substitution [d1/x]d2 */
-let rec subst_var = (m, d1: DExp.t, x: Var.t, d2: DExp.t): DExp.t => {
-  let (term, rewrap) = DExp.unwrap(d2);
+let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
+  let (term, rewrap) = DHExp.unwrap(d2);
   switch (term) {
   | Var(y) =>
     if (Var.eq(x, y)) {
@@ -20,7 +20,7 @@ let rec subst_var = (m, d1: DExp.t, x: Var.t, d2: DExp.t): DExp.t => {
   | Let(dp, d3, d4) =>
     let d3 = subst_var(m, d1, x, d3);
     let d4 =
-      if (DPat.binds_var(m, x, dp)) {
+      if (DHPat.binds_var(m, x, dp)) {
         d4;
       } else {
         subst_var(m, d1, x, d4);
@@ -29,7 +29,7 @@ let rec subst_var = (m, d1: DExp.t, x: Var.t, d2: DExp.t): DExp.t => {
   | FixF(y, d3, env) =>
     let env' = Option.map(subst_var_env(m, d1, x), env);
     let d3 =
-      if (DPat.binds_var(m, x, y)) {
+      if (DHPat.binds_var(m, x, y)) {
         d3;
       } else {
         subst_var(m, d1, x, d3);
@@ -39,7 +39,7 @@ let rec subst_var = (m, d1: DExp.t, x: Var.t, d2: DExp.t): DExp.t => {
     /* Function closure shouldn't appear during substitution
        (which only is called from elaboration currently) */
     let env' = Option.map(subst_var_env(m, d1, x), env);
-    if (DPat.binds_var(m, x, dp)) {
+    if (DHPat.binds_var(m, x, dp)) {
       Fun(dp, d3, env', s) |> rewrap;
     } else {
       let d3 = subst_var(m, d1, x, d3);
@@ -84,7 +84,7 @@ let rec subst_var = (m, d1: DExp.t, x: Var.t, d2: DExp.t): DExp.t => {
     let rules =
       List.map(
         ((p, v)) =>
-          if (DPat.binds_var(m, x, p)) {
+          if (DHPat.binds_var(m, x, p)) {
             (p, v);
           } else {
             (p, subst_var(m, d1, x, v));
@@ -122,15 +122,16 @@ let rec subst_var = (m, d1: DExp.t, x: Var.t, d2: DExp.t): DExp.t => {
 }
 
 and subst_var_env =
-    (m, d1: DExp.t, x: Var.t, env: ClosureEnvironment.t): ClosureEnvironment.t => {
+    (m, d1: DHExp.t, x: Var.t, env: ClosureEnvironment.t)
+    : ClosureEnvironment.t => {
   let id = env |> ClosureEnvironment.id_of;
   let map =
     env
     |> ClosureEnvironment.map_of
     |> Environment.foldo(
-         ((x', d': DExp.t), map) => {
+         ((x', d': DHExp.t), map) => {
            let d' =
-             switch (DExp.term_of(d')) {
+             switch (DHExp.term_of(d')) {
              /* Substitute each previously substituted binding into the
               * fixpoint. */
              | FixF(_) =>
@@ -153,15 +154,15 @@ and subst_var_env =
 }
 
 and subst_var_filter =
-    (m, d1: DExp.t, x: Var.t, flt: TermBase.StepperFilterKind.t)
+    (m, d1: DHExp.t, x: Var.t, flt: TermBase.StepperFilterKind.t)
     : TermBase.StepperFilterKind.t => {
   flt |> TermBase.StepperFilterKind.map(subst_var(m, d1, x));
 };
 
-let subst = (m, env: Environment.t, d: DExp.t): DExp.t =>
+let subst = (m, env: Environment.t, d: DHExp.t): DHExp.t =>
   env
   |> Environment.foldo(
-       (xd: (Var.t, DExp.t), d2) => {
+       (xd: (Var.t, DHExp.t), d2) => {
          let (x, d1) = xd;
          subst_var(m, d1, x, d2);
        },

@@ -23,7 +23,7 @@
 
    CAN I USE IDS IN DYNAMICS?
 
-   Currently, DExps (as produced by the elaborator and produced/consumed
+   Currently, DHExps (as produced by the elaborator and produced/consumed
    by the evaluator) do not in general persist ids; the exceptions are
    things like holes and tests which have additional metadata which is
    accumulated duting evaluation. There are many use cases for tracking

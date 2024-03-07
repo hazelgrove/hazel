@@ -4,16 +4,16 @@ type t =
   | StepDoesNotMatch
   | FreeInvalidVar(Var.t)
   | BadPatternMatch
-  | CastBVHoleGround(DExp.t)
-  | InvalidBoxedFun(DExp.t)
-  | InvalidBoxedBoolLit(DExp.t)
-  | InvalidBoxedIntLit(DExp.t)
-  | InvalidBoxedFloatLit(DExp.t)
-  | InvalidBoxedListLit(DExp.t)
-  | InvalidBoxedStringLit(DExp.t)
-  | InvalidBoxedTuple(DExp.t)
+  | CastBVHoleGround(DHExp.t)
+  | InvalidBoxedFun(DHExp.t)
+  | InvalidBoxedBoolLit(DHExp.t)
+  | InvalidBoxedIntLit(DHExp.t)
+  | InvalidBoxedFloatLit(DHExp.t)
+  | InvalidBoxedListLit(DHExp.t)
+  | InvalidBoxedStringLit(DHExp.t)
+  | InvalidBoxedTuple(DHExp.t)
   | InvalidBuiltin(string)
-  | BadBuiltinAp(string, list(DExp.t))
+  | BadBuiltinAp(string, list(DHExp.t))
   | InvalidProjection(int);
 
 [@deriving (show({with_path: false}), sexp, yojson)]

@@ -1,4 +1,4 @@
-open DExp;
+open DHExp;
 open Transition;
 open Util;
 
@@ -88,7 +88,7 @@ let rec check_value = (state, env, d) =>
   CV.transition(check_value, state, env, d);
 
 let rec check_value_mod_ctx = (info_map: Statics.Map.t, env, d) =>
-  switch (DExp.term_of(d)) {
+  switch (DHExp.term_of(d)) {
   | Var(x) =>
     check_value_mod_ctx(
       info_map,

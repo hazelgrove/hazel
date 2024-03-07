@@ -13,7 +13,7 @@ type stepper_state =
   | StepTimeout(EvalObj.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type history = Aba.t((DExp.t, EvaluatorState.t), step);
+type history = Aba.t((DHExp.t, EvaluatorState.t), step);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
@@ -27,7 +27,7 @@ let rec matches =
           env: ClosureEnvironment.t,
           flt: FilterEnvironment.t,
           ctx: EvalCtx.t,
-          exp: DExp.t,
+          exp: DHExp.t,
           exp_info_map: Statics.Map.t,
           act: FilterAction.t,
           idx: int,
@@ -283,7 +283,7 @@ let rec evaluate_pending = (~settings, s: t) => {
         | None => raise(Exception)
         }
       )
-      |> DExp.repair_ids;
+      |> DHExp.repair_ids;
     let d' = EvalCtx.compose(eo.ctx, d_loc');
     let new_step = {
       d,
@@ -383,7 +383,7 @@ let get_justification: step_kind => string =
   | UnOp(Meta(Unquote)) => failwith("INVALID STEP");
 
 type step_info = {
-  d: DExp.t,
+  d: DHExp.t,
   chosen_step: option(step), // The step that was taken next
   hidden_steps: list((step, Id.t)), // The hidden steps between previous_step and the current one (an Id in included because it may have changed since the step was taken)
   previous_step: option((step, Id.t)) // The step that will be displayed above this one (an Id in included because it may have changed since the step was taken)
@@ -408,7 +408,7 @@ let get_history = (~settings, stepper) => {
       (
         (
           chosen_step: option(step),
-          (d: DExp.t, hidden_steps: list(step)),
+          (d: DHExp.t, hidden_steps: list(step)),
           previous_step: option(step),
         ),
       ) => {
@@ -416,13 +416,13 @@ let get_history = (~settings, stepper) => {
       List.fold_left(
         ((ps, hs), h: step) => {
           let replacement =
-            replace_id(h.d_loc |> DExp.rep_id, h.d_loc' |> DExp.rep_id);
+            replace_id(h.d_loc |> DHExp.rep_id, h.d_loc' |> DHExp.rep_id);
           (
             Option.map(replacement, ps),
-            [(h, h.d_loc' |> DExp.rep_id), ...List.map(replacement, hs)],
+            [(h, h.d_loc' |> DHExp.rep_id), ...List.map(replacement, hs)],
           );
         },
-        (Option.map(x => (x, x.d_loc' |> DExp.rep_id), previous_step), []),
+        (Option.map(x => (x, x.d_loc' |> DHExp.rep_id), previous_step), []),
         hidden_steps,
       );
     {d, previous_step, hidden_steps, chosen_step};

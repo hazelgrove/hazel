@@ -9,7 +9,7 @@ exception MissingTypeInfo;
 module Elaboration = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    d: DExp.t,
+    d: DHExp.t,
     info_map: Statics.Map.t,
   };
 };
@@ -17,7 +17,7 @@ module Elaboration = {
 module ElaborationResult = {
   [@deriving sexp]
   type t =
-    | Elaborates(DExp.t, Typ.t, Delta.t)
+    | Elaborates(DHExp.t, Typ.t, Delta.t)
     | DoesNotElaborate;
 };
 
@@ -36,13 +36,13 @@ let fixed_pat_typ = (m: Statics.Map.t, p: UPat.t): option(Typ.t) =>
 /* Adds casts if required.
 
    When adding a new construct, [TODO: write something helpful here] */
-let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DExp.t) =>
+let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
   switch (mode) {
   | Syn => d
   | SynFun =>
     switch (self_ty) {
     | Unknown(prov) =>
-      DExp.fresh_cast(
+      DHExp.fresh_cast(
         d,
         Unknown(prov),
         Arrow(Unknown(prov), Unknown(prov)),
@@ -53,55 +53,55 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DExp.t) =>
   | Ana(ana_ty) =>
     let ana_ty = Typ.normalize(ctx, ana_ty);
     /* Forms with special ana rules get cast from their appropriate Matched types */
-    switch (DExp.term_of(d)) {
+    switch (DHExp.term_of(d)) {
     | ListLit(_)
     | ListConcat(_)
     | Cons(_) =>
       switch (ana_ty) {
       | Unknown(prov) =>
-        DExp.fresh_cast(d, List(Unknown(prov)), Unknown(prov))
+        DHExp.fresh_cast(d, List(Unknown(prov)), Unknown(prov))
       | _ => d
       }
     | Fun(_) =>
       /* See regression tests in Documentation/Dynamics */
       let (_, ana_out) = Typ.matched_arrow(ctx, ana_ty);
       let (self_in, _) = Typ.matched_arrow(ctx, self_ty);
-      DExp.fresh_cast(d, Arrow(self_in, ana_out), ana_ty);
+      DHExp.fresh_cast(d, Arrow(self_in, ana_out), ana_ty);
     | Tuple(ds) =>
       switch (ana_ty) {
       | Unknown(prov) =>
         let us = List.init(List.length(ds), _ => Typ.Unknown(prov));
-        DExp.fresh_cast(d, Prod(us), Unknown(prov));
+        DHExp.fresh_cast(d, Prod(us), Unknown(prov));
       | _ => d
       }
     | Constructor(_) =>
       switch (ana_ty, self_ty) {
       | (Unknown(prov), Rec(_, Sum(_)))
       | (Unknown(prov), Sum(_)) =>
-        DExp.fresh_cast(d, self_ty, Unknown(prov))
+        DHExp.fresh_cast(d, self_ty, Unknown(prov))
       | _ => d
       }
     | Ap(_, f, _) =>
-      switch (DExp.term_of(f)) {
+      switch (DHExp.term_of(f)) {
       | Constructor(_) =>
         switch (ana_ty, self_ty) {
         | (Unknown(prov), Rec(_, Sum(_)))
         | (Unknown(prov), Sum(_)) =>
-          DExp.fresh_cast(d, self_ty, Unknown(prov))
+          DHExp.fresh_cast(d, self_ty, Unknown(prov))
         | _ => d
         }
       | StaticErrorHole(_, g) =>
-        switch (DExp.term_of(g)) {
+        switch (DHExp.term_of(g)) {
         | Constructor(_) =>
           switch (ana_ty, self_ty) {
           | (Unknown(prov), Rec(_, Sum(_)))
           | (Unknown(prov), Sum(_)) =>
-            DExp.fresh_cast(d, self_ty, Unknown(prov))
+            DHExp.fresh_cast(d, self_ty, Unknown(prov))
           | _ => d
           }
-        | _ => DExp.fresh_cast(d, self_ty, ana_ty)
+        | _ => DHExp.fresh_cast(d, self_ty, ana_ty)
         }
-      | _ => DExp.fresh_cast(d, self_ty, ana_ty)
+      | _ => DHExp.fresh_cast(d, self_ty, ana_ty)
       }
     /* Forms with special ana rules but no particular typing requirements */
     | Match(_)
@@ -114,7 +114,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DExp.t) =>
     | EmptyHole
     | MultiHole(_)
     | StaticErrorHole(_) => d
-    /* DExp-specific forms: Don't cast */
+    /* DHExp-specific forms: Don't cast */
     | Cast(_)
     | Closure(_)
     | Filter(_)
@@ -131,13 +131,13 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DExp.t) =>
     | UnOp(_)
     | BinOp(_)
     | TyAlias(_)
-    | Test(_) => DExp.fresh_cast(d, self_ty, ana_ty)
+    | Test(_) => DHExp.fresh_cast(d, self_ty, ana_ty)
     };
   };
 
 /* Handles cast insertion and non-empty-hole wrapping
    for elaborated expressions */
-let wrap = (m, exp: Exp.t): DExp.t => {
+let wrap = (m, exp: Exp.t): DHExp.t => {
   let (mode, self, ctx) =
     switch (Id.Map.find_opt(Exp.rep_id(exp), m)) {
     | Some(Info.InfoExp({mode, self, ctx, _})) => (mode, self, ctx)
@@ -156,14 +156,14 @@ let wrap = (m, exp: Exp.t): DExp.t => {
       Common(Inconsistent(Internal(_))),
     ) => exp
   | InHole(Common(Inconsistent(Expectation(_) | WithArrow(_)))) =>
-    DExp.fresh(StaticErrorHole(Exp.rep_id(exp), exp))
+    DHExp.fresh(StaticErrorHole(Exp.rep_id(exp), exp))
   };
 };
 
 /*
-  This function converts user-expressions (UExp.t) to dynamic expressions (DExp.t). They
+  This function converts user-expressions (UExp.t) to dynamic expressions (DHExp.t). They
   have the same datatype but there are some small differences so that UExp.t can be edited
-  and DExp.t can be evaluated.
+  and DHExp.t can be evaluated.
 
  Currently, Elaboration does the following things:
 
@@ -217,10 +217,10 @@ let rec dexp_of_uexp = (m, uexp, ~in_filter) => {
         | UnOp(Meta(Unquote), e) =>
           switch (e.term) {
           | Var("e") when in_filter =>
-            Constructor("$e") |> DExp.fresh |> wrap(m)
+            Constructor("$e") |> DHExp.fresh |> wrap(m)
           | Var("v") when in_filter =>
-            Constructor("$v") |> DExp.fresh |> wrap(m)
-          | _ => DExp.EmptyHole |> DExp.fresh |> wrap(m)
+            Constructor("$v") |> DHExp.fresh |> wrap(m)
+          | _ => DHExp.EmptyHole |> DHExp.fresh |> wrap(m)
           }
         | Filter(Filter({act, pat}), body) =>
           Filter(
@@ -232,11 +232,11 @@ let rec dexp_of_uexp = (m, uexp, ~in_filter) => {
 
         // Let bindings: insert implicit fixpoints and label functions with their names.
         | Let(p, def, body) =>
-          let add_name: (option(string), DExp.t) => DExp.t = (
+          let add_name: (option(string), DHExp.t) => DHExp.t = (
             (name, d) => {
-              let (term, rewrap) = DExp.unwrap(d);
+              let (term, rewrap) = DHExp.unwrap(d);
               switch (term) {
-              | Fun(p, e, ctx, _) => DExp.Fun(p, e, ctx, name) |> rewrap
+              | Fun(p, e, ctx, _) => DHExp.Fun(p, e, ctx, name) |> rewrap
               | _ => d
               };
             }
@@ -246,14 +246,14 @@ let rec dexp_of_uexp = (m, uexp, ~in_filter) => {
           switch (UPat.get_recursive_bindings(p)) {
           | None =>
             /* not recursive */
-            DExp.Let(p, add_name(UPat.get_var(p), ddef), dbody)
+            DHExp.Let(p, add_name(UPat.get_var(p), ddef), dbody)
             |> rewrap
             |> wrap(m)
           | Some(b) =>
-            DExp.Let(
+            DHExp.Let(
               p,
               FixF(p, add_name(Some(String.concat(",", b)), ddef), None)
-              |> DExp.fresh,
+              |> DHExp.fresh,
               dbody,
             )
             |> rewrap

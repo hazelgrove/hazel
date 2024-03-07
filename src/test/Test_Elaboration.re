@@ -1,17 +1,17 @@
 open Alcotest;
 open Haz3lcore;
-open DExp;
+open DHExp;
 
-let dhexp_eq = (d1: option(DExp.t), d2: option(DExp.t)): bool =>
+let dhexp_eq = (d1: option(DHExp.t), d2: option(DHExp.t)): bool =>
   switch (d1, d2) {
-  | (Some(d1), Some(d2)) => DExp.fast_equal(d1, d2)
+  | (Some(d1), Some(d2)) => DHExp.fast_equal(d1, d2)
   | _ => false
   };
 
-let dhexp_print = (d: option(DExp.t)): string =>
+let dhexp_print = (d: option(DHExp.t)): string =>
   switch (d) {
   | None => "None"
-  | Some(d) => DExp.show(d)
+  | Some(d) => DHExp.show(d)
   };
 
 /*Create a testable type for dhexp which requires
@@ -41,7 +41,7 @@ let u3: UExp.t = {
   copied: false,
   term: Parens({ids: [id_at(1)], copied: false, term: Var("y")}),
 };
-let d3: DExp.t = StaticErrorHole(id_at(1), Var("y") |> fresh) |> fresh;
+let d3: DHExp.t = StaticErrorHole(id_at(1), Var("y") |> fresh) |> fresh;
 let free_var = () =>
   alco_check(
     "Nonempty hole with free variable",
@@ -83,9 +83,9 @@ let u4: UExp.t = {
       },
     ),
 };
-let d4: DExp.t =
+let d4: DHExp.t =
   Let(
-    Tuple([Var("a") |> DPat.fresh, Var("b") |> DPat.fresh]) |> DPat.fresh,
+    Tuple([Var("a") |> DHPat.fresh, Var("b") |> DHPat.fresh]) |> DHPat.fresh,
     Tuple([Int(4) |> fresh, Int(6) |> fresh]) |> fresh,
     BinOp(Int(Minus), Var("a") |> fresh, Var("b") |> fresh) |> fresh,
   )
@@ -103,7 +103,7 @@ let u5: UExp.t = {
       {ids: [id_at(2)], copied: false, term: Var("y")},
     ),
 };
-let d5: DExp.t =
+let d5: DHExp.t =
   BinOp(
     Int(Plus),
     StaticErrorHole(id_at(1), Bool(false) |> fresh) |> fresh,
@@ -127,7 +127,7 @@ let u6: UExp.t = {
       {ids: [id_at(3)], copied: false, term: Int(6)},
     ),
 };
-let d6: DExp.t =
+let d6: DHExp.t =
   If(Bool(false) |> fresh, Int(8) |> fresh, Int(6) |> fresh) |> fresh;
 let consistent_if = () =>
   alco_check(
@@ -165,11 +165,11 @@ let u7: UExp.t = {
       {ids: [id_at(6)], copied: false, term: Var("y")},
     ),
 };
-let d7: DExp.t =
+let d7: DHExp.t =
   Ap(
     Forward,
     Fun(
-      Var("x") |> DPat.fresh,
+      Var("x") |> DHPat.fresh,
       BinOp(
         Int(Plus),
         Int(4) |> fresh,
@@ -217,15 +217,15 @@ let u8: UExp.t = {
       ],
     ),
 };
-let d8scrut: DExp.t =
+let d8scrut: DHExp.t =
   BinOp(Int(Equals), Int(4) |> fresh, Int(3) |> fresh) |> fresh;
 let d8rules =
-  DExp.[
-    (Bool(true) |> DPat.fresh, Int(24) |> fresh),
-    (Bool(false) |> DPat.fresh, Bool(false) |> fresh),
+  DHExp.[
+    (Bool(true) |> DHPat.fresh, Int(24) |> fresh),
+    (Bool(false) |> DHPat.fresh, Bool(false) |> fresh),
   ];
-let d8a: DExp.t = Match(d8scrut, d8rules) |> fresh;
-let d8: DExp.t = StaticErrorHole(id_at(0), d8a) |> fresh;
+let d8a: DHExp.t = Match(d8scrut, d8rules) |> fresh;
+let d8: DHExp.t = StaticErrorHole(id_at(0), d8a) |> fresh;
 let inconsistent_case = () =>
   alco_check(
     "Inconsistent branches where the first branch is an integer and second branch is a boolean",
@@ -276,7 +276,7 @@ let u9: UExp.t = {
       {ids: [id_at(11)], copied: false, term: Int(55)},
     ),
 };
-// let d9: DExp.t =
+// let d9: DHExp.t =
 //   Let(
 //     Var("f"),
 //     FixF(

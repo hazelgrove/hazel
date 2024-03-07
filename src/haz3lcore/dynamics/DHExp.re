@@ -6,7 +6,7 @@
 
  */
 /*
- DExps that can appear during evaluation, and thus won't have static information.
+ DHExps that can appear during evaluation, and thus won't have static information.
 
  - Closure
  - Var [for mutual recursion; could probably get rid of if needed...]
@@ -25,7 +25,7 @@
 
  */
 
-/* DExp.re
+/* DHExp.re
 
    This module is specifically for dynamic expressions. They are stored
    using the same data structure as user expressions, but have a few

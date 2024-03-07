@@ -5,38 +5,38 @@ open Util;
 type term =
   | Closure([@show.opaque] ClosureEnvironment.t, t)
   | Filter(TermBase.StepperFilterKind.t, t)
-  | Seq1(t, DExp.t)
-  | Seq2(DExp.t, t)
-  | Let1(Pat.t, t, DExp.t)
-  | Let2(Pat.t, DExp.t, t)
+  | Seq1(t, DHExp.t)
+  | Seq2(DHExp.t, t)
+  | Let1(Pat.t, t, DHExp.t)
+  | Let2(Pat.t, DHExp.t, t)
   | Fun(Pat.t, t, option(ClosureEnvironment.t), option(Var.t))
   | FixF(Pat.t, t, option(ClosureEnvironment.t))
-  | Ap1(Operators.ap_direction, t, DExp.t)
-  | Ap2(Operators.ap_direction, DExp.t, t)
-  | If1(t, DExp.t, DExp.t)
-  | If2(DExp.t, t, DExp.t)
-  | If3(DExp.t, DExp.t, t)
+  | Ap1(Operators.ap_direction, t, DHExp.t)
+  | Ap2(Operators.ap_direction, DHExp.t, t)
+  | If1(t, DHExp.t, DHExp.t)
+  | If2(DHExp.t, t, DHExp.t)
+  | If3(DHExp.t, DHExp.t, t)
   | UnOp(Operators.op_un, t)
-  | BinOp1(Operators.op_bin, t, DExp.t)
-  | BinOp2(Operators.op_bin, DExp.t, t)
-  | Tuple(t, (list(DExp.t), list(DExp.t)))
+  | BinOp1(Operators.op_bin, t, DHExp.t)
+  | BinOp2(Operators.op_bin, DHExp.t, t)
+  | Tuple(t, (list(DHExp.t), list(DHExp.t)))
   | Test(t)
-  | ListLit(t, (list(DExp.t), list(DExp.t)))
+  | ListLit(t, (list(DHExp.t), list(DHExp.t)))
   | MultiHole(t, (list(Any.t), list(Any.t)))
-  | Cons1(t, DExp.t)
-  | Cons2(DExp.t, t)
-  | ListConcat1(t, DExp.t)
-  | ListConcat2(DExp.t, t)
+  | Cons1(t, DHExp.t)
+  | Cons2(DHExp.t, t)
+  | ListConcat1(t, DHExp.t)
+  | ListConcat2(DHExp.t, t)
   | StaticErrorHole(Id.t, t)
   | Cast(t, Typ.t, Typ.t)
   | FailedCast(t, Typ.t, Typ.t)
   | DynamicErrorHole(t, InvalidOperationError.t)
-  | MatchScrut(t, list((UPat.t, DExp.t)))
+  | MatchScrut(t, list((UPat.t, DHExp.t)))
   | MatchRule(
-      DExp.t,
+      DHExp.t,
       UPat.t,
       t,
-      (list((UPat.t, DExp.t)), list((UPat.t, DExp.t))),
+      (list((UPat.t, DHExp.t)), list((UPat.t, DHExp.t))),
     )
 and t =
   | Mark
@@ -45,12 +45,12 @@ and t =
       ids: list(Id.t),
     });
 
-let rec compose = (ctx: t, d: DExp.t): DExp.t => {
+let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
   switch (ctx) {
   | Mark => d
   | Term({term, ids}) =>
-    let wrap = DExp.mk(ids);
-    DExp.(
+    let wrap = DHExp.mk(ids);
+    DHExp.(
       switch (term) {
       | Closure(env, ctx) =>
         let d = compose(ctx, d);
