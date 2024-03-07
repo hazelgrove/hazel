@@ -10,8 +10,8 @@ type t =
   | Delim
   | EmptyHole(bool, ClosureEnvironment.t)
   | NonEmptyHole
-  | VarHole(VarErrStatus.HoleReason.t, HoleInstance.t)
-  | InconsistentBranches(HoleInstance.t)
+  | VarHole(VarErrStatus.HoleReason.t, Id.t)
+  | InconsistentBranches(Id.t)
   | Invalid
   | FailedCastDelim
   | FailedCastDecoration
