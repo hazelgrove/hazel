@@ -63,7 +63,7 @@ let typ_error: Info.error_typ => string =
 let tpat_error: Info.error_tpat => string =
   fun
   | NotAVar(_) => "Not a valid type name"
-  | ShadowsType(name) => "Can't shadow base type " ++ name;
+  | ShadowsType(name) => "Can't shadow type " ++ name;
 
 let string_of: Info.error => string =
   fun

@@ -4,6 +4,7 @@ open LSActions;
 
 let usage_check = "<syntax|statics|dynamics>";
 let usage_completions = "<grammar|context|types>";
+let usage_runtest = "<api-key-path>";
 let usage_command =
   "<CHECK " ++ usage_check ++ " | COMPLETIONS " ++ usage_completions ++ ">";
 let usage_debug = "[--debug]";
@@ -35,7 +36,8 @@ let rec parse = (args: arguments, strs): arguments =>
   switch (strs) {
   | ["CHECK", ...rest] => parse_check(rest, args)
   | ["COMPLETIONS", ...rest] => parse_completions(rest, args)
-  | _ => failwith("LS: Command not recognized: " ++ usage_command)
+  | ["RUNTEST", ...rest] => parse_runtest(rest, args)
+  | _ => failwith("LSP: Command not recognized: " ++ usage_command)
   }
 and parse_base = (strs, args: arguments): arguments =>
   switch (strs) {
@@ -44,44 +46,44 @@ and parse_base = (strs, args: arguments): arguments =>
   | ["--prelude", path, ...rest] =>
     switch (LSFiles.string_of_file(path)) {
     | exception _ =>
-      failwith("LS: EXN: Could not load prelude from path: " ++ path)
+      failwith("LSP: EXN: Could not load prelude from path: " ++ path)
     | prelude =>
-      let ctx = LSFiles.process_prelude(prelude, ~init_ctx=args.ctx);
+      // let ctx = LSFiles.process_prelude(prelude, ~init_ctx=args.ctx);
       let data = {...args.data, prelude: Some(prelude)};
-      parse_base(rest, {...args, data, ctx});
+      parse_base(rest, {...args, data /* ,ctx */});
     }
-  | ["--prelude", ..._] => failwith("LS: EXN: Usage: " ++ usage_prelude)
+  | ["--prelude", ..._] => failwith("LSP: EXN: Usage: " ++ usage_prelude)
   | ["--epilogue", path, ...rest] =>
     switch (LSFiles.string_of_file(path)) {
     | exception _ =>
-      failwith("LS: EXN: Could not load epilogue from path: " ++ path)
+      failwith("LSP: EXN: Could not load epilogue from path: " ++ path)
     | epilogue =>
       let data = {...args.data, epilogue: Some(epilogue)};
       parse_base(rest, {...args, data});
     }
-  | ["--epilogue", ..._] => failwith("LS: EXN: Usage: " ++ usage_epilogue)
+  | ["--epilogue", ..._] => failwith("LSP: EXN: Usage: " ++ usage_epilogue)
   | ["--main", path, ...rest] =>
     switch (LSFiles.string_of_file(path)) {
     | exception _ =>
-      failwith("LS: EXN: Could not load main from path: " ++ path)
+      failwith("LSP: EXN: Could not load main from path: " ++ path)
     | program =>
       let data = {...args.data, program};
       parse_base(rest, {...args, data});
     }
-  | ["--main", ..._] => failwith("LS: EXN: Usage: " ++ usage_main)
+  | ["--main", ..._] => failwith("LSP: EXN: Usage: " ++ usage_main)
   | ["--new-token", new_token, ...rest] =>
     let data = {...args.data, new_token: Some(new_token)};
     parse_base(rest, {...args, data});
-  | ["--new-token", ..._] => failwith("LS: EXN: Usage: " ++ usage_new_token)
+  | ["--new-token", ..._] => failwith("LSP: EXN: Usage: " ++ usage_new_token)
   | [arg, ..._] when String.starts_with(~prefix="--", arg) =>
-    failwith("LS: EXN: Unrecognized argument: " ++ arg)
+    failwith("LSP: EXN: Unrecognized argument: " ++ arg)
   | [program] =>
     let data = {...args.data, program};
     {...args, data};
   | [] when args.data.program != "" => args
-  | [] => failwith("LS: EXN: No program specified. Usage: " ++ usage_str)
+  | [] => failwith("LSP: EXN: No program specified. Usage: " ++ usage_str)
   | [_, ..._] =>
-    failwith("LS: EXN: Multiple unnamed arguments. Usage: " ++ usage_str)
+    failwith("LSP: EXN: Multiple unnamed arguments. Usage: " ++ usage_str)
   }
 and parse_check = (strs, args: arguments): arguments =>
   switch (strs) {
@@ -91,7 +93,7 @@ and parse_check = (strs, args: arguments): arguments =>
     parse_base(rest, {...args, command: Check(Static)})
   | ["dynamics", ...rest] =>
     parse_base(rest, {...args, command: Check(Dynamic)})
-  | _ => failwith("LS: EXN: Usage: " ++ usage_check)
+  | _ => failwith("LSP: EXN: Usage: " ++ usage_check)
   }
 and parse_completions = (strs, args: arguments): arguments =>
   switch (strs) {
@@ -101,7 +103,18 @@ and parse_completions = (strs, args: arguments): arguments =>
     parse_base(rest, {...args, command: Completions(Context)})
   | ["types", ...rest] =>
     parse_base(rest, {...args, command: Completions(Types)})
-  | _ => failwith("LS: EXN: Usage: " ++ usage_completions)
+  | _ => failwith("LSP: EXN: Usage: " ++ usage_completions)
+  }
+and parse_runtest = (strs, args: arguments): arguments =>
+  switch (strs) {
+  | ["--api-key", key_path, ...rest] =>
+    switch (LSFiles.string_of_file(key_path)) {
+    | exception _ =>
+      failwith("LSP: EXN: Could not load api key from path: " ++ key_path)
+    | api_key => parse_base(rest, {...args, command: RunTest(api_key)})
+    }
+
+  | _ => failwith("LSP: EXN: Usage: " ++ usage_runtest)
   };
 
 let get_args = (): list(string) => {
@@ -113,22 +126,24 @@ let get_args = (): list(string) => {
       |> Array.to_list
     ) {
     | [_, _, ...args] => args
-    | _ => failwith("LS: EXN: Args malformed")
+    | _ => failwith("LSP: EXN: Args malformed")
     }
   );
 };
 
 let main = ({debug, data, command, ctx}: LSActions.arguments) => {
   let db = s => debug ? print_endline(s) : ();
-  db(Printf.sprintf("LS: Command: %s", LSActions.show_command(command)));
+  db(Printf.sprintf("LSP: Command: %s", LSActions.show_command(command)));
   switch (command) {
   | Completions(completions) =>
-    let z = LSFiles.get_zipper(~db, data.program, data.new_token);
-    let grammar =
-      LSCompletions.go(z, ~settings={data, completions, ctx}, ~db);
-    db("LS: Grammar:");
-    print_endline(grammar);
-  | Check(check) => LSChecker.go(~db, ~settings={data, check, ctx}, check)
+    LSCompletions.go(~db, ~settings={data, completions, ctx})
+  | Check(check) => LSChecker.go(~db, ~settings={data, check, ctx})
+  | RunTest(key) =>
+    LSTest.go(
+      ~db,
+      ~settings={data, completions: Types, ctx},
+      ~key=Some(key),
+    )
   };
 };
 

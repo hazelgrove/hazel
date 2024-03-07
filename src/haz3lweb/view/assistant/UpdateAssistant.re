@@ -77,27 +77,45 @@ let apply =
     switch (Oracle.ask(model)) {
     | None => print_endline("Oracle: prompt generation failed")
     | Some(prompt) =>
-      OpenAI.start_chat(~llm=Azure_GPT4, prompt, req =>
+      let llm = OpenAI.Azure_GPT4;
+      let key = OpenAI.lookup_key(llm);
+      OpenAI.start_chat(~llm, ~key, prompt, req =>
         switch (OpenAI.handle_chat(req)) {
         | Some({content, _}) => schedule_action(Oracle.react(content))
         | None => print_endline("Assistant: response parse failed")
         }
-      )
+      );
     };
     Ok(model);
-  | Prompt(Filler({llm, _} as filter_otions)) =>
+  | Prompt(Filler({llm, _} as filter_options)) =>
     let schedule_if_auto = action =>
       switch (model.meta.auto.current_script) {
       | None => ()
       | Some(name) => schedule_action(SetMeta(Auto(action(name))))
       };
     let ctx_init = Editors.get_ctx_init(~settings, model.editors);
+    let expected_ty = {
+      let ctx_at_caret =
+        switch (ChatLSP.Type.ctx(~settings, ~ctx_init, editor)) {
+        | None => ctx_init
+        | Some(ctx) => ctx
+        };
+      let mode = ChatLSP.Type.mode(~settings, ~ctx_init, editor);
+      ChatLSP.Type.expected(~ctx=ctx_at_caret, mode);
+    };
     let add_round = add => schedule_if_auto(name => UpdateResult(name, add));
-    switch (Filler.prompt(filter_otions, ~settings, ~ctx_init, editor)) {
+    switch (
+      Filler.prompt(
+        filter_options,
+        ~sketch=Printer.to_string_editor(~holes=Some("?"), editor),
+        ~expected_ty,
+      )
+    ) {
     | None => print_endline("Filler: prompt generation failed")
     | Some(prompt) =>
       print_endline("GENERATED PROMPT:\n " ++ OpenAI.show_prompt(prompt));
-      OpenAI.start_chat(~llm, prompt, req =>
+      let key = OpenAI.lookup_key(llm);
+      OpenAI.start_chat(~llm, ~key, prompt, req =>
         switch (OpenAI.handle_chat(req)) {
         | Some(reply) =>
           switch (
@@ -118,7 +136,12 @@ let apply =
             | Some(err_msg) =>
               print_endline("first round: errors detected:" ++ err_msg);
               OpenAI.reply_chat(
-                ~llm, prompt, ~assistant=reply.content, ~user=err_msg, req =>
+                ~llm,
+                ~key,
+                prompt,
+                ~assistant=reply.content,
+                ~user=err_msg,
+                req =>
                 switch (OpenAI.handle_chat(req)) {
                 | Some(reply2) =>
                   add_round(AddRoundTwo(settings, init_ctx, mode, reply2));
@@ -139,7 +162,7 @@ let apply =
             );
             ();
           }
-        | None => print_endline("Filler: handler failed")
+        | None => print_endline("Filler: handler returned None")
         }
       );
     };

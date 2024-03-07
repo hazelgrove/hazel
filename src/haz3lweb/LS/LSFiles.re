@@ -64,66 +64,18 @@ let deserialize_zipper: string => Zipper.t = deserialize_a;
 let serialized_filename_z = program_str =>
   hash_of_string(program_str) ++ ".zipper.serialized";
 
-let get_info_map = (~init_ctx, z: Zipper.t) =>
-  z
-  |> MakeTerm.from_zip_for_sem
-  |> fst
-  |> Interface.Statics.mk_map_ctx(CoreSettings.on, init_ctx);
-
-let pp_inner = (~db=ignore, ~init_ctx, str: string): Ctx.t => {
-  let sym = 666;
-  let str = str ++ "\n" ++ string_of_int(sym);
-  let ctx_if_sym = (_, info: Info.t, acc) =>
-    switch (info) {
-    | InfoExp({ctx, term: {term: Int(n), _}, _}) when n == sym => Some(ctx)
-    | _ => acc
-    };
-  let get_ctx_thing = (map: Statics.Map.t): option(Ctx.t) =>
-    Id.Map.fold(ctx_if_sym, map, None);
-  db("LS: Prelude: Recieved string: " ++ str);
-  let z =
-    OptUtil.get_or_fail(
-      "LS: Prelude: EXN: Couldn't parse string",
-      Printer.zipper_of_string(str),
-    );
-  db("LS: Prelude: String parsed successfully");
-  let info_map = get_info_map(~init_ctx, z);
-  switch (get_ctx_thing(info_map)) {
-  | Some(ctx) => ctx
-  | None =>
-    failwith(
-      "LS: Prelude: EXN: Couldn't find sym to extract ctx:"
-      ++ string_of_int(sym),
-    )
-  };
-};
-
-let process_prelude = (~db=ignore, ~init_ctx, str: string): Ctx.t => {
-  let hashed_str = hash_of_string(str);
-  let serialized_filename = hashed_str ++ ".ctx.serialized";
-  if (is_file(serialized_filename)) {
-    db("LS: Prelude: Found serialized file, deserializing");
-    deserialize_ctx(serialized_filename);
-  } else {
-    db("LS: Prelude: No serialized file, processing string");
-    let ctx = pp_inner(~db, ~init_ctx, str);
-    serialize_ctx(ctx, serialized_filename);
-    ctx;
-  };
-};
-
 let process_zipper = (~db=ignore, z_str: string): Zipper.t => {
   let serialized_filename = serialized_filename_z(z_str);
-  db("LS: Process zipper: Recieved string:");
+  db("LSP: Process zipper: Recieved string:");
   db(z_str);
   if (is_file(serialized_filename)) {
-    db("LS: Process Zipper: Found serialized zipper, deserializing");
+    db("LSP: Process Zipper: Found serialized zipper, deserializing");
     deserialize_zipper(serialized_filename);
   } else {
-    db("LS: Process Zipper: No serialized zipper, processing string");
+    db("LSP: Process Zipper: No serialized zipper, processing string");
     let z =
       OptUtil.get_or_fail(
-        "LS: EXN: Couldn't parse string",
+        "LSP: EXN: Couldn't parse string",
         Printer.zipper_of_string(z_str),
       );
     serialize_zipper(z, serialized_filename);
@@ -134,16 +86,16 @@ let process_zipper = (~db=ignore, z_str: string): Zipper.t => {
 let get_zipper = (~db, program, new_token) => {
   switch (new_token) {
   | None =>
-    db("LS: Recieved string: " ++ program);
+    db("LSP: Recieved string: " ++ program);
     let z = process_zipper(~db, program);
-    db("LS: String parsed successfully to zipper");
+    db("LSP: String parsed successfully to zipper");
     z;
   | Some(new_token) =>
-    db("LS: New token mode: " ++ program ++ new_token);
+    db("LSP: New token mode: " ++ program ++ new_token);
     let base_z = process_zipper(~db, program);
     let new_z =
       OptUtil.get_or_fail(
-        "LS: EXN: New token mode: Couldn't paste into zipper",
+        "LSP: EXN: New token mode: Couldn't paste into zipper",
         Printer.paste_into_zip(base_z, new_token),
       );
     serialize_zipper(new_z, serialized_filename_z(program ++ new_token));

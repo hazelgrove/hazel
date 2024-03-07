@@ -172,7 +172,7 @@ let ctx_prompt = (ctx: Ctx.t, expected_ty: Typ.t): string => {
        to strings and seperte with commas.
      */
   switch (expected_ty) {
-  | Unknown(_) => "LS: No variables in scope are obviously relevant here\n"
+  | Unknown(_) => "LSP: No variables in scope are obviously relevant here\n"
   | expected_ty =>
     let nontrivially_consistent =
         (ctx: Ctx.t, ty_expect: Typ.t, ty_given: Typ.t): bool =>
@@ -195,7 +195,7 @@ let ctx_prompt = (ctx: Ctx.t, expected_ty: Typ.t): string => {
         | _ => None,
         ctx,
       );
-    "LS: Consider using the following functions and constructors relevant to the expected type:\n  "
+    "LSP: Consider using the following functions and constructors relevant to the expected type:\n  "
     ++ String.concat(",\n  ", ctx')
     ++ "\n";
   };
@@ -253,21 +253,16 @@ let get_samples = (num_examples, samples) =>
 let prompt =
     (
       {instructions, syntax_notes, num_examples, expected_type, _}: FillerOptions.t,
-      ~settings: Settings.t,
-      ~ctx_init,
-      editor: Editor.t,
+      ~sketch,
+      ~expected_ty,
     )
     : option(OpenAI.prompt) => {
-  let* ctx = editor |> ChatLSP.Type.ctx(~settings, ~ctx_init);
-  let mode = editor |> ChatLSP.Type.mode(~settings, ~ctx_init);
-  let sketch = editor |> Printer.to_string_editor(~holes=Some("?"));
   let+ () = String.trim(sketch) == "" ? None : Some();
   let system_prompt =
     (instructions ? main_prompt : [])
     @ (syntax_notes ? hazel_syntax_notes : []);
   let samples = get_samples(num_examples, samples);
-  let expected_ty =
-    expected_type ? Some(ChatLSP.Type.expected(~ctx, mode)) : None;
+  let expected_ty = expected_type ? Some(expected_ty) : None;
   //let _selected_ctx = ctx_prompt(ctx, ChatLSP.Type.expected_ty(~ctx, mode));
   let prompt = init_prompt(~expected_ty, ~sketch, samples, system_prompt);
   prompt;

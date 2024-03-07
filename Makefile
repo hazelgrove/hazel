@@ -17,6 +17,7 @@ setup-student:
 
 dev-helper: 
 	dune build @src/fmt --auto-promote src --profile dev
+	cp _build/default/src/haz3lweb/www/hazeLS.js hazeLS.js
 
 dev: setup-instructor dev-helper
 

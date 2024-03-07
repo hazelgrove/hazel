@@ -66,6 +66,14 @@ let body = (~llm, messages: prompt): Json.t => {
   ]);
 };
 
+let lookup_key = (llm: chat_models) =>
+  switch (llm) {
+  | Azure_GPT3_5Turbo => Store.Generic.load("AZURE")
+  | Azure_GPT4 => Store.Generic.load("AZURE4")
+  | GPT3_5Turbo
+  | GPT4 => Store.Generic.load("OpenAI")
+  };
+
 /* SAMPLE OPENAI CHAT RESPONSE:
     {
       "id":"chatcmpl-6y5167eYM6ovo5yVThXzr5CB8oVIO",
@@ -89,8 +97,8 @@ let body = (~llm, messages: prompt): Json.t => {
       ]
    }*/
 
-let chat = (~body, ~handler): unit =>
-  switch (Store.Generic.load("OpenAI")) {
+let chat = (~key, ~body, ~handler): unit =>
+  switch (key) {
   | None => print_endline("API: OpenAI KEY NOT FOUND")
   | Some(api_key) =>
     print_endline("API: POSTing OpenAI request");
@@ -109,8 +117,8 @@ let chat = (~body, ~handler): unit =>
 module Azure = {
   let chat =
       (~key, ~resource, ~deployment, ~api_version, ~body, ~handler): unit =>
-    switch (Store.Generic.load(key)) {
-    | None => print_endline("API: KEY '" ++ key ++ "' NOT FOUND")
+    switch (key) {
+    | None => print_endline("API: KEY NOT FOUND")
     | Some(api_key) =>
       print_endline("API: POSTing Azure request");
       request(
@@ -133,42 +141,41 @@ module Azure = {
 };
 
 module AzureGPT3_5 = {
-  let chat = (~body, ~handler): unit =>
+  let chat = (~body, ~key, ~handler): unit =>
     Azure.chat(
-      ~key="AZURE",
       ~resource="hazel",
       ~deployment="gpt35turbo",
       ~api_version="2023-05-15",
       ~body,
+      ~key,
       ~handler,
     );
 };
 
 module AzureGPT4 = {
-  let chat = (~body, ~handler): unit =>
+  let chat = (~body, ~key, ~handler): unit =>
     Azure.chat(
-      ~key="AZURE4",
       ~resource="hazel2",
       ~deployment="hazel-gpt-4",
       ~api_version="2023-05-15",
       ~body,
+      ~key,
       ~handler,
     );
 };
 
-//let body_simple = (~llm, prompt) => body(~llm, [(User, prompt)]);
-
-let start_chat = (~llm, prompt: prompt, handler): unit => {
+let start_chat = (~llm, ~key, prompt: prompt, handler): unit => {
   let body = body(~llm, prompt);
   switch (llm) {
-  | Azure_GPT3_5Turbo => AzureGPT3_5.chat(~body, ~handler)
-  | Azure_GPT4 => AzureGPT4.chat(~body, ~handler)
+  | Azure_GPT3_5Turbo => AzureGPT3_5.chat(~key, ~body, ~handler)
+  | Azure_GPT4 => AzureGPT4.chat(~key, ~body, ~handler)
   | GPT3_5Turbo
-  | GPT4 => chat(~body, ~handler)
+  | GPT4 => chat(~key, ~body, ~handler)
   };
 };
 
-let reply_chat = (~llm, prompt: prompt, ~assistant, ~user, handler): unit => {
+let reply_chat =
+    (~llm, ~key, prompt: prompt, ~assistant, ~user, handler): unit => {
   let body =
     body(
       ~llm,
@@ -176,10 +183,10 @@ let reply_chat = (~llm, prompt: prompt, ~assistant, ~user, handler): unit => {
       @ [{role: Assistant, content: assistant}, {role: User, content: user}],
     );
   switch (llm) {
-  | Azure_GPT3_5Turbo => AzureGPT3_5.chat(~body, ~handler)
-  | Azure_GPT4 => AzureGPT4.chat(~body, ~handler)
+  | Azure_GPT3_5Turbo => AzureGPT3_5.chat(~body, ~key, ~handler)
+  | Azure_GPT4 => AzureGPT4.chat(~body, ~key, ~handler)
   | GPT3_5Turbo
-  | GPT4 => chat(~body, ~handler)
+  | GPT4 => chat(~key, ~body, ~handler)
   };
 };
 

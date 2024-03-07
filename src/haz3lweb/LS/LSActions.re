@@ -14,9 +14,13 @@ type check =
   | Dynamic;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type api_key_path = string;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type command =
   | Check(check)
-  | Completions(completions);
+  | Completions(completions)
+  | RunTest(api_key_path);
 
 let show_command = (c: command): string =>
   switch (c) {
@@ -26,6 +30,7 @@ let show_command = (c: command): string =>
   | Completions(Grammar) => "Completions(Grammar)"
   | Completions(Context) => "Completions(Context)"
   | Completions(Types) => "Completions(Types)"
+  | RunTest(_) => "RunTest"
   };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -44,26 +49,13 @@ type arguments = {
   data,
 };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type args_completion = {
-  ctx: Ctx.t,
-  completions,
-  data,
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type args_check = {
-  ctx: Ctx.t,
-  check,
-  data,
-};
-
 let default_data: data = {
   prelude: None,
   program: "",
   new_token: None,
   epilogue: None,
 };
+
 let default_settings: arguments = {
   debug: false,
   ctx: Builtins.ctx_base,
