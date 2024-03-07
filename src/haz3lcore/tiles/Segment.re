@@ -453,61 +453,46 @@ module Trim = {
     | [ws, ...wss] => List.cons(ws, rm_up_to_one_space(wss))
     };
 
-  let scooch_over_linebreak = wss' =>
-    switch (wss') {
-    | [ws, [w, ...ws'], ...wss] when Secondary.is_linebreak(w) => [
-        ws @ [w],
-        ws',
-        ...wss,
-      ]
-    | _ => wss'
-    };
-
-  let add_grout = (~d: Direction.t=Right, shape: Nib.Shape.t, trim: t): t => {
+  let add_grout = (~d: Direction.t, shape: Nib.Shape.t, (wss, gs): t): t => {
     let g = Grout.mk_fits_shape(shape);
-    let (wss, gs) = trim;
-
-    /* If we're adding a grout, remove a secondary. Note that
+    /* When adding a grout to the left, consume a space. Note
        changes made to the logic here should also take into
-       account the other direction in 'regrout' below.
-
-       Examples:
-       1. concave right case is: "1 +| 1" ... want "1 |>< 1" (dont consume)
-       2. convex left "[|]" want "[ |]"=>"[<>|]" (consume)
-       3. convave left case "let a = 1 i|" => "let a = 1><i|" (consume)
-       */
-
-    let trim = (
-      g.shape == Concave && d == Right ? wss : rm_up_to_one_space(wss),
-      gs,
-    );
-    let (wss', gs') = cons_g(g, trim);
-    /* Hack to supress the addition of leading secondary on a line */
-    //let wss' = scooch_over_linebreak(wss');
-    /* ANDREW: disabled above hack; with calmer indent it seems annoying */
-    (wss', gs');
+       account the other direction in 'regrout' below */
+    let wss' =
+      switch (d) {
+      /* Right Convex e.g. Backspace `1| + 2` => `|<> + 2` (Don't consume) */
+      /* Right Concave e.g. Backspace `1 +| 1` => `1 |>< 1` (Don't consume) */
+      | Right => wss
+      /* Left Convex e.g. Insert Space `[|]` => `[ |]` => `[<>|]` (Consume) */
+      /* Left Concave e.g. Insert "i" `let a = 1 i|` => `let a = 1><i|` (Consume) */
+      | Left => rm_up_to_one_space(wss)
+      };
+    cons_g(g, (wss', gs));
   };
 
   // assumes grout in trim fit r but may not fit l
   let regrout = (d: Direction.t, (l, r): Nibs.shapes, trim: t): t =>
     if (Nib.Shape.fits(l, r)) {
       let (wss, gs) = trim;
-
-      /* Convert unneeded grout to spaces. Note that changes made
-         to the logic here should also take into account the
-         conversion of spaces to grout in 'add_grout' above. */
+      /* When removing a grout to the Left, add a space. Note
+         changes made to the logic here should also take into
+         account the other direction in 'add_grout' above */
       let new_spaces =
         List.filter_map(
-          ({id, shape}: Grout.t) => {
-            switch (shape) {
-            /* convave right case "let a = 1><in|" => "let a = 1 in |" (convert) */
-            | Concave when d == Right => Some(Secondary.mk_space(id))
+          (g: Grout.t) => {
+            switch (g.shape, d) {
+            /* Left Concave e.g. `let a = 1><in|` => `let a = 1 in |` (Add) */
+            /* NOTE(andrew): Not sure why d here seems reversed. Also not sure why
+             * restriction to concave is necessary but seems to prevent addition
+             * of needless whitespace in some situation such as when inserting
+             * on `(|)`, which seems to add whitespace after the right parens
+             * without this shape restirction */
+            | (Concave, Right) => Some(Secondary.mk_space(g.id))
             | _ => None
             }
           },
           gs,
         );
-
       /* Note below that it is important that we add the new spaces
          before the existing wss, as doing otherwise may result
          in the new spaces ending up leading a line. This approach is
@@ -739,3 +724,33 @@ let expected_sorts = (sort: Sort.t, seg: t): list((int, Sort.t)) => {
   go(sort, skel(seg))
   |> List.concat_map(((ns, s)) => List.map(n => (n, s), ns));
 };
+
+let rec holes = (segment: t): list(Grout.t) =>
+  List.concat_map(
+    fun
+    | Piece.Secondary(_) => []
+    | Tile(t) => List.concat_map(holes, t.children)
+    | Grout(g) => [g],
+    segment,
+  );
+
+let get_childrens: t => list(t) =
+  List.concat_map(
+    fun
+    | Piece.Tile(t) => t.children
+    | _ => [],
+  );
+
+let rec get_incomplete_ids = (seg: t): list(Id.t) =>
+  List.concat_map(
+    fun
+    | Piece.Tile(t) => {
+        let ids = List.concat_map(get_incomplete_ids, t.children);
+        Tile.is_complete(t) ? ids : [t.id, ...ids];
+      }
+    | _ => [],
+    seg,
+  );
+
+let ids_of_incomplete_tiles_in_bidelimiteds = (seg: t): list(Id.t) =>
+  get_childrens(seg) |> List.concat |> get_incomplete_ids;

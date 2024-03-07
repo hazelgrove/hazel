@@ -11,16 +11,16 @@ let div_ok = div(~attr=clss([okc]));
 let code_err = (code: string): Node.t =>
   div(~attr=clss(["code"]), [text(code)]);
 
-let lang_doc_toggle = (~inject, ~show_lang_doc: bool): Node.t => {
+let explain_this_toggle = (~inject, ~show_explain_this: bool): Node.t => {
   let tooltip = "Toggle language documentation";
-  let toggle_landocs = _ =>
+  let toggle_explain_this = _ =>
     Virtual_dom.Vdom.Effect.Many([
-      inject(Update.UpdateLangDocMessages(ToggleShow)),
+      inject(Update.Set(ExplainThis(ToggleShow))),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   div(
-    ~attr=clss(["lang-doc-button"]),
-    [Widgets.toggle(~tooltip, "?", show_lang_doc, toggle_landocs)],
+    ~attr=clss(["explain-this-button"]),
+    [Widgets.toggle(~tooltip, "?", show_explain_this, toggle_explain_this)],
   );
 };
 
@@ -40,7 +40,7 @@ let ctx_toggle = (~inject, context_inspector: bool): Node.t =>
     [text("Γ")],
   );
 
-let term_view = (~inject, ~settings: ModelSettings.t, ~show_lang_doc, ci) => {
+let term_view = (~inject, ~settings: Settings.t, ci) => {
   let sort = ci |> Info.sort_of |> Sort.show;
   div(
     ~attr=clss(["ci-header", sort] @ (Info.is_error(ci) ? [errc] : [])),
@@ -48,7 +48,10 @@ let term_view = (~inject, ~settings: ModelSettings.t, ~show_lang_doc, ci) => {
       ctx_toggle(~inject, settings.context_inspector),
       CtxInspector.view(~inject, ~settings, ci),
       div(~attr=clss(["term-tag"]), [text(sort)]),
-      lang_doc_toggle(~inject, ~show_lang_doc),
+      explain_this_toggle(
+        ~inject,
+        ~show_explain_this=settings.explainThis.show,
+      ),
       cls_view(ci),
     ],
   );
@@ -69,6 +72,12 @@ let common_err_view = (cls: Term.Cls.t, err: Info.error_common) =>
     | BadInt => [text("Integer is too large or too small")]
     | Other => [text(Printf.sprintf("\"%s\" isn't a valid token", token))]
     }
+  | NoType(BadTrivAp(ty)) => [
+      text("Function argument type"),
+      Type.view(ty),
+      text("inconsistent with"),
+      Type.view(Prod([])),
+    ]
   | NoType(FreeConstructor(name)) => [code_err(name), text("not found")]
   | Inconsistent(WithArrow(typ)) => [
       text(":"),
@@ -130,14 +139,21 @@ let common_ok_view = (cls: Term.Cls.t, ok: Info.ok_pat) => {
 let typ_ok_view = (cls: Term.Cls.t, ok: Info.ok_typ) =>
   switch (ok) {
   | Type(_) when cls == Typ(EmptyHole) => [text("Fillable by any type")]
-  | Type(ty) => [Type.view(ty)]
+  | Type(ty) => [Type.view(ty), text("is a type")]
   | TypeAlias(name, ty_lookup) => [
       Type.view(Var(name)),
       text("is an alias for"),
       Type.view(ty_lookup),
     ]
-  | Variant(name, _sum_ty) => [Type.view(Var(name))]
-  | VariantIncomplete(_sum_ty) => [text("is incomplete")]
+  | Variant(name, sum_ty) => [
+      Type.view(Var(name)),
+      text("is a sum type constuctor of type"),
+      Type.view(sum_ty),
+    ]
+  | VariantIncomplete(sum_ty) => [
+      text("An incomplete sum type constuctor of type"),
+      Type.view(sum_ty),
+    ]
   };
 
 let typ_err_view = (ok: Info.error_typ) =>
@@ -191,20 +207,28 @@ let tpat_view = (_: Term.Cls.t, status: Info.status_tpat) =>
   | InHole(NotAVar(NotCapitalized)) =>
     div_err([text("Must begin with a capital letter")])
   | InHole(NotAVar(_)) => div_err([text("Expected an alias")])
-  | InHole(ShadowsType(name)) when Form.is_base_typ(name) =>
+  | InHole(ShadowsType(name, BaseTyp)) =>
     div_err([text("Can't shadow base type"), Type.view(Var(name))])
-  | InHole(ShadowsType(name)) =>
+  | InHole(ShadowsType(name, TyAlias)) =>
     div_err([text("Can't shadow existing alias"), Type.view(Var(name))])
+  | InHole(ShadowsType(name, TyVar)) =>
+    div_err([
+      text("Can't shadow existing type variable"),
+      Type.view(Var(name)),
+    ])
   };
 
-let view_of_info =
-    (~inject, ~settings, ~show_lang_doc: bool, ci: Statics.Info.t): Node.t => {
+let secondary_view = (cls: Term.Cls.t) =>
+  div_ok([text(cls |> Term.Cls.show)]);
+
+let view_of_info = (~inject, ~settings, ci): Node.t => {
   let wrapper = status_view =>
     div(
       ~attr=clss(["info"]),
-      [term_view(~inject, ~settings, ~show_lang_doc, ci), status_view],
+      [term_view(~inject, ~settings, ci), status_view],
     );
   switch (ci) {
+  | Secondary(_) => wrapper(div([]))
   | InfoExp({cls, status, _}) => wrapper(exp_view(cls, status))
   | InfoPat({cls, status, _}) => wrapper(pat_view(cls, status))
   | InfoTyp({cls, status, _}) => wrapper(typ_view(cls, status))
@@ -212,20 +236,13 @@ let view_of_info =
   };
 };
 
-let inspector_view = (~inject, ~settings, ~show_lang_doc, ci): Node.t =>
+let inspector_view = (~inject, ~settings, ci): Node.t =>
   div(
     ~attr=clss(["cursor-inspector"] @ [Info.is_error(ci) ? errc : okc]),
-    [view_of_info(~inject, ~settings, ~show_lang_doc, ci)],
+    [view_of_info(~inject, ~settings, ci)],
   );
 
-let view =
-    (
-      ~inject,
-      ~settings: ModelSettings.t,
-      ~show_lang_doc: bool,
-      zipper: Zipper.t,
-      info_map: Statics.Map.t,
-    ) => {
+let view = (~inject, ~settings: Settings.t, cursor_info: option(Info.t)) => {
   let bar_view = div(~attr=Attr.id("bottom-bar"));
   let err_view = err =>
     bar_view([
@@ -234,20 +251,16 @@ let view =
         [div(~attr=clss(["icon"]), [Icons.magnify]), text(err)],
       ),
     ]);
-  switch (zipper.backpack, Indicated.index(zipper)) {
-  | ([_, ..._], _) => err_view("No information while backpack in use")
-  | (_, None) => err_view("No cursor in program")
-  | (_, Some(id)) =>
-    switch (Id.Map.find_opt(id, info_map)) {
-    | None => err_view("Whitespace or Comment")
-    | Some(ci) =>
-      bar_view([
-        inspector_view(~inject, ~settings, ~show_lang_doc, ci),
-        div(
-          ~attr=clss(["id"]),
-          [text(String.sub(Id.to_string(id), 0, 4))],
-        ),
-      ])
-    }
+  switch (cursor_info) {
+  | _ when !settings.core.statics => div_empty
+  | None => err_view("Whitespace or Comment")
+  | Some(ci) =>
+    bar_view([
+      inspector_view(~inject, ~settings, ci),
+      div(
+        ~attr=clss(["id"]),
+        [text(String.sub(Id.to_string(Info.id_of(ci)), 0, 4))],
+      ),
+    ])
   };
 };

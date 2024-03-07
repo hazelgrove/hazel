@@ -7,8 +7,9 @@ type formattable_child = (~enforce_inline: bool) => t;
 module P = Precedence;
 let precedence_const = P.max;
 let precedence_Ap = P.ap;
-let precedence_Times = P.mult;
 let precedence_Power = P.power;
+
+let precedence_Times = P.mult;
 let precedence_Divide = P.mult;
 let precedence_Plus = P.plus;
 let precedence_Minus = P.plus;
@@ -62,13 +63,12 @@ module Delim = {
 
   let sym_Fun = mk("fun");
   let colon_Fun = mk(":");
-  let open_Fun = mk("{");
-  let close_Fun = mk("}");
+  let arrow_Fun = mk("->");
 
   let fix_FixF = mk("fix");
+
+  let arrow_FixF = mk("->");
   let colon_FixF = mk(":");
-  let open_FixF = mk(".{");
-  let close_FixF = mk("}");
 
   let projection_dot = mk(".");
 
@@ -100,11 +100,11 @@ let mk_InvalidText = (t, hc) =>
 
 let mk_Sequence = (doc1, doc2) => Doc.(hcats([doc1, linebreak(), doc2]));
 
-let mk_TestLit = _n => Doc.text(ExpandingKeyword.to_string(Test));
-
 let mk_IntLit = n => Doc.text(string_of_int(n));
 
 let mk_StringLit = s => Doc.text(Form.string_quote(s));
+
+let mk_Test = t => Doc.(hcats([text("Test"), t, text("End")]));
 
 let mk_FloatLit = (f: float) =>
   switch (f < 0., Float.is_infinite(f), Float.is_nan(f)) {
@@ -134,7 +134,10 @@ let mk_comma_seq = (ld, rd, l) => {
 
 let mk_ListLit = l => mk_comma_seq("[", "]", l);
 
-let mk_Tuple = elts => mk_comma_seq("", "", elts);
+let mk_Tuple = elts => mk_comma_seq("(", ")", elts);
+
+let mk_TypAp = (doc1, doc2) =>
+  Doc.(hcats([doc1, text("@<"), doc2, text(">")]));
 
 let mk_Ap = (doc1, doc2) =>
   Doc.(hcats([doc1, text("("), doc2, text(")")]));

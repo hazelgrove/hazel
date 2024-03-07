@@ -171,7 +171,8 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           Match(scrut, rules),
           ids,
         )
-      | ([t], []) when t != " " => ret(Invalid(t))
+      | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
+        ret(Invalid(t))
       | _ => ret(hole(tm))
       }
     | _ => ret(hole(tm))
@@ -181,11 +182,20 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     | ([(_id, t)], []) =>
       ret(
         switch (t) {
+        | (["$"], []) => UnOp(Meta(Unquote), r)
         | (["-"], []) => UnOp(Int(Minus), r)
         | (["!"], []) => UnOp(Bool(Not), r)
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r)
         | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
+        | (["hide", "in"], [Exp(filter)]) =>
+          Filter((Eval, One), filter, r)
+        | (["eval", "in"], [Exp(filter)]) =>
+          Filter((Eval, All), filter, r)
+        | (["pause", "in"], [Exp(filter)]) =>
+          Filter((Step, One), filter, r)
+        | (["debug", "in"], [Exp(filter)]) =>
+          Filter((Step, All), filter, r)
         | (["type", "=", "in"], [TPat(tpat), Typ(def)]) =>
           TyAlias(tpat, def, r)
         | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
@@ -199,7 +209,8 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     switch (tiles) {
     | ([(_id, t)], []) =>
       switch (t) {
-      | (["()"], []) => (l.term, l.ids) //TODO(andrew): new ap error
+      | (["()"], []) =>
+        ret(Ap(l, {ids: [Id.nullary_ap_flag], term: Triv}))
       | (["(", ")"], [Exp(arg)]) => ret(Ap(l, arg))
       | (["@<", ">"], [Typ(ty)]) => ret(TypAp(l, ty))
       | _ => ret(hole(tm))
@@ -237,11 +248,12 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | (["==."], []) => BinOp(Float(Equals), l, r)
           | (["!=."], []) => BinOp(Float(NotEquals), l, r)
           | (["&&"], []) => BinOp(Bool(And), l, r)
-          | (["\\/"], []) => BinOp(Bool(Or), l, r)
+          | (["||"], []) => BinOp(Bool(Or), l, r)
           | (["::"], []) => Cons(l, r)
           | ([";"], []) => Seq(l, r)
           | (["++"], []) => BinOp(String(Concat), l, r)
           | (["$=="], []) => BinOp(String(Equals), l, r)
+          | (["|>"], []) => Pipeline(l, r)
           | (["@"], []) => ListConcat(l, r)
           | _ => hole(tm)
           },
@@ -251,7 +263,6 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     }
   | tm => ret(hole(tm));
 }
-
 and pat = unsorted => {
   let (term, inner_ids) = pat_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
@@ -278,7 +289,8 @@ and pat_term = (unsorted: unsorted): (UPat.term, list(Id.t)) => {
         | ([t], []) when Form.is_var(t) => Var(t)
         | ([t], []) when Form.is_wild(t) => Wild
         | ([t], []) when Form.is_ctr(t) => Constructor(t)
-        | ([t], []) when t != " " => Invalid(t)
+        | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
+          Invalid(t)
         | (["(", ")"], [Pat(body)]) => Parens(body)
         | (["[", "]"], [Pat(body)]) =>
           switch (body) {
@@ -342,7 +354,8 @@ and typ_term = (unsorted: unsorted): (UTyp.term, list(Id.t)) => {
         | ([t], []) when Form.is_type_input(t) => Var(t)
         | (["(", ")"], [Typ(body)]) => Parens(body)
         | (["[", "]"], [Typ(body)]) => List(body)
-        | ([t], []) when t != " " => Invalid(t)
+        | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
+          Invalid(t)
         | _ => hole(tm)
         },
       )
@@ -353,6 +366,13 @@ and typ_term = (unsorted: unsorted): (UTyp.term, list(Id.t)) => {
     | ([(_, (["(", ")"], [Typ(typ)]))], []) => ret(Ap(t, typ))
     | _ => ret(hole(tm))
     }
+  /* forall and rec have to be before sum so that they bind tighter.
+   * Thus `rec A -> Left(A) + Right(B)` get parsed as `rec A -> (Left(A) + Right(B))`
+   * If this is below the case for sum, then it gets parsed as an invalid form. */
+  | Pre(([(_id, (["forall", "->"], [TPat(tpat)]))], []), Typ(t)) =>
+    ret(Forall(tpat, t))
+  | Pre(([(_id, (["rec", "->"], [TPat(tpat)]))], []), Typ(t)) =>
+    ret(Rec(tpat, t))
   | Pre(tiles, Typ({term: Sum(t0), ids})) as tm =>
     /* Case for leading prefix + preceeding a sum */
     switch (tiles) {
@@ -397,7 +417,8 @@ and tpat_term = (unsorted: unsorted): UTPat.term => {
       ret(
         switch (tile) {
         | ([t], []) when Form.is_typ_var(t) => Var(t)
-        | ([t], []) when t != " " => Invalid(t)
+        | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
+          Invalid(t)
         | _ => hole(tm)
         },
       )
@@ -502,4 +523,21 @@ let go =
       let e = exp(unsorted(Segment.skel(seg), seg));
       (e, map^);
     },
+  );
+
+let from_zip = (~dump_backpack: bool, ~erase_buffer: bool, z: Zipper.t) => {
+  let seg = Zipper.smart_seg(~dump_backpack, ~erase_buffer, z);
+  go(seg);
+};
+
+let from_zip_for_view =
+  Core.Memo.general(
+    ~cache_size_bound=1000,
+    from_zip(~dump_backpack=false, ~erase_buffer=true),
+  );
+
+let from_zip_for_sem =
+  Core.Memo.general(
+    ~cache_size_bound=1000,
+    from_zip(~dump_backpack=true, ~erase_buffer=true),
   );

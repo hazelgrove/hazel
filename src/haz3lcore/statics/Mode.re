@@ -31,62 +31,68 @@ let ty_of: t => Typ.t =
   fun
   | Ana(ty) => ty
   | Syn => Unknown(SynSwitch)
-  | SynFun
-  | SynTypFun => Arrow(Unknown(SynSwitch), Unknown(SynSwitch));
+  | SynFun => Arrow(Unknown(SynSwitch), Unknown(SynSwitch))
+  | SynTypFun => Forall("syntypfun", Unknown(SynSwitch)); /* TODO: naming the type variable? */
 
 let of_arrow = (ctx: Ctx.t, mode: t): (t, t) =>
   switch (mode) {
   | Syn
-  | SynTypFun
-  | SynFun => (Syn, Syn)
+  | SynFun
+  | SynTypFun => (Syn, Syn)
   | Ana(ty) => ty |> Typ.matched_arrow(ctx) |> TupleUtil.map2(ana)
   };
-let of_forall: t => t =
-  fun
+
+let of_forall = (ctx: Ctx.t, name_opt: option(TypVar.t), mode: t): t =>
+  switch (mode) {
+  | Syn
   | SynFun
-  | SynTypFun
-  | Syn => Syn
-  | Ana(ty) => {
-      let (_, body) = Typ.matched_forall(ty);
-      Ana(body);
+  | SynTypFun => Syn
+  | Ana(ty) =>
+    let (name_expected_opt, item) = Typ.matched_forall(ctx, ty);
+    switch (name_opt, name_expected_opt) {
+    | (Some(name), Some(name_expected)) =>
+      Ana(Typ.subst(Var(name), name_expected, item))
+    | _ => Ana(item)
     };
+  };
+
 let of_prod = (ctx: Ctx.t, mode: t, length): list(t) =>
   switch (mode) {
   | Syn
-  | SynTypFun
-  | SynFun => List.init(length, _ => Syn)
+  | SynFun
+  | SynTypFun => List.init(length, _ => Syn)
   | Ana(ty) => ty |> Typ.matched_prod(ctx, length) |> List.map(ana)
   };
 
 let of_cons_hd = (ctx: Ctx.t, mode: t): t =>
   switch (mode) {
   | Syn
-  | SynTypFun
-  | SynFun => Syn
+  | SynFun
+  | SynTypFun => Syn
   | Ana(ty) => Ana(Typ.matched_list(ctx, ty))
   };
 
 let of_cons_tl = (ctx: Ctx.t, mode: t, hd_ty: Typ.t): t =>
   switch (mode) {
   | Syn
-  | SynTypFun
-  | SynFun => Ana(List(hd_ty))
+  | SynFun
+  | SynTypFun => Ana(List(hd_ty))
   | Ana(ty) => Ana(List(Typ.matched_list(ctx, ty)))
   };
 
 let of_list = (ctx: Ctx.t, mode: t): t =>
   switch (mode) {
   | Syn
-  | SynTypFun
-  | SynFun => Syn
+  | SynFun
+  | SynTypFun => Syn
   | Ana(ty) => Ana(Typ.matched_list(ctx, ty))
   };
 
 let of_list_concat = (ctx: Ctx.t, mode: t): t =>
   switch (mode) {
   | Syn
-  | SynTypFun
-  | SynFun => Ana(List(Unknown(SynSwitch)))
+  | SynFun
+  | SynTypFun => Ana(List(Unknown(SynSwitch)))
   | Ana(ty) => Ana(List(Typ.matched_list(ctx, ty)))
   };
 
@@ -136,3 +142,5 @@ let of_ap = (ctx, mode, ctr: option(Constructor.t)): t =>
     }
   | None => SynFun
   };
+
+let typap_mode: t = SynTypFun;

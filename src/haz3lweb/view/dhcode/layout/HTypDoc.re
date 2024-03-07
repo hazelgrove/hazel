@@ -119,9 +119,9 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
            )
         |> hcats;
       (center, true);
-    | Rec(x, ty) => (
+    | Rec(name, ty) => (
         hcats([
-          text("Rec " ++ x ++ ".{"),
+          text("Rec " ++ name ++ ".{"),
           (
             (~enforce_inline) =>
               annot(HTypAnnot.Step(0), mk(~enforce_inline, ty))
