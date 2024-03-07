@@ -171,9 +171,11 @@ let stepper_view =
     let rec previous_step =
             (~hidden: bool, step: Stepper.step_info): list(Node.t) => {
       let hidden_steps =
-        Stepper.hidden_steps_of_info(step)
-        |> List.rev_map(previous_step(~hidden=true))
-        |> List.flatten;
+        settings.show_hidden_steps
+          ? Stepper.hidden_steps_of_info(step)
+            |> List.rev_map(previous_step(~hidden=true))
+            |> List.flatten
+          : [];
       [
         div(
           ~attr=
@@ -202,10 +204,12 @@ let stepper_view =
       |> List.rev_append(
            _,
            (
-             hd
-             |> Stepper.hidden_steps_of_info
-             |> List.map(previous_step(~hidden=true))
-             |> List.flatten
+             settings.show_hidden_steps
+               ? hd
+                 |> Stepper.hidden_steps_of_info
+                 |> List.map(previous_step(~hidden=true))
+                 |> List.flatten
+               : []
            )
            @ [current],
          )
