@@ -119,8 +119,11 @@ and Exp: {
     | Match(t, list((Pat.t, t)))
     | Cast(t, Typ.t, Typ.t)
   and t = {
-    // invariant: nonempty
+    // invariant: ids should be nonempty
     ids: list(Id.t),
+    /* UExp invariant: copied should always be false, and the id should be unique
+       DExp invariant: if copied is true, then this term and its children may not
+       have unique ids. */
     copied: bool,
     term,
   };

@@ -1,10 +1,5 @@
-// TODO[Matt]: uncomment or remove
 // open Util;
 // open OptUtil.Syntax;
-// /*
-//  This module is currently unused, but we still theoretically want to be able to do it, particularly for
-//  when we have property-based testing around elaboration.
-//  */
 // let equal_typ_case = (l: list(Typ.t)): option(Typ.t) => {
 //   switch (l) {
 //   | [] => None
@@ -43,7 +38,7 @@
 //   };
 // };
 // let rec dhpat_extend_ctx =
-//         (dhpat: TermBase.UPat.t, ty: Typ.t, ctx: Ctx.t): Ctx.t => {
+//         (m: Statics.Map.t, dhpat: DPat.t, ty: Typ.t, ctx: Ctx.t): Ctx.t => {
 //   switch (dhpat.term, ty) {
 //   | (Var(name), _) =>
 //     let entry = Ctx.VarEntry({name, id: Id.invalid, typ: ty});
@@ -51,7 +46,7 @@
 //   | (Tuple(l1), Prod(l2)) =>
 //     if (List.length(l1) == List.length(l2)) {
 //       List.fold_left2(
-//         (acc, dhp, typ) => {dhpat_extend_ctx(dhp, typ, acc)},
+//         (acc, dhp, typ) => {dhpat_extend_ctx(m, dhp, typ, acc)},
 //         ctx,
 //         l1,
 //         l2,
@@ -60,18 +55,18 @@
 //       ctx;
 //     }
 //   | (Cons(dhp1, dhp2), List(typ)) =>
-//     ctx |> dhpat_extend_ctx(dhp1, typ) |> dhpat_extend_ctx(dhp2, ty)
+//     ctx |> dhpat_extend_ctx(m, dhp1, typ) |> dhpat_extend_ctx(m, dhp2, ty)
 //   | (ListLit(l), List(typ2)) =>
-//     let typ1 = Typ.matched_list(fixed_pat_typ(m, upat))
-//       if (Typ.eq(typ1, typ2)) {
-//         List.fold_left(
-//           (acc, dhp) => {dhpat_extend_ctx(dhp, typ1, acc)},
-//           ctx,
-//           l,
-//         );
-//       } else {
-//         ctx;
-//       };
+//     let typ1 = Typ.matched_list(fixed_pat_typ(m, upat));
+//     if (Typ.eq(typ1, typ2)) {
+//       List.fold_left(
+//         (acc, dhp) => {dhpat_extend_ctx(m, dhp, typ1, acc)},
+//         ctx,
+//         l,
+//       );
+//     } else {
+//       ctx;
+//     };
 //     ();
 //   | (Ap(Constructor(_, typ), dhp), _) =>
 //     let (ty1, ty2) = Typ.matched_arrow(ctx, typ);
