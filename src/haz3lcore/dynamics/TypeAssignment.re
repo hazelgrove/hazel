@@ -38,7 +38,7 @@
 //   };
 // };
 // let rec dhpat_extend_ctx =
-//         (m: Statics.Map.t, dhpat: DPat.t, ty: Typ.t, ctx: Ctx.t): Ctx.t => {
+//         (m: Statics.Map.t, dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): Ctx.t => {
 //   switch (dhpat.term, ty) {
 //   | (Var(name), _) =>
 //     let entry = Ctx.VarEntry({name, id: Id.invalid, typ: ty});
@@ -79,7 +79,7 @@
 //   };
 // };
 // let rec typ_of_dhexp =
-//         (ctx: Ctx.t, m: Statics.Map.t, dh: DExp.t): option(Typ.t) => {
+//         (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) => {
 //   switch (dh) {
 //   | EmptyHole(id, _) => delta_ty(id, m)
 //   | NonEmptyHole(_, id, _, d) =>
@@ -262,7 +262,7 @@
 //     };
 //   };
 // };
-// let property_test = (uexp_typ: Typ.t, dhexp: DExp.t, m: Statics.Map.t): bool => {
+// let property_test = (uexp_typ: Typ.t, dhexp: DHExp.t, m: Statics.Map.t): bool => {
 //   let dhexp_typ = typ_of_dhexp(Builtins.ctx_init, m, dhexp);
 //   print_endline(Typ.show(uexp_typ));
 //   switch (dhexp_typ) {

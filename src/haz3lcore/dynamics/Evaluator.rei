@@ -11,11 +11,11 @@ let evaluate:
 
 module EvaluatorEVMode: {
   type result_unfinished =
-    | BoxedValue(DExp.t)
-    | Indet(DExp.t)
-    | Uneval(DExp.t);
+    | BoxedValue(DHExp.t)
+    | Indet(DHExp.t)
+    | Uneval(DHExp.t);
 
-  let unbox: result_unfinished => DExp.t;
+  let unbox: result_unfinished => DHExp.t;
 
   include
     EV_MODE with
@@ -25,11 +25,11 @@ module EvaluatorEVMode: {
 module Eval: {
   let transition:
     (
-      (EvaluatorEVMode.state, ClosureEnvironment.t, DExp.t) =>
+      (EvaluatorEVMode.state, ClosureEnvironment.t, DHExp.t) =>
       EvaluatorEVMode.result_unfinished,
       EvaluatorEVMode.state,
       ClosureEnvironment.t,
-      DExp.t
+      DHExp.t
     ) =>
     EvaluatorEVMode.result_unfinished;
 };

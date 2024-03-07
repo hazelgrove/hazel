@@ -156,7 +156,7 @@ let stepper_view =
               ~next_steps=
                 List.mapi(
                   (i, x: EvaluatorStep.EvalObj.t) =>
-                    (i, x.d_loc |> DExp.rep_id),
+                    (i, x.d_loc |> DHExp.rep_id),
                   Stepper.get_next_steps(stepper),
                 ),
               hd,

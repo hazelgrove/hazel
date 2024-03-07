@@ -28,8 +28,8 @@ let cast_sum_maps =
   };
 };
 
-let rec matches = (dp: Pat.t, d: DExp.t): match_result =>
-  switch (DPat.term_of(dp), DExp.term_of(d)) {
+let rec matches = (dp: Pat.t, d: DHExp.t): match_result =>
+  switch (DHPat.term_of(dp), DHExp.term_of(d)) {
   | (Parens(x), _) => matches(x, d)
   | (TypeAnn(x, _), _) => matches(x, d)
   | (_, Var(_)) => DoesNotMatch
@@ -203,11 +203,11 @@ and matches_cast_Sum =
     (
       ctr: string,
       dp: option(Pat.t),
-      d: DExp.t,
+      d: DHExp.t,
       castmaps: list(ConstructorMap.t((Typ.t, Typ.t))),
     )
     : match_result =>
-  switch (DExp.term_of(d)) {
+  switch (DHExp.term_of(d)) {
   | Parens(d) => matches_cast_Sum(ctr, dp, d, castmaps)
   | Constructor(ctr') =>
     switch (
@@ -219,7 +219,7 @@ and matches_cast_Sum =
     | _ => DoesNotMatch
     }
   | Ap(_, d1, d2) =>
-    switch (DExp.term_of(d1)) {
+    switch (DHExp.term_of(d1)) {
     | Constructor(ctr') =>
       switch (
         dp,
@@ -228,7 +228,7 @@ and matches_cast_Sum =
         |> OptUtil.sequence,
       ) {
       | (Some(dp), Some(side_casts)) =>
-        matches(dp, DExp.apply_casts(d2, side_casts))
+        matches(dp, DHExp.apply_casts(d2, side_casts))
       | _ => DoesNotMatch
       }
     | _ => IndetMatch
@@ -272,9 +272,9 @@ and matches_cast_Sum =
   | ListConcat(_) => DoesNotMatch
   }
 and matches_cast_Tuple =
-    (dps: list(Pat.t), d: DExp.t, elt_casts: list(list((Typ.t, Typ.t))))
+    (dps: list(Pat.t), d: DHExp.t, elt_casts: list(list((Typ.t, Typ.t))))
     : match_result =>
-  switch (DExp.term_of(d)) {
+  switch (DHExp.term_of(d)) {
   | Parens(d) => matches_cast_Tuple(dps, d, elt_casts)
   | Tuple(ds) =>
     if (List.length(dps) != List.length(ds)) {
@@ -287,7 +287,7 @@ and matches_cast_Tuple =
           | DoesNotMatch
           | IndetMatch => result
           | Matches(env) =>
-            switch (matches(dp, DExp.apply_casts(d, casts))) {
+            switch (matches(dp, DHExp.apply_casts(d, casts))) {
             | DoesNotMatch => DoesNotMatch
             | IndetMatch => IndetMatch
             | Matches(env') => Matches(Environment.union(env, env'))
@@ -355,18 +355,18 @@ and matches_cast_Tuple =
   | If(_) => IndetMatch
   }
 and matches_cast_Cons =
-    (dp: Pat.t, d: DExp.t, elt_casts: list((Typ.t, Typ.t))): match_result =>
-  switch (DExp.term_of(d)) {
+    (dp: Pat.t, d: DHExp.t, elt_casts: list((Typ.t, Typ.t))): match_result =>
+  switch (DHExp.term_of(d)) {
   | Parens(d) => matches_cast_Cons(dp, d, elt_casts)
   | ListLit([]) =>
-    switch (DPat.term_of(dp)) {
+    switch (DHPat.term_of(dp)) {
     | ListLit([]) => Matches(Environment.empty)
     | _ => DoesNotMatch
     }
   | ListLit([dhd, ...dtl] as ds) =>
-    switch (DPat.term_of(dp)) {
+    switch (DHPat.term_of(dp)) {
     | Cons(dp1, dp2) =>
-      switch (matches(dp1, DExp.apply_casts(dhd, elt_casts))) {
+      switch (matches(dp1, DHExp.apply_casts(dhd, elt_casts))) {
       | DoesNotMatch => DoesNotMatch
       | IndetMatch => IndetMatch
       | Matches(env1) =>
@@ -378,8 +378,8 @@ and matches_cast_Cons =
             },
             elt_casts,
           );
-        let d2 = DExp.ListLit(dtl) |> DExp.fresh;
-        switch (matches(dp2, DExp.apply_casts(d2, list_casts))) {
+        let d2 = DHExp.ListLit(dtl) |> DHExp.fresh;
+        switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
         | DoesNotMatch => DoesNotMatch
         | IndetMatch => IndetMatch
         | Matches(env2) => Matches(Environment.union(env1, env2))
@@ -391,7 +391,7 @@ and matches_cast_Cons =
       | Some(lst) =>
         lst
         |> List.map(((dp, d)) =>
-             matches(dp, DExp.apply_casts(d, elt_casts))
+             matches(dp, DHExp.apply_casts(d, elt_casts))
            )
         |> List.fold_left(
              (match1, match2) =>
@@ -409,9 +409,9 @@ and matches_cast_Cons =
     | _ => failwith("called matches_cast_Cons with non-list pattern")
     }
   | Cons(d1, d2) =>
-    switch (DPat.term_of(dp)) {
+    switch (DHPat.term_of(dp)) {
     | Cons(dp1, dp2) =>
-      switch (matches(dp1, DExp.apply_casts(d1, elt_casts))) {
+      switch (matches(dp1, DHExp.apply_casts(d1, elt_casts))) {
       | DoesNotMatch => DoesNotMatch
       | IndetMatch => IndetMatch
       | Matches(env1) =>
@@ -423,7 +423,7 @@ and matches_cast_Cons =
             },
             elt_casts,
           );
-        switch (matches(dp2, DExp.apply_casts(d2, list_casts))) {
+        switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
         | DoesNotMatch => DoesNotMatch
         | IndetMatch => IndetMatch
         | Matches(env2) => Matches(Environment.union(env1, env2))
@@ -431,7 +431,7 @@ and matches_cast_Cons =
       }
     | ListLit([]) => DoesNotMatch
     | ListLit([dphd, ...dptl]) =>
-      switch (matches(dphd, DExp.apply_casts(d1, elt_casts))) {
+      switch (matches(dphd, DHExp.apply_casts(d1, elt_casts))) {
       | DoesNotMatch => DoesNotMatch
       | IndetMatch => IndetMatch
       | Matches(env1) =>
@@ -443,8 +443,8 @@ and matches_cast_Cons =
             },
             elt_casts,
           );
-        let dp2 = Pat.ListLit(dptl) |> DPat.fresh;
-        switch (matches(dp2, DExp.apply_casts(d2, list_casts))) {
+        let dp2 = Pat.ListLit(dptl) |> DHPat.fresh;
+        switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
         | DoesNotMatch => DoesNotMatch
         | IndetMatch => IndetMatch
         | Matches(env2) => Matches(Environment.union(env1, env2))
