@@ -36,6 +36,8 @@
    This module is specifically for dynamic expressions. They are stored
    using the same data structure as user expressions, but have a few
    important invariants.
+
+   TODO[Matt]: Explain the invariants.
    */
 
 include Exp;
@@ -64,67 +66,35 @@ let apply_casts = (d: t, casts: list((Typ.t, Typ.t))): t =>
   List.fold_left((d, (ty1, ty2)) => fresh_cast(d, ty1, ty2), d, casts);
 
 // TODO: make this function emit a map of changes
-let rec repair_ids = (require: bool, d: t) => {
-  let child_require = require || d.copied;
-  let repair_ids = repair_ids(child_require);
-  let term = term_of(d);
-  let rewrap = term => {
-    ids:
-      child_require
-        ? {
-          let id = Id.mk();
-          [id];
-        }
-        : d.ids,
-    copied: false,
-    term,
-  };
-  (
-    switch (term) {
-    | EmptyHole
-    | Invalid(_)
-    | Var(_)
-    | BuiltinFun(_)
-    | Bool(_)
-    | Int(_)
-    | Float(_)
-    | String(_)
-    | Constructor(_) => term
-    | StaticErrorHole(static_id, d1) =>
-      StaticErrorHole(static_id, repair_ids(d1))
-    | DynamicErrorHole(d1, x) => DynamicErrorHole(repair_ids(d1), x)
-    | FailedCast(d1, t1, t2) => FailedCast(repair_ids(d1), t1, t2)
-    | Closure(env, d1) => Closure(env, repair_ids(d1))
-    | Filter(flt, d1) => Filter(flt, repair_ids(d1))
-    | Seq(d1, d2) => Seq(repair_ids(d1), repair_ids(d2))
-    | Let(dp, d1, d2) => Let(dp, repair_ids(d1), repair_ids(d2))
-    | FixF(f, d1, env) => FixF(f, repair_ids(d1), env)
-    | TyAlias(tp, t, d) => TyAlias(tp, t, repair_ids(d))
-    | Fun(dp, d1, env, f) => Fun(dp, repair_ids(d1), env, f)
-    | Ap(dir, d1, d2) => Ap(dir, repair_ids(d1), repair_ids(d2))
-    | Test(d1) => Test(repair_ids(d1))
-    | UnOp(op, d1) => UnOp(op, repair_ids(d1))
-    | BinOp(op, d1, d2) => BinOp(op, repair_ids(d1), repair_ids(d2))
-    | ListLit(ds) => ListLit(List.map(repair_ids, ds))
-    | Cons(d1, d2) => Cons(repair_ids(d1), repair_ids(d2))
-    | Parens(d1) => Parens(repair_ids(d1))
-    | ListConcat(d1, d2) => ListConcat(repair_ids(d1), repair_ids(d2))
-    | Tuple(ds) => Tuple(List.map(repair_ids, ds))
-    // TODO: repair ids inside multihole
-    | MultiHole(ds) => MultiHole(ds)
-    | Match(d1, rls) =>
-      Match(
-        repair_ids(d1),
-        List.map(((p, d)) => (p, repair_ids(d)), rls),
-      )
-    | Cast(d1, t1, t2) => Cast(repair_ids(d1), t1, t2)
-    | If(d1, d2, d3) => If(repair_ids(d1), repair_ids(d2), repair_ids(d3))
-    }
-  )
-  |> rewrap;
-};
+let replace_all_ids =
+  map_term(
+    ~f_exp=(continue, exp) => {...exp, ids: [Id.mk()]} |> continue,
+    ~f_pat=(continue, exp) => {...exp, ids: [Id.mk()]} |> continue,
+    ~f_typ=(continue, exp) => {...exp, ids: [Id.mk()]} |> continue,
+    ~f_tpat=(continue, exp) => {...exp, ids: [Id.mk()]} |> continue,
+    ~f_rul=(continue, exp) => {...exp, ids: [Id.mk()]} |> continue,
+  );
 
-let repair_ids = repair_ids(false);
+// TODO: make this function emit a map of changes
+let repair_ids =
+  map_term(
+    ~f_exp=
+      (continue, exp) =>
+        if (exp.copied) {
+          replace_all_ids(exp);
+        } else {
+          continue(exp);
+        },
+    _,
+  );
+
+let strip_casts =
+  map_term(~f_exp=(continue, exp) => {
+    let (term, rewrap) = unwrap(exp);
+    switch (term) {
+    | Closure(_) => continue(exp)
+    };
+  });
 
 // Also strips static error holes - kinda like unelaboration
 let rec strip_casts = d => {
