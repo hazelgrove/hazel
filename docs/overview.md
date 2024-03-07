@@ -44,7 +44,7 @@ of type `Typ.t`.
     - `IDGen`
     - `TextShape`
   - dynamics
-    - internal syntax: `DExp`, `DHPat`
+    - internal syntax: `DExp`, `DPat`
       - external expressions are for editing
       - need to elaborate external expressions to internal in order to insert casts
         and closure information

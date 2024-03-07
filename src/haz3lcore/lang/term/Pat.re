@@ -24,6 +24,15 @@ let rep_id = ({ids, _}: t) => {
   List.hd(ids);
 };
 
+let term_of = ({term, _}) => term;
+// All children of term must have expression-unique ids.
+
+let unwrap = ({ids, term}) => (term, term => {ids, term});
+
+let fresh = term => {
+  {ids: [Id.mk()], term};
+};
+
 let hole = (tms: list(TermBase.Any.t)) =>
   switch (tms) {
   | [] => EmptyHole
@@ -137,7 +146,7 @@ let rec get_var = (pat: t) => {
   switch (pat.term) {
   | Parens(pat) => get_var(pat)
   | Var(x) => Some(x)
-  | TypeAnn(_)
+  | TypeAnn(x, _) => get_var(x)
   | Invalid(_)
   | EmptyHole
   | MultiHole(_)

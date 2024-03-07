@@ -220,7 +220,7 @@ let rec dexp_of_uexp = (m, uexp, ~in_filter) => {
             Constructor("$e") |> DExp.fresh |> wrap(m)
           | Var("v") when in_filter =>
             Constructor("$v") |> DExp.fresh |> wrap(m)
-          | _ => DExp.EmptyHole |> DHExp.fresh |> wrap(m)
+          | _ => DExp.EmptyHole |> DExp.fresh |> wrap(m)
           }
         | Filter(Filter({act, pat}), body) =>
           Filter(

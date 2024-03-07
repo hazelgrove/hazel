@@ -29,7 +29,7 @@ let cast_sum_maps =
 };
 
 let rec matches = (dp: Pat.t, d: DExp.t): match_result =>
-  switch (DHPat.term_of(dp), DExp.term_of(d)) {
+  switch (DPat.term_of(dp), DExp.term_of(d)) {
   | (Parens(x), _) => matches(x, d)
   | (TypeAnn(x, _), _) => matches(x, d)
   | (_, Var(_)) => DoesNotMatch
@@ -359,12 +359,12 @@ and matches_cast_Cons =
   switch (DExp.term_of(d)) {
   | Parens(d) => matches_cast_Cons(dp, d, elt_casts)
   | ListLit([]) =>
-    switch (DHPat.term_of(dp)) {
+    switch (DPat.term_of(dp)) {
     | ListLit([]) => Matches(Environment.empty)
     | _ => DoesNotMatch
     }
   | ListLit([dhd, ...dtl] as ds) =>
-    switch (DHPat.term_of(dp)) {
+    switch (DPat.term_of(dp)) {
     | Cons(dp1, dp2) =>
       switch (matches(dp1, DExp.apply_casts(dhd, elt_casts))) {
       | DoesNotMatch => DoesNotMatch
@@ -409,7 +409,7 @@ and matches_cast_Cons =
     | _ => failwith("called matches_cast_Cons with non-list pattern")
     }
   | Cons(d1, d2) =>
-    switch (DHPat.term_of(dp)) {
+    switch (DPat.term_of(dp)) {
     | Cons(dp1, dp2) =>
       switch (matches(dp1, DExp.apply_casts(d1, elt_casts))) {
       | DoesNotMatch => DoesNotMatch
@@ -443,7 +443,7 @@ and matches_cast_Cons =
             },
             elt_casts,
           );
-        let dp2 = Pat.ListLit(dptl) |> DHPat.fresh;
+        let dp2 = Pat.ListLit(dptl) |> DPat.fresh;
         switch (matches(dp2, DExp.apply_casts(d2, list_casts))) {
         | DoesNotMatch => DoesNotMatch
         | IndetMatch => IndetMatch

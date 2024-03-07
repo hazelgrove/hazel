@@ -1,7 +1,6 @@
 open Sexplib.Std;
 open Util;
 open PatternMatch;
-open DH;
 
 /* Transition.re
 
@@ -274,7 +273,7 @@ module Transition = (EV: EV_MODE) => {
         value: false,
       });
     | FixF(dp, d1, Some(env)) =>
-      switch (DHPat.get_var(dp)) {
+      switch (DPat.get_var(dp)) {
       // Simple Recursion case
       | Some(f) =>
         let. _ = otherwise(env, d);
@@ -291,7 +290,7 @@ module Transition = (EV: EV_MODE) => {
       // Mutual Recursion case
       | None =>
         let. _ = otherwise(env, d);
-        let bindings = DHPat.bound_vars(info_map, dp);
+        let bindings = DPat.bound_vars(info_map, dp);
         let substitutions =
           List.map(
             binding =>

@@ -2,7 +2,7 @@ open Pretty;
 open Haz3lcore;
 
 let precedence = (dp: Pat.t) =>
-  switch (DHPat.term_of(dp)) {
+  switch (DPat.term_of(dp)) {
   | EmptyHole
   | MultiHole(_)
   | Wild
@@ -39,7 +39,7 @@ let rec mk =
     mk'(~parenthesize=precedence(dp2) > precedence_op, dp2),
   );
   let doc =
-    switch (DHPat.term_of(dp)) {
+    switch (DPat.term_of(dp)) {
     | MultiHole(_)
     | EmptyHole => DHDoc_common.mk_EmptyHole(ClosureEnvironment.empty)
     | Invalid(t) => DHDoc_common.mk_InvalidText(t)
@@ -68,7 +68,7 @@ let rec mk =
       DHDoc_common.mk_Ap(doc1, doc2);
     };
   let doc =
-    switch (Statics.get_pat_error_at(infomap, DHPat.rep_id(dp))) {
+    switch (Statics.get_pat_error_at(infomap, DPat.rep_id(dp))) {
     | Some(_) => Doc.annot(DHAnnot.NonEmptyHole, doc)
     | None => doc
     };
