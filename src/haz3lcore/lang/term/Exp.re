@@ -48,6 +48,10 @@ let rep_id = ({ids, _}) => {
   List.hd(ids);
 };
 
+let fresh = term => {
+  {ids: [Id.mk()], copied: false, term};
+};
+
 let unwrap = ({ids, term, copied}) => (term, term => {ids, term, copied});
 
 let cls_of_term: term => cls =

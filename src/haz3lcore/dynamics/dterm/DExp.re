@@ -23,12 +23,6 @@
  - ListLit
  - BuiltinFun
 
- It is important that the following do not appear during evaluation, because they
- (theoretically) require static information:
-
-  - Fun
-  - FixF
-
  */
 
 /* DExp.re
@@ -37,6 +31,8 @@
    using the same data structure as user expressions, but have a few
    important invariants.
 
+
+
    TODO[Matt]: Explain the invariants.
    */
 
@@ -44,17 +40,11 @@ include Exp;
 
 let term_of = ({term, _}) => term;
 let fast_copy = (id, {term, _}) => {ids: [id], term, copied: true};
-// All children of term must have expression-unique ids.
-let fresh = term => {
-  {ids: [Id.mk()], copied: false, term};
-};
-let unwrap = ({ids, term, copied}) => (term, term => {ids, term, copied});
 
 let mk = (ids, term) => {
   {ids, copied: true, term};
 };
 
-// All children of d must have expression-unique ids.
 let fresh_cast = (d: t, t1: Typ.t, t2: Typ.t): t =>
   if (Typ.eq(t1, t2) || t2 == Unknown(SynSwitch)) {
     d;
