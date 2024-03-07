@@ -20,7 +20,7 @@ let rec subst_var = (m, d1: DExp.t, x: Var.t, d2: DExp.t): DExp.t => {
   | Let(dp, d3, d4) =>
     let d3 = subst_var(m, d1, x, d3);
     let d4 =
-      if (DHPat.binds_var(m, x, dp)) {
+      if (DPat.binds_var(m, x, dp)) {
         d4;
       } else {
         subst_var(m, d1, x, d4);
@@ -29,7 +29,7 @@ let rec subst_var = (m, d1: DExp.t, x: Var.t, d2: DExp.t): DExp.t => {
   | FixF(y, d3, env) =>
     let env' = Option.map(subst_var_env(m, d1, x), env);
     let d3 =
-      if (DHPat.binds_var(m, x, y)) {
+      if (DPat.binds_var(m, x, y)) {
         d3;
       } else {
         subst_var(m, d1, x, d3);
@@ -39,7 +39,7 @@ let rec subst_var = (m, d1: DExp.t, x: Var.t, d2: DExp.t): DExp.t => {
     /* Function closure shouldn't appear during substitution
        (which only is called from elaboration currently) */
     let env' = Option.map(subst_var_env(m, d1, x), env);
-    if (DHPat.binds_var(m, x, dp)) {
+    if (DPat.binds_var(m, x, dp)) {
       Fun(dp, d3, env', s) |> rewrap;
     } else {
       let d3 = subst_var(m, d1, x, d3);
@@ -84,7 +84,7 @@ let rec subst_var = (m, d1: DExp.t, x: Var.t, d2: DExp.t): DExp.t => {
     let rules =
       List.map(
         ((p, v)) =>
-          if (DHPat.binds_var(m, x, p)) {
+          if (DPat.binds_var(m, x, p)) {
             (p, v);
           } else {
             (p, subst_var(m, d1, x, v));

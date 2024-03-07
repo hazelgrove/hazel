@@ -140,13 +140,13 @@ let mk =
         switch (ps.knd, DExp.term_of(ps.d_loc)) {
         | (FunAp, Ap(_, d2, _)) =>
           switch (DExp.term_of(d2)) {
-          | Fun(p, _, _, _) => DHPat.bound_vars(infomap, p)
+          | Fun(p, _, _, _) => DPat.bound_vars(infomap, p)
           | _ => []
           }
         | (FunAp, _) => []
-        | (LetBind, Let(p, _, _)) => DHPat.bound_vars(infomap, p)
+        | (LetBind, Let(p, _, _)) => DPat.bound_vars(infomap, p)
         | (LetBind, _) => []
-        | (FixUnwrap, FixF(p, _, _)) => DHPat.bound_vars(infomap, p)
+        | (FixUnwrap, FixF(p, _, _)) => DPat.bound_vars(infomap, p)
         | (FixUnwrap, _) => []
         | (InvalidStep, _)
         | (VarLookup, _)
@@ -406,7 +406,7 @@ let mk =
         if (enforce_inline) {
           fail();
         } else {
-          let bindings = DHPat.bound_vars(infomap, dp);
+          let bindings = DPat.bound_vars(infomap, dp);
           let def_doc = go_formattable(ddef);
           vseps([
             hcats([
@@ -486,7 +486,7 @@ let mk =
         ]);
       | Fun(dp, d, Some(env'), s) =>
         if (settings.show_fn_bodies) {
-          let bindings = DHPat.bound_vars(infomap, dp);
+          let bindings = DPat.bound_vars(infomap, dp);
           let body_doc =
             go_formattable(
               Closure(
@@ -496,7 +496,7 @@ let mk =
               |> DExp.fresh,
               ~env=
                 ClosureEnvironment.without_keys(
-                  DHPat.bound_vars(infomap, dp) @ Option.to_list(s),
+                  DPat.bound_vars(infomap, dp) @ Option.to_list(s),
                   env,
                 ),
               ~recent_subst=
@@ -525,7 +525,7 @@ let mk =
         }
       | Fun(dp, dbody, None, s) =>
         if (settings.show_fn_bodies) {
-          let bindings = DHPat.bound_vars(infomap, dp);
+          let bindings = DPat.bound_vars(infomap, dp);
           let body_doc =
             go_formattable(
               dbody,
@@ -561,7 +561,7 @@ let mk =
             dbody,
             ~env=
               ClosureEnvironment.without_keys(
-                DHPat.bound_vars(infomap, dp),
+                DPat.bound_vars(infomap, dp),
                 env,
               ),
           );
@@ -581,7 +581,7 @@ let mk =
         go'(
           ~env=
             ClosureEnvironment.without_keys(
-              DHPat.bound_vars(infomap, dp),
+              DPat.bound_vars(infomap, dp),
               env,
             ),
           d,

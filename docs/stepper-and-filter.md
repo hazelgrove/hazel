@@ -109,7 +109,7 @@ program, issue command for change the evaluation mode (big-step or
 small-step, lazy or eager), and a narrower filter has a higher priority.
 
 For the matching part, I choose the Hazel language it's self as the
-pattern language. `UPat` and `DHPat` won't work since they only matches
+pattern language. `UPat` and `DPat` won't work since they only matches
 against *values*, indicating I have to extend them somehow so that they
 can match against *expressions*. The empty hole is take as the
 match all filter, i.e. `*` in many other matching languages. It will

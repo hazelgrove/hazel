@@ -1,6 +1,5 @@
 open Sexplib.Std;
 open Util;
-open DH;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type term =

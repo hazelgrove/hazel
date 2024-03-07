@@ -88,66 +88,50 @@ let repair_ids =
     _,
   );
 
-let strip_casts =
-  map_term(~f_exp=(continue, exp) => {
-    let (term, rewrap) = unwrap(exp);
-    switch (term) {
-    | Closure(_) => continue(exp)
-    };
-  });
-
 // Also strips static error holes - kinda like unelaboration
-let rec strip_casts = d => {
-  let (term, rewrap) = unwrap(d);
-  switch (term) {
-  | Closure(ei, d) => Closure(ei, strip_casts(d)) |> rewrap
-  | Cast(d, _, _) => strip_casts(d)
-  | FailedCast(d, _, _) => strip_casts(d)
-  | Tuple(ds) => Tuple(ds |> List.map(strip_casts)) |> rewrap
-  | Cons(d1, d2) => Cons(strip_casts(d1), strip_casts(d2)) |> rewrap
-  | ListConcat(d1, d2) =>
-    ListConcat(strip_casts(d1), strip_casts(d2)) |> rewrap
-  | ListLit(ds) => ListLit(List.map(strip_casts, ds)) |> rewrap
-  // TODO[Matt]: Strip multihole casts
-  | MultiHole(ds) => MultiHole(ds) |> rewrap
-  | StaticErrorHole(_, d) => strip_casts(d)
-  | Seq(a, b) => Seq(strip_casts(a), strip_casts(b)) |> rewrap
-  | Filter(f, b) => Filter(strip_filter_casts(f), strip_casts(b)) |> rewrap
-  | Let(dp, b, c) => Let(dp, strip_casts(b), strip_casts(c)) |> rewrap
-  | FixF(a, c, env) => FixF(a, strip_casts(c), env) |> rewrap
-  | TyAlias(tp, t, d) => TyAlias(tp, t, strip_casts(d)) |> rewrap
-  | Fun(a, c, e, d) => Fun(a, strip_casts(c), e, d) |> rewrap
-  | Ap(dir, a, b) => Ap(dir, strip_casts(a), strip_casts(b)) |> rewrap
-  | Test(a) => Test(strip_casts(a)) |> rewrap
-  | BuiltinFun(fn) => BuiltinFun(fn) |> rewrap
-  | UnOp(op, d) => UnOp(op, strip_casts(d)) |> rewrap
-  | BinOp(a, b, c) => BinOp(a, strip_casts(b), strip_casts(c)) |> rewrap
-  | Match(a, rules) =>
-    Match(
-      strip_casts(a),
-      List.map(((k, v)) => (k, strip_casts(v)), rules),
-    )
-    |> rewrap
-  | Parens(d1) => Parens(strip_casts(d1)) |> rewrap
-  | EmptyHole as d
-  | Invalid(_) as d
-  | Var(_) as d
-  | Bool(_) as d
-  | Int(_) as d
-  | Float(_) as d
-  | String(_) as d
-  | Constructor(_) as d
-  | DynamicErrorHole(_) as d => d |> rewrap
-  | If(c, d1, d2) =>
-    If(strip_casts(c), strip_casts(d1), strip_casts(d2)) |> rewrap
-  };
-}
-and strip_filter_casts = f => {
-  switch (f) {
-  | Filter({act, pat}) => Filter({act, pat: pat |> strip_casts})
-  | Residue(idx, act) => Residue(idx, act)
-  };
-};
+let rec strip_casts =
+  map_term(
+    ~f_exp=
+      (continue, exp) => {
+        switch (term_of(exp)) {
+        /* Leave non-casts unchanged */
+        | Tuple(_)
+        | Cons(_)
+        | ListConcat(_)
+        | ListLit(_)
+        | MultiHole(_)
+        | Seq(_)
+        | Filter(_)
+        | Let(_)
+        | FixF(_)
+        | TyAlias(_)
+        | Fun(_)
+        | Ap(_)
+        | Test(_)
+        | BuiltinFun(_)
+        | UnOp(_)
+        | BinOp(_)
+        | Match(_)
+        | Parens(_)
+        | EmptyHole
+        | Invalid(_)
+        | Var(_)
+        | Bool(_)
+        | Int(_)
+        | Float(_)
+        | String(_)
+        | Constructor(_)
+        | DynamicErrorHole(_)
+        | Closure(_)
+        | If(_) => continue(exp)
+        /* Remove casts*/
+        | StaticErrorHole(_, d)
+        | FailedCast(d, _, _)
+        | Cast(d, _, _) => strip_casts(d)
+        }
+      },
+    _,
+  );
 
 let rec fast_equal = ({term: d1, _} as d1exp, {term: d2, _} as d2exp): bool => {
   switch (d1, d2) {

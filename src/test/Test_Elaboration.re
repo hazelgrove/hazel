@@ -85,7 +85,7 @@ let u4: UExp.t = {
 };
 let d4: DExp.t =
   Let(
-    Tuple([Var("a") |> DHPat.fresh, Var("b") |> DHPat.fresh]) |> DHPat.fresh,
+    Tuple([Var("a") |> DPat.fresh, Var("b") |> DPat.fresh]) |> DPat.fresh,
     Tuple([Int(4) |> fresh, Int(6) |> fresh]) |> fresh,
     BinOp(Int(Minus), Var("a") |> fresh, Var("b") |> fresh) |> fresh,
   )
@@ -169,7 +169,7 @@ let d7: DExp.t =
   Ap(
     Forward,
     Fun(
-      Var("x") |> DHPat.fresh,
+      Var("x") |> DPat.fresh,
       BinOp(
         Int(Plus),
         Int(4) |> fresh,
@@ -221,8 +221,8 @@ let d8scrut: DExp.t =
   BinOp(Int(Equals), Int(4) |> fresh, Int(3) |> fresh) |> fresh;
 let d8rules =
   DExp.[
-    (Bool(true) |> DHPat.fresh, Int(24) |> fresh),
-    (Bool(false) |> DHPat.fresh, Bool(false) |> fresh),
+    (Bool(true) |> DPat.fresh, Int(24) |> fresh),
+    (Bool(false) |> DPat.fresh, Bool(false) |> fresh),
   ];
 let d8a: DExp.t = Match(d8scrut, d8rules) |> fresh;
 let d8: DExp.t = StaticErrorHole(id_at(0), d8a) |> fresh;

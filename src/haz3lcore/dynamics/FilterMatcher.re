@@ -169,7 +169,7 @@ let rec matches_exp =
   };
 }
 and matches_pat = (d: Pat.t, f: Pat.t): bool => {
-  switch (d |> DHPat.term_of, f |> DHPat.term_of) {
+  switch (d |> DPat.term_of, f |> DPat.term_of) {
   // Matt: I'm not sure what the exact semantics of matching should be here.
   | (Parens(x), _) => matches_pat(x, f)
   | (_, Parens(x)) => matches_pat(d, x)

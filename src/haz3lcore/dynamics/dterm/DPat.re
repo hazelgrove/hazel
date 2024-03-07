@@ -1,39 +1,4 @@
-open TermBase.Pat;
-
-// [@deriving (show({with_path: false}), sexp, yojson)]
-// type term =
-//   | Invalid(string)
-//   | EmptyHole
-//   // TODO: Multihole
-//   | Wild
-//   | Int(int)
-//   | Float(float)
-//   | Bool(bool)
-//   | String(string)
-//   // TODO: Remove Triv from UPat
-//   | ListLit(list(t))
-//   | Constructor(string)
-//   | Cons(t, t)
-//   | Var(Var.t)
-//   | Tuple(list(t))
-//   // TODO: parens
-//   | Ap(t, t)
-//   // TODO: Add Type Annotations???
-//   // TODO: Work out what to do with invalids
-//   | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, MetaVarInst.t, t)
-//   | BadConstructor(MetaVar.t, MetaVarInst.t, string)
-// and t = {
-//   ids: list(Id.t),
-//   term,
-// };
-
-let rep_id = ({ids, _}) => List.hd(ids);
-let term_of = ({term, _}) => term;
-// All children of term must have expression-unique ids.
-let unwrap = ({ids, term}) => (term, term => {ids, term});
-let fresh = term => {
-  {ids: [Id.mk()], term};
-};
+include Pat;
 
 /**
  * Whether dp contains the variable x outside of a hole.
@@ -87,24 +52,3 @@ let rec bound_vars = (m, dp: t): list(Var.t) =>
     | Ap(_, dp1) => bound_vars(m, dp1)
     }
   };
-
-let rec get_var = (pat: t) => {
-  switch (pat |> term_of) {
-  | Var(x) => Some(x)
-  | Parens(x) => get_var(x)
-  | TypeAnn(x, _) => get_var(x)
-  | Wild
-  | Int(_)
-  | Float(_)
-  | Bool(_)
-  | String(_)
-  | ListLit(_)
-  | Cons(_, _)
-  | Tuple(_)
-  | Constructor(_)
-  | EmptyHole
-  | Invalid(_)
-  | MultiHole(_)
-  | Ap(_) => None
-  };
-};
