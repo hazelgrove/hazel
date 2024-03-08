@@ -139,11 +139,7 @@ let main = ({debug, data, command, ctx}: LSActions.arguments) => {
     LSCompletions.go(~db, ~settings={data, completions, ctx})
   | Check(check) => LSChecker.go(~db, ~settings={data, check, ctx})
   | RunTest(key) =>
-    LSTest.go(
-      ~db,
-      ~settings={data, completions: Types, ctx},
-      ~key=Some(key),
-    )
+    LSTest.go(~db, ~settings={data, completions: Types, ctx}, ~key)
   };
 };
 

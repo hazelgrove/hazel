@@ -45,6 +45,45 @@ let get_expected_ty = (~db, z: Zipper.t, ~settings: LSCompletions.settings) => {
   ChatLSP.Type.expected(~ctx=Info.ctx_of(ci), mode);
 };
 
+let azure_gpt4_req = (~key, ~llm, ~prompt, ~handler): unit =>
+  API.node_request(
+    ~method=POST,
+    ~hostname=
+      Printf.sprintf(
+        "%s.openai.azure.com",
+        "hazel2" // resource
+      ),
+    ~path=
+      Printf.sprintf(
+        "/openai/deployments/%s/chat/completions?api-version=%s",
+        "hazel-gpt-4", // deployment
+        "2023-05-15" // api version
+      ),
+    ~headers=[("Content-Type", "application/json"), ("api-key", key)],
+    ~body=OpenAI.body(~llm, prompt),
+    handler,
+  );
+
+let handle_chat = (res: string): option(OpenAI.reply) => {
+  open API;
+  open Util.OptUtil.Syntax;
+  let json = Json.from_string(res);
+  let* choices = Json.dot("choices", json);
+  let* usage = Json.dot("usage", json);
+  let* content = OpenAI.first_message_content(choices);
+  let+ usage = OpenAI.of_usage(usage);
+  OpenAI.{content, usage};
+};
+
+let mk_req = (~llm, ~key, ~prompt) => {
+  azure_gpt4_req(~llm, ~key, ~prompt, ~handler=req =>
+    switch (handle_chat(req)) {
+    | Some(reply) => print_endline("AZURE_GPT4 Reply: " ++ reply.content)
+    | None => print_endline("APINode: handler returned None")
+    }
+  );
+};
+
 let go = (~db, ~settings: LSCompletions.settings, ~key) => {
   let z =
     LSFiles.get_zipper(~db, settings.data.program, settings.data.new_token);
@@ -66,11 +105,6 @@ let go = (~db, ~settings: LSCompletions.settings, ~key) => {
   | None => print_endline("LSTest: prompt generation failed")
   | Some(prompt) =>
     print_endline("LSTest: PROMPT:\n " ++ OpenAI.show_prompt(prompt));
-    OpenAI.start_chat(~llm=filler_options.llm, ~key, prompt, req =>
-      switch (OpenAI.handle_chat(req)) {
-      | Some(reply) => print_endline("GPT4 Reply: " ++ reply.content)
-      | None => print_endline("LSTest: handler returned None")
-      }
-    );
+    mk_req(~llm=filler_options.llm, ~key, ~prompt);
   };
 };

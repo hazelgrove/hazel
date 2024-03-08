@@ -96,3 +96,59 @@ let receive = (~debug=true, request: request): option(Json.t) =>
     );
   | _ => None
   };
+
+let node_request =
+    (
+      ~debug=false,
+      ~with_credentials=false,
+      ~method: method,
+      ~hostname: string, /* Do not include 'https://' */
+      ~path: string,
+      ~headers: list((string, string))=[],
+      ~body: Json.t=`Null,
+      handler: string => unit,
+    )
+    : unit => {
+  let https = Js.Unsafe.js_expr("require('https')");
+  debug ? Yojson.Safe.pp(Format.std_formatter, body) : ();
+  let options =
+    Printf.sprintf(
+      "({hostname: \"%s\", path: \"%s\", method: \"%s\", headers: { %s } })",
+      hostname,
+      path,
+      string_of_method(method),
+      headers
+      |> List.map(((k, v)) => Printf.sprintf("\"%s\": \"%s\"", k, v))
+      |> String.concat(","),
+    );
+  debug ? Printf.printf("options: %s", options) : ();
+  let callback =
+    Js.wrap_callback(res => {
+      let data = ref("");
+      res##on(
+        Js.string("data"),
+        Js.wrap_callback(chunk =>
+          data := data^ ++ Js.to_string(chunk##toString)
+        ),
+      );
+      res##on(
+        Js.string("end"),
+        Js.wrap_callback(_ => {handler(data.contents)}),
+      );
+    });
+  let req = https##request(Js.Unsafe.js_expr(options), callback);
+  if (with_credentials) {
+    req##withCredentials := Js._true;
+  };
+  ignore(
+    req##on(
+      Js.string("error"),
+      Js.wrap_callback(error => {
+        Firebug.console##log("Error occurred:");
+        Firebug.console##log(error);
+      }),
+    ),
+  );
+  ignore(req##write(Js.string(Json.to_string(body))));
+  ignore(req##end_());
+};
