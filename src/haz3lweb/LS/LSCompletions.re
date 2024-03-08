@@ -288,7 +288,7 @@ let get_info_map = (~init_ctx, z: Zipper.t) =>
   |> fst
   |> Interface.Statics.mk_map_ctx(CoreSettings.on, init_ctx);
 
-let get_prelude_ctx = (~db=ignore, ~init_ctx, str: string): Ctx.t => {
+let get_prelude_ctx' = (~db=ignore, ~init_ctx, str: string): Ctx.t => {
   let probe = 13371338;
   let probe_term = Term.UExp.{ids: [Id.mk()], term: Int(probe)};
   let z_prelude = LSFiles.process_zipper(~db, str);
@@ -312,12 +312,13 @@ let get_prelude_ctx = (~db=ignore, ~init_ctx, str: string): Ctx.t => {
   };
 };
 
-let collate_info = (~settings: settings, ~db, z: Zipper.t, id: Id.t): infodump => {
-  let init_ctx =
-    switch (settings.data.prelude) {
-    | None => settings.ctx
-    | Some(prelude) => get_prelude_ctx(~db, ~init_ctx=settings.ctx, prelude)
-    };
+let get_prelude_ctx = (~db, ~prelude, ~init_ctx) =>
+  switch (prelude) {
+  | None => init_ctx
+  | Some(prelude) => get_prelude_ctx'(~db, ~init_ctx, prelude)
+  };
+
+let collate_info = (~init_ctx, ~db, z: Zipper.t, id: Id.t): infodump => {
   let info_map = get_info_map(~init_ctx, z);
   let get_info = id => Id.Map.find_opt(id, info_map);
   let ci =
@@ -377,8 +378,9 @@ let collate_info = (~settings: settings, ~db, z: Zipper.t, id: Id.t): infodump =
   };
 };
 
-let generation_options = (~db, ~settings: settings, z: Zipper.t) => {
-  let get_info = collate_info(~db, ~settings, z);
+let generation_options =
+    (~db, ~init_ctx, ~completions: LSActions.completions, z: Zipper.t) => {
+  let get_info = collate_info(~db, ~init_ctx, z);
   switch (piece_to_left(~db, z), thing_to_right(~db, z)) {
   | (None, Nothing) => failwith("LSP: EXN: Nothing to left or right")
   | (Some((to_left, shape, compl)), Nothing) =>
@@ -396,9 +398,7 @@ let generation_options = (~db, ~settings: settings, z: Zipper.t) => {
         | Grammatical =>
           db("  LSP: Syntax: Bad token; only completion");
           OnlyCompletion(left_info, left_token);
-        | Contextual
-            when
-              settings.completions == Types || settings.completions == Context =>
+        | Contextual when completions == Types || completions == Context =>
           db("  LSP: Syntax: Free token; only completion");
           OnlyCompletion(left_info, left_token);
         | _ => CompletionOrNewRightConcave(left_info, left_token)
@@ -419,9 +419,7 @@ let generation_options = (~db, ~settings: settings, z: Zipper.t) => {
         | Grammatical =>
           db("  LSP: Syntax: Bad token; only completion");
           OnlyCompletion(left_info, left_tok);
-        | Contextual
-            when
-              settings.completions == Types || settings.completions == Context =>
+        | Contextual when completions == Types || completions == Context =>
           db("  LSP: Syntax: Free token; only completion");
           OnlyCompletion(left_info, left_tok);
         | _ =>
@@ -861,7 +859,14 @@ let dispatch_generation = (~settings: settings, ~db, z: Zipper.t): pre_grammar =
   if (seg_before == [] && seg_after == []) {
     failwith("LSP: EXN: Empty segment");
   };
-  let gen_options = generation_options(~settings, ~db, z);
+  let init_ctx =
+    get_prelude_ctx(
+      ~db,
+      ~init_ctx=settings.ctx,
+      ~prelude=settings.data.prelude,
+    );
+  let gen_options =
+    generation_options(~init_ctx, ~completions=settings.completions, ~db, z);
   print_gen_option(~db, gen_options);
   let mk_completions = mk_completions(~settings, ~db, z);
   let mk_left_convex = mk_new_left_convex(~settings, ~db, z);

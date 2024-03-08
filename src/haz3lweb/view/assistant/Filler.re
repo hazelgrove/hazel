@@ -201,22 +201,6 @@ let ctx_prompt = (ctx: Ctx.t, expected_ty: Typ.t): string => {
   };
 };
 
-//TODO(andrew): softcode this hack
-let relevant_aliases = {|
-           Relevant Aliases:
-           # A todo has a description and a status #
-type Todo = (String, Bool) in
-
-# A description input buffer and a todo list #
-type Model = (String, [Todo]) in
-
-type Action =
-+ AddTodo
-+ RemoveTodo(Int)
-  + ToggleTodo(Int)
-  + UpdateBuffer(String) in
-  |};
-
 let mk_user_message = (~expected_ty, sketch: string): string =>
   "{\n"
   ++ String.concat(

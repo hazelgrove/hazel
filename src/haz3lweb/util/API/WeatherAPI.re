@@ -15,8 +15,8 @@ let request = handler =>
     handler,
   );
 
-let handle = (request: request): option(string) =>
-  switch (receive(request)) {
+let handle = (response: option(Json.t)): option(string) =>
+  switch (response) {
   | Some(json) =>
     json
     |> Json.dot("current")

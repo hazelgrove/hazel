@@ -58,6 +58,18 @@ module Json = {
   };
 };
 
+let receive = (~debug=true, request: request): option(Json.t) =>
+  switch (request##.readyState) {
+  | XmlHttpRequest.DONE =>
+    debug ? Firebug.console##log(request##.responseText) : ();
+    Js.Opt.case(
+      request##.responseText,
+      () => None,
+      x => Some(x |> Js.to_string |> Json.from_string),
+    );
+  | _ => None
+  };
+
 let request =
     (
       ~debug=false,
@@ -66,12 +78,13 @@ let request =
       ~url: string,
       ~headers: list((string, string))=[],
       ~body: Json.t=`Null,
-      handler: request => unit,
+      handler: option(Json.t) => unit,
     )
     : unit => {
   debug ? Yojson.Safe.pp(Format.std_formatter, body) : ();
   let request = XmlHttpRequest.create();
-  request##.onreadystatechange := Js.wrap_callback(_ => handler(request));
+  request##.onreadystatechange :=
+    Js.wrap_callback(_ => handler(receive(request)));
   request##.withCredentials := with_credentials |> Js.bool;
   request##_open(
     method |> string_of_method |> Js.string,
@@ -85,18 +98,6 @@ let request =
   request##send(body |> Json.to_string |> Js.string |> Js.Opt.return);
 };
 
-let receive = (~debug=true, request: request): option(Json.t) =>
-  switch (request##.readyState) {
-  | XmlHttpRequest.DONE =>
-    debug ? Firebug.console##log(request##.responseText) : ();
-    Js.Opt.case(
-      request##.responseText,
-      () => None,
-      x => Some(x |> Js.to_string |> Json.from_string),
-    );
-  | _ => None
-  };
-
 let node_request =
     (
       ~debug=false,
@@ -106,7 +107,7 @@ let node_request =
       ~path: string,
       ~headers: list((string, string))=[],
       ~body: Json.t=`Null,
-      handler: string => unit,
+      handler: option(Json.t) => unit,
     )
     : unit => {
   let https = Js.Unsafe.js_expr("require('https')");
@@ -133,7 +134,13 @@ let node_request =
       );
       res##on(
         Js.string("end"),
-        Js.wrap_callback(_ => {handler(data.contents)}),
+        Js.wrap_callback(_ =>
+          handler(
+            try(Some(Json.from_string(data.contents))) {
+            | _ => None
+            },
+          )
+        ),
       );
     });
   let req = https##request(Js.Unsafe.js_expr(options), callback);

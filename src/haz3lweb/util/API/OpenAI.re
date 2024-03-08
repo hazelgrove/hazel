@@ -114,61 +114,46 @@ let chat = (~key, ~body, ~handler): unit =>
     );
   };
 
-module Azure = {
-  let chat =
-      (~key, ~resource, ~deployment, ~api_version, ~body, ~handler): unit =>
-    switch (key) {
-    | None => print_endline("API: KEY NOT FOUND")
-    | Some(api_key) =>
-      print_endline("API: POSTing Azure request");
-      request(
-        ~method=POST,
-        ~url=
-          Printf.sprintf(
-            "https://%s.openai.azure.com/openai/deployments/%s/chat/completions?api-version=%s",
-            resource,
-            deployment,
-            api_version,
-          ),
-        ~headers=[
-          ("Content-Type", "application/json"),
-          ("api-key", api_key),
-        ],
-        ~body,
-        handler,
-      );
-    };
-};
-
-module AzureGPT3_5 = {
-  let chat = (~body, ~key, ~handler): unit =>
-    Azure.chat(
-      ~resource="hazel",
-      ~deployment="gpt35turbo",
-      ~api_version="2023-05-15",
+let azure_request =
+    (~key, ~resource, ~deployment, ~api_version, ~body, ~handler): unit =>
+  switch (key) {
+  | None => print_endline("API: KEY NOT FOUND")
+  | Some(api_key) =>
+    print_endline("API: POSTing Azure request");
+    request(
+      ~method=POST,
+      ~url=
+        Printf.sprintf(
+          "https://%s.openai.azure.com/openai/deployments/%s/chat/completions?api-version=%s",
+          resource,
+          deployment,
+          api_version,
+        ),
+      ~headers=[("Content-Type", "application/json"), ("api-key", api_key)],
       ~body,
-      ~key,
-      ~handler,
+      handler,
     );
-};
+  };
 
-module AzureGPT4 = {
-  let chat = (~body, ~key, ~handler): unit =>
-    Azure.chat(
-      ~resource="hazel2",
-      ~deployment="hazel-gpt-4",
-      ~api_version="2023-05-15",
-      ~body,
-      ~key,
-      ~handler,
-    );
-};
+let chat_azure35 =
+  azure_request(
+    ~resource="hazel",
+    ~deployment="gpt35turbo",
+    ~api_version="2023-05-15",
+  );
+
+let chat_azure4 =
+  azure_request(
+    ~resource="hazel2",
+    ~deployment="hazel-gpt-4",
+    ~api_version="2023-05-15",
+  );
 
 let start_chat = (~llm, ~key, prompt: prompt, handler): unit => {
   let body = body(~llm, prompt);
   switch (llm) {
-  | Azure_GPT3_5Turbo => AzureGPT3_5.chat(~key, ~body, ~handler)
-  | Azure_GPT4 => AzureGPT4.chat(~key, ~body, ~handler)
+  | Azure_GPT3_5Turbo => chat_azure35(~key, ~body, ~handler)
+  | Azure_GPT4 => chat_azure4(~key, ~body, ~handler)
   | GPT3_5Turbo
   | GPT4 => chat(~key, ~body, ~handler)
   };
@@ -183,8 +168,8 @@ let reply_chat =
       @ [{role: Assistant, content: assistant}, {role: User, content: user}],
     );
   switch (llm) {
-  | Azure_GPT3_5Turbo => AzureGPT3_5.chat(~body, ~key, ~handler)
-  | Azure_GPT4 => AzureGPT4.chat(~body, ~key, ~handler)
+  | Azure_GPT3_5Turbo => chat_azure35(~body, ~key, ~handler)
+  | Azure_GPT4 => chat_azure4(~body, ~key, ~handler)
   | GPT3_5Turbo
   | GPT4 => chat(~key, ~body, ~handler)
   };
@@ -210,15 +195,11 @@ let first_message_content = (choices: Json.t): option(string) => {
   Json.str(content);
 };
 
-let handle_chat = (request: request): option(reply) =>
-  switch (receive(request)) {
-  | Some(json) =>
-    let* choices = Json.dot("choices", json);
-    let* usage = Json.dot("usage", json);
-    let* content = first_message_content(choices);
-    let+ usage = of_usage(usage);
-    {content, usage};
-  | _ =>
-    print_endline("API: handle_chat: no response");
-    None;
-  };
+let handle_chat = (response: option(Json.t)): option(reply) => {
+  let* json = response;
+  let* choices = Json.dot("choices", json);
+  let* usage = Json.dot("usage", json);
+  let* content = first_message_content(choices);
+  let+ usage = of_usage(usage);
+  {content, usage};
+};
