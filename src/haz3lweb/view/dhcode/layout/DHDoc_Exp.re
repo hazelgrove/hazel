@@ -528,12 +528,13 @@ let mk =
              ),
           DHDoc_common.Delim.mk(")"),
         ]);
-      | Fun(dp, ty, Closure(env', d), s) =>
-        if (settings.show_fn_bodies) {
-          let bindings = DHPat.bound_vars(dp);
-          let body_doc =
+      | Fun(dp, ty, dbody, s) when settings.show_fn_bodies =>
+        let bindings = DHPat.bound_vars(dp);
+        let body_doc =
+          switch (dbody) {
+          | Closure(env', dbody) =>
             go_formattable(
-              Closure(env', d),
+              Closure(env', dbody),
               ~env=
                 ClosureEnvironment.without_keys(
                   DHPat.bound_vars(dp) @ Option.to_list(s),
@@ -542,81 +543,55 @@ let mk =
               ~recent_subst=
                 List.filter(x => !List.mem(x, bindings), next_recent_subst),
               Fun,
-            );
-          hcats(
-            [
-              DHDoc_common.Delim.sym_Fun,
-              DHDoc_Pat.mk(dp)
-              |> DHDoc_common.pad_child(
-                   ~inline_padding=(space(), space()),
-                   ~enforce_inline,
-                 ),
-            ]
-            @ (
-              settings.show_casts
-                ? [
-                  DHDoc_common.Delim.colon_Fun,
-                  space(),
-                  DHDoc_Typ.mk(~enforce_inline=true, ty),
-                  space(),
-                ]
-                : []
             )
-            @ [
-              DHDoc_common.Delim.arrow_Fun,
-              space(),
-              body_doc |> DHDoc_common.pad_child(~enforce_inline=false),
-            ],
-          );
-        } else {
-          switch (s) {
-          | None => annot(DHAnnot.Collapsed, text("<anon fn>"))
-          | Some(name) => annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"))
-          };
-        }
-      | Fun(dp, ty, dbody, s) =>
-        if (settings.show_fn_bodies) {
-          let bindings = DHPat.bound_vars(dp);
-          let body_doc =
+          | _ =>
             go_formattable(
               dbody,
               ~env=ClosureEnvironment.without_keys(bindings, env),
               ~recent_subst=
                 List.filter(x => !List.mem(x, bindings), next_recent_subst),
               Fun,
-            );
-          hcats(
-            [
-              DHDoc_common.Delim.sym_Fun,
-              DHDoc_Pat.mk(dp)
-              |> DHDoc_common.pad_child(
-                   ~inline_padding=(space(), space()),
-                   ~enforce_inline,
-                 ),
-            ]
-            @ (
-              settings.show_casts
-                ? [
-                  DHDoc_common.Delim.colon_Fun,
-                  space(),
-                  DHDoc_Typ.mk(~enforce_inline=true, ty),
-                  space(),
-                ]
-                : []
             )
-            @ [
-              DHDoc_common.Delim.arrow_Fun,
-              space(),
-              body_doc |> DHDoc_common.pad_child(~enforce_inline),
-            ],
-          );
-        } else {
-          switch (s) {
-          | None => annot(DHAnnot.Collapsed, text("<anon fn>"))
-          | Some(name) => annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"))
           };
-        }
-      | FixF(x, ty, dbody) when settings.show_fixpoints =>
+        hcats(
+          [
+            DHDoc_common.Delim.sym_Fun,
+            DHDoc_Pat.mk(dp)
+            |> DHDoc_common.pad_child(
+                 ~inline_padding=(space(), space()),
+                 ~enforce_inline,
+               ),
+          ]
+          @ (
+            settings.show_casts
+              ? [
+                DHDoc_common.Delim.colon_Fun,
+                space(),
+                DHDoc_Typ.mk(~enforce_inline=true, ty),
+                space(),
+              ]
+              : []
+          )
+          @ [
+            DHDoc_common.Delim.arrow_Fun,
+            space(),
+            body_doc |> DHDoc_common.pad_child(~enforce_inline=false),
+          ],
+        );
+      | Fun(_, _, _, s) =>
+        let name =
+          switch (s) {
+          | None => "anon fn"
+          | Some(name)
+              when
+                !settings.show_fixpoints
+                && String.ends_with(~suffix="+", name) =>
+            String.sub(name, 0, String.length(name) - 1)
+          | Some(name) => name
+          };
+        annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"));
+      | FixF(x, ty, dbody)
+          when settings.show_fn_bodies && settings.show_fixpoints =>
         let doc_body =
           go_formattable(
             dbody,
@@ -642,7 +617,7 @@ let mk =
             doc_body |> DHDoc_common.pad_child(~enforce_inline),
           ],
         );
-      | FixF(x, _, _) => annot(DHAnnot.Collapsed, text("<" ++ x ++ "*>"))
+      | FixF(x, _, _) => annot(DHAnnot.Collapsed, text("<" ++ x ++ ">"))
       };
     };
     let steppable =
