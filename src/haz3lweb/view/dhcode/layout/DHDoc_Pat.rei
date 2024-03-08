@@ -1,5 +1,12 @@
 open Haz3lcore;
 
-let precedence: DHPat.t => int;
+let precedence: Pat.t => int;
 
-let mk: (~parenthesize: bool=?, ~enforce_inline: bool, DHPat.t) => DHDoc.t;
+let mk:
+  (
+    ~infomap: Statics.Map.t,
+    ~parenthesize: bool=?,
+    ~enforce_inline: bool,
+    Pat.t
+  ) =>
+  DHDoc.t;

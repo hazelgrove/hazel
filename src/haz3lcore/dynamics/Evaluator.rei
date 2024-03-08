@@ -6,7 +6,8 @@
 open Transition;
 
 let evaluate:
-  (Environment.t, DHExp.t) => (EvaluatorState.t, EvaluatorResult.t);
+  (Environment.t, Elaborator.Elaboration.t) =>
+  (EvaluatorState.t, EvaluatorResult.t);
 
 module EvaluatorEVMode: {
   type result_unfinished =

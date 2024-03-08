@@ -34,6 +34,8 @@ module EvaluatorEVMode: {
   let update_test = (state, id, v) =>
     state := EvaluatorState.add_test(state^, id, v);
 
+  let get_info_map = (state: state) => EvaluatorState.get_info_map(state^);
+
   type result_unfinished =
     | BoxedValue(DHExp.t)
     | Indet(DHExp.t)
@@ -79,6 +81,13 @@ module EvaluatorEVMode: {
         (r1 && r2, [x', ...xs']);
       };
 
+  let req_final_or_value = (f, _, x) =>
+    switch (f(x)) {
+    | BoxedValue(x) => (BoxedReady, (x, true))
+    | Indet(x) => (IndetReady, (x, false))
+    | Uneval(_) => failwith("Unexpected Uneval")
+    };
+
   let otherwise = (_, c) => (BoxedReady, (), c);
 
   let (and.) = ((r1, x1, c1), (r2, x2)) => (r1 && r2, (x1, x2), c1(x2));
@@ -106,15 +115,15 @@ let rec evaluate = (state, env, d) => {
   };
 };
 
-let evaluate = (env, d): (EvaluatorState.t, EvaluatorResult.t) => {
-  let state = ref(EvaluatorState.init);
+let evaluate = (env, {d, info_map}: Elaborator.Elaboration.t) => {
+  let state = ref(EvaluatorState.init(info_map));
   let env = ClosureEnvironment.of_environment(env);
   let result = evaluate(state, env, d);
   let result =
     switch (result) {
-    | BoxedValue(x) => BoxedValue(x)
-    | Indet(x) => Indet(x)
-    | Uneval(x) => Indet(x)
+    | BoxedValue(x) => BoxedValue(x |> DHExp.repair_ids)
+    | Indet(x) => Indet(x |> DHExp.repair_ids)
+    | Uneval(x) => Indet(x |> DHExp.repair_ids)
     };
   (state^, result);
 };

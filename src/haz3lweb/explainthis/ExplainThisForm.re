@@ -74,6 +74,8 @@ type numeric_bin_op_examples =
 type example_id =
   | List(list_examples)
   | Fun(fun_examples)
+  | Fix1
+  | Fix2
   | Tuple1
   | Tuple2
   | Let(let_examples)
@@ -152,13 +154,14 @@ type form_id =
   | Tuple2Exp
   | Tuple3Exp
   | LetExp(pat_sub_form_id)
+  | FixExp(pat_sub_form_id)
   | FunApExp
   | ConApExp
   | IfExp
   | SeqExp
   | TestExp
-  | UnOpExp(Term.UExp.op_un)
-  | BinOpExp(Term.UExp.op_bin)
+  | UnOpExp(Operators.op_un)
+  | BinOpExp(Operators.op_bin)
   | CaseExp
   | TyAliasExp
   | EmptyHolePat
@@ -237,13 +240,14 @@ type group_id =
   | Tuple2Exp
   | Tuple3Exp
   | LetExp(pat_sub_form_id)
+  | FixExp(pat_sub_form_id)
   | FunApExp
   | ConApExp
   | IfExp
   | SeqExp
   | TestExp
-  | UnOpExp(Term.UExp.op_un)
-  | BinOpExp(Term.UExp.op_bin)
+  | UnOpExp(Operators.op_un)
+  | BinOpExp(Operators.op_bin)
   | CaseExp
   | TyAliasExp
   | PipelineExp

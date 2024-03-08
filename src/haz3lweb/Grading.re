@@ -212,7 +212,7 @@ module MutationTestingReport = {
   //   |> Zipper.zip
   //   |> MakeTerm.go
   //   |> fst
-  //   |> Term.UExp.show
+  //   |> UExp.show
   //   |> print_endline
   //   |> (_ => Virtual_dom.Vdom.Effect.Ignore);
 

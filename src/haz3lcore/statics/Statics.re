@@ -1,5 +1,3 @@
-open Term;
-
 /* STATICS.re
 
    This module determines the statics semantics of a program.
@@ -72,7 +70,7 @@ let extend_let_def_ctx =
     ctx;
   };
 
-let typ_exp_binop_bin_int: UExp.op_bin_int => Typ.t =
+let typ_exp_binop_bin_int: Operators.op_bin_int => Typ.t =
   fun
   | (Plus | Minus | Times | Power | Divide) as _op => Int
   | (
@@ -81,7 +79,7 @@ let typ_exp_binop_bin_int: UExp.op_bin_int => Typ.t =
     ) as _op =>
     Bool;
 
-let typ_exp_binop_bin_float: UExp.op_bin_float => Typ.t =
+let typ_exp_binop_bin_float: Operators.op_bin_float => Typ.t =
   fun
   | (Plus | Minus | Times | Power | Divide) as _op => Float
   | (
@@ -90,26 +88,26 @@ let typ_exp_binop_bin_float: UExp.op_bin_float => Typ.t =
     ) as _op =>
     Bool;
 
-let typ_exp_binop_bin_string: UExp.op_bin_string => Typ.t =
+let typ_exp_binop_bin_string: Operators.op_bin_string => Typ.t =
   fun
   | Concat => String
   | Equals => Bool;
 
-let typ_exp_binop: UExp.op_bin => (Typ.t, Typ.t, Typ.t) =
+let typ_exp_binop: Operators.op_bin => (Typ.t, Typ.t, Typ.t) =
   fun
   | Bool(And | Or) => (Bool, Bool, Bool)
   | Int(op) => (Int, Int, typ_exp_binop_bin_int(op))
   | Float(op) => (Float, Float, typ_exp_binop_bin_float(op))
   | String(op) => (String, String, typ_exp_binop_bin_string(op));
 
-let typ_exp_unop: UExp.op_un => (Typ.t, Typ.t) =
+let typ_exp_unop: Operators.op_un => (Typ.t, Typ.t) =
   fun
   | Meta(Unquote) => (Var("$Meta"), Unknown(Free("$Meta")))
   | Bool(Not) => (Bool, Bool)
   | Int(Minus) => (Int, Int);
 
 let rec any_to_info_map =
-        (~ctx: Ctx.t, ~ancestors, any: any, m: Map.t): (CoCtx.t, Map.t) =>
+        (~ctx: Ctx.t, ~ancestors, any: Any.t, m: Map.t): (CoCtx.t, Map.t) =>
   switch (any) {
   | Exp(e) =>
     let ({co_ctx, _}: Info.exp, m) =
@@ -154,7 +152,7 @@ and uexp_to_info_map =
       ~mode=Mode.Syn,
       ~is_in_filter=false,
       ~ancestors,
-      {ids, term} as uexp: UExp.t,
+      {ids, copied: _, term} as uexp: UExp.t,
       m: Map.t,
     )
     : (Info.exp, Map.t) => {
@@ -193,12 +191,19 @@ and uexp_to_info_map =
   let go_pat = upat_to_info_map(~ctx, ~ancestors);
   let atomic = self => add(~self, ~co_ctx=CoCtx.empty, m);
   switch (term) {
+  | Closure(_) =>
+    failwith(
+      "TODO: implement closure type checking - see how dynamic type assignment does it",
+    )
   | MultiHole(tms) =>
     let (co_ctxs, m) = multi(~ctx, ~ancestors, m, tms);
     add(~self=IsMulti, ~co_ctx=CoCtx.union(co_ctxs), m);
+  | Cast(e, t1, t2)
+  | FailedCast(e, t1, t2) =>
+    let (e, m) = go(~mode=Ana(t1), e, m);
+    add(~self=Just(t2), ~co_ctx=e.co_ctx, m);
   | Invalid(token) => atomic(BadToken(token))
   | EmptyHole => atomic(Just(Unknown(Internal)))
-  | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))
@@ -222,7 +227,7 @@ and uexp_to_info_map =
       m,
     );
   | ListConcat(e1, e2) =>
-    let ids = List.map(Term.UExp.rep_id, [e1, e2]);
+    let ids = List.map(UExp.rep_id, [e1, e2]);
     let mode = Mode.of_list_concat(ctx, mode);
     let (e1, m) = go(~mode, e1, m);
     let (e2, m) = go(~mode, e2, m);
@@ -237,12 +242,15 @@ and uexp_to_info_map =
       ~co_ctx=CoCtx.singleton(name, UExp.rep_id(uexp), Mode.ty_of(mode)),
       m,
     )
+  | StaticErrorHole(_, e)
+  | DynamicErrorHole(e, _)
   | Parens(e) =>
     let (e, m) = go(~mode, e, m);
     add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
   | UnOp(Meta(Unquote), e) when is_in_filter =>
     let e: UExp.t = {
       ids: e.ids,
+      copied: false,
       term:
         switch (e.term) {
         | Var("e") => UExp.Constructor("$e")
@@ -263,6 +271,12 @@ and uexp_to_info_map =
     let (e1, m) = go(~mode=Ana(ty1), e1, m);
     let (e2, m) = go(~mode=Ana(ty2), e2, m);
     add(~self=Just(ty_out), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
+  | BuiltinFun(string) =>
+    add'(
+      ~self=Self.of_exp_var(Builtins.ctx_init, string),
+      ~co_ctx=CoCtx.empty,
+      m,
+    )
   | Tuple(es) =>
     let modes = Mode.of_prod(ctx, mode, List.length(es));
     let (es, m) = map_m_go(m, modes, es);
@@ -274,7 +288,7 @@ and uexp_to_info_map =
   | Test(e) =>
     let (e, m) = go(~mode=Ana(Bool), e, m);
     add(~self=Just(Prod([])), ~co_ctx=e.co_ctx, m);
-  | Filter(_, cond, body) =>
+  | Filter(Filter({pat: cond, _}), body) =>
     let (cond, m) = go(~mode, cond, m, ~is_in_filter=true);
     let (body, m) = go(~mode, body, m);
     add(
@@ -282,13 +296,15 @@ and uexp_to_info_map =
       ~co_ctx=CoCtx.union([cond.co_ctx, body.co_ctx]),
       m,
     );
+  | Filter(Residue(_), body) =>
+    let (body, m) = go(~mode, body, m);
+    add(~self=Just(body.ty), ~co_ctx=CoCtx.union([body.co_ctx]), m);
   | Seq(e1, e2) =>
     let (e1, m) = go(~mode=Syn, e1, m);
     let (e2, m) = go(~mode, e2, m);
     add(~self=Just(e2.ty), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
   | Constructor(ctr) => atomic(Self.of_ctr(ctx, ctr))
-  | Ap(fn, arg)
-  | Pipeline(arg, fn) =>
+  | Ap(_, fn, arg) =>
     let fn_mode = Mode.of_ap(ctx, mode, UExp.ctr_name(fn));
     let (fn, m) = go(~mode=fn_mode, fn, m);
     let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
@@ -298,7 +314,7 @@ and uexp_to_info_map =
       && !Typ.is_consistent(ctx, ty_in, Prod([]))
         ? BadTrivAp(ty_in) : Just(ty_out);
     add(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
-  | Fun(p, e) =>
+  | Fun(p, e, _, _) =>
     let (mode_pat, mode_body) = Mode.of_arrow(ctx, mode);
     let (p', _) =
       go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~mode=mode_pat, p, m);
@@ -339,6 +355,17 @@ and uexp_to_info_map =
       ~self=Just(body.ty),
       ~co_ctx=
         CoCtx.union([def.co_ctx, CoCtx.mk(ctx, p_ana.ctx, body.co_ctx)]),
+      m,
+    );
+  | FixF(p, e, _) =>
+    let (p', _) =
+      go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~mode, p, m);
+    let (e', m) = go'(~ctx=p'.ctx, ~mode=Ana(p'.ty), e, m);
+    let (p'', m) =
+      go_pat(~is_synswitch=false, ~co_ctx=e'.co_ctx, ~mode, p, m);
+    add(
+      ~self=Just(p'.ty),
+      ~co_ctx=CoCtx.union([CoCtx.mk(ctx, p''.ctx, e'.co_ctx)]),
       m,
     );
   | If(e0, e1, e2) =>
@@ -410,11 +437,11 @@ and uexp_to_info_map =
           //let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
           let ty_rec = Typ.Rec(name, ty_pre);
           let ctx_def =
-            Ctx.extend_alias(ctx, name, UTPat.rep_id(typat), ty_rec);
+            Ctx.extend_alias(ctx, name, TPat.rep_id(typat), ty_rec);
           (ty_rec, ctx_def, ctx_def);
         | _ =>
           let ty = UTyp.to_typ(ctx, utyp);
-          (ty, ctx, Ctx.extend_alias(ctx, name, UTPat.rep_id(typat), ty));
+          (ty, ctx, Ctx.extend_alias(ctx, name, TPat.rep_id(typat), ty));
         };
       };
       let ctx_body =
@@ -481,7 +508,6 @@ and upat_to_info_map =
   | EmptyHole => atomic(Just(unknown))
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))
-  | Triv => atomic(Just(Prod([])))
   | Bool(_) => atomic(Just(Bool))
   | String(_) => atomic(Just(String))
   | ListLit(ps) =>
@@ -586,13 +612,13 @@ and utyp_to_info_map =
   };
 }
 and utpat_to_info_map =
-    (~ctx, ~ancestors, {ids, term} as utpat: UTPat.t, m: Map.t)
+    (~ctx, ~ancestors, {ids, term} as utpat: TPat.t, m: Map.t)
     : (Info.tpat, Map.t) => {
   let add = m => {
     let info = Info.derived_tpat(~utpat, ~ctx, ~ancestors);
     (info, add_info(ids, InfoTPat(info), m));
   };
-  let ancestors = [UTPat.rep_id(utpat)] @ ancestors;
+  let ancestors = [TPat.rep_id(utpat)] @ ancestors;
   switch (term) {
   | MultiHole(tms) =>
     let (_, m) = multi(~ctx, ~ancestors, m, tms);
@@ -627,6 +653,40 @@ and variant_to_info_map =
       };
     (m, [ctr, ...ctrs]);
   };
+};
+
+let get_error_at = (info_map: Map.t, id: Id.t) => {
+  id
+  |> Id.Map.find_opt(_, info_map)
+  |> Option.bind(
+       _,
+       fun
+       | InfoExp(e) => Some(e)
+       | _ => None,
+     )
+  |> Option.bind(_, e =>
+       switch (e.status) {
+       | InHole(err_info) => Some(err_info)
+       | NotInHole(_) => None
+       }
+     );
+};
+
+let get_pat_error_at = (info_map: Map.t, id: Id.t) => {
+  id
+  |> Id.Map.find_opt(_, info_map)
+  |> Option.bind(
+       _,
+       fun
+       | InfoPat(e) => Some(e)
+       | _ => None,
+     )
+  |> Option.bind(_, e =>
+       switch (e.status) {
+       | InHole(err_info) => Some(err_info)
+       | NotInHole(_) => None
+       }
+     );
 };
 
 let collect_errors = (map: Map.t): list((Id.t, Info.error)) =>

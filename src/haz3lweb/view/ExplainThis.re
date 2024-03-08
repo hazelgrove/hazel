@@ -380,7 +380,7 @@ let example_view =
     ];
 };
 
-let rec bypass_parens_and_annot_pat = (pat: TermBase.UPat.t) => {
+let rec bypass_parens_and_annot_pat = (pat: Pat.t) => {
   switch (pat.term) {
   | Parens(p)
   | TypeAnn(p, _) => bypass_parens_and_annot_pat(p)
@@ -388,21 +388,21 @@ let rec bypass_parens_and_annot_pat = (pat: TermBase.UPat.t) => {
   };
 };
 
-let rec bypass_parens_pat = (pat: TermBase.UPat.t) => {
+let rec bypass_parens_pat = (pat: Pat.t) => {
   switch (pat.term) {
   | Parens(p) => bypass_parens_pat(p)
   | _ => pat
   };
 };
 
-let rec bypass_parens_exp = (exp: TermBase.UExp.t) => {
+let rec bypass_parens_exp = (exp: Exp.t) => {
   switch (exp.term) {
   | Parens(e) => bypass_parens_exp(e)
   | _ => exp
   };
 };
 
-let rec bypass_parens_typ = (typ: TermBase.UTyp.t) => {
+let rec bypass_parens_typ = (typ: TypTerm.t) => {
   switch (typ.term) {
   | Parens(t) => bypass_parens_typ(t)
   | _ => typ
@@ -520,8 +520,14 @@ let get_doc =
     let rec get_message_exp =
             (term)
             : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) =>
-      switch (term) {
-      | TermBase.UExp.Invalid(_) => simple("Not a valid expression")
+      switch ((term: Exp.term)) {
+      | Exp.Invalid(_) => simple("Not a valid expression")
+      | DynamicErrorHole(_)
+      | StaticErrorHole(_)
+      | FailedCast(_)
+      | Closure(_)
+      | Cast(_)
+      | BuiltinFun(_) => simple("Internal expression")
       | EmptyHole => get_message(HoleExp.empty_hole_exps)
       | MultiHole(_children) => get_message(HoleExp.multi_hole_exps)
       | TyAlias(ty_pat, ty_def, _body) =>
@@ -541,7 +547,6 @@ let get_doc =
             ),
           TyAliasExp.tyalias_exps,
         );
-      | Triv => get_message(TerminalExp.triv_exps)
       | Bool(b) => get_message(TerminalExp.bool_exps(b))
       | Int(i) => get_message(TerminalExp.int_exps(i))
       | Float(f) => get_message(TerminalExp.float_exps(f))
@@ -558,7 +563,7 @@ let get_doc =
             ),
           ListExp.listlits,
         )
-      | Fun(pat, body) =>
+      | Fun(pat, body, _, _) =>
         let basic = group_id => {
           let pat_id = List.nth(pat.ids, 0);
           let body_id = List.nth(body.ids, 0);
@@ -747,7 +752,7 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_str);
           }
-        | Triv =>
+        | Tuple([]) =>
           if (FunctionExp.function_triv_exp.id
               == get_specificity_level(FunctionExp.functions_triv)) {
             get_message(
@@ -1270,7 +1275,7 @@ let get_doc =
               LetExp.lets_str,
             );
           }
-        | Triv =>
+        | Tuple([]) =>
           if (LetExp.let_triv_exp.id
               == get_specificity_level(LetExp.lets_triv)) {
             get_message(
@@ -1523,14 +1528,21 @@ let get_doc =
         | Parens(_) => default // Shouldn't get hit?
         | TypeAnn(_) => default // Shouldn't get hit?
         };
-      | Pipeline(arg, fn) =>
+      | FixF(pat, body, _) =>
         message_single(
-          PipelineExp.single(
-            ~arg_id=Term.UExp.rep_id(arg),
-            ~fn_id=Term.UExp.rep_id(fn),
+          FixFExp.single(
+            ~pat_id=UPat.rep_id(pat),
+            ~body_id=UExp.rep_id(body),
           ),
         )
-      | Ap(x, arg) =>
+      | Ap(Reverse, arg, fn) =>
+        message_single(
+          PipelineExp.single(
+            ~arg_id=UExp.rep_id(arg),
+            ~fn_id=UExp.rep_id(fn),
+          ),
+        )
+      | Ap(Forward, x, arg) =>
         let x_id = List.nth(x.ids, 0);
         let arg_id = List.nth(arg.ids, 0);
         let basic = (group, format, coloring_ids) => {
@@ -1599,34 +1611,35 @@ let get_doc =
             ),
           SeqExp.seqs,
         );
-      | Filter((Step, One), pat, body) =>
+      | Filter(Filter({act: (Step, One), pat}), body) =>
         message_single(
           FilterExp.filter_pause(
-            ~p_id=Term.UExp.rep_id(pat),
-            ~body_id=Term.UExp.rep_id(body),
+            ~p_id=UExp.rep_id(pat),
+            ~body_id=UExp.rep_id(body),
           ),
         )
-      | Filter((Step, All), pat, body) =>
+      | Filter(Filter({act: (Step, All), pat}), body) =>
         message_single(
           FilterExp.filter_debug(
-            ~p_id=Term.UExp.rep_id(pat),
-            ~body_id=Term.UExp.rep_id(body),
+            ~p_id=UExp.rep_id(pat),
+            ~body_id=UExp.rep_id(body),
           ),
         )
-      | Filter((Eval, All), pat, body) =>
+      | Filter(Filter({act: (Eval, All), pat}), body) =>
         message_single(
           FilterExp.filter_eval(
-            ~p_id=Term.UExp.rep_id(pat),
-            ~body_id=Term.UExp.rep_id(body),
+            ~p_id=UExp.rep_id(pat),
+            ~body_id=UExp.rep_id(body),
           ),
         )
-      | Filter((Eval, One), pat, body) =>
+      | Filter(Filter({act: (Eval, One), pat}), body) =>
         message_single(
           FilterExp.filter_hide(
-            ~p_id=Term.UExp.rep_id(pat),
-            ~body_id=Term.UExp.rep_id(body),
+            ~p_id=UExp.rep_id(pat),
+            ~body_id=UExp.rep_id(body),
           ),
         )
+      | Filter(_) => simple("Internal expression")
       | Test(body) =>
         let body_id = List.nth(body.ids, 0);
         get_message(
@@ -1705,7 +1718,7 @@ let get_doc =
             OpExp.int_un_minus,
           );
         | Meta(Unquote) =>
-          message_single(FilterExp.unquote(~sel_id=Term.UExp.rep_id(exp)))
+          message_single(FilterExp.unquote(~sel_id=UExp.rep_id(exp)))
         }
       | BinOp(op, left, right) =>
         open OpExp;
@@ -1833,7 +1846,7 @@ let get_doc =
           ),
         TerminalPat.strlit(s),
       )
-    | Triv => get_message(TerminalPat.triv)
+    | Tuple([]) => get_message(TerminalPat.triv)
     | ListLit(elements) =>
       if (List.length(elements) == 0) {
         get_message(ListPat.listnil);
@@ -1868,7 +1881,7 @@ let get_doc =
           doc,
         );
       switch (tl.term) {
-      | TermBase.UPat.Cons(hd2, tl2) =>
+      | Pat.Cons(hd2, tl2) =>
         if (ListPat.cons2_pat.id == get_specificity_level(ListPat.cons2)) {
           let hd2_id = List.nth(hd2.ids, 0);
           let tl2_id = List.nth(tl2.ids, 0);
@@ -2055,7 +2068,7 @@ let get_doc =
           doc,
         );
       switch (result.term) {
-      | TermBase.UTyp.Arrow(arg2, result2) =>
+      | TypTerm.Arrow(arg2, result2) =>
         if (ArrowTyp.arrow3_typ.id == get_specificity_level(ArrowTyp.arrow3)) {
           let arg2_id = List.nth(arg2.ids, 0);
           let result2_id = List.nth(result2.ids, 0);
@@ -2269,7 +2282,7 @@ let view =
             ~title=
               switch (info) {
               | None => "Whitespace or Comment"
-              | Some(info) => Info.cls_of(info) |> Term.Cls.show
+              | Some(info) => Info.cls_of(info) |> Cls.show
               },
             syn_form @ explanation,
           ),

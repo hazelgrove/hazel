@@ -14,7 +14,7 @@ type t;
 /**
   [init] is the initial state.
  */
-let init: t;
+let init: Statics.Map.t => t;
 
 /**
   [take_step es] is [es] with the updated step count.
@@ -33,3 +33,7 @@ let add_test: (t, KeywordID.t, TestMap.instance_report) => t;
 let get_tests: t => TestMap.t;
 
 let put_tests: (TestMap.t, t) => t;
+
+let get_info_map: t => Statics.Map.t;
+
+let put_info_map: (Statics.Map.t, t) => t;

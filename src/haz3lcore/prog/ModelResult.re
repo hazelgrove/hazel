@@ -1,6 +1,6 @@
 [@deriving (show({with_path: false}), sexp, yojson)]
 type eval_result = {
-  elab: DHExp.t,
+  elab: Elaborator.Elaboration.t,
   evaluation: ProgramResult.t,
   previous: ProgramResult.t,
 };
@@ -11,7 +11,7 @@ type t =
   | Evaluation(eval_result)
   | Stepper(Stepper.t);
 
-let init_eval = elab =>
+let init_eval = (elab: Elaborator.Elaboration.t) =>
   Evaluation({elab, evaluation: ResultPending, previous: ResultPending});
 
 let update_elab = elab =>
@@ -20,7 +20,7 @@ let update_elab = elab =>
     Evaluation({elab, evaluation: ResultPending, previous: ResultPending})
   | Evaluation({evaluation, _}) =>
     Evaluation({elab, evaluation: ResultPending, previous: evaluation})
-  | Stepper({elab: elab2, _}) as s when DHExp.fast_equal(elab, elab2) => s
+  | Stepper(s) as s' when DHExp.fast_equal(elab.d, Stepper.get_elab(s).d) => s'
   | Stepper(_) => Stepper(Stepper.init(elab));
 
 let update_stepper = f =>
@@ -59,8 +59,12 @@ let toggle_stepper =
   fun
   | NoElab => NoElab
   | Evaluation({elab, _}) => Stepper(Stepper.init(elab))
-  | Stepper({elab, _}) =>
-    Evaluation({elab, evaluation: ResultPending, previous: ResultPending});
+  | Stepper(s) =>
+    Evaluation({
+      elab: Stepper.get_elab(s),
+      evaluation: ResultPending,
+      previous: ResultPending,
+    });
 
 let test_results = (result: t) =>
   switch (result) {

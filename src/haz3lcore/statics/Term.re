@@ -1,25 +1,6 @@
-/* TERM
+module TypTerm = {
+  include TermBase.TypTerm;
 
-   These data structures define the term structures on which
-   the static and dynamic semantics of the language are based.
-   Each sort has a corresponding U<Sort> module.
-
-   The contained cls type lists the terms of that sort, and
-   should be in 1-1 correspondence with the term type which
-   is used to build composite terms.
-
-   This is wrapped in a record type to associate a unique id
-   with each term. These unique ids are the same as from the
-   tile structure from the syntax module, as there is a 1-1
-   correspondence between terms and tiles.
-
-   TODO: add tests to check if there are forms and/or terms
-   without correponding syntax classes */
-
-include TermBase.Any;
-
-type any = t;
-module UTyp = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Invalid
@@ -38,14 +19,14 @@ module UTyp = {
     | Parens
     | Ap;
 
-  include TermBase.UTyp;
+  include TermBase.TypTerm;
 
   let rep_id = ({ids, _}: t) => {
     assert(ids != []);
     List.hd(ids);
   };
 
-  let hole = (tms: list(any)) =>
+  let hole = (tms: list(TermBase.Any.t)) =>
     switch (tms) {
     | [] => EmptyHole
     | [_, ..._] => MultiHole(tms)
@@ -149,7 +130,7 @@ module UTyp = {
   };
 };
 
-module UTPat = {
+module TPat = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Invalid
@@ -157,14 +138,14 @@ module UTPat = {
     | MultiHole
     | Var;
 
-  include TermBase.UTPat;
+  include TermBase.TPat;
 
   let rep_id = ({ids, _}) => {
     assert(ids != []);
     List.hd(ids);
   };
 
-  let hole = (tms: list(any)) =>
+  let hole = (tms: list(TermBase.Any.t)) =>
     switch (tms) {
     | [] => EmptyHole
     | [_, ..._] => MultiHole(tms)
@@ -185,7 +166,7 @@ module UTPat = {
     | Var => "Type alias";
 };
 
-module UPat = {
+module Pat = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Invalid
@@ -196,7 +177,6 @@ module UPat = {
     | Float
     | Bool
     | String
-    | Triv
     | ListLit
     | Constructor
     | Cons
@@ -206,14 +186,23 @@ module UPat = {
     | Ap
     | TypeAnn;
 
-  include TermBase.UPat;
+  include TermBase.Pat;
 
   let rep_id = ({ids, _}: t) => {
     assert(ids != []);
     List.hd(ids);
   };
 
-  let hole = (tms: list(any)) =>
+  let term_of = ({term, _}) => term;
+  // All children of term must have expression-unique ids.
+
+  let unwrap = ({ids, term}) => (term, term => {ids, term});
+
+  let fresh = term => {
+    {ids: [Id.mk()], term};
+  };
+
+  let hole = (tms: list(TermBase.Any.t)) =>
     switch (tms) {
     | [] => EmptyHole
     | [_, ..._] => MultiHole(tms)
@@ -229,7 +218,6 @@ module UPat = {
     | Float(_) => Float
     | Bool(_) => Bool
     | String(_) => String
-    | Triv => Triv
     | ListLit(_) => ListLit
     | Constructor(_) => Constructor
     | Cons(_) => Cons
@@ -249,7 +237,6 @@ module UPat = {
     | Float => "Float literal"
     | Bool => "Boolean literal"
     | String => "String literal"
-    | Triv => "Trivial literal"
     | ListLit => "List literal"
     | Constructor => "Constructor"
     | Cons => "Cons"
@@ -272,7 +259,6 @@ module UPat = {
     | Float(_)
     | Bool(_)
     | String(_)
-    | Triv
     | ListLit(_)
     | Cons(_, _)
     | Tuple(_)
@@ -284,7 +270,7 @@ module UPat = {
   let rec is_fun_var = (pat: t) => {
     switch (pat.term) {
     | Parens(pat) => is_fun_var(pat)
-    | TypeAnn(pat, typ) => is_var(pat) && UTyp.is_arrow(typ)
+    | TypeAnn(pat, typ) => is_var(pat) && TypTerm.is_arrow(typ)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -293,7 +279,6 @@ module UPat = {
     | Float(_)
     | Bool(_)
     | String(_)
-    | Triv
     | ListLit(_)
     | Cons(_, _)
     | Var(_)
@@ -317,7 +302,6 @@ module UPat = {
       | Float(_)
       | Bool(_)
       | String(_)
-      | Triv
       | ListLit(_)
       | Cons(_, _)
       | Var(_)
@@ -331,7 +315,7 @@ module UPat = {
     switch (pat.term) {
     | Parens(pat) => get_var(pat)
     | Var(x) => Some(x)
-    | TypeAnn(_)
+    | TypeAnn(x, _) => get_var(x)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -340,7 +324,6 @@ module UPat = {
     | Float(_)
     | Bool(_)
     | String(_)
-    | Triv
     | ListLit(_)
     | Cons(_, _)
     | Tuple(_)
@@ -353,7 +336,7 @@ module UPat = {
     switch (pat.term) {
     | Parens(pat) => get_fun_var(pat)
     | TypeAnn(pat, typ) =>
-      if (UTyp.is_arrow(typ)) {
+      if (TypTerm.is_arrow(typ)) {
         get_var(pat) |> Option.map(var => var);
       } else {
         None;
@@ -366,7 +349,6 @@ module UPat = {
     | Float(_)
     | Bool(_)
     | String(_)
-    | Triv
     | ListLit(_)
     | Cons(_, _)
     | Var(_)
@@ -397,7 +379,6 @@ module UPat = {
       | Float(_)
       | Bool(_)
       | String(_)
-      | Triv
       | ListLit(_)
       | Cons(_, _)
       | Var(_)
@@ -415,15 +396,17 @@ module UPat = {
     };
 };
 
-module UExp = {
-  include TermBase.UExp;
+module Exp = {
+  include TermBase.Exp;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Invalid
     | EmptyHole
     | MultiHole
-    | Triv
+    | StaticErrorHole
+    | DynamicErrorHole
+    | FailedCast
     | Bool
     | Int
     | Float
@@ -435,6 +418,7 @@ module UExp = {
     | Var
     | MetaVar
     | Let
+    | FixF
     | TyAlias
     | Ap
     | Pipeline
@@ -442,14 +426,17 @@ module UExp = {
     | Seq
     | Test
     | Filter
+    | Closure
     | Parens
     | Cons
-    | UnOp(op_un)
-    | BinOp(op_bin)
+    | UnOp(Operators.op_un)
+    | BinOp(Operators.op_bin)
+    | BuiltinFun
     | Match
+    | Cast
     | ListConcat;
 
-  let hole = (tms: list(any)): term =>
+  let hole = (tms: list(TermBase.Any.t)): term =>
     switch (tms) {
     | [] => EmptyHole
     | [_, ..._] => MultiHole(tms)
@@ -460,12 +447,23 @@ module UExp = {
     List.hd(ids);
   };
 
+  let fresh = term => {
+    {ids: [Id.mk()], copied: false, term};
+  };
+
+  let unwrap = ({ids, term, copied}) => (
+    term,
+    term => {ids, term, copied},
+  );
+
   let cls_of_term: term => cls =
     fun
     | Invalid(_) => Invalid
     | EmptyHole => EmptyHole
     | MultiHole(_) => MultiHole
-    | Triv => Triv
+    | StaticErrorHole(_) => StaticErrorHole
+    | DynamicErrorHole(_) => DynamicErrorHole
+    | FailedCast(_) => FailedCast
     | Bool(_) => Bool
     | Int(_) => Int
     | Float(_) => Float
@@ -476,89 +474,31 @@ module UExp = {
     | Tuple(_) => Tuple
     | Var(_) => Var
     | Let(_) => Let
+    | FixF(_) => FixF
     | TyAlias(_) => TyAlias
     | Ap(_) => Ap
-    | Pipeline(_) => Pipeline
     | If(_) => If
     | Seq(_) => Seq
     | Test(_) => Test
     | Filter(_) => Filter
+    | Closure(_) => Closure
     | Parens(_) => Parens
     | Cons(_) => Cons
     | ListConcat(_) => ListConcat
     | UnOp(op, _) => UnOp(op)
     | BinOp(op, _, _) => BinOp(op)
-    | Match(_) => Match;
-
-  let show_op_un_meta: op_un_meta => string =
-    fun
-    | Unquote => "Un-quotation";
-
-  let show_op_un_bool: op_un_bool => string =
-    fun
-    | Not => "Boolean Negation";
-
-  let show_op_un_int: op_un_int => string =
-    fun
-    | Minus => "Integer Negation";
-
-  let show_unop: op_un => string =
-    fun
-    | Meta(op) => show_op_un_meta(op)
-    | Bool(op) => show_op_un_bool(op)
-    | Int(op) => show_op_un_int(op);
-
-  let show_op_bin_bool: op_bin_bool => string =
-    fun
-    | And => "Boolean Conjunction"
-    | Or => "Boolean Disjunction";
-
-  let show_op_bin_int: op_bin_int => string =
-    fun
-    | Plus => "Integer Addition"
-    | Minus => "Integer Subtraction"
-    | Times => "Integer Multiplication"
-    | Power => "Integer Exponentiation"
-    | Divide => "Integer Division"
-    | LessThan => "Integer Less Than"
-    | LessThanOrEqual => "Integer Less Than or Equal"
-    | GreaterThan => "Integer Greater Than"
-    | GreaterThanOrEqual => "Integer Greater Than or Equal"
-    | Equals => "Integer Equality"
-    | NotEquals => "Integer Inequality";
-
-  let show_op_bin_float: op_bin_float => string =
-    fun
-    | Plus => "Float Addition"
-    | Minus => "Float Subtraction"
-    | Times => "Float Multiplication"
-    | Power => "Float Exponentiation"
-    | Divide => "Float Division"
-    | LessThan => "Float Less Than"
-    | LessThanOrEqual => "Float Less Than or Equal"
-    | GreaterThan => "Float Greater Than"
-    | GreaterThanOrEqual => "Float Greater Than or Equal"
-    | Equals => "Float Equality"
-    | NotEquals => "Float Inequality";
-
-  let show_op_bin_string: op_bin_string => string =
-    fun
-    | Concat => "String Concatenation"
-    | Equals => "String Equality";
-
-  let show_binop: op_bin => string =
-    fun
-    | Int(op) => show_op_bin_int(op)
-    | Float(op) => show_op_bin_float(op)
-    | Bool(op) => show_op_bin_bool(op)
-    | String(op) => show_op_bin_string(op);
+    | BuiltinFun(_) => BuiltinFun
+    | Match(_) => Match
+    | Cast(_) => Cast;
 
   let show_cls: cls => string =
     fun
     | Invalid => "Invalid expression"
     | MultiHole => "Broken expression"
     | EmptyHole => "Empty expression hole"
-    | Triv => "Trivial literal"
+    | StaticErrorHole => "Static error hole"
+    | DynamicErrorHole => "Dynamic error hole"
+    | FailedCast => "Failed cast"
     | Bool => "Boolean literal"
     | Int => "Integer literal"
     | Float => "Float literal"
@@ -570,6 +510,7 @@ module UExp = {
     | Var => "Variable reference"
     | MetaVar => "Meta variable reference"
     | Let => "Let expression"
+    | FixF => "Fixpoint operator"
     | TyAlias => "Type Alias definition"
     | Ap => "Application"
     | Pipeline => "Pipeline expression"
@@ -577,21 +518,28 @@ module UExp = {
     | Seq => "Sequence expression"
     | Test => "Test"
     | Filter => "Filter"
+    | Closure => "Closure"
     | Parens => "Parenthesized expression"
     | Cons => "Cons"
     | ListConcat => "List Concatenation"
-    | BinOp(op) => show_binop(op)
-    | UnOp(op) => show_unop(op)
-    | Match => "Case expression";
+    | BinOp(op) => Operators.show_binop(op)
+    | UnOp(op) => Operators.show_unop(op)
+    | BuiltinFun => "Built-in Function"
+    | Match => "Case expression"
+    | Cast => "Cast expression";
 
   let rec is_fun = (e: t) => {
     switch (e.term) {
     | Parens(e) => is_fun(e)
-    | Fun(_) => true
+    | Cast(e, _, _) => is_fun(e)
+    | Fun(_)
+    | BuiltinFun(_) => true
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
-    | Triv
+    | StaticErrorHole(_)
+    | DynamicErrorHole(_)
+    | FailedCast(_)
     | Bool(_)
     | Int(_)
     | Float(_)
@@ -600,15 +548,16 @@ module UExp = {
     | Tuple(_)
     | Var(_)
     | Let(_)
+    | FixF(_)
     | TyAlias(_)
     | Ap(_)
-    | Pipeline(_)
     | If(_)
     | Seq(_)
     | Test(_)
     | Filter(_)
     | Cons(_)
     | ListConcat(_)
+    | Closure(_)
     | UnOp(_)
     | BinOp(_)
     | Match(_)
@@ -620,23 +569,28 @@ module UExp = {
     is_fun(e)
     || (
       switch (e.term) {
+      | Cast(e, _, _)
       | Parens(e) => is_tuple_of_functions(e)
       | Tuple(es) => es |> List.for_all(is_fun)
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
-      | Triv
+      | StaticErrorHole(_)
+      | DynamicErrorHole(_)
+      | FailedCast(_)
       | Bool(_)
       | Int(_)
       | Float(_)
       | String(_)
       | ListLit(_)
       | Fun(_)
+      | Closure(_)
+      | BuiltinFun(_)
       | Var(_)
       | Let(_)
+      | FixF(_)
       | TyAlias(_)
       | Ap(_)
-      | Pipeline(_)
       | If(_)
       | Seq(_)
       | Test(_)
@@ -657,9 +611,8 @@ module UExp = {
     };
 };
 
-// TODO(d): consider just folding this into UExp
-module URul = {
-  include TermBase.URul;
+module Rul = {
+  include TermBase.Rul;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
@@ -681,59 +634,55 @@ module URul = {
 
   let rep_id = (~any_ids, tm) =>
     switch (ids(~any_ids, tm)) {
-    | [] => raise(Invalid_argument("Term.UExp.rep_id"))
+    | [] => raise(Invalid_argument("UExp.rep_id"))
     | [id, ..._] => id
     };
 };
 
-module Cls = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | Exp(UExp.cls)
-    | Pat(UPat.cls)
-    | Typ(UTyp.cls)
-    | TPat(UTPat.cls)
-    | Rul(URul.cls)
-    | Secondary(Secondary.cls);
+module Any = {
+  include TermBase.Any;
 
-  let show = (cls: t) =>
-    switch (cls) {
-    | Exp(cls) => UExp.show_cls(cls)
-    | Pat(cls) => UPat.show_cls(cls)
-    | Typ(cls) => UTyp.show_cls(cls)
-    | TPat(cls) => UTPat.show_cls(cls)
-    | Rul(cls) => URul.show_cls(cls)
-    | Secondary(cls) => Secondary.show_cls(cls)
-    };
+  let is_exp: t => option(TermBase.Exp.t) =
+    fun
+    | Exp(e) => Some(e)
+    | _ => None;
+  let is_pat: t => option(TermBase.Pat.t) =
+    fun
+    | Pat(p) => Some(p)
+    | _ => None;
+  let is_typ: t => option(TermBase.TypTerm.t) =
+    fun
+    | Typ(t) => Some(t)
+    | _ => None;
+
+  let rec ids =
+    fun
+    | Exp(tm) => tm.ids
+    | Pat(tm) => tm.ids
+    | Typ(tm) => tm.ids
+    | TPat(tm) => tm.ids
+    | Rul(tm) => Rul.ids(~any_ids=ids, tm)
+    | Nul ()
+    | Any () => [];
+
+  // Terms may consist of multiple tiles, eg the commas in an n-tuple,
+  // the rules of a case expression + the surrounding case-end tile,
+  // the list brackets tile coupled with the elem-separating commas.
+  // The _representative id_ is the canonical tile id used to identify
+  // and look up info about a term.
+  //
+  // In instances like case expressions and list literals, where a parent
+  // tile surrounds the other tiles, the representative id is the parent tile's.
+  // In other instances like n-tuples, where the commas are all siblings,
+  // the representative id is one of the comma ids, unspecified which one.
+  // (This would change for n-tuples if we decided parentheses are necessary.)
+  let rep_id =
+    fun
+    | Exp(tm) => Exp.rep_id(tm)
+    | Pat(tm) => Pat.rep_id(tm)
+    | Typ(tm) => TypTerm.rep_id(tm)
+    | TPat(tm) => TPat.rep_id(tm)
+    | Rul(tm) => Rul.rep_id(~any_ids=ids, tm)
+    | Nul ()
+    | Any () => raise(Invalid_argument("Term.rep_id"));
 };
-
-let rec ids =
-  fun
-  | Exp(tm) => tm.ids
-  | Pat(tm) => tm.ids
-  | Typ(tm) => tm.ids
-  | TPat(tm) => tm.ids
-  | Rul(tm) => URul.ids(~any_ids=ids, tm)
-  | Nul ()
-  | Any () => [];
-
-// Terms may consist of multiple tiles, eg the commas in an n-tuple,
-// the rules of a case expression + the surrounding case-end tile,
-// the list brackets tile coupled with the elem-separating commas.
-// The _representative id_ is the canonical tile id used to identify
-// and look up info about a term.
-//
-// In instances like case expressions and list literals, where a parent
-// tile surrounds the other tiles, the representative id is the parent tile's.
-// In other instances like n-tuples, where the commas are all siblings,
-// the representative id is one of the comma ids, unspecified which one.
-// (This would change for n-tuples if we decided parentheses are necessary.)
-let rep_id =
-  fun
-  | Exp(tm) => UExp.rep_id(tm)
-  | Pat(tm) => UPat.rep_id(tm)
-  | Typ(tm) => UTyp.rep_id(tm)
-  | TPat(tm) => UTPat.rep_id(tm)
-  | Rul(tm) => URul.rep_id(~any_ids=ids, tm)
-  | Nul ()
-  | Any () => raise(Invalid_argument("Term.rep_id"));
