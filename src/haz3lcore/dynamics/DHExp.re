@@ -1,39 +1,8 @@
-/*
- To discuss:
-
- 1. putting info inside expressions
-
-
- */
-/*
- DHExps that can appear during evaluation, and thus won't have static information.
-
- - Closure
- - Var [for mutual recursion; could probably get rid of if needed...]
- - Let [for mutual recursion]
- - Tuple([])
- - Cast
- - Ap [in the casting rules for functions & in builtins]
- - DynamicErrorHole
- - FailedCast
- - Int
- - Bool
- - Float
- - String
- - ListLit
- - BuiltinFun
-
- */
-
 /* DHExp.re
 
    This module is specifically for dynamic expressions. They are stored
-   using the same data structure as user expressions, but have a few
-   important invariants.
-
-
-
-   TODO[Matt]: Explain the invariants.
+   using the same data structure as user expressions, but dynamic
+   expressions are specifically paired with a `Satic.Map.t`. 
    */
 
 include Exp;
