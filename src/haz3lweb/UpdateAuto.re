@@ -106,13 +106,13 @@ let go =
       switch (updater) {
       | Init(options) => Auto.init_llm_report(options)
       | Complete(tests) => Auto.complete_llm_reports(tests)
-      | AddRoundOne(settings, init_ctx, mode, reply) =>
+      | AddRoundOne(_settings, init_ctx, mode, reply) =>
         Auto.add_first_round_results(
-          Filler.mk_round_report(~settings, ~init_ctx, ~mode, reply),
+          Filler.mk_round_report(~init_ctx, ~mode, reply),
         )
-      | AddRoundTwo(settings, init_ctx, mode, reply) =>
+      | AddRoundTwo(_settings, init_ctx, mode, reply) =>
         Auto.add_second_round_results(
-          Filler.mk_round_report(~settings, ~init_ctx, ~mode, reply),
+          Filler.mk_round_report(~init_ctx, ~mode, reply),
         )
       };
     let reports =

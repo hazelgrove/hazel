@@ -1,4 +1,4 @@
-open Haz3lcore;
+//open Haz3lcore;
 /*
 
   node hazeLS.js CHECK dynamics --prelude testdata/todo1/prelude-shorter.haze --main testdata/todo1/solution.haze --epilogue testdata/todo1/epilogue.haze
@@ -6,7 +6,7 @@ open Haz3lcore;
  node hazeLS.js RUNTEST --api-key ~/azure-4-api-key.txt --prelude testdata/todo1/prelude-shorter.haze --main testdata/todo1/sketch.haze --epilogue testdata/todo1/epilogue.haze
   */
 
-let ci_of_hole = (~init_ctx, ~prelude, ~db, sketch_pre): Info.t => {
+let get_caret_mode_and_ctx = (~db, ~init_ctx, ~prelude, sketch_pre) => {
   let sketch_pre_z = LSFiles.get_zipper(~db, sketch_pre, None);
   let init_ctx = LSCompletions.get_prelude_ctx(~db, ~init_ctx, ~prelude);
   //TODO(andrew): this makes tons of assumptions
@@ -17,22 +17,17 @@ let ci_of_hole = (~init_ctx, ~prelude, ~db, sketch_pre): Info.t => {
       ~db,
       sketch_pre_z,
     );
-  switch (gen_options) {
-  | NewRightConvex(info_dump)
-  | CompletionOrNewRightConcave(info_dump, _) => info_dump.ci
-  | _ => failwith("ci_of_hole: impossible")
-  };
-};
-
-let get_expected_ty = (~db, ~init_ctx, ~prelude, sketch_pre) => {
-  let ci = ci_of_hole(~init_ctx, ~prelude, ~db, sketch_pre);
-  let mode =
-    switch (ci) {
-    | InfoExp({mode, _}) => Some(mode)
-    | InfoPat({mode, _}) => Some(mode)
-    | _ => None
+  let ci =
+    switch (gen_options) {
+    | NewRightConvex(info_dump)
+    | CompletionOrNewRightConcave(info_dump, _) => info_dump.ci
+    | _ => failwith("ci_of_hole: impossible")
     };
-  ChatLSP.Type.expected(~ctx=Info.ctx_of(ci), mode);
+  switch (ci) {
+  | InfoExp({mode, ctx, _})
+  | InfoPat({mode, ctx, _}) => (mode, ctx)
+  | _ => (Syn, [])
+  };
 };
 
 let azure_gpt4_req = (~key, ~llm, ~prompt, ~handler): unit =>
@@ -65,25 +60,97 @@ let split_sketch = (sketch: string) => {
   };
 };
 
-let mk_prompt = (~db, ~init_ctx, ~prelude, ~llm, ~sketch_pre, ~sketch) => {
-  let filler_options: FillerOptions.t = {
-    llm,
-    instructions: true,
-    syntax_notes: true,
-    num_examples: 9,
-    expected_type: true,
-    error_round: true,
+let rec error_loop =
+        (
+          ~llm,
+          ~key,
+          ~caret_ctx,
+          ~caret_mode,
+          ~handler,
+          ~fuel,
+          prompt,
+          reply: OpenAI.reply,
+        )
+        : unit => {
+  let go = error_loop(~llm, ~key, ~caret_ctx, ~caret_mode, ~handler);
+  print_endline("LSTest: err rounds left: " ++ string_of_int(fuel));
+  print_endline("LSTest: reply.contents:" ++ reply.content);
+  switch (Filler.error_reply(~init_ctx=caret_ctx, ~mode=caret_mode, reply)) {
+  | _ when fuel <= 0 =>
+    print_endline("LSTest: Error round limit reached, stopping");
+    handler(reply.content);
+  | None =>
+    print_endline("LSTest: No errors, stopping");
+    handler(reply.content);
+  | Some(err_msg) =>
+    print_endline("LSTest: reply errors:" ++ err_msg);
+    let prompt' =
+      OpenAI.add_to_prompt(prompt, ~assistant=reply.content, ~user=err_msg);
+    azure_gpt4_req(~llm, ~key, ~prompt=prompt', ~handler=response =>
+      switch (OpenAI.handle_chat(response)) {
+      | Some(reply') => go(~fuel=fuel - 1, prompt', reply')
+      | None => print_endline("WARN: Error loop: Handle returned none ")
+      }
+    );
   };
-  let expected_ty = get_expected_ty(~db, ~init_ctx, ~prelude, sketch_pre);
-  Filler.prompt(filler_options, ~sketch, ~expected_ty);
 };
 
-let first_handler = (sketch_pre, sketch_suf, req) =>
+let final_handler =
+    (~sketch_pre, ~sketch_suf, ~prelude, ~init_ctx, ~epilogue, str) => {
+  let completed_sketch = sketch_pre ++ str ++ sketch_suf;
+  print_endline("completed sketch:");
+  print_endline(completed_sketch);
+  LSChecker.dynamic_error_report(
+    ~db=ignore,
+    ~settings={
+      ctx: init_ctx,
+      check: LSActions.Dynamic,
+      data: {
+        prelude,
+        program: completed_sketch,
+        new_token: None,
+        epilogue,
+      },
+    },
+  );
+};
+
+let first_handler =
+    (
+      ~key,
+      ~caret_ctx,
+      ~caret_mode,
+      ~init_ctx,
+      ~prompt,
+      ~prelude,
+      ~epilogue,
+      ~gen_opts: FillerOptions.t,
+      sketch_pre,
+      sketch_suf,
+      req,
+    ) =>
   switch (OpenAI.handle_chat(req)) {
   | Some(reply) =>
-    let completed_sketch = sketch_pre ++ reply.content ++ sketch_suf;
-    print_endline("completed sketch:");
-    print_endline(completed_sketch);
+    //let completed_sketch = sketch_pre ++ reply.content ++ sketch_suf;
+    //print_endline("completed sketch:");
+    //print_endline(completed_sketch);
+    error_loop(
+      ~llm=gen_opts.llm,
+      ~key,
+      ~caret_ctx,
+      ~caret_mode,
+      ~handler=
+        final_handler(
+          ~sketch_pre,
+          ~sketch_suf,
+          ~prelude,
+          ~epilogue,
+          ~init_ctx,
+        ),
+      ~fuel=gen_opts.error_rounds_max,
+      prompt,
+      reply,
+    )
   | None => failwith("APINode: handler returned None")
   };
 
@@ -91,14 +158,23 @@ let go =
     (
       ~db,
       ~settings as
-        {ctx: init_ctx, data: {program, prelude, _}, _}: LSCompletions.settings,
+        {ctx: init_ctx, data: {program: sketch, prelude, epilogue, _}, _}: LSCompletions.settings,
       ~key,
     ) => {
   let llm = OpenAI.Azure_GPT4;
-  let (sketch_pre, sketch_suf) = split_sketch(program);
-  switch (
-    mk_prompt(~db, ~init_ctx, ~prelude, ~llm, ~sketch_pre, ~sketch=program)
-  ) {
+  let gen_opts: FillerOptions.t = {
+    llm,
+    instructions: true,
+    syntax_notes: true,
+    num_examples: 9,
+    expected_type: true,
+    error_rounds_max: 2,
+  };
+  let (sketch_pre, sketch_suf) = split_sketch(sketch);
+  let (caret_mode, caret_ctx) =
+    get_caret_mode_and_ctx(~db, ~init_ctx, ~prelude, sketch_pre);
+  let expected_ty = ChatLSP.Type.expected(~ctx=caret_ctx, Some(caret_mode));
+  switch (Filler.prompt(gen_opts, ~sketch, ~expected_ty)) {
   | None => print_endline("LSTest: prompt generation failed")
   | Some(prompt) =>
     print_endline("LSTest: PROMPT:\n " ++ OpenAI.show_prompt(prompt));
@@ -106,7 +182,19 @@ let go =
       ~llm,
       ~key,
       ~prompt,
-      ~handler=first_handler(sketch_pre, sketch_suf),
+      ~handler=
+        first_handler(
+          ~prompt,
+          ~prelude,
+          ~epilogue,
+          ~init_ctx,
+          ~key,
+          ~caret_mode,
+          ~caret_ctx,
+          ~gen_opts,
+          sketch_pre,
+          sketch_suf,
+        ),
     );
   };
 };

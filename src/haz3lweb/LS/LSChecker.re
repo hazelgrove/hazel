@@ -43,7 +43,7 @@ let syntax_error_report = (~db, data: LSActions.data) =>
   ) {
   | None =>
     print_endline(
-      "LSP: Check Syntax: Incorrect syntax: Unknown exception in parse",
+      "LS: Check Syntax: Incorrect syntax: Unknown exception in parse",
     )
   | Some(z) =>
     //TODO(andrew): look for holes in the syntax, Invalids, etc.
@@ -51,7 +51,7 @@ let syntax_error_report = (~db, data: LSActions.data) =>
     | [] => print_endline("LSP: Check Syntax: Syntax OK")
     | orphans =>
       print_endline(
-        "LSP: Check Syntax: Incorrect syntax: Unmatched delimiters:"
+        "LS: Check Syntax: Incorrect syntax: Unmatched delimiters:"
         ++ String.concat(", ", orphans),
       )
     }
@@ -72,11 +72,11 @@ let get_static_errors = (~db, ~settings): list(string) => {
 
 let static_error_report = (~db, ~settings: settings) =>
   switch (get_static_errors(~db, ~settings)) {
-  | [] => print_endline("LSP: Check Statics: No static errors")
+  | [] => print_endline("LS: Check Statics: No static errors")
   | errs =>
     let num_errs = errs |> List.length |> string_of_int;
     print_endline(
-      "LSP: Check Statics: " ++ num_errs ++ " static error(s) found: ",
+      "LS: Check Statics: " ++ num_errs ++ " static error(s) found: ",
     );
     print_endline(errs |> String.concat("\n"));
   };
@@ -107,9 +107,9 @@ let test_combined = (settings, ~db) =>
 
 let dynamic_error_report = (~db, ~settings) =>
   switch (test_combined(settings, ~db)) {
-  | [] => print_endline("LSP: Check Dynamics: No tests found")
+  | [] => print_endline("LS: Check Dynamics: No tests found")
   | results =>
-    print_endline("LSP: Check Dynamics: Test results:");
+    print_endline("LS: Check Dynamics: Test results:");
     print_endline(String.concat("\n", results));
   };
 

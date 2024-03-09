@@ -12,7 +12,8 @@ type static_errors = list(string);
 [@deriving (show({with_path: false}), yojson, sexp)]
 type error_report =
   | ParseError(string)
-  | StaticErrors(static_errors);
+  | StaticErrors(static_errors)
+  | NoErrors;
 
 [@deriving (show({with_path: false}), yojson, sexp)]
 type round_report = {
@@ -287,31 +288,24 @@ let get_parse_err = (filling): Result.t(Zipper.t, string) =>
     }
   };
 
-let mk_round_report =
-    (~settings, ~init_ctx, ~mode, reply: OpenAI.reply): round_report =>
+let mk_round_report = (~init_ctx, ~mode, reply: OpenAI.reply): round_report =>
   switch (get_parse_err(reply.content)) {
   | Error(err) => {reply, error_report: ParseError(err)}
   | Ok(filling_z) =>
     let (top_ci, info_map) =
-      ChatLSP.get_info_and_top_ci_from_zipper(
-        ~settings,
-        ~ctx=init_ctx,
-        filling_z,
-      );
+      ChatLSP.get_info_and_top_ci_from_zipper(~ctx=init_ctx, filling_z);
     let static_errs =
       get_top_level_errs(init_ctx, mode, top_ci)
       @ ChatLSP.Errors.collect_static(info_map);
-    {reply, error_report: StaticErrors(static_errs)};
+    if (List.length(static_errs) == 0) {
+      {reply, error_report: NoErrors};
+    } else {
+      {reply, error_report: StaticErrors(static_errs)};
+    };
   };
 
 let error_reply =
-    (
-      ~settings: Settings.t,
-      ~init_ctx: Ctx.t,
-      ~mode: Mode.t,
-      reply: OpenAI.reply,
-    )
-    : option(string) => {
+    (~init_ctx: Ctx.t, ~mode: Mode.t, reply: OpenAI.reply): option(string) => {
   //TODO(andrew): this is implictly specialized for exp only
   let wrap = (intro, errs) =>
     Some(
@@ -323,7 +317,8 @@ let error_reply =
       ]
       |> String.concat("\n"),
     );
-  switch (mk_round_report(~settings, ~init_ctx, ~mode, reply).error_report) {
+  switch (mk_round_report(~init_ctx, ~mode, reply).error_report) {
+  | NoErrors => None
   | ParseError(err) => wrap("The following parse error occured:", [err])
   | StaticErrors(errs) =>
     wrap("The following static errors were discovered:", errs)

@@ -7,7 +7,7 @@ type t = {
   syntax_notes: bool,
   num_examples: int,
   expected_type: bool,
-  error_round: bool,
+  error_rounds_max: int,
 };
 
 let init: t = {
@@ -16,5 +16,5 @@ let init: t = {
   syntax_notes: true,
   num_examples: 9,
   expected_type: true,
-  error_round: true,
+  error_rounds_max: 2,
 };

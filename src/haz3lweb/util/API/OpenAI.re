@@ -159,22 +159,6 @@ let start_chat = (~llm, ~key, prompt: prompt, handler): unit => {
   };
 };
 
-let reply_chat =
-    (~llm, ~key, prompt: prompt, ~assistant, ~user, handler): unit => {
-  let body =
-    body(
-      ~llm,
-      prompt
-      @ [{role: Assistant, content: assistant}, {role: User, content: user}],
-    );
-  switch (llm) {
-  | Azure_GPT3_5Turbo => chat_azure35(~body, ~key, ~handler)
-  | Azure_GPT4 => chat_azure4(~body, ~key, ~handler)
-  | GPT3_5Turbo
-  | GPT4 => chat(~key, ~body, ~handler)
-  };
-};
-
 let int_field = (json: Json.t, field: string) => {
   let* num = Json.dot(field, json);
   Json.int(num);
@@ -203,3 +187,7 @@ let handle_chat = (response: option(Json.t)): option(reply) => {
   let+ usage = of_usage(usage);
   {content, usage};
 };
+
+let add_to_prompt = (prompt, ~assistant, ~user): prompt =>
+  prompt
+  @ [{role: Assistant, content: assistant}, {role: User, content: user}];

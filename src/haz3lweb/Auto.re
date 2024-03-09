@@ -162,6 +162,7 @@ let final_report =
     | [final_round, ..._] =>
       let (parse_error, num_static_errors) =
         switch (final_round.error_report) {
+        | NoErrors => (false, 0)
         | ParseError(_) => (true, 0)
         | StaticErrors(errors) => (false, errors |> List.length)
         };

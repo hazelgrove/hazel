@@ -87,7 +87,8 @@ let apply =
       );
     };
     Ok(model);
-  | Prompt(Filler({llm, _} as filter_options)) =>
+  | Prompt(Filler({llm, _} as filler_options)) =>
+    let key = OpenAI.lookup_key(llm);
     let schedule_if_auto = action =>
       switch (model.meta.auto.current_script) {
       | None => ()
@@ -103,68 +104,88 @@ let apply =
       let mode = ChatLSP.Type.mode(~settings, ~ctx_init, editor);
       ChatLSP.Type.expected(~ctx=ctx_at_caret, mode);
     };
-    let add_round = add => schedule_if_auto(name => UpdateResult(name, add));
+    let _add_round = add => schedule_if_auto(name => UpdateResult(name, add));
     switch (
       Filler.prompt(
-        filter_options,
+        filler_options,
         ~sketch=Printer.to_string_editor(~holes=Some("?"), editor),
         ~expected_ty,
-      )
+      ),
+      ChatLSP.Type.ctx(~settings, ~ctx_init, editor),
+      ChatLSP.Type.mode(~settings, ~ctx_init, editor),
     ) {
-    | None => print_endline("Filler: prompt generation failed")
-    | Some(prompt) =>
-      print_endline("GENERATED PROMPT:\n " ++ OpenAI.show_prompt(prompt));
-      let key = OpenAI.lookup_key(llm);
+    | (Some(prompt), Some(init_ctx), Some(mode)) =>
+      let rec error_loop =
+              (~handler, ~fuel, prompt, reply: OpenAI.reply): unit => {
+        //print_endline("Assistant: err rounds left: " ++ string_of_int(fuel));
+        //print_endline("Assistant: reply.contents:" ++ reply.content);
+        switch (Filler.error_reply(~init_ctx, ~mode, reply)) {
+        | _ when fuel <= 0 =>
+          //print_endline("Assistant: Error round limit reached, stopping");
+          handler(reply.content)
+        | None =>
+          //print_endline("Assistant: No errors, stopping");
+          handler(reply.content)
+        | Some(err_msg) =>
+          //print_endline("Assistant: reply errors:" ++ err_msg);
+          let prompt' =
+            OpenAI.add_to_prompt(
+              prompt,
+              ~assistant=reply.content,
+              ~user=err_msg,
+            );
+          OpenAI.start_chat(~llm, ~key, prompt', response =>
+            switch (OpenAI.handle_chat(response)) {
+            | Some(reply') =>
+              error_loop(~handler, ~fuel=fuel - 1, prompt', reply')
+            | None => print_endline("WARN: Error loop: Handle returned none ")
+            }
+          );
+        };
+      };
+      print_endline("Assistant: PROMPT:\n " ++ OpenAI.show_prompt(prompt));
       OpenAI.start_chat(~llm, ~key, prompt, req =>
         switch (OpenAI.handle_chat(req)) {
         | Some(reply) =>
-          switch (
-            ChatLSP.Type.ctx(~settings, ~ctx_init, editor),
-            ChatLSP.Type.mode(~settings, ~ctx_init, editor),
-          ) {
-          | (Some(init_ctx), Some(mode)) =>
-            add_round(AddRoundOne(settings, init_ctx, mode, reply));
-            switch (Filler.error_reply(~settings, ~init_ctx, ~mode, reply)) {
-            | None
-            | Some("") =>
-              /* TODO(andrew): empty string kinda hacky here; refactor */
-              print_endline("first round response:\n " ++ reply.content);
-              schedule_action(
-                Assistant(SetBuffer(trim_indents(reply.content))),
-              );
-              schedule_if_auto(_ => EndTest());
-            | Some(err_msg) =>
-              print_endline("first round: errors detected:" ++ err_msg);
-              OpenAI.reply_chat(
-                ~llm,
-                ~key,
-                prompt,
-                ~assistant=reply.content,
-                ~user=err_msg,
-                req =>
-                switch (OpenAI.handle_chat(req)) {
-                | Some(reply2) =>
-                  add_round(AddRoundTwo(settings, init_ctx, mode, reply2));
-                  print_endline(
-                    "second round response:\n " ++ reply2.content,
-                  );
-                  schedule_action(
-                    Assistant(SetBuffer(trim_indents(reply2.content))),
-                  );
-                  schedule_if_auto(_ => EndTest());
-                | None => print_endline("Filler: handler failed")
-                }
-              );
-            };
-          | _ =>
-            print_endline(
-              "ERROR: UpdateAssistant: Filler: prompt generation failed",
-            );
-            ();
-          }
+          error_loop(
+            ~fuel=filler_options.error_rounds_max,
+            ~handler=
+              reply =>
+                schedule_action(Assistant(SetBuffer(trim_indents(reply)))),
+            prompt,
+            reply,
+          )
+        //add_round(AddRoundOne(settings, init_ctx, mode, reply));
+        // switch (Filler.error_reply(~settings, ~init_ctx, ~mode, reply)) {
+        // | None
+        // | Some("") =>
+        //   /* TODO(andrew): empty string kinda hacky here; refactor */
+        //   print_endline("first round response:\n " ++ reply.content);
+        //   schedule_action(
+        //     Assistant(SetBuffer(trim_indents(reply.content))),
+        //   );
+        // //schedule_if_auto(_ => EndTest());
+        // | Some(err_msg) =>
+        //   print_endline("first round: errors detected:" ++ err_msg);
+        //   let reply_prompt =
+        //     add_to_prompt(prompt, ~assistant=reply.content, ~user=err_msg);
+        //   OpenAI.start_chat(~llm, ~key, reply_prompt, req =>
+        //     switch (OpenAI.handle_chat(req)) {
+        //     | Some(reply2) =>
+        //       //add_round(AddRoundTwo(settings, init_ctx, mode, reply2));
+        //       //print_endline("second round response:\n " ++ reply2.content);
+        //       schedule_action(
+        //         Assistant(SetBuffer(trim_indents(reply2.content))),
+        //       )
+        //     //schedule_if_auto(_ => EndTest());
+        //     | None => print_endline("Filler: handler failed")
+        //     }
+        //   );
+        // }
         | None => print_endline("Filler: handler returned None")
         }
       );
+    | _ => print_endline("Filler: prompt generation failed")
     };
     Ok(model);
   | Prompt(TyDi) =>

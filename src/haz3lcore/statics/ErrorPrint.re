@@ -75,29 +75,26 @@ let string_of: Info.error => string =
 let format_error = (term, error) =>
   prn("Error in term:\n  %s\nNature of error: %s", term, error);
 
-let collect_static = (info_map: Statics.Map.t) => {
-  let errors = Statics.collect_errors(info_map);
-  List.map(
-    ((id: Id.t, error: Info.error)) =>
-      switch (Id.Map.find_opt(id, info_map)) {
-      | None => "Can't report error: Id lookup failed"
-      | Some(info) =>
+let collect_static = (info_map: Statics.Map.t): list(string) => {
+  let errors =
+    Id.Map.fold(
+      (_id, info: Info.t, acc) =>
+        switch (Info.error_of(info)) {
+        | None => acc
+        | Some(_) => [info] @ acc
+        },
+      info_map,
+      [],
+    );
+  let errors = List.sort_uniq(compare, errors);
+  List.filter_map(
+    info =>
+      switch (Info.error_of(info)) {
+      | None => None
+      | Some(error) =>
         let term = Info.term_string_of(info);
-        format_error(term, string_of(error));
+        Some(format_error(term, string_of(error)));
       },
     errors,
   );
 };
-/*
- Id.Map.fold(
-   (_id, info: Info.t, acc) => {
-     switch (Info.error_of(info)) {
-     | Some(error) =>
-       let term = Info.term_string_of(info);
-       List.cons(format_error(term, string_of(error)), acc);
-     | None => acc
-     }
-   },
-   info_map,
-   [],
- );*/

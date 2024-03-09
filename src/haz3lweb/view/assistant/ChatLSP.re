@@ -9,12 +9,11 @@ let get_info_from_zipper =
   |> Interface.Statics.mk_map_ctx(settings.core, ctx_init);
 };
 let get_info_and_top_ci_from_zipper =
-    (~settings: Settings.t, ~ctx, z: Zipper.t)
-    : (option(Info.exp), Statics.Map.t) => {
+    (~ctx, z: Zipper.t): (option(Info.exp), Statics.Map.t) => {
   z
   |> MakeTerm.from_zip_for_sem
   |> fst
-  |> Interface.Statics.mk_map_and_info_ctx(settings.core, ctx);
+  |> Interface.Statics.mk_map_and_info_ctx(CoreSettings.on, ctx);
 };
 
 let get_ci =
