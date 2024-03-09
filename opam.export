@@ -38,6 +38,7 @@ installed: [
   "base_quickcheck.v0.15.0"
   "bigstringaf.0.9.1"
   "bin_prot.v0.15.0"
+  "bisect_ppx.2.8.3"
   "camlp-streams.5.0.1"
   "chrome-trace.3.13.1"
   "clap.0.3.0"

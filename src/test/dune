@@ -2,7 +2,7 @@
 
 (test
  (name haz3ltest)
- (libraries haz3lcore alcotest junit junit_alcotest)
+ (libraries haz3lcore alcotest junit junit_alcotest bisect_ppx.runtime)
  (modes js)
  (preprocess
   (pps js_of_ocaml-ppx)))

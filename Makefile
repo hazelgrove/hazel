@@ -54,8 +54,9 @@ repl:
 	dune utop src/haz3lcore
 
 test:
-	dune build @src/fmt --auto-promote src --profile dev
+	dune build @src/fmt --auto-promote src --profile dev --instrument-with bisect_ppx
 	node $(TEST_DIR)/haz3ltest.bc.js
+	bisect-ppx-report html
 
 clean:
 	dune clean
