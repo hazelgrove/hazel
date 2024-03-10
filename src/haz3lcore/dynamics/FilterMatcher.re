@@ -27,8 +27,6 @@ let rec matches_exp =
           f: DHExp.t,
         )
         : bool => {
-  print_endline("d = " ++ DHExp.show(d));
-  print_endline("f = " ++ DHExp.show(f));
   let matches_exp = (~denv=denv, ~fenv=fenv, d, f) =>
     matches_exp(~denv, d, ~fenv, f);
   if (d == f) {
@@ -98,7 +96,7 @@ let rec matches_exp =
       | (Some(d), Some(f)) => matches_exp(d, f)
       | (Some(_), None) => false
       | (None, Some(_)) => false
-      | (None, None) => dx == fx
+      | (None, None) => true
       }
     | (BoundVar(dx), _) =>
       switch (ClosureEnvironment.lookup(denv, dx)) {
@@ -136,21 +134,17 @@ let rec matches_exp =
     | (BuiltinFun(dn), BuiltinFun(fn)) => dn == fn
     | (BuiltinFun(_), _) => false
 
-    | (Fun(dp1, dty1, d1, _), Fun(fp1, fty1, f1, _)) =>
-      matches_pat(dp1, fp1)
-      && dty1 == fty1
-      && (
-        if (d1 == f1) {
-          true;
-        } else {
-          matches_exp(
-            ~denv=ClosureEnvironment.without_keys(find_keys(dp1), denv),
-            d1,
-            ~fenv=ClosureEnvironment.without_keys(find_keys(fp1), fenv),
-            f1,
-          );
-        }
-      )
+    | (
+        Fun(dp1, _, Closure(denv, d1), _),
+        Fun(fp1, _, Closure(fenv, f1), _),
+      ) =>
+      matches_fun(~denv, dp1, d1, ~fenv, fp1, f1)
+    | (Fun(dp1, _, Closure(denv, d1), _), Fun(fp1, _, f1, _)) =>
+      matches_fun(~denv, dp1, d1, ~fenv, fp1, f1)
+    | (Fun(dp1, _, d1, _), Fun(fp1, _, Closure(fenv, f1), _)) =>
+      matches_fun(~denv, dp1, d1, ~fenv, fp1, f1)
+    | (Fun(dp1, _, d1, _), Fun(fp1, _, f1, _)) =>
+      matches_fun(~denv, dp1, d1, ~fenv, fp1, f1)
     | (Fun(_), _) => false
 
     | (FreeVar(du, di, dx), FreeVar(fu, fi, fx)) =>
@@ -256,6 +250,23 @@ let rec matches_exp =
     };
   };
 }
+and matches_fun =
+    (
+      ~denv: ClosureEnvironment.t,
+      dp: DHPat.t,
+      d: DHExp.t,
+      ~fenv: ClosureEnvironment.t,
+      fp: DHPat.t,
+      f: DHExp.t,
+    ) => {
+  matches_pat(dp, fp)
+  && matches_exp(
+       ~denv=ClosureEnvironment.without_keys(find_keys(dp), denv),
+       d,
+       ~fenv=ClosureEnvironment.without_keys(find_keys(fp), fenv),
+       f,
+     );
+}
 and matches_pat = (d: DHPat.t, f: DHPat.t): bool => {
   switch (d, f) {
   | (_, EmptyHole(_)) => true
@@ -279,7 +290,7 @@ and matches_pat = (d: DHPat.t, f: DHPat.t): bool => {
   | (ListLit(_), _) => false
   | (Constructor(dt), Constructor(ft)) => dt == ft
   | (Constructor(_), _) => false
-  | (Var(dx), Var(fx)) => dx == fx
+  | (Var(_), Var(_)) => true
   | (Var(_), _) => false
   | (Tuple(dl), Tuple(fl)) =>
     switch (
