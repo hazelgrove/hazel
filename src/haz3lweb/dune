@@ -35,7 +35,8 @@
   (:standard \ Main)
   \
   Worker
-  WorkerServer)
+  WorkerServer
+  PerfTest)
  (libraries
   ezjs_min
   ezjs_idb
@@ -80,6 +81,14 @@
  (name worker)
  (modules Worker)
  (libraries workerServer)
+ (modes js)
+ (preprocess
+  (pps js_of_ocaml-ppx)))
+
+(executable
+ (name perfTest)
+ (modules PerfTest)
+ (libraries haz3lcore)
  (modes js)
  (preprocess
   (pps js_of_ocaml-ppx)))
