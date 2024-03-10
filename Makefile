@@ -60,7 +60,7 @@ test:
 
 perf-test:
 	dune build @src/fmt --auto-promote src --profile dev
-	node  $(SRC_DIR)/haz3lweb/perfTest.bc.js
+	node $(SRC_DIR)/haz3lweb/perfTest.bc.js "2 + 2"
 
 clean:
 	dune clean
