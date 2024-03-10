@@ -83,10 +83,51 @@ let rec matches_exp =
         ClosureEnvironment.lookup(fenv, fx),
       ) {
       | (
-          Some(Fun(_, _, d, Some(dname))),
-          Some(Fun(_, _, f, Some(fname))),
+          Some(Fun(_, _, Closure(denv, _), Some(dname)) as d),
+          Some(Fun(_, _, Closure(fenv, _), Some(fname)) as f),
         )
-          when dx == dname && fx == fname =>
+          when
+            ClosureEnvironment.lookup(denv, dname) == Some(d)
+            && ClosureEnvironment.lookup(fenv, fname) == Some(f) =>
+        matches_exp(
+          ~denv=ClosureEnvironment.without_keys([dname], denv),
+          d,
+          ~fenv=ClosureEnvironment.without_keys([fname], fenv),
+          f,
+        )
+      | (
+          Some(Fun(_, _, Closure(denv, _), Some(dname)) as d),
+          Some(Fun(_, _, _, Some(fname)) as f),
+        )
+          when
+            ClosureEnvironment.lookup(denv, dname) == Some(d)
+            && ClosureEnvironment.lookup(fenv, fname) == Some(f) =>
+        matches_exp(
+          ~denv=ClosureEnvironment.without_keys([dname], denv),
+          d,
+          ~fenv=ClosureEnvironment.without_keys([fname], fenv),
+          f,
+        )
+      | (
+          Some(Fun(_, _, _, Some(dname)) as d),
+          Some(Fun(_, _, _, Some(fname)) as f),
+        )
+          when
+            ClosureEnvironment.lookup(denv, dname) == Some(d)
+            && ClosureEnvironment.lookup(fenv, fname) == Some(f) =>
+        matches_exp(
+          ~denv=ClosureEnvironment.without_keys([dname], denv),
+          d,
+          ~fenv=ClosureEnvironment.without_keys([fname], fenv),
+          f,
+        )
+      | (
+          Some(Fun(_, _, _, Some(dname)) as d),
+          Some(Fun(_, _, _, Some(fname)) as f),
+        )
+          when
+            ClosureEnvironment.lookup(denv, dname) == Some(d)
+            && ClosureEnvironment.lookup(fenv, fname) == Some(f) =>
         matches_exp(
           ~denv=ClosureEnvironment.without_keys([dname], denv),
           d,
