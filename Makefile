@@ -1,3 +1,4 @@
+SRC_DIR="$(shell pwd)/_build/default/src"
 TEST_DIR="$(shell pwd)/_build/default/src/test"
 HTML_DIR="$(shell pwd)/_build/default/src/haz3lweb/www"
 SERVER="http://0.0.0.0:8000/"
@@ -56,6 +57,10 @@ repl:
 test:
 	dune build @src/fmt --auto-promote src --profile dev
 	node $(TEST_DIR)/haz3ltest.bc.js
+
+perf-test:
+	dune build @src/fmt --auto-promote src --profile dev
+	node  $(SRC_DIR)/haz3lweb/perfTest.bc.js
 
 clean:
 	dune clean
