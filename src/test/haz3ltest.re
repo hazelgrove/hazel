@@ -1,9 +1,10 @@
-open Alcotest;
+open Junit_alcotest;
 
-run(
-  "Dynamics",
-  [
-    ("Elaboration", Test_Elaboration.elaboration_tests),
-    ("Parser", Test_Menhir.tests) // TODO This should probably be separated at the library level and not under dynamics
-  ],
-);
+
+let (suite, _) =
+  run_and_report(
+    ~and_exit=false,
+    "Dynamics",
+    [("Elaboration", Test_Elaboration.elaboration_tests), ("Parser", Test_Menhir.tests)],
+  );
+Junit.to_file(Junit.make([suite]), "junit_tests.xml");
