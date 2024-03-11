@@ -4,7 +4,7 @@ open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type settings = {
-  ctx: Ctx.t,
+  init_ctx: Ctx.t,
   completions: LSActions.completions,
   data: LSActions.data,
 };
@@ -862,7 +862,7 @@ let dispatch_generation = (~settings: settings, ~db, z: Zipper.t): pre_grammar =
   let init_ctx =
     get_prelude_ctx(
       ~db,
-      ~init_ctx=settings.ctx,
+      ~init_ctx=settings.init_ctx,
       ~prelude=settings.data.prelude,
     );
   let gen_options =

@@ -1,10 +1,43 @@
-//open Haz3lcore;
 /*
 
-  node hazeLS.js CHECK dynamics --prelude testdata/todo1/prelude-shorter.haze --main testdata/todo1/solution.haze --epilogue testdata/todo1/epilogue.haze
+   node hazeLS.js CHECK dynamics --prelude testdata/todo1/prelude-shorter.haze --main testdata/todo1/solution.haze --epilogue testdata/todo1/epilogue.haze
 
- node hazeLS.js RUNTEST --api-key ~/azure-4-api-key.txt --prelude testdata/todo1/prelude-shorter.haze --main testdata/todo1/sketch.haze --epilogue testdata/todo1/epilogue.haze
-  */
+  node hazeLS.js RUNTEST --api-key ~/azure-4-api-key.txt --prelude testdata/todo1/prelude-shorter.haze --main testdata/todo1/sketch.haze --epilogue testdata/todo1/epilogue.haze
+
+  PLAYLIST:
+  node hazeLS.js CHECK statics --prelude testdata/playlist1/prelude.haze --main testdata/playlist1/solution.haze --epilogue testdata/playlist1/epilogue.haze
+  node hazeLS.js CHECK dynamics --prelude testdata/playlist1/prelude.haze --main testdata/playlist1/solution.haze --epilogue testdata/playlist1/epilogue.haze
+
+ */
+
+open Haz3lcore;
+open Sexplib.Std;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type data = {
+  prelude: string,
+  epilogue: string,
+  sketch_pre: string,
+  sketch_suf: string,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type settings = {
+  init_ctx: Ctx.t,
+  data: LSActions.data,
+  options: FillerOptions.t,
+};
+
+let default_options: FillerOptions.t = {
+  llm: OpenAI.Azure_GPT4,
+  instructions: true,
+  syntax_notes: true,
+  num_examples: 9,
+  expected_type: false,
+  error_rounds_max: 1,
+};
+
+let default: LSActions.runtest = {api_key: "SPORK", options: default_options};
 
 let get_caret_mode_and_ctx = (~db, ~init_ctx, ~prelude, sketch_pre) => {
   let sketch_pre_z = LSFiles.get_zipper(~db, sketch_pre, None);
@@ -73,17 +106,17 @@ let rec error_loop =
         )
         : unit => {
   let go = error_loop(~llm, ~key, ~caret_ctx, ~caret_mode, ~handler);
-  print_endline("LSTest: err rounds left: " ++ string_of_int(fuel));
-  print_endline("LSTest: reply.contents:" ++ reply.content);
+  print_endline("LS: RunTest: Err rounds left: " ++ string_of_int(fuel));
+  print_endline("LS: RunTest: Reply content:" ++ reply.content);
   switch (Filler.error_reply(~init_ctx=caret_ctx, ~mode=caret_mode, reply)) {
   | _ when fuel <= 0 =>
-    print_endline("LSTest: Error round limit reached, stopping");
+    print_endline("LS: RunTest: Error round limit reached, stopping");
     handler(reply.content);
   | None =>
-    print_endline("LSTest: No errors, stopping");
+    print_endline("LS: RunTest: No errors, stopping");
     handler(reply.content);
   | Some(err_msg) =>
-    print_endline("LSTest: reply errors:" ++ err_msg);
+    print_endline("LS: RunTest: Reply errors:" ++ err_msg);
     let prompt' =
       OpenAI.add_to_prompt(prompt, ~assistant=reply.content, ~user=err_msg);
     azure_gpt4_req(~llm, ~key, ~prompt=prompt', ~handler=response =>
@@ -100,19 +133,22 @@ let final_handler =
   let completed_sketch = sketch_pre ++ str ++ sketch_suf;
   print_endline("completed sketch:");
   print_endline(completed_sketch);
-  LSChecker.dynamic_error_report(
-    ~db=ignore,
-    ~settings={
-      ctx: init_ctx,
-      check: LSActions.Dynamic,
-      data: {
-        prelude,
-        program: completed_sketch,
-        new_token: None,
-        epilogue,
+  let results =
+    LSChecker.test_combined(
+      ~db=ignore,
+      {
+        init_ctx,
+        check: LSActions.Dynamic,
+        data: {
+          prelude,
+          program: completed_sketch,
+          new_token: None,
+          epilogue,
+        },
       },
-    },
-  );
+    );
+  print_endline("LS: RunTest: Test results:");
+  print_endline(String.concat("\n", results));
 };
 
 let first_handler =
@@ -124,18 +160,15 @@ let first_handler =
       ~prompt,
       ~prelude,
       ~epilogue,
-      ~gen_opts: FillerOptions.t,
+      ~options: FillerOptions.t,
       sketch_pre,
       sketch_suf,
       req,
     ) =>
   switch (OpenAI.handle_chat(req)) {
   | Some(reply) =>
-    //let completed_sketch = sketch_pre ++ reply.content ++ sketch_suf;
-    //print_endline("completed sketch:");
-    //print_endline(completed_sketch);
     error_loop(
-      ~llm=gen_opts.llm,
+      ~llm=options.llm,
       ~key,
       ~caret_ctx,
       ~caret_mode,
@@ -147,7 +180,7 @@ let first_handler =
           ~epilogue,
           ~init_ctx,
         ),
-      ~fuel=gen_opts.error_rounds_max,
+      ~fuel=options.error_rounds_max,
       prompt,
       reply,
     )
@@ -158,40 +191,31 @@ let go =
     (
       ~db,
       ~settings as
-        {ctx: init_ctx, data: {program: sketch, prelude, epilogue, _}, _}: LSCompletions.settings,
+        {init_ctx, data: {program, prelude, epilogue, _}, options}: settings,
       ~key,
     ) => {
-  let llm = OpenAI.Azure_GPT4;
-  let gen_opts: FillerOptions.t = {
-    llm,
-    instructions: true,
-    syntax_notes: true,
-    num_examples: 9,
-    expected_type: true,
-    error_rounds_max: 2,
-  };
-  let (sketch_pre, sketch_suf) = split_sketch(sketch);
+  let (sketch_pre, sketch_suf) = split_sketch(program);
   let (caret_mode, caret_ctx) =
     get_caret_mode_and_ctx(~db, ~init_ctx, ~prelude, sketch_pre);
   let expected_ty = ChatLSP.Type.expected(~ctx=caret_ctx, Some(caret_mode));
-  switch (Filler.prompt(gen_opts, ~sketch, ~expected_ty)) {
-  | None => print_endline("LSTest: prompt generation failed")
+  switch (Filler.prompt(options, ~sketch=program, ~expected_ty)) {
+  | None => print_endline("LS: RunTest: prompt generation failed")
   | Some(prompt) =>
-    print_endline("LSTest: PROMPT:\n " ++ OpenAI.show_prompt(prompt));
+    print_endline("LS: RunTest: PROMPT:\n " ++ OpenAI.show_prompt(prompt));
     azure_gpt4_req(
-      ~llm,
+      ~llm=options.llm,
       ~key,
       ~prompt,
       ~handler=
         first_handler(
           ~prompt,
-          ~prelude,
-          ~epilogue,
           ~init_ctx,
           ~key,
           ~caret_mode,
           ~caret_ctx,
-          ~gen_opts,
+          ~options,
+          ~prelude,
+          ~epilogue,
           sketch_pre,
           sketch_suf,
         ),

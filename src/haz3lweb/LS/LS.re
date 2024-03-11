@@ -4,7 +4,7 @@ open LSActions;
 
 let usage_check = "<syntax|statics|dynamics>";
 let usage_completions = "<grammar|context|types>";
-let usage_runtest = "<api-key-path>";
+let usage_runtest = "[--expected_type] --api-key <api-key-path>";
 let usage_command =
   "<CHECK " ++ usage_check ++ " | COMPLETIONS " ++ usage_completions ++ ">";
 let usage_debug = "[--debug]";
@@ -32,6 +32,12 @@ let usage_str =
     ],
   );
 
+let get_runtest = command =>
+  switch (command) {
+  | RunTest(rt) => rt
+  | _ => LSTest.default
+  };
+
 let rec parse = (args: arguments, strs): arguments =>
   switch (strs) {
   | ["CHECK", ...rest] => parse_check(rest, args)
@@ -42,7 +48,8 @@ let rec parse = (args: arguments, strs): arguments =>
 and parse_base = (strs, args: arguments): arguments =>
   switch (strs) {
   | ["--debug", ...rest] => parse_base(rest, {...args, debug: true})
-  | ["--empty-init-ctx", ...rest] => parse_base(rest, {...args, ctx: []})
+  | ["--empty-init-ctx", ...rest] =>
+    parse_base(rest, {...args, init_ctx: []})
   | ["--prelude", path, ...rest] =>
     switch (LSFiles.string_of_file(path)) {
     | exception _ =>
@@ -107,13 +114,19 @@ and parse_completions = (strs, args: arguments): arguments =>
   }
 and parse_runtest = (strs, args: arguments): arguments =>
   switch (strs) {
+  /* must be last runtest-specific arg */
   | ["--api-key", key_path, ...rest] =>
     switch (LSFiles.string_of_file(key_path)) {
     | exception _ =>
       failwith("LSP: EXN: Could not load api key from path: " ++ key_path)
-    | api_key => parse_base(rest, {...args, command: RunTest(api_key)})
+    | api_key =>
+      let rt = get_runtest(args.command);
+      parse_base(rest, {...args, command: RunTest({...rt, api_key})});
     }
-
+  | ["--expected_type", ...rest] =>
+    let rt = get_runtest(args.command);
+    let options = {...rt.options, expected_type: true};
+    parse_runtest(rest, {...args, command: RunTest({...rt, options})});
   | _ => failwith("LSP: EXN: Usage: " ++ usage_runtest)
   };
 
@@ -131,15 +144,15 @@ let get_args = (): list(string) => {
   );
 };
 
-let main = ({debug, data, command, ctx}: LSActions.arguments) => {
+let main = ({debug, data, command, init_ctx}: LSActions.arguments) => {
   let db = s => debug ? print_endline(s) : ();
   db(Printf.sprintf("LSP: Command: %s", LSActions.show_command(command)));
   switch (command) {
   | Completions(completions) =>
-    LSCompletions.go(~db, ~settings={data, completions, ctx})
-  | Check(check) => LSChecker.go(~db, ~settings={data, check, ctx})
-  | RunTest(key) =>
-    LSTest.go(~db, ~settings={data, completions: Types, ctx}, ~key)
+    LSCompletions.go(~db, ~settings={data, completions, init_ctx})
+  | Check(check) => LSChecker.go(~db, ~settings={data, check, init_ctx})
+  | RunTest({api_key: key, options}) =>
+    LSTest.go(~db, ~settings={options, data, init_ctx}, ~key)
   };
 };
 

@@ -2,7 +2,7 @@ open Haz3lcore;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type settings = {
-  ctx: Ctx.t,
+  init_ctx: Ctx.t,
   check: LSActions.check,
   data: LSActions.data,
 };
@@ -66,7 +66,7 @@ let get_info_map = (~init_ctx, z: Zipper.t) =>
 let get_static_errors = (~db, ~settings): list(string) => {
   let term = mk_combined_term(settings, ~db);
   let info_map =
-    Interface.Statics.mk_map_ctx(CoreSettings.on, settings.ctx, term);
+    Interface.Statics.mk_map_ctx(CoreSettings.on, settings.init_ctx, term);
   ErrorPrint.collect_static(info_map);
 };
 
@@ -102,7 +102,7 @@ let test_results = (res: ProgramResult.t): list(string) =>
 
 let test_combined = (settings, ~db) =>
   mk_combined_term(settings, ~db)
-  |> eval(~init_ctx=settings.ctx)
+  |> eval(~init_ctx=settings.init_ctx)
   |> test_results;
 
 let dynamic_error_report = (~db, ~settings) =>
