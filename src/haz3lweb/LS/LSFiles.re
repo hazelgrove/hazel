@@ -102,3 +102,43 @@ let get_zipper = (~db, program, new_token) => {
     new_z;
   };
 };
+
+/* Save text to a file given a path and content */
+let save_text_to_file = (~path: string, ~content: string): unit => {
+  Js.Unsafe.(
+    [|inject(Js.string(path)), inject(Js.string(content))|]
+    |> fun_call(get(js_expr("require('fs')"), "writeFileSync"))
+  );
+};
+
+/* Load text from a file given a path */
+let load_text_from_file = (~path: string): string => {
+  string_of_file(~encoding="utf8", path);
+};
+
+let mk_dir = (dirPath: string): unit =>
+  if (!Sys.file_exists(dirPath)) {
+    Sys.mkdir(
+      dirPath,
+      0o755 // Uses Unix permissions, adjust as necessary
+    );
+  };
+
+let getCurrentGitCommit = (): string => {
+  let tempFile = "git_commit.tmp";
+  let command = "git rev-parse HEAD > " ++ tempFile;
+  ignore(Sys.command(command)); /* Executes the command and ignores its exit status */
+  let channel = open_in(tempFile); /* Open the temporary file for reading */
+  let commitHash = input_line(channel); /* Read the first line, which contains the commit hash */
+  close_in(channel);
+  Sys.remove(tempFile); /* Clean up the temporary file */
+  commitHash;
+};
+
+let getCurrentUnixTimestamp = (): int => {
+  let date = JsUtil.date_now();
+  print_endline(date##toISOString |> Js.to_string);
+  //print_endline(date##toUTCString |> Js.to_string);
+  //print_endline(date##toJSON() |> Js.to_string);
+  date##valueOf /. 1000. |> int_of_float;
+};

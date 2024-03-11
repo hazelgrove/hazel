@@ -4,11 +4,43 @@
 
   node hazeLS.js RUNTEST --api-key ~/azure-4-api-key.txt --prelude testdata/todo1/prelude-shorter.haze --main testdata/todo1/sketch.haze --epilogue testdata/todo1/epilogue.haze
 
+  PLAYLIST, include type info:
+  node hazeLS.js RUNTEST --expected_type --api-key ~/azure-4-api-key.txt --prelude testdata/playlist1/prelude.haze --main testdata/playlist1/sketch.haze --epilogue testdata/playlist1/epilogue.haze
+
   PLAYLIST:
   node hazeLS.js CHECK statics --prelude testdata/playlist1/prelude.haze --main testdata/playlist1/solution.haze --epilogue testdata/playlist1/epilogue.haze
   node hazeLS.js CHECK dynamics --prelude testdata/playlist1/prelude.haze --main testdata/playlist1/solution.haze --epilogue testdata/playlist1/epilogue.haze
 
  */
+
+
+ /*
+ FOLDERNAME
+
+record:
+  LOG_OF_STDOUT (for all below)
+
+  run_command
+  prelude_path
+  sketch_path
+  epilogue_path
+
+  commit
+  starttime
+
+  foreach req {
+    prompt
+    usage
+  }
+
+  endtime
+  parse_error?
+  type_errors
+  
+  dynamic_tests
+
+  DERIVED:
+  */
 
 open Haz3lcore;
 open Sexplib.Std;
@@ -202,6 +234,11 @@ let go =
   | None => print_endline("LS: RunTest: prompt generation failed")
   | Some(prompt) =>
     print_endline("LS: RunTest: PROMPT:\n " ++ OpenAI.show_prompt(prompt));
+    print_endline("commit: " ++ LSFiles.getCurrentGitCommit());
+    print_endline(
+      "time: " ++ string_of_int(LSFiles.getCurrentUnixTimestamp()),
+    );
+    failwith("so long, suckers!!!") |> ignore;
     azure_gpt4_req(
       ~llm=options.llm,
       ~key,
