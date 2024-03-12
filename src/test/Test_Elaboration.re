@@ -1,5 +1,6 @@
 open Alcotest;
 open Haz3lcore;
+// open Hazel_menhir;
 
 let dhexp_eq = (d1: option(DHExp.t), d2: option(DHExp.t)): bool =>
   switch (d1, d2) {
@@ -277,6 +278,38 @@ let let_fun = () =>
     dhexp_of_uexp(u9),
   );
 
+let str10 = "
+let f : Int -> Int =
+    fun x ->
+        1 + x
+    in
+55";
+let d10: DHExp.t =
+  Let(
+    Var("f"),
+    FixF(
+      "f",
+      Arrow(Int, Int),
+      Fun(
+        Var("x"),
+        Int,
+        BinIntOp(Plus, IntLit(1), BoundVar("x")),
+        Some("f"),
+      ),
+    ),
+    IntLit(55),
+  );
+let let_fun_menhir = () =>
+  alco_check(
+    "Let expression for function which wraps a fix point constructor around the function (str elaborated using the menhir parser)",
+    Some(d10),
+    Some(
+      Haz3lcore.DHExp.of_menhir_ast(
+        Hazel_menhir.Interface.parse_program(str10),
+      ),
+    ),
+  );
+
 let elaboration_tests = [
   test_case("Single integer", `Quick, single_integer),
   test_case("Empty hole", `Quick, empty_hole),
@@ -287,4 +320,5 @@ let elaboration_tests = [
   test_case("Application of function on free variable", `Quick, ap_fun),
   test_case("Inconsistent case statement", `Quick, inconsistent_case),
   test_case("Let expression for a function", `Quick, let_fun),
+  test_case("Let expression for a function (menhir)", `Quick, let_fun_menhir),
 ];
