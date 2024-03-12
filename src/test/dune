@@ -2,7 +2,16 @@
 
 (test
  (name haz3ltest)
- (libraries haz3lcore alcotest sexplib base ptmap incr_dom hazel_menhir junit junit_alcotest)
+ (libraries
+  haz3lcore
+  alcotest
+  sexplib
+  base
+  ptmap
+  incr_dom
+  hazel_menhir
+  junit
+  junit_alcotest)
  (modes js)
  (js_of_ocaml
   (flags
