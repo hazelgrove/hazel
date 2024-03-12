@@ -32,19 +32,6 @@ type op_bin_int =
   | GreaterThanOrEqual
   | Equals
   | NotEquals;
-// | Equals
-// | NotEqual
-// | Plus
-// | Minus
-// | Times
-// | Divide
-// | Power
-// | LessThan
-// | GreaterThan
-// | LessThanEqual
-// | GreaterThanEqual
-// | Logical_And
-// | Logical_Or
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type binOp =
