@@ -1,0 +1,43 @@
+name: Test Perf Test
+
+on: [push]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Set-up OCaml
+      run: |
+        sudo apt update -y
+        sudo apt --assume-yes install curl m4 opam
+        export OPAMYES=1
+        opam init --compiler=ocaml-base-compiler.5.0.0
+
+    - name: Install dependencies
+      run: |
+        eval $(opam env)
+        export OPAMYES=1
+        make deps 
+
+    - name: Install system dependencies
+      run: make deps
+
+    - name: Install project development dependencies
+      run: make dev
+
+    - name: Start web server in the background
+      run: make serve &
+      shell: bash
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+
+    - name: Install Playwright
+      run: npm install playwright
+
+    - name: Run Playwright test script
+      run: npx playwright test tests/simple.spec.js
