@@ -643,7 +643,8 @@ let sug_exp_infix = (ctx: Ctx.t, l_child_ty: Typ.t, expected_ty: Typ.t) => {
   let of_ops = of_ops(ctx, expected_ty, l_child_ty);
   let bb = of_ops(Bool, Bool, ["&&", "\\/"]);
   let bs = of_ops(Bool, String, ["$=="]);
-  let bi = of_ops(Bool, Int, ["==", "!=", "<=", ">=", "<", ">"]);
+  let bu = of_ops(Bool, unk, ["=="]);
+  let bi = of_ops(Bool, Int, ["!=", "<=", ">=", "<", ">"]);
   let bf = of_ops(Bool, Float, ["==.", "!=.", "<=.", ">=.", "<.", ">."]);
   let i = of_ops(Int, Int, ["+", "-", "*", "/", "**"]);
   let f = of_ops(Float, Float, ["+.", "-.", "*.", "/.", "**."]);
@@ -653,7 +654,7 @@ let sug_exp_infix = (ctx: Ctx.t, l_child_ty: Typ.t, expected_ty: Typ.t) => {
     check to pass if expected is unknown but l_child is e.g. Int */
   let l2 =
     of_ops(List(unk), List(Typ.matched_list(ctx, expected_ty)), ["@"]);
-  bb @ bs @ bi @ bf @ i @ f @ s @ l1 @ l2;
+  bb @ bs @ bi @ bu @ bf @ i @ f @ s @ l1 @ l2;
 };
 
 let infix_sugs =

@@ -56,7 +56,7 @@ module Typ = {
     ("\\/", Bool),
     ("$==", Bool),
     ("==.", Bool),
-    ("==", Bool),
+    ("==", unk), //Modified for generic equality
     //("!", Bool), // maybe doesnt belong here? but blocks autocomplete of ! to !=
     ("!=", Bool),
     ("!=.", Bool),
