@@ -13,34 +13,33 @@
 
  */
 
+/*
+  FOLDERNAME
 
- /*
- FOLDERNAME
+ record:
+   LOG_OF_STDOUT (for all below)
 
-record:
-  LOG_OF_STDOUT (for all below)
+   run_command
+   prelude_path
+   sketch_path
+   epilogue_path
 
-  run_command
-  prelude_path
-  sketch_path
-  epilogue_path
+   commit
+   starttime
 
-  commit
-  starttime
+   foreach req {
+     prompt
+     usage
+   }
 
-  foreach req {
-    prompt
-    usage
-  }
+   endtime
+   parse_error?
+   type_errors
 
-  endtime
-  parse_error?
-  type_errors
-  
-  dynamic_tests
+   dynamic_tests
 
-  DERIVED:
-  */
+   DERIVED:
+   */
 
 open Haz3lcore;
 open Sexplib.Std;

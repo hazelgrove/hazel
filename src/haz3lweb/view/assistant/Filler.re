@@ -256,8 +256,11 @@ let prompt =
 let get_top_level_errs = (init_ctx, mode, top_ci: option(Info.exp)) => {
   let self: Self.t =
     switch (top_ci) {
-    | Some({self: Common(self), _}) => self
-    | Some({self: Free(_), _}) => Just(Unknown(Internal))
+    | Some({self, _}) =>
+      switch (Self.typ_of_exp(init_ctx, self)) {
+      | None => Just(Unknown(Internal))
+      | Some(ty) => Just(ty)
+      }
     | None => Just(Unknown(Internal))
     };
   let status = Info.status_common(init_ctx, mode, self);
