@@ -390,10 +390,5 @@ let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t =>
       | Some(ty) => ty
       | None => Typ.Unknown(Internal)
       };
-    print_endline(DHExp.show(d));
-    let _check = TypeAssignment.property_test(ty, d, m);
-    _check
-      ? print_endline("Types are equal")
-      : print_endline("Problem with type assignment");
     Elaborates(d, ty, Delta.empty);
   };
