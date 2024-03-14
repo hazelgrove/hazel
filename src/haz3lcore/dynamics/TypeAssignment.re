@@ -1,19 +1,12 @@
 open Util;
 open OptUtil.Syntax;
 
-let equal_typ_case = (l: list(Typ.t)): option(Typ.t) => {
+let equal_typ_list = (l: list(Typ.t)): option(Typ.t) => {
   switch (l) {
   | [] => None
-  | _ =>
-    let ty = List.hd(l);
+  | [ty, ..._] =>
     List.fold_left((acc, t) => {acc && Typ.eq(t, ty)}, true, l)
-      ? Some(ty) : None;
-  };
-};
-
-let rule_prj = (dr: DHExp.rule): (DHPat.t, DHExp.t) => {
-  switch (dr) {
-  | Rule(dhp, dh) => (dhp, dh)
+      ? Some(ty) : None
   };
 };
 
@@ -96,15 +89,14 @@ let rec typ_of_dhexp =
     | None => None
     | Some(_) => delta_ty(id, m)
     }
-  | ExpandingKeyword(_) => None
-  | FreeVar(_) => Some(Unknown(Internal))
-  | InvalidText(_) => None
+  | FreeVar(id, _, _) => delta_ty(id, m)
+  | ExpandingKeyword(_)
+  | InvalidText(_) => Some(Unknown(Internal))
   | InconsistentBranches(_, _, Case(d_scrut, d_rules, _)) =>
     let* ty' = typ_of_dhexp(ctx, m, d_scrut);
     let typ_cases =
       d_rules
-      |> List.map(rule_prj)
-      |> List.map(((dhp, de)) => {
+      |> List.map((DHExp.Rule(dhp, de)) => {
            typ_of_dhexp(dhpat_extend_ctx(dhp, ty', ctx), m, de)
          })
       |> OptUtil.sequence;
@@ -202,20 +194,24 @@ let rec typ_of_dhexp =
       None;
     };
   | ListLit(_, _, ty, _) => Some(List(ty))
+  | Cons(d1, ListLit(_, _, _, [])) =>
+    let* ty1 = typ_of_dhexp(ctx, m, d1);
+    Some(Typ.List(ty1));
   | Cons(d1, d2) =>
     let* ty1 = typ_of_dhexp(ctx, m, d1);
     let* ty2 = typ_of_dhexp(ctx, m, d2);
     switch (ty2) {
-    | List(Unknown(Internal)) => Some(Typ.List(ty1))
     | List(ty3) when Typ.eq(ty3, ty1) => Some(ty2)
     | _ => None
     };
+  | ListConcat(ListLit(_, _, _, []), d)
+  | ListConcat(d, ListLit(_, _, _, [])) =>
+    let* ty = typ_of_dhexp(ctx, m, d);
+    Some(Typ.List(ty));
   | ListConcat(d1, d2) =>
     let* ty1 = typ_of_dhexp(ctx, m, d1);
     let* ty2 = typ_of_dhexp(ctx, m, d2);
     switch (ty1, ty2) {
-    | (List(Unknown(Internal)), _)
-    | (_, List(Unknown(Internal))) => Some(Typ.List(Unknown(Internal)))
     | (List(ty1), List(ty2)) when Typ.eq(ty1, ty2) => Some(Typ.List(ty1))
     | _ => None
     };
@@ -226,7 +222,7 @@ let rec typ_of_dhexp =
   | Prj(dh, i) =>
     let* ty = typ_of_dhexp(ctx, m, dh);
     switch (ty) {
-    | Prod(l) when List.length(l) != 0 => Some(List.nth(l, i))
+    | Prod(l) when List.length(l) > i => Some(List.nth(l, i))
     | _ => None
     };
   | Constructor(_, typ) => Some(typ)
@@ -234,12 +230,11 @@ let rec typ_of_dhexp =
     let* ty' = typ_of_dhexp(ctx, m, d_scrut);
     let* typ_cases: list(Typ.t) =
       d_rules
-      |> List.map(rule_prj)
-      |> List.map(((dhp, de)) => {
+      |> List.map((DHExp.Rule(dhp, de)) => {
            typ_of_dhexp(dhpat_extend_ctx(dhp, ty', ctx), m, de)
          })
       |> OptUtil.sequence;
-    Typ.join_all(~empty=Unknown(Internal), ctx, typ_cases);
+    equal_typ_list(typ_cases);
   | Cast(d, ty1, ty2) =>
     let* _ = Typ.join(~fix=true, ctx, ty1, ty2);
     let* tyd = typ_of_dhexp(ctx, m, d);
@@ -251,13 +246,13 @@ let rec typ_of_dhexp =
     } else {
       None;
     }
-  | InvalidOperation(_) => None
+  | InvalidOperation(d, _) => typ_of_dhexp(ctx, m, d)
   | IfThenElse(ConsistentIf, d_scrut, d1, d2) =>
     let* ty = typ_of_dhexp(ctx, m, d_scrut);
     if (Typ.eq(ty, Bool)) {
       let* ty1 = typ_of_dhexp(ctx, m, d1);
       let* ty2 = typ_of_dhexp(ctx, m, d2);
-      Typ.join_all(~empty=Unknown(Internal), ctx, [ty1, ty2]);
+      equal_typ_list([ty1, ty2]);
     } else {
       None;
     };
@@ -265,8 +260,8 @@ let rec typ_of_dhexp =
     let* ty = typ_of_dhexp(ctx, m, d_scrut);
     if (Typ.eq(ty, Bool)) {
       let* _ = typ_of_dhexp(ctx, m, d1);
-      let+ _ = typ_of_dhexp(ctx, m, d2);
-      Typ.Unknown(Internal);
+      let* _ = typ_of_dhexp(ctx, m, d2);
+      Some(Typ.Unknown(Internal));
     } else {
       None;
     };
@@ -275,14 +270,9 @@ let rec typ_of_dhexp =
 
 let property_test = (uexp_typ: Typ.t, dhexp: DHExp.t, m: Statics.Map.t): bool => {
   let dhexp_typ = typ_of_dhexp(Builtins.ctx_init, m, dhexp);
-  print_endline(Typ.show(uexp_typ));
 
   switch (dhexp_typ) {
-  | None =>
-    print_endline("Got none");
-    false;
-  | Some(dh_typ) =>
-    print_endline(Typ.show(dh_typ));
-    Typ.eq(dh_typ, uexp_typ);
+  | None => false
+  | Some(dh_typ) => Typ.eq(dh_typ, uexp_typ)
   };
 };
