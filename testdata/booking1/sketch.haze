@@ -1,0 +1,36 @@
+type Weekday = M + T + W + R + F in
+type TimeOfDay = AM + PM in
+type User = String in
+type BookingID = Int in
+
+type Booking = (Weekday, TimeOfDay, User, Int) in
+type EntryFormState = (Weekday, TimeOfDay, User) in
+type Model = (EntryFormState, [Booking], BookingID) in
+
+type Action =
+  + AddBooking(User, Weekday, TimeOfDay)
+  + CancelBooking(User, Int)
+  + ClearBookings
++ CheckAvailability in
+
+let initFormState = (M, AM, "") in
+let Model.init: Model = (initFormState, [], 0) in
+
+let getBookings: Model -> [Booking] = 
+fun _, bs, _ -> bs in
+
+let update: (Model, Action) -> Model =
+  fun model, action ->
+    case model
+      | _ => Model.init
+end in
+
+test
+  getBookings(update(Model.init, AddBooking("Charles",M, AM)))
+  == [(M, AM,"Charles",0)]
+end; 
+
+
+
+ 
+ 
