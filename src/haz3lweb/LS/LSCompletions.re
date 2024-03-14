@@ -467,13 +467,25 @@ let suggest_comma = (bidi_ctx_ci: Info.t) =>
       );
       print_endline("LSP: commas: self syn is " ++ Typ.show(syn));
       switch (p_ana, syn) {
-      | (_, Unknown(_)) => true // technically redundant?
+      | (_, Unknown(_)) =>
+        print_endline("YOYOYO1");
+        true; // technically redundant?
       | (_, Prod(p_syn)) =>
-        is_strict_prefix_up_to_consistency(ctx, p_syn, p_ana)
-      | ([t1_ana, ..._], _) => Typ.is_consistent(ctx, t1_ana, syn)
-      | _ => false
+        print_endline("YOYOYO2");
+        is_strict_prefix_up_to_consistency(ctx, p_syn, p_ana);
+      | ([t1_ana, ..._], _) =>
+        print_endline("YOYOYO3");
+        print_endline(t1_ana |> Typ.show);
+        print_endline(syn |> Typ.show);
+        print_endline(Typ.is_consistent(ctx, t1_ana, syn) |> string_of_bool);
+        Typ.is_consistent(ctx, t1_ana, syn);
+      | _ =>
+        print_endline("YOYOYO4");
+        false;
       };
-    | _ => false
+    | _ =>
+      print_endline("YOYOYO5");
+      false;
     }
   | InfoExp({mode: Ana(_), self: Free(_) | Common(_), _})
   | InfoPat({mode: Ana(_), self: Common(_), _}) => false

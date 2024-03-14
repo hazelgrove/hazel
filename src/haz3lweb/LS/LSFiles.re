@@ -137,8 +137,42 @@ let getCurrentGitCommit = (): string => {
 
 let getCurrentUnixTimestamp = (): int => {
   let date = JsUtil.date_now();
-  print_endline(date##toISOString |> Js.to_string);
-  //print_endline(date##toUTCString |> Js.to_string);
-  //print_endline(date##toJSON() |> Js.to_string);
   date##valueOf /. 1000. |> int_of_float;
 };
+
+let getCurrentISOTimestamp = (): string =>
+  JsUtil.date_now()##toISOString |> Js.to_string;
+
+let append_key_value_to_file =
+    (~key: string, ~value: string, ~path: string): unit => {
+  let line = "\"" ++ key ++ "\":\"" ++ value ++ "\"\n";
+  let flag = Js.Unsafe.(get(js_expr("require('fs')"), "a")); // Open file in append mode
+  Js.Unsafe.(
+    [|inject(Js.string(path)), inject(Js.string(line)), inject(flag)|]
+    |> fun_call(get(js_expr("require('fs')"), "writeFileSync"))
+  );
+};
+
+let read_key_value_pairs_from_file = (~path: string): list((string, string)) =>
+  if (!Sys.file_exists(path)) {
+    []; // Return an empty list if the file doesn't exist
+  } else {
+    let content = load_text_from_file(~path);
+    let lines = Str.split(Str.regexp("\n"), content);
+    List.fold_left(
+      (acc, line) =>
+        if (String.trim(line) !== "") {
+          switch (Str.split(Str.regexp(":"), line)) {
+          | [key, value] =>
+            let key = Str.global_replace(Str.regexp("\""), "", key);
+            let value = Str.global_replace(Str.regexp("\""), "", value);
+            [(key, value), ...acc];
+          | _ => acc
+          };
+        } else {
+          acc;
+        },
+      [],
+      lines,
+    );
+  };

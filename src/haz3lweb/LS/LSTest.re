@@ -1,8 +1,8 @@
 /*
 
-   node hazeLS.js CHECK dynamics --prelude testdata/todo1/prelude-shorter.haze --main testdata/todo1/solution.haze --epilogue testdata/todo1/epilogue.haze
-
-  node hazeLS.js RUNTEST --api-key ~/azure-4-api-key.txt --prelude testdata/todo1/prelude.haze --main testdata/todo1/sketch.haze --epilogue testdata/todo1/epilogue.haze
+  TODO:
+  node hazeLS.js CHECK dynamics --prelude testdata/todo1/prelude.haze --main testdata/todo1/solution.haze --epilogue testdata/todo1/epilogue.haze
+  node hazeLS.js RUNTEST --expected_type --api-key ~/azure-4-api-key.txt --prelude testdata/todo1/prelude.haze --main testdata/todo1/sketch.haze --epilogue testdata/todo1/epilogue.haze
 
   PLAYLIST, include type info:
   node hazeLS.js RUNTEST --expected_type --api-key ~/azure-4-api-key.txt --prelude testdata/playlist1/prelude.haze --main testdata/playlist1/sketch.haze --epilogue testdata/playlist1/epilogue.haze
@@ -218,6 +218,40 @@ let first_handler =
   | None => failwith("APINode: handler returned None")
   };
 
+let run_dir = "testout";
+let mk_run_name = (base: string) => {
+  run_dir ++ "//" ++ base ++ "-" ++ LSFiles.getCurrentISOTimestamp();
+};
+
+let or_empty = (s: option(string)): string =>
+  switch (s) {
+  | None => ""
+  | Some(x) => x
+  };
+
+let setup_run_folder = (prompt, prelude, epilogue, program) => {
+  print_endline("LS: RunTest: PROMPT:\n " ++ OpenAI.show_prompt(prompt));
+  print_endline("commit: " ++ LSFiles.getCurrentGitCommit());
+  print_endline(
+    "time: " ++ string_of_int(LSFiles.getCurrentUnixTimestamp()),
+  );
+  LSFiles.mk_dir(run_dir);
+  let run_name = mk_run_name("foo");
+  LSFiles.mk_dir(run_name);
+  LSFiles.save_text_to_file(
+    ~path=run_name ++ "//" ++ "prelude.haze",
+    ~content=or_empty(prelude),
+  );
+  LSFiles.save_text_to_file(
+    ~path=run_name ++ "//" ++ "epilogue.haze",
+    ~content=or_empty(epilogue),
+  );
+  LSFiles.save_text_to_file(
+    ~path=run_name ++ "//" ++ "sketch.haze",
+    ~content=program,
+  );
+};
+
 let go =
     (
       ~db,
@@ -232,12 +266,8 @@ let go =
   switch (Filler.prompt(options, ~sketch=program, ~expected_ty)) {
   | None => print_endline("LS: RunTest: prompt generation failed")
   | Some(prompt) =>
-    print_endline("LS: RunTest: PROMPT:\n " ++ OpenAI.show_prompt(prompt));
-    print_endline("commit: " ++ LSFiles.getCurrentGitCommit());
-    print_endline(
-      "time: " ++ string_of_int(LSFiles.getCurrentUnixTimestamp()),
-    );
-    //failwith("so long, suckers!!!") |> ignore;
+    setup_run_folder(prompt, prelude, epilogue, program);
+    failwith("so long, suckers!!!") |> ignore;
     azure_gpt4_req(
       ~llm=options.llm,
       ~key,
