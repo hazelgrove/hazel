@@ -237,9 +237,12 @@ module rec DHExp: {
       && List.for_all2(fast_equal, ds1, ds2)
     | (Prj(d1, n), Prj(d2, m)) => n == m && fast_equal(d1, d2)
     | (ApBuiltin(f1, args1), ApBuiltin(f2, args2)) =>
-      f1 == f2 && List.for_all2(fast_equal, args1, args2)
+      List.length(args1) == List.length(args2)
+      && f1 == f2
+      && List.for_all2(fast_equal, args1, args2)
     | (ListLit(_, _, _, ds1), ListLit(_, _, _, ds2)) =>
-      List.for_all2(fast_equal, ds1, ds2)
+      List.length(ds1) == List.length(ds2)
+      && List.for_all2(fast_equal, ds1, ds2)
     | (BinBoolOp(op1, d11, d21), BinBoolOp(op2, d12, d22)) =>
       op1 == op2 && fast_equal(d11, d12) && fast_equal(d21, d22)
     | (BinIntOp(op1, d11, d21), BinIntOp(op2, d12, d22)) =>

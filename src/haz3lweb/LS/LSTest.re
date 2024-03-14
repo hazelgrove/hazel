@@ -2,7 +2,7 @@
 
    node hazeLS.js CHECK dynamics --prelude testdata/todo1/prelude-shorter.haze --main testdata/todo1/solution.haze --epilogue testdata/todo1/epilogue.haze
 
-  node hazeLS.js RUNTEST --api-key ~/azure-4-api-key.txt --prelude testdata/todo1/prelude-shorter.haze --main testdata/todo1/sketch.haze --epilogue testdata/todo1/epilogue.haze
+  node hazeLS.js RUNTEST --api-key ~/azure-4-api-key.txt --prelude testdata/todo1/prelude.haze --main testdata/todo1/sketch.haze --epilogue testdata/todo1/epilogue.haze
 
   PLAYLIST, include type info:
   node hazeLS.js RUNTEST --expected_type --api-key ~/azure-4-api-key.txt --prelude testdata/playlist1/prelude.haze --main testdata/playlist1/sketch.haze --epilogue testdata/playlist1/epilogue.haze
@@ -237,7 +237,7 @@ let go =
     print_endline(
       "time: " ++ string_of_int(LSFiles.getCurrentUnixTimestamp()),
     );
-    failwith("so long, suckers!!!") |> ignore;
+    //failwith("so long, suckers!!!") |> ignore;
     azure_gpt4_req(
       ~llm=options.llm,
       ~key,
