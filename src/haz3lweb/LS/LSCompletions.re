@@ -64,8 +64,6 @@ type pre_grammar = {
   new_tokens: list(string),
 };
 
-let unk = Typ.Unknown(Internal);
-
 /* Assume for now left-to-right entry, so the present shards are
    a prefix of the complete tile. this means that regardless of
    completeness, we can just use the left nibs */
@@ -179,25 +177,37 @@ let error_str = ci =>
   | None => "None"
   };
 
-let self_ty = (ci: Info.t): Typ.t =>
-  switch (ci) {
-  | InfoExp({ctx, self, _}) =>
-    switch (Self.typ_of_exp(ctx, self)) {
-    | Some(ty) => ty
-    | None => unk
-    }
-  | InfoPat({ctx, self, _}) =>
-    switch (Self.typ_of_pat(ctx, self)) {
-    | Some(ty) => ty
-    | None => unk
-    }
-  | _ => unk
-  };
+let unk = Typ.Unknown(Internal);
+
+let expected_exp = (ci: Info.exp): Typ.t =>
+  Typ.normalize(ci.ctx, Mode.ty_of(ci.mode));
+
+let expected_pat = (ci: Info.pat): Typ.t =>
+  Typ.normalize(ci.ctx, Mode.ty_of(ci.mode));
 
 let expected_ty = (ci: Info.t): Typ.t =>
   switch (ci) {
-  | InfoExp({mode, _})
-  | InfoPat({mode, _}) => Mode.ty_of(mode)
+  | InfoExp(exp) => expected_exp(exp)
+  | InfoPat(pat) => expected_pat(pat)
+  | _ => unk
+  };
+
+let self_exp = (ci: Info.exp): Typ.t =>
+  switch (Self.typ_of_exp(ci.ctx, ci.self)) {
+  | Some(actual) => Typ.normalize(ci.ctx, actual)
+  | None => unk
+  };
+
+let self_pat = (ci: Info.pat): Typ.t =>
+  switch (Self.typ_of_pat(ci.ctx, ci.self)) {
+  | Some(actual) => Typ.normalize(ci.ctx, actual)
+  | None => unk
+  };
+
+let self_ty = (ci: Info.t): Typ.t =>
+  switch (ci) {
+  | InfoExp(exp) => self_exp(exp)
+  | InfoPat(pat) => self_pat(pat)
   | _ => unk
   };
 
@@ -437,6 +447,19 @@ let get_backpack_sugs = (~convex, z: Zipper.t): Suggestion.s =>
     AssistantBackpack.suggest(z),
   );
 
+let get_lookahead_tys = (~db, ctx: Ctx.t, ty: Typ.t): list(Typ.t) => {
+  let ty = Typ.normalize(ctx, ty);
+  db("LS: Lookahead: Generating lookaheads for: " ++ Typ.show(ty));
+  let ty_paths = AssistantCtx.get_lookahead_tys_exp(ctx, ty);
+  db("LS: Lookahead: Paths:\n " ++ AssistantCtx.show_type_path(ty_paths));
+  let tys =
+    List.map(Util.ListUtil.last, ty_paths) |> List.sort_uniq(compare);
+  db(
+    "LS: Lookahead: Tys:\n " ++ String.concat("\n ", List.map(Typ.show, tys)),
+  );
+  tys;
+};
+
 let rec is_strict_prefix_up_to_consistency = (ctx, p_syn, p_ana) =>
   switch (p_syn, p_ana) {
   | (_, []) => false
@@ -445,58 +468,76 @@ let rec is_strict_prefix_up_to_consistency = (ctx, p_syn, p_ana) =>
     Typ.is_consistent(ctx, ty_syn, ty_ana)
     && is_strict_prefix_up_to_consistency(ctx, p_syn, p_ana)
   };
-let suggest_comma = (bidi_ctx_ci: Info.t) =>
+
+let suggest_comma_inner = (~db, ~ctx: Ctx.t, ~self: Typ.t, expected: Typ.t) =>
+  /* Assumes self and expected types are normalized */
+  switch (expected) {
+  | Prod(p_ana) =>
+    db(
+      "LSP: commas: p_ana is prod: "
+      ++ String.concat(" ", List.map(Typ.show, p_ana)),
+    );
+    db("LSP: commas: self type is " ++ Typ.show(self));
+    switch (p_ana, self) {
+    | (_, Unknown(_)) => true // technically redundant?
+    | (_, Prod(p_syn)) =>
+      is_strict_prefix_up_to_consistency(ctx, p_syn, p_ana)
+    | ([t1_ana, ..._], _) =>
+      //TODO(andrew): figure out what's up with consistency
+      //calls to join with any_type,unknown(typehole) are false??
+      //patched that here but wtf
+      Typ.is_consistent(ctx, t1_ana, self)
+    | _ => false
+    };
+  | _ => false
+  };
+
+let suggest_comma = (~db, bidi_ctx_ci: Info.t) => {
+  db("LS: Suggest comma generator active");
   switch (bidi_ctx_ci) {
-  | InfoExp({mode: SynFun, _})
-  | InfoPat({mode: SynFun, _}) => false
-  | InfoExp({mode: Syn | Ana(Unknown(_)), _})
-  | InfoPat({mode: Syn | Ana(Unknown(_)), _}) =>
-    //TODO(andrew): do we need to capture and normalize the ana type here?
-    true
-  | InfoExp({mode: Ana(ana), self: Common(Just(syn)), ctx, _})
-  | InfoPat({mode: Ana(ana), self: Common(Just(syn)), ctx, _}) =>
-    switch (Typ.normalize(ctx, ana)) {
-    | Prod(p_ana) =>
-      /*  For reference: Orginially based on their being an inconsistency error,
-          but updated to deal with cases without errors e.g.:
-          PAT: "let find: (Bool, Int) -> Int = fun b"
-          EXP: "let a:  =  in let _: (Bool, Int) = a"  */
-      print_endline(
-        "LSP: commas: p_ana is prod: "
-        ++ String.concat(" ", List.map(Typ.show, p_ana)),
-      );
-      print_endline("LSP: commas: self syn is " ++ Typ.show(syn));
-      switch (p_ana, syn) {
-      | (_, Unknown(_)) =>
-        print_endline("YOYOYO1");
-        true; // technically redundant?
-      | (_, Prod(p_syn)) =>
-        print_endline("YOYOYO2");
-        is_strict_prefix_up_to_consistency(ctx, p_syn, p_ana);
-      | ([t1_ana, ..._], _) =>
-        print_endline("YOYOYO3");
-        print_endline(t1_ana |> Typ.show);
-        print_endline(syn |> Typ.show);
-        print_endline(Typ.is_consistent(ctx, t1_ana, syn) |> string_of_bool);
-        Typ.is_consistent(ctx, t1_ana, syn);
-      | _ =>
-        print_endline("YOYOYO4");
-        false;
-      };
-    | _ =>
-      print_endline("YOYOYO5");
-      false;
-    }
-  | InfoExp({mode: Ana(_), self: Free(_) | Common(_), _})
-  | InfoPat({mode: Ana(_), self: Common(_), _}) => false
+  | InfoExp(exp) =>
+    let (expected, self) = (expected_exp(exp), self_exp(exp));
+    expected
+    |> get_lookahead_tys(~db, exp.ctx)
+    |> List.exists(suggest_comma_inner(~db, ~ctx=exp.ctx, ~self));
+  | InfoPat(pat) =>
+    let (expected, self) = (expected_pat(pat), self_pat(pat));
+    expected
+    |> get_lookahead_tys(~db, pat.ctx)
+    |> List.exists(suggest_comma_inner(~db, ~ctx=pat.ctx, ~self));
   | InfoTyp(_) => true
   | InfoTPat(_) => false
   };
+};
+// let suggest_comma = (~db, bidi_ctx_ci: Info.t) => {
+//   db("LS: Suggest comma generator active");
+//   switch (bidi_ctx_ci) {
+//   | InfoExp({mode: SynFun, _})
+//   | InfoPat({mode: SynFun, _}) => false
+//   | InfoExp({mode: Syn | Ana(Unknown(_)), _})
+//   | InfoPat({mode: Syn | Ana(Unknown(_)), _}) =>
+//     //TODO(andrew): do we need to capture and normalize the ana type here?
+//     true
+//   | InfoExp({mode: Ana(ana), self: Common(Just(syn)), ctx, _})
+//   | InfoPat({mode: Ana(ana), self: Common(Just(syn)), ctx, _}) =>
+//     db("LS: Suggest comma Ana Just case");
+//     db("LS: Suggest comma. Ana: " ++ Typ.show(ana));
+//     db("LS: Suggest comma. Self: " ++ Typ.show(syn));
+//     let ana = Typ.normalize(ctx, ana);
+//     let self = Typ.normalize(ctx, syn);
+//     let tys = get_lookahead_tys(~db, ctx, ana);
+//     List.exists(suggest_comma_inner(~db, ~ctx, ~self), tys);
+//   | InfoExp({mode: Ana(_), self: Free(_) | Common(_), _})
+//   | InfoPat({mode: Ana(_), self: Common(_), _}) => false
+//   | InfoTyp(_) => true
+//   | InfoTPat(_) => false
+//   };
+// };
 
-let n_ary_sugs = (~settings: settings, ~db as _, bidi_ci): Suggestion.s => {
+let n_ary_sugs = (~settings: settings, ~db, bidi_ci): Suggestion.s => {
   let comma_sug = Suggestion.mk(",");
   switch (settings.completions) {
-  | Types => suggest_comma(bidi_ci) ? [comma_sug] : []
+  | Types => suggest_comma(~db, bidi_ci) ? [comma_sug] : []
   | Context
   | Grammar => [comma_sug]
   };
@@ -524,10 +565,9 @@ let convex_sugs = (~settings: settings, ci: Info.t) =>
   switch (settings.completions) {
   | Types =>
     switch (ci) {
-    | InfoExp({mode, ctx, _}) =>
-      suggest_exp(~fns=false, ctx, Mode.ty_of(mode))
-    | InfoPat({mode, ctx, co_ctx, _}) =>
-      suggest_pat(~fns=false, ctx, co_ctx, Mode.ty_of(mode))
+    | InfoExp(exp) => suggest_exp(~fns=false, exp.ctx, expected_exp(exp))
+    | InfoPat(pat) =>
+      suggest_pat(~fns=false, pat.ctx, pat.co_ctx, expected_pat(pat))
     | InfoTyp({ctx, _}) => suggest_typ(ctx)
     | InfoTPat({ctx, _}) => suggest_tpat(ctx)
     }
@@ -558,27 +598,23 @@ let convex_lookahead_sugs = (~settings: settings, ~db, ci: Info.t) => {
   | Grammar => []
   | Types =>
     switch (ci) {
-    | InfoExp({mode, ctx, _}) =>
-      let ty = Mode.ty_of(mode);
-      let ty_paths = AssistantCtx.get_lookahead_tys_exp(ctx, ty);
+    | InfoExp(exp) =>
+      let ty = expected_exp(exp);
+      let tys = get_lookahead_tys(~db, exp.ctx, ty);
       db(
-        "  LSP: Convex: Ty paths:\n " ++ AssistantCtx.show_type_path(ty_paths),
-      );
-      let tys =
-        List.map(Util.ListUtil.last, ty_paths) |> List.sort_uniq(compare);
-      // Filter out the current type
-      //let tys = List.filter((!=)(ty), tys);
-      db(
-        "  LSP: Convex: Target types: "
+        "  LS: Convex: Target types: "
         ++ (List.map(Typ.to_string, tys) |> String.concat(", ")),
       );
-      suggest_exp(~fns=true, ctx, ty)
-      @ (List.map(suggest_exp(~fns=true, ctx), tys) |> List.flatten);
-    | InfoPat({mode, ctx, co_ctx, _}) =>
-      let ty = Mode.ty_of(mode);
-      let tys = AssistantCtx.get_lookahead_tys_pat(ctx, ty);
-      suggest_pat(~fns=true, ctx, co_ctx, ty)
-      @ (List.map(suggest_pat(~fns=true, ctx, co_ctx), tys) |> List.flatten);
+      suggest_exp(~fns=true, exp.ctx, ty)
+      @ (List.map(suggest_exp(~fns=true, exp.ctx), tys) |> List.flatten);
+    | InfoPat(pat) =>
+      let ty = expected_pat(pat);
+      let tys = AssistantCtx.get_lookahead_tys_pat(pat.ctx, ty);
+      suggest_pat(~fns=true, pat.ctx, pat.co_ctx, ty)
+      @ (
+        List.map(suggest_pat(~fns=true, pat.ctx, pat.co_ctx), tys)
+        |> List.flatten
+      );
     | InfoTyp(_) => []
     | InfoTPat(_) => []
     }
@@ -696,7 +732,7 @@ let infix_sugs =
     }
   | Types =>
     switch (ci) {
-    | InfoExp({ctx, mode, self, _}) =>
+    | InfoExp(exp) =>
       /* 1. Calc skel of lseg and thread it here.
             2. recurse on skel, looking for infix operators
            3. if infix op lower precedence, rec on its left child.
@@ -708,33 +744,20 @@ let infix_sugs =
          7. so basic fn will take precdence and seg, and return ids of prospective parent, child
           */
       //TODO: lookahead expected_tys should take precedence into account as well
-      let expected_ty = Mode.ty_of(mode);
-      let self_ty =
-        switch (Self.typ_of_exp(ctx, self)) {
-        | _ when completion =>
-          /* TODO: this is a hack that gives too-liberal recommendations
-             really need to figure out, for each operator completion, what
-             the left child would actually become, and get that type. */
-          unk
-        | Some(ty) => ty
-        | None => unk
-        };
+      let expected_ty = expected_exp(exp);
+      /* TODO: 'completion' condition  is a hack that gives too-liberal recommendations
+         really need to figure out, for each operator completion, what
+         the left child would actually become, and get that type. */
+      let self_ty = completion ? unk : self_exp(exp);
       db(
         "  LSP: Concave: Infix: Left child Self type: "
         ++ Typ.to_string(self_ty),
       );
-      let base = sug_exp_infix(ctx, self_ty, expected_ty);
+      let base = sug_exp_infix(exp.ctx, self_ty, expected_ty);
       db("  LSP: Concave: Infix: Base: " ++ of_sugs(base));
-      let ty_paths =
-        AssistantCtx.get_lookahead_tys_exp(ctx, bidi_ctx_expected_ty);
-      let tys =
-        List.map(Util.ListUtil.last, ty_paths) |> List.sort_uniq(compare);
-      db(
-        "  LSP: Concave: Infix: Lookahead types: "
-        ++ (List.map(Typ.to_string, tys) |> String.concat(", ")),
-      );
+      let tys = get_lookahead_tys(~db, exp.ctx, bidi_ctx_expected_ty);
       let lookahead =
-        List.map(sug_exp_infix(ctx, self_ty), tys) |> List.flatten;
+        List.map(sug_exp_infix(exp.ctx, self_ty), tys) |> List.flatten;
       db(
         "  LSP: Concave: Infix: Lookahead: " ++ of_sugs(lookahead |> dedup),
       );
