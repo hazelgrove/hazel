@@ -9,35 +9,43 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v2
+      with:
+        path: source
 
     - name: Set-up OCaml
       run: |
         sudo apt update -y
         sudo apt --assume-yes install curl m4 opam
         export OPAMYES=1
-        opam init --compiler=ocaml-base-compiler.5.0.0
+        opam init --compiler=ocaml-base-compiler.5.0.0 --disable-sandboxing
 
     - name: Install dependencies
       run: |
         eval $(opam env)
         export OPAMYES=1
         make deps 
-
-    - name: Install system dependencies
-      run: make deps
+      working-directory: ./source
 
     - name: Install project development dependencies
-      run: make dev
-
-    - name: Start web server in the background
-      run: make serve &
-      shell: bash
+      run: |
+        eval $(opam env)
+        make dev
+      working-directory: ./source
 
     - name: Setup Node.js
       uses: actions/setup-node@v3
 
     - name: Install Playwright
-      run: npm install playwright
+      run: |
+        npm install
+        npx playwright install-deps
+        npx playwright install
+      working-directory: ./source/playwright-tests
 
-    - name: Run Playwright test script
-      run: npx playwright test tests/simple.spec.js
+    - name: Start web server and run Playwright test script
+      run: |
+        eval $(opam env)
+        make serve > /dev/null &
+        cd playwright-tests
+        npx playwright test --reporter=list
+      working-directory: ./source
