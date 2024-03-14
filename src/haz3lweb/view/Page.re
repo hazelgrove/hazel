@@ -5,11 +5,11 @@ open Util.Web;
 open Haz3lcore;
 open Widgets;
 
-let download_editor_state = (~instructor_mode) =>
-  Log.get_and(log => {
-    let data = Export.export_all(~instructor_mode, ~log);
-    JsUtil.download_json(ExerciseSettings.filename, data);
-  });
+// let download_editor_state = (~instructor_mode) =>
+//   Log.get_and(log => {
+//     let data = Export.export_all(~instructor_mode, ~log);
+//     JsUtil.download_json(ExerciseSettings.filename, data);
+//   });
 
 let menu_icon = {
   let attr =
@@ -72,14 +72,14 @@ let nut_menu =
       toggle("b", ~tooltip="Toggle Performance Benchmark", benchmark, _ =>
         inject(Set(Benchmark))
       ),
-      button(
-        Icons.export,
-        _ => {
-          download_editor_state(~instructor_mode);
-          Virtual_dom.Vdom.Effect.Ignore;
-        },
-        ~tooltip="Export Submission",
-      ),
+      // button(
+      //   Icons.export,
+      //   _ => {
+      //     download_editor_state(~instructor_mode);
+      //     Virtual_dom.Vdom.Effect.Ignore;
+      //   },
+      //   ~tooltip="Export Submission",
+      // ),
       file_select_button(
         "import-submission",
         Icons.import,

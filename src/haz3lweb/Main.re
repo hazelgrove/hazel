@@ -47,7 +47,7 @@ let apply = (model, action, state, ~schedule_action): Model.t => {
   switch (
     try({
       let new_model = Update.apply(model, action, state, ~schedule_action);
-      Log.update(action);
+      //Log.update(action);
       new_model;
     }) {
     | exc =>
