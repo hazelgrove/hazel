@@ -16,7 +16,7 @@ module Select = {
     | All
     | Wald
     | Meld
-    | MoveFoc(Move.t);
+    | Move(Move.t);
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]

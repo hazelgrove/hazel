@@ -4,11 +4,11 @@ module Cell = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t('meld) = {
     marks: Path.Marks.t,
-    dims: Dims.t,
+    sort: Bound.t(Molded.Sort.t),
     meld: option('meld),
   };
-  let empty = {marks: Path.Marks.empty, dims: Dims.zero, meld: None};
-  let full = (dims, m) => {marks: Path.Marks.empty, dims, meld: Some(m)};
+  // let empty = {marks: Path.Marks.empty, dims: Dims.zero, meld: None};
+  let full = m => {marks: Path.Marks.empty, meld: Some(m)};
 };
 
 module Wald = {
@@ -18,8 +18,8 @@ module Wald = {
   let of_tok = tok => W(Chain.unit(tok));
   let face = (~side=Dir.L, W(w): t(_)) =>
     Dir.pick(side, (Chain.fst, Chain.lst), w).lbl;
-  let dims = (W(w)) =>
-    w |> Chain.to_list(Token.dims, c => Cell.(c.dims)) |> Dims.sum;
+  // let dims = (W(w)) =>
+  //   w |> Chain.to_list(Token.dims, c => Cell.(c.dims)) |> Dims.sum;
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -34,7 +34,7 @@ let rec mk_grout = (~l=false, ~r=false, sort: Mtrl.Sort.t) => {
 };
 let of_tok = tok => mk(Wald.of_tok(tok));
 
-let dims = (M(l, w, r)) => Dims.sum([l.dims, Wald.dims(w), r.dims]);
+// let dims = (M(l, w, r)) => Dims.sum([l.dims, Wald.dims(w), r.dims]);
 
 let to_chain = (M(l, W((toks, cells)), r)) => (
   [l, ...cells] @ [r],

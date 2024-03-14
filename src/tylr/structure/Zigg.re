@@ -9,6 +9,17 @@ type t = {
 let mk = (~up=Slope.empty, ~dn=Slope.empty, top) => {up, top, dn};
 let of_tok = tok => mk(Wald.of_tok(tok));
 
+let orient = (d: Dir.t, {up, top, dn}: t) => {
+  let (s_d, s_b) = Dir.order(d, (up, dn));
+  let top = Dir.pick(d, (Fun.id, Wald.rev), top);
+  (s_d, top, s_b);
+};
+let unorient = (d: Dir.t, (s_d, top, s_b)) => {
+  let (up, dn) = Dir.order(d, (s_d, s_b));
+  let top = Dir.pick(d, (Fun.id, Wald.rev), top);
+  mk(~up, top, ~dn);
+};
+
 // let x = (1 + [a + b ? c / d : e * f] + 3) + 4 * 5 in x + 1
 
 // stepwell

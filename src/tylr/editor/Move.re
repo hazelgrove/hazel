@@ -30,4 +30,10 @@ let rec move_n = (n: int, z: Zipper.t): Zipper.t => {
   | _ when n > 0 => z |> move(R) |> move_n(n - 1)
   | _zero => z
   };
-};
+} /*   }*/;
+
+// let jump = (p: Measured.Point.t, )
+
+// let go = (a: Action.Move.t, z: Zipper.t) =>
+//   switch (a) {
+//   | Step(U) =>

@@ -3,6 +3,11 @@ type t('a) =
   | Root
   | Node('a);
 
+let get = (~root) =>
+  fun
+  | Root => root
+  | Node(a) => a;
+
 let map = f =>
   fun
   | Root => Root

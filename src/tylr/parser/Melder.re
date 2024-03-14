@@ -21,6 +21,38 @@ module Wald = {
   let eq = (l: W.t, r: W.t) =>
     Walker.eq(Node(W.face(l)), Node(W.face(r))) != [];
 
+  let attach = (wald: W.t, baked: Baked.t): Terr.t =>
+    baked
+    |> Baked.fold(
+         fun
+         | Rel.Neq(_) => raise(Invalid_argument("Melder.Terr.attach"))
+         | Eq(cell) => (cell, wald),
+         ((cell, wald), tok) =>
+         fun
+         | Rel.Neq(_) => raise(Invalid_argument("Melder.Terr.attach"))
+         | Eq(c) => (c, W.link(tok, cell, wald))
+       )
+    |> (((cell, wald)) => Terr.{wald: W.rev(wald), cell});
+
+  // assumes w is already oriented toward side
+  let round = (~side: Dir.t, ~fill=[], w: W.t): Terr.t => {
+    let bake = Baker.bake(~from=Dir.toggle(side));
+    let exited = Walker.exit(~from=Dir.toggle(side), Node(W.face(w)));
+    switch (Oblig.Delta.minimize(bake(~fill), exited)) {
+    | Some(baked) => attach(w, baked)
+    | None =>
+      let exited =
+        ListUtil.hd_opt(exited)
+        |> OptUtil.get_or_fail("bug: expected at least one exit");
+      let baked =
+        bake(exited)
+        |> OptUtil.get_or_fail(
+             "bug: bake expected to succeed if no fill required",
+           );
+      attach(w, baked);
+    };
+  };
+
   let meld =
       (~repair=false, ~from: Dir.t, src: W.t, ~fill=[], dst: W.t)
       : option(Melded.t) => {
@@ -36,7 +68,10 @@ module Wald = {
     and rm_ghost_and_go = (src, fill) =>
       switch (W.unlink(src)) {
       | Ok((hd, cell, tl)) when Token.is_ghost(hd) =>
-        let fill = [cell, ...fill];
+        let fill =
+          Cell.get(cell)
+          |> Option.map(m => [m, ...fill])
+          |> Option.value(~default=fill);
         switch (go(tl, fill)) {
         // require eq match further in to accept removing hd
         | Some(Rel.Eq(_)) as r =>
@@ -48,8 +83,8 @@ module Wald = {
       };
     let/ () = {
       // first try zipping
-      let+ zipped = W.merge(~from, src, dst);
-      assert(fill == []);
+      let+ zipped = W.merge(~from, src, ~fill, dst);
+      // assert(fill == []);
       Rel.Eq(zipped);
     };
     go(src, fill);
@@ -74,14 +109,12 @@ module Terr = {
          fun
          | Rel.Neq(_) => raise(Invalid_argument("Melder.Terr.attach"))
          | Eq(cell) => Meld.link(~cell, tok, meld)
-       )
-    |> Meld.rev;
+       );
 
-  let round =
-      (~from: Dir.t, ~fill: list(Cell.t)=[], terr: T.t): list(Cell.t) => {
-    let bake = Baker.bake(~from);
-    let exited = Walker.exit(~from, Node(T.face(terr)));
-    let orient = Dir.pick(from, (Meld.rev, Fun.id));
+  let roll = (~onto: Dir.t, ~fill=[], terr: T.t): Baked.Fill.t => {
+    let bake = Baker.bake(~from=onto);
+    let exited = Walker.exit(~from=onto, Node(T.face(terr)));
+    let orient = Dir.pick(onto, (Meld.rev, Fun.id));
     switch (Oblig.Delta.minimize(bake(~fill), exited)) {
     | Some(baked) => [Cell.mk(~meld=orient(attach(baked, terr)), ())]
     | None =>
@@ -98,19 +131,18 @@ module Terr = {
   };
 
   module L = {
-    let round = round(~from=R);
+    let roll = roll(~onto=R);
   };
   module R = {
-    let round = round(~from=L);
+    let roll = roll(~onto=L);
   };
 };
 
 module S = Slope;
 module Slope = {
-  // todo: distribute paths
   let unroll = (~from: Dir.t, cell: Cell.t) => {
     let rec go = (cell: Cell.t, unrolled) =>
-      switch (cell.meld) {
+      switch (Cell.get(cell)) {
       | None => unrolled
       | Some(M(l, w, r)) =>
         let (cell, terr) =
@@ -123,21 +155,15 @@ module Slope = {
     go(cell, []);
   };
 
-  let roll = (~onto: Dir.t, ~init=Cell.empty) =>
-    S.fold(
-      (cell, terr) => {
-        let w = onto == L ? W.rev(terr.wald) : terr.wald;
-        let (l, r) = Dir.order(onto, (terr.cell, cell));
-        Cell.mk(~meld=Meld.mk(~l, w, ~r), ());
-      },
-      init,
-    );
+  let roll = (~onto: Dir.t, ~fill=[]) =>
+    S.fold(fill => Terr.roll(~onto, ~fill), fill);
+  // let roll_fail =
 
   let push =
       (~repair=false, ~onto: Dir.t, w: W.t, ~fill=[], slope: S.t)
       : Result.t(S.t, Baked.Fill.t) => {
     let meld = Wald.meld(~repair, ~from=onto);
-    let round = Dir.pick(onto, (Terr.R.round, Terr.L.round));
+    let roll = Terr.roll(~onto);
     let rec go = (fill, slope: S.t) =>
       switch (slope) {
       | [] => Error(fill)
@@ -154,7 +180,7 @@ module Slope = {
         go(fill, S.cat(unroll(~from=onto, cell), slope));
       | [hd, ...tl] =>
         switch (meld(hd.wald, ~fill, w)) {
-        | None => go(round(~fill, hd), tl)
+        | None => go(roll(~fill, hd), tl)
         | Some(Eq(wald)) => Ok([{...hd, wald}, ...tl])
         | Some(Neq(s)) => Ok(S.cat(s, slope))
         }
@@ -213,32 +239,23 @@ module Zigg = {
        );
 
   let push_wald =
-      (~onto as d: Dir.t, w: W.t, ~fill=[], zigg: Z.t): option(Z.t) => {
+      (~side as d: Dir.t, w: W.t, ~fill=[], zigg: Z.t): Result.t(Z.t, S.t) => {
     let b = Dir.toggle(d);
-    let (s_d, s_b) = Dir.order(d, (zigg.up, zigg.dn));
-    let melded_neq = s_d => {
-      let (up, dn) = Dir.order(d, (s_d, s_b));
-      {...zigg, up, dn};
-    };
+    let (s_d, top, s_b) = Z.orient(d, zigg);
+    let unorient = Z.unorient(d);
     switch (Slope.push(~onto=b, w, ~fill, s_d)) {
-    | Ok(s_d) => Some(melded_neq(s_d))
+    | Ok(s_d) => Ok(unorient((s_d, top, s_b)))
     | Error(fill) =>
-      let orient = Dir.pick(d, (Fun.id, W.rev));
-      Wald.meld(~from=b, orient(zigg.top), ~fill, w)
-      |> Option.map(
-           fun
-           | Rel.Neq(s_d) => melded_neq(s_d)
-           | Eq(top) => {
-               let top = orient(top);
-               let (up, dn) = Dir.order(d, (s_d, s_b));
-               Z.{up, top, dn};
-             },
-         );
+      switch (Wald.meld(~from=b, top, ~fill, w)) {
+      | Some(Eq(top)) => Ok(unorient(([], top, s_b)))
+      | Some(Neq(s_d)) => Ok(unorient((s_d, top, s_b)))
+      | None => Error(s_b @ [Wald.round(~side=d, ~fill, top)])
+      }
     };
   };
-  let push = (~onto: Dir.t, tok: Token.t) => push_wald(~onto, W.unit(tok));
+  let push = (~side: Dir.t, tok: Token.t) => push_wald(~side, W.unit(tok));
 
-  let pull = (~from as d: Dir.t, zigg: Z.t): (Token.t, option(Z.t)) => {
+  let pull = (~side as d: Dir.t, zigg: Z.t): (Token.t, option(Z.t)) => {
     let b = Dir.toggle(d);
     let (s_d, s_b) = Dir.order(d, (zigg.up, zigg.dn));
     switch (Slope.pull(~from=b, s_d)) {
@@ -260,28 +277,18 @@ module Zigg = {
   };
 
   let grow = (~side: Dir.t, tok: Token.t, zigg: Z.t) =>
-    switch (push(~onto=side, tok, zigg)) {
-    | Some(z) => z
-    | None =>
-      switch (side) {
-      | L =>
-        let cell = Slope.Up.roll(zigg.up);
-        let dn = zigg.dn @ [T.{wald: W.rev(zigg.top), cell}];
-        Zigg.mk(W.unit(tok), ~dn);
-      | R =>
-        let cell = Slope.Dn.roll(zigg.dn);
-        let up = zigg.up @ [T.{wald: zigg.top, cell}];
-        Zigg.mk(~up, W.unit(tok));
-      }
+    switch (push(~side, tok, zigg)) {
+    | Ok(zigg) => zigg
+    | Error(s_b) => Z.unorient(side, ([], W.of_tok(tok), s_b))
     };
 
   let rec take_leq = (zigg: Z.t, ~fill=[], suf: S.Up.t) =>
     switch (suf) {
     | [] => ([], suf)
     | [hd, ...tl] =>
-      switch (push_wald(~onto=R, hd.wald, ~fill, zigg)) {
-      | None => ([], suf)
-      | Some(zigg) =>
+      switch (push_wald(~side=R, hd.wald, ~fill, zigg)) {
+      | Error(_) => ([], suf)
+      | Ok(zigg) =>
         let fill = Baked.Fill.init(hd.cell);
         let (leq, gt) = take_leq(zigg, ~fill, tl);
         ([hd, ...leq], gt);
@@ -291,9 +298,9 @@ module Zigg = {
     switch (pre) {
     | [] => (pre, [])
     | [hd, ...tl] =>
-      switch (push_wald(~onto=L, hd.wald, ~fill, zigg)) {
-      | None => (pre, [])
-      | Some(zigg) =>
+      switch (push_wald(~side=L, hd.wald, ~fill, zigg)) {
+      | Error(_) => (pre, [])
+      | Ok(zigg) =>
         let fill = Baked.Fill.init(hd.cell);
         let (lt, geq) = take_geq(tl, ~fill, zigg);
         (lt, [hd, ...geq]);

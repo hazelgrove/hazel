@@ -31,8 +31,19 @@ module Sort = {
       let compare = compare;
     });
 };
+module PSort = {
+  [@deriving (show({with_path: false}), sexp, yojson, ord)]
+  type t = Base.t(Padded.t(Sort.t));
+  let root = Tile((Padding.root, Sort.root));
+  let indent =
+    fun
+    | Space
+    | Tile((false, _)) => false
+    | Grout
+    | Tile((true, _)) => true;
+};
 
 module Sym = {
   [@deriving (show({with_path: false}), sexp, yojson, ord)]
-  type t = Sym.t(Label.t, Sort.t);
+  type t = Sym.t(Label.t, PSort.t);
 };

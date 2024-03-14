@@ -9,7 +9,10 @@ include Base;
 
 let mtrl_ = (m: t(_)) => m.mtrl;
 
+let get = (f, m) => f(m.mtrl);
 let map = (f, m) => {...m, mtrl: f(m)};
+
+let nullable = (~side: Dir.t, m: t(_)) => Mold.nullable(~side, m.mold);
 
 module Label = {
   [@deriving (show({with_path: false}), sexp, yojson, ord)]
@@ -42,6 +45,7 @@ module Label = {
 
 module Sort = {
   [@deriving (show({with_path: false}), sexp, yojson, ord)]
-  type t = Base.t(Mtrl.Sort.t);
+  type t = Base.t(Mtrl.PSort.t);
   let bounds = _ => failwith("todo Molded.Sort.bounds");
+  let indent = get(Mtrl.PSort.indent);
 };

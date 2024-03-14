@@ -69,6 +69,7 @@ module Point = {
   // absolute path from root cell to a zero-width point within
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = (Cell.t, Idx.t);
+  let mk = (~cell=[], idx) => (cell, idx);
   let compare = ((c_l, p_l), (c_r, p_r)) => {
     let c = Cell.compare(c_l, c_r);
     c == 0 ? Idx.compare(p_l, p_r) : c;

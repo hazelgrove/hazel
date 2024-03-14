@@ -68,14 +68,10 @@ let to_labeled = (p: t): Labeled.t => {
   };
 };
 
-let merge_text =
-  fun
-  | [] => None
-  | [hd, ...tl] => {
-      // may need to perform effect here
-      let text = (hd: t).text ++ String.concat("", List.map(text_, tl));
-      Some({...hd, text});
-    };
+let merge_text = (l: t, r: t) => {
+  let _ = failwith("perform effect here?");
+  {...l, text: l.text ++ r.text};
+};
 
 let merge = (l: t, r: t) =>
   if (Id.eq(l.id, r.id)) {

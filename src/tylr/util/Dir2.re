@@ -5,3 +5,10 @@ type t =
   | R // east
   | D // south
   | L; // west
+
+let to_1d =
+  fun
+  | L => Some(Dir.L)
+  | R => Some(R)
+  | U
+  | D => None;

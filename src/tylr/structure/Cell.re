@@ -40,7 +40,7 @@ let get = ({marks, meld, dims: _}: t) => {
   Meld.M(l, W((toks, cells)), r);
 };
 
-let put = (m: Meld.t) => {
+let put = (~sort as _: Bound.t(Molded.Sort.t), m: Meld.t) => {
   let M(l, W((toks, cells)), r) = m;
   let n = List.length(toks);
   let marks =
@@ -55,16 +55,6 @@ let put = (m: Meld.t) => {
     );
   mk(~marks, ~meld=Meld.map_cells(clear_marks, m), ());
 };
-
-let rec pad = (~side as d: Dir.t, ~pad as p: t, cell: t) =>
-  switch (get(cell)) {
-  | None => add_marks(cell.marks, p)
-  | Some(M(l, w, r)) =>
-    let (c_d, c_b) = Dir.order(d, (l, r));
-    let c_d = pad(~side=d, ~pad=p, c_d);
-    let (l, r) = Dir.order(d, (c_d, c_b));
-    put(M(l, w, r));
-  };
 
 let face = (~side: Dir.t, cell: t) =>
   cell.meld
