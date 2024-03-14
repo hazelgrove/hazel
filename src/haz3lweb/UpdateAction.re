@@ -11,7 +11,8 @@ type evaluation_settings_action =
   | ShowFixpoints
   | ShowLookups
   | ShowFilters
-  | ShowSettings;
+  | ShowSettings
+  | ShowHiddenSteps;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type settings_action =
@@ -179,7 +180,8 @@ let reevaluate_post_update: t => bool =
         ShowCaseClauses | ShowFnBodies | ShowCasts | ShowRecord | ShowFixpoints |
         ShowLookups |
         ShowFilters |
-        ShowSettings,
+        ShowSettings |
+        ShowHiddenSteps,
       ) =>
       false
     | Elaborate
