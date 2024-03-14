@@ -160,6 +160,7 @@ installed: [
   "ppxlib.0.32.0"
   "protocol_version_header.v0.15.0"
   "ptmap.2.0.5"
+  "qcheck-alcotest.0.21.3"
   "re.1.11.0"
   "react.1.2.2"
   "reason.3.10.0"
