@@ -50,6 +50,18 @@ let rec binds_var = (x: Var.t, dp: t): bool =>
   | Ap(_, _) => false
   };
 
+let rec of_menhir_ast = (pat: Hazel_menhir.AST.pat): t => {
+  switch (pat) {
+  | IntPat(i) => IntLit(i)
+  | FloatPat(f) => FloatLit(f)
+  | VarPat(x) => Var(x)
+  | StringPat(s) => StringLit(s)
+  | TypeAnn(pat, _typ) => of_menhir_ast(pat)
+  | TuplePat(pats) => Tuple(List.map(of_menhir_ast, pats))
+  | ApPat(pat1, pat2) => Ap(of_menhir_ast(pat1), of_menhir_ast(pat2))
+  };
+};
+
 let rec bound_vars = (dp: t): list(Var.t) =>
   switch (dp) {
   | EmptyHole(_, _)
