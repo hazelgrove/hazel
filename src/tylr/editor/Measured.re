@@ -18,32 +18,133 @@ module Point = {
   };
   let zero = {row: 0, col: 0};
 
+  let add = (~return: Col.t, p: t, dims: Dims.t) => {
+    row: p.row + dims.height,
+    col: (dims.height > 0 ? return : p.col) + dims.width,
+  };
+
   let compare = (l, r) => {
     let c = Row.compare(l.row, r.row);
     c == 0 ? Col.compare(l.col, r.col) : c;
   };
 
-  type comparison =
-    | Exact
-    | Under
-    | Over;
-  // let comp = (current, target): comparison =>
-  //   switch () {
-  //   | _ when current == target => Exact
-  //   | _ when current < target => Under
-  //   | _ => Over
-  //   };
-  // let compare = (p1, p2) =>
-  //   switch (comp(p1, p2)) {
-  //   | Exact => 0
-  //   | Under => (-1)
-  //   | Over => 1
-  //   };
-  // let dcomp = (d: Dir.t, x, y) =>
-  //   switch (d) {
-  //   | R => comp(x, y)
-  //   | L => comp(y, x)
-  //   };
+  let eq = (==);
+  let lt = (l, r) => compare(l, r) < 0;
+};
+
+module Traversed = {
+  type t = {
+    // indent level of current row
+    indent: Col.t,
+    // current row-col position
+    point: Point.t,
+  };
+
+  let mk = (~indent=0, ~return=indent, ~point=Point.zero, ()) => {
+    indent,
+    return,
+    point,
+  };
+  let init = mk();
+};
+module Indented = {
+  // indentation of...
+  type t = {
+    // ...current row
+    curr: Col.t,
+    // ...next row
+    next: Col.t,
+    // ...next row whose first token delimits end of current cell
+    end_: Col.t,
+  };
+  let mk = (~curr=0, ~next=curr, ~end_=curr, ()) => {curr, next, end_};
+  let init = mk();
+
+  let isize = 2;
+
+  let push =
+      (~null as (l, r)=(false, false), s: Bound.t(Mtrl.PSort.t), i: t) =>
+    switch (s) {
+    | Root
+    | Node(Space | Tile(({indent: false, _}, _))) => i
+    | Node(Grout | Tile(({indent: true, _}, _))) => {
+        ...i,
+        next: (l ? i.next : i.curr) + isize,
+        end_: r ? i.end_ : i.curr,
+      }
+    };
+};
+
+let path_of_point = (target: Pos.t, c: Cell.t): Path.Point.t => {
+  let rec go =
+          (
+            ~null=(false, false),
+            ~pos=Pos.zero,
+            ~ind=Indented.init,
+            cell: Cell.t,
+          )
+          : Path.Point.t => {
+    let indent =
+      cell.sort |> Bound.map(Molded.Sort.indent) |> Bound.get(~root=false);
+    switch (Cell.get(cell)) {
+    | None => Path.Point.here
+    | Some(M(l, (ts, cs), r)) =>
+      open Result.Syntax;
+      let ind =
+        Indented.push(~null, Bound.map(Molded.mtrl_, cell.sort), ind);
+      let add = Pos.add(~indent=ind.curr);
+      let l_end = Pos.add(pos, Dims.of_cell(l));
+      let/ l_end =
+        if (Pos.lt(l_end, target)) {
+          Error(l_end);
+        } else if (Pos.eq(l_end, target)) {
+          Ok(Path.Point.mk(Tok(0, 0)));
+        } else {
+          go(~null=(true, false), ~pos, ~ind, target, l)
+          |> Path.Point.cons(0);
+        };
+      let its = List.mapi((i, t) => (i, t), ts);
+      let/ w_end =
+        (its, cs)
+        |> Chain.fold(
+             ((i, tok)) => {
+               let t_end = add(l_end, Dims.of_tok(tok));
+               Pos.lt(t_end, target)
+                 ? Error(t_end)
+                 : Ok(Path.Point.mk(Tok(i, target.col - l_end.col)));
+             },
+             (found, c, (i, t)) => {
+               let/ pos = found;
+               let c_end = Point.add(pos, Dims.of_cell(c));
+               let/ c_end =
+                 if (Pos.lt(c_end, target)) {
+                   Error(c_end);
+                 } else if (Pos.eq(c_end, target)) {
+                   Ok(Path.Point.mk(Tok(i, 0)));
+                 } else {
+                   go(~pos, ~ind, c);
+                 };
+               let t_end = add(c_end, Dims.of_tok(tok));
+               Pos.lt(t_end, target)
+                 ? Error(t_end)
+                 : Ok(Path.Point.mk(Tok(i, target.col - c_end.col)));
+             },
+           );
+      let r_end = Pos.add(pos, Dims.of_cell(r));
+      if (Pos.lt(r_end, target)) {
+        Error(r_end);
+      } else if (Pos.eq(r_end, target)) {
+        Ok(Path.Point.mk(End(R)));
+      } else {
+        go(~null=(false, true), ~pos, ~ind, target, r)
+        |> Path.Point.cons(List.length(ts));
+      };
+    };
+  };
+  switch (go(c)) {
+  | Ok(path) => path
+  | Error(_) => Path.Point.mk(End(R))
+  };
 };
 
 module Range = {
