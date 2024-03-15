@@ -14,7 +14,7 @@ module rec DHExp: {
     | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t)
     | InvalidText(MetaVar.t, HoleInstanceId.t, string)
     | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
-    | Closure([@show.opaque] ClosureEnvironment.t, t)
+    | Closure([@opaque] ClosureEnvironment.t, t)
     | Filter(DHFilter.t, t)
     | BoundVar(Var.t)
     | Sequence(t, t)
@@ -70,7 +70,7 @@ module rec DHExp: {
     | InvalidText(MetaVar.t, HoleInstanceId.t, string)
     | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
     /* Generalized closures */
-    | Closure([@show.opaque] ClosureEnvironment.t, t)
+    | Closure(ClosureEnvironment.t, t)
     | Filter(DHFilter.t, t)
     /* Other expressions forms */
     | BoundVar(Var.t)
@@ -410,6 +410,8 @@ and ClosureEnvironment: {
 
     let id_of = ((ei, _)) => ei;
     let map_of = ((_, map)) => map;
+    let (sexp_of_t, t_of_sexp) =
+      StructureShareSexp.structure_share_here(id_of, sexp_of_t, t_of_sexp);
   };
   include Inner;
 

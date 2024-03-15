@@ -120,9 +120,11 @@ let go_z =
         }
       };
     };
-  | Select(Term(Id(id))) =>
+  | Select(Term(Id(id, d))) =>
     switch (Select.term(id, z)) {
-    | Some(z) => Ok(z)
+    | Some(z) =>
+      let z = d == Right ? z : Zipper.toggle_focus(z);
+      Ok(z);
     | None => Error(Action.Failure.Cant_select)
     }
   | Select(Tile(Current)) =>
@@ -134,9 +136,11 @@ let go_z =
       | None => Error(Action.Failure.Cant_select)
       }
     }
-  | Select(Tile(Id(id))) =>
+  | Select(Tile(Id(id, d))) =>
     switch (Select.tile(id, z)) {
-    | Some(z) => Ok(z)
+    | Some(z) =>
+      let z = d == Right ? z : Zipper.toggle_focus(z);
+      Ok(z);
     | None => Error(Action.Failure.Cant_select)
     }
   | Select(Resize(d)) =>

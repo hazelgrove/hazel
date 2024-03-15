@@ -6,14 +6,9 @@
   (source_tree www)))
 
 (library
- (name haz3lweb)
- (modules
-  (:standard \ Main)
-  \
-  Worker)
+ (name workerServer)
+ (modules WorkerServer)
  (libraries
-  ezjs_min
-  ezjs_idb
   str
   incr_dom
   virtual_dom.input_widgets
@@ -22,8 +17,37 @@
   haz3lcore
   haz3lschool
   pretty
-  lwt
-  lwtutil
+  omd)
+ (js_of_ocaml
+  (flags
+   (:include js-of-ocaml-flags-%{profile})))
+ (preprocess
+  (pps
+   ppx_yojson_conv
+   js_of_ocaml-ppx
+   ppx_let
+   ppx_sexp_conv
+   ppx_deriving.show)))
+
+(library
+ (name haz3lweb)
+ (modules
+  (:standard \ Main)
+  \
+  Worker
+  WorkerServer)
+ (libraries
+  ezjs_min
+  ezjs_idb
+  workerServer
+  str
+  incr_dom
+  virtual_dom.input_widgets
+  util
+  ppx_yojson_conv.expander
+  haz3lcore
+  haz3lschool
+  pretty
   omd
   tylr)
  (js_of_ocaml
@@ -56,7 +80,7 @@
 (executable
  (name worker)
  (modules Worker)
- (libraries haz3lweb tylr_hazel)
+ (libraries workerServer)
  (modes js)
  (preprocess
   (pps js_of_ocaml-ppx)))

@@ -10,7 +10,7 @@ module Deco =
            let show_backpack_targets: bool;
            let terms: TermMap.t;
            let term_ranges: TermRanges.t;
-           let info_map: Statics.Map.t;
+           let error_ids: list(Id.t);
            let tiles: TileMap.t;
          },
        ) => {
@@ -29,85 +29,80 @@ module Deco =
     [CaretDec.view(~font_metrics, ~profile={side, origin, shape})];
   };
 
-  let selected_piece_profile =
-      (~buffer, p: Piece.t, nib_shape: Nib.Shape.t): PieceDec.Profile.t => {
-    // TODO(d) fix sorts
-    let mold =
-      switch (p) {
-      | Secondary(_) => Mold.of_secondary({sort: Any, shape: nib_shape})
-      | Grout(g) => Mold.of_grout(g, Any)
-      | Tile(t) => t.mold
-      };
-    // TODO(d) awkward
-    let shards =
-      switch (p) {
-      | Secondary(w) => [(0, Measured.find_w(w, M.map))]
-      | Grout(g) => [(0, Measured.find_g(g, M.map))]
-      | Tile(t) =>
-        Measured.find_shards(t, M.map)
-        |> List.filter(((i, _)) => List.mem(i, t.shards))
-      };
-    let id = Piece.id(p);
-    let tiles = [(id, mold, shards)];
-    let l = fst(List.hd(shards));
-    let r = fst(ListUtil.last(shards));
-    // TODO this is ignored in view, clean this up
-    let caret = (id, (-1));
-    let style: PieceDec.Profile.style =
-      buffer
-        ? SelectedBuffer((id, l), (id, r)) : Selected((id, l), (id, r));
-    PieceDec.Profile.{tiles, caret, style};
-  };
+  type shard_data = (Measured.measurement, Nibs.shapes);
 
-  let root_piece_profile =
-      (index: int, p: Piece.t, (l, r)): PieceDec.Profile.t => {
-    let tiles =
-      Id.Map.find(Piece.id(p), M.terms)
-      |> Term.ids
-      /* NOTE(andrew): dark_ids were originally filtered here.
-       * Leaving this comment in place in case issues in the
-       * future are traced back to here.
-       * |> List.filter(id => id >= 0)*/
-      |> List.map(id => {
-           let t = tile(id);
-           (id, t.mold, Measured.find_shards(t, M.map));
-         });
-    PieceDec.Profile.{
-      tiles,
-      caret: (Piece.id(p), index),
-      style: Root(l, r),
-    };
-  };
+  let sel_shard_svg =
+      (~index=?, ~start_shape, measurement: Measured.measurement, p)
+      : (Measured.measurement, Nibs.shapes) => (
+    measurement,
+    Mold.nib_shapes(~index?, Piece.mold_of(~shape=start_shape, p)),
+  );
 
-  let selected_pieces = (z: Zipper.t): list(Node.t) =>
-    // TODO(d) mold/nibs/selemdec clean up pass
-    z.selection.content
-    |> List.filter(
-         fun
-         | Piece.Secondary(w) when Secondary.is_linebreak(w) => false
-         | _ => true,
-       )
-    |> ListUtil.fold_left_map(
-         (l: Nib.Shape.t, p: Piece.t) => {
-           let profile =
-             selected_piece_profile(
-               ~buffer=Selection.is_buffer(z.selection),
-               p,
-               l,
-             );
-           let shape =
-             switch (Piece.nibs(p)) {
-             | None => l
-             | Some((_, {shape, _})) => shape
-             };
-           // TODO(andrew): do something different for the caret
-           // adjacent piece so it lines up nice
-           (shape, PieceDec.view(~font_metrics, ~rows=M.map.rows, profile));
-         },
-         fst(Siblings.shapes(z.relatives.siblings)),
-       )
+  let rec sel_of_piece =
+          (start_shape: Nib.Shape.t, p: Piece.t)
+          : (Nib.Shape.t, list(option(shard_data))) => {
+    let shard_data =
+      switch (p) {
+      | Tile(t) => sel_of_tile(~start_shape, t)
+      | Grout(g) => [
+          Some(sel_shard_svg(~start_shape, Measured.find_g(g, M.map), p)),
+        ]
+      | Secondary(w) when Secondary.is_linebreak(w) => [None]
+      | Secondary(w) => [
+          Some(sel_shard_svg(~start_shape, Measured.find_w(w, M.map), p)),
+        ]
+      };
+    let start_shape =
+      switch (Piece.nibs(p)) {
+      | None => start_shape
+      | Some((_, {shape, _})) => shape
+      };
+    (start_shape, shard_data);
+  }
+  and sel_of_tile = (~start_shape, t: Tile.t): list(option(shard_data)) => {
+    let tile_shards =
+      Measured.find_shards(t, M.map)
+      |> List.filter(((i, _)) => List.mem(i, t.shards))
+      |> List.map(((index, measurement)) =>
+           [
+             Some(sel_shard_svg(~start_shape, ~index, measurement, Tile(t))),
+           ]
+         );
+    let shape_at = index => snd(Mold.nibs(~index, t.mold)).shape;
+    let children_shards =
+      t.children |> List.mapi(index => sel_of_segment(shape_at(index)));
+    ListUtil.interleave(tile_shards, children_shards) |> List.flatten;
+  }
+  and sel_of_segment =
+      (start_shape: Nib.Shape.t, seg: Segment.t): list(option(shard_data)) => {
+    seg
+    |> ListUtil.fold_left_map(sel_of_piece, start_shape)
     |> snd
     |> List.flatten;
+  }
+  and selected_pieces = (z: Zipper.t): list(Node.t) =>
+    /* We draw a single deco per row by dividing partionining the shards
+     * into linebreak-seperated segments, then combining the measurements
+     * and shapes of the first and last shard of each segment. Ideally we
+     * could just get this info from the row measurements, but we have no
+     * current way of figuring out shapes for whitespace without traversing */
+    sel_of_segment(
+      fst(Siblings.shapes(z.relatives.siblings)),
+      z.selection.content,
+    )
+    |> ListUtil.split_at_nones
+    |> ListUtil.first_and_last
+    |> List.map((((m1, (l1, _)): shard_data, (m2, (_, r2)): shard_data)) =>
+         (({origin: m1.origin, last: m2.last}, (l1, r2)): shard_data)
+       )
+    |> List.map(((measurement, shapes)) =>
+         PieceDec.simple_shard_selected(
+           ~buffer=Selection.is_buffer(z.selection),
+           ~font_metrics,
+           ~measurement,
+           ~shapes,
+         )
+       );
 
   let indicated_piece_deco = (z: Zipper.t): list(Node.t) => {
     switch (Indicated.piece(z)) {
@@ -140,12 +135,24 @@ module Deco =
       switch (range) {
       | None => []
       | Some(range) =>
-        PieceDec.view(
+        let tiles =
+          Id.Map.find(Piece.id(p), M.terms)
+          |> Term.ids
+          /* NOTE(andrew): dark_ids were originally filtered here.
+           * Leaving this comment in place in case issues in the
+           * future are traced back to here.
+           * |> List.filter(id => id >= 0)*/
+          |> List.map(id => {
+               let t = tile(id);
+               (id, t.mold, Measured.find_shards(t, M.map));
+             });
+        PieceDec.indicated(
           ~font_metrics,
           ~rows=M.map.rows,
-          ~segs=[],
-          root_piece_profile(index, p, range),
-        )
+          ~caret=(Piece.id(p), index),
+          ~tiles,
+          range,
+        );
       };
     };
   };
@@ -200,7 +207,7 @@ module Deco =
     };
   };
 
-  let backback = (z: Zipper.t): list(Node.t) => [
+  let backpack = (z: Zipper.t): list(Node.t) => [
     BackpackView.view(
       ~font_metrics,
       ~origin=Zipper.caret_point(M.map, z),
@@ -256,84 +263,29 @@ module Deco =
   };
 
   let color_highlights = (colorings: list((Id.t, string))) => {
-    List.map(
-      ((id, color)) => {
-        term_highlight(~clss=["highlight-code-" ++ color], id)
-      },
+    List.filter_map(
+      ((id, color)) =>
+        /* HACK(andrew): Catching exceptions since when showing
+           term highlights when the backpack is non-empty, the
+           prospective completion may have different term ids
+           than the displayed code. */
+        try(Some(term_highlight(~clss=["highlight-code-" ++ color], id))) {
+        | Not_found => None
+        },
       colorings,
     );
   };
 
-  // recurses through skel structure to enable experimentation
-  // with hiding nested err holes
-  let _err_holes = (z: Zipper.t) => {
-    let seg = Zipper.unselect_and_zip(z);
-    let is_err = (id: Id.t) =>
-      switch (Id.Map.find_opt(id, M.info_map)) {
-      | None => false
-      | Some(info) => Info.is_error(info)
-      };
-    let is_rep = (id: Id.t) =>
-      switch (Id.Map.find_opt(id, M.terms)) {
-      | None => false
-      | Some(term) => id == Term.rep_id(term)
-      };
-    let rec go_seg = (seg: Segment.t): list(Id.t) => {
-      let rec go_skel = (skel: Skel.t): list(Id.t) => {
-        let root = Skel.root(skel);
-        let root_ids =
-          Aba.get_as(root)
-          |> List.map(List.nth(seg))
-          |> List.map(Piece.id)
-          |> List.filter(is_rep)
-          |> List.filter(is_err);
-        let between_ids = Aba.get_bs(root) |> List.concat_map(go_skel);
-        let uni_ids =
-          switch (skel) {
-          | Op(_) => []
-          | Pre(_, r) => go_skel(r)
-          | Post(l, _) => go_skel(l)
-          | Bin(l, _, r) => go_skel(l) @ go_skel(r)
-          };
-        root_ids @ between_ids @ uni_ids;
-      };
-      let bi_ids =
-        seg
-        |> List.concat_map(p => List.concat_map(go_seg, Piece.children(p)));
-
-      go_skel(Segment.skel(seg)) @ bi_ids;
-    };
-    go_seg(seg) |> List.map(term_highlight(~clss=["err-hole"]));
-  };
-
   // faster infomap traversal
-  let err_holes = (_z: Zipper.t) => {
-    Id.Map.fold(
-      (id, info, acc) =>
-        /* Because of artefacts in Maketerm ID handling,
-         * there are be situations where ids appear in the
-         * info_map which do not occur in term_ranges. These
-         * ids should be purely duplicative, so skipping them
-         * when iterating over the info_map should have no
-         * effect, beyond supressing the resulting Not_found exs */
-        switch (Id.Map.find_opt(id, M.term_ranges)) {
-        | Some(_) when Info.is_error(info) => [
-            term_highlight(~clss=["err-hole"], id),
-            ...acc,
-          ]
-        | _ => acc
-        },
-      M.info_map,
-      [],
-    );
-  };
+  let err_holes = (_z: Zipper.t) =>
+    List.map(term_highlight(~clss=["err-hole"]), M.error_ids);
 
   let all = (zipper, sel_seg) =>
     List.concat([
       caret(zipper),
       indicated_piece_deco(zipper),
       selected_pieces(zipper),
-      backback(zipper),
+      backpack(zipper),
       targets'(zipper.backpack, sel_seg),
       err_holes(zipper),
     ]);

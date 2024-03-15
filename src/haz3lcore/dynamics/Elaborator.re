@@ -60,6 +60,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
         DHExp.cast(d, Prod(us), Unknown(prov));
       | _ => d
       }
+    | Ap(NonEmptyHole(_, _, _, Constructor(_)), _)
     | Ap(Constructor(_), _)
     | Constructor(_) =>
       switch (ana_ty, self_ty) {
@@ -230,13 +231,13 @@ let rec dhexp_of_uexp =
           DHExp.Let(dp, add_name(Term.UPat.get_var(p), ddef), dbody)
         | Some([f]) =>
           /* simple recursion */
-          Let(dp, FixF(f, ty, add_name(Some(f), ddef)), dbody)
+          Let(dp, FixF(f, ty, add_name(Some(f ++ "+"), ddef)), dbody)
         | Some(fs) =>
           /* mutual recursion */
           let ddef =
             switch (ddef) {
             | Tuple(a) =>
-              DHExp.Tuple(List.map2(s => add_name(Some(s)), fs, a))
+              DHExp.Tuple(List.map2(s => add_name(Some(s ++ "+")), fs, a))
             | _ => ddef
             };
           let uniq_id = List.nth(def.ids, 0);
@@ -289,8 +290,11 @@ let rec dhexp_of_uexp =
         };
       | TyAlias(_, _, e) => dhexp_of_uexp(m, e)
       };
-    wrap(ctx, id, mode, self, d);
-  | Some(InfoPat(_) | InfoTyp(_) | InfoTPat(_))
+    switch (uexp.term) {
+    | Parens(_) => d
+    | _ => wrap(ctx, id, mode, self, d)
+    };
+  | Some(InfoPat(_) | InfoTyp(_) | InfoTPat(_) | Secondary(_))
   | None => None
   };
 }
@@ -348,7 +352,7 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
       let* dp = dhpat_of_upat(m, p);
       wrap(dp);
     };
-  | Some(InfoExp(_) | InfoTyp(_) | InfoTPat(_))
+  | Some(InfoExp(_) | InfoTyp(_) | InfoTPat(_) | Secondary(_))
   | None => None
   };
 };
