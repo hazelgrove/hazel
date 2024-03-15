@@ -75,7 +75,9 @@ module Indented = {
     };
 };
 
-let path_of_point = (target: Pos.t, c: Cell.t): Path.Point.t => {
+// returns a valid path into c whose pos is nearest the given target,
+// where nearest is defined by the ordering relation Pos.lt
+let path_of_pos = (target: Pos.t, c: Cell.t): Path.Point.t => {
   let rec go =
           (
             ~null=(false, false),
@@ -141,9 +143,14 @@ let path_of_point = (target: Pos.t, c: Cell.t): Path.Point.t => {
       };
     };
   };
-  switch (go(c)) {
-  | Ok(path) => path
-  | Error(_) => Path.Point.mk(End(R))
+
+  if (Pos.leq(target, Pos.zero)) {
+    Path.Point.mk(End(L));
+  } else {
+    switch (go(c)) {
+    | Ok(path) => path
+    | Error(_) => Path.Point.mk(End(R))
+    };
   };
 };
 

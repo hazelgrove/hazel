@@ -1,3 +1,5 @@
+open Sexplib.Std;
+
 // specifies preferred whitespace padding around the contents of a cell
 [@deriving (show({with_path: false}), sexp, yojson, ord)]
 type t = {
