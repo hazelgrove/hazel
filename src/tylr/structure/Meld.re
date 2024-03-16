@@ -4,7 +4,8 @@ module Cell = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t('meld) = {
     marks: Path.Marks.t,
-    sort: Bound.t(Molded.Sorted.t),
+    mold: Bound.t(Mold.t),
+    mtrl: Mtrl.Sorted.t,
     meld: option('meld),
   };
   // let empty = {marks: Path.Marks.empty, dims: Dims.zero, meld: None};

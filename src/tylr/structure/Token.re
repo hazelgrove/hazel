@@ -3,29 +3,30 @@ open Util;
 
 module Base = {
   [@deriving (show({with_path: false}), sexp, yojson, hash)]
-  type t('lbl) = {
+  type t('mtrl, 'mold) = {
     [@hash.ignore]
     id: Id.t,
-    lbl: 'lbl,
+    mtrl: 'mtrl,
+    mold: 'mold,
     text: string,
   };
 };
 include Base;
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = Base.t(Molded.Labeled.t);
+type t = Base.t(Mtrl.Labeled.t, Mold.t);
 
 let id_ = (tok: t) => tok.id;
 let text_ = (tok: t) => tok.text;
-let sort = (tok: t) => tok.lbl.mold.sort;
+let sort = (tok: t) => tok.mold.sort;
 let length = (tok: t) =>
-  switch (tok.lbl.mtrl) {
+  switch (tok.mtrl) {
   | Tile(Const(c)) => String.length(c)
   | _ => String.length(tok.text)
   };
 
-let mk = (~id=?, ~text="", lbl) => {
+let mk = (~id=?, ~text="", mtrl, mold) => {
   let id = Id.Gen.value(id);
-  {id, lbl, text};
+  {id, mtrl, mold, text};
 };
 let mk_grout = (~id=?, ~l=false, ~r=false, sort) => {
   let lbl = Molded.Labeled.mk_grout(~l, sort, ~r);

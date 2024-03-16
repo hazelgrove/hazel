@@ -1,22 +1,26 @@
-module Step = Molded.Label;
-module Stride = {
-  open Sexplib.Std;
+open Sexplib.Std;
+
+module Step = {
   [@deriving (show({with_path: false}), sexp, yojson, ord)]
-  type t = Chain.t(Bound.t(Molded.Sorted.t), unit);
+  type t = (Mtrl.Labeled.t, Mold.t);
+};
+module Stride = {
+  [@deriving (show({with_path: false}), sexp, yojson, ord)]
+  type t = Chain.t((Mtrl.Sorted.t, Bound.t(Mold.t)), unit);
   let height = Chain.length;
   let mk_eq = Chain.unit;
   let is_eq = s => height(s) == 1;
   let is_neq = s => !is_eq(s);
   let top = Chain.fst;
   let bot = Chain.lst;
-  let has_sort = s =>
-    Chain.loops(s)
-    |> List.exists(
-         fun
-         | Bound.Root
-         | Node(Molded.{mtrl: Mtrl.Tile(_), _}) => true
-         | Node({mtrl: Space | Grout, _}) => false,
-       );
+  // let has_sort = s =>
+  //   Chain.loops(s)
+  //   |> List.exists(
+  //        fun
+  //        | Bound.Root
+  //        | Node(Molded.{mtrl: Mtrl.Tile(_), _}) => true
+  //        | Node({mtrl: Space | Grout, _}) => false,
+  //      );
 };
 module Base = {
   [@deriving (show({with_path: false}), sexp, yojson, ord)]
@@ -28,7 +32,7 @@ let strides = Chain.loops;
 let height = w =>
   strides(w) |> List.filter(Stride.is_neq) |> List.length |> (+)(1);
 
-let has_sort = w => List.exists(Stride.has_sort, strides(w));
+// let has_sort = w => List.exists(Stride.has_sort, strides(w));
 
 let fst = Chain.fst;
 let lst = Chain.lst;
@@ -40,8 +44,8 @@ let singleton = Chain.unit;
 
 let append = Chain.append;
 
-let bound = (bound: Bound.t(Molded.Sorted.t)) =>
-  Chain.map_fst(Chain.link(bound, ()));
+let top_off = (mtrl: Mtrl.Sorted.t, mold: Bound.t(Mold.t)) =>
+  Chain.map_fst(Chain.link((mtrl, mold), ()));
 
 module End = {
   [@deriving (show({with_path: false}), sexp, yojson, ord)]
