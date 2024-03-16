@@ -77,7 +77,7 @@ let apply =
     switch (Oracle.ask(model)) {
     | None => print_endline("Oracle: prompt generation failed")
     | Some(prompt) =>
-      let llm = OpenAI.Azure_GPT4;
+      let llm = OpenAI.Azure_GPT4_0613;
       let key = OpenAI.lookup_key(llm);
       OpenAI.start_chat(~llm, ~key, prompt, req =>
         switch (OpenAI.handle_chat(req)) {
@@ -119,14 +119,14 @@ let apply =
               (~handler, ~fuel, prompt, reply: OpenAI.reply): unit => {
         //print_endline("Assistant: err rounds left: " ++ string_of_int(fuel));
         //print_endline("Assistant: reply.contents:" ++ reply.content);
-        switch (Filler.error_reply(~init_ctx, ~mode, reply)) {
+        switch (Filler.error_reply(~init_ctx, ~mode, reply) |> snd) {
         | _ when fuel <= 0 =>
           //print_endline("Assistant: Error round limit reached, stopping");
           handler(reply.content)
-        | None =>
+        | "" =>
           //print_endline("Assistant: No errors, stopping");
           handler(reply.content)
-        | Some(err_msg) =>
+        | err_msg =>
           //print_endline("Assistant: reply errors:" ++ err_msg);
           let prompt' =
             OpenAI.add_to_prompt(

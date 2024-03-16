@@ -6,7 +6,7 @@ open Sexplib.Std;
 type chat_models =
   | GPT4
   | GPT3_5Turbo
-  | Azure_GPT4
+  | Azure_GPT4_0613
   | Azure_GPT3_5Turbo;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -43,7 +43,7 @@ let string_of_chat_model =
   fun
   | GPT4 => "gpt-4"
   | GPT3_5Turbo => "gpt-3.5-turbo"
-  | Azure_GPT4 => "azure-gpt-4"
+  | Azure_GPT4_0613 => "azure-gpt-4"
   | Azure_GPT3_5Turbo => "azure-gpt-3.5-turbo";
 
 let string_of_role =
@@ -69,7 +69,7 @@ let body = (~llm, messages: prompt): Json.t => {
 let lookup_key = (llm: chat_models) =>
   switch (llm) {
   | Azure_GPT3_5Turbo => Store.Generic.load("AZURE")
-  | Azure_GPT4 => Store.Generic.load("AZURE4")
+  | Azure_GPT4_0613 => Store.Generic.load("AZURE4")
   | GPT3_5Turbo
   | GPT4 => Store.Generic.load("OpenAI")
   };
@@ -153,7 +153,7 @@ let start_chat = (~llm, ~key, prompt: prompt, handler): unit => {
   let body = body(~llm, prompt);
   switch (llm) {
   | Azure_GPT3_5Turbo => chat_azure35(~key, ~body, ~handler)
-  | Azure_GPT4 => chat_azure4(~key, ~body, ~handler)
+  | Azure_GPT4_0613 => chat_azure4(~key, ~body, ~handler)
   | GPT3_5Turbo
   | GPT4 => chat(~key, ~body, ~handler)
   };
@@ -179,7 +179,9 @@ let first_message_content = (choices: Json.t): option(string) => {
   Json.str(content);
 };
 
-let handle_chat = (response: option(Json.t)): option(reply) => {
+let handle_chat = (~db=ignore, response: option(Json.t)): option(reply) => {
+  db("OpenAI: Chat response:");
+  Option.map(r => r |> Json.to_string |> db, response) |> ignore;
   let* json = response;
   let* choices = Json.dot("choices", json);
   let* usage = Json.dot("usage", json);

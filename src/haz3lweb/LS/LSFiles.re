@@ -86,16 +86,16 @@ let process_zipper = (~db=ignore, z_str: string): Zipper.t => {
 let get_zipper = (~db, program, new_token) => {
   switch (new_token) {
   | None =>
-    db("LSP: Recieved string: " ++ program);
+    db("LS: Recieved string" /*++ program*/);
     let z = process_zipper(~db, program);
-    db("LSP: String parsed successfully to zipper");
+    db("LS: String parsed successfully to zipper");
     z;
   | Some(new_token) =>
-    db("LSP: New token mode: " ++ program ++ new_token);
+    db("LS: New token mode: " ++ program ++ new_token);
     let base_z = process_zipper(~db, program);
     let new_z =
       OptUtil.get_or_fail(
-        "LSP: EXN: New token mode: Couldn't paste into zipper",
+        "LS: EXN: New token mode: Couldn't paste into zipper",
         Printer.paste_into_zip(base_z, new_token),
       );
     serialize_zipper(new_z, serialized_filename_z(program ++ new_token));
@@ -135,25 +135,33 @@ let getCurrentGitCommit = (): string => {
   commitHash;
 };
 
-let getCurrentUnixTimestamp = (): int => {
+let getCurrentUnixTimestamp = (): string => {
   let date = JsUtil.date_now();
-  date##valueOf /. 1000. |> int_of_float;
+  date##valueOf /. 1000. |> int_of_float |> string_of_int;
 };
 
 let getCurrentISOTimestamp = (): string =>
   JsUtil.date_now()##toISOString |> Js.to_string;
 
-let append_key_value_to_file =
-    (~key: string, ~value: string, ~path: string): unit => {
+// let append_key_value_to_file =
+//     (~key: string, ~value: string, ~path: string): unit => {
+//   let line = "\"" ++ key ++ "\":\"" ++ value ++ "\"\n";
+//   let flag = Js.Unsafe.(get(js_expr("require('fs')"), "a")); // Open file in append mode
+//   Js.Unsafe.(
+//     [|inject(Js.string(path)), inject(Js.string(line)), inject(flag)|]
+//     |> fun_call(get(js_expr("require('fs')"), "writeFileSync"))
+//   );
+// };
+
+let append_key_value_to_file = (~path: string, key, value): unit => {
   let line = "\"" ++ key ++ "\":\"" ++ value ++ "\"\n";
-  let flag = Js.Unsafe.(get(js_expr("require('fs')"), "a")); // Open file in append mode
-  Js.Unsafe.(
-    [|inject(Js.string(path)), inject(Js.string(line)), inject(flag)|]
-    |> fun_call(get(js_expr("require('fs')"), "writeFileSync"))
-  );
+  let channel =
+    open_out_gen([Open_wronly, Open_append, Open_creat], 0o666, path);
+  output_string(channel, line);
+  close_out(channel);
 };
 
-let read_key_value_pairs_from_file = (~path: string): list((string, string)) =>
+let read_key_value_pairs_from_file = (path: string): list((string, string)) =>
   if (!Sys.file_exists(path)) {
     []; // Return an empty list if the file doesn't exist
   } else {
@@ -176,3 +184,87 @@ let read_key_value_pairs_from_file = (~path: string): list((string, string)) =>
       lines,
     );
   };
+
+// let update_key_value_in_file =
+//     (~path: string, ~key: string, update_func: string => string): unit => {
+//   let pairs = read_key_value_pairs_from_file(path);
+//   let filtered_pairs = List.filter(((k, _)) => k == key, pairs);
+
+//   switch (List.length(filtered_pairs)) {
+//   | 0 => failwith("LSFiles: update_key_value_in_file: Key not found")
+//   | 1 =>
+//     let updated_pairs =
+//       List.map(
+//         ((k, v)) => k == key ? (k, update_func(v)) : (k, v),
+//         pairs,
+//       );
+//     let lines =
+//       List.map(
+//         ((k, v)) => "\"" ++ k ++ "\":\"" ++ v ++ "\"\n",
+//         updated_pairs,
+//       );
+//     let channel = open_out(path); // Open file for writing, which truncates the file
+//     List.iter(line => output_string(channel, line), lines);
+//     close_out(channel);
+//   | _ =>
+//     failwith("LSFiles: update_key_value_in_file: Key exists more than once")
+//   };
+// };
+
+let update_key_value_in_file =
+    (~path: string, ~key: string, update_func: option(string) => string)
+    : unit => {
+  let pairs = read_key_value_pairs_from_file(path);
+  let (filtered_pairs, existing_value_opt) =
+    List.fold_left(
+      (acc, (k, v)) => {
+        let (filtered, value_opt) = acc;
+        if (k == key) {
+          (
+            filtered,
+            Some(v) // Do not add this pair to filtered, capture the value
+          );
+        } else {
+          (
+            [(k, v)] @ filtered,
+            value_opt // Add other pairs to filtered
+          );
+        };
+      },
+      ([], None),
+      pairs,
+    );
+
+  let updated_pairs =
+    switch (existing_value_opt) {
+    | Some(existing_value) =>
+      filtered_pairs @ [(key, update_func(Some(existing_value)))] // Append updated pair
+    | None =>
+      let updated_value = update_func(None);
+      if (updated_value != "") {
+        filtered_pairs @ [(key, updated_value)]; // Append new key-value pair
+      } else {
+        filtered_pairs; // If the update function returns an empty string, don't add a new pair
+      };
+    };
+
+  let lines =
+    List.map(
+      ((k, v)) => "\"" ++ k ++ "\":\"" ++ v ++ "\"\n",
+      updated_pairs,
+    );
+  let channel = open_out(path); // Open the file for writing, truncating it
+  List.iter(line => output_string(channel, line), lines);
+  close_out(channel);
+};
+
+let get_value_by_key_from_file =
+    (~path: string, ~key: string): option(string) => {
+  let pairs = read_key_value_pairs_from_file(path);
+  let filtered_pairs = List.filter(((k, _v)) => k == key, pairs);
+  switch (filtered_pairs) {
+  | [] => None
+  | [(_, value)] => Some(value)
+  | _ => failwith("Key exists more than once or not found")
+  };
+};

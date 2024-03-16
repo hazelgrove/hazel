@@ -4,7 +4,7 @@ open LSActions;
 
 let usage_check = "<syntax|statics|dynamics>";
 let usage_completions = "<grammar|context|types>";
-let usage_runtest = "[--expected_type] --api-key <api-key-path>";
+let usage_runtest = "[--expected_type] [--error-rounds-max (0 <= N < 10)] --api-key <api-key-path>";
 let usage_command =
   "<CHECK " ++ usage_check ++ " | COMPLETIONS " ++ usage_completions ++ ">";
 let usage_debug = "[--debug]";
@@ -36,6 +36,12 @@ let get_runtest = command =>
   switch (command) {
   | RunTest(rt) => rt
   | _ => LSTest.default
+  };
+
+let validate_error_rounds = (num_rounds: string): bool =>
+  switch (int_of_string_opt(num_rounds)) {
+  | None => false
+  | Some(n) => n >= 0 && n < 10
   };
 
 let rec parse = (args: arguments, strs): arguments =>
@@ -123,6 +129,12 @@ and parse_runtest = (strs, args: arguments): arguments =>
       let rt = get_runtest(args.command);
       parse_base(rest, {...args, command: RunTest({...rt, api_key})});
     }
+  | ["--error_rounds_max", num_rounds, ...rest]
+      when validate_error_rounds(num_rounds) =>
+    let rt = get_runtest(args.command);
+    let error_rounds_max = int_of_string(num_rounds);
+    let options = {...rt.options, error_rounds_max};
+    parse_runtest(rest, {...args, command: RunTest({...rt, options})});
   | ["--expected_type", ...rest] =>
     let rt = get_runtest(args.command);
     let options = {...rt.options, expected_type: true};

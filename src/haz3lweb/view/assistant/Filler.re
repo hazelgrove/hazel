@@ -216,18 +216,6 @@ let mk_user_message = (~expected_ty, sketch: string): string =>
      )
   ++ ",\n}";
 
-let init_prompt = (~expected_ty, ~sketch, samples, system_prompt) =>
-  OpenAI.[{role: System, content: String.concat("\n", system_prompt)}]
-  @ Util.ListUtil.flat_map(
-      ((sketch, expected_ty, completion)): list(OpenAI.message) =>
-        [
-          {role: User, content: mk_user_message(sketch, ~expected_ty)},
-          {role: Assistant, content: completion},
-        ],
-      samples,
-    )
-  @ [{role: User, content: mk_user_message(sketch, ~expected_ty)}];
-
 let get_samples = (num_examples, samples) =>
   switch (Util.ListUtil.split_n_opt(num_examples, samples)) {
   | Some(samples) =>
@@ -249,8 +237,16 @@ let prompt =
   let samples = get_samples(num_examples, samples);
   let expected_ty = expected_type ? Some(expected_ty) : None;
   //let _selected_ctx = ctx_prompt(ctx, ChatLSP.Type.expected_ty(~ctx, mode));
-  let prompt = init_prompt(~expected_ty, ~sketch, samples, system_prompt);
-  prompt;
+  OpenAI.[{role: System, content: String.concat("\n", system_prompt)}]
+  @ Util.ListUtil.flat_map(
+      ((sketch, expected_ty, completion)): list(OpenAI.message) =>
+        [
+          {role: User, content: mk_user_message(sketch, ~expected_ty)},
+          {role: Assistant, content: completion},
+        ],
+      samples,
+    )
+  @ [{role: User, content: mk_user_message(sketch, ~expected_ty)}];
 };
 
 let get_top_level_errs = (init_ctx, mode, top_ci: option(Info.exp)) => {
@@ -308,24 +304,26 @@ let mk_round_report = (~init_ctx, ~mode, reply: OpenAI.reply): round_report =>
   };
 
 let error_reply =
-    (~init_ctx: Ctx.t, ~mode: Mode.t, reply: OpenAI.reply): option(string) => {
+    (~init_ctx: Ctx.t, ~mode: Mode.t, reply: OpenAI.reply)
+    : (error_report, string) => {
   //TODO(andrew): this is implictly specialized for exp only
   let wrap = (intro, errs) =>
-    Some(
-      [intro]
-      @ errs
-      @ [
-        "Please try to address the error(s) by updating your previous code suggestion",
-        "Please respond ONLY with the update suggestion",
-      ]
-      |> String.concat("\n"),
-    );
-  switch (mk_round_report(~init_ctx, ~mode, reply).error_report) {
-  | NoErrors => None
-  | ParseError(err) => wrap("The following parse error occured:", [err])
-  | StaticErrors(errs) =>
-    wrap("The following static errors were discovered:", errs)
-  };
+    [intro]
+    @ errs
+    @ [
+      "Please try to address the error(s) by updating your previous code suggestion",
+      "Please respond ONLY with the update suggestion",
+    ]
+    |> String.concat("\n");
+  let error_report = mk_round_report(~init_ctx, ~mode, reply).error_report;
+  let str =
+    switch (error_report) {
+    | NoErrors => ""
+    | ParseError(err) => wrap("The following parse error occured:", [err])
+    | StaticErrors(errs) =>
+      wrap("The following static errors were discovered:", errs)
+    };
+  (error_report, str);
 };
 
 /*

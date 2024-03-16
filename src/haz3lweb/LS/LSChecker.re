@@ -89,16 +89,31 @@ let eval = (~init_ctx, combined_term) => {
   |> Interface.evaluate(~settings=CoreSettings.on, ~env=Builtins.env_init);
 };
 
-let test_results = (res: ProgramResult.t): list(string) =>
+let test_results = (res: ProgramResult.t): list(TestStatus.t) =>
   res
   |> ProgramResult.get_state
   |> EvaluatorState.get_tests
   |> List.map(((_id, instance_report)) =>
        switch (instance_report) {
-       | [] => Indet |> TestStatus.to_string
-       | [(_, status, _), ..._] => status |> TestStatus.to_string
+       /* Assumes tests not in function literal */
+       | [] => TestStatus.Indet
+       | [(_, status, _), ..._] => status
        }
      );
+
+type test_counts = {
+  total: int,
+  pass: int,
+  fail: int,
+  indet: int,
+};
+
+let collate_test_counts = (res: list(TestStatus.t)): test_counts => {
+  total: res |> List.length,
+  pass: res |> List.filter((==)(TestStatus.Pass)) |> List.length,
+  fail: res |> List.filter((==)(TestStatus.Fail)) |> List.length,
+  indet: res |> List.filter((==)(TestStatus.Indet)) |> List.length,
+};
 
 let test_combined = (settings, ~db) =>
   mk_combined_term(settings, ~db)
@@ -110,7 +125,9 @@ let dynamic_error_report = (~db, ~settings) =>
   | [] => print_endline("LS: Check Dynamics: No tests found")
   | results =>
     print_endline("LS: Check Dynamics: Test results:");
-    print_endline(String.concat("\n", results));
+    print_endline(
+      String.concat("\n", results |> List.map(TestStatus.to_string)),
+    );
   };
 
 let go = (~db, ~settings): unit =>
