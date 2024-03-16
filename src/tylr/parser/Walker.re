@@ -11,12 +11,12 @@ let expect_srt =
 
 let enter =
     (~from: Dir.t, ~l=Bound.Root, ~r=Bound.Root, s: Mtrl.Sorted.t)
-    : list(Molded.Sorted.t) => {
+    : list((Mtrl.NT.t, Mold.t)) => {
   MGrammar.v
   |> Mtrl.Sorted.Map.find(s)
   |> Prec.Table.mapi(((p, a), rgx) => {
        // need to check for legal bounded entry from both sides
-       let go = (from: Dir.t, bounded): list(Molded.Sorted.t) =>
+       let go = (from: Dir.t, bounded) =>
          // currently filtering without assuming single operator form
          // for each prec level. this may need to change.
          RZipper.enter(~from, rgx)
@@ -24,10 +24,10 @@ let enter =
               fun
               | Bound.Root => None
               | Node((msym, rctx)) => {
-                  let msrt = expect_srt(msym);
+                  let (pad, msrt) = expect_srt(msym);
                   let mold = Mold.{sort: s, prec: p, rctx};
                   bounded || Mtrl.is_space(msrt)
-                    ? Some(Molded.{mtrl: msrt, mold}) : None;
+                    ? Some(((pad, msrt), mold)) : None;
                 },
             );
        switch (go(L, Prec.lt(~a, l, p)), go(R, Prec.gt(~a, p, r))) {

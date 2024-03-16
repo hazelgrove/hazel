@@ -10,6 +10,10 @@ module Base = {
     mold: 'mold,
     text: string,
   };
+  let mk = (~id=?, ~text="", mtrl, mold) => {
+    let id = Id.Gen.value(id);
+    {id, mtrl, mold, text};
+  };
 };
 include Base;
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -24,47 +28,37 @@ let length = (tok: t) =>
   | _ => String.length(tok.text)
   };
 
-let mk = (~id=?, ~text="", mtrl, mold) => {
-  let id = Id.Gen.value(id);
-  {id, mtrl, mold, text};
-};
+// let mk = (~id=?, ~text="", mtrl: Mtrl.Labeled.t, mold) => {
+//   let id = Id.Gen.value(id);
+//   {id, mtrl, mold, text};
+// };
 let mk_grout = (~id=?, ~l=false, ~r=false, sort) => {
-  let lbl = Molded.Labeled.mk_grout(~l, sort, ~r);
-  mk(~id?, ~text=failwith("grout text"), lbl);
+  let mold = Mold.of_grout(~l, sort, ~r);
+  mk(~id?, ~text=failwith("grout text"), Mtrl.Grout, mold);
 };
 
 let is_empty = (tok: t) => String.equal(tok.text, "");
-let is_space = (tok: t) =>
-  switch (tok.lbl.mtrl) {
-  | Space => true
-  | _ => false
-  };
-let is_grout = (tok: t) =>
-  switch (tok.lbl.mtrl) {
-  | Space
-  | Tile(_) => false
-  | Grout => true
-  };
+let is_space = (tok: t) => Mtrl.is_space(tok.mtrl);
+let is_grout = (tok: t) => Mtrl.is_grout(tok.mtrl);
 let is_ghost = (tok: t) =>
-  switch (tok.lbl.mtrl) {
+  switch (tok.mtrl) {
   | Space
   | Grout => false
   | Tile(lbl) => !Label.is_complete(tok.text, lbl)
   };
 
-module Labeled = {
+module Unmolded = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Base.t(Mtrl.t(list(Label.t)));
-  let unlabel = (tok: t) =>
-    mk(~id=tok.id, ~text=tok.text, Molded.Labeled.space);
+  type t = Base.t(Mtrl.t(list(Label.t)), unit);
+  let mk = (~id=?, ~text="", mtrl: Mtrl.t(_)) => mk(~id?, ~text, mtrl, ());
 };
-let to_labeled = (p: t): Labeled.t => {
-  let mk = mk(~id=p.id, ~text=p.text);
-  switch (p.lbl.mtrl) {
-  | Space => mk(Mtrl.Space)
+let unmold = (tok: t): Unmolded.t => {
+  let mk = Unmolded.mk(~id=tok.id, ~text=tok.text);
+  switch (tok.mtrl) {
+  | Space => mk(Space)
   | Grout => mk(Grout)
-  | Tile(lbl) when is_empty(p) => mk(Mtrl.Tile([lbl]))
-  | Tile(_) => mk(Tile(Labels.completions(p.text)))
+  | Tile(lbl) =>
+    mk(Tile(is_empty(tok) ? [lbl] : Labels.completions(tok.text)))
   };
 };
 
@@ -75,14 +69,14 @@ let merge_text = (l: t, r: t) => {
 
 let merge = (l: t, r: t) =>
   if (Id.eq(l.id, r.id)) {
-    assert(Mold.equal(l.lbl.mold, r.lbl.mold));
+    assert(Mold.equal(l.mold, r.mold));
     Some({...l, text: l.text ++ r.text});
   } else {
     None;
   };
 
 let split = (n: int, tok: t): Result.t((t, t), Dir.t) =>
-  switch (tok.lbl.mtrl, StringUtil.unzip_opt(n, tok.text)) {
+  switch (tok.mtrl, StringUtil.unzip_opt(n, tok.text)) {
   | (_, Some(("", _))) => Error(L)
   | (Space | Grout, Some((_, ""))) => Error(R)
   | (Space | Grout, Some((l, r))) =>
