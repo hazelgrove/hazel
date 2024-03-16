@@ -12,7 +12,7 @@ module Base = {
 };
 include Base;
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = Base.t(Molded.Label.t);
+type t = Base.t(Molded.Labeled.t);
 
 let id_ = (tok: t) => tok.id;
 let text_ = (tok: t) => tok.text;
@@ -22,14 +22,13 @@ let length = (tok: t) =>
   | Tile(Const(c)) => String.length(c)
   | _ => String.length(tok.text)
   };
-let dims = tok => Dims.mk(length(tok));
 
 let mk = (~id=?, ~text="", lbl) => {
   let id = Id.Gen.value(id);
   {id, lbl, text};
 };
 let mk_grout = (~id=?, ~l=false, ~r=false, sort) => {
-  let lbl = Molded.Label.mk_grout(~l, sort, ~r);
+  let lbl = Molded.Labeled.mk_grout(~l, sort, ~r);
   mk(~id?, ~text=failwith("grout text"), lbl);
 };
 
@@ -56,7 +55,7 @@ module Labeled = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Base.t(Mtrl.t(list(Label.t)));
   let unlabel = (tok: t) =>
-    mk(~id=tok.id, ~text=tok.text, Molded.Label.space);
+    mk(~id=tok.id, ~text=tok.text, Molded.Labeled.space);
 };
 let to_labeled = (p: t): Labeled.t => {
   let mk = mk(~id=p.id, ~text=p.text);

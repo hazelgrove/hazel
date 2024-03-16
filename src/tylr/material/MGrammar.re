@@ -1,4 +1,4 @@
-type t = Mtrl.Sort.Map.t(Prec.Table.t(Regex.t(Mtrl.Sym.t)));
+type t = Mtrl.Sorted.Map.t(Prec.Table.t(Regex.t(Mtrl.Sym.t)));
 // type t = PBNF.t(MSym.t);
 
 let mtrlize_tiles = (g: Grammar.t): t =>
@@ -15,10 +15,10 @@ let mtrlize_tiles = (g: Grammar.t): t =>
             );
        (Mtrl.Tile(s), mtbl);
      })
-  |> Mtrl.Sort.Map.of_seq;
+  |> Mtrl.Sorted.Map.of_seq;
 
 let mtrlize_space: t => t =
-  Mtrl.Sort.Map.map(
+  Mtrl.Sorted.Map.map(
     Prec.Table.map(rgx => {
       let (ls, rs) = RZipper.(enter(~from=L, rgx), enter(~from=R, rgx));
       let exists_t =
@@ -39,7 +39,7 @@ let mtrlize_space: t => t =
 //       ([Space] <<)? _ (>< _)* (>> [Space])?
 
 let mtrlize_grout: t => t =
-  Mtrl.Sort.Map.map(tbl => {
+  Mtrl.Sorted.Map.map(tbl => {
     open Regex;
     let g_t = atom(Sym.T(Mtrl.Grout));
     let g_nt = atom(Sym.NT(Mtrl.Grout));

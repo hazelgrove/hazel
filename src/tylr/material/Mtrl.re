@@ -12,7 +12,7 @@ let is_space =
   | Space => true
   | _ => false;
 
-module Label = {
+module Labeled = {
   [@deriving (show({with_path: false}), sexp, yojson, ord)]
   type t = Base.t(Label.t);
   module Map =
@@ -21,7 +21,8 @@ module Label = {
       let compare = compare;
     });
 };
-module Sort = {
+
+module Sorted = {
   [@deriving (show({with_path: false}), sexp, yojson, ord)]
   type t = Base.t(Sort.t);
   let root = Tile(Sort.root);
@@ -31,19 +32,8 @@ module Sort = {
       let compare = compare;
     });
 };
-module PSort = {
-  [@deriving (show({with_path: false}), sexp, yojson, ord)]
-  type t = Base.t(Padded.t(Sort.t));
-  let root = Tile((Padding.root, Sort.root));
-  let indent =
-    fun
-    | Space
-    | Tile((false, _)) => false
-    | Grout
-    | Tile((true, _)) => true;
-};
 
 module Sym = {
   [@deriving (show({with_path: false}), sexp, yojson, ord)]
-  type t = Sym.t(Label.t, PSort.t);
+  type t = Sym.t(Labeled.t, Padded.t(Sorted.t));
 };

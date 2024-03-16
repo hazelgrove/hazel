@@ -51,7 +51,7 @@ module Fill = {
   // let init = cell => cons(cell, empty);
   let faces =
     fun
-    | [] => Molded.Label.(space, space)
+    | [] => Molded.Labeled.(space, space)
     | [hd, ..._] as fill =>
       Meld.(face(~side=L, hd), face(~side=R, ListUtil.last(fill)));
 };

@@ -2,7 +2,7 @@ module Step = Molded.Label;
 module Stride = {
   open Sexplib.Std;
   [@deriving (show({with_path: false}), sexp, yojson, ord)]
-  type t = Chain.t(Bound.t(Molded.Sort.t), unit);
+  type t = Chain.t(Bound.t(Molded.Sorted.t), unit);
   let height = Chain.length;
   let mk_eq = Chain.unit;
   let is_eq = s => height(s) == 1;
@@ -40,7 +40,7 @@ let singleton = Chain.unit;
 
 let append = Chain.append;
 
-let bound = (bound: Bound.t(Molded.Sort.t)) =>
+let bound = (bound: Bound.t(Molded.Sorted.t)) =>
   Chain.map_fst(Chain.link(bound, ()));
 
 module End = {

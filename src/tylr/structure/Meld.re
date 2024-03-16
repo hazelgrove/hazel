@@ -4,7 +4,7 @@ module Cell = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t('meld) = {
     marks: Path.Marks.t,
-    sort: Bound.t(Molded.Sort.t),
+    sort: Bound.t(Molded.Sorted.t),
     meld: option('meld),
   };
   // let empty = {marks: Path.Marks.empty, dims: Dims.zero, meld: None};
@@ -27,14 +27,15 @@ type t =
   | M(Cell.t(t), Wald.t(Cell.t(t)), Cell.t(t));
 
 let mk = (~l=Cell.empty, ~r=Cell.empty, w) => M(l, w, r);
-let rec mk_grout = (~l=false, ~r=false, sort: Mtrl.Sort.t) => {
-  let c_l = l ? Cell.full(Dims.mk(1), mk_grout(Grout)) : Cell.empty;
-  let c_r = r ? Cell.full(Dims.mk(1), mk_grout(Grout)) : Cell.empty;
-  mk(~l=c_l, Wald.of_tok(Token.mk_grout(~l, sort, ~r)), ~r=c_r);
+let rec mk_grout = (~l=false, ~r=false, sort: Mtrl.Sorted.t) => {
+  // let c_l = l ? Cell.full(mk_grout(Grout)) : Cell.empty;
+  // let c_r = r ? Cell.full(mk_grout(Grout)) : Cell.empty;
+  // mk(~l=c_l, Wald.of_tok(Token.mk_grout(~l, sort, ~r)), ~r=c_r);
+  failwith(
+    "todo: make full molded sorts for Cell.full calls above",
+  );
 };
 let of_tok = tok => mk(Wald.of_tok(tok));
-
-// let dims = (M(l, w, r)) => Dims.sum([l.dims, Wald.dims(w), r.dims]);
 
 let to_chain = (M(l, W((toks, cells)), r)) => (
   [l, ...cells] @ [r],

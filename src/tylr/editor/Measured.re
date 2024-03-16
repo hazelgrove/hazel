@@ -87,7 +87,7 @@ let path_of_pos = (target: Pos.t, c: Cell.t): Path.Point.t => {
           )
           : Path.Point.t => {
     let indent =
-      cell.sort |> Bound.map(Molded.Sort.indent) |> Bound.get(~root=false);
+      cell.sort |> Bound.map(Molded.Sorted.indent) |> Bound.get(~root=false);
     switch (Cell.get(cell)) {
     | None => Path.Point.here
     | Some(M(l, (ts, cs), r)) =>

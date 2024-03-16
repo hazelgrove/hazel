@@ -21,8 +21,8 @@ open Util;
 // let x = 1 in <> + 2 >< <in> >< x + 1
 
 module Molds = {
-  include Mtrl.Label.Map;
-  type t = Mtrl.Label.Map.t(list(Mold.t));
+  include Mtrl.Labeled.Map;
+  type t = Mtrl.Labeled.Map.t(list(Mold.t));
   let map: t =
     Walker.walk_into(~from=L, Root)
     |> Walk.Index.to_list
@@ -53,7 +53,7 @@ let candidates = (t: Token.Labeled.t): list(Token.t) =>
   List.map(
     Token.mk(~id=t.id, ~text=t.text),
     switch (t.lbl) {
-    | Space => [Molded.Label.space]
+    | Space => [Molded.Labeled.space]
     | Grout => failwith("bug: attempted to mold grout")
     | Tile(lbls) =>
       lbls

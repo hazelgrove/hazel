@@ -2,17 +2,17 @@ open Util;
 
 let faces =
   fun
-  | [] => Molded.Label.(space, space)
+  | [] => Molded.Labeled.(space, space)
   | cs =>
     Cell.(face(~side=L, List.hd(cs)), face(~side=R, ListUtil.last(cs)));
 
-let mtrl = (sort: Bound.t(Molded.Sort.t)) =>
+let mtrl = (sort: Bound.t(Molded.Sorted.t)) =>
   sort
   |> Bound.map(Molded.mtrl_)
   |> Bound.to_opt
-  |> Option.value(~default=Mtrl.Sort.root);
+  |> Option.value(~default=Mtrl.Sorted.root);
 
-let fill_cell = (~l=false, ~r=false, ~fill=[], sort: Mtrl.Sort.t) =>
+let fill_cell = (~l=false, ~r=false, ~fill=[], sort: Mtrl.Sorted.t) =>
   switch (fill) {
   | [] =>
     switch (sort) {
@@ -55,7 +55,7 @@ let fill_cell = (~l=false, ~r=false, ~fill=[], sort: Mtrl.Sort.t) =>
     };
   };
 
-let bake_eq = (~fill=[], sort: Bound.t(Molded.Sort.t)) => {
+let bake_eq = (~fill=[], sort: Bound.t(Molded.Sorted.t)) => {
   open OptUtil.Syntax;
   let (f_l, f_r) = faces(fill);
   let+ w_l = ListUtil.hd_opt(Walker.enter(~from=L, sort, Node(f_l)))
@@ -66,7 +66,11 @@ let bake_eq = (~fill=[], sort: Bound.t(Molded.Sort.t)) => {
 };
 
 let bake_lt =
-    (~fill=[], bound: Bound.t(Molded.Sort.t), sort: Bound.t(Molded.Sort.t)) => {
+    (
+      ~fill=[],
+      bound: Bound.t(Molded.Sorted.t),
+      sort: Bound.t(Molded.Sorted.t),
+    ) => {
   open OptUtil.Syntax;
   let (f_l, f_r) = faces(fill);
   let+ _w_l = ListUtil.hd_opt(Walker.enter(~from=L, bound, Node(f_l)))
@@ -76,7 +80,11 @@ let bake_lt =
 };
 
 let bake_gt =
-    (~fill=[], sort: Bound.t(Molded.Sort.t), bound: Bound.t(Molded.Sort.t)) => {
+    (
+      ~fill=[],
+      sort: Bound.t(Molded.Sorted.t),
+      bound: Bound.t(Molded.Sorted.t),
+    ) => {
   open OptUtil.Syntax;
   let (l, r) = faces(fill);
   let+ w_l = ListUtil.hd_opt(Walker.enter(~from=L, sort, Node(l)))

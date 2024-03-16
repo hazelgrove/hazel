@@ -9,16 +9,6 @@ type t = {
 let mk = (~height=0, width) => {height, width};
 let zero = mk(0);
 
-let of_tok = (tok: Token.t) =>
-  switch (tok.lbl.mtrl) {
-  | Space =>
-    let lines = String.split_on_char('\n', tok.text);
-    let last = ListUtil.last(lines);
-    mk(~height=lines - 1, String.length(last));
-  | Grout => mk(1)
-  | Tile(_) => mk(Token.length(tok))
-  };
-
 let indent = ({height, width}: t) => {
   height,
   width: (height > 0 && width > 0 ? (+)(2) : Fun.id)(width),
@@ -60,3 +50,13 @@ and of_meld = (m: Meld.t) =>
   |> Meld.fold(of_cell, (dims, tok, cell) =>
        sum([dims, of_tok(tok), of_cell(cell)])
      );
+
+let of_tok = (tok: Token.t) =>
+  switch (tok.lbl.mtrl) {
+  | Space =>
+    let lines = String.split_on_char('\n', tok.text);
+    let last = ListUtil.last(lines);
+    mk(~height=lines - 1, String.length(last));
+  | Grout => mk(1)
+  | Tile(_) => mk(Token.length(tok))
+  };

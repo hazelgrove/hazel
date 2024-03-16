@@ -10,13 +10,13 @@ let expect_srt =
   | NT(msrt) => msrt;
 
 let enter =
-    (~from: Dir.t, ~l=Bound.Root, ~r=Bound.Root, s: Mtrl.Sort.t)
-    : list(Molded.Sort.t) => {
+    (~from: Dir.t, ~l=Bound.Root, ~r=Bound.Root, s: Mtrl.Sorted.t)
+    : list(Molded.Sorted.t) => {
   MGrammar.v
-  |> Mtrl.Sort.Map.find(s)
+  |> Mtrl.Sorted.Map.find(s)
   |> Prec.Table.mapi(((p, a), rgx) => {
        // need to check for legal bounded entry from both sides
-       let go = (from: Dir.t, bounded): list(Molded.Sort.t) =>
+       let go = (from: Dir.t, bounded): list(Molded.Sorted.t) =>
          // currently filtering without assuming single operator form
          // for each prec level. this may need to change.
          RZipper.enter(~from, rgx)
@@ -40,7 +40,7 @@ let enter =
   |> List.concat;
 };
 
-let stride_over = (~from: Dir.t, sort: Bound.t(Molded.Sort.t)): Index.t =>
+let stride_over = (~from: Dir.t, sort: Bound.t(Molded.Sorted.t)): Index.t =>
   switch (sort) {
   | Root => Index.singleton(Root, [singleton(Stride.mk_eq(Bound.Root))])
   | Node(s) =>
@@ -57,17 +57,17 @@ let stride_over = (~from: Dir.t, sort: Bound.t(Molded.Sort.t)): Index.t =>
     |> Index.of_list
   };
 
-let stride_into = (~from: Dir.t, sort: Bound.t(Molded.Sort.t)): Index.t => {
-  let bounds = (s: Molded.Sort.t) => {
-    let (l_sort, r_sort) = Molded.Sort.bounds(sort);
-    let (l_s, r_s) = Molded.Sort.bounds(Bound.Node(s));
+let stride_into = (~from: Dir.t, sort: Bound.t(Molded.Sorted.t)): Index.t => {
+  let bounds = (s: Molded.Sorted.t) => {
+    let (l_sort, r_sort) = Molded.Sorted.bounds(sort);
+    let (l_s, r_s) = Molded.Sorted.bounds(Bound.Node(s));
     Dir.pick(from, ((l_sort, r_s), (l_s, r_sort)));
   };
   let seen = Hashtbl.create(10);
-  let rec go = (s: Bound.t(Molded.Sort.t)) => {
+  let rec go = (s: Bound.t(Molded.Sorted.t)) => {
     let (mtrl, (l, r)) =
       switch (s) {
-      | Root => (Mtrl.Sort.root, Bound.(Root, Root))
+      | Root => (Mtrl.Sorted.root, Bound.(Root, Root))
       | Node(s) => (s.mtrl, bounds(s))
       };
     switch (Hashtbl.find_opt(seen, mtrl)) {
@@ -75,7 +75,7 @@ let stride_into = (~from: Dir.t, sort: Bound.t(Molded.Sort.t)): Index.t => {
     | None =>
       Hashtbl.add(seen, mtrl, ());
       enter(~from, ~l, ~r, mtrl)
-      |> List.map((s: Molded.Sort.t) =>
+      |> List.map((s: Molded.Sorted.t) =>
            Index.union(stride_over(~from, Node(s)), go(Node(s)))
          )
       |> Index.union_all
@@ -84,7 +84,7 @@ let stride_into = (~from: Dir.t, sort: Bound.t(Molded.Sort.t)): Index.t => {
   };
   go(sort);
 };
-let stride = (~from: Dir.t, sort: Bound.t(Molded.Sort.t)) =>
+let stride = (~from: Dir.t, sort: Bound.t(Molded.Sorted.t)) =>
   Index.union(stride_over(~from, sort), stride_into(~from, sort));
 
 let step = (~from: Dir.t, src: End.t) =>
@@ -104,7 +104,7 @@ let step = (~from: Dir.t, src: End.t) =>
     |> Index.union_all
   };
 
-let lt = (l: End.t, r: End.t): list(Bound.t(Molded.Sort.t)) =>
+let lt = (l: End.t, r: End.t): list(Bound.t(Molded.Sorted.t)) =>
   step(~from=L, l)
   |> Index.find(r)
   |> List.filter_map(walk => {
@@ -125,7 +125,7 @@ let eq = (l: End.t, r: End.t) =>
 
 let walk = (~from: Dir.t, src: End.t) => {
   let seen = Hashtbl.create(100);
-  let rec go = (src: Bound.t(Molded.Label.t)) =>
+  let rec go = (src: Bound.t(Molded.Labeled.t)) =>
     switch (Hashtbl.find_opt(seen, src)) {
     | Some () => Index.empty
     | None =>
@@ -146,7 +146,7 @@ let walk = (~from: Dir.t, src: End.t) => {
   go(src);
 };
 
-let walk_into = (~from: Dir.t, sort: Bound.t(Molded.Sort.t)) => {
+let walk_into = (~from: Dir.t, sort: Bound.t(Molded.Sorted.t)) => {
   open Index.Syntax;
   let* (src_mid, mid) = stride_into(~from, sort);
   switch (mid) {
@@ -167,6 +167,6 @@ let walk_eq = (~from, src, dst) =>
 let walk_neq = (~from, src, dst) =>
   List.filter(is_neq, walk(~from, src, dst));
 
-let enter = (~from: Dir.t, sort: Bound.t(Molded.Sort.t), dst: End.t) =>
+let enter = (~from: Dir.t, sort: Bound.t(Molded.Sorted.t), dst: End.t) =>
   Index.find(dst, walk_into(~from, sort));
 let exit = (~from: Dir.t, src: End.t) => walk_eq(~from, src, Root);

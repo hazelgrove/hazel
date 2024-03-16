@@ -14,9 +14,9 @@ let map = (f, m) => {...m, mtrl: f(m)};
 
 let nullable = (~side: Dir.t, m: t(_)) => Mold.nullable(~side, m.mold);
 
-module Label = {
+module Labeled = {
   [@deriving (show({with_path: false}), sexp, yojson, ord)]
-  type t = Base.t(Mtrl.Label.t);
+  type t = Base.t(Mtrl.Labeled.t);
 
   let space = {
     mtrl: Mtrl.Space,
@@ -27,7 +27,7 @@ module Label = {
     },
   };
 
-  let mk_grout = (~l=false, ~r=false, sort: Mtrl.Sort.t) => {
+  let mk_grout = (~l=false, ~r=false, sort: Mtrl.Sorted.t) => {
     let rctx: RCtx.t(Mtrl.Sym.t) =
       if (l && r) {
         [Seq_([Atom(NT(Grout))], [Atom(NT(Grout))])];
@@ -43,9 +43,9 @@ module Label = {
   };
 };
 
-module Sort = {
+module Sorted = {
   [@deriving (show({with_path: false}), sexp, yojson, ord)]
-  type t = Base.t(Mtrl.PSort.t);
-  let bounds = _ => failwith("todo Molded.Sort.bounds");
-  let indent = get(Mtrl.PSort.indent);
+  type t = Base.t(Padded.t(Mtrl.Sorted.t));
+  let bounds = _ => failwith("todo Molded.Sorted.bounds");
+  // let indent = get(Mtrl.PSort.indent);
 };

@@ -1,6 +1,6 @@
 [@deriving (show({with_path: false}), sexp, yojson, ord)]
 type t = {
-  sort: Mtrl.Sort.t,
+  sort: Mtrl.Sorted.t,
   prec: Prec.t,
   rctx: RCtx.t(Mtrl.Sym.t),
 };
