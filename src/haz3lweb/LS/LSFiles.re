@@ -137,7 +137,7 @@ let getCurrentGitCommit = (): string => {
 
 let getCurrentUnixTimestamp = (): string => {
   let date = JsUtil.date_now();
-  date##valueOf /. 1000. |> int_of_float |> string_of_int;
+  Printf.sprintf("%.1f", date##valueOf /. 1000.);
 };
 
 let getCurrentISOTimestamp = (): string =>
@@ -258,8 +258,7 @@ let update_key_value_in_file =
   close_out(channel);
 };
 
-let get_value_by_key_from_file =
-    (~path: string, ~key: string): option(string) => {
+let get_value_by_key_from_file = (~path: string, key: string): option(string) => {
   let pairs = read_key_value_pairs_from_file(path);
   let filtered_pairs = List.filter(((k, _v)) => k == key, pairs);
   switch (filtered_pairs) {

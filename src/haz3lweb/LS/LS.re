@@ -4,7 +4,7 @@ open LSActions;
 
 let usage_check = "<syntax|statics|dynamics>";
 let usage_completions = "<grammar|context|types>";
-let usage_runtest = "[--expected_type] [--error-rounds-max (0 <= N < 10)] --api-key <api-key-path>";
+let usage_runtest = "[--expected_type] [--error-rounds-max (0 <= N < 10)] [--run_name <run-name>] --source_folder <path-base> --api-key <api-key-path>";
 let usage_command =
   "<CHECK " ++ usage_check ++ " | COMPLETIONS " ++ usage_completions ++ ">";
 let usage_debug = "[--debug]";
@@ -48,7 +48,7 @@ let rec parse = (args: arguments, strs): arguments =>
   switch (strs) {
   | ["CHECK", ...rest] => parse_check(rest, args)
   | ["COMPLETIONS", ...rest] => parse_completions(rest, args)
-  | ["RUNTEST", ...rest] => parse_runtest(rest, args)
+  | ["RUNTEST", ...rest] => parse_runtest(rest, {...args, debug: true})
   | _ => failwith("LSP: Command not recognized: " ++ usage_command)
   }
 and parse_base = (strs, args: arguments): arguments =>
@@ -121,14 +121,52 @@ and parse_completions = (strs, args: arguments): arguments =>
 and parse_runtest = (strs, args: arguments): arguments =>
   switch (strs) {
   /* must be last runtest-specific arg */
-  | ["--api-key", key_path, ...rest] =>
+  //| ["--api-key", key_path, ...rest] =>
+  | ["--api-key", key_path] =>
     switch (LSFiles.string_of_file(key_path)) {
     | exception _ =>
       failwith("LSP: EXN: Could not load api key from path: " ++ key_path)
-    | api_key =>
+    | key =>
       let rt = get_runtest(args.command);
-      parse_base(rest, {...args, command: RunTest({...rt, api_key})});
+      {...args, command: RunTest({...rt, key})};
+    //parse_base(rest, {...args, command: RunTest({...rt, api_key})});
     }
+  | ["--source_folder", path_base, ...rest] =>
+    let prelude_path = path_base ++ "//prelude.haze";
+    let prelude =
+      switch (LSFiles.string_of_file(prelude_path)) {
+      | exception _ =>
+        failwith(
+          "LSP: EXN: Could not load prelude from path: " ++ prelude_path,
+        )
+      | prelude => prelude
+      };
+    let epilogue_path = path_base ++ "//epilogue.haze";
+    let epilogue =
+      switch (LSFiles.string_of_file(epilogue_path)) {
+      | exception _ =>
+        failwith(
+          "LSP: EXN: Could not load epilogue from path: " ++ epilogue_path,
+        )
+      | epilogue => epilogue
+      };
+    let sketch_path = path_base ++ "//sketch.haze";
+    let sketch =
+      switch (LSFiles.string_of_file(sketch_path)) {
+      | exception _ =>
+        failwith("LSP: EXN: Could not load sketch from path: " ++ sketch_path)
+      | sketch => sketch
+      };
+    let data = {
+      prelude: Some(prelude),
+      epilogue: Some(epilogue),
+      program: sketch,
+      new_token: None,
+    };
+    parse_runtest(rest, {...args, data});
+  | ["--run_name", run_name, ...rest] =>
+    let rt = get_runtest(args.command);
+    parse_runtest(rest, {...args, command: RunTest({...rt, run_name})});
   | ["--error_rounds_max", num_rounds, ...rest]
       when validate_error_rounds(num_rounds) =>
     let rt = get_runtest(args.command);
@@ -163,8 +201,24 @@ let main = ({debug, data, command, init_ctx}: LSActions.arguments) => {
   | Completions(completions) =>
     LSCompletions.go(~db, ~settings={data, completions, init_ctx})
   | Check(check) => LSChecker.go(~db, ~settings={data, check, init_ctx})
-  | RunTest({api_key: key, options}) =>
-    LSTest.go(~db, ~settings={options, data, init_ctx}, ~key)
+  | RunTest({run_name, key, options}) =>
+    let or_empty = (s: option(string)): string =>
+      switch (s) {
+      | None => ""
+      | Some(x) => x
+      };
+    LSTest.go(
+      ~db,
+      ~settings={
+        options,
+        run_name,
+        sketch: data.program,
+        prelude: or_empty(data.prelude),
+        epilogue: or_empty(data.epilogue),
+        init_ctx,
+      },
+      ~key,
+    );
   };
 };
 

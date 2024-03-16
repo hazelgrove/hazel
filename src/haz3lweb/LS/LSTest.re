@@ -13,55 +13,23 @@
 
  */
 
-/*
-  FOLDERNAME
-
- record:
-   LOG_OF_STDOUT (for all below)
-
-   run_command
-   prelude_path
-   sketch_path
-   epilogue_path
-
-   commit
-   starttime
-
-   foreach req {
-     prompt
-     usage
-   }
-
-   endtime
-   parse_error?
-   type_errors
-
-   dynamic_tests
-
-   DERIVED:
-   */
-
 open Haz3lcore;
 open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type data = {
-  prelude: string,
-  epilogue: string,
-  sketch_pre: string,
-  sketch_suf: string,
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type settings = {
   init_ctx: Ctx.t,
-  data: LSActions.data,
+  sketch: string,
+  prelude: string,
+  epilogue: string,
+  run_name: string,
   options: FillerOptions.t,
 };
 
 type io = {
   save: (string, string) => unit,
   add: (string, string) => unit,
+  get: string => option(string),
   update: (string, option(string) => string) => unit,
 };
 
@@ -74,11 +42,16 @@ let default_options: FillerOptions.t = {
   error_rounds_max: 1,
 };
 
-let default: LSActions.runtest = {api_key: "SPORK", options: default_options};
+let default: LSActions.runtest = {
+  key: "SPORK",
+  run_name: "unspecified",
+  options: default_options,
+};
 
 let get_caret_mode_and_ctx = (~db, ~init_ctx, ~prelude, sketch_pre) => {
   let sketch_pre_z = LSFiles.get_zipper(~db, sketch_pre, None);
-  let init_ctx = LSCompletions.get_prelude_ctx(~db, ~init_ctx, ~prelude);
+  let init_ctx =
+    LSCompletions.get_prelude_ctx(~db, ~init_ctx, ~prelude=Some(prelude));
   //TODO(andrew): this makes tons of assumptions
   let gen_options =
     LSCompletions.generation_options(
@@ -147,6 +120,66 @@ let split_sketch = (sketch: string) => {
   };
 };
 
+let mk_io = (name: string): io => {
+  let run_dir = "testout";
+  let mk_run_name = (base: string) => {
+    run_dir ++ "//" ++ base ++ "-" ++ LSFiles.getCurrentISOTimestamp();
+  };
+  let run_name = mk_run_name(name);
+  let run_filepath = name => run_name ++ "//" ++ name;
+  let ref_file = run_filepath("run.data");
+  let add = LSFiles.append_key_value_to_file(~path=ref_file);
+  let get = LSFiles.get_value_by_key_from_file(~path=ref_file);
+  let save = (filename, content) =>
+    LSFiles.save_text_to_file(~path=run_filepath(filename), ~content);
+  LSFiles.mk_dir(run_dir);
+  LSFiles.mk_dir(run_name);
+  let update = (key, update) =>
+    LSFiles.update_key_value_in_file(~path=ref_file, ~key, update);
+  {save, add, get, update};
+};
+
+let record_init_info =
+    (
+      ~io: io,
+      options: FillerOptions.t,
+      prelude: string,
+      epilogue: string,
+      sketch: string,
+    ) => {
+  let opt_pre = prop => "option-" ++ prop;
+  io.add(opt_pre("llm"), options.llm |> OpenAI.show_chat_models);
+  io.add(opt_pre("expected_type"), options.expected_type |> string_of_bool);
+  io.add(
+    opt_pre("error_rounds_max"),
+    options.error_rounds_max |> string_of_int,
+  );
+  io.save("prelude.haze", prelude);
+  io.save("epilogue.haze", epilogue);
+  io.save("sketch.haze", sketch);
+  io.add("prelude-hash", LSFiles.hash_of_string(prelude));
+  io.add("epilogue-hash", LSFiles.hash_of_string(epilogue));
+  io.add("sketch-hash", LSFiles.hash_of_string(sketch));
+  io.add("commit", LSFiles.getCurrentGitCommit());
+  io.add("start-time", LSFiles.getCurrentUnixTimestamp());
+};
+
+let record_final_info =
+    (~db, ~io: io, results: list(TestStatus.t), completed_sketch: string)
+    : unit => {
+  db("LS: RunTest: Completed sketch:");
+  db(completed_sketch);
+  db("LS: RunTest: Test results:");
+  db(String.concat("\n", List.map(TestStatus.to_string, results)));
+  let counts = LSChecker.collate_test_counts(results);
+  io.add("end-time", LSFiles.getCurrentUnixTimestamp());
+  io.save("completed-sketch.haze", completed_sketch);
+  io.add("tests-total", string_of_int(counts.total));
+  io.add("tests-pass", string_of_int(counts.pass));
+  io.add("tests-fail", string_of_int(counts.fail));
+  io.add("tests-indet", string_of_int(counts.indet));
+};
+
 let record_round_info =
     (
       ~db,
@@ -161,56 +194,82 @@ let record_round_info =
   db("LS: RunTest: Reply content:" ++ reply.content);
   io.save(Printf.sprintf("round-reply.%d.haze", round), reply.content);
   io.save(Printf.sprintf("round-reply.%d.errors", round), error_res |> snd);
+  let append = g =>
+    fun
+    | None => g
+    | Some(s) => s ++ "," ++ g;
   let num_static =
     switch (error_res |> fst) {
-    | NoErrors => 0
     | ParseError(_) => (-1) // signifies parse error
+    | NoErrors => 0
     | StaticErrors(xs) => List.length(xs)
     };
-  // io.add(
-  //   Printf.sprintf("round-%d-static-errors", round),
-  //   num_static |> string_of_int,
-  // );
-  // io.add(
-  //   Printf.sprintf("round-%d-prompt-tokens", round),
-  //   reply.usage.prompt_tokens |> string_of_int,
-  // );
-  // io.add(
-  //   Printf.sprintf("round-%d-completion-tokens", round),
-  //   reply.usage.completion_tokens |> string_of_int,
-  // );
-  // io.add(
-  //   Printf.sprintf("round-%d-total-tokens", round),
-  //   reply.usage.total_tokens |> string_of_int,
-  // );
   let prompt_tokens = reply.usage.prompt_tokens |> string_of_int;
-  io.update(
-    "round-usage-prompt-tokens",
-    fun
-    | None => prompt_tokens
-    | Some(s) => s ++ "," ++ prompt_tokens,
-  );
+  io.update("round-usage-prompt-tokens", append(prompt_tokens));
   let completion_tokens = reply.usage.completion_tokens |> string_of_int;
-  io.update(
-    "round-usage-completion-tokens",
-    fun
-    | None => completion_tokens
-    | Some(s) => s ++ "," ++ completion_tokens,
-  );
+  io.update("round-usage-completion-tokens", append(completion_tokens));
   let total_tokens = reply.usage.total_tokens |> string_of_int;
-  io.update(
-    "round-usage-total-tokens",
-    fun
-    | None => total_tokens
-    | Some(s) => s ++ "," ++ total_tokens,
-  );
+  io.update("round-usage-total-tokens", append(total_tokens));
   let num_static = string_of_int(num_static);
-  io.update(
-    "round-static-errors",
-    fun
-    | None => num_static
-    | Some(s) => s ++ "," ++ num_static,
-  );
+  io.update("round-static-errors", append(num_static));
+};
+
+let percent_string = (a, b) =>
+  Printf.sprintf("%.1f", float_of_string(a) *. 100. /. float_of_string(b));
+let minus_string = (a, b) =>
+  Printf.sprintf("%.1f", float_of_string(a) -. float_of_string(b));
+let sum_comma_separated = str =>
+  str
+  |> Option.get
+  |> Str.split(Str.regexp(","))
+  |> List.fold_left(
+       (a, b) => string_of_int(int_of_string(a) + int_of_string(b)),
+       "0",
+     );
+
+let record_derived = (~io: io) => {
+  let time_start = io.get("start-time") |> Option.get;
+  let time_end = io.get("end-time") |> Option.get;
+  let time_elapsed = minus_string(time_end, time_start);
+  io.add("derived-time-elapsed", time_elapsed);
+
+  let tests_total = io.get("tests-total") |> Option.get;
+  let tests_pass = io.get("tests-pass") |> Option.get;
+  let percent_passing = percent_string(tests_pass, tests_total);
+  io.add("derived-percent-tests", percent_passing);
+
+  io.get("round-static-errors")
+  |> Option.get
+  |> Str.split(Str.regexp(","))
+  |> List.length
+  |> (x => x - 1)  // don't count intial prompt
+  |> string_of_int
+  |> io.add("derived-err-rounds-used");
+
+  io.get("round-usage-total-tokens")
+  |> sum_comma_separated
+  |> io.add("derived-total-tokens-used");
+
+  let static_errors =
+    io.get("round-static-errors")
+    |> Option.get
+    |> Str.split(Str.regexp(","));
+
+  let first_round_static_errors = static_errors |> List.hd;
+  let final_round_static_errors = static_errors |> List.rev |> List.hd;
+
+  let final_parses = final_round_static_errors == "-1" ? "false" : "true";
+  io.add("derived-final-parses", final_parses);
+  io.add("derived-final-static-errors", final_round_static_errors);
+
+  let percent_errors_fixed =
+    percent_string(
+      minus_string(final_round_static_errors, first_round_static_errors),
+      first_round_static_errors,
+    );
+  io.add("derived-err-improve", percent_errors_fixed);
+
+  io.add("derived-completed-run", "true");
 };
 
 let rec error_loop =
@@ -253,22 +312,6 @@ let rec error_loop =
   };
 };
 
-let record_final_info =
-    (~db, ~io: io, results: list(TestStatus.t), completed_sketch: string)
-    : unit => {
-  db("LS: RunTest: Completed sketch:");
-  db(completed_sketch);
-  db("LS: RunTest: Test results:");
-  db(String.concat("\n", List.map(TestStatus.to_string, results)));
-  let counts = LSChecker.collate_test_counts(results);
-  io.add("end-time", LSFiles.getCurrentUnixTimestamp());
-  io.save("completed-sketch.haze", completed_sketch);
-  io.add("tests-total", string_of_int(counts.total));
-  io.add("tests-pass", string_of_int(counts.pass));
-  io.add("tests-fail", string_of_int(counts.fail));
-  io.add("tests-indet", string_of_int(counts.indet));
-};
-
 let final_handler =
     (
       ~db,
@@ -288,14 +331,15 @@ let final_handler =
         init_ctx,
         check: LSActions.Dynamic,
         data: {
-          prelude,
+          prelude: Some(prelude),
           program: completed_sketch,
           new_token: None,
-          epilogue,
+          epilogue: Some(epilogue),
         },
       },
     );
   record_final_info(~db, ~io, results, completed_sketch);
+  record_derived(~io);
 };
 
 let first_handler =
@@ -342,72 +386,16 @@ let first_handler =
   | None => failwith("APINode: handler returned None")
   };
 
-let run_dir = "testout";
-let mk_run_name = (base: string) => {
-  run_dir ++ "//" ++ base ++ "-" ++ LSFiles.getCurrentISOTimestamp();
-};
-
-let or_empty = (s: option(string)): string =>
-  switch (s) {
-  | None => ""
-  | Some(x) => x
-  };
-
-let mk_io = (name: string): io => {
-  let run_name = mk_run_name(name);
-  let run_filepath = name => run_name ++ "//" ++ name;
-  let ref_file = run_filepath("run.data");
-  let add = LSFiles.append_key_value_to_file(~path=ref_file);
-  let save = (filename, content) =>
-    LSFiles.save_text_to_file(~path=run_filepath(filename), ~content);
-  LSFiles.mk_dir(run_dir);
-  LSFiles.mk_dir(run_name);
-  let update = (key, update) =>
-    LSFiles.update_key_value_in_file(~path=ref_file, ~key, update);
-  {save, add, update};
-};
-
-let record_init_info =
-    (
-      ~io: io,
-      options: FillerOptions.t,
-      prelude: string,
-      epilogue: string,
-      sketch: string,
-    ) => {
-  let opt_pre = prop => "option-" ++ prop;
-  io.add(opt_pre("llm"), options.llm |> OpenAI.show_chat_models);
-  io.add(opt_pre("expected_type"), options.expected_type |> string_of_bool);
-  io.add(
-    opt_pre("error_rounds_max"),
-    options.error_rounds_max |> string_of_int,
-  );
-  io.save("prelude.haze", prelude);
-  io.save("epilogue.haze", epilogue);
-  io.save("sketch.haze", sketch);
-  io.add("prelude-hash", LSFiles.hash_of_string(prelude));
-  io.add("epilogue-hash", LSFiles.hash_of_string(epilogue));
-  io.add("sketch-hash", LSFiles.hash_of_string(sketch));
-  io.add("commit", LSFiles.getCurrentGitCommit());
-  io.add("start-time", LSFiles.getCurrentUnixTimestamp());
-};
-
 let go =
     (
       ~db,
       ~settings as
-        {init_ctx, data: {program: sketch, prelude, epilogue, _}, options}: settings,
+        {init_ctx, run_name, sketch, prelude, epilogue, options}: settings,
       ~key,
     ) => {
-  let io = mk_io("bar");
+  let io = mk_io(run_name);
   db("LS: RunTest: Setting up output folder");
-  record_init_info(
-    ~io,
-    options,
-    or_empty(prelude),
-    or_empty(epilogue),
-    sketch,
-  );
+  record_init_info(~io, options, prelude, epilogue, sketch);
   db("LS: RunTest: Generating prompt");
   let (sketch_pre, sketch_suf) = split_sketch(sketch);
   let (caret_mode, caret_ctx) =
