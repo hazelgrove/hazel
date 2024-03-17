@@ -1,12 +1,16 @@
 open Sexplib.Std;
 
-module Step = {
+// stance phase of gait cycle is when foot is on the ground.
+// in this setting, this is when grammar walk reaches a T sym.
+module Stance = Molded.T;
+// swing phase of gait cycle is when foot is in the air.
+// in this setting, this is when grammar walk reaches an NT sym.
+module Swing = {
+  // a swing is represented by a non-empty list of NTs where all
+  // but the last are swung "into" (ie expanded in a grammar derivation
+  // step) and the last is swung "over" to arrive at the next stance
   [@deriving (show({with_path: false}), sexp, yojson, ord)]
-  type t = (Mtrl.Labeled.t, Mold.t);
-};
-module Stride = {
-  [@deriving (show({with_path: false}), sexp, yojson, ord)]
-  type t = Chain.t((Mtrl.Sorted.t, Bound.t(Mold.t)), unit);
+  type t = Chain.t(Bound.t(Molded.NT.t), unit);
   let height = Chain.length;
   let mk_eq = Chain.unit;
   let is_eq = s => height(s) == 1;
@@ -24,32 +28,32 @@ module Stride = {
 };
 module Base = {
   [@deriving (show({with_path: false}), sexp, yojson, ord)]
-  type t = Chain.t(Stride.t, Step.t);
+  type t = Chain.t(Swing.t, Stance.t);
 };
 include Base;
 
 let strides = Chain.loops;
 let height = w =>
-  strides(w) |> List.filter(Stride.is_neq) |> List.length |> (+)(1);
+  strides(w) |> List.filter(Swing.is_neq) |> List.length |> (+)(1);
 
-// let has_sort = w => List.exists(Stride.has_sort, strides(w));
+// let has_sort = w => List.exists(Swing.has_sort, strides(w));
 
 let fst = Chain.fst;
 let lst = Chain.lst;
 
-let is_eq = w => List.for_all(Stride.is_eq, Chain.loops(w));
+let is_eq = w => List.for_all(Swing.is_eq, Chain.loops(w));
 let is_neq = w => !is_eq(w);
 
 let singleton = Chain.unit;
 
 let append = Chain.append;
 
-let top_off = (mtrl: Mtrl.Sorted.t, mold: Bound.t(Mold.t)) =>
-  Chain.map_fst(Chain.link((mtrl, mold), ()));
+let cons = (bound: Bound.t(Molded.NT.t)) =>
+  Chain.map_fst(Chain.link(bound, ()));
 
 module End = {
   [@deriving (show({with_path: false}), sexp, yojson, ord)]
-  type t = Bound.t(Step.t);
+  type t = Bound.t(Stance.t);
   module Map =
     Map.Make({
       type nonrec t = t;

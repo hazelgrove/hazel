@@ -93,13 +93,13 @@ let bake_gt =
   Rel.Neq(cell);
 };
 
-let bake_stride = (~fill=[], ~from: Dir.t, str: Walk.Stride.t) => {
+let bake_stride = (~fill=[], ~from: Dir.t, str: Walk.Swing.t) => {
   let fill = Dir.pick(from, (Fun.id, List.rev), fill);
   switch (from) {
-  | _ when Walk.Stride.height(str) <= 1 =>
-    bake_eq(~fill, Walk.Stride.bot(str))
-  | L => bake_lt(~fill, Walk.Stride.top(str), Walk.Stride.bot(str))
-  | R => bake_gt(~fill, Walk.Stride.bot(str), Walk.Stride.top(str))
+  | _ when Walk.Swing.height(str) <= 1 =>
+    bake_eq(~fill, Walk.Swing.bot(str))
+  | L => bake_lt(~fill, Walk.Swing.top(str), Walk.Swing.bot(str))
+  | R => bake_gt(~fill, Walk.Swing.bot(str), Walk.Swing.top(str))
   };
 };
 
@@ -108,7 +108,7 @@ let bake =
   w
   |> Chain.map_link(Token.mk)
   |> Chain.unzip
-  |> Oblig.Delta.minimize(((pre, str: Walk.Stride.t, suf)) => {
+  |> Oblig.Delta.minimize(((pre, str: Walk.Swing.t, suf)) => {
        open OptUtil.Syntax;
        let bake_tl = ((toks, strs)) =>
          List.combine(toks, strs)

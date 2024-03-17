@@ -12,11 +12,11 @@ let all = [Missing_meld, Missing_tile, Incon_meld, Extra_meld];
 let severity = o => Option.get(ListUtil.find_index((==)(o), all));
 
 let of_token = (tok: Token.t) =>
-  switch (tok.lbl.mtrl) {
+  switch (tok.mtrl) {
   | Space => None
   | Grout =>
-    let null_l = Mold.nullable(~side=L, tok.lbl.mold);
-    let null_r = Mold.nullable(~side=R, tok.lbl.mold);
+    let null_l = Mold.nullable(~side=L, tok.mold);
+    let null_r = Mold.nullable(~side=R, tok.mold);
     if (null_l && null_r) {
       Some(Missing_meld);
     } else if (null_l || null_r) {

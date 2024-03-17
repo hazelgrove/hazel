@@ -12,7 +12,7 @@ let expect_srt =
 let enter =
     (~from: Dir.t, ~l=Bound.Root, ~r=Bound.Root, s: Mtrl.Sorted.t)
     : list((Mtrl.NT.t, Mold.t)) => {
-  MGrammar.v
+  Mtrl.Grammar.v
   |> Mtrl.Sorted.Map.find(s)
   |> Prec.Table.mapi(((p, a), rgx) => {
        // need to check for legal bounded entry from both sides
@@ -40,92 +40,84 @@ let enter =
   |> List.concat;
 };
 
-let stride_over = (~from: Dir.t, sort: Bound.t(Molded.Sorted.t)): Index.t =>
+let swing_over = (~from: Dir.t, sort: Bound.t(Molded.NT.t)): Index.t =>
   switch (sort) {
-  | Root => Index.singleton(Root, [singleton(Stride.mk_eq(Bound.Root))])
-  | Node(s) =>
-    (Sym.NT(s.mtrl), s.mold.rctx)
+  | Root => Index.singleton(Root, [singleton(Swing.mk_eq(Bound.Root))])
+  | Node((mtrl, mold)) =>
+    (Sym.NT(mtrl), mold.rctx)
     |> RZipper.step(Dir.toggle(from))
     |> List.map(
-         Bound.map(((msym, rctx)) => {
-           let mlbl = expect_lbl(msym);
-           let mold = {...s.mold, rctx};
-           Molded.{mold, mtrl: mlbl};
-         }),
+         Bound.map(((msym, rctx)) => (expect_lbl(msym), {...mold, rctx})),
        )
-    |> List.map(lbl => (lbl, [singleton(Stride.mk_eq(sort))]))
+    |> List.map(lbl => (lbl, [singleton(Swing.mk_eq(sort))]))
     |> Index.of_list
   };
 
-let stride_into = (~from: Dir.t, sort: Bound.t(Molded.Sorted.t)): Index.t => {
-  let bounds = (s: Molded.Sorted.t) => {
-    let (l_sort, r_sort) = Molded.Sorted.bounds(sort);
-    let (l_s, r_s) = Molded.Sorted.bounds(Bound.Node(s));
+let swing_into = (~from: Dir.t, sort: Bound.t(Molded.NT.t)): Index.t => {
+  let bounds = (s: Molded.NT.t) => {
+    let (l_sort, r_sort) = Molded.NT.bounds(sort);
+    let (l_s, r_s) = Molded.NT.bounds(Bound.Node(s));
     Dir.pick(from, ((l_sort, r_s), (l_s, r_sort)));
   };
   let seen = Hashtbl.create(10);
-  let rec go = (s: Bound.t(Molded.Sorted.t)) => {
+  let rec go = (s: Bound.t(Molded.NT.t)) => {
     let (mtrl, (l, r)) =
       switch (s) {
       | Root => (Mtrl.Sorted.root, Bound.(Root, Root))
-      | Node(s) => (s.mtrl, bounds(s))
+      | Node(((_, mtrl), _) as nt) => (mtrl, bounds(nt))
       };
     switch (Hashtbl.find_opt(seen, mtrl)) {
     | Some () => Index.empty
     | None =>
       Hashtbl.add(seen, mtrl, ());
       enter(~from, ~l, ~r, mtrl)
-      |> List.map((s: Molded.Sorted.t) =>
-           Index.union(stride_over(~from, Node(s)), go(Node(s)))
+      |> List.map((s: Molded.NT.t) =>
+           Index.union(swing_over(~from, Node(s)), go(Node(s)))
          )
       |> Index.union_all
-      |> Index.map(bound(s));
+      |> Index.map(Walk.cons(s));
     };
   };
   go(sort);
 };
-let stride = (~from: Dir.t, sort: Bound.t(Molded.Sorted.t)) =>
-  Index.union(stride_over(~from, sort), stride_into(~from, sort));
+let swing = (~from: Dir.t, sort: Bound.t(Molded.NT.t)) =>
+  Index.union(swing_over(~from, sort), swing_into(~from, sort));
 
 let step = (~from: Dir.t, src: End.t) =>
   switch (src) {
-  | Root => stride(~from, Root)
-  | Node(lbl) =>
-    (Sym.T(lbl.mtrl), lbl.mold.rctx)
+  | Root => swing(~from, Root)
+  | Node((mtrl, mold)) =>
+    (Sym.T(mtrl), mold.rctx)
     |> RZipper.step(Dir.toggle(from))
     |> List.map(
-         Bound.map(((msym, rctx)) => {
-           let msrt = expect_srt(msym);
-           let mold = {...lbl.mold, rctx};
-           Molded.{mold, mtrl: msrt};
-         }),
+         Bound.map(((msym, rctx)) => (expect_srt(msym), {...mold, rctx})),
        )
-    |> List.map(stride(~from))
+    |> List.map(swing(~from))
     |> Index.union_all
   };
 
-let lt = (l: End.t, r: End.t): list(Bound.t(Molded.Sorted.t)) =>
+let lt = (l: End.t, r: End.t): list(Bound.t(Molded.NT.t)) =>
   step(~from=L, l)
   |> Index.find(r)
   |> List.filter_map(walk => {
-       let stride = fst(walk);
-       Stride.is_eq(stride) ? None : Some(Stride.bot(stride));
+       let swing = fst(walk);
+       Swing.is_eq(swing) ? None : Some(Swing.bot(swing));
      });
 let gt = (l: End.t, r: End.t) =>
   step(~from=R, r)
   |> Index.find(l)
   |> List.filter_map(walk => {
-       let stride = fst(walk);
-       Stride.is_eq(stride) ? None : Some(Stride.bot(stride));
+       let swing = fst(walk);
+       Swing.is_eq(swing) ? None : Some(Swing.bot(swing));
      });
 let eq = (l: End.t, r: End.t) =>
   step(~from=L, l)
   |> Index.find(r)
-  |> List.filter(walk => Stride.is_eq(fst(walk)));
+  |> List.filter(walk => Swing.is_eq(fst(walk)));
 
 let walk = (~from: Dir.t, src: End.t) => {
   let seen = Hashtbl.create(100);
-  let rec go = (src: Bound.t(Molded.Labeled.t)) =>
+  let rec go = (src: Bound.t(Molded.T.t)) =>
     switch (Hashtbl.find_opt(seen, src)) {
     | Some () => Index.empty
     | None =>
@@ -146,9 +138,9 @@ let walk = (~from: Dir.t, src: End.t) => {
   go(src);
 };
 
-let walk_into = (~from: Dir.t, sort: Bound.t(Molded.Sorted.t)) => {
+let walk_into = (~from: Dir.t, sort: Bound.t(Molded.NT.t)) => {
   open Index.Syntax;
-  let* (src_mid, mid) = stride_into(~from, sort);
+  let* (src_mid, mid) = swing_into(~from, sort);
   switch (mid) {
   | Root => Index.empty
   | Node(mid) =>
@@ -167,6 +159,6 @@ let walk_eq = (~from, src, dst) =>
 let walk_neq = (~from, src, dst) =>
   List.filter(is_neq, walk(~from, src, dst));
 
-let enter = (~from: Dir.t, sort: Bound.t(Molded.Sorted.t), dst: End.t) =>
+let enter = (~from: Dir.t, sort: Bound.t(Molded.NT.t), dst: End.t) =>
   Index.find(dst, walk_into(~from, sort));
 let exit = (~from: Dir.t, src: End.t) => walk_eq(~from, src, Root);

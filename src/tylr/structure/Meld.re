@@ -9,7 +9,7 @@ module Cell = {
     meld: option('meld),
   };
   // let empty = {marks: Path.Marks.empty, dims: Dims.zero, meld: None};
-  let full = m => {marks: Path.Marks.empty, meld: Some(m)};
+  // let full = m => {marks: Path.Marks.empty, meld: Some(m)};
 };
 
 module Wald = {
