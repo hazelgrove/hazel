@@ -262,7 +262,7 @@ module Transition = (EV: EV_MODE) => {
       });
     | TypAp(d, tau) =>
       let. _ = otherwise(env, d => TypAp(d, tau))
-      and. d' = req_final(req(state, env), d => TypAp(d, tau), d);
+      and. d' = req_value(req(state, env), d => TypAp(d, tau), d);
       switch (d') {
       | TypFun(utpat, tfbody) =>
         /* Rule ITTLam */
