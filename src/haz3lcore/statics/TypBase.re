@@ -347,7 +347,7 @@ module rec Typ: {
     | (Unknown(p1), Unknown(p2)) =>
       Some(Unknown(join_type_provenance(p1, p2)))
     | (Unknown(_), ty)
-    | (ty, Unknown(Internal | SynSwitch)) => Some(ty)
+    | (ty, Unknown(_)) => Some(ty)
     | (Var(n1), Var(n2)) =>
       if (n1 == n2) {
         Some(Var(n1));
