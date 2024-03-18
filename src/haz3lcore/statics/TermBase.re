@@ -44,6 +44,10 @@ and UExp: {
     | Not;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type op_un_meta =
+    | Unquote;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un_int =
     | Minus;
 
@@ -87,6 +91,7 @@ and UExp: {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un =
+    | Meta(op_un_meta)
     | Int(op_un_int)
     | Bool(op_un_bool);
 
@@ -97,6 +102,34 @@ and UExp: {
     | Bool(op_bin_bool)
     | String(op_bin_string);
 
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type cls =
+    | Invalid
+    | EmptyHole
+    | MultiHole
+    | Triv
+    | Bool
+    | Int
+    | Float
+    | String
+    | ListLit
+    | Tag
+    | Fun
+    | Tuple
+    | Var
+    | Let
+    | Ap
+    | If
+    | Seq
+    | Test
+    | Filter
+    | Parens
+    | Cons
+    | ListConcat
+    | UnOp(op_un)
+    | BinOp(op_bin)
+    | Match;
+  
   [@deriving (show({with_path: false}), sexp, yojson)]
   type deferral_position =
     | InAp
@@ -126,6 +159,7 @@ and UExp: {
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
+    | Filter(FilterAction.t, t, t)
     | Parens(t) // (
     | Cons(t, t)
     | ListConcat(t, t)
@@ -148,6 +182,10 @@ and UExp: {
     | Not;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type op_un_meta =
+    | Unquote;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un_int =
     | Minus;
 
@@ -191,6 +229,7 @@ and UExp: {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un =
+    | Meta(op_un_meta)
     | Int(op_un_int)
     | Bool(op_un_bool);
 
@@ -200,6 +239,34 @@ and UExp: {
     | Float(op_bin_float)
     | Bool(op_bin_bool)
     | String(op_bin_string);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type cls =
+    | Invalid
+    | EmptyHole
+    | MultiHole
+    | Triv
+    | Bool
+    | Int
+    | Float
+    | String
+    | ListLit
+    | Tag
+    | Fun
+    | Tuple
+    | Var
+    | Let
+    | Ap
+    | If
+    | Seq
+    | Test
+    | Filter
+    | Parens
+    | Cons
+    | ListConcat
+    | UnOp(op_un)
+    | BinOp(op_bin)
+    | Match;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type deferral_position =
@@ -230,6 +297,7 @@ and UExp: {
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
+    | Filter(FilterAction.t, t, t)
     | Parens(t) // (
     | Cons(t, t)
     | ListConcat(t, t)

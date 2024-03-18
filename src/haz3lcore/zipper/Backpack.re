@@ -287,3 +287,17 @@ let will_barf = (t: Token.t, bp: t): bool =>
     }
   | _ => false
   };
+
+let remove_uni_tiles_with_deep_matches = (bp: t, sel: Selection.t): t => {
+  /* This is a hack to prevent incomplete tiles inside selection tiles
+   * from being orphaned on deletion, e.g. if you delete segment "([)"
+   * with "]" in the backpack.  */
+  let ids = Segment.ids_of_incomplete_tiles_in_bidelimiteds(sel.content);
+  List.filter_map(
+    fun
+    | Selection.{content: [Piece.Tile({id, _})], _} when List.mem(id, ids) =>
+      None
+    | x => Some(x),
+    bp,
+  );
+};
