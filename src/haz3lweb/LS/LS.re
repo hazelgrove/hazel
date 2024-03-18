@@ -181,6 +181,10 @@ and parse_runtest = (strs, args: arguments): arguments =>
     let rt = get_runtest(args.command);
     let options = {...rt.options, expected_type: true};
     parse_runtest(rest, {...args, command: RunTest({...rt, options})});
+  | ["--relevant_ctx", ...rest] =>
+    let rt = get_runtest(args.command);
+    let options = {...rt.options, relevant_ctx: true};
+    parse_runtest(rest, {...args, command: RunTest({...rt, options})});
   | _ => failwith("LSP: EXN: Usage: " ++ usage_runtest)
   };
 

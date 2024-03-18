@@ -1,0 +1,11 @@
+fun playlist, action ->
+  case action
+    | PlaySong(songId) => set_song_state(Playing(songId), playlist)
+    | PauseCurrentSong =>
+      case snd(playlist)
+      | Playing(songId) => set_song_state(PausedOn(songId), playlist)
+      | _ => playlist
+      end
+    | RemoveSong(songId) => remove_song(songId, playlist)
+    | AddSong(songId) => add_song(songId, playlist)
+  end

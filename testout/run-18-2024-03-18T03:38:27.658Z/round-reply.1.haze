@@ -1,0 +1,5 @@
+fun m, a ->
+  case a
+  | UpdateCount(n) => { count = m.count + n }
+  | Reset => { count = 0 }
+  end

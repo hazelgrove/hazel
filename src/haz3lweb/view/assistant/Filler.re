@@ -167,7 +167,7 @@ let hazel_syntax_notes = [
  REMEMBER: HACKS in Code, Measured for reponse-wrapping ~ form.contents
  */
 
-let ctx_prompt = (ctx: Ctx.t, expected_ty: Typ.t): string => {
+let _ctx_prompt = (ctx: Ctx.t, expected_ty: Typ.t): string => {
   /* If expected_ty not unknown, filter ctx to only include vars consistent with that type,
        or of arrow type where return type is consistent with that type. convert the var names and types
        to strings and seperte with commas.
@@ -202,7 +202,7 @@ let ctx_prompt = (ctx: Ctx.t, expected_ty: Typ.t): string => {
   };
 };
 
-let mk_user_message = (~expected_ty, sketch: string): string =>
+let mk_user_message = (~expected_ty, ~relevant_ctx, sketch: string): string =>
   "{\n"
   ++ String.concat(
        ",\n",
@@ -211,6 +211,7 @@ let mk_user_message = (~expected_ty, sketch: string): string =>
          [
            Some("sketch: " ++ sketch),
            Option.map(Printf.sprintf("expected_ty: %s"), expected_ty),
+           Option.map(Printf.sprintf("relevant_ctx:\n %s"), relevant_ctx),
          ],
        ),
      )
@@ -225,9 +226,17 @@ let get_samples = (num_examples, samples) =>
 
 let prompt =
     (
-      {instructions, syntax_notes, num_examples, expected_type, _}: FillerOptions.t,
+      {
+        instructions,
+        syntax_notes,
+        num_examples,
+        expected_type,
+        relevant_ctx,
+        _,
+      }: FillerOptions.t,
       ~sketch,
       ~expected_ty,
+      ~relevant_ctx_str,
     )
     : option(OpenAI.prompt) => {
   let+ () = String.trim(sketch) == "" ? None : Some();
@@ -236,17 +245,26 @@ let prompt =
     @ (syntax_notes ? hazel_syntax_notes : []);
   let samples = get_samples(num_examples, samples);
   let expected_ty = expected_type ? Some(expected_ty) : None;
-  //let _selected_ctx = ctx_prompt(ctx, ChatLSP.Type.expected_ty(~ctx, mode));
+  let relevant_ctx = relevant_ctx ? Some(relevant_ctx_str) : None;
   OpenAI.[{role: System, content: String.concat("\n", system_prompt)}]
   @ Util.ListUtil.flat_map(
       ((sketch, expected_ty, completion)): list(OpenAI.message) =>
         [
-          {role: User, content: mk_user_message(sketch, ~expected_ty)},
+          {
+            role: User,
+            content:
+              mk_user_message(sketch, ~expected_ty, ~relevant_ctx=None),
+          },
           {role: Assistant, content: completion},
         ],
       samples,
     )
-  @ [{role: User, content: mk_user_message(sketch, ~expected_ty)}];
+  @ [
+    {
+      role: User,
+      content: mk_user_message(sketch, ~expected_ty, ~relevant_ctx),
+    },
+  ];
 };
 
 let get_top_level_errs = (init_ctx, mode, top_ci: option(Info.exp)) => {

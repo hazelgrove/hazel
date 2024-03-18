@@ -1,0 +1,19 @@
+The following static errors were discovered:
+Error in term:
+  t, not s
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  idx todos
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  map(fun ((i, ((t, s)))) ->
+ if i == idx then (t, not s) else (t, s)) idx todos
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  map
+Nature of error: Variable map is not bound
+Error in term:
+  List.remove_at
+Nature of error: Variable List.remove_at is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

@@ -86,6 +86,9 @@ let map = (f: 'a => 'b, m: t('a)): t('b) => {
   List.combine(ctrs, vals);
 };
 
+let fold_left = (f: (Constructor.t, 'a, 'b) => 'b, acc: 'b, m: t('a)): 'b =>
+  List.fold_left((acc, (ctr, value)) => f(ctr, value, acc), acc, m);
+
 /* sorts on ctrs only */
 let sort = (map: t('a)): t('a) => {
   List.fast_sort(compare_bindings, map);

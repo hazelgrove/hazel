@@ -40,6 +40,7 @@ let opt = (~expected_type): FillerOptions.t => {
   num_examples: 9,
   expected_type,
   error_rounds_max: 2,
+  relevant_ctx: false,
 };
 
 let opt2 = (~instructions, ~syntax_notes, ~num_examples): FillerOptions.t => {
@@ -49,6 +50,7 @@ let opt2 = (~instructions, ~syntax_notes, ~num_examples): FillerOptions.t => {
   num_examples,
   expected_type: true,
   error_rounds_max: 2,
+  relevant_ctx: false,
 };
 
 let common_sketch = sketch_one;

@@ -1,0 +1,7 @@
+fun (playList, action) ->
+  case action
+  | AddSong(song) => List.cons(song, playList)
+  | RemoveSong(song) => List.remove(song, playList)
+  | ShuffleSongs => List.shuffle(playList)
+  | ClearPlayList => []
+  end

@@ -1,0 +1,8 @@
+let update: (Model, Action) -> Model =
+  fun m, a ->
+  case a
+  | Increment => {count = m.count + 1}
+  | Decrement => {count = m.count - 1}
+  | Reset => {count = 0}
+  end
+in

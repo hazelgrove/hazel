@@ -1,4 +1,5 @@
 open Haz3lcore;
+open Sexplib.Std;
 
 //TODO(andrew): calculate this in a more principled way
 let get_info_from_zipper =
@@ -116,3 +117,89 @@ module Type = {
 };
 
 module Errors = Haz3lcore.ErrorPrint;
+
+module RelevantCtx = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type filtered_entry = {
+    name: string,
+    typ: Typ.t,
+    matched_type: Typ.t,
+    depth: int,
+  };
+
+  let score_type = (ty: Typ.t) => {
+    let unk_ratio = Typ.unknown_ratio(ty);
+    Typ.is_base(ty) ? 0.8 : unk_ratio;
+  };
+
+  let take_up_to_n = (n, xs) =>
+    switch (Util.ListUtil.split_n_opt(n, xs)) {
+    | Some((xs, _)) => xs
+    | None => xs
+    };
+
+  let format_def = (name: string, ty: Typ.t) =>
+    Printf.sprintf("let %s: %s = ... in", name, Typ.to_string(ty));
+
+  let filter_ctx = (ctx: Ctx.t, ty_expect: Typ.t): list(filtered_entry) =>
+    List.filter_map(
+      fun
+      | Ctx.VarEntry({typ, name, _})
+          when Typ.is_consistent(ctx, ty_expect, typ) =>
+        Some({name, typ, depth: 0, matched_type: typ})
+      | Ctx.VarEntry({typ: Arrow(_, return_ty) as typ, name, _})
+          when Typ.is_consistent(ctx, ty_expect, return_ty) =>
+        Some({name, typ, matched_type: return_ty, depth: 1})
+      | Ctx.VarEntry({typ: Arrow(_, Arrow(_, return_ty)) as typ, name, _})
+          when Typ.is_consistent(ctx, ty_expect, return_ty) =>
+        Some({name, typ, matched_type: return_ty, depth: 2})
+      | _ => None,
+      ctx,
+    );
+
+  let str = (ctx: Ctx.t, mode: Mode.t): string => {
+    let primary_goal: Typ.t =
+      Type.expected_ty(~ctx, Some(mode)) |> Typ.normalize(ctx);
+    let secondary_targets =
+      switch (primary_goal) {
+      | Arrow(_source, target) =>
+        let terts =
+          switch (target) {
+          | Prod(ts) => ts
+          | _ => []
+          };
+        [target] @ terts;
+      | _ => []
+      };
+    let primary_entries = filter_ctx(ctx, primary_goal);
+    let secondary_entries =
+      List.concat(List.map(filter_ctx(ctx, _), secondary_targets));
+    let combined_entries =
+      secondary_entries
+      @ primary_entries
+      |> Util.ListUtil.dedup
+      |> List.sort((t1, t2) =>
+           compare(score_type(t2.matched_type), score_type(t1.matched_type))
+         );
+    // List.iter(
+    //   fun
+    //   | {name, typ, depth, matched_type} =>
+    //     Printf.sprintf(
+    //       "%s: %s; depth: %d; score: %f",
+    //       name,
+    //       Typ.show(typ),
+    //       depth,
+    //       score_type(matched_type),
+    //     )
+    //     |> print_endline,
+    //   combined_entries,
+    // );
+    let entries =
+      combined_entries
+      |> take_up_to_n(8)
+      |> List.map(({name, typ, _}) => format_def(name, typ))
+      |> String.concat("\n");
+    "# Consider using these variables relevant to the expected type: #\n"
+    ++ entries;
+  };
+};

@@ -4,10 +4,11 @@
 command_prefix="node _build/default/src/haz3lweb/www/hazeLS.js RUNTEST"
 api_key="--api-key $HOME/azure-4-api-key.txt"
 run_name=${1:-default}
-wait_time=0
-num_runs=1
 log_directory="testlog"
 collate_script="collate_data.sh"
+
+wait_time=0
+num_runs=8
 
 # Source folders
 source_folders=(

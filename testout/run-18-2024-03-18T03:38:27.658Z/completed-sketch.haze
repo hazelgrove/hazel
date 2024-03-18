@@ -1,0 +1,7 @@
+let update: (Model, Action) -> Model =
+  fun (model, action) ->
+  case action
+  | Increment => model + 1
+  | Decrement => model - 1
+  end
+in

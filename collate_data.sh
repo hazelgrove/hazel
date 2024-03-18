@@ -12,6 +12,7 @@ keys=()
 # Initialize an associative array to store default values for certain keys
 declare -A default_values
 default_values["option-expected_type"]="false"
+default_values["option-relevant_ctx"]="false"
 default_values["option-error_rounds_max"]="0"
 
 # Set the internal flag to control the usage of the whitelist
@@ -22,6 +23,7 @@ whitelist=(
     "output-path"
     "option-source_path"
     "option-expected_type"
+    "option-relevant_ctx"
     "option-error_rounds_max"
     "start-time"
     "tests-total"

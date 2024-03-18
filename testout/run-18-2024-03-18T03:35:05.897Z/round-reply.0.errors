@@ -1,0 +1,18 @@
+The following static errors were discovered:
+Error in term:
+  List.update
+Nature of error: Variable List.update is not bound
+Error in term:
+  name, not done
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  List.remove
+Nature of error: Variable List.remove is not bound
+Error in term:
+  Buffer.clear
+Nature of error: Variable Buffer.clear is not bound
+Error in term:
+  False
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

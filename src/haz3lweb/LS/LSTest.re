@@ -42,6 +42,7 @@ let default_options: FillerOptions.t = {
   num_examples: 9,
   expected_type: false,
   error_rounds_max: 0,
+  relevant_ctx: false,
 };
 
 let default: LSActions.runtest = {
@@ -76,7 +77,7 @@ let get_caret_mode_and_ctx = (~db, ~init_ctx, ~prelude, sketch_pre) => {
   };
 };
 
-let _ask_gpt = (~key, ~llm, ~prompt, ~handler): unit => {
+let ask_gpt = (~key, ~llm, ~prompt, ~handler): unit => {
   if (llm != OpenAI.Azure_GPT4_0613) {
     failwith("LS: ask_gpt: Unsupported chat model");
   };
@@ -99,7 +100,7 @@ let _ask_gpt = (~key, ~llm, ~prompt, ~handler): unit => {
   );
 };
 
-let ask_gpt = (~key as _, ~llm as _, ~prompt as _, ~handler): unit => {
+let _ask_gpt = (~key as _, ~llm as _, ~prompt as _, ~handler): unit => {
   print_endline("MOCK API RESPONSE");
   handler(
     Some(
@@ -407,11 +408,14 @@ let go =
   let (caret_mode, caret_ctx) =
     get_caret_mode_and_ctx(~db, ~init_ctx, ~prelude, sketch_pre);
   let expected_ty = ChatLSP.Type.expected(~ctx=caret_ctx, Some(caret_mode));
-  switch (Filler.prompt(options, ~sketch, ~expected_ty)) {
+  let relevant_ctx_str = ChatLSP.RelevantCtx.str(caret_ctx, caret_mode);
+  switch (Filler.prompt(options, ~sketch, ~expected_ty, ~relevant_ctx_str)) {
   | None => db("LS: RunTest: Prompt generation failed")
   | Some(prompt) =>
     db("LS: RunTest: Prompt generation succeeded");
     io.save("initial-prompt", OpenAI.show_prompt(prompt));
+    print_endline(OpenAI.show_prompt(prompt));
+    //failwith("YOLO5000") |> ignore;
     ask_gpt(
       ~llm=options.llm,
       ~key,
@@ -434,3 +438,28 @@ let go =
     );
   };
 };
+
+/*
+ Expected type context suggestion plan:
+
+ Suggest things from the context that could help produce the expected type
+ - If the expected type is a tuple, suggest things that could help produce each part of the tuple
+  - If the expected type in an arrow, suggest things that could help produce the output type,
+    and also things that take the input type (?)
+
+ 1. from expected type, generate a list of target types:
+   - if the expected type is a tuple, generate a list of the types of each part of the tuple
+   - if the expected type is an arrow, generate a list of the output types (and if those are tuple, recurse)
+
+ check consistency, but privilege concrete types over unknowns
+
+ goal: generate a list of stubbed let defs, obtained by filtered from the typing context,
+ applying a metric, and taking the top N
+
+
+ goal type: expected type
+ secondary goal types:
+
+ source type: option(expected type source if arrow)
+
+ */

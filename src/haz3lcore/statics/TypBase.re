@@ -70,6 +70,9 @@ module rec Typ: {
   let get_sum_constructors: (Ctx.t, t) => option(sum_map);
   let is_unknown: t => bool;
   let get_vars: t => list(TypVar.t);
+  let num_nodes: t => int;
+  let unknown_ratio: t => float;
+  let is_base: t => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type type_provenance =
@@ -102,6 +105,71 @@ module rec Typ: {
     id: Id.t,
     ty: t,
   };
+
+  /* Calculates the total number of nodes (compound
+     and leaf)  in the type tree. */
+  let rec num_nodes = (ty: t): int => {
+    switch (ty) {
+    | Int
+    | Float
+    | Bool
+    | String
+    | Unknown(_) => 1
+    | Var(_) => 1
+    | Arrow(t1, t2) => 1 + num_nodes(t1) + num_nodes(t2)
+    | Prod(tys) =>
+      1 + List.fold_left((acc, ty) => acc + num_nodes(ty), 0, tys)
+    | Sum(sm) =>
+      1
+      + ConstructorMap.fold_left(
+          (_, ty, acc) =>
+            acc + Util.OptUtil.get(() => 0, Option.map(num_nodes, ty)),
+          0,
+          sm,
+        )
+    | Rec(_, ty) => 1 + num_nodes(ty)
+    | List(ty) => 1 + num_nodes(ty)
+    };
+  };
+
+  let rec count_unknowns = (ty: t): int =>
+    switch (ty) {
+    | Unknown(_) => 1
+    | Int
+    | Float
+    | Bool
+    | String
+    | Var(_) => 0
+    | Arrow(t1, t2) => count_unknowns(t1) + count_unknowns(t2)
+    | Prod(tys) =>
+      List.fold_left((acc, ty) => acc + count_unknowns(ty), 0, tys)
+    | Sum(sm) =>
+      ConstructorMap.fold_left(
+        (_, ty, acc) =>
+          acc + Util.OptUtil.get(() => 0, Option.map(count_unknowns, ty)),
+        0,
+        sm,
+      )
+    | Rec(_, ty) => count_unknowns(ty)
+    | List(ty) => count_unknowns(ty)
+    };
+
+  /* Returns the ratio of type nodes which are the Unknown
+     constructor. Must recurse and gather results from composite nodes */
+  let unknown_ratio = (ty: t): float => {
+    let total = float_of_int(num_nodes(ty));
+    let unknowns = float_of_int(count_unknowns(ty));
+    (total -. unknowns) /. total;
+  };
+
+  let is_base = (ty: t): bool =>
+    switch (ty) {
+    | Int
+    | Float
+    | Bool
+    | String => true
+    | _ => false
+    };
 
   let rec to_string = (~holes=_ => "?", t: t): string => {
     let s = to_string(~holes);

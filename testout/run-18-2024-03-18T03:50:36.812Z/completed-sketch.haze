@@ -1,0 +1,10 @@
+# Update playlist based on action #
+let update: (PlayList, PlayListAction) -> PlayList =
+  fun (playlist, action) ->
+  case action
+  | AddSong(name) => addSong(playlist, name)
+  | RemoveSong(name) => removeSong(playlist, name)
+  | PlayNextSong() => playNextSong(playlist)
+  | Stop() => stop(playlist)
+  end
+in

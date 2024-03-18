@@ -1,0 +1,23 @@
+let update: (Model, Action) -> Model =
+  fun model, action ->
+    case action
+    | AddTodo =>
+        let (buffer, todos) = model in
+        if String.is_empty(buffer)
+        then model
+        else ("", (buffer, false)::todos)
+    | RemoveTodo(idx) =>
+        let (buffer, todos) = model in
+        (buffer, List.remove_at(idx, todos))
+    | ToggleTodo(idx) =>
+        let (buffer, todos) = model in
+        let toggle = fun todo ->
+            let (text, completed) = todo in
+            if todos[idx] == todo then (text, not completed) else todo
+        in
+        (buffer, List.map(toggle, todos))
+    | UpdateBuffer(new_buffer) =>
+        let (_, todos) = model in
+        (new_buffer, todos)
+    end
+in

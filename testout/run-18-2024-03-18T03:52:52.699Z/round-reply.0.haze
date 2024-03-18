@@ -1,0 +1,5 @@
+fun (playList, action) ->
+case action
+| Add(song) => song::playList
+| Remove(song) => List.filter(playList, fun s -> s != song)
+end

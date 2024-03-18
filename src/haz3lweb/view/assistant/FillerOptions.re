@@ -8,6 +8,7 @@ type t = {
   num_examples: int,
   expected_type: bool,
   error_rounds_max: int,
+  relevant_ctx: bool,
 };
 
 let init: t = {
@@ -17,4 +18,5 @@ let init: t = {
   num_examples: 9,
   expected_type: true,
   error_rounds_max: 2,
+  relevant_ctx: true,
 };

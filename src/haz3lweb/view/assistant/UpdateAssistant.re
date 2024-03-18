@@ -95,14 +95,21 @@ let apply =
       | Some(name) => schedule_action(SetMeta(Auto(action(name))))
       };
     let ctx_init = Editors.get_ctx_init(~settings, model.editors);
-    let expected_ty = {
+    let (expected_ty, relevant_ctx_str) = {
       let ctx_at_caret =
         switch (ChatLSP.Type.ctx(~settings, ~ctx_init, editor)) {
         | None => ctx_init
         | Some(ctx) => ctx
         };
-      let mode = ChatLSP.Type.mode(~settings, ~ctx_init, editor);
-      ChatLSP.Type.expected(~ctx=ctx_at_caret, mode);
+      let mode =
+        switch (ChatLSP.Type.mode(~settings, ~ctx_init, editor)) {
+        | None => Mode.Syn
+        | Some(m) => m
+        };
+      (
+        ChatLSP.Type.expected(~ctx=ctx_at_caret, Some(mode)),
+        ChatLSP.RelevantCtx.str(ctx_at_caret, mode),
+      );
     };
     let _add_round = add => schedule_if_auto(name => UpdateResult(name, add));
     switch (
@@ -110,6 +117,7 @@ let apply =
         filler_options,
         ~sketch=Printer.to_string_editor(~holes=Some("?"), editor),
         ~expected_ty,
+        ~relevant_ctx_str,
       ),
       ChatLSP.Type.ctx(~settings, ~ctx_init, editor),
       ChatLSP.Type.mode(~settings, ~ctx_init, editor),
