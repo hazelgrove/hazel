@@ -429,16 +429,14 @@ module rec Typ: {
       }
     | (Var(name), ty)
     | (ty, Var(name)) =>
-      let* ty_name = Ctx.lookup_alias(ctx, name);
-      let+ ty_join = join'(ty_name, ty);
-      !resolve && eq(ty_name, ty_join) ? Var(name) : ty_join;
+        let* ty_name = Ctx.lookup_alias(ctx, name);
+        let+ ty_join = join'(ty_name, ty);
+        !resolve && eq(ty_name, ty_join) ? Var(name) : ty_join;
     /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
     | (ty2, Ap(Var(name), ty))
     | (Ap(Var(name), ty), ty2) =>
       switch (Ctx.lookup_higher_kind(ctx, name)) {
-      | Some((arg, ty_out)) =>
-        Printf.printf("ty2: %s\n", show(ty2));
-        join'(subst(ty, arg, ty_out), ty2);
+      | Some((arg, ty_out)) => join'(subst(ty, arg, ty_out), ty2)
       | _ => None
       }
     | (ty, Ap(Forall(name, t1), t2))
