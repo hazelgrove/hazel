@@ -24,6 +24,7 @@ type settings = {
   prelude: string,
   epilogue: string,
   run_name: string,
+  source_path: string,
   options: FillerOptions.t,
 };
 
@@ -40,12 +41,13 @@ let default_options: FillerOptions.t = {
   syntax_notes: true,
   num_examples: 9,
   expected_type: false,
-  error_rounds_max: 1,
+  error_rounds_max: 0,
 };
 
 let default: LSActions.runtest = {
-  key: "SPORK",
-  run_name: "unspecified",
+  key: "NULL",
+  run_name: "NULL",
+  source_path: "NULL",
   options: default_options,
 };
 
@@ -147,9 +149,11 @@ let record_init_info =
       prelude: string,
       epilogue: string,
       sketch: string,
+      source_path: string,
     ) => {
   let opt_pre = prop => "option-" ++ prop;
   io.add(opt_pre("llm"), options.llm |> OpenAI.show_chat_models);
+  io.add(opt_pre("source_path"), source_path);
   io.add(opt_pre("expected_type"), options.expected_type |> string_of_bool);
   io.add(
     opt_pre("error_rounds_max"),
@@ -392,12 +396,12 @@ let go =
     (
       ~db,
       ~settings as
-        {init_ctx, run_name, sketch, prelude, epilogue, options}: settings,
+        {init_ctx, run_name, sketch, prelude, epilogue, options, source_path}: settings,
       ~key,
     ) => {
   let io = mk_io(run_name);
   db("LS: RunTest: Setting up output folder");
-  record_init_info(~io, options, prelude, epilogue, sketch);
+  record_init_info(~io, options, prelude, epilogue, sketch, source_path);
   db("LS: RunTest: Generating prompt");
   let (sketch_pre, sketch_suf) = split_sketch(sketch);
   let (caret_mode, caret_ctx) =

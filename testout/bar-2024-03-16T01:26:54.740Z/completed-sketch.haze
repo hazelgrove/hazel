@@ -1,9 +1,0 @@
-let update: (Model, Action) -> Model =
-  fun (model, action) -> 
-  case action
-  | AddTodo => (model, AddTodo)
-  | RemoveTodo(index) => (model, RemoveTodo(index))
-  | ToggleTodo(index) => (model, ToggleTodo(index))
-  | UpdateBuffer(buffer) => (model, UpdateBuffer(buffer))
-  end
-in

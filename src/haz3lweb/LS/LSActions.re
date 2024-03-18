@@ -19,6 +19,7 @@ type api_key_path = string;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type runtest = {
   run_name: string,
+  source_path: string,
   key: string,
   options: FillerOptions.t,
 };

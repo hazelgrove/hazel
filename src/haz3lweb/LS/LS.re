@@ -163,7 +163,11 @@ and parse_runtest = (strs, args: arguments): arguments =>
       program: sketch,
       new_token: None,
     };
-    parse_runtest(rest, {...args, data});
+    let rt = get_runtest(args.command);
+    parse_runtest(
+      rest,
+      {...args, data, command: RunTest({...rt, source_path: path_base})},
+    );
   | ["--run_name", run_name, ...rest] =>
     let rt = get_runtest(args.command);
     parse_runtest(rest, {...args, command: RunTest({...rt, run_name})});
@@ -201,7 +205,7 @@ let main = ({debug, data, command, init_ctx}: LSActions.arguments) => {
   | Completions(completions) =>
     LSCompletions.go(~db, ~settings={data, completions, init_ctx})
   | Check(check) => LSChecker.go(~db, ~settings={data, check, init_ctx})
-  | RunTest({run_name, key, options}) =>
+  | RunTest({run_name, key, options, source_path}) =>
     let or_empty = (s: option(string)): string =>
       switch (s) {
       | None => ""
@@ -212,6 +216,7 @@ let main = ({debug, data, command, init_ctx}: LSActions.arguments) => {
       ~settings={
         options,
         run_name,
+        source_path,
         sketch: data.program,
         prelude: or_empty(data.prelude),
         epilogue: or_empty(data.epilogue),

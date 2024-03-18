@@ -1,9 +1,0 @@
-The following static errors were discovered:
-Error in term:
-  List.remove_at
-Nature of error: Variable List.remove_at is not bound
-Error in term:
-  text, not done
-Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
-Please try to address the error(s) by updating your previous code suggestion
-Please respond ONLY with the update suggestion
