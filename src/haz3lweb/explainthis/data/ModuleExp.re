@@ -19,7 +19,7 @@ let single = (~pat_id: Id.t, ~def_id: Id.t, ~body_id: Id.t): Simple.t => {
     ),
   explanation:
     Printf.sprintf(
-      "Module definition expression. The variables defined in [*definition*](%s) is packaged as a module and bound to the [*module variable*](%s) in the [*body*](%s).",
+      "Module definition expression. The variables and type aliases defined in [*definition*](%s) are packaged as a module and bound to the [*module variable*](%s) in the [*body*](%s).",
       def_id |> Id.to_string,
       pat_id |> Id.to_string,
       body_id |> Id.to_string,
@@ -36,7 +36,7 @@ let single = (~pat_id: Id.t, ~def_id: Id.t, ~body_id: Id.t): Simple.t => {
       sub_id: ModuleWithType,
       term:
         mk_example(
-          "module OptInt =\ntype OptInt = None + Some(Int) in\nin\nlet x:OptInt = Some(1) in\nx",
+          "module OptInt =\ntype OptInt =\nNone + Some(Int)\nin\nin\nlet x:OptInt = Some(1) in\nx",
         ),
       message: {|
       The type member in a module with the same name as the module can be used directly in the body.

@@ -338,7 +338,38 @@ module rec Typ: {
       let+ ty = join'(ty1, ty2);
       List(ty);
     | (List(_), _) => None
-    | (Module(ctx1), Module(ctx2)) => Some(Module(ctx1 @ ctx2))
+    | (Module(ctx1), Module(ctx2)) =>
+      let join_entry =
+          (ctx2: Ctx.t, ctx_joined: option(Ctx.t), ctx1_entry: Ctx.entry)
+          : option(Ctx.t) => {
+        let* ctx_joined = ctx_joined;
+        switch (ctx1_entry) {
+        | VarEntry({name, typ, id}) =>
+          let* entry2 = Ctx.lookup_var(ctx2, name);
+          let+ typ_joined = join'(typ, entry2.typ);
+          Ctx.extend(ctx_joined, VarEntry({name, typ: typ_joined, id}));
+        | ConstructorEntry({name, typ, id}) =>
+          let* entry2 = Ctx.lookup_ctr(ctx2, name);
+          let+ typ_joined = join'(typ, entry2.typ);
+          Ctx.extend(
+            ctx_joined,
+            ConstructorEntry({name, typ: typ_joined, id}),
+          );
+        | TVarEntry({name, kind, id}) =>
+          let* entry2 = Ctx.lookup_tvar(ctx2, name);
+          let+ kind_joined =
+            switch (kind, entry2.kind) {
+            | (Abstract, Abstract) => Some(Kind.Abstract)
+            | (Singleton(ty1), Singleton(ty2)) =>
+              let+ typ_joined = join'(ty1, ty2);
+              Kind.Singleton(typ_joined);
+            | _ => None
+            };
+          Ctx.extend(ctx_joined, TVarEntry({name, kind: kind_joined, id}));
+        };
+      };
+      let* ctx = List.fold_left(join_entry(ctx2), Some([]), ctx1);
+      Some(Module(ctx));
     | (Module(_), _) => None
     };
   }

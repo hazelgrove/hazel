@@ -12,8 +12,8 @@ let single = (~mod_id: Id.t, ~mem_id: Id.t): Simple.t => {
   explanation:
     Printf.sprintf(
       "Dot access. Retrieves the value of the [*member*](%s) x of the [*module*](%s).",
-      mod_id |> Id.to_string,
       mem_id |> Id.to_string,
+      mod_id |> Id.to_string,
     ),
   examples: [
     {
