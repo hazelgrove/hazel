@@ -18,12 +18,12 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
 
   module TestValidationReport = {
     type t = {
-      test_results: option(TestResults.test_results),
+      test_results: option(TestResults.t),
       required: int,
       provided: int,
     };
 
-    let mk = (eds: eds, test_results: option(TestResults.test_results)) => {
+    let mk = (eds: eds, test_results: option(TestResults.t)) => {
       {
         test_results,
         required: eds.your_tests.required,
@@ -54,7 +54,7 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
       };
     };
 
-    let test_summary_str = (test_results: TestResults.test_results) => {
+    let test_summary_str = (test_results: TestResults.t) => {
       TestResults.result_summary_str(
         ~n=test_results.total,
         ~p=test_results.failing,
@@ -78,14 +78,14 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
         )
         : TestStatus.t => {
       switch (
-        test_validation_data.simple_result,
-        hidden_bug_data.simple_result,
+        ModelResult.test_results(test_validation_data.result),
+        ModelResult.test_results(hidden_bug_data.result),
       ) {
       | (None, _)
       | (_, None) => Indet
       | (Some(test_validation_data), Some(hidden_bug_data)) =>
-        let validation_test_map = test_validation_data.test_results.test_map;
-        let hidden_bug_test_map = hidden_bug_data.test_results.test_map;
+        let validation_test_map = test_validation_data.test_map;
+        let hidden_bug_test_map = hidden_bug_data.test_map;
 
         let found =
           hidden_bug_test_map
@@ -171,9 +171,10 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
     };
 
     let mk = (~your_impl: Editor.t, ~tests: syntax_tests): t => {
-      let user_impl_term = EditorUtil.stitch([your_impl]);
+      let user_impl_term = your_impl.state.meta.view_term;
 
-      let predicates = List.map(((_, p)) => p, tests);
+      let predicates =
+        List.map(((_, p)) => SyntaxTest.predicate_fn(p), tests);
       let hints = List.map(((h, _)) => h, tests);
       let syntax_results = SyntaxTest.check(user_impl_term, predicates);
 
@@ -188,16 +189,11 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
   module ImplGradingReport = {
     type t = {
       hints: list(string),
-      test_results: option(TestResults.test_results),
+      test_results: option(TestResults.t),
       hinted_results: list((TestStatus.t, string)),
     };
 
-    let mk =
-        (
-          ~hints: list(string),
-          ~test_results: option(TestResults.test_results),
-        )
-        : t => {
+    let mk = (~hints: list(string), ~test_results: option(TestResults.t)): t => {
       let hinted_results =
         switch (test_results) {
         | Some(test_results) =>
@@ -232,7 +228,7 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
       *. (float_of_int(num_passed(report)) /. float_of_int(total(report)));
     };
 
-    let test_summary_str = (test_results: TestResults.test_results) => {
+    let test_summary_str = (test_results: TestResults.t) => {
       TestResults.result_summary_str(
         ~n=test_results.total,
         ~p=test_results.failing,
@@ -260,9 +256,7 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
       test_validation_report:
         TestValidationReport.mk(
           eds,
-          TestResults.unwrap_test_results(
-            stitched_dynamics.test_validation.simple_result,
-          ),
+          ModelResult.test_results(stitched_dynamics.test_validation.result),
         ),
       mutation_testing_report:
         MutationTestingReport.mk(
@@ -276,9 +270,7 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
         ImplGradingReport.mk(
           ~hints=eds.hidden_tests.hints,
           ~test_results=
-            TestResults.unwrap_test_results(
-              stitched_dynamics.hidden_tests.simple_result,
-            ),
+            ModelResult.test_results(stitched_dynamics.hidden_tests.result),
         ),
     };
 

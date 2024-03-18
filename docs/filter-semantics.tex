@@ -1,0 +1,113 @@
+\documentclass{article}
+
+\usepackage{fullpage}
+\usepackage{amssymb}
+\usepackage{mathtools}
+\usepackage{amsmath}
+\usepackage{ebproof}
+\usepackage{xcolor}
+
+\newcommand{\evalsto}{\mathrel{\mathop{\Downarrow}}}
+\newcommand{\matches}{\mathrel{\mathop{\blacktriangleright}}}
+\newcommand{\fmatches}{\mathrel{\mathop{\triangleright}}}
+\newcommand{\smatches}{\mathrel{\mathop{\sim}}}
+\newcommand{\hooksto}{\mathrel{\mathop{\hookrightarrow}}}
+\newcommand{\entails}{\mathrel{\mathop{\vdash}}}
+\newcommand{\steps}{\mathrel{\mathop{\vartriangleright}}}
+\newcommand{\skips}{\mathrel{\mathop{\blacktriangleright}}}
+\newcommand{\final}{~\mathbf{final}}
+\newcommand{\ival}{~\mathbf{value}}
+\newcommand{\indet}{~\mathbf{indet}}
+\newcommand{\istep}{~\mathbf{step}}
+\newcommand{\iskip}{~\mathbf{skip}}
+\newcommand{\class}[1]{\operatorname{#1}}
+\DeclareMathOperator{\Filter}{Filter}
+\DeclareMathOperator{\askip}{\mathsf{skip}}
+\DeclareMathOperator{\astep}{\mathsf{step}}
+\DeclareMathOperator{\filter}{\mathsf{filter}}
+\newcommand{\fin}{\mathrel{\mathop{\mathsf{in}}}}
+\newcommand{\flet}{\operatorname{\mathsf{let}}}
+\newcommand{\synth}{\mathrel{\mathop{\Rightarrow}}}
+\newcommand{\analyze}{\mathrel{\mathop{\Leftarrow}}}
+\newcommand{\ctype}[1]{\mathsf{#1}}
+\newcommand{\inl}{\operatorname{\mathsf{injL}}}
+\newcommand{\inr}{\operatorname{\mathsf{injR}}}
+\newcommand{\prl}{\operatorname{\mathsf{prjL}}}
+\newcommand{\prr}{\operatorname{\mathsf{prjR}}}
+\newcommand{\MatchArrow}{\mathrel{\mathop{\blacktriangleright_{\rightarrow}}}}
+\newcommand{\fif}{\operatorname{\mathsf{if}}}
+\newcommand{\fthen}{\mathrel{\mathop{\mathsf{then}}}}
+\newcommand{\felse}{\mathrel{\mathop{\mathsf{else}}}}
+\newcommand{\fcase}{\operatorname{\mathsf{case}}}
+\newcommand{\fcaseL}{\mathsf{L}}
+\newcommand{\fcaseR}{\mathsf{R}}
+\DeclareMathOperator{\instr}{\mathsf{instr}}
+
+\begin{document}
+
+\begin{prooftree}
+  \hypo{\mathcal{F} \fmatches_{p} d \entails k}
+  \hypo{f' \smatches d}
+  \hypo{\mathcal{F'} = (f', k', p') \cup \mathcal{F}}
+  \hypo{p' > p}
+  \infer4[]{
+    \mathcal{F'} \fmatches_{p'} d \entails k'
+  }
+\end{prooftree}
+
+\begin{prooftree}
+  \hypo{\mathcal{F} \fmatches_{p} d \entails k}
+  \hypo{f' \not\smatches d}
+  \hypo{\mathcal{F'} = (f', k', p') \cup \mathcal{F}}
+  \infer3[]{
+    \mathcal{F'} \fmatches_{p} d \entails k
+  }
+\end{prooftree}
+
+\begin{prooftree}
+  \hypo{\mathcal{F} \fmatches_{p} d \entails k}
+  \infer1[]{
+    \mathcal{F} \matches_{p} \circ \{ d \} \rightsquigarrow \circ \{ d \} \entails (k, p)
+  }
+\end{prooftree}
+
+\begin{prooftree}
+  \hypo{\mathcal{F} \cup \{ (f, k, \max_{p} \mathcal{F} + 1) \} \matches_{p} c \{ d \} \rightsquigarrow c' \{ d' \} \entails (k', p')}
+  \infer1[]{
+    \mathcal{F} \matches_{p} (\filter (f, k) ~\mathsf{in}~ c) \{ d \} \rightsquigarrow (\filter (f, k) ~\mathsf{in}~ c') \{ d' \} \entails (k', p')
+  }
+\end{prooftree}
+
+\begin{prooftree}
+  \hypo{\mathcal{F} \matches_{p} c \{ d \} \rightsquigarrow c' \{ d' \} \entails (k', p)}
+  \infer1[]{
+    \mathcal{F} \matches_{p} c \{ d \} \rightsquigarrow (\instr (k', p) ~\mathsf{in}~ c \{ d \})
+  }
+\end{prooftree}
+
+\begin{prooftree}
+  \hypo{\mathcal{F} \cup \{ (\_, k, p_1) \} \matches_{p} c \{ d \} \rightsquigarrow c' \{ d' \} \entails (k', p')}
+  \infer1[]{
+    \mathcal{F} \matches_{p_0} (\instr (k, p_1) ~\mathsf{in}~ c \{ d \}) \rightsquigarrow c' \{ d' \} \entails (k', p')
+  }
+\end{prooftree}
+
+\begin{prooftree}
+  \hypo{
+    d_0 \longrightarrow d_1
+  }
+  \hypo{
+    d_1 = c \{ d \}
+  }
+  \hypo{
+    \varnothing \matches_{\_} c \{ d \} \rightsquigarrow c' \{ d' \} \entails (\askip, p')
+  }
+  \hypo{
+    d_2 = c' \{ d' \}
+  }
+  \infer4[]{
+    d_0 \longrightarrow d_2
+  }
+\end{prooftree}
+
+\end{document}
