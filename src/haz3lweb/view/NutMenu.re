@@ -95,6 +95,12 @@ let settings_menu =
       Evaluation(ShowFilters),
     ),
     toggle(
+      "🤫",
+      "Show Hidden Steps",
+      evaluation.show_hidden_steps,
+      Evaluation(ShowHiddenSteps),
+    ),
+    toggle(
       "?",
       "Show Docs Sidebar",
       explainThis.show,
