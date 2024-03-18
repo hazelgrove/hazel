@@ -144,9 +144,9 @@ let mk =
         | (ModuleBind, _) => []
         | (FixUnwrap, FixF(f, _, _)) => [f]
         | (FixUnwrap, _) => []
+        | (TypFunAp, _)
         | (InvalidStep, _)
         | (VarLookup, _)
-        | (TypFunAp, _)
         | (ModuleLookup, _)
         | (DotAccess, _)
         | (Sequence, _)
@@ -290,6 +290,8 @@ let mk =
     );
     let doc = {
       switch (d) {
+      | TypFun(_tpat, _dbody) =>
+        annot(DHAnnot.Collapsed, text("<anon typfn>"))
       | Closure(env', d') => go'(d', Closure, ~env=env')
       | Filter(flt, d') =>
         if (settings.show_stepper_filters) {
@@ -604,9 +606,6 @@ let mk =
              ),
           DHDoc_common.Delim.mk(")"),
         ]);
-      | TypFun(_tpat, _dbody) =>
-        annot(DHAnnot.Collapsed, text("<anon typfn>"))
-
       | Fun(dp, ty, dbody, s) when settings.show_fn_bodies =>
         let bindings = DHPat.bound_vars(dp);
         let body_doc =
