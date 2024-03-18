@@ -246,7 +246,7 @@ let rec typ_of_dhexp =
     } else {
       None;
     }
-  | InvalidOperation(d, _) => typ_of_dhexp(ctx, m , d)
+  | InvalidOperation(d, _) => typ_of_dhexp(ctx, m, d)
   | IfThenElse(ConsistentIf, d_scrut, d1, d2) =>
     let* ty = typ_of_dhexp(ctx, m, d_scrut);
     if (Typ.eq(ty, Bool)) {
@@ -272,9 +272,7 @@ let property_test = (uexp_typ: Typ.t, dhexp: DHExp.t, m: Statics.Map.t): bool =>
   let dhexp_typ = typ_of_dhexp(Builtins.ctx_init, m, dhexp);
 
   switch (dhexp_typ) {
-  | None =>
-    false;
-  | Some(dh_typ) =>
-    Typ.eq(dh_typ, uexp_typ);
+  | None => false
+  | Some(dh_typ) => Typ.eq(dh_typ, uexp_typ)
   };
 };
