@@ -50,6 +50,8 @@ let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
   | Let(p, def, body) =>
     find_var_upat(name, p)
       ? false : var_mention(name, def) || var_mention(name, body)
+  | TypFun(_, u)
+  | TypAp(u, _)
   | Test(u)
   | Parens(u)
   | UnOp(_, u)
@@ -96,11 +98,17 @@ let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
   | Let(p, def, body) =>
     find_var_upat(name, p)
       ? false : var_applied(name, def) || var_applied(name, body)
+  | TypFun(_, u)
   | Test(u)
   | Parens(u)
   | UnOp(_, u)
   | TyAlias(_, _, u)
   | Filter(_, _, u) => var_applied(name, u)
+  | TypAp(u, _) =>
+    switch (u.term) {
+    | Var(x) => x == name ? true : false
+    | _ => var_applied(name, u)
+    }
   | Ap(u1, u2) =>
     switch (u1.term) {
     | Var(x) => x == name ? true : var_applied(name, u2)
@@ -184,7 +192,9 @@ let rec find_fn =
   | ListLit(ul)
   | Tuple(ul) =>
     List.fold_left((acc, u1) => {find_fn(name, u1, acc)}, l, ul)
+  | TypFun(_, body)
   | Fun(_, body) => l |> find_fn(name, body)
+  | TypAp(u1, _)
   | Parens(u1)
   | UnOp(_, u1)
   | TyAlias(_, _, u1)
@@ -255,6 +265,8 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   | Test(_) => false
   | TyAlias(_, _, u)
   | Filter(_, _, u)
+  | TypFun(_, u)
+  | TypAp(u, _)
   | Parens(u) => tail_check(name, u)
   | UnOp(_, u) => !var_mention(name, u)
   | Ap(u1, u2) => var_mention(name, u2) ? false : tail_check(name, u1)

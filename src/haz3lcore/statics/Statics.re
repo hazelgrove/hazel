@@ -298,6 +298,16 @@ and uexp_to_info_map =
       && !Typ.is_consistent(ctx, ty_in, Prod([]))
         ? BadTrivAp(ty_in) : Just(ty_out);
     add(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
+  | TypAp(fn, utyp) =>
+    let typfn_mode = Mode.typap_mode;
+    let (fn, m_fn) = go(~mode=typfn_mode, fn, m);
+    let (option_name, ty_body) = Typ.matched_forall(ctx, fn.ty);
+    let ty = Term.UTyp.to_typ(ctx, utyp);
+    switch (option_name) {
+    | Some(name) =>
+      add(~self=Just(Typ.subst(ty, name, ty_body)), ~co_ctx=fn.co_ctx, m_fn)
+    | None => add(~self=Just(ty_body), ~co_ctx=fn.co_ctx, m_fn) /* invalid name matches with no free type variables. */
+    };
   | Fun(p, e) =>
     let (mode_pat, mode_body) = Mode.of_arrow(ctx, mode);
     let (p', _) =
@@ -311,6 +321,22 @@ and uexp_to_info_map =
       ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx),
       m,
     );
+  | TypFun({term: Var(name), _} as utpat, body)
+      when !Ctx.shadows_typ(ctx, name) =>
+    let mode_body = Mode.of_forall(ctx, Some(name), mode);
+    let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
+    let ctx_body =
+      Ctx.extend_tvar(
+        ctx,
+        {name, id: Term.UTPat.rep_id(utpat), kind: Abstract},
+      );
+    let (body, m) = go'(~ctx=ctx_body, ~mode=mode_body, body, m);
+    add(~self=Just(Forall(name, body.ty)), ~co_ctx=body.co_ctx, m);
+  | TypFun(utpat, body) =>
+    let mode_body = Mode.of_forall(ctx, None, mode);
+    let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
+    let (body, m) = go(~mode=mode_body, body, m);
+    add(~self=Just(Forall("?", body.ty)), ~co_ctx=body.co_ctx, m);
   | Let(p, def, body) =>
     let (p_syn, _) =
       go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~mode=Syn, p, m);
@@ -397,7 +423,7 @@ and uexp_to_info_map =
       /* Currently we disallow all type shadowing */
       /* NOTE(andrew): Currently, UTyp.to_typ returns Unknown(TypeHole)
          for any type variable reference not in its ctx. So any free variables
-         in the definition won't be noticed. But we need to check for free
+         in the definition would be obliterated. But we need to check for free
          variables to decide whether to make a recursive type or not. So we
          tentatively add an abtract type to the ctx, representing the
          speculative rec parameter. */
@@ -416,12 +442,104 @@ and uexp_to_info_map =
           let ty = UTyp.to_typ(ctx, utyp);
           (ty, ctx, Ctx.extend_alias(ctx, name, UTPat.rep_id(typat), ty));
         };
+        /* NOTE(yuchen): Below is an alternative implementation that attempts to
+           add a rec whenever type alias is present. It may cause trouble to the
+           runtime, so precede with caution. */
+        // Typ.lookup_surface(ty_pre)
+        //   ? {
+        //     let ty_rec = Typ.Rec({item: ty_pre, name});
+        //     let ctx_def = Ctx.add_alias(ctx, name, utpat_id(typat), ty_rec);
+        //     (ty_rec, ctx_def, ctx_def);
+        //   }
+        //   : {
+        //     let ty = Term.UTyp.to_typ(ctx, utyp);
+        //     (ty, ctx, Ctx.add_alias(ctx, name, utpat_id(typat), ty));
+        //   };
       };
       let ctx_body =
         switch (Typ.get_sum_constructors(ctx, ty_def)) {
         | Some(sm) => Ctx.add_ctrs(ctx_body, name, UTyp.rep_id(utyp), sm)
         | None => ctx_body
         };
+      let ({co_ctx, ty: ty_body, _}: Info.exp, m) =
+        go'(~ctx=ctx_body, ~mode, body, m);
+      /* Make sure types don't escape their scope */
+      let ty_escape = Typ.subst(ty_def, name, ty_body);
+      let m = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp, m) |> snd;
+      add(~self=Just(ty_escape), ~co_ctx, m);
+    | Ap(t1, t2) =>
+      let name =
+        switch (t1.term) {
+        | Var(s) => s
+        | _ => ""
+        };
+      let arg =
+        switch (t2.term) {
+        | Var(s) => s
+        | _ => ""
+        };
+      let utyp_without_ap = UTyp.remove_ap_in_def(name, arg, utyp);
+      let (ty_def, ctx_def, ctx_body) = {
+        let ty_pre =
+          UTyp.to_typ(
+            Ctx.extend_dummy_tvar(Ctx.extend_dummy_tvar(ctx, name), arg),
+            utyp,
+          );
+        switch (utyp.term) {
+        | Sum(_) when List.mem(name, Typ.free_vars(ty_pre)) =>
+          let ty_pre =
+            UTyp.to_typ(
+              Ctx.extend_dummy_tvar(Ctx.extend_dummy_tvar(ctx, name), arg),
+              utyp_without_ap,
+            );
+          let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
+          let ctx_def =
+            Ctx.extend_higher_kind(
+              ctx,
+              name,
+              arg,
+              UTPat.rep_id(typat),
+              ty_rec,
+            );
+          (ty_rec, ctx_def, ctx_def);
+        | _ => (
+            ty_pre,
+            Ctx.extend_higher_kind(
+              ctx,
+              name,
+              arg,
+              UTPat.rep_id(typat),
+              ty_pre,
+            ),
+            Ctx.extend_higher_kind(
+              ctx,
+              name,
+              arg,
+              UTPat.rep_id(typat),
+              ty_pre,
+            ),
+          )
+        };
+      };
+      let ctx_body = {
+        let ty_pre =
+          UTyp.to_typ(
+            Ctx.extend_dummy_tvar(Ctx.extend_dummy_tvar(ctx, name), arg),
+            utyp,
+          );
+
+        switch (ty_pre) {
+        | Sum(sm_map) =>
+          Ctx.add_ctr_with_typ_parameter(
+            ctx_body,
+            name,
+            UTyp.rep_id(utyp),
+            sm_map,
+            arg,
+          )
+        | _ => ctx_body
+        };
+      };
       let ({co_ctx, ty: ty_body, _}: Info.exp, m) =
         go'(~ctx=ctx_body, ~mode, body, m);
       /* Make sure types don't escape their scope */
@@ -583,6 +701,52 @@ and utyp_to_info_map =
         variants,
       );
     add(m);
+  | Forall({term: Var(name), _} as utpat, tbody) =>
+    let body_ctx =
+      Ctx.extend_tvar(
+        ctx,
+        {name, id: Term.UTPat.rep_id(utpat), kind: Abstract},
+      );
+    let m =
+      utyp_to_info_map(
+        tbody,
+        ~ctx=body_ctx,
+        ~ancestors,
+        ~expects=TypeExpected,
+        m,
+      )
+      |> snd;
+    let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
+    add(m); // TODO: check with andrew
+  | Forall(utpat, tbody) =>
+    let m =
+      utyp_to_info_map(tbody, ~ctx, ~ancestors, ~expects=TypeExpected, m)
+      |> snd;
+    let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
+    add(m); // TODO: check with andrew
+  | Rec({term: Var(name), _} as utpat, tbody) =>
+    let body_ctx =
+      Ctx.extend_tvar(
+        ctx,
+        {name, id: Term.UTPat.rep_id(utpat), kind: Abstract},
+      );
+    let m =
+      utyp_to_info_map(
+        tbody,
+        ~ctx=body_ctx,
+        ~ancestors,
+        ~expects=TypeExpected,
+        m,
+      )
+      |> snd;
+    let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
+    add(m); // TODO: check with andrew
+  | Rec(utpat, tbody) =>
+    let m =
+      utyp_to_info_map(tbody, ~ctx, ~ancestors, ~expects=TypeExpected, m)
+      |> snd;
+    let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
+    add(m); // TODO: check with andrew
   };
 }
 and utpat_to_info_map =
@@ -598,6 +762,7 @@ and utpat_to_info_map =
     let (_, m) = multi(~ctx, ~ancestors, m, tms);
     add(m);
   | Invalid(_)
+  | Ap(_)
   | EmptyHole
   | Var(_) => add(m)
   };

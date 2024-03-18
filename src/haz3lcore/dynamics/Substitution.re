@@ -42,6 +42,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
       let d3 = subst_var(d1, x, d3);
       Fun(dp, ty, d3, s);
     }
+  | TypFun(tpat, d3) => TypFun(tpat, subst_var(d1, x, d3))
   | Closure(env, d3) =>
     /* Closure shouldn't appear during substitution (which
        only is called from elaboration currently) */
@@ -52,9 +53,8 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     Ap(d3, d4);
-  | ApBuiltin(ident, d1) =>
-    let d2 = subst_var(d1, x, d1);
-    ApBuiltin(ident, d2);
+  | TypAp(d3, ty) => TypAp(subst_var(d1, x, d3), ty)
+  | ApBuiltin(ident, args) => ApBuiltin(ident, subst_var(d1, x, args))
   | BuiltinFun(ident) => BuiltinFun(ident)
   | Test(id, d3) => Test(id, subst_var(d1, x, d3))
   | BoolLit(_)

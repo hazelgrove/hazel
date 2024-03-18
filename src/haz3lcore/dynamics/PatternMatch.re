@@ -240,6 +240,7 @@ and matches_cast_Sum =
   | ExpandingKeyword(_)
   | InvalidText(_)
   | Let(_)
+  | TypAp(_)
   | Ap(_)
   | ApBuiltin(_)
   | BinBoolOp(_)
@@ -259,6 +260,7 @@ and matches_cast_Sum =
   | Cast(_)
   | BoundVar(_)
   | FixF(_)
+  | TypFun(_)
   | Fun(_)
   | BoolLit(_)
   | IntLit(_)
@@ -334,9 +336,11 @@ and matches_cast_Tuple =
   | ExpandingKeyword(_) => IndetMatch
   | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
+  | TypFun(_, _) => DoesNotMatch
   | Fun(_, _, _, _) => DoesNotMatch
   | Closure(_, Fun(_)) => DoesNotMatch
   | Closure(_, _) => IndetMatch
+  | TypAp(_, _) => IndetMatch
   | Filter(_, _) => IndetMatch
   | Ap(_, _) => IndetMatch
   | ApBuiltin(_, _) => IndetMatch
@@ -474,8 +478,10 @@ and matches_cast_Cons =
   | ExpandingKeyword(_) => IndetMatch
   | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
+  | TypFun(_, _) => DoesNotMatch
   | Fun(_, _, _, _) => DoesNotMatch
   | Closure(_, d') => matches_cast_Cons(dp, d', elt_casts)
+  | TypAp(_, _) => IndetMatch
   | Filter(_, d') => matches_cast_Cons(dp, d', elt_casts)
   | Ap(_, _) => IndetMatch
   | ApBuiltin(_, _) => IndetMatch

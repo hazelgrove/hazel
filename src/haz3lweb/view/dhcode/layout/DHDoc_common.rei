@@ -91,6 +91,8 @@ let mk_ListLit: list(Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 
 let mk_Tuple: list(Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 
+let mk_TypAp: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
+
 let mk_Ap: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 
 let mk_Prj: (Pretty.Doc.t(DHAnnot.t), int) => Pretty.Doc.t(DHAnnot.t);

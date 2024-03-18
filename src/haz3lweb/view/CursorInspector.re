@@ -3,7 +3,6 @@ open Node;
 open Util.Web;
 open Util;
 open Haz3lcore;
-
 let errc = "error";
 let okc = "ok";
 let div_err = div(~attr=clss([errc]));
@@ -140,14 +139,21 @@ let common_ok_view = (cls: Term.Cls.t, ok: Info.ok_pat) => {
 let typ_ok_view = (cls: Term.Cls.t, ok: Info.ok_typ) =>
   switch (ok) {
   | Type(_) when cls == Typ(EmptyHole) => [text("Fillable by any type")]
-  | Type(ty) => [Type.view(ty)]
+  | Type(ty) => [Type.view(ty), text("is a type")]
   | TypeAlias(name, ty_lookup) => [
       Type.view(Var(name)),
       text("is an alias for"),
       Type.view(ty_lookup),
     ]
-  | Variant(name, _sum_ty) => [Type.view(Var(name))]
-  | VariantIncomplete(_sum_ty) => [text("is incomplete")]
+  | Variant(name, sum_ty) => [
+      Type.view(Var(name)),
+      text("is a sum type constuctor of type"),
+      Type.view(sum_ty),
+    ]
+  | VariantIncomplete(sum_ty) => [
+      text("An incomplete sum type constuctor of type"),
+      Type.view(sum_ty),
+    ]
   };
 
 let typ_err_view = (ok: Info.error_typ) =>
@@ -191,13 +197,25 @@ let tpat_view = (_: Term.Cls.t, status: Info.status_tpat) =>
   switch (status) {
   | NotInHole(Empty) => div_ok([text("Fillable with a new alias")])
   | NotInHole(Var(name)) => div_ok([Type.alias_view(name)])
+  | NotInHole(Ap(name1, name2)) =>
+    div_ok([
+      Type.alias_view(name1),
+      Type.alias_view("("),
+      Type.alias_view(name2),
+      Type.alias_view(")"),
+    ])
   | InHole(NotAVar(NotCapitalized)) =>
     div_err([text("Must begin with a capital letter")])
   | InHole(NotAVar(_)) => div_err([text("Expected an alias")])
-  | InHole(ShadowsType(name)) when Form.is_base_typ(name) =>
+  | InHole(ShadowsType(name, BaseTyp)) =>
     div_err([text("Can't shadow base type"), Type.view(Var(name))])
-  | InHole(ShadowsType(name)) =>
+  | InHole(ShadowsType(name, TyAlias)) =>
     div_err([text("Can't shadow existing alias"), Type.view(Var(name))])
+  | InHole(ShadowsType(name, TyVar)) =>
+    div_err([
+      text("Can't shadow existing type variable"),
+      Type.view(Var(name)),
+    ])
   };
 
 let secondary_view = (cls: Term.Cls.t) =>

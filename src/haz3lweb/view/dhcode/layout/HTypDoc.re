@@ -51,6 +51,19 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
     | Bool => (text("Bool"), parenthesize)
     | String => (text("String"), parenthesize)
     | Var(name) => (text(name), parenthesize)
+    | Ap(_) => (text("Ap"), parenthesize)
+    | Forall(name, ty) => (
+        hcats([
+          text("Forall " ++ name ++ ".{"),
+          (
+            (~enforce_inline) =>
+              annot(HTypAnnot.Step(0), mk(~enforce_inline, ty))
+          )
+          |> pad_child(~enforce_inline),
+          mk_delim("}"),
+        ]),
+        parenthesize,
+      )
     | List(ty) => (
         hcats([
           mk_delim("["),
@@ -106,9 +119,9 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
            )
         |> hcats;
       (center, true);
-    | Rec(x, ty) => (
+    | Rec(name, ty) => (
         hcats([
-          text("Rec " ++ x ++ ".{"),
+          text("Rec " ++ name ++ ".{"),
           (
             (~enforce_inline) =>
               annot(HTypAnnot.Step(0), mk(~enforce_inline, ty))

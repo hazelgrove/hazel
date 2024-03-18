@@ -62,16 +62,18 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | FailedCast(_)
   | InvalidOperation(_)
   | IfThenElse(_)
-  | Closure(_)
   | BuiltinFun(_)
-  | Filter(_) => DHDoc_common.precedence_const
+  | Filter(_)
+  | Closure(_) => DHDoc_common.precedence_const
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
-  | Ap(_) => DHDoc_common.precedence_Ap
+  | Ap(_)
+  | TypAp(_) => DHDoc_common.precedence_Ap
   | ApBuiltin(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
   | ListConcat(_) => DHDoc_common.precedence_Plus
   | Tuple(_) => DHDoc_common.precedence_Comma
+  | TypFun(_)
   | Fun(_) => DHDoc_common.precedence_max
   | Let(_)
   | FixF(_)
@@ -137,6 +139,7 @@ let mk =
         | (LetBind, _) => []
         | (FixUnwrap, FixF(f, _, _)) => [f]
         | (FixUnwrap, _) => []
+        | (TypFunAp, _)
         | (InvalidStep, _)
         | (VarLookup, _)
         | (Sequence, _)
@@ -280,6 +283,8 @@ let mk =
     );
     let doc = {
       switch (d) {
+      | TypFun(_tpat, _dbody) =>
+        annot(DHAnnot.Collapsed, text("<anon typfn>"))
       | Closure(env', d') => go'(d', Closure, ~env=env')
       | Filter(flt, d') =>
         if (settings.show_stepper_filters) {
@@ -363,6 +368,7 @@ let mk =
       | ListLit(_, _, _, d_list) =>
         let ol = d_list |> List.mapi((i, d) => go'(d, ListLit(i)));
         DHDoc_common.mk_ListLit(ol);
+
       | Ap(d1, d2) =>
         let (doc1, doc2) = (
           go_formattable(d1, Ap1)
@@ -370,6 +376,10 @@ let mk =
           go'(d2, Ap2),
         );
         DHDoc_common.mk_Ap(doc1, doc2);
+      | TypAp(d1, ty) =>
+        let doc1 = go'(d1, TypAp);
+        let doc2 = DHDoc_Typ.mk(~enforce_inline=true, ty);
+        DHDoc_common.mk_TypAp(doc1, doc2);
       | ApBuiltin(ident, d) =>
         DHDoc_common.mk_Ap(
           text(ident),

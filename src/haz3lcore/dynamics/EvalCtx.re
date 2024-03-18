@@ -11,6 +11,7 @@ type cls =
   | Sequence2
   | Let1
   | Let2
+  | TypAp
   | Ap1
   | Ap2
   | Fun
@@ -58,6 +59,7 @@ type t =
   | Let2(DHPat.t, DHExp.t, t)
   | Fun(DHPat.t, Typ.t, t, option(Var.t))
   | FixF(Var.t, Typ.t, t)
+  | TypAp(t, Typ.t)
   | Ap1(t, DHExp.t)
   | Ap2(DHExp.t, t)
   | IfThenElse1(if_consistency, t, DHExp.t, DHExp.t)
@@ -126,6 +128,7 @@ let rec fuzzy_mark =
   | Let2(_)
   | Fun(_)
   | FixF(_)
+  | TypAp(_)
   | Ap1(_)
   | Ap2(_)
   | IfThenElse1(_)

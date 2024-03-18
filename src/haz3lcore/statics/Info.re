@@ -162,17 +162,25 @@ type type_var_err =
   | Other
   | NotCapitalized;
 
+/* What are we shadowing? */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type shadow_src =
+  | BaseTyp
+  | TyAlias
+  | TyVar;
+
 /* Type pattern term errors */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_tpat =
-  | ShadowsType(TypVar.t)
+  | ShadowsType(TypVar.t, shadow_src)
   | NotAVar(type_var_err);
 
 /* Type pattern ok statuses for cursor inspector */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type ok_tpat =
   | Empty
-  | Var(TypVar.t);
+  | Var(TypVar.t)
+  | Ap(TypVar.t, TypVar.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type status_tpat =
@@ -309,18 +317,29 @@ let pat_ty: pat => Typ.t = ({ty, _}) => ty;
 let rec status_common =
         (ctx: Ctx.t, mode: Mode.t, self: Self.t): status_common =>
   switch (self, mode) {
-  | (Just(syn), Syn) => NotInHole(Syn(syn))
+  | (Just(ty), Syn) => NotInHole(Syn(ty))
+  | (Just(ty), SynFun) =>
+    switch (
+      Typ.join_fix(ctx, Arrow(Unknown(Internal), Unknown(Internal)), ty)
+    ) {
+    | Some(_) => NotInHole(Syn(ty))
+    | None => InHole(Inconsistent(WithArrow(ty)))
+    }
+  | (Just(ty), SynTypFun) =>
+    switch (Typ.join_fix(ctx, Forall("?", Unknown(Internal)), ty)) {
+    | Some(_) => NotInHole(Syn(ty))
+    | None => InHole(Inconsistent(WithArrow(ty)))
+    }
   | (Just(syn), Ana(ana)) =>
-    switch (Typ.join_fix(ctx, ana, syn)) {
+    switch (
+      Typ.join_fix(
+        ctx,
+        ana,
+        syn /* Note: the ordering of ana, syn matters */
+      )
+    ) {
     | None => InHole(Inconsistent(Expectation({syn, ana})))
     | Some(join) => NotInHole(Ana(Consistent({ana, syn, join})))
-    }
-  | (Just(syn), SynFun) =>
-    switch (
-      Typ.join_fix(ctx, Arrow(Unknown(Internal), Unknown(Internal)), syn)
-    ) {
-    | None => InHole(Inconsistent(WithArrow(syn)))
-    | Some(_) => NotInHole(Syn(syn))
     }
   | (IsConstructor({name, syn_ty}), _) =>
     /* If a ctr is being analyzed against (an arrow type returning)
@@ -344,13 +363,13 @@ let rec status_common =
         Ana(InternallyInconsistent({ana, nojoin: Typ.of_source(tys)})),
       )
     };
-  | (NoJoin(_, tys), Syn | SynFun) =>
+  | (NoJoin(_, tys), Syn | SynFun | SynTypFun) =>
     InHole(Inconsistent(Internal(Typ.of_source(tys))))
   };
 
-let status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
+let status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat => {
   switch (mode, self) {
-  | (Syn | Ana(_), Common(self_pat))
+  | (Syn | SynTypFun | Ana(_), Common(self_pat))
   | (SynFun, Common(IsConstructor(_) as self_pat)) =>
     /* Little bit of a hack. Anything other than a bound ctr will, in
        function position, have SynFun mode (see Typ.ap_mode). Since we
@@ -358,13 +377,22 @@ let status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
        we catch them here, diverting to an ExpectedConstructor error. But we
        avoid capturing the second case above, as these will ultimately
        get a (more precise) unbound ctr  via status_common */
+    let self_pat: Self.t =
+      switch (self_pat) {
+      | IsConstructor({name, syn_ty: Some(Forall(name2, ty))}) =>
+        IsConstructor({
+          name,
+          syn_ty: Some(Typ.subst(Unknown(Internal), name2, ty)),
+        })
+      | _ => self_pat
+      };
     switch (status_common(ctx, mode, self_pat)) {
     | NotInHole(ok_exp) => NotInHole(ok_exp)
     | InHole(err_pat) => InHole(Common(err_pat))
-    }
+    };
   | (SynFun, _) => InHole(ExpectedConstructor)
   };
-
+};
 /* Determines whether an expression or pattern is in an error hole,
    depending on the mode, which represents the expectations of the
    surrounding syntactic context, and the self which represents the
@@ -388,7 +416,7 @@ let status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
    free, and whether a ctr name is a dupe. */
 let status_typ =
     (ctx: Ctx.t, expects: typ_expects, term: TermBase.UTyp.t, ty: Typ.t)
-    : status_typ =>
+    : status_typ => {
   switch (term.term) {
   | Invalid(token) => InHole(BadToken(token))
   | EmptyHole => NotInHole(Type(ty))
@@ -403,7 +431,12 @@ let status_typ =
       InHole(DuplicateConstructor(name))
     | TypeExpected =>
       switch (Ctx.is_alias(ctx, name)) {
-      | false => InHole(FreeTypeVariable(name))
+      | false =>
+        switch (Ctx.is_tyVar(ctx, name)) {
+        | false => InHole(FreeTypeVariable(name))
+        | true =>
+          NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
+        }
       | true => NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
       }
     }
@@ -417,7 +450,17 @@ let status_typ =
       | _ => NotInHole(VariantIncomplete(Arrow(ty_in, ty_variant)))
       };
     | ConstructorExpected(_) => InHole(WantConstructorFoundAp)
-    | TypeExpected => InHole(WantTypeFoundAp)
+    | TypeExpected =>
+      let constructor =
+        switch (t1.term) {
+        | Var(s) => s
+        | _ => ""
+        };
+      switch (Ctx.is_tyVar(ctx, constructor)) {
+      | false => InHole(FreeTypeVariable(constructor))
+      | true =>
+        NotInHole(TypeAlias(constructor, Typ.weak_head_normalize(ctx, ty)))
+      };
     }
   | _ =>
     switch (expects) {
@@ -426,36 +469,59 @@ let status_typ =
     | VariantExpected(_) => InHole(WantConstructorFoundType(ty))
     }
   };
-
+};
 let status_tpat = (ctx: Ctx.t, utpat: UTPat.t): status_tpat =>
   switch (utpat.term) {
   | EmptyHole => NotInHole(Empty)
-  | Var(name)
-      when Form.is_base_typ(name) || Ctx.lookup_alias(ctx, name) != None =>
-    InHole(ShadowsType(name))
+  | Var(name) when Ctx.shadows_typ(ctx, name) =>
+    let f = src => InHole(ShadowsType(name, src));
+    if (Form.is_base_typ(name)) {
+      f(BaseTyp);
+    } else if (Ctx.is_alias(ctx, name)) {
+      f(TyAlias);
+    } else {
+      f(TyVar);
+    };
   | Var(name) => NotInHole(Var(name))
   | Invalid(_) => InHole(NotAVar(NotCapitalized))
   | MultiHole(_) => InHole(NotAVar(Other))
+  | Ap({term: Var(name), _}, {term: Var(_), _})
+      when Form.is_base_typ(name) || Ctx.lookup_alias(ctx, name) != None =>
+    let f = src => InHole(ShadowsType(name, src));
+    if (Form.is_base_typ(name)) {
+      f(BaseTyp);
+    } else if (Ctx.is_alias(ctx, name)) {
+      f(TyAlias);
+    } else {
+      f(TyVar);
+    };
+  | Ap({term: Var(name1), _}, {term: Var(name2), _}) =>
+    NotInHole(Ap(name1, name2))
+
+  | Ap(_) => InHole(NotAVar(Other))
   };
 
 /* Determines whether any term is in an error hole. */
 let is_error = (ci: t): bool => {
   switch (ci) {
   | InfoExp({mode, self, ctx, _}) =>
-    switch (status_exp(ctx, mode, self)) {
+    let status = status_exp(ctx, mode, self);
+    switch (status) {
     | InHole(_) => true
     | NotInHole(_) => false
-    }
+    };
   | InfoPat({mode, self, ctx, _}) =>
-    switch (status_pat(ctx, mode, self)) {
+    let status = status_pat(ctx, mode, self);
+    switch (status) {
     | InHole(_) => true
     | NotInHole(_) => false
-    }
+    };
   | InfoTyp({expects, ctx, term, ty, _}) =>
-    switch (status_typ(ctx, expects, term, ty)) {
+    let status = status_typ(ctx, expects, term, ty);
+    switch (status) {
     | InHole(_) => true
     | NotInHole(_) => false
-    }
+    };
   | InfoTPat({term, ctx, _}) =>
     switch (status_tpat(ctx, term)) {
     | InHole(_) => true
