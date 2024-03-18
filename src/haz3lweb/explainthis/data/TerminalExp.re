@@ -10,6 +10,23 @@ let triv_exp: form = {
 };
 let triv_exps: group = {id: TrivExp, forms: [triv_exp]};
 
+let deferral_exp_ex = {
+  sub_id: Deferral,
+  term:
+    mk_example(
+      "let plus = fun (x, y) -> x + y in\nlet incr = plus(_, 1) in\nincr(5)",
+    ),
+  message: "In the partial application plus(_, 1), the deferral expression marks the first argument, which was not applied until in the full function application incr(5).",
+};
+let deferral_exp: form = {
+  id: DeferralExp,
+  syntactic_form: [exp("_")],
+  expandable_id: None,
+  explanation: "Marks an argument that has not yet been applied in a partial application.",
+  examples: [deferral_exp_ex],
+};
+let deferral_exps: group = {id: DeferralExp, forms: [deferral_exp]};
+
 let bool_exp = (b: bool): form => {
   id: BoolExp,
   syntactic_form: [exp(b |> string_of_bool)],

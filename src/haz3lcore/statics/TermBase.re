@@ -129,7 +129,7 @@ and UExp: {
     | UnOp(op_un)
     | BinOp(op_bin)
     | Match;
-  
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type deferral_position =
     | InAp
