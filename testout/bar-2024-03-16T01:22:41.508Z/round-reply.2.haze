@@ -1,0 +1,15 @@
+fun (model, action) ->
+    case action
+    | AddTodo =>
+        let new_item = (model.1, false) in
+        let new_todos = model.2 :: [new_item] in
+        (model.1, new_todos)
+    | RemoveTodo(index) =>
+        let new_todos = List.filteri (fun i, _ -> i != index, model.2) in
+        (model.1, new_todos)
+    | ToggleTodo(index) =>
+        let new_todos = List.mapi (fun i, (desc, done) -> if i == index then (desc, not done) else (desc, done), model.2) in
+        (model.1, new_todos)
+    | UpdateBuffer(newBuffer) => 
+        (newBuffer, model.2)
+    end

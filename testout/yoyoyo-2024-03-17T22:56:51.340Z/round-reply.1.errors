@@ -1,0 +1,12 @@
+The following static errors were discovered:
+Error in term:
+  match
+Nature of error: Variable match is not bound
+Error in term:
+  songs, match state Rul
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  state Rul
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

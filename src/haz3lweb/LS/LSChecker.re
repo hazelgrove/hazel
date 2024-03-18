@@ -22,18 +22,18 @@ let get_zips = (data: LSActions.data, ~db): list(Zipper.t) => {
   [prelude_term, main_term, epilogue_term];
 };
 
-let splice_terms = terms =>
+let splice_terms = (terms: list(TermBase.UExp.t)): TermBase.UExp.t =>
   List.fold_left(
     EditorUtil.append_exp,
     Term.UExp.{ids: [Id.mk()], term: Triv},
     terms,
   );
 
+let zs_to_term = (zs: list(Zipper.t)): TermBase.UExp.t =>
+  zs |> List.map(MakeTerm.from_zip_for_sem) |> List.map(fst) |> splice_terms;
+
 let mk_combined_term = (settings, ~db) =>
-  get_zips(settings.data, ~db)
-  |> List.map(MakeTerm.from_zip_for_sem)
-  |> List.map(fst)
-  |> splice_terms;
+  settings.data |> get_zips(~db) |> zs_to_term;
 
 let syntax_error_report = (~db, data: LSActions.data) =>
   switch (

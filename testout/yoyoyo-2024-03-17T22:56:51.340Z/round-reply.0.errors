@@ -1,0 +1,35 @@
+The following static errors were discovered:
+Error in term:
+  Replace
+Nature of error: Constructor is not defined
+Error in term:
+  playlist 1, PausedOn(playlist 1)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  playlist 0, fun song_id ->
+ song_id != id
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  0 @ id, playlist 1
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Replace
+Nature of error: Constructor is not defined
+Error in term:
+  filter
+Nature of error: Variable filter is not bound
+Error in term:
+  playlist 0 @ id, playlist 1
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  filter(playlist 0, fun song_id ->
+ song_id != id), playlist 1
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  playlist 1
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  playlist 1, Playing(id)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

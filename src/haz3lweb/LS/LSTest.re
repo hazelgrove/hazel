@@ -2,10 +2,11 @@
 
   TODO:
   node hazeLS.js CHECK dynamics --prelude testdata/todo1/prelude.haze --main testdata/todo1/solution.haze --epilogue testdata/todo1/epilogue.haze
-  node hazeLS.js RUNTEST --expected_type --error_rounds_max 2 --api-key ~/azure-4-api-key.txt --debug --prelude testdata/todo1/prelude.haze --main testdata/todo1/sketch.haze --epilogue testdata/todo1/epilogue.haze
+  node hazeLS.js RUNTEST --run_name yoyoyo --expected_type --error_rounds_max 2 --source_folder testdata/todo1/ --api-key ~/azure-4-api-key.txt
 
   PLAYLIST, include type info:
-  node hazeLS.js RUNTEST --expected_type --api-key ~/azure-4-api-key.txt --prelude testdata/playlist1/prelude.haze --main testdata/playlist1/sketch.haze --epilogue testdata/playlist1/epilogue.haze
+  node hazeLS.js RUNTEST --run_name yoyoyo --expected_type --error_rounds_max 2 --source_folder testdata/playlist1/ --api-key ~/azure-4-api-key.txt
+
 
   PLAYLIST:
   node hazeLS.js CHECK statics --prelude testdata/playlist1/prelude.haze --main testdata/playlist1/solution.haze --epilogue testdata/playlist1/epilogue.haze
@@ -73,7 +74,7 @@ let get_caret_mode_and_ctx = (~db, ~init_ctx, ~prelude, sketch_pre) => {
   };
 };
 
-let ask_gpt = (~key, ~llm, ~prompt, ~handler): unit => {
+let _ask_gpt = (~key, ~llm, ~prompt, ~handler): unit => {
   if (llm != OpenAI.Azure_GPT4_0613) {
     failwith("LS: ask_gpt: Unsupported chat model");
   };
@@ -96,7 +97,7 @@ let ask_gpt = (~key, ~llm, ~prompt, ~handler): unit => {
   );
 };
 
-let _ask_gpt = (~key as _, ~llm as _, ~prompt as _, ~handler): unit => {
+let ask_gpt = (~key as _, ~llm as _, ~prompt as _, ~handler): unit => {
   print_endline("MOCK API RESPONSE");
   handler(
     Some(
@@ -340,6 +341,7 @@ let final_handler =
     );
   record_final_info(~db, ~io, results, completed_sketch);
   record_derived(~io);
+  exit(0);
 };
 
 let first_handler =

@@ -1,0 +1,23 @@
+let update: (Model, Action) -> Model =
+  fun (model, action) ->
+  case action
+  | AddTodo =>
+    let (buffer, todos) = model in
+    (String.empty, if String.is_empty(buffer) then todos else todos ++ [(buffer, false)])
+  | RemoveTodo(idx) =>
+    let (buffer, todos) = model in
+    (buffer, List.remove(idx, todos))
+  | ToggleTodo(idx) =>
+    let (buffer, todos) = model in
+    let toggle = fun idx, todos ->
+      case List.get(idx, todos)
+      | Some(todo) => let (text, done) = todo in
+                      List.set(idx, (text, not done), todos)
+      | None => todos
+      end in
+    (buffer, toggle(idx, todos))
+  | UpdateBuffer(newBuffer) =>
+    let (_, todos) = model in
+    (newBuffer, todos)
+  end
+in

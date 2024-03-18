@@ -1,0 +1,12 @@
+fun (model, action) ->
+  let (buffer, todos) = model in
+  case action
+  | AddTodo => (buffer, todos ++ [(buffer, False)])
+  | RemoveTodo(index) => (buffer, List.remove_at(index, todos))
+  | ToggleTodo(index) =>
+    let new_todos = List.mapi (fun i, (todo, doneStatus) ->
+                                 if i == index then (todo, not doneStatus) 
+                                 else (todo, doneStatus)) todos in
+    (buffer, new_todos)
+  | UpdateBuffer(newBuffer) => (newBuffer, todos)
+  end

@@ -1,0 +1,7 @@
+fun playlist, action ->
+  case action
+  | PlaySong(id) => Replace(playlist[1], Playing(id))
+  | PauseCurrentSong => Replace(playlist[1], PausedOn(playlist[1]))
+  | RemoveSong(id) => (filter(playlist[0], fun song_id -> song_id != id), playlist[1])
+  | AddSong(id) => (playlist[0] @ [id], playlist[1])
+  end

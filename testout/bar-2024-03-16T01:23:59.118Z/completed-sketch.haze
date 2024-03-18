@@ -1,0 +1,16 @@
+let update: (Model, Action) -> Model =
+  fun (model, action) ->
+  case action
+  | AddTodo => let (buffer, todos) = model in
+                  if buffer != "" then (buffer, (buffer, false)::todos)
+                  else model
+  | RemoveTodo(idx) => let (buffer, todos) = model in
+                           (buffer, List.filteri((fun item_idx, _ -> item_idx != idx), todos))
+  | ToggleTodo(idx) => let (buffer, todos) = model in
+                           (buffer, List.mapi((fun (i, (todo_text, done)) ->
+                             if i == idx then (todo_text, not(done))
+                             else (todo_text, done)), todos))
+  | UpdateBuffer(new_buf) => let (_, todos) = model in
+                                 (new_buf, todos)
+  end
+in

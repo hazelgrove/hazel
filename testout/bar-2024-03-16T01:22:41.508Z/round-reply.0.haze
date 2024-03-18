@@ -1,0 +1,9 @@
+fun (model, action) ->
+  case action
+  | AddTodo => (model, True)
+  | RemoveTodo(index) => List.remove_at(index, model)
+  | ToggleTodo(index) => List.map_with_index(fun i, todo -> 
+                                                if i == index then (todo, not List.get(i, model)) 
+                                                else todo, model)
+  | UpdateBuffer(buffer) => (buffer, model)
+  end

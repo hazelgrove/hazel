@@ -1,0 +1,13 @@
+let update: (Model, Action) -> Model =
+  fun (mbuffer, mtodos), action ->
+    case action
+    | AddTodo => (mbuffer, (mbuffer, false)::mtodos)
+    | RemoveTodo(idx) =>
+      let new_todos = List.mapi((fun i, todo -> if i == idx then todo else todo), mtodos) in
+      (mbuffer, new_todos)
+    | ToggleTodo(idx) =>
+      let new_todos = List.mapi((fun i, (name, done) -> if i == idx then (name, not done) else (name, done)), mtodos) in
+      (mbuffer, new_todos)
+    | UpdateBuffer(new_buffer) => (new_buffer, mtodos)
+    end
+in

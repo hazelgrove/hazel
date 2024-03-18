@@ -1,0 +1,14 @@
+The following static errors were discovered:
+Error in term:
+  fun (index, _) ->
+ index != i
+Nature of error: Expecting type [?] but got inconsistent type ((?, ?) -> Bool)
+Error in term:
+  todo, not done
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  fun (index, ((todo, done))) ->
+ if index == i then (todo, not done) else (todo, done)
+Nature of error: Expecting type [?] but got inconsistent type ((?, (?, ?)) -> (?, ?))
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

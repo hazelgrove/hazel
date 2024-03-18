@@ -1,0 +1,12 @@
+# Update playlist based on action #
+let update: (PlayList, PlayListAction) -> PlayList =
+  fun (playlist, action) ->
+  case action
+  | PlaySong(id) => (playlist[0], Playing(id))
+  | PauseCurrentSong => (playlist[0], PausedOn(case playlist[1] 
+                                               | Playing(id) => id 
+                                               | _ => 0 end))
+  | RemoveSong(id) => (List.filter (fun x -> x != id, playlist[0]), playlist[1])
+  | AddSong(id) => ([id] @ playlist[0], playlist[1])
+  end
+in
