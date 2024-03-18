@@ -131,6 +131,8 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
         ]),
         parenthesize,
       )
+    | Module(_) => (text("Module"), parenthesize)
+    | Member(name, _) => (text(name), parenthesize)
     | Sum(sum_map) =>
       let center =
         List.mapi(

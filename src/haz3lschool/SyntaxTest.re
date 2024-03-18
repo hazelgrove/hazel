@@ -19,6 +19,7 @@ let rec find_var_upat = (name: string, upat: Term.UPat.t): bool => {
   | Float(_)
   | Bool(_)
   | String(_)
+  | TyAlias(_)
   | Constructor(_) => false
   | Cons(up1, up2) => find_var_upat(name, up1) || find_var_upat(name, up2)
   | ListLit(l)
@@ -47,7 +48,8 @@ let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
   | ListLit(l)
   | Tuple(l) =>
     List.fold_left((acc, ue) => {acc || var_mention(name, ue)}, false, l)
-  | Let(p, def, body) =>
+  | Let(p, def, body)
+  | Module(p, def, body) =>
     find_var_upat(name, p)
       ? false : var_mention(name, def) || var_mention(name, body)
   | TypFun(_, u)
@@ -58,6 +60,7 @@ let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
   | TyAlias(_, _, u)
   | Filter(_, _, u) => var_mention(name, u)
   | Ap(u1, u2)
+  | Dot(u1, u2)
   | Pipeline(u1, u2)
   | Seq(u1, u2)
   | Cons(u1, u2)
@@ -95,7 +98,8 @@ let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
   | ListLit(l)
   | Tuple(l) =>
     List.fold_left((acc, ue) => {acc || var_applied(name, ue)}, false, l)
-  | Let(p, def, body) =>
+  | Let(p, def, body)
+  | Module(p, def, body) =>
     find_var_upat(name, p)
       ? false : var_applied(name, def) || var_applied(name, body)
   | TypFun(_, u)
@@ -122,6 +126,7 @@ let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
   | Cons(u1, u2)
   | Seq(u1, u2)
   | ListConcat(u1, u2)
+  | Dot(u1, u2)
   | BinOp(_, u1, u2) => var_applied(name, u1) || var_applied(name, u2)
   | If(u1, u2, u3) =>
     var_applied(name, u1) || var_applied(name, u2) || var_applied(name, u3)
@@ -177,6 +182,7 @@ let rec find_in_let =
       ListLit(_) |
       Constructor(_) |
       Cons(_, _) |
+      TyAlias(_) |
       Ap(_, _),
       _,
     ) => l
@@ -187,7 +193,8 @@ let rec find_fn =
         (name: string, uexp: Term.UExp.t, l: list(Term.UExp.t))
         : list(Term.UExp.t) => {
   switch (uexp.term) {
-  | Let(up, def, body) =>
+  | Let(up, def, body)
+  | Module(up, def, body) =>
     l |> find_in_let(name, up, def) |> find_fn(name, body)
   | ListLit(ul)
   | Tuple(ul) =>
@@ -201,6 +208,7 @@ let rec find_fn =
   | Test(u1)
   | Filter(_, _, u1) => l |> find_fn(name, u1)
   | Ap(u1, u2)
+  | Dot(u1, u2)
   | Pipeline(u1, u2)
   | Seq(u1, u2)
   | Cons(u1, u2)
@@ -255,7 +263,8 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   | Pipeline(_, _) => true
   | Fun(args, body) =>
     find_var_upat(name, args) ? false : tail_check(name, body)
-  | Let(p, def, body) =>
+  | Let(p, def, body)
+  | Module(p, def, body) =>
     find_var_upat(name, p) || var_mention(name, def)
       ? false : tail_check(name, body)
   | ListLit(l)
@@ -273,6 +282,7 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   | Seq(u1, u2) => var_mention(name, u1) ? false : tail_check(name, u2)
   | Cons(u1, u2)
   | ListConcat(u1, u2)
+  | Dot(u1, u2)
   | BinOp(_, u1, u2) => !(var_mention(name, u1) || var_mention(name, u2))
   | If(u1, u2, u3) =>
     var_mention(name, u1)

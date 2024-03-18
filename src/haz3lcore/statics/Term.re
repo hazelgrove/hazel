@@ -77,11 +77,14 @@ module UTyp = {
     | Sum
     | List
     | Var
+    | Module
+    | ModuleVar
     | Constructor
     | Parens
-    | Ap
     | Forall
-    | Rec;
+    | Rec
+    | Dot
+    | Ap;
 
   include TermBase.UTyp;
 
@@ -111,10 +114,12 @@ module UTyp = {
     | Constructor(_) => Constructor
     | Tuple(_) => Tuple
     | Parens(_) => Parens
+    | Module(_) => Module
     | Ap(_) => Ap
-    | Sum(_) => Sum
     | Forall(_) => Forall
-    | Rec(_) => Rec;
+    | Rec(_) => Rec
+    | Dot(_) => Dot
+    | Sum(_) => Sum;
 
   let show_cls: cls => string =
     fun
@@ -132,9 +137,12 @@ module UTyp = {
     | Tuple => "Product type"
     | Sum => "Sum type"
     | Parens => "Parenthesized type"
-    | Ap => "Constructor application"
     | Forall => "Forall Type"
-    | Rec => "Recursive Type";
+    | Rec => "Recursive Type"
+    | Module => "Module type"
+    | ModuleVar => "Module path"
+    | Dot => "Member type"
+    | Ap => "Constructor application";
 
   let rec is_arrow = (typ: t) => {
     switch (typ.term) {
@@ -150,9 +158,11 @@ module UTyp = {
     | List(_)
     | Tuple(_)
     | Var(_)
+    | Module(_)
     | Constructor(_)
     | Ap(_)
     | Sum(_)
+    | Dot(_)
     | Forall(_)
     | Rec(_) => false
     };
@@ -175,7 +185,9 @@ module UTyp = {
     | Var(_)
     | Constructor(_)
     | Ap(_)
+    | Module(_)
     | Sum(_)
+    | Dot(_)
     | Rec(_) => false
     };
   };
@@ -243,6 +255,182 @@ module UTyp = {
           }
         | None => Unknown(Free(name))
         };
+      | Module(u) =>
+        let rep_id_p = ({ids, _}: TermBase.UPat.t) => {
+          assert(ids != []);
+          List.hd(ids);
+        };
+        let rep_id_t = ({ids, _}: TermBase.UTPat.t) => {
+          assert(ids != []);
+          List.hd(ids);
+        };
+        let rec upat_to_ctx =
+                ((outer_ctx: Ctx.t, inner_ctx: Ctx.t), upat: TermBase.UPat.t) => {
+          switch (upat.term) {
+          | Invalid(_)
+          | EmptyHole
+          | MultiHole(_)
+          | Wild
+          | Int(_)
+          | Float(_)
+          | Bool(_)
+          | String(_)
+          | Triv
+          | ListLit(_)
+          | Cons(_)
+          | Tuple(_)
+          | Ap(_) => (outer_ctx, inner_ctx)
+          | TypeAnn(var, utyp1) =>
+            switch (var.term, utyp1.term) {
+            | (Var(name), _) => (
+                outer_ctx,
+                [
+                  VarEntry({
+                    name,
+                    id: rep_id_p(var),
+                    typ: to_typ(outer_ctx, utyp1),
+                  }),
+                  ...inner_ctx,
+                ],
+              )
+            | (Constructor(name), _) => (
+                outer_ctx,
+                [
+                  ConstructorEntry({
+                    name,
+                    id: rep_id_p(var),
+                    typ: to_typ(outer_ctx, utyp1),
+                  }),
+                  ...inner_ctx,
+                ],
+              )
+            | _ => (outer_ctx, inner_ctx)
+            }
+          | Var(name) => (
+              outer_ctx,
+              [
+                VarEntry({name, id: rep_id_p(upat), typ: Unknown(TypeHole)}),
+                ...inner_ctx,
+              ],
+            )
+          | Constructor(name) => (
+              outer_ctx,
+              [
+                ConstructorEntry({
+                  name,
+                  id: rep_id_p(upat),
+                  typ: Unknown(TypeHole),
+                }),
+                ...inner_ctx,
+              ],
+            )
+          | TyAlias(typat, utyp) =>
+            switch (typat.term) {
+            | Var(name)
+                when
+                  !Form.is_base_typ(name)
+                  && Ctx.lookup_alias(inner_ctx, name) == None =>
+              /* NOTE(andrew):  See TyAlias in Statics.uexp_to_info_map  */
+              let (ty_def, ctx_body, new_inner) = {
+                let ty_pre =
+                  to_typ(Ctx.extend_dummy_tvar(outer_ctx, name), utyp);
+                switch (utyp.term) {
+                | Sum(_) when List.mem(name, Typ.free_vars(ty_pre)) =>
+                  let ty_rec =
+                    Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
+                  (
+                    ty_rec,
+                    Ctx.extend_alias(
+                      outer_ctx,
+                      name,
+                      rep_id_t(typat),
+                      ty_rec,
+                    ),
+                    Ctx.extend_alias(
+                      inner_ctx,
+                      name,
+                      rep_id_t(typat),
+                      ty_rec,
+                    ),
+                  );
+                | _ =>
+                  let ty = to_typ(outer_ctx, utyp);
+                  (
+                    ty,
+                    Ctx.extend_alias(outer_ctx, name, rep_id_t(typat), ty),
+                    Ctx.extend_alias(inner_ctx, name, rep_id_t(typat), ty),
+                  );
+                };
+              };
+              switch (Typ.get_sum_constructors(outer_ctx, ty_def)) {
+              | Some(sm) => (
+                  Ctx.add_ctrs(ctx_body, name, rep_id(utyp), sm),
+                  Ctx.add_ctrs(new_inner, name, rep_id(utyp), sm),
+                )
+              | None => (ctx_body, new_inner)
+              };
+
+            | _ => (outer_ctx, inner_ctx)
+            }
+          | Parens(p) => upat_to_ctx((outer_ctx, inner_ctx), p)
+          };
+        };
+        let rec get_Tuple: TermBase.UPat.t => Typ.t = (
+          ut =>
+            switch (ut.term) {
+            | Tuple(us) =>
+              let (_, module_ctx) =
+                List.fold_left(upat_to_ctx, (ctx, []), us);
+              Module(module_ctx);
+            | Parens(p) => get_Tuple(p)
+            | TypeAnn(_)
+            | Var(_)
+            | Constructor(_)
+            | TyAlias(_)
+            | Invalid(_)
+            | EmptyHole
+            | MultiHole(_)
+            | Wild
+            | Int(_)
+            | Float(_)
+            | Bool(_)
+            | String(_)
+            | Triv
+            | ListLit(_)
+            | Cons(_)
+            | Ap(_) =>
+              let (_, module_ctx) = upat_to_ctx((ctx, []), ut);
+              Module(module_ctx);
+            }
+        );
+        get_Tuple(u);
+      | Dot(typ1, typ2) =>
+        /** Currently, the only possible way to introduce modules are through
+      a variable in Constructor form.
+
+      Maybe better to put to_typ in Statics? */
+        open Util.OptUtil.Syntax;
+        let rec inner_normalize = (ctx: Ctx.t, ty: Typ.t): option(Typ.t) =>
+          switch (ty) {
+          | Var(x) =>
+            let* ty = Ctx.lookup_alias(ctx, x);
+            inner_normalize(ctx, ty);
+          | _ => Some(ty)
+          };
+        let res = {
+          let* name = Module.get_tyname(typ2);
+          let+ (tag_name, inner_ctx) = Module.get_module("", ctx, typ1);
+          let ty = {
+            let* inner_ctx = inner_ctx;
+            inner_normalize(inner_ctx, to_typ(inner_ctx, typ2));
+          };
+          (tag_name ++ name, ty);
+        };
+        switch (res) {
+        | Some((name, Some(ty))) => Member(name, ty)
+        | Some((name, None)) => Member(name, Unknown(Internal))
+        | None => Member("?", Unknown(Internal))
+        };
       }
   and to_variant:
     (Ctx.t, variant) => option(ConstructorMap.binding(option(Typ.t))) =
@@ -306,6 +494,8 @@ module UTyp = {
         Sum(lst);
       | Forall(utpat, t) => Forall(utpat, remove_ap_in_def(ctr, arg, t))
       | Rec(utpat, t) => Rec(utpat, remove_ap_in_def(ctr, arg, t))
+      | Module(t) => Module(t)
+      | Dot(t1, t2) => Dot(remove_ap_in_def(ctr, arg, t1), t2)
       };
     {term: res, ids: ty.ids};
   };
@@ -327,10 +517,12 @@ module UPat = {
     | Constructor
     | Cons
     | Var
+    | ModuleVar
     | Tuple
     | Parens
     | Ap
-    | TypeAnn;
+    | TypeAnn
+    | TyAlias;
 
   include TermBase.UPat;
 
@@ -363,7 +555,8 @@ module UPat = {
     | Tuple(_) => Tuple
     | Parens(_) => Parens
     | Ap(_) => Ap
-    | TypeAnn(_) => TypeAnn;
+    | TypeAnn(_) => TypeAnn
+    | TyAlias(_) => TyAlias;
 
   let show_cls: cls => string =
     fun
@@ -380,9 +573,11 @@ module UPat = {
     | Constructor => "Constructor"
     | Cons => "Cons"
     | Var => "Variable binding"
+    | ModuleVar => "Module variable binding"
     | Tuple => "Tuple"
     | Parens => "Parenthesized pattern"
     | Ap => "Constructor application"
+    | TyAlias => "Type alias definition pattern"
     | TypeAnn => "Annotation";
 
   let rec is_var = (pat: t) => {
@@ -390,6 +585,7 @@ module UPat = {
     | Parens(pat) => is_var(pat)
     | Var(_) => true
     | TypeAnn(_)
+    | TyAlias(_)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -412,6 +608,7 @@ module UPat = {
     | Parens(pat) => is_fun_var(pat)
     | TypeAnn(pat, typ) =>
       is_var(pat) && (UTyp.is_arrow(typ) || UTyp.is_forall(typ))
+    | TyAlias(_)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -449,6 +646,7 @@ module UPat = {
       | Cons(_, _)
       | Var(_)
       | TypeAnn(_)
+      | TyAlias(_)
       | Constructor(_)
       | Ap(_) => false
       }
@@ -459,6 +657,7 @@ module UPat = {
     | Parens(pat) => get_var(pat)
     | Var(x) => Some(x)
     | TypeAnn(_)
+    | TyAlias(_)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -476,6 +675,29 @@ module UPat = {
     };
   };
 
+  let rec get_tag = (pat: t) => {
+    switch (pat.term) {
+    | Parens(pat) => get_tag(pat)
+    | Constructor(x) => Some(x)
+    | TypeAnn(_)
+    | TyAlias(_)
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Wild
+    | Int(_)
+    | Float(_)
+    | Bool(_)
+    | String(_)
+    | Triv
+    | ListLit(_)
+    | Cons(_, _)
+    | Tuple(_)
+    | Var(_)
+    | Ap(_) => None
+    };
+  };
+
   let rec get_fun_var = (pat: t) => {
     switch (pat.term) {
     | Parens(pat) => get_fun_var(pat)
@@ -485,6 +707,7 @@ module UPat = {
       } else {
         None;
       }
+    | TyAlias(_)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -529,6 +752,7 @@ module UPat = {
       | Cons(_, _)
       | Var(_)
       | TypeAnn(_)
+      | TyAlias(_)
       | Constructor(_)
       | Ap(_) => None
       }
@@ -563,6 +787,9 @@ module UExp = {
     | Var
     | MetaVar
     | Let
+    | Module
+    | ModuleVar
+    | Dot
     | TyAlias
     | Ap
     | TypAp
@@ -606,6 +833,8 @@ module UExp = {
     | Tuple(_) => Tuple
     | Var(_) => Var
     | Let(_) => Let
+    | Module(_) => Module
+    | Dot(_) => Dot
     | TyAlias(_) => TyAlias
     | Ap(_) => Ap
     | TypAp(_) => TypAp
@@ -702,6 +931,9 @@ module UExp = {
     | Var => "Variable reference"
     | MetaVar => "Meta variable reference"
     | Let => "Let expression"
+    | Module => "Module expression"
+    | ModuleVar => "Module path"
+    | Dot => "Dot access"
     | TyAlias => "Type Alias definition"
     | Ap => "Application"
     | TypAp => "Type application"
@@ -736,6 +968,8 @@ module UExp = {
     | Tuple(_)
     | Var(_)
     | Let(_)
+    | Module(_)
+    | Dot(_)
     | TyAlias(_)
     | Ap(_)
     | TypAp(_)
@@ -772,6 +1006,8 @@ module UExp = {
       | TypFun(_)
       | Var(_)
       | Let(_)
+      | Module(_)
+      | Dot(_)
       | TyAlias(_)
       | Ap(_)
       | TypAp(_)

@@ -67,6 +67,7 @@ let rec append_exp = (e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   | ListConcat(_)
   | UnOp(_)
   | BinOp(_)
+  | Dot(_)
   | Match(_) => TermBase.UExp.{ids: [Id.mk()], term: Seq(e1, e2)}
   | Seq(e11, e12) =>
     let e12' = append_exp(e12, e2);
@@ -77,6 +78,9 @@ let rec append_exp = (e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   | Let(p, edef, ebody) =>
     let ebody' = append_exp(ebody, e2);
     TermBase.UExp.{ids: e1.ids, term: Let(p, edef, ebody')};
+  | Module(p, edef, ebody) =>
+    let ebody' = append_exp(ebody, e2);
+    TermBase.UExp.{ids: e1.ids, term: Module(p, edef, ebody')};
   | TyAlias(tp, tdef, ebody) =>
     let ebody' = append_exp(ebody, e2);
     TermBase.UExp.{ids: e1.ids, term: TyAlias(tp, tdef, ebody')};

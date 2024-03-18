@@ -150,6 +150,8 @@ and UExp: {
     | Tuple(list(t))
     | Var(Var.t)
     | Let(UPat.t, t, t)
+    | Module(UPat.t, t, t)
+    | Dot(t, t)
     | TyAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)
     | TypAp(t, UTyp.t)
@@ -286,6 +288,8 @@ and UExp: {
     | Tuple(list(t))
     | Var(Var.t)
     | Let(UPat.t, t, t)
+    | Module(UPat.t, t, t)
+    | Dot(t, t)
     | TyAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)
     | TypAp(t, UTyp.t)
@@ -372,6 +376,7 @@ and UPat: {
     | Parens(t)
     | Ap(t, t)
     | TypeAnn(t, UTyp.t)
+    | TyAlias(UTPat.t, UTyp.t)
   and t = {
     ids: list(Id.t),
     term,
@@ -396,6 +401,7 @@ and UPat: {
     | Parens(t)
     | Ap(t, t)
     | TypeAnn(t, UTyp.t)
+    | TyAlias(UTPat.t, UTyp.t)
   and t = {
     ids: list(Id.t),
     term,
@@ -417,7 +423,9 @@ and UTyp: {
     | Arrow(t, t)
     | Tuple(list(t))
     | Parens(t)
+    | Module(UPat.t)
     | Ap(t, t)
+    | Dot(t, t)
     | Sum(list(variant))
     | Forall(UTPat.t, t)
     | Rec(UTPat.t, t)
@@ -444,7 +452,9 @@ and UTyp: {
     | Arrow(t, t)
     | Tuple(list(t))
     | Parens(t)
+    | Module(UPat.t)
     | Ap(t, t)
+    | Dot(t, t)
     | Sum(list(variant))
     | Forall(UTPat.t, t)
     | Rec(UTPat.t, t)

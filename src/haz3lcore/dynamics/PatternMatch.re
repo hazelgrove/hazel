@@ -36,6 +36,10 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Wild, _) => Matches(Environment.empty)
   | (ExpandingKeyword(_), _) => DoesNotMatch
   | (InvalidText(_), _) => IndetMatch
+  | (Var(_), ModuleVal(_)) => DoesNotMatch
+  | (Constructor(x), ModuleVal(_)) =>
+    let env = Environment.extend(Environment.empty, (x, d));
+    Matches(env);
   | (BadConstructor(_), _) => IndetMatch
   | (Var(x), _) =>
     let env = Environment.extend(Environment.empty, (x, d));
@@ -241,6 +245,7 @@ and matches_cast_Sum =
   | InvalidText(_)
   | Let(_)
   | TypAp(_)
+  | Module(_)
   | Ap(_)
   | ApBuiltin(_)
   | BinBoolOp(_)
@@ -259,6 +264,8 @@ and matches_cast_Sum =
   | BuiltinFun(_) => IndetMatch
   | Cast(_)
   | BoundVar(_)
+  | Dot(_)
+  | ModuleVal(_)
   | FixF(_)
   | TypFun(_)
   | Fun(_)
@@ -335,6 +342,8 @@ and matches_cast_Tuple =
   | InvalidText(_) => IndetMatch
   | ExpandingKeyword(_) => IndetMatch
   | Let(_, _, _) => IndetMatch
+  | Module(_, _, _) => IndetMatch
+  | Dot(_, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
   | TypFun(_, _) => DoesNotMatch
   | Fun(_, _, _, _) => DoesNotMatch
@@ -350,6 +359,7 @@ and matches_cast_Tuple =
   | BinStringOp(_)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
+  | ModuleVal(_) => DoesNotMatch
   | Sequence(_)
   | BuiltinFun(_)
   | Test(_) => DoesNotMatch
@@ -477,6 +487,8 @@ and matches_cast_Cons =
   | InvalidText(_) => IndetMatch
   | ExpandingKeyword(_) => IndetMatch
   | Let(_, _, _) => IndetMatch
+  | Module(_, _, _) => IndetMatch
+  | Dot(_, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
   | TypFun(_, _) => DoesNotMatch
   | Fun(_, _, _, _) => DoesNotMatch
@@ -493,6 +505,7 @@ and matches_cast_Cons =
   | BuiltinFun(_) => DoesNotMatch
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
+  | ModuleVal(_) => DoesNotMatch
   | Sequence(_)
   | Test(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch

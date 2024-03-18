@@ -87,6 +87,11 @@ type example_id =
   | Tuple2
   | Let(let_examples)
   | TypFunAp
+  | Module
+  | ModuleWithType
+  | ModuleTyp
+  | Dot
+  | DotTyp
   | FunAp
   | ConAp
   | IfTrue
@@ -164,6 +169,9 @@ type form_id =
   | Tuple3Exp
   | LetExp(pat_sub_form_id)
   | TypFunApExp
+  | ModuleExp
+  | DotExp
+  | ModuleVarExp
   | FunApExp
   | ConApExp
   | IfExp
@@ -192,6 +200,7 @@ type form_id =
   | Tuple3Pat
   | ApPat
   | TypAnnPat
+  | TyAliasPat
   | EmptyHoleTyp
   | MultiHoleTyp
   | IntTyp
@@ -208,6 +217,8 @@ type form_id =
   | Tuple0Typ
   | Tuple2Typ
   | Tuple3Typ
+  | ModuleTyp
+  | DotTyp
   | LabelledSumTyp
   | SumTypUnaryConstructorDef
   | SumTypNullaryConstructorDef
@@ -253,6 +264,9 @@ type group_id =
   | Tuple3Exp
   | LetExp(pat_sub_form_id)
   | TypFunApExp
+  | ModuleExp
+  | DotExp
+  | ModuleVarExp
   | FunApExp
   | ConApExp
   | IfExp
@@ -282,6 +296,7 @@ type group_id =
   | Tuple3Pat
   | ApPat
   | TypAnnPat
+  | TyAliasPat
   | EmptyHoleTyp
   | MultiHoleTyp
   | IntTyp
@@ -298,6 +313,8 @@ type group_id =
   | Tuple0Typ
   | Tuple2Typ
   | Tuple3Typ
+  | ModuleTyp
+  | DotTyp
   | LabelledSumTyp
   | SumTypUnaryConstructorDef
   | SumTypNullaryConstructorDef
