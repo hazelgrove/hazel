@@ -130,6 +130,17 @@ module CastHelpers = {
   };
 };
 
+let rec unbox_list = (d: DHExp.t): DHExp.t =>
+  switch (d) {
+  | Cast(d, List(t1), List(t2)) =>
+    switch (unbox_list(d)) {
+    | ListLit(u, i, _, xs) =>
+      ListLit(u, i, t2, List.map(x => DHExp.Cast(x, t1, t2), xs))
+    | d => d
+    }
+  | d => d
+  };
+
 let evaluate_extend_env =
     (new_bindings: Environment.t, to_extend: ClosureEnvironment.t)
     : ClosureEnvironment.t => {
@@ -493,7 +504,7 @@ module Transition = (EV: EV_MODE) => {
       and. d2' = req_value(req(state, env), d2 => Cons2(d1, d2), d2);
       Step({
         apply: () =>
-          switch (d2') {
+          switch (unbox_list(d2')) {
           | ListLit(u, i, ty, ds) => ListLit(u, i, ty, [d1', ...ds])
           | _ => raise(EvaluatorError.Exception(InvalidBoxedListLit(d2')))
           },
@@ -507,7 +518,7 @@ module Transition = (EV: EV_MODE) => {
       and. d2' = req_value(req(state, env), d2 => ListConcat2(d1, d2), d2);
       Step({
         apply: () =>
-          switch (d1', d2') {
+          switch (unbox_list(d1'), unbox_list(d2')) {
           | (ListLit(u1, i1, t1, ds1), ListLit(_, _, _, ds2)) =>
             ListLit(u1, i1, t1, ds1 @ ds2)
           | (ListLit(_), _) =>
