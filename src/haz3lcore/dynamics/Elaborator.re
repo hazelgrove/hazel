@@ -27,7 +27,7 @@ let fixed_pat_typ = (m: Statics.Map.t, p: Term.UPat.t): option(Typ.t) =>
   | _ => None
   };
 
-let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
+let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) => {
   switch (mode) {
   | Syn => d
   | SynFun =>
@@ -36,6 +36,14 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
       DHExp.cast(d, Unknown(prov), Arrow(Unknown(prov), Unknown(prov)))
     | Arrow(_) => d
     | _ => failwith("Elaborator.wrap: SynFun non-arrow-type")
+    }
+  | SynTypFun =>
+    switch (self_ty) {
+    | Unknown(prov) =>
+      /* ? |> forall _. ? */
+      DHExp.cast(d, Unknown(prov), Forall("_", Unknown(prov)))
+    | Forall(_) => d
+    | _ => failwith("Elaborator.wrap: SynTypFun non-forall-type")
     }
   | Ana(ana_ty) =>
     let ana_ty = Typ.normalize(ctx, ana_ty);
@@ -53,6 +61,12 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
       let (_, ana_out) = Typ.matched_arrow(ctx, ana_ty);
       let (self_in, _) = Typ.matched_arrow(ctx, self_ty);
       DHExp.cast(d, Arrow(self_in, ana_out), ana_ty);
+    | TypFun(_) =>
+      switch (ana_ty) {
+      | Unknown(prov) =>
+        DHExp.cast(d, Forall("grounded_forall", Unknown(prov)), ana_ty)
+      | _ => d
+      }
     | Tuple(ds) =>
       switch (ana_ty) {
       | Unknown(prov) =>
@@ -61,11 +75,13 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
       | _ => d
       }
     | Ap(NonEmptyHole(_, _, _, Constructor(_)), _)
-    | Ap(Constructor(_), _)
+    | Ap(Constructor(_) | TypAp(_), _)
+    | TypAp(Constructor(_), _)
     | Constructor(_) =>
       switch (ana_ty, self_ty) {
       | (Unknown(prov), Rec(_, Sum(_)))
-      | (Unknown(prov), Sum(_)) => DHExp.cast(d, self_ty, Unknown(prov))
+      | (Unknown(prov), Ap(_) | Sum(_)) =>
+        DHExp.cast(d, self_ty, Unknown(prov))
       | _ => d
       }
     /* Forms with special ana rules but no particular typing requirements */
@@ -74,6 +90,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | IfThenElse(_)
     | Sequence(_)
     | Let(_)
+    | Module(_)
     | FixF(_) => d
     /* Hole-like forms: Don't cast */
     | InvalidText(_)
@@ -89,6 +106,8 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | InvalidOperation(_) => d
     /* Normal cases: wrap */
     | BoundVar(_)
+    | Dot(_)
+    | ModuleVal(_)
     | Ap(_)
     | ApBuiltin(_)
     | BuiltinFun(_)
@@ -101,10 +120,13 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | BinIntOp(_)
     | BinFloatOp(_)
     | BinStringOp(_)
-    | Test(_) => DHExp.cast(d, self_ty, ana_ty)
+    | Test(_)
+    | TypAp(_) =>
+      // TODO: check with andrew
+      DHExp.cast(d, self_ty, ana_ty)
     };
   };
-
+};
 /* Handles cast insertion and non-empty-hole wrapping
    for elaborated expressions */
 let wrap = (ctx: Ctx.t, u: Id.t, mode: Mode.t, self, d: DHExp.t): DHExp.t =>
@@ -153,6 +175,10 @@ let rec dhexp_of_uexp =
         let* d1 = dhexp_of_uexp(m, body);
         let+ ty = fixed_pat_typ(m, p);
         DHExp.Fun(dp, ty, d1, None);
+      | TypFun(tpat, body) =>
+        // TODO (typfun)
+        let+ d1 = dhexp_of_uexp(m, body);
+        DHExp.TypFun(tpat, d1);
       | Tuple(es) =>
         let+ ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
         DHExp.Tuple(ds);
@@ -255,11 +281,81 @@ let rec dhexp_of_uexp =
                );
           Let(dp, FixF(self_id, ty, substituted_def), dbody);
         };
+      | Module(p, def, body) =>
+        let add_name: (option(string), DHExp.t) => DHExp.t = (
+          name =>
+            fun
+            | Fun(p, ty, e, _) => DHExp.Fun(p, ty, e, name)
+            | d => d
+        );
+        let* dp = dhpat_of_upat(m, p);
+        let* ddef = dhexp_of_uexp(m, def);
+        let* dbody = dhexp_of_uexp(m, body);
+        let+ ty_body = fixed_exp_typ(m, body);
+        /* if get module type, apply alias(Let).*/
+        let is_alias =
+          switch (Id.Map.find_opt(Term.UExp.rep_id(def), m)) {
+          | Some(InfoExp({ty, _})) =>
+            switch (ty) {
+            | Module(_) => true
+            | _ => false
+            }
+          | _ => false
+          };
+        let rec body_modulize: DHExp.t => DHExp.t = (
+          fun
+          | Let(dp, d1, d2) => Let(dp, d1, body_modulize(d2))
+          | Module(dp, d1, d2) => Module(dp, d1, body_modulize(d2))
+          | _ as d => is_alias ? d : ModuleVal(ClosureEnvironment.empty)
+        );
+        let ddef = ddef |> body_modulize;
+        switch (Term.UPat.get_recursive_bindings(p)) {
+        | None =>
+          /* not recursive */
+          DHExp.Module(dp, ddef, dbody)
+        | Some([f]) =>
+          /* simple recursion */
+          Module(dp, FixF(f, ty_body, add_name(Some(f), ddef)), dbody)
+        | Some(fs) =>
+          /* mutual recursion */
+          let ddef =
+            switch (ddef) {
+            | Tuple(a) =>
+              DHExp.Tuple(List.map2(s => add_name(Some(s)), fs, a))
+            | _ => ddef
+            };
+          let uniq_id = List.nth(def.ids, 0);
+          let self_id = "__mutual__" ++ Id.to_string(uniq_id);
+          let self_var = DHExp.BoundVar(self_id);
+          let (_, substituted_def) =
+            fs
+            |> List.fold_left(
+                 ((i, ddef), f) => {
+                   let ddef =
+                     Substitution.subst_var(DHExp.Prj(self_var, i), f, ddef);
+                   (i + 1, ddef);
+                 },
+                 (0, ddef),
+               );
+          Module(dp, FixF(self_id, ty_body, substituted_def), dbody);
+        };
+      | Dot(e_mod, e_mem) =>
+        let* e_mod = dhexp_of_uexp(m, e_mod);
+        let+ e_mem = dhexp_of_uexp(m, e_mem);
+        let e_mem =
+          switch (e_mem) {
+          | Cast(e_mem, _, _) => e_mem
+          | _ => e_mem
+          };
+        DHExp.Dot(e_mod, e_mem);
       | Ap(fn, arg)
       | Pipeline(arg, fn) =>
         let* c_fn = dhexp_of_uexp(m, fn);
         let+ c_arg = dhexp_of_uexp(m, arg);
         DHExp.Ap(c_fn, c_arg);
+      | TypAp(fn, uty_arg) =>
+        let+ d_fn = dhexp_of_uexp(m, fn);
+        DHExp.TypAp(d_fn, Term.UTyp.to_typ(ctx, uty_arg));
       | If(c, e1, e2) =>
         let* c' = dhexp_of_uexp(m, c);
         let* d1 = dhexp_of_uexp(m, e1);
@@ -351,6 +447,7 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
     | TypeAnn(p, _ty) =>
       let* dp = dhpat_of_upat(m, p);
       wrap(dp);
+    | TyAlias(_, _) => Some(DHPat.InvalidText(u, 0, ""))
     };
   | Some(InfoExp(_) | InfoTyp(_) | InfoTPat(_) | Secondary(_))
   | None => None

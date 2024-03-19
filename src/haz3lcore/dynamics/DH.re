@@ -19,9 +19,13 @@ module rec DHExp: {
     | BoundVar(Var.t)
     | Sequence(t, t)
     | Let(DHPat.t, t, t)
+    | Module(DHPat.t, t, t)
+    | Dot(t, t)
     | FixF(Var.t, Typ.t, t)
     | Fun(DHPat.t, Typ.t, t, option(Var.t))
     | Ap(t, t)
+    | TypFun(Term.UTPat.t, t)
+    | TypAp(t, Typ.t)
     | ApBuiltin(string, t)
     | BuiltinFun(string)
     | Test(KeywordID.t, t)
@@ -43,6 +47,7 @@ module rec DHExp: {
     | Cast(t, Typ.t, Typ.t)
     | FailedCast(t, Typ.t, Typ.t)
     | InvalidOperation(t, InvalidOperationError.t)
+    | ModuleVal(ClosureEnvironment.t)
     | IfThenElse(if_consistency, t, t, t) // use bool tag to track if branches are consistent
   and case =
     | Case(t, list(rule), int)
@@ -59,6 +64,8 @@ module rec DHExp: {
   let strip_casts: t => t;
 
   let fast_equal: (t, t) => bool;
+
+  let ty_subst: (Typ.t, TypVar.t, t) => t;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -76,9 +83,13 @@ module rec DHExp: {
     | BoundVar(Var.t)
     | Sequence(t, t)
     | Let(DHPat.t, t, t)
+    | Module(DHPat.t, t, t)
+    | Dot(t, t)
     | FixF(Var.t, Typ.t, t)
     | Fun(DHPat.t, Typ.t, t, option(Var.t))
     | Ap(t, t)
+    | TypFun(Term.UTPat.t, t)
+    | TypAp(t, Typ.t)
     | ApBuiltin(string, t)
     | BuiltinFun(string)
     | Test(KeywordID.t, t)
@@ -100,6 +111,7 @@ module rec DHExp: {
     | Cast(t, Typ.t, Typ.t)
     | FailedCast(t, Typ.t, Typ.t)
     | InvalidOperation(t, InvalidOperationError.t)
+    | ModuleVal(ClosureEnvironment.t)
     | IfThenElse(if_consistency, t, t, t)
   and case =
     | Case(t, list(rule), int)
@@ -117,10 +129,14 @@ module rec DHExp: {
     | Sequence(_, _) => "Sequence"
     | Filter(_, _) => "Filter"
     | Let(_, _, _) => "Let"
+    | Module(_, _, _) => "Module"
+    | Dot(_, _) => "DotMember"
     | FixF(_, _, _) => "FixF"
     | Fun(_, _, _, _) => "Fun"
+    | TypFun(_) => "TypFun"
     | Closure(_, _) => "Closure"
     | Ap(_, _) => "Ap"
+    | TypAp(_) => "TypAp"
     | ApBuiltin(_, _) => "ApBuiltin"
     | BuiltinFun(_) => "BuiltinFun"
     | Test(_) => "Test"
@@ -143,6 +159,7 @@ module rec DHExp: {
     | Cast(_, _, _) => "Cast"
     | FailedCast(_, _, _) => "FailedCast"
     | InvalidOperation(_) => "InvalidOperation"
+    | ModuleVal(_) => "ModuleVal"
     | IfThenElse(_, _, _, _) => "IfThenElse"
     };
 
@@ -176,9 +193,13 @@ module rec DHExp: {
     | Sequence(a, b) => Sequence(strip_casts(a), strip_casts(b))
     | Filter(f, b) => Filter(DHFilter.strip_casts(f), strip_casts(b))
     | Let(dp, b, c) => Let(dp, strip_casts(b), strip_casts(c))
+    | Module(dp, b, c) => Module(dp, strip_casts(b), strip_casts(c))
+    | Dot(a, b) => Dot(strip_casts(a), strip_casts(b))
     | FixF(a, b, c) => FixF(a, b, strip_casts(c))
     | Fun(a, b, c, d) => Fun(a, b, strip_casts(c), d)
+    | TypFun(a, b) => TypFun(a, strip_casts(b))
     | Ap(a, b) => Ap(strip_casts(a), strip_casts(b))
+    | TypAp(a, b) => TypAp(strip_casts(a), b)
     | Test(id, a) => Test(id, strip_casts(a))
     | ApBuiltin(fn, args) => ApBuiltin(fn, strip_casts(args))
     | BuiltinFun(fn) => BuiltinFun(fn)
@@ -207,6 +228,7 @@ module rec DHExp: {
     | FloatLit(_) as d
     | StringLit(_) as d
     | Constructor(_) as d
+    | ModuleVal(_) as d
     | InvalidOperation(_) as d => d
     | IfThenElse(consistent, c, d1, d2) =>
       IfThenElse(
@@ -237,10 +259,18 @@ module rec DHExp: {
       DHFilter.fast_equal(f1, f2) && fast_equal(d1, d2)
     | (Let(dp1, d11, d21), Let(dp2, d12, d22)) =>
       dp1 == dp2 && fast_equal(d11, d12) && fast_equal(d21, d22)
+    | (Module(dp1, d11, d21), Module(dp2, d12, d22)) =>
+      dp1 == dp2 && fast_equal(d11, d12) && fast_equal(d21, d22)
+    | (Dot(d11, d21), Dot(d12, d22)) =>
+      fast_equal(d11, d12) && fast_equal(d21, d22)
     | (FixF(f1, ty1, d1), FixF(f2, ty2, d2)) =>
       f1 == f2 && ty1 == ty2 && fast_equal(d1, d2)
     | (Fun(dp1, ty1, d1, s1), Fun(dp2, ty2, d2, s2)) =>
       dp1 == dp2 && ty1 == ty2 && fast_equal(d1, d2) && s1 == s2
+    | (TypFun(_tpat1, d1), TypFun(_tpat2, d2)) =>
+      // TODO (poly)
+      fast_equal(d1, d2)
+    | (TypAp(d1, ty1), TypAp(d2, ty2)) => fast_equal(d1, d2) && ty1 == ty2
     | (Ap(d11, d21), Ap(d12, d22))
     | (Cons(d11, d21), Cons(d12, d22)) =>
       fast_equal(d11, d12) && fast_equal(d21, d22)
@@ -270,6 +300,7 @@ module rec DHExp: {
       fast_equal(d1, d2) && reason1 == reason2
     | (ConsistentCase(case1), ConsistentCase(case2)) =>
       fast_equal_case(case1, case2)
+    | (ModuleVal(mv1), ModuleVal(mv2)) => mv1 == mv2
     | (IfThenElse(c1, d11, d12, d13), IfThenElse(c2, d21, d22, d23)) =>
       c1 == c2
       && fast_equal(d11, d21)
@@ -280,10 +311,14 @@ module rec DHExp: {
     | (Sequence(_), _)
     | (Filter(_), _)
     | (Let(_), _)
+    | (Module(_), _)
+    | (Dot(_), _)
     | (FixF(_), _)
     | (Fun(_), _)
+    | (TypFun(_), _)
     | (Test(_), _)
     | (Ap(_), _)
+    | (TypAp(_), _)
     | (ApBuiltin(_), _)
     | (BuiltinFun(_), _)
     | (Cons(_), _)
@@ -298,6 +333,7 @@ module rec DHExp: {
     | (Cast(_), _)
     | (FailedCast(_), _)
     | (InvalidOperation(_), _)
+    | (ModuleVal(_), _)
     | (IfThenElse(_), _)
     | (ConsistentCase(_), _) => false
 
@@ -341,6 +377,74 @@ module rec DHExp: {
        )
     && i1 == i2;
   };
+
+  let rec ty_subst = (s: Typ.t, x: TypVar.t, exp): t => {
+    let re = e2 => ty_subst(s, x, e2);
+    let t_re = ty => Typ.subst(s, x, ty);
+    switch (exp) {
+    | Cast(t, t1, t2) => Cast(re(t), t_re(t1), t_re(t2))
+    | FixF(arg, ty, body) => FixF(arg, t_re(ty), re(body))
+    | Fun(arg, ty, body, var) => Fun(arg, t_re(ty), re(body), var)
+    | TypAp(tfun, ty) => TypAp(re(tfun), t_re(ty))
+    | ListLit(mv, mvi, t, lst) =>
+      ListLit(mv, mvi, t_re(t), List.map(re, lst))
+    | TypFun(utpat, body) =>
+      switch (Term.UTPat.tyvar_of_utpat(utpat)) {
+      | Some(x') when x == x' => exp
+      | _ =>
+        /* Note that we do not have to worry about capture avoidance, since s will always be closed. */
+        TypFun(utpat, re(body))
+      }
+    | NonEmptyHole(errstat, mv, hid, t) =>
+      NonEmptyHole(errstat, mv, hid, re(t))
+    | Test(id, t) => Test(id, re(t))
+    | InconsistentBranches(mv, hid, case) =>
+      InconsistentBranches(mv, hid, ty_subst_case(s, x, case))
+    | Closure(ce, t) => Closure(ce, re(t))
+    | Sequence(t1, t2) => Sequence(re(t1), re(t2))
+    | Let(dhpat, t1, t2) => Let(dhpat, re(t1), re(t2))
+    | Ap(t1, t2) => Ap(re(t1), re(t2))
+    | ApBuiltin(s, args) => ApBuiltin(s, re(args))
+    | BinBoolOp(op, t1, t2) => BinBoolOp(op, re(t1), re(t2))
+    | BinIntOp(op, t1, t2) => BinIntOp(op, re(t1), re(t2))
+    | BinFloatOp(op, t1, t2) => BinFloatOp(op, re(t1), re(t2))
+    | BinStringOp(op, t1, t2) => BinStringOp(op, re(t1), re(t2))
+    | Cons(t1, t2) => Cons(re(t1), re(t2))
+    | ListConcat(t1, t2) => ListConcat(re(t1), re(t2))
+    | Tuple(args) => Tuple(List.map(re, args))
+    | Prj(t, n) => Prj(re(t), n)
+    | ConsistentCase(case) => ConsistentCase(ty_subst_case(s, x, case))
+    | InvalidOperation(t, err) => InvalidOperation(re(t), err)
+    | Filter(filt, exp) => Filter(DHFilter.map(re, filt), re(exp))
+    | Module(dp, t1, t2) => Module(dp, re(t1), re(t2))
+    | Dot(t1, t2) => Dot(re(t1), re(t2))
+    | ModuleVal(ce) => ModuleVal(ce)
+    | IfThenElse(consis, i, t, e) =>
+      IfThenElse(consis, re(i), re(t), re(e))
+    | BuiltinFun(_)
+    | EmptyHole(_)
+    | ExpandingKeyword(_, _, _)
+    | FreeVar(_, _, _)
+    | InvalidText(_, _, _)
+    | Constructor(_)
+    | BoundVar(_)
+    | BoolLit(_)
+    | IntLit(_)
+    | FloatLit(_)
+    | StringLit(_)
+    | FailedCast(_, _, _) => exp
+    };
+  }
+  and ty_subst_case = (s, x, Case(t, rules, n)) =>
+    Case(
+      ty_subst(s, x, t),
+      List.map(
+        (DHExp.Rule(dhpat, t)) => DHExp.Rule(dhpat, ty_subst(s, x, t)),
+        rules,
+      ),
+      n,
+    );
+  //TODO: Inconsistent cases: need to check again for inconsistency?
 }
 
 and Environment: {

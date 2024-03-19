@@ -32,7 +32,11 @@ module rec Typ: {
     | Arrow(t, t)
     | Sum(sum_map)
     | Prod(list(t))
+    | Module(Ctx.t)
+    | Member(Token.t, t)
     | Rec(TypVar.t, t)
+    | Forall(TypVar.t, t)
+    | Ap(t, t)
   and sum_map = ConstructorMap.t(option(t));
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -52,10 +56,13 @@ module rec Typ: {
   let join_type_provenance:
     (type_provenance, type_provenance) => type_provenance;
   let matched_arrow: (Ctx.t, t) => (t, t);
+  let matched_forall: (Ctx.t, t) => (option(string), t);
   let matched_prod: (Ctx.t, int, t) => list(t);
+  let matched_cons: t => (t, t);
   let matched_list: (Ctx.t, t) => t;
   let precedence: t => int;
   let subst: (t, TypVar.t, t) => t;
+  let subst_ap: (t, TypVar.t, TypVar.t, t) => t;
   let unroll: t => t;
   let eq: (t, t) => bool;
   let free_vars: (~bound: list(Var.t)=?, t) => list(Var.t);
@@ -89,7 +96,11 @@ module rec Typ: {
     | Arrow(t, t)
     | Sum(sum_map)
     | Prod(list(t))
+    | Module(Ctx.t)
+    | Member(Token.t, t)
     | Rec(TypVar.t, t)
+    | Forall(TypVar.t, t)
+    | Ap(t, t)
   and sum_map = ConstructorMap.t(option(t));
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -129,13 +140,48 @@ module rec Typ: {
     | String
     | Unknown(_)
     | Var(_)
+    | Module(_)
+    | Member(_)
     | Rec(_)
     | Sum(_) => precedence_Sum
+    | Forall(_, _)
+    | Ap(_, _)
     | List(_) => precedence_Const
     | Prod(_) => precedence_Prod
     | Arrow(_, _) => precedence_Arrow
     };
-
+  let rec subst_ap = (s: t, ctr: TypVar.t, arg: TypVar.t, ty: t) => {
+    switch (ty) {
+    | Int => Int
+    | Float => Float
+    | Bool => Bool
+    | String => String
+    | Unknown(prov) => Unknown(prov)
+    | Arrow(ty1, ty2) =>
+      Arrow(subst_ap(s, ctr, arg, ty1), subst_ap(s, ctr, arg, ty2))
+    | Prod(tys) => Prod(List.map(subst_ap(s, ctr, arg), tys))
+    | Sum(sm) =>
+      Sum(ConstructorMap.map(Option.map(subst_ap(s, ctr, arg)), sm))
+    | Rec(y, ty) => Rec(y, subst_ap(s, ctr, arg, ty))
+    | List(ty) => List(subst_ap(s, ctr, arg, ty))
+    | Var(y) => Var(y)
+    | Forall(y, ty) => Forall(y, subst_ap(s, ctr, arg, ty))
+    | Ap(Var(v1), Var(v2)) when v1 == ctr && v2 == arg => s
+    | Ap(ty1, ty2) =>
+      Ap(subst_ap(s, ctr, arg, ty1), subst_ap(s, ctr, arg, ty2))
+    | Module(inner_ctx) =>
+      let ctx_entry_subst = (e: Ctx.entry): Ctx.entry => {
+        switch (e) {
+        | VarEntry(t) => VarEntry({...t, typ: subst_ap(s, ctr, arg, t.typ)})
+        | ConstructorEntry(t) =>
+          ConstructorEntry({...t, typ: subst_ap(s, ctr, arg, t.typ)})
+        | TVarEntry(_) => e
+        };
+      };
+      Module(List.map(ctx_entry_subst, inner_ctx));
+    | Member(name, ty) => Member(name, subst_ap(s, ctr, arg, ty))
+    };
+  };
   let rec subst = (s: t, x: TypVar.t, ty: t) => {
     switch (ty) {
     | Int => Int
@@ -149,20 +195,36 @@ module rec Typ: {
     | Rec(y, ty) when TypVar.eq(x, y) => Rec(y, ty)
     | Rec(y, ty) => Rec(y, subst(s, x, ty))
     | List(ty) => List(subst(s, x, ty))
+    | Module(inner_ctx) =>
+      let ctx_entry_subst = (e: Ctx.entry): Ctx.entry => {
+        switch (e) {
+        | VarEntry(t) => VarEntry({...t, typ: subst(s, x, t.typ)})
+        | ConstructorEntry(t) =>
+          ConstructorEntry({...t, typ: subst(s, x, t.typ)})
+        | TVarEntry(_) => e
+        };
+      };
+      Module(List.map(ctx_entry_subst, inner_ctx));
+    | Member(name, ty) => Member(name, subst(s, x, ty))
     | Var(y) => TypVar.eq(x, y) ? s : Var(y)
+    | Forall(y, ty) when TypVar.eq(x, y) => Forall(y, ty)
+    | Forall(y, ty) => Forall(y, subst(s, x, ty))
+    | Ap(ty1, ty2) => Ap(subst(s, x, ty1), subst(s, x, ty2))
     };
   };
 
-  let unroll = (ty: t): t =>
-    switch (ty) {
-    | Rec(x, ty_body) => subst(ty, x, ty_body)
-    | _ => ty
-    };
+  //let unroll = (ty: t): t =>
+  //  switch (ty) {
+  //  | Rec(x, ty_body) => subst(ty, x, ty_body)
+  //  | _ => ty
+  //  };
 
   /* Type Equality: At the moment, this coincides with alpha equivalence,
      but this will change when polymorphic types are implemented */
   let rec eq = (t1: t, t2: t): bool => {
     switch (t1, t2) {
+    | (Member(_, ty1), ty2) => eq(ty1, ty2)
+    | (ty1, Member(_, ty2)) => eq(ty1, ty2)
     | (Rec(x1, t1), Rec(x2, t2)) => eq(t1, subst(Var(x1), x2, t2))
     | (Rec(_), _) => false
     | (Int, Int) => true
@@ -186,6 +248,12 @@ module rec Typ: {
     | (Sum(_), _) => false
     | (Var(n1), Var(n2)) => n1 == n2
     | (Var(_), _) => false
+    | (Forall(x1, t1), Forall(x2, t2)) => eq(t1, subst(Var(x1), x2, t2))
+    | (Forall(_), _) => false
+    | (Ap(t1, t2), Ap(t1', t2')) => eq(t1, t1') && eq(t2, t2')
+    | (Ap(_), _) => false
+    | (Module(ctx1), Module(ctx2)) => List.equal((==), ctx1, ctx2)
+    | (Module(_), _) => false
     };
   };
 
@@ -207,8 +275,116 @@ module rec Typ: {
         List.map(snd, sm),
       )
     | Prod(tys) => ListUtil.flat_map(free_vars(~bound), tys)
+    | Module(inner_ctx) =>
+      let ctx_entry_subst = (l: list(Token.t), e: Ctx.entry): list(Token.t) => {
+        switch (e) {
+        | VarEntry(t)
+        | ConstructorEntry(t) => l @ free_vars(t.typ)
+        | TVarEntry(_) => l
+        };
+      };
+      List.fold_left(ctx_entry_subst, [], inner_ctx);
+    | Member(_, ty) => free_vars(ty)
     | Rec(x, ty) => free_vars(~bound=[x, ...bound], ty)
+    | Forall(x, ty) => free_vars(~bound=[x, ...bound], ty)
+    | Ap(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
     };
+
+  let var_count = ref(0);
+  let fresh_var = (var_name: string) => {
+    let x = var_count^;
+    var_count := x + 1;
+    var_name ++ "_α" ++ string_of_int(x);
+  };
+
+  let rec subst = (s: t, x: TypVar.t, ty: t) => {
+    switch (ty) {
+    | Int => Int
+    | Float => Float
+    | Bool => Bool
+    | String => String
+    | Unknown(prov) => Unknown(prov)
+    | Arrow(ty1, ty2) => Arrow(subst(s, x, ty1), subst(s, x, ty2))
+    | Prod(tys) => Prod(List.map(subst(s, x), tys))
+    | Sum(sm) => Sum(ConstructorMap.map(Option.map(subst(s, x)), sm))
+    | Rec(y, ty) when TypVar.eq(x, y) => Rec(y, ty)
+    | Rec(y, ty) when List.mem(y, free_vars(s)) =>
+      let fresh = fresh_var(y);
+      Rec(fresh, subst(s, x, subst(Var(fresh), y, ty)));
+    | Rec(y, ty) => Rec(y, subst(s, x, ty))
+    | Forall(y, ty) when TypVar.eq(x, y) => Forall(y, ty)
+    | Forall(y, ty) when List.mem(y, free_vars(s)) =>
+      let fresh = fresh_var(y);
+      Forall(fresh, subst(s, x, subst(Var(fresh), y, ty)));
+    | Forall(y, ty) => Forall(y, subst(s, x, ty))
+    | List(ty) => List(subst(s, x, ty))
+    | Var(y) => TypVar.eq(x, y) ? s : Var(y)
+    | Ap(ty1, ty2) => Ap(subst(s, x, ty1), subst(s, x, ty2))
+    | Module(inner_ctx) =>
+      let ctx_entry_subst = (e: Ctx.entry): Ctx.entry => {
+        switch (e) {
+        | VarEntry(t) => VarEntry({...t, typ: subst(s, x, t.typ)})
+        | ConstructorEntry(t) =>
+          ConstructorEntry({...t, typ: subst(s, x, t.typ)})
+        | TVarEntry(_) => e
+        };
+      };
+      Module(List.map(ctx_entry_subst, inner_ctx));
+    | Member(name, ty) => Member(name, subst(s, x, ty))
+    };
+  };
+
+  let unroll = (ty: t): t =>
+    switch (ty) {
+    | Rec(x, ty_body) => subst(ty, x, ty_body)
+    | _ => ty
+    };
+
+  /* Type Equality: This coincides with alpha equivalence for normalized types.
+     Other types may be equivalent but this will not detect so if they are not normalized. */
+  let rec eq_internal = (n: int, t1: t, t2: t) => {
+    switch (t1, t2) {
+    | (Rec(x1, t1), Rec(x2, t2))
+    | (Forall(x1, t1), Forall(x2, t2)) =>
+      eq_internal(
+        n + 1,
+        subst(Var("=" ++ string_of_int(n)), x1, t1),
+        subst(Var("=" ++ string_of_int(n)), x2, t2),
+      )
+    | (Rec(_), _) => false
+    | (Forall(_), _) => false
+    | (Int, Int) => true
+    | (Int, _) => false
+    | (Float, Float) => true
+    | (Float, _) => false
+    | (Bool, Bool) => true
+    | (Bool, _) => false
+    | (String, String) => true
+    | (String, _) => false
+    | (Unknown(_), Unknown(_)) => true
+    | (Unknown(_), _) => false
+    | (Arrow(t1, t2), Arrow(t1', t2')) =>
+      eq_internal(n, t1, t1') && eq_internal(n, t2, t2')
+    | (Arrow(_), _) => false
+    | (Prod(tys1), Prod(tys2)) => List.equal(eq_internal(n), tys1, tys2)
+    | (Prod(_), _) => false
+    | (List(t1), List(t2)) => eq_internal(n, t1, t2)
+    | (List(_), _) => false
+    | (Sum(sm1), Sum(sm2)) =>
+      /* Does not normalize the types. */
+      ConstructorMap.equal(Option.equal(eq_internal(n)), sm1, sm2)
+    | (Sum(_), _) => false
+    | (Var(n1), Var(n2)) => n1 == n2
+    | (Var(_), _) => false
+    | (Ap(t1, t2), Ap(t1', t2')) => eq(t1, t1') && eq(t2, t2')
+    | (Ap(_), _) => false
+    | (Module(ctx1), Module(ctx2)) => List.equal((==), ctx1, ctx2)
+    | (Module(_), _) => false
+    | (Member(_, ty1), ty2) => eq_internal(n, ty1, ty2)
+    };
+  };
+
+  let eq = (t1: t, t2: t): bool => eq_internal(0, t1, t2);
 
   /* Lattice join on types. This is a LUB join in the hazel2
      sense in that any type dominates Unknown. The optional
@@ -219,6 +395,20 @@ module rec Typ: {
           (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let join' = join(~resolve, ~fix, ctx);
     switch (ty1, ty2) {
+    | (Member(_, Unknown(Internal)), ty)
+    | (ty, Member(_, Unknown(Internal))) => Some(ty)
+    | (Member(n1, ty1), Member(n2, ty2)) =>
+      if (n1 == n2) {
+        let* ty = join'(ty1, ty2);
+        Some(Member(n1, ty));
+      } else {
+        let+ ty_join = join'(ty1, ty2);
+        resolve ? ty_join : Member(n1, ty_join);
+      }
+    | (Member(name, ty1), ty2)
+    | (ty2, Member(name, ty1)) =>
+      let+ ty_join = join'(ty1, ty2);
+      resolve ? ty_join : Member(name, ty_join);
     | (_, Unknown(TypeHole | Free(_)) as ty) when fix =>
       /* NOTE(andrew): This is load bearing
          for ensuring that function literals get appropriate
@@ -239,23 +429,42 @@ module rec Typ: {
       }
     | (Var(name), ty)
     | (ty, Var(name)) =>
-      let* ty_name = Ctx.lookup_alias(ctx, name);
-      let+ ty_join = join'(ty_name, ty);
-      !resolve && eq(ty_name, ty_join) ? Var(name) : ty_join;
+        let* ty_name = Ctx.lookup_alias(ctx, name);
+        let+ ty_join = join'(ty_name, ty);
+        !resolve && eq(ty_name, ty_join) ? Var(name) : ty_join;
     /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
+    | (ty2, Ap(Var(name), ty))
+    | (Ap(Var(name), ty), ty2) =>
+      switch (Ctx.lookup_higher_kind(ctx, name)) {
+      | Some((arg, ty_out)) => join'(subst(ty, arg, ty_out), ty2)
+      | _ => None
+      }
+    | (ty, Ap(Forall(name, t1), t2))
+    | (Ap(Forall(name, t1), t2), ty) =>
+      join(~resolve, ~fix, ctx, Typ.subst(t2, name, t1), ty)
+    | (Ap(ty1, ty2), Ap(ty1', ty2')) =>
+      let* ty1 = join'(ty1, ty1');
+      let+ ty2 = join'(ty2, ty2');
+      Ap(ty1, ty2);
+    | (Ap(_), _) => None
     | (Rec(x1, ty1), Rec(x2, ty2)) =>
-      /* TODO:
-           This code isn't fully correct, as we may be doing
-           substitution on open terms; if x1 occurs in ty2,
-           we should be substituting x1 for a fresh variable
-           in ty2. This is annoying, and should be obviated
-           by the forthcoming debruijn index implementation
-         */
       let ctx = Ctx.extend_dummy_tvar(ctx, x1);
       let+ ty_body =
-        join(~resolve, ~fix, ctx, ty1, subst(Var(x1), x2, ty2));
+        join(~resolve, ~fix, ctx, subst(Var(x2), x1, ty1), ty2);
       Rec(x1, ty_body);
+    | (Forall(x1, ty1), Forall(x2, ty2)) =>
+      let ctx = Ctx.extend_dummy_tvar(ctx, x1);
+      let+ ty_body =
+        join(~resolve, ~fix, ctx, subst(Var(x2), x1, ty1), ty2);
+      Forall(x1, ty_body);
+    /* Note for above: there is no danger of free variable capture as
+       subst itself performs capture avoiding substitution. However this
+       may generate internal type variable names that in corner cases can
+       be exposed to the user. We preserve the variable name of the
+       second type to preserve synthesized type variable names, which
+       come from user annotations. */
     | (Rec(_), _) => None
+    | (Forall(_), _) => None
     | (Int, Int) => Some(Int)
     | (Int, _) => None
     | (Float, Float) => Some(Float)
@@ -293,6 +502,39 @@ module rec Typ: {
       let+ ty = join'(ty1, ty2);
       List(ty);
     | (List(_), _) => None
+    | (Module(ctx1), Module(ctx2)) =>
+      let join_entry =
+          (ctx2: Ctx.t, ctx_joined: option(Ctx.t), ctx1_entry: Ctx.entry)
+          : option(Ctx.t) => {
+        let* ctx_joined = ctx_joined;
+        switch (ctx1_entry) {
+        | VarEntry({name, typ, id}) =>
+          let* entry2 = Ctx.lookup_var(ctx2, name);
+          let+ typ_joined = join'(typ, entry2.typ);
+          Ctx.extend(ctx_joined, VarEntry({name, typ: typ_joined, id}));
+        | ConstructorEntry({name, typ, id}) =>
+          let* entry2 = Ctx.lookup_ctr(ctx2, name);
+          let+ typ_joined = join'(typ, entry2.typ);
+          Ctx.extend(
+            ctx_joined,
+            ConstructorEntry({name, typ: typ_joined, id}),
+          );
+        | TVarEntry({name, kind, id}) =>
+          let* entry2 = Ctx.lookup_tvar(ctx2, name);
+          let+ kind_joined =
+            switch (kind, entry2.kind) {
+            | (Abstract, Abstract) => Some(Kind.Abstract)
+            | (Singleton(ty1), Singleton(ty2)) =>
+              let+ typ_joined = join'(ty1, ty2);
+              Kind.Singleton(typ_joined);
+            | _ => None
+            };
+          Ctx.extend(ctx_joined, TVarEntry({name, kind: kind_joined, id}));
+        };
+      };
+      let* ctx = List.fold_left(join_entry(ctx2), Some([]), ctx1);
+      Some(Module(ctx));
+    | (Module(_), _) => None
     };
   }
   and join_sum_entries =
@@ -321,9 +563,9 @@ module rec Typ: {
       ts,
     );
 
-  let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
+  let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool => {
     join(~fix=false, ctx, ty1, ty2) != None;
-
+  };
   let rec weak_head_normalize = (ctx: Ctx.t, ty: t): t =>
     switch (ty) {
     | Var(x) =>
@@ -350,19 +592,49 @@ module rec Typ: {
     | Arrow(t1, t2) => Arrow(normalize(ctx, t1), normalize(ctx, t2))
     | Prod(ts) => Prod(List.map(normalize(ctx), ts))
     | Sum(ts) => Sum(ConstructorMap.map(Option.map(normalize(ctx)), ts))
+    | Module(inner_ctx) =>
+      let ctx_entry_subst = (e: Ctx.entry): Ctx.entry => {
+        switch (e) {
+        | VarEntry(t) => VarEntry({...t, typ: normalize(ctx, t.typ)})
+        | ConstructorEntry(t) =>
+          ConstructorEntry({...t, typ: normalize(ctx, t.typ)})
+        | TVarEntry(_) => e
+        };
+      };
+      Module(List.map(ctx_entry_subst, inner_ctx));
+    | Member(_, ty) => normalize(ctx, ty)
     | Rec(name, ty) =>
       /* NOTE: Dummy tvar added has fake id but shouldn't matter
          as in current implementation Recs do not occur in the
          surface syntax, so we won't try to jump to them. */
       Rec(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty))
+    | Forall(name, ty) =>
+      Forall(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty))
+    | Ap(Var(name), t2) =>
+      switch (Ctx.lookup_higher_kind(ctx, name)) {
+      | Some((arg, ty_out)) => normalize(ctx, subst(t2, arg, ty_out))
+      | None => Ap(Var(name), normalize(ctx, t2))
+      }
+    | Ap(t1, t2) => Ap(normalize(ctx, t1), normalize(ctx, t2))
     };
   };
-
   let matched_arrow = (ctx, ty) =>
     switch (weak_head_normalize(ctx, ty)) {
     | Arrow(ty_in, ty_out) => (ty_in, ty_out)
     | Unknown(SynSwitch) => (Unknown(SynSwitch), Unknown(SynSwitch))
     | _ => (Unknown(Internal), Unknown(Internal))
+    };
+  let matched_cons: t => (t, t) =
+    fun
+    | List(ty) => (ty, List(ty))
+    | Unknown(SynSwitch) => (Unknown(SynSwitch), List(Unknown(SynSwitch)))
+    | _ => (Unknown(Internal), List(Unknown(SynSwitch)));
+
+  let matched_forall = (ctx, ty) =>
+    switch (weak_head_normalize(ctx, ty)) {
+    | Forall(t, ty) => (Some(t), ty)
+    | Unknown(SynSwitch) => (None, Unknown(SynSwitch))
+    | _ => (None, Unknown(Internal))
     };
 
   let matched_prod = (ctx, length, ty) =>
@@ -387,9 +659,10 @@ module rec Typ: {
       ctrs,
     );
 
-  let get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
+  let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
     let ty = weak_head_normalize(ctx, ty);
     switch (ty) {
+    | Member(_, ty) => get_sum_constructors(ctx, ty)
     | Sum(sm) => Some(sm)
     | Rec(_) =>
       /* Note: We must unroll here to get right ctr types;
@@ -415,6 +688,11 @@ module rec Typ: {
       | Sum(sm) => Some(sm)
       | _ => None
       };
+    | Ap(Var(name), ty_arg) =>
+      switch (Ctx.lookup_higher_kind(ctx, name)) {
+      | Some((arg, ty)) => get_sum_constructors(ctx, subst(ty_arg, arg, ty))
+      | None => None
+      }
     | _ => None
     };
   };
@@ -425,6 +703,7 @@ module rec Typ: {
     | _ => false
     };
 }
+
 and Ctx: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type var_entry = {
@@ -452,17 +731,25 @@ and Ctx: {
   let extend: (t, entry) => t;
   let extend_tvar: (t, tvar_entry) => t;
   let extend_alias: (t, TypVar.t, Id.t, Typ.t) => t;
+  let extend_higher_kind: (t, TypVar.t, TypVar.t, Id.t, Typ.t) => t;
   let extend_dummy_tvar: (t, TypVar.t) => t;
   let lookup_tvar: (t, TypVar.t) => option(tvar_entry);
   let lookup_alias: (t, TypVar.t) => option(Typ.t);
+  let lookup_higher_kind: (t, TypVar.t) => option((TypVar.t, Typ.t));
+  let revise_tvar: (t, TypVar.t, Typ.t) => t;
   let get_id: entry => Id.t;
   let lookup_var: (t, string) => option(var_entry);
   let lookup_ctr: (t, string) => option(var_entry);
   let is_alias: (t, TypVar.t) => bool;
+  let is_tyVar: (t, TypVar.t) => bool;
+  let is_abstract: (t, TypVar.t) => bool;
   let add_ctrs: (t, TypVar.t, Id.t, Typ.sum_map) => t;
+  let add_ctr_with_typ_parameter:
+    (t, TypVar.t, Id.t, Typ.sum_map, TypVar.t) => t;
   let subtract_prefix: (t, t) => option(t);
   let added_bindings: (t, t) => t;
   let filter_duplicates: t => t;
+  let modulize: (Typ.t, string) => Typ.t;
   let shadows_typ: (t, TypVar.t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -487,7 +774,6 @@ and Ctx: {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = list(entry);
-
   let extend = (ctx, entry) => List.cons(entry, ctx);
 
   let extend_tvar = (ctx: t, tvar_entry: tvar_entry): t =>
@@ -495,10 +781,31 @@ and Ctx: {
 
   let extend_alias = (ctx: t, name: TypVar.t, id: Id.t, ty: Typ.t): t =>
     extend_tvar(ctx, {name, id, kind: Singleton(ty)});
-
+  let extend_higher_kind =
+      (ctx: t, name: TypVar.t, arg: TypVar.t, id: Id.t, ty: Typ.t): t => {
+    let ctx =
+      extend_tvar(
+        ctx,
+        {name, id, kind: Arrow(Singleton(Var(arg)), Singleton(ty))},
+      );
+    extend_tvar(ctx, {name: arg, id, kind: Abstract});
+  };
   let extend_dummy_tvar = (ctx: t, name: TypVar.t) =>
     extend_tvar(ctx, {kind: Abstract, name, id: Id.invalid});
-
+  let revise_tvar = (ctx: t, name: TypVar.t, typ: Typ.t): t =>
+    List.map(
+      fun
+      | TVarEntry({name: name', id, _}) when TypVar.eq(name, name') =>
+        TVarEntry({
+          name,
+          id,
+          kind: {
+            Singleton(typ);
+          },
+        })
+      | entry => entry,
+      ctx,
+    );
   let lookup_tvar = (ctx: t, name: TypVar.t): option(tvar_entry) =>
     List.find_map(
       fun
@@ -506,12 +813,10 @@ and Ctx: {
       | _ => None,
       ctx,
     );
-
   let lookup_alias = (ctx: t, t: TypVar.t): option(Typ.t) =>
     switch (lookup_tvar(ctx, t)) {
     | Some({kind: Singleton(ty), _}) => Some(ty)
-    | Some({kind: Abstract, _})
-    | None => None
+    | _ => None
     };
 
   let get_id: entry => Id.t =
@@ -541,6 +846,23 @@ and Ctx: {
     | Some(_) => true
     | None => false
     };
+  let is_tyVar = (ctx: t, name: TypVar.t): bool =>
+    switch (lookup_tvar(ctx, name)) {
+    | Some(_) => true
+    | _ => false
+    };
+  let lookup_higher_kind = (ctx: t, t: TypVar.t): option((TypVar.t, Typ.t)) =>
+    switch (lookup_tvar(ctx, t)) {
+    | Some({kind: Arrow(Singleton(Var(arg)), Singleton(typ)), _}) =>
+      Some((arg, typ))
+    | _ => None
+    };
+
+  let is_abstract = (ctx: t, name: TypVar.t): bool =>
+    switch (lookup_tvar(ctx, name)) {
+    | Some({kind: Abstract, _}) => true
+    | _ => false
+    };
 
   let add_ctrs = (ctx: t, name: TypVar.t, id: Id.t, ctrs: Typ.sum_map): t =>
     List.map(
@@ -557,7 +879,23 @@ and Ctx: {
       ctrs,
     )
     @ ctx;
-
+  let add_ctr_with_typ_parameter =
+      (ctx: t, name: TypVar.t, id: Id.t, ctrs: Typ.sum_map, arg: TypVar.t): t =>
+    List.map(
+      ((ctr, typ)) =>
+        ConstructorEntry({
+          name: ctr,
+          id,
+          typ:
+            switch (typ) {
+            | None => Forall(arg, Ap(Var(name), Var(arg)))
+            | Some(typ) =>
+              Forall(arg, Arrow(typ, Ap(Var(name), Var(arg))))
+            },
+        }),
+      ctrs,
+    )
+    @ ctx;
   let subtract_prefix = (ctx: t, prefix_ctx: t): option(t) => {
     // NOTE: does not check that the prefix is an actual prefix
     let prefix_length = List.length(prefix_ctx);
@@ -604,18 +942,72 @@ and Ctx: {
          ([], VarSet.empty, VarSet.empty),
        )
     |> (((ctx, _, _)) => List.rev(ctx));
+  let rec modulize_item = (ctx: t, x: Token.t, ty: Typ.t): Typ.t => {
+    switch (ty) {
+    | Int => Int
+    | Float => Float
+    | Bool => Bool
+    | String => String
+    | Member(name, ty) => Member(x ++ "." ++ name, ty)
+    | Unknown(prov) => Unknown(prov)
+    | Arrow(ty1, ty2) =>
+      Arrow(modulize_item(ctx, x, ty1), modulize_item(ctx, x, ty2))
+    | Prod(tys) => Prod(List.map(modulize_item(ctx, x), tys))
+    | Sum(sm) =>
+      Sum(ConstructorMap.map(Option.map(modulize_item(ctx, x)), sm))
+    | Rec(y, ty) => Rec(y, modulize_item(ctx, x, ty))
+    | List(ty) => List(modulize_item(ctx, x, ty))
+    | Var(n) => Member(x ++ "." ++ n, Typ.weak_head_normalize(ctx, ty))
+    | Module(inner_ctx) =>
+      let ctx_entry_modulize = (e: entry): entry => {
+        switch (e) {
+        | VarEntry(t) => VarEntry({...t, typ: modulize_item(ctx, x, t.typ)})
+        | ConstructorEntry(t) =>
+          ConstructorEntry({...t, typ: modulize_item(ctx, x, t.typ)})
+        | TVarEntry(_) => e
+        };
+      };
+      Module(List.map(ctx_entry_modulize, inner_ctx));
+    | Forall(y, ty) => Forall(y, modulize_item(ctx, x, ty))
+    | Ap(ty1, ty2) =>
+      Ap(modulize_item(ctx, x, ty1), modulize_item(ctx, x, ty2))
+    };
+  };
+
+  let modulize = (ty: Typ.t, x: string): Typ.t => {
+    switch (ty) {
+    | Module(ctx) =>
+      Module(
+        List.map(
+          (e: entry): entry => {
+            switch (e) {
+            | VarEntry(t) =>
+              VarEntry({...t, typ: modulize_item(ctx, x, t.typ)})
+            | ConstructorEntry(t) =>
+              ConstructorEntry({...t, typ: modulize_item(ctx, x, t.typ)})
+            | TVarEntry(_) => e
+            }
+          },
+          ctx,
+        ),
+      )
+    | _ => ty
+    };
+  };
 
   let shadows_typ = (ctx: t, name: TypVar.t): bool =>
-    Form.is_base_typ(name) || lookup_alias(ctx, name) != None;
+    Form.is_base_typ(name) || is_alias(ctx, name) || is_abstract(ctx, name);
 }
 and Kind: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Singleton(Typ.t)
+    | Arrow(t, t)
     | Abstract;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Singleton(Typ.t)
+    | Arrow(t, t)
     | Abstract;
 };

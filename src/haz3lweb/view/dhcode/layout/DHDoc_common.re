@@ -116,6 +116,11 @@ let mk_FloatLit = (f: float) =>
 
 let mk_BoolLit = b => Doc.text(string_of_bool(b));
 
+let mk_ModuleVal = e => {
+  Doc.(hcats([text("Module(\n")] @ e @ [text(")")]));
+};
+
+let mk_Dot = (doc1, doc2) => Doc.(hcats([doc1, text("."), doc2]));
 let mk_ConstructorLit = Doc.text;
 
 let mk_Cons = (hd, tl) => Doc.(hcats([hd, text("::"), tl]));
@@ -134,7 +139,10 @@ let mk_comma_seq = (ld, rd, l) => {
 
 let mk_ListLit = l => mk_comma_seq("[", "]", l);
 
-let mk_Tuple = elts => mk_comma_seq("", "", elts);
+let mk_Tuple = elts => mk_comma_seq("(", ")", elts);
+
+let mk_TypAp = (doc1, doc2) =>
+  Doc.(hcats([doc1, text("@<"), doc2, text(">")]));
 
 let mk_Ap = (doc1, doc2) =>
   Doc.(hcats([doc1, text("("), doc2, text(")")]));

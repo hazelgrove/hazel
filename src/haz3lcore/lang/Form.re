@@ -61,6 +61,9 @@ let ds: expansion = (Delayed, Static);
 let mk_infix = (t: Token.t, sort: Sort.t, prec) =>
   mk(ss, [t], mk_bin(prec, sort, []));
 
+let mk_nul_infix = (t: Token.t, prec) =>
+  mk(ss, [t], mk_bin(~l=Any, ~r=Any, prec, Any, []));
+
 /* Token Recognition Predicates */
 
 /* A. Secondary Notation (Comments, Whitespace, etc.)  */
@@ -114,12 +117,17 @@ let is_reserved_keyword =
 
 /* Potential tokens: These are fallthrough classes which determine
  * the behavior when inserting a character in contact with a token */
-let is_potential_operand = regexp("^[a-zA-Z0-9_'\\.?]+$");
+let is_potential_operand =
+    /* gensofubi: "." is used as a operator for module,
+       only recognized as potential operand if not appearing with letters */
+    x =>
+  regexp("^[a-zA-Z0-9_'?]+$", x) || regexp("^[0-9_'\\.?]+$", x);
 /* Anything else is considered a potential operator, as long
  *  as it does not contain any whitespace, linebreaks, comment
  *  delimiters, string delimiters, or the instant expanding paired
- *  delimiters: ()[]| */
-let is_potential_operator = regexp("^[^a-zA-Z0-9_'?\"#⏎\\s\\[\\]\\(\\)]+$");
+ *  delimiters: ()[]|{} */
+let is_potential_operator =
+  regexp("^[^a-zA-Z0-9_'?\"#⏎\\s\\[\\]\\(\\)\\{\\}]+$");
 let is_potential_token = t =>
   is_potential_operand(t)
   || is_potential_operator(t)
@@ -157,10 +165,12 @@ let is_var = str =>
        str,
      );
 let is_capitalized_name = regexp("^[A-Z][A-Za-z0-9_]*$");
+let is_tag = is_capitalized_name;
 let is_ctr = is_capitalized_name;
+let is_type_input = regexp("^[a-z]*$");
 let base_typs = ["String", "Int", "Float", "Bool"];
 let is_base_typ = regexp("^(" ++ String.concat("|", base_typs) ++ ")$");
-let is_typ_var = is_capitalized_name;
+let is_typ_var = str => is_var(str) || is_capitalized_name(str);
 let wild = "_";
 let is_wild = regexp("^" ++ wild ++ "$");
 
@@ -213,6 +223,10 @@ let bad_token_cls: string => bad_token_cls =
    Order in this list determines relative remolding
    priority for forms with overlapping regexps */
 let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
+  ("ty_var", (is_typ_var, [mk_op(Typ, [])])),
+  ("ty_var_p", (is_typ_var, [mk_op(TPat, [])])),
+  ("ctr", (is_ctr, [mk_op(Exp, []), mk_op(Pat, [])])),
+  ("type", (is_base_typ, [mk_op(Typ, [])])),
   ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
   (
     "explicit_hole",
@@ -271,6 +285,8 @@ let forms: list((string, t)) = [
   ("fgte", mk_infix(">=.", Exp, P.eqs)),
   ("flte", mk_infix("<=.", Exp, P.eqs)),
   ("logical_and", mk_infix("&&", Exp, P.and_)),
+  ("dot_var", mk_infix(".", Exp, P.max)),
+  ("dot_typ", mk_infix(".", Typ, P.max)),
   ("logical_or_legacy", mk_infix("\\/", Exp, P.or_)),
   ("logical_or", mk_infix("||", Exp, P.or_)),
   ("list_concat", mk_infix("@", Exp, P.plus)),
@@ -294,13 +310,20 @@ let forms: list((string, t)) = [
   ("parens_exp", mk(ii, ["(", ")"], mk_op(Exp, [Exp]))),
   ("parens_pat", mk(ii, ["(", ")"], mk_op(Pat, [Pat]))),
   ("parens_typ", mk(ii, ["(", ")"], mk_op(Typ, [Typ]))),
+  ("parens_tpat", mk(ii, ["(", ")"], mk_op(TPat, [TPat]))),
   ("ap_exp_empty", mk(ii, ["()"], mk_post(P.ap, Exp, []))),
   ("ap_exp", mk(ii, ["(", ")"], mk_post(P.ap, Exp, [Exp]))),
   ("ap_pat", mk(ii, ["(", ")"], mk_post(P.ap, Pat, [Pat]))),
+  ("ap_tpat", mk(ii, ["(", ")"], mk_post(P.ap, TPat, [TPat]))),
   ("ap_typ", mk(ii, ["(", ")"], mk_post(P.ap, Typ, [Typ]))),
+  ("ap_exp_typ", mk(ii, ["@<", ">"], mk_post(P.ap, Exp, [Typ]))),
+  ("at_sign", mk_nul_infix("@", P.eqs)), // HACK: SUBSTRING REQ
   ("case", mk(ds, ["case", "end"], mk_op(Exp, [Rul]))),
   ("test", mk(ds, ["test", "end"], mk_op(Exp, [Exp]))),
   ("fun_", mk(ds, ["fun", "->"], mk_pre(P.fun_, Exp, [Pat]))),
+  ("typfun", mk(ds, ["typfun", "->"], mk_pre(P.fun_, Exp, [TPat]))),
+  ("forall", mk(ds, ["forall", "->"], mk_pre(P.fun_, Typ, [TPat]))),
+  ("rec", mk(ds, ["rec", "->"], mk_pre(P.fun_, Typ, [TPat]))),
   (
     "rule",
     mk(ds, ["|", "=>"], mk_bin'(P.rule_sep, Rul, Exp, [Pat], Exp)),
@@ -314,8 +337,17 @@ let forms: list((string, t)) = [
   // TRIPLE DELIMITERS
   ("let_", mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))),
   (
+    "module_",
+    mk(ds, ["module", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp])),
+  ),
+  ("module_type", mk(ii, ["{", "}"], mk_op(Typ, [Pat]))),
+  (
     "type_alias",
     mk(ds, ["type", "=", "in"], mk_pre(P.let_, Exp, [TPat, Typ])),
+  ),
+  (
+    "type_alias_pat",
+    mk(ds, ["Type", "="], mk_pre'(P.if_, Pat, Pat, [TPat], Typ)),
   ),
   ("if_", mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))),
 ];

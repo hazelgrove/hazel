@@ -79,6 +79,10 @@ let mk_FloatLit: float => Pretty.Doc.t('a);
 
 let mk_BoolLit: bool => Pretty.Doc.t('a);
 
+let mk_ModuleVal: list(Pretty.Doc.t('a)) => Pretty.Doc.t('a);
+
+let mk_Dot: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
+
 let mk_ConstructorLit: string => Pretty.Doc.t('a);
 
 let mk_StringLit: string => Pretty.Doc.t('a);
@@ -90,6 +94,8 @@ let mk_ListConcat: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 let mk_ListLit: list(Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 
 let mk_Tuple: list(Pretty.Doc.t('a)) => Pretty.Doc.t('a);
+
+let mk_TypAp: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 
 let mk_Ap: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 

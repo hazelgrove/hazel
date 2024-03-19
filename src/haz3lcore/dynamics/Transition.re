@@ -40,20 +40,24 @@ open DH;
       - if all requirements are values, then the output will be a value
       - if some requirements are indet, then the output will be indet
 
-    A value is either a literal, or a function with a closure. (functions without
-    closures immediately inside them do not count as values).
+    A value is either a literal, or a function with a closure, or a type function.
+    (functions without closures immediately inside them do not count as values).
    */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type step_kind =
   | InvalidStep
   | VarLookup
+  | ModuleLookup
   | Sequence
   | LetBind
+  | ModuleBind
+  | DotAccess
   | FunClosure
   | FixUnwrap
   | FixClosure
   | UpdateTest
+  | TypFunAp
   | FunAp
   | CastAp
   | BuiltinWrap
@@ -84,6 +88,9 @@ module CastHelpers = {
 
   let grounded_Arrow =
     NotGroundOrHole(Arrow(Unknown(Internal), Unknown(Internal)));
+  // TODO: Maybe the Forall should allow a hole in the variable position?
+  let grounded_Forall =
+    NotGroundOrHole(Forall("grounded_forall", Unknown(Internal)));
   let grounded_Prod = length =>
     NotGroundOrHole(
       Prod(ListUtil.replicate(length, Typ.Unknown(Internal))),
@@ -106,8 +113,10 @@ module CastHelpers = {
     | Int
     | Float
     | String
+    | Module(_)
     | Var(_)
     | Rec(_)
+    | Forall(_, Unknown(_))
     | Arrow(Unknown(_), Unknown(_))
     | List(Unknown(_)) => Ground
     | Prod(tys) =>
@@ -125,7 +134,10 @@ module CastHelpers = {
       sm |> ConstructorMap.is_ground(is_ground_arg)
         ? Ground : grounded_Sum(sm)
     | Arrow(_, _) => grounded_Arrow
+    | Forall(_) => grounded_Forall
     | List(_) => grounded_List
+    | Ap(_) => NotGroundOrHole(Ap(Unknown(Internal), Unknown(Internal)))
+    | Member(_, ty) => ground_cases_of(ty)
     };
   };
 };
@@ -187,12 +199,28 @@ module type EV_MODE = {
 module Transition = (EV: EV_MODE) => {
   open EV;
   open DHExp;
+
   let (let.match) = ((env, match_result), r) =>
     switch (match_result) {
     | IndetMatch
     | DoesNotMatch => Indet
     | Matches(env') => r(evaluate_extend_env(env', env))
     };
+
+  let rec extend_module = (d, match_result) => {
+    switch (match_result) {
+    | IndetMatch
+    | DoesNotMatch => d
+    | Matches(env') =>
+      switch (d) {
+      | Let(dp, d1, d2) => Let(dp, d1, extend_module(d2, match_result))
+      | Module(dp, d1, d2) =>
+        Module(dp, d1, extend_module(d2, match_result))
+      | ModuleVal(env) => ModuleVal(evaluate_extend_env(env', env))
+      | _ => d
+      }
+    };
+  };
 
   let transition = (req, state, env, d): 'a =>
     switch (d) {
@@ -211,8 +239,35 @@ module Transition = (EV: EV_MODE) => {
     | Let(dp, d1, d2) =>
       let. _ = otherwise(env, d1 => Let(dp, d1, d2))
       and. d1' = req_final(req(state, env), d1 => Let1(dp, d1, d2), d1);
-      let.match env' = (env, matches(dp, d1'));
-      Step({apply: () => Closure(env', d2), kind: LetBind, value: false});
+      let result = matches(dp, d1');
+      let d2' = extend_module(d2, result);
+      let.match env' = (env, result);
+      Step({apply: () => Closure(env', d2'), kind: LetBind, value: false});
+    | Module(dp, d1, d2) =>
+      let. _ = otherwise(env, d1 => Module(dp, d1, d2))
+      and. d1' = req_final(req(state, env), d1 => Module1(dp, d1, d2), d1);
+      let result = matches(dp, d1');
+      let d2' = extend_module(d2, result);
+      let.match env' = (env, result);
+      Step({
+        apply: () => Closure(env', d2'),
+        kind: ModuleBind,
+        value: false,
+      });
+    | Dot(d1, d2) =>
+      let. _ = otherwise(env, d1 => Dot(d1, d2))
+      and. d1' = req_final(req(state, env), d1 => Dot1(d1, d2), d1);
+      Step({
+        apply: () =>
+          switch (d1') {
+          | ModuleVal(inner_env) => Closure(inner_env, d2)
+          | _ => raise(EvaluatorError.Exception(InvalidBoxedModule(d1')))
+          },
+        kind: DotAccess,
+        value: false,
+      });
+
+    | TypFun(_)
     | Fun(_, _, Closure(_), _) =>
       let. _ = otherwise(env, d);
       Constructor;
@@ -254,6 +309,48 @@ module Transition = (EV: EV_MODE) => {
         kind: UpdateTest,
         value: true,
       });
+    | TypAp(d, tau) =>
+      let. _ = otherwise(env, d => TypAp(d, tau))
+      and. d' = req_final(req(state, env), d => TypAp(d, tau), d);
+      switch (d') {
+      | TypFun(utpat, tfbody) =>
+        /* Rule ITTLam */
+        switch (Term.UTPat.tyvar_of_utpat(utpat)) {
+        | Some(tyvar) =>
+          /* Perform substitution */
+          Step({
+            apply: () => DHExp.ty_subst(tau, tyvar, tfbody),
+            kind: TypFunAp,
+            value: false,
+          })
+        | None =>
+          /* Treat a hole or invalid tyvar name as a unique type variable that doesn't appear anywhere else. Thus instantiating it at anything doesn't produce any substitutions. */
+          Step({apply: () => tfbody, kind: TypFunAp, value: false})
+        }
+      | Constructor(name) =>
+        /* Rule ITTCon */
+        Step({apply: () => Constructor(name), kind: TypFunAp, value: false})
+      | Cast(d'', Forall(x, t), Forall(x', t')) =>
+        /* Rule ITTApCast */
+        Step({
+          apply: () =>
+            Cast(
+              TypAp(d'', tau),
+              Typ.subst(tau, x, t),
+              Typ.subst(tau, x', t'),
+            ),
+          kind: TypFunAp,
+          value: false,
+        })
+      | _ =>
+        Step({
+          apply: () => {
+            raise(EvaluatorError.Exception(InvalidBoxedTypFun(d')));
+          },
+          kind: InvalidStep,
+          value: true,
+        })
+      };
     | Ap(d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => Ap(d1, d2))
       and. d1' = req_value(req(state, env), d1 => Ap1(d1, d2), d1)
@@ -310,7 +407,16 @@ module Transition = (EV: EV_MODE) => {
     | IntLit(_)
     | FloatLit(_)
     | StringLit(_)
-    | Constructor(_)
+    | ModuleVal(_) =>
+      let. _ = otherwise(env, d);
+      Constructor;
+    | Constructor(x) =>
+      let. _ = otherwise(env, d);
+      switch (ClosureEnvironment.lookup(env, x)) {
+      | None => Constructor
+      | Some(d) => Step({apply: () => d, kind: ModuleLookup, value: false})
+      };
+
     | BuiltinFun(_) =>
       let. _ = otherwise(env, d);
       Constructor;
@@ -648,8 +754,11 @@ module Transition = (EV: EV_MODE) => {
 let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
   fun
   | LetBind
+  | ModuleBind
+  | DotAccess
   | Sequence
   | UpdateTest
+  | TypFunAp
   | FunAp
   | BuiltinAp(_)
   | BinBoolOp(_)
@@ -663,6 +772,7 @@ let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
   | Skip
   | Conditional(_)
   | InvalidStep => false
+  | ModuleLookup
   | VarLookup => !settings.show_lookup_steps
   | CastAp
   | Cast => !settings.show_casts
