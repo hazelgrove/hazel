@@ -372,21 +372,21 @@ and Pat: {
 and TypTerm: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(string)
-    | EmptyHole
-    | MultiHole(list(Any.t))
+    | Invalid(string) // TODO: Switch to unknown
+    | EmptyHole // TODO: Switch to unknown
+    | MultiHole(list(Any.t)) // TODO: Switch to unknown
     | Int
     | Float
     | Bool
     | String
-    | List(t)
     | Var(string)
-    | Constructor(string)
+    | List(t)
+    | Constructor(string) // TODO: Add to TypBase (?) or remove(?)
     | Arrow(t, t)
-    | Tuple(list(t))
+    | Sum(list(variant))
+    | Prod(list(t))
     | Parens(t)
     | Ap(t, t)
-    | Sum(list(variant))
     | Rec(TPat.t, t)
   and variant =
     | Variant(Constructor.t, list(Id.t), option(t)) // What are the ids for?
@@ -417,14 +417,14 @@ and TypTerm: {
     | Float
     | Bool
     | String
-    | List(t)
     | Var(string)
+    | List(t)
     | Constructor(string)
     | Arrow(t, t)
-    | Tuple(list(t))
+    | Sum(list(variant))
+    | Prod(list(t))
     | Parens(t)
     | Ap(t, t)
-    | Sum(list(variant))
     | Rec(TPat.t, t)
   and variant =
     | Variant(Constructor.t, list(Id.t), option(t))
@@ -465,7 +465,7 @@ and TypTerm: {
         | List(t) => List(typ_map_term(t))
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
         | Ap(e1, e2) => Ap(typ_map_term(e1), typ_map_term(e2))
-        | Tuple(xs) => Tuple(List.map(typ_map_term, xs))
+        | Prod(xs) => Prod(List.map(typ_map_term, xs))
         | Parens(e) => Parens(typ_map_term(e))
         | Arrow(t1, t2) => Arrow(typ_map_term(t1), typ_map_term(t2))
         | Sum(variants) =>
@@ -490,7 +490,7 @@ and TPat: {
     | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
-    | Var(TypVar.t)
+    | Var(string)
   and t = {
     ids: list(Id.t),
     term,
@@ -513,7 +513,7 @@ and TPat: {
     | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
-    | Var(TypVar.t)
+    | Var(string)
   and t = {
     ids: list(Id.t),
     term,

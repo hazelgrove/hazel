@@ -16,23 +16,26 @@ module rec Typ: {
   type type_provenance =
     | SynSwitch
     | TypeHole
-    | Free(TypVar.t)
+    | Free(string)
     | Internal;
 
   /* TYP.T: Hazel types */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | Unknown(type_provenance)
+    | Unknown(type_provenance) // Add to TypTerm
     | Int
     | Float
     | Bool
     | String
-    | Var(TypVar.t)
+    | Var(string)
     | List(t)
+    // Add Constructor?
     | Arrow(t, t)
     | Sum(sum_map)
     | Prod(list(t))
-    | Rec(TypVar.t, t)
+    // Add Parens
+    // Add Ap?
+    | Rec(string, t)
   and sum_map = ConstructorMap.t(option(t));
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -55,7 +58,7 @@ module rec Typ: {
   let matched_prod: (Ctx.t, int, t) => list(t);
   let matched_list: (Ctx.t, t) => t;
   let precedence: t => int;
-  let subst: (t, TypVar.t, t) => t;
+  let subst: (t, string, t) => t;
   let unroll: t => t;
   let eq: (t, t) => bool;
   let free_vars: (~bound: list(Var.t)=?, t) => list(Var.t);
@@ -73,7 +76,7 @@ module rec Typ: {
   type type_provenance =
     | SynSwitch
     | TypeHole
-    | Free(TypVar.t)
+    | Free(string)
     | Internal;
 
   /* TYP.T: Hazel types */
@@ -84,12 +87,12 @@ module rec Typ: {
     | Float
     | Bool
     | String
-    | Var(TypVar.t)
+    | Var(string)
     | List(t)
     | Arrow(t, t)
     | Sum(sum_map)
     | Prod(list(t))
-    | Rec(TypVar.t, t)
+    | Rec(string, t)
   and sum_map = ConstructorMap.t(option(t));
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -111,7 +114,7 @@ module rec Typ: {
   let join_type_provenance =
       (p1: type_provenance, p2: type_provenance): type_provenance =>
     switch (p1, p2) {
-    | (Free(tv1), Free(tv2)) when TypVar.eq(tv1, tv2) => Free(tv1)
+    | (Free(tv1), Free(tv2)) when tv1 == tv2 => Free(tv1)
     | (TypeHole, TypeHole | SynSwitch)
     | (SynSwitch, TypeHole) => TypeHole
     | (SynSwitch, Internal)
@@ -136,7 +139,7 @@ module rec Typ: {
     | Arrow(_, _) => precedence_Arrow
     };
 
-  let rec subst = (s: t, x: TypVar.t, ty: t) => {
+  let rec subst = (s: t, x: string, ty: t) => {
     switch (ty) {
     | Int => Int
     | Float => Float
@@ -146,10 +149,10 @@ module rec Typ: {
     | Arrow(ty1, ty2) => Arrow(subst(s, x, ty1), subst(s, x, ty2))
     | Prod(tys) => Prod(List.map(subst(s, x), tys))
     | Sum(sm) => Sum(ConstructorMap.map(Option.map(subst(s, x)), sm))
-    | Rec(y, ty) when TypVar.eq(x, y) => Rec(y, ty)
+    | Rec(y, ty) when x == y => Rec(y, ty)
     | Rec(y, ty) => Rec(y, subst(s, x, ty))
     | List(ty) => List(subst(s, x, ty))
-    | Var(y) => TypVar.eq(x, y) ? s : Var(y)
+    | Var(y) => x == y ? s : Var(y)
     };
   };
 
@@ -435,7 +438,7 @@ and Ctx: {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type tvar_entry = {
-    name: TypVar.t,
+    name: string,
     id: Id.t,
     kind: Kind.t,
   };
@@ -451,19 +454,19 @@ and Ctx: {
 
   let extend: (t, entry) => t;
   let extend_tvar: (t, tvar_entry) => t;
-  let extend_alias: (t, TypVar.t, Id.t, Typ.t) => t;
-  let extend_dummy_tvar: (t, TypVar.t) => t;
-  let lookup_tvar: (t, TypVar.t) => option(tvar_entry);
-  let lookup_alias: (t, TypVar.t) => option(Typ.t);
+  let extend_alias: (t, string, Id.t, Typ.t) => t;
+  let extend_dummy_tvar: (t, string) => t;
+  let lookup_tvar: (t, string) => option(tvar_entry);
+  let lookup_alias: (t, string) => option(Typ.t);
   let get_id: entry => Id.t;
   let lookup_var: (t, string) => option(var_entry);
   let lookup_ctr: (t, string) => option(var_entry);
-  let is_alias: (t, TypVar.t) => bool;
-  let add_ctrs: (t, TypVar.t, Id.t, Typ.sum_map) => t;
+  let is_alias: (t, string) => bool;
+  let add_ctrs: (t, string, Id.t, Typ.sum_map) => t;
   let subtract_prefix: (t, t) => option(t);
   let added_bindings: (t, t) => t;
   let filter_duplicates: t => t;
-  let shadows_typ: (t, TypVar.t) => bool;
+  let shadows_typ: (t, string) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type var_entry = {
@@ -474,7 +477,7 @@ and Ctx: {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type tvar_entry = {
-    name: TypVar.t,
+    name: string,
     id: Id.t,
     kind: Kind.t,
   };
@@ -493,13 +496,13 @@ and Ctx: {
   let extend_tvar = (ctx: t, tvar_entry: tvar_entry): t =>
     extend(ctx, TVarEntry(tvar_entry));
 
-  let extend_alias = (ctx: t, name: TypVar.t, id: Id.t, ty: Typ.t): t =>
+  let extend_alias = (ctx: t, name: string, id: Id.t, ty: Typ.t): t =>
     extend_tvar(ctx, {name, id, kind: Singleton(ty)});
 
-  let extend_dummy_tvar = (ctx: t, name: TypVar.t) =>
+  let extend_dummy_tvar = (ctx: t, name: string) =>
     extend_tvar(ctx, {kind: Abstract, name, id: Id.invalid});
 
-  let lookup_tvar = (ctx: t, name: TypVar.t): option(tvar_entry) =>
+  let lookup_tvar = (ctx: t, name: string): option(tvar_entry) =>
     List.find_map(
       fun
       | TVarEntry(v) when v.name == name => Some(v)
@@ -507,7 +510,7 @@ and Ctx: {
       ctx,
     );
 
-  let lookup_alias = (ctx: t, t: TypVar.t): option(Typ.t) =>
+  let lookup_alias = (ctx: t, t: string): option(Typ.t) =>
     switch (lookup_tvar(ctx, t)) {
     | Some({kind: Singleton(ty), _}) => Some(ty)
     | Some({kind: Abstract, _})
@@ -536,13 +539,13 @@ and Ctx: {
       ctx,
     );
 
-  let is_alias = (ctx: t, name: TypVar.t): bool =>
+  let is_alias = (ctx: t, name: string): bool =>
     switch (lookup_alias(ctx, name)) {
     | Some(_) => true
     | None => false
     };
 
-  let add_ctrs = (ctx: t, name: TypVar.t, id: Id.t, ctrs: Typ.sum_map): t =>
+  let add_ctrs = (ctx: t, name: string, id: Id.t, ctrs: Typ.sum_map): t =>
     List.map(
       ((ctr, typ)) =>
         ConstructorEntry({
@@ -605,7 +608,7 @@ and Ctx: {
        )
     |> (((ctx, _, _)) => List.rev(ctx));
 
-  let shadows_typ = (ctx: t, name: TypVar.t): bool =>
+  let shadows_typ = (ctx: t, name: string): bool =>
     Form.is_base_typ(name) || lookup_alias(ctx, name) != None;
 }
 and Kind: {
