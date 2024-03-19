@@ -552,28 +552,7 @@ let mk =
                 List.filter(x => !List.mem(x, bindings), next_recent_subst),
               Fun,
             )
-<<<<<<< HEAD
-            @ [
-              DHDoc_common.Delim.arrow_Fun,
-              space(),
-              body_doc |> DHDoc_common.pad_child(~enforce_inline=false),
-            ],
-          );
-        } else {
-          switch (s) {
-          | None => annot(DHAnnot.Collapsed, text("<anon fn>"))
-          | Some(name) => annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"))
-          };
-        }
-      | TypFun(_tpat, _dbody) =>
-        annot(DHAnnot.Collapsed, text("<anon typfn>"))
-      | Fun(dp, ty, dbody, s) =>
-        if (settings.show_fn_bodies) {
-          let bindings = DHPat.bound_vars(dp);
-          let body_doc =
-=======
           | _ =>
->>>>>>> dev
             go_formattable(
               dbody,
               ~env=ClosureEnvironment.without_keys(bindings, env),
@@ -619,6 +598,8 @@ let mk =
           | Some(name) => name
           };
         annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"));
+      | TypFun(_tpat, _dbody) =>
+        annot(DHAnnot.Collapsed, text("<anon typfn>"))
       | FixF(x, ty, dbody)
           when settings.show_fn_bodies && settings.show_fixpoints =>
         let doc_body =
