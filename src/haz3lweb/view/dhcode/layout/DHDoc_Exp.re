@@ -280,8 +280,7 @@ let mk =
     );
     let doc = {
       switch (d) {
-      | Closure(env', d') =>
-        hcats([text("{"), go'(d', Closure, ~env=env'), text("}")])
+      | Closure(env', d') => go'(d', Closure, ~env=env')
       | Filter(flt, d') =>
         if (settings.show_stepper_filters) {
           switch (flt) {
