@@ -2050,6 +2050,22 @@ let get_doc =
           ),
         ListTyp.list,
       );
+    | Rec(tpat, typ) =>
+      let tpat_id = List.nth(tpat.ids, 0);
+      let tbody_id = List.nth(typ.ids, 0);
+      get_message(
+        ~colorings=RecTyp.rec_typ_coloring_ids(~tpat_id, ~tbody_id),
+        ~format=
+          Some(
+            msg =>
+              Printf.sprintf(
+                Scanf.format_from_string(msg, "%s%s"),
+                Id.to_string(tpat_id),
+                Id.to_string(tbody_id),
+              ),
+          ),
+        RecTyp.rec_,
+      );
     | Arrow(arg, result) =>
       let arg_id = List.nth(arg.ids, 0);
       let result_id = List.nth(result.ids, 0);

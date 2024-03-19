@@ -1,8 +1,3 @@
-/**
-  // TODO[Matt]: find where this comment belongs
-  [evaluate builtins env d] is [(es, r)], where [r] is the result of evaluating [d] and
-  [es] is the accumulated state.
- */
 open Transition;
 
 let evaluate:

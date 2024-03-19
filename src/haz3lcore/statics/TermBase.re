@@ -3,7 +3,7 @@ open Sexplib.Std;
 let continue = x => x;
 let stop = (_, x) => x;
 
-/* TODO: Explain map_term */
+/* TODO[Matt]: Explain map_term */
 
 module rec Any: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -143,11 +143,11 @@ and Exp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
     | Invalid(string)
-    | EmptyHole
+    | EmptyHole // Combine the problems into one construct
     | MultiHole(list(Any.t))
     | StaticErrorHole(Id.t, t)
     | DynamicErrorHole(t, InvalidOperationError.t)
-    | FailedCast(t, Typ.t, Typ.t)
+    | FailedCast(t, Typ.t, Typ.t) // TODO: get rid of failedcast
     | Bool(bool)
     | Int(int)
     | Float(float)
@@ -163,25 +163,25 @@ and Exp: {
     | Tuple(list(t))
     | Var(Var.t)
     | Let(Pat.t, t, t)
-    | FixF(Pat.t, t, [@show.opaque] option(ClosureEnvironment.t)) // TODO[Matt]: CHECK WITH SOMEONE THAT I GOT THE STATIC SEMANTICS RIGHT
+    | FixF(Pat.t, t, [@show.opaque] option(ClosureEnvironment.t))
     | TyAlias(TPat.t, TypTerm.t, t)
     | Ap(Operators.ap_direction, t, t) // note: function is always first then argument; even in pipe mode
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
-    | Filter(StepperFilterKind.t, t) // TODO: Change to reflect Exp
+    | Filter(StepperFilterKind.t, t)
     | Closure([@show.opaque] ClosureEnvironment.t, t)
     | Parens(t)
     | Cons(t, t)
     | ListConcat(t, t)
     | UnOp(Operators.op_un, t)
     | BinOp(Operators.op_bin, t, t)
-    | BuiltinFun(string) /// Doesn't currently have a distinguishable syntax...
-    | Match(t, list((Pat.t, t))) // Why doesn't this use list(Rul.t)?
+    | BuiltinFun(string) /// Doesn't currently have a distinguishable syntax
+    | Match(t, list((Pat.t, t)))
     | Cast(t, Typ.t, Typ.t)
   and t = {
     // invariant: nonempty
-    ids: list(Id.t), // > DHEXP // Multiple ids?? // Add source??
+    ids: list(Id.t),
     copied: bool,
     term,
   };
@@ -387,6 +387,7 @@ and TypTerm: {
     | Parens(t)
     | Ap(t, t)
     | Sum(list(variant))
+    | Rec(TPat.t, t)
   and variant =
     | Variant(Constructor.t, list(Id.t), option(t)) // What are the ids for?
     | BadEntry(t)
@@ -424,6 +425,7 @@ and TypTerm: {
     | Parens(t)
     | Ap(t, t)
     | Sum(list(variant))
+    | Rec(TPat.t, t)
   and variant =
     | Variant(Constructor.t, list(Id.t), option(t))
     | BadEntry(t)
@@ -446,6 +448,8 @@ and TypTerm: {
       TypTerm.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let any_map_term =
       Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+    let tpat_map_term =
+      TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let rec_call = ({term, _} as exp) => {
       ...exp,
       term:
@@ -474,6 +478,7 @@ and TypTerm: {
               variants,
             ),
           )
+        | Rec(tp, t) => Rec(tpat_map_term(tp), typ_map_term(t))
         },
     };
     x |> f_typ(rec_call);
