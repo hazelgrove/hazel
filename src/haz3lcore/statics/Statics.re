@@ -609,6 +609,29 @@ and utyp_to_info_map =
         variants,
       );
     add(m);
+  | Rec({term: Var(name), _} as utpat, tbody) =>
+    let body_ctx =
+      Ctx.extend_tvar(
+        ctx,
+        {name, id: Term.TPat.rep_id(utpat), kind: Abstract},
+      );
+    let m =
+      utyp_to_info_map(
+        tbody,
+        ~ctx=body_ctx,
+        ~ancestors,
+        ~expects=TypeExpected,
+        m,
+      )
+      |> snd;
+    let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
+    add(m); // TODO: check with andrew
+  | Rec(utpat, tbody) =>
+    let m =
+      utyp_to_info_map(tbody, ~ctx, ~ancestors, ~expects=TypeExpected, m)
+      |> snd;
+    let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
+    add(m); // TODO: check with andrew
   };
 }
 and utpat_to_info_map =

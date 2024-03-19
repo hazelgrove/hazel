@@ -368,6 +368,8 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
     | ([(_, (["(", ")"], [Typ(typ)]))], []) => ret(Ap(t, typ))
     | _ => ret(hole(tm))
     }
+  | Pre(([(_id, (["rec", "->"], [TPat(tpat)]))], []), Typ(t)) =>
+    ret(Rec(tpat, t))
   | Pre(tiles, Typ({term: Sum(t0), ids})) as tm =>
     /* Case for leading prefix + preceeding a sum */
     switch (tiles) {

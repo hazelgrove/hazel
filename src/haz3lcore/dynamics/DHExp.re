@@ -2,7 +2,7 @@
 
    This module is specifically for dynamic expressions. They are stored
    using the same data structure as user expressions, but dynamic
-   expressions are specifically paired with a `Satic.Map.t`. 
+   expressions are specifically paired with a `Satic.Map.t`.
    */
 
 include Exp;

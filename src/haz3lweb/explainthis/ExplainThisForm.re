@@ -72,6 +72,7 @@ type numeric_bin_op_examples =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type example_id =
+  | RecTyp
   | List(list_examples)
   | Fun(fun_examples)
   | Fix1
@@ -191,6 +192,7 @@ type form_id =
   | StrTyp
   | VarTyp
   | ListTyp
+  | RecTyp
   | ArrowTyp
   | Arrow3Typ
   | TupleTyp
@@ -278,6 +280,7 @@ type group_id =
   | StrTyp
   | VarTyp
   | ListTyp
+  | RecTyp
   | ArrowTyp
   | Arrow3Typ
   | TupleTyp

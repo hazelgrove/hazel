@@ -53,7 +53,7 @@ module Decompose = {
       EV_MODE with
         type result = Result.t and type state = ref(EvaluatorState.t);
   } = {
-    type state = ref(EvaluatorState.t); // TODO[Matt]: Make sure this gets passed around correctly
+    type state = ref(EvaluatorState.t);
     type requirement('a) = (Result.t, 'a);
     type requirements('a, 'b) = ('b, Result.t, ClosureEnvironment.t, 'a);
     type result = Result.t;
