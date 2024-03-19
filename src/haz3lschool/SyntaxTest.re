@@ -7,6 +7,10 @@ type syntax_result = {
   percentage: float,
 };
 
+/*
+ Finds whether a variable with the same name as
+ the argument "name" is ever mentioned in upat.
+ */
 let rec find_var_upat = (name: string, upat: Term.UPat.t): bool => {
   switch (upat.term) {
   | Var(x) => x == name
@@ -30,6 +34,10 @@ let rec find_var_upat = (name: string, upat: Term.UPat.t): bool => {
   };
 };
 
+/*
+ Finds whether a variable with the same name as
+ the argument "name" is ever mentioned in uexp.
+ */
 let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
   switch (uexp.term) {
   | Var(x) => x == name
@@ -76,6 +84,11 @@ let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
   };
 };
 
+/*
+ Finds whether a variable with the same name as the argument
+ "name" is applied on another expresssion.
+ i.e. Ap(Var(name), u) occurs anywhere in the uexp.
+ */
 let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
   switch (uexp.term) {
   | Var(_)
@@ -130,6 +143,12 @@ let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
   };
 };
 
+/*
+ Goes into the pattern of a let expression and finds any mention of a variable
+ with the same name as the argument "name", takes the bound expression in def and
+ check whether is is a function. Lastly the function expression in def is
+ added to the list l.
+ */
 let rec find_in_let =
         (
           name: string,
@@ -143,12 +162,7 @@ let rec find_in_let =
   | (Parens(up), _) => find_in_let(name, up, def, l)
   | (_, Parens(ue)) => find_in_let(name, upat, ue, l)
   | (TypeAnn(up, _), _) => find_in_let(name, up, def, l)
-  | (Var(x), Fun(_)) =>
-    if (x == name) {
-      [def, ...l];
-    } else {
-      l;
-    }
+  | (Var(x), Fun(_)) => x == name ? [def, ...l] : l
   | (Tuple(pl), Tuple(ul)) =>
     if (List.length(pl) != List.length(ul)) {
       l;
@@ -175,6 +189,10 @@ let rec find_in_let =
   };
 };
 
+/*
+ Find any function expressions in uexp that are bound to a variable
+ with the same name as the argument "name".
+ */
 let rec find_fn =
         (name: string, uexp: Term.UExp.t, l: list(Term.UExp.t))
         : list(Term.UExp.t) => {
@@ -217,6 +235,10 @@ let rec find_fn =
   };
 };
 
+/*
+ Check whether all functions bound to a variable with the same
+ name as argument "name" are recursive.
+ */
 let is_recursive = (name: string, uexp: Term.UExp.t): bool => {
   let fn_bodies = [] |> find_fn(name, uexp);
   if (List.length(fn_bodies) == 0) {
@@ -230,6 +252,12 @@ let is_recursive = (name: string, uexp: Term.UExp.t): bool => {
   };
 };
 
+/*
+ Check if a variable with the same name as the argument "name" is
+ not mentioned anywhere outside of a tail position in uexp.
+ Note that if the variable is not mentioned anywhere in the expression
+ the function returns true.
+ */
 let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   switch (uexp.term) {
   | EmptyHole
@@ -278,6 +306,10 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   };
 };
 
+/*
+ Check whether all functions bound to a variable with the
+ same name as argument "name" are tail recursive.
+ */
 let is_tail_recursive = (name: string, uexp: Term.UExp.t): bool => {
   let fn_bodies = [] |> find_fn(name, uexp);
   if (List.length(fn_bodies) == 0) {
