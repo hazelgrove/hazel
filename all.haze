@@ -767,3 +767,192 @@ test PlayList.eq(update(([0, 1, 2], Playing(1)), RemoveSong(3)), ([0, 1, 2], Pla
 test PlayList.eq(update(([0, 1, 2], NoSongSelected), AddSong(3)), ([3, 0, 1, 2], NoSongSelected)) end;
 test PlayList.eq(update(([0, 1, 2], Playing(0)), AddSong(3)), ([3, 0, 1, 2], Playing(0))) end;
 test PlayList.eq(update(([0, 1, 2], PausedOn(0)), AddSong(3)), ([3, 0, 1, 2], PausedOn(0))) end;
+
+
+# ROOM BOOKING MVU #
+
+type Weekday = M + T + W + R + F in
+type TimeOfDay = AM + PM in
+type Time = (Weekday, TimeOfDay) in
+type User = String in
+type BookingID = Int in
+type Booking = (Time, User, BookingID) in
+type BookingFormData = (Time, User) in
+type Model = (BookingFormData, [Booking], BookingID) in
+
+type Action =
+  + AddBooking(User, Weekday, TimeOfDay)
+  + CancelBooking(User, Int)
+  + ClearBookings
+  + ClearRange(Time, Time) 
+in
+    
+let initFormState = ((M, AM), "") in
+let Model.init: Model = (initFormState, [], 0) in
+
+let getBookings: Model -> [Booking] =
+  fun _, bs,_ -> bs in
+      
+let bookingExists: (Model, Booking) -> Bool =
+  fun model, booking ->
+    List.exists(fun b -> b == booking, getBookings(model))  
+in
+  
+let getUserBookings: (Model, User) -> [Booking] =
+  fun model, user ->
+    List.filter(fun (_, u:User,_) -> u == user, getBookings(model)) 
+in
+
+let getBookingById: (Model, BookingID) -> Booking =
+  fun model, id ->
+    case List.filter(fun (_, _, i:BookingID) -> i == id, getBookings(model))
+      | [booking] => booking
+      | _ => ?  
+    end  
+in
+
+let weekdayIndex: Weekday -> Int =
+  fun day ->
+    case day
+      | M => 0
+      | T => 1
+      | W => 2
+      | R => 3
+      | F => 4   
+    end   
+in
+
+let isBeforeOrEqual: (TimeOfDay, TimeOfDay) -> Bool =
+  fun t1, t2 ->
+    case t1, t2
+      | AM, _ => true
+      | PM, PM => true
+      | _ => false   
+    end 
+in
+  
+let compareTimeRange: (Time, Time, Time) -> Bool =
+  fun (weekday, timeOfDay), (startWeekday, startTime), (lastWeekday, lastTime) ->
+    let bookingIndex = weekdayIndex(weekday) in
+    let startIndex = weekdayIndex(startWeekday) in
+    let lastIndex = weekdayIndex(lastWeekday) in
+    if bookingIndex > startIndex && bookingIndex < lastIndex then
+      true   
+    else if bookingIndex == startIndex && bookingIndex == lastIndex then
+      isBeforeOrEqual(startTime, timeOfDay)
+      && isBeforeOrEqual(timeOfDay, lastTime)  
+    else if bookingIndex == startIndex then
+      isBeforeOrEqual(startTime, timeOfDay)  
+    else if bookingIndex == lastIndex then
+      isBeforeOrEqual(timeOfDay, lastTime)  
+    else
+      false   
+in
+
+let update: (Model, Action) -> Model =
+  fun (formState, bookings, nextId), action ->
+    case action
+      | AddBooking(user, weekday, timeOfDay) =>
+        let newBooking = ((weekday, timeOfDay), user, nextId) in
+        (((weekday, timeOfDay), user), newBooking :: bookings, nextId + 1)
+      | CancelBooking(user, id) =>
+        let updatedBookings = List.filter(
+          fun (_, u: User, i: BookingID) -> (u != user) \/ (i != id), bookings) in
+        (formState, updatedBookings, nextId)
+      | ClearBookings =>
+        (formState, [], nextId)
+      | ClearRange(startTime, lastTime) =>
+        let updatedBookings = List.filter(
+          fun ((weekday, timeOfDay), _, _):Booking ->
+            !compareTimeRange((weekday,timeOfDay), startTime, lastTime), bookings) in
+        (formState, updatedBookings, nextId)  
+    end  
+in
+
+test
+  getBookings(update(Model.init, AddBooking("Charles",M, AM)))
+  == [((M, AM),"Charles",0)]  
+end;
+      
+test
+  let model = update(Model.init, AddBooking("Alice", T, PM)) in
+  getBookings(model) == [((T, PM), "Alice", 0)] 
+end;
+
+test
+  let model = update(Model.init, AddBooking("Bob", W, AM)) in
+  getUserBookings(model, "Bob") == [((W, AM), "Bob", 0)]  
+end;
+      
+test
+  let model = update(Model.init, AddBooking("Alice", R, PM)) in
+  let model = update(model, CancelBooking("Alice", 0)) in
+  getUserBookings(model, "Alice") == []  
+end;
+      
+test
+  let model = update(Model.init, AddBooking("Alice", F, AM)) in
+  let model = update(model, AddBooking("Bob", F, AM)) in
+  getBookingById(model, 1) == ((F, AM), "Bob", 1)   
+end;
+      
+test
+  let model = update(Model.init, AddBooking("Alice", M, AM)) in
+  let model = update(model, AddBooking("Bob", M, PM)) in
+  let model = update(model, AddBooking("Alice", T, AM)) in
+  let model = update(model, AddBooking("Bob", T, PM)) in
+  let model = update(model, AddBooking("Alice", W, AM)) in
+  let model = update(model, CancelBooking("Alice", 0)) in
+  let model = update(model, CancelBooking("Bob", 3)) in
+  getBookings(model) == [((W, AM), "Alice", 4), ((T, AM), "Alice", 2), ((M, PM), "Bob", 1)]  
+end;
+  
+test
+  let model = update(Model.init, AddBooking("Alice", M, AM)) in
+  let model = update(model, AddBooking("Bob", M, AM)) in
+  let model = update(model, AddBooking("Charlie", M, AM)) in
+  let model = update(model, AddBooking("Dave", M, PM)) in
+  let model = update(model, AddBooking("Eve", M, PM)) in
+  let model = update(model, CancelBooking("Bob", 1)) in
+  let model = update(model, CancelBooking("Dave", 3)) in
+  let model = update(model, CancelBooking("Alice", 0)) in
+  getBookings(model) == [((M, PM), "Eve", 4), ((M, AM), "Charlie", 2)]  
+end;
+  
+test
+  let model = update(Model.init, AddBooking("Alice", M, AM)) in
+  let model = update(model, ClearBookings) in
+  getBookings(model) == []  
+end;
+  
+test
+  let model = update(Model.init, AddBooking("Alice", M, AM)) in
+  let model = update(model, AddBooking("Bob", M, PM)) in
+  let model = update(model, ClearRange((M, AM), (M, PM))) in
+  getBookings(model) == []   
+end;
+  
+test
+  let model = update(Model.init, AddBooking("Alice", M, AM)) in
+  let model = update(model, AddBooking("Bob", T, PM)) in
+  let model = update(model, AddBooking("Charlie", W, AM)) in
+  let model = update(model, ClearRange((M, AM), (T, AM))) in
+  getBookings(model) == [((W, AM), "Charlie", 2),((T, PM), "Bob", 1) ]  
+end;
+  
+test
+  let model = update(Model.init, AddBooking("Alice", M, AM)) in
+  let model = update(model, AddBooking("Bob", M, PM)) in
+  let model = update(model, AddBooking("Charlie", T, AM)) in
+  let model = update(model, ClearRange((M, PM), (T, PM))) in
+  getBookings(model) == [((M, AM), "Alice", 0)]  
+end;
+  
+test
+  let model = update(Model.init, AddBooking("Alice", M, AM)) in
+  let model = update(model, AddBooking("Bob", T, AM)) in
+  let model = update(model, AddBooking("Charlie", W, PM)) in
+  let model = update(model, AddBooking("Dave", R, AM)) in
+  let model = update(model, ClearRange((T, PM), (W, AM))) in
+  List.length(getBookings(model)) == 4   
+end;
