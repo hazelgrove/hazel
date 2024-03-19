@@ -269,8 +269,7 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   | Float(_)
   | String(_)
   | Constructor(_)
-  | Var(_)
-  | Pipeline(_, _) => true
+  | Var(_) => true
   | Fun(args, body) =>
     find_var_upat(name, args) ? false : tail_check(name, body)
   | Let(p, def, body) =>
@@ -286,6 +285,7 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   | Parens(u) => tail_check(name, u)
   | UnOp(_, u) => !var_mention(name, u)
   | Ap(u1, u2) => var_mention(name, u2) ? false : tail_check(name, u1)
+  | Pipeline(u1, u2) => var_mention(name, u1) ? false : tail_check(name, u2)
   | Seq(u1, u2) => var_mention(name, u1) ? false : tail_check(name, u2)
   | Cons(u1, u2)
   | ListConcat(u1, u2)
