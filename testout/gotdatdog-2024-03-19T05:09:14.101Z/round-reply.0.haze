@@ -1,0 +1,25 @@
+fun model, action ->
+  case action
+  | AddBooking(user, weekday, timeOfDay) =>
+    let newId = List.length(getBookings(model)) + 1 in
+    let newBooking = (weekday, timeOfDay), user, newId in
+    let formData, bookings, _ = model in
+    formData, bookings @ [newBooking], newId
+  | CancelBooking(user, bookingId) =>
+    let formData, bookings, lastId = model in
+    let updatedBookings =
+      List.keep(bookings, fun (_time, bookingUser, id) ->
+        string_compare(user, bookingUser) != 0 \/ id != bookingId)
+    in
+    formData, updatedBookings, lastId
+  | ClearBookings =>
+    let formData, _bookings, lastId = model in
+    formData, [], lastId
+  | ClearRange(rangeStart, rangeEnd) =>
+    let formData, bookings, lastId = model in
+    let updatedBookings =
+      List.keep(bookings, fun (time, _user, _id) ->
+        weekdayIndex(time) < weekdayIndex(rangeStart) \/ weekdayIndex(time) > weekdayIndex(rangeEnd))
+    in
+    formData, updatedBookings, lastId
+  end

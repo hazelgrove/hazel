@@ -1,0 +1,69 @@
+The following static errors were discovered:
+Error in term:
+  model.BookingFormData
+Nature of error: "model.BookingFormData" isn't a valid token
+Error in term:
+  model.BookingID
+Nature of error: "model.BookingID" isn't a valid token
+Error in term:
+  time2
+Nature of error: Expecting type Weekday but got inconsistent type Time
+Error in term:
+  model.BookingID
+Nature of error: "model.BookingID" isn't a valid token
+Error in term:
+  model.Bookings
+Nature of error: "model.Bookings" isn't a valid token
+Error in term:
+  model.BookingID
+Nature of error: "model.BookingID" isn't a valid token
+Error in term:
+  booking.time
+Nature of error: "booking.time" isn't a valid token
+Error in term:
+  model.BookingFormData
+Nature of error: "model.BookingFormData" isn't a valid token
+Error in term:
+  model.Bookings
+Nature of error: "model.Bookings" isn't a valid token
+Error in term:
+  case action
+ | AddBooking((user, weekday, timeOfDay)) => let newBookingId = List.length(getBookings(model)) + 1 in
+ let newBooking = (weekday, timeOfDay, user, newBookingId) in
+ let newModel = (model.BookingFormData, model.Bookings ++ newBooking, newBookingId) in
+ newModel
+| CancelBooking((user, bookingId)) => let newBookings = List.filter((fun booking ->
+ booking.BookingID != bookingId), model.Bookings) in
+ let newModel = (model.BookingFormData, newBookings, model.BookingID) in
+ newModel
+| ClearBookings => let newModel = (model.BookingFormData, , model.BookingID) in
+ newModel
+| ClearRange((time1, time2)) => let newBookings = List.filter((fun booking ->
+ (weekdayIndex(booking.time) < weekdayIndex(time1)) \/ (weekdayIndex(booking.time) > weekdayIndex(time2))), model.Bookings) in
+ let newModel = (model.BookingFormData, newBookings, model.BookingID) in
+ newModel
+end
+Nature of error: Expecting branches to have consistent types but got types: (?, String, Int), (?, [?], ?), (?, [?], ?), (?, [?], ?)
+Error in term:
+  model.BookingFormData
+Nature of error: "model.BookingFormData" isn't a valid token
+Error in term:
+  booking.BookingID
+Nature of error: "booking.BookingID" isn't a valid token
+Error in term:
+  model.Bookings
+Nature of error: "model.Bookings" isn't a valid token
+Error in term:
+  newBooking
+Nature of error: Expecting type String but got inconsistent type [(Weekday, TimeOfDay, User, Int)]
+Error in term:
+  booking.time
+Nature of error: "booking.time" isn't a valid token
+Error in term:
+  time1
+Nature of error: Expecting type Weekday but got inconsistent type Time
+Error in term:
+  model.BookingFormData
+Nature of error: "model.BookingFormData" isn't a valid token
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

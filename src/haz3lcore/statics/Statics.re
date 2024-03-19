@@ -214,7 +214,7 @@ and uexp_to_info_map =
     let (ty_in, ty_out) = typ_exp_unop(op);
     let (e, m) = go(~mode=Ana(ty_in), e, m);
     add(~self=Just(ty_out), ~co_ctx=e.co_ctx, m);
-  | BinOp(Int(Equals), e1, e2) =>
+  | BinOp(Int(Equals | NotEquals), e1, e2) =>
     let (e1, m) = go(~mode=Syn, e1, m);
     let (e2, m) = go(~mode=Ana(e1.ty), e2, m);
     add(~self=Just(Bool), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);

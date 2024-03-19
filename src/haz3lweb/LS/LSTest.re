@@ -278,6 +278,17 @@ let record_derived = (~io: io) => {
   io.add("derived-completed-run", "true");
 };
 
+let fix_or = s =>
+  Js_of_ocaml.Regexp.global_replace(
+    Js_of_ocaml.Regexp.regexp("\\|\\|"),
+    s,
+    "\\/",
+  );
+
+let fix_or_op = ({content, usage}: OpenAI.reply): OpenAI.reply => {
+  {content: fix_or(content), usage};
+};
+
 let rec error_loop =
         (
           ~io,
@@ -293,6 +304,8 @@ let rec error_loop =
           ~reply: OpenAI.reply,
         )
         : unit => {
+  /* HACK(andrew): convert or op */
+  let reply = fix_or_op(reply);
   let go =
     error_loop(~db, ~llm, ~key, ~caret_ctx, ~caret_mode, ~handler, ~max);
   let error_res =
@@ -415,7 +428,8 @@ let go =
     db("LS: RunTest: Prompt generation succeeded");
     io.save("initial-prompt", OpenAI.show_prompt(prompt));
     print_endline(OpenAI.show_prompt(prompt));
-    //failwith("YOLO5000") |> ignore;
+    // print_endline(fix_or("a || b"));
+    // failwith("YOLO5000") |> ignore;
     ask_gpt(
       ~llm=options.llm,
       ~key,

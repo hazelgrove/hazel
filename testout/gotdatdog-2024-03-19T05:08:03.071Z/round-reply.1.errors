@@ -1,0 +1,9 @@
+The following static errors were discovered:
+Error in term:
+  start_time_of_day
+Nature of error: Expecting type Int but got inconsistent type TimeOfDay
+Error in term:
+  end_time_of_day
+Nature of error: Expecting type Int but got inconsistent type TimeOfDay
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

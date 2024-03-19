@@ -762,7 +762,23 @@ let rec evaluate: (ClosureEnvironment.t, DHExp.t) => m(EvaluatorResult.t) =
       let* r2 = evaluate(env, d2);
       switch (r1, r2) {
       | (BoxedValue(d1'), BoxedValue(d2')) =>
-        return(BoxedValue(BoolLit(DHExp.fast_equal(d1', d2'))))
+        let b =
+          DHExp.fast_equal(DHExp.strip_casts(d1'), DHExp.strip_casts(d2'));
+        return(BoxedValue(BoolLit(b)));
+      | (BoxedValue(d1'), Indet(d2'))
+      | (Indet(d1'), BoxedValue(d2'))
+      | (Indet(d1'), Indet(d2')) =>
+        return(Indet(BinIntOp(Equals, d1', d2')))
+      };
+
+    | BinIntOp(NotEquals, d1, d2) =>
+      let* r1 = evaluate(env, d1);
+      let* r2 = evaluate(env, d2);
+      switch (r1, r2) {
+      | (BoxedValue(d1'), BoxedValue(d2')) =>
+        let b =
+          !DHExp.fast_equal(DHExp.strip_casts(d1'), DHExp.strip_casts(d2'));
+        return(BoxedValue(BoolLit(b)));
       | (BoxedValue(d1'), Indet(d2'))
       | (Indet(d1'), BoxedValue(d2'))
       | (Indet(d1'), Indet(d2')) =>

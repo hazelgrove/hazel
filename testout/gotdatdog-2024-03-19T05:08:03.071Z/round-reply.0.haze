@@ -1,0 +1,17 @@
+
+fun m, a ->
+  case a
+  | AddBooking(booking) => let (current_form, bookings, booking_id) = m in
+                             let (user, weekday, time_of_day) = booking in
+                             let new_booking = (weekday, time_of_day), user, booking_id + 1 in
+                             (current_form, new_booking::bookings, booking_id + 1)
+  | CancelBooking(user, booking_id) => let (current_form, bookings, _) = m in
+                                         let bookings_filtered = List.filter(fun (_, u, id) -> u != user \/ id != booking_id, bookings) in
+                                         (current_form, bookings_filtered, booking_id)
+  | ClearBookings => (m.1, [], 0)
+  | ClearRange(range) => let (current_form, bookings, booking_id) = m in
+                           let ((start_weekday, start_day_time), (end_weekday, end_day_time)) = range in
+                           let filter = fun ((weekday, time_of_day), _, _) -> (weekday, time_of_day) >= (start_weekday, start_day_time) && (weekday, time_of_day) <= (end_weekday, end_day_time) in
+                           let bookings_filtered = List.filter(filter, bookings) in
+                           (current_form, bookings_filtered, booking_id)
+  end

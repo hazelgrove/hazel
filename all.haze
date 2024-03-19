@@ -1,0 +1,769 @@
+# Hazel Language Builtin Functions #
+
+# infinity: Float #
+# neg_infinity: Float #
+# nan: Float #
+# epsilon_float: Float #
+# pi: Float #
+# max_int: Int #
+# min_int: Int #
+# is_finite: Float -> Bool #
+# is_infinite: Float -> Bool #
+# is_nan: Float -> Bool #
+# int_of_float: Float -> Int #
+# float_of_int: Int -> Float #
+# string_of_int: Int -> String #
+# string_of_float: Float -> String #
+# string_of_bool: Bool -> String #
+# int_of_string: String -> Int #
+# float_of_string: String -> Float #
+# bool_of_string: String -> Bool #
+# abs: Int -> Int #
+# abs_float: Float -> Float #
+# ceil: Float -> Float #
+# floor: Float -> Float #
+# exp: Float -> Float #
+# log: Float -> Float #
+# log10: Float -> Float #
+# sqrt: Float -> Float #
+# sin: Float -> Float #
+# cos: Float -> Float #
+# tan: Float -> Float #
+# asin: Float -> Float #
+# acos: Float -> Float #
+# atan: Float -> Float #
+# mod: (Int, Int) -> Int #
+# string_length: String -> Int #
+# string_compare: (String, String) -> Int #
+# string_trim: String -> String #
+# string_concat: (String, [String]) -> String #
+# string_sub: (String, Int, Int) -> String #
+
+# Hazel MVU Builtin Styles #
+
+# AlignItems: String #
+# BackgroundColor: String #
+# Border: String #
+# BorderRadius: String #
+# BoxShadow: String #
+# Color: String #
+# Cursor: String #
+# Display: String #
+# FlexDirection: String #
+# FontFamily: String #
+# FontSize: String #
+# FontStyle: String #
+# Gap: String #
+# Height: String #
+# JustifyContent: String #
+# Margin: String #
+# Opacity: String #
+# Outline: String #
+# Overflow: String #
+# Padding: String #
+# Position: String #
+# Width: String #
+# S: (String, String) #
+
+# Hazel Language Quick Reference #
+
+# Empty holes stand for missing expressions, patterns, or types #
+let empty_hole =   in
+
+# Integers #
+let int_lits : Int = 1 in
+let negation = -1 in
+let arithmetic = 1*2 + 8/4 in
+let int_comparison = (10 == 10, 1 < 2, 2 <= 3, 3 > 2, 2 >= 1) in
+
+# Floating Point Numbers #
+let float_lits : Float = 1.5 in
+let float_artih = 1. *. 2. +. 8. /. 4. in
+let float_comparison = (10. ==.10., 1. <.2., 2. <=.3., 3. >.2., 2. >=.1.) in
+
+# Booleans #
+let booleans : (Bool, Bool) = (true, false) in
+let conditionals =
+  let (x, y) = (2 + 2, 3 + 3) in
+  if y > x then 1
+  else 2
+in
+
+# Tuples #
+let tuples : (Int, Bool, (Bool, Int)) = (1, true, (false, 3)) in
+let (a, b, (c, d)) = tuples in
+
+# Functions #
+let y : (Int, Int, Int) -> Int =
+  fun (m, x, b) -> m * x + b
+in
+
+# Recursive Functions (arrow type annotation required) #
+let double_recursively : Int -> Int =
+  fun n ->
+    if n == 0 then 0
+    else double_recursively(n - 1) + 2
+in
+
+# Mutual Recursion (bind tuples of functions) #
+let (even : Int -> Bool, odd : Int -> Bool) = 
+  (fun n -> if n == 0 then true else odd(n - 1), 
+fun n -> if n == 0 then false else even(n - 1)) in 
+
+# Lists #
+let empty_list : [Int] = [] in
+let non_empty_list : [Int] = 1::2::3::[] in
+let list_literals : [Int] = [1, 2, 3] in
+let length : [Int] -> Int =
+  fun xs ->
+    case xs
+      | [] => 0
+      | hd::tl => 1 + length(tl)     
+    end
+in
+let has_at_least_two_elements : [Int] -> Bool =
+  fun xs ->
+    case xs
+      | [] => false
+      | hd::[] => false
+      | a::b::[] => true     
+    end
+in
+
+# Strings #
+let string_lits = "Hello, world!" in 
+let string_equality = string_lits $== "Hello, world!" in 
+
+# Non-empty holes are the red dotted boxes around errors #
+# (you can still run programs with non-empty holes) #
+let non_empty_hole : Int = true in 
+
+# Tests, separated by semicolons #
+test 2 + 2 == 4 end;
+test 3 + 3 == 6 end;
+test 2 + 2 == 5 end;
+
+2 + 2
+
+
+# BASICS #
+
+type Option = None + Some(?) in
+
+let fst: (?, ?) -> ? = fun a, b -> a in
+let snd: (?, ?) -> ? = fun a, b -> b in
+
+let not: Bool -> Bool = fun b -> !b in
+
+let bool_eq: (Bool, Bool) -> Bool =
+  fun a, b -> a && b \/ !a && !b in
+
+
+# Lists #
+
+# Add an element to the front of a list. #
+let List.cons: (?, [?]) -> [?] =
+  fun x, xs -> x::xs in
+
+# Determine the length of a list. #
+let List.length: [?] -> Int =
+  fun xs ->
+    case xs
+    | [] => 0
+    | _::xs => 1 + List.length(xs) end in
+
+# Extract the head of the list. #
+let List.hd: [?] -> ? =
+  fun l -> 
+    case l  
+    | [] => ?
+    | x::xs => x end in
+
+# Extract the rest of the list. #
+let List.tl: [?] -> [?] =
+  fun l ->
+    case l 
+    | [] => ?
+    | x::xs => xs end in
+
+# Determine if a list is empty. #
+let List.is_empty: [?] -> Bool =
+  fun xs ->
+    case xs
+    | [] => true
+    | _::_ => false end in
+
+let List.nth: ([?], Int) -> ? =
+  fun xs, n ->
+    case xs, n
+    | x::_, 0 => x
+    | _::xs, n => List.nth(xs, n - 1)
+    | [], _ => ? end in
+
+# Reverse a List. #
+let List.rev: [?] -> [?] =
+  fun l -> 
+    let go: ([?], [?]) -> [?] =
+      fun xs, acc -> 
+        case xs 
+        | [] => acc 
+        | x::xs => go(xs, x::acc) end in
+   go(l, []) in
+
+# Initialize a list with a given length using an initializer function #
+let List.init: (Int, Int -> ?) -> [?] =
+  fun len, f ->
+    let go: (Int, [?]) -> [?] =
+      fun idx, xs ->
+        if idx < len 
+        then go(idx+ 1, xs @ [f(idx)])   
+        else xs in
+    go(0, []) in
+
+# Check if two lists are equal #
+let List.equal: (? -> Bool, [?], [?]) -> Bool =
+  fun p, xs, ys ->
+    case xs, ys
+    | [], [] => true
+    | x::xs, y::ys => p(x, y) && List.equal(p, xs, ys)
+    | _ => false end in
+
+let List.eq = List.equal in
+
+# Reduce a list from the left. #
+let List.fold_left: ((?, ?)-> ?, ?, [?])-> ?   =
+  fun f, acc, xs ->
+    case xs 
+    | [] => acc
+    | hd::tl => List.fold_left(f, f(acc, hd), tl) end in
+
+# Reduce a list from the right. #
+let List.fold_right: ((?, ?)-> ?, [?], ?)-> ? =
+  fun f, xs, acc ->
+    case xs
+    | [] => acc
+    | hd::tl => f(hd, List.fold_right(f, tl, acc)) end in
+
+let List.fold_left2: ((?, ?, ?) -> ?, ?, [?], [?]) -> [?] = 
+  fun f, acc, xs, ys ->
+    case xs, ys
+    | [], [] => acc
+    | x::xs, y::ys =>
+      List.fold_left2(f, f(acc, x, y), xs, ys)
+    | _ => ? end in
+
+let List.fold_right2: ((?, ?, ?) -> ?, [?], [?], ?) -> [?] =
+  fun f, acc, xs, ys ->
+    case xs, ys
+    | [], [] => acc
+    | x::xs, y::ys =>
+       f(x, y, List.fold_right2(f, xs, ys, acc))
+    | _ => ? end in
+
+let List.map: (? -> ?, [?]) -> ? =
+  fun f, xs ->
+    List.fold_right(fun x, acc -> f(x)::acc, xs, []) in
+
+let List.map2: ((?,?) -> ?, [?], [?]) -> [?] =
+  fun f, xs, ys ->
+    List.fold_left2(
+      fun x, y, acc -> f(x, y)::acc, xs, ys, []) in
+
+# Keep elements that satisfy the test. #
+let List.filter: (? -> Bool, [?]) -> [?] =
+  fun p, xs ->
+    case xs
+    | [] => []
+    | x::xs =>
+      let xs = List.filter(p, xs) in 
+      if p(x) then x :: xs else xs end in
+
+let List.append: (([?], [?]) -> [?]) =
+  fun xs, ys -> List.fold_right(List.cons, xs, ys) in
+
+let List.concat: [[?]] -> [?] =
+  fun xss -> List.fold_right(List.append, xss, [])  in
+
+let List.flatten = List.concat in
+
+let List.mapi: ((Int, ?) -> ?, [?]) -> [?] =
+  fun f, xs ->
+    let go: ? -> ? = fun idx, xs ->
+      case xs
+      | [] => []
+      | hd::tl => f(idx, hd)::go(idx + 1, tl) end in
+    go(0, xs) in
+
+let List.filteri: ((Int, ?) -> Bool, [?]) -> [?] =
+  fun f, xs ->
+    List.concat(List.mapi(
+      fun i, x -> if f(i, x) then [x] else [], xs)) in
+
+let List.exists: (? -> Bool, [?]) -> Bool =
+  fun p, xs -> List.exists(p, xs) in
+
+let List.for_all: (? -> Bool, [?]) -> Bool =
+  fun p, xs -> not(List.exists(fun x -> not(p(x)), xs)) in
+
+let List.mem = fun eq, xs, y ->
+  List.exists(fun x -> eq(x, y), xs) in
+
+# Strings #
+
+let String.starts_with: (String, String) -> Bool =
+  fun string, prefix ->
+    if string_length(string) >= string_length(prefix)
+    then
+      let string_prefix = string_sub(string, 0, string_length(prefix)) in
+      string_prefix $== prefix
+    else
+      false in
+
+let String.reverse: String -> String =
+  fun string ->
+    if string_length(string) <= 1
+    then string
+    else
+      string_sub(string, string_length(string) - 1, 1)
+      ++ String.reverse(string_sub(string, 0, string_length(string) - 1)) in
+
+type StringTransform =
+  + Reverse
+  + Trim in
+
+let String.transform: (String, [StringTransform]) -> String =
+  fun string, transforms ->
+    case transforms
+    | [] => string
+    | transform::rest =>
+      let result =
+        case transform
+        | Reverse => String.reverse(string)
+        | Trim =>
+          let starts_with_space = String.starts_with(string, " ") in
+          let ends_with_space = String.starts_with(String.reverse(string), " ") in
+          if starts_with_space && ends_with_space then
+            string_sub(string, 1, string_length(string) - 2)
+          else if starts_with_space then
+            string_sub(string, 1, string_length(string) - 1)
+          else if ends_with_space then
+            string_sub(string, 0, string_length(string) - 2)  
+          else
+            string
+        end in
+      String.transform(result, rest) end in
+
+
+# Terms #
+
+type Term =
+  + Var(String)
+  + Abs(String, Term)
+  + App(Term, Term)
+in
+
+let term_to_string: Term -> String =
+  fun term ->
+    case term
+    | Var(x) => x
+    | Abs(x, body) => "(lambda " ++ x ++ ". " ++ term_to_string(body) ++ ")"
+    | App(func, arg) => "(" ++ term_to_string(func) ++ " " ++ term_to_string(arg) ++ ")"
+  end
+in
+
+let parse_term: String -> (Term, String) =
+  fun string ->
+    if String.starts_with(string, "(lambda ") then
+      let keyword_length = string_length("(lambda ") in
+      let var = string_sub(string, keyword_length, 1) in
+      let body, rest_string = parse_term(string_sub(string, keyword_length + 3, string_length(string) - keyword_length - 3)) in
+      # Skip the closing ) #
+      let rest_string = string_sub(rest_string, 1, string_length(rest_string) - 1) in
+      (Abs(var, body), rest_string)
+    else
+      if String.starts_with(string, "(")
+      then
+        let func, rest_string = parse_term(string_sub(string, 1, string_length(string) - 1)) in
+        # Skip the space between func and arg #
+        let rest_string = string_sub(rest_string, 1, string_length(rest_string) - 1) in
+        let arg, rest_string = parse_term(rest_string) in
+        # Skip the closing ) after arg #
+        let rest_string = string_sub(rest_string, 1, string_length(rest_string) - 1) in
+        (App(func, arg), rest_string)
+      else
+        (Var(string_sub(string, 0, 1)), string_sub(string, 1, string_length(string) - 1))
+in
+
+# LAMBDA CALCULUS #
+
+# Lambda Calculus via evaluation by substitution #
+
+# An Expression is a variable, function, or application #
+type Exp =
+  + Var(String)
+  + Lam(String, Exp)
++ Ap(Exp, Exp) in
+
+# Syntatic Equality of Expressions #
+let exp_equal: (Exp, Exp) -> Bool =
+  fun es ->
+    case es
+      | Var(x), Var(y) => x $== y
+      | Lam(x1, e1), Lam(x2, e2) =>
+        x1 $== x2 && exp_equal(e1, e2)
+      | Ap(e1, e2), Ap(e3, e4) =>
+        exp_equal(e1, e3) && exp_equal(e2, e4)
+| _ => false end in
+
+# Substitute Exp v for variable name in Exp e #
+let subst: (Exp, String, Exp) -> Exp=
+  fun v, name, e ->
+    case e
+      | Var(n) =>
+        (if n $== name then v else e)
+      | Lam(x, body) =>
+        Lam(x, subst(v,name, body))
+      | Ap(e1,e2) =>
+  Ap(subst(v, name, e1), subst(v, name, e2)) end in
+
+# Evaluation can result in either an Exp or an Error #
+type Result =
+  + Error(String)
+  + Ok(Exp)  
+in
+
+let result_equal: (Result, Result) -> Bool =
+  fun rs ->
+    case rs
+      | Ok(e1), Ok(e2) => exp_equal(e1, e2)
+      | Error(e1), Error(e2) => e1 $== e2
+| _ => false end in
+
+# Evaluation by substitution #
+let eval: Exp -> Result =
+  fun e ->
+    case e
+      | Var(n) => Error("Free Variable")
+      | Lam(x, body) => Ok(Lam(x, body))
+      | Ap(e1,e2) =>
+      case eval(e1)
+        | Ok(Lam(x, body))=>
+        case eval(e2)
+          | Error(err) => Error(err)
+        | Ok(arg) => eval(subst(arg, x, body)) end
+| _ => Error("Not a Function") end end in
+
+test result_equal(
+  eval(Var("yo")),
+Error("Free Variable")) end;
+
+test result_equal(
+  eval(Ap(Var("no"), Lam("bro", Var("bro")))),
+Error("Not a Function")) end;
+
+test result_equal(
+  eval(Lam("yo", Var("yo"))),
+Ok(Lam("yo", Var("yo")))) end;
+
+test result_equal(
+  eval(Ap(Lam("yo", Var("yo")), Lam("bro", Var("bro")))),
+Ok(Lam("bro", Var("bro")))) end
+
+
+# TODO MVU PRELUDE #
+
+# A todo has a description and a status #
+type Todo = (String, Bool) in
+
+# A description input buffer and a todo list #
+type Model = (String, [Todo]) in
+
+type Action =
+  + AddTodo
+  + RemoveTodo(Int)
+  + ToggleTodo(Int)
+  + UpdateBuffer(String) in
+
+type Update = (Model, Action) -> Model in
+
+let Todo.eq: (Todo, Todo) -> Bool =
+  fun (d1, s1), (d2, s2) ->
+  d1 $== d2 && bool_eq(s1, s2) in
+
+let Model.eq: (Model, Model) -> Bool =
+  fun (b1, ts1), (b2, ts2) ->
+    b1 $== b2 && List.equal(Todo.eq, ts1, ts2) in
+
+let Model.init: Model = ("", []) in
+
+
+# TODO MVU SOLUTION #
+
+let update: (Model, Action) -> Model =
+  let add: Model -> [Todo] =
+    fun (description, todos) ->
+      if description $== ""      
+      then todos     
+      else (description, false) :: todos in
+  let remove: (Int, [Todo]) -> [Todo]=
+     fun (index, todos) ->
+      List.filteri(fun i, _ -> i!= index, todos) in
+  let toggle: (Int, [Todo]) -> [Todo]=
+    fun (index, todos) ->
+      List.mapi(
+        fun i, (description, done) ->
+          (description, if i == index then !done else done),
+          todos) in
+  fun ((input: String, todos: [Todo]), action) ->
+    case action
+    | AddTodo => ("", add(input, todos))
+    | ToggleTodo(idx) => (input, toggle(idx, todos))
+    | RemoveTodo(idx) => (input, remove(idx, todos))
+    | UpdateBuffer(description) => (description, todos) end in
+
+
+# TODO MVU EPILOGUE #    
+
+let eq = Model.eq in
+let num_todos = fun m:Model -> List.length(snd(m)) in
+
+test  # Add adds #
+  num_todos(update(("Breath", []), AddTodo))
+  > num_todos(("Breath", [])) end;
+
+test  # Add uses name, initial status set #
+  eq(
+  update(("Breath", []), AddTodo),
+  ("", [("Breath", false)])) end;
+
+test  # Add nonempty (too impl spec? test add + remove eqs)#
+  eq(
+  update(("Chop wood", [("Carry water", false)]), AddTodo),
+    ("", [("Chop wood", false), ("Carry water", false)])) end;
+      
+test  # add then remove doesn't change todos #
+  let todos = [("Breath", false)] in
+  eq(
+    update(update(("Remove this", todos), AddTodo), RemoveTodo(0)),
+    ("", todos)) end;
+      
+test  # Toggle preserves length #
+  let model = ("", [("1", false), ("2", false)]) in
+  num_todos(update(model, ToggleTodo(1)))
+    == num_todos(model) end;
+    
+test  # Toggle toggles right index #
+  eq(
+    update(("", [("Chop", false), ("Carry", true)]), ToggleTodo(1)),
+    ("", [("Chop", false), ("Carry", false)])) end;
+  
+test  # Toggle out of bounds #
+  let model = ("", [("Chop", false), ("Carry", false)]) in
+  eq(
+    update(model, ToggleTodo(2)),
+    model) end;
+  
+test  # Remove removes #
+  let model = ("", [("1", false)]) in
+  num_todos(update(model, RemoveTodo(0)))
+  < num_todos(model) end;
+
+test  # Remove removes right index #
+  eq(
+    update(("", [("1", false), ("2", false)]), RemoveTodo(1)),
+    ("", [("1", false)])) end;
+  
+test  # Remove out of bounds #
+  let model = ("", [("1", false)]) in
+  eq(
+    update(model, RemoveTodo(2)),
+    model) end;
+
+test  # Update Input #
+eq(
+  update(("", []), UpdateBuffer("Breath")),
+  ("Breath", [])) end;
+      
+test  # Don't add blank description #
+  let model = ("", [("1", false)]) in
+  eq(
+    update(model, AddTodo),
+    model) end
+
+
+# TODO MVU VIEW #
+
+let todo_card : (Int, Todo) -> Node =
+  fun (idx, (descr: String, status: Bool)) ->
+    Div([
+      Style([
+        Display("flex"),
+        Gap("1em")]),
+      OnClick(fun () -> ToggleTodo(idx))],
+      [
+        Checkbox([OnClick(fun () -> RemoveTodo(idx))], []),
+        Div([], [Text(descr)]),
+        Text(if status then "Completed" else "Pending")]) in
+
+let todos_deck = fun todos: [Todo] ->
+  if (List.is_empty(todos))           
+  then Text("You're caught up")           
+  else Div(
+    [Create("class", "todos")],
+    [Text("todos:")] @ List.mapi(todo_card, todos)) in
+
+let add_button: Node =
+  Div([
+    Style([
+      Display("flex"),
+      JustifyContent("center"),
+      BackgroundColor("#986"),
+      BorderRadius("0.3em"),
+      Cursor("pointer")]),
+    OnClick(fun () -> AddTodo)],
+    [Text("Add Todo")]) in
+
+let buffer: Node =
+  Div([],
+      [TextInput([OnInput(UpdateBuffer)], [])]) in
+    
+let view: Model -> Node =
+  fun input: String, todos: [Todo] ->
+    Div(
+      [Style([
+        BackgroundColor("#543"),
+        BorderRadius("0.3em"),
+        Color("white"),
+        Display("flex"),
+        FlexDirection("column"),
+        Width("9.2em"),
+        Gap("0.5em"),
+        Padding("0.3em")])],
+      [
+        Text("Hazel Todos"),
+        buffer,
+        add_button,
+        todos_deck(todos)]) in
+        
+Render("todo_app", Model.init, view, update)
+
+
+# Playlist MVU PRELUDE #
+
+# Non-negative ID for songs #
+type Id = Int in
+
+# Actions user can do in a playlist #
+type PlayListAction =
+  + PlaySong(Id)
+  + PauseCurrentSong
+  + RemoveSong(Id)
+  # Add to the front of the playList, ignore duplication #
+  + AddSong(Id)
+in
+
+# The state of the playlist #
+type PlayListState =
+  + Playing(Id)
+  + PausedOn(Id)
+  + NoSongSelected
+in
+
+# A playlist with a list of songs and the current state of the playlist #
+type PlayList = ([Id], PlayListState) in
+
+# Get all the song ids in the playlist #
+let get_songs: PlayList -> [Id] =
+  fun playlist ->
+    let songs, current = playlist in
+    songs 
+in
+
+# Get the id of the currently playing song #
+let get_state: PlayList -> PlayListState =
+  fun playlist ->
+    let songs, state = playlist in
+    state
+in
+
+# Playlist MVU SOLUTION #
+
+# Update playlist based on action #
+let update: (PlayList, PlayListAction) -> PlayList =
+  fun playlist, action ->
+    case action
+      | PlaySong(id) => (get_songs(playlist), Playing(id))
+      | PauseCurrentSong =>
+        case get_state(playlist)
+        | Playing(id) =>
+          (get_songs(playlist), PausedOn(id))
+        | state =>
+          (get_songs(playlist), state)
+        end
+      | RemoveSong(id) =>
+        let new_songs = 
+          List.filter((fun x -> x != id), get_songs(playlist))
+        in
+        let new_state =
+          case get_state(playlist)
+          | Playing(current_id) =>
+            if id == current_id then
+              NoSongSelected
+            else
+              Playing(current_id)
+          | PausedOn(current_id) =>
+            if id == current_id then
+              NoSongSelected
+            else
+              PausedOn(current_id)
+          | NoSongSelected =>
+            NoSongSelected
+          end
+        in
+        (new_songs, new_state)
+      | AddSong(id) => (id::get_songs(playlist), get_state(playlist))
+    end
+in
+
+
+# Playlist MVU EPILOGUE #
+
+let PlayListState.eq: (PlayListState, PlayListState) -> Bool =
+  fun s1, s2 ->
+    case s1, s2
+    | Playing(i1), Playing(i2) => i1 == i2
+    | PausedOn(i1), PausedOn(i2) => i1 == i2
+    | NoSongSelected, NoSongSelected => true
+    | _ => false
+    end
+in
+
+let PlayList.eq: (PlayList, PlayList) -> Bool =
+  fun p1, p2 ->
+    PlayListState.eq(get_state(p1), get_state(p2)) &&
+    List.eq(fun i1, i2 -> i1 == i2, get_songs(p1), get_songs(p2))
+in
+
+# Testing PlaySong #
+
+test PlayList.eq(update(([0, 1, 2], NoSongSelected), PlaySong(0)), ([0, 1, 2], Playing(0))) end;
+test PlayList.eq(update(([0, 1, 2], PausedOn(1)), PlaySong(1)), ([0, 1, 2], Playing(1))) end;
+test PlayList.eq(update(([0, 1, 2], PausedOn(0)), PlaySong(1)), ([0, 1, 2], Playing(1))) end;
+
+# Testing PauseCurrentSong #
+test PlayList.eq(update(([0, 1, 2], NoSongSelected), PauseCurrentSong) ,([0, 1, 2], NoSongSelected)) end;
+test PlayList.eq(update(([0, 1, 2], PausedOn(1)), PauseCurrentSong), ([0, 1, 2], PausedOn(1))) end;
+test PlayList.eq(update(([0, 1, 2], Playing(0)), PauseCurrentSong), ([0, 1, 2], PausedOn(0))) end;
+
+# Testing RemoveSong #
+test PlayList.eq(update(([0, 1, 2], NoSongSelected), RemoveSong(0)), ([1, 2], NoSongSelected)) end;
+test PlayList.eq(update(([0, 1, 2], Playing(0)), RemoveSong(0)), ([1, 2], NoSongSelected)) end;
+test PlayList.eq(update(([0, 1, 2], PausedOn(0)), RemoveSong(0)), ([1, 2], NoSongSelected)) end;
+test PlayList.eq(update(([0, 1, 2], Playing(1)), RemoveSong(0)), ([1, 2], Playing(1))) end;
+test PlayList.eq(update(([0, 1, 2], PausedOn(1)), RemoveSong(0)), ([1, 2], PausedOn(1))) end;
+test PlayList.eq(update(([0, 1, 2], Playing(1)), RemoveSong(3)), ([0, 1, 2], Playing(1))) end;
+
+# Testing AddSong #
+test PlayList.eq(update(([0, 1, 2], NoSongSelected), AddSong(3)), ([3, 0, 1, 2], NoSongSelected)) end;
+test PlayList.eq(update(([0, 1, 2], Playing(0)), AddSong(3)), ([3, 0, 1, 2], Playing(0))) end;
+test PlayList.eq(update(([0, 1, 2], PausedOn(0)), AddSong(3)), ([3, 0, 1, 2], PausedOn(0))) end;
