@@ -571,7 +571,7 @@ module Transition = (EV: EV_MODE) => {
       Indet;
     | Closure(env', d) =>
       let. _ = otherwise(env, d => Closure(env', d))
-      and. d' = req_value(req(state, env'), d1 => Closure(env', d1), d);
+      and. d' = req_final(req(state, env'), d1 => Closure(env', d1), d);
       Step({apply: () => d', kind: CompleteClosure, value: true});
     | NonEmptyHole(reason, u, i, d1) =>
       let. _ = otherwise(env, d1 => NonEmptyHole(reason, u, i, d1))
