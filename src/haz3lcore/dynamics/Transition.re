@@ -497,38 +497,32 @@ module Transition = (EV: EV_MODE) => {
         kind: Projection,
         value: false,
       });
-    // TODO(Matt): Can we do something cleverer when the list structure is complete but the contents aren't?
     | Cons(d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => Cons(d1, d2))
       and. d1' = req_final(req(state, env), d1 => Cons1(d1, d2), d1)
-      and. d2' = req_value(req(state, env), d2 => Cons2(d1, d2), d2);
-      Step({
-        apply: () =>
-          switch (unbox_list(d2')) {
-          | ListLit(u, i, ty, ds) => ListLit(u, i, ty, [d1', ...ds])
-          | _ => raise(EvaluatorError.Exception(InvalidBoxedListLit(d2')))
-          },
-        kind: ListCons,
-        value: true,
-      });
+      and. d2' = req_final(req(state, env), d2 => Cons2(d1, d2), d2);
+      switch (unbox_list(d2')) {
+      | ListLit(u, i, ty, ds) =>
+        Step({
+          apply: () => ListLit(u, i, ty, [d1', ...ds]),
+          kind: ListCons,
+          value: true,
+        })
+      | _ => Indet
+      };
     | ListConcat(d1, d2) =>
-      // TODO(Matt): Can we do something cleverer when the list structure is complete but the contents aren't?
       let. _ = otherwise(env, (d1, d2) => ListConcat(d1, d2))
-      and. d1' = req_value(req(state, env), d1 => ListConcat1(d1, d2), d1)
-      and. d2' = req_value(req(state, env), d2 => ListConcat2(d1, d2), d2);
-      Step({
-        apply: () =>
-          switch (unbox_list(d1'), unbox_list(d2')) {
-          | (ListLit(u1, i1, t1, ds1), ListLit(_, _, _, ds2)) =>
-            ListLit(u1, i1, t1, ds1 @ ds2)
-          | (ListLit(_), _) =>
-            raise(EvaluatorError.Exception(InvalidBoxedListLit(d2')))
-          | (_, _) =>
-            raise(EvaluatorError.Exception(InvalidBoxedListLit(d1')))
-          },
-        kind: ListConcat,
-        value: true,
-      });
+      and. d1' = req_final(req(state, env), d1 => ListConcat1(d1, d2), d1)
+      and. d2' = req_final(req(state, env), d2 => ListConcat2(d1, d2), d2);
+      switch (unbox_list(d1'), unbox_list(d2')) {
+      | (ListLit(u1, i1, t1, ds1), ListLit(_, _, _, ds2)) =>
+        Step({
+          apply: () => ListLit(u1, i1, t1, ds1 @ ds2),
+          kind: ListConcat,
+          value: true,
+        })
+      | _ => Indet
+      };
     | ListLit(u, i, ty, ds) =>
       let. _ = otherwise(env, ds => ListLit(u, i, ty, ds))
       and. _ =
