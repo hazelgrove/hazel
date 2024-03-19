@@ -2112,7 +2112,7 @@ let get_doc =
         }
       | _ => basic(ArrowTyp.arrow)
       };
-    | Tuple(elements) =>
+    | Prod(elements) =>
       let basic = group =>
         get_message(
           ~format=

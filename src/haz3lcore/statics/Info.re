@@ -137,7 +137,7 @@ type typ_expects =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_typ =
   | BadToken(Token.t) /* Invalid token, treated as type hole */
-  | FreeTypeVariable(TypVar.t) /* Free type variable */
+  | FreeTypeVariable(string) /* Free type variable */
   | DuplicateConstructor(Constructor.t) /* Duplicate ctr in same sum */
   | WantTypeFoundAp
   | WantConstructorFoundType(Typ.t)
@@ -148,7 +148,7 @@ type error_typ =
 type ok_typ =
   | Variant(Constructor.t, Typ.t)
   | VariantIncomplete(Typ.t)
-  | TypeAlias(TypVar.t, Typ.t)
+  | TypeAlias(string, Typ.t)
   | Type(Typ.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -164,14 +164,14 @@ type type_var_err =
 /* Type pattern term errors */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_tpat =
-  | ShadowsType(TypVar.t)
+  | ShadowsType(string)
   | NotAVar(type_var_err);
 
 /* Type pattern ok statuses for cursor inspector */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type ok_tpat =
   | Empty
-  | Var(TypVar.t);
+  | Var(string);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type status_tpat =

@@ -348,7 +348,7 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
     | ([(_id, tile)], []) =>
       ret(
         switch (tile) {
-        | ([t], []) when Form.is_empty_tuple(t) => Tuple([])
+        | ([t], []) when Form.is_empty_tuple(t) => Prod([])
         | (["Bool"], []) => Bool
         | (["Int"], []) => Int
         | (["Float"], []) => Float
@@ -389,7 +389,7 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
     }
   | Bin(Typ(l), tiles, Typ(r)) as tm =>
     switch (is_tuple_typ(tiles)) {
-    | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
+    | Some(between_kids) => ret(Prod([l] @ between_kids @ [r]))
     | None =>
       switch (tiles) {
       | ([(_id, (["->"], []))], []) => ret(Arrow(l, r))

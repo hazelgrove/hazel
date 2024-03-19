@@ -586,7 +586,7 @@ and utyp_to_info_map =
     let m = go(t1, m) |> snd;
     let m = go(t2, m) |> snd;
     add(m);
-  | Tuple(ts) =>
+  | Prod(ts) =>
     let m = map_m(go, ts, m) |> snd;
     add(m);
   | Ap(t1, t2) =>

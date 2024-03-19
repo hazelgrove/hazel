@@ -47,7 +47,7 @@ module TypTerm = {
     | Bool
     | String
     | Arrow
-    | Tuple
+    | Prod
     | Sum
     | List
     | Var
@@ -82,7 +82,7 @@ module TypTerm = {
     | Arrow(_) => Arrow
     | Var(_) => Var
     | Constructor(_) => Constructor
-    | Tuple(_) => Tuple
+    | Prod(_) => Prod
     | Parens(_) => Parens
     | Ap(_) => Ap
     | Sum(_) => Sum
@@ -101,7 +101,7 @@ module TypTerm = {
     | Constructor => "Sum constructor"
     | List => "List type"
     | Arrow => "Function type"
-    | Tuple => "Product type"
+    | Prod => "Product type"
     | Sum => "Sum type"
     | Parens => "Parenthesized type"
     | Ap => "Constructor application"
@@ -119,7 +119,7 @@ module TypTerm = {
     | Bool
     | String
     | List(_)
-    | Tuple(_)
+    | Prod(_)
     | Var(_)
     | Constructor(_)
     | Ap(_)
@@ -145,7 +145,7 @@ module TypTerm = {
         | None => Unknown(Free(name))
         }
       | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
-      | Tuple(us) => Prod(List.map(to_typ(ctx), us))
+      | Prod(us) => Prod(List.map(to_typ(ctx), us))
       | Sum(uts) => Sum(to_ctr_map(ctx, uts))
       | List(u) => List(to_typ(ctx, u))
       | Parens(u) => to_typ(ctx, u)
