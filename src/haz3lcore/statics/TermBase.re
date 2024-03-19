@@ -115,6 +115,7 @@ and UExp: {
     | ListLit
     | Tag
     | Fun
+    | TupLabel
     | Tuple
     | Var
     | Let
@@ -143,6 +144,7 @@ and UExp: {
     | ListLit(list(t))
     | Constructor(string)
     | Fun(UPat.t, t)
+    | TupLabel(LabeledTuple.t, t)
     | Tuple(list(t))
     | Var(Var.t)
     | Let(UPat.t, t, t)
@@ -246,6 +248,7 @@ and UExp: {
     | ListLit
     | Tag
     | Fun
+    | TupLabel
     | Tuple
     | Var
     | Let
@@ -274,6 +277,7 @@ and UExp: {
     | ListLit(list(t))
     | Constructor(string)
     | Fun(UPat.t, t)
+    | TupLabel(LabeledTuple.t, t)
     | Tuple(list(t))
     | Var(Var.t)
     | Let(UPat.t, t, t)
@@ -358,6 +362,7 @@ and UPat: {
     | Constructor(string)
     | Cons(t, t)
     | Var(Var.t)
+    | TupLabel(LabeledTuple.t, t)
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
@@ -382,6 +387,7 @@ and UPat: {
     | Constructor(string)
     | Cons(t, t)
     | Var(Var.t)
+    | TupLabel(LabeledTuple.t, t)
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
@@ -405,6 +411,7 @@ and UTyp: {
     | Var(string)
     | Constructor(string)
     | Arrow(t, t)
+    | TupLabel(LabeledTuple.t, t)
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
@@ -430,6 +437,7 @@ and UTyp: {
     | Var(string)
     | Constructor(string)
     | Arrow(t, t)
+    | TupLabel(LabeledTuple.t, t)
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)

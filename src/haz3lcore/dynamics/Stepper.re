@@ -122,6 +122,9 @@ let rec matches =
     | BinStringOp2(op, d1, ctx) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       BinStringOp2(op, d1, ctx);
+    | TupLabel(s, ctx) =>
+      let+ ctx = matches(env, flt, ctx, exp, act, idx);
+      TupLabel(s, ctx);
     | Tuple(ctx, ds) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       Tuple(ctx, ds);

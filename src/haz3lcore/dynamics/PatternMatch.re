@@ -141,27 +141,45 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     matches(dp, d)
   | (Constructor(_), _) => DoesNotMatch
 
+  | (TupLabel(_, dp), TupLabel(_, d)) => matches(dp, d)
+  | (TupLabel(_, _), _) => DoesNotMatch
+
   | (Tuple(dps), Tuple(ds)) =>
-    if (List.length(dps) != List.length(ds)) {
-      DoesNotMatch;
-    } else {
-      List.fold_left2(
-        (result, dp, d) =>
-          switch (result) {
-          | DoesNotMatch => DoesNotMatch
-          | IndetMatch => IndetMatch
-          | Matches(env) =>
-            switch (matches(dp, d)) {
-            | DoesNotMatch => DoesNotMatch
-            | IndetMatch => IndetMatch
-            | Matches(env') => Matches(Environment.union(env, env'))
-            }
-          },
-        Matches(Environment.empty),
-        dps,
-        ds,
-      );
-    }
+    let filt1: DHPat.t => option(LabeledTuple.t) = (
+      d =>
+        switch (d) {
+        | TupLabel(s, _) => Some(s)
+        | _ => None
+        }
+    );
+    let filt2: DHExp.t => option(LabeledTuple.t) = (
+      d =>
+        switch (d) {
+        | TupLabel(s, _) => Some(s)
+        | _ => None
+        }
+    );
+    let f = (result, dp, d) => {
+      switch (result) {
+      | DoesNotMatch => DoesNotMatch
+      | IndetMatch => IndetMatch
+      | Matches(env) =>
+        switch (matches(dp, d)) {
+        | DoesNotMatch => DoesNotMatch
+        | IndetMatch => IndetMatch
+        | Matches(env') => Matches(Environment.union(env, env'))
+        }
+      };
+    };
+    LabeledTuple.ana_tuple(
+      filt1,
+      filt2,
+      f,
+      Matches(Environment.empty),
+      DoesNotMatch,
+      dps,
+      ds,
+    );
   | (Tuple(dps), Cast(d, Prod(tys), Prod(tys'))) =>
     assert(List.length(tys) == List.length(tys'));
     matches_cast_Tuple(
@@ -265,6 +283,7 @@ and matches_cast_Sum =
   | FloatLit(_)
   | StringLit(_)
   | ListLit(_)
+  | TupLabel(_, _)
   | Tuple(_)
   | Sequence(_, _)
   | Closure(_)
@@ -284,22 +303,41 @@ and matches_cast_Tuple =
     if (List.length(dps) != List.length(ds)) {
       DoesNotMatch;
     } else {
-      assert(List.length(List.combine(dps, ds)) == List.length(elt_casts));
-      List.fold_right(
-        (((dp, d), casts), result) => {
-          switch (result) {
-          | DoesNotMatch
-          | IndetMatch => result
-          | Matches(env) =>
-            switch (matches(dp, DHExp.apply_casts(d, casts))) {
-            | DoesNotMatch => DoesNotMatch
-            | IndetMatch => IndetMatch
-            | Matches(env') => Matches(Environment.union(env, env'))
-            }
+      let filt1: DHPat.t => option(LabeledTuple.t) = (
+        d =>
+          switch (d) {
+          | TupLabel(s, _) => Some(s)
+          | _ => None
           }
-        },
-        List.combine(List.combine(dps, ds), elt_casts),
+      );
+      let filt2: ((DHExp.t, _)) => option(LabeledTuple.t) = (
+        ((d, _)) =>
+          switch (d) {
+          | TupLabel(s, _) => Some(s)
+          | _ => None
+          }
+      );
+      assert(List.length(List.combine(dps, ds)) == List.length(elt_casts));
+      let f = (result, dp, (d, casts)) => {
+        switch (result) {
+        | DoesNotMatch => DoesNotMatch
+        | IndetMatch => IndetMatch
+        | Matches(env) =>
+          switch (matches(dp, DHExp.apply_casts(d, casts))) {
+          | DoesNotMatch => DoesNotMatch
+          | IndetMatch => IndetMatch
+          | Matches(env') => Matches(Environment.union(env, env'))
+          }
+        };
+      };
+      LabeledTuple.ana_tuple(
+        filt1,
+        filt2,
+        f,
         Matches(Environment.empty),
+        DoesNotMatch,
+        dps,
+        List.combine(ds, elt_casts),
       );
     }
   | Cast(d', Prod(tys), Prod(tys')) =>
@@ -327,6 +365,8 @@ and matches_cast_Tuple =
       d',
       List.map2(List.cons, List.combine(tys, tys'), elt_casts),
     );
+  // What should TupLabel be?
+  | TupLabel(_, _) => DoesNotMatch
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_) => IndetMatch
@@ -491,6 +531,7 @@ and matches_cast_Cons =
   | Test(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
   | StringLit(_) => DoesNotMatch
+  | TupLabel(_, _) => DoesNotMatch
   | Tuple(_) => DoesNotMatch
   | Prj(_) => IndetMatch
   | Constructor(_) => DoesNotMatch

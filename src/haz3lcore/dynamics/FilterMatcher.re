@@ -132,6 +132,9 @@ let rec matches_exp =
        )
   | (ListLit(_), _) => false
 
+  | (TupLabel(_, dv), TupLabel(_, fv)) => matches_exp(env, dv, fv)
+  | (TupLabel(_), _) => false
+
   | (Tuple(dv), Tuple(fv)) =>
     List.fold_left2(
       (acc, d, f) => acc && matches_exp(env, d, f),
@@ -231,6 +234,8 @@ and matches_pat = (d: DHPat.t, f: DHPat.t): bool => {
   | (Constructor(_), _) => false
   | (Var(dx), Var(fx)) => dx == fx
   | (Var(_), _) => false
+  | (TupLabel(_, dx), TupLabel(_, fx)) => dx == fx
+  | (TupLabel(_), _) => false
   | (Tuple(dl), Tuple(fl)) =>
     switch (
       List.fold_left2((res, d, f) => res && matches_pat(d, f), true, dl, fl)
