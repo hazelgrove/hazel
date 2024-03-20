@@ -300,7 +300,10 @@ let List.filteri: ((Int, ?) -> Bool, [?]) -> [?] =
       fun i, x -> if f(i, x) then [x] else [], xs)) in
 
 let List.exists: (? -> Bool, [?]) -> Bool =
-  fun p, xs -> List.exists(p, xs) in
+  fun p, xs ->
+    case xs
+    | [] => false
+    | x::xs => p(x) \/ List.exists(p, xs) end in
 
 let List.for_all: (? -> Bool, [?]) -> Bool =
   fun p, xs -> not(List.exists(fun x -> not(p(x)), xs)) in
@@ -849,6 +852,8 @@ let compareTimeRange: (Time, Time, Time) -> Bool =
       false   
 in
 
+# ROOM BOOKING MVU SOLUTION #
+
 let update: (Model, Action) -> Model =
   fun (formState, bookings, nextId), action ->
     case action
@@ -868,6 +873,9 @@ let update: (Model, Action) -> Model =
         (formState, updatedBookings, nextId)  
     end  
 in
+
+
+# ROOM BOOKING MVU EPILOGUE #
 
 test
   getBookings(update(Model.init, AddBooking("Charles",M, AM)))
@@ -955,4 +963,359 @@ test
   let model = update(model, AddBooking("Dave", R, AM)) in
   let model = update(model, ClearRange((T, PM), (W, AM))) in
   List.length(getBookings(model)) == 4   
+end;
+
+
+# PASSWORDS MVU #
+
+type PasswordCriteria =
+  + RequireUppercase
+  + RequireLowercase
+  + MinimumLength(Int)
+  + RequireNumber
+  + RequireSpecialChar in
+
+type PasswordStrength =
+  + Weak
+  + Moderate
+  + Strong in
+      
+type Password = String in
+type Criteria = [PasswordCriteria] in
+type Strength = PasswordStrength in
+  
+type Model = (Password, Criteria, Strength) in
+  
+let initialModel: Model = (
+  "",
+  [
+    MinimumLength(8),
+    RequireUppercase,
+    RequireLowercase,
+    RequireNumber,
+    RequireSpecialChar
+  ],
+  Weak
+) in
+
+type Action =
+  + UpdatePassword(String)
+  + ClearCriteria
+  + AddCriterion(PasswordCriteria)
+  + RemoveCriterion(PasswordCriteria) in
+    
+let meetsMinLength: (String, Int) -> Bool =
+  fun password, len ->
+    string_length(password) >= len in
+  
+let hasFromSet: (String, String) -> Bool =
+  fun password: Password, set: String ->
+    let loop: String -> Bool =
+      fun s: String ->
+        if string_length(s) == 0 
+        then false 
+        else
+          let first = string_sub(s, 0, 1) in
+          if string_contains(set, first) 
+          then true 
+          else loop(string_sub(s, 1, string_length(s) - 1)) 
+  in loop(password)
+in
+
+let hasUppercase: String -> Bool =
+  fun password: Password ->
+    hasFromSet(password, "ABCDEFGHIJKLMNOPQRSTUVWXYZ") in
+    
+let hasLowercase: Password -> Bool =
+  fun password: Password ->
+    hasFromSet(password, "abcdefghijklmnopqrstuvwxyz") in
+        
+let hasNumber: Password -> Bool =
+  fun password: Password ->
+    hasFromSet(password, "0123456789") in
+          
+let hasSpecialChar: Password -> Bool =
+  fun password: Password ->
+    hasFromSet(password, "!@#$%^&*()-_=+[]{}|;:,.<>?") in
+  
+let meetsCriterion: (Password, PasswordCriteria) -> Bool =
+  fun password, criterion ->
+    case criterion
+    | RequireUppercase => hasUppercase(password)
+    | RequireLowercase => hasLowercase(password)
+    | MinimumLength(len) => meetsMinLength(password, len)
+    | RequireNumber => hasNumber(password)
+    | RequireSpecialChar => hasSpecialChar(password) 
+  end in
+
+let metCriteria: (Password, [PasswordCriteria]) -> [Bool] =
+  fun password, criteria ->
+    List.filter(
+      fun c: PasswordCriteria -> meetsCriterion(password, c),
+      criteria
+    ) in
+    
+let strength_of: Int -> PasswordStrength =
+  fun num_criteria_met ->
+    case num_criteria_met
+    | 0 => Weak
+    | 1 => Weak
+    | 2 => Weak
+    | 3 => Moderate
+    | 4 => Strong
+    | _ => Strong 
+    end in
+      
+let calculateStrength: (Password, [PasswordCriteria]) -> PasswordStrength =
+  fun password, criteria ->
+    strength_of(List.length(metCriteria(password, criteria))) in
+
+
+# PASSWORDS MVU SOLUTION#
+
+let update: (Model, Action) -> Model =
+  fun model, action ->
+    case action
+    | ClearCriteria =>
+      let (password, criteria, strength) = model in
+      (password, [], strength)
+    | UpdatePassword(newPassword) =>
+      let (_, criteria, _) = model in
+      let newStrength = calculateStrength(newPassword, criteria) in
+      (newPassword, criteria, newStrength)
+    | AddCriterion(newCriterion) =>
+      let (password, criteria, _) = model in
+      let newCriteria = newCriterion :: criteria in
+      let newStrength = calculateStrength(password, newCriteria) in
+      (password, newCriteria, newStrength)
+    | RemoveCriterion(criterionToRemove) =>
+      let (password, criteria, _) = model in
+      let newCriteria = List.filter(
+        fun c: PasswordCriteria -> c!= criterionToRemove, criteria
+      ) in
+      let newStrength = calculateStrength(password, newCriteria) in
+      (password, newCriteria, newStrength) 
+    end in
+
+# PASSWORDS MVU EPILOGUE#
+
+test
+  let model = update(initialModel, ClearCriteria) in
+  let (_, criteria, _) = model in
+  List.length(criteria) == 0   
+end;
+
+test
+  let model = update(initialModel, ClearCriteria) in
+  let model = update(model, AddCriterion(RequireUppercase)) in
+  let (password, criteria, strength) = model in
+  List.length(criteria) == 1  
+end;
+
+test
+  let model = update(initialModel, UpdatePassword("pass")) in
+  let (password, _, strength) = model in
+  password == "pass" && strength == Weak 
+end;
+  
+test
+  let model = update(initialModel, UpdatePassword("password")) in
+  let (password, _, strength) = model in
+  password == "password" && strength == Weak 
+end;
+
+test
+  let model = update(initialModel, UpdatePassword("Password123")) in
+  let (password, _, strength) = model in
+  password == "Password123" && strength == Strong 
+end;
+
+test
+  let model = update(initialModel, UpdatePassword("Password123!")) in
+  let (password, _, strength) = model in
+  password == "Password123!" && strength == Strong 
+end;
+    
+test
+  let model = update(initialModel, UpdatePassword("password")) in
+  let model = update(model, AddCriterion(RequireUppercase)) in
+  let (password, criteria, strength) = model in
+  password == "password" && List.length(criteria) == 6 && strength == Weak 
+end;
+
+test
+  let model = update(initialModel, UpdatePassword("Password123!")) in
+  let model = update(model, RemoveCriterion(RequireUppercase)) in
+  let (password, criteria, strength) = model in
+  password == "Password123!" && List.length(criteria) == 4 && strength == Strong 
+end;
+
+test
+  let model = update(initialModel, UpdatePassword("pass")) in
+  let model = update(model, RemoveCriterion(MinimumLength(8))) in
+  let (password, criteria, strength) = model in
+  password == "pass" && List.length(criteria) == 4 && strength == Weak 
+end;
+      
+test
+  let model = update(initialModel, UpdatePassword("Passw0rd!")) in
+  let model = update(model, RemoveCriterion(RequireSpecialChar)) in
+  let (password, criteria, strength) = model in
+  password == "Passw0rd!" && List.length(criteria) == 4 && strength == Strong 
+end;
+          
+test
+  let model = update(initialModel, UpdatePassword("password123")) in
+  let model = update(model, AddCriterion(RequireSpecialChar)) in
+  let (password, criteria, strength) = model in
+  password == "password123" && List.length(criteria) == 6 && strength == Moderate 
+end;
+
+test
+  let model = update(initialModel, UpdatePassword("P@ssw0rd!")) in
+  let model = update(model, RemoveCriterion(RequireUppercase)) in
+  let model = update(model, RemoveCriterion(RequireSpecialChar)) in
+  let (password, criteria, strength) = model in
+  password == "P@ssw0rd!" && List.length(criteria) == 3 && strength == Moderate 
+end;
+
+
+# EMOJIPAINT MVU #
+
+type Emoji = String in 
+type Row = Int in 
+type Col = Int in 
+type Grid = [[Emoji]] in
+
+type Model = (
+  Grid,     # The 2D grid of emojis #
+  Emoji,    # The currently selected emoji #
+  [Emoji]   # The list of available emojis #
+) in
+
+type Action =
+  + SelectEmoji(Emoji)    # Set the currently selected emoji #
+  + StampEmoji(Row, Col)  # Stamp the current emoji at the specified position #
+  + ClearCell(Row, Col)   # Clear the emoji at the specified position #
+  + ClearGrid             # Clear the entire grid #
+  + FillRow(Row)          # Fill the specified row with the current emoji #
+in
+
+let model_init: Model = (
+  [["","",""],["","",""],["","",""]], # Initial 3x3 empty grid #
+  "😄",                               # Initial selected emoji #
+  ["😄", "😅", "😆", "😉", "😊"]        # Available emojis #
+) in
+  
+let updateGrid: (Grid, Row, Col, Emoji) -> Grid =
+  fun grid, row, col, emoji ->
+    List.mapi(
+      fun i, r -> 
+        if i == row  
+        then List.mapi(fun j, c -> if j == col then emoji else c, r) 
+        else r, 
+      grid
+   ) in
+  
+let clearGrid: Grid -> Grid =
+  fun grid -> List.map(fun row -> List.map(fun _ -> "", row), grid) 
+in
+  
+let fillRowInGrid: (Grid, Row, Emoji) -> Grid =
+  fun grid, rowToFill, emoji ->
+    List.mapi(
+      fun i, row -> 
+        if i == rowToFill 
+        then List.map(fun _ -> emoji, row) 
+        else row,
+      grid  
+  ) in
+
+# EMOJIPAINT MVU SOLUTION #
+
+let update: (Model, Action) -> Model =
+  fun (grid, selectedEmoji, emojiList), action ->
+    case action 
+    | SelectEmoji(emoji) =>
+      (grid, emoji, emojiList)
+    | StampEmoji(row, col) =>
+      (updateGrid(grid, row, col, selectedEmoji), selectedEmoji, emojiList)
+    | ClearCell(row, col) =>
+      (updateGrid(grid, row, col, ""), selectedEmoji, emojiList)
+    | ClearGrid =>
+      (clearGrid(grid), selectedEmoji, emojiList)
+    | FillRow(row) =>
+      (fillRowInGrid(grid, row, selectedEmoji), selectedEmoji, emojiList) 
+    end in
+
+# EMOJIPAINT MVU EPILOGUE #
+
+test 
+  let (grid, _, _) = update(model_init, StampEmoji(0, 0)) in
+  grid == [["😄","",""],["","",""],["","",""]] 
+end;
+
+test
+  let (grid, _, _) = update(model_init, FillRow(1)) in
+  grid == [["","",""],["😄","😄","😄"],["","",""]] 
+end;
+
+test
+  let model = update(model_init, SelectEmoji("😅")) in
+  let (grid, selectedEmoji, _) = update(model, StampEmoji(2, 2)) in
+  grid == [["","",""],["","",""],["","","😅"]] && selectedEmoji == "😅" 
+end;
+    
+test
+  let model = update(model_init, FillRow(0)) in
+  let (grid, _, _) = update(model, ClearCell(0, 1)) in
+  grid == [["😄","","😄"],["","",""],["","",""]] 
+end;
+
+test
+  let model = update(model_init, StampEmoji(1, 1)) in
+  let (grid, _, _) = update(model, ClearGrid) in
+  grid == [["","",""],["","",""],["","",""]] 
+end;
+
+test
+  let (_, selectedEmoji, _) = update(model_init, SelectEmoji("😊")) in
+  let (grid_init, _, emojiList_init) = model_init in
+  let (grid, _, _) = update((grid_init, selectedEmoji, emojiList_init), StampEmoji(1, 2)) in
+  grid == [["","",""],["","","😊"],["","",""]] 
+end;
+  
+test
+  let (_, selectedEmoji, emojiList) = model_init in
+  let model = update(model_init, FillRow(2)) in
+  let (grid, _, _) = update(model, ClearCell(2, 0)) in
+  grid == [["","",""],["","",""],["","😄","😄"]] 
+end;
+
+test
+  let model = update(model_init, StampEmoji(0, 0)) in
+  let model = update(model, StampEmoji(1, 1)) in
+  let model = update(model, StampEmoji(2, 2)) in
+  let (grid, _, _) = update(model, ClearGrid) in
+  grid == [["","",""],["","",""],["","",""]] 
+end;
+        
+test
+  let (grid_init, _, emojiList_init) = model_init in
+  let model = update(model_init, FillRow(0)) in
+  let (_, selectedEmoji, _) = update(model, SelectEmoji("😆")) in
+  let (grid,_,_) = model in
+  let (grid, _, _) = update((grid, selectedEmoji, emojiList_init), StampEmoji(1, 1)) in
+  grid == [["😄","😄","😄"],["","😆",""],["","",""]] 
+end;
+  
+test
+  let model = update(model_init, StampEmoji(0, 0)) in
+  let model = update(model, FillRow(2)) in
+  let (grid, _, emojiList) = model in
+  let model = update(model, SelectEmoji("😉")) in
+  let model = update(model, StampEmoji(1, 1)) in
+  let model = update(model, ClearCell(2, 2)) in
+  let (grid, selectedEmoji, _) = model in
+  grid == [["😄","",""],["","😉",""],["😄","😄",""]] && selectedEmoji == "😉" 
 end;

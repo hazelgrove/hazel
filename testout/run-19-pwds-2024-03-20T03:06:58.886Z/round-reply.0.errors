@@ -1,0 +1,56 @@
+The following static errors were discovered:
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  evaluate_strength
+Nature of error: Variable evaluate_strength is not bound
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  evaluate_strength
+Nature of error: Variable evaluate_strength is not bound
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  fun (model, action) ->
+ case action
+ | UpdatePassword(password) => (password, model.1, evaluate_strength(password, model.1))
+| ClearCriteria => (model.0, , Weak)
+| AddCriterion(criterion) => (model.0, criterion :: model.1, evaluate_strength(model.0, criterion :: model.1))
+| RemoveCriterion(criterion) => let updated_criteria = List.filter(fun c ->
+ c != criterion, model.1) in
+ (model.0, updated_criteria, evaluate_strength(model.0, updated_criteria))
+end end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  evaluate_strength
+Nature of error: Variable evaluate_strength is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

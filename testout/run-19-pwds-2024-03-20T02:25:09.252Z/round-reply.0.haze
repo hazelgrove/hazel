@@ -1,0 +1,7 @@
+fun m, a ->
+  case a
+  | ClearCriteria => (m.0, [], Weak)
+  | AddCriterion(pc) => (m.0, m.1 @ [pc], calculateStrength(m.0, m.1 @ [pc]))
+  | RemoveCriterion(pc) => (m.0, List.remove(m.1, pc), calculateStrength(m.0, List.remove(m.1, pc)))
+  | UpdatePassword(p) => (p, m.1, calculateStrength(p, m.1))
+  end

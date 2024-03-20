@@ -1,0 +1,26 @@
+
+fun model, action ->
+  let m = initialModel in
+  case action
+    | NoOp => m
+    | AddPasswordChar char =>
+      let s = string_concat(m.password, [char]) in
+      let strength = calculateStrength(String.transform(s, m.transformations)) in
+      Model.update_password_char(m, s, strength)
+    | RemovePasswordChar =>
+      let s = string_sub(m.password, 0, List.length(m.password) - 1) in
+      let strength = calculateStrength(String.transform(s, m.transformations)) in
+      Model.update_password_char(m, s, strength)
+    | AddPasswordCriteria crit =>
+      let strength = calculateStrength(String.transform(m.password, m.transformations)) in
+      Model.update_password_criteria(m, crit, strength)
+    | RemovePasswordCriteria crit =>
+      let strength = calculateStrength(String.transform(m.password, m.transformations)) in
+      Model.update_password_criteria(m, crit, strength)
+    | AddTransformation transform =>
+      let strength = calculateStrength(String.transform(m.password, m.transformations)) in
+      Model.update_transformations(m, transform, strength)
+    | RemoveTransformation transform =>
+      let strength = calculateStrength(String.transform(m.password, m.transformations)) in
+      Model.update_transformations(m, transform, strength)
+  end

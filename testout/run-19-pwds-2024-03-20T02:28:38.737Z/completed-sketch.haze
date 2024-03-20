@@ -1,0 +1,9 @@
+let update: (Model, Action) -> Model =
+  fun model, action ->
+    case action
+    | UpdatePassword(p) => (p, snd(model), calculateStrength(p, snd(model)))
+    | ClearCriteria => (fst(model), [], strength_of(0))
+    | AddCriterion(c) => let newCriteria = snd(model) @ [c] in (fst(model), newCriteria, calculateStrength(fst(model), newCriteria))
+    | RemoveCriterion(c) => let newCriteria = List.filter(fun crit -> crit != c, snd(model)) in (fst(model), newCriteria, calculateStrength(fst(model), newCriteria))
+    end
+in

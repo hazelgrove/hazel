@@ -223,6 +223,27 @@ module Pervasives = {
         | d => Error(InvalidBoxedTuple(d)),
         name,
       );
+
+    let string_contains =
+      unary(
+        fun
+        | Tuple([StringLit(s1), StringLit(s2)]) => {
+            let string_contains =
+                (target_string: string, sub_string: string): bool =>
+              try(
+                Re.Str.search_forward(
+                  Re.Str.regexp_string(sub_string),
+                  target_string,
+                  0,
+                )
+                >= 0
+              ) {
+              | _ => false
+              };
+            Ok(BoolLit(string_contains(s1, s2)));
+          }
+        | d => Error(InvalidBoxedTuple(d)),
+      );
   };
 
   open Impls;
@@ -273,7 +294,16 @@ module Pervasives = {
          Arrow(Prod([String, List(String)]), String),
          string_concat,
        )
-    |> fn("string_sub", Arrow(Prod([String, Int, Int]), String), string_sub);
+    |> fn(
+         "string_sub",
+         Arrow(Prod([String, Int, Int]), String),
+         string_sub,
+       )
+    |> fn(
+         "string_contains",
+         Arrow(Prod([String, String]), Bool),
+         string_contains,
+       );
 };
 
 let styles: Typ.sum_map =

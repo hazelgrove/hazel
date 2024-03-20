@@ -1,0 +1,20 @@
+The following static errors were discovered:
+Error in term:
+  in Rul
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  itialModel
+Nature of error: Variable itialModel is not bound
+Error in term:
+  fun ((model, action)) ->
+ let m = ? in
+ itialModel in Rul
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Rul
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  in
+Nature of error: Variable in is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

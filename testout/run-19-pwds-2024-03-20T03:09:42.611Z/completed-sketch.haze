@@ -1,0 +1,18 @@
+let update: (Model, Action) -> Model =
+  
+fun model, action ->
+  case action of
+  | Change(new_password) => 
+      let strength = calculateStrength(new_password, model.criteria) in
+      { model with password = new_password; strength = strength }
+  | AddCriteria(new_criteria_type, new_criteria_pattern) => 
+      let new_criteria = { criteria_type = new_criteria_type; pattern = new_criteria_pattern } in
+      let new_criteria_list = new_criteria::model.criteria in
+      let strength = calculateStrength(model.password, new_criteria_list) in
+      { model with criteria = new_criteria_list; strength = strength }
+  | RemoveCriteria(index) =>
+      let new_criteria_list = List.removeAt(index, model.criteria) in
+      let strength = calculateStrength(model.password, new_criteria_list) in
+      { model with criteria = new_criteria_list; strength = strength } 
+  end
+in

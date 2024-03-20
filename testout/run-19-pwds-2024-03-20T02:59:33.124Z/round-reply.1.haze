@@ -1,0 +1,8 @@
+fun (model, action) ->
+  case model, action
+    | ((password, criteria, strength), UpdatePassword(new_password)) => (new_password, criteria, calculate_strength(new_password, criteria))
+    | ((password, criteria, strength), ClearCriteria) => (password, [], strength)
+    | ((password, criteria, strength), addCriterion(criterion)) => (password, criterion::criteria, calculate_strength(password, criterion::criteria))
+    | ((password, criteria, strength), RemoveCriterion(criterion)) => let new_criteria = List.filter(fun crit -> crit != criterion, criteria) in (password, new_criteria, calculate_strength(password, new_criteria))
+  end
+where calculate_strength(password, criteria) is a function defined elsewhere in the program that calculates the strength of the password given the password and criteria.

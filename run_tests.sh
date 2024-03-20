@@ -12,15 +12,20 @@ num_runs=8
 
 # Source folders
 source_folders=(
-    "testdata/todo1/"
-    "testdata/playlist1/"
+    # "testdata/todo1/"
+    # "testdata/playlist1/"
+    "testdata/passwords2/"
 )
 
 # Optional argument variations
 opt_arg_variations=(
+    "--relevant_ctx --expected_type --error_rounds_max 2"
+    "--relevant_ctx --expected_type"
+    "--relevant_ctx --error_rounds_max 2"
     "--expected_type --error_rounds_max 2"
     "--expected_type"
     "--error_rounds_max 2"
+    "--relevant_ctx"
     ""
 )
 

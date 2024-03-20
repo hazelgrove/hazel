@@ -156,6 +156,7 @@ let record_init_info =
   io.add(opt_pre("llm"), options.llm |> OpenAI.show_chat_models);
   io.add(opt_pre("source_path"), source_path);
   io.add(opt_pre("expected_type"), options.expected_type |> string_of_bool);
+  io.add(opt_pre("relevant_ctx"), options.relevant_ctx |> string_of_bool);
   io.add(
     opt_pre("error_rounds_max"),
     options.error_rounds_max |> string_of_int,

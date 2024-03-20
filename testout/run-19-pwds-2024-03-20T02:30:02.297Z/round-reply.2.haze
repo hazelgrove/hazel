@@ -1,0 +1,13 @@
+fun m, a ->
+  case a
+   | SetPassword(password) =>
+      let new_password = String.transform(password, m.password_transform) in
+      let sub_password = string_sub(new_password, m.start_index, m.end_index) in
+      let strength = calculateStrength(sub_password, m.criteria_list) in
+      {m with password = new_password, password_strength = strength}
+   | AddPasswordCriteria(criteria) =>
+      {m with criteria_list = criteria::m.criteria_list}
+   | AddPasswordTransform(transform) =>
+      {m with password_transform = transform::m.password_transform}
+   | SetPasswordStrength(strength) => {m with password_strength = strength}
+  end

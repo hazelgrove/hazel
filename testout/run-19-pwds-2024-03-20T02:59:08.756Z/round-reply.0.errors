@@ -1,0 +1,36 @@
+The following static errors were discovered:
+Error in term:
+  model 0, , model 2
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  0, List.filter((fun c ->
+ c != criterion), model 1), model 2
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  1, model 2
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  (fun c ->
+ c != criterion), model 1
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model 0, criterion :: model 1, model 2
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  0, , model 2
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  new_password, model 1, model 2
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  1, model 2
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model 0, List.filter((fun c ->
+ c != criterion), model 1), model 2
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  0, criterion :: model 1, model 2
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

@@ -1,0 +1,21 @@
+let update: (Model, Action) -> Model =
+  fun model, action -> 
+  case action 
+  | UpdatePassword(password) => 
+    let (old_password, criteria, old_strength) = model in
+    let strength = calculateStrength(password, criteria) in
+    (password, criteria, strength)
+  | AddCriterion(criterion) => 
+    let (password, old_criteria, old_strength) = model in
+    let criteria = List.append(old_criteria, [criterion]) in
+    let strength = calculateStrength(password, criteria) in
+    (password, criteria, strength)
+  | RemoveCriterion(criterion) =>
+    let (password, old_criteria, old_strength) = model in
+    let criteria = List.filter(old_criteria, fun x -> x != criterion) in
+    let strength = calculateStrength(password, criteria) in
+    (password, criteria, strength)
+  | _ => model
+  end
+
+in

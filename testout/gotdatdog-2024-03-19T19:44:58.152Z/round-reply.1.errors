@@ -1,0 +1,6 @@
+The following static errors were discovered:
+Error in term:
+  getBookings(model) @ newBooking
+Nature of error: Expecting branches to have consistent types but got types: [Booking], [(((Weekday, TimeOfDay), User), Int)]
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

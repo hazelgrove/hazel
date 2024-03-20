@@ -1,0 +1,13 @@
+fun model, action ->
+  case action
+  | UpdatePassword(password) => 
+      let strength = calculateStrength(password, model.1) in
+      (password, model.1, strength)
+  | ClearCriteria => (model.0, [], model.2)
+  | AddCriterion(criteria) =>
+      if List.member(criteria, model.1) then model
+      else (model.0, criteria :: model.1, calculateStrength(model.0, criteria :: model.1))
+  | RemoveCriterion(criteria) =>
+      let new_criteria = List.filter(fun c -> c != criteria, model.1) in
+      (model.0, new_criteria, calculateStrength(model.0, new_criteria))
+  end

@@ -1,0 +1,19 @@
+The following static errors were discovered:
+Error in term:
+  filter
+Nature of error: Variable filter is not bound
+Error in term:
+  second
+Nature of error: Variable second is not bound
+Error in term:
+  filter(fun c ->
+ c != criterion) second(m)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  second
+Nature of error: Variable second is not bound
+Error in term:
+  second
+Nature of error: Variable second is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

@@ -1,0 +1,81 @@
+The following static errors were discovered:
+Error in term:
+  with
+Nature of error: Variable with is not bound
+Error in term:
+  count 0 ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  count model.count
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.count
+Nature of error: "model.count" isn't a valid token
+Error in term:
+  count
+Nature of error: Variable count is not bound
+Error in term:
+  0 ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  count
+Nature of error: Variable count is not bound
+Error in term:
+  with
+Nature of error: Variable with is not bound
+Error in term:
+  with count model.count - 1 ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.count
+Nature of error: "model.count" isn't a valid token
+Error in term:
+  count
+Nature of error: Variable count is not bound
+Error in term:
+  ? model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  with count 0 ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? model with count model.count - 1 ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? model with count 0 ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  1 ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? model with count model.count + 1 ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  1 ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  with
+Nature of error: Variable with is not bound
+Error in term:
+  count model.count
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  with count model.count + 1 ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Decrement
+Nature of error: Constructor is not defined
+Error in term:
+  Increment
+Nature of error: Constructor is not defined
+Error in term:
+  Reset
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

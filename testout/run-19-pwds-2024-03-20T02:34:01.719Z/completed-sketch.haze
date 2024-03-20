@@ -1,0 +1,9 @@
+let update: (Model, Action) -> Model =
+  fun (model, action) ->
+  case action 
+  | Edit(text) => {model with password = text}
+  | AddCriteria(criteria) => {model with criteria = [criteria]@model.criteria}
+  | RemoveCriteria(criteria) => {model with criteria = List.remove(criteria, model.criteria)}
+  | CalculateStrength => {model with strength = calculateStrength(model.password, model.criteria)}
+  end
+in

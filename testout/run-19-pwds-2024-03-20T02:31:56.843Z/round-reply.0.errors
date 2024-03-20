@@ -1,0 +1,199 @@
+The following static errors were discovered:
+Error in term:
+  Model.update_password_criteria
+Nature of error: Variable Model.update_password_criteria is not bound
+Error in term:
+  crit
+Nature of error: Variable crit is not bound
+Error in term:
+  in case action
+ | NoOp => m
+| AddPasswordChar char => let s = string_concat(m.password, char) in
+ let strength = calculateStrength(String.transform(s, m.transformations)) in
+ Model.update_password_char(m, s, strength)
+| RemovePasswordChar => let s = string_sub(m.password, 0, List.length(m.password) - 1) in
+ let strength = calculateStrength(String.transform(s, m.transformations)) in
+ Model.update_password_char(m, s, strength)
+| AddPasswordCriteria crit => let strength = calculateStrength(String.transform(m.password, m.transformations)) in
+ Model.update_password_criteria(m, crit, strength)
+| RemovePasswordCriteria crit => let strength = calculateStrength(String.transform(m.password, m.transformations)) in
+ Model.update_password_criteria(m, crit, strength)
+| AddTransformation transform => let strength = calculateStrength(String.transform(m.password, m.transformations)) in
+ Model.update_transformations(m, transform, strength)
+| RemoveTransformation transform => let strength = calculateStrength(String.transform(m.password, m.transformations)) in
+ Model.update_transformations(m, transform, strength)
+end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Model.update_password_char
+Nature of error: Variable Model.update_password_char is not bound
+Error in term:
+  m.password
+Nature of error: "m.password" isn't a valid token
+Error in term:
+  m.password
+Nature of error: "m.password" isn't a valid token
+Error in term:
+  String.transform(m.password, m.transformations)
+Nature of error: Expecting type (Password, [PasswordCriteria]) but got inconsistent type String
+Error in term:
+  char
+Nature of error: Variable char is not bound
+Error in term:
+  crit
+Nature of error: Variable crit is not bound
+Error in term:
+  Model.update_password_criteria
+Nature of error: Variable Model.update_password_criteria is not bound
+Error in term:
+  m
+Nature of error: Variable m is not bound
+Error in term:
+  m.transformations
+Nature of error: "m.transformations" isn't a valid token
+Error in term:
+  itialModel
+Nature of error: Variable itialModel is not bound
+Error in term:
+  transform
+Nature of error: Variable transform is not bound
+Error in term:
+  m
+Nature of error: Variable m is not bound
+Error in term:
+  m
+Nature of error: Variable m is not bound
+Error in term:
+  m.password
+Nature of error: "m.password" isn't a valid token
+Error in term:
+  String.transform(s, m.transformations)
+Nature of error: Expecting type (Password, [PasswordCriteria]) but got inconsistent type String
+Error in term:
+  String.transform(m.password, m.transformations)
+Nature of error: Expecting type (Password, [PasswordCriteria]) but got inconsistent type String
+Error in term:
+  m.password
+Nature of error: "m.password" isn't a valid token
+Error in term:
+  m
+Nature of error: Variable m is not bound
+Error in term:
+  m.transformations
+Nature of error: "m.transformations" isn't a valid token
+Error in term:
+  action
+Nature of error: Variable action is not bound
+Error in term:
+  m.transformations
+Nature of error: "m.transformations" isn't a valid token
+Error in term:
+  transform
+Nature of error: Variable transform is not bound
+Error in term:
+  Model.update_transformations
+Nature of error: Variable Model.update_transformations is not bound
+Error in term:
+  m
+Nature of error: Variable m is not bound
+Error in term:
+  String.transform(s, m.transformations)
+Nature of error: Expecting type (Password, [PasswordCriteria]) but got inconsistent type String
+Error in term:
+  m
+Nature of error: Variable m is not bound
+Error in term:
+  in
+Nature of error: Variable in is not bound
+Error in term:
+  Model.update_password_char
+Nature of error: Variable Model.update_password_char is not bound
+Error in term:
+  fun (model, action) ->
+ let m = ? in
+ itialModel in case action
+ | NoOp => m
+| AddPasswordChar char => let s = string_concat(m.password, char) in
+ let strength = calculateStrength(String.transform(s, m.transformations)) in
+ Model.update_password_char(m, s, strength)
+| RemovePasswordChar => let s = string_sub(m.password, 0, List.length(m.password) - 1) in
+ let strength = calculateStrength(String.transform(s, m.transformations)) in
+ Model.update_password_char(m, s, strength)
+| AddPasswordCriteria crit => let strength = calculateStrength(String.transform(m.password, m.transformations)) in
+ Model.update_password_criteria(m, crit, strength)
+| RemovePasswordCriteria crit => let strength = calculateStrength(String.transform(m.password, m.transformations)) in
+ Model.update_password_criteria(m, crit, strength)
+| AddTransformation transform => let strength = calculateStrength(String.transform(m.password, m.transformations)) in
+ Model.update_transformations(m, transform, strength)
+| RemoveTransformation transform => let strength = calculateStrength(String.transform(m.password, m.transformations)) in
+ Model.update_transformations(m, transform, strength)
+end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  String.transform(m.password, m.transformations)
+Nature of error: Expecting type (Password, [PasswordCriteria]) but got inconsistent type String
+Error in term:
+  m
+Nature of error: Variable m is not bound
+Error in term:
+  m.password
+Nature of error: "m.password" isn't a valid token
+Error in term:
+  String.transform(m.password, m.transformations)
+Nature of error: Expecting type (Password, [PasswordCriteria]) but got inconsistent type String
+Error in term:
+  m.password
+Nature of error: "m.password" isn't a valid token
+Error in term:
+  m.transformations
+Nature of error: "m.transformations" isn't a valid token
+Error in term:
+  m.transformations
+Nature of error: "m.transformations" isn't a valid token
+Error in term:
+  m.transformations
+Nature of error: "m.transformations" isn't a valid token
+Error in term:
+  Model.update_transformations
+Nature of error: Variable Model.update_transformations is not bound
+Error in term:
+  m.password
+Nature of error: "m.password" isn't a valid token
+Error in term:
+  AddTransformation
+Nature of error: Constructor is not defined
+Error in term:
+  AddPasswordChar
+Nature of error: Constructor is not defined
+Error in term:
+  AddPasswordCriteria
+Nature of error: Constructor is not defined
+Error in term:
+  RemoveTransformation
+Nature of error: Constructor is not defined
+Error in term:
+  RemovePasswordCriteria crit
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  RemovePasswordCriteria
+Nature of error: Constructor is not defined
+Error in term:
+  AddTransformation transform
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  RemoveTransformation transform
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  AddPasswordChar char
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  AddPasswordCriteria crit
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  NoOp
+Nature of error: Constructor is not defined
+Error in term:
+  RemovePasswordChar
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

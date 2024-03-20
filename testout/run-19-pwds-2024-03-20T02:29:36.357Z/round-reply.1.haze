@@ -1,0 +1,11 @@
+fun (model, action) ->
+  case action
+  | ChangePassword(p) =>
+    let newStr = String.transform(p, [StripWhitespace, ToLower]) in
+    let newPw = Password(newStr, strength_of(newStr.length)) in
+    {password: newPw, criteria: model.criteria}
+  | AddCriteria(c) => {password: model.password, criteria: c::model.criteria}
+  | RemoveCriteria(c) =>
+    let newCrit = model.criteria.filter((crit) => crit !== c) in
+    {password: model.password, criteria: newCrit}
+  end

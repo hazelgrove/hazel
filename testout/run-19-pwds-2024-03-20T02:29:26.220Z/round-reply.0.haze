@@ -1,0 +1,7 @@
+fun model, action ->
+    case action
+    | UpdatePassword(new_password) => let old_criteria, old_strength = snd model in (new_password, old_criteria, calculateStrength(new_password, old_criteria))
+    | ClearCriteria => let old_password, _, old_strength = model in (old_password, [], old_strength)
+    | AddCriterion(new_criteria) => let old_password, old_criteria, _ = model in (old_password, old_criteria @ [new_criteria], calculateStrength(old_password, old_criteria @ [new_criteria]))
+    | RemoveCriterion(criteria_to_remove) => let old_password, old_criteria, _ = model in (old_password, List.filter(fun x -> x != criteria_to_remove, old_criteria), calculateStrength(old_password, List.filter(fun x -> x != criteria_to_remove, old_criteria)))
+    end

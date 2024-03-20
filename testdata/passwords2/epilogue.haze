@@ -1,0 +1,79 @@
+test
+  let model = update(initialModel, ClearCriteria) in
+  let (_, criteria, _) = model in
+  List.length(criteria) == 0   
+end;
+
+test
+  let model = update(initialModel, ClearCriteria) in
+  let model = update(model, AddCriterion(RequireUppercase)) in
+  let (password, criteria, strength) = model in
+  List.length(criteria) == 1  
+end;
+
+test
+  let model = update(initialModel, UpdatePassword("pass")) in
+  let (password, _, strength) = model in
+  password == "pass" && strength == Weak 
+end;
+  
+test
+  let model = update(initialModel, UpdatePassword("password")) in
+  let (password, _, strength) = model in
+  password == "password" && strength == Weak 
+end;
+
+test
+  let model = update(initialModel, UpdatePassword("Password123")) in
+  let (password, _, strength) = model in
+  password == "Password123" && strength == Strong 
+end;
+
+test
+  let model = update(initialModel, UpdatePassword("Password123!")) in
+  let (password, _, strength) = model in
+  password == "Password123!" && strength == Strong 
+end;
+    
+test
+  let model = update(initialModel, UpdatePassword("password")) in
+  let model = update(model, AddCriterion(RequireUppercase)) in
+  let (password, criteria, strength) = model in
+  password == "password" && List.length(criteria) == 6 && strength == Weak 
+end;
+
+test
+  let model = update(initialModel, UpdatePassword("Password123!")) in
+  let model = update(model, RemoveCriterion(RequireUppercase)) in
+  let (password, criteria, strength) = model in
+  password == "Password123!" && List.length(criteria) == 4 && strength == Strong 
+end;
+
+test
+  let model = update(initialModel, UpdatePassword("pass")) in
+  let model = update(model, RemoveCriterion(MinimumLength(8))) in
+  let (password, criteria, strength) = model in
+  password == "pass" && List.length(criteria) == 4 && strength == Weak 
+end;
+      
+test
+  let model = update(initialModel, UpdatePassword("Passw0rd!")) in
+  let model = update(model, RemoveCriterion(RequireSpecialChar)) in
+  let (password, criteria, strength) = model in
+  password == "Passw0rd!" && List.length(criteria) == 4 && strength == Strong 
+end;
+          
+test
+  let model = update(initialModel, UpdatePassword("password123")) in
+  let model = update(model, AddCriterion(RequireSpecialChar)) in
+  let (password, criteria, strength) = model in
+  password == "password123" && List.length(criteria) == 6 && strength == Moderate 
+end;
+
+test
+  let model = update(initialModel, UpdatePassword("P@ssw0rd!")) in
+  let model = update(model, RemoveCriterion(RequireUppercase)) in
+  let model = update(model, RemoveCriterion(RequireSpecialChar)) in
+  let (password, criteria, strength) = model in
+  password == "P@ssw0rd!" && List.length(criteria) == 3 && strength == Moderate 
+end;

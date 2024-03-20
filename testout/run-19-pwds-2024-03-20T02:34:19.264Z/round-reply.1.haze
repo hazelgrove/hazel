@@ -1,0 +1,15 @@
+fun model, action ->
+  case action 
+  | EnterPassword(pass) =>
+      let new_pass = String.reverse(pass) in
+      let curr = strength_of(String.length(new_pass)) in
+      let string_strength = term_to_string(curr) in
+      { model with password = new_pass, strength = curr } 
+  | Check(criteria) => 
+      let new_str = calculateStrength(model.password, criteria) in
+      let criteria_name = term_to_string(new_str) in
+      { model with strength = new_str, status = criteria_name } 
+  | Reset => 
+      initialModel
+  | _ => model
+  end
