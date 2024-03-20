@@ -299,6 +299,7 @@ let d10: DHExp.t =
     ),
     IntLit(55),
   );
+
 let let_fun_menhir = () =>
   alco_check(
     "Let expression for function which wraps a fix point constructor around the function (str elaborated using the menhir parser)",
