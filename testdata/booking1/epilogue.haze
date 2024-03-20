@@ -1,3 +1,5 @@
+# ROOM BOOKING MVU TESTS #
+
 test
   getBookings(update(Model.init, AddBooking("Charles",M, AM)))
   == [((M, AM),"Charles",0)]  

@@ -43,6 +43,7 @@ let show_command = (c: command): string =>
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type data = {
+  common: option(string),
   prelude: option(string),
   program: string,
   new_token: option(string),
@@ -58,6 +59,7 @@ type arguments = {
 };
 
 let default_data: data = {
+  common: None,
   prelude: None,
   program: "",
   new_token: None,

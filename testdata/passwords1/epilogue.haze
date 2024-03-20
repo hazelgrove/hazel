@@ -1,3 +1,5 @@
+# PASSWORD CHECKER MVU TESTS #
+
 test
   let model = update(initialModel, UpdatePassword("pass")) in
   let (password, _, strength) = model in

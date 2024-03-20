@@ -1,3 +1,5 @@
+# Update the EmojiPaint app model based on an action #
+
 let update: (Model, Action) -> Model =
   fun (grid, selectedEmoji, emojiList), action ->
     case action 

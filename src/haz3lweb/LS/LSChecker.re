@@ -7,19 +7,18 @@ type settings = {
   data: LSActions.data,
 };
 
+let get_or_init_zip = (~db, s: option(string)) =>
+  switch (s) {
+  | None => Zipper.init()
+  | Some(prelude) => LSFiles.process_zipper(~db, prelude)
+  };
+
 let get_zips = (data: LSActions.data, ~db): list(Zipper.t) => {
-  let prelude_term =
-    switch (data.prelude) {
-    | None => Zipper.init()
-    | Some(prelude) => LSFiles.process_zipper(~db, prelude)
-    };
+  let common_term = get_or_init_zip(~db, data.common);
+  let prelude_term = get_or_init_zip(~db, data.prelude);
+  let epilogue_term = get_or_init_zip(~db, data.epilogue);
   let main_term = LSFiles.get_zipper(~db, data.program, data.new_token);
-  let epilogue_term =
-    switch (data.epilogue) {
-    | None => Zipper.init()
-    | Some(epilogue) => LSFiles.process_zipper(~db, epilogue)
-    };
-  [prelude_term, main_term, epilogue_term];
+  [common_term, prelude_term, main_term, epilogue_term];
 };
 
 let splice_terms = (terms: list(TermBase.UExp.t)): TermBase.UExp.t =>

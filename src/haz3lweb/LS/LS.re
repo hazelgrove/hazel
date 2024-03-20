@@ -9,6 +9,7 @@ let usage_command =
   "<CHECK " ++ usage_check ++ " | COMPLETIONS " ++ usage_completions ++ ">";
 let usage_debug = "[--debug]";
 let usage_ctx = "[--empty-init-ctx]";
+let usage_common = "[--common <path>]";
 let usage_prelude = "[--prelude <path>]";
 let usage_main = "[--main <path>]";
 let usage_epilogue = "[--epilogue <path>]";
@@ -25,6 +26,7 @@ let usage_str =
       usage_debug,
       usage_ctx,
       usage_prelude,
+      usage_common,
       usage_main,
       usage_new_token,
       usage_epilogue,
@@ -56,14 +58,22 @@ and parse_base = (strs, args: arguments): arguments =>
   | ["--debug", ...rest] => parse_base(rest, {...args, debug: true})
   | ["--empty-init-ctx", ...rest] =>
     parse_base(rest, {...args, init_ctx: []})
+  | ["--common", path, ...rest] =>
+    switch (LSFiles.string_of_file(path)) {
+    | exception _ =>
+      failwith("LSP: EXN: Could not load common from path: " ++ path)
+    | common =>
+      let data = {...args.data, common: Some(common)};
+      parse_base(rest, {...args, data});
+    }
+  | ["--common", ..._] => failwith("LSP: EXN: Usage: " ++ usage_common)
   | ["--prelude", path, ...rest] =>
     switch (LSFiles.string_of_file(path)) {
     | exception _ =>
       failwith("LSP: EXN: Could not load prelude from path: " ++ path)
     | prelude =>
-      // let ctx = LSFiles.process_prelude(prelude, ~init_ctx=args.ctx);
       let data = {...args.data, prelude: Some(prelude)};
-      parse_base(rest, {...args, data /* ,ctx */});
+      parse_base(rest, {...args, data});
     }
   | ["--prelude", ..._] => failwith("LSP: EXN: Usage: " ++ usage_prelude)
   | ["--epilogue", path, ...rest] =>
@@ -132,6 +142,13 @@ and parse_runtest = (strs, args: arguments): arguments =>
     //parse_base(rest, {...args, command: RunTest({...rt, api_key})});
     }
   | ["--source_folder", path_base, ...rest] =>
+    let common_path = path_base ++ "..//common.haze";
+    let common =
+      switch (LSFiles.string_of_file(common_path)) {
+      | exception _ =>
+        failwith("LSP: EXN: Could not load common from path: " ++ common_path)
+      | common => common
+      };
     let prelude_path = path_base ++ "//prelude.haze";
     let prelude =
       switch (LSFiles.string_of_file(prelude_path)) {
@@ -158,6 +175,7 @@ and parse_runtest = (strs, args: arguments): arguments =>
       | sketch => sketch
       };
     let data = {
+      common: Some(common),
       prelude: Some(prelude),
       epilogue: Some(epilogue),
       program: sketch,
@@ -222,6 +240,7 @@ let main = ({debug, data, command, init_ctx}: LSActions.arguments) => {
         run_name,
         source_path,
         sketch: data.program,
+        common: or_empty(data.common),
         prelude: or_empty(data.prelude),
         epilogue: or_empty(data.epilogue),
         init_ctx,

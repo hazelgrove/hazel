@@ -21,6 +21,7 @@ open Sexplib.Std;
 type settings = {
   init_ctx: Ctx.t,
   sketch: string,
+  common: string,
   prelude: string,
   epilogue: string,
   run_name: string,
@@ -338,6 +339,7 @@ let final_handler =
       ~io: io,
       ~sketch_pre,
       ~sketch_suf,
+      ~common,
       ~prelude,
       ~init_ctx,
       ~epilogue,
@@ -351,6 +353,7 @@ let final_handler =
         init_ctx,
         check: LSActions.Dynamic,
         data: {
+          common: Some(common),
           prelude: Some(prelude),
           program: completed_sketch,
           new_token: None,
@@ -372,6 +375,7 @@ let first_handler =
       ~caret_mode,
       ~init_ctx,
       ~prompt,
+      ~common,
       ~prelude,
       ~epilogue,
       ~options: FillerOptions.t,
@@ -387,6 +391,7 @@ let first_handler =
         ~io,
         ~sketch_pre,
         ~sketch_suf,
+        ~common,
         ~prelude,
         ~epilogue,
         ~init_ctx,
@@ -411,7 +416,16 @@ let go =
     (
       ~db,
       ~settings as
-        {init_ctx, run_name, sketch, prelude, epilogue, options, source_path}: settings,
+        {
+          init_ctx,
+          run_name,
+          sketch,
+          common,
+          prelude,
+          epilogue,
+          options,
+          source_path,
+        }: settings,
       ~key,
     ) => {
   let io = mk_io(run_name);
@@ -445,6 +459,7 @@ let go =
           ~caret_mode,
           ~caret_ctx,
           ~options,
+          ~common,
           ~prelude,
           ~epilogue,
           sketch_pre,

@@ -13,10 +13,10 @@ do
   echo "--------------------------------"
   
   echo "Checking statics..."
-  node hazeLS.js CHECK statics --prelude "$folder/prelude.haze" --main "$folder/solution.haze" --epilogue "$folder/epilogue.haze"
+  node hazeLS.js CHECK statics --common "testdata/common.haze" --prelude "$folder/prelude.haze" --main "$folder/solution.haze" --epilogue "$folder/epilogue.haze"
   
   echo "Checking dynamics..."
-  node hazeLS.js CHECK dynamics --prelude "$folder/prelude.haze" --main "$folder/solution.haze" --epilogue "$folder/epilogue.haze"
+  node hazeLS.js CHECK dynamics --common "testdata/common.haze" --prelude "$folder/prelude.haze" --main "$folder/solution.haze" --epilogue "$folder/epilogue.haze"
   
   echo "--------------------------------"
   echo ""

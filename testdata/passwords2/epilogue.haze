@@ -1,3 +1,5 @@
+# PASSWORD CHECKER MVU TESTS #
+
 test
   let model = update(initialModel, ClearCriteria) in
   let (_, criteria, _) = model in

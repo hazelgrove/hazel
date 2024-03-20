@@ -1,3 +1,5 @@
+# EMOJIPAINT MVU TESTS #
+
 test 
   let (grid, _, _) = update(model_init, StampEmoji(0, 0)) in
   grid == [["😄","",""],["","",""],["","",""]] 

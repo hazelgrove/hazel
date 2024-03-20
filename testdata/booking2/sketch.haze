@@ -1,3 +1,5 @@
+# Update the Room Booking app model based on an action #
+
 let update: (Model, Action) -> Model =
   ??
 in

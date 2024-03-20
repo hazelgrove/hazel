@@ -6,6 +6,7 @@ api_key="--api-key $HOME/azure-4-api-key.txt"
 run_name=${1:-default}
 log_directory="testlog"
 collate_script="collate_data.sh"
+warm_serials="warm_serials.sh"
 
 wait_time=0
 num_runs=8
@@ -55,6 +56,9 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# Call the warm_serials script
+bash "$warm_serials"
 
 # Create log directory if it doesn't exist
 mkdir -p "$log_directory"
