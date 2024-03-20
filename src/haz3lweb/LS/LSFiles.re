@@ -66,8 +66,7 @@ let serialized_filename_z = program_str =>
 
 let process_zipper = (~db=ignore, z_str: string): Zipper.t => {
   let serialized_filename = serialized_filename_z(z_str);
-  db("LSP: Process zipper: Recieved string:");
-  db(z_str);
+  db("LSP: Process zipper: Recieved string" /* ++ z_str*/);
   if (is_file(serialized_filename)) {
     db("LSP: Process Zipper: Found serialized zipper, deserializing");
     deserialize_zipper(serialized_filename);
@@ -86,7 +85,7 @@ let process_zipper = (~db=ignore, z_str: string): Zipper.t => {
 let get_zipper = (~db, program, new_token) => {
   switch (new_token) {
   | None =>
-    db("LS: Recieved string" /*++ program*/);
+    db("LS: Recieved string" /* ++ program*/);
     let z = process_zipper(~db, program);
     db("LS: String parsed successfully to zipper");
     z;
