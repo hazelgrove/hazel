@@ -131,6 +131,15 @@ let startup : PersistentData.t =
     documentation =
       ( "Programming Expressively",
         [
+          ( "AAAAA",
+            {
+              zipper =
+                "((selection((focus Left)(content())(mode \
+                 Normal)))(backpack())(relatives((siblings(()((Grout((id \
+                 b60e7d0e-e290-4b23-b03c-7fe121fb5dcd)(shape \
+                 Convex))))))(ancestors())))(caret Outer))";
+              backup_text = " ";
+            } );
           ( "Casting",
             {
               zipper =

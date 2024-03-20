@@ -1101,7 +1101,14 @@ and uexp_to_module =
   | Filter(_)
   | ListConcat(_) =>
     let (info, m) = go(~mode=Syn, uexp, m);
-    (inner_ctx, info, m);
+    (
+      switch (mode) {
+      | Ana(Module(m)) => m
+      | _ => inner_ctx
+      },
+      info,
+      m,
+    );
   };
 }
 
