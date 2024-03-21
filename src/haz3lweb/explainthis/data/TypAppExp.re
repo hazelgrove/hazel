@@ -4,11 +4,14 @@ open Example;
 
 let typfunapp_exp_ex = {
   sub_id: TypFunAp,
-  term: mk_example("(typfun X -> (fun x : X -> x))@<Int>"),
-  message: "The polymorphic identity function is instantiated at Int. The type variable X is bound to Int in the type function body and the body evaluates to the identity function on integers.",
+  term: 
+    mk_example(
+      "let id : \n forall a -> (a -> a) = \n typfun a -> \n fun x : a -> x \n in id@<Int>"
+    ),
+  message: "The polymorphic identity function is instantiated at Int. The type variable a is bound to Int in the type function body and the body evaluates to the identity function on integers.",
 };
 let _exp_tfun = exp("e_tfun");
-let _typ = typ("_typ");
+let _typ = typ("ty");
 let typfunapp_exp_coloring_ids =
     (~f_id: Id.t, ~typ_id: Id.t): list((Id.t, Id.t)) => [
   (Piece.id(_exp_tfun), f_id),
