@@ -105,7 +105,22 @@ let rec typ_of_dhexp =
     | None => None
     | Some(_) => Some(Typ.Unknown(Internal))
     };
-  | Closure(_, d) => typ_of_dhexp(ctx, m, d)
+  | Closure(env, d) =>
+    let* l =
+      env
+      |> ClosureEnvironment.to_list
+      |> List.map(((name, de)) => {
+           let+ ty = typ_of_dhexp(ctx, m, de);
+           Ctx.VarEntry({name, id: Id.invalid, typ: ty});
+         })
+      |> OptUtil.sequence;
+    let ctx' =
+      List.fold_left(
+        (ctx, var_entry) => Ctx.extend(ctx, var_entry),
+        ctx,
+        l,
+      );
+    typ_of_dhexp(ctx', m, d);
   | Filter(_, d) => typ_of_dhexp(ctx, m, d)
   | BoundVar(name) =>
     let+ var = Ctx.lookup_var(ctx, name);
