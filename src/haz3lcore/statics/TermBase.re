@@ -372,9 +372,9 @@ and Pat: {
 and TypTerm: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
-    | Invalid(string) // TODO: Switch to unknown
-    | EmptyHole // TODO: Switch to unknown
-    | MultiHole(list(Any.t)) // TODO: Switch to unknown
+    | Invalid(string) // TODO[Matt]: Switch to unknown
+    | EmptyHole // TODO[Matt]: Switch to unknown
+    | MultiHole(list(Any.t)) // TODO[Matt]: Switch to unknown
     | Int
     | Float
     | Bool
