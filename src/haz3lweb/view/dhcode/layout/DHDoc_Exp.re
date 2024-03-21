@@ -376,17 +376,22 @@ let mk =
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
       | ModuleVal(e) =>
-        let envlist =
-          ClosureEnvironment.to_list(e)
-          |> List.map(((name, v)) =>
-               [
-                 Doc.text("  " ++ name ++ " = "),
-                 go'(v, ModuleVal),
-                 Doc.text(";\n"),
-               ]
-             )
-          |> List.flatten;
-        DHDoc_common.mk_ModuleVal(envlist);
+        if (enforce_inline) {
+          fail();
+        } else {
+          let envlist =
+            ClosureEnvironment.to_list(e)
+            |> List.map(((name, v)) =>
+                 [
+                   Doc.text("  " ++ name ++ " = "),
+                   go'(v, ModuleVal),
+                   Doc.text(";"),
+                   linebreak(),
+                 ]
+               )
+            |> List.flatten;
+          DHDoc_common.mk_ModuleVal(envlist);
+        }
       | StringLit(s) => DHDoc_common.mk_StringLit(s)
       | Test(_, d) => DHDoc_common.mk_Test(go'(d, Test))
       | Sequence(d1, d2) =>
