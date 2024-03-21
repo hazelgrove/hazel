@@ -27,6 +27,7 @@ type settings_action =
   | InstructorMode
   | Evaluation(evaluation_settings_action)
   | ExplainThis(ExplainThisModel.Settings.action)
+  | Accessibility(AccessibilityModel.Settings.action)
   | Mode(Settings.mode);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -126,7 +127,8 @@ let is_edit: t => bool =
     | Benchmark
     | ContextInspector
     | InstructorMode
-    | Evaluation(_) => false
+    | Evaluation(_)
+    | Accessibility(_) => false
     }
   | SetMeta(meta_action) =>
     switch (meta_action) {
@@ -186,7 +188,8 @@ let reevaluate_post_update: t => bool =
     | Elaborate
     | Dynamics
     | InstructorMode
-    | Mode(_) => true
+    | Mode(_)
+    | Accessibility(_) => true
     }
   | SetMeta(meta_action) =>
     switch (meta_action) {
@@ -238,7 +241,8 @@ let should_scroll_to_caret =
     | Benchmark
     | ContextInspector
     | InstructorMode
-    | Evaluation(_) => false
+    | Evaluation(_)
+    | Accessibility(_) => false
     }
   | SetMeta(meta_action) =>
     switch (meta_action) {

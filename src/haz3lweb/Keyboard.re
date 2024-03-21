@@ -42,6 +42,7 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
     | (Down, "ArrowDown") => now(Select(Resize(Local(Down))))
     | (Down, "Home") => now(Select(Resize(Extreme(Left(ByToken)))))
     | (Down, "End") => now(Select(Resize(Extreme(Right(ByToken)))))
+    | (Up, "\\") => Some(Set(Accessibility(ToggleIsEditing)))
     | (_, "Enter") => now(Insert(Form.linebreak))
     | _ when String.length(key) == 1 =>
       /* Note: length==1 prevent specials like

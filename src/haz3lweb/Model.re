@@ -38,6 +38,7 @@ type t = {
   results: ModelResults.t,
   statics: CachedStatics.t,
   explainThisModel: ExplainThisModel.t,
+  accessibilityModel: AccessibilityModel.t,
   ui_state,
 };
 
@@ -49,6 +50,7 @@ let mk = (editors, results, statics) => {
   results,
   statics,
   explainThisModel: ExplainThisModel.init,
+  accessibilityModel: AccessibilityModel.init,
   ui_state: ui_state_init,
 };
 
@@ -93,9 +95,18 @@ let load = (init_model: t): t => {
       ~mode=settings.mode,
       ~instructor_mode=settings.instructor_mode,
     );
+  let accessibilityModel = init_model.accessibilityModel;
   let ui_state = init_model.ui_state;
   let statics = Editors.mk_statics(~settings, editors);
-  {editors, settings, results, statics, explainThisModel, ui_state};
+  {
+    editors,
+    settings,
+    results,
+    statics,
+    explainThisModel,
+    accessibilityModel,
+    ui_state,
+  };
 };
 
 let save = ({editors, settings, explainThisModel, results, _}: t) => {
