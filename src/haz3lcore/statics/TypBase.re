@@ -29,12 +29,12 @@ module rec Typ: {
     | String
     | Var(string)
     | List(t)
-    // Add Constructor?
+    // TODO[Matt]: Add Constructor?
     | Arrow(t, t)
     | Sum(sum_map)
     | Prod(list(t))
-    // Add Parens
-    // Add Ap?
+    // TODO[Matt]: Add Parens
+    // TODO[Matt]: Add Ap?
     | Rec(string, t)
   and sum_map = ConstructorMap.t(option(t));
 
