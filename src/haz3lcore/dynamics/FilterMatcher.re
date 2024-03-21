@@ -1,8 +1,8 @@
 let rec matches_exp =
         (env: ClosureEnvironment.t, d: DHExp.t, f: DHExp.t): bool => {
   switch (d, f) {
-  | (Constructor("$e"), _) => failwith("$e in matched expression")
-  | (Constructor("$v"), _) => failwith("$v in matched expression")
+  | (Constructor("$e", _), _) => failwith("$e in matched expression")
+  | (Constructor("$v", _), _) => failwith("$v in matched expression")
 
   // HACK[Matt]: ignore fixpoints in comparison, to allow pausing on fixpoint steps
   | (FixF(dp, _, dc), f) =>
@@ -24,7 +24,7 @@ let rec matches_exp =
       ),
     )
 
-  | (_, Constructor("$v")) =>
+  | (_, Constructor("$v", _)) =>
     switch (ValueChecker.check_value(env, d)) {
     | Indet
     | Value => true
@@ -32,7 +32,7 @@ let rec matches_exp =
     }
 
   | (_, EmptyHole(_))
-  | (_, Constructor("$e")) => true
+  | (_, Constructor("$e", _)) => true
 
   | (_, Closure(env, f)) => matches_exp(env, d, f)
   | (_, Cast(f, _, _)) => matches_exp(env, d, f)
@@ -75,8 +75,8 @@ let rec matches_exp =
   | (StringLit(dv), StringLit(fv)) => dv == fv
   | (StringLit(_), _) => false
 
-  | (Constructor(_), Ap(Constructor("~MVal"), Tuple([]))) => true
-  | (Constructor(dt), Constructor(ft)) => dt == ft
+  | (Constructor(_), Ap(Constructor("~MVal", _), Tuple([]))) => true
+  | (Constructor(dt, _), Constructor(ft, _)) => dt == ft
   | (Constructor(_), _) => false
 
   | (BuiltinFun(dn), BuiltinFun(fn)) => dn == fn
@@ -227,7 +227,7 @@ and matches_pat = (d: DHPat.t, f: DHPat.t): bool => {
     | res => matches_typ(dty1, fty1) && res
     }
   | (ListLit(_), _) => false
-  | (Constructor(dt), Constructor(ft)) => dt == ft
+  | (Constructor(dt, _), Constructor(ft, _)) => dt == ft
   | (Constructor(_), _) => false
   | (Var(dx), Var(fx)) => dx == fx
   | (Var(_), _) => false
