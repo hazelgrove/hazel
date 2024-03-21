@@ -279,11 +279,31 @@ let rec dhexp_of_uexp =
             }
           | _ => false
           };
+        let signiture =
+          switch (Id.Map.find_opt(Term.UPat.rep_id(p), m)) {
+          | Some(InfoPat({ty, _})) =>
+            switch (ty) {
+            | Module(c) => c
+            | _ => []
+            }
+          | _ => []
+          };
+        let names =
+          List.fold_left(
+            (names: list(Var.t)) =>
+              fun
+              | Ctx.VarEntry({name, _}) => [name, ...names]
+              | Ctx.TVarEntry(_)
+              | Ctx.ConstructorEntry(_) => names,
+            [],
+            signiture,
+          );
         let rec body_modulize: DHExp.t => DHExp.t = (
           fun
           | Let(dp, d1, d2) => Let(dp, d1, body_modulize(d2))
           | Module(dp, d1, d2) => Module(dp, d1, body_modulize(d2))
-          | _ as d => is_alias ? d : ModuleVal(ClosureEnvironment.empty)
+          | _ as d =>
+            is_alias ? d : ModuleVal(ClosureEnvironment.empty, names)
         );
         let ddef = ddef |> body_modulize;
         switch (Term.UPat.get_recursive_bindings(p)) {

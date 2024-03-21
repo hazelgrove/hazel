@@ -168,21 +168,12 @@ module UTyp = {
           | Ap(_) => (outer_ctx, inner_ctx)
           | TypeAnn(var, utyp1) =>
             switch (var.term, utyp1.term) {
-            | (Var(name), _) => (
-                outer_ctx,
-                [
-                  VarEntry({
-                    name,
-                    id: rep_id_p(var),
-                    typ: to_typ(outer_ctx, utyp1),
-                  }),
-                  ...inner_ctx,
-                ],
-              )
+            | (Var(name), _)
+            // All constructors appearing here should be Modules.
             | (Constructor(name), _) => (
                 outer_ctx,
                 [
-                  ConstructorEntry({
+                  VarEntry({
                     name,
                     id: rep_id_p(var),
                     typ: to_typ(outer_ctx, utyp1),

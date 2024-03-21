@@ -375,16 +375,20 @@ let mk =
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
-      | ModuleVal(e) =>
+      | ModuleVal(e, names) =>
         if (enforce_inline) {
           fail();
         } else {
           let envlist =
-            ClosureEnvironment.to_list(e)
-            |> List.map(((name, v)) =>
+            names
+            |> List.map(name =>
                  [
-                   Doc.text("  " ++ name ++ " = "),
-                   go'(v, ModuleVal),
+                   Doc.text(name),
+                   switch (ClosureEnvironment.lookup(e, name)) {
+                   | Some(exp) =>
+                     Doc.(hcats([Doc.text(" = "), go'(exp, ModuleVal)]))
+                   | None => Doc.empty()
+                   },
                    Doc.text(";"),
                    linebreak(),
                  ]

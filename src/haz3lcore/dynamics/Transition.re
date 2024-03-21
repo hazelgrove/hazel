@@ -209,7 +209,8 @@ module Transition = (EV: EV_MODE) => {
       | Let(dp, d1, d2) => Let(dp, d1, extend_module(d2, match_result))
       | Module(dp, d1, d2) =>
         Module(dp, d1, extend_module(d2, match_result))
-      | ModuleVal(env) => ModuleVal(evaluate_extend_env(env', env))
+      | ModuleVal(env, names) =>
+        ModuleVal(evaluate_extend_env(env', env), names)
       | _ => d
       }
     };
@@ -253,7 +254,7 @@ module Transition = (EV: EV_MODE) => {
       Step({
         apply: () =>
           switch (d1') {
-          | ModuleVal(inner_env) => Closure(inner_env, d2)
+          | ModuleVal(inner_env, _) => Closure(inner_env, d2)
           | _ => raise(EvaluatorError.Exception(InvalidBoxedModule(d1')))
           },
         kind: DotAccess,

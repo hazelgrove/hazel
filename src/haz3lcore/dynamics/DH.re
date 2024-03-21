@@ -45,7 +45,7 @@ module rec DHExp: {
     | Cast(t, Typ.t, Typ.t)
     | FailedCast(t, Typ.t, Typ.t)
     | InvalidOperation(t, InvalidOperationError.t)
-    | ModuleVal(ClosureEnvironment.t)
+    | ModuleVal(ClosureEnvironment.t, list(Var.t))
     | IfThenElse(if_consistency, t, t, t) // use bool tag to track if branches are consistent
   and case =
     | Case(t, list(rule), int)
@@ -105,7 +105,7 @@ module rec DHExp: {
     | Cast(t, Typ.t, Typ.t)
     | FailedCast(t, Typ.t, Typ.t)
     | InvalidOperation(t, InvalidOperationError.t)
-    | ModuleVal(ClosureEnvironment.t)
+    | ModuleVal(ClosureEnvironment.t, list(Var.t))
     | IfThenElse(if_consistency, t, t, t)
   and case =
     | Case(t, list(rule), int)
@@ -286,7 +286,8 @@ module rec DHExp: {
       fast_equal(d1, d2) && reason1 == reason2
     | (ConsistentCase(case1), ConsistentCase(case2)) =>
       fast_equal_case(case1, case2)
-    | (ModuleVal(mv1), ModuleVal(mv2)) => mv1 == mv2
+    | (ModuleVal(mv1, names1), ModuleVal(mv2, names2)) =>
+      mv1 == mv2 && names1 == names2
     | (IfThenElse(c1, d11, d12, d13), IfThenElse(c2, d21, d22, d23)) =>
       c1 == c2
       && fast_equal(d11, d21)
