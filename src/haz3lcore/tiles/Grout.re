@@ -57,3 +57,5 @@ let merge = (gs: list(t)): option(t) =>
     | Some((_, ft)) => hd.shape == ft.shape ? Some(hd) : None
     }
   };
+
+let update_id = (g: t, id: Id.t): t => {...g, id};

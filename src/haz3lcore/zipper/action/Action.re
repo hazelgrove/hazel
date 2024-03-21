@@ -44,7 +44,12 @@ type select =
   | Term(rel);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type project =
+  | ToggleFold;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
+  | Project(project)
   | Move(move)
   | MoveToNextHole(Direction.t)
   | Jump(jump_target)
@@ -74,6 +79,7 @@ module Result = {
 
 let is_edit: t => bool =
   fun
+  | Project(_) //TODO(andrew)
   | Insert(_)
   | Destruct(_)
   | Pick_up

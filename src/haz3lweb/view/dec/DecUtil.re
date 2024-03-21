@@ -59,28 +59,37 @@ let pos_str = (~d: dims, ~fudge: fdims=fzero, font_metrics: FontMetrics.t) =>
     Float.of_int(d.height) *. (font_metrics.row_height +. fudge.height),
   );
 
+let abs_dims = ({origin, last}: Haz3lcore.Measured.measurement): dims => {
+  left: origin.col,
+  top: origin.row,
+  width: abs(last.col - origin.col),
+  height: abs(last.row - origin.row + 1),
+};
+
+let abs_style = (~font_metrics, measurement): Attr.t =>
+  Attr.create("style", pos_str(~d=abs_dims(measurement), font_metrics));
+
 let code_svg_sized =
     (
       ~font_metrics: FontMetrics.t,
-      ~measurement as {origin, last}: Haz3lcore.Measured.measurement,
+      ~measurement: Haz3lcore.Measured.measurement,
       ~base_cls=[],
       ~path_cls=[],
       ~fudge: fdims=fzero,
       paths: list(SvgUtil.Path.cmd),
     ) => {
-  let (left, top) = (origin.col, origin.row);
-  let (width, height) = (
-    abs(last.col - origin.col),
-    abs(last.row - origin.row + 1),
-  );
-  let style = pos_str(~d={left, top, width, height}, ~fudge, font_metrics);
+  let d = abs_dims(measurement);
+  let style = pos_str(~d, ~fudge, font_metrics);
   create_svg(
     "svg",
     ~attr=
       Attr.many([
         Attr.classes(base_cls),
         Attr.create("style", style),
-        Attr.create("viewBox", Printf.sprintf("0 0 %d %d", width, height)),
+        Attr.create(
+          "viewBox",
+          Printf.sprintf("0 0 %d %d", d.width, d.height),
+        ),
         Attr.create("preserveAspectRatio", "none"),
       ]),
     [SvgUtil.Path.view(~attrs=[Attr.classes(path_cls)], paths)],

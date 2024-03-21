@@ -65,7 +65,7 @@ module Text = (M: {
                  let map: Measured.t;
                  let settings: Settings.t;
                }) => {
-  let m = p => Measured.find_p(p, M.map);
+  let m = p => Measured.find_p(~msg="Text", p, M.map);
   let rec of_segment =
           (buffer_ids, no_sorts, sort, seg: Segment.t): list(Node.t) => {
     /* note: no_sorts flag is used for backpack view;
@@ -123,7 +123,7 @@ let rec holes =
            EmptyHoleDec.view(
              ~font_metrics, // TODO(d) fix sort
              {
-               measurement: Measured.find_g(g, map),
+               measurement: Measured.find_g(~msg="Code.holes", g, map),
                mold: Mold.of_grout(g, Any),
              },
            ),
@@ -131,17 +131,17 @@ let rec holes =
      );
 
 let simple_view =
-    (~font_metrics, ~unselected, ~map, ~settings: Settings.t): Node.t => {
+    (~font_metrics, ~segment, ~map, ~settings: Settings.t): Node.t => {
   module Text =
     Text({
       let map = map;
       let settings = settings;
     });
-  let holes = holes(~map, ~font_metrics, unselected);
+  let holes = holes(~map, ~font_metrics, segment);
   div(
     ~attr=Attr.class_("code"),
     [
-      span_c("code-text", Text.of_segment([], false, Sort.Any, unselected)),
+      span_c("code-text", Text.of_segment([], false, Sort.Any, segment)),
       ...holes,
     ],
   );
@@ -152,7 +152,7 @@ let of_hole = (~font_metrics, ~measured, g: Grout.t) =>
   EmptyHoleDec.view(
     ~font_metrics,
     {
-      measurement: Measured.find_g(g, measured),
+      measurement: Measured.find_g(~msg="Code.of_hole", g, measured),
       mold: Mold.of_grout(g, Any),
     },
   );
@@ -162,7 +162,7 @@ let view =
       ~sort: Sort.t,
       ~font_metrics,
       ~settings: Settings.t,
-      {state: {meta: {measured, buffer_ids, unselected, holes, _}, _}, _}: Editor.t,
+      {state: {meta: {measured, buffer_ids, segment, holes, _}, _}, _}: Editor.t,
     )
     : Node.t => {
   module Text =
@@ -170,7 +170,7 @@ let view =
       let map = measured;
       let settings = settings;
     });
-  let code = Text.of_segment(buffer_ids, false, sort, unselected);
+  let code = Text.of_segment(buffer_ids, false, sort, segment);
   let holes = List.map(of_hole(~measured, ~font_metrics), holes);
   div(~attr=Attr.class_("code"), [span_c("code-text", code), ...holes]);
 };

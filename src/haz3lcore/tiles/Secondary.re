@@ -68,3 +68,5 @@ let get_string: secondary_content => string =
     };
 
 let id = w => w.id;
+
+let update_id = (w: t, id) => {...w, id};

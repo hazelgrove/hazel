@@ -3,13 +3,11 @@ open Virtual_dom.Vdom;
 
 let get_elem_by_id = id => {
   let doc = Dom_html.document;
-  Js.Opt.get(
-    doc##getElementById(Js.string(id)),
-    () => {
-      print_endline(id);
-      assert(false);
-    },
-  );
+  Js.Opt.get(doc##getElementById(Js.string(id)), () => {
+    assert
+      (false)
+      //print_endline(id);
+  });
 };
 
 let date_now = () => {
@@ -123,21 +121,18 @@ let copy = (str: string) => {
   );
 };
 
-let scroll_cursor_into_view_if_needed = () =>
-  try({
-    let caret_elem = get_elem_by_id("caret");
-    let main = get_elem_by_id("main");
-    let main_rect = main##getBoundingClientRect;
-    let caret_rect = caret_elem##getBoundingClientRect;
+let scroll_cursor_into_view_if_needed = () => {
+  let caret_elem = get_elem_by_id("caret");
+  let main = get_elem_by_id("main");
+  let main_rect = main##getBoundingClientRect;
+  let caret_rect = caret_elem##getBoundingClientRect;
 
-    if (caret_rect##.top < main_rect##.top) {
-      caret_elem##scrollIntoView(Js._true);
-    } else if (caret_rect##.bottom > main_rect##.bottom) {
-      caret_elem##scrollIntoView(Js._false);
-    };
-  }) {
-  | Assert_failure(_) => ()
+  if (caret_rect##.top < main_rect##.top) {
+    caret_elem##scrollIntoView(Js._true);
+  } else if (caret_rect##.bottom > main_rect##.bottom) {
+    caret_elem##scrollIntoView(Js._false);
   };
+};
 
 module Fragment = {
   let set_current = frag => {

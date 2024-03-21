@@ -7,30 +7,41 @@ module Meta = {
     touched: Touched.t,
     measured: Measured.t,
     term_ranges: TermRanges.t,
-    unselected: Segment.t,
     segment: Segment.t,
     view_term: Term.UExp.t,
     terms: TermMap.t,
     tiles: TileMap.t,
     holes: list(Grout.t),
     buffer_ids: list(Id.t),
+    start_map: Projector.start_map,
+    last_map: Projector.start_map,
   };
 
   let init = (z: Zipper.t) => {
-    let unselected = Zipper.unselect_and_zip(z);
-    let (view_term, terms) = MakeTerm.go(unselected);
+    let segment' = Zipper.unselect_and_zip(z);
+    let segment = Projector.of_segment(z.projectors, segment');
+    /*NOTE(andrew): consider using segment' for view_term (but terms problematic) */
+    let (view_term, terms) = MakeTerm.go(segment);
+    let term_ranges = TermRanges.mk(segment);
+    let measured =
+      Projector.fake_measured(
+        z.projectors,
+        Measured.of_segment(segment),
+        TermRanges.mk(segment') //TODO(andrew): fix perf
+      );
     {
       col_target: 0,
       touched: Touched.empty,
-      measured: Measured.of_segment(unselected),
-      unselected,
-      term_ranges: TermRanges.mk(unselected),
-      segment: Zipper.zip(z),
-      tiles: TileMap.mk(unselected),
+      measured,
+      segment,
+      term_ranges,
+      tiles: TileMap.mk(segment),
       view_term,
       terms,
-      holes: Segment.holes(unselected),
+      holes: Segment.holes(segment),
       buffer_ids: Selection.buffer_ids(z.selection),
+      start_map: Projector.mk_start_map(z.projectors, term_ranges),
+      last_map: Projector.mk_last_map(z.projectors, term_ranges),
     };
   };
 
@@ -38,6 +49,8 @@ module Meta = {
     let touched: Touched.t;
     let measured: Measured.t;
     let term_ranges: TermRanges.t;
+    let start_map: Projector.start_map;
+    let last_map: Projector.start_map;
     let col_target: int;
   };
   let module_of_t = (m: t): (module S) =>
@@ -47,6 +60,8 @@ module Meta = {
        let measured = m.measured;
        let term_ranges = m.term_ranges;
        let col_target = m.col_target;
+       let start_map = m.start_map;
+       let last_map = m.last_map;
      });
 
   // should not be serializing
@@ -60,30 +75,50 @@ module Meta = {
     let {touched, measured, col_target, _} = meta;
     let touched = Touched.update(Time.tick(), effects, touched);
     let is_edit = Action.is_edit(a);
-    let unselected = is_edit ? Zipper.unselect_and_zip(z) : meta.unselected;
+    let segment' = is_edit ? Zipper.unselect_and_zip(z) : meta.segment;
+    let segment = Projector.of_segment(z.projectors, segment');
+    //print_endline("projected segment:");
+    //segment |> Segment.show |> print_endline;
+
     let measured =
       is_edit
-        ? Measured.of_segment(~touched, ~old=measured, unselected) : measured;
+        ? Projector.fake_measured(
+            z.projectors,
+            Measured.of_segment(~touched, ~old=measured, segment),
+            //TODO(andrew): needs to be nonprojected segment; fix perf!!
+            TermRanges.mk(segment'),
+          )
+        : measured;
+    let term_ranges = is_edit ? TermRanges.mk(segment) : meta.term_ranges;
     let col_target =
       switch (a) {
       | Move(Local(Up | Down))
       | Select(Resize(Local(Up | Down))) => col_target
-      | _ => Zipper.caret_point(measured, z).col
+      | _ =>
+        switch (Indicated.index(z)) {
+        | Some(i) => print_endline("indicated_id:" ++ Id.show(i))
+        //let x = Id.Map.find(i, measured.tiles);
+        | None => print_endline("no indicated_id")
+        };
+        print_endline("Editor.next.caret_point");
+        Zipper.caret_point(measured, z).col;
       };
     let (view_term, terms) =
-      is_edit ? MakeTerm.go(unselected) : (meta.view_term, meta.terms);
+      //NOTE(andrew): could use unprojected version here, might be dangerous
+      is_edit ? MakeTerm.go(segment) : (meta.view_term, meta.terms);
     {
       col_target,
       touched,
       measured,
-      unselected,
-      term_ranges: is_edit ? TermRanges.mk(unselected) : meta.term_ranges,
-      segment: Zipper.zip(z),
-      tiles: is_edit ? TileMap.mk(unselected) : meta.tiles,
+      segment,
+      term_ranges,
+      tiles: is_edit ? TileMap.mk(segment) : meta.tiles,
       view_term,
       terms,
-      holes: is_edit ? Segment.holes(unselected) : meta.holes,
+      holes: is_edit ? Segment.holes(segment) : meta.holes,
       buffer_ids: Selection.buffer_ids(z.selection),
+      start_map: Projector.mk_start_map(z.projectors, term_ranges),
+      last_map: Projector.mk_last_map(z.projectors, term_ranges),
     };
   };
 };
@@ -154,11 +189,6 @@ let new_state =
   {state, history, read_only: ed.read_only};
 };
 
-let caret_point = (ed: t): Measured.Point.t => {
-  let State.{zipper, meta} = ed.state;
-  Zipper.caret_point(meta.measured, zipper);
-};
-
 let undo = (ed: t) =>
   switch (ed.history) {
   | ([], _) => None
@@ -201,3 +231,11 @@ let trailing_hole_ctx = (ed: t, info_map: Statics.Map.t) => {
     };
   };
 };
+
+let get_projectors = (ed: t) => ed.state.zipper.projectors;
+
+let get_projector = (id: Id.t, ed: t) =>
+  Projector.Map.find(id, ed.state.zipper.projectors);
+
+let add_projector = (id: Id.t, p: Projector.t, ed: t) =>
+  update_z(_ => Zipper.add_projector(id, p, ed.state.zipper), ed);

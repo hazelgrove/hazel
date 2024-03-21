@@ -27,7 +27,17 @@ type t = {
   backpack: Backpack.t,
   relatives: Relatives.t,
   caret: Caret.t,
-  // col_target: int,
+  projectors: Projector.Map.t,
+};
+
+let get_projectors = (z: t): Projector.Map.t => z.projectors;
+
+let get_projector = (id: Id.t, z: t): option(Projector.t) =>
+  Projector.Map.find(id, z.projectors);
+
+let add_projector = (id: Id.t, p: Projector.t, z: t): t => {
+  ...z,
+  projectors: Projector.Map.add(id, p, z.projectors),
 };
 
 let init: unit => t =
@@ -39,7 +49,7 @@ let init: unit => t =
       ancestors: [],
     },
     caret: Outer,
-    // col_target: 0,
+    projectors: Projector.Map.empty,
   };
 
 let next_blank = _ => Id.mk();
@@ -97,6 +107,7 @@ let unzip = (seg: Segment.t): t => {
     ancestors: [],
   },
   caret: Outer,
+  projectors: Projector.Map.empty,
 };
 
 let sibs_with_sel =
@@ -353,11 +364,11 @@ let base_point = (measured: Measured.t, z: t): Measured.Point.t => {
     switch (d) {
     | Left =>
       let p = ListUtil.last(seg);
-      let m = Measured.find_p(p, measured);
+      let m = Measured.find_p(~msg="base_point", p, measured);
       m.last;
     | Right =>
       let p = List.hd(seg);
-      let m = Measured.find_p(p, measured);
+      let m = Measured.find_p(~msg="base_point", p, measured);
       m.origin;
     };
   | None => {row: 0, col: 0}

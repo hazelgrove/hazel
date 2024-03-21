@@ -8,6 +8,7 @@ let is_write_action = (a: Action.t) => {
   | Unselect(_)
   | Jump(_)
   | Select(_) => false
+  | Project(_) //TODO(andrew): ??
   | Destruct(_)
   | Insert(_)
   | Pick_up
@@ -15,6 +16,28 @@ let is_write_action = (a: Action.t) => {
   | RotateBackpack
   | MoveToBackpackTarget(_) => true
   };
+};
+
+module Project = {
+  let go = (p: Action.project, z: t) =>
+    switch (p) {
+    | ToggleFold =>
+      print_endline("Project.go: ToggleFold");
+      switch (Indicated.index(z)) {
+      | Some(id) =>
+        switch (Projector.Map.find(id, z.projectors)) {
+        | Some(_p) => {
+            ...z,
+            projectors: Projector.Map.remove(id, z.projectors),
+          }
+        | None => {
+            ...z,
+            projectors: Projector.Map.add(id, Projector.Fold, z.projectors),
+          }
+        }
+      | None => z
+      };
+    };
 };
 
 let go_z =
@@ -45,6 +68,22 @@ let go_z =
     };
 
   switch (a) {
+  | Project(p) =>
+    switch (Indicated.index(z)) {
+    | None => Error(Action.Failure.Cant_move)
+    | Some(id) =>
+      let z = Project.go(p, z);
+      //TODO(andrew): clean up hacky movement
+      switch (Move.to_start(z)) {
+      | None => Ok(z)
+      | Some(z) =>
+        switch (Move.jump_to_id(z, id)) {
+        | None => Ok(z)
+        | Some(z) => Ok(z)
+        }
+      };
+    }
+
   | Move(d) =>
     Move.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move)
   | MoveToNextHole(d) =>
