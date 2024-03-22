@@ -231,13 +231,13 @@ let rec dhexp_of_uexp =
           DHExp.Let(dp, add_name(Term.UPat.get_var(p), ddef), dbody)
         | Some([f]) =>
           /* simple recursion */
-          Let(dp, FixF(f, ty, add_name(Some(f), ddef)), dbody)
+          Let(dp, FixF(f, ty, add_name(Some(f ++ "+"), ddef)), dbody)
         | Some(fs) =>
           /* mutual recursion */
           let ddef =
             switch (ddef) {
             | Tuple(a) =>
-              DHExp.Tuple(List.map2(s => add_name(Some(s)), fs, a))
+              DHExp.Tuple(List.map2(s => add_name(Some(s ++ "+")), fs, a))
             | _ => ddef
             };
           let uniq_id = List.nth(def.ids, 0);
