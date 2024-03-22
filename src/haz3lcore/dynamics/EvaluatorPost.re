@@ -181,9 +181,9 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
       let* d = pp_uneval(env, d);
       Fun(dp, ty, d, s) |> return;
 
-    | TypFun(tpat, d1) =>
+    | TypFun(tpat, d1, s) =>
       let* d1' = pp_uneval(env, d1);
-      TypFun(tpat, d1') |> return;
+      TypFun(tpat, d1', s) |> return;
 
     | Let(dp, d1, d2) =>
       /* d1 should already be evaluated, d2 is not */
@@ -307,9 +307,9 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* d'' = pp_uneval(env, d');
     Fun(dp, ty, d'', s) |> return;
 
-  | TypFun(tpat, d1) =>
+  | TypFun(tpat, d1, s) =>
     let* d1' = pp_uneval(env, d1);
-    TypFun(tpat, d1') |> return;
+    TypFun(tpat, d1', s) |> return;
 
   | Ap(d1, d2) =>
     let* d1' = pp_uneval(env, d1);
@@ -481,7 +481,7 @@ let rec track_children_of_hole =
   | Test(_, d)
   | FixF(_, _, d)
   | Fun(_, _, d, _)
-  | TypFun(_, d)
+  | TypFun(_, d, _)
   | TypAp(d, _)
   | Prj(d, _)
   | Cast(d, _, _)

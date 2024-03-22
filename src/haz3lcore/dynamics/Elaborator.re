@@ -172,9 +172,8 @@ let rec dhexp_of_uexp =
         let+ ty = fixed_pat_typ(m, p);
         DHExp.Fun(dp, ty, d1, None);
       | TypFun(tpat, body) =>
-        // TODO (typfun)
         let+ d1 = dhexp_of_uexp(m, body);
-        DHExp.TypFun(tpat, d1);
+        DHExp.TypFun(tpat, d1, None);
       | Tuple(es) =>
         let+ ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
         DHExp.Tuple(ds);
@@ -241,6 +240,7 @@ let rec dhexp_of_uexp =
           name =>
             fun
             | Fun(p, ty, e, _) => DHExp.Fun(p, ty, e, name)
+            | TypFun(tpat, e, _) => DHExp.TypFun(tpat, e, name)
             | d => d
         );
         let* dp = dhpat_of_upat(m, p);

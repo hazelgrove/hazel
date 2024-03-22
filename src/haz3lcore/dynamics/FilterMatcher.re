@@ -82,8 +82,8 @@ let rec matches_exp =
   | (BuiltinFun(dn), BuiltinFun(fn)) => dn == fn
   | (BuiltinFun(_), _) => false
 
-  | (TypFun(pat1, d1), TypFun(pat2, d2)) =>
-    matches_utpat(pat1, pat2) && matches_exp(env, d1, d2)
+  | (TypFun(pat1, d1, s1), TypFun(pat2, d2, s2)) =>
+    s1 == s2 && matches_utpat(pat1, pat2) && matches_exp(env, d1, d2)
   | (TypFun(_), _) => false
 
   | (Fun(dp1, dty1, d1, dname1), Fun(fp1, fty1, f1, fname1)) =>

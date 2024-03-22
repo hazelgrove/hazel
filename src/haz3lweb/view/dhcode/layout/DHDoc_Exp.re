@@ -599,7 +599,18 @@ let mk =
           };
         annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"));
       | TypFun(_tpat, _dbody) =>
-        annot(DHAnnot.Collapsed, text("<anon typfn>"))
+        /* same display as with Fun but with anon typfn in the nameless case. */
+        let name =
+          switch (s) {
+          | None => "anon typfn"
+          | Some(name)
+              when
+                !settings.show_fixpoints
+                && String.ends_with(~suffix="+", name) =>
+            String.sub(name, 0, String.length(name) - 1)
+          | Some(name) => name
+          };
+        annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"));
       | FixF(x, ty, dbody)
           when settings.show_fn_bodies && settings.show_fixpoints =>
         let doc_body =

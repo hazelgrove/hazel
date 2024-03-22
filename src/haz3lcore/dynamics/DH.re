@@ -21,7 +21,7 @@ module rec DHExp: {
     | Let(DHPat.t, t, t)
     | FixF(Var.t, Typ.t, t)
     | Fun(DHPat.t, Typ.t, t, option(Var.t))
-    | TypFun(Term.UTPat.t, t)
+    | TypFun(Term.UTPat.t, t, option(Var.t))
     | TypAp(t, Typ.t)
     | Ap(t, t)
     | ApBuiltin(string, t)
@@ -82,7 +82,7 @@ module rec DHExp: {
     | Let(DHPat.t, t, t)
     | FixF(Var.t, Typ.t, t)
     | Fun(DHPat.t, Typ.t, t, option(Var.t))
-    | TypFun(Term.UTPat.t, t)
+    | TypFun(Term.UTPat.t, t, option(Var.t))
     | TypAp(t, Typ.t)
     | Ap(t, t)
     | ApBuiltin(string, t)
@@ -186,7 +186,7 @@ module rec DHExp: {
     | Let(dp, b, c) => Let(dp, strip_casts(b), strip_casts(c))
     | FixF(a, b, c) => FixF(a, b, strip_casts(c))
     | Fun(a, b, c, d) => Fun(a, b, strip_casts(c), d)
-    | TypFun(a, b) => TypFun(a, strip_casts(b))
+    | TypFun(a, b, c) => TypFun(a, strip_casts(b), c)
     | Ap(a, b) => Ap(strip_casts(a), strip_casts(b))
     | TypAp(a, b) => TypAp(strip_casts(a), b)
     | Test(id, a) => Test(id, strip_casts(a))
@@ -251,9 +251,8 @@ module rec DHExp: {
       f1 == f2 && ty1 == ty2 && fast_equal(d1, d2)
     | (Fun(dp1, ty1, d1, s1), Fun(dp2, ty2, d2, s2)) =>
       dp1 == dp2 && ty1 == ty2 && fast_equal(d1, d2) && s1 == s2
-    | (TypFun(_tpat1, d1), TypFun(_tpat2, d2)) =>
-      // TODO (poly)
-      fast_equal(d1, d2)
+    | (TypFun(_tpat1, d1, s1), TypFun(_tpat2, d2, s2)) =>
+      _tpat1 == _tpat2 && fast_equal(d1, d2) && s1 == s2
     | (TypAp(d1, ty1), TypAp(d2, ty2)) => fast_equal(d1, d2) && ty1 == ty2
     | (Ap(d11, d21), Ap(d12, d22))
     | (Cons(d11, d21), Cons(d12, d22)) =>
@@ -358,7 +357,7 @@ module rec DHExp: {
     && i1 == i2;
   };
 
-  let rec ty_subst = (s: Typ.t, x: TypVar.t, exp): t => {
+  let rec ty_subst = (s: Typ.t, x: TypVar.t, exp: DHExp.t): t => {
     let re = e2 => ty_subst(s, x, e2);
     let t_re = ty => Typ.subst(s, x, ty);
     switch (exp) {
@@ -368,12 +367,12 @@ module rec DHExp: {
     | TypAp(tfun, ty) => TypAp(re(tfun), t_re(ty))
     | ListLit(mv, mvi, t, lst) =>
       ListLit(mv, mvi, t_re(t), List.map(re, lst))
-    | TypFun(utpat, body) =>
+    | TypFun(utpat, body, var) =>
       switch (Term.UTPat.tyvar_of_utpat(utpat)) {
       | Some(x') when x == x' => exp
       | _ =>
         /* Note that we do not have to worry about capture avoidance, since s will always be closed. */
-        TypFun(utpat, re(body))
+        TypFun(utpat, re(body), var)
       }
     | NonEmptyHole(errstat, mv, hid, t) =>
       NonEmptyHole(errstat, mv, hid, re(t))
