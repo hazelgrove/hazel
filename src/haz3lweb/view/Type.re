@@ -65,6 +65,47 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
         text(")"),
       ],
     )
+  | Module([]) => div(~attr=clss(["typ-view", "Module"]), [text("Module")])
+  | Module([e, ...es]) =>
+    let view_entry = (m: Haz3lcore.TypBase.Ctx.entry): list(t) => {
+      switch (m) {
+      | VarEntry({name: n0, typ: t0, _})
+      | ConstructorEntry({name: n0, typ: t0, _}) => [
+          text(n0),
+          text(":"),
+          view_ty(t0),
+        ]
+      | TVarEntry({name: n0, kind: Singleton(t0), _}) => [
+          text("Type "),
+          text(n0),
+          text("="),
+          view_ty(t0),
+        ]
+      | TVarEntry({name: n0, _}) => [
+          text("type "),
+          text(n0),
+          text("="),
+          view_ty(Unknown(Internal)),
+        ]
+      };
+    };
+    div(
+      ~attr=clss(["typ-view", "atom", "Module"]),
+      [
+        text("Module{"),
+        div(
+          ~attr=clss(["typ-view", "Module"]),
+          // let the earlier definitions to be displayed first
+          (
+            List.map(t => view_entry(t) @ [text(", ")], es)
+            |> List.rev
+            |> List.flatten
+          )
+          @ view_entry(e),
+        ),
+        text("}"),
+      ],
+    );
   | Sum(ts) =>
     div(
       ~attr=clss(["typ-view", "Sum"]),
@@ -77,6 +118,7 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
         ctr_view(t0) @ ts_views;
       },
     )
+  | Member(name, _) => ty_view("Member", name)
   }
 and ctr_view = ((ctr, typ)) =>
   switch (typ) {

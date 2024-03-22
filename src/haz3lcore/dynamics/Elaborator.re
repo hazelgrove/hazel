@@ -74,6 +74,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | IfThenElse(_)
     | Sequence(_)
     | Let(_)
+    | Module(_)
     | FixF(_) => d
     /* Hole-like forms: Don't cast */
     | InvalidText(_)
@@ -89,6 +90,8 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | InvalidOperation(_) => d
     /* Normal cases: wrap */
     | BoundVar(_)
+    | Dot(_)
+    | ModuleVal(_)
     | Ap(_)
     | ApBuiltin(_)
     | BuiltinFun(_)
@@ -255,6 +258,93 @@ let rec dhexp_of_uexp =
                );
           Let(dp, FixF(self_id, ty, substituted_def), dbody);
         };
+      | Module(p, def, body) =>
+        let add_name: (option(string), DHExp.t) => DHExp.t = (
+          name =>
+            fun
+            | Fun(p, ty, e, _) => DHExp.Fun(p, ty, e, name)
+            | d => d
+        );
+        let* dp = dhpat_of_upat(m, p);
+        let* ddef = dhexp_of_uexp(m, def);
+        let* dbody = dhexp_of_uexp(m, body);
+        let+ ty_body = fixed_exp_typ(m, body);
+        /* if get module type, apply alias(Let).*/
+        let is_alias =
+          switch (Id.Map.find_opt(Term.UExp.rep_id(def), m)) {
+          | Some(InfoExp({ty, _})) =>
+            switch (ty) {
+            | Module(_) => true
+            | _ => false
+            }
+          | _ => false
+          };
+        let signiture =
+          switch (Id.Map.find_opt(Term.UPat.rep_id(p), m)) {
+          | Some(InfoPat({ty, _})) =>
+            switch (ty) {
+            | Module(c) => c
+            | _ => []
+            }
+          | _ => []
+          };
+        let names =
+          List.fold_left(
+            (names: list(Var.t)) =>
+              fun
+              | Ctx.VarEntry({name, _}) => [name, ...names]
+              | Ctx.TVarEntry(_)
+              | Ctx.ConstructorEntry(_) => names,
+            [],
+            signiture,
+          );
+        let rec body_modulize: DHExp.t => DHExp.t = (
+          fun
+          | Let(dp, d1, d2) => Let(dp, d1, body_modulize(d2))
+          | Module(dp, d1, d2) => Module(dp, d1, body_modulize(d2))
+          | _ as d =>
+            is_alias ? d : ModuleVal(ClosureEnvironment.empty, names)
+        );
+        let ddef = ddef |> body_modulize;
+        switch (Term.UPat.get_recursive_bindings(p)) {
+        | None =>
+          /* not recursive */
+          DHExp.Module(dp, ddef, dbody)
+        | Some([f]) =>
+          /* simple recursion */
+          Module(dp, FixF(f, ty_body, add_name(Some(f), ddef)), dbody)
+        | Some(fs) =>
+          /* mutual recursion */
+          let ddef =
+            switch (ddef) {
+            | Tuple(a) =>
+              DHExp.Tuple(List.map2(s => add_name(Some(s)), fs, a))
+            | _ => ddef
+            };
+          let uniq_id = List.nth(def.ids, 0);
+          let self_id = "__mutual__" ++ Id.to_string(uniq_id);
+          let self_var = DHExp.BoundVar(self_id);
+          let (_, substituted_def) =
+            fs
+            |> List.fold_left(
+                 ((i, ddef), f) => {
+                   let ddef =
+                     Substitution.subst_var(DHExp.Prj(self_var, i), f, ddef);
+                   (i + 1, ddef);
+                 },
+                 (0, ddef),
+               );
+          Module(dp, FixF(self_id, ty_body, substituted_def), dbody);
+        };
+      | Dot(e_mod, e_mem) =>
+        let* e_mod = dhexp_of_uexp(m, e_mod);
+        let+ e_mem = dhexp_of_uexp(m, e_mem);
+        let e_mem =
+          switch (e_mem) {
+          | Cast(e_mem, _, _) => e_mem
+          | _ => e_mem
+          };
+        DHExp.Dot(e_mod, e_mem);
       | Ap(fn, arg)
       | Pipeline(arg, fn) =>
         let* c_fn = dhexp_of_uexp(m, fn);
@@ -351,6 +441,7 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
     | TypeAnn(p, _ty) =>
       let* dp = dhpat_of_upat(m, p);
       wrap(dp);
+    | TyAlias(_, _) => Some(DHPat.InvalidText(u, 0, ""))
     };
   | Some(InfoExp(_) | InfoTyp(_) | InfoTPat(_) | Secondary(_))
   | None => None

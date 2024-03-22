@@ -146,6 +146,8 @@ and UExp: {
     | Tuple(list(t))
     | Var(Var.t)
     | Let(UPat.t, t, t)
+    | Module(UPat.t, t, t)
+    | Dot(t, t)
     | TyAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)
     | Pipeline(t, t)
@@ -277,6 +279,8 @@ and UExp: {
     | Tuple(list(t))
     | Var(Var.t)
     | Let(UPat.t, t, t)
+    | Module(UPat.t, t, t)
+    | Dot(t, t)
     | TyAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)
     | Pipeline(t, t)
@@ -362,6 +366,7 @@ and UPat: {
     | Parens(t)
     | Ap(t, t)
     | TypeAnn(t, UTyp.t)
+    | TyAlias(UTPat.t, UTyp.t)
   and t = {
     ids: list(Id.t),
     term,
@@ -386,6 +391,7 @@ and UPat: {
     | Parens(t)
     | Ap(t, t)
     | TypeAnn(t, UTyp.t)
+    | TyAlias(UTPat.t, UTyp.t)
   and t = {
     ids: list(Id.t),
     term,
@@ -407,7 +413,9 @@ and UTyp: {
     | Arrow(t, t)
     | Tuple(list(t))
     | Parens(t)
+    | Module(UPat.t)
     | Ap(t, t)
+    | Dot(t, t)
     | Sum(list(variant))
   and variant =
     | Variant(Constructor.t, list(Id.t), option(t))
@@ -432,7 +440,9 @@ and UTyp: {
     | Arrow(t, t)
     | Tuple(list(t))
     | Parens(t)
+    | Module(UPat.t)
     | Ap(t, t)
+    | Dot(t, t)
     | Sum(list(variant))
   and variant =
     | Variant(Constructor.t, list(Id.t), option(t))
