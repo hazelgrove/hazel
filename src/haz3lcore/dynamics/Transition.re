@@ -251,16 +251,16 @@ module Transition = (EV: EV_MODE) => {
     | Dot(d1, d2) =>
       let. _ = otherwise(env, d1 => Dot(d1, d2))
       and. d1' = req_final(req(state, env), d1 => Dot1(d1, d2), d1);
-      Step({
-        apply: () =>
-          switch (d1') {
-          | ModuleVal(inner_env, _) => Closure(inner_env, d2)
-          | _ => raise(EvaluatorError.Exception(InvalidBoxedModule(d1')))
-          },
-        kind: DotAccess,
-        value: false,
-      });
+      switch (d1') {
+      | ModuleVal(inner_env, _) =>
+        Step({
+          apply: () => Closure(inner_env, d2),
+          kind: DotAccess,
+          value: false,
+        })
 
+      | _ => Indet
+      };
     | Fun(_, _, Closure(_), _) =>
       let. _ = otherwise(env, d);
       Constructor;
