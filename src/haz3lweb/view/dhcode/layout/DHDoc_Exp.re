@@ -598,7 +598,7 @@ let mk =
           | Some(name) => name
           };
         annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"));
-      | TypFun(_tpat, _dbody) =>
+      | TypFun(_tpat, _dbody, s) =>
         /* same display as with Fun but with anon typfn in the nameless case. */
         let name =
           switch (s) {
