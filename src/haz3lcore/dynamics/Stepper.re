@@ -401,6 +401,7 @@ let get_justification: step_kind => string =
   | VarLookup => "variable lookup"
   | CastAp
   | Cast => "cast calculus"
+  | FixClosure => "fixpoint closure"
   | CompleteFilter => "complete filter"
   | CompleteClosure => "complete closure"
   | FunClosure => "function closure"
