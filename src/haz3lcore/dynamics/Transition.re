@@ -276,7 +276,7 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d => TypAp(d, tau))
       and. d' = req_value(req(state, env), d => TypAp(d, tau), d);
       switch (d') {
-      | TypFun(utpat, tfbody) =>
+      | TypFun(utpat, tfbody, _) =>
         /* Rule ITTLam */
         switch (Term.UTPat.tyvar_of_utpat(utpat)) {
         | Some(tyvar) =>

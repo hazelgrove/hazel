@@ -294,6 +294,8 @@ let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
   | Let(p, def, body) =>
     var_mention_upat(name, p)
       ? false : var_mention(name, def) || var_mention(name, body)
+  | TypFun(_, u)
+  | TypAp(u, _)
   | Test(u)
   | Parens(u)
   | UnOp(_, u)
