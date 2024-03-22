@@ -187,7 +187,7 @@ let stepper_view =
             previous
             |> List.nth_opt(_, 0)
             |> Option.map((x: Stepper.step_with_previous) => x.step),
-          ~next_steps=Stepper.get_next_steps(stepper),
+          ~next_steps=Stepper.get_next_steps(stepper) |> List.map(snd),
           ~hidden_steps=hidden,
           ~result_key,
           d,
