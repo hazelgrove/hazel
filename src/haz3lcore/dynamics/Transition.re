@@ -61,6 +61,7 @@ type step_kind =
   | BinIntOp(TermBase.UExp.op_bin_int)
   | BinFloatOp(TermBase.UExp.op_bin_float)
   | BinStringOp(TermBase.UExp.op_bin_string)
+  | Dot(LabeledTuple.t)
   | Conditional(bool)
   | Projection
   | ListCons
@@ -463,6 +464,31 @@ module Transition = (EV: EV_MODE) => {
         kind: BinStringOp(op),
         value: true,
       });
+    | Dot(d, s) =>
+      let. _ = otherwise(env, d => Dot(d, s))
+      and. _ = req_value(req(state, env), d => Dot(d, s), d);
+      // TODO (Anthony): fix step if needed
+      Step({
+        apply: () =>
+          switch (d) {
+          | Tuple(ds) =>
+            let filt: t => option(LabeledTuple.t) = (
+              e =>
+                switch (e) {
+                | TupLabel(s, _) => Some(s)
+                | _ => None
+                }
+            );
+            let element = LabeledTuple.find_label(filt, ds, s);
+            switch (element) {
+            | Some(exp) => exp
+            | None => raise(EvaluatorError.Exception(BadPatternMatch))
+            };
+          | _ => raise(EvaluatorError.Exception(BadPatternMatch))
+          },
+        kind: Dot(s),
+        value: true,
+      });
     | TupLabel(p, d1) =>
       // TODO (Anthony): Fix this if needed
       let. _ = otherwise(env, d1 => TupLabel(p, d1))
@@ -661,6 +687,7 @@ let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
   | BinIntOp(_)
   | BinFloatOp(_)
   | BinStringOp(_)
+  | Dot(_)
   | ListCons
   | ListConcat
   | CaseApply

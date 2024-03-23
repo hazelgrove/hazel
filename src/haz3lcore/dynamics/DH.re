@@ -38,6 +38,7 @@ module rec DHExp: {
     | ListConcat(t, t)
     | TupLabel(LabeledTuple.t, t)
     | Tuple(list(t))
+    | Dot(t, LabeledTuple.t)
     | Prj(t, int)
     | Constructor(string)
     | ConsistentCase(case)
@@ -96,6 +97,7 @@ module rec DHExp: {
     | ListConcat(t, t)
     | TupLabel(LabeledTuple.t, t)
     | Tuple(list(t))
+    | Dot(t, LabeledTuple.t)
     | Prj(t, int)
     | Constructor(string)
     | ConsistentCase(case)
@@ -139,6 +141,7 @@ module rec DHExp: {
     | ListConcat(_, _) => "ListConcat"
     | TupLabel(_) => "Labeled Tuple Item"
     | Tuple(_) => "Tuple"
+    | Dot(_) => "DotOp"
     | Prj(_) => "Prj"
     | Constructor(_) => "Constructor"
     | ConsistentCase(_) => "ConsistentCase"
@@ -172,6 +175,7 @@ module rec DHExp: {
     | FailedCast(d, _, _) => strip_casts(d)
     | TupLabel(s, d) => TupLabel(s, strip_casts(d))
     | Tuple(ds) => Tuple(ds |> List.map(strip_casts))
+    | Dot(d, s) => Dot(strip_casts(d), s)
     | Prj(d, n) => Prj(strip_casts(d), n)
     | Cons(d1, d2) => Cons(strip_casts(d1), strip_casts(d2))
     | ListConcat(d1, d2) => ListConcat(strip_casts(d1), strip_casts(d2))
@@ -268,6 +272,8 @@ module rec DHExp: {
       };
       List.length(ds1) == List.length(ds2)
       && LabeledTuple.ana_tuple(filt, filt, f, true, false, ds1, ds2);
+    | (Dot(d1, s1), Dot(d2, s2)) =>
+      LabeledTuple.compare(s1, s2) == 0 && d1 == d2
     | (Prj(d1, n), Prj(d2, m)) => n == m && fast_equal(d1, d2)
     | (ApBuiltin(f1, d1), ApBuiltin(f2, d2)) => f1 == f2 && d1 == d2
     | (BuiltinFun(f1), BuiltinFun(f2)) => f1 == f2
@@ -310,6 +316,7 @@ module rec DHExp: {
     | (ListLit(_), _)
     | (TupLabel(_, _), _)
     | (Tuple(_), _)
+    | (Dot(_), _)
     | (Prj(_), _)
     | (BinBoolOp(_), _)
     | (BinIntOp(_), _)

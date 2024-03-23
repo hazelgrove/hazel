@@ -500,7 +500,6 @@ module rec Typ: {
           || List.length(l1_none) != List.length(l2_none)) {
         List.init(List.length(ts), _ => Unknown(Internal));
       } else {
-        print_endline("of_prod");
         let rec f =
                 (l1: list('a), l2_lab: list('b), l2_none: list('c))
                 : list(t) =>

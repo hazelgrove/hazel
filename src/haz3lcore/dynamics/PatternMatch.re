@@ -285,6 +285,7 @@ and matches_cast_Sum =
   | ListLit(_)
   | TupLabel(_, _)
   | Tuple(_)
+  | Dot(_, _)
   | Sequence(_, _)
   | Closure(_)
   | Filter(_)
@@ -367,6 +368,7 @@ and matches_cast_Tuple =
     );
   // What should TupLabel be?
   | TupLabel(_, _) => DoesNotMatch
+  | Dot(_, _)
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_) => IndetMatch
@@ -533,6 +535,7 @@ and matches_cast_Cons =
   | StringLit(_) => DoesNotMatch
   | TupLabel(_, _) => DoesNotMatch
   | Tuple(_) => DoesNotMatch
+  | Dot(_, _) => DoesNotMatch
   | Prj(_) => IndetMatch
   | Constructor(_) => DoesNotMatch
   | ConsistentCase(_)

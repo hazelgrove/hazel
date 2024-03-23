@@ -117,6 +117,7 @@ and UExp: {
     | Fun
     | TupLabel
     | Tuple
+    | Dot
     | Var
     | Let
     | Ap
@@ -146,6 +147,7 @@ and UExp: {
     | Fun(UPat.t, t)
     | TupLabel(LabeledTuple.t, t)
     | Tuple(list(t))
+    | Dot(t, string)
     | Var(Var.t)
     | Let(UPat.t, t, t)
     | TyAlias(UTPat.t, UTyp.t, t)
@@ -250,6 +252,7 @@ and UExp: {
     | Fun
     | TupLabel
     | Tuple
+    | Dot
     | Var
     | Let
     | Ap
@@ -279,6 +282,7 @@ and UExp: {
     | Fun(UPat.t, t)
     | TupLabel(LabeledTuple.t, t)
     | Tuple(list(t))
+    | Dot(t, string)
     | Var(Var.t)
     | Let(UPat.t, t, t)
     | TyAlias(UTPat.t, UTyp.t, t)

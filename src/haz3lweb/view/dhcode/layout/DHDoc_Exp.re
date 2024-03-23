@@ -74,6 +74,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   // TODO (Anthony): what should this be?
   | TupLabel(_) => DHDoc_common.precedence_Comma
   | Tuple(_) => DHDoc_common.precedence_Comma
+  | Dot(_) => DHDoc_common.precedence_Dot
   | Fun(_) => DHDoc_common.precedence_max
   | Let(_)
   | FixF(_)
@@ -151,6 +152,7 @@ let mk =
         | (BinIntOp(_), _)
         | (BinFloatOp(_), _)
         | (BinStringOp(_), _)
+        | (Dot(_), _)
         | (Projection, _)
         | (ListCons, _)
         | (ListConcat, _)
@@ -419,6 +421,14 @@ let mk =
           Doc.text(s),
           DHDoc_common.Delim.mk("="),
           go'(d, TupLabel),
+        ])
+      | Dot(d, s) =>
+        Doc.hcats([
+          DHDoc_common.Delim.open_Parenthesized,
+          go'(d, Dot),
+          DHDoc_common.Delim.close_Parenthesized,
+          DHDoc_common.Delim.mk("."),
+          Doc.text(s),
         ])
       | Tuple([]) => DHDoc_common.Delim.triv
       | Tuple(ds) =>

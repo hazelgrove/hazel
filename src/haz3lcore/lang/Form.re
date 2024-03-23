@@ -114,7 +114,8 @@ let is_reserved_keyword =
 
 /* Potential tokens: These are fallthrough classes which determine
  * the behavior when inserting a character in contact with a token */
-let is_potential_operand = regexp("^[a-zA-Z0-9_'\\.?]+$");
+let is_potential_operand = x =>
+  regexp("^[a-zA-Z0-9_'?]+$", x) || regexp("^[0-9_'\\.?]+$", x);
 /* Anything else is considered a potential operator, as long
  *  as it does not contain any whitespace, linebreaks, comment
  *  delimiters, string delimiters, or the instant expanding paired
@@ -277,6 +278,12 @@ let forms: list((string, t)) = [
   ("cons_exp", mk_infix("::", Exp, P.cons)),
   ("cons_pat", mk_infix("::", Pat, P.cons)),
   ("typeann", mk(ss, [":"], mk_bin'(P.ann, Pat, Pat, [], Typ))),
+  ("tuple_label_exp", mk(ss, ["="], mk_bin'(P.ann, Exp, Pat, [], Exp))), // TODO: Rename
+  ("tuple_label_pat", mk(ss, ["="], mk_bin'(P.ann, Pat, Pat, [], Pat))), // TODO: Rename
+  ("tuple_label_typ", mk(ss, ["="], mk_bin'(P.ann, Typ, Pat, [], Typ))), // TODO: Rename
+  ("dot_exp", mk(ss, ["."], mk_bin'(P.dot, Exp, Exp, [], Pat))), // TODO: Check precedence
+  // ("dot_pat", mk(ss, ["."], mk_bin'(P.dot, Pat, Pat, [], Pat))), // Only for exp?
+  // ("dot_typ", mk(ss, ["."], mk_bin'(P.dot, Typ, Typ, [], Pat))), // Only for exp?
   // UNARY PREFIX OPERATORS
   ("not", mk(ii, ["!"], mk_pre(5, Exp, []))), //TODO: precedence
   ("typ_sum_single", mk(ss, ["+"], mk_pre(P.or_, Typ, []))),
@@ -317,9 +324,6 @@ let forms: list((string, t)) = [
     "type_alias",
     mk(ds, ["type", "=", "in"], mk_pre(P.let_, Exp, [TPat, Typ])),
   ),
-  ("tuple_label_exp", mk(ss, ["="], mk_bin'(P.ann, Exp, Pat, [], Exp))), // TODO: Rename
-  ("tuple_label_pat", mk(ss, ["="], mk_bin'(P.ann, Pat, Pat, [], Pat))), // TODO: Rename
-  ("tuple_label_typ", mk(ss, ["="], mk_bin'(P.ann, Typ, Pat, [], Typ))), // TODO: Rename
   ("if_", mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))),
 ];
 

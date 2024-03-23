@@ -103,6 +103,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | BinIntOp(_)
     | BinFloatOp(_)
     | BinStringOp(_)
+    | Dot(_)
     | Test(_) => DHExp.cast(d, self_ty, ana_ty)
     };
   };
@@ -161,6 +162,9 @@ let rec dhexp_of_uexp =
       | Tuple(es) =>
         let+ ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
         DHExp.Tuple(ds);
+      | Dot(e, s) =>
+        let+ de = dhexp_of_uexp(m, e);
+        DHExp.Dot(de, s);
       | Cons(e1, e2) =>
         let* dc1 = dhexp_of_uexp(m, e1);
         let+ dc2 = dhexp_of_uexp(m, e2);

@@ -128,6 +128,10 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
          );
     Tuple(ds);
 
+  | Dot(d1, s) =>
+    let* d1' = pp_eval(d1);
+    Dot(d1', s) |> return;
+
   | Prj(d, n) =>
     let+ d = pp_eval(d);
     Prj(d, n);
@@ -377,6 +381,10 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
          );
     Tuple(ds);
 
+  | Dot(d, s) =>
+    let+ d = pp_uneval(env, d);
+    Dot(d, s);
+
   | Prj(d, n) =>
     let+ d = pp_uneval(env, d);
     Prj(d, n);
@@ -475,6 +483,7 @@ let rec track_children_of_hole =
   | Cast(d, _, _)
   | FailedCast(d, _, _)
   | TupLabel(_, d)
+  | Dot(d, _)
   | InvalidOperation(d, _) => track_children_of_hole(hii, parent, d)
   | Sequence(d1, d2)
   | Let(_, d1, d2)

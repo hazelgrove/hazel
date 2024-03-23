@@ -525,6 +525,7 @@ let get_doc =
       | EmptyHole => get_message(HoleExp.empty_hole_exps)
       // TODO (Anthony): put in a real message
       | TupLabel(_, _) => get_message(HoleExp.empty_hole_exps)
+      | Dot(_, _) => get_message(HoleExp.empty_hole_exps)
       | MultiHole(_children) => get_message(HoleExp.multi_hole_exps)
       | TyAlias(ty_pat, ty_def, _body) =>
         let tpat_id = List.nth(ty_pat.ids, 0);

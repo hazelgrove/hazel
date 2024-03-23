@@ -52,6 +52,7 @@ let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
     find_var_upat(name, p)
       ? false : var_mention(name, def) || var_mention(name, body)
   | TupLabel(_, u)
+  | Dot(u, _)
   | Test(u)
   | Parens(u)
   | UnOp(_, u)
@@ -103,6 +104,7 @@ let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
   | UnOp(_, u)
   | TyAlias(_, _, u)
   | TupLabel(_, u)
+  | Dot(u, _)
   | Filter(_, _, u) => var_applied(name, u)
   | Ap(u1, u2) =>
     switch (u1.term) {
@@ -191,6 +193,7 @@ let rec find_fn =
     List.fold_left((acc, u1) => {find_fn(name, u1, acc)}, l, ul)
   | Fun(_, body) => l |> find_fn(name, body)
   | TupLabel(_, u1)
+  | Dot(u1, _)
   | Parens(u1)
   | UnOp(_, u1)
   | TyAlias(_, _, u1)
@@ -263,6 +266,7 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   | Filter(_, _, u)
   | TupLabel(_, u) => tail_check(name, u)
   | Parens(u) => tail_check(name, u)
+  | Dot(u, _)
   | UnOp(_, u) => !var_mention(name, u)
   | Ap(u1, u2) => var_mention(name, u2) ? false : tail_check(name, u1)
   | Seq(u1, u2) => var_mention(name, u1) ? false : tail_check(name, u2)

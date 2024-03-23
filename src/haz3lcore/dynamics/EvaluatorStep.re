@@ -289,6 +289,9 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
     | TupLabel(s, ctx) =>
       let d2 = compose(ctx, d);
       TupLabel(s, d2);
+    | Dot(ctx, s) =>
+      let d2 = compose(ctx, d);
+      Dot(d2, s);
     | Tuple(ctx, (ld, rd)) =>
       let d = compose(ctx, d);
       Tuple(rev_concat(ld, [d, ...rd]));

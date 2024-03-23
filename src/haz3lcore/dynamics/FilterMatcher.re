@@ -132,8 +132,12 @@ let rec matches_exp =
        )
   | (ListLit(_), _) => false
 
+  // TODO (Anthony): Is this right?
   | (TupLabel(_, dv), TupLabel(_, fv)) => matches_exp(env, dv, fv)
   | (TupLabel(_), _) => false
+
+  | (Dot(dv, _), Dot(fv, _)) => matches_exp(env, dv, fv)
+  | (Dot(_), _) => false
 
   | (Tuple(dv), Tuple(fv)) =>
     List.fold_left2(
