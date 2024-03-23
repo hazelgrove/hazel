@@ -282,6 +282,25 @@ and uexp_to_info_map =
       ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es)),
       m,
     );
+  | Dot(e, s) =>
+    // TODO (Anthony): Fix this
+    let (e, m) = go(~mode=Syn, e, m);
+    let filt: Typ.t => option(LabeledTuple.t) = (
+      e =>
+        switch (e) {
+        | Label(s, _) => Some(s)
+        | _ => None
+        }
+    );
+    let element: option(Typ.t) =
+      switch (e.ty) {
+      | Prod(ts) => LabeledTuple.find_label(filt, ts, s)
+      | _ => None // TODO (Anthony): other exps
+      };
+    switch (element) {
+    | Some(exp) => add(~self=Just(exp), ~co_ctx=e.co_ctx, m)
+    | None => add(~self=Just(Unknown(Internal)), ~co_ctx=e.co_ctx, m)
+    };
   | Test(e) =>
     let (e, m) = go(~mode=Ana(Bool), e, m);
     add(~self=Just(Prod([])), ~co_ctx=e.co_ctx, m);

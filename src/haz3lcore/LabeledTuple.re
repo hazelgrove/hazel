@@ -60,8 +60,8 @@ let validate_uniqueness:
 // Checks remaining None pairs in order and performs f on each pair
 let ana_tuple:
   (
-    'b => option(string),
-    'c => option(string),
+    'b => option(t),
+    'c => option(t),
     ('a, 'b, 'c) => 'a,
     'a,
     'a,
@@ -130,5 +130,36 @@ let ana_tuple:
           l2_none,
         );
       accu;
+    };
+  };
+
+let find_label: ('a => option(t), list('a), t) => option('a) =
+  (filt, es, label) => {
+    List.find_opt(
+      e => {
+        switch (filt(e)) {
+        | Some(s) => compare(s, label) == 0
+        | None => false
+        }
+      },
+      es,
+    );
+  };
+
+let extract_item: ('a => option(t), list('a), t, 'b) => 'b =
+  (filt, es, label, none_val) => {
+    let opt =
+      List.find_opt(
+        e => {
+          switch (filt(e)) {
+          | Some(s) => compare(s, label) == 0
+          | None => false
+          }
+        },
+        es,
+      );
+    switch (opt) {
+    | Some(some) => some
+    | None => none_val
     };
   };

@@ -28,6 +28,7 @@ type cls =
   | IfThenElse3
   | TupLabel
   | Tuple(int)
+  | Dot
   | ListLit(int)
   | ApBuiltin
   | Test
@@ -74,6 +75,7 @@ type t =
   | BinStringOp2(TermBase.UExp.op_bin_string, DHExp.t, t)
   | TupLabel(LabeledTuple.t, t)
   | Tuple(t, (list(DHExp.t), list(DHExp.t)))
+  | Dot(t, LabeledTuple.t)
   | ApBuiltin(string, t)
   | Test(KeywordID.t, t)
   | ListLit(
@@ -141,6 +143,7 @@ let rec fuzzy_mark =
   | BinFloatOp2(_)
   | BinStringOp1(_)
   | BinStringOp2(_)
+  | Dot(_)
   | TupLabel(_)
   | Tuple(_)
   | ApBuiltin(_)

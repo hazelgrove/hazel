@@ -222,6 +222,15 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       }
     | _ => ret(hole(tm))
     }
+  | Bin(Exp(e), tiles, Pat(p)) as tm =>
+    switch (tiles) {
+    | ([(_id, (["."], []))], []) =>
+      switch (p.term) {
+      | Var(s) => ret(Dot(e, s))
+      | _ => ret(hole(tm))
+      }
+    | _ => ret(hole(tm))
+    }
   | Bin(Exp(l), tiles, Exp(r)) as tm =>
     switch (is_tuple_exp(tiles)) {
     | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
@@ -336,6 +345,11 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
         | _ => ret(hole(tm))
         }
       | ([(_id, (["::"], []))], []) => ret(Cons(l, r))
+      // | ([(_id, (["."], []))], []) =>
+      //   switch (r.term) {
+      //   | Var(s) => ret(Dot(l, s))
+      //   | _ => ret(hole(tm))
+      //   }
       | _ => ret(hole(tm))
       }
     }
@@ -401,6 +415,15 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
       }
     | _ => ret(hole(tm))
     }
+  // | Bin(Typ(t), tiles, Pat(p)) as tm =>
+  //   switch (tiles) {
+  //   | ([(_id, (["."], []))], []) =>
+  //     switch (p.term) {
+  //     | Var(s) => ret(Dot(t, s))
+  //     | _ => ret(hole(tm))
+  //     }
+  //   | _ => ret(hole(tm))
+  //   }
   | Bin(Typ(l), tiles, Typ(r)) as tm =>
     switch (is_tuple_typ(tiles)) {
     | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))

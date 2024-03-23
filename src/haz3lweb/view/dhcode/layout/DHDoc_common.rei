@@ -16,6 +16,7 @@ let precedence_GreaterThan: int;
 let precedence_And: int;
 let precedence_Or: int;
 let precedence_Comma: int;
+let precedence_Dot: int;
 let precedence_max: int;
 
 let pad_child:

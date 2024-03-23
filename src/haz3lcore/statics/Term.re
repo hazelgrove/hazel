@@ -447,6 +447,7 @@ module UExp = {
     | Fun
     | TupLabel
     | Tuple
+    | Dot
     | Var
     | MetaVar
     | Let
@@ -490,6 +491,7 @@ module UExp = {
     | Fun(_) => Fun
     | TupLabel(_, _) => TupLabel
     | Tuple(_) => Tuple
+    | Dot(_) => Dot
     | Var(_) => Var
     | Let(_) => Let
     | TyAlias(_) => TyAlias
@@ -584,6 +586,7 @@ module UExp = {
     | Fun => "Function literal"
     | TupLabel => "Labeled Tuple literal"
     | Tuple => "Tuple literal"
+    | Dot => "Dot operator"
     | Var => "Variable reference"
     | MetaVar => "Meta variable reference"
     | Let => "Let expression"
@@ -606,6 +609,7 @@ module UExp = {
     | Parens(e) => is_fun(e)
     | TupLabel(_, e) => is_fun(e)
     | Fun(_) => true
+    | Dot(_) // TODO (Anthony): Special case
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -641,6 +645,7 @@ module UExp = {
       | Parens(e) => is_tuple_of_functions(e)
       | TupLabel(_, e) => is_tuple_of_functions(e)
       | Tuple(es) => es |> List.for_all(is_fun)
+      | Dot(_) // TODO (Anthony): Special case
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)

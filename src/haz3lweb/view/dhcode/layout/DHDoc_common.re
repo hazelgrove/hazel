@@ -20,6 +20,7 @@ let precedence_GreaterThan = P.eqs;
 let precedence_And = P.and_;
 let precedence_Or = P.or_;
 let precedence_Comma = P.prod;
+let precedence_Dot = P.dot;
 let precedence_max = P.min;
 
 let pad_child =
