@@ -8,6 +8,12 @@ module Cell = {
     mtrl: Mtrl.Sorted.t,
     meld: option('meld),
   };
+  let mk = (~marks=Path.Marks.empty, ~meld=?, mold, mtrl) => {
+    marks,
+    meld,
+    mold,
+    mtrl,
+  };
   // let empty = {marks: Path.Marks.empty, dims: Dims.zero, meld: None};
   // let full = m => {marks: Path.Marks.empty, meld: Some(m)};
 };
@@ -17,8 +23,10 @@ module Wald = {
   type t('cell) =
     | W(Chain.t(Token.t, 'cell));
   let of_tok = tok => W(Chain.unit(tok));
-  let face = (~side=Dir.L, W(w): t(_)) =>
-    Dir.pick(side, (Chain.fst, Chain.lst), w).lbl;
+  let face = (~side=Dir.L, W(w): t(_)) => {
+    let tok = Dir.pick(side, (Chain.fst, Chain.lst), w);
+    (tok.mtrl, tok.mold);
+  };
   // let dims = (W(w)) =>
   //   w |> Chain.to_list(Token.dims, c => Cell.(c.dims)) |> Dims.sum;
 };
@@ -27,7 +35,16 @@ module Wald = {
 type t =
   | M(Cell.t(t), Wald.t(Cell.t(t)), Cell.t(t));
 
-let mk = (~l=Cell.empty, ~r=Cell.empty, w) => M(l, w, r);
+let mk_space = text => {
+  let tok = Token.mk_space(text);
+  let l = Cell.mk(Node(Mold.Space.of_nt(L)), Mtrl.Space);
+  let r = Cell.mk(Node(Mold.Space.of_nt(R)), Mtrl.Space);
+  M(l, Wald.of_tok(tok), r);
+};
+let cursor = mk_space(failwith("todo"));
+
+// let mk = (~l=Cell.empty, ~r=Cell.empty, w) => M(l, w, r);
+[@warning "-27-39"]
 let rec mk_grout = (~l=false, ~r=false, sort: Mtrl.Sorted.t) => {
   // let c_l = l ? Cell.full(mk_grout(Grout)) : Cell.empty;
   // let c_r = r ? Cell.full(mk_grout(Grout)) : Cell.empty;
@@ -36,7 +53,7 @@ let rec mk_grout = (~l=false, ~r=false, sort: Mtrl.Sorted.t) => {
     "todo: make full molded sorts for Cell.full calls above",
   );
 };
-let of_tok = tok => mk(Wald.of_tok(tok));
+// let of_tok = tok => mk(Wald.of_tok(tok));
 
 let to_chain = (M(l, W((toks, cells)), r)) => (
   [l, ...cells] @ [r],
@@ -44,7 +61,7 @@ let to_chain = (M(l, W((toks, cells)), r)) => (
 );
 let unzip = (n, m) => Chain.unzip_nth(n, to_chain(m));
 
-let link = (~cell=Cell.empty, t: Token.t, M(l, W(w), r): t) =>
+let link = (cell, t: Token.t, M(l, W(w), r): t) =>
   M(cell, W(Chain.link(t, l, w)), r);
 
 let rev = (M(l, W(w), r): t) => M(r, W(Chain.rev(w)), l);
@@ -53,7 +70,7 @@ let face = (~side: Dir.t, M(_, w, _)) => Wald.face(~side, w);
 
 let is_space =
   fun
-  | M(_, W(([tok], [])), _) when tok.lbl.mtrl == Mtrl.Space => Some(tok)
+  | M(_, W(([{mtrl: Space, _} as tok], [])), _) => Some(tok)
   | _ => None;
 
 let map_cells = (f, M(l, W((toks, cells)), r)) => {

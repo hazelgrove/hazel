@@ -93,7 +93,7 @@ let rec zip_open = ((dn, up): Frame.Open.t, zipped: Cell.t) =>
 let zip = (z: t) =>
   z.ctx
   |> Ctx.fold(
-       open_ => zip_open(open_, Cell.cursor),
+       open_ => zip_open(open_, Meld.cursor),
        (zipped, closed, open_) =>
          zipped |> zip_closed(closed) |> zip_open(open_),
      );

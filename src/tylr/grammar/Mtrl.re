@@ -42,6 +42,7 @@ module T = Labeled;
 module NT = {
   [@deriving (show({with_path: false}), sexp, yojson, ord)]
   type t = Padded.t(Sorted.t);
+  let space = Padded.mk(Space);
   let grout = Padded.mk(Grout);
 };
 module Grammar = {

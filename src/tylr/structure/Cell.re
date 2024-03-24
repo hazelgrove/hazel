@@ -4,11 +4,8 @@ include Meld.Cell;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = Meld.Cell.t(Meld.t);
 
-let mk = (~marks=Path.Marks.empty, ~meld=?, ()) => {marks, meld};
-let empty = mk();
-let is_empty = (==)(empty);
-
-let cursor = mk(~marks=Path.Marks.cursor, ());
+// let empty = mk();
+let is_empty = c => Option.is_none(c.meld);
 
 let has_space = (cell: t) =>
   switch (cell.meld) {
@@ -22,7 +19,7 @@ let add_marks = (marks, cell) => {
 };
 let clear_marks = cell => {...cell, marks: Path.Marks.empty};
 
-let get = ({marks, meld}: t) => {
+let get = ({marks, meld, _}: t) => {
   open OptUtil.Syntax;
   let+ Meld.M(l, W((toks, cells)), r) = meld;
   let n = List.length(toks);
@@ -36,7 +33,7 @@ let get = ({marks, meld}: t) => {
   Meld.M(l, W((toks, cells)), r);
 };
 
-let put = (~sort as _: Bound.t(Molded.Sorted.t), m: Meld.t) => {
+let put = (mold, mtrl, m: Meld.t) => {
   let M(l, W((toks, cells)), r) = m;
   let n = List.length(toks);
   let marks =
@@ -49,10 +46,10 @@ let put = (~sort as _: Bound.t(Molded.Sorted.t), m: Meld.t) => {
         @ [cons(n, r.marks)],
       )
     );
-  mk(~marks, ~meld=Meld.map_cells(clear_marks, m), ());
+  mk(~marks, ~meld=Meld.map_cells(clear_marks, m), mold, mtrl);
 };
 
 let face = (~side: Dir.t, cell: t) =>
   cell.meld
   |> Option.map(Meld.face(~side))
-  |> Option.value(~default=Molded.Labeled.space);
+  |> Option.value(~default=(Mtrl.Space, Mold.Space.of_t));

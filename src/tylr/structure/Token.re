@@ -36,6 +36,7 @@ let mk_grout = (~id=?, ~l=false, ~r=false, sort) => {
   let mold = Mold.of_grout(~l, sort, ~r);
   mk(~id?, ~text=failwith("grout text"), Mtrl.Grout, mold);
 };
+let mk_space = (~id=?, text) => mk(~id?, ~text, Mtrl.Space, Mold.Space.of_t);
 
 let is_empty = (tok: t) => String.equal(tok.text, "");
 let is_space = (tok: t) => Mtrl.is_space(tok.mtrl);

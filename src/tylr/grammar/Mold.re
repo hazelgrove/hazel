@@ -5,6 +5,17 @@ type t = {
   rctx: RCtx.t(Mtrl.Sym.t),
 };
 
+module Space = {
+  let t = Sym.T(Mtrl.Space);
+  let nt = Sym.NT(Mtrl.NT.space);
+  let mk = (rctx: RCtx.t(_)) => {sort: Space, prec: 0, rctx};
+  let of_t = mk([Seq_([Atom(nt)], [Atom(nt)])]);
+  let of_nt =
+    fun
+    | Dir.L => mk([RFrame.Seq_([], [Atom(t), Atom(nt)])])
+    | R => mk([RFrame.Seq_([Atom(nt), Atom(t)], [])]);
+};
+
 let equal = (==);
 
 let push = (~onto: Dir.t, msym: Mtrl.Sym.t, mold: t) => {
