@@ -35,13 +35,13 @@ module Wald = {
 type t =
   | M(Cell.t(t), Wald.t(Cell.t(t)), Cell.t(t));
 
-let mk_space = text => {
-  let tok = Token.mk_space(text);
+// assumes tok is space
+let of_space = tok => {
   let l = Cell.mk(Node(Mold.Space.of_nt(L)), Mtrl.Space);
   let r = Cell.mk(Node(Mold.Space.of_nt(R)), Mtrl.Space);
   M(l, Wald.of_tok(tok), r);
 };
-let cursor = mk_space(failwith("todo"));
+let cursor = of_space(Token.cursor);
 
 // let mk = (~l=Cell.empty, ~r=Cell.empty, w) => M(l, w, r);
 [@warning "-27-39"]

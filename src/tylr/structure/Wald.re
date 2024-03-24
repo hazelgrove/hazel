@@ -32,9 +32,6 @@ let cells: t => list(Cell.t) = get(Chain.links);
 
 let extend = tl => map(Chain.extend(tl));
 
-let face = (~side=Dir.L, W((toks, _)): t) =>
-  Dir.pick(side, (List.hd, ListUtil.last), toks).lbl;
-
 let sort = w => Token.sort(hd(w));
 
 let fold = (f, g, W(w)) => Chain.fold_left(f, g, w);
