@@ -2028,7 +2028,7 @@ let get_doc =
       // Shouldn't be hit?
       default
     }
-  | Some(InfoTyp({term, cls, _})) =>
+  | Some(InfoTyp({term, _} as typ_info)) =>
     switch (bypass_parens_typ(term).term) {
     | EmptyHole => get_message(HoleTyp.empty_hole)
     | MultiHole(_) => get_message(HoleTyp.multi_hole)
@@ -2185,9 +2185,7 @@ let get_doc =
         }
       | _ => basic(TupleTyp.tuple)
       };
-    | Constructor(c) =>
-      get_message(SumTyp.sum_typ_nullary_constructor_defs(c))
-    | Var(c) when cls == Typ(Constructor) =>
+    | Var(c) when Info.typ_is_constructor_expected(typ_info) =>
       get_message(SumTyp.sum_typ_nullary_constructor_defs(c))
     | Var(v) =>
       get_message(
@@ -2198,7 +2196,7 @@ let get_doc =
         TerminalTyp.var(v),
       )
     | Sum(_) => get_message(SumTyp.labelled_sum_typs)
-    | Ap({term: Constructor(c), _}, _) =>
+    | Ap({term: Var(c), _}, _) =>
       get_message(SumTyp.sum_typ_unary_constructor_defs(c))
     | Invalid(_) => simple("Not a type or type operator")
     | Ap(_)

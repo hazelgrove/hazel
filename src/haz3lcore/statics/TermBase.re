@@ -381,7 +381,6 @@ and TypTerm: {
     | String
     | Var(string)
     | List(t)
-    | Constructor(string) // TODO: Add to TypBase (?) or remove(?)
     | Arrow(t, t)
     | Sum(list(variant))
     | Prod(list(t))
@@ -419,7 +418,6 @@ and TypTerm: {
     | String
     | Var(string)
     | List(t)
-    | Constructor(string)
     | Arrow(t, t)
     | Sum(list(variant))
     | Prod(list(t))
@@ -459,7 +457,6 @@ and TypTerm: {
         | Bool
         | Int
         | Float
-        | Constructor(_)
         | String
         | Var(_) => term
         | List(t) => List(typ_map_term(t))
