@@ -8,12 +8,13 @@ log_directory="testlog"
 collate_script="collate_data.sh"
 warm_serials="warm_serials.sh"
 
+command_timeout=120
 wait_time=0
-num_runs=1
+num_runs=8
 
 # Source folders
 source_folders=(
-    "testdata/todo2/"
+    # "testdata/todo2/"
     "testdata/playlist1/"
     "testdata/booking2/"
     "testdata/emojipaint1/"
@@ -73,19 +74,26 @@ run_command() {
     log_file="$log_directory/${run_name}-${timestamp}.log"
 
     if $verbose; then
-        $command_prefix --run_name "$run_name" $opt_args --source_folder "$source_folder" $api_key | tee "$log_file"
+        timeout --foreground "$command_timeout"s bash -c "$command_prefix --run_name \"$run_name\" $opt_args --source_folder \"$source_folder\" $api_key | tee \"$log_file\"" &
     else
-        $command_prefix --run_name "$run_name" $opt_args --source_folder "$source_folder" $api_key > "$log_file" 2>&1
+        timeout --foreground "$command_timeout"s bash -c "$command_prefix --run_name \"$run_name\" $opt_args --source_folder \"$source_folder\" $api_key > \"$log_file\" 2>&1" &
     fi
-
-    # Check the exit code of the HazeLS command
+    cmd_pid=$!
+    wait $cmd_pid
     exit_code=$?
-    if [ $exit_code -ne 0 ]; then
+
+    if [ $exit_code -eq 124 ]; then
+        echo "Timeout: HazeLS command exceeded ${command_timeout} seconds for source '$source_folder' with options '$opt_args'. Log file: $log_file"
+        error_count=$((error_count + 1))
+        error_summary+="- Timeout: HazeLS command for source '$source_folder' with options '$opt_args' exceeded ${command_timeout} seconds. Log file: $log_file\n"
+    elif [ $exit_code -ne 0 ]; then
         echo "Alert: HazeLS command exited with non-zero exit code $exit_code. Check log file: $log_file"
         error_count=$((error_count + 1))
         error_summary+="- HazeLS command with options '$opt_args' for source '$source_folder' exited with code $exit_code. Log file: $log_file\n"
     fi
 }
+
+
 
 # Initialize a summary string and error tracking variables
 summary="Summary of test runs:\n"

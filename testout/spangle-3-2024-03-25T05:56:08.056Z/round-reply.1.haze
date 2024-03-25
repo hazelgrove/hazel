@@ -1,0 +1,7 @@
+fun model, action -> 
+    case action
+    | PlaySong(song) => model with { songPlaying = Some(song); }
+    | PauseSong => model with { songPlaying = None; }
+    | NextSong => model with { songIndex = model.songIndex + 1; }
+    | PreviousSong => model with { songIndex = model.songIndex - 1; }
+    end

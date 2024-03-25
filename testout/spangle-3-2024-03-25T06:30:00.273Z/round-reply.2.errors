@@ -1,0 +1,98 @@
+The following static errors were discovered:
+Error in term:
+  fillRow fun (row, emoji, grid) ->
+ List.mapi(fun (i, row) ->
+ if i == row then List.map(fun _ ->
+ emoji, _) else row end, grid)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  fun (i, row) ->
+ if i == row then List.mapi(fun (j, _) ->
+ if j == col then emoji else _ end, row) else row end, grid
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  fun (model, action) ->
+ case action
+ | SelectEmoji(emoji) => let ((grid, _, palette)) = model in
+ (grid, emoji, palette)
+| StampEmoji(((row, col))) => let ((grid, emoji, palette)) = model in
+ let newGrid = updateCell(row, col, emoji, grid) in
+ (newGrid, emoji, palette)
+| ClearCell(((row, col))) => let ((grid, emoji, palette)) = model in
+ let newGrid = updateCell(row, col, , grid) in
+ (newGrid, emoji, palette)
+| ClearGrid => let ((_, emoji, palette)) = model in
+ (initGrid, emoji, palette)
+| FillRow(row) => let ((grid, emoji, palette)) = model in
+ let newGrid = fillRow(row, emoji, grid) in
+ (newGrid, emoji, palette)
+end where updateCell fun (row, col, emoji, grid) ->
+ List.mapi(fun (i, row) ->
+ if i == row then List.mapi(fun (j, _) ->
+ if j == col then emoji else _ end, row) else row end, grid), fillRow fun (row, emoji, grid) ->
+ List.mapi(fun (i, row) ->
+ if i == row then List.map(fun _ ->
+ emoji, _) else row end, grid)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  fillRow
+Nature of error: Variable fillRow is not bound
+Error in term:
+  updateCell
+Nature of error: Variable updateCell is not bound
+Error in term:
+  updateCell
+Nature of error: Variable updateCell is not bound
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  where
+Nature of error: Variable where is not bound
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  fun (i, row) ->
+ if i == row then List.map(fun _ ->
+ emoji, _) else row end, grid
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  fillRow
+Nature of error: Variable fillRow is not bound
+Error in term:
+  _
+Nature of error: "_" isn't a valid token
+Error in term:
+  initGrid
+Nature of error: Variable initGrid is not bound
+Error in term:
+  where updateCell fun (row, col, emoji, grid) ->
+ List.mapi(fun (i, row) ->
+ if i == row then List.mapi(fun (j, _) ->
+ if j == col then emoji else _ end, row) else row end, grid), fillRow fun (row, emoji, grid) ->
+ List.mapi(fun (i, row) ->
+ if i == row then List.map(fun _ ->
+ emoji, _) else row end, grid)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  updateCell fun (row, col, emoji, grid) ->
+ List.mapi(fun (i, row) ->
+ if i == row then List.mapi(fun (j, _) ->
+ if j == col then emoji else _ end, row) else row end, grid)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  fun (j, _) ->
+ if j == col then emoji else _ end, row
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  updateCell
+Nature of error: Variable updateCell is not bound
+Error in term:
+  _
+Nature of error: "_" isn't a valid token
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

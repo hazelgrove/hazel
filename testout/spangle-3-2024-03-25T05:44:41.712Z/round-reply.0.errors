@@ -1,0 +1,37 @@
+The following static errors were discovered:
+Error in term:
+  fun ((playlist, action)) ->
+ Rul where pendingId case get_state(playlist)
+ | Playing(id) => id
+| PausedOn(id) => id
+| _ => -1
+end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  pendingId
+Nature of error: Variable pendingId is not bound
+Error in term:
+  pendingId case get_state(playlist)
+ | Playing(id) => id
+| PausedOn(id) => id
+| _ => -1
+end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  playlist
+Nature of error: Variable playlist is not bound
+Error in term:
+  Rul
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  where
+Nature of error: Variable where is not bound
+Error in term:
+  where pendingId case get_state(playlist)
+ | Playing(id) => id
+| PausedOn(id) => id
+| _ => -1
+end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

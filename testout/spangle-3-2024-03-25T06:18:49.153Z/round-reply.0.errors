@@ -1,0 +1,24 @@
+The following static errors were discovered:
+Error in term:
+  cancel_booking
+Nature of error: Variable cancel_booking is not bound
+Error in term:
+  add_room
+Nature of error: Variable add_room is not bound
+Error in term:
+  book_room
+Nature of error: Variable book_room is not bound
+Error in term:
+  remove_room
+Nature of error: Variable remove_room is not bound
+Error in term:
+  AddRoom
+Nature of error: Constructor is not defined
+Error in term:
+  BookRoom
+Nature of error: Constructor is not defined
+Error in term:
+  RemoveRoom
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

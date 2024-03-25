@@ -1,0 +1,15 @@
+fun model, action ->
+  case action
+  | SelectColor(color) => {model with color = color}
+  | Paint(row, col) =>
+      let cell = Grid.get(model.grid, row, col) in
+      let cell = match cell with
+        | None -> Cell(model.color, 1.0)
+        | Some(cell) -> Cell(model.color, 1.0) end
+      in
+      let grid = Grid.set(model.grid, row, col, cell) in
+      {model with grid = grid}
+  | TogglePlaying => {model with playing = not model.playing}
+  | SetBrushSize(size) => {model with brush_size = size}
+  | Clear => {grid = Grid.empty; color = White; brush_size = 1; playing = false}
+  end

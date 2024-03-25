@@ -1,0 +1,68 @@
+The following static errors were discovered:
+Error in term:
+  password p
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  case action
+ | Init => initialModel
+| PasswordInput(p) => let strength = calculateStrength(p, m.criteriaList) in
+ ? password p, strength ?
+| AddCriteria(c) => ? password m.password, criteriaList c :: m.criteriaList, strength m.strength ?
+end
+Nature of error: Expecting branches to have consistent types but got types: Model, (?, ?), (?, [?], ?)
+Error in term:
+  password m.password
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  m.strength
+Nature of error: "m.strength" isn't a valid token
+Error in term:
+  strength
+Nature of error: Variable strength is not bound
+Error in term:
+  m.criteriaList
+Nature of error: "m.criteriaList" isn't a valid token
+Error in term:
+  password
+Nature of error: Variable password is not bound
+Error in term:
+  strength m.strength ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? password m.password
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  password
+Nature of error: Variable password is not bound
+Error in term:
+  criteriaList
+Nature of error: Variable criteriaList is not bound
+Error in term:
+  criteriaList c
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  m.password
+Nature of error: "m.password" isn't a valid token
+Error in term:
+  m.strength ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  strength ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  m.criteriaList
+Nature of error: "m.criteriaList" isn't a valid token
+Error in term:
+  ? password p
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  AddCriteria
+Nature of error: Constructor is not defined
+Error in term:
+  Init
+Nature of error: Constructor is not defined
+Error in term:
+  PasswordInput
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

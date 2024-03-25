@@ -1,0 +1,61 @@
+The following static errors were discovered:
+Error in term:
+  loadPaint
+Nature of error: Variable loadPaint is not bound
+Error in term:
+  model.grid
+Nature of error: "model.grid" isn't a valid token
+Error in term:
+  update
+Nature of error: Variable update is not bound
+Error in term:
+  model.grid
+Nature of error: "model.grid" isn't a valid token
+Error in term:
+  model
+Nature of error: Variable model is not bound
+Error in term:
+  in
+Nature of error: Variable in is not bound
+Error in term:
+  model.grid
+Nature of error: "model.grid" isn't a valid token
+Error in term:
+  action
+Nature of error: Variable action is not bound
+Error in term:
+  in update(model, action)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.grid
+Nature of error: "model.grid" isn't a valid token
+Error in term:
+  fun (model, action) ->
+ case action
+ | DrawCord((row, col, emoji)) => updateGrid(model.grid, row, col, emoji)
+| Clear => clearGrid(model.grid)
+| Fill((row, emoji)) => fillRowInGrid(model.grid, row, emoji)
+| Save(filePath) => savePaint(model.grid, filePath)
+| Load(filePath) => loadPaint(filePath)
+end in update(model, action)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  savePaint
+Nature of error: Variable savePaint is not bound
+Error in term:
+  Save
+Nature of error: Constructor is not defined
+Error in term:
+  Clear
+Nature of error: Constructor is not defined
+Error in term:
+  Fill
+Nature of error: Constructor is not defined
+Error in term:
+  Load
+Nature of error: Constructor is not defined
+Error in term:
+  DrawCord
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

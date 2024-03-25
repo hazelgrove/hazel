@@ -1,0 +1,6 @@
+fun model, action ->
+  case action
+  | Increment => model + 1
+  | Decrement => model - 1
+  | Reset => 0
+  end

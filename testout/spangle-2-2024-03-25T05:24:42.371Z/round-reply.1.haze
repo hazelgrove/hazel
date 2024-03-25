@@ -1,0 +1,15 @@
+fun model, action ->
+  let buffer, todos = model in
+  case action
+  | AddTodo =>
+      let new_todo = (buffer, false) in
+      (buffer, new_todo::todos)
+  | RemoveTodo(index) =>
+      let new_todos = List.filteri((fun i, _ -> i != index), todos) in
+      (buffer, new_todos)
+  | ToggleTodo(index) =>
+      let new_todos = List.mapi((fun i, todo -> if i == index then let text, done = todo in (text, !done) else todo), todos) in
+      (buffer, new_todos)
+  | UpdateBuffer(text) =>
+      (text, todos)
+  end

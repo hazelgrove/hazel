@@ -1,0 +1,13 @@
+fun model, action ->
+  case action
+  | StartEditTodo(index) => {model with editing = Some(index)}
+  | AddTodo -> add(model)
+  | RemoveTodo(index) => {model with todos = remove(index, model.todos)}
+  | ToggleTodo(index) => {model with todos = toggle(index, model.todos)}
+  | UpdateNewTodoTitle(title) => {model with newTodoTitle = title}
+  | UpdateEditTodoTitle(title) => {model with editTodoTitle = title}
+  | CommitEditTodo -> {model with editing = None, editTodoTitle = ""}
+  | CancelEditTodo -> {model with editing = None}
+  | ClearCompleted -> {model with todos = List.filter(fun todo -> not todo.completed, model.todos)}
+  | ToggleAll(complete) => {model with todos = List.map(fun todo -> {todo with completed = complete}, model.todos)}
+  end

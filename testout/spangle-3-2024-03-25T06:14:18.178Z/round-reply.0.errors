@@ -1,0 +1,56 @@
+The following static errors were discovered:
+Error in term:
+  model.2
+Nature of error: "model.2" isn't a valid token
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  model.2
+Nature of error: "model.2" isn't a valid token
+Error in term:
+  model.2
+Nature of error: "model.2" isn't a valid token
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  fun ((((weekday, time_of_day, user')), booking_id')) ->
+ (weekday, time_of_day, user') != user \/ booking_id' != booking_id
+Nature of error: Expecting type [?] but got inconsistent type (((?, ?, ?), ?) -> Bool)
+Error in term:
+  user
+Nature of error: Expecting type (?, ?, ?) but got inconsistent type User
+Error in term:
+  List.filter(model.1, fun ((((weekday, time_of_day, user')), booking_id')) ->
+ (weekday, time_of_day, user') != user \/ booking_id' != booking_id) end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  model.2
+Nature of error: "model.2" isn't a valid token
+Error in term:
+  fun (model, action) ->
+ case action
+ | AddBooking(((user, weekday, time_of_day))) => let new_booking_form_data = (weekday, time_of_day, user) in
+ let new_booking = (new_booking_form_data, model.2 + 1) in
+ (new_booking_form_data, List.append(model.1, new_booking), model.2 + 1)
+| CancelBooking(((user, booking_id))) => let updated_bookings = List.filter(model.1, fun ((((weekday, time_of_day, user')), booking_id')) ->
+ (weekday, time_of_day, user') != user \/ booking_id' != booking_id) end in
+ (model.0, updated_bookings, model.2)
+| ClearBookings => (model.0, , model.2)
+end end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

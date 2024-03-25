@@ -1,0 +1,19 @@
+fun model, action ->
+            case action
+            | Add(track) => {...model, tracks = track :: model.tracks}
+            | Delete(track) => {...model, tracks = List.filter(fun t -> t!= track, model.tracks)}
+            | MoveUp(track) => 
+                      let index = List.index_of(track, model.tracks) in
+                      if index > 0 then
+                        let prev_track = List.nth(index-1, model.tracks) in
+                        let updated_tracks = List.set(index-1, track, List.set(index, prev_track, model.tracks)) in
+                        {...model, tracks = updated_tracks}
+                      else  model
+            | MoveDown(track) => 
+                      let index = List.index_of(track, model.tracks) in
+                      if index < List.length(model.tracks)-1 then
+                        let next_track = List.nth(index+1, model.tracks) in
+                        let updated_tracks = List.set(index+1, track, List.set(index, next_track, model.tracks)) in
+                        {...model, tracks = updated_tracks}
+                      else  model
+            end

@@ -1,0 +1,27 @@
+The following static errors were discovered:
+Error in term:
+  Model.uncompleteItem
+Nature of error: Variable Model.uncompleteItem is not bound
+Error in term:
+  Model.removeItem
+Nature of error: Variable Model.removeItem is not bound
+Error in term:
+  Model.completeItem
+Nature of error: Variable Model.completeItem is not bound
+Error in term:
+  Model.addItem
+Nature of error: Variable Model.addItem is not bound
+Error in term:
+  AddItem
+Nature of error: Constructor is not defined
+Error in term:
+  RemoveItem
+Nature of error: Constructor is not defined
+Error in term:
+  UncompleteItem
+Nature of error: Constructor is not defined
+Error in term:
+  CompleteItem
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

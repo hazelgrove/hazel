@@ -83,7 +83,7 @@ let get_caret_mode_and_ctx = (~db, ~init_ctx, ~common, ~prelude, sketch_pre) => 
   };
 };
 
-let _ask_gpt = (~key, ~llm, ~prompt, ~handler): unit => {
+let ask_gpt = (~key, ~llm, ~prompt, ~handler): unit => {
   if (llm != OpenAI.Azure_GPT4_0613) {
     failwith("LS: ask_gpt: Unsupported chat model");
   };
@@ -107,29 +107,30 @@ let _ask_gpt = (~key, ~llm, ~prompt, ~handler): unit => {
 };
 
 // a b c d e f g h i j k l m n o p q r s t u v w x y z
-let ask_gpt = (~key as _, ~llm as _, ~prompt as _, ~handler): unit => {
+/*
+ fun model, action ->
+     case action
+     | AddTodo => add(model)
+     | RemoveTodo(idx) => let (buffer, todos) = model in (buffer, remove(idx, todos))
+ 	| ToggleTodo(idx) => let (buffer, todos) = model in (buffer, toggle(idx, todos))
+ 	| UpdateBuffer(str) => let (_, todos) = model in (str, todos)
+     end
+ */
+let _ask_gpt = (~key as _, ~llm as _, ~prompt as _, ~handler): unit => {
   print_endline("MOCK API RESPONSE");
   handler(
     Some(
       API.Json.from_string(
         {|
-  {"choices":[{"finish_reason":"stop","index":0,"message":{"content":"\nfun (model, action) ->
-    case action
-    | Play(track_id) =>
-        let updated_tracks = List.map
-              (fun t -> if t.id == track_id then { t with is_playing = true } else { t with is_playing = false })
-              model.tracks in
-        { model with tracks = updated_tracks }
-    | Pause =>
-        let updated_tracks = List.map (fun t -> { t with is_playing = false }) model.tracks in
-        { model with tracks = updated_tracks }
-    | AddTrack(track) =>
-        let updated_tracks = track :: model.tracks in
-        { model with tracks = updated_tracks }
-    | RemoveTrack(track_id) =>
-        let updated_tracks = List.filter (fun t -> t.id != track_id) model.tracks in
-        { model with tracks = updated_tracks }
-    end","role":"assistant"}}],"created":1710546768,"id":"chatcmpl-93Bdwe2gBn7xdCNfeCAwGdjyS4u9B","model":"gpt-4","object":"chat.completion","system_fingerprint":null,"usage":{"completion_tokens":148,"prompt_tokens":1545,"total_tokens":1693}}
+  {"choices":[{"finish_reason":"stop","index":0,"message":{"content":"
+  fun model, action ->
+     case action
+     | AddTodo => add(model)
+     | RemoveTodo(idx) => let (buffer, todos) = model in (buffer, remove(idx, todos))
+ 	| ToggleTodo(idx) => let (buffer, todos) = model in (buffer, toggle(idx, todos))
+ 	| UpdateBuffer(str) => let (_, todos) = model in (str, todos)
+     end
+    ","role":"assistant"}}],"created":1710546768,"id":"chatcmpl-93Bdwe2gBn7xdCNfeCAwGdjyS4u9B","model":"gpt-4","object":"chat.completion","system_fingerprint":null,"usage":{"completion_tokens":148,"prompt_tokens":1545,"total_tokens":1693}}
   |},
       ),
     ),
@@ -308,7 +309,7 @@ let fix_parse_problems = s =>
   Js_of_ocaml.Regexp.global_replace(
     Js_of_ocaml.Regexp.regexp("\\|\\|"),
     Js_of_ocaml.Regexp.global_replace(
-      Js_of_ocaml.Regexp.regexp("\\t"),
+      Js_of_ocaml.Regexp.regexp("\t"),
       s,
       "  ",
     ),

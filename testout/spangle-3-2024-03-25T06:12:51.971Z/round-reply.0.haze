@@ -1,0 +1,12 @@
+fun m, action ->
+  case action of
+  | AddBooking((u, w, t)) =>
+    let (r, bookings, next_id) = m in
+    ((w, t, ""), (w, t, u, next_id)::bookings, next_id + 1)
+  | CancelBooking((u, bid)) =>
+    let (r, bookings, next_id) = m in
+    (r, List.filter (fun (_, _, id) -> id != bid) bookings, next_id)
+  | ClearBookings =>
+    let (r, _, _) = m in
+    (r, [], 0)
+  end

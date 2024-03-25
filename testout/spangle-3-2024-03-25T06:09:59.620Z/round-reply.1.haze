@@ -1,0 +1,14 @@
+fun (booking_form_data, bookings, current_booking_id), action -> 
+case action 
+  | AddBooking(user, weekday, time_of_day) => 
+    let new_booking = ((weekday, time_of_day), user, current_booking_id + 1) in 
+    (booking_form_data, new_booking::bookings, current_booking_id + 1)
+  | CancelBooking(user, booking_id) =>
+    let remaining_bookings = List.filter(fun booking -> 
+      let ((_, _), _, id) = booking in 
+      !(id == booking_id)
+    end, bookings) in 
+    (booking_form_data, remaining_bookings, current_booking_id)
+  | ClearBookings =>
+    (booking_form_data, [], current_booking_id)
+end

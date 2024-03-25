@@ -1,0 +1,66 @@
+The following static errors were discovered:
+Error in term:
+  with
+Nature of error: Variable with is not bound
+Error in term:
+  brush_size
+Nature of error: Variable brush_size is not bound
+Error in term:
+  Rul with Rul with grid Grid.empty, color White, brush_size 1, playing false end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  false end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Rul with grid Grid.empty, color White, brush_size 1, playing false end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  with
+Nature of error: Variable with is not bound
+Error in term:
+  Grid.empty
+Nature of error: Variable Grid.empty is not bound
+Error in term:
+  color White
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  White
+Nature of error: Constructor is not defined
+Error in term:
+  with Rul with Rul with grid Grid.empty, color White, brush_size 1, playing false end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  brush_size 1
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  grid Grid.empty
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  with
+Nature of error: Variable with is not bound
+Error in term:
+  grid
+Nature of error: Variable grid is not bound
+Error in term:
+  with grid Grid.empty, color White, brush_size 1, playing false end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  with Rul with grid Grid.empty, color White, brush_size 1, playing false end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  color
+Nature of error: Variable color is not bound
+Error in term:
+  playing
+Nature of error: Variable playing is not bound
+Error in term:
+  Rul with Rul with Rul with grid Grid.empty, color White, brush_size 1, playing false end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  playing false end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

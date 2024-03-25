@@ -1,0 +1,6 @@
+fun (model, action) =>
+  case action
+    | PlayListAction.AddSong(id) => { model with songs = List.merge((fun a, b -> a - b), model.songs, [id]) }
+    | PlayListAction.RemoveSong(id) => { model with songs = List.filter_map((fun current -> if current == id then None else Some(current)), model.songs) }
+    | PlayListAction.ToggleState => { model with state = (if get_state(model) == PlayListState.Playing then PlayListState.Paused else PlayListState.Playing) }
+  end

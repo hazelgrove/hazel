@@ -1,0 +1,11 @@
+fun model, action ->
+  case action
+  | Initialize => initialModel
+  | ChangePassword(p) => 
+    let trimmed_p = string_trim(p) in
+    let password_strength = calculateStrength(trimmed_p, model.criteria) in
+    { model with password = trimmed_p; strength = password_strength }
+  | UpdateCriteria(c) =>
+    let password_strength = calculateStrength(model.password, c) in
+    { model with criteria = c; strength = password_strength } 
+  end

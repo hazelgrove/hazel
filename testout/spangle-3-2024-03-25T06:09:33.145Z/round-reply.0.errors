@@ -1,0 +1,30 @@
+The following static errors were discovered:
+Error in term:
+  booking_id
+Nature of error: Expecting type BookingID but got inconsistent type Weekday
+Error in term:
+  setFormState
+Nature of error: Variable setFormState is not bound
+Error in term:
+  setBookings
+Nature of error: Variable setBookings is not bound
+Error in term:
+  setBookings
+Nature of error: Variable setBookings is not bound
+Error in term:
+  setFormState
+Nature of error: Variable setFormState is not bound
+Error in term:
+  UpdateModel
+Nature of error: Constructor is not defined
+Error in term:
+  ClearFormState
+Nature of error: Constructor is not defined
+Error in term:
+  UpdateFormState
+Nature of error: Constructor is not defined
+Error in term:
+  RemoveBooking
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

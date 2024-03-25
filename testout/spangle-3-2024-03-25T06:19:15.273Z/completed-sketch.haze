@@ -1,0 +1,11 @@
+# Update the Room Booking app model based on an action #
+
+let update: (Model, Action) -> Model =
+  
+fun model, action ->
+    case action
+      | BookRoom room => Model.append(room, model)
+      | CancelBooking room => Model.remove(room, model)
+    end
+
+in

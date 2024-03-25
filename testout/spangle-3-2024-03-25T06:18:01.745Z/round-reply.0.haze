@@ -1,0 +1,12 @@
+fun model, action ->
+    case action
+    | SignIn(user) => Model.set_user(model, user)
+    | SignOut => Model.init
+    | UpdateForm(form) => Model.set_form(model, form)
+    | Submit => 
+        let user = Model.get_user(model) in
+        let form = Model.get_form(model) in
+        let bookings = getUserBookings(model, user) in
+        let updated_bookings = rm_booking(user, form, bookings) in
+        Model.set_bookings(model, updated_bookings)
+    end

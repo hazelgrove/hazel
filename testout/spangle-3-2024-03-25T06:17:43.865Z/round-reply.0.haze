@@ -1,0 +1,15 @@
+fun model, action ->
+  case action
+    | Init => Model.init
+    | UpdateFormState(newFormState) =>
+        let model = { model with formState = newFormState } in
+        model
+    | AddBooking(user, bookingId) =>
+        let model = { model with bookings = rm_booking(user, bookingId, model.bookings) } in
+        model
+    | RemoveBooking(user, bookingId) =>
+        let model = { model with bookings = rm_booking(user, bookingId, model.bookings) } in
+        model
+   end
+in
+    ]>

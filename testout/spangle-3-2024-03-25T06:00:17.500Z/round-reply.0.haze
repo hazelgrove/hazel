@@ -1,0 +1,6 @@
+fun (model, action) ->
+    case action
+    | AddBooking(user, weekday, timeofday) => (initFormState, Booking((weekday, timeofday), user, List.length(getBookings(model)) + 1)::getBookings(model), List.length(getBookings(model)) + 1)
+    | CancelBooking(user, bookingID) => (initFormState, rm_booking(user, bookingID, getBookings(model)), List.length(getBookings(model)))
+    | ClearBookings => (initFormState, [], 0)
+    end

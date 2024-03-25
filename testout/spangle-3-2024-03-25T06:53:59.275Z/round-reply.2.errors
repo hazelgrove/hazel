@@ -1,0 +1,71 @@
+The following static errors were discovered:
+Error in term:
+  m._2
+Nature of error: "m._2" isn't a valid token
+Error in term:
+  evaluate_strength
+Nature of error: Variable evaluate_strength is not bound
+Error in term:
+  end in
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Rul end in
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  m._1
+Nature of error: "m._1" isn't a valid token
+Error in term:
+  m._2
+Nature of error: "m._2" isn't a valid token
+Error in term:
+  m._2
+Nature of error: "m._2" isn't a valid token
+Error in term:
+  m._1
+Nature of error: "m._1" isn't a valid token
+Error in term:
+  where
+Nature of error: Variable where is not bound
+Error in term:
+  evaluate_strength
+Nature of error: Variable evaluate_strength is not bound
+Error in term:
+  fun ((m, a)) ->
+ case a
+ | UpdatePassword(p) => (p, m._2, evaluate_strength(p, m._2))
+| ClearCriteria => (m._1, , Weak)
+| AddCriterion(c) => (m._1, c :: m._2, evaluate_strength(m._1, c :: m._2))
+| RemoveCriterion(c) => let new_criteria = List.filter((fun x ->
+ x != c), m._2) in
+ (m._1, new_criteria, evaluate_strength(m._1, new_criteria))
+end where Rul end in
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  m._1
+Nature of error: "m._1" isn't a valid token
+Error in term:
+  where Rul end in
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  m._2
+Nature of error: "m._2" isn't a valid token
+Error in term:
+  m._1
+Nature of error: "m._1" isn't a valid token
+Error in term:
+  m._1
+Nature of error: "m._1" isn't a valid token
+Error in term:
+  in
+Nature of error: Variable in is not bound
+Error in term:
+  evaluate_strength
+Nature of error: Variable evaluate_strength is not bound
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  m._2
+Nature of error: "m._2" isn't a valid token
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

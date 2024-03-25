@@ -1,0 +1,19 @@
+# Update Playlist app model based on an action #
+
+let update: (PlayList, PlayListAction) -> PlayList =
+  fun list, action ->
+  let sortFunc = fun a, b -> get_songs(a) == get_songs(b) in
+  case action
+  | Play(Id) =>
+      let state = if get_state(list) == Paused then Paused else Playing in
+      PlayList(get_songs(list), state, Id)
+  | Pause(Id) =>
+      let state = if get_state(list) == Playing then Playing else Paused in
+      PlayList(get_songs(list), state, Id)
+  | Stop => PlayList([], Stopped, -1)
+  | AddSong(Id) => PlayList(List.sort(sortFunc, [Id]:: get_songs(list)), get_state(list), Id)
+  | RemoveSong(Id) =>
+      let songs = List.filter_map(fun song -> if song != Id then Some(song) else None, get_songs(list)) in
+      PlayList(songs, get_state(list), if List.contains(Id, songs) then Id else -1)
+  end
+in

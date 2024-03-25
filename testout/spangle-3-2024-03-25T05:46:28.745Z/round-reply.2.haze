@@ -1,0 +1,22 @@
+fun playlist, action ->
+  case action
+  | AddSong(songID, userID) => {
+      playlist with
+      songs = songID :: playlist.songs,
+      users = UserMap.add(userID, User.add_song(songID, UserMap.find(userID, playlist.users)), playlist.users)
+    }
+  | RemoveSong(songID, userID) => {
+      playlist with
+      songs = List.filter((fun song -> song != songID), playlist.songs),
+      users = UserMap.add(userID, User.remove_song(songID, UserMap.find(userID, playlist.users)), playlist.users)
+    }
+  | AddUser(userID) => {
+      playlist with 
+      users = UserMap.add(userID, User.empty, playlist.users)
+    }
+  | RemoveUser(userID) => {
+      playlist with 
+      users = UserMap.remove(userID, playlist.users),
+      songs = List.filter(fun songID -> not(User.has_song(songID, UserMap.find(userID, playlist.users))), playlist.songs)
+    }
+  end

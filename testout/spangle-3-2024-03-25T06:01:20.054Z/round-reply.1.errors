@@ -1,0 +1,14 @@
+The following static errors were discovered:
+Error in term:
+  case action
+ | AddBooking(((user, day, time))) => ((day, time), user) :: bookings, next_id
+| CancelBooking(((user, id))) => let new_bookings = rms_booking(user, id, bookings) in
+ (model, new_bookings, id_counter)
+| ClearBookings => (model, , id_counter)
+end
+Nature of error: Expecting branches to have consistent types but got types: ([((Weekday, TimeOfDay), User)], Int), (?, ?, ?), (?, [?], ?)
+Error in term:
+  rms_booking
+Nature of error: Variable rms_booking is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

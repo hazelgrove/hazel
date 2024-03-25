@@ -1,0 +1,82 @@
+The following static errors were discovered:
+Error in term:
+  model
+Nature of error: Variable model is not bound
+Error in term:
+  Model
+Nature of error: Constructor is not defined
+Error in term:
+  User
+Nature of error: Constructor is not defined
+Error in term:
+  addBooking : (Model, (User, Weekday, TimeOfDay) -> Model fun ((_, _, _)) ->
+ model) cancelBooking : (Model, (User, Int) -> Model fun ((_, _)) ->
+ model) clearBookings : (Model -> Model fun _ ->
+ model)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  cancelBooking
+Nature of error: Variable cancelBooking is not bound
+Error in term:
+  fun ((model, action)) ->
+ case action
+ | AddBooking((user, weekday, timeOfDay)) => addBooking(model, (user, weekday, timeOfDay))
+| CancelBooking((user, id)) => cancelBooking(model, (user, id))
+| ClearBookings => clearBookings(model)
+end where addBooking : (Model, (User, Weekday, TimeOfDay) -> Model fun ((_, _, _)) ->
+ model) cancelBooking : (Model, (User, Int) -> Model fun ((_, _)) ->
+ model) clearBookings : (Model -> Model fun _ ->
+ model)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  where addBooking : (Model, (User, Weekday, TimeOfDay) -> Model fun ((_, _, _)) ->
+ model) cancelBooking : (Model, (User, Int) -> Model fun ((_, _)) ->
+ model) clearBookings : (Model -> Model fun _ ->
+ model)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  where
+Nature of error: Variable where is not bound
+Error in term:
+  Model
+Nature of error: Constructor is not defined
+Error in term:
+  addBooking
+Nature of error: Variable addBooking is not bound
+Error in term:
+  TimeOfDay
+Nature of error: Constructor is not defined
+Error in term:
+  Model
+Nature of error: Constructor is not defined
+Error in term:
+  Int
+Nature of error: Constructor is not defined
+Error in term:
+  model
+Nature of error: Variable model is not bound
+Error in term:
+  Model
+Nature of error: Constructor is not defined
+Error in term:
+  User
+Nature of error: Constructor is not defined
+Error in term:
+  cancelBooking : (Model, (User, Int) -> Model fun ((_, _)) ->
+ model) clearBookings : (Model -> Model fun _ ->
+ model)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model
+Nature of error: Variable model is not bound
+Error in term:
+  Model
+Nature of error: Constructor is not defined
+Error in term:
+  clearBookings
+Nature of error: Variable clearBookings is not bound
+Error in term:
+  Weekday
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

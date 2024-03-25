@@ -1,0 +1,5 @@
+fun model, action ->
+case action
+| AddToDo => ?? 
+| RemoveToDo =>  ??
+end

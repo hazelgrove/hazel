@@ -1,0 +1,18 @@
+
+fun model, action ->
+  case action
+  | AddBooking(user, booking_id, booking) => 
+      let user_bookings = getUserBookings(model, user) in
+      let new_bookings = rm_booking(user, booking_id, user_bookings) in
+      setBookings(model, new_bookings)
+  | RemoveBooking(user, booking_id) =>
+      let user_bookings = getUserBookings(model, user) in
+      let new_bookings = rm_booking(user, booking_id, user_bookings) in
+      setBookings(model, new_bookings)
+  | UpdateFormState((weekday, time_of_day), room) =>
+      setFormState(model, ((weekday, time_of_day), room))
+  | ClearFormState =>
+      setFormState(model, initFormState)
+  | UpdateModel(new_model) =>
+      new_model
+  end

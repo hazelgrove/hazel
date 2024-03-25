@@ -1,0 +1,96 @@
+The following static errors were discovered:
+Error in term:
+  model.todos
+Nature of error: "model.todos" isn't a valid token
+Error in term:
+  model.todos
+Nature of error: "model.todos" isn't a valid token
+Error in term:
+  model field str ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+   ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  field
+Nature of error: Variable field is not bound
+Error in term:
+  todos
+Nature of error: Variable todos is not bound
+Error in term:
+  str
+Nature of error: Variable str is not bound
+Error in term:
+  field  ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  i
+Nature of error: Variable i is not bound
+Error in term:
+  model todos toggle
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  todos add
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model todos remove(i, model.todos) ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  todos
+Nature of error: Variable todos is not bound
+Error in term:
+  todos toggle
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  str ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  todos remove
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  todos
+Nature of error: Variable todos is not bound
+Error in term:
+  model todos toggle(i, model.todos) ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  i
+Nature of error: Variable i is not bound
+Error in term:
+  field
+Nature of error: Variable field is not bound
+Error in term:
+  model todos add
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  field str ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model todos remove
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Remove
+Nature of error: Constructor is not defined
+Error in term:
+  Add
+Nature of error: Constructor is not defined
+Error in term:
+  Toggle i
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  NoOp
+Nature of error: Constructor is not defined
+Error in term:
+  Remove i
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Toggle
+Nature of error: Constructor is not defined
+Error in term:
+  Input str
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Input
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

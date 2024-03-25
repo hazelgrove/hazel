@@ -1,0 +1,10 @@
+fun (model, action) ->
+    case action
+    | Star => {model with star = !model.star}
+    | Navigate(url) => {model with route = url}
+    | ChangeInput(value) => {model with inputValue = value}
+    | Submit => 
+        if model.inputValue == "" 
+        then model
+        else {model with messages = model.messages ++ [model.inputValue], inputValue = ""}
+    end

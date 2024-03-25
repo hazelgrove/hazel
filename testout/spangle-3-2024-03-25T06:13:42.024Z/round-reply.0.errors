@@ -1,0 +1,39 @@
+The following static errors were discovered:
+Error in term:
+  last_id
+Nature of error: Variable last_id is not bound
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  _
+Nature of error: "_" isn't a valid token
+Error in term:
+  _
+Nature of error: "_" isn't a valid token
+Error in term:
+  last_id
+Nature of error: Variable last_id is not bound
+Error in term:
+  fun ((model, action)) ->
+ case action
+ | AddBooking((user, weekday, timeofday)) => let new_id = (_, _, last_id) model in
+ let new_booking = ((weekday, timeofday), user, last_id + 1) in
+ let ((_, bookings, _)) = model in
+ ((weekday, timeofday), user), bookings @ new_booking, last_id + 1
+| CancelBooking((user, id)) => let ((formdata, bookings, last_id)) = model in
+ let new_bookings = List.filter(fun ((t, u, bid)) ->
+ bid != id, bookings) in
+ formdata, new_bookings, last_id
+| ClearBookings => let ((formdata, _, _)) = model in
+ formdata, , 0
+end end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  (_, _, last_id) model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  last_id
+Nature of error: Variable last_id is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

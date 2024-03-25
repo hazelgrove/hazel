@@ -1,0 +1,6 @@
+fun model, action ->
+  case action
+  | SetAvailability(b) => {model with availability = b}
+  | EditRoom(r) => {model with room = r}
+  | CloseBooking => {model with booking = false}
+  end

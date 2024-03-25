@@ -1,0 +1,7 @@
+fun (m, a) ->
+  case a
+  | Play -> {state = Playing,  songs = m.songs}
+  | Pause -> {state = Paused,  songs = m.songs}
+  | Skip -> {state = m.state,  songs = List.tail(m.songs)}
+  | Add(song) -> {state = m.state,  songs = song::m.songs}
+  | Remove(song_id) -> {state = m.state, songs = List.filter((fun s -> s.id != song_id), m.songs)}

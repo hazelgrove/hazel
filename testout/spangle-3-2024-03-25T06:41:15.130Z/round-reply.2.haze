@@ -1,0 +1,6 @@
+fun model, action ->
+  case action
+  | SetPointerLocation(x, y) => {model with pointerLocation = (x, y)}
+  | SetDrawMode(drawMode) => {model with drawMode = drawMode}
+  | AddEmoji(emoji) => {model with canvas = Canvas.add_emoji(model.canvas, model.pointerLocation, emoji)}
+  end

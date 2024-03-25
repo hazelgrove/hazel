@@ -1,0 +1,5 @@
+fun model, action ->
+    case action
+    | SetPassword(password) => { model with password =  password; strength = check_strength(password)}
+    | SetUserName(name) => {model with name = name}
+    end

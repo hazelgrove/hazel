@@ -1,0 +1,44 @@
+The following static errors were discovered:
+Error in term:
+  fun (model, action) ->
+ let ((password, criteria, strength)) = model in
+ case action
+ | UpdatePassword(new_password) => (new_password, criteria, check_strength(new_password, criteria))
+| ClearCriteria => (password, , check_strength(password, ))
+| AddCriterion(criterion) => (password, criterion :: criteria, check_strength(password, criterion :: criteria))
+| RemoveCriterion(criterion) => let new_criteria = List.remove(criterion, criteria) in
+ (password, new_criteria, check_strength(password, new_criteria))
+end in update(model, action)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  check_strength
+Nature of error: Variable check_strength is not bound
+Error in term:
+  List.remove
+Nature of error: Variable List.remove is not bound
+Error in term:
+  in
+Nature of error: Variable in is not bound
+Error in term:
+  update
+Nature of error: Variable update is not bound
+Error in term:
+  model
+Nature of error: Variable model is not bound
+Error in term:
+  check_strength
+Nature of error: Variable check_strength is not bound
+Error in term:
+  check_strength
+Nature of error: Variable check_strength is not bound
+Error in term:
+  check_strength
+Nature of error: Variable check_strength is not bound
+Error in term:
+  action
+Nature of error: Variable action is not bound
+Error in term:
+  in update(model, action)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

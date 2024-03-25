@@ -1,0 +1,72 @@
+The following static errors were discovered:
+Error in term:
+  todos
+Nature of error: Variable todos is not bound
+Error in term:
+  status
+Nature of error: Variable status is not bound
+Error in term:
+  model.todos
+Nature of error: "model.todos" isn't a valid token
+Error in term:
+  todos
+Nature of error: Variable todos is not bound
+Error in term:
+  status
+Nature of error: Variable status is not bound
+Error in term:
+  todos add
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Model
+Nature of error: Constructor is not defined
+Error in term:
+  Model
+Nature of error: Constructor is not defined
+Error in term:
+  todos remove
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  todos
+Nature of error: Variable todos is not bound
+Error in term:
+  status model.status
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.status
+Nature of error: "model.status" isn't a valid token
+Error in term:
+  model.status
+Nature of error: "model.status" isn't a valid token
+Error in term:
+  todos toggle
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  status model.status
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.status
+Nature of error: "model.status" isn't a valid token
+Error in term:
+  status model.status
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.todos
+Nature of error: "model.todos" isn't a valid token
+Error in term:
+  status
+Nature of error: Variable status is not bound
+Error in term:
+  Model
+Nature of error: Constructor is not defined
+Error in term:
+  Remove
+Nature of error: Constructor is not defined
+Error in term:
+  Add
+Nature of error: Constructor is not defined
+Error in term:
+  Toggle
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

@@ -1,0 +1,6 @@
+fun state, action ->
+  case action
+  | Add(song) => List.append(state, [song])
+  | Remove(song) => List.filter(fun s -> s != song, state)
+  | Clear => [] 
+  end

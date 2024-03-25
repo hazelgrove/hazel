@@ -1,0 +1,17 @@
+The following static errors were discovered:
+Error in term:
+  booking
+Nature of error: Expecting type String but got inconsistent type [((Weekday, TimeOfDay), User, Int)]
+Error in term:
+  case action
+ | AddBooking((user, weekday, timeOfDay)) => let booking = ((weekday, timeOfDay), user, List.length(getBookings(model))) in
+ let (form, bookings, id) = model in
+ ((form, bookings ++ booking, id + 1))
+| CancelBooking((user, bookingID)) => let (form, bookings, id) = model in
+ ((form, rm_booking(user, bookingID, bookings), id))
+| ClearBookings => let (form, bookings, id) = model in
+ ((form, , 0))
+end
+Nature of error: Expecting branches to have consistent types but got types: (?, String, Int), (?, [Booking], ?), (?, [?], Int)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

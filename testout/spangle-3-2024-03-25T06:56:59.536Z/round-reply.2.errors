@@ -1,0 +1,42 @@
+The following static errors were discovered:
+Error in term:
+  model.Criteria
+Nature of error: "model.Criteria" isn't a valid token
+Error in term:
+  check_password_strength
+Nature of error: Variable check_password_strength is not bound
+Error in term:
+  model.Criteria
+Nature of error: "model.Criteria" isn't a valid token
+Error in term:
+  model.Password
+Nature of error: "model.Password" isn't a valid token
+Error in term:
+  model.Password
+Nature of error: "model.Password" isn't a valid token
+Error in term:
+  check_password_strength
+Nature of error: Variable check_password_strength is not bound
+Error in term:
+  model.Password
+Nature of error: "model.Password" isn't a valid token
+Error in term:
+  model.Criteria
+Nature of error: "model.Criteria" isn't a valid token
+Error in term:
+  model.Password
+Nature of error: "model.Password" isn't a valid token
+Error in term:
+  check_password_strength
+Nature of error: Variable check_password_strength is not bound
+Error in term:
+  model.Password
+Nature of error: "model.Password" isn't a valid token
+Error in term:
+  model.Criteria
+Nature of error: "model.Criteria" isn't a valid token
+Error in term:
+  model.Criteria
+Nature of error: "model.Criteria" isn't a valid token
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

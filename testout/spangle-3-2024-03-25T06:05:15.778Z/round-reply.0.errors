@@ -1,0 +1,24 @@
+The following static errors were discovered:
+Error in term:
+  Model.updateBookings
+Nature of error: Variable Model.updateBookings is not bound
+Error in term:
+  Model.addBooking
+Nature of error: Variable Model.addBooking is not bound
+Error in term:
+  Model.updateBookings
+Nature of error: Variable Model.updateBookings is not bound
+Error in term:
+  Model.updateBookings
+Nature of error: Variable Model.updateBookings is not bound
+Error in term:
+  RemoveBooking
+Nature of error: Constructor is not defined
+Error in term:
+  GetAllBookings
+Nature of error: Constructor is not defined
+Error in term:
+  GetAUserBookings
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

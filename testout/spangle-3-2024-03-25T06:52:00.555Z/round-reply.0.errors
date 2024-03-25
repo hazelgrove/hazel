@@ -1,0 +1,24 @@
+The following static errors were discovered:
+Error in term:
+  Model.update_password
+Nature of error: Variable Model.update_password is not bound
+Error in term:
+  Model.update_criteria
+Nature of error: Variable Model.update_criteria is not bound
+Error in term:
+  Model.update_strength
+Nature of error: Variable Model.update_strength is not bound
+Error in term:
+  model.criteria
+Nature of error: "model.criteria" isn't a valid token
+Error in term:
+  ChangePassword
+Nature of error: Constructor is not defined
+Error in term:
+  ChangeStrength
+Nature of error: Constructor is not defined
+Error in term:
+  ChangeCriteria
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

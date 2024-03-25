@@ -1,0 +1,124 @@
+The following static errors were discovered:
+The suggested filling has the wrong expected type: expected ((Model, Action) -> Model), but got ((?, ?) -> [Booking]).
+Error in term:
+  model.bookings 
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.bookings
+Nature of error: "model.bookings" isn't a valid token
+Error in term:
+  model.booking_id
+Nature of error: "model.booking_id" isn't a valid token
+Error in term:
+  model.filter
+Nature of error: "model.filter" isn't a valid token
+Error in term:
+  model.bookings
+Nature of error: "model.bookings" isn't a valid token
+Error in term:
+  model.view new_view
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.view
+Nature of error: "model.view" isn't a valid token
+Error in term:
+  model.user
+Nature of error: "model.user" isn't a valid token
+Error in term:
+  model.bookings
+Nature of error: "model.bookings" isn't a valid token
+Error in term:
+  model.invites
+Nature of error: "model.invites" isn't a valid token
+Error in term:
+  booking booking.id
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.filter new_filter
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.form_state new_state
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.invites
+Nature of error: "model.invites" isn't a valid token
+Error in term:
+  model.invites invite
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.bookings
+Nature of error: "model.bookings" isn't a valid token
+Error in term:
+  model.form_text
+Nature of error: "model.form_text" isn't a valid token
+Error in term:
+  model.form_state
+Nature of error: "model.form_state" isn't a valid token
+Error in term:
+  model.form_text new_text
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.invites List.filter
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.invites 
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  booking.id
+Nature of error: "booking.id" isn't a valid token
+Error in term:
+  invite
+Nature of error: Variable invite is not bound
+Error in term:
+  model.invites
+Nature of error: "model.invites" isn't a valid token
+Error in term:
+  invite invite
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.booking_id new_booking
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  invite
+Nature of error: Variable invite is not bound
+Error in term:
+  booking
+Nature of error: Variable booking is not bound
+Error in term:
+  model.bookings List.filter
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.invites
+Nature of error: "model.invites" isn't a valid token
+Error in term:
+  model.invites
+Nature of error: "model.invites" isn't a valid token
+Error in term:
+  SendInvite
+Nature of error: Constructor is not defined
+Error in term:
+  DeleteBooking
+Nature of error: Constructor is not defined
+Error in term:
+  UpdateFormState
+Nature of error: Constructor is not defined
+Error in term:
+  ClearInvites
+Nature of error: Constructor is not defined
+Error in term:
+  ChangeFilter
+Nature of error: Constructor is not defined
+Error in term:
+  ChangeView
+Nature of error: Constructor is not defined
+Error in term:
+  ModifyBooking
+Nature of error: Constructor is not defined
+Error in term:
+  RejectInvite
+Nature of error: Constructor is not defined
+Error in term:
+  UpdateFormText
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

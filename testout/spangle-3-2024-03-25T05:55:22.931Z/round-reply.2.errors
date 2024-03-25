@@ -1,0 +1,48 @@
+The following static errors were discovered:
+Error in term:
+  model.tracks track
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.tracks List.filter
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model
+Nature of error: Variable model is not bound
+Error in term:
+  model.tracks 
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.tracks
+Nature of error: "model.tracks" isn't a valid token
+Error in term:
+  model.tracks
+Nature of error: "model.tracks" isn't a valid token
+Error in term:
+  model.tracks
+Nature of error: "model.tracks" isn't a valid token
+Error in term:
+  model.tracks
+Nature of error: "model.tracks" isn't a valid token
+Error in term:
+  fun (model, action) ->
+ case action
+ | AddTrack(track) => model.tracks track :: model.tracks
+| RemoveTrack(track) => model.tracks List.filter(fun t ->
+ t != track, model.tracks)
+| ResetPlayList => model.tracks 
+end model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.tracks
+Nature of error: "model.tracks" isn't a valid token
+Error in term:
+  ResetPlayList
+Nature of error: Constructor is not defined
+Error in term:
+  AddTrack
+Nature of error: Constructor is not defined
+Error in term:
+  RemoveTrack
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

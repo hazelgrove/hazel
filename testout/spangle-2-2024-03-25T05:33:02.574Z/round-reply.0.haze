@@ -1,0 +1,6 @@
+fun model, action ->
+  case action
+  | Increment => {model with counter = model.counter + 1}
+  | Decrement => {model with counter = model.counter - 1} 
+  | Reset => {model with counter = 0}
+  end

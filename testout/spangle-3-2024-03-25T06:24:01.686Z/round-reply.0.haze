@@ -1,0 +1,12 @@
+fun model, action ->
+   match (model, action) with
+     (grid, current_emoji, available_emojis), SelectEmoji(emoji) ->
+         (grid, emoji, available_emojis)
+     | (grid, current_emoji, available_emojis), StampEmoji((row, col)) ->
+         (updateGrid(grid, row, col, current_emoji), current_emoji, available_emojis)
+     | (grid, current_emoji, available_emojis), ClearCell((row, col)) ->
+         (updateGrid(grid, row, col, ""), current_emoji, available_emojis)
+     | (grid, current_emoji, available_emojis), ClearGrid ->
+         (clearGrid(grid), current_emoji, available_emojis)
+     | (grid, current_emoji, available_emojis),  FillRow(row) ->
+         (fillRowInGrid(grid, row, current_emoji), current_emoji, available_emojis)

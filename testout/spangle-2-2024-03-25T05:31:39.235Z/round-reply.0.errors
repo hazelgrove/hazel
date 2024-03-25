@@ -1,0 +1,115 @@
+The following static errors were discovered:
+The suggested filling has the wrong expected type: expected ((Model, Action) -> Model), but got ((?, ?) -> (?, ?, Int)).
+Error in term:
+  todos toggle
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  uid
+Nature of error: Variable uid is not bound
+Error in term:
+  todos toggle(uid, model.todos) ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? model with task_input task_input ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  todos todos
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  todos remove(uid, model.todos) ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? model with todos toggle(uid, model.todos) ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.todos
+Nature of error: "model.todos" isn't a valid token
+Error in term:
+  with todos remove(uid, model.todos) ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? todos todos
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  with
+Nature of error: Variable with is not bound
+Error in term:
+  with todos toggle(uid, model.todos) ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  task_input 
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.task_input
+Nature of error: "model.task_input" isn't a valid token
+Error in term:
+  todos remove
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  with
+Nature of error: Variable with is not bound
+Error in term:
+  ? model with todos remove(uid, model.todos) ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  todos
+Nature of error: Variable todos is not bound
+Error in term:
+  with task_input task_input ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.uid
+Nature of error: "model.uid" isn't a valid token
+Error in term:
+  model.todos
+Nature of error: "model.todos" isn't a valid token
+Error in term:
+  todos
+Nature of error: Variable todos is not bound
+Error in term:
+  with
+Nature of error: Variable with is not bound
+Error in term:
+  task_input ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  1 ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  uid model.uid
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.todos
+Nature of error: "model.todos" isn't a valid token
+Error in term:
+  task_input task_input ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  task_input
+Nature of error: Variable task_input is not bound
+Error in term:
+  model.task_input
+Nature of error: "model.task_input" isn't a valid token
+Error in term:
+  Remove
+Nature of error: Constructor is not defined
+Error in term:
+  Edit
+Nature of error: Constructor is not defined
+Error in term:
+  Add
+Nature of error: Constructor is not defined
+Error in term:
+  Toggle
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

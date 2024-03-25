@@ -1,0 +1,8 @@
+
+fun m, a ->
+    case a
+      | AddTodo => (match m with (buffer, todos) => (String.trim(buffer), add(todos)) end)
+      | RemoveTodo idx => (match m with (buffer, todos) => (buffer, remove(idx, todos)) end)
+      | ToggleTodo idx => (match m with (buffer, todos) => (buffer, toggle(idx, todos)) end)
+      | UpdateBuffer text => (match m with (_, todos) => (text, todos) end)
+    end

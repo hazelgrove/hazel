@@ -1,0 +1,13 @@
+fun (formData, bookings, currentId), action ->
+  case action
+  | AddBooking(user, weekday, timeOfDay) =>
+    let newBooking = ((weekday, timeOfDay), user, currentId) in
+    let updatedBookings = newBooking::bookings in
+    let newId = currentId + 1 in
+    ((weekday, timeOfDay, user), updatedBookings, newId)
+  | CancelBooking(user, id) =>
+    let filteredBookings = List.filter(fun (_, _, bookingId) -> bookingId != id, bookings) in
+    (formData, filteredBookings, currentId)
+  | ClearBookings =>
+    (formData, [], currentId)
+  end

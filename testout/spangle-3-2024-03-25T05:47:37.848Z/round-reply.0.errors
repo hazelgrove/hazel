@@ -1,0 +1,42 @@
+The following static errors were discovered:
+Error in term:
+  fun (model, action) ->
+ case action
+ | Remove(id) => PlayList.filter(item item.id != id, model)
+| Add(item) => (item :: model)
+| Sort(cmp) => List.sort(cmp, model)
+| Reverse () => List.rev(model)
+end in
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  item item.id
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  item.id
+Nature of error: "item.id" isn't a valid token
+Error in term:
+  item
+Nature of error: Variable item is not bound
+Error in term:
+  PlayList.filter
+Nature of error: Variable PlayList.filter is not bound
+Error in term:
+  in
+Nature of error: Variable in is not bound
+Error in term:
+  Sort
+Nature of error: Constructor is not defined
+Error in term:
+  Add
+Nature of error: Constructor is not defined
+Error in term:
+  Reverse
+Nature of error: Constructor is not defined
+Error in term:
+  Reverse ()
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Remove
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

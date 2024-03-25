@@ -1,0 +1,7 @@
+fun m, a ->
+    case m, a
+      | (buffer, todos), AddTodo => (String.trim(buffer), add(todos))
+      | (buffer, todos), RemoveTodo(idx) => (buffer, remove(idx, todos))
+      | (buffer, todos), ToggleTodo(idx) => (buffer, toggle(idx, todos))
+      | (_, todos), UpdateBuffer(text) => (text, todos)
+    end

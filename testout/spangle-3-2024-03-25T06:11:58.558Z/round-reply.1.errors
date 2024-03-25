@@ -1,0 +1,8 @@
+The following static errors were discovered:
+The suggested filling has the wrong expected type: expected ((Model, Action) -> Model), but got ((?, ?) -> ((Weekday, TimeOfDay, User), [?], Int)).
+Error in term:
+  fun (((_, _, _, bid))) ->
+ bid != bookingID
+Nature of error: Expecting type [?] but got inconsistent type ((?, ?, ?, ?) -> Bool)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

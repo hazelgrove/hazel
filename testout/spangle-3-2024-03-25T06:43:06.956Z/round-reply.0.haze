@@ -1,0 +1,6 @@
+fun model, action ->
+  case action
+  | Draw(x, y) => { model with painting = draw(model.painting, x, y) }
+  | ChangeColor(new_color) => {model with currentColor = new_color} 
+  | Clear => { model with painting = initialPainting }
+  end

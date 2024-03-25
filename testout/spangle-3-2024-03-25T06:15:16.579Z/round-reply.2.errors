@@ -1,0 +1,85 @@
+The following static errors were discovered:
+The suggested filling has the wrong expected type: expected ((Model, Action) -> Model), but got ((?, ?) -> (?, ?)).
+Error in term:
+  rooms model.rooms
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.rooms
+Nature of error: "model.rooms" isn't a valid token
+Error in term:
+  reserve_room
+Nature of error: Variable reserve_room is not bound
+Error in term:
+  ? rooms reserve_room
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.rooms
+Nature of error: "model.rooms" isn't a valid token
+Error in term:
+  ? rooms cancel_reservation
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  user ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  cancel_reservation
+Nature of error: Variable cancel_reservation is not bound
+Error in term:
+  user model.user ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? rooms model.rooms
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  rooms
+Nature of error: Variable rooms is not bound
+Error in term:
+  model.user ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.user ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  user model.user ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  rooms cancel_reservation
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.rooms
+Nature of error: "model.rooms" isn't a valid token
+Error in term:
+  rooms
+Nature of error: Variable rooms is not bound
+Error in term:
+  user
+Nature of error: Variable user is not bound
+Error in term:
+  user
+Nature of error: Variable user is not bound
+Error in term:
+  model.user
+Nature of error: "model.user" isn't a valid token
+Error in term:
+  rooms reserve_room
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  user user ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.user
+Nature of error: "model.user" isn't a valid token
+Error in term:
+  rooms
+Nature of error: Variable rooms is not bound
+Error in term:
+  CancelReservation
+Nature of error: Constructor is not defined
+Error in term:
+  SetUser
+Nature of error: Constructor is not defined
+Error in term:
+  ReserveRoom
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

@@ -1,0 +1,8 @@
+fun ((password, criteria, strength), action) ->
+     case action
+     | UpdatePassword(new_password) => (new_password, criteria, check_strength(new_password, criteria))
+     | ClearCriteria => (password, [], strength)
+     | AddCriterion(new_criterion) => (password, new_criterion::criteria, check_strength(password, new_criterion::criteria))
+     | RemoveCriterion(to_remove) => (password, List.filter((fun c -> c != to_remove), criteria), check_strength(password, List.filter((fun c -> c != to_remove), criteria)))
+     end
+where check_strength is a function that checks the password strength against the provided criteria. It can be implemented separately.

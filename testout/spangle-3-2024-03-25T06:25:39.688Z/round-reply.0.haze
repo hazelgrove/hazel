@@ -1,0 +1,8 @@
+fun model, action ->
+  case action
+  | ClearGrid => (clearGrid(fst3(model)), snd3(model), thd3(model))
+  | ClearCell(rowCol) => (updateGrid(fst3(model), fst(rowCol), snd(rowCol), " "), snd3(model), thd3(model))
+  | StampEmoji(rowCol) => (updateGrid(fst3(model), fst(rowCol), snd(rowCol), snd3(model)), snd3(model), thd3(model))
+  | SelectEmoji(newEmoji) => (fst3(model), newEmoji, thd3(model))
+  | FillRow(row) => (fillRowInGrid(fst3(model), row, snd3(model)), snd3(model), thd3(model))
+  end

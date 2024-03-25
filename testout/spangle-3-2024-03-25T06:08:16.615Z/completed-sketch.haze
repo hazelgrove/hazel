@@ -1,0 +1,17 @@
+# Update the Room Booking app model based on an action #
+
+let update: (Model, Action) -> Model =
+  fun model, action ->
+  case action
+  | SetName(new_name) =>
+    { model with name = new_name }
+  | SetBookings(new_bookings) =>
+    { model with bookings = List.append(model.bookings,new_bookings) }
+  | AddBooking(new_booking) =>
+    { model with bookings = new_booking::model.bookings }
+  | RemoveBooking(booking_index) =>
+    { model with bookings = List.remove_at(booking_index,model.bookings) }
+  | ClearBookings =>
+    { model with bookings = [] }
+  end
+in

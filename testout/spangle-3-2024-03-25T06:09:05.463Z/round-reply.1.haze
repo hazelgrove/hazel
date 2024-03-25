@@ -1,0 +1,24 @@
+fun model, action ->
+  case action
+    | AddBooking(user, booking) => 
+        {
+          model 
+          with bookings = rm_booking(user, List.length(model.bookings), model.bookings::booking)
+        }
+    | DeleteBooking(user, booking_id) =>
+        {
+          model 
+          with bookings = List.filter(fun b -> b.id != booking_id, getUserBookings(model, user))
+        }
+    | UpdateBooking(user, booking_id, new_booking) => 
+        {
+          model 
+          with bookings = List.map(fun b -> if b.id == booking_id then new_booking else b, getUserBookings(model, user))
+        }
+    | SetFormState(new_form_state) =>
+      {
+        model 
+          with form_state = new_form_state
+      }
+  end
+end

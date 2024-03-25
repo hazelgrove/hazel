@@ -1,0 +1,15 @@
+The following static errors were discovered:
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  getBookings(model) @ newbooking
+Nature of error: Expecting branches to have consistent types but got types: [Booking], [(Weekday, TimeOfDay, User, Int)]
+Error in term:
+  model.2
+Nature of error: "model.2" isn't a valid token
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

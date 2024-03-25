@@ -1,0 +1,14 @@
+fun model, action ->
+  case action
+  | AddBooking(form_data) =>
+    let new_booking_id = List.length(getBookings(model)) + 1 in
+    let new_booking = (form_data, new_booking_id) in
+    model.bookings = model.bookings::[new_booking]
+    model  
+  | CancelBooking(user, booking_id) =>
+    model.bookings = rm_booking(user, booking_id, model.bookings)
+    model
+  | ClearBookings =>
+    model.bookings = []
+    model
+  end

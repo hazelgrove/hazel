@@ -1,0 +1,8 @@
+fun (playlist, action) ->
+  case action
+  | Add(song_id) => {playlist with songs = song_id :: playlist.songs}
+  | Remove(song_id) => {playlist with songs = List.filter((fun id -> id != song_id), playlist.songs)}
+  | Sort => {playlist with songs = List.sort(compare, playlist.songs)}
+  | Shuffle => {playlist with songs = List.shuffle(playlist.songs)}
+  | Playpause => {playlist with state = if (get_state(playlist) == Play) then Pause else Play}
+  end

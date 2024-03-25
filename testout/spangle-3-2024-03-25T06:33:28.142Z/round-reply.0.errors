@@ -1,0 +1,99 @@
+The following static errors were discovered:
+Error in term:
+  fill_row
+Nature of error: Variable fill_row is not bound
+Error in term:
+  are some assumed helper functions with proper definitions.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  some
+Nature of error: Variable some is not bound
+Error in term:
+  with proper definitions.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  apply_emoji
+Nature of error: Variable apply_emoji is not bound
+Error in term:
+  helper
+Nature of error: Variable helper is not bound
+Error in term:
+  helper functions with proper definitions.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  definitions.
+Nature of error: "definitions." isn't a valid token
+Error in term:
+  apply_emoji, clear_cell, initialize_grid, fill_row are some assumed helper functions with proper definitions.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  clear_cell
+Nature of error: Variable clear_cell is not bound
+Error in term:
+  assumed helper functions with proper definitions.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  proper definitions.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  apply_emoji
+Nature of error: Variable apply_emoji is not bound
+Error in term:
+  where apply_emoji, clear_cell, initialize_grid, fill_row are some assumed helper functions with proper definitions.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  functions with proper definitions.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  initialize_grid
+Nature of error: Variable initialize_grid is not bound
+Error in term:
+  initialize_grid
+Nature of error: Variable initialize_grid is not bound
+Error in term:
+  functions
+Nature of error: Variable functions is not bound
+Error in term:
+  clear_cell
+Nature of error: Variable clear_cell is not bound
+Error in term:
+  proper
+Nature of error: Variable proper is not bound
+Error in term:
+  fill_row
+Nature of error: Variable fill_row is not bound
+Error in term:
+  where
+Nature of error: Variable where is not bound
+Error in term:
+  fun (model, action) ->
+ case action
+ | SelectEmoji(emoji) => let ((grid, _, emoji_list)) = model in
+ (grid, emoji, emoji_list)
+| StampEmoji(position) => let ((grid, selected_emoji, emoji_list)) = model in
+ let updated_grid = apply_emoji(grid, position, selected_emoji) in
+ (updated_grid, selected_emoji, emoji_list)
+| ClearCell(position) => let ((grid, selected_emoji, emoji_list)) = model in
+ let updated_grid = clear_cell(grid, position) in
+ (updated_grid, selected_emoji, emoji_list)
+| ClearGrid => let ((_, selected_emoji, emoji_list)) = model in
+ (initialize_grid(()), selected_emoji, emoji_list)
+| FillRow(row_index) => let ((grid, selected_emoji, emoji_list)) = model in
+ let updated_grid = fill_row(grid, row_index, selected_emoji) in
+ (updated_grid, selected_emoji, emoji_list)
+end where apply_emoji, clear_cell, initialize_grid, fill_row are some assumed helper functions with proper definitions.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  are
+Nature of error: Variable are is not bound
+Error in term:
+  with
+Nature of error: Variable with is not bound
+Error in term:
+  assumed
+Nature of error: Variable assumed is not bound
+Error in term:
+  some assumed helper functions with proper definitions.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

@@ -1,0 +1,11 @@
+# TODO MVU: Handle TODO actions to update the app model #
+
+let update: (Model, Action) -> Model =
+  fun m, action ->
+  case action
+    | AddItem(item) => {todos = m.todos @ [item]}
+    | RemoveItem(item) => {todos = List.filter(fun todo -> todo != item, m.todos)}
+    | CompleteItem(item) => {todos = List.map(fun todo -> if todo == item then {description = todo.description, completed = true} else todo, m.todos)}
+    | UncompleteItem(item) => {todos = List.map(fun todo -> if todo == item then {description = todo.description, completed = false} else todo, m.todos)}
+  end
+in

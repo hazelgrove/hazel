@@ -1,0 +1,102 @@
+The following static errors were discovered:
+Error in term:
+  fun (c, idx) ->
+ if idx == col then model.1 else c
+Nature of error: Expecting type (((Int, ?) -> ?), [?]) but got inconsistent type ((?, ?) -> ?)
+Error in term:
+  model.2
+Nature of error: "model.2" isn't a valid token
+Error in term:
+  fun (r, idx) ->
+ if idx == row then List.map(fun _ ->
+ model.1) r else r
+Nature of error: Expecting type (((Int, ?) -> ?), [?]) but got inconsistent type ((?, ?) -> ?)
+Error in term:
+  fun (c, idx) ->
+ if idx == col then  else c
+Nature of error: Expecting type (((Int, ?) -> ?), [?]) but got inconsistent type ((?, ?) -> String)
+Error in term:
+  List.mapi(fun (c, idx) ->
+ if idx == col then model.1 else c) r
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  List.map(fun (r, idx) ->
+ if idx == row then List.mapi(fun (c, idx) ->
+ if idx == col then model.1 else c) r else r) model.0
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  fun _ ->
+ model.1
+Nature of error: Expecting type ((? -> ?), [?]) but got inconsistent type (? -> ?)
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  model.2
+Nature of error: "model.2" isn't a valid token
+Error in term:
+  fun (r, idx) ->
+ if idx == row then List.mapi(fun (c, idx) ->
+ if idx == col then model.1 else c) r else r
+Nature of error: Expecting type ((? -> ?), [?]) but got inconsistent type ((?, ?) -> ?)
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  List.map(fun (r, idx) ->
+ if idx == row then List.mapi(fun (c, idx) ->
+ if idx == col then  else c) r else r) model.0
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  fun (r, idx) ->
+ if idx == row then List.mapi(fun (c, idx) ->
+ if idx == col then  else c) r else r
+Nature of error: Expecting type ((? -> ?), [?]) but got inconsistent type ((?, ?) -> ?)
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  model.2
+Nature of error: "model.2" isn't a valid token
+Error in term:
+  List.mapi(fun (r, idx) ->
+ if idx == row then List.map(fun _ ->
+ model.1) r else r) model.0
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  List.map(fun _ ->
+ model.1) r
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.2
+Nature of error: "model.2" isn't a valid token
+Error in term:
+  model.2
+Nature of error: "model.2" isn't a valid token
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  List.mapi(fun (c, idx) ->
+ if idx == col then  else c) r
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

@@ -1,0 +1,10 @@
+
+fun m, a ->
+  case m, a
+  | (password, criteria, strength), UpdatePassword(new_password) => (new_password, criteria, calculateStrength(new_password, criteria))
+  | (password, criteria, strength), ClearCriteria => (password, [], calculateStrength(password, []))
+  | (password, criteria, strength), AddCriterion(new_criterion) => (password, new_criterion::criteria, calculateStrength(password, new_criterion::criteria))
+  | (password, criteria, strength), RemoveCriterion(old_criterion) => 
+      let new_criteria = List.filter(fun c -> c != old_criterion, criteria) in
+      (password, new_criteria, calculateStrength(password, new_criteria))
+  end

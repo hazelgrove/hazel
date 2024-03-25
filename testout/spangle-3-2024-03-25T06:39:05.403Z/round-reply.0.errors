@@ -1,0 +1,64 @@
+The following static errors were discovered:
+Error in term:
+  0 0
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  grid row, col, 
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model 0, emoji, model 2
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  new_grid, model 1, model 2
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  List.set
+Nature of error: Variable List.set is not bound
+Error in term:
+  List.set
+Nature of error: Variable List.set is not bound
+Error in term:
+  0 to size - 1
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  (fun _ ->
+ emoji), grid row
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  List.set
+Nature of error: Variable List.set is not bound
+Error in term:
+  1, model 2
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  List.set
+Nature of error: Variable List.set is not bound
+Error in term:
+  0, emoji, model 2
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  List.set
+Nature of error: Variable List.set is not bound
+Error in term:
+  to size - 1
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  to
+Nature of error: Variable to is not bound
+Error in term:
+  to
+Nature of error: Variable to is not bound
+Error in term:
+  to size - 1
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  0 to size - 1
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  grid row, col, emoji
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model 0 0
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

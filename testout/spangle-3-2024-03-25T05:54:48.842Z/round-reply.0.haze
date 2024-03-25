@@ -1,0 +1,7 @@
+fun pl, action ->
+  case action
+    | PlaySong(id) => let (songs, _) = pl in (songs, Playing(id))
+    | PauseCurrentSong => let (songs, state) = pl in (songs, PausedOn(get_current_song(state)))
+    | RemoveSong(id) => let (songs, state) = pl in (List.filter((!=) id, songs), state)
+    | AddSong(id) => let (songs, state) = pl in (id::songs, state)
+  end

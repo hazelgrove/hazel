@@ -1,0 +1,7 @@
+The following static errors were discovered:
+Error in term:
+  fun c ->
+ not(c == criterion)
+Nature of error: Expecting type [?] but got inconsistent type (? -> Bool)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

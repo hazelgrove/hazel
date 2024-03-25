@@ -1,0 +1,15 @@
+# TODO MVU: Handle TODO actions to update the app model #
+
+let update: (Model, Action) -> Model =
+  fun model, action -> 
+    case action 
+    | Add => 
+        let trimmed_title = string_trim(model.editing_todo.title) in 
+        if trimmed_title != "" 
+           then Model{editing_todo = EditingTodo.init, 
+                      todos = add(model)} 
+           else model
+    | Toggle idx => Model{model with todos = toggle(idx, model.todos)}
+    | Remove idx => Model{model with todos = remove(idx, model.todos)}
+    end
+in

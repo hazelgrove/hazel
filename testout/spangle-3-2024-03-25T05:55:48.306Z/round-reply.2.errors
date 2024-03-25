@@ -1,0 +1,13 @@
+The following static errors were discovered:
+The suggested filling has the wrong expected type: expected ((PlayList, PlayListAction) -> PlayList), but got ((?, ?) -> [?]).
+Error in term:
+  PlayListAction.Add
+Nature of error: Expected a constructor
+Error in term:
+  PlayListAction.Clear
+Nature of error: "PlayListAction.Clear" isn't a valid token
+Error in term:
+  PlayListAction.Remove
+Nature of error: Expected a constructor
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

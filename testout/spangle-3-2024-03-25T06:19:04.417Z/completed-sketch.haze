@@ -1,0 +1,28 @@
+# Update the Room Booking app model based on an action #
+
+let update: (Model, Action) -> Model =
+  fun model, action ->
+    case action
+    | CheckIn(roomNumber) =>
+        let booking = findBooking(model.bookings, roomNumber) in
+        case booking
+           | Some(b) => updateBookingStatus(b, CheckedIn)
+           | None => model
+        end
+    | CheckOut(roomNumber) =>
+        let booking = findBooking(model.bookings, roomNumber) in
+        case booking
+           | Some(b) => updateBookingStatus(b, CheckedOut)
+           | None => model
+        end
+    | Cancel(roomNumber) =>
+        let booking = findBooking(model.bookings, roomNumber) in
+        case booking
+           | Some(b) => updateBookingStatus(b, Cancelled)
+           | None => model
+        end
+    | Create(roomNumber, startDate, endDate) =>
+        let newBooking = Booking(roomNumber, startDate, endDate, Upcoming) in
+        { model with bookings = newBooking :: model.bookings }  
+   end
+in

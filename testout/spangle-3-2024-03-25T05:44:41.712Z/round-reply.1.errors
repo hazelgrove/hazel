@@ -1,0 +1,15 @@
+The following static errors were discovered:
+Error in term:
+  (_id) _id
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  _id
+Nature of error: Variable _id is not bound
+Error in term:
+  (_id) _id != id
+Nature of error: Expecting type (? -> Bool) but got inconsistent type Bool
+Error in term:
+  _id
+Nature of error: Variable _id is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

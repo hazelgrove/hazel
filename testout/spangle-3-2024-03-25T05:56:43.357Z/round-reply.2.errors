@@ -1,0 +1,27 @@
+The following static errors were discovered:
+Error in term:
+  update_add_action
+Nature of error: Variable update_add_action is not bound
+Error in term:
+  update_move_up_action
+Nature of error: Variable update_move_up_action is not bound
+Error in term:
+  update_move_down_action
+Nature of error: Variable update_move_down_action is not bound
+Error in term:
+  update_delete_action
+Nature of error: Variable update_delete_action is not bound
+Error in term:
+  Add
+Nature of error: Constructor is not defined
+Error in term:
+  MoveDown
+Nature of error: Constructor is not defined
+Error in term:
+  Delete
+Nature of error: Constructor is not defined
+Error in term:
+  MoveUp
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

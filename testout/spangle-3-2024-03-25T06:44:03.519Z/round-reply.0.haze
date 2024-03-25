@@ -1,0 +1,6 @@
+
+fun model, action ->
+    case action
+     | SetColor(color) => {model with color}
+     | Draw(coord) => {model with canvas = Array.set(model.canvas, coord, model.color)}
+    end

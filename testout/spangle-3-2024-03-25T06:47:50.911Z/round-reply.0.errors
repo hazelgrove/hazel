@@ -1,0 +1,6 @@
+The following static errors were discovered:
+Error in term:
+  criterion
+Nature of error: Expecting type [?] but got inconsistent type PasswordCriteria
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

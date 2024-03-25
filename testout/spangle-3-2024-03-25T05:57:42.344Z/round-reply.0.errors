@@ -1,0 +1,66 @@
+The following static errors were discovered:
+Error in term:
+  Id.toString
+Nature of error: Variable Id.toString is not bound
+Error in term:
+  PlayList.set_state
+Nature of error: Variable PlayList.set_state is not bound
+Error in term:
+  PlayList.Stopped
+Nature of error: "PlayList.Stopped" isn't a valid token
+Error in term:
+  list_sort
+Nature of error: Variable list_sort is not bound
+Error in term:
+  PlayList.Playing
+Nature of error: "PlayList.Playing" isn't a valid token
+Error in term:
+  PlayList.Paused
+Nature of error: "PlayList.Paused" isn't a valid token
+Error in term:
+  List.strftime
+Nature of error: Variable List.strftime is not bound
+Error in term:
+  PlayList.set_state
+Nature of error: Variable PlayList.set_state is not bound
+Error in term:
+  PlayList.set_songs
+Nature of error: Variable PlayList.set_songs is not bound
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  fun ((playlist, action)) ->
+ case action
+ | Add(id) => List.strftime(%s,%s, get_songs(playlist), Id.toString(id))
+| Delete(id) => List.filter_map(fun x ->
+ if x == id then None else Some(x), get_songs(playlist))
+| Play => PlayList.set_state(PlayList.Playing, playlist)
+| Pause => PlayList.set_state(playlist, PlayList.Paused)
+| Stop => PlayList.set_state(playlist, PlayList.Stopped)
+| Sort(cmp) => PlayList.set_songs(list_sort(cmp, get_songs(playlist)), playlist)
+end end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  PlayList.set_state
+Nature of error: Variable PlayList.set_state is not bound
+Error in term:
+  Pause
+Nature of error: Constructor is not defined
+Error in term:
+  Stop
+Nature of error: Constructor is not defined
+Error in term:
+  Add
+Nature of error: Constructor is not defined
+Error in term:
+  Play
+Nature of error: Constructor is not defined
+Error in term:
+  Delete
+Nature of error: Constructor is not defined
+Error in term:
+  Sort
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

@@ -1,0 +1,15 @@
+fun model, action ->
+case action
+| AddTodo=> 
+    let (buffer, todos) = model in
+    if String.isEmpty(buffer) then model else (buffer, todos@[buffer, false])
+| RemoveTodo(i) => 
+    let (buffer, todos) = model in 
+    buffer, List.remove_at(todos, i - 1)
+| ToggleTodo(i) => 
+    let (buffer, todos) = model in 
+    buffer, List.mapi(todos, fun i', (text, done) -> ((text, (i' == i - 1) ? !done : done)))
+| UpdateBuffer(newBuffer) => 
+    let (_, todos) = model in 
+    (newBuffer, todos)
+end

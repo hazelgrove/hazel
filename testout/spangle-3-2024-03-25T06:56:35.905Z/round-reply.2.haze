@@ -1,0 +1,9 @@
+fun (model, action) ->
+  let ((password, criteria, strength)) = model in
+  case action
+  | UpdatePassword(new_password) => (new_password, criteria, calculateStrength(new_password, criteria))
+  | ClearCriteria => (password, [], calculateStrength(password, []))
+  | AddCriterion(criterion) => (password, criterion :: criteria, calculateStrength(password, criterion :: criteria))
+  | RemoveCriterion(criterion) => let new_criteria = List.filter((fun criterion' -> criterion' != criterion), criteria) in
+  (password, new_criteria, calculateStrength(password, new_criteria))
+  end

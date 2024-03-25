@@ -1,0 +1,12 @@
+
+fun model, action ->
+  case action
+  | AddTodo => let (buffer, todos) = model in (String.empty, (buffer, false) :: todos)
+  | RemoveTodo(idx) => 
+    let (buffer, todos) = model in (buffer, List.remove(idx, todos))
+  | ToggleTodo(idx) => 
+    let (buffer, todos) = model in 
+      (buffer, List.mapi(fun i, (label, done) -> if i != idx then (label, done) else (label, !done) end, todos))
+  | UpdateBuffer(newBuffer) => 
+    let (_, todos) = model in (newBuffer, todos)
+  end

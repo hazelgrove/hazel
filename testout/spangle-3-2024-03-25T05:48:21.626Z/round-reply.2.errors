@@ -1,0 +1,143 @@
+The following static errors were discovered:
+The suggested filling has the wrong expected type: expected ((PlayList, PlayListAction) -> PlayList), but got ((?, ?) -> (?, [?])).
+Error in term:
+  songs List.filter((fun s ->
+ s.id != song_id), m.songs) ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  m.state
+Nature of error: "m.state" isn't a valid token
+Error in term:
+  Paused
+Nature of error: Constructor is not defined
+Error in term:
+  state m.state
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  m.songs
+Nature of error: "m.songs" isn't a valid token
+Error in term:
+  songs
+Nature of error: Variable songs is not bound
+Error in term:
+  state
+Nature of error: Variable state is not bound
+Error in term:
+  songs
+Nature of error: Variable songs is not bound
+Error in term:
+  ? state m.state
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  songs m.songs ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  m.songs ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  songs song
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  songs
+Nature of error: Variable songs is not bound
+Error in term:
+  state m.state
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  m.state
+Nature of error: "m.state" isn't a valid token
+Error in term:
+  songs List.filter
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  m.songs ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  songs List.tail(m.songs) ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  m.songs
+Nature of error: "m.songs" isn't a valid token
+Error in term:
+  List.tail
+Nature of error: Variable List.tail is not bound
+Error in term:
+  songs
+Nature of error: Variable songs is not bound
+Error in term:
+  ? state Paused
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  m.songs
+Nature of error: "m.songs" isn't a valid token
+Error in term:
+  state m.state
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  songs m.songs ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? state m.state
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  state Paused
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  state
+Nature of error: Variable state is not bound
+Error in term:
+  state Playing
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  songs List.tail
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  songs
+Nature of error: Variable songs is not bound
+Error in term:
+  state
+Nature of error: Variable state is not bound
+Error in term:
+  ? state Playing
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  m.songs ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  m.songs
+Nature of error: "m.songs" isn't a valid token
+Error in term:
+  m.state
+Nature of error: "m.state" isn't a valid token
+Error in term:
+  m.songs
+Nature of error: "m.songs" isn't a valid token
+Error in term:
+  state
+Nature of error: Variable state is not bound
+Error in term:
+  ? state m.state
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  s.id
+Nature of error: "s.id" isn't a valid token
+Error in term:
+  state
+Nature of error: Variable state is not bound
+Error in term:
+  Pause
+Nature of error: Constructor is not defined
+Error in term:
+  Remove
+Nature of error: Constructor is not defined
+Error in term:
+  Add
+Nature of error: Constructor is not defined
+Error in term:
+  Skip
+Nature of error: Constructor is not defined
+Error in term:
+  Play
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

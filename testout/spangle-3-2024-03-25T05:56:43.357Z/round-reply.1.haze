@@ -1,0 +1,7 @@
+fun model, action ->
+    case action
+    | val Add track => AddTrackToPlayList(model, track)
+    | val Delete track => DeleteTrackFromPlayList(model, track)
+    | val MoveUp track => MoveTrackUpInPlayList(model, track)
+    | val MoveDown track => MoveTrackDownInPlayList(model, track)
+    end

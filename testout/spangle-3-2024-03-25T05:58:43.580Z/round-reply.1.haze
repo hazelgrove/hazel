@@ -1,0 +1,16 @@
+fun (model, action) ->
+  case action
+  | AddBooking((week_day, time_of_day), user_name) =>
+    let new_booking_id = List.length(getBookings(model)) + 1 in
+    let new_booking = ((week_day, time_of_day), user_name, new_booking_id) in
+    let (_, bookings, _) = model in
+    let updated_bookings = new_booking :: bookings in
+    (model.1, updated_bookings, new_booking_id)
+  | CancelBooking(user, booking_id) =>
+    let (_, bookings, _) = model in
+    let updated_bookings = rm_booking(user, booking_id, bookings) in
+    (model.1, updated_bookings, model.3)
+  | ClearBookings =>
+    let empty_bookings = [] in
+    (model.1, empty_bookings, model.3)
+  end

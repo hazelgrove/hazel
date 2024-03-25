@@ -1,0 +1,8 @@
+fun model, action ->
+    case action
+    | UpdatePassword(pw) => (pw, model.criteria, calculate_strength(pw, model.criteria))
+    | ClearCriteria => (model.password, [], Weak)
+    | AddCriterion(criterion) => (model.password, model.criteria ++ [criterion], calculate_strength(model.password, model.criteria ++ [criterion]))
+    | RemoveCriterion(criterion) => let updated_criteria = remove_criterion(model.criteria, criterion) in
+                                    (model.password, updated_criteria, calculate_strength(model.password, updated_criteria))
+    end

@@ -1,0 +1,12 @@
+The following static errors were discovered:
+Error in term:
+  String.trim
+Nature of error: Variable String.trim is not bound
+Error in term:
+  max_length
+Nature of error: Variable max_length is not bound
+Error in term:
+  AddTodo ()
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

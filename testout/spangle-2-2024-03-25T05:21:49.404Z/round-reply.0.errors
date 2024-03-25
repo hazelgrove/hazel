@@ -1,0 +1,63 @@
+The following static errors were discovered:
+Error in term:
+  idx
+Nature of error: Variable idx is not bound
+Error in term:
+  buf
+Nature of error: Variable buf is not bound
+Error in term:
+  buf
+Nature of error: Variable buf is not bound
+Error in term:
+  idx
+Nature of error: Variable idx is not bound
+Error in term:
+  todos
+Nature of error: Variable todos is not bound
+Error in term:
+  (_, RemoveTodo) idx
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  buf
+Nature of error: Variable buf is not bound
+Error in term:
+  todos
+Nature of error: Variable todos is not bound
+Error in term:
+  ''
+Nature of error: "''" isn't a valid token
+Error in term:
+  (_, ToggleTodo) idx
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  todos
+Nature of error: Variable todos is not bound
+Error in term:
+  todos
+Nature of error: Variable todos is not bound
+Error in term:
+  new_buf
+Nature of error: Variable new_buf is not bound
+Error in term:
+  Buffer (_, ToggleTodo) idx
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Buffer
+Nature of error: Constructor is not defined
+Error in term:
+  Buffer (_, RemoveTodo) idx
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Buffer (buf, AddTodo)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Buffer
+Nature of error: Constructor is not defined
+Error in term:
+  (_, UpdateBuffer) new_buf
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Buffer
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

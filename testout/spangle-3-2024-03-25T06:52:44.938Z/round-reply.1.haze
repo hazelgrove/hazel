@@ -1,0 +1,5 @@
+fun (model, action) ->
+  case action
+  | UpdatePassword(password) => { model with password = password; strength = calculateStrength(password, model.criteria) }
+  | UpdateCriteria(criteria) => { model with criteria = criteria; strength = calculateStrength(model.password, criteria) }
+  end

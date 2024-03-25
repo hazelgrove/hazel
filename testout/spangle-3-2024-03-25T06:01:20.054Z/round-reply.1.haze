@@ -1,0 +1,10 @@
+fun (model, action) ->
+    let (_, bookings, id_counter) = model in
+    let next_id = id_counter + 1 in
+    case action
+    | AddBooking((user, day, time)) => ((day, time), user)::bookings, next_id
+    | CancelBooking((user, id)) => 
+        let new_bookings = rms_booking(user, id, bookings) in
+        (model, new_bookings, id_counter)
+    | ClearBookings => (model, [], id_counter)
+    end

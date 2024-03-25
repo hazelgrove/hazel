@@ -1,0 +1,80 @@
+The following static errors were discovered:
+Error in term:
+  ? first model.first
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  second remove
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  second model.second ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.second
+Nature of error: "model.second" isn't a valid token
+Error in term:
+  model.first
+Nature of error: "model.first" isn't a valid token
+Error in term:
+  second toggle
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.second ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  second
+Nature of error: Variable second is not bound
+Error in term:
+  first model.first
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  first
+Nature of error: Variable first is not bound
+Error in term:
+  ? first str
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  first
+Nature of error: Variable first is not bound
+Error in term:
+  first
+Nature of error: Variable first is not bound
+Error in term:
+  first model.first
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  second
+Nature of error: Variable second is not bound
+Error in term:
+  model.second
+Nature of error: "model.second" isn't a valid token
+Error in term:
+  case action
+ | AddTodo => add(model)
+| RemoveTodo(i) => ? first model.first, second remove(i, model.second) ?
+| ToggleTodo(i) => ? first model.first, second toggle(i, model.second) ?
+| UpdateBuffer(str) => ? first str, second model.second ?
+end
+Nature of error: Expecting branches to have consistent types but got types: [Todo], (?, ?), (?, ?), (?, ?)
+Error in term:
+  second toggle(i, model.second) ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.second
+Nature of error: "model.second" isn't a valid token
+Error in term:
+  second remove(i, model.second) ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  first str
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  second
+Nature of error: Variable second is not bound
+Error in term:
+  model.first
+Nature of error: "model.first" isn't a valid token
+Error in term:
+  ? first model.first
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

@@ -1,0 +1,29 @@
+The following static errors were discovered:
+Error in term:
+  fun (i', ((todo, done))) ->
+ if i' == i - 1 then (todo, not done) else (todo, done)
+Nature of error: Expecting type [?] but got inconsistent type ((?, (?, ?)) -> (?, ?))
+Error in term:
+  List.drop
+Nature of error: Variable List.drop is not bound
+Error in term:
+  todo, not done
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  List.take
+Nature of error: Variable List.take is not bound
+Error in term:
+  case action
+ | AddTodo => let ((buffer, todos)) = model in
+ if buffer ==  then model else (buffer, List.append(todos, (buffer, false)))
+| RemoveTodo(i) => let ((buffer, todos)) = model in
+ (buffer, List.take(todos, i - 1) ++ List.drop(todos, i))
+| ToggleTodo(i) => let ((buffer, todos)) = model in
+ (buffer, List.mapi(todos, fun (i', ((todo, done))) ->
+ if i' == i - 1 then (todo, not done) else (todo, done)))
+| UpdateBuffer(newBuf) => let ((_, todos)) = model in
+ (newBuf, todos)
+end
+Nature of error: Expecting branches to have consistent types but got types: (?, [?]), (?, String), (?, [?]), (String, ?)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

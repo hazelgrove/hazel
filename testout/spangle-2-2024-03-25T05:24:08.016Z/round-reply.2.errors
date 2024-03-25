@@ -1,0 +1,39 @@
+The following static errors were discovered:
+Error in term:
+  splitAt
+Nature of error: Variable splitAt is not bound
+Error in term:
+  take
+Nature of error: Variable take is not bound
+Error in term:
+  case action
+ | AddTodo => let ((buffer, todos)) = model in
+ if size(buffer) != 0 then (, (buffer, false) :: todos) else model
+| RemoveTodo(idx) => let ((buffer, todos)) = model in
+ (buffer, take(idx, todos) ++ drop(idx + 1, todos))
+| ToggleTodo(idx) => let ((buffer, todos)) = model in
+ let toggle : (Todo -> Todo) = fun ((title, completed)) ->
+ (title, not(completed)) in
+ let ((front, back)) = splitAt(idx, todos) in
+ (buffer, front ++ toggle(head(back)) :: tail(back))
+| UpdateBuffer(new_buffer) => let ((_, todos)) = model in
+ (new_buffer, todos)
+end
+Nature of error: Expecting branches to have consistent types but got types: (String, [(?, Bool)]), (?, String), (?, [String]), (String, ?)
+Error in term:
+  toggle(head(back))
+Nature of error: Expecting type String but got inconsistent type Todo
+Error in term:
+  tail
+Nature of error: Variable tail is not bound
+Error in term:
+  head
+Nature of error: Variable head is not bound
+Error in term:
+  drop
+Nature of error: Variable drop is not bound
+Error in term:
+  size
+Nature of error: Variable size is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

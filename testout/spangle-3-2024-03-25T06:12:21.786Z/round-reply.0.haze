@@ -1,0 +1,13 @@
+fun model, action ->
+  case action
+  | AddBooking(user, weekday, timeOfDay) =>
+    let newBooking = ((weekday, timeOfDay), user, model.2) in
+    let updatedBookings = newBooking::model.1 in
+    let newId = model.2 + 1 in
+    ((weekday, timeOfDay), user), updatedBookings, newId
+  | CancelBooking(user, id) =>
+    let filteredBookings = List.filter(fun booking -> booking.2 != id, model.1) in
+    model.0, filteredBookings, model.2
+  | ClearBookings =>
+    model.0, [], model.2
+  end

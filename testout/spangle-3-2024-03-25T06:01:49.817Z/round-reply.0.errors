@@ -1,0 +1,13 @@
+The following static errors were discovered:
+Error in term:
+  weekDay
+Nature of error: Variable weekDay is not bound
+Error in term:
+  case m, a
+ | (((formData, bookings, id)), AddBooking(((user, weekday, tod)))) => ((weekday, tod), user), (weekDay, tod, user, id + 1) :: bookings, id + 1
+| (((formData, bookings, id)), CancelBooking(((user, bookId)))) => formData, rm_booking(user, bookId, bookings), id
+| (((formData, bookings, id)), ClearBookings) => formData, , id
+end
+Nature of error: Expecting branches to have consistent types but got types: (((Weekday, TimeOfDay), User), [(?, TimeOfDay, User, Int)], Int), (?, [Booking], ?), (?, [?], ?)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

@@ -1,0 +1,6 @@
+fun (model, action) ->
+  case action 
+  | Toggle(i) => { status= model.status, todos= toggle(i, model.todos) }
+  | Remove(i) => { status= model.status, todos= remove(i, model.todos) }
+  | Add(s) => { status= model.status, todos= add(s, model.todos) }
+  end

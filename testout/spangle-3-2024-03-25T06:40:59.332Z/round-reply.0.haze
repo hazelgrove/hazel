@@ -1,0 +1,6 @@
+fun model, action ->
+  case action
+  | ChangeColor(color) => {model with color = color}
+  | Draw(row, col) => {model with grid = Grid.draw(model.grid, row, col, model.color)}
+  | Clear => Model.initial() end
+  end

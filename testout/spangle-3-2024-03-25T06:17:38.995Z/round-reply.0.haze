@@ -1,0 +1,12 @@
+
+fun model, action ->
+  case action
+  | Submit(availability, room) =>
+      if string_length(room) < 1 then
+        { model | isError = true }
+      else
+        let updatedBookings = rm_booking(model.user, generateID(), model.booking) in
+        { model | booking = updatedBookings, form = initFormState, isError = false }
+  | UpdateForm(newAvailability, newRoom) =>
+      { model | form = (newAvailability, newRoom) }
+  end

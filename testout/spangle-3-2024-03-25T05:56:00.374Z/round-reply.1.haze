@@ -1,0 +1,6 @@
+fun playlist, action ->
+  case action
+  | Action.Add(song) => PlayList.append(playlist, [song])
+  | Action.Remove(song) => PlayList.filter(fun s -> s != song, playlist)
+  | Action.Clear => PlayList.new() 
+  end

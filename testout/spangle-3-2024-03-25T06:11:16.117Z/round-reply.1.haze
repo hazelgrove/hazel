@@ -1,0 +1,12 @@
+fun (model, action) ->
+  case action
+  | AddBooking(booking_form_data) =>
+    let (form_data, bookings, booking_id) = model in
+    (booking_form_data, form_data::bookings, booking_id + 1)
+  | CancelBooking(booking_id_to_cancel) =>
+    let (form_data, bookings, booking_id) = model in
+    (form_data, List.filter(fun (_, _, booking_id) -> booking_id != booking_id_to_cancel, bookings), booking_id)
+  | ClearBookings =>
+    let (form_data, _, booking_id) = model in
+    (form_data, [], booking_id)
+  end

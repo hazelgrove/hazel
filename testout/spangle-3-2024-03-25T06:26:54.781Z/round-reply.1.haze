@@ -1,0 +1,7 @@
+fun (mod, action) ->
+    case action
+    | SelectEmoji(newEmoji) => {mod with selected = newEmoji}
+    | PaintAt(row, col) => {mod with grid = updateGrid(mod.grid, row, col, mod.selected)}
+    | Clear => {mod with grid = clearGrid(mod.grid)}
+    | Undo => mod
+    end

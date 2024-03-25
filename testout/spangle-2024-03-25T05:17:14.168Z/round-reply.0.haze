@@ -1,0 +1,7 @@
+fun model, action ->
+  case action
+  | AddTodo => let (str, ts) = model in (str, (str, false)::ts)
+  | RemoveTodo(i) => let (str, ts) = model in (str, List.remove_at(i, ts))
+  | ToggleTodo(i) => let (str, ts) = model in (str, List.set_at(i, fun (t, b) -> (t, !b), ts))
+  | UpdateBuffer(s) => let (str, ts) = model in (s, ts)
+  end

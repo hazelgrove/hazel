@@ -56,7 +56,7 @@ case xs
   (
     {|
 type Container =
-  + Pod(Int)
+  + Pod(Bool)
   + CapsuleCluster(Int, Int) in
 let total_capacity: Container -> Int =
   ??
@@ -66,7 +66,7 @@ in
     {|
 fun c ->
     case c
-      | Pod(x) => x
+      | Pod(b) => if !b && true then 1 else 0
       | CapsuleCluster(x, y) => x * y
     end
 |},
@@ -77,10 +77,12 @@ fun c ->
     "fun x:Int -> ??",
   ),
   (
-    {|let get: Option => Int =
-        case Some(5)
-        | Some(x) => ??
-        | None => 0 end|},
+    {|let triple = (4, 8, true) in
+let (_, y, condition) = triple in
+let get: Option => Int =
+case Some(5)
+ | Some(x) => ??
+ | None => if !condition then 0 else y + 1 end|},
     Type.expected(Some(Ana(Int)), ~ctx=[]),
     "x",
   ),

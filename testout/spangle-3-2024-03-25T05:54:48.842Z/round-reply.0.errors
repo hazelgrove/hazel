@@ -1,0 +1,9 @@
+The following static errors were discovered:
+Error in term:
+  (? != ?) id, songs
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  get_current_song
+Nature of error: Variable get_current_song is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

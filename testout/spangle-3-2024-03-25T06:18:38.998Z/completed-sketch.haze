@@ -1,0 +1,24 @@
+# Update the Room Booking app model based on an action #
+
+let update: (Model, Action) -> Model =
+  fun model, action ->
+case action
+  | Init => Model.init
+  | UpdateForm(week_day, time_of_day, channel) =>
+    let (old_week_day, old_time_of_day, old_channel) = model.form_state in
+    model.form_state <- (week_day, time_of_day, channel)
+    model
+  | SubmitForm =>
+    let (week_day, time_of_day, channel) = model.form_state in
+    model.bookings <- model.bookings @ [(model.user, model.booking_id, [(week_day, time_of_day, channel)])]
+    model.booking_id <- model.booking_id + 1
+    model
+  | CancelBooking(booking_id) =>
+    model.bookings <- List.filter (fun (_, id, _) -> id != booking_id) model.bookings
+    model
+  | SwitchUser(user) =>
+    model.user <- user
+    model
+  | _ => model
+end
+in

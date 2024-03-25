@@ -1,0 +1,21 @@
+The following static errors were discovered:
+Error in term:
+  (user, weekday, time), model 1, model 2 + 1
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model 0, rm_booking(user, id, model 1), model 2
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  2
+Nature of error: Expecting type Int but got inconsistent type [Int]
+Error in term:
+  user, id, model 1
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  0, rm_booking(user, id, model 1), model 2
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  1, model 2 + 1
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

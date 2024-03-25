@@ -1,6 +1,0 @@
-fun model, action ->
-  case action
-  | ChangeEmoji(emoji) => { model with currentEmoji = emoji }
-  | MoveCursor(d)       => moveCursor(model, d)
-  | Paint               => paint(model)
-  | Clear               => { model with grid = clearGrid(model.grid) }

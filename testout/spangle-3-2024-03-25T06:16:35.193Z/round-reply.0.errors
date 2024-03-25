@@ -1,0 +1,24 @@
+The following static errors were discovered:
+Error in term:
+  addRoom
+Nature of error: Variable addRoom is not bound
+Error in term:
+  removeRoom
+Nature of error: Variable removeRoom is not bound
+Error in term:
+  unbookRoom
+Nature of error: Variable unbookRoom is not bound
+Error in term:
+  bookRoom
+Nature of error: Variable bookRoom is not bound
+Error in term:
+  BookRoom
+Nature of error: Constructor is not defined
+Error in term:
+  DeleteRoom
+Nature of error: Constructor is not defined
+Error in term:
+  CreateRoom
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

@@ -1,0 +1,7 @@
+
+fun model, action ->
+  case action
+  | SetRooms(rooms)    => {model with rooms = rooms}
+  | SetSelectedRoom(id) => {model with selectedRoom = id}  
+  | SetUser(user)      => {model with user = user}
+  end

@@ -1,0 +1,7 @@
+
+fun model, action ->
+    case action
+    | AddBooking(user, day, tod) => let newid = List.length(getBookings(model)) in let newbooking = (day, tod, user, newid) in let newmodel = ((day, tod), user), getBookings(model) @ [newbooking], newid in newmodel
+    | CancelBooking(user, id) => (model.0, rm_booking(user, id, getBookings(model)), model.2)
+    | ClearBookings => (model.0, [], 0)
+    end

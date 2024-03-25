@@ -1,0 +1,12 @@
+fun model, action ->
+  case action
+    | Toggle(i) => {model with todos = toggle(i, model.todos)}
+    | Remove(i) => {model with todos = remove(i, model.todos)}
+    | Add => {model with todos = add(model)}
+    | Edit(s) => {model with draftTodo = s}
+    | Update =>
+      let trimDraft = string_trim(model.draftTodo) in
+      if trimDraft == ""
+      then model
+      else {model with todos = add(model), draftTodo = ""}
+  end

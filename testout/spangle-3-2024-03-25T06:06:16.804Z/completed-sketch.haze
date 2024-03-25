@@ -1,0 +1,14 @@
+# Update the Room Booking app model based on an action #
+
+let update: (Model, Action) -> Model =
+  fun model, action ->
+  case action
+    | Action.Refresh => { model with bookings = getBookings(model) }
+    | Action.ChangeUser(user) => { model with user = user; bookings = getUserBookings(model, user) }
+    | Action.ChangeDay(weekday) => { model with formState = { model.formState with day = weekday } }
+    | Action.ChangeBookingID(bookingID) => { model with formState = { model.formState with bookingID = bookingID } }
+    | Action.AddBooking(booking) => { model with bookings = booking::model.bookings }
+    | Action.RemoveBooking(bookingID) => { model with bookings = List.filter (fun booking -> booking.id != bookingID, model.bookings) }
+    | Action.Logout => { Model.init with user = "Guest"; bookings = [] }
+  end
+in

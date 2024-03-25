@@ -1,0 +1,12 @@
+fun model,action ->
+      match action with
+      | Action.Refresh -> model.bookings <- getBookings(model);
+      | Action.ChangeUser(user) -> model.user <- user; model.bookings <- getUserBookings(model, user)
+      | Action.ChangeDay(weekday) -> model.formState.day <- weekday
+      | Action.ChangeBookingID(bookingID) ->model.formState.bookingID <- bookingID
+      | Action.AddBooking(booking) -> model.bookings <- rm_booking(model.user, model.formState.bookingID, model.bookings) :: model.bookings
+      | Action.RemoveBooking(bookingID) -> model.bookings <- List.filter (fun booking -> booking.id != bookingID) model.bookings
+      | Action.Logout -> model.user <- "Guest"; model.bookings <-[]
+
+   end in
+ update(model, Action.Logout)

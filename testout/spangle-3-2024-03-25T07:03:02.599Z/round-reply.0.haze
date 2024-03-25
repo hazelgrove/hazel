@@ -1,0 +1,5 @@
+fun model, action ->
+    case action
+    | ChangePassword(new_password) => { model with password = new_password; strength = calculate_strength(new_password) }
+    | ClearPassword => { model with password = ""; strength = Weak }
+    end

@@ -1,0 +1,22 @@
+fun (playlist, action) ->
+  case action
+  | PlayNext => 
+      let current_songs = get_songs(playlist) in
+      case current_songs
+      | [] => playlist
+      | song::songs => let state = get_state(playlist) in
+                        let updated_state = match state with
+                          | Playing => Paused(song)
+                          | Paused(previous_song) => Playing(song)
+                          | Stopped => Playing(song)
+                        in
+                        {state: updated_state; songs: songs}
+      end
+  | AddSongs(new_songs) =>
+      let current_songs = get_songs(playlist) in
+      let merged_songs = List.merge((fun (a, b) -> compare(a, b)), new_songs, current_songs) in
+      {playlist with songs: merged_songs}
+  | Shuffle =>
+      let shuffled_songs = List.sort((fun (_ , _) -> Random.int(2) - 1), get_songs(playlist)) in
+      {playlist with songs: shuffled_songs}
+  end

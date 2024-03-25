@@ -1,0 +1,14 @@
+
+fun model, action ->
+  case action
+  | AddNewBooking(u, bid, bks) =>
+      let updated_bookings = rm_booking(u, bid, bks) in
+      {model with bookings = updated_bookings}
+  | DeleteBooking(u, bid) => 
+      let user_bookings = getUserBookings(model, u) in
+      let updated_bookings = List.filter((!=) bid, user_bookings) in
+      {model with bookings = updated_bookings}
+  | UpdateUserBookings(u, bks) =>
+      {model with bookings = List.concat([getBookings(model), bks])} 
+  | _ => model
+  end

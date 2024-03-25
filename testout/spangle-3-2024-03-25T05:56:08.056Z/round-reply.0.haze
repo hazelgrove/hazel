@@ -1,0 +1,7 @@
+fun model, action -> 
+    case action
+    | PlaySong(song) => update_play_song(model,song)
+    | PauseSong => update_pause_song(model)
+    | NextSong => update_next_song(model)
+    | PreviousSong => update_previous_song(model)
+    end

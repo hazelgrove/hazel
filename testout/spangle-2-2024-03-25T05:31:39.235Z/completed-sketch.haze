@@ -1,0 +1,14 @@
+# TODO MVU: Handle TODO actions to update the app model #
+
+let update: (Model, Action) -> Model =
+  fun model, action ->
+  case action
+  | Add =>
+    let trimmed = string_trim(model.task_input) in
+    let todos = if model.task_input == "" then model.todos else add(model) in
+    ({ todos = todos, task_input = "", uid = model.uid + 1 })
+  | Edit(task_input) => ({ model with task_input = task_input })
+  | Remove(uid) => ({ model with todos = remove(uid, model.todos) })
+  | Toggle(uid) => ({ model with todos = toggle(uid, model.todos) })
+  end
+in

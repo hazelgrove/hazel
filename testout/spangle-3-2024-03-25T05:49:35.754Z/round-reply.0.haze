@@ -1,0 +1,9 @@
+fun list, action ->
+  case action
+  | AddSong(song) => song :: list
+  | RemoveSong(id) => List.filter((fun song -> song.id != id), list)
+  | SortByTitle => List.sort((fun a, b -> compare a.title b.title), list)
+  | SortById => List.sort((fun a, b -> compare a.id b.id), list)
+  | MergeWith(other) => List.merge((fun a, b -> compare a.id b.id), list, other)
+  | Reverse => List.rev(list)
+  end

@@ -1,0 +1,6 @@
+fun model, action ->
+  case action
+  | NewPassword pw => { model with password = pw; strength = check_strength pw }
+  | ShowStrength => { model with show_strength = true }
+  | HideStrength => { model with show_strength = false }
+  end

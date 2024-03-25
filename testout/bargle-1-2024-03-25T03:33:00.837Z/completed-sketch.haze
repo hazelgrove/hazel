@@ -1,8 +1,0 @@
-# Update the Room Booking app model based on an action #
-
-let update: (Model, Action) -> Model =
-  fun (m, a) -> 
-    case a 
-    | Increment => {m with count = m.count + 1}
-    | Decrement => {m with count = m.count - 1} end
-in

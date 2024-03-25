@@ -1,0 +1,20 @@
+The following static errors were discovered:
+Error in term:
+  case action
+ | AddBooking(((user, weekday, timeOfDay))) => let ((((oldTime, oldUser)), oldBookings, oldID)) = model in
+ let newBooking = ((weekday, timeOfDay), oldUser, oldID) in
+ let newModel = ((oldTime, oldUser), newBooking ++ oldBookings, oldID + 1) in
+ newModel
+| CancelBooking(((user, id))) => let ((((time, _)), oldBookings, oldID)) = model in
+ let newBookings = List.filter(fun ((time, user, id)) ->
+ id != oldID, oldBookings) in
+ ((time, user), newBookings, oldID)
+| ClearBookings => let ((((time, user)), _, _)) = model in
+ ((time, user), , 0)
+end
+Nature of error: Expecting branches to have consistent types but got types: ((?, ?), String, Int), ((?, User), [?], ?), ((?, ?), [?], Int)
+Error in term:
+  newBooking
+Nature of error: Expecting type String but got inconsistent type [((Weekday, TimeOfDay), ?, ?)]
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

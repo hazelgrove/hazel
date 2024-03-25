@@ -1,0 +1,26 @@
+The following static errors were discovered:
+The suggested filling has the wrong expected type: expected ((Model, Action) -> Model), but got ((?, ?) -> (String, [Bool])).
+Error in term:
+  String.isEmpty
+Nature of error: Variable String.isEmpty is not bound
+Error in term:
+  fun (i', ((text, done))) ->
+ ((text, (i' == i - 1) ? done : done))
+Nature of error: Expecting type [?] but got inconsistent type ((?, (?, ?)) -> ?)
+Error in term:
+  ? done : done
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  List.remove_at
+Nature of error: Variable List.remove_at is not bound
+Error in term:
+  text, (i' == i - 1) ? done : done
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  done
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  done
+Nature of error: "done" isn't a valid type token
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

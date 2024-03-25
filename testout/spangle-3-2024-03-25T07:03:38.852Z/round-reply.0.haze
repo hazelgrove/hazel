@@ -1,0 +1,6 @@
+fun m, a ->
+    case a
+    | Check => calculate_strength(m)
+    | Reset => initial_model
+    | Submit => submit_form(m)
+    end

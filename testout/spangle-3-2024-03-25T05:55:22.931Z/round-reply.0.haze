@@ -1,0 +1,7 @@
+
+fun model, action ->
+    case action
+      | AddTrack(track) => AddTrackToPlayList(model, track)
+      | RemoveTrack(track) => RemoveTrackFromPlayList(model, track)
+      | ResetPlayList => InitializeEmptyPlayList(model)
+    end

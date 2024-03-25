@@ -1,0 +1,7 @@
+fun model, action ->
+  case model, action of
+  | (songs, state), PlaySong(id) => (songs, Playing(id))
+  | model, PauseCurrentSong => (fst(model), NoSongSelected)
+  | (songs, state), RemoveSong(id) => (List.filter(fun s -> not(s == id), songs), state)
+  | (songs, state), AddSong(id) => (songs@[id], state)
+  end

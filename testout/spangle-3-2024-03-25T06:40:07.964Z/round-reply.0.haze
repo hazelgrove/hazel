@@ -1,0 +1,9 @@
+
+fun model, action ->
+  case action
+  | MouseDown => { model with mouseDown = true }
+  | MouseUp => { model with mouseDown = false }
+  | MouseMove(loc) => { model with loc = loc }
+  | ChangeEmoji(new_emoji) => { model with emoji = new_emoji }
+  | _ => model
+  end

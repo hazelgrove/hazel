@@ -1,0 +1,15 @@
+# Update the Room Booking app model based on an action #
+
+let update: (Model, Action) -> Model =
+  fun (model, action) ->
+  let (formData, bookings, lastId) = model in
+  case action
+  | AddBooking((user, weekday, timeOfDay)) => 
+      let newBooking = ((weekday, timeOfDay), user, lastId + 1) in 
+      (formData, newBooking :: bookings, lastId + 1)
+  | CancelBooking((user, bookingID)) => 
+      let updatedBookings = rm_booking(user, bookingID, bookings) in 
+      (formData, updatedBookings, if List.length(updatedBookings) == 0 then 1 else lastId)
+  | ClearBookings => (formData, [], lastId)
+  end
+in

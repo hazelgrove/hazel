@@ -1,0 +1,18 @@
+fun model, action ->
+  case action
+    | SelectEmoji(emoji) => (fst(model), emoji, thd(model))
+    | StampEmoji((row, col)) =>
+      let newGrid = updateCell(row, col, snd(model), fst(model)) in
+      (newGrid, snd(model), thd(model))
+    | ClearCell((row, col)) =>
+      let newGrid = updateCell(row, col, "", fst(model)) in
+      (newGrid, snd(model), thd(model))
+    | ClearGrid => (initGrid(), snd(model), thd(model))
+    | FillRow(row) =>
+      let newGrid = fillRow(row, snd(model), fst(model)) in
+      (newGrid, snd(model), thd(model))
+  end
+where
+  updateCell = fun row, col, emoji, grid ->
+    List.mapi(fun i, row -> if i == row then List.mapi(fun j, _ -> if j == col then emoji else cell, row) else row, grid),
+  fillRow = fun row, emoji, grid -> List.mapi(fun i, row -> if i == row then List.map(fun _ -> emoji, row) else row, grid)

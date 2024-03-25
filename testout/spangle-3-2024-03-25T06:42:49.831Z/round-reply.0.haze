@@ -1,0 +1,10 @@
+fun model, action ->
+    case action 
+    | DrawCord(row, col, emoji) => updateGrid(model.grid, row ,col ,emoji)
+    | Clear => clearGrid(model.grid)
+    | Fill(row, emoji) => fillRowInGrid(model.grid, row, emoji)
+    | Save(filePath) => savePaint(model.grid, filePath)
+    | Load(filePath) => loadPaint(filePath) 
+    end
+in 
+update(model, action)

@@ -1,0 +1,7 @@
+fun m, action -> 
+  case action 
+    | AddItem(item) => Model.addItem(m, item)
+    | RemoveItem(item) => Model.removeItem(m, item)
+    | CompleteItem(item) => Model.completeItem(m, item)
+    | UncompleteItem(item) => Model.uncompleteItem(m, item)
+  end

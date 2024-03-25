@@ -1,0 +1,14 @@
+fun model, action ->
+  case action
+  | AddBooking(new_booking) => model.booking_id <- new_booking
+  | ModifyBooking(modified_booking) => rm_booking(model.user, modified_booking, model.bookings)
+  | DeleteBooking(deleted_booking_id) => model.bookings <- List.filter(booking => booking.id != deleted_booking_id, model.bookings)
+  | ClearBookings => model.bookings <- []
+  | SendInvite(invite) => model.invites <- invite::model.invites
+  | ClearInvites => model.invites <- []
+  | RejectInvite(reject_invite) => model.invites <- List.filter(invite => invite != reject_invite, model.invites)
+  | ChangeFilter(new_filter) => model.filter <- new_filter
+  | ChangeView(new_view) => model.view <- new_view
+  | UpdateFormState(new_state) => model.form_state <- new_state
+  | UpdateFormText(new_text) => model.form_text <- new_text
+  end

@@ -1,0 +1,10 @@
+# Update Playlist app model based on an action #
+
+let update: (PlayList, PlayListAction) -> PlayList =
+  fun (model, action) ->
+  case (model, action)
+    | (_, PlaylistsFetched(playlists)) => playlists
+    | (_, PlaylistUpdated(playlist)) => List.map(fun p -> if p.id == playlist.id then playlist else p end, model)
+    | (_, PlaylistDeleted(id)) => List.filter(fun p -> p.id != id end, model)
+  end
+in

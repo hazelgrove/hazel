@@ -1,0 +1,19 @@
+
+fun model, action ->
+ case action
+    | AddTodo => let (buffer, tasks) = model in
+                 if buffer != "" then 
+                    (buffer, (buffer, false)::tasks)
+                 else
+                    model 
+    | RemoveTodo(i) => let (buffer, tasks) = model in
+                       (buffer, List.remove(i, tasks))
+    | ToggleTodo(i) => let (buffer, tasks) = model in
+                       let new_tasks = List.mapi(fun idx, todo -> 
+                                                  case todo
+                                                    | (text, completed) => if idx == i then (text, !completed) else todo
+                                                  end, tasks)
+                       in (buffer, new_tasks)
+    | UpdateBuffer(new_buffer) => let (buffer, tasks) = model in
+                                  (new_buffer, tasks)
+  end

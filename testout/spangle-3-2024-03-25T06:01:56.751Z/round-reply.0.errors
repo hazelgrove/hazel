@@ -1,0 +1,21 @@
+The following static errors were discovered:
+Error in term:
+  booking
+Nature of error: Expecting type (?, ?) but got inconsistent type (User, Weekday, TimeOfDay)
+Error in term:
+  case action
+ | AddBooking(booking) => let ((newTime, newUser)) = booking in
+ let newBookings = bookings ++ (newTime, newUser, nextId) in
+ (formData, newBookings, nextId + 1)
+| CancelBooking(data) => let ((user, id)) = data in
+ let newBookings = List.filter(fun ((_, _, bid)) ->
+ bid != id, bookings) in
+ (formData, newBookings, nextId)
+| ClearBookings => (formData, , nextId)
+end
+Nature of error: Expecting branches to have consistent types but got types: (?, String, Int), (?, [?], ?), (?, [?], ?)
+Error in term:
+  (newTime, newUser, nextId)
+Nature of error: Expecting type String but got inconsistent type [(?, ?, ?)]
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

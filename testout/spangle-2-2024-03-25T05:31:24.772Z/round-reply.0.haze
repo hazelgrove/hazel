@@ -1,0 +1,9 @@
+fun model, action ->
+  case action
+  | Toggle(id) => {model with todos = toggle(id, model.todos)}
+  | Remove(id) => {model with todos = remove(id, model.todos)}
+  | Add => {model with todos = add(model)}
+  | UpdateContent(content) => {model with content}
+  | Reject => model
+  | Accept(content) => {model with content = "", todos = add({model with content})}
+  end

@@ -1,0 +1,6 @@
+fun m, a ->
+  case a
+  | AddBooking(booking_form_data) => (booking_form_data, m.1::m.2, m.3 + 1)
+  | CancelBooking(booking_id) => (m.1, List.filter(fun booking -> booking.3 != booking_id, m.2), m.3)
+  | ClearBookings => (m.1, [], m.3)
+  end
