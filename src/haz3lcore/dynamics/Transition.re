@@ -110,6 +110,7 @@ module CastHelpers = {
     | Rec(_)
     | Arrow(Unknown(_), Unknown(_))
     | List(Unknown(_)) => Ground
+    | Parens(ty) => ground_cases_of(ty)
     | Prod(tys) =>
       if (List.for_all(
             fun
