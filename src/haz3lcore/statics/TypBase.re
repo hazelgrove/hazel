@@ -32,7 +32,7 @@ module rec Typ: {
     | Arrow(t, t)
     | Sum(sum_map)
     | Prod(list(t))
-    // TODO[Matt]: Add Parens
+    | Parens(t)
     // TODO[Matt]: Add Ap?
     | Rec(string, t)
   and sum_map = ConstructorMap.t(option(t));
@@ -91,6 +91,7 @@ module rec Typ: {
     | Arrow(t, t)
     | Sum(sum_map)
     | Prod(list(t))
+    | Parens(t)
     | Rec(string, t)
   and sum_map = ConstructorMap.t(option(t));
 
@@ -136,6 +137,7 @@ module rec Typ: {
     | List(_) => precedence_Const
     | Prod(_) => precedence_Prod
     | Arrow(_, _) => precedence_Arrow
+    | Parens(_) => precedence_Const
     };
 
   let rec subst = (s: t, x: string, ty: t) => {
@@ -152,6 +154,7 @@ module rec Typ: {
     | Rec(y, ty) => Rec(y, subst(s, x, ty))
     | List(ty) => List(subst(s, x, ty))
     | Var(y) => x == y ? s : Var(y)
+    | Parens(ty) => Parens(subst(s, x, ty))
     };
   };
 
@@ -165,6 +168,8 @@ module rec Typ: {
      but this will change when polymorphic types are implemented */
   let rec eq = (t1: t, t2: t): bool => {
     switch (t1, t2) {
+    | (Parens(t1), t2) => eq(t1, t2)
+    | (t1, Parens(t2)) => eq(t1, t2)
     | (Rec(x1, t1), Rec(x2, t2)) => eq(t1, subst(Var(x1), x2, t2))
     | (Rec(_), _) => false
     | (Int, Int) => true
@@ -199,6 +204,7 @@ module rec Typ: {
     | Bool
     | String => []
     | Var(v) => List.mem(v, bound) ? [] : [v]
+    | Parens(ty)
     | List(ty) => free_vars(~bound, ty)
     | Arrow(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
     | Sum(sm) =>
@@ -221,6 +227,8 @@ module rec Typ: {
           (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let join' = join(~resolve, ~fix, ctx);
     switch (ty1, ty2) {
+    | (ty1, Parens(ty2))
+    | (Parens(ty1), ty2) => join'(ty1, ty2)
     | (_, Unknown(TypeHole | Free(_)) as ty) when fix =>
       /* NOTE(andrew): This is load bearing
          for ensuring that function literals get appropriate
@@ -348,6 +356,7 @@ module rec Typ: {
     | Float
     | Bool
     | String => ty
+    | Parens(t) => t
     | List(t) => List(normalize(ctx, t))
     | Arrow(t1, t2) => Arrow(normalize(ctx, t1), normalize(ctx, t2))
     | Prod(ts) => Prod(List.map(normalize(ctx), ts))

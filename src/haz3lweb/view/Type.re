@@ -29,6 +29,7 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
         ]),
       [text("?") /*, prov_view(prov)*/],
     )
+  | Parens(ty) => view_ty(ty)
   | Int => ty_view("Int", "Int")
   | Float => ty_view("Float", "Float")
   | String => ty_view("String", "String")

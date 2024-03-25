@@ -42,6 +42,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
   );
   let (doc, parenthesize) =
     switch (ty) {
+    | Parens(ty) => (mk(~parenthesize=true, ~enforce_inline, ty), false)
     | Unknown(_) => (
         annot(HTypAnnot.Delim, annot(HTypAnnot.HoleLabel, text("?"))),
         parenthesize,
