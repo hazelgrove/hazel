@@ -29,7 +29,6 @@ module rec Typ: {
     | String
     | Var(string)
     | List(t)
-    // TODO[Matt]: Add Constructor?
     | Arrow(t, t)
     | Sum(sum_map)
     | Prod(list(t))

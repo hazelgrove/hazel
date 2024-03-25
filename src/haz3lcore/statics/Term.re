@@ -81,7 +81,6 @@ module TypTerm = {
     | List(_) => List
     | Arrow(_) => Arrow
     | Var(_) => Var
-    | Constructor(_) => Constructor
     | Prod(_) => Prod
     | Parens(_) => Parens
     | Ap(_) => Ap
@@ -121,7 +120,6 @@ module TypTerm = {
     | List(_)
     | Prod(_)
     | Var(_)
-    | Constructor(_)
     | Ap(_)
     | Sum(_)
     | Rec(_) => false
@@ -150,7 +148,6 @@ module TypTerm = {
       | List(u) => List(to_typ(ctx, u))
       | Parens(u) => to_typ(ctx, u)
       /* The below cases should occur only inside sums */
-      | Constructor(_)
       | Ap(_) => Unknown(Internal)
       | Rec({term: Invalid(_), _}, tbody)
       | Rec({term: EmptyHole, _}, tbody)

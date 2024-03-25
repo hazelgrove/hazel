@@ -390,8 +390,7 @@ let status_typ =
   switch (term.term) {
   | Invalid(token) => InHole(BadToken(token))
   | EmptyHole => NotInHole(Type(ty))
-  | Var(name)
-  | Constructor(name) =>
+  | Var(name) =>
     switch (expects) {
     | VariantExpected(Unique, sum_ty)
     | ConstructorExpected(Unique, sum_ty) =>
@@ -410,7 +409,7 @@ let status_typ =
     | VariantExpected(status_variant, ty_variant) =>
       let ty_in = UTyp.to_typ(ctx, t2);
       switch (status_variant, t1.term) {
-      | (Unique, Var(name) | Constructor(name)) =>
+      | (Unique, Var(name)) =>
         NotInHole(Variant(name, Arrow(ty_in, ty_variant)))
       | _ => NotInHole(VariantIncomplete(Arrow(ty_in, ty_variant)))
       };
@@ -507,7 +506,8 @@ let derived_typ = (~utyp: UTyp.t, ~ctx, ~ancestors, ~expects): typ => {
   let cls: Cls.t =
     /* Hack to improve CI display */
     switch (expects, UTyp.cls_of_term(utyp.term)) {
-    | (VariantExpected(_), Var) => Cls.Typ(Constructor)
+    | (VariantExpected(_) | ConstructorExpected(_), Var) =>
+      Cls.Typ(Constructor)
     | (_, cls) => Cls.Typ(cls)
     };
   let ty = UTyp.to_typ(ctx, utyp);
@@ -539,3 +539,9 @@ let get_binding_site = (info: t): option(Id.t) => {
   | _ => None
   };
 };
+
+let typ_is_constructor_expected = t =>
+  switch (t) {
+  | {expects: ConstructorExpected(_) | VariantExpected(_), _} => true
+  | _ => false
+  };

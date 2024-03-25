@@ -576,8 +576,7 @@ and utyp_to_info_map =
   | Float
   | Bool
   | String => add(m)
-  | Var(_)
-  | Constructor(_) =>
+  | Var(_) =>
     /* Names are resolved in Info.status_typ */
     add(m)
   | List(t)
@@ -665,7 +664,7 @@ and variant_to_info_map =
           List.mem(ctr, ctrs) ? Duplicate : Unique,
           ty_sum,
         ),
-        {term: Constructor(ctr), ids},
+        {term: Var(ctr), ids},
         m,
       )
       |> snd;
