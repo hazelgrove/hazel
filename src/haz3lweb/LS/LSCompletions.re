@@ -298,13 +298,29 @@ let get_info_map = (~init_ctx, z: Zipper.t) =>
   |> fst
   |> Interface.Statics.mk_map_ctx(CoreSettings.on, init_ctx);
 
-let get_prelude_ctx' = (~db=ignore, ~init_ctx, str: string): Ctx.t => {
+let term_of = (~db, s: option(string)) => {
+  let s =
+    switch (s) {
+    | None => ""
+    | Some(s) => s
+    };
+  let z = LSFiles.process_zipper(~db, s);
+  let seg = Zipper.smart_seg(~dump_backpack=true, ~erase_buffer=true, z);
+  fst(MakeTerm.go(seg));
+};
+
+let get_prelude_ctx =
+    (~db, ~init_ctx, ~prelude: option(string), ~common: option(string))
+    : Ctx.t => {
+  let term_common = term_of(~db, common);
+  let term_prelude = term_of(~db, prelude);
   let probe = 13371338;
   let probe_term = Term.UExp.{ids: [Id.mk()], term: Int(probe)};
-  let z_prelude = LSFiles.process_zipper(~db, str);
-  let seg =
-    Zipper.smart_seg(~dump_backpack=true, ~erase_buffer=true, z_prelude);
-  let term = EditorUtil.append_exp(fst(MakeTerm.go(seg)), probe_term);
+  let term =
+    EditorUtil.append_exp(
+      term_common,
+      EditorUtil.append_exp(term_prelude, probe_term),
+    );
   let info_map =
     Interface.Statics.mk_map_ctx(CoreSettings.on, init_ctx, term);
   let get_sym = (_, info: Info.t, acc) =>
@@ -321,12 +337,6 @@ let get_prelude_ctx' = (~db=ignore, ~init_ctx, str: string): Ctx.t => {
     )
   };
 };
-
-let get_prelude_ctx = (~db, ~prelude, ~init_ctx) =>
-  switch (prelude) {
-  | None => init_ctx
-  | Some(prelude) => get_prelude_ctx'(~db, ~init_ctx, prelude)
-  };
 
 let collate_info = (~init_ctx, ~db, z: Zipper.t, id: Id.t): infodump => {
   let info_map = get_info_map(~init_ctx, z);
@@ -899,6 +909,7 @@ let dispatch_generation = (~settings: settings, ~db, z: Zipper.t): pre_grammar =
     get_prelude_ctx(
       ~db,
       ~init_ctx=settings.init_ctx,
+      ~common=settings.data.common,
       ~prelude=settings.data.prelude,
     );
   let gen_options =

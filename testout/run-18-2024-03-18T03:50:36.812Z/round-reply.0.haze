@@ -1,7 +1,0 @@
-fun playlist, action  ->
-  case action
-  | AddSong(name) => playlist.addSong(name)
-  | RemoveSong(name) => playlist.removeSong(name)
-  | PlayNextSong() => playlist.playNextSong()
-  | Stop() => playlist.stop()
-  end

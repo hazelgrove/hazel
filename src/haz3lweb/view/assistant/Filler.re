@@ -77,10 +77,10 @@ fun c ->
     "fun x:Int -> ??",
   ),
   (
-    "let get: Option_int => Int =\n"
-    ++ "  case Some(5)\n"
-    ++ "  | Some(x) => ??\n"
-    ++ "  | None => 0 end",
+    {|let get: Option => Int =
+        case Some(5)
+        | Some(x) => ??
+        | None => 0 end|},
     Type.expected(Some(Ana(Int)), ~ctx=[]),
     "x",
   ),

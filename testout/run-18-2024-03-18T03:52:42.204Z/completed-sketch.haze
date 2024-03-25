@@ -1,9 +1,0 @@
-# Update playlist based on action #
-let update: (PlayList, PlayListAction) -> PlayList =
-  fun playlist, action ->
-    case action
-    | AddSong(song) => song :: playlist
-    | RemoveSong(song) => List.remove(song, playlist)
-    | ShufflePlayList => List.shuffle(playlist)
-    end
-in

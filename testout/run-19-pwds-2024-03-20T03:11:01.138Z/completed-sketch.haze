@@ -1,8 +1,0 @@
-let update: (Model, Action) -> Model =
-  
-fun model, action ->
-  case action
-  | Increment => { ctr = model.ctr + 1 }
-  | Decrement => { ctr = model.ctr - 1 }
-  end
-in

@@ -1,0 +1,7 @@
+fun model, action ->
+  case action
+  | AddItem(item) => { model with items = item::model.items }
+  | DeleteItem(item) => { model with items = List.remove(item, model.items) }
+  | UpdateItem(oldItem, newItem) => { model with items = List.replace(oldItem, newItem, model.items) }
+  | ClearAll() => { model with items = [] }
+  end

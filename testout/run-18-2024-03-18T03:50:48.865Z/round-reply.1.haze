@@ -1,6 +1,0 @@
-fun (playlist, action) ->
-  case action
-  | Add(song) => song :: playlist
-  | Remove(index) => List.remove_at(index, playlist)
-  | Reset => [] 
-  end

@@ -1,0 +1,63 @@
+The following static errors were discovered:
+Error in term:
+  as Model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  t, not done
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Model
+Nature of error: Constructor is not defined
+Error in term:
+  as Model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  as
+Nature of error: Variable as is not bound
+Error in term:
+  Model
+Nature of error: Constructor is not defined
+Error in term:
+  (buffer, toggled) as Model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  List.map_i
+Nature of error: Variable List.map_i is not bound
+Error in term:
+  as
+Nature of error: Variable as is not bound
+Error in term:
+  as
+Nature of error: Variable as is not bound
+Error in term:
+  as
+Nature of error: Variable as is not bound
+Error in term:
+  List.remove_nth
+Nature of error: Variable List.remove_nth is not bound
+Error in term:
+  Model
+Nature of error: Constructor is not defined
+Error in term:
+  Model
+Nature of error: Constructor is not defined
+Error in term:
+  (new_buffer, todos) as Model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  as Model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  as Model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  String.empty
+Nature of error: Variable String.empty is not bound
+Error in term:
+  (buffer, removed) as Model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  (String.empty, (buffer, false) :: todos) as Model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

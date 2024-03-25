@@ -1,0 +1,9 @@
+
+fun playlist, action ->
+case action
+| Add(id) => PlayList(update_state(get_state(playlist)), List.sort(fun a, b -> a - b, id::get_songs(playlist)))
+| Remove(id) => PlayList(get_state(playlist), 
+  List.rev_append(List.sort(fun a, b -> a - b, List.filter_map(fun song -> if song = id then None else Some(song), get_songs(playlist))) , []))
+| Merge(playlist2) => PlayList(get_state(playlist), 
+  List.merge(fun a, b -> a - b, get_songs(playlist), get_songs(playlist2) ))
+end

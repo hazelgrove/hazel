@@ -1,5 +1,0 @@
-fun (model, action) ->
-    case action
-    | Increment => { count = model.count + 1 }
-    | Decrement => if model.count > 0 then { count = model.count - 1 } else model
-    end

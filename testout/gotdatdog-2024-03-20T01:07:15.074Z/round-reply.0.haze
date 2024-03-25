@@ -1,7 +1,0 @@
-fun (model, action) ->
-    case action
-    | UpdatePassword(p) => (p, model.Criteria, calculateStrength(p, model.Criteria))
-    | ClearCriteria => (model.Password, [], strength_of(String.length(model.Password)))
-    | AddCriterion(c) => (model.Password, c::model.Criteria, calculateStrength(model.Password, c::model.Criteria))
-    | RemoveCriterion(c) => (model.Password, model.Criteria without c, calculateStrength(model.Password, model.Criteria without c))
-    end

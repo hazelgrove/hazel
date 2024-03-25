@@ -1,0 +1,8 @@
+fun model, action ->
+  case action
+  | LoadBookings(user) => {model with bookings = getUserBookings(model, user)}
+  | AddBooking(user, bookingID) => {model with bookings = rm_booking(user, bookingID, model.bookings)}
+  | RemoveBooking(user, bookingID) => {model with bookings = List.filter(fun b -> b.id != bookingID, model.bookings)}
+  | SetUser(user) => {model with currentUser = user}
+  | SetForm(state) => {model with form = state}
+  end

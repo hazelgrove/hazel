@@ -162,3 +162,111 @@ let List.for_all: (? -> Bool, [?]) -> Bool =
 
 let List.mem = fun eq, xs, y ->
   List.exists(fun x -> eq(x, y), xs) in
+
+let List.filter_map: ((? -> Option), [?]) -> [?] =
+  fun f, xs ->
+    List.fold_right(
+      fun x, acc ->
+        case f(x)
+        | None => acc
+        | Some(y) => y::acc end,
+      xs,
+      []) in
+
+let List.concat_map: ((? -> [?]), [?]) -> [?] =
+  fun f, xs ->
+    List.fold_right(
+      fun x, acc -> List.append(f(x), acc),
+      xs,
+      []) in
+  
+let List.for_all2: (((?, ?) -> Bool), [?], [?]) -> Bool =
+  fun p, xs, ys ->
+    case xs, ys
+    | [], [] => true
+    | x::xs, y::ys => p(x, y) && List.for_all2(p, xs, ys)
+    | _ => false end in
+      
+let List.exists2: (((?, ?) -> Bool), [?], [?]) -> Bool =
+  fun p, xs, ys ->
+    case xs, ys
+    | [], [] => false
+    | x::xs, y::ys => p(x, y) \/ List.exists2(p, xs, ys)
+    | _ => false end in
+
+let List.find: (? -> Bool, [?]) -> Option =
+  fun p, xs ->
+    case xs
+    | [] => None
+    | x::xs => if p(x) then Some(x) else List.find(p, xs)
+    end in
+
+let List.partition: (? -> Bool, [?]) -> ([?], [?]) =
+  fun p, xs ->
+    List.fold_right(
+      fun x, (ys, zs) ->
+        if p(x) then (x::ys, zs) else (ys, x::zs),
+      xs,
+      ([], [])) in
+
+let List.split: ([?], ?) -> ([?], [?]) =
+  fun xs, n ->
+    let go: ([?], ?, [?], [?]) -> ([?], [?]) =
+      fun xs, n, ys, zs ->
+        case xs, n
+        | _, 0 => (List.rev(ys), zs)
+        | [], _ => (List.rev(ys), [])
+        | x::xs, n => go(xs, n-1, x::ys, zs @ [x]) 
+        end in
+    go(xs, n, [], []) in
+
+let List.combine: ([?], [?]) -> [?] =
+  fun xs, ys ->
+    case xs, ys
+    | [], _ => []
+    | _, [] => []
+    | x::xs, y::ys => (x, y)::List.combine(xs, ys) 
+    end in
+
+let List.rev_append: ([?], [?]) -> [?] = fun xs, ys ->
+  let go: ([?], [?]) -> [?] = fun xs, acc ->
+    case xs
+    | [] => acc
+    | x::xs => go(xs, x::acc) 
+    end in
+  go(xs, ys) in
+
+let List.merge: ((?, ?) -> Int, [?], [?]) -> [?] =
+  fun cmp, xs, ys ->
+    let go: ([?], [?], [?]) -> [?] =
+      fun xs, ys, acc ->
+        case xs, ys
+        | [], [] => List.rev(acc)
+        | [], ys => List.rev_append(acc, ys)
+        | xs, [] => List.rev_append(acc, xs)
+        | x::xs, y::ys =>
+          if cmp(x, y) <= 0 
+          then go(xs, y::ys, x::acc) 
+          else go(x::xs, ys, y::acc) 
+        end in
+    go(xs, ys, []) in
+      
+let List.sort: ((?, ?) ->Int, [?]) -> [?] =
+  fun cmp, xs ->
+    let split: [?] -> ([?], [?]) = fun xs ->
+      case xs
+      | [] => ([], [])
+      | [x] => ([x], [])
+      | x::y::ys =>
+        let (xs, ys) = split(ys) in
+        (x::xs, y::ys) 
+      end in
+    let merge_sort: [?] -> [?] = fun xs ->
+      case xs
+      | [] => []
+      | [x] => [x]
+      | _ =>
+        let (left, right) = split(xs) in
+        List.merge(cmp, merge_sort(left), merge_sort(right)) 
+      end in
+    merge_sort(xs) in

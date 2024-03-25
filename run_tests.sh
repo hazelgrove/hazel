@@ -9,12 +9,14 @@ collate_script="collate_data.sh"
 warm_serials="warm_serials.sh"
 
 wait_time=0
-num_runs=8
+num_runs=1
 
 # Source folders
 source_folders=(
-    # "testdata/todo1/"
-    # "testdata/playlist1/"
+    "testdata/todo2/"
+    "testdata/playlist1/"
+    "testdata/booking2/"
+    "testdata/emojipaint1/"
     "testdata/passwords2/"
 )
 

@@ -1,0 +1,20 @@
+The following static errors were discovered:
+Error in term:
+  (form, id)
+Nature of error: Expecting type String but got inconsistent type [(((Weekday, TimeOfDay), User), Int)]
+Error in term:
+  third
+Nature of error: Variable third is not bound
+Error in term:
+  case action
+ | AddBooking(((user, day, timeofday))) => let form = ((day, timeofday), user) in
+ let bookings = snd(model) in
+ let id = List.length(bookings) + 1 in
+ (form, bookings ++ (form, id), id)
+| CancelBooking(((user, id))) => let bookings = rm_booking(user, id, snd(model)) in
+ (fst(model), bookings, third(model))
+| ClearBookings => initFormState
+end
+Nature of error: Expecting branches to have consistent types but got types: (((Weekday, TimeOfDay), User), String, Int), (?, [Booking], ?), ((Weekday, TimeOfDay), String)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

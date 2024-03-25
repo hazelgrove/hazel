@@ -1,5 +1,0 @@
-fun (model, action) ->
-  case (model, action) of
-  | (model, Increment) => { counter = model.counter + 1 }
-  | (model, Decrement) => { counter = model.counter - 1 }
-  end

@@ -1,7 +1,0 @@
-let update: (Model, Action) -> Model =
-  fun m, a ->
-  case a
-  | Increment => Model(m.num + 1)
-  | Decrement => Model(m.num - 1)
-  end
-in

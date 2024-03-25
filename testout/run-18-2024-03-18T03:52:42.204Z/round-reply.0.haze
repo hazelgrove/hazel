@@ -1,6 +1,0 @@
-fun playlist, action ->
-    case action
-    | AddSong(song) => song :: playlist
-    | RemoveSong(song) => List.remove(song, playlist)
-    | ShufflePlayList => List.shuffle(playlist)
-    end

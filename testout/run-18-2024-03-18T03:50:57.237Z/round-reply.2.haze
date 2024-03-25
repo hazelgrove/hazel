@@ -1,6 +1,0 @@
-fun (playlist, action) ->
-    case action
-    | Add(song) => song::playlist
-    | Remove(artist, title) => List.filter(fun (a, t) -> (a, t) <> (artist, title), playlist)
-    | Clear => [] 
-  end

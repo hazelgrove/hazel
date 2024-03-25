@@ -1,5 +1,0 @@
-fun m, a ->
-  case a
-  | Increment => Model(m.count + 1)
-  | Decrement => Model(m.count - 1)
-  end
