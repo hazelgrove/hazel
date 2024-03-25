@@ -31,7 +31,8 @@ type left_neighbor_info = option((maybe_padded, left_shape, completability));
 type right_neighbor_info =
   | Nothing
   | ConvexHole(Id.t)
-  | StringLit(string);
+  | StringLit(string)
+  | Comment(string);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type incompleteness =
@@ -53,6 +54,7 @@ type infodump = {
 type generation_options =
   | OnlyCompletion(infodump, string)
   | OnlyCompletionString(string)
+  | OnlyCompletionComment(string)
   | NewRightConvex(infodump)
   | CompletionOrNewRightConvex(infodump, string, infodump) //TODO: betterize
   | NewRightConcave(infodump)
@@ -110,10 +112,14 @@ let thing_to_right = (~db, z: Zipper.t): right_neighbor_info =>
        only known situation where the caret position may be Inner during
        pure left-to-right entry */
     StringLit(str)
+  | [Secondary({content: Comment(str), _}), ..._] =>
+    /* Special case: As above. Note that we allow an optional thing after it,
+       as there may be grout after a comment */
+    Comment(str)
   | [_, ..._] as rhs =>
     db("  LSP: Syntax: Rightwards segment is: " ++ Segment.show(rhs));
     failwith(
-      "  LSP: Syntax: EXN: Nonempty Rightwards segment not single Convex Grout or String literal",
+      "  LSP: Syntax: EXN: Nonempty Rightwards segment not single Convex Grout or String literal or Comment",
     );
   };
 
@@ -273,6 +279,8 @@ let print_gen_option = (~db, gen_options: generation_options): unit =>
     db("  LSP: Syntax: Can insert left-concave or complete: " ++ tok_to_left)
   | OnlyCompletionString(stringlit) =>
     db("LSP: Must extend/complete stringlit: " ++ stringlit)
+  | OnlyCompletionComment(comment) =>
+    db("LSP: Must extend/complete comment: " ++ comment)
   | OnlyCompletion(_id, tok_to_left) =>
     db("  LSP: Syntax: Must complete: " ++ tok_to_left)
   };
@@ -448,6 +456,7 @@ let generation_options =
       }
     }
   | (_, StringLit(id)) => OnlyCompletionString(id)
+  | (_, Comment(id)) => OnlyCompletionComment(id)
   };
 };
 
@@ -943,6 +952,10 @@ let dispatch_generation = (~settings: settings, ~db, z: Zipper.t): pre_grammar =
       completions: ["~EXTEND-STRINGLIT~"],
       new_tokens: [],
     }
+  | OnlyCompletionComment(_) => {
+      completions: ["~EXTEND-COMMENT~"],
+      new_tokens: [],
+    }
   };
 };
 
@@ -954,6 +967,7 @@ let normalize_token = tok =>
   | "~EXTEND-FLOATLIT~" => "extend-floatlit"
   | "~STRINGLIT~" => "stringlit"
   | "~EXTEND-STRINGLIT~" => "extend-stringlit"
+  | "~EXTEND-COMMENT~" => "extend-comment"
   | "~PATVAR~" => "patvar"
   | "~EXTEND-PATVAR~" => "extend-patvar"
   | "~TYPVAR~" => "typvar"
@@ -972,6 +986,7 @@ floatlit ::= [0-9]+ "." [0-9]+
 extend-floatlit ::= [0-9]* "." [0-9]+
 stringlit ::= "\"" [^"]* "\""
 extend-stringlit ::= [^"]* "\""
+extend-comment ::= [^#]* "#"
 patvar ::= [a-z][a-zA-Z0-9_]*
 extend-patvar ::= [a-zA-Z0-9_]*
 typvar ::= [A-Z][a-zA-Z0-9_]*
