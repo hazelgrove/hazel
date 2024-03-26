@@ -146,6 +146,7 @@ let mk =
         | (FunClosure, _)
         | (FixClosure, _)
         | (UpdateTest, _)
+        | (CastTypAp, _)
         | (CastAp, _)
         | (BuiltinWrap, _)
         | (BuiltinAp(_), _)

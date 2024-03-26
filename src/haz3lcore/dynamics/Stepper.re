@@ -415,6 +415,7 @@ let get_justification: step_kind => string =
   | Projection => "projection" // TODO(Matt): We don't want to show projection to the user
   | InvalidStep => "error"
   | VarLookup => "variable lookup"
+  | CastTypAp
   | CastAp
   | Cast => "cast calculus"
   | FixClosure => "fixpoint closure"
