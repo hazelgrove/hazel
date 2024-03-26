@@ -56,6 +56,7 @@ type step_kind =
   | UpdateTest
   | TypFunAp
   | FunAp
+  | CastTypAp
   | CastAp
   | BuiltinWrap
   | BuiltinAp(string)
@@ -299,7 +300,7 @@ module Transition = (EV: EV_MODE) => {
               Typ.subst(tau, x, t),
               Typ.subst(tau, x', t'),
             ),
-          kind: TypFunAp,
+          kind: CastTypAp,
           value: false,
         })
       | _ =>
@@ -716,6 +717,7 @@ let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
   | Conditional(_)
   | InvalidStep => false
   | VarLookup => !settings.show_lookup_steps
+  | CastTypAp
   | CastAp
   | Cast => !settings.show_casts
   | FixUnwrap => !settings.show_fixpoints
