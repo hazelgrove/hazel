@@ -72,39 +72,58 @@ let extend_let_def_ctx =
 
 let typ_exp_binop_bin_int: Operators.op_bin_int => Typ.t =
   fun
-  | (Plus | Minus | Times | Power | Divide) as _op => Int
+  | (Plus | Minus | Times | Power | Divide) as _op => Int |> Typ.fresh
   | (
       LessThan | GreaterThan | LessThanOrEqual | GreaterThanOrEqual | Equals |
       NotEquals
     ) as _op =>
-    Bool;
+    Bool |> Typ.fresh;
 
 let typ_exp_binop_bin_float: Operators.op_bin_float => Typ.t =
   fun
-  | (Plus | Minus | Times | Power | Divide) as _op => Float
+  | (Plus | Minus | Times | Power | Divide) as _op => Float |> Typ.fresh
   | (
       LessThan | GreaterThan | LessThanOrEqual | GreaterThanOrEqual | Equals |
       NotEquals
     ) as _op =>
-    Bool;
+    Bool |> Typ.fresh;
 
 let typ_exp_binop_bin_string: Operators.op_bin_string => Typ.t =
   fun
-  | Concat => String
-  | Equals => Bool;
+  | Concat => String |> Typ.fresh
+  | Equals => Bool |> Typ.fresh;
 
 let typ_exp_binop: Operators.op_bin => (Typ.t, Typ.t, Typ.t) =
   fun
-  | Bool(And | Or) => (Bool, Bool, Bool)
-  | Int(op) => (Int, Int, typ_exp_binop_bin_int(op))
-  | Float(op) => (Float, Float, typ_exp_binop_bin_float(op))
-  | String(op) => (String, String, typ_exp_binop_bin_string(op));
+  | Bool(And | Or) => (
+      Bool |> Typ.fresh,
+      Bool |> Typ.fresh,
+      Bool |> Typ.fresh,
+    )
+  | Int(op) => (
+      Int |> Typ.fresh,
+      Int |> Typ.fresh,
+      typ_exp_binop_bin_int(op),
+    )
+  | Float(op) => (
+      Float |> Typ.fresh,
+      Float |> Typ.fresh,
+      typ_exp_binop_bin_float(op),
+    )
+  | String(op) => (
+      String |> Typ.fresh,
+      String |> Typ.fresh,
+      typ_exp_binop_bin_string(op),
+    );
 
 let typ_exp_unop: Operators.op_un => (Typ.t, Typ.t) =
   fun
-  | Meta(Unquote) => (Var("$Meta"), Unknown(Free("$Meta")))
-  | Bool(Not) => (Bool, Bool)
-  | Int(Minus) => (Int, Int);
+  | Meta(Unquote) => (
+      Var("$Meta") |> Typ.fresh,
+      Unknown(Internal) |> Typ.fresh,
+    )
+  | Bool(Not) => (Bool |> Typ.fresh, Bool |> Typ.fresh)
+  | Int(Minus) => (Int |> Typ.fresh, Int |> Typ.fresh);
 
 let rec any_to_info_map =
         (~ctx: Ctx.t, ~ancestors, any: Any.t, m: Map.t): (CoCtx.t, Map.t) =>
@@ -159,7 +178,7 @@ and uexp_to_info_map =
   /* Maybe switch mode to syn */
   let mode =
     switch (mode) {
-    | Ana(Unknown(SynSwitch)) => Mode.Syn
+    | Ana({term: Unknown(SynSwitch), _}) => Mode.Syn
     | _ => mode
     };
   let add' = (~self, ~co_ctx, m) => {
@@ -203,18 +222,19 @@ and uexp_to_info_map =
     let (e, m) = go(~mode=Ana(t1), e, m);
     add(~self=Just(t2), ~co_ctx=e.co_ctx, m);
   | Invalid(token) => atomic(BadToken(token))
-  | EmptyHole => atomic(Just(Unknown(Internal)))
-  | Bool(_) => atomic(Just(Bool))
-  | Int(_) => atomic(Just(Int))
-  | Float(_) => atomic(Just(Float))
-  | String(_) => atomic(Just(String))
+  | EmptyHole => atomic(Just(Unknown(Internal) |> Typ.fresh))
+  | Bool(_) => atomic(Just(Bool |> Typ.fresh))
+  | Int(_) => atomic(Just(Int |> Typ.fresh))
+  | Float(_) => atomic(Just(Float |> Typ.fresh))
+  | String(_) => atomic(Just(String |> Typ.fresh))
   | ListLit(es) =>
     let ids = List.map(UExp.rep_id, es);
     let modes = Mode.of_list_lit(ctx, List.length(es), mode);
     let (es, m) = map_m_go(m, modes, es);
     let tys = List.map(Info.exp_ty, es);
     add(
-      ~self=Self.listlit(~empty=Unknown(Internal), ctx, tys, ids),
+      ~self=
+        Self.listlit(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys, ids),
       ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es)),
       m,
     );
@@ -222,7 +242,7 @@ and uexp_to_info_map =
     let (hd, m) = go(~mode=Mode.of_cons_hd(ctx, mode), hd, m);
     let (tl, m) = go(~mode=Mode.of_cons_tl(ctx, mode, hd.ty), tl, m);
     add(
-      ~self=Just(List(hd.ty)),
+      ~self=Just(List(hd.ty) |> Typ.fresh),
       ~co_ctx=CoCtx.union([hd.co_ctx, tl.co_ctx]),
       m,
     );
@@ -258,8 +278,8 @@ and uexp_to_info_map =
         | _ => e.term
         },
     };
-    let ty_in = Typ.Var("$Meta");
-    let ty_out = Typ.Unknown(Internal);
+    let ty_in = Typ.Var("$Meta") |> Typ.fresh;
+    let ty_out = Typ.Unknown(Internal) |> Typ.fresh;
     let (e, m) = go(~mode=Ana(ty_in), e, m);
     add(~self=Just(ty_out), ~co_ctx=e.co_ctx, m);
   | UnOp(op, e) =>
@@ -281,13 +301,13 @@ and uexp_to_info_map =
     let modes = Mode.of_prod(ctx, mode, List.length(es));
     let (es, m) = map_m_go(m, modes, es);
     add(
-      ~self=Just(Prod(List.map(Info.exp_ty, es))),
+      ~self=Just(Prod(List.map(Info.exp_ty, es)) |> Typ.fresh),
       ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es)),
       m,
     );
   | Test(e) =>
-    let (e, m) = go(~mode=Ana(Bool), e, m);
-    add(~self=Just(Prod([])), ~co_ctx=e.co_ctx, m);
+    let (e, m) = go(~mode=Ana(Bool |> Typ.fresh), e, m);
+    add(~self=Just(Prod([]) |> Typ.fresh), ~co_ctx=e.co_ctx, m);
   | Filter(Filter({pat: cond, _}), body) =>
     let (cond, m) = go(~mode, cond, m, ~is_in_filter=true);
     let (body, m) = go(~mode, body, m);
@@ -311,7 +331,7 @@ and uexp_to_info_map =
     let (arg, m) = go(~mode=Ana(ty_in), arg, m);
     let self: Self.t =
       Id.is_nullary_ap_flag(arg.term.ids)
-      && !Typ.is_consistent(ctx, ty_in, Prod([]))
+      && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.fresh)
         ? BadTrivAp(ty_in) : Just(ty_out);
     add(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
   | Fun(p, e, _, _) =>
@@ -323,7 +343,7 @@ and uexp_to_info_map =
     let (p, m) =
       go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~mode=mode_pat, p, m);
     add(
-      ~self=Just(Arrow(p.ty, e.ty)),
+      ~self=Just(Arrow(p.ty, e.ty) |> Typ.fresh),
       ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx),
       m,
     );
@@ -370,7 +390,7 @@ and uexp_to_info_map =
     );
   | If(e0, e1, e2) =>
     let branch_ids = List.map(UExp.rep_id, [e1, e2]);
-    let (cond, m) = go(~mode=Ana(Bool), e0, m);
+    let (cond, m) = go(~mode=Ana(Bool |> Typ.fresh), e0, m);
     let (cons, m) = go(~mode, e1, m);
     let (alt, m) = go(~mode, e2, m);
     add(
@@ -435,7 +455,7 @@ and uexp_to_info_map =
           /* NOTE: When debugging type system issues it may be beneficial to
              use a different name than the alias for the recursive parameter */
           //let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
-          let ty_rec = Typ.Rec(name, ty_pre);
+          let ty_rec = Typ.Rec(name, ty_pre) |> Typ.fresh;
           let ctx_def =
             Ctx.extend_alias(ctx, name, TPat.rep_id(typat), ty_rec);
           (ty_rec, ctx_def, ctx_def);
@@ -505,34 +525,42 @@ and upat_to_info_map =
     let (_, m) = multi(~ctx, ~ancestors, m, tms);
     add(~self=IsMulti, ~ctx, m);
   | Invalid(token) => atomic(BadToken(token))
-  | EmptyHole => atomic(Just(unknown))
-  | Int(_) => atomic(Just(Int))
-  | Float(_) => atomic(Just(Float))
-  | Bool(_) => atomic(Just(Bool))
-  | String(_) => atomic(Just(String))
+  | EmptyHole => atomic(Just(unknown |> Typ.fresh))
+  | Int(_) => atomic(Just(Int |> Typ.fresh))
+  | Float(_) => atomic(Just(Float |> Typ.fresh))
+  | Bool(_) => atomic(Just(Bool |> Typ.fresh))
+  | String(_) => atomic(Just(String |> Typ.fresh))
   | ListLit(ps) =>
     let ids = List.map(UPat.rep_id, ps);
     let modes = Mode.of_list_lit(ctx, List.length(ps), mode);
     let (ctx, tys, m) = ctx_fold(ctx, m, ps, modes);
-    add(~self=Self.listlit(~empty=unknown, ctx, tys, ids), ~ctx, m);
+    add(
+      ~self=Self.listlit(~empty=unknown |> Typ.fresh, ctx, tys, ids),
+      ~ctx,
+      m,
+    );
   | Cons(hd, tl) =>
     let (hd, m) = go(~ctx, ~mode=Mode.of_cons_hd(ctx, mode), hd, m);
     let (tl, m) =
       go(~ctx=hd.ctx, ~mode=Mode.of_cons_tl(ctx, mode, hd.ty), tl, m);
-    add(~self=Just(List(hd.ty)), ~ctx=tl.ctx, m);
-  | Wild => atomic(Just(unknown))
+    add(~self=Just(List(hd.ty) |> Typ.fresh), ~ctx=tl.ctx, m);
+  | Wild => atomic(Just(unknown |> Typ.fresh))
   | Var(name) =>
     /* NOTE: The self type assigned to pattern variables (Unknown)
        may be SynSwitch, but SynSwitch is never added to the context;
        Unknown(Internal) is used in this case */
     let ctx_typ =
-      Info.fixed_typ_pat(ctx, mode, Common(Just(Unknown(Internal))));
+      Info.fixed_typ_pat(
+        ctx,
+        mode,
+        Common(Just(Unknown(Internal) |> Typ.fresh)),
+      );
     let entry = Ctx.VarEntry({name, id: UPat.rep_id(upat), typ: ctx_typ});
-    add(~self=Just(unknown), ~ctx=Ctx.extend(ctx, entry), m);
+    add(~self=Just(unknown |> Typ.fresh), ~ctx=Ctx.extend(ctx, entry), m);
   | Tuple(ps) =>
     let modes = Mode.of_prod(ctx, mode, List.length(ps));
     let (ctx, tys, m) = ctx_fold(ctx, m, ps, modes);
-    add(~self=Just(Prod(tys)), ~ctx, m);
+    add(~self=Just(Prod(tys) |> Typ.fresh), ~ctx, m);
   | Parens(p) =>
     let (p, m) = go(~ctx, ~mode, p, m);
     add(~self=Just(p.ty), ~ctx=p.ctx, m);
@@ -593,8 +621,12 @@ and utyp_to_info_map =
     let t1_mode: Info.typ_expects =
       switch (expects) {
       | VariantExpected(m, sum_ty) =>
-        ConstructorExpected(m, Arrow(ty_in, sum_ty))
-      | _ => ConstructorExpected(Unique, Arrow(ty_in, Unknown(Internal)))
+        ConstructorExpected(m, Arrow(ty_in, sum_ty) |> Typ.fresh)
+      | _ =>
+        ConstructorExpected(
+          Unique,
+          Arrow(ty_in, Unknown(Internal) |> Typ.fresh) |> Typ.fresh,
+        )
       };
     let m = go'(~expects=t1_mode, t1, m) |> snd;
     let m = go'(~expects=TypeExpected, t2, m) |> snd;

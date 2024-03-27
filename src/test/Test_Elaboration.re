@@ -173,7 +173,12 @@ let d7: DHExp.t =
       BinOp(
         Int(Plus),
         Int(4) |> fresh,
-        Cast(Var("x") |> fresh, Unknown(Internal), Int) |> fresh,
+        Cast(
+          Var("x") |> fresh,
+          Unknown(Internal) |> Typ.fresh,
+          Int |> Typ.fresh,
+        )
+        |> fresh,
       )
       |> fresh,
       None,

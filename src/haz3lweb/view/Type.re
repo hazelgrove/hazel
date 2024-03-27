@@ -9,17 +9,17 @@ let ty_view = (cls: string, s: string): Node.t =>
 let alias_view = (s: string): Node.t =>
   div(~attr=clss(["typ-alias-view"]), [text(s)]);
 
-let prov_view: Typ.type_provenance => Node.t =
-  fun
-  | Internal => div([])
-  | Free(name) =>
-    div(~attr=clss(["typ-mod", "free-type-var"]), [text(name)])
-  | TypeHole => div(~attr=clss(["typ-mod", "type-hole"]), [text("𝜏")])
-  | SynSwitch => div(~attr=clss(["typ-mod", "syn-switch"]), [text("⇒")]);
+// let prov_view: Typ.type_provenance => Node.t =
+//   fun
+//   | Internal => div([])
+//   | Free(name) =>
+//     div(~attr=clss(["typ-mod", "free-type-var"]), [text(name)])
+//   | TypeHole => div(~attr=clss(["typ-mod", "type-hole"]), [text("𝜏")])
+//   | SynSwitch => div(~attr=clss(["typ-mod", "syn-switch"]), [text("⇒")]);
 
 let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
   //TODO: parens on ops when ambiguous
-  switch (ty) {
+  switch (Typ.term_of(ty)) {
   | Unknown(prov) =>
     div(
       ~attr=
@@ -78,6 +78,7 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
         ctr_view(t0) @ ts_views;
       },
     )
+  | Ap(_) => failwith("type application in view")
   }
 and ctr_view = ((ctr, typ)) =>
   switch (typ) {

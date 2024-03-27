@@ -316,7 +316,15 @@ let rec status_common =
     }
   | (Just(syn), SynFun) =>
     switch (
-      Typ.join_fix(ctx, Arrow(Unknown(Internal), Unknown(Internal)), syn)
+      Typ.join_fix(
+        ctx,
+        Arrow(
+          Unknown(Internal) |> Typ.fresh,
+          Unknown(Internal) |> Typ.fresh,
+        )
+        |> Typ.fresh,
+        syn,
+      )
     ) {
     | None => InHole(Inconsistent(WithArrow(syn)))
     | Some(_) => NotInHole(Syn(syn))
@@ -333,9 +341,9 @@ let rec status_common =
     }
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
   | (BadTrivAp(ty), _) => InHole(NoType(BadTrivAp(ty)))
-  | (IsMulti, _) => NotInHole(Syn(Unknown(Internal)))
+  | (IsMulti, _) => NotInHole(Syn(Unknown(Internal) |> Typ.fresh))
   | (NoJoin(wrap, tys), Ana(ana)) =>
-    let syn: Typ.t = Self.join_of(wrap, Unknown(Internal));
+    let syn: Typ.t = Self.join_of(wrap, Unknown(Internal) |> Typ.fresh);
     switch (Typ.join_fix(ctx, ana, syn)) {
     | None => InHole(Inconsistent(Expectation({ana, syn})))
     | Some(_) =>
@@ -410,8 +418,9 @@ let status_typ =
       let ty_in = UTyp.to_typ(ctx, t2);
       switch (status_variant, t1.term) {
       | (Unique, Var(name)) =>
-        NotInHole(Variant(name, Arrow(ty_in, ty_variant)))
-      | _ => NotInHole(VariantIncomplete(Arrow(ty_in, ty_variant)))
+        NotInHole(Variant(name, Arrow(ty_in, ty_variant) |> Typ.fresh))
+      | _ =>
+        NotInHole(VariantIncomplete(Arrow(ty_in, ty_variant) |> Typ.fresh))
       };
     | ConstructorExpected(_) => InHole(WantConstructorFoundAp)
     | TypeExpected => InHole(WantTypeFoundAp)
@@ -473,13 +482,13 @@ let fixed_typ_ok: ok_pat => Typ.t =
 
 let fixed_typ_pat = (ctx, mode: Mode.t, self: Self.pat): Typ.t =>
   switch (status_pat(ctx, mode, self)) {
-  | InHole(_) => Unknown(Internal)
+  | InHole(_) => Unknown(Internal) |> Typ.fresh
   | NotInHole(ok) => fixed_typ_ok(ok)
   };
 
 let fixed_typ_exp = (ctx, mode: Mode.t, self: Self.exp): Typ.t =>
   switch (status_exp(ctx, mode, self)) {
-  | InHole(_) => Unknown(Internal)
+  | InHole(_) => Unknown(Internal) |> Typ.fresh
   | NotInHole(ok) => fixed_typ_ok(ok)
   };
 

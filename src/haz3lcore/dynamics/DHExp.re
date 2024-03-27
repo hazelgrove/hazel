@@ -15,7 +15,7 @@ let mk = (ids, term) => {
 };
 
 let fresh_cast = (d: t, t1: Typ.t, t2: Typ.t): t =>
-  if (Typ.eq(t1, t2) || t2 == Unknown(SynSwitch)) {
+  if (Typ.eq(t1, t2) || Typ.term_of(t2) == Unknown(SynSwitch)) {
     d;
   } else {
     fresh(Cast(d, t1, t2));

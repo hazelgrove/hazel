@@ -22,12 +22,21 @@ type forms = VarMap.t_(DHExp.t => DHExp.t);
 
 type result = Result.t(DHExp.t, EvaluatorError.t);
 
-let const = (name: Var.t, typ: Typ.t, v: DHExp.t, builtins: t): t =>
-  VarMap.extend(builtins, (name, Const(typ, v)));
+let const = (name: Var.t, typ: Typ.term, v: DHExp.t, builtins: t): t =>
+  VarMap.extend(builtins, (name, Const(typ |> Typ.fresh, v)));
 let fn =
-    (name: Var.t, t1: Typ.t, t2: Typ.t, impl: DHExp.t => DHExp.t, builtins: t)
+    (
+      name: Var.t,
+      t1: Typ.term,
+      t2: Typ.term,
+      impl: DHExp.t => DHExp.t,
+      builtins: t,
+    )
     : t =>
-  VarMap.extend(builtins, (name, Fn(t1, t2, impl)));
+  VarMap.extend(
+    builtins,
+    (name, Fn(t1 |> Typ.fresh, t2 |> Typ.fresh, impl)),
+  );
 
 module Pervasives = {
   module Impls = {
@@ -312,19 +321,29 @@ module Pervasives = {
     |> fn("asin", Float, Float, asin)
     |> fn("acos", Float, Float, acos)
     |> fn("atan", Float, Float, atan)
-    |> fn("mod", Prod([Int, Int]), Int, int_mod("mod"))
+    |> fn(
+         "mod",
+         Prod([Int |> Typ.fresh, Int |> Typ.fresh]),
+         Int,
+         int_mod("mod"),
+       )
     |> fn("string_length", String, Int, string_length)
-    |> fn("string_compare", Prod([String, String]), Int, string_compare)
+    |> fn(
+         "string_compare",
+         Prod([String |> Typ.fresh, String |> Typ.fresh]),
+         Int,
+         string_compare,
+       )
     |> fn("string_trim", String, String, string_trim)
     |> fn(
          "string_concat",
-         Prod([String, List(String)]),
+         Prod([String |> Typ.fresh, List(String |> Typ.fresh) |> Typ.fresh]),
          String,
          string_concat,
        )
     |> fn(
          "string_sub",
-         Prod([String, Int, Int]),
+         Prod([String |> Typ.fresh, Int |> Typ.fresh, Int |> Typ.fresh]),
          String,
          string_sub("string_sub"),
        );
@@ -336,13 +355,13 @@ let ctx_init: Ctx.t = {
     Ctx.TVarEntry({
       name: "$Meta",
       id: Id.invalid,
-      kind: Kind.Singleton(Sum(meta_cons_map)),
+      kind: Kind.Singleton(Sum(meta_cons_map) |> Typ.fresh),
     });
   List.map(
     fun
     | (name, Const(typ, _)) => Ctx.VarEntry({name, typ, id: Id.invalid})
     | (name, Fn(t1, t2, _)) =>
-      Ctx.VarEntry({name, typ: Arrow(t1, t2), id: Id.invalid}),
+      Ctx.VarEntry({name, typ: Arrow(t1, t2) |> Typ.fresh, id: Id.invalid}),
     Pervasives.builtins,
   )
   |> Ctx.extend(_, meta)

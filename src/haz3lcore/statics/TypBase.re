@@ -5,9 +5,16 @@ open OptUtil.Syntax;
 let precedence_Prod = 1;
 let precedence_Arrow = 2;
 let precedence_Sum = 3;
-let precedence_Const = 4;
+let precedence_Ap = 4;
+let precedence_Const = 5;
 
 module rec Typ: {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type type_hole =
+    | Invalid(string)
+    | EmptyHole
+    | MultiHole(list(string));
+
   /* TYPE_PROVENANCE: From whence does an unknown type originate?
      Is it generated from an unannotated pattern variable (SynSwitch),
      a pattern variable annotated with a type hole (TypeHole), or
@@ -15,13 +22,12 @@ module rec Typ: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type type_provenance =
     | SynSwitch
-    | TypeHole
-    | Free(string)
+    | Hole(type_hole)
     | Internal;
 
   /* TYP.T: Hazel types */
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
+  type term =
     | Unknown(type_provenance) // Add to TypTerm
     | Int
     | Float
@@ -33,9 +39,13 @@ module rec Typ: {
     | Sum(sum_map)
     | Prod(list(t))
     | Parens(t)
-    // TODO[Matt]: Add Ap?
+    | Ap(t, t)
     | Rec(string, t)
-  and sum_map = ConstructorMap.t(option(t));
+  and sum_map = ConstructorMap.t(option(t))
+  and t = {
+    ids: list(Id.t),
+    term,
+  };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type sum_entry = ConstructorMap.binding(option(t));
@@ -49,6 +59,10 @@ module rec Typ: {
     id: Id.t,
     ty: t,
   };
+
+  let term_of: t => term;
+  let unwrap: t => (term, term => t);
+  let fresh: term => t;
 
   let of_source: list(source) => list(t);
   let join_type_provenance:
@@ -72,15 +86,20 @@ module rec Typ: {
   let is_unknown: t => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type type_hole =
+    | Invalid(string)
+    | EmptyHole
+    | MultiHole(list(string));
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type type_provenance =
     | SynSwitch
-    | TypeHole
-    | Free(string)
+    | Hole(type_hole)
     | Internal;
 
   /* TYP.T: Hazel types */
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
+  type term =
     | Unknown(type_provenance)
     | Int
     | Float
@@ -92,8 +111,22 @@ module rec Typ: {
     | Sum(sum_map)
     | Prod(list(t))
     | Parens(t)
+    | Ap(t, t)
     | Rec(string, t)
-  and sum_map = ConstructorMap.t(option(t));
+  and sum_map = ConstructorMap.t(option(t))
+  and t = {
+    ids: list(Id.t),
+    term,
+  };
+
+  let term_of = ({term, _}) => term;
+  // All children of term must have expression-unique ids.
+
+  let unwrap = ({ids, term}) => (term, term => {ids, term});
+
+  let fresh = term => {
+    {ids: [Id.mk()], term};
+  };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type sum_entry = ConstructorMap.binding(option(t));
@@ -114,18 +147,18 @@ module rec Typ: {
   let join_type_provenance =
       (p1: type_provenance, p2: type_provenance): type_provenance =>
     switch (p1, p2) {
-    | (Free(tv1), Free(tv2)) when tv1 == tv2 => Free(tv1)
-    | (TypeHole, TypeHole | SynSwitch)
-    | (SynSwitch, TypeHole) => TypeHole
+    | (Hole(h1), Hole(h2)) when h1 == h2 => Hole(h1)
+    | (Hole(EmptyHole), Hole(EmptyHole) | SynSwitch)
+    | (SynSwitch, Hole(EmptyHole)) => Hole(EmptyHole)
     | (SynSwitch, Internal)
     | (Internal, SynSwitch) => SynSwitch
-    | (Internal | Free(_), _)
-    | (_, Internal | Free(_)) => Internal
+    | (Internal | Hole(_), _)
+    | (_, Hole(_)) => Internal
     | (SynSwitch, SynSwitch) => SynSwitch
     };
 
   let precedence = (ty: t): int =>
-    switch (ty) {
+    switch (term_of(ty)) {
     | Int
     | Float
     | Bool
@@ -138,28 +171,33 @@ module rec Typ: {
     | Prod(_) => precedence_Prod
     | Arrow(_, _) => precedence_Arrow
     | Parens(_) => precedence_Const
+    | Ap(_) => precedence_Ap
     };
 
   let rec subst = (s: t, x: string, ty: t) => {
-    switch (ty) {
-    | Int => Int
-    | Float => Float
-    | Bool => Bool
-    | String => String
-    | Unknown(prov) => Unknown(prov)
-    | Arrow(ty1, ty2) => Arrow(subst(s, x, ty1), subst(s, x, ty2))
-    | Prod(tys) => Prod(List.map(subst(s, x), tys))
-    | Sum(sm) => Sum(ConstructorMap.map(Option.map(subst(s, x)), sm))
-    | Rec(y, ty) when x == y => Rec(y, ty)
-    | Rec(y, ty) => Rec(y, subst(s, x, ty))
-    | List(ty) => List(subst(s, x, ty))
-    | Var(y) => x == y ? s : Var(y)
-    | Parens(ty) => Parens(subst(s, x, ty))
+    let (term, rewrap) = unwrap(ty);
+    switch (term) {
+    | Int => Int |> rewrap
+    | Float => Float |> rewrap
+    | Bool => Bool |> rewrap
+    | String => String |> rewrap
+    | Unknown(prov) => Unknown(prov) |> rewrap
+    | Arrow(ty1, ty2) =>
+      Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
+    | Prod(tys) => Prod(List.map(subst(s, x), tys)) |> rewrap
+    | Sum(sm) =>
+      Sum(ConstructorMap.map(Option.map(subst(s, x)), sm)) |> rewrap
+    | Rec(y, ty) when x == y => Rec(y, ty) |> rewrap
+    | Rec(y, ty) => Rec(y, subst(s, x, ty)) |> rewrap
+    | List(ty) => List(subst(s, x, ty)) |> rewrap
+    | Var(y) => x == y ? s : Var(y) |> rewrap
+    | Parens(ty) => Parens(subst(s, x, ty)) |> rewrap
+    | Ap(t1, t2) => Ap(subst(s, x, t1), subst(s, x, t2)) |> rewrap
     };
   };
 
   let unroll = (ty: t): t =>
-    switch (ty) {
+    switch (term_of(ty)) {
     | Rec(x, ty_body) => subst(ty, x, ty_body)
     | _ => ty
     };
@@ -167,10 +205,11 @@ module rec Typ: {
   /* Type Equality: At the moment, this coincides with alpha equivalence,
      but this will change when polymorphic types are implemented */
   let rec eq = (t1: t, t2: t): bool => {
-    switch (t1, t2) {
-    | (Parens(t1), t2) => eq(t1, t2)
-    | (t1, Parens(t2)) => eq(t1, t2)
-    | (Rec(x1, t1), Rec(x2, t2)) => eq(t1, subst(Var(x1), x2, t2))
+    switch (term_of(t1), term_of(t2)) {
+    | (Parens(t1), _) => eq(t1, t2)
+    | (_, Parens(t2)) => eq(t1, t2)
+    | (Rec(x1, t1), Rec(x2, t2)) =>
+      eq(t1, subst(fresh(Var(x1)), x2, t2))
     | (Rec(_), _) => false
     | (Int, Int) => true
     | (Int, _) => false
@@ -193,11 +232,13 @@ module rec Typ: {
     | (Sum(_), _) => false
     | (Var(n1), Var(n2)) => n1 == n2
     | (Var(_), _) => false
+    | (Ap(t1, t2), Ap(t3, t4)) => eq(t1, t3) && eq(t2, t4)
+    | (Ap(_), _) => false
     };
   };
 
   let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
-    switch (ty) {
+    switch (term_of(ty)) {
     | Unknown(_)
     | Int
     | Float
@@ -206,6 +247,7 @@ module rec Typ: {
     | Var(v) => List.mem(v, bound) ? [] : [v]
     | Parens(ty)
     | List(ty) => free_vars(~bound, ty)
+    | Ap(t1, t2)
     | Arrow(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
     | Sum(sm) =>
       ListUtil.flat_map(
@@ -226,32 +268,35 @@ module rec Typ: {
   let rec join =
           (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let join' = join(~resolve, ~fix, ctx);
-    switch (ty1, ty2) {
-    | (ty1, Parens(ty2))
-    | (Parens(ty1), ty2) => join'(ty1, ty2)
-    | (_, Unknown(TypeHole | Free(_)) as ty) when fix =>
+    switch (term_of(ty1), term_of(ty2)) {
+    | (_, Parens(ty2)) => join'(ty1, ty2)
+    | (Parens(ty1), _) => join'(ty1, ty2)
+    | (_, Unknown(Hole(_))) when fix =>
       /* NOTE(andrew): This is load bearing
          for ensuring that function literals get appropriate
          casts. Documentation/Dynamics has regression tests */
-      Some(ty)
+      Some(ty2)
     | (Unknown(p1), Unknown(p2)) =>
-      Some(Unknown(join_type_provenance(p1, p2)))
-    | (Unknown(_), ty)
-    | (ty, Unknown(Internal | SynSwitch)) => Some(ty)
+      Some(Unknown(join_type_provenance(p1, p2)) |> fresh)
+    | (Unknown(_), _) => Some(ty2)
+    | (_, Unknown(Internal | SynSwitch)) => Some(ty1)
     | (Var(n1), Var(n2)) =>
       if (n1 == n2) {
-        Some(Var(n1));
+        Some(ty1);
       } else {
         let* ty1 = Ctx.lookup_alias(ctx, n1);
         let* ty2 = Ctx.lookup_alias(ctx, n2);
         let+ ty_join = join'(ty1, ty2);
-        !resolve && eq(ty1, ty_join) ? Var(n1) : ty_join;
+        !resolve && eq(ty1, ty_join) ? ty1 : ty_join;
       }
-    | (Var(name), ty)
-    | (ty, Var(name)) =>
+    | (Var(name), _) =>
       let* ty_name = Ctx.lookup_alias(ctx, name);
-      let+ ty_join = join'(ty_name, ty);
-      !resolve && eq(ty_name, ty_join) ? Var(name) : ty_join;
+      let+ ty_join = join'(ty_name, ty2);
+      !resolve && eq(ty_name, ty_join) ? ty1 : ty_join;
+    | (_, Var(name)) =>
+      let* ty_name = Ctx.lookup_alias(ctx, name);
+      let+ ty_join = join'(ty_name, ty1);
+      !resolve && eq(ty_name, ty_join) ? ty2 : ty_join;
     /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
     | (Rec(x1, ty1), Rec(x2, ty2)) =>
       /* TODO:
@@ -263,26 +308,26 @@ module rec Typ: {
          */
       let ctx = Ctx.extend_dummy_tvar(ctx, x1);
       let+ ty_body =
-        join(~resolve, ~fix, ctx, ty1, subst(Var(x1), x2, ty2));
-      Rec(x1, ty_body);
+        join(~resolve, ~fix, ctx, ty1, subst(Var(x1) |> fresh, x2, ty2));
+      Rec(x1, ty_body) |> fresh;
     | (Rec(_), _) => None
-    | (Int, Int) => Some(Int)
+    | (Int, Int) => Some(Int |> fresh)
     | (Int, _) => None
-    | (Float, Float) => Some(Float)
+    | (Float, Float) => Some(Float |> fresh)
     | (Float, _) => None
-    | (Bool, Bool) => Some(Bool)
+    | (Bool, Bool) => Some(Bool |> fresh)
     | (Bool, _) => None
-    | (String, String) => Some(String)
+    | (String, String) => Some(String |> fresh)
     | (String, _) => None
     | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
       let* ty1 = join'(ty1, ty1');
       let+ ty2 = join'(ty2, ty2');
-      Arrow(ty1, ty2);
+      Arrow(ty1, ty2) |> fresh;
     | (Arrow(_), _) => None
     | (Prod(tys1), Prod(tys2)) =>
       let* tys = ListUtil.map2_opt(join', tys1, tys2);
       let+ tys = OptUtil.sequence(tys);
-      Prod(tys);
+      Prod(tys) |> fresh;
     | (Prod(_), _) => None
     | (Sum(sm1), Sum(sm2)) =>
       let (sorted1, sorted2) =
@@ -297,12 +342,13 @@ module rec Typ: {
           sorted2,
         );
       let+ ty = OptUtil.sequence(ty);
-      Sum(ty);
+      Sum(ty) |> fresh;
     | (Sum(_), _) => None
     | (List(ty1), List(ty2)) =>
       let+ ty = join'(ty1, ty2);
-      List(ty);
+      List(ty) |> fresh;
     | (List(_), _) => None
+    | (Ap(_), _) => failwith("Type join of ap")
     };
   }
   and join_sum_entries =
@@ -335,7 +381,7 @@ module rec Typ: {
     join(~fix=false, ctx, ty1, ty2) != None;
 
   let rec weak_head_normalize = (ctx: Ctx.t, ty: t): t =>
-    switch (ty) {
+    switch (term_of(ty)) {
     | Var(x) =>
       switch (Ctx.lookup_alias(ctx, x)) {
       | Some(ty) => weak_head_normalize(ctx, ty)
@@ -345,7 +391,8 @@ module rec Typ: {
     };
 
   let rec normalize = (ctx: Ctx.t, ty: t): t => {
-    switch (ty) {
+    let (term, rewrap) = unwrap(ty);
+    switch (term) {
     | Var(x) =>
       switch (Ctx.lookup_alias(ctx, x)) {
       | Some(ty) => normalize(ctx, ty)
@@ -357,37 +404,44 @@ module rec Typ: {
     | Bool
     | String => ty
     | Parens(t) => t
-    | List(t) => List(normalize(ctx, t))
-    | Arrow(t1, t2) => Arrow(normalize(ctx, t1), normalize(ctx, t2))
-    | Prod(ts) => Prod(List.map(normalize(ctx), ts))
-    | Sum(ts) => Sum(ConstructorMap.map(Option.map(normalize(ctx)), ts))
+    | List(t) => List(normalize(ctx, t)) |> rewrap
+    | Ap(t1, t2) => Ap(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
+    | Arrow(t1, t2) =>
+      Arrow(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
+    | Prod(ts) => Prod(List.map(normalize(ctx), ts)) |> rewrap
+    | Sum(ts) =>
+      Sum(ConstructorMap.map(Option.map(normalize(ctx)), ts)) |> rewrap
     | Rec(name, ty) =>
       /* NOTE: Dummy tvar added has fake id but shouldn't matter
          as in current implementation Recs do not occur in the
          surface syntax, so we won't try to jump to them. */
-      Rec(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty))
+      Rec(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
     };
   };
 
   let matched_arrow = (ctx, ty) =>
-    switch (weak_head_normalize(ctx, ty)) {
+    switch (term_of(weak_head_normalize(ctx, ty))) {
     | Arrow(ty_in, ty_out) => (ty_in, ty_out)
-    | Unknown(SynSwitch) => (Unknown(SynSwitch), Unknown(SynSwitch))
-    | _ => (Unknown(Internal), Unknown(Internal))
+    | Unknown(SynSwitch) => (
+        Unknown(SynSwitch) |> fresh,
+        Unknown(SynSwitch) |> fresh,
+      )
+    | _ => (Unknown(Internal) |> fresh, Unknown(Internal) |> fresh)
     };
 
   let matched_prod = (ctx, length, ty) =>
-    switch (weak_head_normalize(ctx, ty)) {
+    switch (term_of(weak_head_normalize(ctx, ty))) {
     | Prod(tys) when List.length(tys) == length => tys
-    | Unknown(SynSwitch) => List.init(length, _ => Unknown(SynSwitch))
-    | _ => List.init(length, _ => Unknown(Internal))
+    | Unknown(SynSwitch) =>
+      List.init(length, _ => Unknown(SynSwitch) |> fresh)
+    | _ => List.init(length, _ => Unknown(Internal) |> fresh)
     };
 
   let matched_list = (ctx, ty) =>
-    switch (weak_head_normalize(ctx, ty)) {
+    switch (term_of(weak_head_normalize(ctx, ty))) {
     | List(ty) => ty
-    | Unknown(SynSwitch) => Unknown(SynSwitch)
-    | _ => Unknown(Internal)
+    | Unknown(SynSwitch) => Unknown(SynSwitch) |> fresh
+    | _ => Unknown(Internal) |> fresh
     };
 
   let sum_entry = (ctr: Constructor.t, ctrs: sum_map): option(sum_entry) =>
@@ -400,7 +454,7 @@ module rec Typ: {
 
   let get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
     let ty = weak_head_normalize(ctx, ty);
-    switch (ty) {
+    switch (term_of(ty)) {
     | Sum(sm) => Some(sm)
     | Rec(_) =>
       /* Note: We must unroll here to get right ctr types;
@@ -414,7 +468,7 @@ module rec Typ: {
          is bound. If either of the above assumptions become invalid,
          the below code will be incorrect! */
       let ty =
-        switch (ty) {
+        switch (ty |> term_of) {
         | Rec(x, ty_body) =>
           switch (Ctx.lookup_alias(ctx, x)) {
           | None => unroll(ty)
@@ -422,7 +476,7 @@ module rec Typ: {
           }
         | _ => ty
         };
-      switch (ty) {
+      switch (ty |> term_of) {
       | Sum(sm) => Some(sm)
       | _ => None
       };
@@ -431,7 +485,7 @@ module rec Typ: {
   };
 
   let is_unknown = (ty: t): bool =>
-    switch (ty) {
+    switch (ty |> term_of) {
     | Unknown(_) => true
     | _ => false
     };
@@ -561,8 +615,8 @@ and Ctx: {
           id,
           typ:
             switch (typ) {
-            | None => Var(name)
-            | Some(typ) => Arrow(typ, Var(name))
+            | None => Var(name) |> Typ.fresh
+            | Some(typ) => Arrow(typ, Var(name) |> Typ.fresh) |> Typ.fresh
             },
         }),
       ctrs,

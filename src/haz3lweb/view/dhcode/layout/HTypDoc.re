@@ -41,7 +41,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
     ),
   );
   let (doc, parenthesize) =
-    switch (ty) {
+    switch (Typ.term_of(ty)) {
     | Parens(ty) => (mk(~parenthesize=true, ~enforce_inline, ty), false)
     | Unknown(_) => (
         annot(HTypAnnot.Delim, annot(HTypAnnot.HoleLabel, text("?"))),
@@ -138,6 +138,10 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
            )
         |> hcats;
       (center, true);
+    | Ap(t1, t2) => (
+        hcats([mk'(t1), text("("), mk'(t2), text(")")]),
+        parenthesize,
+      )
     };
   let doc = annot(HTypAnnot.Term, doc);
   parenthesize ? Doc.hcats([mk_delim("("), doc, mk_delim(")")]) : doc;
