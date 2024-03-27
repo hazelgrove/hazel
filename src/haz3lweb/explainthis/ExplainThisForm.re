@@ -72,6 +72,7 @@ type numeric_bin_op_examples =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type example_id =
+  | Deferral
   | List(list_examples)
   | Fun(fun_examples)
   | Tuple1
@@ -79,6 +80,7 @@ type example_id =
   | Let(let_examples)
   | FunAp
   | ConAp
+  | DeferredAp
   | IfTrue
   | IfFalse
   | SeqBasic
@@ -138,6 +140,7 @@ type form_id =
   | EmptyHoleExp
   | MultiHoleExp
   | TrivExp
+  | DeferralExp
   | BoolExp
   | IntExp
   | FloatExp
@@ -154,6 +157,7 @@ type form_id =
   | LetExp(pat_sub_form_id)
   | FunApExp
   | ConApExp
+  | DeferredApExp
   | IfExp
   | SeqExp
   | TestExp
@@ -223,6 +227,7 @@ type group_id =
   | EmptyHoleExp
   | MultiHoleExp
   | TrivExp
+  | DeferralExp
   | BoolExp
   | IntExp
   | FloatExp
@@ -239,6 +244,7 @@ type group_id =
   | LetExp(pat_sub_form_id)
   | FunApExp
   | ConApExp
+  | DeferredApExp
   | IfExp
   | SeqExp
   | TestExp

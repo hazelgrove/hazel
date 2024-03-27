@@ -54,6 +54,7 @@ module rec Typ: {
   let matched_arrow: (Ctx.t, t) => (t, t);
   let matched_prod: (Ctx.t, int, t) => list(t);
   let matched_list: (Ctx.t, t) => t;
+  let matched_args: (Ctx.t, int, t) => list(t);
   let precedence: t => int;
   let subst: (t, TypVar.t, t) => t;
   let unroll: t => t;
@@ -377,6 +378,13 @@ module rec Typ: {
     | List(ty) => ty
     | Unknown(SynSwitch) => Unknown(SynSwitch)
     | _ => Unknown(Internal)
+    };
+
+  let matched_args = (ctx, default_arity, ty) =>
+    switch (weak_head_normalize(ctx, ty)) {
+    | Prod([_, ..._] as tys) => tys
+    | Unknown(_) as ty_unknown => List.init(default_arity, _ => ty_unknown)
+    | _ as ty => [ty]
     };
 
   let sum_entry = (ctr: Constructor.t, ctrs: sum_map): option(sum_entry) =>
