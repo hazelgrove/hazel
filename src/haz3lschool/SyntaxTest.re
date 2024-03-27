@@ -1,145 +1,160 @@
 open Haz3lcore;
 open Sexplib.Std;
 
+/*
+  These are the syntax test functions used for the syntax validation
+  section of the exercises. The syntax tests are designed to
+  ensure that the user implementation satisfies certain syntax properties
+  e.g. tail recursive function or variable usage.
+ */
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type syntax_result = {
   results: list(bool),
   percentage: float,
 };
 
-let rec find_var_upat = (name: string, upat: Term.UPat.t): bool => {
-  switch (upat.term) {
-  | Var(x) => x == name
-  | EmptyHole
-  | Wild
-  | Triv
-  | Invalid(_)
-  | MultiHole(_)
-  | Int(_)
-  | Float(_)
-  | Bool(_)
-  | String(_)
-  | Constructor(_) => false
-  | Cons(up1, up2) => find_var_upat(name, up1) || find_var_upat(name, up2)
-  | ListLit(l)
-  | Tuple(l) =>
-    List.fold_left((acc, up) => {acc || find_var_upat(name, up)}, false, l)
-  | Parens(up) => find_var_upat(name, up)
-  | Ap(up1, up2) => find_var_upat(name, up1) || find_var_upat(name, up2)
-  | TypeAnn(up, _) => find_var_upat(name, up)
-  };
-};
+// <<<<<<< HEAD
+// let rec find_var_upat = (name: string, upat: Term.UPat.t): bool => {
+//   switch (upat.term) {
+//   | Var(x) => x == name
+//   | EmptyHole
+//   | Wild
+//   | Triv
+//   | Invalid(_)
+//   | MultiHole(_)
+//   | Int(_)
+//   | Float(_)
+//   | Bool(_)
+//   | String(_)
+//   | Constructor(_) => false
+//   | Cons(up1, up2) => find_var_upat(name, up1) || find_var_upat(name, up2)
+//   | ListLit(l)
+//   | Tuple(l) =>
+//     List.fold_left((acc, up) => {acc || find_var_upat(name, up)}, false, l)
+//   | Parens(up) => find_var_upat(name, up)
+//   | Ap(up1, up2) => find_var_upat(name, up1) || find_var_upat(name, up2)
+//   | TypeAnn(up, _) => find_var_upat(name, up)
+//   };
+// };
 
-let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
-  switch (uexp.term) {
-  | Var(x) => x == name
-  | EmptyHole
-  | Triv
-  | Deferral(_)
-  | Invalid(_)
-  | MultiHole(_)
-  | Bool(_)
-  | Int(_)
-  | Float(_)
-  | String(_)
-  | Constructor(_) => false
-  | Fun(args, body) =>
-    find_var_upat(name, args) ? false : var_mention(name, body)
-  | ListLit(l)
-  | Tuple(l) =>
-    List.fold_left((acc, ue) => {acc || var_mention(name, ue)}, false, l)
-  | Let(p, def, body) =>
-    find_var_upat(name, p)
-      ? false : var_mention(name, def) || var_mention(name, body)
-  | Test(u)
-  | Parens(u)
-  | UnOp(_, u)
-  | TyAlias(_, _, u)
-  | Filter(_, _, u) => var_mention(name, u)
-  | Ap(u1, u2)
-  | Pipeline(u1, u2)
-  | Seq(u1, u2)
-  | Cons(u1, u2)
-  | ListConcat(u1, u2)
-  | BinOp(_, u1, u2) => var_mention(name, u1) || var_mention(name, u2)
-  | If(u1, u2, u3) =>
-    var_mention(name, u1) || var_mention(name, u2) || var_mention(name, u3)
-  | DeferredAp(fn, args) =>
-    var_mention(name, fn) || args |> List.exists(var_mention(name))
-  | Match(g, l) =>
-    var_mention(name, g)
-    || List.fold_left(
-         (acc, pe) => {
-           let (p, e) = pe;
-           find_var_upat(name, p) ? false : acc || var_mention(name, e);
-         },
-         false,
-         l,
-       )
-  };
-};
+// let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
+//   switch (uexp.term) {
+//   | Var(x) => x == name
+//   | EmptyHole
+//   | Triv
+//   | Deferral(_)
+//   | Invalid(_)
+//   | MultiHole(_)
+//   | Bool(_)
+//   | Int(_)
+//   | Float(_)
+//   | String(_)
+//   | Constructor(_) => false
+//   | Fun(args, body) =>
+//     find_var_upat(name, args) ? false : var_mention(name, body)
+//   | ListLit(l)
+//   | Tuple(l) =>
+//     List.fold_left((acc, ue) => {acc || var_mention(name, ue)}, false, l)
+//   | Let(p, def, body) =>
+//     find_var_upat(name, p)
+//       ? false : var_mention(name, def) || var_mention(name, body)
+//   | Test(u)
+//   | Parens(u)
+//   | UnOp(_, u)
+//   | TyAlias(_, _, u)
+//   | Filter(_, _, u) => var_mention(name, u)
+//   | Ap(u1, u2)
+//   | Pipeline(u1, u2)
+//   | Seq(u1, u2)
+//   | Cons(u1, u2)
+//   | ListConcat(u1, u2)
+//   | BinOp(_, u1, u2) => var_mention(name, u1) || var_mention(name, u2)
+//   | If(u1, u2, u3) =>
+//     var_mention(name, u1) || var_mention(name, u2) || var_mention(name, u3)
+//   | DeferredAp(fn, args) =>
+//     var_mention(name, fn) || args |> List.exists(var_mention(name))
+//   | Match(g, l) =>
+//     var_mention(name, g)
+//     || List.fold_left(
+//          (acc, pe) => {
+//            let (p, e) = pe;
+//            find_var_upat(name, p) ? false : acc || var_mention(name, e);
+//          },
+//          false,
+//          l,
+//        )
+//   };
+// };
 
-let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
-  switch (uexp.term) {
-  | Var(_)
-  | EmptyHole
-  | Triv
-  | Deferral(_)
-  | Invalid(_)
-  | MultiHole(_)
-  | Bool(_)
-  | Int(_)
-  | Float(_)
-  | String(_)
-  | Constructor(_) => false
-  | Fun(args, body) =>
-    find_var_upat(name, args) ? false : var_applied(name, body)
-  | ListLit(l)
-  | Tuple(l) =>
-    List.fold_left((acc, ue) => {acc || var_applied(name, ue)}, false, l)
-  | Let(p, def, body) =>
-    find_var_upat(name, p)
-      ? false : var_applied(name, def) || var_applied(name, body)
-  | Test(u)
-  | Parens(u)
-  | UnOp(_, u)
-  | TyAlias(_, _, u)
-  | Filter(_, _, u) => var_applied(name, u)
-  | Ap(u1, u2) =>
-    switch (u1.term) {
-    | Var(x) => x == name ? true : var_applied(name, u2)
-    | _ => var_applied(name, u1) || var_applied(name, u2)
-    }
-  | DeferredAp(fn, args) =>
-    let var_applied_in_args = () => args |> List.exists(var_applied(name));
-    switch (fn.term) {
-    | Var(x) => x == name ? true : var_applied_in_args()
-    | _ => var_applied(name, fn) || var_applied_in_args()
-    };
-  | Pipeline(u1, u2) =>
-    switch (u2.term) {
-    | Var(x) => x == name ? true : var_applied(name, u1)
-    | _ => var_applied(name, u1) || var_applied(name, u2)
-    }
-  | Cons(u1, u2)
-  | Seq(u1, u2)
-  | ListConcat(u1, u2)
-  | BinOp(_, u1, u2) => var_applied(name, u1) || var_applied(name, u2)
-  | If(u1, u2, u3) =>
-    var_applied(name, u1) || var_applied(name, u2) || var_applied(name, u3)
-  | Match(g, l) =>
-    var_applied(name, g)
-    || List.fold_left(
-         (acc, pe) => {
-           let (p, e) = pe;
-           find_var_upat(name, p) ? false : acc || var_applied(name, e);
-         },
-         false,
-         l,
-       )
-  };
-};
+// let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
+//   switch (uexp.term) {
+//   | Var(_)
+//   | EmptyHole
+//   | Triv
+//   | Deferral(_)
+//   | Invalid(_)
+//   | MultiHole(_)
+//   | Bool(_)
+//   | Int(_)
+//   | Float(_)
+//   | String(_)
+//   | Constructor(_) => false
+//   | Fun(args, body) =>
+//     find_var_upat(name, args) ? false : var_applied(name, body)
+//   | ListLit(l)
+//   | Tuple(l) =>
+//     List.fold_left((acc, ue) => {acc || var_applied(name, ue)}, false, l)
+//   | Let(p, def, body) =>
+//     find_var_upat(name, p)
+//       ? false : var_applied(name, def) || var_applied(name, body)
+//   | Test(u)
+//   | Parens(u)
+//   | UnOp(_, u)
+//   | TyAlias(_, _, u)
+//   | Filter(_, _, u) => var_applied(name, u)
+//   | Ap(u1, u2) =>
+//     switch (u1.term) {
+//     | Var(x) => x == name ? true : var_applied(name, u2)
+//     | _ => var_applied(name, u1) || var_applied(name, u2)
+//     }
+//   | DeferredAp(fn, args) =>
+//     let var_applied_in_args = () => args |> List.exists(var_applied(name));
+//     switch (fn.term) {
+//     | Var(x) => x == name ? true : var_applied_in_args()
+//     | _ => var_applied(name, fn) || var_applied_in_args()
+//     };
+//   | Pipeline(u1, u2) =>
+//     switch (u2.term) {
+//     | Var(x) => x == name ? true : var_applied(name, u1)
+//     | _ => var_applied(name, u1) || var_applied(name, u2)
+//     }
+//   | Cons(u1, u2)
+//   | Seq(u1, u2)
+//   | ListConcat(u1, u2)
+//   | BinOp(_, u1, u2) => var_applied(name, u1) || var_applied(name, u2)
+//   | If(u1, u2, u3) =>
+//     var_applied(name, u1) || var_applied(name, u2) || var_applied(name, u3)
+//   | Match(g, l) =>
+//     var_applied(name, g)
+//     || List.fold_left(
+//          (acc, pe) => {
+//            let (p, e) = pe;
+//            find_var_upat(name, p) ? false : acc || var_applied(name, e);
+//          },
+//          false,
+//          l,
+//        )
+//   };
+// };
 
+/*
+  Helper function used in the function find_fn which takes the
+  pattern (upat) and the definition (def) of a let expression and
+  collects functions in def that are bound to variable name in
+  upat. Example: for the expression "let (a,b) = (fun x -> x+1, 41) in"
+  if name="a", then l=[fun x -> x+1]
+ */
 let rec find_in_let =
         (
           name: string,
@@ -153,12 +168,7 @@ let rec find_in_let =
   | (Parens(up), _) => find_in_let(name, up, def, l)
   | (_, Parens(ue)) => find_in_let(name, upat, ue, l)
   | (TypeAnn(up, _), _) => find_in_let(name, up, def, l)
-  | (Var(x), Fun(_)) =>
-    if (x == name) {
-      [def, ...l];
-    } else {
-      l;
-    }
+  | (Var(x), Fun(_)) => x == name ? [def, ...l] : l
   | (Tuple(pl), Tuple(ul)) =>
     if (List.length(pl) != List.length(ul)) {
       l;
@@ -185,6 +195,9 @@ let rec find_in_let =
   };
 };
 
+/*
+ Find any function expressions in uexp that are bound to variable name
+ */
 let rec find_fn =
         (name: string, uexp: Term.UExp.t, l: list(Term.UExp.t))
         : list(Term.UExp.t) => {
@@ -232,6 +245,157 @@ let rec find_fn =
   };
 };
 
+/*
+ Finds whether variable name is ever mentioned in upat.
+ */
+let rec var_mention_upat = (name: string, upat: Term.UPat.t): bool => {
+  switch (upat.term) {
+  | Var(x) => x == name
+  | EmptyHole
+  | Wild
+  | Triv
+  | Invalid(_)
+  | MultiHole(_)
+  | Int(_)
+  | Float(_)
+  | Bool(_)
+  | String(_)
+  | Constructor(_) => false
+  | Cons(up1, up2) =>
+    var_mention_upat(name, up1) || var_mention_upat(name, up2)
+  | ListLit(l)
+  | Tuple(l) =>
+    List.fold_left(
+      (acc, up) => {acc || var_mention_upat(name, up)},
+      false,
+      l,
+    )
+  | Parens(up) => var_mention_upat(name, up)
+  | Ap(up1, up2) =>
+    var_mention_upat(name, up1) || var_mention_upat(name, up2)
+  | TypeAnn(up, _) => var_mention_upat(name, up)
+  };
+};
+
+/*
+ Finds whether variable name is ever mentioned in uexp.
+ */
+let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
+  switch (uexp.term) {
+  | Var(x) => x == name
+  | EmptyHole
+  | Triv
+  | Invalid(_)
+  | MultiHole(_)
+  | Bool(_)
+  | Int(_)
+  | Float(_)
+  | String(_)
+  | Constructor(_)
+  | Deferral(_) => false
+  | Fun(args, body) =>
+    var_mention_upat(name, args) ? false : var_mention(name, body)
+  | ListLit(l)
+  | Tuple(l) =>
+    List.fold_left((acc, ue) => {acc || var_mention(name, ue)}, false, l)
+  | Let(p, def, body) =>
+    var_mention_upat(name, p)
+      ? false : var_mention(name, def) || var_mention(name, body)
+  | Test(u)
+  | Parens(u)
+  | UnOp(_, u)
+  | TyAlias(_, _, u)
+  | Filter(_, _, u) => var_mention(name, u)
+  | Ap(u1, u2)
+  | Pipeline(u1, u2)
+  | Seq(u1, u2)
+  | Cons(u1, u2)
+  | ListConcat(u1, u2)
+  | BinOp(_, u1, u2) => var_mention(name, u1) || var_mention(name, u2)
+  | DeferredAp(u1, us) =>
+    var_mention(name, u1) || List.exists(var_mention(name), us)
+  | If(u1, u2, u3) =>
+    var_mention(name, u1) || var_mention(name, u2) || var_mention(name, u3)
+  | Match(g, l) =>
+    var_mention(name, g)
+    || List.fold_left(
+         (acc, pe) => {
+           let (p, e) = pe;
+           var_mention_upat(name, p) ? false : acc || var_mention(name, e);
+         },
+         false,
+         l,
+       )
+  };
+};
+
+/*
+ Finds whether variable name is applied on another expresssion.
+ i.e. Ap(Var(name), u) occurs anywhere in the uexp.
+ */
+let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
+  switch (uexp.term) {
+  | Var(_)
+  | EmptyHole
+  | Triv
+  | Invalid(_)
+  | MultiHole(_)
+  | Bool(_)
+  | Int(_)
+  | Float(_)
+  | String(_)
+  | Constructor(_)
+  | Deferral(_) => false
+  | Fun(args, body) =>
+    var_mention_upat(name, args) ? false : var_applied(name, body)
+  | ListLit(l)
+  | Tuple(l) =>
+    List.fold_left((acc, ue) => {acc || var_applied(name, ue)}, false, l)
+  | Let(p, def, body) =>
+    var_mention_upat(name, p)
+      ? false : var_applied(name, def) || var_applied(name, body)
+  | Test(u)
+  | Parens(u)
+  | UnOp(_, u)
+  | TyAlias(_, _, u)
+  | Filter(_, _, u) => var_applied(name, u)
+  | Ap(u1, u2) =>
+    switch (u1.term) {
+    | Var(x) => x == name ? true : var_applied(name, u2)
+    | _ => var_applied(name, u1) || var_applied(name, u2)
+    }
+  | DeferredAp(u1, us) =>
+    switch (u1.term) {
+    | Var(x) => x == name ? true : List.exists(var_applied(name), us)
+    | _ => List.exists(var_applied(name), us)
+    }
+  | Pipeline(u1, u2) =>
+    switch (u2.term) {
+    | Var(x) => x == name ? true : var_applied(name, u1)
+    | _ => var_applied(name, u1) || var_applied(name, u2)
+    }
+  | Cons(u1, u2)
+  | Seq(u1, u2)
+  | ListConcat(u1, u2)
+  | BinOp(_, u1, u2) => var_applied(name, u1) || var_applied(name, u2)
+  | If(u1, u2, u3) =>
+    var_applied(name, u1) || var_applied(name, u2) || var_applied(name, u3)
+  | Match(g, l) =>
+    var_applied(name, g)
+    || List.fold_left(
+         (acc, pe) => {
+           let (p, e) = pe;
+           var_mention_upat(name, p) ? false : acc || var_applied(name, e);
+         },
+         false,
+         l,
+       )
+  };
+};
+
+/*
+ Check whether all functions bound to variable name are recursive.
+ */
 let is_recursive = (name: string, uexp: Term.UExp.t): bool => {
   let fn_bodies = [] |> find_fn(name, uexp);
   if (List.length(fn_bodies) == 0) {
@@ -245,6 +409,11 @@ let is_recursive = (name: string, uexp: Term.UExp.t): bool => {
   };
 };
 
+/*
+ Check if variable name is not mentioned anywhere outside of
+ a tail position in uexp. Note that if the variable is not
+ mentioned anywhere in the expression, the function returns true.
+ */
 let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   switch (uexp.term) {
   | EmptyHole
@@ -257,12 +426,11 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   | Float(_)
   | String(_)
   | Constructor(_)
-  | Var(_)
-  | Pipeline(_, _) => true
+  | Var(_) => true
   | Fun(args, body) =>
-    find_var_upat(name, args) ? false : tail_check(name, body)
+    var_mention_upat(name, args) ? false : tail_check(name, body)
   | Let(p, def, body) =>
-    find_var_upat(name, p) || var_mention(name, def)
+    var_mention_upat(name, p) || var_mention(name, def)
       ? false : tail_check(name, body)
   | ListLit(l)
   | Tuple(l) =>
@@ -279,6 +447,7 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
       name,
       {ids: [], term: Ap(fn, {ids: [], term: Tuple(args)})},
     )
+  | Pipeline(u1, u2) => var_mention(name, u1) ? false : tail_check(name, u2)
   | Seq(u1, u2) => var_mention(name, u1) ? false : tail_check(name, u2)
   | Cons(u1, u2)
   | ListConcat(u1, u2)
@@ -291,7 +460,7 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
       ? false
       : List.fold_left(
           (acc, (p, e)) => {
-            find_var_upat(name, p) ? false : acc && tail_check(name, e)
+            var_mention_upat(name, p) ? false : acc && tail_check(name, e)
           },
           true,
           l,
@@ -299,6 +468,9 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   };
 };
 
+/*
+ Check whether all functions bound to variable name are tail recursive.
+ */
 let is_tail_recursive = (name: string, uexp: Term.UExp.t): bool => {
   let fn_bodies = [] |> find_fn(name, uexp);
   if (List.length(fn_bodies) == 0) {

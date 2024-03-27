@@ -225,7 +225,6 @@ and uexp_to_info_map =
     );
   | ListConcat(e1, e2) =>
     let ids = List.map(Term.UExp.rep_id, [e1, e2]);
-    let mode = Mode.of_list_concat(ctx, mode);
     let (e1, m) = go(~mode, e1, m);
     let (e2, m) = go(~mode, e2, m);
     add(
