@@ -4,6 +4,15 @@ type t('a) =
   | Seq_(Regex.s('a), Regex.s('a))
   | Alt_(Regex.s('a), Regex.s('a));
 
+let star_ = Star_;
+let seq_ = (ls, rs) => Seq_(ls, rs);
+let alt_ = (ls, rs) => Alt_(ls, rs);
+
+let opt_ = Alt_([Regex.eps], []);
+
+let aseq_ = (ls, rs) =>
+  seq_(List.map(Regex.atom, ls), List.map(Regex.atom, rs));
+
 let zip = (f: t(_), r: Regex.t(_)) =>
   switch (f) {
   | Star_ => Regex.Star(r)

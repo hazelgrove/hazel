@@ -16,6 +16,8 @@ let alt = rs => Alt(rs);
 let eps = Seq([]);
 let opt = r => Alt([eps, r]);
 
+let aseq = atoms => seq(List.map(atom, atoms));
+
 let rec flatten =
   fun
   | Seq(rs) => List.concat_map(flatten, rs)

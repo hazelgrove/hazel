@@ -7,6 +7,8 @@ module Base = {
 };
 include Base;
 
+let tile = t => Tile(t);
+
 let is_space =
   fun
   | Space => true
@@ -45,8 +47,25 @@ module NT = {
   let space = Padded.mk(Space);
   let grout = Padded.mk(Grout);
 };
+module Sym = {
+  include Sym;
+  [@deriving (show({with_path: false}), sexp, yojson, ord)]
+  type t = Sym.t(T.t, NT.t);
+};
+
+module Regex = {
+  include Regex;
+  [@deriving (show({with_path: false}), sexp, yojson, ord)]
+  type t = Regex.t(Sym.t);
+};
+// module RFrame = {
+//   include RFrame;
+//   [@deriving (show({with_path: false}), sexp, yojson, ord)]
+//   type t = RFrame(Sym.t);
+// };
+
 module Grammar = {
-  type t = Sorted.Map.t(Prec.Table.t(Regex.t(Sym.t(T.t, NT.t))));
+  type t = Sorted.Map.t(Prec.Table.t(Regex.t));
 
   let mtrlize_tiles = (g: Grammar.t): t =>
     Sort.Map.to_seq(g)
@@ -54,11 +73,7 @@ module Grammar = {
          let mtbl =
            tbl
            |> Prec.Table.map(
-                Regex.map(
-                  fun
-                  | Sym.T(lbl) => Sym.T(Tile(lbl))
-                  | NT((pad, s)) => NT((pad, Tile(s))),
-                ),
+                Regex.map(Sym.map(tile, ((pad, s)) => (pad, tile(s)))),
               );
          (Tile(s), mtbl);
        })
@@ -78,7 +93,7 @@ module Grammar = {
             | Bound.Root => false
             | Node((sym, _)) => Sym.is_t(sym),
           );
-        let spc = Regex.atom(Sym.NT(Padded.mk(~indent=false, Space)));
+        let spc = Regex.atom(Sym.nt(Padded.mk(~indent=false, Space)));
         rgx
         |> (exists_t(ls) ? Regex.push(~from=L, spc) : Fun.id)
         |> (exists_t(rs) ? Regex.push(~from=R, spc) : Fun.id);
@@ -90,12 +105,4 @@ module Grammar = {
     g |> mtrlize_tiles |> mtrlize_space;
 
   let v = mtrlize(Grammar.v);
-};
-
-// I would move this def above Grammar and use it in Grammar
-// but then the compiler doesn't recognize Sym.T constructor...
-module Sym = {
-  include Sym;
-  [@deriving (show({with_path: false}), sexp, yojson, ord)]
-  type t = Sym.t(T.t, NT.t);
 };
