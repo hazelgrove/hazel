@@ -29,8 +29,10 @@ let ana: Typ.t => t = ty => Ana(ty);
 let ty_of: t => Typ.t =
   fun
   | Ana(ty) => ty
-  | Syn => Unknown(SynSwitch)
-  | SynFun => Arrow(Unknown(SynSwitch), Unknown(SynSwitch));
+  | Syn => Unknown(SynSwitch) |> Typ.fresh
+  | SynFun =>
+    Arrow(Unknown(SynSwitch) |> Typ.fresh, Unknown(SynSwitch) |> Typ.fresh)
+    |> Typ.fresh;
 
 let of_arrow = (ctx: Ctx.t, mode: t): (t, t) =>
   switch (mode) {
@@ -56,8 +58,8 @@ let of_cons_hd = (ctx: Ctx.t, mode: t): t =>
 let of_cons_tl = (ctx: Ctx.t, mode: t, hd_ty: Typ.t): t =>
   switch (mode) {
   | Syn
-  | SynFun => Ana(List(hd_ty))
-  | Ana(ty) => Ana(List(Typ.matched_list(ctx, ty)))
+  | SynFun => Ana(List(hd_ty) |> Typ.fresh)
+  | Ana(ty) => Ana(List(Typ.matched_list(ctx, ty)) |> Typ.fresh)
   };
 
 let of_list = (ctx: Ctx.t, mode: t): t =>
@@ -70,8 +72,8 @@ let of_list = (ctx: Ctx.t, mode: t): t =>
 let of_list_concat = (ctx: Ctx.t, mode: t): t =>
   switch (mode) {
   | Syn
-  | SynFun => Ana(List(Unknown(SynSwitch)))
-  | Ana(ty) => Ana(List(Typ.matched_list(ctx, ty)))
+  | SynFun => Ana(List(Unknown(SynSwitch) |> Typ.fresh) |> Typ.fresh)
+  | Ana(ty) => Ana(List(Typ.matched_list(ctx, ty)) |> Typ.fresh)
   };
 
 let of_list_lit = (ctx: Ctx.t, length, mode: t): list(t) =>
@@ -82,13 +84,13 @@ let ctr_ana_typ = (ctx: Ctx.t, mode: t, ctr: Constructor.t): option(Typ.t) => {
      a sum type having that ctr as a variant, we consider the
      ctr's type to be determined by the sum type */
   switch (mode) {
-  | Ana(Arrow(_, ty_ana))
+  | Ana({term: Arrow(_, ty_ana), _})
   | Ana(ty_ana) =>
     let* ctrs = Typ.get_sum_constructors(ctx, ty_ana);
     let+ (_, ty_entry) = Typ.sum_entry(ctr, ctrs);
     switch (ty_entry) {
     | None => ty_ana
-    | Some(ty_in) => Arrow(ty_in, ty_ana)
+    | Some(ty_in) => Arrow(ty_in, ty_ana) |> Typ.fresh
     };
   | _ => None
   };
@@ -96,14 +98,14 @@ let ctr_ana_typ = (ctx: Ctx.t, mode: t, ctr: Constructor.t): option(Typ.t) => {
 
 let of_ctr_in_ap = (ctx: Ctx.t, mode: t, ctr: Constructor.t): option(t) =>
   switch (ctr_ana_typ(ctx, mode, ctr)) {
-  | Some(Arrow(_) as ty_ana) => Some(Ana(ty_ana))
+  | Some({term: Arrow(_), _} as ty_ana) => Some(Ana(ty_ana))
   | Some(ty_ana) =>
     /* Consider for example "let _ : +Yo = Yo("lol") in..."
        Here, the 'Yo' constructor should be in a hole, as it
        is nullary but used as unary; we reflect this by analyzing
        against an arrow type. Since we can't guess at what the
        parameter type might have be, we use Unknown. */
-    Some(Ana(Arrow(Unknown(Internal), ty_ana)))
+    Some(Ana(Arrow(Unknown(Internal) |> Typ.fresh, ty_ana) |> Typ.fresh))
   | None => None
   };
 

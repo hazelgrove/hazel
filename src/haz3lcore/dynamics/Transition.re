@@ -80,27 +80,32 @@ module CastHelpers = {
     | Ground
     | NotGroundOrHole(Typ.t) /* the argument is the corresponding ground type */;
 
-  let const_unknown: 'a => Typ.t = _ => Unknown(Internal);
+  let const_unknown: 'a => Typ.t = _ => Unknown(Internal) |> Typ.fresh;
 
   let grounded_Arrow =
-    NotGroundOrHole(Arrow(Unknown(Internal), Unknown(Internal)));
+    NotGroundOrHole(
+      Arrow(Unknown(Internal) |> Typ.fresh, Unknown(Internal) |> Typ.fresh)
+      |> Typ.fresh,
+    );
   let grounded_Prod = length =>
     NotGroundOrHole(
-      Prod(ListUtil.replicate(length, Typ.Unknown(Internal))),
+      Prod(ListUtil.replicate(length, Typ.Unknown(Internal) |> Typ.fresh))
+      |> Typ.fresh,
     );
   let grounded_Sum = (sm: Typ.sum_map): ground_cases => {
     let sm' = sm |> ConstructorMap.map(Option.map(const_unknown));
-    NotGroundOrHole(Sum(sm'));
+    NotGroundOrHole(Sum(sm') |> Typ.fresh);
   };
-  let grounded_List = NotGroundOrHole(List(Unknown(Internal)));
+  let grounded_List =
+    NotGroundOrHole(List(Unknown(Internal) |> Typ.fresh) |> Typ.fresh);
 
   let rec ground_cases_of = (ty: Typ.t): ground_cases => {
     let is_ground_arg: option(Typ.t) => bool =
       fun
       | None
-      | Some(Typ.Unknown(_)) => true
+      | Some({term: Typ.Unknown(_), _}) => true
       | Some(ty) => ground_cases_of(ty) == Ground;
-    switch (ty) {
+    switch (Typ.term_of(ty)) {
     | Unknown(_) => Hole
     | Bool
     | Int
@@ -108,13 +113,13 @@ module CastHelpers = {
     | String
     | Var(_)
     | Rec(_)
-    | Arrow(Unknown(_), Unknown(_))
-    | List(Unknown(_)) => Ground
+    | Arrow({term: Unknown(_), _}, {term: Unknown(_), _})
+    | List({term: Unknown(_), _}) => Ground
     | Parens(ty) => ground_cases_of(ty)
     | Prod(tys) =>
       if (List.for_all(
             fun
-            | Typ.Unknown(_) => true
+            | ({term: Typ.Unknown(_), _}: Typ.t) => true
             | _ => false,
             tys,
           )) {
@@ -127,6 +132,7 @@ module CastHelpers = {
         ? Ground : grounded_Sum(sm)
     | Arrow(_, _) => grounded_Arrow
     | List(_) => grounded_List
+    | Ap(_) => failwith("type application in dynamics")
     };
   };
 };
@@ -355,7 +361,11 @@ module Transition = (EV: EV_MODE) => {
           kind: FunAp,
           value: false,
         });
-      | Cast(d3', Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
+      | Cast(
+          d3',
+          {term: Arrow(ty1, ty2), _},
+          {term: Arrow(ty1', ty2'), _},
+        ) =>
         Step({
           apply: () =>
             Cast(
@@ -754,7 +764,7 @@ module Transition = (EV: EV_MODE) => {
         Constructor
       | (Hole, Ground) =>
         switch (term_of(d')) {
-        | Cast(d2, t3, Unknown(_)) =>
+        | Cast(d2, t3, {term: Unknown(_), _}) =>
           /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
           if (Typ.eq(t3, t2)) {
             Step({apply: () => d2, kind: Cast, value: true});

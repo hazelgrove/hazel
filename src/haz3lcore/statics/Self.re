@@ -50,7 +50,7 @@ type pat =
 let join_of = (j: join_type, ty: Typ.t): Typ.t =>
   switch (j) {
   | Id => ty
-  | List => List(ty)
+  | List => List(ty) |> Typ.fresh
   };
 
 /* What the type would be if the position had been
@@ -101,7 +101,7 @@ let of_ctr = (ctx: Ctx.t, name: Constructor.t): t =>
 let add_source = List.map2((id, ty) => Typ.{id, ty});
 
 let match = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
-  switch (Typ.join_all(~empty=Unknown(Internal), ctx, tys)) {
+  switch (Typ.join_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {
   | None => NoJoin(Id, add_source(ids, tys))
   | Some(ty) => Just(ty)
   };
@@ -109,11 +109,11 @@ let match = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
 let listlit = (~empty, ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
   switch (Typ.join_all(~empty, ctx, tys)) {
   | None => NoJoin(List, add_source(ids, tys))
-  | Some(ty) => Just(List(ty))
+  | Some(ty) => Just(List(ty) |> Typ.fresh)
   };
 
 let list_concat = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
-  switch (Typ.join_all(~empty=Unknown(Internal), ctx, tys)) {
+  switch (Typ.join_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {
   | None => NoJoin(List, add_source(ids, tys))
   | Some(ty) => Just(ty)
   };

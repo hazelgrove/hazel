@@ -131,34 +131,36 @@ module TypTerm = {
     (ctx, utyp) =>
       switch (utyp.term) {
       | Invalid(_)
-      | MultiHole(_) => Unknown(Internal)
-      | EmptyHole => Unknown(TypeHole)
-      | Bool => Bool
-      | Int => Int
-      | Float => Float
-      | String => String
+      | MultiHole(_) => Unknown(Internal) |> Typ.fresh
+      | EmptyHole => Unknown(Hole(EmptyHole)) |> Typ.fresh
+      | Bool => Bool |> Typ.fresh
+      | Int => Int |> Typ.fresh
+      | Float => Float |> Typ.fresh
+      | String => String |> Typ.fresh
       | Var(name) =>
         switch (Ctx.lookup_tvar(ctx, name)) {
-        | Some(_) => Var(name)
-        | None => Unknown(Free(name))
+        | Some(_) => Var(name) |> Typ.fresh
+        | None => Unknown(Hole(Invalid(name))) |> Typ.fresh
         }
-      | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
-      | Prod(us) => Prod(List.map(to_typ(ctx), us))
-      | Sum(uts) => Sum(to_ctr_map(ctx, uts))
-      | List(u) => List(to_typ(ctx, u))
+      | Arrow(u1, u2) =>
+        Arrow(to_typ(ctx, u1), to_typ(ctx, u2)) |> Typ.fresh
+      | Prod(us) => Prod(List.map(to_typ(ctx), us)) |> Typ.fresh
+      | Sum(uts) => Sum(to_ctr_map(ctx, uts)) |> Typ.fresh
+      | List(u) => List(to_typ(ctx, u)) |> Typ.fresh
       | Parens(u) => to_typ(ctx, u)
       /* The below cases should occur only inside sums */
-      | Ap(_) => Unknown(Internal)
+      | Ap(_) => Unknown(Internal) |> Typ.fresh
       | Rec({term: Invalid(_), _}, tbody)
       | Rec({term: EmptyHole, _}, tbody)
-      | Rec({term: MultiHole(_), _}, tbody) => Rec("?", to_typ(ctx, tbody))
+      | Rec({term: MultiHole(_), _}, tbody) =>
+        Rec("?", to_typ(ctx, tbody)) |> Typ.fresh
       | Rec({term: Var(name), _} as utpat, tbody) =>
         let ctx =
           Ctx.extend_tvar(
             ctx,
             {name, id: TPat.rep_id(utpat), kind: Abstract},
           );
-        Rec(name, to_typ(ctx, tbody));
+        Rec(name, to_typ(ctx, tbody)) |> Typ.fresh;
       }
   and to_variant:
     (Ctx.t, variant) => option(ConstructorMap.binding(option(Typ.t))) =

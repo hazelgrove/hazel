@@ -5,7 +5,7 @@ type match_result =
   | DoesNotMatch
   | IndetMatch;
 
-let const_unknown: 'a => Typ.t = _ => Unknown(Internal);
+let const_unknown: 'a => Typ.t = _ => Unknown(Internal) |> Typ.fresh;
 
 let cast_sum_maps =
     (sm1: Typ.sum_map, sm2: Typ.sum_map)
@@ -62,8 +62,10 @@ let rec matches = (dp: Pat.t, d: DHExp.t): match_result =>
     } else {
       DoesNotMatch;
     }
-  | (Bool(_), Cast(d, Bool, Unknown(_))) => matches(dp, d)
-  | (Bool(_), Cast(d, Unknown(_), Bool)) => matches(dp, d)
+  | (Bool(_), Cast(d, {term: Bool, _}, {term: Unknown(_), _})) =>
+    matches(dp, d)
+  | (Bool(_), Cast(d, {term: Unknown(_), _}, {term: Bool, _})) =>
+    matches(dp, d)
   | (Bool(_), _) => DoesNotMatch
   | (Int(n1), Int(n2)) =>
     if (n1 == n2) {
@@ -71,8 +73,10 @@ let rec matches = (dp: Pat.t, d: DHExp.t): match_result =>
     } else {
       DoesNotMatch;
     }
-  | (Int(_), Cast(d, Int, Unknown(_))) => matches(dp, d)
-  | (Int(_), Cast(d, Unknown(_), Int)) => matches(dp, d)
+  | (Int(_), Cast(d, {term: Int, _}, {term: Unknown(_), _})) =>
+    matches(dp, d)
+  | (Int(_), Cast(d, {term: Unknown(_), _}, {term: Int, _})) =>
+    matches(dp, d)
   | (Int(_), _) => DoesNotMatch
   | (Float(n1), Float(n2)) =>
     if (n1 == n2) {
@@ -80,8 +84,10 @@ let rec matches = (dp: Pat.t, d: DHExp.t): match_result =>
     } else {
       DoesNotMatch;
     }
-  | (Float(_), Cast(d, Float, Unknown(_))) => matches(dp, d)
-  | (Float(_), Cast(d, Unknown(_), Float)) => matches(dp, d)
+  | (Float(_), Cast(d, {term: Float, _}, {term: Unknown(_), _})) =>
+    matches(dp, d)
+  | (Float(_), Cast(d, {term: Unknown(_), _}, {term: Float, _})) =>
+    matches(dp, d)
   | (Float(_), _) => DoesNotMatch
   | (String(s1), String(s2)) =>
     if (s1 == s2) {
@@ -89,8 +95,10 @@ let rec matches = (dp: Pat.t, d: DHExp.t): match_result =>
     } else {
       DoesNotMatch;
     }
-  | (String(_), Cast(d, String, Unknown(_))) => matches(dp, d)
-  | (String(_), Cast(d, Unknown(_), String)) => matches(dp, d)
+  | (String(_), Cast(d, {term: String, _}, {term: Unknown(_), _})) =>
+    matches(dp, d)
+  | (String(_), Cast(d, {term: Unknown(_), _}, {term: String, _})) =>
+    matches(dp, d)
   | (String(_), _) => DoesNotMatch
 
   | (Ap(dp1, dp2), Ap(_, d1, d2)) =>
@@ -111,15 +119,33 @@ let rec matches = (dp: Pat.t, d: DHExp.t): match_result =>
     }
   | (
       Ap({term: Constructor(ctr), _}, dp_opt),
-      Cast(d, Sum(sm1) | Rec(_, Sum(sm1)), Sum(sm2) | Rec(_, Sum(sm2))),
+      Cast(
+        d,
+        {term: Sum(sm1) | Rec(_, {term: Sum(sm1), _}), _},
+        {term: Sum(sm2) | Rec(_, {term: Sum(sm2), _}), _},
+      ),
     ) =>
     switch (cast_sum_maps(sm1, sm2)) {
     | Some(castmap) => matches_cast_Sum(ctr, Some(dp_opt), d, [castmap])
     | None => DoesNotMatch
     }
 
-  | (Ap(_, _), Cast(d, Sum(_) | Rec(_, Sum(_)), Unknown(_)))
-  | (Ap(_, _), Cast(d, Unknown(_), Sum(_) | Rec(_, Sum(_)))) =>
+  | (
+      Ap(_, _),
+      Cast(
+        d,
+        {term: Sum(_) | Rec(_, {term: Sum(_), _}), _},
+        {term: Unknown(_), _},
+      ),
+    )
+  | (
+      Ap(_, _),
+      Cast(
+        d,
+        {term: Unknown(_), _},
+        {term: Sum(_) | Rec(_, {term: Sum(_), _}), _},
+      ),
+    ) =>
     matches(dp, d)
   | (Ap(_, _), _) => DoesNotMatch
 
@@ -127,15 +153,33 @@ let rec matches = (dp: Pat.t, d: DHExp.t): match_result =>
     ctr == ctr' ? Matches(Environment.empty) : DoesNotMatch
   | (
       Constructor(ctr),
-      Cast(d, Sum(sm1) | Rec(_, Sum(sm1)), Sum(sm2) | Rec(_, Sum(sm2))),
+      Cast(
+        d,
+        {term: Sum(sm1) | Rec(_, {term: Sum(sm1), _}), _},
+        {term: Sum(sm2) | Rec(_, {term: Sum(sm2), _}), _},
+      ),
     ) =>
     switch (cast_sum_maps(sm1, sm2)) {
     | Some(castmap) => matches_cast_Sum(ctr, None, d, [castmap])
     | None => DoesNotMatch
     }
-  | (Constructor(_), Cast(d, Sum(_) | Rec(_, Sum(_)), Unknown(_))) =>
+  | (
+      Constructor(_),
+      Cast(
+        d,
+        {term: Sum(_) | Rec(_, {term: Sum(_), _}), _},
+        {term: Unknown(_), _},
+      ),
+    ) =>
     matches(dp, d)
-  | (Constructor(_), Cast(d, Unknown(_), Sum(_) | Rec(_, Sum(_)))) =>
+  | (
+      Constructor(_),
+      Cast(
+        d,
+        {term: Unknown(_), _},
+        {term: Sum(_) | Rec(_, {term: Sum(_), _}), _},
+      ),
+    ) =>
     matches(dp, d)
   | (Constructor(_), _) => DoesNotMatch
 
@@ -160,14 +204,14 @@ let rec matches = (dp: Pat.t, d: DHExp.t): match_result =>
         ds,
       );
     }
-  | (Tuple(dps), Cast(d, Prod(tys), Prod(tys'))) =>
+  | (Tuple(dps), Cast(d, {term: Prod(tys), _}, {term: Prod(tys'), _})) =>
     assert(List.length(tys) == List.length(tys'));
     matches_cast_Tuple(
       dps,
       d,
       List.map(p => [p], List.combine(tys, tys')),
     );
-  | (Tuple(dps), Cast(d, Prod(tys), Unknown(_))) =>
+  | (Tuple(dps), Cast(d, {term: Prod(tys), _}, {term: Unknown(_), _})) =>
     matches_cast_Tuple(
       dps,
       d,
@@ -176,7 +220,7 @@ let rec matches = (dp: Pat.t, d: DHExp.t): match_result =>
         List.combine(tys, List.init(List.length(tys), const_unknown)),
       ),
     )
-  | (Tuple(dps), Cast(d, Unknown(_), Prod(tys'))) =>
+  | (Tuple(dps), Cast(d, {term: Unknown(_), _}, {term: Prod(tys'), _})) =>
     matches_cast_Tuple(
       dps,
       d,
@@ -187,12 +231,21 @@ let rec matches = (dp: Pat.t, d: DHExp.t): match_result =>
     )
   | (Tuple(_), Cast(_)) => DoesNotMatch
   | (Tuple(_), _) => DoesNotMatch
-  | (Cons(_) | ListLit(_), Cast(d, List(ty1), List(ty2))) =>
+  | (
+      Cons(_) | ListLit(_),
+      Cast(d, {term: List(ty1), _}, {term: List(ty2), _}),
+    ) =>
     matches_cast_Cons(dp, d, [(ty1, ty2)])
-  | (Cons(_) | ListLit(_), Cast(d, Unknown(_), List(ty2))) =>
-    matches_cast_Cons(dp, d, [(Unknown(Internal), ty2)])
-  | (Cons(_) | ListLit(_), Cast(d, List(ty1), Unknown(_))) =>
-    matches_cast_Cons(dp, d, [(ty1, Unknown(Internal))])
+  | (
+      Cons(_) | ListLit(_),
+      Cast(d, {term: Unknown(_), _}, {term: List(ty2), _}),
+    ) =>
+    matches_cast_Cons(dp, d, [(Unknown(Internal) |> Typ.fresh, ty2)])
+  | (
+      Cons(_) | ListLit(_),
+      Cast(d, {term: List(ty1), _}, {term: Unknown(_), _}),
+    ) =>
+    matches_cast_Cons(dp, d, [(ty1, Unknown(Internal) |> Typ.fresh)])
   | (Cons(_, _), Cons(_, _))
   | (ListLit(_), Cons(_, _))
   | (Cons(_, _), ListLit(_))
@@ -233,13 +286,25 @@ and matches_cast_Sum =
       }
     | _ => IndetMatch
     }
-  | Cast(d', Sum(sm1) | Rec(_, Sum(sm1)), Sum(sm2) | Rec(_, Sum(sm2))) =>
+  | Cast(
+      d',
+      {term: Sum(sm1) | Rec(_, {term: Sum(sm1), _}), _},
+      {term: Sum(sm2) | Rec(_, {term: Sum(sm2), _}), _},
+    ) =>
     switch (cast_sum_maps(sm1, sm2)) {
     | Some(castmap) => matches_cast_Sum(ctr, dp, d', [castmap, ...castmaps])
     | None => DoesNotMatch
     }
-  | Cast(d', Sum(_) | Rec(_, Sum(_)), Unknown(_))
-  | Cast(d', Unknown(_), Sum(_) | Rec(_, Sum(_))) =>
+  | Cast(
+      d',
+      {term: Sum(_) | Rec(_, {term: Sum(_), _}), _},
+      {term: Unknown(_), _},
+    )
+  | Cast(
+      d',
+      {term: Unknown(_), _},
+      {term: Sum(_) | Rec(_, {term: Sum(_), _}), _},
+    ) =>
     matches_cast_Sum(ctr, dp, d', castmaps)
   | Invalid(_)
   | Let(_)
@@ -298,7 +363,7 @@ and matches_cast_Tuple =
         Matches(Environment.empty),
       );
     }
-  | Cast(d', Prod(tys), Prod(tys')) =>
+  | Cast(d', {term: Prod(tys), _}, {term: Prod(tys'), _}) =>
     if (List.length(dps) != List.length(tys)) {
       DoesNotMatch;
     } else {
@@ -309,14 +374,14 @@ and matches_cast_Tuple =
         List.map2(List.cons, List.combine(tys, tys'), elt_casts),
       );
     }
-  | Cast(d', Prod(tys), Unknown(_)) =>
+  | Cast(d', {term: Prod(tys), _}, {term: Unknown(_), _}) =>
     let tys' = List.init(List.length(tys), const_unknown);
     matches_cast_Tuple(
       dps,
       d',
       List.map2(List.cons, List.combine(tys, tys'), elt_casts),
     );
-  | Cast(d', Unknown(_), Prod(tys')) =>
+  | Cast(d', {term: Unknown(_), _}, {term: Prod(tys'), _}) =>
     let tys = List.init(List.length(tys'), const_unknown);
     matches_cast_Tuple(
       dps,
@@ -374,7 +439,7 @@ and matches_cast_Cons =
           List.map(
             (c: (Typ.t, Typ.t)) => {
               let (ty1, ty2) = c;
-              (Typ.List(ty1), Typ.List(ty2));
+              (Typ.List(ty1) |> Typ.fresh, Typ.List(ty2) |> Typ.fresh);
             },
             elt_casts,
           );
@@ -419,7 +484,7 @@ and matches_cast_Cons =
           List.map(
             (c: (Typ.t, Typ.t)) => {
               let (ty1, ty2) = c;
-              (Typ.List(ty1), Typ.List(ty2));
+              (Typ.List(ty1) |> Typ.fresh, Typ.List(ty2) |> Typ.fresh);
             },
             elt_casts,
           );
@@ -439,7 +504,7 @@ and matches_cast_Cons =
           List.map(
             (c: (Typ.t, Typ.t)) => {
               let (ty1, ty2) = c;
-              (Typ.List(ty1), Typ.List(ty2));
+              (Typ.List(ty1) |> Typ.fresh, Typ.List(ty2) |> Typ.fresh);
             },
             elt_casts,
           );
@@ -452,12 +517,20 @@ and matches_cast_Cons =
       }
     | _ => failwith("called matches_cast_Cons with non-list pattern")
     }
-  | Cast(d', List(ty1), List(ty2)) =>
+  | Cast(d', {term: List(ty1), _}, {term: List(ty2), _}) =>
     matches_cast_Cons(dp, d', [(ty1, ty2), ...elt_casts])
-  | Cast(d', List(ty1), Unknown(_)) =>
-    matches_cast_Cons(dp, d', [(ty1, Unknown(Internal)), ...elt_casts])
-  | Cast(d', Unknown(_), List(ty2)) =>
-    matches_cast_Cons(dp, d', [(Unknown(Internal), ty2), ...elt_casts])
+  | Cast(d', {term: List(ty1), _}, {term: Unknown(_), _}) =>
+    matches_cast_Cons(
+      dp,
+      d',
+      [(ty1, Unknown(Internal) |> Typ.fresh), ...elt_casts],
+    )
+  | Cast(d', {term: Unknown(_), _}, {term: List(ty2), _}) =>
+    matches_cast_Cons(
+      dp,
+      d',
+      [(Unknown(Internal) |> Typ.fresh, ty2), ...elt_casts],
+    )
   | Cast(_, _, _) => DoesNotMatch
   | Var(_) => DoesNotMatch
   | Invalid(_) => IndetMatch

@@ -40,13 +40,9 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
   switch (mode) {
   | Syn => d
   | SynFun =>
-    switch (self_ty) {
-    | Unknown(prov) =>
-      DHExp.fresh_cast(
-        d,
-        Unknown(prov),
-        Arrow(Unknown(prov), Unknown(prov)),
-      )
+    switch (Typ.term_of(self_ty)) {
+    | Unknown(_) =>
+      DHExp.fresh_cast(d, self_ty, Arrow(self_ty, self_ty) |> Typ.fresh)
     | Arrow(_) => d
     | _ => failwith("Elaborator.wrap: SynFun non-arrow-type")
     }
@@ -57,46 +53,43 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | ListLit(_)
     | ListConcat(_)
     | Cons(_) =>
-      switch (ana_ty) {
-      | Unknown(prov) =>
-        DHExp.fresh_cast(d, List(Unknown(prov)), Unknown(prov))
+      switch (Typ.term_of(ana_ty)) {
+      | Unknown(_) => DHExp.fresh_cast(d, List(ana_ty) |> Typ.fresh, ana_ty)
       | _ => d
       }
     | Fun(_) =>
       /* See regression tests in Documentation/Dynamics */
       let (_, ana_out) = Typ.matched_arrow(ctx, ana_ty);
       let (self_in, _) = Typ.matched_arrow(ctx, self_ty);
-      DHExp.fresh_cast(d, Arrow(self_in, ana_out), ana_ty);
+      DHExp.fresh_cast(d, Arrow(self_in, ana_out) |> Typ.fresh, ana_ty);
     | Tuple(ds) =>
-      switch (ana_ty) {
+      switch (Typ.term_of(ana_ty)) {
       | Unknown(prov) =>
-        let us = List.init(List.length(ds), _ => Typ.Unknown(prov));
-        DHExp.fresh_cast(d, Prod(us), Unknown(prov));
+        let us =
+          List.init(List.length(ds), _ => Typ.Unknown(prov) |> Typ.fresh);
+        DHExp.fresh_cast(d, Prod(us) |> Typ.fresh, ana_ty);
       | _ => d
       }
     | Constructor(_) =>
-      switch (ana_ty, self_ty) {
-      | (Unknown(prov), Rec(_, Sum(_)))
-      | (Unknown(prov), Sum(_)) =>
-        DHExp.fresh_cast(d, self_ty, Unknown(prov))
+      switch (ana_ty |> Typ.term_of, self_ty |> Typ.term_of) {
+      | (Unknown(_), Rec(_, {term: Sum(_), _}))
+      | (Unknown(_), Sum(_)) => DHExp.fresh_cast(d, self_ty, ana_ty)
       | _ => d
       }
     | Ap(_, f, _) =>
       switch (DHExp.term_of(f)) {
       | Constructor(_) =>
-        switch (ana_ty, self_ty) {
-        | (Unknown(prov), Rec(_, Sum(_)))
-        | (Unknown(prov), Sum(_)) =>
-          DHExp.fresh_cast(d, self_ty, Unknown(prov))
+        switch (ana_ty |> Typ.term_of, self_ty |> Typ.term_of) {
+        | (Unknown(_), Rec(_, {term: Sum(_), _}))
+        | (Unknown(_), Sum(_)) => DHExp.fresh_cast(d, self_ty, ana_ty)
         | _ => d
         }
       | StaticErrorHole(_, g) =>
         switch (DHExp.term_of(g)) {
         | Constructor(_) =>
-          switch (ana_ty, self_ty) {
-          | (Unknown(prov), Rec(_, Sum(_)))
-          | (Unknown(prov), Sum(_)) =>
-            DHExp.fresh_cast(d, self_ty, Unknown(prov))
+          switch (ana_ty |> Typ.term_of, self_ty |> Typ.term_of) {
+          | (Unknown(_), Rec(_, {term: Sum(_), _}))
+          | (Unknown(_), Sum(_)) => DHExp.fresh_cast(d, self_ty, ana_ty)
           | _ => d
           }
         | _ => DHExp.fresh_cast(d, self_ty, ana_ty)
@@ -148,7 +141,7 @@ let wrap = (m, exp: Exp.t): DHExp.t => {
     let self_ty =
       switch (Self.typ_of_exp(ctx, self)) {
       | Some(self_ty) => Typ.normalize(ctx, self_ty)
-      | None => Unknown(Internal)
+      | None => Unknown(Internal) |> Typ.fresh
       };
     cast(ctx, mode, self_ty, exp);
   | InHole(
@@ -279,7 +272,7 @@ let uexp_elab = (m: Statics.Map.t, uexp: UExp.t): ElaborationResult.t =>
     let ty =
       switch (fixed_exp_typ(m, uexp)) {
       | Some(ty) => ty
-      | None => Typ.Unknown(Internal)
+      | None => Typ.Unknown(Internal) |> Typ.fresh
       };
     Elaborates(d, ty, Delta.empty);
   };

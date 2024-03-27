@@ -74,7 +74,7 @@ let common_err_view = (cls: Cls.t, err: Info.error_common) =>
       text("Function argument type"),
       Type.view(ty),
       text("inconsistent with"),
-      Type.view(Prod([])),
+      Type.view(Prod([]) |> Typ.fresh),
     ]
   | NoType(FreeConstructor(name)) => [code_err(name), text("not found")]
   | Inconsistent(WithArrow(typ)) => [
@@ -139,17 +139,20 @@ let typ_ok_view = (cls: Cls.t, ok: Info.ok_typ) =>
   | Type(_) when cls == Typ(EmptyHole) => [text("Fillable by any type")]
   | Type(ty) => [Type.view(ty)]
   | TypeAlias(name, ty_lookup) => [
-      Type.view(Var(name)),
+      Type.view(Var(name) |> Typ.fresh),
       text("is an alias for"),
       Type.view(ty_lookup),
     ]
-  | Variant(name, _sum_ty) => [Type.view(Var(name))]
+  | Variant(name, _sum_ty) => [Type.view(Var(name) |> Typ.fresh)]
   | VariantIncomplete(_sum_ty) => [text("is incomplete")]
   };
 
 let typ_err_view = (ok: Info.error_typ) =>
   switch (ok) {
-  | FreeTypeVariable(name) => [Type.view(Var(name)), text("not found")]
+  | FreeTypeVariable(name) => [
+      Type.view(Var(name) |> Typ.fresh),
+      text("not found"),
+    ]
   | BadToken(token) => [
       code_err(token),
       text("not a type or type operator"),
@@ -158,7 +161,7 @@ let typ_err_view = (ok: Info.error_typ) =>
   | WantConstructorFoundType(_) => [text("Expected a constructor")]
   | WantTypeFoundAp => [text("Must be part of a sum type")]
   | DuplicateConstructor(name) => [
-      Type.view(Var(name)),
+      Type.view(Var(name) |> Typ.fresh),
       text("already used in this sum"),
     ]
   };
@@ -192,9 +195,15 @@ let tpat_view = (_: Cls.t, status: Info.status_tpat) =>
     div_err([text("Must begin with a capital letter")])
   | InHole(NotAVar(_)) => div_err([text("Expected an alias")])
   | InHole(ShadowsType(name)) when Form.is_base_typ(name) =>
-    div_err([text("Can't shadow base type"), Type.view(Var(name))])
+    div_err([
+      text("Can't shadow base type"),
+      Type.view(Var(name) |> Typ.fresh),
+    ])
   | InHole(ShadowsType(name)) =>
-    div_err([text("Can't shadow existing alias"), Type.view(Var(name))])
+    div_err([
+      text("Can't shadow existing alias"),
+      Type.view(Var(name) |> Typ.fresh),
+    ])
   };
 
 let secondary_view = (cls: Cls.t) => div_ok([text(cls |> Cls.show)]);
