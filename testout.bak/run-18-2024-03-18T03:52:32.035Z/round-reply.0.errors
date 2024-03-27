@@ -1,0 +1,25 @@
+The following static errors were discovered:
+Error in term:
+  fun (playlist, action) ->
+ case action
+ | PlayTrack(track) => begin_play(track, playlist)
+| StopTrack(track) => ?
+end Rul end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  begin_play
+Nature of error: Variable begin_play is not bound
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  Rul end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  StopTrack
+Nature of error: Constructor is not defined
+Error in term:
+  PlayTrack
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

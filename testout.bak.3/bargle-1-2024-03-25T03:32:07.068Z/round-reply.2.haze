@@ -1,0 +1,15 @@
+fun model, action ->
+  case action
+  | AddBooking(user, booking) =>
+    let user_bookings = getUserBookings(model, user) in
+    let updated_bookings = rm_booking(user, List.length(user_bookings), user_bookings) in
+    {model with bookings = updated_bookings}
+  | RemoveBooking(user, booking_id) =>
+    let user_bookings = getUserBookings(model, user) in
+    let updated_bookings = List.filter((fun booking -> booking.id != booking_id), user_bookings) in
+    {model with bookings = updated_bookings}
+  | Login(user) =>
+    {model with currentUser = Some(user)}
+  | Logout =>
+    {model with currentUser = None}
+  end

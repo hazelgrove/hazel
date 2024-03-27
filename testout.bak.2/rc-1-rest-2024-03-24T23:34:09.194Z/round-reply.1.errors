@@ -1,0 +1,26 @@
+The following static errors were discovered:
+Error in term:
+  snd
+Nature of error: Variable snd is not bound
+Error in term:
+  case action
+ | AddTodo => add(model)
+| RemoveTodo(i) => (remove(i, snd(model)), fst(model))
+| ToggleTodo(i) => (toggle(i, snd(model)), fst(model))
+| UpdateBuffer(s) => (snd(model), s)
+end
+Nature of error: Expecting branches to have consistent types but got types: [Todo], ([Todo], ?), ([Todo], ?), (?, String)
+Error in term:
+  fst
+Nature of error: Variable fst is not bound
+Error in term:
+  snd
+Nature of error: Variable snd is not bound
+Error in term:
+  snd
+Nature of error: Variable snd is not bound
+Error in term:
+  fst
+Nature of error: Variable fst is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

@@ -1,0 +1,6 @@
+
+fun model, action ->
+  case action
+  | NoOp => model
+  | SomeAction(some_data) => {model with someField = some_data}
+  end

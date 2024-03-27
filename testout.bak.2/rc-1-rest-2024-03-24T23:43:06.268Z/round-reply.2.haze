@@ -1,0 +1,6 @@
+fun model, action ->
+  case action
+  | UpdateTitle(new_title) => { model with title = new_title }
+  | UpdateCount(delta) => { model with count = model.count + delta }
+  | ResetModel => {title = default_title; count = 0}
+  end

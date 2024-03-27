@@ -1,0 +1,26 @@
+fun (model, action) ->
+  case action
+  | SelectEmoji(emoji) =>
+    let (grid, _, availableEmojis) = model in
+    if List.contains(emoji, availableEmojis) then
+      (grid, emoji, availableEmojis)
+    else
+      model
+  | StampEmoji((row, col)) =>
+    let (grid, currentEmoji, _) = model in
+    let updatedGrid = updateGrid(grid, row, col, currentEmoji) in
+    (updatedGrid, currentEmoji, availableEmojis)
+  | ClearCell((row, col)) =>
+    let (grid, currentEmoji, _) = model in
+    let updatedGrid = updateGrid(grid, row, col, "") in
+    (updatedGrid, currentEmoji, availableEmojis)
+  | ClearGrid =>
+    let (_, currentEmoji, _) = model in
+    let clearedGrid = clearGrid(grid) in
+    (clearedGrid, currentEmoji, availableEmojis)
+  | FillRow(row) =>
+    let (grid, currentEmoji, _) = model in
+    let updatedGrid = fillRowInGrid(grid, row, currentEmoji) in
+    (updatedGrid, currentEmoji, availableEmojis)
+  end
+  

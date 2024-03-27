@@ -1,0 +1,11 @@
+
+fun m, a ->
+  case a
+  | Submit(u, b) => let ubookings = getUserBookings(m, u) in
+                    let new_bookings = rm_booking(u, b, ubookings) in
+                    setModelBookings(m,new_bookings)
+  | Cancel(bid) => let bookings = getBookings(m) in
+                   let new_bookings = List.filter(fun b -> b.id != bid, bookings) in
+                   setModelBookings(m, new_bookings)
+  | ChangeFormState(f) => setModelFormState(m, f)
+  end

@@ -1,0 +1,7 @@
+fun p, action ->
+      case action
+      | Add(name, title) => Add(title, p)
+      | Delete(title) => Delete(title, p)
+      | Move(old_index, new_index) => Move(old_index, new_index, p)
+      | View => p
+      end

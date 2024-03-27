@@ -1,0 +1,62 @@
+The following static errors were discovered:
+The suggested filling has the wrong expected type: expected ((Model, Action) -> Model), but got ((?, ?) -> (?, [?])).
+Error in term:
+  List.filter
+Nature of error: Variable List.filter is not bound
+Error in term:
+  r.id
+Nature of error: "r.id" isn't a valid token
+Error in term:
+  reservations List.filter
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.reservations ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  reservations
+Nature of error: Variable reservations is not bound
+Error in term:
+  ? model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  reservations
+Nature of error: Variable reservations is not bound
+Error in term:
+  reservations List.filter(fun r ->
+ r.id != reservation_id, model.reservations) ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.reservations
+Nature of error: "model.reservations" isn't a valid token
+Error in term:
+  model.reservations
+Nature of error: "model.reservations" isn't a valid token
+Error in term:
+  reservations reservation
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  capacity ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  roomCapacity
+Nature of error: Variable roomCapacity is not bound
+Error in term:
+  roomCapacity capacity ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  CheckIn
+Nature of error: Constructor is not defined
+Error in term:
+  SetRoomCapacity
+Nature of error: Constructor is not defined
+Error in term:
+  CheckOut
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

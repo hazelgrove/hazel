@@ -1,0 +1,51 @@
+The following static errors were discovered:
+Error in term:
+  snd
+Nature of error: Variable snd is not bound
+Error in term:
+  ? day
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  booking_id ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  x.booking_id
+Nature of error: "x.booking_id" isn't a valid token
+Error in term:
+  case a
+ | AddBooking((user, day, time)) => let booking_id = snd(m) + 1 in
+ let new_booking = ? day; time; user; booking_id ? in
+ let new_state = (new_booking :: snd(m), booking_id) in
+ new_state
+| CancelBooking((user, id)) => let new_stay = List.filter(fun x ->
+ x.user != user && x.booking_id != id)(snd(m)) in
+ (fst(m), new_stay, snd(m))
+| ClearBookings => (fst(m), , snd(m))
+end
+Nature of error: Expecting branches to have consistent types but got types: ([?], Int), (?, ?, ?), (?, [?], ?)
+Error in term:
+  x.user
+Nature of error: "x.user" isn't a valid token
+Error in term:
+  fst
+Nature of error: Variable fst is not bound
+Error in term:
+  snd
+Nature of error: Variable snd is not bound
+Error in term:
+  List.filter
+Nature of error: Variable List.filter is not bound
+Error in term:
+  fst
+Nature of error: Variable fst is not bound
+Error in term:
+  snd
+Nature of error: Variable snd is not bound
+Error in term:
+  snd
+Nature of error: Variable snd is not bound
+Error in term:
+  snd
+Nature of error: Variable snd is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

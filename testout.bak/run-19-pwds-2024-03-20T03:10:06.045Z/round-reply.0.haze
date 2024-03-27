@@ -1,0 +1,15 @@
+fun model, action ->
+  case action
+  | SetPassword(password) => 
+      {
+        model with 
+        password = password; 
+        strength = String.length(password) |> strength_of; 
+      }
+  | SetCriteria(criteria) => 
+      {
+        model with
+        criteria = criteria; 
+        strength = calculateStrength(model.password, criteria);
+      }
+  end

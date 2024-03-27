@@ -1,0 +1,10 @@
+fun model, action ->
+    case action of
+    | AddBooking ((user, day, time_of_day)) => 
+        let new_booking = ((day, time_of_day), user, snd(snd(model))) in
+        ((day, time_of_day), user)::(getBookings(model)), snd(snd(model)) + 1
+    | CancelBooking ((user, id)) => 
+        (fst(model), rm_booking(user, id, getBookings(model)), snd(snd(model)))
+    | ClearBookings => 
+        (fst(model), [], snd(snd(model)))
+    end

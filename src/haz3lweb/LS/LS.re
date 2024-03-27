@@ -40,6 +40,12 @@ let get_runtest = command =>
   | _ => LSTest.default
   };
 
+let get_get_prompt = command =>
+  switch (command) {
+  | GetPrompt(fo) => fo
+  | _ => FillerOptions.init
+  };
+
 let validate_error_rounds = (num_rounds: string): bool =>
   switch (int_of_string_opt(num_rounds)) {
   | None => false
@@ -51,6 +57,7 @@ let rec parse = (args: arguments, strs): arguments =>
   | ["CHECK", ...rest] => parse_check(rest, args)
   | ["COMPLETIONS", ...rest] => parse_completions(rest, args)
   | ["RUNTEST", ...rest] => parse_runtest(rest, {...args, debug: true})
+  | ["GETPROMPT", ...rest] => parse_get_prompt(rest, args)
   | _ => failwith("LSP: Command not recognized: " ++ usage_command)
   }
 and parse_base = (strs, args: arguments): arguments =>
@@ -127,6 +134,18 @@ and parse_completions = (strs, args: arguments): arguments =>
   | ["types", ...rest] =>
     parse_base(rest, {...args, command: Completions(Types)})
   | _ => failwith("LSP: EXN: Usage: " ++ usage_completions)
+  }
+and parse_get_prompt = (strs, args: arguments): arguments =>
+  switch (strs) {
+  | ["--expected_type", ...rest] =>
+    let rt = get_get_prompt(args.command);
+    let options = {...rt, expected_type: true};
+    parse_get_prompt(rest, {...args, command: GetPrompt(options)});
+  | ["--relevant_ctx", ...rest] =>
+    let rt = get_get_prompt(args.command);
+    let options = {...rt, relevant_ctx: true};
+    parse_get_prompt(rest, {...args, command: GetPrompt(options)});
+  | rest => parse_base(rest, args)
   }
 and parse_runtest = (strs, args: arguments): arguments =>
   switch (strs) {
@@ -220,6 +239,12 @@ let get_args = (): list(string) => {
   );
 };
 
+let or_empty = (s: option(string)): string =>
+  switch (s) {
+  | None => ""
+  | Some(x) => x
+  };
+
 let main = ({debug, data, command, init_ctx}: LSActions.arguments) => {
   let db = s => debug ? print_endline(s) : ();
   db(Printf.sprintf("LSP: Command: %s", LSActions.show_command(command)));
@@ -228,11 +253,6 @@ let main = ({debug, data, command, init_ctx}: LSActions.arguments) => {
     LSCompletions.go(~db, ~settings={data, completions, init_ctx})
   | Check(check) => LSChecker.go(~db, ~settings={data, check, init_ctx})
   | RunTest({run_name, key, options, source_path}) =>
-    let or_empty = (s: option(string)): string =>
-      switch (s) {
-      | None => ""
-      | Some(x) => x
-      };
     LSTest.go(
       ~db,
       ~settings={
@@ -246,7 +266,22 @@ let main = ({debug, data, command, init_ctx}: LSActions.arguments) => {
         init_ctx,
       },
       ~key,
-    );
+    )
+  | GetPrompt(options) =>
+    LSTest.get_prompt_info(
+      ~db,
+      ~settings={
+        options,
+        run_name: "",
+        source_path: "",
+        sketch: data.program,
+        common: or_empty(data.common),
+        prelude: or_empty(data.prelude),
+        epilogue: or_empty(data.epilogue),
+        init_ctx,
+      },
+    )
+    |> print_endline
   };
 };
 

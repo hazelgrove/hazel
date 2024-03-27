@@ -1,0 +1,18 @@
+fun (model, action) ->
+case action
+| Paint(emoji) => 
+  { model with current_emoji = emoji }
+| Click(row, col) => 
+  { model with grid = updateGrid(model.grid, row, col, model.current_emoji) }
+| Key(c) => 
+  case string_sub(c, 0, 1)
+  | "r" => 
+    { model with grid = fillRowInGrid(model.grid, model.highlighted_row, model.current_emoji) }
+  | "c" => 
+    { model with grid = clearGrid(model.grid) }
+  | _ => 
+    model
+  end
+| Tick => 
+  model
+end

@@ -1,0 +1,15 @@
+let update: (Model, Action) -> Model =
+  fun (model, action) ->
+  case action
+  | CalculateStrength(password) => { model with strength = calculateStrength(password, model.criteria) }
+  | AddTransform(transform) => 
+      let new_transforms = String.transform(model.password, [transform] @ model.transforms) in 
+      { model with password = string_concat(model.password, new_transforms),
+                   strength = strength_of(String.length(model.password)) }
+  | Reverse => { model with password = String.reverse(model.password) }
+  | RemoveSubstring(start, end_) => 
+      let new_password = string_sub(model.password, start, end_)  in 
+      { model with password = new_password,
+                  strength = strength_of(String.length(new_password)) }
+  end
+in

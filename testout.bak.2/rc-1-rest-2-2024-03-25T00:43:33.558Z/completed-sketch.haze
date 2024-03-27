@@ -1,0 +1,11 @@
+# Update Playlist app model based on an action #
+
+let update: (PlayList, PlayListAction) -> PlayList =
+  
+fun model, action ->
+case action
+| Add(song) => model.song_list :: song
+| Remove(index) => List.remove(index, model.song_list)
+| Play => model
+end
+in

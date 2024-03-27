@@ -1,0 +1,9 @@
+fun model, action ->
+  case action
+  | Book(day, hour, user_id) => 
+      let bookings = getUserBookings(model, user_id)
+      in Model.update(bookings @ [Booking(day, hour, user_id)])
+  | Cancel(booking_id, user_id) =>
+      let bookings = getUserBookings(model, user_id)
+      in Model.update(rm_booking(user_id, booking_id, bookings)) 
+  end

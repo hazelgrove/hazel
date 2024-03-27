@@ -1,0 +1,6 @@
+fun playlist, action ->
+  case action
+  | PlayListAction.Add(song) => { playlist with songs = song :: get_songs(playlist) }
+  | PlayListAction.Remove(song) => { playlist with songs = List.remove(song, get_songs(playlist)) }
+  | PlayListAction.ChangeState(state) => { playlist with state = state } 
+  end

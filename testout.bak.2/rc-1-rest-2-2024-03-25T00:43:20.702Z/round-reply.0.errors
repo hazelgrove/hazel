@@ -1,0 +1,12 @@
+The following static errors were discovered:
+Error in term:
+  GetSongs
+Nature of error: Constructor is not defined
+Error in term:
+  GetState
+Nature of error: Constructor is not defined
+Error in term:
+  FetchSongs
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

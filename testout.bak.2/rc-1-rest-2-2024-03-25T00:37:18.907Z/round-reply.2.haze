@@ -1,0 +1,13 @@
+fun pl, action ->
+  case action
+    | AddSong(song) =>
+        let songs = get_songs(pl) in
+        {pl with songs = song::songs}
+    | ToggleState =>
+        let state = get_state(pl) in
+        let new_state = case state
+                         | Paused => Playing 
+                         | Playing => Paused 
+                         end in
+        {pl with state = new_state}
+  end

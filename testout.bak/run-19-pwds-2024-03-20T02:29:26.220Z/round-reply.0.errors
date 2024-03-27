@@ -1,0 +1,6 @@
+The following static errors were discovered:
+Error in term:
+  snd model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

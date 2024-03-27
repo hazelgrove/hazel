@@ -1,0 +1,10 @@
+# TODO MVU: Handle TODO actions to update the app model #
+
+let update: (Model, Action) -> Model =
+  fun (model, action) ->
+  case action
+  | AddTodo(txt) => { model with todos = model.todos @ [mk_todo(txt)]}
+  | ToggleTodo(id) => { model with todos = List.map((fun todo -> toggle_todo(id, todo)), model.todos)}
+  | DeleteTodo(id) => { model with todos = List.filter((fun todo -> not_delete_todo(id, todo)), model.todos)}
+  end
+in

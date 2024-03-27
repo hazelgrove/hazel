@@ -1,0 +1,7 @@
+fun model, action ->
+  case action
+    | AddTodo(text) => add(text, model)
+    | RemoveTodo(idx) => remove(idx, model.todos)
+    | Toggle(idx) => toggle(idx, model.todos)
+    | SetFilter(filter) => set_filter(filter, model)
+    end

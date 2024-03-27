@@ -169,41 +169,6 @@ let hazel_syntax_notes = [
  REMEMBER: HACKS in Code, Measured for reponse-wrapping ~ form.contents
  */
 
-let _ctx_prompt = (ctx: Ctx.t, expected_ty: Typ.t): string => {
-  /* If expected_ty not unknown, filter ctx to only include vars consistent with that type,
-       or of arrow type where return type is consistent with that type. convert the var names and types
-       to strings and seperte with commas.
-     */
-  switch (expected_ty) {
-  | Unknown(_) => "LSP: No variables in scope are obviously relevant here\n"
-  | expected_ty =>
-    let nontrivially_consistent =
-        (ctx: Ctx.t, ty_expect: Typ.t, ty_given: Typ.t): bool =>
-      switch (ty_expect, ty_given) {
-      //| (Unknown(_), _)
-      | (_, Unknown(_)) => false
-      | _ => Typ.is_consistent(ctx, ty_expect, ty_given)
-      };
-    let ctx' =
-      List.filter_map(
-        fun
-        | Ctx.VarEntry({name, typ: Arrow(_, typ), _})
-        | Ctx.ConstructorEntry({name, typ: Arrow(_, typ), _})
-            when nontrivially_consistent(ctx, expected_ty, typ) =>
-          Some(name ++ ": " ++ Typ.to_string(typ))
-        | Ctx.VarEntry({name, typ, _})
-        | Ctx.ConstructorEntry({name, typ, _})
-            when nontrivially_consistent(ctx, expected_ty, typ) =>
-          Some(name ++ ":" ++ Typ.to_string(typ))
-        | _ => None,
-        ctx,
-      );
-    "LSP: Consider using the following functions and constructors relevant to the expected type:\n  "
-    ++ String.concat(",\n  ", ctx')
-    ++ "\n";
-  };
-};
-
 let mk_user_message = (~expected_ty, ~relevant_ctx, sketch: string): string =>
   "{\n"
   ++ String.concat(

@@ -1,0 +1,4 @@
+fun (m, a) ->
+  case a
+  | BookRoom => { m with room_booked = True }
+  | Cancel => { m with room_booked = False } end

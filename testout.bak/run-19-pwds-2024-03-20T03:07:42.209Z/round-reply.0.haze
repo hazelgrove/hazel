@@ -1,0 +1,7 @@
+fun model, action ->
+    case action
+      | UpdatePassword(pass) => (pass, model.1, model.2)
+      | ClearCriteria => (model.0, [], model.2)
+      | AddCriterion(crit) => (model.0, crit::model.1, model.2)
+      | RemoveCriterion(crit) => (model.0, List.remove(crit, model.1), model.2)
+    end

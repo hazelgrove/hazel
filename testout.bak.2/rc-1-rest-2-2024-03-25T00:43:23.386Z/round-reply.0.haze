@@ -1,0 +1,9 @@
+fun (m, act) ->
+  case act
+    | Resume => m
+    | Pause => m
+    | Play(id) => m
+    | Stop => m
+    | Add(id) =>  m
+    | Remove(id) => m
+  end

@@ -1,0 +1,145 @@
+The following static errors were discovered:
+The suggested filling has the wrong expected type: expected ((Model, Action) -> Model), but got ((?, ?) -> (?, ?, ?)).
+Error in term:
+  model.counter ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  counter
+Nature of error: Variable counter is not bound
+Error in term:
+  model.counter
+Nature of error: "model.counter" isn't a valid token
+Error in term:
+  model.counter ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.counter
+Nature of error: "model.counter" isn't a valid token
+Error in term:
+  model.input
+Nature of error: "model.input" isn't a valid token
+Error in term:
+  model.input
+Nature of error: "model.input" isn't a valid token
+Error in term:
+  model.todos
+Nature of error: "model.todos" isn't a valid token
+Error in term:
+  input
+Nature of error: Variable input is not bound
+Error in term:
+  counter
+Nature of error: Variable counter is not bound
+Error in term:
+  counter
+Nature of error: Variable counter is not bound
+Error in term:
+  counter model.counter ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  input newfield
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.counter
+Nature of error: "model.counter" isn't a valid token
+Error in term:
+  ? todos remove
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? todos model.todos
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  input model.input
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  todos
+Nature of error: Variable todos is not bound
+Error in term:
+  todos
+Nature of error: Variable todos is not bound
+Error in term:
+  todos
+Nature of error: Variable todos is not bound
+Error in term:
+  input
+Nature of error: Variable input is not bound
+Error in term:
+  input
+Nature of error: Variable input is not bound
+Error in term:
+  todos
+Nature of error: Variable todos is not bound
+Error in term:
+  todos add
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  counter
+Nature of error: Variable counter is not bound
+Error in term:
+  input
+Nature of error: Variable input is not bound
+Error in term:
+  model.input
+Nature of error: "model.input" isn't a valid token
+Error in term:
+  todos remove
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  input model.input
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  todos model.todos
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  input model.input
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  todos toggle
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.counter ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? todos add
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? todos toggle
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  counter model.counter ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.counter ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  counter model.counter ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.todos
+Nature of error: "model.todos" isn't a valid token
+Error in term:
+  model.todos
+Nature of error: "model.todos" isn't a valid token
+Error in term:
+  counter model.counter ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.counter
+Nature of error: "model.counter" isn't a valid token
+Error in term:
+  Input
+Nature of error: Constructor is not defined
+Error in term:
+  Add
+Nature of error: Constructor is not defined
+Error in term:
+  Noop
+Nature of error: Constructor is not defined
+Error in term:
+  Toggle
+Nature of error: Constructor is not defined
+Error in term:
+  Remove
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

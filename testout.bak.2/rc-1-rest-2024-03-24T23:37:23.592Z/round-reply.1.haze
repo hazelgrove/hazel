@@ -1,0 +1,5 @@
+fun (model, action) ->
+    case action
+    | Toggle(index) => {model with todos = toggle(index, model.todos)}
+    | Remove(index) => {model with todos = remove(index, model.todos)}
+    | Add(text) => {model with todos = add(text, model)}

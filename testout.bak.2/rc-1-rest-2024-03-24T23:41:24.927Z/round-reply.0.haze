@@ -1,0 +1,17 @@
+
+fun model, action ->
+  match action with
+    | AddTodo =>
+      let buffer, todos = model in
+      ((buffer, ((buffer, False)::todos)))
+    | RemoveTodo(idx) =>
+      let buffer, todos = model in
+      ((buffer, List.removei(todos, idx)))
+    | ToggleTodo(idx) =>
+      let buffer, todos = model in
+      let todo = List.nth(todos, idx) in
+      ((buffer, List.updatei(todos, idx, ((fst(todo), not snd(todo))))))
+    | UpdateBuffer(text) =>
+      let buffer, todos = model in
+      ((text, todos))
+  end

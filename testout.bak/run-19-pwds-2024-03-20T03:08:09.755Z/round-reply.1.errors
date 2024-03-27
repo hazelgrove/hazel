@@ -1,0 +1,41 @@
+The following static errors were discovered:
+The suggested filling has the wrong expected type: expected ((Model, Action) -> Model), but got ((?, ?) -> [?]).
+Error in term:
+  items item
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.items
+Nature of error: "model.items" isn't a valid token
+Error in term:
+  model.items
+Nature of error: "model.items" isn't a valid token
+Error in term:
+  items
+Nature of error: Variable items is not bound
+Error in term:
+  ? items item
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? items List.filter(fun i ->
+ i != item, model.items) ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? items List.filter
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.items ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  items
+Nature of error: Variable items is not bound
+Error in term:
+  items List.filter
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  RemoveItem
+Nature of error: Constructor is not defined
+Error in term:
+  AddItem
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

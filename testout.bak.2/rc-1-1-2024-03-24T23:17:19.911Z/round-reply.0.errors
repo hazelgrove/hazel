@@ -1,0 +1,36 @@
+The following static errors were discovered:
+Error in term:
+  model.password
+Nature of error: "model.password" isn't a valid token
+Error in term:
+  model.password
+Nature of error: "model.password" isn't a valid token
+Error in term:
+  model.criteria
+Nature of error: "model.criteria" isn't a valid token
+Error in term:
+  model.criteria
+Nature of error: "model.criteria" isn't a valid token
+Error in term:
+  model.criteria
+Nature of error: "model.criteria" isn't a valid token
+Error in term:
+  model.criteria
+Nature of error: "model.criteria" isn't a valid token
+Error in term:
+  model.password
+Nature of error: "model.password" isn't a valid token
+Error in term:
+  model.password
+Nature of error: "model.password" isn't a valid token
+Error in term:
+  model.password
+Nature of error: "model.password" isn't a valid token
+Error in term:
+  model.criteria
+Nature of error: "model.criteria" isn't a valid token
+Error in term:
+  List.filter
+Nature of error: Variable List.filter is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

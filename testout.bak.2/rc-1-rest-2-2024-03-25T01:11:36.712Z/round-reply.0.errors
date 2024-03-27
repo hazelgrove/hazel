@@ -1,0 +1,15 @@
+The following static errors were discovered:
+Error in term:
+  updateGrid(grid, row, col, selected_emoji)
+Nature of error: Expecting type Grid but got inconsistent type Model
+Error in term:
+  grid, row, col, 
+Nature of error: Expecting type (Model, Action) but got inconsistent type (Grid, Row, Col, String)
+Error in term:
+  updateGrid(grid, row, col, )
+Nature of error: Expecting type Grid but got inconsistent type Model
+Error in term:
+  grid, row, col, selected_emoji
+Nature of error: Expecting type (Model, Action) but got inconsistent type (Grid, Row, Col, Emoji)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

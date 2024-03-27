@@ -1,0 +1,17 @@
+fun (model, action) ->
+  case action
+  | SubmitForm(user, id, booking) =>
+      let newBookings = rm_booking(user, id, getBookings(model)) in
+      {model with bookings = newBookings; formState = initFormState}
+  | UpdateForm(formState) => {model with formState = formState}
+  | Search(query) => 
+      let userBookings = getUserBookings(model, query) in
+      let sortedBookings = List.sort(userBookings, fun (a, b) -> string_compare(a.room, b.room)) in
+      {model with searchResults = sortedBookings}
+  | LoadUserBookings(user) => 
+      let userBookings = getUserBookings(model, user) in
+      {model with userBookings = userBookings}
+  | CancelBooking(user, id) =>
+      let newBookings = rm_booking(user, id, getBookings(model)) in
+      {model with bookings = newBookings}
+  end

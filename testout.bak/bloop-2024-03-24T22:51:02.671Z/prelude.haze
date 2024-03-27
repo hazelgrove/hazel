@@ -1,0 +1,45 @@
+# ROOM BOOKING MVU PRELUDE #
+
+type Weekday = M + T + W + R + F in
+type TimeOfDay = AM + PM in
+type Time = (Weekday, TimeOfDay) in
+type User = String in
+type BookingID = Int in
+type Booking = (Time, User, BookingID) in
+type BookingFormData = (Time, User) in
+type Model = (BookingFormData, [Booking], BookingID) in
+
+type Action =
+  + AddBooking(User, Weekday, TimeOfDay)
+  + CancelBooking(User, Int)
+  + ClearBookings
+in
+    
+let initFormState = ((M, AM), "") in
+let Model.init: Model = (initFormState, [], 0) in
+
+let getBookings: Model -> [Booking] =
+  fun _, bs,_ -> bs in
+      
+let bookingExists: (Model, Booking) -> Bool =
+  fun model, booking ->
+    List.exists(fun b -> b == booking, getBookings(model))  
+in
+  
+let getUserBookings: (Model, User) -> [Booking] =
+  fun model, user ->
+    List.filter(fun (_, u:User,_) -> u == user, getBookings(model)) 
+in
+
+let getBookingById: (Model, BookingID) -> Booking =
+  fun model, id ->
+    case List.filter(fun (_, _, i:BookingID) -> i == id, getBookings(model))
+      | [booking] => booking
+      | _ => ?  
+    end  
+in
+
+let rm_booking: (User, BookingID, [Booking]) -> [Booking] =
+  fun user, id, bookings ->
+    List.filter(
+      fun (_, u:User, i:BookingID) -> (u!= user) \/ (i!= id), bookings) in

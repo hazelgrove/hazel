@@ -1,0 +1,13 @@
+fun model, action ->
+  case action
+  | LoadData(passwords) ->
+      { model | passwords = passwords, dirty = true }
+  | SetCurrentPassword(index, password) ->
+      { model | currentPassword = string_concat(password), dirty = true }
+  | AddPassword(password) ->
+      let password = String.transform(password, [PasswordCriteria]) in
+      { model | passwords = password::model.passwords, dirty = true }
+  | SetDirty(true) ->
+      { model | dirty = true }
+  | _ -> model
+  end

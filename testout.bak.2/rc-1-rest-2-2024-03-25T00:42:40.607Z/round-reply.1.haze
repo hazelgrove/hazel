@@ -1,0 +1,7 @@
+fun (model, action) ->
+  case action
+  | AddPlaylistList(playlists) => {model with playlists = playlists}
+  | AddPlaylist(playlist) => {model with playlists = playlist :: model.playlists}
+  | RemovePlaylist(playlistId) => {model with playlists = List.filter((fun p -> p.id != playlistId), model.playlists)}
+  | UpdatePlaylist(playlist) => {model with playlists = List.map((fun p -> if p.id == playlist.id then playlist else p), model.playlists)}
+  end

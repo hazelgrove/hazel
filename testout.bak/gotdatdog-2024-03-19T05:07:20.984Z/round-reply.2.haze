@@ -1,0 +1,21 @@
+fun (model, action) ->
+    case action
+    | AddBooking(user, weekday, timeOfDay) => 
+        let (formData, bookings, lastId) = model in
+        let newBooking = ((weekday, timeOfDay), user, lastId + 1) in
+        ((weekday, timeOfDay), user :: bookings, lastId + 1)
+    | CancelBooking(user, id) => 
+        let (formData, bookings, lastId) = model in
+        let newBookings = List.filter (fun (_, _, bookingId) -> bookingId != id) bookings in
+        (formData, newBookings, lastId)
+    | ClearBookings => 
+        let (formData, _, lastId) = model in
+        (formData, [], lastId)
+    | ClearRange((startWeekday, startDayTime), (endWeekday, endDayTime)) => 
+        let (formData, bookings, lastId) = model in
+        let newBookings = List.filter (
+            fun ((weekday, _), _, _) -> 
+                weekdayIndex(weekday) < weekdayIndex(startWeekday) \/ weekdayIndex(weekday) > weekdayIndex(endWeekday)
+            ) bookings
+        in (formData, newBookings, lastId)
+    end

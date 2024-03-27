@@ -1,0 +1,13 @@
+fun (model, action) ->
+  case action
+  | AddTodo => let (buffer, todos) = model in (buffer, (buffer, false)::todos)
+  | RemoveTodo(id) =>
+    let (buffer, todos) = model in 
+    let filtered_todos = List.filter(fun (_, idx) -> idx != id, todos) in
+    (buffer, filtered_todos)
+  | ToggleTodo(id) =>
+    let (buffer, todos) = model in 
+    let toggled_todos = List.map(fun (todo, idx) -> if idx == id then let (content, done) = todo in (content, not done) else todo, todos) in
+    (buffer, toggled_todos)
+  | UpdateBuffer(new_buffer) => (new_buffer, model.todos)
+  end

@@ -1,0 +1,21 @@
+The following static errors were discovered:
+Error in term:
+  case action
+ | ClearCriteria => let ((password, _, strength)) = model in
+ (password, , strength)
+| AddCriterion(criteria) => let ((password, criterias, strength)) = model in
+ (password, criterias ++ criteria, strength)
+| RemoveCriterion(criteria) => let ((password, criterias, strength)) = model in
+ (password, List.filter((? != ?) criteria, criterias), strength)
+| UpdatePassword(password) => let ((_, criterias, _)) = model in
+ (password, criterias, calculateStrength(password, criterias))
+end
+Nature of error: Expecting branches to have consistent types but got types: (?, [?], ?), (?, String, ?), (?, [?], ?), (String, ?, PasswordStrength)
+Error in term:
+  (? != ?) criteria, criterias
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  criteria
+Nature of error: Expecting type String but got inconsistent type [PasswordCriteria]
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

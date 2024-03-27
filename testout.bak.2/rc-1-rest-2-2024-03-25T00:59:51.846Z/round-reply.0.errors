@@ -1,0 +1,12 @@
+The following static errors were discovered:
+Error in term:
+  clearBookings
+Nature of error: Variable clearBookings is not bound
+Error in term:
+  cancelBooking
+Nature of error: Variable cancelBooking is not bound
+Error in term:
+  addBooking
+Nature of error: Variable addBooking is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

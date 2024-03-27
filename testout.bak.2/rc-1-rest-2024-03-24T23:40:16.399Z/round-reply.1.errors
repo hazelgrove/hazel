@@ -1,0 +1,18 @@
+The following static errors were discovered:
+Error in term:
+  model.todos
+Nature of error: "model.todos" isn't a valid token
+Error in term:
+  content, not done
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  List.map
+Nature of error: Variable List.map is not bound
+Error in term:
+  not
+Nature of error: Variable not is not bound
+Error in term:
+  List.filter
+Nature of error: Variable List.filter is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

@@ -1,0 +1,7 @@
+
+fun model, action ->
+case action
+| Add(item) => { model with items = item::model.items }
+| Remove(idx) => { model with items = List.remove_at(idx, model.items) }
+| Clear => { model with items = [] }
+end

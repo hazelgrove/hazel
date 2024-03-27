@@ -1,0 +1,7 @@
+fun model, action ->
+  case action
+  | AddUser(user) => { model with users = user::model.users }
+  | RemoveUser(user_id) => { model with users = List.filter((fun u -> u.id != user_id), model.users) }
+  | AddBooking(booking) => { model with bookings = booking::model.bookings }
+  | RemoveBooking(booking_id) => { model with bookings = List.filter((fun b -> b.id != booking_id), model.bookings) }
+  end

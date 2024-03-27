@@ -1,0 +1,42 @@
+The following static errors were discovered:
+Error in term:
+  Booking
+Nature of error: Constructor is not defined
+Error in term:
+  Time
+Nature of error: Constructor is not defined
+Error in term:
+  Booking
+Nature of error: Constructor is not defined
+Error in term:
+  model.BookingID
+Nature of error: "model.BookingID" isn't a valid token
+Error in term:
+  model.
+Nature of error: "model." isn't a valid token
+Error in term:
+  model.
+Nature of error: "model." isn't a valid token
+Error in term:
+  model.BookingFormData, new_booking :: model. Booking, new_id
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  user, booking_id, model. Booking
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.BookingFormData
+Nature of error: "model.BookingFormData" isn't a valid token
+Error in term:
+  model.BookingID
+Nature of error: "model.BookingID" isn't a valid token
+Error in term:
+  model.BookingID
+Nature of error: "model.BookingID" isn't a valid token
+Error in term:
+  model.BookingFormData
+Nature of error: "model.BookingFormData" isn't a valid token
+Error in term:
+  model.BookingFormData
+Nature of error: "model.BookingFormData" isn't a valid token
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

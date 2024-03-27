@@ -1,0 +1,27 @@
+The following static errors were discovered:
+Error in term:
+  Model.todos
+Nature of error: Variable Model.todos is not bound
+Error in term:
+  Model.setBuffer
+Nature of error: Variable Model.setBuffer is not bound
+Error in term:
+  Model.setTodos
+Nature of error: Variable Model.setTodos is not bound
+Error in term:
+  Model.todos
+Nature of error: Variable Model.todos is not bound
+Error in term:
+  Model.setTodos
+Nature of error: Variable Model.setTodos is not bound
+Error in term:
+  Model.setTodos
+Nature of error: Variable Model.setTodos is not bound
+Error in term:
+  Model.todos
+Nature of error: Variable Model.todos is not bound
+Error in term:
+  Model.buffer
+Nature of error: Variable Model.buffer is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

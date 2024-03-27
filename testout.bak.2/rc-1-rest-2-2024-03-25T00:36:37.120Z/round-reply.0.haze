@@ -1,0 +1,11 @@
+
+fun model, action ->
+  case action 
+    | Add(songId) => 
+        let current_songs = get_songs(model) in
+        {model | playList = songId::current_songs}
+    | Remove(songId) =>
+        let current_songs = get_songs(model) in
+        {model | playList = List.remove(songId, current_songs)}
+    | ChangeState(newState) => {model | state = newState}
+  end

@@ -1,0 +1,15 @@
+The following static errors were discovered:
+Error in term:
+  set_song_state
+Nature of error: Variable set_song_state is not bound
+Error in term:
+  add_song
+Nature of error: Variable add_song is not bound
+Error in term:
+  remove_song
+Nature of error: Variable remove_song is not bound
+Error in term:
+  set_song_state
+Nature of error: Variable set_song_state is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

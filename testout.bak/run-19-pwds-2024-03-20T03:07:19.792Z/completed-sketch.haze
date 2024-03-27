@@ -1,0 +1,9 @@
+let update: (Model, Action) -> Model =
+  fun (model, action) ->
+  case action
+    | UpdatePassword(new_password) => (new_password, snd(model), third(model))
+    | ClearCriteria => (fst(model), [], third(model))
+    | AddCriterion(new_criterion) => (fst(model), new_criterion::snd(model), third(model))
+    | RemoveCriterion(to_remove) => (fst(model), List.remove(to_remove, snd(model)), third(model))
+  end
+in

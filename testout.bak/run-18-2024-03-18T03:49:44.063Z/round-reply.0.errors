@@ -1,0 +1,32 @@
+The following static errors were discovered:
+Error in term:
+  fun song ->
+ song != id, playlist 0
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  CurrentSong
+Nature of error: Constructor is not defined
+Error in term:
+  playlist 0, PausedOn(CurrentSong(()))
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  filter
+Nature of error: Variable filter is not bound
+Error in term:
+  playlist 0, id
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  append(playlist 0, id), playlist 1
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  filter(fun song ->
+ song != id, playlist 0), playlist 1
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  append
+Nature of error: Variable append is not bound
+Error in term:
+  playlist 0, Playing(id)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

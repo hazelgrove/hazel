@@ -1,0 +1,15 @@
+fun m, a ->
+  case a
+  | AddUser(custID, user) =>
+    let newUserList = List.append(m.users, [user]) in
+    {m with users = newUserList}
+  | RemoveUser(custID) =>
+    let newUserList = List.filter(m.users, fun user -> user.custID != custId) in
+    {m with users = newUserList}
+  | AddBooking(custID, bookingID, booking) =>
+    let newUserBookings = rm_booking(custID, bookingID, getUserBookings(m, custID)) in
+    {m with bookings = List.append(m.bookings, newUserBookings)}
+  | RemoveBooking(bookingID) =>
+    let newBookingList = List.filter(getBookings(m), fun booking -> booking.bookingID != bookingId) in
+    {m with bookings = newBookingList}
+  end

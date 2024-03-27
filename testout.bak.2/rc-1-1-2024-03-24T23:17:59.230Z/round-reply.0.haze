@@ -1,0 +1,7 @@
+fun (model, action) ->
+  case action
+  | UpdatePassword(password) => # compute new strength based on existing criteria and update model
+  | ClearCriteria => # clear the password criteria in the model
+  | AddCriterion(criterion) => # add the criterion to the model, recompute the strength
+  | RemoveCriterion(criterion) => # remove the criterion from the model, recompute the strength
+  end

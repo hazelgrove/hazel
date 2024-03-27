@@ -1,0 +1,47 @@
+The following static errors were discovered:
+Error in term:
+  fst p, Rul
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  List.filter(fun song_id ->
+ song_id != id, fst p), snd p
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  id :: fst p, snd p
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  fun song_id ->
+ song_id != id, fst p
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  fst
+Nature of error: Variable fst is not bound
+Error in term:
+  snd
+Nature of error: Variable snd is not bound
+Error in term:
+  List.filter
+Nature of error: Variable List.filter is not bound
+Error in term:
+  fst p, Playing(id)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  fst
+Nature of error: Variable fst is not bound
+Error in term:
+  p, snd p
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  fst
+Nature of error: Variable fst is not bound
+Error in term:
+  snd
+Nature of error: Variable snd is not bound
+Error in term:
+  fst
+Nature of error: Variable fst is not bound
+Error in term:
+  Rul
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

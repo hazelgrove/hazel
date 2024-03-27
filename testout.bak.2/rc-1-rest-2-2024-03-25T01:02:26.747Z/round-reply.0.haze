@@ -1,0 +1,43 @@
+
+fun model, action ->
+  case action
+  | NoOp => model
+
+  | FormUpdate(weekday, timeOfDay, playerName) =>
+    UpdateFormState(FormState.Working(weekday, timeOfDay, playerName))
+
+  | SubmitForm(FormState.Working(weekday, timeOfDay, playerName)) =>
+    if string_length(playerName) <= 0 then
+      UpdateFormState(FormState.Invalid("Player name cannot be empty"))
+    else
+      let new_booking = Booking.make(weekday, timeOfDay, playerName) in
+      let updatedBookings = rm_booking(model.user, new_booking.Id, getBookings(model)) in
+      UpdateFormState(FormState.Done(new_booking), {user = model.user, bookings = updatedBookings})
+
+  | UserChanged(user) =>
+    let userBookings = getUserBookings(model, user) in
+    UpdateFormState(FormState.Draft(initFormState), {user = user, bookings = userBookings})
+
+  | ClearState =>
+    UpdateFormState(FormState.Draft(initFormState), Model.init)
+
+  | TimeChanged(timeOfDay) =>
+    let newFormState =
+      case model.formState
+        | FormState.Draft((weekday, _), name) => FormState.Update((weekday, timeOfDay), name)
+        | FormState.Working((weekday, _), name) => FormState.Update((weekday, timeOfDay), name)
+        | FormState.Done(_) | FormState.Invalid(_) => model.formState
+      in
+    UpdateFormState(newFormState, model)
+
+  | DayChanged(weekday) =>
+    let newFormState =
+      case model.formState
+        | FormState.Draft((_, timeOfDay), name) => FormState.Update((weekday, timeOfDay), name)
+        | FormState.Working((_, timeOfDay), name) => FormState.Update((weekday, timeOfDay), name)
+        | FormState.Done(_) | FormState.Invalid(_) => model.formState
+      in
+    UpdateFormState(newFormState, model)
+  end
+in
+model

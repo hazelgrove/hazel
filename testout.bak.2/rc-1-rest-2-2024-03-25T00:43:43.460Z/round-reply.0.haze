@@ -1,0 +1,9 @@
+
+fun model, action ->
+  case action
+  | PlayListAction.Play => { model | is_playing = True }
+  | PlayListAction.Stop => { model | is_playing = False }
+  | PlayListAction.Add(track) => { model | tracks = track::model.tracks }
+  | PlayListAction.Remove(track) => { model | tracks = List.filter(fun t -> t != track, model.tracks) }
+  | PlayListAction.Clear => { model | tracks = [] }
+  end

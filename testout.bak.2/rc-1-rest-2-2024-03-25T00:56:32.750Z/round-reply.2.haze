@@ -1,0 +1,12 @@
+fun (mod, act) ->
+  let (formData, bookings, nextBookingID) = mod
+  case act 
+  | AddBooking(user, weekday, timeOfDay) => 
+     let newBookingId = nextBookingID + 1 in
+     let newBooking = ((weekday, timeOfDay), user, newBookingId) in
+     (formData, newBooking :: bookings, newBookingId)
+  | CancelBooking(user, bookingId) => 
+     let newBookingList = filter((fun (_, _, id) -> id != bookingId), bookings) in
+     (formData, newBookingList, nextBookingID)
+  | ClearBookings => (formData, [], nextBookingID)
+  end

@@ -1,0 +1,156 @@
+The following static errors were discovered:
+Error in term:
+  i j k l m n o p q r s t u v w x y z
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  y z
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  r
+Nature of error: Variable r is not bound
+Error in term:
+  x y z
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  m
+Nature of error: Variable m is not bound
+Error in term:
+  e f g h i j k l m n o p q r s t u v w x y z
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  a
+Nature of error: Variable a is not bound
+Error in term:
+  g h i j k l m n o p q r s t u v w x y z
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  v w x y z
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  t u v w x y z
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  r s t u v w x y z
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  w x y z
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  t
+Nature of error: Variable t is not bound
+Error in term:
+  c
+Nature of error: Variable c is not bound
+Error in term:
+  u
+Nature of error: Variable u is not bound
+Error in term:
+  o p q r s t u v w x y z
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  h
+Nature of error: Variable h is not bound
+Error in term:
+  l m n o p q r s t u v w x y z
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  w
+Nature of error: Variable w is not bound
+Error in term:
+  f g h i j k l m n o p q r s t u v w x y z
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  n o p q r s t u v w x y z
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  g
+Nature of error: Variable g is not bound
+Error in term:
+  e
+Nature of error: Variable e is not bound
+Error in term:
+  v
+Nature of error: Variable v is not bound
+Error in term:
+  s t u v w x y z
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  h i j k l m n o p q r s t u v w x y z
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  x
+Nature of error: Variable x is not bound
+Error in term:
+  j k l m n o p q r s t u v w x y z
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  l
+Nature of error: Variable l is not bound
+Error in term:
+  m n o p q r s t u v w x y z
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  b c d e f g h i j k l m n o p q r s t u v w x y z
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  z
+Nature of error: Variable z is not bound
+Error in term:
+  i
+Nature of error: Variable i is not bound
+Error in term:
+  o
+Nature of error: Variable o is not bound
+Error in term:
+  a b c d e f g h i j k l m n o p q r s t u v w x y z
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  y
+Nature of error: Variable y is not bound
+Error in term:
+  n
+Nature of error: Variable n is not bound
+Error in term:
+  k l m n o p q r s t u v w x y z
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  d e f g h i j k l m n o p q r s t u v w x y z
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  s
+Nature of error: Variable s is not bound
+Error in term:
+  p q r s t u v w x y z
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  p
+Nature of error: Variable p is not bound
+Error in term:
+  q r s t u v w x y z
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  b
+Nature of error: Variable b is not bound
+Error in term:
+  d
+Nature of error: Variable d is not bound
+Error in term:
+  k
+Nature of error: Variable k is not bound
+Error in term:
+  q
+Nature of error: Variable q is not bound
+Error in term:
+  u v w x y z
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  j
+Nature of error: Variable j is not bound
+Error in term:
+  c d e f g h i j k l m n o p q r s t u v w x y z
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  f
+Nature of error: Variable f is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

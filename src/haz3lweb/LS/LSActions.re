@@ -28,7 +28,8 @@ type runtest = {
 type command =
   | Check(check)
   | Completions(completions)
-  | RunTest(runtest);
+  | RunTest(runtest)
+  | GetPrompt(FillerOptions.t);
 
 let show_command = (c: command): string =>
   switch (c) {
@@ -39,6 +40,7 @@ let show_command = (c: command): string =>
   | Completions(Context) => "Completions(Context)"
   | Completions(Types) => "Completions(Types)"
   | RunTest(_) => "RunTest"
+  | GetPrompt(_) => "GetPrompt"
   };
 
 [@deriving (show({with_path: false}), sexp, yojson)]

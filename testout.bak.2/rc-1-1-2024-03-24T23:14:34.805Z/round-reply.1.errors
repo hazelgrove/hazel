@@ -1,0 +1,7 @@
+The following static errors were discovered:
+The suggested filling has the wrong expected type: expected ((Model, Action) -> Model), but got ((?, ?) -> (((Weekday, TimeOfDay), User, Int), [((Weekday, TimeOfDay), User, ?)], Int)).
+Error in term:
+  List.foldl
+Nature of error: Variable List.foldl is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

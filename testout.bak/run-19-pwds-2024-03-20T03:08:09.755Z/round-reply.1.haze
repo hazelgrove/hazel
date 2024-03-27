@@ -1,0 +1,5 @@
+fun (model, action) ->
+    case action
+    | AddItem(item) => { items = item::model.items }
+    | RemoveItem(item) => { items = List.filter(fun i -> i != item, model.items) }
+    end

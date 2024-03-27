@@ -1,0 +1,6 @@
+fun model, action ->
+  case action
+  | AddTrack(track) => Add(model.tracks, track)
+  | DeleteTrack(track) => Delete(model.tracks, track)
+  | Clear => Clear(model.tracks)
+  end

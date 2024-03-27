@@ -1,0 +1,10 @@
+fun model, action ->
+  case action 
+    | Add(songId) => 
+        let current_songs = get_songs(model) in
+        {model with playList = songId::current_songs}
+    | Remove(songId) =>
+        let current_songs = get_songs(model) in
+        {model with playList = List.filter((fun id -> id != songId), current_songs)}
+    | ChangeState(newState) => {model with state = newState}
+  end

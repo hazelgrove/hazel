@@ -1,0 +1,8 @@
+fun m, a ->
+  case a
+  | Toggle(index) => Model(toggle(index, m.storage), m.field, m.uid)
+  | Input(newfield) => Model(m.storage, newfield, m.uid)
+  | Add => Model(add(m), m.field, m.uid)
+  | Remove(index) => Model(remove(index, m.storage), m.field, m.uid)
+  | Nil => m
+  end

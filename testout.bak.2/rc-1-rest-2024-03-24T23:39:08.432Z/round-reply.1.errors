@@ -1,0 +1,15 @@
+The following static errors were discovered:
+Error in term:
+  List.mapi
+Nature of error: Variable List.mapi is not bound
+Error in term:
+  not
+Nature of error: Variable not is not bound
+Error in term:
+  t, not done
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  List.filteri
+Nature of error: Variable List.filteri is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

@@ -498,6 +498,16 @@ let go =
   };
 };
 
+let get_prompt_info =
+    (~db, ~settings as {init_ctx, sketch, common, prelude, _}: settings) => {
+  //let (sketch_pre, _) = split_sketch(sketch);
+  let (caret_mode, caret_ctx) =
+    get_caret_mode_and_ctx(~db, ~init_ctx, ~common, ~prelude, sketch);
+  let expected_ty = ChatLSP.Type.expected(~ctx=caret_ctx, Some(caret_mode));
+  let relevant_ctx_str = ChatLSP.RelevantCtx.str(caret_ctx, caret_mode);
+  expected_ty ++ "\n" ++ relevant_ctx_str;
+};
+
 /*
  Expected type context suggestion plan:
 

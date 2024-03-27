@@ -1,0 +1,12 @@
+fun model, action ->
+case action
+| AddTodo =>
+    let new_todo = String.trim(model.buffer) in
+    if new_todo != "" then
+        let todo = (new_todo, false) in
+        (content, add(todo, model.todos))
+    else model
+| RemoveTodo(idx) => (model.content, remove(idx, model.todos))
+| ToggleTodo(idx) => (model.content, toggle(idx, model.todos))
+| UpdateBuffer(content) => (content, model.todos)
+end

@@ -1,0 +1,13 @@
+# Update the Room Booking app model based on an action #
+
+let update: (Model, Action) -> Model =
+  fun model, action ->
+  case action
+  | CheckIn(guest) => { model with guests = guest::model.guests }
+  | CheckOut(guest) => { model with guests = List.filter(fun g -> g <> guest, model.guests) } 
+  | Clean => { model with is_dirty = false }
+  | Dirty => { model with is_dirty = true }
+  | Repair => { model with needs_repair = false }
+  | Damage => { model with needs_repair = true }
+  end
+in

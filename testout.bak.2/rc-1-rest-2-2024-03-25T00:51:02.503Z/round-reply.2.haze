@@ -1,0 +1,14 @@
+fun model, action ->
+  case action
+  | Book(day, time, roomId) => 
+      let new_booking = {day=day; time=time; room_id=roomId; user=model.user.current; id=Unique.make ()} in
+      {model with user={model.user with reservations=List.cons new_booking model.user.reservations}}
+  | Cancel(booking_id) => 
+      let user = model.user in
+      let reservations = user.reservations |> List.filter (fun {Booking.id} -> id != booking_id) in
+      {model with user={user with reservations=reservations}}
+  | AddRoom(capacity) => {model with rooms=List.cons {capacity; id=Unique.make ()} model.rooms}
+  | RemoveRoom(room_id) => 
+      let rooms = model.rooms |> List.filter (fun {Room.id} -> id != room_id) in
+      {model with rooms=rooms}
+  end

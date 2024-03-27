@@ -1,0 +1,17 @@
+fun model, action ->
+  case action
+    | AddBooking(user, weekday, time_of_day) => 
+      let new_booking = ((weekday, time_of_day), user, snd(model)) in
+      let new_model = ((weekday, time_of_day), user, snd(model) + 1), [new_booking] ++ trd(model) in
+      new_model
+      
+    | CancelBooking(user, id) =>
+      let new_bookings = List.filter (fun ((_, booked_user, booking_id)) ->
+        (booked_user != user) && (booking_id != id)
+      ) trd(model) in
+      ((fst(model), new_bookings, trd(model))
+
+    | ClearBookings =>
+      ((fst(model), [], trd(model))
+  end
+in update(model, action)

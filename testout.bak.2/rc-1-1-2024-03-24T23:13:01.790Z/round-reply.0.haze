@@ -1,0 +1,11 @@
+fun model, action ->
+  case action
+  | Play(i) => 
+     let songs = get_songs(model) in
+     let new_songs = songs |> List.cons(i) in
+     PlayList(new_songs, get_state(model))
+  | Pause => 
+     PlayList(get_songs(model),Paused)
+  | Stop => 
+     PlayList(get_songs(model), Stopped)
+  end

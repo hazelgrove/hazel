@@ -1,0 +1,13 @@
+# Update the Room Booking app model based on an action #
+
+let update: (Model, Action) -> Model =
+  fun model, action ->
+    case action
+    | SubmitForm(new_data) => model.add_new_data(new_data)
+    | DeleteData(id) => model.delete_data(id)
+    | UpdateData(updated_data) => model.update_data(updated_data)
+    | Reset => initialize_model()
+    end
+|
+
+in

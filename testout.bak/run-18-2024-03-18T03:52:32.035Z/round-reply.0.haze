@@ -1,0 +1,9 @@
+
+fun playlist, action ->
+  case action
+  | PlayTrack(track) => begin_play(track, playlist)
+  | StopTrack(track) => end_play(track, playlist)
+  | AddTrack(track) => add_to_playlist(track, playlist)
+  | RemoveTrack(track) => remove_from_playlist(track, playlist)
+  | ShufflePlaylist => shuffle_playlist(playlist)
+  end

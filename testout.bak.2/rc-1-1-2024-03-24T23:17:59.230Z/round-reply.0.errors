@@ -1,0 +1,15 @@
+The following static errors were discovered:
+Error in term:
+  # clear the password criteria in the model
+Nature of error: "# clear the password criteria in the model" isn't a valid token
+Error in term:
+  # add the criterion to the model, recompute the strength
+Nature of error: "# add the criterion to the model, recompute the strength" isn't a valid token
+Error in term:
+  # compute new strength based on existing criteria and update model
+Nature of error: "# compute new strength based on existing criteria and update model" isn't a valid token
+Error in term:
+  # remove the criterion from the model, recompute the strength
+Nature of error: "# remove the criterion from the model, recompute the strength" isn't a valid token
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

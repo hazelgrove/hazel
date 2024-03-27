@@ -1,0 +1,34 @@
+The following static errors were discovered:
+Error in term:
+  ? count 0 Increment
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  count
+Nature of error: Variable count is not bound
+Error in term:
+  fun (model, action) ->
+ Rul in update(? count 0 Increment)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  0 Increment
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Increment
+Nature of error: Constructor is not defined
+Error in term:
+  update
+Nature of error: Variable update is not bound
+Error in term:
+  in
+Nature of error: Variable in is not bound
+Error in term:
+  in update(? count 0 Increment)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Rul
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  count 0 Increment
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

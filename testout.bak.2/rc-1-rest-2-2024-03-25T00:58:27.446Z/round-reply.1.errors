@@ -1,0 +1,63 @@
+The following static errors were discovered:
+Error in term:
+  snd model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  fst
+Nature of error: Variable fst is not bound
+Error in term:
+  Booking
+Nature of error: Constructor is not defined
+Error in term:
+  bookingFormData, , snd model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  snd
+Nature of error: Variable snd is not bound
+Error in term:
+  List.filter
+Nature of error: Variable List.filter is not bound
+Error in term:
+  fst model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  snd
+Nature of error: Variable snd is not bound
+Error in term:
+  snd
+Nature of error: Variable snd is not bound
+Error in term:
+  fst
+Nature of error: Variable fst is not bound
+Error in term:
+  snd
+Nature of error: Variable snd is not bound
+Error in term:
+  fst model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  fst model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  snd
+Nature of error: Variable snd is not bound
+Error in term:
+  snd model + 1
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  fst
+Nature of error: Variable fst is not bound
+Error in term:
+  bookingFormData, bookings, snd model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  snd model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  snd
+Nature of error: Variable snd is not bound
+Error in term:
+  snd
+Nature of error: Variable snd is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

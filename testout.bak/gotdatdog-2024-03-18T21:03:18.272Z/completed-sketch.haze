@@ -1,0 +1,10 @@
+let update: (Model, Action) -> Model =
+  fun model, action ->
+    let (buffer, todos) = model in
+    case action
+    | AddTodo => (buffer, add(model))
+    | RemoveTodo(i) => (buffer, remove(i, todos))
+    | ToggleTodo(i) => (buffer, toggle(i, todos))
+    | UpdateBuffer(s) => (s, todos)
+    end
+in

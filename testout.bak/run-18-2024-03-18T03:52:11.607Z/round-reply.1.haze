@@ -1,0 +1,9 @@
+fun (play_list, action) ->
+  case action
+    | Add(track) => track::play_list
+    | Delete(track) => List.filter(fun t -> t != track, play_list)
+    | Move(old_index, new_index) => let track = List.nth(old_index, play_list) in 
+      let list_without_track = List.filteri(fun i, _ -> i != old_index, play_list) in 
+      List.insert_at(new_index, track, list_without_track)  
+    | View => play_list
+  end

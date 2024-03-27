@@ -1,0 +1,58 @@
+The following static errors were discovered:
+Error in term:
+  model.criteria
+Nature of error: "model.criteria" isn't a valid token
+Error in term:
+  ? != criterion_to_remove
+Nature of error: Expecting type (? -> Bool) but got inconsistent type Bool
+Error in term:
+  model.criteria
+Nature of error: "model.criteria" isn't a valid token
+Error in term:
+  new_criterion
+Nature of error: Expecting type Int but got inconsistent type [PasswordCriteria]
+Error in term:
+  model.criteria
+Nature of error: "model.criteria" isn't a valid token
+Error in term:
+  model.password
+Nature of error: "model.password" isn't a valid token
+Error in term:
+  model.criteria
+Nature of error: "model.criteria" isn't a valid token
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  model.strength
+Nature of error: "model.strength" isn't a valid token
+Error in term:
+  model.password
+Nature of error: "model.password" isn't a valid token
+Error in term:
+  case action
+ | UpdatePassword(new_password) => let new_strength = calculate_strength(new_password, model.criteria) in
+ (new_password, model.criteria, new_strength)
+| AddCriterion(new_criterion) => (model.password, model.criteria + new_criterion, model.strength)
+| RemoveCriterion(criterion_to_remove) => let new_criteria = List.filter((? != criterion_to_remove), model.criteria) in
+ (model.password, new_criteria, model.strength)
+end
+Nature of error: Expecting branches to have consistent types but got types: (String, ?, ?), (?, Int, ?), (?, [?], ?)
+Error in term:
+  calculate_strength
+Nature of error: Variable calculate_strength is not bound
+Error in term:
+  fun ((model, action)) ->
+ case action
+ | UpdatePassword(new_password) => let new_strength = calculate_strength(new_password, model.criteria) in
+ (new_password, model.criteria, new_strength)
+| AddCriterion(new_criterion) => (model.password, model.criteria + new_criterion, model.strength)
+| RemoveCriterion(criterion_to_remove) => let new_criteria = List.filter((? != criterion_to_remove), model.criteria) in
+ (model.password, new_criteria, model.strength)
+end end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.strength
+Nature of error: "model.strength" isn't a valid token
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

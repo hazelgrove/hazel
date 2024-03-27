@@ -1,0 +1,60 @@
+The following static errors were discovered:
+Error in term:
+  m.field
+Nature of error: "m.field" isn't a valid token
+Error in term:
+  m.storage
+Nature of error: "m.storage" isn't a valid token
+Error in term:
+  Model
+Nature of error: Constructor is not defined
+Error in term:
+  Model
+Nature of error: Constructor is not defined
+Error in term:
+  m.uid
+Nature of error: "m.uid" isn't a valid token
+Error in term:
+  m.field
+Nature of error: "m.field" isn't a valid token
+Error in term:
+  Model
+Nature of error: Constructor is not defined
+Error in term:
+  m.uid
+Nature of error: "m.uid" isn't a valid token
+Error in term:
+  Model
+Nature of error: Constructor is not defined
+Error in term:
+  m.uid
+Nature of error: "m.uid" isn't a valid token
+Error in term:
+  m.storage
+Nature of error: "m.storage" isn't a valid token
+Error in term:
+  m.field
+Nature of error: "m.field" isn't a valid token
+Error in term:
+  m.storage
+Nature of error: "m.storage" isn't a valid token
+Error in term:
+  m.uid
+Nature of error: "m.uid" isn't a valid token
+Error in term:
+  Nil
+Nature of error: Constructor is not defined
+Error in term:
+  Remove
+Nature of error: Constructor is not defined
+Error in term:
+  Input
+Nature of error: Constructor is not defined
+Error in term:
+  Toggle
+Nature of error: Constructor is not defined
+Error in term:
+  Add
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

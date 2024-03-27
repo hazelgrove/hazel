@@ -1,0 +1,7 @@
+
+fun playlist, action ->
+  case action
+  | Add(song) => (song::playlist)
+  | Remove(song) => List.remove(song, playlist)
+  | Clear => []
+  end

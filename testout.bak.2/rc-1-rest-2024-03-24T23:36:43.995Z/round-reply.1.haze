@@ -1,0 +1,8 @@
+fun model, action ->
+  case action
+  | Toggle(i) => { model with todos= toggle(i, model.todos) }
+  | Remove(i) => { model with todos= remove(i, model.todos) }
+  | Add => add(model)
+  | Update(input)  => { model with input =  string_trim( string_sub(input, 0, String.length(input)-1)) }
+  | _ => model
+  end

@@ -1,0 +1,5 @@
+fun model, action -> 
+  case action 
+  | Reserve(room_id) => { model with room_status = Map.add(room_id, "Reserved", model.room_status) }
+  | Cancel(room_id) => { model with room_status = Map.add(room_id, "Available", model.room_status) }
+  end

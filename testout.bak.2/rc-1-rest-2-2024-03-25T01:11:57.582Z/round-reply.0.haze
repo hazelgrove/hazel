@@ -1,0 +1,7 @@
+fun mdl, act ->
+    case act
+    | SetEmoji(emoji) => {mdl with currentEmoji = emoji}
+    | ClickGrid(row, col) => {mdl with grid = updateGrid(mdl.grid, row, col, mdl.currentEmoji)}
+    | Clear => {mdl with grid = clearGrid(mdl.grid)}
+    | FillRow(row, emoji) => {mdl with grid = fillRowInGrid(mdl.grid, row, emoji)}
+    end

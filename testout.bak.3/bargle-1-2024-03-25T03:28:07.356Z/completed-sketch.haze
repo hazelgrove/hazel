@@ -1,0 +1,26 @@
+# TODO MVU: Handle TODO actions to update the app model #
+
+let update: (Model, Action) -> Model =
+  fun model, action ->
+  case action
+  | AddTodo =>
+    let (buffer, todos) = model in
+    if (buffer != "") then ( "", (buffer, false) :: todos) else model 
+  | RemoveTodo(index) =>
+    let (buffer, todos) = model in
+    (buffer, remove_index(index, todos))
+  | ToggleTodo(index) =>
+    let (buffer, todos) = model in
+    (buffer, List.mapi(fun(i, (td, t)) -> if (i == index) then (td, not(t)) else (td, t), todos))
+  | UpdateBuffer(t) =>
+    let (_, todos) = model in
+    (t, todos)
+  | _ => model
+  end
+and remove_index(index, list) =
+  let rec helper(index, list, acc) =
+    case list
+    | [] => List.rev(acc)
+    | x::xs => if index == 0 then List.rev(acc) @ xs else helper(index - 1, xs, x :: acc)
+    in helper(index, list, [])
+in

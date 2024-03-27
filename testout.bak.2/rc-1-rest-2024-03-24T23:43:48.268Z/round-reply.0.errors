@@ -1,0 +1,40 @@
+The following static errors were discovered:
+The suggested filling has the wrong expected type: expected ((Model, Action) -> Model), but got ((?, ?) -> [Todo]).
+Error in term:
+  model.todos
+Nature of error: "model.todos" isn't a valid token
+Error in term:
+  model.todos
+Nature of error: "model.todos" isn't a valid token
+Error in term:
+  index
+Nature of error: Variable index is not bound
+Error in term:
+  Model.update_todos
+Nature of error: Variable Model.update_todos is not bound
+Error in term:
+  Model.update_title
+Nature of error: Variable Model.update_title is not bound
+Error in term:
+  title
+Nature of error: Variable title is not bound
+Error in term:
+  index
+Nature of error: Variable index is not bound
+Error in term:
+  Model.update_todos
+Nature of error: Variable Model.update_todos is not bound
+Error in term:
+  EnterTodo
+Nature of error: Constructor is not defined
+Error in term:
+  EnterTodo title
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  RemoveTodo index
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ToggleTodo index
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

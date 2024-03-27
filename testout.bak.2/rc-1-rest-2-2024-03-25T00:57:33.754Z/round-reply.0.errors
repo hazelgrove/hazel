@@ -1,0 +1,16 @@
+The following static errors were discovered:
+Error in term:
+  List.filter(fun ((((_, _, bId)), _)) ->
+ bId != id) bookings
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  bookingId
+Nature of error: Variable bookingId is not bound
+Error in term:
+  bookingFormData
+Nature of error: Variable bookingFormData is not bound
+Error in term:
+  List.filter
+Nature of error: Variable List.filter is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

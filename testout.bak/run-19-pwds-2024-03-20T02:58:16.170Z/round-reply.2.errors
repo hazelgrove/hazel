@@ -1,0 +1,51 @@
+The following static errors were discovered:
+Error in term:
+  String
+Nature of error: Constructor is not defined
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  where
+Nature of error: Variable where is not bound
+Error in term:
+  determine_strength : (String, PasswordCriteria -> PasswordStrength fun ((password, criteria)) ->
+ ???) end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  determine_strength
+Nature of error: Variable determine_strength is not bound
+Error in term:
+  fun ((model, action)) ->
+ let ((password, criteria, strength)) = model in
+ case action
+ | UpdatePassword(new_password) => (new_password, criteria, determine_strength(new_password, criteria))
+| ClearCriteria => (password, , Weak)
+| AddCriterion(criterion) => (password, criterion :: criteria, determine_strength(password, criterion :: criteria))
+| RemoveCriterion(criterion) => let new_criteria = List.filter(fun x ->
+ x != criterion, criteria) in
+ (password, new_criteria, determine_strength(password, new_criteria))
+end where determine_strength : (String, PasswordCriteria -> PasswordStrength fun ((password, criteria)) ->
+ ???) end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  where determine_strength : (String, PasswordCriteria -> PasswordStrength fun ((password, criteria)) ->
+ ???) end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ???
+Nature of error: "???" isn't a valid token
+Error in term:
+  PasswordCriteria
+Nature of error: Constructor is not defined
+Error in term:
+  PasswordStrength
+Nature of error: Constructor is not defined
+Error in term:
+  determine_strength
+Nature of error: Variable determine_strength is not bound
+Error in term:
+  determine_strength
+Nature of error: Variable determine_strength is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

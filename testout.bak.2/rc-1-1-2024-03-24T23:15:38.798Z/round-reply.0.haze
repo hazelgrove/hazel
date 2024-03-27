@@ -1,0 +1,7 @@
+fun model, action ->
+  case action
+  | SelectEmoji(emoji) => updateSelectedEmoji(model, emoji)
+  | Paint(point) => updateGridAtPoint(model, point)
+  | PaintFill(row) => updateRowInGrid(model, row)
+  | Clear => updateClearGrid(model)
+  end

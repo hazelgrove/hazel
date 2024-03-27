@@ -1,0 +1,6 @@
+fun model, action ->
+  case action
+  | AddTodo(txt) => { model with todos = model.todos @ [mk_todo(txt)] }
+  | ToggleTodo(id) => { model with todos = List.map(toggle_todo(id), model.todos) }
+  | DeleteTodo(id) => { model with todos = List.filter(not_delete_todo(id), model.todos) }
+  end

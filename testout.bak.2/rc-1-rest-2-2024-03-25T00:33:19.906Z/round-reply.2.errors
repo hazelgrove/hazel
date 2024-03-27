@@ -1,0 +1,28 @@
+The following static errors were discovered:
+The suggested filling has the wrong expected type: expected ((PlayList, PlayListAction) -> PlayList), but got ((?, ?) -> (String, PlayListState)).
+Error in term:
+  when sid == song_id
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  song_id
+Nature of error: Expecting type String but got inconsistent type [Id]
+Error in term:
+  when sid == song_id
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  List.filter
+Nature of error: Variable List.filter is not bound
+Error in term:
+  sid
+Nature of error: Variable sid is not bound
+Error in term:
+  sid
+Nature of error: Variable sid is not bound
+Error in term:
+  Playing(sid) when sid == song_id
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  PausedOn(sid) when sid == song_id
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

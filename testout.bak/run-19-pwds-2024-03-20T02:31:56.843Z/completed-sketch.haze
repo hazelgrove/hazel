@@ -1,0 +1,33 @@
+let update: (Model, Action) -> Model =
+  fun (model, action) ->
+  let m = initialModel in
+  case action
+  | NoOp => m
+  | AddPasswordChar char =>
+      let s = string_concat(m.password, [char]) in
+      let strength = calculateStrength((s, m.criteria)) in
+      { m with password = s, strength = strength }
+  | RemovePasswordChar =>
+      let s = string_sub(m.password, 0, String.length(m.password) - 1) in
+      let strength = calculateStrength((s, m.criteria)) in
+      { m with password = s, strength = strength }
+  | AddPasswordCriteria crit =>
+      let updated_criteria = crit::m.criteria in
+      let strength = calculateStrength((m.password, updated_criteria)) in
+      { m with criteria = updated_criteria, strength = strength }
+  | RemovePasswordCriteria crit =>
+      let updated_criteria = List.filter((!=) crit, m.criteria) in
+      let strength = calculateStrength((m.password, updated_criteria)) in
+      { m with criteria = updated_criteria, strength = strength }
+  | AddTransformation trans =>
+      let updated_transformations = trans::m.transformations in
+      let transformed_password = String.transform((m.password, updated_transformations)) in
+      let strength = calculateStrength((transformed_password, m.criteria)) in
+      { m with transformations = updated_transformations, password = transformed_password, strength = strength }
+  | RemoveTransformation trans =>
+      let updated_transformations = List.filter((!=) trans, m.transformations) in
+      let transformed_password = String.transform((m.password, updated_transformations)) in
+      let strength = calculateStrength((transformed_password, m.criteria)) in
+      { m with transformations = updated_transformations, password = transformed_password, strength = strength }
+  end
+in

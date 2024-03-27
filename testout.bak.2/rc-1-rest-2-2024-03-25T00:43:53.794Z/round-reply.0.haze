@@ -1,0 +1,6 @@
+
+fun model, action -> 
+  case action of
+  | AddPlaylist(title)    => title::model 
+  | RemovePlaylist(title) => List.remove(title, model)
+  end

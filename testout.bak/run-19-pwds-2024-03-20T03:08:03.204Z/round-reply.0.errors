@@ -1,0 +1,45 @@
+The following static errors were discovered:
+Error in term:
+  c c
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.2
+Nature of error: "model.2" isn't a valid token
+Error in term:
+  c c != criterion
+Nature of error: Expecting type (? -> Bool) but got inconsistent type Bool
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  model.2
+Nature of error: "model.2" isn't a valid token
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  model.2
+Nature of error: "model.2" isn't a valid token
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  model.2
+Nature of error: "model.2" isn't a valid token
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  c
+Nature of error: "c" isn't a valid type token
+Error in term:
+  c
+Nature of error: "c" isn't a valid type token
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

@@ -1,0 +1,17 @@
+let update: (Model, Action) -> Model =
+  fun model, action ->
+    case action
+    | UpdatePassword(password) =>
+        let model_password, _, _ = model in
+        (password, _, _)
+    | ClearCriteria =>
+        let _, model_criteria, _ = model in
+        (_, [], _)
+    | AddCriterion(criteria) =>
+        let _, model_criteria, _ = model in
+        (_, criteria::model_criteria, _)
+    | RemoveCriterion(criteria) =>
+        let _, model_criteria, strengh = model in
+        (_, List.remove(criteria, model_criteria), _)
+    end
+in

@@ -1,0 +1,16 @@
+fun (grid, selectedEmoji, emojis), action ->
+  case action
+  | SelectEmoji(emoji) => (grid, emoji, emojis)
+  | StampEmoji((row, col)) =>
+    let updatedRow = List.update(col, selectedEmoji, List.nth(grid, row)) in
+    (List.update(row, updatedRow, grid), selectedEmoji, emojis)
+  | ClearCell((row, col)) =>
+    let updatedRow = List.update(col, "", List.nth(grid, row)) in
+    (List.update(row, updatedRow, grid), selectedEmoji, emojis)
+  | ClearGrid =>
+    let emptyGrid = List.map(fun row -> List.map(fun _ -> "", row), grid) in
+    (emptyGrid, selectedEmoji, emojis)
+  | FillRow(row) =>
+    let filledRow = List.map(fun _ -> selectedEmoji, List.nth(grid, row)) in
+    (List.update(row, filledRow, grid), selectedEmoji, emojis)
+  end

@@ -1,0 +1,14 @@
+fun (model, action) ->
+  case model
+  | (buffer, todos) =>
+    case action
+    | AddTodo => if buffer != "" then ("", (buffer, false)::todos) else model
+    | RemoveTodo(i) =>
+      let new_todos = List.at_index_remove(i, todos) in
+      (buffer, new_todos)
+    | ToggleTodo(i) =>
+      let updated_todos = List.map_with_index((fun index, (str, completed) -> if index == i then (str, not completed) else (str, completed)), todos) in
+      (buffer, updated_todos)
+    | UpdateBuffer(new_buffer) => (new_buffer, todos)
+    end
+  end

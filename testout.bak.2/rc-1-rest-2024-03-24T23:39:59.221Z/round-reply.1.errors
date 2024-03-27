@@ -1,0 +1,28 @@
+The following static errors were discovered:
+Error in term:
+  List.map
+Nature of error: Variable List.map is not bound
+Error in term:
+  title, not done
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  not
+Nature of error: Variable not is not bound
+Error in term:
+  case action
+ | AddTodo => let ((buffer, todos)) = model in
+ if buffer ==  then model else (, ((buffer, false) :: todos))
+| RemoveTodo(id) => let ((_, todos)) = model in
+ (, List.remove(id, todos))
+| ToggleTodo(id) => let ((buffer, todos)) = model in
+ (, List.map(fun (idx, ((title, done))) ->
+ if idx == id then (title, not done) else (title, done)), todos)
+| UpdateBuffer(newBuffer) => let ((_, todos)) = model in
+ (newBuffer, todos)
+end
+Nature of error: Expecting branches to have consistent types but got types: (String, [(?, Bool)]), (String, ?), (String, ?, ?), (String, ?)
+Error in term:
+  List.remove
+Nature of error: Variable List.remove is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

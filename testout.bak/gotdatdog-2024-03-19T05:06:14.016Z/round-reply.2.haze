@@ -1,0 +1,17 @@
+fun (model, action) ->
+  case (model, action) of
+  | ((form_data, bookings, id), AddBooking((user, weekday, timeOfDay))) => 
+        let newBookingId = id + 1 in
+        let newBooking = (weekday, timeOfDay, user, newBookingId) in
+        (form_data, bookings ++ [newBooking], newBookingId)
+  | ((form_data, bookings, id), CancelBooking((user, bookingId))) => 
+        let newBookings = List.filter((fun (_, _, _, booking_id) -> booking_id != bookingId), bookings) in
+        (form_data, newBookings, id)
+  | ((form_data, bookings, id), ClearBookings) => 
+        (form_data, [], id)
+  | ((form_data, bookings, id), ClearRange((time1, time2))) => 
+        let newBookings = List.filter((fun (booking_weekday, _, _, _) -> 
+                                       (weekdayIndex(booking_weekday) < weekdayIndex(time1)) \/ 
+                                       (weekdayIndex(booking_weekday) > weekdayIndex(time2))), bookings) in
+        (form_data, newBookings, id)
+  end

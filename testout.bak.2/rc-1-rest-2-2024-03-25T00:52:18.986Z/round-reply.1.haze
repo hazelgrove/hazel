@@ -1,0 +1,14 @@
+fun model, action ->
+  case action
+  | ChangeUser(user) => 
+      { model with user = user }
+  | ChangeDayOfWeek(day) => 
+      { model with form = { model.form with day = day } }
+  | ChangeTimeOfDay(time) => 
+      { model with form = { model.form with time = time } }
+  | ChangeRoom(new_room) => 
+      { model with form = { model.form with room = new_room } }
+  | SubmitForm(user, id, bookings) =>
+      { model with bookings = rm_booking(user, id, bookings) }
+  | _ => model
+  end

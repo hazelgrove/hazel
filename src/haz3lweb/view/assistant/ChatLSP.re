@@ -96,21 +96,26 @@ module Type = {
      expected type should mostly(?) give us the latter,
      but not always the former
      */
-    let prefix = "Hole ?? can be filled by an expression with ";
+    let prefix = "# The expected type of the hole ?? is: ";
     switch (mode) {
     | Some(Ana(ty)) =>
       let defs =
         switch (collate_aliases(ctx, expected_ty_no_lookup(mode))) {
         | Some(defs) =>
-          " which references the following definitions:\n" ++ defs
+          "# The following type definitions are likely relevant: #\n" ++ defs
         | None => "\n"
         };
-      prefix ++ "a type consistent with " ++ Typ.to_string(ty) ++ defs;
+      prefix
+      ++ "a type consistent with "
+      ++ Typ.to_string(ty)
+      ++ " #\n"
+      ++ defs;
     | Some(SynFun) =>
       prefix
       ++ "a type consistent with "
       ++ Typ.to_string(Arrow(Unknown(Internal), Unknown(Internal)))
-    | Some(Syn) => prefix ++ "any type"
+      ++ " #"
+    | Some(Syn) => prefix ++ "any type #"
     | _ => "Not applicable"
     };
   };

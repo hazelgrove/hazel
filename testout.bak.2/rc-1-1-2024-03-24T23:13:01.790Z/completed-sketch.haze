@@ -1,0 +1,15 @@
+# Update Playlist app model based on an action #
+
+let update: (PlayList, PlayListAction) -> PlayList =
+  fun model, action ->
+  case action
+  | Play(i) => 
+     let songs = get_songs(model) in
+     let new_songs = List.cons(i, songs) in
+     PlayList(new_songs, get_state(model))
+  | Pause => 
+     PlayList(get_songs(model),Paused)
+  | Stop => 
+     PlayList(get_songs(model), Stopped)
+  end
+in

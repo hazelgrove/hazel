@@ -1,0 +1,14 @@
+# TODO MVU: Handle TODO actions to update the app model #
+
+let update: (Model, Action) -> Model =
+  fun m, action ->
+  case action
+    | AEditing(index, text) => {m with field = text; editing = Some(index)}
+    | ACompleteAll           => {m with todos = toggle_all(m.todos)}
+    | ADeleteCompleted       => {m with todos = remove_completed(m.todos)}
+    | AToggle(index)         => {m with todos = toggle(index, m.todos)}
+    | ADelete(index)         => {m with todos = remove(index, m.todos)}
+    | ACreate                => if m.field = "" then m else {m with todos = add(m); field = ""}
+    | AUpdateField(f)        => {m with field = f}
+  end
+in

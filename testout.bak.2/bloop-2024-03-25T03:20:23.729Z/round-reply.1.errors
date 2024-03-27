@@ -1,0 +1,26 @@
+The following static errors were discovered:
+Error in term:
+  model.2
+Nature of error: "model.2" isn't a valid token
+Error in term:
+  model.2
+Nature of error: "model.2" isn't a valid token
+Error in term:
+  model.3
+Nature of error: "model.3" isn't a valid token
+Error in term:
+  model.3
+Nature of error: "model.3" isn't a valid token
+Error in term:
+  case action
+ | AddBooking((user, day, time)) => let new_id = string_length(user) + mod(model.3, 10) in
+ ((day, time, new_id), ((day, time), user, new_id) :: model.2, new_id)
+| CancelBooking((user, id)) => (model.1, rm_booking(user, id, model.2), model.3)
+| ClearBookings => (initFormState, , 0)
+end
+Nature of error: Expecting branches to have consistent types but got types: ((Weekday, TimeOfDay, Int), [((Weekday, TimeOfDay), User, Int)], Int), (?, [Booking], ?), (((Weekday, TimeOfDay), String), [?], Int)
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

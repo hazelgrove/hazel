@@ -1,0 +1,9 @@
+fun (playlist, action) -> 
+    case action
+    | AddTrack(t) => t :: playlist
+    | RemoveTrack(t) => List.filter(fun track -> track != t, playlist)
+    | PlayNext => match playlist with 
+      | [] => []
+      | _ :: t => t
+    | Undo => ??  -- Please provide the implementation for Undo operation
+    end  

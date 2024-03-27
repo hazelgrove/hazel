@@ -1,0 +1,60 @@
+The following static errors were discovered:
+Error in term:
+  snd3
+Nature of error: Variable snd3 is not bound
+Error in term:
+  trd3
+Nature of error: Variable trd3 is not bound
+Error in term:
+  trd3
+Nature of error: Variable trd3 is not bound
+Error in term:
+  snd3
+Nature of error: Variable snd3 is not bound
+Error in term:
+  snd3
+Nature of error: Variable snd3 is not bound
+Error in term:
+  trd3
+Nature of error: Variable trd3 is not bound
+Error in term:
+  update_grid
+Nature of error: Variable update_grid is not bound
+Error in term:
+  fill_row
+Nature of error: Variable fill_row is not bound
+Error in term:
+  initialize_grid
+Nature of error: Variable initialize_grid is not bound
+Error in term:
+  fst3
+Nature of error: Variable fst3 is not bound
+Error in term:
+  snd3
+Nature of error: Variable snd3 is not bound
+Error in term:
+  fst3
+Nature of error: Variable fst3 is not bound
+Error in term:
+  trd3
+Nature of error: Variable trd3 is not bound
+Error in term:
+  snd3
+Nature of error: Variable snd3 is not bound
+Error in term:
+  fst3
+Nature of error: Variable fst3 is not bound
+Error in term:
+  trd3
+Nature of error: Variable trd3 is not bound
+Error in term:
+  fst3
+Nature of error: Variable fst3 is not bound
+Error in term:
+  snd3
+Nature of error: Variable snd3 is not bound
+Error in term:
+  update_grid
+Nature of error: Variable update_grid is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

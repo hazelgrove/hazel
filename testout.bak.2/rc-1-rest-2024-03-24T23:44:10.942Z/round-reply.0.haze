@@ -1,0 +1,7 @@
+
+fun model, action ->
+  case action
+  | Some(act) => update_action(act, model)
+  | None => model
+  end
+where update_action: (Action, Model) -> Model  = fun action, model -> ?

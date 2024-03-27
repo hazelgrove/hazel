@@ -1,0 +1,11 @@
+fun (model, action) ->
+    case action
+      | AddTodo(title) => { model with todos = model.todos ++ [Todo(title, false)] } 
+      | DeleteTodo(id) => { model with todos = List.filter((fun todo -> todo.id != id), model.todos) } 
+      | ToggleTodo(id) => { model with todos = List.map((fun todo -> 
+        if todo.id == id then
+          { todo with done = not todo.done }
+        else
+          todo
+        ), model.todos) } 
+      end

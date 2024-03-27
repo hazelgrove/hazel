@@ -1,0 +1,9 @@
+fun model, action ->
+case action
+| AddBooking(booking) => ?
+| RemoveBooking(bookingId) => ?
+| SelectDay(day) => ?
+| SelectTime(time) => ?
+| EnterText(text) => ?
+| SubmitForm => ? 
+end

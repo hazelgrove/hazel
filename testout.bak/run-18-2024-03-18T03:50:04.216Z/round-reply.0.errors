@@ -1,0 +1,58 @@
+The following static errors were discovered:
+Error in term:
+  with
+Nature of error: Variable with is not bound
+Error in term:
+  when
+Nature of error: Variable when is not bound
+Error in term:
+  with Rul end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  snd(playlist) with Rul end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  match
+Nature of error: Variable match is not bound
+Error in term:
+  List.filter(fun x ->
+ x != id, fst(playlist)), match snd(playlist) with Playing(song_id) when Rul end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Rul end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  song_id
+Nature of error: Variable song_id is not bound
+Error in term:
+  fst(playlist), match snd(playlist) with Rul end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  with
+Nature of error: Variable with is not bound
+Error in term:
+  match
+Nature of error: Variable match is not bound
+Error in term:
+  snd(playlist) with Playing(song_id) when Rul end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  Playing(song_id) when Rul end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  when Rul end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  with Playing(song_id) when Rul end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Rul end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

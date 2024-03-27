@@ -1,0 +1,10 @@
+
+fun model, action ->
+  case action of
+    | Login user -> model.user = Some(user)
+    | Logout -> model.user = None
+    | SubmitForm -> model.bookings = model.bookings @ [model.formBooking]; model.formBooking = initFormState
+    | EditForm booking -> model.formBooking = booking
+    | RemoveBooking id -> model.bookings = rm_booking(id, getUserBookings(model, model.user))
+    | _ -> model
+  end

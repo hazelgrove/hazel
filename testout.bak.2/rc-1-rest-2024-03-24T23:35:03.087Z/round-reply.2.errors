@@ -1,0 +1,33 @@
+The following static errors were discovered:
+Error in term:
+  model.todos
+Nature of error: "model.todos" isn't a valid token
+Error in term:
+  model.todos
+Nature of error: "model.todos" isn't a valid token
+Error in term:
+  todo
+Nature of error: Expecting type String but got inconsistent type (?, Bool)
+Error in term:
+  String.trim
+Nature of error: Variable String.trim is not bound
+Error in term:
+  model.todos
+Nature of error: "model.todos" isn't a valid token
+Error in term:
+  model.todos
+Nature of error: "model.todos" isn't a valid token
+Error in term:
+  model.buffer
+Nature of error: "model.buffer" isn't a valid token
+Error in term:
+  model.content
+Nature of error: "model.content" isn't a valid token
+Error in term:
+  model.content
+Nature of error: "model.content" isn't a valid token
+Error in term:
+  content
+Nature of error: Variable content is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

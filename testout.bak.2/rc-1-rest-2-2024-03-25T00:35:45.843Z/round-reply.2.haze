@@ -1,0 +1,13 @@
+fun (playlist, action) ->
+  case action
+  | LoadStart => { playlist with state = Loading }
+  | LoadSuccess(songs) => { playlist with songs = songs, state = Loaded }
+  | LoadFail(error) => { playlist with error = Some(error), state = Error }
+  | PlaySong(id) =>
+      let songs = get_songs(playlist) in
+      let song_exists = List.elem(id, songs) in
+      if song_exists
+      then { playlist with current_song = Some(id), state = Playing }
+      else playlist
+  | Pause => { playlist with state = Paused }
+  end

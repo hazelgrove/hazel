@@ -1,0 +1,8 @@
+# Update the Room Booking app model based on an action #
+
+let update: (Model, Action) -> Model =
+  fun (m, a) ->
+  case a
+  | BookRoom => { m with room_booked = true }
+  | CancelBooking => { m with room_booked = false } end
+in

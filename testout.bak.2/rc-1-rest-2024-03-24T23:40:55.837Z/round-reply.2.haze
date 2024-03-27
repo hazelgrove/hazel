@@ -1,0 +1,15 @@
+fun (model, action) ->
+    case action
+    | AddTodo => (model.buffer, (model.buffer, false)::model.todos)
+    | RemoveTodo(i) => (model.buffer, List.remove_at(i, model.todos))
+    | ToggleTodo(i) => (model.buffer, toggleAt(i, model.todos))
+    | UpdateBuffer(s) => (s, model.todos)
+    end
+    where
+      fun toggleAt(i, xs) =
+        List.mapi((fun idx (t, done) -> if (idx == i) then (t, not done) else (t, done)), xs)
+      end
+      and
+      fun removeAt(i, xs) =
+        List.filteri((fun idx _ -> idx != i), xs)
+      end

@@ -1,0 +1,8 @@
+fun (model, action) ->
+  case action
+  | Toggle(index) => {storage=toggle(index, model.storage), field=model.field, uid=model.uid}
+  | Input(newfield) => {storage=model.storage, field=newfield, uid=model.uid}
+  | Add => {storage=add(model), field=model.field, uid=model.uid}
+  | Remove(index) => {storage=remove(index, model.storage), field=model.field, uid=model.uid}
+  | Nil => model
+  end 

@@ -1,0 +1,24 @@
+The following static errors were discovered:
+Error in term:
+  List.filter
+Nature of error: Variable List.filter is not bound
+Error in term:
+  in
+Nature of error: Variable in is not bound
+Error in term:
+  fun (m, a) ->
+ case a
+ | AddBooking((user, day, time)) => let ((booking_form_data, bookings, last_id)) = m in
+ let new_id = last_id + 1 in
+ let new_booking = ((day, time), user, new_id) in
+ let updated_bookings = new_booking :: bookings in
+ ((day, time), updated_bookings, new_id)
+| CancelBooking((user, id_to_cancel)) => let ((booking_form_data, bookings, last_id)) = m in
+ let updated_bookings = List.filter(fun ((time, user, id)) ->
+ id != id_to_cancel, bookings) in
+ (booking_form_data, updated_bookings, last_id)
+| ClearBookings => ((M, AM), , 0)
+end in
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

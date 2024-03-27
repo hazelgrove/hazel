@@ -1,0 +1,18 @@
+The following static errors were discovered:
+Error in term:
+  Rul
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  TimeOfDay
+Nature of error: Constructor is not defined
+Error in term:
+  List.filter
+Nature of error: Variable List.filter is not bound
+Error in term:
+  TimeOfDay
+Nature of error: Constructor is not defined
+Error in term:
+  Weekday
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

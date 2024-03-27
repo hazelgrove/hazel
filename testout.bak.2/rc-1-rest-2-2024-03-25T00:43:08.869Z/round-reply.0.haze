@@ -1,0 +1,6 @@
+fun (playList, playListAction) ->
+  case playListAction
+  of AddSong(id) => playList.add_song(id)
+   | RemoveSong(id) => playList.remove_song(id)
+   | TogglePlay => playList.toggle_play() end
+  end

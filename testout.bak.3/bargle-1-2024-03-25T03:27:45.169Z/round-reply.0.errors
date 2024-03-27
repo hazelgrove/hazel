@@ -1,0 +1,17 @@
+The following static errors were discovered:
+Error in term:
+  model.buffer
+Nature of error: "model.buffer" isn't a valid token
+Error in term:
+  case action
+ | AddTodo => add(model)
+| RemoveTodo(idx) => let ((_, todos)) = model in
+ (string_sub(model.buffer, 0, idx), remove(idx, todos))
+| ToggleTodo(idx) => let ((buffer, todos)) = model in
+ (buffer, toggle(idx, todos))
+| UpdateBuffer(str) => let ((_, todos)) = model in
+ (str, todos)
+end
+Nature of error: Expecting branches to have consistent types but got types: [Todo], (String, [Todo]), (?, [Todo]), (String, ?)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

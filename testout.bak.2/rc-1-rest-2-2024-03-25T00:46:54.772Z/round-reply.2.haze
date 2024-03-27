@@ -1,0 +1,16 @@
+fun model, action ->
+  case action
+    | AddBooking(u, d, t) => 
+      let new_id = getNewIdModel(model) in
+      let new_booking = (d, t, u, new_id) in
+      add_to_list(bookings(model), new_booking), new_id
+    | CancelBooking(u, id) => removeBookingById(u, id, bookings(model))
+    | ClearBookings => clear_bookings(bookings(model))
+  end
+  where
+    let getNewIdModel: ((BookingFormData, [Booking], BookingID) -> BookingID) = fun (_, _, id) -> id + 1
+    let bookings: ((BookingFormData, [Booking], BookingID) -> [Booking]) = fun (_, b, _) -> b
+    let clear_bookings: (([Booking]) -> [Booking]) = fun _ -> []
+    let removeBookingById: ((User, BookingID, [Booking]) -> [Booking]) = fun u, id, b -> rm_booking(u, id, b)
+    let add_to_list: (([Booking], Booking) -> [Booking]) = fun l, b -> b::l
+  end

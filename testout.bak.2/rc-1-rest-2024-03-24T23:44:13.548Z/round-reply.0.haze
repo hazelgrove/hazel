@@ -1,0 +1,5 @@
+fun m, action ->
+  case action
+  | Add => m + 1
+  | Subtract => m - 1
+  end

@@ -1,0 +1,27 @@
+The following static errors were discovered:
+Error in term:
+  None
+Nature of error: Constructor is not defined
+Error in term:
+  text, not is_done
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  List.index
+Nature of error: Variable List.index is not bound
+Error in term:
+  not
+Nature of error: Variable not is not bound
+Error in term:
+  String.length
+Nature of error: Variable String.length is not bound
+Error in term:
+  String.empty
+Nature of error: Variable String.empty is not bound
+Error in term:
+  List.remove_index
+Nature of error: Variable List.remove_index is not bound
+Error in term:
+  List.mapi
+Nature of error: Variable List.mapi is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

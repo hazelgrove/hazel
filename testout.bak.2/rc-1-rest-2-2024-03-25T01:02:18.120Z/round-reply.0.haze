@@ -1,0 +1,6 @@
+
+fun model, action -> 
+  case action 
+  | Reserve(room) => reserve_room(room, model)
+  | Cancel(room) => cancel_room(room, model)
+  end

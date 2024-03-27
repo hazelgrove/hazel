@@ -1,0 +1,11 @@
+
+fun m, a ->
+    case a
+    | AddBooking(user, day, time) =>
+        let next_id = m.BookingID + 1
+        in (m.BookingFormData, ((day, time), user, next_id)::m.[Booking], next_id)
+    | CancelBooking(user, id) =>
+        (m.BookingFormData, rm_booking(user, id, m.[Booking]), m.BookingID)
+    | ClearBookings =>
+        (initFormState, [], 0)
+    end

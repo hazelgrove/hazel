@@ -1,0 +1,15 @@
+fun model, action ->
+    case action
+    | AddTodo => 
+        let new_todo = (Model.buffer(model), false) in 
+        let new_todos = new_todo :: Model.todos(model) in
+        Model.setTodos(new_todos, model)
+    | RemoveTodo(index) => 
+        let new_todos = remove(index, Model.todos(model)) in
+        Model.setTodos(new_todos, model)
+    | ToggleTodo(index) =>
+        let new_todos = toggle(index, Model.todos(model)) in
+        Model.setTodos(new_todos, model)
+    | UpdateBuffer(buffer) =>
+        Model.setBuffer(buffer, model)
+    end

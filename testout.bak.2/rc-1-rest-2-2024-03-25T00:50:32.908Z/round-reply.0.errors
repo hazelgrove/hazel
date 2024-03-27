@@ -1,0 +1,19 @@
+The following static errors were discovered:
+Error in term:
+  case action
+ | AddBooking((user, weekday, timeofday)) => let ((form_data, bookings, booking_id)) = model in
+ let newBooking = (user, weekday, timeofday, booking_id + 1) in
+ ((user, weekday, timeofday), newBooking :: bookings, booking_id + 1)
+| CancelBooking((user, id)) => let ((form_data, bookings, booking_id)) = model in
+ (form_data, rm_booking(user, id, bookings), booking_id)
+| ClearBookings => ((Weekday.M, TimeOfDay.AM), , 0)
+end
+Nature of error: Expecting branches to have consistent types but got types: ((User, Weekday, TimeOfDay), [(User, Weekday, TimeOfDay, Int)], Int), (?, [Booking], ?), ((?, ?), String, Int)
+Error in term:
+  Weekday.M
+Nature of error: "Weekday.M" isn't a valid token
+Error in term:
+  TimeOfDay.AM
+Nature of error: "TimeOfDay.AM" isn't a valid token
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

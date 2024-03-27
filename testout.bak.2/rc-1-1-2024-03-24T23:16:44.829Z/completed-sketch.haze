@@ -1,0 +1,10 @@
+# Update the EmojiPaint app model based on an action #
+
+let update: (Model, Action) -> Model =
+  fun model, action ->
+    case action
+    | ChangeColor(new_color) => {model with color = new_color}
+    | AddEmoji(emoji) => {model with emojis = model.emojis @ [emoji]}
+    | ClearScreen() => {model with emojis = []}
+    end
+in
