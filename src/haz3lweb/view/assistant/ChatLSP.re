@@ -77,6 +77,7 @@ module Type = {
   let collate_aliases = (ctx, expected_ty'): option(string) => {
     let defs =
       Ctx.collect_aliases_deep(ctx, expected_ty')
+      |> Util.ListUtil.dedup
       |> List.map(subst_if_rec)
       |> List.map(((alias, ty)) => format_def(alias, ty));
     switch (defs) {

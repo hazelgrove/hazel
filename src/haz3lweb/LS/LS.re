@@ -43,7 +43,7 @@ let get_runtest = command =>
 let get_get_prompt = command =>
   switch (command) {
   | GetPrompt(fo) => fo
-  | _ => FillerOptions.init
+  | _ => LSTest.default_options
   };
 
 let validate_error_rounds = (num_rounds: string): bool =>
@@ -138,12 +138,10 @@ and parse_completions = (strs, args: arguments): arguments =>
 and parse_get_prompt = (strs, args: arguments): arguments =>
   switch (strs) {
   | ["--expected_type", ...rest] =>
-    let rt = get_get_prompt(args.command);
-    let options = {...rt, expected_type: true};
+    let options = {...get_get_prompt(args.command), expected_type: true};
     parse_get_prompt(rest, {...args, command: GetPrompt(options)});
   | ["--relevant_ctx", ...rest] =>
-    let rt = get_get_prompt(args.command);
-    let options = {...rt, relevant_ctx: true};
+    let options = {...get_get_prompt(args.command), relevant_ctx: true};
     parse_get_prompt(rest, {...args, command: GetPrompt(options)});
   | rest => parse_base(rest, args)
   }
