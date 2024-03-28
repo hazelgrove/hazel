@@ -104,8 +104,8 @@ let return = (wrap, ids, tm) => {
 
 let parse_sum_term: UTyp.t => UTyp.variant =
   fun
-  | {term: Var(ctr), ids} => Variant(ctr, ids, None)
-  | {term: Ap({term: Var(ctr), ids: ids_ctr}, u), ids: ids_ap} =>
+  | {term: Var(ctr), ids, _} => Variant(ctr, ids, None)
+  | {term: Ap({term: Var(ctr), ids: ids_ctr, _}, u), ids: ids_ap, _} =>
     Variant(ctr, ids_ctr @ ids_ap, Some(u))
   | t => BadEntry(t);
 
@@ -165,7 +165,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         | term => ret(ListLit([term]))
         }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
-      | (["case", "end"], [Rul({ids, term: Rules(scrut, rules)})]) => (
+      | (["case", "end"], [Rul({ids, term: Rules(scrut, rules), _})]) => (
           Match(scrut, rules),
           ids,
         )
@@ -270,7 +270,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
 and pat = unsorted => {
   let (term, inner_ids) = pat_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  return(p => Pat(p), ids, {ids, term});
+  return(p => Pat(p), ids, {ids, term, copied: false});
 }
 and pat_term: unsorted => (UPat.term, list(Id.t)) = {
   let ret = (term: UPat.term) => (term, []);
@@ -337,7 +337,7 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
 and typ = unsorted => {
   let (term, inner_ids) = typ_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  return(ty => Typ(ty), ids, {ids, term});
+  return(ty => Typ(ty), ids, {ids, term, copied: false});
 }
 and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
   let ret = (term: UTyp.term) => (term, []);
@@ -370,7 +370,7 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
     }
   | Pre(([(_id, (["rec", "->"], [TPat(tpat)]))], []), Typ(t)) =>
     ret(Rec(tpat, t))
-  | Pre(tiles, Typ({term: Sum(t0), ids})) as tm =>
+  | Pre(tiles, Typ({term: Sum(t0), ids, _})) as tm =>
     /* Case for leading prefix + preceeding a sum */
     switch (tiles) {
     | ([(_, (["+"], []))], []) => (Sum(t0), ids)
@@ -401,7 +401,7 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
 and tpat = unsorted => {
   let term = tpat_term(unsorted);
   let ids = ids(unsorted);
-  return(ty => TPat(ty), ids, {ids, term});
+  return(ty => TPat(ty), ids, {ids, term, copied: false});
 }
 and tpat_term: unsorted => TPat.term = {
   let ret = (term: TPat.term) => term;
@@ -440,12 +440,13 @@ and rul = (unsorted: unsorted): Rul.t => {
           ids: ids(unsorted),
           term:
             Rules(scrut, List.combine(ps, leading_clauses @ [last_clause])),
+          copied: false,
         }
-      | None => {ids: ids(unsorted), term: hole}
+      | None => {ids: ids(unsorted), term: hole, copied: false}
       }
-    | _ => {ids: ids(unsorted), term: hole}
+    | _ => {ids: ids(unsorted), term: hole, copied: false}
     }
-  | e => {ids: [], term: Rules(e, [])}
+  | e => {ids: [], term: Rules(e, []), copied: false}
   };
 }
 

@@ -34,6 +34,9 @@ module Map = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Id.Map.t(Info.t);
 
+  // let (sexp_of_t, t_of_sexp) =
+  //   StructureShareSexp.structure_share_in(sexp_of_t, t_of_sexp);
+
   let error_ids = (term_ranges: TermRanges.t, info_map: t): list(Id.t) =>
     Id.Map.fold(
       (id, info, acc) =>
@@ -493,7 +496,7 @@ and upat_to_info_map =
       ~co_ctx,
       ~ancestors: Info.ancestors,
       ~mode: Mode.t=Mode.Syn,
-      {ids, term} as upat: UPat.t,
+      {ids, term, _} as upat: UPat.t,
       m: Map.t,
     )
     : (Info.pat, Map.t) => {
@@ -582,7 +585,7 @@ and utyp_to_info_map =
       ~ctx,
       ~expects=Info.TypeExpected,
       ~ancestors,
-      {ids, term} as utyp: UTyp.t,
+      {ids, term, _} as utyp: UTyp.t,
       m: Map.t,
     )
     : (Info.typ, Map.t) => {
@@ -666,7 +669,7 @@ and utyp_to_info_map =
   };
 }
 and utpat_to_info_map =
-    (~ctx, ~ancestors, {ids, term} as utpat: TPat.t, m: Map.t)
+    (~ctx, ~ancestors, {ids, term, _} as utpat: TPat.t, m: Map.t)
     : (Info.tpat, Map.t) => {
   let add = m => {
     let info = Info.derived_tpat(~utpat, ~ctx, ~ancestors);
@@ -696,7 +699,7 @@ and variant_to_info_map =
           List.mem(ctr, ctrs) ? Duplicate : Unique,
           ty_sum,
         ),
-        {term: Var(ctr), ids},
+        {term: Var(ctr), ids, copied: false},
         m,
       )
       |> snd;

@@ -42,10 +42,7 @@ module rec Typ: {
     | Ap(t, t)
     | Rec(string, t)
   and sum_map = ConstructorMap.t(option(t))
-  and t = {
-    ids: list(Id.t),
-    term,
-  };
+  and t = IdTagged.t(term);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type sum_entry = ConstructorMap.binding(option(t));
@@ -114,19 +111,11 @@ module rec Typ: {
     | Ap(t, t)
     | Rec(string, t)
   and sum_map = ConstructorMap.t(option(t))
-  and t = {
-    ids: list(Id.t),
-    term,
-  };
+  and t = IdTagged.t(term);
 
-  let term_of = ({term, _}) => term;
-  // All children of term must have expression-unique ids.
-
-  let unwrap = ({ids, term}) => (term, term => {ids, term});
-
-  let fresh = term => {
-    {ids: [Id.mk()], term};
-  };
+  let term_of: t => term = IdTagged.term_of;
+  let unwrap: t => (term, term => t) = IdTagged.unwrap;
+  let fresh: term => t = IdTagged.fresh;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type sum_entry = ConstructorMap.binding(option(t));

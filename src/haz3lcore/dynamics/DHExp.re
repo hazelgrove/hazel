@@ -7,10 +7,10 @@
 
 include Exp;
 
-let term_of = ({term, _}) => term;
-let fast_copy = (id, {term, _}) => {ids: [id], term, copied: true};
+let term_of: t => term = IdTagged.term_of;
+let fast_copy: (Id.t, t) => t = IdTagged.fast_copy;
 
-let mk = (ids, term) => {
+let mk = (ids, term): t => {
   {ids, copied: true, term};
 };
 
@@ -92,7 +92,8 @@ let rec strip_casts =
     _,
   );
 
-let rec fast_equal = ({term: d1, _} as d1exp, {term: d2, _} as d2exp): bool => {
+let rec fast_equal =
+        ({term: d1, _} as d1exp: t, {term: d2, _} as d2exp: t): bool => {
   switch (d1, d2) {
   /* Primitive forms: regular structural equality */
   | (Var(_), _)

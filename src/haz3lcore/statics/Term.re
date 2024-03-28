@@ -8,7 +8,7 @@ module TPat = {
 
   include TermBase.TPat;
 
-  let rep_id = ({ids, _}) => {
+  let rep_id = ({ids, _}: t) => {
     assert(ids != []);
     List.hd(ids);
   };
@@ -206,14 +206,11 @@ module Pat = {
     List.hd(ids);
   };
 
-  let term_of = ({term, _}) => term;
-  // All children of term must have expression-unique ids.
+  let term_of: t => TermBase.Pat.term = IdTagged.term_of;
 
-  let unwrap = ({ids, term}) => (term, term => {ids, term});
+  let unwrap: t => (term, term => t) = IdTagged.unwrap;
 
-  let fresh = term => {
-    {ids: [Id.mk()], term};
-  };
+  let fresh: term => t = IdTagged.fresh;
 
   let hole = (tms: list(TermBase.Any.t)) =>
     switch (tms) {
@@ -455,19 +452,9 @@ module Exp = {
     | [_, ..._] => MultiHole(tms)
     };
 
-  let rep_id = ({ids, _}) => {
-    assert(ids != []);
-    List.hd(ids);
-  };
-
-  let fresh = term => {
-    {ids: [Id.mk()], copied: false, term};
-  };
-
-  let unwrap = ({ids, term, copied}) => (
-    term,
-    term => {ids, term, copied},
-  );
+  let rep_id: t => Id.t = IdTagged.rep_id;
+  let fresh: term => t = IdTagged.fresh;
+  let unwrap: t => (term, term => t) = IdTagged.unwrap;
 
   let cls_of_term: term => cls =
     fun
@@ -634,7 +621,7 @@ module Rul = {
   // example of awkwardness induced by having forms like rules
   // that may have a different-sorted child with no delimiters
   // (eg scrut with no rules)
-  let ids = (~any_ids, {ids, term}: t) =>
+  let ids = (~any_ids, {ids, term, _}: t) =>
     switch (ids) {
     | [_, ..._] => ids
     | [] =>
