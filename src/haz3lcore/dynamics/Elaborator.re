@@ -126,7 +126,7 @@ let rec dhexp_of_uexp =
     dhexp_of_uexp(m, uexp, in_filter);
   };
   switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
-  | Some(InfoExp({mode, self, ctx, _})) =>
+  | Some(InfoExp({mode, self, ctx, ancestors, _})) =>
     let err_status = Info.status_exp(ctx, mode, self);
     let id = Term.UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
     let+ d: DHExp.t =
@@ -139,6 +139,7 @@ let rec dhexp_of_uexp =
            to avoid casting issues. */
         Some(EmptyHole(id, 0))
       | Triv => Some(Tuple([]))
+      | Deferral(_) => Some(DHExp.InvalidText(id, 0, "_"))
       | Bool(b) => Some(BoolLit(b))
       | Int(n) => Some(IntLit(n))
       | Float(n) => Some(FloatLit(n))
@@ -260,6 +261,61 @@ let rec dhexp_of_uexp =
         let* c_fn = dhexp_of_uexp(m, fn);
         let+ c_arg = dhexp_of_uexp(m, arg);
         DHExp.Ap(c_fn, c_arg);
+      | DeferredAp(fn, args) =>
+        switch (err_status) {
+        | InHole(BadPartialAp(NoDeferredArgs)) => dhexp_of_uexp(m, fn)
+        | InHole(BadPartialAp(ArityMismatch(_))) =>
+          Some(DHExp.InvalidText(id, 0, "<invalid partial ap>"))
+        | _ =>
+          let mk_tuple = (ctor, xs) =>
+            List.length(xs) == 1 ? List.hd(xs) : ctor(xs);
+          let* ty_fn = fixed_exp_typ(m, fn);
+          let (ty_arg, ty_ret) = Typ.matched_arrow(ctx, ty_fn);
+          let ty_ins = Typ.matched_args(ctx, List.length(args), ty_arg);
+          /* Substitute all deferrals for new variables */
+          let (pats, ty_args, ap_args, ap_ctx) =
+            List.combine(args, ty_ins)
+            |> List.fold_left(
+                 ((pats, ty_args, ap_args, ap_ctx), (e: Term.UExp.t, ty)) =>
+                   if (Term.UExp.is_deferral(e)) {
+                     // Internal variable name for deferrals
+                     let name =
+                       "__deferred__" ++ string_of_int(List.length(pats));
+                     let var: Term.UExp.t = {ids: e.ids, term: Var(name)};
+                     let var_entry =
+                       Ctx.VarEntry({
+                         name,
+                         id: Term.UExp.rep_id(e),
+                         typ: ty,
+                       });
+                     (
+                       pats @ [DHPat.Var(name)],
+                       ty_args @ [ty],
+                       ap_args @ [var],
+                       Ctx.extend(ap_ctx, var_entry),
+                     );
+                   } else {
+                     (pats, ty_args, ap_args @ [e], ap_ctx);
+                   },
+                 ([], [], [], ctx),
+               );
+          let (pat, ty_arg) = (
+            mk_tuple(x => DHPat.Tuple(x), pats),
+            mk_tuple(x => Typ.Prod(x), ty_args),
+          );
+          let arg: Term.UExp.t = {ids: [Id.mk()], term: Tuple(ap_args)};
+          let body: Term.UExp.t = {ids: [Id.mk()], term: Ap(fn, arg)};
+          let (_info, m) =
+            Statics.uexp_to_info_map(
+              ~ctx=ap_ctx,
+              ~mode=Ana(ty_ret),
+              ~ancestors,
+              body,
+              m,
+            );
+          let+ dbody = dhexp_of_uexp(m, body);
+          DHExp.Fun(pat, Arrow(ty_arg, ty_ret), dbody, None);
+        }
       | If(c, e1, e2) =>
         let* c' = dhexp_of_uexp(m, c);
         let* d1 = dhexp_of_uexp(m, e1);

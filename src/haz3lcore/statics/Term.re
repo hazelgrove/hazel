@@ -424,6 +424,7 @@ module UExp = {
     | EmptyHole
     | MultiHole
     | Triv
+    | Deferral
     | Bool
     | Int
     | Float
@@ -437,6 +438,7 @@ module UExp = {
     | Let
     | TyAlias
     | Ap
+    | DeferredAp
     | Pipeline
     | If
     | Seq
@@ -466,6 +468,7 @@ module UExp = {
     | EmptyHole => EmptyHole
     | MultiHole(_) => MultiHole
     | Triv => Triv
+    | Deferral(_) => Deferral
     | Bool(_) => Bool
     | Int(_) => Int
     | Float(_) => Float
@@ -478,6 +481,7 @@ module UExp = {
     | Let(_) => Let
     | TyAlias(_) => TyAlias
     | Ap(_) => Ap
+    | DeferredAp(_) => DeferredAp
     | Pipeline(_) => Pipeline
     | If(_) => If
     | Seq(_) => Seq
@@ -559,6 +563,7 @@ module UExp = {
     | MultiHole => "Broken expression"
     | EmptyHole => "Empty expression hole"
     | Triv => "Trivial literal"
+    | Deferral => "Deferral"
     | Bool => "Boolean literal"
     | Int => "Integer literal"
     | Float => "Float literal"
@@ -572,6 +577,7 @@ module UExp = {
     | Let => "Let expression"
     | TyAlias => "Type Alias definition"
     | Ap => "Application"
+    | DeferredAp => "Partial Application"
     | Pipeline => "Pipeline expression"
     | If => "If expression"
     | Seq => "Sequence expression"
@@ -592,6 +598,7 @@ module UExp = {
     | EmptyHole
     | MultiHole(_)
     | Triv
+    | Deferral(_)
     | Bool(_)
     | Int(_)
     | Float(_)
@@ -602,6 +609,7 @@ module UExp = {
     | Let(_)
     | TyAlias(_)
     | Ap(_)
+    | DeferredAp(_)
     | Pipeline(_)
     | If(_)
     | Seq(_)
@@ -626,6 +634,7 @@ module UExp = {
       | EmptyHole
       | MultiHole(_)
       | Triv
+      | Deferral(_)
       | Bool(_)
       | Int(_)
       | Float(_)
@@ -636,6 +645,7 @@ module UExp = {
       | Let(_)
       | TyAlias(_)
       | Ap(_)
+      | DeferredAp(_)
       | Pipeline(_)
       | If(_)
       | Seq(_)
@@ -655,6 +665,13 @@ module UExp = {
     | Constructor(name) => Some(name)
     | _ => None
     };
+
+  let is_deferral = (e: t) => {
+    switch (e.term) {
+    | Deferral(_) => true
+    | _ => false
+    };
+  };
 };
 
 // TODO(d): consider just folding this into UExp
