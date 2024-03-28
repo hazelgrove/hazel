@@ -46,6 +46,8 @@ let request =
 
   setupWorkerMessageHandler(workerRef.contents);
 
+  // print_endline(Request.serialize(req));
+
   workerRef.contents##postMessage(Request.serialize(req));
 
   let onTimeout = (): unit => {

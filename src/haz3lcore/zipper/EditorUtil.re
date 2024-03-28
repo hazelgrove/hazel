@@ -41,47 +41,53 @@ let editors_of_strings = (~read_only=false, xs: list(string)) => {
   (i, List.map(((_, oe)) => Option.get(oe), aes));
 };
 
-let rec append_exp = (e1: Exp.t, e2: Exp.t) => {
-  switch (e1.term) {
-  | EmptyHole
-  | Invalid(_)
-  | MultiHole(_)
-  | StaticErrorHole(_)
-  | DynamicErrorHole(_)
-  | FailedCast(_)
-  | Bool(_)
-  | Int(_)
-  | Float(_)
-  | String(_)
-  | ListLit(_)
-  | Constructor(_)
-  | Closure(_)
-  | Fun(_)
-  | FixF(_)
-  | Tuple(_)
-  | Var(_)
-  | Ap(_)
-  | If(_)
-  | Test(_)
-  | Parens(_)
-  | Cons(_)
-  | ListConcat(_)
-  | UnOp(_)
-  | BinOp(_)
-  | BuiltinFun(_)
-  | Cast(_)
-  | Match(_) => Exp.{ids: [Id.mk()], copied: false, term: Seq(e1, e2)}
-  | Seq(e11, e12) =>
-    let e12' = append_exp(e12, e2);
-    Exp.{ids: e1.ids, copied: false, term: Seq(e11, e12')};
-  | Filter(kind, ebody) =>
-    let ebody' = append_exp(ebody, e2);
-    Exp.{ids: e1.ids, copied: false, term: Filter(kind, ebody')};
-  | Let(p, edef, ebody) =>
-    let ebody' = append_exp(ebody, e2);
-    Exp.{ids: e1.ids, copied: false, term: Let(p, edef, ebody')};
-  | TyAlias(tp, tdef, ebody) =>
-    let ebody' = append_exp(ebody, e2);
-    Exp.{ids: e1.ids, copied: false, term: TyAlias(tp, tdef, ebody')};
-  };
+let rec append_exp = {
+  Exp.(
+    (e1: Exp.t, e2: Exp.t) => (
+      {
+        switch (e1.term) {
+        | EmptyHole
+        | Invalid(_)
+        | MultiHole(_)
+        | StaticErrorHole(_)
+        | DynamicErrorHole(_)
+        | FailedCast(_)
+        | Bool(_)
+        | Int(_)
+        | Float(_)
+        | String(_)
+        | ListLit(_)
+        | Constructor(_)
+        | Closure(_)
+        | Fun(_)
+        | FixF(_)
+        | Tuple(_)
+        | Var(_)
+        | Ap(_)
+        | If(_)
+        | Test(_)
+        | Parens(_)
+        | Cons(_)
+        | ListConcat(_)
+        | UnOp(_)
+        | BinOp(_)
+        | BuiltinFun(_)
+        | Cast(_)
+        | Match(_) => Exp.{ids: [Id.mk()], copied: false, term: Seq(e1, e2)}
+        | Seq(e11, e12) =>
+          let e12' = append_exp(e12, e2);
+          {ids: e1.ids, copied: false, term: Seq(e11, e12')};
+        | Filter(kind, ebody) =>
+          let ebody' = append_exp(ebody, e2);
+          {ids: e1.ids, copied: false, term: Filter(kind, ebody')};
+        | Let(p, edef, ebody) =>
+          let ebody' = append_exp(ebody, e2);
+          {ids: e1.ids, copied: false, term: Let(p, edef, ebody')};
+        | TyAlias(tp, tdef, ebody) =>
+          let ebody' = append_exp(ebody, e2);
+          {ids: e1.ids, copied: false, term: TyAlias(tp, tdef, ebody')};
+        };
+      }: Exp.t
+    )
+  );
 };

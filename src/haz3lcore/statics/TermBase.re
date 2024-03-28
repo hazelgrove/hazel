@@ -118,15 +118,7 @@ and Exp: {
     | BuiltinFun(string)
     | Match(t, list((Pat.t, t)))
     | Cast(t, Typ.t, Typ.t)
-  and t = {
-    // invariant: ids should be nonempty
-    ids: list(Id.t),
-    /* UExp invariant: copied should always be false, and the id should be unique
-       DHExp invariant: if copied is true, then this term and its children may not
-       have unique ids. */
-    copied: bool,
-    term,
-  };
+  and t = IdTagged.t(term);
 
   let map_term:
     (
@@ -179,12 +171,7 @@ and Exp: {
     | BuiltinFun(string) /// Doesn't currently have a distinguishable syntax
     | Match(t, list((Pat.t, t)))
     | Cast(t, Typ.t, Typ.t)
-  and t = {
-    // invariant: nonempty
-    ids: list(Id.t),
-    copied: bool,
-    term,
-  };
+  and t = IdTagged.t(term);
 
   let map_term =
       (
@@ -215,7 +202,7 @@ and Exp: {
         ~f_rul,
         ~f_any,
       );
-    let rec_call = ({term, _} as exp) => {
+    let rec_call = ({term, _} as exp: t) => {
       ...exp,
       term:
         switch (term) {
@@ -288,10 +275,7 @@ and Pat: {
     | Parens(t)
     | Ap(t, t)
     | TypeAnn(t, TypTerm.t)
-  and t = {
-    ids: list(Id.t),
-    term,
-  };
+  and t = IdTagged.t(term);
 
   let map_term:
     (
@@ -323,10 +307,7 @@ and Pat: {
     | Parens(t)
     | Ap(t, t)
     | TypeAnn(t, TypTerm.t)
-  and t = {
-    ids: list(Id.t),
-    term,
-  };
+  and t = IdTagged.t(term);
 
   let map_term =
       (
@@ -344,7 +325,7 @@ and Pat: {
       TypTerm.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let any_map_term =
       Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
-    let rec_call = ({term, _} as exp) => {
+    let rec_call = ({term, _} as exp: t) => {
       ...exp,
       term:
         switch (term) {
@@ -390,10 +371,7 @@ and TypTerm: {
   and variant =
     | Variant(Constructor.t, list(Id.t), option(t)) // What are the ids for?
     | BadEntry(t)
-  and t = {
-    ids: list(Id.t),
-    term,
-  };
+  and t = IdTagged.t(term);
 
   let map_term:
     (
@@ -427,10 +405,7 @@ and TypTerm: {
   and variant =
     | Variant(Constructor.t, list(Id.t), option(t))
     | BadEntry(t)
-  and t = {
-    ids: list(Id.t),
-    term,
-  };
+  and t = IdTagged.t(term);
 
   let map_term =
       (
@@ -448,7 +423,7 @@ and TypTerm: {
       Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let tpat_map_term =
       TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
-    let rec_call = ({term, _} as exp) => {
+    let rec_call = ({term, _} as exp: t) => {
       ...exp,
       term:
         switch (term) {
@@ -488,10 +463,7 @@ and TPat: {
     | EmptyHole
     | MultiHole(list(Any.t))
     | Var(string)
-  and t = {
-    ids: list(Id.t),
-    term,
-  };
+  and t = IdTagged.t(term);
 
   let map_term:
     (
@@ -511,10 +483,7 @@ and TPat: {
     | EmptyHole
     | MultiHole(list(Any.t))
     | Var(string)
-  and t = {
-    ids: list(Id.t),
-    term,
-  };
+  and t = IdTagged.t(term);
 
   let map_term =
       (
@@ -528,7 +497,7 @@ and TPat: {
       ) => {
     let any_map_term =
       Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
-    let rec_call = ({term, _} as exp) => {
+    let rec_call = ({term, _} as exp: t) => {
       ...exp,
       term:
         switch (term) {
@@ -547,10 +516,7 @@ and Rul: {
     | Invalid(string)
     | Hole(list(Any.t))
     | Rules(Exp.t, list((Pat.t, Exp.t)))
-  and t = {
-    ids: list(Id.t),
-    term,
-  };
+  and t = IdTagged.t(term);
 
   let map_term:
     (
@@ -569,10 +535,7 @@ and Rul: {
     | Invalid(string)
     | Hole(list(Any.t))
     | Rules(Exp.t, list((Pat.t, Exp.t)))
-  and t = {
-    ids: list(Id.t),
-    term,
-  };
+  and t = IdTagged.t(term);
 
   let map_term =
       (
@@ -590,7 +553,7 @@ and Rul: {
       Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let any_map_term =
       Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
-    let rec_call = ({term, _} as exp) => {
+    let rec_call = ({term, _} as exp: t) => {
       ...exp,
       term:
         switch (term) {

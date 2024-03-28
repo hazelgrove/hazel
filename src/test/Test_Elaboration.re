@@ -58,9 +58,10 @@ let u4: UExp.t = {
         ids: [id_at(1)],
         term:
           Tuple([
-            {ids: [id_at(2)], term: Var("a")},
-            {ids: [id_at(3)], term: Var("b")},
+            {ids: [id_at(2)], term: Var("a"), copied: false},
+            {ids: [id_at(3)], term: Var("b"), copied: false},
           ]),
+        copied: false,
       },
       {
         ids: [id_at(4)],
@@ -147,7 +148,7 @@ let u7: UExp.t = {
         copied: false,
         term:
           Fun(
-            {ids: [id_at(2)], term: Var("x")},
+            {ids: [id_at(2)], term: Var("x"), copied: false},
             {
               ids: [id_at(3)],
               copied: false,
@@ -212,11 +213,11 @@ let u8: UExp.t = {
       },
       [
         (
-          {ids: [id_at(6)], term: Bool(true)},
+          {ids: [id_at(6)], copied: false, term: Bool(true)},
           {ids: [id_at(4)], copied: false, term: Int(24)},
         ),
         (
-          {ids: [id_at(7)], term: Bool(false)},
+          {ids: [id_at(7)], copied: false, term: Bool(false)},
           {ids: [id_at(5)], copied: false, term: Bool(false)},
         ),
       ],
@@ -245,16 +246,18 @@ let u9: UExp.t = {
     Let(
       {
         ids: [id_at(1)],
+        copied: false,
         term:
           TypeAnn(
-            {ids: [id_at(2)], term: Var("f")},
+            {ids: [id_at(2)], copied: false, term: Var("f")},
             {
               ids: [id_at(3)],
               term:
                 Arrow(
-                  {ids: [id_at(4)], term: Int},
-                  {ids: [id_at(5)], term: Int},
+                  {ids: [id_at(4)], copied: false, term: Int},
+                  {ids: [id_at(5)], copied: false, term: Int},
                 ),
+              copied: false,
             },
           ),
       },
@@ -263,7 +266,7 @@ let u9: UExp.t = {
         copied: false,
         term:
           Fun(
-            {ids: [id_at(7)], term: Var("x")},
+            {ids: [id_at(7)], copied: false, term: Var("x")},
             {
               ids: [id_at(8)],
               copied: false,
