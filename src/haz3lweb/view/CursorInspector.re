@@ -177,12 +177,13 @@ let exp_view = (cls: Term.Cls.t, status: Info.status_exp) =>
   | InHole(BadPartialAp(ArityMismatch({expected, actual}))) =>
     div_err([
       text(
-        "Arity mismatched partial application: expected "
+        "Arity mismatch: expected "
         ++ string_of_int(expected)
         ++ " argument"
         ++ (expected == 1 ? "" : "s")
         ++ ", got "
-        ++ string_of_int(actual),
+        ++ string_of_int(actual)
+        ++ " arguments",
       ),
     ])
   | InHole(Common(error)) => div_err(common_err_view(cls, error))

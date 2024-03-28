@@ -265,7 +265,7 @@ let rec dhexp_of_uexp =
         switch (err_status) {
         | InHole(BadPartialAp(NoDeferredArgs)) => dhexp_of_uexp(m, fn)
         | InHole(BadPartialAp(ArityMismatch(_))) =>
-          Some(DHExp.InvalidText(id, 0, "<inv partial ap>"))
+          Some(DHExp.InvalidText(id, 0, "<invalid partial ap>"))
         | _ =>
           let mk_tuple = (ctor, xs) =>
             List.length(xs) == 1 ? List.hd(xs) : ctor(xs);
