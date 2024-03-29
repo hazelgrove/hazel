@@ -1,3 +1,5 @@
+open Util;
+
 module TPat = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
@@ -162,20 +164,27 @@ module TypTerm = {
           );
         Rec(name, to_typ(ctx, tbody)) |> Typ.fresh;
       }
-  and to_variant:
-    (Ctx.t, variant) => option(ConstructorMap.binding(option(Typ.t))) =
+  and to_variant: (Ctx.t, variant) => ConstructorMap.variant(Typ.t) =
     ctx =>
       fun
-      | Variant(ctr, _, u) => Some((ctr, Option.map(to_typ(ctx), u)))
-      | BadEntry(_) => None
+      | Variant(ctr, ids, u) =>
+        ConstructorMap.Variant(ctr, ids, Option.map(to_typ(ctx), u))
+      | BadEntry(u) => ConstructorMap.BadEntry(to_typ(ctx, u))
   and to_ctr_map = (ctx: Ctx.t, uts: list(variant)): Typ.sum_map => {
-    List.fold_left(
-      (acc, ut) =>
-        List.find_opt(((ctr, _)) => ctr == fst(ut), acc) == None
-          ? acc @ [ut] : acc,
-      [],
-      List.filter_map(to_variant(ctx), uts),
-    );
+    uts
+    |> List.map(to_variant(ctx))
+    |> ListUtil.dedup_f(
+         (
+           x: ConstructorMap.variant(Typ.t),
+           y: ConstructorMap.variant(Typ.t),
+         ) =>
+         switch (x, y) {
+         | (Variant(c1, _, _), Variant(c2, _, _)) => c1 == c2
+         | (Variant(_), BadEntry(_))
+         | (BadEntry(_), Variant(_))
+         | (BadEntry(_), BadEntry(_)) => false
+         }
+       );
   };
 };
 

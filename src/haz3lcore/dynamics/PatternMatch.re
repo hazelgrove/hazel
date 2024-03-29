@@ -7,26 +7,28 @@ type match_result =
 
 let const_unknown: 'a => Typ.t = _ => Unknown(Internal) |> Typ.fresh;
 
-let cast_sum_maps =
-    (sm1: Typ.sum_map, sm2: Typ.sum_map)
-    : option(ConstructorMap.t((Typ.t, Typ.t))) => {
-  let (ctrs1, tys1) = sm1 |> ConstructorMap.bindings |> List.split;
-  let (ctrs2, tys2) = sm2 |> ConstructorMap.bindings |> List.split;
-  if (ctrs1 == ctrs2) {
-    let tys1 = tys1 |> List.filter(Option.is_some) |> List.map(Option.get);
-    let tys2 = tys2 |> List.filter(Option.is_some) |> List.map(Option.get);
-    if (List.length(tys1) == List.length(tys2)) {
-      Some(
-        List.(combine(tys1, tys2) |> combine(ctrs1))
-        |> ConstructorMap.of_list,
-      );
-    } else {
-      None;
-    };
-  } else {
-    None;
-  };
-};
+let cast_sum_maps = (_, _) => None; // TODO[Matt]: Fix
+
+// let cast_sum_maps =
+//     (sm1: Typ.sum_map, sm2: Typ.sum_map)
+//     : option(ConstructorMap.t((Typ.t, Typ.t))) => {
+//   let (ctrs1, tys1) = sm1 |> ConstructorMap.bindings |> List.split;
+//   let (ctrs2, tys2) = sm2 |> ConstructorMap.bindings |> List.split;
+//   if (ctrs1 == ctrs2) {
+//     let tys1 = tys1 |> List.filter(Option.is_some) |> List.map(Option.get);
+//     let tys2 = tys2 |> List.filter(Option.is_some) |> List.map(Option.get);
+//     if (List.length(tys1) == List.length(tys2)) {
+//       Some(
+//         List.(combine(tys1, tys2) |> combine(ctrs1))
+//         |> ConstructorMap.of_list,
+//       );
+//     } else {
+//       None;
+//     };
+//   } else {
+//     None;
+//   };
+// };
 
 let rec matches = (dp: Pat.t, d: DHExp.t): match_result =>
   switch (DHPat.term_of(dp), DHExp.term_of(d)) {
@@ -254,88 +256,89 @@ let rec matches = (dp: Pat.t, d: DHExp.t): match_result =>
   }
 and matches_cast_Sum =
     (
-      ctr: string,
-      dp: option(Pat.t),
-      d: DHExp.t,
-      castmaps: list(ConstructorMap.t((Typ.t, Typ.t))),
+      _ctr: string,
+      _dp: option(Pat.t),
+      _d: DHExp.t,
+      _castmaps: list(ConstructorMap.t((Typ.t, Typ.t))),
     )
     : match_result =>
-  switch (DHExp.term_of(d)) {
-  | Parens(d) => matches_cast_Sum(ctr, dp, d, castmaps)
-  | Constructor(ctr') =>
-    switch (
-      dp,
-      castmaps |> List.map(ConstructorMap.find_opt(ctr')) |> OptUtil.sequence,
-    ) {
-    | (None, Some(_)) =>
-      ctr == ctr' ? Matches(Environment.empty) : DoesNotMatch
-    | _ => DoesNotMatch
-    }
-  | Ap(_, d1, d2) =>
-    switch (DHExp.term_of(d1)) {
-    | Constructor(ctr') =>
-      switch (
-        dp,
-        castmaps
-        |> List.map(ConstructorMap.find_opt(ctr'))
-        |> OptUtil.sequence,
-      ) {
-      | (Some(dp), Some(side_casts)) =>
-        matches(dp, DHExp.apply_casts(d2, side_casts))
-      | _ => DoesNotMatch
-      }
-    | _ => IndetMatch
-    }
-  | Cast(
-      d',
-      {term: Sum(sm1) | Rec(_, {term: Sum(sm1), _}), _},
-      {term: Sum(sm2) | Rec(_, {term: Sum(sm2), _}), _},
-    ) =>
-    switch (cast_sum_maps(sm1, sm2)) {
-    | Some(castmap) => matches_cast_Sum(ctr, dp, d', [castmap, ...castmaps])
-    | None => DoesNotMatch
-    }
-  | Cast(
-      d',
-      {term: Sum(_) | Rec(_, {term: Sum(_), _}), _},
-      {term: Unknown(_), _},
-    )
-  | Cast(
-      d',
-      {term: Unknown(_), _},
-      {term: Sum(_) | Rec(_, {term: Sum(_), _}), _},
-    ) =>
-    matches_cast_Sum(ctr, dp, d', castmaps)
-  | Invalid(_)
-  | Let(_)
-  | UnOp(_)
-  | BinOp(_)
-  | EmptyHole
-  | MultiHole(_)
-  | StaticErrorHole(_)
-  | FailedCast(_, _, _)
-  | Test(_)
-  | DynamicErrorHole(_)
-  | Match(_)
-  | If(_)
-  | TyAlias(_)
-  | BuiltinFun(_) => IndetMatch
-  | Cast(_)
-  | Var(_)
-  | FixF(_)
-  | Fun(_)
-  | Bool(_)
-  | Int(_)
-  | Float(_)
-  | String(_)
-  | ListLit(_)
-  | Tuple(_)
-  | Seq(_, _)
-  | Closure(_)
-  | Filter(_)
-  | Cons(_)
-  | ListConcat(_) => DoesNotMatch
-  }
+  IndetMatch // TODO[Matt]: fix
+// switch (DHExp.term_of(d)) {
+// | Parens(d) => matches_cast_Sum(ctr, dp, d, castmaps)
+// | Constructor(ctr') =>
+//   switch (
+//     dp,
+//     castmaps |> List.map(ConstructorMap.find_opt(ctr')) |> OptUtil.sequence,
+//   ) {
+//   | (None, Some(_)) =>
+//     ctr == ctr' ? Matches(Environment.empty) : DoesNotMatch
+//   | _ => DoesNotMatch
+//   }
+// | Ap(_, d1, d2) =>
+//   switch (DHExp.term_of(d1)) {
+//   | Constructor(ctr') =>
+//     switch (
+//       dp,
+//       castmaps
+//       |> List.map(ConstructorMap.find_opt(ctr'))
+//       |> OptUtil.sequence,
+//     ) {
+//     | (Some(dp), Some(side_casts)) =>
+//       matches(dp, DHExp.apply_casts(d2, side_casts))
+//     | _ => DoesNotMatch
+//     }
+//   | _ => IndetMatch
+//   }
+// | Cast(
+//     d',
+//     {term: Sum(sm1) | Rec(_, {term: Sum(sm1), _}), _},
+//     {term: Sum(sm2) | Rec(_, {term: Sum(sm2), _}), _},
+//   ) =>
+//   switch (cast_sum_maps(sm1, sm2)) {
+//   | Some(castmap) => matches_cast_Sum(ctr, dp, d', [castmap, ...castmaps])
+//   | None => DoesNotMatch
+//   }
+// | Cast(
+//     d',
+//     {term: Sum(_) | Rec(_, {term: Sum(_), _}), _},
+//     {term: Unknown(_), _},
+//   )
+// | Cast(
+//     d',
+//     {term: Unknown(_), _},
+//     {term: Sum(_) | Rec(_, {term: Sum(_), _}), _},
+//   ) =>
+//   matches_cast_Sum(ctr, dp, d', castmaps)
+// | Invalid(_)
+// | Let(_)
+// | UnOp(_)
+// | BinOp(_)
+// | EmptyHole
+// | MultiHole(_)
+// | StaticErrorHole(_)
+// | FailedCast(_, _, _)
+// | Test(_)
+// | DynamicErrorHole(_)
+// | Match(_)
+// | If(_)
+// | TyAlias(_)
+// | BuiltinFun(_) => IndetMatch
+// | Cast(_)
+// | Var(_)
+// | FixF(_)
+// | Fun(_)
+// | Bool(_)
+// | Int(_)
+// | Float(_)
+// | String(_)
+// | ListLit(_)
+// | Tuple(_)
+// | Seq(_, _)
+// | Closure(_)
+// | Filter(_)
+// | Cons(_)
+// | ListConcat(_) => DoesNotMatch
+// }
 and matches_cast_Tuple =
     (dps: list(Pat.t), d: DHExp.t, elt_casts: list(list((Typ.t, Typ.t))))
     : match_result =>

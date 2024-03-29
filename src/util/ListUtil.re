@@ -7,6 +7,13 @@ let dedup = xs =>
     [],
   );
 
+let dedup_f = (f, xs) =>
+  List.fold_right(
+    (x, deduped) => List.exists(f(x), deduped) ? deduped : [x, ...deduped],
+    xs,
+    [],
+  );
+
 let are_duplicates = xs =>
   List.length(List.sort_uniq(compare, xs)) == List.length(xs);
 
