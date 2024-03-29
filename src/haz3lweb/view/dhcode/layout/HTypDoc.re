@@ -122,15 +122,21 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
     | Sum(sum_map) =>
       let center =
         List.mapi(
-          (i, (ctr, ty)) =>
-            switch (ty) {
-            | None => annot(HTypAnnot.Step(i + 1), text(ctr))
-            | Some(ty) =>
-              annot(
-                HTypAnnot.Step(i + 1),
-                hcats([text(ctr ++ "("), mk'(ty), text(")")]),
-              )
-            },
+          (i, vr) => {
+            ConstructorMap.(
+              switch (vr) {
+              | Variant(ctr, _, None) =>
+                annot(HTypAnnot.Step(i + 1), text(ctr))
+              | Variant(ctr, _, Some(ty)) =>
+                annot(
+                  HTypAnnot.Step(i + 1),
+                  hcats([text(ctr ++ "("), mk'(ty), text(")")]),
+                )
+              | BadEntry(ty) =>
+                annot(HTypAnnot.Step(i + 1), hcats([mk'(ty)]))
+              }
+            )
+          },
           sum_map,
         )
         |> ListUtil.join(

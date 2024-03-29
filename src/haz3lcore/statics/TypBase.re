@@ -41,11 +41,11 @@ module rec Typ: {
     | Parens(t)
     | Ap(t, t)
     | Rec(string, t)
-  and sum_map = ConstructorMap.t(option(t))
+  and sum_map = ConstructorMap.t(t)
   and t = IdTagged.t(term);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type sum_entry = ConstructorMap.binding(option(t));
+  type sum_entry = (Constructor.t, list(Id.t), option(Typ.t));
 
   /* Hazel type annotated with a relevant source location.
      Currently used to track match branches for inconsistent
@@ -110,7 +110,7 @@ module rec Typ: {
     | Parens(t)
     | Ap(t, t)
     | Rec(string, t)
-  and sum_map = ConstructorMap.t(option(t))
+  and sum_map = ConstructorMap.t(t)
   and t = IdTagged.t(term);
 
   let term_of: t => term = IdTagged.term_of;
@@ -118,7 +118,7 @@ module rec Typ: {
   let fresh: term => t = IdTagged.fresh;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type sum_entry = ConstructorMap.binding(option(t));
+  type sum_entry = (Constructor.t, list(Id.t), option(Typ.t));
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type source = {
@@ -216,8 +216,7 @@ module rec Typ: {
     | (Prod(_), _) => false
     | (List(t1), List(t2)) => eq(t1, t2)
     | (List(_), _) => false
-    | (Sum(sm1), Sum(sm2)) =>
-      ConstructorMap.equal(Option.equal(eq), sm1, sm2)
+    | (Sum(sm1), Sum(sm2)) => ConstructorMap.equal(eq, sm1, sm2)
     | (Sum(_), _) => false
     | (Var(n1), Var(n2)) => n1 == n2
     | (Var(_), _) => false
@@ -238,13 +237,7 @@ module rec Typ: {
     | List(ty) => free_vars(~bound, ty)
     | Ap(t1, t2)
     | Arrow(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
-    | Sum(sm) =>
-      ListUtil.flat_map(
-        fun
-        | None => []
-        | Some(typ) => free_vars(~bound, typ),
-        List.map(snd, sm),
-      )
+    | Sum(sm) => ConstructorMap.free_variables(free_vars(~bound), sm)
     | Prod(tys) => ListUtil.flat_map(free_vars(~bound), tys)
     | Rec(x, ty) => free_vars(~bound=[x, ...bound], ty)
     };
@@ -319,19 +312,9 @@ module rec Typ: {
       Prod(tys) |> fresh;
     | (Prod(_), _) => None
     | (Sum(sm1), Sum(sm2)) =>
-      let (sorted1, sorted2) =
-        /* If same order, retain order for UI */
-        ConstructorMap.same_constructors_same_order(sm1, sm2)
-          ? (sm1, sm2)
-          : (ConstructorMap.sort(sm1), ConstructorMap.sort(sm2));
-      let* ty =
-        ListUtil.map2_opt(
-          join_sum_entries(~resolve, ~fix, ctx),
-          sorted1,
-          sorted2,
-        );
-      let+ ty = OptUtil.sequence(ty);
-      Sum(ty) |> fresh;
+      let+ sm' =
+        ConstructorMap.join(eq, join(~resolve, ~fix, ctx), sm1, sm2);
+      Sum(sm') |> fresh;
     | (Sum(_), _) => None
     | (List(ty1), List(ty2)) =>
       let+ ty = join'(ty1, ty2);
@@ -339,23 +322,7 @@ module rec Typ: {
     | (List(_), _) => None
     | (Ap(_), _) => failwith("Type join of ap")
     };
-  }
-  and join_sum_entries =
-      (
-        ~resolve,
-        ~fix,
-        ctx: Ctx.t,
-        (ctr1, ty1): sum_entry,
-        (ctr2, ty2): sum_entry,
-      )
-      : option(sum_entry) =>
-    switch (ty1, ty2) {
-    | (None, None) when ctr1 == ctr2 => Some((ctr1, None))
-    | (Some(ty1), Some(ty2)) when ctr1 == ctr2 =>
-      let+ ty_join = join(~resolve, ~fix, ctx, ty1, ty2);
-      (ctr1, Some(ty_join));
-    | _ => None
-    };
+  };
 
   let join_fix = join(~fix=true);
 
@@ -436,7 +403,8 @@ module rec Typ: {
   let sum_entry = (ctr: Constructor.t, ctrs: sum_map): option(sum_entry) =>
     List.find_map(
       fun
-      | (t, typ) when Constructor.equal(t, ctr) => Some((t, typ))
+      | ConstructorMap.Variant(t, ids, v) when Constructor.equal(t, ctr) =>
+        Some((t, ids, v))
       | _ => None,
       ctrs,
     );
@@ -597,17 +565,21 @@ and Ctx: {
     };
 
   let add_ctrs = (ctx: t, name: string, id: Id.t, ctrs: Typ.sum_map): t =>
-    List.map(
-      ((ctr, typ)) =>
-        ConstructorEntry({
-          name: ctr,
-          id,
-          typ:
-            switch (typ) {
-            | None => Var(name) |> Typ.fresh
-            | Some(typ) => Arrow(typ, Var(name) |> Typ.fresh) |> Typ.fresh
-            },
-        }),
+    List.filter_map(
+      fun
+      | ConstructorMap.Variant(ctr, _, typ) =>
+        Some(
+          ConstructorEntry({
+            name: ctr,
+            id,
+            typ:
+              switch (typ) {
+              | None => Var(name) |> Typ.fresh
+              | Some(typ) => Arrow(typ, Var(name) |> Typ.fresh) |> Typ.fresh
+              },
+          }),
+        )
+      | ConstructorMap.BadEntry(_) => None,
       ctrs,
     )
     @ ctx;

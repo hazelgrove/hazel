@@ -80,11 +80,15 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
     )
   | Ap(_) => failwith("type application in view")
   }
-and ctr_view = ((ctr, typ)) =>
-  switch (typ) {
-  | None => [text(ctr)]
-  | Some(typ) => [text(ctr ++ "("), view_ty(typ), text(")")]
-  };
+and ctr_view =
+  fun
+  | Variant(ctr, _, None) => [text(ctr)]
+  | Variant(ctr, _, Some(typ)) => [
+      text(ctr ++ "("),
+      view_ty(typ),
+      text(")"),
+    ]
+  | BadEntry(typ) => [view_ty(typ)];
 
 let view = (ty: Haz3lcore.Typ.t): Node.t =>
   div_c("typ-wrapper", [view_ty(ty)]);

@@ -92,19 +92,16 @@ module CastHelpers = {
       Prod(ListUtil.replicate(length, Typ.Unknown(Internal) |> Typ.fresh))
       |> Typ.fresh,
     );
-  let grounded_Sum = (sm: Typ.sum_map): ground_cases => {
-    let sm' = sm |> ConstructorMap.map(Option.map(const_unknown));
-    NotGroundOrHole(Sum(sm') |> Typ.fresh);
-  };
+  let grounded_Sum: unit => Typ.sum_map =
+    () => [BadEntry(Typ.fresh(Unknown(Internal)))];
   let grounded_List =
     NotGroundOrHole(List(Unknown(Internal) |> Typ.fresh) |> Typ.fresh);
 
   let rec ground_cases_of = (ty: Typ.t): ground_cases => {
-    let is_ground_arg: option(Typ.t) => bool =
+    let is_hole: Typ.t => bool =
       fun
-      | None
-      | Some({term: Typ.Unknown(_), _}) => true
-      | Some(ty) => ground_cases_of(ty) == Ground;
+      | {term: Typ.Unknown(_), _} => true
+      | _ => false;
     switch (Typ.term_of(ty)) {
     | Unknown(_) => Hole
     | Bool
@@ -128,8 +125,8 @@ module CastHelpers = {
         tys |> List.length |> grounded_Prod;
       }
     | Sum(sm) =>
-      sm |> ConstructorMap.is_ground(is_ground_arg)
-        ? Ground : grounded_Sum(sm)
+      sm |> ConstructorMap.is_ground(is_hole)
+        ? Ground : NotGroundOrHole(Sum(grounded_Sum()) |> Typ.fresh)
     | Arrow(_, _) => grounded_Arrow
     | List(_) => grounded_List
     | Ap(_) => failwith("type application in dynamics")
