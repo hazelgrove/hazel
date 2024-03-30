@@ -1,0 +1,90 @@
+The following static errors were discovered:
+Error in term:
+  m.0
+Nature of error: "m.0" isn't a valid token
+Error in term:
+  # Password strength checking logic
+Nature of error: "# Password strength checking logic" isn't a valid token
+Error in term:
+  m.1
+Nature of error: "m.1" isn't a valid token
+Error in term:
+  m.0
+Nature of error: "m.0" isn't a valid token
+Error in term:
+  check_strength
+Nature of error: Variable check_strength is not bound
+Error in term:
+  m.0
+Nature of error: "m.0" isn't a valid token
+Error in term:
+  m.1
+Nature of error: "m.1" isn't a valid token
+Error in term:
+  # Password strength checking logic end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ...
+Nature of error: "..." isn't a valid token
+Error in term:
+  Password
+Nature of error: Constructor is not defined
+Error in term:
+  m.1
+Nature of error: "m.1" isn't a valid token
+Error in term:
+  check_strength
+Nature of error: Variable check_strength is not bound
+Error in term:
+  Strength
+Nature of error: Constructor is not defined
+Error in term:
+  m.1
+Nature of error: "m.1" isn't a valid token
+Error in term:
+  Criteria
+Nature of error: Constructor is not defined
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  m.0
+Nature of error: "m.0" isn't a valid token
+Error in term:
+  check_strength
+Nature of error: Variable check_strength is not bound
+Error in term:
+  where
+Nature of error: Variable where is not bound
+Error in term:
+  m.1
+Nature of error: "m.1" isn't a valid token
+Error in term:
+  m.0
+Nature of error: "m.0" isn't a valid token
+Error in term:
+  check_strength : (Password, Criteria -> Strength fun (p, c) ->
+ ...) # Password strength checking logic end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  fun x ->
+ x != c
+Nature of error: Expecting type [?] but got inconsistent type (? -> Bool)
+Error in term:
+  where check_strength : (Password, Criteria -> Strength fun (p, c) ->
+ ...) # Password strength checking logic end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  fun (m, a) ->
+ case a
+ | UpdatePassword(p) => (p, m.1, check_strength(p, m.1))
+| ClearCriteria => (m.0, , Weak)
+| AddCriterion(c) => (m.0, m.1 @ c, check_strength(m.0, m.1 @ c))
+| RemoveCriterion(c) => let new_criteria = List.filter(m.1, fun x ->
+ x != c) in
+ (m.0, new_criteria, check_strength(m.0, new_criteria))
+end where check_strength : (Password, Criteria -> Strength fun (p, c) ->
+ ...) # Password strength checking logic end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

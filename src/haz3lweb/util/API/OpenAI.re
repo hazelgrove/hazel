@@ -17,6 +17,13 @@ type role =
   | Function;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type params = {
+  llm: chat_models,
+  temperature: float,
+  top_p: float,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type message = {
   role,
   content: string,
@@ -53,15 +60,19 @@ let string_of_role =
   | Assistant => "assistant"
   | Function => "function";
 
+let default_params = {llm: Azure_GPT4_0613, temperature: 1.0, top_p: 1.0};
+
 let mk_message = ({role, content}) =>
   `Assoc([
     ("role", `String(string_of_role(role))),
     ("content", `String(content)),
   ]);
 
-let body = (~llm, messages: prompt): Json.t => {
+let body = (~params: params, messages: prompt): Json.t => {
   `Assoc([
-    ("model", `String(string_of_chat_model(llm))),
+    ("model", `String(string_of_chat_model(params.llm))),
+    ("temperature", `Float(params.temperature)),
+    ("top_p", `Float(params.top_p)),
     ("messages", `List(List.map(mk_message, messages))),
   ]);
 };
@@ -149,9 +160,9 @@ let chat_azure4 =
     ~api_version="2023-05-15",
   );
 
-let start_chat = (~llm, ~key, prompt: prompt, handler): unit => {
-  let body = body(~llm, prompt);
-  switch (llm) {
+let start_chat = (~params, ~key, prompt: prompt, handler): unit => {
+  let body = body(~params, prompt);
+  switch (params.llm) {
   | Azure_GPT3_5Turbo => chat_azure35(~key, ~body, ~handler)
   | Azure_GPT4_0613 => chat_azure4(~key, ~body, ~handler)
   | GPT3_5Turbo

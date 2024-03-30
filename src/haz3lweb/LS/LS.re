@@ -220,6 +220,14 @@ and parse_runtest = (strs, args: arguments): arguments =>
     let rt = get_runtest(args.command);
     let options = {...rt.options, relevant_ctx: true};
     parse_runtest(rest, {...args, command: RunTest({...rt, options})});
+  | ["--temperature", temperature, ...rest] =>
+    let rt = get_runtest(args.command);
+    let params = {
+      ...rt.options.params,
+      temperature: float_of_string(temperature),
+    };
+    let options = {...rt.options, params};
+    parse_runtest(rest, {...args, command: RunTest({...rt, options})});
   | _ => failwith("LSP: EXN: Usage: " ++ usage_runtest)
   };
 

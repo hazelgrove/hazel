@@ -1,0 +1,176 @@
+The following static errors were discovered:
+Error in term:
+  meets_criterion
+Nature of error: Variable meets_criterion is not bound
+Error in term:
+  List.any
+Nature of error: Variable List.any is not bound
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  check_strength
+Nature of error: Variable check_strength is not bound
+Error in term:
+  fun (model, action) ->
+ case action
+ | UpdatePassword(new_password) => (new_password, model.1, check_strength(new_password, model.1))
+| ClearCriteria => (model.0, , Weak)
+| AddCriterion(criterion) => (model.0, criterion :: model.1, check_strength(model.0, criterion :: model.1))
+| RemoveCriterion(criterion) => (model.0, List.remove(criterion, model.1), check_strength(model.0, List.remove(criterion, model.1)))
+end where check_strength : (Password, Criteria -> Strength fun (password, criteria) ->
+ if List.all(fun criterion ->
+ meets_criterion(password, criterion), criteria) then Strong else if List.any(fun criterion ->
+ meets_criterion(password, criterion), criteria) then Moderate else Weak) where meets_criterion : (Password, PasswordCriteria -> Bool fun (password, criterion) ->
+ case criterion
+ | RequireUppercase => String.contains_uppercase(password)
+| RequireLowercase => String.contains_lowercase(password)
+| MinimumLength(length) => String.length(password) >= length
+| RequireNumber => String.contains_number(password)
+| RequireSpecialChar => String.contains_special_char(password)
+end) end end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  meets_criterion
+Nature of error: Variable meets_criterion is not bound
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  String.contains_number
+Nature of error: Variable String.contains_number is not bound
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  String.contains_special_char
+Nature of error: Variable String.contains_special_char is not bound
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  check_strength
+Nature of error: Variable check_strength is not bound
+Error in term:
+  check_strength : (Password, Criteria -> Strength fun (password, criteria) ->
+ if List.all(fun criterion ->
+ meets_criterion(password, criterion), criteria) then Strong else if List.any(fun criterion ->
+ meets_criterion(password, criterion), criteria) then Moderate else Weak) where meets_criterion : (Password, PasswordCriteria -> Bool fun (password, criterion) ->
+ case criterion
+ | RequireUppercase => String.contains_uppercase(password)
+| RequireLowercase => String.contains_lowercase(password)
+| MinimumLength(length) => String.length(password) >= length
+| RequireNumber => String.contains_number(password)
+| RequireSpecialChar => String.contains_special_char(password)
+end) end end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Bool
+Nature of error: Constructor is not defined
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  where
+Nature of error: Variable where is not bound
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  where
+Nature of error: Variable where is not bound
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  String.contains_lowercase
+Nature of error: Variable String.contains_lowercase is not bound
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  where check_strength : (Password, Criteria -> Strength fun (password, criteria) ->
+ if List.all(fun criterion ->
+ meets_criterion(password, criterion), criteria) then Strong else if List.any(fun criterion ->
+ meets_criterion(password, criterion), criteria) then Moderate else Weak) where meets_criterion : (Password, PasswordCriteria -> Bool fun (password, criterion) ->
+ case criterion
+ | RequireUppercase => String.contains_uppercase(password)
+| RequireLowercase => String.contains_lowercase(password)
+| MinimumLength(length) => String.length(password) >= length
+| RequireNumber => String.contains_number(password)
+| RequireSpecialChar => String.contains_special_char(password)
+end) end end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Criteria
+Nature of error: Constructor is not defined
+Error in term:
+  List.remove
+Nature of error: Variable List.remove is not bound
+Error in term:
+  String.contains_uppercase
+Nature of error: Variable String.contains_uppercase is not bound
+Error in term:
+  end end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  meets_criterion : (Password, PasswordCriteria -> Bool fun (password, criterion) ->
+ case criterion
+ | RequireUppercase => String.contains_uppercase(password)
+| RequireLowercase => String.contains_lowercase(password)
+| MinimumLength(length) => String.length(password) >= length
+| RequireNumber => String.contains_number(password)
+| RequireSpecialChar => String.contains_special_char(password)
+end) end end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Strength
+Nature of error: Constructor is not defined
+Error in term:
+  PasswordCriteria
+Nature of error: Constructor is not defined
+Error in term:
+  List.all
+Nature of error: Variable List.all is not bound
+Error in term:
+  where meets_criterion : (Password, PasswordCriteria -> Bool fun (password, criterion) ->
+ case criterion
+ | RequireUppercase => String.contains_uppercase(password)
+| RequireLowercase => String.contains_lowercase(password)
+| MinimumLength(length) => String.length(password) >= length
+| RequireNumber => String.contains_number(password)
+| RequireSpecialChar => String.contains_special_char(password)
+end) end end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  List.remove
+Nature of error: Variable List.remove is not bound
+Error in term:
+  String.length
+Nature of error: Variable String.length is not bound
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  Password
+Nature of error: Constructor is not defined
+Error in term:
+  check_strength
+Nature of error: Variable check_strength is not bound
+Error in term:
+  Password
+Nature of error: Constructor is not defined
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

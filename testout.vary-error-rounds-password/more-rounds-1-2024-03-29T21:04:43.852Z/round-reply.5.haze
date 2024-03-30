@@ -1,0 +1,9 @@
+fun (model, action) ->
+  case model, action
+  | (password, criteria, strength), UpdatePassword(p) => (p, criteria, calculateStrength(p, criteria))
+  | (password, criteria, strength), ClearCriteria => (password, [], calculateStrength(password, []))
+  | (password, criteria, strength), AddCriterion(criterion) => (password, criterion::criteria, calculateStrength(password, criterion::criteria))
+  | (password, criteria, strength), RemoveCriterion(criterion) => let newCriteria = List.filter((fun x -> x != criterion), criteria) 
+                                                                    in (password, newCriteria, calculateStrength(password, newCriteria))
+  end
+where calculateStrength is a predefined function that should be replaced with the correct function name that calculates the password strength.

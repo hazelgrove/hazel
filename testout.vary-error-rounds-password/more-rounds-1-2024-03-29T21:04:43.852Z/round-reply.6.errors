@@ -1,0 +1,92 @@
+The following static errors were discovered:
+Error in term:
+  placeholder for the actual function that calculates the password strength.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  calculates the password strength.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  where
+Nature of error: Variable where is not bound
+Error in term:
+  for
+Nature of error: Variable for is not bound
+Error in term:
+  function
+Nature of error: Variable function is not bound
+Error in term:
+  where calculateStrength is a placeholder for the actual function that calculates the password strength.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  is
+Nature of error: Variable is is not bound
+Error in term:
+  that
+Nature of error: Variable that is not bound
+Error in term:
+  strength.
+Nature of error: "strength." isn't a valid token
+Error in term:
+  actual function that calculates the password strength.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  the password strength.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  placeholder
+Nature of error: Variable placeholder is not bound
+Error in term:
+  a
+Nature of error: Variable a is not bound
+Error in term:
+  calculates
+Nature of error: Variable calculates is not bound
+Error in term:
+  fun ((model, action)) ->
+ case model, action
+ | (((password, criteria, strength)), UpdatePassword(p)) => (p, criteria, calculateStrength(p, criteria))
+| (((password, criteria, strength)), ClearCriteria) => (password, , calculateStrength(password, ))
+| (((password, criteria, strength)), AddCriterion(criterion)) => (password, criterion :: criteria, calculateStrength(password, criterion :: criteria))
+| (((password, criteria, strength)), RemoveCriterion(criterion)) => let newCriteria = List.filter((fun x ->
+ x != criterion), criteria) in
+ (password, newCriteria, calculateStrength(password, newCriteria))
+end where calculateStrength is a placeholder for the actual function that calculates the password strength.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  password
+Nature of error: Variable password is not bound
+Error in term:
+  actual
+Nature of error: Variable actual is not bound
+Error in term:
+  the
+Nature of error: Variable the is not bound
+Error in term:
+  for the actual function that calculates the password strength.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  password strength.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  the actual function that calculates the password strength.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  calculateStrength is a placeholder for the actual function that calculates the password strength.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  function that calculates the password strength.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  a placeholder for the actual function that calculates the password strength.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  that calculates the password strength.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  the
+Nature of error: Variable the is not bound
+Error in term:
+  is a placeholder for the actual function that calculates the password strength.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

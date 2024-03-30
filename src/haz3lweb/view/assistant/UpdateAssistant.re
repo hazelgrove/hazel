@@ -79,7 +79,8 @@ let apply =
     | Some(prompt) =>
       let llm = OpenAI.Azure_GPT4_0613;
       let key = OpenAI.lookup_key(llm);
-      OpenAI.start_chat(~llm, ~key, prompt, req =>
+      let params: OpenAI.params = {llm, temperature: 1.0, top_p: 1.0};
+      OpenAI.start_chat(~params, ~key, prompt, req =>
         switch (OpenAI.handle_chat(req)) {
         | Some({content, _}) => schedule_action(Oracle.react(content))
         | None => print_endline("Assistant: response parse failed")
@@ -87,8 +88,8 @@ let apply =
       );
     };
     Ok(model);
-  | Prompt(Filler({llm, _} as filler_options)) =>
-    let key = OpenAI.lookup_key(llm);
+  | Prompt(Filler({params, _} as filler_options)) =>
+    let key = OpenAI.lookup_key(params.llm);
     let schedule_if_auto = action =>
       switch (model.meta.auto.current_script) {
       | None => ()
@@ -142,7 +143,7 @@ let apply =
               ~assistant=reply.content,
               ~user=err_msg,
             );
-          OpenAI.start_chat(~llm, ~key, prompt', response =>
+          OpenAI.start_chat(~params, ~key, prompt', response =>
             switch (OpenAI.handle_chat(response)) {
             | Some(reply') =>
               error_loop(~handler, ~fuel=fuel - 1, prompt', reply')
@@ -152,7 +153,7 @@ let apply =
         };
       };
       print_endline("Assistant: PROMPT:\n " ++ OpenAI.show_prompt(prompt));
-      OpenAI.start_chat(~llm, ~key, prompt, req =>
+      OpenAI.start_chat(~params, ~key, prompt, req =>
         switch (OpenAI.handle_chat(req)) {
         | Some(reply) =>
           error_loop(

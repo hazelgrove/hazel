@@ -1,0 +1,24 @@
+
+fun model, action ->
+  case action
+  | UpdatePassword(new_password) => (new_password, model.1, check_strength(new_password, model.1))
+  | ClearCriteria => (model.0, [], Weak)
+  | AddCriterion(criterion) => (model.0, criterion::model.1, check_strength(model.0, criterion::model.1))
+  | RemoveCriterion(criterion) => (model.0, List.remove(criterion, model.1), check_strength(model.0, List.remove(criterion, model.1)))
+  end
+  where check_strength: (Password, Criteria) -> Strength = fun password, criteria ->
+    if List.all(fun criterion -> meets_criterion(password, criterion), criteria)
+    then Strong
+    else if List.any(fun criterion -> meets_criterion(password, criterion), criteria)
+    then Moderate
+    else Weak
+    where meets_criterion: (Password, PasswordCriteria) -> Bool = fun password, criterion ->
+      case criterion
+      | RequireUppercase => String.contains_uppercase(password)
+      | RequireLowercase => String.contains_lowercase(password)
+      | MinimumLength(length) => String.length(password) >= length
+      | RequireNumber => String.contains_number(password)
+      | RequireSpecialChar => String.contains_special_char(password)
+      end
+    end
+  end

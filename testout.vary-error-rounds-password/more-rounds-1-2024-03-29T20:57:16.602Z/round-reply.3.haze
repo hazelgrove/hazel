@@ -1,0 +1,9 @@
+fun (password, criteria, strength), action ->
+  case action
+  | UpdatePassword(new_password) => (new_password, criteria, strength)
+  | ClearCriteria => (password, [], Weak)
+  | AddCriterion(new_criterion) => (password, List.append(criteria, [new_criterion]), strength)
+  | RemoveCriterion(removed_criterion) => 
+      (password, List.filter(criteria, fun c -> c != removed_criterion), strength)
+  end
+where List.filter: ([?], (? -> Bool)) -> [?] = fun list, predicate -> ?? end -- You would need to implement your own logic for `List.filter` function

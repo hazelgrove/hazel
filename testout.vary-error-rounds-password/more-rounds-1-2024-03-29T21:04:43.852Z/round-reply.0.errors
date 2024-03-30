@@ -1,0 +1,21 @@
+The following static errors were discovered:
+Error in term:
+  List.remove
+Nature of error: Variable List.remove is not bound
+Error in term:
+  List.remove
+Nature of error: Variable List.remove is not bound
+Error in term:
+  PasswordChecker.checkStrength
+Nature of error: Variable PasswordChecker.checkStrength is not bound
+Error in term:
+  PasswordChecker.checkStrength
+Nature of error: Variable PasswordChecker.checkStrength is not bound
+Error in term:
+  PasswordChecker.checkStrength
+Nature of error: Variable PasswordChecker.checkStrength is not bound
+Error in term:
+  PasswordChecker.checkStrength
+Nature of error: Variable PasswordChecker.checkStrength is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

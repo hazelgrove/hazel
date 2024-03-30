@@ -1,0 +1,7 @@
+fun (pwd, crit, str), action ->
+  case action
+    | UpdatePassword(new_password) => (new_password, crit, str)
+    | ClearCriteria => (pwd, [], str)
+    | AddCriterion(criterion) => (pwd, criterion::crit, str)
+    | RemoveCriterion(criterion) => (pwd, List.filter(fun c -> c!=criterion, crit), str)
+  end

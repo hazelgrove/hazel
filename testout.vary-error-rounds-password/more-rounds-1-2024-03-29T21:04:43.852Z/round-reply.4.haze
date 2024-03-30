@@ -1,0 +1,9 @@
+fun (model, action) ->
+  case model, action
+  | (password, criteria, strength), UpdatePassword(p) => (p, criteria, checkStrength(p, criteria))
+  | (password, criteria, strength), ClearCriteria => (password, [], checkStrength(password, []))
+  | (password, criteria, strength), AddCriterion(criterion) => (password, criterion::criteria, checkStrength(password, criterion::criteria))
+  | (password, criteria, strength), RemoveCriterion(criterion) => let newCriteria = List.filter((!=) criterion, criteria) 
+                                                                    in (password, newCriteria, checkStrength(password, newCriteria))
+  end
+where checkStrength is a placeholder for the actual function that will be used to check the strength of the password.

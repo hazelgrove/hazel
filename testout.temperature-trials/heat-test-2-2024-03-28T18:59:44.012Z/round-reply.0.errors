@@ -1,0 +1,14 @@
+The following static errors were discovered:
+Error in term:
+  case a
+ | AddTodo => add(m)
+| RemoveTodo(i) => let ((buffer, todos)) = m in
+ (buffer, remove(i, todos))
+| ToggleTodo(i) => let ((buffer, todos)) = m in
+ (buffer, toggle(i, todos))
+| UpdateBuffer(s) => let ((_, todos)) = m in
+ (s, todos)
+end
+Nature of error: Expecting branches to have consistent types but got types: [Todo], (?, [Todo]), (?, [Todo]), (String, ?)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

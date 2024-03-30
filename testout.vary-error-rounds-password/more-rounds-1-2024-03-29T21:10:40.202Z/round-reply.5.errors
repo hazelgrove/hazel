@@ -1,0 +1,41 @@
+The following static errors were discovered:
+Error in term:
+  calculate_strength
+Nature of error: Variable calculate_strength is not bound
+Error in term:
+  where
+Nature of error: Variable where is not bound
+Error in term:
+  calculate_strength
+Nature of error: Variable calculate_strength is not bound
+Error in term:
+  calculate_strength
+Nature of error: Variable calculate_strength is not bound
+Error in term:
+  password_strength_based_on_criteria
+Nature of error: Variable password_strength_based_on_criteria is not bound
+Error in term:
+  calculate_strength fun (password, criteria) ->
+ password_strength_based_on_criteria(password, criteria)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  fun (((password, criteria, strength)), action) ->
+ case action
+ | ClearCriteria => (password, , strength)
+| UpdatePassword(new_password) => (new_password, criteria, calculate_strength(new_password, criteria))
+| AddCriterion(criterion) => (password, criterion :: criteria, calculate_strength(password, criterion :: criteria))
+| RemoveCriterion(criterion) => (password, List.filter((fun x ->
+ x != criterion), criteria), calculate_strength(password, List.filter((fun x ->
+ x != criterion), criteria)))
+end where calculate_strength fun (password, criteria) ->
+ password_strength_based_on_criteria(password, criteria)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  where calculate_strength fun (password, criteria) ->
+ password_strength_based_on_criteria(password, criteria)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  calculate_strength
+Nature of error: Variable calculate_strength is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

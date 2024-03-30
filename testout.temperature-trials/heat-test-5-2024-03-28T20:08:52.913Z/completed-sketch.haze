@@ -1,0 +1,10 @@
+# Update Playlist app model based on an action #
+
+let update: (PlayList, PlayListAction) -> PlayList =
+  fun (model, action) ->
+    case action
+    | AddTrack(track) => model.tracks <- track::model.tracks
+    | RemoveTrack(track) => model.tracks <- List.filter((!=) track, model.tracks)
+    | ClearPlaylist => model.tracks <- []
+    end; model
+in

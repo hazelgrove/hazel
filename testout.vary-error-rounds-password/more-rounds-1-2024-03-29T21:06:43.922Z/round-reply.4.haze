@@ -1,0 +1,9 @@
+fun (model, action) ->
+  let (password, criteria, strength) = model in
+  match action with 
+  | UpdatePassword(new_password) => (new_password, criteria, StrengthChecker.check_strength(new_password, criteria))
+  | ClearCriteria => (password, [], StrengthChecker.check_strength(password, []))
+  | AddCriterion(new_criterion) => (password, new_criterion::criteria, StrengthChecker.check_strength(password, new_criterion::criteria))
+  | RemoveCriterion(old_criterion) =>
+    let new_criteria = List.filter(fun pc -> pc != old_criterion, criteria) in
+    (password, new_criteria, StrengthChecker.check_strength(password, new_criteria))

@@ -1,0 +1,12 @@
+fun (model, action) ->
+    case action 
+    | UpdatePassword(new_password) =>
+        (new_password, model.criteria, PasswordStrengthChecker.calculate_strength(new_password, model.criteria))
+    | ClearCriteria => 
+        (model.password, [], PasswordStrengthChecker.calculate_strength(model.password, []))
+    | AddCriterion(new_criteria) =>
+        (model.password, new_criteria :: model.criteria, PasswordStrengthChecker.calculate_strength(model.password, new_criteria :: model.criteria))
+    | RemoveCriterion(criterion_to_remove) => 
+        (model.password, List.filter (fun criterion -> criterion != criterion_to_remove) model.criteria,
+        PasswordStrengthChecker.calculate_strength(model.password, List.filter (fun criterion -> criterion != criterion_to_remove) model.criteria))
+    end

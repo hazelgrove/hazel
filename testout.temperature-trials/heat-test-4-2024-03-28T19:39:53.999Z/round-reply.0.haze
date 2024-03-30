@@ -1,0 +1,16 @@
+fun model, action ->
+  case action
+  | PlaySong(id) => (get_songs(model), Playing(id))
+  | PauseCurrentSong => 
+    let state = get_state(model) in
+    case state
+    | Playing(id) => (get_songs(model), PausedOn(id))
+    | _ => model
+    end
+  | RemoveSong(id) => 
+    let songs = List.filter((fun song_id -> song_id != id), get_songs(model)) in
+    (songs, get_state(model))
+  | AddSong(id) => 
+    let songs = List.cons(id, get_songs(model)) in
+    (songs, get_state(model))
+  end

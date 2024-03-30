@@ -1,0 +1,12 @@
+fun (model, action) ->
+  let (password, criteria, _) = model in
+  case action
+  | UpdatePassword(new_password) => (new_password, criteria, compute_strength(new_password, criteria))
+  | ClearCriteria => (password, [], Weak)
+  | AddCriterion(criterion) => let new_criteria = criterion::criteria in (password, new_criteria, compute_strength(password, new_criteria))
+  | RemoveCriterion(criterion) => let new_criteria = List.filter(criteria, fun c -> c != criterion) in (password, new_criteria, compute_strength(password, new_criteria))
+  end
+where
+  compute_strength: (Password, Criteria) -> Strength = fun password, criteria ->
+    # Password strength computing logic goes here
+    Strength

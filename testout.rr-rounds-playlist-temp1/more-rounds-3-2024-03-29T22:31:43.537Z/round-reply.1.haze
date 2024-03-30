@@ -1,0 +1,11 @@
+fun p, action ->
+  case action
+  | PlaySong(id) => (get_songs(p), Playing(id))
+  | PauseCurrentSong =>
+      case get_state(p) of
+      | Playing(id) => (get_songs(p), PausedOn(id))
+      | _ => p
+      end
+  | RemoveSong(id) => (List.filter((fun x -> x != id), get_songs(p)), get_state(p))
+  | AddSong(id) => (List.concat([get_songs(p), [id]]), get_state(p))
+  end

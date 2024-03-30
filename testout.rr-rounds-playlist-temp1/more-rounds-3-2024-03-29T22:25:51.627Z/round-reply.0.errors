@@ -1,0 +1,25 @@
+The following static errors were discovered:
+Error in term:
+  id
+Nature of error: Variable id is not bound
+Error in term:
+  match get_state(model) case Playing(id) id
+ | _ => 0
+end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  get_state(model) case Playing(id) id
+ | _ => 0
+end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  id
+Nature of error: Variable id is not bound
+Error in term:
+  match
+Nature of error: Variable match is not bound
+Error in term:
+  Playing(id) id
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

@@ -1,0 +1,71 @@
+The following static errors were discovered:
+Error in term:
+  fun ((password, criteria)) ->
+ calculate_strength(password, criteria) end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  check_strength
+Nature of error: Variable check_strength is not bound
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  check_strength
+Nature of error: Variable check_strength is not bound
+Error in term:
+  is
+Nature of error: Variable is is not bound
+Error in term:
+  Password
+Nature of error: Constructor is not defined
+Error in term:
+  Criteria
+Nature of error: Constructor is not defined
+Error in term:
+  fun ((model, action)) ->
+ case model, action
+ | (((password, criteria, strength)), UpdatePassword(new_password)) => (new_password, criteria, check_strength(new_password, criteria))
+| (((password, criteria, strength)), ClearCriteria) => (password, , check_strength(password, ))
+| (((password, criteria, strength)), AddCriterion(new_criterion)) => (password, new_criterion :: criteria, check_strength(password, new_criterion :: criteria))
+| (((password, criteria, strength)), RemoveCriterion(old_criterion)) => let new_criteria = List.filter(platforms, fun (pc) ->
+ pc != old_criterion end) in
+ (password, new_criteria, check_strength(password, new_criteria))
+end where check_strength : (Password, Criteria -> Strength) is fun ((password, criteria)) ->
+ calculate_strength(password, criteria) end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  platforms, fun (pc) ->
+ pc != old_criterion end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  calculate_strength
+Nature of error: Variable calculate_strength is not bound
+Error in term:
+  platforms
+Nature of error: Variable platforms is not bound
+Error in term:
+  check_strength
+Nature of error: Variable check_strength is not bound
+Error in term:
+  is fun ((password, criteria)) ->
+ calculate_strength(password, criteria) end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  check_strength : (Password, Criteria -> Strength) is fun ((password, criteria)) ->
+ calculate_strength(password, criteria) end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  check_strength
+Nature of error: Variable check_strength is not bound
+Error in term:
+  where check_strength : (Password, Criteria -> Strength) is fun ((password, criteria)) ->
+ calculate_strength(password, criteria) end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  where
+Nature of error: Variable where is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

@@ -34,7 +34,7 @@ let update: (Model, Action) -> Model =
 EXPORT|};
 
 let opt = (~expected_type): FillerOptions.t => {
-  llm: Azure_GPT4_0613,
+  params: OpenAI.default_params,
   instructions: true,
   syntax_notes: true,
   num_examples: 9,
@@ -44,7 +44,7 @@ let opt = (~expected_type): FillerOptions.t => {
 };
 
 let opt2 = (~instructions, ~syntax_notes, ~num_examples): FillerOptions.t => {
-  llm: Azure_GPT4_0613,
+  params: OpenAI.default_params,
   instructions,
   syntax_notes,
   num_examples,

@@ -1,0 +1,9 @@
+
+fun (playList, action) ->
+  case action
+  | Pause => { playList with isPlaying = false }
+  | Play => { playList with isPlaying = true }
+  | ToggleRepeat => { playList with repeat = !playList.repeat }
+  | ToggleShuffle => { playList with shuffle = !playList.shuffle }
+  | NextSong => { playList with currentIndex = playList.currentIndex + 1 }
+  | PrevSong => { playList with currentIndex = playList.currentIndex - 1 }

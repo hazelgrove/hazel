@@ -1,0 +1,5 @@
+fun state, action ->
+    case action
+      | LoadNewPlayList(newPlayList) => newPlayList
+      | AddToPlayList(song) => state ++ [song]
+    end

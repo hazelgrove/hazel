@@ -1,0 +1,20 @@
+The following static errors were discovered:
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  fun (model, action) ->
+ let ((buffer, todos)) = model in
+ case action
+ | AddTodo => let new_todo = string_trim(buffer), false in
+ string_concat((buffer, )), add(new_todo, todos)
+| RemoveTodo(idx) => buffer, remove(idx, todos)
+| ToggleTodo(idx) => buffer, toggle(idx, todos)
+| UpdateBuffer(new_buffer) => new_buffer, todos
+end end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  new_todo
+Nature of error: Expecting type String but got inconsistent type (String, Bool)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

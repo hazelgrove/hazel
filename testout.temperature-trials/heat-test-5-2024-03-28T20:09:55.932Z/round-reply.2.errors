@@ -1,0 +1,13 @@
+The following static errors were discovered:
+The suggested filling has the wrong expected type: expected ((PlayList, PlayListAction) -> PlayList), but got ((?, ?) -> [Id]).
+Error in term:
+  List.shuffle
+Nature of error: Variable List.shuffle is not bound
+Error in term:
+  Shuffle
+Nature of error: Constructor is not defined
+Error in term:
+  Clear
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

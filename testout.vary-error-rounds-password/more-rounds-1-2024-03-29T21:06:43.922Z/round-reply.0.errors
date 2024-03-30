@@ -1,0 +1,148 @@
+The following static errors were discovered:
+Error in term:
+  is fun ((password, criteria, strength)) ->
+ ?, add_criterion (Model, PasswordCriteria -> Model) is fun (((password, criteria, strength)), new_criterion) ->
+ ?, remove_criterion (Model, PasswordCriteria -> Model) is fun (((password, criteria, strength)), old_criterion) ->
+ ?, end in update((password, criteria, strength), ClearCriteria) end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  is
+Nature of error: Variable is is not bound
+Error in term:
+  is
+Nature of error: Variable is is not bound
+Error in term:
+  Model
+Nature of error: Constructor is not defined
+Error in term:
+  fun (model, action) ->
+ case action
+ | UpdatePassword(new_password) => update_password(model, new_password)
+| ClearCriteria => clear_criteria(model)
+| AddCriterion(new_criterion) => add_criterion(model, new_criterion)
+| RemoveCriterion(old_criterion) => remove_criterion(model, old_criterion)
+end where : update_password : (Model, String -> Model) is fun (((password, criteria, strength)), new_password) ->
+ ?, clear_criteria (Model -> Model) is fun ((password, criteria, strength)) ->
+ ?, add_criterion (Model, PasswordCriteria -> Model) is fun (((password, criteria, strength)), new_criterion) ->
+ ?, remove_criterion (Model, PasswordCriteria -> Model) is fun (((password, criteria, strength)), old_criterion) ->
+ ?, end in update((password, criteria, strength), ClearCriteria) end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  where : update_password : (Model, String -> Model) is fun (((password, criteria, strength)), new_password) ->
+ ?, clear_criteria (Model -> Model) is fun ((password, criteria, strength)) ->
+ ?, add_criterion (Model, PasswordCriteria -> Model) is fun (((password, criteria, strength)), new_criterion) ->
+ ?, remove_criterion (Model, PasswordCriteria -> Model) is fun (((password, criteria, strength)), old_criterion) ->
+ ?, end in update((password, criteria, strength), ClearCriteria) end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  remove_criterion
+Nature of error: Variable remove_criterion is not bound
+Error in term:
+  clear_criteria
+Nature of error: Variable clear_criteria is not bound
+Error in term:
+  is
+Nature of error: Variable is is not bound
+Error in term:
+  update
+Nature of error: Variable update is not bound
+Error in term:
+  password
+Nature of error: Variable password is not bound
+Error in term:
+  is fun (((password, criteria, strength)), old_criterion) ->
+ ?, end in update((password, criteria, strength), ClearCriteria) end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  in
+Nature of error: Variable in is not bound
+Error in term:
+  clear_criteria (Model -> Model)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  add_criterion
+Nature of error: Variable add_criterion is not bound
+Error in term:
+  in update((password, criteria, strength), ClearCriteria) end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  fun (((password, criteria, strength)), old_criterion) ->
+ ?, end in update((password, criteria, strength), ClearCriteria) end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  update((password, criteria, strength), ClearCriteria) end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  add_criterion (Model, PasswordCriteria -> Model)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  strength
+Nature of error: Variable strength is not bound
+Error in term:
+  fun ((password, criteria, strength)) ->
+ ?, add_criterion (Model, PasswordCriteria -> Model) is fun (((password, criteria, strength)), new_criterion) ->
+ ?, remove_criterion (Model, PasswordCriteria -> Model) is fun (((password, criteria, strength)), old_criterion) ->
+ ?, end in update((password, criteria, strength), ClearCriteria) end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  is fun (((password, criteria, strength)), new_password) ->
+ ?, clear_criteria (Model -> Model) is fun ((password, criteria, strength)) ->
+ ?, add_criterion (Model, PasswordCriteria -> Model) is fun (((password, criteria, strength)), new_criterion) ->
+ ?, remove_criterion (Model, PasswordCriteria -> Model) is fun (((password, criteria, strength)), old_criterion) ->
+ ?, end in update((password, criteria, strength), ClearCriteria) end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  PasswordCriteria
+Nature of error: Constructor is not defined
+Error in term:
+  String
+Nature of error: Constructor is not defined
+Error in term:
+  is
+Nature of error: Variable is is not bound
+Error in term:
+  criteria
+Nature of error: Variable criteria is not bound
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  fun (((password, criteria, strength)), new_criterion) ->
+ ?, remove_criterion (Model, PasswordCriteria -> Model) is fun (((password, criteria, strength)), old_criterion) ->
+ ?, end in update((password, criteria, strength), ClearCriteria) end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  update_password
+Nature of error: Variable update_password is not bound
+Error in term:
+  Model
+Nature of error: Constructor is not defined
+Error in term:
+  PasswordCriteria
+Nature of error: Constructor is not defined
+Error in term:
+  fun (((password, criteria, strength)), new_password) ->
+ ?, clear_criteria (Model -> Model) is fun ((password, criteria, strength)) ->
+ ?, add_criterion (Model, PasswordCriteria -> Model) is fun (((password, criteria, strength)), new_criterion) ->
+ ?, remove_criterion (Model, PasswordCriteria -> Model) is fun (((password, criteria, strength)), old_criterion) ->
+ ?, end in update((password, criteria, strength), ClearCriteria) end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Model
+Nature of error: Constructor is not defined
+Error in term:
+  is fun (((password, criteria, strength)), new_criterion) ->
+ ?, remove_criterion (Model, PasswordCriteria -> Model) is fun (((password, criteria, strength)), old_criterion) ->
+ ?, end in update((password, criteria, strength), ClearCriteria) end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  remove_criterion (Model, PasswordCriteria -> Model)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  update_password
+Nature of error: "update_password" isn't a valid type token
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

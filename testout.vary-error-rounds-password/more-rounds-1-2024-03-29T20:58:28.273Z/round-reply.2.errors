@@ -1,0 +1,56 @@
+The following static errors were discovered:
+Error in term:
+  where compute_strength : (Password, Criteria -> Strength fun (password, criteria) ->
+ # Password strength computing logic goes here) Strength
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Password
+Nature of error: Constructor is not defined
+Error in term:
+  compute_strength
+Nature of error: Variable compute_strength is not bound
+Error in term:
+  where
+Nature of error: Variable where is not bound
+Error in term:
+  compute_strength : (Password, Criteria -> Strength fun (password, criteria) ->
+ # Password strength computing logic goes here) Strength
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  compute_strength
+Nature of error: Variable compute_strength is not bound
+Error in term:
+  compute_strength
+Nature of error: Variable compute_strength is not bound
+Error in term:
+  Strength
+Nature of error: Constructor is not defined
+Error in term:
+  # Password strength computing logic goes here
+Nature of error: "# Password strength computing logic goes here" isn't a valid token
+Error in term:
+  fun c ->
+ c != criterion
+Nature of error: Expecting type [?] but got inconsistent type (? -> Bool)
+Error in term:
+  Criteria
+Nature of error: Constructor is not defined
+Error in term:
+  Strength
+Nature of error: Constructor is not defined
+Error in term:
+  fun ((model, action)) ->
+ let ((password, criteria, _)) = model in
+ case action
+ | UpdatePassword(new_password) => (new_password, criteria, compute_strength(new_password, criteria))
+| ClearCriteria => (password, , Weak)
+| AddCriterion(criterion) => let new_criteria = criterion :: criteria in
+ (password, new_criteria, compute_strength(password, new_criteria))
+| RemoveCriterion(criterion) => let new_criteria = List.filter(criteria, fun c ->
+ c != criterion) in
+ (password, new_criteria, compute_strength(password, new_criteria))
+end where compute_strength : (Password, Criteria -> Strength fun (password, criteria) ->
+ # Password strength computing logic goes here) Strength
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

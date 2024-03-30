@@ -1,0 +1,12 @@
+
+fun (model, action) ->
+  case action
+  | AddSong(id) => List.append(model, [id]) 
+  | RemoveSong(id) => List.filter((fun song -> song != id), model)
+  | ReorderSong(id, pos) =>
+      let old_index = List.position(s -> s == id)
+      in
+      let new_list = List.remove_at(old_index, model)
+      in
+      List.insert_at(pos, id, new_list)
+  end

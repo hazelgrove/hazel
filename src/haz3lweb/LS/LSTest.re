@@ -36,8 +36,14 @@ type io = {
   update: (string, option(string) => string) => unit,
 };
 
-let default_options: FillerOptions.t = {
+let default_params: OpenAI.params = {
   llm: OpenAI.Azure_GPT4_0613,
+  temperature: 1.0,
+  top_p: 1.0,
+};
+
+let default_options: FillerOptions.t = {
+  params: default_params,
   instructions: true,
   syntax_notes: true,
   num_examples: 9,
@@ -83,8 +89,8 @@ let get_caret_mode_and_ctx = (~db, ~init_ctx, ~common, ~prelude, sketch_pre) => 
   };
 };
 
-let ask_gpt = (~key, ~llm, ~prompt, ~handler): unit => {
-  if (llm != OpenAI.Azure_GPT4_0613) {
+let ask_gpt = (~key, ~params: OpenAI.params, ~prompt, ~handler): unit => {
+  if (params.llm != OpenAI.Azure_GPT4_0613) {
     failwith("LS: ask_gpt: Unsupported chat model");
   };
   API.node_request(
@@ -101,7 +107,7 @@ let ask_gpt = (~key, ~llm, ~prompt, ~handler): unit => {
         "2023-05-15" // api version
       ),
     ~headers=[("Content-Type", "application/json"), ("api-key", key)],
-    ~body=OpenAI.body(~llm, prompt),
+    ~body=OpenAI.body(~params, prompt),
     handler,
   );
 };
@@ -177,10 +183,14 @@ let record_init_info =
       source_path: string,
     ) => {
   let opt_pre = prop => "option-" ++ prop;
-  io.add(opt_pre("llm"), options.llm |> OpenAI.show_chat_models);
+  io.add(opt_pre("llm"), options.params.llm |> OpenAI.show_chat_models);
   io.add(opt_pre("source_path"), source_path);
   io.add(opt_pre("expected_type"), options.expected_type |> string_of_bool);
   io.add(opt_pre("relevant_ctx"), options.relevant_ctx |> string_of_bool);
+  io.add(
+    opt_pre("temperature"),
+    options.params.temperature |> string_of_float,
+  );
   io.add(
     opt_pre("error_rounds_max"),
     options.error_rounds_max |> string_of_int,
@@ -324,7 +334,7 @@ let rec error_loop =
         (
           ~io,
           ~db,
-          ~llm,
+          ~params,
           ~key,
           ~caret_ctx,
           ~caret_mode,
@@ -338,7 +348,7 @@ let rec error_loop =
   /* HACK(andrew): convert or op */
   let reply = fix_or_op(reply);
   let go =
-    error_loop(~db, ~llm, ~key, ~caret_ctx, ~caret_mode, ~handler, ~max);
+    error_loop(~db, ~params, ~key, ~caret_ctx, ~caret_mode, ~handler, ~max);
   let error_res =
     Filler.error_reply(~init_ctx=caret_ctx, ~mode=caret_mode, reply);
   record_round_info(~db, ~io, max, fuel, reply, error_res);
@@ -353,7 +363,7 @@ let rec error_loop =
     db("LS: RunTest: Reply errors:" ++ err_msg);
     let prompt =
       OpenAI.add_to_prompt(prompt, ~assistant=reply.content, ~user=err_msg);
-    ask_gpt(~llm, ~key, ~prompt, ~handler=response =>
+    ask_gpt(~params, ~key, ~prompt, ~handler=response =>
       switch (OpenAI.handle_chat(~db, response)) {
       | Some(reply) => go(~io, ~fuel=fuel - 1, ~prompt, ~reply)
       | None => db("WARN: Error loop: Handle returned none ")
@@ -428,7 +438,7 @@ let first_handler =
     error_loop(
       ~db,
       ~io,
-      ~llm=options.llm,
+      ~params=options.params,
       ~key,
       ~caret_ctx,
       ~caret_mode,
@@ -475,7 +485,7 @@ let go =
     // print_endline(fix_or("a || b"));
     // failwith("YOLO5000") |> ignore;
     ask_gpt(
-      ~llm=options.llm,
+      ~params=options.params,
       ~key,
       ~prompt,
       ~handler=

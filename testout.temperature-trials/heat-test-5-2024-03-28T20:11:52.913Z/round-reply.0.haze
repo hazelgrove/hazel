@@ -1,0 +1,9 @@
+fun model, action ->
+  case action
+  | AddTrack(track) => PlayList.add_track(model, track)
+  | RemoveTrack(track) => PlayList.remove_track(model, track)
+  | Play => PlayList.play(model)
+  | Pause => PlayList.pause(model)
+  | Next => PlayList.next(model)
+  | Previous => PlayList.previous(model)
+  end

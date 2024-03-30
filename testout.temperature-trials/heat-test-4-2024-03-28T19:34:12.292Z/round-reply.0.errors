@@ -1,0 +1,12 @@
+The following static errors were discovered:
+Error in term:
+  curr_id
+Nature of error: Variable curr_id is not bound
+Error in term:
+  when curr_id == id
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Playing(curr_id) when curr_id == id
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

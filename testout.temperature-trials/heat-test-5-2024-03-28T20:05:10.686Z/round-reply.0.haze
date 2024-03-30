@@ -1,0 +1,7 @@
+
+fun model, action ->
+  case action
+    | AddSong(song) => Append(song, model)
+    | RemoveSong(song) => Remove(song, model)
+    | SkipSong => Remove(Head(model), model)
+  end

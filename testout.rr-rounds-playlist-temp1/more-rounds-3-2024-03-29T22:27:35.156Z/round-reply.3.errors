@@ -1,0 +1,22 @@
+The following static errors were discovered:
+Error in term:
+  song_id id
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  case action
+ | PlaySong(id) => (songs, Playing(id))
+| PauseCurrentSong => case state
+ | Playing(id) => (songs, PausedOn(id))
+| _ => model
+end
+| RemoveSong(id) => (List.filter(fun song_id ->
+ song_id id), songs, state)
+| AddSong(id) => (List.append(songs, id), state)
+end
+Nature of error: Expecting branches to have consistent types but got types: (?, PlayListState), (?, PlayListState), ([?], ?, ?), ([?], ?)
+Error in term:
+  fun song_id ->
+ song_id id
+Nature of error: Expecting type ((? -> Bool), [?]) but got inconsistent type (? -> ?)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

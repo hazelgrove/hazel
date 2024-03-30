@@ -1,0 +1,113 @@
+The following static errors were discovered:
+Error in term:
+  the strength of the password given the criteria.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  checkStrength
+Nature of error: Variable checkStrength is not bound
+Error in term:
+  is
+Nature of error: Variable is is not bound
+Error in term:
+  password
+Nature of error: Variable password is not bound
+Error in term:
+  given the criteria.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  the
+Nature of error: Variable the is not bound
+Error in term:
+  strength
+Nature of error: Variable strength is not bound
+Error in term:
+  the
+Nature of error: Variable the is not bound
+Error in term:
+  criteria.
+Nature of error: "criteria." isn't a valid token
+Error in term:
+  that checks the strength of the password given the criteria.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  checks
+Nature of error: Variable checks is not bound
+Error in term:
+  is a function that checks the strength of the password given the criteria.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  where
+Nature of error: Variable where is not bound
+Error in term:
+  checkStrength
+Nature of error: Variable checkStrength is not bound
+Error in term:
+  checks the strength of the password given the criteria.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  checkStrength
+Nature of error: Variable checkStrength is not bound
+Error in term:
+  fun (m, a) ->
+ case m, a
+ | (((password, criteria, strength)), UpdatePassword(p)) => (p, criteria, checkStrength(p, criteria))
+| (((password, criteria, strength)), ClearCriteria) => (password, , checkStrength(password, ))
+| (((password, criteria, strength)), AddCriterion(c)) => (password, c :: criteria, checkStrength(password, c :: criteria))
+| (((password, criteria, strength)), RemoveCriterion(c)) => (password, List.filter((fun x ->
+ x != c), criteria), checkStrength(password, List.filter((fun x ->
+ x != c), criteria)))
+end where checkStrength is a function that checks the strength of the password given the criteria.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  of the password given the criteria.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  of
+Nature of error: Variable of is not bound
+Error in term:
+  checkStrength is a function that checks the strength of the password given the criteria.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  the
+Nature of error: Variable the is not bound
+Error in term:
+  strength of the password given the criteria.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  a function that checks the strength of the password given the criteria.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  where checkStrength is a function that checks the strength of the password given the criteria.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  that
+Nature of error: Variable that is not bound
+Error in term:
+  function
+Nature of error: Variable function is not bound
+Error in term:
+  the password given the criteria.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  function that checks the strength of the password given the criteria.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  the criteria.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  checkStrength
+Nature of error: Variable checkStrength is not bound
+Error in term:
+  a
+Nature of error: Variable a is not bound
+Error in term:
+  checkStrength
+Nature of error: Variable checkStrength is not bound
+Error in term:
+  given
+Nature of error: Variable given is not bound
+Error in term:
+  password given the criteria.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

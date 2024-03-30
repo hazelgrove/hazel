@@ -1,0 +1,65 @@
+The following static errors were discovered:
+Error in term:
+  where
+Nature of error: Variable where is not bound
+Error in term:
+  check_strength
+Nature of error: Variable check_strength is not bound
+Error in term:
+  where check_strength : (Password, Criteria -> Strength) is fun ((password, criteria)) ->
+ check_strength_helper(password, criteria) end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  check_strength
+Nature of error: Variable check_strength is not bound
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  check_strength_helper
+Nature of error: Variable check_strength_helper is not bound
+Error in term:
+  Password
+Nature of error: Constructor is not defined
+Error in term:
+  is
+Nature of error: Variable is is not bound
+Error in term:
+  List.remove
+Nature of error: Variable List.remove is not bound
+Error in term:
+  fun ((password, criteria)) ->
+ check_strength_helper(password, criteria) end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  is fun ((password, criteria)) ->
+ check_strength_helper(password, criteria) end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Criteria
+Nature of error: Constructor is not defined
+Error in term:
+  check_strength
+Nature of error: Variable check_strength is not bound
+Error in term:
+  check_strength : (Password, Criteria -> Strength) is fun ((password, criteria)) ->
+ check_strength_helper(password, criteria) end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  List.remove
+Nature of error: Variable List.remove is not bound
+Error in term:
+  check_strength
+Nature of error: Variable check_strength is not bound
+Error in term:
+  fun ((model, action)) ->
+ case model, action
+ | (((password, criteria, strength)), UpdatePassword(new_password)) => (new_password, criteria, check_strength(new_password, criteria))
+| (((password, criteria, strength)), ClearCriteria) => (password, , check_strength(password, ))
+| (((password, criteria, strength)), AddCriterion(new_criterion)) => (password, new_criterion :: criteria, check_strength(password, new_criterion :: criteria))
+| (((password, criteria, strength)), RemoveCriterion(old_criterion)) => (password, List.remove(criteria, old_criterion), check_strength(password, List.remove(criteria, old_criterion)))
+end where check_strength : (Password, Criteria -> Strength) is fun ((password, criteria)) ->
+ check_strength_helper(password, criteria) end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

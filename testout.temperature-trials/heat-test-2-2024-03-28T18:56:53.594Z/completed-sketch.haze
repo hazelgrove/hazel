@@ -1,0 +1,22 @@
+# TODO MVU: Handle TODO actions to update the app model #
+
+let update: (Model, Action) -> Model =
+  fun model, action ->
+  case action
+  | AddTodo =>
+    let (buffer, todos) = model in
+    let trimmed = string_trim(buffer) in
+    if trimmed != "" then
+      (string_concat("",[]), add((trimmed, false)))
+    else
+      model
+  | RemoveTodo(i) =>
+    let (buffer, todos) = model in
+    (buffer, remove(i, todos))
+  | ToggleTodo(i) =>
+    let (buffer, todos) = model in
+    (buffer, toggle(i, todos))
+  | UpdateBuffer(s) =>
+    (s, snd(model))
+  end
+in

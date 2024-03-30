@@ -1,0 +1,9 @@
+fun (state, action) ->
+  case action
+  | AddSong(song) => {state with songs = song::state.songs}
+  | RemoveSong(song) => {state with songs = List.remove(state.songs, song)}
+  | Play => {state with is_playing = true}
+  | Pause => {state with is_playing = false}
+  | Next => {state with current_song = state.current_song + 1}
+  | Previous => {state with current_song = state.current_song - 1}
+  end

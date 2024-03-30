@@ -1,0 +1,40 @@
+The following static errors were discovered:
+The suggested filling has the wrong expected type: expected ((PlayList, PlayListAction) -> PlayList), but got ((?, ?) -> String).
+Error in term:
+  (name, )
+Nature of error: Expecting type String but got inconsistent type [(?, [?])]
+Error in term:
+  song
+Nature of error: Expecting type String but got inconsistent type [?]
+Error in term:
+  List.remove_index
+Nature of error: Variable List.remove_index is not bound
+Error in term:
+  List.get_at
+Nature of error: Variable List.get_at is not bound
+Error in term:
+  List.remove_index
+Nature of error: Variable List.remove_index is not bound
+Error in term:
+  List.update_at
+Nature of error: Variable List.update_at is not bound
+Error in term:
+  List.get_at
+Nature of error: Variable List.get_at is not bound
+Error in term:
+  List.update_at
+Nature of error: Variable List.update_at is not bound
+Error in term:
+  RemovePlaylist
+Nature of error: Constructor is not defined
+Error in term:
+  AddPlaylist
+Nature of error: Constructor is not defined
+Error in term:
+  (index, song)
+Nature of error: Expecting type Id but got inconsistent type (?, ?)
+Error in term:
+  (playlistIndex, songIndex)
+Nature of error: Expecting type Id but got inconsistent type (?, ?)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

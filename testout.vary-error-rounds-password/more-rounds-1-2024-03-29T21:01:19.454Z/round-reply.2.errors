@@ -1,0 +1,50 @@
+The following static errors were discovered:
+Error in term:
+  PasswordStrength
+Nature of error: Constructor is not defined
+Error in term:
+  calculate_strength
+Nature of error: Variable calculate_strength is not bound
+Error in term:
+  PasswordCriteria
+Nature of error: Constructor is not defined
+Error in term:
+  fun ((((password, criteria, strength)), action)) ->
+ case action
+ | UpdatePassword(new_password) => (new_password, criteria, calculate_strength(new_password, criteria))
+| ClearCriteria => (password, , calculate_strength(password, ))
+| AddCriterion(new_criteria) => (password, new_criteria :: criteria, calculate_strength(password, new_criteria :: criteria))
+| RemoveCriterion(criterion_to_remove) => let updated_criteria = List.filter((fun criterion ->
+ not(criterion == criterion_to_remove)), criteria) in
+ (password, updated_criteria, calculate_strength(password, updated_criteria))
+end where calculate_strength : (String, PasswordCriteria -> PasswordStrength fun _ ->
+ ?) end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  where calculate_strength : (String, PasswordCriteria -> PasswordStrength fun _ ->
+ ?) end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  calculate_strength
+Nature of error: Variable calculate_strength is not bound
+Error in term:
+  calculate_strength : (String, PasswordCriteria -> PasswordStrength fun _ ->
+ ?) end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  where
+Nature of error: Variable where is not bound
+Error in term:
+  calculate_strength
+Nature of error: Variable calculate_strength is not bound
+Error in term:
+  String
+Nature of error: Constructor is not defined
+Error in term:
+  calculate_strength
+Nature of error: Variable calculate_strength is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

@@ -1,0 +1,30 @@
+fun model, action ->
+  let (songs, state) = model in
+  let song_id: (PlayListAction -> Option) = fun a ->
+    case a
+      | PlaySong(id) => Some(id)
+      | PauseCurrentSong => None
+      | RemoveSong(id) => Some(id)
+      | AddSong(id) => Some(id)
+    end in
+  let update_songs: ([Id], PlayListAction) -> [Id] = fun current_songs, action ->
+    case song_id(action)
+      | Some(id) => id :: current_songs
+      | None => current_songs
+    end in
+  let update_state: (PlayListState, PlayListAction) -> PlayListState = fun current_state, action ->
+    case action
+      | PlaySong(id) => Playing(id)
+      | PauseCurrentSong => 
+        case current_state
+          | Playing(id) => PausedOn(id)
+          | _ => current_state
+        end
+      | RemoveSong(id) => 
+        case current_state
+          | Playing(curr_id) when curr_id == id => NoSongSelected
+          | _ => current_state
+        end
+      | AddSong(id) => current_state
+    end in
+  (update_songs(songs, action), update_state(state, action))

@@ -2,7 +2,7 @@ open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
-  llm: OpenAI.chat_models,
+  params: OpenAI.params,
   instructions: bool,
   syntax_notes: bool,
   num_examples: int,
@@ -12,7 +12,7 @@ type t = {
 };
 
 let init: t = {
-  llm: Azure_GPT4_0613,
+  params: OpenAI.default_params,
   instructions: true,
   syntax_notes: true,
   num_examples: 9,

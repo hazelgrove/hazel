@@ -1,0 +1,12 @@
+
+fun model, action ->
+  let (buffer, todos) = model in
+  case action
+    | AddTodo =>
+        let new_todo = string_trim(buffer), false in
+        string_concat((buffer, [])), add(new_todo, todos)
+    | RemoveTodo(idx) => buffer, remove(idx, todos)
+    | ToggleTodo(idx) => buffer, toggle(idx, todos)
+    | UpdateBuffer(new_buffer) => new_buffer, todos
+  end
+end

@@ -1,0 +1,51 @@
+The following static errors were discovered:
+Error in term:
+  model.songs
+Nature of error: "model.songs" isn't a valid token
+Error in term:
+  s.name
+Nature of error: "s.name" isn't a valid token
+Error in term:
+  model.songs
+Nature of error: "model.songs" isn't a valid token
+Error in term:
+  model.songs
+Nature of error: "model.songs" isn't a valid token
+Error in term:
+  model.songs
+Nature of error: "model.songs" isn't a valid token
+Error in term:
+  model.songs List.filter
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.is_paused
+Nature of error: "model.is_paused" isn't a valid token
+Error in term:
+  song.name
+Nature of error: "song.name" isn't a valid token
+Error in term:
+  model.songs List.append
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.is_paused false
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.is_paused
+Nature of error: "model.is_paused" isn't a valid token
+Error in term:
+  model.is_paused true
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Play
+Nature of error: Constructor is not defined
+Error in term:
+  Remove
+Nature of error: Constructor is not defined
+Error in term:
+  Pause
+Nature of error: Constructor is not defined
+Error in term:
+  Add
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

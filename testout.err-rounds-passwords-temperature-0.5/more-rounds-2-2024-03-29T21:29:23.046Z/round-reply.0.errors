@@ -1,0 +1,15 @@
+The following static errors were discovered:
+Error in term:
+  remove_criterion
+Nature of error: Variable remove_criterion is not bound
+Error in term:
+  clear_criteria
+Nature of error: Variable clear_criteria is not bound
+Error in term:
+  add_criterion
+Nature of error: Variable add_criterion is not bound
+Error in term:
+  update_password
+Nature of error: Variable update_password is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

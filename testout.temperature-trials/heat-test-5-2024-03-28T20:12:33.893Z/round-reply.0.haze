@@ -1,0 +1,7 @@
+fun model, action ->
+  case action
+  | AddTrack(track) => model.tracks <- track::model.tracks
+  | RemoveTrack(track) => model.tracks <- List.filter((!=) track, model.tracks)
+  | Play => model.isPlaying <- true
+  | Pause => model.isPlaying <- false
+  end

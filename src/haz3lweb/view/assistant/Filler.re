@@ -79,15 +79,16 @@ fun c ->
   (
     {|let triple = (4, 8, true) in
 let (_, y, condition) = triple in
-let get: Option => Int =
-case Some(5)
+let get: Option -> Int =
+fun maybe_num ->
+case maybe_num
  | Some(x) => ??
- | None => if !condition then 0 else y + 1 end|},
+ | None => if !condition then 0 else y + 1 end in|},
     Type.expected(Some(Ana(Int)), ~ctx=[]),
     "x",
   ),
   (
-    "let num_or_zero = fun maybe_num ->\n case maybe_num\n | Some(num) => ?? \n| None => 0 end",
+    "let num_or_zero = fun maybe_num ->\n case maybe_num\n | Some(num) => ?? \n| None => 0 end in",
     Type.expected(Some(Syn), ~ctx=[]),
     "num",
   ),
