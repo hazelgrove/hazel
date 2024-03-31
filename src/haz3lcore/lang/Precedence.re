@@ -10,8 +10,8 @@ type t = int;
 let max: t = 0;
 
 let unquote = 1;
-let ap = 2;
-let dot = 3;
+let dot = 2;
+let ap = 3;
 let neg = 4;
 let power = 5;
 let mult = 6;

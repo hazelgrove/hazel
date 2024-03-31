@@ -145,21 +145,3 @@ let find_label: ('a => option(t), list('a), t) => option('a) =
       es,
     );
   };
-
-let extract_item: ('a => option(t), list('a), t, 'b) => 'b =
-  (filt, es, label, none_val) => {
-    let opt =
-      List.find_opt(
-        e => {
-          switch (filt(e)) {
-          | Some(s) => compare(s, label) == 0
-          | None => false
-          }
-        },
-        es,
-      );
-    switch (opt) {
-    | Some(some) => some
-    | None => none_val
-    };
-  };

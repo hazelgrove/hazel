@@ -4,6 +4,12 @@ let rec matches_exp =
   | (Constructor("$e"), _) => failwith("$e in matched expression")
   | (Constructor("$v"), _) => failwith("$v in matched expression")
 
+  // TODO (Anthony): Is this right?
+  /* Labels are a special case*/
+  | (TupLabel(_, dv), TupLabel(_, fv)) => matches_exp(env, dv, fv)
+  | (TupLabel(_, dv), _) => matches_exp(env, dv, f)
+  | (_, TupLabel(_, fv)) => matches_exp(env, d, fv)
+
   // HACK[Matt]: ignore fixpoints in comparison, to allow pausing on fixpoint steps
   | (FixF(dp, _, dc), f) =>
     matches_exp(
@@ -132,10 +138,7 @@ let rec matches_exp =
        )
   | (ListLit(_), _) => false
 
-  // TODO (Anthony): Is this right?
-  | (TupLabel(_, dv), TupLabel(_, fv)) => matches_exp(env, dv, fv)
-  | (TupLabel(_), _) => false
-
+  // TODO (Anthony): Is this right
   | (Dot(dv, _), Dot(fv, _)) => matches_exp(env, dv, fv)
   | (Dot(_), _) => false
 
@@ -215,6 +218,11 @@ let rec matches_exp =
 }
 and matches_pat = (d: DHPat.t, f: DHPat.t): bool => {
   switch (d, f) {
+  /* Labels are a special case*/
+  | (TupLabel(s1, dx), TupLabel(s2, fx)) =>
+    LabeledTuple.compare(s1, s2) == 0 && matches_pat(dx, fx)
+  | (TupLabel(_, dx), _) => matches_pat(dx, f)
+  | (_, TupLabel(_, fx)) => matches_pat(d, fx)
   | (_, EmptyHole(_)) => true
   | (Wild, Wild) => true
   | (Wild, _) => false
@@ -238,8 +246,6 @@ and matches_pat = (d: DHPat.t, f: DHPat.t): bool => {
   | (Constructor(_), _) => false
   | (Var(dx), Var(fx)) => dx == fx
   | (Var(_), _) => false
-  | (TupLabel(_, dx), TupLabel(_, fx)) => dx == fx
-  | (TupLabel(_), _) => false
   | (Tuple(dl), Tuple(fl)) =>
     switch (
       List.fold_left2((res, d, f) => res && matches_pat(d, f), true, dl, fl)

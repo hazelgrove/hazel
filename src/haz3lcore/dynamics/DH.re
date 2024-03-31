@@ -227,6 +227,11 @@ module rec DHExp: {
 
   let rec fast_equal = (d1: t, d2: t): bool => {
     switch (d1, d2) {
+    /* TODO: Labels are a special case, but should they be?*/
+    | (TupLabel(s1, d1), TupLabel(s2, d2)) =>
+      LabeledTuple.compare(s1, s2) == 0 && fast_equal(d1, d2)
+    | (TupLabel(_, d1), _) => fast_equal(d1, d2)
+    | (_, TupLabel(_, d2)) => fast_equal(d1, d2)
     /* Primitive forms: regular structural equality */
     | (BoundVar(_), _)
     /* TODO: Not sure if this is right... */
@@ -254,8 +259,6 @@ module rec DHExp: {
       fast_equal(d11, d12) && fast_equal(d21, d22)
     | (ListConcat(d11, d21), ListConcat(d12, d22)) =>
       fast_equal(d11, d12) && fast_equal(d21, d22)
-    | (TupLabel(s1, d1), TupLabel(s2, d2)) =>
-      LabeledTuple.compare(s1, s2) == 0 && fast_equal(d1, d2)
     | (Tuple(ds1), Tuple(ds2)) =>
       let filt: t => option(LabeledTuple.t) = (
         d =>
@@ -314,7 +317,6 @@ module rec DHExp: {
     | (Cons(_), _)
     | (ListConcat(_), _)
     | (ListLit(_), _)
-    | (TupLabel(_, _), _)
     | (Tuple(_), _)
     | (Dot(_), _)
     | (Prj(_), _)
