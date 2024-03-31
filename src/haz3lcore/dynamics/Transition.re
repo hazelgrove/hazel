@@ -466,11 +466,11 @@ module Transition = (EV: EV_MODE) => {
       });
     | Dot(d, s) =>
       let. _ = otherwise(env, d => Dot(d, s))
-      and. _ = req_value(req(state, env), d => Dot(d, s), d);
+      and. d' = req_final(req(state, env), d => Dot(d, s), d);
       // TODO (Anthony): fix step if needed
       Step({
         apply: () =>
-          switch (d) {
+          switch (d') {
           | Tuple(ds) =>
             let filt: t => option(LabeledTuple.t) = (
               e =>
@@ -481,8 +481,8 @@ module Transition = (EV: EV_MODE) => {
             );
             let element = LabeledTuple.find_label(filt, ds, s);
             switch (element) {
-            | Some(exp) => exp
-            | None => raise(EvaluatorError.Exception(BadPatternMatch))
+            | Some(TupLabel(_, exp)) => exp
+            | _ => raise(EvaluatorError.Exception(BadPatternMatch))
             };
           | _ => raise(EvaluatorError.Exception(BadPatternMatch))
           },
@@ -492,7 +492,8 @@ module Transition = (EV: EV_MODE) => {
     | TupLabel(p, d1) =>
       // TODO (Anthony): Fix this if needed
       let. _ = otherwise(env, d1 => TupLabel(p, d1))
-      and. _ = req_final(req(state, env), d1 => TupLabel(p, d1), d1);
+      and. _ = req_value(req(state, env), d1 => TupLabel(p, d1), d1);
+      // Hidden step
       Constructor;
     | Tuple(ds) =>
       let. _ = otherwise(env, ds => Tuple(ds))

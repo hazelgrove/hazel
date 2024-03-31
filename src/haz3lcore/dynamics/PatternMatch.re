@@ -30,6 +30,16 @@ let cast_sum_maps =
 
 let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   switch (dp, d) {
+  /* Labels are a special case */
+  | (TupLabel(s1, dp), TupLabel(s2, d)) =>
+    if (LabeledTuple.compare(s1, s2) == 0) {
+      matches(dp, d);
+    } else {
+      DoesNotMatch;
+    }
+  | (TupLabel(_, dp), _) => matches(dp, d)
+  | (_, TupLabel(_, d)) => matches(dp, d)
+
   | (_, BoundVar(_)) => DoesNotMatch
   | (EmptyHole(_), _)
   | (NonEmptyHole(_), _) => IndetMatch
@@ -141,9 +151,6 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     matches(dp, d)
   | (Constructor(_), _) => DoesNotMatch
 
-  | (TupLabel(_, dp), TupLabel(_, d)) => matches(dp, d)
-  | (TupLabel(_, _), _) => DoesNotMatch
-
   | (Tuple(dps), Tuple(ds)) =>
     let filt1: DHPat.t => option(LabeledTuple.t) = (
       d =>
@@ -254,6 +261,7 @@ and matches_cast_Sum =
   | Cast(d', Sum(_) | Rec(_, Sum(_)), Unknown(_))
   | Cast(d', Unknown(_), Sum(_) | Rec(_, Sum(_))) =>
     matches_cast_Sum(ctr, dp, d', castmaps)
+  | TupLabel(_, d') => matches_cast_Sum(ctr, dp, d', castmaps)
   | FreeVar(_)
   | ExpandingKeyword(_)
   | InvalidText(_)
@@ -283,7 +291,6 @@ and matches_cast_Sum =
   | FloatLit(_)
   | StringLit(_)
   | ListLit(_)
-  | TupLabel(_, _)
   | Tuple(_)
   | Dot(_, _)
   | Sequence(_, _)
@@ -366,8 +373,7 @@ and matches_cast_Tuple =
       d',
       List.map2(List.cons, List.combine(tys, tys'), elt_casts),
     );
-  // What should TupLabel be?
-  | TupLabel(_, _) => DoesNotMatch
+  | TupLabel(_, d') => matches_cast_Tuple(dps, d', elt_casts)
   | Dot(_, _)
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
@@ -509,6 +515,7 @@ and matches_cast_Cons =
     matches_cast_Cons(dp, d', [(ty1, Unknown(Internal)), ...elt_casts])
   | Cast(d', Unknown(_), List(ty2)) =>
     matches_cast_Cons(dp, d', [(Unknown(Internal), ty2), ...elt_casts])
+  | TupLabel(_, d') => matches_cast_Cons(dp, d', elt_casts)
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_) => IndetMatch
@@ -533,7 +540,6 @@ and matches_cast_Cons =
   | Test(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
   | StringLit(_) => DoesNotMatch
-  | TupLabel(_, _) => DoesNotMatch
   | Tuple(_) => DoesNotMatch
   | Dot(_, _) => DoesNotMatch
   | Prj(_) => IndetMatch

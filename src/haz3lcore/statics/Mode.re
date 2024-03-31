@@ -39,11 +39,13 @@ let of_arrow = (ctx: Ctx.t, mode: t): (t, t) =>
   | Ana(ty) => ty |> Typ.matched_arrow(ctx) |> TupleUtil.map2(ana)
   };
 
-let of_label = (ctx: Ctx.t, mode: t): t =>
+let of_label = (ctx: Ctx.t, mode: t): (bool, t) =>
   switch (mode) {
   | Syn
-  | SynFun => Syn
-  | Ana(ty) => ty |> Typ.matched_label(ctx) |> ana
+  | SynFun => (true, Syn)
+  | Ana(ty) =>
+    let (b, t) = Typ.matched_label(ctx, ty);
+    (b, ana(t));
   };
 
 let of_prod = (ctx: Ctx.t, mode: t, ts: list('a), filt): list(t) =>

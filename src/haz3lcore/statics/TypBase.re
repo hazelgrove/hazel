@@ -53,7 +53,7 @@ module rec Typ: {
   let join_type_provenance:
     (type_provenance, type_provenance) => type_provenance;
   let matched_arrow: (Ctx.t, t) => (t, t);
-  let matched_label: (Ctx.t, t) => t;
+  let matched_label: (Ctx.t, t) => (bool, t);
   let matched_prod:
     (Ctx.t, list('a), 'a => option(LabeledTuple.t), t) => list(t);
   let matched_list: (Ctx.t, t) => t;
@@ -464,10 +464,11 @@ module rec Typ: {
     };
 
   let matched_label = (ctx, ty) =>
+    // "true" is for if the label statics are Label(s, ty); "false" for ty
     switch (weak_head_normalize(ctx, ty)) {
-    | Label(_, ty) => ty
-    | Unknown(SynSwitch) => Unknown(SynSwitch)
-    | _ => Unknown(Internal)
+    | Label(_, ty) => (true, ty)
+    | Unknown(SynSwitch) => (true, Unknown(SynSwitch))
+    | _ => (false, ty)
     };
 
   let matched_prod = (ctx, ts, filt, ty) => {

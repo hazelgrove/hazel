@@ -264,9 +264,13 @@ and uexp_to_info_map =
     let (e2, m) = go(~mode=Ana(ty2), e2, m);
     add(~self=Just(ty_out), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
   | TupLabel(s, e) =>
-    let mode = Mode.of_label(ctx, mode);
+    let (isLab, mode) = Mode.of_label(ctx, mode);
     let (e, m) = go(~mode, e, m);
-    add(~self=Just(Label(s, e.ty)), ~co_ctx=e.co_ctx, m);
+    if (isLab) {
+      add(~self=Just(Label(s, e.ty)), ~co_ctx=e.co_ctx, m);
+    } else {
+      add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
+    };
   | Tuple(es) =>
     let filt: UExp.t => option(LabeledTuple.t) = (
       e =>
@@ -286,8 +290,8 @@ and uexp_to_info_map =
     // TODO (Anthony): Fix this
     let (e, m) = go(~mode=Syn, e, m);
     let filt: Typ.t => option(LabeledTuple.t) = (
-      e =>
-        switch (e) {
+      t =>
+        switch (t) {
         | Label(s, _) => Some(s)
         | _ => None
         }
@@ -298,8 +302,8 @@ and uexp_to_info_map =
       | _ => None // TODO (Anthony): other exps
       };
     switch (element) {
-    | Some(exp) => add(~self=Just(exp), ~co_ctx=e.co_ctx, m)
-    | None => add(~self=Just(Unknown(Internal)), ~co_ctx=e.co_ctx, m)
+    | Some(Label(_, exp)) => add(~self=Just(exp), ~co_ctx=e.co_ctx, m)
+    | _ => add(~self=Just(Unknown(Internal)), ~co_ctx=e.co_ctx, m)
     };
   | Test(e) =>
     let (e, m) = go(~mode=Ana(Bool), e, m);
@@ -534,9 +538,13 @@ and upat_to_info_map =
     let entry = Ctx.VarEntry({name, id: UPat.rep_id(upat), typ: ctx_typ});
     add(~self=Just(unknown), ~ctx=Ctx.extend(ctx, entry), m);
   | TupLabel(s, p) =>
-    let mode = Mode.of_label(ctx, mode);
+    let (isLab, mode) = Mode.of_label(ctx, mode);
     let (p, m) = go(~ctx, ~mode, p, m);
-    add(~self=Just(Label(s, p.ty)), ~ctx=p.ctx, m);
+    if (isLab) {
+      add(~self=Just(Label(s, p.ty)), ~ctx=p.ctx, m);
+    } else {
+      add(~self=Just(p.ty), ~ctx=p.ctx, m);
+    };
   | Tuple(ps) =>
     let filt: UPat.t => option(LabeledTuple.t) = (
       p =>
