@@ -438,7 +438,7 @@ module rec Typ: {
         };
       };
       Module(List.map(ctx_entry_subst, inner_ctx));
-    | Member(_, ty) => normalize(ctx, ty)
+    | Member(name, ty) => Member(name, normalize(ctx, ty))
     | Rec(name, ty) =>
       /* NOTE: Dummy tvar added has fake id but shouldn't matter
          as in current implementation Recs do not occur in the
@@ -701,7 +701,7 @@ and Ctx: {
     | Float => Float
     | Bool => Bool
     | String => String
-    | Member(name, ty) => Member(x ++ "." ++ name, ty)
+    | Member(name, ty1) => Member(x ++ "." ++ name, ty1)
     | Unknown(prov) => Unknown(prov)
     | Arrow(ty1, ty2) =>
       Arrow(modulize_item(ctx, x, ty1), modulize_item(ctx, x, ty2))
@@ -710,7 +710,9 @@ and Ctx: {
       Sum(ConstructorMap.map(Option.map(modulize_item(ctx, x)), sm))
     | Rec(y, ty) => Rec(y, modulize_item(ctx, x, ty))
     | List(ty) => List(modulize_item(ctx, x, ty))
-    | Var(n) => Member(x ++ "." ++ n, Typ.weak_head_normalize(ctx, ty))
+    | Var(n) =>
+      x == n
+        ? Var(n) : Member(x ++ "." ++ n, Typ.weak_head_normalize(ctx, ty))
     | Module(inner_ctx) =>
       let ctx_entry_modulize = (e: entry): entry => {
         switch (e) {
