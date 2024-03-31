@@ -1,124 +1,108 @@
 open Util;
 
-let faces =
-  fun
-  | [] => Molded.Labeled.(space, space)
-  | cs =>
-    Cell.(face(~side=L, List.hd(cs)), face(~side=R, ListUtil.last(cs)));
-
 let mtrl = (sort: Bound.t(Molded.Sorted.t)) =>
   sort
   |> Bound.map(Molded.mtrl_)
   |> Bound.to_opt
   |> Option.value(~default=Mtrl.Sorted.root);
 
-let fill_cell = (~l=false, ~r=false, ~fill=[], sort: Mtrl.Sorted.t) =>
-  switch (fill) {
-  | [] =>
-    switch (sort) {
-    | Space => Cell.empty
-    | Grout
-    | Tile(_) => Cell.put(Meld.mk_grout(sort))
-    }
-  | [cell] when Cell.has_space(cell) =>
-    switch (sort) {
-    | Space => cell
-    | Grout
-    | Tile(_) =>
-      Cell.put(Meld.mk_grout(sort)) |> Cell.pad(~side=L, ~pad=cell)
-    }
-  | [_, ..._] =>
-    let n = List.length(fill);
-    let mid = List.init(n - 1, _ => Token.mk_grout(~l=true, sort, ~r=true));
-    if (l && r) {
-      let l = Token.mk_grout(sort, ~r=true);
-      let r = Token.mk_grout(~l=true, sort);
-      let meld = Meld.mk(Wald.mk([l] @ mid @ [r], fill));
-      Cell.put(meld);
-    } else if (l) {
-      let l = Token.mk_grout(sort, ~r=true);
-      let (fill, cell) = ListUtil.split_last(fill);
-      let meld = Meld.mk(Wald.mk([l, ...mid], fill), ~r=cell);
-      Cell.put(meld);
-    } else if (r) {
-      let r = Token.mk_grout(~l=true, sort);
-      let (cell, fill) = ListUtil.split_first(fill);
-      let meld = Meld.mk(~l=cell, Wald.mk(mid @ [r], fill));
-      Cell.put(meld);
-    } else if (n > 1) {
-      let (l, fill) = ListUtil.split_first(fill);
-      let (fill, r) = ListUtil.split_last(fill);
-      let meld = Meld.mk(~l, Wald.mk(mid, fill), ~r);
-      Cell.put(meld);
-    } else {
-      List.hd(fill);
+let put = failwith("todo: clear empty meld");
+
+let bake_cell = failwith("todo: make default cell given molded nt");
+
+// assumes precedence-correctness already checked
+let fill_cell = (~l=false, ~r=false, ~fill=[], sort: Bound.t(Molded.NT.t)) => {
+  let mtrl =
+    sort
+    |> Bound.map(fst)
+    |> Bound.map(snd)
+    |> Bound.get(~root=Mtrl.Sorted.root);
+  let mold = Bound.map(snd, sort);
+  let empty = Cell.empty(mold, mtrl);
+  let put = put(mold, mtrl);
+
+  switch (merge_spaces(fill)) {
+  | Some(spc) => bake_cell(mold, mtrl) |> Cell.pad(~side=L, ~pad=spc)
+  | None =>
+    assert(fill != []);
+    let s = failwith("todo");
+    let (hd, tl) = ListUtil.split_first(fill);
+    let toks = List.map(_ => Grout.Token.in_(s), tl);
+    let cells = Grout.Cell.[put_hd(hd), ...List.map(put_tl, tl)];
+    let (cells, toks) =
+      l
+        ? ([Grout.Cell.pad_l, ...cells], [Grout.Token.pre, ...toks])
+        : (cells, toks);
+    let (cells, toks) =
+      r ? (cells @ [Grout.Cell.pad_r], toks @ [pad_r]) : (cells, toks);
+    switch (cells) {
+    | [] => failwith("bug: expected fill non-empty")
+    | [c] => put(Cell.get(c))
+    | [hd, ...tl] =>
+      let (mid, ft) = ListUtil.split_last(tl);
+      put(M(hd, W((toks, mid)), ft));
     };
   };
+};
 
-let bake_eq = (~fill=[], sort: Bound.t(Molded.Sorted.t)) => {
+let bake_eq = (~fill=[], sort: Bound.t(Molded.NT.t)) => {
   open OptUtil.Syntax;
-  let (f_l, f_r) = faces(fill);
+  let (f_l, f_r) = Filling.faces(fill);
   let+ w_l = ListUtil.hd_opt(Walker.enter(~from=L, sort, Node(f_l)))
   and+ w_r = ListUtil.hd_opt(Walker.enter(~from=R, sort, Node(f_r)));
   let (l, r) = Walk.(height(w_l) > 2, height(w_r) > 2);
-  let cell = fill_cell(~l, ~r, ~fill, mtrl(sort));
+  let cell = fill_cell(~l, ~r, ~fill, sort);
   Rel.Eq(cell);
 };
 
 let bake_lt =
-    (
-      ~fill=[],
-      bound: Bound.t(Molded.Sorted.t),
-      sort: Bound.t(Molded.Sorted.t),
-    ) => {
+    (~fill=[], bound: Bound.t(Molded.NT.t), sort: Bound.t(Molded.NT.t)) => {
   open OptUtil.Syntax;
-  let (f_l, f_r) = faces(fill);
+  let (f_l, f_r) = Filling.faces(fill);
   let+ _w_l = ListUtil.hd_opt(Walker.enter(~from=L, bound, Node(f_l)))
   and+ w_r = ListUtil.hd_opt(Walker.enter(~from=R, sort, Node(f_r)));
-  let cell = fill_cell(~r=Walk.height(w_r) > 2, ~fill, mtrl(sort));
+  let cell = fill_cell(~r=Walk.height(w_r) > 2, ~fill, sort);
   Rel.Neq(cell);
 };
 
 let bake_gt =
-    (
-      ~fill=[],
-      sort: Bound.t(Molded.Sorted.t),
-      bound: Bound.t(Molded.Sorted.t),
-    ) => {
+    (~fill=[], sort: Bound.t(Molded.NT.t), bound: Bound.t(Molded.NT.t)) => {
   open OptUtil.Syntax;
-  let (l, r) = faces(fill);
-  let+ w_l = ListUtil.hd_opt(Walker.enter(~from=L, sort, Node(l)))
-  and+ _w_r = ListUtil.hd_opt(Walker.enter(~from=R, bound, Node(r)));
-  let cell = fill_cell(~r=Walk.height(w_l) > 2, ~fill, mtrl(sort));
+  let (f_l, f_r) = Filling.faces(fill);
+  let+ w_l = ListUtil.hd_opt(Walker.enter(~from=L, sort, Node(f_l)))
+  and+ _w_r = ListUtil.hd_opt(Walker.enter(~from=R, bound, Node(f_r)));
+  let cell = fill_cell(~l=Walk.height(w_l) > 2, ~fill, sort);
   Rel.Neq(cell);
 };
 
-let bake_stride = (~fill=[], ~from: Dir.t, str: Walk.Swing.t) => {
+let bake_swing = (~fill=Filling.empty, ~from: Dir.t, sw: Walk.Swing.t) => {
   let fill = Dir.pick(from, (Fun.id, List.rev), fill);
   switch (from) {
-  | _ when Walk.Swing.height(str) <= 1 =>
-    bake_eq(~fill, Walk.Swing.bot(str))
-  | L => bake_lt(~fill, Walk.Swing.top(str), Walk.Swing.bot(str))
-  | R => bake_gt(~fill, Walk.Swing.bot(str), Walk.Swing.top(str))
+  | _ when Walk.Swing.height(sw) <= 1 => bake_eq(~fill, Walk.Swing.bot(sw))
+  | L => bake_lt(~fill, Walk.Swing.top(sw), Walk.Swing.bot(sw))
+  | R => bake_gt(~fill, Walk.Swing.bot(sw), Walk.Swing.top(sw))
   };
 };
 
-let bake =
-    (~from: Dir.t, ~fill: list(Cell.t)=[], w: Walk.t): option(Baked.t) =>
+let bake = (~from: Dir.t, ~fill=Filling.empty, w: Walk.t): option(Baked.t) =>
   w
   |> Chain.map_link(Token.mk)
   |> Chain.unzip
-  |> Oblig.Delta.minimize(((pre, str: Walk.Swing.t, suf)) => {
+  // choose swing to fill that minimizes obligations.
+  // currently simply chooses a single swing to fill even when there are
+  // multiple fill elements. ideally this choice would distribute multiple
+  // melds across multiple swings.
+  |> Oblig.Delta.minimize(((pre, sw: Walk.Swing.t, suf)) => {
        open OptUtil.Syntax;
        let bake_tl = ((toks, strs)) =>
          List.combine(toks, strs)
-         |> List.map(((tok, str)) => {
-              let+ cell = bake_stride(~from, str);
+         |> List.map(((tok, sw)) => {
+              let+ cell = bake_swing(~from, sw);
               (tok, cell);
             })
          |> OptUtil.sequence
          |> Option.map(List.split);
-       let+ cell = bake_stride(~fill, ~from, str)
+       let+ cell = bake_swing(~fill, ~from, sw)
        and+ pre = bake_tl(pre)
        and+ suf = bake_tl(suf);
        Chain.zip(~pre, cell, ~suf);

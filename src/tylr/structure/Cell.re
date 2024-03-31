@@ -33,6 +33,7 @@ let get = ({marks, meld, _}: t) => {
   Meld.M(l, W((toks, cells)), r);
 };
 
+let empty = (mold, mtrl) => mk(mold, mtrl);
 let put = (mold, mtrl, m: Meld.t) => {
   let M(l, W((toks, cells)), r) = m;
   let n = List.length(toks);
@@ -48,8 +49,3 @@ let put = (mold, mtrl, m: Meld.t) => {
     );
   mk(~marks, ~meld=Meld.map_cells(clear_marks, m), mold, mtrl);
 };
-
-let face = (~side: Dir.t, cell: t) =>
-  cell.meld
-  |> Option.map(Meld.face(~side))
-  |> Option.value(~default=(Mtrl.Space, Mold.Space.of_t));

@@ -1,10 +1,12 @@
 open Sexplib.Std;
+open Util;
 
 module Cell = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t('meld) = {
     marks: Path.Marks.t,
     mold: Bound.t(Mold.t),
+    // todo: probably want padding here
     mtrl: Mtrl.Sorted.t,
     meld: option('meld),
   };
@@ -35,13 +37,15 @@ module Wald = {
 type t =
   | M(Cell.t(t), Wald.t(Cell.t(t)), Cell.t(t));
 
-// assumes tok is space
-let of_space = tok => {
-  let l = Cell.mk(Node(Mold.Space.of_nt(L)), Mtrl.Space);
-  let r = Cell.mk(Node(Mold.Space.of_nt(R)), Mtrl.Space);
-  M(l, Wald.of_tok(tok), r);
-};
-let cursor = of_space(Token.cursor);
+let get_space =
+  fun
+  | M(_, W(([tok], [])), _) when Token.is_space(tok) => Some(tok.text)
+  | _ => None;
+let get_spaces = ms =>
+  ms
+  |> List.map(get_space)
+  |> OptUtil.sequence
+  |> Option.map(String.concat(""));
 
 // let mk = (~l=Cell.empty, ~r=Cell.empty, w) => M(l, w, r);
 [@warning "-27-39"]
