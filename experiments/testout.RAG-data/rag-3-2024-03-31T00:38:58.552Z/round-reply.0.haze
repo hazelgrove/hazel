@@ -1,0 +1,9 @@
+fun (model, action) ->
+    case action
+    | SelectEmoji(emoji) => (emoji, model.1)
+    | StampEmoji(row, col) => updateGrid(model.0, row, col, model.1)
+    | FillRow(row) =>
+        let filled_row = List.map (fun _ -> model.1) (List.nth(model.0, row)) in
+        let new_grid = List.mapi (fun i, r -> if i == row then filled_row else r) model.0 in
+        (model.1, new_grid)
+    end

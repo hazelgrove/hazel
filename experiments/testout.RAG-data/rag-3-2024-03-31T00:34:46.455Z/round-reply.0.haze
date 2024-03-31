@@ -1,0 +1,9 @@
+fun (model:Model, action:Action) ->
+    case action
+    | AddBooking(user, weekday, time, am) => 
+        let new_booking:Booking = (time, user, Model.bookingId+1) in
+         if not (bookingExists(model, new_booking)) 
+            then let (form, bookings, lastId) = model in 
+                 form, List.append(bookings, [new_booking]), lastId + 1
+            else model
+    end

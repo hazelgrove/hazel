@@ -1,0 +1,7 @@
+fun (password, criteria, strength), action ->
+  case action
+    | AddCriteria(c) => (password, c::criteria, strength)
+    | RemoveCriteria(c) => (password, List.remove(c, criteria), strength)
+    | UpdatePassword(p) => (p, criteria, strength)
+    | CalculateStrength => (password, criteria, calculateStrength(password, criteria))
+  end

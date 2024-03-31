@@ -1,0 +1,7 @@
+fun (playList, playListAction) ->
+  case playListAction
+  | PlaySong(id) => PlayList.playSong(playList, id)
+  | PauseCurrentSong => PlayList.pauseCurrentSong(playList)
+  | RemoveSong(id) => PlayList.removeSong(playList, id)
+  | AddSong(id) => PlayList.addSong(playList, id)
+  end

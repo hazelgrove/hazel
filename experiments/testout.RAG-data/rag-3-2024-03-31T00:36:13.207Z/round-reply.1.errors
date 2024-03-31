@@ -1,0 +1,45 @@
+The following static errors were discovered:
+Error in term:
+  delByID
+Nature of error: Variable delByID is not bound
+Error in term:
+  updateDay
+Nature of error: Variable updateDay is not bound
+Error in term:
+  getNewID
+Nature of error: Variable getNewID is not bound
+Error in term:
+  updateUser
+Nature of error: Variable updateUser is not bound
+Error in term:
+  add
+Nature of error: Variable add is not bound
+Error in term:
+  clear
+Nature of error: Variable clear is not bound
+Error in term:
+  updateTime
+Nature of error: Variable updateTime is not bound
+Error in term:
+  getNewID
+Nature of error: Variable getNewID is not bound
+Error in term:
+  UpdateUser
+Nature of error: Constructor is not defined
+Error in term:
+  UpdateDay
+Nature of error: Constructor is not defined
+Error in term:
+  Add
+Nature of error: Constructor is not defined
+Error in term:
+  UpdateTime
+Nature of error: Constructor is not defined
+Error in term:
+  Delete
+Nature of error: Constructor is not defined
+Error in term:
+  Clear
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

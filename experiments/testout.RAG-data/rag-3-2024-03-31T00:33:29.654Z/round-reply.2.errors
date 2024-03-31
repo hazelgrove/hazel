@@ -1,0 +1,15 @@
+The following static errors were discovered:
+Error in term:
+  pauseCurrentSong
+Nature of error: Variable pauseCurrentSong is not bound
+Error in term:
+  addSongToPlayList
+Nature of error: Variable addSongToPlayList is not bound
+Error in term:
+  removeSong
+Nature of error: Variable removeSong is not bound
+Error in term:
+  updatePlayList
+Nature of error: Variable updatePlayList is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

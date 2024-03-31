@@ -1,0 +1,12 @@
+fun model, action ->
+  case model, action
+  | (buffer, todos), AddTodo =>
+    if buffer $== "" then model
+    else ("", (buffer, false)::todos)
+  | (buffer, todos), RemoveTodo(i) =>
+    (buffer, List.remove(todos, i))
+  | (buffer, todos), ToggleTodo(i) =>
+    (buffer, List.update(todos, i, Todo.toggle))
+  | (buffer, todos), UpdateBuffer(new_buffer) =>
+    (new_buffer, todos)
+  end

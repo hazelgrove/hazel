@@ -1,0 +1,20 @@
+# Update the EmojiPaint app model based on an action #
+
+let update: (Model, Action) -> Model =
+  fun model, action ->
+    case action
+    | AddTodo => 
+        let (buffer, todos) = model in
+        if buffer == "" then model
+        else ("", Add(buffer, todos))
+    | RemoveTodo(index) =>
+        let (buffer, todos) = model in
+        (buffer, Remove(index, todos))
+    | ToggleTodo(index) =>
+        let (buffer, todos) = model in
+        (buffer, Toggle(index, todos))
+    | UpdateBuffer(text) =>
+        let (_, todos) = model in
+        (text, todos)
+    end
+in

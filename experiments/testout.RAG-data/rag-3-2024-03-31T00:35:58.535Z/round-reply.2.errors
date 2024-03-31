@@ -1,0 +1,16 @@
+The following static errors were discovered:
+The suggested filling has the wrong expected type: expected ((Model, Action) -> Model), but got ((?, ?) -> (((Weekday, TimeOfDay), String), [(TimeOfDay, User, Int)], Int)).
+Error in term:
+  getLatestID
+Nature of error: Variable getLatestID is not bound
+Error in term:
+  getLatestID
+Nature of error: Variable getLatestID is not bound
+Error in term:
+  booking
+Nature of error: Expecting type Booking but got inconsistent type (TimeOfDay, User, Int)
+Error in term:
+  getBookings(model)
+Nature of error: Expecting type [(TimeOfDay, User, Int)] but got inconsistent type [Booking]
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

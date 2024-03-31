@@ -1,0 +1,9 @@
+fun (password, criteria, strength), action ->
+case action
+| ChangePassword(s) => 
+  let new_strength = 
+    let num_criteria_met = List.length(List.filter(criterion_satisfied(s), criteria)) in
+      strength_of(num_criteria_met)
+  in (s, criteria, new_strength)
+| AddCriterion(c) => (password, criteria @ [c], strength) 
+end

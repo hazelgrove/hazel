@@ -1,0 +1,53 @@
+# SNIPPET 1 #
+BookingID) in
+    
+let initFormState = ((M, AM), "") in
+let Model.init: Model = (initFormState, [], 0) in
+
+type Action =
+  + AddBooking(User, Weekday,
+
+# SNIPPET 2 #
+n
+      
+let bookingExists: (Model, Booking) -> Bool =
+  fun model, booking ->
+    List.exists(fun b -> b == booking, getBookings(model))  
+in
+  
+let 
+
+# SNIPPET 3 #
+, ts2) in
+
+let Model.init: Model = ("", []) in
+
+type Action =
+  + AddTodo
+  + RemoveTodo(Int)
+  + ToggleTodo(Int)
+  + UpdateBuffer(String) in
+
+let eq 
+
+# SNIPPET 4 #
+in
+type BookingID = Int in
+type Booking = (Time, User, BookingID) in
+type BookingFormData = (Time, User) in
+type Model = (BookingFormData, [Booking], 
+
+# SNIPPET 5 #
+getUserBookings: (Model, User) -> [Booking] =
+  fun model, user ->
+    List.filter(fun (_, u:User,_) -> u == user, getBookings(model)) 
+in
+
+let getBoo
+
+# SNIPPET 6 #
+kingById: (Model, BookingID) -> Booking =
+  fun model, id ->
+    case List.filter(fun (_, _, i:BookingID) -> i == id, getBookings(model))
+      | [boo
+

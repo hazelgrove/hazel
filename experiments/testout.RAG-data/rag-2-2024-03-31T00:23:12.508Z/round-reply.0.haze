@@ -1,0 +1,7 @@
+fun m, a ->
+  case m, a
+  | (buffer, todos), AddTodo => (buffer, todos)
+  | (buffer, todos), RemoveTodo(n) => (buffer, List.remove(n, todos))
+  | (buffer, todos), ToggleTodo(n) => (buffer, List.map((fun i, x -> if i == n then !x else x), todos))
+  | (buffer, todos), UpdateBuffer(s) => (s, todos)
+  end

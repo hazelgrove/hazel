@@ -1,0 +1,68 @@
+The following static errors were discovered:
+Error in term:
+  grid
+Nature of error: Variable grid is not bound
+Error in term:
+  List.range
+Nature of error: Variable List.range is not bound
+Error in term:
+  grid
+Nature of error: Variable grid is not bound
+Error in term:
+  grid
+Nature of error: Variable grid is not bound
+Error in term:
+  where(grid, selected_emoji, emojis) model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  emojis
+Nature of error: Variable emojis is not bound
+Error in term:
+  where
+Nature of error: Variable where is not bound
+Error in term:
+  grid
+Nature of error: Variable grid is not bound
+Error in term:
+  emojis
+Nature of error: Variable emojis is not bound
+Error in term:
+  selected_emoji
+Nature of error: Variable selected_emoji is not bound
+Error in term:
+  selected_emoji
+Nature of error: Variable selected_emoji is not bound
+Error in term:
+  emojis
+Nature of error: Variable emojis is not bound
+Error in term:
+  selected_emoji
+Nature of error: Variable selected_emoji is not bound
+Error in term:
+  selected_emoji
+Nature of error: Variable selected_emoji is not bound
+Error in term:
+  fun ((model, action)) ->
+ case action
+ | SelectEmoji(emoji) => (grid, emoji, emojis)
+| StampEmoji((row, col)) => let new_grid = updateGrid(grid, row, col, selected_emoji) in
+ (new_grid, selected_emoji, emojis)
+| FillRow(row) => let new_grid = List.map((fun ((_, col)) ->
+ updateGrid(grid, row, col, selected_emoji)), List.range(0, List.length(grid))) in
+ (new_grid, selected_emoji, emojis)
+end where(grid, selected_emoji, emojis) model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  selected_emoji
+Nature of error: Variable selected_emoji is not bound
+Error in term:
+  model
+Nature of error: Variable model is not bound
+Error in term:
+  emojis
+Nature of error: Variable emojis is not bound
+Error in term:
+  grid
+Nature of error: Variable grid is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

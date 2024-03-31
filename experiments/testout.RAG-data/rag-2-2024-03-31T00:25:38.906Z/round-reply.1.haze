@@ -1,0 +1,12 @@
+fun (buffer, todos), action ->  
+  case action
+  | AddTodo => 
+    if buffer $== "" 
+    then (buffer, todos) 
+    else ("", (buffer, false)::todos) 
+  | RemoveTodo(idx) => (buffer, List.withoutIdx(todos, idx))
+  | ToggleTodo(idx) => 
+    let (desc, status) = List.nth(todos, idx) in 
+    (buffer, List.updateAt(todos, idx, (desc, !status)))
+  | UpdateBuffer(data) => (data, todos)
+  end

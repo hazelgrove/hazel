@@ -81,7 +81,7 @@ fun c ->
 let (_, y, condition) = triple in
 let get: Option -> Int =
 fun maybe_num ->
-case maybe_num
+  case maybe_num
  | Some(x) => ??
  | None => if !condition then 0 else y + 1 end in|},
     Type.expected(Some(Ana(Int)), ~ctx=[]),
@@ -170,7 +170,8 @@ let hazel_syntax_notes = [
  REMEMBER: HACKS in Code, Measured for reponse-wrapping ~ form.contents
  */
 
-let mk_user_message = (~expected_ty, ~relevant_ctx, sketch: string): string =>
+let mk_user_message =
+    (~rag, ~expected_ty, ~relevant_ctx, sketch: string): string =>
   "{\n"
   ++ String.concat(
        ",\n",
@@ -180,6 +181,7 @@ let mk_user_message = (~expected_ty, ~relevant_ctx, sketch: string): string =>
            Some("sketch: " ++ sketch),
            Option.map(Printf.sprintf("expected_ty: %s"), expected_ty),
            Option.map(Printf.sprintf("relevant_ctx:\n %s"), relevant_ctx),
+           Option.map(Printf.sprintf("relevant_snippets:\n %s"), rag),
          ],
        ),
      )
@@ -194,6 +196,7 @@ let get_samples = (num_examples, samples) =>
 
 let prompt =
     (
+      ~rag=None,
       {
         instructions,
         syntax_notes,
@@ -221,7 +224,12 @@ let prompt =
           {
             role: User,
             content:
-              mk_user_message(sketch, ~expected_ty, ~relevant_ctx=None),
+              mk_user_message(
+                sketch,
+                ~expected_ty,
+                ~relevant_ctx=None,
+                ~rag=None,
+              ),
           },
           {role: Assistant, content: completion},
         ],
@@ -230,7 +238,7 @@ let prompt =
   @ [
     {
       role: User,
-      content: mk_user_message(sketch, ~expected_ty, ~relevant_ctx),
+      content: mk_user_message(sketch, ~expected_ty, ~relevant_ctx, ~rag),
     },
   ];
 };

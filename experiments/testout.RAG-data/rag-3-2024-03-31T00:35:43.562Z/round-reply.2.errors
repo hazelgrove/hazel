@@ -1,0 +1,36 @@
+The following static errors were discovered:
+Error in term:
+  deleteBookingByID
+Nature of error: Variable deleteBookingByID is not bound
+Error in term:
+  addBooking
+Nature of error: Variable addBooking is not bound
+Error in term:
+  canSubmit
+Nature of error: Variable canSubmit is not bound
+Error in term:
+  getFormData
+Nature of error: Variable getFormData is not bound
+Error in term:
+  changeBookingData
+Nature of error: Variable changeBookingData is not bound
+Error in term:
+  addBooking
+Nature of error: Variable addBooking is not bound
+Error in term:
+  weekday, time, user, bookingID
+Nature of error: Expecting type Booking but got inconsistent type (?, ?, ?, ?)
+Error in term:
+  Submit
+Nature of error: Constructor is not defined
+Error in term:
+  ChangeBookingData
+Nature of error: Constructor is not defined
+Error in term:
+  (user, weekday, time, bookingID)
+Nature of error: Expecting type (User, Weekday, TimeOfDay) but got inconsistent type (?, ?, ?, ?)
+Error in term:
+  DeleteBooking
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

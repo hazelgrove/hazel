@@ -1,0 +1,7 @@
+fun (playlist, act) ->
+       case act
+       | PlaySong(id) => process_play_song(id, playlist)
+       | PauseCurrentSong => process_pause_current_song(playlist)
+       | RemoveSong(id) => process_remove_song(id, playlist)
+       | AddSong(id) => process_add_song(id, playlist)
+       end

@@ -1,0 +1,7 @@
+fun m, action ->
+  case action
+   | AddTodo => let (buffer, todos) = m in (buffer, todos@[buffer])
+   | RemoveTodo(i) => let (buffer, todos) = m in (buffer, List.remove_at(i, todos))
+   | ToggleTodo(i) => let (buffer, todos) = m in (buffer, List.update_at(i, Todo.toggle, todos))
+   | UpdateBuffer(new_buffer) => let (_, todos) = m in (new_buffer, todos)
+  end

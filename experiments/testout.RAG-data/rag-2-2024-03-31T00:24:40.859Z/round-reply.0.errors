@@ -1,0 +1,9 @@
+The following static errors were discovered:
+Error in term:
+  List.splitAt
+Nature of error: Variable List.splitAt is not bound
+Error in term:
+  List.modifyAt
+Nature of error: Variable List.modifyAt is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

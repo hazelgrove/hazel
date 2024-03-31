@@ -1,0 +1,55 @@
+The following static errors were discovered:
+The suggested filling has the wrong expected type: expected ((Model, Action) -> Model), but got ((?, ?) -> ((?, TimeOfDay), [((TimeOfDay, User), ?)], Int)).
+Error in term:
+  model.formData
+Nature of error: "model.formData" isn't a valid token
+Error in term:
+  model.bookings
+Nature of error: "model.bookings" isn't a valid token
+Error in term:
+  model.bookings
+Nature of error: "model.bookings" isn't a valid token
+Error in term:
+  model.formData
+Nature of error: "model.formData" isn't a valid token
+Error in term:
+  model.nextId
+Nature of error: "model.nextId" isn't a valid token
+Error in term:
+  model.bookings
+Nature of error: "model.bookings" isn't a valid token
+Error in term:
+  model.nextId
+Nature of error: "model.nextId" isn't a valid token
+Error in term:
+  model.nextId
+Nature of error: "model.nextId" isn't a valid token
+Error in term:
+  booking
+Nature of error: Expecting type (?, ?) but got inconsistent type Booking
+Error in term:
+  model.nextId
+Nature of error: "model.nextId" isn't a valid token
+Error in term:
+  model.nextId
+Nature of error: "model.nextId" isn't a valid token
+Error in term:
+  booking
+Nature of error: Expecting type Booking but got inconsistent type ((TimeOfDay, User), ?)
+Error in term:
+  model.formData
+Nature of error: "model.formData" isn't a valid token
+Error in term:
+  model.bookings
+Nature of error: "model.bookings" isn't a valid token
+Error in term:
+  EditBooking
+Nature of error: Constructor is not defined
+Error in term:
+  RemoveBooking
+Nature of error: Constructor is not defined
+Error in term:
+  UpdateForm
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

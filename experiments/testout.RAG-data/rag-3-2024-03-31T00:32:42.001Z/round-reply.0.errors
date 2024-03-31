@@ -1,0 +1,73 @@
+The following static errors were discovered:
+Error in term:
+  in
+Nature of error: Variable in is not bound
+Error in term:
+  playlist.songs
+Nature of error: "playlist.songs" isn't a valid token
+Error in term:
+  playlist.songs id
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  playlist.state Playing
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  playlist.songs
+Nature of error: "playlist.songs" isn't a valid token
+Error in term:
+  playlist.state
+Nature of error: "playlist.state" isn't a valid token
+Error in term:
+  playlist.state
+Nature of error: "playlist.state" isn't a valid token
+Error in term:
+  case action
+ | PlaySong(id) => case playlist.state
+ | PausedOn(pid) => if pid == id then playlist.state Playing(id) else NoSongSelected
+| Playing(pid) => NoSongSelected
+end
+| PauseCurrentSong => case playlist.state
+ | Playing(pid) => playlist.state PausedOn(pid)
+| _ => NoSongSelected
+end
+| RemoveSong(id) => playlist.songs List.filter(fun song_id ->
+ song_id != id, playlist.songs)
+| AddSong(id) => playlist.songs id :: playlist.songs
+end
+Nature of error: Expecting branches to have consistent types but got types: PlayListState, PlayListState, ?, [?]
+Error in term:
+  playlist.state
+Nature of error: "playlist.state" isn't a valid token
+Error in term:
+  playlist.state PausedOn
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  playlist.state
+Nature of error: "playlist.state" isn't a valid token
+Error in term:
+  playlist.songs
+Nature of error: "playlist.songs" isn't a valid token
+Error in term:
+  playlist.songs List.filter
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  playlist.songs
+Nature of error: "playlist.songs" isn't a valid token
+Error in term:
+  fun ((playlist, action)) ->
+ case action
+ | PlaySong(id) => case playlist.state
+ | PausedOn(pid) => if pid == id then playlist.state Playing(id) else NoSongSelected
+| Playing(pid) => NoSongSelected
+end
+| PauseCurrentSong => case playlist.state
+ | Playing(pid) => playlist.state PausedOn(pid)
+| _ => NoSongSelected
+end
+| RemoveSong(id) => playlist.songs List.filter(fun song_id ->
+ song_id != id, playlist.songs)
+| AddSong(id) => playlist.songs id :: playlist.songs
+end in
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

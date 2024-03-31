@@ -1,0 +1,10 @@
+
+fun (model, action) ->
+  case action 
+  | AddTodo -> (model@["new_todo"], [])
+  | RemoveTodo(index) -> (List.remove_at(index, model), [])
+  | ToggleTodo(index) ->
+    let (x, b) = List.nth(model, index) in
+    List.update_at(index, (x, not b), model)
+  | UpdateBuffer(str) -> (str, model) 
+  end

@@ -1,0 +1,8 @@
+fun (model, action) ->
+  case model
+  | (password, criteria, strength) => 
+    let new_criteria = List.map ((fun criterion -> check_criterion(password, criterion)), criteria) in
+    let num_criteria_met = List.fold_left ((fun count -> if count then count + 1 else count), 0, new_criteria) in
+    let new_strength = strength_of(num_criteria_met) in
+    (password, new_criteria, new_strength)
+  end

@@ -1,0 +1,7 @@
+fun (model, action) -> 
+  case action
+  | AddTodo => (model.buffer, model.todos)
+  | RemoveTodo(index) => (model.buffer, List.remove(index, model.todos))
+  | ToggleTodo(index) => (model.buffer, List.update(index, Todo.toggle, model.todos))
+  | UpdateBuffer(buffer) => (buffer, model.todos)
+  end

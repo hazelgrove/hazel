@@ -1,0 +1,14 @@
+fun (buffer, todos), a ->
+    case a
+    | AddTodo =>
+        if buffer $== "" then (buffer, todos)
+        else ("", ((buffer, false)::todos))
+    | RemoveTodo(idx) =>
+        let new_todos = List.remove(idx, todos) in
+        (buffer, new_todos)
+    | ToggleTodo(idx) =>
+        let toggled_todos = List.update(idx, fun (description, completed) ->
+          (description, not(completed)), todos) in
+        (buffer, toggled_todos)
+    | UpdateBuffer(new_buffer) => (new_buffer, todos)
+    end

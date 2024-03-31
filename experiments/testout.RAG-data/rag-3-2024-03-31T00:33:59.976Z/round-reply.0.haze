@@ -1,0 +1,17 @@
+fun (model, action) ->
+  case action
+    | Login(user) =>
+      let model = update_noise_state(model,false) in
+      match (get_admin_setting(),get_noise_detection_state(model)) with
+      | (true, Emergency) -> model
+      | _ -> set_user_state(model, Online(user))
+    | Logout => set_user_state(model,Offline)
+    | ToggleNoiseDetection => update_noise_state(model, not get_noise_detection_state(model))
+    | SetAdmin(admin) =>
+      let model = set_admin_setting(model,admin) in
+      match (get_user_state(model), get_noise_detection_state(model)) with
+        | (Online(user),Noise) -> set_user_state(model,Offline)
+        | _ -> model
+    | ActionList(actions) => List.fold_left (apply action),model actions
+  end
+    in update

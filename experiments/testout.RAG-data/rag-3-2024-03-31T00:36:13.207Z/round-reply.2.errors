@@ -1,0 +1,16 @@
+The following static errors were discovered:
+Error in term:
+  a
+Nature of error: Variable a is not bound
+Error in term:
+  fun (m, a) ->
+ match a Rul
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  a Rul
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  match
+Nature of error: Variable match is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

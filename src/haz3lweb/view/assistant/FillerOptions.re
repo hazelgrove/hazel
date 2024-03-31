@@ -9,6 +9,7 @@ type t = {
   expected_type: bool,
   error_rounds_max: int,
   relevant_ctx: bool,
+  rag: option(string),
 };
 
 let init: t = {
@@ -19,4 +20,5 @@ let init: t = {
   expected_type: true,
   error_rounds_max: 2,
   relevant_ctx: true,
+  rag: None,
 };

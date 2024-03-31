@@ -1,0 +1,22 @@
+The following static errors were discovered:
+Error in term:
+  in
+Nature of error: Variable in is not bound
+Error in term:
+  end in
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  fun ((playlist, action)) ->
+ case action
+ | PlaySong(id) => (id :: fst(playlist), Playing(id))
+| PauseCurrentSong => (fst(playlist), NoSongSelected)
+| RemoveSong(id) => (List.filter(fun song_id ->
+ song_id != id, fst(playlist)), snd(playlist))
+| AddSong(id) => (id :: fst(playlist), snd(playlist))
+end end in
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

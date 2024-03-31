@@ -1,0 +1,11 @@
+fun (model, action) ->
+    case action 
+    | AddTodo => model 
+    | RemoveTodo(idx) => model 
+    | ToggleTodo(idx) => model  
+    | UpdateBuffer(password) => 
+        let (old_password, criteria, _) = model in
+        let num_satisfied = List.fold_left (fun acc, c -> if password_satisfies(password, c) then acc + 1 else acc) 0 criteria in
+        let new_strength = strength_of(num_satisfied) in
+        (password, criteria, new_strength)
+    end

@@ -1,0 +1,42 @@
+The following static errors were discovered:
+Error in term:
+  updateTimeInForm
+Nature of error: Variable updateTimeInForm is not bound
+Error in term:
+  removeBookingById
+Nature of error: Variable removeBookingById is not bound
+Error in term:
+  updateUserInForm
+Nature of error: Variable updateUserInForm is not bound
+Error in term:
+  addBooking
+Nature of error: Variable addBooking is not bound
+Error in term:
+  weekday
+Nature of error: Expecting type Time but got inconsistent type Weekday
+Error in term:
+  time
+Nature of error: Expecting type User but got inconsistent type TimeOfDay
+Error in term:
+  updateWeekdayInForm
+Nature of error: Variable updateWeekdayInForm is not bound
+Error in term:
+  bookingExistsById
+Nature of error: Variable bookingExistsById is not bound
+Error in term:
+  user
+Nature of error: Expecting type BookingID but got inconsistent type User
+Error in term:
+  UpdateUser
+Nature of error: Constructor is not defined
+Error in term:
+  RemoveBooking
+Nature of error: Constructor is not defined
+Error in term:
+  UpdateWeekday
+Nature of error: Constructor is not defined
+Error in term:
+  UpdateTime
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

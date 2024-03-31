@@ -50,6 +50,7 @@ let default_options: FillerOptions.t = {
   expected_type: false,
   error_rounds_max: 0,
   relevant_ctx: false,
+  rag: None,
 };
 
 let default: LSActions.runtest = {
@@ -190,6 +191,10 @@ let record_init_info =
   io.add(
     opt_pre("temperature"),
     options.params.temperature |> string_of_float,
+  );
+  io.add(
+    opt_pre("rag"),
+    options.rag |> Option.to_list |> (!=)([]) |> string_of_bool,
   );
   io.add(
     opt_pre("error_rounds_max"),
@@ -476,14 +481,22 @@ let go =
     get_caret_mode_and_ctx(~db, ~init_ctx, ~common, ~prelude, sketch_pre);
   let expected_ty = ChatLSP.Type.expected(~ctx=caret_ctx, Some(caret_mode));
   let relevant_ctx_str = ChatLSP.RelevantCtx.str(caret_ctx, caret_mode);
-  switch (Filler.prompt(options, ~sketch, ~expected_ty, ~relevant_ctx_str)) {
+  let rag =
+    switch (options.rag) {
+    | Some(rag_path) =>
+      Some(LSFiles.string_of_file(source_path ++ "/" ++ rag_path))
+    | None => None
+    };
+  switch (
+    Filler.prompt(~sketch, ~expected_ty, ~relevant_ctx_str, ~rag, options)
+  ) {
   | None => db("LS: RunTest: Prompt generation failed")
   | Some(prompt) =>
     db("LS: RunTest: Prompt generation succeeded");
     io.save("initial-prompt", OpenAI.show_prompt(prompt));
     print_endline(OpenAI.show_prompt(prompt));
     // print_endline(fix_or("a || b"));
-    // failwith("YOLO5000") |> ignore;
+    //failwith("YOLO5000") |> ignore;
     ask_gpt(
       ~params=options.params,
       ~key,

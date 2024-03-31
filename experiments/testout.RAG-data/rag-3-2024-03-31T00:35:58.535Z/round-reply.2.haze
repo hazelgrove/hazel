@@ -1,0 +1,10 @@
+fun (model, action) ->
+  case action
+  | AddBooking(user, weekday, time) =>
+      let booking =(time, user, (getLatestID(model) + 1)) in
+      if !bookingExists(model, booking)
+      then model
+      else let updatedBookings = (booking::getBookings(model)) in
+           let updatedState = ((M, AM), "") in
+           (updatedState, updatedBookings, getLatestID(model) + 1)
+  end

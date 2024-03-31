@@ -1,0 +1,14 @@
+fun model, action ->
+  case action
+  | AddBooking(user, weekday, timeOfDay) => 
+      let booking = makeBooking(user, weekday, timeOfDay, nextBookingID(model)) in
+      if !bookingExists(model, booking) 
+      then model 
+      else addBooking(model, booking)
+  | CancelBookingByID(bookingId) =>
+      if !bookingExistsByID(model, bookingId)
+      then model
+      else cancelBookingByID(model, bookingId)
+  | UpdateForm(state, onChange) =>
+      updateForm(model, state, onChange)
+  end

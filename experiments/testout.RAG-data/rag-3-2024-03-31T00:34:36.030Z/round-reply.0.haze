@@ -1,0 +1,6 @@
+fun m, a ->
+case a
+| AddBooking(bookingData) => if bookingExists(m, bookingData) then m else addBooking(m, bookingData)
+| UpdateForm(formState) => updateForm(m, formState)
+| DeleteBooking(bookingId) => deleteBooking(m, bookingId)
+end

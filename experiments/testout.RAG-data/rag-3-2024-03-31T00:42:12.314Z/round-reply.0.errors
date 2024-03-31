@@ -1,0 +1,32 @@
+The following static errors were discovered:
+Error in term:
+  AddTodo
+Nature of error: Constructor is not defined
+Error in term:
+  case action
+ | AddTodo => model :: AddTodo
+| RemoveTodo(i) => List.nth_remove(i, model)
+| ToggleTodo(i) => List.nth_set(i, !List.nth(i, model), model)
+| UpdateBuffer(str) => (str, model)
+end
+Nature of error: Expecting branches to have consistent types but got types: [?], ?, ?, (?, ?)
+Error in term:
+  List.nth_remove
+Nature of error: Variable List.nth_remove is not bound
+Error in term:
+  List.nth_set
+Nature of error: Variable List.nth_set is not bound
+Error in term:
+  RemoveTodo
+Nature of error: Constructor is not defined
+Error in term:
+  UpdateBuffer
+Nature of error: Constructor is not defined
+Error in term:
+  ToggleTodo
+Nature of error: Constructor is not defined
+Error in term:
+  AddTodo
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

@@ -15,6 +15,7 @@ default_values["option-expected_type"]="false"
 default_values["option-relevant_ctx"]="false"
 default_values["option-error_rounds_max"]="0"
 default_values["option-temperature"]="1.0"
+default_values["option-rag"]="false"
 
 # Set the internal flag to control the usage of the whitelist
 use_whitelist=true
@@ -26,6 +27,7 @@ whitelist=(
     "option-expected_type"
     "option-relevant_ctx"
     "option-error_rounds_max"
+    "option-rag"
     "option-temperature"
     "start-time"
     "tests-total"

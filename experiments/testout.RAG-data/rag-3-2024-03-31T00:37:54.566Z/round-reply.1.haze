@@ -1,0 +1,6 @@
+fun m,a ->
+  case a
+  | SelectEmoji(e) => ?? 
+  | StampEmoji(r, c) => ??
+  | FillRow(r) => ??
+  end

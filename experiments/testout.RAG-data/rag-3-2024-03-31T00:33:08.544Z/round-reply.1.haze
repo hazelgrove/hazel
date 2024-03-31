@@ -1,0 +1,7 @@
+fun (playList, action) -> 
+    case action
+      | PlaySong(id) => let songs, state = playList in (songs, Playing(id))
+      | PauseCurrentSong => let songs, _ = playList in (songs, NoSongSelected)
+      | RemoveSong(id) => let songs, state = playList in (List.drop(List.findIndex(fun song -> song == id, songs), songs), state)
+      | AddSong(id) => let songs, state = playList in (id::songs, state)
+      end

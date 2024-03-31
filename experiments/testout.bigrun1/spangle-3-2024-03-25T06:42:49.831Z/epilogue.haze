@@ -1,0 +1,71 @@
+# EMOJIPAINT MVU TESTS #
+
+test 
+  let (grid, _, _) = update(model_init, StampEmoji(0, 0)) in
+  grid == [["😄","",""],["","",""],["","",""]] 
+end;
+
+test
+  let (grid, _, _) = update(model_init, FillRow(1)) in
+  grid == [["","",""],["😄","😄","😄"],["","",""]] 
+end;
+
+test
+  let model = update(model_init, SelectEmoji("😅")) in
+  let (grid, selectedEmoji, _) = update(model, StampEmoji(2, 2)) in
+  grid == [["","",""],["","",""],["","","😅"]] && selectedEmoji == "😅" 
+end;
+    
+test
+  let model = update(model_init, FillRow(0)) in
+  let (grid, _, _) = update(model, ClearCell(0, 1)) in
+  grid == [["😄","","😄"],["","",""],["","",""]] 
+end;
+
+test
+  let model = update(model_init, StampEmoji(1, 1)) in
+  let (grid, _, _) = update(model, ClearGrid) in
+  grid == [["","",""],["","",""],["","",""]] 
+end;
+
+test
+  let (_, selectedEmoji, _) = update(model_init, SelectEmoji("😊")) in
+  let (grid_init, _, emojiList_init) = model_init in
+  let (grid, _, _) = update((grid_init, selectedEmoji, emojiList_init), StampEmoji(1, 2)) in
+  grid == [["","",""],["","","😊"],["","",""]] 
+end;
+  
+test
+  let (_, selectedEmoji, emojiList) = model_init in
+  let model = update(model_init, FillRow(2)) in
+  let (grid, _, _) = update(model, ClearCell(2, 0)) in
+  grid == [["","",""],["","",""],["","😄","😄"]] 
+end;
+
+test
+  let model = update(model_init, StampEmoji(0, 0)) in
+  let model = update(model, StampEmoji(1, 1)) in
+  let model = update(model, StampEmoji(2, 2)) in
+  let (grid, _, _) = update(model, ClearGrid) in
+  grid == [["","",""],["","",""],["","",""]] 
+end;
+        
+test
+  let (grid_init, _, emojiList_init) = model_init in
+  let model = update(model_init, FillRow(0)) in
+  let (_, selectedEmoji, _) = update(model, SelectEmoji("😆")) in
+  let (grid,_,_) = model in
+  let (grid, _, _) = update((grid, selectedEmoji, emojiList_init), StampEmoji(1, 1)) in
+  grid == [["😄","😄","😄"],["","😆",""],["","",""]] 
+end;
+  
+test
+  let model = update(model_init, StampEmoji(0, 0)) in
+  let model = update(model, FillRow(2)) in
+  let (grid, _, emojiList) = model in
+  let model = update(model, SelectEmoji("😉")) in
+  let model = update(model, StampEmoji(1, 1)) in
+  let model = update(model, ClearCell(2, 2)) in
+  let (grid, selectedEmoji, _) = model in
+  grid == [["😄","",""],["","😉",""],["😄","😄",""]] && selectedEmoji == "😉" 
+end;

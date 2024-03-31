@@ -1,0 +1,15 @@
+The following static errors were discovered:
+Error in term:
+  process_play_song
+Nature of error: Variable process_play_song is not bound
+Error in term:
+  process_add_song
+Nature of error: Variable process_add_song is not bound
+Error in term:
+  process_pause_current_song
+Nature of error: Variable process_pause_current_song is not bound
+Error in term:
+  process_remove_song
+Nature of error: Variable process_remove_song is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion
