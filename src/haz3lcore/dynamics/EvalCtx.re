@@ -175,6 +175,7 @@ let rec unwrap = (ctx: t, sel: cls): option(t) => {
   | (Let2, Let2(_, _, c))
   | (Fun, Fun(_, _, c, _))
   | (FixF, FixF(_, _, c))
+  | (TypAp, TypAp(c, _))
   | (Ap1, Ap1(c, _))
   | (Ap2, Ap2(_, c))
   | (BinBoolOp1, BinBoolOp1(_, c, _))
