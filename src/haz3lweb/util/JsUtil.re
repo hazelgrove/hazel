@@ -98,7 +98,7 @@ let log = data => {
 
 let clipboard_shim_id = "clipboard-shim";
 
-let focus_clipboard_shim = () => get_elem_by_id(clipboard_shim_id)##focus;
+let focus_clipboard_shim = () => ();
 
 let clipboard_shim = {
   Node.textarea(~attr=Attr.many([Attr.id(clipboard_shim_id)]), []);
