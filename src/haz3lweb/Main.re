@@ -95,6 +95,18 @@ module App = {
 
     JsUtil.focus_clipboard_shim();
 
+    let _eventId =
+      Dom_html.addEventListener(
+        Dom_html.document,
+        Dom_html.Event.make("myCustomEvent"),
+        Dom_html.handler(_ => {
+          print_endline("RECEIVED EVENT");
+          schedule_action(PerformAction(Jump(BindingSiteOfIndicatedVar)));
+          Js.bool(true);
+        }),
+        Js.bool(false),
+      );
+
     /* initialize state. */
     let state = State.init();
 
@@ -119,31 +131,12 @@ module App = {
     let%map model = model;
     /* Note: mapping over the old_model here may
        trigger an additional redraw */
-    let first = ref(false);
-    let go = ref(false);
-    if (!first.contents) {
-      let _eventId =
-        Dom_html.addEventListener(
-          Dom_html.document,
-          Dom_html.Event.make("myCustomEvent"),
-          Dom_html.handler(_ => {
-            print_endline("RECEIVED EVENT");
-            go := true;
-            Js.bool(true);
-          }),
-          Js.bool(false),
-        );
-      first := true;
-    };
+
     Component.create(
       ~apply_action=apply(model),
       model,
       Haz3lweb.Page.view(~inject, model),
       ~on_display=(_, ~schedule_action) => {
-        if (go.contents) {
-          go := false;
-          schedule_action(PerformAction(Jump(BindingSiteOfIndicatedVar)));
-        };
         if (edit_action_applied^
             && JsUtil.timestamp()
             -. last_edit_action^ > 1000.0) {
