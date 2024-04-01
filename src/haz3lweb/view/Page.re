@@ -6,7 +6,7 @@ open Node;
 let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit), model) => {
   let get_selection = (model: Model.t): string =>
     model.editors |> Editors.get_editor |> Printer.to_string_selection;
-  let _key_handler =
+  let key_handler =
       (~inject, ~dir: Key.dir, evt: Js.t(Dom_html.keyboardEvent))
       : Effect.t(unit) =>
     Effect.(
@@ -16,9 +16,9 @@ let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit), model) => {
       }
     );
   [
-    // Attr.on_keypress(_ => Effect.Prevent_default),
-    // Attr.on_keyup(key_handler(~inject, ~dir=KeyUp)),
-    // Attr.on_keydown(key_handler(~inject, ~dir=KeyDown)),
+    Attr.on_keypress(_ => Effect.Prevent_default),
+    Attr.on_keyup(key_handler(~inject, ~dir=KeyUp)),
+    Attr.on_keydown(key_handler(~inject, ~dir=KeyDown)),
     /* safety handler in case mousedown overlay doesn't catch it */
     Attr.on_mouseup(_ => inject(SetMeta(Mouseup))),
     Attr.on_blur(_ => {
