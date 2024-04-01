@@ -181,6 +181,7 @@ let rec convert_leftmost_to_priority = (typ: ITyp.t): string => {
   | Var(name) => name
   | Unknown(prov) => prov_to_priority(prov)
   | List(elt_typ) => convert_leftmost_to_priority(elt_typ)
+  | Named(_, _, named_typ) => convert_leftmost_to_priority(named_typ)
   | Arrow(typ_lhs, typ_rhs)
   | Prod(typ_lhs, typ_rhs)
   | Sum(typ_lhs, typ_rhs) =>

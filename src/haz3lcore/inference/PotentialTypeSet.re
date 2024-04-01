@@ -24,7 +24,8 @@ type base_typ =
 
 [@deriving (show({with_path: false}), sexp)]
 type unary_ctor =
-  | CList;
+  | CList
+  | CNamed(Constructor.t, bool);
 
 [@deriving (show({with_path: false}), sexp)]
 type binary_ctor =
@@ -50,6 +51,7 @@ let mk_as_binary_ctor = (ctor: binary_ctor, ty1: ITyp.t, ty2: ITyp.t): ITyp.t =>
 let mk_as_unary_ctor = (ctor: unary_ctor, ty: ITyp.t): ITyp.t => {
   switch (ctor) {
   | CList => List(ty)
+  | CNamed(c, tag) => Named(c, tag, ty)
   };
 };
 
@@ -80,7 +82,9 @@ let rec ityp_to_potential_typ: ITyp.t => potential_typ =
       [ityp_to_potential_typ(ty1)],
       [ityp_to_potential_typ(ty2)],
     )
-  | List(ty) => Unary(CList, [ityp_to_potential_typ(ty)]);
+  | List(ty) => Unary(CList, [ityp_to_potential_typ(ty)])
+  | Named(c, tag, ty) =>
+    Unary(CNamed(c, tag), [ityp_to_potential_typ(ty)]);
 
 let typ_to_potential_typ: Typ.t => potential_typ =
   typ => {
@@ -536,6 +540,8 @@ and potential_typ_to_ityp = (id: Id.t, ptyp: potential_typ): ITyp.t => {
   switch (ptyp) {
   | Base(btyp) => base_typ_to_ityp(btyp)
   | Unary(CList, t) => ITyp.List(potential_typ_set_to_ityp_no_unroll(id, t))
+  | Unary(CNamed(c, tag), t) =>
+    ITyp.Named(c, tag, potential_typ_set_to_ityp_no_unroll(id, t))
   | Binary(CArrow, t1, t2) =>
     ITyp.Arrow(
       potential_typ_set_to_ityp_no_unroll(id, t1),
@@ -584,19 +590,24 @@ and string_of_potential_typ =
       ],
     );
   | Unary(ctor, potential_typ_set) =>
-    let (start_text, end_text) =
-      switch (ctor) {
-      | CList => ("[", "]")
-      };
+    switch (ctor) {
+    | CNamed(c, true) => c
+    | _ =>
+      let (start_text, end_text) =
+        switch (ctor) {
+        | CList => ("[", "]")
+        | CNamed(c, _) => (c ++ "(", ")")
+        };
 
-    String.concat(
-      "",
-      [
-        start_text,
-        string_of_potential_typ_set_no_nesting(false, potential_typ_set),
-        end_text,
-      ],
-    );
+      String.concat(
+        "",
+        [
+          start_text,
+          string_of_potential_typ_set_no_nesting(false, potential_typ_set),
+          end_text,
+        ],
+      );
+    }
   };
 
 let strings_of_potential_typ_set = (potential_typ_set: t): list(string) =>

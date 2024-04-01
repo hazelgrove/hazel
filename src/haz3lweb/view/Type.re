@@ -209,23 +209,28 @@ and view_of_potential_typ =
       ],
     );
   | Unary(ctor, potential_typ_set) =>
-    let (start_text, end_text, cls) =
-      switch (ctor) {
-      | CList => ("[", "]", ["typ-view", "atom", "List"])
-      };
-    div(
-      ~attr=clss(cls),
-      [
-        text(start_text),
-        view_of_potential_typ_set(
-          ~font_metrics,
-          ~with_cls,
-          false,
-          potential_typ_set,
-        ),
-        text(end_text),
-      ],
-    );
+    switch (ctor) {
+    | CNamed(c, true) => div(~attr=clss(["typ-view", "Named"]), [text(c)])
+    | _ =>
+      let (start_text, end_text, cls) =
+        switch (ctor) {
+        | CList => ("[", "]", ["typ-view", "atom", "List"])
+        | CNamed(c, _) => (c ++ "(", ")", ["typ-view", "Named"])
+        };
+      div(
+        ~attr=clss(cls),
+        [
+          text(start_text),
+          view_of_potential_typ_set(
+            ~font_metrics,
+            ~with_cls,
+            false,
+            potential_typ_set,
+          ),
+          text(end_text),
+        ],
+      );
+    }
   };
 }
 and view_of_base_typ =
