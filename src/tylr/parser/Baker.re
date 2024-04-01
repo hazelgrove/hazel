@@ -1,11 +1,5 @@
 open Util;
 
-let mtrl = (sort: Bound.t(Molded.Sorted.t)) =>
-  sort
-  |> Bound.map(Molded.mtrl_)
-  |> Bound.to_opt
-  |> Option.value(~default=Mtrl.Sorted.root);
-
 let put = failwith("todo: clear empty meld");
 
 let bake_cell = failwith("todo: make default cell given molded nt");

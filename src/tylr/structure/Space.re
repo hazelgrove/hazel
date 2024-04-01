@@ -2,7 +2,7 @@ open Mtrl;
 
 module Sym = {
   let t = Sym.t(Space);
-  let nt = Sym.nt(NT.space);
+  let nt = Sym.nt(Padded.mk(~space=false, ~indent=false, Space));
 };
 
 module Regex = {

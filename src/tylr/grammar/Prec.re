@@ -37,6 +37,7 @@ let eq = (~a=None, l, r) => compare(l, r) == 0 && Option.is_none(a);
 
 module Table = {
   type t('v) = list((option(Dir.t), 'v));
+  let singleton = (~a=?, v) => [(a, v)];
   // let map = f => List.mapi((p, (a, v)) => f(p, a, v));
   let map = f => List.map(((a, v)) => (a, f(v)));
   let mapi = f => List.mapi((p, (a, v)) => f((p, a), v));

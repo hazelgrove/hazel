@@ -10,4 +10,5 @@ let to_string: t => string;
 // todo: unhack
 let of_string: string => t;
 
+module Set: Set.S with type elt = t;
 module Map: Map.S with type key = t;

@@ -2,7 +2,7 @@ open Mtrl;
 
 module Sym = {
   let t = Sym.t(Grout);
-  let nt = Sym.nt(NT.grout);
+  let nt = Sym.nt(Padded.mk(Grout));
 };
 
 module Regex = {

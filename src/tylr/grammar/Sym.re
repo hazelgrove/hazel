@@ -12,6 +12,11 @@ let get_t =
   | NT(_) => None;
 let is_t = sym => Option.is_some(get_t(sym));
 
+let get_nt =
+  fun
+  | NT(nt) => Some(nt)
+  | T(_) => None;
+
 let map = (f_t, f_nt) =>
   fun
   | T(t) => T(f_t(t))

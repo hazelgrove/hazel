@@ -9,35 +9,83 @@ let expect_srt =
   | Sym.T(_) => failwith("expected alternating form")
   | NT(msrt) => msrt;
 
-let enter =
-    (~from: Dir.t, ~l=Bound.Root, ~r=Bound.Root, s: Mtrl.Sorted.t)
-    : list((Mtrl.NT.t, Mold.t)) => {
-  Mtrl.Grammar.v
-  |> Mtrl.Sorted.Map.find(s)
-  |> Prec.Table.mapi(((p, a), rgx) => {
-       // need to check for legal bounded entry from both sides
-       let go = (from: Dir.t, bounded) =>
-         // currently filtering without assuming single operator form
-         // for each prec level. this may need to change.
-         RZipper.enter(~from, rgx)
-         |> List.filter_map(
-              fun
-              | Bound.Root => None
-              | Node((msym, rctx)) => {
-                  let (pad, msrt) = expect_srt(msym);
-                  let mold = Mold.{sort: s, prec: p, rctx};
-                  bounded || Mtrl.is_space(msrt)
-                    ? Some(((pad, msrt), mold)) : None;
-                },
-            );
-       switch (go(L, Prec.lt(~a, l, p)), go(R, Prec.gt(~a, p, r))) {
-       | ([], _)
-       | (_, []) => []
-       | ([_, ..._] as ent_l, [_, ..._] as ent_r) =>
-         Dir.pick(from, (ent_l, ent_r))
-       };
-     })
-  |> List.concat;
+module Grammar = {
+  // materialized grammar
+  type t = Mtrl.Sorted.Map.t(Prec.Table.t(Mtrl.Regex.t));
+
+  let mtrlize_tiles = (g: Grammar.t): t =>
+    Sort.Map.to_seq(g)
+    |> Seq.map(((s, tbl)) => {
+         let mtrlize_sym =
+           Sym.map(Mtrl.tile, ((pad, s)) => (pad, Mtrl.tile(s)));
+         let mtbl = Prec.Table.map(Regex.map(mtrlize_sym), tbl);
+         (Mtrl.Tile(s), mtbl);
+       })
+    |> Mtrl.Sorted.Map.of_seq;
+
+  // intention here is, given grammar in operator form (no consecutive NTs),
+  // insert a space-mtrl NT between any consecutive NTs and before/following
+  // any Ts at the left/right end of each prec level.
+  // currently assumes input grammar is in alternating form (neither consecutive
+  // NTs nor Ts) and only inserts space NTs at the ends of prec levels as needed.
+  let mtrlize_space = (g: t) =>
+    g
+    |> Mtrl.Sorted.Map.map(
+         Prec.Table.map(rgx => {
+           let (ls, rs) =
+             RZipper.(enter(~from=L, rgx), enter(~from=R, rgx));
+           let exists_t =
+             List.exists(
+               fun
+               | Bound.Root => false
+               | Node((sym, _)) => Sym.is_t(sym),
+             );
+           let spc = Regex.atom(Space.Sym.nt);
+
+           rgx
+           |> (exists_t(ls) ? Regex.push(~from=L, spc) : Fun.id)
+           |> (exists_t(rs) ? Regex.push(~from=R, spc) : Fun.id);
+         }),
+       )
+    |> Mtrl.Sorted.Map.add(Space, Prec.Table.singleton(Space.Regex.v));
+
+  let mtrlize = (g: Grammar.t): t =>
+    // grout not explicitly materialized in grammar form,
+    // instead generated as needed when baking walks
+    g |> mtrlize_tiles |> mtrlize_space;
+
+  let v = mtrlize(Grammar.v);
+
+  let enter =
+      (~from: Dir.t, ~l=Bound.Root, ~r=Bound.Root, s: Mtrl.Sorted.t)
+      : list(Molded.NT.t) => {
+    v
+    |> Mtrl.Sorted.Map.find(s)
+    |> Prec.Table.mapi(((p, a), rgx) => {
+         // need to check for legal bounded entry from both sides
+         let go = (from: Dir.t, bounded) =>
+           // currently filtering without assuming single operator form
+           // for each prec level. this may need to change.
+           RZipper.enter(~from, rgx)
+           |> List.filter_map(
+                fun
+                | Bound.Root => None
+                | Node((msym, rctx)) => {
+                    let (pad, msrt) = expect_srt(msym);
+                    let mold = Mold.{sort: s, prec: p, rctx};
+                    bounded || Mtrl.is_space(msrt)
+                      ? Some(((pad, msrt), mold)) : None;
+                  },
+              );
+         switch (go(L, Prec.lt(~a, l, p)), go(R, Prec.gt(~a, p, r))) {
+         | ([], _)
+         | (_, []) => []
+         | ([_, ..._] as ent_l, [_, ..._] as ent_r) =>
+           Dir.pick(from, (ent_l, ent_r))
+         };
+       })
+    |> List.concat;
+  };
 };
 
 let swing_over = (~from: Dir.t, sort: Bound.t(Molded.NT.t)): Index.t =>
@@ -70,7 +118,7 @@ let swing_into = (~from: Dir.t, sort: Bound.t(Molded.NT.t)): Index.t => {
     | Some () => Index.empty
     | None =>
       Hashtbl.add(seen, mtrl, ());
-      enter(~from, ~l, ~r, mtrl)
+      Grammar.enter(~from, ~l, ~r, mtrl)
       |> List.map((s: Molded.NT.t) =>
            Index.union(swing_over(~from, Node(s)), go(Node(s)))
          )
