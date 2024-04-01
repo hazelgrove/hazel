@@ -495,8 +495,7 @@ let go =
     db("LS: RunTest: Prompt generation succeeded");
     io.save("initial-prompt", OpenAI.show_prompt(prompt));
     print_endline(OpenAI.show_prompt(prompt));
-    // print_endline(fix_or("a || b"));
-    //failwith("YOLO5000") |> ignore;
+    // failwith("YOLO5000") |> ignore;
     ask_gpt(
       ~params=options.params,
       ~key,

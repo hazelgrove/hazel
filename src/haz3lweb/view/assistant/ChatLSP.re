@@ -145,7 +145,7 @@ module RelevantCtx = {
     };
 
   let format_def = (name: string, ty: Typ.t) =>
-    Printf.sprintf("let %s: %s = ... in", name, Typ.to_string(ty));
+    Printf.sprintf("let %s: %s =  in", name, Typ.to_string(ty));
 
   let filter_ctx = (ctx: Ctx.t, ty_expect: Typ.t): list(filtered_entry) =>
     List.filter_map(

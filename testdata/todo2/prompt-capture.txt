@@ -1,0 +1,27 @@
+sketch:
+
+# TODO MVU: Handle TODO actions to update the app model #
+
+let update: (Model, Action) -> Model =
+  ??
+in
+
+expected_ty:
+
+# The expected type of the hole ?? is: a type consistent with ((Model, Action) -> Model) #
+# The following type definitions are likely relevant: #
+type Todo = (String, Bool) in
+type Action = (AddTodo + RemoveTodo(Int) + ToggleTodo(Int) + UpdateBuffer(String)) in
+type Model = (String, [Todo]) in
+
+relevant_ctx:
+
+# Consider using these variables relevant to the expected type: #
+let Model.init: Model =  in
+let toggle: ((Int, [Todo]) -> [Todo]) =  in
+let remove: ((Int, [Todo]) -> [Todo]) =  in
+let add: (Model -> [Todo]) =  in
+let string_sub: ((String, Int, Int) -> String) =  in
+let string_concat: ((String, [String]) -> String) =  in
+let string_trim: (String -> String) =  in
+let string_of_bool: (Bool -> String) =  in

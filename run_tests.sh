@@ -10,11 +10,11 @@ warm_serials="warm_serials.sh"
 
 command_timeout=120
 wait_time=0
-num_runs=8
+num_runs=1
 
 # Source folders
 source_folders=(
-    # "testdata/todo2/"
+    "testdata/todo2/"
     "testdata/playlist1/"
     "testdata/booking2/"
     "testdata/emojipaint1/"
@@ -23,8 +23,8 @@ source_folders=(
 
 # Optional argument variations
 opt_arg_variations=(
-    "--rag RAG.txt"
-    "--rag RAG.txt --error_rounds_max 2"
+    # "--rag RAG.txt"
+    # "--rag RAG.txt --error_rounds_max 2"
     # "--relevant_ctx --expected_type"
     # "--temperature 1.0 --relevant_ctx --expected_type --error_rounds_max 6"
     # "--temperature 1.0 --error_rounds_max 2"
@@ -34,7 +34,7 @@ opt_arg_variations=(
     # "--temperature 0.6 --expected_type --error_rounds_max 0"
     # "--temperature 0.3 --expected_type --error_rounds_max 0"
     # "--relevant_ctx --expected_type --error_rounds_max 2"
-    # "--relevant_ctx --expected_type"
+    "--relevant_ctx --expected_type"
     # "--relevant_ctx --error_rounds_max 2"
     # "--expected_type --error_rounds_max 2"
     # "--expected_type"
