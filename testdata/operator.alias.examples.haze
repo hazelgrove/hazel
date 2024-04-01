@@ -1,0 +1,87 @@
+# Operator Aliases Examples #
+
+let example: (Int, Int, Int) -> Bool =
+  fun tuple -> 
+  let (a, b, _) = tuple in
+  if Int.gt(Int.add(a, Int.add(b, 1)), 2)
+  then eq(a, b) 
+  else
+    case Int.times(a, b)
+    | res => Int.eq(2, res)
+    | _ => false 
+    end in
+
+let foo: Bool =
+  case (3, 4, "YOLO")
+  | (3, _, _) => eq(1, Int.times(2, 4))
+  | _ => Bool.and(neq(2,3), eq(1, Int.times(2, 4))) 
+  end in
+
+let tuples : (Int, Bool, (Bool, Int)) = (1, true, (false, 3)) in
+let (a, b, (c, d)) = tuples in
+
+let goob: (Float, (Float, Float)) -> Float =
+  fun x, pair ->
+    case Float.is(x, 0.0)
+    | true =>
+      let (yoot, z) = pair in Float.times(yoot, z)
+    | false =>
+      let (_, z) = pair in
+      Float.divide(Float.plus(Float.power(x, 2.0), Float.times(z, z)), 2.0) 
+    end in
+
+let hooli: (Int, Int, Int) -> Bool =
+  fun i, j, k ->
+    if Int.lte(i, Int.plus(j, k))
+    then true 
+    else
+      case Int.minus(i, j)
+      | n => Bool.or(false, eq(n, 4))
+      | _ => false 
+      end in
+
+let pap: (String, String) -> Bool =
+  fun string1, string2 ->
+    case string1
+    | "hello" => String.eq(string2, "world")
+    | _ => String.eq(string1, string_concat(" ", [string2, "suffix"])) 
+    end in
+
+let quo: (Bool, Bool, Bool) -> Bool =
+  fun b1, b2, b3 ->
+    if Bool.or(b1, Bool.or(b2, b3))
+    then Bool.not(b3) 
+    else quo(b3, true, true) in
+
+let rabbit: (Int, Int) -> Int =
+  fun x, y ->
+    case Int.divide(y, 2)
+    | 0 => Int.times(x, Int.plus(y, 1))
+    | n => if example(x, y, 5) then Int.minus(2, n) else -4
+    end in
+
+let sorg: (Float, Float) -> Float =
+  fun a, b ->
+    case Float.power(Float.divide(a, b), 3.0)
+    | x => 
+      case Float.lt(x, 10.0)
+      | true => x
+      | false => sorg(neg_infinity, b) 
+      end 
+    end in
+
+let tulips: [Int] -> Int =
+  fun lst ->
+    case lst
+    | [] => 0
+    | Cons(hd, tl) => Int.plus(Int.plus(10, hd), tulips(tl)) 
+  end in
+
+let uranus: [(String, Bool, Float)] -> Bool =
+  fun lst ->
+    case lst
+    | [] => true
+    | Cons((_, b, _), Cons(_, Cons(_, _))) => b
+    | Cons((s1, _, _), Cons((s2, _, _), [])) => String.eq(s1, s2)
+    | Cons((_, _, f), []) => Float.gte(Float.add(f, 1.2), 4.6) 
+    end in

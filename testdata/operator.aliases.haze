@@ -1,0 +1,93 @@
+# Operator aliases #
+
+let eq = fun a, b -> a == b in
+let equal = eq in
+let equals = eq in
+let is = eq in
+let Int.eq: (Int, Int) -> Bool = eq in
+let Float.eq: (Float, Float) -> Bool = eq in
+let String.eq: (String, String) -> Bool = eq in
+let Bool.eq: (Bool, Bool) -> Bool = eq in
+
+let Int.is: (Int, Int) -> Bool = Int.eq in
+let Float.is: (Float, Float) -> Bool = Float.eq in
+
+let neq = fun a, b -> a!= b in
+let notEqual = neq in
+let notEquals = neq in
+let Int.neq: (Int, Int) -> Bool = neq in
+let Float.neq: (Float, Float) -> Bool = neq in
+let String.neq: (String, String) -> Bool = neq in
+let Bool.neq: (Bool, Bool) -> Bool = neq in 
+
+let or: (Bool, Bool) -> Bool = fun a, b -> a \/ b in
+let and: (Bool, Bool) -> Bool = fun a, b -> a && b in
+let not: Bool -> Bool = fun a -> ! a in
+let Bool.or = or in
+let Bool.and = and in
+let Bool.not = not in
+
+let lt = fun a, b -> a < b in
+let lte = fun a, b -> a <= b in
+let gt = fun a, b -> a > b in
+let gte = fun a, b -> a >= b in
+let lessThan = lt in
+let lessThanOrEqual = lte in
+let greaterThan = gt in
+let greaterThanOrEqual = gte in
+
+let Int.lt: (Int, Int) -> Bool = lt in
+let Int.lte: (Int, Int) -> Bool = lte in
+let Int.gt: (Int, Int) -> Bool = gt in
+let Int.gte: (Int, Int) -> Bool = gte in
+let Int.lessThan = lt in
+let Int.lessThanOrEqual = lte in
+let Int.greaterThan = Int.gt in
+let Int.greaterThanOrEqual = gte in
+
+let Float.lt: (Float, Float) -> Bool = fun a, b -> a <. b in
+let Float.lte: (Float, Float) -> Bool = fun a, b -> a <=. b in
+let Float.gt: (Float, Float) -> Bool = fun a, b -> a >. b in
+let Float.gte: (Float, Float) -> Bool = fun a, b -> a >=. b in
+let Float.lessThan = Float.lt in
+let Float.lessThanOrEqual = Float.lte in
+let Float.greaterThan = Float.gt in
+let Float.greaterThanOrEqual = Float.gte in
+
+let add = fun a, b -> a + b in
+let sub = fun a, b -> a - b in
+let mul = fun a, b -> a * b in
+let div = fun a, b -> a / b in
+let exp = fun a, b -> a ** b in
+let minus = sub in
+let times = mul in
+let plus = add in
+let divide = div in
+let power = exp in
+
+let Int.add: (Int, Int) -> Int = add in
+let Int.sub: (Int, Int) -> Int = sub in
+let Int.mul: (Int, Int) -> Int = mul in
+let Int.div: (Int, Int) -> Int = div in
+let Int.exp: (Int, Int) -> Int = exp in
+let Int.minus = Int.sub in
+let Int.times = Int.mul in
+let Int.plus: (Int, Int) -> Int = Int.add in
+let Int.divide: (Int, Int) -> Int = Int.div in
+let Int.power: (Int, Int) -> Int = Int.exp in
+
+let Float.add: (Float, Float) -> Float = fun a, b -> a +. b in
+let Float.sub: (Float, Float) -> Float = fun a, b -> a -. b in
+let Float.mul: (Float, Float) -> Float = fun a, b -> a *. b in
+let Float.div: (Float, Float) -> Float = fun a, b -> a /. b in
+let Float.exp: (Float, Float) -> Float = fun a, b -> a **. b in
+let Float.minus = Float.sub in
+let Float.times = Float.mul in
+let Float.plus: (Float, Float) -> Float = Float.add in
+let Float.divide: (Float, Float) -> Float = Float.div in
+let Float.power: (Float, Float) -> Float = Float.exp in
+
+let cons: (?, [?]) -> [?] = fun hd, tl -> hd::tl in
+let append: ([?],[?]) -> [?] = fun a, b -> a@b in
+let List.cons = cons in
+let List.concat = append in

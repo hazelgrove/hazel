@@ -200,7 +200,12 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       switch (t) {
       | (["()"], []) =>
         ret(Ap(l, {ids: [Id.nullary_ap_flag], term: Triv}))
-      | (["(", ")"], [Exp(arg)]) => ret(Ap(l, arg))
+      | (["(", ")"], [Exp(arg)]) =>
+        switch (l, arg) {
+        | ({term: Constructor("Cons"), _}, {term: Tuple([x, y]), _}) =>
+          ret(Cons(x, y))
+        | _ => ret(Ap(l, arg))
+        }
       | _ => ret(hole(tm))
       }
     | _ => ret(hole(tm))
@@ -295,7 +300,12 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
     | ([(_id, t)], []) =>
       ret(
         switch (t) {
-        | (["(", ")"], [Pat(arg)]) => Ap(l, arg)
+        | (["(", ")"], [Pat(arg)]) =>
+          switch (l, arg) {
+          | ({term: Constructor("Cons"), _}, {term: Tuple([x, y]), _}) =>
+            Cons(x, y)
+          | _ => Ap(l, arg)
+          }
         | _ => hole(tm)
         },
       )
