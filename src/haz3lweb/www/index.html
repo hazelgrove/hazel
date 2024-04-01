@@ -9,6 +9,26 @@
     <title>hazel</title>
     <link rel="stylesheet" href="style.css">
     <link rel="icon" type="image/svg" href = "img/hazelnut.svg">
+    <link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin />
+    <link
+      rel="preload"
+      href="https://fonts.googleapis.com/css?family=Inter:300,400,500"
+      as="style"
+      type="text/css"
+    />
+    <link
+      href="https://fonts.googleapis.com/css?family=Material+Icons&display=swap"
+      rel="stylesheet"
+    />
+    <script type="importmap">
+      {
+          "imports": {
+              "https://unpkg.com/lit-html@latest/directives/ref.js?module": "https://unpkg.com/lit-html@2.2.6/directives/ref.js?module"
+          }
+      }
+  </script>
+  <script type="module" src="https://unpkg.com/ninja-keys?module"></script>
+
   </head>
 
   <body spellcheck="false">
@@ -22,6 +42,33 @@
       </div>
     </div>
   </body>
+  <ninja-keys placeholder="My custom placeholder">
+    <slot name="footer">Must use a custom footer or empty to hide</slot>
+  </ninja-keys>
+
+  <script>
+const customEvent = new CustomEvent('myCustomEvent', {
+  detail: {
+    // You can include any relevant data here
+  }
+});
+
+
+    const hotkeys = [
+      {
+        id: "Go To Definition",
+        title: "Go to Definition",
+        hotkey: "cmd+b",
+        mdIcon: "arrow_forward",
+        handler: () => {
+          console.log("Going to Definition");
+          document.dispatchEvent(customEvent);
+        }
+      }
+    ];
+    const ninja = document.querySelector("ninja-keys");
+    ninja.data = hotkeys;
+  </script>
 
   <script src="hazel.js"></script>
 </html>
