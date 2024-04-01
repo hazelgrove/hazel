@@ -229,8 +229,8 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
       let d2 = compose(ctx, d);
       Sequence(d1, d2);
     | TypAp(ctx, typ) =>
-      let d2 = compose(ctx, d);
-      TypAp(d2, typ);
+      let d1 = compose(ctx, d);
+      TypAp(d1, typ);
     | Ap1(ctx, d2) =>
       let d1 = compose(ctx, d);
       Ap(d1, d2);
