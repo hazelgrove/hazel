@@ -36,13 +36,15 @@ module rec Typ: {
     | Var(string)
     | List(t)
     | Arrow(t, t)
-    | Sum(sum_map)
+    | Sum(ConstructorMap.t(t))
     | Prod(list(t))
     | Parens(t)
     | Ap(t, t)
     | Rec(string, t)
-  and sum_map = ConstructorMap.t(t)
   and t = IdTagged.t(term);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type sum_map = ConstructorMap.t(t);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type sum_entry = (Constructor.t, list(Id.t), option(Typ.t));

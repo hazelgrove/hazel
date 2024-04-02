@@ -164,13 +164,15 @@ module TypTerm = {
           );
         Rec(name, to_typ(ctx, tbody)) |> Typ.fresh;
       }
-  and to_variant: (Ctx.t, variant) => ConstructorMap.variant(Typ.t) =
+  and to_variant:
+    (Ctx.t, ConstructorMap.variant(t)) => ConstructorMap.variant(Typ.t) =
     ctx =>
       fun
       | Variant(ctr, ids, u) =>
         ConstructorMap.Variant(ctr, ids, Option.map(to_typ(ctx), u))
       | BadEntry(u) => ConstructorMap.BadEntry(to_typ(ctx, u))
-  and to_ctr_map = (ctx: Ctx.t, uts: list(variant)): Typ.sum_map => {
+  and to_ctr_map =
+      (ctx: Ctx.t, uts: list(ConstructorMap.variant(t))): Typ.sum_map => {
     uts
     |> List.map(to_variant(ctx))
     |> ListUtil.dedup_f(

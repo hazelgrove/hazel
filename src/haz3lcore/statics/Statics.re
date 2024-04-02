@@ -686,7 +686,13 @@ and utpat_to_info_map =
   };
 }
 and variant_to_info_map =
-    (~ctx, ~ancestors, ~ty_sum, (m, ctrs), uty: UTyp.variant) => {
+    (
+      ~ctx,
+      ~ancestors,
+      ~ty_sum,
+      (m, ctrs),
+      uty: ConstructorMap.variant(UTyp.t),
+    ) => {
   let go = expects => utyp_to_info_map(~ctx, ~ancestors, ~expects);
   switch (uty) {
   | BadEntry(uty) =>

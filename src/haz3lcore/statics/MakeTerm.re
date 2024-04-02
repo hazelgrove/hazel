@@ -102,7 +102,7 @@ let return = (wrap, ids, tm) => {
   tm;
 };
 
-let parse_sum_term: UTyp.t => UTyp.variant =
+let parse_sum_term: UTyp.t => ConstructorMap.variant(UTyp.t) =
   fun
   | {term: Var(ctr), ids, _} => Variant(ctr, ids, None)
   | {term: Ap({term: Var(ctr), ids: ids_ctr, _}, u), ids: ids_ap, _} =>

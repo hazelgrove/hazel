@@ -363,14 +363,11 @@ and TypTerm: {
     | Var(string)
     | List(t)
     | Arrow(t, t)
-    | Sum(list(variant))
+    | Sum(ConstructorMap.t(t))
     | Prod(list(t))
     | Parens(t)
     | Ap(t, t)
     | Rec(TPat.t, t)
-  and variant =
-    | Variant(Constructor.t, list(Id.t), option(t)) // What are the ids for?
-    | BadEntry(t)
   and t = IdTagged.t(term);
 
   let map_term:
@@ -397,14 +394,11 @@ and TypTerm: {
     | Var(string)
     | List(t)
     | Arrow(t, t)
-    | Sum(list(variant))
+    | Sum(ConstructorMap.t(t))
     | Prod(list(t))
     | Parens(t)
     | Ap(t, t)
     | Rec(TPat.t, t)
-  and variant =
-    | Variant(Constructor.t, list(Id.t), option(t))
-    | BadEntry(t)
   and t = IdTagged.t(term);
 
   let map_term =
@@ -444,9 +438,10 @@ and TypTerm: {
           Sum(
             List.map(
               fun
-              | Variant(c, ids, t) =>
-                Variant(c, ids, Option.map(typ_map_term, t))
-              | BadEntry(t) => BadEntry(typ_map_term(t)),
+              | ConstructorMap.Variant(c, ids, t) =>
+                ConstructorMap.Variant(c, ids, Option.map(typ_map_term, t))
+              | ConstructorMap.BadEntry(t) =>
+                ConstructorMap.BadEntry(typ_map_term(t)),
               variants,
             ),
           )
