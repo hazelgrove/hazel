@@ -1,57 +1,12 @@
 open Util;
 
-// failwith("todo: make default cell given molded nt");
-let bake_cell = (mold: Bound.t(Mold.t), mtrl: Mtrl.Sorted.t) => {
-  let put = failwith("todo");
-  switch (mtrl) {
-  | Space => Cell.empty(mold, mtrl)
-  | Grout
-  | Tile(_) => failwith("todo")
-  };
-};
-
-// assumes precedence-correctness already checked
-let fill_cell = (~l=false, ~r=false, ~fill=[], sort: Bound.t(Molded.NT.t)) => {
-  let mtrl =
-    sort
-    |> Bound.map(fst)
-    |> Bound.map(snd)
-    |> Bound.get(~root=Mtrl.Sorted.root);
-  let mold = Bound.map(snd, sort);
-  let empty = Cell.empty(mold, mtrl);
-  let put = Cell.put(mold, mtrl);
-
-  switch (merge_spaces(fill)) {
-  | Some(spc) => bake_cell(mold, mtrl) |> Cell.pad(~side=L, ~pad=spc)
-  | None =>
-    assert(fill != []);
-    let s = failwith("todo");
-    let (hd, tl) = ListUtil.split_first(fill);
-    let toks = List.map(_ => Grout.Token.in_(s), tl);
-    let cells = Grout.Cell.[put_hd(hd), ...List.map(put_tl, tl)];
-    let (cells, toks) =
-      l
-        ? ([Grout.Cell.pad_l, ...cells], [Grout.Token.pre, ...toks])
-        : (cells, toks);
-    let (cells, toks) =
-      r ? (cells @ [Grout.Cell.pad_r], toks @ [pad_r]) : (cells, toks);
-    switch (cells) {
-    | [] => failwith("bug: expected fill non-empty")
-    | [c] => put(Cell.get(c))
-    | [hd, ...tl] =>
-      let (mid, ft) = ListUtil.split_last(tl);
-      put(M(hd, W((toks, mid)), ft));
-    };
-  };
-};
-
 let bake_eq = (~fill=[], sort: Bound.t(Molded.NT.t)) => {
   open OptUtil.Syntax;
   let (f_l, f_r) = Filling.faces(fill);
   let+ w_l = ListUtil.hd_opt(Walker.enter(~from=L, sort, Node(f_l)))
   and+ w_r = ListUtil.hd_opt(Walker.enter(~from=R, sort, Node(f_r)));
   let (l, r) = Walk.(height(w_l) > 2, height(w_r) > 2);
-  let cell = fill_cell(~l, ~r, ~fill, sort);
+  let cell = Filling.fill(~l, fill, sort, ~r);
   Rel.Eq(cell);
 };
 
@@ -61,7 +16,7 @@ let bake_lt =
   let (f_l, f_r) = Filling.faces(fill);
   let+ _w_l = ListUtil.hd_opt(Walker.enter(~from=L, bound, Node(f_l)))
   and+ w_r = ListUtil.hd_opt(Walker.enter(~from=R, sort, Node(f_r)));
-  let cell = fill_cell(~r=Walk.height(w_r) > 2, ~fill, sort);
+  let cell = Filling.fill(fill, sort, ~r=Walk.height(w_r) > 2);
   Rel.Neq(cell);
 };
 
@@ -71,7 +26,7 @@ let bake_gt =
   let (f_l, f_r) = Filling.faces(fill);
   let+ w_l = ListUtil.hd_opt(Walker.enter(~from=L, sort, Node(f_l)))
   and+ _w_r = ListUtil.hd_opt(Walker.enter(~from=R, bound, Node(f_r)));
-  let cell = fill_cell(~l=Walk.height(w_l) > 2, ~fill, sort);
+  let cell = Filling.fill(~l=Walk.height(w_l) > 2, fill, sort);
   Rel.Neq(cell);
 };
 

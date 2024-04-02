@@ -3,6 +3,7 @@ open Util;
 type t = list(Meld.t);
 
 let empty = [];
+let is_empty = (==)(empty);
 
 let faces =
   fun
@@ -48,4 +49,51 @@ let cons = (~from: Dir.t, meld, fill) =>
 
 let squash = _ => failwith("todo: squash");
 
-let is_space = _ => failwith("todo: return ")
+let is_space = _: option(string) => failwith("todo: return");
+
+let mtrl = (nt: Bound.t(Molded.NT.t)) =>
+  nt |> Bound.map(Molded.NT.mtrl) |> Bound.get(~root=Mtrl.Sorted.root);
+let padding = (nt: Bound.t(Molded.NT.t)) =>
+  nt |> Bound.map(Molded.NT.padding) |> Bound.get(~root=Padding.root);
+
+let fill_default = (nt: Bound.t(Molded.NT.t)) =>
+  switch (mtrl(nt)) {
+  | Space => Cell.empty()
+  | (Grout | Tile(_)) as s =>
+    Cell.put(~padding=padding(nt), Grout.Meld.op_(s))
+  };
+
+// assumes precedence-correctness already checked
+let fill = (~l=false, ~r=false, fill: t, nt: Bound.t(Molded.NT.t)) =>
+  switch (is_space(fill)) {
+  | Some(spc) => fill_default(nt) |> pad(~side=L, spc)
+  | None =>
+    assert(!is_empty(fill));
+    let s = mtrl(nt);
+    let (hd, tl) = ListUtil.split_first(fill);
+    let cells =
+      List.concat(
+        Grout.Cell.[
+          l ? [pad_l(s)] : [],
+          [put_hd(s, hd), ...List.map(put_tl(s), tl)],
+          r ? [pad_r(s)] : [],
+        ],
+      );
+    let toks =
+      List.concat(
+        Grout.Token.[
+          l ? [pre(s)] : [],
+          List.map(_ => in_(s), tl),
+          r ? [pos(s)] : [],
+        ],
+      );
+    let meld =
+      switch (toks) {
+      | [] => Cell.get(List.hd(cells))
+      | [_, ..._] =>
+        let (l, cells) = ListUtil.split_first(cells);
+        let (cells, r) = ListUtil.split_last(cells);
+        Meld.M(l, W(Wald.mk(toks, cells)), r);
+      };
+    Cell.put(~padding=padding(nt), meld);
+  };
