@@ -29,15 +29,19 @@ module Molded = {
 
 module Token = {
   include Token;
+  let empty = Token.mk(Mtrl.Space, Mold.of_t);
   let cursor = failwith("todo");
 };
 
 module Meld = {
   let mk = (tok: Token.t) => {
     assert(Mtrl.is_space(tok.mtrl));
-    let l = Cell.mk(Node(Mold.of_nt(L)), Mtrl.Space);
-    let r = Cell.mk(Node(Mold.of_nt(R)), Mtrl.Space);
-    Meld.M(l, Wald.of_tok(tok), r);
+    Meld.mk(Wald.unit(tok));
   };
   let cursor = mk(Token.cursor);
+
+  let get =
+    fun
+    | Meld.M(_, W(([tok], [])), _) when Token.is_space(tok) => Some(tok)
+    | _ => None;
 };

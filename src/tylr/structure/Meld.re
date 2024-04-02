@@ -1,21 +1,19 @@
 open Sexplib.Std;
-open Util;
+// open Util;
 
 module Cell = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t('meld) = {
     marks: Path.Marks.t,
-    mold: Bound.t(Mold.t),
-    // todo: probably want padding here
-    mtrl: Mtrl.Sorted.t,
+    padding: Padding.t,
     meld: option('meld),
   };
-  let mk = (~marks=Path.Marks.empty, ~meld=?, mold, mtrl) => {
+  let mk = (~marks=Path.Marks.empty, ~padding=Padding.empty, ~meld=?, ()) => {
     marks,
+    padding,
     meld,
-    mold,
-    mtrl,
   };
+  let empty = mk();
   // let empty = {marks: Path.Marks.empty, dims: Dims.zero, meld: None};
   // let full = m => {marks: Path.Marks.empty, meld: Some(m)};
 };
@@ -37,21 +35,19 @@ module Wald = {
 type t =
   | M(Cell.t(t), Wald.t(Cell.t(t)), Cell.t(t));
 
+let mk = (~l=Cell.empty, ~r=Cell.empty, w) => M(l, w, r);
+
 let is_empty =
   fun
   | M({meld: None, _}, W(([tok], [])), {meld: None, _}) =>
     Token.is_empty(tok)
   | _ => false;
 
-let get_space =
-  fun
-  | M(_, W(([tok], [])), _) when Token.is_space(tok) => Some(tok.text)
-  | _ => None;
-let get_spaces = ms =>
-  ms
-  |> List.map(get_space)
-  |> OptUtil.sequence
-  |> Option.map(String.concat(""));
+// let get_spaces = ms =>
+//   ms
+//   |> List.map(get_space)
+//   |> OptUtil.sequence
+//   |> Option.map(String.concat(""));
 
 // let mk = (~l=Cell.empty, ~r=Cell.empty, w) => M(l, w, r);
 [@warning "-27-39"]

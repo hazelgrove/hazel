@@ -33,10 +33,10 @@ let get = ({marks, meld, _}: t) => {
   Meld.M(l, W((toks, cells)), r);
 };
 
-let empty = (mold, mtrl) => mk(mold, mtrl);
-let put = (mold, mtrl, m: Meld.t) =>
+// let empty = () => mk();
+let put = (~padding, m: Meld.t) =>
   if (Meld.is_empty(m)) {
-    empty(mold, mtrl);
+    empty;
   } else {
     let M(l, W((toks, cells)), r) = m;
     let n = List.length(toks);
@@ -47,5 +47,5 @@ let put = (mold, mtrl, m: Meld.t) =>
       let mid = cells |> List.mapi((i, cell) => cons(i + 1, cell.marks));
       union_all([l, ...mid] @ [r]);
     };
-    mk(~marks, ~meld=Meld.map_cells(clear_marks, m), mold, mtrl);
+    mk(~marks, ~padding, ~meld=Meld.map_cells(clear_marks, m), ());
   };

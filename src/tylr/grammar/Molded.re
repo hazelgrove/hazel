@@ -6,6 +6,8 @@ module T = {
 module NT = {
   [@deriving (show({with_path: false}), sexp, yojson, ord)]
   type t = (Mtrl.NT.t, Mold.t);
+  let padding = (((p, _), _): t) => p;
+  let mtrl = (((_, mtrl), _): t) => mtrl;
   let bounds = _ => failwith("todo");
 };
 module Sym = {

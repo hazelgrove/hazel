@@ -11,4 +11,7 @@ type t = {
 
 let mk = (~space=true, ~indent=true, ()) => {space, indent};
 
+// padding for space cells
+let empty = mk(~space=false, ~indent=false, ());
+
 let root = mk(~space=false, ~indent=false, ());

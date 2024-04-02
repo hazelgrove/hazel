@@ -3,7 +3,7 @@ open Util;
 type t = list(Meld.t);
 
 let empty = [];
-let is_empty = (==)(empty);
+let is_empty: t => bool = (==)(empty);
 
 let faces =
   fun
@@ -11,45 +11,35 @@ let faces =
   | [hd, ..._] as fill =>
     Meld.(face(~side=L, hd), face(~side=R, ListUtil.last(fill)));
 
-// todo: move somewhere better
-let rec pad = (~side as d: Dir.t, ~pad as p: Token.t, m: Meld.t) =>
-  switch (Meld.is_space(m)) {
-  | Some(spc) =>
-    let (l, r) = Dir.order(d, (p, spc));
+let squash = _ => failwith("todo: squash");
+
+let get_space =
+  fun
+  | [] => Some(Space.Token.empty)
+  | [m] => Space.Meld.get(m)
+  | [_, ..._] => None;
+
+let rec pad_meld = (~side as d: Dir.t, spc: Token.t, m: Meld.t) =>
+  switch (Space.Meld.get(m)) {
+  | Some(spc') =>
+    let (l, r) = Dir.order(d, (spc, spc'));
     let spc = Token.merge_text(l, r);
     Space.Meld.mk(spc);
   | None =>
     let M(l, w, r) = m;
     let (c_d, c_b) = Dir.order(d, (l, r));
-    let put = Cell.put(c_d.mold, c_d.mtrl);
-    let c_d =
-      switch (Cell.get(c_d)) {
-      | None => put(Space.Meld.mk(p))
-      | Some(m) => put(pad(~side=d, ~pad=p, m))
-      };
+    let c_d = pad_cell(~side=d, spc, c_d);
     let (l, r) = Dir.order(d, (c_d, c_b));
     Meld.M(l, w, r);
-  };
-
-let cons = (~from: Dir.t, meld, fill) =>
-  switch (fill) {
-  // | _ when Cell.is_empty(cell) => fill
-  | [] => [meld]
-  | [hd, ...tl] =>
-    let (l, r) = Dir.order(from, (meld, hd));
-    switch (Meld.(is_space(l), is_space(r))) {
-    | (Some(spc_l), Some(spc_r)) =>
-      let spc = Token.merge_text(spc_l, spc_r);
-      [Space.Meld.mk(spc), ...tl];
-    | (Some(spc), _) => [pad(~side=L, ~pad=spc, r), ...tl]
-    | (_, Some(spc)) => [pad(l, ~pad=spc, ~side=R), ...tl]
-    | (None, None) => [meld, ...fill]
+  }
+and pad_cell = (~side: Dir.t, spc: Token.t, c: Cell.t) => {
+  let m =
+    switch (Cell.get(c)) {
+    | None => Space.Meld.mk(spc)
+    | Some(m) => pad_meld(~side, spc, m)
     };
-  };
-
-let squash = _ => failwith("todo: squash");
-
-let is_space = _: option(string) => failwith("todo: return");
+  Cell.put(~padding=c.padding, m);
+};
 
 let mtrl = (nt: Bound.t(Molded.NT.t)) =>
   nt |> Bound.map(Molded.NT.mtrl) |> Bound.get(~root=Mtrl.Sorted.root);
@@ -58,42 +48,41 @@ let padding = (nt: Bound.t(Molded.NT.t)) =>
 
 let fill_default = (nt: Bound.t(Molded.NT.t)) =>
   switch (mtrl(nt)) {
-  | Space => Cell.empty()
+  | Space => Cell.empty
   | (Grout | Tile(_)) as s =>
     Cell.put(~padding=padding(nt), Grout.Meld.op_(s))
   };
 
 // assumes precedence-correctness already checked
-let fill = (~l=false, ~r=false, fill: t, nt: Bound.t(Molded.NT.t)) =>
-  switch (is_space(fill)) {
-  | Some(spc) => fill_default(nt) |> pad(~side=L, spc)
+let fill = (~l=false, ~r=false, fill: t, nt: Bound.t(Molded.NT.t)) => {
+  let fill = squash(fill);
+  switch (get_space(fill)) {
+  | Some(spc) => fill_default(nt) |> pad_cell(~side=L, spc)
   | None =>
     assert(!is_empty(fill));
     let s = mtrl(nt);
-    let (hd, tl) = ListUtil.split_first(fill);
     let cells =
-      List.concat(
-        Grout.Cell.[
-          l ? [pad_l(s)] : [],
-          [put_hd(s, hd), ...List.map(put_tl(s), tl)],
-          r ? [pad_r(s)] : [],
-        ],
-      );
+      [
+        l ? [Cell.empty] : [],
+        List.map(Grout.Cell.put, fill),
+        r ? [Cell.empty] : [],
+      ]
+      |> List.concat;
     let toks =
-      List.concat(
-        Grout.Token.[
-          l ? [pre(s)] : [],
-          List.map(_ => in_(s), tl),
-          r ? [pos(s)] : [],
-        ],
-      );
+      Grout.Token.[
+        l ? [pre(s)] : [],
+        List.init(List.length(fill) - 1, _ => in_(s)),
+        r ? [pos(s)] : [],
+      ]
+      |> List.concat;
     let meld =
       switch (toks) {
-      | [] => Cell.get(List.hd(cells))
+      | [] => Option.get(Cell.get(List.hd(cells)))
       | [_, ..._] =>
         let (l, cells) = ListUtil.split_first(cells);
         let (cells, r) = ListUtil.split_last(cells);
-        Meld.M(l, W(Wald.mk(toks, cells)), r);
+        Meld.M(l, Wald.mk(toks, cells), r);
       };
     Cell.put(~padding=padding(nt), meld);
   };
+};

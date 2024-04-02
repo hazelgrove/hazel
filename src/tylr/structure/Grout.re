@@ -17,12 +17,10 @@ module Mold = {
   include Mold;
   open RFrame;
   // mold constructors for molds of grout that appear in author-specified sorts
-  let mk = (rctx: RCtx.t(_), s: Sort.t) =>
-    Mold.{sort: Tile(s), prec: 0, rctx};
+  let mk = (rctx: RCtx.t(_), sort: Mtrl.Sorted.t) =>
+    Mold.{sort, prec: 0, rctx};
   module T = {
-    let op_ = mk([
-      aseq_([Space.Sym.nt], [Space.Sym.nt])
-    ]);
+    let op_ = mk([aseq_([Space.Sym.nt], [Space.Sym.nt])]);
     let pre =
       mk([
         aseq_([Space.Sym.nt], []),
@@ -59,7 +57,7 @@ module Mold = {
 
 module Token = {
   let text = failwith("todo: grout text");
-  let mk = (~id=?, mold: Sort.t => Mold.t, s: Sort.t) =>
+  let mk = (~id=?, mold: Mtrl.Sorted.t => Mold.t, s: Mtrl.Sorted.t) =>
     Token.mk(~id?, ~text, Mtrl.Grout, mold(s));
   let op_ = (~id=?) => mk(~id?, Mold.T.op_);
   let pre = (~id=?) => mk(~id?, Mold.T.pre);
@@ -67,10 +65,15 @@ module Token = {
   let in_ = (~id=?) => mk(~id?, Mold.T.in_);
 };
 
+// kid cells of grout melds
 module Cell = {
-  let put_hd = s => Cell.put(Node(Mold.NT.kid_hd(s)), Mtrl.Grout);
-  let put_tl = s => Cell.put(Node(Mold.NT.kid_tl(s)), Mtrl.Grout);
-  let pad_l = s => Cell.empty(Node(Mold.NT.pad_l(s)), Mtrl.Space);
-  let pad_r = s => Cell.empty(Node(Mold.NT.pad_r(s)), Mtrl.Space);
+  let put = Cell.put(~padding=Padding.mk());
+  // let put_hd = s => Cell.put(Node(Mold.NT.kid_hd(s)), Mtrl.Grout);
+  // let put_tl = s => Cell.put(Node(Mold.NT.kid_tl(s)), Mtrl.Grout);
+  // let pad_l = s => Cell.empty(Node(Mold.NT.pad_l(s)), Mtrl.Space);
+  // let pad_r = s => Cell.empty(Node(Mold.NT.pad_r(s)), Mtrl.Space);
 };
 
+module Meld = {
+  let op_ = (s: Mtrl.Sorted.t) => Meld.mk(Wald.unit(Token.op_(s)));
+};
