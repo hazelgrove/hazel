@@ -144,3 +144,10 @@ let of_ap = (ctx, mode, ctr: option(Constructor.t)): t =>
   };
 
 let typap_mode: t = SynTypFun;
+
+let of_deferred_ap_args = (length: int, ty_ins: list(Typ.t)): list(t) =>
+  (
+    List.length(ty_ins) == length
+      ? ty_ins : List.init(length, _ => Typ.Unknown(Internal))
+  )
+  |> List.map(ty => Ana(ty));

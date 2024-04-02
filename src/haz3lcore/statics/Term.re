@@ -483,6 +483,7 @@ module UExp = {
     | EmptyHole
     | MultiHole
     | Triv
+    | Deferral
     | Bool
     | Int
     | Float
@@ -498,6 +499,7 @@ module UExp = {
     | TyAlias
     | Ap
     | TypAp
+    | DeferredAp
     | Pipeline
     | If
     | Seq
@@ -527,6 +529,7 @@ module UExp = {
     | EmptyHole => EmptyHole
     | MultiHole(_) => MultiHole
     | Triv => Triv
+    | Deferral(_) => Deferral
     | Bool(_) => Bool
     | Int(_) => Int
     | Float(_) => Float
@@ -541,6 +544,7 @@ module UExp = {
     | TyAlias(_) => TyAlias
     | Ap(_) => Ap
     | TypAp(_) => TypAp
+    | DeferredAp(_) => DeferredAp
     | Pipeline(_) => Pipeline
     | If(_) => If
     | Seq(_) => Seq
@@ -622,6 +626,7 @@ module UExp = {
     | MultiHole => "Broken expression"
     | EmptyHole => "Empty expression hole"
     | Triv => "Trivial literal"
+    | Deferral => "Deferral"
     | Bool => "Boolean literal"
     | Int => "Integer literal"
     | Float => "Float literal"
@@ -637,6 +642,7 @@ module UExp = {
     | TyAlias => "Type Alias definition"
     | Ap => "Application"
     | TypAp => "Type application"
+    | DeferredAp => "Partial Application"
     | Pipeline => "Pipeline expression"
     | If => "If expression"
     | Seq => "Sequence expression"
@@ -660,6 +666,7 @@ module UExp = {
     | EmptyHole
     | MultiHole(_)
     | Triv
+    | Deferral(_)
     | Bool(_)
     | Int(_)
     | Float(_)
@@ -671,6 +678,7 @@ module UExp = {
     | TyAlias(_)
     | Ap(_)
     | TypAp(_)
+    | DeferredAp(_)
     | Pipeline(_)
     | If(_)
     | Seq(_)
@@ -695,6 +703,7 @@ module UExp = {
       | EmptyHole
       | MultiHole(_)
       | Triv
+      | Deferral(_)
       | Bool(_)
       | Int(_)
       | Float(_)
@@ -707,6 +716,7 @@ module UExp = {
       | TyAlias(_)
       | Ap(_)
       | TypAp(_)
+      | DeferredAp(_)
       | Pipeline(_)
       | If(_)
       | Seq(_)
@@ -726,6 +736,13 @@ module UExp = {
     | Constructor(name) => Some(name)
     | _ => None
     };
+
+  let is_deferral = (e: t) => {
+    switch (e.term) {
+    | Deferral(_) => true
+    | _ => false
+    };
+  };
 };
 
 // TODO(d): consider just folding this into UExp

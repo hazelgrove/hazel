@@ -80,6 +80,7 @@ type numeric_bin_op_examples =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type example_id =
   | RecTyp
+  | Deferral
   | List(list_examples)
   | TypFun(typfun_examples)
   | Fun(fun_examples)
@@ -89,6 +90,7 @@ type example_id =
   | TypFunAp
   | FunAp
   | ConAp
+  | DeferredAp
   | IfTrue
   | IfFalse
   | SeqBasic
@@ -148,6 +150,7 @@ type form_id =
   | EmptyHoleExp
   | MultiHoleExp
   | TrivExp
+  | DeferralExp
   | BoolExp
   | IntExp
   | FloatExp
@@ -166,6 +169,7 @@ type form_id =
   | TypFunApExp
   | FunApExp
   | ConApExp
+  | DeferredApExp
   | IfExp
   | SeqExp
   | TestExp
@@ -237,6 +241,7 @@ type group_id =
   | EmptyHoleExp
   | MultiHoleExp
   | TrivExp
+  | DeferralExp
   | BoolExp
   | IntExp
   | FloatExp
@@ -255,6 +260,7 @@ type group_id =
   | TypFunApExp
   | FunApExp
   | ConApExp
+  | DeferredApExp
   | IfExp
   | SeqExp
   | TestExp
