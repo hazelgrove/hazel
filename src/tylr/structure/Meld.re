@@ -37,6 +37,12 @@ module Wald = {
 type t =
   | M(Cell.t(t), Wald.t(Cell.t(t)), Cell.t(t));
 
+let is_empty =
+  fun
+  | M({meld: None, _}, W(([tok], [])), {meld: None, _}) =>
+    Token.is_empty(tok)
+  | _ => false;
+
 let get_space =
   fun
   | M(_, W(([tok], [])), _) when Token.is_space(tok) => Some(tok.text)

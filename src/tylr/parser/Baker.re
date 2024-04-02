@@ -1,8 +1,14 @@
 open Util;
 
-let put = failwith("todo: clear empty meld");
-
-let bake_cell = failwith("todo: make default cell given molded nt");
+// failwith("todo: make default cell given molded nt");
+let bake_cell = (mold: Bound.t(Mold.t), mtrl: Mtrl.Sorted.t) => {
+  let put = failwith("todo");
+  switch (mtrl) {
+  | Space => Cell.empty(mold, mtrl)
+  | Grout
+  | Tile(_) => failwith("todo")
+  };
+};
 
 // assumes precedence-correctness already checked
 let fill_cell = (~l=false, ~r=false, ~fill=[], sort: Bound.t(Molded.NT.t)) => {
@@ -13,7 +19,7 @@ let fill_cell = (~l=false, ~r=false, ~fill=[], sort: Bound.t(Molded.NT.t)) => {
     |> Bound.get(~root=Mtrl.Sorted.root);
   let mold = Bound.map(snd, sort);
   let empty = Cell.empty(mold, mtrl);
-  let put = put(mold, mtrl);
+  let put = Cell.put(mold, mtrl);
 
   switch (merge_spaces(fill)) {
   | Some(spc) => bake_cell(mold, mtrl) |> Cell.pad(~side=L, ~pad=spc)

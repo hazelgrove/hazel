@@ -20,6 +20,9 @@ module Mold = {
   let mk = (rctx: RCtx.t(_), s: Sort.t) =>
     Mold.{sort: Tile(s), prec: 0, rctx};
   module T = {
+    let op_ = mk([
+      aseq_([Space.Sym.nt], [Space.Sym.nt])
+    ]);
     let pre =
       mk([
         aseq_([Space.Sym.nt], []),
@@ -58,6 +61,7 @@ module Token = {
   let text = failwith("todo: grout text");
   let mk = (~id=?, mold: Sort.t => Mold.t, s: Sort.t) =>
     Token.mk(~id?, ~text, Mtrl.Grout, mold(s));
+  let op_ = (~id=?) => mk(~id?, Mold.T.op_);
   let pre = (~id=?) => mk(~id?, Mold.T.pre);
   let pos = (~id=?) => mk(~id?, Mold.T.pos);
   let in_ = (~id=?) => mk(~id?, Mold.T.in_);
@@ -69,3 +73,4 @@ module Cell = {
   let pad_l = s => Cell.empty(Node(Mold.NT.pad_l(s)), Mtrl.Space);
   let pad_r = s => Cell.empty(Node(Mold.NT.pad_r(s)), Mtrl.Space);
 };
+

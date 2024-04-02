@@ -45,3 +45,7 @@ let cons = (~from: Dir.t, meld, fill) =>
     | (None, None) => [meld, ...fill]
     };
   };
+
+let squash = _ => failwith("todo: squash");
+
+let is_space = _ => failwith("todo: return ")

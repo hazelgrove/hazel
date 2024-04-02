@@ -34,18 +34,18 @@ let get = ({marks, meld, _}: t) => {
 };
 
 let empty = (mold, mtrl) => mk(mold, mtrl);
-let put = (mold, mtrl, m: Meld.t) => {
-  let M(l, W((toks, cells)), r) = m;
-  let n = List.length(toks);
-  let marks =
-    Path.Marks.(
-      union_all(
-        [
-          cons(0, l.marks),
-          ...cells |> List.mapi((i, cell) => cons(i + 1, cell.marks)),
-        ]
-        @ [cons(n, r.marks)],
-      )
-    );
-  mk(~marks, ~meld=Meld.map_cells(clear_marks, m), mold, mtrl);
-};
+let put = (mold, mtrl, m: Meld.t) =>
+  if (Meld.is_empty(m)) {
+    empty(mold, mtrl);
+  } else {
+    let M(l, W((toks, cells)), r) = m;
+    let n = List.length(toks);
+    let marks = {
+      open Path.Marks;
+      let l = cons(0, l.marks);
+      let r = cons(n, r.marks);
+      let mid = cells |> List.mapi((i, cell) => cons(i + 1, cell.marks));
+      union_all([l, ...mid] @ [r]);
+    };
+    mk(~marks, ~meld=Meld.map_cells(clear_marks, m), mold, mtrl);
+  };
