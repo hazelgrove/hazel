@@ -4,5 +4,5 @@ type hole_sort =
   | PatternHole;
 
 [@deriving sexp]
-type t = MetaVarMap.t((hole_sort, Typ.t, VarCtx.t));
-let empty: t = (MetaVarMap.empty: t);
+type t = Id.Map.t((hole_sort, Typ.t, VarCtx.t));
+let empty: t = (Id.Map.empty: t);
