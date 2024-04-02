@@ -361,13 +361,24 @@ module rec DHExp: {
     | TupleExp(t) => Tuple(List.map(of_menhir_ast, t))
     | Let(p, e1, e2) =>
       Let(DHPat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
-    | Fun(p, e) =>
+    | Fun(t, p, e) =>
       Fun(
         DHPat.of_menhir_ast(p),
-        Unknown(SynSwitch),
+        Typ.of_menhir_ast(t),
         of_menhir_ast(e),
         None,
       )
+    // switch (p) {
+    // | TypeAnn(p, t) =>
+    //   Fun(
+    //     DHPat.of_menhir_ast(p),
+    //     Typ.of_menhir_ast(t),
+    //     of_menhir_ast(e),
+    //     None,
+    //   )
+    // | _ =>
+    //   raise(Invalid_argument("Menhir fun parsed without an annotated pat"))
+    // }
     | Unit => EmptyHole(Id.mk(), 0)
     | ApExp(e1, e2) => Ap(of_menhir_ast(e1), of_menhir_ast(e2))
     | BinExp(e1, op, e2) =>

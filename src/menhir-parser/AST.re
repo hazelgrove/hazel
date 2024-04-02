@@ -71,7 +71,7 @@ type exp =
   | Unit
   | BinExp(exp, binOp, exp)
   | Let(pat, exp, exp)
-  | Fun(pat, exp)
+  | Fun(typ, pat, exp)
   | CaseExp(exp, list((pat, exp)))
   | ApExp(exp, exp)
   | Bool(bool)

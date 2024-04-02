@@ -280,29 +280,20 @@ let let_fun = () =>
 
 let str10 = "
 let f : Int -> Int =
-    fun x ->
+    fun: Int x ->
         1 + x
     in
 55";
 let d10: DHExp.t =
   Let(
     Var("f"),
-    FixF(
-      "f",
-      Arrow(Int, Int),
-      Fun(
-        Var("x"),
-        Int,
-        BinIntOp(Plus, IntLit(1), BoundVar("x")),
-        Some("f"),
-      ),
-    ),
+    Fun(Var("x"), Int, BinIntOp(Plus, IntLit(1), BoundVar("x")), None),
     IntLit(55),
   );
 
 let let_fun_menhir = () =>
   alco_check(
-    "Let expression for function which wraps a fix point constructor around the function (str elaborated using the menhir parser)",
+    "Let expression for function (str elaborated using the menhir parser)",
     Some(d10),
     Some(
       Haz3lcore.DHExp.of_menhir_ast(
