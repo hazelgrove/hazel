@@ -7,7 +7,7 @@ open Sexplib.Std;
  */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type inner = {
-  result: EvaluatorResult.t,
+  result: Evaluator.Result.t,
   state: EvaluatorState.t,
 };
 
@@ -24,5 +24,5 @@ type t =
   | ResultFail(error)
   | ResultPending;
 
-let get_dhexp = (r: inner) => EvaluatorResult.unbox(r.result);
+let get_dhexp = (r: inner) => Evaluator.Result.unbox(r.result);
 let get_state = (r: inner) => r.state;

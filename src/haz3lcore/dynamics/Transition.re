@@ -188,7 +188,7 @@ module type EV_MODE = {
     requirements(('a, 'c), 'b);
   let otherwise: (ClosureEnvironment.t, 'a) => requirements(unit, 'a);
 
-  let update_test: (state, KeywordID.t, TestMap.instance_report) => unit;
+  let update_test: (state, Id.t, TestMap.instance_report) => unit;
 
   let get_info_map: state => Statics.Map.t;
 };

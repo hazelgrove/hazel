@@ -611,9 +611,9 @@ and ClosureEnvironment: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t;
 
-  let wrap: (EnvironmentId.t, Environment.t) => t;
+  let wrap: (Id.t, Environment.t) => t;
 
-  let id_of: t => EnvironmentId.t;
+  let id_of: t => Id.t;
   let map_of: t => Environment.t;
 
   let to_list: t => list((Var.t, Exp.t));
@@ -648,13 +648,13 @@ and ClosureEnvironment: {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t;
 
-    let wrap: (EnvironmentId.t, Environment.t) => t;
+    let wrap: (Id.t, Environment.t) => t;
 
-    let id_of: t => EnvironmentId.t;
+    let id_of: t => Id.t;
     let map_of: t => Environment.t;
   } = {
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = (EnvironmentId.t, Environment.t);
+    type t = (Id.t, Environment.t);
 
     let wrap = (ei, map): t => (ei, map);
 
@@ -715,7 +715,7 @@ and ClosureEnvironment: {
 
   let fold = (f, init, env) => env |> map_of |> Environment.foldo(f, init);
 
-  let placeholder = wrap(EnvironmentId.invalid, Environment.empty);
+  let placeholder = wrap(Id.invalid, Environment.empty);
 
   let without_keys = keys => update(Environment.without_keys(keys));
 }

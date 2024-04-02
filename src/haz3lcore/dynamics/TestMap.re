@@ -8,7 +8,7 @@ let joint_status: list(instance_report) => TestStatus.t =
   reports => TestStatus.join_all(List.map(((_, _, x)) => x, reports));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type report = (KeywordID.t, list(instance_report));
+type report = (Id.t, list(instance_report));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = list(report);
