@@ -141,148 +141,6 @@ let equal = (eq: ('a, 'a) => bool, m1: t('a), m2: t('a)) => {
   };
 };
 
-// let get_valid_variants =
-//   List.filter_map(
-//     fun
-//     | Variant(ctr, ids, value) => Some((ctr, ids, value))
-//     | BadEntry(_) => None,
-//     _,
-//   );
-// let compare_valid_variants = ((ctr1, _, _), (ctr2, _, _)) =>
-//   String.compare(ctr1, ctr2);
-
-// let join =
-//     (f: ('a, 'a) => option('a), m1: t('a), m2: t('a)): option(t('a)) => {
-//   let join_sum_entries = ((ctr1, ids1, ty1), (ctr2, _, ty2)) =>
-//     switch (ty1, ty2) {
-//     | (None, None) when ctr1 == ctr2 => Some((ctr1, ids1, None))
-//     | (Some(ty1), Some(ty2)) when ctr1 == ctr2 =>
-//       let+ ty_join = f(ty1, ty2);
-//       (ctr1, ids1, Some(ty_join));
-//     | _ => None
-//     };
-//   let map1 = m1 |> get_valid_variants;
-//   let map2 = m2 |> get_valid_variants;
-//   /* If same order, retain order for UI */
-//   let same_constructors_same_order = {
-//     List.length(map1) === List.length(map2)
-//     && List.for_all2(
-//          (x, y) => compare_valid_variants(x, y) == 0,
-//          map1,
-//          map2,
-//        );
-//   };
-//   let map1 =
-//     same_constructors_same_order
-//       ? map1 |> List.fast_sort(compare_valid_variants) : map1;
-//   let map2 =
-//     same_constructors_same_order
-//       ? map2 |> List.fast_sort(compare_valid_variants) : map2;
-//   if (List.length(map1) == List.length(map2)) {
-//     List.fold_left2(
-//       (acc, entry1, entry2) =>
-//         switch (acc) {
-//         | Some(xs) =>
-//           join_sum_entries(entry1, entry2)
-//           |> Option.map(x => List.append(xs, [x]))
-//         | None => None
-//         },
-//       Some([]),
-//       map1,
-//       map2,
-//     )
-//     |> Option.map(List.map(((a, b, c)) => Variant(a, b, c)));
-//   } else {
-//     None;
-//   };
-// };
-
-// let compare = compare;
-
-// let empty: t('a) = [];
-
-// let is_empty: t('a) => bool =
-//   fun
-//   | [] => true
-//   | _ => false;
-
-// // let rec add = (ctr: Constructor.t, value: option('a), map: t('a)): t('a) =>
-// //   switch (map) {
-// //   | [] => [(ctr, value)]
-// //   | [(ctr', value') as head, ...tail] =>
-// //     if (Constructor.equal(ctr, ctr')) {
-// //       if (value === value') {
-// //         map;
-// //       } else {
-// //         [(ctr, value), ...tail];
-// //       };
-// //     } else {
-// //       [head, ...add(ctr, value, tail)];
-// //     }
-// //   };
-
-// // let singleton = (ctr: Constructor.t, value: option('a)): t('a) => [
-// //   (ctr, value),
-// // ];
-
-// let compare_bindings = ((ctr1, _), (ctr2, _)): int => compare(ctr1, ctr2);
-
-// let to_bindings =
-//   List.filter_map(
-//     fun
-//     | Variant(ctr, _, value) => Some((ctr, value))
-//     | BadEntry(_) => None,
-//     _,
-//   );
-
-// /* compares ctrs only */
-// let equal =
-//     (
-//       val_equal: (option('a), option('a)) => bool,
-//       map1: t('a),
-//       map2: t('a),
-//     )
-//     : bool => {
-//   let equal_bindings = (val_equal, (ctr1, _, val1), (ctr2, _, val2)): bool =>
-//     Constructor.equal(ctr1, ctr2) && val_equal(val1, val2);
-//   map1 === map2
-//   || {
-//     let map1 =
-//       List.fast_sort(compare_valid_variants, map1 |> get_valid_variants);
-//     let map2 =
-//       List.fast_sort(compare_valid_variants, map2 |> get_valid_variants);
-//     List.equal(equal_bindings(val_equal), map1, map2);
-//   };
-// };
-
-// let cardinal: t('a) => int = List.length;
-
-// let ctrs_of = (m): list(Constructor.t) => m |> to_bindings |> List.map(fst);
-
-// let same_constructors_same_order = (map1: t('a), map2: t('a)): bool =>
-//   cardinal(map1) === cardinal(map2)
-//   && List.for_all2(Constructor.equal, ctrs_of(map1), ctrs_of(map2));
-
-// let ctrs_equal = (map1: t('a), map2: t('a)): bool => {
-//   let ctrs1 = ctrs_of(map1);
-//   let ctrs2 = ctrs_of(map2);
-//   ctrs1 === ctrs2
-//   || List.fast_sort(compare, ctrs1) == List.fast_sort(compare, ctrs2);
-// };
-
-// // let for_all: (binding('a) => bool, t('a)) => bool = List.for_all;
-
-// // let bindings: t('a) => list(binding('a)) = x => x;
-
-// // let find_opt = (ctr: Constructor.t, map: t('a)): option(option('a)) => {
-// //   let+ binding =
-// //     List.find_opt(
-// //       ((k, _)) => Constructor.equal(ctr, k),
-// //       map |> to_bindings,
-// //     );
-// //   snd(binding);
-// // };
-
 let map = (f: option('a) => option('b), m: t('a)): t('b) => {
   List.map(
     fun
@@ -292,16 +150,11 @@ let map = (f: option('a) => option('b), m: t('a)): t('b) => {
   );
 };
 
-// // /* sorts on ctrs only */
-// // let sort = (map: t('a)): t('a) => {
-// //   List.fast_sort(compare_bindings, map);
-// // };
-
-// // let of_list: list(binding('a)) => t('a) = x => x;
-
-// // let rec is_ground = (is_ground_value: 'a => bool, map: t('a)): bool =>
-// //   switch (map) {
-// //   | [] => true
-// //   | [(_, head), ...tail] =>
-// //     is_ground_value(head) && tail |> is_ground(is_ground_value)
-// //   };
+let get_entry = (ctr, m) =>
+  List.find_map(
+    fun
+    | Variant(ctr', _, value) when Constructor.equal(ctr, ctr') => value
+    | Variant(_)
+    | BadEntry(_) => None,
+    m,
+  );

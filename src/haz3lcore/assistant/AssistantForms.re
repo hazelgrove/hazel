@@ -194,7 +194,7 @@ let suggest_form = (ty_map, delims_of_sort, ci: Info.t): list(Suggestion.t) => {
 
 let suggest_operator: Info.t => list(Suggestion.t) =
   suggest_form(
-    List.map(((a, b)) => (a, TypBase.Typ.fresh(b)), Typ.of_infix_delim),
+    List.map(((a, b)) => (a, IdTagged.fresh(b)), Typ.of_infix_delim),
     Delims.infix,
   );
 

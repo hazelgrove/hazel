@@ -402,7 +402,7 @@ let rec bypass_parens_exp = (exp: Exp.t) => {
   };
 };
 
-let rec bypass_parens_typ = (typ: TypTerm.t) => {
+let rec bypass_parens_typ = (typ: Typ.t) => {
   switch (typ.term) {
   | Parens(t) => bypass_parens_typ(t)
   | _ => typ
@@ -2030,8 +2030,10 @@ let get_doc =
     }
   | Some(InfoTyp({term, _} as typ_info)) =>
     switch (bypass_parens_typ(term).term) {
-    | EmptyHole => get_message(HoleTyp.empty_hole)
-    | MultiHole(_) => get_message(HoleTyp.multi_hole)
+    | Unknown(SynSwitch)
+    | Unknown(Internal)
+    | Unknown(Hole(EmptyHole)) => get_message(HoleTyp.empty_hole)
+    | Unknown(Hole(MultiHole(_))) => get_message(HoleTyp.multi_hole)
     | Int => get_message(TerminalTyp.int)
     | Float => get_message(TerminalTyp.float)
     | Bool => get_message(TerminalTyp.bool)
@@ -2084,7 +2086,7 @@ let get_doc =
           doc,
         );
       switch (result.term) {
-      | TypTerm.Arrow(arg2, result2) =>
+      | Typ.Arrow(arg2, result2) =>
         if (ArrowTyp.arrow3_typ.id == get_specificity_level(ArrowTyp.arrow3)) {
           let arg2_id = List.nth(arg2.ids, 0);
           let result2_id = List.nth(result2.ids, 0);
@@ -2198,7 +2200,7 @@ let get_doc =
     | Sum(_) => get_message(SumTyp.labelled_sum_typs)
     | Ap({term: Var(c), _}, _) =>
       get_message(SumTyp.sum_typ_unary_constructor_defs(c))
-    | Invalid(_) => simple("Not a type or type operator")
+    | Unknown(Hole(Invalid(_))) => simple("Not a type or type operator")
     | Ap(_)
     | Parens(_) => default // Shouldn't be hit?
     }

@@ -284,7 +284,7 @@ let id_of: t => Id.t =
   fun
   | InfoExp(i) => Exp.rep_id(i.term)
   | InfoPat(i) => Pat.rep_id(i.term)
-  | InfoTyp(i) => TypTerm.rep_id(i.term)
+  | InfoTyp(i) => Typ.rep_id(i.term)
   | InfoTPat(i) => TPat.rep_id(i.term)
   | Secondary(s) => s.id;
 
@@ -394,10 +394,10 @@ let status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
    such as whether or not a type variable reference is
    free, and whether a ctr name is a dupe. */
 let status_typ =
-    (ctx: Ctx.t, expects: typ_expects, term: TypTerm.t, ty: Typ.t): status_typ =>
+    (ctx: Ctx.t, expects: typ_expects, term: Typ.t, ty: Typ.t): status_typ =>
   switch (term.term) {
-  | Invalid(token) => InHole(BadToken(token))
-  | EmptyHole => NotInHole(Type(ty))
+  | Unknown(Hole(Invalid(token))) => InHole(BadToken(token))
+  | Unknown(Hole(EmptyHole)) => NotInHole(Type(ty))
   | Var(name) =>
     switch (expects) {
     | VariantExpected(Unique, sum_ty)

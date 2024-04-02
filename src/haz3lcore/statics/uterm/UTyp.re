@@ -1,1 +1,1 @@
-include TypTerm;
+include Typ;

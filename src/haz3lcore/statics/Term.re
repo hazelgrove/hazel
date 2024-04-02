@@ -36,14 +36,16 @@ module TPat = {
     | Var => "Type alias";
 };
 
-module TypTerm = {
-  include TermBase.TypTerm;
+module Typ = {
+  include TermBase.Typ;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Invalid
     | EmptyHole
     | MultiHole
+    | SynSwitch
+    | Internal
     | Int
     | Float
     | Bool
@@ -58,7 +60,7 @@ module TypTerm = {
     | Ap
     | Rec;
 
-  include TermBase.TypTerm;
+  include TermBase.Typ;
 
   let rep_id = ({ids, _}: t) => {
     assert(ids != []);
@@ -67,15 +69,17 @@ module TypTerm = {
 
   let hole = (tms: list(TermBase.Any.t)) =>
     switch (tms) {
-    | [] => EmptyHole
-    | [_, ..._] => MultiHole(tms)
+    | [] => Unknown(Hole(EmptyHole))
+    | [_, ..._] => Unknown(Hole(MultiHole(tms)))
     };
 
   let cls_of_term: term => cls =
     fun
-    | Invalid(_) => Invalid
-    | EmptyHole => EmptyHole
-    | MultiHole(_) => MultiHole
+    | Unknown(Hole(Invalid(_))) => Invalid
+    | Unknown(Hole(EmptyHole)) => EmptyHole
+    | Unknown(Hole(MultiHole(_))) => MultiHole
+    | Unknown(SynSwitch) => SynSwitch
+    | Unknown(Internal) => Internal
     | Int => Int
     | Float => Float
     | Bool => Bool
@@ -94,6 +98,8 @@ module TypTerm = {
     | Invalid => "Invalid type"
     | MultiHole => "Broken type"
     | EmptyHole => "Empty type hole"
+    | SynSwitch => "Synthetic type"
+    | Internal => "Internal type"
     | Int
     | Float
     | String
@@ -112,9 +118,7 @@ module TypTerm = {
     switch (typ.term) {
     | Parens(typ) => is_arrow(typ)
     | Arrow(_) => true
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_)
+    | Unknown(_)
     | Int
     | Float
     | Bool
@@ -129,57 +133,52 @@ module TypTerm = {
   };
 
   /* Converts a syntactic type into a semantic type */
-  let rec to_typ: (Ctx.t, t) => Typ.t =
-    (ctx, utyp) =>
-      switch (utyp.term) {
-      | Invalid(_)
-      | MultiHole(_) => Unknown(Internal) |> Typ.fresh
-      | EmptyHole => Unknown(Hole(EmptyHole)) |> Typ.fresh
-      | Bool => Bool |> Typ.fresh
-      | Int => Int |> Typ.fresh
-      | Float => Float |> Typ.fresh
-      | String => String |> Typ.fresh
+  let rec to_typ: (Ctx.t, t) => t =
+    (ctx, utyp) => {
+      let (term, rewrap) = IdTagged.unwrap(utyp);
+      switch (term) {
+      | Unknown(_)
+      | Bool
+      | Int
+      | Float
+      | String => utyp
       | Var(name) =>
         switch (Ctx.lookup_tvar(ctx, name)) {
-        | Some(_) => Var(name) |> Typ.fresh
-        | None => Unknown(Hole(Invalid(name))) |> Typ.fresh
+        | Some(_) => Var(name) |> rewrap
+        | None => Unknown(Hole(Invalid(name))) |> rewrap
         }
-      | Arrow(u1, u2) =>
-        Arrow(to_typ(ctx, u1), to_typ(ctx, u2)) |> Typ.fresh
-      | Prod(us) => Prod(List.map(to_typ(ctx), us)) |> Typ.fresh
-      | Sum(uts) => Sum(to_ctr_map(ctx, uts)) |> Typ.fresh
-      | List(u) => List(to_typ(ctx, u)) |> Typ.fresh
+      | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2)) |> rewrap
+      | Prod(us) => Prod(List.map(to_typ(ctx), us)) |> rewrap
+      | Sum(uts) => Sum(to_ctr_map(ctx, uts)) |> rewrap
+      | List(u) => List(to_typ(ctx, u)) |> rewrap
       | Parens(u) => to_typ(ctx, u)
       /* The below cases should occur only inside sums */
-      | Ap(_) => Unknown(Internal) |> Typ.fresh
-      | Rec({term: Invalid(_), _}, tbody)
-      | Rec({term: EmptyHole, _}, tbody)
-      | Rec({term: MultiHole(_), _}, tbody) =>
-        Rec("?", to_typ(ctx, tbody)) |> Typ.fresh
+      | Ap(_) => Unknown(Internal) |> rewrap
+      | Rec({term: Invalid(_), _} as tpat, tbody)
+      | Rec({term: EmptyHole, _} as tpat, tbody)
+      | Rec({term: MultiHole(_), _} as tpat, tbody) =>
+        Rec(tpat, to_typ(ctx, tbody)) |> rewrap
       | Rec({term: Var(name), _} as utpat, tbody) =>
         let ctx =
           Ctx.extend_tvar(
             ctx,
             {name, id: TPat.rep_id(utpat), kind: Abstract},
           );
-        Rec(name, to_typ(ctx, tbody)) |> Typ.fresh;
-      }
+        Rec(utpat, to_typ(ctx, tbody)) |> rewrap;
+      };
+    }
   and to_variant:
-    (Ctx.t, ConstructorMap.variant(t)) => ConstructorMap.variant(Typ.t) =
+    (Ctx.t, ConstructorMap.variant(t)) => ConstructorMap.variant(t) =
     ctx =>
       fun
       | Variant(ctr, ids, u) =>
         ConstructorMap.Variant(ctr, ids, Option.map(to_typ(ctx), u))
       | BadEntry(u) => ConstructorMap.BadEntry(to_typ(ctx, u))
-  and to_ctr_map =
-      (ctx: Ctx.t, uts: list(ConstructorMap.variant(t))): Typ.sum_map => {
+  and to_ctr_map = (ctx: Ctx.t, uts: list(ConstructorMap.variant(t))) => {
     uts
     |> List.map(to_variant(ctx))
     |> ListUtil.dedup_f(
-         (
-           x: ConstructorMap.variant(Typ.t),
-           y: ConstructorMap.variant(Typ.t),
-         ) =>
+         (x: ConstructorMap.variant(t), y: ConstructorMap.variant(t)) =>
          switch (x, y) {
          | (Variant(c1, _, _), Variant(c2, _, _)) => c1 == c2
          | (Variant(_), BadEntry(_))
@@ -291,7 +290,7 @@ module Pat = {
   let rec is_fun_var = (pat: t) => {
     switch (pat.term) {
     | Parens(pat) => is_fun_var(pat)
-    | TypeAnn(pat, typ) => is_var(pat) && TypTerm.is_arrow(typ)
+    | TypeAnn(pat, typ) => is_var(pat) && Typ.is_arrow(typ)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -357,7 +356,7 @@ module Pat = {
     switch (pat.term) {
     | Parens(pat) => get_fun_var(pat)
     | TypeAnn(pat, typ) =>
-      if (TypTerm.is_arrow(typ)) {
+      if (Typ.is_arrow(typ)) {
         get_var(pat) |> Option.map(var => var);
       } else {
         None;
@@ -661,7 +660,7 @@ module Any = {
     fun
     | Pat(p) => Some(p)
     | _ => None;
-  let is_typ: t => option(TermBase.TypTerm.t) =
+  let is_typ: t => option(TermBase.Typ.t) =
     fun
     | Typ(t) => Some(t)
     | _ => None;
@@ -691,7 +690,7 @@ module Any = {
     fun
     | Exp(tm) => Exp.rep_id(tm)
     | Pat(tm) => Pat.rep_id(tm)
-    | Typ(tm) => TypTerm.rep_id(tm)
+    | Typ(tm) => Typ.rep_id(tm)
     | TPat(tm) => TPat.rep_id(tm)
     | Rul(tm) => Rul.rep_id(~any_ids=ids, tm)
     | Nul ()
