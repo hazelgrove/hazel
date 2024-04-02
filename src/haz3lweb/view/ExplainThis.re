@@ -542,6 +542,7 @@ let get_doc =
           TyAliasExp.tyalias_exps,
         );
       | Triv => get_message(TerminalExp.triv_exps)
+      | Deferral(_) => get_message(TerminalExp.deferral_exps)
       | Bool(b) => get_message(TerminalExp.bool_exps(b))
       | Int(i) => get_message(TerminalExp.int_exps(i))
       | Float(f) => get_message(TerminalExp.float_exps(f))
@@ -1609,6 +1610,47 @@ let get_doc =
               ),
             AppExp.funapp_exp_coloring_ids,
           )
+        };
+      | DeferredAp(x, args) =>
+        let x_id = List.nth(x.ids, 0);
+        let supplied_id = Id.mk();
+        let deferred_id = {
+          let deferral = List.find(Term.UExp.is_deferral, args);
+          List.nth(deferral.ids, 0);
+        };
+        switch (mode) {
+        | MessageContent(_) =>
+          get_message(
+            ~colorings=
+              AppExp.deferred_funapp_exp_coloring_ids(~x_id, ~deferred_id),
+            ~format=
+              Some(
+                msg =>
+                  Printf.sprintf(
+                    Scanf.format_from_string(msg, "%s%s%s"),
+                    Id.to_string(x_id),
+                    Id.to_string(supplied_id),
+                    Id.to_string(deferred_id),
+                  ),
+              ),
+            AppExp.deferredaps,
+          )
+        | Colorings =>
+          let color_fn = List.nth(ColorSteps.child_colors, 0);
+          let color_supplied = List.nth(ColorSteps.child_colors, 1);
+          let color_deferred = List.nth(ColorSteps.child_colors, 2);
+          let add = (mapping, arg: Term.UExp.t) => {
+            let arg_id = List.nth(arg.ids, 0);
+            Haz3lcore.Id.Map.add(
+              arg_id,
+              Term.UExp.is_deferral(arg) ? color_deferred : color_supplied,
+              mapping,
+            );
+          };
+          let mapping = Haz3lcore.Id.Map.singleton(x_id, color_fn);
+          let mapping = List.fold_left(add, mapping, args);
+          let color_map = (mapping, List.length(args) + 1);
+          ([], ([], color_map), []);
         };
       | If(cond, then_, else_) =>
         let cond_id = List.nth(cond.ids, 0);

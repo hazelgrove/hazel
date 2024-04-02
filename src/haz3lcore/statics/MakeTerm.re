@@ -150,6 +150,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     | ([(_id, t)], []) =>
       switch (t) {
       | ([t], []) when Form.is_empty_tuple(t) => ret(Triv)
+      | ([t], []) when Form.is_wild(t) => ret(Deferral(OutsideAp))
       | ([t], []) when Form.is_empty_list(t) => ret(ListLit([]))
       | ([t], []) when Form.is_bool(t) => ret(Bool(bool_of_string(t)))
       | ([t], []) when Form.is_int(t) => ret(Int(int_of_string(t)))
@@ -209,7 +210,26 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       switch (t) {
       | (["()"], []) =>
         ret(Ap(l, {ids: [Id.nullary_ap_flag], term: Triv}))
-      | (["(", ")"], [Exp(arg)]) => ret(Ap(l, arg))
+      | (["(", ")"], [Exp(arg)]) =>
+        let use_deferral = (arg: UExp.t): UExp.t => {
+          ids: arg.ids,
+          term: Deferral(InAp),
+        };
+        switch (arg.term) {
+        | _ when UExp.is_deferral(arg) =>
+          ret(DeferredAp(l, [use_deferral(arg)]))
+        | Tuple(es) when List.exists(UExp.is_deferral, es) => (
+            DeferredAp(
+              l,
+              List.map(
+                arg => UExp.is_deferral(arg) ? use_deferral(arg) : arg,
+                es,
+              ),
+            ),
+            arg.ids,
+          )
+        | _ => ret(Ap(l, arg))
+        };
       | (["@<", ">"], [Typ(ty)]) => ret(TypAp(l, ty))
       | _ => ret(hole(tm))
       }

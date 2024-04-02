@@ -234,6 +234,7 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
     "empty_tuple",
     (is_empty_tuple, [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, [])]),
   ),
+  ("deferral", (is_wild, [mk_op(Exp, [])])),
   ("ty_var", (is_typ_var, [mk_op(Typ, [])])),
   ("ty_var_p", (is_typ_var, [mk_op(TPat, [])])),
   ("ctr", (is_ctr, [mk_op(Exp, []), mk_op(Pat, [])])),

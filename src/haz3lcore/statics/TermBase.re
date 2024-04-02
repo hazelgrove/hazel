@@ -134,11 +134,17 @@ and UExp: {
     | Match;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type deferral_position =
+    | InAp
+    | OutsideAp;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
     | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
     | Triv
+    | Deferral(deferral_position)
     | Bool(bool)
     | Int(int)
     | Float(float)
@@ -153,6 +159,7 @@ and UExp: {
     | TyAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)
     | TypAp(t, UTyp.t)
+    | DeferredAp(t, list(t))
     | Pipeline(t, t)
     | If(t, t, t)
     | Seq(t, t)
@@ -270,11 +277,17 @@ and UExp: {
     | Match;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type deferral_position =
+    | InAp
+    | OutsideAp;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
     | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
     | Triv
+    | Deferral(deferral_position)
     | Bool(bool)
     | Int(int)
     | Float(float)
@@ -289,6 +302,7 @@ and UExp: {
     | TyAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)
     | TypAp(t, UTyp.t)
+    | DeferredAp(t, list(t))
     | Pipeline(t, t)
     | If(t, t, t)
     | Seq(t, t)
