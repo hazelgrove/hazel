@@ -358,7 +358,7 @@ let ctx_init: Ctx.t = {
     Ctx.TVarEntry({
       name: "$Meta",
       id: Id.invalid,
-      kind: Kind.Singleton(Sum(meta_cons_map) |> Typ.fresh),
+      kind: Ctx.Singleton(Sum(meta_cons_map) |> Typ.fresh),
     });
   List.map(
     fun

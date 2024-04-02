@@ -9,14 +9,6 @@ let ty_view = (cls: string, s: string): Node.t =>
 let alias_view = (s: string): Node.t =>
   div(~attr=clss(["typ-alias-view"]), [text(s)]);
 
-// let prov_view: Typ.type_provenance => Node.t =
-//   fun
-//   | Internal => div([])
-//   | Free(name) =>
-//     div(~attr=clss(["typ-mod", "free-type-var"]), [text(name)])
-//   | TypeHole => div(~attr=clss(["typ-mod", "type-hole"]), [text("𝜏")])
-//   | SynSwitch => div(~attr=clss(["typ-mod", "syn-switch"]), [text("⇒")]);
-
 let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
   //TODO: parens on ops when ambiguous
   switch (Typ.term_of(ty)) {
@@ -35,10 +27,15 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
   | String => ty_view("String", "String")
   | Bool => ty_view("Bool", "Bool")
   | Var(name) => ty_view("Var", name)
-  | Rec(x, t) =>
+  | Rec({term: Var(x), _}, t) =>
     div(
       ~attr=clss(["typ-view", "Rec"]),
       [text("Rec " ++ x ++ ". "), view_ty(t)],
+    )
+  | Rec(_, t) =>
+    div(
+      ~attr=clss(["typ-view", "Rec"]),
+      [text("Rec " ++ "?" ++ ". "), view_ty(t)],
     )
   | List(t) =>
     div(

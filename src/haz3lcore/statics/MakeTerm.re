@@ -357,7 +357,7 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
         | (["(", ")"], [Typ(body)]) => Parens(body)
         | (["[", "]"], [Typ(body)]) => List(body)
         | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
-          Invalid(t)
+          Unknown(Hole(Invalid(t)))
         | _ => hole(tm)
         },
       )

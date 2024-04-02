@@ -458,7 +458,8 @@ and uexp_to_info_map =
           /* NOTE: When debugging type system issues it may be beneficial to
              use a different name than the alias for the recursive parameter */
           //let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
-          let ty_rec = Typ.Rec(name, ty_pre) |> Typ.fresh;
+          let ty_rec =
+            Typ.Rec(TPat.Var(name) |> IdTagged.fresh, ty_pre) |> Typ.fresh;
           let ctx_def =
             Ctx.extend_alias(ctx, name, TPat.rep_id(typat), ty_rec);
           (ty_rec, ctx_def, ctx_def);
@@ -598,11 +599,10 @@ and utyp_to_info_map =
   let go = go'(~expects=TypeExpected);
   //TODO(andrew): make this return free, replacing Typ.free_vars
   switch (term) {
-  | MultiHole(tms) =>
+  | Unknown(Hole(MultiHole(tms))) =>
     let (_, m) = multi(~ctx, ~ancestors, m, tms);
     add(m);
-  | Invalid(_)
-  | EmptyHole
+  | Unknown(_)
   | Int
   | Float
   | Bool
