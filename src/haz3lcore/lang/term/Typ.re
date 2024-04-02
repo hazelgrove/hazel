@@ -1,16 +1,156 @@
-include Term.Typ;
 open Util;
 open OptUtil.Syntax;
 
-let precedence_Prod = 1;
-let precedence_Arrow = 2;
-let precedence_Sum = 3;
-let precedence_Ap = 4;
-let precedence_Const = 5;
+[@deriving (show({with_path: false}), sexp, yojson)]
+type cls =
+  | Invalid
+  | EmptyHole
+  | MultiHole
+  | SynSwitch
+  | Internal
+  | Int
+  | Float
+  | Bool
+  | String
+  | Arrow
+  | Prod
+  | Sum
+  | List
+  | Var
+  | Constructor
+  | Parens
+  | Ap
+  | Rec;
+
+include TermBase.Typ;
 
 let term_of: t => term = IdTagged.term_of;
 let unwrap: t => (term, term => t) = IdTagged.unwrap;
 let fresh: term => t = IdTagged.fresh;
+let rep_id: t => Id.t = IdTagged.rep_id;
+
+let hole = (tms: list(TermBase.Any.t)) =>
+  switch (tms) {
+  | [] => Unknown(Hole(EmptyHole))
+  | [_, ..._] => Unknown(Hole(MultiHole(tms)))
+  };
+
+let cls_of_term: term => cls =
+  fun
+  | Unknown(Hole(Invalid(_))) => Invalid
+  | Unknown(Hole(EmptyHole)) => EmptyHole
+  | Unknown(Hole(MultiHole(_))) => MultiHole
+  | Unknown(SynSwitch) => SynSwitch
+  | Unknown(Internal) => Internal
+  | Int => Int
+  | Float => Float
+  | Bool => Bool
+  | String => String
+  | List(_) => List
+  | Arrow(_) => Arrow
+  | Var(_) => Var
+  | Prod(_) => Prod
+  | Parens(_) => Parens
+  | Ap(_) => Ap
+  | Sum(_) => Sum
+  | Rec(_) => Rec;
+
+let show_cls: cls => string =
+  fun
+  | Invalid => "Invalid type"
+  | MultiHole => "Broken type"
+  | EmptyHole => "Empty type hole"
+  | SynSwitch => "Synthetic type"
+  | Internal => "Internal type"
+  | Int
+  | Float
+  | String
+  | Bool => "Base type"
+  | Var => "Type variable"
+  | Constructor => "Sum constructor"
+  | List => "List type"
+  | Arrow => "Function type"
+  | Prod => "Product type"
+  | Sum => "Sum type"
+  | Parens => "Parenthesized type"
+  | Ap => "Constructor application"
+  | Rec => "Recursive Type";
+
+let rec is_arrow = (typ: t) => {
+  switch (typ.term) {
+  | Parens(typ) => is_arrow(typ)
+  | Arrow(_) => true
+  | Unknown(_)
+  | Int
+  | Float
+  | Bool
+  | String
+  | List(_)
+  | Prod(_)
+  | Var(_)
+  | Ap(_)
+  | Sum(_)
+  | Rec(_) => false
+  };
+};
+
+/* Converts a syntactic type into a semantic type */
+let rec to_typ: (Ctx.t, t) => t =
+  (ctx, utyp) => {
+    let (term, rewrap) = IdTagged.unwrap(utyp);
+    switch (term) {
+    | Unknown(_)
+    | Bool
+    | Int
+    | Float
+    | String => utyp
+    | Var(name) =>
+      switch (Ctx.lookup_tvar(ctx, name)) {
+      | Some(_) => Var(name) |> rewrap
+      | None => Unknown(Hole(Invalid(name))) |> rewrap
+      }
+    | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2)) |> rewrap
+    | Prod(us) => Prod(List.map(to_typ(ctx), us)) |> rewrap
+    | Sum(uts) => Sum(to_ctr_map(ctx, uts)) |> rewrap
+    | List(u) => List(to_typ(ctx, u)) |> rewrap
+    | Parens(u) => to_typ(ctx, u)
+    /* The below cases should occur only inside sums */
+    | Ap(_) => Unknown(Internal) |> rewrap
+    | Rec({term: Invalid(_), _} as tpat, tbody)
+    | Rec({term: EmptyHole, _} as tpat, tbody)
+    | Rec({term: MultiHole(_), _} as tpat, tbody) =>
+      Rec(tpat, to_typ(ctx, tbody)) |> rewrap
+    | Rec({term: Var(name), _} as utpat, tbody) =>
+      let ctx =
+        Ctx.extend_tvar(
+          ctx,
+          {name, id: IdTagged.rep_id(utpat), kind: Abstract},
+        );
+      Rec(utpat, to_typ(ctx, tbody)) |> rewrap;
+    };
+  }
+and to_variant:
+  (Ctx.t, ConstructorMap.variant(t)) => ConstructorMap.variant(t) =
+  ctx =>
+    fun
+    | Variant(ctr, ids, u) =>
+      ConstructorMap.Variant(ctr, ids, Option.map(to_typ(ctx), u))
+    | BadEntry(u) => ConstructorMap.BadEntry(to_typ(ctx, u))
+and to_ctr_map = (ctx: Ctx.t, uts: list(ConstructorMap.variant(t))) => {
+  uts
+  |> List.map(to_variant(ctx))
+  |> ListUtil.dedup_f(
+       (x: ConstructorMap.variant(t), y: ConstructorMap.variant(t)) =>
+       switch (x, y) {
+       | (Variant(c1, _, _), Variant(c2, _, _)) => c1 == c2
+       | (Variant(_), BadEntry(_))
+       | (BadEntry(_), Variant(_))
+       | (BadEntry(_), BadEntry(_)) => false
+       }
+     );
+};
+
+/* Functions below this point assume that types have been through the to_typ function above */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type source = {
@@ -36,23 +176,6 @@ let join_type_provenance =
   | (Internal | Hole(_), _)
   | (_, Hole(_)) => Internal
   | (SynSwitch, SynSwitch) => SynSwitch
-  };
-
-let precedence = (ty: t): int =>
-  switch (term_of(ty)) {
-  | Int
-  | Float
-  | Bool
-  | String
-  | Unknown(_)
-  | Var(_)
-  | Rec(_)
-  | Sum(_) => precedence_Sum
-  | List(_) => precedence_Const
-  | Prod(_) => precedence_Prod
-  | Arrow(_, _) => precedence_Arrow
-  | Parens(_) => precedence_Const
-  | Ap(_) => precedence_Ap
   };
 
 let rec subst = (s: t, x: string, ty: t) => {

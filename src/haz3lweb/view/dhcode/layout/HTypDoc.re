@@ -6,6 +6,29 @@ type t = Doc.t(HTypAnnot.t);
 
 type formattable_child = (~enforce_inline: bool) => t;
 
+let precedence_Prod = 1;
+let precedence_Arrow = 2;
+let precedence_Sum = 3;
+let precedence_Ap = 4;
+let precedence_Const = 5;
+
+let precedence = (ty: Typ.t): int =>
+  switch (Typ.term_of(ty)) {
+  | Int
+  | Float
+  | Bool
+  | String
+  | Unknown(_)
+  | Var(_)
+  | Rec(_)
+  | Sum(_) => precedence_Sum
+  | List(_) => precedence_Const
+  | Prod(_) => precedence_Prod
+  | Arrow(_, _) => precedence_Arrow
+  | Parens(_) => precedence_Const
+  | Ap(_) => precedence_Ap
+  };
+
 let pad_child =
     (
       ~inline_padding as (l, r)=(Doc.empty(), Doc.empty()),
@@ -33,11 +56,11 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
   let mk_right_associative_operands = (precedence_op, ty1, ty2) => (
     annot(
       HTypAnnot.Step(0),
-      mk'(~parenthesize=Typ.precedence(ty1) <= precedence_op, ty1),
+      mk'(~parenthesize=precedence(ty1) <= precedence_op, ty1),
     ),
     annot(
       HTypAnnot.Step(1),
-      mk'(~parenthesize=Typ.precedence(ty2) < precedence_op, ty2),
+      mk'(~parenthesize=precedence(ty2) < precedence_op, ty2),
     ),
   );
   let (doc, parenthesize) =
@@ -66,7 +89,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
       )
     | Arrow(ty1, ty2) =>
       let (d1, d2) =
-        mk_right_associative_operands(Typ.precedence_Arrow, ty1, ty2);
+        mk_right_associative_operands(precedence_Arrow, ty1, ty2);
       (
         hcats([
           d1,
@@ -84,19 +107,13 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
         [
           annot(
             HTypAnnot.Step(0),
-            mk'(
-              ~parenthesize=Typ.precedence(head) <= Typ.precedence_Prod,
-              head,
-            ),
+            mk'(~parenthesize=precedence(head) <= precedence_Prod, head),
           ),
           ...List.mapi(
                (i, ty) =>
                  annot(
                    HTypAnnot.Step(i + 1),
-                   mk'(
-                     ~parenthesize=Typ.precedence(ty) <= Typ.precedence_Prod,
-                     ty,
-                   ),
+                   mk'(~parenthesize=precedence(ty) <= precedence_Prod, ty),
                  ),
                tail,
              ),
