@@ -83,8 +83,8 @@ module Wald = {
       };
     let/ () = {
       // first try zipping
-      let+ zipped = W.merge(~from, src, ~fill, dst);
-      // assert(fill == []);
+      let+ zipped = W.zip_hds(~from, src, dst);
+      assert(Filling.is_empty(fill));
       Rel.Eq(zipped);
     };
     go(src, fill);
@@ -111,12 +111,12 @@ module Terr = {
          | Eq(cell) => Meld.link(~cell, tok, meld)
        );
 
-  let roll = (~onto: Dir.t, ~fill=[], terr: T.t): Baked.Fill.t => {
+  let roll = (~onto: Dir.t, ~fill=[], terr: T.t): Filling.t => {
     let bake = Baker.bake(~from=onto);
     let exited = Walker.exit(~from=onto, Node(T.face(terr)));
     let orient = Dir.pick(onto, (Meld.rev, Fun.id));
     switch (Oblig.Delta.minimize(bake(~fill), exited)) {
-    | Some(baked) => [Cell.mk(~meld=orient(attach(baked, terr)), ())]
+    | Some(baked) => [orient(attach(baked, terr))]
     | None =>
       let exited =
         ListUtil.hd_opt(exited)
@@ -126,7 +126,7 @@ module Terr = {
         |> OptUtil.get_or_fail(
              "bug: bake expected to succeed if no fill required",
            );
-      [Cell.mk(~meld=orient(attach(baked, terr)), ()), ...fill];
+      [orient(attach(baked, terr)), ...fill];
     };
   };
 
@@ -161,7 +161,7 @@ module Slope = {
 
   let push =
       (~repair=false, ~onto: Dir.t, w: W.t, ~fill=[], slope: S.t)
-      : Result.t(S.t, Baked.Fill.t) => {
+      : Result.t(S.t, Filling.t) => {
     let meld = Wald.meld(~repair, ~from=onto);
     let roll = Terr.roll(~onto);
     let rec go = (fill, slope: S.t) =>
@@ -289,7 +289,7 @@ module Zigg = {
       switch (push_wald(~side=R, hd.wald, ~fill, zigg)) {
       | Error(_) => ([], suf)
       | Ok(zigg) =>
-        let fill = Baked.Fill.init(hd.cell);
+        let fill = Filling.init(hd.cell);
         let (leq, gt) = take_leq(zigg, ~fill, tl);
         ([hd, ...leq], gt);
       }
@@ -301,7 +301,7 @@ module Zigg = {
       switch (push_wald(~side=L, hd.wald, ~fill, zigg)) {
       | Error(_) => (pre, [])
       | Ok(zigg) =>
-        let fill = Baked.Fill.init(hd.cell);
+        let fill = Filling.init(hd.cell);
         let (lt, geq) = take_geq(tl, ~fill, zigg);
         (lt, [hd, ...geq]);
       }
@@ -348,7 +348,7 @@ module Ctx = {
     | [hd, ...tl] =>
       open OptUtil.Syntax;
       let* ctx = push_wald(~onto, hd.wald, ~fill, ctx);
-      push_slope(~onto, tl, ~fill=[hd.cell], ctx);
+      push_slope(~onto, tl, ~fill=Filling.init(hd.cell), ctx);
     };
   let push_zigg = (~onto as d: Dir.t, zigg: Z.t, ctx: C.t) => {
     let get_fail = OptUtil.get_or_fail("bug: failed to push zigg");

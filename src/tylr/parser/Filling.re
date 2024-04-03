@@ -5,6 +5,12 @@ type t = list(Meld.t);
 let empty = [];
 let is_empty: t => bool = (==)(empty);
 
+let init = (c: Cell.t) =>
+  switch (Cell.get(c)) {
+  | None => empty
+  | Some(m) => [m]
+  };
+
 let faces =
   fun
   | [] => Space.Molded.(t, t)

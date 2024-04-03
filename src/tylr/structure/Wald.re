@@ -57,7 +57,7 @@ let zip_cell = (pre: t, cell: Cell.t, suf: t) =>
        (zipped, cell, tok) => link(tok, cell, zipped),
      );
 
-let merge = (~from: Dir.t, src: t, dst: t): option(t) => {
+let zip_hds = (~from: Dir.t, src: t, dst: t): option(t) => {
   let (hd_src, tl_src) = split_hd(src);
   let (hd_dst, tl_dst) = split_hd(dst);
   let (hd_l, hd_r) = Dir.order(from, (hd_src, hd_dst));
