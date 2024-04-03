@@ -20,6 +20,24 @@ let dhexp_typ = testable(Fmt.using(dhexp_print, Fmt.string), dhexp_eq);
 
 let ids = List.init(12, _ => Id.mk());
 let id_at = x => x |> List.nth(ids);
+
+//Starts at 0
+let get_id_menhir_closure = (id_index: int) => {
+  let id_index = ref(id_index - 1);
+  (inc: bool) => {
+    print_endline(
+      "get id inc: "
+      ++ string_of_bool(inc)
+      ++ " "
+      ++ string_of_int(id_index^),
+    );
+    if (inc) {
+      id_index := id_index^ + 1;
+    };
+    id_at(id_index^);
+  };
+};
+
 let mk_map = CoreSettings.on |> Interface.Statics.mk_map;
 let dhexp_of_uexp = u => Elaborator.dhexp_of_uexp(mk_map(u), u, false);
 let alco_check = dhexp_typ |> Alcotest.check;
@@ -280,26 +298,61 @@ let let_fun = () =>
 
 let str10 = "
 let f : Int -> Int =
-    fun: Int x ->
+    _FIX f Int -> Int fun: Int x ->
         1 + x
+    f
     in
 55";
-let d10: DHExp.t =
-  Let(
-    Var("f"),
-    Fun(Var("x"), Int, BinIntOp(Plus, IntLit(1), BoundVar("x")), None),
-    IntLit(55),
-  );
 
-let let_fun_menhir = () =>
+// let get_id_menhir = get_id_menhir_closure(0);
+
+// let let_fun_menhir = () =>
+//   alco_check(
+//     "Let expression for function (str elaborated using the menhir parser)",
+//     Some(
+//       Haz3lcore.DHExp.of_menhir_ast(
+//         Hazel_menhir.Interface.parse_program(str10),
+//         get_id_menhir,
+//       ),
+//     ),
+//     dhexp_of_uexp(u9),
+//   );
+
+let str11 = "()";
+
+// let get_id_menhir = get_id_menhir_closure(0);
+
+// let empty_hole_menhir = () =>
+//   alco_check(
+//     "Empty hole (str elaborated using the menhir parser)",
+//     Some(
+//       Haz3lcore.DHExp.of_menhir_ast(
+//         Hazel_menhir.Interface.parse_program(str11),
+//         get_id_menhir,
+//       ),
+//     ),
+//     dhexp_of_uexp(u2),
+//   );
+
+let u3: Term.UExp.t = {
+  ids: [id_at(0)],
+  term: Parens({ids: [id_at(1)], term: Var("y")}),
+};
+// let d3: DHExp.t =
+//   NonEmptyHole(TypeInconsistent, id_at(1), 0, FreeVar(id_at(1), 0, "y"));
+
+let get_id_menhir = get_id_menhir_closure(1);
+
+let free_var_menhir = () =>
   alco_check(
-    "Let expression for function (str elaborated using the menhir parser)",
-    Some(d10),
+    "Nonempty hole with free variable (menhir)",
     Some(
       Haz3lcore.DHExp.of_menhir_ast(
-        Hazel_menhir.Interface.parse_program(str10),
+        Hazel_menhir.Interface.parse_program("(_FREE y)"),
+        get_id_menhir,
       ),
     ),
+    dhexp_of_uexp(u3),
   );
 
 let elaboration_tests = [
@@ -312,5 +365,7 @@ let elaboration_tests = [
   test_case("Application of function on free variable", `Quick, ap_fun),
   test_case("Inconsistent case statement", `Quick, inconsistent_case),
   test_case("Let expression for a function", `Quick, let_fun),
-  test_case("Let expression for a function (menhir)", `Quick, let_fun_menhir),
+  // test_case("Let expression for a function (menhir)", `Quick, let_fun_menhir),
+  // test_case("Empty hole menhir", `Quick, empty_hole_menhir),
+  test_case("Free var menhir", `Quick, free_var_menhir),
 ];

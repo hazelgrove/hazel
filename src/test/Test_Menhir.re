@@ -72,7 +72,7 @@ let parser_test = (a, expected, actual, ()) =>
 //     ),
 // );
 
-let fun_exp = AST.Fun(IntType, VarPat("x"), Var("x"));
+let fun_exp = AST.Fun(IntType, VarPat("x"), Var("x"), None);
 
 let fun_str = "fun: Int x -> x";
 

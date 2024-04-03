@@ -61,7 +61,7 @@ module rec DHExp: {
 
   let fast_equal: (t, t) => bool;
 
-  let of_menhir_ast: Hazel_menhir.AST.exp => t;
+  let of_menhir_ast: (Hazel_menhir.AST.exp, bool => Uuidm.t) => t;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -346,66 +346,86 @@ module rec DHExp: {
   };
 
   let rec rule_of_menhir_ast =
-          ((pat: Hazel_menhir.AST.pat, exp: Hazel_menhir.AST.exp)): rule => {
-    Rule(DHPat.of_menhir_ast(pat), of_menhir_ast(exp));
+          (
+            (pat: Hazel_menhir.AST.pat, exp: Hazel_menhir.AST.exp),
+            getId: bool => Id.t,
+          )
+          : rule => {
+    Rule(DHPat.of_menhir_ast(pat), of_menhir_ast(exp, getId));
   }
-  and of_menhir_ast = (exp: Hazel_menhir.AST.exp): t => {
+  //whenever we assign a hole an id, make sure to increment the idIndex value
+  and of_menhir_ast = (exp: Hazel_menhir.AST.exp, getId: bool => Id.t): t => {
+    let of_menhir_ast_noid = of_menhir_ast(_, getId);
+    let getId_all_args = getId;
+    // let getId_no_inc = () => getId(false);
+    let getId = () => getId(true);
+
     switch (exp) {
     | Int(i) => IntLit(i)
     | Float(f) => FloatLit(f)
     | String(s) => StringLit(s)
     | Bool(b) => BoolLit(b)
     | Var(x) => BoundVar(x)
+    | FreeVar(x) => FreeVar(getId_all_args(false), 0, x)
     | ArrayExp(l) =>
-      ListLit(Id.mk(), 0, Unknown(SynSwitch), List.map(of_menhir_ast, l))
-    | TupleExp(t) => Tuple(List.map(of_menhir_ast, t))
-    | Let(p, e1, e2) =>
-      Let(DHPat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
-    | Fun(t, p, e) =>
-      Fun(
-        DHPat.of_menhir_ast(p),
-        Typ.of_menhir_ast(t),
-        of_menhir_ast(e),
-        None,
+      ListLit(
+        Id.mk(),
+        0,
+        Unknown(SynSwitch),
+        List.map(of_menhir_ast_noid, l),
       )
-    // switch (p) {
-    // | TypeAnn(p, t) =>
-    //   Fun(
-    //     DHPat.of_menhir_ast(p),
-    //     Typ.of_menhir_ast(t),
-    //     of_menhir_ast(e),
-    //     None,
-    //   )
-    // | _ =>
-    //   raise(Invalid_argument("Menhir fun parsed without an annotated pat"))
-    // }
-    | Unit => EmptyHole(Id.mk(), 0)
-    | ApExp(e1, e2) => Ap(of_menhir_ast(e1), of_menhir_ast(e2))
+    | TupleExp(t) => Tuple(List.map(of_menhir_ast_noid, t))
+    | Let(p, e1, e2) =>
+      Let(
+        DHPat.of_menhir_ast(p),
+        of_menhir_ast_noid(e1),
+        of_menhir_ast_noid(e2),
+      )
+    | Fun(t, p, e, name_opt) =>
+      switch (name_opt) {
+      | Some(name_str) =>
+        Fun(
+          DHPat.of_menhir_ast(p),
+          Typ.of_menhir_ast(t),
+          of_menhir_ast_noid(e),
+          Some(name_str),
+        )
+      | None =>
+        Fun(
+          DHPat.of_menhir_ast(p),
+          Typ.of_menhir_ast(t),
+          of_menhir_ast_noid(e),
+          None,
+        )
+      }
+    | FixF(name, t, f) =>
+      FixF(name, Typ.of_menhir_ast(t), of_menhir_ast_noid(f))
+    | ApExp(e1, e2) => Ap(of_menhir_ast_noid(e1), of_menhir_ast_noid(e2))
     | BinExp(e1, op, e2) =>
       switch (op) {
       | IntOp(op) =>
         BinIntOp(
           TermBase.UExp.int_op_of_menhir_ast(op),
-          of_menhir_ast(e1),
-          of_menhir_ast(e2),
+          of_menhir_ast_noid(e1),
+          of_menhir_ast_noid(e2),
         )
       | FloatOp(op) =>
         BinFloatOp(
           TermBase.UExp.float_op_of_menhir_ast(op),
-          of_menhir_ast(e1),
-          of_menhir_ast(e2),
+          of_menhir_ast_noid(e1),
+          of_menhir_ast_noid(e2),
         )
       | BoolOp(op) =>
         BinBoolOp(
           TermBase.UExp.bool_op_of_menhir_ast(op),
-          of_menhir_ast(e1),
-          of_menhir_ast(e2),
+          of_menhir_ast_noid(e1),
+          of_menhir_ast_noid(e2),
         )
       }
     | If(e1, e2, e3) =>
-      let d_scrut = of_menhir_ast(e1);
-      let d1 = of_menhir_ast(e2);
-      let d2 = of_menhir_ast(e3);
+      let d_scrut = of_menhir_ast_noid(e1);
+      let d1 = of_menhir_ast_noid(e2);
+      let d2 = of_menhir_ast_noid(e3);
 
       let d_rules =
         DHExp.[Rule(BoolLit(true), d1), Rule(BoolLit(false), d2)];
@@ -413,13 +433,24 @@ module rec DHExp: {
       ConsistentCase(d);
 
     | CaseExp(e, l) =>
-      let d_scrut = of_menhir_ast(e);
-      let d_rules = List.map(rule_of_menhir_ast, l);
+      let d_scrut = of_menhir_ast_noid(e);
+      let d_rules = List.map(rule_of_menhir_ast(_, getId_all_args), l);
       ConsistentCase(Case(d_scrut, d_rules, 0));
-    // raise(Invalid_argument("Menhir Case -> DHExp not yet implemented")); //TODO: add in the slightly irritating translation of the list from the AST form to the DHExp form ConsistentCase(case(of_menhir_ast(e), , 0))
-
     | Cast(e, t1, t2) =>
-      Cast(of_menhir_ast(e), Typ.of_menhir_ast(t1), Typ.of_menhir_ast(t2))
+      Cast(
+        of_menhir_ast_noid(e),
+        Typ.of_menhir_ast(t1),
+        Typ.of_menhir_ast(t2),
+      )
+    | EmptyHole => EmptyHole(getId(), 0)
+    | NonEmptyHole(e) =>
+      let id = getId();
+      NonEmptyHole(
+        ErrStatus.HoleReason.TypeInconsistent,
+        id,
+        0,
+        of_menhir_ast_noid(e),
+      );
     // | _ => raise(Invalid_argument("Menhir AST -> DHExp not yet implemented"))
     };
   };
