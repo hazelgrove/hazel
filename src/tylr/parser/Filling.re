@@ -54,7 +54,7 @@ let fill_default = (nt: Bound.t(Molded.NT.t)) =>
   };
 
 // assumes precedence-correctness already checked
-let fill = (~l=false, ~r=false, fill: t, nt: Bound.t(Molded.NT.t)) => {
+let fill = (~l=false, ~r=false, fill: t, nt: Bound.t(Molded.NT.t)): Cell.t => {
   let fill = squash(fill);
   switch (get_space(fill)) {
   | Some(spc) => fill_default(nt) |> pad_cell(~side=L, spc)
