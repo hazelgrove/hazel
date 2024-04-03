@@ -495,3 +495,13 @@ let rec rev_concat: (list('a), list('a)) => list('a) =
     | [hd, ...tl] => rev_concat(tl, [hd, ...rs])
     };
   };
+
+let rec map3 = (f, xs, ys, zs) =>
+  switch (xs, ys, zs) {
+  | ([], [], []) => []
+  | ([x, ...xs], [y, ...ys], [z, ...zs]) => [
+      f(x, y, z),
+      ...map3(f, xs, ys, zs),
+    ]
+  | _ => failwith("Lists are of unequal length")
+  };
