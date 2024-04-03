@@ -2,10 +2,12 @@ include Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t('a) = {
+  [@show.opaque]
   ids: list(Id.t),
   /* UExp invariant: copied should always be false, and the id should be unique
      DHExp invariant: if copied is true, then this term and its children may not
      have unique ids. */
+  [@show.opaque]
   copied: bool,
   term: 'a,
 };

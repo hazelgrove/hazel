@@ -1,566 +1,74 @@
-open Util;
+type match_result = Unboxing.unboxed(Environment.t);
+let ( let* ) = Unboxing.( let* );
 
-type match_result =
-  | Matches(Environment.t)
-  | DoesNotMatch
-  | IndetMatch;
+let combine_result = (r1: match_result, r2: match_result): match_result =>
+  switch (r1, r2) {
+  | (DoesNotMatch, _)
+  | (_, DoesNotMatch) => DoesNotMatch
+  | (IndetMatch, _)
+  | (_, IndetMatch) => IndetMatch
+  | (Matches(env1), Matches(env2)) =>
+    Matches(Environment.union(env1, env2))
+  };
 
-let const_unknown: 'a => Typ.t = _ => Unknown(Internal) |> Typ.fresh;
-
-let cast_sum_maps = (_, _) => None; // TODO[Matt]: Fix
-
-// let cast_sum_maps =
-//     (sm1: Typ.sum_map, sm2: Typ.sum_map)
-//     : option(ConstructorMap.t((Typ.t, Typ.t))) => {
-//   let (ctrs1, tys1) = sm1 |> ConstructorMap.bindings |> List.split;
-//   let (ctrs2, tys2) = sm2 |> ConstructorMap.bindings |> List.split;
-//   if (ctrs1 == ctrs2) {
-//     let tys1 = tys1 |> List.filter(Option.is_some) |> List.map(Option.get);
-//     let tys2 = tys2 |> List.filter(Option.is_some) |> List.map(Option.get);
-//     if (List.length(tys1) == List.length(tys2)) {
-//       Some(
-//         List.(combine(tys1, tys2) |> combine(ctrs1))
-//         |> ConstructorMap.of_list,
-//       );
-//     } else {
-//       None;
-//     };
-//   } else {
-//     None;
-//   };
-// };
-
-let rec matches = (dp: Pat.t, d: DHExp.t): match_result =>
-  switch (DHPat.term_of(dp), DHExp.term_of(d)) {
-  | (Parens(x), _) => matches(x, d)
-  | (TypeAnn(x, _), _) => matches(x, d)
-  | (_, Var(_)) => DoesNotMatch
-  | (EmptyHole, _)
-  | (MultiHole(_), _)
-  | (Wild, _) => Matches(Environment.empty)
-  | (Invalid(_), _) => IndetMatch
-  | (Var(x), _) =>
-    let env = Environment.extend(Environment.empty, (x, d));
-    Matches(env);
-  | (_, EmptyHole) => IndetMatch
-  | (_, StaticErrorHole(_)) => IndetMatch
-  | (_, FailedCast(_)) => IndetMatch
-  | (_, DynamicErrorHole(_)) => IndetMatch
-  | (_, Invalid(_)) => IndetMatch
-  | (_, Let(_)) => IndetMatch
-  | (_, FixF(_)) => DoesNotMatch
-  | (_, Fun(_)) => DoesNotMatch
-  | (_, BinOp(_)) => IndetMatch
-  | (_, UnOp(_)) => IndetMatch
-  | (_, Match(_, _)) => IndetMatch
-
-  /* Closure should match like underlying expression. */
-  | (_, Closure(_, d'))
-  | (_, Filter(_, d')) => matches(dp, d')
-
-  | (Bool(b1), Bool(b2)) =>
-    if (b1 == b2) {
-      Matches(Environment.empty);
+let rec matches = (m: Statics.Map.t, dp: Pat.t, d: DHExp.t): match_result =>
+  switch (DHPat.term_of(dp)) {
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | Wild => Matches(Environment.empty)
+  | Int(n) =>
+    let* n' = Unboxing.unbox(Int, d);
+    n == n' ? Matches(Environment.empty) : DoesNotMatch;
+  | Float(n) =>
+    let* n' = Unboxing.unbox(Float, d);
+    n == n' ? Matches(Environment.empty) : DoesNotMatch;
+  | Bool(b) =>
+    let* b' = Unboxing.unbox(Bool, d);
+    b == b' ? Matches(Environment.empty) : DoesNotMatch;
+  | String(s) =>
+    let* s' = Unboxing.unbox(String, d);
+    s == s' ? Matches(Environment.empty) : DoesNotMatch;
+  | ListLit(xs) =>
+    let* s' = Unboxing.unbox(List, d);
+    if (List.length(xs) == List.length(s')) {
+      List.map2(matches(m), xs, s')
+      |> List.fold_left(combine_result, Matches(Environment.empty));
     } else {
       DoesNotMatch;
-    }
-  | (Bool(_), Cast(d, {term: Bool, _}, {term: Unknown(_), _})) =>
-    matches(dp, d)
-  | (Bool(_), Cast(d, {term: Unknown(_), _}, {term: Bool, _})) =>
-    matches(dp, d)
-  | (Bool(_), _) => DoesNotMatch
-  | (Int(n1), Int(n2)) =>
-    if (n1 == n2) {
-      Matches(Environment.empty);
-    } else {
-      DoesNotMatch;
-    }
-  | (Int(_), Cast(d, {term: Int, _}, {term: Unknown(_), _})) =>
-    matches(dp, d)
-  | (Int(_), Cast(d, {term: Unknown(_), _}, {term: Int, _})) =>
-    matches(dp, d)
-  | (Int(_), _) => DoesNotMatch
-  | (Float(n1), Float(n2)) =>
-    if (n1 == n2) {
-      Matches(Environment.empty);
-    } else {
-      DoesNotMatch;
-    }
-  | (Float(_), Cast(d, {term: Float, _}, {term: Unknown(_), _})) =>
-    matches(dp, d)
-  | (Float(_), Cast(d, {term: Unknown(_), _}, {term: Float, _})) =>
-    matches(dp, d)
-  | (Float(_), _) => DoesNotMatch
-  | (String(s1), String(s2)) =>
-    if (s1 == s2) {
-      Matches(Environment.empty);
-    } else {
-      DoesNotMatch;
-    }
-  | (String(_), Cast(d, {term: String, _}, {term: Unknown(_), _})) =>
-    matches(dp, d)
-  | (String(_), Cast(d, {term: Unknown(_), _}, {term: String, _})) =>
-    matches(dp, d)
-  | (String(_), _) => DoesNotMatch
-
-  | (Ap(dp1, dp2), Ap(_, d1, d2)) =>
-    switch (matches(dp1, d1)) {
-    | DoesNotMatch => DoesNotMatch
-    | IndetMatch =>
-      switch (matches(dp2, d2)) {
-      | DoesNotMatch => DoesNotMatch
-      | IndetMatch
-      | Matches(_) => IndetMatch
-      }
-    | Matches(env1) =>
-      switch (matches(dp2, d2)) {
-      | DoesNotMatch => DoesNotMatch
-      | IndetMatch => IndetMatch
-      | Matches(env2) => Matches(Environment.union(env1, env2))
-      }
-    }
-  | (
-      Ap({term: Constructor(ctr), _}, dp_opt),
-      Cast(
-        d,
-        {term: Sum(sm1) | Rec(_, {term: Sum(sm1), _}), _},
-        {term: Sum(sm2) | Rec(_, {term: Sum(sm2), _}), _},
-      ),
-    ) =>
-    switch (cast_sum_maps(sm1, sm2)) {
-    | Some(castmap) => matches_cast_Sum(ctr, Some(dp_opt), d, [castmap])
-    | None => DoesNotMatch
-    }
-
-  | (
-      Ap(_, _),
-      Cast(
-        d,
-        {term: Sum(_) | Rec(_, {term: Sum(_), _}), _},
-        {term: Unknown(_), _},
-      ),
-    )
-  | (
-      Ap(_, _),
-      Cast(
-        d,
-        {term: Unknown(_), _},
-        {term: Sum(_) | Rec(_, {term: Sum(_), _}), _},
-      ),
-    ) =>
-    matches(dp, d)
-  | (Ap(_, _), _) => DoesNotMatch
-
-  | (Constructor(ctr), Constructor(ctr')) =>
-    ctr == ctr' ? Matches(Environment.empty) : DoesNotMatch
-  | (
-      Constructor(ctr),
-      Cast(
-        d,
-        {term: Sum(sm1) | Rec(_, {term: Sum(sm1), _}), _},
-        {term: Sum(sm2) | Rec(_, {term: Sum(sm2), _}), _},
-      ),
-    ) =>
-    switch (cast_sum_maps(sm1, sm2)) {
-    | Some(castmap) => matches_cast_Sum(ctr, None, d, [castmap])
-    | None => DoesNotMatch
-    }
-  | (
-      Constructor(_),
-      Cast(
-        d,
-        {term: Sum(_) | Rec(_, {term: Sum(_), _}), _},
-        {term: Unknown(_), _},
-      ),
-    ) =>
-    matches(dp, d)
-  | (
-      Constructor(_),
-      Cast(
-        d,
-        {term: Unknown(_), _},
-        {term: Sum(_) | Rec(_, {term: Sum(_), _}), _},
-      ),
-    ) =>
-    matches(dp, d)
-  | (Constructor(_), _) => DoesNotMatch
-
-  | (Tuple(dps), Tuple(ds)) =>
-    if (List.length(dps) != List.length(ds)) {
-      DoesNotMatch;
-    } else {
-      List.fold_left2(
-        (result, dp, d) =>
-          switch (result) {
-          | DoesNotMatch => DoesNotMatch
-          | IndetMatch => IndetMatch
-          | Matches(env) =>
-            switch (matches(dp, d)) {
-            | DoesNotMatch => DoesNotMatch
-            | IndetMatch => IndetMatch
-            | Matches(env') => Matches(Environment.union(env, env'))
-            }
-          },
-        Matches(Environment.empty),
-        dps,
-        ds,
-      );
-    }
-  | (Tuple(dps), Cast(d, {term: Prod(tys), _}, {term: Prod(tys'), _})) =>
-    assert(List.length(tys) == List.length(tys'));
-    matches_cast_Tuple(
-      dps,
-      d,
-      List.map(p => [p], List.combine(tys, tys')),
-    );
-  | (Tuple(dps), Cast(d, {term: Prod(tys), _}, {term: Unknown(_), _})) =>
-    matches_cast_Tuple(
-      dps,
-      d,
-      List.map(
-        p => [p],
-        List.combine(tys, List.init(List.length(tys), const_unknown)),
-      ),
-    )
-  | (Tuple(dps), Cast(d, {term: Unknown(_), _}, {term: Prod(tys'), _})) =>
-    matches_cast_Tuple(
-      dps,
-      d,
-      List.map(
-        p => [p],
-        List.combine(List.init(List.length(tys'), const_unknown), tys'),
-      ),
-    )
-  | (Tuple(_), Cast(_)) => DoesNotMatch
-  | (Tuple(_), _) => DoesNotMatch
-  | (
-      Cons(_) | ListLit(_),
-      Cast(d, {term: List(ty1), _}, {term: List(ty2), _}),
-    ) =>
-    matches_cast_Cons(dp, d, [(ty1, ty2)])
-  | (
-      Cons(_) | ListLit(_),
-      Cast(d, {term: Unknown(_), _}, {term: List(ty2), _}),
-    ) =>
-    matches_cast_Cons(dp, d, [(Unknown(Internal) |> Typ.fresh, ty2)])
-  | (
-      Cons(_) | ListLit(_),
-      Cast(d, {term: List(ty1), _}, {term: Unknown(_), _}),
-    ) =>
-    matches_cast_Cons(dp, d, [(ty1, Unknown(Internal) |> Typ.fresh)])
-  | (Cons(_, _), Cons(_, _))
-  | (ListLit(_), Cons(_, _))
-  | (Cons(_, _), ListLit(_))
-  | (ListLit(_), ListLit(_)) => matches_cast_Cons(dp, d, [])
-  | (Cons(_) | ListLit(_), _) => DoesNotMatch
-  }
-and matches_cast_Sum =
-    (
-      _ctr: string,
-      _dp: option(Pat.t),
-      _d: DHExp.t,
-      _castmaps: list(ConstructorMap.t((Typ.t, Typ.t))),
-    )
-    : match_result =>
-  IndetMatch // TODO[Matt]: fix
-// switch (DHExp.term_of(d)) {
-// | Parens(d) => matches_cast_Sum(ctr, dp, d, castmaps)
-// | Constructor(ctr') =>
-//   switch (
-//     dp,
-//     castmaps |> List.map(ConstructorMap.find_opt(ctr')) |> OptUtil.sequence,
-//   ) {
-//   | (None, Some(_)) =>
-//     ctr == ctr' ? Matches(Environment.empty) : DoesNotMatch
-//   | _ => DoesNotMatch
-//   }
-// | Ap(_, d1, d2) =>
-//   switch (DHExp.term_of(d1)) {
-//   | Constructor(ctr') =>
-//     switch (
-//       dp,
-//       castmaps
-//       |> List.map(ConstructorMap.find_opt(ctr'))
-//       |> OptUtil.sequence,
-//     ) {
-//     | (Some(dp), Some(side_casts)) =>
-//       matches(dp, DHExp.apply_casts(d2, side_casts))
-//     | _ => DoesNotMatch
-//     }
-//   | _ => IndetMatch
-//   }
-// | Cast(
-//     d',
-//     {term: Sum(sm1) | Rec(_, {term: Sum(sm1), _}), _},
-//     {term: Sum(sm2) | Rec(_, {term: Sum(sm2), _}), _},
-//   ) =>
-//   switch (cast_sum_maps(sm1, sm2)) {
-//   | Some(castmap) => matches_cast_Sum(ctr, dp, d', [castmap, ...castmaps])
-//   | None => DoesNotMatch
-//   }
-// | Cast(
-//     d',
-//     {term: Sum(_) | Rec(_, {term: Sum(_), _}), _},
-//     {term: Unknown(_), _},
-//   )
-// | Cast(
-//     d',
-//     {term: Unknown(_), _},
-//     {term: Sum(_) | Rec(_, {term: Sum(_), _}), _},
-//   ) =>
-//   matches_cast_Sum(ctr, dp, d', castmaps)
-// | Invalid(_)
-// | Let(_)
-// | UnOp(_)
-// | BinOp(_)
-// | EmptyHole
-// | MultiHole(_)
-// | StaticErrorHole(_)
-// | FailedCast(_, _, _)
-// | Test(_)
-// | DynamicErrorHole(_)
-// | Match(_)
-// | If(_)
-// | TyAlias(_)
-// | BuiltinFun(_) => IndetMatch
-// | Cast(_)
-// | Var(_)
-// | FixF(_)
-// | Fun(_)
-// | Bool(_)
-// | Int(_)
-// | Float(_)
-// | String(_)
-// | ListLit(_)
-// | Tuple(_)
-// | Seq(_, _)
-// | Closure(_)
-// | Filter(_)
-// | Cons(_)
-// | ListConcat(_) => DoesNotMatch
-// }
-and matches_cast_Tuple =
-    (dps: list(Pat.t), d: DHExp.t, elt_casts: list(list((Typ.t, Typ.t))))
-    : match_result =>
-  switch (DHExp.term_of(d)) {
-  | Parens(d) => matches_cast_Tuple(dps, d, elt_casts)
-  | Tuple(ds) =>
-    if (List.length(dps) != List.length(ds)) {
-      DoesNotMatch;
-    } else {
-      assert(List.length(List.combine(dps, ds)) == List.length(elt_casts));
-      List.fold_right(
-        (((dp, d), casts), result) => {
-          switch (result) {
-          | DoesNotMatch
-          | IndetMatch => result
-          | Matches(env) =>
-            switch (matches(dp, DHExp.apply_casts(d, casts))) {
-            | DoesNotMatch => DoesNotMatch
-            | IndetMatch => IndetMatch
-            | Matches(env') => Matches(Environment.union(env, env'))
-            }
-          }
-        },
-        List.combine(List.combine(dps, ds), elt_casts),
-        Matches(Environment.empty),
-      );
-    }
-  | Cast(d', {term: Prod(tys), _}, {term: Prod(tys'), _}) =>
-    if (List.length(dps) != List.length(tys)) {
-      DoesNotMatch;
-    } else {
-      assert(List.length(tys) == List.length(tys'));
-      matches_cast_Tuple(
-        dps,
-        d',
-        List.map2(List.cons, List.combine(tys, tys'), elt_casts),
-      );
-    }
-  | Cast(d', {term: Prod(tys), _}, {term: Unknown(_), _}) =>
-    let tys' = List.init(List.length(tys), const_unknown);
-    matches_cast_Tuple(
-      dps,
-      d',
-      List.map2(List.cons, List.combine(tys, tys'), elt_casts),
-    );
-  | Cast(d', {term: Unknown(_), _}, {term: Prod(tys'), _}) =>
-    let tys = List.init(List.length(tys'), const_unknown);
-    matches_cast_Tuple(
-      dps,
-      d',
-      List.map2(List.cons, List.combine(tys, tys'), elt_casts),
-    );
-  | Cast(_, _, _) => DoesNotMatch
-  | Var(_) => DoesNotMatch
-  | Invalid(_) => IndetMatch
-  | Let(_, _, _) => IndetMatch
-  | FixF(_, _, _) => DoesNotMatch
-  | Fun(_, _, _, _) => DoesNotMatch
-  | Closure(_, _) => IndetMatch
-  | Filter(_, _) => IndetMatch
-  | Ap(_, _, _) => IndetMatch
-  | TyAlias(_) => IndetMatch
-  | UnOp(_, _)
-  | BinOp(_, _, _) => DoesNotMatch
-  | Bool(_) => DoesNotMatch
-  | Int(_) => DoesNotMatch
-  | Seq(_)
-  | BuiltinFun(_)
-  | Test(_) => DoesNotMatch
-  | Float(_) => DoesNotMatch
-  | String(_) => DoesNotMatch
-  | ListLit(_) => DoesNotMatch
-  | Cons(_, _) => DoesNotMatch
-  | ListConcat(_) => DoesNotMatch
-  | Constructor(_) => DoesNotMatch
-  | Match(_) => IndetMatch
-  | EmptyHole => IndetMatch
-  | MultiHole(_) => IndetMatch
-  | StaticErrorHole(_) => IndetMatch
-  | FailedCast(_, _, _) => IndetMatch
-  | DynamicErrorHole(_) => IndetMatch
-  | If(_) => IndetMatch
-  }
-and matches_cast_Cons =
-    (dp: Pat.t, d: DHExp.t, elt_casts: list((Typ.t, Typ.t))): match_result =>
-  switch (DHExp.term_of(d)) {
-  | Parens(d) => matches_cast_Cons(dp, d, elt_casts)
-  | ListLit([]) =>
-    switch (DHPat.term_of(dp)) {
-    | ListLit([]) => Matches(Environment.empty)
-    | _ => DoesNotMatch
-    }
-  | ListLit([dhd, ...dtl] as ds) =>
-    switch (DHPat.term_of(dp)) {
-    | Cons(dp1, dp2) =>
-      switch (matches(dp1, DHExp.apply_casts(dhd, elt_casts))) {
-      | DoesNotMatch => DoesNotMatch
-      | IndetMatch => IndetMatch
-      | Matches(env1) =>
-        let list_casts =
-          List.map(
-            (c: (Typ.t, Typ.t)) => {
-              let (ty1, ty2) = c;
-              (Typ.List(ty1) |> Typ.fresh, Typ.List(ty2) |> Typ.fresh);
-            },
-            elt_casts,
-          );
-        let d2 = DHExp.ListLit(dtl) |> DHExp.fresh;
-        switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
-        | DoesNotMatch => DoesNotMatch
-        | IndetMatch => IndetMatch
-        | Matches(env2) => Matches(Environment.union(env1, env2))
-        };
-      }
-    | ListLit(dps) =>
-      switch (ListUtil.opt_zip(dps, ds)) {
-      | None => DoesNotMatch
-      | Some(lst) =>
-        lst
-        |> List.map(((dp, d)) =>
-             matches(dp, DHExp.apply_casts(d, elt_casts))
-           )
-        |> List.fold_left(
-             (match1, match2) =>
-               switch (match1, match2) {
-               | (DoesNotMatch, _)
-               | (_, DoesNotMatch) => DoesNotMatch
-               | (IndetMatch, _)
-               | (_, IndetMatch) => IndetMatch
-               | (Matches(env1), Matches(env2)) =>
-                 Matches(Environment.union(env1, env2))
-               },
-             Matches(Environment.empty),
-           )
-      }
-    | _ => failwith("called matches_cast_Cons with non-list pattern")
-    }
-  | Cons(d1, d2) =>
-    switch (DHPat.term_of(dp)) {
-    | Cons(dp1, dp2) =>
-      switch (matches(dp1, DHExp.apply_casts(d1, elt_casts))) {
-      | DoesNotMatch => DoesNotMatch
-      | IndetMatch => IndetMatch
-      | Matches(env1) =>
-        let list_casts =
-          List.map(
-            (c: (Typ.t, Typ.t)) => {
-              let (ty1, ty2) = c;
-              (Typ.List(ty1) |> Typ.fresh, Typ.List(ty2) |> Typ.fresh);
-            },
-            elt_casts,
-          );
-        switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
-        | DoesNotMatch => DoesNotMatch
-        | IndetMatch => IndetMatch
-        | Matches(env2) => Matches(Environment.union(env1, env2))
-        };
-      }
-    | ListLit([]) => DoesNotMatch
-    | ListLit([dphd, ...dptl]) =>
-      switch (matches(dphd, DHExp.apply_casts(d1, elt_casts))) {
-      | DoesNotMatch => DoesNotMatch
-      | IndetMatch => IndetMatch
-      | Matches(env1) =>
-        let list_casts =
-          List.map(
-            (c: (Typ.t, Typ.t)) => {
-              let (ty1, ty2) = c;
-              (Typ.List(ty1) |> Typ.fresh, Typ.List(ty2) |> Typ.fresh);
-            },
-            elt_casts,
-          );
-        let dp2 = Pat.ListLit(dptl) |> DHPat.fresh;
-        switch (matches(dp2, DHExp.apply_casts(d2, list_casts))) {
-        | DoesNotMatch => DoesNotMatch
-        | IndetMatch => IndetMatch
-        | Matches(env2) => Matches(Environment.union(env1, env2))
-        };
-      }
-    | _ => failwith("called matches_cast_Cons with non-list pattern")
-    }
-  | Cast(d', {term: List(ty1), _}, {term: List(ty2), _}) =>
-    matches_cast_Cons(dp, d', [(ty1, ty2), ...elt_casts])
-  | Cast(d', {term: List(ty1), _}, {term: Unknown(_), _}) =>
-    matches_cast_Cons(
-      dp,
-      d',
-      [(ty1, Unknown(Internal) |> Typ.fresh), ...elt_casts],
-    )
-  | Cast(d', {term: Unknown(_), _}, {term: List(ty2), _}) =>
-    matches_cast_Cons(
-      dp,
-      d',
-      [(Unknown(Internal) |> Typ.fresh, ty2), ...elt_casts],
-    )
-  | Cast(_, _, _) => DoesNotMatch
-  | Var(_) => DoesNotMatch
-  | Invalid(_) => IndetMatch
-  | Let(_, _, _) => IndetMatch
-  | FixF(_, _, _) => DoesNotMatch
-  | Fun(_, _, _, _) => DoesNotMatch
-  | Closure(_, d') => matches_cast_Cons(dp, d', elt_casts)
-  | Filter(_, d') => matches_cast_Cons(dp, d', elt_casts)
-  | Ap(_, _, _) => IndetMatch
-  | TyAlias(_) => IndetMatch
-  | UnOp(_, _)
-  | BinOp(_, _, _)
-  | ListConcat(_)
-  | BuiltinFun(_) => DoesNotMatch
-  | Bool(_) => DoesNotMatch
-  | Int(_) => DoesNotMatch
-  | Seq(_)
-  | Test(_) => DoesNotMatch
-  | Float(_) => DoesNotMatch
-  | String(_) => DoesNotMatch
-  | Tuple(_) => DoesNotMatch
-  | Constructor(_) => DoesNotMatch
-  | Match(_) => IndetMatch
-  | EmptyHole => IndetMatch
-  | MultiHole(_) => IndetMatch
-  | StaticErrorHole(_) => IndetMatch
-  | FailedCast(_, _, _) => IndetMatch
-  | DynamicErrorHole(_) => IndetMatch
-  | If(_) => IndetMatch
+    };
+  | Cons(x, xs) =>
+    let* (x', xs') = Unboxing.unbox(Cons, d);
+    let* m_x = matches(m, x, x');
+    let* m_xs = matches(m, xs, xs');
+    Matches(Environment.union(m_x, m_xs));
+  | Constructor(ctr) =>
+    let* () = Unboxing.unbox(SumNoArg(ctr), d);
+    Matches(Environment.empty);
+  | Ap({term: Constructor(ctr), _}, p2) =>
+    let* d2 = Unboxing.unbox(SumWithArg(ctr), d);
+    matches(m, p2, d2);
+  | Ap(_, _) => IndetMatch // TODO: should this fail?
+  | Var(x) => Matches(Environment.singleton((x, d)))
+  | Tuple(ps) =>
+    let* ds = Unboxing.unbox(Tuple(List.length(ps)), d);
+    List.map2(matches(m), ps, ds)
+    |> List.fold_left(combine_result, Matches(Environment.empty));
+  | Parens(p) => matches(m, p, d)
+  | TypeAnn(p, t) =>
+    let _ = print_endline("TypeAnn");
+    let mode =
+      switch (Id.Map.find_opt(Pat.rep_id(p), m)) {
+      | Some(Info.InfoPat({mode, _})) => mode
+      | _ => raise(Elaborator.MissingTypeInfo)
+      };
+    switch (mode) {
+    | Ana(ana_ty) when !Typ.eq(ana_ty, t) =>
+      let _ = Typ.show(ana_ty) |> print_endline;
+      let _ = Typ.show(t) |> print_endline;
+      matches(m, p, Cast(d, ana_ty, t) |> DHExp.fresh);
+    | Ana(_)
+    | Syn
+    | SynFun => matches(m, p, d)
+    };
   };

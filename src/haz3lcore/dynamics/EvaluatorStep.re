@@ -172,7 +172,11 @@ module Decompose = {
           Step({apply: () => d1, kind: CompleteFilter, value: true});
         }
       )
-    | _ => Decomp.transition(decompose, state, env, exp)
+    | _ =>
+      switch (Decomp.transition(decompose, state, env, exp)) {
+      | r => r
+      | exception (EvaluatorError.Exception(_)) => Result.Indet
+      }
     };
   };
 };
