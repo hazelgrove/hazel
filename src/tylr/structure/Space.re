@@ -27,11 +27,11 @@ module Molded = {
   let t = (Mtrl.Space, Mold.of_t);
 };
 
-module Token = {
-  include Token;
-  let empty = Token.mk(Mtrl.Space, Mold.of_t);
-  let cursor = failwith("todo");
-};
+// module Token = {
+//   include Token;
+//   let empty = Token.mk(Mtrl.Space, Mold.of_t);
+//   let cursor = failwith("todo");
+// };
 
 module Meld = {
   let mk = (tok: Token.t) => {

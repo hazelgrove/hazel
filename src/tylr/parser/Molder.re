@@ -31,7 +31,7 @@ module Molds = {
          map =>
            fun
            | Bound.Root => map
-           | Node(Molded.{mtrl, mold}) =>
+           | Node((mtrl, mold)) =>
              map
              |> update(
                   mtrl,
@@ -49,22 +49,22 @@ module Molds = {
     };
 };
 
-let candidates = (t: Token.Labeled.t): list(Token.t) =>
+let candidates = (t: Token.Unmolded.t): list(Token.t) =>
   List.map(
-    Token.mk(~id=t.id, ~text=t.text),
-    switch (t.lbl) {
-    | Space => [Molded.Labeled.space]
+    ((mtrl, mold)) => Token.mk(~id=t.id, ~text=t.text, mtrl, mold),
+    switch (t.mtrl) {
+    | Space => [Space.Molded.t]
     | Grout => failwith("bug: attempted to mold grout")
     | Tile(lbls) =>
       lbls
       |> List.concat_map(lbl =>
            Molds.with_label(Tile(lbl))
-           |> List.map(mold => Molded.{mold, mtrl: Mtrl.Tile(lbl)})
+           |> List.map(mold => (Mtrl.Tile(lbl), mold))
          )
     },
   );
 
-let mold = (ctx: Ctx.t, ~fill=[], t: Token.Labeled.t) => {
+let mold = (ctx: Ctx.t, ~fill=[], t: Token.Unmolded.t) =>
   switch (
     candidates(t)
     |> Oblig.Delta.minimize(tok => Melder.Ctx.push(~onto=L, tok, ~fill, ctx))
@@ -72,10 +72,9 @@ let mold = (ctx: Ctx.t, ~fill=[], t: Token.Labeled.t) => {
   | Some(ctx) => ctx
   | None =>
     ctx
-    |> Melder.Ctx.push(~onto=L, Token.Labeled.unlabel(t))
+    |> Melder.Ctx.push(~onto=L, Token.Unmolded.unlabel(t))
     |> OptUtil.get_or_fail("bug: failed to meld unmolded token")
   };
-};
 
 let rec remold = (~fill=[], ctx: Ctx.t) => {
   let ((dn, up), tl) = Ctx.split_fst(ctx);

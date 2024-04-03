@@ -15,9 +15,15 @@ module Base = {
     {id, mtrl, mold, text};
   };
 };
-include Base;
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t = Base.t(Mtrl.Labeled.t, Mold.t);
+// include Base;
+
+module Molded = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = Base.t(Mtrl.Labeled.t, Mold.t);
+  let mk = (~id=?, ~text="", mtrl: Mtrl.Labeled.t, mold: Mold.t) =>
+    Base.mk(~id?, ~text, mtrl, mold);
+};
+include Molded;
 
 let id_ = (tok: t) => tok.id;
 let text_ = (tok: t) => tok.text;
@@ -49,19 +55,27 @@ let is_ghost = (tok: t) =>
   | Tile(lbl) => !Label.is_complete(tok.text, lbl)
   };
 
+module Space = {
+  let mk = (~id=?, ~text="", ()) =>
+    Molded.mk(~id?, ~text, Space, Space.Mold.of_t);
+  let empty = mk();
+  let cursor = failwith("todo");
+};
+
 module Unmolded = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Base.t(Mtrl.t(list(Label.t)), unit);
-  let mk = (~id=?, ~text="", mtrl: Mtrl.t(_)) => mk(~id?, ~text, mtrl, ());
-};
-let unmold = (tok: t): Unmolded.t => {
-  let mk = Unmolded.mk(~id=tok.id, ~text=tok.text);
-  switch (tok.mtrl) {
-  | Space => mk(Space)
-  | Grout => mk(Grout)
-  | Tile(lbl) =>
-    mk(Tile(is_empty(tok) ? [lbl] : Labels.completions(tok.text)))
+  let unmold = (tok: Molded.t): t => {
+    let mtrl =
+      switch (tok.mtrl) {
+      | Space => Mtrl.Space
+      | Grout => Grout
+      | Tile(lbl) =>
+        Tile(is_empty(tok) ? [lbl] : Labels.completions(tok.text))
+      };
+    Base.mk(~id=tok.id, ~text=tok.text, mtrl, ());
   };
+  let defer = (tok: t): Molded.t => Space.mk(~id=tok.id, ~text=tok.text, ());
 };
 
 let merge_text = (l: t, r: t) => {
