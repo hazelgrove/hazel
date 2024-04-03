@@ -65,6 +65,8 @@ module Space = {
 module Unmolded = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Base.t(Mtrl.t(list(Label.t)), unit);
+  let mk = (~id=?, ~text="", mtrl: Mtrl.t(list(Label.t))) =>
+    Base.mk(~id?, ~text, mtrl, ());
   let unmold = (tok: Molded.t): t => {
     let mtrl =
       switch (tok.mtrl) {
@@ -73,7 +75,7 @@ module Unmolded = {
       | Tile(lbl) =>
         Tile(is_empty(tok) ? [lbl] : Labels.completions(tok.text))
       };
-    Base.mk(~id=tok.id, ~text=tok.text, mtrl, ());
+    mk(~id=tok.id, ~text=tok.text, mtrl);
   };
   let defer = (tok: t): Molded.t => Space.mk(~id=tok.id, ~text=tok.text, ());
 };

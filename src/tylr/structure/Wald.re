@@ -4,9 +4,6 @@ include Meld.Wald;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = Meld.Wald.t(Cell.t);
 
-let mk = (toks: list(_), cells: list(Cell.t)) => W(Chain.mk(toks, cells));
-let unit = tok => mk([tok], []);
-
 let split_hd = (W(w)) => Chain.split_fst(w);
 let hd = w => fst(split_hd(w));
 

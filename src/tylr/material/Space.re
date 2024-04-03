@@ -33,15 +33,15 @@ module Molded = {
 //   let cursor = failwith("todo");
 // };
 
-module Meld = {
-  let mk = (tok: Token.t) => {
-    assert(Mtrl.is_space(tok.mtrl));
-    Meld.mk(Wald.unit(tok));
-  };
-  let cursor = mk(Token.cursor);
+// module Meld = {
+//   let mk = (tok: Token.t) => {
+//     assert(Mtrl.is_space(tok.mtrl));
+//     Meld.mk(Wald.unit(tok));
+//   };
+//   let cursor = mk(Token.cursor);
 
-  let get =
-    fun
-    | Meld.M(_, W(([tok], [])), _) when Token.is_space(tok) => Some(tok)
-    | _ => None;
-};
+//   let get =
+//     fun
+//     | Meld.M(_, W(([tok], [])), _) when Token.is_space(tok) => Some(tok)
+//     | _ => None;
+// };

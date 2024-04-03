@@ -22,7 +22,9 @@ module Wald = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t('cell) =
     | W(Chain.t(Token.t, 'cell));
-  let of_tok = tok => W(Chain.unit(tok));
+  let mk = (toks: list(_), cells: list(Cell.t(_))) =>
+    W(Chain.mk(toks, cells));
+  let unit = tok => mk([tok], []);
   let face = (~side=Dir.L, W(w): t(_)) => {
     let tok = Dir.pick(side, (Chain.fst, Chain.lst), w);
     (tok.mtrl, tok.mold);
@@ -42,6 +44,18 @@ let is_empty =
   | M({meld: None, _}, W(([tok], [])), {meld: None, _}) =>
     Token.is_empty(tok)
   | _ => false;
+
+module Space = {
+  let mk = (tok: Token.t) => {
+    assert(Mtrl.is_space(tok.mtrl));
+    mk(Wald.unit(tok));
+  };
+  let cursor = mk(Token.Space.cursor);
+  let get =
+    fun
+    | M(_, W(([tok], [])), _) when Token.is_space(tok) => Some(tok)
+    | _ => None;
+};
 
 // let get_spaces = ms =>
 //   ms
