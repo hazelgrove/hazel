@@ -279,7 +279,7 @@ module Zigg = {
   let grow = (~side: Dir.t, tok: Token.t, zigg: Z.t) =>
     switch (push(~side, tok, zigg)) {
     | Ok(zigg) => zigg
-    | Error(s_b) => Z.unorient(side, ([], W.of_tok(tok), s_b))
+    | Error(s_b) => Z.unorient(side, ([], W.unit(tok), s_b))
     };
 
   let rec take_leq = (zigg: Z.t, ~fill=[], suf: S.Up.t) =>

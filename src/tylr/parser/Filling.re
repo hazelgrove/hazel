@@ -21,16 +21,16 @@ let squash = _ => failwith("todo: squash");
 
 let get_space =
   fun
-  | [] => Some(Space.Token.empty)
-  | [m] => Space.Meld.get(m)
+  | [] => Some(Token.Space.empty)
+  | [m] => Meld.Space.get(m)
   | [_, ..._] => None;
 
 let rec pad_meld = (~side as d: Dir.t, spc: Token.t, m: Meld.t) =>
-  switch (Space.Meld.get(m)) {
+  switch (Meld.Space.get(m)) {
   | Some(spc') =>
     let (l, r) = Dir.order(d, (spc, spc'));
     let spc = Token.merge_text(l, r);
-    Space.Meld.mk(spc);
+    Meld.Space.mk(spc);
   | None =>
     let M(l, w, r) = m;
     let (c_d, c_b) = Dir.order(d, (l, r));
@@ -41,7 +41,7 @@ let rec pad_meld = (~side as d: Dir.t, spc: Token.t, m: Meld.t) =>
 and pad_cell = (~side: Dir.t, spc: Token.t, c: Cell.t) => {
   let m =
     switch (Cell.get(c)) {
-    | None => Space.Meld.mk(spc)
+    | None => Meld.Space.mk(spc)
     | Some(m) => pad_meld(~side, spc, m)
     };
   Cell.put(~padding=c.padding, m);

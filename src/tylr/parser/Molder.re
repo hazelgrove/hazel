@@ -72,7 +72,7 @@ let mold = (ctx: Ctx.t, ~fill=[], t: Token.Unmolded.t) =>
   | Some(ctx) => ctx
   | None =>
     ctx
-    |> Melder.Ctx.push(~onto=L, Token.Unmolded.unlabel(t))
+    |> Melder.Ctx.push(~onto=L, Token.Unmolded.defer(t))
     |> OptUtil.get_or_fail("bug: failed to meld unmolded token")
   };
 
