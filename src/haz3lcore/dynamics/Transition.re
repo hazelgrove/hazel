@@ -1,5 +1,5 @@
-open Sexplib.Std;
 open Util;
+open Sexplib.Std;
 open PatternMatch;
 
 /* Transition.re
@@ -72,68 +72,6 @@ type step_kind =
   | Cast
   | RemoveTypeAlias
   | RemoveParens;
-
-module CastHelpers = {
-  [@deriving sexp]
-  type ground_cases =
-    | Hole
-    | Ground
-    | NotGroundOrHole(Typ.t) /* the argument is the corresponding ground type */;
-
-  let const_unknown: 'a => Typ.t = _ => Unknown(Internal) |> Typ.fresh;
-
-  let grounded_Arrow =
-    NotGroundOrHole(
-      Arrow(Unknown(Internal) |> Typ.fresh, Unknown(Internal) |> Typ.fresh)
-      |> Typ.fresh,
-    );
-  let grounded_Prod = length =>
-    NotGroundOrHole(
-      Prod(ListUtil.replicate(length, Typ.Unknown(Internal) |> Typ.fresh))
-      |> Typ.fresh,
-    );
-  let grounded_Sum: unit => Typ.sum_map =
-    () => [BadEntry(Typ.fresh(Unknown(Internal)))];
-  let grounded_List =
-    NotGroundOrHole(List(Unknown(Internal) |> Typ.fresh) |> Typ.fresh);
-
-  let rec ground_cases_of = (ty: Typ.t): ground_cases => {
-    let is_hole: Typ.t => bool =
-      fun
-      | {term: Typ.Unknown(_), _} => true
-      | _ => false;
-    switch (Typ.term_of(ty)) {
-    | Unknown(_) => Hole
-    | Bool
-    | Int
-    | Float
-    | String
-    | Var(_)
-    | Rec(_)
-    | Arrow({term: Unknown(_), _}, {term: Unknown(_), _})
-    | List({term: Unknown(_), _}) => Ground
-    | Parens(ty) => ground_cases_of(ty)
-    | Prod(tys) =>
-      if (List.for_all(
-            fun
-            | ({term: Typ.Unknown(_), _}: Typ.t) => true
-            | _ => false,
-            tys,
-          )) {
-        Ground;
-      } else {
-        tys |> List.length |> grounded_Prod;
-      }
-    | Sum(sm) =>
-      sm |> ConstructorMap.is_ground(is_hole)
-        ? Ground : NotGroundOrHole(Sum(grounded_Sum()) |> Typ.fresh)
-    | Arrow(_, _) => grounded_Arrow
-    | List(_) => grounded_List
-    | Ap(_) => failwith("type application in dynamics")
-    };
-  };
-};
-
 let evaluate_extend_env =
     (new_bindings: Environment.t, to_extend: ClosureEnvironment.t)
     : ClosureEnvironment.t => {
@@ -151,6 +89,13 @@ type rule =
     })
   | Constructor
   | Indet;
+
+let (let-unbox) = ((request, v), f) =>
+  switch (Unboxing.unbox(request, v)) {
+  | IndetMatch
+  | DoesNotMatch => Indet
+  | Matches(n) => f(n)
+  };
 
 module type EV_MODE = {
   type state;
@@ -196,7 +141,7 @@ module type EV_MODE = {
 module Transition = (EV: EV_MODE) => {
   open EV;
   open DHExp;
-  let (let.match) = ((env, match_result), r) =>
+  let (let.match) = ((env, match_result: PatternMatch.match_result), r) =>
     switch (match_result) {
     | IndetMatch
     | DoesNotMatch => Indet
@@ -255,7 +200,7 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d1 => Let(dp, d1, d2) |> rewrap)
       and. d1' =
         req_final(req(state, env), d1 => Let1(dp, d1, d2) |> wrap_ctx, d1);
-      let.match env' = (env, matches(dp, d1'));
+      let.match env' = (env, matches(info_map, dp, d1'));
       Step({
         apply: () => Closure(env', d2) |> fresh,
         kind: LetBind,
@@ -352,7 +297,7 @@ module Transition = (EV: EV_MODE) => {
       switch (DHExp.term_of(d1')) {
       | Constructor(_) => Constructor
       | Fun(dp, d3, Some(env'), _) =>
-        let.match env'' = (env', matches(dp, d2'));
+        let.match env'' = (env', matches(info_map, dp, d2'));
         Step({
           apply: () => Closure(env'', d3) |> fresh,
           kind: FunAp,
@@ -443,12 +388,9 @@ module Transition = (EV: EV_MODE) => {
           c => UnOp(Int(Minus), c) |> wrap_ctx,
           d1,
         );
+      let-unbox n = (Int, d1');
       Step({
-        apply: () =>
-          switch (DHExp.term_of(d1')) {
-          | Int(n) => Int(- n) |> fresh
-          | _ => raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1')))
-          },
+        apply: () => Int(- n) |> fresh,
         kind: UnOp(Int(Minus)),
         value: true,
       });
@@ -460,12 +402,9 @@ module Transition = (EV: EV_MODE) => {
           c => UnOp(Bool(Not), c) |> wrap_ctx,
           d1,
         );
+      let-unbox b = (Bool, d1');
       Step({
-        apply: () =>
-          switch (DHExp.term_of(d1')) {
-          | Bool(b) => Bool(!b) |> fresh
-          | _ => raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1')))
-          },
+        apply: () => Bool(!b) |> fresh,
         kind: UnOp(Bool(Not)),
         value: true,
       });
@@ -477,13 +416,9 @@ module Transition = (EV: EV_MODE) => {
           d1 => BinOp1(Bool(And), d1, d2) |> wrap_ctx,
           d1,
         );
+      let-unbox b1 = (Bool, d1');
       Step({
-        apply: () =>
-          switch (DHExp.term_of(d1')) {
-          | Bool(true) => d2
-          | Bool(false) => Bool(false) |> fresh
-          | _ => raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1')))
-          },
+        apply: () => b1 ? d2 : Bool(false) |> fresh,
         kind: BinBoolOp(And),
         value: false,
       });
@@ -495,13 +430,9 @@ module Transition = (EV: EV_MODE) => {
           d1 => BinOp1(Bool(Or), d1, d2) |> wrap_ctx,
           d1,
         );
+      let-unbox b1 = (Bool, d1');
       Step({
-        apply: () =>
-          switch (DHExp.term_of(d1')) {
-          | Bool(true) => Bool(true) |> fresh
-          | Bool(false) => d2
-          | _ => raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d2)))
-          },
+        apply: () => b1 ? Bool(true) |> fresh : d2,
         kind: BinBoolOp(Or),
         value: false,
       });
@@ -519,40 +450,36 @@ module Transition = (EV: EV_MODE) => {
           d2 => BinOp2(Int(op), d1, d2) |> wrap_ctx,
           d2,
         );
+      let-unbox n1 = (Int, d1');
+      let-unbox n2 = (Int, d2');
       Step({
         apply: () =>
-          switch (DHExp.term_of(d1'), DHExp.term_of(d2')) {
-          | (Int(n1), Int(n2)) =>
-            (
-              switch (op) {
-              | Plus => Int(n1 + n2)
-              | Minus => Int(n1 - n2)
-              | Power when n2 < 0 =>
-                DynamicErrorHole(
-                  BinOp(Int(op), d1', d2') |> rewrap,
-                  NegativeExponent,
-                )
-              | Power => Int(IntUtil.ipow(n1, n2))
-              | Times => Int(n1 * n2)
-              | Divide when n2 == 0 =>
-                DynamicErrorHole(
-                  BinOp(Int(op), d1', d1') |> rewrap,
-                  DivideByZero,
-                )
-              | Divide => Int(n1 / n2)
-              | LessThan => Bool(n1 < n2)
-              | LessThanOrEqual => Bool(n1 <= n2)
-              | GreaterThan => Bool(n1 > n2)
-              | GreaterThanOrEqual => Bool(n1 >= n2)
-              | Equals => Bool(n1 == n2)
-              | NotEquals => Bool(n1 != n2)
-              }
-            )
-            |> fresh
-          | (Int(_), _) =>
-            raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2')))
-          | _ => raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1')))
-          },
+          (
+            switch (op) {
+            | Plus => Int(n1 + n2)
+            | Minus => Int(n1 - n2)
+            | Power when n2 < 0 =>
+              DynamicErrorHole(
+                BinOp(Int(op), d1', d2') |> rewrap,
+                NegativeExponent,
+              )
+            | Power => Int(IntUtil.ipow(n1, n2))
+            | Times => Int(n1 * n2)
+            | Divide when n2 == 0 =>
+              DynamicErrorHole(
+                BinOp(Int(op), d1', d1') |> rewrap,
+                DivideByZero,
+              )
+            | Divide => Int(n1 / n2)
+            | LessThan => Bool(n1 < n2)
+            | LessThanOrEqual => Bool(n1 <= n2)
+            | GreaterThan => Bool(n1 > n2)
+            | GreaterThanOrEqual => Bool(n1 >= n2)
+            | Equals => Bool(n1 == n2)
+            | NotEquals => Bool(n1 != n2)
+            }
+          )
+          |> fresh,
         kind: BinIntOp(op),
         // False so that InvalidOperations are caught and made indet by the next step
         value: false,
@@ -572,30 +499,27 @@ module Transition = (EV: EV_MODE) => {
           d2 => BinOp2(Float(op), d1, d2) |> wrap_ctx,
           d2,
         );
+      let-unbox n1 = (Float, d1');
+      let-unbox n2 = (Float, d2');
       Step({
         apply: () =>
-          switch (DHExp.term_of(d1'), DHExp.term_of(d2')) {
-          | (Float(n1), Float(n2)) =>
-            (
-              switch (op) {
-              | Plus => Float(n1 +. n2)
-              | Minus => Float(n1 -. n2)
-              | Power => Float(n1 ** n2)
-              | Times => Float(n1 *. n2)
-              | Divide => Float(n1 /. n2)
-              | LessThan => Bool(n1 < n2)
-              | LessThanOrEqual => Bool(n1 <= n2)
-              | GreaterThan => Bool(n1 > n2)
-              | GreaterThanOrEqual => Bool(n1 >= n2)
-              | Equals => Bool(n1 == n2)
-              | NotEquals => Bool(n1 != n2)
-              }
-            )
-            |> fresh
-          | (Float(_), _) =>
-            raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d2')))
-          | _ => raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1')))
-          },
+          (
+            switch (op) {
+            | Plus => Float(n1 +. n2)
+            | Minus => Float(n1 -. n2)
+            | Power => Float(n1 ** n2)
+            | Times => Float(n1 *. n2)
+            | Divide => Float(n1 /. n2)
+            | LessThan => Bool(n1 < n2)
+            | LessThanOrEqual => Bool(n1 <= n2)
+            | GreaterThan => Bool(n1 > n2)
+            | GreaterThanOrEqual => Bool(n1 >= n2)
+            | Equals => Bool(n1 == n2)
+            | NotEquals => Bool(n1 != n2)
+            }
+          )
+          |> fresh,
+
         kind: BinFloatOp(op),
         value: true,
       });
@@ -614,17 +538,13 @@ module Transition = (EV: EV_MODE) => {
           d2 => BinOp2(String(op), d1, d2) |> wrap_ctx,
           d2,
         );
+      let-unbox s1 = (String, d1');
+      let-unbox s2 = (String, d2');
       Step({
         apply: () =>
-          switch (DHExp.term_of(d1'), DHExp.term_of(d2')) {
-          | (String(s1), String(s2)) =>
-            switch (op) {
-            | Concat => String(s1 ++ s2) |> fresh
-            | Equals => Bool(s1 == s2) |> fresh
-            }
-          | (String(_), _) =>
-            raise(EvaluatorError.Exception(InvalidBoxedStringLit(d2')))
-          | _ => raise(EvaluatorError.Exception(InvalidBoxedStringLit(d1')))
+          switch (op) {
+          | Concat => String(s1 ++ s2) |> fresh
+          | Equals => Bool(s1 == s2) |> fresh
           },
         kind: BinStringOp(op),
         value: true,
@@ -638,24 +558,19 @@ module Transition = (EV: EV_MODE) => {
           ds,
         );
       Constructor;
-    // TODO(Matt): Can we do something cleverer when the list structure is complete but the contents aren't?
     | Cons(d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => Cons(d1, d2) |> rewrap)
       and. d1' =
         req_final(req(state, env), d1 => Cons1(d1, d2) |> wrap_ctx, d1)
       and. d2' =
         req_value(req(state, env), d2 => Cons2(d1, d2) |> wrap_ctx, d2);
+      let-unbox ds = (List, d2');
       Step({
-        apply: () =>
-          switch (term_of(d2')) {
-          | ListLit(ds) => ListLit([d1', ...ds]) |> fresh
-          | _ => raise(EvaluatorError.Exception(InvalidBoxedListLit(d2')))
-          },
+        apply: () => ListLit([d1', ...ds]) |> fresh,
         kind: ListCons,
         value: true,
       });
     | ListConcat(d1, d2) =>
-      // TODO(Matt): Can we do something cleverer when the list structure is complete but the contents aren't?
       let. _ = otherwise(env, (d1, d2) => ListConcat(d1, d2) |> rewrap)
       and. d1' =
         req_value(
@@ -669,15 +584,10 @@ module Transition = (EV: EV_MODE) => {
           d2 => ListConcat2(d1, d2) |> wrap_ctx,
           d2,
         );
+      let-unbox ds1 = (List, d1');
+      let-unbox ds2 = (List, d2');
       Step({
-        apply: () =>
-          switch (term_of(d1'), term_of(d2')) {
-          | (ListLit(ds1), ListLit(ds2)) => ListLit(ds1 @ ds2) |> fresh
-          | (ListLit(_), _) =>
-            raise(EvaluatorError.Exception(InvalidBoxedListLit(d2')))
-          | (_, _) =>
-            raise(EvaluatorError.Exception(InvalidBoxedListLit(d1')))
-          },
+        apply: () => ListLit(ds1 @ ds2) |> fresh,
         kind: ListConcat,
         value: true,
       });
@@ -702,7 +612,7 @@ module Transition = (EV: EV_MODE) => {
         fun
         | [] => None
         | [(dp, d2), ...rules] =>
-          switch (matches(dp, d1)) {
+          switch (matches(info_map, dp, d1)) {
           | Matches(env') => Some((env', d2))
           | DoesNotMatch => next_rule(rules)
           | IndetMatch => None
@@ -746,63 +656,12 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d);
       Indet;
     | Cast(d, t1, t2) =>
-      open CastHelpers; /* Cast calculus */
-
       let. _ = otherwise(env, d => Cast(d, t1, t2) |> rewrap)
       and. d' =
         req_final(req(state, env), d => Cast(d, t1, t2) |> wrap_ctx, d);
-      switch (ground_cases_of(t1), ground_cases_of(t2)) {
-      | (Hole, Hole)
-      | (Ground, Ground) =>
-        /* if two types are ground and consistent, then they are eq */
-        Step({apply: () => d', kind: Cast, value: true})
-      | (Ground, Hole) =>
-        /* can't remove the cast or do anything else here, so we're done */
-        Constructor
-      | (Hole, Ground) =>
-        switch (term_of(d')) {
-        | Cast(d2, t3, {term: Unknown(_), _}) =>
-          /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
-          if (Typ.eq(t3, t2)) {
-            Step({apply: () => d2, kind: Cast, value: true});
-          } else {
-            Step({
-              apply: () => FailedCast(d', t1, t2) |> fresh,
-              kind: Cast,
-              value: false,
-            });
-          }
-        | _ => Indet
-        }
-      | (Hole, NotGroundOrHole(t2_grounded)) =>
-        /* ITExpand rule */
-        Step({
-          apply: () =>
-            DHExp.Cast(Cast(d', t1, t2_grounded) |> fresh, t2_grounded, t2)
-            |> fresh,
-          kind: Cast,
-          value: false,
-        })
-      | (NotGroundOrHole(t1_grounded), Hole) =>
-        /* ITGround rule */
-        Step({
-          apply: () =>
-            DHExp.Cast(Cast(d', t1, t1_grounded) |> fresh, t1_grounded, t2)
-            |> fresh,
-          kind: Cast,
-          value: false,
-        })
-      | (Ground, NotGroundOrHole(_))
-      | (NotGroundOrHole(_), Ground) =>
-        /* can't do anything when casting between diseq, non-hole types */
-        Constructor
-      | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
-        /* they might be eq in this case, so remove cast if so */
-        if (Typ.eq(t1, t2)) {
-          Step({apply: () => d', kind: Cast, value: true});
-        } else {
-          Constructor;
-        }
+      switch (Casts.transition(Cast(d', t1, t2) |> rewrap)) {
+      | Some(d) => Step({apply: () => d, kind: Cast, value: false})
+      | None => Constructor
       };
     | FailedCast(d1, t1, t2) =>
       let. _ = otherwise(env, d1 => FailedCast(d1, t1, t2) |> rewrap)

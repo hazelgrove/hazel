@@ -158,3 +158,11 @@ let get_entry = (ctr, m) =>
     | BadEntry(_) => None,
     m,
   );
+
+let has_constructor_no_args = ctr =>
+  List.exists(
+    fun
+    | Variant(ctr', _, None) when Constructor.equal(ctr, ctr') => true
+    | Variant(_)
+    | BadEntry(_) => false,
+  );
