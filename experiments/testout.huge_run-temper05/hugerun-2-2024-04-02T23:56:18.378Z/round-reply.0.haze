@@ -1,0 +1,5 @@
+fun model, action ->
+  case action
+  | BookRoom(room_id) => model.booked_rooms <- model.booked_rooms + [room_id]
+  | CancelBooking(room_id) => model.booked_rooms <- List.filter(fun id -> id != room_id, model.booked_rooms)
+  end

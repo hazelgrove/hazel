@@ -1,0 +1,90 @@
+The following static errors were discovered:
+Error in term:
+  model.0 row .length, model.1
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  List.updateAt
+Nature of error: Variable List.updateAt is not bound
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  model.2
+Nature of error: "model.2" isn't a valid token
+Error in term:
+  model.2
+Nature of error: "model.2" isn't a valid token
+Error in term:
+  row .length, model.1
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.2
+Nature of error: "model.2" isn't a valid token
+Error in term:
+  model.2
+Nature of error: "model.2" isn't a valid token
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  List.updateAt
+Nature of error: Variable List.updateAt is not bound
+Error in term:
+  List.updateAt
+Nature of error: Variable List.updateAt is not bound
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  List.updateAt
+Nature of error: Variable List.updateAt is not bound
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  col, , model.0 row
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  .length
+Nature of error: ".length" isn't a valid token
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  List.updateAt
+Nature of error: Variable List.updateAt is not bound
+Error in term:
+  col, model.1, model.0 row
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  List.fill
+Nature of error: Variable List.fill is not bound
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  model.2
+Nature of error: "model.2" isn't a valid token
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

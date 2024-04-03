@@ -1,0 +1,5 @@
+fun model, action ->
+    case action
+    | CheckPasswordStrength(password) => checkPasswordStrength(password)
+    | _ => model
+    end

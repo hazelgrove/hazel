@@ -1,0 +1,15 @@
+fun model, action ->
+  case action
+  | PlayListAction.AddSong(song_id) => 
+      let new_songs = List.rev_append(get_songs(model), [song_id]) in
+      model{ songs = List.sort(fun a, b -> a - b, new_songs) }
+  | PlayListAction.RemoveSong(song_id) => 
+      let new_songs = List.filter_map(fun id -> if id == song_id then None else Some(id), get_songs(model)) in
+      model{ songs = new_songs }
+  | PlayListAction.TogglePlay => 
+      let new_state = match get_state(model) with
+        | PlayListState.Playing => PlayListState.Paused
+        | PlayListState.Paused => PlayListState.Playing
+      in
+      model{ state = new_state }
+  end

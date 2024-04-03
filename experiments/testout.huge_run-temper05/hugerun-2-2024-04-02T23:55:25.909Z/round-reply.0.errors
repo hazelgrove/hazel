@@ -1,0 +1,43 @@
+The following static errors were discovered:
+The suggested filling has the wrong expected type: expected ((Model, Action) -> Model), but got ((?, ?) -> [?]).
+Error in term:
+  model.currentUser
+Nature of error: "model.currentUser" isn't a valid token
+Error in term:
+  model.currentUser None
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.bookings
+Nature of error: "model.bookings" isn't a valid token
+Error in term:
+  model.bookings
+Nature of error: "model.bookings" isn't a valid token
+Error in term:
+  model.bookings booking
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.bookings rm_booking
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.bookings
+Nature of error: "model.bookings" isn't a valid token
+Error in term:
+  model.currentUser Some
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.currentUser
+Nature of error: "model.currentUser" isn't a valid token
+Error in term:
+  model.bookings
+Nature of error: "model.bookings" isn't a valid token
+Error in term:
+  RemoveBooking
+Nature of error: Constructor is not defined
+Error in term:
+  Logout
+Nature of error: Constructor is not defined
+Error in term:
+  SetUser
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

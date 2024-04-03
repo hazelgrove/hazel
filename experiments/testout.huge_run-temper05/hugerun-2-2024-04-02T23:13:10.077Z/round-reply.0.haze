@@ -1,0 +1,11 @@
+fun model, action ->
+  case action
+  | PlaySong(id) => (get_songs(model), Playing(id))
+  | PauseCurrentSong => 
+      case get_state(model)
+      | Playing(id) => (get_songs(model), PausedOn(id))
+      | _ => model
+      end
+  | RemoveSong(id) => (List.filter(fun song_id -> song_id != id, get_songs(model)), get_state(model))
+  | AddSong(id) => (id::get_songs(model), get_state(model))
+  end

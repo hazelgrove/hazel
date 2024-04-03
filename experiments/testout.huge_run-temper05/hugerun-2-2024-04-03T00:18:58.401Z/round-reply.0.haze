@@ -1,0 +1,7 @@
+
+fun model, action ->
+  case action
+  | SetEmoji(emoji) => {model with emoji = emoji}
+  | SetColor(color) => {model with color = color}
+  | Paint(point) => {model with points = point::model.points}
+  end

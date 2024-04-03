@@ -1,0 +1,15 @@
+fun (model, action) ->
+  case action
+  | PlayListAction.AddSong(id) =>
+      let songs = get_songs(model) in
+      {model with songs = id :: songs}
+  | PlayListAction.RemoveSong(id) =>
+      let songs = List.filter_map((fun song_id -> if song_id != id then Some(song_id) else None), get_songs(model)) in
+      {model with songs = songs}
+  | PlayListAction.SortSongs =>
+      let songs = get_songs(model) in
+      let sorted_songs = List.sort((fun (id1, id2) -> compare(id1, id2)), songs) in
+      {model with songs = sorted_songs}
+  | PlayListAction.ChangeState(state) =>
+      {model with state = state}
+  end

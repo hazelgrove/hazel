@@ -8,9 +8,9 @@ log_directory="testlog"
 collate_script="collate_data.sh"
 warm_serials="warm_serials.sh"
 
-command_timeout=120
+command_timeout=180
 wait_time=0
-num_runs=1
+num_runs=9
 
 # Source folders
 source_folders=(
@@ -33,14 +33,16 @@ opt_arg_variations=(
     # "--temperature 1.0 --expected_type --error_rounds_max 0"
     # "--temperature 0.6 --expected_type --error_rounds_max 0"
     # "--temperature 0.3 --expected_type --error_rounds_max 0"
-    # "--relevant_ctx --expected_type --error_rounds_max 2"
-    "--relevant_ctx --expected_type"
-    # "--relevant_ctx --error_rounds_max 2"
-    # "--expected_type --error_rounds_max 2"
-    # "--expected_type"
-    # "--error_rounds_max 2"
-    # "--relevant_ctx"
-    # ""
+    "--temperature 0.5 --rag RAG.txt --error_rounds_max 2"
+    "--temperature 0.5 --rag RAG.txt"
+    "--temperature 0.5 --relevant_ctx --expected_type --error_rounds_max 2"
+    "--temperature 0.5 --relevant_ctx --expected_type"
+    "--temperature 0.5 --relevant_ctx --error_rounds_max 2"
+    "--temperature 0.5 --expected_type --error_rounds_max 2"
+    "--temperature 0.5 --expected_type"
+    "--temperature 0.5 --error_rounds_max 2"
+    "--temperature 0.5 --relevant_ctx"
+    "--temperature 0.5"
 )
 
 # Function to display usage information

@@ -1,0 +1,15 @@
+The following static errors were discovered:
+Error in term:
+  String.length
+Nature of error: Variable String.length is not bound
+Error in term:
+  List.remove
+Nature of error: Variable List.remove is not bound
+Error in term:
+  List.update
+Nature of error: Variable List.update is not bound
+Error in term:
+  String.empty
+Nature of error: Variable String.empty is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

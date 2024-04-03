@@ -1,0 +1,11 @@
+# Update Password Strength Checker app model based on an action #
+
+let update: (Model, Action) -> Model =
+  fun (model, action) ->
+  case action
+    | AddTodo => add_todo(model)
+    | RemoveTodo(i) => remove_todo(i, model)
+    | ToggleTodo(i) => toggle_todo(i, model)
+    | UpdateBuffer(s) => update_buffer(s, model)
+  end
+in

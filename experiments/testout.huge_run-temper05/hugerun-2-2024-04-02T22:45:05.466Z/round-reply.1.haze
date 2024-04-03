@@ -1,0 +1,15 @@
+fun model, action ->
+  case action
+  | AddTodo => 
+      let (description, todos) = model in
+      if description == "" then model else (description, (description, false)::todos)
+  | RemoveTodo(idx) => 
+      let (description, todos) = model in
+      (description, List.take(idx, todos) @ List.drop(idx + 1, todos))
+  | ToggleTodo(idx) =>
+      let (description, todos) = model in
+      (description, List.mapi(fun i (desc, status) -> if i == idx then (desc, !status) else (desc, status), todos))
+  | UpdateBuffer(str) =>
+      let (_, todos) = model in
+      (str, todos)
+  end

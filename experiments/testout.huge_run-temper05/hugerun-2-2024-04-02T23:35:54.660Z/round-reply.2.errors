@@ -1,0 +1,18 @@
+The following static errors were discovered:
+Error in term:
+  case action
+ | AddBooking(booking) => let ((form_data, bookings, booking_id)) = model in
+ let new_booking = (booking, booking_id) in
+ let new_model = (form_data, new_booking :: bookings, booking_id + 1) in
+ new_model
+| CancelBooking((user, id)) => let ((form_data, bookings, booking_id)) = model in
+ let new_bookings = rm_booking(user, id, bookings) in
+ let new_model = (form_data, new_bookings, booking_id) in
+ new_model
+| ClearBookings => let ((form_data, _, booking_id)) = model in
+ let new_model = (form_data, , booking_id) in
+ new_model
+end
+Nature of error: Expecting branches to have consistent types but got types: (?, [((User, Weekday, TimeOfDay), ?)], Int), (?, [Booking], ?), (?, [?], ?)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

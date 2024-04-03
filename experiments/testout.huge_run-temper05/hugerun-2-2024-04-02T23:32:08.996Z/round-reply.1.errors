@@ -1,0 +1,13 @@
+The following static errors were discovered:
+The suggested filling has the wrong expected type: expected ((Model, Action) -> Model), but got (((?, ?, ?), ?) -> ((TimeOfDay, User, TimeOfDay), [(TimeOfDay, User, ?)], Int)).
+Error in term:
+  time
+Nature of error: Expecting type Time but got inconsistent type TimeOfDay
+Error in term:
+  UpdateBuffer
+Nature of error: Constructor is not defined
+Error in term:
+  RemoveBooking
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

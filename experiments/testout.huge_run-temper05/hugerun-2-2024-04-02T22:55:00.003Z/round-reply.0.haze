@@ -1,0 +1,7 @@
+fun model, action ->
+  case action
+  | NoOp => model
+  | Add => add(model)
+  | Remove(idx) => remove(idx, model.todos)
+  | Toggle(idx) => toggle(idx, model.todos)
+  end

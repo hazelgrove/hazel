@@ -1,0 +1,7 @@
+fun model, action ->
+  case action
+  | AddSong(song_id) => {model with songs = List.sort(fun a, b -> compare(a, b), song_id::model.songs)}
+  | RemoveSong(song_id) => {model with songs = List.filter(fun song -> song != song_id, model.songs)}
+  | TogglePlay => {model with is_playing = not model.is_playing}
+  | SetPlayListState(state) => {model with state = state}
+  end

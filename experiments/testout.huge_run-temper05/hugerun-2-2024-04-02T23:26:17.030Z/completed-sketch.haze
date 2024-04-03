@@ -1,0 +1,25 @@
+# Update Playlist app model based on an action #
+
+let update: (PlayList, PlayListAction) -> PlayList =
+  fun model, action ->
+  case action
+    | PlayListAction.AddSong(song_id) => 
+      let songs = get_songs(model) in
+      let new_songs = List.merge(fun a, b -> if a < b then -1 else if a > b then 1 else 0, songs, [song_id]) in
+      { model with songs = new_songs }
+    | PlayListAction.RemoveSong(song_id) => 
+      let songs = get_songs(model) in
+      let new_songs = List.filter(fun id -> id != song_id, songs) in
+      { model with songs = new_songs }
+    | PlayListAction.Shuffle => 
+      let songs = get_songs(model) in
+      let new_songs = List.sort(fun _ _ -> Random.int(2) - 1, songs) in
+      { model with songs = new_songs }
+    | PlayListAction.SetState(state) => 
+      { model with state = state }
+    | PlayListAction.ToggleState => 
+      let state = get_state(model) in
+      let new_state = match state with | PlayListState.Playing -> PlayListState.Paused | PlayListState.Paused -> PlayListState.Playing in
+      { model with state = new_state }
+  end
+in

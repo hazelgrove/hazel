@@ -1,0 +1,11 @@
+fun (formState, bookings, nextID), action ->
+  case action
+  | AddBooking(user, weekday, time) => 
+    if bookingExists((formState, bookings, nextID), (time, user, nextID))
+    then (formState, bookings, nextID)
+    else let newBookingID = nextID + 1 in
+         let newBooking = (time, user, newBookingID) in
+         let newBookings = newBooking::bookings in
+         ((weekday, time, user), newBookings, newBookingID)
+  | _ => (formState, bookings, nextID)
+  end

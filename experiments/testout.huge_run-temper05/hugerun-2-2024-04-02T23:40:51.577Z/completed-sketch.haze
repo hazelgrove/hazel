@@ -1,0 +1,10 @@
+# Update the Room Booking app model based on an action #
+
+let update: (Model, Action) -> Model =
+  fun model, action ->
+  case action
+  | UpdateForm(field, value) => { model with form = updateForm(model.form, field, value) }
+  | SubmitForm => submitForm(model)
+  | CancelBooking(bookingID) => cancelBooking(model, bookingID)
+  end
+in

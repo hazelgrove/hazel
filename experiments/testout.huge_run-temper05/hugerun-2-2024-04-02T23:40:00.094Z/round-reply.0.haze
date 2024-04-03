@@ -1,0 +1,12 @@
+fun model, action ->
+  case action
+  | AddBooking(user, booking_id) =>
+    let new_bookings = rm_booking(user, booking_id, getBookings(model)) in
+    {model with bookings = new_bookings}
+  | RemoveBooking(user, booking_id) =>
+    let user_bookings = getUserBookings(model, user) in
+    let new_bookings = List.filter(fun b -> b.id != booking_id, user_bookings) in
+    {model with bookings = new_bookings}
+  | UpdateForm(weekday, timeofday, room) => 
+    {model with formState = ((weekday, timeofday), room)}
+  end

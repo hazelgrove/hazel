@@ -1,0 +1,18 @@
+The following static errors were discovered:
+Error in term:
+  List.indexed
+Nature of error: Variable List.indexed is not bound
+Error in term:
+  case action
+ | AddTodo => add(model)
+| RemoveTodo(idx) => List.remove(idx, snd(model))
+| ToggleTodo(idx) => List.map(fun ((i, todo)) ->
+ if i == idx then (fst(todo), !snd(todo)) else todo, List.indexed(snd(model)))
+| UpdateBuffer(text) => (text, snd(model))
+end
+Nature of error: Expecting branches to have consistent types but got types: [Todo], ?, ?, (String, ?)
+Error in term:
+  List.remove
+Nature of error: Variable List.remove is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

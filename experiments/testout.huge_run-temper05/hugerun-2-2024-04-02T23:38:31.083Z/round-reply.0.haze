@@ -1,0 +1,14 @@
+fun model, action ->
+    case action
+    | AddBooking(user, weekday, timeOfDay) =>
+        let newBooking = (weekday, timeOfDay), user, List.length(getBookings(model)) in
+        let newModel = initFormState, [newBooking] @ getBookings(model), List.length(getBookings(model)) + 1 in
+        newModel
+    | CancelBooking(user, bookingId) =>
+        let newBookings = rm_booking(user, bookingId, getBookings(model)) in
+        let newModel = initFormState, newBookings, List.length(newBookings) in
+        newModel
+    | ClearBookings =>
+        let newModel = initFormState, [], 0 in
+        newModel
+    end

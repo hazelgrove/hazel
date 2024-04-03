@@ -1,0 +1,7 @@
+fun (model, action) ->
+  case action
+  | Draw(emoji) => { model with canvas = Canvas.draw(model.canvas, emoji) }
+  | Clear => { model with canvas = Canvas.clear() }
+  | Undo => { model with canvas = Canvas.undo(model.canvas) }
+  | Redo => { model with canvas = Canvas.redo(model.canvas) }
+  end

@@ -1,0 +1,11 @@
+fun (model, action) ->
+  case action
+  | AddSong(id) => List.rev_append(get_songs(model), [id])
+  | RemoveSong(id) => List.filter_map(fun song -> if song == id then None else Some(song), get_songs(model))
+  | ChangeState(state) => {songs = get_songs(model), state = state}
+  | Sort(compare) => {songs = List.sort(compare, get_songs(model)), state = get_state(model)}
+  | Merge(playList) => {songs = List.merge(fun a, b -> if a < b then -1 else if a > b then 1 else 0, get_songs(model), get_songs(playList)), state = get_state(model)}
+  | Combine(playList) => {songs = List.combine(get_songs(model), get_songs(playList)), state = get_state(model)}
+  | ConcatMap(f) => {songs = List.concat_map(f, get_songs(model)), state = get_state(model)}
+  | FilterMap(f) => {songs = List.filter_map(f, get_songs(model)), state = get_state(model)}
+  end

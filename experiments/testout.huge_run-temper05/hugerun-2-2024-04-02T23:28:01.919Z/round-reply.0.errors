@@ -1,0 +1,21 @@
+The following static errors were discovered:
+Error in term:
+  PlayList.remove
+Nature of error: Variable PlayList.remove is not bound
+Error in term:
+  PlayList.add
+Nature of error: Variable PlayList.add is not bound
+Error in term:
+  PlayList.clear
+Nature of error: Variable PlayList.clear is not bound
+Error in term:
+  Remove
+Nature of error: Constructor is not defined
+Error in term:
+  Add
+Nature of error: Constructor is not defined
+Error in term:
+  Clear
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

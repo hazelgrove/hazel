@@ -1,0 +1,13 @@
+fun ((formData, bookings, lastID), action) ->
+    case action
+    | AddBooking(user, weekday, time) => 
+        let booking = (time, user, lastID + 1) in
+        if bookingExists((formData, bookings, lastID), booking)
+        then (formData, bookings, lastID)
+        else (formData, bookings @ [booking], lastID + 1)
+    | RemoveBooking(id) =>
+        let newBookings = List.filter(fun (_, _, bookingId) -> bookingId != id, bookings) in
+        (formData, newBookings, lastID)
+    | UpdateBuffer(str) =>
+        ((str, snd(formData)), bookings, lastID)
+    end

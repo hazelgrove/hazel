@@ -1,0 +1,15 @@
+fun (formState, bookings, bookingCount), action ->
+  case action
+  | AddBooking(user, weekday, time) => 
+      if bookingExists((formState, bookings, bookingCount), (time, user, bookingCount))
+      then (formState, bookings, bookingCount)
+      else let newBooking = (time, user, bookingCount) in
+           let newBookings = newBooking :: bookings in
+           let newModel = (formState, newBookings, bookingCount + 1) in
+           newModel
+  | RemoveBooking(id) =>
+      let newBookings = List.filter(fun (_, _, bookingID) -> bookingID != id, bookings) in
+      (formState, newBookings, bookingCount)
+  | UpdateForm(time, user) =>
+      ((time, user, formState), bookings, bookingCount)
+  end

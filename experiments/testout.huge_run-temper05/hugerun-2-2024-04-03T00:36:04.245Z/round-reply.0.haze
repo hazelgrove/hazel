@@ -1,0 +1,5 @@
+fun model, action ->
+  case action
+  | CheckPassword(password) => check_password_strength(model, password)
+  | Reset => reset_model()
+  end

@@ -1,0 +1,11 @@
+# Update Password Strength Checker app model based on an action #
+
+let update: (Model, Action) -> Model =
+  fun (password, criteria, strength), action ->
+  case action
+  | AddTodo => (password, MinimumLength(8)::criteria, strength)
+  | RemoveTodo(idx) => (password, List.remove(idx, criteria), strength)
+  | ToggleTodo(idx) => (password, List.toggle(idx, criteria), strength)
+  | UpdateBuffer(str) => (str, criteria, strength)
+  end
+in

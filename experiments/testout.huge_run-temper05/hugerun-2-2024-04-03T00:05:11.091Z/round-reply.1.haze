@@ -1,0 +1,8 @@
+fun (model, action) ->
+  case action
+  | LoadGrid(grid) => { model with grid = grid }
+  | UpdateGrid(row, col, emoji) => { model with grid = updateGrid(model.grid, row, col, emoji)}
+  | FillRow(row, emoji) => { model with grid = fillRowInGrid(model.grid, row, emoji)}
+  | ClearGrid => { model with grid = clearGrid(model.grid)}
+  | TogglePaused => { model with paused = !model.paused }
+  end

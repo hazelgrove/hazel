@@ -1,0 +1,31 @@
+The following static errors were discovered:
+The suggested filling has the wrong expected type: expected ((PlayList, PlayListAction) -> PlayList), but got ((?, ?) -> [?]).
+Error in term:
+  a.id
+Nature of error: "a.id" isn't a valid token
+Error in term:
+  a.id
+Nature of error: "a.id" isn't a valid token
+Error in term:
+  b.id
+Nature of error: "b.id" isn't a valid token
+Error in term:
+  b.id
+Nature of error: "b.id" isn't a valid token
+Error in term:
+  MapPlaylist
+Nature of error: Constructor is not defined
+Error in term:
+  MergePlaylist
+Nature of error: Constructor is not defined
+Error in term:
+  FilterPlaylist
+Nature of error: Constructor is not defined
+Error in term:
+  SortPlaylist
+Nature of error: Constructor is not defined
+Error in term:
+  CombinePlaylist
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

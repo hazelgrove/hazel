@@ -1,0 +1,7 @@
+fun model, action ->
+    case action
+    | AddRoom(room) => {model with rooms = room::model.rooms}
+    | RemoveRoom(room) => {model with rooms = List.filter((fun r -> r != room), model.rooms)}
+    | BookRoom(room, time) => {model with bookings = (room, time)::model.bookings}
+    | CancelBooking(room, time) => {model with bookings = List.filter((fun (r, t) -> r != room \/ t != time), model.bookings)}
+    end

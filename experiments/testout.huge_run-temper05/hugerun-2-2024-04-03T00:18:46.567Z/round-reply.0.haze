@@ -1,0 +1,8 @@
+
+fun model, action ->
+  case action
+  | Clear => Model.init()
+  | ToggleGrid => {model with grid = !model.grid}
+  | SetEmoji(emoji) => {model with current = emoji}
+  | Paint(x, y) => {model with canvas = Canvas.paint(model.canvas, x, y, model.current)}
+  end

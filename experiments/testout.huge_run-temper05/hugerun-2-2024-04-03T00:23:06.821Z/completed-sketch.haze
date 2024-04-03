@@ -1,0 +1,20 @@
+# Update Password Strength Checker app model based on an action #
+
+let update: (Model, Action) -> Model =
+  fun model, action ->
+  case action
+  | UpdatePassword(new_password) => 
+      let new_strength = calculateStrength(new_password, snd(model)) in
+      (new_password, snd(model), new_strength)
+  | ClearCriteria => 
+      (fst(model), [], strength_of(0))
+  | AddCriterion(new_criterion) => 
+      let new_criteria = new_criterion::snd(model) in
+      let new_strength = calculateStrength(fst(model), new_criteria) in
+      (fst(model), new_criteria, new_strength)
+  | RemoveCriterion(to_remove) => 
+      let new_criteria = List.filter(fun c -> c != to_remove, snd(model)) in
+      let new_strength = calculateStrength(fst(model), new_criteria) in
+      (fst(model), new_criteria, new_strength)
+  end
+in

@@ -1,0 +1,7 @@
+
+fun model, action ->
+  case action
+  | BookRoom(room) => {model with room = Some(room)}
+  | CheckOut => {model with room = None}
+  | UpdateGuestCount(count) => {model with guest_count = count}
+  end

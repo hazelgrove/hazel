@@ -1,0 +1,6 @@
+fun model, action ->
+  case action
+  | ChangePassword(password) => { model | password = password, strength = calculateStrength(password, model.criteria) }
+  | AddCriteria(criteria) => { model | criteria = criteria :: model.criteria }
+  | RemoveCriteria(criteria) => { model | criteria = List.remove(criteria, model.criteria) }
+  end

@@ -1,0 +1,37 @@
+The following static errors were discovered:
+Error in term:
+  grid row, col, selected_emoji
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  List.update
+Nature of error: Variable List.update is not bound
+Error in term:
+  List.update
+Nature of error: Variable List.update is not bound
+Error in term:
+  grid row, fun _ ->
+ selected_emoji
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  List.update
+Nature of error: Variable List.update is not bound
+Error in term:
+  fun row ->
+ List.map(row, fun _ ->
+ )
+Nature of error: Expecting type [?] but got inconsistent type (? -> ?)
+Error in term:
+  fun _ ->
+ 
+Nature of error: Expecting type [?] but got inconsistent type (? -> String)
+Error in term:
+  List.update
+Nature of error: Variable List.update is not bound
+Error in term:
+  List.update
+Nature of error: Variable List.update is not bound
+Error in term:
+  grid row, col, 
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

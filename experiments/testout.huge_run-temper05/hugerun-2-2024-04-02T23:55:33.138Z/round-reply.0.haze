@@ -1,0 +1,13 @@
+fun model, action ->
+  case action
+  | AddBooking(user, booking) =>
+    let newBookings = getUserBookings(model, user) @ [booking] in
+    { model with bookings = newBookings }
+  | RemoveBooking(user, bookingId) =>
+    let newBookings = rm_booking(user, bookingId, getBookings(model)) in
+    { model with bookings = newBookings }
+  | UpdateFormState(newFormState) =>
+    { model with formState = newFormState }
+  | ResetFormState =>
+    { model with formState = initFormState }
+  end

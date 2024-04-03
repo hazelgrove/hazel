@@ -1,0 +1,12 @@
+fun (formData, bookings, bookingId), action ->
+  case action
+    | AddBooking(user, weekday, time) =>
+      if bookingExists((formData, bookings, bookingId), (time, user, bookingId))
+      then (formData, bookings, bookingId)
+      else ((time, user, AM), (time, user, bookingId)::bookings, bookingId + 1)
+    | RemoveBooking(id) =>
+      let newBookings = List.filter(fun (_, _, bId) -> bId != id, bookings) in
+      (formData, newBookings, bookingId)
+    | UpdateBuffer(time, user) =>
+      ((time, user, AM), bookings, bookingId)
+  end

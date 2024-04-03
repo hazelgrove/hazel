@@ -1,0 +1,16 @@
+The following static errors were discovered:
+Error in term:
+  case action
+ | AddTodo => (buffer, todos ++ (buffer, false))
+| RemoveTodo(index) => (buffer, List.filteri((fun (i, _) ->
+ i != index), todos))
+| ToggleTodo(index) => (buffer, List.mapi((fun (i, ((t, done))) ->
+ if i == index then (t, !done) else (t, done)), todos))
+| UpdateBuffer(new_buffer) => (new_buffer, todos)
+end
+Nature of error: Expecting branches to have consistent types but got types: (?, String), (?, [?]), (?, [?]), (String, ?)
+Error in term:
+  (buffer, false)
+Nature of error: Expecting type String but got inconsistent type [(?, Bool)]
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

@@ -1,0 +1,8 @@
+fun model, action ->
+  case action
+    | NoOp => model
+    | UpdateForm(form) => { model with form = form }
+    | AddBooking(booking) => { model with bookings = rm_booking(model.user, booking, getBookings(model)) }
+    | RemoveBooking(booking_id) => { model with bookings = List.filter((fun b -> b.id != booking_id), getBookings(model)) }
+    | SetUser(user) => { model with user = user }
+  end

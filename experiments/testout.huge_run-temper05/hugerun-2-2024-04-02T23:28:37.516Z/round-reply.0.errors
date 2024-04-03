@@ -1,0 +1,27 @@
+The following static errors were discovered:
+Error in term:
+  PlayList.play
+Nature of error: Variable PlayList.play is not bound
+Error in term:
+  PlayList.add_song
+Nature of error: Variable PlayList.add_song is not bound
+Error in term:
+  PlayList.pause
+Nature of error: Variable PlayList.pause is not bound
+Error in term:
+  PlayList.remove_song
+Nature of error: Variable PlayList.remove_song is not bound
+Error in term:
+  Play
+Nature of error: Constructor is not defined
+Error in term:
+  Remove
+Nature of error: Constructor is not defined
+Error in term:
+  Add
+Nature of error: Constructor is not defined
+Error in term:
+  Pause
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

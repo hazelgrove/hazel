@@ -1,0 +1,24 @@
+The following static errors were discovered:
+Error in term:
+  Model.update_room_status
+Nature of error: Variable Model.update_room_status is not bound
+Error in term:
+  Model.check_out_guest
+Nature of error: Variable Model.check_out_guest is not bound
+Error in term:
+  Model.update_room_status
+Nature of error: Variable Model.update_room_status is not bound
+Error in term:
+  Model.check_in_guest
+Nature of error: Variable Model.check_in_guest is not bound
+Error in term:
+  CheckOut
+Nature of error: Constructor is not defined
+Error in term:
+  BookRoom
+Nature of error: Constructor is not defined
+Error in term:
+  CheckIn
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

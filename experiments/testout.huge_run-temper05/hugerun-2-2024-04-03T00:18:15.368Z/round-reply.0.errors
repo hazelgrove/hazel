@@ -1,0 +1,21 @@
+The following static errors were discovered:
+Error in term:
+  Model.removeEmoji
+Nature of error: Variable Model.removeEmoji is not bound
+Error in term:
+  Model.addEmoji
+Nature of error: Variable Model.addEmoji is not bound
+Error in term:
+  Model.clear
+Nature of error: Variable Model.clear is not bound
+Error in term:
+  AddEmoji
+Nature of error: Constructor is not defined
+Error in term:
+  RemoveEmoji
+Nature of error: Constructor is not defined
+Error in term:
+  Clear
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

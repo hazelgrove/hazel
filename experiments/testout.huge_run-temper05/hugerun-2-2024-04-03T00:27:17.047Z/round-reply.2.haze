@@ -1,0 +1,6 @@
+fun (m, a) ->
+  case a
+  | ChangePassword(p) => {m with password = p, strength = calculateStrength(p, m.criteria)}
+  | AddCriteria(c) => {m with criteria = c::m.criteria}
+  | RemoveCriteria(c) => {m with criteria = List.filter((fun x -> x != c), m.criteria)}
+  end

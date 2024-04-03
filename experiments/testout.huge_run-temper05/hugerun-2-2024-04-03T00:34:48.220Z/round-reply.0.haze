@@ -1,0 +1,7 @@
+
+fun model, action ->
+  case action
+  | PasswordChanged(new_password) => { model with password = new_password }
+  | ToggleShowPassword => { model with showPassword = !model.showPassword }
+  | _ => model
+  end

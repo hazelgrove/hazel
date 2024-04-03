@@ -1,0 +1,18 @@
+The following static errors were discovered:
+Error in term:
+  idx
+Nature of error: Expecting type [?] but got inconsistent type Int
+Error in term:
+  List.take
+Nature of error: Variable List.take is not bound
+Error in term:
+  List.take
+Nature of error: Variable List.take is not bound
+Error in term:
+  List.drop
+Nature of error: Variable List.drop is not bound
+Error in term:
+  List.drop
+Nature of error: Variable List.drop is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

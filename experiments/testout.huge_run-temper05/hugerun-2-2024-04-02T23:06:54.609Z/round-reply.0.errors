@@ -1,0 +1,30 @@
+The following static errors were discovered:
+Error in term:
+  playlist 0, Playing(id)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  playlist 0, PausedOn(get_current_song(playlist))
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  id, playlist 0
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  id, playlist 0
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  add_song(id, playlist 0), playlist 1
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  get_current_song
+Nature of error: Variable get_current_song is not bound
+Error in term:
+  remove_song(id, playlist 0), playlist 1
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  add_song
+Nature of error: Variable add_song is not bound
+Error in term:
+  remove_song
+Nature of error: Variable remove_song is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

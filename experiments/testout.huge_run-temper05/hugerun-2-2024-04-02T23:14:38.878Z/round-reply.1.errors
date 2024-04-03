@@ -1,0 +1,52 @@
+The following static errors were discovered:
+Error in term:
+  songs
+Nature of error: Variable songs is not bound
+Error in term:
+  state new_state ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Rul
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model songs List.sort((fun (a, b) ->
+ a - b), new_songs) ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  songs
+Nature of error: Variable songs is not bound
+Error in term:
+  songs List.sort
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model songs new_songs ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  songs new_songs ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  new_songs ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model songs List.sort
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  state
+Nature of error: Variable state is not bound
+Error in term:
+  model state new_state ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  new_state ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  PlayListAction.RemoveSong
+Nature of error: Expected a constructor
+Error in term:
+  PlayListAction.AddSong
+Nature of error: Expected a constructor
+Error in term:
+  PlayListAction.TogglePlay
+Nature of error: "PlayListAction.TogglePlay" isn't a valid token
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

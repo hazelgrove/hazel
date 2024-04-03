@@ -1,0 +1,10 @@
+
+fun model, action ->
+    case action
+    | AddTodo => (model.1, List.append(model.2, [(model.1, false)]))
+    | RemoveTodo(idx) => (model.1, List.remove_at(idx, model.2))
+    | ToggleTodo(idx) =>
+        let (name, done) = List.nth(idx, model.2) in
+        (model.1, List.update_at(idx, (name, !done), model.2))
+    | UpdateBuffer(str) => (str, model.2)
+    end

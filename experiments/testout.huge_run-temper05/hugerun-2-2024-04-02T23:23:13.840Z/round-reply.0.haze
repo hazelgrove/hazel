@@ -1,0 +1,10 @@
+
+fun (playlist, action) ->
+    case action
+    | PlaySong(id) => (playlist.0, Playing(id))
+    | PauseCurrentSong => (playlist.0, case playlist.1
+        | Playing(id) => PausedOn(id)
+        | _ => playlist.1 end)
+    | RemoveSong(id) => (List.remove(playlist.0, id), playlist.1)
+    | AddSong(id) => (List.append(playlist.0, [id]), playlist.1)
+    end

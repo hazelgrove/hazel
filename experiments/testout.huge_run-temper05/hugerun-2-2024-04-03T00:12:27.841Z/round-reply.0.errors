@@ -1,0 +1,115 @@
+The following static errors were discovered:
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  Grid
+Nature of error: Constructor is not defined
+Error in term:
+  Grid
+Nature of error: Constructor is not defined
+Error in term:
+  update_grid
+Nature of error: Variable update_grid is not bound
+Error in term:
+  fill_row (Grid, Row, Emoji -> Grid ?)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Grid
+Nature of error: Constructor is not defined
+Error in term:
+  model.2
+Nature of error: "model.2" isn't a valid token
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  create_empty_grid
+Nature of error: Variable create_empty_grid is not bound
+Error in term:
+  update_grid (Grid, Row, Col, Emoji -> Grid ?)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Grid
+Nature of error: Constructor is not defined
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  fun (model, action) ->
+ case action
+ | SelectEmoji(emoji) => (model.0, emoji, model.2)
+| StampEmoji(((row, col))) => (update_grid(model.0, row, col, model.1), model.1, model.2)
+| ClearCell(((row, col))) => (update_grid(model.0, row, col, ), model.1, model.2)
+| ClearGrid => (create_empty_grid(()), model.1, model.2)
+| FillRow(row) => (fill_row(model.0, row, model.1), model.1, model.2)
+end where update_grid (Grid, Row, Col, Emoji -> Grid ?), create_empty_grid (() -> Grid ?), fill_row (Grid, Row, Emoji -> Grid ?)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  where update_grid (Grid, Row, Col, Emoji -> Grid ?), create_empty_grid (() -> Grid ?), fill_row (Grid, Row, Emoji -> Grid ?)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Emoji
+Nature of error: Constructor is not defined
+Error in term:
+  model.2
+Nature of error: "model.2" isn't a valid token
+Error in term:
+  Col
+Nature of error: Constructor is not defined
+Error in term:
+  Row
+Nature of error: Constructor is not defined
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  model.2
+Nature of error: "model.2" isn't a valid token
+Error in term:
+  create_empty_grid (() -> Grid ?)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.2
+Nature of error: "model.2" isn't a valid token
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  update_grid
+Nature of error: Variable update_grid is not bound
+Error in term:
+  model.2
+Nature of error: "model.2" isn't a valid token
+Error in term:
+  where
+Nature of error: Variable where is not bound
+Error in term:
+  Row
+Nature of error: Constructor is not defined
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  Emoji
+Nature of error: Constructor is not defined
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  Grid
+Nature of error: Constructor is not defined
+Error in term:
+  fill_row
+Nature of error: Variable fill_row is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

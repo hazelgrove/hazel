@@ -1,0 +1,7 @@
+
+fun model, action ->
+  case action
+  | UpdateForm(field, value) => { model | form = updateForm(model.form, field, value) }
+  | SubmitForm => submitForm(model)
+  | CancelBooking(bookingID) => cancelBooking(model, bookingID)
+  end

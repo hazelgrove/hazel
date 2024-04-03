@@ -1,0 +1,12 @@
+The following static errors were discovered:
+The suggested filling has the wrong expected type: expected ((Model, Action) -> Model), but got ((?, ?) -> (?, [(Weekday, TimeOfDay, User, ?)], Int)).
+Error in term:
+  fun ((_, _, _, bookingID)) ->
+ bookingID != id
+Nature of error: Expecting type ((? -> Bool), [?]) but got inconsistent type ((?, ?, ?, ?) -> Bool)
+Error in term:
+  formData, List.filter(fun ((_, _, _, bookingID)) ->
+ bookingID != id) bookings, id
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

@@ -1,0 +1,10 @@
+fun model, action ->
+  case action
+  | AddEmoji(emoji) => {model with canvas = emoji :: model.canvas}
+  | ClearCanvas => {model with canvas = []}
+  | Undo => 
+    case model.canvas 
+    | [] => model
+    | _::rest => {model with canvas = rest}
+    end
+  end

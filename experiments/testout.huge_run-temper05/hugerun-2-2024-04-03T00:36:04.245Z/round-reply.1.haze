@@ -1,0 +1,5 @@
+fun model, action ->
+  case action
+  | ChangePassword(password) => update_password_strength(model, password)
+  | Clear => clear_model()
+  end

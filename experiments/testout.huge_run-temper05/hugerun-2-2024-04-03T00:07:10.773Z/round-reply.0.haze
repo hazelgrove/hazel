@@ -1,0 +1,8 @@
+fun model, action ->
+  case action
+  | Clear => {model with grid = clearGrid(model.grid)}
+  | Fill(row, emoji) => {model with grid = fillRowInGrid(model.grid, row, emoji)}
+  | Update(row, col, emoji) => {model with grid = updateGrid(model.grid, row, col, emoji)}
+  | SetEmoji(emoji) => {model with currentEmoji = emoji}
+  | ToggleGrid => {model with showGrid = !model.showGrid}
+  end

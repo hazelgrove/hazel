@@ -1,0 +1,111 @@
+The following static errors were discovered:
+Error in term:
+  bookings ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  bookingId model.bookingId ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  formData
+Nature of error: Variable formData is not bound
+Error in term:
+  bookings
+Nature of error: Variable bookings is not bound
+Error in term:
+  formData
+Nature of error: Variable formData is not bound
+Error in term:
+  model.bookingId ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  bookingId model.bookingId
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  bookings
+Nature of error: Variable bookings is not bound
+Error in term:
+  formData model.formData
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  bookingId model.bookingId ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  formData ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  bookings newBookings
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  bookingId
+Nature of error: Variable bookingId is not bound
+Error in term:
+  ? formData model.formData
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.formData
+Nature of error: "model.formData" isn't a valid token
+Error in term:
+  model.bookingId
+Nature of error: "model.bookingId" isn't a valid token
+Error in term:
+  model.bookingId
+Nature of error: "model.bookingId" isn't a valid token
+Error in term:
+  bookings
+Nature of error: Variable bookings is not bound
+Error in term:
+  1 ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.bookings
+Nature of error: "model.bookings" isn't a valid token
+Error in term:
+  ? formData ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.bookings
+Nature of error: "model.bookings" isn't a valid token
+Error in term:
+  bookings model.bookings
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  formData ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  bookingId
+Nature of error: Variable bookingId is not bound
+Error in term:
+  model.bookingId
+Nature of error: "model.bookingId" isn't a valid token
+Error in term:
+  model.bookingId ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  bookingId
+Nature of error: Variable bookingId is not bound
+Error in term:
+  formData
+Nature of error: Variable formData is not bound
+Error in term:
+  model.bookingId
+Nature of error: "model.bookingId" isn't a valid token
+Error in term:
+  time
+Nature of error: Expecting type Time but got inconsistent type TimeOfDay
+Error in term:
+  model.bookings
+Nature of error: "model.bookings" isn't a valid token
+Error in term:
+  ? formData ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.bookingId
+Nature of error: "model.bookingId" isn't a valid token
+Error in term:
+  UpdateBuffer
+Nature of error: Constructor is not defined
+Error in term:
+  RemoveBooking
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

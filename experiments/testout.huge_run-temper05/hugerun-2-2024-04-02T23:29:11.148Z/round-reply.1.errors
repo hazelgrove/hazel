@@ -1,0 +1,7 @@
+The following static errors were discovered:
+The suggested filling has the wrong expected type: expected ((Model, Action) -> Model), but got (((?, ?, ?), ?) -> ((Weekday, TimeOfDay, User), [(TimeOfDay, User, Int)], Int)).
+Error in term:
+  time
+Nature of error: Expecting type Time but got inconsistent type TimeOfDay
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

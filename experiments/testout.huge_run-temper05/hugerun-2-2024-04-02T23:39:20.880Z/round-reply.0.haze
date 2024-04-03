@@ -1,0 +1,12 @@
+fun model, action ->
+  case action
+  | Submit(bookingForm) =>
+    let newBooking = Booking(bookingForm, model.currUser) in
+    Model(model.bookings ++ [newBooking], model.currUser, initFormState)
+  | Delete(bookingId) =>
+    let updatedBookings = rm_booking(model.currUser, bookingId, model.bookings) in
+    Model(updatedBookings, model.currUser, initFormState)
+  | ChangeUser(user) =>
+    Model(model.bookings, user, initFormState)
+  | UpdateForm(weekday, timeOfDay, room) =>
+    Model(model.bookings, model.currUser, ((weekday, timeOfDay), room)) end

@@ -1,0 +1,15 @@
+The following static errors were discovered:
+Error in term:
+  update_model_password_strength
+Nature of error: Variable update_model_password_strength is not bound
+Error in term:
+  initialize_model
+Nature of error: Variable initialize_model is not bound
+Error in term:
+  ResetModel
+Nature of error: Constructor is not defined
+Error in term:
+  ChangePasswordStrength
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

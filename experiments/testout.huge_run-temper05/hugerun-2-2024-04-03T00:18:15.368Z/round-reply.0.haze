@@ -1,0 +1,6 @@
+fun model, action ->
+  case action
+  | AddEmoji(emoji) => Model.addEmoji(model, emoji)
+  | RemoveEmoji(index) => Model.removeEmoji(model, index)
+  | Clear => Model.clear(model)
+  end

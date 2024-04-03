@@ -1,0 +1,137 @@
+The following static errors were discovered:
+Error in term:
+  clearBookings are functions defined elsewhere in your program that modify the model according to the specified action.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  fun ((model, action)) ->
+ case action
+ | AddBooking((user, weekday, timeOfDay)) => addBooking(model, user, weekday, timeOfDay)
+| CancelBooking((user, id)) => cancelBooking(model, user, id)
+| ClearBookings => clearBookings(model)
+end where addBooking, cancelBooking, and clearBookings are functions defined elsewhere in your program that modify the model according to the specified action.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  cancelBooking
+Nature of error: Variable cancelBooking is not bound
+Error in term:
+  are
+Nature of error: Variable are is not bound
+Error in term:
+  and
+Nature of error: Variable and is not bound
+Error in term:
+  elsewhere
+Nature of error: Variable elsewhere is not bound
+Error in term:
+  where addBooking, cancelBooking, and clearBookings are functions defined elsewhere in your program that modify the model according to the specified action.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  program that modify the model according to the specified action.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  to the specified action.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  the specified action.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  functions defined elsewhere in your program that modify the model according to the specified action.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  defined
+Nature of error: Variable defined is not bound
+Error in term:
+  model
+Nature of error: Variable model is not bound
+Error in term:
+  cancelBooking
+Nature of error: Variable cancelBooking is not bound
+Error in term:
+  specified
+Nature of error: Variable specified is not bound
+Error in term:
+  according to the specified action.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  your program that modify the model according to the specified action.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  your
+Nature of error: Variable your is not bound
+Error in term:
+  specified action.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model according to the specified action.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  addBooking
+Nature of error: Variable addBooking is not bound
+Error in term:
+  the
+Nature of error: Variable the is not bound
+Error in term:
+  are functions defined elsewhere in your program that modify the model according to the specified action.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  action.
+Nature of error: "action." isn't a valid token
+Error in term:
+  that
+Nature of error: Variable that is not bound
+Error in term:
+  according
+Nature of error: Variable according is not bound
+Error in term:
+  the model according to the specified action.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  addBooking, cancelBooking, and clearBookings are functions defined elsewhere in your program that modify the model according to the specified action.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  addBooking
+Nature of error: Variable addBooking is not bound
+Error in term:
+  that modify the model according to the specified action.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  in
+Nature of error: Variable in is not bound
+Error in term:
+  where
+Nature of error: Variable where is not bound
+Error in term:
+  in your program that modify the model according to the specified action.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  clearBookings
+Nature of error: Variable clearBookings is not bound
+Error in term:
+  elsewhere in your program that modify the model according to the specified action.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  program
+Nature of error: Variable program is not bound
+Error in term:
+  defined elsewhere in your program that modify the model according to the specified action.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  clearBookings
+Nature of error: Variable clearBookings is not bound
+Error in term:
+  modify
+Nature of error: Variable modify is not bound
+Error in term:
+  the
+Nature of error: Variable the is not bound
+Error in term:
+  modify the model according to the specified action.
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  functions
+Nature of error: Variable functions is not bound
+Error in term:
+  to
+Nature of error: Variable to is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

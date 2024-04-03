@@ -1,0 +1,53 @@
+The following static errors were discovered:
+Error in term:
+  
+Nature of error: Expecting type String but got inconsistent type [String]
+Error in term:
+  model 0, List.remove_at(idx, model 1)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  str, model 1
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  List.map_at
+Nature of error: Variable List.map_at is not bound
+Error in term:
+  idx, model 1
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  x
+Nature of error: Variable x is not bound
+Error in term:
+  , model 1 ++ 
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  1
+Nature of error: Expecting type String but got inconsistent type [Int]
+Error in term:
+  model 0, List.map_at(idx, fun x ->
+ not x, model 1)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  List.remove_at
+Nature of error: Variable List.remove_at is not bound
+Error in term:
+  idx, fun x ->
+ not x, model 1
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  x, model 1
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ToggleTodo
+Nature of error: Constructor is not defined
+Error in term:
+  UpdateBuffer
+Nature of error: Constructor is not defined
+Error in term:
+  RemoveTodo
+Nature of error: Constructor is not defined
+Error in term:
+  AddTodo
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

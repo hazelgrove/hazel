@@ -1,0 +1,25 @@
+fun model, action ->
+  case action
+  | AddUser(user) =>
+      {model with users = user::model.users}
+  | RemoveUser(user) =>
+      {model with users = List.filter(fun u -> u != user, model.users)}
+  | AddBooking(user, booking) =>
+      {model with bookings = (user, booking)::model.bookings}
+  | RemoveBooking(user, bookingID) =>
+      {model with bookings = rm_booking(user, bookingID, model.bookings)}
+  | SetFormState(formState) =>
+      {model with formState = formState}
+  | SubmitForm =>
+      case model.formState
+      | Some((weekday, timeOfDay), room) =>
+          if string_length(room) > 0 &&
+             string_compare(room, "Unavailable") != 0 &&
+             List.length(getUserBookings(model, model.currentUser)) < 2
+          then {model with
+                bookings = (model.currentUser, (weekday, timeOfDay, room))::model.bookings,
+                formState = Some(initFormState)}
+          else model
+      | None => model
+  end
+end

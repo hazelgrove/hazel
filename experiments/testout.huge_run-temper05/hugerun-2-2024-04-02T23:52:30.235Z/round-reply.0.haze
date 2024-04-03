@@ -1,0 +1,22 @@
+
+fun model, action ->
+  case action
+  | CreateRoom(room) => { model with rooms = room::model.rooms }
+  | BookRoom(room_id, booking) => 
+    let rooms = List.map(model.rooms, fun room ->
+      if room.id == room_id then 
+        { room with bookings = booking::room.bookings }
+      else 
+        room
+    end) in
+    { model with rooms = rooms }
+  | CancelBooking(room_id, booking_id) => 
+    let rooms = List.map(model.rooms, fun room ->
+      if room.id == room_id then 
+        let bookings = List.filter(room.bookings, fun booking -> booking.id != booking_id) in
+        { room with bookings = bookings }
+      else 
+        room
+    end) in
+    { model with rooms = rooms }
+  end

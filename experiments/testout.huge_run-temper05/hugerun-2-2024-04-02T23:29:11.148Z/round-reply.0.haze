@@ -1,0 +1,12 @@
+fun model, action ->
+  case action
+  | AddBooking(user, weekday, time) => 
+    if bookingExists(model, (time, user, getBookingID(model)))
+    then model
+    else let newBookingID = getBookingID(model) + 1 in
+         let newBooking = (time, user, newBookingID) in
+         let (_, bookings, _) = model in
+         let newBookings = newBooking::bookings in
+         ((weekday, time, user), newBookings, newBookingID)
+  | _ => model
+  end

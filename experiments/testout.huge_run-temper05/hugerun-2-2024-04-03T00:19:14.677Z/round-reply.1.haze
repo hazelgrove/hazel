@@ -1,0 +1,7 @@
+fun (model, action) ->
+  case action
+  | AddTodo => ("", model.1 ++ [model.0])
+  | RemoveTodo(index) => (model.0, List.remove(index, model.1))
+  | ToggleTodo(index) => (model.0, List.map(fun i, x -> if i == index then !x else x, model.1))
+  | UpdateBuffer(str) => (str, model.1)
+  end

@@ -1,0 +1,6 @@
+
+fun m, a ->
+  case a
+  | SetPassword(p) => {m with password = p; strength = checkStrength(p)}
+  | SetVisibility(v) => {m with visibility = v}
+  end

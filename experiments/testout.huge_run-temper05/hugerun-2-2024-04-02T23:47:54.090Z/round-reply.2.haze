@@ -1,0 +1,8 @@
+fun (model, action) ->
+    case action
+    | AddBooking(user, weekday, timeOfDay) => addBooking(model, user, weekday, timeOfDay)
+    | CancelBooking(user, id) => cancelBooking(model, user, id)
+    | ClearBookings => clearBookings(model)
+    end
+
+where addBooking, cancelBooking, and clearBookings are functions defined elsewhere in your program that modify the model according to the specified action.

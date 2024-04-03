@@ -1,0 +1,48 @@
+The following static errors were discovered:
+Error in term:
+  fun (model, action) ->
+ case action
+ | PlayListAction.AddSong(id) => List.rev_append(get_songs(model), id)
+| PlayListAction.RemoveSong(id) => List.filter_map(fun song ->
+ if song == id then None else Some(song), get_songs(model))
+| PlayListAction.ChangeState(state) => PlayList(get_songs(model), state)
+| PlayListAction.Sort(compare) => List.sort(compare, get_songs(model))
+| PlayListAction.Merge(playList) => List.merge(fun (a, b) ->
+ if a < b then -1 else if a > b then 1 else 0, get_songs(model), get_songs(playList))
+| PlayListAction.Combine(playList) => List.combine(get_songs(model), get_songs(playList))
+| PlayListAction.ConcatMap(f) => List.concat_map(f, get_songs(model))
+| PlayListAction.FilterMap(f) => List.filter_map(f, get_songs(model))
+end in
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  in
+Nature of error: Variable in is not bound
+Error in term:
+  PlayList
+Nature of error: Constructor is not defined
+Error in term:
+  PlayListAction.RemoveSong
+Nature of error: Expected a constructor
+Error in term:
+  PlayListAction.ConcatMap
+Nature of error: Expected a constructor
+Error in term:
+  PlayListAction.Combine
+Nature of error: Expected a constructor
+Error in term:
+  PlayListAction.AddSong
+Nature of error: Expected a constructor
+Error in term:
+  PlayListAction.FilterMap
+Nature of error: Expected a constructor
+Error in term:
+  PlayListAction.ChangeState
+Nature of error: Expected a constructor
+Error in term:
+  PlayListAction.Sort
+Nature of error: Expected a constructor
+Error in term:
+  PlayListAction.Merge
+Nature of error: Expected a constructor
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

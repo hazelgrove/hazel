@@ -1,0 +1,18 @@
+The following static errors were discovered:
+Error in term:
+  check_strength
+Nature of error: Variable check_strength is not bound
+Error in term:
+  check_strength
+Nature of error: Variable check_strength is not bound
+Error in term:
+  (? != ?) old_criterion, criteria
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  (? != ?) old_criterion, criteria
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  check_strength
+Nature of error: Variable check_strength is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

@@ -1,0 +1,12 @@
+fun (model, action) ->
+    case action
+    | AddBooking(user, weekday, time) => 
+        if bookingExists(model, (time, user, model.lastID + 1))
+        then model
+        else (model.form, model.bookings @ [(time, user, model.lastID + 1)], model.lastID + 1)
+    | RemoveBooking(id) =>
+        let newBookings = List.filter(fun (_, _, bookingId) -> bookingId != id, model.bookings) in
+        (model.form, newBookings, model.lastID)
+    | UpdateBuffer(str) =>
+        ((str, model.form.2), model.bookings, model.lastID)
+    end

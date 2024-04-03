@@ -1,0 +1,39 @@
+The following static errors were discovered:
+Error in term:
+  playList 0, Playing(id)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  id, playList 0
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  List.filter(fun songId ->
+ songId != id, playList 0), playList 1
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  fun songId ->
+ songId != id, playList 0
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  id :: playList 0, playList 1
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  0, playList 1
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Rul
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  fun ((playList, action)) ->
+ case action
+ | PlaySong(id) => (playList 0, Playing(id))
+| PauseCurrentSong => Rul
+| RemoveSong(id) => (List.filter(fun songId ->
+ songId != id, playList 0), playList 1)
+| AddSong(id) => if List.mem(id, playList 0) then playList else (id :: playList 0, playList 1)
+end end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

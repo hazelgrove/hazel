@@ -1,0 +1,30 @@
+The following static errors were discovered:
+Error in term:
+  playlist.1
+Nature of error: "playlist.1" isn't a valid token
+Error in term:
+  remove_song
+Nature of error: Variable remove_song is not bound
+Error in term:
+  add_song
+Nature of error: Variable add_song is not bound
+Error in term:
+  playlist.0
+Nature of error: "playlist.0" isn't a valid token
+Error in term:
+  get_current_song
+Nature of error: Variable get_current_song is not bound
+Error in term:
+  playlist.0
+Nature of error: "playlist.0" isn't a valid token
+Error in term:
+  playlist.0
+Nature of error: "playlist.0" isn't a valid token
+Error in term:
+  playlist.0
+Nature of error: "playlist.0" isn't a valid token
+Error in term:
+  playlist.1
+Nature of error: "playlist.1" isn't a valid token
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

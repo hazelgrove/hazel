@@ -1,0 +1,6 @@
+
+fun model, action ->
+  case action
+  | BookRoom(room) => { model with rooms = model.rooms + room }
+  | CancelBooking(room) => { model with rooms = model.rooms - room }
+  end

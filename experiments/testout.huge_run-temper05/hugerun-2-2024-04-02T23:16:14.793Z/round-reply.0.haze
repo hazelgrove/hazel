@@ -1,0 +1,9 @@
+fun playlist, action ->
+  case action
+  | AddSong(id) => List.concat_map(fun song -> if song.id == id then [song] else [], playlist.songs)
+  | RemoveSong(id) => List.filter_map(fun song -> if song.id != id then Some(song) else None, playlist.songs)
+  | SortSongs => List.sort(fun a, b -> a.id - b.id, playlist.songs)
+  | MergePlaylists(other) => List.merge(fun a, b -> a.id - b.id, playlist.songs, other.songs)
+  | ReversePlaylist => List.rev_append([], playlist.songs)
+  | CombinePlaylists(other) => List.combine(playlist.songs, other.songs)
+  end

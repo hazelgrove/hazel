@@ -1,0 +1,7 @@
+fun model, action ->
+  case action
+  | AddBooking(booking) => {model with bookings = booking :: model.bookings}
+  | RemoveBooking(booking_id) => {model with bookings = rm_booking(model.user, booking_id, model.bookings)}
+  | UpdateForm(weekday, time_of_day, room) => {model with formState = ((weekday, time_of_day), room)}
+  | UpdateUser(user) => {model with user = user}
+  end

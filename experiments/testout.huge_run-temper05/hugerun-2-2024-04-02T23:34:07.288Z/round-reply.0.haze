@@ -1,0 +1,8 @@
+fun (model, action) ->
+  case action
+    | AddBooking(user, weekday, time) => addBooking(model, user, weekday, time)
+    | RemoveBooking(id) => removeBooking(model, id)
+    | UpdateUser(user) => updateUser(model, user)
+    | UpdateWeekday(weekday) => updateWeekday(model, weekday)
+    | UpdateTime(time) => updateTime(model, time)
+  end

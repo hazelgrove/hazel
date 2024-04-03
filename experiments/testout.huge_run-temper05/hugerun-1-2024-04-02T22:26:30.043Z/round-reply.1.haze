@@ -1,0 +1,6 @@
+fun (model, action) ->
+  case action
+  | AddEmoji(emoji) => {model with emojis = emoji::model.emojis}
+  | RemoveEmoji(emoji) => {model with emojis = List.filter(fun e -> e != emoji, model.emojis)}
+  | SetBackgroundColor(color) => {model with backgroundColor = color}
+  end

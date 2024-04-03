@@ -1,0 +1,140 @@
+The following static errors were discovered:
+Error in term:
+  songs List.merge
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  songs List.filter_map
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  state get_state
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  state state ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  songs
+Nature of error: Variable songs is not bound
+Error in term:
+  state get_state
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? songs get_songs
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  case action
+ | AddSong(id) => List.rev_append(get_songs(model), id)
+| RemoveSong(id) => List.filter_map(fun song ->
+ if song == id then None else Some(song), get_songs(model))
+| ChangeState(state) => ? songs get_songs(model), state state ?
+| Sort(compare) => ? songs List.sort(compare, get_songs(model)), state get_state(model) ?
+| Merge(playList) => ? songs List.merge(fun (a, b) ->
+ if a < b then -1 else if a > b then 1 else 0, get_songs(model), get_songs(playList)), state get_state(model) ?
+| Combine(playList) => ? songs List.combine(get_songs(model), get_songs(playList)), state get_state(model) ?
+| ConcatMap(f) => ? songs List.concat_map(f, get_songs(model)), state get_state(model) ?
+| FilterMap(f) => ? songs List.filter_map(f, get_songs(model)), state get_state(model) ?
+end
+Nature of error: Expecting branches to have consistent types but got types: [?], [?], (?, ?), (?, ?), (?, ?), (?, ?), (?, ?), (?, ?)
+Error in term:
+  ? songs List.combine
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  state get_state(model) ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  state get_state(model) ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  songs List.sort
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  state ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? songs List.concat_map
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  state get_state
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  songs List.concat_map
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  state
+Nature of error: Variable state is not bound
+Error in term:
+  ? songs List.filter_map
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  state get_state
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  songs
+Nature of error: Variable songs is not bound
+Error in term:
+  state
+Nature of error: Variable state is not bound
+Error in term:
+  state
+Nature of error: Variable state is not bound
+Error in term:
+  state get_state(model) ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  state
+Nature of error: Variable state is not bound
+Error in term:
+  songs List.combine
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? songs List.sort
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  songs
+Nature of error: Variable songs is not bound
+Error in term:
+  songs
+Nature of error: Variable songs is not bound
+Error in term:
+  state
+Nature of error: Variable state is not bound
+Error in term:
+  ? songs List.merge
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  state get_state(model) ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  songs
+Nature of error: Variable songs is not bound
+Error in term:
+  state get_state
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  songs get_songs
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  state get_state(model) ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  songs
+Nature of error: Variable songs is not bound
+Error in term:
+  FilterMap
+Nature of error: Constructor is not defined
+Error in term:
+  ChangeState
+Nature of error: Constructor is not defined
+Error in term:
+  Merge
+Nature of error: Constructor is not defined
+Error in term:
+  Sort
+Nature of error: Constructor is not defined
+Error in term:
+  Combine
+Nature of error: Constructor is not defined
+Error in term:
+  ConcatMap
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

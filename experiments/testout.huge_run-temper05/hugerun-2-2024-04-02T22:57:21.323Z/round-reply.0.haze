@@ -1,0 +1,19 @@
+fun model, action ->
+  case action
+  | AddTodo =>
+      let (buffer, todos) = model in
+      if buffer != "" then (buffer, (buffer, false)::todos) else model
+  | RemoveTodo(idx) =>
+      let (buffer, todos) = model in
+      (buffer, List.remove_at(idx, todos))
+  | ToggleTodo(idx) =>
+      let (buffer, todos) = model in
+      let todo = List.nth(todos, idx) in
+      case todo
+      | Some((text, done)) => (buffer, List.update_at(idx, (text, !done), todos))
+      | None => model
+      end
+  | UpdateBuffer(text) =>
+      let (_, todos) = model in
+      (text, todos)
+  end

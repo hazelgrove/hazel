@@ -1,0 +1,10 @@
+fun (buffer, todos), action ->
+  case action
+  | AddTodo => (buffer, todos)
+  | RemoveTodo(idx) => (buffer, List.remove(idx, todos))
+  | ToggleTodo(idx) =>
+    let toggle: Todo -> Todo =
+      fun (description, status) -> (description, !status) in
+    (buffer, List.update(idx, toggle, todos))
+  | UpdateBuffer(new_buffer) => (new_buffer, todos)
+  end

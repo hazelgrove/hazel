@@ -1,0 +1,6 @@
+fun model, action ->
+  case action
+  | SelectColor(color) => { model with color = color }
+  | Draw(x, y) => { model with grid = Grid.set(x, y, model.color, model.grid) }
+  | Clear => { model with grid = Grid.empty }
+  end

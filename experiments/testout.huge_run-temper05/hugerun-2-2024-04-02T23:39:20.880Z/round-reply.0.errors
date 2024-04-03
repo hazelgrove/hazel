@@ -1,0 +1,60 @@
+The following static errors were discovered:
+Error in term:
+  Model
+Nature of error: Constructor is not defined
+Error in term:
+  model.currUser
+Nature of error: "model.currUser" isn't a valid token
+Error in term:
+  model.bookings
+Nature of error: "model.bookings" isn't a valid token
+Error in term:
+  Model
+Nature of error: Constructor is not defined
+Error in term:
+  model.currUser
+Nature of error: "model.currUser" isn't a valid token
+Error in term:
+  model.currUser
+Nature of error: "model.currUser" isn't a valid token
+Error in term:
+  Model
+Nature of error: Constructor is not defined
+Error in term:
+  model.currUser
+Nature of error: "model.currUser" isn't a valid token
+Error in term:
+  model.currUser
+Nature of error: "model.currUser" isn't a valid token
+Error in term:
+  model.bookings
+Nature of error: "model.bookings" isn't a valid token
+Error in term:
+  Booking
+Nature of error: Constructor is not defined
+Error in term:
+  Model
+Nature of error: Constructor is not defined
+Error in term:
+  newBooking
+Nature of error: Expecting type String but got inconsistent type [?]
+Error in term:
+  model.bookings
+Nature of error: "model.bookings" isn't a valid token
+Error in term:
+  model.bookings
+Nature of error: "model.bookings" isn't a valid token
+Error in term:
+  ChangeUser
+Nature of error: Constructor is not defined
+Error in term:
+  Submit
+Nature of error: Constructor is not defined
+Error in term:
+  Delete
+Nature of error: Constructor is not defined
+Error in term:
+  UpdateForm
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

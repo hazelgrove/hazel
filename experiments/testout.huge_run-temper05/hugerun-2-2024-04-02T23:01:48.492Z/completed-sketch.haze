@@ -1,0 +1,21 @@
+# TODO MVU: Handle TODO actions to update the app model #
+
+let update: (Model, Action) -> Model =
+  
+fun model, action ->
+  case action
+  | AddTodo =>
+    let (buffer, todos) = model in
+    if buffer == "" then model else (buffer, todos @ [(buffer, false)])
+  | RemoveTodo(i) =>
+    let (buffer, todos) = model in
+    (buffer, List.remove_at(i, todos))
+  | ToggleTodo(i) =>
+    let (buffer, todos) = model in
+    let updated_todos = List.mapi(fun idx, (todo, done) -> if idx == i then (todo, !done) else (todo, done), todos) in
+    (buffer, updated_todos)
+  | UpdateBuffer(new_buffer) =>
+    let (_, todos) = model in
+    (new_buffer, todos)
+  end
+in

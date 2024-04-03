@@ -1,0 +1,22 @@
+The following static errors were discovered:
+The suggested filling has the wrong expected type: expected ((PlayList, PlayListAction) -> PlayList), but got ((?, ?) -> [?]).
+Error in term:
+  Combine
+Nature of error: Constructor is not defined
+Error in term:
+  Sort
+Nature of error: Constructor is not defined
+Error in term:
+  Merge
+Nature of error: Constructor is not defined
+Error in term:
+  Reverse
+Nature of error: Constructor is not defined
+Error in term:
+  Add
+Nature of error: Constructor is not defined
+Error in term:
+  Remove
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

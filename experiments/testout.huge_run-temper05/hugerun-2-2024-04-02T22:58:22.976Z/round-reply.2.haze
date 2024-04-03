@@ -1,0 +1,8 @@
+fun (buffer, todos), action ->
+    case action
+    | AddTodo => (buffer, (buffer, false)::todos)
+    | RemoveTodo(idx) => (buffer, List.mapi(fun i, todo -> if i == idx then None else Some(todo), todos) |> List.filter_map(fun x -> x))
+    | ToggleTodo(idx) =>
+        (buffer, List.mapi(fun i, (task, done) -> if i == idx then (task, !done) else (task, done), todos))
+    | UpdateBuffer(str) => (str, todos)
+    end
