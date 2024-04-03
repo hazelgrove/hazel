@@ -2,6 +2,8 @@
 open AST
 %}
 
+%token FREE
+%token FIX
 %token <string> IDENT
 %token <string> STRING
 %token TRUE 
@@ -129,8 +131,11 @@ typ:
     | OPEN_SQUARE_BRACKET; t = typ; CLOSE_SQUARE_BRACKET { ArrayType(t) }
     | t1 = typ; DASH_ARROW; t2 = typ { ArrowType(t1, t2) }
 
-pat: 
+varPat:
     | i = IDENT { VarPat (i) }
+
+pat: 
+    | p = varPat {p}
     | t = patTuple { t }
     | t = typeAnn { t }
     | i = INT { IntPat i }
@@ -152,20 +157,28 @@ rul:
 case:
     | CASE; e = exp; l = list(rul); END; { CaseExp(e, l) }
 
+funExp: 
+    | FUN; COLON; t = typ; p = pat; DASH_ARROW; e1 = exp;  { Fun (t, p, e1, None) }
+    | FUN; COLON; t = typ; p = pat; DASH_ARROW; e1 = exp; name = IDENT { Fun (t, p, e1, Some(name)) }
+
+
 exp:
     | i = INT { Int i }
     | f = FLOAT { Float f }
     | v = IDENT { Var v }
+    | FREE; v = IDENT { FreeVar v }
     | s = STRING { String s}
     | b = binExp { b }
     | OPEN_PAREN; l = separated_list(COMMA, exp) ; CLOSE_PAREN { TupleExp(l)}
     | c = case { c }
-    | UNIT { Unit }
     | OPEN_SQUARE_BRACKET; e = separated_list(COMMA, exp); CLOSE_SQUARE_BRACKET { ArrayExp(e) }
     | f = exp; OPEN_PAREN; a = exp; CLOSE_PAREN { ApExp(f, a) }
     | LET; i = pat; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Let (i, e1, e2) }
-    | FUN; COLON; t = typ; p = pat; DASH_ARROW; e1 = exp;  { Fun (t, p, e1) }
     | IF; e1 = exp; THEN; e2 = exp; ELSE; e3 = exp { If (e1, e2, e3) }
     | e1 = exp; LESS_THAN; t1 = typ; EQUAL_ARROW; t2 = typ; GREATER_THAN { Cast(e1, t1, t2) }
     | TRUE { Bool true }
+    | FIX; s = IDENT; t = typ; f = funExp { FixF(s, t, f) }
+    | f = funExp {f}
     | FALSE { Bool false }
+    | OPEN_PAREN; e = exp; CLOSE_PAREN { NonEmptyHole(e) }
+    | UNIT { EmptyHole }

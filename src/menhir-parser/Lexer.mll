@@ -87,6 +87,8 @@ rule token =
     | "Bool" { BOOL_TYPE }
     | "String" { STRING_TYPE }
     | "()" { UNIT }
+    | "_FIX" {FIX}
+    | "_FREE" {FREE}
     | identifier as i { IDENT(i) }
     | eof { EOF }
     | _ { raise (Failure ("Lex error: unknown char: '" ^ Lexing.lexeme lexbuf ^ "'")) }

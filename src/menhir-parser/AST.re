@@ -65,15 +65,18 @@ type exp =
   | Int(int)
   | Float(float)
   | Var(string)
+  | FreeVar(string)
   | String(string)
   | ArrayExp(list(exp))
   | TupleExp(list(exp))
-  | Unit
   | BinExp(exp, binOp, exp)
   | Let(pat, exp, exp)
-  | Fun(typ, pat, exp)
+  | Fun(typ, pat, exp, option(string))
+  | FixF(string, typ, exp)
   | CaseExp(exp, list((pat, exp)))
   | ApExp(exp, exp)
   | Bool(bool)
   | Cast(exp, typ, typ)
+  | NonEmptyHole(exp)
+  | EmptyHole
   | If(exp, exp, exp);
