@@ -73,6 +73,7 @@ module rec Typ: {
   let num_nodes: t => int;
   let unknown_ratio: t => float;
   let is_base: t => bool;
+  let contains_sum_or_var: t => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type type_provenance =
@@ -526,6 +527,22 @@ module rec Typ: {
     switch (ty) {
     | Unknown(_) => true
     | _ => false
+    };
+
+  let rec contains_sum_or_var = (ty: t): bool =>
+    switch (ty) {
+    | Int
+    | Float
+    | Bool
+    | String
+    | Unknown(_) => false
+    | Var("Option") => false //TODO(andrew): hack for LSP
+    | Var(_)
+    | Sum(_) => true
+    | Arrow(t1, t2) => contains_sum_or_var(t1) || contains_sum_or_var(t2)
+    | Prod(tys) => List.exists(contains_sum_or_var, tys)
+    | Rec(_, ty) => contains_sum_or_var(ty)
+    | List(ty) => contains_sum_or_var(ty)
     };
 }
 and Ctx: {
