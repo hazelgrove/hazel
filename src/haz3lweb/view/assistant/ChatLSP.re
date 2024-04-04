@@ -133,9 +133,25 @@ module RelevantCtx = {
     depth: int,
   };
 
+  let is_list_unk = (ty: Typ.t) =>
+    switch (ty) {
+    | List(Unknown(_)) => true
+    | _ => false
+    };
+
+  let returns_base = (ty: Typ.t) =>
+    switch (ty) {
+    | Arrow(_, ty) => Typ.is_base(ty)
+    | _ => false
+    };
+
   let score_type = (ty: Typ.t) => {
     let unk_ratio = Typ.unknown_ratio(ty);
-    Typ.is_base(ty) ? 0.8 : unk_ratio;
+    /* TODO(andrew): make this logic more principled,
+       e.g. give 0 to anything that doesn't have a user-defined type,
+       or possibly a sum type or product type of non-unknowns */
+    Typ.is_base(ty) || returns_base(ty) || is_list_unk(ty)
+      ? 0.0 : unk_ratio;
   };
 
   let take_up_to_n = (n, xs) =>
@@ -186,7 +202,8 @@ module RelevantCtx = {
       |> Util.ListUtil.dedup
       |> List.sort((t1, t2) =>
            compare(score_type(t2.matched_type), score_type(t1.matched_type))
-         );
+         )
+      |> List.filter(entry => score_type(entry.matched_type) > 0.0);
     // List.iter(
     //   fun
     //   | {name, typ, depth, matched_type} =>
