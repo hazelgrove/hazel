@@ -301,7 +301,9 @@ and uexp_to_info_map =
         ~co_ctx=CoCtx.singleton(ctr, UExp.rep_id(uexp), Mode.ty_of(mode)),
         m,
       )
-    | Free(_) => atomic(Self.of_ctr(ctx, ctr))
+    | Free(_)
+    | IsDeferral(_)
+    | IsBadPartialAp(_) => atomic(Self.of_ctr(ctx, ctr))
     };
   | Ap(fn, arg)
   | Pipeline(arg, fn) =>
@@ -1101,6 +1103,8 @@ and uexp_to_module =
   | Var(_)
   | Dot(_)
   | Ap(_)
+  | Deferral(_)
+  | DeferredAp(_)
   | If(_)
   | Seq(_)
   | Test(_)
