@@ -491,6 +491,7 @@ let rec is_strict_prefix_up_to_consistency = (ctx, p_syn, p_ana) =>
 let suggest_comma_inner = (~db, ~ctx: Ctx.t, ~self: Typ.t, expected: Typ.t) =>
   /* Assumes self and expected types are normalized */
   switch (expected) {
+  | Unknown(_) => true
   | Prod(p_ana) =>
     db(
       "LSP: commas: p_ana is prod: "
