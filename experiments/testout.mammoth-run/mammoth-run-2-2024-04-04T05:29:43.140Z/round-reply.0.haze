@@ -1,0 +1,6 @@
+fun model, action ->
+  case action
+  | AddSong(id) => {model with songs = id::get_songs(model)}
+  | RemoveSong(id) => {model with songs = List.remove(id, get_songs(model))}
+  | SetState(state) => {model with state = state}
+  end

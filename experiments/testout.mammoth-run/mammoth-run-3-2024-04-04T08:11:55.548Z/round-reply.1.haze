@@ -1,0 +1,7 @@
+fun model, action ->
+  case action
+  | AddSong(song) => model.addSong(song)
+  | RemoveSong(song) => model.removeSong(song)
+  | PlayNext => model.playNext()
+  | Shuffle => model.shuffle()
+  end

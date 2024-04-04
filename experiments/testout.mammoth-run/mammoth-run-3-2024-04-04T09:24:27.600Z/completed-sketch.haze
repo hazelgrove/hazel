@@ -1,0 +1,17 @@
+# Update the EmojiPaint app model based on an action #
+
+let update: (Model, Action) -> Model =
+  
+fun model, action ->
+  case action
+  | SetColor(color) => { model with color = color }
+  | SetTool(tool) => { model with tool = tool }
+  | Draw(point) =>
+    let new_canvas =
+      match model.tool with
+      | Brush => Canvas.draw_point(model.canvas, point, model.color)
+      | Eraser => Canvas.erase_point(model.canvas, point)
+      in
+    { model with canvas = new_canvas }
+  end
+in

@@ -1,0 +1,18 @@
+The following static errors were discovered:
+Error in term:
+  Model.add
+Nature of error: Variable Model.add is not bound
+Error in term:
+  Model.remove
+Nature of error: Variable Model.remove is not bound
+Error in term:
+  Model.toggle
+Nature of error: Variable Model.toggle is not bound
+Error in term:
+  model.todos
+Nature of error: "model.todos" isn't a valid token
+Error in term:
+  model.todos
+Nature of error: "model.todos" isn't a valid token
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

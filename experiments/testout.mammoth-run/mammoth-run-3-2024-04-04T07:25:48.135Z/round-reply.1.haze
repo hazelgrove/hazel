@@ -1,0 +1,9 @@
+fun (buffer, todos), action ->
+  case action
+  | AddTodo => if buffer != "" then (buffer, (buffer, false)::todos) else (buffer, todos)
+  | RemoveTodo(idx) => (buffer, List.filteri(fun i, _ -> i != idx, todos))
+  | ToggleTodo(idx) =>
+    let updated_todos = List.mapi(fun i, (description, status) -> if i == idx then (description, !status) else (description, status), todos) in
+    (buffer, updated_todos)
+  | UpdateBuffer(str) => (str, todos)
+  end

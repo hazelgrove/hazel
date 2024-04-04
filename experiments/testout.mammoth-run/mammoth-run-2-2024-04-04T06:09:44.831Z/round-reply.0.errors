@@ -1,0 +1,44 @@
+The following static errors were discovered:
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  case action
+ | SelectEmoji(emoji) => (emoji, model.1)
+| StampEmoji((row, col)) => let updatedGrid = updateGrid(model.0, row, col, model.1) in
+ (updatedGrid, model.1)
+| FillRow(row) => let filledGrid = List.map(model.0, fun ((r, emojis)) ->
+ if r == row then List.map(emojis, fun _ ->
+ model.1) else emojis) in
+ (filledGrid, model.1)
+end
+Nature of error: Expecting branches to have consistent types but got types: (Emoji, ?), (Grid, ?), (?, ?)
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  fun ((r, emojis)) ->
+ if r == row then List.map(emojis, fun _ ->
+ model.1) else emojis
+Nature of error: Expecting type [?] but got inconsistent type ((?, ?) -> ?)
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  fun _ ->
+ model.1
+Nature of error: Expecting type [?] but got inconsistent type (? -> ?)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

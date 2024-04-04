@@ -1,0 +1,14 @@
+# Update the EmojiPaint app model based on an action #
+
+let update: (Model, Action) -> Model =
+  
+fun (model, action) ->
+  let (grid, selected_emoji, emoji_palette) = model in
+  case action
+  | SelectEmoji(new_emoji) => (grid, new_emoji, emoji_palette)
+  | StampEmoji((row, col)) => (updateGrid(grid, row, col, selected_emoji), selected_emoji, emoji_palette)
+  | ClearCell((row, col)) => (updateGrid(grid, row, col, ""), selected_emoji, emoji_palette)
+  | ClearGrid => (clearGrid(grid), selected_emoji, emoji_palette)
+  | FillRow(row) => (fillRowInGrid(grid, row, selected_emoji), selected_emoji, emoji_palette)
+  end
+in

@@ -1,0 +1,8 @@
+fun model, action ->
+  case action
+  | AddBooking(user, weekday, time) => if bookingExists(model, (time, user, getNewBookingID(model))) 
+    then model 
+    else (getBookingFormData(model), (time, user, getNewBookingID(model))::getBookings(model), getNewBookingID(model) + 1)
+  | RemoveBooking(id) => (getBookingFormData(model), List.filter(fun (_, _, bookingID) -> bookingID != id, getBookings(model)), getNewBookingID(model))
+  | UpdateBuffer(time, user) => ((time, user, getActionType(model)), getBookings(model), getNewBookingID(model))
+  end

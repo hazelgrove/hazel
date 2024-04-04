@@ -1,0 +1,39 @@
+The following static errors were discovered:
+Error in term:
+  match get_state(model) Rul
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  PlayList
+Nature of error: Constructor is not defined
+Error in term:
+  get_state(model) Rul
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  PlayList
+Nature of error: Constructor is not defined
+Error in term:
+  PlayList
+Nature of error: Constructor is not defined
+Error in term:
+  List.remove
+Nature of error: Variable List.remove is not bound
+Error in term:
+  PlayList
+Nature of error: Constructor is not defined
+Error in term:
+  match
+Nature of error: Variable match is not bound
+Error in term:
+  SetPlayListState
+Nature of error: Constructor is not defined
+Error in term:
+  Add
+Nature of error: Constructor is not defined
+Error in term:
+  TogglePlay
+Nature of error: Constructor is not defined
+Error in term:
+  Remove
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

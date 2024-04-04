@@ -1,0 +1,9 @@
+
+fun model, action ->
+  case action
+  | SelectEmoji(emoji) => (fst3(model), emoji, thd3(model))
+  | StampEmoji((row, col)) => (List.replaceAt(row, List.replaceAt(col, snd3(model), fst3(model)), fst3(model)), snd3(model), thd3(model))
+  | ClearCell((row, col)) => (List.replaceAt(row, List.replaceAt(col, "", fst3(model)), fst3(model)), snd3(model), thd3(model))
+  | ClearGrid => (List.map(fun _ -> List.map(fun _ -> "", fst3(model)), fst3(model)), snd3(model), thd3(model))
+  | FillRow(row) => (List.replaceAt(row, List.map(fun _ -> snd3(model), List.nth(row, fst3(model))), fst3(model)), snd3(model), thd3(model))
+  end

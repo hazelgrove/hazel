@@ -1,0 +1,7 @@
+fun model, action ->
+    case action
+    | AddSong(song) => model.songs ++ [song]
+    | RemoveSong(song) => List.remove(model.songs, song)
+    | Play => { model with isPlaying = true }
+    | Pause => { model with isPlaying = false }
+    end

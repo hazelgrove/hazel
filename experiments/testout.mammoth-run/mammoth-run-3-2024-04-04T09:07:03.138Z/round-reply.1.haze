@@ -1,0 +1,10 @@
+fun model, action ->
+  case action
+  | Click(row, col) => let new_grid = updateGrid(model.grid, row, col, model.emoji) in
+                       {model with grid = new_grid}
+  | SelectEmoji(emoji) => {model with emoji = emoji}
+  | Clear => let new_grid = clearGrid(model.grid) in
+              {model with grid = new_grid}
+  | FillRow(row) => let new_grid = fillRowInGrid(model.grid, row, model.emoji) in
+                    {model with grid = new_grid}
+  end

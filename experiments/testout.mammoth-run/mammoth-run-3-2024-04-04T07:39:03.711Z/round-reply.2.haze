@@ -1,0 +1,13 @@
+fun model, action ->
+  case action
+  | AddTodo => (fst(model), (fst(model), false)::snd(model))
+  | RemoveTodo(idx) => 
+      let todos = snd(model) in
+      let new_todos = List.take(idx, todos) @ List.drop(idx + 1, todos) in
+      (fst(model), new_todos)
+  | ToggleTodo(idx) =>
+      let todos = snd(model) in
+      let new_todos = List.mapi((fun i, (text, done) -> if i == idx then (text, !done) else (text, done)), todos) in
+      (fst(model), new_todos)
+  | UpdateBuffer(buffer) => (buffer, snd(model))
+  end

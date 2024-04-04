@@ -1,0 +1,7 @@
+fun (model, action) ->
+  case action
+    | AddTodo => (model[0], List.append(model[1], [model[0]]), [])
+    | RemoveTodo(i) => (model[0], List.remove_at(i, model[1]))
+    | ToggleTodo(i) => (model[0], List.mapi((fun idx, todo -> if idx == i then !todo else todo), model[1]))
+    | UpdateBuffer(s) => (s, model[1])
+  end

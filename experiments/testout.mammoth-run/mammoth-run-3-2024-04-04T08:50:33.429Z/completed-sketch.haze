@@ -1,0 +1,12 @@
+# Update the Room Booking app model based on an action #
+
+let update: (Model, Action) -> Model =
+  
+fun model, action ->
+  case action
+  | SetRoom(room_id) => { model with room_id = room_id }
+  | SetDate(date) => { model with date = date }
+  | SetTime(time) => { model with time = time }
+  | Submit => { model with submitted = true }
+  end
+in

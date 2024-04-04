@@ -1,0 +1,7 @@
+fun model, action ->
+  case action
+  | BookRoom(room_id) => { model with room_bookings = room_id :: model.room_bookings }
+  | CancelBooking(room_id) => { model with room_bookings = List.filter((fun id -> id != room_id), model.room_bookings) }
+  | CheckIn(guest_id, room_id) => { model with room_check_ins = (guest_id, room_id) :: model.room_check_ins }
+  | CheckOut(guest_id, room_id) => { model with room_check_ins = List.filter((fun (g_id, r_id) -> g_id != guest_id \/ r_id != room_id), model.room_check_ins) }
+  end

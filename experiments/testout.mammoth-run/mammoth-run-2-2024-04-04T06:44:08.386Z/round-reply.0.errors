@@ -1,0 +1,51 @@
+The following static errors were discovered:
+Error in term:
+  i, model 1
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  todo
+Nature of error: Expecting type Int but got inconsistent type String
+Error in term:
+  s, model 1
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model 0 + todo, model 1
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  i, model 1
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  i, !List.nth(i, model 1), model 1
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  List.update
+Nature of error: Variable List.update is not bound
+Error in term:
+  model 0, List.update(i, !List.nth(i, model 1), model 1)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  0
+Nature of error: Expecting type Int but got inconsistent type [Int]
+Error in term:
+  List.remove
+Nature of error: Variable List.remove is not bound
+Error in term:
+  0 + todo, model 1
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model 0, List.remove(i, model 1)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  RemoveTodo
+Nature of error: Constructor is not defined
+Error in term:
+  AddTodo
+Nature of error: Constructor is not defined
+Error in term:
+  ToggleTodo
+Nature of error: Constructor is not defined
+Error in term:
+  UpdateBuffer
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

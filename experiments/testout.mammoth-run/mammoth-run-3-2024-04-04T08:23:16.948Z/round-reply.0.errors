@@ -1,0 +1,90 @@
+The following static errors were discovered:
+Error in term:
+  bookings new_bookings action
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  (time, user) action
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  bookings
+Nature of error: Variable bookings is not bound
+Error in term:
+  next_id new_id
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  form (time, user) action
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  next_id
+Nature of error: Variable next_id is not bound
+Error in term:
+  model.next_id
+Nature of error: "model.next_id" isn't a valid token
+Error in term:
+  with bookings new_bookings action
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.bookings
+Nature of error: "model.bookings" isn't a valid token
+Error in term:
+  1 action
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  bookings new_bookings
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  with
+Nature of error: Variable with is not bound
+Error in term:
+  ? model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? model with form (time, user) action
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  time, user
+Nature of error: Expecting type Booking but got inconsistent type (TimeOfDay, User)
+Error in term:
+  form
+Nature of error: Variable form is not bound
+Error in term:
+  ? model with bookings new_bookings action
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? model with bookings new_bookings; next_id new_id + 1 action
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.bookings
+Nature of error: "model.bookings" isn't a valid token
+Error in term:
+  with
+Nature of error: Variable with is not bound
+Error in term:
+  bookings
+Nature of error: Variable bookings is not bound
+Error in term:
+  new_bookings action
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  with form (time, user) action
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  with
+Nature of error: Variable with is not bound
+Error in term:
+  with bookings new_bookings; next_id new_id + 1 action
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  UpdateForm
+Nature of error: Constructor is not defined
+Error in term:
+  RemoveBooking
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

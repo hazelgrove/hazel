@@ -1,0 +1,105 @@
+The following static errors were discovered:
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  row_emojis, fun (emoji, idx) ->
+ if idx == col then  else emoji end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.2
+Nature of error: "model.2" isn't a valid token
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  model.3
+Nature of error: "model.3" isn't a valid token
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  model.2
+Nature of error: "model.2" isn't a valid token
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  model.3
+Nature of error: "model.3" isn't a valid token
+Error in term:
+  model.3
+Nature of error: "model.3" isn't a valid token
+Error in term:
+  model.2
+Nature of error: "model.2" isn't a valid token
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  model.1, fun (row_emojis, idx) ->
+ if idx == row then List.map(row_emojis, fun _ ->
+ model.2) else row_emojis end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  model.2
+Nature of error: "model.2" isn't a valid token
+Error in term:
+  model.3
+Nature of error: "model.3" isn't a valid token
+Error in term:
+  row_emojis, fun (emoji, idx) ->
+ if idx == col then model.2 else emoji end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.3
+Nature of error: "model.3" isn't a valid token
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  model.1, fun row_emojis ->
+ List.map(row_emojis, fun _ ->
+ ) end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  fun _ ->
+ model.2
+Nature of error: Expecting type [?] but got inconsistent type (? -> ?)
+Error in term:
+  model.2
+Nature of error: "model.2" isn't a valid token
+Error in term:
+  model.1, fun (row_emojis, idx) ->
+ if idx == row then List.map(row_emojis, fun (emoji, idx) ->
+ if idx == col then  else emoji end) else row_emojis end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.2
+Nature of error: "model.2" isn't a valid token
+Error in term:
+  model.1, fun (row_emojis, idx) ->
+ if idx == row then List.map(row_emojis, fun (emoji, idx) ->
+ if idx == col then model.2 else emoji end) else row_emojis end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  fun _ ->
+ 
+Nature of error: Expecting type [?] but got inconsistent type (? -> String)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

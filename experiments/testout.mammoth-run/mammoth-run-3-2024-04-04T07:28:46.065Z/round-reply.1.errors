@@ -1,0 +1,15 @@
+The following static errors were discovered:
+Error in term:
+  case action
+ | AddTodo => let ((buffer, todos)) = model in
+ (Model.init, add(buffer, todos))
+| RemoveTodo(idx) => let ((buffer, todos)) = model in
+ (buffer, remove(idx, todos))
+| ToggleTodo(idx) => let ((buffer, todos)) = model in
+ (buffer, toggle(idx, todos))
+| UpdateBuffer(buffer) => let ((_, todos)) = model in
+ (buffer, todos)
+end
+Nature of error: Expecting branches to have consistent types but got types: (Model, [Todo]), (?, [Todo]), (?, [Todo]), (String, ?)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

@@ -1,0 +1,6 @@
+fun (model, action) ->
+    case action
+    | AddBooking(booking) => { model with bookings = booking :: model.bookings }
+    | RemoveBooking(id) => { model with bookings = List.filter((fun b -> b.id != id), model.bookings) }
+    | UpdateBooking(booking) => { model with bookings = List.map((fun b -> if b.id == booking.id then booking else b), model.bookings) }
+    end

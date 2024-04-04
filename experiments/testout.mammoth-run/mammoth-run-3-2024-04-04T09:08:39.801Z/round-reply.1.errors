@@ -1,0 +1,23 @@
+The following static errors were discovered:
+Error in term:
+  List.update
+Nature of error: Variable List.update is not bound
+Error in term:
+  List.update
+Nature of error: Variable List.update is not bound
+Error in term:
+  List.update
+Nature of error: Variable List.update is not bound
+Error in term:
+  List.update
+Nature of error: Variable List.update is not bound
+Error in term:
+  List.update
+Nature of error: Variable List.update is not bound
+Error in term:
+  fun _ ->
+ List.map(fun _ ->
+ , grid)
+Nature of error: Expecting type ((? -> ?), [?]) but got inconsistent type (? -> ?)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

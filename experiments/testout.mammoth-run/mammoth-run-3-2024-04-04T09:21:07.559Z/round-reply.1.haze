@@ -1,0 +1,7 @@
+fun model, action ->
+  case action
+  | AddEmoji(emoji) => { model with emojis = model.emojis @ [emoji] }
+  | RemoveEmoji(index) => { model with emojis = List.remove_at(index, model.emojis) }
+  | Clear => { model with emojis = [] }
+  | Undo => { model with emojis = List.drop(1, model.emojis) }
+  | Redo => { model with emojis = model.emojis }

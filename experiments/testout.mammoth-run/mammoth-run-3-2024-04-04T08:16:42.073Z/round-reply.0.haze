@@ -1,0 +1,9 @@
+fun model, action ->
+  case action
+  | AddSong(song) => model.songs := song::model.songs
+  | DeleteSong(song) => model.songs := List.filter(fun s -> s != song, model.songs)
+  | Play => model.isPlaying := true
+  | Pause => model.isPlaying := false
+  | Next => model.currentSong := (model.currentSong + 1) % List.length(model.songs)
+  | Prev => model.currentSong := if model.currentSong == 0 then List.length(model.songs) - 1 else model.currentSong - 1
+  end

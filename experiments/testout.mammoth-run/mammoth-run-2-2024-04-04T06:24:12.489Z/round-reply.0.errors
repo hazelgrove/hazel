@@ -1,0 +1,60 @@
+The following static errors were discovered:
+Error in term:
+  trd
+Nature of error: Variable trd is not bound
+Error in term:
+  fun r ->
+ if fst(r) == row then List.map(fun c ->
+ if fst(c) == col then snd(model) else snd(c)) else r
+Nature of error: Expecting type ((? -> ?), [?]) but got inconsistent type (? -> ?)
+Error in term:
+  fun r ->
+ if fst(r) == row then List.map(fun c ->
+ if fst(c) == col then  else snd(c)) else r
+Nature of error: Expecting type ((? -> ?), [?]) but got inconsistent type (? -> ?)
+Error in term:
+  List.map(fun r ->
+ if fst(r) == row then List.map(fun c ->
+ snd(model)) else r) fst(model)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  fun c ->
+ if fst(c) == col then  else snd(c)
+Nature of error: Expecting type ((? -> ?), [?]) but got inconsistent type (? -> String)
+Error in term:
+  trd
+Nature of error: Variable trd is not bound
+Error in term:
+  List.map(fun r ->
+ if fst(r) == row then List.map(fun c ->
+ if fst(c) == col then  else snd(c)) else r) fst(model)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  fun c ->
+ if fst(c) == col then snd(model) else snd(c)
+Nature of error: Expecting type ((? -> ?), [?]) but got inconsistent type (? -> ?)
+Error in term:
+  trd
+Nature of error: Variable trd is not bound
+Error in term:
+  fun r ->
+ if fst(r) == row then List.map(fun c ->
+ snd(model)) else r
+Nature of error: Expecting type ((? -> ?), [?]) but got inconsistent type (? -> ?)
+Error in term:
+  trd
+Nature of error: Variable trd is not bound
+Error in term:
+  trd
+Nature of error: Variable trd is not bound
+Error in term:
+  List.map(fun r ->
+ if fst(r) == row then List.map(fun c ->
+ if fst(c) == col then snd(model) else snd(c)) else r) fst(model)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  fun c ->
+ snd(model)
+Nature of error: Expecting type ((? -> ?), [?]) but got inconsistent type (? -> ?)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

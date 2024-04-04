@@ -1,0 +1,15 @@
+fun m, a ->
+  case a
+  | PlayListAction.LoadSongs(songs) => PlayList(songs, get_state(m))
+  | PlayListAction.TogglePause => 
+      case get_state(m) 
+      | PlayListState.Playing => PlayList(get_songs(m), PlayListState.Paused)
+      | PlayListState.Paused => PlayList(get_songs(m), PlayListState.Playing)
+      end
+  | PlayListAction.NextSong => 
+      let songs = get_songs(m) in
+      case songs
+      | [] => m
+      | _::t => PlayList(t, get_state(m))
+      end
+  end

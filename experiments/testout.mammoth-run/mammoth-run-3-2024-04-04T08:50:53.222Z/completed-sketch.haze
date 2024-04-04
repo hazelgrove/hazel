@@ -1,0 +1,15 @@
+# Update the Room Booking app model based on an action #
+
+let update: (Model, Action) -> Model =
+  fun model, action ->
+    case action
+    | CheckIn(id) => 
+        { model with rooms = List.map(fun room -> if room.id == id then { room with status = Occupied } else room, model.rooms) }
+    | CheckOut(id) =>
+        { model with rooms = List.map(fun room -> if room.id == id then { room with status = Empty } else room, model.rooms) }
+    | AddRoom(room) =>
+        { model with rooms = room :: model.rooms }
+    | RemoveRoom(id) =>
+        { model with rooms = List.filter(fun room -> room.id != id, model.rooms) }
+    end
+in

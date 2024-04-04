@@ -1,0 +1,10 @@
+The following static errors were discovered:
+Error in term:
+  fun todo ->
+ if todo == (text, done) then (text, !done) else todo
+Nature of error: Expecting type [?] but got inconsistent type (? -> (?, Bool))
+Error in term:
+  List.remove
+Nature of error: Variable List.remove is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

@@ -1,0 +1,7 @@
+
+fun model, action ->
+  case action
+  | Clear => Model.empty
+  | Draw(pos, color) => Model.draw(model, pos, color)
+  | Undo => Model.undo(model)
+  end

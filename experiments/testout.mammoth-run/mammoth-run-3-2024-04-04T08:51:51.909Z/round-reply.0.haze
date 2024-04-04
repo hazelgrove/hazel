@@ -1,0 +1,10 @@
+fun model, action ->
+  case action
+  | AddTodo => model
+  | RemoveTodo(index) => model
+  | ToggleTodo(index) => model
+  | UpdateBuffer(text) => model
+  | SelectEmoji(emoji) => model
+  | StampEmoji(row, col) => model
+  | FillRow(row) => model
+  end

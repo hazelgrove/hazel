@@ -1,0 +1,15 @@
+The following static errors were discovered:
+Error in term:
+  add_song
+Nature of error: Variable add_song is not bound
+Error in term:
+  play_song
+Nature of error: Variable play_song is not bound
+Error in term:
+  pause_current_song
+Nature of error: Variable pause_current_song is not bound
+Error in term:
+  remove_song
+Nature of error: Variable remove_song is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

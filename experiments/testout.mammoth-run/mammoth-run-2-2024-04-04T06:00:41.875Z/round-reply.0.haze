@@ -1,0 +1,12 @@
+
+fun model, action ->
+  case action
+  | AddBooking(user, weekday, timeOfDay) => 
+      let bookingID = model.BookingID + 1 in
+      let newBooking = (weekday, timeOfDay), user, bookingID in
+      model.BookingFormData, newBooking::model.Bookings, bookingID
+  | CancelBooking(user, bookingID) => 
+      model.BookingFormData, List.filter(fun booking -> booking.BookingID != bookingID, model.Bookings), model.BookingID
+  | ClearBookings => 
+      model.BookingFormData, [], model.BookingID
+  end

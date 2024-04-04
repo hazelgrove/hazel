@@ -1,0 +1,11 @@
+fun (model, action) ->
+    let (grid, emoji) = model in
+    case action
+    | SelectEmoji(new_emoji) => (grid, new_emoji)
+    | StampEmoji(row, col) =>
+        let new_grid = updateGrid(grid, row, col, emoji) in
+        (new_grid, emoji)
+    | FillRow(row) =>
+        let new_grid = List.map (fun _ -> updateRow(row, emoji, grid)) in
+        (new_grid, emoji)
+    end

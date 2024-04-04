@@ -1,0 +1,45 @@
+The following static errors were discovered:
+Error in term:
+  PlayList.play
+Nature of error: Variable PlayList.play is not bound
+Error in term:
+  PlayList.shuffle
+Nature of error: Variable PlayList.shuffle is not bound
+Error in term:
+  PlayList.addTrack
+Nature of error: Variable PlayList.addTrack is not bound
+Error in term:
+  PlayList.prev
+Nature of error: Variable PlayList.prev is not bound
+Error in term:
+  PlayList.removeTrack
+Nature of error: Variable PlayList.removeTrack is not bound
+Error in term:
+  PlayList.next
+Nature of error: Variable PlayList.next is not bound
+Error in term:
+  PlayList.pause
+Nature of error: Variable PlayList.pause is not bound
+Error in term:
+  Shuffle
+Nature of error: Constructor is not defined
+Error in term:
+  Next
+Nature of error: Constructor is not defined
+Error in term:
+  RemoveTrack
+Nature of error: Constructor is not defined
+Error in term:
+  Prev
+Nature of error: Constructor is not defined
+Error in term:
+  Pause
+Nature of error: Constructor is not defined
+Error in term:
+  Play
+Nature of error: Constructor is not defined
+Error in term:
+  AddTrack
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

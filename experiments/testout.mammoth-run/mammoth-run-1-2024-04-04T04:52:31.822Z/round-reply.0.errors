@@ -1,0 +1,36 @@
+The following static errors were discovered:
+Error in term:
+  model.password
+Nature of error: "model.password" isn't a valid token
+Error in term:
+  model.strength
+Nature of error: "model.strength" isn't a valid token
+Error in term:
+  model.strength calculateStrength
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.criteria new_criteria
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.password new_password
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.criteria
+Nature of error: "model.criteria" isn't a valid token
+Error in term:
+  model.password
+Nature of error: "model.password" isn't a valid token
+Error in term:
+  model.criteria
+Nature of error: "model.criteria" isn't a valid token
+Error in term:
+  CalculateStrength
+Nature of error: Constructor is not defined
+Error in term:
+  ChangeCriteria
+Nature of error: Constructor is not defined
+Error in term:
+  ChangePassword
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

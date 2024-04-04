@@ -1,0 +1,22 @@
+The following static errors were discovered:
+The suggested filling has the wrong expected type: expected ((Model, Action) -> Model), but got ((?, ?) -> (String, [[Bool]])).
+Error in term:
+  List.map_with_idx
+Nature of error: Variable List.map_with_idx is not bound
+Error in term:
+  List.remove
+Nature of error: Variable List.remove is not bound
+Error in term:
+  AddTodo
+Nature of error: Constructor is not defined
+Error in term:
+  RemoveTodo
+Nature of error: Constructor is not defined
+Error in term:
+  ToggleTodo
+Nature of error: Constructor is not defined
+Error in term:
+  UpdateBuffer
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

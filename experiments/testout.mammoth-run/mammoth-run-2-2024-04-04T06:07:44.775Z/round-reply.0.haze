@@ -1,0 +1,8 @@
+
+fun model, action ->
+  case action
+  | BookRoom(room) => { model with booked_rooms = room :: model.booked_rooms }
+  | CancelBooking(room) => { model with booked_rooms = List.remove(room, model.booked_rooms) }
+  | CheckIn(guest, room) => { model with checked_in = (guest, room) :: model.checked_in }
+  | CheckOut(guest, room) => { model with checked_in = List.remove((guest, room), model.checked_in) }
+  end

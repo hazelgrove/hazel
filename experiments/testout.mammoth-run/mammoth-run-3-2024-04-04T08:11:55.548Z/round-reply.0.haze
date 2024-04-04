@@ -1,0 +1,8 @@
+
+fun model, action ->
+  case action
+  | AddSong(song) => PlayList.addSong(song, model)
+  | RemoveSong(song) => PlayList.removeSong(song, model)
+  | PlayNext => PlayList.playNext(model)
+  | Shuffle => PlayList.shuffle(model)
+  end

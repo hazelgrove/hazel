@@ -1,0 +1,8 @@
+fun (grid, currentEmoji, emojiList), action ->
+  case action
+  | SelectEmoji(newEmoji) => (grid, newEmoji, emojiList)
+  | StampEmoji((row, col)) => (List.replaceAt(row, List.replaceAt(col, currentEmoji, List.nth(row, grid)), grid), currentEmoji, emojiList)
+  | ClearCell((row, col)) => (List.replaceAt(row, List.replaceAt(col, "", List.nth(row, grid)), grid), currentEmoji, emojiList)
+  | ClearGrid => (List.map(fun _ -> List.map(fun _ -> "", List.nth(0, grid)), grid), currentEmoji, emojiList)
+  | FillRow(row) => (List.replaceAt(row, List.map(fun _ -> currentEmoji, List.nth(row, grid)), grid), currentEmoji, emojiList)
+  end

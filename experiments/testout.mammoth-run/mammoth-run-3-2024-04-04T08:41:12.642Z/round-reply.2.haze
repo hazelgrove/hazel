@@ -1,0 +1,6 @@
+fun (model, action) ->
+    case action
+    | AddBooking(user, weekday, timeofday) => (user, weekday, timeofday)::model
+    | CancelBooking(user, id) => List.filter (fun (time, user, id') -> id' != id) model
+    | ClearBookings => []
+    end

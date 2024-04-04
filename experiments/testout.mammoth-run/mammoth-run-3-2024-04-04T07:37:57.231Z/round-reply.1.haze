@@ -1,0 +1,10 @@
+fun (buffer, todos), action ->
+  case action
+  | AddTodo => (buffer, (buffer, false)::todos)
+  | RemoveTodo(i) => (buffer, List.remove_at(i, todos))
+  | ToggleTodo(i) =>
+      let todo, remaining = List.split_at(i, todos) in
+      let (text, status) = todo in
+      (buffer, remaining @ [(text, not status)])
+  | UpdateBuffer(s) => (s, todos)
+  end

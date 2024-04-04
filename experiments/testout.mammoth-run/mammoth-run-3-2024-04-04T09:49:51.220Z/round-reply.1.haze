@@ -1,0 +1,4 @@
+fun (model, action) ->
+  case action
+  | EnterPassword(pwd) => { model with password = pwd; strength = check_strength(pwd) }
+  | Clear => { model with password = ""; strength = Weak } end

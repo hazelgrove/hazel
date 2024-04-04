@@ -1,0 +1,49 @@
+The following static errors were discovered:
+The suggested filling has the wrong expected type: expected ((PlayList, PlayListAction) -> PlayList), but got ((?, ?) -> [?]).
+Error in term:
+  model.state
+Nature of error: "model.state" isn't a valid token
+Error in term:
+  Stopped
+Nature of error: Constructor is not defined
+Error in term:
+  Paused
+Nature of error: Constructor is not defined
+Error in term:
+  model.songs
+Nature of error: "model.songs" isn't a valid token
+Error in term:
+  model.state
+Nature of error: "model.state" isn't a valid token
+Error in term:
+  model.songs List.filter
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.songs id
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.state Stopped
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.songs
+Nature of error: "model.songs" isn't a valid token
+Error in term:
+  model.songs
+Nature of error: "model.songs" isn't a valid token
+Error in term:
+  model.state if model.state == Playing then Paused else Playing
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.state
+Nature of error: "model.state" isn't a valid token
+Error in term:
+  model.songs
+Nature of error: "model.songs" isn't a valid token
+Error in term:
+  TogglePlay
+Nature of error: Constructor is not defined
+Error in term:
+  Stop
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

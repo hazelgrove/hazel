@@ -1,0 +1,13 @@
+fun model, action ->
+  case action
+  | Book(room_id) => 
+    {
+      model with
+      rooms = Map.update model.rooms room_id (fun room -> { room with is_booked = true })
+    }
+  | Cancel(room_id) => 
+    {
+      model with
+      rooms = Map.update model.rooms room_id (fun room -> { room with is_booked = false })
+    }
+  end

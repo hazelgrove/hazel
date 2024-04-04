@@ -1,0 +1,37 @@
+The following static errors were discovered:
+Error in term:
+  rooms List.filter
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? rooms List.append(model.rooms, room) ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  rooms
+Nature of error: Variable rooms is not bound
+Error in term:
+  model.rooms
+Nature of error: "model.rooms" isn't a valid token
+Error in term:
+  ? rooms List.filter
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  rooms List.append
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.rooms
+Nature of error: "model.rooms" isn't a valid token
+Error in term:
+  ? rooms List.append
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? rooms List.filter((fun r ->
+ r != room), model.rooms) ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  rooms
+Nature of error: Variable rooms is not bound
+Error in term:
+  BookRoom
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

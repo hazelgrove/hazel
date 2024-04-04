@@ -1,0 +1,8 @@
+# TODO MVU: Handle TODO actions to update the app model #
+
+let update: (Model, Action) -> Model =
+  fun (m, a) ->
+  case a
+  | Increment => { m with counter = m.counter + 1 }
+  | Decrement => { m with counter = m.counter - 1 }
+in

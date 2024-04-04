@@ -1,0 +1,9 @@
+fun (password, criteria, strength), action ->
+  case action
+  | UpdatePassword(new_password) =>
+    let new_strength = check_strength(new_password, criteria) in
+    (new_password, criteria, new_strength)
+  | UpdateCriteria(new_criteria) =>
+    let new_strength = check_strength(password, new_criteria) in
+    (password, new_criteria, new_strength)
+  end

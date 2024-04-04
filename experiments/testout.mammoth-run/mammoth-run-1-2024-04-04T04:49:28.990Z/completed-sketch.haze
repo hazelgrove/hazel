@@ -1,0 +1,11 @@
+# Update the EmojiPaint app model based on an action #
+
+let update: (Model, Action) -> Model =
+  
+fun model, action ->
+  case action
+  | Clear => Model.empty
+  | Draw(pos, color) => Model.draw(model, pos, color)
+  | Undo => Model.undo(model)
+  end
+in

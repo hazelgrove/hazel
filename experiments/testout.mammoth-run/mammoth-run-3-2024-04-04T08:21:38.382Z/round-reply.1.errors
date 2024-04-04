@@ -1,0 +1,10 @@
+The following static errors were discovered:
+The suggested filling has the wrong expected type: expected ((Model, Action) -> Model), but got ((?, ?) -> ((Weekday, TimeOfDay), [(?, User, ?)], Int)).
+Error in term:
+  form.1
+Nature of error: "form.1" isn't a valid token
+Error in term:
+  UpdateBuffer
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

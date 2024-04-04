@@ -1,0 +1,15 @@
+# Update the Room Booking app model based on an action #
+
+let update: (Model, Action) -> Model =
+  fun model, action ->
+  case action
+  | AddBooking(user, weekday, time) =>
+    if bookingExists(model, (time, user, getModelIdCounter(model)))
+    then model
+    else addBooking(model, (time, user, getModelIdCounter(model)))
+  | RemoveBooking(bookingId) =>
+    removeBooking(model, bookingId)
+  | UpdateBuffer(string) =>
+    updateBuffer(model, string)
+  end
+in

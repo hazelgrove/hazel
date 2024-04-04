@@ -1,0 +1,12 @@
+
+fun model, action ->
+  let (form_data, bookings, id_counter) = model in
+  case action
+  | AddBooking(user, weekday, time_of_day) =>
+      let new_booking = ((weekday, time_of_day), user, id_counter + 1) in
+      (form_data, new_booking::bookings, id_counter + 1)
+  | CancelBooking(user, booking_id) =>
+      (form_data, rm_booking(user, booking_id, bookings), id_counter)
+  | ClearBookings =>
+      (initFormState, [], id_counter)
+  end

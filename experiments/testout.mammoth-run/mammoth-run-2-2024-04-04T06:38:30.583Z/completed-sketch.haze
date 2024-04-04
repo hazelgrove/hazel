@@ -1,0 +1,10 @@
+# Update the EmojiPaint app model based on an action #
+
+let update: (Model, Action) -> Model =
+  fun model, action ->
+  case action
+  | SetEmoji(emoji) => { model with current_emoji = emoji }
+  | PaintCell(row, col) => { model with grid = Grid.paint(row, col, model.current_emoji, model.grid) }
+  | ClearGrid => { model with grid = Grid.empty }
+  end
+in

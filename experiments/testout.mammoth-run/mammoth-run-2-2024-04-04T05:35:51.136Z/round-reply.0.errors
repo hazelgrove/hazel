@@ -1,0 +1,27 @@
+The following static errors were discovered:
+Error in term:
+  RemoveSongFromPlayList
+Nature of error: Constructor is not defined
+Error in term:
+  PausePlayList
+Nature of error: Constructor is not defined
+Error in term:
+  AddSongToPlayList
+Nature of error: Constructor is not defined
+Error in term:
+  PlayPlayList
+Nature of error: Constructor is not defined
+Error in term:
+  StopPlayList
+Nature of error: Constructor is not defined
+Error in term:
+  Pause
+Nature of error: Constructor is not defined
+Error in term:
+  Play
+Nature of error: Constructor is not defined
+Error in term:
+  Stop
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

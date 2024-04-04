@@ -1,0 +1,8 @@
+
+fun model, action ->
+case action
+| NoOp => model
+| AddTodo => add(model)
+| ToggleTodo(id) => model.todos <- toggle(id, model.todos)
+| RemoveTodo(id) => model.todos <- remove(id, model.todos)
+end

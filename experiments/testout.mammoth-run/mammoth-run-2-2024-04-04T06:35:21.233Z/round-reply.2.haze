@@ -1,0 +1,13 @@
+fun (model, action) ->
+  case action
+  | StartDrawing(x, y) => { model with mode = Drawing, last_pos = Some(x, y) }
+  | StopDrawing => { model with mode = NotDrawing, last_pos = None }
+  | Draw(x, y) =>
+    let new_drawing = case model.last_pos
+      | Some(lx, ly) => Line(lx, ly, x, y) :: model.drawing
+      | None => model.drawing
+    end
+    in { model with drawing = new_drawing, last_pos = Some(x, y) }
+  | ChangeColor(c) => { model with color = c }
+  | Clear => { model with drawing = [] }
+  end

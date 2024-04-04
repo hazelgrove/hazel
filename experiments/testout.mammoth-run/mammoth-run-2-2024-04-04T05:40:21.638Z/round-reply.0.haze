@@ -1,0 +1,7 @@
+fun model, action ->
+  case action
+  | AddTrack(track) => add_track(model, track)
+  | RemoveTrack(track) => remove_track(model, track)
+  | TogglePlay => toggle_play(model)
+  | SetVolume(volume) => set_volume(model, volume)
+  end

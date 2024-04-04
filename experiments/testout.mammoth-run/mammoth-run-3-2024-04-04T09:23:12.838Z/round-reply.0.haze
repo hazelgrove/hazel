@@ -1,0 +1,8 @@
+
+fun model, action ->
+  case action
+  | SelectEmoji(emoji) => { model with currentEmoji = emoji }
+  | ClickCell(row, col) => { model with grid = updateGrid(model.grid, row, col, model.currentEmoji) }
+  | ClickFill(row) => { model with grid = fillRowInGrid(model.grid, row, model.currentEmoji) }
+  | ClickClear => { model with grid = clearGrid(model.grid) }
+  end

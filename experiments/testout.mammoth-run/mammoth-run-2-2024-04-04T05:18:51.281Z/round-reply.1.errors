@@ -1,0 +1,23 @@
+The following static errors were discovered:
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  fun ((playList, action)) ->
+ case action
+ | PlaySong(id) => let ((song_ids, state)) = playList in
+ (song_ids, Playing(id))
+| PauseCurrentSong => let ((song_ids, state)) = playList in
+ case state
+ | Playing(id) => (song_ids, PausedOn(id))
+| _ => playList
+end
+| RemoveSong(id) => let ((song_ids, state)) = playList in
+ (List.filter(fun song_id ->
+ song_id != id, song_ids), state)
+| AddSong(id) => let ((song_ids, state)) = playList in
+ (id :: song_ids, state)
+end end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

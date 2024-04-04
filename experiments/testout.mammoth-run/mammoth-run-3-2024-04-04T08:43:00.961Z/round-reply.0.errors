@@ -1,0 +1,24 @@
+The following static errors were discovered:
+Error in term:
+  case action
+ | AddBooking((user, weekday, timeofday)) => let ((formData, bookings, nextId)) = model in
+ let newBooking = ((weekday, timeofday), user, nextId) in
+ ((weekday, timeofday), user) :: bookings, nextId + 1
+| CancelBooking((user, id)) => let ((formData, bookings, nextId)) = model in
+ let updatedBookings = List.filter(fun (((_, u, uid))) ->
+ uid != id && u != user) bookings in
+ formData, updatedBookings, nextId
+| ClearBookings => let ((formData, _, nextId)) = model in
+ formData, , nextId
+end
+Nature of error: Expecting branches to have consistent types but got types: ([((Weekday, TimeOfDay), User)], Int), (?, ?, ?), (?, [?], ?)
+Error in term:
+  List.filter(fun (((_, u, uid))) ->
+ uid != id && u != user) bookings
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  fun (((_, u, uid))) ->
+ uid != id && u != user
+Nature of error: Expecting type ((? -> Bool), [?]) but got inconsistent type ((?, ?, ?) -> Bool)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

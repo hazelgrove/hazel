@@ -1,0 +1,21 @@
+The following static errors were discovered:
+Error in term:
+  Model1
+Nature of error: Constructor is not defined
+Error in term:
+  Model3
+Nature of error: Constructor is not defined
+Error in term:
+  Model2
+Nature of error: Constructor is not defined
+Error in term:
+  Action3
+Nature of error: Constructor is not defined
+Error in term:
+  Action2
+Nature of error: Constructor is not defined
+Error in term:
+  Action1
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

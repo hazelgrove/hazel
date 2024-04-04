@@ -1,0 +1,36 @@
+The following static errors were discovered:
+Error in term:
+  PlayListState.Playing
+Nature of error: "PlayListState.Playing" isn't a valid token
+Error in term:
+  PlayList
+Nature of error: Constructor is not defined
+Error in term:
+  PlayListState.Paused
+Nature of error: "PlayListState.Paused" isn't a valid token
+Error in term:
+  PlayList
+Nature of error: Constructor is not defined
+Error in term:
+  PlayList
+Nature of error: Constructor is not defined
+Error in term:
+  PlayList
+Nature of error: Constructor is not defined
+Error in term:
+  PlayListAction.TogglePause
+Nature of error: "PlayListAction.TogglePause" isn't a valid token
+Error in term:
+  PlayListState.Playing
+Nature of error: "PlayListState.Playing" isn't a valid token
+Error in term:
+  PlayListAction.LoadSongs
+Nature of error: Expected a constructor
+Error in term:
+  PlayListState.Paused
+Nature of error: "PlayListState.Paused" isn't a valid token
+Error in term:
+  PlayListAction.NextSong
+Nature of error: "PlayListAction.NextSong" isn't a valid token
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

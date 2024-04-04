@@ -1,0 +1,9 @@
+# Update Password Strength Checker app model based on an action #
+
+let update: (Model, Action) -> Model =
+  fun (model, action) ->
+  case action
+  | ChangePassword(password) => {model with password = password}
+  | ToggleShowPassword => {model with showPassword = !model.showPassword}
+  end
+in

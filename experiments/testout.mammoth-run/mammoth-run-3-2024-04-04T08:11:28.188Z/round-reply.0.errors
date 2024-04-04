@@ -1,0 +1,21 @@
+The following static errors were discovered:
+Error in term:
+  PlayPlayList
+Nature of error: Constructor is not defined
+Error in term:
+  AddTrackToPlayList
+Nature of error: Constructor is not defined
+Error in term:
+  RemoveTrackFromPlayList
+Nature of error: Constructor is not defined
+Error in term:
+  Play
+Nature of error: Constructor is not defined
+Error in term:
+  RemoveTrack
+Nature of error: Constructor is not defined
+Error in term:
+  AddTrack
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

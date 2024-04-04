@@ -1,0 +1,11 @@
+# Update Password Strength Checker app model based on an action #
+
+let update: (Model, Action) -> Model =
+  fun model, action ->
+  case action
+  | ChangePassword(new_password) => 
+    let new_strength = calculate_strength(new_password) in
+    { model with password = new_password; strength = new_strength }
+  | Reset => initial_model
+  end
+in

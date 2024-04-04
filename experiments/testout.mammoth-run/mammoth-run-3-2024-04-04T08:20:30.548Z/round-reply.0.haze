@@ -1,0 +1,20 @@
+fun model, action ->
+    case action
+    | AddBooking(user, weekday, time) =>
+        if bookingExists(model, (weekday, time, user))
+        then model
+        else let newBooking = (weekday, time, user, model.nextId) in
+             let newBookings = model.bookings @ [newBooking] in
+             ({ model with bookings = newBookings; nextId = model.nextId + 1 }, [])
+    | DeleteBooking(id) =>
+        let newBookings = List.filter(fun (_, _, _, bookingId) -> bookingId != id, model.bookings) in
+        ({ model with bookings = newBookings }, [])
+    | UpdateForm(weekday, time, user) =>
+        ({ model with form = (weekday, time, user) }, [])
+    | SubmitForm =>
+        if bookingExists(model, (model.form.weekday, model.form.time, model.form.user))
+        then (model, [BookingExists])
+        else let newBooking = (model.form.weekday, model.form.time, model.form.user, model.nextId) in
+             let newBookings = model.bookings @ [newBooking] in
+             ({ model with bookings = newBookings; nextId = model.nextId + 1; form = emptyForm }, [])
+    end

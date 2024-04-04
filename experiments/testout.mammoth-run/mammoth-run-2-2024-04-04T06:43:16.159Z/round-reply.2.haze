@@ -1,0 +1,19 @@
+fun (password, criteria, strength), action ->
+    case action
+      | AddTodo =>
+        let new_password = password + action in
+        let new_strength = PasswordStrength.calculate(criteria, new_password) in
+        (new_password, criteria, new_strength)
+      | RemoveTodo(idx) =>
+        let new_password = String.remove_at(idx, password) in
+        let new_strength = PasswordStrength.calculate(criteria, new_password) in
+        (new_password, criteria, new_strength)
+      | ToggleTodo(idx) =>
+        let new_password = String.toggle_at(idx, password) in
+        let new_strength = PasswordStrength.calculate(criteria, new_password) in
+        (new_password, criteria, new_strength)
+      | UpdateBuffer(new_buffer) =>
+        let new_password = new_buffer in
+        let new_strength = PasswordStrength.calculate(criteria, new_password) in
+        (new_password, criteria, new_strength)
+    end

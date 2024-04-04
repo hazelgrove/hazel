@@ -1,0 +1,6 @@
+fun (model, action) ->
+    case action
+    | AddTrack(track) => List.append(model, [track])
+    | RemoveTrack(track) => List.filter(fun t -> t != track, model)
+    | ClearPlaylist => []
+    end

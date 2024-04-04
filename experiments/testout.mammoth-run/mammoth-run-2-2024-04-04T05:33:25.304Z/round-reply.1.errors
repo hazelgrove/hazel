@@ -1,0 +1,39 @@
+The following static errors were discovered:
+Error in term:
+  playlist.2
+Nature of error: "playlist.2" isn't a valid token
+Error in term:
+  when current == id
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  playlist.2
+Nature of error: "playlist.2" isn't a valid token
+Error in term:
+  playlist.2
+Nature of error: "playlist.2" isn't a valid token
+Error in term:
+  playlist.2
+Nature of error: "playlist.2" isn't a valid token
+Error in term:
+  playlist.1
+Nature of error: "playlist.1" isn't a valid token
+Error in term:
+  playlist.1
+Nature of error: "playlist.1" isn't a valid token
+Error in term:
+  playlist.2
+Nature of error: "playlist.2" isn't a valid token
+Error in term:
+  playlist.1
+Nature of error: "playlist.1" isn't a valid token
+Error in term:
+  playlist.1
+Nature of error: "playlist.1" isn't a valid token
+Error in term:
+  current
+Nature of error: Variable current is not bound
+Error in term:
+  Playing(current) when current == id
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

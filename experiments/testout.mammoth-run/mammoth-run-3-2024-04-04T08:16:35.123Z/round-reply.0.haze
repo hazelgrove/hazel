@@ -1,0 +1,6 @@
+fun model, action ->
+  case action
+  | AddSong(song) => PlayList.append(song, model)
+  | RemoveSong(song) => PlayList.remove(song, model)
+  | Clear => PlayList.empty
+  end

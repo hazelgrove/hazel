@@ -1,0 +1,7 @@
+
+fun m, a ->
+  case a
+  | Add(s) => add(m)
+  | Toggle(i) => {m with todos = toggle(i, m.todos)}
+  | Remove(i) => {m with todos = remove(i, m.todos)}
+  end

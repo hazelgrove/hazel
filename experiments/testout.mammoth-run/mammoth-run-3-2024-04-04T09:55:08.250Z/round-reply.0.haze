@@ -1,0 +1,6 @@
+
+fun model, action ->
+  case action
+  | Change(new_password) => { model with password = new_password; strength = calculate_strength(new_password) }
+  | Submit => { model with submitted = true }
+  end

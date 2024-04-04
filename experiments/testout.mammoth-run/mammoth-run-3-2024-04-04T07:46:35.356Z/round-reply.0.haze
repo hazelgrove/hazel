@@ -1,0 +1,6 @@
+
+fun m, a ->
+  case a
+  | Increment => { counter = m.counter + 1 }
+  | Decrement => { counter = m.counter - 1 }
+  end

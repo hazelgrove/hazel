@@ -1,0 +1,8 @@
+fun (password, criteria, strength), action ->
+  case action
+  | MinimumLength(i) => (password, MinimumLength(i)::criteria, strength)
+  | RequireUppercase => (password, RequireUppercase::criteria, strength)
+  | RequireLowercase => (password, RequireLowercase::criteria, strength)
+  | RequireNumber => (password, RequireNumber::criteria, strength)
+  | RequireSpecialChar => (password, RequireSpecialChar::criteria, strength)
+  end

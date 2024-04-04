@@ -1,0 +1,11 @@
+
+fun model, action ->
+  case action
+  | SetEmoji(emoji) => {model with emoji = emoji}
+  | ToggleGrid => {model with grid = !model.grid}
+  | Draw(x, y) => 
+      let new_canvas = Array.copy(model.canvas) in
+      new_canvas.(y).(x) <- model.emoji;
+      {model with canvas = new_canvas}
+  | Clear => {model with canvas = blank_canvas()}
+  end

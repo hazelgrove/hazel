@@ -1,0 +1,13 @@
+The following static errors were discovered:
+Error in term:
+  ((day, time), user, id + 1)
+Nature of error: Expecting type String but got inconsistent type [((Weekday, TimeOfDay), User, Int)]
+Error in term:
+  case action
+ | AddBooking(((user, day, time))) => ((day, time), user), bookings ++ ((day, time), user, id + 1), id + 1
+| CancelBooking(((user, booking_id))) => form, rm_booking(user, booking_id, bookings), id
+| ClearBookings => initFormState, , id
+end
+Nature of error: Expecting branches to have consistent types but got types: (((Weekday, TimeOfDay), User), String, Int), (?, [Booking], ?), (((Weekday, TimeOfDay), String), [?], ?)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

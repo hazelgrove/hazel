@@ -1,0 +1,9 @@
+fun model, action ->
+  case action
+  | Clear => { model with canvas = empty_canvas }
+  | Paint(coord, emoji) => 
+    let new_canvas = Canvas.set_pixel(model.canvas, coord, emoji) in
+    { model with canvas = new_canvas }
+  | SetBrush(emoji) =>
+    { model with brush = emoji }
+  end

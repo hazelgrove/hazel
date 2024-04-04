@@ -1,0 +1,30 @@
+The following static errors were discovered:
+Error in term:
+  model.BookingID
+Nature of error: "model.BookingID" isn't a valid token
+Error in term:
+  model.BookingFormData
+Nature of error: "model.BookingFormData" isn't a valid token
+Error in term:
+  booking.BookingID
+Nature of error: "booking.BookingID" isn't a valid token
+Error in term:
+  model.Bookings
+Nature of error: "model.Bookings" isn't a valid token
+Error in term:
+  model.BookingID
+Nature of error: "model.BookingID" isn't a valid token
+Error in term:
+  model.BookingID
+Nature of error: "model.BookingID" isn't a valid token
+Error in term:
+  model.Bookings
+Nature of error: "model.Bookings" isn't a valid token
+Error in term:
+  model.BookingFormData
+Nature of error: "model.BookingFormData" isn't a valid token
+Error in term:
+  model.BookingFormData
+Nature of error: "model.BookingFormData" isn't a valid token
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

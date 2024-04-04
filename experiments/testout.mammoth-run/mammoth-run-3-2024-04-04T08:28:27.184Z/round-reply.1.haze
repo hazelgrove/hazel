@@ -1,0 +1,8 @@
+fun (bookingFormData, bookings, bookingID), action ->
+    case action
+    | AddBooking((user, weekday, timeofday)) => let newID = bookingID + 1 in
+        let newBooking = ((weekday, timeofday), user, newID) in
+        ((weekday, timeofday), user), newBooking::bookings, newID
+    | CancelBooking((user, id)) => bookingFormData, rm_booking(user, id, bookings), bookingID
+    | ClearBookings => initFormState, [], bookingID
+    end

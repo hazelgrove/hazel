@@ -1,0 +1,25 @@
+The following static errors were discovered:
+Error in term:
+  formData, List.filter(fun ((_, _, bid)) ->
+ bid != id) bookings, bookingID
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  (weekday, time, user, bookingID + 1)
+Nature of error: Expecting type String but got inconsistent type [(Weekday, TimeOfDay, User, Int)]
+Error in term:
+  fun ((_, _, bid)) ->
+ bid != id
+Nature of error: Expecting type ((? -> Bool), [?]) but got inconsistent type ((?, ?, ?) -> Bool)
+Error in term:
+  case action
+ | AddBooking((user, weekday, time)) => let ((formData, bookings, bookingID)) = model in
+ (formData, bookings ++ (weekday, time, user, bookingID + 1), bookingID + 1)
+| CancelBooking((user, id)) => let ((formData, bookings, bookingID)) = model in
+ (formData, List.filter(fun ((_, _, bid)) ->
+ bid != id) bookings, bookingID)
+| ClearBookings => let ((formData, bookings, bookingID)) = model in
+ (formData, , bookingID)
+end
+Nature of error: Expecting branches to have consistent types but got types: (?, String, Int), ?, (?, [?], ?)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

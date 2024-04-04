@@ -1,0 +1,17 @@
+fun (model, action) ->
+  case action
+  | SelectEmoji(emoji) => (model.1, emoji, model.3)
+  | StampEmoji((row, col)) => (update_grid(model.1, row, col, model.2), model.2, model.3)
+  | ClearCell((row, col)) => (update_grid(model.1, row, col, ""), model.2, model.3)
+  | ClearGrid => ([], model.2, model.3)
+  | FillRow(row) => (fill_row(model.1, row, model.2), model.2, model.3)
+  end
+
+where update_grid = fun grid, row, col, new_val ->
+  let (old_row, rest) = List.splitAt(row, grid) in
+  let (old_val, rest_row) = List.splitAt(col, old_row) in
+  old_val @ [new_val] @ rest_row :: rest
+
+and fill_row = fun grid, row, new_val ->
+  let (old_row, rest) = List.splitAt(row, grid) in
+  old_row @ [List.map(fun _ -> new_val, old_row)] @ rest

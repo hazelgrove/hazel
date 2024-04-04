@@ -1,0 +1,6 @@
+fun model, action ->
+  case action
+  | AddBooking(user, weekday, time) => addBooking(model, user, weekday, time) 
+  | RemoveBooking(id) => removeBooking(model, id)
+  | UpdateBuffer(string) => updateBuffer(model, string)
+  end

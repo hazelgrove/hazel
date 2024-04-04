@@ -1,0 +1,10 @@
+fun model, action ->
+  case action
+  | AddSong(song) => model.songs :: song
+  | RemoveSong(song) => List.filter(fun s -> s != song, model.songs)
+  | Play => { model with is_playing = true }
+  | Pause => { model with is_playing = false }
+  | Stop => { model with is_playing = false; current_song = None }
+  | Next => { model with current_song = List.nth(model.songs, model.current_song + 1) }
+  | Previous => { model with current_song = List.nth(model.songs, model.current_song - 1) }
+  end

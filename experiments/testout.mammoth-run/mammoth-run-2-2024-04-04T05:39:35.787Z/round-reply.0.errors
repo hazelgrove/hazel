@@ -1,0 +1,42 @@
+The following static errors were discovered:
+Error in term:
+  model.current_song
+Nature of error: "model.current_song" isn't a valid token
+Error in term:
+  Rul with current_song match model.current_song Rul end end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  current_song match
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  match
+Nature of error: Variable match is not bound
+Error in term:
+  Rul end end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  with
+Nature of error: Variable with is not bound
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  with current_song match model.current_song Rul end end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  end end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.current_song Rul end end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  current_song
+Nature of error: Variable current_song is not bound
+Error in term:
+  current_song match model.current_song Rul end end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

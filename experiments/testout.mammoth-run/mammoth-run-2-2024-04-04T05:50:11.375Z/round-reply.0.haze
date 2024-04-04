@@ -1,0 +1,9 @@
+fun m, a ->
+  case a
+  | AddBooking(user, weekday, timeOfDay) => let (form, bookings, bookingID) = m in
+                                            ((weekday, timeOfDay), user), bookings ++ [(weekday, timeOfDay), user, bookingID+1], bookingID+1
+  | CancelBooking(user, id) => let (form, bookings, bookingID) = m in
+                                form, rm_booking(user, id, bookings), bookingID
+  | ClearBookings => let (form, _, bookingID) = m in
+                      form, [], bookingID
+  end

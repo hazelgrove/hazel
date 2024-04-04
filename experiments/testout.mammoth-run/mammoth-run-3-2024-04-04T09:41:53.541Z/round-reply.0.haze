@@ -1,0 +1,9 @@
+fun model, action ->
+  case action
+  | ChangePassword(new_password) => 
+      let new_strength = calculateStrength(new_password, model.criteria) in
+      {model with password = new_password, strength = new_strength}
+  | ChangeCriteria(new_criteria) => 
+      let new_strength = calculateStrength(model.password, new_criteria) in
+      {model with criteria = new_criteria, strength = new_strength}
+  end

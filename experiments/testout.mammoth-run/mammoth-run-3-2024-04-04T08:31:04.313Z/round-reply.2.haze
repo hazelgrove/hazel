@@ -1,0 +1,7 @@
+fun (model, action) ->
+  case action
+  | AddBooking(user, booking) => { model with bookings = booking::getUserBookings(model, user) }
+  | RemoveBooking(user, bookingID) => { model with bookings = rm_booking(user, bookingID, getBookings(model)) }
+  | ClearForm => { model with formState = initFormState }
+  | ChangeFormState(formState) => { model with formState = formState }
+  end

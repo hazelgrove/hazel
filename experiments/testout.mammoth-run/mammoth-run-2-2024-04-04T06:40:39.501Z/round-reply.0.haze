@@ -1,0 +1,7 @@
+fun (model, action) ->
+  case action
+  | AddTodo => (model.buffer, model.todos)
+  | RemoveTodo(idx) => (model.buffer, List.remove(idx, model.todos))
+  | ToggleTodo(idx) => (model.buffer, List.map((fun (done, todo) -> if idx == i then (!done, todo) else (done, todo)), model.todos))
+  | UpdateBuffer(text) => (text, model.todos)
+  end

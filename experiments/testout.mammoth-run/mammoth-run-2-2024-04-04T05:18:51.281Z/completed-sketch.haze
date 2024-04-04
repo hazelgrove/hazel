@@ -1,0 +1,22 @@
+# Update Playlist app model based on an action #
+
+let update: (PlayList, PlayListAction) -> PlayList =
+  fun (playList, action) ->
+  case action
+  | PlaySong(id) => 
+    let (song_ids, state) = playList in
+    (song_ids, Playing(id))
+  | PauseCurrentSong => 
+    let (song_ids, state) = playList in
+    case state
+    | Playing(id) => (song_ids, PausedOn(id))
+    | _ => playList
+    end
+  | RemoveSong(id) => 
+    let (song_ids, state) = playList in
+    (List.filter(fun song_id -> song_id != id, song_ids), state)
+  | AddSong(id) => 
+    let (song_ids, state) = playList in
+    (id::song_ids, state)
+  end
+in

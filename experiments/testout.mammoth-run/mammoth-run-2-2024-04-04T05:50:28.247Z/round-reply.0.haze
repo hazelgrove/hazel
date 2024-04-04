@@ -1,0 +1,13 @@
+fun model, action ->
+  case action
+  | AddBooking(user, day, time) => 
+      let booking_id = snd(snd(model)) + 1 in
+      let new_booking = (day, time), user, booking_id in 
+      (fst(model), snd(fst(model))::new_booking, booking_id)
+  | CancelBooking(user, booking_id) => 
+      let bookings = getBookings(model) in
+      let updated_bookings = rm_booking(user, booking_id, bookings) in
+      (fst(model), updated_bookings, snd(snd(model)))
+  | ClearBookings => 
+      (fst(model), [], snd(snd(model)))
+  end

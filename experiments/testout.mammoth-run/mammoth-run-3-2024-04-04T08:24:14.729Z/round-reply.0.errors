@@ -1,0 +1,30 @@
+The following static errors were discovered:
+Error in term:
+  updateForm
+Nature of error: Variable updateForm is not bound
+Error in term:
+  addBooking
+Nature of error: Variable addBooking is not bound
+Error in term:
+  cancelBooking
+Nature of error: Variable cancelBooking is not bound
+Error in term:
+  time
+Nature of error: Expecting type User but got inconsistent type TimeOfDay
+Error in term:
+  user
+Nature of error: Expecting type BookingID but got inconsistent type User
+Error in term:
+  id
+Nature of error: Expecting type BookingID but got inconsistent type (User, Int)
+Error in term:
+  weekday
+Nature of error: Expecting type Time but got inconsistent type Weekday
+Error in term:
+  getNextBookingID
+Nature of error: Variable getNextBookingID is not bound
+Error in term:
+  UpdateForm
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

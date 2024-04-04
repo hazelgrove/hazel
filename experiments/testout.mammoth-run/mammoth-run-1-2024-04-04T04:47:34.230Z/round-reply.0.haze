@@ -1,0 +1,15 @@
+
+fun model, action ->
+  case action
+  | SelectEmoji(emoji) => (fst(model), emoji, thd(model))
+  | StampEmoji((row, col)) =>
+    let new_grid = update_grid_cell(row, col, snd(model), fst(model)) in
+    (new_grid, snd(model), thd(model))
+  | ClearCell((row, col)) =>
+    let new_grid = update_grid_cell(row, col, "", fst(model)) in
+    (new_grid, snd(model), thd(model))
+  | ClearGrid => (initial_grid, snd(model), thd(model))
+  | FillRow(row) =>
+    let new_grid = fill_row(row, snd(model), fst(model)) in
+    (new_grid, snd(model), thd(model))
+  end

@@ -1,0 +1,6 @@
+fun model, action ->
+  case action
+  | SetRoom(room) => { model with room = room }
+  | SetDate(date) => { model with date = date }
+  | SetGuests(guests) => { model with guests = guests }
+  | Book => { model with booked = model.booked @ [(model.room, model.date, model.guests)] } end

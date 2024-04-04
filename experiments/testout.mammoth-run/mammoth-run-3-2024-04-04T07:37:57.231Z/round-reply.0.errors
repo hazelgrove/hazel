@@ -1,0 +1,42 @@
+The following static errors were discovered:
+Error in term:
+  todo, not snd todo
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  snd todo
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  List.split_at
+Nature of error: Variable List.split_at is not bound
+Error in term:
+  List.remove_at
+Nature of error: Variable List.remove_at is not bound
+Error in term:
+  fst todo, not snd todo
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.todos
+Nature of error: "model.todos" isn't a valid token
+Error in term:
+  model.todos
+Nature of error: "model.todos" isn't a valid token
+Error in term:
+  model.buffer
+Nature of error: "model.buffer" isn't a valid token
+Error in term:
+  model.buffer
+Nature of error: "model.buffer" isn't a valid token
+Error in term:
+  model.todos
+Nature of error: "model.todos" isn't a valid token
+Error in term:
+  model.todos
+Nature of error: "model.todos" isn't a valid token
+Error in term:
+  model.buffer
+Nature of error: "model.buffer" isn't a valid token
+Error in term:
+  model.buffer
+Nature of error: "model.buffer" isn't a valid token
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

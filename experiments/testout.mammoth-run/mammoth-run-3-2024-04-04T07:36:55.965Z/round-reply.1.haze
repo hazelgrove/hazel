@@ -1,0 +1,6 @@
+fun model, action ->
+  case action
+    | AddTask => { todos = add(model) }
+    | ToggleTask(idx) => { todos = toggle(idx, model.todos) }
+    | RemoveTask(idx) => { todos = remove(idx, model.todos) }
+  end

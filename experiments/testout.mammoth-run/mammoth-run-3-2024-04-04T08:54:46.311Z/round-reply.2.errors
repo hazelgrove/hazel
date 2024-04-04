@@ -1,0 +1,11 @@
+The following static errors were discovered:
+The suggested filling has the wrong expected type: expected ((Model, Action) -> Model), but got ((?, ?) -> (Emoji, Grid)).
+Error in term:
+  List.update
+Nature of error: Variable List.update is not bound
+Error in term:
+  fun _ ->
+ fst(model)
+Nature of error: Expecting type ((? -> ?), [?]) but got inconsistent type (? -> ?)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

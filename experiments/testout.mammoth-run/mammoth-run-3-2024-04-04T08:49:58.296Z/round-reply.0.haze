@@ -1,0 +1,24 @@
+fun model, action ->
+  case action
+  | CheckIn(id) => 
+      { model with
+        rooms = List.map(fun room ->
+          if room.id == id then { room with status = Occupied }
+          else room
+        end, model.rooms)
+      }
+  | CheckOut(id) =>
+      { model with
+        rooms = List.map(fun room ->
+          if room.id == id then { room with status = Vacant }
+          else room
+        end, model.rooms)
+      }
+  | BookRoom(id) =>
+      { model with
+        rooms = List.map(fun room ->
+          if room.id == id then { room with status = Booked }
+          else room
+        end, model.rooms)
+      }
+  end

@@ -1,0 +1,15 @@
+The following static errors were discovered:
+Error in term:
+  Model.updateBookings
+Nature of error: Variable Model.updateBookings is not bound
+Error in term:
+  Model.updateBookings
+Nature of error: Variable Model.updateBookings is not bound
+Error in term:
+  (user, booking_id, weekday, time_of_day)
+Nature of error: Expecting type (User, Weekday, TimeOfDay) but got inconsistent type (?, ?, ?, ?)
+Error in term:
+  RemoveBooking
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

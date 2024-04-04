@@ -1,0 +1,9 @@
+
+fun model, action ->
+  case action
+  | SetRoomName(name) => {model with roomName = name}
+  | SetBookingDate(date) => {model with bookingDate = date}
+  | AddBooking(booking) => {model with bookings = booking :: model.bookings}
+  | RemoveBooking(bookingId) => {model with bookings = List.filter(fun b -> b.id != bookingId, model.bookings)}
+  | UpdateBooking(bookingId, newBooking) => {model with bookings = List.map(fun b -> if b.id == bookingId then newBooking else b, model.bookings)}
+  end

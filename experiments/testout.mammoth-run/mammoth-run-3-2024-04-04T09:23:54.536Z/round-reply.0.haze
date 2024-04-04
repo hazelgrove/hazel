@@ -1,0 +1,7 @@
+fun model, action ->
+  case action
+  | SetEmoji(emoji) => { model with emoji = emoji }
+  | SetColor(color) => { model with color = color }
+  | Paint(x, y) => { model with pixels = (x, y, model.color, model.emoji) :: model.pixels }
+  | Clear => { model with pixels = [] }
+  end

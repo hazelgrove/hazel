@@ -1,0 +1,7 @@
+fun model, action ->
+  case action
+  | Load => model
+  | Save => model
+  | Edit(text) => { model with text = text }
+  | Delete => { model with text = "" }
+  end

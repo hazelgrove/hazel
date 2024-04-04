@@ -1,0 +1,7 @@
+
+fun model, action ->
+  case action
+    | BookRoom(room_id) => { model with booking = Some(room_id) }
+    | CancelBooking => { model with booking = None } 
+    | ChangeUser(user_id) => { model with user = user_id } 
+  end

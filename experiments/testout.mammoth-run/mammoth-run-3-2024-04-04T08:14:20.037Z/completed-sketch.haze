@@ -1,0 +1,12 @@
+# Update Playlist app model based on an action #
+
+let update: (PlayList, PlayListAction) -> PlayList =
+  fun model, action ->
+  case action
+  | AddSong(id) => { model with songs = id :: get_songs(model) }
+  | RemoveSong(id) => { model with songs = List.filter(fun song_id -> song_id != id, get_songs(model)) }
+  | Play => { model with state = Playing }
+  | Pause => { model with state = Paused }
+  | Stop => { model with state = Stopped }
+  end
+in

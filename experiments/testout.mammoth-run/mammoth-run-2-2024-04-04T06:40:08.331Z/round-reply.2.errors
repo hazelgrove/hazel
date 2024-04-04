@@ -1,0 +1,36 @@
+The following static errors were discovered:
+Error in term:
+  check_strength
+Nature of error: Variable check_strength is not bound
+Error in term:
+  check_strength
+Nature of error: Variable check_strength is not bound
+Error in term:
+  check_strength
+Nature of error: Variable check_strength is not bound
+Error in term:
+  add_criteria
+Nature of error: Variable add_criteria is not bound
+Error in term:
+  check_strength
+Nature of error: Variable check_strength is not bound
+Error in term:
+  remove_criteria
+Nature of error: Variable remove_criteria is not bound
+Error in term:
+  toggle_criteria
+Nature of error: Variable toggle_criteria is not bound
+Error in term:
+  RemoveTodo
+Nature of error: Constructor is not defined
+Error in term:
+  ToggleTodo
+Nature of error: Constructor is not defined
+Error in term:
+  AddTodo
+Nature of error: Constructor is not defined
+Error in term:
+  UpdateBuffer
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

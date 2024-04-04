@@ -1,0 +1,7 @@
+fun model, action ->
+  case action
+  | Draw(row, col, emoji) => model.grid := updateGrid(model.grid, row, col, emoji)
+  | FillRow(row, emoji) => model.grid := fillRowInGrid(model.grid, row, emoji)
+  | Clear => model.grid := clearGrid(model.grid)
+  end
+  model

@@ -1,0 +1,6 @@
+fun model, action ->
+  case action
+    | Action1 => Model1
+    | Action2 => Model2
+    | Action3 => Model3
+  end

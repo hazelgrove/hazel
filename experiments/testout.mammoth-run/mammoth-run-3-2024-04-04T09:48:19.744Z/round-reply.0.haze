@@ -1,0 +1,35 @@
+
+fun (model, action) ->
+  let (password, criteria, strength) = model in
+  case action
+  | UpdatePassword(new_password) => (new_password, criteria, check_password(new_password, criteria))
+  | ClearCriteria => (password, [], check_password(password, []))
+  | AddCriterion(criterion) => (password, criterion::criteria, check_password(password, criterion::criteria))
+  | RemoveCriterion(criterion) => (password, List.remove(criteria, criterion), check_password(password, List.remove(criteria, criterion)))
+  end
+where
+  check_password: (Password, Criteria) -> Strength = fun (password, criteria) ->
+    if List.all(criteria, fun criterion -> match_criterion(criterion, password))
+    then Strong
+    else if List.any(criteria, fun criterion -> match_criterion(criterion, password))
+    then Moderate
+    else Weak
+  end
+and
+  match_criterion: (PasswordCriteria, Password) -> Bool = fun (criterion, password) ->
+    case criterion
+    | RequireUppercase => String.contains_uppercase(password)
+    | RequireLowercase => String.contains_lowercase(password)
+    | MinimumLength(length) => String.length(password) >= length
+    | RequireNumber => String.contains_number(password)
+    | RequireSpecialChar => String.contains_special_char(password)
+    end
+  end
+and
+  List.remove: ([PasswordCriteria], PasswordCriteria) -> [PasswordCriteria] = fun (list, item) ->
+    case list
+    | [] => []
+    | hd::tl => if hd == item then tl else hd::List.remove(tl, item)
+    end
+  end
+end

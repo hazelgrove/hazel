@@ -1,0 +1,6 @@
+fun (model, action) ->
+  case action
+  | SelectEmoji(emoji) => (List.nth(model, 0), emoji, List.nth(model, 2))
+  | StampEmoji(row, col) => let updated_grid = updateGrid(List.nth(model, 0), row, col, List.nth(model, 1)) in (updated_grid, List.nth(model, 1), List.nth(model, 2))
+  | FillRow(row) => let updated_grid = List.map(fun r -> if r == row then List.map(fun _ -> List.nth(model, 1)) (List.nth(List.nth(model, 0), r)) else List.nth(List.nth(model, 0), r), List.range(0, List.length(List.nth(model, 0)) - 1)) in (updated_grid, List.nth(model, 1), List.nth(model, 2))
+  end

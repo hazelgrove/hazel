@@ -1,0 +1,21 @@
+The following static errors were discovered:
+Error in term:
+  PlayList.addSong
+Nature of error: Variable PlayList.addSong is not bound
+Error in term:
+  PlayList.playNext
+Nature of error: Variable PlayList.playNext is not bound
+Error in term:
+  PlayList.removeSong
+Nature of error: Variable PlayList.removeSong is not bound
+Error in term:
+  PlayList.shuffle
+Nature of error: Variable PlayList.shuffle is not bound
+Error in term:
+  PlayNext
+Nature of error: Constructor is not defined
+Error in term:
+  Shuffle
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

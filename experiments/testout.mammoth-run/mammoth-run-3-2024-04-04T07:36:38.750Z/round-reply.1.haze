@@ -1,0 +1,6 @@
+fun model, action ->
+  case action
+  | Add(description) => {model with todos = add(description, model.todos)}
+  | Toggle(idx) => {model with todos = toggle(idx, model.todos)}
+  | Remove(idx) => {model with todos = remove(idx, model.todos)}
+  end

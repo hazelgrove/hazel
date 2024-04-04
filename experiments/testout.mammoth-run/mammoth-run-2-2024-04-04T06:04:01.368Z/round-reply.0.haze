@@ -1,0 +1,6 @@
+
+fun model, action ->
+  case action
+  | CheckIn(id) => { model with bookings = id :: model.bookings }
+  | CheckOut(id) => { model with bookings = List.remove(id, model.bookings) }
+  end

@@ -1,0 +1,34 @@
+The following static errors were discovered:
+Error in term:
+  fun _ ->
+ 
+Nature of error: Expecting type [?] but got inconsistent type (? -> String)
+Error in term:
+  fun _ ->
+ List.map(_, fun _ ->
+ )
+Nature of error: Expecting type [?] but got inconsistent type (? -> ?)
+Error in term:
+  _
+Nature of error: "_" isn't a valid token
+Error in term:
+  List.update_at
+Nature of error: Variable List.update_at is not bound
+Error in term:
+  List.update_at
+Nature of error: Variable List.update_at is not bound
+Error in term:
+  fun _ ->
+ selected_emoji
+Nature of error: Expecting type [?] but got inconsistent type (? -> ?)
+Error in term:
+  List.update_at
+Nature of error: Variable List.update_at is not bound
+Error in term:
+  List.update_at
+Nature of error: Variable List.update_at is not bound
+Error in term:
+  List.update_at
+Nature of error: Variable List.update_at is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

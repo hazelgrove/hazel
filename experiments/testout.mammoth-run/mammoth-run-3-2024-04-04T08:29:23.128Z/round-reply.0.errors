@@ -1,0 +1,9 @@
+The following static errors were discovered:
+Error in term:
+  timeOfDay
+Nature of error: Variable timeOfDay is not bound
+Error in term:
+  weekday
+Nature of error: Variable weekday is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

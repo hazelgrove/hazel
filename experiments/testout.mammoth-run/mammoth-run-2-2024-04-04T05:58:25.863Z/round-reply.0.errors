@@ -1,0 +1,49 @@
+The following static errors were discovered:
+Error in term:
+  model.BookingFormData
+Nature of error: "model.BookingFormData" isn't a valid token
+Error in term:
+  model.BookingFormData
+Nature of error: "model.BookingFormData" isn't a valid token
+Error in term:
+  fun ((_, _, bookingID)) ->
+ bookingID != id
+Nature of error: Expecting type ((? -> Bool), [?]) but got inconsistent type ((?, ?, ?) -> Bool)
+Error in term:
+  model.Bookings
+Nature of error: "model.Bookings" isn't a valid token
+Error in term:
+  model.Bookings
+Nature of error: "model.Bookings" isn't a valid token
+Error in term:
+  model.BookingID
+Nature of error: "model.BookingID" isn't a valid token
+Error in term:
+  case action
+ | AddBooking((user, weekday, time)) => (model.BookingFormData, model.Bookings ++ (weekday, time, user, model.BookingID + 1), model.BookingID + 1)
+| CancelBooking((user, id)) => (model.BookingFormData, List.filter(fun ((_, _, bookingID)) ->
+ bookingID != id) model.Bookings, model.BookingID)
+| ClearBookings => (model.BookingFormData, , model.BookingID)
+end
+Nature of error: Expecting branches to have consistent types but got types: (?, String, Int), ?, (?, [?], ?)
+Error in term:
+  model.BookingFormData
+Nature of error: "model.BookingFormData" isn't a valid token
+Error in term:
+  model.BookingID
+Nature of error: "model.BookingID" isn't a valid token
+Error in term:
+  model.BookingFormData, List.filter(fun ((_, _, bookingID)) ->
+ bookingID != id) model.Bookings, model.BookingID
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  (weekday, time, user, model.BookingID + 1)
+Nature of error: Expecting type String but got inconsistent type [(Weekday, TimeOfDay, User, Int)]
+Error in term:
+  model.BookingID
+Nature of error: "model.BookingID" isn't a valid token
+Error in term:
+  model.BookingID
+Nature of error: "model.BookingID" isn't a valid token
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

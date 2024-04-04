@@ -1,0 +1,17 @@
+fun (model, action) ->
+  let (grid, currentEmoji, emojiList) = model in
+  case action
+  | SelectEmoji(emoji) => (grid, emoji, emojiList)
+  | StampEmoji((row, col)) =>
+    let newGrid = List.mapi((fun r, row -> List.mapi((fun c, cell -> if r == row && c == col then currentEmoji else cell), row)), grid) in
+    (newGrid, currentEmoji, emojiList)
+  | ClearCell((row, col)) =>
+    let newGrid = List.mapi((fun r, row -> List.mapi((fun c, cell -> if r == row && c == col then "" else cell), row)), grid) in
+    (newGrid, currentEmoji, emojiList)
+  | ClearGrid =>
+    let newGrid = List.map((fun row -> List.map((fun _ -> ""), row)), grid) in
+    (newGrid, currentEmoji, emojiList)
+  | FillRow(row) =>
+    let newGrid = List.mapi((fun r, row -> if r == row then List.map((fun _ -> currentEmoji), row) else row), grid) in
+    (newGrid, currentEmoji, emojiList)
+  end

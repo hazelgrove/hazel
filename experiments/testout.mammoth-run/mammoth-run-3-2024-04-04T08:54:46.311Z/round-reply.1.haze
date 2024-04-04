@@ -1,0 +1,10 @@
+fun (model, action) ->
+  case action
+  | SelectEmoji(emoji) => (emoji, snd(model))
+  | StampEmoji(row, col) => 
+    let updatedGrid = updateGrid(fst(model), row, col, fst(model))
+    in (fst(model), updatedGrid)
+  | FillRow(row) =>
+    let updatedGrid = List.map (fun _ -> fst(model)) (fst(model)[row])
+    in (fst(model), updatedGrid :: List.remove_at(row, snd(model)))
+  end

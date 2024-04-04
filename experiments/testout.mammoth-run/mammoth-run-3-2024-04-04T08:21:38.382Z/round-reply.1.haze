@@ -1,0 +1,12 @@
+fun (model, action) ->
+  case action
+  | AddBooking(user, weekday, time) => 
+      let (form, bookings, id) = model in
+      let newBooking = (form, user, id) in
+      if bookingExists(model, newBooking)
+      then model
+      else ((weekday, time), newBooking::bookings, id + 1)
+  | UpdateBuffer(string) =>
+      let (form, bookings, id) = model in
+      ((string, form.1), bookings, id)
+  end

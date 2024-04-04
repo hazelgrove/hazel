@@ -1,0 +1,10 @@
+
+fun model, action ->
+  case action
+  | NoOp => model
+  | AddUser(user) => { model with users = user::model.users }
+  | AddBooking(booking) => { model with bookings = booking::model.bookings }
+  | DeleteBooking(user, bookingID) => { model with bookings = rm_booking(user, bookingID, getBookings(model)) }
+  | UpdateUserBookings(user) => { model with user_bookings = getUserBookings(model, user) }
+  | ResetForm => { model with form = initFormState }
+  end

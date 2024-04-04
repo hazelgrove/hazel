@@ -1,0 +1,9 @@
+fun model, action ->
+  case action
+  | AddTodo => (model.buffer, (model.buffer, false)::model.todos)
+  | RemoveTodo(i) => (model.buffer, List.remove_at(i, model.todos))
+  | ToggleTodo(i) =>
+      let todo, todos = List.split_at(i, model.todos) in
+      (model.buffer, todos @ [(fst todo, not snd todo)])
+  | UpdateBuffer(s) => (s, model.todos)
+  end

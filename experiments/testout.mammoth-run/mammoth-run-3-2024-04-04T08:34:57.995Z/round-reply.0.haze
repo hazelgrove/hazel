@@ -1,0 +1,12 @@
+
+fun model, action ->
+  case action
+  | EditBooking(user, booking_id, new_booking) => 
+      let bookings = getUserBookings(model, user) in
+      let updated_bookings = rm_booking(user, booking_id, bookings) in
+      updated_bookings::new_booking
+  | DeleteBooking(user, booking_id) => 
+      let bookings = getUserBookings(model, user) in
+      rm_booking(user, booking_id, bookings)
+  | _ => model
+  end

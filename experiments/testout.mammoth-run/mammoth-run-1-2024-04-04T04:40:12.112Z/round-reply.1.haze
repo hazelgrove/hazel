@@ -1,0 +1,7 @@
+fun (playlist, action) ->
+  case action
+  | PlaySong(id) => (playlist, PlaySong(id))
+  | PauseCurrentSong => (playlist, PauseCurrentSong)
+  | RemoveSong(id) => (playlist, RemoveSong(id))
+  | AddSong(id) => (playlist, AddSong(id))
+  end

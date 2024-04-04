@@ -1,0 +1,8 @@
+fun (model, action) ->
+case action
+| SelectEmoji(emoji) => (model.1, emoji, model.2)
+| StampEmoji((row, col)) => (model.1 |> List.mapi(fun r row -> if r = row then row |> List.mapi(fun c _ -> if c = col then model.1 else _) else row), model.1, model.2)
+| ClearCell((row, col)) => (model.1 |> List.mapi(fun r row -> if r = row then row |> List.mapi(fun c _ -> if c = col then "" else _) else row), model.1, model.2)
+| ClearGrid => (List.map (fun _ -> List.map (fun _ -> "") model.1) model.1, model.1, model.2)
+| FillRow(row) => (model.1 |> List.mapi(fun r _ -> if r = row then List.map (fun _ -> model.1) _ else _), model.1, model.2)
+end

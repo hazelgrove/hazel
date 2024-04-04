@@ -1,0 +1,11 @@
+The following static errors were discovered:
+Error in term:
+  List.filter(fun (((_, user2, id2))) ->
+ user2 != user \/ id2 != id) bookings
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  fun (((_, user2, id2))) ->
+ user2 != user \/ id2 != id
+Nature of error: Expecting type ((? -> Bool), [?]) but got inconsistent type ((?, ?, ?) -> Bool)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

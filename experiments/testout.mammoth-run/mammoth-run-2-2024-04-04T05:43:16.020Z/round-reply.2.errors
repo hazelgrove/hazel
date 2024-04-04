@@ -1,0 +1,65 @@
+The following static errors were discovered:
+Error in term:
+  model.Bookings
+Nature of error: "model.Bookings" isn't a valid token
+Error in term:
+  model.Time
+Nature of error: "model.Time" isn't a valid token
+Error in term:
+  model.Time
+Nature of error: "model.Time" isn't a valid token
+Error in term:
+  model.Bookings
+Nature of error: "model.Bookings" isn't a valid token
+Error in term:
+  model.BookingID
+Nature of error: "model.BookingID" isn't a valid token
+Error in term:
+  model.BookingID
+Nature of error: "model.BookingID" isn't a valid token
+Error in term:
+  BookingID
+Nature of error: Constructor is not defined
+Error in term:
+  model.Bookings
+Nature of error: "model.Bookings" isn't a valid token
+Error in term:
+  model.User
+Nature of error: "model.User" isn't a valid token
+Error in term:
+  model.User
+Nature of error: "model.User" isn't a valid token
+Error in term:
+  (time, user, model.BookingID)
+Nature of error: Expecting type String but got inconsistent type [(?, ?, ?)]
+Error in term:
+  model.BookingID
+Nature of error: "model.BookingID" isn't a valid token
+Error in term:
+  model.BookingID
+Nature of error: "model.BookingID" isn't a valid token
+Error in term:
+  case action
+ | AddBooking((user, time)) => if !bookingExists(model, (time, user, model.BookingID)) then model else ((time, user, ), model.Bookings ++ (time, user, model.BookingID), model.BookingID + 1)
+| RemoveBooking(BookingID) => ((model.Time, model.User, ), List.filter(fun ((_, _, id)) ->
+ id != BookingID, model.Bookings), model.BookingID)
+| UpdateBuffer(str) => ((model.Time, model.User, str), model.Bookings, model.BookingID)
+end
+Nature of error: Expecting branches to have consistent types but got types: ((?, ?, String), String, Int), ((?, ?, String), [?], ?), ((?, ?, ?), ?, ?)
+Error in term:
+  model.BookingID
+Nature of error: "model.BookingID" isn't a valid token
+Error in term:
+  (user, time)
+Nature of error: Expecting type (User, Weekday, TimeOfDay) but got inconsistent type (?, ?)
+Error in term:
+  RemoveBooking
+Nature of error: Constructor is not defined
+Error in term:
+  BookingID
+Nature of error: Constructor is not defined
+Error in term:
+  UpdateBuffer
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

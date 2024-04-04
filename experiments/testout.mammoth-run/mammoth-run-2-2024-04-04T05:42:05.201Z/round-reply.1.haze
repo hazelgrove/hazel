@@ -1,0 +1,10 @@
+fun model, action ->
+  case action
+  | AddBooking(user, weekday, time) =>
+    if bookingExists(model, (time, user, 0)) then model
+    else addBooking(model, (time, user, model.booking_id + 1))
+  | DeleteBooking(booking_id) =>
+    deleteBooking(model, booking_id)
+  | UpdateForm(time, user) =>
+    updateForm(model, (time, user))
+  end

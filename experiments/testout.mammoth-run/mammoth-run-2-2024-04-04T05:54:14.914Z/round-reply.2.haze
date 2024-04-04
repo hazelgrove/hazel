@@ -1,0 +1,7 @@
+fun (model, action) ->
+  case action
+  | NoOp => model
+  | SubmitForm(user, room, time) => { model with bookings = rm_booking(user, room, time, getBookings(model)) }
+  | UpdateFormField(field, value) => { model with formState = updateFormState(field, value, model.formState) }
+  | SetUser(user) => { model with user = user, userBookings = getUserBookings(model, user) }
+  end

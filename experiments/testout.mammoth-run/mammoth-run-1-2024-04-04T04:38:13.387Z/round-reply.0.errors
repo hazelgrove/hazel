@@ -1,0 +1,13 @@
+The following static errors were discovered:
+The suggested filling has the wrong expected type: expected ((Model, Action) -> Model), but got (((?, ?), ?) -> (String, String)).
+Error in term:
+  List.update
+Nature of error: Variable List.update is not bound
+Error in term:
+  (buffer, false)
+Nature of error: Expecting type String but got inconsistent type [(?, Bool)]
+Error in term:
+  List.remove
+Nature of error: Variable List.remove is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

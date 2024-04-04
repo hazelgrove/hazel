@@ -1,0 +1,79 @@
+The following static errors were discovered:
+Error in term:
+  with Playing(song) when Rul end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  playlist.1
+Nature of error: "playlist.1" isn't a valid token
+Error in term:
+  playlist.0, match playlist.1 with Rul end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  when Rul end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  List.filter(fun song ->
+ song != id, playlist.0), match playlist.1 with Playing(song) when Rul end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  playlist.1
+Nature of error: "playlist.1" isn't a valid token
+Error in term:
+  playlist.1
+Nature of error: "playlist.1" isn't a valid token
+Error in term:
+  playlist.0
+Nature of error: "playlist.0" isn't a valid token
+Error in term:
+  playlist.0
+Nature of error: "playlist.0" isn't a valid token
+Error in term:
+  playlist.0
+Nature of error: "playlist.0" isn't a valid token
+Error in term:
+  match
+Nature of error: Variable match is not bound
+Error in term:
+  with
+Nature of error: Variable with is not bound
+Error in term:
+  Rul end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  with
+Nature of error: Variable with is not bound
+Error in term:
+  playlist.0
+Nature of error: "playlist.0" isn't a valid token
+Error in term:
+  song
+Nature of error: Variable song is not bound
+Error in term:
+  when
+Nature of error: Variable when is not bound
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  Playing(song) when Rul end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  playlist.1 with Playing(song) when Rul end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  playlist.1 with Rul end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  match
+Nature of error: Variable match is not bound
+Error in term:
+  with Rul end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Rul end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

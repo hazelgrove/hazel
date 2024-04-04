@@ -1,0 +1,7 @@
+
+fun playlist, action ->
+  case action
+  | AddSong(id) => PlayList(get_state(playlist), id::get_songs(playlist))
+  | RemoveSong(id) => PlayList(get_state(playlist), List.filter(fun song_id -> song_id != id, get_songs(playlist)))
+  | ChangeState(state) => PlayList(state, get_songs(playlist))
+  end

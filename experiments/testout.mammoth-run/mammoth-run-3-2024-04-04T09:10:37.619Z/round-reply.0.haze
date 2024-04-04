@@ -1,0 +1,8 @@
+fun m, a ->
+  case a
+  | SelectEmoji(emoji) => (fst(m), emoji, trd(m))
+  | StampEmoji((row, col)) => (update_grid(fst(m), row, col, snd(m)), snd(m), trd(m))
+  | ClearCell((row, col)) => (update_grid(fst(m), row, col, ""), snd(m), trd(m))
+  | ClearGrid => (init_grid(), snd(m), trd(m))
+  | FillRow(row) => (fill_row(fst(m), row, snd(m)), snd(m), trd(m))
+  end

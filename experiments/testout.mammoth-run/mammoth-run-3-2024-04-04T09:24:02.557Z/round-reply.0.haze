@@ -1,0 +1,7 @@
+
+fun model, action ->
+  case action
+  | Draw(emoji, cell) => {model with matrix = Matrix.set(cell, emoji, model.matrix)}
+  | Select(emoji) => {model with selected = emoji}
+  | Clear => {model with matrix = Matrix.empty}
+  end

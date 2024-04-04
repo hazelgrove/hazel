@@ -1,0 +1,5 @@
+fun (model, action) ->
+  case action
+  | ChangePassword(password) => {model with password = password; strength = calculate_strength(password)}
+  | _ => model
+  end

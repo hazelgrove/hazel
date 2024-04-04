@@ -1,0 +1,9 @@
+fun model, action ->
+  case action
+  | AddTodo => (fst(model), (fst(model), false)::snd(model))
+  | RemoveTodo(idx) => (fst(model), List.remove(snd(model), List.nth(snd(model), idx)))
+  | ToggleTodo(idx) =>
+      let (text, done) = List.nth(snd(model), idx) in
+      (fst(model), List.map(snd(model), fun todo -> if todo == (text, done) then (text, !done) else todo))
+  | UpdateBuffer(buffer) => (buffer, snd(model))
+  end

@@ -1,0 +1,169 @@
+The following static errors were discovered:
+The suggested filling has the wrong expected type: expected ((Model, Action) -> Model), but got ((?, ?) -> (?, [?])).
+Error in term:
+  (weekday, time, user) 
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.form.user
+Nature of error: "model.form.user" isn't a valid token
+Error in term:
+  model.form.time
+Nature of error: "model.form.time" isn't a valid token
+Error in term:
+  nextId model.nextId
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  bookings
+Nature of error: Variable bookings is not bound
+Error in term:
+  bookings newBookings 
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.nextId
+Nature of error: "model.nextId" isn't a valid token
+Error in term:
+  with
+Nature of error: Variable with is not bound
+Error in term:
+  with
+Nature of error: Variable with is not bound
+Error in term:
+  emptyForm 
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.form.weekday
+Nature of error: "model.form.weekday" isn't a valid token
+Error in term:
+  nextId
+Nature of error: Variable nextId is not bound
+Error in term:
+  nextId
+Nature of error: Variable nextId is not bound
+Error in term:
+  form
+Nature of error: Variable form is not bound
+Error in term:
+  ? model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  form
+Nature of error: Variable form is not bound
+Error in term:
+  bookings newBookings
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? model with bookings newBookings; nextId model.nextId + 1; form emptyForm 
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.nextId
+Nature of error: "model.nextId" isn't a valid token
+Error in term:
+  model.form.user
+Nature of error: "model.form.user" isn't a valid token
+Error in term:
+  with form (weekday, time, user) 
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.form.time
+Nature of error: "model.form.time" isn't a valid token
+Error in term:
+  nextId model.nextId
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  with
+Nature of error: Variable with is not bound
+Error in term:
+  model.form.weekday
+Nature of error: "model.form.weekday" isn't a valid token
+Error in term:
+  ? model with bookings newBookings 
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  weekday
+Nature of error: Expecting type Time but got inconsistent type Weekday
+Error in term:
+  model.nextId
+Nature of error: "model.nextId" isn't a valid token
+Error in term:
+  form emptyForm 
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.bookings
+Nature of error: "model.bookings" isn't a valid token
+Error in term:
+  bookings
+Nature of error: Variable bookings is not bound
+Error in term:
+  bookings newBookings
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  bookings
+Nature of error: Variable bookings is not bound
+Error in term:
+  with bookings newBookings; nextId model.nextId + 1; form emptyForm 
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  1 
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  newBookings 
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  with bookings newBookings 
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  form (weekday, time, user) 
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.bookings
+Nature of error: "model.bookings" isn't a valid token
+Error in term:
+  with bookings newBookings; nextId model.nextId + 1 
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  user
+Nature of error: Expecting type BookingID but got inconsistent type User
+Error in term:
+  time
+Nature of error: Expecting type User but got inconsistent type TimeOfDay
+Error in term:
+  emptyForm
+Nature of error: Variable emptyForm is not bound
+Error in term:
+  ? model with form (weekday, time, user) 
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? model with bookings newBookings; nextId model.nextId + 1 
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.bookings
+Nature of error: "model.bookings" isn't a valid token
+Error in term:
+  model.nextId
+Nature of error: "model.nextId" isn't a valid token
+Error in term:
+  with
+Nature of error: Variable with is not bound
+Error in term:
+  BookingExists
+Nature of error: Constructor is not defined
+Error in term:
+  UpdateForm
+Nature of error: Constructor is not defined
+Error in term:
+  SubmitForm
+Nature of error: Constructor is not defined
+Error in term:
+  DeleteBooking
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

@@ -1,0 +1,17 @@
+fun (model, action) ->
+  case action
+  | UpdatePassword(newPassword) =>
+    let newStrength = calculateStrength(newPassword, model.1) in
+    (newPassword, model.1, newStrength)
+  | ClearCriteria =>
+    let newStrength = strength_of(0) in
+    (model.0, [], newStrength)
+  | AddCriterion(criterion) =>
+    let newCriteria = criterion :: model.1 in
+    let newStrength = calculateStrength(model.0, newCriteria) in
+    (model.0, newCriteria, newStrength)
+  | RemoveCriterion(criterion) =>
+    let newCriteria = List.remove(criterion, model.1) in
+    let newStrength = calculateStrength(model.0, newCriteria) in
+    (model.0, newCriteria, newStrength)
+  end

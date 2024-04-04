@@ -1,0 +1,49 @@
+The following static errors were discovered:
+The suggested filling has the wrong expected type: expected ((Model, Action) -> Model), but got ((?, ?) -> (?, [?])).
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  Todo.toggle_completed
+Nature of error: Variable Todo.toggle_completed is not bound
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  Todo.init
+Nature of error: Variable Todo.init is not bound
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  List.remove
+Nature of error: Variable List.remove is not bound
+Error in term:
+  List.split_at
+Nature of error: Variable List.split_at is not bound
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  model.0
+Nature of error: "model.0" isn't a valid token
+Error in term:
+  ToggleTodo
+Nature of error: Constructor is not defined
+Error in term:
+  RemoveTodo
+Nature of error: Constructor is not defined
+Error in term:
+  AddTodo
+Nature of error: Constructor is not defined
+Error in term:
+  UpdateBuffer
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

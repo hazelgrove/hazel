@@ -1,0 +1,14 @@
+# Update the EmojiPaint app model based on an action #
+
+let update: (Model, Action) -> Model =
+  fun (model, action) ->
+  case action
+  | AddTodo => model
+  | RemoveTodo(idx) => model
+  | ToggleTodo(idx) => model
+  | UpdateBuffer(str) => model
+  | SelectEmoji(emoji) => model
+  | StampEmoji(row, col) => model
+  | FillRow(row) => model
+  end
+in

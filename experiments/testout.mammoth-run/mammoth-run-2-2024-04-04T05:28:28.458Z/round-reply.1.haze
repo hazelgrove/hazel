@@ -1,0 +1,7 @@
+fun model, action ->
+  case action
+  | Play(id) => {state = Playing(id), songs = model.songs}
+  | Pause => {state = Paused(model.state.played_song), songs = model.songs}
+  | AddSong(id) => {state = model.state, songs = id::model.songs}
+  | RemoveSong(id) => {state = model.state, songs = List.filter(fun song_id -> song_id != id, model.songs)}
+  end

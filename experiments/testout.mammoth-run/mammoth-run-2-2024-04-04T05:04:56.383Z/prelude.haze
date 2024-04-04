@@ -1,0 +1,42 @@
+# TODO MVU PRELUDE #
+
+# A todo has a description and a status #
+type Todo = (String, Bool) in
+
+# A description input buffer and a todo list #
+type Model = (String, [Todo]) in
+
+type Action =
+  + AddTodo
+  + RemoveTodo(Int)
+  + ToggleTodo(Int)
+  + UpdateBuffer(String) in
+
+type Update = (Model, Action) -> Model in
+
+let Todo.eq: (Todo, Todo) -> Bool =
+  fun (d1, s1), (d2, s2) ->
+  d1 $== d2 && bool_eq(s1, s2) in
+
+let Model.eq: (Model, Model) -> Bool =
+  fun (b1, ts1), (b2, ts2) ->
+    b1 $== b2 && List.equal(Todo.eq, ts1, ts2) in
+
+let Model.init: Model = ("", []) in
+
+let add: Model -> [Todo] =
+  fun (description, todos) ->
+    if description $== ""      
+    then todos     
+    else (description, false) :: todos in
+
+let remove: (Int, [Todo]) -> [Todo]=
+  fun (index, todos) ->
+    List.filteri(fun i, _ -> i!= index, todos) in
+
+let toggle: (Int, [Todo]) -> [Todo]=
+  fun (index, todos) ->
+    List.mapi(
+      fun i, (description, done) ->
+        (description, if i == index then !done else done),
+        todos) in

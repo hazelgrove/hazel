@@ -1,0 +1,30 @@
+
+fun model, action ->
+  case action
+  | SelectEmoji(emoji) => (model.1, emoji, model.3)
+  | StampEmoji((row, col)) =>
+      let new_grid = List.map(model.1, fun row_emojis, idx ->
+        if idx == row then List.map(row_emojis, fun emoji, idx ->
+          if idx == col then model.2 else emoji
+        end) else row_emojis
+      end) in
+      (new_grid, model.2, model.3)
+  | ClearCell((row, col)) =>
+      let new_grid = List.map(model.1, fun row_emojis, idx ->
+        if idx == row then List.map(row_emojis, fun emoji, idx ->
+          if idx == col then "" else emoji
+        end) else row_emojis
+      end) in
+      (new_grid, model.2, model.3)
+  | ClearGrid =>
+      let new_grid = List.map(model.1, fun row_emojis ->
+        List.map(row_emojis, fun _ -> "")
+      end) in
+      (new_grid, model.2, model.3)
+  | FillRow(row) =>
+      let new_grid = List.map(model.1, fun row_emojis, idx ->
+        if idx == row then List.map(row_emojis, fun _ -> model.2)
+        else row_emojis
+      end) in
+      (new_grid, model.2, model.3)
+  end

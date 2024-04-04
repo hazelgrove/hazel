@@ -1,0 +1,13 @@
+fun model, action ->
+  case action
+    | AddBooking(user, weekday, time, am_pm) =>
+      let newBooking = (time, user, getBookingID(model) + 1) in
+      if bookingExists(model, newBooking)
+      then model
+      else (getFormData(model), newBooking::getBookings(model), getBookingID(model) + 1)
+    | RemoveBooking(id) =>
+      let bookings = List.filter(fun (_, _, booking_id) -> booking_id != id, getBookings(model)) in
+      (getFormData(model), bookings, getBookingID(model))
+    | UpdateForm(time, user, am_pm) =>
+      ((time, user, am_pm), getBookings(model), getBookingID(model))
+  end

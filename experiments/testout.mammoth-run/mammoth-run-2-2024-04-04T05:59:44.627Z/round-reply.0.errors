@@ -1,0 +1,29 @@
+The following static errors were discovered:
+Error in term:
+  get_bookings
+Nature of error: Variable get_bookings is not bound
+Error in term:
+  set_bookings
+Nature of error: Variable set_bookings is not bound
+Error in term:
+  get_next_id
+Nature of error: Variable get_next_id is not bound
+Error in term:
+  set_bookings
+Nature of error: Variable set_bookings is not bound
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  fun booking ->
+ let (_, _, _, booking_id) = booking in
+ booking_id != id end, get_bookings(model)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  set_bookings
+Nature of error: Variable set_bookings is not bound
+Error in term:
+  get_bookings
+Nature of error: Variable get_bookings is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

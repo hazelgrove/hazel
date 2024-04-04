@@ -1,0 +1,8 @@
+
+fun model, action ->
+    case action
+    | ChangeEmoji(emoji) => { model with selected_emoji = emoji }
+    | FillRow(row) => { model with grid = fillRowInGrid(model.grid, row, model.selected_emoji) }
+    | Clear => { model with grid = clearGrid(model.grid) }
+    | UpdateCell(row, col) => { model with grid = updateGrid(model.grid, row, col, model.selected_emoji) }
+    end

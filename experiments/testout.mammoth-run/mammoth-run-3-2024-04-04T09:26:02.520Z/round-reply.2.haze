@@ -1,0 +1,4 @@
+fun (model, action) ->
+  case action
+  | _ => model
+  end

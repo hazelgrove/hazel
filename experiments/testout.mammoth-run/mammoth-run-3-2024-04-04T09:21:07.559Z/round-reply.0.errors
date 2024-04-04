@@ -1,0 +1,33 @@
+The following static errors were discovered:
+Error in term:
+  undo
+Nature of error: Variable undo is not bound
+Error in term:
+  redo
+Nature of error: Variable redo is not bound
+Error in term:
+  addEmoji
+Nature of error: Variable addEmoji is not bound
+Error in term:
+  clear
+Nature of error: Variable clear is not bound
+Error in term:
+  removeEmoji
+Nature of error: Variable removeEmoji is not bound
+Error in term:
+  AddEmoji
+Nature of error: Constructor is not defined
+Error in term:
+  Clear
+Nature of error: Constructor is not defined
+Error in term:
+  Undo
+Nature of error: Constructor is not defined
+Error in term:
+  Redo
+Nature of error: Constructor is not defined
+Error in term:
+  RemoveEmoji
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

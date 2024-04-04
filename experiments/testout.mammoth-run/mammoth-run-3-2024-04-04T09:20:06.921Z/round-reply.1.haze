@@ -1,0 +1,5 @@
+fun (model, action) ->
+  case action
+    | SetColor(color) => { model with color = color }
+    | Draw(x, y) => { model with canvas = draw_on_canvas(model.canvas, model.color, x, y) }
+  end

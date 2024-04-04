@@ -1,0 +1,72 @@
+The following static errors were discovered:
+Error in term:
+  for i, todo enumerate(todos) when i != idx
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  i
+Nature of error: Variable i is not bound
+Error in term:
+  i, todo enumerate(todos) when i != idx
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  i
+Nature of error: Variable i is not bound
+Error in term:
+  todo
+Nature of error: Variable todo is not bound
+Error in term:
+  for
+Nature of error: Variable for is not bound
+Error in term:
+  if i == idx then (d, !s) else todo for i, todo enumerate(todos)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  i
+Nature of error: Variable i is not bound
+Error in term:
+  when
+Nature of error: Variable when is not bound
+Error in term:
+  todo
+Nature of error: Variable todo is not bound
+Error in term:
+  todo
+Nature of error: Variable todo is not bound
+Error in term:
+  todo enumerate
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  todo
+Nature of error: Variable todo is not bound
+Error in term:
+  for
+Nature of error: Variable for is not bound
+Error in term:
+  todo enumerate
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  s
+Nature of error: Variable s is not bound
+Error in term:
+  i
+Nature of error: Variable i is not bound
+Error in term:
+  d
+Nature of error: Variable d is not bound
+Error in term:
+  todo for i, todo enumerate(todos) when i != idx
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  enumerate
+Nature of error: Variable enumerate is not bound
+Error in term:
+  for i, todo enumerate(todos)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  enumerate
+Nature of error: Variable enumerate is not bound
+Error in term:
+  when i != idx
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

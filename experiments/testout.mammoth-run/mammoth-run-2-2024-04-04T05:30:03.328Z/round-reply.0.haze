@@ -1,0 +1,8 @@
+
+fun model, action ->
+  case action
+  | PlayListAction.Add(id) => model.songs <- (id :: model.songs)
+  | PlayListAction.Remove(id) => model.songs <- List.remove(id, model.songs)
+  | PlayListAction.TogglePlay => model.state <- if model.state == PlayListState.Playing then PlayListState.Paused else PlayListState.Playing
+  | PlayListAction.SetPlayListState(state) => model.state <- state
+  end

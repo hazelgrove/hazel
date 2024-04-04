@@ -1,0 +1,8 @@
+
+fun m, a ->
+  case a
+  | UpdatePassword(p) => update_password(m, p)
+  | ClearCriteria => clear_criteria(m)
+  | AddCriterion(c) => add_criterion(m, c)
+  | RemoveCriterion(c) => remove_criterion(m, c)
+  end

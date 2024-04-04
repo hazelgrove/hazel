@@ -1,0 +1,6 @@
+fun model, action ->
+  case action
+  | AddTodo(description) => Model.add_todo(model, description)
+  | RemoveTodo(id) => Model.remove_todo(model, id)
+  | ToggleTodo(id) => Model.toggle_todo(model, id)
+  end

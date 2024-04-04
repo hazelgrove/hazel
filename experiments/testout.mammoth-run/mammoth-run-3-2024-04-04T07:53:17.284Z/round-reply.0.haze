@@ -1,0 +1,7 @@
+fun (playlist, action) ->
+  case action of
+  | PlaySong(id) => (playlist[0], Playing(id))
+  | PauseCurrentSong => (playlist[0], PausedOn(get_current_song_id(playlist[1])))
+  | RemoveSong(id) => (remove_song(id, playlist[0]), playlist[1])
+  | AddSong(id) => (add_song(id, playlist[0]), playlist[1])
+  end

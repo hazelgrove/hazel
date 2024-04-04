@@ -1,0 +1,81 @@
+The following static errors were discovered:
+Error in term:
+  snd3
+Nature of error: Variable snd3 is not bound
+Error in term:
+  snd3
+Nature of error: Variable snd3 is not bound
+Error in term:
+  fst3
+Nature of error: Variable fst3 is not bound
+Error in term:
+  thd3
+Nature of error: Variable thd3 is not bound
+Error in term:
+  fst3
+Nature of error: Variable fst3 is not bound
+Error in term:
+  fst3
+Nature of error: Variable fst3 is not bound
+Error in term:
+  thd3
+Nature of error: Variable thd3 is not bound
+Error in term:
+  thd3
+Nature of error: Variable thd3 is not bound
+Error in term:
+  fst3
+Nature of error: Variable fst3 is not bound
+Error in term:
+  fst3
+Nature of error: Variable fst3 is not bound
+Error in term:
+  List.replaceAt
+Nature of error: Variable List.replaceAt is not bound
+Error in term:
+  row
+Nature of error: Expecting type [?] but got inconsistent type Row
+Error in term:
+  fst3
+Nature of error: Variable fst3 is not bound
+Error in term:
+  snd3
+Nature of error: Variable snd3 is not bound
+Error in term:
+  List.replaceAt
+Nature of error: Variable List.replaceAt is not bound
+Error in term:
+  thd3
+Nature of error: Variable thd3 is not bound
+Error in term:
+  fst3
+Nature of error: Variable fst3 is not bound
+Error in term:
+  fst3
+Nature of error: Variable fst3 is not bound
+Error in term:
+  List.replaceAt
+Nature of error: Variable List.replaceAt is not bound
+Error in term:
+  List.replaceAt
+Nature of error: Variable List.replaceAt is not bound
+Error in term:
+  List.replaceAt
+Nature of error: Variable List.replaceAt is not bound
+Error in term:
+  snd3
+Nature of error: Variable snd3 is not bound
+Error in term:
+  thd3
+Nature of error: Variable thd3 is not bound
+Error in term:
+  snd3
+Nature of error: Variable snd3 is not bound
+Error in term:
+  snd3
+Nature of error: Variable snd3 is not bound
+Error in term:
+  fst3
+Nature of error: Variable fst3 is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

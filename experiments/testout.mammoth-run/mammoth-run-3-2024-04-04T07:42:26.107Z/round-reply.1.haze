@@ -1,0 +1,12 @@
+fun (buffer, todos), action ->
+  case action
+  | AddTodo => (buffer, (buffer, false) :: todos)
+  | RemoveTodo(idx) =>
+    let todos = List.remove_at(idx, todos) in
+    (buffer, todos)
+  | ToggleTodo(idx) =>
+    let (title, done) = List.nth(idx, todos) in
+    let todos = List.set_at(idx, (title, !done), todos) in
+    (buffer, todos)
+  | UpdateBuffer(newBuffer) => (newBuffer, todos)
+  end

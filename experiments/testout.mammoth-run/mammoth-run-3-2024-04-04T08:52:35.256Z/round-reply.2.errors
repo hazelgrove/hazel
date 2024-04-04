@@ -1,0 +1,19 @@
+The following static errors were discovered:
+Error in term:
+  emoji
+Nature of error: Variable emoji is not bound
+Error in term:
+  emoji
+Nature of error: Variable emoji is not bound
+Error in term:
+  fillRow
+Nature of error: Variable fillRow is not bound
+Error in term:
+  case action
+ | SelectEmoji(emoji) => (emoji, grid)
+| StampEmoji((row, col)) => updateGrid(grid, row, col, emoji)
+| FillRow(row) => fillRow(grid, row, emoji)
+end
+Nature of error: Expecting branches to have consistent types but got types: (Emoji, ?), Grid, ?
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

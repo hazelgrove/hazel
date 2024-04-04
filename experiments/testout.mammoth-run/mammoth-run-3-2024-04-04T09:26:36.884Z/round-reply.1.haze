@@ -1,0 +1,7 @@
+fun (password, criteria, strength), action ->
+    case action
+    | AddTodo => (password, criteria, strength)
+    | RemoveTodo(idx) => (password, List.remove(idx, criteria), strength)
+    | ToggleTodo(idx) => (password, List.toggle(idx, criteria), strength)
+    | UpdateBuffer(newPassword) => (newPassword, criteria, strength)
+    end

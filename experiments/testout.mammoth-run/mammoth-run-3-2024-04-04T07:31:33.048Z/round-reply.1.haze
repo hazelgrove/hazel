@@ -1,0 +1,7 @@
+fun (buffer, todos), action ->
+  case action
+  | AddTodo => add((buffer, todos))
+  | RemoveTodo(i) => (buffer, remove(i, todos))
+  | ToggleTodo(i) => (buffer, toggle(i, todos))
+  | UpdateBuffer(text) => (text, todos)
+  end

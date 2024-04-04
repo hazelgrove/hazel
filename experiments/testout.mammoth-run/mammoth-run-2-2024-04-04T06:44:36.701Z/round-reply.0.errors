@@ -1,0 +1,39 @@
+The following static errors were discovered:
+Error in term:
+  model
+Nature of error: Variable model is not bound
+Error in term:
+  model end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  in model end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  in
+Nature of error: Variable in is not bound
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Error in term:
+  fun (model, action) ->
+ case action
+ | AddTodo => ?
+| RemoveTodo(n) => ?
+| ToggleTodo(n) => ?
+| UpdateBuffer(s) => ?
+end in model end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  AddTodo
+Nature of error: Constructor is not defined
+Error in term:
+  RemoveTodo
+Nature of error: Constructor is not defined
+Error in term:
+  UpdateBuffer
+Nature of error: Constructor is not defined
+Error in term:
+  ToggleTodo
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

@@ -1,0 +1,28 @@
+The following static errors were discovered:
+The suggested filling has the wrong expected type: expected ((Model, Action) -> Model), but got ((?, ?) -> (?, String)).
+Error in term:
+  List.remove
+Nature of error: Variable List.remove is not bound
+Error in term:
+  List.update
+Nature of error: Variable List.update is not bound
+Error in term:
+  Todo.init
+Nature of error: Expecting type String but got inconsistent type [?]
+Error in term:
+  Todo.init
+Nature of error: Variable Todo.init is not bound
+Error in term:
+  ToggleTodo
+Nature of error: Constructor is not defined
+Error in term:
+  RemoveTodo
+Nature of error: Constructor is not defined
+Error in term:
+  AddTodo
+Nature of error: Constructor is not defined
+Error in term:
+  UpdateBuffer
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

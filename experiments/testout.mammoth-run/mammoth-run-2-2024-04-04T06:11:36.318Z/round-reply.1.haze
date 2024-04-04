@@ -1,0 +1,6 @@
+fun (model, action) ->
+  case action
+  | SelectEmoji(emoji) => model
+  | StampEmoji(row, col) => model
+  | FillRow(row) => model
+  end

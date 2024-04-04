@@ -1,0 +1,16 @@
+The following static errors were discovered:
+Error in term:
+  (weekday, timeOfDay), user, bookingID + 1
+Nature of error: Expecting type String but got inconsistent type [?]
+Error in term:
+  case a
+ | AddBooking((user, weekday, timeOfDay)) => let ((form, bookings, bookingID)) = m in
+ ((weekday, timeOfDay), user), bookings ++ (weekday, timeOfDay), user, bookingID + 1, bookingID + 1
+| CancelBooking((user, id)) => let ((form, bookings, bookingID)) = m in
+ form, rm_booking(user, id, bookings), bookingID
+| ClearBookings => let ((form, _, bookingID)) = m in
+ form, , bookingID
+end
+Nature of error: Expecting branches to have consistent types but got types: (((Weekday, TimeOfDay), User), String, Int), (?, [Booking], ?), (?, [?], ?)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

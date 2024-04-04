@@ -1,0 +1,7 @@
+The following static errors were discovered:
+The suggested filling has the wrong expected type: expected ((Model, Action) -> Model), but got ((?, ?) -> [Todo]).
+Error in term:
+  update_buffer
+Nature of error: Variable update_buffer is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

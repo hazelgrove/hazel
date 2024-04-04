@@ -1,0 +1,11 @@
+fun model, action ->
+    case action
+    | AddEmoji(emoji) => { model with emojis = emoji :: model.emojis }
+    | Clear => { model with emojis = [] }
+    | Undo =>
+        match model.emojis with
+        | [] -> model
+        | _::tl -> { model with emojis = tl }
+    end
+in
+update(model, action)

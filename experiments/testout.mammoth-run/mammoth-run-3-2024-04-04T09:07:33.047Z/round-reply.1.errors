@@ -1,0 +1,80 @@
+The following static errors were discovered:
+Error in term:
+  Grid
+Nature of error: Constructor is not defined
+Error in term:
+  Grid
+Nature of error: Constructor is not defined
+Error in term:
+  update_grid
+Nature of error: Variable update_grid is not bound
+Error in term:
+  fill_row (Grid, Row, Emoji -> Grid fun (grid, row, emoji) ->
+ ?)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  fun ((model, action)) ->
+ let ((grid, current_emoji, emoji_list)) = model in
+ case action
+ | SelectEmoji(emoji) => (grid, emoji, emoji_list)
+| StampEmoji(((row, col))) => (update_grid(grid, row, col, current_emoji), current_emoji, emoji_list)
+| ClearCell(((row, col))) => (update_grid(grid, row, col, ), current_emoji, emoji_list)
+| ClearGrid => (empty_grid(()), current_emoji, emoji_list)
+| FillRow(row) => (fill_row(grid, row, current_emoji), current_emoji, emoji_list)
+end where update_grid (Grid, Row, Col, Emoji -> Grid fun (grid, row, col, emoji) ->
+ ?), empty_grid (() -> Grid fun () ->
+ ?), fill_row (Grid, Row, Emoji -> Grid fun (grid, row, emoji) ->
+ ?)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Grid
+Nature of error: Constructor is not defined
+Error in term:
+  Emoji
+Nature of error: Constructor is not defined
+Error in term:
+  Grid
+Nature of error: Constructor is not defined
+Error in term:
+  fill_row
+Nature of error: Variable fill_row is not bound
+Error in term:
+  Grid
+Nature of error: Constructor is not defined
+Error in term:
+  update_grid
+Nature of error: Variable update_grid is not bound
+Error in term:
+  empty_grid
+Nature of error: Variable empty_grid is not bound
+Error in term:
+  Row
+Nature of error: Constructor is not defined
+Error in term:
+  Emoji
+Nature of error: Constructor is not defined
+Error in term:
+  where update_grid (Grid, Row, Col, Emoji -> Grid fun (grid, row, col, emoji) ->
+ ?), empty_grid (() -> Grid fun () ->
+ ?), fill_row (Grid, Row, Emoji -> Grid fun (grid, row, emoji) ->
+ ?)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  where
+Nature of error: Variable where is not bound
+Error in term:
+  empty_grid (() -> Grid fun () ->
+ ?)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Row
+Nature of error: Constructor is not defined
+Error in term:
+  Col
+Nature of error: Constructor is not defined
+Error in term:
+  update_grid (Grid, Row, Col, Emoji -> Grid fun (grid, row, col, emoji) ->
+ ?)
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

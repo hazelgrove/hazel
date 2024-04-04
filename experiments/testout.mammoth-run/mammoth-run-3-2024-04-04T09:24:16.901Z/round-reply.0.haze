@@ -1,0 +1,6 @@
+fun model, action ->
+  case action
+  | Draw(x, y, color) => {model with canvas = Canvas.set_pixel(model.canvas, x, y, color)}
+  | Clear => {model with canvas = Canvas.clear(model.canvas)}
+  | ChangeColor(color) => {model with current_color = color}
+  end

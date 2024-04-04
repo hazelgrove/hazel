@@ -1,0 +1,9 @@
+
+fun model, action ->
+  case action
+  | AddEmoji(emoji) => addEmoji(emoji, model)
+  | RemoveEmoji(index) => removeEmoji(index, model)
+  | Clear => clear(model)
+  | Undo => undo(model)
+  | Redo => redo(model)
+  end

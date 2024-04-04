@@ -1,0 +1,10 @@
+fun model, action ->
+  case action
+  | AddSong(id) => {songs = id :: get_songs(model), state = get_state(model)}
+  | RemoveSong(id) => {songs = List.filter((!=) id, get_songs(model)), state = get_state(model)}
+  | TogglePlay => {songs = get_songs(model), state = match get_state(model) with
+                                                      | Playing => Paused
+                                                      | Paused | Stopped => Playing
+                                                      end}
+  | Stop => {songs = get_songs(model), state = Stopped} 
+  end

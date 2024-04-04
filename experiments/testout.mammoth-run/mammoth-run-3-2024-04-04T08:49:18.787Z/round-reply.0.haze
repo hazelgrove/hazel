@@ -1,0 +1,12 @@
+fun model, action ->
+  case action
+  | AddBooking(user, booking) => 
+    let bookings = getUserBookings(model, user) in
+    let updatedBookings = rm_booking(user, booking.id, bookings) in
+    {model with bookings = updatedBookings}
+  | RemoveBooking(user, bookingID) => 
+    let bookings = getUserBookings(model, user) in
+    let updatedBookings = rm_booking(user, bookingID, bookings) in
+    {model with bookings = updatedBookings}
+  | _ => model
+  end

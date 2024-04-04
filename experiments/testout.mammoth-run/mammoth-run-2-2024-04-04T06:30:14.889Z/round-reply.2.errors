@@ -1,0 +1,66 @@
+The following static errors were discovered:
+Error in term:
+  List.mapWithIndex((fun (rowNum, row) ->
+ if rowNum == row then List.mapWithIndex((fun (colNum, cell) ->
+ if colNum == col then  else cell)) row else row)) grid, currentEmoji, emojiList
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  List.mapWithIndex
+Nature of error: Variable List.mapWithIndex is not bound
+Error in term:
+  fun _ ->
+ 
+Nature of error: Expecting type ((? -> ?), [?]) but got inconsistent type (? -> String)
+Error in term:
+  List.mapWithIndex((fun (rowNum, row) ->
+ if rowNum == row then List.map((fun _ ->
+ currentEmoji)) row else row)) grid, currentEmoji, emojiList
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  List.map((fun _ ->
+ currentEmoji)) row
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  List.mapWithIndex
+Nature of error: Variable List.mapWithIndex is not bound
+Error in term:
+  List.mapWithIndex((fun (colNum, cell) ->
+ if colNum == col then currentEmoji else cell)) row
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  List.mapWithIndex((fun (rowNum, row) ->
+ if rowNum == row then List.mapWithIndex((fun (colNum, cell) ->
+ if colNum == col then currentEmoji else cell)) row else row)) grid, currentEmoji, emojiList
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  List.mapWithIndex
+Nature of error: Variable List.mapWithIndex is not bound
+Error in term:
+  row
+Nature of error: Variable row is not bound
+Error in term:
+  List.map((fun row ->
+ List.map((fun _ ->
+ )) row)) grid, currentEmoji, emojiList
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  List.mapWithIndex((fun (colNum, cell) ->
+ if colNum == col then  else cell)) row
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  List.mapWithIndex
+Nature of error: Variable List.mapWithIndex is not bound
+Error in term:
+  List.mapWithIndex
+Nature of error: Variable List.mapWithIndex is not bound
+Error in term:
+  fun row ->
+ List.map((fun _ ->
+ )) row
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  fun _ ->
+ currentEmoji
+Nature of error: Expecting type ((? -> ?), [?]) but got inconsistent type (? -> ?)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

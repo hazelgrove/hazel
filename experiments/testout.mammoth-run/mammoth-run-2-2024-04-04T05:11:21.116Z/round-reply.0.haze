@@ -1,0 +1,17 @@
+
+fun model, action ->
+  case action
+  | AddTodo => 
+    let (buffer, todos) = model in
+    (buffer, todos)
+  | RemoveTodo(idx) => 
+    let (buffer, todos) = model in
+    (buffer, List.remove_at(idx, todos))
+  | ToggleTodo(idx) =>
+    let (buffer, todos) = model in
+    let toggle = fun (txt, done) -> (txt, !done) in
+    (buffer, List.update_at(idx, toggle, todos))
+  | UpdateBuffer(txt) =>
+    let (buffer, todos) = model in
+    (txt, todos)
+  end

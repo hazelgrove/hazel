@@ -1,0 +1,18 @@
+The following static errors were discovered:
+Error in term:
+  add_song
+Nature of error: Variable add_song is not bound
+Error in term:
+  play_song
+Nature of error: Variable play_song is not bound
+Error in term:
+  stop_song
+Nature of error: Variable stop_song is not bound
+Error in term:
+  remove_song
+Nature of error: Variable remove_song is not bound
+Error in term:
+  StopSong
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

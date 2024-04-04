@@ -1,0 +1,10 @@
+fun model, action ->
+  case action
+  | LoadRooms(rooms) => { model with rooms = rooms }
+  | BookRoom(id) => 
+      let new_rooms = List.map(fun room -> if room.id == id then { room with is_booked = true } else room, model.rooms) in
+      { model with rooms = new_rooms }
+  | CancelBooking(id) => 
+      let new_rooms = List.map(fun room -> if room.id == id then { room with is_booked = false } else room, model.rooms) in
+      { model with rooms = new_rooms } 
+  end

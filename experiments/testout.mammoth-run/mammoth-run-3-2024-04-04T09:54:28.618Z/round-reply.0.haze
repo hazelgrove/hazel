@@ -1,0 +1,7 @@
+
+fun model, action ->
+  case action
+  | Init => model
+  | PasswordChanged(new_password) => { model with password = new_password; strength = calculate_strength(new_password) }
+  | _ => model
+  end

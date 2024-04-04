@@ -1,0 +1,10 @@
+fun (model, action) ->
+  case action
+  | AddUser(user) =>
+      {model with users = user::model.users}
+  | AddBooking(user, booking) =>
+      {model with bookings = booking::getUserBookings(model, user)}
+  | RemoveBooking(user, bookingId) =>
+      {model with bookings = rm_booking(user, bookingId, getBookings(model))}
+  | _ => model
+  end

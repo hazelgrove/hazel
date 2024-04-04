@@ -1,0 +1,19 @@
+fun (model, action) ->
+  case action
+    | UpdatePassword(password) => update_password(model, password)
+    | ClearCriteria => clear_criteria(model)
+    | AddCriterion(criterion) => add_criterion(model, criterion)
+    | RemoveCriterion(criterion) => remove_criterion(model, criterion)
+  end
+
+let update_password: (Model, String) -> Model = fun (model, password) ->
+  (password, model.1, model.2)
+
+let clear_criteria: Model -> Model = fun model ->
+  (model.0, [], model.2)
+
+let add_criterion: (Model, PasswordCriteria) -> Model = fun (model, criterion) ->
+  (model.0, criterion::model.1, model.2)
+
+let remove_criterion: (Model, PasswordCriteria) -> Model = fun (model, criterion) ->
+  (model.0, List.remove(criterion, model.1), model.2)

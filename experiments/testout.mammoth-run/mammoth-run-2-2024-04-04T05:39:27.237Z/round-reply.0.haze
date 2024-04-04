@@ -1,0 +1,8 @@
+
+fun model, action ->
+  case action
+  | AddSong(id) => model.songs := id::model.songs
+  | RemoveSong(id) => model.songs := List.filter(fun song -> song != id, model.songs)
+  | TogglePlay => model.state := if model.state == Playing then Paused else Playing
+  | Stop => model.state := Stopped
+  end

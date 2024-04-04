@@ -1,0 +1,12 @@
+fun (model, action) ->
+  case action
+  | BookRoom(user, weekday, timeOfDay, name)
+    => let newBooking = {user=user, weekday=weekday, timeOfDay=timeOfDay, name=name} in
+       {model with bookings = newBooking :: model.bookings}
+  | CancelBooking(user, bookingId)
+    => {model with bookings = rm_booking(user, bookingId, model.bookings)}
+  | GetBookings(user)
+    => {model with bookings = getUserBookings(model, user)}
+  | GetAllBookings
+    => {model with bookings = getBookings(model)}
+  end

@@ -1,0 +1,35 @@
+The following static errors were discovered:
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  model.3
+Nature of error: "model.3" isn't a valid token
+Error in term:
+  model.3
+Nature of error: "model.3" isn't a valid token
+Error in term:
+  model.3
+Nature of error: "model.3" isn't a valid token
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  (weekday, time, user, newID)
+Nature of error: Expecting type String but got inconsistent type [(Weekday, TimeOfDay, User, Int)]
+Error in term:
+  case action
+ | AddBooking((user, weekday, time)) => let newID = model.3 + 1 in
+ (initFormState, model.2 ++ (weekday, time, user, newID), newID)
+| CancelBooking((user, id)) => (model.1, rm_booking(user, id, model.2), model.3)
+| ClearBookings => (model.1, , model.3)
+end
+Nature of error: Expecting branches to have consistent types but got types: (((Weekday, TimeOfDay), String), String, Int), (?, [Booking], ?), (?, [?], ?)
+Error in term:
+  model.2
+Nature of error: "model.2" isn't a valid token
+Error in term:
+  model.2
+Nature of error: "model.2" isn't a valid token
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

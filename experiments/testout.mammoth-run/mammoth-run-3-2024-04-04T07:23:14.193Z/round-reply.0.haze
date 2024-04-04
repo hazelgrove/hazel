@@ -1,0 +1,8 @@
+
+fun (buffer, todos), action ->
+  case action
+  | AddTodo => (buffer, todos)
+  | RemoveTodo(idx) => (buffer, List.remove(idx, todos))
+  | ToggleTodo(idx) => (buffer, List.mapWithIndex(fun i, (d, s) -> if i == idx then (d, !s) else (d, s), todos))
+  | UpdateBuffer(new_buffer) => (new_buffer, todos)
+  end

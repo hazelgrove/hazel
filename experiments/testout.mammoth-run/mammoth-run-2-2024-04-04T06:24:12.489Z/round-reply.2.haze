@@ -1,0 +1,14 @@
+fun model, action ->
+  case action
+  | SelectEmoji(emoji) => (fst(model), emoji, snd(snd(model)))
+  | StampEmoji((row, col)) => 
+      let newGrid = List.mapi(fun rIdx r -> if rIdx == row then List.mapi(fun cIdx c -> if cIdx == col then snd(model) else c) r else r) (fst(model)) in
+      (newGrid, snd(model), snd(snd(model)))
+  | ClearCell((row, col)) => 
+      let newGrid = List.mapi(fun rIdx r -> if rIdx == row then List.mapi(fun cIdx c -> if cIdx == col then "" else c) r else r) (fst(model)) in
+      (newGrid, snd(model), snd(snd(model)))
+  | ClearGrid => ([], snd(model), snd(snd(model)))
+  | FillRow(row) => 
+      let newGrid = List.mapi(fun rIdx r -> if rIdx == row then List.map(fun c -> snd(model)) r else r) (fst(model)) in
+      (newGrid, snd(model), snd(snd(model)))
+  end

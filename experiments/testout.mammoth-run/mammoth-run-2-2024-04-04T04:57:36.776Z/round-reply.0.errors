@@ -1,0 +1,9 @@
+The following static errors were discovered:
+Error in term:
+  List.remove
+Nature of error: Variable List.remove is not bound
+Error in term:
+  List.indexed
+Nature of error: Variable List.indexed is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

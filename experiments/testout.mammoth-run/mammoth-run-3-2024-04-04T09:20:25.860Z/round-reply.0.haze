@@ -1,0 +1,8 @@
+fun model, action ->
+    case action
+    | SelectTool(tool) => { model with tool = tool }
+    | ApplyTool(x, y) =>
+        let updated_canvas = apply_tool(model.canvas, model.tool, x, y) in
+        { model with canvas = updated_canvas }
+    | ClearCanvas => { model with canvas = empty_canvas() }
+    end

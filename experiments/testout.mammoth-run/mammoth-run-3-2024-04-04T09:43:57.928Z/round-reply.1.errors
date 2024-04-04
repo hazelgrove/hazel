@@ -1,0 +1,24 @@
+The following static errors were discovered:
+Error in term:
+  calculate_strength
+Nature of error: Variable calculate_strength is not bound
+Error in term:
+  calculate_strength
+Nature of error: Variable calculate_strength is not bound
+Error in term:
+  append_criterion
+Nature of error: Variable append_criterion is not bound
+Error in term:
+  remove_criterion
+Nature of error: Variable remove_criterion is not bound
+Error in term:
+  remove_criterion
+Nature of error: Variable remove_criterion is not bound
+Error in term:
+  calculate_strength
+Nature of error: Variable calculate_strength is not bound
+Error in term:
+  append_criterion
+Nature of error: Variable append_criterion is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

@@ -1,0 +1,8 @@
+
+fun m, a ->
+  case a 
+  | SelectEmoji(e) => let (grid, _, palette) = m in (grid, e, palette)
+  | StampEmoji((r, c)) => let (grid, emoji, palette) = m in (update_grid(grid, r, c, emoji), emoji, palette)
+  | ClearCell((r, c)) => let (grid, emoji, palette) = m in (update_grid(grid, r, c, ""), emoji, palette)
+  | ClearGrid => let (_, emoji, palette) = m in (init_grid(), emoji, palette)
+  | FillRow(r) => let (grid, emoji, palette) = m in (fill_row(grid, r, emoji), emoji, palette) end

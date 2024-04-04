@@ -1,0 +1,15 @@
+# Update the Room Booking app model based on an action #
+
+let update: (Model, Action) -> Model =
+  
+fun model, action ->
+  case action
+  | Refresh => model
+  | SubmitForm(user, booking) => let new_bookings = rm_booking(user, booking, getBookings(model)) in {model with bookings = new_bookings}
+  | CancelForm => {model with formState = initFormState}
+  | SetFormState(newFormState) => {model with formState = newFormState}
+  | DeleteBooking(user, booking_id) => let user_bookings = getUserBookings(model, user) in
+                                        let new_bookings = List.filter(fun b -> b.id != booking_id, user_bookings) in
+                                        {model with bookings = new_bookings}
+  end
+in

@@ -1,0 +1,33 @@
+The following static errors were discovered:
+Error in term:
+  List.remove
+Nature of error: Variable List.remove is not bound
+Error in term:
+  Paused
+Nature of error: Constructor is not defined
+Error in term:
+  PlayList
+Nature of error: Constructor is not defined
+Error in term:
+  PlayList
+Nature of error: Constructor is not defined
+Error in term:
+  PlayList
+Nature of error: Constructor is not defined
+Error in term:
+  PlayList
+Nature of error: Constructor is not defined
+Error in term:
+  PlayListAction.AddSong
+Nature of error: Expected a constructor
+Error in term:
+  PlayListAction.RemoveSong
+Nature of error: Expected a constructor
+Error in term:
+  PlayListAction.Play
+Nature of error: "PlayListAction.Play" isn't a valid token
+Error in term:
+  PlayListAction.Pause
+Nature of error: "PlayListAction.Pause" isn't a valid token
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

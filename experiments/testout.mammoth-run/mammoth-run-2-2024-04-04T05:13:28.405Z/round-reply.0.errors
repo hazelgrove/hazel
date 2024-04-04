@@ -1,0 +1,30 @@
+The following static errors were discovered:
+Error in term:
+  model.buffer
+Nature of error: "model.buffer" isn't a valid token
+Error in term:
+  model.buffer
+Nature of error: "model.buffer" isn't a valid token
+Error in term:
+  model.todos
+Nature of error: "model.todos" isn't a valid token
+Error in term:
+  model.todos
+Nature of error: "model.todos" isn't a valid token
+Error in term:
+  model.buffer
+Nature of error: "model.buffer" isn't a valid token
+Error in term:
+  model.todos
+Nature of error: "model.todos" isn't a valid token
+Error in term:
+  model.buffer
+Nature of error: "model.buffer" isn't a valid token
+Error in term:
+  model.todos
+Nature of error: "model.todos" isn't a valid token
+Error in term:
+  List.remove
+Nature of error: Variable List.remove is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

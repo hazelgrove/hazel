@@ -1,0 +1,15 @@
+fun (model, action) ->
+    case action
+    | PlaySong(id) => (model[0], Playing(id))
+    | PauseCurrentSong => 
+        case model[1]
+        | Playing(id) => (model[0], PausedOn(id))
+        | _ => model
+        end
+    | RemoveSong(id) => (List.filter(fun song -> song != id, model[0]), model[1])
+    | AddSong(id) => 
+        if List.mem(id, model[0]) 
+        then model 
+        else (id::model[0], model[1])
+        end
+    end

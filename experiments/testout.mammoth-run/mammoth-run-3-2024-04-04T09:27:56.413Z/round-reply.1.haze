@@ -1,0 +1,7 @@
+fun (password, criteria, strength), action ->
+  case action
+  | AddTodo => add_todo(password, criteria, strength)
+  | RemoveTodo(idx) => remove_todo(password, criteria, strength, idx)
+  | ToggleTodo(idx) => toggle_todo(password, criteria, strength, idx)
+  | UpdateBuffer(str) => update_buffer(password, criteria, strength, str)
+  end

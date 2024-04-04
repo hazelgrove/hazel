@@ -1,0 +1,7 @@
+
+fun model, action ->
+  case action
+  | ChangePassword(password) => { model with password = password, strength = calculate_strength(password) }
+  | ChangeUsername(username) => { model with username = username }
+  | Logout => initial_model
+  end

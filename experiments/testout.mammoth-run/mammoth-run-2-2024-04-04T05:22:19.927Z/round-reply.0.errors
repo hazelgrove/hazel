@@ -1,0 +1,27 @@
+The following static errors were discovered:
+Error in term:
+  playlist.songList
+Nature of error: "playlist.songList" isn't a valid token
+Error in term:
+  playlist.songList
+Nature of error: "playlist.songList" isn't a valid token
+Error in term:
+  List.head
+Nature of error: Variable List.head is not bound
+Error in term:
+  playlist.songList
+Nature of error: "playlist.songList" isn't a valid token
+Error in term:
+  playlist.songList
+Nature of error: "playlist.songList" isn't a valid token
+Error in term:
+  playlist.state
+Nature of error: "playlist.state" isn't a valid token
+Error in term:
+  playlist.state
+Nature of error: "playlist.state" isn't a valid token
+Error in term:
+  playlist.songList
+Nature of error: "playlist.songList" isn't a valid token
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

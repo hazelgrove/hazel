@@ -1,0 +1,8 @@
+
+fun model, action ->
+  case action
+  | AddTodo => add(model)
+  | RemoveTodo(idx) => let (_, todos) = model in (Model.init, remove(idx, todos))
+  | ToggleTodo(idx) => let (_, todos) = model in (Model.init, toggle(idx, todos))
+  | UpdateBuffer(str) => let (_, todos) = model in (str, todos)
+  end

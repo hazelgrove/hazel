@@ -1,0 +1,13 @@
+
+fun model, action ->
+  case action
+  | SubmitForm(user, form) => 
+      let bookings = getUserBookings(model, user) in
+      let new_booking = (user, genBookingId(), form) in
+      Model.updateBookings(model, new_booking::bookings)
+  | CancelBooking(user, booking_id) => 
+      let bookings = getUserBookings(model, user) in
+      let updated_bookings = rm_booking(user, booking_id, bookings) in
+      Model.updateBookings(model, updated_bookings)
+  | _ => model
+  end

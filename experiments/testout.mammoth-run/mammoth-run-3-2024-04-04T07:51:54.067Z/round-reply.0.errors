@@ -1,0 +1,18 @@
+The following static errors were discovered:
+Error in term:
+  playlist.songs
+Nature of error: "playlist.songs" isn't a valid token
+Error in term:
+  playlist.state
+Nature of error: "playlist.state" isn't a valid token
+Error in term:
+  playlist.songs
+Nature of error: "playlist.songs" isn't a valid token
+Error in term:
+  playlist.state
+Nature of error: "playlist.state" isn't a valid token
+Error in term:
+  Rul
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

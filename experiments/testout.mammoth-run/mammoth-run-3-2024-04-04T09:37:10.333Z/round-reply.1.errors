@@ -1,0 +1,114 @@
+The following static errors were discovered:
+Error in term:
+  password new_password
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.password
+Nature of error: "model.password" isn't a valid token
+Error in term:
+  criteria
+Nature of error: Variable criteria is not bound
+Error in term:
+  criteria new_criteria ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  strength
+Nature of error: Variable strength is not bound
+Error in term:
+  criteria
+Nature of error: Variable criteria is not bound
+Error in term:
+  model.password
+Nature of error: "model.password" isn't a valid token
+Error in term:
+  model.criteria ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? password new_password
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.criteria
+Nature of error: "model.criteria" isn't a valid token
+Error in term:
+  model.criteria
+Nature of error: "model.criteria" isn't a valid token
+Error in term:
+  strength new_strength
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  List.remove
+Nature of error: Variable List.remove is not bound
+Error in term:
+  ? password model.password
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  criteria
+Nature of error: Variable criteria is not bound
+Error in term:
+  strength new_strength
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  password
+Nature of error: Variable password is not bound
+Error in term:
+  password model.password
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.password
+Nature of error: "model.password" isn't a valid token
+Error in term:
+  model.criteria
+Nature of error: "model.criteria" isn't a valid token
+Error in term:
+  model.password
+Nature of error: "model.password" isn't a valid token
+Error in term:
+  ? password model.password
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  new_criteria ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  password
+Nature of error: Variable password is not bound
+Error in term:
+  password
+Nature of error: Variable password is not bound
+Error in term:
+  new_criteria ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  password model.password
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.criteria
+Nature of error: "model.criteria" isn't a valid token
+Error in term:
+  model.criteria
+Nature of error: "model.criteria" isn't a valid token
+Error in term:
+  strength
+Nature of error: Variable strength is not bound
+Error in term:
+  strength
+Nature of error: Variable strength is not bound
+Error in term:
+  strength new_strength
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  criteria model.criteria ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  criteria model.criteria
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ChangePassword
+Nature of error: Constructor is not defined
+Error in term:
+  RemoveCriteria
+Nature of error: Constructor is not defined
+Error in term:
+  AddCriteria
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

@@ -1,0 +1,106 @@
+The following static errors were discovered:
+The suggested filling has the wrong expected type: expected ((Model, Action) -> Model), but got ((?, ?) -> (?, ?)).
+Error in term:
+  emoji model.emoji
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  grid
+Nature of error: Variable grid is not bound
+Error in term:
+  ? emoji model.emoji
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  ? emoji model.emoji
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.grid
+Nature of error: "model.grid" isn't a valid token
+Error in term:
+  emoji
+Nature of error: Variable emoji is not bound
+Error in term:
+  ? emoji emoji
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  grid
+Nature of error: Variable grid is not bound
+Error in term:
+  model.emoji
+Nature of error: "model.emoji" isn't a valid token
+Error in term:
+  emoji model.emoji
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  new_grid ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.grid
+Nature of error: "model.grid" isn't a valid token
+Error in term:
+  new_grid ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.grid
+Nature of error: "model.grid" isn't a valid token
+Error in term:
+  model.grid ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  grid new_grid ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  grid model.grid ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.emoji
+Nature of error: "model.emoji" isn't a valid token
+Error in term:
+  emoji
+Nature of error: Variable emoji is not bound
+Error in term:
+  model.emoji
+Nature of error: "model.emoji" isn't a valid token
+Error in term:
+  grid
+Nature of error: Variable grid is not bound
+Error in term:
+  model.grid
+Nature of error: "model.grid" isn't a valid token
+Error in term:
+  ? emoji model.emoji
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  emoji emoji
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.emoji
+Nature of error: "model.emoji" isn't a valid token
+Error in term:
+  grid
+Nature of error: Variable grid is not bound
+Error in term:
+  grid new_grid ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.emoji
+Nature of error: "model.emoji" isn't a valid token
+Error in term:
+  grid new_grid ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  new_grid ?
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  emoji
+Nature of error: Variable emoji is not bound
+Error in term:
+  emoji model.emoji
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  Click
+Nature of error: Constructor is not defined
+Error in term:
+  Clear
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

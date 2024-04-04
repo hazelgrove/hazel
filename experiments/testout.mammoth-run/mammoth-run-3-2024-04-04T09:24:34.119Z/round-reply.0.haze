@@ -1,0 +1,7 @@
+
+fun model, action ->
+  case action
+  | Draw(x, y, color) => { model with pixels = Pixels.add(x, y, color, model.pixels) }
+  | Clear => { model with pixels = Pixels.create() }
+  | Undo => { model with pixels = Pixels.undo(model.pixels) }
+  end

@@ -1,0 +1,24 @@
+The following static errors were discovered:
+Error in term:
+  deleteBooking
+Nature of error: Variable deleteBooking is not bound
+Error in term:
+  addBooking
+Nature of error: Variable addBooking is not bound
+Error in term:
+  model.booking_id
+Nature of error: "model.booking_id" isn't a valid token
+Error in term:
+  updateForm
+Nature of error: Variable updateForm is not bound
+Error in term:
+  time
+Nature of error: Expecting type Time but got inconsistent type TimeOfDay
+Error in term:
+  UpdateForm
+Nature of error: Constructor is not defined
+Error in term:
+  DeleteBooking
+Nature of error: Constructor is not defined
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

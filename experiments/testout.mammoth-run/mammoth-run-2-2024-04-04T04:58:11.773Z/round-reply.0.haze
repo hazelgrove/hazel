@@ -1,0 +1,7 @@
+fun (buffer, todos), action ->
+  case action
+  | AddTodo => if buffer $== "" then (buffer, todos) else ("", (buffer, false)::todos)
+  | RemoveTodo(i) => (buffer, List.remove(i, todos))
+  | ToggleTodo(i) => (buffer, List.update(i, fun (d, s) -> (d, !s), todos))
+  | UpdateBuffer(s) => (s, todos)
+  end

@@ -1,0 +1,6 @@
+The following static errors were discovered:
+Error in term:
+  get_current_song_id
+Nature of error: Variable get_current_song_id is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

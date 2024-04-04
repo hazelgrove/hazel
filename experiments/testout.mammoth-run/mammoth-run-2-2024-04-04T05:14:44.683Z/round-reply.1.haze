@@ -1,0 +1,5 @@
+fun model, action ->
+  case action
+  | NoOp => model
+  | SomeAction(payload) => { model with field = payload }
+  end

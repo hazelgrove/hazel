@@ -1,0 +1,5 @@
+fun (model, action) ->
+  case action
+  | Draw(x, y, emoji) => { model with canvas = Canvas.set(x, y, emoji, model.canvas) }
+  | Select(emoji) => { model with selected = emoji }
+  | Clear => { model with canvas = Canvas.create() } end

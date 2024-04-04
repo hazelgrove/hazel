@@ -1,0 +1,19 @@
+# Update the Room Booking app model based on an action #
+
+let update: (Model, Action) -> Model =
+  fun model, action ->
+    case action
+    | AddBooking(user, booking) =>
+        let userBookings = getUserBookings(model, user) in
+        let updatedBookings = booking::userBookings in
+        rm_booking(user, booking.id, updatedBookings)
+    | RemoveBooking(user, booking) =>
+        let userBookings = getUserBookings(model, user) in
+        let updatedBookings = List.filter(fun b -> b.id != booking.id, userBookings) in
+        rm_booking(user, booking.id, updatedBookings)
+    | ToggleForm =>
+        case model.formState
+        | None => { model with formState = Some(initFormState) }
+        | Some(_) => { model with formState = None }
+    end
+in

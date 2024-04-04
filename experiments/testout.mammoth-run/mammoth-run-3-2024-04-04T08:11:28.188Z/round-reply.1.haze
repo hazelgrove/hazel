@@ -1,0 +1,6 @@
+fun model, action ->
+  case action
+  | AddTrack(track) => AddTrack(model, track)
+  | RemoveTrack(track) => RemoveTrack(model, track)
+  | Play => Play(model)
+  end

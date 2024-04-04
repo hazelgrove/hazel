@@ -1,0 +1,11 @@
+fun (model, action) ->
+  case action
+  | AddBooking(user, time) => 
+    if !bookingExists(model, (time, user, model.BookingID)) 
+    then model 
+    else ((time, user, ""), model.Bookings ++ [(time, user, model.BookingID)], model.BookingID + 1)
+  | RemoveBooking(BookingID) =>
+    ((model.Time, model.User, ""), List.filter(fun (_, _, id) -> id != BookingID, model.Bookings), model.BookingID)
+  | UpdateBuffer(str) =>
+    ((model.Time, model.User, str), model.Bookings, model.BookingID)
+  end

@@ -1,0 +1,10 @@
+
+fun model, action ->
+  case action
+  | AddTodo => (model.buffer, model.todos)
+  | RemoveTodo(i) => (model.buffer, List.removeAt(i, model.todos))
+  | ToggleTodo(i) => 
+      let (content, done) = List.nth(i, model.todos) in
+      (model.buffer, List.update(i, (content, !done), model.todos))
+  | UpdateBuffer(s) => (s, model.todos)
+  end

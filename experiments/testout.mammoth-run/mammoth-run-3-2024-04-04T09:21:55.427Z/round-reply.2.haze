@@ -1,0 +1,8 @@
+fun (model, action) ->
+  case action
+  | Paint(x, y, color) => { model with canvas = Canvas.paint(model.canvas, x, y, color) }
+  | Clear => { model with canvas = Canvas.clear(model.canvas) }
+  | Undo => { model with canvas = Canvas.undo(model.canvas) }
+  | Redo => { model with canvas = Canvas.redo(model.canvas) }
+  | SetBrushColor(color) => { model with brushColor = color }
+  end

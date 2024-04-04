@@ -1,0 +1,12 @@
+# TODO MVU: Handle TODO actions to update the app model #
+
+let update: (Model, Action) -> Model =
+  
+fun model, action ->
+  case action
+  | Add => add(model)
+  | Toggle(idx) => toggle(idx, model)
+  | Remove(idx) => remove(idx, model)
+  end
+
+in

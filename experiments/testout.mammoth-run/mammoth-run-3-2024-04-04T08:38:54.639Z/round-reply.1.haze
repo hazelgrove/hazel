@@ -1,0 +1,7 @@
+fun (model, action) ->
+    let (bookingFormData, bookings, bookingID) = model in
+    case action
+    | AddBooking(user, weekday, timeOfDay) => (bookingFormData, bookings @ [(weekday, timeOfDay, user, bookingID + 1)], bookingID + 1)
+    | CancelBooking(user, id) => (bookingFormData, List.filter (fun (_, _, _, bID) -> bID != id) bookings, bookingID)
+    | ClearBookings => (bookingFormData, [], bookingID)
+    end

@@ -1,0 +1,7 @@
+fun (buffer, todos), action ->
+  case action
+  | AddTodo => (buffer, (buffer, false)::todos)
+  | RemoveTodo(idx) => (buffer, List.remove_at(idx, todos))
+  | ToggleTodo(idx) => (buffer, List.update_at(idx, fun (todo, done) -> (todo, !done), todos))
+  | UpdateBuffer(str) => (str, todos)
+  end
