@@ -24,10 +24,9 @@ let enter =
               fun
               | Bound.Root => None
               | Node((msym, rctx)) => {
-                  let (pad, msrt) = expect_srt(msym);
+                  let msrt = expect_srt(msym);
                   let mold = Mold.{sort: s, prec: p, rctx};
-                  bounded || Mtrl.is_space(msrt)
-                    ? Some(((pad, msrt), mold)) : None;
+                  bounded || Mtrl.is_space(msrt) ? Some((msrt, mold)) : None;
                 },
             );
        switch (go(L, Prec.lt(~a, l, p)), go(R, Prec.gt(~a, p, r))) {
@@ -64,7 +63,7 @@ let swing_into = (~from: Dir.t, sort: Bound.t(Molded.NT.t)): Index.t => {
     let (mtrl, (l, r)) =
       switch (s) {
       | Root => (Mtrl.Sorted.root, Bound.(Root, Root))
-      | Node(((_, mtrl), _) as nt) => (mtrl, bounds(nt))
+      | Node((mtrl, _) as nt) => (mtrl, bounds(nt))
       };
     switch (Hashtbl.find_opt(seen, mtrl)) {
     | Some () => Index.empty

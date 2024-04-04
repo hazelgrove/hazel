@@ -28,6 +28,11 @@ module Labeled = {
       type nonrec t = t;
       let compare = compare;
     });
+  let padding =
+    fun
+    | Space => Padding.none
+    | Grout => Padding.mk()
+    | Tile(lbl) => Label.padding(lbl);
 };
 module Sorted = {
   [@deriving (show({with_path: false}), sexp, yojson, ord)]
@@ -41,10 +46,7 @@ module Sorted = {
 };
 
 module T = Labeled;
-module NT = {
-  [@deriving (show({with_path: false}), sexp, yojson, ord)]
-  type t = Padded.t(Sorted.t);
-};
+module NT = Sorted;
 module Sym = {
   include Sym;
   [@deriving (show({with_path: false}), sexp, yojson, ord)]

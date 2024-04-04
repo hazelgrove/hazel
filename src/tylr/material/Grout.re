@@ -2,7 +2,7 @@ open Mtrl;
 
 module Sym = {
   let t = Sym.t(Grout);
-  let nt = Sym.nt(Padded.mk(Grout));
+  let nt = Sym.nt(Grout);
 };
 
 module Regex = {
@@ -55,25 +55,21 @@ module Mold = {
   };
 };
 
-module Token = {
-  let text = failwith("todo: grout text");
-  let mk = (~id=?, mold: Mtrl.Sorted.t => Mold.t, s: Mtrl.Sorted.t) =>
-    Token.mk(~id?, ~text, Mtrl.Grout, mold(s));
-  let op_ = (~id=?) => mk(~id?, Mold.T.op_);
-  let pre = (~id=?) => mk(~id?, Mold.T.pre);
-  let pos = (~id=?) => mk(~id?, Mold.T.pos);
-  let in_ = (~id=?) => mk(~id?, Mold.T.in_);
-};
+// module Token = {
+//   let text = failwith("todo: grout text");
+//   let mk = (~id=?, mold: Mtrl.Sorted.t => Mold.t, s: Mtrl.Sorted.t) =>
+//     Token.mk(~id?, ~text, Mtrl.Grout, mold(s));
+//   let op_ = (~id=?) => mk(~id?, Mold.T.op_);
+//   let pre = (~id=?) => mk(~id?, Mold.T.pre);
+//   let pos = (~id=?) => mk(~id?, Mold.T.pos);
+//   let in_ = (~id=?) => mk(~id?, Mold.T.in_);
+// };
 
 // kid cells of grout melds
-module Cell = {
-  let put = Cell.put(~padding=Padding.mk());
-  // let put_hd = s => Cell.put(Node(Mold.NT.kid_hd(s)), Mtrl.Grout);
-  // let put_tl = s => Cell.put(Node(Mold.NT.kid_tl(s)), Mtrl.Grout);
-  // let pad_l = s => Cell.empty(Node(Mold.NT.pad_l(s)), Mtrl.Space);
-  // let pad_r = s => Cell.empty(Node(Mold.NT.pad_r(s)), Mtrl.Space);
-};
-
-module Meld = {
-  let op_ = (s: Mtrl.Sorted.t) => Meld.mk(Wald.unit(Token.op_(s)));
-};
+// module Cell = {
+//   let put = Cell.put(~padding=Padding.mk());
+// let put_hd = s => Cell.put(Node(Mold.NT.kid_hd(s)), Mtrl.Grout);
+// let put_tl = s => Cell.put(Node(Mold.NT.kid_tl(s)), Mtrl.Grout);
+// let pad_l = s => Cell.empty(Node(Mold.NT.pad_l(s)), Mtrl.Space);
+// let pad_r = s => Cell.empty(Node(Mold.NT.pad_r(s)), Mtrl.Space);
+// };

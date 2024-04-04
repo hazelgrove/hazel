@@ -5,14 +5,9 @@ module Cell = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t('meld) = {
     marks: Path.Marks.t,
-    padding: Padding.t,
     meld: option('meld),
   };
-  let mk = (~marks=Path.Marks.empty, ~padding=Padding.empty, ~meld=?, ()) => {
-    marks,
-    padding,
-    meld,
-  };
+  let mk = (~marks=Path.Marks.empty, ~meld=?, ()) => {marks, meld};
   let empty = mk();
   // let empty = {marks: Path.Marks.empty, dims: Dims.zero, meld: None};
   // let full = m => {marks: Path.Marks.empty, meld: Some(m)};
@@ -55,6 +50,9 @@ module Space = {
     fun
     | M(_, W(([tok], [])), _) when Token.is_space(tok) => Some(tok)
     | _ => None;
+};
+module Grout = {
+  let op_ = (s: Mtrl.Sorted.t) => mk(Wald.unit(Token.Grout.op_(s)));
 };
 
 // let get_spaces = ms =>

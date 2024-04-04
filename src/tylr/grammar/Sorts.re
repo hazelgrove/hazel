@@ -4,7 +4,7 @@ let kids = (s: Sort.t): Sort.Set.t =>
   |> Prec.Table.mapi(_ => Fun.id)
   |> List.concat_map(Regex.atoms)
   |> List.filter_map(Sym.get_nt)
-  |> List.map(snd)
+  // |> List.map(snd)
   |> List.fold_left(Fun.flip(Sort.Set.add), Sort.Set.empty);
 let kids = Core.Memo.general(kids);
 

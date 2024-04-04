@@ -19,8 +19,8 @@ module Base = {
 
 module Molded = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Base.t(Mtrl.Labeled.t, Mold.t);
-  let mk = (~id=?, ~text="", mtrl: Mtrl.Labeled.t, mold: Mold.t) =>
+  type t = Base.t(Mtrl.T.t, Mold.t);
+  let mk = (~id=?, ~text="", mtrl: Mtrl.T.t, mold: Mold.t) =>
     Base.mk(~id?, ~text, mtrl, mold);
 };
 include Molded;
@@ -30,7 +30,7 @@ let text_ = (tok: t) => tok.text;
 let sort = (tok: t) => tok.mold.sort;
 let length = (tok: t) =>
   switch (tok.mtrl) {
-  | Tile(Const(c)) => String.length(c)
+  | Tile(Const(_, c)) => String.length(c)
   | _ => String.length(tok.text)
   };
 
@@ -61,6 +61,15 @@ module Space = {
   let empty = mk();
   let cursor = failwith("todo");
 };
+module Grout = {
+  let text = failwith("todo: grout text");
+  let mk = (~id=?, mold: Mtrl.Sorted.t => Mold.t, s: Mtrl.Sorted.t) =>
+    Molded.mk(~id?, ~text, Mtrl.Grout, mold(s));
+  let op_ = (~id=?) => mk(~id?, Grout.Mold.T.op_);
+  let pre = (~id=?) => mk(~id?, Grout.Mold.T.pre);
+  let pos = (~id=?) => mk(~id?, Grout.Mold.T.pos);
+  let in_ = (~id=?) => mk(~id?, Grout.Mold.T.in_);
+};
 
 module Unmolded = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -73,7 +82,10 @@ module Unmolded = {
       | Space => Mtrl.Space
       | Grout => Grout
       | Tile(lbl) =>
-        Tile(is_empty(tok) ? [lbl] : Labels.completions(tok.text))
+        Tile(
+          is_empty(tok)
+            ? [lbl] : Labels.completions(Label.const(tok.text)),
+        )
       };
     mk(~id=tok.id, ~text=tok.text, mtrl);
   };

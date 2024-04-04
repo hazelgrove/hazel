@@ -34,7 +34,7 @@ let get = ({marks, meld, _}: t) => {
 };
 
 // let empty = () => mk();
-let put = (~padding, m: Meld.t) =>
+let put = (m: Meld.t) =>
   if (Meld.is_empty(m)) {
     empty;
   } else {
@@ -47,5 +47,5 @@ let put = (~padding, m: Meld.t) =>
       let mid = cells |> List.mapi((i, cell) => cons(i + 1, cell.marks));
       union_all([l, ...mid] @ [r]);
     };
-    mk(~marks, ~padding, ~meld=Meld.map_cells(clear_marks, m), ());
+    mk(~marks, ~meld=Meld.map_cells(clear_marks, m), ());
   };

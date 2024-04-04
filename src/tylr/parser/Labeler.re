@@ -23,43 +23,43 @@ let id_upper = [%sedlex.regexp?
   (alpha_upper | '_', Star(alpha | digit | '_'))
 ];
 
-let paren = [%sedlex.regexp? '(' | ')'];
-let brack = [%sedlex.regexp? '[' | ']'];
-let const = [%sedlex.regexp? paren | brack];
+let round = [%sedlex.regexp? '(' | ')'];
+let square = [%sedlex.regexp? '[' | ']'];
+let curly = [%sedlex.regexp? '{' | '}'];
+let brack = [%sedlex.regexp? round | square | curly];
 
-let labeled = [%sedlex.regexp?
-  const | id_lower | id_upper | int_lit | float_lit
-];
+// let labeled = [%sedlex.regexp?
+//   const | id_lower | id_upper | int_lit | float_lit
+// ];
 
 let default_tips = _ => failwith("todo");
 
 let lexeme = Sedlexing.Latin1.lexeme;
 
 let pop = buf => {
-  let mk = (lbl: Label.t) => {
-    let text = lexeme(buf);
-    let lbls = [lbl, ...Labels.completions(text)];
+  let mk = (text: string, lbl: Label.t) => {
+    let lbls = Labels.completions(lbl);
     Some(Token.Unmolded.mk(~text, Mtrl.Tile(lbls)));
   };
+  // I'm guessing buf state is altered by this switch expression?
+  // so I can't call lexeme(buf) before it?
   switch%sedlex (buf) {
-  | space => mk(Space)
+  | space => mk(lexeme(buf), Space)
   // | grout_op => mk(Grout((Convex, Convex)))
   // | grout_pre => mk(Grout((Convex, Concave)))
   // | grout_pos => mk(Grout((Concave, Convex)))
   // | grout_in => mk(Grout((Concave, Concave)))
-  | int_lit => mk(Int_lit)
-  | float_lit => mk(Float_lit)
-  | id_lower => mk(Id_lower)
-  | id_upper => mk(Id_upper)
-  | const => mk(Const(lexeme(buf)))
-
+  | int_lit => mk(lexeme(buf), Int_lit)
+  | float_lit => mk(lexeme(buf), Float_lit)
+  | id_lower => mk(lexeme(buf), Id_lower)
+  | id_upper => mk(lexeme(buf), Id_upper)
+  | brack
   | Plus(Sub(any, white_space)) =>
     let text = lexeme(buf);
-    let lbls = Labels.completions(text);
-    Some(Token.Unmolded.mk(~text, Mtrl.Tile(lbls)));
+    // padding filled in by label completions
+    mk(text, Label.const(text));
 
   | eof => None
-
   | _ => assert(false)
   };
 };

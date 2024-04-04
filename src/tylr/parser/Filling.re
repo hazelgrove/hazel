@@ -38,25 +38,23 @@ let rec pad_meld = (~side as d: Dir.t, spc: Token.t, m: Meld.t) =>
     let (l, r) = Dir.order(d, (c_d, c_b));
     Meld.M(l, w, r);
   }
-and pad_cell = (~side: Dir.t, spc: Token.t, c: Cell.t) => {
-  let m =
+and pad_cell = (~side: Dir.t, spc: Token.t, c: Cell.t) =>
+  Cell.put(
     switch (Cell.get(c)) {
     | None => Meld.Space.mk(spc)
     | Some(m) => pad_meld(~side, spc, m)
-    };
-  Cell.put(~padding=c.padding, m);
-};
+    },
+  );
 
 let mtrl = (nt: Bound.t(Molded.NT.t)) =>
   nt |> Bound.map(Molded.NT.mtrl) |> Bound.get(~root=Mtrl.Sorted.root);
-let padding = (nt: Bound.t(Molded.NT.t)) =>
-  nt |> Bound.map(Molded.NT.padding) |> Bound.get(~root=Padding.root);
+// let padding = (nt: Bound.t(Molded.NT.t)) =>
+//   nt |> Bound.map(Molded.NT.padding) |> Bound.get(~root=Padding.root);
 
 let fill_default = (nt: Bound.t(Molded.NT.t)) =>
   switch (mtrl(nt)) {
   | Space => Cell.empty
-  | (Grout | Tile(_)) as s =>
-    Cell.put(~padding=padding(nt), Grout.Meld.op_(s))
+  | (Grout | Tile(_)) as s => Cell.put(Meld.Grout.op_(s))
   };
 
 // assumes precedence-correctness already checked
@@ -70,12 +68,12 @@ let fill = (~l=false, ~r=false, fill: t, nt: Bound.t(Molded.NT.t)): Cell.t => {
     let cells =
       [
         l ? [Cell.empty] : [],
-        List.map(Grout.Cell.put, fill),
+        List.map(Cell.put, fill),
         r ? [Cell.empty] : [],
       ]
       |> List.concat;
     let toks =
-      Grout.Token.[
+      Token.Grout.[
         l ? [pre(s)] : [],
         List.init(List.length(fill) - 1, _ => in_(s)),
         r ? [pos(s)] : [],
@@ -89,6 +87,6 @@ let fill = (~l=false, ~r=false, fill: t, nt: Bound.t(Molded.NT.t)): Cell.t => {
         let (cells, r) = ListUtil.split_last(cells);
         Meld.M(l, Wald.mk(toks, cells), r);
       };
-    Cell.put(~padding=padding(nt), meld);
+    Cell.put(meld);
   };
 };

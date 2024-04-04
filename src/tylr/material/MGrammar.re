@@ -4,10 +4,9 @@ type t = Mtrl.Sorted.Map.t(Prec.Table.t(Mtrl.Regex.t));
 let mtrlize_tiles = (g: Grammar.t): t =>
   Sort.Map.to_seq(g)
   |> Seq.map(((s, tbl)) => {
-       let mtrlize_sym =
-         Sym.map(Mtrl.tile, ((pad, s)) => (pad, Mtrl.tile(s)));
+       let mtrlize_sym = Sym.map(Mtrl.tile, Mtrl.tile);
        let mtbl = Prec.Table.map(Regex.map(mtrlize_sym), tbl);
-       (Mtrl.Tile(s), mtbl);
+       (Mtrl.tile(s), mtbl);
      })
   |> Mtrl.Sorted.Map.of_seq;
 

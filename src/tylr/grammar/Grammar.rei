@@ -1,5 +1,5 @@
 module Sym: {
-  type t = Sym.t(Label.t, Padded.t(Sort.t));
+  type t = Sym.t(Label.t, Sort.t);
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
