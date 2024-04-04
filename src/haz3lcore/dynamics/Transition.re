@@ -277,19 +277,38 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d => TypAp(d, tau))
       and. d' = req_value(req(state, env), d => TypAp(d, tau), d);
       switch (d') {
-      | TypFun(utpat, tfbody, _) =>
+      | TypFun(utpat, tfbody, name) =>
         /* Rule ITTLam */
         switch (Term.UTPat.tyvar_of_utpat(utpat)) {
         | Some(tyvar) =>
           /* Perform substitution */
           Step({
-            apply: () => DHExp.ty_subst(tau, tyvar, tfbody),
+            apply: () =>
+              DHExp.assign_name_if_none(
+                /* Inherit name for user clarity */
+                DHExp.ty_subst(tau, tyvar, tfbody),
+                Option.map(
+                  x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">",
+                  name,
+                ),
+              ),
             kind: TypFunAp,
             value: false,
           })
         | None =>
           /* Treat a hole or invalid tyvar name as a unique type variable that doesn't appear anywhere else. Thus instantiating it at anything doesn't produce any substitutions. */
-          Step({apply: () => tfbody, kind: TypFunAp, value: false})
+          Step({
+            apply: () =>
+              DHExp.assign_name_if_none(
+                tfbody,
+                Option.map(
+                  x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">",
+                  name,
+                ),
+              ),
+            kind: TypFunAp,
+            value: false,
+          })
         }
       | Cast(d'', Forall(x, t), Forall(x', t')) =>
         /* Rule ITTApCast */

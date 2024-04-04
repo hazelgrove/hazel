@@ -71,6 +71,8 @@ module rec Typ: {
   let sum_entry: (Constructor.t, sum_map) => option(sum_entry);
   let get_sum_constructors: (Ctx.t, t) => option(sum_map);
   let is_unknown: t => bool;
+  let needs_parens: t => bool;
+  let pretty_print: t => string;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type type_provenance =
@@ -476,6 +478,69 @@ module rec Typ: {
     switch (ty) {
     | Unknown(_) => true
     | _ => false
+    };
+
+  /* Does the type require parentheses when on the left of an arrow for printing? */
+  let needs_parens = (ty: t): bool =>
+    switch (ty) {
+    | Unknown(_)
+    | Int
+    | Float
+    | String
+    | Bool
+    | Var(_) => false
+    | Rec(_, _)
+    | Forall(_, _) => true
+    | List(_) => false /* is already wrapped in [] */
+    | Arrow(_, _) => true
+    | Prod(_)
+    | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
+    };
+
+  /* Essentially recreates haz3lweb/view/Type.re's view_ty but with string output */
+  let rec pretty_print = (ty: t): string =>
+    switch (ty) {
+    | Unknown(_) => "?"
+    | Int => "Int"
+    | Float => "Float"
+    | Bool => "Bool"
+    | String => "String"
+    | Var(tvar) => tvar
+    | List(t) => "[" ++ pretty_print(t) ++ "]"
+    | Arrow(t1, t2) => paren_pretty_print(t1) ++ "->" ++ pretty_print(t2)
+    | Sum(sm) =>
+      switch (sm) {
+      | [] => "+?"
+      | [t0] => "+" ++ ctr_pretty_print(t0)
+      | [t0, ...ts] =>
+        List.fold_left(
+          (acc, t) => acc ++ "+" ++ ctr_pretty_print(t),
+          ctr_pretty_print(t0),
+          ts,
+        )
+      }
+    | Prod([]) => "()"
+    | Prod([t0, ...ts]) =>
+      "("
+      ++ List.fold_left(
+           (acc, t) => acc ++ ", " ++ pretty_print(t),
+           pretty_print(t0),
+           ts,
+         )
+      ++ ")"
+    | Rec(tv, t) => "rec " ++ tv ++ "->" ++ pretty_print(t)
+    | Forall(tv, t) => "forall " ++ tv ++ "->" ++ pretty_print(t)
+    }
+  and ctr_pretty_print = ((ctr, typ)) =>
+    switch (typ) {
+    | None => ctr
+    | Some(typ) => ctr ++ "(" ++ pretty_print(typ) ++ ")"
+    }
+  and paren_pretty_print = typ =>
+    if (needs_parens(typ)) {
+      "(" ++ pretty_print(typ) ++ ")";
+    } else {
+      pretty_print(typ);
     };
 }
 
