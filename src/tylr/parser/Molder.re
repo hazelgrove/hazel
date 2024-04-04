@@ -20,35 +20,6 @@ open Util;
 // or
 // let x = 1 in <> + 2 >< <in> >< x + 1
 
-module Molds = {
-  include Mtrl.Labeled.Map;
-  type t = Mtrl.Labeled.Map.t(list(Mold.t));
-  let map: t =
-    Walker.walk_into(~from=L, Root)
-    |> Walk.Index.to_list
-    |> List.rev_map(fst)
-    |> List.fold_left(
-         map =>
-           fun
-           | Bound.Root => map
-           | Node((mtrl, mold)) =>
-             map
-             |> update(
-                  mtrl,
-                  fun
-                  | None => Some([mold])
-                  | Some(ms) => Some([mold, ...ms]),
-                ),
-         empty,
-       );
-
-  let with_label = lbl =>
-    switch (find_opt(lbl, map)) {
-    | None => []
-    | Some(ms) => ms
-    };
-};
-
 let candidates = (t: Token.Unmolded.t): list(Token.t) =>
   List.map(
     ((mtrl, mold)) => Token.mk(~id=t.id, ~text=t.text, mtrl, mold),
