@@ -94,3 +94,12 @@ LS: RunTest: Prompt generation succeeded
   ]
 OpenAI: Chat response:
 {"choices":[{"finish_reason":"stop","index":0,"message":{"content":"fun (model, action) ->\n  case action\n  | AddTodo => \"AddTodo\"  // Replace with action handling logic suitable for current model \n  | RemoveTodo(Int) => \"RemoveTodo\"  // Replace with action handling logic suitable for current model\n  | ToggleTodo(Int) => \"ToggleTodo\"  // Replace with action handling logic suitable for current model\n  | UpdateBuffer(String) => \"UpdateBuffer\"  // Replace with action handling logic suitable for current model\n  end\n","role":"assistant"}}],"created":1711845595,"id":"chatcmpl-98dWlvoNhk3xMzDJVtuKZZGLu0RTX","model":"gpt-4","object":"chat.completion","system_fingerprint":null,"usage":{"completion_tokens":104,"prompt_tokens":1850,"total_tokens":1954}}
+LS: RunTest: Round 1 of 1
+LS: RunTest: Reply content:fun (model, action) ->
+  case action
+  | AddTodo => "AddTodo"  // Replace with action handling logic suitable for current model 
+  | RemoveTodo(Int) => "RemoveTodo"  // Replace with action handling logic suitable for current model
+  | ToggleTodo(Int) => "ToggleTodo"  // Replace with action handling logic suitable for current model
+  | UpdateBuffer(String) => "UpdateBuffer"  // Replace with action handling logic suitable for current model
+  end
+

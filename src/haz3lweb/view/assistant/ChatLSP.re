@@ -189,6 +189,11 @@ module RelevantCtx = {
         [target] @ terts;
       | _ => []
       };
+    print_endline("primary_goal: " ++ Typ.to_string(primary_goal));
+    print_endline(
+      "secondary_targets: "
+      ++ String.concat(",", List.map(Typ.to_string, secondary_targets)),
+    );
     let primary_entries = filter_ctx(ctx, primary_goal);
     let secondary_entries =
       List.concat(List.map(filter_ctx(ctx, _), secondary_targets));

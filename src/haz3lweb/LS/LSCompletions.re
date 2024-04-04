@@ -492,6 +492,9 @@ let suggest_comma_inner = (~db, ~ctx: Ctx.t, ~self: Typ.t, expected: Typ.t) =>
   /* Assumes self and expected types are normalized */
   switch (expected) {
   | Unknown(_) => true
+  | Prod([Prod(_), ..._]) =>
+    //TODO(andrew): complete hack
+    true
   | Prod(p_ana) =>
     db(
       "LSP: commas: p_ana is prod: "
@@ -516,6 +519,9 @@ let suggest_comma = (~db, bidi_ctx_ci: Info.t) => {
   db("LS: Suggest comma generator active");
   switch (bidi_ctx_ci) {
   | InfoExp(exp) =>
+    db("LS: Suggest comma Exp case");
+    db("LS: Suggest comma Exp case: typ: " ++ Typ.show(expected_exp(exp)));
+    db("LS: Suggest comma Exp case: self: " ++ Typ.show(self_exp(exp)));
     let (expected, self) = (expected_exp(exp), self_exp(exp));
     expected
     |> get_lookahead_tys(~db, exp.ctx)
