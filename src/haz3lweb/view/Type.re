@@ -17,23 +17,6 @@ let prov_view: Typ.type_provenance => Node.t =
   | TypeHole => div(~attr=clss(["typ-mod", "type-hole"]), [text("𝜏")])
   | SynSwitch => div(~attr=clss(["typ-mod", "syn-switch"]), [text("⇒")]);
 
-/* Does the type require parentheses when on the left of an arrow? */
-let needs_parens = (ty: Haz3lcore.Typ.t): bool =>
-  switch (ty) {
-  | Unknown(_)
-  | Int
-  | Float
-  | String
-  | Bool
-  | Var(_) => false
-  | Rec(_, _)
-  | Forall(_, _) => true
-  | List(_) => false /* is already wrapped in [] */
-  | Arrow(_, _) => true
-  | Prod(_)
-  | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
-  };
-
 let rec view_ty = (~strip_outer_parens=false, ty: Haz3lcore.Typ.t): Node.t =>
   switch (ty) {
   | Unknown(prov) =>
@@ -124,7 +107,7 @@ and ctr_view = ((ctr, typ)) =>
     ]
   }
 and paren_view = typ =>
-  if (needs_parens(typ)) {
+  if (Typ.needs_parens(typ)) {
     [text("("), view_ty(~strip_outer_parens=true, typ), text(")")];
   } else {
     [view_ty(typ)];

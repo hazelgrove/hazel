@@ -62,6 +62,7 @@ module rec DHExp: {
 
   let fast_equal: (t, t) => bool;
 
+  let assign_name_if_none: (t, option(Var.t)) => t;
   let ty_subst: (Typ.t, TypVar.t, t) => t;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -356,6 +357,13 @@ module rec DHExp: {
        )
     && i1 == i2;
   };
+
+  let assign_name_if_none = (t, name) =>
+    switch (t) {
+    | Fun(arg, ty, body, None) => Fun(arg, ty, body, name)
+    | TypFun(utpat, body, None) => TypFun(utpat, body, name)
+    | _ => t
+    };
 
   let rec ty_subst = (s: Typ.t, x: TypVar.t, exp: DHExp.t): t => {
     let re = e2 => ty_subst(s, x, e2);
