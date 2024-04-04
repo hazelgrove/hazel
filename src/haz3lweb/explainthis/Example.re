@@ -113,6 +113,7 @@ let dot_exp = () => mk_monotile(Form.get("dot_var"));
 let dot_typ = () => mk_monotile(Form.get("dot_typ"));
 let pipeline = () => mk_monotile(Form.get("pipeline"));
 let nil = () => exp("[]");
+let deferral = () => exp("_");
 let typeann = () => mk_monotile(Form.get("typeann"));
 let mk_fun = mk_tile(Form.get("fun_"));
 let mk_ap_exp = mk_tile(Form.get("ap_exp"));

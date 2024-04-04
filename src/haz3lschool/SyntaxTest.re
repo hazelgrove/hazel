@@ -90,6 +90,10 @@ let rec find_fn =
   | BinOp(_, u1, u2) => l |> find_fn(name, u1) |> find_fn(name, u2)
   | If(u1, u2, u3) =>
     l |> find_fn(name, u1) |> find_fn(name, u2) |> find_fn(name, u3)
+  | DeferredAp(fn, args) =>
+    l
+    |> find_fn(name, fn)
+    |> List.fold_left((l, u) => find_fn(name, u, l), _, args)
   | Match(u1, ul) =>
     List.fold_left(
       (acc, (_, ue)) => {find_fn(name, ue, acc)},
@@ -98,6 +102,7 @@ let rec find_fn =
     )
   | EmptyHole
   | Triv
+  | Deferral(_)
   | Invalid(_)
   | MultiHole(_)
   | Bool(_)
@@ -156,7 +161,8 @@ let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
   | Int(_)
   | Float(_)
   | String(_)
-  | Constructor(_) => false
+  | Constructor(_)
+  | Deferral(_) => false
   | Fun(args, body) =>
     var_mention_upat(name, args) ? false : var_mention(name, body)
   | ListLit(l)
@@ -178,6 +184,8 @@ let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
   | ListConcat(u1, u2)
   | Dot(u1, u2)
   | BinOp(_, u1, u2) => var_mention(name, u1) || var_mention(name, u2)
+  | DeferredAp(u1, us) =>
+    var_mention(name, u1) || List.exists(var_mention(name), us)
   | If(u1, u2, u3) =>
     var_mention(name, u1) || var_mention(name, u2) || var_mention(name, u3)
   | Match(g, l) =>
@@ -208,7 +216,8 @@ let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
   | Int(_)
   | Float(_)
   | String(_)
-  | Constructor(_) => false
+  | Constructor(_)
+  | Deferral(_) => false
   | Fun(args, body) =>
     var_mention_upat(name, args) ? false : var_applied(name, body)
   | ListLit(l)
@@ -227,6 +236,11 @@ let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
     switch (u1.term) {
     | Var(x) => x == name ? true : var_applied(name, u2)
     | _ => var_applied(name, u1) || var_applied(name, u2)
+    }
+  | DeferredAp(u1, us) =>
+    switch (u1.term) {
+    | Var(x) => x == name ? true : List.exists(var_applied(name), us)
+    | _ => List.exists(var_applied(name), us)
     }
   | Pipeline(u1, u2) =>
     switch (u2.term) {
@@ -278,6 +292,7 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   switch (uexp.term) {
   | EmptyHole
   | Triv
+  | Deferral(_)
   | Invalid(_)
   | MultiHole(_)
   | Bool(_)
@@ -302,6 +317,11 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   | Parens(u) => tail_check(name, u)
   | UnOp(_, u) => !var_mention(name, u)
   | Ap(u1, u2) => var_mention(name, u2) ? false : tail_check(name, u1)
+  | DeferredAp(fn, args) =>
+    tail_check(
+      name,
+      {ids: [], term: Ap(fn, {ids: [], term: Tuple(args)})},
+    )
   | Pipeline(u1, u2) => var_mention(name, u1) ? false : tail_check(name, u2)
   | Seq(u1, u2) => var_mention(name, u1) ? false : tail_check(name, u2)
   | Cons(u1, u2)
