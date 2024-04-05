@@ -7,11 +7,17 @@ type t = Meld.Cell.t(Meld.t);
 // let empty = mk();
 let is_empty = c => Option.is_none(c.meld);
 
-let has_space = (cell: t) =>
-  switch (cell.meld) {
-  | Some(M(_, W(([tok], [])), _)) when Token.is_space(tok) => true
-  | _ => false
+let face = (~side: Dir.t, c: t) =>
+  switch (c.meld) {
+  | None => Space.Molded.t
+  | Some(m) => Meld.face(~side, m)
   };
+
+// let has_space = (cell: t) =>
+//   switch (cell.meld) {
+//   | Some(M(_, W(([tok], [])), _)) when Token.is_space(tok) => true
+//   | _ => false
+//   };
 
 let add_marks = (marks, cell) => {
   ...cell,
@@ -49,3 +55,11 @@ let put = (m: Meld.t) =>
     };
     mk(~marks, ~meld=Meld.map_cells(clear_marks, m), ());
   };
+
+module Space = {
+  let get = (c: t) =>
+    switch (get(c)) {
+    | None => Some(Token.Space.empty)
+    | Some(m) => Meld.Space.get(m)
+    };
+};

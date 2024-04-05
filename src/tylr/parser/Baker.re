@@ -7,7 +7,7 @@ let bake_eq =
   let+ w_l = ListUtil.hd_opt(Walker.enter(~from=L, sort, Node(f_l)))
   and+ w_r = ListUtil.hd_opt(Walker.enter(~from=R, sort, Node(f_r)));
   let (l, r) = Walk.(height(w_l) > 2, height(w_r) > 2);
-  let cell: Cell.t = Filling.fill(~l, fill, sort, ~r);
+  let cell = Filling.fill(~l, fill, sort, ~r);
   Rel.Eq(cell);
 };
 
@@ -18,7 +18,7 @@ let bake_lt =
   let (f_l, f_r) = Filling.faces(fill);
   let+ _w_l = ListUtil.hd_opt(Walker.enter(~from=L, bound, Node(f_l)))
   and+ w_r = ListUtil.hd_opt(Walker.enter(~from=R, sort, Node(f_r)));
-  let cell: Cell.t = Filling.fill(fill, sort, ~r=Walk.height(w_r) > 2);
+  let cell = Filling.fill(fill, sort, ~r=Walk.height(w_r) > 2);
   Rel.Neq(cell);
 };
 
@@ -29,7 +29,7 @@ let bake_gt =
   let (f_l, f_r) = Filling.faces(fill);
   let+ w_l = ListUtil.hd_opt(Walker.enter(~from=L, sort, Node(f_l)))
   and+ _w_r = ListUtil.hd_opt(Walker.enter(~from=R, bound, Node(f_r)));
-  let cell: Cell.t = Filling.fill(~l=Walk.height(w_l) > 2, fill, sort);
+  let cell = Filling.fill(~l=Walk.height(w_l) > 2, fill, sort);
   Rel.Neq(cell);
 };
 

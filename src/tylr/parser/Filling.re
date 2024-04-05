@@ -1,28 +1,28 @@
 open Util;
 
-type t = list(Meld.t);
+type t = list(Cell.t);
 
 let empty = [];
 let is_empty: t => bool = (==)(empty);
 
-let init = (c: Cell.t) =>
-  switch (Cell.get(c)) {
-  | None => empty
-  | Some(m) => [m]
-  };
+// let init = (c: Cell.t) =>
+//   switch (Cell.get(c)) {
+//   | None => empty
+//   | Some(m) => [m]
+//   };
 
 let faces =
   fun
   | [] => Space.Molded.(t, t)
   | [hd, ..._] as fill =>
-    Meld.(face(~side=L, hd), face(~side=R, ListUtil.last(fill)));
+    Cell.(face(~side=L, hd), face(~side=R, ListUtil.last(fill)));
 
 let squash = _ => failwith("todo: squash");
 
 let get_space =
   fun
   | [] => Some(Token.Space.empty)
-  | [m] => Meld.Space.get(m)
+  | [c] => Cell.Space.get(c)
   | [_, ..._] => None;
 
 let rec pad_meld = (~side as d: Dir.t, spc: Token.t, m: Meld.t) =>
@@ -58,6 +58,7 @@ let fill_default = (nt: Bound.t(Molded.NT.t)) =>
   };
 
 // assumes precedence-correctness already checked
+// and that fill has been oriented
 let fill = (~l=false, ~r=false, fill: t, nt: Bound.t(Molded.NT.t)): Cell.t => {
   let fill = squash(fill);
   switch (get_space(fill)) {
@@ -66,12 +67,7 @@ let fill = (~l=false, ~r=false, fill: t, nt: Bound.t(Molded.NT.t)): Cell.t => {
     assert(!is_empty(fill));
     let s = mtrl(nt);
     let cells =
-      [
-        l ? [Cell.empty] : [],
-        List.map(Cell.put, fill),
-        r ? [Cell.empty] : [],
-      ]
-      |> List.concat;
+      [l ? [Cell.empty] : [], fill, r ? [Cell.empty] : []] |> List.concat;
     let toks =
       Token.Grout.[
         l ? [pre(s)] : [],
@@ -79,14 +75,12 @@ let fill = (~l=false, ~r=false, fill: t, nt: Bound.t(Molded.NT.t)): Cell.t => {
         r ? [pos(s)] : [],
       ]
       |> List.concat;
-    let meld =
-      switch (toks) {
-      | [] => Option.get(Cell.get(List.hd(cells)))
-      | [_, ..._] =>
-        let (l, cells) = ListUtil.split_first(cells);
-        let (cells, r) = ListUtil.split_last(cells);
-        Meld.M(l, Wald.mk(toks, cells), r);
-      };
-    Cell.put(meld);
+    switch (toks) {
+    | [] => List.hd(cells)
+    | [_, ..._] =>
+      let (l, cells) = ListUtil.split_first(cells);
+      let (cells, r) = ListUtil.split_last(cells);
+      Cell.put(M(l, Wald.mk(toks, cells), r));
+    };
   };
 };

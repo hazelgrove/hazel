@@ -68,10 +68,7 @@ module Wald = {
     and rm_ghost_and_go = (src, fill) =>
       switch (W.unlink(src)) {
       | Ok((hd, cell, tl)) when Token.is_ghost(hd) =>
-        let fill =
-          Cell.get(cell)
-          |> Option.map(m => [m, ...fill])
-          |> Option.value(~default=fill);
+        let fill = [cell, ...fill];
         switch (go(tl, fill)) {
         // require eq match further in to accept removing hd
         | Some(Rel.Eq(_)) as r =>
@@ -116,7 +113,7 @@ module Terr = {
     let exited = Walker.exit(~from=onto, Node(T.face(terr)));
     let orient = Dir.pick(onto, (Meld.rev, Fun.id));
     switch (Oblig.Delta.minimize(bake(~fill), exited)) {
-    | Some(baked) => [orient(attach(baked, terr))]
+    | Some(baked) => [Cell.put(orient(attach(baked, terr)))]
     | None =>
       let exited =
         ListUtil.hd_opt(exited)
@@ -126,7 +123,7 @@ module Terr = {
         |> OptUtil.get_or_fail(
              "bug: bake expected to succeed if no fill required",
            );
-      [orient(attach(baked, terr)), ...fill];
+      [Cell.put(orient(attach(baked, terr))), ...fill];
     };
   };
 
@@ -289,8 +286,7 @@ module Zigg = {
       switch (push_wald(~side=R, hd.wald, ~fill, zigg)) {
       | Error(_) => ([], suf)
       | Ok(zigg) =>
-        let fill = Filling.init(hd.cell);
-        let (leq, gt) = take_leq(zigg, ~fill, tl);
+        let (leq, gt) = take_leq(zigg, ~fill=[hd.cell], tl);
         ([hd, ...leq], gt);
       }
     };
@@ -301,8 +297,7 @@ module Zigg = {
       switch (push_wald(~side=L, hd.wald, ~fill, zigg)) {
       | Error(_) => (pre, [])
       | Ok(zigg) =>
-        let fill = Filling.init(hd.cell);
-        let (lt, geq) = take_geq(tl, ~fill, zigg);
+        let (lt, geq) = take_geq(tl, ~fill=[hd.cell], zigg);
         (lt, [hd, ...geq]);
       }
     };
@@ -348,7 +343,7 @@ module Ctx = {
     | [hd, ...tl] =>
       open OptUtil.Syntax;
       let* ctx = push_wald(~onto, hd.wald, ~fill, ctx);
-      push_slope(~onto, tl, ~fill=Filling.init(hd.cell), ctx);
+      push_slope(~onto, tl, ~fill=[hd.cell], ctx);
     };
   let push_zigg = (~onto as d: Dir.t, zigg: Z.t, ctx: C.t) => {
     let get_fail = OptUtil.get_or_fail("bug: failed to push zigg");

@@ -61,14 +61,14 @@ let rec remold = (~fill=[], ctx: Ctx.t) => {
   | [terr, ...up] =>
     let ctx = Ctx.put_fst((dn, up), ctx);
     let (hd, rest) = Wald.split_hd(terr.wald);
-    let molded = mold(ctx, ~fill, Token.to_labeled(hd));
+    let molded = mold(ctx, ~fill, Token.Unmolded.unmold(hd));
     switch (Ctx.face(~side=L, molded)) {
-    | Some(lbl) when lbl == hd.lbl =>
+    | Some((mtrl, mold)) when (mtrl, mold) == (hd.mtrl, hd.mold) =>
       // fast path for when face piece retains mold
       molded
       |> Ctx.extend(~side=L, rest)
       |> Option.get  // must succeed if Ctx.face succeeded
-      |> remold(~fill=Baked.Fill.init(terr.cell))
+      |> remold(~fill=[terr.cell])
     | _ =>
       // otherwise add rest of wald to suffix queue
       let up =
