@@ -25,6 +25,7 @@ let get_space =
   | [c] => Cell.Space.get(c)
   | [_, ..._] => None;
 
+let _ = failwith("todo: change padding to be cell for cursors");
 let rec pad_meld = (~side as d: Dir.t, spc: Token.t, m: Meld.t) =>
   switch (Meld.Space.get(m)) {
   | Some(spc') =>

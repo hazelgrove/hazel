@@ -78,22 +78,28 @@ let zip_closed = ((l, r): Frame.Closed.t, zipped: Cell.t) => {
   let w = Wald.zip_cell(l.wald, zipped, r.wald);
   Cell.put(Meld.mk(~l=l.cell, w, ~r=r.cell));
 };
-let rec zip_open = ((dn, up): Frame.Open.t, zipped: Cell.t) =>
+let rec zip_open = ((dn, up): Frame.Open.t, zipped: Cell.t) => {
+  let get =
+    fun
+    | [zipped] => zipped
+    | _ => failwith("bug: broken multiplicity invariant");
   switch (dn, up) {
   | ([], []) => zipped
-  | ([], [_, ..._]) => Melder.Slope.Up.roll(~init=zipped, up)
-  | ([_, ..._], []) => Melder.Slope.Dn.roll(dn, ~init=zipped)
+  | ([], [_, ..._]) => get(Melder.Slope.Up.roll(~fill=[zipped], up))
+  | ([_, ..._], []) => get(Melder.Slope.Dn.roll(dn, ~fill=[zipped]))
   | ([l, ..._] as dn, [r, ..._]) when Melder.Wald.lt(l.wald, r.wald) =>
     Cell.put(Meld.mk(~l=zipped, r.wald, ~r=r.cell)) |> zip_open((dn, up))
   | ([l, ...dn], [r, ..._] as up) when Melder.Wald.gt(l.wald, r.wald) =>
     Cell.put(Meld.mk(~l=l.cell, l.wald, ~r=zipped)) |> zip_open((dn, up))
   | ([l, ...dn], [r, ...up]) =>
-    zipped |> zip_closed((l, r)) |> zip_open((dn, up))
+    assert(Melder.Wald.eq(l.wald, r.wald));
+    zipped |> zip_closed((l, r)) |> zip_open((dn, up));
   };
+};
 let zip = (z: t) =>
   z.ctx
   |> Ctx.fold(
-       open_ => zip_open(open_, Meld.cursor),
+       open_ => zip_open(open_, Cell.Space.cursor),
        (zipped, closed, open_) =>
          zipped |> zip_closed(closed) |> zip_open(open_),
      );

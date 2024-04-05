@@ -45,7 +45,6 @@ module Space = {
     assert(Mtrl.is_space(tok.mtrl));
     mk(Wald.unit(tok));
   };
-  let cursor = mk(Token.Space.cursor);
   let get =
     fun
     | M(_, W(([tok], [])), _) when Token.is_space(tok) => Some(tok)

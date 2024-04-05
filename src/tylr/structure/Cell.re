@@ -57,6 +57,7 @@ let put = (m: Meld.t) =>
   };
 
 module Space = {
+  let cursor = mk(~marks=Path.Marks.cursor, ());
   let get = (c: t) =>
     switch (get(c)) {
     | None => Some(Token.Space.empty)
