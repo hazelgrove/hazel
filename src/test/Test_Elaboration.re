@@ -304,35 +304,35 @@ let f : Int -> Int =
     in
 55";
 
-// let get_id_menhir = get_id_menhir_closure(0);
+let get_id_menhir = get_id_menhir_closure(0);
 
-// let let_fun_menhir = () =>
-//   alco_check(
-//     "Let expression for function (str elaborated using the menhir parser)",
-//     Some(
-//       Haz3lcore.DHExp.of_menhir_ast(
-//         Hazel_menhir.Interface.parse_program(str10),
-//         get_id_menhir,
-//       ),
-//     ),
-//     dhexp_of_uexp(u9),
-//   );
+let let_fun_menhir = () =>
+  alco_check(
+    "Let expression for function (str elaborated using the menhir parser)",
+    Some(
+      Haz3lcore.DHExp.of_menhir_ast(
+        Hazel_menhir.Interface.parse_program(str10),
+        get_id_menhir,
+      ),
+    ),
+    dhexp_of_uexp(u9),
+  );
 
 let str11 = "()";
 
-// let get_id_menhir = get_id_menhir_closure(0);
+let get_id_menhir = get_id_menhir_closure(0);
 
-// let empty_hole_menhir = () =>
-//   alco_check(
-//     "Empty hole (str elaborated using the menhir parser)",
-//     Some(
-//       Haz3lcore.DHExp.of_menhir_ast(
-//         Hazel_menhir.Interface.parse_program(str11),
-//         get_id_menhir,
-//       ),
-//     ),
-//     dhexp_of_uexp(u2),
-//   );
+let empty_hole_menhir = () =>
+  alco_check(
+    "Empty hole (str elaborated using the menhir parser)",
+    Some(
+      Haz3lcore.DHExp.of_menhir_ast(
+        Hazel_menhir.Interface.parse_program(str11),
+        get_id_menhir,
+      ),
+    ),
+    dhexp_of_uexp(u2),
+  );
 
 let u3: Term.UExp.t = {
   ids: [id_at(0)],
@@ -355,6 +355,100 @@ let free_var_menhir = () =>
     dhexp_of_uexp(u3),
   );
 
+let get_id_menhir = get_id_menhir_closure(1);
+
+let u5: Term.UExp.t = {
+  ids: [id_at(0)],
+  term:
+    BinOp(
+      Int(Plus),
+      {ids: [id_at(1)], term: Bool(false)},
+      {ids: [id_at(2)], term: Var("y")},
+    ),
+};
+// let d5: DHExp.t =
+//   BinIntOp(
+//     Plus,
+//     NonEmptyHole(TypeInconsistent, id_at(1), 0, BoolLit(false)),
+//     NonEmptyHole(TypeInconsistent, id_at(2), 0, FreeVar(id_at(2), 0, "y")),
+//   );
+
+let bin_op_menhir = () =>
+  alco_check(
+    "Inconsistent binary integer operation (plus)",
+    Some(
+      Haz3lcore.DHExp.of_menhir_ast(
+        Hazel_menhir.Interface.parse_program("(false) + (_FREE y)"),
+        get_id_menhir,
+      ),
+    ),
+    dhexp_of_uexp(u5),
+  );
+
+let get_id_menhir = get_id_menhir_closure(0);
+
+//Inconsistent branches menhir test
+let str8 = "
+    ( (case 4 == 3
+    | true => 24
+    | false => false
+    end) )
+";
+
+// let str8 = "
+//     case 4 == 3
+//         | true => 24
+//         | false => 2
+//     end
+// ";
+
+let u8: Term.UExp.t = {
+  ids: [id_at(0)],
+  term:
+    Match(
+      {
+        ids: [id_at(1)],
+        term:
+          BinOp(
+            Int(Equals),
+            {ids: [id_at(2)], term: Int(4)},
+            {ids: [id_at(3)], term: Int(3)},
+          ),
+      },
+      [
+        (
+          {ids: [id_at(6)], term: Bool(true)},
+          {ids: [id_at(4)], term: Int(24)},
+        ),
+        (
+          {ids: [id_at(7)], term: Bool(false)},
+          {ids: [id_at(5)], term: Bool(false)},
+        ),
+      ],
+    ),
+};
+// let d8scrut: DHExp.t = BinIntOp(Equals, IntLit(4), IntLit(3));
+// let d8rules =
+//   DHExp.[
+//     Rule(BoolLit(true), IntLit(24)),
+//     Rule(BoolLit(false), BoolLit(false)),
+//   ];
+// let d8a: DHExp.t =
+//   InconsistentBranches(id_at(0), 0, Case(d8scrut, d8rules, 0));
+// let d8: DHExp.t = NonEmptyHole(TypeInconsistent, id_at(0), 0, d8a);
+
+let inconsistent_case_menhir = () =>
+  alco_check(
+    "Inconsistent branches where the first branch is an integer and second branch is a boolean (menhir)",
+    Some(
+      Haz3lcore.DHExp.of_menhir_ast(
+        Hazel_menhir.Interface.parse_program(str8),
+        get_id_menhir,
+      ),
+    ),
+    dhexp_of_uexp(u8),
+  );
+
 let elaboration_tests = [
   test_case("Single integer", `Quick, single_integer),
   test_case("Empty hole", `Quick, empty_hole),
@@ -365,7 +459,9 @@ let elaboration_tests = [
   test_case("Application of function on free variable", `Quick, ap_fun),
   test_case("Inconsistent case statement", `Quick, inconsistent_case),
   test_case("Let expression for a function", `Quick, let_fun),
-  // test_case("Let expression for a function (menhir)", `Quick, let_fun_menhir),
-  // test_case("Empty hole menhir", `Quick, empty_hole_menhir),
+  test_case("Let expression for a function (menhir)", `Quick, let_fun_menhir),
+  test_case("Empty hole menhir", `Quick, empty_hole_menhir),
   test_case("Free var menhir", `Quick, free_var_menhir),
+  test_case("Bin op menhir", `Quick, bin_op_menhir),
+  test_case("Inconsistent case menhir", `Quick, inconsistent_case_menhir),
 ];

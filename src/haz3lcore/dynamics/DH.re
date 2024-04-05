@@ -357,7 +357,7 @@ module rec DHExp: {
   and of_menhir_ast = (exp: Hazel_menhir.AST.exp, getId: bool => Id.t): t => {
     let of_menhir_ast_noid = of_menhir_ast(_, getId);
     let getId_all_args = getId;
-    // let getId_no_inc = () => getId(false);
+    let getId_no_inc = () => getId(false);
     let getId = () => getId(true);
 
     switch (exp) {
@@ -366,7 +366,7 @@ module rec DHExp: {
     | String(s) => StringLit(s)
     | Bool(b) => BoolLit(b)
     | Var(x) => BoundVar(x)
-    | FreeVar(x) => FreeVar(getId_all_args(false), 0, x)
+    | FreeVar(x) => FreeVar(getId_no_inc(), 0, x)
     | ArrayExp(l) =>
       ListLit(
         Id.mk(),
@@ -404,23 +404,17 @@ module rec DHExp: {
     | BinExp(e1, op, e2) =>
       switch (op) {
       | IntOp(op) =>
-        BinIntOp(
-          TermBase.UExp.int_op_of_menhir_ast(op),
-          of_menhir_ast_noid(e1),
-          of_menhir_ast_noid(e2),
-        )
+        let e1 = of_menhir_ast_noid(e1);
+        let e2 = of_menhir_ast_noid(e2);
+        BinIntOp(TermBase.UExp.int_op_of_menhir_ast(op), e1, e2);
       | FloatOp(op) =>
-        BinFloatOp(
-          TermBase.UExp.float_op_of_menhir_ast(op),
-          of_menhir_ast_noid(e1),
-          of_menhir_ast_noid(e2),
-        )
+        let e1 = of_menhir_ast_noid(e1);
+        let e2 = of_menhir_ast_noid(e2);
+        BinFloatOp(TermBase.UExp.float_op_of_menhir_ast(op), e1, e2);
       | BoolOp(op) =>
-        BinBoolOp(
-          TermBase.UExp.bool_op_of_menhir_ast(op),
-          of_menhir_ast_noid(e1),
-          of_menhir_ast_noid(e2),
-        )
+        let e1 = of_menhir_ast_noid(e1);
+        let e2 = of_menhir_ast_noid(e2);
+        BinBoolOp(TermBase.UExp.bool_op_of_menhir_ast(op), e1, e2);
       }
     | If(e1, e2, e3) =>
       let d_scrut = of_menhir_ast_noid(e1);
@@ -436,6 +430,10 @@ module rec DHExp: {
       let d_scrut = of_menhir_ast_noid(e);
       let d_rules = List.map(rule_of_menhir_ast(_, getId_all_args), l);
       ConsistentCase(Case(d_scrut, d_rules, 0));
+    | InconsistentCaseExp(e, l) =>
+      let d_scrut = of_menhir_ast_noid(e);
+      let d_rules = List.map(rule_of_menhir_ast(_, getId_all_args), l);
+      InconsistentBranches(getId_no_inc(), 0, Case(d_scrut, d_rules, 0));
     | Cast(e, t1, t2) =>
       Cast(
         of_menhir_ast_noid(e),
@@ -445,12 +443,8 @@ module rec DHExp: {
     | EmptyHole => EmptyHole(getId(), 0)
     | NonEmptyHole(e) =>
       let id = getId();
-      NonEmptyHole(
-        ErrStatus.HoleReason.TypeInconsistent,
-        id,
-        0,
-        of_menhir_ast_noid(e),
-      );
+      let e = of_menhir_ast_noid(e);
+      NonEmptyHole(ErrStatus.HoleReason.TypeInconsistent, id, 0, e);
     // | _ => raise(Invalid_argument("Menhir AST -> DHExp not yet implemented"))
     };
   };

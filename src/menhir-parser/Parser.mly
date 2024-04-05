@@ -141,6 +141,8 @@ pat:
     | i = INT { IntPat i }
     | f = FLOAT { FloatPat f }
     | s = STRING { StringPat s}
+    | TRUE { BoolPat true}
+    | FALSE {BoolPat false}
     (* | p1 = pat; AS; p2 = pat; { AsPat(p1, p2) } *)
     | f = pat; OPEN_PAREN; a = pat; CLOSE_PAREN { ApPat(f, a) }
 
@@ -156,6 +158,7 @@ rul:
 
 case:
     | CASE; e = exp; l = list(rul); END; { CaseExp(e, l) }
+    | OPEN_PAREN; CASE; e = exp; l = list(rul); END; CLOSE_PAREN { InconsistentCaseExp(e, l)}
 
 funExp: 
     | FUN; COLON; t = typ; p = pat; DASH_ARROW; e1 = exp;  { Fun (t, p, e1, None) }
