@@ -58,6 +58,7 @@ type pat =
   | StringPat(string)
   | TypeAnn(pat, typ)
   | TuplePat(list(pat))
+  | BoolPat(bool)
   | ApPat(pat, pat);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -74,6 +75,7 @@ type exp =
   | Fun(typ, pat, exp, option(string))
   | FixF(string, typ, exp)
   | CaseExp(exp, list((pat, exp)))
+  | InconsistentCaseExp(exp, list((pat, exp)))
   | ApExp(exp, exp)
   | Bool(bool)
   | Cast(exp, typ, typ)

@@ -59,6 +59,7 @@ let rec of_menhir_ast = (pat: Hazel_menhir.AST.pat): t => {
   | TypeAnn(pat, _typ) => of_menhir_ast(pat)
   | TuplePat(pats) => Tuple(List.map(of_menhir_ast, pats))
   | ApPat(pat1, pat2) => Ap(of_menhir_ast(pat1), of_menhir_ast(pat2))
+  | BoolPat(b) => BoolLit(b)
   };
 };
 
