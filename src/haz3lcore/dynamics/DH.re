@@ -421,11 +421,7 @@ module rec DHExp: {
       let d1 = of_menhir_ast_noid(e2);
       let d2 = of_menhir_ast_noid(e3);
 
-      let d_rules =
-        DHExp.[Rule(BoolLit(true), d1), Rule(BoolLit(false), d2)];
-      let d = DHExp.Case(d_scrut, d_rules, 0);
-      ConsistentCase(d);
-
+      IfThenElse(ConsistentIf, d_scrut, d1, d2);
     | CaseExp(e, l) =>
       let d_scrut = of_menhir_ast_noid(e);
       let d_rules = List.map(rule_of_menhir_ast(_, getId_all_args), l);
