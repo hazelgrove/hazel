@@ -2,6 +2,9 @@
 open AST
 %}
 
+
+
+%token HOLE
 %token FREE
 %token FIX
 %token <string> IDENT
@@ -68,6 +71,8 @@ open AST
 %token FLOAT_TYPE
 %token BOOL_TYPE
 %token STRING_TYPE
+%token UNKNOWN
+%token INTERNAL
 
 %token IF
 %token THEN
@@ -126,6 +131,7 @@ typ:
     | FLOAT_TYPE { FloatType }
     | BOOL_TYPE { BoolType }
     | STRING_TYPE { StringType }
+    | UNKNOWN; INTERNAL { UnknownType(Internal) }
     | UNIT { UnitType }
     | OPEN_PAREN; types = separated_list(COMMA, typ); CLOSE_PAREN { TupleType(types) }
     | OPEN_SQUARE_BRACKET; t = typ; CLOSE_SQUARE_BRACKET { ArrayType(t) }
@@ -172,6 +178,7 @@ exp:
     | FREE; v = IDENT { FreeVar v }
     | s = STRING { String s}
     | b = binExp { b }
+    | OPEN_PAREN; e = exp; CLOSE_PAREN { e }
     | OPEN_PAREN; l = separated_list(COMMA, exp) ; CLOSE_PAREN { TupleExp(l)}
     | c = case { c }
     | OPEN_SQUARE_BRACKET; e = separated_list(COMMA, exp); CLOSE_SQUARE_BRACKET { ArrayExp(e) }
@@ -183,5 +190,7 @@ exp:
     | FIX; s = IDENT; t = typ; f = funExp { FixF(s, t, f) }
     | f = funExp {f}
     | FALSE { Bool false }
-    | OPEN_PAREN; e = exp; CLOSE_PAREN { NonEmptyHole(e) }
+    | OPEN_PAREN; HOLE; e = exp; CLOSE_PAREN {NonEmptyHole e}
+    | HOLE { EmptyHole }
+    (* | OPEN_PAREN; e = exp; CLOSE_PAREN { NonEmptyHole(e) } *)
     | UNIT { EmptyHole }
