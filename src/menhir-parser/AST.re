@@ -40,12 +40,17 @@ type binOp =
   | BoolOp(op_bin_bool);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type typ_provenance =
+  | Internal;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type typ =
   | IntType
   | StringType
   | FloatType
   | BoolType
   | UnitType
+  | UnknownType(typ_provenance)
   | TupleType(list(typ))
   | ArrayType(typ)
   | ArrowType(typ, typ);

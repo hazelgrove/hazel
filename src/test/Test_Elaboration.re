@@ -348,7 +348,7 @@ let free_var_menhir = () =>
     "Nonempty hole with free variable (menhir)",
     Some(
       Haz3lcore.DHExp.of_menhir_ast(
-        Hazel_menhir.Interface.parse_program("(_FREE y)"),
+        Hazel_menhir.Interface.parse_program("(_HOLE _FREE y)"),
         get_id_menhir,
       ),
     ),
@@ -378,7 +378,9 @@ let bin_op_menhir = () =>
     "Inconsistent binary integer operation (plus)",
     Some(
       Haz3lcore.DHExp.of_menhir_ast(
-        Hazel_menhir.Interface.parse_program("(false) + (_FREE y)"),
+        Hazel_menhir.Interface.parse_program(
+          "(_HOLE false) + (_HOLE _FREE y)",
+        ),
         get_id_menhir,
       ),
     ),
@@ -389,18 +391,11 @@ let get_id_menhir = get_id_menhir_closure(0);
 
 //Inconsistent branches menhir test
 let str8 = "
-    ( (case 4 == 3
+    (_HOLE (case 4 == 3
     | true => 24
     | false => false
     end) )
 ";
-
-// let str8 = "
-//     case 4 == 3
-//         | true => 24
-//         | false => 2
-//     end
-// ";
 
 let u8: Term.UExp.t = {
   ids: [id_at(0)],
@@ -449,6 +444,62 @@ let inconsistent_case_menhir = () =>
     dhexp_of_uexp(u8),
   );
 
+let get_id_menhir = get_id_menhir_closure(6);
+let u7: Term.UExp.t = {
+  ids: [id_at(0)],
+  term:
+    Ap(
+      {
+        ids: [id_at(1)],
+        term:
+          Fun(
+            {ids: [id_at(2)], term: Var("x")},
+            {
+              ids: [id_at(3)],
+              term:
+                BinOp(
+                  Int(Plus),
+                  {ids: [id_at(4)], term: Int(4)},
+                  {ids: [id_at(5)], term: Var("x")},
+                ),
+            },
+          ),
+      },
+      {ids: [id_at(6)], term: Var("y")},
+    ),
+};
+
+// let d7: DHExp.t =
+//   Ap(
+//     Fun(
+//       Var("x"),
+//       Unknown(Internal),
+//       BinIntOp(
+//         Plus,
+//         IntLit(4),
+//         Cast(BoundVar("x"), Unknown(Internal), Int),
+//       ),
+//       None,
+//     ),
+//     NonEmptyHole(TypeInconsistent, id_at(6), 0, FreeVar(id_at(6), 0, "y")),
+//   );
+
+let str7 = "
+    (fun: Unknown Internal x -> 4 + x <Unknown Internal => Int>)((_HOLE _FREE y))
+";
+
+let ap_fun_menhir = () =>
+  alco_check(
+    "Application of a function of a free variable wrapped inside a nonempty hole constructor (menhir)",
+    Some(
+      Haz3lcore.DHExp.of_menhir_ast(
+        Hazel_menhir.Interface.parse_program(str7),
+        get_id_menhir,
+      ),
+    ),
+    dhexp_of_uexp(u7),
+  );
+
 let elaboration_tests = [
   test_case("Single integer", `Quick, single_integer),
   test_case("Empty hole", `Quick, empty_hole),
@@ -464,4 +515,5 @@ let elaboration_tests = [
   test_case("Free var menhir", `Quick, free_var_menhir),
   test_case("Bin op menhir", `Quick, bin_op_menhir),
   test_case("Inconsistent case menhir", `Quick, inconsistent_case_menhir),
+  test_case("ap fun menhir", `Quick, ap_fun_menhir),
 ];

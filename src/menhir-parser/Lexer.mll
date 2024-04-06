@@ -86,9 +86,12 @@ rule token =
     | "Float" { FLOAT_TYPE }
     | "Bool" { BOOL_TYPE }
     | "String" { STRING_TYPE }
+    | "Unknown" { UNKNOWN }
+    | "Internal" { INTERNAL }
     | "()" { UNIT }
     | "_FIX" {FIX}
     | "_FREE" {FREE}
+    | "_HOLE" {HOLE}
     | identifier as i { IDENT(i) }
     | eof { EOF }
     | _ { raise (Failure ("Lex error: unknown char: '" ^ Lexing.lexeme lexbuf ^ "'")) }
