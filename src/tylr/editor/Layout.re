@@ -10,7 +10,7 @@ module Int_ppx = {
 module Row = Int_ppx;
 module Col = Int_ppx;
 
-module Point = {
+module Pos = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     row: Row.t,
@@ -32,21 +32,6 @@ module Point = {
   let lt = (l, r) => compare(l, r) < 0;
 };
 
-module Traversed = {
-  type t = {
-    // indent level of current row
-    indent: Col.t,
-    // current row-col position
-    point: Point.t,
-  };
-
-  let mk = (~indent=0, ~return=indent, ~point=Point.zero, ()) => {
-    indent,
-    return,
-    point,
-  };
-  let init = mk();
-};
 module Indented = {
   // indentation of...
   type t = {
@@ -62,17 +47,7 @@ module Indented = {
 
   let isize = 2;
 
-  let push =
-      (~null as (l, r)=(false, false), s: Bound.t(Mtrl.PSort.t), i: t) =>
-    switch (s) {
-    | Root
-    | Node(Space | Tile(({indent: false, _}, _))) => i
-    | Node(Grout | Tile(({indent: true, _}, _))) => {
-        ...i,
-        next: (l ? i.next : i.curr) + isize,
-        end_: r ? i.end_ : i.curr,
-      }
-    };
+  let indent_next = ind => {...ind, next: ind.curr + isize};
 };
 
 // returns a valid path into c whose pos is nearest the given target,
@@ -80,68 +55,48 @@ module Indented = {
 let path_of_pos = (target: Pos.t, c: Cell.t): Path.Point.t => {
   let rec go =
           (
-            ~null=(false, false),
-            ~pos=Pos.zero,
+            ~null=(true, true),
             ~ind=Indented.init,
+            ~pos=Pos.zero,
             cell: Cell.t,
           )
-          : Path.Point.t => {
-    let indent =
-      cell.sort |> Bound.map(Molded.NT.indent) |> Bound.get(~root=false);
+          : Result.t(Path.Point.t, Pos.t) =>
     switch (Cell.get(cell)) {
     | None => Path.Point.here
-    | Some(M(l, (ts, cs), r)) =>
+    | Some(M(l, W(ts, cs), r)) =>
       open Result.Syntax;
-      let ind =
-        Indented.push(~null, Bound.map(Molded.mtrl_, cell.sort), ind);
-      let add = Pos.add(~indent=ind.curr);
-      let l_end = Pos.add(pos, Dims.of_cell(l));
-      let/ l_end =
-        if (Pos.lt(l_end, target)) {
-          Error(l_end);
-        } else if (Pos.eq(l_end, target)) {
-          Ok(Path.Point.mk(Tok(0, 0)));
-        } else {
-          go(~null=(true, false), ~pos, ~ind, target, l)
-          |> Path.Point.cons(0);
-        };
-      let its = List.mapi((i, t) => (i, t), ts);
-      let/ w_end =
-        (its, cs)
+      // let skip_or_go = skip_or_go(~ind, ~pos);
+      // let skip_or_arrive
+      let/ pos = go_cell(~null=(true, false), ~ind, ~pos, 0, l);
+      let/ (ind, pos) =
+        (List.mapi((i, t) => (i, t), ts), cs)
         |> Chain.fold(
-             ((i, tok)) => {
-               let t_end = add(l_end, Dims.of_tok(tok));
-               Pos.lt(t_end, target)
-                 ? Error(t_end)
-                 : Ok(Path.Point.mk(Tok(i, target.col - l_end.col)));
-             },
-             (found, c, (i, t)) => {
-               let/ pos = found;
-               let c_end = Point.add(pos, Dims.of_cell(c));
-               let/ c_end =
-                 if (Pos.lt(c_end, target)) {
-                   Error(c_end);
-                 } else if (Pos.eq(c_end, target)) {
-                   Ok(Path.Point.mk(Tok(i, 0)));
-                 } else {
-                   go(~pos, ~ind, c);
-                 };
-               let t_end = add(c_end, Dims.of_tok(tok));
-               Pos.lt(t_end, target)
-                 ? Error(t_end)
-                 : Ok(Path.Point.mk(Tok(i, target.col - c_end.col)));
+             ((i, t)) => go_tok(~ind, ~pos, i, tok),
+             (went, c, (i, t)) => {
+               let/ (ind, pos) = went;
+               let/ pos = go_cell(~null=(false, false), ~ind, ~pos, i, c);
+               go_tok(~ind, ~pos, i, t);
              },
            );
-      let r_end = Pos.add(pos, Dims.of_cell(r));
-      if (Pos.lt(r_end, target)) {
-        Error(r_end);
-      } else if (Pos.eq(r_end, target)) {
-        Ok(Path.Point.mk(End(R)));
-      } else {
-        go(~null=(false, true), ~pos, ~ind, target, r)
-        |> Path.Point.cons(List.length(ts));
-      };
-    };
+      go_cell(~null=(false, true), ~ind, ~pos, List.length(ts), r);
+    }
+  and go_cell = (~null, ~ind, ~pos, i: int, c: Cell.t) => {
+    let c_end = Pos.add(pos, Dims.of_cell(cell), ~return=ind.curr);
+    Pos.lt(c_end, target)
+      ? Error(c_end)
+      : Pos.eq(p, target)
+          ? Ok(Path.Point.(cons(i, mk(End(R)))))
+          : go(~null, ~ind, ~pos, target, l)
+            |> Result.map(Path.Point.cons(i));
+  }
+  and go_tok =
+      (~ind, ~pos, i: int, t: Token.t): Result.t(_, (Indented.t, Pos.t)) => {
+    let t_end = Pos.add(pos, Dims.of_tok(t), ~return=ind.curr);
+    let ind =
+      Mtrl.Labeled.padding(t.mtrl).indent ? Indented.indent_next(ind) : ind;
+    Pos.lt(t_end, target)
+      ? Error((ind, t_end))
+      : Ok(Path.Point.mk(Tok(i, target.col - t_end.col)));
   };
 
   if (Pos.leq(target, Pos.zero)) {
@@ -154,9 +109,9 @@ let path_of_pos = (target: Pos.t, c: Cell.t): Path.Point.t => {
   };
 };
 
-module Range = {
-  type t = (Point.t, Point.t);
-};
+// module Range = {
+//   type t = (Pos.t, Pos.t);
+// };
 
 module Rows = {
   include IntMap;
