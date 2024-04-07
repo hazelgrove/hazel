@@ -69,14 +69,14 @@ module Point = {
   // absolute path from root cell to a zero-width point within
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = (Cell.t, Idx.t);
-  let mk = (~cell=[], idx) => (cell, idx);
+  let mk = (~cell=[], idx: Idx.t) => (cell, idx);
   let compare = ((c_l, p_l), (c_r, p_r)) => {
     let c = Cell.compare(c_l, c_r);
     c == 0 ? Idx.compare(p_l, p_r) : c;
   };
   let min = (l, r) => compare(l, r) <= 0 ? l : r;
   let here = (Cell.here, Idx.End(L));
-  let cons = n => PairUtil.map_fst(Cell.cons(n));
+  let cons = (n): (t => t) => PairUtil.map_fst(Cell.cons(n));
   let uncons = ((cell, p)) =>
     Cell.uncons(cell) |> Option.map(((n, cell)) => (n, (cell, p)));
   let peel = (n, p: t) =>

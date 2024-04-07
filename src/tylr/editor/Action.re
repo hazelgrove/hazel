@@ -5,7 +5,7 @@ module Move = {
   type t =
     | Step(Dir2.t)
     | Skip(Dir2.t)
-    | Jump(Measured.Point.t)
+    | Jump(Layout.Pos.t)
     | Hole(Dir.t);
 };
 

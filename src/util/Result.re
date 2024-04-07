@@ -26,7 +26,7 @@ module Syntax = {
   let ( let* ) = (result, f) => bind(~f, result);
   let (let/) = (r, f) =>
     switch (r) {
-    | Ok(_) => r
-    | Error(e) => f(e)
+    | Ok(ok) => Ok(ok)
+    | Error(err) => f(err)
     };
 };

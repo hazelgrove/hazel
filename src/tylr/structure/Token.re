@@ -34,6 +34,8 @@ let length = (tok: t) =>
   | _ => String.length(tok.text)
   };
 
+let indent = (tok: t) => Mtrl.Labeled.padding(tok.mtrl).indent;
+
 // let mk = (~id=?, ~text="", mtrl: Mtrl.Labeled.t, mold) => {
 //   let id = Id.Gen.value(id);
 //   {id, mtrl, mold, text};

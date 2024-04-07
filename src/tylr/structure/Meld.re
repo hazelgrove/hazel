@@ -40,6 +40,10 @@ let is_empty =
     Token.is_empty(tok)
   | _ => false;
 
+let to_chain = (M(l, W((ts, cs)), r): t) => ([l, ...cs] @ [r], ts);
+
+let fold = (f_hd, f_tl, m: t) => Chain.fold_left(f_hd, f_tl, to_chain(m));
+
 module Space = {
   let mk = (tok: Token.t) => {
     assert(Mtrl.is_space(tok.mtrl));
