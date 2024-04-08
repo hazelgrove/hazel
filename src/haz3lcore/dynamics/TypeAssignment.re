@@ -29,43 +29,47 @@ let ground = (ty: Typ.t): bool => {
   };
 };
 
-let rec dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): Ctx.t => {
-  switch (dhpat, ty) {
-  | (Var(name), _) =>
-    let entry = Ctx.VarEntry({name, id: Id.invalid, typ: ty});
-    Ctx.extend(ctx, entry);
-  | (Tuple(l1), Prod(l2)) =>
-    if (List.length(l1) == List.length(l2)) {
-      List.fold_left2(
-        (acc, dhp, typ) => {dhpat_extend_ctx(dhp, typ, acc)},
-        ctx,
-        l1,
-        l2,
-      );
-    } else {
-      ctx;
-    }
-  | (Cons(dhp1, dhp2), List(typ)) =>
-    ctx |> dhpat_extend_ctx(dhp1, typ) |> dhpat_extend_ctx(dhp2, ty)
-  | (ListLit(typ1, l), List(typ2)) =>
-    if (Typ.eq(typ1, typ2)) {
-      List.fold_left(
-        (acc, dhp) => {dhpat_extend_ctx(dhp, typ1, acc)},
-        ctx,
-        l,
-      );
-    } else {
-      ctx;
-    }
-  | (Ap(Constructor(_, typ), dhp), _) =>
-    let (ty1, ty2) = Typ.matched_arrow(ctx, typ);
-    if (Typ.eq(ty2, ty)) {
-      ctx |> dhpat_extend_ctx(dhp, ty1);
-    } else {
-      ctx;
+let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) => {
+  let rec dhpat_var_entry =
+          (dhpat: DHPat.t, ty: Typ.t): option(list(Ctx.entry)) => {
+    switch (dhpat, ty) {
+    | (Var(name), _) =>
+      let entry = Ctx.VarEntry({name, id: Id.invalid, typ: ty});
+      Some([entry]);
+    | (Tuple(l1), Prod(l2)) =>
+      if (List.length(l1) == List.length(l2)) {
+        let* l =
+          List.map2((dhp, typ) => {dhpat_var_entry(dhp, typ)}, l1, l2)
+          |> OptUtil.sequence;
+        Some(List.concat(l));
+      } else {
+        None;
+      }
+    | (Cons(dhp1, dhp2), List(typ)) =>
+      let* l1 = dhpat_var_entry(dhp1, typ);
+      let* l2 = dhpat_var_entry(dhp2, typ);
+      Some(l1 @ l2);
+    | (ListLit(typ1, l), List(typ2)) =>
+      if (Typ.eq(typ1, typ2)) {
+        let* l =
+          List.map(dhp => {dhpat_var_entry(dhp, typ1)}, l)
+          |> OptUtil.sequence;
+        Some(List.concat(l));
+      } else {
+        None;
+      }
+    | (Ap(Constructor(_, typ), dhp), _) =>
+      let (ty1, ty2) = Typ.matched_arrow(ctx, typ);
+      if (Typ.eq(ty2, ty)) {
+        dhpat_var_entry(dhp, ty1);
+      } else {
+        None;
+      };
+    | _ => Some([])
     };
-  | _ => ctx
   };
+  let+ l = dhpat_var_entry(dhpat, ty);
+  List.fold_left((ctx, entry) => Ctx.extend(ctx, entry), ctx, l);
 };
 
 let rec typ_of_dhexp =
@@ -85,7 +89,8 @@ let rec typ_of_dhexp =
     let typ_cases =
       d_rules
       |> List.map((DHExp.Rule(dhp, de)) => {
-           typ_of_dhexp(dhpat_extend_ctx(dhp, ty', ctx), m, de)
+           let* ctx = dhpat_extend_ctx(dhp, ty', ctx);
+           typ_of_dhexp(ctx, m, de);
          })
       |> OptUtil.sequence;
 
@@ -118,13 +123,15 @@ let rec typ_of_dhexp =
     typ_of_dhexp(ctx, m, d2);
   | Let(dhp, de, db) =>
     let* ty1 = typ_of_dhexp(ctx, m, de);
-    typ_of_dhexp(dhpat_extend_ctx(dhp, ty1, ctx), m, db);
+    let* ctx = dhpat_extend_ctx(dhp, ty1, ctx);
+    typ_of_dhexp(ctx, m, db);
   | FixF(name, ty1, d) =>
     let entry = Ctx.VarEntry({name, id: Id.invalid, typ: ty1});
     typ_of_dhexp(Ctx.extend(ctx, entry), m, d);
   | Fun(dhp, ty1, d, _) =>
-    let+ ty2 = typ_of_dhexp(dhpat_extend_ctx(dhp, ty1, ctx), m, d);
-    Typ.Arrow(ty1, ty2);
+    let* ctx = dhpat_extend_ctx(dhp, ty1, ctx);
+    let* ty2 = typ_of_dhexp(ctx, m, d);
+    Some(Typ.Arrow(ty1, ty2));
   | Ap(d1, d2) =>
     let* ty1 = typ_of_dhexp(ctx, m, d1);
     let* ty2 = typ_of_dhexp(ctx, m, d2);
@@ -235,7 +242,8 @@ let rec typ_of_dhexp =
     let* typ_cases: list(Typ.t) =
       d_rules
       |> List.map((DHExp.Rule(dhp, de)) => {
-           typ_of_dhexp(dhpat_extend_ctx(dhp, ty', ctx), m, de)
+           let* ctx = dhpat_extend_ctx(dhp, ty', ctx);
+           typ_of_dhexp(ctx, m, de);
          })
       |> OptUtil.sequence;
     equal_typ_list(typ_cases);
