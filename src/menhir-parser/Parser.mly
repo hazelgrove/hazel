@@ -171,6 +171,10 @@ funExp:
     | FUN; COLON; t = typ; p = pat; DASH_ARROW; e1 = exp; name = IDENT { Fun (t, p, e1, Some(name)) }
 
 
+ifExp:
+    | IF; e1 = exp; THEN; e2 = exp; ELSE; e3 = exp { If (Consistent, e1, e2, e3) }
+    | HOLE; IF; e1 = exp; THEN; e2 = exp; ELSE; e3 = exp { If (Inconsistent, e1, e2, e3) }
+
 exp:
     | i = INT { Int i }
     | f = FLOAT { Float f }
@@ -184,7 +188,7 @@ exp:
     | OPEN_SQUARE_BRACKET; e = separated_list(COMMA, exp); CLOSE_SQUARE_BRACKET { ArrayExp(e) }
     | f = exp; OPEN_PAREN; a = exp; CLOSE_PAREN { ApExp(f, a) }
     | LET; i = pat; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Let (i, e1, e2) }
-    | IF; e1 = exp; THEN; e2 = exp; ELSE; e3 = exp { If (e1, e2, e3) }
+    | i = ifExp { i}
     | e1 = exp; LESS_THAN; t1 = typ; EQUAL_ARROW; t2 = typ; GREATER_THAN { Cast(e1, t1, t2) }
     | TRUE { Bool true }
     | FIX; s = IDENT; t = typ; f = funExp { FixF(s, t, f) }

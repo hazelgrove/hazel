@@ -67,6 +67,11 @@ type pat =
   | ApPat(pat, pat);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type if_consistency =
+  | Consistent
+  | Inconsistent;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type exp =
   | Int(int)
   | Float(float)
@@ -86,4 +91,4 @@ type exp =
   | Cast(exp, typ, typ)
   | NonEmptyHole(exp)
   | EmptyHole
-  | If(exp, exp, exp);
+  | If(if_consistency, exp, exp, exp);
