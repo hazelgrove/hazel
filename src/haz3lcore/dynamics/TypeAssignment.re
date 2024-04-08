@@ -10,13 +10,6 @@ let equal_typ_list = (l: list(Typ.t)): option(Typ.t) => {
   };
 };
 
-let arrow_aux = (ty: Typ.t): Typ.t => {
-  switch (ty) {
-  | Unknown(Internal) => Arrow(Unknown(Internal), Unknown(Internal))
-  | _ => ty
-  };
-};
-
 let delta_ty = (id: MetaVar.t, m: Statics.Map.t): option(Typ.t) => {
   switch (Id.Map.find_opt(id, m)) {
   | Some(InfoExp({mode, ctx, _})) =>
@@ -30,13 +23,8 @@ let delta_ty = (id: MetaVar.t, m: Statics.Map.t): option(Typ.t) => {
 };
 
 let ground = (ty: Typ.t): bool => {
-  switch (ty) {
-  | Bool
-  | Int
-  | Float
-  | String
-  | Prod([])
-  | Arrow(Unknown(Internal), Unknown(Internal)) => true
+  switch (Transition.CastHelpers.ground_cases_of(ty)) {
+  | Ground => true
   | _ => false
   };
 };
@@ -123,8 +111,8 @@ let rec typ_of_dhexp =
     typ_of_dhexp(ctx', m, d);
   | Filter(_, d) => typ_of_dhexp(ctx, m, d)
   | BoundVar(name) =>
-    let+ var = Ctx.lookup_var(ctx, name);
-    var.typ;
+    let* var = Ctx.lookup_var(ctx, name);
+    Some(var.typ);
   | Sequence(d1, d2) =>
     let* _ = typ_of_dhexp(ctx, m, d1);
     typ_of_dhexp(ctx, m, d2);
@@ -140,12 +128,20 @@ let rec typ_of_dhexp =
   | Ap(d1, d2) =>
     let* ty1 = typ_of_dhexp(ctx, m, d1);
     let* ty2 = typ_of_dhexp(ctx, m, d2);
-    switch (arrow_aux(ty1)) {
+    switch (ty1) {
     | Arrow(tyl, tyr) when Typ.eq(tyl, ty2) => Some(tyr)
     | _ => None
     };
-  | ApBuiltin(_)
-  | BuiltinFun(_) => None
+  | ApBuiltin(name, d) =>
+    let* var = Ctx.lookup_var(ctx, name);
+    let* ty = typ_of_dhexp(ctx, m, d);
+    switch (var.typ) {
+    | Arrow(tyl, tyr) when Typ.eq(tyl, ty) => Some(tyr)
+    | _ => None
+    };
+  | BuiltinFun(name) =>
+    let* var = Ctx.lookup_var(ctx, name);
+    Some(var.typ);
   | Test(_, dtest) =>
     let* ty = typ_of_dhexp(ctx, m, dtest);
     Typ.eq(ty, Bool) ? Some(Typ.Prod([])) : None;
@@ -209,9 +205,6 @@ let rec typ_of_dhexp =
       None;
     };
   | ListLit(_, _, ty, _) => Some(List(ty))
-  | Cons(d1, ListLit(_, _, _, [])) =>
-    let* ty1 = typ_of_dhexp(ctx, m, d1);
-    Some(Typ.List(ty1));
   | Cons(d1, d2) =>
     let* ty1 = typ_of_dhexp(ctx, m, d1);
     let* ty2 = typ_of_dhexp(ctx, m, d2);
@@ -219,10 +212,6 @@ let rec typ_of_dhexp =
     | List(ty3) when Typ.eq(ty3, ty1) => Some(ty2)
     | _ => None
     };
-  | ListConcat(ListLit(_, _, _, []), d)
-  | ListConcat(d, ListLit(_, _, _, [])) =>
-    let* ty = typ_of_dhexp(ctx, m, d);
-    Some(Typ.List(ty));
   | ListConcat(d1, d2) =>
     let* ty1 = typ_of_dhexp(ctx, m, d1);
     let* ty2 = typ_of_dhexp(ctx, m, d2);
