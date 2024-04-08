@@ -271,6 +271,11 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | (["$=="], []) => BinOp(String(Equals), l, r)
           | (["|>"], []) => Pipeline(l, r)
           | (["@"], []) => ListConcat(l, r)
+          | ([t], []) when Form.is_op(t) =>
+            UserOp(
+              UExp.{term: Var("_" ++ t ++ "_"), ids: [Id.mk()]},
+              UExp.{term: Tuple([l, r]), ids: [Id.mk()]},
+            )
           | _ => hole(tm)
           },
         )

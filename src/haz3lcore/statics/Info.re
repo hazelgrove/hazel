@@ -44,12 +44,20 @@ type error_inconsistent =
   /* Inconsistent match or listlit */
   | Internal(list(Typ.t))
   /* Bad function position */
-  | WithArrow(Typ.t);
+  | WithArrow(Typ.t)
+  /* User-defined operator must be a function, treated as a hole */
+  | InvalidUserOp
+  /* User-defined operator must be a function of less than two args, treated as a hole */
+  | InvalidUserOpArgs;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_no_type =
   /* Invalid expression token, treated as hole */
   | BadToken(Token.t)
+  /* Unbound user-defined operator, treated as a hole */
+  | UnboundUserOp
+  /* User-defined operator already exists, treated as hole */
+  | BuiltinOpExists
   /* Empty application of function with inconsistent type */
   | BadTrivAp(Typ.t)
   /* Sum constructor neiter bound nor in ana type */
@@ -319,12 +327,36 @@ let rec status_common =
     | None => InHole(Inconsistent(Expectation({syn, ana})))
     | Some(join) => NotInHole(Ana(Consistent({ana, syn, join})))
     }
+  | (Just(syn), AnaInfix(ana)) =>
+    switch (Typ.join_fix(ctx, ana, syn)) {
+    | Some(Arrow(Prod(ty_list), _)) when List.length(ty_list) > 2 =>
+      InHole(Inconsistent(InvalidUserOpArgs))
+    | Some(Unknown(_) as join)
+    | Some(Arrow(Unknown(_), _) as join)
+    | Some(Arrow(Prod([_, _]), _) as join) =>
+      NotInHole(Ana(Consistent({ana, syn, join})))
+    | Some(Arrow(_, _)) => InHole(Inconsistent(InvalidUserOpArgs))
+    | Some(_)
+    | None => InHole(Inconsistent(InvalidUserOp))
+    }
   | (Just(syn), SynFun) =>
     switch (
       Typ.join_fix(ctx, Arrow(Unknown(Internal), Unknown(Internal)), syn)
     ) {
     | None => InHole(Inconsistent(WithArrow(syn)))
     | Some(_) => NotInHole(Syn(syn))
+    }
+  | (Just(syn), SynInfix) =>
+    switch (
+      Typ.join_fix(ctx, Arrow(Unknown(Internal), Unknown(Internal)), syn)
+    ) {
+    | None => InHole(Inconsistent(InvalidUserOp))
+    | Some(ty) =>
+      switch (ty) {
+      | Arrow(Prod(ty_list), _) when List.length(ty_list) > 2 =>
+        InHole(Inconsistent(InvalidUserOpArgs))
+      | _ => NotInHole(Syn(syn))
+      }
     }
   | (IsConstructor({name, syn_ty}), _) =>
     /* If a ctr is being analyzed against (an arrow type returning)
@@ -339,7 +371,7 @@ let rec status_common =
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
   | (BadTrivAp(ty), _) => InHole(NoType(BadTrivAp(ty)))
   | (IsMulti, _) => NotInHole(Syn(Unknown(Internal)))
-  | (NoJoin(wrap, tys), Ana(ana)) =>
+  | (NoJoin(wrap, tys), Ana(ana) | AnaInfix(ana)) =>
     let syn: Typ.t = Self.join_of(wrap, Unknown(Internal));
     switch (Typ.join_fix(ctx, ana, syn)) {
     | None => InHole(Inconsistent(Expectation({ana, syn})))
@@ -348,14 +380,16 @@ let rec status_common =
         Ana(InternallyInconsistent({ana, nojoin: Typ.of_source(tys)})),
       )
     };
-  | (NoJoin(_, tys), Syn | SynFun) =>
+  | (NoJoin(_, tys), Syn | SynFun | SynInfix) =>
     InHole(Inconsistent(Internal(Typ.of_source(tys))))
+  | (UnboundUserOp, _) => InHole(NoType(UnboundUserOp))
+  | (BuiltinOpExists, _) => InHole(NoType(BuiltinOpExists))
   };
 
 let status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
   switch (mode, self) {
-  | (Syn | Ana(_), Common(self_pat))
-  | (SynFun, Common(IsConstructor(_) as self_pat)) =>
+  | (Syn | Ana(_) | AnaInfix(_), Common(self_pat))
+  | (SynFun | SynInfix, Common(IsConstructor(_) as self_pat)) =>
     /* Little bit of a hack. Anything other than a bound ctr will, in
        function position, have SynFun mode (see Typ.ap_mode). Since we
        are prohibiting non-ctrs in ctr applications in patterns for now,
@@ -366,7 +400,7 @@ let status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
     | NotInHole(ok_exp) => NotInHole(ok_exp)
     | InHole(err_pat) => InHole(Common(err_pat))
     }
-  | (SynFun, _) => InHole(ExpectedConstructor)
+  | (SynFun | SynInfix, _) => InHole(ExpectedConstructor)
   };
 
 /* Determines whether an expression or pattern is in an error hole,

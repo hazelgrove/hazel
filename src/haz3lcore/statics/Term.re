@@ -448,6 +448,7 @@ module UExp = {
     | Cons
     | UnOp(op_un)
     | BinOp(op_bin)
+    | UserOp
     | Match
     | ListConcat;
 
@@ -492,6 +493,7 @@ module UExp = {
     | ListConcat(_) => ListConcat
     | UnOp(op, _) => UnOp(op)
     | BinOp(op, _, _) => BinOp(op)
+    | UserOp(_) => UserOp
     | Match(_) => Match;
 
   let show_op_un_meta: op_un_meta => string =
@@ -588,6 +590,7 @@ module UExp = {
     | ListConcat => "List Concatenation"
     | BinOp(op) => show_binop(op)
     | UnOp(op) => show_unop(op)
+    | UserOp => "User Operator"
     | Match => "Case expression";
 
   let rec is_fun = (e: t) => {
@@ -619,6 +622,7 @@ module UExp = {
     | ListConcat(_)
     | UnOp(_)
     | BinOp(_)
+    | UserOp(_)
     | Match(_)
     | Constructor(_) => false
     };
@@ -655,6 +659,7 @@ module UExp = {
       | ListConcat(_)
       | UnOp(_)
       | BinOp(_)
+      | UserOp(_)
       | Match(_)
       | Constructor(_) => false
       }

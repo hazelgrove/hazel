@@ -264,6 +264,15 @@ and uexp_to_info_map =
     let (e1, m) = go(~mode=Ana(ty1), e1, m);
     let (e2, m) = go(~mode=Ana(ty2), e2, m);
     add(~self=Just(ty_out), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
+  | UserOp(op, args) =>
+    let (op_mode, args_mode) = Mode.of_op(ctx, op);
+    let (op_info, m) = go(~mode=op_mode, op, m);
+    let (args, m) = go(~mode=args_mode, args, m);
+    add(
+      ~self=Self.of_op(ctx, op),
+      ~co_ctx=CoCtx.union([op_info.co_ctx, args.co_ctx]),
+      m,
+    );
   | Tuple(es) =>
     let modes = Mode.of_prod(ctx, mode, List.length(es));
     let (es, m) = map_m_go(m, modes, es);
@@ -327,7 +336,8 @@ and uexp_to_info_map =
     let (p_syn, _) =
       go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~mode=Syn, p, m);
     let def_ctx = extend_let_def_ctx(ctx, p, p_syn.ctx, def);
-    let (def, m) = go'(~ctx=def_ctx, ~mode=Ana(p_syn.ty), def, m);
+    let (def, m) =
+      go'(~ctx=def_ctx, ~mode=Mode.of_let_def(ctx, p, p_syn.ty), def, m);
     /* Analyze pattern to incorporate def type into ctx */
     let (p_ana', _) =
       go_pat(
@@ -511,10 +521,18 @@ and upat_to_info_map =
     /* NOTE: The self type assigned to pattern variables (Unknown)
        may be SynSwitch, but SynSwitch is never added to the context;
        Unknown(Internal) is used in this case */
-    let ctx_typ =
-      Info.fixed_typ_pat(ctx, mode, Common(Just(Unknown(Internal))));
-    let entry = Ctx.VarEntry({name, id: UPat.rep_id(upat), typ: ctx_typ});
-    add(~self=Just(unknown), ~ctx=Ctx.extend(ctx, entry), m);
+    if (Form.is_op_in_let(name)
+        && List.mem(
+             String.sub(name, 1, String.length(name) - 2),
+             Form.delims,
+           )) {
+      atomic(BuiltinOpExists);
+    } else {
+      let ctx_typ =
+        Info.fixed_typ_pat(ctx, mode, Common(Just(Unknown(Internal))));
+      let entry = Ctx.VarEntry({name, id: UPat.rep_id(upat), typ: ctx_typ});
+      add(~self=Just(unknown), ~ctx=Ctx.extend(ctx, entry), m);
+    }
   | Tuple(ps) =>
     let modes = Mode.of_prod(ctx, mode, List.length(ps));
     let (ctx, tys, m) = ctx_fold(ctx, m, ps, modes);

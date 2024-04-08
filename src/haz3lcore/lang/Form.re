@@ -202,6 +202,12 @@ let const_mono_delims =
 
 let explicit_hole = "?";
 let is_explicit_hole = t => t == explicit_hole;
+let is_op_in_let_precursor = regexp("^_[~?!$%&*+\\-./:<=>@^]*$");
+let is_op_in_let = regexp("^_[~?!$%&*+\\-./:<=>@^]+_$");
+let is_op = regexp("^[~?!$%&*+\\-./:<=>@^]+$");
+let is_var = str =>
+  !is_reserved(str)
+  && (regexp("^[a-z][A-Za-z0-9_]*$", str) || is_op_in_let(str));
 let bad_token_cls: string => bad_token_cls =
   t =>
     switch () {
@@ -213,6 +219,7 @@ let bad_token_cls: string => bad_token_cls =
    Order in this list determines relative remolding
    priority for forms with overlapping regexps */
 let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
+  ("op", (is_op, [mk_bin(P.plus, Exp, [])])), // HACK infix expansion\
   ("var", (is_var, [mk_op(Exp, []), mk_op(Pat, [])])),
   (
     "explicit_hole",
@@ -236,6 +243,7 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("ty_var_p", (is_typ_var, [mk_op(TPat, [])])),
   ("ctr", (is_ctr, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("type", (is_base_typ, [mk_op(Typ, [])])),
+  ("op_in_let_prec", (is_op_in_let_precursor, [mk_op(Pat, [])])),
 ];
 
 /* C. Compound Forms:
@@ -329,15 +337,16 @@ let delims: list(Token.t) =
   |> List.fold_left((acc, (_, {label, _}: t)) => {label @ acc}, [])
   |> List.sort_uniq(compare);
 
-let atomic_molds: Token.t => list(Mold.t) =
-  s =>
-    List.fold_left(
-      (acc, (_, (test, molds))) => test(s) ? molds @ acc : acc,
-      [],
-      atomic_forms,
-    );
+let atomic_molds =
+    (s: Token.t, forms: list((string, (string => bool, list(Mold.t)))))
+    : list(Mold.t) =>
+  List.fold_left(
+    (acc, (_, (test, molds))) => test(s) ? molds @ acc : acc,
+    [],
+    forms,
+  );
 
-let is_atomic = t => atomic_molds(t) != [];
+let is_atomic = t => atomic_molds(t, atomic_forms) != [];
 
 let is_delim = t => List.mem(t, delims);
 
@@ -346,4 +355,34 @@ let is_valid_token = t => is_atomic(t) || is_secondary(t) || is_delim(t);
 let mk_atomic = (sort: Sort.t, t: Token.t) => {
   assert(is_atomic(t));
   mk(ss, [t], Mold.(mk_op(sort, [])));
+};
+
+let prec_of_op = (op_name: string): P.t => {
+  switch (op_name) {
+  | "" => P.plus /* error should be called before this point */
+  | _ =>
+    switch (op_name.[0]) {
+    | ';' => 10
+    | '+'
+    | '-' => P.plus
+    | '*'
+    | '/'
+    | '%' => P.mult
+    | '@'
+    | '^' => P.power
+    | '~'
+    | '?'
+    | '!'
+    | '='
+    | '$'
+    | '>'
+    | '<' => P.eqs
+    | '&' => P.and_
+    | '|' => P.or_
+    | '.'
+    | ',' => P.prod
+    | ':' => P.ann
+    | _ => P.plus
+    }
+  };
 };
