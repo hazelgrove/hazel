@@ -8,18 +8,18 @@ let option_view = (name, n) =>
     [text(n)],
   );
 
-let mode_menu = (~inject: Update.t => 'a, ~mode: ModelSettings.mode) =>
+let mode_menu = (~inject: Update.t => 'a, ~mode: Settings.mode) =>
   div(
     ~attr=Attr.many([Attr.class_("mode-name"), Attr.title("Toggle Mode")]),
     [
       select(
         ~attr=
           Attr.on_change((_, name) =>
-            inject(SetMode(ModelSettings.mode_of_string(name)))
+            inject(Set(Mode(Settings.mode_of_string(name))))
           ),
         List.map(
-          option_view(ModelSettings.show_mode(mode)),
-          ["Scratch", "Examples", "Exercise"],
+          option_view(Settings.show_mode(mode)),
+          ["Scratch", "Documentation", "Exercises"],
         ),
       ),
     ],
@@ -39,14 +39,60 @@ let scratch_view = (~inject, ~cur_slide, ~slides) =>
   [mode_menu(~inject, ~mode=Scratch)]
   @ slide_select(~inject, ~cur_slide, ~num_slides=List.length(slides));
 
-let examples_view = (~inject, ~name, ~editors) => [
-  mode_menu(~inject, ~mode=Examples),
-  select(
-    ~attr=
-      Attr.on_change((_, name) => inject(Update.SwitchExampleSlide(name))),
-    List.map(option_view(name), List.map(fst, editors)),
-  ),
-];
+let documentation_view = (~inject, ~name, ~editors) => {
+  let editor_names = List.map(fst, editors);
+  let rec find_prev_next: list(string) => (option(string), option(string)) =
+    fun
+    | []
+    | [_] => (None, None)
+    | [x, y] when name == x => (None, Some(y))
+    | [x, y] when name == y => (Some(x), None)
+    | [_, _] => (None, None)
+    | [x, y, ..._] when name == x => (None, Some(y))
+    | [x, y, z, ..._] when name == y => (Some(x), Some(z))
+    | [_, ...ys] => find_prev_next(ys);
+  let (prev, next) = find_prev_next(editor_names);
+  let prev =
+    prev
+    |> Option.map(s =>
+         button(Icons.back, _ => inject(Update.SwitchDocumentationSlide(s)))
+       )
+    |> Option.value(
+         ~default=
+           button_d(
+             Icons.back,
+             inject(Update.SwitchDocumentationSlide("none")),
+             ~disabled=true,
+           ),
+       );
+  let next =
+    next
+    |> Option.map(s =>
+         button(Icons.forward, _ =>
+           inject(Update.SwitchDocumentationSlide(s))
+         )
+       )
+    |> Option.value(
+         ~default=
+           button_d(
+             Icons.forward,
+             inject(Update.SwitchDocumentationSlide("none")),
+             ~disabled=true,
+           ),
+       );
+  [
+    mode_menu(~inject, ~mode=Documentation),
+    prev,
+    select(
+      ~attr=
+        Attr.on_change((_, name) =>
+          inject(Update.SwitchDocumentationSlide(name))
+        ),
+      List.map(option_view(name), editor_names),
+    ),
+    next,
+  ];
+};
 
 let instructor_toggle = (~inject, ~instructor_mode) =>
   ExerciseSettings.show_instructor
@@ -58,7 +104,7 @@ let instructor_toggle = (~inject, ~instructor_mode) =>
     : [];
 
 let exercises_view = (~inject, ~cur_slide, ~specs, ~instructor_mode) => {
-  [mode_menu(~inject, ~mode=Exercise)]
+  [mode_menu(~inject, ~mode=Exercises)]
   @ instructor_toggle(~inject, ~instructor_mode)
   @ slide_select(~inject, ~cur_slide, ~num_slides=List.length(specs));
 };
@@ -67,16 +113,16 @@ let view =
     (
       ~inject: Update.t => 'a,
       ~editors: Editors.t,
-      ~settings as {instructor_mode, _}: ModelSettings.t,
+      ~settings as {instructor_mode, _}: Settings.t,
     )
     : Node.t => {
   let contents =
     switch (editors) {
-    | DebugLoad => []
     | Scratch(cur_slide, slides) =>
       scratch_view(~inject, ~cur_slide, ~slides)
-    | Examples(name, editors) => examples_view(~inject, ~name, ~editors)
-    | Exercise(cur_slide, specs, _) =>
+    | Documentation(name, editors) =>
+      documentation_view(~inject, ~name, ~editors)
+    | Exercises(cur_slide, specs, _) =>
       exercises_view(~cur_slide, ~specs, ~inject, ~instructor_mode)
     };
   div(~attr=Attr.id("editor-mode"), contents);

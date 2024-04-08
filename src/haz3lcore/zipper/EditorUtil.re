@@ -41,23 +41,13 @@ let editors_of_strings = (~read_only=false, xs: list(string)) => {
   (i, List.map(((_, oe)) => Option.get(oe), aes));
 };
 
-let info_map = (editor: Editor.t) => {
-  let zipper = editor.state.zipper;
-  let unselected = Zipper.unselect_and_zip(zipper);
-  let (term, _) =
-    Util.TimeUtil.measure_time("EditorUtil.info_map => MakeTerm.go", true, () =>
-      MakeTerm.go(unselected)
-    );
-  let info_map = Statics.mk_map(term);
-  info_map;
-};
-
 let rec append_exp = (e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   switch (e1.term) {
   | EmptyHole
   | Invalid(_)
   | MultiHole(_)
   | Triv
+  | Deferral(_)
   | Bool(_)
   | Int(_)
   | Float(_)
@@ -68,6 +58,8 @@ let rec append_exp = (e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   | Tuple(_)
   | Var(_)
   | Ap(_)
+  | DeferredAp(_)
+  | Pipeline(_)
   | If(_)
   | Test(_)
   | Parens(_)
@@ -80,42 +72,14 @@ let rec append_exp = (e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   | Seq(e11, e12) =>
     let e12' = append_exp(e12, e2);
     TermBase.UExp.{ids: e1.ids, term: Seq(e11, e12')};
+  | Filter(act, econd, ebody) =>
+    let ebody' = append_exp(ebody, e2);
+    TermBase.UExp.{ids: e1.ids, term: Filter(act, econd, ebody')};
   | Let(p, edef, ebody) =>
     let ebody' = append_exp(ebody, e2);
     TermBase.UExp.{ids: e1.ids, term: Let(p, edef, ebody')};
   | TyAlias(tp, tdef, ebody) =>
     let ebody' = append_exp(ebody, e2);
     TermBase.UExp.{ids: e1.ids, term: TyAlias(tp, tdef, ebody')};
-  };
-};
-
-let stitch = (editors: list(Editor.t)) => {
-  print_endline("new stitchin'");
-  let exps =
-    List.map(
-      (ed: Editor.t) =>
-        Util.TimeUtil.measure_time(
-          "terms",
-          true,
-          () => {
-            let seg =
-              Util.TimeUtil.measure_time("unselectin", true, () =>
-                Zipper.unselect_and_zip(ed.state.zipper)
-              );
-            let (term, _) =
-              Util.TimeUtil.measure_time("makin terms", true, () =>
-                MakeTerm.go(seg)
-              );
-            term;
-          },
-        ),
-      editors,
-    );
-  switch (exps) {
-  | [] => failwith("cannot stitch zero expressions")
-  | [e] => e
-  | [e1, ...tl] =>
-    let e = List.fold_left(append_exp, e1, tl);
-    e;
   };
 };

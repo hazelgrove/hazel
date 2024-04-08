@@ -155,11 +155,9 @@ let of_op = (ctx: Ctx.t, op: TermBase.UExp.t): (t, t) => {
   };
 };
 
-let of_let_def = (ctx: Ctx.t, p: TermBase.UPat.t, p_typ: Typ.t): t =>
-  switch (p) {
-  | {term: TypeAnn({term: Var(x), _}, _), _} when Form.is_op_in_let(x) =>
-    let (ty_in, ty_out) = Typ.matched_arrow(ctx, p_typ);
-    AnaInfix(Arrow(ty_in, ty_out));
-  | {term: Var(x), _} when Form.is_op_in_let(x) => SynInfix
-  | _ => Ana(p_typ)
-  };
+let of_deferred_ap_args = (length: int, ty_ins: list(Typ.t)): list(t) =>
+  (
+    List.length(ty_ins) == length
+      ? ty_ins : List.init(length, _ => Typ.Unknown(Internal))
+  )
+  |> List.map(ty => Ana(ty));

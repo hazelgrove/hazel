@@ -58,6 +58,8 @@ type error_no_type =
   | UnboundUserOp
   /* User-defined operator already exists, treated as hole */
   | BuiltinOpExists
+  /* Empty application of function with inconsistent type */
+  | BadTrivAp(Typ.t)
   /* Sum constructor neiter bound nor in ana type */
   | FreeConstructor(Constructor.t);
 
@@ -72,6 +74,8 @@ type error_common =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_exp =
   | FreeVariable(Var.t) /* Unbound variable (not in typing context) */
+  | UnusedDeferral
+  | BadPartialAp(Self.error_partial_ap)
   | Common(error_common);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -103,7 +107,9 @@ type ok_common =
   | Ana(ok_ana);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type ok_exp = ok_common;
+type ok_exp =
+  | AnaDeferralConsistent(Typ.t)
+  | Common(ok_common);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type ok_pat = ok_common;
@@ -203,6 +209,7 @@ type pat = {
   term: UPat.t,
   ancestors,
   ctx: Ctx.t,
+  co_ctx: CoCtx.t,
   mode: Mode.t,
   self: Self.pat,
   cls: Term.Cls.t,
@@ -230,34 +237,81 @@ type tpat = {
   status: status_tpat,
 };
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type secondary = {
+  id: Id.t, // Id of term static info is sourced from
+  cls: Term.Cls.t, // Cls of secondary, not source term
+  sort: Sort.t, // from source term
+  ctx: Ctx.t // from source term
+};
+
 /* The static information collated for each term */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | InfoExp(exp)
   | InfoPat(pat)
   | InfoTyp(typ)
-  | InfoTPat(tpat);
+  | InfoTPat(tpat)
+  | Secondary(secondary);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type error =
+  | Exp(error_exp)
+  | Pat(error_pat)
+  | Typ(error_typ)
+  | TPat(error_tpat);
 
 let sort_of: t => Sort.t =
   fun
   | InfoExp(_) => Exp
   | InfoPat(_) => Pat
   | InfoTyp(_) => Typ
-  | InfoTPat(_) => TPat;
+  | InfoTPat(_) => TPat
+  | Secondary(s) => s.sort;
 
 let cls_of: t => Cls.t =
   fun
   | InfoExp({cls, _})
   | InfoPat({cls, _})
   | InfoTyp({cls, _})
-  | InfoTPat({cls, _}) => cls;
+  | InfoTPat({cls, _})
+  | Secondary({cls, _}) => cls;
 
 let ctx_of: t => Ctx.t =
   fun
   | InfoExp({ctx, _})
   | InfoPat({ctx, _})
   | InfoTyp({ctx, _})
-  | InfoTPat({ctx, _}) => ctx;
+  | InfoTPat({ctx, _})
+  | Secondary({ctx, _}) => ctx;
+
+let ancestors_of: t => ancestors =
+  fun
+  | InfoExp({ancestors, _})
+  | InfoPat({ancestors, _})
+  | InfoTyp({ancestors, _})
+  | InfoTPat({ancestors, _}) => ancestors
+  | Secondary(_) => []; //TODO
+
+let id_of: t => Id.t =
+  fun
+  | InfoExp(i) => Term.UExp.rep_id(i.term)
+  | InfoPat(i) => Term.UPat.rep_id(i.term)
+  | InfoTyp(i) => Term.UTyp.rep_id(i.term)
+  | InfoTPat(i) => Term.UTPat.rep_id(i.term)
+  | Secondary(s) => s.id;
+
+let error_of: t => option(error) =
+  fun
+  | InfoExp({status: NotInHole(_), _})
+  | InfoPat({status: NotInHole(_), _})
+  | InfoTyp({status: NotInHole(_), _})
+  | InfoTPat({status: NotInHole(_), _}) => None
+  | InfoExp({status: InHole(err), _}) => Some(Exp(err))
+  | InfoPat({status: InHole(err), _}) => Some(Pat(err))
+  | InfoTyp({status: InHole(err), _}) => Some(Typ(err))
+  | InfoTPat({status: InHole(err), _}) => Some(TPat(err))
+  | Secondary(_) => None;
 
 let exp_co_ctx: exp => CoCtx.t = ({co_ctx, _}) => co_ctx;
 let exp_ty: exp => Typ.t = ({ty, _}) => ty;
@@ -315,9 +369,10 @@ let rec status_common =
     | _ => InHole(NoType(FreeConstructor(name)))
     }
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
+  | (BadTrivAp(ty), _) => InHole(NoType(BadTrivAp(ty)))
   | (IsMulti, _) => NotInHole(Syn(Unknown(Internal)))
   | (NoJoin(wrap, tys), Ana(ana) | AnaInfix(ana)) =>
-    let syn: Typ.t = wrap(Unknown(Internal));
+    let syn: Typ.t = Self.join_of(wrap, Unknown(Internal));
     switch (Typ.join_fix(ctx, ana, syn)) {
     | None => InHole(Inconsistent(Expectation({ana, syn})))
     | Some(_) =>
@@ -355,9 +410,12 @@ let status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
 let status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
   switch (self, mode) {
   | (Free(name), _) => InHole(FreeVariable(name))
+  | (IsDeferral(InAp), Ana(ana)) => NotInHole(AnaDeferralConsistent(ana))
+  | (IsDeferral(_), _) => InHole(UnusedDeferral)
+  | (IsBadPartialAp(_ as info), _) => InHole(BadPartialAp(info))
   | (Common(self_pat), _) =>
     switch (status_common(ctx, mode, self_pat)) {
-    | NotInHole(ok_exp) => NotInHole(ok_exp)
+    | NotInHole(ok_exp) => NotInHole(Common(ok_exp))
     | InHole(err_pat) => InHole(Common(err_pat))
     }
   };
@@ -444,6 +502,7 @@ let is_error = (ci: t): bool => {
     | InHole(_) => true
     | NotInHole(_) => false
     }
+  | Secondary(_) => false
   };
 };
 
@@ -465,7 +524,8 @@ let fixed_typ_pat = (ctx, mode: Mode.t, self: Self.pat): Typ.t =>
 let fixed_typ_exp = (ctx, mode: Mode.t, self: Self.exp): Typ.t =>
   switch (status_exp(ctx, mode, self)) {
   | InHole(_) => Unknown(Internal)
-  | NotInHole(ok) => fixed_typ_ok(ok)
+  | NotInHole(AnaDeferralConsistent(ana)) => ana
+  | NotInHole(Common(ok)) => fixed_typ_ok(ok)
   };
 
 /* Add derivable attributes for expression terms */
@@ -478,11 +538,12 @@ let derived_exp =
 };
 
 /* Add derivable attributes for pattern terms */
-let derived_pat = (~upat: UPat.t, ~ctx, ~mode, ~ancestors, ~self): pat => {
+let derived_pat =
+    (~upat: UPat.t, ~ctx, ~co_ctx, ~mode, ~ancestors, ~self): pat => {
   let cls = Cls.Pat(UPat.cls_of_term(upat.term));
   let status = status_pat(ctx, mode, self);
   let ty = fixed_typ_pat(ctx, mode, self);
-  {cls, self, mode, ty, status, ctx, ancestors, term: upat};
+  {cls, self, mode, ty, status, ctx, co_ctx, ancestors, term: upat};
 };
 
 /* Add derivable attributes for types */

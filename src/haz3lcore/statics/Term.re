@@ -424,6 +424,7 @@ module UExp = {
     | EmptyHole
     | MultiHole
     | Triv
+    | Deferral
     | Bool
     | Int
     | Float
@@ -433,12 +434,16 @@ module UExp = {
     | Fun
     | Tuple
     | Var
+    | MetaVar
     | Let
     | TyAlias
     | Ap
+    | DeferredAp
+    | Pipeline
     | If
     | Seq
     | Test
+    | Filter
     | Parens
     | Cons
     | UnOp(op_un)
@@ -464,6 +469,7 @@ module UExp = {
     | EmptyHole => EmptyHole
     | MultiHole(_) => MultiHole
     | Triv => Triv
+    | Deferral(_) => Deferral
     | Bool(_) => Bool
     | Int(_) => Int
     | Float(_) => Float
@@ -476,9 +482,12 @@ module UExp = {
     | Let(_) => Let
     | TyAlias(_) => TyAlias
     | Ap(_) => Ap
+    | DeferredAp(_) => DeferredAp
+    | Pipeline(_) => Pipeline
     | If(_) => If
     | Seq(_) => Seq
     | Test(_) => Test
+    | Filter(_) => Filter
     | Parens(_) => Parens
     | Cons(_) => Cons
     | ListConcat(_) => ListConcat
@@ -486,6 +495,10 @@ module UExp = {
     | BinOp(op, _, _) => BinOp(op)
     | UserOp(_) => UserOp
     | Match(_) => Match;
+
+  let show_op_un_meta: op_un_meta => string =
+    fun
+    | Unquote => "Un-quotation";
 
   let show_op_un_bool: op_un_bool => string =
     fun
@@ -497,6 +510,7 @@ module UExp = {
 
   let show_unop: op_un => string =
     fun
+    | Meta(op) => show_op_un_meta(op)
     | Bool(op) => show_op_un_bool(op)
     | Int(op) => show_op_un_int(op);
 
@@ -550,7 +564,8 @@ module UExp = {
     | Invalid => "Invalid expression"
     | MultiHole => "Broken expression"
     | EmptyHole => "Empty expression hole"
-    | Triv => "Trivial litera"
+    | Triv => "Trivial literal"
+    | Deferral => "Deferral"
     | Bool => "Boolean literal"
     | Int => "Integer literal"
     | Float => "Float literal"
@@ -560,12 +575,16 @@ module UExp = {
     | Fun => "Function literal"
     | Tuple => "Tuple literal"
     | Var => "Variable reference"
+    | MetaVar => "Meta variable reference"
     | Let => "Let expression"
     | TyAlias => "Type Alias definition"
     | Ap => "Application"
+    | DeferredAp => "Partial Application"
+    | Pipeline => "Pipeline expression"
     | If => "If expression"
     | Seq => "Sequence expression"
     | Test => "Test"
+    | Filter => "Filter"
     | Parens => "Parenthesized expression"
     | Cons => "Cons"
     | ListConcat => "List Concatenation"
@@ -582,6 +601,7 @@ module UExp = {
     | EmptyHole
     | MultiHole(_)
     | Triv
+    | Deferral(_)
     | Bool(_)
     | Int(_)
     | Float(_)
@@ -592,9 +612,12 @@ module UExp = {
     | Let(_)
     | TyAlias(_)
     | Ap(_)
+    | DeferredAp(_)
+    | Pipeline(_)
     | If(_)
     | Seq(_)
     | Test(_)
+    | Filter(_)
     | Cons(_)
     | ListConcat(_)
     | UnOp(_)
@@ -615,6 +638,7 @@ module UExp = {
       | EmptyHole
       | MultiHole(_)
       | Triv
+      | Deferral(_)
       | Bool(_)
       | Int(_)
       | Float(_)
@@ -625,9 +649,12 @@ module UExp = {
       | Let(_)
       | TyAlias(_)
       | Ap(_)
+      | DeferredAp(_)
+      | Pipeline(_)
       | If(_)
       | Seq(_)
       | Test(_)
+      | Filter(_)
       | Cons(_)
       | ListConcat(_)
       | UnOp(_)
@@ -643,6 +670,13 @@ module UExp = {
     | Constructor(name) => Some(name)
     | _ => None
     };
+
+  let is_deferral = (e: t) => {
+    switch (e.term) {
+    | Deferral(_) => true
+    | _ => false
+    };
+  };
 };
 
 // TODO(d): consider just folding this into UExp
@@ -681,7 +715,8 @@ module Cls = {
     | Pat(UPat.cls)
     | Typ(UTyp.cls)
     | TPat(UTPat.cls)
-    | Rul(URul.cls);
+    | Rul(URul.cls)
+    | Secondary(Secondary.cls);
 
   let show = (cls: t) =>
     switch (cls) {
@@ -690,6 +725,7 @@ module Cls = {
     | Typ(cls) => UTyp.show_cls(cls)
     | TPat(cls) => UTPat.show_cls(cls)
     | Rul(cls) => URul.show_cls(cls)
+    | Secondary(cls) => Secondary.show_cls(cls)
     };
 };
 

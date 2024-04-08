@@ -31,13 +31,17 @@ module Make = (M: Editor.Meta.S) => {
     range(Piece.id(l), Piece.id(r), z);
   };
 
+  let tile = (id: Id.t, z: Zipper.t): option(Zipper.t) => {
+    let* z = Move.jump_to_id(z, id);
+    let* Measured.{last, _} = Measured.find_by_id(id, M.measured);
+    Move.do_towards(primary, last, z);
+  };
+
   let go = (d: Action.move, z: Zipper.t) =>
     switch (d) {
     | Goal(Piece(_)) => failwith("Select.go not implemented for Piece Goal")
     | Goal(Point(goal)) =>
-      let anchor =
-        {...z, selection: Selection.toggle_focus(z.selection)}
-        |> Zipper.caret_point(M.measured);
+      let anchor = z |> Zipper.toggle_focus |> Zipper.caret_point(M.measured);
       Move.do_towards(~anchor, primary, goal, z);
     | Extreme(d) => Move.do_extreme(primary, d, z)
     | Local(d) =>
