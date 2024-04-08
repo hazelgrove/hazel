@@ -527,6 +527,32 @@ let consistent_if_menhir = () =>
     dhexp_of_uexp(u6),
   );
 
+
+let u12: Term.UExp.t = {
+  ids: [id_at(0)],
+  term:
+    If(
+      {ids: [id_at(1)], term: Bool(false)},
+      {ids: [id_at(2)], term: Int(8)},
+      {ids: [id_at(3)], term: Bool(true)},
+    ),
+}
+
+let str12 = ""
+
+let inconsistent_if_menhir = () =>
+   alco_check(
+    "Inconsistent if statement (menhir)",
+    Some(
+      Haz3lcore.DHExp.of_menhir_ast(
+        Hazel_menhir.Interface.parse_program(str12),
+        get_id_menhir,
+      ),
+    ),
+    dhexp_of_uexp(u6),
+  );
+   
+
 let elaboration_tests = [
   test_case("Single integer", `Quick, single_integer),
   test_case("Empty hole", `Quick, empty_hole),
