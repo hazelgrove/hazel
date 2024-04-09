@@ -226,6 +226,8 @@ and uexp_to_info_map =
     add(~self=Just(t2), ~co_ctx=e.co_ctx, m);
   | Invalid(token) => atomic(BadToken(token))
   | EmptyHole => atomic(Just(Unknown(Internal) |> Typ.fresh))
+  | Deferral(position) =>
+    add'(~self=IsDeferral(position), ~co_ctx=CoCtx.empty, m)
   | Bool(_) => atomic(Just(Bool |> Typ.fresh))
   | Int(_) => atomic(Just(Int |> Typ.fresh))
   | Float(_) => atomic(Just(Float |> Typ.fresh))
@@ -251,7 +253,6 @@ and uexp_to_info_map =
     );
   | ListConcat(e1, e2) =>
     let ids = List.map(UExp.rep_id, [e1, e2]);
-    let mode = Mode.of_list_concat(ctx, mode);
     let (e1, m) = go(~mode, e1, m);
     let (e2, m) = go(~mode, e2, m);
     add(
@@ -337,6 +338,17 @@ and uexp_to_info_map =
       && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.fresh)
         ? BadTrivAp(ty_in) : Just(ty_out);
     add(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
+  | DeferredAp(fn, args) =>
+    let fn_mode = Mode.of_ap(ctx, mode, UExp.ctr_name(fn));
+    let (fn, m) = go(~mode=fn_mode, fn, m);
+    let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
+    let num_args = List.length(args);
+    let ty_ins = Typ.matched_args(ctx, num_args, ty_in);
+    let self: Self.exp = Self.of_deferred_ap(args, ty_ins, ty_out);
+    let modes = Mode.of_deferred_ap_args(num_args, ty_ins);
+    let (args, m) = map_m_go(m, modes, args);
+    let arg_co_ctx = CoCtx.union(List.map(Info.exp_co_ctx, args));
+    add'(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg_co_ctx]), m);
   | Fun(p, e, _, _) =>
     let (mode_pat, mode_body) = Mode.of_arrow(ctx, mode);
     let (p', _) =

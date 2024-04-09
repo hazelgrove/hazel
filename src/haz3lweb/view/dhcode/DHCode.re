@@ -49,7 +49,6 @@ let view_of_layout =
                  ],
                  ds,
                )
-             | Step(_)
              | Substituted => (
                  [
                    Node.span(
@@ -59,6 +58,7 @@ let view_of_layout =
                  ],
                  ds,
                )
+             | Step(_)
              | Term => (txt, ds)
              | Collapsed => ([with_cls("Collapsed", txt)], ds)
              | HoleLabel => ([with_cls("HoleLabel", txt)], ds)

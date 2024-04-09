@@ -119,7 +119,8 @@ module Deco =
         };
       let range: option((Measured.Point.t, Measured.Point.t)) = {
         // if (Piece.has_ends(p)) {
-        switch (TermRanges.find_opt(Piece.id(p), M.term_ranges)) {
+        let id = Id.Map.find(Piece.id(p), M.terms) |> Term.rep_id;
+        switch (TermRanges.find_opt(id, M.term_ranges)) {
         | None => None
         | Some((p_l, p_r)) =>
           let l = Measured.find_p(p_l, M.map).origin;

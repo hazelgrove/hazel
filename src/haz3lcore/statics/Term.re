@@ -272,6 +272,7 @@ module Exp = {
     | StaticErrorHole
     | DynamicErrorHole
     | FailedCast
+    | Deferral
     | Bool
     | Int
     | Float
@@ -286,6 +287,7 @@ module Exp = {
     | FixF
     | TyAlias
     | Ap
+    | DeferredAp
     | Pipeline
     | If
     | Seq
@@ -319,6 +321,7 @@ module Exp = {
     | StaticErrorHole(_) => StaticErrorHole
     | DynamicErrorHole(_) => DynamicErrorHole
     | FailedCast(_) => FailedCast
+    | Deferral(_) => Deferral
     | Bool(_) => Bool
     | Int(_) => Int
     | Float(_) => Float
@@ -332,6 +335,7 @@ module Exp = {
     | FixF(_) => FixF
     | TyAlias(_) => TyAlias
     | Ap(_) => Ap
+    | DeferredAp(_) => DeferredAp
     | If(_) => If
     | Seq(_) => Seq
     | Test(_) => Test
@@ -354,6 +358,7 @@ module Exp = {
     | StaticErrorHole => "Static error hole"
     | DynamicErrorHole => "Dynamic error hole"
     | FailedCast => "Failed cast"
+    | Deferral => "Deferral"
     | Bool => "Boolean literal"
     | Int => "Integer literal"
     | Float => "Float literal"
@@ -368,6 +373,7 @@ module Exp = {
     | FixF => "Fixpoint operator"
     | TyAlias => "Type Alias definition"
     | Ap => "Application"
+    | DeferredAp => "Partial Application"
     | Pipeline => "Pipeline expression"
     | If => "If expression"
     | Seq => "Sequence expression"
@@ -395,6 +401,7 @@ module Exp = {
     | StaticErrorHole(_)
     | DynamicErrorHole(_)
     | FailedCast(_)
+    | Deferral(_)
     | Bool(_)
     | Int(_)
     | Float(_)
@@ -406,6 +413,7 @@ module Exp = {
     | FixF(_)
     | TyAlias(_)
     | Ap(_)
+    | DeferredAp(_)
     | If(_)
     | Seq(_)
     | Test(_)
@@ -433,6 +441,7 @@ module Exp = {
       | StaticErrorHole(_)
       | DynamicErrorHole(_)
       | FailedCast(_)
+      | Deferral(_)
       | Bool(_)
       | Int(_)
       | Float(_)
@@ -446,6 +455,7 @@ module Exp = {
       | FixF(_)
       | TyAlias(_)
       | Ap(_)
+      | DeferredAp(_)
       | If(_)
       | Seq(_)
       | Test(_)
@@ -464,6 +474,13 @@ module Exp = {
     | Constructor(name) => Some(name)
     | _ => None
     };
+
+  let is_deferral = (e: t) => {
+    switch (e.term) {
+    | Deferral(_) => true
+    | _ => false
+    };
+  };
 };
 
 module Rul = {

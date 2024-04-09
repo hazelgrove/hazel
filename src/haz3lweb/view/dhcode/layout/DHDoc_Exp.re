@@ -130,7 +130,6 @@ let mk =
             env: ClosureEnvironment.t,
             enforce_inline: bool,
             recent_subst: list(Var.t),
-            recursive_calls: list(Var.t),
           )
           : DHDoc.t => {
     open Doc;
@@ -152,6 +151,7 @@ let mk =
         | (VarLookup, _)
         | (Seq, _)
         | (FunClosure, _)
+        | (FixClosure, _)
         | (FixClosure, _)
         | (UpdateTest, _)
         | (CastAp, _)
@@ -175,12 +175,24 @@ let mk =
         }
       | _ => recent_subst
       };
+    let substitution =
+      hidden_steps
+      |> List.find_opt(step =>
+           step.knd == VarLookup
+           // HACK[Matt]: to prevent substitutions hiding inside casts
+           && EvalCtx.fuzzy_mark(step.ctx)
+         );
+    let next_recent_subst =
+      switch (substitution) {
+      | Some({d_loc: BoundVar(v), _}) =>
+        List.filter(u => u != v, recent_subst)
+      | _ => recent_subst
+      };
     let go' =
         (
           ~env=env,
           ~enforce_inline=enforce_inline,
-          ~recent_subst=recent_subst,
-          ~recursive_calls=recursive_calls,
+          ~recent_subst=next_recent_subst,
           d,
         ) => {
       go(d, env, enforce_inline, recent_subst, recursive_calls);
@@ -305,7 +317,12 @@ let mk =
             hcats([
               go'(~env=ClosureEnvironment.empty, d)
               |> annot(DHAnnot.Substituted),
-              go'(~env=ClosureEnvironment.empty, d'),
+              go'(
+                ~env=ClosureEnvironment.empty,
+                ~recent_subst=List.filter(u => u != x, next_recent_subst),
+                d',
+                BoundVar,
+              ),
             ]);
           } else {
             go'(~env=ClosureEnvironment.empty, d');
@@ -428,7 +445,7 @@ let mk =
               ~enforce_inline=false,
               ~env=ClosureEnvironment.without_keys(bindings, env),
               ~recent_subst=
-                List.filter(x => !List.mem(x, bindings), recent_subst),
+                List.filter(x => !List.mem(x, bindings), next_recent_subst),
               dbody,
             ),
           ]);
@@ -555,7 +572,7 @@ let mk =
           | Some(name) => annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"))
           };
         }
-      | FixF(dp, dbody, _) when settings.show_fixpoints =>
+      | FixF(dp, dbody, _) when settings.show_fn_bodies && settings.show_fixpoints =>
         let doc_body =
           go_formattable(
             dbody,
@@ -572,20 +589,13 @@ let mk =
             DHDoc_Pat.mk(~infomap, dp, ~enforce_inline=true),
           ]
           @ [
+            space(),
             DHDoc_common.Delim.arrow_FixF,
             space(),
             doc_body |> DHDoc_common.pad_child(~enforce_inline),
           ],
         );
-      | FixF(dp, d, _) =>
-        go'(
-          ~env=
-            ClosureEnvironment.without_keys(
-              DHPat.bound_vars(infomap, dp),
-              env,
-            ),
-          d,
-        )
+      | FixF(x, _, _) => annot(DHAnnot.Collapsed, text("<" ++ x ++ ">"))
       };
     };
     let steppable =

@@ -70,6 +70,11 @@ module rec Any: {
 }
 and Exp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type deferral_position =
+    | InAp
+    | OutsideAp;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
     | Invalid(string)
     | EmptyHole
@@ -77,6 +82,7 @@ and Exp: {
     | StaticErrorHole(Id.t, t)
     | DynamicErrorHole(t, InvalidOperationError.t)
     | FailedCast(t, Typ.t, Typ.t)
+    | Deferral(deferral_position)
     | Bool(bool)
     | Int(int)
     | Float(float)
@@ -95,6 +101,7 @@ and Exp: {
     | FixF(Pat.t, t, [@show.opaque] option(ClosureEnvironment.t))
     | TyAlias(TPat.t, Typ.t, t)
     | Ap(Operators.ap_direction, t, t)
+    | DeferredAp(t, list(t))
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
@@ -123,6 +130,11 @@ and Exp: {
     t;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type deferral_position =
+    | InAp
+    | OutsideAp;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
     | Invalid(string)
     | EmptyHole // Combine the problems into one construct
@@ -130,6 +142,7 @@ and Exp: {
     | StaticErrorHole(Id.t, t)
     | DynamicErrorHole(t, InvalidOperationError.t)
     | FailedCast(t, Typ.t, Typ.t) // TODO: get rid of failedcast
+    | Deferral(deferral_position)
     | Bool(bool)
     | Int(int)
     | Float(float)
@@ -148,6 +161,7 @@ and Exp: {
     | FixF(Pat.t, t, [@show.opaque] option(ClosureEnvironment.t))
     | TyAlias(TPat.t, Typ.t, t)
     | Ap(Operators.ap_direction, t, t) // note: function is always first then argument; even in pipe mode
+    | DeferredAp(t, list(t))
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
