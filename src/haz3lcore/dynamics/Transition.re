@@ -52,6 +52,7 @@ type step_kind =
   | FunClosure
   | FixUnwrap
   | FixClosure
+  | FixClosure
   | UpdateTest
   | FunAp
   | CastAp
@@ -630,7 +631,7 @@ module Transition = (EV: EV_MODE) => {
     | Closure(env', d) =>
       let. _ = otherwise(env, d => Closure(env', d) |> rewrap)
       and. d' =
-        req_value(req(state, env'), d1 => Closure(env', d1) |> wrap_ctx, d);
+        req_final(req(state, env'), d1 => Closure(env', d1) |> wrap_ctx, d);
       Step({apply: () => d', kind: CompleteClosure, value: true});
     | StaticErrorHole(sid, d1) =>
       let. _ = otherwise(env, d1 => StaticErrorHole(sid, d1) |> rewrap)

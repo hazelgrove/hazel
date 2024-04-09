@@ -239,13 +239,24 @@ let rec dexp_of_uexp = (m, uexp, ~in_filter) => {
           switch (UPat.get_recursive_bindings(p)) {
           | None =>
             /* not recursive */
-            DHExp.Let(p, add_name(UPat.get_var(p), ddef), dbody)
+            DHExp.Let(
+              p,
+              add_name(Option.map(x => x ++ "", UPat.get_var(p)), ddef),
+              dbody,
+            )
             |> rewrap
             |> wrap(m)
           | Some(b) =>
             DHExp.Let(
               p,
-              FixF(p, add_name(Some(String.concat(",", b)), ddef), None)
+              FixF(
+                p,
+                add_name(
+                  Some(String.concat(",", List.map(x => x ++ "+", b))),
+                  ddef,
+                ),
+                None,
+              )
               |> DHExp.fresh,
               dbody,
             )
