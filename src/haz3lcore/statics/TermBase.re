@@ -217,6 +217,7 @@ and Exp: {
         | Float(_)
         | Constructor(_)
         | String(_)
+        | Deferral(_)
         | Var(_) => term
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
         | StaticErrorHole(id, e) => StaticErrorHole(id, exp_map_term(e))
@@ -232,6 +233,8 @@ and Exp: {
         | TyAlias(tp, t, e) =>
           TyAlias(tpat_map_term(tp), typ_map_term(t), exp_map_term(e))
         | Ap(op, e1, e2) => Ap(op, exp_map_term(e1), exp_map_term(e2))
+        | DeferredAp(e, es) =>
+          DeferredAp(exp_map_term(e), List.map(exp_map_term, es))
         | If(e1, e2, e3) =>
           If(exp_map_term(e1), exp_map_term(e2), exp_map_term(e3))
         | Seq(e1, e2) => Seq(exp_map_term(e1), exp_map_term(e2))

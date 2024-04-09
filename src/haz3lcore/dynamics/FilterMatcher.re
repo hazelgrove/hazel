@@ -47,6 +47,9 @@ let rec matches_exp =
 
   | (EmptyHole, _) => false
 
+  | (Deferral(x), Deferral(y)) => x == y
+  | (Deferral(_), _) => false
+
   | (Filter(df, dd), Filter(ff, fd)) =>
     DHExp.filter_fast_equal(df, ff) && matches_exp(env, dd, fd)
   | (Filter(_), _) => false
@@ -93,6 +96,16 @@ let rec matches_exp =
   | (Ap(_, d1, d2), Ap(_, f1, f2)) =>
     matches_exp(env, d1, f1) && matches_exp(env, d2, f2)
   | (Ap(_), _) => false
+
+  | (DeferredAp(d1, d2), DeferredAp(f1, f2)) =>
+    matches_exp(env, d1, f1)
+    && List.fold_left2(
+         (acc, d, f) => acc && matches_exp(env, d, f),
+         true,
+         d2,
+         f2,
+       )
+  | (DeferredAp(_), _) => false
 
   | (If(d1, d2, d3), If(f1, f2, f3)) =>
     matches_exp(env, d1, f1)

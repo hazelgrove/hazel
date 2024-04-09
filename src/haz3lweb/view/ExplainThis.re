@@ -1582,7 +1582,7 @@ let get_doc =
         let x_id = List.nth(x.ids, 0);
         let supplied_id = Id.mk();
         let deferred_id = {
-          let deferral = List.find(Term.UExp.is_deferral, args);
+          let deferral = List.find(Exp.is_deferral, args);
           List.nth(deferral.ids, 0);
         };
         switch (mode) {
@@ -1606,11 +1606,11 @@ let get_doc =
           let color_fn = List.nth(ColorSteps.child_colors, 0);
           let color_supplied = List.nth(ColorSteps.child_colors, 1);
           let color_deferred = List.nth(ColorSteps.child_colors, 2);
-          let add = (mapping, arg: Term.UExp.t) => {
+          let add = (mapping, arg: Exp.t) => {
             let arg_id = List.nth(arg.ids, 0);
             Haz3lcore.Id.Map.add(
               arg_id,
-              Term.UExp.is_deferral(arg) ? color_deferred : color_supplied,
+              Exp.is_deferral(arg) ? color_deferred : color_supplied,
               mapping,
             );
           };

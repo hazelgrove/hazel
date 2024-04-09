@@ -118,6 +118,11 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
   | Parens(d4) =>
     let d4' = subst_var(m, d1, x, d4);
     Parens(d4') |> rewrap;
+  | Deferral(_) => d2
+  | DeferredAp(d3, d4s) =>
+    let d3 = subst_var(m, d1, x, d3);
+    let d4s = List.map(subst_var(m, d1, x), d4s);
+    DeferredAp(d3, d4s) |> rewrap;
   };
 }
 

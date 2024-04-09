@@ -128,6 +128,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         _,
         Bool(_) | Int(_) | Float(_) | String(_) | Constructor(_) |
         BuiltinFun(_) |
+        Deferral(_) |
+        DeferredAp(_) |
         Fun(_, _, _, Some(_)) |
         ListLit(_) |
         Tuple(_) |

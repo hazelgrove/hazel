@@ -61,9 +61,11 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | If(_)
   | Closure(_)
   | BuiltinFun(_)
+  | Deferral(_)
   | Filter(_) => DHDoc_common.precedence_const
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
+  | DeferredAp(_)
   | Ap(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
   | ListConcat(_) => DHDoc_common.precedence_Plus
@@ -152,7 +154,7 @@ let mk =
         | (Seq, _)
         | (FunClosure, _)
         | (FixClosure, _)
-        | (FixClosure, _)
+        | (DeferredAp, _)
         | (UpdateTest, _)
         | (CastAp, _)
         | (BuiltinWrap, _)
@@ -175,27 +177,14 @@ let mk =
         }
       | _ => recent_subst
       };
-    let substitution =
-      hidden_steps
-      |> List.find_opt(step =>
-           step.knd == VarLookup
-           // HACK[Matt]: to prevent substitutions hiding inside casts
-           && EvalCtx.fuzzy_mark(step.ctx)
-         );
-    let next_recent_subst =
-      switch (substitution) {
-      | Some({d_loc: BoundVar(v), _}) =>
-        List.filter(u => u != v, recent_subst)
-      | _ => recent_subst
-      };
     let go' =
         (
           ~env=env,
           ~enforce_inline=enforce_inline,
-          ~recent_subst=next_recent_subst,
+          ~recent_subst=recent_subst,
           d,
         ) => {
-      go(d, env, enforce_inline, recent_subst, recursive_calls);
+      go(d, env, enforce_inline, recent_subst);
     };
     let parenthesize = (b, doc) =>
       if (b) {
@@ -307,7 +296,6 @@ let mk =
         )
       | StaticErrorHole(_, d') => go'(d') |> annot(DHAnnot.NonEmptyHole)
       | Invalid(t) => DHDoc_common.mk_InvalidText(t)
-      | Var(x) when List.mem(x, recursive_calls) => text(x)
       | Var(x) when settings.show_lookup_steps => text(x)
       | Var(x) =>
         switch (ClosureEnvironment.lookup(env, x)) {
@@ -319,9 +307,8 @@ let mk =
               |> annot(DHAnnot.Substituted),
               go'(
                 ~env=ClosureEnvironment.empty,
-                ~recent_subst=List.filter(u => u != x, next_recent_subst),
+                ~recent_subst=List.filter(u => u != x, recent_subst),
                 d',
-                BoundVar,
               ),
             ]);
           } else {
@@ -335,6 +322,7 @@ let mk =
       | Float(f) => DHDoc_common.mk_FloatLit(f)
       | String(s) => DHDoc_common.mk_StringLit(s)
       | Test(d) => DHDoc_common.mk_Test(go'(d))
+      | Deferral(_) => text("_")
       | Seq(d1, d2) =>
         let (doc1, doc2) = (go'(d1), go'(d2));
         DHDoc_common.mk_Sequence(doc1, doc2);
@@ -346,6 +334,13 @@ let mk =
           go_formattable(d1)
           |> parenthesize(precedence(d1) > DHDoc_common.precedence_Ap),
           go'(d2),
+        );
+        DHDoc_common.mk_Ap(doc1, doc2);
+      | DeferredAp(d1, d2) =>
+        let (doc1, doc2) = (
+          go_formattable(d1)
+          |> parenthesize(precedence(d1) > DHDoc_common.precedence_Ap),
+          go'(Tuple(d2) |> DHExp.fresh),
         );
         DHDoc_common.mk_Ap(doc1, doc2);
       | Ap(Reverse, d1, d2) =>
@@ -445,36 +440,31 @@ let mk =
               ~enforce_inline=false,
               ~env=ClosureEnvironment.without_keys(bindings, env),
               ~recent_subst=
-                List.filter(x => !List.mem(x, bindings), next_recent_subst),
+                List.filter(x => !List.mem(x, bindings), recent_subst),
               dbody,
             ),
           ]);
         }
-      | FailedCast(d1, ty2', ty3) =>
-        switch (DHExp.term_of(d1)) {
-        | Cast(d, ty1, ty2) when Typ.eq(ty2, ty2') =>
-          let d_doc = go'(d);
-          let cast_decoration =
-            hcats([
-              DHDoc_common.Delim.open_FailedCast,
-              hseps([
-                DHDoc_Typ.mk(~enforce_inline=true, ty1),
-                DHDoc_common.Delim.arrow_FailedCast,
-                DHDoc_Typ.mk(~enforce_inline=true, ty3),
-              ]),
-              DHDoc_common.Delim.close_FailedCast,
-            ])
-            |> annot(DHAnnot.FailedCastDecoration);
-          hcats([d_doc, cast_decoration]);
-        | _ => failwith("unexpected FailedCast without inner cast")
-        }
+      | FailedCast(d1, ty1, ty3) =>
+        let d_doc = go'(d1);
+        let cast_decoration =
+          hcats([
+            DHDoc_common.Delim.open_FailedCast,
+            hseps([
+              DHDoc_Typ.mk(~enforce_inline=true, ty1),
+              DHDoc_common.Delim.arrow_FailedCast,
+              DHDoc_Typ.mk(~enforce_inline=true, ty3),
+            ]),
+            DHDoc_common.Delim.close_FailedCast,
+          ])
+          |> annot(DHAnnot.FailedCastDecoration);
+        hcats([d_doc, cast_decoration]);
       | DynamicErrorHole(d, err) =>
         let d_doc = go'(d);
         let decoration =
           Doc.text(InvalidOperationError.err_msg(err))
           |> annot(DHAnnot.OperationError(err));
         hcats([d_doc, decoration]);
-
       | If(c, d1, d2) =>
         let c_doc = go_formattable(c);
         let d1_doc = go_formattable(d1);
@@ -549,7 +539,6 @@ let mk =
               ~env=ClosureEnvironment.without_keys(bindings, env),
               ~recent_subst=
                 List.filter(x => !List.mem(x, bindings), recent_subst),
-              ~recursive_calls=Option.to_list(s) @ recursive_calls,
             );
           hcats(
             [
@@ -572,7 +561,8 @@ let mk =
           | Some(name) => annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"))
           };
         }
-      | FixF(dp, dbody, _) when settings.show_fn_bodies && settings.show_fixpoints =>
+      | FixF(dp, dbody, _)
+          when settings.show_fn_bodies && settings.show_fixpoints =>
         let doc_body =
           go_formattable(
             dbody,
@@ -595,7 +585,9 @@ let mk =
             doc_body |> DHDoc_common.pad_child(~enforce_inline),
           ],
         );
-      | FixF(x, _, _) => annot(DHAnnot.Collapsed, text("<" ++ x ++ ">"))
+      | FixF(_, {term: Fun(_, _, _, Some(x)), _}, _) =>
+        annot(DHAnnot.Collapsed, text("<" ++ x ++ ">"))
+      | FixF(_, _, _) => annot(DHAnnot.Collapsed, text("<anon fn>"))
       };
     };
     let steppable =
@@ -632,5 +624,5 @@ let mk =
       };
     doc;
   };
-  go(d, env, enforce_inline, [], []);
+  go(d, env, enforce_inline, []);
 };

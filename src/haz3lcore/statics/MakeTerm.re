@@ -219,11 +219,12 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       | (["(", ")"], [Exp(arg)]) =>
         let use_deferral = (arg: UExp.t): UExp.t => {
           ids: arg.ids,
+          copied: false,
           term: Deferral(InAp),
         };
         switch (arg.term) {
         | _ when UExp.is_deferral(arg) =>
-          ret(DeferredAp(Forward, l, [use_deferral(arg)]))
+          ret(DeferredAp(l, [use_deferral(arg)]))
         | Tuple(es) when List.exists(UExp.is_deferral, es) => (
             DeferredAp(
               l,
@@ -234,7 +235,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
             ),
             arg.ids,
           )
-        | _ => ret(Ap(l, arg))
+        | _ => ret(Ap(Forward, l, arg))
         };
       | _ => ret(hole(tm))
       }

@@ -109,6 +109,12 @@ let rec matches =
       | Ap2(dir, d1, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
         Ap2(dir, d1, ctx) |> rewrap;
+      | DeferredAp1(ctx, d2) =>
+        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
+        DeferredAp1(ctx, d2) |> rewrap;
+      | DeferredAp2(d1, ctx, ds) =>
+        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
+        DeferredAp2(d1, ctx, ds) |> rewrap;
       | If1(ctx, d2, d3) =>
         let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
         If1(ctx, d2, d3) |> rewrap;
@@ -352,6 +358,7 @@ let get_justification: step_kind => string =
   | FixUnwrap => "unroll fixpoint"
   | UpdateTest => "update test"
   | FunAp => "apply function"
+  | DeferredAp => "deferred application"
   | BuiltinWrap => "wrap builtin"
   | BuiltinAp(s) => "evaluate " ++ s
   | UnOp(Int(Minus))
