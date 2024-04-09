@@ -13,6 +13,8 @@ type term =
   | FixF(Pat.t, t, option(ClosureEnvironment.t))
   | Ap1(Operators.ap_direction, t, DHExp.t)
   | Ap2(Operators.ap_direction, DHExp.t, t)
+  | DeferredAp1(t, list(DHExp.t))
+  | DeferredAp2(DHExp.t, t, (list(DHExp.t), list(DHExp.t)))
   | If1(t, DHExp.t, DHExp.t)
   | If2(DHExp.t, t, DHExp.t)
   | If3(DHExp.t, DHExp.t, t)
@@ -70,6 +72,12 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
       | Ap2(dir, d1, ctx) =>
         let d2 = compose(ctx, d);
         Ap(dir, d1, d2) |> wrap;
+      | DeferredAp1(ctx, d2s) =>
+        let d1 = compose(ctx, d);
+        DeferredAp(d1, d2s) |> wrap;
+      | DeferredAp2(d1, ctx, (ld, rd)) =>
+        let d2 = compose(ctx, d);
+        DeferredAp(d1, ListUtil.rev_concat(ld, [d2, ...rd])) |> wrap;
       | If1(ctx, d2, d3) =>
         let d' = compose(ctx, d);
         If(d', d2, d3) |> wrap;

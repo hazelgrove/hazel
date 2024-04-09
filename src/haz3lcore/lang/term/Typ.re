@@ -413,6 +413,15 @@ let matched_list = (ctx, ty) =>
   | _ => Unknown(Internal) |> fresh
   };
 
+let matched_args = (ctx, default_arity, ty) => {
+  let ty' = weak_head_normalize(ctx, ty);
+  switch (term_of(ty')) {
+  | Prod([_, ..._] as tys) => tys
+  | Unknown(_) => List.init(default_arity, _ => ty')
+  | _ => [ty']
+  };
+};
+
 let get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
   let ty = weak_head_normalize(ctx, ty);
   switch (term_of(ty)) {

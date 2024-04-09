@@ -66,6 +66,8 @@ let rec strip_casts =
         | TyAlias(_)
         | Fun(_)
         | Ap(_)
+        | Deferral(_)
+        | DeferredAp(_)
         | Test(_)
         | BuiltinFun(_)
         | UnOp(_)
@@ -101,6 +103,7 @@ let rec fast_equal =
   | (Bool(_), _)
   | (Int(_), _)
   | (Float(_), _)
+  | (Deferral(_), _)
   | (Constructor(_), _) => d1 == d2
   | (String(s1), String(s2)) => String.equal(s1, s2)
   | (String(_), _) => false
@@ -129,6 +132,10 @@ let rec fast_equal =
     && s1 == s2
   | (Ap(dir1, d11, d21), Ap(dir2, d12, d22)) =>
     dir1 == dir2 && fast_equal(d11, d12) && fast_equal(d21, d22)
+  | (DeferredAp(d1, ds1), DeferredAp(d2, ds2)) =>
+    fast_equal(d1, d2)
+    && List.length(ds1) == List.length(ds2)
+    && List.for_all2(fast_equal, ds1, ds2)
   | (Cons(d11, d21), Cons(d12, d22)) =>
     fast_equal(d11, d12) && fast_equal(d21, d22)
   | (ListConcat(d11, d21), ListConcat(d12, d22)) =>
@@ -180,6 +187,7 @@ let rec fast_equal =
   | (FailedCast(_), _)
   | (TyAlias(_), _)
   | (DynamicErrorHole(_), _)
+  | (DeferredAp(_), _)
   | (If(_), _)
   | (Match(_), _) => false
 

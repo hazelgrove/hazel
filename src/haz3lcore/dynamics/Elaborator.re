@@ -113,6 +113,9 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | Filter(_)
     | FailedCast(_)
     | DynamicErrorHole(_) => d
+    /* Forms that are currently desugared in elaboration */
+    | Deferral(_)
+    | DeferredAp(_) => d
     /* Normal cases: wrap */
     | Var(_)
     | BuiltinFun(_)
@@ -145,7 +148,7 @@ let wrap = (m, exp: Exp.t): DHExp.t => {
       };
     cast(ctx, mode, self_ty, exp);
   | InHole(
-      FreeVariable(_) | Common(NoType(_)) |
+      FreeVariable(_) | Common(NoType(_)) | UnusedDeferral | BadPartialAp(_) |
       Common(Inconsistent(Internal(_))),
     ) => exp
   | InHole(Common(Inconsistent(Expectation(_) | WithArrow(_)))) =>
@@ -204,7 +207,87 @@ let rec dexp_of_uexp = (m, uexp, ~in_filter) => {
         | If(_)
         | Fun(_)
         | FixF(_)
-        | Match(_) => continue(exp) |> wrap(m)
+        | Match(_)
+        | Deferral(_) => continue(exp) |> wrap(m)
+
+        /* DeferredAp - TODO: this is currently desugared, but it should ideally persist
+           through to evaluation. Changing `dexp_of_uexp` will be easy (add it to default cases),
+           but someone will need to work out what `cast` should do. */
+        | DeferredAp(fn, args) =>
+          let (mode, self, ctx, ancestors) =
+            switch (Id.Map.find_opt(Exp.rep_id(uexp), m)) {
+            | Some(Info.InfoExp({mode, self, ctx, ancestors, _})) => (
+                mode,
+                self,
+                ctx,
+                ancestors,
+              )
+            | _ => failwith("DeferredAp missing info")
+            };
+          let err_status = Info.status_exp(ctx, mode, self);
+          switch (err_status) {
+          | InHole(BadPartialAp(NoDeferredArgs)) =>
+            dexp_of_uexp(~in_filter, m, fn)
+          | InHole(BadPartialAp(ArityMismatch(_))) =>
+            DHExp.Invalid("<invalid partial ap>") |> DHExp.fresh
+          | _ =>
+            let mk_tuple = (ctor, xs) =>
+              List.length(xs) == 1 ? List.hd(xs) : ctor(xs);
+            let ty_fn = fixed_exp_typ(m, fn) |> Option.get;
+            let (ty_arg, ty_ret) = Typ.matched_arrow(ctx, ty_fn);
+            let ty_ins = Typ.matched_args(ctx, List.length(args), ty_arg);
+            /* Substitute all deferrals for new variables */
+            let (pats, ty_args, ap_args, ap_ctx) =
+              List.combine(args, ty_ins)
+              |> List.fold_left(
+                   ((pats, ty_args, ap_args, ap_ctx), (e: Exp.t, ty)) =>
+                     if (Exp.is_deferral(e)) {
+                       // Internal variable name for deferrals
+                       let name =
+                         "__deferred__" ++ string_of_int(List.length(pats));
+                       let var: Exp.t = {
+                         ids: e.ids,
+                         copied: false,
+                         term: Var(name),
+                       };
+                       let var_entry =
+                         Ctx.VarEntry({name, id: Exp.rep_id(e), typ: ty});
+                       (
+                         pats @ [Var(name) |> DHPat.fresh],
+                         ty_args @ [ty],
+                         ap_args @ [var],
+                         Ctx.extend(ap_ctx, var_entry),
+                       );
+                     } else {
+                       (pats, ty_args, ap_args @ [e], ap_ctx);
+                     },
+                   ([], [], [], ctx),
+                 );
+            let (pat, _) = (
+              mk_tuple(x => DHPat.Tuple(x) |> DHPat.fresh, pats),
+              mk_tuple(x => Typ.Prod(x) |> Typ.fresh, ty_args),
+            );
+            let arg: Exp.t = {
+              ids: [Id.mk()],
+              copied: false,
+              term: Tuple(ap_args),
+            };
+            let body: Exp.t = {
+              ids: [Id.mk()],
+              copied: false,
+              term: Ap(Forward, fn, arg),
+            };
+            let (_info, m) =
+              Statics.uexp_to_info_map(
+                ~ctx=ap_ctx,
+                ~mode=Ana(ty_ret),
+                ~ancestors,
+                body,
+                m,
+              );
+            let dbody = dexp_of_uexp(~in_filter, m, body);
+            Fun(pat, dbody, None, None) |> DHExp.fresh;
+          };
 
         // Unquote operator: should be turned into constructor if inside filter body.
         | UnOp(Meta(Unquote), e) =>

@@ -52,9 +52,9 @@ type step_kind =
   | FunClosure
   | FixUnwrap
   | FixClosure
-  | FixClosure
   | UpdateTest
   | FunAp
+  | DeferredAp
   | CastAp
   | BuiltinWrap
   | BuiltinAp(string)
@@ -160,7 +160,9 @@ module Transition = (EV: EV_MODE) => {
     let (let.) =
       switch (err_info) {
       | Some(
-          FreeVariable(_) | Common(NoType(_) | Inconsistent(Internal(_))),
+          FreeVariable(_) | Common(NoType(_) | Inconsistent(Internal(_))) |
+          UnusedDeferral |
+          BadPartialAp(_),
         ) => (
           (x, _) => {
             let. _ = x;
@@ -285,6 +287,21 @@ module Transition = (EV: EV_MODE) => {
         kind: UpdateTest,
         value: true,
       });
+    | DeferredAp(d1, ds) =>
+      let. _ = otherwise(env, (d1, ds) => DeferredAp(d1, ds) |> rewrap)
+      and. _ =
+        req_final(
+          req(state, env),
+          d1 => DeferredAp1(d1, ds) |> wrap_ctx,
+          d1,
+        )
+      and. _ =
+        req_all_final(
+          req(state, env),
+          (d2, ds) => DeferredAp2(d1, d2, ds) |> wrap_ctx,
+          ds,
+        );
+      Constructor;
     | Ap(dir, d1, d2) =>
       let. _ = otherwise(env, (d1, (d2, _)) => Ap(dir, d1, d2) |> rewrap)
       and. d1' =
@@ -337,6 +354,35 @@ module Transition = (EV: EV_MODE) => {
         } else {
           Indet;
         }
+      /* This case isn't currently used because deferrals are elaborated away */
+      | DeferredAp(d3, d4s) =>
+        let n_args =
+          List.length(
+            List.map(
+              fun
+              | {term: Deferral(_), _} => true
+              | _ => false: Exp.t => bool,
+              d4s,
+            ),
+          );
+        let-unbox args = (Tuple(n_args), d2);
+        let new_args = {
+          let rec go = (deferred, args) =>
+            switch ((deferred: list(Exp.t))) {
+            | [] => []
+            | [{term: Deferral(_), _}, ...deferred] =>
+              /* I can use List.hd and List.tl here because let-unbox ensure that
+                 there are the correct number of args */
+              [List.hd(args), ...go(deferred, List.tl(args))]
+            | [x, ...deferred] => [x, ...go(deferred, args)]
+            };
+          go(d4s, args);
+        };
+        Step({
+          apply: () => Ap(Forward, d3, Tuple(new_args) |> fresh) |> fresh,
+          kind: DeferredAp,
+          value: false,
+        });
       | _ =>
         Step({
           apply: () => {
@@ -346,6 +392,9 @@ module Transition = (EV: EV_MODE) => {
           value: true,
         })
       };
+    | Deferral(_) =>
+      let. _ = otherwise(env, d);
+      Indet;
     | Bool(_)
     | Int(_)
     | Float(_)
@@ -694,6 +743,7 @@ let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
   | Seq
   | UpdateTest
   | FunAp
+  | DeferredAp
   | BuiltinAp(_)
   | BinBoolOp(_)
   | BinIntOp(_)

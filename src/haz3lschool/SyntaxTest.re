@@ -112,12 +112,11 @@ let rec find_fn =
 /*
  Finds whether variable name is ever mentioned in upat.
  */
-let rec var_mention_upat = (name: string, upat: Term.UPat.t): bool => {
+let rec var_mention_upat = (name: string, upat: Pat.t): bool => {
   switch (upat.term) {
   | Var(x) => x == name
   | EmptyHole
   | Wild
-  | Triv
   | Invalid(_)
   | MultiHole(_)
   | Int(_)
@@ -144,11 +143,10 @@ let rec var_mention_upat = (name: string, upat: Term.UPat.t): bool => {
 /*
  Finds whether variable name is ever mentioned in uexp.
  */
-let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
+let rec var_mention = (name: string, uexp: Exp.t): bool => {
   switch (uexp.term) {
   | Var(x) => x == name
   | EmptyHole
-  | Triv
   | Invalid(_)
   | MultiHole(_)
   | Bool(_)
@@ -157,7 +155,7 @@ let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
   | String(_)
   | Constructor(_)
   | Deferral(_) => false
-  | Fun(args, body) =>
+  | Fun(args, body, _, _) =>
     var_mention_upat(name, args) ? false : var_mention(name, body)
   | ListLit(l)
   | Tuple(l) =>
@@ -169,9 +167,16 @@ let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
   | Parens(u)
   | UnOp(_, u)
   | TyAlias(_, _, u)
-  | Filter(_, _, u) => var_mention(name, u)
-  | Ap(u1, u2)
-  | Pipeline(u1, u2)
+  | Filter(_, u) => var_mention(name, u)
+  | StaticErrorHole(_, u) => var_mention(name, u)
+  | DynamicErrorHole(u, _) => var_mention(name, u)
+  | FailedCast(u, _, _) => var_mention(name, u)
+  | FixF(args, body, _) =>
+    var_mention_upat(name, args) ? false : var_mention(name, body)
+  | Closure(_, u) => var_mention(name, u)
+  | BuiltinFun(_) => false
+  | Cast(d, _, _) => var_mention(name, d)
+  | Ap(_, u1, u2)
   | Seq(u1, u2)
   | Cons(u1, u2)
   | ListConcat(u1, u2)
@@ -197,11 +202,10 @@ let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
  Finds whether variable name is applied on another expresssion.
  i.e. Ap(Var(name), u) occurs anywhere in the uexp.
  */
-let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
+let rec var_applied = (name: string, uexp: Exp.t): bool => {
   switch (uexp.term) {
   | Var(_)
   | EmptyHole
-  | Triv
   | Invalid(_)
   | MultiHole(_)
   | Bool(_)
@@ -210,7 +214,8 @@ let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
   | String(_)
   | Constructor(_)
   | Deferral(_) => false
-  | Fun(args, body) =>
+  | Fun(args, body, _, _)
+  | FixF(args, body, _) =>
     var_mention_upat(name, args) ? false : var_applied(name, body)
   | ListLit(l)
   | Tuple(l) =>
@@ -222,8 +227,15 @@ let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
   | Parens(u)
   | UnOp(_, u)
   | TyAlias(_, _, u)
-  | Filter(_, _, u) => var_applied(name, u)
-  | Ap(u1, u2) =>
+  | Filter(_, u) => var_applied(name, u)
+  | StaticErrorHole(_) => false
+  | DynamicErrorHole(_) => false
+  | FailedCast(_) => false
+  // This case shouldn't come up!
+  | Closure(_) => false
+  | BuiltinFun(_) => false
+  | Cast(d, _, _) => var_applied(name, d)
+  | Ap(_, u1, u2) =>
     switch (u1.term) {
     | Var(x) => x == name ? true : var_applied(name, u2)
     | _ => var_applied(name, u1) || var_applied(name, u2)
@@ -232,11 +244,6 @@ let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
     switch (u1.term) {
     | Var(x) => x == name ? true : List.exists(var_applied(name), us)
     | _ => List.exists(var_applied(name), us)
-    }
-  | Pipeline(u1, u2) =>
-    switch (u2.term) {
-    | Var(x) => x == name ? true : var_applied(name, u1)
-    | _ => var_applied(name, u1) || var_applied(name, u2)
     }
   | Cons(u1, u2)
   | Seq(u1, u2)
@@ -260,7 +267,7 @@ let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
 /*
  Check whether all functions bound to variable name are recursive.
  */
-let is_recursive = (name: string, uexp: Term.UExp.t): bool => {
+let is_recursive = (name: string, uexp: Exp.t): bool => {
   let fn_bodies = [] |> find_fn(name, uexp);
   if (List.length(fn_bodies) == 0) {
     false;
@@ -278,7 +285,7 @@ let is_recursive = (name: string, uexp: Term.UExp.t): bool => {
  a tail position in uexp. Note that if the variable is not
  mentioned anywhere in the expression, the function returns true.
  */
-let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
+let rec tail_check = (name: string, uexp: Exp.t): bool => {
   switch (uexp.term) {
   | EmptyHole
   | Deferral(_)
@@ -313,11 +320,7 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   | UnOp(_, u) => !var_mention(name, u)
   | Ap(_, u1, u2) => var_mention(name, u2) ? false : tail_check(name, u1)
   | DeferredAp(fn, args) =>
-    tail_check(
-      name,
-      {ids: [], term: Ap(fn, {ids: [], term: Tuple(args)})},
-    )
-  | Pipeline(u1, u2) => var_mention(name, u1) ? false : tail_check(name, u2)
+    tail_check(name, Ap(Forward, fn, Tuple(args) |> Exp.fresh) |> Exp.fresh)
   | Seq(u1, u2) => var_mention(name, u1) ? false : tail_check(name, u2)
   | Cons(u1, u2)
   | ListConcat(u1, u2)
