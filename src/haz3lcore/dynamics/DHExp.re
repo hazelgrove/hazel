@@ -14,16 +14,6 @@ let mk = (ids, term): t => {
   {ids, copied: true, term};
 };
 
-let fresh_cast = (d: t, t1: Typ.t, t2: Typ.t): t =>
-  if (Typ.eq(t1, t2) || Typ.term_of(t2) == Unknown(SynSwitch)) {
-    d;
-  } else {
-    fresh(Cast(d, t1, t2));
-  };
-
-let apply_casts = (d: t, casts: list((Typ.t, Typ.t))): t =>
-  List.fold_left((d, (ty1, ty2)) => fresh_cast(d, ty1, ty2), d, casts);
-
 // TODO: make this function emit a map of changes
 let replace_all_ids =
   map_term(
