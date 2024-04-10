@@ -1641,6 +1641,23 @@ let get_doc =
             ),
           TestExp.tests,
         );
+      // TODO(nishant): add explanation for Theorem(body) here in the style of Test above
+      | Theorem(body) =>
+        let body_id = List.nth(body.ids, 0);
+        get_message(
+          // TODO: add coloring for theorem
+          ~colorings=TestExp.test_exp_coloring_ids(~body_id),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s"),
+                  Id.to_string(body_id),
+                ),
+            ),
+          // TODO change below to Theorem equivalent
+          TestExp.tests,
+        );
       | Parens(term) => get_message_exp(term.term) // No Special message?
       | Cons(hd, tl) =>
         let hd_id = List.nth(hd.ids, 0);

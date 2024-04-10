@@ -103,6 +103,7 @@ let keywords = [
   "type",
   "case",
   "test",
+  "theorem",
   "if",
   "then",
   "else",
@@ -300,6 +301,7 @@ let forms: list((string, t)) = [
   ("ap_typ", mk(ii, ["(", ")"], mk_post(P.ap, Typ, [Typ]))),
   ("case", mk(ds, ["case", "end"], mk_op(Exp, [Rul]))),
   ("test", mk(ds, ["test", "end"], mk_op(Exp, [Exp]))),
+  ("theorem", mk(ds, ["theorem", "end"], mk_op(Exp, [Exp]))),
   ("fun_", mk(ds, ["fun", "->"], mk_pre(P.fun_, Exp, [Pat]))),
   (
     "rule",
@@ -328,6 +330,7 @@ let delims: list(Token.t) =
   |> List.fold_left((acc, (_, {label, _}: t)) => {label @ acc}, [])
   |> List.sort_uniq(compare);
 
+// TODO(nishant): do I need to handle theorem here too?
 let atomic_molds: Token.t => list(Mold.t) =
   s =>
     List.fold_left(

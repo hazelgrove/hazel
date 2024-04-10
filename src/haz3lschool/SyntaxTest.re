@@ -51,6 +51,7 @@ let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
     find_var_upat(name, p)
       ? false : var_mention(name, def) || var_mention(name, body)
   | Test(u)
+  | Theorem(u)
   | Parens(u)
   | UnOp(_, u)
   | TyAlias(_, _, u)
@@ -97,6 +98,7 @@ let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
     find_var_upat(name, p)
       ? false : var_applied(name, def) || var_applied(name, body)
   | Test(u)
+  | Theorem(u)
   | Parens(u)
   | UnOp(_, u)
   | TyAlias(_, _, u)
@@ -189,6 +191,7 @@ let rec find_fn =
   | UnOp(_, u1)
   | TyAlias(_, _, u1)
   | Test(u1)
+  | Theorem(u1)
   | Filter(_, _, u1) => l |> find_fn(name, u1)
   | Ap(u1, u2)
   | Pipeline(u1, u2)
@@ -252,6 +255,7 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
     //If l has no recursive calls then true
     !List.fold_left((acc, ue) => {acc || var_mention(name, ue)}, false, l)
   | Test(_) => false
+  | Theorem(_) => false
   | TyAlias(_, _, u)
   | Filter(_, _, u)
   | Parens(u) => tail_check(name, u)

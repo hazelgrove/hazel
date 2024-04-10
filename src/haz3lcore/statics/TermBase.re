@@ -122,6 +122,7 @@ and UExp: {
     | If
     | Seq
     | Test
+    | Theorem
     | Filter
     | Parens
     | Cons
@@ -152,6 +153,7 @@ and UExp: {
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
+    | Theorem(t)
     | Filter(FilterAction.t, t, t)
     | Parens(t) // (
     | Cons(t, t)
@@ -253,6 +255,7 @@ and UExp: {
     | If
     | Seq
     | Test
+    | Theorem
     | Filter
     | Parens
     | Cons
@@ -283,6 +286,7 @@ and UExp: {
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
+    | Theorem(t)
     | Filter(FilterAction.t, t, t)
     | Parens(t) // (
     | Cons(t, t)
