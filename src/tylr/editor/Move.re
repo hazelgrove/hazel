@@ -1,3 +1,5 @@
+open Util;
+
 let move = (d: Dir.t, z: Zipper.t): option(Zipper.t) => {
   open OptUtil.Syntax;
   let b = Dir.toggle(d);
@@ -32,11 +34,16 @@ let rec move_n = (n: int, z: Zipper.t): Zipper.t => {
   };
 };
 
-let map_pos = (f: Measured.Pos.t => Measured.Pos.t, z: Zipper.t) => {
-  let (c, path) = Zipper.zip(z);
-  let pos = Measured.pos_of_path(path, c);
-  let path = Measured.path_of_pos(f(pos));
-  Zipper.unzip(Cell.put_cursor(path, c));
+let map_pos = (f: Layout.Pos.t => Layout.Pos.t, z: Zipper.t) => {
+  let c = Zipper.zip(z);
+  c.marks.cursor
+  |> Option.map(path => {
+       let pos = Layout.pos_of_path(path, c);
+       let path = Layout.path_of_pos(f(pos));
+       Zipper.unzip(Cell.put_cursor(path, c));
+     })
+  // shouldn't actually hit this case, just to type-check
+  |> Option.value(~default=z);
 };
 
 let go = (a: Action.Move.t, z: Zipper.t) =>

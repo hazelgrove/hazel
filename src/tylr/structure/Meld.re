@@ -34,6 +34,8 @@ type t =
 
 let mk = (~l=Cell.empty, ~r=Cell.empty, w) => M(l, w, r);
 
+let length = (M(_, W(w), _): t) => Chain.length(w);
+
 let is_empty =
   fun
   | M({meld: None, _}, W(([tok], [])), {meld: None, _}) =>
