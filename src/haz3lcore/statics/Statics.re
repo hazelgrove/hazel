@@ -636,3 +636,32 @@ let collect_errors = (map: Map.t): list((Id.t, Info.error)) =>
     map,
     [],
   );
+
+/*
+ * Check whether a particular let binding is an annotated function under the new syntax.
+ * It is parsed as a constructor syntax.
+ * I am not sure what is the top-level pattern; the only thing similar seems to be UPat.Ap.
+ */
+let check_annotated_function =
+    (pat: UPat.t): option((Var.t, UPat.t, UTyp.t)) =>
+  switch (pat) {
+  | TypeAnn(Ap(Constructor(name), Tuple(params)), ret_type) =>
+    // Check whether all arguments are parameters with annotations
+    let params_format =
+      fold_left(
+        (item, (correct, lst_var, lst_typ)) =>
+          switch (item) {
+          | TypeAnn(Var(var_name), t) => (
+              correct,
+              [Var(var_name), ...lst_var],
+              [t, ...lst_typ],
+            )
+          | _ => (false, [], []) // It is not of correct format, so the other items have no use
+          },
+        params,
+        (true, [], []),
+      );
+    // To be cotinued
+    None;
+  | _ => None
+  } /* let check_annotated_function : UPat.t -> option(Var.t, UPat.t, UTyp.t*/;
