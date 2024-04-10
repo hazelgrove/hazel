@@ -124,6 +124,44 @@ let join =
   };
 };
 
+// See Elaborator.get_cast - this function removes synswitches from casts.
+let get_cast =
+    (
+      eq: ('a, 'a) => bool,
+      get_cast: ('a, 'a) => option(('a, 'a)),
+      m1: t('a),
+      m2: t('a),
+    )
+    : option((t('a), t('a))) => {
+  let (inter, left, right) = venn_regions(same_constructor(eq), m1, m2);
+  let inter' =
+    List.map(
+      fun
+      | (Variant(ctr, ids, Some(value1)), Variant(_, _, Some(value2))) =>
+        switch (get_cast(value1, value2)) {
+        | Some((v1, v2)) =>
+          Some((Variant(ctr, ids, Some(v1)), Variant(ctr, ids, Some(v2))))
+        | None => None
+        }
+      // In this case they must be eq
+      | _ => None,
+      inter,
+    );
+  switch (left, right) {
+  | ([], []) when List.for_all(Option.is_none, inter') => None
+  | _ =>
+    Some((
+      m1,
+      List.map2(
+        (v, (x, _)) => Option.value(~default=(x, x), v) |> snd,
+        inter',
+        inter,
+      )
+      @ right,
+    ))
+  };
+};
+
 let equal = (eq: ('a, 'a) => bool, m1: t('a), m2: t('a)) => {
   switch (venn_regions(same_constructor(eq), m1, m2)) {
   | (inter, [], []) =>

@@ -4,6 +4,9 @@
  A nice property would be that elaboration is idempotent...
  */
 
+open Util;
+open OptUtil.Syntax;
+
 exception MissingTypeInfo;
 
 module Elaboration = {
@@ -33,8 +36,83 @@ let fixed_pat_typ = (m: Statics.Map.t, p: UPat.t): option(Typ.t) =>
   | _ => None
   };
 
-/* Adds casts if required.
+/* This function gets rid of casts that do nothing, and casts to a
+   type with a SynSwitch. */
+let rec get_cast = (t1: Typ.t, t2: Typ.t): option((Typ.t, Typ.t)) => {
+  switch (Typ.term_of(t1), Typ.term_of(t2)) {
+  // SynSwitch should only appear on right.
+  | (_, Unknown(SynSwitch))
+  | (Unknown(SynSwitch), _) => None
+  | (Parens(t1), _) => get_cast(t1, t2)
+  | (_, Parens(t2)) => get_cast(t1, t2)
 
+  | (Int, Int)
+  | (Bool, Bool)
+  | (Float, Float)
+  | (String, String)
+  | (Unknown(_) | Ap(_), Unknown(_) | Ap(_)) => None
+  | (Var(x), Var(y)) when x == y => None
+
+  | (List(t1), List(t2)) =>
+    let+ (t1', t2') = get_cast(t1, t2);
+    (List(t1') |> Typ.fresh, List(t2') |> Typ.fresh);
+  | (Arrow(t1, t2), Arrow(t3, t4)) =>
+    let cast1 = get_cast(t1, t3);
+    let cast2 = get_cast(t2, t4);
+    switch (cast1, cast2) {
+    | (None, None) => None
+    | _ =>
+      let (t1', t2') = cast1 |> Option.value(~default=(t1, t1));
+      let (t3', t4') = cast2 |> Option.value(~default=(t2, t2));
+      Some((Arrow(t1', t2') |> Typ.fresh, Arrow(t3', t4') |> Typ.fresh));
+    };
+  | (Prod(ts1), Prod(ts2)) =>
+    let casts = List.map2(get_cast, ts1, ts2);
+    if (List.for_all(Option.is_none, casts)) {
+      None;
+    } else {
+      let casts =
+        List.map2(
+          (cst, dft) => Option.value(~default=(dft, dft), cst),
+          casts,
+          ts1,
+        );
+      Some((
+        Prod(casts |> List.map(fst)) |> Typ.fresh,
+        Prod(casts |> List.map(snd)) |> Typ.fresh,
+      ));
+    };
+  | (Sum(m1), Sum(m2)) =>
+    let+ (m1', m2') = ConstructorMap.get_cast(Typ.eq, get_cast, m1, m2);
+    (Sum(m1') |> Typ.fresh, Sum(m2') |> Typ.fresh);
+  | (Rec({term: Var(x1), _}, t1), Rec({term: Var(x2), _}, t2))
+      when x1 == x2 =>
+    get_cast(t1, t2)
+  | (Rec({term: Var(x1), _}, t1), Rec({term: Var(x2), _}, t2)) =>
+    get_cast(t1, Typ.subst(Typ.fresh(Var(x1)), x2, t2))
+
+  | (Int, _)
+  | (Bool, _)
+  | (Float, _)
+  | (String, _)
+  | (Unknown(_) | Ap(_), _)
+  | (List(_), _)
+  | (Arrow(_), _)
+  | (Prod(_), _)
+  | (Sum(_), _)
+  | (Var(_), _)
+  | (Rec(_), _) => Some((t1, t2))
+  };
+};
+
+let fresh_cast = (d: DHExp.t, t1: Typ.t, t2: Typ.t): DHExp.t => {
+  switch (get_cast(t1, t2)) {
+  | Some((t1', t2')) => DHExp.Cast(d, t1', t2') |> DHExp.fresh
+  | None => d
+  };
+};
+
+/* Adds casts if required.
    When adding a new construct, [TODO: write something helpful here] */
 let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
   switch (mode) {
@@ -42,7 +120,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
   | SynFun =>
     switch (Typ.term_of(self_ty)) {
     | Unknown(_) =>
-      DHExp.fresh_cast(d, self_ty, Arrow(self_ty, self_ty) |> Typ.fresh)
+      fresh_cast(d, self_ty, Arrow(self_ty, self_ty) |> Typ.fresh)
     | Arrow(_) => d
     | _ => failwith("Elaborator.wrap: SynFun non-arrow-type")
     }
@@ -54,26 +132,26 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | ListConcat(_)
     | Cons(_) =>
       switch (Typ.term_of(ana_ty)) {
-      | Unknown(_) => DHExp.fresh_cast(d, List(ana_ty) |> Typ.fresh, ana_ty)
+      | Unknown(_) => fresh_cast(d, List(ana_ty) |> Typ.fresh, ana_ty)
       | _ => d
       }
     | Fun(_) =>
       /* See regression tests in Documentation/Dynamics */
       let (_, ana_out) = Typ.matched_arrow(ctx, ana_ty);
       let (self_in, _) = Typ.matched_arrow(ctx, self_ty);
-      DHExp.fresh_cast(d, Arrow(self_in, ana_out) |> Typ.fresh, ana_ty);
+      fresh_cast(d, Arrow(self_in, ana_out) |> Typ.fresh, ana_ty);
     | Tuple(ds) =>
       switch (Typ.term_of(ana_ty)) {
       | Unknown(prov) =>
         let us =
           List.init(List.length(ds), _ => Typ.Unknown(prov) |> Typ.fresh);
-        DHExp.fresh_cast(d, Prod(us) |> Typ.fresh, ana_ty);
+        fresh_cast(d, Prod(us) |> Typ.fresh, ana_ty);
       | _ => d
       }
     | Constructor(_) =>
       switch (ana_ty |> Typ.term_of, self_ty |> Typ.term_of) {
       | (Unknown(_), Rec(_, {term: Sum(_), _}))
-      | (Unknown(_), Sum(_)) => DHExp.fresh_cast(d, self_ty, ana_ty)
+      | (Unknown(_), Sum(_)) => fresh_cast(d, self_ty, ana_ty)
       | _ => d
       }
     | Ap(_, f, _) =>
@@ -81,7 +159,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
       | Constructor(_) =>
         switch (ana_ty |> Typ.term_of, self_ty |> Typ.term_of) {
         | (Unknown(_), Rec(_, {term: Sum(_), _}))
-        | (Unknown(_), Sum(_)) => DHExp.fresh_cast(d, self_ty, ana_ty)
+        | (Unknown(_), Sum(_)) => fresh_cast(d, self_ty, ana_ty)
         | _ => d
         }
       | StaticErrorHole(_, g) =>
@@ -89,12 +167,12 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
         | Constructor(_) =>
           switch (ana_ty |> Typ.term_of, self_ty |> Typ.term_of) {
           | (Unknown(_), Rec(_, {term: Sum(_), _}))
-          | (Unknown(_), Sum(_)) => DHExp.fresh_cast(d, self_ty, ana_ty)
+          | (Unknown(_), Sum(_)) => fresh_cast(d, self_ty, ana_ty)
           | _ => d
           }
-        | _ => DHExp.fresh_cast(d, self_ty, ana_ty)
+        | _ => fresh_cast(d, self_ty, ana_ty)
         }
-      | _ => DHExp.fresh_cast(d, self_ty, ana_ty)
+      | _ => fresh_cast(d, self_ty, ana_ty)
       }
     /* Forms with special ana rules but no particular typing requirements */
     | Match(_)
@@ -127,7 +205,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | UnOp(_)
     | BinOp(_)
     | TyAlias(_)
-    | Test(_) => DHExp.fresh_cast(d, self_ty, ana_ty)
+    | Test(_) => fresh_cast(d, self_ty, ana_ty)
     };
   };
 
