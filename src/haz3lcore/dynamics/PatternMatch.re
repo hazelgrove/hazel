@@ -57,18 +57,14 @@ let rec matches = (m: Statics.Map.t, dp: Pat.t, d: DHExp.t): match_result =>
   | Parens(p) => matches(m, p, d)
   | TypeAnn(p, t) =>
     let _ = print_endline("TypeAnn");
-    let mode =
+    let ty =
       switch (Id.Map.find_opt(Pat.rep_id(p), m)) {
-      | Some(Info.InfoPat({mode, _})) => mode
+      | Some(Info.InfoPat({ty, _})) => ty
       | _ => raise(Elaborator.MissingTypeInfo)
       };
-    switch (mode) {
-    | Ana(ana_ty) when !Typ.eq(ana_ty, t) =>
-      let _ = Typ.show(ana_ty) |> print_endline;
-      let _ = Typ.show(t) |> print_endline;
-      matches(m, p, Cast(d, ana_ty, t) |> DHExp.fresh);
-    | Ana(_)
-    | Syn
-    | SynFun => matches(m, p, d)
+    if (Typ.eq(ty, t)) {
+      matches(m, p, d);
+    } else {
+      matches(m, p, Cast(d, t, ty) |> DHExp.fresh |> Unboxing.fixup_cast);
     };
   };

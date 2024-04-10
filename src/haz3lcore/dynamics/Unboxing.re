@@ -49,6 +49,11 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
   (request, expr) => {
     let _ = print_endline(DHExp.show(expr));
     switch (request, DHExp.term_of(expr)) {
+    /* Remove parentheses from casts */
+    | (_, Cast(d, {term: Parens(x), _}, y))
+    | (_, Cast(d, x, {term: Parens(y), _})) =>
+      unbox(request, Cast(d, x, y) |> DHExp.fresh)
+
     /* Base types are always already unboxed because of the ITCastID rule*/
     | (Bool, Bool(b)) => Matches(b)
     | (Int, Int(i)) => Matches(i)
