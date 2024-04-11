@@ -28,44 +28,38 @@ module Pos = {
   let leq = (l, r) => compare(l, r) <= 0;
 };
 
-module Indented = {
-  // indentation of...
+module Indent_ctx = {
   type t = {
-    // ...current row
-    curr: Col.t,
-    // ...next row
-    next: Col.t,
-    // ...next row whose first token delimits end of current cell
-    end_: Col.t,
+    // indentation of cell contents (if laid out vertically)
+    body: Col.t,
+    // indentation to return to at end of cell
+    return: Col.t,
   };
-  let mk = (~curr=0, ~next=curr, ~end_=curr, ()) => {curr, next, end_};
-  let init = mk();
-
-  let isize = 2;
-
-  let indent_next = ind => {...ind, next: ind.curr + isize};
+  // let mk = (~curr=0, ~next=curr, ~end_=curr, ()) => {curr, next, end_};
+  let init = col => {body: col, return: col};
+  // let isize = 2;
+  // let indent_next = ind => {...ind, next: ind.curr + isize};
 };
 
 module Traversed = {
   type t = {
     pos: Pos.t,
-    ind: Indented.t,
+    ind: Col.t,
   };
 
-  let init = {pos: Pos.zero, ind: Indented.init};
+  let init = {pos: Pos.zero, ind: 0};
 
   // let add = (~return: Col.t, p: t, dims: Dims.t) => {
   //   row: p.row + dims.height,
   //   col: (dims.height > 0 ? return : p.col) + dims.width,
   // };
 
-  let add = (~null, {pos, ind}: t, dims: Dims.t) =>
+  let add = (~return: Col.t, {pos, ind}: t, dims: Dims.t) =>
     if (dims.height <= 0) {
       let pos = {...pos, col: pos.col + dims.width};
       {ind, pos};
     } else {
-      let return = fst(null) || dims.width > 0 ? ind.next : ind.end_;
-      let ind = {...ind, curr: return};
+      let ind = return;
       let pos = Pos.{row: pos.row + dims.height, col: return + dims.width};
       {ind, pos};
     };
@@ -76,50 +70,82 @@ module Traversed = {
 let path_of_pos = (target: Pos.t, c: Cell.t): Path.Point.t => {
   open Result.Syntax;
   let rec go_cell =
-          (~null=(true, true), ~trav=Traversed.init, cell: Cell.t)
+          (~ctx: Indent_ctx.t, ~trav: Traversed.t, cell: Cell.t)
           : Result.t(Path.Point.t, Traversed.t) => {
-    let trav' = Traversed.add(~null, trav, Dims.of_cell(cell));
-    if (Pos.lt(trav'.pos, target)) {
-      Error(trav');
-    } else if (Pos.eq(trav'.pos, target)) {
+    let c_end = Traversed.add(~return=ctx.return, trav, Dims.of_cell(cell));
+    if (Pos.lt(c_end.pos, target)) {
+      Error(c_end);
+    } else if (Pos.eq(c_end.pos, target)) {
       Ok(Path.Point.mk(End(R)));
     } else {
       switch (Cell.get(cell)) {
       | None => Ok(Path.Point.here)
-      | Some(m) => go_meld(~null, ~trav, m)
+      | Some(m) => go_meld(~ctx, ~trav, m)
       };
     };
   }
   and go_meld =
-      (~null, ~trav, m: Meld.t): Result.t(Path.Point.t, Traversed.t) => {
+      (~ctx: Indent_ctx.t, ~trav: Traversed.t, m: Meld.t)
+      : Result.t(Path.Point.t, Traversed.t) => {
     Meld.to_chain(m)
     |> Chain.mapi_loop((step, cell) => (step, cell))
     |> Chain.fold_left(
          ((step, cell)) => {
-           go_cell(~null=(true, false), ~trav, cell)
-           |> Result.map(~f=Path.Point.cons(step))
+           let ctx = {...ctx, return: ctx.body};
+           go_cell(~ctx, ~trav, cell)
+           |> Result.map(~f=Path.Point.cons(step));
          },
-         (went, tok, (step, cell)) => {
-           let/ trav = went;
+         (found, tok, (step, cell)) => {
+           let/ trav = found;
            let/ trav =
-             go_tok(~null, ~trav, tok)
+             go_tok(~ctx, ~trav, tok)
              |> Result.map(~f=i => Path.Point.mk(Tok(step - 1, i)));
-           go_cell(~null=(false, step == Meld.length(m)), ~trav, cell)
+           let ctx =
+             Indent_ctx.{
+               body: trav.ind + (Token.indent(tok) ? 2 : 0),
+               return: step == Meld.length(m) ? ctx.return : trav.ind,
+             };
+           go_cell(~ctx, ~trav, cell)
            |> Result.map(~f=Path.Point.cons(step));
          },
        );
   }
   and go_tok =
-      (~null, ~trav: Traversed.t, tok: Token.t): Result.t(int, Traversed.t) => {
-    let dims = Dims.of_tok(tok);
-    let trav = Traversed.add(~null, trav, dims);
-    Pos.lt(trav.pos, target) ? Error(trav) : Ok(target.col - trav.pos.col);
+      (~ctx: Indent_ctx.t, ~trav: Traversed.t, tok: Token.t)
+      : Result.t(int, Traversed.t) => {
+    let t_end = Traversed.add(~return=ctx.return, trav, Dims.of_tok(tok));
+    if (Pos.lt(t_end.pos, target)) {
+      Error(t_end);
+    } else {
+      let rows = String.split_on_char('\n', tok.text);
+      let n = List.length(rows);
+      // num_chars: from start of token
+      // origin: start column of row
+      // len: length of row
+      let (num_chars, origin, len) =
+        rows
+        |> List.fold_left_map(
+             (num_chars, row) => {
+               let len = Utf8.length(row);
+               (num_chars + len, (num_chars, len));
+             },
+             0,
+           )
+        |> snd
+        |> List.mapi((i, (num_chars, len)) => {
+             let origin =
+               i == 0 ? trav.pos.col : i < n - 1 ? ctx.body : ctx.return;
+             (i, (num_chars, origin, len));
+           })
+        |> List.assoc(target.row - trav.pos.row);
+      Ok(num_chars + min(max(0, target.col - origin), len));
+    };
   };
 
   if (Pos.leq(target, Pos.zero)) {
     Path.Point.mk(End(L));
   } else {
-    switch (go_cell(c)) {
+    switch (go_cell(~ctx=Indent_ctx.init(0), ~trav=Traversed.init, c)) {
     | Ok(path) => path
     | Error(_) => Path.Point.mk(End(R))
     };
