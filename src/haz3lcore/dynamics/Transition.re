@@ -96,6 +96,20 @@ module CastHelpers = {
     NotGroundOrHole(Sum(sm'));
   };
   let grounded_List = NotGroundOrHole(List(Unknown(Internal)));
+  let grounded_Module = (ctx: Ctx.t) =>
+    NotGroundOrHole(
+      Typ.Module(
+        List.map(
+          fun
+          | Ctx.VarEntry(var_entry) =>
+            Ctx.VarEntry({...var_entry, typ: Unknown(Internal)})
+          | Ctx.ConstructorEntry(var_entry) =>
+            Ctx.ConstructorEntry({...var_entry, typ: Unknown(Internal)})
+          | Ctx.TVarEntry(tvar_entry) => Ctx.TVarEntry(tvar_entry),
+          ctx,
+        ),
+      ),
+    );
 
   let rec ground_cases_of = (ty: Typ.t): ground_cases => {
     let is_ground_arg: option(Typ.t) => bool =
@@ -109,7 +123,6 @@ module CastHelpers = {
     | Int
     | Float
     | String
-    | Module(_)
     | Var(_)
     | Rec(_)
     | Arrow(Unknown(_), Unknown(_))
@@ -124,6 +137,12 @@ module CastHelpers = {
         Ground;
       } else {
         tys |> List.length |> grounded_Prod;
+      }
+    | Module(ctx) =>
+      if (ctx == []) {
+        Ground;
+      } else {
+        NotGroundOrHole(Typ.Module([]));
       }
     | Sum(sm) =>
       sm |> ConstructorMap.is_ground(is_ground_arg)
@@ -261,15 +280,31 @@ module Transition = (EV: EV_MODE) => {
       });
     | Dot(d1, d2) =>
       let. _ = otherwise(env, d1 => Dot(d1, d2))
-      and. d1' = req_final(req(state, env), d1 => Dot1(d1, d2), d1);
-      switch (d1') {
-      | ModuleVal(inner_env, _) =>
+      and. d1' = req_value(req(state, env), d1 => Dot1(d1, d2), d1);
+      switch (d1', d2) {
+      | (ModuleVal(inner_env, _), _) =>
         Step({
           apply: () => Closure(inner_env, d2),
           kind: DotAccess,
           value: false,
         })
-
+      | (Cast(d3', Module(ctx), Module(ctx')), BoundVar(name))
+      | (Cast(d3', Module(ctx), Module(ctx')), Constructor(name)) =>
+        let ty =
+          switch (Ctx.lookup_var(ctx, name)) {
+          | None => Typ.Unknown(Internal)
+          | Some(var) => var.typ
+          };
+        let ty' =
+          switch (Ctx.lookup_var(ctx', name)) {
+          | None => Typ.Unknown(Internal)
+          | Some(var) => var.typ
+          };
+        Step({
+          apply: () => Cast(Dot(d3', d2), ty, ty'),
+          kind: CastAp,
+          value: false,
+        });
       | _ => Indet
       };
     | Fun(_, _, Closure(_), _) =>

@@ -385,15 +385,15 @@ and uexp_to_info_map =
       go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~mode=Syn, p, m);
     let def_ctx = extend_let_def_ctx(ctx, p, p_syn.ctx, def);
 
-    let (def1, m1) = go(~mode=Syn, def, m);
-    let (inner_ctx, def, m) =
+    let (def1, m) = go(~mode=Ana(p_syn.ty), def, m);
+    let (inner_ctx, def, _) =
       switch (def1.ty) {
       /* if get module type, apply alias.*/
-      | Module(module_ctx) => (module_ctx, def1, m1)
+      | Module(module_ctx) => (module_ctx, def1, m)
       | _ => go_module(~ctx=def_ctx, ~mode=Mode.Ana(p_syn.ty), def, m, [])
       };
     /* Analyze pattern to incorporate def type into ctx */
-    let (p_ana, m) =
+    let (p_ana, _) =
       go_pat(
         ~is_synswitch=false,
         ~co_ctx=CoCtx.empty,
@@ -618,8 +618,7 @@ and upat_to_info_map =
   | Constructor(ctr) =>
     if (Mode.is_module_ana(mode, ctx)) {
       let ctx_typ =
-        Info.fixed_typ_pat(ctx, mode, Common(Just(Unknown(Internal))))
-        |> Typ.normalize(ctx);
+        Info.fixed_typ_pat(ctx, mode, Common(Just(Unknown(Internal))));
       /* Change type var to be type member of module. */
       let ctx_typ = Ctx.modulize(ctx_typ, ctr);
       /** If module has a type member with same name,

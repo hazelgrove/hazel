@@ -37,7 +37,10 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (ExpandingKeyword(_), _) => DoesNotMatch
   | (InvalidText(_), _) => IndetMatch
   | (Var(_), ModuleVal(_)) => DoesNotMatch
-  | (Constructor(x), ModuleVal(_)) =>
+  | (Constructor(x), ModuleVal(_))
+  | (Constructor(x), Cast(_, Module(_), Module(_)))
+  | (Constructor(x), Cast(_, Module(_), Unknown(_)))
+  | (Constructor(x), Cast(_, Unknown(_), Module(_))) =>
     let env = Environment.extend(Environment.empty, (x, d));
     Matches(env);
   | (BadConstructor(_), _) => IndetMatch

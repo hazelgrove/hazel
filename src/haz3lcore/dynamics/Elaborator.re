@@ -66,6 +66,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
       switch (ana_ty, self_ty) {
       | (Unknown(prov), Rec(_, Sum(_)))
       | (Unknown(prov), Sum(_)) => DHExp.cast(d, self_ty, Unknown(prov))
+      | (_, Module(_)) => DHExp.cast(d, self_ty, ana_ty)
       | _ => d
       }
     /* Forms with special ana rules but no particular typing requirements */
@@ -273,9 +274,9 @@ let rec dhexp_of_uexp =
         /* if get module type, apply alias(Let).*/
         let is_alias =
           switch (Id.Map.find_opt(Term.UExp.rep_id(def), m)) {
-          | Some(InfoExp({ty, _})) =>
-            switch (ty) {
-            | Module(_) => true
+          | Some(InfoExp({self, _})) =>
+            switch (self) {
+            | Common(Just(Module(_))) => true
             | _ => false
             }
           | _ => false
