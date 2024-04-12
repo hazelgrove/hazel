@@ -32,40 +32,51 @@ let ground = (ty: Typ.t): bool => {
 let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) => {
   let rec dhpat_var_entry =
           (dhpat: DHPat.t, ty: Typ.t): option(list(Ctx.entry)) => {
-    switch (dhpat, ty) {
-    | (Var(name), _) =>
+    switch (dhpat) {
+    | Var(name) =>
       let entry = Ctx.VarEntry({name, id: Id.invalid, typ: ty});
       Some([entry]);
-    | (Tuple(l1), Prod(l2)) =>
-      if (List.length(l1) == List.length(l2)) {
+    | Tuple(l1) =>
+      switch (ty) {
+      | Prod(l2) when List.length(l1) == List.length(l2) =>
         let* l =
           List.map2((dhp, typ) => {dhpat_var_entry(dhp, typ)}, l1, l2)
           |> OptUtil.sequence;
         Some(List.concat(l));
-      } else {
-        None;
+      | _ => None
       }
-    | (Cons(dhp1, dhp2), List(typ)) =>
-      let* l1 = dhpat_var_entry(dhp1, typ);
-      let* l2 = dhpat_var_entry(dhp2, typ);
-      Some(l1 @ l2);
-    | (ListLit(typ1, l), List(typ2)) =>
-      if (Typ.eq(typ1, typ2)) {
+    | Cons(dhp1, dhp2) =>
+      switch (ty) {
+      | List(typ) =>
+        let* l1 = dhpat_var_entry(dhp1, typ);
+        let* l2 = dhpat_var_entry(dhp2, typ);
+        Some(l1 @ l2);
+      | _ => None
+      }
+    | ListLit(typ1, l) =>
+      switch (ty) {
+      | List(typ2) when Typ.eq(typ1, typ2) =>
         let* l =
           List.map(dhp => {dhpat_var_entry(dhp, typ1)}, l)
           |> OptUtil.sequence;
         Some(List.concat(l));
-      } else {
-        None;
+      | _ => None
       }
-    | (Ap(Constructor(_, typ), dhp), _) =>
+    | Ap(Constructor(_, typ), dhp) =>
       let (ty1, ty2) = Typ.matched_arrow(ctx, typ);
-      if (Typ.eq(ty2, ty)) {
-        dhpat_var_entry(dhp, ty1);
-      } else {
-        None;
-      };
-    | _ => Some([])
+      Typ.eq(ty2, ty) ? dhpat_var_entry(dhp, ty1) : None;
+    | EmptyHole(_)
+    | NonEmptyHole(_)
+    | Wild
+    | ExpandingKeyword(_)
+    | InvalidText(_)
+    | BadConstructor(_)
+    | IntLit(_)
+    | FloatLit(_)
+    | BoolLit(_)
+    | StringLit(_)
+    | Constructor(_)
+    | Ap(_) => Some([])
     };
   };
   let+ l = dhpat_var_entry(dhpat, ty);
