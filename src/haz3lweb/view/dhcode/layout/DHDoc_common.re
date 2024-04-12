@@ -91,10 +91,6 @@ module Delim = {
 let mk_EmptyHole = (~selected=false, hc: HoleInstance.t) =>
   Delim.empty_hole(hc) |> Doc.annot(DHAnnot.EmptyHole(selected, hc));
 
-let mk_ExpandingKeyword = (hc, k) =>
-  Doc.text(ExpandingKeyword.to_string(k))
-  |> Doc.annot(DHAnnot.VarHole(ExpandingKeyword(k), hc));
-
 let mk_InvalidText = (t, hc) =>
   Doc.text(t) |> Doc.annot(DHAnnot.Invalid(hc));
 

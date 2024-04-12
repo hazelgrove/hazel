@@ -93,7 +93,6 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     /* Hole-like forms: Don't cast */
     | InvalidText(_)
     | FreeVar(_)
-    | ExpandingKeyword(_)
     | EmptyHole(_)
     | NonEmptyHole(_) => d
     /* DHExp-specific forms: Don't cast */
