@@ -393,8 +393,14 @@ let mk =
                    linebreak(),
                  ]
                )
-            |> List.flatten;
-          DHDoc_common.mk_ModuleVal(envlist);
+            |> List.flatten
+            |> List.rev;
+          let envlist =
+            switch (envlist) {
+            | [] => []
+            | [_hd, ...envlist] => envlist
+            };
+          DHDoc_common.mk_ModuleVal(List.rev(envlist));
         }
       | StringLit(s) => DHDoc_common.mk_StringLit(s)
       | Test(_, d) => DHDoc_common.mk_Test(go'(d, Test))
