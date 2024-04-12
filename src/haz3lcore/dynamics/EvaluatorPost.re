@@ -158,7 +158,6 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
   | TypFun(_)
   | EmptyHole(_)
   | NonEmptyHole(_)
-  | ExpandingKeyword(_)
   | FreeVar(_)
   | InvalidText(_)
   | InconsistentBranches(_) => raise(Exception(UnevalOutsideClosure))
@@ -222,7 +221,6 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
       |> return;
 
     | EmptyHole(_)
-    | ExpandingKeyword(_)
     | FreeVar(_)
     | InvalidText(_) => pp_uneval(env, d)
 
@@ -425,10 +423,6 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* i = hii_add_instance(u, env);
     Closure(env, NonEmptyHole(reason, u, i, d')) |> return;
 
-  | ExpandingKeyword(u, _, kw) =>
-    let* i = hii_add_instance(u, env);
-    Closure(env, ExpandingKeyword(u, i, kw)) |> return;
-
   | FreeVar(u, _, x) =>
     let* i = hii_add_instance(u, env);
     Closure(env, FreeVar(u, i, x)) |> return;
@@ -539,7 +533,6 @@ let rec track_children_of_hole =
     let hii = track_children_of_hole_rules(hii, parent, rules);
     hii |> HoleInstanceInfo.add_parent((u, i), parent);
   | EmptyHole(u, i)
-  | ExpandingKeyword(u, i, _)
   | FreeVar(u, i, _)
   | InvalidText(u, i, _) =>
     hii |> HoleInstanceInfo.add_parent((u, i), parent)

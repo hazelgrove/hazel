@@ -10,7 +10,6 @@ module rec DHExp: {
   type t =
     | EmptyHole(MetaVar.t, HoleInstanceId.t)
     | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t)
-    | ExpandingKeyword(MetaVar.t, HoleInstanceId.t, ExpandingKeyword.t)
     | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t)
     | InvalidText(MetaVar.t, HoleInstanceId.t, string)
     | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
@@ -70,7 +69,6 @@ module rec DHExp: {
     /* Hole types */
     | EmptyHole(MetaVar.t, HoleInstanceId.t)
     | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t)
-    | ExpandingKeyword(MetaVar.t, HoleInstanceId.t, ExpandingKeyword.t)
     | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t)
     | InvalidText(MetaVar.t, HoleInstanceId.t, string)
     | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
@@ -117,7 +115,6 @@ module rec DHExp: {
     switch (d) {
     | EmptyHole(_, _) => "EmptyHole"
     | NonEmptyHole(_, _, _, _) => "NonEmptyHole"
-    | ExpandingKeyword(_, _, _) => "ExpandingKeyword"
     | FreeVar(_, _, _) => "FreeVar"
     | InvalidText(_) => "InvalidText"
     | BoundVar(_) => "BoundVar"
@@ -209,7 +206,6 @@ module rec DHExp: {
         Case(strip_casts(scrut), List.map(strip_casts_rule, rules), n),
       )
     | EmptyHole(_) as d
-    | ExpandingKeyword(_) as d
     | FreeVar(_) as d
     | InvalidText(_) as d
     | BoundVar(_) as d
@@ -324,8 +320,6 @@ module rec DHExp: {
     | (EmptyHole(u1, i1), EmptyHole(u2, i2)) => u1 == u2 && i1 == i2
     | (NonEmptyHole(reason1, u1, i1, d1), NonEmptyHole(reason2, u2, i2, d2)) =>
       reason1 == reason2 && u1 == u2 && i1 == i2 && fast_equal(d1, d2)
-    | (ExpandingKeyword(u1, i1, kw1), ExpandingKeyword(u2, i2, kw2)) =>
-      u1 == u2 && i1 == i2 && kw1 == kw2
     | (FreeVar(u1, i1, x1), FreeVar(u2, i2, x2)) =>
       u1 == u2 && i1 == i2 && x1 == x2
     | (InvalidText(u1, i1, text1), InvalidText(u2, i2, text2)) =>
@@ -339,7 +333,6 @@ module rec DHExp: {
       u1 == u2 && i1 == i2 && fast_equal_case(case1, case2)
     | (EmptyHole(_), _)
     | (NonEmptyHole(_), _)
-    | (ExpandingKeyword(_), _)
     | (FreeVar(_), _)
     | (InvalidText(_), _)
     | (Closure(_), _)
@@ -408,7 +401,6 @@ module rec DHExp: {
 
     | BuiltinFun(_)
     | EmptyHole(_)
-    | ExpandingKeyword(_, _, _)
     | FreeVar(_, _, _)
     | InvalidText(_, _, _)
     | Constructor(_)

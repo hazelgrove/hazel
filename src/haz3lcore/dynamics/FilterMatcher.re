@@ -202,7 +202,6 @@ let rec matches_exp =
   | (InconsistentBranches(_), _) => false
 
   | (NonEmptyHole(_), _) => false
-  | (ExpandingKeyword(_), _) => false
   | (InvalidText(_), _) => false
   | (InvalidOperation(_), _) => false
 
@@ -256,7 +255,6 @@ and matches_pat = (d: DHPat.t, f: DHPat.t): bool => {
   | (Cons(_), _) => false
   | (EmptyHole(_), _) => false
   | (NonEmptyHole(_), _) => false
-  | (ExpandingKeyword(_), _) => false
   | (InvalidText(_), _) => false
   };
 }

@@ -2,8 +2,7 @@ module HoleReason = {
   /* Variable: reason */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | Free
-    | ExpandingKeyword(ExpandingKeyword.t);
+    | Free;
 };
 
 /* Variable: var_err */
