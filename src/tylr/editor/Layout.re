@@ -28,7 +28,7 @@ module Pos = {
   let leq = (l, r) => compare(l, r) <= 0;
 };
 
-module Indent_ctx = {
+module Ictx = {
   type t = {
     // indentation of cell contents (if laid out vertically)
     body: Col.t,
@@ -41,7 +41,7 @@ module Indent_ctx = {
   // let indent_next = ind => {...ind, next: ind.curr + isize};
 };
 
-module Traversed = {
+module Trav = {
   type t = {
     pos: Pos.t,
     ind: Col.t,
@@ -70,9 +70,9 @@ module Traversed = {
 let path_of_pos = (target: Pos.t, c: Cell.t): Path.Point.t => {
   open Result.Syntax;
   let rec go_cell =
-          (~ctx: Indent_ctx.t, ~trav: Traversed.t, cell: Cell.t)
-          : Result.t(Path.Point.t, Traversed.t) => {
-    let c_end = Traversed.add(~return=ctx.return, trav, Dims.of_cell(cell));
+          (~ctx: Ictx.t, ~trav: Trav.t, cell: Cell.t)
+          : Result.t(Path.Point.t, Trav.t) => {
+    let c_end = Trav.add(~return=ctx.return, trav, Dims.of_cell(cell));
     if (Pos.lt(c_end.pos, target)) {
       Error(c_end);
     } else if (Pos.eq(c_end.pos, target)) {
@@ -85,8 +85,8 @@ let path_of_pos = (target: Pos.t, c: Cell.t): Path.Point.t => {
     };
   }
   and go_meld =
-      (~ctx: Indent_ctx.t, ~trav: Traversed.t, m: Meld.t)
-      : Result.t(Path.Point.t, Traversed.t) => {
+      (~ctx: Ictx.t, ~trav: Trav.t, m: Meld.t)
+      : Result.t(Path.Point.t, Trav.t) => {
     Meld.to_chain(m)
     |> Chain.mapi_loop((step, cell) => (step, cell))
     |> Chain.fold_left(
@@ -101,7 +101,7 @@ let path_of_pos = (target: Pos.t, c: Cell.t): Path.Point.t => {
              go_tok(~ctx, ~trav, tok)
              |> Result.map(~f=i => Path.Point.mk(Tok(step - 1, i)));
            let ctx =
-             Indent_ctx.{
+             Ictx.{
                body: trav.ind + (Token.indent(tok) ? 2 : 0),
                return: step == Meld.length(m) ? ctx.return : trav.ind,
              };
@@ -111,9 +111,9 @@ let path_of_pos = (target: Pos.t, c: Cell.t): Path.Point.t => {
        );
   }
   and go_tok =
-      (~ctx: Indent_ctx.t, ~trav: Traversed.t, tok: Token.t)
-      : Result.t(int, Traversed.t) => {
-    let t_end = Traversed.add(~return=ctx.return, trav, Dims.of_tok(tok));
+      (~ctx: Ictx.t, ~trav: Trav.t, tok: Token.t)
+      : Result.t(int, Trav.t) => {
+    let t_end = Trav.add(~return=ctx.return, trav, Dims.of_tok(tok));
     if (Pos.lt(t_end.pos, target)) {
       Error(t_end);
     } else {
@@ -145,7 +145,7 @@ let path_of_pos = (target: Pos.t, c: Cell.t): Path.Point.t => {
   if (Pos.leq(target, Pos.zero)) {
     Path.Point.mk(End(L));
   } else {
-    switch (go_cell(~ctx=Indent_ctx.init(0), ~trav=Traversed.init, c)) {
+    switch (go_cell(~ctx=Ictx.init(0), ~trav=Trav.init, c)) {
     | Ok(path) => path
     | Error(_) => Path.Point.mk(End(R))
     };
