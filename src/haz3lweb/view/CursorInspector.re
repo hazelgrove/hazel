@@ -12,16 +12,16 @@ let div_ok = div(~attr=clss([okc]));
 let code_err = (code: string): Node.t =>
   div(~attr=clss(["code"]), [text(code)]);
 
-let lang_doc_toggle = (~inject, ~show_lang_doc: bool): Node.t => {
+let explain_this_toggle = (~inject, ~show_explain_this: bool): Node.t => {
   let tooltip = "Toggle language documentation";
-  let toggle_landocs = _ =>
+  let toggle_explain_this = _ =>
     Virtual_dom.Vdom.Effect.Many([
-      inject(Update.UpdateLangDocMessages(ToggleShow)),
+      inject(Update.Set(ExplainThis(ToggleShow))),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   div(
-    ~attr=clss(["lang-doc-button"]),
-    [Widgets.toggle(~tooltip, "?", show_lang_doc, toggle_landocs)],
+    ~attr=clss(["explain-this-button"]),
+    [Widgets.toggle(~tooltip, "?", show_explain_this, toggle_explain_this)],
   );
 };
 
@@ -41,7 +41,7 @@ let ctx_toggle = (~inject, context_inspector: bool): Node.t =>
     [text("Γ")],
   );
 
-let term_view = (~inject, ~settings: Settings.t, ~show_lang_doc, ci) => {
+let term_view = (~inject, ~settings: Settings.t, ci) => {
   let sort = ci |> Info.sort_of |> Sort.show;
   div(
     ~attr=clss(["ci-header", sort] @ (Info.is_error(ci) ? [errc] : [])),
@@ -49,7 +49,10 @@ let term_view = (~inject, ~settings: Settings.t, ~show_lang_doc, ci) => {
       ctx_toggle(~inject, settings.context_inspector),
       CtxInspector.view(~inject, ~settings, ci),
       div(~attr=clss(["term-tag"]), [text(sort)]),
-      lang_doc_toggle(~inject, ~show_lang_doc),
+      explain_this_toggle(
+        ~inject,
+        ~show_explain_this=settings.explainThis.show,
+      ),
       cls_view(ci),
     ],
   );
@@ -174,12 +177,13 @@ let exp_view = (cls: Term.Cls.t, status: Info.status_exp) =>
   | InHole(BadPartialAp(ArityMismatch({expected, actual}))) =>
     div_err([
       text(
-        "Arity mismatched partial application: expected "
+        "Arity mismatch: expected "
         ++ string_of_int(expected)
         ++ " argument"
         ++ (expected == 1 ? "" : "s")
         ++ ", got "
-        ++ string_of_int(actual),
+        ++ string_of_int(actual)
+        ++ " arguments",
       ),
     ])
   | InHole(Common(error)) => div_err(common_err_view(cls, error))
@@ -214,14 +218,17 @@ let tpat_view = (_: Term.Cls.t, status: Info.status_tpat) =>
     div_err([text("Can't shadow existing alias"), Type.view(Var(name))])
   };
 
-let view_of_info =
-    (~inject, ~settings, ~show_lang_doc: bool, ci: Statics.Info.t): Node.t => {
+let secondary_view = (cls: Term.Cls.t) =>
+  div_ok([text(cls |> Term.Cls.show)]);
+
+let view_of_info = (~inject, ~settings, ci): Node.t => {
   let wrapper = status_view =>
     div(
       ~attr=clss(["info"]),
-      [term_view(~inject, ~settings, ~show_lang_doc, ci), status_view],
+      [term_view(~inject, ~settings, ci), status_view],
     );
   switch (ci) {
+  | Secondary(_) => wrapper(div([]))
   | InfoExp({cls, status, _}) => wrapper(exp_view(cls, status))
   | InfoPat({cls, status, _}) => wrapper(pat_view(cls, status))
   | InfoTyp({cls, status, _}) => wrapper(typ_view(cls, status))
@@ -229,20 +236,13 @@ let view_of_info =
   };
 };
 
-let inspector_view = (~inject, ~settings, ~show_lang_doc, ci): Node.t =>
+let inspector_view = (~inject, ~settings, ci): Node.t =>
   div(
     ~attr=clss(["cursor-inspector"] @ [Info.is_error(ci) ? errc : okc]),
-    [view_of_info(~inject, ~settings, ~show_lang_doc, ci)],
+    [view_of_info(~inject, ~settings, ci)],
   );
 
-let view =
-    (
-      ~inject,
-      ~settings: Settings.t,
-      ~show_lang_doc: bool,
-      zipper: Zipper.t,
-      info_map: Statics.Map.t,
-    ) => {
+let view = (~inject, ~settings: Settings.t, cursor_info: option(Info.t)) => {
   let bar_view = div(~attr=Attr.id("bottom-bar"));
   let err_view = err =>
     bar_view([
@@ -251,22 +251,16 @@ let view =
         [div(~attr=clss(["icon"]), [Icons.magnify]), text(err)],
       ),
     ]);
-  switch (zipper.backpack, Indicated.index(zipper)) {
+  switch (cursor_info) {
   | _ when !settings.core.statics => div_empty
-  | _ when Id.Map.is_empty(info_map) =>
-    err_view("No Static information available")
-  | (_, None) => err_view("No cursor in program")
-  | (_, Some(id)) =>
-    switch (Id.Map.find_opt(id, info_map)) {
-    | None => err_view("Whitespace or Comment")
-    | Some(ci) =>
-      bar_view([
-        inspector_view(~inject, ~settings, ~show_lang_doc, ci),
-        div(
-          ~attr=clss(["id"]),
-          [text(String.sub(Id.to_string(id), 0, 4))],
-        ),
-      ])
-    }
+  | None => err_view("Whitespace or Comment")
+  | Some(ci) =>
+    bar_view([
+      inspector_view(~inject, ~settings, ci),
+      div(
+        ~attr=clss(["id"]),
+        [text(String.sub(Id.to_string(Info.id_of(ci)), 0, 4))],
+      ),
+    ])
   };
 };

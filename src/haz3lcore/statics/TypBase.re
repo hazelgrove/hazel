@@ -223,12 +223,12 @@ module rec Typ: {
     | (_, Unknown(TypeHole | Free(_)) as ty) when fix =>
       /* NOTE(andrew): This is load bearing
          for ensuring that function literals get appropriate
-         casts. Examples/Dynamics has regression tests */
+         casts. Documentation/Dynamics has regression tests */
       Some(ty)
     | (Unknown(p1), Unknown(p2)) =>
       Some(Unknown(join_type_provenance(p1, p2)))
     | (Unknown(_), ty)
-    | (ty, Unknown(Internal | SynSwitch)) => Some(ty)
+    | (ty, Unknown(_)) => Some(ty)
     | (Var(n1), Var(n2)) =>
       if (n1 == n2) {
         Some(Var(n1));

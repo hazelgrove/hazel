@@ -190,6 +190,11 @@ for a type named something else like `q`, it will be `show_q`.
 #### Debug Mode
 If Hazel is hanging on load or when you perform certain actions, you can load into Debug Mode by appending `#debug` to the URL and reloading. From there, you have some buttons that will change settings or reset local storage. Refresh without the `#debug` flag and hopefully you can resolve the situation from there.
 
+#### Testing
+You can run all of the unit tests located in `test` by running `make test`.
+
+Unit tests are written using the [Alcotest framework](https://github.com/mirage/alcotest).
+
 ### Continuous Integration
 
 When you push your branch to the main `hazelgrove/hazel` repository, we 

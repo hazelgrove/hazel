@@ -55,7 +55,8 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (_, ConsistentCase(Case(_))) => IndetMatch
 
   /* Closure should match like underlying expression. */
-  | (_, Closure(_, d')) => matches(dp, d')
+  | (_, Closure(_, d'))
+  | (_, Filter(_, d')) => matches(dp, d')
 
   | (BoolLit(b1), BoolLit(b2)) =>
     if (b1 == b2) {
@@ -250,7 +251,11 @@ and matches_cast_Sum =
   | NonEmptyHole(_)
   | FailedCast(_, _, _)
   | Test(_)
-  | InvalidOperation(_) => IndetMatch
+  | InvalidOperation(_)
+  | ConsistentCase(_)
+  | Prj(_)
+  | IfThenElse(_)
+  | BuiltinFun(_) => IndetMatch
   | Cast(_)
   | BoundVar(_)
   | FixF(_)
@@ -261,10 +266,9 @@ and matches_cast_Sum =
   | StringLit(_)
   | ListLit(_)
   | Tuple(_)
-  | Prj(_)
-  | ConsistentCase(_)
   | Sequence(_, _)
   | Closure(_)
+  | Filter(_)
   | Cons(_)
   | ListConcat(_) => DoesNotMatch
   }
@@ -333,6 +337,7 @@ and matches_cast_Tuple =
   | Fun(_, _, _, _) => DoesNotMatch
   | Closure(_, Fun(_)) => DoesNotMatch
   | Closure(_, _) => IndetMatch
+  | Filter(_, _) => IndetMatch
   | Ap(_, _) => IndetMatch
   | ApBuiltin(_, _) => IndetMatch
   | BinBoolOp(_, _, _)
@@ -342,13 +347,14 @@ and matches_cast_Tuple =
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | Sequence(_)
+  | BuiltinFun(_)
   | Test(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
   | StringLit(_) => DoesNotMatch
   | ListLit(_) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
   | ListConcat(_) => DoesNotMatch
-  | Prj(_) => DoesNotMatch
+  | Prj(_) => IndetMatch
   | Constructor(_) => DoesNotMatch
   | ConsistentCase(_)
   | InconsistentBranches(_) => IndetMatch
@@ -356,6 +362,7 @@ and matches_cast_Tuple =
   | NonEmptyHole(_) => IndetMatch
   | FailedCast(_, _, _) => IndetMatch
   | InvalidOperation(_) => IndetMatch
+  | IfThenElse(_) => IndetMatch
   }
 and matches_cast_Cons =
     (dp: DHPat.t, d: DHExp.t, elt_casts: list((Typ.t, Typ.t))): match_result =>
@@ -469,6 +476,7 @@ and matches_cast_Cons =
   | FixF(_, _, _) => DoesNotMatch
   | Fun(_, _, _, _) => DoesNotMatch
   | Closure(_, d') => matches_cast_Cons(dp, d', elt_casts)
+  | Filter(_, d') => matches_cast_Cons(dp, d', elt_casts)
   | Ap(_, _) => IndetMatch
   | ApBuiltin(_, _) => IndetMatch
   | BinBoolOp(_, _, _)
@@ -476,6 +484,7 @@ and matches_cast_Cons =
   | BinFloatOp(_, _, _)
   | BinStringOp(_)
   | ListConcat(_)
+  | BuiltinFun(_) => DoesNotMatch
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | Sequence(_)
@@ -483,7 +492,7 @@ and matches_cast_Cons =
   | FloatLit(_) => DoesNotMatch
   | StringLit(_) => DoesNotMatch
   | Tuple(_) => DoesNotMatch
-  | Prj(_) => DoesNotMatch
+  | Prj(_) => IndetMatch
   | Constructor(_) => DoesNotMatch
   | ConsistentCase(_)
   | InconsistentBranches(_) => IndetMatch
@@ -491,4 +500,5 @@ and matches_cast_Cons =
   | NonEmptyHole(_) => IndetMatch
   | FailedCast(_, _, _) => IndetMatch
   | InvalidOperation(_) => IndetMatch
+  | IfThenElse(_) => IndetMatch
   };
