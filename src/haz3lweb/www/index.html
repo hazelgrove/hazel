@@ -47,6 +47,12 @@
   </ninja-keys>
 
   <script>
+
+    function commandPalleteEvent(action) {
+      return new CustomEvent('commandPalletteEvent', {
+        action: action
+      });
+    }
 const customEvent = new CustomEvent('myCustomEvent', {
   detail: {
     // You can include any relevant data here
@@ -62,7 +68,7 @@ const customEvent = new CustomEvent('myCustomEvent', {
         mdIcon: "arrow_forward",
         handler: () => {
           console.log("Going to Definition");
-          document.dispatchEvent(customEvent);
+          document.dispatchEvent(commandPalleteEvent("go-to-definition"));
         }
       }
     ];

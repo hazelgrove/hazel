@@ -86,7 +86,11 @@ module App = {
      (Dom_html.handler handler)
      (Js.bool false)
      */
+  type customMessage = {details: string};
 
+  let customEvent:
+    Dom_html.Event.typ(Js.t(Dom_html.customEvent(customMessage))) =
+    Dom_html.Event.make("myCustomEvent");
   let on_startup = (~schedule_action, m: Model.t) => {
     let _ =
       observe_font_specimen("font-specimen", fm =>
@@ -94,13 +98,18 @@ module App = {
       );
 
     JsUtil.focus_clipboard_shim();
-
     let _eventId =
       Dom_html.addEventListener(
         Dom_html.document,
-        Dom_html.Event.make("myCustomEvent"),
-        Dom_html.handler(_ => {
-          print_endline("RECEIVED EVENT");
+        customEvent,
+        Dom_html.handler((e: Js.t(Dom_html.customEvent(customMessage))) => {
+          let foo = Js.Opt.to_option(e##.detail);
+          let bar =
+            switch (foo) {
+            | Some(a) => a.details
+            | None => ""
+            };
+          print_endline("RECEIVED EVENT" ++ bar);
           schedule_action(PerformAction(Jump(BindingSiteOfIndicatedVar)));
           Js.bool(true);
         }),
