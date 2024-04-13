@@ -21,3 +21,6 @@ let split_nth = (n, t) => {
 let to_list = s => List.init(String.length(s), i => String.make(1, s.[i]));
 
 let repeat = (n, s) => String.concat("", List.init(n, _ => s));
+
+let abbreviate = (max_len, s) =>
+  String.length(s) > max_len ? String.sub(s, 0, max_len) ++ "..." : s;

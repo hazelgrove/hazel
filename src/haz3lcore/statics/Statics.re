@@ -35,6 +35,23 @@ module Info = Info;
 module Map = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Id.Map.t(Info.t);
+
+  let error_ids = (term_ranges: TermRanges.t, info_map: t): list(Id.t) =>
+    Id.Map.fold(
+      (id, info, acc) =>
+        /* Because of artefacts in Maketerm ID handling,
+         * there are be situations where ids appear in the
+         * info_map which do not occur in term_ranges. These
+         * ids should be purely duplicative, so skipping them
+         * when iterating over the info_map should have no
+         * effect, beyond supressing the resulting Not_found exs */
+        switch (Id.Map.find_opt(id, term_ranges)) {
+        | Some(_) when Info.is_error(info) => [id, ...acc]
+        | _ => acc
+        },
+      info_map,
+      [],
+    );
 };
 
 let map_m = (f, xs, m: Map.t) =>
@@ -100,6 +117,7 @@ let typ_exp_binop: UExp.op_bin => (Typ.t, Typ.t, Typ.t) =
 
 let typ_exp_unop: UExp.op_un => (Typ.t, Typ.t) =
   fun
+  | Meta(Unquote) => (Var("$Meta"), Unknown(Free("$Meta")))
   | Bool(Not) => (Bool, Bool)
   | Int(Minus) => (Int, Int);
 
@@ -147,6 +165,7 @@ and uexp_to_info_map =
     (
       ~ctx: Ctx.t,
       ~mode=Mode.Syn,
+      ~is_in_filter=false,
       ~ancestors,
       {ids, term} as uexp: UExp.t,
       m: Map.t,
@@ -165,6 +184,17 @@ and uexp_to_info_map =
   };
   let add = (~self, ~co_ctx, m) => add'(~self=Common(self), ~co_ctx, m);
   let ancestors = [UExp.rep_id(uexp)] @ ancestors;
+  let uexp_to_info_map =
+      (
+        ~ctx,
+        ~mode=Mode.Syn,
+        ~is_in_filter=is_in_filter,
+        ~ancestors=ancestors,
+        uexp: UExp.t,
+        m: Map.t,
+      ) => {
+    uexp_to_info_map(~ctx, ~mode, ~is_in_filter, ~ancestors, uexp, m);
+  };
   let go' = uexp_to_info_map(~ancestors);
   let go = go'(~ctx);
   let map_m_go = m =>
@@ -208,7 +238,6 @@ and uexp_to_info_map =
     );
   | ListConcat(e1, e2) =>
     let ids = List.map(Term.UExp.rep_id, [e1, e2]);
-    let mode = Mode.of_list_concat(ctx, mode);
     let (e1, m) = go(~mode, e1, m);
     let (e2, m) = go(~mode, e2, m);
     add(
@@ -225,6 +254,20 @@ and uexp_to_info_map =
   | Parens(e) =>
     let (e, m) = go(~mode, e, m);
     add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
+  | UnOp(Meta(Unquote), e) when is_in_filter =>
+    let e: UExp.t = {
+      ids: e.ids,
+      term:
+        switch (e.term) {
+        | Var("e") => UExp.Constructor("$e")
+        | Var("v") => UExp.Constructor("$v")
+        | _ => e.term
+        },
+    };
+    let ty_in = Typ.Var("$Meta");
+    let ty_out = Typ.Unknown(Internal);
+    let (e, m) = go(~mode=Ana(ty_in), e, m);
+    add(~self=Just(ty_out), ~co_ctx=e.co_ctx, m);
   | UnOp(op, e) =>
     let (ty_in, ty_out) = typ_exp_unop(op);
     let (e, m) = go(~mode=Ana(ty_in), e, m);
@@ -245,6 +288,14 @@ and uexp_to_info_map =
   | Test(e) =>
     let (e, m) = go(~mode=Ana(Bool), e, m);
     add(~self=Just(Prod([])), ~co_ctx=e.co_ctx, m);
+  | Filter(_, cond, body) =>
+    let (cond, m) = go(~mode, cond, m, ~is_in_filter=true);
+    let (body, m) = go(~mode, body, m);
+    add(
+      ~self=Just(body.ty),
+      ~co_ctx=CoCtx.union([cond.co_ctx, body.co_ctx]),
+      m,
+    );
   | Seq(e1, e2) =>
     let (e1, m) = go(~mode=Syn, e1, m);
     let (e2, m) = go(~mode, e2, m);

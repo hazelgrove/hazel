@@ -11,14 +11,14 @@ open Haz3lcore;
 
       Meta on the other hand consists of everything which is not
       peristant, including transitory ui_state such as whether the mouse
-      is held down, and cached evaluation results.
+      is held down.
 
    */
 
 [@deriving (show({with_path: false}), yojson, sexp)]
 type timestamp = float;
 
-/* Non-persistent UI state */
+/* Non-persistent application state */
 [@deriving (show({with_path: false}), yojson, sexp)]
 type ui_state = {
   font_metrics: FontMetrics.t,
@@ -32,81 +32,75 @@ let ui_state_init = {
   mousedown: false,
 };
 
-/* Non-persistent application state */
-[@deriving (show({with_path: false}), yojson, sexp)]
-type meta = {
-  ui_state,
-  results: ModelResults.t,
-};
-
-let meta_init = {ui_state: ui_state_init, results: ModelResults.empty};
-
 type t = {
   editors: Editors.t,
   settings: Settings.t,
-  langDocMessages: LangDocMessages.t,
-  meta,
+  results: ModelResults.t,
+  statics: CachedStatics.t,
+  explainThisModel: ExplainThisModel.t,
+  ui_state,
 };
 
 let cutoff = (===);
 
-let mk = editors => {
+let mk = (editors, results, statics) => {
   editors,
   settings: Init.startup.settings,
-  langDocMessages: LangDocMessages.init,
-  meta: meta_init,
+  results,
+  statics,
+  explainThisModel: ExplainThisModel.init,
+  ui_state: ui_state_init,
 };
 
-let blank = mk(Editors.Scratch(0, []));
-let debug = mk(Editors.DebugLoad);
+let blank =
+  mk(Editors.Scratch(0, []), ModelResults.empty, CachedStatics.empty);
 
-let load_editors = (~mode: Settings.mode, ~instructor_mode: bool): Editors.t =>
+let load_editors =
+    (~mode: Settings.mode, ~instructor_mode: bool)
+    : (Editors.t, ModelResults.t) =>
   switch (mode) {
-  | DebugLoad => DebugLoad
   | Scratch =>
-    let (idx, slides) = Store.Scratch.load();
-    Scratch(idx, slides);
-  | Examples =>
-    let (name, slides) = Store.Examples.load();
-    Examples(name, slides);
-  | Exercise =>
+    let (idx, slides, results) = Store.Scratch.load();
+    (Scratch(idx, slides), results);
+  | Documentation =>
+    let (name, slides, results) = Store.Documentation.load();
+    (Documentation(name, slides), results);
+  | Exercises =>
     let (n, specs, exercise) =
       Store.Exercise.load(
         ~specs=ExerciseSettings.exercises,
         ~instructor_mode,
       );
-    Exercise(n, specs, exercise);
+    (Exercises(n, specs, exercise), ModelResults.empty);
   };
 
-let save_editors = (editors: Editors.t, ~instructor_mode: bool): unit =>
+let save_editors =
+    (editors: Editors.t, results: ModelResults.t, ~instructor_mode: bool)
+    : unit =>
   switch (editors) {
-  | DebugLoad => failwith("no editors in debug load mode")
-  | Scratch(n, slides) => Store.Scratch.save((n, slides))
-  | Examples(name, slides) => Store.Examples.save((name, slides))
-  | Exercise(n, specs, exercise) =>
+  | Scratch(n, slides) => Store.Scratch.save((n, slides, results))
+  | Documentation(name, slides) =>
+    Store.Documentation.save((name, slides, results))
+  | Exercises(n, specs, exercise) =>
     Store.Exercise.save((n, specs, exercise), ~instructor_mode)
   };
 
 let load = (init_model: t): t => {
   let settings = Store.Settings.load();
-  let langDocMessages = Store.LangDocMessages.load();
-  let editors =
+  let explainThisModel = Store.ExplainThisModel.load();
+  let (editors, results) =
     load_editors(
       ~mode=settings.mode,
       ~instructor_mode=settings.instructor_mode,
     );
-  let results =
-    ModelResults.init(
-      ~settings=settings.core,
-      Editors.get_spliced_elabs(~settings, editors),
-    );
-  let meta = {...init_model.meta, results};
-  {editors, settings, langDocMessages, meta};
+  let ui_state = init_model.ui_state;
+  let statics = Editors.mk_statics(~settings, editors);
+  {editors, settings, results, statics, explainThisModel, ui_state};
 };
 
-let save = ({editors, settings, langDocMessages, _}: t) => {
-  save_editors(editors, ~instructor_mode=settings.instructor_mode);
-  Store.LangDocMessages.save(langDocMessages);
+let save = ({editors, settings, explainThisModel, results, _}: t) => {
+  save_editors(editors, results, ~instructor_mode=settings.instructor_mode);
+  Store.ExplainThisModel.save(explainThisModel);
   Store.Settings.save(settings);
 };
 
@@ -119,19 +113,16 @@ let reset = (model: t): t => {
      but don't otherwise erase localstorage, allowing
      e.g. api keys to persist */
   ignore(Store.Settings.init());
-  ignore(Store.LangDocMessages.init());
+  ignore(Store.ExplainThisModel.init());
   ignore(Store.Scratch.init());
-  ignore(Store.Examples.init());
+  ignore(Store.Documentation.init());
   ignore(Store.Exercise.init(~instructor_mode=true));
   let new_model = load(blank);
   {
     ...new_model,
-    meta: {
-      ...model.meta,
-      ui_state: {
-        ...model.meta.ui_state,
-        font_metrics: model.meta.ui_state.font_metrics,
-      },
+    ui_state: {
+      ...model.ui_state,
+      font_metrics: model.ui_state.font_metrics,
     },
   };
 };
