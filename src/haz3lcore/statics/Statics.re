@@ -264,19 +264,15 @@ and uexp_to_info_map =
     let (e2, m) = go(~mode=Ana(ty2), e2, m);
     add(~self=Just(ty_out), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
   | TupLabel(s, e) =>
-    let (isLab, mode) = Mode.of_label(ctx, mode);
+    let mode = Mode.of_label(ctx, mode);
     let (e, m) = go(~mode, e, m);
-    if (isLab) {
-      add(~self=Just(Label(s, e.ty)), ~co_ctx=e.co_ctx, m);
-    } else {
-      add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
-    };
+    add(~self=Just(Label(s, e.ty)), ~co_ctx=e.co_ctx, m);
   | Tuple(es) =>
-    let filt: UExp.t => option(LabeledTuple.t) = (
+    let filt: UExp.t => (option(LabeledTuple.t), UExp.t) = (
       e =>
         switch (e.term) {
-        | TupLabel(s, _) => Some(s)
-        | _ => None
+        | TupLabel(s, e') => (Some(s), e')
+        | _ => (None, e)
         }
     );
     let modes = Mode.of_prod(ctx, mode, es, filt);
@@ -538,19 +534,15 @@ and upat_to_info_map =
     let entry = Ctx.VarEntry({name, id: UPat.rep_id(upat), typ: ctx_typ});
     add(~self=Just(unknown), ~ctx=Ctx.extend(ctx, entry), m);
   | TupLabel(s, p) =>
-    let (isLab, mode) = Mode.of_label(ctx, mode);
+    let mode = Mode.of_label(ctx, mode);
     let (p, m) = go(~ctx, ~mode, p, m);
-    if (isLab) {
-      add(~self=Just(Label(s, p.ty)), ~ctx=p.ctx, m);
-    } else {
-      add(~self=Just(p.ty), ~ctx=p.ctx, m);
-    };
+    add(~self=Just(Label(s, p.ty)), ~ctx=p.ctx, m);
   | Tuple(ps) =>
-    let filt: UPat.t => option(LabeledTuple.t) = (
+    let filt: UPat.t => (option(LabeledTuple.t), UPat.t) = (
       p =>
         switch (p.term) {
-        | TupLabel(s, _) => Some(s)
-        | _ => None
+        | TupLabel(s, p') => (Some(s), p')
+        | _ => (None, p)
         }
     );
     let modes = Mode.of_prod(ctx, mode, ps, filt);
