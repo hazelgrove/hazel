@@ -152,18 +152,18 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Constructor(_), _) => DoesNotMatch
 
   | (Tuple(dps), Tuple(ds)) =>
-    let filt1: DHPat.t => option(LabeledTuple.t) = (
+    let filt1: DHPat.t => (option(LabeledTuple.t), DHPat.t) = (
       d =>
         switch (d) {
-        | TupLabel(s, _) => Some(s)
-        | _ => None
+        | TupLabel(s, d') => (Some(s), d')
+        | _ => (None, d)
         }
     );
-    let filt2: DHExp.t => option(LabeledTuple.t) = (
+    let filt2: DHExp.t => (option(LabeledTuple.t), DHExp.t) = (
       d =>
         switch (d) {
-        | TupLabel(s, _) => Some(s)
-        | _ => None
+        | TupLabel(s, d') => (Some(s), d')
+        | _ => (None, d)
         }
     );
     let f = (result, dp, d) => {
@@ -311,18 +311,18 @@ and matches_cast_Tuple =
     if (List.length(dps) != List.length(ds)) {
       DoesNotMatch;
     } else {
-      let filt1: DHPat.t => option(LabeledTuple.t) = (
+      let filt1: DHPat.t => (option(LabeledTuple.t), DHPat.t) = (
         d =>
           switch (d) {
-          | TupLabel(s, _) => Some(s)
-          | _ => None
+          | TupLabel(s, d') => (Some(s), d')
+          | _ => (None, d)
           }
       );
-      let filt2: ((DHExp.t, _)) => option(LabeledTuple.t) = (
-        ((d, _)) =>
+      let filt2: ((DHExp.t, 'a)) => (option(LabeledTuple.t), (DHExp.t, 'a)) = (
+        ((d, c)) =>
           switch (d) {
-          | TupLabel(s, _) => Some(s)
-          | _ => None
+          | TupLabel(s, d') => (Some(s), (d', c))
+          | _ => (None, (d, c))
           }
       );
       assert(List.length(List.combine(dps, ds)) == List.length(elt_casts));

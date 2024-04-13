@@ -260,11 +260,11 @@ module rec DHExp: {
     | (ListConcat(d11, d21), ListConcat(d12, d22)) =>
       fast_equal(d11, d12) && fast_equal(d21, d22)
     | (Tuple(ds1), Tuple(ds2)) =>
-      let filt: t => option(LabeledTuple.t) = (
+      let filt: t => (option(LabeledTuple.t), t) = (
         d =>
           switch (d) {
-          | TupLabel(s, _) => Some(s)
-          | _ => None
+          | TupLabel(s, d') => (Some(s), d')
+          | _ => (None, d)
           }
       );
       let f = (b, ds1_val, ds2_val) => {
