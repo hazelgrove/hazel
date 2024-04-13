@@ -49,7 +49,7 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
       switch (ty) {
       | List(typ) =>
         let* l1 = dhpat_var_entry(dhp1, typ);
-        let* l2 = dhpat_var_entry(dhp2, typ);
+        let* l2 = dhpat_var_entry(dhp2, List(typ));
         Some(l1 @ l2);
       | _ => None
       }
