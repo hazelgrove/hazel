@@ -226,35 +226,47 @@ let rec dhexp_of_uexp =
         let* ddef = dhexp_of_uexp(m, def);
         let* dbody = dhexp_of_uexp(m, body);
         let+ ty = fixed_pat_typ(m, p);
-        switch (Term.UPat.get_recursive_bindings(p)) {
-        | None =>
+        if (!Statics.is_recursive(ctx, p, def, ty)) {
           /* not recursive */
-          DHExp.Let(dp, add_name(Term.UPat.get_var(p), ddef), dbody)
-        | Some([f]) =>
-          /* simple recursion */
-          Let(dp, FixF(f, ty, add_name(Some(f ++ "+"), ddef)), dbody)
-        | Some(fs) =>
-          /* mutual recursion */
-          let ddef =
-            switch (ddef) {
-            | Tuple(a) =>
-              DHExp.Tuple(List.map2(s => add_name(Some(s ++ "+")), fs, a))
-            | _ => ddef
-            };
-          let uniq_id = List.nth(def.ids, 0);
-          let self_id = "__mutual__" ++ Id.to_string(uniq_id);
-          let self_var = DHExp.BoundVar(self_id);
-          let (_, substituted_def) =
-            fs
-            |> List.fold_left(
-                 ((i, ddef), f) => {
-                   let ddef =
-                     Substitution.subst_var(DHExp.Prj(self_var, i), f, ddef);
-                   (i + 1, ddef);
-                 },
-                 (0, ddef),
-               );
-          Let(dp, FixF(self_id, ty, substituted_def), dbody);
+          DHExp.Let(
+            dp,
+            add_name(Term.UPat.get_var(p), ddef),
+            dbody,
+          );
+        } else {
+          switch (Term.UPat.get_bindings(p) |> Option.get) {
+          | [f] =>
+            /* simple recursion */
+            Let(dp, FixF(f, ty, add_name(Some(f ++ "+"), ddef)), dbody)
+          | fs =>
+            /* mutual recursion */
+            let ddef =
+              switch (ddef) {
+              | Tuple(a) =>
+                DHExp.Tuple(
+                  List.map2(s => add_name(Some(s ++ "+")), fs, a),
+                )
+              | _ => ddef
+              };
+            let uniq_id = List.nth(def.ids, 0);
+            let self_id = "__mutual__" ++ Id.to_string(uniq_id);
+            let self_var = DHExp.BoundVar(self_id);
+            let (_, substituted_def) =
+              fs
+              |> List.fold_left(
+                   ((i, ddef), f) => {
+                     let ddef =
+                       Substitution.subst_var(
+                         DHExp.Prj(self_var, i),
+                         f,
+                         ddef,
+                       );
+                     (i + 1, ddef);
+                   },
+                   (0, ddef),
+                 );
+            Let(dp, FixF(self_id, ty, substituted_def), dbody);
+          };
         };
       | Ap(fn, arg)
       | Pipeline(arg, fn) =>
