@@ -278,8 +278,16 @@ module Deco =
   };
 
   // faster infomap traversal
-  let err_holes = (_z: Zipper.t) =>
-    List.map(term_highlight(~clss=["err-hole"]), M.error_ids);
+  let err_holes = (_z: Zipper.t) => {
+    let is_rep = (id: Id.t) =>
+      switch (Id.Map.find_opt(id, M.terms)) {
+      | None => false
+      | Some(term) => id == Term.rep_id(term)
+      };
+    M.error_ids
+    |> List.filter(is_rep)
+    |> List.map(term_highlight(~clss=["err-hole"]));
+  };
 
   let all = (zipper, sel_seg) =>
     List.concat([
