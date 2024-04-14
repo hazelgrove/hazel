@@ -419,28 +419,23 @@ and uexp_to_info_map =
     let rules_to_info_map = (rules: list((UPat.t, UExp.t)), m) => {
       let (ps, es) = List.split(rules);
       let branch_ids = List.map(UExp.rep_id, es);
-      // let rec get_scrut_ty = ps => {
-      //   switch (ps) {
-      //   | [] => scrut.ty
-      //   | [p, ...ps] =>
-      //     let (p', _m) =
-      //       go_pat(
-      //         ~is_synswitch=false,
-      //         ~co_ctx=CoCtx.empty,
-      //         p,
-      //         m,
-      //       );
-      //     switch (Info.pat_ty(p')) {
-      //     | Unknown(_) => get_scrut_ty(ps)
-      //     | ty => ty
-      //     };
-      //   };
-      // };
-      // let scrut_ty =
-      //   switch (scrut.ty) {
-      //   | Unknown(_) => get_scrut_ty(ps)
-      //   | _ => scrut.ty
-      //   };
+      let rec get_constraint_ty = ps => {
+        switch (ps) {
+        | [] => scrut.ty
+        | [p, ...ps] =>
+          let (p', _m) =
+            go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, p, m);
+          switch (Info.pat_ty(p')) {
+          | Unknown(_) => get_constraint_ty(ps)
+          | ty => ty
+          };
+        };
+      };
+      let constraint_ty =
+        switch (scrut.ty) {
+        | Unknown(_) => get_constraint_ty(ps)
+        | _ => scrut.ty
+        };
       let (ps', m) =
         map_m(
           go_pat(
@@ -471,6 +466,7 @@ and uexp_to_info_map =
                 ~is_synswitch=false,
                 ~co_ctx,
                 ~mode=Mode.Ana(scrut.ty),
+                ~constraint_ty=Some(constraint_ty),
                 p,
                 m,
               );
