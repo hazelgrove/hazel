@@ -290,26 +290,30 @@ let rec dhexp_of_uexp =
             }
           | _ => []
           };
-        let closure: ClosureEnvironment.t =
+        let (closure, names) =
           List.fold_left(
-            (closure: ClosureEnvironment.t) =>
+            ((closure, names): (ClosureEnvironment.t, list(Var.t))) =>
               fun
-              | Ctx.VarEntry({name, _}) =>
-                Environment.extend(
-                  closure |> ClosureEnvironment.map_of,
-                  (name, DHExp.BoundVar(name)),
+              | Ctx.VarEntry({name, id, _}) => (
+                  Environment.extend(
+                    closure |> ClosureEnvironment.map_of,
+                    (name, EmptyHole(id, 0)),
+                  )
+                  |> ClosureEnvironment.wrap(
+                       ClosureEnvironment.id_of(closure),
+                     ),
+                  [name, ...names],
                 )
-                |> ClosureEnvironment.wrap(ClosureEnvironment.id_of(closure))
               | Ctx.TVarEntry(_)
-              | Ctx.ConstructorEntry(_) => closure,
-            ClosureEnvironment.empty,
+              | Ctx.ConstructorEntry(_) => (closure, names),
+            (ClosureEnvironment.empty, []),
             signiture,
           );
         let rec body_modulize: DHExp.t => DHExp.t = (
           fun
           | Let(dp, d1, d2) => Let(dp, d1, body_modulize(d2))
           | Module(dp, d1, d2) => Module(dp, d1, body_modulize(d2))
-          | _ as d => is_alias ? d : ModuleVal(closure, [])
+          | _ as d => is_alias ? d : ModuleVal(closure, names)
         );
         let ddef = ddef |> body_modulize;
         switch (Term.UPat.get_recursive_bindings(p)) {
