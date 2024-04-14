@@ -139,10 +139,17 @@ module CastHelpers = {
         tys |> List.length |> grounded_Prod;
       }
     | Module(ctx) =>
-      if (ctx == []) {
+      if (List.for_all(
+            fun
+            | Ctx.VarEntry(var_entry)
+            | Ctx.ConstructorEntry(var_entry) =>
+              var_entry.typ == Unknown(Internal)
+            | Ctx.TVarEntry(_) => true,
+            ctx,
+          )) {
         Ground;
       } else {
-        NotGroundOrHole(Typ.Module([]));
+        grounded_Module(ctx);
       }
     | Sum(sm) =>
       sm |> ConstructorMap.is_ground(is_ground_arg)
