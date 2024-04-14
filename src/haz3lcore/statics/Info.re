@@ -400,7 +400,10 @@ let rec status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
       | NotInHole(_)
       | InHole(Common(Inconsistent(Expectation(_) | WithArrow(_)))) => None /* Type checking should fail and these errors would be nullified */
       | InHole(Common(NoType(_)))
-      | InHole(FreeVariable(_) | InexhaustiveMatch(_)) =>
+      | InHole(
+          FreeVariable(_) | InexhaustiveMatch(_) | UnusedDeferral |
+          BadPartialAp(_),
+        ) =>
         failwith("InHole(InexhaustiveMatch(impossible_err))")
       };
     InHole(InexhaustiveMatch(additional_err));
