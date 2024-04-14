@@ -265,7 +265,7 @@ let d9: DHExp.t =
         Var("x"),
         Int,
         BinIntOp(Plus, IntLit(1), BoundVar("x")),
-        Some("f"),
+        Some("f+"),
       ),
     ),
     IntLit(55),

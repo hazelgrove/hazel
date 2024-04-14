@@ -64,13 +64,26 @@ let map_m = (f, xs, m: Map.t) =>
 let add_info = (ids: list(Id.t), info: Info.t, m: Map.t): Map.t =>
   ids |> List.fold_left((m, id) => Id.Map.add(id, info, m), m);
 
-let extend_let_def_ctx =
-    (ctx: Ctx.t, pat: UPat.t, pat_ctx: Ctx.t, def: UExp.t): Ctx.t =>
-  if (UPat.is_tuple_of_arrows(pat) && UExp.is_tuple_of_functions(def)) {
-    pat_ctx;
-  } else {
-    ctx;
+let is_recursive = (ctx, p, def, syn: Typ.t) => {
+  switch (Term.UPat.get_num_of_vars(p), Term.UExp.get_num_of_functions(def)) {
+  | (Some(num_vars), Some(num_fns))
+      when num_vars != 0 && num_vars == num_fns =>
+    switch (Typ.normalize(ctx, syn)) {
+    | Unknown(_)
+    | Arrow(_) => num_vars == 1
+    | Prod(syns) when List.length(syns) == num_vars =>
+      syns
+      |> List.for_all(
+           fun
+           | Typ.Unknown(_)
+           | Arrow(_) => true
+           | _ => false,
+         )
+    | _ => false
+    }
+  | _ => false
   };
+};
 
 let typ_exp_binop_bin_int: UExp.op_bin_int => Typ.t =
   fun
@@ -199,6 +212,8 @@ and uexp_to_info_map =
   | Invalid(token) => atomic(BadToken(token))
   | EmptyHole => atomic(Just(Unknown(Internal)))
   | Triv => atomic(Just(Prod([])))
+  | Deferral(position) =>
+    add'(~self=IsDeferral(position), ~co_ctx=CoCtx.empty, m)
   | Bool(_) => atomic(Just(Bool))
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))
@@ -223,7 +238,6 @@ and uexp_to_info_map =
     );
   | ListConcat(e1, e2) =>
     let ids = List.map(Term.UExp.rep_id, [e1, e2]);
-    let mode = Mode.of_list_concat(ctx, mode);
     let (e1, m) = go(~mode, e1, m);
     let (e2, m) = go(~mode, e2, m);
     add(
@@ -298,6 +312,17 @@ and uexp_to_info_map =
       && !Typ.is_consistent(ctx, ty_in, Prod([]))
         ? BadTrivAp(ty_in) : Just(ty_out);
     add(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
+  | DeferredAp(fn, args) =>
+    let fn_mode = Mode.of_ap(ctx, mode, UExp.ctr_name(fn));
+    let (fn, m) = go(~mode=fn_mode, fn, m);
+    let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
+    let num_args = List.length(args);
+    let ty_ins = Typ.matched_args(ctx, num_args, ty_in);
+    let self: Self.exp = Self.of_deferred_ap(args, ty_ins, ty_out);
+    let modes = Mode.of_deferred_ap_args(num_args, ty_ins);
+    let (args, m) = map_m_go(m, modes, args);
+    let arg_co_ctx = CoCtx.union(List.map(Info.exp_co_ctx, args));
+    add'(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg_co_ctx]), m);
   | Fun(p, e) =>
     let (mode_pat, mode_body) = Mode.of_arrow(ctx, mode);
     let (p', _) =
@@ -315,24 +340,56 @@ and uexp_to_info_map =
   | Let(p, def, body) =>
     let (p_syn, _) =
       go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~mode=Syn, p, m);
-    let def_ctx = extend_let_def_ctx(ctx, p, p_syn.ctx, def);
-    let (def, m) = go'(~ctx=def_ctx, ~mode=Ana(p_syn.ty), def, m);
-    /* Analyze pattern to incorporate def type into ctx */
-    let (p_ana', _) =
-      go_pat(
-        ~is_synswitch=false,
-        ~co_ctx=CoCtx.empty,
-        ~mode=Ana(def.ty),
-        p,
-        m,
-      );
-    let (body, m) = go'(~ctx=p_ana'.ctx, ~mode, body, m);
+    let (def, p_ana_ctx, m, ty_p_ana) =
+      if (!is_recursive(ctx, p, def, p_syn.ty)) {
+        let (def, m) = go(~mode=Ana(p_syn.ty), def, m);
+        let ty_p_ana = def.ty;
+        let (p_ana', _) =
+          go_pat(
+            ~is_synswitch=false,
+            ~co_ctx=CoCtx.empty,
+            ~mode=Ana(ty_p_ana),
+            p,
+            m,
+          );
+        (def, p_ana'.ctx, m, ty_p_ana);
+      } else {
+        let (def_base, _) =
+          go'(~ctx=p_syn.ctx, ~mode=Ana(p_syn.ty), def, m);
+        let ty_p_ana = def_base.ty;
+        /* Analyze pattern to incorporate def type into ctx */
+        let (p_ana', _) =
+          go_pat(
+            ~is_synswitch=false,
+            ~co_ctx=CoCtx.empty,
+            ~mode=Ana(ty_p_ana),
+            p,
+            m,
+          );
+        let def_ctx = p_ana'.ctx;
+        let (def_base2, _) = go'(~ctx=def_ctx, ~mode=Ana(p_syn.ty), def, m);
+        let ana_ty_fn = ((ty_fn1, ty_fn2), ty_p) => {
+          ty_p == Typ.Unknown(SynSwitch) && !Typ.eq(ty_fn1, ty_fn2)
+            ? ty_fn1 : ty_p;
+        };
+        let ana =
+          switch ((def_base.ty, def_base2.ty), p_syn.ty) {
+          | ((Prod(ty_fns1), Prod(ty_fns2)), Prod(ty_ps)) =>
+            let tys =
+              List.map2(ana_ty_fn, List.combine(ty_fns1, ty_fns2), ty_ps);
+            Typ.Prod(tys);
+          | ((ty_fn1, ty_fn2), ty_p) => ana_ty_fn((ty_fn1, ty_fn2), ty_p)
+          };
+        let (def, m) = go'(~ctx=def_ctx, ~mode=Ana(ana), def, m);
+        (def, def_ctx, m, ty_p_ana);
+      };
+    let (body, m) = go'(~ctx=p_ana_ctx, ~mode, body, m);
     /* add co_ctx to pattern */
     let (p_ana, m) =
       go_pat(
         ~is_synswitch=false,
         ~co_ctx=body.co_ctx,
-        ~mode=Ana(def.ty),
+        ~mode=Ana(ty_p_ana),
         p,
         m,
       );

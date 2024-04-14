@@ -67,6 +67,8 @@ type error_common =
 type error_exp =
   | FreeVariable(Var.t) /* Unbound variable (not in typing context) */
   | InexhaustiveMatch(option(error_common))
+  | UnusedDeferral
+  | BadPartialAp(Self.error_partial_ap)
   | Common(error_common);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -99,7 +101,9 @@ type ok_common =
   | Ana(ok_ana);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type ok_exp = ok_common;
+type ok_exp =
+  | AnaDeferralConsistent(Typ.t)
+  | Common(ok_common);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type ok_pat = ok_common;
@@ -400,9 +404,12 @@ let rec status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
         failwith("InHole(InexhaustiveMatch(impossible_err))")
       };
     InHole(InexhaustiveMatch(additional_err));
+  | (IsDeferral(InAp), Ana(ana)) => NotInHole(AnaDeferralConsistent(ana))
+  | (IsDeferral(_), _) => InHole(UnusedDeferral)
+  | (IsBadPartialAp(_ as info), _) => InHole(BadPartialAp(info))
   | (Common(self_pat), _) =>
     switch (status_common(ctx, mode, self_pat)) {
-    | NotInHole(ok_exp) => NotInHole(ok_exp)
+    | NotInHole(ok_exp) => NotInHole(Common(ok_exp))
     | InHole(err_pat) => InHole(Common(err_pat))
     }
   };
@@ -536,7 +543,8 @@ let fixed_constraint_pat =
 let fixed_typ_exp = (ctx, mode: Mode.t, self: Self.exp): Typ.t =>
   switch (status_exp(ctx, mode, self)) {
   | InHole(_) => Unknown(Internal)
-  | NotInHole(ok) => fixed_typ_ok(ok)
+  | NotInHole(AnaDeferralConsistent(ana)) => ana
+  | NotInHole(Common(ok)) => fixed_typ_ok(ok)
   };
 
 /* Add derivable attributes for expression terms */

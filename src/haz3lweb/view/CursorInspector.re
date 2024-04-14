@@ -181,8 +181,26 @@ let rec exp_view = (cls: Term.Cls.t, status: Info.status_exp) =>
         text("; " ++ cls_str ++ " is inexhaustive"),
       ]);
     };
+  | InHole(UnusedDeferral) =>
+    div_err([text("Deferral must appear as a function argument")])
+  | InHole(BadPartialAp(NoDeferredArgs)) =>
+    div_err([text("Expected at least one non-deferred argument")])
+  | InHole(BadPartialAp(ArityMismatch({expected, actual}))) =>
+    div_err([
+      text(
+        "Arity mismatch: expected "
+        ++ string_of_int(expected)
+        ++ " argument"
+        ++ (expected == 1 ? "" : "s")
+        ++ ", got "
+        ++ string_of_int(actual)
+        ++ " arguments",
+      ),
+    ])
   | InHole(Common(error)) => div_err(common_err_view(cls, error))
-  | NotInHole(ok) => div_ok(common_ok_view(cls, ok))
+  | NotInHole(AnaDeferralConsistent(ana)) =>
+    div_ok([text("Expecting type"), Type.view(ana)])
+  | NotInHole(Common(ok)) => div_ok(common_ok_view(cls, ok))
   };
 
 let rec pat_view = (cls: Term.Cls.t, status: Info.status_pat) =>
