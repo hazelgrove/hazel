@@ -95,28 +95,6 @@ module UTyp = {
     | Dot => "Member type"
     | Ap => "Constructor application";
 
-  let rec is_arrow = (typ: t) => {
-    switch (typ.term) {
-    | Parens(typ) => is_arrow(typ)
-    | Arrow(_) => true
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_)
-    | Int
-    | Float
-    | Bool
-    | String
-    | List(_)
-    | Tuple(_)
-    | Var(_)
-    | Module(_)
-    | Constructor(_)
-    | Ap(_)
-    | Dot(_)
-    | Sum(_) => false
-    };
-  };
-
   /* Converts a syntactic type into a semantic type */
   let rec to_typ: (Ctx.t, t) => Typ.t =
     (ctx, utyp) =>
@@ -443,9 +421,9 @@ module UPat = {
 
   let rec is_var = (pat: t) => {
     switch (pat.term) {
-    | Parens(pat) => is_var(pat)
+    | Parens(pat)
+    | TypeAnn(pat, _) => is_var(pat)
     | Var(_) => true
-    | TypeAnn(_)
     | TyAlias(_)
     | Invalid(_)
     | EmptyHole
@@ -464,35 +442,13 @@ module UPat = {
     };
   };
 
-  let rec is_fun_var = (pat: t) => {
-    switch (pat.term) {
-    | Parens(pat) => is_fun_var(pat)
-    | TypeAnn(pat, typ) => is_var(pat) && UTyp.is_arrow(typ)
-    | TyAlias(_)
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_)
-    | Wild
-    | Int(_)
-    | Float(_)
-    | Bool(_)
-    | String(_)
-    | Triv
-    | ListLit(_)
-    | Cons(_, _)
-    | Var(_)
-    | Tuple(_)
-    | Constructor(_)
-    | Ap(_) => false
-    };
-  };
-
-  let rec is_tuple_of_arrows = (pat: t) =>
-    is_fun_var(pat)
+  let rec is_tuple_of_vars = (pat: t) =>
+    is_var(pat)
     || (
       switch (pat.term) {
-      | Parens(pat) => is_tuple_of_arrows(pat)
-      | Tuple(pats) => pats |> List.for_all(is_fun_var)
+      | Parens(pat)
+      | TypeAnn(pat, _) => is_tuple_of_vars(pat)
+      | Tuple(pats) => pats |> List.for_all(pat => is_var(pat))
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
@@ -505,7 +461,6 @@ module UPat = {
       | ListLit(_)
       | Cons(_, _)
       | Var(_)
-      | TypeAnn(_)
       | TyAlias(_)
       | Constructor(_)
       | Ap(_) => false
@@ -514,9 +469,9 @@ module UPat = {
 
   let rec get_var = (pat: t) => {
     switch (pat.term) {
-    | Parens(pat) => get_var(pat)
+    | Parens(pat)
+    | TypeAnn(pat, _) => get_var(pat)
     | Var(x) => Some(x)
-    | TypeAnn(_)
     | TyAlias(_)
     | Invalid(_)
     | EmptyHole
@@ -535,69 +490,46 @@ module UPat = {
     };
   };
 
-  let rec get_tag = (pat: t) => {
-    switch (pat.term) {
-    | Parens(pat) => get_tag(pat)
-    | Constructor(x) => Some(x)
-    | TypeAnn(_)
-    | TyAlias(_)
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_)
-    | Wild
-    | Int(_)
-    | Float(_)
-    | Bool(_)
-    | String(_)
-    | Triv
-    | ListLit(_)
-    | Cons(_, _)
-    | Tuple(_)
-    | Var(_)
-    | Ap(_) => None
+  let rec get_num_of_vars = (pat: t) =>
+    if (is_var(pat)) {
+      Some(1);
+    } else {
+      switch (pat.term) {
+      | Parens(pat)
+      | TypeAnn(pat, _) => get_num_of_vars(pat)
+      | Tuple(pats) =>
+        is_tuple_of_vars(pat) ? Some(List.length(pats)) : None
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_)
+      | Wild
+      | Int(_)
+      | Float(_)
+      | Bool(_)
+      | String(_)
+      | Triv
+      | ListLit(_)
+      | Cons(_, _)
+      | Var(_)
+      | Constructor(_)
+      | TyAlias(_)
+      | Ap(_) => None
+      };
     };
-  };
 
-  let rec get_fun_var = (pat: t) => {
-    switch (pat.term) {
-    | Parens(pat) => get_fun_var(pat)
-    | TypeAnn(pat, typ) =>
-      if (UTyp.is_arrow(typ)) {
-        get_var(pat) |> Option.map(var => var);
-      } else {
-        None;
-      }
-    | TyAlias(_)
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_)
-    | Wild
-    | Int(_)
-    | Float(_)
-    | Bool(_)
-    | String(_)
-    | Triv
-    | ListLit(_)
-    | Cons(_, _)
-    | Var(_)
-    | Tuple(_)
-    | Constructor(_)
-    | Ap(_) => None
-    };
-  };
-
-  let rec get_recursive_bindings = (pat: t) => {
-    switch (get_fun_var(pat)) {
+  let rec get_bindings = (pat: t) =>
+    switch (get_var(pat)) {
     | Some(x) => Some([x])
     | None =>
       switch (pat.term) {
-      | Parens(pat) => get_recursive_bindings(pat)
+      | Parens(pat)
+      | TypeAnn(pat, _) => get_bindings(pat)
       | Tuple(pats) =>
-        let fun_vars = pats |> List.map(get_fun_var);
-        if (List.exists(Option.is_none, fun_vars)) {
+        let vars = pats |> List.map(get_var);
+        if (List.exists(Option.is_none, vars)) {
           None;
         } else {
-          Some(List.map(Option.get, fun_vars));
+          Some(List.map(Option.get, vars));
         };
       | Invalid(_)
       | EmptyHole
@@ -611,13 +543,11 @@ module UPat = {
       | ListLit(_)
       | Cons(_, _)
       | Var(_)
-      | TypeAnn(_)
       | TyAlias(_)
       | Constructor(_)
       | Ap(_) => None
       }
     };
-  };
 
   let ctr_name = (p: t): option(Constructor.t) =>
     switch (p.term) {
@@ -895,6 +825,45 @@ module UExp = {
     | _ => false
     };
   };
+
+  let rec get_num_of_functions = (e: t) =>
+    if (is_fun(e)) {
+      Some(1);
+    } else {
+      switch (e.term) {
+      | Parens(e) => get_num_of_functions(e)
+      | Tuple(es) => is_tuple_of_functions(e) ? Some(List.length(es)) : None
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_)
+      | Triv
+      | Deferral(_)
+      | Bool(_)
+      | Int(_)
+      | Float(_)
+      | String(_)
+      | ListLit(_)
+      | Fun(_)
+      | Var(_)
+      | Let(_)
+      | Module(_)
+      | Dot(_)
+      | Filter(_)
+      | TyAlias(_)
+      | Ap(_)
+      | DeferredAp(_)
+      | Pipeline(_)
+      | If(_)
+      | Seq(_)
+      | Test(_)
+      | Cons(_)
+      | ListConcat(_)
+      | UnOp(_)
+      | BinOp(_)
+      | Match(_)
+      | Constructor(_) => None
+      };
+    };
 };
 
 // TODO(d): consider just folding this into UExp
