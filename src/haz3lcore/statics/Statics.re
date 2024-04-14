@@ -639,33 +639,31 @@ let collect_errors = (map: Map.t): list((Id.t, Info.error)) =>
 
 /*
  * Check whether the argument of a function under the new annotation is of correct format,
- * and output a list of
+ * and output a list of input types
  */
-let check_annotated_function_helper =
-    (args: list(UPat.t))
-    : option((list(UPat.t), list(UTyp.t))) =>
+let caf_argtrans =
+    (args: list(UPat.t)): option((list(UPat.t), list(UTyp.t))) =>
   List.fold_right(
-    (item, partial) =>
+    (item: UPat.t, partial: option((list(UPat.t), list(UTyp.t)))) =>
       switch (partial) {
       | Some((lst_var, lst_typ)) =>
-        term = item.term;
-        switch (term) {
-        | TypeAnn(Var(var_name), t) =>
+        switch (item.term) {
+        | TypeAnn({ids: inner_ids, term: Var(var_name)}, t) =>
           Some((
-            [{ids, Var(var_name)}, ...lst_var],
+            [{ids: inner_ids, term: Var(var_name)}, ...lst_var],
             [t, ...lst_typ],
           ))
-        | Var(var_name) =>
+        | Var(_) =>
           Some((
             [item, ...lst_var],
-            [{ids, term: EmptyHole}, ...lst_typ],
+            [{ids: item.ids, term: EmptyHole}, ...lst_typ],
           ))
         | _ => None
         }
       | _ => None
       },
     args,
-    Some([], []),
+    Some(([], [])),
   );
 
 /*
@@ -676,10 +674,44 @@ let check_annotated_function_helper =
 let check_annotated_function =
     (pat: UPat.t): option((Var.t, UPat.t, UTyp.t)) =>
   switch (pat.term) {
-  | TypeAnn(Ap(var, Tuple(params)), ret_type) =>
+  | TypeAnn({ids: inner_ids, term: Ap(var, args)}, ret_type) =>
     // Check whether all arguments are parameters with annotations
-    params_transformed = check_annotated_function_helper(params);
-    // To be cotinued
-    None;
+    switch (var.term, args.term) {
+    | (Var(func_name), Tuple(ps)) =>
+      switch (caf_argtrans(ps)) {
+      | None => None
+      | Some((params, in_type)) =>
+        Some((
+          func_name,
+          {ids: args.ids, term: Tuple(params)},
+          {
+            ids: inner_ids,
+            term: Arrow({ids: args.ids, term: Tuple(in_type)}, ret_type),
+          },
+        ))
+      }
+    | _ => None
+    }
+  | Ap(var, args) =>
+    switch (var.term, args.term) {
+    | (Var(func_name), Tuple(ps)) =>
+      switch (caf_argtrans(ps)) {
+      | None => None
+      | Some((params, in_type)) =>
+        Some((
+          func_name,
+          {ids: args.ids, term: Tuple(params)},
+          {
+            ids: pat.ids,
+            term:
+              Arrow(
+                {ids: args.ids, term: Tuple(in_type)},
+                {ids: args.ids, term: EmptyHole},
+              ),
+          },
+        ))
+      }
+    | _ => None
+    }
   | _ => None
   } /* let check_annotated_function : UPat.t -> option(Var.t, UPat.t, UTyp.t*/;
