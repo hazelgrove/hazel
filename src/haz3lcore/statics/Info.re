@@ -575,11 +575,7 @@ let derived_pat =
   let cls = Cls.Pat(UPat.cls_of_term(upat.term));
   let status = status_pat(ctx, mode, self);
   let ty = fixed_typ_pat(ctx, mode, self);
-  let constraint_mode =
-    switch (constraint_ty) {
-    | None => mode
-    | Some(ty) => Ana(ty)
-    };
+  let constraint_mode = Mode.of_constraint(mode, constraint_ty);
   let constraint_ =
     fixed_constraint_pat(upat, ctx, constraint_mode, self, constraint_);
   {

@@ -127,3 +127,9 @@ let of_deferred_ap_args = (length: int, ty_ins: list(Typ.t)): list(t) =>
       ? ty_ins : List.init(length, _ => Typ.Unknown(Internal))
   )
   |> List.map(ty => Ana(ty));
+
+let of_constraint = (mode: t, constraint_ty: option(Typ.t)): t =>
+  switch (constraint_ty) {
+  | None => mode
+  | Some(ty) => Ana(ty)
+  };

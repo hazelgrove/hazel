@@ -485,6 +485,7 @@ and uexp_to_info_map =
                   // Mark patterns as redundant at the top level
                   // because redundancy doesn't make sense in a smaller context
                   ~constraint_=p_constraint,
+                  ~constraint_ty=Some(constraint_ty),
                 );
               (
                 // Override the info for the single upat
@@ -679,20 +680,24 @@ and upat_to_info_map =
     add(~self=Just(p.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
   | Constructor(ctr) =>
     let self = Self.of_ctr(ctx, ctr);
-    atomic(self, Constraint.of_ctr(ctx, mode, ctr, self));
+    let constraint_mode = Mode.of_constraint(mode, constraint_ty);
+    atomic(self, Constraint.of_ctr(ctx, constraint_mode, ctr, self));
   | Ap(fn, arg) =>
     let ctr = UPat.ctr_name(fn);
     let fn_mode = Mode.of_ap(ctx, mode, ctr);
     let (fn, m) = go(~ctx, ~mode=fn_mode, fn, m);
     let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
     let (arg, m) = go(~ctx, ~mode=Ana(ty_in), arg, m);
-    add(
-      ~self=Just(ty_out),
-      ~ctx=arg.ctx,
-      ~constraint_=
-        Constraint.of_ap(ctx, mode, ctr, arg.constraint_, Some(ty_out)),
-      m,
-    );
+    let constraint_mode = Mode.of_constraint(mode, constraint_ty);
+    let constraint_ =
+      Constraint.of_ap(
+        ctx,
+        constraint_mode,
+        ctr,
+        arg.constraint_,
+        Some(ty_out),
+      );
+    add(~self=Just(ty_out), ~ctx=arg.ctx, ~constraint_, m);
   | TypeAnn(p, ann) =>
     let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
     let (p, m) = go(~ctx, ~mode=Ana(ann.ty), p, m);
