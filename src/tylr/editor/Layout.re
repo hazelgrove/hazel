@@ -22,14 +22,14 @@ module Pos = {
     let c = Row.compare(l.row, r.row);
     c == 0 ? Col.compare(l.col, r.col) : c;
   };
-
   let eq = (l, r) => compare(l, r) == 0;
   let lt = (l, r) => compare(l, r) < 0;
   let leq = (l, r) => compare(l, r) <= 0;
 
   let skip = (~return: Col.t, pos: t, dims: Dims.t) => {
-    row: pos.row + dims.height,
-    col: (dims.height > 0 ? return : pos.col) + dims.width,
+    let h = Dims.Height.total(dims.height);
+    let w = Dims.Width.total(dims.width);
+    {row: pos.row + h, col: (h > 0 ? return : pos.col) + w};
   };
 };
 
@@ -43,10 +43,10 @@ module Ictx = {
     right: Col.t,
   };
   let init = {delim: Root, left: 0, right: 0};
-  let mid = (~newline=true, ctx: t) => {
-    let incr =
+  let middle = (~newline=true, ctx: t) => {
+    let indent =
       ctx.delim |> Bound.map(Token.indent) |> Bound.get(~root=false);
-    ctx.left + (incr && newline ? 2 : 0);
+    ctx.left + (indent && newline ? 2 : 0);
   };
 };
 
@@ -71,9 +71,9 @@ let path_of_pos = (target: Pos.t, c: Cell.t): Path.Point.t => {
   }
   and go_meld =
       (~ctx: Ictx.t, ~pos: Pos.t, m: Meld.t): Result.t(Path.Point.t, Pos.t) => {
-    let M(l, _, _) = m;
+    let dims = Dims.of_meld(m);
     // indentation of meld's root tokens
-    let ind = Ictx.mid(~newline=Dims.of_cell(l).height > 0, ctx);
+    let ind = Ictx.middle(~newline=dims.height.head > 0, ctx);
     Meld.to_chain(m)
     |> Chain.mapi_loop((step, cell) => (step, cell))
     |> Chain.fold_left(
@@ -86,16 +86,13 @@ let path_of_pos = (target: Pos.t, c: Cell.t): Path.Point.t => {
            let/ pos =
              go_tok(~ctx, ~pos, tok)
              |> Result.map(~f=i => Path.Point.mk(Tok(step - 1, i)));
-           go_cell(
-             ~ctx={
+           let ctx =
+             Ictx.{
                delim: Node(tok),
                left: ind,
                right: step == Meld.length(m) ? ctx.right : ind,
-             },
-             ~pos,
-             cell,
-           )
-           |> Result.map(~f=Path.Point.cons(step));
+             };
+           go_cell(~ctx, ~pos, cell) |> Result.map(~f=Path.Point.cons(step));
          },
        );
   }
@@ -116,9 +113,9 @@ let path_of_pos = (target: Pos.t, c: Cell.t): Path.Point.t => {
              // count newline
              let chars = i == 0 ? chars : chars + 1;
              let row = i == 0 ? pos.row : pos.row + 1;
+             // start of row
              let col =
-               // start of row
-               i == 0 ? ctx.left : i == n - 1 ? ctx.right : Ictx.mid(ctx);
+               i == 0 ? ctx.left : i == n - 1 ? ctx.right : Ictx.middle(ctx);
              let len = Utf8.length(line);
              if (row < target.row) {
                Error((chars + len, Pos.{row, col: col + len}));
