@@ -638,29 +638,47 @@ let collect_errors = (map: Map.t): list((Id.t, Info.error)) =>
   );
 
 /*
+ * Check whether the argument of a function under the new annotation is of correct format,
+ * and output a list of
+ */
+let check_annotated_function_helper =
+    (args: list(UPat.t))
+    : option((list(UPat.t), list(UTyp.t))) =>
+  List.fold_right(
+    (item, partial) =>
+      switch (partial) {
+      | Some((lst_var, lst_typ)) =>
+        term = item.term;
+        switch (term) {
+        | TypeAnn(Var(var_name), t) =>
+          Some((
+            [{ids, Var(var_name)}, ...lst_var],
+            [t, ...lst_typ],
+          ))
+        | Var(var_name) =>
+          Some((
+            [item, ...lst_var],
+            [{ids, term: EmptyHole}, ...lst_typ],
+          ))
+        | _ => None
+        }
+      | _ => None
+      },
+    args,
+    Some([], []),
+  );
+
+/*
  * Check whether a particular let binding is an annotated function under the new syntax.
  * It is parsed as a constructor syntax.
  * I am not sure what is the top-level pattern; the only thing similar seems to be UPat.Ap.
  */
 let check_annotated_function =
     (pat: UPat.t): option((Var.t, UPat.t, UTyp.t)) =>
-  switch (pat) {
-  | TypeAnn(Ap(Constructor(name), Tuple(params)), ret_type) =>
+  switch (pat.term) {
+  | TypeAnn(Ap(var, Tuple(params)), ret_type) =>
     // Check whether all arguments are parameters with annotations
-    let params_format =
-      fold_left(
-        (item, (correct, lst_var, lst_typ)) =>
-          switch (item) {
-          | TypeAnn(Var(var_name), t) => (
-              correct,
-              [Var(var_name), ...lst_var],
-              [t, ...lst_typ],
-            )
-          | _ => (false, [], []) // It is not of correct format, so the other items have no use
-          },
-        params,
-        (true, [], []),
-      );
+    params_transformed = check_annotated_function_helper(params);
     // To be cotinued
     None;
   | _ => None
