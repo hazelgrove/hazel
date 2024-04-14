@@ -254,7 +254,7 @@ let _exp = exp("e");
 let function_listlit_exp_coloring_ids =
   _pat_body_function_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp));
 let function_listlit_exp: form = {
-  let explanation = "The only values that match the [*argument pattern*](%s) are lists with %n-elements, each matching the corresponding element pattern. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).";
+  let explanation = "The only values that match the [*argument pattern*](%s) are lists with %s-elements, each matching the corresponding element pattern. When applied to an argument which matches the [*argument pattern*](%s), evaluates to the function [*body*](%s).";
   let form = [mk_fun([[space(), _pat, space()]]), space(), _exp];
   {
     id: FunctionExp(ListLit),

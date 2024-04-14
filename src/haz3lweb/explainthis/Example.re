@@ -111,6 +111,7 @@ let comma_pat = () => mk_monotile(Form.get("comma_pat"));
 let comma_typ = () => mk_monotile(Form.get("comma_typ"));
 let pipeline = () => mk_monotile(Form.get("pipeline"));
 let nil = () => exp("[]");
+let deferral = () => exp("_");
 let typeann = () => mk_monotile(Form.get("typeann"));
 let mk_fun = mk_tile(Form.get("fun_"));
 let mk_ap_exp = mk_tile(Form.get("ap_exp"));
