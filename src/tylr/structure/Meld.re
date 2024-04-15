@@ -83,6 +83,7 @@ let to_chain = (M(l, W((toks, cells)), r)) => (
   toks,
 );
 let unzip = (n, m) => Chain.unzip_nth(n, to_chain(m));
+let unzip_tok = (_, _) => failwith("todo unzip_tok");
 
 let link = (~cell=Cell.empty, t: Token.t, M(l, W(w), r): t) =>
   M(cell, W(Chain.link(t, l, w)), r);

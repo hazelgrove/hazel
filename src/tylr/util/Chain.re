@@ -50,6 +50,7 @@ module Tl = {
   type t('link, 'loop) = (list('link), list('loop));
   let empty = ([], []);
   let cons = (lk, lp, (lks, lps): t(_)) => ([lk, ...lks], [lp, ...lps]);
+  let length = ((lks, _): t(_)) => List.length(lks);
   let snoc = ((lks, lps): t(_), lk, lp) => (lks @ [lk], lps @ [lp]);
   let split_fst =
       ((lks, lps): t('lk, 'lp)): option(('lk, Base.t('lp, 'lk))) =>

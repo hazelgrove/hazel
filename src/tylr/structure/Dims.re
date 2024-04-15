@@ -46,14 +46,17 @@ let indent = (dims: t) => {
   width: (dims.height.head > 0 ? Width.indent : Fun.id)(dims.width),
 };
 
+let of_space = (spc: string) => {
+  let lines = String.split_on_char('\n', spc);
+  let last = ListUtil.last(lines);
+  let height = Height.{head: List.length(lines) - 1, body: 0};
+  let width = Width.{body: 0, foot: Utf8.length(last)};
+  {height, width};
+};
+
 let of_tok = (tok: Token.t) =>
   switch (tok.mtrl) {
-  | Space =>
-    let lines = String.split_on_char('\n', tok.text);
-    let last = ListUtil.last(lines);
-    let height = Height.{head: List.length(lines) - 1, body: 0};
-    let width = Width.{body: 0, foot: Utf8.length(last)};
-    {height, width};
+  | Space => of_space(tok.text)
   | Grout => mk(Width.mk(1))
   | Tile(_) => mk(Width.mk(Token.length(tok)))
   };
