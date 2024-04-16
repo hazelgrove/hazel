@@ -36,7 +36,7 @@ module Molded = {
 // module Meld = {
 //   let mk = (tok: Token.t) => {
 //     assert(Mtrl.is_space(tok.mtrl));
-//     Meld.mk(Wald.unit(tok));
+//     Meld.mk(Wald.of_tok(tok));
 //   };
 //   let cursor = mk(Token.cursor);
 

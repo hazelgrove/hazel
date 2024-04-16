@@ -7,6 +7,11 @@ type t = Meld.Cell.t(Meld.t);
 // let empty = mk();
 let is_empty = c => Option.is_none(c.meld);
 
+let put_cursor = (path, cell: t) => {
+  ...cell,
+  marks: Path.Marks.put_cursor(path, cell.marks),
+};
+
 let face = (~side: Dir.t, c: t) =>
   switch (c.meld) {
   | None => Space.Molded.t

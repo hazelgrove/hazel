@@ -138,6 +138,7 @@ module Marks = {
   let mk = (~cursor=?, ~ghosts=Ghosts.empty, ()) => {cursor, ghosts};
   let empty = mk();
   let cursor = mk(~cursor=?Cursor.here, ());
+  let put_cursor = (path, marks) => {...marks, cursor: Some(path)};
   let cons = (n, {cursor, ghosts}) => {
     cursor: Cursor.cons(n, cursor),
     ghosts: Ghosts.cons(n, ghosts),

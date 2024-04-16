@@ -19,7 +19,7 @@ module Wald = {
     | W(Chain.t(Token.t, 'cell));
   let mk = (toks: list(_), cells: list(Cell.t(_))) =>
     W(Chain.mk(toks, cells));
-  let unit = tok => mk([tok], []);
+  let of_tok = tok => W(Chain.unit(tok));
   let face = (~side=Dir.L, W(w): t(_)) => {
     let tok = Dir.pick(side, (Chain.fst, Chain.lst), w);
     (tok.mtrl, tok.mold);
@@ -49,7 +49,7 @@ let fold = (f_hd, f_tl, m: t) => Chain.fold_left(f_hd, f_tl, to_chain(m));
 module Space = {
   let mk = (tok: Token.t) => {
     assert(Mtrl.is_space(tok.mtrl));
-    mk(Wald.unit(tok));
+    mk(Wald.of_tok(tok));
   };
   let get =
     fun
@@ -57,7 +57,7 @@ module Space = {
     | _ => None;
 };
 module Grout = {
-  let op_ = (s: Mtrl.Sorted.t) => mk(Wald.unit(Token.Grout.op_(s)));
+  let op_ = (s: Mtrl.Sorted.t) => mk(Wald.of_tok(Token.Grout.op_(s)));
 };
 
 // let get_spaces = ms =>

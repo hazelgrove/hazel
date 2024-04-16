@@ -7,7 +7,7 @@ type t = {
 };
 
 let mk = (~up=Slope.empty, ~dn=Slope.empty, top) => {up, top, dn};
-let unit = tok => mk(Wald.unit(tok));
+let of_tok = tok => mk(Wald.of_tok(tok));
 
 let orient = (d: Dir.t, {up, top, dn}: t) => {
   let (s_d, s_b) = Dir.order(d, (up, dn));

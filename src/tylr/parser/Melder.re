@@ -250,7 +250,8 @@ module Zigg = {
       }
     };
   };
-  let push = (~side: Dir.t, tok: Token.t) => push_wald(~side, W.unit(tok));
+  let push = (~side: Dir.t, tok: Token.t) =>
+    push_wald(~side, W.of_tok(tok));
 
   let pull = (~side as d: Dir.t, zigg: Z.t): (Token.t, option(Z.t)) => {
     let b = Dir.toggle(d);
@@ -276,7 +277,7 @@ module Zigg = {
   let grow = (~side: Dir.t, tok: Token.t, zigg: Z.t) =>
     switch (push(~side, tok, zigg)) {
     | Ok(zigg) => zigg
-    | Error(s_b) => Z.unorient(side, ([], W.unit(tok), s_b))
+    | Error(s_b) => Z.unorient(side, ([], W.of_tok(tok), s_b))
     };
 
   let rec take_leq = (zigg: Z.t, ~fill=[], suf: S.Up.t) =>
@@ -333,7 +334,7 @@ module Ctx = {
       }
     };
   };
-  let push = (~onto: Dir.t, t: Token.t) => push_wald(~onto, W.unit(t));
+  let push = (~onto: Dir.t, t: Token.t) => push_wald(~onto, W.of_tok(t));
   let push_fail = (~onto: Dir.t, tok, ctx) =>
     push(~onto, tok, ctx) |> OptUtil.get_or_fail("bug: failed push");
 
