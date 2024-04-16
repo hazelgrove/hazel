@@ -1,3 +1,5 @@
+open Util;
+
 module Action = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -33,3 +35,6 @@ let select = (d: Dir.t, z: Zipper.t): option(Zipper.t) => {
     }
   };
 };
+
+let perform = (_a: Action.t, _z: Zipper.t): option(Zipper.t) =>
+  failwith("todo");

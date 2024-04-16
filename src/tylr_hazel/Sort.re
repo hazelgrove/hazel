@@ -33,8 +33,9 @@ let of_string =
   | "Exp" => Exp
   | _ => raise(Invalid_argument("Sort.of_string: unrecognized sort"));
 
-module Map =
-  Map.Make({
-    type nonrec t = t;
-    let compare = compare;
-  });
+module Ord = {
+  type nonrec t = t;
+  let compare = compare;
+};
+module Map = Map.Make(Ord);
+module Set = Set.Make(Ord);

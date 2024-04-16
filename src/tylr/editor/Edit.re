@@ -44,7 +44,7 @@ let insert = (s: string, z: Zipper.t) => {
 
 let delete = (d: Dir.t, z: Zipper.t): option(Zipper.t) => {
   open OptUtil.Syntax;
-  let+ z = Focus.is_empty(z.foc) ? select(d, z) : return(z);
+  let+ z = Focus.is_empty(z.foc) ? Select.select(d, z) : return(z);
   insert("", z);
 };
 
