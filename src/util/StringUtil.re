@@ -38,3 +38,8 @@ let repeat = (n, s) => String.concat("", List.init(n, _ => s));
 
 let abbreviate = (max_len, s) =>
   String.length(s) > max_len ? String.sub(s, 0, max_len) ++ "..." : s;
+
+let split_nth = (n, t) => {
+  assert(n < String.length(t));
+  (String.sub(t, 0, n), String.sub(t, n, String.length(t) - n));
+};
