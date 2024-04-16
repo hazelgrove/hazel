@@ -57,10 +57,10 @@ type t =
   | Pick_up
   | Put_down;
 
-let to_tylr: t => option(Tylr.Zipper.Action.t) =
+let to_tylr: t => option(Tylr.Edit.Action.t) =
   fun
-  | Move(Local(Left(ByChar))) => Some(Move(L))
-  | Move(Local(Right(ByChar))) => Some(Move(R))
+  | Move(Local(Left(ByChar))) => Some(Move(Step(H(L))))
+  | Move(Local(Right(ByChar))) => Some(Move(Step(H(R))))
   | Insert(s) => Some(Insert(s))
   | Destruct(Left) => Some(Delete(L))
   | Destruct(Right) => Some(Delete(R))

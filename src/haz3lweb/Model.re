@@ -44,11 +44,12 @@ type t = {
 
 let cutoff = (===);
 
-let s = sort => Some(Tylr.Sort.of_string(sort));
+let s = sort => Some(Tylr.Sort.of_str(sort));
 
 let mk = (editors, results, statics) => {
   // tylr: Tylr.Segment.empty,
-  tylr: Tylr.(Meld.of_grout(Grout.mk(Mold.mk_operand(s("Exp"))))),
+  // tylr: Tylr.(Meld.of_grout(Grout.mk(Mold.mk_operand(s("Exp"))))),
+  tylr: failwith("todo: model.tylr init"),
   editors,
   settings: Init.startup.settings,
   results,
@@ -100,7 +101,15 @@ let load = (init_model: t): t => {
     );
   let ui_state = init_model.ui_state;
   let statics = Editors.mk_statics(~settings, editors);
-  {editors, settings, results, statics, explainThisModel, ui_state};
+  {
+    tylr: failwith("todo model.tylr load"),
+    editors,
+    settings,
+    results,
+    statics,
+    explainThisModel,
+    ui_state,
+  };
 };
 
 let save = ({editors, settings, explainThisModel, results, _}: t) => {

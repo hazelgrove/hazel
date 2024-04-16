@@ -10,6 +10,8 @@ type t = {
 
 let mk = (~foc=Focus.Point, ctx) => {foc, ctx};
 
+let init = failwith("todo: zipper init");
+
 let unselect = (~toward=?, z: t) =>
   switch (z.foc) {
   | Point => z

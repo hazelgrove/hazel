@@ -198,9 +198,9 @@ let go =
       switch (Action.to_tylr(a)) {
       | None => tylr
       | Some(a) =>
-        print_endline("Perform.go a = " ++ Tylr.Zipper.Action.show(a));
+        print_endline("Perform.go a = " ++ Tylr.Edit.Action.show(a));
         print_endline("Perform.go z = " ++ Tylr.Zipper.show(tylr));
-        switch (Tylr.Zipper.perform(a, tylr)) {
+        switch (Tylr.Edit.perform(a, tylr)) {
         | None =>
           print_endline("Perform.go failed");
           tylr;
@@ -209,7 +209,5 @@ let go =
           t;
         };
       };
-    let ed = Editor.new_state(~effects=Effect.s^, ~tylr, a, z, ed);
-    (ed, id_gen);
-    Editor.new_state(~effects=Effect.s^, a, z, ed);
+    Editor.new_state(~effects=Effect.s^, ~tylr, a, z, ed);
   };
