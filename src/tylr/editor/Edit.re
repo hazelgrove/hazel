@@ -1,30 +1,13 @@
 open Sexplib.Std;
 open Util;
 
-let select = (d: Dir.t, z: Zipper.t): option(Zipper.t) => {
-  open OptUtil.Syntax;
-  let b = Dir.toggle(d);
-  switch (z.foc) {
-  | Point =>
-    let+ (tok, ctx) = Melder.Ctx.pull(~from=d, z.ctx);
-    let foc = Focus.Select(d, Zigg.of_tok(tok));
-    Zipper.mk(~foc, ctx);
-  | Select(side, zigg) =>
-    if (side == d) {
-      let+ (tok, ctx) = Melder.Ctx.pull(~from=d, z.ctx);
-      let zigg = Melder.Zigg.grow(~side, tok, zigg);
-      Zipper.mk(~foc=Select(d, zigg), ctx);
-    } else {
-      let (tok, rest) = Melder.Zigg.pull(~from=d, zigg);
-      let ctx = Melder.Ctx.(close(push_fail(~onto=b, tok, z.ctx)));
-      let foc =
-        switch (rest) {
-        | None => Focus.Point
-        | Some(sel) => Select(b, sel)
-        };
-      Some(Zipper.mk(~foc, ctx));
-    }
-  };
+module Action = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Move(Move.Action.t)
+    | Select(Select.Action.t)
+    | Delete(Dir.t)
+    | Insert(string);
 };
 
 // d is side of cleared focus contents the cursor should end up
@@ -54,7 +37,7 @@ let insert = (s: string, z: Zipper.t) => {
   let ((l, r), ctx) = pull_neighbors(ctx);
   Labeler.label(l ++ s ++ r)
   |> List.fold_left((ctx, tok) => Molder.mold(ctx, tok), ctx)
-  |> Molder.remold(~fill=[Meld.cursor])
+  |> Molder.remold(~fill=[Cell.Space.cursor])
   |> Zipper.mk
   |> Zipper.move_to_cursor;
 };
@@ -67,8 +50,8 @@ let delete = (d: Dir.t, z: Zipper.t): option(Zipper.t) => {
 
 let perform = (a: Action.t, z: Zipper.t): option(Zipper.t) =>
   switch (a) {
-  | Move(d) => move(d, z)
-  | Select(d) => select(d, z)
+  | Move(a) => Move.perform(a, z)
+  | Select(a) => Select.perform(a, z)
   | Delete(d) => delete(d, z)
   | Insert(s) => Some(insert(s, z))
   };

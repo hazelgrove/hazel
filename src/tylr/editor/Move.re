@@ -1,5 +1,14 @@
 open Util;
 
+module Action = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Step(Dir2.t)
+    | Skip(Dir2.t)
+    | Jump(Layout.Pos.t)
+    | Hole(Dir.t);
+};
+
 let move = (d: Dir.t, z: Zipper.t): option(Zipper.t) => {
   open OptUtil.Syntax;
   let b = Dir.toggle(d);
@@ -39,24 +48,30 @@ let map_pos = (f: Layout.Pos.t => Layout.Pos.t, z: Zipper.t) => {
   c.marks.cursor
   |> Option.map(path => {
        let pos = Layout.pos_of_path(path, c);
-       let path = Layout.path_of_pos(f(pos));
+       let path = Layout.path_of_pos(f(pos), c);
        Zipper.unzip(Cell.put_cursor(path, c));
      })
   // shouldn't actually hit this case, just to type-check
   |> Option.value(~default=z);
 };
 
-let go = (a: Action.Move.t, z: Zipper.t) =>
+// todo: need to return none in some more cases when no visible movement occurs
+let perform = (a: Action.t, z: Zipper.t) =>
   switch (a) {
   | Step(H(d)) => move(d, z)
   | Step(V(d)) =>
-    z |> map_pos(pos => {...pos, row: pos.row + Dir.pick(d, -1, 1)})
+    // todo: this always succeeds but should fail at ends
+    z
+    |> map_pos(pos => {...pos, row: pos.row + Dir.pick(d, ((-1), 1))})
+    |> Option.some
   | Skip(H(d)) =>
-    z |> map_pos(pos => {...pos, col: Dir.pick(d, -1, Int.max_int)})
+    z
+    |> map_pos(pos => {...pos, col: Dir.pick(d, ((-1), Int.max_int))})
+    |> Option.some
   | Skip(V(d)) =>
-    let (c, _) = Zipper.zip(z);
+    let c = Zipper.zip(z);
     let path = Path.Point.mk(End(d));
-    Zipper.unzip(Cell.put_cursor(path, c));
-  | Jump(pos) => z |> map_pos(_ => pos)
+    Some(Zipper.unzip(Cell.put_cursor(path, c)));
+  | Jump(pos) => z |> map_pos(_ => pos) |> Option.some
   | Hole(_) => failwith("todo: move to hole")
   };
