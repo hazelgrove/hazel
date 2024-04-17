@@ -150,7 +150,6 @@ module Decompose = {
     let otherwise = (env, o) => (o, Result.BoxedValue, env, ());
     let update_test = (state, id, v) =>
       state := EvaluatorState.add_test(state^, id, v);
-    let get_info_map = (state: state) => EvaluatorState.get_info_map(state^);
   };
 
   module Decomp = Transition(DecomposeEVMode);
@@ -213,7 +212,6 @@ module TakeStep = {
 
     let update_test = (state, id, v) =>
       state := EvaluatorState.add_test(state^, id, v);
-    let get_info_map = (state: state) => EvaluatorState.get_info_map(state^);
   };
 
   module TakeStepEV = Transition(TakeStepEVMode);

@@ -191,11 +191,6 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
           |> rewrap
           |> cast_from(Typ.fresh(Typ.Unknown(Internal)))
       )
-    | StaticErrorHole(id, e) =>
-      let (e', _) = elaborate(m, e);
-      StaticErrorHole(id, e')
-      |> rewrap
-      |> cast_from(Typ.fresh(Unknown(Internal)));
     | DynamicErrorHole(e, err) =>
       let (e', _) = elaborate(m, e);
       DynamicErrorHole(e', err)

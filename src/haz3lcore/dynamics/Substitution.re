@@ -95,9 +95,6 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
   | EmptyHole => EmptyHole |> rewrap
   // TODO: handle multihole
   | MultiHole(_d2) => d2 //MultiHole(List.map(subst_var(m, d1, x), ds)) |> rewrap
-  | StaticErrorHole(u, d3) =>
-    let d3' = subst_var(m, d1, x, d3);
-    StaticErrorHole(u, d3') |> rewrap;
   | Cast(d, ty1, ty2) =>
     let d' = subst_var(m, d1, x, d);
     Cast(d', ty1, ty2) |> rewrap;

@@ -96,7 +96,6 @@ let rec find_fn =
   | Deferral(_)
   | Invalid(_)
   | MultiHole(_)
-  | StaticErrorHole(_)
   | DynamicErrorHole(_)
   | FailedCast(_)
   | Bool(_)
@@ -168,7 +167,6 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | UnOp(_, u)
   | TyAlias(_, _, u)
   | Filter(_, u) => var_mention(name, u)
-  | StaticErrorHole(_, u) => var_mention(name, u)
   | DynamicErrorHole(u, _) => var_mention(name, u)
   | FailedCast(u, _, _) => var_mention(name, u)
   | FixF(args, body, _) =>
@@ -228,7 +226,6 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | UnOp(_, u)
   | TyAlias(_, _, u)
   | Filter(_, u) => var_applied(name, u)
-  | StaticErrorHole(_) => false
   | DynamicErrorHole(_) => false
   | FailedCast(_) => false
   // This case shouldn't come up!
@@ -291,7 +288,6 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | Deferral(_)
   | Invalid(_)
   | MultiHole(_)
-  | StaticErrorHole(_)
   | DynamicErrorHole(_)
   | FailedCast(_)
   | Bool(_)

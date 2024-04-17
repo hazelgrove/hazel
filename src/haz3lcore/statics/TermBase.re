@@ -79,7 +79,6 @@ and Exp: {
     | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
-    | StaticErrorHole(Id.t, t)
     | DynamicErrorHole(t, InvalidOperationError.t)
     | FailedCast(t, Typ.t, Typ.t)
     | Deferral(deferral_position)
@@ -139,7 +138,6 @@ and Exp: {
     | Invalid(string)
     | EmptyHole // Combine the problems into one construct
     | MultiHole(list(Any.t))
-    | StaticErrorHole(Id.t, t)
     | DynamicErrorHole(t, InvalidOperationError.t)
     | FailedCast(t, Typ.t, Typ.t) // TODO: get rid of failedcast
     | Deferral(deferral_position)
@@ -220,7 +218,6 @@ and Exp: {
         | Deferral(_)
         | Var(_) => term
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
-        | StaticErrorHole(id, e) => StaticErrorHole(id, exp_map_term(e))
         | DynamicErrorHole(e, err) => DynamicErrorHole(exp_map_term(e), err)
         | FailedCast(e, t1, t2) => FailedCast(exp_map_term(e), t1, t2)
         | ListLit(ts) => ListLit(List.map(exp_map_term, ts))

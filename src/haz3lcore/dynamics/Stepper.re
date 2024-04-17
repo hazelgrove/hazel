@@ -157,9 +157,6 @@ let rec matches =
       | MultiHole(ctx, (dl, dr)) =>
         let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
         MultiHole(ctx, (dl, dr)) |> rewrap;
-      | StaticErrorHole(i, ctx) =>
-        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
-        StaticErrorHole(i, ctx) |> rewrap;
       | Cast(ctx, ty, ty') =>
         let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
         Cast(ctx, ty, ty') |> rewrap;
