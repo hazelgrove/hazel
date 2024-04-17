@@ -54,8 +54,6 @@ module EvaluatorEVMode: {
   let update_test = (state, id, v) =>
     state := EvaluatorState.add_test(state^, id, v);
 
-  let get_info_map = (state: state) => EvaluatorState.get_info_map(state^);
-
   type result_unfinished =
     | BoxedValue(DHExp.t)
     | Indet(DHExp.t)

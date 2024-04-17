@@ -83,8 +83,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | BinOp(Float(op), _, _) => precedence_bin_float_op(op)
   | BinOp(String(op), _, _) => precedence_bin_string_op(op)
   | MultiHole(_) => DHDoc_common.precedence_max
-  | Parens(d)
-  | StaticErrorHole(_, d) => precedence'(d)
+  | Parens(d) => precedence'(d)
   };
 };
 
@@ -141,13 +140,13 @@ let mk =
         switch (ps.knd, DHExp.term_of(ps.d_loc)) {
         | (FunAp, Ap(_, d2, _)) =>
           switch (DHExp.term_of(d2)) {
-          | Fun(p, _, _, _) => DHPat.bound_vars(infomap, p)
+          | Fun(p, _, _, _) => DHPat.bound_vars(p)
           | _ => []
           }
         | (FunAp, _) => []
-        | (LetBind, Let(p, _, _)) => DHPat.bound_vars(infomap, p)
+        | (LetBind, Let(p, _, _)) => DHPat.bound_vars(p)
         | (LetBind, _) => []
-        | (FixUnwrap, FixF(p, _, _)) => DHPat.bound_vars(infomap, p)
+        | (FixUnwrap, FixF(p, _, _)) => DHPat.bound_vars(p)
         | (FixUnwrap, _) => []
         | (InvalidStep, _)
         | (VarLookup, _)
@@ -294,7 +293,6 @@ let mk =
           ~selected=Some(DHExp.rep_id(d)) == selected_hole_instance,
           env,
         )
-      | StaticErrorHole(_, d') => go'(d') |> annot(DHAnnot.NonEmptyHole)
       | Invalid(t) => DHDoc_common.mk_InvalidText(t)
       | Var(x) when settings.show_lookup_steps => text(x)
       | Var(x) =>
@@ -424,7 +422,7 @@ let mk =
         if (enforce_inline) {
           fail();
         } else {
-          let bindings = DHPat.bound_vars(infomap, dp);
+          let bindings = DHPat.bound_vars(dp);
           let def_doc = go_formattable(ddef);
           vseps([
             hcats([
@@ -499,7 +497,7 @@ let mk =
         ]);
       | Fun(dp, d, Some(env'), s) =>
         if (settings.show_fn_bodies) {
-          let bindings = DHPat.bound_vars(infomap, dp);
+          let bindings = DHPat.bound_vars(dp);
           let body_doc =
             go_formattable(
               Closure(
@@ -509,7 +507,7 @@ let mk =
               |> DHExp.fresh,
               ~env=
                 ClosureEnvironment.without_keys(
-                  DHPat.bound_vars(infomap, dp) @ Option.to_list(s),
+                  DHPat.bound_vars(dp) @ Option.to_list(s),
                   env,
                 ),
               ~recent_subst=
@@ -538,7 +536,7 @@ let mk =
         }
       | Fun(dp, dbody, None, s) =>
         if (settings.show_fn_bodies) {
-          let bindings = DHPat.bound_vars(infomap, dp);
+          let bindings = DHPat.bound_vars(dp);
           let body_doc =
             go_formattable(
               dbody,
@@ -572,11 +570,7 @@ let mk =
         let doc_body =
           go_formattable(
             dbody,
-            ~env=
-              ClosureEnvironment.without_keys(
-                DHPat.bound_vars(infomap, dp),
-                env,
-              ),
+            ~env=ClosureEnvironment.without_keys(DHPat.bound_vars(dp), env),
           );
         hcats(
           [

@@ -135,8 +135,6 @@ module type EV_MODE = {
   let otherwise: (ClosureEnvironment.t, 'a) => requirements(unit, 'a);
 
   let update_test: (state, Id.t, TestMap.instance_report) => unit;
-
-  let get_info_map: state => Statics.Map.t;
 };
 
 module Transition = (EV: EV_MODE) => {
@@ -154,25 +152,6 @@ module Transition = (EV: EV_MODE) => {
      children change, we use rewrap */
 
   let transition = (req, state, env, d): 'a => {
-    // If there is an error at this location, swap out the rule for indet.
-    let info_map = get_info_map(state);
-    let err_info = Statics.get_error_at(info_map, DHExp.rep_id(d));
-    let (let.) =
-      switch (err_info) {
-      | Some(
-          FreeVariable(_) | Common(NoType(_) | Inconsistent(Internal(_))) |
-          UnusedDeferral |
-          BadPartialAp(_),
-        ) => (
-          (x, _) => {
-            let. _ = x;
-            Indet;
-          }
-        )
-      | Some(Common(Inconsistent(Expectation(_) | WithArrow(_))))
-      | None => (let.)
-      };
-
     // Split DHExp into term and id information
     let (term, rewrap) = DHExp.unwrap(d);
     let wrap_ctx = (term): EvalCtx.t => Term({term, ids: [rep_id(d)]});
@@ -203,7 +182,7 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d1 => Let(dp, d1, d2) |> rewrap)
       and. d1' =
         req_final(req(state, env), d1 => Let1(dp, d1, d2) |> wrap_ctx, d1);
-      let.match env' = (env, matches(info_map, dp, d1'));
+      let.match env' = (env, matches(dp, d1'));
       Step({
         apply: () => Closure(env', d2) |> fresh,
         kind: LetBind,
@@ -244,7 +223,7 @@ module Transition = (EV: EV_MODE) => {
       // Mutual Recursion case
       | None =>
         let. _ = otherwise(env, d);
-        let bindings = DHPat.bound_vars(info_map, dp);
+        let bindings = DHPat.bound_vars(dp);
         let substitutions =
           List.map(
             binding =>
@@ -274,14 +253,14 @@ module Transition = (EV: EV_MODE) => {
         apply: () =>
           switch (DHExp.term_of(d')) {
           | Bool(true) =>
-            update_test(state, DHExp.rep_id(d), (d', info_map, Pass));
+            update_test(state, DHExp.rep_id(d), (d', Pass));
             Tuple([]) |> fresh;
           | Bool(false) =>
-            update_test(state, DHExp.rep_id(d), (d', info_map, Fail));
+            update_test(state, DHExp.rep_id(d), (d', Fail));
             Tuple([]) |> fresh;
           /* Hack: assume if final and not Bool, then Indet; this won't catch errors in statics */
           | _ =>
-            update_test(state, DHExp.rep_id(d), (d', info_map, Indet));
+            update_test(state, DHExp.rep_id(d), (d', Indet));
             Tuple([]) |> fresh;
           },
         kind: UpdateTest,
@@ -315,7 +294,7 @@ module Transition = (EV: EV_MODE) => {
       switch (DHExp.term_of(d1')) {
       | Constructor(_) => Constructor
       | Fun(dp, d3, Some(env'), _) =>
-        let.match env'' = (env', matches(info_map, dp, d2'));
+        let.match env'' = (env', matches(dp, d2'));
         Step({
           apply: () => Closure(env'', d3) |> fresh,
           kind: FunAp,
@@ -662,7 +641,7 @@ module Transition = (EV: EV_MODE) => {
         fun
         | [] => None
         | [(dp, d2), ...rules] =>
-          switch (matches(info_map, dp, d1)) {
+          switch (matches(dp, d1)) {
           | Matches(env') => Some((env', d2))
           | DoesNotMatch => next_rule(rules)
           | IndetMatch => None
@@ -682,15 +661,6 @@ module Transition = (EV: EV_MODE) => {
       and. d' =
         req_final(req(state, env'), d1 => Closure(env', d1) |> wrap_ctx, d);
       Step({apply: () => d', kind: CompleteClosure, value: true});
-    | StaticErrorHole(sid, d1) =>
-      let. _ = otherwise(env, d1 => StaticErrorHole(sid, d1) |> rewrap)
-      and. _ =
-        req_final(
-          req(state, env),
-          d1 => StaticErrorHole(sid, d1) |> wrap_ctx,
-          d1,
-        );
-      Indet;
     | MultiHole(_) =>
       let. _ = otherwise(env, d);
       // and. _ =

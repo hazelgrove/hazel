@@ -76,7 +76,6 @@ let rec strip_casts =
         | Closure(_)
         | If(_) => continue(exp)
         /* Remove casts*/
-        | StaticErrorHole(_, d)
         | FailedCast(d, _, _)
         | Cast(d, _, _) => strip_casts(d)
         }
@@ -187,14 +186,11 @@ let rec fast_equal =
      (This resolves a performance issue with many nested holes.) */
   | (EmptyHole, EmptyHole) => true
   | (MultiHole(_), MultiHole(_)) => rep_id(d1exp) == rep_id(d2exp)
-  | (StaticErrorHole(sid1, d1), StaticErrorHole(sid2, d2)) =>
-    sid1 == sid2 && d1 == d2
   | (Invalid(text1), Invalid(text2)) => text1 == text2
   | (Closure(sigma1, d1), Closure(sigma2, d2)) =>
     ClosureEnvironment.id_equal(sigma1, sigma2) && fast_equal(d1, d2)
   | (EmptyHole, _)
   | (MultiHole(_), _)
-  | (StaticErrorHole(_), _)
   | (Invalid(_), _)
   | (Closure(_), _) => false
   };

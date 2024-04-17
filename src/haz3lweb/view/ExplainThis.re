@@ -523,7 +523,6 @@ let get_doc =
       switch ((term: Exp.term)) {
       | Exp.Invalid(_) => simple("Not a valid expression")
       | DynamicErrorHole(_)
-      | StaticErrorHole(_)
       | FailedCast(_)
       | Closure(_)
       | Cast(_)

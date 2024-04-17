@@ -49,7 +49,6 @@ let rec append_exp = {
         | EmptyHole
         | Invalid(_)
         | MultiHole(_)
-        | StaticErrorHole(_)
         | DynamicErrorHole(_)
         | FailedCast(_)
         | Deferral(_)
