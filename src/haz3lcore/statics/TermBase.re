@@ -281,7 +281,7 @@ and Pat: {
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
-    | TypeAnn(t, Typ.t)
+    | Cast(t, Typ.t, Typ.t) // The second one is hidden from the user
   and t = IdTagged.t(term);
 
   let map_term:
@@ -313,7 +313,7 @@ and Pat: {
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
-    | TypeAnn(t, Typ.t)
+    | Cast(t, Typ.t, Typ.t) // The second one is hidden from the user
   and t = IdTagged.t(term);
 
   let map_term =
@@ -351,7 +351,8 @@ and Pat: {
         | Cons(e1, e2) => Cons(pat_map_term(e1), pat_map_term(e2))
         | Tuple(xs) => Tuple(List.map(pat_map_term, xs))
         | Parens(e) => Parens(pat_map_term(e))
-        | TypeAnn(e, t) => TypeAnn(pat_map_term(e), typ_map_term(t))
+        | Cast(e, t1, t2) =>
+          Cast(pat_map_term(e), typ_map_term(t1), typ_map_term(t2))
         },
     };
     x |> f_pat(rec_call);

@@ -18,7 +18,7 @@ let precedence = (dp: Pat.t) =>
   | Cons(_) => DHDoc_common.precedence_Cons
   | Ap(_) => DHDoc_common.precedence_Ap
   | Parens(_) => DHDoc_common.precedence_const
-  | TypeAnn(_) => DHDoc_common.precedence_Times
+  | Cast(_) => DHDoc_common.precedence_Times
   };
 
 let rec mk =
@@ -60,7 +60,14 @@ let rec mk =
     | Tuple([]) => DHDoc_common.Delim.triv
     | Tuple(ds) => DHDoc_common.mk_Tuple(List.map(mk', ds))
     // TODO: Print type annotations
-    | TypeAnn(dp, _)
+    | Cast(dp, t1, t2) =>
+      Doc.hcats([
+        mk'(dp),
+        Doc.text(":"),
+        DHDoc_Typ.mk(~enforce_inline, t1),
+        Doc.text("<-"),
+        DHDoc_Typ.mk(~enforce_inline, t2),
+      ])
     | Parens(dp) => mk(~enforce_inline, ~parenthesize=true, ~infomap, dp)
     | Ap(dp1, dp2) =>
       let (doc1, doc2) =

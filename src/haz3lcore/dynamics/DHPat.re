@@ -21,7 +21,7 @@ let rec binds_var = (m: Statics.Map.t, x: Var.t, dp: t): bool =>
     | Bool(_)
     | String(_)
     | Constructor(_) => false
-    | TypeAnn(y, _)
+    | Cast(y, _, _)
     | Parens(y) => binds_var(m, x, y)
     | Var(y) => Var.eq(x, y)
     | Tuple(dps) => dps |> List.exists(binds_var(m, x))
@@ -47,7 +47,7 @@ let rec bound_vars = (m, dp: t): list(Var.t) =>
     | Bool(_)
     | String(_)
     | Constructor(_) => []
-    | TypeAnn(y, _)
+    | Cast(y, _, _)
     | Parens(y) => bound_vars(m, y)
     | Var(y) => [y]
     | Tuple(dps) => List.flatten(List.map(bound_vars(m), dps))

@@ -201,6 +201,7 @@ type pat = {
   ancestors,
   ctx: Ctx.t,
   co_ctx: CoCtx.t,
+  prev_synswitch: option(Typ.t), // If a pattern is first synthesized, then analysed, the initial syn is stored here.
   mode: Mode.t,
   self: Self.pat,
   cls: Cls.t,
@@ -479,7 +480,7 @@ let is_error = (ci: t): bool => {
 };
 
 /* Determined the type of an expression or pattern 'after hole fixing';
-   that is, all ill-typed terms are considered to be 'wrapped in
+   that is, some ill-typed terms are considered to be 'wrapped in
    non-empty holes', i.e. assigned Unknown type. */
 let fixed_typ_ok: ok_pat => Typ.t =
   fun
@@ -487,15 +488,36 @@ let fixed_typ_ok: ok_pat => Typ.t =
   | Ana(Consistent({join, _})) => join
   | Ana(InternallyInconsistent({ana, _})) => ana;
 
+let fixed_typ_err_common: error_common => Typ.t =
+  fun
+  | NoType(_) => Unknown(Internal) |> Typ.fresh
+  | Inconsistent(Expectation({ana, _})) => ana
+  | Inconsistent(Internal(_)) => Unknown(Internal) |> Typ.fresh // Should this be some sort of meet?
+  | Inconsistent(WithArrow(_)) =>
+    Arrow(Unknown(Internal) |> Typ.fresh, Unknown(Internal) |> Typ.fresh)
+    |> Typ.fresh;
+
+let fixed_typ_err: error_exp => Typ.t =
+  fun
+  | FreeVariable(_) => Unknown(Internal) |> Typ.fresh
+  | UnusedDeferral => Unknown(Internal) |> Typ.fresh
+  | BadPartialAp(_) => Unknown(Internal) |> Typ.fresh
+  | Common(err) => fixed_typ_err_common(err);
+
+let fixed_typ_err_pat: error_pat => Typ.t =
+  fun
+  | ExpectedConstructor => Unknown(Internal) |> Typ.fresh
+  | Common(err) => fixed_typ_err_common(err);
+
 let fixed_typ_pat = (ctx, mode: Mode.t, self: Self.pat): Typ.t =>
   switch (status_pat(ctx, mode, self)) {
-  | InHole(_) => Unknown(Internal) |> Typ.fresh
+  | InHole(err) => fixed_typ_err_pat(err)
   | NotInHole(ok) => fixed_typ_ok(ok)
   };
 
 let fixed_typ_exp = (ctx, mode: Mode.t, self: Self.exp): Typ.t =>
   switch (status_exp(ctx, mode, self)) {
-  | InHole(_) => Unknown(Internal) |> Typ.fresh
+  | InHole(err) => fixed_typ_err(err)
   | NotInHole(AnaDeferralConsistent(ana)) => ana
   | NotInHole(Common(ok)) => fixed_typ_ok(ok)
   };
@@ -511,11 +533,23 @@ let derived_exp =
 
 /* Add derivable attributes for pattern terms */
 let derived_pat =
-    (~upat: UPat.t, ~ctx, ~co_ctx, ~mode, ~ancestors, ~self): pat => {
+    (~upat: UPat.t, ~ctx, ~co_ctx, ~prev_synswitch, ~mode, ~ancestors, ~self)
+    : pat => {
   let cls = Cls.Pat(UPat.cls_of_term(upat.term));
   let status = status_pat(ctx, mode, self);
   let ty = fixed_typ_pat(ctx, mode, self);
-  {cls, self, mode, ty, status, ctx, co_ctx, ancestors, term: upat};
+  {
+    cls,
+    self,
+    prev_synswitch,
+    mode,
+    ty,
+    status,
+    ctx,
+    co_ctx,
+    ancestors,
+    term: upat,
+  };
 };
 
 /* Add derivable attributes for types */

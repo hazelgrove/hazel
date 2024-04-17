@@ -1,11 +1,8 @@
 /*
-
-
  A nice property would be that elaboration is idempotent...
  */
 
 open Util;
-open OptUtil.Syntax;
 
 exception MissingTypeInfo;
 
@@ -24,427 +21,489 @@ module ElaborationResult = {
     | DoesNotElaborate;
 };
 
-let fixed_exp_typ = (m: Statics.Map.t, e: UExp.t): option(Typ.t) =>
-  switch (Id.Map.find_opt(UExp.rep_id(e), m)) {
-  | Some(InfoExp({ty, _})) => Some(ty)
-  | _ => None
-  };
-
-let fixed_pat_typ = (m: Statics.Map.t, p: UPat.t): option(Typ.t) =>
-  switch (Id.Map.find_opt(UPat.rep_id(p), m)) {
-  | Some(InfoPat({ty, _})) => Some(ty)
-  | _ => None
-  };
-
-/* This function gets rid of casts that do nothing, and casts to a
-   type with a SynSwitch. */
-let rec get_cast = (t1: Typ.t, t2: Typ.t): option((Typ.t, Typ.t)) => {
-  switch (Typ.term_of(t1), Typ.term_of(t2)) {
-  // SynSwitch should only appear on right.
-  | (_, Unknown(SynSwitch))
-  | (Unknown(SynSwitch), _) => None
-  | (Parens(t1), _) => get_cast(t1, t2)
-  | (_, Parens(t2)) => get_cast(t1, t2)
-
-  | (Int, Int)
-  | (Bool, Bool)
-  | (Float, Float)
-  | (String, String)
-  | (Unknown(_) | Ap(_), Unknown(_) | Ap(_)) => None
-  | (Var(x), Var(y)) when x == y => None
-
-  | (List(t1), List(t2)) =>
-    let+ (t1', t2') = get_cast(t1, t2);
-    (List(t1') |> Typ.fresh, List(t2') |> Typ.fresh);
-  | (Arrow(t1, t2), Arrow(t3, t4)) =>
-    let cast1 = get_cast(t1, t3);
-    let cast2 = get_cast(t2, t4);
-    switch (cast1, cast2) {
-    | (None, None) => None
-    | _ =>
-      let (t1', t2') = cast1 |> Option.value(~default=(t1, t1));
-      let (t3', t4') = cast2 |> Option.value(~default=(t2, t2));
-      Some((Arrow(t1', t2') |> Typ.fresh, Arrow(t3', t4') |> Typ.fresh));
-    };
-  | (Prod(ts1), Prod(ts2)) =>
-    let casts = List.map2(get_cast, ts1, ts2);
-    if (List.for_all(Option.is_none, casts)) {
-      None;
-    } else {
-      let casts =
-        List.map2(
-          (cst, dft) => Option.value(~default=(dft, dft), cst),
-          casts,
-          ts1,
-        );
-      Some((
-        Prod(casts |> List.map(fst)) |> Typ.fresh,
-        Prod(casts |> List.map(snd)) |> Typ.fresh,
-      ));
-    };
-  | (Sum(m1), Sum(m2)) =>
-    let+ (m1', m2') = ConstructorMap.get_cast(Typ.eq, get_cast, m1, m2);
-    (Sum(m1') |> Typ.fresh, Sum(m2') |> Typ.fresh);
-  | (Rec({term: Var(x1), _}, t1), Rec({term: Var(x2), _}, t2))
-      when x1 == x2 =>
-    get_cast(t1, t2)
-  | (Rec({term: Var(x1), _}, t1), Rec({term: Var(x2), _}, t2)) =>
-    get_cast(t1, Typ.subst(Typ.fresh(Var(x1)), x2, t2))
-
-  | (Int, _)
-  | (Bool, _)
-  | (Float, _)
-  | (String, _)
-  | (Unknown(_) | Ap(_), _)
-  | (List(_), _)
-  | (Arrow(_), _)
-  | (Prod(_), _)
-  | (Sum(_), _)
-  | (Var(_), _)
-  | (Rec(_), _) => Some((t1, t2))
-  };
-};
-
 let fresh_cast = (d: DHExp.t, t1: Typ.t, t2: Typ.t): DHExp.t => {
-  switch (get_cast(t1, t2)) {
-  | Some((t1', t2')) => DHExp.Cast(d, t1', t2') |> DHExp.fresh
-  | None => d
+  Typ.eq(t1, t2)
+    ? d
+    : {
+      let d' =
+        DHExp.Cast(d, t1, Typ.fresh(Unknown(Internal)))
+        |> DHExp.fresh
+        |> Casts.transition_multiple;
+      DHExp.Cast(d', Typ.fresh(Unknown(Internal)), t2)
+      |> DHExp.fresh
+      |> Casts.transition_multiple;
+    };
+};
+
+let fresh_pat_cast = (p: DHPat.t, t1: Typ.t, t2: Typ.t): DHPat.t =>
+  Typ.eq(t1, t2)
+    ? p
+    : {
+      Cast(
+        DHPat.fresh(Cast(p, t1, Typ.fresh(Unknown(Internal))))
+        |> Casts.pattern_fixup,
+        Typ.fresh(Unknown(Internal)),
+        t2,
+      )
+      |> DHPat.fresh
+      |> Casts.pattern_fixup;
+    };
+
+let elaborated_type = (m: Statics.Map.t, uexp: UExp.t): (Typ.t, Ctx.t) => {
+  let (mode, self_ty, ctx) =
+    switch (Id.Map.find_opt(Exp.rep_id(uexp), m)) {
+    | Some(Info.InfoExp({mode, ty, ctx, _})) => (mode, ty, ctx)
+    | _ => raise(MissingTypeInfo)
+    };
+  switch (mode) {
+  | SynFun
+  | Syn => (self_ty, ctx)
+  // We need to remove the synswitches from this type.
+  | Ana(ana_ty) => (Typ.match_synswitch(ana_ty, self_ty), ctx)
   };
 };
 
-/* Adds casts if required.
-   When adding a new construct, [TODO: write something helpful here] */
-let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
+let elaborated_pat_type = (m: Statics.Map.t, upat: UPat.t): (Typ.t, Ctx.t) => {
+  let (mode, self_ty, ctx, prev_synswitch) =
+    switch (Id.Map.find_opt(UPat.rep_id(upat), m)) {
+    | Some(Info.InfoPat({mode, ty, ctx, prev_synswitch, _})) => (
+        mode,
+        ty,
+        ctx,
+        prev_synswitch,
+      )
+    | _ => raise(MissingTypeInfo)
+    };
   switch (mode) {
-  | Syn => d
-  | SynFun =>
-    switch (Typ.term_of(self_ty)) {
-    | Unknown(_) =>
-      fresh_cast(d, self_ty, Arrow(self_ty, self_ty) |> Typ.fresh)
-    | Arrow(_) => d
-    | _ => failwith("Elaborator.wrap: SynFun non-arrow-type")
-    }
+  | SynFun
+  | Syn => (self_ty, ctx)
   | Ana(ana_ty) =>
-    let ana_ty = Typ.normalize(ctx, ana_ty);
-    /* Forms with special ana rules get cast from their appropriate Matched types */
-    switch (DHExp.term_of(d)) {
-    | ListLit(_)
-    | ListConcat(_)
-    | Cons(_) =>
-      switch (Typ.term_of(ana_ty)) {
-      | Unknown(_) => fresh_cast(d, List(ana_ty) |> Typ.fresh, ana_ty)
-      | _ => d
-      }
-    | Fun(_) =>
-      /* See regression tests in Documentation/Dynamics */
-      let (_, ana_out) = Typ.matched_arrow(ctx, ana_ty);
-      let (self_in, _) = Typ.matched_arrow(ctx, self_ty);
-      fresh_cast(d, Arrow(self_in, ana_out) |> Typ.fresh, ana_ty);
-    | Tuple(ds) =>
-      switch (Typ.term_of(ana_ty)) {
-      | Unknown(prov) =>
-        let us =
-          List.init(List.length(ds), _ => Typ.Unknown(prov) |> Typ.fresh);
-        fresh_cast(d, Prod(us) |> Typ.fresh, ana_ty);
-      | _ => d
-      }
-    | Constructor(_) =>
-      switch (ana_ty |> Typ.term_of, self_ty |> Typ.term_of) {
-      | (Unknown(_), Rec(_, {term: Sum(_), _}))
-      | (Unknown(_), Sum(_)) => fresh_cast(d, self_ty, ana_ty)
-      | _ => d
-      }
-    | Ap(_, f, _) =>
-      switch (DHExp.term_of(f)) {
-      | Constructor(_) =>
-        switch (ana_ty |> Typ.term_of, self_ty |> Typ.term_of) {
-        | (Unknown(_), Rec(_, {term: Sum(_), _}))
-        | (Unknown(_), Sum(_)) => fresh_cast(d, self_ty, ana_ty)
-        | _ => d
-        }
-      | StaticErrorHole(_, g) =>
-        switch (DHExp.term_of(g)) {
-        | Constructor(_) =>
-          switch (ana_ty |> Typ.term_of, self_ty |> Typ.term_of) {
-          | (Unknown(_), Rec(_, {term: Sum(_), _}))
-          | (Unknown(_), Sum(_)) => fresh_cast(d, self_ty, ana_ty)
-          | _ => d
-          }
-        | _ => fresh_cast(d, self_ty, ana_ty)
-        }
-      | _ => fresh_cast(d, self_ty, ana_ty)
-      }
-    /* Forms with special ana rules but no particular typing requirements */
-    | Match(_)
-    | If(_)
-    | Seq(_)
-    | Let(_)
-    | FixF(_) => d
-    /* Hole-like forms: Don't cast */
+    switch (prev_synswitch) {
+    | None => (ana_ty, ctx)
+    | Some(syn_ty) => (Typ.match_synswitch(syn_ty, ana_ty), ctx)
+    }
+  };
+};
+
+let rec elaborate_pattern =
+        (m: Statics.Map.t, upat: UPat.t): (DHPat.t, Typ.t) => {
+  let (elaborated_type, ctx) = elaborated_pat_type(m, upat);
+  let cast_from = (ty, exp) => fresh_pat_cast(exp, ty, elaborated_type);
+  let (term, rewrap) = UPat.unwrap(upat);
+  let dpat =
+    switch (term) {
+    | Int(_) => upat |> cast_from(Int |> Typ.fresh)
+    | Bool(_) => upat |> cast_from(Bool |> Typ.fresh)
+    | Float(_) => upat |> cast_from(Float |> Typ.fresh)
+    | String(_) => upat |> cast_from(String |> Typ.fresh)
+    | ListLit(ps) =>
+      let (ps, tys) = List.map(elaborate_pattern(m), ps) |> ListUtil.unzip;
+      let inner_type =
+        tys
+        |> Typ.join_all(~empty=Unknown(Internal) |> Typ.fresh, ctx)
+        |> Option.value(~default=Typ.fresh(Unknown(Internal)));
+      ps
+      |> List.map2((p, t) => fresh_pat_cast(p, t, inner_type), _, tys)
+      |> (
+        ps' =>
+          DHPat.ListLit(ps')
+          |> rewrap
+          |> cast_from(List(inner_type) |> Typ.fresh)
+      );
+    | Cons(p1, p2) =>
+      let (p1', ty1) = elaborate_pattern(m, p1);
+      let (p2', ty2) = elaborate_pattern(m, p2);
+      let ty2_inner = Typ.matched_list(ctx, ty2);
+      let ty_inner =
+        Typ.join(~fix=false, ctx, ty1, ty2_inner)
+        |> Option.value(~default=Typ.fresh(Unknown(Internal)));
+      let p1'' = fresh_pat_cast(p1', ty1, ty_inner);
+      let p2'' = fresh_pat_cast(p2', ty2, List(ty_inner) |> Typ.fresh);
+      DHPat.Cons(p1'', p2'')
+      |> rewrap
+      |> cast_from(List(ty_inner) |> Typ.fresh);
+    | Tuple(ps) =>
+      let (ps', tys) = List.map(elaborate_pattern(m), ps) |> ListUtil.unzip;
+      DHPat.Tuple(ps') |> rewrap |> cast_from(Typ.Prod(tys) |> Typ.fresh);
+    | Ap(p1, p2) =>
+      let (p1', ty1) = elaborate_pattern(m, p1);
+      let (p2', ty2) = elaborate_pattern(m, p2);
+      let (ty1l, ty1r) = Typ.matched_arrow(ctx, ty1);
+      let p1'' = fresh_pat_cast(p1', ty1, Arrow(ty1l, ty1r) |> Typ.fresh);
+      let p2'' = fresh_pat_cast(p2', ty2, ty1l);
+      DHPat.Ap(p1'', p2'') |> rewrap |> cast_from(ty1r);
+    | Constructor(_)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
-    | StaticErrorHole(_) => d
-    /* DHExp-specific forms: Don't cast */
-    | Cast(_)
-    | Closure(_)
-    | Filter(_)
-    | FailedCast(_)
-    | DynamicErrorHole(_) => d
-    /* Forms that are currently desugared in elaboration */
-    | Deferral(_)
-    | DeferredAp(_) => d
-    /* Normal cases: wrap */
-    | Var(_)
-    | BuiltinFun(_)
-    | Parens(_)
-    | Bool(_)
-    | Int(_)
-    | Float(_)
-    | String(_)
-    | UnOp(_)
-    | BinOp(_)
-    | TyAlias(_)
-    | Test(_) => fresh_cast(d, self_ty, ana_ty)
+    | Wild => upat |> cast_from(Typ.fresh(Unknown(Internal)))
+    | Var(v) =>
+      upat
+      |> cast_from(
+           Ctx.lookup_var(ctx, v)
+           |> Option.map((x: Ctx.var_entry) => x.typ)
+           |> Option.value(~default=Typ.fresh(Unknown(Internal))),
+         )
+    // Type annotations should already appear
+    | Parens(p)
+    | Cast(p, _, _) =>
+      let (p', ty) = elaborate_pattern(m, p);
+      p' |> cast_from(ty);
     };
-  };
-
-/* Handles cast insertion and non-empty-hole wrapping
-   for elaborated expressions */
-let wrap = (m, exp: Exp.t): DHExp.t => {
-  let (mode, self, ctx) =
-    switch (Id.Map.find_opt(Exp.rep_id(exp), m)) {
-    | Some(Info.InfoExp({mode, self, ctx, _})) => (mode, self, ctx)
-    | _ => raise(MissingTypeInfo)
-    };
-  switch (Info.status_exp(ctx, mode, self)) {
-  | NotInHole(_) =>
-    let self_ty =
-      switch (Self.typ_of_exp(ctx, self)) {
-      | Some(self_ty) => Typ.normalize(ctx, self_ty)
-      | None => Unknown(Internal) |> Typ.fresh
-      };
-    cast(ctx, mode, self_ty, exp);
-  | InHole(
-      FreeVariable(_) | Common(NoType(_)) | UnusedDeferral | BadPartialAp(_) |
-      Common(Inconsistent(Internal(_))),
-    ) => exp
-  | InHole(Common(Inconsistent(Expectation(_) | WithArrow(_)))) =>
-    DHExp.fresh(StaticErrorHole(Exp.rep_id(exp), exp))
-  };
+  (dpat, elaborated_type);
 };
 
-/*
-  This function converts user-expressions (UExp.t) to dynamic expressions (DHExp.t). They
-  have the same datatype but there are some small differences so that UExp.t can be edited
-  and DHExp.t can be evaluated.
+/* The primary goal of elaboration is to convert from a type system
+   where we have consistency, to a type system where types are either
+   equal or they're not. Anything that was just consistent needs to
+   become a cast. [The one other thing elaboration does is make
+   recursive let bindings explicit.]
 
- Currently, Elaboration does the following things:
+   At the top of this function we work out the "elaborated type" of
+   of the expression. We also return this elaborated type so we can
+   use it in the recursive call. When elaborate returns, you can trust
+   that the returned expression will have the returned type. There is
+   however, no guarantee that the returned type is even consistent with
+   the "elaborated type" at the top, so you should fresh_cast EVERYWHERE
+   just in case.
 
-   - Insert casts
-   - Insert non-empty hole wrappers
-   - Annotate functions with names
-   - Insert implicit fixpoints
-   - Remove parentheses [not strictly necessary]
-   - Remove TyAlias [not strictly necessary]
-
- When adding a new construct you can probably just add it to the default cases.
-  */
-let rec dexp_of_uexp = (m, uexp, ~in_filter) => {
-  Exp.map_term(
-    ~f_exp=
-      (continue, exp) => {
-        let (term, rewrap) = Exp.unwrap(exp);
-        switch (term) {
-        // Default cases: do not need to change at elaboration
-        | Closure(_)
-        | Cast(_)
-        | Invalid(_)
-        | EmptyHole
-        | MultiHole(_)
-        | StaticErrorHole(_)
-        | DynamicErrorHole(_)
-        | FailedCast(_)
-        | Bool(_)
-        | Int(_)
-        | Float(_)
-        | String(_)
-        | ListLit(_)
-        | Tuple(_)
-        | Cons(_)
-        | ListConcat(_)
-        | UnOp(Int(_) | Bool(_), _)
-        | BinOp(_)
-        | BuiltinFun(_)
-        | Seq(_)
-        | Test(_)
-        | Filter(Residue(_), _)
-        | Var(_)
-        | Constructor(_)
-        | Ap(_)
-        | If(_)
-        | Fun(_)
-        | FixF(_)
-        | Match(_)
-        | Deferral(_) => continue(exp) |> wrap(m)
-
-        /* DeferredAp - TODO: this is currently desugared, but it should ideally persist
-           through to evaluation. Changing `dexp_of_uexp` will be easy (add it to default cases),
-           but someone will need to work out what `cast` should do. */
-        | DeferredAp(fn, args) =>
-          let (mode, self, ctx, ancestors) =
-            switch (Id.Map.find_opt(Exp.rep_id(uexp), m)) {
-            | Some(Info.InfoExp({mode, self, ctx, ancestors, _})) => (
-                mode,
-                self,
-                ctx,
-                ancestors,
-              )
-            | _ => failwith("DeferredAp missing info")
-            };
-          let err_status = Info.status_exp(ctx, mode, self);
-          switch (err_status) {
-          | InHole(BadPartialAp(NoDeferredArgs)) =>
-            dexp_of_uexp(~in_filter, m, fn)
-          | InHole(BadPartialAp(ArityMismatch(_))) =>
-            DHExp.Invalid("<invalid partial ap>") |> DHExp.fresh
-          | _ =>
-            let mk_tuple = (ctor, xs) =>
-              List.length(xs) == 1 ? List.hd(xs) : ctor(xs);
-            let ty_fn = fixed_exp_typ(m, fn) |> Option.get;
-            let (ty_arg, ty_ret) = Typ.matched_arrow(ctx, ty_fn);
-            let ty_ins = Typ.matched_args(ctx, List.length(args), ty_arg);
-            /* Substitute all deferrals for new variables */
-            let (pats, ty_args, ap_args, ap_ctx) =
-              List.combine(args, ty_ins)
-              |> List.fold_left(
-                   ((pats, ty_args, ap_args, ap_ctx), (e: Exp.t, ty)) =>
-                     if (Exp.is_deferral(e)) {
-                       // Internal variable name for deferrals
-                       let name =
-                         "__deferred__" ++ string_of_int(List.length(pats));
-                       let var: Exp.t = {
-                         ids: e.ids,
-                         copied: false,
-                         term: Var(name),
-                       };
-                       let var_entry =
-                         Ctx.VarEntry({name, id: Exp.rep_id(e), typ: ty});
-                       (
-                         pats @ [Var(name) |> DHPat.fresh],
-                         ty_args @ [ty],
-                         ap_args @ [var],
-                         Ctx.extend(ap_ctx, var_entry),
-                       );
-                     } else {
-                       (pats, ty_args, ap_args @ [e], ap_ctx);
-                     },
-                   ([], [], [], ctx),
-                 );
-            let (pat, _) = (
-              mk_tuple(x => DHPat.Tuple(x) |> DHPat.fresh, pats),
-              mk_tuple(x => Typ.Prod(x) |> Typ.fresh, ty_args),
-            );
-            let arg: Exp.t = {
-              ids: [Id.mk()],
-              copied: false,
-              term: Tuple(ap_args),
-            };
-            let body: Exp.t = {
-              ids: [Id.mk()],
-              copied: false,
-              term: Ap(Forward, fn, arg),
-            };
-            let (_info, m) =
-              Statics.uexp_to_info_map(
-                ~ctx=ap_ctx,
-                ~mode=Ana(ty_ret),
-                ~ancestors,
-                body,
-                m,
-              );
-            let dbody = dexp_of_uexp(~in_filter, m, body);
-            Fun(pat, dbody, None, None) |> DHExp.fresh;
-          };
-
-        // Unquote operator: should be turned into constructor if inside filter body.
-        | UnOp(Meta(Unquote), e) =>
-          switch (e.term) {
-          | Var("e") when in_filter =>
-            Constructor("$e") |> DHExp.fresh |> wrap(m)
-          | Var("v") when in_filter =>
-            Constructor("$v") |> DHExp.fresh |> wrap(m)
-          | _ => DHExp.EmptyHole |> DHExp.fresh |> wrap(m)
-          }
-        | Filter(Filter({act, pat}), body) =>
-          Filter(
-            Filter({act, pat: dexp_of_uexp(m, pat, ~in_filter=true)}),
-            dexp_of_uexp(m, body, ~in_filter),
-          )
+   [Matt] A lot of these fresh_cast calls are redundant, however if you
+   want to remove one, I'd ask you instead comment it out and leave
+   a comment explaining why it's redundant.  */
+let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
+  let (elaborated_type, ctx) = elaborated_type(m, uexp);
+  let cast_from = (ty, exp) => fresh_cast(exp, ty, elaborated_type);
+  let (term, rewrap) = UExp.unwrap(uexp);
+  let dhexp =
+    switch (term) {
+    | Invalid(_)
+    | EmptyHole => uexp |> cast_from(Typ.fresh(Typ.Unknown(Internal)))
+    | MultiHole(stuff) =>
+      Any.map_term(
+        ~f_exp=(_, exp) => {elaborate(m, exp) |> fst},
+        ~f_pat=(_, pat) => {elaborate_pattern(m, pat) |> fst},
+        _,
+      )
+      |> List.map(_, stuff)
+      |> (
+        stuff =>
+          DHExp.MultiHole(stuff)
           |> rewrap
-          |> wrap(m)
-
-        // Let bindings: insert implicit fixpoints and label functions with their names.
-        | Let(p, def, body) =>
-          let add_name: (option(string), DHExp.t) => DHExp.t = (
-            (name, d) => {
-              let (term, rewrap) = DHExp.unwrap(d);
-              switch (term) {
-              | Fun(p, e, ctx, _) => DHExp.Fun(p, e, ctx, name) |> rewrap
-              | _ => d
-              };
-            }
-          );
-          let ddef = dexp_of_uexp(m, def, ~in_filter);
-          let dbody = dexp_of_uexp(m, body, ~in_filter);
-          switch (UPat.get_recursive_bindings(p)) {
-          | None =>
-            /* not recursive */
-            DHExp.Let(
-              p,
-              add_name(Option.map(x => x ++ "", UPat.get_var(p)), ddef),
-              dbody,
-            )
-            |> rewrap
-            |> wrap(m)
-          | Some(b) =>
-            DHExp.Let(
-              p,
-              FixF(
-                p,
-                add_name(
-                  Some(String.concat(",", List.map(x => x ++ "+", b))),
-                  ddef,
-                ),
-                None,
-              )
-              |> DHExp.fresh,
-              dbody,
-            )
-            |> rewrap
-            |> wrap(m)
+          |> cast_from(Typ.fresh(Typ.Unknown(Internal)))
+      )
+    | StaticErrorHole(id, e) =>
+      let (e', _) = elaborate(m, e);
+      StaticErrorHole(id, e')
+      |> rewrap
+      |> cast_from(Typ.fresh(Unknown(Internal)));
+    | DynamicErrorHole(e, err) =>
+      let (e', _) = elaborate(m, e);
+      DynamicErrorHole(e', err)
+      |> rewrap
+      |> cast_from(Typ.fresh(Unknown(Internal)));
+    | Cast(e, _, _) // We remove these casts because they should be re-inserted in the recursive call
+    | FailedCast(e, _, _)
+    | Parens(e) =>
+      let (e', ty) = elaborate(m, e);
+      e' |> cast_from(ty);
+    | Deferral(_) => uexp
+    | Int(_) => uexp |> cast_from(Int |> Typ.fresh)
+    | Bool(_) => uexp |> cast_from(Bool |> Typ.fresh)
+    | Float(_) => uexp |> cast_from(Float |> Typ.fresh)
+    | String(_) => uexp |> cast_from(String |> Typ.fresh)
+    | ListLit(es) =>
+      let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
+      let inner_type =
+        Typ.join_all(~empty=Typ.Unknown(Internal) |> Typ.fresh, ctx, tys)
+        |> Option.value(~default=Typ.fresh(Typ.Unknown(Internal)));
+      let ds' = List.map2((d, t) => fresh_cast(d, t, inner_type), ds, tys);
+      Exp.ListLit(ds') |> rewrap |> cast_from(List(inner_type) |> Typ.fresh);
+    | Constructor(c) =>
+      uexp
+      |> cast_from(
+           Ctx.lookup_ctr(ctx, c)
+           |> Option.map((x: Ctx.var_entry) => x.typ)
+           |> Option.value(~default=Typ.fresh(Typ.Unknown(Internal))),
+         )
+    | Fun(p, e, env, n) =>
+      let (p', typ) = elaborate_pattern(m, p);
+      let (e', tye) = elaborate(m, e);
+      Exp.Fun(p', e', env, n)
+      |> rewrap
+      |> cast_from(Arrow(typ, tye) |> Typ.fresh);
+    | Tuple(es) =>
+      let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
+      Exp.Tuple(ds) |> rewrap |> cast_from(Prod(tys) |> Typ.fresh);
+    | Var(v) =>
+      uexp
+      |> cast_from(
+           Ctx.lookup_var(ctx, v)
+           |> Option.map((x: Ctx.var_entry) => x.typ)
+           |> Option.value(~default=Typ.fresh(Typ.Unknown(Internal))),
+         )
+    | Let(p, def, body) =>
+      let add_name: (option(string), DHExp.t) => DHExp.t = (
+        (name, exp) => {
+          let (term, rewrap) = DHExp.unwrap(exp);
+          switch (term) {
+          | Fun(p, e, ctx, _) => Fun(p, e, ctx, name) |> rewrap
+          | _ => exp
           };
-
-        // type alias and parentheses: remove during elaboration
-        | TyAlias(_, _, e)
-        | Parens(e) => dexp_of_uexp(m, e, ~in_filter)
+        }
+      );
+      switch (Pat.get_recursive_bindings(p)) {
+      | None =>
+        let def = add_name(Pat.get_var(p), def);
+        let (p, ty1) = elaborate_pattern(m, p);
+        let (def, ty2) = elaborate(m, def);
+        let (body, ty) = elaborate(m, body);
+        Exp.Let(p, fresh_cast(def, ty2, ty1), body)
+        |> rewrap
+        |> cast_from(ty);
+      | Some(_) =>
+        // TODO: Add names to mutually recursive functions
+        // TODO: Don't add fixpoint if there already is one
+        let (p, ty1) = elaborate_pattern(m, p);
+        let (def, ty2) = elaborate(m, def);
+        let (body, ty) = elaborate(m, body);
+        let fixf =
+          FixF(p, fresh_cast(def, ty2, ty1), None)
+          |> DHExp.fresh
+          |> fresh_cast(_, ty1, ty);
+        Exp.Let(p, fixf, body) |> rewrap |> cast_from(ty);
+      };
+    | FixF(p, e, env) =>
+      let (p', typ) = elaborate_pattern(m, p);
+      let (e', tye) = elaborate(m, e);
+      Exp.FixF(p', fresh_cast(e', tye, typ), env)
+      |> rewrap
+      |> cast_from(Arrow(typ, typ) |> Typ.fresh);
+    | TyAlias(_, _, e) =>
+      let (e', tye) = elaborate(m, e);
+      e' |> cast_from(tye);
+    | Ap(dir, f, a) =>
+      let (f', tyf) = elaborate(m, f);
+      let (a', tya) = elaborate(m, a);
+      let (tyf1, tyf2) = Typ.matched_arrow(ctx, tyf);
+      let a'' = fresh_cast(a', tya, tyf1);
+      Exp.Ap(dir, f', a'') |> rewrap |> cast_from(tyf2);
+    | DeferredAp(f, args) =>
+      let (f', tyf) = elaborate(m, f);
+      let (args', tys) = List.map(elaborate(m), args) |> ListUtil.unzip;
+      let (tyf1, tyf2) = Typ.matched_arrow(ctx, tyf);
+      let ty_fargs = Typ.matched_prod(ctx, List.length(args), tyf1);
+      let f'' =
+        fresh_cast(
+          f',
+          tyf,
+          Arrow(Prod(ty_fargs) |> Typ.fresh, tyf2) |> Typ.fresh,
+        );
+      let args'' = ListUtil.map3(fresh_cast, args', tys, ty_fargs);
+      let remaining_args =
+        List.filter(
+          ((arg, _)) => Exp.is_deferral(arg),
+          List.combine(args, ty_fargs),
+        );
+      let remaining_arg_ty =
+        Prod(List.map(snd, remaining_args)) |> Typ.fresh;
+      DeferredAp(f'', args'')
+      |> rewrap
+      |> cast_from(Arrow(remaining_arg_ty, tyf2) |> Typ.fresh);
+    | If(c, t, f) =>
+      let (c', tyc) = elaborate(m, c);
+      let (t', tyt) = elaborate(m, t);
+      let (f', tyf) = elaborate(m, f);
+      let ty =
+        Typ.join(~fix=false, ctx, tyt, tyf)
+        |> Option.value(~default=Typ.fresh(Typ.Unknown(Internal)));
+      let c'' = fresh_cast(c', tyc, Bool |> Typ.fresh);
+      let t'' = fresh_cast(t', tyt, ty);
+      let f'' = fresh_cast(f', tyf, ty);
+      Exp.If(c'', t'', f'') |> rewrap |> cast_from(ty);
+    | Seq(e1, e2) =>
+      let (e1', _) = elaborate(m, e1);
+      let (e2', ty2) = elaborate(m, e2);
+      Seq(e1', e2') |> rewrap |> cast_from(ty2);
+    | Test(e) =>
+      let (e', t) = elaborate(m, e);
+      Test(fresh_cast(e', t, Bool |> Typ.fresh))
+      |> rewrap
+      |> cast_from(Prod([]) |> Typ.fresh);
+    | Filter(kind, e) =>
+      let (e', t) = elaborate(m, e);
+      let kind' =
+        switch (kind) {
+        | Residue(_) => kind
+        | Filter({act, pat}) => Filter({act, pat: elaborate(m, pat) |> fst})
         };
-      },
-    uexp,
-  );
+      Filter(kind', e') |> rewrap |> cast_from(t);
+    | Closure(env, e) =>
+      // Should we be elaborating the contents of the environment?
+      let (e', t) = elaborate(m, e);
+      Closure(env, e') |> rewrap |> cast_from(t);
+    | Cons(e1, e2) =>
+      let (e1', ty1) = elaborate(m, e1);
+      let (e2', ty2) = elaborate(m, e2);
+      let ty2_inner = Typ.matched_list(ctx, ty2);
+      let ty_inner =
+        Typ.join(~fix=false, ctx, ty1, ty2_inner)
+        |> Option.value(~default=Typ.fresh(Unknown(Internal)));
+      let e1'' = fresh_cast(e1', ty1, ty_inner);
+      let e2'' = fresh_cast(e2', ty2, List(ty_inner) |> Typ.fresh);
+      Cons(e1'', e2'') |> rewrap |> cast_from(List(ty_inner) |> Typ.fresh);
+    | ListConcat(e1, e2) =>
+      let (e1', ty1) = elaborate(m, e1);
+      let (e2', ty2) = elaborate(m, e2);
+      let ty_inner1 = Typ.matched_list(ctx, ty1);
+      let ty_inner2 = Typ.matched_list(ctx, ty2);
+      let ty_inner =
+        Typ.join(~fix=false, ctx, ty_inner1, ty_inner2)
+        |> Option.value(~default=Typ.fresh(Unknown(Internal)));
+      let e1'' = fresh_cast(e1', ty1, List(ty_inner) |> Typ.fresh);
+      let e2'' = fresh_cast(e2', ty2, List(ty_inner) |> Typ.fresh);
+      ListConcat(e1'', e2'')
+      |> rewrap
+      |> cast_from(List(ty_inner) |> Typ.fresh);
+    | UnOp(Meta(Unquote), e) =>
+      switch (e.term) {
+      | Var("e") => Constructor("$e") |> rewrap
+      | Var("v") => Constructor("$v") |> rewrap
+      | _ =>
+        DHExp.EmptyHole
+        |> rewrap
+        |> cast_from(Typ.fresh(Typ.Unknown(Internal)))
+      }
+    | UnOp(Int(Minus), e) =>
+      let (e', t) = elaborate(m, e);
+      UnOp(Int(Minus), fresh_cast(e', t, Int |> Typ.fresh))
+      |> rewrap
+      |> cast_from(Int |> Typ.fresh);
+    | UnOp(Bool(Not), e) =>
+      let (e', t) = elaborate(m, e);
+      UnOp(Bool(Not), fresh_cast(e', t, Bool |> Typ.fresh))
+      |> rewrap
+      |> cast_from(Bool |> Typ.fresh);
+    | BinOp(Int(Plus | Minus | Times | Power | Divide) as op, e1, e2) =>
+      let (e1', t1) = elaborate(m, e1);
+      let (e2', t2) = elaborate(m, e2);
+      BinOp(
+        op,
+        fresh_cast(e1', t1, Int |> Typ.fresh),
+        fresh_cast(e2', t2, Int |> Typ.fresh),
+      )
+      |> rewrap
+      |> cast_from(Int |> Typ.fresh);
+    | BinOp(
+        Int(
+          LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual |
+          Equals |
+          NotEquals,
+        ) as op,
+        e1,
+        e2,
+      ) =>
+      let (e1', t1) = elaborate(m, e1);
+      let (e2', t2) = elaborate(m, e2);
+      BinOp(
+        op,
+        fresh_cast(e1', t1, Int |> Typ.fresh),
+        fresh_cast(e2', t2, Int |> Typ.fresh),
+      )
+      |> rewrap
+      |> cast_from(Bool |> Typ.fresh);
+    | BinOp(Bool(And | Or) as op, e1, e2) =>
+      let (e1', t1) = elaborate(m, e1);
+      let (e2', t2) = elaborate(m, e2);
+      BinOp(
+        op,
+        fresh_cast(e1', t1, Bool |> Typ.fresh),
+        fresh_cast(e2', t2, Bool |> Typ.fresh),
+      )
+      |> rewrap
+      |> cast_from(Bool |> Typ.fresh);
+    | BinOp(Float(Plus | Minus | Times | Divide | Power) as op, e1, e2) =>
+      let (e1', t1) = elaborate(m, e1);
+      let (e2', t2) = elaborate(m, e2);
+      BinOp(
+        op,
+        fresh_cast(e1', t1, Float |> Typ.fresh),
+        fresh_cast(e2', t2, Float |> Typ.fresh),
+      )
+      |> rewrap
+      |> cast_from(Float |> Typ.fresh);
+    | BinOp(
+        Float(
+          LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual |
+          Equals |
+          NotEquals,
+        ) as op,
+        e1,
+        e2,
+      ) =>
+      let (e1', t1) = elaborate(m, e1);
+      let (e2', t2) = elaborate(m, e2);
+      BinOp(
+        op,
+        fresh_cast(e1', t1, Float |> Typ.fresh),
+        fresh_cast(e2', t2, Float |> Typ.fresh),
+      )
+      |> rewrap
+      |> cast_from(Bool |> Typ.fresh);
+    | BinOp(String(Concat) as op, e1, e2) =>
+      let (e1', t1) = elaborate(m, e1);
+      let (e2', t2) = elaborate(m, e2);
+      BinOp(
+        op,
+        fresh_cast(e1', t1, String |> Typ.fresh),
+        fresh_cast(e2', t2, String |> Typ.fresh),
+      )
+      |> rewrap
+      |> cast_from(String |> Typ.fresh);
+    | BinOp(String(Equals) as op, e1, e2) =>
+      let (e1', t1) = elaborate(m, e1);
+      let (e2', t2) = elaborate(m, e2);
+      BinOp(
+        op,
+        fresh_cast(e1', t1, String |> Typ.fresh),
+        fresh_cast(e2', t2, String |> Typ.fresh),
+      )
+      |> rewrap
+      |> cast_from(Bool |> Typ.fresh);
+    | BuiltinFun(fn) =>
+      uexp
+      |> cast_from(
+           Ctx.lookup_var(Builtins.ctx_init, fn)
+           |> Option.map((x: Ctx.var_entry) => x.typ)
+           |> Option.value(~default=Typ.fresh(Typ.Unknown(Internal))),
+         )
+    | Match(e, cases) =>
+      let (e', t) = elaborate(m, e);
+      let (ps, es) = ListUtil.unzip(cases);
+      let (ps', ptys) =
+        List.map(elaborate_pattern(m), ps) |> ListUtil.unzip;
+      let joined_pty =
+        Typ.join_all(~empty=Typ.Unknown(Internal) |> Typ.fresh, ctx, ptys)
+        |> Option.value(~default=Typ.fresh(Typ.Unknown(Internal)));
+      let ps'' =
+        List.map2((p, t) => fresh_pat_cast(p, t, joined_pty), ps', ptys);
+      let e'' = fresh_cast(e', t, joined_pty);
+      let (es', etys) = List.map(elaborate(m), es) |> ListUtil.unzip;
+      let joined_ety =
+        Typ.join_all(~empty=Typ.Unknown(Internal) |> Typ.fresh, ctx, etys)
+        |> Option.value(~default=Typ.fresh(Typ.Unknown(Internal)));
+      let es'' =
+        List.map2((e, t) => fresh_cast(e, t, joined_ety), es', etys);
+      Match(e'', List.combine(ps'', es''))
+      |> rewrap
+      |> cast_from(joined_ety);
+    };
+  (dhexp, elaborated_type);
 };
 
 //let dhexp_of_uexp = Core.Memo.general(~cache_size_bound=1000, dhexp_of_uexp);
 
 let uexp_elab = (m: Statics.Map.t, uexp: UExp.t): ElaborationResult.t =>
-  switch (dexp_of_uexp(m, uexp, ~in_filter=false)) {
+  switch (elaborate(m, uexp)) {
   | exception MissingTypeInfo => DoesNotElaborate
-  | d =>
-    //let d = uexp_elab_wrap_builtins(d);
-    let ty =
-      switch (fixed_exp_typ(m, uexp)) {
-      | Some(ty) => ty
-      | None => Typ.Unknown(Internal) |> Typ.fresh
-      };
-    Elaborates(d, ty, Delta.empty);
+  | (d, ty) => Elaborates(d, ty, Delta.empty)
   };

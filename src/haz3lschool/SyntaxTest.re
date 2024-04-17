@@ -28,7 +28,7 @@ let rec find_in_let =
   | (Parens(up), Parens(ue)) => find_in_let(name, up, ue, l)
   | (Parens(up), _) => find_in_let(name, up, def, l)
   | (_, Parens(ue)) => find_in_let(name, upat, ue, l)
-  | (TypeAnn(up, _), _) => find_in_let(name, up, def, l)
+  | (Cast(up, _, _), _) => find_in_let(name, up, def, l)
   | (Var(x), Fun(_)) => x == name ? [def, ...l] : l
   | (Tuple(pl), Tuple(ul)) =>
     if (List.length(pl) != List.length(ul)) {
@@ -136,7 +136,7 @@ let rec var_mention_upat = (name: string, upat: Pat.t): bool => {
   | Parens(up) => var_mention_upat(name, up)
   | Ap(up1, up2) =>
     var_mention_upat(name, up1) || var_mention_upat(name, up2)
-  | TypeAnn(up, _) => var_mention_upat(name, up)
+  | Cast(up, _, _) => var_mention_upat(name, up)
   };
 };
 

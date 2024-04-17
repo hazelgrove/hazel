@@ -383,7 +383,7 @@ let example_view =
 let rec bypass_parens_and_annot_pat = (pat: Pat.t) => {
   switch (pat.term) {
   | Parens(p)
-  | TypeAnn(p, _) => bypass_parens_and_annot_pat(p)
+  | Cast(p, _, _) => bypass_parens_and_annot_pat(p)
   | _ => pat
   };
 };
@@ -1021,7 +1021,7 @@ let get_doc =
           }
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_) => default // Shouldn't get hit?
-        | TypeAnn(_) => default // Shouldn't get hit?
+        | Cast(_) => default // Shouldn't get hit?
         };
       | Tuple(terms) =>
         let basic = group_id =>
@@ -1527,7 +1527,7 @@ let get_doc =
           }
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_) => default // Shouldn't get hit?
-        | TypeAnn(_) => default // Shouldn't get hit?
+        | Cast(_) => default // Shouldn't get hit?
         };
       | FixF(pat, body, _) =>
         message_single(
@@ -2049,7 +2049,7 @@ let get_doc =
           ),
         TerminalPat.ctr(con),
       )
-    | TypeAnn(pat, typ) =>
+    | Cast(pat, typ, _) =>
       let pat_id = List.nth(pat.ids, 0);
       let typ_id = List.nth(typ.ids, 0);
       get_message(

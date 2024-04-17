@@ -514,8 +514,16 @@ and upat_to_info_map =
     )
     : (Info.pat, Map.t) => {
   let add = (~self, ~ctx, m) => {
+    let prev_synswitch =
+      switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
+      | Some(Info.InfoPat({mode: Syn | SynFun, ty, _})) => Some(ty)
+      | Some(Info.InfoPat({mode: Ana(_), prev_synswitch, _})) => prev_synswitch
+      | Some(_)
+      | None => None
+      };
     let info =
       Info.derived_pat(
+        ~prev_synswitch,
         ~upat,
         ~ctx,
         ~co_ctx,
@@ -587,7 +595,7 @@ and upat_to_info_map =
     let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
     let (arg, m) = go(~ctx, ~mode=Ana(ty_in), arg, m);
     add(~self=Just(ty_out), ~ctx=arg.ctx, m);
-  | TypeAnn(p, ann) =>
+  | Cast(p, ann, _) =>
     let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
     let (p, m) = go(~ctx, ~mode=Ana(ann.ty), p, m);
     add(~self=Just(ann.ty), ~ctx=p.ctx, m);

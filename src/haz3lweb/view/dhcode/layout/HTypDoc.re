@@ -41,7 +41,7 @@ let pad_child =
     Doc.(
       hcats([
         linebreak(),
-        indent_and_align(child(~enforce_inline=false)),
+        indent_and_align(child(~enforce_inline)),
         linebreak(),
       ])
     );

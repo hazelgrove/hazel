@@ -337,6 +337,39 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
   };
 };
 
+/* REQUIRES NORMALIZED TYPES
+   Remove synswitches from t1 by maching against t2 */
+let rec match_synswitch = (t1: t, t2: t) => {
+  let (term1, rewrap1) = unwrap(t1);
+  switch (term1, term_of(t2)) {
+  | (Parens(t1), _) => Parens(match_synswitch(t1, t2)) |> rewrap1
+  | (Unknown(SynSwitch), _) => t2
+  // These cases can't have a synswitch inside
+  | (Unknown(_), _)
+  | (Int, _)
+  | (Float, _)
+  | (Bool, _)
+  | (String, _)
+  | (Var(_), _)
+  | (Ap(_), _)
+  | (Rec(_), _) => t1
+  // These might
+  | (List(ty1), List(ty2)) => List(match_synswitch(ty1, ty2)) |> rewrap1
+  | (List(_), _) => t1
+  | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
+    Arrow(match_synswitch(ty1, ty1'), match_synswitch(ty2, ty2')) |> rewrap1
+  | (Arrow(_), _) => t1
+  | (Prod(tys1), Prod(tys2)) when List.length(tys1) == List.length(tys2) =>
+    let tys = List.map2(match_synswitch, tys1, tys2);
+    Prod(tys) |> rewrap1;
+  | (Prod(_), _) => t1
+  | (Sum(sm1), Sum(sm2)) =>
+    let sm' = ConstructorMap.match_synswitch(match_synswitch, sm1, sm2);
+    Sum(sm') |> rewrap1;
+  | (Sum(_), _) => t1
+  };
+};
+
 let join_fix = join(~fix=true);
 
 let join_all = (~empty: t, ctx: Ctx.t, ts: list(t)): option(t) =>

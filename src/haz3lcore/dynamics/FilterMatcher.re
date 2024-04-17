@@ -186,8 +186,8 @@ and matches_pat = (d: Pat.t, f: Pat.t): bool => {
   // Matt: I'm not sure what the exact semantics of matching should be here.
   | (Parens(x), _) => matches_pat(x, f)
   | (_, Parens(x)) => matches_pat(d, x)
-  | (TypeAnn(x, _), _) => matches_pat(x, f)
-  | (_, TypeAnn(x, _)) => matches_pat(d, x)
+  | (Cast(x, _, _), _) => matches_pat(x, f)
+  | (_, Cast(x, _, _)) => matches_pat(d, x)
   | (_, EmptyHole) => true
   | (MultiHole(_), MultiHole(_)) => true
   | (MultiHole(_), _) => false
