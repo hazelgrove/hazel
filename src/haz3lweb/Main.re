@@ -75,22 +75,12 @@ module App = {
   module Model = Model;
   module Action = Update;
   module State = State;
-  /*
-   let handler _ =
-     (* Handle the event by executing the desired action *)
-     (* Your Incr_dom action code here *)
-     Js.alert (Js.string "Custom event received!")
-   in
-   Dom_html.addEventListener Dom_html.document
-     (Js.string "myCustomEvent")
-     (Dom_html.handler handler)
-     (Js.bool false)
-     */
-  type customMessage = {details: string};
+  [@deriving show({with_path: false})]
+  type customMessage = string;
 
   let customEvent:
     Dom_html.Event.typ(Js.t(Dom_html.customEvent(customMessage))) =
-    Dom_html.Event.make("myCustomEvent");
+    Dom_html.Event.make("commandPalletteEvent");
   let on_startup = (~schedule_action, m: Model.t) => {
     let _ =
       observe_font_specimen("font-specimen", fm =>
@@ -104,13 +94,31 @@ module App = {
         customEvent,
         Dom_html.handler((e: Js.t(Dom_html.customEvent(customMessage))) => {
           let foo = Js.Opt.to_option(e##.detail);
-          let bar =
-            switch (foo) {
-            | Some(a) => a.details
-            | None => ""
+          let bar = Option.map(x => x, foo);
+
+          print_endline(
+            "FOO: " ++ [%derive.show: option(customMessage)](foo),
+          );
+          let action: option(UpdateAction.t) =
+            switch (bar) {
+            | Some("go-to-definition") =>
+              Some(PerformAction(Jump(BindingSiteOfIndicatedVar)))
+            | Some("proceed-to-next-hole") =>
+              Some(PerformAction(MoveToNextHole(Right)))
+            | Some("undo") => Some(Undo)
+            | Some("redo") => Some(Redo)
+            | Some("reparse-current-editor") => Some(ReparseCurrentEditor)
+
+            | _ => None
             };
-          print_endline("RECEIVED EVENT" ++ bar);
-          schedule_action(PerformAction(Jump(BindingSiteOfIndicatedVar)));
+
+          switch (action) {
+          | Some(a) => schedule_action(a)
+          | None =>
+            print_endline(
+              "Unknown Action" ++ [%derive.show: option(string)](bar),
+            )
+          };
           Js.bool(true);
         }),
         Js.bool(false),

@@ -50,25 +50,51 @@
 
     function commandPalleteEvent(action) {
       return new CustomEvent('commandPalletteEvent', {
-        action: action
+        detail: action
       });
     }
-const customEvent = new CustomEvent('myCustomEvent', {
-  detail: {
-    // You can include any relevant data here
-  }
-});
-
 
     const hotkeys = [
       {
         id: "Go To Definition",
         title: "Go to Definition",
-        hotkey: "cmd+b",
         mdIcon: "arrow_forward",
         handler: () => {
-          console.log("Going to Definition");
-          document.dispatchEvent(commandPalleteEvent("go-to-definition"));
+          var foo = commandPalleteEvent("go-to-definition")
+          console.log(foo);
+          document.dispatchEvent(foo);
+        }
+      },
+      {
+        id: "Proceed To Next Hole",
+        title: "Proceed To Next Hole",
+        mdIcon: "arrow_forward",
+        handler: () => {
+          document.dispatchEvent(commandPalleteEvent("proceed-to-next-hole"));
+        }
+      },
+      {
+        id: "Undo",
+        title: "Undo",
+        mdIcon: "undo",
+        handler: () => {
+          document.dispatchEvent(commandPalleteEvent("undo"));
+        }
+      },
+      {
+        id: "Redo",
+        title: "Redo",
+        mdIcon: "redo",
+        handler: () => {
+          document.dispatchEvent(commandPalleteEvent("redo"));
+        }
+      },
+      {
+        id: "Reparse Current Editor",
+        title: "Reparse Current Editor",
+        mdIcon: "refresh",
+        handler: () => {
+          document.dispatchEvent(commandPalleteEvent("reparse-current-editor"));
         }
       }
     ];
