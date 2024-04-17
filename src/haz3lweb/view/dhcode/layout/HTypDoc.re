@@ -108,7 +108,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
       (center, true);
     | Rec(name, ty) => (
         hcats([
-          text("Rec " ++ name ++ ".{"),
+          text("rec " ++ name ++ "->{"),
           (
             (~enforce_inline) =>
               annot(HTypAnnot.Step(0), mk(~enforce_inline, ty))
@@ -120,7 +120,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
       )
     | Forall(name, ty) => (
         hcats([
-          text("Forall " ++ name ++ ".{"),
+          text("forall " ++ name ++ "->{"),
           (
             (~enforce_inline) =>
               annot(HTypAnnot.Step(0), mk(~enforce_inline, ty))

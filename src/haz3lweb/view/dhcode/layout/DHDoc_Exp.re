@@ -625,7 +625,6 @@ let mk =
                 DHDoc_common.Delim.colon_Fun,
                 space(),
                 DHDoc_Typ.mk(~enforce_inline=true, ty),
-                space(),
               ]
               : []
           )
