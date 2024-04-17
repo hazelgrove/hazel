@@ -319,9 +319,9 @@ module UPat = {
 
   let rec is_var = (pat: t) => {
     switch (pat.term) {
-    | Parens(pat) => is_var(pat)
+    | Parens(pat)
+    | TypeAnn(pat, _) => is_var(pat)
     | Var(_) => true
-    | TypeAnn(_)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -386,11 +386,35 @@ module UPat = {
       }
     );
 
+  let rec is_tuple_of_vars = (pat: t) =>
+    is_var(pat)
+    || (
+      switch (pat.term) {
+      | Parens(pat)
+      | TypeAnn(pat, _) => is_tuple_of_vars(pat)
+      | Tuple(pats) => pats |> List.for_all(is_var)
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_)
+      | Wild
+      | Int(_)
+      | Float(_)
+      | Bool(_)
+      | String(_)
+      | Triv
+      | ListLit(_)
+      | Cons(_, _)
+      | Var(_)
+      | Constructor(_)
+      | Ap(_) => false
+      }
+    );
+
   let rec get_var = (pat: t) => {
     switch (pat.term) {
-    | Parens(pat) => get_var(pat)
+    | Parens(pat)
+    | TypeAnn(pat, _) => get_var(pat)
     | Var(x) => Some(x)
-    | TypeAnn(_)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -435,18 +459,45 @@ module UPat = {
     };
   };
 
-  let rec get_recursive_bindings = (pat: t) => {
-    switch (get_fun_var(pat)) {
+  let rec get_num_of_vars = (pat: t) =>
+    if (is_var(pat)) {
+      Some(1);
+    } else {
+      switch (pat.term) {
+      | Parens(pat)
+      | TypeAnn(pat, _) => get_num_of_vars(pat)
+      | Tuple(pats) =>
+        is_tuple_of_vars(pat) ? Some(List.length(pats)) : None
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_)
+      | Wild
+      | Int(_)
+      | Float(_)
+      | Bool(_)
+      | String(_)
+      | Triv
+      | ListLit(_)
+      | Cons(_, _)
+      | Var(_)
+      | Constructor(_)
+      | Ap(_) => None
+      };
+    };
+
+  let rec get_bindings = (pat: t) =>
+    switch (get_var(pat)) {
     | Some(x) => Some([x])
     | None =>
       switch (pat.term) {
-      | Parens(pat) => get_recursive_bindings(pat)
+      | Parens(pat)
+      | TypeAnn(pat, _) => get_bindings(pat)
       | Tuple(pats) =>
-        let fun_vars = pats |> List.map(get_fun_var);
-        if (List.exists(Option.is_none, fun_vars)) {
+        let vars = pats |> List.map(get_var);
+        if (List.exists(Option.is_none, vars)) {
           None;
         } else {
-          Some(List.map(Option.get, fun_vars));
+          Some(List.map(Option.get, vars));
         };
       | Invalid(_)
       | EmptyHole
@@ -460,12 +511,10 @@ module UPat = {
       | ListLit(_)
       | Cons(_, _)
       | Var(_)
-      | TypeAnn(_)
       | Constructor(_)
       | Ap(_) => None
       }
     };
-  };
 
   let ctr_name = (p: t): option(Constructor.t) =>
     switch (p.term) {
@@ -743,6 +792,45 @@ module UExp = {
     | _ => false
     };
   };
+
+  let rec get_num_of_functions = (e: t) =>
+    if (is_fun(e)) {
+      Some(1);
+    } else {
+      switch (e.term) {
+      | Parens(e) => get_num_of_functions(e)
+      | Tuple(es) => is_tuple_of_functions(e) ? Some(List.length(es)) : None
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_)
+      | Triv
+      | Deferral(_)
+      | Bool(_)
+      | Int(_)
+      | Float(_)
+      | String(_)
+      | ListLit(_)
+      | Fun(_)
+      | TypFun(_)
+      | Var(_)
+      | Let(_)
+      | Filter(_)
+      | TyAlias(_)
+      | Ap(_)
+      | TypAp(_)
+      | DeferredAp(_)
+      | Pipeline(_)
+      | If(_)
+      | Seq(_)
+      | Test(_)
+      | Cons(_)
+      | ListConcat(_)
+      | UnOp(_)
+      | BinOp(_)
+      | Match(_)
+      | Constructor(_) => None
+      };
+    };
 };
 
 // TODO(d): consider just folding this into UExp
