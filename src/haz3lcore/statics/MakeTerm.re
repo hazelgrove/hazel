@@ -285,6 +285,12 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       | _ => ret(hole(tm))
       }
     }
+  | Bin(Exp(e), tiles, Typ(ty)) as tm =>
+    switch (tiles) {
+    | ([(_id, ([":", "=>"], []))], []) =>
+      ret(Cast(e, Unknown(Internal) |> Typ.fresh, ty))
+    | _ => ret(hole(tm))
+    }
   | tm => ret(hole(tm));
 }
 
@@ -341,7 +347,8 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
   | Pre(_) as tm => ret(hole(tm))
   | Bin(Pat(p), tiles, Typ(ty)) as tm =>
     switch (tiles) {
-    | ([(_id, ([":"], []))], []) => ret(TypeAnn(p, ty))
+    | ([(_id, ([":"], []))], []) =>
+      ret(Cast(p, ty, Unknown(Internal) |> Typ.fresh))
     | _ => ret(hole(tm))
     }
   | Bin(Pat(l), tiles, Pat(r)) as tm =>

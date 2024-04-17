@@ -399,7 +399,7 @@ let mk =
       | Tuple(ds) => DHDoc_common.mk_Tuple(ds |> List.map(d => go'(d)))
       | Match(dscrut, drs) => go_case(dscrut, drs)
       | TyAlias(_, _, d) => go'(d)
-      | Cast(d, _, ty) when settings.show_casts =>
+      | Cast(d, t1, t2) when settings.show_casts =>
         // TODO[Matt]: Roll multiple casts into one cast
         let doc = go'(d);
         Doc.(
@@ -407,7 +407,13 @@ let mk =
             doc,
             annot(
               DHAnnot.CastDecoration,
-              DHDoc_Typ.mk(~enforce_inline=true, ty),
+              hcats([
+                DHDoc_common.Delim.open_Cast,
+                DHDoc_Typ.mk(~enforce_inline=true, t1),
+                DHDoc_common.Delim.arrow_Cast,
+                DHDoc_Typ.mk(~enforce_inline=true, t2),
+                DHDoc_common.Delim.close_Cast,
+              ]),
             ),
           )
         );

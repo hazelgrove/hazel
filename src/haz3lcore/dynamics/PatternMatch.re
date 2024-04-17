@@ -55,16 +55,6 @@ let rec matches = (m: Statics.Map.t, dp: Pat.t, d: DHExp.t): match_result =>
     List.map2(matches(m), ps, ds)
     |> List.fold_left(combine_result, Matches(Environment.empty));
   | Parens(p) => matches(m, p, d)
-  | TypeAnn(p, t) =>
-    let _ = print_endline("TypeAnn");
-    let ty =
-      switch (Id.Map.find_opt(Pat.rep_id(p), m)) {
-      | Some(Info.InfoPat({ty, _})) => ty
-      | _ => raise(Elaborator.MissingTypeInfo)
-      };
-    if (Typ.eq(ty, t)) {
-      matches(m, p, d);
-    } else {
-      matches(m, p, Cast(d, t, ty) |> DHExp.fresh |> Unboxing.fixup_cast);
-    };
+  | Cast(p, t1, t2) =>
+    matches(m, p, Cast(d, t2, t1) |> DHExp.fresh |> Unboxing.fixup_cast)
   };

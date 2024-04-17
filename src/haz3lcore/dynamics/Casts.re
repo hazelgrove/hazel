@@ -99,7 +99,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
 
     | (Ground, Hole) =>
       /* can't remove the cast or do anything else here, so we're done */
-      None // TODO[Matt]: CONSTRUCTOR
+      None
 
     | (Hole, Ground) =>
       switch (DHExp.term_of(d1)) {
@@ -110,17 +110,21 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
             (d2); // Rule ITCastSucceed
         } else {
           Some
-            (FailedCast(d2, t1, t2) |> DHExp.fresh); // Rule ITCastFail
+            (FailedCast(d2, t3, t2) |> DHExp.fresh); // Rule ITCastFail
         }
-      | _ => None // TODO[Matt]: INDET
+      | _ => None
       }
 
     | (Hole, NotGroundOrHole(t2_grounded)) =>
       /* ITExpand rule */
-      Some(
-        DHExp.Cast(Cast(d1, t1, t2_grounded) |> DHExp.fresh, t2_grounded, t2)
-        |> DHExp.fresh,
-      )
+      let inner_cast = Cast(d1, t1, t2_grounded) |> DHExp.fresh;
+      // HACK: we need to check the inner cast here
+      let inner_cast =
+        switch (transition(~recursive, inner_cast)) {
+        | Some(d1) => d1
+        | None => inner_cast
+        };
+      Some(DHExp.Cast(inner_cast, t2_grounded, t2) |> DHExp.fresh);
 
     | (NotGroundOrHole(t1_grounded), Hole) =>
       /* ITGround rule */
@@ -132,7 +136,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Ground, NotGroundOrHole(_))
     | (NotGroundOrHole(_), Ground) =>
       /* can't do anything when casting between diseq, non-hole types */
-      None // TODO[Matt]: CONSTRUCTOR
+      None
 
     | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
       /* they might be eq in this case, so remove cast if so */
@@ -140,7 +144,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         Some
           (d1); // Rule ITCastId
       } else {
-        None; // TODO[Matt]: CONSTRUCTOR
+        None;
       }
     };
   | _ => None
@@ -152,4 +156,31 @@ let rec transition_multiple = (d: DHExp.t): DHExp.t => {
   | Some(d'') => transition_multiple(d'')
   | None => d
   };
+};
+
+// Hacky way to do transition_multiple on patterns by transferring
+// the cast to the expression and then back to the pattern.
+let pattern_fixup = (p: DHPat.t): DHPat.t => {
+  let rec unwrap_casts = (p: DHPat.t): (DHPat.t, DHExp.t) => {
+    switch (DHPat.term_of(p)) {
+    | Cast(p1, t1, t2) =>
+      let (p1, d1) = unwrap_casts(p1);
+      (
+        p1,
+        {term: DHExp.Cast(d1, t1, t2), copied: p.copied, ids: p.ids}
+        |> transition_multiple,
+      );
+    | _ => (p, EmptyHole |> DHExp.fresh)
+    };
+  };
+  let rec rewrap_casts = ((p: DHPat.t, d: DHExp.t)): DHPat.t => {
+    switch (DHExp.term_of(d)) {
+    | EmptyHole => p
+    | Cast(d1, t1, t2) =>
+      let p1 = rewrap_casts((p, d1));
+      {term: DHPat.Cast(p1, t1, t2), copied: d.copied, ids: d.ids};
+    | _ => failwith("unexpected term in rewrap_casts")
+    };
+  };
+  p |> unwrap_casts |> rewrap_casts;
 };

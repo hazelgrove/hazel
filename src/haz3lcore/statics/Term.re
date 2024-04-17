@@ -52,7 +52,7 @@ module Pat = {
     | Tuple
     | Parens
     | Ap
-    | TypeAnn;
+    | Cast;
 
   include TermBase.Pat;
 
@@ -90,7 +90,7 @@ module Pat = {
     | Tuple(_) => Tuple
     | Parens(_) => Parens
     | Ap(_) => Ap
-    | TypeAnn(_) => TypeAnn;
+    | Cast(_) => Cast;
 
   let show_cls: cls => string =
     fun
@@ -109,13 +109,13 @@ module Pat = {
     | Tuple => "Tuple"
     | Parens => "Parenthesized pattern"
     | Ap => "Constructor application"
-    | TypeAnn => "Annotation";
+    | Cast => "Annotation";
 
   let rec is_var = (pat: t) => {
     switch (pat.term) {
     | Parens(pat) => is_var(pat)
     | Var(_) => true
-    | TypeAnn(_)
+    | Cast(_)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -135,7 +135,7 @@ module Pat = {
   let rec is_fun_var = (pat: t) => {
     switch (pat.term) {
     | Parens(pat) => is_fun_var(pat)
-    | TypeAnn(pat, typ) => is_var(pat) && Typ.is_arrow(typ)
+    | Cast(pat, t1, _) => is_var(pat) && Typ.is_arrow(t1)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -170,7 +170,7 @@ module Pat = {
       | ListLit(_)
       | Cons(_, _)
       | Var(_)
-      | TypeAnn(_)
+      | Cast(_)
       | Constructor(_)
       | Ap(_) => false
       }
@@ -180,7 +180,7 @@ module Pat = {
     switch (pat.term) {
     | Parens(pat) => get_var(pat)
     | Var(x) => Some(x)
-    | TypeAnn(x, _) => get_var(x)
+    | Cast(x, _, _) => get_var(x)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -200,8 +200,8 @@ module Pat = {
   let rec get_fun_var = (pat: t) => {
     switch (pat.term) {
     | Parens(pat) => get_fun_var(pat)
-    | TypeAnn(pat, typ) =>
-      if (Typ.is_arrow(typ)) {
+    | Cast(pat, t1, _) =>
+      if (Typ.is_arrow(t1)) {
         get_var(pat) |> Option.map(var => var);
       } else {
         None;
@@ -247,7 +247,7 @@ module Pat = {
       | ListLit(_)
       | Cons(_, _)
       | Var(_)
-      | TypeAnn(_)
+      | Cast(_)
       | Constructor(_)
       | Ap(_) => None
       }

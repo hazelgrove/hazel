@@ -505,3 +505,12 @@ let rec map3 = (f, xs, ys, zs) =>
     ]
   | _ => failwith("Lists are of unequal length")
   };
+
+let rec unzip = (lst: list(('a, 'b))): (list('a), list('b)) => {
+  switch (lst) {
+  | [] => ([], [])
+  | [(a, b), ...tail] =>
+    let (_as, bs) = unzip(tail);
+    ([a, ..._as], [b, ...bs]);
+  };
+};
