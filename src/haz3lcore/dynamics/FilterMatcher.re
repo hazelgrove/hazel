@@ -1,12 +1,5 @@
 let rec matches_exp =
-        (
-          info_map: Statics.Map.t,
-          env: ClosureEnvironment.t,
-          d: DHExp.t,
-          f: DHExp.t,
-        )
-        : bool => {
-  let matches_exp = matches_exp(info_map);
+        (env: ClosureEnvironment.t, d: DHExp.t, f: DHExp.t): bool => {
   switch (DHExp.term_of(d), DHExp.term_of(f)) {
   | (Parens(x), _) => matches_exp(env, x, f)
   | (_, Parens(x)) => matches_exp(env, d, x)
@@ -229,39 +222,32 @@ and matches_pat = (d: Pat.t, f: Pat.t): bool => {
 and matches_typ = (d: Typ.t, f: Typ.t) => {
   Typ.eq(d, f);
 }
-and matches_rul = (info_map, env, (dp, d), (fp, f)) => {
-  matches_pat(dp, fp) && matches_exp(info_map, env, d, f);
+and matches_rul = (env, (dp, d), (fp, f)) => {
+  matches_pat(dp, fp) && matches_exp(env, d, f);
 };
 
 let matches =
     (
-      info_map,
       ~env: ClosureEnvironment.t,
       ~exp: DHExp.t,
       ~flt: TermBase.StepperFilterKind.filter,
     )
     : option(FilterAction.t) =>
-  if (matches_exp(info_map, env, exp, flt.pat)) {
+  if (matches_exp(env, exp, flt.pat)) {
     Some(flt.act);
   } else {
     None;
   };
 
 let matches =
-    (
-      ~env: ClosureEnvironment.t,
-      ~exp: DHExp.t,
-      ~exp_info_map: Statics.Map.t,
-      ~act: FilterAction.t,
-      flt_env,
-    )
+    (~env: ClosureEnvironment.t, ~exp: DHExp.t, ~act: FilterAction.t, flt_env)
     : (FilterAction.t, int) => {
   let len = List.length(flt_env);
   let rec matches' = (~env, ~exp, ~act, flt_env, idx) => {
     switch (flt_env) {
     | [] => (act, idx)
     | [hd, ...tl] =>
-      switch (matches(exp_info_map, ~env, ~exp, ~flt=hd)) {
+      switch (matches(~env, ~exp, ~flt=hd)) {
       | Some(act) => (act, idx)
       | None => matches'(~env, ~exp, ~act, tl, idx + 1)
       }

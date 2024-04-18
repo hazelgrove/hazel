@@ -28,15 +28,13 @@ let rec matches =
           flt: FilterEnvironment.t,
           ctx: EvalCtx.t,
           exp: DHExp.t,
-          exp_info_map: Statics.Map.t,
           act: FilterAction.t,
           idx: int,
         )
         : (FilterAction.t, int, EvalCtx.t) => {
   let composed = EvalCtx.compose(ctx, exp);
   let (pact, pidx) = (act, idx);
-  let (mact, midx) =
-    FilterMatcher.matches(~env, ~exp=composed, ~exp_info_map, ~act, flt);
+  let (mact, midx) = FilterMatcher.matches(~env, ~exp=composed, ~act, flt);
   let (act, idx) =
     switch (ctx) {
     | Term({term: Filter(_, _), _}) => (pact, pidx)
@@ -53,124 +51,107 @@ let rec matches =
       let rewrap = term => EvalCtx.Term({term, ids});
       switch ((term: EvalCtx.term)) {
       | Closure(env, ctx) =>
-        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Closure(env, ctx) |> rewrap;
       | Filter(Filter(flt'), ctx) =>
         let flt = flt |> FilterEnvironment.extends(flt');
-        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Filter(Filter(flt'), ctx) |> rewrap;
       | Filter(Residue(idx, act), ctx) =>
-        let (ract, ridx, rctx) =
-          matches(env, flt, ctx, exp, exp_info_map, act, idx);
+        let (ract, ridx, rctx) = matches(env, flt, ctx, exp, act, idx);
         if (ridx == idx && ract |> snd == All) {
           (ract, ridx, Filter(Residue(idx, act), rctx) |> rewrap);
         } else {
           (ract, ridx, rctx);
         };
       | Seq1(ctx, d2) =>
-        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Seq1(ctx, d2) |> rewrap;
       | Seq2(d1, ctx) =>
-        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Seq2(d1, ctx) |> rewrap;
       | Let1(d1, ctx, d3) =>
-        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Let1(d1, ctx, d3) |> rewrap;
       | Let2(d1, d2, ctx) =>
-        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Let2(d1, d2, ctx) |> rewrap;
       | Fun(dp, ctx, env', name) =>
         let+ ctx =
-          matches(
-            Option.value(~default=env, env'),
-            flt,
-            ctx,
-            exp,
-            exp_info_map,
-            act,
-            idx,
-          );
+          matches(Option.value(~default=env, env'), flt, ctx, exp, act, idx);
         Fun(dp, ctx, env', name) |> rewrap;
       | FixF(name, ctx, env') =>
         let+ ctx =
-          matches(
-            Option.value(~default=env, env'),
-            flt,
-            ctx,
-            exp,
-            exp_info_map,
-            act,
-            idx,
-          );
+          matches(Option.value(~default=env, env'), flt, ctx, exp, act, idx);
         FixF(name, ctx, env') |> rewrap;
       | Ap1(dir, ctx, d2) =>
-        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Ap1(dir, ctx, d2) |> rewrap;
       | Ap2(dir, d1, ctx) =>
-        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Ap2(dir, d1, ctx) |> rewrap;
       | DeferredAp1(ctx, d2) =>
-        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
         DeferredAp1(ctx, d2) |> rewrap;
       | DeferredAp2(d1, ctx, ds) =>
-        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
         DeferredAp2(d1, ctx, ds) |> rewrap;
       | If1(ctx, d2, d3) =>
-        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
         If1(ctx, d2, d3) |> rewrap;
       | If2(d1, ctx, d3) =>
-        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
         If2(d1, ctx, d3) |> rewrap;
       | If3(d1, d2, ctx) =>
-        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
         If3(d1, d2, ctx) |> rewrap;
       | UnOp(op, ctx) =>
-        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
         UnOp(op, ctx) |> rewrap;
       | BinOp1(op, ctx, d1) =>
-        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
         BinOp1(op, ctx, d1) |> rewrap;
       | BinOp2(op, d1, ctx) =>
-        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
         BinOp2(op, d1, ctx) |> rewrap;
       | Tuple(ctx, ds) =>
-        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Tuple(ctx, ds) |> rewrap;
       | Test(ctx) =>
-        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Test(ctx) |> rewrap;
       | ListLit(ctx, ds) =>
-        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
         ListLit(ctx, ds) |> rewrap;
       | Cons1(ctx, d2) =>
-        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Cons1(ctx, d2) |> rewrap;
       | Cons2(d1, ctx) =>
-        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Cons2(d1, ctx) |> rewrap;
       | ListConcat1(ctx, d2) =>
-        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
         ListConcat1(ctx, d2) |> rewrap;
       | ListConcat2(d1, ctx) =>
-        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
         ListConcat2(d1, ctx) |> rewrap;
       | MultiHole(ctx, (dl, dr)) =>
-        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
         MultiHole(ctx, (dl, dr)) |> rewrap;
       | Cast(ctx, ty, ty') =>
-        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Cast(ctx, ty, ty') |> rewrap;
       | FailedCast(ctx, ty, ty') =>
-        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
         FailedCast(ctx, ty, ty') |> rewrap;
       | DynamicErrorHole(ctx, error) =>
-        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
         DynamicErrorHole(ctx, error) |> rewrap;
       | MatchScrut(ctx, rs) =>
-        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
         MatchScrut(ctx, rs) |> rewrap;
       | MatchRule(scr, p, ctx, rs) =>
-        let+ ctx = matches(env, flt, ctx, exp, exp_info_map, act, idx);
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
         MatchRule(scr, p, ctx, rs) |> rewrap;
       };
     };
@@ -186,20 +167,12 @@ let rec matches =
 };
 
 let should_hide_eval_obj =
-    (~settings, ~info_map, x: EvalObj.t): (FilterAction.action, EvalObj.t) =>
+    (~settings, x: EvalObj.t): (FilterAction.action, EvalObj.t) =>
   if (should_hide_step(~settings, x.knd)) {
     (Eval, x);
   } else {
     let (act, _, ctx) =
-      matches(
-        ClosureEnvironment.empty,
-        [],
-        x.ctx,
-        x.d_loc,
-        info_map,
-        (Step, One),
-        0,
-      );
+      matches(ClosureEnvironment.empty, [], x.ctx, x.d_loc, (Step, One), 0);
     switch (act) {
     | (Eval, _) => (Eval, {...x, ctx})
     | (Step, _) => (Step, {...x, ctx})
@@ -211,15 +184,7 @@ let should_hide_step = (~settings, x: step): (FilterAction.action, step) =>
     (Eval, x);
   } else {
     let (act, _, ctx) =
-      matches(
-        ClosureEnvironment.empty,
-        [],
-        x.ctx,
-        x.d_loc,
-        EvaluatorState.get_info_map(x.state),
-        (Step, One),
-        0,
-      );
+      matches(ClosureEnvironment.empty, [], x.ctx, x.d_loc, (Step, One), 0);
     switch (act) {
     | (Eval, _) => (Eval, {...x, ctx})
     | (Step, _) => (Step, {...x, ctx})
@@ -227,12 +192,9 @@ let should_hide_step = (~settings, x: step): (FilterAction.action, step) =>
   };
 
 let get_elab = ({history, _}: t): Elaborator.Elaboration.t => {
-  let (d, st) = Aba.last_a(history);
-  {d, info_map: EvaluatorState.get_info_map(st)};
+  let (d, _) = Aba.last_a(history);
+  {d: d};
 };
-
-let get_elab_info_map = ({history, _}: t) =>
-  Aba.last_a(history) |> snd |> EvaluatorState.get_info_map;
 
 let get_next_steps = s => s.next_options;
 
@@ -241,12 +203,11 @@ let current_expr = ({history, _}: t) => Aba.hd(history) |> fst;
 let current_state = ({history, _}: t) => Aba.hd(history) |> snd;
 
 let step_pending = (idx: int, stepper: t) => {
-  ...stepper,
-  stepper_state: StepPending(idx),
+  {...stepper, stepper_state: StepPending(idx)};
 };
 
-let init = ({d, info_map}: Elaborator.Elaboration.t) => {
-  let state = EvaluatorState.init(info_map);
+let init = ({d}: Elaborator.Elaboration.t) => {
+  let state = EvaluatorState.init;
   {
     history: Aba.singleton((d, state)),
     next_options: decompose(d, state),
@@ -259,14 +220,7 @@ let rec evaluate_pending = (~settings, s: t) => {
   | StepperDone
   | StepTimeout(_) => s
   | StepperReady =>
-    let next' =
-      s.next_options
-      |> List.map(
-           should_hide_eval_obj(
-             ~settings,
-             ~info_map=EvaluatorState.get_info_map(current_state(s)),
-           ),
-         );
+    let next' = s.next_options |> List.map(should_hide_eval_obj(~settings));
     let next'' = List.mapi((i, x) => (i, x), next');
     switch (
       List.find_opt(((_, (act, _))) => act == FilterAction.Eval, next'')
@@ -287,6 +241,7 @@ let rec evaluate_pending = (~settings, s: t) => {
         }
       )
       |> DHExp.repair_ids;
+    let _ = print_endline(d_loc' |> DHExp.show);
     let d' = EvalCtx.compose(eo.ctx, d_loc');
     let new_step = {
       d,

@@ -55,6 +55,5 @@ let rec matches = (dp: Pat.t, d: DHExp.t): match_result =>
     List.map2(matches, ps, ds)
     |> List.fold_left(combine_result, Matches(Environment.empty));
   | Parens(p) => matches(p, d)
-  | Cast(p, t1, t2) =>
-    matches(p, Cast(d, t2, t1) |> DHExp.fresh |> Unboxing.fixup_cast)
+  | Cast(p, t1, t2) => matches(p, Cast(d, t2, t1) |> DHExp.fresh)
   };

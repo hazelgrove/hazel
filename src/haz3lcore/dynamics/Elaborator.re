@@ -8,10 +8,7 @@ exception MissingTypeInfo;
 
 module Elaboration = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    d: DHExp.t,
-    info_map: Statics.Map.t,
-  };
+  type t = {d: DHExp.t};
 };
 
 module ElaborationResult = {

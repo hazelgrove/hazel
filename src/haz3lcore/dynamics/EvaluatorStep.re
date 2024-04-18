@@ -237,8 +237,8 @@ let decompose = (d: DHExp.t, es: EvaluatorState.t) => {
   Decompose.Result.unbox(rs);
 };
 
-let evaluate_with_history = (d, info_map) => {
-  let state = ref(EvaluatorState.init(info_map));
+let evaluate_with_history = d => {
+  let state = ref(EvaluatorState.init);
   let rec go = d =>
     switch (decompose(d, state^)) {
     | [] => []

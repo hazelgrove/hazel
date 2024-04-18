@@ -113,6 +113,8 @@ and Exp: {
     | BinOp(Operators.op_bin, t, t)
     | BuiltinFun(string)
     | Match(t, list((Pat.t, t)))
+    /* INVARIANT: in dynamic expressions, casts must be between
+       two consistent types. */
     | Cast(t, Typ.t, Typ.t)
   and t = IdTagged.t(term);
 

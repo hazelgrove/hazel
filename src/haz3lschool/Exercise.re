@@ -723,7 +723,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       stitch_static(settings, stitch_term(state));
     let elab = (s: CachedStatics.statics): Elaborator.Elaboration.t => {
       d: Interface.elaborate(~settings, s.info_map, s.term),
-      info_map: s.info_map,
     };
     [
       (test_validation_key, elab(test_validation)),

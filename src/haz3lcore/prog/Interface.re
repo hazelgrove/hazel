@@ -53,16 +53,12 @@ let elaborate = (~settings: CoreSettings.t, map, term): DHExp.t =>
   };
 
 let evaluate =
-    (
-      ~settings: CoreSettings.t,
-      ~env=Builtins.env_init,
-      elab: Elaborator.Elaboration.t,
-    )
+    (~settings: CoreSettings.t, ~env=Builtins.env_init, elab: DHExp.t)
     : ProgramResult.t =>
   switch () {
-  | _ when !settings.dynamics => Off(elab)
+  | _ when !settings.dynamics => Off({d: elab})
   | _ =>
-    switch (Evaluator.evaluate(env, elab)) {
+    switch (Evaluator.evaluate(env, {d: elab})) {
     | exception (EvaluatorError.Exception(reason)) =>
       print_endline("EvaluatorError:" ++ EvaluatorError.show(reason));
       ResultFail(EvaulatorError(reason));
@@ -84,5 +80,5 @@ let eval_z =
   let (term, _) = MakeTerm.from_zip_for_sem(z);
   let info_map = Statics.mk_map_ctx(settings, ctx_init, term);
   let d = elaborate(~settings, info_map, term);
-  evaluate(~settings, ~env=env_init, {d, info_map});
+  evaluate(~settings, ~env=env_init, d);
 };

@@ -47,7 +47,6 @@ let fixup_cast = Casts.transition_multiple;
 
 let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
   (request, expr) => {
-    let _ = print_endline(DHExp.show(expr));
     switch (request, DHExp.term_of(expr)) {
     /* Remove parentheses from casts */
     | (_, Cast(d, {term: Parens(x), _}, y))
