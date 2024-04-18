@@ -1,10 +1,48 @@
 open Js_of_ocaml;
 open WorkerServer;
 
-let name = "worker.js"; // Worker file name
+let fetch_data = (url, callback) => {
+  open XmlHttpRequest;
+  let request = create();
+  request##_open(Js.string("GET"), Js.string(url), Js._true);
+  request##.onreadystatechange :=
+    Js.wrap_callback(_ =>
+      switch (request##.readyState) {
+      | DONE =>
+        if (request##.status == 200) {
+          let data = request##.response;
+          let blob =
+            Js.Opt.get(File.CoerceTo.blob(data), () => assert(false));
+          let blob_url = Js.Unsafe.global##._URL##createObjectURL(blob);
+          callback(Some(blob_url));
+        } else {
+          callback(None);
+        }
+      | _ => ()
+      }
+    );
+  request##send(Js.null);
+};
+
+let blob_url = ref(None);
+let url = "https://hazel.org/build/dev/worker.js"; // Worker file name
+
+let () =
+  fetch_data("https://hazel.org/build/dev/worker.js", result => {
+    blob_url := result
+  });
+
 let timeoutDuration = 20000; // Worker timeout in ms
 
-let initWorker = () => Worker.create(name);
+let rec initWorker = () => {
+  /* Start polling the ref */
+  switch (blob_url^) {
+  | Some(url) => Worker.create(url)
+  | None =>
+    Dom_html.setTimeout(() => (), 100.) |> ignore;
+    initWorker();
+  };
+};
 
 let workerRef: ref(Js.t(Worker.worker(string, string))) =
   ref(initWorker());
