@@ -13,7 +13,7 @@ let rec matches_exp =
   | (Constructor("$e"), _) => failwith("$e in matched expression")
   | (Constructor("$v"), _) => failwith("$v in matched expression")
   | (_, Constructor("$v")) =>
-    switch (ValueChecker.check_value(info_map, env, d)) {
+    switch (ValueChecker.check_value((), env, d)) {
     | Indet
     | Value => true
     | Expr => false
@@ -32,13 +32,10 @@ let rec matches_exp =
 
   | (Var(dx), Var(fx)) => dx == fx
   | (Var(dx), _) =>
-    let d =
-      ClosureEnvironment.lookup(env, dx)
-      |> Util.OptUtil.get(() => {
-           print_endline("FreeInvalidVar:" ++ dx);
-           raise(EvaluatorError.Exception(FreeInvalidVar(dx)));
-         });
-    matches_exp(env, d, f);
+    switch (ClosureEnvironment.lookup(env, dx)) {
+    | None => false
+    | Some(d) => matches_exp(env, d, f)
+    }
   | (_, Var(fx)) =>
     switch (ClosureEnvironment.lookup(env, fx)) {
     | Some(f) => matches_exp(env, d, f)

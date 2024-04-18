@@ -1,6 +1,5 @@
 open DHExp;
 open Transition;
-open Util;
 
 type t =
   | Value
@@ -8,9 +7,9 @@ type t =
   | Expr;
 
 module ValueCheckerEVMode: {
-  include EV_MODE with type result = t and type state = Statics.Map.t;
+  include EV_MODE with type result = t and type state = unit;
 } = {
-  type state = Statics.Map.t;
+  type state = unit;
   type result = t;
 
   type requirement('a) = ('a, (result, bool));
@@ -86,17 +85,12 @@ module CV = Transition(ValueCheckerEVMode);
 let rec check_value = (state, env, d) =>
   CV.transition(check_value, state, env, d);
 
-let rec check_value_mod_ctx = (info_map: Statics.Map.t, env, d) =>
+let rec check_value_mod_ctx = ((), env, d) =>
   switch (DHExp.term_of(d)) {
   | Var(x) =>
-    check_value_mod_ctx(
-      info_map,
-      env,
-      ClosureEnvironment.lookup(env, x)
-      |> OptUtil.get(() => {
-           print_endline("FreeInvalidVar:" ++ x);
-           raise(EvaluatorError.Exception(FreeInvalidVar(x)));
-         }),
-    )
-  | _ => CV.transition(check_value_mod_ctx, info_map, env, d)
+    switch (ClosureEnvironment.lookup(env, x)) {
+    | Some(v) => check_value_mod_ctx((), env, v)
+    | None => CV.transition(check_value_mod_ctx, (), env, d)
+    }
+  | _ => CV.transition(check_value_mod_ctx, (), env, d)
   };
