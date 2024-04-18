@@ -138,6 +138,8 @@ module Decompose = {
           | Constructor => Result.BoxedValue
           | Indet => Result.Indet
           | Step(s) => Result.Step([EvalObj.mk(Mark, env, undo, s.kind)])
+          // TODO: Actually show these exceptions to the user!
+          | exception (EvaluatorError.Exception(_)) => Result.Indet
           }
         | (_, Result.Step(_) as r, _, _) => r
         };
@@ -168,7 +170,12 @@ module Decompose = {
                 Term({term: Filter(flt, d1), ids: [DHExp.rep_id(exp)]}),
               d1,
             );
-          Step({apply: () => d1, kind: CompleteFilter, value: true});
+          Step({
+            expr: d1,
+            state_update: () => (),
+            kind: CompleteFilter,
+            is_value: true,
+          });
         }
       )
     | _ =>
@@ -201,7 +208,9 @@ module TakeStep = {
 
     let (let.) = (rq: requirements('a, DHExp.t), rl: 'a => rule) =>
       switch (rl(rq)) {
-      | Step({apply, _}) => Some(apply())
+      | Step({expr, state_update, _}) =>
+        state_update();
+        Some(expr);
       | Constructor
       | Indet => None
       };

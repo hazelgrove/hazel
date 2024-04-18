@@ -4,7 +4,6 @@ open Sexplib.Std;
 type t =
   | OutOfFuel
   | StepDoesNotMatch
-  | FreeInvalidVar(Var.t)
   | BadPatternMatch
   | CastBVHoleGround(DHExp.t)
   | InvalidBoxedFun(DHExp.t)
