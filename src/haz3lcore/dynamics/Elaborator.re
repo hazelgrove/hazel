@@ -37,6 +37,14 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | Arrow(_) => d
     | _ => failwith("Elaborator.wrap: SynFun non-arrow-type")
     }
+  | SynTypFun =>
+    switch (self_ty) {
+    | Unknown(prov) =>
+      /* ? |> forall _. ? */
+      DHExp.cast(d, Unknown(prov), Forall("_", Unknown(prov)))
+    | Forall(_) => d
+    | _ => failwith("Elaborator.wrap: SynTypFun non-forall-type")
+    }
   | Ana(ana_ty) =>
     let ana_ty = Typ.normalize(ctx, ana_ty);
     /* Forms with special ana rules get cast from their appropriate Matched types */
@@ -53,6 +61,12 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
       let (_, ana_out) = Typ.matched_arrow(ctx, ana_ty);
       let (self_in, _) = Typ.matched_arrow(ctx, self_ty);
       DHExp.cast(d, Arrow(self_in, ana_out), ana_ty);
+    | TypFun(_) =>
+      switch (ana_ty) {
+      | Unknown(prov) =>
+        DHExp.cast(d, Forall("grounded_forall", Unknown(prov)), ana_ty)
+      | _ => d
+      }
     | Tuple(ds) =>
       switch (ana_ty) {
       | Unknown(prov) =>
@@ -62,6 +76,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
       }
     | Ap(NonEmptyHole(_, _, _, Constructor(_)), _)
     | Ap(Constructor(_), _)
+    | TypAp(Constructor(_), _)
     | Constructor(_) =>
       switch (ana_ty, self_ty) {
       | (Unknown(prov), Rec(_, Sum(_)))
@@ -78,7 +93,6 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     /* Hole-like forms: Don't cast */
     | InvalidText(_)
     | FreeVar(_)
-    | ExpandingKeyword(_)
     | EmptyHole(_)
     | NonEmptyHole(_) => d
     /* DHExp-specific forms: Don't cast */
@@ -101,7 +115,10 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | BinIntOp(_)
     | BinFloatOp(_)
     | BinStringOp(_)
-    | Test(_) => DHExp.cast(d, self_ty, ana_ty)
+    | Test(_)
+    | TypAp(_) =>
+      // TODO: check with andrew
+      DHExp.cast(d, self_ty, ana_ty)
     };
   };
 
@@ -154,6 +171,9 @@ let rec dhexp_of_uexp =
         let* d1 = dhexp_of_uexp(m, body);
         let+ ty = fixed_pat_typ(m, p);
         DHExp.Fun(dp, ty, d1, None);
+      | TypFun(tpat, body) =>
+        let+ d1 = dhexp_of_uexp(m, body);
+        DHExp.TypFun(tpat, d1, None);
       | Tuple(es) =>
         let+ ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
         DHExp.Tuple(ds);
@@ -220,6 +240,7 @@ let rec dhexp_of_uexp =
           name =>
             fun
             | Fun(p, ty, e, _) => DHExp.Fun(p, ty, e, name)
+            | TypFun(tpat, e, _) => DHExp.TypFun(tpat, e, name)
             | d => d
         );
         let* dp = dhpat_of_upat(m, p);
@@ -278,6 +299,9 @@ let rec dhexp_of_uexp =
         let* c_fn = dhexp_of_uexp(m, fn);
         let+ c_arg = dhexp_of_uexp(m, arg);
         DHExp.Ap(c_fn, c_arg);
+      | TypAp(fn, uty_arg) =>
+        let+ d_fn = dhexp_of_uexp(m, fn);
+        DHExp.TypAp(d_fn, Term.UTyp.to_typ(ctx, uty_arg));
       | DeferredAp(fn, args) =>
         switch (err_status) {
         | InHole(BadPartialAp(NoDeferredArgs)) => dhexp_of_uexp(m, fn)
