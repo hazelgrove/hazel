@@ -239,9 +239,8 @@ module rec DHExp: {
       dp1 == dp2 && fast_equal(d11, d12) && fast_equal(d21, d22)
     | (FixF(f1, ty1, d1), FixF(f2, ty2, d2)) =>
       f1 == f2 && ty1 == ty2 && fast_equal(d1, d2)
-    /* Always return false for functions to avoid undefined behavior */
-    // | (Fun(dp1, ty1, d1, s1), Fun(dp2, ty2, d2, s2)) =>
-    //   dp1 == dp2 && ty1 == ty2 && fast_equal(d1, d2) && s1 == s2
+    | (Fun(dp1, ty1, d1, s1), Fun(dp2, ty2, d2, s2)) =>
+      dp1 == dp2 && ty1 == ty2 && fast_equal(d1, d2) && s1 == s2
     | (Ap(d11, d21), Ap(d12, d22))
     | (Cons(d11, d21), Cons(d12, d22)) =>
       fast_equal(d11, d12) && fast_equal(d21, d22)
@@ -252,8 +251,7 @@ module rec DHExp: {
       && List.for_all2(fast_equal, ds1, ds2)
     | (Prj(d1, n), Prj(d2, m)) => n == m && fast_equal(d1, d2)
     | (ApBuiltin(f1, d1), ApBuiltin(f2, d2)) => f1 == f2 && d1 == d2
-    /* Always return false for functions to avoid undefined behavior */
-    // | (BuiltinFun(f1), BuiltinFun(f2)) => f1 == f2
+    | (BuiltinFun(f1), BuiltinFun(f2)) => f1 == f2
     | (ListLit(_, _, _, ds1), ListLit(_, _, _, ds2)) =>
       List.length(ds1) == List.length(ds2)
       && List.for_all2(fast_equal, ds1, ds2)
