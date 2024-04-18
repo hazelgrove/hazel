@@ -191,7 +191,7 @@ let live_eval =
       ~font_metrics,
       ~width=80,
       ~result_key,
-      ~infomap=result.elab.info_map,
+      ~infomap=Id.Map.empty,
       dhexp,
     );
   let exn_view =
@@ -398,12 +398,12 @@ let locked =
           editor.state.meta.view_term,
         )
       : DHExp.Bool(true) |> DHExp.fresh;
-  let elab: Elaborator.Elaboration.t = {d: elab, info_map: statics.info_map};
+  let elab: Elaborator.Elaboration.t = {d: elab};
   let result: ModelResult.t =
     settings.core.dynamics
       ? Evaluation({
           elab,
-          evaluation: Interface.evaluate(~settings=settings.core, elab),
+          evaluation: Interface.evaluate(~settings=settings.core, elab.d),
           previous: ResultPending,
         })
       : NoElab;

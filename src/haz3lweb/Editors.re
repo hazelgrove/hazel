@@ -105,13 +105,13 @@ let get_spliced_elabs =
     let CachedStatics.{term, info_map, _} =
       lookup_statics(~settings, ~statics, editors);
     let d = Interface.elaborate(~settings=settings.core, info_map, term);
-    [(key, {d, info_map})];
+    [(key, {d: d})];
   | Documentation(name, _) =>
     let key = ScratchSlide.scratch_key(name);
     let CachedStatics.{term, info_map, _} =
       lookup_statics(~settings, ~statics, editors);
     let d = Interface.elaborate(~settings=settings.core, info_map, term);
-    [(key, {d, info_map})];
+    [(key, {d: d})];
   | Exercises(_, _, exercise) =>
     Exercise.spliced_elabs(settings.core, exercise)
   };

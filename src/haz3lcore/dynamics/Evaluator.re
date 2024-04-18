@@ -132,8 +132,8 @@ let rec evaluate = (state, env, d) => {
   };
 };
 
-let evaluate = (env, {d, info_map}: Elaborator.Elaboration.t) => {
-  let state = ref(EvaluatorState.init(info_map));
+let evaluate = (env, {d}: Elaborator.Elaboration.t) => {
+  let state = ref(EvaluatorState.init);
   let env = ClosureEnvironment.of_environment(env);
   let result = evaluate(state, env, d);
   let result =

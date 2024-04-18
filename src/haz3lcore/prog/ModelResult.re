@@ -42,7 +42,7 @@ let run_pending = (~settings: CoreSettings.t) =>
     Evaluation({
       elab,
       previous,
-      evaluation: Interface.evaluate(~settings, elab),
+      evaluation: Interface.evaluate(~settings, elab.d),
     })
   | Evaluation(_) as e => e
   | Stepper(s) =>
