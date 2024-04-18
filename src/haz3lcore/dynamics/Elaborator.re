@@ -258,10 +258,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
         let (p, ty1) = elaborate_pattern(m, p);
         let (def, ty2) = elaborate(m, def);
         let (body, ty) = elaborate(m, body);
-        let fixf =
-          FixF(p, fresh_cast(def, ty2, ty1), None)
-          |> DHExp.fresh
-          |> fresh_cast(_, ty1, ty);
+        let fixf = FixF(p, fresh_cast(def, ty2, ty1), None) |> DHExp.fresh;
         Exp.Let(p, fixf, body) |> rewrap |> cast_from(ty);
       };
     | FixF(p, e, env) =>
