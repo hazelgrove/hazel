@@ -82,6 +82,10 @@ let rec matches_exp =
   | (BuiltinFun(dn), BuiltinFun(fn)) => dn == fn
   | (BuiltinFun(_), _) => false
 
+  | (TypFun(pat1, d1, s1), TypFun(pat2, d2, s2)) =>
+    s1 == s2 && matches_utpat(pat1, pat2) && matches_exp(env, d1, d2)
+  | (TypFun(_), _) => false
+
   | (Fun(dp1, dty1, d1, dname1), Fun(fp1, fty1, f1, fname1)) =>
     matches_pat(dp1, fp1)
     && dty1 == fty1
@@ -98,6 +102,10 @@ let rec matches_exp =
     && matches_exp(env, d1, f1)
     && matches_exp(env, d2, f2)
   | (Let(_), _) => false
+
+  | (TypAp(d1, t1), TypAp(d2, t2)) =>
+    matches_exp(env, d1, d2) && matches_typ(t1, t2)
+  | (TypAp(_), _) => false
 
   | (Ap(d1, d2), Ap(f1, f2)) =>
     matches_exp(env, d1, f1) && matches_exp(env, d2, f2)
@@ -194,7 +202,6 @@ let rec matches_exp =
   | (InconsistentBranches(_), _) => false
 
   | (NonEmptyHole(_), _) => false
-  | (ExpandingKeyword(_), _) => false
   | (InvalidText(_), _) => false
   | (InvalidOperation(_), _) => false
 
@@ -248,7 +255,6 @@ and matches_pat = (d: DHPat.t, f: DHPat.t): bool => {
   | (Cons(_), _) => false
   | (EmptyHole(_), _) => false
   | (NonEmptyHole(_), _) => false
-  | (ExpandingKeyword(_), _) => false
   | (InvalidText(_), _) => false
   };
 }
@@ -259,6 +265,16 @@ and matches_rul = (env, d: DHExp.rule, f: DHExp.rule) => {
   switch (d, f) {
   | (Rule(dp, d), Rule(fp, f)) =>
     matches_pat(dp, fp) && matches_exp(env, d, f)
+  };
+}
+and matches_utpat = (d: Term.UTPat.t, f: Term.UTPat.t): bool => {
+  switch (d.term, f.term) {
+  | (Invalid(_), _) => false
+  | (_, Invalid(_)) => false
+  | (_, EmptyHole) => true
+  | (MultiHole(l1), MultiHole(l2)) => List.length(l1) == List.length(l2) /* TODO: probably should define a matches_any and recurse in here...? */
+  | (Var(t1), Var(t2)) => t1 == t2
+  | _ => false
   };
 };
 
