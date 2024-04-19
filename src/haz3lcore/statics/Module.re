@@ -50,3 +50,6 @@ let rec get_module =
   | _ => None
   };
 };
+let mk = (name: Var.t, id: Id.t) => {
+  Typ.Module([VarEntry({name, id, typ: Unknown(Internal)})]);
+};

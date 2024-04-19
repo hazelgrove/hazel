@@ -427,12 +427,20 @@ and uexp_to_info_map =
     );
   | Module(p, def, body) =>
     let (p_syn, _) =
-      go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~mode=Syn, p, m);
+      go_pat(
+        ~is_synswitch=true,
+        ~co_ctx=CoCtx.empty,
+        ~mode=Syn,
+        ~is_module=true,
+        p,
+        m,
+      );
 
     let (def1, _) = go(~mode=Syn, def, m);
     let ty =
       switch (p_syn.ty) {
-      | Module(_) => p_syn.ty
+      | Module(_)
+      | Unknown(_) => p_syn.ty
       | _ => Typ.Unknown(SynSwitch)
       };
     let (def_ty, def, m) =
@@ -452,6 +460,7 @@ and uexp_to_info_map =
         ~is_synswitch=false,
         ~co_ctx=CoCtx.empty,
         ~mode=Ana(def_ty),
+        ~is_module=true,
         p,
         m,
       );
@@ -462,6 +471,7 @@ and uexp_to_info_map =
         ~is_synswitch=false,
         ~co_ctx=body.co_ctx,
         ~mode=Ana(def_ty),
+        ~is_module=true,
         p,
         m,
       );
@@ -472,7 +482,15 @@ and uexp_to_info_map =
       m,
     );
   | Dot(e_mod, e_mem) =>
-    let (info_modul, m) = go(~mode=Syn, e_mod, m);
+    let (info_modul, m) = {
+      let (info_modul, m) = go(~mode=Syn, e_mod, m);
+      switch (e_mem.term, info_modul.ty) {
+      | (Var(name), Unknown(_))
+      | (Constructor(name), Unknown(_)) =>
+        go(~mode=Mode.Ana(Module.mk(name, UExp.rep_id(e_mem))), e_mod, m)
+      | _ => (info_modul, m)
+      };
+    };
     switch (info_modul.ty) {
     | Module(inner_ctx) =>
       let (body, m) = go'(~ctx=inner_ctx, ~mode, e_mem, m);
@@ -601,6 +619,7 @@ and upat_to_info_map =
       ~co_ctx,
       ~ancestors: Info.ancestors,
       ~mode: Mode.t=Mode.Syn,
+      ~is_module=false,
       {ids, term} as upat: UPat.t,
       m: Map.t,
     )
@@ -613,13 +632,14 @@ and upat_to_info_map =
         ~co_ctx,
         ~mode,
         ~ancestors,
+        ~is_module,
         ~self=Common(self),
       );
     (info, add_info(ids, InfoPat(info), m));
   };
   let atomic = self => add(~self, ~ctx, m);
   let ancestors = [UPat.rep_id(upat)] @ ancestors;
-  let go = upat_to_info_map(~is_synswitch, ~ancestors, ~co_ctx);
+  let go = upat_to_info_map(~is_synswitch, ~ancestors, ~co_ctx, ~is_module);
   let unknown = Typ.Unknown(is_synswitch ? SynSwitch : Internal);
   let ctx_fold = (ctx: Ctx.t, m) =>
     List.fold_left2(
@@ -654,7 +674,7 @@ and upat_to_info_map =
     /* Note the self type assigned to pattern variables (unknown)
        may be SynSwitch, but the type we add to the context is
        always Unknown Internal */
-    if (Mode.is_module_ana(mode, ctx)) {
+    if (Mode.is_module_ana(mode, ctx, is_module)) {
       atomic(BadToken(name));
     } else {
       let ctx_typ =
@@ -670,7 +690,7 @@ and upat_to_info_map =
     let (p, m) = go(~ctx, ~mode, p, m);
     add(~self=Just(p.ty), ~ctx=p.ctx, m);
   | Constructor(ctr) =>
-    if (Mode.is_module_ana(mode, ctx)) {
+    if (Mode.is_module_ana(mode, ctx, is_module)) {
       let ctx_typ =
         Info.fixed_typ_pat(ctx, mode, Common(Just(Unknown(Internal))));
       /* Change type var to be type member of module. */
@@ -1062,7 +1082,14 @@ and uexp_to_module =
   | Module(p, def, body) =>
     let mode_pat = module_to_member_mode(mode, p);
     let (p_syn, _) =
-      go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~mode=mode_pat, p, m);
+      go_pat(
+        ~is_synswitch=true,
+        ~co_ctx=CoCtx.empty,
+        ~mode=mode_pat,
+        ~is_module=true,
+        p,
+        m,
+      );
     // The type specified in the module type overrides the type of pattern.
     let ty_pat =
       switch (mode_pat) {
@@ -1091,6 +1118,7 @@ and uexp_to_module =
         ~is_synswitch=false,
         ~co_ctx=CoCtx.empty,
         ~mode=Ana(ty_def),
+        ~is_module=true,
         p,
         m,
       );
@@ -1099,6 +1127,7 @@ and uexp_to_module =
         ~is_synswitch=false,
         ~co_ctx=CoCtx.empty,
         ~mode=Ana(ty_def),
+        ~is_module=true,
         p,
         m,
       );

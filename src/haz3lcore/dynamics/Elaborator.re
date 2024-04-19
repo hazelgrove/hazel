@@ -66,7 +66,8 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
       switch (ana_ty, self_ty) {
       | (Unknown(prov), Rec(_, Sum(_)))
       | (Unknown(prov), Sum(_)) => DHExp.cast(d, self_ty, Unknown(prov))
-      | (_, Module(_)) => DHExp.cast(d, self_ty, ana_ty)
+      | (_, Module(_))
+      | (Module(_), _) => DHExp.cast(d, self_ty, ana_ty)
       | _ => d
       }
     /* Forms with special ana rules but no particular typing requirements */
