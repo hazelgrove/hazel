@@ -32,6 +32,12 @@ module TPat = {
     | MultiHole => "Broken type alias"
     | EmptyHole => "Empty type alias hole"
     | Var => "Type alias";
+
+  let tyvar_of_utpat = ({ids: _, term}) =>
+    switch (term) {
+    | Var(x) => Some(x)
+    | _ => None
+    };
 };
 
 module Pat = {
@@ -113,7 +119,8 @@ module Pat = {
 
   let rec is_var = (pat: t) => {
     switch (pat.term) {
-    | Parens(pat) => is_var(pat)
+    | Parens(pat)
+    | TypeAnn(pat, _) => is_var(pat)
     | Var(_) => true
     | Cast(_)
     | Invalid(_)
@@ -136,6 +143,8 @@ module Pat = {
     switch (pat.term) {
     | Parens(pat) => is_fun_var(pat)
     | Cast(pat, t1, _) => is_var(pat) && Typ.is_arrow(t1)
+    | TypeAnn(pat, typ) =>
+      is_var(pat) && (UTyp.is_arrow(typ) || Typ.is_forall(typ))
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -176,9 +185,56 @@ module Pat = {
       }
     );
 
+  let rec is_tuple_of_vars = (pat: t) =>
+    is_var(pat)
+    || (
+      switch (pat.term) {
+      | Parens(pat)
+      | Cast(pat, _, _) => is_tuple_of_vars(pat)
+      | Tuple(pats) => pats |> List.for_all(is_var)
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_)
+      | Wild
+      | Int(_)
+      | Float(_)
+      | Bool(_)
+      | String(_)
+      | ListLit(_)
+      | Cons(_, _)
+      | Var(_)
+      | Constructor(_)
+      | Ap(_) => false
+      }
+    );
+
+  let rec is_tuple_of_vars = (pat: t) =>
+    is_var(pat)
+    || (
+      switch (pat.term) {
+      | Parens(pat)
+      | TypeAnn(pat, _) => is_tuple_of_vars(pat)
+      | Tuple(pats) => pats |> List.for_all(is_var)
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_)
+      | Wild
+      | Int(_)
+      | Float(_)
+      | Bool(_)
+      | String(_)
+      | Triv
+      | ListLit(_)
+      | Cons(_, _)
+      | Var(_)
+      | Constructor(_)
+      | Ap(_) => false
+      }
+    );
+
   let rec get_var = (pat: t) => {
     switch (pat.term) {
-    | Parens(pat) => get_var(pat)
+    | Parens(pat)
     | Var(x) => Some(x)
     | Cast(x, _, _) => get_var(x)
     | Invalid(_)
@@ -201,7 +257,7 @@ module Pat = {
     switch (pat.term) {
     | Parens(pat) => get_fun_var(pat)
     | Cast(pat, t1, _) =>
-      if (Typ.is_arrow(t1)) {
+      if (Typ.is_arrow(t1) || UTyp.is_forall(t1)) {
         get_var(pat) |> Option.map(var => var);
       } else {
         None;
@@ -223,19 +279,15 @@ module Pat = {
     };
   };
 
-  let rec get_recursive_bindings = (pat: t) => {
-    switch (get_fun_var(pat)) {
-    | Some(x) => Some([x])
-    | None =>
+  let rec get_num_of_vars = (pat: t) =>
+    if (is_var(pat)) {
+      Some(1);
+    } else {
       switch (pat.term) {
-      | Parens(pat) => get_recursive_bindings(pat)
+      | Parens(pat)
+      | Cast(pat, _, _) => get_num_of_vars(pat)
       | Tuple(pats) =>
-        let fun_vars = pats |> List.map(get_fun_var);
-        if (List.exists(Option.is_none, fun_vars)) {
-          None;
-        } else {
-          Some(List.map(Option.get, fun_vars));
-        };
+        is_tuple_of_vars(pat) ? Some(List.length(pats)) : None
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
@@ -247,12 +299,10 @@ module Pat = {
       | ListLit(_)
       | Cons(_, _)
       | Var(_)
-      | Cast(_)
       | Constructor(_)
       | Ap(_) => None
-      }
+      };
     };
-  };
 
   let ctr_name = (p: t): option(Constructor.t) =>
     switch (p.term) {
@@ -280,6 +330,7 @@ module Exp = {
     | ListLit
     | Constructor
     | Fun
+    | TypFun
     | Tuple
     | Var
     | MetaVar
@@ -287,6 +338,7 @@ module Exp = {
     | FixF
     | TyAlias
     | Ap
+    | TypAp
     | DeferredAp
     | Pipeline
     | If
@@ -328,12 +380,14 @@ module Exp = {
     | ListLit(_) => ListLit
     | Constructor(_) => Constructor
     | Fun(_) => Fun
+    | TypFun(_) => TypFun
     | Tuple(_) => Tuple
     | Var(_) => Var
     | Let(_) => Let
     | FixF(_) => FixF
     | TyAlias(_) => TyAlias
     | Ap(_) => Ap
+    | TypAp(_) => TypAp
     | DeferredAp(_) => DeferredAp
     | If(_) => If
     | Seq(_) => Seq
@@ -365,6 +419,7 @@ module Exp = {
     | ListLit => "List literal"
     | Constructor => "Constructor"
     | Fun => "Function literal"
+    | TypFun => "Type Function Literal"
     | Tuple => "Tuple literal"
     | Var => "Variable reference"
     | MetaVar => "Meta variable reference"
@@ -372,6 +427,7 @@ module Exp = {
     | FixF => "Fixpoint operator"
     | TyAlias => "Type Alias definition"
     | Ap => "Application"
+    | TypAp => "Type application"
     | DeferredAp => "Partial Application"
     | Pipeline => "Pipeline expression"
     | If => "If expression"
@@ -388,9 +444,12 @@ module Exp = {
     | Match => "Case expression"
     | Cast => "Cast expression";
 
+  // Typfun should be treated as a function here as this is only used to
+  // determine when to allow for recursive definitions in a let binding.
   let rec is_fun = (e: t) => {
     switch (e.term) {
     | Parens(e) => is_fun(e)
+    | TypFun(_)
     | Cast(e, _, _) => is_fun(e)
     | Fun(_)
     | BuiltinFun(_) => true
@@ -411,6 +470,7 @@ module Exp = {
     | FixF(_)
     | TyAlias(_)
     | Ap(_)
+    | TypAp(_)
     | DeferredAp(_)
     | If(_)
     | Seq(_)
@@ -445,6 +505,7 @@ module Exp = {
       | String(_)
       | ListLit(_)
       | Fun(_)
+      | TypFun(_)
       | Closure(_)
       | BuiltinFun(_)
       | Var(_)
@@ -452,6 +513,7 @@ module Exp = {
       | FixF(_)
       | TyAlias(_)
       | Ap(_)
+      | TypAp(_)
       | DeferredAp(_)
       | If(_)
       | Seq(_)
@@ -478,6 +540,45 @@ module Exp = {
     | _ => false
     };
   };
+
+  let rec get_num_of_functions = (e: t) =>
+    if (is_fun(e)) {
+      Some(1);
+    } else {
+      switch (e.term) {
+      | Parens(e) => get_num_of_functions(e)
+      | Tuple(es) => is_tuple_of_functions(e) ? Some(List.length(es)) : None
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_)
+      | Triv
+      | Deferral(_)
+      | Bool(_)
+      | Int(_)
+      | Float(_)
+      | String(_)
+      | ListLit(_)
+      | Fun(_)
+      | TypFun(_)
+      | Var(_)
+      | Let(_)
+      | Filter(_)
+      | TyAlias(_)
+      | Ap(_)
+      | TypAp(_)
+      | DeferredAp(_)
+      | Pipeline(_)
+      | If(_)
+      | Seq(_)
+      | Test(_)
+      | Cons(_)
+      | ListConcat(_)
+      | UnOp(_)
+      | BinOp(_)
+      | Match(_)
+      | Constructor(_) => None
+      };
+    };
 };
 
 module Rul = {

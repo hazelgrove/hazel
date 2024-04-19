@@ -66,10 +66,12 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
   | DeferredAp(_)
-  | Ap(_) => DHDoc_common.precedence_Ap
+  | Ap(_)
+  | TypAp(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
   | ListConcat(_) => DHDoc_common.precedence_Plus
   | Tuple(_) => DHDoc_common.precedence_Comma
+  | TypFun(_)
   | Fun(_) => DHDoc_common.precedence_max
   | Let(_)
   | TyAlias(_)
@@ -148,6 +150,7 @@ let mk =
         | (LetBind, _) => []
         | (FixUnwrap, FixF(p, _, _)) => DHPat.bound_vars(p)
         | (FixUnwrap, _) => []
+        | (TypFunAp, _) // TODO: Could also do something here for type variable substitution like in FunAp?
         | (InvalidStep, _)
         | (VarLookup, _)
         | (Seq, _)
@@ -155,6 +158,7 @@ let mk =
         | (FixClosure, _)
         | (DeferredAp, _)
         | (UpdateTest, _)
+        | (CastTypAp, _)
         | (CastAp, _)
         | (BuiltinWrap, _)
         | (UnOp(_), _)
@@ -341,6 +345,10 @@ let mk =
           go'(Tuple(d2) |> DHExp.fresh),
         );
         DHDoc_common.mk_Ap(doc1, doc2);
+      | TypAp(d1, ty) =>
+        let doc1 = go'(d1, TypAp);
+        let doc2 = DHDoc_Typ.mk(~enforce_inline=true, ty);
+        DHDoc_common.mk_TypAp(doc1, doc2);
       | Ap(Reverse, d1, d2) =>
         let (doc1, doc2) = (
           go_formattable(d1)
@@ -565,6 +573,19 @@ let mk =
           | Some(name) => annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"))
           };
         }
+      | TypFun(_tpat, _dbody, s) =>
+        /* same display as with Fun but with anon typfn in the nameless case. */
+        let name =
+          switch (s) {
+          | None => "anon typfn"
+          | Some(name)
+              when
+                !settings.show_fixpoints
+                && String.ends_with(~suffix="+", name) =>
+            String.sub(name, 0, String.length(name) - 1)
+          | Some(name) => name
+          };
+        annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"));
       | FixF(dp, dbody, _)
           when settings.show_fn_bodies && settings.show_fixpoints =>
         let doc_body =

@@ -11,6 +11,7 @@ type term =
   | Let2(Pat.t, DHExp.t, t)
   | Fun(Pat.t, t, option(ClosureEnvironment.t), option(Var.t))
   | FixF(Pat.t, t, option(ClosureEnvironment.t))
+  | TypAp(t, Typ.t)
   | Ap1(Operators.ap_direction, t, DHExp.t)
   | Ap2(Operators.ap_direction, DHExp.t, t)
   | DeferredAp1(t, list(DHExp.t))

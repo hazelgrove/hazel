@@ -90,7 +90,10 @@ let rec matches =
       | Ap2(dir, d1, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Ap2(dir, d1, ctx) |> rewrap;
-      | DeferredAp1(ctx, d2) =>
+      | TypAp(ctx, ty) =>
+      let+ ctx = matches(env, flt, ctx, exp, act, idx);
+      TypAp(ctx, ty);
+    | DeferredAp1(ctx, d2) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         DeferredAp1(ctx, d2) |> rewrap;
       | DeferredAp2(d1, ctx, ds) =>
@@ -309,6 +312,7 @@ let get_justification: step_kind => string =
   | Seq => "sequence"
   | FixUnwrap => "unroll fixpoint"
   | UpdateTest => "update test"
+  | TypFunAp => "apply type function"
   | FunAp => "apply function"
   | DeferredAp => "deferred application"
   | BuiltinWrap => "wrap builtin"
@@ -331,6 +335,7 @@ let get_justification: step_kind => string =
   | Projection => "projection" // TODO(Matt): We don't want to show projection to the user
   | InvalidStep => "error"
   | VarLookup => "variable lookup"
+  | CastTypAp
   | CastAp
   | Cast => "cast calculus"
   | FixClosure => "fixpoint closure"

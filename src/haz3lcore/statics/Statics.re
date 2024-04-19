@@ -65,13 +65,26 @@ let map_m = (f, xs, m: Map.t) =>
 let add_info = (ids: list(Id.t), info: Info.t, m: Map.t): Map.t =>
   ids |> List.fold_left((m, id) => Id.Map.add(id, info, m), m);
 
-let extend_let_def_ctx =
-    (ctx: Ctx.t, pat: UPat.t, pat_ctx: Ctx.t, def: UExp.t): Ctx.t =>
-  if (UPat.is_tuple_of_arrows(pat) && UExp.is_tuple_of_functions(def)) {
-    pat_ctx;
-  } else {
-    ctx;
+let is_recursive = (ctx, p, def, syn: Typ.t) => {
+  switch (Term.UPat.get_num_of_vars(p), Term.UExp.get_num_of_functions(def)) {
+  | (Some(num_vars), Some(num_fns))
+      when num_vars != 0 && num_vars == num_fns =>
+    switch (Typ.normalize(ctx, syn)) {
+    | Unknown(_)
+    | Arrow(_) => num_vars == 1
+    | Prod(syns) when List.length(syns) == num_vars =>
+      syns
+      |> List.for_all(
+           fun
+           | Typ.Unknown(_)
+           | Arrow(_) => true
+           | _ => false,
+         )
+    | _ => false
+    }
+  | _ => false
   };
+};
 
 let typ_exp_binop_bin_int: Operators.op_bin_int => Typ.t =
   fun
@@ -337,6 +350,17 @@ and uexp_to_info_map =
       && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.fresh)
         ? BadTrivAp(ty_in) : Just(ty_out);
     add(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
+  | TypAp(fn, utyp) =>
+    let typfn_mode = Mode.typap_mode;
+    let (fn, m) = go(~mode=typfn_mode, fn, m);
+    let (_, m) = utyp_to_info_map(~ctx, ~ancestors, utyp, m);
+    let (option_name, ty_body) = Typ.matched_forall(ctx, fn.ty);
+    let ty = Term.UTyp.to_typ(ctx, utyp);
+    switch (option_name) {
+    | Some(name) =>
+      add(~self=Just(Typ.subst(ty, name, ty_body)), ~co_ctx=fn.co_ctx, m)
+    | None => add(~self=Just(ty_body), ~co_ctx=fn.co_ctx, m) /* invalid name matches with no free type variables. */
+    };
   | DeferredAp(fn, args) =>
     let fn_mode = Mode.of_ap(ctx, mode, UExp.ctr_name(fn));
     let (fn, m) = go(~mode=fn_mode, fn, m);
@@ -361,27 +385,75 @@ and uexp_to_info_map =
       ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx),
       m,
     );
+  | TypFun({term: Var(name), _} as utpat, body)
+      when !Ctx.shadows_typ(ctx, name) =>
+    let mode_body = Mode.of_forall(ctx, Some(name), mode);
+    let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
+    let ctx_body =
+      Ctx.extend_tvar(
+        ctx,
+        {name, id: Term.UTPat.rep_id(utpat), kind: Abstract},
+      );
+    let (body, m) = go'(~ctx=ctx_body, ~mode=mode_body, body, m);
+    add(~self=Just(Forall(name, body.ty)), ~co_ctx=body.co_ctx, m);
+  | TypFun(utpat, body) =>
+    let mode_body = Mode.of_forall(ctx, None, mode);
+    let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
+    let (body, m) = go(~mode=mode_body, body, m);
+    add(~self=Just(Forall("?", body.ty)), ~co_ctx=body.co_ctx, m);
   | Let(p, def, body) =>
     let (p_syn, _) =
       go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~mode=Syn, p, m);
-    let def_ctx = extend_let_def_ctx(ctx, p, p_syn.ctx, def);
-    let (def, m) = go'(~ctx=def_ctx, ~mode=Ana(p_syn.ty), def, m);
-    /* Analyze pattern to incorporate def type into ctx */
-    let (p_ana', _) =
-      go_pat(
-        ~is_synswitch=false,
-        ~co_ctx=CoCtx.empty,
-        ~mode=Ana(def.ty),
-        p,
-        m,
-      );
-    let (body, m) = go'(~ctx=p_ana'.ctx, ~mode, body, m);
+    let (def, p_ana_ctx, m, ty_p_ana) =
+      if (!is_recursive(ctx, p, def, p_syn.ty)) {
+        let (def, m) = go(~mode=Ana(p_syn.ty), def, m);
+        let ty_p_ana = def.ty;
+        let (p_ana', _) =
+          go_pat(
+            ~is_synswitch=false,
+            ~co_ctx=CoCtx.empty,
+            ~mode=Ana(ty_p_ana),
+            p,
+            m,
+          );
+        (def, p_ana'.ctx, m, ty_p_ana);
+      } else {
+        let (def_base, _) =
+          go'(~ctx=p_syn.ctx, ~mode=Ana(p_syn.ty), def, m);
+        let ty_p_ana = def_base.ty;
+        /* Analyze pattern to incorporate def type into ctx */
+        let (p_ana', _) =
+          go_pat(
+            ~is_synswitch=false,
+            ~co_ctx=CoCtx.empty,
+            ~mode=Ana(ty_p_ana),
+            p,
+            m,
+          );
+        let def_ctx = p_ana'.ctx;
+        let (def_base2, _) = go'(~ctx=def_ctx, ~mode=Ana(p_syn.ty), def, m);
+        let ana_ty_fn = ((ty_fn1, ty_fn2), ty_p) => {
+          ty_p == Typ.Unknown(SynSwitch) && !Typ.eq(ty_fn1, ty_fn2)
+            ? ty_fn1 : ty_p;
+        };
+        let ana =
+          switch ((def_base.ty, def_base2.ty), p_syn.ty) {
+          | ((Prod(ty_fns1), Prod(ty_fns2)), Prod(ty_ps)) =>
+            let tys =
+              List.map2(ana_ty_fn, List.combine(ty_fns1, ty_fns2), ty_ps);
+            Typ.Prod(tys);
+          | ((ty_fn1, ty_fn2), ty_p) => ana_ty_fn((ty_fn1, ty_fn2), ty_p)
+          };
+        let (def, m) = go'(~ctx=def_ctx, ~mode=Ana(ana), def, m);
+        (def, def_ctx, m, ty_p_ana);
+      };
+    let (body, m) = go'(~ctx=p_ana_ctx, ~mode, body, m);
     /* add co_ctx to pattern */
     let (p_ana, m) =
       go_pat(
         ~is_synswitch=false,
         ~co_ctx=body.co_ctx,
-        ~mode=Ana(def.ty),
+        ~mode=Ana(ty_p_ana),
         p,
         m,
       );
@@ -458,7 +530,7 @@ and uexp_to_info_map =
       /* Currently we disallow all type shadowing */
       /* NOTE(andrew): Currently, UTyp.to_typ returns Unknown(TypeHole)
          for any type variable reference not in its ctx. So any free variables
-         in the definition won't be noticed. But we need to check for free
+         in the definition would be obliterated. But we need to check for free
          variables to decide whether to make a recursive type or not. So we
          tentatively add an abtract type to the ctx, representing the
          speculative rec parameter. */
@@ -478,6 +550,19 @@ and uexp_to_info_map =
           let ty = UTyp.to_typ(ctx, utyp);
           (ty, ctx, Ctx.extend_alias(ctx, name, TPat.rep_id(typat), ty));
         };
+        /* NOTE(yuchen): Below is an alternative implementation that attempts to
+           add a rec whenever type alias is present. It may cause trouble to the
+           runtime, so precede with caution. */
+        // Typ.lookup_surface(ty_pre)
+        //   ? {
+        //     let ty_rec = Typ.Rec({item: ty_pre, name});
+        //     let ctx_def = Ctx.add_alias(ctx, name, utpat_id(typat), ty_rec);
+        //     (ty_rec, ctx_def, ctx_def);
+        //   }
+        //   : {
+        //     let ty = Term.UTyp.to_typ(ctx, utyp);
+        //     (ty, ctx, Ctx.add_alias(ctx, name, utpat_id(typat), ty));
+        //   };
       };
       let ctx_body =
         switch (Typ.get_sum_constructors(ctx, ty_def)) {
@@ -662,11 +747,34 @@ and utyp_to_info_map =
         variants,
       );
     add(m);
+  | Forall({term: Var(name), _} as utpat, tbody) =>
+    let body_ctx =
+      Ctx.extend_tvar(
+        ctx,
+        {name, id: Term.UTPat.rep_id(utpat), kind: Abstract},
+      );
+    let m =
+      utyp_to_info_map(
+        tbody,
+        ~ctx=body_ctx,
+        ~ancestors,
+        ~expects=TypeExpected,
+        m,
+      )
+      |> snd;
+    let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
+    add(m); // TODO: check with andrew
+  | Forall(utpat, tbody) =>
+    let m =
+      utyp_to_info_map(tbody, ~ctx, ~ancestors, ~expects=TypeExpected, m)
+      |> snd;
+    let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
+    add(m); // TODO: check with andrew
   | Rec({term: Var(name), _} as utpat, tbody) =>
     let body_ctx =
       Ctx.extend_tvar(
         ctx,
-        {name, id: Term.TPat.rep_id(utpat), kind: Abstract},
+        {name, id: Term.UTPat.rep_id(utpat), kind: Abstract},
       );
     let m =
       utyp_to_info_map(

@@ -563,7 +563,31 @@ let get_doc =
             ),
           ListExp.listlits,
         )
-      | Fun(pat, body, _, _) =>
+      | TypFun(tpat, body) =>
+        let basic = group_id => {
+          let tpat_id = List.nth(tpat.ids, 0);
+          let body_id = List.nth(body.ids, 0);
+          get_message(
+            ~colorings=
+              FunctionExp.function_exp_coloring_ids(
+                ~pat_id=tpat_id,
+                ~body_id,
+              ),
+            ~format=
+              Some(
+                msg =>
+                  Printf.sprintf(
+                    Scanf.format_from_string(msg, "%s%s"),
+                    Id.to_string(tpat_id),
+                    Id.to_string(body_id),
+                  ),
+              ),
+            group_id,
+          );
+        };
+        /* TODO: More could be done here probably for different patterns. */
+        basic(TypFunctionExp.type_functions_basic);
+      | Fun(pat, body) =>
         let basic = group_id => {
           let pat_id = List.nth(pat.ids, 0);
           let body_id = List.nth(body.ids, 0);
@@ -1542,7 +1566,28 @@ let get_doc =
             ~fn_id=UExp.rep_id(fn),
           ),
         )
-      | Ap(Forward, x, arg) =>
+      | TypAp(f, typ) =>
+        let f_id = List.nth(f.ids, 0);
+        let typ_id = List.nth(typ.ids, 0);
+        let basic = (group, format, coloring_ids) => {
+          get_message(
+            ~colorings=coloring_ids(~f_id, ~typ_id),
+            ~format=Some(format),
+            group,
+          );
+        };
+        basic(
+          TypAppExp.typfunaps,
+          msg =>
+            Printf.sprintf(
+              Scanf.format_from_string(msg, "%s%s"),
+              Id.to_string(f_id),
+              Id.to_string(typ_id),
+            ),
+          TypAppExp.typfunapp_exp_coloring_ids,
+        );
+
+      | Ap(x, arg) =>
         let x_id = List.nth(x.ids, 0);
         let arg_id = List.nth(arg.ids, 0);
         let basic = (group, format, coloring_ids) => {
@@ -2092,6 +2137,22 @@ let get_doc =
               ),
           ),
         ListTyp.list,
+      );
+    | Forall(tpat, typ) =>
+      let tpat_id = List.nth(tpat.ids, 0);
+      let tbody_id = List.nth(typ.ids, 0);
+      get_message(
+        ~colorings=ForallTyp.forall_typ_coloring_ids(~tpat_id, ~tbody_id),
+        ~format=
+          Some(
+            msg =>
+              Printf.sprintf(
+                Scanf.format_from_string(msg, "%s%s"),
+                Id.to_string(tpat_id),
+                Id.to_string(tbody_id),
+              ),
+          ),
+        ForallTyp.forall,
       );
     | Rec(tpat, typ) =>
       let tpat_id = List.nth(tpat.ids, 0);
