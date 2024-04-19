@@ -32,11 +32,10 @@ let fresh_cast = (d: DHExp.t, t1: Typ.t, t2: Typ.t): DHExp.t => {
     };
 };
 
-let fresh_pat_cast = (p: DHPat.t, t1: Typ.t, t2: Typ.t): DHPat.t =>
+let fresh_pat_cast = (p: DHPat.t, t1: Typ.t, t2: Typ.t): DHPat.t => {
   Typ.eq(t1, t2)
     ? p
-    : {
-      Cast(
+    : Cast(
         DHPat.fresh(Cast(p, t1, Typ.fresh(Unknown(Internal))))
         |> Casts.pattern_fixup,
         Typ.fresh(Unknown(Internal)),
@@ -44,7 +43,7 @@ let fresh_pat_cast = (p: DHPat.t, t1: Typ.t, t2: Typ.t): DHPat.t =>
       )
       |> DHPat.fresh
       |> Casts.pattern_fixup;
-    };
+};
 
 let elaborated_type = (m: Statics.Map.t, uexp: UExp.t): (Typ.t, Ctx.t) => {
   let (mode, self_ty, ctx) =
@@ -274,8 +273,9 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       let (f', tyf) = elaborate(m, f);
       let (a', tya) = elaborate(m, a);
       let (tyf1, tyf2) = Typ.matched_arrow(ctx, tyf);
+      let f'' = fresh_cast(f', tyf, Arrow(tyf1, tyf2) |> Typ.fresh);
       let a'' = fresh_cast(a', tya, tyf1);
-      Exp.Ap(dir, f', a'') |> rewrap |> cast_from(tyf2);
+      Exp.Ap(dir, f'', a'') |> rewrap |> cast_from(tyf2);
     | DeferredAp(f, args) =>
       let (f', tyf) = elaborate(m, f);
       let (args', tys) = List.map(elaborate(m), args) |> ListUtil.unzip;
