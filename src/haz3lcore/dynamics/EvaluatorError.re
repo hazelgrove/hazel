@@ -6,6 +6,7 @@ type t =
   | StepDoesNotMatch
   | BadPatternMatch
   | CastBVHoleGround(DHExp.t)
+  | InvalidBoxedTypFun(DHExp.t)
   | InvalidBoxedFun(DHExp.t)
   | InvalidBoxedBoolLit(DHExp.t)
   | InvalidBoxedIntLit(DHExp.t)

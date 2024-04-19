@@ -9,8 +9,7 @@ let ty_view = (cls: string, s: string): Node.t =>
 let alias_view = (s: string): Node.t =>
   div(~attr=clss(["typ-alias-view"]), [text(s)]);
 
-let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
-  //TODO: parens on ops when ambiguous
+let rec view_ty = (~strip_outer_parens=false, ty: Haz3lcore.Typ.t): Node.t =>
   switch (Typ.term_of(ty)) {
   | Unknown(prov) =>
     div(
@@ -27,15 +26,10 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
   | String => ty_view("String", "String")
   | Bool => ty_view("Bool", "Bool")
   | Var(name) => ty_view("Var", name)
-  | Rec({term: Var(x), _}, t) =>
+  | Rec(name, t) =>
     div(
       ~attr=clss(["typ-view", "Rec"]),
       [text("Rec " ++ x ++ ". "), view_ty(t)],
-    )
-  | Rec(_, t) =>
-    div(
-      ~attr=clss(["typ-view", "Rec"]),
-      [text("Rec " ++ "?" ++ ". "), view_ty(t)],
     )
   | List(t) =>
     div(
@@ -45,7 +39,7 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
   | Arrow(t1, t2) =>
     div(
       ~attr=clss(["typ-view", "Arrow"]),
-      [view_ty(t1), text(" -> "), view_ty(t2)],
+      paren_view(t1) @ [text(" -> "), view_ty(t2)],
     )
   | Prod([]) => div(~attr=clss(["typ-view", "Prod"]), [text("()")])
   | Prod([_]) =>
@@ -53,15 +47,30 @@ let rec view_ty = (ty: Haz3lcore.Typ.t): Node.t =>
   | Prod([t0, ...ts]) =>
     div(
       ~attr=clss(["typ-view", "atom", "Prod"]),
-      [
-        text("("),
+      (
+        if (!strip_outer_parens) {
+          [text("(")];
+        } else {
+          [];
+        }
+      )
+      @ [
         div(
           ~attr=clss(["typ-view", "Prod"]),
-          [view_ty(t0)]
-          @ (List.map(t => [text(", "), view_ty(t)], ts) |> List.flatten),
+          paren_view(t0)
+          @ (
+            List.map(t => [text(", "), ...paren_view(t)], ts)
+            |> List.flatten
+          ),
         ),
-        text(")"),
-      ],
+      ]
+      @ (
+        if (!strip_outer_parens) {
+          [text(")")];
+        } else {
+          [];
+        }
+      ),
     )
   | Sum(ts) =>
     div(
@@ -85,7 +94,14 @@ and ctr_view =
       view_ty(typ),
       text(")"),
     ]
-  | BadEntry(typ) => [view_ty(typ)];
+  | BadEntry(typ) => [view_ty(typ)]
+
+and paren_view = typ =>
+  if (Typ.needs_parens(typ)) {
+    [text("("), view_ty(~strip_outer_parens=true, typ), text(")")];
+  } else {
+    [view_ty(typ)];
+  };
 
 let view = (ty: Haz3lcore.Typ.t): Node.t =>
   div_c("typ-wrapper", [view_ty(ty)]);

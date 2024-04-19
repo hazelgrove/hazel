@@ -123,18 +123,21 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
            )
         |> hcats;
       (center, true);
-    | Rec(x, ty) => (
+    | Rec(name, ty) => (
         hcats([
-          text(
-            "Rec "
-            ++ (
-              switch (IdTagged.term_of(x)) {
-              | Var(name) => name
-              | _ => "?"
-              }
-            )
-            ++ ".{",
-          ),
+          text("rec " ++ name ++ "->{"),
+          (
+            (~enforce_inline) =>
+              annot(HTypAnnot.Step(0), mk(~enforce_inline, ty))
+          )
+          |> pad_child(~enforce_inline),
+          mk_delim("}"),
+        ]),
+        parenthesize,
+      )
+    | Forall(name, ty) => (
+        hcats([
+          text("forall " ++ name ++ "->{"),
           (
             (~enforce_inline) =>
               annot(HTypAnnot.Step(0), mk(~enforce_inline, ty))

@@ -67,6 +67,10 @@ let rec matches_exp =
   | (BuiltinFun(dn), BuiltinFun(fn)) => dn == fn
   | (BuiltinFun(_), _) => false
 
+  | (TypFun(pat1, d1, s1), TypFun(pat2, d2, s2)) =>
+    s1 == s2 && matches_utpat(pat1, pat2) && matches_exp(env, d1, d2)
+  | (TypFun(_), _) => false
+
   // Not sure if we should be checking functions for closures here
   | (Fun(dp1, d1, _, dname1), Fun(fp1, f1, _, fname1)) =>
     matches_pat(dp1, fp1) && matches_exp(env, d1, f1) && dname1 == fname1
@@ -81,6 +85,10 @@ let rec matches_exp =
     && matches_exp(env, d1, f1)
     && matches_exp(env, d2, f2)
   | (Let(_), _) => false
+
+  | (TypAp(d1, t1), TypAp(d2, t2)) =>
+    matches_exp(env, d1, d2) && matches_typ(t1, t2)
+  | (TypAp(_), _) => false
 
   // TODO: do we want f(x) to match x |> f ???
   | (Ap(_, d1, d2), Ap(_, f1, f2)) =>
@@ -224,6 +232,16 @@ and matches_typ = (d: Typ.t, f: Typ.t) => {
 }
 and matches_rul = (env, (dp, d), (fp, f)) => {
   matches_pat(dp, fp) && matches_exp(env, d, f);
+}
+and matches_utpat = (d: Term.UTPat.t, f: Term.UTPat.t): bool => {
+  switch (d.term, f.term) {
+  | (Invalid(_), _) => false
+  | (_, Invalid(_)) => false
+  | (_, EmptyHole) => true
+  | (MultiHole(l1), MultiHole(l2)) => List.length(l1) == List.length(l2) /* TODO: probably should define a matches_any and recurse in here...? */
+  | (Var(t1), Var(t2)) => t1 == t2
+  | _ => false
+  };
 };
 
 let matches =

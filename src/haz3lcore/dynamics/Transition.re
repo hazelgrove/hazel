@@ -39,8 +39,8 @@ open PatternMatch;
       - if all requirements are values, then the output will be a value
       - if some requirements are indet, then the output will be indet
 
-    A value is either a literal, or a function with a closure. (functions without
-    closures immediately inside them do not count as values).
+    A value is either a literal, or a function with a closure, or a type function.
+    (functions without closures immediately inside them do not count as values).
    */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -53,8 +53,10 @@ type step_kind =
   | FixUnwrap
   | FixClosure
   | UpdateTest
+  | TypFunAp
   | FunAp
   | DeferredAp
+  | CastTypAp
   | CastAp
   | BuiltinWrap
   | BuiltinAp(string)
@@ -191,6 +193,7 @@ module Transition = (EV: EV_MODE) => {
         kind: LetBind,
         is_value: false,
       });
+    | TypFun(_)
     | Fun(_, _, Some(_), _) =>
       let. _ = otherwise(env, d);
       Constructor;
@@ -274,6 +277,64 @@ module Transition = (EV: EV_MODE) => {
         kind: UpdateTest,
         is_value: true,
       });
+    | TypAp(d, tau) =>
+      let. _ = otherwise(env, d => TypAp(d, tau))
+      and. d' = req_value(req(state, env), d => TypAp(d, tau), d);
+      switch (d') {
+      | TypFun(utpat, tfbody, name) =>
+        /* Rule ITTLam */
+        switch (Term.UTPat.tyvar_of_utpat(utpat)) {
+        | Some(tyvar) =>
+          /* Perform substitution */
+          Step({
+            apply: () =>
+              DHExp.assign_name_if_none(
+                /* Inherit name for user clarity */
+                DHExp.ty_subst(tau, tyvar, tfbody),
+                Option.map(
+                  x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">",
+                  name,
+                ),
+              ),
+            kind: TypFunAp,
+            value: false,
+          })
+        | None =>
+          /* Treat a hole or invalid tyvar name as a unique type variable that doesn't appear anywhere else. Thus instantiating it at anything doesn't produce any substitutions. */
+          Step({
+            apply: () =>
+              DHExp.assign_name_if_none(
+                tfbody,
+                Option.map(
+                  x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">",
+                  name,
+                ),
+              ),
+            kind: TypFunAp,
+            value: false,
+          })
+        }
+      | Cast(d'', Forall(x, t), Forall(x', t')) =>
+        /* Rule ITTApCast */
+        Step({
+          apply: () =>
+            Cast(
+              TypAp(d'', tau),
+              Typ.subst(tau, x, t),
+              Typ.subst(tau, x', t'),
+            ),
+          kind: CastTypAp,
+          value: false,
+        })
+      | _ =>
+        Step({
+          apply: () => {
+            raise(EvaluatorError.Exception(InvalidBoxedTypFun(d')));
+          },
+          kind: InvalidStep,
+          value: true,
+        })
+      };
     | DeferredAp(d1, ds) =>
       let. _ = otherwise(env, (d1, ds) => DeferredAp(d1, ds) |> rewrap)
       and. _ =
@@ -729,6 +790,7 @@ let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
   | LetBind
   | Seq
   | UpdateTest
+  | TypFunAp
   | FunAp
   | DeferredAp
   | BuiltinAp(_)
@@ -745,6 +807,7 @@ let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
   | RemoveTypeAlias
   | InvalidStep => false
   | VarLookup => !settings.show_lookup_steps
+  | CastTypAp
   | CastAp
   | Cast => !settings.show_casts
   | FixUnwrap => !settings.show_fixpoints

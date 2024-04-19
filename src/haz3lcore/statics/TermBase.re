@@ -94,12 +94,14 @@ and Exp: {
         [@show.opaque] option(ClosureEnvironment.t),
         option(Var.t),
       )
+    | TypFun(UTPat.t, t)
     | Tuple(list(t))
     | Var(Var.t)
     | Let(Pat.t, t, t)
     | FixF(Pat.t, t, [@show.opaque] option(ClosureEnvironment.t))
     | TyAlias(TPat.t, Typ.t, t)
     | Ap(Operators.ap_direction, t, t)
+    | TypAp(t, UTyp.t)
     | DeferredAp(t, list(t))
     | If(t, t, t)
     | Seq(t, t)
@@ -155,12 +157,14 @@ and Exp: {
         [@show.opaque] option(ClosureEnvironment.t),
         option(Var.t),
       )
+    | TypFun(UTPat.t, t)
     | Tuple(list(t))
     | Var(Var.t)
     | Let(Pat.t, t, t)
     | FixF(Pat.t, t, [@show.opaque] option(ClosureEnvironment.t))
     | TyAlias(TPat.t, Typ.t, t)
     | Ap(Operators.ap_direction, t, t) // note: function is always first then argument; even in pipe mode
+    | TypAp(t, UTyp.t)
     | DeferredAp(t, list(t))
     | If(t, t, t)
     | Seq(t, t)
@@ -389,6 +393,7 @@ and Typ: {
     | Parens(t)
     | Ap(t, t)
     | Rec(TPat.t, t)
+    | Forall(UTPat.t, t)
   and t = IdTagged.t(term);
 
   type sum_map = ConstructorMap.t(t);
@@ -436,6 +441,7 @@ and Typ: {
     | Parens(t)
     | Ap(t, t)
     | Rec(TPat.t, t)
+    | Forall(UTPat.t, t)
   and t = IdTagged.t(term);
 
   type sum_map = ConstructorMap.t(t);
