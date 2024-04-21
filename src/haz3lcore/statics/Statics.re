@@ -638,33 +638,50 @@ let collect_errors = (map: Map.t): list((Id.t, Info.error)) =>
   );
 
 /*
- * Check whether the argument of a function under the new annotation is of correct format,
- * and output a list of input types
+ * Unwrap the input funtion's args (more than 1) into format check and types
  */
-let caf_argtrans =
-    (args: list(UPat.t)): option((list(UPat.t), list(UTyp.t))) =>
+let caf_argtrans = (args: list(UPat.t)): option(list(UTyp.t)) =>
   List.fold_right(
-    (item: UPat.t, partial: option((list(UPat.t), list(UTyp.t)))) =>
+    (item: UPat.t, partial: option(list(UTyp.t))) =>
       switch (partial) {
-      | Some((lst_var, lst_typ)) =>
+      | Some(lst_typ) =>
         switch (item.term) {
-        | TypeAnn({ids: inner_ids, term: Var(var_name)}, t) =>
-          Some((
-            [{ids: inner_ids, term: Var(var_name)}, ...lst_var],
-            [t, ...lst_typ],
-          ))
-        | Var(_) =>
-          Some((
-            [item, ...lst_var],
-            [{ids: item.ids, term: EmptyHole}, ...lst_typ],
-          ))
+        | TypeAnn({ids: _, term: Var(_)}, t) => Some([t, ...lst_typ])
+        | Var(_) => Some([{ids: item.ids, term: EmptyHole}, ...lst_typ])
         | _ => None
         }
       | _ => None
       },
     args,
-    Some(([], [])),
+    Some([]),
   );
+
+let check_annotated_function_helper =
+    (pat: UPat.t, ret_type: UTyp.t): option((Var.t, UPat.t, UTyp.t)) =>
+  switch (pat.term) {
+  | Ap({ids: _, term: Var(func_name)}, args) =>
+    let in_type_opt: option(UTyp.t) =
+      switch (args.term) {
+      | Var(_) => Some({ids: args.ids, term: EmptyHole})
+      | TypeAnn({ids: _, term: Var(_)}, t) => Some(t)
+      | Tuple(ps) =>
+        switch (caf_argtrans(ps)) {
+        | None => None
+        | Some(in_type) => Some({ids: args.ids, term: Tuple(in_type)})
+        }
+      | _ => None
+      };
+    switch (in_type_opt) {
+    | None => None
+    | Some(in_type) =>
+      Some((
+        func_name,
+        args,
+        {ids: pat.ids, term: Arrow(in_type, ret_type)},
+      ))
+    };
+  | _ => None
+  };
 
 /*
  * Check whether a particular let binding is an annotated function under the new syntax.
@@ -674,44 +691,8 @@ let caf_argtrans =
 let check_annotated_function =
     (pat: UPat.t): option((Var.t, UPat.t, UTyp.t)) =>
   switch (pat.term) {
-  | TypeAnn({ids: inner_ids, term: Ap(var, args)}, ret_type) =>
-    // Check whether all arguments are parameters with annotations
-    switch (var.term, args.term) {
-    | (Var(func_name), Tuple(ps)) =>
-      switch (caf_argtrans(ps)) {
-      | None => None
-      | Some((params, in_type)) =>
-        Some((
-          func_name,
-          {ids: args.ids, term: Tuple(params)},
-          {
-            ids: inner_ids,
-            term: Arrow({ids: args.ids, term: Tuple(in_type)}, ret_type),
-          },
-        ))
-      }
-    | _ => None
-    }
-  | Ap(var, args) =>
-    switch (var.term, args.term) {
-    | (Var(func_name), Tuple(ps)) =>
-      switch (caf_argtrans(ps)) {
-      | None => None
-      | Some((params, in_type)) =>
-        Some((
-          func_name,
-          {ids: args.ids, term: Tuple(params)},
-          {
-            ids: pat.ids,
-            term:
-              Arrow(
-                {ids: args.ids, term: Tuple(in_type)},
-                {ids: args.ids, term: EmptyHole},
-              ),
-          },
-        ))
-      }
-    | _ => None
-    }
-  | _ => None
-  } /* let check_annotated_function : UPat.t -> option(Var.t, UPat.t, UTyp.t*/;
+  | TypeAnn(inner_pat, ret_type) =>
+    check_annotated_function_helper(inner_pat, ret_type)
+  | _ =>
+    check_annotated_function_helper(pat, {ids: pat.ids, term: EmptyHole})
+  };
