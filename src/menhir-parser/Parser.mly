@@ -3,6 +3,10 @@ open AST
 %}
 
 
+%token BAD_CONSTRUCTOR
+%token WILD
+%token QUESTION
+%token LIST_CONCAT
 %token CONS
 %token TEST
 %token PAUSE
@@ -13,6 +17,7 @@ open AST
 %token FREE
 %token FIX
 %token <string> IDENT
+%token <string> CONSTRUCTOR_IDENT
 %token <string> STRING
 %token TRUE 
 %token FALSE
@@ -148,6 +153,13 @@ varPat:
     | i = IDENT { VarPat (i) }
 
 pat: 
+    | OPEN_PAREN; HOLE; p = pat; CLOSE_PAREN {NonEmptyHolePat p}
+    | WILD { WildPat }
+    | HOLE { EmptyHolePat }
+    | UNIT { EmptyHolePat }
+    | BAD_CONSTRUCTOR; c = CONSTRUCTOR_IDENT {BadConstructorPat(c)}
+    | OPEN_SQUARE_BRACKET; l = separated_list(COMMA, pat); CLOSE_SQUARE_BRACKET; COLON; t = typ { ListPat(l, t) }
+    | c = CONSTRUCTOR_IDENT { ConstructorPat(c) }
     | p = varPat {p}
     | t = patTuple { t }
     | t = typeAnn { t }
@@ -193,16 +205,18 @@ exp:
     | i = INT { Int i }
     | f = FLOAT { Float f }
     | v = IDENT { Var v }
+    | c = CONSTRUCTOR_IDENT { Constructor c }
     | FREE; v = IDENT { FreeVar v }
     | s = STRING { String s}
     | b = binExp { b }
     | OPEN_PAREN; e = exp; CLOSE_PAREN { e }
-    | OPEN_PAREN; l = separated_list(COMMA, exp) ; CLOSE_PAREN { TupleExp(l)}
+    | OPEN_PAREN; l = separated_list(COMMA, exp); CLOSE_PAREN { TupleExp(l)}
     | c = case { c }
-    | OPEN_SQUARE_BRACKET; e = separated_list(COMMA, exp); CLOSE_SQUARE_BRACKET { ArrayExp(e) }
+    | OPEN_SQUARE_BRACKET; e = separated_list(COMMA, exp); CLOSE_SQUARE_BRACKET; COLON; t = typ { ListExp(e, t) }
     | f = exp; OPEN_PAREN; a = exp; CLOSE_PAREN { ApExp(f, a) }
     | LET; i = pat; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Let (i, e1, e2) }
     | i = ifExp { i}
+    | e1 = exp; QUESTION; LESS_THAN; t1 = typ; EQUAL_ARROW; t2 = typ; GREATER_THAN {FailedCast(e1, t1, t2)}
     | e1 = exp; LESS_THAN; t1 = typ; EQUAL_ARROW; t2 = typ; GREATER_THAN { Cast(e1, t1, t2) }
     | TRUE { Bool true }
     | FIX; s = IDENT; t = typ; f = funExp { FixF(s, t, f) }
@@ -213,5 +227,6 @@ exp:
     | UNIT { EmptyHole }
     | a = filterAction; cond = exp; body = exp { Filter(a, cond, body)}
     | TEST; e = exp; END { Test(e) }
+    | e1 = exp; LIST_CONCAT; e2 = exp { ListConcat(e1, e2) }
     | e1 = exp; CONS; e2 = exp { Cons(e1, e2) }
     | e1 = exp; SEMI_COLON; e2 = exp { Seq(e1, e2) }
