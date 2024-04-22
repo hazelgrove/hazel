@@ -1,3 +1,4 @@
+open Alcotest;
 open QCheck.Gen;
 open Haz3lcore;
 open Haz3lcore.Term;
@@ -37,12 +38,32 @@ module Ctx = {
 };
 
 type rule =
-  | Val
+  | Base
   | Ap
-  | If;
+  | If
+  | Match;
+
+type val_var =
+  | Val
+  | Var;
+
+type list_rule =
+  | ListLit
+  | Cons;
 
 let rules: QCheck.Gen.t(rule) =
-  frequency([(1, pure(Val)), (1, pure(Ap)), (1, pure(If))]);
+  frequency([
+    (1, pure(Base)),
+    (1, pure(Ap)),
+    (1, pure(If)),
+    (1, pure(Match)),
+  ]);
+
+let val_or_var: QCheck.Gen.t(val_var) =
+  frequency([(1, pure(Val)), (1, pure(Var))]);
+
+let list_rules: QCheck.Gen.t(list_rule) =
+  frequency([(1, pure(ListLit)), (1, pure(Cons))]);
 
 let utyp = (u: UTyp.term): UTyp.t => {ids: [Id.mk()], term: u};
 let upat = (u: UPat.term): UPat.t => {ids: [Id.mk()], term: u};
@@ -53,6 +74,49 @@ let gen1 = QCheck.Gen.generate1;
 let printable_string = string_size(~gen=printable, int_range(1, 8));
 
 let var_name = (): Var.t => printable_string |> gen1;
+
+let binop = (op: UExp.op_bin): QCheck.Gen.t(UExp.op_bin) => pure(op);
+
+let int_int_binop: QCheck.Gen.t(UExp.op_bin) =
+  frequency([
+    (1, binop(Int(Plus))),
+    (1, binop(Int(Minus))),
+    (1, binop(Int(Times))),
+    (1, binop(Int(Power))),
+    (1, binop(Int(Divide))),
+  ]);
+
+let int_bool_binop: QCheck.Gen.t(UExp.op_bin) =
+  frequency([
+    (1, binop(Int(LessThan))),
+    (1, binop(Int(LessThanOrEqual))),
+    (1, binop(Int(GreaterThan))),
+    (1, binop(Int(GreaterThanOrEqual))),
+    (1, binop(Int(Equals))),
+    (1, binop(Int(NotEquals))),
+  ]);
+
+let bool_bool_binop: QCheck.Gen.t(UExp.op_bin) =
+  frequency([(1, binop(Bool(And))), (1, binop(Bool(Or)))]);
+
+let float_float_binop: QCheck.Gen.t(UExp.op_bin) =
+  frequency([
+    (1, binop(Float(Plus))),
+    (1, binop(Float(Minus))),
+    (1, binop(Float(Times))),
+    (1, binop(Float(Power))),
+    (1, binop(Float(Divide))),
+  ]);
+
+let float_bool_binop: QCheck.Gen.t(UExp.op_bin) =
+  frequency([
+    (1, binop(Float(LessThan))),
+    (1, binop(Float(LessThanOrEqual))),
+    (1, binop(Float(GreaterThan))),
+    (1, binop(Float(GreaterThanOrEqual))),
+    (1, binop(Float(Equals))),
+    (1, binop(Float(NotEquals))),
+  ]);
 
 //UTyp helpers
 let utyp_list = (ty: UTyp.t): UTyp.t => List(ty) |> utyp;
@@ -75,6 +139,8 @@ let uexp_string = (x: string): UExp.t => String(x) |> uexp;
 let uexp_fun = (name: Var.t, ty: UTyp.t, u: UExp.t): UExp.t =>
   Fun(upat_typeann(name, ty), u) |> uexp;
 let uexp_var = (name: Var.t): UExp.t => Var(name) |> uexp;
+let uexp_list = (l: list(UExp.t)) => ListLit(l) |> uexp;
+let uexp_ap = (u1: UExp.t, u2: UExp.t) => Ap(u1, u2) |> uexp;
 
 //Get variable of certain type if it exists
 let find_var =
@@ -105,11 +171,77 @@ let utyp_arrow_gen = (ty: UTyp.t): QCheck.Gen.t(UTyp.t) =>
           (2, map2(utyp_arrow, pure(utyp(Bool)), self(n / 2))),
           (2, map2(utyp_arrow, pure(utyp(Float)), self(n / 2))),
           (2, map2(utyp_arrow, pure(utyp(String)), self(n / 2))),
-          (2, map2(utyp_arrow, map(utyp_list, self(n / 2)), self(n / 2))),
+          (1, map2(utyp_arrow, map(utyp_list, self(n / 2)), self(n / 2))),
         ])
       }
     ),
   );
+
+let utyp_match_gen: QCheck.Gen.t(UTyp.t) =
+  QCheck.Gen.sized_size(
+    int_range(1, 2),
+    fix((self, n) =>
+      switch (n) {
+      | 0 =>
+        frequency([
+          (1, pure(utyp(Int))),
+          (1, pure(utyp(Bool))),
+          (1, pure(utyp(Float))),
+          (1, pure(utyp(String))),
+        ])
+      | n =>
+        frequency([(1, self(n / 2)), (1, map(utyp_list, self(n / 2)))])
+      }
+    ),
+  );
+
+let rec upat_list_gen =
+        (entries: list(Ctx.entry), ty: UTyp.t, n: int)
+        : (list(Ctx.entry), UPat.t) => {
+  let rule = n == 0 ? ListLit : list_rules |> gen1;
+  switch (rule) {
+  | ListLit =>
+    let length = int_range(1, 5) |> gen1;
+    let rec upat_list_helper =
+            (length: int, entry_acc: list(Ctx.entry), pat_acc: list(UPat.t))
+            : (list(Ctx.entry), list(UPat.t)) => {
+      switch (length) {
+      | 0 => (entry_acc, pat_acc)
+      | m =>
+        let (l, p) = upat_gen(entry_acc, ty, n / 2);
+        upat_list_helper(m - 1, l, [p, ...pat_acc]);
+      };
+    };
+    let (entries, pat_list) = upat_list_helper(length, entries, []);
+    (entries, upat(ListLit(pat_list)));
+  | Cons =>
+    let (entries, hd) = upat_gen(entries, ty, n / 2);
+    let (entries, tl) = upat_list_gen(entries, ty, n / 2);
+    (entries, upat(Cons(hd, tl)));
+  };
+}
+
+and upat_gen =
+    (entries: list(Ctx.entry), ty: UTyp.t, n: int)
+    : (list(Ctx.entry), UPat.t) => {
+  let v = val_or_var |> gen1;
+  switch (v) {
+  | Val =>
+    switch (ty.term) {
+    | Int => (entries, upat(Int(gen1(int))))
+    | Bool => (entries, upat(Bool(gen1(bool))))
+    | Float => (entries, upat(Float(gen1(float))))
+    | String => (entries, upat(String(gen1(printable_string))))
+    | List(ty) => upat_list_gen(entries, ty, n / 2)
+    | _ => ([], EmptyHole |> upat)
+    }
+  | Var =>
+    let name = var_name();
+    let entry =
+      Ctx.VarEntry({name, id: Id.invalid, typ: UTyp.to_typ([], ty)});
+    ([entry, ...entries], upat(Var(name)));
+  };
+};
 
 let uexp_int_gen = (ctx: Ctx.t): QCheck.Gen.t(UExp.t) =>
   QCheck.Gen.sized_size(
@@ -125,36 +257,8 @@ let uexp_int_gen = (ctx: Ctx.t): QCheck.Gen.t(UExp.t) =>
         frequency([
           (1, map(uexp_int, int)),
           (1, map(uexp_parens, self(n / 2))),
-          (1, map2(uexp_binop(Int(Plus)), self(n / 2), self(n / 2))),
+          (1, map3(uexp_binop, int_int_binop, self(n / 2), self(n / 2))),
           (1, find_var(ctx, Int, map(uexp_int, int))),
-        ])
-      }
-    ),
-  );
-
-let uexp_bool_gen = (ctx: Ctx.t): QCheck.Gen.t(UExp.t) =>
-  QCheck.Gen.sized_size(
-    small_nat,
-    fix((self, n) =>
-      switch (n) {
-      | 0 =>
-        frequency([
-          (1, map(uexp_bool, bool)),
-          (1, find_var(ctx, Bool, map(uexp_bool, bool))),
-        ])
-      | n =>
-        frequency([
-          (1, map(uexp_bool, bool)),
-          (1, map(uexp_parens, self(n / 2))),
-          (
-            1,
-            map2(
-              uexp_binop(Int(LessThan)),
-              uexp_int_gen(ctx),
-              uexp_int_gen(ctx),
-            ),
-          ),
-          (1, find_var(ctx, Bool, map(uexp_bool, bool))),
         ])
       }
     ),
@@ -174,7 +278,10 @@ let uexp_float_gen = (ctx: Ctx.t): QCheck.Gen.t(UExp.t) =>
         frequency([
           (1, map(uexp_float, float)),
           (1, map(uexp_parens, self(n / 2))),
-          (1, map2(uexp_binop(Float(Plus)), self(n / 2), self(n / 2))),
+          (
+            1,
+            map3(uexp_binop, float_float_binop, self(n / 2), self(n / 2)),
+          ),
           (1, find_var(ctx, Float, map(uexp_float, float))),
         ])
       }
@@ -205,7 +312,46 @@ let uexp_string_gen = (ctx: Ctx.t): QCheck.Gen.t(UExp.t) =>
     ),
   );
 
-let rec uexp_val_gen = (ctx: Ctx.t, ty: UTyp.t): UExp.t => {
+let uexp_bool_gen = (ctx: Ctx.t): QCheck.Gen.t(UExp.t) =>
+  QCheck.Gen.sized_size(
+    small_nat,
+    fix((self, n) =>
+      switch (n) {
+      | 0 =>
+        frequency([
+          (1, map(uexp_bool, bool)),
+          (1, find_var(ctx, Bool, map(uexp_bool, bool))),
+        ])
+      | n =>
+        frequency([
+          (1, map(uexp_bool, bool)),
+          (1, map(uexp_parens, self(n / 2))),
+          (
+            1,
+            map3(
+              uexp_binop,
+              int_bool_binop,
+              uexp_int_gen(ctx),
+              uexp_int_gen(ctx),
+            ),
+          ),
+          (
+            1,
+            map3(
+              uexp_binop,
+              float_bool_binop,
+              uexp_float_gen(ctx),
+              uexp_float_gen(ctx),
+            ),
+          ),
+          (1, map3(uexp_binop, bool_bool_binop, self(n / 2), self(n / 2))),
+          (1, find_var(ctx, Bool, map(uexp_bool, bool))),
+        ])
+      }
+    ),
+  );
+
+let rec uexp_base_gen = (ctx: Ctx.t, ty: UTyp.t): UExp.t => {
   switch (ty.term) {
   | Int => uexp_int_gen(ctx) |> gen1
   | Float => uexp_float_gen(ctx) |> gen1
@@ -215,17 +361,17 @@ let rec uexp_val_gen = (ctx: Ctx.t, ty: UTyp.t): UExp.t => {
     let name = var_name();
     let entry =
       Ctx.VarEntry({name, id: Id.invalid, typ: UTyp.to_typ(ctx, ty1)});
-    uexp_fun(name, ty1, uexp_val_gen(Ctx.extend(ctx, entry), ty2));
+    uexp_fun(name, ty1, uexp_base_gen(Ctx.extend(ctx, entry), ty2));
   | List(ty) =>
-    let length = int_range(0, 5) |> gen1;
+    let length = int_range(1, 5) |> gen1;
     let rec uexp_list_helper = (length: int, acc: list(UExp.t)) => {
       switch (length) {
       | 0 => acc
-      | m => uexp_list_helper(m - 1, [uexp_val_gen(ctx, ty), ...acc])
+      | m => uexp_list_helper(m - 1, [uexp_base_gen(ctx, ty), ...acc])
       };
     };
-    ListLit(uexp_list_helper(length, [])) |> uexp;
-  | _ => EmptyHole |> uexp |> pure |> gen1
+    uexp_list_helper(length, []) |> uexp_list;
+  | _ => EmptyHole |> uexp
   };
 };
 
@@ -249,29 +395,108 @@ and uexp_ap_gen = (ctx: Ctx.t, ty: UTyp.t, fn: UExp.t, n: int): UExp.t => {
   };
 }
 
-/*and uexp_match_gen = (ctx: Ctx.t, ty: UTyp.t, fn: UExp.t, n: int): UExp.t => {
-    EmptyHole |> uexp; //First generate the guard from an arbitrary type
-                     //Second create a list of pats that are based on the arbitrary type
-  }*/
+and uexp_match_gen = (ctx: Ctx.t, ty: UTyp.t, n: int): UExp.t => {
+  let scrut_ty = utyp_match_gen |> gen1;
+  let scrut = uexp_gen(ctx, scrut_ty, n / 2);
 
-and uexp_gen = (ctx: Ctx.t, ty: UTyp.t, n: int): UExp.t => {
-  switch (n) {
-  | 0 => uexp_val_gen(ctx, ty)
-  | n =>
-    let rule = rules |> gen1;
-    switch (rule) {
-    | Val => uexp_val_gen(ctx, ty)
-    | Ap =>
-      let fn_typ = utyp_arrow_gen(ty) |> gen1;
-      let fn = uexp_fun_gen(ctx, fn_typ, n / 2);
-      uexp_ap_gen(ctx, fn_typ, fn, n / 2);
-    | If =>
-      If(
-        uexp_gen(ctx, utyp(Bool), n / 2),
-        uexp_gen(ctx, ty, n / 2),
-        uexp_gen(ctx, ty, n / 2),
-      )
-      |> uexp
+  let length = int_range(1, 4) |> gen1;
+  let rec uexp_match_helper =
+          (length: int, acc: list((UPat.t, UExp.t)))
+          : list((UPat.t, UExp.t)) => {
+    switch (length) {
+    | 0 => acc
+    | m =>
+      let (entries, p) = upat_gen([], scrut_ty, n / 2);
+      let ctx' =
+        List.fold_left(
+          (ctx, entry) => Ctx.extend(ctx, entry),
+          ctx,
+          entries,
+        );
+      let u = uexp_gen(ctx', ty, n / 2);
+      uexp_match_helper(m - 1, [(p, u), ...acc]);
     };
   };
+  let l = uexp_match_helper(length, []);
+  Match(scrut, l) |> uexp;
+}
+
+and uexp_gen = (ctx: Ctx.t, ty: UTyp.t, n: int): UExp.t => {
+  let rule = n == 0 ? Base : rules |> gen1;
+  switch (rule) {
+  | Base => uexp_base_gen(ctx, ty)
+  | Ap =>
+    let fn_typ = utyp_arrow_gen(ty) |> gen1;
+    let fn = uexp_fun_gen(ctx, fn_typ, n / 2);
+    uexp_ap_gen(ctx, fn_typ, fn, n / 2);
+  | If =>
+    If(
+      uexp_gen(ctx, utyp(Bool), n / 2),
+      uexp_gen(ctx, ty, n / 2),
+      uexp_gen(ctx, ty, n / 2),
+    )
+    |> uexp
+  | Match => uexp_match_gen(ctx, ty, n / 2)
+  };
 };
+
+/*let pure_random_utyp: QCheck.Gen.t(UTyp.t) =
+  QCheck.Gen.sized_size(
+
+  )*/
+
+let pure_random_uexp_base: QCheck.Gen.t(UExp.t) =
+  frequency([
+    (1, map(uexp_int, int)),
+    (1, map(uexp_bool, bool)),
+    (1, map(uexp_float, float)),
+    (1, map(uexp_string, printable_string)),
+    (1, map(uexp_var, printable_string)),
+  ]);
+
+let pure_random_uexp: QCheck.Gen.t(UExp.t) =
+  QCheck.Gen.sized_size(
+    int_range(1, 4),
+    fix((self, n) =>
+      switch (n) {
+      | 0 => pure_random_uexp_base
+      | n =>
+        frequency([
+          (
+            1,
+            map3(
+              uexp_fun,
+              printable_string,
+              pure(utyp(EmptyHole)),
+              self(n / 2),
+            ),
+          ),
+          (1, map(uexp_list, list_size(int_range(1, 5), self(n / 2)))),
+          //(1, map()
+        ])
+      }
+    ),
+  );
+
+let rec testcases_gen =
+        (size: int, ty: UTyp.t, l: list(test_case(unit)))
+        : list(test_case(unit)) => {
+  switch (size) {
+  | 0 => l
+  | n =>
+    let u = uexp_gen([], ty, 2);
+    let m = Test_Elaboration.mk_map(u);
+    let d = Elaborator.dhexp_of_uexp(m, u, false);
+    let test = () =>
+      Alcotest.check(
+        Alcotest.bool,
+        "Random expression",
+        true,
+        TypeAssignment.property_test(Term.UTyp.to_typ([], ty), d, m),
+      );
+    let case = test_case("Type assignment", `Quick, test);
+    testcases_gen(n - 1, ty, [case, ...l]);
+  };
+};
+
+let type_assignment_tests = testcases_gen(4, utyp(Int), []);
