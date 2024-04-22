@@ -1,0 +1,23 @@
+The following static errors were discovered:
+Error in term:
+  List.contains
+Nature of error: Variable List.contains is not bound
+Error in term:
+  in
+Nature of error: Variable in is not bound
+Error in term:
+  fun (model, action) ->
+ let (songs, state) = model in
+ case action
+ | PlaySong(id) => (songs, Playing(id))
+| PauseCurrentSong => case state
+ | Playing(id) => (songs, PausedOn(id))
+| _ => model
+end
+| RemoveSong(id) => (List.filter(fun song_id ->
+ song_id != id, songs), state)
+| AddSong(id) => if List.contains(id, songs) then model else (id :: songs, state)
+end in
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

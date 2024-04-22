@@ -1,0 +1,195 @@
+// 2x no context
+
+let update: (Model, Action) -> Model =
+  
+fun (model, action) ->
+  case action
+  | AddBooking(user, weekday, time_of_day) =>
+      let (booking_form_data, bookings, booking_id) = model in
+      let new_booking = ((weekday, time_of_day), user, booking_id) in
+      (booking_form_data, new_booking::bookings, booking_id + 1)
+  | CancelBooking(user, id) =>
+      let (booking_form_data, bookings, booking_id) = model in
+      let new_bookings = List.filter((fun (_, user_b, id_b) -> user != user_b \/ id != id_b), bookings) in
+      (booking_form_data, new_bookings, booking_id)
+  | ClearBookings =>
+      let (booking_form_data, _, booking_id) = model in
+      (booking_form_data, [], booking_id)
+  end
+in
+
+let update: (Model, Action) -> Model =
+  fun (model, action) ->
+  case action
+  | AddBooking((user, weekday, timeOfDay)) =>
+      let ((_, bookings, id)) = model in
+      let booking = ((weekday, timeOfDay), user, id) in
+      ((weekday, timeOfDay, user), booking::bookings, id + 1)
+  | CancelBooking((user, bookingId)) =>
+      let ((formData, bookings, _)) = model in
+      let newBookings = List.filter(fun ((_, _), u, i) -> u != user \/ i != bookingId, bookings) in
+      (formData, newBookings, bookingId)
+  | ClearBookings =>
+      let ((formData, _, id)) = model in
+      (formData, [], id)
+  end
+in
+
+let update: (Model, Action) -> Model =
+  
+fun model, action ->
+  case action
+  | AddBooking(user, weekday, timeOfDay) =>
+    let (bookingFormData, bookings, nextID) = model in
+    let newBooking = ((weekday, timeOfDay), user, nextID) in
+    ((weekday, timeOfDay, user), newBooking::bookings, nextID + 1)
+  | CancelBooking(user, id) =>
+    let (bookingFormData, bookings, nextID) = model in
+    let newBookings = List.filter(fun (_, u, i) -> !(u == user && i == id), bookings) in
+    (bookingFormData, newBookings, nextID)
+  | ClearBookings =>
+    let (_, bookings, _) = model in
+    ((M, AM, ""), [], 0)
+  end
+in
+
+let update: (Model, Action) -> Model =
+  fun (model, action) ->
+  let ((formData, bookings, nextID), action) = (model, action) in
+  case action
+    | AddBooking(user, weekday, timeOfDay) => 
+        let newBooking = ((weekday, timeOfDay), user, nextID) in
+        ((formData, newBooking::bookings, nextID + 1))
+    | CancelBooking(user, id) => 
+        let updatedBookings = List.filter((fun ((_, bookedUser, bookedID)) -> bookedUser != user \/ bookedID != id), bookings) in
+        (formData, updatedBookings, nextID)
+    | ClearBookings => (formData, [], nextID)
+  end
+in
+
+let update: (Model, Action) -> Model =
+  fun (model, action) ->
+  case action
+  | AddBooking((user, weekday, time_of_day)) => 
+    let (booking_form_data, bookings, booking_id) = model in
+    let new_booking = ((weekday, time_of_day), user, booking_id) in
+    let new_bookings = new_booking::bookings in
+    let new_booking_id = booking_id + 1 in
+    (booking_form_data, new_bookings, new_booking_id)
+  | CancelBooking((user, id)) =>
+    let (booking_form_data, bookings, booking_id) = model in
+    let new_bookings = List.filter(fun ((_, booked_user, booked_id)) -> booked_user != user \/ booked_id != id, bookings) in
+    (booking_form_data, new_bookings, booking_id)
+  | ClearBookings =>
+    let (booking_form_data, _, booking_id) = model in
+    (booking_form_data, [], booking_id)
+  end
+
+
+// 5x yes context
+
+let update: (Model, Action) -> Model =
+  fun model, action ->
+  case action
+  | AddBooking(user, weekday, timeOfDay) => let (formState, bookings, bookingId) = model in
+                                            let newBooking = ((weekday, timeOfDay), user, bookingId) in
+                                            ((weekday, timeOfDay), user), newBooking::bookings, bookingId + 1
+  | CancelBooking(user, bookingId) => let (formState, bookings, _) = model in
+                                       formState, rm_booking(user, bookingId, bookings), bookingId
+  | ClearBookings => initFormState, [], 0
+  end
+in
+
+let update: (Model, Action) -> Model =
+  fun model, action ->
+  case action
+  | AddBooking(user, weekday, timeOfDay) => 
+      let (formState, bookings, bookingID) = model in
+      let newBooking = ((weekday, timeOfDay), user, bookingID) in
+      ((weekday, timeOfDay), user), newBooking :: bookings, bookingID + 1
+  | CancelBooking(user, bookingID) => 
+      let (formState, bookings, _) = model in
+      formState, rm_booking(user, bookingID, bookings), bookingID
+  | ClearBookings => initFormState, [], 0
+  end
+in
+
+let update: (Model, Action) -> Model =
+  fun model, action ->
+  case action
+  | AddBooking(user, weekday, timeOfDay) => 
+    let (formData, bookings, bookingId) = model in
+    let newBooking = ((weekday, timeOfDay), user, bookingId) in
+    ((weekday, timeOfDay), user), newBooking::bookings, bookingId + 1
+  | CancelBooking(user, id) => 
+    let (formData, bookings, bookingId) = model in
+    formData, rm_booking(user, id, bookings), bookingId
+  | ClearBookings => 
+    initFormState, [], 0
+  end
+in
+
+let update: (Model, Action) -> Model =
+  
+fun model, action ->
+  case action
+    | AddBooking(user, weekday, timeOfDay) =>
+      let (form, bookings, id) = model in
+      let newBooking = ((weekday, timeOfDay), user, id) in
+      let newModel = (form, newBooking::bookings, id + 1) in
+      newModel
+    | CancelBooking(user, id) =>
+      let (form, bookings, _) = model in
+      let newBookings = rm_booking(user, id, bookings) in
+      (form, newBookings, id)
+    | ClearBookings =>
+      let (form, _, id) = model in
+      (form, [], id)
+  end
+in
+
+let update: (Model, Action) -> Model =
+  fun model, action ->
+  case action
+  | AddBooking((user, day, time)) =>
+      let (form, bookings, id) = model in
+      let newBooking = ((day, time), user, id) in
+      let newBookings = newBooking::bookings in
+      ((day, time), user), newBookings, id + 1
+  | CancelBooking((user, id)) =>
+      let (form, bookings, _) = model in
+      let newBookings = rm_booking(user, id, bookings) in
+      form, newBookings, id
+  | ClearBookings =>
+      initFormState, [], 0
+  end
+in
+
+let update: (Model, Action) -> Model =
+  fun (model, action) ->
+  case action
+  | AddBooking((user, weekday, timeOfDay)) => let (formData, bookings, bookingID) = model in
+      let newBooking = ((weekday, timeOfDay), user, bookingID) in
+      let updatedBookings = newBooking::bookings in
+      ((weekday, timeOfDay), user), updatedBookings, bookingID + 1
+  | CancelBooking((user, id)) => let (formData, bookings, bookingID) = model in
+      let updatedBookings = rm_booking(user, id, bookings) in
+      formData, updatedBookings, bookingID
+  | ClearBookings => initFormState, [], 0
+  end
+
+in
+
+let update: (Model, Action) -> Model =
+  fun (model, action) ->
+  case action
+  | AddBooking(user, weekday, timeOfDay) =>
+      let (formState, bookings, bookingID) = model in
+      let newBooking = ((weekday, timeOfDay), user, bookingID) in
+      ((weekday, timeOfDay), user), newBooking::bookings, bookingID + 1
+  | CancelBooking(user, id) =>
+      let (formState, bookings, bookingID) = model in
+      formState, rm_booking(user, id, bookings), bookingID
+  | ClearBookings => Model.init
+  end
+in

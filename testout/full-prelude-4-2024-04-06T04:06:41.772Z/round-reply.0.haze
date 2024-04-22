@@ -1,0 +1,15 @@
+
+fun model, action ->
+  case action
+  | AddBooking(user, day, time) =>
+    let (form, bookings, nextId) = model in
+    if bookingExists(model, ((day, time), user, nextId))
+    then model
+    else ((day, time), user, nextId + 1)::bookings, nextId + 1
+  | CancelBooking(user, id) =>
+    let (form, bookings, nextId) = model in
+    form, rm_booking(user, id, bookings), nextId
+  | ClearBookings =>
+    let (_, bookings, nextId) = model in
+    initFormState, [], nextId
+  end

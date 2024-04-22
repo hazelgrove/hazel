@@ -1,0 +1,13 @@
+The following static errors were discovered:
+Error in term:
+  case action
+ | AddBooking((user, day, tod)) => if bookingExists(model, ((day, tod), user, next_id)) then model else ((day, tod), user), bookings ++ ((day, tod), user, next_id), next_id + 1
+| CancelBooking((user, id)) => form, rm_booking(user, id, bookings), next_id
+| ClearBookings => form, , next_id
+end
+Nature of error: Expecting branches to have consistent types but got types: (((Weekday, TimeOfDay), User), String, Int), (?, [Booking], ?), (?, [?], ?)
+Error in term:
+  ((day, tod), user, next_id)
+Nature of error: Expecting type String but got inconsistent type [((Weekday, TimeOfDay), User, ?)]
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

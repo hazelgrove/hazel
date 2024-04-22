@@ -188,6 +188,7 @@ let rec get_lookahead_tys_exp =
           get_lookahead_tys_exp(ctx, ty),
         )
     | Bool =>
+      //TODO(andrew): relax this given polymorphic equality
       let from_bool = t => [[ty_expected, t]]; // @ [[ty_expected, to_arr(t)]];
       from_bool(Int) @ from_bool(Float) @ from_bool(String);
     | _ => []

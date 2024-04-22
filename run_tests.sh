@@ -33,16 +33,21 @@ opt_arg_variations=(
     # "--temperature 1.0 --expected_type --error_rounds_max 0"
     # "--temperature 0.6 --expected_type --error_rounds_max 0"
     # "--temperature 0.3 --expected_type --error_rounds_max 0"
-    "--temperature 0.6 --rag RAG.txt --error_rounds_max 2"
-    "--temperature 0.6 --rag RAG.txt"
-    "--temperature 0.6 --relevant_ctx --expected_type --error_rounds_max 2"
-    "--temperature 0.6 --relevant_ctx --expected_type"
-    "--temperature 0.6 --relevant_ctx --error_rounds_max 2"
-    "--temperature 0.6 --expected_type --error_rounds_max 2"
-    "--temperature 0.6 --expected_type"
-    "--temperature 0.6 --error_rounds_max 2"
-    "--temperature 0.6 --relevant_ctx"
-    "--temperature 0.6"
+
+    "--temperature 0.6 --rag prelude.haze --error_rounds_max 2"
+    "--temperature 0.6 --rag prelude.haze"
+
+    # Mammoth experiment
+    # "--temperature 0.6 --rag RAG.txt --error_rounds_max 2"
+    # "--temperature 0.6 --rag RAG.txt"
+    # "--temperature 0.6 --relevant_ctx --expected_type --error_rounds_max 2"
+    # "--temperature 0.6 --relevant_ctx --expected_type"
+    # "--temperature 0.6 --relevant_ctx --error_rounds_max 2"
+    # "--temperature 0.6 --expected_type --error_rounds_max 2"
+    # "--temperature 0.6 --expected_type"
+    # "--temperature 0.6 --error_rounds_max 2"
+    # "--temperature 0.6 --relevant_ctx"
+    # "--temperature 0.6"
 )
 
 # Function to display usage information

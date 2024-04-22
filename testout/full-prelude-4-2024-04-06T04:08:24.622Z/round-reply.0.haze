@@ -1,0 +1,9 @@
+fun model, action ->
+  let (grid, selected, emojis) = model in
+  case action
+    | SelectEmoji(emoji) => (grid, emoji, emojis)
+    | StampEmoji(row, col) => (updateGrid(grid, row, col, selected), selected, emojis)
+    | ClearCell(row, col) => (updateGrid(grid, row, col, ""), selected, emojis)
+    | ClearGrid => (clearGrid(grid), selected, emojis)
+    | FillRow(row) => (fillRowInGrid(grid, row, selected), selected, emojis)
+  end

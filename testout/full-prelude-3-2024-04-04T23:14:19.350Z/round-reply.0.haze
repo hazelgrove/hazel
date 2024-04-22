@@ -1,0 +1,15 @@
+fun model, action ->
+  case action
+  | AddBooking(user, weekday, timeOfDay) =>
+    let (formData, bookings, id) = model in
+    let newBooking = ((weekday, timeOfDay), user, id) in
+    if !bookingExists(model, newBooking) 
+    then (formData, bookings, id)
+    else (formData, newBooking::bookings, id + 1)
+  | CancelBooking(user, id) =>
+    let (formData, bookings, _) = model in
+    (formData, rm_booking(user, id, bookings), id)
+  | ClearBookings =>
+    let (formData, _, id) = model in
+    (formData, [], id)
+  end

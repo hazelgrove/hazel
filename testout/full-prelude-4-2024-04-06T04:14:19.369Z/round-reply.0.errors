@@ -1,0 +1,27 @@
+The following static errors were discovered:
+Error in term:
+  fun (model, action) ->
+ case action
+ | UpdatePassword(new_password) => let ((old_password, criteria, old_strength)) = model in
+ let new_strength = calculateStrength(new_password, criteria) in
+ (new_password, criteria, new_strength)
+| ClearCriteria => let ((password, old_criteria, old_strength)) = model in
+ let new_criteria =  in
+ let new_strength = Weak in
+ (password, new_criteria, new_strength)
+| AddCriterion(new_criterion) => let ((password, old_criteria, old_strength)) = model in
+ let new_criteria = new_criterion :: old_criteria in
+ let new_strength = calculateStrength(password, new_criteria) in
+ (password, new_criteria, new_strength)
+| RemoveCriterion(criterion_to_remove) => let ((password, old_criteria, old_strength)) = model in
+ let new_criteria = List.filter(fun c ->
+ c != criterion_to_remove, old_criteria) in
+ let new_strength = calculateStrength(password, new_criteria) in
+ (password, new_criteria, new_strength)
+end end
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  end
+Nature of error: Variable end is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

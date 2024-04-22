@@ -1,0 +1,111 @@
+The following static errors were discovered:
+Error in term:
+  (grid, emoji, emojis) model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  emoji
+Nature of error: Variable emoji is not bound
+Error in term:
+  emoji
+Nature of error: Variable emoji is not bound
+Error in term:
+  emojis
+Nature of error: Variable emojis is not bound
+Error in term:
+  _
+Nature of error: "_" isn't a valid token
+Error in term:
+  emoji
+Nature of error: Variable emoji is not bound
+Error in term:
+  emoji
+Nature of error: Variable emoji is not bound
+Error in term:
+  emoji
+Nature of error: Variable emoji is not bound
+Error in term:
+  emoji
+Nature of error: Variable emoji is not bound
+Error in term:
+  emojis
+Nature of error: Variable emojis is not bound
+Error in term:
+  grid
+Nature of error: Variable grid is not bound
+Error in term:
+  (grid, emoji, emojis) model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  emojis
+Nature of error: Variable emojis is not bound
+Error in term:
+  (grid, emoji, emojis) model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  emojis
+Nature of error: Variable emojis is not bound
+Error in term:
+  grid
+Nature of error: Variable grid is not bound
+Error in term:
+  emojis
+Nature of error: Variable emojis is not bound
+Error in term:
+  grid
+Nature of error: Variable grid is not bound
+Error in term:
+  _
+Nature of error: "_" isn't a valid token
+Error in term:
+  emojis
+Nature of error: Variable emojis is not bound
+Error in term:
+  grid
+Nature of error: Variable grid is not bound
+Error in term:
+  emojis
+Nature of error: Variable emojis is not bound
+Error in term:
+  emoji
+Nature of error: Variable emoji is not bound
+Error in term:
+  emoji
+Nature of error: Variable emoji is not bound
+Error in term:
+  (_, emoji, emojis) model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  grid
+Nature of error: Variable grid is not bound
+Error in term:
+  (_, grid, emojis) model
+Nature of error: Incomplete syntax (possible cause: remember that function application is c-style and requires parentheses around the argument)
+Error in term:
+  model.1
+Nature of error: "model.1" isn't a valid token
+Error in term:
+  grid
+Nature of error: Variable grid is not bound
+Error in term:
+  emojis
+Nature of error: Variable emojis is not bound
+Error in term:
+  emoji
+Nature of error: Variable emoji is not bound
+Error in term:
+  emojis
+Nature of error: Variable emojis is not bound
+Error in term:
+  grid
+Nature of error: Variable grid is not bound
+Error in term:
+  emojis
+Nature of error: Variable emojis is not bound
+Error in term:
+  grid
+Nature of error: Variable grid is not bound
+Error in term:
+  emoji
+Nature of error: Variable emoji is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

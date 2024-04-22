@@ -1,0 +1,65 @@
+//some of the 31 correct, all yes yes
+
+
+# Update the EmojiPaint app model based on an action #
+
+let update: (Model, Action) -> Model =
+  fun model, action ->
+  let (grid, currentEmoji, emojiPalette) = model in
+  case action
+  | SelectEmoji(emoji) => (grid, emoji, emojiPalette)
+  | StampEmoji(row, col) => (updateGrid(grid, row, col, currentEmoji), currentEmoji, emojiPalette)
+  | ClearCell(row, col) => (updateGrid(grid, row, col, ""), currentEmoji, emojiPalette)
+  | ClearGrid => (clearGrid(grid), currentEmoji, emojiPalette)
+  | FillRow(row) => (fillRowInGrid(grid, row, currentEmoji), currentEmoji, emojiPalette)
+  end
+in
+
+let update: (Model, Action) -> Model =
+  fun (grid, currentEmoji, emojiList), action ->
+  case action
+  | SelectEmoji(emoji) => (grid, emoji, emojiList)
+  | StampEmoji(row, col) => (updateGrid(grid, row, col, currentEmoji), currentEmoji, emojiList)
+  | ClearCell(row, col) => (updateGrid(grid, row, col, ""), currentEmoji, emojiList)
+  | ClearGrid => (clearGrid(grid), currentEmoji, emojiList)
+  | FillRow(row) => (fillRowInGrid(grid, row, currentEmoji), currentEmoji, emojiList)
+  end
+in
+
+let update: (Model, Action) -> Model =
+  fun model, action ->
+  let (grid, current_emoji, emoji_list) = model in
+  case action
+  | SelectEmoji(emoji) => (grid, emoji, emoji_list)
+  | StampEmoji((row, col)) => (updateGrid(grid, row, col, current_emoji), current_emoji, emoji_list)
+  | ClearCell((row, col)) => (updateGrid(grid, row, col, ""), current_emoji, emoji_list)
+  | ClearGrid => (clearGrid(grid), current_emoji, emoji_list)
+  | FillRow(row) => (fillRowInGrid(grid, row, current_emoji), current_emoji, emoji_list)
+  end
+
+in
+let update: (Model, Action) -> Model =
+  
+fun model, action ->
+  let (grid, current, emojis) = model in
+  case action
+    | SelectEmoji(emoji) => (grid, emoji, emojis)
+    | StampEmoji((row, col)) => (updateGrid(grid, row, col, current), current, emojis)
+    | ClearCell((row, col)) => (updateGrid(grid, row, col, ""), current, emojis)
+    | ClearGrid => (clearGrid(grid), current, emojis)
+    | FillRow(row) => (fillRowInGrid(grid, row, current), current, emojis)
+  end
+in
+
+let update: (Model, Action) -> Model =
+  
+fun model, action ->
+  let grid, currentEmoji, _ = model in
+  case action
+  | SelectEmoji(emoji) => (grid, emoji, [])
+  | StampEmoji((row, col)) => (updateGrid(grid, row, col, currentEmoji), currentEmoji, [])
+  | ClearCell((row, col)) => (updateGrid(grid, row, col, ""), currentEmoji, [])
+  | ClearGrid => (clearGrid(grid), currentEmoji, [])
+  | FillRow(row) => (fillRowInGrid(grid, row, currentEmoji), currentEmoji, [])
+  end
+in

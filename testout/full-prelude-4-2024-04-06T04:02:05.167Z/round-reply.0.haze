@@ -1,0 +1,8 @@
+fun playlist, action ->
+    let songs, current = playlist in
+    case action
+    | PlaySong(id) => (songs, Playing(id))
+    | PauseCurrentSong => (songs, case current of | Playing(id) => PausedOn(id) | _ => current end)
+    | RemoveSong(id) => (List.filter(fun song_id -> song_id != id, songs), current)
+    | AddSong(id) => (id::songs, current)
+    end

@@ -1,0 +1,7 @@
+fun (model, action) ->
+  case action
+  | AddTodo => (fst(model), add(model))
+  | RemoveTodo(index) => (fst(model), remove(index, snd(model)))
+  | ToggleTodo(index) => (fst(model), toggle(index, snd(model)))
+  | UpdateBuffer(text) => (text, snd(model))
+  end

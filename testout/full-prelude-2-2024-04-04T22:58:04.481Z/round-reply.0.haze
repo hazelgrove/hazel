@@ -1,0 +1,18 @@
+
+fun playlist, action ->
+  let songs, state = playlist in
+  case action
+  | PlaySong(id) => (songs, Playing(id))
+  | PauseCurrentSong => 
+      case state
+      | Playing(id) => (songs, PausedOn(id))
+      | _ => playlist
+      end
+  | RemoveSong(id) => 
+      let new_songs = List.remove(id, songs) in
+      (new_songs, state)
+  | AddSong(id) => 
+      if List.contains(id, songs) then playlist
+      else (id::songs, state)
+      end
+  end

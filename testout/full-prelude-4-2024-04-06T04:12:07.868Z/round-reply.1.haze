@@ -1,0 +1,17 @@
+fun (password, criteria, _), action ->
+  case action
+  | UpdatePassword(new_password) =>
+    let new_strength = calculateStrength(new_password, criteria) in
+    (new_password, criteria, new_strength)
+  | ClearCriteria =>
+    let new_strength = calculateStrength(password, []) in
+    (password, [], new_strength)
+  | AddCriterion(new_criterion) =>
+    let new_criteria = new_criterion :: criteria in
+    let new_strength = calculateStrength(password, new_criteria) in
+    (password, new_criteria, new_strength)
+  | RemoveCriterion(criterion_to_remove) =>
+    let new_criteria = List.filter((fun c -> c != criterion_to_remove), criteria) in
+    let new_strength = calculateStrength(password, new_criteria) in
+    (password, new_criteria, new_strength)
+  end

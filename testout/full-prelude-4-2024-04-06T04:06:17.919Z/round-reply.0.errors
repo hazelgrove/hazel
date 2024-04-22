@@ -1,0 +1,11 @@
+The following static errors were discovered:
+Error in term:
+  case action
+ | AddBooking((user, wday, tod)) => let newBooking = ((wday, tod), user, nextId) in
+ if bookingExists(model, newBooking) then model else ((wday, tod), user, nextId + 1) :: bookings
+| CancelBooking((user, id)) => (form, rm_booking(user, id, bookings), nextId)
+| ClearBookings => (form, , nextId)
+end
+Nature of error: Expecting branches to have consistent types but got types: [((Weekday, TimeOfDay), User, Int)], (?, [Booking], ?), (?, [?], ?)
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion

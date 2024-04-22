@@ -1,0 +1,7 @@
+fun (model, action) ->
+  case action
+  | AddTodo => let (description, todos) = model in (description, add(model))
+  | RemoveTodo(index) => let (description, todos) = model in (description, remove(index, todos))
+  | ToggleTodo(index) => let (description, todos) = model in (description, toggle(index, todos))
+  | UpdateBuffer(new_description) => let (_, todos) = model in (new_description, todos)
+  end

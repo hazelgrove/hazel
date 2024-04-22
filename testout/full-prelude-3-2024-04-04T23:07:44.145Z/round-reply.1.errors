@@ -1,0 +1,6 @@
+The following static errors were discovered:
+Error in term:
+  List.elem
+Nature of error: Variable List.elem is not bound
+Please try to address the error(s) by updating your previous code suggestion
+Please respond ONLY with the update suggestion
