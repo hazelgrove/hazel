@@ -91,9 +91,9 @@ let rec matches =
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Ap2(dir, d1, ctx) |> rewrap;
       | TypAp(ctx, ty) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      TypAp(ctx, ty);
-    | DeferredAp1(ctx, d2) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        TypAp(ctx, ty) |> rewrap;
+      | DeferredAp1(ctx, d2) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         DeferredAp1(ctx, d2) |> rewrap;
       | DeferredAp2(d1, ctx, ds) =>

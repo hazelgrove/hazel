@@ -186,7 +186,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         | (["!"], []) => UnOp(Bool(Not), r)
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r, None, None)
         | (["fix", "->"], [Pat(pat)]) => FixF(pat, r, None)
-        | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r)
+        | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r, None)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
         | (["hide", "in"], [Exp(filter)]) =>
           Filter(Filter({act: (Eval, One), pat: filter}), r)
@@ -404,7 +404,7 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
     ret(Forall(tpat, t))
   | Pre(([(_id, (["rec", "->"], [TPat(tpat)]))], []), Typ(t)) =>
     ret(Rec(tpat, t))
-  | Pre(tiles, Typ({term: Sum(t0), ids})) as tm =>
+  | Pre(tiles, Typ({term: Sum(t0), ids, _})) as tm =>
     /* Case for leading prefix + preceeding a sum */
     switch (tiles) {
     | ([(_, (["+"], []))], []) => (Sum(t0), ids)

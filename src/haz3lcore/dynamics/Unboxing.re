@@ -138,7 +138,9 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         ListLit(_) |
         Tuple(_) |
         Cast(_) |
-        Ap(_, {term: Constructor(_), _}, _),
+        Ap(_, {term: Constructor(_), _}, _) |
+        TypFun(_) |
+        TypAp(_),
       ) =>
       switch (request) {
       | Bool => raise(EvaluatorError.Exception(InvalidBoxedBoolLit(expr)))

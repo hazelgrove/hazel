@@ -53,6 +53,7 @@ let elaborated_type = (m: Statics.Map.t, uexp: UExp.t): (Typ.t, Ctx.t) => {
     };
   switch (mode) {
   | SynFun
+  | SynTypFun
   | Syn => (self_ty, ctx)
   // We need to remove the synswitches from this type.
   | Ana(ana_ty) => (Typ.match_synswitch(ana_ty, self_ty), ctx)
@@ -72,6 +73,7 @@ let elaborated_pat_type = (m: Statics.Map.t, upat: UPat.t): (Typ.t, Ctx.t) => {
     };
   switch (mode) {
   | SynFun
+  | SynTypFun
   | Syn => (self_ty, ctx)
   | Ana(ana_ty) =>
     switch (prev_synswitch) {
@@ -222,6 +224,11 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       Exp.Fun(p', e', env, n)
       |> rewrap
       |> cast_from(Arrow(typ, tye) |> Typ.fresh);
+    | TypFun(tpat, e, name) =>
+      let (e', tye) = elaborate(m, e);
+      Exp.TypFun(tpat, e', name)
+      |> rewrap
+      |> cast_from(Typ.Forall(tpat, tye) |> Typ.fresh);
     | Tuple(es) =>
       let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
       Exp.Tuple(ds) |> rewrap |> cast_from(Prod(tys) |> Typ.fresh);
@@ -242,8 +249,8 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
           };
         }
       );
-      switch (Pat.get_recursive_bindings(p)) {
-      | None =>
+      // TODO: is elaborated_type the right type to use here??
+      if (!Statics.is_recursive(ctx, p, def, elaborated_type)) {
         let def = add_name(Pat.get_var(p), def);
         let (p, ty1) = elaborate_pattern(m, p);
         let (def, ty2) = elaborate(m, def);
@@ -251,7 +258,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
         Exp.Let(p, fresh_cast(def, ty2, ty1), body)
         |> rewrap
         |> cast_from(ty);
-      | Some(_) =>
+      } else {
         // TODO: Add names to mutually recursive functions
         // TODO: Don't add fixpoint if there already is one
         let (p, ty1) = elaborate_pattern(m, p);
@@ -298,6 +305,10 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       DeferredAp(f'', args'')
       |> rewrap
       |> cast_from(Arrow(remaining_arg_ty, tyf2) |> Typ.fresh);
+    | TypAp(e, ut) =>
+      let (e', tye) = elaborate(m, e);
+      let (_, tye') = Typ.matched_forall(ctx, tye);
+      TypAp(e', ut) |> rewrap |> cast_from(tye');
     | If(c, t, f) =>
       let (c', tyc) = elaborate(m, c);
       let (t', tyt) = elaborate(m, t);

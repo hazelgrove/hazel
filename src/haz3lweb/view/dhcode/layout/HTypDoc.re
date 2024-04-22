@@ -20,6 +20,7 @@ let precedence = (ty: Typ.t): int =>
   | String
   | Unknown(_)
   | Var(_)
+  | Forall(_)
   | Rec(_)
   | Sum(_) => precedence_Sum
   | List(_) => precedence_Const
@@ -125,7 +126,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
       (center, true);
     | Rec(name, ty) => (
         hcats([
-          text("rec " ++ name ++ "->{"),
+          text("rec " ++ Type.tpat_view(name) ++ "->{"),
           (
             (~enforce_inline) =>
               annot(HTypAnnot.Step(0), mk(~enforce_inline, ty))
@@ -137,7 +138,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
       )
     | Forall(name, ty) => (
         hcats([
-          text("forall " ++ name ++ "->{"),
+          text("forall " ++ Type.tpat_view(name) ++ "->{"),
           (
             (~enforce_inline) =>
               annot(HTypAnnot.Step(0), mk(~enforce_inline, ty))

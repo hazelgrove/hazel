@@ -278,62 +278,45 @@ module Transition = (EV: EV_MODE) => {
         is_value: true,
       });
     | TypAp(d, tau) =>
-      let. _ = otherwise(env, d => TypAp(d, tau))
-      and. d' = req_value(req(state, env), d => TypAp(d, tau), d);
-      switch (d') {
+      let. _ = otherwise(env, d => TypAp(d, tau) |> rewrap)
+      and. d' =
+        req_value(req(state, env), d => TypAp(d, tau) |> wrap_ctx, d);
+      switch (DHExp.term_of(d')) {
       | TypFun(utpat, tfbody, name) =>
         /* Rule ITTLam */
-        switch (Term.UTPat.tyvar_of_utpat(utpat)) {
-        | Some(tyvar) =>
-          /* Perform substitution */
-          Step({
-            apply: () =>
-              DHExp.assign_name_if_none(
-                /* Inherit name for user clarity */
-                DHExp.ty_subst(tau, tyvar, tfbody),
-                Option.map(
-                  x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">",
-                  name,
-                ),
+        Step({
+          expr:
+            DHExp.assign_name_if_none(
+              /* Inherit name for user clarity */
+              DHExp.ty_subst(tau, utpat, tfbody),
+              Option.map(
+                x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">",
+                name,
               ),
-            kind: TypFunAp,
-            value: false,
-          })
-        | None =>
-          /* Treat a hole or invalid tyvar name as a unique type variable that doesn't appear anywhere else. Thus instantiating it at anything doesn't produce any substitutions. */
-          Step({
-            apply: () =>
-              DHExp.assign_name_if_none(
-                tfbody,
-                Option.map(
-                  x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">",
-                  name,
-                ),
-              ),
-            kind: TypFunAp,
-            value: false,
-          })
-        }
-      | Cast(d'', Forall(x, t), Forall(x', t')) =>
+            ),
+          state_update,
+          kind: TypFunAp,
+          is_value: false,
+        })
+      | Cast(
+          d'',
+          {term: Forall(tp1, _), _} as t1,
+          {term: Forall(tp2, _), _} as t2,
+        ) =>
         /* Rule ITTApCast */
         Step({
-          apply: () =>
+          expr:
             Cast(
-              TypAp(d'', tau),
-              Typ.subst(tau, x, t),
-              Typ.subst(tau, x', t'),
-            ),
+              TypAp(d'', tau) |> Exp.fresh,
+              Typ.subst(tau, tp1, t1),
+              Typ.subst(tau, tp2, t2),
+            )
+            |> Exp.fresh,
+          state_update,
           kind: CastTypAp,
-          value: false,
+          is_value: false,
         })
-      | _ =>
-        Step({
-          apply: () => {
-            raise(EvaluatorError.Exception(InvalidBoxedTypFun(d')));
-          },
-          kind: InvalidStep,
-          value: true,
-        })
+      | _ => raise(EvaluatorError.Exception(InvalidBoxedTypFun(d')))
       };
     | DeferredAp(d1, ds) =>
       let. _ = otherwise(env, (d1, ds) => DeferredAp(d1, ds) |> rewrap)

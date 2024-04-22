@@ -346,7 +346,7 @@ let mk =
         );
         DHDoc_common.mk_Ap(doc1, doc2);
       | TypAp(d1, ty) =>
-        let doc1 = go'(d1, TypAp);
+        let doc1 = go'(d1);
         let doc2 = DHDoc_Typ.mk(~enforce_inline=true, ty);
         DHDoc_common.mk_TypAp(doc1, doc2);
       | Ap(Reverse, d1, d2) =>

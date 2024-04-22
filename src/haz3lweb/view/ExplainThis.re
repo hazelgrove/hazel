@@ -563,7 +563,7 @@ let get_doc =
             ),
           ListExp.listlits,
         )
-      | TypFun(tpat, body) =>
+      | TypFun(tpat, body, _) =>
         let basic = group_id => {
           let tpat_id = List.nth(tpat.ids, 0);
           let body_id = List.nth(body.ids, 0);
@@ -587,7 +587,7 @@ let get_doc =
         };
         /* TODO: More could be done here probably for different patterns. */
         basic(TypFunctionExp.type_functions_basic);
-      | Fun(pat, body) =>
+      | Fun(pat, body, _, _) =>
         let basic = group_id => {
           let pat_id = List.nth(pat.ids, 0);
           let body_id = List.nth(body.ids, 0);
@@ -1587,7 +1587,7 @@ let get_doc =
           TypAppExp.typfunapp_exp_coloring_ids,
         );
 
-      | Ap(x, arg) =>
+      | Ap(Forward, x, arg) =>
         let x_id = List.nth(x.ids, 0);
         let arg_id = List.nth(arg.ids, 0);
         let basic = (group, format, coloring_ids) => {

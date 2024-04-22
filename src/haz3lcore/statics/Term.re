@@ -1,45 +1,3 @@
-module TPat = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type cls =
-    | Invalid
-    | EmptyHole
-    | MultiHole
-    | Var;
-
-  include TermBase.TPat;
-
-  let rep_id = ({ids, _}: t) => {
-    assert(ids != []);
-    List.hd(ids);
-  };
-
-  let hole = (tms: list(TermBase.Any.t)) =>
-    switch (tms) {
-    | [] => EmptyHole
-    | [_, ..._] => MultiHole(tms)
-    };
-
-  let cls_of_term: term => cls =
-    fun
-    | Invalid(_) => Invalid
-    | EmptyHole => EmptyHole
-    | MultiHole(_) => MultiHole
-    | Var(_) => Var;
-
-  let show_cls: cls => string =
-    fun
-    | Invalid => "Invalid type alias"
-    | MultiHole => "Broken type alias"
-    | EmptyHole => "Empty type alias hole"
-    | Var => "Type alias";
-
-  let tyvar_of_utpat = ({ids: _, term}) =>
-    switch (term) {
-    | Var(x) => Some(x)
-    | _ => None
-    };
-};
-
 module Pat = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
@@ -120,9 +78,8 @@ module Pat = {
   let rec is_var = (pat: t) => {
     switch (pat.term) {
     | Parens(pat)
-    | TypeAnn(pat, _) => is_var(pat)
+    | Cast(pat, _, _) => is_var(pat)
     | Var(_) => true
-    | Cast(_)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -142,8 +99,7 @@ module Pat = {
   let rec is_fun_var = (pat: t) => {
     switch (pat.term) {
     | Parens(pat) => is_fun_var(pat)
-    | Cast(pat, t1, _) => is_var(pat) && Typ.is_arrow(t1)
-    | TypeAnn(pat, typ) =>
+    | Cast(pat, typ, _) =>
       is_var(pat) && (UTyp.is_arrow(typ) || Typ.is_forall(typ))
     | Invalid(_)
     | EmptyHole
@@ -208,33 +164,9 @@ module Pat = {
       }
     );
 
-  let rec is_tuple_of_vars = (pat: t) =>
-    is_var(pat)
-    || (
-      switch (pat.term) {
-      | Parens(pat)
-      | TypeAnn(pat, _) => is_tuple_of_vars(pat)
-      | Tuple(pats) => pats |> List.for_all(is_var)
-      | Invalid(_)
-      | EmptyHole
-      | MultiHole(_)
-      | Wild
-      | Int(_)
-      | Float(_)
-      | Bool(_)
-      | String(_)
-      | Triv
-      | ListLit(_)
-      | Cons(_, _)
-      | Var(_)
-      | Constructor(_)
-      | Ap(_) => false
-      }
-    );
-
   let rec get_var = (pat: t) => {
     switch (pat.term) {
-    | Parens(pat)
+    | Parens(pat) => get_var(pat)
     | Var(x) => Some(x)
     | Cast(x, _, _) => get_var(x)
     | Invalid(_)
@@ -449,8 +381,8 @@ module Exp = {
   let rec is_fun = (e: t) => {
     switch (e.term) {
     | Parens(e) => is_fun(e)
-    | TypFun(_)
     | Cast(e, _, _) => is_fun(e)
+    | TypFun(_)
     | Fun(_)
     | BuiltinFun(_) => true
     | Invalid(_)
@@ -551,7 +483,12 @@ module Exp = {
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
-      | Triv
+      | DynamicErrorHole(_)
+      | FailedCast(_)
+      | FixF(_)
+      | Closure(_)
+      | BuiltinFun(_)
+      | Cast(_)
       | Deferral(_)
       | Bool(_)
       | Int(_)
@@ -567,7 +504,6 @@ module Exp = {
       | Ap(_)
       | TypAp(_)
       | DeferredAp(_)
-      | Pipeline(_)
       | If(_)
       | Seq(_)
       | Test(_)
