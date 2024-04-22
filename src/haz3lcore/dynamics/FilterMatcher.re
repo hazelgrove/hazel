@@ -1,24 +1,3 @@
-let rec find_keys = (dp: DHPat.t): list(string) => {
-  switch (dp) {
-  | DHPat.EmptyHole(_, _)
-  | DHPat.NonEmptyHole(_, _, _, _)
-  | DHPat.Wild
-  | DHPat.ExpandingKeyword(_, _, _)
-  | DHPat.InvalidText(_, _, _)
-  | DHPat.BadConstructor(_, _, _) => []
-  | DHPat.Var(x) => [x]
-  | DHPat.IntLit(_)
-  | DHPat.FloatLit(_)
-  | DHPat.BoolLit(_)
-  | DHPat.StringLit(_)
-  | DHPat.Constructor(_) => []
-  | DHPat.ListLit(_, dps)
-  | DHPat.Tuple(dps) => List.concat_map(find_keys, dps)
-  | DHPat.Cons(dp1, dp2)
-  | DHPat.Ap(dp1, dp2) => find_keys(dp1) @ find_keys(dp2)
-  };
-};
-
 let rec matches_exp =
         (
           ~denv: ClosureEnvironment.t,
@@ -175,6 +154,10 @@ let rec matches_exp =
     | (BuiltinFun(dn), BuiltinFun(fn)) => dn == fn
     | (BuiltinFun(_), _) => false
 
+    | (TypFun(pat1, d1, s1), TypFun(pat2, d2, s2)) =>
+      s1 == s2 && matches_utpat(pat1, pat2) && matches_exp(d1, d2)
+    | (TypFun(_), _) => false
+
     | (
         Fun(dp1, _, Closure(denv, d1), _),
         Fun(fp1, _, Closure(fenv, f1), _),
@@ -195,6 +178,10 @@ let rec matches_exp =
     | (Let(dp, d1, d2), Let(fp, f1, f2)) =>
       matches_pat(dp, fp) && matches_exp(d1, f1) && matches_exp(d2, f2)
     | (Let(_), _) => false
+
+    | (TypAp(d1, t1), TypAp(d2, t2)) =>
+      matches_exp(d1, d2) && matches_typ(t1, t2)
+    | (TypAp(_), _) => false
 
     | (Ap(d1, d2), Ap(f1, f2)) =>
       matches_exp(d1, f1) && matches_exp(d2, f2)
@@ -278,7 +265,6 @@ let rec matches_exp =
     | (InconsistentBranches(_), _) => false
 
     | (NonEmptyHole(_), _) => false
-    | (ExpandingKeyword(_), _) => false
     | (InvalidText(_), _) => false
     | (InvalidOperation(_), _) => false
 
@@ -302,9 +288,9 @@ and matches_fun =
     ) => {
   matches_pat(dp, fp)
   && matches_exp(
-       ~denv=ClosureEnvironment.without_keys(find_keys(dp), denv),
+       ~denv=ClosureEnvironment.without_keys(DHPat.bound_vars(dp), denv),
        d,
-       ~fenv=ClosureEnvironment.without_keys(find_keys(fp), fenv),
+       ~fenv=ClosureEnvironment.without_keys(DHPat.bound_vars(fp), fenv),
        f,
      );
 }
@@ -350,7 +336,6 @@ and matches_pat = (d: DHPat.t, f: DHPat.t): bool => {
   | (Cons(_), _) => false
   | (EmptyHole(_), _) => false
   | (NonEmptyHole(_), _) => false
-  | (ExpandingKeyword(_), _) => false
   | (InvalidText(_), _) => false
   };
 }
@@ -361,6 +346,16 @@ and matches_rul = (~denv, d: DHExp.rule, ~fenv, f: DHExp.rule) => {
   switch (d, f) {
   | (Rule(dp, d), Rule(fp, f)) =>
     matches_pat(dp, fp) && matches_exp(~denv, d, ~fenv, f)
+  };
+}
+and matches_utpat = (d: Term.UTPat.t, f: Term.UTPat.t): bool => {
+  switch (d.term, f.term) {
+  | (Invalid(_), _) => false
+  | (_, Invalid(_)) => false
+  | (_, EmptyHole) => true
+  | (MultiHole(l1), MultiHole(l2)) => List.length(l1) == List.length(l2) /* TODO: probably should define a matches_any and recurse in here...? */
+  | (Var(t1), Var(t2)) => t1 == t2
+  | _ => false
   };
 };
 

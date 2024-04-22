@@ -219,6 +219,9 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
     | Sequence2(d1, ctx) =>
       let d2 = compose(ctx, d);
       Sequence(d1, d2);
+    | TypAp(ctx, typ) =>
+      let d1 = compose(ctx, d);
+      TypAp(d1, typ);
     | Ap1(ctx, d2) =>
       let d1 = compose(ctx, d);
       Ap(d1, d2);
@@ -490,6 +493,9 @@ let rec matches =
     | InconsistentBranchesRule(dexp, u, i, dpat, ctx, rs, ri) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       InconsistentBranchesRule(dexp, u, i, dpat, ctx, rs, ri);
+    | TypAp(ctx, ty) =>
+      let+ ctx = matches(env, flt, ctx, exp, act, idx);
+      TypAp(ctx, ty);
     };
   switch (ctx) {
   | Filter(_) => (ract, ridx, rctx)
