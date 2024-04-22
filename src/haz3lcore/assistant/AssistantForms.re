@@ -25,6 +25,7 @@ module Typ = {
   let of_leading_delim: list((Token.t, Typ.t)) = [
     ("case" ++ leading_expander, unk),
     ("fun" ++ leading_expander, Arrow(unk, unk)),
+    ("typfun" ++ leading_expander, Forall("", unk)),
     ("if" ++ leading_expander, unk),
     ("let" ++ leading_expander, unk),
     ("test" ++ leading_expander, Prod([])),
