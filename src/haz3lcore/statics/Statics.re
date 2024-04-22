@@ -637,28 +637,22 @@ let collect_errors = (map: Map.t): list((Id.t, Info.error)) =>
     [],
   );
 
+let rec caf_input_type = (args: UPat.t): UTyp.t =>
+  switch (args.term) {
+  | Tuple(ps) => {ids: args.ids, term: Tuple(List.map(caf_input_type, ps))}
+  | TypeAnn(_, t) => t
+  | _ => {ids: args.ids, term: EmptyHole}
+  };
+
 let check_annotated_function_helper =
     (pat: UPat.t, ret_type: UTyp.t): option((Var.t, UPat.t, UTyp.t)) =>
   switch (pat.term) {
   | Ap({ids: _, term: Var(func_name)}, args) =>
-    let in_type =
-      switch (args.term) {
-      | TypeAnn(_, t) => t
-      | Tuple(ps) =>
-        let type_list =
-          List.fold_right(
-            (item: UPat.t, partial: list(UTyp.t)) =>
-              switch (item.term) {
-              | TypeAnn(_, t) => [t, ...partial]
-              | _ => [{ids: item.ids, term: EmptyHole}, ...partial]
-              },
-            ps,
-            [],
-          );
-        {ids: args.ids, term: Tuple(type_list)};
-      | _ => {ids: args.ids, term: EmptyHole}
-      };
-    Some((func_name, args, {ids: pat.ids, term: Arrow(in_type, ret_type)}));
+    Some((
+      func_name,
+      args,
+      {ids: pat.ids, term: Arrow(caf_input_type(args), ret_type)},
+    ))
   | _ => None
   };
 
