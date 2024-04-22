@@ -3,7 +3,12 @@ open AST
 %}
 
 
-
+%token CONS
+%token TEST
+%token PAUSE
+%token DEBUG
+%token HIDE
+%token EVAL
 %token HOLE
 %token FREE
 %token FIX
@@ -78,6 +83,8 @@ open AST
 %token THEN
 %token ELSE
 
+%token SEMI_COLON
+
 %type <AST.exp> exp
 
 %start <AST.exp> program
@@ -150,6 +157,7 @@ pat:
     | TRUE { BoolPat true}
     | FALSE {BoolPat false}
     (* | p1 = pat; AS; p2 = pat; { AsPat(p1, p2) } *)
+    | p1 = pat; CONS; p2 = pat { ConsPat(p1, p2) }
     | f = pat; OPEN_PAREN; a = pat; CLOSE_PAREN { ApPat(f, a) }
 
 
@@ -175,6 +183,12 @@ ifExp:
     | IF; e1 = exp; THEN; e2 = exp; ELSE; e3 = exp { If (Consistent, e1, e2, e3) }
     | HOLE; IF; e1 = exp; THEN; e2 = exp; ELSE; e3 = exp { If (Inconsistent, e1, e2, e3) }
 
+filterAction:
+    | PAUSE { Pause }
+    | DEBUG { Debug }
+    | HIDE { Hide }
+    | EVAL { Eval }
+
 exp:
     | i = INT { Int i }
     | f = FLOAT { Float f }
@@ -196,5 +210,8 @@ exp:
     | FALSE { Bool false }
     | OPEN_PAREN; HOLE; e = exp; CLOSE_PAREN {NonEmptyHole e}
     | HOLE { EmptyHole }
-    (* | OPEN_PAREN; e = exp; CLOSE_PAREN { NonEmptyHole(e) } *)
     | UNIT { EmptyHole }
+    | a = filterAction; cond = exp; body = exp { Filter(a, cond, body)}
+    | TEST; e = exp; END { Test(e) }
+    | e1 = exp; CONS; e2 = exp { Cons(e1, e2) }
+    | e1 = exp; SEMI_COLON; e2 = exp { Seq(e1, e2) }

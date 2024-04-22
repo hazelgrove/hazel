@@ -7,46 +7,48 @@ type if_consistency =
   | InconsistentIf;
 
 module rec DHExp: {
+  //All comments show the textual syntax for DHExp when built using the menhir parser
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | EmptyHole(MetaVar.t, HoleInstanceId.t)
-    | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t)
+    | EmptyHole(MetaVar.t, HoleInstanceId.t) //()
+    | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t) //(_HOLE x)
     | ExpandingKeyword(MetaVar.t, HoleInstanceId.t, ExpandingKeyword.t)
-    | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t)
+    | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t) //(_FREE x)
     | InvalidText(MetaVar.t, HoleInstanceId.t, string)
-    | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
+    | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case) //(_HOLE (case ...))
     | Closure([@opaque] ClosureEnvironment.t, t)
-    | Filter(DHFilter.t, t)
-    | BoundVar(Var.t)
-    | Sequence(t, t)
-    | Let(DHPat.t, t, t)
-    | FixF(Var.t, Typ.t, t)
-    | Fun(DHPat.t, Typ.t, t, option(Var.t))
-    | Ap(t, t)
+    | Filter(DHFilter.t, t) //pause a == 2 b
+    | BoundVar(Var.t) //x
+    | Sequence(t, t) //a; b
+    | Let(DHPat.t, t, t) //let x = y in z
+    | FixF(Var.t, Typ.t, t) //_FIX f Int -> Int fun: Int x -> 1 + x f in 55
+    | Fun(DHPat.t, Typ.t, t, option(Var.t)) //fun: Int x -> x + 1
+    | Ap(t, t) //a(1)
     | ApBuiltin(string, t)
     | BuiltinFun(string)
-    | Test(KeywordID.t, t)
-    | BoolLit(bool)
-    | IntLit(int)
-    | FloatLit(float)
-    | StringLit(string)
-    | BinBoolOp(TermBase.UExp.op_bin_bool, t, t)
-    | BinIntOp(TermBase.UExp.op_bin_int, t, t)
-    | BinFloatOp(TermBase.UExp.op_bin_float, t, t)
-    | BinStringOp(TermBase.UExp.op_bin_string, t, t)
-    | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t))
-    | Cons(t, t)
-    | ListConcat(t, t)
-    | Tuple(list(t))
-    | Prj(t, int)
-    | Constructor(string)
-    | ConsistentCase(case)
-    | Cast(t, Typ.t, Typ.t)
-    | FailedCast(t, Typ.t, Typ.t)
+    | Test(KeywordID.t, t) //test a end
+    | BoolLit(bool) //true
+    | IntLit(int) //1
+    | FloatLit(float) //1.0
+    | StringLit(string) //"hello"
+    | BinBoolOp(TermBase.UExp.op_bin_bool, t, t) //true && false
+    | BinIntOp(TermBase.UExp.op_bin_int, t, t) //1 + 2
+    | BinFloatOp(TermBase.UExp.op_bin_float, t, t) //1 +. 2
+    | BinStringOp(TermBase.UExp.op_bin_string, t, t) //
+    | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t)) //[a, b, c]
+    | Cons(t, t) //a :: b
+    | ListConcat(t, t) //TODO
+    | Tuple(list(t)) //(a, b)
+    | Prj(t, int) //TODO
+    | Constructor(string) //TODO
+    | ConsistentCase(case) //4 == 3 | true => 24 | false => false end
+    | Cast(t, Typ.t, Typ.t) //x <Unknown Internal => Int>
+    | FailedCast(t, Typ.t, Typ.t) //TODO
     | InvalidOperation(t, InvalidOperationError.t)
     | IfThenElse(if_consistency, t, t, t) // use bool tag to track if branches are consistent
+  // if false then 8 else 6
   and case =
-    | Case(t, list(rule), int)
+    | Case(t, list(rule), int) //4 == 3 | true => 24 | false => false end
   and rule =
     | Rule(DHPat.t, t);
 
@@ -446,6 +448,17 @@ module rec DHExp: {
       let id = getId();
       let e = of_menhir_ast_noid(e);
       NonEmptyHole(ErrStatus.HoleReason.TypeInconsistent, id, 0, e);
+    | Filter(a, cond, body) =>
+      let dcond = of_menhir_ast_noid(cond);
+      let dbody = of_menhir_ast_noid(body);
+      let act = FilterAction.of_menhir_ast(a);
+      Filter(Filter(Filter.mk(dcond, act)), dbody);
+    | Seq(e1, e2) =>
+      Sequence(of_menhir_ast_noid(e1), of_menhir_ast_noid(e2))
+    | Test(e) =>
+      let id = getId();
+      Test(id, of_menhir_ast_noid(e));
+    | Cons(e1, e2) => Cons(of_menhir_ast_noid(e1), of_menhir_ast_noid(e2))
     // | _ => raise(Invalid_argument("Menhir AST -> DHExp not yet implemented"))
     };
   };
