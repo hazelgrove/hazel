@@ -637,49 +637,28 @@ let collect_errors = (map: Map.t): list((Id.t, Info.error)) =>
     [],
   );
 
-/*
- * Unwrap the input funtion's args (more than 1) into format check and types
- */
-let caf_argtrans = (args: list(UPat.t)): option(list(UTyp.t)) =>
-  List.fold_right(
-    (item: UPat.t, partial: option(list(UTyp.t))) =>
-      switch (partial) {
-      | Some(lst_typ) =>
-        switch (item.term) {
-        | TypeAnn({ids: _, term: Var(_)}, t) => Some([t, ...lst_typ])
-        | Var(_) => Some([{ids: item.ids, term: EmptyHole}, ...lst_typ])
-        | _ => None
-        }
-      | _ => None
-      },
-    args,
-    Some([]),
-  );
-
 let check_annotated_function_helper =
     (pat: UPat.t, ret_type: UTyp.t): option((Var.t, UPat.t, UTyp.t)) =>
   switch (pat.term) {
   | Ap({ids: _, term: Var(func_name)}, args) =>
-    let in_type_opt: option(UTyp.t) =
+    let in_type =
       switch (args.term) {
-      | Var(_) => Some({ids: args.ids, term: EmptyHole})
-      | TypeAnn({ids: _, term: Var(_)}, t) => Some(t)
+      | TypeAnn(_, t) => t
       | Tuple(ps) =>
-        switch (caf_argtrans(ps)) {
-        | None => None
-        | Some(in_type) => Some({ids: args.ids, term: Tuple(in_type)})
-        }
-      | _ => None
+        let type_list =
+          List.fold_right(
+            (item: UPat.t, partial: list(UTyp.t)) =>
+              switch (item.term) {
+              | TypeAnn(_, t) => [t, ...partial]
+              | _ => [{ids: item.ids, term: EmptyHole}, ...partial]
+              },
+            ps,
+            [],
+          );
+        {ids: args.ids, term: Tuple(type_list)};
+      | _ => {ids: args.ids, term: EmptyHole}
       };
-    switch (in_type_opt) {
-    | None => None
-    | Some(in_type) =>
-      Some((
-        func_name,
-        args,
-        {ids: pat.ids, term: Arrow(in_type, ret_type)},
-      ))
-    };
+    Some((func_name, args, {ids: pat.ids, term: Arrow(in_type, ret_type)}));
   | _ => None
   };
 
