@@ -21,7 +21,8 @@ let newline = '\r' | '\n' | "\r\n"
 
 let whitespace = [' ' '\t']+
 
-let identifier = ['a'-'z' 'A'-'Z' '_'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
+let identifier = ['a'-'z' '_'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
+let constructor_ident = ['A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
 
 rule token = 
     parse 
@@ -103,6 +104,11 @@ rule token =
     | ";" {SEMI_COLON}
     | "test" {TEST}
     | "::" { CONS }
+    | "@" {LIST_CONCAT}
+    | "?" {QUESTION}
+    | "_" {WILD}
+    | "_BAD" {BAD_CONSTRUCTOR}
     | identifier as i { IDENT(i) }
+    | constructor_ident as i { CONSTRUCTOR_IDENT(i)}
     | eof { EOF }
     | _ { raise (Failure ("Lex error: unknown char: '" ^ Lexing.lexeme lexbuf ^ "'")) }

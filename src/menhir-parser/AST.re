@@ -64,14 +64,20 @@ type typ =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pat =
+  | EmptyHolePat
+  | WildPat
+  | NonEmptyHolePat(pat)
   | IntPat(int)
   | FloatPat(float)
   | VarPat(string)
+  | ConstructorPat(string)
+  | BadConstructorPat(string)
   | StringPat(string)
   | TypeAnn(pat, typ)
   | TuplePat(list(pat))
   | BoolPat(bool)
   | ConsPat(pat, pat)
+  | ListPat(list(pat), typ)
   | ApPat(pat, pat);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -84,9 +90,10 @@ type exp =
   | Int(int)
   | Float(float)
   | Var(string)
+  | Constructor(string)
   | FreeVar(string)
   | String(string)
-  | ArrayExp(list(exp))
+  | ListExp(list(exp), typ)
   | TupleExp(list(exp))
   | BinExp(exp, binOp, exp)
   | Let(pat, exp, exp)
@@ -97,10 +104,12 @@ type exp =
   | ApExp(exp, exp)
   | Bool(bool)
   | Cast(exp, typ, typ)
+  | FailedCast(exp, typ, typ)
   | NonEmptyHole(exp)
   | EmptyHole
   | Filter(filter_action, exp, exp)
   | Seq(exp, exp)
   | Test(exp)
   | Cons(exp, exp)
+  | ListConcat(exp, exp)
   | If(if_consistency, exp, exp, exp);

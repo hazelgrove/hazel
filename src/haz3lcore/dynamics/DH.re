@@ -37,13 +37,13 @@ module rec DHExp: {
     | BinStringOp(TermBase.UExp.op_bin_string, t, t) //
     | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t)) //[a, b, c]
     | Cons(t, t) //a :: b
-    | ListConcat(t, t) //TODO
+    | ListConcat(t, t) //a @ b
     | Tuple(list(t)) //(a, b)
     | Prj(t, int) //TODO
-    | Constructor(string) //TODO
+    | Constructor(string) //X
     | ConsistentCase(case) //4 == 3 | true => 24 | false => false end
     | Cast(t, Typ.t, Typ.t) //x <Unknown Internal => Int>
-    | FailedCast(t, Typ.t, Typ.t) //TODO
+    | FailedCast(t, Typ.t, Typ.t) //x ?<Int => Int>
     | InvalidOperation(t, InvalidOperationError.t)
     | IfThenElse(if_consistency, t, t, t) // use bool tag to track if branches are consistent
   // if false then 8 else 6
@@ -353,7 +353,7 @@ module rec DHExp: {
             getId: bool => Id.t,
           )
           : rule => {
-    Rule(DHPat.of_menhir_ast(pat), of_menhir_ast(exp, getId));
+    Rule(DHPat.of_menhir_ast(pat, getId), of_menhir_ast(exp, getId));
   }
   //whenever we assign a hole an id, make sure to increment the idIndex value
   and of_menhir_ast = (exp: Hazel_menhir.AST.exp, getId: bool => Id.t): t => {
@@ -368,18 +368,15 @@ module rec DHExp: {
     | String(s) => StringLit(s)
     | Bool(b) => BoolLit(b)
     | Var(x) => BoundVar(x)
+    | Constructor(x) => Constructor(x)
     | FreeVar(x) => FreeVar(getId_no_inc(), 0, x)
-    | ArrayExp(l) =>
-      ListLit(
-        Id.mk(),
-        0,
-        Unknown(SynSwitch),
-        List.map(of_menhir_ast_noid, l),
-      )
+    | ListExp(l, t) =>
+      let id = getId();
+      ListLit(id, 0, Typ.of_menhir_ast(t), List.map(of_menhir_ast_noid, l));
     | TupleExp(t) => Tuple(List.map(of_menhir_ast_noid, t))
     | Let(p, e1, e2) =>
       Let(
-        DHPat.of_menhir_ast(p),
+        DHPat.of_menhir_ast(p, getId_all_args),
         of_menhir_ast_noid(e1),
         of_menhir_ast_noid(e2),
       )
@@ -387,14 +384,14 @@ module rec DHExp: {
       switch (name_opt) {
       | Some(name_str) =>
         Fun(
-          DHPat.of_menhir_ast(p),
+          DHPat.of_menhir_ast(p, getId_all_args),
           Typ.of_menhir_ast(t),
           of_menhir_ast_noid(e),
           Some(name_str),
         )
       | None =>
         Fun(
-          DHPat.of_menhir_ast(p),
+          DHPat.of_menhir_ast(p, getId_all_args),
           Typ.of_menhir_ast(t),
           of_menhir_ast_noid(e),
           None,
@@ -443,6 +440,12 @@ module rec DHExp: {
         Typ.of_menhir_ast(t1),
         Typ.of_menhir_ast(t2),
       )
+    | FailedCast(e, t1, t2) =>
+      FailedCast(
+        of_menhir_ast_noid(e),
+        Typ.of_menhir_ast(t1),
+        Typ.of_menhir_ast(t2),
+      )
     | EmptyHole => EmptyHole(getId(), 0)
     | NonEmptyHole(e) =>
       let id = getId();
@@ -459,6 +462,8 @@ module rec DHExp: {
       let id = getId();
       Test(id, of_menhir_ast_noid(e));
     | Cons(e1, e2) => Cons(of_menhir_ast_noid(e1), of_menhir_ast_noid(e2))
+    | ListConcat(e1, e2) =>
+      ListConcat(of_menhir_ast_noid(e1), of_menhir_ast_noid(e2))
     // | _ => raise(Invalid_argument("Menhir AST -> DHExp not yet implemented"))
     };
   };

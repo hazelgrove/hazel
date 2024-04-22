@@ -2,22 +2,22 @@ open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
-  | EmptyHole(MetaVar.t, MetaVarInst.t)
-  | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, MetaVarInst.t, t)
-  | Wild
+  | EmptyHole(MetaVar.t, MetaVarInst.t) // () or _HOLE
+  | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, MetaVarInst.t, t) //(_HOLE x)
+  | Wild //_
   | ExpandingKeyword(MetaVar.t, MetaVarInst.t, ExpandingKeyword.t)
   | InvalidText(MetaVar.t, MetaVarInst.t, string)
-  | BadConstructor(MetaVar.t, MetaVarInst.t, string)
-  | Var(Var.t)
-  | IntLit(int)
-  | FloatLit(float)
-  | BoolLit(bool)
-  | StringLit(string)
-  | ListLit(Typ.t, list(t))
-  | Cons(t, t)
-  | Tuple(list(t))
-  | Constructor(string)
-  | Ap(t, t);
+  | BadConstructor(MetaVar.t, MetaVarInst.t, string) //_BAD x
+  | Var(Var.t) // x
+  | IntLit(int) // 1
+  | FloatLit(float) //1.0
+  | BoolLit(bool) // false
+  | StringLit(string) //"hello"
+  | ListLit(Typ.t, list(t)) //[a, b, c]
+  | Cons(t, t) //a :: b
+  | Tuple(list(t)) //(a, b)
+  | Constructor(string) //X
+  | Ap(t, t); //a(1)
 
 let mk_tuple: list(t) => t =
   fun
@@ -50,17 +50,32 @@ let rec binds_var = (x: Var.t, dp: t): bool =>
   | Ap(_, _) => false
   };
 
-let rec of_menhir_ast = (pat: Hazel_menhir.AST.pat): t => {
+let rec of_menhir_ast = (pat: Hazel_menhir.AST.pat, getId: bool => Uuidm.t): t => {
+  let of_menhir_ast_noid = of_menhir_ast(_, getId);
+  // let getId_all_args = getId;
+  let getId_no_inc = () => getId(false);
+  let getId = () => getId(true);
   switch (pat) {
   | IntPat(i) => IntLit(i)
   | FloatPat(f) => FloatLit(f)
   | VarPat(x) => Var(x)
+  | BadConstructorPat(x) => BadConstructor(getId_no_inc(), 0, x)
+  | ConstructorPat(x) => Constructor(x)
   | StringPat(s) => StringLit(s)
-  | TypeAnn(pat, _typ) => of_menhir_ast(pat)
-  | TuplePat(pats) => Tuple(List.map(of_menhir_ast, pats))
-  | ApPat(pat1, pat2) => Ap(of_menhir_ast(pat1), of_menhir_ast(pat2))
-  | ConsPat(p1, p2) => Cons(of_menhir_ast(p1), of_menhir_ast(p2))
+  | TypeAnn(pat, _typ) => of_menhir_ast_noid(pat)
+  | TuplePat(pats) => Tuple(List.map(of_menhir_ast_noid, pats))
+  | ApPat(pat1, pat2) =>
+    Ap(of_menhir_ast_noid(pat1), of_menhir_ast_noid(pat2))
+  | ConsPat(p1, p2) => Cons(of_menhir_ast_noid(p1), of_menhir_ast_noid(p2))
   | BoolPat(b) => BoolLit(b)
+  | EmptyHolePat => EmptyHole(getId(), 0)
+  | NonEmptyHolePat(p) =>
+    let id = getId();
+    let p = of_menhir_ast_noid(p);
+    NonEmptyHole(ErrStatus.HoleReason.TypeInconsistent, id, 0, p);
+  | WildPat => Wild
+  | ListPat(l, t) =>
+    ListLit(Typ.of_menhir_ast(t), List.map(of_menhir_ast_noid, l))
   };
 };
 
