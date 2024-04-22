@@ -12,7 +12,6 @@ module rec DHExp: {
   type t =
     | EmptyHole(MetaVar.t, HoleInstanceId.t) //()
     | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t) //(_HOLE x)
-    | ExpandingKeyword(MetaVar.t, HoleInstanceId.t, ExpandingKeyword.t)
     | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t) //(_FREE x)
     | InvalidText(MetaVar.t, HoleInstanceId.t, string)
     | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case) //(_HOLE (case ...))
@@ -23,6 +22,8 @@ module rec DHExp: {
     | Let(DHPat.t, t, t) //let x = y in z
     | FixF(Var.t, Typ.t, t) //_FIX f Int -> Int fun: Int x -> 1 + x f in 55
     | Fun(DHPat.t, Typ.t, t, option(Var.t)) //fun: Int x -> x + 1
+    | TypFun(Term.UTPat.t, t, option(Var.t))
+    | TypAp(t, Typ.t)
     | Ap(t, t) //a(1)
     | ApBuiltin(string, t)
     | BuiltinFun(string)
@@ -64,13 +65,14 @@ module rec DHExp: {
   let fast_equal: (t, t) => bool;
 
   let of_menhir_ast: (Hazel_menhir.AST.exp, bool => Uuidm.t) => t;
+  let assign_name_if_none: (t, option(Var.t)) => t;
+  let ty_subst: (Typ.t, TypVar.t, t) => t;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     /* Hole types */
     | EmptyHole(MetaVar.t, HoleInstanceId.t)
     | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t)
-    | ExpandingKeyword(MetaVar.t, HoleInstanceId.t, ExpandingKeyword.t)
     | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t)
     | InvalidText(MetaVar.t, HoleInstanceId.t, string)
     | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
@@ -83,6 +85,8 @@ module rec DHExp: {
     | Let(DHPat.t, t, t)
     | FixF(Var.t, Typ.t, t)
     | Fun(DHPat.t, Typ.t, t, option(Var.t))
+    | TypFun(Term.UTPat.t, t, option(Var.t))
+    | TypAp(t, Typ.t)
     | Ap(t, t)
     | ApBuiltin(string, t)
     | BuiltinFun(string)
@@ -115,7 +119,6 @@ module rec DHExp: {
     switch (d) {
     | EmptyHole(_, _) => "EmptyHole"
     | NonEmptyHole(_, _, _, _) => "NonEmptyHole"
-    | ExpandingKeyword(_, _, _) => "ExpandingKeyword"
     | FreeVar(_, _, _) => "FreeVar"
     | InvalidText(_) => "InvalidText"
     | BoundVar(_) => "BoundVar"
@@ -124,8 +127,10 @@ module rec DHExp: {
     | Let(_, _, _) => "Let"
     | FixF(_, _, _) => "FixF"
     | Fun(_, _, _, _) => "Fun"
+    | TypFun(_) => "TypFun"
     | Closure(_, _) => "Closure"
     | Ap(_, _) => "Ap"
+    | TypAp(_) => "TypAp"
     | ApBuiltin(_, _) => "ApBuiltin"
     | BuiltinFun(_) => "BuiltinFun"
     | Test(_) => "Test"
@@ -183,7 +188,9 @@ module rec DHExp: {
     | Let(dp, b, c) => Let(dp, strip_casts(b), strip_casts(c))
     | FixF(a, b, c) => FixF(a, b, strip_casts(c))
     | Fun(a, b, c, d) => Fun(a, b, strip_casts(c), d)
+    | TypFun(a, b, c) => TypFun(a, strip_casts(b), c)
     | Ap(a, b) => Ap(strip_casts(a), strip_casts(b))
+    | TypAp(a, b) => TypAp(strip_casts(a), b)
     | Test(id, a) => Test(id, strip_casts(a))
     | ApBuiltin(fn, args) => ApBuiltin(fn, strip_casts(args))
     | BuiltinFun(fn) => BuiltinFun(fn)
@@ -203,7 +210,6 @@ module rec DHExp: {
         Case(strip_casts(scrut), List.map(strip_casts_rule, rules), n),
       )
     | EmptyHole(_) as d
-    | ExpandingKeyword(_) as d
     | FreeVar(_) as d
     | InvalidText(_) as d
     | BoundVar(_) as d
@@ -246,6 +252,9 @@ module rec DHExp: {
       f1 == f2 && ty1 == ty2 && fast_equal(d1, d2)
     | (Fun(dp1, ty1, d1, s1), Fun(dp2, ty2, d2, s2)) =>
       dp1 == dp2 && ty1 == ty2 && fast_equal(d1, d2) && s1 == s2
+    | (TypFun(_tpat1, d1, s1), TypFun(_tpat2, d2, s2)) =>
+      _tpat1 == _tpat2 && fast_equal(d1, d2) && s1 == s2
+    | (TypAp(d1, ty1), TypAp(d2, ty2)) => fast_equal(d1, d2) && ty1 == ty2
     | (Ap(d11, d21), Ap(d12, d22))
     | (Cons(d11, d21), Cons(d12, d22)) =>
       fast_equal(d11, d12) && fast_equal(d21, d22)
@@ -287,8 +296,10 @@ module rec DHExp: {
     | (Let(_), _)
     | (FixF(_), _)
     | (Fun(_), _)
+    | (TypFun(_), _)
     | (Test(_), _)
     | (Ap(_), _)
+    | (TypAp(_), _)
     | (ApBuiltin(_), _)
     | (BuiltinFun(_), _)
     | (Cons(_), _)
@@ -313,8 +324,6 @@ module rec DHExp: {
     | (EmptyHole(u1, i1), EmptyHole(u2, i2)) => u1 == u2 && i1 == i2
     | (NonEmptyHole(reason1, u1, i1, d1), NonEmptyHole(reason2, u2, i2, d2)) =>
       reason1 == reason2 && u1 == u2 && i1 == i2 && fast_equal(d1, d2)
-    | (ExpandingKeyword(u1, i1, kw1), ExpandingKeyword(u2, i2, kw2)) =>
-      u1 == u2 && i1 == i2 && kw1 == kw2
     | (FreeVar(u1, i1, x1), FreeVar(u2, i2, x2)) =>
       u1 == u2 && i1 == i2 && x1 == x2
     | (InvalidText(u1, i1, text1), InvalidText(u2, i2, text2)) =>
@@ -328,7 +337,6 @@ module rec DHExp: {
       u1 == u2 && i1 == i2 && fast_equal_case(case1, case2)
     | (EmptyHole(_), _)
     | (NonEmptyHole(_), _)
-    | (ExpandingKeyword(_), _)
     | (FreeVar(_), _)
     | (InvalidText(_), _)
     | (Closure(_), _)
@@ -451,11 +459,6 @@ module rec DHExp: {
       let id = getId();
       let e = of_menhir_ast_noid(e);
       NonEmptyHole(ErrStatus.HoleReason.TypeInconsistent, id, 0, e);
-    | Filter(a, cond, body) =>
-      let dcond = of_menhir_ast_noid(cond);
-      let dbody = of_menhir_ast_noid(body);
-      let act = FilterAction.of_menhir_ast(a);
-      Filter(Filter(Filter.mk(dcond, act)), dbody);
     | Seq(e1, e2) =>
       Sequence(of_menhir_ast_noid(e1), of_menhir_ast_noid(e2))
     | Test(e) =>
@@ -464,9 +467,85 @@ module rec DHExp: {
     | Cons(e1, e2) => Cons(of_menhir_ast_noid(e1), of_menhir_ast_noid(e2))
     | ListConcat(e1, e2) =>
       ListConcat(of_menhir_ast_noid(e1), of_menhir_ast_noid(e2))
-    // | _ => raise(Invalid_argument("Menhir AST -> DHExp not yet implemented"))
+    // | Filter(a, cond, body) =>
+    //   let dcond = of_menhir_ast_noid(cond);
+    //   let dbody = of_menhir_ast_noid(body);
+    //   let act = FilterAction.of_menhir_ast(a);
+    //    Filter(DHFilter.Filter(Filter.mk(dcond, act)), dbody);
+    | _ => raise(Invalid_argument("Menhir AST -> DHExp not yet implemented"))
     };
   };
+  let assign_name_if_none = (t, name) =>
+    switch (t) {
+    | Fun(arg, ty, body, None) => Fun(arg, ty, body, name)
+    | TypFun(utpat, body, None) => TypFun(utpat, body, name)
+    | _ => t
+    };
+
+  let rec ty_subst = (s: Typ.t, x: TypVar.t, exp: DHExp.t): t => {
+    let re = e2 => ty_subst(s, x, e2);
+    let t_re = ty => Typ.subst(s, x, ty);
+    switch (exp) {
+    | Cast(t, t1, t2) => Cast(re(t), t_re(t1), t_re(t2))
+    | FixF(arg, ty, body) => FixF(arg, t_re(ty), re(body))
+    | Fun(arg, ty, body, var) => Fun(arg, t_re(ty), re(body), var)
+    | TypAp(tfun, ty) => TypAp(re(tfun), t_re(ty))
+    | ListLit(mv, mvi, t, lst) =>
+      ListLit(mv, mvi, t_re(t), List.map(re, lst))
+    | TypFun(utpat, body, var) =>
+      switch (Term.UTPat.tyvar_of_utpat(utpat)) {
+      | Some(x') when x == x' => exp
+      | _ =>
+        /* Note that we do not have to worry about capture avoidance, since s will always be closed. */
+        TypFun(utpat, re(body), var)
+      }
+    | NonEmptyHole(errstat, mv, hid, t) =>
+      NonEmptyHole(errstat, mv, hid, re(t))
+    | Test(id, t) => Test(id, re(t))
+    | InconsistentBranches(mv, hid, case) =>
+      InconsistentBranches(mv, hid, ty_subst_case(s, x, case))
+    | Closure(ce, t) => Closure(ce, re(t))
+    | Sequence(t1, t2) => Sequence(re(t1), re(t2))
+    | Let(dhpat, t1, t2) => Let(dhpat, re(t1), re(t2))
+    | Ap(t1, t2) => Ap(re(t1), re(t2))
+    | ApBuiltin(s, args) => ApBuiltin(s, re(args))
+    | BinBoolOp(op, t1, t2) => BinBoolOp(op, re(t1), re(t2))
+    | BinIntOp(op, t1, t2) => BinIntOp(op, re(t1), re(t2))
+    | BinFloatOp(op, t1, t2) => BinFloatOp(op, re(t1), re(t2))
+    | BinStringOp(op, t1, t2) => BinStringOp(op, re(t1), re(t2))
+    | Cons(t1, t2) => Cons(re(t1), re(t2))
+    | ListConcat(t1, t2) => ListConcat(re(t1), re(t2))
+    | Tuple(args) => Tuple(List.map(re, args))
+    | Prj(t, n) => Prj(re(t), n)
+    | ConsistentCase(case) => ConsistentCase(ty_subst_case(s, x, case))
+    | InvalidOperation(t, err) => InvalidOperation(re(t), err)
+    | Filter(filt, exp) => Filter(DHFilter.map(re, filt), re(exp))
+    | IfThenElse(consis, i, t, e) =>
+      IfThenElse(consis, re(i), re(t), re(e))
+
+    | BuiltinFun(_)
+    | EmptyHole(_)
+    | FreeVar(_, _, _)
+    | InvalidText(_, _, _)
+    | Constructor(_)
+    | BoundVar(_)
+    | BoolLit(_)
+    | IntLit(_)
+    | FloatLit(_)
+    | StringLit(_)
+    | FailedCast(_, _, _) => exp
+    };
+  }
+  and ty_subst_case = (s, x, Case(t, rules, n)) =>
+    Case(
+      ty_subst(s, x, t),
+      List.map(
+        (DHExp.Rule(dhpat, t)) => DHExp.Rule(dhpat, ty_subst(s, x, t)),
+        rules,
+      ),
+      n,
+    );
+  //TODO: Inconsistent cases: need to check again for inconsistency?
 }
 
 and Environment: {

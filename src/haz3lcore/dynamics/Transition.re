@@ -40,8 +40,8 @@ open DH;
       - if all requirements are values, then the output will be a value
       - if some requirements are indet, then the output will be indet
 
-    A value is either a literal, or a function with a closure. (functions without
-    closures immediately inside them do not count as values).
+    A value is either a literal, or a function with a closure, or a type function.
+    (functions without closures immediately inside them do not count as values).
    */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -52,8 +52,11 @@ type step_kind =
   | LetBind
   | FunClosure
   | FixUnwrap
+  | FixClosure
   | UpdateTest
+  | TypFunAp
   | FunAp
+  | CastTypAp
   | CastAp
   | BuiltinWrap
   | BuiltinAp(string)
@@ -83,6 +86,9 @@ module CastHelpers = {
 
   let grounded_Arrow =
     NotGroundOrHole(Arrow(Unknown(Internal), Unknown(Internal)));
+  // TODO: Maybe the Forall should allow a hole in the variable position?
+  let grounded_Forall =
+    NotGroundOrHole(Forall("grounded_forall", Unknown(Internal)));
   let grounded_Prod = length =>
     NotGroundOrHole(
       Prod(ListUtil.replicate(length, Typ.Unknown(Internal))),
@@ -107,6 +113,7 @@ module CastHelpers = {
     | String
     | Var(_)
     | Rec(_)
+    | Forall(_, Unknown(_))
     | Arrow(Unknown(_), Unknown(_))
     | List(Unknown(_)) => Ground
     | Prod(tys) =>
@@ -124,10 +131,22 @@ module CastHelpers = {
       sm |> ConstructorMap.is_ground(is_ground_arg)
         ? Ground : grounded_Sum(sm)
     | Arrow(_, _) => grounded_Arrow
+    | Forall(_) => grounded_Forall
     | List(_) => grounded_List
     };
   };
 };
+
+let rec unbox_list = (d: DHExp.t): DHExp.t =>
+  switch (d) {
+  | Cast(d, List(t1), List(t2)) =>
+    switch (unbox_list(d)) {
+    | ListLit(u, i, _, xs) =>
+      ListLit(u, i, t2, List.map(x => DHExp.Cast(x, t1, t2), xs))
+    | d => d
+    }
+  | d => d
+  };
 
 let evaluate_extend_env =
     (new_bindings: Environment.t, to_extend: ClosureEnvironment.t)
@@ -212,6 +231,7 @@ module Transition = (EV: EV_MODE) => {
       and. d1' = req_final(req(state, env), d1 => Let1(dp, d1, d2), d1);
       let.match env' = (env, matches(dp, d1'));
       Step({apply: () => Closure(env', d2), kind: LetBind, value: false});
+    | TypFun(_)
     | Fun(_, _, Closure(_), _) =>
       let. _ = otherwise(env, d);
       Constructor;
@@ -222,15 +242,15 @@ module Transition = (EV: EV_MODE) => {
         kind: FunClosure,
         value: true,
       });
+    | FixF(f, _, Closure(env, d1)) =>
+      let. _ = otherwise(env, d);
+      let env' = evaluate_extend_env(Environment.singleton((f, d)), env);
+      Step({apply: () => Closure(env', d1), kind: FixUnwrap, value: false});
     | FixF(f, t, d1) =>
       let. _ = otherwise(env, FixF(f, t, d1));
       Step({
-        apply: () =>
-          Closure(
-            evaluate_extend_env(Environment.singleton((f, d1)), env),
-            d1,
-          ),
-        kind: FixUnwrap,
+        apply: () => FixF(f, t, Closure(env, d1)),
+        kind: FixClosure,
         value: false,
       });
     | Test(id, d) =>
@@ -253,6 +273,64 @@ module Transition = (EV: EV_MODE) => {
         kind: UpdateTest,
         value: true,
       });
+    | TypAp(d, tau) =>
+      let. _ = otherwise(env, d => TypAp(d, tau))
+      and. d' = req_value(req(state, env), d => TypAp(d, tau), d);
+      switch (d') {
+      | TypFun(utpat, tfbody, name) =>
+        /* Rule ITTLam */
+        switch (Term.UTPat.tyvar_of_utpat(utpat)) {
+        | Some(tyvar) =>
+          /* Perform substitution */
+          Step({
+            apply: () =>
+              DHExp.assign_name_if_none(
+                /* Inherit name for user clarity */
+                DHExp.ty_subst(tau, tyvar, tfbody),
+                Option.map(
+                  x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">",
+                  name,
+                ),
+              ),
+            kind: TypFunAp,
+            value: false,
+          })
+        | None =>
+          /* Treat a hole or invalid tyvar name as a unique type variable that doesn't appear anywhere else. Thus instantiating it at anything doesn't produce any substitutions. */
+          Step({
+            apply: () =>
+              DHExp.assign_name_if_none(
+                tfbody,
+                Option.map(
+                  x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">",
+                  name,
+                ),
+              ),
+            kind: TypFunAp,
+            value: false,
+          })
+        }
+      | Cast(d'', Forall(x, t), Forall(x', t')) =>
+        /* Rule ITTApCast */
+        Step({
+          apply: () =>
+            Cast(
+              TypAp(d'', tau),
+              Typ.subst(tau, x, t),
+              Typ.subst(tau, x', t'),
+            ),
+          kind: CastTypAp,
+          value: false,
+        })
+      | _ =>
+        Step({
+          apply: () => {
+            raise(EvaluatorError.Exception(InvalidBoxedTypFun(d')));
+          },
+          kind: InvalidStep,
+          value: true,
+        })
+      };
     | Ap(d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => Ap(d1, d2))
       and. d1' = req_value(req(state, env), d1 => Ap1(d1, d2), d1)
@@ -485,38 +563,32 @@ module Transition = (EV: EV_MODE) => {
         kind: Projection,
         value: false,
       });
-    // TODO(Matt): Can we do something cleverer when the list structure is complete but the contents aren't?
     | Cons(d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => Cons(d1, d2))
       and. d1' = req_final(req(state, env), d1 => Cons1(d1, d2), d1)
-      and. d2' = req_value(req(state, env), d2 => Cons2(d1, d2), d2);
-      Step({
-        apply: () =>
-          switch (d2') {
-          | ListLit(u, i, ty, ds) => ListLit(u, i, ty, [d1', ...ds])
-          | _ => raise(EvaluatorError.Exception(InvalidBoxedListLit(d2')))
-          },
-        kind: ListCons,
-        value: true,
-      });
+      and. d2' = req_final(req(state, env), d2 => Cons2(d1, d2), d2);
+      switch (unbox_list(d2')) {
+      | ListLit(u, i, ty, ds) =>
+        Step({
+          apply: () => ListLit(u, i, ty, [d1', ...ds]),
+          kind: ListCons,
+          value: true,
+        })
+      | _ => Indet
+      };
     | ListConcat(d1, d2) =>
-      // TODO(Matt): Can we do something cleverer when the list structure is complete but the contents aren't?
       let. _ = otherwise(env, (d1, d2) => ListConcat(d1, d2))
-      and. d1' = req_value(req(state, env), d1 => ListConcat1(d1, d2), d1)
-      and. d2' = req_value(req(state, env), d2 => ListConcat2(d1, d2), d2);
-      Step({
-        apply: () =>
-          switch (d1', d2') {
-          | (ListLit(u1, i1, t1, ds1), ListLit(_, _, _, ds2)) =>
-            ListLit(u1, i1, t1, ds1 @ ds2)
-          | (ListLit(_), _) =>
-            raise(EvaluatorError.Exception(InvalidBoxedListLit(d2')))
-          | (_, _) =>
-            raise(EvaluatorError.Exception(InvalidBoxedListLit(d1')))
-          },
-        kind: ListConcat,
-        value: true,
-      });
+      and. d1' = req_final(req(state, env), d1 => ListConcat1(d1, d2), d1)
+      and. d2' = req_final(req(state, env), d2 => ListConcat2(d1, d2), d2);
+      switch (unbox_list(d1'), unbox_list(d2')) {
+      | (ListLit(u1, i1, t1, ds1), ListLit(_, _, _, ds2)) =>
+        Step({
+          apply: () => ListLit(u1, i1, t1, ds1 @ ds2),
+          kind: ListConcat,
+          value: true,
+        })
+      | _ => Indet
+      };
     | ListLit(u, i, ty, ds) =>
       let. _ = otherwise(env, ds => ListLit(u, i, ty, ds))
       and. _ =
@@ -559,7 +631,7 @@ module Transition = (EV: EV_MODE) => {
       Indet;
     | Closure(env', d) =>
       let. _ = otherwise(env, d => Closure(env', d))
-      and. d' = req_value(req(state, env'), d1 => Closure(env', d1), d);
+      and. d' = req_final(req(state, env'), d1 => Closure(env', d1), d);
       Step({apply: () => d', kind: CompleteClosure, value: true});
     | NonEmptyHole(reason, u, i, d1) =>
       let. _ = otherwise(env, d1 => NonEmptyHole(reason, u, i, d1))
@@ -573,8 +645,7 @@ module Transition = (EV: EV_MODE) => {
     | EmptyHole(_)
     | FreeVar(_)
     | InvalidText(_)
-    | InvalidOperation(_)
-    | ExpandingKeyword(_) =>
+    | InvalidOperation(_) =>
       let. _ = otherwise(env, d);
       Indet;
     | Cast(d, t1, t2) =>
@@ -649,6 +720,7 @@ let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
   | LetBind
   | Sequence
   | UpdateTest
+  | TypFunAp
   | FunAp
   | BuiltinAp(_)
   | BinBoolOp(_)
@@ -663,11 +735,13 @@ let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
   | Conditional(_)
   | InvalidStep => false
   | VarLookup => !settings.show_lookup_steps
+  | CastTypAp
   | CastAp
   | Cast => !settings.show_casts
+  | FixUnwrap => !settings.show_fixpoints
   | CaseNext
   | CompleteClosure
   | CompleteFilter
-  | FixUnwrap
   | BuiltinWrap
-  | FunClosure => true;
+  | FunClosure
+  | FixClosure => true;
