@@ -12,6 +12,13 @@ type list_examples =
   | Cons2;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type typfun_examples =
+  | Basic
+  | EmptyHole
+  | MultiHole /* TODO: Maybe no good examples with Multihole? */
+  | Var;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type fun_examples =
   | Basic
   | Wild
@@ -72,13 +79,18 @@ type numeric_bin_op_examples =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type example_id =
+  | RecTyp
+  | Deferral
   | List(list_examples)
+  | TypFun(typfun_examples)
   | Fun(fun_examples)
   | Tuple1
   | Tuple2
   | Let(let_examples)
+  | TypFunAp
   | FunAp
   | ConAp
+  | DeferredAp
   | IfTrue
   | IfFalse
   | SeqBasic
@@ -138,6 +150,7 @@ type form_id =
   | EmptyHoleExp
   | MultiHoleExp
   | TrivExp
+  | DeferralExp
   | BoolExp
   | IntExp
   | FloatExp
@@ -147,13 +160,16 @@ type form_id =
   | ListExp
   | ConsExp
   | ListConcatExp
+  | TypFunctionExp
   | FunctionExp(pat_sub_form_id)
   | TupleExp
   | Tuple2Exp
   | Tuple3Exp
   | LetExp(pat_sub_form_id)
+  | TypFunApExp
   | FunApExp
   | ConApExp
+  | DeferredApExp
   | IfExp
   | SeqExp
   | TestExp
@@ -188,6 +204,8 @@ type form_id =
   | StrTyp
   | VarTyp
   | ListTyp
+  | ForallTyp
+  | RecTyp
   | ArrowTyp
   | Arrow3Typ
   | TupleTyp
@@ -223,6 +241,7 @@ type group_id =
   | EmptyHoleExp
   | MultiHoleExp
   | TrivExp
+  | DeferralExp
   | BoolExp
   | IntExp
   | FloatExp
@@ -232,13 +251,16 @@ type group_id =
   | ListExp
   | ConsExp
   | ListConcatExp
+  | TypFunctionExp
   | FunctionExp(pat_sub_form_id)
   | TupleExp
   | Tuple2Exp
   | Tuple3Exp
   | LetExp(pat_sub_form_id)
+  | TypFunApExp
   | FunApExp
   | ConApExp
+  | DeferredApExp
   | IfExp
   | SeqExp
   | TestExp
@@ -274,6 +296,8 @@ type group_id =
   | StrTyp
   | VarTyp
   | ListTyp
+  | ForallTyp
+  | RecTyp
   | ArrowTyp
   | Arrow3Typ
   | TupleTyp
