@@ -66,19 +66,20 @@ let add_info = (ids: list(Id.t), info: Info.t, m: Map.t): Map.t =>
   ids |> List.fold_left((m, id) => Id.Map.add(id, info, m), m);
 
 let is_recursive = (ctx, p, def, syn: Typ.t) => {
-  switch (Term.UPat.get_num_of_vars(p), Term.UExp.get_num_of_functions(def)) {
+  switch (Pat.get_num_of_vars(p), Exp.get_num_of_functions(def)) {
   | (Some(num_vars), Some(num_fns))
       when num_vars != 0 && num_vars == num_fns =>
-    switch (Typ.normalize(ctx, syn)) {
+    switch (Typ.term_of(Typ.normalize(ctx, syn))) {
     | Unknown(_)
     | Arrow(_) => num_vars == 1
     | Prod(syns) when List.length(syns) == num_vars =>
       syns
-      |> List.for_all(
-           fun
+      |> List.for_all(x =>
+           switch (Typ.term_of(x)) {
            | Typ.Unknown(_)
            | Arrow(_) => true
-           | _ => false,
+           | _ => false
+           }
          )
     | _ => false
     }
@@ -355,7 +356,7 @@ and uexp_to_info_map =
     let (fn, m) = go(~mode=typfn_mode, fn, m);
     let (_, m) = utyp_to_info_map(~ctx, ~ancestors, utyp, m);
     let (option_name, ty_body) = Typ.matched_forall(ctx, fn.ty);
-    let ty = Term.UTyp.to_typ(ctx, utyp);
+    let ty = Typ.to_typ(ctx, utyp);
     switch (option_name) {
     | Some(name) =>
       add(~self=Just(Typ.subst(ty, name, ty_body)), ~co_ctx=fn.co_ctx, m)
@@ -385,22 +386,27 @@ and uexp_to_info_map =
       ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx),
       m,
     );
-  | TypFun({term: Var(name), _} as utpat, body)
+  | TypFun({term: Var(name), _} as utpat, body, _)
       when !Ctx.shadows_typ(ctx, name) =>
     let mode_body = Mode.of_forall(ctx, Some(name), mode);
     let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
     let ctx_body =
-      Ctx.extend_tvar(
-        ctx,
-        {name, id: Term.UTPat.rep_id(utpat), kind: Abstract},
-      );
+      Ctx.extend_tvar(ctx, {name, id: TPat.rep_id(utpat), kind: Abstract});
     let (body, m) = go'(~ctx=ctx_body, ~mode=mode_body, body, m);
-    add(~self=Just(Forall(name, body.ty)), ~co_ctx=body.co_ctx, m);
-  | TypFun(utpat, body) =>
+    add(
+      ~self=Just(Forall(utpat, body.ty) |> Typ.fresh),
+      ~co_ctx=body.co_ctx,
+      m,
+    );
+  | TypFun(utpat, body, _) =>
     let mode_body = Mode.of_forall(ctx, None, mode);
     let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
     let (body, m) = go(~mode=mode_body, body, m);
-    add(~self=Just(Forall("?", body.ty)), ~co_ctx=body.co_ctx, m);
+    add(
+      ~self=Just(Forall(utpat, body.ty) |> Typ.fresh),
+      ~co_ctx=body.co_ctx,
+      m,
+    );
   | Let(p, def, body) =>
     let (p_syn, _) =
       go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~mode=Syn, p, m);
@@ -433,16 +439,20 @@ and uexp_to_info_map =
         let def_ctx = p_ana'.ctx;
         let (def_base2, _) = go'(~ctx=def_ctx, ~mode=Ana(p_syn.ty), def, m);
         let ana_ty_fn = ((ty_fn1, ty_fn2), ty_p) => {
-          ty_p == Typ.Unknown(SynSwitch) && !Typ.eq(ty_fn1, ty_fn2)
+          Typ.term_of(ty_p) == Typ.Unknown(SynSwitch)
+          && !Typ.eq(ty_fn1, ty_fn2)
             ? ty_fn1 : ty_p;
         };
         let ana =
-          switch ((def_base.ty, def_base2.ty), p_syn.ty) {
+          switch (
+            (def_base.ty |> Typ.term_of, def_base2.ty |> Typ.term_of),
+            p_syn.ty |> Typ.term_of,
+          ) {
           | ((Prod(ty_fns1), Prod(ty_fns2)), Prod(ty_ps)) =>
             let tys =
               List.map2(ana_ty_fn, List.combine(ty_fns1, ty_fns2), ty_ps);
-            Typ.Prod(tys);
-          | ((ty_fn1, ty_fn2), ty_p) => ana_ty_fn((ty_fn1, ty_fn2), ty_p)
+            Typ.Prod(tys) |> Typ.fresh;
+          | ((_, _), _) => ana_ty_fn((def_base.ty, def_base2.ty), p_syn.ty)
           };
         let (def, m) = go'(~ctx=def_ctx, ~mode=Ana(ana), def, m);
         (def, def_ctx, m, ty_p_ana);
@@ -535,7 +545,7 @@ and uexp_to_info_map =
          tentatively add an abtract type to the ctx, representing the
          speculative rec parameter. */
       let (ty_def, ctx_def, ctx_body) = {
-        let ty_pre = UTyp.to_typ(Ctx.extend_dummy_tvar(ctx, name), utyp);
+        let ty_pre = UTyp.to_typ(Ctx.extend_dummy_tvar(ctx, typat), utyp);
         switch (utyp.term) {
         | Sum(_) when List.mem(name, Typ.free_vars(ty_pre)) =>
           /* NOTE: When debugging type system issues it may be beneficial to
@@ -572,7 +582,7 @@ and uexp_to_info_map =
       let ({co_ctx, ty: ty_body, _}: Info.exp, m) =
         go'(~ctx=ctx_body, ~mode, body, m);
       /* Make sure types don't escape their scope */
-      let ty_escape = Typ.subst(ty_def, name, ty_body);
+      let ty_escape = Typ.subst(ty_def, typat, ty_body);
       let m = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp, m) |> snd;
       add(~self=Just(ty_escape), ~co_ctx, m);
     | Var(_)
@@ -749,10 +759,7 @@ and utyp_to_info_map =
     add(m);
   | Forall({term: Var(name), _} as utpat, tbody) =>
     let body_ctx =
-      Ctx.extend_tvar(
-        ctx,
-        {name, id: Term.UTPat.rep_id(utpat), kind: Abstract},
-      );
+      Ctx.extend_tvar(ctx, {name, id: TPat.rep_id(utpat), kind: Abstract});
     let m =
       utyp_to_info_map(
         tbody,
@@ -772,10 +779,7 @@ and utyp_to_info_map =
     add(m); // TODO: check with andrew
   | Rec({term: Var(name), _} as utpat, tbody) =>
     let body_ctx =
-      Ctx.extend_tvar(
-        ctx,
-        {name, id: Term.UTPat.rep_id(utpat), kind: Abstract},
-      );
+      Ctx.extend_tvar(ctx, {name, id: TPat.rep_id(utpat), kind: Abstract});
     let m =
       utyp_to_info_map(
         tbody,

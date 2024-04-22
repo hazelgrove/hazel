@@ -3,6 +3,12 @@ open Node;
 open Util.Web;
 open Haz3lcore;
 
+let tpat_view = (tpat: Haz3lcore.TPat.t): string =>
+  switch (tpat.term) {
+  | Var(x) => x
+  | _ => "?"
+  };
+
 let ty_view = (cls: string, s: string): Node.t =>
   div(~attr=clss(["typ-view", cls]), [text(s)]);
 
@@ -29,7 +35,12 @@ let rec view_ty = (~strip_outer_parens=false, ty: Haz3lcore.Typ.t): Node.t =>
   | Rec(name, t) =>
     div(
       ~attr=clss(["typ-view", "Rec"]),
-      [text("Rec " ++ x ++ ". "), view_ty(t)],
+      [text("Rec " ++ tpat_view(name) ++ ". "), view_ty(t)],
+    )
+  | Forall(name, t) =>
+    div(
+      ~attr=clss(["typ-view", "Forall"]),
+      [text("forall " ++ tpat_view(name) ++ " -> "), view_ty(t)],
     )
   | List(t) =>
     div(

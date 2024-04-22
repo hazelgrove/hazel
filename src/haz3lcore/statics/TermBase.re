@@ -94,14 +94,14 @@ and Exp: {
         [@show.opaque] option(ClosureEnvironment.t),
         option(Var.t),
       )
-    | TypFun(UTPat.t, t)
+    | TypFun(TPat.t, t, option(Var.t))
     | Tuple(list(t))
     | Var(Var.t)
     | Let(Pat.t, t, t)
     | FixF(Pat.t, t, [@show.opaque] option(ClosureEnvironment.t))
     | TyAlias(TPat.t, Typ.t, t)
     | Ap(Operators.ap_direction, t, t)
-    | TypAp(t, UTyp.t)
+    | TypAp(t, Typ.t)
     | DeferredAp(t, list(t))
     | If(t, t, t)
     | Seq(t, t)
@@ -116,7 +116,8 @@ and Exp: {
     | BuiltinFun(string)
     | Match(t, list((Pat.t, t)))
     /* INVARIANT: in dynamic expressions, casts must be between
-       two consistent types. */
+       two consistent types. Both types should be normalized in
+       dynamics for the cast calculus to work right. */
     | Cast(t, Typ.t, Typ.t)
   and t = IdTagged.t(term);
 
@@ -157,14 +158,14 @@ and Exp: {
         [@show.opaque] option(ClosureEnvironment.t),
         option(Var.t),
       )
-    | TypFun(UTPat.t, t)
+    | TypFun(TPat.t, t, option(string))
     | Tuple(list(t))
     | Var(Var.t)
     | Let(Pat.t, t, t)
     | FixF(Pat.t, t, [@show.opaque] option(ClosureEnvironment.t))
     | TyAlias(TPat.t, Typ.t, t)
     | Ap(Operators.ap_direction, t, t) // note: function is always first then argument; even in pipe mode
-    | TypAp(t, UTyp.t)
+    | TypAp(t, Typ.t)
     | DeferredAp(t, list(t))
     | If(t, t, t)
     | Seq(t, t)
@@ -229,6 +230,7 @@ and Exp: {
         | ListLit(ts) => ListLit(List.map(exp_map_term, ts))
         | Fun(p, e, env, f) =>
           Fun(pat_map_term(p), exp_map_term(e), env, f)
+        | TypFun(tp, e, f) => TypFun(tpat_map_term(tp), exp_map_term(e), f)
         | Tuple(xs) => Tuple(List.map(exp_map_term, xs))
         | Let(p, e1, e2) =>
           Let(pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
@@ -236,6 +238,7 @@ and Exp: {
         | TyAlias(tp, t, e) =>
           TyAlias(tpat_map_term(tp), typ_map_term(t), exp_map_term(e))
         | Ap(op, e1, e2) => Ap(op, exp_map_term(e1), exp_map_term(e2))
+        | TypAp(e, t) => TypAp(exp_map_term(e), typ_map_term(t))
         | DeferredAp(e, es) =>
           DeferredAp(exp_map_term(e), List.map(exp_map_term, es))
         | If(e1, e2, e3) =>
@@ -393,7 +396,7 @@ and Typ: {
     | Parens(t)
     | Ap(t, t)
     | Rec(TPat.t, t)
-    | Forall(UTPat.t, t)
+    | Forall(TPat.t, t)
   and t = IdTagged.t(term);
 
   type sum_map = ConstructorMap.t(t);
@@ -441,7 +444,7 @@ and Typ: {
     | Parens(t)
     | Ap(t, t)
     | Rec(TPat.t, t)
-    | Forall(UTPat.t, t)
+    | Forall(TPat.t, t)
   and t = IdTagged.t(term);
 
   type sum_map = ConstructorMap.t(t);
@@ -494,6 +497,7 @@ and Typ: {
             ),
           )
         | Rec(tp, t) => Rec(tpat_map_term(tp), typ_map_term(t))
+        | Forall(tp, t) => Forall(tpat_map_term(tp), typ_map_term(t))
         },
     };
     x |> f_typ(rec_call);

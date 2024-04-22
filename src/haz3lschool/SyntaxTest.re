@@ -14,12 +14,11 @@ type syntax_result = {
   percentage: float,
 };
 
-let rec find_var_upat = (name: string, upat: Term.UPat.t): bool => {
+let rec find_var_upat = (name: string, upat: Pat.t): bool => {
   switch (upat.term) {
   | Var(x) => x == name
   | EmptyHole
   | Wild
-  | Triv
   | Invalid(_)
   | MultiHole(_)
   | Int(_)
@@ -33,7 +32,7 @@ let rec find_var_upat = (name: string, upat: Term.UPat.t): bool => {
     List.fold_left((acc, up) => {acc || find_var_upat(name, up)}, false, l)
   | Parens(up) => find_var_upat(name, up)
   | Ap(up1, up2) => find_var_upat(name, up1) || find_var_upat(name, up2)
-  | TypeAnn(up, _) => find_var_upat(name, up)
+  | Cast(up, _, _) => find_var_upat(name, up)
   };
 };
 
@@ -89,7 +88,7 @@ let rec find_fn =
   | ListLit(ul)
   | Tuple(ul) =>
     List.fold_left((acc, u1) => {find_fn(name, u1, acc)}, l, ul)
-  | TypFun(_, body)
+  | TypFun(_, body, _)
   | FixF(_, body, _)
   | Fun(_, body, _, _) => l |> find_fn(name, body)
   | TypAp(u1, _)
@@ -187,7 +186,7 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | Let(p, def, body) =>
     var_mention_upat(name, p)
       ? false : var_mention(name, def) || var_mention(name, body)
-  | TypFun(_, u)
+  | TypFun(_, u, _)
   | TypAp(u, _)
   | Test(u)
   | Parens(u)
@@ -248,7 +247,7 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Let(p, def, body) =>
     var_mention_upat(name, p)
       ? false : var_applied(name, def) || var_applied(name, body)
-  | TypFun(_, u)
+  | TypFun(_, u, _)
   | Test(u)
   | Parens(u)
   | UnOp(_, u)
@@ -345,7 +344,7 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | Cast(u, _, _)
   | Filter(_, u)
   | Closure(_, u)
-  | TypFun(_, u)
+  | TypFun(_, u, _)
   | TypAp(u, _)
   | Parens(u) => tail_check(name, u)
   | UnOp(_, u) => !var_mention(name, u)

@@ -45,7 +45,8 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
       let d3 = subst_var(m, d1, x, d3);
       Fun(dp, d3, env', s) |> rewrap;
     };
-  | TypFun(tpat, d3, s) => TypFun(tpat, subst_var(d1, x, d3), s)
+  | TypFun(tpat, d3, s) =>
+    TypFun(tpat, subst_var(m, d1, x, d3), s) |> rewrap
   | Closure(env, d3) =>
     /* Closure shouldn't appear during substitution (which
        only is called from elaboration currently) */
@@ -121,6 +122,9 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
     let d3 = subst_var(m, d1, x, d3);
     let d4s = List.map(subst_var(m, d1, x), d4s);
     DeferredAp(d3, d4s) |> rewrap;
+  | TypAp(d3, ut) =>
+    let d3 = subst_var(m, d1, x, d3);
+    TypAp(d3, ut) |> rewrap;
   };
 }
 

@@ -37,8 +37,11 @@ let extend_tvar = (ctx: t, tvar_entry: tvar_entry): t =>
 let extend_alias = (ctx: t, name: string, id: Id.t, ty: TermBase.Typ.t): t =>
   extend_tvar(ctx, {name, id, kind: Singleton(ty)});
 
-let extend_dummy_tvar = (ctx: t, name: string) =>
-  extend_tvar(ctx, {kind: Abstract, name, id: Id.invalid});
+let extend_dummy_tvar = (ctx: t, tvar: TPat.t) =>
+  switch (TPat.tyvar_of_utpat(tvar)) {
+  | Some(name) => extend_tvar(ctx, {kind: Abstract, name, id: Id.invalid})
+  | None => ctx
+  };
 
 let lookup_tvar = (ctx: t, name: string): option(tvar_entry) =>
   List.find_map(
@@ -81,6 +84,12 @@ let is_alias = (ctx: t, name: string): bool =>
   switch (lookup_alias(ctx, name)) {
   | Some(_) => true
   | None => false
+  };
+
+let is_abstract = (ctx: t, name: string): bool =>
+  switch (lookup_tvar(ctx, name)) {
+  | Some({kind: Abstract, _}) => true
+  | _ => false
   };
 
 let add_ctrs = (ctx: t, name: string, id: Id.t, ctrs: TermBase.Typ.sum_map): t =>

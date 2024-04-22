@@ -144,7 +144,7 @@ let typ_ok_view = (cls: Cls.t, ok: Info.ok_typ) =>
       Type.view(ty_lookup),
     ]
   | Variant(name, sum_ty) => [
-      Type.view(Var(name)),
+      Type.view(Var(name) |> Typ.fresh),
       text("is a sum type constuctor of type"),
       Type.view(sum_ty),
     ]
@@ -220,13 +220,19 @@ let tpat_view = (_: Cls.t, status: Info.status_tpat) =>
     div_err([text("Must begin with a capital letter")])
   | InHole(NotAVar(_)) => div_err([text("Expected an alias")])
   | InHole(ShadowsType(name, BaseTyp)) =>
-    div_err([text("Can't shadow base type"), Type.view(Var(name))])
+    div_err([
+      text("Can't shadow base type"),
+      Type.view(Var(name) |> Typ.fresh),
+    ])
   | InHole(ShadowsType(name, TyAlias)) =>
-    div_err([text("Can't shadow existing alias"), Type.view(Var(name))])
+    div_err([
+      text("Can't shadow existing alias"),
+      Type.view(Var(name) |> Typ.fresh),
+    ])
   | InHole(ShadowsType(name, TyVar)) =>
     div_err([
       text("Can't shadow existing type variable"),
-      Type.view(Var(name)),
+      Type.view(Var(name) |> Typ.fresh),
     ])
   };
 

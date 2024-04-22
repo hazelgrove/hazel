@@ -148,6 +148,9 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
       | MatchRule(scr, p, ctx, (lr, rr)) =>
         let d = compose(ctx, d);
         Match(scr, ListUtil.rev_concat(lr, [(p, d), ...rr])) |> wrap;
+      | TypAp(ctx, ty) =>
+        let d = compose(ctx, d);
+        TypAp(d, ty) |> wrap;
       }
     );
   };

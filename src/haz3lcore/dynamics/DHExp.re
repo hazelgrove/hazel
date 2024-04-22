@@ -74,6 +74,8 @@ let rec strip_casts =
         | Constructor(_)
         | DynamicErrorHole(_)
         | Closure(_)
+        | TypFun(_)
+        | TypAp(_)
         | If(_) => continue(exp)
         /* Remove casts*/
         | FailedCast(d, _, _)
@@ -119,6 +121,9 @@ let rec fast_equal =
     && fast_equal(d1, d2)
     && ClosureEnvironment.id_equal(env1, env2)
     && s1 == s2
+  | (TypFun(_tpat1, d1, s1), TypFun(_tpat2, d2, s2)) =>
+    _tpat1 == _tpat2 && fast_equal(d1, d2) && s1 == s2
+  | (TypAp(d1, ty1), TypAp(d2, ty2)) => fast_equal(d1, d2) && ty1 == ty2
   | (Ap(dir1, d11, d21), Ap(dir2, d12, d22)) =>
     dir1 == dir2 && fast_equal(d11, d12) && fast_equal(d21, d22)
   | (DeferredAp(d1, ds1), DeferredAp(d2, ds2)) =>
@@ -175,6 +180,8 @@ let rec fast_equal =
   | (Cast(_), _)
   | (FailedCast(_), _)
   | (TyAlias(_), _)
+  | (TypFun(_), _)
+  | (TypAp(_), _)
   | (DynamicErrorHole(_), _)
   | (DeferredAp(_), _)
   | (If(_), _)
@@ -202,5 +209,70 @@ and filter_fast_equal = (f1, f2) => {
   | (Residue(idx1, act1), Residue(idx2, act2)) =>
     idx1 == idx2 && act1 == act2
   | _ => false
+  };
+};
+
+let assign_name_if_none = (t, name) => {
+  let (term, rewrap) = unwrap(t);
+  switch (term) {
+  | Fun(arg, ty, body, None) => Fun(arg, ty, body, name) |> rewrap
+  | TypFun(utpat, body, None) => TypFun(utpat, body, name) |> rewrap
+  | _ => t
+  };
+};
+
+let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
+  switch (TPat.tyvar_of_utpat(tpat)) {
+  | None => exp
+  | Some(x) =>
+    Exp.map_term(
+      ~f_typ=(_, typ) => Typ.subst(s, tpat, typ),
+      ~f_exp=
+        (continue, exp) =>
+          switch (term_of(exp)) {
+          | TypFun(utpat, _, _) =>
+            switch (TPat.tyvar_of_utpat(utpat)) {
+            | Some(x') when x == x' => exp
+            | Some(_)
+            | None => continue(exp)
+            /* Note that we do not have to worry about capture avoidance, since s will always be closed. */
+            }
+          | Cast(_)
+          | FixF(_)
+          | Fun(_)
+          | TypAp(_)
+          | ListLit(_)
+          | Test(_)
+          | Closure(_)
+          | Seq(_)
+          | Let(_)
+          | Ap(_)
+          | BuiltinFun(_)
+          | BinOp(_)
+          | Cons(_)
+          | ListConcat(_)
+          | Tuple(_)
+          | Match(_)
+          | DynamicErrorHole(_)
+          | Filter(_)
+          | If(_)
+          | EmptyHole
+          | Invalid(_)
+          | Constructor(_)
+          | Var(_)
+          | Bool(_)
+          | Int(_)
+          | Float(_)
+          | String(_)
+          | FailedCast(_, _, _)
+          | MultiHole(_)
+          | Deferral(_)
+          | TyAlias(_)
+          | DeferredAp(_)
+          | Parens(_)
+          | UnOp(_) => continue(exp)
+          },
+      exp,
+    )
   };
 };

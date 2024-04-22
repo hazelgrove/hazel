@@ -233,7 +233,7 @@ and matches_typ = (d: Typ.t, f: Typ.t) => {
 and matches_rul = (env, (dp, d), (fp, f)) => {
   matches_pat(dp, fp) && matches_exp(env, d, f);
 }
-and matches_utpat = (d: Term.UTPat.t, f: Term.UTPat.t): bool => {
+and matches_utpat = (d: TPat.t, f: TPat.t): bool => {
   switch (d.term, f.term) {
   | (Invalid(_), _) => false
   | (_, Invalid(_)) => false

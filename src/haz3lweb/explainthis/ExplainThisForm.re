@@ -81,7 +81,6 @@ type numeric_bin_op_examples =
 type example_id =
   | RecTyp
   | Deferral
-  | RecTyp
   | List(list_examples)
   | TypFun(typfun_examples)
   | Fun(fun_examples)

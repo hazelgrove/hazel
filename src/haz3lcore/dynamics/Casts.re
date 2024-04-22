@@ -33,6 +33,11 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
       Arrow(Unknown(Internal) |> Typ.fresh, Unknown(Internal) |> Typ.fresh)
       |> Typ.fresh,
     );
+  let grounded_Forall =
+    NotGroundOrHole(
+      Forall(EmptyHole |> TPat.fresh, Unknown(Internal) |> Typ.fresh)
+      |> Typ.fresh,
+    );
   let grounded_Prod = length =>
     NotGroundOrHole(
       Prod(ListUtil.replicate(length, Typ.Unknown(Internal) |> Typ.fresh))
@@ -54,6 +59,7 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
   | String
   | Var(_)
   | Rec(_)
+  | Forall(_, {term: Unknown(_), _})
   | Arrow({term: Unknown(_), _}, {term: Unknown(_), _})
   | List({term: Unknown(_), _}) => Ground
   | Parens(ty) => ground_cases_of(ty)
@@ -72,6 +78,7 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
     sm |> ConstructorMap.is_ground(is_hole)
       ? Ground : NotGroundOrHole(Sum(grounded_Sum()) |> Typ.fresh)
   | Arrow(_, _) => grounded_Arrow
+  | Forall(_) => grounded_Forall
   | List(_) => grounded_List
   | Ap(_) => failwith("type application in dynamics")
   };

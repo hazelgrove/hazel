@@ -323,13 +323,28 @@ let rec status_common =
   | (Just(ty), Syn) => NotInHole(Syn(ty))
   | (Just(ty), SynFun) =>
     switch (
-      Typ.join_fix(ctx, Arrow(Unknown(Internal), Unknown(Internal)), ty)
+      Typ.join_fix(
+        ctx,
+        Arrow(
+          Unknown(Internal) |> Typ.fresh,
+          Unknown(Internal) |> Typ.fresh,
+        )
+        |> Typ.fresh,
+        ty,
+      )
     ) {
     | Some(_) => NotInHole(Syn(ty))
     | None => InHole(Inconsistent(WithArrow(ty)))
     }
   | (Just(ty), SynTypFun) =>
-    switch (Typ.join_fix(ctx, Forall("?", Unknown(Internal)), ty)) {
+    switch (
+      Typ.join_fix(
+        ctx,
+        Forall(Var("?") |> TPat.fresh, Unknown(Internal) |> Typ.fresh)
+        |> Typ.fresh,
+        ty,
+      )
+    ) {
     | Some(_) => NotInHole(Syn(ty))
     | None => InHole(Inconsistent(WithArrow(ty)))
     }
@@ -343,21 +358,6 @@ let rec status_common =
     ) {
     | None => InHole(Inconsistent(Expectation({syn, ana})))
     | Some(join) => NotInHole(Ana(Consistent({ana, syn, join})))
-    }
-  | (Just(syn), SynFun) =>
-    switch (
-      Typ.join_fix(
-        ctx,
-        Arrow(
-          Unknown(Internal) |> Typ.fresh,
-          Unknown(Internal) |> Typ.fresh,
-        )
-        |> Typ.fresh,
-        syn,
-      )
-    ) {
-    | None => InHole(Inconsistent(WithArrow(syn)))
-    | Some(_) => NotInHole(Syn(syn))
     }
   | (IsConstructor({name, syn_ty}), _) =>
     /* If a ctr is being analyzed against (an arrow type returning)
@@ -444,7 +444,7 @@ let status_typ =
       | false =>
         switch (Ctx.is_abstract(ctx, name)) {
         | false => InHole(FreeTypeVariable(name))
-        | true => NotInHole(Type(Var(name)))
+        | true => NotInHole(Type(Var(name) |> Typ.fresh))
         }
       | true => NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
       }
