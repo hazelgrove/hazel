@@ -2,7 +2,7 @@ open Hazel_menhir;
 // open Haz3lcore.DHExp;
 open Alcotest;
 
-let test_file = "./src/test/test.hazel";
+let test_file = "./test/test.hazel";
 
 let read_whole_file = (filename): string => {
   let ch = open_in_bin(filename);
