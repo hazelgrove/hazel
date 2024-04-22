@@ -82,16 +82,27 @@ rule token =
     | "|" { TURNSTILE }
     | "," { COMMA }
     | ":" { COLON }
+    (* Types *)
     | "Int" { INT_TYPE }
     | "Float" { FLOAT_TYPE }
     | "Bool" { BOOL_TYPE }
     | "String" { STRING_TYPE }
     | "Unknown" { UNKNOWN }
     | "Internal" { INTERNAL }
+    (* DHExp Annotations *)
     | "()" { UNIT }
     | "_FIX" {FIX}
     | "_FREE" {FREE}
     | "_HOLE" {HOLE}
+    (* Filters *)
+    | "pause" {PAUSE}
+    | "debug" {DEBUG}
+    | "hide" {HIDE}
+    | "eval" {EVAL}
+    (* Other *)
+    | ";" {SEMI_COLON}
+    | "test" {TEST}
+    | "::" { CONS }
     | identifier as i { IDENT(i) }
     | eof { EOF }
     | _ { raise (Failure ("Lex error: unknown char: '" ^ Lexing.lexeme lexbuf ^ "'")) }

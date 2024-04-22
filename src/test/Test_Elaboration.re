@@ -102,7 +102,7 @@ let f : Int -> Int =
 55";
 let let_fun_menhir = () =>
   alco_check_menhir(
-    "Let expression for function (str elaborated using the menhir parser)",
+    "Let expression for a function which wraps a fix point constructor around the function",
     let_fun_str,
     let_fun_uexp,
   );

@@ -1,6 +1,13 @@
 open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type filter_action =
+  | Pause
+  | Debug
+  | Hide
+  | Eval;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type op_bin_float =
   | Plus
   | Minus
@@ -64,6 +71,7 @@ type pat =
   | TypeAnn(pat, typ)
   | TuplePat(list(pat))
   | BoolPat(bool)
+  | ConsPat(pat, pat)
   | ApPat(pat, pat);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -91,4 +99,8 @@ type exp =
   | Cast(exp, typ, typ)
   | NonEmptyHole(exp)
   | EmptyHole
+  | Filter(filter_action, exp, exp)
+  | Seq(exp, exp)
+  | Test(exp)
+  | Cons(exp, exp)
   | If(if_consistency, exp, exp, exp);
