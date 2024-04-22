@@ -158,12 +158,18 @@ module rec DHExp: {
     | [_] => failwith("mk_tuple: expected at least 2 elements")
     | xs => Tuple(xs);
 
-  let cast = (d: t, t1: Typ.t, t2: Typ.t): t =>
-    if (Typ.eq(t1, t2) || t2 == Unknown(SynSwitch)) {
+  let cast = (d: t, t1: Typ.t, t2: Typ.t): t => {
+    let islabel =
+      switch (t2) {
+      | Label(_, Unknown(SynSwitch)) => true
+      | _ => false
+      };
+    if (Typ.eq(t1, t2) || t2 == Unknown(SynSwitch) || islabel) {
       d;
     } else {
       Cast(d, t1, t2);
     };
+  };
 
   let apply_casts = (d: t, casts: list((Typ.t, Typ.t))): t =>
     List.fold_left((d, (ty1, ty2)) => cast(d, ty1, ty2), d, casts);

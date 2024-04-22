@@ -30,6 +30,7 @@ let cast_sum_maps =
 
 let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   switch (dp, d) {
+  // TODO: Fix TupLabel matching
   /* Labels are a special case */
   | (TupLabel(s1, dp), TupLabel(s2, d)) =>
     if (LabeledTuple.compare(s1, s2) == 0) {
