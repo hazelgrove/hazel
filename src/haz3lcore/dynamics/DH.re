@@ -395,7 +395,7 @@ module rec DHExp: {
           DHPat.of_menhir_ast(p, getId_all_args),
           Typ.of_menhir_ast(t),
           of_menhir_ast_noid(e),
-          Some(name_str),
+          Some(name_str ++ "+"),
         )
       | None =>
         Fun(

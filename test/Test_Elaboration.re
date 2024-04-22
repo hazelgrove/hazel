@@ -93,7 +93,6 @@ let let_fun_uexp: Term.UExp.t = {
       {ids: [id_at(11)], term: Int(55)},
     ),
 };
-<<<<<<< HEAD:src/test/Test_Elaboration.re
 let let_fun_str = "
 let f : Int -> Int =
     _FIX f Int -> Int fun: Int x ->
@@ -130,19 +129,6 @@ let free_var_menhir = () =>
       Haz3lcore.DHExp.of_menhir_ast(
         Hazel_menhir.Interface.parse_program("(_HOLE _FREE y)"),
         get_id_menhir_closure(1),
-=======
-let d9: DHExp.t =
-  Let(
-    Var("f"),
-    FixF(
-      "f",
-      Arrow(Int, Int),
-      Fun(
-        Var("x"),
-        Int,
-        BinIntOp(Plus, IntLit(1), BoundVar("x")),
-        Some("f+"),
->>>>>>> dev:test/Test_Elaboration.re
       ),
     ),
     dhexp_of_uexp(free_var_uexp),
