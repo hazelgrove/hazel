@@ -1,6 +1,8 @@
-TEST_DIR="$(shell pwd)/_build/default/src/test"
+TEST_DIR="$(shell pwd)/_build/default/test"
 HTML_DIR="$(shell pwd)/_build/default/src/haz3lweb/www"
 SERVER="http://0.0.0.0:8000/"
+
+.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student echo-html-dir serve serve2 repl test clean
 
 all: dev
 
@@ -52,8 +54,8 @@ repl:
 	dune utop src/haz3lcore
 
 test:
-	dune build @src/fmt --auto-promote src --profile dev
-	node $(TEST_DIR)/haz3ltest.bc.js test
+	dune build @src/fmt @test/fmt --auto-promote src test --profile dev
+	node $(TEST_DIR)/haz3ltest.bc.js
 
 clean:
 	dune clean

@@ -48,7 +48,6 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | BoundVar(_)
   | FreeVar(_)
   | InvalidText(_)
-  | ExpandingKeyword(_)
   | BoolLit(_)
   | IntLit(_)
   | Sequence(_)
@@ -62,16 +61,18 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | FailedCast(_)
   | InvalidOperation(_)
   | IfThenElse(_)
-  | Closure(_)
   | BuiltinFun(_)
-  | Filter(_) => DHDoc_common.precedence_const
+  | Filter(_)
+  | Closure(_) => DHDoc_common.precedence_const
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
-  | Ap(_) => DHDoc_common.precedence_Ap
+  | Ap(_)
+  | TypAp(_) => DHDoc_common.precedence_Ap
   | ApBuiltin(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
   | ListConcat(_) => DHDoc_common.precedence_Plus
   | Tuple(_) => DHDoc_common.precedence_Comma
+  | TypFun(_)
   | Fun(_) => DHDoc_common.precedence_max
   | Let(_)
   | FixF(_)
@@ -124,7 +125,6 @@ let mk =
             chosen_step: option(step),
             next_steps: list((EvalCtx.t, int)),
             recent_subst: list(Var.t),
-            recursive_calls: list(Var.t),
           )
           : DHDoc.t => {
     open Doc;
@@ -136,12 +136,16 @@ let mk =
         | (FunAp, _) => []
         | (LetBind, Let(p, _, _)) => DHPat.bound_vars(p)
         | (LetBind, _) => []
-        | (FixUnwrap, _) // TODO[Matt]: Could do something here?
+        | (FixUnwrap, FixF(f, _, _)) => [f]
+        | (FixUnwrap, _) => []
+        | (TypFunAp, _) // TODO: Could also do something here for type variable substitution like in FunAp?
         | (InvalidStep, _)
         | (VarLookup, _)
         | (Sequence, _)
         | (FunClosure, _)
+        | (FixClosure, _)
         | (UpdateTest, _)
+        | (CastTypAp, _)
         | (CastAp, _)
         | (BuiltinWrap, _)
         | (BuiltinAp(_), _)
@@ -162,12 +166,24 @@ let mk =
         }
       | _ => recent_subst
       };
+    let substitution =
+      hidden_steps
+      |> List.find_opt(step =>
+           step.knd == VarLookup
+           // HACK[Matt]: to prevent substitutions hiding inside casts
+           && EvalCtx.fuzzy_mark(step.ctx)
+         );
+    let next_recent_subst =
+      switch (substitution) {
+      | Some({d_loc: BoundVar(v), _}) =>
+        List.filter(u => u != v, recent_subst)
+      | _ => recent_subst
+      };
     let go' =
         (
           ~env=env,
           ~enforce_inline=enforce_inline,
-          ~recent_subst=recent_subst,
-          ~recursive_calls=recursive_calls,
+          ~recent_subst=next_recent_subst,
           d,
           ctx,
         ) => {
@@ -191,7 +207,6 @@ let mk =
           next_steps,
         ),
         recent_subst,
-        recursive_calls,
       );
     };
     let parenthesize = (b, doc) =>
@@ -310,15 +325,12 @@ let mk =
       | NonEmptyHole(reason, u, i, d') =>
         go'(d', NonEmptyHole)
         |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
-      | ExpandingKeyword(u, i, k) =>
-        DHDoc_common.mk_ExpandingKeyword((u, i), k)
       | FreeVar(u, i, x) =>
         text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
       | InvalidText(u, i, t) => DHDoc_common.mk_InvalidText(t, (u, i))
       | InconsistentBranches(u, i, Case(dscrut, drs, _)) =>
         go_case(dscrut, drs, false)
         |> annot(DHAnnot.InconsistentBranches((u, i)))
-      | BoundVar(x) when List.mem(x, recursive_calls) => text(x)
       | BoundVar(x) when settings.show_lookup_steps => text(x)
       | BoundVar(x) =>
         switch (ClosureEnvironment.lookup(env, x)) {
@@ -328,7 +340,12 @@ let mk =
             hcats([
               go'(~env=ClosureEnvironment.empty, BoundVar(x), BoundVar)
               |> annot(DHAnnot.Substituted),
-              go'(~env=ClosureEnvironment.empty, d', BoundVar),
+              go'(
+                ~env=ClosureEnvironment.empty,
+                ~recent_subst=List.filter(u => u != x, next_recent_subst),
+                d',
+                BoundVar,
+              ),
             ]);
           } else {
             go'(~env=ClosureEnvironment.empty, d', BoundVar);
@@ -347,6 +364,7 @@ let mk =
       | ListLit(_, _, _, d_list) =>
         let ol = d_list |> List.mapi((i, d) => go'(d, ListLit(i)));
         DHDoc_common.mk_ListLit(ol);
+
       | Ap(d1, d2) =>
         let (doc1, doc2) = (
           go_formattable(d1, Ap1)
@@ -354,6 +372,10 @@ let mk =
           go'(d2, Ap2),
         );
         DHDoc_common.mk_Ap(doc1, doc2);
+      | TypAp(d1, ty) =>
+        let doc1 = go'(d1, TypAp);
+        let doc2 = DHDoc_Typ.mk(~enforce_inline=true, ty);
+        DHDoc_common.mk_TypAp(doc1, doc2);
       | ApBuiltin(ident, d) =>
         DHDoc_common.mk_Ap(
           text(ident),
@@ -457,7 +479,7 @@ let mk =
               ~enforce_inline=false,
               ~env=ClosureEnvironment.without_keys(bindings, env),
               ~recent_subst=
-                List.filter(x => !List.mem(x, bindings), recent_subst),
+                List.filter(x => !List.mem(x, bindings), next_recent_subst),
               dbody,
               Let2,
             ),
@@ -512,99 +534,83 @@ let mk =
              ),
           DHDoc_common.Delim.mk(")"),
         ]);
-      | Fun(dp, ty, Closure(env', d), s) =>
-        if (settings.show_fn_bodies) {
-          let bindings = DHPat.bound_vars(dp);
-          let body_doc =
+      | Fun(dp, ty, dbody, s) when settings.show_fn_bodies =>
+        let bindings = DHPat.bound_vars(dp);
+        let body_doc =
+          switch (dbody) {
+          | Closure(env', dbody) =>
             go_formattable(
-              Closure(
-                ClosureEnvironment.without_keys(Option.to_list(s), env'),
-                d,
-              ),
+              Closure(env', dbody),
               ~env=
                 ClosureEnvironment.without_keys(
                   DHPat.bound_vars(dp) @ Option.to_list(s),
                   env,
                 ),
               ~recent_subst=
-                List.filter(x => !List.mem(x, bindings), recent_subst),
+                List.filter(x => !List.mem(x, bindings), next_recent_subst),
               Fun,
-            );
-          hcats(
-            [
-              DHDoc_common.Delim.sym_Fun,
-              DHDoc_Pat.mk(dp)
-              |> DHDoc_common.pad_child(
-                   ~inline_padding=(space(), space()),
-                   ~enforce_inline,
-                 ),
-            ]
-            @ (
-              settings.show_casts
-                ? [
-                  DHDoc_common.Delim.colon_Fun,
-                  space(),
-                  DHDoc_Typ.mk(~enforce_inline=true, ty),
-                  space(),
-                ]
-                : []
             )
-            @ [
-              DHDoc_common.Delim.arrow_Fun,
-              space(),
-              body_doc |> DHDoc_common.pad_child(~enforce_inline),
-            ],
-          );
-        } else {
-          switch (s) {
-          | None => annot(DHAnnot.Collapsed, text("<anon fn>"))
-          | Some(name) => annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"))
-          };
-        }
-      | Fun(dp, ty, dbody, s) =>
-        if (settings.show_fn_bodies) {
-          let bindings = DHPat.bound_vars(dp);
-          let body_doc =
+          | _ =>
             go_formattable(
               dbody,
               ~env=ClosureEnvironment.without_keys(bindings, env),
               ~recent_subst=
-                List.filter(x => !List.mem(x, bindings), recent_subst),
-              ~recursive_calls=Option.to_list(s) @ recursive_calls,
+                List.filter(x => !List.mem(x, bindings), next_recent_subst),
               Fun,
-            );
-          hcats(
-            [
-              DHDoc_common.Delim.sym_Fun,
-              DHDoc_Pat.mk(dp)
-              |> DHDoc_common.pad_child(
-                   ~inline_padding=(space(), space()),
-                   ~enforce_inline,
-                 ),
-            ]
-            @ (
-              settings.show_casts
-                ? [
-                  DHDoc_common.Delim.colon_Fun,
-                  space(),
-                  DHDoc_Typ.mk(~enforce_inline=true, ty),
-                  space(),
-                ]
-                : []
             )
-            @ [
-              DHDoc_common.Delim.arrow_Fun,
-              space(),
-              body_doc |> DHDoc_common.pad_child(~enforce_inline),
-            ],
-          );
-        } else {
-          switch (s) {
-          | None => annot(DHAnnot.Collapsed, text("<anon fn>"))
-          | Some(name) => annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"))
           };
-        }
-      | FixF(x, ty, dbody) when settings.show_fixpoints =>
+        hcats(
+          [
+            DHDoc_common.Delim.sym_Fun,
+            DHDoc_Pat.mk(dp)
+            |> DHDoc_common.pad_child(
+                 ~inline_padding=(space(), space()),
+                 ~enforce_inline,
+               ),
+          ]
+          @ (
+            settings.show_casts
+              ? [
+                DHDoc_common.Delim.colon_Fun,
+                space(),
+                DHDoc_Typ.mk(~enforce_inline=true, ty),
+                space(),
+              ]
+              : []
+          )
+          @ [
+            DHDoc_common.Delim.arrow_Fun,
+            space(),
+            body_doc |> DHDoc_common.pad_child(~enforce_inline=false),
+          ],
+        );
+      | Fun(_, _, _, s) =>
+        let name =
+          switch (s) {
+          | None => "anon fn"
+          | Some(name)
+              when
+                !settings.show_fixpoints
+                && String.ends_with(~suffix="+", name) =>
+            String.sub(name, 0, String.length(name) - 1)
+          | Some(name) => name
+          };
+        annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"));
+      | TypFun(_tpat, _dbody, s) =>
+        /* same display as with Fun but with anon typfn in the nameless case. */
+        let name =
+          switch (s) {
+          | None => "anon typfn"
+          | Some(name)
+              when
+                !settings.show_fixpoints
+                && String.ends_with(~suffix="+", name) =>
+            String.sub(name, 0, String.length(name) - 1)
+          | Some(name) => name
+          };
+        annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"));
+      | FixF(x, ty, dbody)
+          when settings.show_fn_bodies && settings.show_fixpoints =>
         let doc_body =
           go_formattable(
             dbody,
@@ -619,18 +625,17 @@ let mk =
                 DHDoc_common.Delim.colon_Fun,
                 space(),
                 DHDoc_Typ.mk(~enforce_inline=true, ty),
-                space(),
               ]
               : []
           )
           @ [
+            space(),
             DHDoc_common.Delim.arrow_FixF,
             space(),
             doc_body |> DHDoc_common.pad_child(~enforce_inline),
           ],
         );
-      | FixF(x, _, d) =>
-        go'(~env=ClosureEnvironment.without_keys([x], env), d, FixF)
+      | FixF(x, _, _) => annot(DHAnnot.Collapsed, text("<" ++ x ++ ">"))
       };
     };
     let steppable =
@@ -639,13 +644,6 @@ let mk =
       chosen_step
       |> Option.map(x => x.ctx == Mark)
       |> Option.value(~default=false);
-    let substitution =
-      hidden_steps
-      |> List.find_opt(step =>
-           step.knd == VarLookup
-           // HACK[Matt]: to prevent substitutions hiding inside casts
-           && EvalCtx.fuzzy_mark(step.ctx)
-         );
     let doc =
       switch (substitution) {
       | Some({d_loc: BoundVar(v), _}) when List.mem(v, recent_subst) =>
@@ -672,7 +670,6 @@ let mk =
     hidden_steps,
     chosen_step,
     List.mapi((idx, x: EvalObj.t) => (x.ctx, idx), next_steps),
-    [],
     [],
   );
 };

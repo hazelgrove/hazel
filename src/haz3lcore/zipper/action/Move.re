@@ -50,14 +50,18 @@ let neighbor_movability =
         switch (Projector.split_seg(seg, projectors)) {
         | Some(([_, ..._] as xs, _, _, _)) => Piece.id(ListUtil.last(xs))
         | Some(([], _, _, _)) =>
-          //print_endline("prev_id: empty pre");
-          Id.invalid //TODO(andrew)
+          switch (Ancestors.parent(ancestors)) {
+          | Some(a) =>
+            print_endline("prev_id: empty pre using parent");
+            a.id;
+          | None =>
+            print_endline("prev_id: empty pre no ancestor");
+            Id.invalid; //TODO(andrew)
+          }
         | None =>
-          //print_endline("prev_id: None");
-          Id.invalid //TODO(andrew)
+          print_endline("prev_id: None");
+          Id.invalid; //TODO(andrew)
         };
-      //"prev_id:" |> print_endline;
-      //prev_id |> Id.show |> print_endline;
       Projected(prev_id);
     | Some(Tile({label, _})) => movability(label, List.length(label) - 1)
     | Some(Secondary(w)) when Secondary.is_comment(w) =>
@@ -76,7 +80,9 @@ let neighbor_movability =
       let next_id =
         switch (Projector.split_seg(seg, projectors)) {
         | Some((_, _, [hd, ..._], _)) => Piece.id(hd)
-        | _ => Id.invalid //TODO(andrew)
+        | _ =>
+          print_endline("next_id: empty post");
+          Id.invalid; //TODO(andrew)
         };
       Projected(next_id);
     | Some(Tile({label, _})) => movability(label, 0)
@@ -90,9 +96,46 @@ let neighbor_movability =
   (l, r);
 };
 
+module Projector = {
+  /* Do move_action until the indicated piece is such that piece_p is true.
+     If no such piece is found, don't move. */
+  let rec do_until_sib =
+          (move: t => option(t), z_pred: Zipper.t => bool, z: t): option(t) => {
+    z_pred(z)
+      ? Some(z)
+      : {
+        let* z = move(z);
+        do_until_sib(move, z_pred, z);
+      };
+  };
+
+  let is_right_of = (pid: Id.t, z) =>
+    switch (z.relatives.siblings, z.relatives.ancestors) {
+    | ((_, [r, ..._]), _) => Piece.id(r) == pid
+    | ((_, []), []) => true // end of program
+    | ((_, []), _) => false
+    };
+
+  let is_left_of = (pid: Id.t, z) =>
+    switch (z.relatives.siblings, z.relatives.ancestors) {
+    | (([_, ..._] as ls, _), _) => Piece.id(ListUtil.last(ls)) == pid
+    | (([], _), []) => true // beginning of program
+    | (([], _), _) => false
+    };
+
+  let is_on = (d: Direction.t, pid: Id.t) =>
+    switch (d) {
+    | Left => is_left_of(pid)
+    | Right => is_right_of(pid)
+    };
+
+  let move_over = (d: Direction.t, proj_id, z) =>
+    do_until_sib(Zipper.move(d), is_on(d, proj_id), z);
+};
+
 module Make = (M: Editor.Meta.S) => {
   let caret_point = t => {
-    print_endline("Move.caret_point");
+    // print_endline("Move.caret_point");
     Zipper.caret_point(M.measured, t);
   };
 
@@ -106,25 +149,6 @@ module Make = (M: Editor.Meta.S) => {
   let inner_end = (d, d_init, c_max, z) =>
     z |> Zipper.set_caret(Inner(d_init, c_max)) |> Zipper.move(d);
 
-  /* Do move_action until the indicated piece is such that piece_p is true.
-     If no such piece is found, don't move. */
-  let rec do_until_sib =
-          (
-            ~move_first=true,
-            move_action: t => option(t),
-            z_pred: Zipper.t => bool,
-            z: t,
-          )
-          : option(t) => {
-    let* z = move_first ? move_action(z) : Some(z);
-    if (z_pred(z)) {
-      Some(z);
-    } else {
-      let* z = move_first ? Some(z) : move_action(z);
-      do_until_sib(~move_first, move_action, z_pred, z);
-    };
-  };
-
   let primary = (chunkiness: chunkiness, d: Direction.t, z: t): option(t) => {
     switch (
       d,
@@ -134,32 +158,18 @@ module Make = (M: Editor.Meta.S) => {
     /* this case maybe shouldn't be necessary but currently covers an edge
        (select an open parens to left of a multichar token and press left) */
     | _ when z.selection.content != [] => pop_move(d, z)
-    | (Left, Outer, (Projected(last_id), _)) =>
-      //print_endline("Left Projected");
-      //z |> Zipper.show |> print_endline;
-      //TODO: infinite loop stopping condition?
-      let left_of_proj = z =>
-        switch (z.relatives.siblings) {
-        | ([_, ..._] as ls, _) => Piece.id(ListUtil.last(ls)) == last_id
-        | _ => false
-        };
-      do_until_sib(~move_first=false, Zipper.move(Left), left_of_proj, z);
+    | (Left, Outer, (Projected(pid), _)) =>
+      // print_endline("Left Projected");
+      Projector.move_over(Left, pid, z)
+    | (Right, Outer, (_, Projected(pid))) =>
+      // print_endline("Right Projected");
+      Projector.move_over(Right, pid, z)
     | (Left, Outer, (CanEnter(dlm, c_max), _)) =>
       inner_end(d, dlm, c_max, z)
     | (Left, Outer, _) => Zipper.move(d, z)
     | (Left, Inner(_), _) when chunkiness == ByToken => pop_out(z)
     | (Left, Inner(_), _) =>
       Some(Zipper.update_caret(Zipper.Caret.decrement, z))
-    | (Right, Outer, (_, Projected(last_id))) =>
-      //print_endline("Right Projected");
-      //z |> Zipper.show |> print_endline;
-      //TODO: infinite loop stopping condition?
-      let right_of_proj = z =>
-        switch (z.relatives.siblings) {
-        | (_, [r, ..._]) => Piece.id(r) == last_id
-        | _ => false
-        };
-      do_until_sib(~move_first=false, Zipper.move(Right), right_of_proj, z);
     | (Right, Outer, (_, CanEnter(d_init, _))) => inner_start(d_init, z)
     | (Right, Outer, _) => Zipper.move(d, z)
     | (Right, Inner(_, c), (_, CanEnter(_, c_max))) when c == c_max =>
@@ -303,10 +313,10 @@ module Make = (M: Editor.Meta.S) => {
     | Some(z) => Some(z)
     };
 
-  let jump_to_id = (z: t, id: Id.t): option(t) => {
+  let jump_to_id = (~init=Direction.Left, z: t, id: Id.t): option(t) => {
     let* {origin, _} = Measured.find_by_id(id, M.measured);
     let z =
-      switch (to_start(z)) {
+      switch (init == Left ? to_start(z) : to_end(z)) {
       | None => z
       | Some(z) => z
       };
