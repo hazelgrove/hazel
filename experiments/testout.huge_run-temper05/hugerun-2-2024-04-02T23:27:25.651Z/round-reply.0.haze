@@ -1,8 +1,0 @@
-fun model, action ->
-    case action
-    | AddSong(song) => List.concat_map((fun s -> if s.id == song.id then [] else [s]), model.songs)
-    | RemoveSong(id) => List.filter_map((fun s -> if s.id == id then None else Some(s)), model.songs)
-    | PlaySong(id) => { model with current_song = Some(id) }
-    | StopSong => { model with current_song = None }
-    | SortSongs => { model with songs = List.sort((fun s1, s2 -> s1.title < s2.title), model.songs) }
-    end

@@ -1,6 +1,0 @@
-fun (model, action) ->
-    case action
-    | Draw(row, col, emoji) => let newGrid = updateGrid(model.grid, row, col, emoji) in {model with grid = newGrid}
-    | Fill(row, emoji) => let newGrid = fillRowInGrid(model.grid, row, emoji) in {model with grid = newGrid}
-    | Clear => let newGrid = clearGrid(model.grid) in {model with grid = newGrid}
-    end

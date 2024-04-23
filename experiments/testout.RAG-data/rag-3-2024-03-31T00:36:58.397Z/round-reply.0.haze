@@ -1,6 +1,0 @@
-fun (model, action) -> 
-  case action
-  | SelectEmoji(emoji) => (emoji, model.1)
-  | StampEmoji(row, col) => updateGrid(model, row, col, model.0)
-  | FillRow(row) => fillRow(model, row)
-  end

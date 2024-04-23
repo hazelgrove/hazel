@@ -1,7 +1,0 @@
-fun(model, action) ->
-  case action 
-    | AddSong(song) => addSongToPlaylist(model, song)
-    | ClearPlaylist => clearPlaylist(model)
-    | RemoveSong(songId) => removeSongFromPlaylist(model, songId)
-    | MoveSong(oldIndex, newIndex) => moveSongInPlaylist(model, oldIndex, newIndex)
-  end

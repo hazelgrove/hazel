@@ -1,9 +1,0 @@
-fun (state, action) ->
-  case action
-  | AddSong(id) => {state with songs = id::get_songs(state)}
-  | RemoveSong(id) => {state with songs = List.filter((fun song_id -> song_id != id), get_songs(state))}
-  | Play => {state with state = Playing}
-  | Pause => {state with state = Paused}
-  | Stop => {state with state = Stopped}
-  | Next => {state with songs = List.tl(get_songs(state))}
-  end

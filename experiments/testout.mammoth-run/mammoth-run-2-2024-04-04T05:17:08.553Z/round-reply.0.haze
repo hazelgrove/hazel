@@ -1,6 +1,0 @@
-fun model, action ->
-  case action
-  | Add => Model.init
-  | Toggle(id) => toggle(id, model.todos)
-  | Remove(id) => remove(id, model.todos)
-  end

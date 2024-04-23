@@ -1,8 +1,0 @@
-fun (grid, current_emoji, emojis), action ->
-  case action
-  | SelectEmoji(new_emoji) => (grid, new_emoji, emojis)
-  | StampEmoji((row, col)) => (update_grid(grid, row, col, current_emoji), current_emoji, emojis)
-  | ClearCell((row, col)) => (update_grid(grid, row, col, ""), current_emoji, emojis)
-  | ClearGrid => (empty_grid(), current_emoji, emojis)
-  | FillRow(row) => (fill_row(grid, row, current_emoji), current_emoji, emojis)
-  end

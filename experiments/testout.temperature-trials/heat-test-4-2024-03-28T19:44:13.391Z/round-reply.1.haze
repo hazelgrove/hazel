@@ -1,7 +1,0 @@
-fun (playlist, action) ->
-  case action
-  | PlaySong(id) => (get_songs(playlist), Playing(id))
-  | PauseCurrentSong => (get_songs(playlist), case get_state(playlist) of Playing(id) => PausedOn(id) | _ => NoSongSelected end)
-  | RemoveSong(id) => (List.filter_map(fun song_id -> if song_id == id then None else Some(song_id), get_songs(playlist)), get_state(playlist))
-  | AddSong(id) => (List.sort(fun a, b -> if a < b then -1 else if a > b then 1 else 0, id::get_songs(playlist)), get_state(playlist))
-  end

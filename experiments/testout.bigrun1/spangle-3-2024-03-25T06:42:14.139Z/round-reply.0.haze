@@ -1,9 +1,0 @@
-fun model, action ->
-  let getEmoji = string_sub(collection_string, action.index * 2, 2) in
-  let currentEmoji = string_trim(getEmoji) in
-  case action
-  | Click(row, col) => {model with grid = updateGrid(model.grid, row, col, model.cur_emoji)}
-  | Select(index) => {model with cur_emoji = currentEmoji}
-  | Fill(row) => {model with grid = fillRowInGrid(model.grid, row, model.cur_emoji)}
-  | Clear => {model with grid = clearGrid(model.grid)} 
-  end

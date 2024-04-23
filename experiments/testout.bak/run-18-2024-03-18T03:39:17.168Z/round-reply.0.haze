@@ -1,6 +1,0 @@
-fun model, action ->
-  case action
-  | SetScore new_score => { model with score = new_score }
-  | SetName new_name => { model with name = new_name }
-  | Reset => { name = "", score = 0 }
-  end

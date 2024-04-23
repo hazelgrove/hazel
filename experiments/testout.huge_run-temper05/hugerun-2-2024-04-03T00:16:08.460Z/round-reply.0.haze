@@ -1,6 +1,0 @@
-fun model, action ->
-    case action
-    | Draw(emoji) => {model with current_emoji = emoji}
-    | Clear => {model with canvas = []}
-    | AddToCanvas(point) => {model with canvas = point::model.canvas}
-    end

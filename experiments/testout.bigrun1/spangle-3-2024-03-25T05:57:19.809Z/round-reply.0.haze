@@ -1,9 +1,0 @@
-fun playlist, action ->
-  case action
-    | Next -> List.next(playlist)
-    | Previous -> List.previous(playlist)
-    | Play -> Playlist.play(playlist)
-    | Pause -> Playlist.pause(playlist)
-    | Add(id) -> Playlist.add(playlist, id)
-    | Delete(id) -> Playlist.delete(playlist, id)
-  end

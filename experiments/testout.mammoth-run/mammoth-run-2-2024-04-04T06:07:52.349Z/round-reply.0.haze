@@ -1,5 +1,0 @@
-fun model, action ->
-    case action
-    | BookRoom(room_id) => { model with room_booked = Some(room_id) }
-    | CancelBooking => { model with room_booked = None }
-    end

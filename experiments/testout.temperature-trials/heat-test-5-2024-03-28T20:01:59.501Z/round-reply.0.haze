@@ -1,7 +1,0 @@
-fun model, action ->
-  case action
-  | Pause => model.is_paused := true, model
-  | Play => model.is_paused := false, model
-  | Add(song) => model.songs := List.append(model.songs, [song]), model
-  | Remove(song) => model.songs := List.filter(fun s -> s.name != song.name, model.songs), model
-  end

@@ -1,6 +1,0 @@
-fun m, a -> match a with
-| AddBooking(user, weekday, time) => if bookingExists(m, (time, user, getBookingID(m))) then m else addBooking(m, (time, user, getBookingID(m)))
-| DeleteBooking(id) => deleteBooking(m, id)
-| UpdateTime(time) => updateFormTime(m, time)
-| UpdateUser(user) => updateFormUser(m, user)
-| ClearForm => initFormState()

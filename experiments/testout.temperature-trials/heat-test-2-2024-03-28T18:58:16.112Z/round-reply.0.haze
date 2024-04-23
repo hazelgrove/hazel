@@ -1,7 +1,0 @@
-fun model, action ->
-    case action
-    | AddTodo => add(model)
-    | RemoveTodo(i) => string_concat(string_sub(model, 0, i), string_sub(model, i+1, List.length(model)))
-    | ToggleTodo(i) => (string_sub(model, 0, i) ++ string_of_bool(!List.nth(model, i)) ++ string_sub(model, i+1, List.length(model)))
-    | UpdateBuffer(s) => string_concat(model, string_trim(s))
-    end

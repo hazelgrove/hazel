@@ -1,6 +1,0 @@
-fun model, action -> 
-    case action
-    | AddEmoji(position, emoji) => { model with canvas = (position, emoji) :: model.canvas }
-    | ClearCanvas => { model with canvas = [] }
-    | SetActiveEmoji(emoji) => { model with active_emoji = emoji }
-    end

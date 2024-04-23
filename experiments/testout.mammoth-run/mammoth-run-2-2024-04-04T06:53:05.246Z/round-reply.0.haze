@@ -1,7 +1,0 @@
-
-fun model, action ->
-  case action
-  | ChangePassword(new_password) => {model with password = new_password; strength = calculateStrength(new_password, model.criteria)}
-  | ChangeCriteria(new_criteria) => {model with criteria = new_criteria; strength = calculateStrength(model.password, new_criteria)}
-  | Reset => initialModel
-  end

@@ -1,9 +1,0 @@
-The following static errors were discovered:
-Error in term:
-  List.filterMap
-Nature of error: Variable List.filterMap is not bound
-Error in term:
-  id
-Nature of error: Variable id is not bound
-Please try to address the error(s) by updating your previous code suggestion
-Please respond ONLY with the update suggestion

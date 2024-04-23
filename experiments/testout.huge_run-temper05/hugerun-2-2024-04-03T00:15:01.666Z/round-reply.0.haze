@@ -1,7 +1,0 @@
-fun model, action ->
-    case action
-    | Draw(point) => add_point_to_model(model, point)
-    | Clear => clear_model(model)
-    | Undo => undo_last_action(model)
-    | Redo => redo_last_action(model)
-    end

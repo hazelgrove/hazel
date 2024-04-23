@@ -1,6 +1,0 @@
-fun (model, action) ->
-  case action
-  | AddSong(song) => {model with playlist = model.playlist @ [song]}
-  | RemoveSong(index) => {model with playlist = List.filteri (fun i _ -> i != index) model.playlist}
-  | PlayNext => {model with current = model.current + 1}
-  end

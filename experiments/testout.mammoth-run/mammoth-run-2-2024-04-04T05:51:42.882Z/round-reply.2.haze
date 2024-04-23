@@ -1,9 +1,0 @@
-fun (model, action) ->
-    case action
-    | NoOp => model
-    | AddUser(user) => { model with users = user :: model.users }
-    | RemoveUser(user) => { model with users = List.filter((fun u -> u != user), model.users) }
-    | AddBooking(user, booking) => { model with bookings = rm_booking(user, booking, model.bookings) }
-    | RemoveBooking(user, booking_id) => { model with bookings = List.filter((fun b -> b.booking_id != booking_id), getUserBookings(model, user)) }
-    | SetFormState(form_state) => { model with form_state = form_state }
-    end

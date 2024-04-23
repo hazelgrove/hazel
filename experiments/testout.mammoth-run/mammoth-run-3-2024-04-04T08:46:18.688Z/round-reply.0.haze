@@ -1,7 +1,0 @@
-fun model, action ->
-    case action
-    | CreateRoom(name) => { model with rooms = model.rooms @ [name] }
-    | DeleteRoom(name) => { model with rooms = List.filter(fun room -> room != name, model.rooms) }
-    | BookRoom(name) => { model with bookedRooms = model.bookedRooms @ [name] }
-    | CancelBooking(name) => { model with bookedRooms = List.filter(fun room -> room != name, model.bookedRooms) }
-    end

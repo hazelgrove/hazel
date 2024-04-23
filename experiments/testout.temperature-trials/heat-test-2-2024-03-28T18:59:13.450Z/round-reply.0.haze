@@ -1,7 +1,0 @@
-fun model, action ->
-  case action
-  | AddTodo => add(model)
-  | RemoveTodo(i) => let (buffer, todos) = model in (buffer, remove(i, todos))
-  | ToggleTodo(i) => let (buffer, todos) = model in (buffer, toggle(i, todos))
-  | UpdateBuffer(s) => let (_, todos) = model in (s, todos)
-  end

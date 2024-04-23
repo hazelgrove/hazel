@@ -1,7 +1,0 @@
-fun model, action ->
-    case action
-    | AddTrack(track) => model.add(track)
-    | RemoveTrack(track) => model.remove(track)
-    | Play => model.play()
-    | Pause => model.pause()
-    end

@@ -1,6 +1,0 @@
-
-fun model, action ->
-  case action 
-  | Clear => init_model
-  | Change(color) => { model with color }
-  | Click(x, y) => { model with grid = add_to_grid(model.grid, model.color, x, y) }

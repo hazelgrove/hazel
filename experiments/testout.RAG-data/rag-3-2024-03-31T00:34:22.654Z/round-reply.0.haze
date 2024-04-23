@@ -1,8 +1,0 @@
-fun (model, action) ->
-  case action
-  | AddBooking(user, weekday, time, booking_id) => if !bookingExists(model, (time, user, booking_id)) then model else model
-  | RemoveBooking(booking_id) => let bookings = getBookings(model) in (form, List.filter (fun (_, _, id) -> id != booking_id, bookings), currentTime)
-  | UpdateForm(user, weekday, time) => let form = ((user, weekday, time), bookingMessage) in
-                                    if timeIsOpen (user, weekday,time) then (form, bookings, currentTime)
-                                    else (form, bookings, currentTime+1)
-  | AdvanceMinute => (form, bookings, delta) end

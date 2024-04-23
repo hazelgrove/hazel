@@ -1,7 +1,0 @@
-
-fun model, action ->
-  case action
-  | Add(song) => model ++ [song]
-  | Remove(song) => List.filter((!=) song, model)
-  | Clear => []
-  end

@@ -1,6 +1,0 @@
-fun (model, action) ->
-    case action
-    | BookRoom(room) => { model with booked_rooms = model.booked_rooms @ [room] }
-    | CancelBooking(room) => { model with booked_rooms = List.filter((fun r -> r != room), model.booked_rooms) }
-    | ChangeUser(user) => { model with current_user = user }
-    end

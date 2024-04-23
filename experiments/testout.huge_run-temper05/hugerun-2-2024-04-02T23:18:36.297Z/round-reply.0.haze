@@ -1,7 +1,0 @@
-fun model, action ->
-  case action
-  | AddSong(id) => List.sort(fun a, b -> a < b, id::get_songs(model))
-  | RemoveSong(id) => List.filter_map(fun song -> if song == id then None else Some(song), get_songs(model))
-  | TogglePlay => if (get_state(model) == Playing) then Paused else Playing
-  | Shuffle => List.shuffle(get_songs(model))
-  end

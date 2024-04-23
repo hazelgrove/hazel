@@ -1,8 +1,0 @@
-fun model, action ->
-  case action
-  | SubmitBooking(user, bookingID) => 
-    let userBookings = getUserBookings(model, user) in
-    let updatedBookings = rm_booking(user, bookingID, userBookings) in
-    { model | bookings = updatedBookings }
-  | ChangeFormState(newState) =>
-    { model | formState = newState }

@@ -1,6 +1,0 @@
-
-fun model, action ->
-    case action
-      | Add => { model with counter = model.counter + 1 }
-      | Remove => { model with counter = model.counter - 1 }
-    end

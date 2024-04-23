@@ -1,7 +1,0 @@
-fun model, action ->
-    case action
-    | AddSong(song) => model.songs <- song :: model.songs
-    | RemoveSong(song) => model.songs <- List.filter(fun s -> s != song, model.songs)
-    | PlaySong(song) => model.current <- Some(song)
-    | StopSong => model.current <- None
-    end

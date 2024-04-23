@@ -1,6 +1,0 @@
-fun model, action ->
-  case action 
-  | CheckIn(guest) => {model with reservations = guest::model.reservations}
-  | CheckOut(reservation_id) => {model with reservations = List.filter (fun r -> r.id != reservation_id) model.reservations}
-  | SetRoomCapacity(new_capacity) => {model with capacity = new_capacity}
-  end

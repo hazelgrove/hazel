@@ -1,7 +1,0 @@
-fun playlist, action ->
-  case (playlist, action) 
-  | (songs, _), PlaySong(id) => (songs, Playing(id))
-  | (songs, _), PauseCurrentSong => (songs, PausedOn(List.head(songs)))
-  | (songs, state), RemoveSong(id) => (List.remove(songs, id), state)
-  | (songs, state), AddSong(id) => (List.append(songs, id), state)
-  end

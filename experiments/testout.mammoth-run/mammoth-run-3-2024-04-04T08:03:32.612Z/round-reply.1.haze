@@ -1,7 +1,0 @@
-fun model, action ->
-  case action
-    | StartPlaying(id) => ?? 
-    | StopPlaying(id) => ?? 
-    | AddSong(id) => ?? 
-    | RemoveSong(id) => ?? 
-  end

@@ -1,7 +1,0 @@
-fun model, action ->
-  case action
-  | GetAllBookings => Model.updateBookings(model, getBookings(model))
-  | GetAUserBookings(user) => Model.updateBookings(model, getUserBookings(model, user))
-  | AddBooking(booking) => Model.addBooking(model, booking)
-  | RemoveBooking(user, bookingID) => Model.updateBookings(model, rm_booking(user, bookingID, getUserBookings(model, user)))
-  end

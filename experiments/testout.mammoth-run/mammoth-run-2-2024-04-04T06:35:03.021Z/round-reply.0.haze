@@ -1,7 +1,0 @@
-
-fun model, action ->
-  case action
-  | Draw(x, y) => {model with canvas = Canvas.draw(model.canvas, x, y, model.color)}
-  | ChangeColor(color) => {model with color = color}
-  | Clear => {model with canvas = Canvas.clear(model.canvas)}
-  end

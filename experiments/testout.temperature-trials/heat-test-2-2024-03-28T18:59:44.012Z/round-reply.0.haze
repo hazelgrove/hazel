@@ -1,7 +1,0 @@
-fun m, a ->
-  case a
-  | AddTodo => add(m)
-  | RemoveTodo(i) => let (buffer, todos) = m in (buffer, remove(i, todos))
-  | ToggleTodo(i) => let (buffer, todos) = m in (buffer, toggle(i, todos))
-  | UpdateBuffer(s) => let (_, todos) = m in (s, todos)
-  end

@@ -1,8 +1,0 @@
-fun model, action ->
-  case action
-  | UpdateTitle(title) => { model | title = title }
-  | UpdateDate(date) => { model | date = date }
-  | AddGuest(name) => { model | guests = name::model.guests }
-  | RemoveGuest(name) => { model | guests = List.remove(name, model.guests) }
-  | SubmitBooking => { model | bookings = model::model.bookings } 
-  end

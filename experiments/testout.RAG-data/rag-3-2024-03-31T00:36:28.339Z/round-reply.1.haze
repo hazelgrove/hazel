@@ -1,6 +1,0 @@
-fun model, action ->
-  case action
-  | AddBooking(time, user, id) => if !bookingExists(model, (time, user, id)) then model else addBooking(model, (time, user, id))
-  | DeleteBooking(id) => deleteBooking(model, id)
-  | AmendForm(time, user) => amendForm(model, (time, user))  
-  end

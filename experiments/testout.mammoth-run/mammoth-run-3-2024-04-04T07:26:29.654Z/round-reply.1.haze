@@ -1,7 +1,0 @@
-fun (buffer, todos), action ->
-    case action
-    | AddTodo => (buffer, if buffer $== "" then todos else (buffer, false)::todos)
-    | RemoveTodo(idx) => (buffer, [todo for i, todo <- enumerate(todos) when i != idx])
-    | ToggleTodo(idx) => (buffer, [if i == idx then (d, !s) else todo for i, todo <- enumerate(todos)])
-    | UpdateBuffer(new_buffer) => (new_buffer, todos)
-    end

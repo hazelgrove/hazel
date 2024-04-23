@@ -1,5 +1,0 @@
-fun (model, action) ->
-  case action
-  | EnterPassword(password) => {model with password = password; strength = check_strength(password)}
-  | ToggleShowPassword => {model with showPassword = !model.showPassword}
-  end

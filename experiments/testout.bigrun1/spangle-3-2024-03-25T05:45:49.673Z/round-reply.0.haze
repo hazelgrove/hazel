@@ -1,8 +1,0 @@
-fun playlist, action ->
-  match action
-  | PlaySong(id) -> (get_songs(playlist), Playing(id))
-  | PauseCurrentSong -> (get_songs(playlist), match get_state(playlist)
-    | Playing(id) -> PausedOn(id)
-    | _ -> get_state(playlist))
-  | RemoveSong(id) -> (List.filter((!= id), get_songs(playlist)), get_state(playlist))
-  | AddSong(id) -> (id::get_songs(playlist), get_state(playlist)) end

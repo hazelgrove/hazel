@@ -1,7 +1,0 @@
-fun m, action ->
-  case action
-    | AddItem(item) => {items = m.items @ [item]}
-    | RemoveItem(item) => {items = List.filter(fun i -> i != item, m.items)}
-    | CompleteItem(item) => {items = List.map(fun i -> if i == item then {isDone = true, text = i.text} else i, m.items)}
-    | UncompleteItem(item) => {items = List.map(fun i -> if i == item then {isDone = false, text = i.text} else i, m.items)}
-  end

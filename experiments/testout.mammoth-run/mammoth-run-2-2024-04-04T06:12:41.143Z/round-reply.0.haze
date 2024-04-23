@@ -1,6 +1,0 @@
-fun (model, action) ->
-  case action
-  | AddTodo => (model[0], List.append(model[1], [model[0]]))
-  | RemoveTodo(idx) => (model[0], List.remove_at(model[1], idx))
-  | ToggleTodo(idx) => (model[0], List.update_at(model[1], idx, Todo.toggle_done))
-  | UpdateBuffer(new_buffer) => (new_buffer, model[1]) end

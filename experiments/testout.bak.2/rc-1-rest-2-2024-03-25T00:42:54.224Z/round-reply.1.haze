@@ -1,7 +1,0 @@
-fun(model, action) ->
-  case action 
-    | Add(song) => add_to_playlist(model, song)
-    | Clear() => clear_playlist(model)
-    | Remove_song(song_id) => remove_song_from_playlist(model, song_id)
-    | Move_song(old_idx, new_idx) => move_song_in_playlist(model, old_idx, new_idx)
-  end

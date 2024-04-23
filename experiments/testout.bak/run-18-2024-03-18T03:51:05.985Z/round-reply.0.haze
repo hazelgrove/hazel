@@ -1,5 +1,0 @@
-fun playlist, action ->
-case action
-| Add(song) => song::playlist
-| Remove(id) => List.filter(fun song -> song.id != id,playlist)
-| Clear => [] end

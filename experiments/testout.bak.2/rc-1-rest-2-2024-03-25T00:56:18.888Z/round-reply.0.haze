@@ -1,8 +1,0 @@
-fun model, action ->
-  case action
-    | NoOp => model
-    | AddBooking(booking) => {model with bookings = booking::model.bookings}
-    | RemoveBooking(id) => {model with bookings = List.remove(id, model.bookings)}
-    | SetCurrentDay(day) => {model with currentDay = day}
-    | SelectRoom(room) => {model with selectedRoom = room}
-  end

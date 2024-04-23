@@ -1,6 +1,0 @@
-fun model, action ->
-  case action
-    | ReserveRoom(room_id) => { model with rooms = reserve_room(model.rooms, room_id) }
-    | CancelReservation(room_id) => { model with rooms = cancel_reservation(model.rooms, room_id) }
-    | SetUser(user) => { model with user = user }
-  end

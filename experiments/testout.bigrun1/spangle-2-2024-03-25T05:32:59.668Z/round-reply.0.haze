@@ -1,6 +1,0 @@
-fun model, action ->
-  case action
-  | Click => model+1
-  | Reset => 0
-  | _ => model
-  end

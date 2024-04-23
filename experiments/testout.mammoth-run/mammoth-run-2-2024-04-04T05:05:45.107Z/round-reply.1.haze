@@ -1,8 +1,0 @@
-fun model, action ->
-  case action
-  | NoOp => model
-  | Toggle(id) => { model with todos = toggle(id, model.todos) }
-  | Delete(id) => { model with todos = remove(id, model.todos) }
-  | Add => { model with todos = add(model) } 
-  | UpdateNewTodoName(name) => { model with newTodoName = name }
-  end

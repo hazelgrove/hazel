@@ -1,7 +1,0 @@
-fun model, action ->
-  case action
-  | SetName(name) => {model with name = name}
-  | SetAge(age) => {model with age = age}
-  | Increment => {model with count = model.count + 1}
-  | Decrement => {model with count = model.count - 1} 
-  end

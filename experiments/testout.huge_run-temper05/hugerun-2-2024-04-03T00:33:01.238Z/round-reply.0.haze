@@ -1,7 +1,0 @@
-fun m, a ->
-  case a
-  | UpdatePassword(new_password) => (new_password, m.1, m.2)
-  | ClearCriteria => (m.0, [], m.2)
-  | AddCriterion(criterion) => (m.0, criterion::m.1, m.2)
-  | RemoveCriterion(criterion) => (m.0, List.remove(criterion, m.1), m.2)
-  end

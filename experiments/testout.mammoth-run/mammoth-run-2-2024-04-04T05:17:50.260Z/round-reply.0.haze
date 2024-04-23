@@ -1,7 +1,0 @@
-
-fun model, action -> 
-  case action
-  | AddTodo(text) => { model with todos = model.todos @ [text] }
-  | DeleteTodo(index) => { model with todos = List.remove_at(index, model.todos) }
-  | ToggleTodo(index) => { model with todos = List.map_with_index(fun i, todo -> if i == index then not todo else todo, model.todos) }
-  end

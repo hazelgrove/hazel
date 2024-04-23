@@ -1,7 +1,0 @@
-fun model, action ->
-    case action
-    | AddTrack(track) => add_track(model, track)
-    | RemoveTrack(track) => remove_track(model, track)
-    | Play => play(model)
-    | Pause => pause(model)
-    end

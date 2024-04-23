@@ -1,8 +1,0 @@
-fun (grid, currentEmoji, emojiList), action ->
-  case action
-  | SelectEmoji(emoji) => (grid, emoji, emojiList)
-  | StampEmoji((row, col)) => (List.mapWithIndex((fun rowNum, row -> if rowNum == row then List.mapWithIndex((fun colNum, cell -> if colNum == col then currentEmoji else cell)) row else row)) grid, currentEmoji, emojiList)
-  | ClearCell((row, col)) => (List.mapWithIndex((fun rowNum, row -> if rowNum == row then List.mapWithIndex((fun colNum, cell -> if colNum == col then "" else cell)) row else row)) grid, currentEmoji, emojiList)
-  | ClearGrid => (List.map((fun row -> List.map((fun _ -> "")) row)) grid, currentEmoji, emojiList)
-  | FillRow(row) => (List.mapWithIndex((fun rowNum, row -> if rowNum == row then List.map((fun _ -> currentEmoji)) row else row)) grid, currentEmoji, emojiList)
-  end

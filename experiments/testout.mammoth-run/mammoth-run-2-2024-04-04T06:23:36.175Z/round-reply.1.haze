@@ -1,8 +1,0 @@
-fun (model, action) ->
-  case action
-  | SelectEmoji(emoji) => (model[0], emoji, model[2])
-  | StampEmoji((row, col)) => (replace_in_grid(model[0], row, col, model[1]), model[1], model[2])
-  | ClearCell((row, col)) => (remove_from_grid(model[0], row, col), model[1], model[2])
-  | ClearGrid => (empty_grid(), model[1], model[2])
-  | FillRow(row) => (fill_row_in_grid(model[0], row, model[1]), model[1], model[2])
-  end

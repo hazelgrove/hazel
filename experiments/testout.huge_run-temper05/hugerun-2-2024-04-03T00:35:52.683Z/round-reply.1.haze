@@ -1,5 +1,0 @@
-fun (m, a) ->
-  case a 
-  | ChangePassword(new_password) => {m with password = new_password; strength = calculate_strength(new_password)}
-  | _ => m
-  end

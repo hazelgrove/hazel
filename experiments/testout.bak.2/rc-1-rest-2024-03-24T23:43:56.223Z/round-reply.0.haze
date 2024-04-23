@@ -1,7 +1,0 @@
-fun model, action ->
-  case action
-  | Toggle(idx) => model.todos := toggle(idx, model.todos)
-  | Remove(idx) => model.todos := remove(idx, model.todos)
-  | Add => model.todos := add(model)
-  | Noop => model
-  end

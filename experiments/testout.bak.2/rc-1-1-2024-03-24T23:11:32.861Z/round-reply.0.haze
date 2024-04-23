@@ -1,9 +1,0 @@
-
-fun m, a ->
-  let (todos, buffer) = m in
-  case a
-  | AddTodo => (buffer::todos, "")
-  | RemoveTodo(idx) => (remove(idx, todos), buffer)
-  | ToggleTodo(idx) => (toggle(idx, todos), buffer)
-  | UpdateBuffer(new_buffer) => (todos, new_buffer)
-  end

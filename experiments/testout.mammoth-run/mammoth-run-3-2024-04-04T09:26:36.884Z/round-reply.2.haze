@@ -1,7 +1,0 @@
-fun (password, criteria, strength), action ->
-    case action
-    | AddTodo => (password, MinimumLength(8)::criteria, strength)
-    | RemoveTodo(idx) => (password, criteria, strength)
-    | ToggleTodo(idx) => (password, criteria, strength)
-    | UpdateBuffer(newPassword) => (newPassword, criteria, strength)
-    end

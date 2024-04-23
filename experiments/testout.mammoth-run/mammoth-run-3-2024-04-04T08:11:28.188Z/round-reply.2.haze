@@ -1,6 +1,0 @@
-fun model, action ->
-  case action
-  | AddTrack(track) => model.tracks := track :: model.tracks
-  | RemoveTrack(track) => model.tracks := List.filter(fun t -> t != track, model.tracks)
-  | Play => model.isPlaying := true
-  end

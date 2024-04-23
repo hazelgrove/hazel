@@ -1,7 +1,0 @@
-fun model, action ->
-  case action
-  | Load => {state = Loading, songs = get_songs(model)}
-  | Error => {state = Error, songs = get_songs(model)}
-  | Fetch(songs) => {state = Loaded, songs = songs}
-  | Remove(id) => {state = get_state(model), songs = List.filter((fun song -> song.id != id), get_songs(model))}
-  end

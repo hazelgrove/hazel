@@ -1,8 +1,0 @@
-
-fun model, action ->
-  case action
-  | BookRoom(room_id) => update_room_status(model, room_id, true)
-  | CancelRoom(room_id) => update_room_status(model, room_id, false)
-  | CheckIn(guest_id) => update_guest_status(model, guest_id, true)
-  | CheckOut(guest_id) => update_guest_status(model, guest_id, false)
-  end

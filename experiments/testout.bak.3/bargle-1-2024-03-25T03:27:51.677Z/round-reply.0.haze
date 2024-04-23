@@ -1,7 +1,0 @@
-fun model, action ->
-  case action
-    | Toggle(id) => model.todos <- toggle(id, model.todos)
-    | Remove(id) => model.todos <- remove(id, model.todos)
-    | Add(value) => model.todos <- add(model)
-    | Update(value) => model.value <- value
-  end

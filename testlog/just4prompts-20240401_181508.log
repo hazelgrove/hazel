@@ -1,9 +1,0 @@
-LSP: Command: RunTest
-LS: RunTest: Setting up output folder
-LS: RunTest: Generating prompt
-LS: Recieved string
-LSP: Process zipper: Recieved string
-LSP: Process Zipper: Found serialized zipper, deserializing
-LS: String parsed successfully to zipper
-LSP: Process zipper: Recieved string
-LSP: Process Zipper: Found serialized zipper, deserializing

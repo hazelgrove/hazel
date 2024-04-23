@@ -1,7 +1,0 @@
-fun model, action ->
-  case action
-  | AddBooking(booking) => model.bookings := booking :: model.bookings
-  | RemoveBooking(user, bookingID) => model.bookings := rm_booking(user, bookingID, model.bookings)
-  | SetUser(user) => model.currentUser := Some(user)
-  | Logout => model.currentUser := None
-  end

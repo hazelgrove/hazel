@@ -1,7 +1,0 @@
-fun model, action ->
-  case action
-  | SetColor(color) => {model with color}
-  | SetEmoji(emoji) => {model with emoji}
-  | AddEmoji(x, y) => {model with emojis = (x, y, model.emoji, model.color) :: model.emojis}
-  | Clear => {model with emojis = []}
-  end

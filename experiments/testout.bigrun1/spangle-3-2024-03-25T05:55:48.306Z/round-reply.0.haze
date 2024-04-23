@@ -1,9 +1,0 @@
-fun model, action ->
-  case action
-  | Add(song) => song::model
-  | Remove(song) =>
-    case model 
-    | [] => []
-    | s::songs => if s == song then songs else s::update(songs, Remove(song))
-    end
-  | Clear => [] end

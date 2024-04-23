@@ -1,6 +1,0 @@
-fun (playList, action) ->
-case action
-| FetchSongs => playList
-| GetSongs => let songs = get_songs(playList) in playList
-| GetState => let state = get_state(playList) in playList
-end

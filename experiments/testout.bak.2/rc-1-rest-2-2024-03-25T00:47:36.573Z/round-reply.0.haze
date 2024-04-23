@@ -1,7 +1,0 @@
-
-fun model, action ->
-  case action
-  | AddBooking(user, weekday, time) => let new_booking = ((weekday, time), user, (snd(snd(model))) + 1) in ((fst(model)), (snd(snd(model))) :: getBookings(model), (snd(snd(model))) + 1)
-  | CancelBooking(user, id) => (fst(model), rm_booking(user, id, getBookings(model)), snd(snd(model)))
-  | ClearBookings => (initFormState, [], 0)
-  end

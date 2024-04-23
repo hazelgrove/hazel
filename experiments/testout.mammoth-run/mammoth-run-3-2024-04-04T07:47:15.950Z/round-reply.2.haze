@@ -1,9 +1,0 @@
-fun model, action ->
-  case action
-  | AddItem(item) => { model with items = item::model.items }
-  | RemoveItem => { model with items = List.tl(model.items) }
-  | ToggleCompleteItem(index) =>
-    let new_items = List.mapi(fun(i, item) ->
-      if i == index then { item with completed = !item.completed } else item) model.items
-    in { model with items = new_items }
-  end

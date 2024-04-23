@@ -1,5 +1,0 @@
-fun m, a ->
-  case a
-  | Increment => { count = m.count + 1 }
-  | Decrement => { count = m.count - 1 }
-  end

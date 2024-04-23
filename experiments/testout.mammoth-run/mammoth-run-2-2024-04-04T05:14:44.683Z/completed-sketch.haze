@@ -1,9 +1,0 @@
-# TODO MVU: Handle TODO actions to update the app model #
-
-let update: (Model, Action) -> Model =
-  fun (model, action) ->
-  case action
-  | NoOp => model
-  | SomeAction(payload) => { model with field = payload }
-  end
-in

@@ -1,6 +1,0 @@
-fun model, action ->
-    case (model, action) of
-    | (data, form, id), AddBooking((user, weekday, timeofday)) => (form, data :: form, id + 1)
-    | (data, form, id), CancelBooking((user, bookingId)) => (form, filterByBookingId(data, bookingId), id)
-    | (data, form, id), ClearBookings => (form, [], id)
-      end

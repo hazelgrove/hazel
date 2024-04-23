@@ -1,8 +1,0 @@
-fun model, action ->
-  case action
-  | Add(title, artist) => { model with tracks = (title, artist)::model.tracks }
-  | Remove(index) => { model with tracks =
-                          List.pop_at(index, model.tracks).value }
-  | Shuffle => { model with tracks = List.shuffle(model.tracks) }
-  | Clear => { model with tracks = [] }
-  end

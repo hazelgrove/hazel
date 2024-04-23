@@ -1,9 +1,0 @@
-fun (model, action) ->
-  case action
-  | PlayListAction.Add(song) => List.concat_map(fun s -> if s == song then [] else [s], model)
-  | PlayListAction.Remove(song) => List.filter_map(fun s -> if s == song then None else Some(s), model)
-  | PlayListAction.Sort(cmp) => List.sort(cmp, model)
-  | PlayListAction.Merge(playlist) => List.merge(fun a, b -> 0, model, playlist)
-  | PlayListAction.Reverse => List.rev_append([], model)
-  | PlayListAction.Combine(playlist) => List.combine(model, playlist)
-  end

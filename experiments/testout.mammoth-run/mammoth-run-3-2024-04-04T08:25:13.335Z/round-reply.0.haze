@@ -1,8 +1,0 @@
-fun model, action ->
-  case action
-  | AddBooking(user, weekday, bookingId) =>
-    if bookingExists(model, (user, weekday, bookingId))
-    then model
-    else let (form, bookings, _) = model in
-         (form, ((user, weekday, bookingId)::bookings), bookingId + 1)
-  end

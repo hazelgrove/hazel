@@ -1,9 +1,0 @@
-The following static errors were discovered:
-Error in term:
-  Weekday.M
-Nature of error: "Weekday.M" isn't a valid token
-Error in term:
-  TimeOfDay.AM
-Nature of error: "TimeOfDay.AM" isn't a valid token
-Please try to address the error(s) by updating your previous code suggestion
-Please respond ONLY with the update suggestion

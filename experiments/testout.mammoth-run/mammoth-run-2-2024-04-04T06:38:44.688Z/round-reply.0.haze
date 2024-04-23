@@ -1,5 +1,0 @@
-fun model, action ->
-    case action
-    | Draw(emoji) => { model with canvas = Canvas.draw(model.canvas, emoji) }
-    | Clear => { model with canvas = Canvas.empty() }
-    end

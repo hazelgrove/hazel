@@ -1,9 +1,0 @@
-
-fun model, action ->
-  case action
-    | SetEmoji(emoji) => {model with emoji = emoji}
-    | SetColor(color) => {model with color = color}
-    | SetBrushSize(size) => {model with brushSize = size}
-    | ClearCanvas => {model with canvas = emptyCanvas}
-    | Draw(x, y) => {model with canvas = drawOnCanvas(model.canvas, model.emoji, model.color, x, y)}
-  end

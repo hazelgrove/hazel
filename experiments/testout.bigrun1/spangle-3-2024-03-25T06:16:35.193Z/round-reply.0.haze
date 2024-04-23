@@ -1,8 +1,0 @@
-
-fun model, action ->
-  case action
-    | CreateRoom(room) => addRoom(model, room)
-    | DeleteRoom(room) => removeRoom(model, room)
-    | BookRoom(room, user) => bookRoom(model, room, user)
-    | CancelBooking(room, user) => unbookRoom(model, room, user)
-  end

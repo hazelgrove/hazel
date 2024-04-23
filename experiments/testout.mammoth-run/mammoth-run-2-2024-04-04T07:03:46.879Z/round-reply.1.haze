@@ -1,5 +1,0 @@
-fun model, action ->
-  case action
-  | ChangePassword(pw) => { model with password = pw; strength = check_strength(pw) }
-  | ShowStrength => { model with show_strength = true }
-  | HideStrength => { model with show_strength = false }

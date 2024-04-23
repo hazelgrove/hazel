@@ -1,7 +1,0 @@
-fun model, action ->
-  case action
-  | Add(song) => List.append(model, [song])
-  | Delete(song) => List.filter(fun s -> s != song, model)
-  | PlayNext => List.tl(model)
-  | Pause => model
-  end

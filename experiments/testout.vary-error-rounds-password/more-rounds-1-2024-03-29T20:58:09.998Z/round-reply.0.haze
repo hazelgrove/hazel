@@ -1,7 +1,0 @@
-fun m, action ->
-  case action
-  | UpdatePassword(password) => update_password(m, password)
-  | ClearCriteria => clear_criteria(m)
-  | AddCriterion(criterion) => add_criterion(m, criterion)
-  | RemoveCriterion(criterion) => remove_criterion(m, criterion)
-  end

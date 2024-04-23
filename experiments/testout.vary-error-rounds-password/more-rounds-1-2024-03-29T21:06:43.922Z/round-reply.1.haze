@@ -1,8 +1,0 @@
-fun (model, action) ->
-  case model, action
-  | (password, criteria, strength), UpdatePassword(new_password) => (new_password, criteria, check_strength(new_password, criteria))
-  | (password, criteria, strength), ClearCriteria => (password, [], check_strength(password, []))
-  | (password, criteria, strength), AddCriterion(new_criterion) => (password, new_criterion::criteria, check_strength(password, new_criterion::criteria))
-  | (password, criteria, strength), RemoveCriterion(old_criterion) => (password, List.remove(criteria, old_criterion), check_strength(password, List.remove(criteria, old_criterion)))
-  end
-where check_strength: (Password, Criteria) -> Strength is fun(password, criteria) -> check_strength_helper(password, criteria) end

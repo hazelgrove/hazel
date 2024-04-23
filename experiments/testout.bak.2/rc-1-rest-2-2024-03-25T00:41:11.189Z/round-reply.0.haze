@@ -1,6 +1,0 @@
-
-fun model, action ->
-    case action
-    | Some(x) => function(x)
-    | None => model
-    end

@@ -1,7 +1,0 @@
-fun (model, action) ->
-  case action
-    | UpdateBuffer(new_buffer) => 
-      let (password, criteria, strength) = model in
-      (new_buffer, criteria, strength)
-    | _ => model
-  end

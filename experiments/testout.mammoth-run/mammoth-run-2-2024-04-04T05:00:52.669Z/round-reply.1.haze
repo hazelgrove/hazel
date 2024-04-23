@@ -1,7 +1,0 @@
-fun model, action ->
-  case action
-  | AddTodo => (fst(model), add(model))
-  | RemoveTodo(idx) => (fst(model), List.filteri((fun i _ -> i != idx), snd(model)))
-  | ToggleTodo(idx) => (fst(model), List.mapi((fun i (d, s) -> if i == idx then (d, !s) else (d, s)), snd(model)))
-  | UpdateBuffer(str) => (str, snd(model))
-  end

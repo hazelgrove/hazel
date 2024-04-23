@@ -1,6 +1,0 @@
-fun (model, action) ->
-  case action
-    | SelectEmoji(emoji) => updateSelectedEmoji(model, emoji)
-    | StampEmoji(row, col) => stampEmojiAtPosition(model, row, col)
-    | FillRow(row) => fillRowWithCurrentEmoji(model, row)
-  end

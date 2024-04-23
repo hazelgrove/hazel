@@ -1,7 +1,0 @@
-fun model, action ->
-  case action
-    | Book(room) => { model with rooms_booked = room::model.rooms_booked }
-    | Unbook(room) => { model with rooms_booked = List.filter ((!=) room) model.rooms_booked }
-    | ChangeUser(user) => { model with current_user = user }
-    | Refresh => model
-  end

@@ -1,6 +1,0 @@
-fun model, action -> 
-  case model, action
-  | (m, Increase) => m
-  | (m, Decrease) => m
-  | (m, Reset) => m
-  end

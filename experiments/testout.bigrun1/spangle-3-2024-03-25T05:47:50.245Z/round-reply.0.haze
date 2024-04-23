@@ -1,8 +1,0 @@
-fun playlist, action ->
-    case action
-    | PlayListAction.Add(id) => let songs = get_songs(playlist) in {playlist with songs = id :: songs }
-    | PlayListAction.Delete(id) => let songs = List.filter(fun song_id -> song_id != id, get_songs(playlist)) in {playlist with songs = songs }
-    | PlayListAction.Pause     => { playlist with state = PlayListState.Paused }
-    | PlayListAction.Resume    => { playlist with state = PlayListState.Playing }
-    | PlayListAction.Empty     => { playlist with songs = [] }
-    end

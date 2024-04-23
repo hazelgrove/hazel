@@ -1,7 +1,0 @@
-fun model, action ->
-  case action
-    | LoadPlaylist(playlist) => playlist
-    | AddSong(song) => List.rev_append(get_songs(model), [song])
-    | RemoveSong(song) => List.filter_map((fun s -> if s == song then None else Some(s)), get_songs(model))
-    | ChangeState(state) => {model with state = state}
-  end

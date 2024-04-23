@@ -1,6 +1,0 @@
-fun model, action ->
-    case action
-      | AddBooking(user, weekday, time) => if !bookingExists(model, (time, user, model.nextID)) then model else addBooking(model, (time, user, model.nextID))
-      | RemoveBooking(id) => removeBooking(model, id)
-      | UpdateBuffer(time, user) => (updateBuffer(model, (time, user)), getBookings(model), model.nextID)
-    end

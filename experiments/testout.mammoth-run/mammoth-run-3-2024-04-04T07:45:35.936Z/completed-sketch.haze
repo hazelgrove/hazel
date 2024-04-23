@@ -1,9 +1,0 @@
-# TODO MVU: Handle TODO actions to update the app model #
-
-let update: (Model, Action) -> Model =
-  fun model, action ->
-  case action
-    | Action1 => { model with field1 = new_value1 }
-    | Action2 => { model with field2 = new_value2 }
-    | Action3 => { model with field3 = new_value3 }
-in

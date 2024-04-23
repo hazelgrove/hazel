@@ -1,8 +1,0 @@
-
-fun m, a ->
-  case m, a
-  | grid, Clear => clearGrid(grid)
-  | grid, FillRow(row, emoji) => fillRowInGrid(grid, row, emoji)
-  | grid, UpdateGrid(row, col, emoji) => updateGrid(grid, row, col, emoji)
-  | _ => m
-  end

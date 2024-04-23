@@ -1,5 +1,0 @@
-fun (model, action) ->
-  case action
-  | Increment => model + 1
-  | Decrement => if model > 0 then model - 1 else model
-  end

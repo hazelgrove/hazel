@@ -1,6 +1,0 @@
-fun model, action ->
-    case action
-    | Reset => { grid = clearGrid(model.grid) }
-    | Fill(row, emoji) => { grid = fillRowInGrid(model.grid, row, emoji) }
-    | Update(row, col, emoji) => { grid = updateGrid(model.grid, row, col, emoji) }
-    end

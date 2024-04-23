@@ -1,7 +1,0 @@
-fun model, action ->
-  case action
-  | UpdatePassword(new_password) => (new_password, snd(model), calculateStrength(new_password, snd(model)))
-  | ClearCriteria => (fst(model), [], calculateStrength(fst(model), []))
-  | AddCriterion(criterion) => (fst(model), criterion::snd(model), calculateStrength(fst(model), criterion::snd(model)))
-  | RemoveCriterion(criterion) => let new_criteria = List.filter(criterion != ?, snd(model)) in (fst(model), new_criteria, calculateStrength(fst(model), new_criteria))
-  end

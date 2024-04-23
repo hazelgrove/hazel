@@ -1,7 +1,0 @@
-fun (playlist, action) ->
-  case action
-    | AddSong(id) => let songs = get_songs(playlist) in {playlist with songs = songs @ [id]}
-    | RemoveSong(id) => let songs = List.filter(fun song_id -> song_id != id, get_songs(playlist))
-in {playlist with songs = songs}
-    | ChangeState(new_state) => {playlist with state = new_state}
-  end

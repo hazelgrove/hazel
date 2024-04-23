@@ -1,8 +1,0 @@
-
-fun model, action ->
-  case action
-  | AddSong(song_id) => List.sort(PlayList.add_song(song_id, model))
-  | RemoveSong(song_id) => PlayList.remove_song(song_id, model)
-  | TogglePlay => PlayList.toggle_play(model)
-  | SetPlayListState(state) => PlayList.set_state(state, model)
-  end

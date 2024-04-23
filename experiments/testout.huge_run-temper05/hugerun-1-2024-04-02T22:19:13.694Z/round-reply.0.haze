@@ -1,6 +1,0 @@
-
-fun model, action ->
-  case action
-  | AddSong(s) => List.append(model, [s])
-  | RemoveSong(s) => List.filter(fun song -> song != s, model)
-  end

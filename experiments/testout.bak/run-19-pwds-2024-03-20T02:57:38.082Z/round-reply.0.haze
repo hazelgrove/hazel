@@ -1,7 +1,0 @@
-fun model, action ->
-  case action
-  | UpdatePassword(new_password) => (new_password, model.1, calculate_strength(new_password, model.1))
-  | ClearCriteria => (model.0, [], calculate_strength(model.0, []))
-  | AddCriterion(criteria) => (model.0, model.1 \/| criteria, calculate_strength(model.0, model.1 \/| criteria))
-  | RemoveCriterion(criteria) => (model.0, model.1 ---| criteria, calculate_strength(model.0, model.1 ---| criteria))
-  end

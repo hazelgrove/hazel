@@ -1,7 +1,0 @@
-fun model, action ->
-    case action
-    | SelectRoom(rid) => { model with currentRoom = Some(rid) }
-    | SelectDateTime(dt) => { model with currentDateTime = Some(dt) }
-    | SubmitForm => { model with bookings = rm_booking((model.user, model.bookingId, model.bookings))}
-    | ResetForm => { model with currentRoom = None, currentDateTime = None }
-    end

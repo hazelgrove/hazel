@@ -1,7 +1,0 @@
-fun model, action ->
-    case action
-    | PlayListAction.Play => PlayList(get_songs(model), Playing)
-    | PlayListAction.Pause => PlayList(get_songs(model), Paused)
-    | PlayListAction.AddSong(id) => PlayList(id::get_songs(model), get_state(model))
-    | PlayListAction.RemoveSong(id) => PlayList(List.remove(id, get_songs(model)), get_state(model))
-    end

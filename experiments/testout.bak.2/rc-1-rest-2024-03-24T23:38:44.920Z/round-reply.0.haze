@@ -1,8 +1,0 @@
-fun m, action ->
-  case action
-  | Toggle(index) => {m with todos = toggle(index, m.todos)}
-  | Remove(index) => {m with todos = remove(index, m.todos)}
-  | Add(text) => {m with todos = add({m with input = text})}
-  | Filter(value) => {m with filter = value}
-  | Change(text) => {m with input = text}
-  | ClearCompleted => {m with todos = List.filter(todo -> not todo.done, m.todos)}

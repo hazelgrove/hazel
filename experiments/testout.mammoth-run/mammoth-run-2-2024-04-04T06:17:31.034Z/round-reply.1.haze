@@ -1,7 +1,0 @@
-fun (selectedEmoji, grid), action ->
-  case action
-  | SelectEmoji(emoji) => (emoji, grid)
-  | ClickCell(row, col) => (selectedEmoji, updateGrid(grid, row, col, selectedEmoji))
-  | FillRow(row) => (selectedEmoji, fillRowInGrid(grid, row, selectedEmoji))
-  | Clear => (selectedEmoji, clearGrid(grid))
-  end

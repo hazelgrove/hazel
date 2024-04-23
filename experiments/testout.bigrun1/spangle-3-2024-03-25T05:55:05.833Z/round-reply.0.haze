@@ -1,8 +1,0 @@
-fun model, action ->
-  case action
-  | AddTrack(track) => model.tracks.push(track)
-  | RemoveTrack(track) => model.tracks.filter(t => t != track)
-  | Play => { ...model, isPlaying: true }
-  | Pause => { ...model, isPlaying: false }
-  | Stop => { ...model, isPlaying: false, currentPosition: 0 } 
-  end

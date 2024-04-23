@@ -1,7 +1,0 @@
-fun (model, action) ->
-    case action
-    | AddSong(song) => let new_songs = song :: model.songs in PlayList(new_songs, model.current)
-    | RemoveSong(song) => let new_songs = List.filter(fun s -> s != song, model.songs) in PlayList(new_songs, model.current)
-    | PlaySong(song) => PlayList(model.songs, Some(song))
-    | StopSong => PlayList(model.songs, None)
-    end

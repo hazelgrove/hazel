@@ -1,9 +1,0 @@
-
-fun playlist, action ->
-    case action
-    | AddSong(song_id) => add_song(playlist, song_id)
-    | DeleteSong(song_id) => delete_song(playlist, song_id)
-    | PlaySong(song_id) => play_song(playlist, song_id)
-    | PauseSong(song_id) => pause_song(playlist, song_id)
-    | Stop => stop(playlist)
-    end

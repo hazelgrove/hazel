@@ -1,7 +1,0 @@
-
-fun playlist, action ->
-  case action
-  | AddTrack(track) => playlist.addTrack(track)
-  | RemoveTrack(track) => playlist.removeTrack(track)
-  | ClearPlaylist => playlist.clear()
-  end

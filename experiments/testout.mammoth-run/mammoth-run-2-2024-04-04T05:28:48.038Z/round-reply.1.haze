@@ -1,7 +1,0 @@
-fun (model, action) ->
-  case action
-  | Play => { model with state = Playing }
-  | Pause => { model with state = Paused }
-  | AddSong(id) => { model with songs = id :: model.songs }
-  | RemoveSong(id) => { model with songs = List.remove(id, model.songs) }
-  end

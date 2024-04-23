@@ -1,5 +1,0 @@
-fun p,a ->
-  case a 
-  | Add(song) => song::p
-  | Remove(song) => List.filter(fun s -> s != song, p)
-  end

@@ -1,7 +1,0 @@
-fun model, action ->
-case action
-| UpdatePassword(password) => (password, model.1, model.2) //keep existing criteria and strength
-| ClearCriteria => (model.0, [], model.2) //keep existing password and strength
-| AddCriterion(criterion) => (model.0, criterion :: model.1, model.2) //keep existing password and strength
-| RemoveCriterion(criterion) => (model.0, List.remove(criterion, model.1), model.2) // keep existing password and strength
-end

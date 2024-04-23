@@ -1,8 +1,0 @@
-
-fun p, action ->
-case action
-  | PlaySong(id) => (fst p, Playing(id))
-  | PauseCurrentSong => (fst p, case snd p of Playing(id) => PausedOn(id) | _ => snd p end)
-  | RemoveSong(id) => (List.filter(fun song_id -> song_id != id, fst p), snd p)
-  | AddSong(id) => (id::fst p, snd p)
-  end

@@ -1,9 +1,0 @@
-fun (model, action) ->
-  case action
-    | OpenBookingForm => { model with booking_form_open = true }
-    | CloseBookingForm => { model with booking_form_open = false }
-    | UpdateDate(date) => { model with selected_date = date }
-    | SubmitBookingForm(data) => 
-      let new_booking = create_booking(data) in
-      { model with bookings = new_booking :: model.bookings }
-  end

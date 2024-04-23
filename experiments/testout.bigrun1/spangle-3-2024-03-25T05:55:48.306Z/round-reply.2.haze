@@ -1,6 +1,0 @@
-fun (model, action) ->
-  case action
-  | PlayListAction.Add(song) => song::model
-  | PlayListAction.Remove(song) => List.filter(fun s -> s != song, model)
-  | PlayListAction.Clear => [] 
-  end

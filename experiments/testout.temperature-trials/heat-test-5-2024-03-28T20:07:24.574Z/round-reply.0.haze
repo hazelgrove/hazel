@@ -1,6 +1,0 @@
-fun model, action ->
-    case action
-    | AddSong(song) => List.append(model, [song])
-    | RemoveSong(index) => List.remove(index, model)
-    | ClearPlayList => []
-    end

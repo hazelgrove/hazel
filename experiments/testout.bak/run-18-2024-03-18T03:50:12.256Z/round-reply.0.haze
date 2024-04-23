@@ -1,7 +1,0 @@
-
-fun playlist, action ->
-  case action
-    | Add(track) => playlist :: track
-    | Remove(track) => filter(fun t -> t != track, playlist)
-    | Clear => []
-  end

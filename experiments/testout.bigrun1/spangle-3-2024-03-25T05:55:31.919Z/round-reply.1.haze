@@ -1,8 +1,0 @@
-fun model, action -> 
-  case action
-  | StartPlaying() => {model with inPlay = true}
-  | StopPlaying() => {model with inPlay = false}
-  | SetPlayCount(count) => {model with playCount = count}
-  | AddSong(song) => {model with songs = song :: model.songs}
-  | RemoveSong(song) => {model with songs = List.remove(song, model.songs)}
-  end

@@ -1,9 +1,0 @@
-
-fun model, action ->
-  let (buffer, todos) = model in
-  case action
-  | AddTodo => if buffer != "" then (buffer, todos @ [(buffer, false)]) else model
-  | RemoveTodo(idx) => (buffer, List.remove_at(idx, todos))
-  | ToggleTodo(idx) => (buffer, List.map_with_index(fun i, (t, done) -> if i == idx then (t, !done) else (t, done), todos))
-  | UpdateBuffer(new_buffer) => (new_buffer, todos)
-  end

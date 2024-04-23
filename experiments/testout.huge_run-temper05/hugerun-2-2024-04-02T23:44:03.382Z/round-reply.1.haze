@@ -1,9 +1,0 @@
-fun (model, action) ->
-  case action
-    | NoOp => model
-    | ChangeUser(user) => { model with user = user }
-    | ChangeBookingID(booking_id) => { model with booking_id = booking_id }
-    | AddBooking(booking) => { model with bookings = booking::model.bookings }
-    | RemoveBooking(booking_id) => { model with bookings = rm_booking(model.user, booking_id, model.bookings) }
-    | UpdateFormState(weekday, time_of_day, room) => { model with formState = ((weekday, time_of_day), room) }
-  end

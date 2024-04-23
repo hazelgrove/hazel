@@ -1,7 +1,0 @@
-fun (model, action) ->
-  case action
-  | AddBooking(user, weekday, time) => if bookingExists(model, (time, user, day)) then model else addBooking(model, (time,user,day))
-  | RemoveBooking(bookingId) => removeBooking(model, bookingId)
-  | SetBookingFormData(bookingData) => setBookingFormData(model, bookingData)
-  | Init => Model.init
-  end

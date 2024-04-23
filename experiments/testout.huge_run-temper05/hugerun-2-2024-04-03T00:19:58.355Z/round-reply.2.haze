@@ -1,7 +1,0 @@
-fun (password, criteria, strength), action ->
-  case action
-  | AddTodo => (password, criteria, strength)
-  | RemoveTodo(i) => (password, criteria, strength)
-  | ToggleTodo(i) => (password, criteria, strength)
-  | UpdateBuffer(s) => (s, criteria, strength)
-  end

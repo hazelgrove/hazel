@@ -1,7 +1,0 @@
-fun m, action -> 
-    case action of
-    | AddTodo => add_todo(m)
-    | RemoveTodo(i) => remove_todo(i, m)
-    | ToggleTodo(i) => toggle_todo(i, m)
-    | UpdateBuffer(str) => update_buffer(str, m)
-    end

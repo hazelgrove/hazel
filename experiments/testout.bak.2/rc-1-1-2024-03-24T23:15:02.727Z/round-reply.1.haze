@@ -1,9 +1,0 @@
-fun (model, action) ->
-    case action
-    | CheckIn(userId) =>
-        { model with occupied = model.occupied @ [userId] }
-    | CheckOut(userId) =>
-        { model with occupied = List.filter((fun id -> id != userId), model.occupied) }
-    | Clean =>
-        { model with needsCleaning = false }
-    end

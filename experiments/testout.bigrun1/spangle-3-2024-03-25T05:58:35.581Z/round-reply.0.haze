@@ -1,8 +1,0 @@
-
-fun model, action ->
-  case action
-  | ChangeName(name) => {model with name = name}
-  | ChangeTracks(tracks) => {model with tracks = tracks} 
-  | ChangeFav(fav) => {model with is_fav = fav} 
-  | Reset => {name = "", tracks = [], is_fav = false}
-  end

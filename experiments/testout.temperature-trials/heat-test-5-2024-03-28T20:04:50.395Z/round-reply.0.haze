@@ -1,6 +1,0 @@
-fun model, action ->
-  case action
-  | Post(PostSong(song)) => AddTrack(song, model)
-  | Delete(DeleteSong(index)) => DeleteTrack(index, model)
-  | GetCurrentSong => CurrentTrack(model)
-  end

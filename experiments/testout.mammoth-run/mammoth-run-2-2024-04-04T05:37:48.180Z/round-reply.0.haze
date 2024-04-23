@@ -1,8 +1,0 @@
-fun model, action ->
-  case action
-    | AddSong(song) => model.songs::song
-    | RemoveSong(song) => List.filter(fun s -> s != song, model.songs)
-    | SetCurrentSong(song) => model.current_song = song
-    | Pause => model.is_playing = false
-    | Play => model.is_playing = true
-  end

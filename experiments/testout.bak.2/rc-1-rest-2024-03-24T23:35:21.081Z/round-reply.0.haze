@@ -1,7 +1,0 @@
-
-fun model, action -> case action
-    | AddTodo => (string_concat(model, "")),
-    | RemoveTodo(i) => let (s, todos) = model in (s, remove(i, todos))
-    | ToggleTodo(i) => let (s, todos) = model in (s, toggle(i, todos))
-    | UpdateBuffer(b) => let (_, todos) = model in (string_trim(b), todos)
-    end

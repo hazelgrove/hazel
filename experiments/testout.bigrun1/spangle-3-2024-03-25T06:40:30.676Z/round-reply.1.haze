@@ -1,6 +1,0 @@
-fun (model, action) ->
-  case action
-    | Draw(x, y, c) => {model with canvas = set_pixel(model.canvas, x, y, c)}
-    | Undo => undo(model)
-    | Redo => redo(model)
-  end

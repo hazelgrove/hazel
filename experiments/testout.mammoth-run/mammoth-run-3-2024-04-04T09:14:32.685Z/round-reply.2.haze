@@ -1,8 +1,0 @@
-fun (grid, currentEmoji, emojiList), action ->
-  case action
-  | SelectEmoji(newEmoji) => (grid, newEmoji, emojiList)
-  | StampEmoji((row, col)) => let updatedRow = List.replaceAt(col, currentEmoji, List.nth(row, grid)) in (List.replaceAt(row, updatedRow, grid), currentEmoji, emojiList)
-  | ClearCell((row, col)) => let updatedRow = List.replaceAt(col, "", List.nth(row, grid)) in (List.replaceAt(row, updatedRow, grid), currentEmoji, emojiList)
-  | ClearGrid => (List.map(fun _ -> List.map(fun _ -> "", List.nth(0, grid)), grid), currentEmoji, emojiList)
-  | FillRow(row) => let filledRow = List.map(fun _ -> currentEmoji, List.nth(row, grid)) in (List.replaceAt(row, filledRow, grid), currentEmoji, emojiList)
-  end

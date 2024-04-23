@@ -1,6 +1,0 @@
-fun (pl, act) ->
-    case act
-    | Pause => {pl with state = Paused}
-    | Play => {pl with state = Playing(get_songs(pl))}
-    | Stop => {pl with state = Stopped}
-    end

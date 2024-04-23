@@ -1,9 +1,0 @@
-fun (playlist, action) ->
-    case action
-    | Add(id) => List.strftime("%s,%s", get_songs(playlist), Id.toString(id))
-    | Delete(id) => List.filter_map(fun x -> if x == id then None else Some(x), get_songs(playlist))
-    | Play => PlayList.set_state(PlayList.Playing, playlist)
-    | Pause => PlayList.set_state(playlist, PlayList.Paused)
-    | Stop => PlayList.set_state(playlist, PlayList.Stopped)
-    | Sort(cmp) => PlayList.set_songs(list_sort(cmp, get_songs(playlist)), playlist) end
-    end

@@ -1,9 +1,0 @@
-
-fun model, action ->
-  case action
-  | SelectEmoji(emoji) => (model.Grid, emoji, model.[Emoji])
-  | StampEmoji((row, col)) => (List.replace(model.Grid, row, List.replace(List.nth(model.Grid, row), col, model.Emoji)), model.Emoji, model.[Emoji])
-  | ClearCell((row, col)) => (List.replace(model.Grid, row, List.replace(List.nth(model.Grid, row), col, "")), model.Emoji, model.[Emoji])
-  | ClearGrid => (List.map (fun _ -> List.map (fun _ -> "") model.Grid) model.Grid, model.Emoji, model.[Emoji])
-  | FillRow(row) => (List.replace(model.Grid, row, List.map (fun _ -> model.Emoji) List.nth(model.Grid, row)), model.Emoji, model.[Emoji])
-  end

@@ -1,6 +1,0 @@
-fun (model, action) ->
-  case action
-  | LoadPlayList(ids) => {model with songs = ids}
-  | SetPlayListState(state) => {model with state = state} 
-  | LoadSong(id) => {model with songs = id :: model.songs}
-  end

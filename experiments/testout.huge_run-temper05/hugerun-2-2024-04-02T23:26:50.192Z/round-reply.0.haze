@@ -1,6 +1,0 @@
-fun model, action ->
-  case action
-  | AddSong(id) => let songs = get_songs(model) in PlayList(List.sort(fun a, b -> a<b, id::songs), get_state(model))
-  | RemoveSong(id) => let songs = get_songs(model) in PlayList(List.filter(fun song_id -> song_id != id, songs), get_state(model))
-  | ChangeState(state) => PlayList(get_songs(model), state)
-  end

@@ -1,8 +1,0 @@
-
-fun playlist, action ->
-  case action of
-  | AddSong(id) => { playlist with songs = id :: playlist.songs }
-  | RemoveSong(id) => { playlist with songs = List.remove(id, playlist.songs) }
-  | Play => { playlist with state = Playing }
-  | Pause => { playlist with state = Paused } 
-  end

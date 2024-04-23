@@ -1,9 +1,0 @@
-The following static errors were discovered:
-The suggested filling has the wrong expected type: expected ((Model, Action) -> Model), but got ((?, ?) -> ((Weekday, TimeOfDay, User), [?], Int)).
-Error in term:
-  fun b ->
- let ((_, _, id)) = b in
- id != booking_id, bookings
-Nature of error: Expecting type ((? -> Bool), [?]) but got inconsistent type (? -> (Bool, ?))
-Please try to address the error(s) by updating your previous code suggestion
-Please respond ONLY with the update suggestion

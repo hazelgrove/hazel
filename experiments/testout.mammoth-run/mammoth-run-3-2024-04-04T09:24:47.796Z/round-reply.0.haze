@@ -1,8 +1,0 @@
-
-fun model, action ->
-  case action
-    | Draw(x, y) => draw(model, x, y)
-    | Clear() => clear(model)
-    | SetEmoji(emoji) => set_emoji(model, emoji)
-    | SetSize(size) => set_size(model, size)
-  end

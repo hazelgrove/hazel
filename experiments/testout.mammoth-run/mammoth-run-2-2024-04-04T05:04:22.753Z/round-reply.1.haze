@@ -1,7 +1,0 @@
-fun (buffer, todos), action ->
-  case action
-  | AddTodo => (buffer, add(buffer, todos))
-  | RemoveTodo(idx) => (buffer, remove(idx, todos))
-  | ToggleTodo(idx) => (buffer, toggle(idx, todos))
-  | UpdateBuffer(str) => (str, todos)
-  end

@@ -1,7 +1,0 @@
-fun (model, action) ->
-  case action
-  | AddTodo => add(model)
-  | RemoveTodo(i) => remove(model,i)
-  | ToggleTodo(i) => toggle(model,i)
-  | UpdateBuffer(s) => update_buffer(model,s)
-  end

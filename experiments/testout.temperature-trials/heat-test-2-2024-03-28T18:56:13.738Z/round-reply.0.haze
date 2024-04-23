@@ -1,7 +1,0 @@
-fun m, a -> 
-  case a
-  | AddTodo(s) => (s, add(m))
-  | RemoveTodo(i) => remove(i, m)
-  | ToggleTodo(i) => (m.1, toggle(i, m.2))
-  | UpdateBuffer(s) => (s, m.2)
-  end

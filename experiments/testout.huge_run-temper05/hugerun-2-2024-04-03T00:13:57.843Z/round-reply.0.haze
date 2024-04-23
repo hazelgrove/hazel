@@ -1,9 +1,0 @@
-
-fun (model, action) ->
-    case action
-    | SelectEmoji(emoji) => (model.0, emoji, model.2)
-    | StampEmoji((row, col)) => (List.replaceAt(row, List.replaceAt(col, model.1, model.0[row]), model.0), model.1, model.2)
-    | ClearCell((row, col)) => (List.replaceAt(row, List.replaceAt(col, "", model.0[row]), model.0), model.1, model.2)
-    | ClearGrid => (List.map(fun _ -> List.map(fun _ -> "", model.0[0]), model.0), model.1, model.2)
-    | FillRow(row) => (List.replaceAt(row, List.map(fun _ -> model.1, model.0[row]), model.0), model.1, model.2)
-    end

@@ -1,8 +1,0 @@
-fun (bookingFormData, bookings, bookingID), action ->
-    case action
-      | AddBooking(user, day, time_of_day) => let new_booking = ((day, time_of_day), user, bookingID + 1) in
-                                            (bookingFormData, new_booking :: bookings, bookingID + 1)
-      | CancelBooking(user, id) => let new_bookings = List.filter(bookings, fun b -> let ((_, u, i)) = b in !(u == user && i == id)) in
-                                   (bookingFormData, new_bookings, bookingID)
-      | ClearBookings => (bookingFormData, [], bookingID)
-    end

@@ -1,5 +1,0 @@
-fun state, action ->
-    case action
-      | LoadNewPlayList(newPlayList) => newPlayList
-      | AddToPlayList(song) => PlayList.append(song, state)
-    end

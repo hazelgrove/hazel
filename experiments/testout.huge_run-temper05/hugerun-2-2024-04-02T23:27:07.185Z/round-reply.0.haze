@@ -1,7 +1,0 @@
-fun playlist, action ->
-  case action
-  | AddSong(id) => { playlist with songs = id :: playlist.songs }
-  | RemoveSong(id) => { playlist with songs = List.filter(fun song_id -> song_id != id, playlist.songs) }
-  | TogglePlay => { playlist with state = if playlist.state == Playing then Paused else Playing }
-  | SortSongs => { playlist with songs = List.sort(fun id1, id2 -> compare(id1, id2), playlist.songs) }
-  end

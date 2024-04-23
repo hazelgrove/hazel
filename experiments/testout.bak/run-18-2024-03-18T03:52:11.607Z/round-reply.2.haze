@@ -1,9 +1,0 @@
-fun (play_list, action) ->
-  case action
-    | AddTrack(track) => track::play_list
-    | RemoveTrack(track) => List.filter(fun t -> t != track, play_list)
-    | PlayNext => match play_list with
-      | [] -> []
-      | _::tail -> tail
-    | RepeatTrack -> play_list
-  end

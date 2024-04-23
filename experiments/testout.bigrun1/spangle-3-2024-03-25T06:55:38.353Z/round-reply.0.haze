@@ -1,8 +1,0 @@
-
-fun m, action ->
-  case action
-  | UpdatePassword(new_password) => (new_password, snd m, checkStrength(new_password, snd m))
-  | ClearCriteria => (fst m, [], checkStrength(fst m, []))
-  | AddCriterion(new_criterion) => (fst m, new_criterion::snd m, checkStrength(fst m, new_criterion::snd m))
-  | RemoveCriterion(old_criterion) => (fst m, List.remove(old_criterion, snd m), checkStrength(fst m, List.remove(old_criterion, snd m)))
-  end

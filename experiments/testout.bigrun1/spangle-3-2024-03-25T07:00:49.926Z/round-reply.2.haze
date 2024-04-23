@@ -1,6 +1,0 @@
-fun (model, action) ->
-  case action
-  | ChangePassword(password) => { password = password }
-  | ValidatePassword => { validation = validate(model.password) }
-  | Reset => initialModel
-  end

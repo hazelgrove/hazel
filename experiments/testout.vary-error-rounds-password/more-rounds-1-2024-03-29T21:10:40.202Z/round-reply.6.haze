@@ -1,7 +1,0 @@
-fun model, action ->
-  case model, action of
-  | (password, criteria, strength), ClearCriteria => (password, [], strength)
-  | (password, criteria, strength), UpdatePassword(new_password) => (new_password, criteria, strength)
-  | (password, criteria, strength), AddCriterion(criterion) => (password, criterion::criteria, strength)
-  | (password, criteria, strength), RemoveCriterion(criterion) => (password, List.filter((!=) criterion, criteria), strength)
-  end

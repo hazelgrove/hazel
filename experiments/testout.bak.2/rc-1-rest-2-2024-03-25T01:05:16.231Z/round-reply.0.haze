@@ -1,6 +1,0 @@
-fun model, action ->
-case action
-| CheckIn(guest) => { model with guests = guest :: model.guests }
-| CheckOut(guest) => { model with guests = List.remove(model.guests, guest) }
-| UpdateDate(date) => { model with date = date }
-end

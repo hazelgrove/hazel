@@ -1,6 +1,0 @@
-The following static errors were discovered:
-Error in term:
-  string_sub(buffer, 0, 0)
-Nature of error: Expecting type [String] but got inconsistent type String
-Please try to address the error(s) by updating your previous code suggestion
-Please respond ONLY with the update suggestion

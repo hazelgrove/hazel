@@ -1,8 +1,0 @@
-fun model, action ->
-    case action
-      | AddBooking(user, day, time_of_day) => let new_booking = (Time(day, time_of_day), user, model.2 + 1) in
-                                            (model.0, new_booking :: model.1, model.2 + 1)
-      | CancelBooking(user, id) => let new_bookings = List.filter(fun b -> let (_, u, i) = b in !(u == user && i == id)) model.1 in
-                                   (model.0, new_bookings, model.2)
-      | ClearBookings => (model.0, [], model.2)
-    end

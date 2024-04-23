@@ -1,6 +1,0 @@
-fun model, action ->
-  case action
-  | Action.Increment => {model with count = model.count + 1}
-  | Action.Decrement => {model with count = model.count - 1}
-  | Action.Reset => {model with count = 0}
-  end

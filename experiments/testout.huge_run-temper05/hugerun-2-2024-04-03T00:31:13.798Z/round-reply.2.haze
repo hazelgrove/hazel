@@ -1,7 +1,0 @@
-fun (password, criteria, strength), action ->
-    case action
-    | UpdatePassword(new_password) => (new_password, criteria, strength)
-    | ClearCriteria => (password, [], Weak)
-    | AddCriterion(new_criterion) => (password, new_criterion::criteria, strength)
-    | RemoveCriterion(old_criterion) => (password, List.filter(fun c -> c != old_criterion, criteria), strength)
-    end

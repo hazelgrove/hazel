@@ -1,9 +1,0 @@
-
-fun (playlist, action) ->
-    case action
-    | AddSong(id) => PlayList(get_songs(playlist) :: id, get_state(playlist))
-    | RemoveSong(id) => PlayList(List.filter((fun song_id -> song_id != id), get_songs(playlist)), get_state(playlist))
-    | Play => PlayList(get_songs(playlist), Playing)
-    | Pause => PlayList(get_songs(playlist), Paused)
-    | Stop => PlayList(get_songs(playlist), Stopped)
-    end

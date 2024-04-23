@@ -1,8 +1,0 @@
-fun model, action ->
-  case action
-  | BookingAction(user, bookingID) => 
-      let bookings = getUserBookings(model, user) in
-      let updated_bookings = rm_booking(user, bookingID, bookings) in
-      { model with bookings = updated_bookings }
-  | _ => model
-  end

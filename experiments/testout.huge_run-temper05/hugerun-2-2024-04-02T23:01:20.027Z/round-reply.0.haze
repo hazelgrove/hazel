@@ -1,8 +1,0 @@
-
-fun model, action ->
-  case action
-  | AddTodo => (model.1, (model.2, false)::model.3)
-  | RemoveTodo(i) => (model.1, List.remove(i, model.3))
-  | ToggleTodo(i) => (model.1, List.map(fun idx, todo -> if idx == i then (todo.1, !todo.2) else todo, model.3))
-  | UpdateBuffer(s) => (s, model.3)
-  end

@@ -1,7 +1,0 @@
-fun model, action ->
-  case action
-  | AddSong(song) => add_song(song, model)
-  | DeleteSong(song) => delete_song(song, model)
-  | PlayNext => play_next_song(model)
-  | Pause => pause_song(model)
-  end

@@ -1,7 +1,0 @@
-fun model, action ->
-  case action
-  | ChangeEmoji(emoji) => { model with currentEmoji = emoji }
-  | PaintCell(row, col) => { model with grid = updateGrid(model.grid, row, col, model.currentEmoji) }
-  | FillRow(row) => { model with grid = fillRowInGrid(model.grid, row, model.currentEmoji) }
-  | Clear => { model with grid = clearGrid(model.grid) }
-  end

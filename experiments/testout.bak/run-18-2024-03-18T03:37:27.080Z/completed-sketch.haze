@@ -1,7 +1,0 @@
-let update: (Model, Action) -> Model =
-  fun (model, action) ->
-    case action
-      | Increment => let _ = model.count <- model.count + 1 in model
-      | Decrement => let _ = model.count <- model.count - 1 in model
-    end
-in

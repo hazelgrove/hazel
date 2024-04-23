@@ -1,6 +1,0 @@
-fun model, action ->
-    case action
-    | Toggle(index) => toggle(index, model.todos)
-    | Remove(index) => remove(index, model.todos)
-    | Add => add(model)
-    end

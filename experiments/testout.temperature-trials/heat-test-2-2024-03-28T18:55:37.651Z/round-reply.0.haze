@@ -1,9 +1,0 @@
-fun model, action ->
-      case action
-      | AddTodo =>
-          let newTodo = string_trim(fst(model)) in
-          if newTodo == "" then model else (string_concat(newTodo, []), add(model))
-      | RemoveTodo(n) => (fst(model), remove(n, snd(model)))
-      | ToggleTodo(n) => (fst(model), toggle(n, snd(model)))
-      | UpdateBuffer(s) => (string_concat(s, []), snd(model))
-      end

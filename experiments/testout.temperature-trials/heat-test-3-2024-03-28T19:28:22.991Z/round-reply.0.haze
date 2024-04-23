@@ -1,7 +1,0 @@
-fun model, action ->
-  case action
-  | PlaySong(id) => (get_songs(model), Playing(id))
-  | PauseCurrentSong => (get_songs(model), PausedOn(get_state(model)))
-  | RemoveSong(id) => (List.filter_map(fun song_id -> if song_id == id then None else Some(song_id), get_songs(model)), get_state(model))
-  | AddSong(id) => (List.concat_map(fun song_id -> [song_id; id], get_songs(model)), get_state(model))
-  end

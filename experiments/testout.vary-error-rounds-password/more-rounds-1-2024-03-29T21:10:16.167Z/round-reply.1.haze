@@ -1,7 +1,0 @@
-fun m, a ->
-  case a
-  | UpdatePassword(new_pass) => (new_pass, snd(m), trd(m))
-  | ClearCriteria => (fst(m), [], trd(m))
-  | AddCriterion(criterion) => (fst(m), criterion::snd(m), trd(m))
-  | RemoveCriterion(criterion) => (fst(m), List.filter(fun c -> c != criterion, snd(m)), trd(m))
-  end

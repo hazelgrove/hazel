@@ -1,7 +1,0 @@
-fun m, a ->
-  case a
-    | NoOp => m
-    | Add => Model.set.todos(add(m), m)
-    | Remove(idx) => Model.set.todos(remove(idx, Model.get.todos(m)), m)
-    | Toggle(idx) => Model.set.todos(toggle(idx, Model.get.todos(m)), m)
-  end

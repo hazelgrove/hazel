@@ -1,6 +1,0 @@
-The following static errors were discovered:
-Error in term:
-  get_state(model)
-Nature of error: Expecting type Id but got inconsistent type PlayListState
-Please try to address the error(s) by updating your previous code suggestion
-Please respond ONLY with the update suggestion

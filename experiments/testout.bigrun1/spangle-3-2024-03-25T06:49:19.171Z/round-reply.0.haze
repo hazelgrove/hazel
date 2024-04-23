@@ -1,8 +1,0 @@
-
-fun m, action -> case action 
-  | Init => initialModel
-  | PasswordInput(p) =>
-    let strength = calculateStrength(p, m.criteriaList) in
-    {password= p, strength}
-  | AddCriteria(c) => {password= m.password, criteriaList= c::m.criteriaList, strength= m.strength}
-end

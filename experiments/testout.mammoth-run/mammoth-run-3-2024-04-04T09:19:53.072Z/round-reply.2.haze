@@ -1,6 +1,0 @@
-fun (model, action) ->
-  case action
-  | Draw(start, end) => { model with path = model.path @ [(start, end)] }
-  | SetColor(color) => { model with color = color }
-  | Clear => { model with path = [] }
-  end

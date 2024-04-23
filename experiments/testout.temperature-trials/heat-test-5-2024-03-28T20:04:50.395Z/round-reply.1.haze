@@ -1,6 +1,0 @@
-fun model, action ->
-  case action
-  | AddSong(song) => model @ [song]
-  | RemoveSong(index) => List.remove_at(index, model)
-  | Play => model
-  end

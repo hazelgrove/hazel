@@ -1,7 +1,0 @@
-fun (playlist, action) -> 
-    case action 
-    | Add(track) => track :: playlist
-    | Remove(index) => List.remove_at(index, playlist)
-    | Move(old_index, new_index) => List.move(old_index, new_index, playlist)
-    | Shuffle => List.shuffle playlist
-    end

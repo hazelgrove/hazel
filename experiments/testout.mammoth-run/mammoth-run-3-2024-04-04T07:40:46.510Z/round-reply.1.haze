@@ -1,7 +1,0 @@
-fun (buffer, todos), action ->
-  case action
-  | AddTodo => (buffer, todos::(buffer, false))
-  | RemoveTodo(index) => (buffer, List.remove_at(index, todos))
-  | ToggleTodo(index) => (buffer, List.update_at(index, fun (_, done) -> (buffer, !done), todos))
-  | UpdateBuffer(new_buffer) => (new_buffer, todos)
-  end

@@ -1,6 +1,0 @@
-fun playlist, action ->
-  case action
-    | AddTrack(track) => track::playlist
-    | RemoveTrack(track) => List.filter(fun t -> t != track, playlist)
-    | Shuffle => Random.shuffle(playlist)
-  end

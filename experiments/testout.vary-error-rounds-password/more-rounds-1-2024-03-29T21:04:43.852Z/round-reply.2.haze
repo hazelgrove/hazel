@@ -1,8 +1,0 @@
-fun m, a ->
-  case m, a 
-  | (password, criteria, strength), UpdatePassword(p) => (p, criteria, checkStrength(p, criteria))
-  | (password, criteria, strength), ClearCriteria => (password, [], checkStrength(password, []))
-  | (password, criteria, strength), AddCriterion(c) => (password, c::criteria, checkStrength(password, c::criteria))
-  | (password, criteria, strength), RemoveCriterion(c) => (password, List.filter((fun x -> x != c), criteria), checkStrength(password, List.filter((fun x -> x != c), criteria)))
-  end
-where checkStrength is a predefined function.

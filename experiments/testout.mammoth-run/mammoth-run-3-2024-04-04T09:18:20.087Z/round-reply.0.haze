@@ -1,8 +1,0 @@
-fun m, a ->
-  case a
-  | SelectEmoji(e) => (m.0, e, m.2)
-  | StampEmoji((r, c)) => (m.0 |> List.mapi (fun ri row -> if ri == r then row |> List.mapi (fun ci cell -> if ci == c then m.1 else cell) else row), m.1, m.2)
-  | ClearCell((r, c)) => (m.0 |> List.mapi (fun ri row -> if ri == r then row |> List.mapi (fun ci cell -> if ci == c then "" else cell) else row), m.1, m.2)
-  | ClearGrid => ([List.init 10 (fun _ -> "") | _ <- 1..10], m.1, m.2)
-  | FillRow(r) => (m.0 |> List.mapi (fun ri row -> if ri == r then row |> List.map (fun _ -> m.1) else row), m.1, m.2)
-  end

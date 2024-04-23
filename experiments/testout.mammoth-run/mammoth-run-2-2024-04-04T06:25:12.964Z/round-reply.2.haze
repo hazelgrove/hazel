@@ -1,8 +1,0 @@
-fun model, action ->
-  case action
-    | SelectEmoji(emoji) => let (grid, _, palette) = model in (grid, emoji, palette)
-    | StampEmoji((row, col)) => let (grid, emoji, palette) = model in (List.map(fun r -> if r == row then List.map(fun c -> if c == col then emoji else List.nth(c, r), r) else r, grid), emoji, palette)
-    | ClearCell((row, col)) => let (grid, emoji, palette) = model in (List.map(fun r -> if r == row then List.map(fun c -> if c == col then "" else List.nth(c, r), r) else r, grid), emoji, palette)
-    | ClearGrid => let (_, emoji, palette) = model in (List.map(fun _ -> List.map(fun _ -> "", grid), grid), emoji, palette)
-    | FillRow(row) => let (grid, emoji, palette) = model in (List.map(fun r -> if r == row then List.map(fun _ -> emoji, List.nth(r, grid)) else r, grid), emoji, palette)
-  end

@@ -1,7 +1,0 @@
-fun m, a -> 
-case a 
-| UpdatePassword(pwd) => update_password(m, pwd)
-| ClearCriteria => clear_criteria(m)
-| AddCriterion(criterion) => add_criterion(m, criterion)
-| RemoveCriterion(criterion) => remove_criterion(m, criterion)
-end

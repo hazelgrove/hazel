@@ -1,6 +1,0 @@
-fun (model, action) ->
-  case action
-  | AddTodo => model |> add
-  | RemoveTodo(id) => {model with todos = remove(id, model.todos)}
-  | ToggleTodo(id) => {model with todos = toggle(id, model.todos)}
-  end

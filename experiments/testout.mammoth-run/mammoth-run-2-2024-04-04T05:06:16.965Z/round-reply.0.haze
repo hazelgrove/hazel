@@ -1,7 +1,0 @@
-
-fun model, action ->
-  case action
-  | Add => Model.init(add(model))
-  | Toggle(index) => Model.init(toggle(index, model.todos))
-  | Remove(index) => Model.init(remove(index, model.todos))
-  end

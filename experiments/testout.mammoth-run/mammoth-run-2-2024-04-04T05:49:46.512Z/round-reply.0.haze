@@ -1,9 +1,0 @@
-fun model, action ->
-  case action
-  | AddBooking(user, weekday, timeOfDay) => let (_, bookings, id) = model in
-      let newBooking = ((weekday, timeOfDay), user, id + 1) in
-      ((weekday, timeOfDay), user), newBooking::bookings, id + 1
-  | CancelBooking(user, id) => let (form, bookings, _) = model in
-      form, rm_booking(user, id, bookings), _
-  | ClearBookings => initFormState, [], 0
-  end

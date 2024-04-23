@@ -1,9 +1,0 @@
-# Update the Room Booking app model based on an action #
-
-let update: (Model, Action) -> Model =
-  fun model, action ->
-  case action
-  | CheckIn(name) => {model with checked_in = name::model.checked_in}
-  | CheckOut(name) => {model with checked_in = List.remove(name, model.checked_in)}
-  end
-in

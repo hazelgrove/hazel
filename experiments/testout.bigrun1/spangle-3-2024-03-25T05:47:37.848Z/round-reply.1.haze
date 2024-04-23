@@ -1,8 +1,0 @@
-fun (model, action) ->
-  case action
-    | Remove(id) => PlayList.filter((fun item -> item.id != id), model)
-    | Add(item) => (item :: model)
-    | Sort(cmp) => List.sort(cmp, model)
-    | Reverse() => List.rev(model)
-  end
-in

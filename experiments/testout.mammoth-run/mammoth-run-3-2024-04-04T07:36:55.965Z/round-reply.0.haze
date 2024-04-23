@@ -1,6 +1,0 @@
-fun model, action ->
-  case action
-    | AddTask(new_task) => add(new_task, model.todos)
-    | ToggleTask(idx) => toggle(idx, model.todos)
-    | RemoveTask(idx) => remove(idx, model.todos)
-  end

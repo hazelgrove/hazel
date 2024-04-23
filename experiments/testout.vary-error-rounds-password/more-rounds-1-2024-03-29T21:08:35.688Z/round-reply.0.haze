@@ -1,8 +1,0 @@
-
-fun model, action ->
-  case action
-    | UpdatePassword(new_password) => password_update(model, new_password)
-    | ClearCriteria => clear_criteria(model)
-    | AddCriterion(criterion) => add_criterion(model, criterion)
-    | RemoveCriterion(criterion) => remove_criterion(model, criterion)
-  end

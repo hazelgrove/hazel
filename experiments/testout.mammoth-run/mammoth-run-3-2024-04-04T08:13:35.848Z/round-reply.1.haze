@@ -1,6 +1,0 @@
-fun model, action ->
-  case action
-    | AddSong(song) => model.songs := song :: model.songs
-    | RemoveSong(song) => model.songs := List.filter(fun s -> s != song, model.songs)
-    | Shuffle => model.songs := List.shuffle(model.songs)
-  end

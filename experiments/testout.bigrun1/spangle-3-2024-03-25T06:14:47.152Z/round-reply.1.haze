@@ -1,9 +1,0 @@
-fun model, action ->
-  case action
-  | ReservRoom(roomNum, date, person) =>
-      let newReserv = {room_number= roomNum; date= date; person= person} in
-      {model with reservations= List.cons(newReserv, model.reservations)}
-  | CancelReserv(roomNum, date, person) =>
-      let updatedReservs= List.filter (fun reserv -> reserv.room_number != roomNum \/ reserv.date != date \/ reserv.person != person, model.reservations) in
-      {model with reservations= updatedReservs}
-  end

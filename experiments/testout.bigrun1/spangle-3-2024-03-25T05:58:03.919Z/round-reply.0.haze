@@ -1,8 +1,0 @@
-fun playlist, action ->
-  case action
-    | AddSong(id) => List.concat_map(fun song -> if song == id then [song] else [], playlist)
-    | DeleteSong(id) => List.filter_map(fun song -> if song == id then None else Some(song), playlist)
-    | Shuffle => List.sort(fun _ _ -> Random.int(2) * 2 - 1, playlist)
-    | Play => PlayList(get_songs(playlist), Playing)
-    | Pause => PlayList(get_songs(playlist), Paused)
-  end

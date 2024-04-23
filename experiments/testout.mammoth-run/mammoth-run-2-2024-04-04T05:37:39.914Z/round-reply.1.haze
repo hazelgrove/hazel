@@ -1,6 +1,0 @@
-fun model, action ->
-  case action
-  | AddTrack(track) => model.add(track)
-  | RemoveTrack(track) => model.remove(track)
-  | ClearPlaylist => model.clear()
-  end

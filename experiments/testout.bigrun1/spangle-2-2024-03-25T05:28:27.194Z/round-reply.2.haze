@@ -1,6 +1,0 @@
-fun (model, action) -> 
-  case action 
-    | Submit => model
-    | UpdateName(name) => { model with name = name }
-    | UpdateEmail(email) => { model with email = email } 
-  end

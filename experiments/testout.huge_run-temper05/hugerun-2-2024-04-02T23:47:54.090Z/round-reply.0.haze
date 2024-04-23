@@ -1,6 +1,0 @@
-fun model, action ->
-    case action
-    | AddBooking(user, weekday, timeOfDay) => addBooking(model, user, weekday, timeOfDay)
-    | CancelBooking(user, id) => cancelBooking(model, user, id)
-    | ClearBookings => clearBookings(model)
-    end

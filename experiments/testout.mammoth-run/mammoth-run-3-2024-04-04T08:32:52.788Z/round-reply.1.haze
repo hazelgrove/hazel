@@ -1,9 +1,0 @@
-fun (model, action) ->
-  case action
-    | AddUser(user) => {model with users = user::model.users}
-    | RemoveUser(user) => {model with users = List.filter((fun u -> u != user), model.users)}
-    | AddBooking(booking) => {model with bookings = booking::model.bookings}
-    | RemoveBooking(booking_id) => {model with bookings = rm_booking((model.current_user, booking_id, model.bookings))}
-    | SetCurrentUser(user) => {model with current_user = user}
-    | UpdateBookingForm((weekday, time_of_day, room)) => {model with form_state = (weekday, time_of_day, room)} 
-  end

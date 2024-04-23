@@ -1,5 +1,0 @@
-fun model, action ->
-    case action
-    | Book(room_id) => {model with bookings = room_id::model.bookings}
-    | Cancel(room_id) => {model with bookings = List.filter(fun room -> room != room_id, model.bookings)}
-    end

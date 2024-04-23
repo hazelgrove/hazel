@@ -1,8 +1,0 @@
-
-fun model, action ->
-  case action
-  | AddTodo => model
-  | RemoveTodo(i) => model
-  | ToggleTodo(i) => model
-  | UpdateBuffer(s) => model
-  end

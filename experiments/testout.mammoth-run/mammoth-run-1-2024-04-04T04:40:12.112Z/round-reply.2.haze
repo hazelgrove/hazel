@@ -1,7 +1,0 @@
-fun (playlist, action) ->
-  case action
-  | PlaySong(id) => update_playlist_with_song(playlist, id)
-  | PauseCurrentSong => pause_current_song_in_playlist(playlist)
-  | RemoveSong(id) => remove_song_from_playlist(playlist, id)
-  | AddSong(id) => add_song_to_playlist(playlist, id)
-  end

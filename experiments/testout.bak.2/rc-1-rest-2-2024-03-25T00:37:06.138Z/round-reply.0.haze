@@ -1,6 +1,0 @@
-fun playlist, action ->
-  case action
-  | AddSong(s) => AddSong(get_songs(playlist) + [s])
-  | RemoveSong(s) => RemoveSong(List.filter(fun song -> song != s, get_songs(playlist)))
-  | ChangeState(s) => ChangeState(get_state(playlist))
-  end

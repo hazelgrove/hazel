@@ -1,6 +1,0 @@
-fun model, action ->
-    case action 
-    | TodoAdd(text) => { model with todos = model.todos @ [text] }
-    | TodoComplete(i) =>
-        { model with todos = List.mapi(fun j, todo -> if i == j then Task.succeed({ todo with completed = true }) else todo), model.todos }
-    end

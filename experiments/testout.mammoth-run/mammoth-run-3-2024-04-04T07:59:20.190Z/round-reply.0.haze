@@ -1,9 +1,0 @@
-fun model, action ->
-    case action
-    | AddSong(id) => let songs = get_songs(model) in
-                     { model with songs = id :: songs }
-    | RemoveSong(id) => let songs = List.filter(fun song -> song != id, get_songs(model)) in
-                        { model with songs = songs }
-    | Start => { model with state = Playing }
-    | Pause => { model with state = Paused }
-    end

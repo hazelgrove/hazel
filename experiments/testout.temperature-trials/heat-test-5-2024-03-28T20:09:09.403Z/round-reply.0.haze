@@ -1,7 +1,0 @@
-
-fun (state, action) ->
-  case action
-  | AddTrack(track) => List.append(state, [track])
-  | RemoveTrack(track) => List.filter(fun t -> t != track, state)
-  | ClearPlaylist() => []
-  end

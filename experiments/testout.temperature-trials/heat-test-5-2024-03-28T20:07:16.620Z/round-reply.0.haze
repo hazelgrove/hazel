@@ -1,6 +1,0 @@
-fun model, action ->
-    case action
-    | AddSong(song) => ?? 
-    | RemoveSong(song) => ?? 
-    | PlaySong(song) => ?? 
-    end

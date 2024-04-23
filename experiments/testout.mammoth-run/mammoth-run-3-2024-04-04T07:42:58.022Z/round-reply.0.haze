@@ -1,9 +1,0 @@
-fun m, a ->
-  case a
-  | AddTodo => (fst(m), (fst(m), false)::snd(m))
-  | RemoveTodo(i) => (fst(m), List.remove_at(i, snd(m)))
-  | ToggleTodo(i) => 
-      let (s, done) = List.nth(snd(m), i) in
-      (fst(m), List.replace_at(i, (s, !done), snd(m)))
-  | UpdateBuffer(s) => (s, snd(m))
-  end

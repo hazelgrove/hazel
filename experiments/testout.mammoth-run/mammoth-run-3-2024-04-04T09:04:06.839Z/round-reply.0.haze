@@ -1,8 +1,0 @@
-
-fun model, action ->
-  case action
-  | Click(row, col) => updateGrid(model.grid, row, col, model.current_emoji)
-  | Select(emoji) => model.current_emoji = emoji
-  | Fill(row) => fillRowInGrid(model.grid, row, model.current_emoji)
-  | Clear => clearGrid(model.grid)
-  end

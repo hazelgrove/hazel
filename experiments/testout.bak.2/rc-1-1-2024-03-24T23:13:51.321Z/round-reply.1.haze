@@ -1,7 +1,0 @@
-fun m, a ->
-    case (m, a)
-    | ((formData, bookings, id), AddBooking((usr, wd, tod))) => let newBooking = ((wd, tod), usr, id + 1) in
-    (formData, newBooking::bookings, id + 1)
-    | ((formData, bookings, id), CancelBooking((usr, bookid))) => (formData, rm_booking(usr, bookid, bookings), id)
-    | (m, ClearBookings) => (initFormState, [], 0)
-    end

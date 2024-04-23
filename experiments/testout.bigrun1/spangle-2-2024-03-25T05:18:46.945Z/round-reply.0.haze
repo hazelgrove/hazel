@@ -1,8 +1,0 @@
-
-fun model, action ->
-    case action
-    | AddTodo => add(model)
-    | RemoveTodo(i) => { first = model.first, second = remove(i, model.second) }
-    | ToggleTodo(i) => { first = model.first, second = toggle(i, model.second) }
-    | UpdateBuffer(str) => { first = str, second = model.second }
-    end

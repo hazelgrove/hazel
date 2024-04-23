@@ -1,7 +1,0 @@
-
-fun model, action ->
-case action
-| Add(song) => model.song_list :: song
-| Remove(index) => List.remove(index, model.song_list)
-| Play => model
-end

@@ -1,8 +1,0 @@
-
-fun model, action ->
-  case action
-  | CheckPassword(p) =>
-    let Strength(s) = check_password_strength(p) in
-    { model | password = p, strength = s }
-  | ChangeAlgorithm(a) =>
-    { model | algorithm = a, strength = check_password_strength(model.password) } end

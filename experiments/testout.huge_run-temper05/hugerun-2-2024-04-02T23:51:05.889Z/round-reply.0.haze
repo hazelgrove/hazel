@@ -1,6 +1,0 @@
-
-fun model, action ->
-  case action
-  | CheckIn(id) => { model with bookings = List.append(model.bookings, [id]) }
-  | CheckOut(id) => { model with bookings = List.filter(fun x -> x != id, model.bookings) }
-  end

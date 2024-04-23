@@ -1,6 +1,0 @@
-fun (model, action) ->
-  case action
-  | AddEmoji(emoji) => { model with emojis = emoji::model.emojis }
-  | RemoveEmoji => { model with emojis = List.tl(model.emojis) }
-  | Clear => { model with emojis = [] }
-  end

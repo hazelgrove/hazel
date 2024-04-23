@@ -1,7 +1,0 @@
-fun model, action ->
-  case action
-  | Toggle(id) => {model with todos = toggle(id, model.todos)}
-  | Remove(id) => {model with todos = remove(id, model.todos)}
-  | Add => {model with todos = add(model)}
-  | Edit(id, new_desc) => {model with todos = List.map(fun todo -> if todo.id == id then {todo with desc = new_desc} else todo, model.todos)}
-  end

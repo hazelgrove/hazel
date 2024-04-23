@@ -1,8 +1,0 @@
-
-fun model, action ->
-  case action
-  | EnterPassword(password) => {model with password = password; strength = calculateStrength(password, model.criteria)}
-  | ToggleCriteria(criteria) =>
-      let criteria = List.toggle(criteria, model.criteria) in
-      {model with criteria = criteria, strength = calculateStrength(model.password, criteria)}
-  end

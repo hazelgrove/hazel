@@ -1,7 +1,0 @@
-fun m, a -> 
-    case a
-      | AddTodo => (fst m, (fst m, false)::snd m)
-      | RemoveTodo(i) => (fst m, List.take(i, snd m) @ List.drop(i + 1, snd m))
-      | ToggleTodo(i) => (fst m, update_todo(snd m, i))
-      | UpdateBuffer(s) => (s, snd m)
-    end

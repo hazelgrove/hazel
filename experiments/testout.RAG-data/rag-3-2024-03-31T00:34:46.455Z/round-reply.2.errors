@@ -1,6 +1,0 @@
-The following static errors were discovered:
-Error in term:
-  (user, weekday, time, am)
-Nature of error: Expecting type (User, Weekday, TimeOfDay) but got inconsistent type (?, ?, ?, ?)
-Please try to address the error(s) by updating your previous code suggestion
-Please respond ONLY with the update suggestion

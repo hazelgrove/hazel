@@ -1,6 +1,0 @@
-fun model, action ->
-    case action
-    | Add(track) => List.append(model, [track])
-    | Remove(track) => List.filter(fun t -> t != track, model)
-    | Clear => []
-    end
