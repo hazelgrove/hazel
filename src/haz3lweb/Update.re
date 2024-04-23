@@ -93,6 +93,10 @@ let update_settings =
           ...evaluation,
           show_settings: !evaluation.show_settings,
         }
+      | ShowHiddenSteps => {
+          ...evaluation,
+          show_hidden_steps: !evaluation.show_hidden_steps,
+        }
       };
     };
     {
@@ -202,7 +206,9 @@ let schedule_evaluation = (~schedule_action, model: Model.t): unit =>
     let step_rs = ModelResults.to_step(model.results);
     if (!ModelResults.is_empty(step_rs)) {
       let new_rs =
-        ModelResults.run_pending(~settings=model.settings.core, step_rs);
+        step_rs
+        |> ModelResults.update_elabs(elabs)
+        |> ModelResults.run_pending(~settings=model.settings.core);
       schedule_action(UpdateResult(new_rs));
     };
   };

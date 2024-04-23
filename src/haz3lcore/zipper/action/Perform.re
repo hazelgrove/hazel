@@ -69,21 +69,44 @@ let go_z =
 
   switch (a) {
   | Project(p) =>
-    switch (Indicated.index(z)) {
+    switch (
+      Indicated.piece'(
+        ~no_ws=false,
+        ~ign=Piece.is_secondary,
+        ~trim_secondary=false,
+        z,
+      )
+    ) {
     | None => Error(Action.Failure.Cant_move)
-    | Some(id) =>
+    | Some((pid, d, _)) =>
       let z = Project.go(p, z);
       //TODO(andrew): clean up hacky movement
-      switch (Move.to_start(z)) {
-      | None => Ok(z)
-      | Some(z) =>
-        switch (Move.jump_to_id(z, id)) {
-        | None => Ok(z)
-        | Some(z) => Ok(z)
-        }
+      print_endline("PERFORM: going to start");
+      print_endline("direction: " ++ Direction.show(d));
+      //d == Left ? Move.to_end(z) : Move.to_start(z)
+      switch (select_term_current(z)) {
+      | Error(_err) =>
+        //TODO(andrew): deal with this properly
+        //figure out why selection is failing (metrics issue?)
+        print_endline(
+          "PERFORM: ERROR couldn't select, going to start instead",
+        );
+        switch (Move.jump_to_id(~init=Left, z, Piece.id(pid))) {
+        | None =>
+          print_endline("PERFORM: jump_to_id failed");
+          Ok(z);
+        | Some(z) =>
+          print_endline("PERFORM: jump_to_id succeeded");
+          switch (select_term_current(z)) {
+          | Ok(z) => Ok(directional_unselect(Direction.toggle(d), z))
+          | Error(_err) => Ok(z)
+          };
+        };
+      | Ok(z) =>
+        print_endline("PERFORM: select_term_current succeeded");
+        Ok(directional_unselect(Direction.toggle(d), z));
       };
     }
-
   | Move(d) =>
     Move.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move)
   | MoveToNextHole(d) =>

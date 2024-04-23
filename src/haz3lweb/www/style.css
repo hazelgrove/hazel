@@ -1754,7 +1754,6 @@ svg.expandable path {
   gap: 0.5em;
   color: #7a6219;
   border-top: 1px dotted #d2c7ad;
-  border-radius: 0 0 0.4em 0.4em;
   padding: 0.5em;
   padding-left: 1.2em;
 }
@@ -1799,8 +1798,8 @@ svg.expandable path {
   padding-top: 0.1em;
   min-height: 1.6em;
   width: 100%;
-  overflow-y: hidden;
-  overflow-x: auto;
+  /* overflow-y: hidden;
+  overflow-x: auto; */
   transition: opacity 0.2s linear;
 }
 .cell-result .result.pending {
@@ -1816,8 +1815,15 @@ svg.expandable path {
   padding: 0.1em 0.4em 0.1em 0.4em;
 }
 
+.cell-result.hidden {
+  background-color: #E8DCBF;
+}
+
 .cell-result .toggle-switch {
   mix-blend-mode: luminosity;
+}
+.cell-result .equiv {
+  font-family: 'Source Code Pro';
 }
 
 .cell-report {
@@ -1830,6 +1836,9 @@ svg.expandable path {
   border-left: 1px solid var(--cell-selected-accent);
 }
 
+.result {
+  width: 100%;
+}
 .cell.deselected + .cell-item {
   border-left: 1px solid var(--top_bar_icon_fill);
 }
@@ -1881,6 +1890,7 @@ svg.expandable path {
 
 .DHCode .decoration-container {
   position: absolute;
+  pointer-events: none;
 }
 
 .DHCode svg.err-hole {
@@ -1892,8 +1902,6 @@ svg.expandable path {
 }
 
 .DHCode .InVarHole {
-  border: 1px dotted var(--err-color);
-  border-radius: 0.2em;
   color: var(--err-color);
 }
 
@@ -2279,9 +2287,8 @@ svg.expandable path {
 
 .steppable,
 .steppable *:not(.DHCode .EmptyHole *, .DHCode .EmptyHole) {
-  border: 1px var(--step-hole-color);
+  outline: 1px var(--step-hole-color);
   background-color: rgb(232, 255, 196);
-  margin: -1px;
   cursor: pointer;
 }
 
@@ -2289,7 +2296,6 @@ svg.expandable path {
 .stepped *:not(.DHCode .EmptyHole *, .DHCode .EmptyHole) {
   border: 1px var(--step-hole-color);
   background-color: #ddcda3;
-  margin: -1px;
 }
 
 .substituted {

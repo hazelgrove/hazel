@@ -113,12 +113,15 @@ and UExp: {
     | Float
     | String
     | ListLit
-    | Tag
+    | Constructor
     | Fun
+    | TypFun
     | Tuple
     | Var
     | Let
+    | TyAlias
     | Ap
+    | TypAp
     | If
     | Seq
     | Test
@@ -131,11 +134,17 @@ and UExp: {
     | Match;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type deferral_position =
+    | InAp
+    | OutsideAp;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
     | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
     | Triv
+    | Deferral(deferral_position)
     | Bool(bool)
     | Int(int)
     | Float(float)
@@ -143,11 +152,14 @@ and UExp: {
     | ListLit(list(t))
     | Constructor(string)
     | Fun(UPat.t, t)
+    | TypFun(UTPat.t, t)
     | Tuple(list(t))
     | Var(Var.t)
     | Let(UPat.t, t, t)
     | TyAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)
+    | TypAp(t, UTyp.t)
+    | DeferredAp(t, list(t))
     | Pipeline(t, t)
     | If(t, t, t)
     | Seq(t, t)
@@ -244,12 +256,15 @@ and UExp: {
     | Float
     | String
     | ListLit
-    | Tag
+    | Constructor
     | Fun
+    | TypFun
     | Tuple
     | Var
     | Let
+    | TyAlias
     | Ap
+    | TypAp
     | If
     | Seq
     | Test
@@ -262,11 +277,17 @@ and UExp: {
     | Match;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type deferral_position =
+    | InAp
+    | OutsideAp;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
     | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
     | Triv
+    | Deferral(deferral_position)
     | Bool(bool)
     | Int(int)
     | Float(float)
@@ -274,11 +295,14 @@ and UExp: {
     | ListLit(list(t))
     | Constructor(string)
     | Fun(UPat.t, t)
+    | TypFun(UTPat.t, t)
     | Tuple(list(t))
     | Var(Var.t)
     | Let(UPat.t, t, t)
     | TyAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)
+    | TypAp(t, UTyp.t)
+    | DeferredAp(t, list(t))
     | Pipeline(t, t)
     | If(t, t, t)
     | Seq(t, t)
@@ -409,6 +433,8 @@ and UTyp: {
     | Parens(t)
     | Ap(t, t)
     | Sum(list(variant))
+    | Forall(UTPat.t, t)
+    | Rec(UTPat.t, t)
   and variant =
     | Variant(Constructor.t, list(Id.t), option(t))
     | BadEntry(t)
@@ -434,6 +460,8 @@ and UTyp: {
     | Parens(t)
     | Ap(t, t)
     | Sum(list(variant))
+    | Forall(UTPat.t, t)
+    | Rec(UTPat.t, t)
   and variant =
     | Variant(Constructor.t, list(Id.t), option(t))
     | BadEntry(t)
