@@ -193,6 +193,18 @@ let pattern_fixup = (p: DHPat.t): DHPat.t => {
     | Cast(d1, t1, t2) =>
       let p1 = rewrap_casts((p, d1));
       {term: DHPat.Cast(p1, t1, t2), copied: d.copied, ids: d.ids};
+    | FailedCast(d1, t1, t2) =>
+      let p1 = rewrap_casts((p, d1));
+      {
+        term:
+          DHPat.Cast(
+            DHPat.Cast(p1, t1, Typ.fresh(Unknown(Internal))) |> DHPat.fresh,
+            Typ.fresh(Unknown(Internal)),
+            t2,
+          ),
+        copied: d.copied,
+        ids: d.ids,
+      };
     | _ => failwith("unexpected term in rewrap_casts")
     };
   };

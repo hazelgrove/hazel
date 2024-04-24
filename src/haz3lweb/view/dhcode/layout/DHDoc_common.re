@@ -78,6 +78,7 @@ module Delim = {
 
   let open_Cast = mk("<");
   let arrow_Cast = mk(Unicode.castArrowSym);
+  let back_arrow_Cast = mk(Unicode.castBackArrowSym);
   let close_Cast = mk(">");
 
   let open_FailedCast = open_Cast |> Doc.annot(DHAnnot.FailedCastDelim);
