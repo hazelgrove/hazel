@@ -64,7 +64,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Deferral(_)
   | Filter(_) => DHDoc_common.precedence_const
   | Cast(d1, _, _) =>
-    show_casts ? DHDoc_common.precedence_const : precedence'(d1)
+    show_casts ? DHDoc_common.precedence_Ap : precedence'(d1)
   | DeferredAp(_)
   | Ap(_)
   | TypAp(_) => DHDoc_common.precedence_Ap
@@ -213,7 +213,7 @@ let mk =
           : hcat(space(), hidden_clause);
       hcats([
         DHDoc_common.Delim.bar_Rule,
-        DHDoc_Pat.mk(~infomap, dp)
+        DHDoc_Pat.mk(~infomap, ~show_casts=settings.show_casts, dp)
         |> DHDoc_common.pad_child(
              ~inline_padding=(space(), space()),
              ~enforce_inline=false,
@@ -407,7 +407,9 @@ let mk =
       | TyAlias(_, _, d) => go'(d)
       | Cast(d, t1, t2) when settings.show_casts =>
         // TODO[Matt]: Roll multiple casts into one cast
-        let doc = go'(d);
+        let doc =
+          go_formattable(d)
+          |> parenthesize(precedence(d) > DHDoc_common.precedence_Ap);
         Doc.(
           hcat(
             doc,
@@ -435,7 +437,7 @@ let mk =
           vseps([
             hcats([
               DHDoc_common.Delim.mk("let"),
-              DHDoc_Pat.mk(~infomap, dp)
+              DHDoc_Pat.mk(~infomap, ~show_casts=settings.show_casts, dp)
               |> DHDoc_common.pad_child(
                    ~inline_padding=(space(), space()),
                    ~enforce_inline,
@@ -524,7 +526,7 @@ let mk =
           hcats(
             [
               DHDoc_common.Delim.sym_Fun,
-              DHDoc_Pat.mk(~infomap, dp)
+              DHDoc_Pat.mk(~infomap, ~show_casts=settings.show_casts, dp)
               |> DHDoc_common.pad_child(
                    ~inline_padding=(space(), space()),
                    ~enforce_inline,
@@ -565,7 +567,7 @@ let mk =
           hcats(
             [
               DHDoc_common.Delim.sym_Fun,
-              DHDoc_Pat.mk(~infomap, dp)
+              DHDoc_Pat.mk(~infomap, ~show_casts=settings.show_casts, dp)
               |> DHDoc_common.pad_child(
                    ~inline_padding=(space(), space()),
                    ~enforce_inline,
@@ -607,7 +609,12 @@ let mk =
           [
             DHDoc_common.Delim.fix_FixF,
             space(),
-            DHDoc_Pat.mk(~infomap, dp, ~enforce_inline=true),
+            DHDoc_Pat.mk(
+              ~infomap,
+              dp,
+              ~show_casts=settings.show_casts,
+              ~enforce_inline=true,
+            ),
           ]
           @ [
             space(),

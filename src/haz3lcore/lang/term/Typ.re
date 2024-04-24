@@ -28,6 +28,9 @@ include TermBase.Typ;
 let term_of: t => term = IdTagged.term_of;
 let unwrap: t => (term, term => t) = IdTagged.unwrap;
 let fresh: term => t = IdTagged.fresh;
+/* fresh assigns a random id, whereas mk_fast assigns Id.invalid, which
+   is a lot faster, and since we so often make types and throw them away
+   shortly after, it makes sense to use it. */
 let mk_fast: term => t = term => {term, ids: [Id.invalid], copied: false};
 let rep_id: t => Id.t = IdTagged.rep_id;
 
@@ -118,7 +121,9 @@ let rec is_forall = (typ: t) => {
   };
 };
 
-/* Converts a syntactic type into a semantic type */
+/* Converts a syntactic type into a semantic type, specifically
+   it adds implicit recursive types, and removes duplicate
+   constructors. */
 let rec to_typ: (Ctx.t, t) => t =
   (ctx, utyp) => {
     let (term, rewrap) = IdTagged.unwrap(utyp);

@@ -18,18 +18,19 @@ let precedence = (dp: Pat.t) =>
   | Cons(_) => DHDoc_common.precedence_Cons
   | Ap(_) => DHDoc_common.precedence_Ap
   | Parens(_) => DHDoc_common.precedence_const
-  | Cast(_) => DHDoc_common.precedence_Times
+  | Cast(_) => DHDoc_common.precedence_Ap
   };
 
 let rec mk =
         (
           ~infomap: Statics.Map.t,
           ~parenthesize=false,
+          ~show_casts,
           ~enforce_inline: bool,
           dp: Pat.t,
         )
         : DHDoc.t => {
-  let mk' = mk(~enforce_inline, ~infomap);
+  let mk' = mk(~enforce_inline, ~infomap, ~show_casts);
   let mk_left_associative_operands = (precedence_op, dp1, dp2) => (
     mk'(~parenthesize=precedence(dp1) > precedence_op, dp1),
     mk'(~parenthesize=precedence(dp2) >= precedence_op, dp2),
@@ -60,15 +61,23 @@ let rec mk =
     | Tuple([]) => DHDoc_common.Delim.triv
     | Tuple(ds) => DHDoc_common.mk_Tuple(List.map(mk', ds))
     // TODO: Print type annotations
-    | Cast(dp, t1, t2) =>
+    | Cast(dp, t1, t2) when show_casts =>
       Doc.hcats([
         mk'(dp),
-        Doc.text(":"),
-        DHDoc_Typ.mk(~enforce_inline, t1),
-        Doc.text("<-"),
-        DHDoc_Typ.mk(~enforce_inline, t2),
+        Doc.annot(
+          DHAnnot.CastDecoration,
+          Doc.hcats([
+            DHDoc_common.Delim.open_Cast,
+            DHDoc_Typ.mk(~enforce_inline=true, t1),
+            DHDoc_common.Delim.back_arrow_Cast,
+            DHDoc_Typ.mk(~enforce_inline=true, t2),
+            DHDoc_common.Delim.close_Cast,
+          ]),
+        ),
       ])
-    | Parens(dp) => mk(~enforce_inline, ~parenthesize=true, ~infomap, dp)
+    | Cast(dp, _, _) => mk'(~parenthesize, dp)
+    | Parens(dp) =>
+      mk(~enforce_inline, ~parenthesize=true, ~infomap, ~show_casts, dp)
     | Ap(dp1, dp2) =>
       let (doc1, doc2) =
         mk_left_associative_operands(DHDoc_common.precedence_Ap, dp1, dp2);
