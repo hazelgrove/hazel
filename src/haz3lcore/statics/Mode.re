@@ -30,13 +30,19 @@ let ana: Typ.t => t = ty => Ana(ty);
 let ty_of: t => Typ.t =
   fun
   | Ana(ty) => ty
-  | Syn => Unknown(SynSwitch) |> Typ.fresh
+  | Syn => Unknown(SynSwitch) |> Typ.mk_fast
   | SynFun =>
-    Arrow(Unknown(SynSwitch) |> Typ.fresh, Unknown(SynSwitch) |> Typ.fresh)
-    |> Typ.fresh
+    Arrow(
+      Unknown(SynSwitch) |> Typ.mk_fast,
+      Unknown(SynSwitch) |> Typ.mk_fast,
+    )
+    |> Typ.mk_fast
   | SynTypFun =>
-    Forall(Var("syntypfun") |> TPat.fresh, Unknown(SynSwitch) |> Typ.fresh)
-    |> Typ.fresh; /* TODO: naming the type variable? */
+    Forall(
+      Var("syntypfun") |> TPat.fresh,
+      Unknown(SynSwitch) |> Typ.mk_fast,
+    )
+    |> Typ.mk_fast; /* TODO: naming the type variable? */
 
 let of_arrow = (ctx: Ctx.t, mode: t): (t, t) =>
   switch (mode) {
@@ -55,7 +61,7 @@ let of_forall = (ctx: Ctx.t, name_opt: option(string), mode: t): t =>
     let (name_expected_opt, item) = Typ.matched_forall(ctx, ty);
     switch (name_opt, name_expected_opt) {
     | (Some(name), Some(name_expected)) =>
-      Ana(Typ.subst(Var(name) |> Typ.fresh, name_expected, item))
+      Ana(Typ.subst(Var(name) |> Typ.mk_fast, name_expected, item))
     | _ => Ana(item)
     };
   };
@@ -80,8 +86,8 @@ let of_cons_tl = (ctx: Ctx.t, mode: t, hd_ty: Typ.t): t =>
   switch (mode) {
   | Syn
   | SynFun
-  | SynTypFun => Ana(List(hd_ty) |> Typ.fresh)
-  | Ana(ty) => Ana(List(Typ.matched_list(ctx, ty)) |> Typ.fresh)
+  | SynTypFun => Ana(List(hd_ty) |> Typ.mk_fast)
+  | Ana(ty) => Ana(List(Typ.matched_list(ctx, ty)) |> Typ.mk_fast)
   };
 
 let of_list = (ctx: Ctx.t, mode: t): t =>
@@ -96,8 +102,8 @@ let of_list_concat = (ctx: Ctx.t, mode: t): t =>
   switch (mode) {
   | Syn
   | SynFun
-  | SynTypFun => Ana(List(Unknown(SynSwitch) |> Typ.fresh) |> Typ.fresh)
-  | Ana(ty) => Ana(List(Typ.matched_list(ctx, ty)) |> Typ.fresh)
+  | SynTypFun => Ana(List(Unknown(SynSwitch) |> Typ.mk_fast) |> Typ.mk_fast)
+  | Ana(ty) => Ana(List(Typ.matched_list(ctx, ty)) |> Typ.mk_fast)
   };
 
 let of_list_lit = (ctx: Ctx.t, length, mode: t): list(t) =>
@@ -114,7 +120,7 @@ let ctr_ana_typ = (ctx: Ctx.t, mode: t, ctr: Constructor.t): option(Typ.t) => {
     let ty_entry = ConstructorMap.get_entry(ctr, ctrs);
     switch (ty_entry) {
     | None => ty_ana
-    | Some(ty_in) => Arrow(ty_in, ty_ana) |> Typ.fresh
+    | Some(ty_in) => Arrow(ty_in, ty_ana) |> Typ.mk_fast
     };
   | _ => None
   };
@@ -129,7 +135,9 @@ let of_ctr_in_ap = (ctx: Ctx.t, mode: t, ctr: Constructor.t): option(t) =>
        is nullary but used as unary; we reflect this by analyzing
        against an arrow type. Since we can't guess at what the
        parameter type might have be, we use Unknown. */
-    Some(Ana(Arrow(Unknown(Internal) |> Typ.fresh, ty_ana) |> Typ.fresh))
+    Some(
+      Ana(Arrow(Unknown(Internal) |> Typ.mk_fast, ty_ana) |> Typ.mk_fast),
+    )
   | None => None
   };
 
@@ -152,6 +160,6 @@ let typap_mode: t = SynTypFun;
 let of_deferred_ap_args = (length: int, ty_ins: list(Typ.t)): list(t) =>
   (
     List.length(ty_ins) == length
-      ? ty_ins : List.init(length, _ => Typ.Unknown(Internal) |> Typ.fresh)
+      ? ty_ins : List.init(length, _ => Typ.Unknown(Internal) |> Typ.mk_fast)
   )
   |> List.map(ty => Ana(ty));

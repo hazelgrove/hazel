@@ -23,10 +23,10 @@ let fresh_cast = (d: DHExp.t, t1: Typ.t, t2: Typ.t): DHExp.t => {
     ? d
     : {
       let d' =
-        DHExp.Cast(d, t1, Typ.fresh(Unknown(Internal)))
+        DHExp.Cast(d, t1, Typ.mk_fast(Unknown(Internal)))
         |> DHExp.fresh
         |> Casts.transition_multiple;
-      DHExp.Cast(d', Typ.fresh(Unknown(Internal)), t2)
+      DHExp.Cast(d', Typ.mk_fast(Unknown(Internal)), t2)
       |> DHExp.fresh
       |> Casts.transition_multiple;
     };
@@ -36,9 +36,9 @@ let fresh_pat_cast = (p: DHPat.t, t1: Typ.t, t2: Typ.t): DHPat.t => {
   Typ.eq(t1, t2)
     ? p
     : Cast(
-        DHPat.fresh(Cast(p, t1, Typ.fresh(Unknown(Internal))))
+        DHPat.fresh(Cast(p, t1, Typ.mk_fast(Unknown(Internal))))
         |> Casts.pattern_fixup,
-        Typ.fresh(Unknown(Internal)),
+        Typ.mk_fast(Unknown(Internal)),
         t2,
       )
       |> DHPat.fresh
@@ -90,23 +90,23 @@ let rec elaborate_pattern =
   let (term, rewrap) = UPat.unwrap(upat);
   let dpat =
     switch (term) {
-    | Int(_) => upat |> cast_from(Int |> Typ.fresh)
-    | Bool(_) => upat |> cast_from(Bool |> Typ.fresh)
-    | Float(_) => upat |> cast_from(Float |> Typ.fresh)
-    | String(_) => upat |> cast_from(String |> Typ.fresh)
+    | Int(_) => upat |> cast_from(Int |> Typ.mk_fast)
+    | Bool(_) => upat |> cast_from(Bool |> Typ.mk_fast)
+    | Float(_) => upat |> cast_from(Float |> Typ.mk_fast)
+    | String(_) => upat |> cast_from(String |> Typ.mk_fast)
     | ListLit(ps) =>
       let (ps, tys) = List.map(elaborate_pattern(m), ps) |> ListUtil.unzip;
       let inner_type =
         tys
-        |> Typ.join_all(~empty=Unknown(Internal) |> Typ.fresh, ctx)
-        |> Option.value(~default=Typ.fresh(Unknown(Internal)));
+        |> Typ.join_all(~empty=Unknown(Internal) |> Typ.mk_fast, ctx)
+        |> Option.value(~default=Typ.mk_fast(Unknown(Internal)));
       ps
       |> List.map2((p, t) => fresh_pat_cast(p, t, inner_type), _, tys)
       |> (
         ps' =>
           DHPat.ListLit(ps')
           |> rewrap
-          |> cast_from(List(inner_type) |> Typ.fresh)
+          |> cast_from(List(inner_type) |> Typ.mk_fast)
       );
     | Cons(p1, p2) =>
       let (p1', ty1) = elaborate_pattern(m, p1);
@@ -114,33 +114,33 @@ let rec elaborate_pattern =
       let ty2_inner = Typ.matched_list(ctx, ty2);
       let ty_inner =
         Typ.join(~fix=false, ctx, ty1, ty2_inner)
-        |> Option.value(~default=Typ.fresh(Unknown(Internal)));
+        |> Option.value(~default=Typ.mk_fast(Unknown(Internal)));
       let p1'' = fresh_pat_cast(p1', ty1, ty_inner);
-      let p2'' = fresh_pat_cast(p2', ty2, List(ty_inner) |> Typ.fresh);
+      let p2'' = fresh_pat_cast(p2', ty2, List(ty_inner) |> Typ.mk_fast);
       DHPat.Cons(p1'', p2'')
       |> rewrap
-      |> cast_from(List(ty_inner) |> Typ.fresh);
+      |> cast_from(List(ty_inner) |> Typ.mk_fast);
     | Tuple(ps) =>
       let (ps', tys) = List.map(elaborate_pattern(m), ps) |> ListUtil.unzip;
-      DHPat.Tuple(ps') |> rewrap |> cast_from(Typ.Prod(tys) |> Typ.fresh);
+      DHPat.Tuple(ps') |> rewrap |> cast_from(Typ.Prod(tys) |> Typ.mk_fast);
     | Ap(p1, p2) =>
       let (p1', ty1) = elaborate_pattern(m, p1);
       let (p2', ty2) = elaborate_pattern(m, p2);
       let (ty1l, ty1r) = Typ.matched_arrow(ctx, ty1);
-      let p1'' = fresh_pat_cast(p1', ty1, Arrow(ty1l, ty1r) |> Typ.fresh);
+      let p1'' = fresh_pat_cast(p1', ty1, Arrow(ty1l, ty1r) |> Typ.mk_fast);
       let p2'' = fresh_pat_cast(p2', ty2, ty1l);
       DHPat.Ap(p1'', p2'') |> rewrap |> cast_from(ty1r);
     | Constructor(_)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
-    | Wild => upat |> cast_from(Typ.fresh(Unknown(Internal)))
+    | Wild => upat |> cast_from(Typ.mk_fast(Unknown(Internal)))
     | Var(v) =>
       upat
       |> cast_from(
            Ctx.lookup_var(ctx, v)
            |> Option.map((x: Ctx.var_entry) => x.typ)
-           |> Option.value(~default=Typ.fresh(Unknown(Internal))),
+           |> Option.value(~default=Typ.mk_fast(Unknown(Internal))),
          )
     // Type annotations should already appear
     | Parens(p)
@@ -175,7 +175,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
   let dhexp =
     switch (term) {
     | Invalid(_)
-    | EmptyHole => uexp |> cast_from(Typ.fresh(Typ.Unknown(Internal)))
+    | EmptyHole => uexp |> cast_from(Typ.mk_fast(Typ.Unknown(Internal)))
     | MultiHole(stuff) =>
       Any.map_term(
         ~f_exp=(_, exp) => {elaborate(m, exp) |> fst},
@@ -187,57 +187,59 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
         stuff =>
           DHExp.MultiHole(stuff)
           |> rewrap
-          |> cast_from(Typ.fresh(Typ.Unknown(Internal)))
+          |> cast_from(Typ.mk_fast(Typ.Unknown(Internal)))
       )
     | DynamicErrorHole(e, err) =>
       let (e', _) = elaborate(m, e);
       DynamicErrorHole(e', err)
       |> rewrap
-      |> cast_from(Typ.fresh(Unknown(Internal)));
+      |> cast_from(Typ.mk_fast(Unknown(Internal)));
     | Cast(e, _, _) // We remove these casts because they should be re-inserted in the recursive call
     | FailedCast(e, _, _)
     | Parens(e) =>
       let (e', ty) = elaborate(m, e);
       e' |> cast_from(ty);
     | Deferral(_) => uexp
-    | Int(_) => uexp |> cast_from(Int |> Typ.fresh)
-    | Bool(_) => uexp |> cast_from(Bool |> Typ.fresh)
-    | Float(_) => uexp |> cast_from(Float |> Typ.fresh)
-    | String(_) => uexp |> cast_from(String |> Typ.fresh)
+    | Int(_) => uexp |> cast_from(Int |> Typ.mk_fast)
+    | Bool(_) => uexp |> cast_from(Bool |> Typ.mk_fast)
+    | Float(_) => uexp |> cast_from(Float |> Typ.mk_fast)
+    | String(_) => uexp |> cast_from(String |> Typ.mk_fast)
     | ListLit(es) =>
       let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
       let inner_type =
-        Typ.join_all(~empty=Typ.Unknown(Internal) |> Typ.fresh, ctx, tys)
-        |> Option.value(~default=Typ.fresh(Typ.Unknown(Internal)));
+        Typ.join_all(~empty=Typ.Unknown(Internal) |> Typ.mk_fast, ctx, tys)
+        |> Option.value(~default=Typ.mk_fast(Typ.Unknown(Internal)));
       let ds' = List.map2((d, t) => fresh_cast(d, t, inner_type), ds, tys);
-      Exp.ListLit(ds') |> rewrap |> cast_from(List(inner_type) |> Typ.fresh);
+      Exp.ListLit(ds')
+      |> rewrap
+      |> cast_from(List(inner_type) |> Typ.mk_fast);
     | Constructor(c) =>
       uexp
       |> cast_from(
            Ctx.lookup_ctr(ctx, c)
            |> Option.map((x: Ctx.var_entry) => x.typ)
-           |> Option.value(~default=Typ.fresh(Typ.Unknown(Internal))),
+           |> Option.value(~default=Typ.mk_fast(Typ.Unknown(Internal))),
          )
     | Fun(p, e, env, n) =>
       let (p', typ) = elaborate_pattern(m, p);
       let (e', tye) = elaborate(m, e);
       Exp.Fun(p', e', env, n)
       |> rewrap
-      |> cast_from(Arrow(typ, tye) |> Typ.fresh);
+      |> cast_from(Arrow(typ, tye) |> Typ.mk_fast);
     | TypFun(tpat, e, name) =>
       let (e', tye) = elaborate(m, e);
       Exp.TypFun(tpat, e', name)
       |> rewrap
-      |> cast_from(Typ.Forall(tpat, tye) |> Typ.fresh);
+      |> cast_from(Typ.Forall(tpat, tye) |> Typ.mk_fast);
     | Tuple(es) =>
       let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
-      Exp.Tuple(ds) |> rewrap |> cast_from(Prod(tys) |> Typ.fresh);
+      Exp.Tuple(ds) |> rewrap |> cast_from(Prod(tys) |> Typ.mk_fast);
     | Var(v) =>
       uexp
       |> cast_from(
            Ctx.lookup_var(ctx, v)
            |> Option.map((x: Ctx.var_entry) => x.typ)
-           |> Option.value(~default=Typ.fresh(Typ.Unknown(Internal))),
+           |> Option.value(~default=Typ.mk_fast(Typ.Unknown(Internal))),
          )
     | Let(p, def, body) =>
       let add_name: (option(string), DHExp.t) => DHExp.t = (
@@ -261,6 +263,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       } else {
         // TODO: Add names to mutually recursive functions
         // TODO: Don't add fixpoint if there already is one
+        let def = add_name(Option.map(s => s ++ "+", Pat.get_var(p)), def);
         let (p, ty1) = elaborate_pattern(m, p);
         let (def, ty2) = elaborate(m, def);
         let (body, ty) = elaborate(m, body);
@@ -272,7 +275,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       let (e', tye) = elaborate(m, e);
       Exp.FixF(p', fresh_cast(e', tye, typ), env)
       |> rewrap
-      |> cast_from(Arrow(typ, typ) |> Typ.fresh);
+      |> cast_from(Arrow(typ, typ) |> Typ.mk_fast);
     | TyAlias(_, _, e) =>
       let (e', tye) = elaborate(m, e);
       e' |> cast_from(tye);
@@ -280,7 +283,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       let (f', tyf) = elaborate(m, f);
       let (a', tya) = elaborate(m, a);
       let (tyf1, tyf2) = Typ.matched_arrow(ctx, tyf);
-      let f'' = fresh_cast(f', tyf, Arrow(tyf1, tyf2) |> Typ.fresh);
+      let f'' = fresh_cast(f', tyf, Arrow(tyf1, tyf2) |> Typ.mk_fast);
       let a'' = fresh_cast(a', tya, tyf1);
       Exp.Ap(dir, f'', a'') |> rewrap |> cast_from(tyf2);
     | DeferredAp(f, args) =>
@@ -292,7 +295,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
         fresh_cast(
           f',
           tyf,
-          Arrow(Prod(ty_fargs) |> Typ.fresh, tyf2) |> Typ.fresh,
+          Arrow(Prod(ty_fargs) |> Typ.mk_fast, tyf2) |> Typ.mk_fast,
         );
       let args'' = ListUtil.map3(fresh_cast, args', tys, ty_fargs);
       let remaining_args =
@@ -301,10 +304,10 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
           List.combine(args, ty_fargs),
         );
       let remaining_arg_ty =
-        Prod(List.map(snd, remaining_args)) |> Typ.fresh;
+        Prod(List.map(snd, remaining_args)) |> Typ.mk_fast;
       DeferredAp(f'', args'')
       |> rewrap
-      |> cast_from(Arrow(remaining_arg_ty, tyf2) |> Typ.fresh);
+      |> cast_from(Arrow(remaining_arg_ty, tyf2) |> Typ.mk_fast);
     | TypAp(e, ut) =>
       let (e', tye) = elaborate(m, e);
       let (_, tye') = Typ.matched_forall(ctx, tye);
@@ -315,8 +318,8 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       let (f', tyf) = elaborate(m, f);
       let ty =
         Typ.join(~fix=false, ctx, tyt, tyf)
-        |> Option.value(~default=Typ.fresh(Typ.Unknown(Internal)));
-      let c'' = fresh_cast(c', tyc, Bool |> Typ.fresh);
+        |> Option.value(~default=Typ.mk_fast(Typ.Unknown(Internal)));
+      let c'' = fresh_cast(c', tyc, Bool |> Typ.mk_fast);
       let t'' = fresh_cast(t', tyt, ty);
       let f'' = fresh_cast(f', tyf, ty);
       Exp.If(c'', t'', f'') |> rewrap |> cast_from(ty);
@@ -326,9 +329,9 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       Seq(e1', e2') |> rewrap |> cast_from(ty2);
     | Test(e) =>
       let (e', t) = elaborate(m, e);
-      Test(fresh_cast(e', t, Bool |> Typ.fresh))
+      Test(fresh_cast(e', t, Bool |> Typ.mk_fast))
       |> rewrap
-      |> cast_from(Prod([]) |> Typ.fresh);
+      |> cast_from(Prod([]) |> Typ.mk_fast);
     | Filter(kind, e) =>
       let (e', t) = elaborate(m, e);
       let kind' =
@@ -347,10 +350,10 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       let ty2_inner = Typ.matched_list(ctx, ty2);
       let ty_inner =
         Typ.join(~fix=false, ctx, ty1, ty2_inner)
-        |> Option.value(~default=Typ.fresh(Unknown(Internal)));
+        |> Option.value(~default=Typ.mk_fast(Unknown(Internal)));
       let e1'' = fresh_cast(e1', ty1, ty_inner);
-      let e2'' = fresh_cast(e2', ty2, List(ty_inner) |> Typ.fresh);
-      Cons(e1'', e2'') |> rewrap |> cast_from(List(ty_inner) |> Typ.fresh);
+      let e2'' = fresh_cast(e2', ty2, List(ty_inner) |> Typ.mk_fast);
+      Cons(e1'', e2'') |> rewrap |> cast_from(List(ty_inner) |> Typ.mk_fast);
     | ListConcat(e1, e2) =>
       let (e1', ty1) = elaborate(m, e1);
       let (e2', ty2) = elaborate(m, e2);
@@ -358,12 +361,12 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       let ty_inner2 = Typ.matched_list(ctx, ty2);
       let ty_inner =
         Typ.join(~fix=false, ctx, ty_inner1, ty_inner2)
-        |> Option.value(~default=Typ.fresh(Unknown(Internal)));
-      let e1'' = fresh_cast(e1', ty1, List(ty_inner) |> Typ.fresh);
-      let e2'' = fresh_cast(e2', ty2, List(ty_inner) |> Typ.fresh);
+        |> Option.value(~default=Typ.mk_fast(Unknown(Internal)));
+      let e1'' = fresh_cast(e1', ty1, List(ty_inner) |> Typ.mk_fast);
+      let e2'' = fresh_cast(e2', ty2, List(ty_inner) |> Typ.mk_fast);
       ListConcat(e1'', e2'')
       |> rewrap
-      |> cast_from(List(ty_inner) |> Typ.fresh);
+      |> cast_from(List(ty_inner) |> Typ.mk_fast);
     | UnOp(Meta(Unquote), e) =>
       switch (e.term) {
       | Var("e") => Constructor("$e") |> rewrap
@@ -371,28 +374,28 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       | _ =>
         DHExp.EmptyHole
         |> rewrap
-        |> cast_from(Typ.fresh(Typ.Unknown(Internal)))
+        |> cast_from(Typ.mk_fast(Typ.Unknown(Internal)))
       }
     | UnOp(Int(Minus), e) =>
       let (e', t) = elaborate(m, e);
-      UnOp(Int(Minus), fresh_cast(e', t, Int |> Typ.fresh))
+      UnOp(Int(Minus), fresh_cast(e', t, Int |> Typ.mk_fast))
       |> rewrap
-      |> cast_from(Int |> Typ.fresh);
+      |> cast_from(Int |> Typ.mk_fast);
     | UnOp(Bool(Not), e) =>
       let (e', t) = elaborate(m, e);
-      UnOp(Bool(Not), fresh_cast(e', t, Bool |> Typ.fresh))
+      UnOp(Bool(Not), fresh_cast(e', t, Bool |> Typ.mk_fast))
       |> rewrap
-      |> cast_from(Bool |> Typ.fresh);
+      |> cast_from(Bool |> Typ.mk_fast);
     | BinOp(Int(Plus | Minus | Times | Power | Divide) as op, e1, e2) =>
       let (e1', t1) = elaborate(m, e1);
       let (e2', t2) = elaborate(m, e2);
       BinOp(
         op,
-        fresh_cast(e1', t1, Int |> Typ.fresh),
-        fresh_cast(e2', t2, Int |> Typ.fresh),
+        fresh_cast(e1', t1, Int |> Typ.mk_fast),
+        fresh_cast(e2', t2, Int |> Typ.mk_fast),
       )
       |> rewrap
-      |> cast_from(Int |> Typ.fresh);
+      |> cast_from(Int |> Typ.mk_fast);
     | BinOp(
         Int(
           LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual |
@@ -406,31 +409,31 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       let (e2', t2) = elaborate(m, e2);
       BinOp(
         op,
-        fresh_cast(e1', t1, Int |> Typ.fresh),
-        fresh_cast(e2', t2, Int |> Typ.fresh),
+        fresh_cast(e1', t1, Int |> Typ.mk_fast),
+        fresh_cast(e2', t2, Int |> Typ.mk_fast),
       )
       |> rewrap
-      |> cast_from(Bool |> Typ.fresh);
+      |> cast_from(Bool |> Typ.mk_fast);
     | BinOp(Bool(And | Or) as op, e1, e2) =>
       let (e1', t1) = elaborate(m, e1);
       let (e2', t2) = elaborate(m, e2);
       BinOp(
         op,
-        fresh_cast(e1', t1, Bool |> Typ.fresh),
-        fresh_cast(e2', t2, Bool |> Typ.fresh),
+        fresh_cast(e1', t1, Bool |> Typ.mk_fast),
+        fresh_cast(e2', t2, Bool |> Typ.mk_fast),
       )
       |> rewrap
-      |> cast_from(Bool |> Typ.fresh);
+      |> cast_from(Bool |> Typ.mk_fast);
     | BinOp(Float(Plus | Minus | Times | Divide | Power) as op, e1, e2) =>
       let (e1', t1) = elaborate(m, e1);
       let (e2', t2) = elaborate(m, e2);
       BinOp(
         op,
-        fresh_cast(e1', t1, Float |> Typ.fresh),
-        fresh_cast(e2', t2, Float |> Typ.fresh),
+        fresh_cast(e1', t1, Float |> Typ.mk_fast),
+        fresh_cast(e2', t2, Float |> Typ.mk_fast),
       )
       |> rewrap
-      |> cast_from(Float |> Typ.fresh);
+      |> cast_from(Float |> Typ.mk_fast);
     | BinOp(
         Float(
           LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual |
@@ -444,37 +447,37 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       let (e2', t2) = elaborate(m, e2);
       BinOp(
         op,
-        fresh_cast(e1', t1, Float |> Typ.fresh),
-        fresh_cast(e2', t2, Float |> Typ.fresh),
+        fresh_cast(e1', t1, Float |> Typ.mk_fast),
+        fresh_cast(e2', t2, Float |> Typ.mk_fast),
       )
       |> rewrap
-      |> cast_from(Bool |> Typ.fresh);
+      |> cast_from(Bool |> Typ.mk_fast);
     | BinOp(String(Concat) as op, e1, e2) =>
       let (e1', t1) = elaborate(m, e1);
       let (e2', t2) = elaborate(m, e2);
       BinOp(
         op,
-        fresh_cast(e1', t1, String |> Typ.fresh),
-        fresh_cast(e2', t2, String |> Typ.fresh),
+        fresh_cast(e1', t1, String |> Typ.mk_fast),
+        fresh_cast(e2', t2, String |> Typ.mk_fast),
       )
       |> rewrap
-      |> cast_from(String |> Typ.fresh);
+      |> cast_from(String |> Typ.mk_fast);
     | BinOp(String(Equals) as op, e1, e2) =>
       let (e1', t1) = elaborate(m, e1);
       let (e2', t2) = elaborate(m, e2);
       BinOp(
         op,
-        fresh_cast(e1', t1, String |> Typ.fresh),
-        fresh_cast(e2', t2, String |> Typ.fresh),
+        fresh_cast(e1', t1, String |> Typ.mk_fast),
+        fresh_cast(e2', t2, String |> Typ.mk_fast),
       )
       |> rewrap
-      |> cast_from(Bool |> Typ.fresh);
+      |> cast_from(Bool |> Typ.mk_fast);
     | BuiltinFun(fn) =>
       uexp
       |> cast_from(
            Ctx.lookup_var(Builtins.ctx_init, fn)
            |> Option.map((x: Ctx.var_entry) => x.typ)
-           |> Option.value(~default=Typ.fresh(Typ.Unknown(Internal))),
+           |> Option.value(~default=Typ.mk_fast(Typ.Unknown(Internal))),
          )
     | Match(e, cases) =>
       let (e', t) = elaborate(m, e);
@@ -482,15 +485,15 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       let (ps', ptys) =
         List.map(elaborate_pattern(m), ps) |> ListUtil.unzip;
       let joined_pty =
-        Typ.join_all(~empty=Typ.Unknown(Internal) |> Typ.fresh, ctx, ptys)
-        |> Option.value(~default=Typ.fresh(Typ.Unknown(Internal)));
+        Typ.join_all(~empty=Typ.Unknown(Internal) |> Typ.mk_fast, ctx, ptys)
+        |> Option.value(~default=Typ.mk_fast(Typ.Unknown(Internal)));
       let ps'' =
         List.map2((p, t) => fresh_pat_cast(p, t, joined_pty), ps', ptys);
       let e'' = fresh_cast(e', t, joined_pty);
       let (es', etys) = List.map(elaborate(m), es) |> ListUtil.unzip;
       let joined_ety =
-        Typ.join_all(~empty=Typ.Unknown(Internal) |> Typ.fresh, ctx, etys)
-        |> Option.value(~default=Typ.fresh(Typ.Unknown(Internal)));
+        Typ.join_all(~empty=Typ.Unknown(Internal) |> Typ.mk_fast, ctx, etys)
+        |> Option.value(~default=Typ.mk_fast(Typ.Unknown(Internal)));
       let es'' =
         List.map2((e, t) => fresh_cast(e, t, joined_ety), es', etys);
       Match(e'', List.combine(ps'', es''))
@@ -501,6 +504,13 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
 };
 
 //let dhexp_of_uexp = Core.Memo.general(~cache_size_bound=1000, dhexp_of_uexp);
+
+/* This function gives a new id to all the types
+   in the expression. It does this to get rid of
+   all the invalid ids we added to prevent generating
+   too many new ids */
+let fix_typ_ids =
+  Exp.map_term(~f_typ=(cont, e) => e |> IdTagged.new_ids |> cont);
 
 let uexp_elab = (m: Statics.Map.t, uexp: UExp.t): ElaborationResult.t =>
   switch (elaborate(m, uexp)) {
