@@ -287,12 +287,6 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       | _ => ret(hole(tm))
       }
     }
-  | Bin(Exp(e), tiles, Typ(ty)) as tm =>
-    switch (tiles) {
-    | ([(_id, ([":", "=>"], []))], []) =>
-      ret(Cast(e, Unknown(Internal) |> Typ.fresh, ty))
-    | _ => ret(hole(tm))
-    }
   | tm => ret(hole(tm));
 }
 and pat = unsorted => {
