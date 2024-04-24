@@ -537,10 +537,20 @@ let mk =
             ],
           );
         } else {
-          switch (s) {
-          | None => annot(DHAnnot.Collapsed, text("<anon fn>"))
-          | Some(name) => annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"))
-          };
+          annot(
+            DHAnnot.Collapsed,
+            text(
+              switch (s) {
+              | None => "<anon fn>"
+              | Some(name)
+                  when
+                    !settings.show_fixpoints
+                    && String.ends_with(~suffix="+", name) =>
+                "<" ++ String.sub(name, 0, String.length(name) - 1) ++ ">"
+              | Some(name) => "<" ++ name ++ ">"
+              },
+            ),
+          );
         }
       | Fun(dp, dbody, None, s) =>
         if (settings.show_fn_bodies) {

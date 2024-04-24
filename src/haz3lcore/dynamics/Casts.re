@@ -27,26 +27,30 @@ type ground_cases =
   | Ground
   | NotGroundOrHole(Typ.t) /* the argument is the corresponding ground type */;
 
+let grounded_Arrow =
+  NotGroundOrHole(
+    Arrow(
+      Unknown(Internal) |> Typ.mk_fast,
+      Unknown(Internal) |> Typ.mk_fast,
+    )
+    |> Typ.mk_fast,
+  );
+let grounded_Forall =
+  NotGroundOrHole(
+    Forall(EmptyHole |> TPat.fresh, Unknown(Internal) |> Typ.mk_fast)
+    |> Typ.mk_fast,
+  );
+let grounded_Prod = length =>
+  NotGroundOrHole(
+    Prod(ListUtil.replicate(length, Typ.Unknown(Internal) |> Typ.mk_fast))
+    |> Typ.mk_fast,
+  );
+let grounded_Sum: unit => Typ.sum_map =
+  () => [BadEntry(Typ.mk_fast(Unknown(Internal)))];
+let grounded_List =
+  NotGroundOrHole(List(Unknown(Internal) |> Typ.mk_fast) |> Typ.mk_fast);
+
 let rec ground_cases_of = (ty: Typ.t): ground_cases => {
-  let grounded_Arrow =
-    NotGroundOrHole(
-      Arrow(Unknown(Internal) |> Typ.fresh, Unknown(Internal) |> Typ.fresh)
-      |> Typ.fresh,
-    );
-  let grounded_Forall =
-    NotGroundOrHole(
-      Forall(EmptyHole |> TPat.fresh, Unknown(Internal) |> Typ.fresh)
-      |> Typ.fresh,
-    );
-  let grounded_Prod = length =>
-    NotGroundOrHole(
-      Prod(ListUtil.replicate(length, Typ.Unknown(Internal) |> Typ.fresh))
-      |> Typ.fresh,
-    );
-  let grounded_Sum: unit => Typ.sum_map =
-    () => [BadEntry(Typ.fresh(Unknown(Internal)))];
-  let grounded_List =
-    NotGroundOrHole(List(Unknown(Internal) |> Typ.fresh) |> Typ.fresh);
   let is_hole: Typ.t => bool =
     fun
     | {term: Typ.Unknown(_), _} => true
@@ -76,7 +80,7 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
     }
   | Sum(sm) =>
     sm |> ConstructorMap.is_ground(is_hole)
-      ? Ground : NotGroundOrHole(Sum(grounded_Sum()) |> Typ.fresh)
+      ? Ground : NotGroundOrHole(Sum(grounded_Sum()) |> Typ.mk_fast)
   | Arrow(_, _) => grounded_Arrow
   | Forall(_) => grounded_Forall
   | List(_) => grounded_List
@@ -165,6 +169,9 @@ let rec transition_multiple = (d: DHExp.t): DHExp.t => {
   };
 };
 
+// So that we don't have to regenerate its id
+let hole = EmptyHole |> DHExp.fresh;
+
 // Hacky way to do transition_multiple on patterns by transferring
 // the cast to the expression and then back to the pattern.
 let pattern_fixup = (p: DHPat.t): DHPat.t => {
@@ -177,7 +184,7 @@ let pattern_fixup = (p: DHPat.t): DHPat.t => {
         {term: DHExp.Cast(d1, t1, t2), copied: p.copied, ids: p.ids}
         |> transition_multiple,
       );
-    | _ => (p, EmptyHole |> DHExp.fresh)
+    | _ => (p, hole)
     };
   };
   let rec rewrap_casts = ((p: DHPat.t, d: DHExp.t)): DHPat.t => {
