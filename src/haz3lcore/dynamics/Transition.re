@@ -484,6 +484,7 @@ module Transition = (EV: EV_MODE) => {
             | Some(TupLabel(_, exp)) => exp
             | _ => raise(EvaluatorError.Exception(BadPatternMatch))
             };
+          | TupLabel(l, e) when LabeledTuple.compare(s, l) == 0 => e
           | _ => raise(EvaluatorError.Exception(BadPatternMatch))
           },
         kind: Dot(s),
