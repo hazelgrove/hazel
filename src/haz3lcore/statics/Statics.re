@@ -295,6 +295,7 @@ and uexp_to_info_map =
     let element: option(Typ.t) =
       switch (e.ty) {
       | Prod(ts) => LabeledTuple.find_label(filt, ts, s)
+      | Label(l, t) when LabeledTuple.compare(s, l) == 0 => Some(t)
       | _ => None // TODO (Anthony): other exps
       };
     switch (element) {
