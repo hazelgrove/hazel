@@ -48,6 +48,7 @@ let associativity_map: IntMap.t(Direction.t) =
     (concat, Right),
     (ann, Left),
     (eqs, Left),
+    (dot, Left),
   ]
   |> List.to_seq
   |> IntMap.of_seq;
