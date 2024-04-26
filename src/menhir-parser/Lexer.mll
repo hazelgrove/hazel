@@ -92,9 +92,6 @@ rule token =
     | "Internal" { INTERNAL }
     (* DHExp Annotations *)
     | "()" { UNIT }
-    | "_FIX" {FIX}
-    | "_FREE" {FREE}
-    | "_HOLE" {HOLE}
     (* Filters *)
     | "pause" {PAUSE}
     | "debug" {DEBUG}
