@@ -7,49 +7,49 @@ type if_consistency =
   | InconsistentIf;
 
 module rec DHExp: {
-  //All comments show the textual syntax for DHExp when built using the menhir parser
+  //All comments show the textual syntax for DHExp when built using the menhir parser. e = exp; p = pat; t = typ
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | EmptyHole(MetaVar.t, HoleInstanceId.t) //()
-    | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t) //(_HOLE x)
-    | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t) //(_FREE x)
+    | EmptyHole(MetaVar.t, HoleInstanceId.t) //?
+    | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t) //{{e}}
+    | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t) //{{?e}}
     | InvalidText(MetaVar.t, HoleInstanceId.t, string)
-    | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case) //(_HOLE (case ...))
+    | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case) //{{? case ...}}
     | Closure([@opaque] ClosureEnvironment.t, t)
     | Filter(DHFilter.t, t) //pause a == 2 b
-    | BoundVar(Var.t) //x
-    | Sequence(t, t) //a; b
-    | Let(DHPat.t, t, t) //let x = y in z
+    | BoundVar(Var.t) //e
+    | Sequence(t, t) //e1; e2
+    | Let(DHPat.t, t, t) //let p = e1 in e2
     | FixF(Var.t, Typ.t, t) //_FIX f Int -> Int fun: Int x -> 1 + x f in 55
-    | Fun(DHPat.t, Typ.t, t, option(Var.t)) //fun: Int x -> x + 1
+    | Fun(DHPat.t, Typ.t, t, option(Var.t)) //fun: t p -> e
     | TypFun(Term.UTPat.t, t, option(Var.t))
     | TypAp(t, Typ.t)
-    | Ap(t, t) //a(1)
+    | Ap(t, t) //e1(e2)
     | ApBuiltin(string, t)
     | BuiltinFun(string)
-    | Test(KeywordID.t, t) //test a end
+    | Test(KeywordID.t, t) //test e end
     | BoolLit(bool) //true
     | IntLit(int) //1
     | FloatLit(float) //1.0
     | StringLit(string) //"hello"
-    | BinBoolOp(TermBase.UExp.op_bin_bool, t, t) //true && false
-    | BinIntOp(TermBase.UExp.op_bin_int, t, t) //1 + 2
-    | BinFloatOp(TermBase.UExp.op_bin_float, t, t) //1 +. 2
+    | BinBoolOp(TermBase.UExp.op_bin_bool, t, t) //e1 && e2
+    | BinIntOp(TermBase.UExp.op_bin_int, t, t) //e1 + e2
+    | BinFloatOp(TermBase.UExp.op_bin_float, t, t) //e1 +. e2
     | BinStringOp(TermBase.UExp.op_bin_string, t, t) //
-    | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t)) //[a, b, c]
-    | Cons(t, t) //a :: b
-    | ListConcat(t, t) //a @ b
-    | Tuple(list(t)) //(a, b)
+    | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t)) //[e1, e2, e3]
+    | Cons(t, t) //e1 :: e2
+    | ListConcat(t, t) //e1 @ e2
+    | Tuple(list(t)) //(e1, e2)
     | Prj(t, int) //TODO
-    | Constructor(string) //X
-    | ConsistentCase(case) //4 == 3 | true => 24 | false => false end
-    | Cast(t, Typ.t, Typ.t) //x <Unknown Internal => Int>
-    | FailedCast(t, Typ.t, Typ.t) //x ?<Int => Int>
+    | Constructor(string) //E (expression must be capitalized)
+    | ConsistentCase(case) //e1 | p1 => e2 | p2 => e2 end
+    | Cast(t, Typ.t, Typ.t) //e <t1 => t2>
+    | FailedCast(t, Typ.t, Typ.t) //e ?<t1 => t2>
     | InvalidOperation(t, InvalidOperationError.t)
     | IfThenElse(if_consistency, t, t, t) // use bool tag to track if branches are consistent
-  // if false then 8 else 6
+  // if e1 then e2 else e3
   and case =
-    | Case(t, list(rule), int) //4 == 3 | true => 24 | false => false end
+    | Case(t, list(rule), int) //e1 | p1 => e2 | p2 => e2 end
   and rule =
     | Rule(DHPat.t, t);
 

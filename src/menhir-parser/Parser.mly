@@ -13,9 +13,6 @@ open AST
 %token DEBUG
 %token HIDE
 %token EVAL
-%token HOLE
-%token FREE
-%token FIX
 %token <string> IDENT
 %token <string> CONSTRUCTOR_IDENT
 %token <string> STRING
@@ -153,10 +150,9 @@ varPat:
     | i = IDENT { VarPat (i) }
 
 pat: 
-    | OPEN_PAREN; HOLE; p = pat; CLOSE_PAREN {NonEmptyHolePat p}
+    | OPEN_BRACKET; OPEN_BRACKET; p = pat; CLOSE_BRACKET; CLOSE_BRACKET; {NonEmptyHolePat p}
     | WILD { WildPat }
-    | HOLE { EmptyHolePat }
-    | UNIT { EmptyHolePat }
+    | QUESTION { EmptyHolePat }
     | BAD_CONSTRUCTOR; c = CONSTRUCTOR_IDENT {BadConstructorPat(c)}
     | OPEN_SQUARE_BRACKET; l = separated_list(COMMA, pat); CLOSE_SQUARE_BRACKET; COLON; t = typ { ListPat(l, t) }
     | c = CONSTRUCTOR_IDENT { ConstructorPat(c) }
@@ -184,7 +180,7 @@ rul:
 
 case:
     | CASE; e = exp; l = list(rul); END; { CaseExp(e, l) }
-    | OPEN_PAREN; CASE; e = exp; l = list(rul); END; CLOSE_PAREN { InconsistentCaseExp(e, l)}
+    | OPEN_BRACKET; OPEN_BRACKET; QUESTION; e = exp; l = list(rul); END; CLOSE_BRACKET; CLOSE_BRACKET { InconsistentCaseExp(e, l)}
 
 funExp: 
     | FUN; COLON; t = typ; p = pat; DASH_ARROW; e1 = exp;  { Fun (t, p, e1, None) }
@@ -206,7 +202,7 @@ exp:
     | f = FLOAT { Float f }
     | v = IDENT { Var v }
     | c = CONSTRUCTOR_IDENT { Constructor c }
-    | FREE; v = IDENT { FreeVar v }
+    | OPEN_BRACKET; OPEN_BRACKET; QUESTION; v = IDENT CLOSE_BRACKET; CLOSE_BRACKET; { FreeVar v }
     | s = STRING { String s}
     | b = binExp { b }
     | OPEN_PAREN; e = exp; CLOSE_PAREN { e }
@@ -222,9 +218,8 @@ exp:
     | FIX; s = IDENT; t = typ; f = funExp { FixF(s, t, f) }
     | f = funExp {f}
     | FALSE { Bool false }
-    | OPEN_PAREN; HOLE; e = exp; CLOSE_PAREN {NonEmptyHole e}
-    | HOLE { EmptyHole }
-    | UNIT { EmptyHole }
+    | OPEN_BRACKET; OPEN_BRACKET; e = exp; CLOSE_BRACKET; CLOSE_BRACKET {NonEmptyHole e}
+    | QUESTION { EmptyHole }
     | a = filterAction; cond = exp; body = exp { Filter(a, cond, body)}
     | TEST; e = exp; END { Test(e) }
     | e1 = exp; LIST_CONCAT; e2 = exp { ListConcat(e1, e2) }
