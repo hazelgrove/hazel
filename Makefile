@@ -56,7 +56,7 @@ repl:
 test:
 	dune build @src/fmt @test/fmt --auto-promote src test --profile dev --instrument-with bisect_ppx
 	node $(TEST_DIR)/haz3ltest.bc.js
-	#bisect-ppx-report html
+	bisect-ppx-report html
 
 clean:
 	dune clean

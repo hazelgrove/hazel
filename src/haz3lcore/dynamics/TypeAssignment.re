@@ -292,15 +292,17 @@ let rec typ_of_dhexp =
 };
 
 let property_test =
-    (uexp_typ: Typ.t, dhexp: option(DHExp.t), m: Statics.Map.t): bool => {
+    (uexp_typ: option(Typ.t), dhexp: option(DHExp.t), m: Statics.Map.t)
+    : bool => {
   let dhexp_typ =
     switch (dhexp) {
     | None => None
     | Some(dhexp) => typ_of_dhexp(Builtins.ctx_init, m, dhexp)
     };
 
-  switch (dhexp_typ) {
-  | None => false
-  | Some(dh_typ) => Typ.eq(dh_typ, uexp_typ)
+  switch (uexp_typ, dhexp_typ) {
+  | (None, None) => true
+  | (Some(uexp_typ), Some(dhexp_typ)) => Typ.eq(dhexp_typ, uexp_typ)
+  | _ => false
   };
 };
