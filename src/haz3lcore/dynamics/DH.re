@@ -159,6 +159,7 @@ module rec DHExp: {
     | xs => Tuple(xs);
 
   let cast = (d: t, t1: Typ.t, t2: Typ.t): t => {
+    // TODO (Anthony): Other cases for label casting?
     let islabel =
       switch (t2) {
       | Label(_, Unknown(SynSwitch)) => true

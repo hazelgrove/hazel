@@ -219,6 +219,21 @@ module Transition = (EV: EV_MODE) => {
       Constructor;
     | Fun(p, t, d, v) =>
       let. _ = otherwise(env, Fun(p, t, d, v));
+      let p =
+        switch (p) {
+        | Tuple(l) =>
+          DHPat.Tuple(
+            List.map(
+              (x): DHPat.t =>
+                switch (x) {
+                | DHPat.Var(s) => TupLabel(s, x)
+                | _ => x
+                },
+              l,
+            ),
+          )
+        | _ => p
+        };
       Step({
         apply: () => Fun(p, t, Closure(env, d), v),
         kind: FunClosure,
@@ -493,8 +508,7 @@ module Transition = (EV: EV_MODE) => {
     | TupLabel(p, d1) =>
       // TODO (Anthony): Fix this if needed
       let. _ = otherwise(env, d1 => TupLabel(p, d1))
-      and. _ = req_value(req(state, env), d1 => TupLabel(p, d1), d1);
-      // Hidden step
+      and. _ = req_final(req(state, env), d1 => TupLabel(p, d1), d1);
       Constructor;
     | Tuple(ds) =>
       let. _ = otherwise(env, ds => Tuple(ds))
