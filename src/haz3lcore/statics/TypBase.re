@@ -200,8 +200,12 @@ module rec Typ: {
         | true => eq(tys1_val, tys2_val)
         };
       };
+      // TODO (Anthony): optimize to work both way intead of run-twice hack.
       List.length(tys1) == List.length(tys2)
-      && LabeledTuple.ana_tuple(filt, filt, f, true, false, tys1, tys2);
+      && (
+        LabeledTuple.ana_tuple(filt, filt, f, true, false, tys1, tys2)
+        || LabeledTuple.ana_tuple(filt, filt, f, true, false, tys2, tys1)
+      );
     | (Prod(_), _) => false
     | (List(t1), List(t2)) => eq(t1, t2)
     | (List(_), _) => false
@@ -268,6 +272,16 @@ module rec Typ: {
       let+ ty_join = join'(ty_name, ty);
       !resolve && eq(ty_name, ty_join) ? Var(name) : ty_join;
     /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
+    /* Labels have special rules. TODO (Anthony): Fix them */
+    | (Label(s1, ty1), Label(s2, ty2)) =>
+      if (compare(s1, s2) == 0) {
+        let+ ty = join'(ty1, ty2);
+        Label(s2, ty);
+      } else {
+        None;
+      }
+    | (Label(_, ty1), ty) => join'(ty1, ty)
+    | (ty, Label(_, ty2)) => join'(ty, ty2)
     | (Rec(x1, ty1), Rec(x2, ty2)) =>
       /* TODO:
            This code isn't fully correct, as we may be doing
@@ -294,16 +308,7 @@ module rec Typ: {
       let+ ty2 = join'(ty2, ty2');
       Arrow(ty1, ty2);
     | (Arrow(_), _) => None
-    | (Label(s1, ty1), Label(s2, ty2)) =>
-      if (compare(s1, s2) == 0) {
-        let+ ty = join'(ty1, ty2);
-        Label(s2, ty);
-      } else {
-        None;
-      }
-    | (Label(_), _) => None
     | (Prod(tys1), Prod(tys2)) =>
-      let (tys1, tys2) = (tys2, tys1); // tessting
       let filt: t => option(LabeledTuple.t) = (
         d =>
           switch (d) {
@@ -354,7 +359,7 @@ module rec Typ: {
       // Prod(tys);
       // }
       if (!l1_valid || !l2_valid || List.length(tys1) != List.length(tys2)) {
-        print_endline("fail");
+        print_endline("Tuple join fail");
         None;
       } else {
         let l2_rem =
@@ -373,7 +378,7 @@ module rec Typ: {
                       },
                       l2_matched,
                     ) => l2_rem
-              | (Some(_), it)
+              | (Some(s), it) => l2_rem @ [Label(s, it)]
               | (None, it) => l2_rem @ [it]
               };
             },
@@ -388,7 +393,12 @@ module rec Typ: {
             switch (hd) {
             | (Some(s1), l1_val) =>
               switch (l2_matched) {
-              | [] => [None] @ f(tl, l2_matched, l2_rem) // should never happen
+              | [] =>
+                switch (l2_rem) {
+                | [hd2, ...tl2] =>
+                  [join'(Label(s1, l1_val), hd2)] @ f(tl, l2_matched, tl2)
+                | [] => [None] @ f(tl, l2_matched, l2_rem) // should never happen
+                }
               | [hd2, ...tl2] =>
                 switch (hd2) {
                 | (Some(s2), l2_val) when LabeledTuple.compare(s1, s2) == 0 =>
@@ -600,14 +610,23 @@ module rec Typ: {
               | [] => [Unknown(Internal)] @ f(tl, l2_matched, l2_rem) // should never happen
               | [hd2, ...tl2] =>
                 switch (hd2) {
-                | (Some(s2), l2_val) when compare(s1, s2) == 0 =>
+                | (Some(s2), l2_val) when LabeledTuple.compare(s1, s2) == 0 =>
                   [l2_val] @ f(tl, tl2, l2_rem)
-                | _ => [Unknown(Internal)] @ f(tl, l2_matched, l2_rem)
+                | _ =>
+                  switch (l2_rem) {
+                  | [hd2, ...tl2] =>
+                    switch (hd2) {
+                    | Label(_) =>
+                      [Unknown(Internal)] @ f(tl, l2_matched, l2_rem)
+                    | _ => [Label(s1, hd2)] @ f(tl, l2_matched, tl2)
+                    }
+                  | [] => [Unknown(Internal)] @ f(tl, l2_matched, l2_rem)
+                  }
                 }
               }
             | None =>
               switch (l2_rem) {
-              | [hd2, ...tl2] => [hd2] @ f(tl, l2_lab, tl2)
+              | [hd2, ...tl2] => [hd2] @ f(tl, l2_matched, tl2)
               | [] => [Unknown(Internal)] @ f(tl, l2_matched, l2_rem)
               }
             }

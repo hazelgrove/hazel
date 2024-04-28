@@ -335,11 +335,24 @@ and uexp_to_info_map =
       go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~mode=mode_pat, p, m);
     let (e, m) = go'(~ctx=p'.ctx, ~mode=mode_body, e, m);
     /* add co_ctx to pattern */
-    let (p, m) =
+    let (p'', m) =
       go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~mode=mode_pat, p, m);
+    let rec get_var = (p1: UPat.t, p2) =>
+      switch (p1.term) {
+      | UPat.Var(s) => Typ.Label(s, p2)
+      | TypeAnn(s, _) => get_var(s, p2)
+      | _ => p2
+      };
+    let pty: Typ.t =
+      switch (p.term, p''.ty) {
+      | (Tuple(l1), Prod(l2)) =>
+        let pt: list(Typ.t) = List.map2(get_var, l1, l2);
+        Prod(pt);
+      | _ => p''.ty
+      };
     add(
-      ~self=Just(Arrow(p.ty, e.ty)),
-      ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx),
+      ~self=Just(Arrow(pty, e.ty)),
+      ~co_ctx=CoCtx.mk(ctx, p''.ctx, e.co_ctx),
       m,
     );
   | Let(p, def, body) =>

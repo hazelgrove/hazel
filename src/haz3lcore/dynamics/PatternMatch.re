@@ -179,15 +179,42 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
         }
       };
     };
-    LabeledTuple.ana_tuple(
-      filt1,
-      filt2,
-      f,
-      Matches(Environment.empty),
-      DoesNotMatch,
-      dps,
-      ds,
-    );
+    // TODO (Anthony): optimize to work both way intead of run-twice hack.
+    let f_reverse = (result, d, dp) => {
+      switch (result) {
+      | DoesNotMatch => DoesNotMatch
+      | IndetMatch => IndetMatch
+      | Matches(env) =>
+        switch (matches(dp, d)) {
+        | DoesNotMatch => DoesNotMatch
+        | IndetMatch => IndetMatch
+        | Matches(env') => Matches(Environment.union(env, env'))
+        }
+      };
+    };
+    let fin =
+      LabeledTuple.ana_tuple(
+        filt1,
+        filt2,
+        f,
+        Matches(Environment.empty),
+        DoesNotMatch,
+        dps,
+        ds,
+      );
+    switch (fin) {
+    | DoesNotMatch =>
+      LabeledTuple.ana_tuple(
+        filt2,
+        filt1,
+        f_reverse,
+        Matches(Environment.empty),
+        DoesNotMatch,
+        ds,
+        dps,
+      )
+    | _ => fin
+    };
   | (Tuple(dps), Cast(d, Prod(tys), Prod(tys'))) =>
     assert(List.length(tys) == List.length(tys'));
     matches_cast_Tuple(
@@ -339,15 +366,42 @@ and matches_cast_Tuple =
           }
         };
       };
-      LabeledTuple.ana_tuple(
-        filt1,
-        filt2,
-        f,
-        Matches(Environment.empty),
-        DoesNotMatch,
-        dps,
-        List.combine(ds, elt_casts),
-      );
+      // TODO (Anthony): optimize to work both way intead of run-twice hack.
+      let f_reverse = (result, (d, casts), dp) => {
+        switch (result) {
+        | DoesNotMatch => DoesNotMatch
+        | IndetMatch => IndetMatch
+        | Matches(env) =>
+          switch (matches(dp, DHExp.apply_casts(d, casts))) {
+          | DoesNotMatch => DoesNotMatch
+          | IndetMatch => IndetMatch
+          | Matches(env') => Matches(Environment.union(env, env'))
+          }
+        };
+      };
+      let fin =
+        LabeledTuple.ana_tuple(
+          filt1,
+          filt2,
+          f,
+          Matches(Environment.empty),
+          DoesNotMatch,
+          dps,
+          List.combine(ds, elt_casts),
+        );
+      switch (fin) {
+      | DoesNotMatch =>
+        LabeledTuple.ana_tuple(
+          filt2,
+          filt1,
+          f_reverse,
+          Matches(Environment.empty),
+          DoesNotMatch,
+          List.combine(ds, elt_casts),
+          dps,
+        )
+      | _ => fin
+      };
     }
   | Cast(d', Prod(tys), Prod(tys')) =>
     if (List.length(dps) != List.length(tys)) {
