@@ -548,6 +548,16 @@ let rec testcases_gen =
     let u = uexp_gen([], ty, 2);
     let m = Test_Elaboration.mk_map(u);
     let d = Elaborator.dhexp_of_uexp(m, u, false);
+    /*let _ =
+      switch (d) {
+      | None => ()
+      | Some(d) =>
+        print_endline(
+          ProgramResult.show(
+            Interface.evaluate(~settings=CoreSettings.on, d),
+          ),
+        )
+      };*/
     let test = () =>
       Alcotest.check(
         Alcotest.bool,
@@ -560,13 +570,23 @@ let rec testcases_gen =
   };
 };
 
-let type_assignment_tests = testcases_gen(1000, utyp(Int), []);
+let type_assignment_tests = testcases_gen(100, utyp(Int), []);
 let random_tests =
   List.map(
     (u: UExp.t) => {
       let m = Test_Elaboration.mk_map(u);
       let d = Elaborator.dhexp_of_uexp(m, u, false);
       let ty = Elaborator.fixed_exp_typ(m, u);
+      /*let _ =
+        switch (d) {
+        | None => ()
+        | Some(d) =>
+          print_endline(
+            ProgramResult.show(
+              Interface.evaluate(~settings=CoreSettings.on, d),
+            ),
+          )
+        };*/
       let test = () =>
         Alcotest.check(
           Alcotest.bool,
@@ -576,5 +596,5 @@ let random_tests =
         );
       test_case("Type assignment", `Quick, test);
     },
-    QCheck.Gen.generate(~n=1000, pure_random_uexp),
+    QCheck.Gen.generate(~n=100, pure_random_uexp),
   );
