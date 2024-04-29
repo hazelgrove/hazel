@@ -423,6 +423,8 @@ module Transition = (EV: EV_MODE) => {
           kind: DeferredAp,
           is_value: false,
         });
+      | Cast(_)
+      | FailedCast(_) => Indet
       | _ =>
         Step({
           expr: {
