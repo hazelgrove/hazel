@@ -51,13 +51,20 @@ let elaborated_type = (m: Statics.Map.t, uexp: UExp.t): (Typ.t, Ctx.t) => {
     | Some(Info.InfoExp({mode, ty, ctx, _})) => (mode, ty, ctx)
     | _ => raise(MissingTypeInfo)
     };
-  switch (mode) {
-  | SynFun
-  | SynTypFun
-  | Syn => (self_ty, ctx)
-  // We need to remove the synswitches from this type.
-  | Ana(ana_ty) => (Typ.match_synswitch(ana_ty, self_ty), ctx)
-  };
+  let elab_ty =
+    switch (mode) {
+    | Syn => self_ty
+    | SynFun =>
+      let (ty1, ty2) = Typ.matched_arrow(ctx, self_ty);
+      Typ.Arrow(ty1, ty2) |> Typ.mk_fast;
+    | SynTypFun =>
+      let (tpat, ty) = Typ.matched_forall(ctx, self_ty);
+      let tpat = Option.value(tpat, ~default=TPat.fresh(EmptyHole));
+      Typ.Forall(tpat, ty) |> Typ.mk_fast;
+    // We need to remove the synswitches from this type.
+    | Ana(ana_ty) => Typ.match_synswitch(ana_ty, self_ty)
+    };
+  (elab_ty, ctx);
 };
 
 let elaborated_pat_type = (m: Statics.Map.t, upat: UPat.t): (Typ.t, Ctx.t) => {
@@ -71,16 +78,23 @@ let elaborated_pat_type = (m: Statics.Map.t, upat: UPat.t): (Typ.t, Ctx.t) => {
       )
     | _ => raise(MissingTypeInfo)
     };
-  switch (mode) {
-  | SynFun
-  | SynTypFun
-  | Syn => (self_ty, ctx)
-  | Ana(ana_ty) =>
-    switch (prev_synswitch) {
-    | None => (ana_ty, ctx)
-    | Some(syn_ty) => (Typ.match_synswitch(syn_ty, ana_ty), ctx)
-    }
-  };
+  let elab_ty =
+    switch (mode) {
+    | Syn => self_ty
+    | SynFun =>
+      let (ty1, ty2) = Typ.matched_arrow(ctx, self_ty);
+      Typ.Arrow(ty1, ty2) |> Typ.mk_fast;
+    | SynTypFun =>
+      let (tpat, ty) = Typ.matched_forall(ctx, self_ty);
+      let tpat = Option.value(tpat, ~default=TPat.fresh(EmptyHole));
+      Typ.Forall(tpat, ty) |> Typ.mk_fast;
+    | Ana(ana_ty) =>
+      switch (prev_synswitch) {
+      | None => ana_ty
+      | Some(syn_ty) => Typ.match_synswitch(syn_ty, ana_ty)
+      }
+    };
+  (elab_ty, ctx);
 };
 
 let rec elaborate_pattern =
@@ -275,7 +289,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       let (e', tye) = elaborate(m, e);
       Exp.FixF(p', fresh_cast(e', tye, typ), env)
       |> rewrap
-      |> cast_from(Arrow(typ, typ) |> Typ.mk_fast);
+      |> cast_from(typ);
     | TyAlias(_, _, e) =>
       let (e', tye) = elaborate(m, e);
       e' |> cast_from(tye);
