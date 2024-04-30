@@ -230,6 +230,15 @@ let move = (d: Direction.t, z: t): option(t) =>
 let select = (d: Direction.t, z: t): option(t) =>
   d == z.selection.focus ? grow_selection(z) : shrink_selection(z);
 
+let select_caret = (d: Direction.t, z: t): option(t) =>
+  if (z.caret == Outer) {
+    select(d, z);
+  } else if (d == Left) {
+    z |> set_caret(Outer) |> move(Right) |> OptUtil.and_then(select(d));
+  } else {
+    z |> set_caret(Outer) |> select(d);
+  };
+
 let pick_up = (z: t): t => {
   let (selected, z) = update_selection(Selection.empty, z);
   let selection =
@@ -473,3 +482,13 @@ let seg_for_view = smart_seg(~erase_buffer=false, ~dump_backpack=false);
 let seg_for_sem = smart_seg(~erase_buffer=true, ~dump_backpack=true);
 
 let seg_without_buffer = smart_seg(~erase_buffer=true, ~dump_backpack=false);
+
+/* Loop action until pred is satisfied */
+let rec do_until =
+        (action: t => option(t), pred: t => bool, z: t): option(t) =>
+  pred(z)
+    ? Some(z)
+    : {
+      let* z = action(z);
+      do_until(action, pred, z);
+    };
