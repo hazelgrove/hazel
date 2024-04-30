@@ -51,38 +51,64 @@ let neighbor_is =
   (l, r);
 };
 
-module Move = {
-  /* Do move_action until the indicated piece is such that piece_p is true.
-     If no such piece is found, don't move. */
-  let rec do_until_sib =
-          (move: t => option(t), z_pred: Zipper.t => bool, z: t): option(t) =>
-    z_pred(z)
-      ? Some(z)
-      : {
-        let* z = move(z);
-        do_until_sib(move, z_pred, z);
-      };
-
-  let is_right_of = (pid: Id.t, z) =>
-    switch (z.relatives.siblings, z.relatives.ancestors) {
-    | ((_, [r, ..._]), _) => Piece.id(r) == pid
-    | ((_, []), []) => true // end of program
-    | ((_, []), _) => false
+/* Do move_action until the indicated piece is such that piece_p is true.
+   If no such piece is found, don't move. */
+let rec do_until_sib =
+        (move: t => option(t), z_pred: Zipper.t => bool, z: t): option(t) =>
+  z_pred(z)
+    ? Some(z)
+    : {
+      let* z = move(z);
+      do_until_sib(move, z_pred, z);
     };
 
-  let is_left_of = (pid: Id.t, z) =>
-    switch (z.relatives.siblings, z.relatives.ancestors) {
-    | (([_, ..._] as ls, _), _) => Piece.id(ListUtil.last(ls)) == pid
-    | (([], _), []) => true // beginning of program
-    | (([], _), _) => false
-    };
+let is_right_of = (pid: Id.t, z) =>
+  switch (z.relatives.siblings, z.relatives.ancestors) {
+  | ((_, [r, ..._]), _) => Piece.id(r) == pid
+  | ((_, []), []) => true // end of program
+  | ((_, []), _) => false
+  };
 
-  let is_on = (d: Direction.t, pid: Id.t) =>
-    switch (d) {
-    | Left => is_left_of(pid)
-    | Right => is_right_of(pid)
-    };
+let is_left_of = (pid: Id.t, z) =>
+  switch (z.relatives.siblings, z.relatives.ancestors) {
+  | (([_, ..._] as ls, _), _) => Piece.id(ListUtil.last(ls)) == pid
+  | (([], _), []) => true // beginning of program
+  | (([], _), _) => false
+  };
 
-  let over = (d: Direction.t, proj_id, z) =>
-    do_until_sib(Zipper.move(d), is_on(d, proj_id), z);
+let is_on = (d: Direction.t, pid: Id.t) =>
+  switch (d) {
+  | Left => is_left_of(pid)
+  | Right => is_right_of(pid)
+  };
+
+let skip_to = (d: Direction.t, proj_id, z) => {
+  // print_endline("ProjectorAction.skip_to");
+  do_until_sib(
+    Zipper.move(d),
+    is_on(d, proj_id),
+    z,
+  );
+};
+
+//TODO(andrew): relocalize
+let primary' = (d: Direction.t, z: Zipper.t): option(Zipper.t) =>
+  if (z.caret == Outer) {
+    Zipper.select(d, z);
+  } else if (d == Left) {
+    z
+    |> Zipper.set_caret(Outer)
+    |> Zipper.move(Right)
+    |> OptUtil.and_then(Zipper.select(d));
+  } else {
+    z |> Zipper.set_caret(Outer) |> Zipper.select(d);
+  };
+
+let skip_select_to = (d: Direction.t, proj_id, z) => {
+  // print_endline("ProjectorAction.skip_to");
+  do_until_sib(
+    z => z |> primary'(d),
+    is_on(d, proj_id),
+    z,
+  );
 };
