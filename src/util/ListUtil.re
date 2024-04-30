@@ -514,3 +514,6 @@ let rec unzip = (lst: list(('a, 'b))): (list('a), list('b)) => {
     ([a, ..._as], [b, ...bs]);
   };
 };
+
+let cross = (xs, ys) =>
+  List.concat(List.map(x => List.map(y => (x, y), ys), xs));

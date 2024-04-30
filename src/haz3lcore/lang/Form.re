@@ -248,8 +248,8 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
 let forms: list((string, t)) = [
   // INFIX OPERATORS
   ("typ_plus", mk_infix("+", Typ, P.or_)),
-  ("type-arrow", mk_infix("->", Typ, 6)),
-  ("cell-join", mk_infix(";", Exp, 10)),
+  ("type-arrow", mk_infix("->", Typ, P.plus)),
+  ("cell-join", mk_infix(";", Exp, P.semi)),
   ("plus", mk_infix("+", Exp, P.plus)),
   ("minus", mk_infix("-", Exp, P.plus)),
   ("times", mk_infix("*", Exp, P.mult)),

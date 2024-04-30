@@ -175,3 +175,12 @@ let string_op_to_string = (op: op_bin_string): string => {
   | Equals => "$=="
   };
 };
+
+let bin_op_to_string = (op: op_bin): string => {
+  switch (op) {
+  | Int(op) => int_op_to_string(op)
+  | Float(op) => float_op_to_string(op)
+  | Bool(op) => bool_op_to_string(op)
+  | String(op) => string_op_to_string(op)
+  };
+};
