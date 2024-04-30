@@ -4,29 +4,18 @@ open OptUtil.Syntax;
 module Make = (M: Editor.Meta.S) => {
   module Move = Move.Make(M);
 
-  let primary' = (d: Direction.t, z: Zipper.t): option(Zipper.t) =>
-    if (z.caret == Outer) {
-      Zipper.select(d, z);
-    } else if (d == Left) {
-      z
-      |> Zipper.set_caret(Outer)
-      |> Zipper.move(Right)
-      |> OptUtil.and_then(Zipper.select(d));
-    } else {
-      z |> Zipper.set_caret(Outer) |> Zipper.select(d);
-    };
-
-  let primary = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
-    let (l_proj, r_proj) =
-      ProjectorAction.neighbor_is(M.start_map, M.last_map, z);
-    switch (d, z.caret, (l_proj, r_proj)) {
+  let primary = (d: Direction.t, z: Zipper.t): option(Zipper.t) =>
+    switch (
+      d,
+      z.caret,
+      ProjectorAction.neighbor_is(M.start_map, M.last_map, z),
+    ) {
     | (Left, Outer, (Some(id), _)) =>
       ProjectorAction.skip_select_to(Left, id, z)
     | (Right, Outer, (_, Some(id))) =>
       ProjectorAction.skip_select_to(Right, id, z)
-    | _ => primary'(d, z)
+    | _ => Zipper.select_caret(d, z)
     };
-  };
 
   let vertical = (d: Direction.t, ed: Zipper.t): option(Zipper.t) =>
     Move.do_vertical(primary, d, ed);
