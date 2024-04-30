@@ -128,7 +128,7 @@ let mk_comma_seq = (ld, rd, l) => {
 
 let mk_ListLit = l => mk_comma_seq("[", "]", l);
 
-let mk_Tuple = elts => mk_comma_seq("(", ")", elts);
+let mk_Tuple = elts => mk_comma_seq("", "", elts);
 
 let mk_TypAp = (doc1, doc2) =>
   Doc.(hcats([doc1, text("@<"), doc2, text(">")]));
