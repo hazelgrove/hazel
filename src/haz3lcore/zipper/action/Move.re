@@ -6,7 +6,7 @@ open Sexplib.Std;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type movability =
   | CanEnter(int, int)
-  | Projected(Id.t)
+  | SkipTo(Id.t)
   | CanPass
   | CantEven;
 
@@ -27,7 +27,7 @@ let neighbor_movability =
       start_map: Projector.start_map,
       last_map: Projector.start_map,
       chunkiness: chunkiness,
-      {relatives: {siblings, ancestors}, projectors, _}: t,
+      {relatives: {siblings, ancestors}, _} as z: t,
     )
     : (movability, movability) => {
   let movability = movability(chunkiness);
@@ -40,97 +40,34 @@ let neighbor_movability =
       )
     };
   let (l_nhbr, r_nhbr) = Siblings.neighbors(siblings);
-  let seg = (siblings |> fst) @ (siblings |> snd);
-  // "seg:" |> print_endline;
-  //seg |> Segment.show |> print_endline;
+  let (l_proj, r_proj) = ProjectorAction.neighbor_is(start_map, last_map, z);
   let l =
-    switch (l_nhbr) {
-    | Some(p) when Projector.Map.mem(Piece.id(p), last_map) =>
-      let prev_id =
-        switch (Projector.split_seg(seg, projectors)) {
-        | Some(([_, ..._] as xs, _, _, _)) => Piece.id(ListUtil.last(xs))
-        | Some(([], _, _, _)) =>
-          switch (Ancestors.parent(ancestors)) {
-          | Some(a) =>
-            print_endline("prev_id: empty pre using parent");
-            a.id;
-          | None =>
-            print_endline("prev_id: empty pre no ancestor");
-            Id.invalid; //TODO(andrew)
-          }
-        | None =>
-          print_endline("prev_id: None");
-          Id.invalid; //TODO(andrew)
-        };
-      Projected(prev_id);
-    | Some(Tile({label, _})) => movability(label, List.length(label) - 1)
-    | Some(Secondary(w)) when Secondary.is_comment(w) =>
+    switch (l_proj, l_nhbr) {
+    | (Some(l_proj_id), _) => SkipTo(l_proj_id)
+    | (None, Some(Tile({label, _}))) =>
+      movability(label, List.length(label) - 1)
+    | (None, Some(Secondary(w))) when Secondary.is_comment(w) =>
       // Comments are always length >= 2
       let content_string = Secondary.get_string(w.content);
       CanEnter(
         Unicode.length(content_string) - 1,
         Unicode.length(content_string) - 2,
       );
-    | Some(_) => CanPass
-    | _ => supernhbr_l
+    | (None, Some(Secondary(_) | Grout(_))) => CanPass
+    | (None, None) => supernhbr_l
     };
   let r =
-    switch (r_nhbr) {
-    | Some(p) when Projector.Map.mem(Piece.id(p), start_map) =>
-      let next_id =
-        switch (Projector.split_seg(seg, projectors)) {
-        | Some((_, _, [hd, ..._], _)) => Piece.id(hd)
-        | _ =>
-          print_endline("next_id: empty post");
-          Id.invalid; //TODO(andrew)
-        };
-      Projected(next_id);
-    | Some(Tile({label, _})) => movability(label, 0)
-    | Some(Secondary(w)) when Secondary.is_comment(w) =>
+    switch (r_proj, r_nhbr) {
+    | (Some(r_proj_id), _) => SkipTo(r_proj_id)
+    | (None, Some(Tile({label, _}))) => movability(label, 0)
+    | (None, Some(Secondary(w))) when Secondary.is_comment(w) =>
       // Comments are always length >= 2
       let content_string = Secondary.get_string(w.content);
       CanEnter(0, Unicode.length(content_string) - 2);
-    | Some(_) => CanPass
-    | _ => supernhbr_r
+    | (None, Some(Secondary(_) | Grout(_))) => CanPass
+    | (None, None) => supernhbr_r
     };
   (l, r);
-};
-
-module Projector = {
-  /* Do move_action until the indicated piece is such that piece_p is true.
-     If no such piece is found, don't move. */
-  let rec do_until_sib =
-          (move: t => option(t), z_pred: Zipper.t => bool, z: t): option(t) => {
-    z_pred(z)
-      ? Some(z)
-      : {
-        let* z = move(z);
-        do_until_sib(move, z_pred, z);
-      };
-  };
-
-  let is_right_of = (pid: Id.t, z) =>
-    switch (z.relatives.siblings, z.relatives.ancestors) {
-    | ((_, [r, ..._]), _) => Piece.id(r) == pid
-    | ((_, []), []) => true // end of program
-    | ((_, []), _) => false
-    };
-
-  let is_left_of = (pid: Id.t, z) =>
-    switch (z.relatives.siblings, z.relatives.ancestors) {
-    | (([_, ..._] as ls, _), _) => Piece.id(ListUtil.last(ls)) == pid
-    | (([], _), []) => true // beginning of program
-    | (([], _), _) => false
-    };
-
-  let is_on = (d: Direction.t, pid: Id.t) =>
-    switch (d) {
-    | Left => is_left_of(pid)
-    | Right => is_right_of(pid)
-    };
-
-  let move_over = (d: Direction.t, proj_id, z) =>
-    do_until_sib(Zipper.move(d), is_on(d, proj_id), z);
 };
 
 module Make = (M: Editor.Meta.S) => {
@@ -158,12 +95,12 @@ module Make = (M: Editor.Meta.S) => {
     /* this case maybe shouldn't be necessary but currently covers an edge
        (select an open parens to left of a multichar token and press left) */
     | _ when z.selection.content != [] => pop_move(d, z)
-    | (Left, Outer, (Projected(pid), _)) =>
+    | (Left, Outer, (SkipTo(pid), _)) =>
       // print_endline("Left Projected");
-      Projector.move_over(Left, pid, z)
-    | (Right, Outer, (_, Projected(pid))) =>
+      ProjectorAction.Move.over(Left, pid, z)
+    | (Right, Outer, (_, SkipTo(pid))) =>
       // print_endline("Right Projected");
-      Projector.move_over(Right, pid, z)
+      ProjectorAction.Move.over(Right, pid, z)
     | (Left, Outer, (CanEnter(dlm, c_max), _)) =>
       inner_end(d, dlm, c_max, z)
     | (Left, Outer, _) => Zipper.move(d, z)
