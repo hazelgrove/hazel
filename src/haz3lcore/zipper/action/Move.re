@@ -96,11 +96,9 @@ module Make = (M: Editor.Meta.S) => {
        (select an open parens to left of a multichar token and press left) */
     | _ when z.selection.content != [] => pop_move(d, z)
     | (Left, Outer, (SkipTo(pid), _)) =>
-      // print_endline("Left Projected");
-      ProjectorAction.Move.over(Left, pid, z)
+      ProjectorAction.skip_to(Left, pid, z)
     | (Right, Outer, (_, SkipTo(pid))) =>
-      // print_endline("Right Projected");
-      ProjectorAction.Move.over(Right, pid, z)
+      ProjectorAction.skip_to(Right, pid, z)
     | (Left, Outer, (CanEnter(dlm, c_max), _)) =>
       inner_end(d, dlm, c_max, z)
     | (Left, Outer, _) => Zipper.move(d, z)
