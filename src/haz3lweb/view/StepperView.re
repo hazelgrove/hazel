@@ -89,7 +89,7 @@ let settings_modal = (~inject, settings: CoreSettings.Evaluation.t) => {
 let stepper_view =
     (
       ~inject,
-      ~settings: CoreSettings.Evaluation.t,
+      ~settings,
       ~font_metrics,
       ~result_key,
       ~read_only: bool,
@@ -119,7 +119,8 @@ let stepper_view =
         ),
       ],
     );
-  let history = Stepper.get_history(~settings, stepper);
+  let history =
+    Stepper.get_history(~settings=settings.core.evaluation, stepper);
   switch (history) {
   | [] => []
   | [hd, ...tl] =>
@@ -127,7 +128,8 @@ let stepper_view =
       Widgets.button_d(
         Icons.undo,
         inject(UpdateAction.StepperAction(result_key, StepBackward)),
-        ~disabled=!Stepper.can_undo(~settings, stepper),
+        ~disabled=
+          !Stepper.can_undo(~settings=settings.core.evaluation, stepper),
         ~tooltip="Step Backwards",
       );
     let button_hide_stepper =
@@ -135,7 +137,11 @@ let stepper_view =
         inject(UpdateAction.ToggleStepper(result_key))
       );
     let toggle_show_history =
-      Widgets.toggle(~tooltip="Show History", "h", settings.stepper_history, _ =>
+      Widgets.toggle(
+        ~tooltip="Show History",
+        "h",
+        settings.core.evaluation.stepper_history,
+        _ =>
         inject(Set(Evaluation(ShowRecord)))
       );
     let eval_settings =
@@ -171,7 +177,7 @@ let stepper_view =
     let rec previous_step =
             (~hidden: bool, step: Stepper.step_info): list(Node.t) => {
       let hidden_steps =
-        settings.show_hidden_steps
+        settings.core.evaluation.show_hidden_steps
           ? Stepper.hidden_steps_of_info(step)
             |> List.rev_map(previous_step(~hidden=true))
             |> List.flatten
@@ -204,7 +210,7 @@ let stepper_view =
       |> List.rev_append(
            _,
            (
-             settings.show_hidden_steps
+             settings.core.evaluation.show_hidden_steps
                ? hd
                  |> Stepper.hidden_steps_of_info
                  |> List.map(previous_step(~hidden=true))
@@ -214,6 +220,9 @@ let stepper_view =
            @ [current],
          )
     )
-    @ (settings.show_settings ? settings_modal(~inject, settings) : []);
+    @ (
+      settings.core.evaluation.show_settings
+        ? settings_modal(~inject, settings.core.evaluation) : []
+    );
   };
 };

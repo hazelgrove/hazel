@@ -19,6 +19,7 @@ let unquote = 1;
 let cast = 2;
 let ap = 3;
 // _____(x)
+// - _____
 let neg = 4;
 // _____ ** 2
 let power = 5;

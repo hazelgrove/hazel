@@ -241,9 +241,9 @@ let mk =
       | Ap(Reverse, d1, d2) =>
         let (doc1, doc2) = (go'(d1), go'(d2));
         DHDoc_common.mk_rev_Ap(doc2, doc1);
-      | UnOp(Meta(Unquote), d) => DHDoc_common.mk_Ap(text("$"), go'(d))
-      | UnOp(Bool(Not), d) => DHDoc_common.mk_Ap(text("!"), go'(d))
-      | UnOp(Int(Minus), d) => DHDoc_common.mk_Ap(text("-"), go'(d))
+      | UnOp(Meta(Unquote), d) => Doc.hcats([text("$"), go'(d)])
+      | UnOp(Bool(Not), d) => Doc.hcats([text("!"), go'(d)])
+      | UnOp(Int(Minus), d) => Doc.hcats([text("-"), go'(d)])
       | BinOp(Int(op), d1, d2) =>
         // TODO assumes all bin int ops are left associative
         let (doc1, doc2) = mk_left_associative_operands(d1, d2);

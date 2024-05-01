@@ -129,7 +129,7 @@ let view_of_layout =
   );
 };
 
-let view =
+let _view =
     (
       ~locked as _=false, // NOTE: When we add mouse events to this, ignore them if locked
       ~inject,
@@ -167,3 +167,35 @@ let view =
 };
 
 type font_metrics = FontMetrics.t;
+
+let view =
+    (
+      ~locked as _=false, // NOTE: When we add mouse events to this, ignore them if locked
+      ~inject as _,
+      ~settings,
+      ~selected_hole_instance as _: option(Id.t),
+      ~font_metrics: FontMetrics.t,
+      ~width as _: int,
+      ~pos as _=0,
+      ~previous_step as _: option((EvaluatorStep.step, Id.t))=None, // The step that will be displayed above this one
+      ~hidden_steps as _: list((EvaluatorStep.step, Id.t))=[], // The hidden steps between the above and the current one
+      ~chosen_step as _: option(EvaluatorStep.step)=None, // The step that will be taken next
+      ~next_steps as _: list((int, Id.t))=[],
+      ~result_key: string,
+      ~infomap as _,
+      d: DHExp.t,
+    ) => {
+  let parenthesized = ExpToSegment.parenthesize(d);
+  let options = ExpToSegment.exp_to_pretty(~inline=false, parenthesized);
+  let option = List.hd(options);
+  let editor = Editor.init(~read_only=true, Zipper.unzip(option));
+  let code_text_view =
+    Code.view(~sort=Sort.root, ~font_metrics, ~settings, editor);
+  let code_view =
+    Node.div(
+      ~attr=
+        Attr.many([Attr.id(result_key), Attr.classes(["code-container"])]),
+      [code_text_view],
+    );
+  code_view;
+};
