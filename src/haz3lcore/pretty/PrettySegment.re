@@ -18,3 +18,11 @@ let (and+) = (pretty1, pretty2) => ListUtil.cross(pretty1, pretty2);
 
 let ( let* ) = (pretty, f) => List.map(f, pretty) |> List.flatten;
 let ( and* ) = (pretty1, pretty2) => ListUtil.cross(pretty1, pretty2);
+
+let rec all =
+  fun
+  | [] => [[]]
+  | [x, ...xs] => {
+      let rest = all(xs);
+      List.flatten(List.map(x => List.map(rest => [x, ...rest], rest), x));
+    };

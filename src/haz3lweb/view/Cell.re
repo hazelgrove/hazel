@@ -186,7 +186,7 @@ let live_eval =
     DHCode.view(
       ~locked,
       ~inject,
-      ~settings=settings.core.evaluation,
+      ~settings,
       ~selected_hole_instance=None,
       ~font_metrics,
       ~width=80,
@@ -241,7 +241,7 @@ let footer =
   | Stepper(s) =>
     StepperView.stepper_view(
       ~inject,
-      ~settings=settings.core.evaluation,
+      ~settings,
       ~font_metrics,
       ~result_key,
       ~read_only=false,
