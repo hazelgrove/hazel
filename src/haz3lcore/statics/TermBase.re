@@ -118,7 +118,7 @@ and Exp: {
     | Tuple(list(t))
     | Var(Var.t)
     | Let(Pat.t, t, t)
-    | FixF(Pat.t, t, [@show.opaque] option(ClosureEnvironment.t))
+    | FixF(Pat.t, t, option(ClosureEnvironment.t))
     | TyAlias(TPat.t, Typ.t, t)
     | Ap(Operators.ap_direction, t, t)
     | TypAp(t, Typ.t)
