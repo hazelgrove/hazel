@@ -35,7 +35,12 @@ let fresh_cast = (d: DHExp.t, t1: Typ.t, t2: Typ.t): DHExp.t => {
 let fresh_pat_cast = (p: DHPat.t, t1: Typ.t, t2: Typ.t): DHPat.t => {
   Typ.eq(t1, t2)
     ? p
-    : Cast(
+    : {
+      let _ = print_endline("=====vvvvv===");
+      let _ = print_endline(Typ.show(t1));
+      let _ = print_endline(Typ.show(t2));
+      let _ = print_endline("=====^^^^^===");
+      Cast(
         DHPat.fresh(Cast(p, t1, Typ.mk_fast(Unknown(Internal))))
         |> Casts.pattern_fixup,
         Typ.mk_fast(Unknown(Internal)),
@@ -43,6 +48,7 @@ let fresh_pat_cast = (p: DHPat.t, t1: Typ.t, t2: Typ.t): DHPat.t => {
       )
       |> DHPat.fresh
       |> Casts.pattern_fixup;
+    };
 };
 
 let elaborated_type = (m: Statics.Map.t, uexp: UExp.t): (Typ.t, Ctx.t) => {
@@ -64,7 +70,7 @@ let elaborated_type = (m: Statics.Map.t, uexp: UExp.t): (Typ.t, Ctx.t) => {
     // We need to remove the synswitches from this type.
     | Ana(ana_ty) => Typ.match_synswitch(ana_ty, self_ty)
     };
-  (elab_ty, ctx);
+  (elab_ty |> Typ.normalize(ctx), ctx);
 };
 
 let elaborated_pat_type = (m: Statics.Map.t, upat: UPat.t): (Typ.t, Ctx.t) => {
@@ -94,7 +100,7 @@ let elaborated_pat_type = (m: Statics.Map.t, upat: UPat.t): (Typ.t, Ctx.t) => {
       | Some(syn_ty) => Typ.match_synswitch(syn_ty, ana_ty)
       }
     };
-  (elab_ty, ctx);
+  (elab_ty |> Typ.normalize(ctx), ctx);
 };
 
 let rec elaborate_pattern =
@@ -144,7 +150,6 @@ let rec elaborate_pattern =
       let p1'' = fresh_pat_cast(p1', ty1, Arrow(ty1l, ty1r) |> Typ.mk_fast);
       let p2'' = fresh_pat_cast(p2', ty2, ty1l);
       DHPat.Ap(p1'', p2'') |> rewrap |> cast_from(ty1r);
-    | Constructor(_)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -153,7 +158,7 @@ let rec elaborate_pattern =
       upat
       |> cast_from(
            Ctx.lookup_var(ctx, v)
-           |> Option.map((x: Ctx.var_entry) => x.typ)
+           |> Option.map((x: Ctx.var_entry) => x.typ |> Typ.normalize(ctx))
            |> Option.value(~default=Typ.mk_fast(Unknown(Internal))),
          )
     // Type annotations should already appear
@@ -161,6 +166,18 @@ let rec elaborate_pattern =
     | Cast(p, _, _) =>
       let (p', ty) = elaborate_pattern(m, p);
       p' |> cast_from(ty);
+    | Constructor(c) =>
+      upat
+      |> cast_from(
+           Ctx.lookup_ctr(ctx, c)
+           |> Option.map((x: Ctx.var_entry) => x.typ |> Typ.normalize(ctx))
+           |> Option.value(
+                ~default=
+                  Typ.mk_fast(
+                    Typ.Sum([BadEntry(Typ.mk_fast(Unknown(Internal)))]),
+                  ),
+              ),
+         )
     };
   (dpat, elaborated_type);
 };
@@ -231,8 +248,13 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       uexp
       |> cast_from(
            Ctx.lookup_ctr(ctx, c)
-           |> Option.map((x: Ctx.var_entry) => x.typ)
-           |> Option.value(~default=Typ.mk_fast(Typ.Unknown(Internal))),
+           |> Option.map((x: Ctx.var_entry) => x.typ |> Typ.normalize(ctx))
+           |> Option.value(
+                ~default=
+                  Typ.mk_fast(
+                    Typ.Sum([BadEntry(Typ.mk_fast(Unknown(Internal)))]),
+                  ),
+              ),
          )
     | Fun(p, e, env, n) =>
       let (p', typ) = elaborate_pattern(m, p);
@@ -252,7 +274,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       uexp
       |> cast_from(
            Ctx.lookup_var(ctx, v)
-           |> Option.map((x: Ctx.var_entry) => x.typ)
+           |> Option.map((x: Ctx.var_entry) => x.typ |> Typ.normalize(ctx))
            |> Option.value(~default=Typ.mk_fast(Typ.Unknown(Internal))),
          )
     | Let(p, def, body) =>
@@ -265,10 +287,9 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
           };
         }
       );
-      // TODO: is elaborated_type the right type to use here??
-      if (!Statics.is_recursive(ctx, p, def, elaborated_type)) {
+      let (p, ty1) = elaborate_pattern(m, p);
+      if (!Statics.is_recursive(ctx, p, def, ty1)) {
         let def = add_name(Pat.get_var(p), def);
-        let (p, ty1) = elaborate_pattern(m, p);
         let (def, ty2) = elaborate(m, def);
         let (body, ty) = elaborate(m, body);
         Exp.Let(p, fresh_cast(def, ty2, ty1), body)
@@ -278,7 +299,6 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
         // TODO: Add names to mutually recursive functions
         // TODO: Don't add fixpoint if there already is one
         let def = add_name(Option.map(s => s ++ "+", Pat.get_var(p)), def);
-        let (p, ty1) = elaborate_pattern(m, p);
         let (def, ty2) = elaborate(m, def);
         let (body, ty) = elaborate(m, body);
         let fixf = FixF(p, fresh_cast(def, ty2, ty1), None) |> DHExp.fresh;
@@ -324,8 +344,15 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       |> cast_from(Arrow(remaining_arg_ty, tyf2) |> Typ.mk_fast);
     | TypAp(e, ut) =>
       let (e', tye) = elaborate(m, e);
-      let (_, tye') = Typ.matched_forall(ctx, tye);
-      TypAp(e', ut) |> rewrap |> cast_from(tye');
+      let (tpat, tye') = Typ.matched_forall(ctx, tye);
+      let ut' = Typ.normalize(ctx, ut);
+      let tye'' =
+        Typ.subst(
+          ut',
+          tpat |> Option.value(~default=TPat.fresh(EmptyHole)),
+          tye',
+        );
+      TypAp(e', ut) |> rewrap |> cast_from(tye'');
     | If(c, t, f) =>
       let (c', tyc) = elaborate(m, c);
       let (t', tyt) = elaborate(m, t);

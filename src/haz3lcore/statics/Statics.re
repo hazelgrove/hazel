@@ -65,24 +65,26 @@ let map_m = (f, xs, m: Map.t) =>
 let add_info = (ids: list(Id.t), info: Info.t, m: Map.t): Map.t =>
   ids |> List.fold_left((m, id) => Id.Map.add(id, info, m), m);
 
+let rec is_arrow_like = (t: Typ.t) => {
+  switch (t |> Typ.term_of) {
+  | Unknown(_) => true
+  | Arrow(_) => true
+  | Forall(_, t) => is_arrow_like(t)
+  | _ => false
+  };
+};
+
 let is_recursive = (ctx, p, def, syn: Typ.t) => {
   switch (Pat.get_num_of_vars(p), Exp.get_num_of_functions(def)) {
   | (Some(num_vars), Some(num_fns))
       when num_vars != 0 && num_vars == num_fns =>
-    switch (Typ.term_of(Typ.normalize(ctx, syn))) {
-    | Unknown(_)
-    | Arrow(_) => num_vars == 1
+    let norm = Typ.normalize(ctx, syn);
+    switch (norm |> Typ.term_of) {
     | Prod(syns) when List.length(syns) == num_vars =>
-      syns
-      |> List.for_all(x =>
-           switch (Typ.term_of(x)) {
-           | Typ.Unknown(_)
-           | Arrow(_) => true
-           | _ => false
-           }
-         )
+      syns |> List.for_all(is_arrow_like)
+    | _ when is_arrow_like(norm) => num_vars == 1
     | _ => false
-    }
+    };
   | _ => false
   };
 };
@@ -266,6 +268,7 @@ and uexp_to_info_map =
       m,
     );
   | ListConcat(e1, e2) =>
+    let mode = Mode.of_list_concat(ctx, mode);
     let ids = List.map(UExp.rep_id, [e1, e2]);
     let (e1, m) = go(~mode, e1, m);
     let (e2, m) = go(~mode, e2, m);

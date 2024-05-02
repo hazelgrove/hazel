@@ -244,37 +244,6 @@ let fresh_var = (var_name: string) => {
   var_name ++ "_α" ++ string_of_int(x);
 };
 
-let rec subst = (s: t, x: TPat.t, ty: t) => {
-  switch (TPat.tyvar_of_utpat(x)) {
-  | Some(str) =>
-    let (term, rewrap) = unwrap(ty);
-    switch (term) {
-    | Int => Int |> rewrap
-    | Float => Float |> rewrap
-    | Bool => Bool |> rewrap
-    | String => String |> rewrap
-    | Unknown(prov) => Unknown(prov) |> rewrap
-    | Arrow(ty1, ty2) =>
-      Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
-    | Prod(tys) => Prod(List.map(subst(s, x), tys)) |> rewrap
-    | Sum(sm) =>
-      Sum(ConstructorMap.map(Option.map(subst(s, x)), sm)) |> rewrap
-    | Forall(tp2, ty)
-        when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
-      Forall(tp2, ty) |> rewrap
-    | Forall(tp2, ty) => Forall(tp2, subst(s, x, ty)) |> rewrap
-    | Rec(tp2, ty) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
-      Rec(tp2, ty) |> rewrap
-    | Rec(tp2, ty) => Rec(tp2, subst(s, x, ty)) |> rewrap
-    | List(ty) => List(subst(s, x, ty)) |> rewrap
-    | Var(y) => str == y ? s : Var(y) |> rewrap
-    | Parens(ty) => Parens(subst(s, x, ty)) |> rewrap
-    | Ap(t1, t2) => Ap(subst(s, x, t1), subst(s, x, t2)) |> rewrap
-    };
-  | None => ty
-  };
-};
-
 let unroll = (ty: t): t =>
   switch (term_of(ty)) {
   | Rec(tp, ty_body) => subst(ty, tp, ty_body)
@@ -283,46 +252,7 @@ let unroll = (ty: t): t =>
 
 /* Type Equality: This coincides with alpha equivalence for normalized types.
    Other types may be equivalent but this will not detect so if they are not normalized. */
-let rec eq_internal = (n: int, t1: t, t2: t) => {
-  switch (term_of(t1), term_of(t2)) {
-  | (Parens(t1), _) => eq_internal(n, t1, t2)
-  | (_, Parens(t2)) => eq_internal(n, t1, t2)
-  | (Rec(x1, t1), Rec(x2, t2))
-  | (Forall(x1, t1), Forall(x2, t2)) =>
-    let alpha_subst = subst(Var("=" ++ string_of_int(n)) |> mk_fast);
-    eq_internal(n + 1, alpha_subst(x1, t1), alpha_subst(x2, t2));
-  | (Rec(_), _) => false
-  | (Forall(_), _) => false
-  | (Int, Int) => true
-  | (Int, _) => false
-  | (Float, Float) => true
-  | (Float, _) => false
-  | (Bool, Bool) => true
-  | (Bool, _) => false
-  | (String, String) => true
-  | (String, _) => false
-  | (Ap(t1, t2), Ap(t1', t2')) =>
-    eq_internal(n, t1, t1') && eq_internal(n, t2, t2')
-  | (Ap(_), _) => false
-  | (Unknown(_), Unknown(_)) => true
-  | (Unknown(_), _) => false
-  | (Arrow(t1, t2), Arrow(t1', t2')) =>
-    eq_internal(n, t1, t1') && eq_internal(n, t2, t2')
-  | (Arrow(_), _) => false
-  | (Prod(tys1), Prod(tys2)) => List.equal(eq_internal(n), tys1, tys2)
-  | (Prod(_), _) => false
-  | (List(t1), List(t2)) => eq_internal(n, t1, t2)
-  | (List(_), _) => false
-  | (Sum(sm1), Sum(sm2)) =>
-    /* Does not normalize the types. */
-    ConstructorMap.equal(eq_internal(n), sm1, sm2)
-  | (Sum(_), _) => false
-  | (Var(n1), Var(n2)) => n1 == n2
-  | (Var(_), _) => false
-  };
-};
-
-let eq = (t1: t, t2: t): bool => eq_internal(0, t1, t2);
+let eq = (t1: t, t2: t): bool => fast_equal(t1, t2);
 
 /* Lattice join on types. This is a LUB join in the hazel2
    sense in that any type dominates Unknown. The optional

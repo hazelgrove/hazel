@@ -486,7 +486,14 @@ let mk =
           ],
         );
       | FixF(_, {term: Fun(_, _, _, Some(x)), _}, _) =>
-        annot(DHAnnot.Collapsed, text("<" ++ x ++ ">"))
+        if (String.ends_with(~suffix="+", x)) {
+          annot(
+            DHAnnot.Collapsed,
+            text("<" ++ String.sub(x, 0, String.length(x) - 1) ++ ">"),
+          );
+        } else {
+          annot(DHAnnot.Collapsed, text("<" ++ x ++ ">"));
+        }
       | FixF(_, _, _) => annot(DHAnnot.Collapsed, text("<anon fn>"))
       };
     };

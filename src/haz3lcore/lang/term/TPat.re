@@ -29,9 +29,3 @@ let show_cls: cls => string =
   | MultiHole => "Broken type alias"
   | EmptyHole => "Empty type alias hole"
   | Var => "Type alias";
-
-let tyvar_of_utpat = ({term, _}: t) =>
-  switch (term) {
-  | Var(x) => Some(x)
-  | _ => None
-  };
