@@ -344,8 +344,15 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       |> cast_from(Arrow(remaining_arg_ty, tyf2) |> Typ.mk_fast);
     | TypAp(e, ut) =>
       let (e', tye) = elaborate(m, e);
-      let (_, tye') = Typ.matched_forall(ctx, tye);
-      TypAp(e', ut) |> rewrap |> cast_from(tye');
+      let (tpat, tye') = Typ.matched_forall(ctx, tye);
+      let ut' = Typ.normalize(ctx, ut);
+      let tye'' =
+        Typ.subst(
+          ut',
+          tpat |> Option.value(~default=TPat.fresh(EmptyHole)),
+          tye',
+        );
+      TypAp(e', ut) |> rewrap |> cast_from(tye'');
     | If(c, t, f) =>
       let (c', tyc) = elaborate(m, c);
       let (t', tyt) = elaborate(m, t);
