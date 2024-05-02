@@ -143,6 +143,7 @@ let equal = (eq: ('a, 'a) => bool, m1: t('a), m2: t('a)) => {
         switch (x, y) {
         | (Variant(_, _, Some(value1)), Variant(_, _, Some(value2))) =>
           eq(value1, value2)
+        | (Variant(_, _, None), Variant(_, _, None)) => true
         | (BadEntry(x), BadEntry(y)) => eq(x, y)
         | _ => false
         },
@@ -174,6 +175,6 @@ let has_constructor_no_args = ctr =>
   List.exists(
     fun
     | Variant(ctr', _, None) when Constructor.equal(ctr, ctr') => true
-    | Variant(_)
+    | Variant(_) => false
     | BadEntry(_) => false,
   );

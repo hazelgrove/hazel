@@ -27,6 +27,8 @@ module rec Any: {
       t
     ) =>
     t;
+
+  let fast_equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -67,6 +69,24 @@ module rec Any: {
       };
     x |> f_any(rec_call);
   };
+
+  let fast_equal = (x, y) =>
+    switch (x, y) {
+    | (Exp(x), Exp(y)) => Exp.fast_equal(x, y)
+    | (Pat(x), Pat(y)) => Pat.fast_equal(x, y)
+    | (Typ(x), Typ(y)) => Typ.fast_equal(x, y)
+    | (TPat(x), TPat(y)) => TPat.fast_equal(x, y)
+    | (Rul(x), Rul(y)) => Rul.fast_equal(x, y)
+    | (Nul (), Nul ()) => true
+    | (Any (), Any ()) => true
+    | (Exp(_), _)
+    | (Pat(_), _)
+    | (Typ(_), _)
+    | (TPat(_), _)
+    | (Rul(_), _)
+    | (Nul (), _)
+    | (Any (), _) => false
+    };
 }
 and Exp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -98,7 +118,7 @@ and Exp: {
     | Tuple(list(t))
     | Var(Var.t)
     | Let(Pat.t, t, t)
-    | FixF(Pat.t, t, [@show.opaque] option(ClosureEnvironment.t))
+    | FixF(Pat.t, t, option(ClosureEnvironment.t))
     | TyAlias(TPat.t, Typ.t, t)
     | Ap(Operators.ap_direction, t, t)
     | TypAp(t, Typ.t)
@@ -132,6 +152,8 @@ and Exp: {
       t
     ) =>
     t;
+
+  let fast_equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type deferral_position =
@@ -268,6 +290,118 @@ and Exp: {
     };
     x |> f_exp(rec_call);
   };
+
+  let rec fast_equal = (e1, e2) =>
+    switch (e1 |> IdTagged.term_of, e2 |> IdTagged.term_of) {
+    | (DynamicErrorHole(x, _), _)
+    | (Parens(x), _) => fast_equal(x, e2)
+    | (_, DynamicErrorHole(x, _))
+    | (_, Parens(x)) => fast_equal(e1, x)
+    | (EmptyHole, EmptyHole) => true
+    | (Invalid(s1), Invalid(s2)) => s1 == s2
+    | (MultiHole(xs), MultiHole(ys)) when List.length(xs) == List.length(ys) =>
+      List.equal(Any.fast_equal, xs, ys)
+    | (FailedCast(e1, t1, t2), FailedCast(e2, t3, t4)) =>
+      Exp.fast_equal(e1, e2)
+      && Typ.fast_equal(t1, t3)
+      && Typ.fast_equal(t2, t4)
+    | (Deferral(d1), Deferral(d2)) => d1 == d2
+    | (Bool(b1), Bool(b2)) => b1 == b2
+    | (Int(i1), Int(i2)) => i1 == i2
+    | (Float(f1), Float(f2)) => f1 == f2
+    | (String(s1), String(s2)) => s1 == s2
+    | (ListLit(xs), ListLit(ys)) =>
+      List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
+    | (Constructor(c1), Constructor(c2)) => c1 == c2
+    | (Fun(p1, e1, env1, _), Fun(p2, e2, env2, _)) =>
+      Pat.fast_equal(p1, p2)
+      && fast_equal(e1, e2)
+      && Option.equal(ClosureEnvironment.id_equal, env1, env2)
+    | (TypFun(tp1, e1, _), TypFun(tp2, e2, _)) =>
+      TPat.fast_equal(tp1, tp2) && fast_equal(e1, e2)
+    | (Tuple(xs), Tuple(ys)) =>
+      List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
+    | (Var(v1), Var(v2)) => v1 == v2
+    | (Let(p1, e1, e2), Let(p2, e3, e4)) =>
+      Pat.fast_equal(p1, p2) && fast_equal(e1, e3) && fast_equal(e2, e4)
+    | (FixF(p1, e1, c1), FixF(p2, e2, c2)) =>
+      Pat.fast_equal(p1, p2)
+      && fast_equal(e1, e2)
+      && Option.equal(ClosureEnvironment.id_equal, c1, c2)
+    | (TyAlias(tp1, t1, e1), TyAlias(tp2, t2, e2)) =>
+      TPat.fast_equal(tp1, tp2)
+      && Typ.fast_equal(t1, t2)
+      && fast_equal(e1, e2)
+    | (Ap(d1, e1, e2), Ap(d2, e3, e4)) =>
+      d1 == d2 && fast_equal(e1, e3) && fast_equal(e2, e4)
+    | (TypAp(e1, t1), TypAp(e2, t2)) =>
+      fast_equal(e1, e2) && Typ.fast_equal(t1, t2)
+    | (DeferredAp(e1, es1), DeferredAp(e2, es2)) =>
+      List.length(es1) == List.length(es2)
+      && fast_equal(e1, e2)
+      && List.equal(fast_equal, es1, es2)
+    | (If(e1, e2, e3), If(e4, e5, e6)) =>
+      fast_equal(e1, e4) && fast_equal(e2, e5) && fast_equal(e3, e6)
+    | (Seq(e1, e2), Seq(e3, e4)) =>
+      fast_equal(e1, e3) && fast_equal(e2, e4)
+    | (Test(e1), Test(e2)) => fast_equal(e1, e2)
+    | (Filter(f1, e1), Filter(f2, e2)) =>
+      StepperFilterKind.fast_equal(f1, f2) && fast_equal(e1, e2)
+    | (Closure(c1, e1), Closure(c2, e2)) =>
+      ClosureEnvironment.id_equal(c1, c2) && fast_equal(e1, e2)
+    | (Cons(e1, e2), Cons(e3, e4)) =>
+      fast_equal(e1, e3) && fast_equal(e2, e4)
+    | (ListConcat(e1, e2), ListConcat(e3, e4)) =>
+      fast_equal(e1, e3) && fast_equal(e2, e4)
+    | (UnOp(o1, e1), UnOp(o2, e2)) => o1 == o2 && fast_equal(e1, e2)
+    | (BinOp(o1, e1, e2), BinOp(o2, e3, e4)) =>
+      o1 == o2 && fast_equal(e1, e3) && fast_equal(e2, e4)
+    | (BuiltinFun(f1), BuiltinFun(f2)) => f1 == f2
+    | (Match(e1, rls1), Match(e2, rls2)) =>
+      fast_equal(e1, e2)
+      && List.length(rls1) == List.length(rls2)
+      && List.for_all2(
+           ((p1, e1), (p2, e2)) =>
+             Pat.fast_equal(p1, p2) && fast_equal(e1, e2),
+           rls1,
+           rls2,
+         )
+    | (Cast(e1, t1, t2), Cast(e2, t3, t4)) =>
+      fast_equal(e1, e2) && Typ.fast_equal(t1, t3) && Typ.fast_equal(t2, t4)
+    | (Invalid(_), _)
+    | (FailedCast(_), _)
+    | (Deferral(_), _)
+    | (Bool(_), _)
+    | (Int(_), _)
+    | (Float(_), _)
+    | (String(_), _)
+    | (ListLit(_), _)
+    | (Constructor(_), _)
+    | (Fun(_), _)
+    | (TypFun(_), _)
+    | (Tuple(_), _)
+    | (Var(_), _)
+    | (Let(_), _)
+    | (FixF(_), _)
+    | (TyAlias(_), _)
+    | (Ap(_), _)
+    | (TypAp(_), _)
+    | (DeferredAp(_), _)
+    | (If(_), _)
+    | (Seq(_), _)
+    | (Test(_), _)
+    | (Filter(_), _)
+    | (Closure(_), _)
+    | (Cons(_), _)
+    | (ListConcat(_), _)
+    | (UnOp(_), _)
+    | (BinOp(_), _)
+    | (BuiltinFun(_), _)
+    | (Match(_), _)
+    | (Cast(_), _)
+    | (MultiHole(_), _)
+    | (EmptyHole, _) => false
+    };
 }
 and Pat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -301,6 +435,8 @@ and Pat: {
       t
     ) =>
     t;
+
+  let fast_equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
@@ -363,6 +499,48 @@ and Pat: {
     };
     x |> f_pat(rec_call);
   };
+
+  let rec fast_equal = (p1, p2) =>
+    switch (p1 |> IdTagged.term_of, p2 |> IdTagged.term_of) {
+    | (Parens(x), _) => fast_equal(x, p2)
+    | (_, Parens(x)) => fast_equal(p1, x)
+    | (EmptyHole, EmptyHole) => true
+    | (MultiHole(xs), MultiHole(ys)) =>
+      List.length(xs) == List.length(ys)
+      && List.equal(Any.fast_equal, xs, ys)
+    | (Invalid(s1), Invalid(s2)) => s1 == s2
+    | (Wild, Wild) => true
+    | (Bool(b1), Bool(b2)) => b1 == b2
+    | (Int(i1), Int(i2)) => i1 == i2
+    | (Float(f1), Float(f2)) => f1 == f2
+    | (String(s1), String(s2)) => s1 == s2
+    | (Constructor(c1), Constructor(c2)) => c1 == c2
+    | (Var(v1), Var(v2)) => v1 == v2
+    | (ListLit(xs), ListLit(ys)) =>
+      List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
+    | (Cons(x1, y1), Cons(x2, y2)) =>
+      fast_equal(x1, x2) && fast_equal(y1, y2)
+    | (Tuple(xs), Tuple(ys)) =>
+      List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
+    | (Ap(x1, y1), Ap(x2, y2)) => fast_equal(x1, x2) && fast_equal(y1, y2)
+    | (Cast(x1, t1, t2), Cast(x2, u1, u2)) =>
+      fast_equal(x1, x2) && Typ.fast_equal(t1, u1) && Typ.fast_equal(t2, u2)
+    | (EmptyHole, _)
+    | (MultiHole(_), _)
+    | (Invalid(_), _)
+    | (Wild, _)
+    | (Bool(_), _)
+    | (Int(_), _)
+    | (Float(_), _)
+    | (String(_), _)
+    | (ListLit(_), _)
+    | (Constructor(_), _)
+    | (Cons(_), _)
+    | (Var(_), _)
+    | (Tuple(_), _)
+    | (Ap(_), _)
+    | (Cast(_), _) => false
+    };
 }
 and Typ: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -412,6 +590,10 @@ and Typ: {
       t
     ) =>
     t;
+
+  let subst: (t, TPat.t, t) => t;
+
+  let fast_equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type type_hole =
@@ -502,6 +684,86 @@ and Typ: {
     };
     x |> f_typ(rec_call);
   };
+
+  let rec subst = (s: t, x: TPat.t, ty: t) => {
+    switch (TPat.tyvar_of_utpat(x)) {
+    | Some(str) =>
+      let (term, rewrap) = IdTagged.unwrap(ty);
+      switch (term) {
+      | Int => Int |> rewrap
+      | Float => Float |> rewrap
+      | Bool => Bool |> rewrap
+      | String => String |> rewrap
+      | Unknown(prov) => Unknown(prov) |> rewrap
+      | Arrow(ty1, ty2) =>
+        Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
+      | Prod(tys) => Prod(List.map(subst(s, x), tys)) |> rewrap
+      | Sum(sm) =>
+        Sum(ConstructorMap.map(Option.map(subst(s, x)), sm)) |> rewrap
+      | Forall(tp2, ty)
+          when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
+        Forall(tp2, ty) |> rewrap
+      | Forall(tp2, ty) => Forall(tp2, subst(s, x, ty)) |> rewrap
+      | Rec(tp2, ty) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
+        Rec(tp2, ty) |> rewrap
+      | Rec(tp2, ty) => Rec(tp2, subst(s, x, ty)) |> rewrap
+      | List(ty) => List(subst(s, x, ty)) |> rewrap
+      | Var(y) => str == y ? s : Var(y) |> rewrap
+      | Parens(ty) => Parens(subst(s, x, ty)) |> rewrap
+      | Ap(t1, t2) => Ap(subst(s, x, t1), subst(s, x, t2)) |> rewrap
+      };
+    | None => ty
+    };
+  };
+
+  /* Type Equality: This coincides with alpha equivalence for normalized types.
+     Other types may be equivalent but this will not detect so if they are not normalized. */
+
+  let rec eq_internal = (n: int, t1: t, t2: t) => {
+    switch (IdTagged.term_of(t1), IdTagged.term_of(t2)) {
+    | (Parens(t1), _) => eq_internal(n, t1, t2)
+    | (_, Parens(t2)) => eq_internal(n, t1, t2)
+    | (Rec(x1, t1), Rec(x2, t2))
+    | (Forall(x1, t1), Forall(x2, t2)) =>
+      let alpha_subst =
+        subst({
+          term: Var("=" ++ string_of_int(n)),
+          copied: false,
+          ids: [Id.invalid],
+        });
+      eq_internal(n + 1, alpha_subst(x1, t1), alpha_subst(x2, t2));
+    | (Rec(_), _) => false
+    | (Forall(_), _) => false
+    | (Int, Int) => true
+    | (Int, _) => false
+    | (Float, Float) => true
+    | (Float, _) => false
+    | (Bool, Bool) => true
+    | (Bool, _) => false
+    | (String, String) => true
+    | (String, _) => false
+    | (Ap(t1, t2), Ap(t1', t2')) =>
+      eq_internal(n, t1, t1') && eq_internal(n, t2, t2')
+    | (Ap(_), _) => false
+    | (Unknown(_), Unknown(_)) => true
+    | (Unknown(_), _) => false
+    | (Arrow(t1, t2), Arrow(t1', t2')) =>
+      eq_internal(n, t1, t1') && eq_internal(n, t2, t2')
+    | (Arrow(_), _) => false
+    | (Prod(tys1), Prod(tys2)) => List.equal(eq_internal(n), tys1, tys2)
+    | (Prod(_), _) => false
+    | (List(t1), List(t2)) => eq_internal(n, t1, t2)
+    | (List(_), _) => false
+    | (Sum(sm1), Sum(sm2)) =>
+      /* Does not normalize the types. */
+      ConstructorMap.equal(eq_internal(n), sm1, sm2)
+    | (Sum(_), _) => false
+    | (Var(n1), Var(n2)) => n1 == n2
+    | (Var(_), _) => false
+    };
+  };
+
+  let fast_equal = eq_internal(0);
 }
 and TPat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -523,6 +785,10 @@ and TPat: {
       t
     ) =>
     t;
+
+  let tyvar_of_utpat: t => option(string);
+
+  let fast_equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
@@ -556,6 +822,26 @@ and TPat: {
     };
     x |> f_tpat(rec_call);
   };
+
+  let tyvar_of_utpat = ({term, _}: t) =>
+    switch (term) {
+    | Var(x) => Some(x)
+    | _ => None
+    };
+
+  let fast_equal = (tp1: t, tp2: t) =>
+    switch (tp1 |> IdTagged.term_of, tp2 |> IdTagged.term_of) {
+    | (EmptyHole, EmptyHole) => true
+    | (Invalid(s1), Invalid(s2)) => s1 == s2
+    | (MultiHole(xs), MultiHole(ys)) =>
+      List.length(xs) == List.length(ys)
+      && List.equal(Any.fast_equal, xs, ys)
+    | (Var(x), Var(y)) => x == y
+    | (EmptyHole, _)
+    | (Invalid(_), _)
+    | (MultiHole(_), _)
+    | (Var(_), _) => false
+    };
 }
 and Rul: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -576,6 +862,8 @@ and Rul: {
       t
     ) =>
     t;
+
+  let fast_equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
@@ -618,6 +906,26 @@ and Rul: {
     };
     x |> f_rul(rec_call);
   };
+
+  let fast_equal = (r1: t, r2: t) =>
+    switch (r1 |> IdTagged.term_of, r2 |> IdTagged.term_of) {
+    | (Invalid(s1), Invalid(s2)) => s1 == s2
+    | (Hole(xs), Hole(ys)) =>
+      List.length(xs) == List.length(ys)
+      && List.equal(Any.fast_equal, xs, ys)
+    | (Rules(e1, rls1), Rules(e2, rls2)) =>
+      Exp.fast_equal(e1, e2)
+      && List.length(rls1) == List.length(rls2)
+      && List.for_all2(
+           ((p1, e1), (p2, e2)) =>
+             Pat.fast_equal(p1, p2) && Exp.fast_equal(e1, e2),
+           rls1,
+           rls2,
+         )
+    | (Invalid(_), _)
+    | (Hole(_), _)
+    | (Rules(_), _) => false
+    };
 }
 
 and Environment: {
@@ -771,6 +1079,8 @@ and StepperFilterKind: {
     t;
 
   let map: (Exp.t => Exp.t, t) => t;
+
+  let fast_equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type filter = {
@@ -805,4 +1115,13 @@ and StepperFilterKind: {
     | Filter({pat: e, act}) => Filter({pat: exp_map_term(e), act})
     | Residue(i, a) => Residue(i, a);
   };
+
+  let fast_equal = (f1, f2) =>
+    switch (f1, f2) {
+    | (Filter({pat: e1, act: a1}), Filter({pat: e2, act: a2})) =>
+      Exp.fast_equal(e1, e2) && a1 == a2
+    | (Residue(i1, a1), Residue(i2, a2)) => i1 == i2 && a1 == a2
+    | (Filter(_), _)
+    | (Residue(_), _) => false
+    };
 };

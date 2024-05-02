@@ -173,7 +173,7 @@ module Transition = (EV: EV_MODE) => {
           expr: d |> fast_copy(Id.mk()),
           state_update,
           kind: VarLookup,
-          is_value: true,
+          is_value: false,
         })
       | None => Indet
       };
@@ -425,6 +425,11 @@ module Transition = (EV: EV_MODE) => {
         });
       | Cast(_)
       | FailedCast(_) => Indet
+      | FixF(_) =>
+        print_endline(Exp.show(d1));
+        print_endline(Exp.show(d1'));
+        print_endline("FIXF");
+        failwith("FixF in Ap");
       | _ =>
         Step({
           expr: {
