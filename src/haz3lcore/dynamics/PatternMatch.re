@@ -56,13 +56,5 @@ let rec matches = (dp: Pat.t, d: DHExp.t): match_result =>
     |> List.fold_left(combine_result, Matches(Environment.empty));
   | Parens(p) => matches(p, d)
   | Cast(p, t1, t2) =>
-    let _ = print_endline("=======");
-    let _ = print_endline(Pat.show(p));
-    let _ =
-      print_endline(
-        DHExp.show(
-          Cast(d, t2, t1) |> DHExp.fresh |> Casts.transition_multiple,
-        ),
-      );
-    matches(p, Cast(d, t2, t1) |> DHExp.fresh |> Casts.transition_multiple);
+    matches(p, Cast(d, t2, t1) |> DHExp.fresh |> Casts.transition_multiple)
   };

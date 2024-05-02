@@ -105,7 +105,9 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (SumNoArg(_), Constructor(_)) => DoesNotMatch
     | (SumNoArg(_), Ap(_, {term: Constructor(_), _}, _)) => DoesNotMatch
     | (SumNoArg(name), Cast(d1, {term: Sum(_), _}, {term: Sum(s2), _}))
-        when ConstructorMap.has_constructor_no_args(name, s2) =>
+        when
+          ConstructorMap.has_constructor_no_args(name, s2)
+          || ConstructorMap.has_bad_entry(s2) =>
       let* d1 = unbox(SumNoArg(name), d1);
       Matches(d1);
     | (SumNoArg(_), Cast(_, {term: Sum(_), _}, {term: Sum(_), _})) =>
@@ -117,7 +119,9 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       Matches(d3)
     | (SumWithArg(_), Ap(_, {term: Constructor(_), _}, _)) => DoesNotMatch
     | (SumWithArg(name), Cast(d1, {term: Sum(_), _}, {term: Sum(s2), _}))
-        when ConstructorMap.get_entry(name, s2) != None =>
+        when
+          ConstructorMap.get_entry(name, s2) != None
+          || ConstructorMap.has_bad_entry(s2) =>
       let* d1 = unbox(SumWithArg(name), d1);
       Matches(d1 |> fixup_cast);
     | (SumWithArg(_), Cast(_, {term: Sum(_), _}, {term: Sum(_), _})) =>
