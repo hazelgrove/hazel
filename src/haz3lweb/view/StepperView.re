@@ -199,20 +199,22 @@ let stepper_view =
       @ hidden_steps;
     };
     (
-      List.map(previous_step(~hidden=false), tl)
-      |> List.flatten
-      |> List.rev_append(
-           _,
-           (
-             settings.show_hidden_steps
-               ? hd
-                 |> Stepper.hidden_steps_of_info
-                 |> List.map(previous_step(~hidden=true))
-                 |> List.flatten
-               : []
-           )
-           @ [current],
-         )
+      (
+        settings.stepper_history
+          ? List.map(previous_step(~hidden=false), tl)
+            |> List.flatten
+            |> List.rev_append(
+                 _,
+                 settings.show_hidden_steps
+                   ? hd
+                     |> Stepper.hidden_steps_of_info
+                     |> List.map(previous_step(~hidden=true))
+                     |> List.flatten
+                   : [],
+               )
+          : []
+      )
+      @ [current]
     )
     @ (settings.show_settings ? settings_modal(~inject, settings) : []);
   };
