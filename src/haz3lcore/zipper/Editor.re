@@ -238,4 +238,7 @@ let get_projector = (id: Id.t, ed: t) =>
   Projector.Map.find(id, ed.state.zipper.projectors);
 
 let add_projector = (id: Id.t, p: Projector.t, ed: t) =>
-  update_z(_ => Zipper.add_projector(id, p, ed.state.zipper), ed);
+  update_z(
+    z => {...z, projectors: Projector.Map.add(id, p, z.projectors)},
+    ed,
+  );

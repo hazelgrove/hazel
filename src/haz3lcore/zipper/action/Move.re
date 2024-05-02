@@ -6,7 +6,7 @@ open Sexplib.Std;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type movability =
   | CanEnter(int, int)
-  | SkipTo(Id.t)
+  | SkipTo(ProjectorAction.thing)
   | CanPass
   | CantEven;
 

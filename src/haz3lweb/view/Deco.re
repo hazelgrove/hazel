@@ -68,9 +68,10 @@ module Deco =
         }
       ) {
       | _ =>
+        print_endline("PROJECTOR CRASH: sel_of_piece");
         //TODO(andrew): relax. this is the case when tiles are missing
         //measured info due to being hidden by a projector
-        []
+        [];
       };
     let start_shape =
       switch (Piece.nibs(p)) {
@@ -350,7 +351,11 @@ module Deco =
     List.concat([
       //[Node.div(~attr=Attr.id("caret"), [])],
       caret(zipper),
-      indication_deco(zipper),
+      try(indication_deco(zipper)) {
+      | _ =>
+        print_endline("PROJECTOR CRASH: indication_deco");
+        [];
+      },
       selected_pieces(zipper),
       backpack(zipper),
       targets'(zipper.backpack, sel_seg),
