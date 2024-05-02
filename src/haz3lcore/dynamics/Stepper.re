@@ -239,7 +239,7 @@ let rec evaluate_pending = (~settings, s: t) => {
     let d_loc' =
       (
         switch (take_step(state_ref, eo.env, eo.d_loc)) {
-        | Some(d) => d
+        | Some(d) => d |> DHExp.repair_ids
         | None => raise(Exception)
         }
       )
