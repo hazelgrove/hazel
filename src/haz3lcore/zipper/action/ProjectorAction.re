@@ -2,29 +2,53 @@ open Zipper;
 open Util;
 //open OptUtil.Syntax;
 
-let get_id_before = (seg, ancestors, projectors) =>
+[@deriving (show({with_path: false}), sexp, yojson)]
+type relation =
+  | Parent
+  | Sibling;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type thing = {
+  id: Id.t,
+  relation,
+};
+
+let get_id_before = (seg, ancestors, projectors): option(thing) =>
   switch (Projector.split_seg(seg, projectors)) {
-  | Some(([_, ..._] as xs, _, _, _)) => Piece.id(ListUtil.last(xs))
+  | Some(([_, ..._] as xs, _, _, _)) =>
+    Some({id: Piece.id(ListUtil.last(xs)), relation: Sibling})
   | Some(([], _, _, _)) =>
     switch (Ancestors.parent(ancestors)) {
     | Some(a) =>
       print_endline("prev_id: empty pre using parent");
-      a.id;
+      print_endline("parent id: " ++ Id.show(a.id));
+      Some({id: a.id, relation: Parent});
     | None =>
       print_endline("prev_id: empty pre no ancestor");
-      Id.invalid; //TODO(andrew)
+      None; //TODO(andrew) //Id.invalid;
     }
   | None =>
     print_endline("prev_id: None");
-    Id.invalid; //TODO(andrew)
+    None; //TODO(andrew) //Id.invalid;
   };
 
-let get_id_after = (seg, projectors) =>
+let get_id_after = (seg, ancestors, projectors): option(thing) =>
   switch (Projector.split_seg(seg, projectors)) {
-  | Some((_, _, [hd, ..._], _)) => Piece.id(hd)
-  | _ =>
+  | Some((_, _, [hd, ..._], _)) =>
+    Some({id: Piece.id(hd), relation: Sibling})
+  | Some((_, _, [], _)) =>
+    switch (Ancestors.parent(ancestors)) {
+    | Some(a) =>
+      print_endline("next_id: empty pre using parent");
+      print_endline("parent id: " ++ Id.show(a.id));
+      Some({id: a.id, relation: Parent});
+    | None =>
+      print_endline("next_id: empty pre no ancestor");
+      None; //TODO(andrew) //Id.invalid;
+    }
+  | None =>
     print_endline("next_id: empty post");
-    Id.invalid; //TODO(andrew)
+    None; //TODO(andrew) //Id.invalid;
   };
 
 let neighbor_is =
@@ -33,58 +57,64 @@ let neighbor_is =
       last_map: Projector.start_map,
       {relatives: {siblings, ancestors}, projectors, _}: t,
     )
-    : (option(Id.t), option(Id.t)) => {
+    : (option(thing), option(thing)) => {
   let (l_nhbr, r_nhbr) = Siblings.neighbors(siblings);
   let seg = (siblings |> fst) @ (siblings |> snd);
   let l =
     switch (l_nhbr) {
     | Some(p) when Projector.Map.mem(Piece.id(p), last_map) =>
-      Some(get_id_before(seg, ancestors, projectors))
+      get_id_before(seg, ancestors, projectors)
     | _ => None
     };
   let r =
     switch (r_nhbr) {
     | Some(p) when Projector.Map.mem(Piece.id(p), start_map) =>
-      Some(get_id_after(seg, projectors))
+      get_id_after(seg, ancestors, projectors)
     | _ => None
     };
   (l, r);
 };
 
-let is_right_of = (id: Id.t, z) =>
+let id_right_of_z = (id: Id.t, z) =>
   switch (z.relatives.siblings, z.relatives.ancestors) {
   | ((_, [r, ..._]), _) => Piece.id(r) == id
   | ((_, []), []) => true // end of program
   | ((_, []), _) => false
   };
 
-let is_left_of = (id: Id.t, z) =>
+let id_left_of_z = (id: Id.t, z) =>
   switch (z.relatives.siblings, z.relatives.ancestors) {
   | (([_, ..._] as ls, _), _) => Piece.id(ListUtil.last(ls)) == id
   | (([], _), []) => true // beginning of program
   | (([], _), _) => false
   };
 
-let is_on = (d: Direction.t, id: Id.t) =>
+let id_on = (d: Direction.t, id: Id.t) =>
   switch (d) {
-  | Left => is_left_of(id)
-  | Right => is_right_of(id)
+  | Left => id_left_of_z(id)
+  | Right => id_right_of_z(id)
   };
 
-let skip_to = (d: Direction.t, id, z) => {
+let d2 = (relation, d) =>
+  switch (relation) {
+  | Sibling => d
+  | Parent => Direction.toggle(d)
+  };
+
+let skip_to = (d: Direction.t, {id, relation}, z) => {
   // print_endline("ProjectorAction.skip_to");
   Zipper.do_until(
     Zipper.move(d),
-    is_on(d, id),
+    id_on(d2(relation, d), id),
     z,
   );
 };
 
-let skip_select_to = (d: Direction.t, id, z) => {
+let skip_select_to = (d: Direction.t, {id, relation}, z) => {
   // print_endline("ProjectorAction.skip_select_to");
   Zipper.do_until(
     Zipper.select_caret(d),
-    is_on(d, id),
+    id_on(d2(relation, d), id),
     z,
   );
 };

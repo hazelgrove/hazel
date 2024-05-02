@@ -174,7 +174,7 @@ let guy_of_rev = (id, t, (start, last)) => {
   last_id: Piece.id(start),
 };
 let proj_info = (term_ranges, id: Id.t, t: t, acc: start_map) => {
-  print_endline("proj_info for id: " ++ Id.to_string(id));
+  //print_endline("proj_info for id: " ++ Id.to_string(id));
   switch (Id.Map.find_opt(id, term_ranges)) {
   | Some(range) =>
     let guy = guy_of(id, t, range);
@@ -185,7 +185,7 @@ let proj_info = (term_ranges, id: Id.t, t: t, acc: start_map) => {
   };
 };
 let proj_info_rev = (term_ranges, id: Id.t, t: t, acc: start_map) => {
-  print_endline("proj_info for id: " ++ Id.to_string(id));
+  // print_endline("proj_info for id: " ++ Id.to_string(id));
   switch (Id.Map.find_opt(id, term_ranges)) {
   | Some(range) =>
     let guy = guy_of(id, t, range);
