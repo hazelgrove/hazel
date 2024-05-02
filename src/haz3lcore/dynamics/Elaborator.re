@@ -265,10 +265,9 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
           };
         }
       );
-      // TODO: is elaborated_type the right type to use here??
-      if (!Statics.is_recursive(ctx, p, def, elaborated_type)) {
+      let (p, ty1) = elaborate_pattern(m, p);
+      if (!Statics.is_recursive(ctx, p, def, ty1)) {
         let def = add_name(Pat.get_var(p), def);
-        let (p, ty1) = elaborate_pattern(m, p);
         let (def, ty2) = elaborate(m, def);
         let (body, ty) = elaborate(m, body);
         Exp.Let(p, fresh_cast(def, ty2, ty1), body)
@@ -278,7 +277,6 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
         // TODO: Add names to mutually recursive functions
         // TODO: Don't add fixpoint if there already is one
         let def = add_name(Option.map(s => s ++ "+", Pat.get_var(p)), def);
-        let (p, ty1) = elaborate_pattern(m, p);
         let (def, ty2) = elaborate(m, def);
         let (body, ty) = elaborate(m, body);
         let fixf = FixF(p, fresh_cast(def, ty2, ty1), None) |> DHExp.fresh;

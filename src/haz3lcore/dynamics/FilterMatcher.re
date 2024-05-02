@@ -41,7 +41,7 @@ let rec matches_exp =
   | (Deferral(_), _) => false
 
   | (Filter(df, dd), Filter(ff, fd)) =>
-    DHExp.filter_fast_equal(df, ff) && matches_exp(env, dd, fd)
+    TermBase.StepperFilterKind.fast_equal(df, ff) && matches_exp(env, dd, fd)
   | (Filter(_), _) => false
 
   | (Bool(dv), Bool(fv)) => dv == fv
