@@ -144,7 +144,16 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         |> DHExp.fresh,
       )
 
-    | (Ground, NotGroundOrHole(_))
+    | (Ground, NotGroundOrHole(_)) =>
+      switch (DHExp.term_of(d1)) {
+      | Cast(d2, t3, _) =>
+        if (Typ.eq(t3, t2)) {
+          Some(d2);
+        } else {
+          None;
+        }
+      | _ => None
+      }
     | (NotGroundOrHole(_), Ground) =>
       /* can't do anything when casting between diseq, non-hole types */
       None
