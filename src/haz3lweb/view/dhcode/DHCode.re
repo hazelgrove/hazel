@@ -187,7 +187,8 @@ let view =
     ) => {
   let parenthesized = ExpToSegment.parenthesize(d);
   let options = ExpToSegment.exp_to_pretty(~inline=false, parenthesized);
-  let option = List.hd(options);
+  let _ = print_endline("options: " ++ string_of_int(List.length(options)));
+  let option = PrettySegment.select(options);
   let editor = Editor.init(~read_only=true, Zipper.unzip(option));
   let code_text_view =
     Code.view(~sort=Sort.root, ~font_metrics, ~settings, editor);

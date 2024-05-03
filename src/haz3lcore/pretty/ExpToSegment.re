@@ -15,9 +15,7 @@ let should_add_space = (s1, s2) =>
   | _ when String.starts_with(s2, ~prefix=" ") => false
   | _ when String.ends_with(s1, ~suffix="\n") => false
   | _ when String.starts_with(s2, ~prefix="\n") => false
-  | _ =>
-    print_endline("(\"" ++ s1 ++ "\")(\"" ++ s2 ++ "\")");
-    true;
+  | _ => true
   };
 
 let text_to_pretty = (id, sort, str): pretty => {
@@ -39,7 +37,6 @@ let mk_form = (form_name: string, id, children): Piece.t => {
   let children =
     Aba.map_abas(
       ((l, child, r)) => {
-        let _ = print_endline("l: " ++ l ++ " r: " ++ r);
         let lspace = should_add_space(l, child |> Segment.first_string);
         let rspace = should_add_space(child |> Segment.last_string, r);
         (lspace ? [Secondary(Secondary.mk_space(Id.mk()))] : [])
@@ -106,7 +103,7 @@ let rec exp_to_pretty = (~inline, exp: Exp.t): pretty => {
     let (id, ids) = (exp.ids |> List.hd, exp.ids |> List.tl);
     let* x = go(x)
     and* xs = xs |> List.map(go) |> all;
-    p_just([
+    let form = (x, xs) =>
       mk_form(
         "list_lit_exp",
         id,
@@ -120,8 +117,25 @@ let rec exp_to_pretty = (~inline, exp: Exp.t): pretty => {
               ),
             ),
         ],
-      ),
-    ]);
+      );
+    p_just([form(x, xs)])
+    |> p_orif(
+         !inline,
+         p_just(
+           {
+             let x = [Secondary(Secondary.mk_newline(Id.mk()))] @ x;
+             let xs =
+               xs
+               |> List.map(x =>
+                    [Secondary(Secondary.mk_newline(Id.mk()))] @ x
+                  )
+               |> ListUtil.map_last_only(x =>
+                    x @ [Secondary(Secondary.mk_newline(Id.mk()))]
+                  );
+             [form(x, xs)];
+           },
+         ),
+       );
   | Var(v) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, v)
   | BinOp(op, l, r) =>
     // TODO: Add optional newlines
