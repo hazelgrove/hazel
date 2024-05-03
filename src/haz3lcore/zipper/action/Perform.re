@@ -59,11 +59,15 @@ let go_z =
 
   let select_term_current = z =>
     switch (Indicated.index(z)) {
-    | None => Error(Action.Failure.Cant_select)
+    | None =>
+      print_endline("PERFORM.select_term_current: no index");
+      Error(Action.Failure.Cant_select);
     | Some(id) =>
       switch (Select.term(id, z)) {
       | Some(z) => Ok(z)
-      | None => Error(Action.Failure.Cant_select)
+      | None =>
+        print_endline("PERFORM.select_term_current: Select.term failed");
+        Error(Action.Failure.Cant_select);
       }
     };
 
@@ -97,15 +101,17 @@ let go_z =
           Ok(z);
         | Some(z) =>
           print_endline("PERFORM: jump_to_id succeeded");
-          switch (select_term_current(z)) {
-          | Ok(z) => Ok(directional_unselect(Direction.toggle(d), z))
-          | Error(_err) => Ok(z)
-          };
+          Ok(z);
+        // switch (select_term_current(z)) {
+        // | Ok(z) => Ok(directional_unselect(Direction.toggle(d), z))
+        // | Error(_err) => Ok(z)
+        // };
         };
       | Ok(z) =>
         print_endline("PERFORM: select_term_current succeeded");
         Ok(directional_unselect(Direction.toggle(d), z));
       };
+    // Ok(z);
     }
   | Move(d) =>
     Move.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move)

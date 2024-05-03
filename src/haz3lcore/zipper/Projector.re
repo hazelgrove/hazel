@@ -15,6 +15,11 @@ let toggle_fold: p => p =
   | Normal => Fold
   | Fold => Normal;
 
+let placeholder_length: p => int =
+  fun
+  | Normal => (-666)
+  | Fold => 2;
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 module Map = {
   open Id.Map;
@@ -31,64 +36,83 @@ module Map = {
 
 type t = p;
 
-let rep_id = (seg, r) => r |> Aba.first_a |> List.nth(seg) |> Piece.id;
+// let rep_id = (seg, r) => r |> Aba.first_a |> List.nth(seg) |> Piece.id;
 
-let rec left_idx = (skel: Skel.t): int => {
-  switch (skel) {
-  | Op(r)
-  | Pre(r, _) => Aba.first_a(r)
-  | Post(s, _)
-  | Bin(s, _, _) => left_idx(s)
-  };
-};
+// let rec left_idx = (skel: Skel.t): int => {
+//   switch (skel) {
+//   | Op(r)
+//   | Pre(r, _) => Aba.first_a(r)
+//   | Post(s, _)
+//   | Bin(s, _, _) => left_idx(s)
+//   };
+// };
 
-let rec right_idx = (skel: Skel.t): int => {
-  switch (skel) {
-  | Op(r)
-  | Post(_, r) => Aba.first_a(r)
-  | Pre(_, s)
-  | Bin(_, _, s) => right_idx(s)
-  };
-};
+// let rec right_idx = (skel: Skel.t): int => {
+//   switch (skel) {
+//   | Op(r)
+//   | Post(_, r) => Aba.first_a(r)
+//   | Pre(_, s)
+//   | Bin(_, _, s) => right_idx(s)
+//   };
+// };
 
-let get_extreme_idxs = (skel: Skel.t): (int, int) => (
-  left_idx(skel),
-  right_idx(skel),
-);
+// let get_extreme_idxs = (skel: Skel.t): (int, int) => (
+//   left_idx(skel),
+//   right_idx(skel),
+// );
 
-type projector_range = {
-  id: Id.t,
-  start: int,
-  last: int,
-};
+// type projector_range = {
+//   id: Id.t,
+//   start: int,
+//   last: int,
+// };
 
-let get_range = (seg: Segment.t, ps: Map.t): option((Id.t, (int, int))) => {
-  let rec go = (skel: Skel.t) => {
-    let id = rep_id(seg, Skel.root(skel));
-    switch (Id.Map.find_opt(id, ps)) {
-    | Some(_) =>
-      let (l, r) = get_extreme_idxs(skel);
-      Some((id, (l, r)));
-    | None =>
-      switch (skel) {
-      | Op(_) => None
-      | Pre(_, r) => go(r)
-      | Post(l, _) => go(l)
-      | Bin(l, _, r) =>
-        switch (go(l)) {
-        | Some(x) => Some(x)
-        | None => go(r)
-        }
-      }
-    };
-  };
-  go(Segment.skel(seg));
-};
+// let get_range = (seg: Segment.t, ps: Map.t): option((Id.t, (int, int))) => {
+//   let rec go = (skel: Skel.t) => {
+//     let id = rep_id(seg, Skel.root(skel));
+//     switch (Id.Map.find_opt(id, ps)) {
+//     | Some(_) =>
+//       let (l, r) = get_extreme_idxs(skel);
+//       Some((id, (l, r)));
+//     | None =>
+//       switch (skel) {
+//       | Op(_) => None
+//       | Pre(_, r) => go(r)
+//       | Post(l, _) => go(l)
+//       | Bin(l, _, r) =>
+//         switch (go(l)) {
+//         | Some(x) => Some(x)
+//         | None => go(r)
+//         }
+//       }
+//     };
+//   };
+//   go(Segment.skel(seg));
+// };
+
+// let get_ranges = (seg: Segment.t, ps: Map.t): list((Id.t, (int, int))) => {
+//   let rec go = (skel: Skel.t) => {
+//     let id = rep_id(seg, Skel.root(skel));
+//     switch (Id.Map.find_opt(id, ps)) {
+//     | Some(_) =>
+//       let (l, r) = get_extreme_idxs(skel);
+//       [(id, (l, r))];
+//     | None =>
+//       switch (skel) {
+//       | Op(_) => []
+//       | Pre(_, r) => go(r)
+//       | Post(l, _) => go(l)
+//       | Bin(l, _, r) => go(l) @ go(r)
+//       }
+//     };
+//   };
+//   go(Segment.skel(seg));
+// };
 
 let split_seg =
-    (seg: Segment.t, ps: Map.t)
+    (seg: Segment.t, range: option((Id.t, (int, int))))
     : option((Segment.t, Segment.t, Segment.t, Id.t)) => {
-  switch (get_range(seg, ps)) {
+  switch (range) {
   | None => None
   | Some((id, (start, last))) =>
     //TODO(andrew): numeric edge cases?
@@ -99,48 +123,26 @@ let split_seg =
   };
 };
 
-let placeholder_tile = (s: string, id: Id.t): Tile.t => {
-  id,
-  label: [s],
-  mold: Mold.mk_op(Any, []),
-  shards: [0],
-  children: [],
-};
+let placeholder = (pr: t, id: Id.t): Piece.t =>
+  Piece.Tile({
+    id,
+    label: [String.make(placeholder_length(pr), ' ')],
+    mold: Mold.mk_op(Any, []),
+    shards: [0],
+    children: [],
+  });
 
-let project_mid = (id, p: option(t), mid): Segment.t =>
-  //TODO(andrew): prrobably shouldn't just duplicate this id in the general case?
-  switch (p) {
-  | Some(Fold) => [Tile(placeholder_tile("  ", id))]
-  //[Grout({id, shape: Convex})]
-  | Some(Normal)
-  | None => mid
+let placehold = (prjs, p: Piece.t) =>
+  switch (Map.find(Piece.id(p), prjs)) {
+  | None
+  | Some(Normal) => p
+  | Some(pr) =>
+    //TODO(andrew): Maybe shouldn't just duplicate this id in the general case?
+    placeholder(pr, Piece.id(p))
   };
-
-let project_seg = (p, seg: Segment.t): Segment.t => {
-  // print_endline("project_seg");
-  switch (split_seg(seg, p)) {
-  | Some((pre, mid_og, suf, proj_id)) =>
-    /*TODO(andrew): need to find a way to handle multiple projectors per segment,
-      i.e. wasn't thinking about ones in disjoint subtrees */
-    // print_endline(
-    //   "split: segment length: "
-    //   ++ string_of_int(List.length(seg))
-    //   ++ " as divided into: "
-    //   ++ string_of_int(List.length(pre))
-    //   ++ " "
-    //   ++ string_of_int(List.length(mid_og))
-    //   ++ " "
-    //   ++ string_of_int(List.length(suf)),
-    // );
-    pre @ project_mid(proj_id, Map.find(proj_id, p), mid_og) @ suf
-  | None =>
-    // print_endline("no split");
-    seg
-  };
-};
 
 let rec of_segment = (projectors, seg: Segment.t): Segment.t => {
-  seg |> project_seg(projectors) |> List.map(of_piece(projectors));
+  seg |> List.map(placehold(projectors)) |> List.map(of_piece(projectors));
 }
 and of_piece = (projectors, p: Piece.t): Piece.t => {
   switch (p) {
@@ -153,66 +155,17 @@ and of_tile = (projectors, t: Tile.t): Tile.t => {
   {...t, children: List.map(of_segment(projectors), t.children)};
 };
 
-type start_entry = {
-  proj_id: Id.t,
-  t,
-  start_id: Id.t,
-  last_id: Id.t,
-};
-/* map indexed by start_id instead of proj_id */
-type start_map = Id.Map.t(start_entry);
-let guy_of = (id, t, (start, last)) => {
-  proj_id: id,
-  t,
-  start_id: Piece.id(start),
-  last_id: Piece.id(last),
-};
-let guy_of_rev = (id, t, (start, last)) => {
-  proj_id: id,
-  t,
-  start_id: Piece.id(last),
-  last_id: Piece.id(start),
-};
-let proj_info = (term_ranges, id: Id.t, t: t, acc: start_map) => {
-  //print_endline("proj_info for id: " ++ Id.to_string(id));
-  switch (Id.Map.find_opt(id, term_ranges)) {
-  | Some(range) =>
-    let guy = guy_of(id, t, range);
-    Id.Map.add(guy.start_id, guy, acc);
-  | _ =>
-    print_endline("ERROR: mk_nu_proj_map: no term range for projector");
-    acc;
-  };
-};
-let proj_info_rev = (term_ranges, id: Id.t, t: t, acc: start_map) => {
-  // print_endline("proj_info for id: " ++ Id.to_string(id));
-  switch (Id.Map.find_opt(id, term_ranges)) {
-  | Some(range) =>
-    let guy = guy_of(id, t, range);
-    Id.Map.add(guy.last_id, guy, acc);
-  | _ =>
-    print_endline("ERROR: mk_nu_proj_map: no term range for projector");
-    acc;
-  };
-};
-
-let mk_start_map = (projectors: Map.t, term_ranges: TermRanges.t): start_map =>
-  Map.fold(proj_info(term_ranges), projectors, Id.Map.empty);
-
-let mk_last_map = (projectors: Map.t, term_ranges: TermRanges.t): start_map =>
-  Map.fold(proj_info_rev(term_ranges), projectors, Id.Map.empty);
-
 let fake_measured =
     (p: Map.t, measured: Measured.t, term_ranges: TermRanges.t): Measured.t =>
   Map.fold(
-    (id, _p: t, measured: Measured.t) => {
+    (id, pr: t, measured: Measured.t) => {
       switch (
         Measured.find_by_id(id, measured),
         Id.Map.find_opt(id, term_ranges),
       ) {
       | (Some(m), Some((p_start, p_last))) =>
-        let p_start = Piece.Tile(placeholder_tile("  ", Piece.id(p_start)));
-        let p_last = Piece.Tile(placeholder_tile("  ", Piece.id(p_last)));
+        let p_start = placeholder(pr, Piece.id(p_start));
+        let p_last = placeholder(pr, Piece.id(p_last));
         let measured = Measured.add_p(p_start, m, measured);
         let measured = Measured.add_p(p_last, m, measured);
         print_endline("fake_measured: added placeholder tiles:");

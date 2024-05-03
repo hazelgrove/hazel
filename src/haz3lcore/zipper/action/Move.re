@@ -6,7 +6,7 @@ open Sexplib.Std;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type movability =
   | CanEnter(int, int)
-  | SkipTo(ProjectorAction.thing)
+  | SkipTo(Id.t)
   | CanPass
   | CantEven;
 
@@ -23,12 +23,7 @@ let movability = (chunkiness: chunkiness, label, delim_idx): movability => {
 };
 
 let neighbor_movability =
-    (
-      start_map: Projector.start_map,
-      last_map: Projector.start_map,
-      chunkiness: chunkiness,
-      {relatives: {siblings, ancestors}, _} as z: t,
-    )
+    (chunkiness: chunkiness, {relatives: {siblings, ancestors}, _} as z: t)
     : (movability, movability) => {
   let movability = movability(chunkiness);
   let (supernhbr_l, supernhbr_r) =
@@ -40,7 +35,7 @@ let neighbor_movability =
       )
     };
   let (l_nhbr, r_nhbr) = Siblings.neighbors(siblings);
-  let (l_proj, r_proj) = ProjectorAction.neighbor_is(start_map, last_map, z);
+  let (l_proj, r_proj) = ProjectorAction.neighbor_is(z);
   let l =
     switch (l_proj, l_nhbr) {
     | (Some(l_proj_id), _) => SkipTo(l_proj_id)
@@ -87,11 +82,7 @@ module Make = (M: Editor.Meta.S) => {
     z |> Zipper.set_caret(Inner(d_init, c_max)) |> Zipper.move(d);
 
   let primary = (chunkiness: chunkiness, d: Direction.t, z: t): option(t) => {
-    switch (
-      d,
-      z.caret,
-      neighbor_movability(M.start_map, M.last_map, chunkiness, z),
-    ) {
+    switch (d, z.caret, neighbor_movability(chunkiness, z)) {
     /* this case maybe shouldn't be necessary but currently covers an edge
        (select an open parens to left of a multichar token and press left) */
     | _ when z.selection.content != [] => pop_move(d, z)
