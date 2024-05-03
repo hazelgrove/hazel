@@ -5,11 +5,7 @@ module Make = (M: Editor.Meta.S) => {
   module Move = Move.Make(M);
 
   let primary = (d: Direction.t, z: Zipper.t): option(Zipper.t) =>
-    switch (
-      d,
-      z.caret,
-      ProjectorAction.neighbor_is(M.start_map, M.last_map, z),
-    ) {
+    switch (d, z.caret, ProjectorAction.neighbor_is(z)) {
     | (Left, Outer, (Some(id), _)) =>
       ProjectorAction.skip_select_to(Left, id, z)
     | (Right, Outer, (_, Some(id))) =>
@@ -22,13 +18,21 @@ module Make = (M: Editor.Meta.S) => {
 
   let range = (l: Id.t, r: Id.t, z: Zipper.t): option(Zipper.t) => {
     let* z = Move.jump_to_id(z, l);
+    print_endline("Select.range: first");
     let* Measured.{last, _} = Measured.find_by_id(r, M.measured);
+    print_endline("Select.range: last");
     Move.do_towards(primary, last, z);
   };
 
   let term = (id: Id.t, z: Zipper.t): option(Zipper.t) => {
     //TODO: check if selection is already a term: no-op in this case
     let* (l, r) = TermRanges.find_opt(id, M.term_ranges);
+    print_endline(
+      "Select.term: l: "
+      ++ Id.show(Piece.id(l))
+      ++ " r: "
+      ++ Id.show(Piece.id(r)),
+    );
     range(Piece.id(l), Piece.id(r), z);
   };
 
