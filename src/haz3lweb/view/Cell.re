@@ -223,6 +223,149 @@ let live_eval =
   );
 };
 
+let stepper_view =
+    (
+      ~inject,
+      ~settings,
+      ~font_metrics,
+      ~result_key,
+      ~read_only: bool,
+      stepper: Stepper.t,
+    ) => {
+  let step_dh_code =
+      (
+        ~next_steps,
+        {previous_step, hidden_steps, chosen_step, d}: Stepper.step_info,
+      ) =>
+    div(
+      ~attr=Attr.classes(["result"]),
+      [
+        DHCode.view(
+          ~inject,
+          ~settings,
+          ~selected_hole_instance=None,
+          ~font_metrics,
+          ~width=80,
+          ~previous_step,
+          ~chosen_step,
+          ~hidden_steps,
+          ~result_key,
+          ~next_steps,
+          ~infomap=Id.Map.empty,
+          d,
+        ),
+      ],
+    );
+  let history =
+    Stepper.get_history(~settings=settings.core.evaluation, stepper);
+  switch (history) {
+  | [] => []
+  | [hd, ...tl] =>
+    let button_back =
+      Widgets.button_d(
+        Icons.undo,
+        inject(UpdateAction.StepperAction(result_key, StepBackward)),
+        ~disabled=
+          !Stepper.can_undo(~settings=settings.core.evaluation, stepper),
+        ~tooltip="Step Backwards",
+      );
+    let button_hide_stepper =
+      Widgets.toggle(~tooltip="Show Stepper", "s", true, _ =>
+        inject(UpdateAction.ToggleStepper(result_key))
+      );
+    let toggle_show_history =
+      Widgets.toggle(
+        ~tooltip="Show History",
+        "h",
+        settings.core.evaluation.stepper_history,
+        _ =>
+        inject(Set(Evaluation(ShowRecord)))
+      );
+    let eval_settings =
+      Widgets.button(Icons.gear, _ =>
+        inject(Set(Evaluation(ShowSettings)))
+      );
+    let current =
+      div(
+        ~attr=Attr.classes(["cell-item", "cell-result"]),
+        read_only
+          ? [
+            div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
+            step_dh_code(~next_steps=[], hd),
+          ]
+          : [
+            div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
+            step_dh_code(
+              ~next_steps=
+                List.mapi(
+                  (i, x: EvaluatorStep.EvalObj.t) =>
+                    (i, x.d_loc |> DHExp.rep_id),
+                  Stepper.get_next_steps(stepper),
+                ),
+              hd,
+            ),
+            button_back,
+            eval_settings,
+            toggle_show_history,
+            button_hide_stepper,
+          ],
+      );
+    let dh_code_previous = step_dh_code;
+    let rec previous_step =
+            (~hidden: bool, step: Stepper.step_info): list(Node.t) => {
+      let hidden_steps =
+        settings.core.evaluation.show_hidden_steps
+          ? Stepper.hidden_steps_of_info(step)
+            |> List.rev_map(previous_step(~hidden=true))
+            |> List.flatten
+          : [];
+      [
+        div(
+          ~attr=
+            Attr.classes(
+              ["cell-item", "cell-result"] @ (hidden ? ["hidden"] : []),
+            ),
+          [
+            div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
+            dh_code_previous(~next_steps=[], step),
+            div(
+              ~attr=Attr.classes(["stepper-justification"]),
+              step.chosen_step
+              |> Option.map((chosen_step: EvaluatorStep.step) =>
+                   chosen_step.knd |> Stepper.get_justification |> Node.text
+                 )
+              |> Option.to_list,
+            ),
+          ],
+        ),
+      ]
+      @ hidden_steps;
+    };
+    (
+      (
+        settings.core.evaluation.stepper_history
+          ? List.map(previous_step(~hidden=false), tl)
+            |> List.flatten
+            |> List.rev_append(
+                 _,
+                 settings.core.evaluation.show_hidden_steps
+                   ? hd
+                     |> Stepper.hidden_steps_of_info
+                     |> List.map(previous_step(~hidden=true))
+                     |> List.flatten
+                   : [],
+               )
+          : []
+      )
+      @ [current]
+    )
+    @ (
+      settings.core.evaluation.show_settings
+        ? SettingsModal.view(~inject, settings.core.evaluation) : []
+    );
+  };
+};
+
 let footer =
     (
       ~locked,
@@ -239,7 +382,7 @@ let footer =
       live_eval(~locked, ~inject, ~ui_state, ~settings, ~result_key, result),
     ]
   | Stepper(s) =>
-    StepperView.stepper_view(
+    stepper_view(
       ~inject,
       ~settings,
       ~font_metrics,
