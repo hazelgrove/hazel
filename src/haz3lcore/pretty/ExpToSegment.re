@@ -2,6 +2,24 @@ open Util;
 open PrettySegment;
 open Base;
 
+let should_add_space = (s1, s2) =>
+  switch () {
+  | _ when String.ends_with(s1, ~suffix="(") => false
+  | _ when String.ends_with(s1, ~suffix="[") => false
+  | _ when String.starts_with(s2, ~prefix=")") => false
+  | _ when String.starts_with(s2, ~prefix="]") => false
+  | _ when String.starts_with(s2, ~prefix=",") => false
+  | _ when String.starts_with(s2, ~prefix=";") => false
+  | _ when String.starts_with(s2, ~prefix=":") => false
+  | _ when String.ends_with(s1, ~suffix=" ") => false
+  | _ when String.starts_with(s2, ~prefix=" ") => false
+  | _ when String.ends_with(s1, ~suffix="\n") => false
+  | _ when String.starts_with(s2, ~prefix="\n") => false
+  | _ =>
+    print_endline("(\"" ++ s1 ++ "\")(\"" ++ s2 ++ "\")");
+    true;
+  };
+
 let text_to_pretty = (id, sort, str): pretty => {
   p_just([
     Tile({
@@ -17,6 +35,21 @@ let text_to_pretty = (id, sort, str): pretty => {
 let mk_form = (form_name: string, id, children): Piece.t => {
   let form: Form.t = Form.get(form_name);
   assert(List.length(children) == List.length(form.mold.in_));
+  // Add whitespaces
+  let children =
+    Aba.map_abas(
+      ((l, child, r)) => {
+        let _ = print_endline("l: " ++ l ++ " r: " ++ r);
+        let lspace = should_add_space(l, child |> Segment.first_string);
+        let rspace = should_add_space(child |> Segment.last_string, r);
+        (lspace ? [Secondary(Secondary.mk_space(Id.mk()))] : [])
+        @ (
+          rspace ? child @ [Secondary(Secondary.mk_space(Id.mk()))] : child
+        );
+      },
+      Aba.mk(form.label, children),
+    )
+    |> Aba.get_bs;
   Tile({
     id,
     label: form.label,
@@ -26,11 +59,26 @@ let mk_form = (form_name: string, id, children): Piece.t => {
   });
 };
 
+let (@) = (seg1: Segment.t, seg2: Segment.t): Segment.t =>
+  switch (seg1, seg2) {
+  | ([], _) => seg2
+  | (_, []) => seg1
+  | _ =>
+    if (should_add_space(
+          Segment.last_string(seg1),
+          Segment.first_string(seg2),
+        )) {
+      seg1 @ [Secondary(Secondary.mk_space(Id.mk()))] @ seg2;
+    } else {
+      seg1 @ seg2;
+    }
+  };
+
 /* We assume that parentheses have already been added as necessary, and
       that the expression has no DynamicErrorHoles, Casts, or FailedCasts
    */
 let rec exp_to_pretty = (~inline, exp: Exp.t): pretty => {
-  let go = exp_to_pretty(~inline);
+  let go = (~inline=inline) => exp_to_pretty(~inline);
   switch (exp |> Exp.term_of) {
   // Assume these have been removed by the parenthesizer
   | DynamicErrorHole(_)
@@ -54,6 +102,7 @@ let rec exp_to_pretty = (~inline, exp: Exp.t): pretty => {
   | ListLit([]) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "[]")
   | Deferral(_) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "deferral")
   | ListLit([x, ...xs]) =>
+    // TODO: Add optional newlines
     let (id, ids) = (exp.ids |> List.hd, exp.ids |> List.tl);
     let* x = go(x)
     and* xs = xs |> List.map(go) |> all;
@@ -75,6 +124,7 @@ let rec exp_to_pretty = (~inline, exp: Exp.t): pretty => {
     ]);
   | Var(v) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, v)
   | BinOp(op, l, r) =>
+    // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     let+ l = go(l)
     and+ r = go(r);
@@ -90,15 +140,18 @@ let rec exp_to_pretty = (~inline, exp: Exp.t): pretty => {
     ]
     @ r;
   | MultiHole(es) =>
+    // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     let+ es = es |> List.map(any_to_pretty(~inline)) |> all;
     ListUtil.flat_intersperse(Grout({id, shape: Concave}), es);
   | Fun(p, e, _, _) =>
+    // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     let+ p = pat_to_pretty(~inline, p)
     and+ e = go(e);
     [mk_form("fun_", id, [p])] @ e;
   | TypFun(tp, e, _) =>
+    // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     let+ tp = tpat_to_pretty(~inline, tp)
     and+ e = go(e);
@@ -108,6 +161,7 @@ let rec exp_to_pretty = (~inline, exp: Exp.t): pretty => {
     p_just([mk_form("ap_exp_empty", id, [])]);
   | Tuple([_]) => failwith("Singleton Tuples are not allowed")
   | Tuple([x, ...xs]) =>
+    // TODO: Add optional newlines
     let ids = exp.ids;
     let+ x = go(x)
     and+ xs = xs |> List.map(go) |> all;
@@ -116,21 +170,26 @@ let rec exp_to_pretty = (~inline, exp: Exp.t): pretty => {
         List.map2((id, x) => [mk_form("comma_exp", id, [])] @ x, ids, xs),
       );
   | Let(p, e1, e2) =>
+    // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     let+ p = pat_to_pretty(~inline, p)
     and+ e1 = go(e1)
     and+ e2 = go(e2);
+    let e2 = inline ? e2 : [Secondary(Secondary.mk_newline(Id.mk()))] @ e2;
     [mk_form("let_", id, [p, e1])] @ e2;
   | FixF(p, e, _) =>
+    // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     let+ p = pat_to_pretty(~inline, p)
     and+ e = go(e);
     [mk_form("fix", id, [p])] @ e;
   | TyAlias(tp, t, e) =>
+    // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     let+ tp = tpat_to_pretty(~inline, tp)
     and+ t = typ_to_pretty(~inline, t)
     and+ e = go(e);
+    let e = inline ? e : [Secondary(Secondary.mk_newline(Id.mk()))] @ e;
     [mk_form("tyalias", id, [tp, t])] @ e;
   | Ap(Forward, e1, e2) =>
     let id = exp |> Exp.rep_id;
@@ -138,17 +197,20 @@ let rec exp_to_pretty = (~inline, exp: Exp.t): pretty => {
     and+ e2 = go(e2);
     e1 @ [mk_form("ap_exp", id, [e2])];
   | Ap(Reverse, e1, e2) =>
+    // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     let+ e1 = go(e1)
     and+ e2 = go(e2)
     and+ op = text_to_pretty(id, Sort.Exp, "|>");
     e1 @ op @ e2;
   | TypAp(e, t) =>
+    // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     let+ e = go(e)
     and+ tp = typ_to_pretty(~inline, t);
     e @ [mk_form("ap_exp_typ", id, [tp])];
   | DeferredAp(e, es) =>
+    // TODO: Add optional newlines
     let (id, ids) = (exp.ids |> List.hd, exp.ids |> List.tl);
     let+ e = go(e)
     and+ es = es |> List.map(go) |> all;
@@ -173,26 +235,33 @@ let rec exp_to_pretty = (~inline, exp: Exp.t): pretty => {
     let+ e1 = go(e1)
     and+ e2 = go(e2)
     and+ e3 = go(e3);
+    let e2 = inline ? e2 : [Secondary(Secondary.mk_newline(Id.mk()))] @ e2;
+    let e3 = inline ? e3 : [Secondary(Secondary.mk_newline(Id.mk()))] @ e3;
     [mk_form("if_", id, [e1, e2])] @ e3;
   | Seq(e1, e2) =>
+    // TODO: Make newline optional
     let id = exp |> Exp.rep_id;
     let+ e1 = go(e1)
     and+ e2 = go(e2);
+    let e2 = inline ? e2 : [Secondary(Secondary.mk_newline(Id.mk()))] @ e2;
     e1 @ [mk_form("cell-join", id, [])] @ e2;
   | Test(e) =>
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
     [mk_form("test", id, [])] @ e;
   | Parens(e) =>
+    // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
     [mk_form("parens_exp", id, [e])];
   | Cons(e1, e2) =>
+    // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     let+ e1 = go(e1)
     and+ e2 = go(e2);
     e1 @ [mk_form("cons_exp", id, [])] @ e2;
   | ListConcat(e1, e2) =>
+    // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     let+ e1 = go(e1)
     and+ e2 = go(e2);
@@ -214,6 +283,7 @@ let rec exp_to_pretty = (~inline, exp: Exp.t): pretty => {
      closures. */
   | BuiltinFun(f) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, f)
   | Match(e, rs) =>
+    // TODO: Add newlines
     let (id, ids) = (exp.ids |> List.hd, exp.ids |> List.tl);
     let+ e = go(e)
     and+ rs: list(list((Segment.t, Segment.t))) = {

@@ -754,3 +754,20 @@ let rec get_incomplete_ids = (seg: t): list(Id.t) =>
 
 let ids_of_incomplete_tiles_in_bidelimiteds = (seg: t): list(Id.t) =>
   get_childrens(seg) |> List.concat |> get_incomplete_ids;
+
+let first_string =
+  fun
+  | [] => "FIRST"
+  | [Piece.Secondary(w), ..._] => Secondary.get_string(w.content)
+  | [Piece.Grout(_), ..._] => "?"
+  | [Piece.Tile(t), ..._] => t.label |> List.hd;
+
+let last_string =
+  fun
+  | [] => "LAST"
+  | xs =>
+    switch (ListUtil.last(xs)) {
+    | Piece.Secondary(w) => Secondary.get_string(w.content)
+    | Piece.Grout(_) => "?"
+    | Piece.Tile(t) => t.label |> ListUtil.last
+    };
