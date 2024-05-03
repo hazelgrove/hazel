@@ -547,3 +547,21 @@ let rec split_last = (xs: list('x)): (list('x), 'x) =>
     let (prefix, last) = split_last(xs);
     ([x, ...prefix], last);
   };
+
+let minimum = (f: 'a => int, xs: list('a)): option('a) =>
+  switch (xs) {
+  | [] => None
+  | [x, ...xs] =>
+    let rec loop = (best: 'a, best_f: int, xs: list('a)): option('a) =>
+      switch (xs) {
+      | [] => Some(best)
+      | [x, ...xs] =>
+        let f_x = f(x);
+        if (f_x < best_f) {
+          loop(x, f_x, xs);
+        } else {
+          loop(best, best_f, xs);
+        };
+      };
+    loop(x, f(x), xs);
+  };

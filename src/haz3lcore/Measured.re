@@ -435,3 +435,13 @@ let segment_width = (seg: Segment.t): int =>
     of_segment(seg).rows,
     0,
   );
+
+let width_cost = (seg: Segment.t, max_width: int): int =>
+  IntMap.fold(
+    (_, {max_col, _}: Rows.shape, acc) => {
+      let overflow = max(max_col - max_width, 0);
+      acc + overflow * overflow;
+    },
+    of_segment(seg).rows,
+    0,
+  );
