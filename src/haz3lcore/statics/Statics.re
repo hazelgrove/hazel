@@ -418,23 +418,23 @@ and uexp_to_info_map =
     let (scrut, m) = go(~mode=Syn, scrut, m);
     let (ps, es) = List.split(rules);
     let branch_ids = List.map(UExp.rep_id, es);
+    // switch (scrut.ty) {
+    // | Unknown(_) =>
+    //   let (ps', _m) =
+    //     map_m(go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty), ps, m);
+    //   print_endline(
+    //     Typ.join_all(
+    //       ~empty=Unknown(Internal),
+    //       ctx,
+    //       List.map(Info.pat_ty, ps'),
+    //     )
+    //     == None
+    //       ? "some" : "none",
+    //   );
+    // | _ => ()
+    // };
+    // switch ()
     let rules_to_info_map = (ps: list(UPat.t), es: list(UExp.t), m) => {
-      // switch (scrut.ty) {
-      // | Unknown(_) =>
-      //   let (ps', _m) =
-      //     map_m(go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty), ps, m);
-      //   print_endline(
-      //     Typ.join_all(
-      //       ~empty=Unknown(Internal),
-      //       ctx,
-      //       List.map(Info.pat_ty, ps'),
-      //     )
-      //     == None
-      //       ? "some" : "none",
-      //   );
-      // | _ => ()
-      // };
-      // switch ()
       let (ps', m) =
         map_m(
           go_pat(
