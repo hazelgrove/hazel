@@ -433,8 +433,8 @@ and uexp_to_info_map =
       };
       let constraint_ty =
         switch (scrut.ty) {
-        | Unknown(_) => Some(get_constraint_ty(ps))
-        | _ => None
+        | Unknown(_) => get_constraint_ty(ps)
+        | _ => scrut.ty
         };
       let (ps', m) =
         map_m(
@@ -466,7 +466,7 @@ and uexp_to_info_map =
                 ~is_synswitch=false,
                 ~co_ctx,
                 ~mode=Mode.Ana(scrut.ty),
-                ~constraint_ty,
+                ~constraint_ty=Some(constraint_ty),
                 p,
                 m,
               );
@@ -485,7 +485,7 @@ and uexp_to_info_map =
                   // Mark patterns as redundant at the top level
                   // because redundancy doesn't make sense in a smaller context
                   ~constraint_=p_constraint,
-                  ~constraint_ty,
+                  ~constraint_ty=Some(constraint_ty),
                 );
               (
                 // Override the info for the single upat
