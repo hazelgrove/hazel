@@ -419,12 +419,28 @@ and uexp_to_info_map =
     let rules_to_info_map = (rules: list((UPat.t, UExp.t)), m) => {
       let (ps, es) = List.split(rules);
       let branch_ids = List.map(UExp.rep_id, es);
+      // switch (scrut.ty) {
+      // | Unknown(_) =>
+      //   let (ps', _m) =
+      //     map_m(go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty), ps, m);
+      //   print_endline(
+      //     Typ.join_all(
+      //       ~empty=Unknown(Internal),
+      //       ctx,
+      //       List.map(Info.pat_ty, ps'),
+      //     )
+      //     == None
+      //       ? "some" : "none",
+      //   );
+      // | _ => ()
+      // };
+      // switch ()
       let (ps', m) =
         map_m(
           go_pat(
             ~is_synswitch=false,
             ~co_ctx=CoCtx.empty,
-            ~mode=Mode.Ana(scrut.ty),
+            ~mode=Mode.Ana(scrut_ty),
           ),
           ps,
           m,
@@ -448,7 +464,7 @@ and uexp_to_info_map =
               go_pat(
                 ~is_synswitch=false,
                 ~co_ctx,
-                ~mode=Mode.Ana(scrut.ty),
+                ~mode=Mode.Ana(scrut_ty),
                 p,
                 m,
               );
