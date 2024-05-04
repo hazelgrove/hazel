@@ -418,6 +418,28 @@ and uexp_to_info_map =
     let (scrut, m) = go(~mode=Syn, scrut, m);
     let (ps, es) = List.split(rules);
     let branch_ids = List.map(UExp.rep_id, es);
+    let (ps', _) =
+      map_m(
+        go_pat(
+          ~is_synswitch=false,
+          ~co_ctx=CoCtx.empty,
+          ~mode=Mode.Ana(scrut.ty),
+        ),
+        ps,
+        m,
+      );
+    let p_ctxs = List.map(Info.pat_ctx, ps');
+    let (es, m) =
+      List.fold_left2(
+        ((es, m), e, ctx) =>
+          go'(~ctx, ~mode, e, m) |> (((e, m)) => (es @ [e], m)),
+        ([], m),
+        es,
+        p_ctxs,
+      );
+    let e_tys = List.map(Info.exp_ty, es);
+    let e_co_ctxs =
+      List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es));
     // switch (scrut.ty) {
     // | Unknown(_) =>
     //   let (ps', _m) =
@@ -438,29 +460,7 @@ and uexp_to_info_map =
     let (self, e_co_ctxs, m) =
       switch (scrut_ty) {
       | Some(scrut_ty) =>
-        let rules_to_info_map =
-            (ps: list(UPat.t), es: list(UExp.t), scrut_ty: Typ.t, m) => {
-          let (ps', m) =
-            map_m(
-              go_pat(
-                ~is_synswitch=false,
-                ~co_ctx=CoCtx.empty,
-                ~mode=Mode.Ana(scrut_ty),
-              ),
-              ps,
-              m,
-            );
-          let p_ctxs = List.map(Info.pat_ctx, ps');
-          let (es, m) =
-            List.fold_left2(
-              ((es, m), e, ctx) =>
-                go'(~ctx, ~mode, e, m) |> (((e, m)) => (es @ [e], m)),
-              ([], m),
-              es,
-              p_ctxs,
-            );
-          let e_co_ctxs =
-            List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es));
+        let rules_to_info_map = (ps: list(UPat.t), scrut_ty: Typ.t, m) => {
           /* Add co-ctxs to patterns */
           let (m, final_constraint) =
             List.fold_left(
@@ -499,11 +499,9 @@ and uexp_to_info_map =
               (m, Constraint.Falsity),
               List.combine(ps, e_co_ctxs),
             );
-          (es, e_co_ctxs, final_constraint, m);
+          (final_constraint, m);
         };
-        let (es, e_co_ctxs, final_constraint, m) =
-          rules_to_info_map(ps, es, scrut_ty, m);
-        let e_tys = List.map(Info.exp_ty, es);
+        let (final_constraint, m) = rules_to_info_map(ps, scrut_ty, m);
         let unwrapped_self: Self.exp =
           Common(Self.match(ctx, e_tys, branch_ids));
         let is_exhaustive = Incon.is_exhaustive(final_constraint);
@@ -511,28 +509,6 @@ and uexp_to_info_map =
           is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
         (self, e_co_ctxs, m);
       | None =>
-        let (ps', _) =
-          map_m(
-            go_pat(
-              ~is_synswitch=false,
-              ~co_ctx=CoCtx.empty,
-              ~mode=Mode.Ana(scrut.ty),
-            ),
-            ps,
-            m,
-          );
-        let p_ctxs = List.map(Info.pat_ctx, ps');
-        let (es, m) =
-          List.fold_left2(
-            ((es, m), e, ctx) =>
-              go'(~ctx, ~mode, e, m) |> (((e, m)) => (es @ [e], m)),
-            ([], m),
-            es,
-            p_ctxs,
-          );
-        let e_tys = List.map(Info.exp_ty, es);
-        let e_co_ctxs =
-          List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es));
         /* Add co-ctxs to patterns */
         let (_, m) =
           map_m(
