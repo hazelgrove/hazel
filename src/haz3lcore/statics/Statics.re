@@ -419,28 +419,6 @@ and uexp_to_info_map =
     let rules_to_info_map = (rules: list((UPat.t, UExp.t)), m) => {
       let (ps, es) = List.split(rules);
       let branch_ids = List.map(UExp.rep_id, es);
-      // let rec get_scrut_ty = ps => {
-      //   switch (ps) {
-      //   | [] => scrut.ty
-      //   | [p, ...ps] =>
-      //     let (p', _m) =
-      //       go_pat(
-      //         ~is_synswitch=false,
-      //         ~co_ctx=CoCtx.empty,
-      //         p,
-      //         m,
-      //       );
-      //     switch (Info.pat_ty(p')) {
-      //     | Unknown(_) => get_scrut_ty(ps)
-      //     | ty => ty
-      //     };
-      //   };
-      // };
-      // let scrut_ty =
-      //   switch (scrut.ty) {
-      //   | Unknown(_) => get_scrut_ty(ps)
-      //   | _ => scrut.ty
-      //   };
       let (ps', m) =
         map_m(
           go_pat(
@@ -567,7 +545,6 @@ and upat_to_info_map =
       ~co_ctx,
       ~ancestors: Info.ancestors,
       ~mode: Mode.t=Mode.Syn,
-      ~constraint_ty: option(Typ.t)=None,
       {ids, term} as upat: UPat.t,
       m: Map.t,
     )
@@ -582,7 +559,6 @@ and upat_to_info_map =
         ~ancestors,
         ~self=Common(self),
         ~constraint_,
-        ~constraint_ty,
       );
     (info, add_info(ids, InfoPat(info), m));
   };
