@@ -67,6 +67,9 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     let* d1' = pp_eval(d1);
     let* d2' = pp_eval(d2);
     Dot(d1', d2') |> return;
+  | TypAp(d1, ty) =>
+    let* d1' = pp_eval(d1);
+    TypAp(d1', ty) |> return;
 
   | ApBuiltin(f, d1) =>
     let* d1' = pp_eval(d1);
@@ -158,9 +161,9 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
   | Module(_)
   | ConsistentCase(_)
   | Fun(_)
+  | TypFun(_)
   | EmptyHole(_)
   | NonEmptyHole(_)
-  | ExpandingKeyword(_)
   | FreeVar(_)
   | InvalidText(_)
   | InconsistentBranches(_) => raise(Exception(UnevalOutsideClosure))
@@ -182,6 +185,10 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     | Fun(dp, ty, d, s) =>
       let* d = pp_uneval(env, d);
       Fun(dp, ty, d, s) |> return;
+
+    | TypFun(tpat, d1, s) =>
+      let* d1' = pp_uneval(env, d1);
+      TypFun(tpat, d1', s) |> return;
 
     | Let(dp, d1, d2) =>
       /* d1 should already be evaluated, d2 is not */
@@ -226,7 +233,6 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
       |> return;
 
     | EmptyHole(_)
-    | ExpandingKeyword(_)
     | FreeVar(_)
     | InvalidText(_) => pp_uneval(env, d)
 
@@ -322,14 +328,23 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* d'' = pp_uneval(env, d');
     Fun(dp, ty, d'', s) |> return;
 
+  | TypFun(tpat, d1, s) =>
+    let* d1' = pp_uneval(env, d1);
+    TypFun(tpat, d1', s) |> return;
+
   | Ap(d1, d2) =>
     let* d1' = pp_uneval(env, d1);
     let* d2' = pp_uneval(env, d2);
     Ap(d1', d2') |> return;
 
+  | TypAp(d1, ty) =>
+    let* d1' = pp_uneval(env, d1);
+    TypAp(d1', ty) |> return;
+
   | ApBuiltin(f, d1) =>
     let* d1' = pp_uneval(env, d1);
     ApBuiltin(f, d1') |> return;
+
   | BuiltinFun(f) => BuiltinFun(f) |> return
 
   | BinBoolOp(op, d1, d2) =>
@@ -431,10 +446,6 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* i = hii_add_instance(u, env);
     Closure(env, NonEmptyHole(reason, u, i, d')) |> return;
 
-  | ExpandingKeyword(u, _, kw) =>
-    let* i = hii_add_instance(u, env);
-    Closure(env, ExpandingKeyword(u, i, kw)) |> return;
-
   | FreeVar(u, _, x) =>
     let* i = hii_add_instance(u, env);
     Closure(env, FreeVar(u, i, x)) |> return;
@@ -488,6 +499,8 @@ let rec track_children_of_hole =
   | Test(_, d)
   | FixF(_, _, d)
   | Fun(_, _, d, _)
+  | TypFun(_, d, _)
+  | TypAp(d, _)
   | Prj(d, _)
   | Cast(d, _, _)
   | FailedCast(d, _, _)
@@ -546,7 +559,6 @@ let rec track_children_of_hole =
     let hii = track_children_of_hole_rules(hii, parent, rules);
     hii |> HoleInstanceInfo.add_parent((u, i), parent);
   | EmptyHole(u, i)
-  | ExpandingKeyword(u, i, _)
   | FreeVar(u, i, _)
   | InvalidText(u, i, _) =>
     hii |> HoleInstanceInfo.add_parent((u, i), parent)

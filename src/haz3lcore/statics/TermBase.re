@@ -113,12 +113,15 @@ and UExp: {
     | Float
     | String
     | ListLit
-    | Tag
+    | Constructor
     | Fun
+    | TypFun
     | Tuple
     | Var
     | Let
+    | TyAlias
     | Ap
+    | TypAp
     | If
     | Seq
     | Test
@@ -149,6 +152,7 @@ and UExp: {
     | ListLit(list(t))
     | Constructor(string)
     | Fun(UPat.t, t)
+    | TypFun(UTPat.t, t)
     | Tuple(list(t))
     | Var(Var.t)
     | Let(UPat.t, t, t)
@@ -156,6 +160,7 @@ and UExp: {
     | Dot(t, t)
     | TyAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)
+    | TypAp(t, UTyp.t)
     | DeferredAp(t, list(t))
     | Pipeline(t, t)
     | If(t, t, t)
@@ -253,12 +258,15 @@ and UExp: {
     | Float
     | String
     | ListLit
-    | Tag
+    | Constructor
     | Fun
+    | TypFun
     | Tuple
     | Var
     | Let
+    | TyAlias
     | Ap
+    | TypAp
     | If
     | Seq
     | Test
@@ -289,6 +297,7 @@ and UExp: {
     | ListLit(list(t))
     | Constructor(string)
     | Fun(UPat.t, t)
+    | TypFun(UTPat.t, t)
     | Tuple(list(t))
     | Var(Var.t)
     | Let(UPat.t, t, t)
@@ -296,6 +305,7 @@ and UExp: {
     | Dot(t, t)
     | TyAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)
+    | TypAp(t, UTyp.t)
     | DeferredAp(t, list(t))
     | Pipeline(t, t)
     | If(t, t, t)
@@ -431,6 +441,8 @@ and UTyp: {
     | Ap(t, t)
     | Dot(t, t)
     | Sum(list(variant))
+    | Forall(UTPat.t, t)
+    | Rec(UTPat.t, t)
   and variant =
     | Variant(Constructor.t, list(Id.t), option(t))
     | BadEntry(t)
@@ -458,6 +470,8 @@ and UTyp: {
     | Ap(t, t)
     | Dot(t, t)
     | Sum(list(variant))
+    | Forall(UTPat.t, t)
+    | Rec(UTPat.t, t)
   and variant =
     | Variant(Constructor.t, list(Id.t), option(t))
     | BadEntry(t)

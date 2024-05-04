@@ -16,6 +16,7 @@ type cls =
   | ModuleVal
   | Dot1
   | Dot2
+  | TypAp
   | Ap1
   | Ap2
   | Fun
@@ -67,6 +68,7 @@ type t =
   | Dot2(DHExp.t, t)
   | Fun(DHPat.t, Typ.t, t, option(Var.t))
   | FixF(Var.t, Typ.t, t)
+  | TypAp(t, Typ.t)
   | Ap1(t, DHExp.t)
   | Ap2(DHExp.t, t)
   | IfThenElse1(if_consistency, t, DHExp.t, DHExp.t)
@@ -139,6 +141,7 @@ let rec fuzzy_mark =
   | Dot2(_)
   | Fun(_)
   | FixF(_)
+  | TypAp(_)
   | Ap1(_)
   | Ap2(_)
   | IfThenElse1(_)
@@ -189,6 +192,7 @@ let rec unwrap = (ctx: t, sel: cls): option(t) => {
   | (Dot2, Dot2(_, c))
   | (Fun, Fun(_, _, c, _))
   | (FixF, FixF(_, _, c))
+  | (TypAp, TypAp(c, _))
   | (Ap1, Ap1(c, _))
   | (Ap2, Ap2(_, c))
   | (BinBoolOp1, BinBoolOp1(_, c, _))

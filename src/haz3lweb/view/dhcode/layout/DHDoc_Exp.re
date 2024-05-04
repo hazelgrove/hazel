@@ -48,7 +48,6 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | BoundVar(_)
   | FreeVar(_)
   | InvalidText(_)
-  | ExpandingKeyword(_)
   | BoolLit(_)
   | IntLit(_)
   | Sequence(_)
@@ -62,18 +61,20 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | FailedCast(_)
   | InvalidOperation(_)
   | IfThenElse(_)
-  | Closure(_)
   | ModuleVal(_)
   | BuiltinFun(_)
-  | Filter(_) => DHDoc_common.precedence_const
+  | Filter(_)
+  | Closure(_) => DHDoc_common.precedence_const
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
-  | Ap(_) => DHDoc_common.precedence_Ap
+  | Ap(_)
+  | TypAp(_) => DHDoc_common.precedence_Ap
   | ApBuiltin(_) => DHDoc_common.precedence_Ap
   | Dot(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
   | ListConcat(_) => DHDoc_common.precedence_Plus
   | Tuple(_) => DHDoc_common.precedence_Comma
+  | TypFun(_)
   | Fun(_) => DHDoc_common.precedence_max
   | Let(_)
   | Module(_)
@@ -142,6 +143,7 @@ let mk =
         | (ModuleBind, _) => []
         | (FixUnwrap, FixF(f, _, _)) => [f]
         | (FixUnwrap, _) => []
+        | (TypFunAp, _) // TODO: Could also do something here for type variable substitution like in FunAp?
         | (InvalidStep, _)
         | (VarLookup, _)
         | (ModuleLookup, _)
@@ -150,6 +152,7 @@ let mk =
         | (FunClosure, _)
         | (FixClosure, _)
         | (UpdateTest, _)
+        | (CastTypAp, _)
         | (CastAp, _)
         | (BuiltinWrap, _)
         | (BuiltinAp(_), _)
@@ -329,8 +332,6 @@ let mk =
       | NonEmptyHole(reason, u, i, d') =>
         go'(d', NonEmptyHole)
         |> annot(DHAnnot.NonEmptyHole(reason, (u, i)))
-      | ExpandingKeyword(u, i, k) =>
-        DHDoc_common.mk_ExpandingKeyword((u, i), k)
       | FreeVar(u, i, x) =>
         text(x) |> annot(DHAnnot.VarHole(Free, (u, i)))
       | InvalidText(u, i, t) => DHDoc_common.mk_InvalidText(t, (u, i))
@@ -410,6 +411,7 @@ let mk =
       | ListLit(_, _, _, d_list) =>
         let ol = d_list |> List.mapi((i, d) => go'(d, ListLit(i)));
         DHDoc_common.mk_ListLit(ol);
+
       | Ap(d1, d2) =>
         let (doc1, doc2) = (
           go_formattable(d1, Ap1)
@@ -421,6 +423,10 @@ let mk =
         let doc1 = go'(d1, Dot1);
         let doc2 = go'(d2, Dot2);
         DHDoc_common.mk_Dot(doc1, doc2);
+      | TypAp(d1, ty) =>
+        let doc1 = go'(d1, TypAp);
+        let doc2 = DHDoc_Typ.mk(~enforce_inline=true, ty);
+        DHDoc_common.mk_TypAp(doc1, doc2);
       | ApBuiltin(ident, d) =>
         DHDoc_common.mk_Ap(
           text(ident),
@@ -673,6 +679,19 @@ let mk =
           | Some(name) => name
           };
         annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"));
+      | TypFun(_tpat, _dbody, s) =>
+        /* same display as with Fun but with anon typfn in the nameless case. */
+        let name =
+          switch (s) {
+          | None => "anon typfn"
+          | Some(name)
+              when
+                !settings.show_fixpoints
+                && String.ends_with(~suffix="+", name) =>
+            String.sub(name, 0, String.length(name) - 1)
+          | Some(name) => name
+          };
+        annot(DHAnnot.Collapsed, text("<" ++ name ++ ">"));
       | FixF(x, ty, dbody)
           when settings.show_fn_bodies && settings.show_fixpoints =>
         let doc_body =
@@ -689,7 +708,6 @@ let mk =
                 DHDoc_common.Delim.colon_Fun,
                 space(),
                 DHDoc_Typ.mk(~enforce_inline=true, ty),
-                space(),
               ]
               : []
           )

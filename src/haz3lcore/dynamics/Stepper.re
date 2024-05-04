@@ -95,6 +95,9 @@ let rec matches =
     | FixF(name, ty, ctx) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       FixF(name, ty, ctx);
+    | TypAp(ctx, ty) =>
+      let+ ctx = matches(env, flt, ctx, exp, act, idx);
+      TypAp(ctx, ty);
     | Ap1(ctx, d2) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       Ap1(ctx, d2);
@@ -404,6 +407,7 @@ let get_justification: step_kind => string =
   | Sequence => "sequence"
   | FixUnwrap => "unroll fixpoint"
   | UpdateTest => "update test"
+  | TypFunAp => "apply type function"
   | FunAp => "apply function"
   | BuiltinWrap => "wrap builtin"
   | BuiltinAp(s) => "evaluate " ++ s
@@ -426,6 +430,7 @@ let get_justification: step_kind => string =
   | VarLookup => "variable lookup"
   | ModuleLookup => "module lookup"
   | DotAccess => "access member"
+  | CastTypAp
   | CastAp
   | Cast => "cast calculus"
   | FixClosure => "fixpoint closure"

@@ -17,8 +17,50 @@
    without correponding syntax classes */
 
 include TermBase.Any;
-
 type any = t;
+
+module UTPat = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type cls =
+    | Invalid
+    | EmptyHole
+    | MultiHole
+    | Var;
+
+  include TermBase.UTPat;
+
+  let rep_id = ({ids, _}) => {
+    assert(ids != []);
+    List.hd(ids);
+  };
+
+  let hole = (tms: list(any)) =>
+    switch (tms) {
+    | [] => EmptyHole
+    | [_, ..._] => MultiHole(tms)
+    };
+
+  let cls_of_term: term => cls =
+    fun
+    | Invalid(_) => Invalid
+    | EmptyHole => EmptyHole
+    | MultiHole(_) => MultiHole
+    | Var(_) => Var;
+
+  let show_cls: cls => string =
+    fun
+    | Invalid => "Invalid type binding name"
+    | MultiHole => "Broken type binding"
+    | EmptyHole => "Empty type binding hole"
+    | Var => "Type binding";
+
+  let tyvar_of_utpat = ({ids: _, term}) =>
+    switch (term) {
+    | Var(x) => Some(x)
+    | _ => None
+    };
+};
+
 module UTyp = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
@@ -34,12 +76,14 @@ module UTyp = {
     | Sum
     | List
     | Var
+    | Constructor
     | Module
     | ModuleVar
-    | Constructor
     | Parens
+    | Ap
     | Dot
-    | Ap;
+    | Forall
+    | Rec;
 
   include TermBase.UTyp;
 
@@ -72,7 +116,9 @@ module UTyp = {
     | Module(_) => Module
     | Ap(_) => Ap
     | Dot(_) => Dot
-    | Sum(_) => Sum;
+    | Sum(_) => Sum
+    | Forall(_) => Forall
+    | Rec(_) => Rec;
 
   let show_cls: cls => string =
     fun
@@ -93,7 +139,57 @@ module UTyp = {
     | Module => "Module type"
     | ModuleVar => "Module path"
     | Dot => "Member type"
-    | Ap => "Constructor application";
+    | Ap => "Constructor application"
+    | Forall => "Forall Type"
+    | Rec => "Recursive Type";
+
+  let rec is_arrow = (typ: t) => {
+    switch (typ.term) {
+    | Parens(typ) => is_arrow(typ)
+    | Arrow(_) => true
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Int
+    | Float
+    | Bool
+    | String
+    | List(_)
+    | Tuple(_)
+    | Var(_)
+    | Constructor(_)
+    | Ap(_)
+    | Module(_)
+    | Dot(_)
+    | Sum(_)
+    | Forall(_)
+    | Rec(_) => false
+    };
+  };
+
+  let rec is_forall = (typ: t) => {
+    switch (typ.term) {
+    | Parens(typ) => is_forall(typ)
+    | Forall(_) => true
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Int
+    | Float
+    | Bool
+    | String
+    | Arrow(_)
+    | List(_)
+    | Tuple(_)
+    | Var(_)
+    | Constructor(_)
+    | Module(_)
+    | Dot(_)
+    | Ap(_)
+    | Sum(_)
+    | Rec(_) => false
+    };
+  };
 
   /* Converts a syntactic type into a semantic type */
   let rec to_typ: (Ctx.t, t) => Typ.t =
@@ -116,6 +212,28 @@ module UTyp = {
       | Sum(uts) => Sum(to_ctr_map(ctx, uts))
       | List(u) => List(to_typ(ctx, u))
       | Parens(u) => to_typ(ctx, u)
+      | Forall({term: Var(name), _} as utpat, tbody) =>
+        let ctx =
+          Ctx.extend_tvar(
+            ctx,
+            {name, id: UTPat.rep_id(utpat), kind: Abstract},
+          );
+        Forall(name, to_typ(ctx, tbody));
+      // Rec is same as Forall
+      | Rec({term: Var(name), _} as utpat, tbody) =>
+        let ctx =
+          Ctx.extend_tvar(
+            ctx,
+            {name, id: UTPat.rep_id(utpat), kind: Abstract},
+          );
+        Rec(name, to_typ(ctx, tbody));
+      | Forall({term: Invalid(_), _}, tbody)
+      | Forall({term: EmptyHole, _}, tbody)
+      | Forall({term: MultiHole(_), _}, tbody) =>
+        Forall("?", to_typ(ctx, tbody))
+      | Rec({term: Invalid(_), _}, tbody)
+      | Rec({term: EmptyHole, _}, tbody)
+      | Rec({term: MultiHole(_), _}, tbody) => Rec("?", to_typ(ctx, tbody))
       /* The below cases should occur only inside sums */
       | Constructor(_)
       | Ap(_) => Unknown(Internal)
@@ -304,42 +422,6 @@ module UTyp = {
   };
 };
 
-module UTPat = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type cls =
-    | Invalid
-    | EmptyHole
-    | MultiHole
-    | Var;
-
-  include TermBase.UTPat;
-
-  let rep_id = ({ids, _}) => {
-    assert(ids != []);
-    List.hd(ids);
-  };
-
-  let hole = (tms: list(any)) =>
-    switch (tms) {
-    | [] => EmptyHole
-    | [_, ..._] => MultiHole(tms)
-    };
-
-  let cls_of_term: term => cls =
-    fun
-    | Invalid(_) => Invalid
-    | EmptyHole => EmptyHole
-    | MultiHole(_) => MultiHole
-    | Var(_) => Var;
-
-  let show_cls: cls => string =
-    fun
-    | Invalid => "Invalid type alias"
-    | MultiHole => "Broken type alias"
-    | EmptyHole => "Empty type alias hole"
-    | Var => "Type alias";
-};
-
 module UPat = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
@@ -442,13 +524,62 @@ module UPat = {
     };
   };
 
+  let rec is_fun_var = (pat: t) => {
+    switch (pat.term) {
+    | Parens(pat) => is_fun_var(pat)
+    | TypeAnn(pat, typ) =>
+      is_var(pat) && (UTyp.is_arrow(typ) || UTyp.is_forall(typ))
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Wild
+    | Int(_)
+    | Float(_)
+    | Bool(_)
+    | String(_)
+    | Triv
+    | ListLit(_)
+    | Cons(_, _)
+    | Var(_)
+    | Tuple(_)
+    | Constructor(_)
+    | TyAlias(_)
+    | Ap(_) => false
+    };
+  };
+
+  let rec is_tuple_of_arrows = (pat: t) =>
+    is_fun_var(pat)
+    || (
+      switch (pat.term) {
+      | Parens(pat) => is_tuple_of_arrows(pat)
+      | Tuple(pats) => pats |> List.for_all(is_fun_var)
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_)
+      | Wild
+      | Int(_)
+      | Float(_)
+      | Bool(_)
+      | String(_)
+      | Triv
+      | ListLit(_)
+      | Cons(_, _)
+      | Var(_)
+      | TypeAnn(_)
+      | Constructor(_)
+      | TyAlias(_)
+      | Ap(_) => false
+      }
+    );
+
   let rec is_tuple_of_vars = (pat: t) =>
     is_var(pat)
     || (
       switch (pat.term) {
       | Parens(pat)
       | TypeAnn(pat, _) => is_tuple_of_vars(pat)
-      | Tuple(pats) => pats |> List.for_all(pat => is_var(pat))
+      | Tuple(pats) => pats |> List.for_all(is_var)
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
@@ -486,6 +617,34 @@ module UPat = {
     | Cons(_, _)
     | Tuple(_)
     | Constructor(_)
+    | Ap(_) => None
+    };
+  };
+
+  let rec get_fun_var = (pat: t) => {
+    switch (pat.term) {
+    | Parens(pat) => get_fun_var(pat)
+    | TypeAnn(pat, typ) =>
+      if (UTyp.is_arrow(typ) || UTyp.is_forall(typ)) {
+        get_var(pat) |> Option.map(var => var);
+      } else {
+        None;
+      }
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Wild
+    | Int(_)
+    | Float(_)
+    | Bool(_)
+    | String(_)
+    | Triv
+    | ListLit(_)
+    | Cons(_, _)
+    | Var(_)
+    | Tuple(_)
+    | Constructor(_)
+    | TyAlias(_)
     | Ap(_) => None
     };
   };
@@ -573,6 +732,7 @@ module UExp = {
     | ListLit
     | Constructor
     | Fun
+    | TypFun
     | Tuple
     | Var
     | MetaVar
@@ -582,6 +742,7 @@ module UExp = {
     | Dot
     | TyAlias
     | Ap
+    | TypAp
     | DeferredAp
     | Pipeline
     | If
@@ -620,6 +781,7 @@ module UExp = {
     | ListLit(_) => ListLit
     | Constructor(_) => Constructor
     | Fun(_) => Fun
+    | TypFun(_) => TypFun
     | Tuple(_) => Tuple
     | Var(_) => Var
     | Let(_) => Let
@@ -627,6 +789,7 @@ module UExp = {
     | Dot(_) => Dot
     | TyAlias(_) => TyAlias
     | Ap(_) => Ap
+    | TypAp(_) => TypAp
     | DeferredAp(_) => DeferredAp
     | Pipeline(_) => Pipeline
     | If(_) => If
@@ -717,6 +880,7 @@ module UExp = {
     | ListLit => "List literal"
     | Constructor => "Constructor"
     | Fun => "Function literal"
+    | TypFun => "Type Function Literal"
     | Tuple => "Tuple literal"
     | Var => "Variable reference"
     | MetaVar => "Meta variable reference"
@@ -726,6 +890,7 @@ module UExp = {
     | Dot => "Dot access"
     | TyAlias => "Type Alias definition"
     | Ap => "Application"
+    | TypAp => "Type application"
     | DeferredAp => "Partial Application"
     | Pipeline => "Pipeline expression"
     | If => "If expression"
@@ -739,9 +904,12 @@ module UExp = {
     | UnOp(op) => show_unop(op)
     | Match => "Case expression";
 
+  // Typfun should be treated as a function here as this is only used to
+  // determine when to allow for recursive definitions in a let binding.
   let rec is_fun = (e: t) => {
     switch (e.term) {
     | Parens(e) => is_fun(e)
+    | TypFun(_)
     | Fun(_) => true
     | Invalid(_)
     | EmptyHole
@@ -760,6 +928,7 @@ module UExp = {
     | Dot(_)
     | TyAlias(_)
     | Ap(_)
+    | TypAp(_)
     | DeferredAp(_)
     | Pipeline(_)
     | If(_)
@@ -792,12 +961,14 @@ module UExp = {
       | String(_)
       | ListLit(_)
       | Fun(_)
+      | TypFun(_)
       | Var(_)
       | Let(_)
       | Module(_)
       | Dot(_)
       | TyAlias(_)
       | Ap(_)
+      | TypAp(_)
       | DeferredAp(_)
       | Pipeline(_)
       | If(_)
@@ -844,6 +1015,7 @@ module UExp = {
       | String(_)
       | ListLit(_)
       | Fun(_)
+      | TypFun(_)
       | Var(_)
       | Let(_)
       | Module(_)
@@ -851,6 +1023,7 @@ module UExp = {
       | Filter(_)
       | TyAlias(_)
       | Ap(_)
+      | TypAp(_)
       | DeferredAp(_)
       | Pipeline(_)
       | If(_)

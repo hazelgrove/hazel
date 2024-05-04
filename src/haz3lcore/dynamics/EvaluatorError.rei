@@ -5,6 +5,7 @@ type t =
   | FreeInvalidVar(Var.t)
   | BadPatternMatch
   | CastBVHoleGround(DHExp.t)
+  | InvalidBoxedTypFun(DHExp.t)
   | InvalidBoxedFun(DHExp.t)
   | InvalidBoxedModule(DHExp.t)
   | InvalidBoxedBoolLit(DHExp.t)
