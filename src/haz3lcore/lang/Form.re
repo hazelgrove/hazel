@@ -302,7 +302,10 @@ let forms: list((string, t)) = [
   ("ap_exp", mk(ii, ["(", ")"], mk_post(P.ap, Exp, [Exp]))),
   ("ap_pat", mk(ii, ["(", ")"], mk_post(P.ap, Pat, [Pat]))),
   ("ap_typ", mk(ii, ["(", ")"], mk_post(P.ap, Typ, [Typ]))),
-  ("ap_exp_typ", mk(ii, ["@<", ">"], mk_post(P.ap, Exp, [Typ]))),
+  (
+    "ap_exp_typ",
+    mk((Instant, Static), ["@<", ">"], mk_post(P.ap, Exp, [Typ])),
+  ),
   ("at_sign", mk_nul_infix("@", P.eqs)), // HACK: SUBSTRING REQ
   ("case", mk(ds, ["case", "end"], mk_op(Exp, [Rul]))),
   ("test", mk(ds, ["test", "end"], mk_op(Exp, [Exp]))),
