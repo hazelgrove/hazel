@@ -438,7 +438,8 @@ and uexp_to_info_map =
     let (self, e_co_ctxs, m) =
       switch (scrut_ty) {
       | Some(scrut_ty) =>
-        let rules_to_info_map = (ps: list(UPat.t), es: list(UExp.t), m) => {
+        let rules_to_info_map =
+            (ps: list(UPat.t), es: list(UExp.t), scrut_ty: Typ.t, m) => {
           let (ps', m) =
             map_m(
               go_pat(
@@ -501,7 +502,7 @@ and uexp_to_info_map =
           (es, e_co_ctxs, final_constraint, m);
         };
         let (es, e_co_ctxs, final_constraint, m) =
-          rules_to_info_map(ps, es, m);
+          rules_to_info_map(ps, es, scrut_ty, m);
         let e_tys = List.map(Info.exp_ty, es);
         let unwrapped_self: Self.exp =
           Common(Self.match(ctx, e_tys, branch_ids));
@@ -509,7 +510,43 @@ and uexp_to_info_map =
         let self =
           is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
         (self, e_co_ctxs, m);
-      | None => failwith("unimplemented")
+      | None =>
+        let (ps', _) =
+          map_m(
+            go_pat(
+              ~is_synswitch=false,
+              ~co_ctx=CoCtx.empty,
+              ~mode=Mode.Ana(scrut.ty),
+            ),
+            ps,
+            m,
+          );
+        let p_ctxs = List.map(Info.pat_ctx, ps');
+        let (es, m) =
+          List.fold_left2(
+            ((es, m), e, ctx) =>
+              go'(~ctx, ~mode, e, m) |> (((e, m)) => (es @ [e], m)),
+            ([], m),
+            es,
+            p_ctxs,
+          );
+        let e_tys = List.map(Info.exp_ty, es);
+        let e_co_ctxs =
+          List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es));
+        /* Add co-ctxs to patterns */
+        let (_, m) =
+          map_m(
+            ((p, co_ctx)) =>
+              go_pat(
+                ~is_synswitch=false,
+                ~co_ctx,
+                ~mode=Mode.Ana(scrut.ty),
+                p,
+              ),
+            List.combine(ps, e_co_ctxs),
+            m,
+          );
+        (Common(Self.match(ctx, e_tys, branch_ids)), e_co_ctxs, m);
       };
     add'(~self, ~co_ctx=CoCtx.union([scrut.co_ctx] @ e_co_ctxs), m);
   | TyAlias(typat, utyp, body) =>
