@@ -416,9 +416,9 @@ and uexp_to_info_map =
     );
   | Match(scrut, rules) =>
     let (scrut, m) = go(~mode=Syn, scrut, m);
-    let rules_to_info_map = (rules: list((UPat.t, UExp.t)), m) => {
-      let (ps, es) = List.split(rules);
-      let branch_ids = List.map(UExp.rep_id, es);
+    let (ps, es) = List.split(rules);
+    let branch_ids = List.map(UExp.rep_id, es);
+    let rules_to_info_map = (ps: list(UPat.t), es: list(UExp.t), m) => {
       // switch (scrut.ty) {
       // | Unknown(_) =>
       //   let (ps', _m) =
@@ -494,10 +494,9 @@ and uexp_to_info_map =
           (m, Constraint.Falsity),
           List.combine(ps, e_co_ctxs),
         );
-      (es, e_co_ctxs, branch_ids, final_constraint, m);
+      (es, e_co_ctxs, final_constraint, m);
     };
-    let (es, e_co_ctxs, branch_ids, final_constraint, m) =
-      rules_to_info_map(rules, m);
+    let (es, e_co_ctxs, final_constraint, m) = rules_to_info_map(ps, es, m);
     let e_tys = List.map(Info.exp_ty, es);
     let unwrapped_self: Self.exp =
       Common(Self.match(ctx, e_tys, branch_ids));
