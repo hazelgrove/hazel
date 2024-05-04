@@ -51,6 +51,8 @@ let mk_statics =
   let term = MakeTerm.from_zip_for_sem(editor.state.zipper) |> fst;
   let info_map = Interface.Statics.mk_map_ctx(settings.core, ctx_init, term);
   let error_ids =
-    Statics.Map.error_ids(editor.state.meta.term_ranges, info_map);
+    info_map
+    |> Id.Map.filter((id, info) => id == Info.id_of(info))
+    |> Statics.Map.error_ids(editor.state.meta.term_ranges);
   {term, info_map, error_ids};
 };
