@@ -236,7 +236,28 @@ module rec Typ: {
     switch (t1, t2) {
     | (Member(_, ty1), ty2) => eq_internal(n, ty1, ty2)
     | (ty1, Member(_, ty2)) => eq_internal(n, ty1, ty2)
-    | (Module(ctx1), Module(ctx2)) => List.equal((==), ctx1, ctx2)
+    | (Module(ctx1), Module(ctx2)) =>
+      let entry_equal = (e1: Ctx.entry, e2: Ctx.entry) => {
+        switch (e1, e2) {
+        | (
+            VarEntry({typ: t1, name: n1, _}),
+            VarEntry({typ: t2, name: n2, _}),
+          ) =>
+          eq_internal(n, t1, t2) && n1 == n2
+        | (
+            TVarEntry({kind: t1, name: n1, _}),
+            TVarEntry({kind: t2, name: n2, _}),
+          ) =>
+          t1 == t2 && n1 == n2
+        | (
+            ConstructorEntry({typ: t1, name: n1, _}),
+            ConstructorEntry({typ: t2, name: n2, _}),
+          ) =>
+          eq_internal(n, t1, t2) && n1 == n2
+        | _ => false
+        };
+      };
+      List.equal(entry_equal, ctx1, ctx2);
     | (Module(_), _) => false
     | (Rec(x1, t1), Rec(x2, t2))
     | (Forall(x1, t1), Forall(x2, t2)) =>

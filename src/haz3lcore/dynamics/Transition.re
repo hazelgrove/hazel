@@ -302,6 +302,12 @@ module Transition = (EV: EV_MODE) => {
           kind: DotAccess,
           value: false,
         })
+      | (_, Cast(d2', ty, ty')) =>
+        Step({
+          apply: () => Cast(Dot(d1, d2'), ty, ty'),
+          kind: CastAp,
+          value: false,
+        })
       | (Cast(d3', Module(ctx), Module(ctx')), BoundVar(name))
       | (Cast(d3', Module(ctx), Module(ctx')), Constructor(name)) =>
         let ty =

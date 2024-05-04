@@ -92,6 +92,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | Sequence(_)
     | Let(_)
     | Module(_)
+    | Dot(_)
     | FixF(_) => d
     /* Hole-like forms: Don't cast */
     | InvalidText(_)
@@ -106,7 +107,6 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | InvalidOperation(_) => d
     /* Normal cases: wrap */
     | BoundVar(_)
-    | Dot(_)
     | ModuleVal(_)
     | Ap(_)
     | ApBuiltin(_)
@@ -347,11 +347,6 @@ let rec dhexp_of_uexp =
       | Dot(e_mod, e_mem) =>
         let* e_mod = dhexp_of_uexp(m, e_mod);
         let+ e_mem = dhexp_of_uexp(m, e_mem);
-        let e_mem =
-          switch (e_mem) {
-          | Cast(e_mem, _, _) => e_mem
-          | _ => e_mem
-          };
         DHExp.Dot(e_mod, e_mem);
       | Ap(fn, arg)
       | Pipeline(arg, fn) =>

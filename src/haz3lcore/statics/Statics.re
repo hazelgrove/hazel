@@ -512,16 +512,18 @@ and uexp_to_info_map =
       m,
     );
   | Dot(e_mod, e_mem) =>
-    let (info_modul, m) = {
+    let (ty, m) = {
       let (info_modul, m) = go(~mode=Syn, e_mod, m);
       switch (e_mem.term, info_modul.ty) {
       | (Var(name), Unknown(_))
       | (Constructor(name), Unknown(_)) =>
-        go(~mode=Mode.Ana(Module.mk(name, UExp.rep_id(e_mem))), e_mod, m)
-      | _ => (info_modul, m)
+        let ty = Module.mk(name, UExp.rep_id(e_mem));
+        let (_, m) = go(~mode=Mode.Ana(ty), e_mod, m);
+        (ty, m);
+      | _ => (info_modul.ty, m)
       };
     };
-    switch (info_modul.ty) {
+    switch (ty) {
     | Module(inner_ctx) =>
       let (body, m) = go'(~ctx=inner_ctx, ~mode, e_mem, m);
       let m =
