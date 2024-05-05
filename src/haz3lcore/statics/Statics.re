@@ -440,24 +440,13 @@ and uexp_to_info_map =
     let e_tys = List.map(Info.exp_ty, es);
     let e_co_ctxs =
       List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es));
-    // | Unknown(_) =>
-    //   let (ps', _m) =
-    //     map_m(go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty), ps, m);
-    //   print_endline(
-    //     Typ.join_all(
-    //       ~empty=Unknown(Internal),
-    //       ctx,
-    //       List.map(Info.pat_ty, ps'),
-    //     )
-    //     == None
-    //       ? "some" : "none",
-    //   );
-    // | _ => ()
-    // };
-    // switch ()
     let scrut_ty =
       switch (scrut.ty) {
-      | Unknown(_) => None
+      | Unknown(_) =>
+        map_m(go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty), ps, m)
+        |> fst
+        |> List.map(Info.pat_ty)
+        |> Typ.join_all(~empty=Unknown(Internal), ctx)
       | ty => Some(ty)
       };
     let (self, m) =
