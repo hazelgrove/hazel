@@ -457,7 +457,7 @@ and uexp_to_info_map =
     // };
     // switch ()
     let scrut_ty = Some(scrut.ty);
-    let (self, e_co_ctxs, m) =
+    let (self, m) =
       switch (scrut_ty) {
       | Some(scrut_ty) =>
         let rules_to_info_map = (ps: list(UPat.t), scrut_ty: Typ.t, m) => {
@@ -507,7 +507,7 @@ and uexp_to_info_map =
         let is_exhaustive = Incon.is_exhaustive(final_constraint);
         let self =
           is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
-        (self, e_co_ctxs, m);
+        (self, m);
       | None =>
         /* Add co-ctxs to patterns */
         let (_, m) =
@@ -522,7 +522,7 @@ and uexp_to_info_map =
             List.combine(ps, e_co_ctxs),
             m,
           );
-        (Common(Self.match(ctx, e_tys, branch_ids)), e_co_ctxs, m);
+        (Common(Self.match(ctx, e_tys, branch_ids)), m);
       };
     add'(~self, ~co_ctx=CoCtx.union([scrut.co_ctx] @ e_co_ctxs), m);
   | TyAlias(typat, utyp, body) =>
