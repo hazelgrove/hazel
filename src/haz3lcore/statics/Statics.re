@@ -460,7 +460,7 @@ and uexp_to_info_map =
     let (self, m) =
       switch (scrut_ty) {
       | Some(scrut_ty) =>
-        let rules_to_info_map = (ps: list(UPat.t), scrut_ty: Typ.t, m) => {
+        let pats_to_info_map = (ps: list(UPat.t), m) => {
           /* Add co-ctxs to patterns */
           let (m, final_constraint) =
             List.fold_left(
@@ -469,7 +469,7 @@ and uexp_to_info_map =
                   go_pat(
                     ~is_synswitch=false,
                     ~co_ctx,
-                    ~mode=Mode.Ana(scrut_ty),
+                    ~mode=Mode.Ana(scrut.ty),
                     p,
                     m,
                   );
@@ -501,7 +501,7 @@ and uexp_to_info_map =
             );
           (final_constraint, m);
         };
-        let (final_constraint, m) = rules_to_info_map(ps, scrut_ty, m);
+        let (final_constraint, m) = pats_to_info_map(ps, m);
         let unwrapped_self: Self.exp =
           Common(Self.match(ctx, e_tys, branch_ids));
         let is_exhaustive = Incon.is_exhaustive(final_constraint);
