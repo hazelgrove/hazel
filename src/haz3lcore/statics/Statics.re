@@ -440,7 +440,7 @@ and uexp_to_info_map =
     let e_tys = List.map(Info.exp_ty, es);
     let e_co_ctxs =
       List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es));
-    let scrut_ty =
+    let constraint_ty =
       switch (scrut.ty) {
       | Unknown(_) =>
         map_m(go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty), ps, m)
@@ -450,8 +450,8 @@ and uexp_to_info_map =
       | ty => Some(ty)
       };
     let (self, m) =
-      switch (scrut_ty) {
-      | Some(scrut_ty) =>
+      switch (constraint_ty) {
+      | Some(constraint_ty) =>
         let pats_to_info_map = (ps: list(UPat.t), m) => {
           /* Add co-ctxs to patterns */
           let (m, final_constraint) =
@@ -461,7 +461,7 @@ and uexp_to_info_map =
                   go_pat(
                     ~is_synswitch=false,
                     ~co_ctx,
-                    ~mode=Mode.Ana(scrut_ty),
+                    ~mode=Mode.Ana(constraint_ty),
                     p,
                     m,
                   )
