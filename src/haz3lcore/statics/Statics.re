@@ -454,56 +454,54 @@ and uexp_to_info_map =
       | Some(constraint_ty) =>
         let pats_to_info_map = (ps: list(UPat.t), m) => {
           /* Add co-ctxs to patterns */
-          let (m, final_constraint) =
-            List.fold_left(
-              ((m, acc_constraint), (p, co_ctx)) => {
-                let p_constraint =
-                  go_pat(
-                    ~is_synswitch=false,
-                    ~co_ctx,
-                    ~mode=Mode.Ana(constraint_ty),
-                    p,
-                    m,
-                  )
-                  |> fst
-                  |> Info.pat_constraint;
-                let (p, m) =
-                  go_pat(
-                    ~is_synswitch=false,
-                    ~co_ctx,
-                    ~mode=Mode.Ana(scrut.ty),
-                    p,
-                    m,
-                  );
-                let is_redundant =
-                  Incon.is_redundant(p_constraint, acc_constraint);
-                let self = is_redundant ? Self.Redundant(p.self) : p.self;
-                let info =
-                  Info.derived_pat(
-                    ~upat=p.term,
-                    ~ctx=p.ctx,
-                    ~co_ctx=p.co_ctx,
-                    ~mode=p.mode,
-                    ~ancestors=p.ancestors,
-                    ~self,
-                    // Mark patterns as redundant at the top level
-                    // because redundancy doesn't make sense in a smaller context
-                    ~constraint_=p_constraint,
-                  );
-                (
-                  // Override the info for the single upat
-                  add_info(p.term.ids, InfoPat(info), m),
-                  is_redundant
-                    ? acc_constraint  // Redundant patterns are ignored
-                    : Constraint.Or(p_constraint, acc_constraint),
+          List.fold_left(
+            ((m, acc_constraint), (p, co_ctx)) => {
+              let p_constraint =
+                go_pat(
+                  ~is_synswitch=false,
+                  ~co_ctx,
+                  ~mode=Mode.Ana(constraint_ty),
+                  p,
+                  m,
+                )
+                |> fst
+                |> Info.pat_constraint;
+              let (p, m) =
+                go_pat(
+                  ~is_synswitch=false,
+                  ~co_ctx,
+                  ~mode=Mode.Ana(scrut.ty),
+                  p,
+                  m,
                 );
-              },
-              (m, Constraint.Falsity),
-              List.combine(ps, e_co_ctxs),
-            );
-          (final_constraint, m);
+              let is_redundant =
+                Incon.is_redundant(p_constraint, acc_constraint);
+              let self = is_redundant ? Self.Redundant(p.self) : p.self;
+              let info =
+                Info.derived_pat(
+                  ~upat=p.term,
+                  ~ctx=p.ctx,
+                  ~co_ctx=p.co_ctx,
+                  ~mode=p.mode,
+                  ~ancestors=p.ancestors,
+                  ~self,
+                  // Mark patterns as redundant at the top level
+                  // because redundancy doesn't make sense in a smaller context
+                  ~constraint_=p_constraint,
+                );
+              (
+                // Override the info for the single upat
+                add_info(p.term.ids, InfoPat(info), m),
+                is_redundant
+                  ? acc_constraint  // Redundant patterns are ignored
+                  : Constraint.Or(p_constraint, acc_constraint),
+              );
+            },
+            (m, Constraint.Falsity),
+            List.combine(ps, e_co_ctxs),
+          );
         };
-        let (final_constraint, m) = pats_to_info_map(ps, m);
+        let (m, final_constraint) = pats_to_info_map(ps, m);
         let unwrapped_self: Self.exp =
           Common(Self.match(ctx, e_tys, branch_ids));
         let is_exhaustive = Incon.is_exhaustive(final_constraint);
