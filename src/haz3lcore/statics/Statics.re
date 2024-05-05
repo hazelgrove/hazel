@@ -440,6 +440,8 @@ and uexp_to_info_map =
     let e_tys = List.map(Info.exp_ty, es);
     let e_co_ctxs =
       List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es));
+    let unwrapped_self: Self.exp =
+      Common(Self.match(ctx, e_tys, branch_ids));
     let constraint_ty =
       switch (scrut.ty) {
       | Unknown(_) =>
@@ -502,8 +504,6 @@ and uexp_to_info_map =
           );
         };
         let (m, final_constraint) = pats_to_info_map(ps, m);
-        let unwrapped_self: Self.exp =
-          Common(Self.match(ctx, e_tys, branch_ids));
         let is_exhaustive = Incon.is_exhaustive(final_constraint);
         let self =
           is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
@@ -522,7 +522,7 @@ and uexp_to_info_map =
             List.combine(ps, e_co_ctxs),
             m,
           );
-        (Common(Self.match(ctx, e_tys, branch_ids)), m);
+        (unwrapped_self, m);
       };
     add'(~self, ~co_ctx=CoCtx.union([scrut.co_ctx] @ e_co_ctxs), m);
   | TyAlias(typat, utyp, body) =>
