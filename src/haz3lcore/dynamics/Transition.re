@@ -40,8 +40,8 @@ open DH;
       - if all requirements are values, then the output will be a value
       - if some requirements are indet, then the output will be indet
 
-    A value is either a literal, or a function with a closure. (functions without
-    closures immediately inside them do not count as values).
+    A value is either a literal, or a function with a closure, or a type function.
+    (functions without closures immediately inside them do not count as values).
    */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -54,7 +54,9 @@ type step_kind =
   | FixUnwrap
   | FixClosure
   | UpdateTest
+  | TypFunAp
   | FunAp
+  | CastTypAp
   | CastAp
   | BuiltinWrap
   | BuiltinAp(string)
@@ -84,6 +86,9 @@ module CastHelpers = {
 
   let grounded_Arrow =
     NotGroundOrHole(Arrow(Unknown(Internal), Unknown(Internal)));
+  // TODO: Maybe the Forall should allow a hole in the variable position?
+  let grounded_Forall =
+    NotGroundOrHole(Forall("grounded_forall", Unknown(Internal)));
   let grounded_Prod = length =>
     NotGroundOrHole(
       Prod(ListUtil.replicate(length, Typ.Unknown(Internal))),
@@ -108,6 +113,7 @@ module CastHelpers = {
     | String
     | Var(_)
     | Rec(_)
+    | Forall(_, Unknown(_))
     | Arrow(Unknown(_), Unknown(_))
     | List(Unknown(_)) => Ground
     | Prod(tys) =>
@@ -125,6 +131,7 @@ module CastHelpers = {
       sm |> ConstructorMap.is_ground(is_ground_arg)
         ? Ground : grounded_Sum(sm)
     | Arrow(_, _) => grounded_Arrow
+    | Forall(_) => grounded_Forall
     | List(_) => grounded_List
     };
   };
@@ -224,6 +231,7 @@ module Transition = (EV: EV_MODE) => {
       and. d1' = req_final(req(state, env), d1 => Let1(dp, d1, d2), d1);
       let.match env' = (env, matches(dp, d1'));
       Step({apply: () => Closure(env', d2), kind: LetBind, value: false});
+    | TypFun(_)
     | Fun(_, _, Closure(_), _) =>
       let. _ = otherwise(env, d);
       Constructor;
@@ -265,6 +273,64 @@ module Transition = (EV: EV_MODE) => {
         kind: UpdateTest,
         value: true,
       });
+    | TypAp(d, tau) =>
+      let. _ = otherwise(env, d => TypAp(d, tau))
+      and. d' = req_value(req(state, env), d => TypAp(d, tau), d);
+      switch (d') {
+      | TypFun(utpat, tfbody, name) =>
+        /* Rule ITTLam */
+        switch (Term.UTPat.tyvar_of_utpat(utpat)) {
+        | Some(tyvar) =>
+          /* Perform substitution */
+          Step({
+            apply: () =>
+              DHExp.assign_name_if_none(
+                /* Inherit name for user clarity */
+                DHExp.ty_subst(tau, tyvar, tfbody),
+                Option.map(
+                  x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">",
+                  name,
+                ),
+              ),
+            kind: TypFunAp,
+            value: false,
+          })
+        | None =>
+          /* Treat a hole or invalid tyvar name as a unique type variable that doesn't appear anywhere else. Thus instantiating it at anything doesn't produce any substitutions. */
+          Step({
+            apply: () =>
+              DHExp.assign_name_if_none(
+                tfbody,
+                Option.map(
+                  x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">",
+                  name,
+                ),
+              ),
+            kind: TypFunAp,
+            value: false,
+          })
+        }
+      | Cast(d'', Forall(x, t), Forall(x', t')) =>
+        /* Rule ITTApCast */
+        Step({
+          apply: () =>
+            Cast(
+              TypAp(d'', tau),
+              Typ.subst(tau, x, t),
+              Typ.subst(tau, x', t'),
+            ),
+          kind: CastTypAp,
+          value: false,
+        })
+      | _ =>
+        Step({
+          apply: () => {
+            raise(EvaluatorError.Exception(InvalidBoxedTypFun(d')));
+          },
+          kind: InvalidStep,
+          value: true,
+        })
+      };
     | Ap(d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => Ap(d1, d2))
       and. d1' = req_value(req(state, env), d1 => Ap1(d1, d2), d1)
@@ -579,8 +645,7 @@ module Transition = (EV: EV_MODE) => {
     | EmptyHole(_)
     | FreeVar(_)
     | InvalidText(_)
-    | InvalidOperation(_)
-    | ExpandingKeyword(_) =>
+    | InvalidOperation(_) =>
       let. _ = otherwise(env, d);
       Indet;
     | Cast(d, t1, t2) =>
@@ -655,6 +720,7 @@ let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
   | LetBind
   | Sequence
   | UpdateTest
+  | TypFunAp
   | FunAp
   | BuiltinAp(_)
   | BinBoolOp(_)
@@ -669,6 +735,7 @@ let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
   | Conditional(_)
   | InvalidStep => false
   | VarLookup => !settings.show_lookup_steps
+  | CastTypAp
   | CastAp
   | Cast => !settings.show_casts
   | FixUnwrap => !settings.show_fixpoints
