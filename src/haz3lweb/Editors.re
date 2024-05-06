@@ -3,15 +3,6 @@ open Haz3lcore;
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type scratch = (int, list(ScratchSlide.state));
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type examples = (string, list((string, ScratchSlide.state)));
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type exercises = (int, list(Exercise.spec), Exercise.state);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Scratch(int, list(ScratchSlide.state))
   | Documentation(string, list((string, ScratchSlide.state)))
