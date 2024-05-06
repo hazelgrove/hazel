@@ -1,6 +1,6 @@
 module Prop = struct
   type t =
-    | PropVar of string
+    | Atom of string
     | And of t * t
     | Or of t * t
     | Imply of t * t
@@ -8,7 +8,7 @@ module Prop = struct
     | Falsity
 
   let rec repr = function
-    | PropVar s -> s
+    | Atom s -> s
     | And (a, b) -> Printf.sprintf "(%s ∧ %s)" (repr a) (repr b)
     | Or (a, b) -> Printf.sprintf "(%s ∨ %s)" (repr a) (repr b)
     | Imply (a, b) -> Printf.sprintf "(%s ⊃ %s)" (repr a) (repr b)
@@ -17,9 +17,9 @@ module Prop = struct
 
   let error_mismatch = Printf.sprintf "Expected %s, got %s"
 
-  let expect_PropVar = function
-    | PropVar s -> Ok s
-    | p -> Error (error_mismatch "PropVar" (repr p))
+  let expect_Atom = function
+    | Atom s -> Ok s
+    | p -> Error (error_mismatch "Atom" (repr p))
 
   let expect_And = function
     | And (a, b) -> Ok (a, b)
@@ -233,39 +233,43 @@ module Rule = struct
 end
 
 module Derivation = struct
-  type t = D of Judgement.t * Rule.t * t list
+  type t = D of d
+  and d = Judgement.t * Rule.t * t list
 
-  let rec repr (d : t) (indent : int) : string =
+  let rec repr_helper (indent : int) (d : t) : string =
     let indent_str = String.make indent ' ' in
     match d with
     | D (judgement, rule, derivations) ->
         Printf.sprintf "%s\n%s<%s>\n%s%s"
-          (repr_list derivations (indent + 2))
+          (repr_list (indent + 2) derivations)
           indent_str (Rule.repr rule) indent_str (Judgement.repr judgement)
 
-  and repr_list (ds : t list) (indent : int) : string =
-    String.concat "" (List.map (fun d -> repr d indent) ds)
+  and repr_list (indent : int) (ds : t list) : string =
+    String.concat "" (List.map (fun d -> repr_helper indent d) ds)
+
+  let repr = repr_helper 0
 end
 
 module MarkedDerivation = struct
-  type t =
-    | Correct of Judgement.t * Rule.t * t list
-    | Incorrect of Judgement.t * Rule.t * t list * string
+  type t = Correct of d | Incorrect of d * string
+  and d = Judgement.t * Rule.t * t list
 
-  let rec repr (d : t) (indent : int) : string =
+  let rec repr_helper (indent : int) (d : t) : string =
     let indent_str = String.make indent ' ' in
     match d with
     | Correct (judgement, rule, derivations) ->
         Printf.sprintf "%s\n%s<%s>✅\n%s%s"
-          (repr_list derivations (indent + 2))
+          (repr_list (indent + 2) derivations)
           indent_str (Rule.repr rule) indent_str (Judgement.repr judgement)
-    | Incorrect (judgement, rule, derivations, msg) ->
+    | Incorrect ((judgement, rule, derivations), msg) ->
         Printf.sprintf "%s\n%s<%s>❌[%s]\n%s%s"
-          (repr_list derivations (indent + 2))
+          (repr_list (indent + 2) derivations)
           indent_str (Rule.repr rule) msg indent_str (Judgement.repr judgement)
 
-  and repr_list (ds : t list) (indent : int) : string =
-    String.concat "" (List.map (fun d -> repr d indent) ds)
+  and repr_list (indent : int) (ds : t list) : string =
+    String.concat "" (List.map (fun d -> repr_helper indent d) ds)
+
+  let repr = repr_helper 0
 
   let rec all_correct : t -> bool = function
     | Correct (_, _, ds) -> List.for_all all_correct ds
@@ -277,8 +281,8 @@ module MarkedDerivation = struct
         let premises =
           List.map (function Derivation.D (j, _, _) -> j) derivations
         in
-        let marked_derivations = List.map mark derivations in
+        let marked = (conclusion, rule, List.map mark derivations) in
         match Rule.verify conclusion rule premises with
-        | None -> Correct (conclusion, rule, marked_derivations)
-        | Some msg -> Incorrect (conclusion, rule, marked_derivations, msg))
+        | None -> Correct marked
+        | Some msg -> Incorrect (marked, msg))
 end

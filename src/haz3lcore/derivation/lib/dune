@@ -1,4 +1,3 @@
 (library
- (name derivation)
- (public_name derivation)
- (modules derivation))
+ (name derivation_system)
+ (modules derivation abbreviation))
