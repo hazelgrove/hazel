@@ -483,7 +483,6 @@ let get_doc =
         );
       let syntactic_form_view =
         Cell.locked_no_statics(
-          ~target_id="explainThisSyntacticForm",
           ~inject,
           ~ui_state,
           ~segment=doc.syntactic_form,

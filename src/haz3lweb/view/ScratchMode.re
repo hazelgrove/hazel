@@ -1,6 +1,8 @@
 open Haz3lcore;
 
-type state = (Id.t, Editor.t);
+type editor_selection =
+  | MainEditor
+  | Stepper(int);
 
 let view =
     (
@@ -11,11 +13,11 @@ let view =
       ~results: ModelResults.t,
       ~result_key,
       ~statics as {error_ids, _}: CachedStatics.statics,
+      ~selected,
       editor: Editor.t,
     ) => {
   let result = ModelResults.lookup(results, result_key);
   let test_results = Util.OptUtil.and_then(ModelResult.test_results, result);
-  let target_id = "code-container";
   let footer =
     settings.core.elaborate || settings.core.dynamics
       ? result
@@ -35,11 +37,11 @@ let view =
       ~inject,
       ~ui_state,
       ~settings,
-      ~target_id,
       ~error_ids,
       ~test_results,
       ~footer?,
       ~highlights,
+      ~selected,
       editor,
     ),
   ];

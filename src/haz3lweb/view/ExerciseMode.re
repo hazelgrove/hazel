@@ -58,7 +58,8 @@ let view =
         this_pos,
       ) => {
     Cell.editor_view(
-      ~selected=pos == this_pos,
+      // TODO[Matt:] select steppers in school mode
+      ~selected=pos == this_pos ? Some(MainEditor) : None,
       ~error_ids=
         Statics.Map.error_ids(editor.state.meta.term_ranges, di.info_map),
       ~inject,
@@ -67,7 +68,6 @@ let view =
       ~settings,
       ~highlights,
       ~caption=Cell.caption(caption, ~rest=?subcaption),
-      ~target_id=Exercise.show_pos(this_pos),
       ~test_results=ModelResult.test_results(di.result),
       ~footer?,
       editor,

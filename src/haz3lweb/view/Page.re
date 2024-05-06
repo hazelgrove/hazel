@@ -88,6 +88,7 @@ let main_view =
         ~results,
         ~result_key,
         ~statics,
+        ~selected=Some(Cell.MainEditor),
         editor,
       );
     | Documentation(name, _) =>
@@ -105,6 +106,7 @@ let main_view =
           ~results,
           ~result_key,
           ~statics,
+          ~selected=Some(Cell.MainEditor),
           editor,
         );
     | Exercises(_, _, exercise) =>
