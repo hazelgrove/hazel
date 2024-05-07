@@ -4,10 +4,12 @@ include Sexplib.Std;
 type t('a) = {
   [@show.opaque]
   ids: list(Id.t),
+  [@show.opaque]
   /* UExp invariant: copied should always be false, and the id should be unique
      DHExp invariant: if copied is true, then this term and its children may not
-     have unique ids. */
-  [@show.opaque]
+     have unique ids. The flag is used to avoid deep-copying expressions during
+     evaluation, while keeping track of where we will need to replace the ids
+     at the end of evaluation to keep them unique.*/
   copied: bool,
   term: 'a,
 };
@@ -23,13 +25,3 @@ let fast_copy = (id, {term, _}) => {ids: [id], term, copied: true};
 let new_ids =
   fun
   | {ids: _, term, copied} => {ids: [Id.mk()], term, copied};
-
-// let serialization = (f1, f2) =>
-//   StructureShareSexp.structure_share_here(
-//     rep_id,
-//     sexp_of_t(f1),
-//     t_of_sexp(f2),
-//   );
-
-// let sexp_of_t = f1 => serialization(f1, Obj.magic()) |> fst;
-// let t_of_sexp = f2 => serialization(Obj.magic(), f2) |> snd;

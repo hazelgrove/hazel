@@ -36,10 +36,6 @@ let fresh_pat_cast = (p: DHPat.t, t1: Typ.t, t2: Typ.t): DHPat.t => {
   Typ.eq(t1, t2)
     ? p
     : {
-      let _ = print_endline("=====vvvvv===");
-      let _ = print_endline(Typ.show(t1));
-      let _ = print_endline(Typ.show(t2));
-      let _ = print_endline("=====^^^^^===");
       Cast(
         DHPat.fresh(Cast(p, t1, Typ.mk_fast(Unknown(Internal))))
         |> Casts.pattern_fixup,

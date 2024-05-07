@@ -348,7 +348,7 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
 };
 
 /* REQUIRES NORMALIZED TYPES
-   Remove synswitches from t1 by maching against t2 */
+   Remove synswitches from t1 by matching against t2 */
 let rec match_synswitch = (t1: t, t2: t) => {
   let (term1, rewrap1) = unwrap(t1);
   switch (term1, term_of(t2)) {
