@@ -34,9 +34,6 @@ module Map = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Id.Map.t(Info.t);
 
-  // let (sexp_of_t, t_of_sexp) =
-  //   StructureShareSexp.structure_share_in(sexp_of_t, t_of_sexp);
-
   let error_ids = (term_ranges: TermRanges.t, info_map: t): list(Id.t) =>
     Id.Map.fold(
       (id, info, acc) =>

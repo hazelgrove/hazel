@@ -475,18 +475,6 @@ let rec apply =
         model.results
         |> ModelResults.find(key)
         |> ModelResult.step_forward(idx);
-      let _ = print_endline("Ouch");
-      let _ =
-        print_endline(
-          Stepper.show_stepper_state(
-            (
-              fun
-              | (Stepper(s): ModelResult.t) => s
-              | _ => failwith("")
-            )(r).
-              stepper_state,
-          ),
-        );
       Ok({...model, results: model.results |> ModelResults.add(key, r)});
     | StepperAction(key, StepBackward) =>
       let r =
