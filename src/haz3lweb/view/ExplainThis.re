@@ -1641,6 +1641,63 @@ let get_doc =
             ),
           TestExp.tests,
         );
+      // TODO(nishant): add explanation for Theorem(body) here in the style of Test above
+      // TODO(nishant): use p, def somehow (p, def, body)
+      // | Theorem(pat, def, body) =>
+      // let pat = bypass_parens_and_annot_pat(pat);
+      // let pat_id = List.nth(pat.ids, 0);
+      // let def_id = List.nth(def.ids, 0);
+      // let body_id = List.nth(body.ids, 0);
+      // let basic = group_id => {
+      //   get_message(
+      //     ~colorings=LetExp.let_base_exp_coloring_ids(~pat_id, ~def_id),
+      //     ~format=
+      //       Some(
+      //         msg =>
+      //           Printf.sprintf(
+      //             Scanf.format_from_string(msg, "%s%s"),
+      //             Id.to_string(def_id),
+      //             Id.to_string(pat_id),
+      //           ),
+      //       ),
+      //     group_id,
+      //   );
+      // };
+      // | Theorem(pat, def, body) =>
+      //   let pat = bypass_parens_and_annot_pat(pat);
+      //   let pat_id = List.nth(pat.ids, 0);
+      //   let def_id = List.nth(def.ids, 0);
+      //   let body_id = List.nth(body.ids, 0);
+      //   get_message(
+      //     ~colorings=LetExp.let_base_exp_coloring_ids(~pat_id, ~def_id),
+      //     ~format=
+      //       Some(
+      //         msg =>
+      //           Printf.sprintf(
+      //             Scanf.format_from_string(msg, "%s%s%s"),
+      //             Id.to_string(def_id),
+      //             Id.to_string(pat_id),
+      //             Id.to_string(body_id),
+      //           ),
+      //       ),
+      //     TestExp.tests,
+      //   );
+      | Theorem(_, _, body) =>
+        let body_id = List.nth(body.ids, 0);
+        get_message(
+          // TODO: add coloring for theorem
+          ~colorings=TestExp.test_exp_coloring_ids(~body_id),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s"),
+                  Id.to_string(body_id),
+                ),
+            ),
+          // TODO change below to Theorem equivalent
+          TestExp.tests,
+        );
       | Parens(term) => get_message_exp(term.term) // No Special message?
       | Cons(hd, tl) =>
         let hd_id = List.nth(hd.ids, 0);

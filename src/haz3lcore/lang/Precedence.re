@@ -31,8 +31,8 @@ let rule_arr = 19;
 let rule_pre = 20;
 let rule_sep = 21;
 let case_ = 22;
-
 let min = 23;
+let theorem_ = 24;
 
 let compare = (p1: t, p2: t): int =>
   (-1) * Int.compare((p1 :> int), (p2 :> int));

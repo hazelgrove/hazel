@@ -102,6 +102,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | BinFloatOp(_)
     | BinStringOp(_)
     | Test(_) => DHExp.cast(d, self_ty, ana_ty)
+    // | Theorem(_, _, _)
     };
   };
 
@@ -199,6 +200,7 @@ let rec dhexp_of_uexp =
       | Test(test) =>
         let+ dtest = dhexp_of_uexp(m, test);
         DHExp.Test(id, dtest);
+      | Theorem(_, _, _) => Some(DHExp.Tuple([]))
       | Filter(act, cond, body) =>
         let* dcond = dhexp_of_uexp(~in_filter=true, m, cond);
         let+ dbody = dhexp_of_uexp(m, body);

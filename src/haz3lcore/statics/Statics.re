@@ -274,6 +274,9 @@ and uexp_to_info_map =
   | Test(e) =>
     let (e, m) = go(~mode=Ana(Bool), e, m);
     add(~self=Just(Prod([])), ~co_ctx=e.co_ctx, m);
+  | Theorem(_, def, _) =>
+    let (def, m) = go(~mode=Syn, def, m);
+    add(~self=Just(Prod([])), ~co_ctx=def.co_ctx, m);
   | Filter(_, cond, body) =>
     let (cond, m) = go(~mode, cond, m, ~is_in_filter=true);
     let (body, m) = go(~mode, body, m);
