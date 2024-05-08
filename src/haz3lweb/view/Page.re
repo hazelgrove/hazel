@@ -78,7 +78,8 @@ let main_view =
     ExplainThis.get_color_map(~settings, ~explainThisModel, cursor_info);
   let editors_view =
     switch (editors) {
-    | Scratch(idx, _) =>
+    | Scratch(idx, ss) =>
+      let (sel, _) = List.nth(ss, idx);
       let result_key = ScratchSlide.scratch_key(string_of_int(idx));
       ScratchMode.view(
         ~inject,
@@ -88,10 +89,11 @@ let main_view =
         ~results,
         ~result_key,
         ~statics,
-        ~selected=Some(Cell.MainEditor),
+        ~selected=Some(sel),
         editor,
       );
-    | Documentation(name, _) =>
+    | Documentation(name, ss) =>
+      let (sel, _) = List.assoc(name, ss);
       let result_key = ScratchSlide.scratch_key(name);
       let info =
         SlideContent.get_content(editors)
@@ -106,7 +108,7 @@ let main_view =
           ~results,
           ~result_key,
           ~statics,
-          ~selected=Some(Cell.MainEditor),
+          ~selected=Some(sel),
           editor,
         );
     | Exercises(_, _, exercise) =>

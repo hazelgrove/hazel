@@ -767,3 +767,10 @@ and parenthesize_pat = (pat: Pat.t): Pat.t => {
   // TODO: patterns
   pat /* TODO: Ensure each expr has enough ids*/;
 };
+
+let exp_to_editor = (~inline, exp: Exp.t): Editor.t => {
+  let exp = parenthesize(exp);
+  let p = exp_to_pretty(~inline, exp);
+  let seg = p |> PrettySegment.select;
+  Editor.init(~read_only=true, Zipper.unzip(seg));
+};

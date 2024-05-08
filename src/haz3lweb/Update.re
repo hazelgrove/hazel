@@ -258,10 +258,11 @@ let switch_scratch_slide =
   };
 
 let switch_exercise_editor =
-    (editors: Editors.t, ~pos, ~instructor_mode): option(Editors.t) =>
+    (editors: Editors.t, ~pos, ~sel, ~instructor_mode): option(Editors.t) =>
   switch (editors) {
   | Documentation(_)
-  | Scratch(_) => None
+  | Scratch(_) =>
+    Some(Editors.update_scratch_state(((_, eds)) => (sel, eds), editors))
   | Exercises(m, specs, exercise) =>
     let exercise = Exercise.switch_editor(~pos, instructor_mode, ~exercise);
     //Note: now saving after each edit (delayed by 1 second) so no need to save here
@@ -369,9 +370,12 @@ let rec apply =
       | None => Error(FailedToSwitch)
       | Some(editors) => Model.save_and_return({...model, editors})
       }
-    | SwitchEditor(pos) =>
+    | SwitchEditor(pos, ed) =>
+      let _ = print_endline("Here!");
       let instructor_mode = model.settings.instructor_mode;
-      switch (switch_exercise_editor(model.editors, ~pos, ~instructor_mode)) {
+      switch (
+        switch_exercise_editor(model.editors, ~pos, ~sel=ed, ~instructor_mode)
+      ) {
       | None => Error(FailedToSwitch)
       | Some(editors) => Ok({...model, editors})
       };
@@ -494,6 +498,7 @@ let rec apply =
         |> ModelResults.find(key)
         |> ModelResult.step_backward(~settings=model.settings.core.evaluation);
       Ok({...model, results: model.results |> ModelResults.add(key, r)});
+    | StepperAction(key, HideStepper)
     | ToggleStepper(key) =>
       Ok({
         ...model,

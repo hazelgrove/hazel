@@ -132,7 +132,7 @@ let rec evaluate = (state, env, d) => {
   };
 };
 
-let evaluate = (env, {d}: Elaborator.Elaboration.t) => {
+let evaluate = (env, {d, _}: Elaborator.Elaboration.t) => {
   let state = ref(EvaluatorState.init);
   let env = ClosureEnvironment.of_environment(env);
   let result = evaluate(state, env, d);

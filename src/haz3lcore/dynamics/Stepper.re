@@ -13,7 +13,7 @@ type stepper_state =
   | StepTimeout(EvalObj.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type history = Aba.t((DHExp.t, EvaluatorState.t), step);
+type history = Aba.t((DHExp.t, Editor.t, EvaluatorState.t), step);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
@@ -195,15 +195,17 @@ let should_hide_step = (~settings, x: step): (FilterAction.action, step) =>
   };
 
 let get_elab = ({history, _}: t): Elaborator.Elaboration.t => {
-  let (d, _) = Aba.last_a(history);
+  let (d, _, _) = Aba.last_a(history);
   {d: d};
 };
 
 let get_next_steps = s => s.next_options;
 
-let current_expr = ({history, _}: t) => Aba.hd(history) |> fst;
+let current_expr = ({history, _}: t) =>
+  Aba.hd(history) |> (((x, _, _)) => x);
 
-let current_state = ({history, _}: t) => Aba.hd(history) |> snd;
+let current_state = ({history, _}: t) =>
+  Aba.hd(history) |> (((_, _, x)) => x);
 
 let step_pending = (idx: int, stepper: t) => {
   {...stepper, stepper_state: StepPending(idx)};
@@ -211,8 +213,9 @@ let step_pending = (idx: int, stepper: t) => {
 
 let init = ({d}: Elaborator.Elaboration.t) => {
   let state = EvaluatorState.init;
+  let editor = ExpToSegment.exp_to_editor(~inline=false, d);
   {
-    history: Aba.singleton((d, state)),
+    history: Aba.singleton((d, editor, state)),
     next_options: decompose(d, state),
     stepper_state: StepperReady,
   };
@@ -234,7 +237,7 @@ let rec evaluate_pending = (~settings, s: t) => {
     };
   | StepPending(i) =>
     let eo = List.nth(s.next_options, i);
-    let (d, state) = Aba.hd(s.history);
+    let (d, _, state) = Aba.hd(s.history);
     let state_ref = ref(state);
     let d_loc' =
       (
@@ -255,8 +258,9 @@ let rec evaluate_pending = (~settings, s: t) => {
       state,
     };
     let new_state = state_ref^;
+    let editor = ExpToSegment.exp_to_editor(~inline=false, d');
     {
-      history: s.history |> Aba.cons((d', new_state), new_step),
+      history: s.history |> Aba.cons((d', editor, new_state), new_step),
       stepper_state: StepperReady,
       next_options: decompose(d', new_state),
     }
@@ -297,7 +301,10 @@ let step_backward = (~settings, s: t) => {
     |> Option.value(~default=s.history);
   {
     history: h',
-    next_options: decompose(Aba.hd(h') |> fst, Aba.hd(h') |> snd),
+    next_options: {
+      let (d, _, st) = Aba.hd(h');
+      decompose(d, st);
+    },
     stepper_state: StepperDone,
   };
 };
@@ -347,9 +354,9 @@ let get_justification: step_kind => string =
   | UnOp(Meta(Unquote)) => failwith("INVALID STEP");
 
 type step_info = {
-  d: DHExp.t,
+  hidden_history:
+    Aba.t((DHExp.t, Editor.t, EvaluatorState.t), (step, Id.t)),
   chosen_step: option(step), // The step that was taken next
-  hidden_steps: list((step, Id.t)), // The hidden steps between previous_step and the current one (an Id in included because it may have changed since the step was taken)
   previous_step: option((step, Id.t)) // The step that will be displayed above this one (an Id in included because it may have changed since the step was taken)
 };
 
@@ -357,39 +364,48 @@ let get_history = (~settings, stepper) => {
   let should_skip_step = step =>
     step |> should_hide_step(~settings) |> fst == Eval;
   let grouped_steps =
-    stepper.history
-    |> Aba.fold_right(
-         ((d, _), step, result) =>
-           if (should_skip_step(step)) {
-             Aba.map_hd(((_, hs)) => (d, [step, ...hs]), result);
-           } else {
-             Aba.cons((d, []), step, result);
-           },
-         ((d, _)) => Aba.singleton((d, [])),
-       );
+    Aba.fold_right(
+      ((d, editor, state), step, result) =>
+        if (should_skip_step(step)) {
+          Aba.map_hd(Aba.cons((d, editor, state), step), result);
+        } else {
+          Aba.cons(Aba.singleton((d, editor, state)), step, result);
+        },
+      ((d, editor, state)) =>
+        Aba.singleton(Aba.singleton((d, editor, state))),
+      stepper.history,
+    );
   let replace_id = (x, y, (s, z)) => (s, x == z ? y : z);
   let track_ids =
       (
         (
           chosen_step: option(step),
-          (d: DHExp.t, hidden_steps: list(step)),
+          hidden_history: history,
           previous_step: option(step),
         ),
       ) => {
-    let (previous_step, hidden_steps) =
-      List.fold_left(
-        ((ps, hs), h: step) => {
+    let (previous_step, hidden_history) =
+      Aba.fold_left(
+        x =>
+          (
+            Option.map(x => (x, x.d_loc' |> DHExp.rep_id), previous_step),
+            Aba.singleton(x),
+          ),
+        ((ps, hh), h: step, hs) => {
           let replacement =
             replace_id(h.d_loc |> DHExp.rep_id, h.d_loc' |> DHExp.rep_id);
           (
             Option.map(replacement, ps),
-            [(h, h.d_loc' |> DHExp.rep_id), ...List.map(replacement, hs)],
+            Aba.cons(
+              hs,
+              (h, h.d_loc' |> DHExp.rep_id),
+              Aba.map_b(replacement, hh),
+            ),
           );
         },
-        (Option.map(x => (x, x.d_loc' |> DHExp.rep_id), previous_step), []),
-        hidden_steps,
+        hidden_history,
       );
-    {d, previous_step, hidden_steps, chosen_step};
+    {hidden_history, previous_step, chosen_step};
   };
   let padded = grouped_steps |> Aba.bab_triples;
   let result = padded |> List.map(track_ids);
@@ -398,16 +414,15 @@ let get_history = (~settings, stepper) => {
 };
 
 let hidden_steps_of_info = (info: step_info): list(step_info) => {
-  // note the previous_step field is fudged because it is currently usused.next_options
+  // note the previous_step field is fudged because it is currently usused.
   List.map(
-    ((hs: step, _)) =>
+    ((pre, (hs, _), _)) =>
       {
-        d: hs.d,
         chosen_step: Some(hs),
-        hidden_steps: [],
+        hidden_history: Aba.singleton(pre),
         previous_step: None,
       },
-    info.hidden_steps,
+    info.hidden_history |> Aba.aba_triples,
   );
 };
 
@@ -433,8 +448,10 @@ let from_persistent: persistent => t =
   ({history}) => {
     {
       history,
-      next_options:
-        decompose(Aba.hd(history) |> fst, Aba.hd(history) |> snd),
+      next_options: {
+        let (d, _, state) = Aba.hd(history);
+        decompose(d, state);
+      },
       stepper_state: StepperDone,
     };
   };

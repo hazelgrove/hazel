@@ -1,9 +1,5 @@
 open Haz3lcore;
 
-type editor_selection =
-  | MainEditor
-  | Stepper(int);
-
 let view =
     (
       ~inject,
@@ -28,6 +24,12 @@ let view =
                ~inject,
                ~ui_state,
                ~result,
+               ~selected=
+                 switch (selected) {
+                 | Some(ScratchSlide.Stepper(i)) => Some(i)
+                 | Some(ScratchSlide.Evaluation) => Some(0)
+                 | _ => None
+                 },
                ~result_key,
              )
            )
