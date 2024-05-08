@@ -1,12 +1,7 @@
 open Haz3lcore;
 open Virtual_dom.Vdom;
-open Sexplib.Std;
 open Node;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type editor_selection =
-  | MainEditor
-  | Stepper(int);
+open Util;
 
 let narrative_cell = (content: Node.t) =>
   div(
@@ -42,31 +37,64 @@ let status_of: ProgramResult.t => string =
 
 let live_eval =
     (
-      ~inject,
-      ~ui_state as {font_metrics, _}: Model.ui_state,
+      ~inject: UpdateAction.t => Ui_effect.t(unit),
+      ~ui_state,
       ~result_key: string,
       ~settings: Settings.t,
+      ~selected,
       ~locked,
       result: ModelResult.eval_result,
     ) => {
   open Node;
-  let dhexp =
+  let editor =
     switch (result.evaluation, result.previous) {
-    | (ResultOk(res), _) => ProgramResult.get_dhexp(res)
-    | (ResultPending, ResultOk(res)) => ProgramResult.get_dhexp(res)
-    | _ => result.elab.d
+    | (ResultOk(res), _) => res.editor
+    | (ResultPending, ResultOk(res)) => res.editor
+    | _ => result.elab.d |> ExpToSegment.exp_to_editor(~inline=false)
     };
-  let dhcode_view =
-    DHCode.view(
-      ~locked,
-      ~inject,
+  let inject': CodeEditor.event => Ui_effect.t(unit) =
+    fun
+    | MakeActive =>
+      {
+        SwitchEditor(YourImpl, Evaluation);
+      }
+      |> inject
+    | MouseUp => SetMeta(Mouseup) |> inject
+    | DragTo(point) =>
+      PerformAction(Select(Resize(Goal(Point(point))))) |> inject
+    | MouseDown(point) =>
+      Effect.Many(
+        [
+          SetMeta(Mousedown),
+          SwitchEditor(YourImpl, Evaluation),
+          PerformAction(Move(Goal(Point(point)))),
+        ]
+        |> List.map(inject),
+      )
+    | JumpToBindingSiteOf(point) =>
+      Effect.Many(
+        [
+          PerformAction(Move(Goal(Point(point)))),
+          SwitchEditor(YourImpl, Evaluation),
+          PerformAction(Jump(BindingSiteOfIndicatedVar)),
+        ]
+        |> List.map(inject),
+      )
+    | DoubleClick => PerformAction(Select(Tile(Current))) |> inject
+    | TripleClick => PerformAction(Select(Smart)) |> inject;
+  let code_view =
+    CodeEditor.view(
+      ~inject=inject',
+      ~ui_state,
       ~settings,
-      ~selected_hole_instance=None,
-      ~font_metrics,
-      ~width=80,
-      ~result_key,
-      ~infomap=Id.Map.empty,
-      dhexp,
+      ~selected,
+      ~locked,
+      ~test_results=None,
+      ~highlights=None,
+      ~error_ids=[],
+      ~overlayer=None,
+      ~sort=Sort.root,
+      editor,
     );
   let exn_view =
     switch (result.evaluation) {
@@ -88,7 +116,7 @@ let live_eval =
       ),
       div(
         ~attr=Attr.classes(["result", status_of(result.evaluation)]),
-        [dhcode_view],
+        [code_view],
       ),
       Widgets.toggle(~tooltip="Show Stepper", "s", false, _ =>
         inject(UpdateAction.ToggleStepper(result_key))
@@ -99,37 +127,73 @@ let live_eval =
 
 let stepper_view =
     (
-      ~inject,
+      ~inject: UpdateAction.stepper_action => Ui_effect.t(unit),
+      ~inject_global: Update.t => Ui_effect.t(unit),
+      ~ui_state,
       ~settings,
-      ~font_metrics,
-      ~result_key,
       ~read_only: bool,
+      ~selected: option(int),
       stepper: Stepper.t,
     ) => {
   let step_dh_code =
       (
-        ~next_steps,
-        {previous_step, hidden_steps, chosen_step, d}: Stepper.step_info,
-      ) =>
+        ~next_steps as _,
+        ~selected: bool,
+        ~idx: int,
+        {previous_step: _, hidden_history, chosen_step: _}: Stepper.step_info,
+      ) => {
+    let (_, editor, _) = Aba.hd(hidden_history);
+    let _ = print_endline("idx" ++ string_of_int(idx));
     div(
       ~attr=Attr.classes(["result"]),
       [
-        DHCode.view(
-          ~inject,
+        CodeEditor.view(
+          ~inject=
+            fun
+            | MakeActive =>
+              {
+                SwitchEditor(YourImpl, Stepper(idx));
+              }
+              |> inject_global
+            | MouseUp => SetMeta(Mouseup) |> inject_global
+            | DragTo(point) =>
+              PerformAction(Select(Resize(Goal(Point(point)))))
+              |> inject_global
+            | MouseDown(point) =>
+              Effect.Many(
+                [
+                  SetMeta(Mousedown),
+                  SwitchEditor(YourImpl, Stepper(idx)),
+                  PerformAction(Move(Goal(Point(point)))),
+                ]
+                |> List.map(inject_global),
+              )
+            | JumpToBindingSiteOf(point) =>
+              Effect.Many(
+                [
+                  PerformAction(Move(Goal(Point(point)))),
+                  SwitchEditor(YourImpl, Stepper(idx)),
+                  PerformAction(Jump(BindingSiteOfIndicatedVar)),
+                ]
+                |> List.map(inject_global),
+              )
+            | DoubleClick =>
+              PerformAction(Select(Tile(Current))) |> inject_global
+            | TripleClick => PerformAction(Select(Smart)) |> inject_global,
+          ~ui_state,
           ~settings,
-          ~selected_hole_instance=None,
-          ~font_metrics,
-          ~width=80,
-          ~previous_step,
-          ~chosen_step,
-          ~hidden_steps,
-          ~result_key,
-          ~next_steps,
-          ~infomap=Id.Map.empty,
-          d,
+          ~selected,
+          ~locked=read_only,
+          ~test_results=None,
+          ~highlights=None,
+          ~error_ids=[],
+          ~overlayer=None,
+          ~sort=Sort.root,
+          editor,
         ),
       ],
     );
+  };
   let history =
     Stepper.get_history(~settings=settings.core.evaluation, stepper);
   switch (history) {
@@ -138,14 +202,14 @@ let stepper_view =
     let button_back =
       Widgets.button_d(
         Icons.undo,
-        inject(UpdateAction.StepperAction(result_key, StepBackward)),
+        inject(StepBackward),
         ~disabled=
           !Stepper.can_undo(~settings=settings.core.evaluation, stepper),
         ~tooltip="Step Backwards",
       );
     let button_hide_stepper =
       Widgets.toggle(~tooltip="Show Stepper", "s", true, _ =>
-        inject(UpdateAction.ToggleStepper(result_key))
+        inject(HideStepper)
       );
     let toggle_show_history =
       Widgets.toggle(
@@ -153,11 +217,11 @@ let stepper_view =
         "h",
         settings.core.evaluation.stepper_history,
         _ =>
-        inject(Set(Evaluation(ShowRecord)))
+        inject_global(Set(Evaluation(ShowRecord)))
       );
     let eval_settings =
       Widgets.button(Icons.gear, _ =>
-        inject(Set(Evaluation(ShowSettings)))
+        inject_global(Set(Evaluation(ShowSettings)))
       );
     let current =
       div(
@@ -165,7 +229,12 @@ let stepper_view =
         read_only
           ? [
             div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
-            step_dh_code(~next_steps=[], hd),
+            step_dh_code(
+              ~next_steps=[],
+              ~idx=0,
+              ~selected=selected == Some(0),
+              hd,
+            ),
           ]
           : [
             div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
@@ -176,6 +245,8 @@ let stepper_view =
                     (i, x.d_loc |> DHExp.rep_id),
                   Stepper.get_next_steps(stepper),
                 ),
+              ~idx=0,
+              ~selected=selected == Some(0),
               hd,
             ),
             button_back,
@@ -185,14 +256,8 @@ let stepper_view =
           ],
       );
     let dh_code_previous = step_dh_code;
-    let rec previous_step =
-            (~hidden: bool, step: Stepper.step_info): list(Node.t) => {
-      let hidden_steps =
-        settings.core.evaluation.show_hidden_steps
-          ? Stepper.hidden_steps_of_info(step)
-            |> List.rev_map(previous_step(~hidden=true))
-            |> List.flatten
-          : [];
+    let previous_step =
+        (~hidden: bool, ~idx, step: Stepper.step_info): list(Node.t) => {
       [
         div(
           ~attr=
@@ -201,7 +266,12 @@ let stepper_view =
             ),
           [
             div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
-            dh_code_previous(~next_steps=[], step),
+            dh_code_previous(
+              ~next_steps=[],
+              ~selected=Some(idx) == selected,
+              ~idx,
+              step,
+            ),
             div(
               ~attr=Attr.classes(["stepper-justification"]),
               step.chosen_step
@@ -212,30 +282,40 @@ let stepper_view =
             ),
           ],
         ),
-      ]
-      @ hidden_steps;
+      ];
     };
     (
       (
         settings.core.evaluation.stepper_history
-          ? List.map(previous_step(~hidden=false), tl)
-            |> List.flatten
-            |> List.rev_append(
-                 _,
-                 settings.core.evaluation.show_hidden_steps
-                   ? hd
-                     |> Stepper.hidden_steps_of_info
-                     |> List.map(previous_step(~hidden=true))
-                     |> List.flatten
-                   : [],
-               )
+          ? {
+            let steps: list((bool, Stepper.step_info)) =
+              List.map(
+                step =>
+                  [
+                    (false, step),
+                    ...settings.core.evaluation.show_hidden_steps
+                         ? Stepper.hidden_steps_of_info(step)
+                           |> List.map(x => (true, x))
+                         : [],
+                  ],
+                tl,
+              )
+              |> List.flatten;
+            List.mapi(
+              (idx, (hidden, step)) =>
+                previous_step(~hidden, ~idx=idx + 1, step),
+              steps,
+            )
+            |> List.flatten;
+          }
           : []
       )
       @ [current]
     )
     @ (
       settings.core.evaluation.show_settings
-        ? SettingsModal.view(~inject, settings.core.evaluation) : []
+        ? SettingsModal.view(~inject=inject_global, settings.core.evaluation)
+        : []
     );
   };
 };
@@ -244,24 +324,36 @@ let footer =
     (
       ~locked,
       ~inject,
-      ~ui_state as {font_metrics, _} as ui_state: Model.ui_state,
+      ~ui_state: Model.ui_state,
       ~settings: Settings.t,
       ~result: ModelResult.t,
+      ~selected: option(int),
       ~result_key,
     ) =>
   switch (result) {
   | _ when !settings.core.dynamics => []
   | NoElab => []
   | Evaluation(result) => [
-      live_eval(~locked, ~inject, ~ui_state, ~settings, ~result_key, result),
+      live_eval(
+        ~locked,
+        ~inject,
+        ~ui_state,
+        ~settings,
+        ~result_key,
+        ~selected=selected == Some(0),
+        result,
+      ),
     ]
   | Stepper(s) =>
     stepper_view(
-      ~inject,
+      ~inject=
+        stepper_action =>
+          inject(UpdateAction.StepperAction(result_key, stepper_action)),
+      ~inject_global=inject,
       ~settings,
-      ~font_metrics,
-      ~result_key,
+      ~ui_state,
       ~read_only=false,
+      ~selected,
       s,
     )
   };
@@ -272,7 +364,7 @@ let editor_view =
       ~ui_state: Model.ui_state,
       ~settings: Settings.t,
       ~mousedown_updates: list(Update.t)=[],
-      ~selected: option(editor_selection),
+      ~selected: option(ScratchSlide.editor_selection),
       ~locked=false,
       ~caption: option(Node.t)=?,
       ~test_results: option(TestResults.t),
@@ -283,6 +375,12 @@ let editor_view =
       ~sort=Sort.root,
       editor: Editor.t,
     ) => {
+  let _ =
+    switch (selected) {
+    | None => ()
+    | Some(selected) =>
+      print_endline(ScratchSlide.show_editor_selection(selected))
+    };
   let inject: CodeEditor.event => Ui_effect.t(unit) =
     if (locked) {
       _ => Effect.(Many([Prevent_default, Stop_propagation]));
@@ -322,14 +420,14 @@ let editor_view =
         Option.is_some(selected) ? "selected" : "deselected",
         locked ? "locked" : "unlocked",
       ]),
-    [
+    Option.to_list(caption)
+    @ [
       CodeEditor.view(
         ~inject,
         ~ui_state,
         ~settings,
         ~selected=selected == Some(MainEditor),
         ~locked,
-        ~caption,
         ~test_results,
         ~highlights,
         ~overlayer,
@@ -437,6 +535,7 @@ let locked =
           ~ui_state,
           ~result_key=target_id,
           ~result,
+          ~selected=None,
         )
       : [];
   editor_view(

@@ -32,7 +32,8 @@ type settings_action =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type stepper_action =
   | StepForward(int)
-  | StepBackward;
+  | StepBackward
+  | HideStepper;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type agent =
@@ -68,7 +69,7 @@ type t =
   | ResetCurrentEditor
   | InitImportAll([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
   | FinishImportAll(option(string))
-  | SwitchEditor(Exercise.pos) //exercisemode only
+  | SwitchEditor(Exercise.pos, ScratchSlide.editor_selection) //exercisemode only
   | SwitchDocumentationSlide(string) //examplemode only
   // editors: scratchmode only
   | InitImportScratchpad([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
@@ -209,7 +210,7 @@ let reevaluate_post_update: t => bool =
   | DebugConsole(_)
   | TAB
   | Benchmark(_) => false
-  | StepperAction(_, StepForward(_) | StepBackward)
+  | StepperAction(_, StepForward(_) | StepBackward | HideStepper)
   | ToggleStepper(_)
   | ReparseCurrentEditor
   | FinishImportAll(_)
@@ -250,7 +251,7 @@ let should_scroll_to_caret =
   | Assistant(Prompt(_))
   | UpdateResult(_)
   | ToggleStepper(_)
-  | StepperAction(_, StepBackward | StepForward(_)) => false
+  | StepperAction(_, StepBackward | StepForward(_) | HideStepper) => false
   | Assistant(AcceptSuggestion) => true
   | FinishImportScratchpad(_)
   | FinishImportAll(_)

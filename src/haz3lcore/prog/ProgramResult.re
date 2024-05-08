@@ -8,6 +8,7 @@ open Sexplib.Std;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type inner = {
   result: Evaluator.Result.t,
+  editor: Editor.t,
   state: EvaluatorState.t,
 };
 

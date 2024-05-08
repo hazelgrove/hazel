@@ -533,5 +533,3 @@ let mk =
   };
   go(d, env, enforce_inline, []);
 };
-
-let mk = exp => mk(exp |> ExpToSegment.parenthesize);

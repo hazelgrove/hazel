@@ -12,10 +12,10 @@ let get_editor = (editors: t): Editor.t =>
   switch (editors) {
   | Scratch(n, slides) =>
     assert(n < List.length(slides));
-    List.nth(slides, n);
+    List.nth(slides, n) |> snd;
   | Documentation(name, slides) =>
     assert(List.mem_assoc(name, slides));
-    List.assoc(name, slides);
+    List.assoc(name, slides) |> snd;
   | Exercises(_, _, exercise) => Exercise.editor_of_state(exercise)
   };
 
@@ -23,12 +23,32 @@ let put_editor = (ed: Editor.t, eds: t): t =>
   switch (eds) {
   | Scratch(n, slides) =>
     assert(n < List.length(slides));
-    Scratch(n, Util.ListUtil.put_nth(n, ed, slides));
+    Scratch(n, Util.ListUtil.map_nth(n, ((sel, _)) => (sel, ed), slides));
   | Documentation(name, slides) =>
     assert(List.mem_assoc(name, slides));
-    Documentation(name, slides |> ListUtil.update_assoc((name, ed)));
+    Documentation(
+      name,
+      slides
+      |> ListUtil.update_assoc((
+           name,
+           (List.assoc(name, slides) |> fst, ed),
+         )),
+    );
   | Exercises(n, specs, exercise) =>
     Exercises(n, specs, Exercise.put_editor(exercise, ed))
+  };
+
+let update_scratch_state =
+    (f: ScratchSlide.state => ScratchSlide.state, editors: t): t =>
+  switch (editors) {
+  | Scratch(n, slides) => Scratch(n, ListUtil.map_nth(n, f, slides))
+  | Documentation(str, slides) =>
+    Documentation(
+      str,
+      ListUtil.update_assoc((str, f(List.assoc(str, slides))), slides),
+    )
+  // TODO[Matt]: update exercises
+  | Exercises(_) => editors
   };
 
 let get_zipper = (editors: t): Zipper.t => get_editor(editors).state.zipper;

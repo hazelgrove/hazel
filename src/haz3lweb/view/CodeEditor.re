@@ -150,7 +150,6 @@ let view =
       ~settings: Settings.t,
       ~selected: bool=true,
       ~locked=false,
-      ~caption: option(Node.t),
       ~test_results: option(TestResults.t),
       ~highlights: option(ColorSteps.colorMap),
       ~overlayer: option(Node.t)=None,
@@ -188,6 +187,6 @@ let view =
         Attr.classes(["cell-item"]),
         Attr.on_mousedown(on_mousedown),
       ]),
-    Option.to_list(caption) @ mousedown_overlay @ [code_view],
+    mousedown_overlay @ [code_view],
   );
 };
