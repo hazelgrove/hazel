@@ -43,20 +43,21 @@ let extend_dummy_tvar = (ctx: t, tvar: TPat.t) =>
   | None => ctx
   };
 
-let lookup_tvar = (ctx: t, name: string): option(tvar_entry) =>
+let lookup_tvar = (ctx: t, name: string): option(kind) =>
   List.find_map(
     fun
-    | TVarEntry(v) when v.name == name => Some(v)
+    | TVarEntry(v) when v.name == name => Some(v.kind)
     | _ => None,
     ctx,
   );
 
-let lookup_alias = (ctx: t, t: string): option(TermBase.Typ.t) =>
-  switch (lookup_tvar(ctx, t)) {
-  | Some({kind: Singleton(ty), _}) => Some(ty)
-  | Some({kind: Abstract, _})
-  | None => None
-  };
+let lookup_tvar_id = (ctx: t, name: string): option(Id.t) =>
+  List.find_map(
+    fun
+    | TVarEntry(v) when v.name == name => Some(v.id)
+    | _ => None,
+    ctx,
+  );
 
 let get_id: entry => Id.t =
   fun
@@ -81,15 +82,25 @@ let lookup_ctr = (ctx: t, name: string): option(var_entry) =>
   );
 
 let is_alias = (ctx: t, name: string): bool =>
-  switch (lookup_alias(ctx, name)) {
-  | Some(_) => true
+  switch (lookup_tvar(ctx, name)) {
+  | Some(Singleton(_)) => true
+  | Some(Abstract)
   | None => false
   };
 
 let is_abstract = (ctx: t, name: string): bool =>
   switch (lookup_tvar(ctx, name)) {
-  | Some({kind: Abstract, _}) => true
-  | _ => false
+  | Some(Abstract) => true
+  | Some(Singleton(_))
+  | None => false
+  };
+
+let lookup_alias = (ctx: t, name: string): option(TermBase.Typ.t) =>
+  switch (lookup_tvar(ctx, name)) {
+  | Some(Singleton(ty)) => Some(ty)
+  | Some(Abstract) => None
+  | None =>
+    Some(TermBase.Typ.Unknown(Hole(Invalid(name))) |> IdTagged.fresh)
   };
 
 let add_ctrs = (ctx: t, name: string, id: Id.t, ctrs: TermBase.Typ.sum_map): t =>
@@ -165,4 +176,4 @@ let filter_duplicates = (ctx: t): t =>
   |> (((ctx, _, _)) => List.rev(ctx));
 
 let shadows_typ = (ctx: t, name: string): bool =>
-  Form.is_base_typ(name) || lookup_alias(ctx, name) != None;
+  Form.is_base_typ(name) || lookup_tvar(ctx, name) != None;

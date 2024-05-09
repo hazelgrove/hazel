@@ -218,13 +218,12 @@ type pat = {
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type typ = {
-  term: UTyp.t,
+  term: Typ.t,
   ancestors,
   ctx: Ctx.t,
   expects: typ_expects,
   cls: Cls.t,
   status: status_typ,
-  ty: Typ.t,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -423,9 +422,8 @@ let status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
    separate sort. It also determines semantic properties
    such as whether or not a type variable reference is
    free, and whether a ctr name is a dupe. */
-let status_typ =
-    (ctx: Ctx.t, expects: typ_expects, term: Typ.t, ty: Typ.t): status_typ =>
-  switch (term.term) {
+let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
+  switch (ty.term) {
   | Unknown(Hole(Invalid(token))) => InHole(BadToken(token))
   | Unknown(Hole(EmptyHole)) => NotInHole(Type(ty))
   | Var(name) =>
@@ -446,16 +444,15 @@ let status_typ =
       | true => NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
       }
     }
-  | Ap(t1, t2) =>
+  | Ap(t1, ty_in) =>
     switch (expects) {
     | VariantExpected(status_variant, ty_variant) =>
-      let ty_in = UTyp.to_typ(ctx, t2);
       switch (status_variant, t1.term) {
       | (Unique, Var(name)) =>
         NotInHole(Variant(name, Arrow(ty_in, ty_variant) |> Typ.temp))
       | _ =>
         NotInHole(VariantIncomplete(Arrow(ty_in, ty_variant) |> Typ.temp))
-      };
+      }
     | ConstructorExpected(_) => InHole(WantConstructorFoundAp)
     | TypeExpected => InHole(WantTypeFoundAp)
     }
@@ -497,8 +494,8 @@ let is_error = (ci: t): bool => {
     | InHole(_) => true
     | NotInHole(_) => false
     }
-  | InfoTyp({expects, ctx, term, ty, _}) =>
-    switch (status_typ(ctx, expects, term, ty)) {
+  | InfoTyp({expects, ctx, term, _}) =>
+    switch (status_typ(ctx, expects, term)) {
     | InHole(_) => true
     | NotInHole(_) => false
     }
@@ -593,9 +590,8 @@ let derived_typ = (~utyp: UTyp.t, ~ctx, ~ancestors, ~expects): typ => {
       Cls.Typ(Constructor)
     | (_, cls) => Cls.Typ(cls)
     };
-  let ty = UTyp.to_typ(ctx, utyp);
-  let status = status_typ(ctx, expects, utyp, ty);
-  {cls, ctx, ancestors, status, expects, ty, term: utyp};
+  let status = status_typ(ctx, expects, utyp);
+  {cls, ctx, ancestors, status, expects, term: utyp};
 };
 
 /* Add derivable attributes for type patterns */
@@ -617,8 +613,7 @@ let get_binding_site = (info: t): option(Id.t) => {
     let+ entry = Ctx.lookup_ctr(ctx, name);
     entry.id;
   | InfoTyp({term: {term: Var(name), _}, ctx, _}) =>
-    let+ entry = Ctx.lookup_tvar(ctx, name);
-    entry.id;
+    Ctx.lookup_tvar_id(ctx, name)
   | _ => None
   };
 };

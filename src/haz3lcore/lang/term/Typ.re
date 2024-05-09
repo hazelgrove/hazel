@@ -121,75 +121,6 @@ let rec is_forall = (typ: t) => {
   };
 };
 
-/* Converts a syntactic type into a semantic type, specifically
-   it adds implicit recursive types, and removes duplicate
-   constructors. */
-let rec to_typ: (Ctx.t, t) => t =
-  (ctx, utyp) => {
-    let (term, rewrap) = IdTagged.unwrap(utyp);
-    switch (term) {
-    | Unknown(_)
-    | Bool
-    | Int
-    | Float
-    | String => utyp
-    | Var(name) =>
-      switch (Ctx.lookup_tvar(ctx, name)) {
-      | Some(_) => Var(name) |> rewrap
-      | None => Unknown(Hole(Invalid(name))) |> rewrap
-      }
-    | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2)) |> rewrap
-    | Prod(us) => Prod(List.map(to_typ(ctx), us)) |> rewrap
-    | Sum(uts) => Sum(to_ctr_map(ctx, uts)) |> rewrap
-    | List(u) => List(to_typ(ctx, u)) |> rewrap
-    | Parens(u) => to_typ(ctx, u)
-    | Forall({term: Invalid(_), _} as tpat, tbody)
-    | Forall({term: EmptyHole, _} as tpat, tbody)
-    | Forall({term: MultiHole(_), _} as tpat, tbody) =>
-      Forall(tpat, to_typ(ctx, tbody)) |> rewrap
-    | Forall({term: Var(name), _} as utpat, tbody) =>
-      let ctx =
-        Ctx.extend_tvar(
-          ctx,
-          {name, id: IdTagged.rep_id(utpat), kind: Abstract},
-        );
-      Forall(utpat, to_typ(ctx, tbody)) |> rewrap;
-    | Rec({term: Invalid(_), _} as tpat, tbody)
-    | Rec({term: EmptyHole, _} as tpat, tbody)
-    | Rec({term: MultiHole(_), _} as tpat, tbody) =>
-      Rec(tpat, to_typ(ctx, tbody)) |> rewrap
-    | Rec({term: Var(name), _} as utpat, tbody) =>
-      let ctx =
-        Ctx.extend_tvar(
-          ctx,
-          {name, id: IdTagged.rep_id(utpat), kind: Abstract},
-        );
-      Rec(utpat, to_typ(ctx, tbody)) |> rewrap;
-    /* The below cases should occur only inside sums */
-    | Ap(_) => Unknown(Internal) |> rewrap
-    };
-  }
-and to_variant:
-  (Ctx.t, ConstructorMap.variant(t)) => ConstructorMap.variant(t) =
-  ctx =>
-    fun
-    | Variant(ctr, ids, u) =>
-      ConstructorMap.Variant(ctr, ids, Option.map(to_typ(ctx), u))
-    | BadEntry(u) => ConstructorMap.BadEntry(to_typ(ctx, u))
-and to_ctr_map = (ctx: Ctx.t, uts: list(ConstructorMap.variant(t))) => {
-  uts
-  |> List.map(to_variant(ctx))
-  |> ListUtil.dedup_f(
-       (x: ConstructorMap.variant(t), y: ConstructorMap.variant(t)) =>
-       switch (x, y) {
-       | (Variant(c1, _, _), Variant(c2, _, _)) => c1 == c2
-       | (Variant(_), BadEntry(_))
-       | (BadEntry(_), Variant(_))
-       | (BadEntry(_), BadEntry(_)) => false
-       }
-     );
-};
-
 /* Functions below this point assume that types have been through the to_typ function above */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -375,7 +306,7 @@ let rec match_synswitch = (t1: t, t2: t) => {
     Prod(tys) |> rewrap1;
   | (Prod(_), _) => t1
   | (Sum(sm1), Sum(sm2)) =>
-    let sm' = ConstructorMap.match_synswitch(match_synswitch, sm1, sm2);
+    let sm' = ConstructorMap.match_synswitch(match_synswitch, eq, sm1, sm2);
     Sum(sm') |> rewrap1;
   | (Sum(_), _) => t1
   };

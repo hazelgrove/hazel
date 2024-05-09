@@ -348,10 +348,9 @@ and uexp_to_info_map =
     let (fn, m) = go(~mode=typfn_mode, fn, m);
     let (_, m) = utyp_to_info_map(~ctx, ~ancestors, utyp, m);
     let (option_name, ty_body) = Typ.matched_forall(ctx, fn.ty);
-    let ty = Typ.to_typ(ctx, utyp);
     switch (option_name) {
     | Some(name) =>
-      add(~self=Just(Typ.subst(ty, name, ty_body)), ~co_ctx=fn.co_ctx, m)
+      add(~self=Just(Typ.subst(utyp, name, ty_body)), ~co_ctx=fn.co_ctx, m)
     | None => add(~self=Just(ty_body), ~co_ctx=fn.co_ctx, m) /* invalid name matches with no free type variables. */
     };
   | DeferredAp(fn, args) =>
@@ -537,21 +536,21 @@ and uexp_to_info_map =
          tentatively add an abtract type to the ctx, representing the
          speculative rec parameter. */
       let (ty_def, ctx_def, ctx_body) = {
-        let ty_pre = UTyp.to_typ(Ctx.extend_dummy_tvar(ctx, typat), utyp);
         switch (utyp.term) {
-        | Sum(_) when List.mem(name, Typ.free_vars(ty_pre)) =>
+        | Sum(_) when List.mem(name, Typ.free_vars(utyp)) =>
           /* NOTE: When debugging type system issues it may be beneficial to
              use a different name than the alias for the recursive parameter */
           //let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
           let ty_rec =
-            Typ.Rec(TPat.Var(name) |> IdTagged.fresh, ty_pre) |> Typ.temp;
+            Typ.Rec(TPat.Var(name) |> IdTagged.fresh, utyp) |> Typ.temp;
           let ctx_def =
             Ctx.extend_alias(ctx, name, TPat.rep_id(typat), ty_rec);
           (ty_rec, ctx_def, ctx_def);
-        | _ =>
-          let ty = UTyp.to_typ(ctx, utyp);
-          (ty, ctx, Ctx.extend_alias(ctx, name, TPat.rep_id(typat), ty));
-        };
+        | _ => (
+            utyp,
+            ctx,
+            Ctx.extend_alias(ctx, name, TPat.rep_id(typat), utyp),
+          )
         /* NOTE(yuchen): Below is an alternative implementation that attempts to
            add a rec whenever type alias is present. It may cause trouble to the
            runtime, so precede with caution. */
@@ -565,6 +564,7 @@ and uexp_to_info_map =
         //     let ty = Term.UTyp.to_typ(ctx, utyp);
         //     (ty, ctx, Ctx.add_alias(ctx, name, utpat_id(typat), ty));
         //   };
+        };
       };
       let ctx_body =
         switch (Typ.get_sum_constructors(ctx, ty_def)) {
@@ -683,8 +683,8 @@ and upat_to_info_map =
     add(~self=Just(ty_out), ~ctx=arg.ctx, m);
   | Cast(p, ann, _) =>
     let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
-    let (p, m) = go(~ctx, ~mode=Ana(ann.ty), p, m);
-    add(~self=Just(ann.ty), ~ctx=p.ctx, m);
+    let (p, m) = go(~ctx, ~mode=Ana(ann.term), p, m);
+    add(~self=Just(ann.term), ~ctx=p.ctx, m);
   };
 }
 and utyp_to_info_map =
@@ -726,25 +726,23 @@ and utyp_to_info_map =
     let m = map_m(go, ts, m) |> snd;
     add(m);
   | Ap(t1, t2) =>
-    let ty_in = UTyp.to_typ(ctx, t2);
     let t1_mode: Info.typ_expects =
       switch (expects) {
       | VariantExpected(m, sum_ty) =>
-        ConstructorExpected(m, Arrow(ty_in, sum_ty) |> Typ.temp)
+        ConstructorExpected(m, Arrow(t2, sum_ty) |> Typ.temp)
       | _ =>
         ConstructorExpected(
           Unique,
-          Arrow(ty_in, Unknown(Internal) |> Typ.temp) |> Typ.temp,
+          Arrow(t2, Unknown(Internal) |> Typ.temp) |> Typ.temp,
         )
       };
     let m = go'(~expects=t1_mode, t1, m) |> snd;
     let m = go'(~expects=TypeExpected, t2, m) |> snd;
     add(m);
   | Sum(variants) =>
-    let ty_sum = UTyp.to_typ(ctx, utyp);
     let (m, _) =
       List.fold_left(
-        variant_to_info_map(~ctx, ~ancestors, ~ty_sum),
+        variant_to_info_map(~ctx, ~ancestors, ~ty_sum=utyp),
         (m, []),
         variants,
       );
