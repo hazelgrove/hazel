@@ -130,6 +130,9 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     /* Any cast from unknown is indet */
     | (_, Cast(_, {term: Unknown(_), _}, _)) => IndetMatch
 
+    /* Any failed cast is indet */
+    | (_, FailedCast(_)) => IndetMatch
+
     /* Forms that are the wrong type of value - these cases indicate an error
        in elaboration or in the cast calculus. */
     | (
@@ -163,9 +166,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     /* Forms that are not yet or will never be a value */
     | (
         _,
-        Invalid(_) | EmptyHole | MultiHole(_) | DynamicErrorHole(_) |
-        FailedCast(_) |
-        Var(_) |
+        Invalid(_) | EmptyHole | MultiHole(_) | DynamicErrorHole(_) | Var(_) |
         Let(_) |
         Fun(_, _, _, None) |
         FixF(_) |

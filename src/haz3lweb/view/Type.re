@@ -95,7 +95,15 @@ let rec view_ty = (~strip_outer_parens=false, ty: Haz3lcore.Typ.t): Node.t =>
         ctr_view(t0) @ ts_views;
       },
     )
-  | Ap(_) => failwith("type application in view")
+  | Ap(_) =>
+    div(
+      ~attr=
+        Attr.many([
+          clss(["typ-view", "atom", "unknown"]),
+          Attr.title(Typ.show_type_provenance(Internal)),
+        ]),
+      [text("?") /*, prov_view(prov)*/],
+    )
   }
 and ctr_view =
   fun

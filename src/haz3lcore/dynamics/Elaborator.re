@@ -243,12 +243,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       |> cast_from(
            Ctx.lookup_ctr(ctx, c)
            |> Option.map((x: Ctx.var_entry) => x.typ |> Typ.normalize(ctx))
-           |> Option.value(
-                ~default=
-                  Typ.temp(
-                    Typ.Sum([BadEntry(Typ.temp(Unknown(Internal)))]),
-                  ),
-              ),
+           |> Option.value(~default=Typ.temp(Typ.Unknown(Internal))),
          )
     | Fun(p, e, env, n) =>
       let (p', typ) = elaborate_pattern(m, p);
