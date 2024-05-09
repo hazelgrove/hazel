@@ -2,9 +2,6 @@ open Haz3lcore;
 open ExplainThisForm;
 open Example;
 
-/* (A) Use this file as an example for adding a new form to ExplainThis.
- * You should be able to copy-paste this file and modify it to add a new form */
-
 let single = (~pat_id: Id.t, ~body_id: Id.t): Simple.t => {
   /* (B) You'll need to add new cases to ExplainThisForm.re for the new form
    * to represent a group_id and form_id. This Simple style is specialized

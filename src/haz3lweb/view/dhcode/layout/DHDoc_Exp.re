@@ -282,7 +282,6 @@ let mk =
           env,
         )
       | MultiHole(_ds) =>
-        //ds |> List.map(go') |> Doc.hcats
         DHDoc_common.mk_EmptyHole(
           ~selected=Some(DHExp.rep_id(d)) == selected_hole_instance,
           env,
