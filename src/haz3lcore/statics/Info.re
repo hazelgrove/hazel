@@ -325,11 +325,8 @@ let rec status_common =
     switch (
       Typ.join_fix(
         ctx,
-        Arrow(
-          Unknown(Internal) |> Typ.mk_fast,
-          Unknown(Internal) |> Typ.mk_fast,
-        )
-        |> Typ.mk_fast,
+        Arrow(Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp)
+        |> Typ.temp,
         ty,
       )
     ) {
@@ -340,8 +337,8 @@ let rec status_common =
     switch (
       Typ.join_fix(
         ctx,
-        Forall(Var("?") |> TPat.fresh, Unknown(Internal) |> Typ.mk_fast)
-        |> Typ.mk_fast,
+        Forall(Var("?") |> TPat.fresh, Unknown(Internal) |> Typ.temp)
+        |> Typ.temp,
         ty,
       )
     ) {
@@ -371,9 +368,9 @@ let rec status_common =
     }
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
   | (BadTrivAp(ty), _) => InHole(NoType(BadTrivAp(ty)))
-  | (IsMulti, _) => NotInHole(Syn(Unknown(Internal) |> Typ.mk_fast))
+  | (IsMulti, _) => NotInHole(Syn(Unknown(Internal) |> Typ.temp))
   | (NoJoin(wrap, tys), Ana(ana)) =>
-    let syn: Typ.t = Self.join_of(wrap, Unknown(Internal) |> Typ.mk_fast);
+    let syn: Typ.t = Self.join_of(wrap, Unknown(Internal) |> Typ.temp);
     switch (Typ.join_fix(ctx, ana, syn)) {
     | None => InHole(Inconsistent(Expectation({ana, syn})))
     | Some(_) =>
@@ -444,7 +441,7 @@ let status_typ =
       | false =>
         switch (Ctx.is_abstract(ctx, name)) {
         | false => InHole(FreeTypeVariable(name))
-        | true => NotInHole(Type(Var(name) |> Typ.mk_fast))
+        | true => NotInHole(Type(Var(name) |> Typ.temp))
         }
       | true => NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
       }
@@ -455,11 +452,9 @@ let status_typ =
       let ty_in = UTyp.to_typ(ctx, t2);
       switch (status_variant, t1.term) {
       | (Unique, Var(name)) =>
-        NotInHole(Variant(name, Arrow(ty_in, ty_variant) |> Typ.mk_fast))
+        NotInHole(Variant(name, Arrow(ty_in, ty_variant) |> Typ.temp))
       | _ =>
-        NotInHole(
-          VariantIncomplete(Arrow(ty_in, ty_variant) |> Typ.mk_fast),
-        )
+        NotInHole(VariantIncomplete(Arrow(ty_in, ty_variant) |> Typ.temp))
       };
     | ConstructorExpected(_) => InHole(WantConstructorFoundAp)
     | TypeExpected => InHole(WantTypeFoundAp)
@@ -527,26 +522,23 @@ let fixed_typ_ok: ok_pat => Typ.t =
 
 let fixed_typ_err_common: error_common => Typ.t =
   fun
-  | NoType(_) => Unknown(Internal) |> Typ.mk_fast
+  | NoType(_) => Unknown(Internal) |> Typ.temp
   | Inconsistent(Expectation({ana, _})) => ana
-  | Inconsistent(Internal(_)) => Unknown(Internal) |> Typ.mk_fast // Should this be some sort of meet?
+  | Inconsistent(Internal(_)) => Unknown(Internal) |> Typ.temp // Should this be some sort of meet?
   | Inconsistent(WithArrow(_)) =>
-    Arrow(
-      Unknown(Internal) |> Typ.mk_fast,
-      Unknown(Internal) |> Typ.mk_fast,
-    )
-    |> Typ.mk_fast;
+    Arrow(Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp)
+    |> Typ.temp;
 
 let fixed_typ_err: error_exp => Typ.t =
   fun
-  | FreeVariable(_) => Unknown(Internal) |> Typ.mk_fast
-  | UnusedDeferral => Unknown(Internal) |> Typ.mk_fast
-  | BadPartialAp(_) => Unknown(Internal) |> Typ.mk_fast
+  | FreeVariable(_) => Unknown(Internal) |> Typ.temp
+  | UnusedDeferral => Unknown(Internal) |> Typ.temp
+  | BadPartialAp(_) => Unknown(Internal) |> Typ.temp
   | Common(err) => fixed_typ_err_common(err);
 
 let fixed_typ_err_pat: error_pat => Typ.t =
   fun
-  | ExpectedConstructor => Unknown(Internal) |> Typ.mk_fast
+  | ExpectedConstructor => Unknown(Internal) |> Typ.temp
   | Common(err) => fixed_typ_err_common(err);
 
 let fixed_typ_pat = (ctx, mode: Mode.t, self: Self.pat): Typ.t =>
