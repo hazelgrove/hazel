@@ -56,6 +56,17 @@ let mk_form = (form_name: string, id, children): Piece.t => {
   });
 };
 
+/* HACK[Matt]: Sometimes terms that should have multiple ids won't because
+   evaluation only ever gives them one */
+let pad_ids = (n: int, ids: list(Id.t)): list(Id.t) => {
+  let len = List.length(ids);
+  if (len < n) {
+    ids @ List.init(n - len, _ => Id.mk());
+  } else {
+    ListUtil.split_n(n, ids) |> fst;
+  };
+};
+
 let (@) = (seg1: Segment.t, seg2: Segment.t): Segment.t =>
   switch (seg1, seg2) {
   | ([], _) => seg2
@@ -100,9 +111,12 @@ let rec exp_to_pretty = (~inline, exp: Exp.t): pretty => {
   | Deferral(_) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "deferral")
   | ListLit([x, ...xs]) =>
     // TODO: Add optional newlines
-    let (id, ids) = (exp.ids |> List.hd, exp.ids |> List.tl);
     let* x = go(x)
     and* xs = xs |> List.map(go) |> all;
+    let (id, ids) = (
+      exp.ids |> List.hd,
+      exp.ids |> List.tl |> pad_ids(List.length(xs)),
+    );
     let form = (x, xs) =>
       mk_form(
         "list_lit_exp",
@@ -170,15 +184,13 @@ let rec exp_to_pretty = (~inline, exp: Exp.t): pretty => {
     let+ tp = tpat_to_pretty(~inline, tp)
     and+ e = go(e);
     [mk_form("typfun", id, [tp])] @ e;
-  | Tuple([]) =>
-    let id = exp |> Exp.rep_id;
-    p_just([mk_form("ap_exp_empty", id, [])]);
+  | Tuple([]) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "()")
   | Tuple([_]) => failwith("Singleton Tuples are not allowed")
   | Tuple([x, ...xs]) =>
     // TODO: Add optional newlines
-    let ids = exp.ids;
     let+ x = go(x)
     and+ xs = xs |> List.map(go) |> all;
+    let ids = exp.ids |> pad_ids(List.length(xs));
     x
     @ List.flatten(
         List.map2((id, x) => [mk_form("comma_exp", id, [])] @ x, ids, xs),
@@ -225,9 +237,12 @@ let rec exp_to_pretty = (~inline, exp: Exp.t): pretty => {
     e @ [mk_form("ap_exp_typ", id, [tp])];
   | DeferredAp(e, es) =>
     // TODO: Add optional newlines
-    let (id, ids) = (exp.ids |> List.hd, exp.ids |> List.tl);
     let+ e = go(e)
     and+ es = es |> List.map(go) |> all;
+    let (id, ids) = (
+      exp.ids |> List.hd,
+      exp.ids |> List.tl |> pad_ids(List.length(es)),
+    );
     e
     @ [
       mk_form(
@@ -298,7 +313,6 @@ let rec exp_to_pretty = (~inline, exp: Exp.t): pretty => {
   | BuiltinFun(f) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, f)
   | Match(e, rs) =>
     // TODO: Add newlines
-    let (id, ids) = (exp.ids |> List.hd, exp.ids |> List.tl);
     let+ e = go(e)
     and+ rs: list(list((Segment.t, Segment.t))) = {
       rs
@@ -306,6 +320,10 @@ let rec exp_to_pretty = (~inline, exp: Exp.t): pretty => {
       |> List.map(((x, y)) => ListUtil.cross(x, y))
       |> all;
     };
+    let (id, ids) = (
+      exp.ids |> List.hd,
+      exp.ids |> List.tl |> pad_ids(List.length(rs)),
+    );
     [
       mk_form(
         "case",
@@ -343,9 +361,12 @@ and pat_to_pretty = (~inline, pat: Pat.t): pretty => {
   | Constructor(c) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, c)
   | ListLit([]) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "[]")
   | ListLit([x, ...xs]) =>
-    let (id, ids) = (pat.ids |> List.hd, pat.ids |> List.tl);
     let* x = go(x)
     and* xs = xs |> List.map(go) |> all;
+    let (id, ids) = (
+      pat.ids |> List.hd,
+      pat.ids |> List.tl |> pad_ids(List.length(xs)),
+    );
     p_just([
       mk_form(
         "list_lit_pat",
@@ -370,9 +391,9 @@ and pat_to_pretty = (~inline, pat: Pat.t): pretty => {
   | Tuple([]) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "()")
   | Tuple([_]) => failwith("Singleton Tuples are not allowed")
   | Tuple([x, ...xs]) =>
-    let ids = pat.ids;
     let+ x = go(x)
     and+ xs = xs |> List.map(go) |> all;
+    let ids = pat.ids |> pad_ids(List.length(xs));
     x
     @ List.flatten(
         List.map2((id, x) => [mk_form("comma_pat", id, [])] @ x, ids, xs),
@@ -438,7 +459,7 @@ and typ_to_pretty = (~inline, typ: Typ.t): pretty => {
     @ List.flatten(
         List.map2(
           (id, t) => [mk_form("comma_typ", id, [])] @ t,
-          typ.ids,
+          typ.ids |> pad_ids(ts |> List.length),
           ts,
         ),
       );
@@ -478,7 +499,7 @@ and typ_to_pretty = (~inline, typ: Typ.t): pretty => {
     @ List.flatten(
         List.map2(
           (id, t) => [mk_form("typ_plus", id, [])] @ t,
-          typ.ids,
+          typ.ids |> pad_ids(List.length(ts)),
           ts,
         ),
       );
