@@ -559,7 +559,7 @@ module Transition = (EV: EV_MODE) => {
             | Times => Int(n1 * n2)
             | Divide when n2 == 0 =>
               DynamicErrorHole(
-                BinOp(Int(op), d1', d1') |> rewrap,
+                BinOp(Int(op), d1', d2') |> rewrap,
                 DivideByZero,
               )
             | Divide => Int(n1 / n2)
