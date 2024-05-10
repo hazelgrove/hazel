@@ -564,7 +564,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | TyAlias(_)
   | Let(_) => Precedence.let_
 
-  // I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
+  // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
   | MultiHole(_) => Precedence.min
   };
 };
@@ -592,8 +592,37 @@ let external_precedence_pat = (dp: Pat.t) =>
   | Cast(_) => Precedence.ann
   | Tuple(_) => Precedence.prod
 
-  // I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
+  // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
   | MultiHole(_) => Precedence.min
+  };
+
+let exteral_precedence_typ = (tp: Typ.t) =>
+  switch (Typ.term_of(tp)) {
+  // Indivisible forms never need parentheses around them
+  | Unknown(Hole(Invalid(_)))
+  | Unknown(Internal)
+  | Unknown(SynSwitch)
+  | Unknown(Hole(EmptyHole))
+  | Var(_)
+  | Int
+  | Float
+  | Bool
+  | String => Precedence.max
+
+  // Same goes for forms which are already surrounded
+  | Parens(_)
+  | List(_) => Precedence.max
+
+  // Other forms
+  | Prod(_) => Precedence.prod
+  | Ap(_) => Precedence.ap
+  | Arrow(_, _) => Precedence.power
+  | Sum(_) => Precedence.plus
+  | Rec(_, _) => Precedence.let_
+  | Forall(_, _) => Precedence.let_
+
+  // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
+  | Unknown(Hole(MultiHole(_))) => Precedence.min
   };
 
 let paren_at = (internal_precedence: Precedence.t, exp: Exp.t): Exp.t =>
@@ -607,6 +636,20 @@ let paren_assoc_at = (internal_precedence: Precedence.t, exp: Exp.t): Exp.t =>
 let paren_pat_at = (internal_precedence: Precedence.t, pat: Pat.t): Pat.t =>
   external_precedence_pat(pat) >= internal_precedence
     ? Pat.fresh(Parens(pat)) : pat;
+
+let paren_pat_assoc_at =
+    (internal_precedence: Precedence.t, pat: Pat.t): Pat.t =>
+  external_precedence_pat(pat) > internal_precedence
+    ? Pat.fresh(Parens(pat)) : pat;
+
+let paren_typ_at = (internal_precedence: Precedence.t, typ: Typ.t): Typ.t =>
+  exteral_precedence_typ(typ) >= internal_precedence
+    ? Typ.fresh(Parens(typ)) : typ;
+
+let paren_typ_assoc_at =
+    (internal_precedence: Precedence.t, typ: Typ.t): Typ.t =>
+  exteral_precedence_typ(typ) > internal_precedence
+    ? Typ.fresh(Parens(typ)) : typ;
 
 let rec parenthesize = (exp: Exp.t): Exp.t => {
   let (term, rewrap) = Exp.unwrap(exp);
@@ -650,7 +693,7 @@ let rec parenthesize = (exp: Exp.t): Exp.t => {
     |> rewrap
   | ListLit(es) =>
     ListLit(
-      es |> List.map(parenthesize) |> List.map(paren_at(Precedence.concat)),
+      es |> List.map(parenthesize) |> List.map(paren_at(Precedence.prod)),
     )
     |> rewrap
   | Let(p, e1, e2) =>
@@ -677,7 +720,7 @@ let rec parenthesize = (exp: Exp.t): Exp.t => {
   | Ap(Forward, e1, e2) =>
     Ap(
       Forward,
-      parenthesize(e1) |> paren_at(Precedence.min),
+      parenthesize(e1) |> paren_assoc_at(Precedence.ap),
       parenthesize(e2) |> paren_at(Precedence.min),
     )
     |> rewrap
@@ -691,7 +734,7 @@ let rec parenthesize = (exp: Exp.t): Exp.t => {
   | TypAp(e, tp) =>
     TypAp(
       parenthesize(e) |> paren_assoc_at(Precedence.ap),
-      tp // TODO: Types
+      parenthesize_typ(tp) |> paren_typ_at(Precedence.min),
     )
     |> rewrap
   | DeferredAp(e, es) =>
@@ -764,8 +807,116 @@ let rec parenthesize = (exp: Exp.t): Exp.t => {
   };
 }
 and parenthesize_pat = (pat: Pat.t): Pat.t => {
-  // TODO: patterns
-  pat /* TODO: Ensure each expr has enough ids*/;
+  let (term, rewrap) = Pat.unwrap(pat);
+  switch (term) {
+  // Indivisible forms dont' change
+  | Var(_)
+  | Invalid(_)
+  | Bool(_)
+  | Int(_)
+  | Float(_)
+  | String(_)
+  | EmptyHole
+  | Constructor(_) => pat
+
+  // Other forms
+  | Wild => pat
+  | Parens(p) =>
+    Parens(parenthesize_pat(p) |> paren_pat_at(Precedence.min)) |> rewrap
+  | Cons(p1, p2) =>
+    Cons(
+      parenthesize_pat(p1) |> paren_pat_at(Precedence.cons),
+      parenthesize_pat(p2) |> paren_pat_assoc_at(Precedence.cons),
+    )
+    |> rewrap
+  | Tuple(ps) =>
+    Tuple(
+      ps
+      |> List.map(parenthesize_pat)
+      |> List.map(paren_pat_at(Precedence.prod)),
+    )
+    |> rewrap
+  | ListLit(ps) =>
+    ListLit(
+      ps
+      |> List.map(parenthesize_pat)
+      |> List.map(paren_pat_at(Precedence.prod)),
+    )
+    |> rewrap
+  | Ap(p1, p2) =>
+    Ap(
+      parenthesize_pat(p1) |> paren_pat_assoc_at(Precedence.ap),
+      parenthesize_pat(p2) |> paren_pat_at(Precedence.min),
+    )
+    |> rewrap
+  | MultiHole(_) => pat // TODO: Parenthesize through multiholes
+  | Cast(p, t1, t2) =>
+    Cast(
+      parenthesize_pat(p) |> paren_pat_assoc_at(Precedence.ann),
+      parenthesize_typ(t1) |> paren_typ_at(Precedence.max), // Hack[Matt]: always add parens to get the arrows right
+      parenthesize_typ(t2) |> paren_typ_at(Precedence.max),
+    )
+    |> rewrap
+  };
+}
+
+and parenthesize_typ = (typ: Typ.t): Typ.t => {
+  let (term, rewrap) = Typ.unwrap(typ);
+  switch (term) {
+  // Indivisible forms dont' change
+  | Var(_)
+  | Unknown(Hole(Invalid(_)))
+  | Unknown(Internal)
+  | Unknown(SynSwitch)
+  | Unknown(Hole(EmptyHole))
+  | Int
+  | Float
+  | Bool
+  | String => typ
+
+  // Other forms
+  | Parens(t) =>
+    Parens(parenthesize_typ(t) |> paren_typ_at(Precedence.min)) |> rewrap
+  | List(t) =>
+    List(parenthesize_typ(t) |> paren_typ_at(Precedence.min)) |> rewrap
+  | Prod(ts) =>
+    Prod(
+      ts
+      |> List.map(parenthesize_typ)
+      |> List.map(paren_typ_at(Precedence.prod)),
+    )
+    |> rewrap
+  | Ap(t1, t2) =>
+    Ap(
+      parenthesize_typ(t1) |> paren_typ_assoc_at(Precedence.ap),
+      parenthesize_typ(t2) |> paren_typ_at(Precedence.min),
+    )
+    |> rewrap
+  | Rec(tp, t) =>
+    Rec(tp, parenthesize_typ(t) |> paren_typ_assoc_at(Precedence.let_))
+    |> rewrap
+  | Forall(tp, t) =>
+    Forall(tp, parenthesize_typ(t) |> paren_typ_assoc_at(Precedence.let_))
+    |> rewrap
+  | Arrow(t1, t2) =>
+    Arrow(
+      parenthesize_typ(t1) |> paren_typ_at(Precedence.power),
+      parenthesize_typ(t2) |> paren_typ_assoc_at(Precedence.power),
+    )
+    |> rewrap
+  | Sum(ts) =>
+    Sum(
+      ConstructorMap.map(
+        ts =>
+          ts
+          |> Option.map(parenthesize_typ)
+          |> Option.map(paren_typ_at(Precedence.min)),
+        ts,
+      ),
+    )
+    |> rewrap
+  | Unknown(Hole(MultiHole(_))) => typ // TODO: Parenthesize through multiholes
+  };
 };
 
 let exp_to_editor = (~inline, exp: Exp.t): Editor.t => {

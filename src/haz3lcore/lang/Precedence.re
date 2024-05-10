@@ -47,6 +47,7 @@ let and_ = 11;
 let or_ = 12;
 // false || _____
 let ann = 13;
+// _____ : T
 let if_ = 14;
 let fun_ = 15;
 // fun x -> _____
