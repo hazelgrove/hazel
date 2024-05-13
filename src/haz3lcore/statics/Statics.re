@@ -46,7 +46,10 @@ module Map = {
          * when iterating over the info_map should have no
          * effect, beyond supressing the resulting Not_found exs */
         switch (Id.Map.find_opt(id, term_ranges)) {
-        | Some(_) when Info.is_error(info) => [id, ...acc]
+        | Some(_) when Info.is_error(info) && id == Info.id_of(info) => [
+            id,
+            ...acc,
+          ]
         | _ => acc
         },
       info_map,
@@ -64,21 +67,23 @@ let map_m = (f, xs, m: Map.t) =>
 let add_info = (ids: list(Id.t), info: Info.t, m: Map.t): Map.t =>
   ids |> List.fold_left((m, id) => Id.Map.add(id, info, m), m);
 
+let rec is_arrow_like = (t: Typ.t) => {
+  switch (t) {
+  | Unknown(_) => true
+  | Arrow(_) => true
+  | Forall(_, t) => is_arrow_like(t)
+  | _ => false
+  };
+};
+
 let is_recursive = (ctx, p, def, syn: Typ.t) => {
   switch (Term.UPat.get_num_of_vars(p), Term.UExp.get_num_of_functions(def)) {
   | (Some(num_vars), Some(num_fns))
       when num_vars != 0 && num_vars == num_fns =>
     switch (Typ.normalize(ctx, syn)) {
-    | Unknown(_)
-    | Arrow(_) => num_vars == 1
     | Prod(syns) when List.length(syns) == num_vars =>
-      syns
-      |> List.for_all(
-           fun
-           | Typ.Unknown(_)
-           | Arrow(_) => true
-           | _ => false,
-         )
+      syns |> List.for_all(is_arrow_like)
+    | t when is_arrow_like(t) => num_vars == 1
     | _ => false
     }
   | _ => false
@@ -237,6 +242,7 @@ and uexp_to_info_map =
       m,
     );
   | ListConcat(e1, e2) =>
+    let mode = Mode.of_list_concat(ctx, mode);
     let ids = List.map(Term.UExp.rep_id, [e1, e2]);
     let (e1, m) = go(~mode, e1, m);
     let (e2, m) = go(~mode, e2, m);
