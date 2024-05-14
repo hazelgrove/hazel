@@ -560,20 +560,9 @@ and Ctx: {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type constructor_entry = {
-    name: Var.t,
-    id: Id.t,
-    typ: Typ.t,
-    /* Temporary variables. Better implementation is a TO-DO. */
-    nth: int,
-    num_variants: int,
-  };
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
   type entry =
     | VarEntry(var_entry)
-    // | ConstructorEntry(var_entry, Constraint.t => Constraint.t) /* obselete because of dependency cycle */
-    | ConstructorEntry(constructor_entry)
+    | ConstructorEntry(var_entry)
     | TVarEntry(tvar_entry);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -587,7 +576,7 @@ and Ctx: {
   let lookup_alias: (t, TypVar.t) => option(Typ.t);
   let get_id: entry => Id.t;
   let lookup_var: (t, string) => option(var_entry);
-  let lookup_ctr: (t, string) => option(constructor_entry);
+  let lookup_ctr: (t, string) => option(var_entry);
   let is_alias: (t, TypVar.t) => bool;
   let is_abstract: (t, TypVar.t) => bool;
   let add_ctrs: (t, TypVar.t, Id.t, Typ.sum_map) => t;
@@ -611,20 +600,9 @@ and Ctx: {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type constructor_entry = {
-    name: Var.t,
-    id: Id.t,
-    typ: Typ.t,
-    /* Temporary variables. Better implementation is a TO-DO. */
-    nth: int,
-    num_variants: int,
-  };
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
   type entry =
     | VarEntry(var_entry)
-    // | ConstructorEntry(var_entry, Constraint.t => Constraint.t) /* obselete because of dependency cycle */
-    | ConstructorEntry(constructor_entry)
+    | ConstructorEntry(var_entry)
     | TVarEntry(tvar_entry);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -670,7 +648,7 @@ and Ctx: {
       ctx,
     );
 
-  let lookup_ctr = (ctx: t, name: string): option(constructor_entry) =>
+  let lookup_ctr = (ctx: t, name: string): option(var_entry) =>
     List.find_map(
       fun
       | ConstructorEntry(t) when t.name == name => Some(t)
@@ -690,61 +668,21 @@ and Ctx: {
     | _ => false
     };
 
-  let add_ctrs = (ctx: t, name: TypVar.t, id: Id.t, ctrs: Typ.sum_map): t => {
-    // let (ctx, _, _) =
-    //   List.fold_left(
-    //     ((ctx, nth, wrap), (ctr, typ)) => {
-    //       // List.length(ctrs) == 0: EmptyHole
-    //       // List.length(ctrs) == 1: Type variable not found
-    //       assert(List.length(ctrs) > 1);
-
-    //       // List.length(ctrs) == 2:
-    //       // nth == 0: xi => InjL(xi)
-    //       // nth == 1: xi => InjR(InjL(xi))
-    //       // nth == 2: xi => InjR(InjR(xi))
-    //       let constraint_ctor = xi =>
-    //         wrap(nth == List.length(ctrs) - 1 ? Constraint.InjL(xi) : xi);
-    //       let entry =
-    //         ConstructorEntry(
-    //           {
-    //             name: ctr,
-    //             id,
-    //             typ:
-    //               switch (typ) {
-    //               | None => Var(name)
-    //               | Some(typ) => Arrow(typ, Var(name))
-    //               },
-    //           },
-    //           constraint_ctor,
-    //         );
-    //       ([entry, ...ctx], nth + 1, xi => wrap(Constraint.InjR(xi)));
-    //     },
-    //     (ctx, 0, Fun.id),
-    //     ctrs,
-    //   );
-    let num_variants = List.length(ctrs);
-    let (ctx, _) =
-      List.fold_left(
-        ((ctx, nth), (ctr, typ)) => {
-          let entry =
-            ConstructorEntry({
-              name: ctr,
-              id,
-              typ:
-                switch (typ) {
-                | None => Var(name)
-                | Some(typ) => Arrow(typ, Var(name))
-                },
-              nth,
-              num_variants,
-            });
-          ([entry, ...ctx], nth + 1);
-        },
-        (ctx, 0),
-        ctrs,
-      );
-    ctx;
-  };
+  let add_ctrs = (ctx: t, name: TypVar.t, id: Id.t, ctrs: Typ.sum_map): t =>
+    List.map(
+      ((ctr, typ)) =>
+        ConstructorEntry({
+          name: ctr,
+          id,
+          typ:
+            switch (typ) {
+            | None => Var(name)
+            | Some(typ) => Arrow(typ, Var(name))
+            },
+        }),
+      ctrs,
+    )
+    @ ctx;
 
   let subtract_prefix = (ctx: t, prefix_ctx: t): option(t) => {
     // NOTE: does not check that the prefix is an actual prefix
