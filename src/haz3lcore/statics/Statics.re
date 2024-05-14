@@ -46,7 +46,10 @@ module Map = {
          * when iterating over the info_map should have no
          * effect, beyond supressing the resulting Not_found exs */
         switch (Id.Map.find_opt(id, term_ranges)) {
-        | Some(_) when Info.is_error(info) => [id, ...acc]
+        | Some(_) when Info.is_error(info) && id == Info.id_of(info) => [
+            id,
+            ...acc,
+          ]
         | _ => acc
         },
       info_map,
