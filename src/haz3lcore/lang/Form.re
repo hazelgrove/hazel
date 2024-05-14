@@ -321,7 +321,7 @@ let forms: list((string, t)) = [
   ("if_", mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))),
   (
     "theorem_",
-    // use same precedence for Theorem and Let
+    // use same precedence for Theorem and Let, using let_ directly
     mk(ds, ["theorem", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp])),
   ),
 ];
