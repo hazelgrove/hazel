@@ -407,8 +407,25 @@ and uexp_to_info_map =
       go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~mode=Syn, p, m);
     let (def, p_ana_ctx, m, ty_p_ana) =
       if (!is_recursive(ctx, p, def, p_syn.ty)) {
+        let (def, p) =
+          switch (check_annotated_function(p)) {
+          | Some((f_name, f_args, f_type)) =>
+            let def: UExp.t = {ids, term: UExp.Fun(f_args, def)};
+            let p: UPat.t =
+              switch (f_type.term) {
+              | EmptyHole => {ids, term: UPat.Var(f_name)}
+              | _ => {
+                  ids,
+                  term: UPat.TypeAnn({ids, term: UPat.Var(f_name)}, f_type),
+                }
+              };
+            (def, p);
+          | None => (def, p) // Use the original code
+          };
+
         let (def, m) = go(~mode=Ana(p_syn.ty), def, m);
         let ty_p_ana = def.ty;
+
         let (p_ana', _) =
           go_pat(
             ~is_synswitch=false,
@@ -423,11 +440,6 @@ and uexp_to_info_map =
           go'(~ctx=p_syn.ctx, ~mode=Ana(p_syn.ty), def, m);
         let ty_p_ana = def_base.ty;
         /* Analyze pattern to incorporate def type into ctx */
-
-        switch (check_annotated_function(p)) {
-        | Some((_, _, _)) => () // Do something else?
-        | None => () // Use the original code
-        };
 
         let (p_ana', _) =
           go_pat(
