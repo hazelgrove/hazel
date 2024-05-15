@@ -1,42 +1,24 @@
 open Sexplib.Std;
 open Haz3lcore;
 open Util;
+open OptUtil.Syntax;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type cell_selection =
+  | MainEditor
+  | Result(ModelResult.selection);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type selection =
+  | Scratch(cell_selection)
+  | Documentation(cell_selection)
+  | Exercises(Exercise.pos, cell_selection);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Scratch(int, list(ScratchSlide.state))
   | Documentation(string, list((string, ScratchSlide.state)))
   | Exercises(int, list(Exercise.spec), Exercise.state);
-
-let get_editor = (editors: t): Editor.t =>
-  switch (editors) {
-  | Scratch(n, slides) =>
-    assert(n < List.length(slides));
-    List.nth(slides, n) |> snd;
-  | Documentation(name, slides) =>
-    assert(List.mem_assoc(name, slides));
-    List.assoc(name, slides) |> snd;
-  | Exercises(_, _, exercise) => Exercise.editor_of_state(exercise)
-  };
-
-let put_editor = (ed: Editor.t, eds: t): t =>
-  switch (eds) {
-  | Scratch(n, slides) =>
-    assert(n < List.length(slides));
-    Scratch(n, Util.ListUtil.map_nth(n, ((sel, _)) => (sel, ed), slides));
-  | Documentation(name, slides) =>
-    assert(List.mem_assoc(name, slides));
-    Documentation(
-      name,
-      slides
-      |> ListUtil.update_assoc((
-           name,
-           (List.assoc(name, slides) |> fst, ed),
-         )),
-    );
-  | Exercises(n, specs, exercise) =>
-    Exercises(n, specs, Exercise.put_editor(exercise, ed))
-  };
 
 let update_scratch_state =
     (f: ScratchSlide.state => ScratchSlide.state, editors: t): t =>
@@ -50,8 +32,6 @@ let update_scratch_state =
   // TODO[Matt]: update exercises
   | Exercises(_) => editors
   };
-
-let get_zipper = (editors: t): Zipper.t => get_editor(editors).state.zipper;
 
 let get_ctx_init = (~settings as _: Settings.t, editors: t): Ctx.t =>
   switch (editors) {
@@ -68,16 +48,17 @@ let get_env_init = (~settings as _: Settings.t, editors: t): Environment.t =>
   };
 
 let mk_statics = (~settings: Settings.t, editors: t): CachedStatics.t => {
-  let editor = get_editor(editors);
   let ctx_init = get_ctx_init(~settings, editors);
   switch (editors) {
   | _ when !settings.core.statics => CachedStatics.mk([])
-  | Scratch(idx, _) =>
+  | Scratch(idx, slides) =>
     let key = ScratchSlide.scratch_key(string_of_int(idx));
+    let editor = List.nth(slides, idx);
     [(key, ScratchSlide.mk_statics(~settings, editor, ctx_init))]
     |> CachedStatics.mk;
-  | Documentation(name, _) =>
+  | Documentation(name, slides) =>
     let key = ScratchSlide.scratch_key(name);
+    let editor = List.assoc(name, slides);
     [(key, ScratchSlide.mk_statics(~settings, editor, ctx_init))]
     |> CachedStatics.mk;
   | Exercises(_, _, exercise) =>
@@ -86,18 +67,22 @@ let mk_statics = (~settings: Settings.t, editors: t): CachedStatics.t => {
 };
 
 let lookup_statics =
-    (~settings: Settings.t, ~statics, editors: t): CachedStatics.statics =>
-  switch (editors) {
+    (~settings: Settings.t, ~selection: selection, ~statics, editors: t)
+    : CachedStatics.statics =>
+  switch (editors, selection) {
   | _ when !settings.core.statics => CachedStatics.empty_statics
-  | Scratch(idx, _) =>
+  | (Scratch(idx, _), Scratch(_)) =>
     let key = ScratchSlide.scratch_key(string_of_int(idx));
     CachedStatics.lookup(statics, key);
-  | Documentation(name, _) =>
+  | (Documentation(name, _), Documentation(_)) =>
     let key = ScratchSlide.scratch_key(name);
     CachedStatics.lookup(statics, key);
-  | Exercises(_, _, exercise) =>
-    let key = Exercise.key_for_statics(exercise);
+  | (Exercises(_), Exercises(pos, _)) =>
+    let key = Exercise.key_for_statics(pos);
     CachedStatics.lookup(statics, key);
+  | (Exercises(_), _)
+  | (Documentation(_), _)
+  | (Scratch(_), _) => CachedStatics.empty_statics
   };
 
 /* Each mode (e.g. Scratch, School) requires
@@ -114,13 +99,23 @@ let get_spliced_elabs =
   | Scratch(idx, _) =>
     let key = ScratchSlide.scratch_key(idx |> string_of_int);
     let CachedStatics.{term, info_map, _} =
-      lookup_statics(~settings, ~statics, editors);
+      lookup_statics(
+        ~settings,
+        ~selection=Scratch(MainEditor),
+        ~statics,
+        editors,
+      );
     let d = Interface.elaborate(~settings=settings.core, info_map, term);
     [(key, {d: d})];
   | Documentation(name, _) =>
     let key = ScratchSlide.scratch_key(name);
     let CachedStatics.{term, info_map, _} =
-      lookup_statics(~settings, ~statics, editors);
+      lookup_statics(
+        ~settings,
+        ~selection=Documentation(MainEditor),
+        ~statics,
+        editors,
+      );
     let d = Interface.elaborate(~settings=settings.core, info_map, term);
     [(key, {d: d})];
   | Exercises(_, _, exercise) =>
@@ -189,3 +184,127 @@ let switch_example_slide = (editors: t, name: string): option(t) =>
     None
   | Documentation(_, slides) => Some(Documentation(name, slides))
   };
+
+let get_selected_editor =
+    (~selection: selection, editors: t, model_results: ModelResults.t) =>
+  switch (editors, selection) {
+  | (Documentation(name, slides), Documentation(MainEditor)) =>
+    List.assoc_opt(name, slides)
+  | (Documentation(n, _), Documentation(Result(selection))) =>
+    let key = ScratchSlide.scratch_key(n);
+    let* result = ModelResults.lookup(model_results, key);
+    ModelResult.get_selected_editor(~selection, result);
+  | (Documentation(_), _) => None
+  | (Scratch(idx, slides), Scratch(MainEditor)) =>
+    List.nth_opt(slides, idx)
+  | (Scratch(n, _), Scratch(Result(selection))) =>
+    let key = ScratchSlide.scratch_key(string_of_int(n));
+    let* result = ModelResults.lookup(model_results, key);
+    ModelResult.get_selected_editor(~selection, result);
+  | (Scratch(_), _) => None
+  | (Exercises(_, _, exercise), Exercises(selection, MainEditor)) =>
+    Some(Exercise.main_editor_of_state(~selection, exercise))
+  | (Exercises(_), Exercises(pos, Result(selection))) =>
+    let* result =
+      ModelResults.lookup(model_results, Exercise.key_for_statics(pos));
+    ModelResult.get_selected_editor(~selection, result);
+  | (Exercises(_), _) => None
+  };
+
+let put_selected_editor =
+    (
+      ~selection: selection,
+      editors: t,
+      model_results: ModelResults.t,
+      editor: Editor.t,
+    )
+    : (t, ModelResults.t) =>
+  switch (editors, selection) {
+  | (Documentation(name, slides), Documentation(MainEditor)) =>
+    let slides = ListUtil.update_assoc((name, editor), slides);
+    (Documentation(name, slides), model_results);
+  | (Documentation(n, _), Documentation(Result(selection))) =>
+    let key = ScratchSlide.scratch_key(n);
+    let results = {
+      let+ result = ModelResults.lookup(model_results, key);
+      let result =
+        ModelResult.put_selected_editor(~selection, result, editor);
+      ModelResults.put_result(key, result, model_results);
+    };
+    switch (results) {
+    | Some(results) => (editors, results)
+    | None => (editors, model_results)
+    };
+  | (Documentation(_), _) => (editors, model_results)
+  | (Scratch(idx, slides), Scratch(MainEditor)) =>
+    let slides = ListUtil.map_nth(idx, _ => editor, slides);
+    (Scratch(idx, slides), model_results);
+  | (Scratch(n, _), Scratch(Result(selection))) =>
+    let key = ScratchSlide.scratch_key(string_of_int(n));
+    let results = {
+      let+ result = ModelResults.lookup(model_results, key);
+      let result =
+        ModelResult.put_selected_editor(~selection, result, editor);
+      ModelResults.put_result(key, result, model_results);
+    };
+    switch (results) {
+    | Some(results) => (editors, results)
+    | None => (editors, model_results)
+    };
+  | (Scratch(_), _) => (editors, model_results)
+  | (Exercises(n, spec, exercise), Exercises(pos, MainEditor)) =>
+    let exercise = Exercise.put_main_editor(~selection=pos, exercise, editor);
+    (Exercises(n, spec, exercise), model_results);
+  | (Exercises(_), Exercises(pos, Result(selection))) =>
+    let key = Exercise.key_for_statics(pos);
+    let results = {
+      let+ result = ModelResults.lookup(model_results, key);
+      let result =
+        ModelResult.put_selected_editor(~selection, result, editor);
+      ModelResults.put_result(key, result, model_results);
+    };
+    switch (results) {
+    | Some(results) => (editors, results)
+    | None => (editors, model_results)
+    };
+  | (Exercises(_), _) => (editors, model_results)
+  };
+
+let update_selected_editor =
+    (
+      ~selection: option(selection),
+      f: Editor.t => Result.t(Editor.t, Action.Failure.t),
+      editors: t,
+      results: ModelResults.t,
+    )
+    : Result.t((t, ModelResults.t), Action.Failure.t) => {
+  switch (selection) {
+  | None => Ok((editors, results))
+  | Some(selection) =>
+    switch (get_selected_editor(~selection, editors, results)) {
+    | None => Ok((editors, results))
+    | Some(editor) =>
+      switch (f(editor)) {
+      | Ok(editor) =>
+        let (editors, results) =
+          put_selected_editor(~selection, editors, results, editor);
+        Ok((editors, results));
+      | Error(e) => Error(e)
+      }
+    }
+  };
+};
+
+let get_cursor_info =
+    (
+      ~selection: option(selection),
+      ~settings,
+      editors: t,
+      model_results: ModelResults.t,
+      statics: CachedStatics.t,
+    ) => {
+  let* selection = selection;
+  let statics = lookup_statics(~settings, ~selection, ~statics, editors);
+  let* editor = get_selected_editor(~selection, editors, model_results);
+  Indicated.ci_of(editor.state.zipper, statics.info_map);
+};

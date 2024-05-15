@@ -19,13 +19,12 @@ let is_action_logged: UpdateAction.t => bool =
   | Set(_)
   | SwitchScratchSlide(_)
   | SwitchDocumentationSlide(_)
-  | SwitchEditor(_)
+  | MakeActive(_)
   | ResetCurrentEditor
   | ReparseCurrentEditor
   | PerformAction(_)
   | Cut
   | Copy
-  | Paste(_)
   | Undo
   | Redo
   | MoveToNextHole(_)

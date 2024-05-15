@@ -135,20 +135,3 @@ let zipper_of_string =
   };
   str |> Util.StringUtil.to_list |> List.fold_left(insert, Some(zipper_init));
 };
-
-let paste_into_zip = (z: Zipper.t, str: string): option(Zipper.t) => {
-  /* HACK(andrew): These two perform calls are a hack to
-     deal with the fact that pasting something like "let a = b in"
-     won't trigger the barfing of the "in"; to trigger this, we
-     insert a space, and then we immediately delete it. */
-  let settings = CoreSettings.off;
-  let* z = zipper_of_string(~zipper_init=z, str);
-  switch (Perform.go_z(~settings, Insert(" "), z)) {
-  | Error(_) => None
-  | Ok(z) =>
-    switch (Perform.go_z(~settings, Destruct(Left), z)) {
-    | Error(_) => None
-    | Ok(z) => Some(z)
-    }
-  };
-};

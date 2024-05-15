@@ -1,5 +1,6 @@
 open Util;
 open Zipper;
+open OptUtil.Syntax;
 
 let is_write_action = (a: Action.t) => {
   switch (a) {
@@ -7,24 +8,27 @@ let is_write_action = (a: Action.t) => {
   | MoveToNextHole(_)
   | Unselect(_)
   | Jump(_)
-  | Select(_) => false
+  | Select(_)
+  | Suggest(_)
+  | ResetSuggestion => false
   | Destruct(_)
   | Insert(_)
   | Pick_up
   | Put_down
   | RotateBackpack
-  | MoveToBackpackTarget(_) => true
+  | MoveToBackpackTarget(_)
+  | Paste(_) => true
   };
 };
 
-let go_z =
-    (
-      ~meta: option(Editor.Meta.t)=?,
-      ~settings: CoreSettings.t,
-      a: Action.t,
-      z: Zipper.t,
-    )
-    : Action.Result.t(Zipper.t) => {
+let rec go_z =
+        (
+          ~meta: option(Editor.Meta.t)=?,
+          ~settings: CoreSettings.t,
+          a: Action.t,
+          z: Zipper.t,
+        )
+        : Action.Result.t(Zipper.t) => {
   let meta =
     switch (meta) {
     | Some(m) => m
@@ -181,8 +185,45 @@ let go_z =
   | MoveToBackpackTarget((Up | Down) as d) =>
     Move.to_backpack_target(d, z)
     |> Result.of_option(~error=Action.Failure.Cant_move)
+  | Paste(clipboard) =>
+    {
+      let* z = Printer.zipper_of_string(~zipper_init=z, clipboard);
+      let* z = go_z(~settings, Insert(" "), z) |> Result.ok;
+      let+ z = go_z(~settings, Destruct(Left), z) |> Result.ok;
+      z;
+    }
+    |> Result.of_option(~error=Action.Failure.Cant_paste)
+  | Suggest(content) =>
+    let z = Zipper.set_buffer(z, ~content, ~mode=Unparsed);
+    Ok(z);
+  | ResetSuggestion =>
+    switch (z.selection.mode) {
+    | Buffer(_) =>
+      switch (go_z(~settings, Destruct(Left), z)) {
+      | Error(_) => Ok(z)
+      | Ok(z) => go_z(~settings, Destruct(Left), z)
+      }
+    | _ => Ok(z)
+    }
   };
 };
+
+// let paste_into_zip = (z: Zipper.t, str: string): option(Zipper.t) => {
+//   /* HACK(andrew): These two perform calls are a hack to
+//      deal with the fact that pasting something like "let a = b in"
+//      won't trigger the barfing of the "in"; to trigger this, we
+//      insert a space, and then we immediately delete it. */
+//   let settings = CoreSettings.off;
+//   let* z = zipper_of_string(~zipper_init=z, str);
+//   switch (Perform.go_z(~settings, Insert(" "), z)) {
+//   | Error(_) => None
+//   | Ok(z) =>
+//     switch (Perform.go_z(~settings, Destruct(Left), z)) {
+//     | Error(_) => None
+//     | Ok(z) => Some(z)
+//     }
+//   };
+// };
 
 let go =
     (~settings: CoreSettings.t, a: Action.t, ed: Editor.t)

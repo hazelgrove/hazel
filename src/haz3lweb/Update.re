@@ -230,17 +230,38 @@ let update_cached_data = (~schedule_action, update, m: Model.t): Model.t => {
 
 let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
   switch (
-    model.editors
-    |> Editors.get_editor
+    Editors.get_selected_editor(
+      ~selection=model.ui_state.active_editor |> Option.get,
+      model.editors,
+      model.results,
+    )
+    |> Option.get
     |> Haz3lcore.Perform.go(~settings=model.settings.core, a)
   ) {
+  | exception (Invalid_argument(_)) => Ok(model)
   | Error(err) => Error(FailedToPerform(err))
   | Ok(ed) =>
-    let model = {...model, editors: Editors.put_editor(ed, model.editors)};
+    let (editors, results) =
+      Editors.put_selected_editor(
+        ~selection=model.ui_state.active_editor |> Option.get,
+        model.editors,
+        model.results,
+        ed,
+      );
+    let model = {...model, editors, results};
     /* Note: Not saving here as saving is costly to do each keystroke,
        we wait a second after the last edit action (see Main.re) */
     Ok(model);
   };
+
+let rec perform_actions = (model: Model.t) =>
+  fun
+  | [] => Ok(model)
+  | [a, ..._as] =>
+    switch (perform_action(model, a)) {
+    | Ok(model) => perform_actions(model, _as)
+    | Error(_) as err => err
+    };
 
 let switch_scratch_slide =
     (editors: Editors.t, ~instructor_mode, idx: int): option(Editors.t) =>
@@ -255,19 +276,6 @@ let switch_scratch_slide =
     let key = Exercise.key_of(spec);
     let exercise = Store.Exercise.load_exercise(key, spec, ~instructor_mode);
     Some(Exercises(idx, specs, exercise));
-  };
-
-let switch_exercise_editor =
-    (editors: Editors.t, ~pos, ~sel, ~instructor_mode): option(Editors.t) =>
-  switch (editors) {
-  | Documentation(_)
-  | Scratch(_) =>
-    Some(Editors.update_scratch_state(((_, eds)) => (sel, eds), editors))
-  | Exercises(m, specs, exercise) =>
-    let exercise = Exercise.switch_editor(~pos, instructor_mode, ~exercise);
-    //Note: now saving after each edit (delayed by 1 second) so no need to save here
-    //Store.Exercise.save_exercise(exercise, ~instructor_mode);
-    Some(Exercises(m, specs, exercise));
   };
 
 /* This action saves a file which serializes all current editor
@@ -370,15 +378,15 @@ let rec apply =
       | None => Error(FailedToSwitch)
       | Some(editors) => Model.save_and_return({...model, editors})
       }
-    | SwitchEditor(pos, ed) =>
-      let _ = print_endline("Here!");
-      let instructor_mode = model.settings.instructor_mode;
-      switch (
-        switch_exercise_editor(model.editors, ~pos, ~sel=ed, ~instructor_mode)
-      ) {
-      | None => Error(FailedToSwitch)
-      | Some(editors) => Ok({...model, editors})
-      };
+    | MakeActive(pos) =>
+      let _ = Editors.show_selection(pos) |> print_endline; //TODO[Matt]: remove
+      Ok({
+        ...model,
+        ui_state: {
+          ...model.ui_state,
+          active_editor: Some(pos),
+        },
+      });
     | TAB =>
       /* Attempt to act intelligently when TAB is pressed.
        * TODO(andrew): Consider more advanced TAB logic. Instead
@@ -387,8 +395,12 @@ let rec apply =
        * interest, which is closet of: nearest position where can
        * put down, farthest position where can put down, next hole */
       let z =
-        model.editors
-        |> Editors.get_editor
+        Editors.get_selected_editor(
+          ~selection=model.ui_state.active_editor |> Option.get,
+          model.editors,
+          model.results,
+        )
+        |> Option.get
         |> ((ed: Editor.t) => ed.state.zipper);
       let a =
         Selection.is_buffer(z.selection)
@@ -398,34 +410,49 @@ let rec apply =
       apply(model, a, state, ~schedule_action);
     | PerformAction(a)
         when model.settings.core.assist && model.settings.core.statics =>
-      let model = UpdateAssistant.reset_buffer(model);
-      switch (perform_action(model, a)) {
-      | Ok(model) when Action.is_edit(a) =>
-        UpdateAssistant.apply(
+      open Result.Syntax;
+      let* model = perform_actions(model, [ResetSuggestion, a]);
+      let actions =
+        UpdateAssistant.assistant_action_to_editor_actions(
           model,
           Prompt(TyDi),
-          ~schedule_action,
-          ~state,
-          ~main=apply,
-        )
-      | x => x
-      };
+        );
+      perform_actions(model, actions);
     | PerformAction(a) => perform_action(model, a)
     | ReparseCurrentEditor =>
       /* This serializes the current editor to text, resets the current
          editor, and then deserializes. It is intended as a (tactical)
          nuclear option for weird backpack states */
-      let ed = Editors.get_editor(model.editors);
-      let zipper_init = Zipper.init();
-      let ed_str = Printer.to_string_editor(ed);
-      switch (Printer.zipper_of_string(~zipper_init, ed_str)) {
-      | None => Error(CantReset)
-      | Some(z) =>
-        //TODO: add correct action to history (Pick_up is wrong)
-        let editor = Haz3lcore.Editor.new_state(Pick_up, z, ed);
-        let editors = Editors.put_editor(editor, model.editors);
-        Ok({...model, editors});
-      };
+      switch (model.ui_state.active_editor) {
+      | None => Ok(model)
+      | Some(selection) =>
+        switch (
+          Editors.get_selected_editor(
+            ~selection,
+            model.editors,
+            model.results,
+          )
+        ) {
+        | Some(ed) =>
+          let zipper_init = Zipper.init();
+          let ed_str = Printer.to_string_editor(ed);
+          switch (Printer.zipper_of_string(~zipper_init, ed_str)) {
+          | None => Error(CantReset)
+          | Some(z) =>
+            //TODO: add correct action to history (Pick_up is wrong)
+            let editor = Haz3lcore.Editor.new_state(Pick_up, z, ed);
+            let (editors, results) =
+              Editors.put_selected_editor(
+                ~selection,
+                model.editors,
+                model.results,
+                editor,
+              );
+            Ok({...model, editors, results});
+          };
+        | None => Ok(model)
+        }
+      }
     | Cut =>
       // system clipboard handling itself is done in Page.view handlers
       perform_action(model, Destruct(Left))
@@ -433,39 +460,44 @@ let rec apply =
       // system clipboard handling itself is done in Page.view handlers
       // doesn't change the state but including as an action for logging purposes
       Ok(model)
-    | Paste(clipboard) =>
-      let ed = Editors.get_editor(model.editors);
-      switch (Printer.paste_into_zip(ed.state.zipper, clipboard)) {
-      | None => Error(CantPaste)
-      | Some(z) =>
-        //HACK(andrew): below is not strictly a insert action...
-        let ed = Haz3lcore.Editor.new_state(Insert(clipboard), z, ed);
-        let editors = Editors.put_editor(ed, model.editors);
-        Ok({...model, editors});
-      };
     | Undo =>
-      let ed = Editors.get_editor(model.editors);
-      switch (Haz3lcore.Editor.undo(ed)) {
-      | None => Error(CantUndo)
-      | Some(ed) =>
-        Ok({...model, editors: Editors.put_editor(ed, model.editors)})
-      };
+      switch (
+        Editors.update_selected_editor(
+          ~selection=model.ui_state.active_editor,
+          editor =>
+            switch (Haz3lcore.Editor.undo(editor)) {
+            | None => Error(Cant_undo)
+            | Some(editor) => Ok(editor)
+            },
+          model.editors,
+          model.results,
+        )
+      ) {
+      | Ok((editors, results)) => Ok({...model, editors, results})
+      | Error(e) => Error(FailedToPerform(e))
+      }
     | Redo =>
-      let ed = Editors.get_editor(model.editors);
-      switch (Haz3lcore.Editor.redo(ed)) {
-      | None => Error(CantRedo)
-      | Some(ed) =>
-        Ok({...model, editors: Editors.put_editor(ed, model.editors)})
-      };
+      switch (
+        Editors.update_selected_editor(
+          ~selection=model.ui_state.active_editor,
+          editor =>
+            switch (Haz3lcore.Editor.redo(editor)) {
+            | None => Error(Cant_redo)
+            | Some(editor) => Ok(editor)
+            },
+          model.editors,
+          model.results,
+        )
+      ) {
+      | Ok((editors, results)) => Ok({...model, editors, results})
+      | Error(e) => Error(FailedToPerform(e))
+      }
     | MoveToNextHole(d) =>
       perform_action(model, Move(Goal(Piece(Grout, d))))
     | Assistant(action) =>
-      UpdateAssistant.apply(
+      perform_actions(
         model,
-        action,
-        ~schedule_action,
-        ~state,
-        ~main=apply,
+        UpdateAssistant.assistant_action_to_editor_actions(model, action),
       )
     | Benchmark(Start) =>
       List.iter(schedule_action, Benchmark.actions_1);

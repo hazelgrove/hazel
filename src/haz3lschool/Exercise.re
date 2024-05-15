@@ -130,39 +130,33 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   type eds = p(Editor.t);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type state = {
-    pos,
-    eds,
-  };
+  type state = {eds};
 
   let key_of_state = ({eds, _}) => key_of(eds);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent_state = (pos, list((pos, PersistentZipper.t)));
+  type persistent_state = list((pos, PersistentZipper.t));
 
-  let editor_of_state: state => Editor.t =
-    ({pos, eds, _}) =>
-      switch (pos) {
-      | Prelude => eds.prelude
-      | CorrectImpl => eds.correct_impl
-      | YourTestsValidation => eds.your_tests.tests
-      | YourTestsTesting => eds.your_tests.tests
-      | YourImpl => eds.your_impl
-      | HiddenBugs(i) => List.nth(eds.hidden_bugs, i).impl
-      | HiddenTests => eds.hidden_tests.tests
-      };
+  let main_editor_of_state = (~selection: pos, {eds}) =>
+    switch (selection) {
+    | Prelude => eds.prelude
+    | CorrectImpl => eds.correct_impl
+    | YourTestsValidation => eds.your_tests.tests
+    | YourTestsTesting => eds.your_tests.tests
+    | YourImpl => eds.your_impl
+    | HiddenBugs(i) => List.nth(eds.hidden_bugs, i).impl
+    | HiddenTests => eds.hidden_tests.tests
+    };
 
-  let put_editor = ({pos, eds, _} as state: state, editor: Editor.t) =>
-    switch (pos) {
+  let put_main_editor = (~selection: pos, {eds}: state, editor: Editor.t) =>
+    switch (selection) {
     | Prelude => {
-        ...state,
         eds: {
           ...eds,
           prelude: editor,
         },
       }
     | CorrectImpl => {
-        ...state,
         eds: {
           ...eds,
           correct_impl: editor,
@@ -170,7 +164,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       }
     | YourTestsValidation
     | YourTestsTesting => {
-        ...state,
         eds: {
           ...eds,
           your_tests: {
@@ -180,14 +173,12 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         },
       }
     | YourImpl => {
-        ...state,
         eds: {
           ...eds,
           your_impl: editor,
         },
       }
     | HiddenBugs(n) => {
-        ...state,
         eds: {
           ...eds,
           hidden_bugs:
@@ -199,7 +190,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         },
       }
     | HiddenTests => {
-        ...state,
         eds: {
           ...eds,
           hidden_tests: {
@@ -262,17 +252,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       } else {
         failwith("element idx");
       }
-    };
-
-  let switch_editor = (~pos, instructor_mode, ~exercise) =>
-    if (!instructor_mode) {
-      switch (pos) {
-      | HiddenTests
-      | HiddenBugs(_) => exercise
-      | _ => {eds: exercise.eds, pos}
-      };
-    } else {
-      {eds: exercise.eds, pos};
     };
 
   let zipper_of_code = code => {
@@ -457,8 +436,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   //     };
   //   };
 
-  let set_instructor_mode = ({eds, _} as state: state, new_mode: bool) => {
-    ...state,
+  let set_instructor_mode = ({eds}: state, new_mode: bool) => {
     eds: {
       ...eds,
       prelude: Editor.set_read_only(eds.prelude, !new_mode),
@@ -479,23 +457,22 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   let state_of_spec = (spec, ~instructor_mode: bool): state => {
     let eds = eds_of_spec(spec);
-    set_instructor_mode({pos: YourImpl, eds}, instructor_mode);
+    set_instructor_mode({eds: eds}, instructor_mode);
   };
 
-  let persistent_state_of_state =
-      ({pos, _} as state: state, ~instructor_mode: bool) => {
+  let persistent_state_of_state = (state: state, ~instructor_mode: bool) => {
     let zippers =
       positioned_editors(state)
       |> List.filter(((pos, _)) => visible_in(pos, ~instructor_mode))
       |> List.map(((pos, editor)) => {
            (pos, PersistentZipper.persist(Editor.(editor.state.zipper)))
          });
-    (pos, zippers);
+    zippers;
   };
 
   let unpersist_state =
       (
-        (pos, positioned_zippers): persistent_state,
+        positioned_zippers: persistent_state,
         ~spec: spec,
         ~instructor_mode: bool,
       )
@@ -525,7 +502,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
     set_instructor_mode(
       {
-        pos,
         eds: {
           title: spec.title,
           version: spec.version,
@@ -671,24 +647,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   let stitch_static = Core.Memo.general(stitch_static);
 
-  let statics_of_stiched =
-      (state: state, s: stitched(StaticsItem.t)): StaticsItem.t =>
-    switch (state.pos) {
-    | Prelude => s.prelude
-    | CorrectImpl => s.instructor
-    | YourTestsValidation => s.test_validation
-    | YourTestsTesting => s.user_tests
-    | YourImpl => s.user_impl
-    | HiddenBugs(idx) => List.nth(s.hidden_bugs, idx)
-    | HiddenTests => s.hidden_tests
-    };
-
-  let statics_of = (~settings, exercise: state): StaticsItem.t =>
-    exercise
-    |> stitch_term
-    |> stitch_static(settings)
-    |> statics_of_stiched(exercise);
-
   let prelude_key = "prelude";
   let test_validation_key = "test_validation";
   let user_impl_key = "user_impl";
@@ -697,8 +655,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   let hidden_bugs_key = n => "hidden_bugs_" ++ string_of_int(n);
   let hidden_tests_key = "hidden_tests";
 
-  let key_for_statics = (state: state): string =>
-    switch (state.pos) {
+  let key_for_statics = (pos: pos): string =>
+    switch (pos) {
     | Prelude => prelude_key
     | CorrectImpl => instructor_key
     | YourTestsValidation => test_validation_key

@@ -4,7 +4,6 @@ open Virtual_dom.Vdom;
 type editor_id = string;
 
 type event =
-  | MakeActive
   | MouseDown(Measured.Point.t)
   | DragTo(Measured.Point.t)
   | MouseUp
@@ -144,6 +143,7 @@ let deco =
 
 let view =
     (
+      ~select as _: unit => Ui_effect.t(unit),
       ~inject: event => Ui_effect.t(unit),
       ~ui_state as
         {font_metrics, show_backpack_targets, mousedown, _}: Model.ui_state,

@@ -86,8 +86,8 @@ let get_buffer = (z: Zipper.t): option(Token.t) =>
   | _ => None
   };
 
-/* Populates the suggestion buffer with a type-directed suggestion */
-let set_buffer = (~settings, ~ctx: Ctx.t, z: Zipper.t): option(Zipper.t) => {
+/* Gives a type-directed suggestion */
+let suggest = (~settings, ~ctx: Ctx.t, z: Zipper.t): option(Segment.t) => {
   let* tok_to_left = token_to_left(z);
   let* ci = z_to_ci(~settings, ~ctx, z);
   let suggestions = suggest(ci, z);
@@ -104,6 +104,5 @@ let set_buffer = (~settings, ~ctx: Ctx.t, z: Zipper.t): option(Zipper.t) => {
       z.relatives.siblings,
       suggestion_suffix,
     );
-  let z = Zipper.set_buffer(z, ~content, ~mode=Unparsed);
-  Some(z);
+  Some(content);
 };

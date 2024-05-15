@@ -37,6 +37,7 @@ let status_of: ProgramResult.t => string =
 
 let live_eval =
     (
+      ~select: Editors.cell_selection => Ui_effect.t(unit),
       ~inject: UpdateAction.t => Ui_effect.t(unit),
       ~ui_state,
       ~result_key: string,
@@ -45,7 +46,6 @@ let live_eval =
       ~locked,
       result: ModelResult.eval_result,
     ) => {
-  open Node;
   let editor =
     switch (result.evaluation, result.previous) {
     | (ResultOk(res), _) => res.editor
@@ -54,36 +54,26 @@ let live_eval =
     };
   let inject': CodeEditor.event => Ui_effect.t(unit) =
     fun
-    | MakeActive =>
-      {
-        SwitchEditor(YourImpl, Evaluation);
-      }
-      |> inject
     | MouseUp => SetMeta(Mouseup) |> inject
     | DragTo(point) =>
       PerformAction(Select(Resize(Goal(Point(point))))) |> inject
     | MouseDown(point) =>
-      Effect.Many(
-        [
-          SetMeta(Mousedown),
-          SwitchEditor(YourImpl, Evaluation),
-          PerformAction(Move(Goal(Point(point)))),
-        ]
-        |> List.map(inject),
-      )
+      Effect.Many([
+        inject(SetMeta(Mousedown)),
+        select(Result(0)),
+        inject(PerformAction(Move(Goal(Point(point))))),
+      ])
     | JumpToBindingSiteOf(point) =>
-      Effect.Many(
-        [
-          PerformAction(Move(Goal(Point(point)))),
-          SwitchEditor(YourImpl, Evaluation),
-          PerformAction(Jump(BindingSiteOfIndicatedVar)),
-        ]
-        |> List.map(inject),
-      )
+      Effect.Many([
+        inject(PerformAction(Move(Goal(Point(point))))),
+        select(Result(0)),
+        inject(PerformAction(Jump(BindingSiteOfIndicatedVar))),
+      ])
     | DoubleClick => PerformAction(Select(Tile(Current))) |> inject
     | TripleClick => PerformAction(Select(Smart)) |> inject;
   let code_view =
     CodeEditor.view(
+      ~select=() => select(Result(0)),
       ~inject=inject',
       ~ui_state,
       ~settings,
@@ -103,30 +93,33 @@ let live_eval =
       ]
     | _ => []
     };
-  div(
-    ~attr=Attr.classes(["cell-item", "cell-result"]),
-    exn_view
-    @ [
-      div(
-        ~attr=Attr.classes(["status", status_of(result.evaluation)]),
-        [
-          div(~attr=Attr.classes(["spinner"]), []),
-          div(~attr=Attr.classes(["eq"]), [text("≡")]),
-        ],
-      ),
-      div(
-        ~attr=Attr.classes(["result", status_of(result.evaluation)]),
-        [code_view],
-      ),
-      Widgets.toggle(~tooltip="Show Stepper", "s", false, _ =>
-        inject(UpdateAction.ToggleStepper(result_key))
-      ),
-    ],
+  Node.(
+    div(
+      ~attr=Attr.classes(["cell-item", "cell-result"]),
+      exn_view
+      @ [
+        div(
+          ~attr=Attr.classes(["status", status_of(result.evaluation)]),
+          [
+            div(~attr=Attr.classes(["spinner"]), []),
+            div(~attr=Attr.classes(["eq"]), [text("≡")]),
+          ],
+        ),
+        div(
+          ~attr=Attr.classes(["result", status_of(result.evaluation)]),
+          [code_view],
+        ),
+        Widgets.toggle(~tooltip="Show Stepper", "s", false, _ =>
+          inject(UpdateAction.ToggleStepper(result_key))
+        ),
+      ],
+    )
   );
 };
 
 let stepper_view =
     (
+      ~select: Editors.cell_selection => Ui_effect.t(unit),
       ~inject: UpdateAction.stepper_action => Ui_effect.t(unit),
       ~inject_global: Update.t => Ui_effect.t(unit),
       ~ui_state,
@@ -148,35 +141,27 @@ let stepper_view =
       ~attr=Attr.classes(["result"]),
       [
         CodeEditor.view(
+          ~select=() => select(Result(idx)),
           ~inject=
             fun
-            | MakeActive =>
-              {
-                SwitchEditor(YourImpl, Stepper(idx));
-              }
-              |> inject_global
             | MouseUp => SetMeta(Mouseup) |> inject_global
             | DragTo(point) =>
               PerformAction(Select(Resize(Goal(Point(point)))))
               |> inject_global
             | MouseDown(point) =>
-              Effect.Many(
-                [
-                  SetMeta(Mousedown),
-                  SwitchEditor(YourImpl, Stepper(idx)),
-                  PerformAction(Move(Goal(Point(point)))),
-                ]
-                |> List.map(inject_global),
-              )
+              Effect.Many([
+                inject_global(SetMeta(Mousedown)),
+                select(Result(idx)),
+                inject_global(PerformAction(Move(Goal(Point(point))))),
+              ])
             | JumpToBindingSiteOf(point) =>
-              Effect.Many(
-                [
-                  PerformAction(Move(Goal(Point(point)))),
-                  SwitchEditor(YourImpl, Stepper(idx)),
+              Effect.Many([
+                inject_global(PerformAction(Move(Goal(Point(point))))),
+                select(Result(idx)),
+                inject_global(
                   PerformAction(Jump(BindingSiteOfIndicatedVar)),
-                ]
-                |> List.map(inject_global),
-              )
+                ),
+              ])
             | DoubleClick =>
               PerformAction(Select(Tile(Current))) |> inject_global
             | TripleClick => PerformAction(Select(Smart)) |> inject_global,
@@ -323,6 +308,7 @@ let stepper_view =
 let footer =
     (
       ~locked,
+      ~select,
       ~inject,
       ~ui_state: Model.ui_state,
       ~settings: Settings.t,
@@ -336,6 +322,7 @@ let footer =
   | Evaluation(result) => [
       live_eval(
         ~locked,
+        ~select,
         ~inject,
         ~ui_state,
         ~settings,
@@ -346,6 +333,7 @@ let footer =
     ]
   | Stepper(s) =>
     stepper_view(
+      ~select,
       ~inject=
         stepper_action =>
           inject(UpdateAction.StepperAction(result_key, stepper_action)),
@@ -360,11 +348,11 @@ let footer =
 
 let editor_view =
     (
+      ~select,
       ~inject,
       ~ui_state: Model.ui_state,
       ~settings: Settings.t,
-      ~mousedown_updates: list(Update.t)=[],
-      ~selected: option(ScratchSlide.editor_selection),
+      ~selected: option(Editors.cell_selection),
       ~locked=false,
       ~caption: option(Node.t)=?,
       ~test_results: option(TestResults.t),
@@ -375,41 +363,26 @@ let editor_view =
       ~sort=Sort.root,
       editor: Editor.t,
     ) => {
-  let _ =
-    switch (selected) {
-    | None => ()
-    | Some(selected) =>
-      print_endline(ScratchSlide.show_editor_selection(selected))
-    };
   let inject: CodeEditor.event => Ui_effect.t(unit) =
     if (locked) {
       _ => Effect.(Many([Prevent_default, Stop_propagation]));
     } else {
       fun
-      | MakeActive => Effect.Many(List.map(inject, mousedown_updates))
       | MouseUp => inject(Update.SetMeta(Mouseup))
       | DragTo(point) =>
         inject(Update.PerformAction(Select(Resize(Goal(Point(point))))))
       | MouseDown(point) =>
-        Effect.Many(
-          List.map(
-            inject,
-            [Update.SetMeta(Mousedown)]
-            @ mousedown_updates
-            @ [PerformAction(Move(Goal(Point(point))))],
-          ),
-        )
+        Effect.Many([
+          inject(Update.SetMeta(Mousedown)),
+          select(Editors.MainEditor),
+          inject(Update.PerformAction(Move(Goal(Point(point))))),
+        ])
       | JumpToBindingSiteOf(point) =>
-        Effect.Many(
-          List.map(
-            inject,
-            mousedown_updates
-            @ [
-              PerformAction(Move(Goal(Point(point)))),
-              PerformAction(Jump(BindingSiteOfIndicatedVar)),
-            ],
-          ),
-        )
+        Effect.Many([
+          select(Editors.MainEditor),
+          inject(Update.PerformAction(Move(Goal(Point(point))))),
+          inject(Update.PerformAction(Jump(BindingSiteOfIndicatedVar))),
+        ])
       | DoubleClick => Update.PerformAction(Select(Tile(Current))) |> inject
       | TripleClick => Update.PerformAction(Select(Smart)) |> inject;
     };
@@ -423,6 +396,7 @@ let editor_view =
     Option.to_list(caption)
     @ [
       CodeEditor.view(
+        ~select=() => select(Editors.MainEditor),
         ~inject,
         ~ui_state,
         ~settings,
@@ -469,6 +443,7 @@ let title_cell = title => {
  * Used in Docs to display the header example */
 let locked_no_statics =
     (
+      ~select,
       ~inject,
       ~ui_state,
       ~segment,
@@ -481,6 +456,7 @@ let locked_no_statics =
     ~locked=true,
     ~selected=None,
     ~highlights,
+    ~select,
     ~inject,
     ~ui_state,
     ~settings,
@@ -500,6 +476,7 @@ let locked =
     (
       ~ui_state,
       ~settings: Settings.t,
+      ~select,
       ~inject,
       ~target_id,
       ~segment: Segment.t,
@@ -530,6 +507,7 @@ let locked =
     settings.core.elaborate || settings.core.dynamics
       ? footer(
           ~locked=true,
+          ~select,
           ~inject,
           ~settings,
           ~ui_state,
@@ -539,6 +517,7 @@ let locked =
         )
       : [];
   editor_view(
+    ~select,
     ~locked=true,
     ~selected=None,
     ~highlights=None,
