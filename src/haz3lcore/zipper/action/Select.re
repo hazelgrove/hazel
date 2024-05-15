@@ -5,12 +5,15 @@ module Make = (M: Editor.Meta.S) => {
   module Move = Move.Make(M);
 
   let primary = (d: Direction.t, z: Zipper.t): option(Zipper.t) =>
-    switch (d, z.caret, Zipper.neighbor_is_projector(z)) {
-    | (Left, Outer, (Some(id), _)) =>
-      ProjectorAction.skip_select_to(Left, id, z)
-    | (Right, Outer, (_, Some(id))) =>
-      ProjectorAction.skip_select_to(Right, id, z)
-    | _ => Zipper.select_caret(d, z)
+    if (z.caret == Outer) {
+      Zipper.select(d, z);
+    } else if (d == Left) {
+      z
+      |> Zipper.set_caret(Outer)
+      |> Zipper.move(Right)
+      |> OptUtil.and_then(Zipper.select(d));
+    } else {
+      z |> Zipper.set_caret(Outer) |> Zipper.select(d);
     };
 
   let vertical = (d: Direction.t, ed: Zipper.t): option(Zipper.t) =>
@@ -21,7 +24,7 @@ module Make = (M: Editor.Meta.S) => {
     print_endline("Select.range: first");
     let* Measured.{last, _} = Measured.find_by_id(r, M.measured_projected);
     print_endline("Select.range: last");
-    Move.do_towards(primary, last, z);
+    Move.do_towards(Zipper.select, last, z);
   };
 
   let term = (id: Id.t, z: Zipper.t): option(Zipper.t) => {

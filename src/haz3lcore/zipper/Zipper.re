@@ -78,6 +78,8 @@ let update_relatives = (f: Relatives.t => Relatives.t, z: t): t => {
 let update_siblings: (Siblings.t => Siblings.t, t) => t =
   f => update_relatives(rs => {...rs, siblings: f(rs.siblings)});
 
+let put_siblings = (siblings, z: t): t => update_siblings(_ => siblings, z);
+
 let parent = (z: t): option(Piece.t) =>
   Relatives.parent(~sel=z.selection.content, z.relatives);
 
@@ -173,10 +175,85 @@ let update_selection = (selection: Selection.t, z: t): (Selection.t, t) => {
 let put_selection = (sel: Selection.t, z: t): t =>
   snd(update_selection(sel, z));
 
+let put_selection_content = (content: Segment.t, z): t => {
+  ...z,
+  selection: {
+    ...z.selection,
+    content,
+  },
+};
+
+let push_right = ((ls: Segment.t, rs: Segment.t)): (Segment.t, Segment.t) =>
+  switch (ls |> List.rev) {
+  | [l, ...ls] => (ls |> List.rev, [l, ...rs])
+  | [] => (ls, rs)
+  };
+
+let push_left = ((ls: Segment.t, rs: Segment.t)): (Segment.t, Segment.t) =>
+  switch (rs) {
+  | [r, ...rs] => (ls @ [r], rs)
+  | [] => (ls, rs)
+  };
+
+let skip_grow_left = ({relatives: {siblings: (ls, rs), _}, _} as z: t) => {
+  let (ls, content) = push_right((ls, z.selection.content));
+  z
+  |> put_selection_content(content)
+  |> put_siblings((ls, rs))
+  |> Option.some;
+};
+
+let skip_grow_right = ({relatives: {siblings: (ls, rs), _}, _} as z: t) => {
+  let (content, rs) = push_left((z.selection.content, rs));
+  z
+  |> put_selection_content(content)
+  |> put_siblings((ls, rs))
+  |> Option.some;
+};
+
+let projector_grow_selection =
+    ({relatives: {siblings, _}, projectors, _} as z: t): option(t) =>
+  switch (z.selection.focus, Projector.neighbor_is(projectors, siblings)) {
+  | (Left, (Some(_), _)) => skip_grow_left(z)
+  | (Right, (_, Some(_))) => skip_grow_right(z)
+  | _ => None
+  };
+
+let skip_shrink_left = ({relatives: {siblings: (ls, rs), _}, _} as z: t) => {
+  let (ls, content) = push_left((ls, z.selection.content));
+  z
+  |> put_selection_content(content)
+  |> put_siblings((ls, rs))
+  |> Option.some;
+};
+
+let skip_shrink_right = ({relatives: {siblings: (ls, rs), _}, _} as z: t) => {
+  let (content, rs) = push_right((z.selection.content, rs));
+  z
+  |> put_selection_content(content)
+  |> put_siblings((ls, rs))
+  |> Option.some;
+};
+
+let projector_shrink_selection =
+    ({selection, projectors, _} as z: t): option(t) =>
+  switch (
+    selection.focus,
+    Projector.selection_sides_is(projectors, selection),
+  ) {
+  | (Left, (Some(_), _)) => skip_shrink_left(z)
+  | (Right, (_, Some(_))) => skip_shrink_right(z)
+  | _ => None
+  };
+
 let grow_selection = (z: t): option(t) => {
-  let+ (p, relatives) = Relatives.pop(z.selection.focus, z.relatives);
-  let selection = Selection.push(p, z.selection);
-  {...z, selection, relatives};
+  switch (projector_grow_selection(z)) {
+  | Some(z) => Some(z)
+  | None =>
+    let+ (p, relatives) = Relatives.pop(z.selection.focus, z.relatives);
+    let selection = Selection.push(p, z.selection);
+    {...z, selection, relatives};
+  };
 };
 
 // toggles focus and grows if selection is empty
@@ -186,11 +263,15 @@ let shrink_selection = (z: t): option(t) => {
     let selection = Selection.toggle_focus(z.selection);
     grow_selection({...z, selection});
   | Some((p, selection)) =>
-    let relatives =
-      z.relatives
-      |> Relatives.push(selection.focus, p)
-      |> Relatives.reassemble;
-    Some({...z, selection, relatives});
+    switch (projector_shrink_selection(z)) {
+    | Some(z) => Some(z)
+    | None =>
+      let relatives =
+        z.relatives
+        |> Relatives.push(selection.focus, p)
+        |> Relatives.reassemble;
+      Some({...z, selection, relatives});
+    }
   };
 };
 
@@ -204,54 +285,24 @@ let directional_unselect = (d: Direction.t, z: t): t => {
   unselect({...z, selection});
 };
 
-let piece_is = (projectors, nhbr) =>
-  switch (nhbr) {
-  | Some(p) when Projector.Map.mem(Piece.id(p), projectors) =>
-    Projector.Map.mem(Piece.id(p), projectors) ? Some(Piece.id(p)) : None
-  | _ => None
-  };
+let skip_left = ({relatives: {siblings, _}, _} as z: t): option(t) =>
+  z |> put_siblings(push_right(siblings)) |> Option.some;
 
-let neighbor_is_projector =
-    ({relatives: {siblings, _}, projectors, _}: t)
-    : (option(Id.t), option(Id.t)) => (
-  piece_is(projectors, Siblings.left_neighbor(siblings)),
-  piece_is(projectors, Siblings.right_neighbor(siblings)),
-);
+let skip_right = ({relatives: {siblings, _}, _} as z: t): option(t) =>
+  z |> put_siblings(push_left(siblings)) |> Option.some;
 
-let skip_left = (z: t): option(t) =>
-  switch (fst(z.relatives.siblings) |> List.rev, snd(z.relatives.siblings)) {
-  | ([l_nhbr, ...l_rest], r) =>
-    print_endline("Zipper.skip_left");
-    Some({
-      ...z,
-      relatives: {
-        ...z.relatives,
-        siblings: (List.rev(l_rest), [l_nhbr, ...r]),
-      },
-    });
-  | _ => None
-  };
-
-let skip_right = (z: t): option(t) =>
-  switch (fst(z.relatives.siblings) |> List.rev, snd(z.relatives.siblings)) {
-  | (l, [r_nhbr, ...r_rest]) =>
-    print_endline("Zipper.skip_right");
-    Some({
-      ...z,
-      relatives: {
-        ...z.relatives,
-        siblings: ([r_nhbr, ...l] |> List.rev, r_rest),
-      },
-    });
+let projector_move = (d: Direction.t, z: t): option(t) =>
+  switch (d, Projector.neighbor_is(z.projectors, z.relatives.siblings)) {
+  | (Left, (Some(_), _)) => skip_left(z)
+  | (Right, (_, Some(_))) => skip_right(z)
   | _ => None
   };
 
 let move = (d: Direction.t, z: t): option(t) =>
   if (Selection.is_empty(z.selection)) {
-    switch (d, neighbor_is_projector(z)) {
-    | (Direction.Left, (Some(_), _)) => skip_left(z)
-    | (Direction.Right, (_, Some(_))) => skip_right(z)
-    | _ =>
+    switch (projector_move(d, z)) {
+    | Some(z) => Some(z)
+    | None =>
       let+ (p, relatives) = Relatives.pop(d, z.relatives);
       let relatives =
         relatives
@@ -266,14 +317,29 @@ let move = (d: Direction.t, z: t): option(t) =>
 let select = (d: Direction.t, z: t): option(t) =>
   d == z.selection.focus ? grow_selection(z) : shrink_selection(z);
 
-let select_caret = (d: Direction.t, z: t): option(t) =>
-  if (z.caret == Outer) {
-    select(d, z);
-  } else if (d == Left) {
-    z |> set_caret(Outer) |> move(Right) |> OptUtil.and_then(select(d));
-  } else {
-    z |> set_caret(Outer) |> select(d);
-  };
+// let id_on = (d: Direction.t, id: Id.t, z: t): bool =>
+//   switch (d) {
+//   | Left =>
+//     switch (z.relatives.siblings, z.relatives.ancestors) {
+//     | (([_, ..._] as ls, _), _) => Piece.id(ListUtil.last(ls)) == id
+//     | _ => false
+//     }
+//   | Right =>
+//     switch (z.relatives.siblings, z.relatives.ancestors) {
+//     | ((_, [r, ..._]), _) => Piece.id(r) == id
+//     | _ => false
+//     }
+//   };
+
+/* Loop action until pred is satisfied */
+// let rec do_until =
+//         (action: t => option(t), pred: t => bool, z: t): option(t) =>
+//   pred(z)
+//     ? Some(z)
+//     : {
+//       let* z = action(z);
+//       do_until(action, pred, z);
+//     };
 
 let pick_up = (z: t): t => {
   let (selected, z) = update_selection(Selection.empty, z);
@@ -518,13 +584,3 @@ let seg_for_view = smart_seg(~erase_buffer=false, ~dump_backpack=false);
 let seg_for_sem = smart_seg(~erase_buffer=true, ~dump_backpack=true);
 
 let seg_without_buffer = smart_seg(~erase_buffer=true, ~dump_backpack=false);
-
-/* Loop action until pred is satisfied */
-let rec do_until =
-        (action: t => option(t), pred: t => bool, z: t): option(t) =>
-  pred(z)
-    ? Some(z)
-    : {
-      let* z = action(z);
-      do_until(action, pred, z);
-    };

@@ -1,38 +1,4 @@
 open Zipper;
-open Util;
-
-let id_on = (d: Direction.t, id: Id.t, z: Zipper.t): bool =>
-  switch (d) {
-  | Left =>
-    switch (z.relatives.siblings, z.relatives.ancestors) {
-    | (([_, ..._] as ls, _), _) => Piece.id(ListUtil.last(ls)) == id
-    | _ => false
-    }
-  | Right =>
-    switch (z.relatives.siblings, z.relatives.ancestors) {
-    | ((_, [r, ..._]), _) => Piece.id(r) == id
-    | _ => false
-    }
-  };
-
-let skip_to = (d: Direction.t, id: Id.t, z: Zipper.t): option(Zipper.t) => {
-  // print_endline("ProjectorAction.skip_to");
-  Zipper.do_until(
-    Zipper.move(d),
-    id_on(Direction.toggle(d), id),
-    z,
-  );
-};
-
-let skip_select_to =
-    (d: Direction.t, id: Id.t, z: Zipper.t): option(Zipper.t) => {
-  // print_endline("ProjectorAction.skip_select_to");
-  Zipper.do_until(
-    Zipper.select_caret(d),
-    id_on(Direction.toggle(d), id),
-    z,
-  );
-};
 
 let of_siblings =
     (projectors: Projector.Map.t, siblings: Siblings.t): Siblings.t => {
