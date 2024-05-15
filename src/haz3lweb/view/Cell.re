@@ -37,7 +37,7 @@ let status_of: ProgramResult.t => string =
 
 let live_eval =
     (
-      ~select: Editors.cell_selection => Ui_effect.t(unit),
+      ~select: Editors.Selection.cell => Ui_effect.t(unit),
       ~inject: UpdateAction.t => Ui_effect.t(unit),
       ~ui_state,
       ~result_key: string,
@@ -119,7 +119,7 @@ let live_eval =
 
 let stepper_view =
     (
-      ~select: Editors.cell_selection => Ui_effect.t(unit),
+      ~select: Editors.Selection.cell => Ui_effect.t(unit),
       ~inject: UpdateAction.stepper_action => Ui_effect.t(unit),
       ~inject_global: Update.t => Ui_effect.t(unit),
       ~ui_state,
@@ -347,11 +347,11 @@ let footer =
 
 let editor_view =
     (
-      ~select,
+      ~select: Editors.Selection.cell => Ui_effect.t(unit),
       ~inject,
       ~ui_state: Model.ui_state,
       ~settings: Settings.t,
-      ~selected: option(Editors.cell_selection),
+      ~selected: option(Editors.Selection.cell),
       ~locked=false,
       ~caption: option(Node.t)=?,
       ~test_results: option(TestResults.t),
@@ -373,12 +373,12 @@ let editor_view =
       | MouseDown(point) =>
         Effect.Many([
           inject(Update.SetMeta(Mousedown)),
-          select(Editors.MainEditor),
+          select(Editors.Selection.MainEditor),
           inject(Update.PerformAction(Move(Goal(Point(point))))),
         ])
       | JumpToBindingSiteOf(point) =>
         Effect.Many([
-          select(Editors.MainEditor),
+          select(Editors.Selection.MainEditor),
           inject(Update.PerformAction(Move(Goal(Point(point))))),
           inject(Update.PerformAction(Jump(BindingSiteOfIndicatedVar))),
         ])
@@ -395,7 +395,7 @@ let editor_view =
     Option.to_list(caption)
     @ [
       CodeEditor.view(
-        ~select=() => select(Editors.MainEditor),
+        ~select=() => select(Editors.Selection.MainEditor),
         ~inject,
         ~ui_state,
         ~settings,

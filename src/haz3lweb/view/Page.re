@@ -101,11 +101,13 @@ let main_view =
       let statics = CachedStatics.lookup(statics, result_key);
       let selected =
         switch (ui_state.active_editor) {
-        | Some(Editors.Scratch(i)) => Some(i)
+        | Some(Editors.Selection.Scratch(i)) => Some(i)
         | _ => None
         };
       ScratchMode.view(
-        ~select=s => inject(UpdateAction.MakeActive(Editors.Scratch(s))),
+        ~select=
+          s =>
+            inject(UpdateAction.MakeActive(Editors.Selection.Scratch(s))),
         ~inject,
         ~ui_state,
         ~settings,
@@ -126,13 +128,16 @@ let main_view =
       let statics = CachedStatics.lookup(statics, result_key);
       let selected =
         switch (ui_state.active_editor) {
-        | Some(Editors.Documentation(i)) => Some(i)
+        | Some(Editors.Selection.Documentation(i)) => Some(i)
         | _ => None
         };
       info
       @ ScratchMode.view(
           ~select=
-            s => inject(UpdateAction.MakeActive(Editors.Documentation(s))),
+            s =>
+              inject(
+                UpdateAction.MakeActive(Editors.Selection.Documentation(s)),
+              ),
           ~inject,
           ~ui_state,
           ~settings,
@@ -146,13 +151,15 @@ let main_view =
     | Exercises(_, _, exercise) =>
       let selection =
         switch (ui_state.active_editor) {
-        | Some(Editors.Exercises(pos, sel)) => Some((pos, sel))
+        | Some(Editors.Selection.Exercises(pos, sel)) => Some((pos, sel))
         | _ => None
         };
       ExerciseMode.view(
         ~select=
           ((pos, sel)) =>
-            inject(UpdateAction.MakeActive(Editors.Exercises(pos, sel))),
+            inject(
+              UpdateAction.MakeActive(Editors.Selection.Exercises(pos, sel)),
+            ),
         ~inject,
         ~ui_state,
         ~settings,
