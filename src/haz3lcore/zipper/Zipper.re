@@ -204,15 +204,61 @@ let directional_unselect = (d: Direction.t, z: t): t => {
   unselect({...z, selection});
 };
 
+let piece_is = (projectors, nhbr) =>
+  switch (nhbr) {
+  | Some(p) when Projector.Map.mem(Piece.id(p), projectors) =>
+    Projector.Map.mem(Piece.id(p), projectors) ? Some(Piece.id(p)) : None
+  | _ => None
+  };
+
+let neighbor_is_projector =
+    ({relatives: {siblings, _}, projectors, _}: t)
+    : (option(Id.t), option(Id.t)) => (
+  piece_is(projectors, Siblings.left_neighbor(siblings)),
+  piece_is(projectors, Siblings.right_neighbor(siblings)),
+);
+
+let skip_left = (z: t): option(t) =>
+  switch (fst(z.relatives.siblings) |> List.rev, snd(z.relatives.siblings)) {
+  | ([l_nhbr, ...l_rest], r) =>
+    print_endline("Zipper.skip_left");
+    Some({
+      ...z,
+      relatives: {
+        ...z.relatives,
+        siblings: (List.rev(l_rest), [l_nhbr, ...r]),
+      },
+    });
+  | _ => None
+  };
+
+let skip_right = (z: t): option(t) =>
+  switch (fst(z.relatives.siblings) |> List.rev, snd(z.relatives.siblings)) {
+  | (l, [r_nhbr, ...r_rest]) =>
+    print_endline("Zipper.skip_right");
+    Some({
+      ...z,
+      relatives: {
+        ...z.relatives,
+        siblings: ([r_nhbr, ...l] |> List.rev, r_rest),
+      },
+    });
+  | _ => None
+  };
+
 let move = (d: Direction.t, z: t): option(t) =>
   if (Selection.is_empty(z.selection)) {
-    // let balanced = !Backpack.is_balanced(z.backpack);
-    let+ (p, relatives) = Relatives.pop(d, z.relatives);
-    let relatives =
-      relatives
-      |> Relatives.push(Direction.toggle(d), p)
-      |> Relatives.reassemble;
-    {...z, relatives};
+    switch (d, neighbor_is_projector(z)) {
+    | (Direction.Left, (Some(_), _)) => skip_left(z)
+    | (Direction.Right, (_, Some(_))) => skip_right(z)
+    | _ =>
+      let+ (p, relatives) = Relatives.pop(d, z.relatives);
+      let relatives =
+        relatives
+        |> Relatives.push(Direction.toggle(d), p)
+        |> Relatives.reassemble;
+      {...z, relatives};
+    };
   } else {
     Some(directional_unselect(d, z));
   };

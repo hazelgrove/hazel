@@ -68,7 +68,7 @@ let apply =
          * first hole. This should be revisited if completions are
          * refactored to use a more structured buffer format */
         module M = (val Editor.Meta.module_of_t(editor.state.meta));
-        let start = Zipper.caret_point(M.measured, z);
+        let start = Zipper.caret_point(M.measured_projected, z);
         let rec do_actions = (model, actions: list(UpdateAction.t)) =>
           switch (actions) {
           | [] => Ok(model)

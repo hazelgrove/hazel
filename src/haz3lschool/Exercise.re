@@ -588,7 +588,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   let wrap = (term, editor: Editor.t): TermItem.t => {
     term,
-    term_ranges: editor.state.meta.term_ranges,
+    term_ranges: editor.state.meta.term_ranges_real,
+    //TODO(andrew): real here?
   };
 
   let term_of = (editor: Editor.t): Term.UExp.t =>

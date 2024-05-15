@@ -5,7 +5,7 @@ module Make = (M: Editor.Meta.S) => {
   module Move = Move.Make(M);
 
   let primary = (d: Direction.t, z: Zipper.t): option(Zipper.t) =>
-    switch (d, z.caret, ProjectorAction.neighbor_is(z)) {
+    switch (d, z.caret, Zipper.neighbor_is_projector(z)) {
     | (Left, Outer, (Some(id), _)) =>
       ProjectorAction.skip_select_to(Left, id, z)
     | (Right, Outer, (_, Some(id))) =>
@@ -19,14 +19,14 @@ module Make = (M: Editor.Meta.S) => {
   let range = (l: Id.t, r: Id.t, z: Zipper.t): option(Zipper.t) => {
     let* z = Move.jump_to_id(z, l);
     print_endline("Select.range: first");
-    let* Measured.{last, _} = Measured.find_by_id(r, M.measured);
+    let* Measured.{last, _} = Measured.find_by_id(r, M.measured_projected);
     print_endline("Select.range: last");
     Move.do_towards(primary, last, z);
   };
 
   let term = (id: Id.t, z: Zipper.t): option(Zipper.t) => {
     //TODO: check if selection is already a term: no-op in this case
-    let* (l, r) = TermRanges.find_opt(id, M.term_ranges);
+    let* (l, r) = TermRanges.find_opt(id, M.term_ranges_projected);
     print_endline(
       "Select.term: l: "
       ++ Id.show(Piece.id(l))
@@ -38,7 +38,7 @@ module Make = (M: Editor.Meta.S) => {
 
   let tile = (id: Id.t, z: Zipper.t): option(Zipper.t) => {
     let* z = Move.jump_to_id(z, id);
-    let* Measured.{last, _} = Measured.find_by_id(id, M.measured);
+    let* Measured.{last, _} = Measured.find_by_id(id, M.measured_projected);
     Move.do_towards(primary, last, z);
   };
 
@@ -46,7 +46,8 @@ module Make = (M: Editor.Meta.S) => {
     switch (d) {
     | Goal(Piece(_)) => failwith("Select.go not implemented for Piece Goal")
     | Goal(Point(goal)) =>
-      let anchor = z |> Zipper.toggle_focus |> Zipper.caret_point(M.measured);
+      let anchor =
+        z |> Zipper.toggle_focus |> Zipper.caret_point(M.measured_projected);
       Move.do_towards(~anchor, primary, goal, z);
     | Extreme(d) => Move.do_extreme(primary, d, z)
     | Local(d) =>

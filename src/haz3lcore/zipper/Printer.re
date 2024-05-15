@@ -74,7 +74,7 @@ let to_string_editor =
     (~holes: option(string)=Some(""), editor: Editor.t): string =>
   to_rows(
     ~holes,
-    ~measured=editor.state.meta.measured,
+    ~measured=editor.state.meta.measured_real,
     ~caret=None,
     ~indent="",
     ~segment=seg_of_zip(editor.state.zipper),
@@ -83,7 +83,7 @@ let to_string_editor =
 
 let to_string_selection = (editor: Editor.t): string =>
   to_rows(
-    ~measured=editor.state.meta.measured,
+    ~measured=editor.state.meta.measured_real,
     ~caret=None,
     ~indent=" ",
     ~holes=None,
