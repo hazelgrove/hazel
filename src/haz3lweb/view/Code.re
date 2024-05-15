@@ -162,15 +162,22 @@ let view =
       ~sort: Sort.t,
       ~font_metrics,
       ~settings: Settings.t,
-      {state: {meta: {measured, buffer_ids, segment, holes, _}, _}, _}: Editor.t,
+      {
+        state: {
+          meta: {measured_projected, buffer_ids, segment_projected, holes, _},
+          _,
+        },
+        _,
+      }: Editor.t,
     )
     : Node.t => {
   module Text =
     Text({
-      let map = measured;
+      let map = measured_projected;
       let settings = settings;
     });
-  let code = Text.of_segment(buffer_ids, false, sort, segment);
-  let holes = List.map(of_hole(~measured, ~font_metrics), holes);
+  let code = Text.of_segment(buffer_ids, false, sort, segment_projected);
+  let holes =
+    List.map(of_hole(~measured=measured_projected, ~font_metrics), holes);
   div(~attr=Attr.class_("code"), [span_c("code-text", code), ...holes]);
 };

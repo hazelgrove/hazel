@@ -121,8 +121,16 @@ let deco =
       ~highlights: option(ColorSteps.colorMap),
       {
         state: {
-          zipper,
-          meta: {term_ranges, segment, measured, terms, tiles, _},
+          // zipper,
+          meta: {
+            z_projected,
+            term_ranges_projected,
+            segment_projected,
+            measured_projected,
+            terms,
+            tiles,
+            _,
+          },
           _,
         },
         _,
@@ -130,20 +138,28 @@ let deco =
     ) => {
   module Deco =
     Deco.Deco({
-      let map = measured;
+      let map = measured_projected;
       let terms = terms;
-      let term_ranges = term_ranges;
+      let term_ranges = term_ranges_projected;
       let tiles = tiles;
       let font_metrics = font_metrics;
       let show_backpack_targets = show_backpack_targets;
       let error_ids = error_ids;
     });
-  let decos = selected ? Deco.all(zipper, segment) : Deco.err_holes(zipper);
+  let decos =
+    selected
+      ? Deco.all(z_projected, segment_projected)
+      : Deco.err_holes(z_projected);
   let decos =
     switch (test_results) {
     | None => decos
     | Some(test_results) =>
-      decos @ test_result_layer(~font_metrics, ~measured, test_results) // TODO move into decos
+      decos
+      @ test_result_layer(
+          ~font_metrics,
+          ~measured=measured_projected,
+          test_results,
+        ) // TODO move into decos
     };
   switch (highlights) {
   | Some(colorMap) =>

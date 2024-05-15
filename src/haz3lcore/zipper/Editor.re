@@ -5,9 +5,13 @@ module Meta = {
   type t = {
     col_target: int,
     touched: Touched.t,
-    measured: Measured.t,
-    term_ranges: TermRanges.t,
-    segment: Segment.t,
+    z_projected: Zipper.t,
+    measured_real: Measured.t,
+    measured_projected: Measured.t,
+    term_ranges_real: TermRanges.t,
+    term_ranges_projected: TermRanges.t,
+    segment_real: Segment.t,
+    segment_projected: Segment.t,
     view_term: Term.UExp.t,
     terms: TermMap.t,
     tiles: TileMap.t,
@@ -16,43 +20,43 @@ module Meta = {
   };
 
   let init = (z: Zipper.t) => {
-    let segment' = Zipper.unselect_and_zip(z);
-    let segment = Projector.of_segment(z.projectors, segment');
+    let segment_real = Zipper.unselect_and_zip(z);
+    let segment_projected = Projector.of_segment(z.projectors, segment_real);
     /*NOTE(andrew): consider using segment' for view_term (but terms problematic) */
-    let (view_term, terms) = MakeTerm.go(segment);
-    let term_ranges = TermRanges.mk(segment);
-    let measured =
-      Projector.fake_measured(
-        z.projectors,
-        Measured.of_segment(segment),
-        TermRanges.mk(segment') //TODO(andrew): fix perf
-      );
+    let (view_term, terms) = MakeTerm.go(segment_projected);
     {
       col_target: 0,
       touched: Touched.empty,
-      measured,
-      segment,
-      term_ranges,
-      tiles: TileMap.mk(segment),
+      z_projected: ProjectorAction.of_zipper(z),
+      measured_real: Measured.of_segment(segment_real),
+      measured_projected: Measured.of_segment(segment_projected),
+      segment_real,
+      segment_projected,
+      term_ranges_real: TermRanges.mk(segment_real),
+      term_ranges_projected: TermRanges.mk(segment_projected),
+      tiles: TileMap.mk(segment_projected),
       view_term,
       terms,
-      holes: Segment.holes(segment),
+      holes: Segment.holes(segment_projected),
       buffer_ids: Selection.buffer_ids(z.selection),
     };
   };
 
+  //TODO(andrew): what is this module used for?
   module type S = {
     let touched: Touched.t;
-    let measured: Measured.t;
-    let term_ranges: TermRanges.t;
+    let measured_projected: Measured.t;
+    let measured_real: Measured.t;
+    let term_ranges_projected: TermRanges.t;
     let col_target: int;
   };
   let module_of_t = (m: t): (module S) =>
     (module
      {
        let touched = m.touched;
-       let measured = m.measured;
-       let term_ranges = m.term_ranges;
+       let measured_projected = m.measured_projected;
+       let measured_real = m.measured_real;
+       let term_ranges_projected = m.term_ranges_projected;
        let col_target = m.col_target;
      });
 
@@ -64,50 +68,59 @@ module Meta = {
 
   let next =
       (~effects: list(Effect.t)=[], a: Action.t, z: Zipper.t, meta: t): t => {
-    let {touched, measured, col_target, _} = meta;
+    let {touched, measured_real, measured_projected, col_target, _} = meta;
     let touched = Touched.update(Time.tick(), effects, touched);
     let is_edit = Action.is_edit(a);
-    let segment' = is_edit ? Zipper.unselect_and_zip(z) : meta.segment;
-    let segment = Projector.of_segment(z.projectors, segment');
+    let z_projected = ProjectorAction.of_zipper(z);
+    let segment_real =
+      is_edit ? Zipper.unselect_and_zip(z) : meta.segment_real;
+    let segment_projected = Projector.of_segment(z.projectors, segment_real);
     //print_endline("projected segment:");
     //segment |> Segment.show |> print_endline;
-
-    let measured =
-      is_edit
-        ? Projector.fake_measured(
-            z.projectors,
-            Measured.of_segment(~touched, ~old=measured, segment),
-            //TODO(andrew): needs to be nonprojected segment; fix perf!!
-            TermRanges.mk(segment'),
-          )
-        : measured;
-    let term_ranges = is_edit ? TermRanges.mk(segment) : meta.term_ranges;
+    let measured_real =
+      Measured.of_segment(~touched, ~old=measured_real, segment_real);
+    let measured_projected =
+      Measured.of_segment(
+        ~touched,
+        ~old=measured_projected,
+        segment_projected,
+      );
+    let term_ranges_real =
+      is_edit ? TermRanges.mk(segment_real) : meta.term_ranges_real;
+    let term_ranges_projected =
+      is_edit ? TermRanges.mk(segment_projected) : meta.term_ranges_projected;
     let col_target =
       switch (a) {
       | Move(Local(Up | Down))
       | Select(Resize(Local(Up | Down))) => col_target
       | _ =>
-        switch (Indicated.index(z)) {
+        switch (Indicated.index(z_projected)) {
         | Some(i) => print_endline("indicated_id:" ++ Id.show(i))
         //let x = Id.Map.find(i, measured.tiles);
         | None => print_endline("no indicated_id")
         };
         print_endline("Editor.next.caret_point");
-        Zipper.caret_point(measured, z).col;
+        Zipper.caret_point(measured_projected, z_projected).col;
       };
     let (view_term, terms) =
       //NOTE(andrew): could use unprojected version here, might be dangerous
-      is_edit ? MakeTerm.go(segment) : (meta.view_term, meta.terms);
+      is_edit
+        ? MakeTerm.go(segment_projected) : (meta.view_term, meta.terms);
     {
       col_target,
       touched,
-      measured,
-      segment,
-      term_ranges,
-      tiles: is_edit ? TileMap.mk(segment) : meta.tiles,
+      z_projected,
+      measured_real,
+      measured_projected,
+      segment_real,
+      segment_projected,
+      term_ranges_real,
+      term_ranges_projected,
+      tiles: is_edit ? TileMap.mk(segment_real) : meta.tiles,
       view_term,
       terms,
-      holes: is_edit ? Segment.holes(segment) : meta.holes,
+      //NOTE(andrew): this is seg_project bc otherwise Code.of_hole crashes
+      holes: is_edit ? Segment.holes(segment_projected) : meta.holes,
       buffer_ids: Selection.buffer_ids(z.selection),
     };
   };

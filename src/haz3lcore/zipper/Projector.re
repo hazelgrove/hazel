@@ -138,7 +138,11 @@ let placehold = (prjs, p: Piece.t) =>
   | Some(Normal) => p
   | Some(pr) =>
     //TODO(andrew): Maybe shouldn't just duplicate this id in the general case?
-    placeholder(pr, Piece.id(p))
+    placeholder(
+      pr,
+      //Id.mk(),
+      Piece.id(p),
+    )
   };
 
 let rec of_segment = (projectors, seg: Segment.t): Segment.t => {
@@ -155,35 +159,35 @@ and of_tile = (projectors, t: Tile.t): Tile.t => {
   {...t, children: List.map(of_segment(projectors), t.children)};
 };
 
-let fake_measured =
-    (p: Map.t, measured: Measured.t, term_ranges: TermRanges.t): Measured.t =>
-  Map.fold(
-    (id, pr: t, measured: Measured.t) => {
-      switch (
-        Measured.find_by_id(id, measured),
-        Id.Map.find_opt(id, term_ranges),
-      ) {
-      | (Some(m), Some((p_start, p_last))) =>
-        let p_start = placeholder(pr, Piece.id(p_start));
-        let p_last = placeholder(pr, Piece.id(p_last));
-        let measured = Measured.add_p(p_start, m, measured);
-        let measured = Measured.add_p(p_last, m, measured);
-        print_endline("fake_measured: added placeholder tiles:");
-        print_endline("root_id:" ++ Id.to_string(id));
-        print_endline("start_id:" ++ Id.to_string(Piece.id(p_start)));
-        print_endline("last_id:" ++ Id.to_string(Piece.id(p_last)));
-        measured;
-      | (Some(_), None) =>
-        print_endline("fake_measured: no term range for projector");
-        measured;
-      | _ =>
-        print_endline("fake_measured: no measurement for projector");
-        measured;
-      }
-    },
-    p,
-    measured,
-  );
+// let fake_measured =
+//     (p: Map.t, measured: Measured.t, term_ranges: TermRanges.t): Measured.t =>
+//   Map.fold(
+//     (id, pr: t, measured: Measured.t) => {
+//       switch (
+//         Measured.find_by_id(id, measured),
+//         Id.Map.find_opt(id, term_ranges),
+//       ) {
+//       | (Some(m), Some((p_start, p_last))) =>
+//         let p_start = placeholder(pr, Piece.id(p_start));
+//         let p_last = placeholder(pr, Piece.id(p_last));
+//         let measured = Measured.add_p(p_start, m, measured);
+//         let measured = Measured.add_p(p_last, m, measured);
+//         print_endline("fake_measured: added placeholder tiles:");
+//         print_endline("root_id:" ++ Id.to_string(id));
+//         print_endline("start_id:" ++ Id.to_string(Piece.id(p_start)));
+//         print_endline("last_id:" ++ Id.to_string(Piece.id(p_last)));
+//         measured;
+//       | (Some(_), None) =>
+//         print_endline("fake_measured: no term range for projector");
+//         measured;
+//       | _ =>
+//         print_endline("fake_measured: no measurement for projector");
+//         measured;
+//       }
+//     },
+//     p,
+//     measured,
+//   );
 
 /*
  projector map has ids of projectors

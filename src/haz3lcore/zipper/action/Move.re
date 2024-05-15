@@ -6,7 +6,6 @@ open Sexplib.Std;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type movability =
   | CanEnter(int, int)
-  | SkipTo(Id.t)
   | CanPass
   | CantEven;
 
@@ -23,7 +22,7 @@ let movability = (chunkiness: chunkiness, label, delim_idx): movability => {
 };
 
 let neighbor_movability =
-    (chunkiness: chunkiness, {relatives: {siblings, ancestors}, _} as z: t)
+    (chunkiness: chunkiness, {relatives: {siblings, ancestors}, _}: t)
     : (movability, movability) => {
   let movability = movability(chunkiness);
   let (supernhbr_l, supernhbr_r) =
@@ -35,32 +34,28 @@ let neighbor_movability =
       )
     };
   let (l_nhbr, r_nhbr) = Siblings.neighbors(siblings);
-  let (l_proj, r_proj) = ProjectorAction.neighbor_is(z);
   let l =
-    switch (l_proj, l_nhbr) {
-    | (Some(l_proj_id), _) => SkipTo(l_proj_id)
-    | (None, Some(Tile({label, _}))) =>
-      movability(label, List.length(label) - 1)
-    | (None, Some(Secondary(w))) when Secondary.is_comment(w) =>
+    switch (l_nhbr) {
+    | Some(Tile({label, _})) => movability(label, List.length(label) - 1)
+    | Some(Secondary(w)) when Secondary.is_comment(w) =>
       // Comments are always length >= 2
       let content_string = Secondary.get_string(w.content);
       CanEnter(
         Unicode.length(content_string) - 1,
         Unicode.length(content_string) - 2,
       );
-    | (None, Some(Secondary(_) | Grout(_))) => CanPass
-    | (None, None) => supernhbr_l
+    | Some(Secondary(_) | Grout(_)) => CanPass
+    | None => supernhbr_l
     };
   let r =
-    switch (r_proj, r_nhbr) {
-    | (Some(r_proj_id), _) => SkipTo(r_proj_id)
-    | (None, Some(Tile({label, _}))) => movability(label, 0)
-    | (None, Some(Secondary(w))) when Secondary.is_comment(w) =>
+    switch (r_nhbr) {
+    | Some(Tile({label, _})) => movability(label, 0)
+    | Some(Secondary(w)) when Secondary.is_comment(w) =>
       // Comments are always length >= 2
       let content_string = Secondary.get_string(w.content);
       CanEnter(0, Unicode.length(content_string) - 2);
-    | (None, Some(Secondary(_) | Grout(_))) => CanPass
-    | (None, None) => supernhbr_r
+    | Some(Secondary(_) | Grout(_)) => CanPass
+    | None => supernhbr_r
     };
   (l, r);
 };
@@ -68,7 +63,12 @@ let neighbor_movability =
 module Make = (M: Editor.Meta.S) => {
   let caret_point = t => {
     // print_endline("Move.caret_point");
-    Zipper.caret_point(M.measured, t);
+    Zipper.caret_point(
+      M.measured_projected,
+      //TODO(andrew): why real here? if use projected,
+      // get caret point errs but only for grout not tiles
+      t,
+    );
   };
 
   let pop_out = z => Some(z |> Zipper.set_caret(Outer));
@@ -82,14 +82,11 @@ module Make = (M: Editor.Meta.S) => {
     z |> Zipper.set_caret(Inner(d_init, c_max)) |> Zipper.move(d);
 
   let primary = (chunkiness: chunkiness, d: Direction.t, z: t): option(t) => {
+    print_endline("Move.primary");
     switch (d, z.caret, neighbor_movability(chunkiness, z)) {
     /* this case maybe shouldn't be necessary but currently covers an edge
        (select an open parens to left of a multichar token and press left) */
     | _ when z.selection.content != [] => pop_move(d, z)
-    | (Left, Outer, (SkipTo(pid), _)) =>
-      ProjectorAction.skip_to(Left, pid, z)
-    | (Right, Outer, (_, SkipTo(pid))) =>
-      ProjectorAction.skip_to(Right, pid, z)
     | (Left, Outer, (CanEnter(dlm, c_max), _)) =>
       inner_end(d, dlm, c_max, z)
     | (Left, Outer, _) => Zipper.move(d, z)
@@ -106,6 +103,7 @@ module Make = (M: Editor.Meta.S) => {
   };
 
   let is_at_side_of_row = (d: Direction.t, z: Zipper.t) => {
+    print_endline("Move.is_at_side_of_row");
     let Measured.Point.{row, col} = caret_point(z);
     switch (Zipper.move(d, z)) {
     | None => true
@@ -178,6 +176,7 @@ module Make = (M: Editor.Meta.S) => {
     /* Here f should be a function which results in strict d-wards
        movement of the caret. Iterate f until we get to the closet
        caret position to a target derived from the initial position */
+    print_endline("Move.do_vertical");
     let cur_p = caret_point(z);
     let goal =
       Measured.Point.{
@@ -240,7 +239,7 @@ module Make = (M: Editor.Meta.S) => {
     };
 
   let jump_to_id = (~init=Direction.Left, z: t, id: Id.t): option(t) => {
-    let* {origin, _} = Measured.find_by_id(id, M.measured);
+    let* {origin, _} = Measured.find_by_id(id, M.measured_projected);
     let z =
       switch (init == Left ? to_start(z) : to_end(z)) {
       | None => z

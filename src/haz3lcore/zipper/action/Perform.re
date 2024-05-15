@@ -18,28 +18,6 @@ let is_write_action = (a: Action.t) => {
   };
 };
 
-module Project = {
-  let go = (p: Action.project, z: t) =>
-    switch (p) {
-    | ToggleFold =>
-      print_endline("Project.go: ToggleFold");
-      switch (Indicated.index(z)) {
-      | Some(id) =>
-        switch (Projector.Map.find(id, z.projectors)) {
-        | Some(_p) => {
-            ...z,
-            projectors: Projector.Map.remove(id, z.projectors),
-          }
-        | None => {
-            ...z,
-            projectors: Projector.Map.add(id, Projector.Fold, z.projectors),
-          }
-        }
-      | None => z
-      };
-    };
-};
-
 let go_z =
     (
       ~meta: option(Editor.Meta.t)=?,
@@ -71,6 +49,56 @@ let go_z =
       }
     };
 
+  let selection_dance = (z, d, pid): t => {
+    //TODO(andrew): clean up hacky movement
+    print_endline("PERFORM: going to start");
+    print_endline("direction: " ++ Direction.show(d));
+    //d == Left ? Move.to_end(z) : Move.to_start(z)
+    switch (select_term_current(z)) {
+    | Error(_err) =>
+      //TODO(andrew): deal with this properly
+      //figure out why selection is failing (metrics issue?)
+      print_endline("PERFORM: ERROR couldn't select, going to start instead");
+      switch (Move.jump_to_id(~init=Left, z, Piece.id(pid))) {
+      | None =>
+        print_endline("PERFORM: jump_to_id failed");
+        z;
+      | Some(z) =>
+        print_endline("PERFORM: jump_to_id succeeded");
+        z;
+      // switch (select_term_current(z)) {
+      // | Ok(z) => Ok(directional_unselect(Direction.toggle(d), z))
+      // | Error(_err) => Ok(z)
+      // };
+      };
+    | Ok(z) =>
+      print_endline("PERFORM: select_term_current succeeded");
+      directional_unselect(Direction.toggle(d), z);
+    };
+  };
+
+  let proj_loj = (p: Action.project, z: t, pid, d) =>
+    switch (p) {
+    | ToggleFold =>
+      print_endline("Project.go: ToggleFold");
+      switch (Indicated.index(z)) {
+      | Some(id) =>
+        switch (Projector.Map.find(id, z.projectors)) {
+        | Some(_p) => {
+            ...z,
+            projectors: Projector.Map.remove(id, z.projectors),
+          }
+        | None =>
+          let z = {
+            ...z,
+            projectors: Projector.Map.add(id, Projector.Fold, z.projectors),
+          };
+          selection_dance(z, d, pid);
+        }
+      | None => z
+      };
+    };
+
   switch (a) {
   | Project(p) =>
     switch (
@@ -83,35 +111,9 @@ let go_z =
     ) {
     | None => Error(Action.Failure.Cant_move)
     | Some((pid, d, _)) =>
-      let z = Project.go(p, z);
-      //TODO(andrew): clean up hacky movement
-      print_endline("PERFORM: going to start");
-      print_endline("direction: " ++ Direction.show(d));
-      //d == Left ? Move.to_end(z) : Move.to_start(z)
-      switch (select_term_current(z)) {
-      | Error(_err) =>
-        //TODO(andrew): deal with this properly
-        //figure out why selection is failing (metrics issue?)
-        print_endline(
-          "PERFORM: ERROR couldn't select, going to start instead",
-        );
-        switch (Move.jump_to_id(~init=Left, z, Piece.id(pid))) {
-        | None =>
-          print_endline("PERFORM: jump_to_id failed");
-          Ok(z);
-        | Some(z) =>
-          print_endline("PERFORM: jump_to_id succeeded");
-          Ok(z);
-        // switch (select_term_current(z)) {
-        // | Ok(z) => Ok(directional_unselect(Direction.toggle(d), z))
-        // | Error(_err) => Ok(z)
-        // };
-        };
-      | Ok(z) =>
-        print_endline("PERFORM: select_term_current succeeded");
-        Ok(directional_unselect(Direction.toggle(d), z));
-      };
-    // Ok(z);
+      let z = proj_loj(p, z, pid, d);
+      //selection_dance(z, d, pid);
+      Ok(z);
     }
   | Move(d) =>
     Move.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move)
