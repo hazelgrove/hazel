@@ -36,79 +36,6 @@ module Map = {
 
 type t = p;
 
-// let rep_id = (seg, r) => r |> Aba.first_a |> List.nth(seg) |> Piece.id;
-
-// let rec left_idx = (skel: Skel.t): int => {
-//   switch (skel) {
-//   | Op(r)
-//   | Pre(r, _) => Aba.first_a(r)
-//   | Post(s, _)
-//   | Bin(s, _, _) => left_idx(s)
-//   };
-// };
-
-// let rec right_idx = (skel: Skel.t): int => {
-//   switch (skel) {
-//   | Op(r)
-//   | Post(_, r) => Aba.first_a(r)
-//   | Pre(_, s)
-//   | Bin(_, _, s) => right_idx(s)
-//   };
-// };
-
-// let get_extreme_idxs = (skel: Skel.t): (int, int) => (
-//   left_idx(skel),
-//   right_idx(skel),
-// );
-
-// type projector_range = {
-//   id: Id.t,
-//   start: int,
-//   last: int,
-// };
-
-// let get_range = (seg: Segment.t, ps: Map.t): option((Id.t, (int, int))) => {
-//   let rec go = (skel: Skel.t) => {
-//     let id = rep_id(seg, Skel.root(skel));
-//     switch (Id.Map.find_opt(id, ps)) {
-//     | Some(_) =>
-//       let (l, r) = get_extreme_idxs(skel);
-//       Some((id, (l, r)));
-//     | None =>
-//       switch (skel) {
-//       | Op(_) => None
-//       | Pre(_, r) => go(r)
-//       | Post(l, _) => go(l)
-//       | Bin(l, _, r) =>
-//         switch (go(l)) {
-//         | Some(x) => Some(x)
-//         | None => go(r)
-//         }
-//       }
-//     };
-//   };
-//   go(Segment.skel(seg));
-// };
-
-// let get_ranges = (seg: Segment.t, ps: Map.t): list((Id.t, (int, int))) => {
-//   let rec go = (skel: Skel.t) => {
-//     let id = rep_id(seg, Skel.root(skel));
-//     switch (Id.Map.find_opt(id, ps)) {
-//     | Some(_) =>
-//       let (l, r) = get_extreme_idxs(skel);
-//       [(id, (l, r))];
-//     | None =>
-//       switch (skel) {
-//       | Op(_) => []
-//       | Pre(_, r) => go(r)
-//       | Post(l, _) => go(l)
-//       | Bin(l, _, r) => go(l) @ go(r)
-//       }
-//     };
-//   };
-//   go(Segment.skel(seg));
-// };
-
 let split_seg =
     (seg: Segment.t, range: option((Id.t, (int, int))))
     : option((Segment.t, Segment.t, Segment.t, Id.t)) => {
@@ -159,35 +86,23 @@ and of_tile = (projectors, t: Tile.t): Tile.t => {
   {...t, children: List.map(of_segment(projectors), t.children)};
 };
 
-// let fake_measured =
-//     (p: Map.t, measured: Measured.t, term_ranges: TermRanges.t): Measured.t =>
-//   Map.fold(
-//     (id, pr: t, measured: Measured.t) => {
-//       switch (
-//         Measured.find_by_id(id, measured),
-//         Id.Map.find_opt(id, term_ranges),
-//       ) {
-//       | (Some(m), Some((p_start, p_last))) =>
-//         let p_start = placeholder(pr, Piece.id(p_start));
-//         let p_last = placeholder(pr, Piece.id(p_last));
-//         let measured = Measured.add_p(p_start, m, measured);
-//         let measured = Measured.add_p(p_last, m, measured);
-//         print_endline("fake_measured: added placeholder tiles:");
-//         print_endline("root_id:" ++ Id.to_string(id));
-//         print_endline("start_id:" ++ Id.to_string(Piece.id(p_start)));
-//         print_endline("last_id:" ++ Id.to_string(Piece.id(p_last)));
-//         measured;
-//       | (Some(_), None) =>
-//         print_endline("fake_measured: no term range for projector");
-//         measured;
-//       | _ =>
-//         print_endline("fake_measured: no measurement for projector");
-//         measured;
-//       }
-//     },
-//     p,
-//     measured,
-//   );
+let piece_is = (projectors: Map.t, p: option(Piece.t)) =>
+  switch (p) {
+  | Some(p) when Map.mem(Piece.id(p), projectors) =>
+    Map.mem(Piece.id(p), projectors) ? Some(Piece.id(p)) : None
+  | _ => None
+  };
+
+let neighbor_is = (projectors, s: Siblings.t): (option(Id.t), option(Id.t)) => (
+  piece_is(projectors, Siblings.left_neighbor(s)),
+  piece_is(projectors, Siblings.right_neighbor(s)),
+);
+
+let selection_sides_is =
+    (projectors, s: Selection.t): (option(Id.t), option(Id.t)) => (
+  piece_is(projectors, ListUtil.hd_opt(s.content)),
+  piece_is(projectors, ListUtil.last_opt(s.content)),
+);
 
 /*
  projector map has ids of projectors
