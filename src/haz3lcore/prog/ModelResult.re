@@ -50,6 +50,41 @@ let run_pending = (~settings: CoreSettings.t) =>
   | Stepper(s) =>
     Stepper(Stepper.evaluate_pending(~settings=settings.evaluation, s));
 
+let update_evaluation =
+    (
+      eval:
+        Result.t(
+          (Evaluator.Result.t, EvaluatorState.t),
+          ProgramResult.error,
+        ),
+      result: t,
+    )
+    : t => {
+  switch (result) {
+  | Stepper(_)
+  | NoElab => result
+  | Evaluation({elab, previous, _}) =>
+    Evaluation({
+      elab,
+      previous,
+      evaluation:
+        switch (eval) {
+        | Ok((exp, state)) =>
+          ResultOk({
+            result: exp,
+            editor:
+              ExpToSegment.exp_to_editor(
+                ~inline=false,
+                exp |> Evaluator.Result.unbox,
+              ),
+            state,
+          })
+        | Error(reason) => ResultFail(reason)
+        },
+    })
+  };
+};
+
 let timeout: t => t =
   fun
   | NoElab => NoElab
