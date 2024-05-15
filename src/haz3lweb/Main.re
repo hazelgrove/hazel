@@ -75,54 +75,86 @@ module App = {
   module Model = Model;
   module Action = Update;
   module State = State;
-  [@deriving show({with_path: false})]
-  type customMessage = string;
 
-  let customEvent:
-    Dom_html.Event.typ(Js.t(Dom_html.customEvent(customMessage))) =
-    Dom_html.Event.make("commandPalletteEvent");
   let on_startup = (~schedule_action, m: Model.t) => {
     let _ =
       observe_font_specimen("font-specimen", fm =>
         schedule_action(Haz3lweb.Update.SetMeta(FontMetrics(fm)))
       );
+    let ninja = JsUtil.get_elem_by_id("ninja-keys");
 
+    let ninja_options = [|
+      [%js
+        {
+          val id = "Go To Definition";
+          val title = "Go to Definition";
+          val mdIcon = "arrow_forward";
+          val handler =
+            () => {
+              schedule_action(
+                PerformAction(Jump(BindingSiteOfIndicatedVar)),
+              );
+            }
+        }
+      ],
+      [%js
+        {
+          val id = "Proceed To Next Hole";
+          val title = "Proceed To Next Hole";
+          val mdIcon = "arrow_forward";
+          val handler =
+            () => {
+              schedule_action(PerformAction(MoveToNextHole(Right)));
+            }
+        }
+      ],
+      [%js
+        {
+          val id = "Proceed To Next Hole";
+          val title = "Proceed To Next Hole";
+          val mdIcon = "arrow_forward";
+          val handler =
+            () => {
+              schedule_action(PerformAction(MoveToNextHole(Right)));
+            }
+        }
+      ],
+      [%js
+        {
+          val id = "Undo";
+          val title = "Undo";
+          val mdIcon = "undo";
+          val handler =
+            () => {
+              schedule_action(Undo);
+            }
+        }
+      ],
+      [%js
+        {
+          val id = "Redo";
+          val title = "Redo";
+          val mdIcon = "redo";
+          val handler =
+            () => {
+              schedule_action(Redo);
+            }
+        }
+      ],
+      [%js
+        {
+          val id = "Reparse Current Editor";
+          val title = "Reparse Current Editor";
+          val mdIcon = "refresh";
+          val handler =
+            () => {
+              schedule_action(ReparseCurrentEditor);
+            }
+        }
+      ],
+    |];
+    Js.Unsafe.set(ninja, "data", Js.array(ninja_options));
     JsUtil.focus_clipboard_shim();
-    let _eventId =
-      Dom_html.addEventListener(
-        Dom_html.document,
-        customEvent,
-        Dom_html.handler((e: Js.t(Dom_html.customEvent(customMessage))) => {
-          let foo = Js.Opt.to_option(e##.detail);
-          let bar = Option.map(x => x, foo);
-
-          print_endline(
-            "FOO: " ++ [%derive.show: option(customMessage)](foo),
-          );
-          let action: option(UpdateAction.t) =
-            switch (bar) {
-            | Some("go-to-definition") =>
-              Some(PerformAction(Jump(BindingSiteOfIndicatedVar)))
-            | Some("proceed-to-next-hole") =>
-              Some(PerformAction(MoveToNextHole(Right)))
-            | Some("undo") => Some(Undo)
-            | Some("redo") => Some(Redo)
-            | Some("reparse-current-editor") => Some(ReparseCurrentEditor)
-
-            | _ => None
-            };
-
-          switch (action) {
-          | Some(a) => schedule_action(a)
-          | None =>
-            print_endline(
-              "Unknown Action" ++ [%derive.show: option(string)](bar),
-            )
-          };
-          Js.bool(true);
-        }),
-        Js.bool(false),
-      );
 
     /* initialize state. */
     let state = State.init();
