@@ -28,7 +28,7 @@ let view =
                ~result,
                ~selected=
                  switch (selected) {
-                 | Some(Editors.Result(i)) => Some(i)
+                 | Some(Editors.Selection.Result(i)) => Some(i)
                  | _ => None
                  },
                ~result_key,

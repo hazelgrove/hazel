@@ -3,16 +3,33 @@ open Haz3lcore;
 open Util;
 open OptUtil.Syntax;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type cell_selection =
-  | MainEditor
-  | Result(ModelResult.selection);
+module Selection = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type cell =
+    | MainEditor
+    | Result(ModelResult.selection);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type selection =
-  | Scratch(cell_selection)
-  | Documentation(cell_selection)
-  | Exercises(Exercise.pos, cell_selection);
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Scratch(cell)
+    | Documentation(cell)
+    | Exercises(Exercise.pos, cell);
+};
+
+module Action = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type cell =
+    | MainEditor(Action.t)
+    | Result(ModelResult.action);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Scratch(cell)
+    | Documentation(cell)
+    | Exercises(Exercise.pos, cell);
+
+  module Failure = Action.Failure;
+};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
@@ -67,7 +84,7 @@ let mk_statics = (~settings: Settings.t, editors: t): CachedStatics.t => {
 };
 
 let lookup_statics =
-    (~settings: Settings.t, ~selection: selection, ~statics, editors: t)
+    (~settings: Settings.t, ~selection: Selection.t, ~statics, editors: t)
     : CachedStatics.statics =>
   switch (editors, selection) {
   | _ when !settings.core.statics => CachedStatics.empty_statics
@@ -186,7 +203,7 @@ let switch_example_slide = (editors: t, name: string): option(t) =>
   };
 
 let get_selected_editor =
-    (~selection: selection, editors: t, model_results: ModelResults.t) =>
+    (~selection: Selection.t, editors: t, model_results: ModelResults.t) =>
   switch (editors, selection) {
   | (Documentation(name, slides), Documentation(MainEditor)) =>
     List.assoc_opt(name, slides)
@@ -213,7 +230,7 @@ let get_selected_editor =
 
 let put_selected_editor =
     (
-      ~selection: selection,
+      ~selection: Selection.t,
       editors: t,
       model_results: ModelResults.t,
       editor: Editor.t,
@@ -272,7 +289,7 @@ let put_selected_editor =
 
 let update_selected_editor =
     (
-      ~selection: option(selection),
+      ~selection: option(Selection.t),
       f: Editor.t => Result.t(Editor.t, Action.Failure.t),
       editors: t,
       results: ModelResults.t,
@@ -297,7 +314,7 @@ let update_selected_editor =
 
 let get_cursor_info =
     (
-      ~selection: option(selection),
+      ~selection: option(Selection.t),
       ~settings,
       editors: t,
       model_results: ModelResults.t,

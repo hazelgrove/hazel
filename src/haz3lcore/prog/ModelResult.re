@@ -140,6 +140,12 @@ let of_persistent: persistent => t =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type selection = int;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type action = {
+  selection,
+  action: Action.t,
+};
+
 let get_selected_editor = (~selection: selection, mr: t) =>
   switch (mr) {
   | NoElab => None

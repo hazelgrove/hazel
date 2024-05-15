@@ -22,7 +22,7 @@ let view =
       ~select,
       ~inject,
       ~ui_state: Model.ui_state,
-      ~selection: option((Exercise.pos, Editors.cell_selection)),
+      ~selection: option((Exercise.pos, Editors.Selection.cell)),
       ~settings: Settings.t,
       ~exercise,
       ~results,

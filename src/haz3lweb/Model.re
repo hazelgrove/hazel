@@ -24,7 +24,7 @@ type ui_state = {
   font_metrics: FontMetrics.t,
   show_backpack_targets: bool,
   mousedown: bool,
-  active_editor: option(Editors.selection),
+  active_editor: option(Editors.Selection.t),
 };
 
 let ui_state_init = {
