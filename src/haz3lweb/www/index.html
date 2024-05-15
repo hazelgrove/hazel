@@ -60,9 +60,7 @@
         title: "Go to Definition",
         mdIcon: "arrow_forward",
         handler: () => {
-          var foo = commandPalleteEvent("go-to-definition")
-          console.log(foo);
-          document.dispatchEvent(foo);
+          document.dispatchEvent(commandPalleteEvent("go-to-definition"));
         }
       },
       {
