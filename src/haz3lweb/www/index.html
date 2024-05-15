@@ -42,7 +42,7 @@
       </div>
     </div>
   </body>
-  <ninja-keys placeholder="My custom placeholder">
+  <ninja-keys id="ninja-keys" placeholder="My custom placeholder">
     <slot name="footer">Must use a custom footer or empty to hide</slot>
   </ninja-keys>
 
@@ -54,50 +54,6 @@
       });
     }
 
-    const hotkeys = [
-      {
-        id: "Go To Definition",
-        title: "Go to Definition",
-        mdIcon: "arrow_forward",
-        handler: () => {
-          document.dispatchEvent(commandPalleteEvent("go-to-definition"));
-        }
-      },
-      {
-        id: "Proceed To Next Hole",
-        title: "Proceed To Next Hole",
-        mdIcon: "arrow_forward",
-        handler: () => {
-          document.dispatchEvent(commandPalleteEvent("proceed-to-next-hole"));
-        }
-      },
-      {
-        id: "Undo",
-        title: "Undo",
-        mdIcon: "undo",
-        handler: () => {
-          document.dispatchEvent(commandPalleteEvent("undo"));
-        }
-      },
-      {
-        id: "Redo",
-        title: "Redo",
-        mdIcon: "redo",
-        handler: () => {
-          document.dispatchEvent(commandPalleteEvent("redo"));
-        }
-      },
-      {
-        id: "Reparse Current Editor",
-        title: "Reparse Current Editor",
-        mdIcon: "refresh",
-        handler: () => {
-          document.dispatchEvent(commandPalleteEvent("reparse-current-editor"));
-        }
-      }
-    ];
-    const ninja = document.querySelector("ninja-keys");
-    ninja.data = hotkeys;
   </script>
 
   <script src="hazel.js"></script>
