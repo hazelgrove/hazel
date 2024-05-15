@@ -136,7 +136,6 @@ let stepper_view =
         {previous_step: _, hidden_history, chosen_step: _}: Stepper.step_info,
       ) => {
     let (_, editor, _) = Aba.hd(hidden_history);
-    let _ = print_endline("idx" ++ string_of_int(idx));
     div(
       ~attr=Attr.classes(["result"]),
       [

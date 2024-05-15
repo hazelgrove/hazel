@@ -99,6 +99,7 @@ type t =
   | Assistant(agent_action)
   | ToggleStepper(ModelResults.Key.t)
   | StepperAction(ModelResults.Key.t, stepper_action)
+  | UpdateEvals(WorkerServer.Response.t)
   | UpdateResult(ModelResults.t);
 
 module Failure = {
@@ -156,6 +157,7 @@ let is_edit: t => bool =
   | Assistant(AcceptSuggestion)
   | Reset => true
   | UpdateResult(_)
+  | UpdateEvals(_)
   | MakeActive(_)
   | ExportPersistentData
   | Save
@@ -211,6 +213,7 @@ let reevaluate_post_update: t => bool =
   | UpdateExplainThisModel(_)
   | ExportPersistentData
   | UpdateResult(_)
+  | UpdateEvals(_)
   | MakeActive(_)
   | DebugConsole(_)
   | TAB
@@ -254,6 +257,7 @@ let should_scroll_to_caret =
     }
   | Assistant(Prompt(_))
   | UpdateResult(_)
+  | UpdateEvals(_)
   | ToggleStepper(_)
   | StepperAction(_, StepBackward | StepForward(_) | HideStepper) => false
   | Assistant(AcceptSuggestion) => true

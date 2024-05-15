@@ -191,24 +191,32 @@ let schedule_evaluation = (~schedule_action, model: Model.t): unit =>
         model.statics,
         model.editors,
       );
-    let eval_rs = ModelResults.to_evaluate(model.results, elabs);
-    if (!ModelResults.is_empty(eval_rs)) {
-      schedule_action(UpdateResult(eval_rs));
+    let eval_rs =
+      List.map(((n, {d}: Elaborator.Elaboration.t)) => (n, d), elabs);
+    if (List.length(eval_rs) != 0) {
       WorkerClient.request(
         eval_rs,
-        ~handler=rs => schedule_action(UpdateResult(rs)),
+        ~handler=rs => schedule_action(UpdateEvals(rs)),
         ~timeout=
           rqs =>
-            schedule_action(UpdateResult(ModelResults.timeout_all(rqs))),
+            schedule_action(
+              UpdateEvals(
+                List.map(
+                  ((n, _)) => (n, Error(ProgramResult.Timeout)),
+                  rqs,
+                ),
+              ),
+            ),
       );
     };
     /* Not sending stepper to worker for now bc closure perf */
-    let step_rs = ModelResults.to_step(model.results);
+    let new_rs = model.results |> ModelResults.update_elabs(elabs);
+    let step_rs = ModelResults.to_step(new_rs);
     if (!ModelResults.is_empty(step_rs)) {
       let new_rs =
-        step_rs
-        |> ModelResults.update_elabs(elabs)
-        |> ModelResults.run_pending(~settings=model.settings.core);
+        step_rs |> ModelResults.run_pending(~settings=model.settings.core);
+      schedule_action(UpdateResult(new_rs));
+    } else {
       schedule_action(UpdateResult(new_rs));
     };
   };
@@ -379,14 +387,13 @@ let rec apply =
       | Some(editors) => Model.save_and_return({...model, editors})
       }
     | MakeActive(pos) =>
-      let _ = Editors.show_selection(pos) |> print_endline; //TODO[Matt]: remove
       Ok({
         ...model,
         ui_state: {
           ...model.ui_state,
           active_editor: Some(pos),
         },
-      });
+      })
     | TAB =>
       /* Attempt to act intelligently when TAB is pressed.
        * TODO(andrew): Consider more advanced TAB logic. Instead
@@ -412,12 +419,13 @@ let rec apply =
         when model.settings.core.assist && model.settings.core.statics =>
       open Result.Syntax;
       let* model = perform_actions(model, [ResetSuggestion, a]);
-      let actions =
-        UpdateAssistant.assistant_action_to_editor_actions(
-          model,
-          Prompt(TyDi),
-        );
-      perform_actions(model, actions);
+      // let actions =
+      //   UpdateAssistant.assistant_action_to_editor_actions(
+      //     model,
+      //     Prompt(TyDi),
+      //   );
+      // perform_actions(model, actions);
+      Ok(model);
     | PerformAction(a) => perform_action(model, a)
     | ReparseCurrentEditor =>
       /* This serializes the current editor to text, resets the current
@@ -548,6 +556,21 @@ let rec apply =
       let results =
         ModelResults.union((_, _a, b) => Some(b), model.results, results);
       Ok({...model, results});
+    | UpdateEvals(evals) =>
+      Ok({
+        ...model,
+        results:
+          List.fold_left(
+            (results, (key, eval)) =>
+              ModelResults.update(
+                key,
+                Option.map(ModelResult.update_evaluation(eval)),
+                results,
+              ),
+            model.results,
+            evals,
+          ),
+      })
     };
   m |> Result.map(~f=update_cached_data(~schedule_action, update));
 };
