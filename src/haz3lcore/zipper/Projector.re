@@ -1,27 +1,29 @@
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type p =
+type t =
   | Normal
   | Fold;
 
-let to_string: p => string =
+let to_string: t => string =
   fun
   | Normal => ""
   | Fold => "F";
 
-let toggle_fold: p => p =
+let toggle_fold: t => t =
   fun
   | Normal => Fold
   | Fold => Normal;
 
-let placeholder_length: p => int =
+let placeholder_length: t => int =
   fun
   | Normal => (-666)
   | Fold => 2;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 module Map = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type p = t;
   open Id.Map;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Id.Map.t(p);
@@ -32,22 +34,6 @@ module Map = {
   let mem = mem;
   let fold = fold;
   let cardinal = cardinal;
-};
-
-type t = p;
-
-let split_seg =
-    (seg: Segment.t, range: option((Id.t, (int, int))))
-    : option((Segment.t, Segment.t, Segment.t, Id.t)) => {
-  switch (range) {
-  | None => None
-  | Some((id, (start, last))) =>
-    //TODO(andrew): numeric edge cases?
-    switch (ListUtil.split_sublist_opt(start, last + 1, seg)) {
-    | Some((pre, mid, suf)) => Some((pre, mid, suf, id))
-    | _ => None
-    }
-  };
 };
 
 let placeholder = (pr: t, id: Id.t): Piece.t =>
