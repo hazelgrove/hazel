@@ -19,14 +19,16 @@ let render_cells = (settings: Settings.t, v: list(vis_marked(Node.t))) => {
 
 let view =
     (
+      ~select,
       ~inject,
       ~ui_state: Model.ui_state,
+      ~selection: option((Exercise.pos, Editors.cell_selection)),
       ~settings: Settings.t,
       ~exercise,
       ~results,
       ~highlights,
     ) => {
-  let Exercise.{eds, pos} = exercise;
+  let Exercise.{eds} = exercise;
   let stitched_dynamics =
     Exercise.stitch_dynamic(
       settings.core,
@@ -58,13 +60,16 @@ let view =
         this_pos,
       ) => {
     Cell.editor_view(
-      // TODO[Matt:] select steppers in school mode
-      ~selected=pos == this_pos ? Some(MainEditor) : None,
+      ~select=s => select((this_pos, s)),
+      ~selected=
+        switch (selection) {
+        | Some((pos, s)) when pos == this_pos => Some(s)
+        | _ => None
+        },
       ~error_ids=
         Statics.Map.error_ids(editor.state.meta.term_ranges, di.info_map),
       ~inject,
       ~ui_state,
-      ~mousedown_updates=[SwitchEditor(this_pos, MainEditor)],
       ~settings,
       ~highlights,
       ~caption=Cell.caption(caption, ~rest=?subcaption),
@@ -201,6 +206,7 @@ let view =
           Cell.footer(
             ~locked=false,
             ~settings,
+            ~select=s => select((YourImpl, s)),
             ~inject,
             ~ui_state,
             ~selected=None,

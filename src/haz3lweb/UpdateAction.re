@@ -57,6 +57,16 @@ type benchmark_action =
   | Finish;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type editor_action =
+  | Perform(Action.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type cell_action =
+  | ToggleStepper
+  | Stepper(stepper_action)
+  | Editor(editor_action);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   /* meta */
   | Reset
@@ -69,7 +79,7 @@ type t =
   | ResetCurrentEditor
   | InitImportAll([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
   | FinishImportAll(option(string))
-  | SwitchEditor(Exercise.pos, ScratchSlide.editor_selection) //exercisemode only
+  | MakeActive(Editors.selection)
   | SwitchDocumentationSlide(string) //examplemode only
   // editors: scratchmode only
   | InitImportScratchpad([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
@@ -82,7 +92,6 @@ type t =
   | ReparseCurrentEditor
   | Cut
   | Copy
-  | Paste(string)
   | Undo
   | Redo
   | MoveToNextHole(Direction.t)
@@ -95,9 +104,6 @@ type t =
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | CantUndo
-    | CantRedo
-    | CantPaste
     | CantReset
     | CantSuggest
     | FailedToLoad
@@ -139,7 +145,6 @@ let is_edit: t => bool =
   | Cut
   | Undo
   | Redo
-  | Paste(_)
   | SwitchScratchSlide(_)
   | SwitchDocumentationSlide(_)
   | ToggleStepper(_)
@@ -151,7 +156,7 @@ let is_edit: t => bool =
   | Assistant(AcceptSuggestion)
   | Reset => true
   | UpdateResult(_)
-  | SwitchEditor(_)
+  | MakeActive(_)
   | ExportPersistentData
   | Save
   | Copy
@@ -206,7 +211,7 @@ let reevaluate_post_update: t => bool =
   | UpdateExplainThisModel(_)
   | ExportPersistentData
   | UpdateResult(_)
-  | SwitchEditor(_)
+  | MakeActive(_)
   | DebugConsole(_)
   | TAB
   | Benchmark(_) => false
@@ -220,7 +225,6 @@ let reevaluate_post_update: t => bool =
   | SwitchDocumentationSlide(_)
   | Reset
   | Cut
-  | Paste(_)
   | Undo
   | Redo => true;
 
@@ -256,13 +260,12 @@ let should_scroll_to_caret =
   | FinishImportScratchpad(_)
   | FinishImportAll(_)
   | ResetCurrentEditor
-  | SwitchEditor(_)
+  | MakeActive(_)
   | SwitchScratchSlide(_)
   | SwitchDocumentationSlide(_)
   | ReparseCurrentEditor
   | Reset
   | Copy
-  | Paste(_)
   | Cut
   | Undo
   | Redo
@@ -279,9 +282,12 @@ let should_scroll_to_caret =
     | Pick_up
     | Put_down
     | RotateBackpack
-    | MoveToBackpackTarget(_) => true
+    | MoveToBackpackTarget(_)
+    | Paste(_) => true
     | Unselect(_)
-    | Select(All) => false
+    | Select(All)
+    | Suggest(_)
+    | ResetSuggestion => false
     }
   | Save
   | InitImportAll(_)

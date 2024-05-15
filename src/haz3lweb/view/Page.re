@@ -1,11 +1,16 @@
 open Js_of_ocaml;
 open Haz3lcore;
 open Virtual_dom.Vdom;
+open Util;
+open OptUtil.Syntax;
 open Node;
 
 let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit), model) => {
-  let get_selection = (model: Model.t): string =>
-    model.editors |> Editors.get_editor |> Printer.to_string_selection;
+  let get_selection = (model: Model.t): option(string) => {
+    let* selection = model.ui_state.active_editor;
+    Editors.get_selected_editor(~selection, model.editors, model.results)
+    |> Option.map(Printer.to_string_selection);
+  };
   let key_handler =
       (~inject, ~dir: Key.dir, evt: Js.t(Dom_html.keyboardEvent))
       : Effect.t(unit) =>
@@ -30,22 +35,29 @@ let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit), model) => {
       JsUtil.focus_clipboard_shim();
       Effect.Ignore;
     }),
-    Attr.on_copy(_ => {
-      JsUtil.copy(get_selection(model));
-      Effect.Ignore;
-    }),
-    Attr.on_cut(_ => {
-      JsUtil.copy(get_selection(model));
-      inject(UpdateAction.PerformAction(Destruct(Left)));
-    }),
     Attr.on_paste(evt => {
       let pasted_text =
         Js.to_string(evt##.clipboardData##getData(Js.string("text")))
         |> Str.global_replace(Str.regexp("\n[ ]*"), "\n");
       Dom.preventDefault(evt);
-      inject(UpdateAction.Paste(pasted_text));
+      inject(UpdateAction.PerformAction(Paste(pasted_text)));
     }),
-  ];
+  ]
+  @ (
+    switch (get_selection(model)) {
+    | None => []
+    | Some(selection) => [
+        Attr.on_copy(_ => {
+          JsUtil.copy(selection);
+          Effect.Ignore;
+        }),
+        Attr.on_cut(_ => {
+          JsUtil.copy(selection);
+          inject(UpdateAction.PerformAction(Destruct(Left)));
+        }),
+      ]
+    }
+  );
 };
 
 let main_view =
@@ -53,9 +65,14 @@ let main_view =
       ~inject: UpdateAction.t => Ui_effect.t(unit),
       {settings, editors, explainThisModel, results, statics, ui_state, _}: Model.t,
     ) => {
-  let editor = Editors.get_editor(editors);
-  let statics = Editors.lookup_statics(~settings, ~statics, editors);
-  let cursor_info = Indicated.ci_of(editor.state.zipper, statics.info_map);
+  let cursor_info =
+    Editors.get_cursor_info(
+      ~selection=ui_state.active_editor,
+      ~settings,
+      editors,
+      results,
+      statics,
+    );
   let top_bar =
     div(
       ~attr=Attr.id("top-bar"),
@@ -79,9 +96,16 @@ let main_view =
   let editors_view =
     switch (editors) {
     | Scratch(idx, ss) =>
-      let (sel, _) = List.nth(ss, idx);
+      let editor = List.nth(ss, idx);
       let result_key = ScratchSlide.scratch_key(string_of_int(idx));
+      let statics = CachedStatics.lookup(statics, result_key);
+      let selected =
+        switch (ui_state.active_editor) {
+        | Some(Editors.Scratch(i)) => Some(i)
+        | _ => None
+        };
       ScratchMode.view(
+        ~select=s => inject(UpdateAction.MakeActive(Editors.Scratch(s))),
         ~inject,
         ~ui_state,
         ~settings,
@@ -89,18 +113,26 @@ let main_view =
         ~results,
         ~result_key,
         ~statics,
-        ~selected=Some(sel),
+        ~selected,
         editor,
       );
     | Documentation(name, ss) =>
-      let (sel, _) = List.assoc(name, ss);
+      let editor = List.assoc(name, ss);
       let result_key = ScratchSlide.scratch_key(name);
       let info =
         SlideContent.get_content(editors)
         |> Option.map(i => div(~attr=Attr.id("slide"), [i]))
         |> Option.to_list;
+      let statics = CachedStatics.lookup(statics, result_key);
+      let selected =
+        switch (ui_state.active_editor) {
+        | Some(Editors.Documentation(i)) => Some(i)
+        | _ => None
+        };
       info
       @ ScratchMode.view(
+          ~select=
+            s => inject(UpdateAction.MakeActive(Editors.Documentation(s))),
           ~inject,
           ~ui_state,
           ~settings,
@@ -108,18 +140,27 @@ let main_view =
           ~results,
           ~result_key,
           ~statics,
-          ~selected=Some(sel),
+          ~selected,
           editor,
         );
     | Exercises(_, _, exercise) =>
+      let selection =
+        switch (ui_state.active_editor) {
+        | Some(Editors.Exercises(pos, sel)) => Some((pos, sel))
+        | _ => None
+        };
       ExerciseMode.view(
+        ~select=
+          ((pos, sel)) =>
+            inject(UpdateAction.MakeActive(Editors.Exercises(pos, sel))),
         ~inject,
         ~ui_state,
         ~settings,
+        ~selection,
         ~highlights,
         ~results,
         ~exercise,
-      )
+      );
     };
   [
     top_bar,
@@ -135,9 +176,6 @@ let main_view =
     bottom_bar,
   ];
 };
-
-let get_selection = (model: Model.t): string =>
-  model.editors |> Editors.get_editor |> Printer.to_string_selection;
 
 let view = (~inject: UpdateAction.t => Ui_effect.t(unit), model: Model.t) =>
   div(

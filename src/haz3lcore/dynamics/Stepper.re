@@ -2,6 +2,7 @@ open Sexplib.Std;
 open EvaluatorStep;
 open Transition;
 open Util;
+open OptUtil.Syntax;
 
 exception Exception;
 
@@ -455,3 +456,20 @@ let from_persistent: persistent => t =
       stepper_state: StepperDone,
     };
   };
+
+type selection = int;
+
+let get_selected_editor = (~selection: selection, stepper: t) => {
+  let+ (_, editor, _) =
+    List.nth_opt(stepper.history |> Aba.get_as, selection);
+  editor;
+};
+
+let put_selected_editor = (~selection: selection, stepper: t, editor) => {
+  let as_ =
+    stepper.history
+    |> Aba.get_as
+    |> ListUtil.map_nth(selection, ((d, _, s)) => (d, editor, s));
+  let history = Aba.mk(as_, stepper.history |> Aba.get_bs);
+  {...stepper, history};
+};

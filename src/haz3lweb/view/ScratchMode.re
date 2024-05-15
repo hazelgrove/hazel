@@ -2,6 +2,7 @@ open Haz3lcore;
 
 let view =
     (
+      ~select,
       ~inject,
       ~ui_state: Model.ui_state,
       ~settings: Settings.t,
@@ -21,13 +22,13 @@ let view =
              Cell.footer(
                ~locked=false,
                ~settings,
+               ~select,
                ~inject,
                ~ui_state,
                ~result,
                ~selected=
                  switch (selected) {
-                 | Some(ScratchSlide.Stepper(i)) => Some(i)
-                 | Some(ScratchSlide.Evaluation) => Some(0)
+                 | Some(Editors.Result(i)) => Some(i)
                  | _ => None
                  },
                ~result_key,
@@ -36,6 +37,7 @@ let view =
       : None;
   [
     Cell.editor_view(
+      ~select,
       ~inject,
       ~ui_state,
       ~settings,

@@ -76,3 +76,6 @@ let to_step = (results: t): t =>
   |> List.filter_map(stepper_result_opt)
   |> List.to_seq
   |> of_seq;
+
+let put_result = (key: Key.t, result: ModelResult.t, results: t): t =>
+  results |> remove(key) |> add(key, result);

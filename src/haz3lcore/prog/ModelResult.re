@@ -1,3 +1,5 @@
+open Sexplib.Std;
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type eval_result = {
   elab: Elaborator.Elaboration.t,
@@ -99,3 +101,26 @@ let of_persistent: persistent => t =
   fun
   | Evaluation => NoElab
   | Stepper(s) => Stepper(Stepper.from_persistent(s));
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type selection = int;
+
+let get_selected_editor = (~selection: selection, mr: t) =>
+  switch (mr) {
+  | NoElab => None
+  | Evaluation({evaluation: ResultOk({editor, _}), _}) => Some(editor)
+  | Evaluation({previous: ResultOk({editor, _}), _}) => Some(editor)
+  | Evaluation(_) => None
+  | Stepper(s) => Stepper.get_selected_editor(~selection, s)
+  };
+
+let put_selected_editor = (~selection: selection, mr: t, editor) =>
+  switch (mr) {
+  | NoElab => NoElab
+  | Evaluation({evaluation: ResultOk(pr), elab, previous}) =>
+    Evaluation({elab, evaluation: ResultOk({...pr, editor}), previous})
+  | Evaluation({previous: ResultOk(pr), elab, evaluation}) =>
+    Evaluation({elab, evaluation, previous: ResultOk({...pr, editor})})
+  | Evaluation(_) => mr
+  | Stepper(s) => Stepper(Stepper.put_selected_editor(~selection, s, editor))
+  };

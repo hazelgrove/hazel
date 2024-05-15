@@ -55,7 +55,10 @@ type t =
   | RotateBackpack
   | MoveToBackpackTarget(planar)
   | Pick_up
-  | Put_down;
+  | Put_down
+  | Paste(string)
+  | Suggest(Segment.t)
+  | ResetSuggestion;
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -64,7 +67,10 @@ module Failure = {
     | Cant_insert
     | Cant_destruct
     | Cant_select
-    | Cant_put_down;
+    | Cant_put_down
+    | Cant_paste
+    | Cant_undo
+    | Cant_redo;
 };
 
 module Result = {

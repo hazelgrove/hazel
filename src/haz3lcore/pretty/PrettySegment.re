@@ -38,7 +38,6 @@ let select: pretty => Segment.t =
       s => {
         let u =
           Measured.width_cost(s, 80) * 100 + Measured.segment_height(s);
-        print_endline(string_of_int(u));
         u;
       },
       seg,

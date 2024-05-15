@@ -1,27 +1,20 @@
 open Haz3lcore;
-open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type editor_selection =
-  | MainEditor
-  | Evaluation
-  | Stepper(int);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type state = (editor_selection, Editor.t);
+type state = Editor.t;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type persistent_state = PersistentZipper.t;
 
 let scratch_key = n => "scratch_" ++ n;
 
-let persist = ((_, editor): state) => {
+let persist = (editor: state) => {
   PersistentZipper.persist(editor.state.zipper);
 };
 
 let unpersist = (zipper: persistent_state) => {
   let zipper = PersistentZipper.unpersist(zipper);
-  (MainEditor, Editor.init(zipper, ~read_only=false));
+  Editor.init(zipper, ~read_only=false);
 };
 
 let serialize = (state: state) => {

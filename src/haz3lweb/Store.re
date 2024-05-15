@@ -175,15 +175,12 @@ module Documentation = {
 
   let unpersist = ((name, zipper)) => {
     let zipper = PersistentZipper.unpersist(zipper);
-    (
-      name,
-      (ScratchSlide.MainEditor, Editor.init(zipper, ~read_only=false)),
-    );
+    (name, Editor.init(zipper, ~read_only=false));
   };
 
   let to_persistent = ((string, slides, results)): persistent => (
     string,
-    List.map(((x, (_, z))) => (x, z) |> persist, slides),
+    List.map(persist, slides),
     results
     |> ModelResults.map(ModelResult.to_persistent)
     |> ModelResults.bindings,

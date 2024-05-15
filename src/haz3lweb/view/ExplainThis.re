@@ -330,6 +330,7 @@ let expander_deco =
 
 let example_view =
     (
+      ~select,
       ~inject,
       ~ui_state,
       ~settings: Settings.t,
@@ -365,6 +366,7 @@ let example_view =
                   ~target_id="example" ++ string_of_int(idx),
                   ~ui_state,
                   ~settings,
+                  ~select,
                   ~inject,
                 ),
                 div(
@@ -483,6 +485,7 @@ let get_doc =
         );
       let syntactic_form_view =
         Cell.locked_no_statics(
+          ~select=_ => Ui_effect.Ignore,
           ~inject,
           ~ui_state,
           ~segment=doc.syntactic_form,
@@ -493,6 +496,7 @@ let get_doc =
         );
       let example_view =
         example_view(
+          ~select=_ => Ui_effect.Ignore,
           ~inject,
           ~ui_state,
           ~settings,

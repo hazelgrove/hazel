@@ -33,7 +33,7 @@ let test_instance_view =
   );
 
 let jump_to_test = (~inject, pos, id, _) => {
-  let effect1 = inject(Update.SwitchEditor(pos, MainEditor));
+  let effect1 = inject(Update.MakeActive(Exercises(pos, MainEditor)));
   let effect2 = inject(Update.PerformAction(Jump(TileId(id))));
   Effect.bind(effect1, ~f=_result1 => effect2);
 };
