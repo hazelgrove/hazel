@@ -308,31 +308,37 @@ module Deco =
   let err_holes = () =>
     List.map(term_highlight(~clss=["err-hole"]), M.error_ids);
 
-  let indication_deco = (z: Zipper.t) =>
+  let indication_deco = (~inject, z: Zipper.t) =>
     switch (Indicated.index(z)) {
     | Some(id) =>
       switch (
-        ProjectorsView.indication_view(id, z.projectors, M.map, ~font_metrics)
+        ProjectorsView.indication_view(
+          ~inject,
+          id,
+          z.projectors,
+          M.map,
+          ~font_metrics,
+        )
       ) {
-      | Some(v) => v
+      | Some(v) => [v]
       | None => indicated_piece_deco(z)
       }
     | _ => indicated_piece_deco(z)
     };
 
-  let all = (zipper, sel_seg) =>
+  let all = (~inject, zipper, sel_seg) =>
     List.concat([
       caret(zipper),
-      indication_deco(zipper),
-      // try(indication_deco(zipper)) {
-      // | _ =>
-      //   print_endline("PROJECTOR CRASH: indication_deco");
-      //   [];
-      // },
+      indication_deco(~inject, zipper),
       selected_pieces(zipper),
       backpack(zipper),
       targets'(zipper.backpack, sel_seg),
       err_holes(),
-      ProjectorsView.view(zipper.projectors, ~font_metrics, M.map),
+      ProjectorsView.view_all(
+        zipper.projectors,
+        ~inject,
+        ~font_metrics,
+        M.map,
+      ),
     ]);
 };
