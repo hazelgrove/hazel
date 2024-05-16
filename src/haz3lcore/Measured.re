@@ -213,7 +213,21 @@ let find_p = (~msg="", p: Piece.t, map): measurement =>
     p
     |> Piece.get(
          w => find_w(w, map),
-         g => find_g(g, map),
+         g =>
+           //TODO(andrew): find better way to reconcile this
+           try(find_g(g, map)) {
+           | _ =>
+             find_t(
+               {
+                 id: g.id,
+                 label: [String.make(2, ' ')],
+                 mold: Mold.mk_op(Any, []),
+                 shards: [0],
+                 children: [],
+               },
+               map,
+             )
+           },
          t => find_t(t, map),
        )
   ) {

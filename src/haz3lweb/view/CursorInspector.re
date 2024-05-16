@@ -254,17 +254,6 @@ let inspector_view = (~inject, ~settings, ci): Node.t =>
     [view_of_info(~inject, ~settings, ci)],
   );
 
-let projectors_view = (~inject as _, editor: Editor.t) => {
-  open Util.OptUtil.Syntax;
-  let projectors = Editor.get_projectors(editor);
-  let* id = Indicated.index(editor.state.zipper);
-  let+ projector = Projector.Map.find(id, projectors);
-  div(
-    ~attr=Attr.classes(["projector-ci"]),
-    [text(Projector.to_string(projector))],
-  );
-};
-
 let view =
     (~inject, ~settings: Settings.t, editor, cursor_info: option(Info.t)) => {
   let bar_view = div(~attr=Attr.id("bottom-bar"));
@@ -284,7 +273,7 @@ let view =
       div(
         ~attr=clss(["id"]),
         [text(String.sub(Id.to_string(Info.id_of(ci)), 0, 4))]
-        @ Option.to_list(projectors_view(~inject, editor)),
+        @ Option.to_list(ProjectorsView.ci(~inject, editor)),
       ),
     ])
   };
