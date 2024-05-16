@@ -706,9 +706,9 @@ select {
 }
 
 .projector.indicated {
-  z-index: 5 !important;
-  display: flex !important;
-  justify-content: center !important;
+  z-index: 16;
+  display: flex;
+  justify-content: center;
 }
 
 .projector.indicated svg {

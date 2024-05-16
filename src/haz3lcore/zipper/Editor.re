@@ -244,5 +244,8 @@ let add_projector = (id: Id.t, p: Projector.t, ed: t) =>
     ed,
   );
 
-let map_projectors = (f: Projector.t => Projector.t, ed: t) =>
-  update_z(z => {...z, projectors: Projector.Map.map(f, z.projectors)}, ed);
+let map_projectors = (f: (Id.t, Projector.t) => Projector.t, ed: t) =>
+  update_z(
+    z => {...z, projectors: Projector.Map.mapi(f, z.projectors)},
+    ed,
+  );

@@ -17,18 +17,21 @@ let to_string: t => string =
   | Fold => "F"
   | Infer(_) => "I";
 
-// let toggle_fold: t => t =
-//   fun
-//   | Normal => Fold
-//   | Fold => Infer
-//   | Infer => Normal;
-
 let placeholder_length: t => int =
   fun
   | Fold => 2
   | Infer({expected_ty: None, _}) => "-" |> String.length
   | Infer({expected_ty: Some(expected_ty), _}) =>
     expected_ty |> Typ.pretty_print |> String.length;
+
+let placeholder = (pr: t, id: Id.t): Piece.t =>
+  Piece.Tile({
+    id,
+    label: [String.make(placeholder_length(pr), ' ')],
+    mold: Mold.mk_op(Any, []),
+    shards: [0],
+    children: [],
+  });
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 module Map = {
@@ -43,30 +46,17 @@ module Map = {
   let find = find_opt;
   let mem = mem;
   let fold = fold;
-  let map = map;
+  let mapi = mapi;
   let cardinal = cardinal;
   let update = update;
 };
 
-let placeholder = (pr: t, id: Id.t): Piece.t =>
-  Piece.Tile({
-    id,
-    label: [String.make(placeholder_length(pr), ' ')],
-    mold: Mold.mk_op(Any, []),
-    shards: [0],
-    children: [],
-  });
-
-let placehold = (prjs, p: Piece.t) =>
-  switch (Map.find(Piece.id(p), prjs)) {
+let placehold = (ps: Map.t, p: Piece.t) =>
+  switch (Map.find(Piece.id(p), ps)) {
   | None => p
   | Some(pr) =>
     //TODO(andrew): Maybe shouldn't just duplicate this id in the general case?
-    placeholder(
-      pr,
-      //Id.mk(),
-      Piece.id(p),
-    )
+    placeholder(pr, Piece.id(p))
   };
 
 let rec of_segment = (projectors, seg: Segment.t): Segment.t => {
