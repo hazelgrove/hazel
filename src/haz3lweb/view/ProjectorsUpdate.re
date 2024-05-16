@@ -4,14 +4,14 @@ open Projector;
 let update = (ci: option(Info.t), p: t): t =>
   switch (p) {
   | Fold => Fold
-  | Infer({id, _}) =>
-    print_endline("updating infer projector id:" ++ Id.show(id));
+  | Infer(_) =>
+    print_endline("updating infer projector");
     let expected_ty =
       switch (ci) {
       | Some(InfoExp({mode, _}) | InfoPat({mode, _})) => Mode.ty_of(mode)
       | _ => Typ.Float
       };
-    Infer({id, expected_ty: Some(expected_ty)});
+    Infer({expected_ty: Some(expected_ty)});
   };
 
 let update_all = ({settings, editors, statics, _} as model: Model.t): Model.t => {

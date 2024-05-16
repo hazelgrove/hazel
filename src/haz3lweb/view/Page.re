@@ -12,7 +12,6 @@ let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit), model: Model.t) =>
     open Effect;
     let key = Key.mk(dir, evt);
     let editor = Editors.get_editor(model.editors);
-    // dispatch to projector if one is indicated
     switch (ProjectorsView.dispatch_key_to(editor, key)) {
     | Some(action) =>
       Many([Prevent_default, Stop_propagation, inject(action)])
