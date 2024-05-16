@@ -428,7 +428,10 @@ let hidden_steps_of_info = (info: step_info): list(step_info) => {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type persistent = {history};
+type persistent_history = Aba.t((DHExp.t, EvaluatorState.t), step);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type persistent = {persistent_history};
 
 let (sexp_of_persistent, persistent_of_sexp) =
   StructureShareSexp.structure_share_in(
@@ -441,12 +444,23 @@ let (sexp_of_persistent, persistent_of_sexp) =
     sexp_of_persistent,
     persistent_of_sexp,
   );
+
+let to_persistent_history = history =>
+  Aba.map_a(((d, _, s)) => (d, s), history);
 
 // Remove EvalObj.t objects from stepper to prevent problems when loading
-let to_persistent: t => persistent = ({history, _}) => {history: history};
+let to_persistent: t => persistent =
+  ({history, _}) => {persistent_history: history |> to_persistent_history};
+
+let from_persistent_history = history =>
+  Aba.map_a(
+    ((d, s)) => (d, ExpToSegment.exp_to_editor(d, ~inline=false), s),
+    history,
+  );
 
 let from_persistent: persistent => t =
-  ({history}) => {
+  ({persistent_history}) => {
+    let history = persistent_history |> from_persistent_history;
     {
       history,
       next_options: {

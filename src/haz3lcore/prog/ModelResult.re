@@ -23,7 +23,9 @@ let update_elab = elab =>
   | Evaluation({evaluation, _}) =>
     Evaluation({elab, evaluation: ResultPending, previous: evaluation})
   | Stepper(s) as s' when DHExp.fast_equal(elab.d, Stepper.get_elab(s).d) => s'
-  | Stepper(_) => Stepper(Stepper.init(elab));
+  | Stepper(_) => {
+      Stepper(Stepper.init(elab));
+    };
 
 let update_stepper = f =>
   fun
