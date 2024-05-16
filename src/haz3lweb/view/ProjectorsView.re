@@ -31,8 +31,8 @@ let infer_view =
     (
       id: Id.t,
       clss,
-      ~font_metrics,
       expected_ty,
+      ~font_metrics,
       ~inject,
       ~measurement: Measured.measurement,
     ) =>
