@@ -365,8 +365,9 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
   };
 };
 
-let matched_arrow = (ctx, ty) =>
+let rec matched_arrow = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
+  | Parens(ty) => matched_arrow(ctx, ty)
   | Arrow(ty_in, ty_out) => (ty_in, ty_out)
   | Unknown(SynSwitch) => (
       Unknown(SynSwitch) |> temp,
@@ -375,39 +376,44 @@ let matched_arrow = (ctx, ty) =>
   | _ => (Unknown(Internal) |> temp, Unknown(Internal) |> temp)
   };
 
-let matched_forall = (ctx, ty) =>
+let rec matched_forall = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
+  | Parens(ty) => matched_forall(ctx, ty)
   | Forall(t, ty) => (Some(t), ty)
   | Unknown(SynSwitch) => (None, Unknown(SynSwitch) |> temp)
   | _ => (None, Unknown(Internal) |> temp)
   };
 
-let matched_prod = (ctx, length, ty) =>
+let rec matched_prod = (ctx, length, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
+  | Parens(ty) => matched_prod(ctx, length, ty)
   | Prod(tys) when List.length(tys) == length => tys
   | Unknown(SynSwitch) => List.init(length, _ => Unknown(SynSwitch) |> temp)
   | _ => List.init(length, _ => Unknown(Internal) |> temp)
   };
 
-let matched_list = (ctx, ty) =>
+let rec matched_list = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
+  | Parens(ty) => matched_list(ctx, ty)
   | List(ty) => ty
   | Unknown(SynSwitch) => Unknown(SynSwitch) |> temp
   | _ => Unknown(Internal) |> temp
   };
 
-let matched_args = (ctx, default_arity, ty) => {
+let rec matched_args = (ctx, default_arity, ty) => {
   let ty' = weak_head_normalize(ctx, ty);
   switch (term_of(ty')) {
+  | Parens(ty) => matched_args(ctx, default_arity, ty)
   | Prod([_, ..._] as tys) => tys
   | Unknown(_) => List.init(default_arity, _ => ty')
   | _ => [ty']
   };
 };
 
-let get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
+let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
   let ty = weak_head_normalize(ctx, ty);
   switch (term_of(ty)) {
+  | Parens(ty) => get_sum_constructors(ctx, ty)
   | Sum(sm) => Some(sm)
   | Rec(_) =>
     /* Note: We must unroll here to get right ctr types;
@@ -437,8 +443,9 @@ let get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
   };
 };
 
-let is_unknown = (ty: t): bool =>
+let rec is_unknown = (ty: t): bool =>
   switch (ty |> term_of) {
+  | Parens(x) => is_unknown(x)
   | Unknown(_) => true
   | _ => false
   };
