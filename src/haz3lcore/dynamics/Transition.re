@@ -256,10 +256,10 @@ module Transition = (EV: EV_MODE) => {
           is_value: false,
         });
       }
-    | Test(d) =>
+    | Test(d'') =>
       let. _ = otherwise(env, ((d, _)) => Test(d) |> rewrap)
       and. (d', is_value) =
-        req_final_or_value(req(state, env), d => Test(d) |> wrap_ctx, d);
+        req_final_or_value(req(state, env), d => Test(d) |> wrap_ctx, d'');
       let result: TestStatus.t =
         if (is_value) {
           switch (Unboxing.unbox(Bool, d')) {
