@@ -83,5 +83,14 @@ let is_edit: t => bool =
   | Insert(_)
   | Destruct(_)
   | Pick_up
-  | Put_down => true
-  | _ => false;
+  | Put_down
+  | Paste(_) => true
+  | Move(_)
+  | MoveToNextHole(_)
+  | Jump(_)
+  | Select(_)
+  | Unselect(_)
+  | RotateBackpack
+  | MoveToBackpackTarget(_)
+  | Suggest(_)
+  | ResetSuggestion => false;
