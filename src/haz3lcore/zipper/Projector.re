@@ -1,24 +1,34 @@
 open Util;
+open Sexplib.Std;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type infer = {
+  id: Id.t,
+  expected_ty: option(Typ.t),
+};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
-  | Normal
-  | Fold;
+  | Fold
+  | Infer(infer);
 
 let to_string: t => string =
   fun
-  | Normal => ""
-  | Fold => "F";
+  | Fold => "F"
+  | Infer(_) => "I";
 
-let toggle_fold: t => t =
-  fun
-  | Normal => Fold
-  | Fold => Normal;
+// let toggle_fold: t => t =
+//   fun
+//   | Normal => Fold
+//   | Fold => Infer
+//   | Infer => Normal;
 
 let placeholder_length: t => int =
   fun
-  | Normal => (-666)
-  | Fold => 2;
+  | Fold => 2
+  | Infer({expected_ty: None, _}) => "-" |> String.length
+  | Infer({expected_ty: Some(expected_ty), _}) =>
+    expected_ty |> Typ.pretty_print |> String.length;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 module Map = {
@@ -33,7 +43,9 @@ module Map = {
   let find = find_opt;
   let mem = mem;
   let fold = fold;
+  let map = map;
   let cardinal = cardinal;
+  let update = update;
 };
 
 let placeholder = (pr: t, id: Id.t): Piece.t =>
@@ -47,8 +59,7 @@ let placeholder = (pr: t, id: Id.t): Piece.t =>
 
 let placehold = (prjs, p: Piece.t) =>
   switch (Map.find(Piece.id(p), prjs)) {
-  | None
-  | Some(Normal) => p
+  | None => p
   | Some(pr) =>
     //TODO(andrew): Maybe shouldn't just duplicate this id in the general case?
     placeholder(

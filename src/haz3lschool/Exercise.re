@@ -588,13 +588,12 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   let wrap = (term, editor: Editor.t): TermItem.t => {
     term,
-    term_ranges: editor.state.meta.term_ranges_real,
-    //TODO(andrew): real here?
+    term_ranges: editor.state.meta.term_ranges_projected,
+    //TODO(andrew): what is this for?
   };
 
   let term_of = (editor: Editor.t): Term.UExp.t =>
-    //TODO(andrew): this is the wrong term
-    editor.state.meta.view_term;
+    MakeTerm.from_zip_for_sem(editor.state.zipper) |> fst;
 
   let stitch3 = (ed1: Editor.t, ed2: Editor.t, ed3: Editor.t) =>
     EditorUtil.append_exp(

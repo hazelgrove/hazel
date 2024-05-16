@@ -84,10 +84,19 @@ let go_z =
       switch (Indicated.index(z)) {
       | Some(id) =>
         switch (Projector.Map.find(id, z.projectors)) {
-        | Some(_p) => {
-            ...z,
-            projectors: Projector.Map.remove(id, z.projectors),
+        | Some(p) =>
+          switch (p) {
+          | Fold =>
+            let f = _ =>
+              //TODO(andrew)
+              Some(Projector.Infer({id, expected_ty: None}));
+            {...z, projectors: Projector.Map.update(id, f, z.projectors)};
+          | Infer(_) => {
+              ...z,
+              projectors: Projector.Map.remove(id, z.projectors),
+            }
           }
+
         | None =>
           let z = {
             ...z,
@@ -110,10 +119,7 @@ let go_z =
       )
     ) {
     | None => Error(Action.Failure.Cant_move)
-    | Some((pid, d, _)) =>
-      let z = proj_loj(p, z, pid, d);
-      //selection_dance(z, d, pid);
-      Ok(z);
+    | Some((pid, d, _)) => Ok(proj_loj(p, z, pid, d))
     }
   | Move(d) =>
     Move.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move)
