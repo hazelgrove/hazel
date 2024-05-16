@@ -12,6 +12,7 @@ module Deco =
            let term_ranges: TermRanges.t;
            let error_ids: list(Id.t);
            let tiles: TileMap.t;
+           let next_steps: list(Id.t);
          },
        ) => {
   let font_metrics = M.font_metrics;
@@ -280,6 +281,25 @@ module Deco =
   // faster info_map traversal
   let err_holes = (_z: Zipper.t) =>
     List.map(term_highlight(~clss=["err-hole"]), M.error_ids);
+
+  let next_steps = (_z: Zipper.t, ~inject) => {
+    let tiles = List.filter_map(TileMap.find_opt(_, M.tiles), M.next_steps);
+    List.mapi(
+      (i, t: Tile.t) => {
+        let id = Tile.id(t);
+        let mold = t.mold;
+        let shards = Measured.find_shards(t, M.map);
+        PieceDec.next_step_shards_indicated(
+          ~font_metrics,
+          ~caret=(Id.invalid, 0),
+          ~inject=() => inject(i),
+          (id, mold, shards),
+        );
+      },
+      tiles,
+    )
+    |> List.flatten;
+  };
 
   let all = (zipper, sel_seg) =>
     List.concat([

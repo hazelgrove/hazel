@@ -44,6 +44,7 @@ let simple_shard =
       ~shapes,
       ~path_cls,
       ~base_cls,
+      ~attr=[],
       ~fudge=DecUtil.fzero,
       measurement: Measured.measurement,
     )
@@ -53,6 +54,7 @@ let simple_shard =
     ~measurement,
     ~base_cls,
     ~path_cls,
+    ~attr,
     ~fudge,
     simple_shard_path(shapes, measurement.last.col - measurement.origin.col),
   );
@@ -98,6 +100,51 @@ let simple_shards_indicated =
   List.map(
     ((index, measurement)) =>
       simple_shard_indicated(
+        ~font_metrics,
+        ~has_caret=caret == (id, index),
+        ~shapes=Mold.nib_shapes(~index, mold),
+        ~sort=mold.out,
+        ~measurement,
+      ),
+    shards,
+  );
+
+let next_step_indicated =
+    (
+      ~inject,
+      ~font_metrics,
+      ~has_caret,
+      ~shapes,
+      ~sort,
+      ~measurement: Measured.measurement,
+    )
+    : t => {
+  let path_cls =
+    ["tile-path", "raised", Sort.to_string(sort)]
+    @ (has_caret ? ["indicated-caret"] : ["indicated"]);
+  let base_cls = ["tile-next-step"];
+  simple_shard(
+    ~font_metrics,
+    ~shapes,
+    ~path_cls,
+    ~base_cls,
+    ~attr=[Attr.on_mousedown(_ => {inject()})],
+    measurement,
+  );
+};
+
+let next_step_shards_indicated =
+    (
+      ~inject,
+      ~font_metrics: FontMetrics.t,
+      ~caret: (Id.t, int),
+      (id, mold, shards),
+    )
+    : list(t) =>
+  List.map(
+    ((index, measurement)) =>
+      next_step_indicated(
+        ~inject,
         ~font_metrics,
         ~has_caret=caret == (id, index),
         ~shapes=Mold.nib_shapes(~index, mold),

@@ -2367,3 +2367,7 @@ svg.expandable path {
 .em {
   font-style: italic;
 }
+
+.tile-next-step .tile-path.Exp.indicated {
+  fill: #8aeda6;
+}
