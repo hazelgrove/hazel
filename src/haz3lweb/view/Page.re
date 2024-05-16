@@ -3,19 +3,27 @@ open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
 
-let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit), model) => {
+let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit), model: Model.t) => {
   let get_selection = (model: Model.t): string =>
     model.editors |> Editors.get_editor |> Printer.to_string_selection;
   let key_handler =
       (~inject, ~dir: Key.dir, evt: Js.t(Dom_html.keyboardEvent))
-      : Effect.t(unit) =>
-    Effect.(
-      switch (Keyboard.handle_key_event(Key.mk(dir, evt))) {
+      : Effect.t(unit) => {
+    open Effect;
+    let key = Key.mk(dir, evt);
+    let editor = Editors.get_editor(model.editors);
+    // dispatch to projector if one is indicated
+    switch (ProjectorsView.dispatch_key_to(editor, key)) {
+    | Some(action) =>
+      Many([Prevent_default, Stop_propagation, inject(action)])
+    | None =>
+      switch (Keyboard.handle_key_event(key)) {
       | None => Ignore
       | Some(action) =>
         Many([Prevent_default, Stop_propagation, inject(action)])
       }
-    );
+    };
+  };
   [
     Attr.on_keypress(_ => Effect.Prevent_default),
     Attr.on_keyup(key_handler(~inject, ~dir=KeyUp)),

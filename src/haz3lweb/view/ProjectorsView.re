@@ -4,6 +4,12 @@ open Node;
 open Projector;
 open Util.OptUtil.Syntax;
 
+let stop_mousedown_propagation =
+  Attr.on_mousedown(evt => {
+    Js_of_ocaml.Dom_html.stopPropagation(evt);
+    Virtual_dom.Vdom.Effect.Ignore;
+  });
+
 let simple_shard = (~font_metrics, ~measurement: Measured.measurement) =>
   PieceDec.simple_shard(
     ~absolute=false,
@@ -19,6 +25,7 @@ let fold_view = (id, clss, ~font_metrics, ~inject, ~measurement) =>
     ~attr=
       Attr.many([
         Attr.classes(["projector", "fold"] @ clss),
+        stop_mousedown_propagation,
         Attr.on_pointerdown(_ =>
           inject(Update.PerformAction(Project(Toggle(id))))
         ),
@@ -40,6 +47,7 @@ let infer_view =
     ~attr=
       Attr.many([
         Attr.classes(["projector", "infer"] @ clss),
+        stop_mousedown_propagation,
         Attr.on_pointerdown(_ =>
           Effect.Many([inject(Update.PerformAction(Project(Toggle(id))))])
         ),
@@ -50,8 +58,14 @@ let infer_view =
 
 let display_ty = (expected_ty: option(Typ.t)): Typ.t =>
   switch (expected_ty) {
-  | Some(expected_ty) => expected_ty
-  | None => Var("-")
+  | Some(expected_ty) =>
+    print_endline(
+      "ProjectorsView: infer_view. expected_ty:" ++ Typ.show(expected_ty),
+    );
+    expected_ty;
+  | None =>
+    print_endline("ProjectorsView: infer_view. expected_ty: None");
+    Var("-");
   };
 
 let projector_view =
@@ -71,6 +85,20 @@ let indicated_view =
   | Infer({expected_ty, _}) =>
     let ty = display_ty(expected_ty);
     infer_view(id, ["indicated"], ~inject, ty, ~measurement, ~font_metrics);
+  };
+
+let key_handler = (p: t, id: Id.t, key: Key.t): option(UpdateAction.t) =>
+  switch (p) {
+  | Infer(_) =>
+    switch (key) {
+    | {key: D("Escape"), _} => Some(PerformAction(Project(Toggle(id))))
+    | _ => None
+    }
+  | Fold =>
+    switch (key) {
+    | {key: D("Escape"), _} => Some(PerformAction(Project(Toggle(id))))
+    | _ => None
+    }
   };
 
 let view =
@@ -93,3 +121,25 @@ let view_all = (ps: Map.t, measured: Measured.t, ~inject, ~font_metrics) =>
     ((id, _)) => view(id, ps, ~measured, ~inject, ~font_metrics),
     Id.Map.bindings(ps),
   );
+
+let indicated_proj_ed = (editor: Editor.t) => {
+  let projectors = Editor.get_projectors(editor);
+  //TODO: use z_proj instead of zipper?
+  let* id = Indicated.index(editor.state.zipper);
+  let+ projector = Projector.Map.find(id, projectors);
+  (id, projector);
+};
+
+let dispatch_key_to = (editor: Editor.t, key: Key.t): option(UpdateAction.t) =>
+  switch (indicated_proj_ed(editor)) {
+  | None => None
+  | Some((id, p)) => key_handler(p, id, key)
+  };
+
+let ci = (~inject as _, editor: Editor.t) => {
+  let+ (_, projector) = indicated_proj_ed(editor);
+  div(
+    ~attr=Attr.classes(["projector-ci"]),
+    [text(Projector.to_string(projector))],
+  );
+};

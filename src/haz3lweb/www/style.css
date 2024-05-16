@@ -680,7 +680,7 @@ select {
 
 .projector {
   position: absolute;
-  z-index: 15;
+  z-index: 12;
   cursor: pointer;
 }
 
@@ -706,7 +706,7 @@ select {
 }
 
 .projector.indicated {
-  z-index: 16;
+  z-index: 13;
   display: flex;
   justify-content: center;
 }
