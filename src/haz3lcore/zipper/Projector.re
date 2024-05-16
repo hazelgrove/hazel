@@ -2,10 +2,7 @@ open Util;
 open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type infer = {
-  id: Id.t,
-  expected_ty: option(Typ.t),
-};
+type infer = {expected_ty: option(Typ.t)};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =

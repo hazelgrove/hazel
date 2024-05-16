@@ -84,7 +84,7 @@ let go_z =
       | Fold =>
         let f = _ =>
           //TODO(andrew)
-          Some(Projector.Infer({id, expected_ty: None}));
+          Some(Projector.Infer({expected_ty: None}));
         {...z, projectors: Projector.Map.update(id, f, z.projectors)};
       | Infer(_) => {
           ...z,
