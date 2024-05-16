@@ -79,7 +79,7 @@ module Result = {
 
 let is_edit: t => bool =
   fun
-  | Project(_) //TODO(andrew)
+  | Project(_) //TODO(andrew): maybe yes as want to trigger infer?
   | Insert(_)
   | Destruct(_)
   | Pick_up

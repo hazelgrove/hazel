@@ -121,7 +121,6 @@ let deco =
       ~highlights: option(ColorSteps.colorMap),
       {
         state: {
-          // zipper,
           meta: {
             z_projected,
             term_ranges_projected,
@@ -147,9 +146,7 @@ let deco =
       let error_ids = error_ids;
     });
   let decos =
-    selected
-      ? Deco.all(z_projected, segment_projected)
-      : Deco.err_holes(z_projected);
+    selected ? Deco.all(z_projected, segment_projected) : Deco.err_holes();
   let decos =
     switch (test_results) {
     | None => decos
@@ -409,7 +406,7 @@ let locked =
       ? Interface.elaborate(
           ~settings=settings.core,
           statics.info_map,
-          editor.state.meta.view_term //TODO(andrew): use semantics term
+          statics.term,
         )
       : DHExp.BoolLit(true);
   let result: ModelResult.t =

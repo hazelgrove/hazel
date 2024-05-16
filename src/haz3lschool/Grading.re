@@ -171,8 +171,8 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
     };
 
     let mk = (~your_impl: Editor.t, ~tests: syntax_tests): t => {
-      //TODO(andrew): this is the wrong term
-      let user_impl_term = your_impl.state.meta.view_term;
+      let user_impl_term =
+        MakeTerm.from_zip_for_sem(your_impl.state.zipper) |> fst;
 
       let predicates =
         List.map(((_, p)) => SyntaxTest.predicate_fn(p), tests);

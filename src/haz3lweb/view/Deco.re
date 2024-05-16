@@ -305,43 +305,16 @@ module Deco =
     );
   };
 
-  // faster infomap traversal
-  let err_holes = (_z: Zipper.t) =>
+  let err_holes = () =>
     List.map(term_highlight(~clss=["err-hole"]), M.error_ids);
-
-  let get_proj_measure = (id, projectors) =>
-    switch (Projector.Map.find(id, projectors)) {
-    | Some(p) =>
-      switch (Measured.find_by_id(id, M.map)) {
-      | Some(measurement) => Some((p, measurement))
-      | _ => None
-      }
-    | None => None
-    };
-
-  let projectors = (z: Zipper.t) =>
-    List.filter_map(
-      ((id, _p)) =>
-        switch (get_proj_measure(id, z.projectors)) {
-        | Some((p, measurement)) =>
-          switch (p) {
-          | Fold => Some(FoldView.base(~font_metrics, measurement))
-          | Normal => None
-          }
-        | _ => None
-        },
-      Id.Map.bindings(z.projectors),
-    );
 
   let indication_deco = (z: Zipper.t) =>
     switch (Indicated.index(z)) {
     | Some(id) =>
-      switch (get_proj_measure(id, z.projectors)) {
-      | Some((p, measurement)) =>
-        switch (p) {
-        | Fold => FoldView.indicated(~font_metrics, measurement)
-        | Normal => indicated_piece_deco(z)
-        }
+      switch (
+        ProjectorsView.indication_view(id, z.projectors, M.map, ~font_metrics)
+      ) {
+      | Some(v) => v
       | None => indicated_piece_deco(z)
       }
     | _ => indicated_piece_deco(z)
@@ -349,17 +322,17 @@ module Deco =
 
   let all = (zipper, sel_seg) =>
     List.concat([
-      //[Node.div(~attr=Attr.id("caret"), [])],
       caret(zipper),
-      try(indication_deco(zipper)) {
-      | _ =>
-        print_endline("PROJECTOR CRASH: indication_deco");
-        [];
-      },
+      indication_deco(zipper),
+      // try(indication_deco(zipper)) {
+      // | _ =>
+      //   print_endline("PROJECTOR CRASH: indication_deco");
+      //   [];
+      // },
       selected_pieces(zipper),
       backpack(zipper),
       targets'(zipper.backpack, sel_seg),
-      err_holes(zipper),
-      projectors(zipper),
+      err_holes(),
+      ProjectorsView.view(zipper.projectors, ~font_metrics, M.map),
     ]);
 };

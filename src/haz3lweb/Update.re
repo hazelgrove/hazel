@@ -218,7 +218,11 @@ let update_cached_data = (~schedule_action, update, m: Model.t): Model.t => {
   let update_dynamics = reevaluate_post_update(update);
   let m =
     update_statics || update_dynamics && m.settings.core.statics
-      ? {...m, statics: Editors.mk_statics(~settings=m.settings, m.editors)}
+      ? {
+        let statics = Editors.mk_statics(~settings=m.settings, m.editors);
+        print_endline("UPDATING PROJECTORS");
+        ProjectorsUpdate.update_all({...m, statics});
+      }
       : m;
   if (update_dynamics && m.settings.core.dynamics) {
     schedule_evaluation(~schedule_action, m);
