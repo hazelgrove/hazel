@@ -163,17 +163,18 @@ let rec elaborate_pattern =
       let (p', ty) = elaborate_pattern(m, p);
       p' |> cast_from(ty);
     | Constructor(c) =>
-      upat
-      |> cast_from(
-           Ctx.lookup_ctr(ctx, c)
-           |> Option.map((x: Ctx.var_entry) => x.typ |> Typ.normalize(ctx))
-           |> Option.value(
-                ~default=
-                  Typ.temp(
-                    Typ.Sum([BadEntry(Typ.temp(Unknown(Internal)))]),
-                  ),
-              ),
-         )
+      let mode =
+        switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
+        | Some(Info.InfoPat({mode, _})) => mode
+        | _ => raise(MissingTypeInfo)
+        };
+      let t =
+        switch (Mode.ctr_ana_typ(ctx, mode, c), Ctx.lookup_ctr(ctx, c)) {
+        | (Some(ana_ty), _) => ana_ty
+        | (_, Some({typ: syn_ty, _})) => syn_ty
+        | _ => Unknown(Internal) |> Typ.temp
+        };
+      upat |> cast_from(t);
     };
   (dpat, elaborated_type);
 };
@@ -239,12 +240,18 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       let ds' = List.map2((d, t) => fresh_cast(d, t, inner_type), ds, tys);
       Exp.ListLit(ds') |> rewrap |> cast_from(List(inner_type) |> Typ.temp);
     | Constructor(c) =>
-      uexp
-      |> cast_from(
-           Ctx.lookup_ctr(ctx, c)
-           |> Option.map((x: Ctx.var_entry) => x.typ |> Typ.normalize(ctx))
-           |> Option.value(~default=Typ.temp(Typ.Unknown(Internal))),
-         )
+      let mode =
+        switch (Id.Map.find_opt(Exp.rep_id(uexp), m)) {
+        | Some(Info.InfoExp({mode, _})) => mode
+        | _ => raise(MissingTypeInfo)
+        };
+      let t =
+        switch (Mode.ctr_ana_typ(ctx, mode, c), Ctx.lookup_ctr(ctx, c)) {
+        | (Some(ana_ty), _) => ana_ty
+        | (_, Some({typ: syn_ty, _})) => syn_ty
+        | _ => Unknown(Internal) |> Typ.temp
+        };
+      uexp |> cast_from(t);
     | Fun(p, e, env, n) =>
       let (p', typ) = elaborate_pattern(m, p);
       let (e', tye) = elaborate(m, e);
