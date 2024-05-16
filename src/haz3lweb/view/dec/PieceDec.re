@@ -45,6 +45,7 @@ let simple_shard =
       ~path_cls,
       ~base_cls,
       ~fudge=DecUtil.fzero,
+      ~absolute=true,
       measurement: Measured.measurement,
     )
     : t =>
@@ -54,6 +55,7 @@ let simple_shard =
     ~base_cls,
     ~path_cls,
     ~fudge,
+    ~absolute,
     simple_shard_path(shapes, measurement.last.col - measurement.origin.col),
   );
 

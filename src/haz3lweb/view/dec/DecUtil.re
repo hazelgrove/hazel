@@ -72,6 +72,7 @@ let abs_style = (~font_metrics, measurement): Attr.t =>
 let code_svg_sized =
     (
       ~font_metrics: FontMetrics.t,
+      ~absolute=true,
       ~measurement: Haz3lcore.Measured.measurement,
       ~base_cls=[],
       ~path_cls=[],
@@ -79,13 +80,13 @@ let code_svg_sized =
       paths: list(SvgUtil.Path.cmd),
     ) => {
   let d = abs_dims(measurement);
-  let style = pos_str(~d, ~fudge, font_metrics);
+  let d = absolute ? d : {left: 0, top: 0, width: d.width, height: d.height};
   create_svg(
     "svg",
     ~attr=
       Attr.many([
         Attr.classes(base_cls),
-        Attr.create("style", style),
+        Attr.create("style", pos_str(~d, ~fudge, font_metrics)),
         Attr.create(
           "viewBox",
           Printf.sprintf("0 0 %d %d", d.width, d.height),
