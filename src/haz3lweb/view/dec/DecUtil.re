@@ -65,6 +65,7 @@ let code_svg_sized =
       ~measurement as {origin, last}: Haz3lcore.Measured.measurement,
       ~base_cls=[],
       ~path_cls=[],
+      ~attr=[],
       ~fudge: fdims=fzero,
       paths: list(SvgUtil.Path.cmd),
     ) => {
@@ -77,12 +78,15 @@ let code_svg_sized =
   create_svg(
     "svg",
     ~attr=
-      Attr.many([
-        Attr.classes(base_cls),
-        Attr.create("style", style),
-        Attr.create("viewBox", Printf.sprintf("0 0 %d %d", width, height)),
-        Attr.create("preserveAspectRatio", "none"),
-      ]),
+      Attr.many(
+        [
+          Attr.classes(base_cls),
+          Attr.create("style", style),
+          Attr.create("viewBox", Printf.sprintf("0 0 %d %d", width, height)),
+          Attr.create("preserveAspectRatio", "none"),
+        ]
+        @ attr,
+      ),
     [SvgUtil.Path.view(~attrs=[Attr.classes(path_cls)], paths)],
   );
 };

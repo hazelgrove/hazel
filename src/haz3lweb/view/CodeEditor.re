@@ -9,7 +9,8 @@ type event =
   | MouseUp
   | DoubleClick
   | TripleClick
-  | JumpToBindingSiteOf(Measured.Point.t);
+  | JumpToBindingSiteOf(Measured.Point.t)
+  | StepSelected(int);
 
 let get_goal =
     (
@@ -108,6 +109,8 @@ let deco =
       ~error_ids,
       ~test_results: option(TestResults.t),
       ~highlights: option(ColorSteps.colorMap),
+      ~next_steps: list(Id.t),
+      ~inject,
       {
         state: {
           zipper,
@@ -126,8 +129,12 @@ let deco =
       let font_metrics = font_metrics;
       let show_backpack_targets = show_backpack_targets;
       let error_ids = error_ids;
+      let next_steps = next_steps;
     });
-  let decos = selected ? Deco.all(zipper, segment) : Deco.err_holes(zipper);
+  let inject = i => inject(StepSelected(i));
+  let decos =
+    (selected ? Deco.all(zipper, segment) : Deco.err_holes(zipper))
+    @ Deco.next_steps(zipper, ~inject);
   let decos =
     switch (test_results) {
     | None => decos
@@ -155,6 +162,7 @@ let view =
       ~overlayer: option(Node.t)=None,
       ~error_ids: list(Id.t),
       ~sort=Sort.root,
+      ~next_steps,
       editor: Editor.t,
     ) => {
   let code_text_view = Code.view(~sort, ~font_metrics, ~settings, editor);
@@ -166,6 +174,8 @@ let view =
       ~error_ids,
       ~test_results,
       ~highlights,
+      ~next_steps,
+      ~inject,
       editor,
     );
   let code_view =

@@ -70,7 +70,8 @@ let live_eval =
         inject(PerformAction(Jump(BindingSiteOfIndicatedVar))),
       ])
     | DoubleClick => PerformAction(Select(Tile(Current))) |> inject
-    | TripleClick => PerformAction(Select(Smart)) |> inject;
+    | TripleClick => PerformAction(Select(Smart)) |> inject
+    | StepSelected(_) => Ui_effect.Ignore;
   let code_view =
     CodeEditor.view(
       ~select=() => select(Result(0)),
@@ -84,6 +85,7 @@ let live_eval =
       ~error_ids=[],
       ~overlayer=None,
       ~sort=Sort.root,
+      ~next_steps=[],
       editor,
     );
   let exn_view =
@@ -130,7 +132,7 @@ let stepper_view =
     ) => {
   let step_dh_code =
       (
-        ~next_steps as _,
+        ~next_steps,
         ~selected: bool,
         ~idx: int,
         {previous_step: _, hidden_history, chosen_step: _}: Stepper.step_info,
@@ -163,7 +165,8 @@ let stepper_view =
               ])
             | DoubleClick =>
               PerformAction(Select(Tile(Current))) |> inject_global
-            | TripleClick => PerformAction(Select(Smart)) |> inject_global,
+            | TripleClick => PerformAction(Select(Smart)) |> inject_global
+            | StepSelected(i) => StepForward(i) |> inject,
           ~ui_state,
           ~settings,
           ~selected,
@@ -173,6 +176,7 @@ let stepper_view =
           ~error_ids=[],
           ~overlayer=None,
           ~sort=Sort.root,
+          ~next_steps=List.map(snd, next_steps),
           editor,
         ),
       ],
@@ -383,7 +387,8 @@ let editor_view =
           inject(Update.PerformAction(Jump(BindingSiteOfIndicatedVar))),
         ])
       | DoubleClick => Update.PerformAction(Select(Tile(Current))) |> inject
-      | TripleClick => Update.PerformAction(Select(Smart)) |> inject;
+      | TripleClick => Update.PerformAction(Select(Smart)) |> inject
+      | StepSelected(_) => Ui_effect.Ignore;
     };
   div(
     ~attr=
@@ -406,6 +411,7 @@ let editor_view =
         ~overlayer,
         ~error_ids,
         ~sort,
+        ~next_steps=[],
         editor,
       ),
     ]

@@ -223,6 +223,7 @@ let expander_deco =
       let term_ranges = TermRanges.mk(doc.syntactic_form);
       let tiles = TileMap.mk(doc.syntactic_form);
       let error_ids = [];
+      let next_steps = [];
     });
   switch (doc.expandable_id, List.length(options)) {
   | (None, _)
