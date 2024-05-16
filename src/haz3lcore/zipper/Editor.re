@@ -69,6 +69,7 @@ module Meta = {
       (~effects: list(Effect.t)=[], a: Action.t, z: Zipper.t, meta: t): t => {
     let {touched, measured_real, measured_projected, col_target, _} = meta;
     let touched = Touched.update(Time.tick(), effects, touched);
+    //TODO(andrew): gate appropriate things on edit
     let is_edit = Action.is_edit(a);
     let is_proj = !Id.Map.is_empty(z.projectors);
     let segment_real =

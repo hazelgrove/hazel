@@ -676,22 +676,54 @@ select {
   position: relative;
 }
 
+/* PROJECTORS */
+
 .code-container .fold {
   position: absolute;
   z-index: 4;
   display: flex;
   justify-content: center;
-  outline: 0.3px solid #c7b480;
-  border-radius: 0.2em;
-  background-color: #f0e7d6;
   color: #c7b480;
+  cursor: pointer;
 }
 .code-container .fold:hover {
   color: rgb(0, 0, 0);
-  background-color: #c7b480;
+  /* background-color: #c7b480; */
 }
 .code-container .fold svg {
-  filter: invert(1);
+  fill: #f0e7d6;
+  z-index: -1;
+}
+.code-container .infer {
+  opacity: 60%;
+  z-index: 4;
+}
+
+.code-container .infer svg {
+  fill: var(--typ-bg-off-color);
+  z-index: -1;
+}
+
+.projector-indicated {
+  z-index: 5 !important;
+  display: flex !important;
+  justify-content: center !important;
+}
+
+.projector-indicated svg {
+  z-index: -1;
+}
+.projector-indicated.fold {
+  color: black;
+}
+.projector-indicated.fold svg {
+  fill: var(--exp-bg-off-color);
+}
+.projector-indicated.infer .typ-view{
+  color: var(--typ-text-color)
+}
+.projector-indicated.infer svg {
+  fill: var(--typ-bg-off-color);
 }
 
 .code {
@@ -1816,14 +1848,14 @@ svg.expandable path {
 }
 
 .cell-result.hidden {
-  background-color: #E8DCBF;
+  background-color: #e8dcbf;
 }
 
 .cell-result .toggle-switch {
   mix-blend-mode: luminosity;
 }
 .cell-result .equiv {
-  font-family: 'Source Code Pro';
+  font-family: "Source Code Pro";
 }
 
 .cell-report {
