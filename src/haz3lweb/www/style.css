@@ -678,25 +678,26 @@ select {
 
 /* PROJECTORS */
 
-.code-container .fold {
+.projector {
   position: absolute;
-  z-index: 4;
+  z-index: 15;
+  cursor: pointer;
+}
+
+.projector.fold {
   display: flex;
   justify-content: center;
   color: #c7b480;
-  cursor: pointer;
 }
-.code-container .fold:hover {
-  color: rgb(0, 0, 0);
-  /* background-color: #c7b480; */
+.projector.fold:hover {
+  color: black;
 }
-.code-container .fold svg {
+.projector.fold svg {
   fill: #f0e7d6;
   z-index: -1;
 }
-.code-container .infer {
+.projector.infer {
   opacity: 60%;
-  z-index: 4;
 }
 
 .code-container .infer svg {
@@ -704,25 +705,25 @@ select {
   z-index: -1;
 }
 
-.projector-indicated {
+.projector.indicated {
   z-index: 5 !important;
   display: flex !important;
   justify-content: center !important;
 }
 
-.projector-indicated svg {
+.projector.indicated svg {
   z-index: -1;
 }
-.projector-indicated.fold {
+.projector.indicated.fold {
   color: black;
 }
-.projector-indicated.fold svg {
+.projector.indicated.fold svg {
   fill: var(--exp-bg-off-color);
 }
-.projector-indicated.infer .typ-view{
-  color: var(--typ-text-color)
+.projector.indicated.infer .typ-view {
+  color: var(--typ-text-color);
 }
-.projector-indicated.infer svg {
+.projector.indicated.infer svg {
   fill: var(--typ-bg-off-color);
 }
 

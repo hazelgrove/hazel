@@ -113,6 +113,7 @@ let test_result_layer =
 
 let deco =
     (
+      ~inject,
       ~font_metrics,
       ~show_backpack_targets,
       ~selected,
@@ -146,7 +147,8 @@ let deco =
       let error_ids = error_ids;
     });
   let decos =
-    selected ? Deco.all(z_projected, segment_projected) : Deco.err_holes();
+    selected
+      ? Deco.all(~inject, z_projected, segment_projected) : Deco.err_holes();
   let decos =
     switch (test_results) {
     | None => decos
@@ -282,6 +284,7 @@ let editor_view =
   let code_text_view = Code.view(~sort, ~font_metrics, ~settings, editor);
   let deco_view =
     deco(
+      ~inject,
       ~font_metrics,
       ~show_backpack_targets,
       ~selected,
