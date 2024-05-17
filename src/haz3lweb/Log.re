@@ -12,6 +12,8 @@ let is_action_logged: UpdateAction.t => bool =
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
   | Benchmark(_)
+  | UpdateResult(_)
+  | UpdateEvals(_)
   | DebugConsole(_) => false
   | Reset
   | TAB
@@ -28,8 +30,6 @@ let is_action_logged: UpdateAction.t => bool =
   | Undo
   | Redo
   | MoveToNextHole(_)
-  | UpdateResult(_)
-  | UpdateEvals(_)
   | ToggleStepper(_)
   | StepperAction(_, StepForward(_) | StepBackward | HideStepper)
   | UpdateExplainThisModel(_) => true;
