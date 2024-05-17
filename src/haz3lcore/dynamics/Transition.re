@@ -557,11 +557,24 @@ module Transition = (EV: EV_MODE) => {
         req_final(req(state, env), dctx => Entail1(dctx, dprop), dctx)
       and. dprop' =
         req_final(req(state, env), dprop => Entail2(dctx, dprop), dprop);
-      Step({
-        apply: () => Entail(dctx', dprop'),
-        kind: CompleteFilter,
-        value: true,
-      });
+      switch (unbox_list(dctx'), dprop') {
+      | (ListLit(_, _, Prop, ctx), PropLit(prop)) =>
+        switch (
+          ctx
+          |> List.map(Builtins.Pervasives.Impls.prop_of)
+          |> Util.OptUtil.sequence
+        ) {
+        | Some(ctx) =>
+          Step({
+            apply: () =>
+              JudgementLit(Derivation.Judgement.Entail(ctx, prop)),
+            kind: Entail,
+            value: true,
+          })
+        | None => Indet
+        }
+      | _ => Indet
+      };
     | ListLit(u, i, ty, ds) =>
       let. _ = otherwise(env, ds => ListLit(u, i, ty, ds))
       and. _ =

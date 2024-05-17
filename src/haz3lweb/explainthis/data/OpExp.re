@@ -760,6 +760,8 @@ let str_concat_exp: form = {
   };
 };
 
+let _exp1 = exp("p1");
+let _exp2 = exp("p2");
 let prop_and_exp_coloring_ids =
     (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
   _binop_exp_coloring_ids(
@@ -817,6 +819,8 @@ let prop_implies_exp: form = {
   };
 };
 
+let _exp1 = exp("ctx");
+let _exp2 = exp("prop");
 let entail_exp_coloring_ids =
     (~ctx_id: Id.t, ~prop_id: Id.t): list((Id.t, Id.t)) =>
   _binop_exp_coloring_ids(

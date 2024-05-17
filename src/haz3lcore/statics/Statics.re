@@ -255,10 +255,11 @@ and uexp_to_info_map =
       m,
     );
   | Entail(e1, e2) =>
+    let ids = List.map(UExp.rep_id, [e1, e2]);
     let (e1, m) = go(~mode=Ana(List(Prop)), e1, m);
     let (e2, m) = go(~mode=Ana(Prop), e2, m);
     add(
-      ~self=Just(Judgement),
+      ~self=Self.entail(e1.ty, e2.ty, ids),
       ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
       m,
     );

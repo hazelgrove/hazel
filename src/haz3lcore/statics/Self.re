@@ -146,3 +146,9 @@ let list_concat = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
   | None => NoJoin(List, add_source(ids, tys))
   | Some(ty) => Just(ty)
   };
+
+let entail = (tctx: Typ.t, tprop: Typ.t, ids: list(Id.t)): t =>
+  switch (tctx, tprop) {
+  | (List(Prop), Prop) => Just(Judgement)
+  | _ => NoJoin(List, add_source(ids, [tctx, tprop]))
+  };
