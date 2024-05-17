@@ -156,5 +156,3 @@ let pop_r = (tile: t): (segment, piece) =>
 //     };
 //   };
 // };
-
-let update_id = (id, t: t) => {...t, id};

@@ -3,12 +3,13 @@ open Zipper;
 
 let is_write_action = (a: Action.t) => {
   switch (a) {
+  //TODO: revist as projectors grow
+  | Project(_) => false
   | Move(_)
   | MoveToNextHole(_)
   | Unselect(_)
   | Jump(_)
   | Select(_) => false
-  | Project(_) //TODO(andrew): ??
   | Destruct(_)
   | Insert(_)
   | Pick_up
@@ -37,45 +38,13 @@ let go_z =
 
   let select_term_current = z =>
     switch (Indicated.index(z)) {
-    | None =>
-      print_endline("PERFORM.select_term_current: no index");
-      Error(Action.Failure.Cant_select);
+    | None => Error(Action.Failure.Cant_select)
     | Some(id) =>
       switch (Select.term(id, z)) {
       | Some(z) => Ok(z)
-      | None =>
-        print_endline("PERFORM.select_term_current: Select.term failed");
-        Error(Action.Failure.Cant_select);
+      | None => Error(Action.Failure.Cant_select)
       }
     };
-
-  let _selection_dance = (z, d, pid): t => {
-    //TODO(andrew): clean up hacky movement
-    print_endline("PERFORM: going to start");
-    print_endline("direction: " ++ Direction.show(d));
-    //d == Left ? Move.to_end(z) : Move.to_start(z)
-    switch (select_term_current(z)) {
-    | Error(_err) =>
-      //TODO(andrew): deal with this properly
-      //figure out why selection is failing (metrics issue?)
-      print_endline("PERFORM: ERROR couldn't select, going to start instead");
-      switch (Move.jump_to_id(~init=Left, z, Piece.id(pid))) {
-      | None =>
-        print_endline("PERFORM: jump_to_id failed");
-        z;
-      | Some(z) =>
-        print_endline("PERFORM: jump_to_id succeeded");
-        z;
-      // switch (select_term_current(z)) {
-      // | Ok(z) => Ok(directional_unselect(Direction.toggle(d), z))
-      // | Error(_err) => Ok(z)
-      // };
-      };
-    | Ok(z) =>
-      print_endline("PERFORM: select_term_current succeeded");
-      directional_unselect(Direction.toggle(d), z);
-    };
-  };
 
   switch (a) {
   | Project(a) =>
