@@ -221,7 +221,6 @@ let update_cached_data = (~schedule_action, update, m: Model.t): Model.t => {
       ? {
         print_endline("UPDATING STATICS");
         let statics = Editors.mk_statics(~settings=m.settings, m.editors);
-        print_endline("UPDATING PROJECTORS");
         ProjectorsUpdate.update_all({...m, statics});
       }
       : m;

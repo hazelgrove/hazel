@@ -29,7 +29,7 @@ module Make = (M: Editor.Meta.S) => {
 
   let term = (id: Id.t, z: Zipper.t): option(Zipper.t) => {
     //TODO: check if selection is already a term: no-op in this case
-    let* (l, r) = TermRanges.find_opt(id, M.term_ranges_projected);
+    let* (l, r) = TermRanges.find_opt(id, M.term_ranges);
     print_endline(
       "Select.term: l: "
       ++ Id.show(Piece.id(l))

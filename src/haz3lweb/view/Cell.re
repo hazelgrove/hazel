@@ -124,7 +124,7 @@ let deco =
         state: {
           meta: {
             z_projected,
-            term_ranges_projected,
+            term_ranges,
             segment_projected,
             measured_projected,
             terms,
@@ -140,7 +140,7 @@ let deco =
     Deco.Deco({
       let map = measured_projected;
       let terms = terms;
-      let term_ranges = term_ranges_projected;
+      let term_ranges = term_ranges;
       let tiles = tiles;
       let font_metrics = font_metrics;
       let show_backpack_targets = show_backpack_targets;

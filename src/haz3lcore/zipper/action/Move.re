@@ -104,7 +104,6 @@ module Make = (M: Editor.Meta.S) => {
   };
 
   let is_at_side_of_row = (d: Direction.t, z: Zipper.t) => {
-    print_endline("Move.is_at_side_of_row");
     let Measured.Point.{row, col} = caret_point(z);
     switch (Zipper.move(d, z)) {
     | None => true
@@ -177,7 +176,6 @@ module Make = (M: Editor.Meta.S) => {
     /* Here f should be a function which results in strict d-wards
        movement of the caret. Iterate f until we get to the closet
        caret position to a target derived from the initial position */
-    print_endline("Move.do_vertical");
     let cur_p = caret_point(z);
     let goal =
       Measured.Point.{
@@ -239,10 +237,10 @@ module Make = (M: Editor.Meta.S) => {
     | Some(z) => Some(z)
     };
 
-  let jump_to_id = (~init=Direction.Left, z: t, id: Id.t): option(t) => {
+  let jump_to_id = (z: t, id: Id.t): option(t) => {
     let* {origin, _} = Measured.find_by_id(id, M.measured_projected);
     let z =
-      switch (init == Left ? to_start(z) : to_end(z)) {
+      switch (to_start(z)) {
       | None => z
       | Some(z) => z
       };
