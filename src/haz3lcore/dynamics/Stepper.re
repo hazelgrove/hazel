@@ -122,6 +122,12 @@ let rec matches =
     | BinStringOp2(op, d1, ctx) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       BinStringOp2(op, d1, ctx);
+    | BinPropOp1(op, ctx, d2) =>
+      let+ ctx = matches(env, flt, ctx, exp, act, idx);
+      BinPropOp1(op, ctx, d2);
+    | BinPropOp2(op, d1, ctx) =>
+      let+ ctx = matches(env, flt, ctx, exp, act, idx);
+      BinPropOp2(op, d1, ctx);
     | Tuple(ctx, ds) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       Tuple(ctx, ds);
@@ -402,6 +408,7 @@ let get_justification: step_kind => string =
   | BinFloatOp(Equals | NotEquals)
   | BinStringOp(Equals) => "check equality"
   | BinStringOp(Concat) => "string manipulation"
+  | BinPropOp(_) => "propositional logic"
   | BinBoolOp(_) => "boolean logic"
   | Conditional(_) => "conditional"
   | ListCons => "list manipulation"

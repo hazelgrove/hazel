@@ -239,6 +239,22 @@ module Pervasives = {
         | Tuple([PropLit(p1), PropLit(p2)]) => Ok(PropLit(Implies(p1, p2)))
         | d => Error(InvalidBoxedTuple(d)),
       );
+
+    let prop_of: DHExp.t => option(Derivation.Prop.t) =
+      fun
+      | PropLit(p) => Some(p)
+      | _ => None;
+
+    let entail =
+      unary(
+        fun
+        | Tuple([ListLit(_, _, Prop, ctx), PropLit(p)]) =>
+          switch (ctx |> List.map(prop_of) |> Util.OptUtil.sequence) {
+          | Some(ctx) => Ok(JudgementLit(Entail(ctx, p)))
+          | None => Error(InvalidBoxedListLit(List.hd(ctx)))
+          }
+        | d => Error(InvalidBoxedTuple(d)),
+      );
   };
 
   open Impls;
@@ -300,7 +316,10 @@ module Pervasives = {
     |> fn("atom", String, Prop, atom)
     |> fn("and", Prod([Prop, Prop]), Prop, and_)
     |> fn("or", Prod([Prop, Prop]), Prop, or_)
-    |> fn("implies", Prod([Prop, Prop]), Prop, implies);
+    |> fn("implies", Prod([Prop, Prop]), Prop, implies)
+    |> const("truth", Prop, PropLit(Truth))
+    |> const("falsity", Prop, PropLit(Falsity))
+    |> fn("entail", Prod([List(Prop), Prop]), Judgement, entail);
 };
 
 let ctx_init: Ctx.t = {

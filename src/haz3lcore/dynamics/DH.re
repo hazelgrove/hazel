@@ -30,10 +30,12 @@ module rec DHExp: {
     | FloatLit(float)
     | StringLit(string)
     | PropLit(Derivation.Prop.t)
+    | JudgementLit(Derivation.Judgement.t)
     | BinBoolOp(TermBase.UExp.op_bin_bool, t, t)
     | BinIntOp(TermBase.UExp.op_bin_int, t, t)
     | BinFloatOp(TermBase.UExp.op_bin_float, t, t)
     | BinStringOp(TermBase.UExp.op_bin_string, t, t)
+    | BinPropOp(TermBase.UExp.op_bin_prop, t, t)
     | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t))
     | Cons(t, t)
     | ListConcat(t, t)
@@ -88,10 +90,12 @@ module rec DHExp: {
     | FloatLit(float)
     | StringLit(string)
     | PropLit(Derivation.Prop.t)
+    | JudgementLit(Derivation.Judgement.t)
     | BinBoolOp(TermBase.UExp.op_bin_bool, t, t)
     | BinIntOp(TermBase.UExp.op_bin_int, t, t)
     | BinFloatOp(TermBase.UExp.op_bin_float, t, t)
     | BinStringOp(TermBase.UExp.op_bin_string, t, t)
+    | BinPropOp(TermBase.UExp.op_bin_prop, t, t)
     | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t))
     | Cons(t, t)
     | ListConcat(t, t)
@@ -131,10 +135,12 @@ module rec DHExp: {
     | FloatLit(_) => "FloatLit"
     | StringLit(_) => "StringLit"
     | PropLit(_) => "PropLit"
+    | JudgementLit(_) => "JudgementLit"
     | BinBoolOp(_, _, _) => "BinBoolOp"
     | BinIntOp(_, _, _) => "BinIntOp"
     | BinFloatOp(_, _, _) => "BinFloatOp"
     | BinStringOp(_, _, _) => "BinStringOp"
+    | BinPropOp(_, _, _) => "BinPropOp"
     | ListLit(_) => "ListLit"
     | Cons(_, _) => "Cons"
     | ListConcat(_, _) => "ListConcat"
@@ -190,6 +196,7 @@ module rec DHExp: {
     | BinFloatOp(a, b, c) => BinFloatOp(a, strip_casts(b), strip_casts(c))
     | BinStringOp(a, b, c) =>
       BinStringOp(a, strip_casts(b), strip_casts(c))
+    | BinPropOp(a, b, c) => BinPropOp(a, strip_casts(b), strip_casts(c))
     | ConsistentCase(Case(a, rs, b)) =>
       ConsistentCase(
         Case(strip_casts(a), List.map(strip_casts_rule, rs), b),
@@ -210,6 +217,7 @@ module rec DHExp: {
     | FloatLit(_) as d
     | StringLit(_) as d
     | PropLit(_) as d
+    | JudgementLit(_) as d
     | Constructor(_) as d
     | InvalidOperation(_) as d => d
     | IfThenElse(consistent, c, d1, d2) =>
@@ -234,6 +242,8 @@ module rec DHExp: {
     | (StringLit(_), _) => false
     | (PropLit(p1), PropLit(p2)) => Derivation.Prop.eq(p1, p2)
     | (PropLit(_), _) => false
+    | (JudgementLit(j1), JudgementLit(j2)) => Derivation.Judgement.eq(j1, j2)
+    | (JudgementLit(_), _) => false
 
     /* Non-hole forms: recurse */
     | (Test(id1, d1), Test(id2, d2)) => id1 == id2 && fast_equal(d1, d2)
@@ -269,6 +279,8 @@ module rec DHExp: {
       op1 == op2 && fast_equal(d11, d12) && fast_equal(d21, d22)
     | (BinStringOp(op1, d11, d21), BinStringOp(op2, d12, d22)) =>
       op1 == op2 && fast_equal(d11, d12) && fast_equal(d21, d22)
+    | (BinPropOp(op1, d11, d21), BinPropOp(op2, d12, d22)) =>
+      op1 == op2 && fast_equal(d11, d12) && fast_equal(d21, d22)
     | (Cast(d1, ty11, ty21), Cast(d2, ty12, ty22))
     | (FailedCast(d1, ty11, ty21), FailedCast(d2, ty12, ty22)) =>
       fast_equal(d1, d2) && ty11 == ty12 && ty21 == ty22
@@ -301,6 +313,7 @@ module rec DHExp: {
     | (BinIntOp(_), _)
     | (BinFloatOp(_), _)
     | (BinStringOp(_), _)
+    | (BinPropOp(_), _)
     | (Cast(_), _)
     | (FailedCast(_), _)
     | (InvalidOperation(_), _)

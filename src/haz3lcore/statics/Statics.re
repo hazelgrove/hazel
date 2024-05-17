@@ -108,12 +108,19 @@ let typ_exp_binop_bin_string: UExp.op_bin_string => Typ.t =
   | Concat => String
   | Equals => Bool;
 
+let typ_exp_binop_bin_prop: UExp.op_bin_prop => Typ.t =
+  fun
+  | And
+  | Or
+  | Implies => Prop;
+
 let typ_exp_binop: UExp.op_bin => (Typ.t, Typ.t, Typ.t) =
   fun
   | Bool(And | Or) => (Bool, Bool, Bool)
   | Int(op) => (Int, Int, typ_exp_binop_bin_int(op))
   | Float(op) => (Float, Float, typ_exp_binop_bin_float(op))
-  | String(op) => (String, String, typ_exp_binop_bin_string(op));
+  | String(op) => (String, String, typ_exp_binop_bin_string(op))
+  | Prop(op) => (Prop, Prop, typ_exp_binop_bin_prop(op));
 
 let typ_exp_unop: UExp.op_un => (Typ.t, Typ.t) =
   fun
@@ -219,6 +226,7 @@ and uexp_to_info_map =
   | Float(_) => atomic(Just(Float))
   | String(_) => atomic(Just(String))
   | Prop(_) => atomic(Just(Prop))
+  | Judgement(_) => atomic(Just(Judgement))
   | ListLit(es) =>
     let ids = List.map(UExp.rep_id, es);
     let modes = Mode.of_list_lit(ctx, List.length(es), mode);
@@ -608,6 +616,7 @@ and utyp_to_info_map =
   | Float
   | Bool
   | Prop
+  | Judgement
   | String => add(m)
   | Var(_)
   | Constructor(_) =>

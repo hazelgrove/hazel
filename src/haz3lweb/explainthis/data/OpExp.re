@@ -760,6 +760,63 @@ let str_concat_exp: form = {
   };
 };
 
+let prop_and_exp_coloring_ids =
+    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
+  _binop_exp_coloring_ids(
+    Piece.id(_exp1),
+    Piece.id(_exp2),
+    ~left_id,
+    ~right_id,
+  );
+let prop_and_exp: form = {
+  let explanation = "Returns the logical conjunction of the [*left operand*](%s) and the [*right operand*](%s).";
+  {
+    id: BinOpExp(Prop(And)),
+    syntactic_form: [_exp1, space(), prop_and(), space(), _exp2],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
+let prop_or_exp_coloring_ids =
+    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
+  _binop_exp_coloring_ids(
+    Piece.id(_exp1),
+    Piece.id(_exp2),
+    ~left_id,
+    ~right_id,
+  );
+let prop_or_exp: form = {
+  let explanation = "Returns the logical disjunction of the [*left operand*](%s) and the [*right operand*](%s).";
+  {
+    id: BinOpExp(Prop(Or)),
+    syntactic_form: [_exp1, space(), prop_or(), space(), _exp2],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
+let prop_implies_exp_coloring_ids =
+    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
+  _binop_exp_coloring_ids(
+    Piece.id(_exp1),
+    Piece.id(_exp2),
+    ~left_id,
+    ~right_id,
+  );
+let prop_implies_exp: form = {
+  let explanation = "Returns the logical implication of the [*left operand*](%s) and the [*right operand*](%s).";
+  {
+    id: BinOpExp(Prop(Implies)),
+    syntactic_form: [_exp1, space(), prop_implies(), space(), _exp2],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
 let bool_un_not: group = {
   id: UnOpExp(Bool(Not)),
   forms: [bool_unary_not_exp],
@@ -877,4 +934,13 @@ let string_equal: group = {
 let string_concat: group = {
   id: BinOpExp(String(Concat)),
   forms: [str_concat_exp],
+};
+
+let prop_and: group = {id: BinOpExp(Bool(And)), forms: [prop_and_exp]};
+
+let prop_or: group = {id: BinOpExp(Bool(Or)), forms: [prop_or_exp]};
+
+let prop_implies: group = {
+  id: UnOpExp(Bool(Not)),
+  forms: [prop_implies_exp],
 };

@@ -548,6 +548,7 @@ let get_doc =
       | Float(f) => get_message(TerminalExp.float_exps(f))
       | String(s) => get_message(TerminalExp.string_exps(s))
       | Prop(p) => get_message(TerminalExp.prop_exps(p))
+      | Judgement(j) => get_message(TerminalExp.judgement_exps(j))
       | ListLit(terms) =>
         get_message(
           ~format=
@@ -1795,6 +1796,9 @@ let get_doc =
           | Bool(Or) => (bool_or, bool_or_exp_coloring_ids)
           | String(Equals) => (string_equal, str_eq_exp_coloring_ids)
           | String(Concat) => (string_concat, str_concat_exp_coloring_ids)
+          | Prop(And) => (prop_and, prop_and_exp_coloring_ids)
+          | Prop(Or) => (prop_or, prop_or_exp_coloring_ids)
+          | Prop(Implies) => (prop_implies, prop_implies_exp_coloring_ids)
           };
         let left_id = List.nth(left.ids, 0);
         let right_id = List.nth(right.ids, 0);
@@ -2067,6 +2071,7 @@ let get_doc =
     | Bool => get_message(TerminalTyp.bool)
     | String => get_message(TerminalTyp.str)
     | Prop => get_message(TerminalTyp.prop)
+    | Judgement => get_message(TerminalTyp.judgement)
     | List(elem) =>
       let elem_id = List.nth(elem.ids, 0);
       get_message(

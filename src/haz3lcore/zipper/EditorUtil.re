@@ -53,6 +53,7 @@ let rec append_exp = (e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   | Float(_)
   | String(_)
   | Prop(_)
+  | Judgement(_)
   | ListLit(_)
   | Constructor(_)
   | Fun(_)

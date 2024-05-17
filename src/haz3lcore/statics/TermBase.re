@@ -90,6 +90,12 @@ and UExp: {
     | Equals;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type op_bin_prop =
+    | And
+    | Or
+    | Implies;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un =
     | Meta(op_un_meta)
     | Int(op_un_int)
@@ -100,7 +106,8 @@ and UExp: {
     | Int(op_bin_int)
     | Float(op_bin_float)
     | Bool(op_bin_bool)
-    | String(op_bin_string);
+    | String(op_bin_string)
+    | Prop(op_bin_prop);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
@@ -113,6 +120,7 @@ and UExp: {
     | Float
     | String
     | Prop
+    | Judgement
     | ListLit
     | Tag
     | Fun
@@ -148,6 +156,7 @@ and UExp: {
     | Float(float)
     | String(string)
     | Prop(Derivation.Prop.t)
+    | Judgement(Derivation.Judgement.t)
     | ListLit(list(t))
     | Constructor(string)
     | Fun(UPat.t, t)
@@ -178,6 +187,7 @@ and UExp: {
   let int_op_to_string: op_bin_int => string;
   let float_op_to_string: op_bin_float => string;
   let string_op_to_string: op_bin_string => string;
+  let prop_op_to_string: op_bin_prop => string;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un_bool =
@@ -230,6 +240,12 @@ and UExp: {
     | Equals;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type op_bin_prop =
+    | And
+    | Or
+    | Implies;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un =
     | Meta(op_un_meta)
     | Int(op_un_int)
@@ -240,7 +256,8 @@ and UExp: {
     | Int(op_bin_int)
     | Float(op_bin_float)
     | Bool(op_bin_bool)
-    | String(op_bin_string);
+    | String(op_bin_string)
+    | Prop(op_bin_prop);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
@@ -253,6 +270,7 @@ and UExp: {
     | Float
     | String
     | Prop
+    | Judgement
     | ListLit
     | Tag
     | Fun
@@ -288,6 +306,7 @@ and UExp: {
     | Float(float)
     | String(string)
     | Prop(Derivation.Prop.t)
+    | Judgement(Derivation.Judgement.t)
     | ListLit(list(t))
     | Constructor(string)
     | Fun(UPat.t, t)
@@ -359,6 +378,14 @@ and UExp: {
     | Equals => "$=="
     };
   };
+
+  let prop_op_to_string = (op: op_bin_prop): string => {
+    switch (op) {
+    | And => "/\\"
+    | Or => "\\/"
+    | Implies => "==>"
+    };
+  };
 }
 and UPat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -420,6 +447,7 @@ and UTyp: {
     | Bool
     | String
     | Prop
+    | Judgement
     | List(t)
     | Var(string)
     | Constructor(string)
@@ -446,6 +474,7 @@ and UTyp: {
     | Bool
     | String
     | Prop
+    | Judgement
     | List(t)
     | Var(string)
     | Constructor(string)

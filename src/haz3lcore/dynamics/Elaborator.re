@@ -13,7 +13,8 @@ let exp_binop_of: Term.UExp.op_bin => (Typ.t, (_, _) => DHExp.t) =
   | Int(op) => (Int, ((e1, e2) => BinIntOp(op, e1, e2)))
   | Float(op) => (Float, ((e1, e2) => BinFloatOp(op, e1, e2)))
   | Bool(op) => (Bool, ((e1, e2) => BinBoolOp(op, e1, e2)))
-  | String(op) => (String, ((e1, e2) => BinStringOp(op, e1, e2)));
+  | String(op) => (String, ((e1, e2) => BinStringOp(op, e1, e2)))
+  | Prop(op) => (Prop, ((e1, e2) => BinPropOp(op, e1, e2)));
 
 let fixed_exp_typ = (m: Statics.Map.t, e: Term.UExp.t): option(Typ.t) =>
   switch (Id.Map.find_opt(Term.UExp.rep_id(e), m)) {
@@ -98,10 +99,12 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | FloatLit(_)
     | StringLit(_)
     | PropLit(_)
+    | JudgementLit(_)
     | BinBoolOp(_)
     | BinIntOp(_)
     | BinFloatOp(_)
     | BinStringOp(_)
+    | BinPropOp(_)
     | Test(_) => DHExp.cast(d, self_ty, ana_ty)
     };
   };
@@ -146,6 +149,7 @@ let rec dhexp_of_uexp =
       | Float(n) => Some(FloatLit(n))
       | String(s) => Some(StringLit(s))
       | Prop(p) => Some(PropLit(p))
+      | Judgement(j) => Some(JudgementLit(j))
       | ListLit(es) =>
         let* ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
         let+ ty = fixed_exp_typ(m, uexp);

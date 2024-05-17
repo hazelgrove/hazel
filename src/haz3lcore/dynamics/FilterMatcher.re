@@ -78,6 +78,9 @@ let rec matches_exp =
   | (PropLit(dv), PropLit(fv)) => Derivation.Prop.eq(dv, fv)
   | (PropLit(_), _) => false
 
+  | (JudgementLit(dv), JudgementLit(fv)) => Derivation.Judgement.eq(dv, fv)
+  | (JudgementLit(_), _) => false
+
   | (Constructor(_), Ap(Constructor("~MVal"), Tuple([]))) => true
   | (Constructor(dt), Constructor(ft)) => dt == ft
   | (Constructor(_), _) => false
@@ -168,6 +171,12 @@ let rec matches_exp =
     && matches_exp(env, d1, f1)
     && matches_exp(env, d2, f2)
   | (BinStringOp(_), _) => false
+
+  | (BinPropOp(d_op_bin, d1, d2), BinPropOp(f_op_bin, f1, f2)) =>
+    d_op_bin == f_op_bin
+    && matches_exp(env, d1, f1)
+    && matches_exp(env, d2, f2)
+  | (BinPropOp(_), _) => false
 
   | (ListConcat(_), _) => false
 

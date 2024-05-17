@@ -62,6 +62,7 @@ type step_kind =
   | BinIntOp(TermBase.UExp.op_bin_int)
   | BinFloatOp(TermBase.UExp.op_bin_float)
   | BinStringOp(TermBase.UExp.op_bin_string)
+  | BinPropOp(TermBase.UExp.op_bin_prop)
   | Conditional(bool)
   | Projection
   | ListCons
@@ -107,6 +108,7 @@ module CastHelpers = {
     | Float
     | String
     | Prop
+    | Judgement
     | Var(_)
     | Rec(_)
     | Arrow(Unknown(_), Unknown(_))
@@ -323,6 +325,7 @@ module Transition = (EV: EV_MODE) => {
     | FloatLit(_)
     | StringLit(_)
     | PropLit(_)
+    | JudgementLit(_)
     | Constructor(_)
     | BuiltinFun(_) =>
       let. _ = otherwise(env, d);
@@ -474,6 +477,28 @@ module Transition = (EV: EV_MODE) => {
           | _ => raise(EvaluatorError.Exception(InvalidBoxedStringLit(d1')))
           },
         kind: BinStringOp(op),
+        value: true,
+      });
+    | BinPropOp(op, d1, d2) =>
+      let. _ = otherwise(env, (d1, d2) => BinPropOp(op, d1, d2))
+      and. d1' =
+        req_value(req(state, env), d1 => BinPropOp1(op, d1, d2), d1)
+      and. d2' =
+        req_value(req(state, env), d2 => BinPropOp2(op, d1, d2), d2);
+      Step({
+        apply: () =>
+          switch (d1', d2') {
+          | (PropLit(p1), PropLit(p2)) =>
+            switch (op) {
+            | And => PropLit(And(p1, p2))
+            | Or => PropLit(Or(p1, p2))
+            | Implies => PropLit(Implies(p1, p2))
+            }
+          | (PropLit(_), _) =>
+            raise(EvaluatorError.Exception(InvalidBoxedPropLit(d2')))
+          | _ => raise(EvaluatorError.Exception(InvalidBoxedPropLit(d1')))
+          },
+        kind: BinPropOp(op),
         value: true,
       });
     | Tuple(ds) =>
@@ -663,6 +688,7 @@ let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
   | BinIntOp(_)
   | BinFloatOp(_)
   | BinStringOp(_)
+  | BinPropOp(_)
   | ListCons
   | ListConcat
   | CaseApply

@@ -269,6 +269,9 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | ([";"], []) => Seq(l, r)
           | (["++"], []) => BinOp(String(Concat), l, r)
           | (["$=="], []) => BinOp(String(Equals), l, r)
+          | (["/\\"], []) => BinOp(Prop(And), l, r)
+          | (["\\/"], []) => BinOp(Prop(Or), l, r)
+          | (["==>"], []) => BinOp(Prop(Implies), l, r)
           | (["|>"], []) => Pipeline(l, r)
           | (["@"], []) => ListConcat(l, r)
           | _ => hole(tm)
@@ -367,6 +370,7 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
         | (["Float"], []) => Float
         | (["String"], []) => String
         | (["Prop"], []) => Prop
+        | (["Judgement"], []) => Judgement
         | ([t], []) when Form.is_typ_var(t) => Var(t)
         | (["(", ")"], [Typ(body)]) => Parens(body)
         | (["[", "]"], [Typ(body)]) => List(body)

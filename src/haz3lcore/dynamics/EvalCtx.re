@@ -23,6 +23,8 @@ type cls =
   | BinFloatOp2
   | BinStringOp1
   | BinStringOp2
+  | BinPropOp1
+  | BinPropOp2
   | IfThenElse1
   | IfThenElse2
   | IfThenElse3
@@ -71,6 +73,8 @@ type t =
   | BinFloatOp2(TermBase.UExp.op_bin_float, DHExp.t, t)
   | BinStringOp1(TermBase.UExp.op_bin_string, t, DHExp.t)
   | BinStringOp2(TermBase.UExp.op_bin_string, DHExp.t, t)
+  | BinPropOp1(TermBase.UExp.op_bin_prop, t, DHExp.t)
+  | BinPropOp2(TermBase.UExp.op_bin_prop, DHExp.t, t)
   | Tuple(t, (list(DHExp.t), list(DHExp.t)))
   | ApBuiltin(string, t)
   | Test(KeywordID.t, t)
@@ -139,6 +143,8 @@ let rec fuzzy_mark =
   | BinFloatOp2(_)
   | BinStringOp1(_)
   | BinStringOp2(_)
+  | BinPropOp1(_)
+  | BinPropOp2(_)
   | Tuple(_)
   | ApBuiltin(_)
   | ListLit(_)

@@ -13,6 +13,7 @@ type t =
   | InvalidBoxedFloatLit(DHExp.t)
   | InvalidBoxedListLit(DHExp.t)
   | InvalidBoxedStringLit(DHExp.t)
+  | InvalidBoxedPropLit(DHExp.t)
   | InvalidBoxedTuple(DHExp.t)
   | InvalidBuiltin(string)
   | BadBuiltinAp(string, list(DHExp.t))

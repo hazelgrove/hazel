@@ -42,6 +42,12 @@ let precedence_bin_string_op = (bso: TermBase.UExp.op_bin_string) =>
   | Concat => DHDoc_common.precedence_Plus
   | Equals => DHDoc_common.precedence_Equals
   };
+let precedence_bin_prop_op = (bpo: TermBase.UExp.op_bin_prop) =>
+  switch (bpo) {
+  | And => DHDoc_common.precedence_PropAnd
+  | Or => DHDoc_common.precedence_PropOr
+  | Implies => DHDoc_common.precedence_PropImplies
+  };
 let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   let precedence' = precedence(~show_casts);
   switch (d) {
@@ -56,6 +62,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | FloatLit(_)
   | StringLit(_)
   | PropLit(_)
+  | JudgementLit(_)
   | ListLit(_)
   | Prj(_)
   | EmptyHole(_)
@@ -83,6 +90,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | BinIntOp(op, _, _) => precedence_bin_int_op(op)
   | BinFloatOp(op, _, _) => precedence_bin_float_op(op)
   | BinStringOp(op, _, _) => precedence_bin_string_op(op)
+  | BinPropOp(op, _, _) => precedence_bin_prop_op(op)
 
   | NonEmptyHole(_, _, _, d) => precedence'(d)
   };
@@ -99,6 +107,9 @@ let mk_bin_float_op = (op: TermBase.UExp.op_bin_float): DHDoc.t =>
 
 let mk_bin_string_op = (op: TermBase.UExp.op_bin_string): DHDoc.t =>
   Doc.text(TermBase.UExp.string_op_to_string(op));
+
+let mk_bin_prop_op = (op: TermBase.UExp.op_bin_prop): DHDoc.t =>
+  Doc.text(TermBase.UExp.prop_op_to_string(op));
 
 let mk =
     (
@@ -151,6 +162,7 @@ let mk =
         | (BinIntOp(_), _)
         | (BinFloatOp(_), _)
         | (BinStringOp(_), _)
+        | (BinPropOp(_), _)
         | (Projection, _)
         | (ListCons, _)
         | (ListConcat, _)
@@ -358,6 +370,7 @@ let mk =
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
       | StringLit(s) => DHDoc_common.mk_StringLit(s)
       | PropLit(p) => DHDoc_common.mk_PropLit(p)
+      | JudgementLit(j) => DHDoc_common.mk_JudgementLit(j)
       | Test(_, d) => DHDoc_common.mk_Test(go'(d, Test))
       | Sequence(d1, d2) =>
         let (doc1, doc2) = (go'(d1, Sequence1), go'(d2, Sequence2));
@@ -405,6 +418,14 @@ let mk =
             (d2, BinStringOp2),
           );
         hseps([doc1, mk_bin_string_op(op), doc2]);
+      | BinPropOp(op, d1, d2) =>
+        let (doc1, doc2) =
+          mk_left_associative_operands(
+            DHDoc_common.precedence_Equals,
+            (d1, BinPropOp1),
+            (d2, BinPropOp2),
+          );
+        hseps([doc1, mk_bin_prop_op(op), doc2]);
       | Cons(d1, d2) =>
         let (doc1, doc2) =
           mk_right_associative_operands(

@@ -62,6 +62,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   | FloatLit(_)
   | StringLit(_)
   | PropLit(_)
+  | JudgementLit(_)
   | Constructor(_) => d2
   | ListLit(a, b, c, ds) =>
     ListLit(a, b, c, List.map(subst_var(d1, x), ds))
@@ -91,6 +92,10 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     BinStringOp(op, d3, d4);
+  | BinPropOp(op, d3, d4) =>
+    let d3 = subst_var(d1, x, d3);
+    let d4 = subst_var(d1, x, d4);
+    BinPropOp(op, d3, d4);
   | ConsistentCase(Case(d3, rules, n)) =>
     let d3 = subst_var(d1, x, d3);
     let rules = subst_var_rules(d1, x, rules);

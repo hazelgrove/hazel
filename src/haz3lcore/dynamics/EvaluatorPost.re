@@ -47,6 +47,7 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
   | FloatLit(_)
   | StringLit(_)
   | PropLit(_)
+  | JudgementLit(_)
   | Constructor(_) => d |> return
 
   | Sequence(d1, d2) =>
@@ -88,6 +89,11 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     let* d1' = pp_eval(d1);
     let* d2' = pp_eval(d2);
     BinStringOp(op, d1', d2') |> return;
+
+  | BinPropOp(op, d1, d2) =>
+    let* d1' = pp_eval(d1);
+    let* d2' = pp_eval(d2);
+    BinPropOp(op, d1', d2') |> return;
 
   | Cons(d1, d2) =>
     let* d1' = pp_eval(d1);
@@ -273,6 +279,7 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
   | FloatLit(_)
   | StringLit(_)
   | PropLit(_)
+  | JudgementLit(_)
   | Constructor(_) => d |> return
 
   | Test(id, d1) =>
@@ -328,6 +335,11 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* d1' = pp_uneval(env, d1);
     let* d2' = pp_uneval(env, d2);
     BinStringOp(op, d1', d2') |> return;
+
+  | BinPropOp(op, d1, d2) =>
+    let* d1' = pp_uneval(env, d1);
+    let* d2' = pp_uneval(env, d2);
+    BinPropOp(op, d1', d2') |> return;
 
   | IfThenElse(consistent, c, d1, d2) =>
     let* c' = pp_uneval(env, c);
@@ -461,6 +473,7 @@ let rec track_children_of_hole =
   | FloatLit(_)
   | StringLit(_)
   | PropLit(_)
+  | JudgementLit(_)
   | BuiltinFun(_)
   | BoundVar(_) => hii
   | Test(_, d)
@@ -477,6 +490,7 @@ let rec track_children_of_hole =
   | BinIntOp(_, d1, d2)
   | BinFloatOp(_, d1, d2)
   | BinStringOp(_, d1, d2)
+  | BinPropOp(_, d1, d2)
   | Cons(d1, d2) =>
     let hii = track_children_of_hole(hii, parent, d1);
     track_children_of_hole(hii, parent, d2);

@@ -107,6 +107,7 @@ let rec find_fn =
   | Float(_)
   | String(_)
   | Prop(_)
+  | Judgement(_)
   | Constructor(_)
   | Var(_) => l
   };
@@ -159,6 +160,7 @@ let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
   | Float(_)
   | String(_)
   | Prop(_)
+  | Judgement(_)
   | Constructor(_)
   | Deferral(_) => false
   | Fun(args, body) =>
@@ -213,6 +215,7 @@ let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
   | Float(_)
   | String(_)
   | Prop(_)
+  | Judgement(_)
   | Constructor(_)
   | Deferral(_) => false
   | Fun(args, body) =>
@@ -295,6 +298,7 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   | Float(_)
   | String(_)
   | Prop(_)
+  | Judgement(_)
   | Constructor(_)
   | Var(_) => true
   | Fun(args, body) =>

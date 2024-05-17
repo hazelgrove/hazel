@@ -17,6 +17,9 @@ let precedence_And: int;
 let precedence_Or: int;
 let precedence_Comma: int;
 let precedence_max: int;
+let precedence_PropAnd: int;
+let precedence_PropOr: int;
+let precedence_PropImplies: int;
 
 let pad_child:
   (
@@ -84,6 +87,8 @@ let mk_ConstructorLit: string => Pretty.Doc.t('a);
 let mk_StringLit: string => Pretty.Doc.t('a);
 
 let mk_PropLit: Derivation.Prop.t => Pretty.Doc.t('a);
+
+let mk_JudgementLit: Derivation.Judgement.t => Pretty.Doc.t('a);
 
 let mk_Cons: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 

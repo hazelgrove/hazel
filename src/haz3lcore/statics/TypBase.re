@@ -28,6 +28,7 @@ module rec Typ: {
     | Bool
     | String
     | Prop
+    | Judgement
     | Var(TypVar.t)
     | List(t)
     | Arrow(t, t)
@@ -87,6 +88,7 @@ module rec Typ: {
     | Bool
     | String
     | Prop
+    | Judgement
     | Var(TypVar.t)
     | List(t)
     | Arrow(t, t)
@@ -131,6 +133,7 @@ module rec Typ: {
     | Bool
     | String
     | Prop
+    | Judgement
     | Unknown(_)
     | Var(_)
     | Rec(_)
@@ -147,6 +150,7 @@ module rec Typ: {
     | Bool => Bool
     | String => String
     | Prop => Prop
+    | Judgement => Judgement
     | Unknown(prov) => Unknown(prov)
     | Arrow(ty1, ty2) => Arrow(subst(s, x, ty1), subst(s, x, ty2))
     | Prod(tys) => Prod(List.map(subst(s, x), tys))
@@ -180,6 +184,8 @@ module rec Typ: {
     | (String, _) => false
     | (Prop, Prop) => true
     | (Prop, _) => false
+    | (Judgement, Judgement) => true
+    | (Judgement, _) => false
     | (Unknown(_), Unknown(_)) => true
     | (Unknown(_), _) => false
     | (Arrow(t1, t2), Arrow(t1', t2')) => eq(t1, t1') && eq(t2, t2')
@@ -204,6 +210,7 @@ module rec Typ: {
     | Bool
     | String => []
     | Prop => []
+    | Judgement => []
     | Var(v) => List.mem(v, bound) ? [] : [v]
     | List(ty) => free_vars(~bound, ty)
     | Arrow(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
@@ -274,6 +281,8 @@ module rec Typ: {
     | (String, _) => None
     | (Prop, Prop) => Some(Prop)
     | (Prop, _) => None
+    | (Judgement, Judgement) => Some(Judgement)
+    | (Judgement, _) => None
     | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
       let* ty1 = join'(ty1, ty1');
       let+ ty2 = join'(ty2, ty2');
@@ -357,6 +366,7 @@ module rec Typ: {
     | Bool
     | String => ty
     | Prop => Prop
+    | Judgement => Judgement
     | List(t) => List(normalize(ctx, t))
     | Arrow(t1, t2) => Arrow(normalize(ctx, t1), normalize(ctx, t2))
     | Prod(ts) => Prod(List.map(normalize(ctx), ts))

@@ -82,6 +82,18 @@ let prop_exps = (p: Derivation.Prop.t): group => {
   forms: [prop_exp(p)],
 };
 
+let judgement_exp = (j: Derivation.Judgement.t): form => {
+  id: JudgementExp,
+  syntactic_form: [j |> Derivation.Judgement.repr |> exp],
+  expandable_id: None,
+  explanation: "A judgement literal.",
+  examples: [],
+};
+let judgement_exps = (j: Derivation.Judgement.t): group => {
+  id: JudgementExp,
+  forms: [judgement_exp(j)],
+};
+
 let var_exp = (n: string): form => {
   id: VarExp,
   syntactic_form: [n |> abbreviate |> exp],

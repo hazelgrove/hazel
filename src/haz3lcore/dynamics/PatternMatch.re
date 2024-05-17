@@ -246,6 +246,7 @@ and matches_cast_Sum =
   | BinIntOp(_)
   | BinFloatOp(_)
   | BinStringOp(_)
+  | BinPropOp(_)
   | InconsistentBranches(_)
   | EmptyHole(_)
   | NonEmptyHole(_)
@@ -265,6 +266,7 @@ and matches_cast_Sum =
   | FloatLit(_)
   | StringLit(_)
   | PropLit(_)
+  | JudgementLit(_)
   | ListLit(_)
   | Tuple(_)
   | Sequence(_, _)
@@ -345,6 +347,7 @@ and matches_cast_Tuple =
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
   | BinStringOp(_)
+  | BinPropOp(_)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
   | Sequence(_)
@@ -353,6 +356,7 @@ and matches_cast_Tuple =
   | FloatLit(_) => DoesNotMatch
   | StringLit(_) => DoesNotMatch
   | PropLit(_) => DoesNotMatch
+  | JudgementLit(_) => DoesNotMatch
   | ListLit(_) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
   | ListConcat(_) => DoesNotMatch
@@ -485,6 +489,7 @@ and matches_cast_Cons =
   | BinIntOp(_, _, _)
   | BinFloatOp(_, _, _)
   | BinStringOp(_)
+  | BinPropOp(_)
   | ListConcat(_)
   | BuiltinFun(_) => DoesNotMatch
   | BoolLit(_) => DoesNotMatch
@@ -494,6 +499,7 @@ and matches_cast_Cons =
   | FloatLit(_) => DoesNotMatch
   | StringLit(_) => DoesNotMatch
   | PropLit(_) => DoesNotMatch
+  | JudgementLit(_) => DoesNotMatch
   | Tuple(_) => DoesNotMatch
   | Prj(_) => IndetMatch
   | Constructor(_) => DoesNotMatch

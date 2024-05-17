@@ -38,7 +38,6 @@ module Typ = {
     ("@", List(unk)),
     (";", unk),
     ("&&", Bool),
-    ("\\/", Bool),
     ("||", Bool),
     ("$==", Bool),
     ("==.", Bool),
@@ -65,6 +64,10 @@ module Typ = {
     ("/.", Float),
     ("**.", Float),
     ("++", String),
+    ("/\\", Prop),
+    ("\\/", Prop),
+    ("==>", Prop),
+    ("|-", Prop),
   ];
 
   let expected: Info.t => Typ.t =

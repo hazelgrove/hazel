@@ -30,6 +30,7 @@ module UTyp = {
     | Bool
     | String
     | Prop
+    | Judgement
     | Arrow
     | Tuple
     | Sum
@@ -62,6 +63,7 @@ module UTyp = {
     | Bool => Bool
     | String => String
     | Prop => Prop
+    | Judgement => Judgement
     | List(_) => List
     | Arrow(_) => Arrow
     | Var(_) => Var
@@ -80,6 +82,7 @@ module UTyp = {
     | Float
     | String
     | Prop
+    | Judgement
     | Bool => "Base type"
     | Var => "Type variable"
     | Constructor => "Sum constructor"
@@ -102,6 +105,7 @@ module UTyp = {
       | Float => Float
       | String => String
       | Prop => Prop
+      | Judgement => Judgement
       | Var(name) =>
         switch (Ctx.lookup_tvar(ctx, name)) {
         | Some(_) => Var(name)
@@ -390,6 +394,7 @@ module UExp = {
     | Float
     | String
     | Prop
+    | Judgement
     | ListLit
     | Constructor
     | Fun
@@ -435,6 +440,8 @@ module UExp = {
     | Float(_) => Float
     | String(_) => String
     | Prop(_) => Prop
+
+    | Judgement(_) => Judgement
     | ListLit(_) => ListLit
     | Constructor(_) => Constructor
     | Fun(_) => Fun
@@ -512,12 +519,19 @@ module UExp = {
     | Concat => "String Concatenation"
     | Equals => "String Equality";
 
+  let show_op_bin_prop: op_bin_prop => string =
+    fun
+    | And => "Propositional Conjunction"
+    | Or => "Propositional Disjunction"
+    | Implies => "Propositional Implication";
+
   let show_binop: op_bin => string =
     fun
     | Int(op) => show_op_bin_int(op)
     | Float(op) => show_op_bin_float(op)
     | Bool(op) => show_op_bin_bool(op)
-    | String(op) => show_op_bin_string(op);
+    | String(op) => show_op_bin_string(op)
+    | Prop(op) => show_op_bin_prop(op);
 
   let show_cls: cls => string =
     fun
@@ -531,6 +545,7 @@ module UExp = {
     | Float => "Float literal"
     | String => "String literal"
     | Prop => "Proposition"
+    | Judgement => "Judgement"
     | ListLit => "List literal"
     | Constructor => "Constructor"
     | Fun => "Function literal"
@@ -567,6 +582,7 @@ module UExp = {
     | Float(_)
     | String(_)
     | Prop(_)
+    | Judgement(_)
     | ListLit(_)
     | Tuple(_)
     | Var(_)
@@ -604,6 +620,7 @@ module UExp = {
       | Float(_)
       | String(_)
       | Prop(_)
+      | Judgement(_)
       | ListLit(_)
       | Fun(_)
       | Var(_)
@@ -655,6 +672,7 @@ module UExp = {
       | Float(_)
       | String(_)
       | Prop(_)
+      | Judgement(_)
       | ListLit(_)
       | Fun(_)
       | Var(_)

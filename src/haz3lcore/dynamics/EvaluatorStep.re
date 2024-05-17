@@ -273,6 +273,12 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
     | BinStringOp2(op, d1, ctx) =>
       let d2 = compose(ctx, d);
       BinStringOp(op, d1, d2);
+    | BinPropOp1(op, ctx, d2) =>
+      let d1 = compose(ctx, d);
+      BinPropOp(op, d1, d2);
+    | BinPropOp2(op, d1, ctx) =>
+      let d2 = compose(ctx, d);
+      BinPropOp(op, d1, d2);
     | Cons1(ctx, d2) =>
       let d1 = compose(ctx, d);
       Cons(d1, d2);
