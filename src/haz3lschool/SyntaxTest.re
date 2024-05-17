@@ -84,6 +84,7 @@ let rec find_fn =
   | Seq(u1, u2)
   | Cons(u1, u2)
   | ListConcat(u1, u2)
+  | Entail(u1, u2)
   | BinOp(_, u1, u2) => l |> find_fn(name, u1) |> find_fn(name, u2)
   | If(u1, u2, u3) =>
     l |> find_fn(name, u1) |> find_fn(name, u2) |> find_fn(name, u3)
@@ -181,6 +182,7 @@ let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
   | Seq(u1, u2)
   | Cons(u1, u2)
   | ListConcat(u1, u2)
+  | Entail(u1, u2)
   | BinOp(_, u1, u2) => var_mention(name, u1) || var_mention(name, u2)
   | DeferredAp(u1, us) =>
     var_mention(name, u1) || List.exists(var_mention(name), us)
@@ -249,6 +251,7 @@ let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
   | Cons(u1, u2)
   | Seq(u1, u2)
   | ListConcat(u1, u2)
+  | Entail(u1, u2)
   | BinOp(_, u1, u2) => var_applied(name, u1) || var_applied(name, u2)
   | If(u1, u2, u3) =>
     var_applied(name, u1) || var_applied(name, u2) || var_applied(name, u3)
@@ -325,6 +328,7 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   | Seq(u1, u2) => var_mention(name, u1) ? false : tail_check(name, u2)
   | Cons(u1, u2)
   | ListConcat(u1, u2)
+  | Entail(u1, u2)
   | BinOp(_, u1, u2) => !(var_mention(name, u1) || var_mention(name, u2))
   | If(u1, u2, u3) =>
     var_mention(name, u1)

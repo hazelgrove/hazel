@@ -152,6 +152,7 @@ type form_id =
   | ListExp
   | ConsExp
   | ListConcatExp
+  | EntailExp
   | FunctionExp(pat_sub_form_id)
   | TupleExp
   | Tuple2Exp
@@ -243,6 +244,7 @@ type group_id =
   | ListExp
   | ConsExp
   | ListConcatExp
+  | EntailExp
   | FunctionExp(pat_sub_form_id)
   | TupleExp
   | Tuple2Exp

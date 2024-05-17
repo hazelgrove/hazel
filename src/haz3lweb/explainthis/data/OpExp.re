@@ -817,6 +817,25 @@ let prop_implies_exp: form = {
   };
 };
 
+let entail_exp_coloring_ids =
+    (~ctx_id: Id.t, ~prop_id: Id.t): list((Id.t, Id.t)) =>
+  _binop_exp_coloring_ids(
+    Piece.id(_exp1),
+    Piece.id(_exp2),
+    ~left_id=ctx_id,
+    ~right_id=prop_id,
+  );
+let entail_exp: form = {
+  let explanation = "Returns the entailment of the [*left operand*](%s) and the [*right operand*](%s).";
+  {
+    id: EntailExp,
+    syntactic_form: [_exp1, space(), entail(), space(), _exp2],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
 let bool_un_not: group = {
   id: UnOpExp(Bool(Not)),
   forms: [bool_unary_not_exp],
@@ -944,3 +963,5 @@ let prop_implies: group = {
   id: UnOpExp(Bool(Not)),
   forms: [prop_implies_exp],
 };
+
+let entail: group = {id: EntailExp, forms: [entail_exp]};

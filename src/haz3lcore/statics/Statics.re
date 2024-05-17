@@ -254,6 +254,14 @@ and uexp_to_info_map =
       ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
       m,
     );
+  | Entail(e1, e2) =>
+    let (e1, m) = go(~mode=Ana(List(Prop)), e1, m);
+    let (e2, m) = go(~mode=Ana(Prop), e2, m);
+    add(
+      ~self=Just(Judgement),
+      ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
+      m,
+    );
   | Var(name) =>
     add'(
       ~self=Self.of_exp_var(ctx, name),

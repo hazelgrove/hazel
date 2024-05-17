@@ -180,6 +180,10 @@ let rec matches_exp =
 
   | (ListConcat(_), _) => false
 
+  | (Entail(dctx, dprop), Entail(fctx, fprop)) =>
+    matches_exp(env, dctx, fctx) && matches_exp(env, dprop, fprop)
+  | (Entail(_), _) => false
+
   | (
       ConsistentCase(Case(dscrut, drule, _)),
       ConsistentCase(Case(fscrut, frule, _)),

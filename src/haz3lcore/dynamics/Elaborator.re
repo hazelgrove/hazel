@@ -105,6 +105,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | BinFloatOp(_)
     | BinStringOp(_)
     | BinPropOp(_)
+    | Entail(_)
     | Test(_) => DHExp.cast(d, self_ty, ana_ty)
     };
   };
@@ -171,6 +172,10 @@ let rec dhexp_of_uexp =
         let* dc1 = dhexp_of_uexp(m, e1);
         let+ dc2 = dhexp_of_uexp(m, e2);
         DHExp.ListConcat(dc1, dc2);
+      | Entail(e1, e2) =>
+        let* dc1 = dhexp_of_uexp(m, e1);
+        let+ dc2 = dhexp_of_uexp(m, e2);
+        DHExp.Entail(dc1, dc2);
       | UnOp(Meta(Unquote), e) =>
         switch (e.term) {
         | Var("e") when in_filter => Some(Constructor("$e"))

@@ -36,6 +36,8 @@ type cls =
   | Cons2
   | ListConcat1
   | ListConcat2
+  | Entail1
+  | Entail2
   | Prj
   | NonEmptyHole
   | Cast
@@ -89,6 +91,8 @@ type t =
   | Cons2(DHExp.t, t)
   | ListConcat1(t, DHExp.t)
   | ListConcat2(DHExp.t, t)
+  | Entail1(t, DHExp.t)
+  | Entail2(DHExp.t, t)
   | Prj(t, int)
   | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t)
   | Cast(t, Typ.t, Typ.t)
@@ -152,6 +156,8 @@ let rec fuzzy_mark =
   | Cons2(_)
   | ListConcat1(_)
   | ListConcat2(_)
+  | Entail1(_)
+  | Entail2(_)
   | Prj(_)
   | NonEmptyHole(_)
   | InvalidOperation(_)

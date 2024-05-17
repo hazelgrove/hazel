@@ -259,7 +259,7 @@ let forms: list((string, t)) = [
   ("prop_and", mk_infix("/\\", Exp, P.prop_and)),
   ("prop_or", mk_infix("\\/", Exp, P.prop_or)),
   ("prop_implies", mk_infix("==>", Exp, P.prop_implies)),
-  ("judgement_entail", mk_infix("|-", Exp, P.judgement_entail)),
+  ("entail", mk_infix("|-", Exp, P.entail)),
   ("lt", mk_infix("<", Exp, P.eqs)),
   ("gt", mk_infix(">", Exp, P.eqs)),
   ("not_equals", mk_infix("!=", Exp, P.eqs)),

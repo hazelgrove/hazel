@@ -67,6 +67,7 @@ type step_kind =
   | Projection
   | ListCons
   | ListConcat
+  | Entail
   | CaseApply
   | CaseNext
   | CompleteClosure
@@ -550,6 +551,17 @@ module Transition = (EV: EV_MODE) => {
         })
       | _ => Indet
       };
+    | Entail(dctx, dprop) =>
+      let. _ = otherwise(env, (dctx, dprop) => Entail(dctx, dprop))
+      and. dctx' =
+        req_final(req(state, env), dctx => Entail1(dctx, dprop), dctx)
+      and. dprop' =
+        req_final(req(state, env), dprop => Entail2(dctx, dprop), dprop);
+      Step({
+        apply: () => Entail(dctx', dprop'),
+        kind: CompleteFilter,
+        value: true,
+      });
     | ListLit(u, i, ty, ds) =>
       let. _ = otherwise(env, ds => ListLit(u, i, ty, ds))
       and. _ =
@@ -691,6 +703,7 @@ let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
   | BinPropOp(_)
   | ListCons
   | ListConcat
+  | Entail
   | CaseApply
   | Projection // TODO(Matt): We don't want to show projection to the user
   | Skip

@@ -274,6 +274,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | (["==>"], []) => BinOp(Prop(Implies), l, r)
           | (["|>"], []) => Pipeline(l, r)
           | (["@"], []) => ListConcat(l, r)
+          | (["|-"], []) => Entail(l, r)
           | _ => hole(tm)
           },
         )

@@ -152,6 +152,12 @@ let rec matches =
     | ListConcat2(d1, ctx) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       ListConcat2(d1, ctx);
+    | Entail1(ctx, d2) =>
+      let+ ctx = matches(env, flt, ctx, exp, act, idx);
+      Entail1(ctx, d2);
+    | Entail2(d1, ctx) =>
+      let+ ctx = matches(env, flt, ctx, exp, act, idx);
+      Entail2(d1, ctx);
     | Prj(ctx, n) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       Prj(ctx, n);
@@ -413,6 +419,7 @@ let get_justification: step_kind => string =
   | Conditional(_) => "conditional"
   | ListCons => "list manipulation"
   | ListConcat => "list manipulation"
+  | Entail => "entailment"
   | CaseApply => "case selection"
   | CaseNext => "case discarding"
   | Projection => "projection" // TODO(Matt): We don't want to show projection to the user

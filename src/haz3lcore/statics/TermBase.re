@@ -135,6 +135,7 @@ and UExp: {
     | Parens
     | Cons
     | ListConcat
+    | Entail
     | UnOp(op_un)
     | BinOp(op_bin)
     | Match;
@@ -174,6 +175,7 @@ and UExp: {
     | Parens(t) // (
     | Cons(t, t)
     | ListConcat(t, t)
+    | Entail(t, t)
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
     | Match(t, list((UPat.t, t)))
@@ -285,6 +287,7 @@ and UExp: {
     | Parens
     | Cons
     | ListConcat
+    | Entail
     | UnOp(op_un)
     | BinOp(op_bin)
     | Match;
@@ -324,6 +327,7 @@ and UExp: {
     | Parens(t) // (
     | Cons(t, t)
     | ListConcat(t, t)
+    | Entail(t, t)
     | UnOp(op_un, t)
     | BinOp(op_bin, t, t)
     | Match(t, list((UPat.t, t)))

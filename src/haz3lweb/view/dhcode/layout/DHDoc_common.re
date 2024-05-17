@@ -24,6 +24,7 @@ let precedence_max = P.min;
 let precedence_PropAnd = P.prop_and;
 let precedence_PropOr = P.prop_or;
 let precedence_PropImplies = P.prop_implies;
+let precedence_Entail = P.entail;
 
 let pad_child =
     (
@@ -127,7 +128,7 @@ let mk_ConstructorLit = Doc.text;
 
 let mk_Cons = (hd, tl) => Doc.(hcats([hd, text("::"), tl]));
 let mk_ListConcat = (hd, tl) => Doc.(hcats([hd, text("@"), tl]));
-
+let mk_Entail = (ctx, prop) => Doc.(hcats([ctx, text(" ⊢ "), prop]));
 let mk_comma_seq = (ld, rd, l) => {
   let rec mk_comma_seq_inner = l => {
     switch (l) {

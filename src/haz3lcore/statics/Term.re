@@ -415,7 +415,8 @@ module UExp = {
     | UnOp(op_un)
     | BinOp(op_bin)
     | Match
-    | ListConcat;
+    | ListConcat
+    | Entail;
 
   let hole = (tms: list(any)): term =>
     switch (tms) {
@@ -459,6 +460,7 @@ module UExp = {
     | Parens(_) => Parens
     | Cons(_) => Cons
     | ListConcat(_) => ListConcat
+    | Entail(_) => Entail
     | UnOp(op, _) => UnOp(op)
     | BinOp(op, _, _) => BinOp(op)
     | Match(_) => Match;
@@ -564,6 +566,7 @@ module UExp = {
     | Parens => "Parenthesized expression"
     | Cons => "Cons"
     | ListConcat => "List Concatenation"
+    | Entail => "Entailment"
     | BinOp(op) => show_binop(op)
     | UnOp(op) => show_unop(op)
     | Match => "Case expression";
@@ -597,6 +600,7 @@ module UExp = {
     | Filter(_)
     | Cons(_)
     | ListConcat(_)
+    | Entail(_)
     | UnOp(_)
     | BinOp(_)
     | Match(_)
@@ -635,6 +639,7 @@ module UExp = {
       | Filter(_)
       | Cons(_)
       | ListConcat(_)
+      | Entail(_)
       | UnOp(_)
       | BinOp(_)
       | Match(_)
@@ -687,6 +692,7 @@ module UExp = {
       | Test(_)
       | Cons(_)
       | ListConcat(_)
+      | Entail(_)
       | UnOp(_)
       | BinOp(_)
       | Match(_)

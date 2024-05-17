@@ -1718,6 +1718,22 @@ let get_doc =
             ),
           ListExp.listconcats,
         );
+      | Entail(ctx, prop) =>
+        let ctx_id = List.nth(ctx.ids, 0);
+        let prop_id = List.nth(prop.ids, 0);
+        get_message(
+          ~colorings=OpExp.entail_exp_coloring_ids(~ctx_id, ~prop_id),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(ctx_id),
+                  Id.to_string(prop_id),
+                ),
+            ),
+          OpExp.entail,
+        );
       | UnOp(op, exp) =>
         switch (op) {
         | Bool(Not) =>

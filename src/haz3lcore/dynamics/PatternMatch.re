@@ -273,6 +273,7 @@ and matches_cast_Sum =
   | Closure(_)
   | Filter(_)
   | Cons(_)
+  | Entail(_)
   | ListConcat(_) => DoesNotMatch
   }
 and matches_cast_Tuple =
@@ -360,6 +361,7 @@ and matches_cast_Tuple =
   | ListLit(_) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
   | ListConcat(_) => DoesNotMatch
+  | Entail(_) => DoesNotMatch
   | Prj(_) => IndetMatch
   | Constructor(_) => DoesNotMatch
   | ConsistentCase(_)
@@ -491,6 +493,7 @@ and matches_cast_Cons =
   | BinStringOp(_)
   | BinPropOp(_)
   | ListConcat(_)
+  | Entail(_)
   | BuiltinFun(_) => DoesNotMatch
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch

@@ -107,6 +107,7 @@ let sconcat = () => mk_monotile(Form.get("string_concat"));
 let prop_and = () => mk_monotile(Form.get("prop_and"));
 let prop_or = () => mk_monotile(Form.get("prop_or"));
 let prop_implies = () => mk_monotile(Form.get("prop_implies"));
+let entail = () => mk_monotile(Form.get("entail"));
 let logical_and = () => mk_monotile(Form.get("logical_and"));
 let logical_or = () => mk_monotile(Form.get("logical_or"));
 let comma_exp = () => mk_monotile(Form.get("comma_exp"));

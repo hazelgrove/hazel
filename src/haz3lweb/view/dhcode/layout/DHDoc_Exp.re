@@ -79,6 +79,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | ApBuiltin(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
   | ListConcat(_) => DHDoc_common.precedence_Plus
+  | Entail(_) => DHDoc_common.precedence_Entail
   | Tuple(_) => DHDoc_common.precedence_Comma
   | Fun(_) => DHDoc_common.precedence_max
   | Let(_)
@@ -166,6 +167,7 @@ let mk =
         | (Projection, _)
         | (ListCons, _)
         | (ListConcat, _)
+        | (Entail, _)
         | (CaseApply, _)
         | (CaseNext, _)
         | (CompleteClosure, _)
@@ -442,6 +444,14 @@ let mk =
             (d2, ListConcat2),
           );
         DHDoc_common.mk_ListConcat(doc1, doc2);
+      | Entail(d1, d2) =>
+        let (doc1, doc2) =
+          mk_right_associative_operands(
+            DHDoc_common.precedence_Entail,
+            (d1, Entail1),
+            (d2, Entail2),
+          );
+        DHDoc_common.mk_Entail(doc1, doc2);
       | BinBoolOp(op, d1, d2) =>
         let (doc1, doc2) =
           mk_right_associative_operands(

@@ -39,6 +39,7 @@ module rec DHExp: {
     | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t))
     | Cons(t, t)
     | ListConcat(t, t)
+    | Entail(t, t)
     | Tuple(list(t))
     | Prj(t, int)
     | Constructor(string)
@@ -99,6 +100,7 @@ module rec DHExp: {
     | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t))
     | Cons(t, t)
     | ListConcat(t, t)
+    | Entail(t, t)
     | Tuple(list(t))
     | Prj(t, int)
     | Constructor(string)
@@ -144,6 +146,7 @@ module rec DHExp: {
     | ListLit(_) => "ListLit"
     | Cons(_, _) => "Cons"
     | ListConcat(_, _) => "ListConcat"
+    | Entail(_, _) => "Entail"
     | Tuple(_) => "Tuple"
     | Prj(_) => "Prj"
     | Constructor(_) => "Constructor"
@@ -180,6 +183,7 @@ module rec DHExp: {
     | Prj(d, n) => Prj(strip_casts(d), n)
     | Cons(d1, d2) => Cons(strip_casts(d1), strip_casts(d2))
     | ListConcat(d1, d2) => ListConcat(strip_casts(d1), strip_casts(d2))
+    | Entail(a, b) => Entail(strip_casts(a), strip_casts(b))
     | ListLit(a, b, c, ds) => ListLit(a, b, c, List.map(strip_casts, ds))
     | NonEmptyHole(err, u, i, d) => NonEmptyHole(err, u, i, strip_casts(d))
     | Sequence(a, b) => Sequence(strip_casts(a), strip_casts(b))
@@ -262,6 +266,8 @@ module rec DHExp: {
       fast_equal(d11, d12) && fast_equal(d21, d22)
     | (ListConcat(d11, d21), ListConcat(d12, d22)) =>
       fast_equal(d11, d12) && fast_equal(d21, d22)
+    | (Entail(d11, d21), Entail(d12, d22)) =>
+      fast_equal(d11, d12) && fast_equal(d21, d22)
     | (Tuple(ds1), Tuple(ds2)) =>
       List.length(ds1) == List.length(ds2)
       && List.for_all2(fast_equal, ds1, ds2)
@@ -306,6 +312,7 @@ module rec DHExp: {
     | (BuiltinFun(_), _)
     | (Cons(_), _)
     | (ListConcat(_), _)
+    | (Entail(_), _)
     | (ListLit(_), _)
     | (Tuple(_), _)
     | (Prj(_), _)

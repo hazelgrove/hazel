@@ -291,6 +291,12 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
     | ListConcat2(d1, ctx) =>
       let d2 = compose(ctx, d);
       ListConcat(d1, d2);
+    | Entail1(ctx, d2) =>
+      let d1 = compose(ctx, d);
+      Entail(d1, d2);
+    | Entail2(d1, ctx) =>
+      let d2 = compose(ctx, d);
+      Entail(d1, d2);
     | Tuple(ctx, (ld, rd)) =>
       let d = compose(ctx, d);
       Tuple(rev_concat(ld, [d, ...rd]));
