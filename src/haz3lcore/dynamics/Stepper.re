@@ -212,16 +212,6 @@ let step_pending = (idx: int, stepper: t) => {
   {...stepper, stepper_state: StepPending(idx)};
 };
 
-let init = ({d}: Elaborator.Elaboration.t) => {
-  let state = EvaluatorState.init;
-  let editor = ExpToSegment.exp_to_editor(~inline=false, d);
-  {
-    history: Aba.singleton((d, editor, state)),
-    next_options: decompose(d, state),
-    stepper_state: StepperReady,
-  };
-};
-
 let rec evaluate_pending = (~settings, s: t) => {
   switch (s.stepper_state) {
   | StepperDone
@@ -278,6 +268,17 @@ let rec evaluate_full = (~settings, s: t) => {
   | StepPending(_) =>
     evaluate_pending(~settings, s) |> evaluate_full(~settings)
   };
+};
+
+let init = ({d}: Elaborator.Elaboration.t, ~settings) => {
+  let state = EvaluatorState.init;
+  let editor = ExpToSegment.exp_to_editor(~inline=false, d);
+  {
+    history: Aba.singleton((d, editor, state)),
+    next_options: decompose(d, state),
+    stepper_state: StepperReady,
+  }
+  |> evaluate_pending(~settings);
 };
 
 let timeout =
@@ -375,7 +376,8 @@ let get_history = (~settings, stepper) => {
       ((d, editor, state)) =>
         Aba.singleton(Aba.singleton((d, editor, state))),
       stepper.history,
-    );
+    )
+    |> Aba.map_a(Aba.rev(x => x, x => x));
   let replace_id = (x, y, (s, z)) => (s, x == z ? y : z);
   let track_ids =
       (

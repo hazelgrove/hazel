@@ -210,7 +210,12 @@ let schedule_evaluation = (~schedule_action, model: Model.t): unit =>
       );
     };
     /* Not sending stepper to worker for now bc closure perf */
-    let new_rs = model.results |> ModelResults.update_elabs(elabs);
+    let new_rs =
+      model.results
+      |> ModelResults.update_elabs(
+           ~settings=model.settings.core.evaluation,
+           elabs,
+         );
     let step_rs = ModelResults.to_step(new_rs);
     if (!ModelResults.is_empty(step_rs)) {
       let new_rs =
@@ -548,7 +553,9 @@ let rec apply =
                Some(
                  v
                  |> Option.value(~default=NoElab: ModelResult.t)
-                 |> ModelResult.toggle_stepper,
+                 |> ModelResult.toggle_stepper(
+                      ~settings=model.settings.core.evaluation,
+                    ),
                )
              ),
       })

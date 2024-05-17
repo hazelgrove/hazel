@@ -16,7 +16,7 @@ type t =
 let init_eval = (elab: Elaborator.Elaboration.t) =>
   Evaluation({elab, evaluation: ResultPending, previous: ResultPending});
 
-let update_elab = elab =>
+let update_elab = (elab, ~settings) =>
   fun
   | NoElab =>
     Evaluation({elab, evaluation: ResultPending, previous: ResultPending})
@@ -24,7 +24,7 @@ let update_elab = elab =>
     Evaluation({elab, evaluation: ResultPending, previous: evaluation})
   | Stepper(s) as s' when DHExp.fast_equal(elab.d, Stepper.get_elab(s).d) => s'
   | Stepper(_) => {
-      Stepper(Stepper.init(elab));
+      Stepper(Stepper.init(elab, ~settings));
     };
 
 let update_stepper = f =>
@@ -94,10 +94,10 @@ let timeout: t => t =
     Evaluation({...e, evaluation: ResultFail(Timeout), previous: evaluation})
   | Stepper(s) => Stepper(Stepper.timeout(s));
 
-let toggle_stepper =
+let toggle_stepper = (~settings) =>
   fun
   | NoElab => NoElab
-  | Evaluation({elab, _}) => Stepper(Stepper.init(elab))
+  | Evaluation({elab, _}) => Stepper(Stepper.init(~settings, elab))
   | Stepper(s) =>
     Evaluation({
       elab: Stepper.get_elab(s),

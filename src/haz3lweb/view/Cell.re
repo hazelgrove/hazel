@@ -186,7 +186,7 @@ let stepper_view =
     Stepper.get_history(~settings=settings.core.evaluation, stepper);
   switch (history) {
   | [] => []
-  | [hd, ...tl] =>
+  | [hd, ..._] =>
     let button_back =
       Widgets.button_d(
         Icons.undo,
@@ -276,26 +276,29 @@ let stepper_view =
       (
         settings.core.evaluation.stepper_history
           ? {
-            let steps: list((bool, Stepper.step_info)) =
-              List.map(
-                step =>
-                  [
-                    (false, step),
-                    ...settings.core.evaluation.show_hidden_steps
-                         ? Stepper.hidden_steps_of_info(step)
-                           |> List.map(x => (true, x))
-                         : [],
-                  ],
-                tl,
+              let steps: list((bool, Stepper.step_info)) =
+                List.map(
+                  step =>
+                    [
+                      (false, step),
+                      ...settings.core.evaluation.show_hidden_steps
+                           ? Stepper.hidden_steps_of_info(step)
+                             |> List.map(x => (true, x))
+                           : [],
+                    ],
+                  history,
+                )
+                |> List.flatten;
+              List.mapi(
+                (idx, (hidden, step)) =>
+                  previous_step(~hidden, ~idx=idx + 1, step),
+                steps |> List.rev,
               )
               |> List.flatten;
-            List.mapi(
-              (idx, (hidden, step)) =>
-                previous_step(~hidden, ~idx=idx + 1, step),
-              steps,
-            )
-            |> List.flatten;
-          }
+            }
+            |> List.rev
+            |> List.tl
+            |> List.rev
           : []
       )
       @ [current]
