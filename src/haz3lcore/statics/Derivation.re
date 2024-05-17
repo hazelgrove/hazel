@@ -21,19 +21,48 @@ module rec Prop: {
     | Truth
     | Falsity;
   let eq = (x, y) => x == y;
-  let rec repr =
-    fun
+
+  let precedence = (prop: t): int =>
+    switch (prop) {
+    | Atom(_)
+    | Truth
+    | Falsity => Precedence.entail
+    | And(_, _) => Precedence.prop_and
+    | Or(_, _) => Precedence.prop_or
+    | Implies(_, _) => Precedence.prop_implies
+    };
+
+  let rec repr_helper = (p, prop) => {
+    let precedence = precedence(prop);
+    let parathesize = (s: string) =>
+      if (p < precedence) {
+        Printf.sprintf("(%s)", s);
+      } else {
+        s;
+      };
+    let print_binop = (op: string, a: t, b: t) =>
+      Printf.sprintf(
+        "%s %s %s",
+        repr_helper(precedence, a),
+        op,
+        repr_helper(precedence, b),
+      )
+      |> parathesize;
+    switch (prop) {
     | Atom(s) => s
-    | And(a, b) => Printf.sprintf("%s ∧ %s", repr(a), repr(b))
-    | Or(a, b) => Printf.sprintf("%s ∨ %s", repr(a), repr(b))
+    | And(a, b) => print_binop("∧", a, b)
+    | Or(a, b) => print_binop("∨", a, b)
     | Implies(a, b) =>
       if (b == Falsity) {
-        Printf.sprintf("¬%s", repr(a));
+        Printf.sprintf("¬%s", repr_helper(precedence, a));
       } else {
-        Printf.sprintf("%s ⊃ %s", repr(a), repr(b));
+        print_binop("⊃", a, b);
       }
     | Truth => "⊤"
-    | Falsity => "⊥";
+    | Falsity => "⊥"
+    };
+  };
+  let repr = repr_helper(Precedence.entail);
 };
 
 module Ctx: {
