@@ -277,7 +277,7 @@ let rec exp_to_pretty = (~inline, exp: Exp.t): pretty => {
   | Test(e) =>
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
-    [mk_form("test", id, [])] @ e;
+    [mk_form("test", id, [e])];
   | Parens(e) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
