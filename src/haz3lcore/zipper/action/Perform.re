@@ -49,7 +49,7 @@ let go_z =
       }
     };
 
-  let selection_dance = (z, d, pid): t => {
+  let _selection_dance = (z, d, pid): t => {
     //TODO(andrew): clean up hacky movement
     print_endline("PERFORM: going to start");
     print_endline("direction: " ++ Direction.show(d));
@@ -77,53 +77,11 @@ let go_z =
     };
   };
 
-  let la = (id, z: t, pid, d) =>
-    switch (Projector.Map.find(id, z.projectors)) {
-    | Some(p) =>
-      switch (p) {
-      | Fold =>
-        let f = _ =>
-          //TODO(andrew)
-          Some(Projector.Infer({expected_ty: None}));
-        {...z, projectors: Projector.Map.update(id, f, z.projectors)};
-      | Infer(_) => {
-          ...z,
-          projectors: Projector.Map.remove(id, z.projectors),
-        }
-      }
-    | None =>
-      let z = {
-        ...z,
-        projectors: Projector.Map.add(id, Projector.Fold, z.projectors),
-      };
-      selection_dance(z, d, pid);
-    };
-
-  let proj_loj = (p: Action.project, z: t, pid, d) =>
-    switch (p) {
-    | ToggleFold =>
-      print_endline("Project.go: ToggleFold");
-      switch (Indicated.index(z)) {
-      | Some(id) => la(id, z, pid, d)
-      | None => z
-      };
-    | Toggle(id) =>
-      print_endline("Project.go: Toggle Id");
-      la(id, z, pid, d);
-    };
-
   switch (a) {
-  | Project(p) =>
-    switch (
-      Indicated.piece'(
-        ~no_ws=false,
-        ~ign=Piece.is_secondary,
-        ~trim_secondary=false,
-        z,
-      )
-    ) {
-    | None => Error(Action.Failure.Cant_move)
-    | Some((pid, d, _)) => Ok(proj_loj(p, z, pid, d))
+  | Project(a) =>
+    switch (ProjectorAction.go(a, z)) {
+    | None => Error(Action.Failure.Cant_project)
+    | Some(z) => Ok(z)
     }
   | Move(d) =>
     Move.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move)

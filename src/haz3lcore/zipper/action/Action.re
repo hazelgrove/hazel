@@ -70,7 +70,8 @@ module Failure = {
     | Cant_insert
     | Cant_destruct
     | Cant_select
-    | Cant_put_down;
+    | Cant_put_down
+    | Cant_project;
 };
 
 module Result = {

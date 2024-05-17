@@ -249,3 +249,15 @@ let map_projectors = (f: (Id.t, Projector.t) => Projector.t, ed: t) =>
     z => {...z, projectors: Projector.Map.mapi(f, z.projectors)},
     ed,
   );
+
+//TODO(andrew): use or lose
+let get_projected_piece = (ed: t, id: Id.t): option(Piece.t) => {
+  /* Assumes for the moment that the projected thing is either
+   * a tile or a grout (not secondary or segment) */
+  switch (Id.Map.find_opt(id, ed.state.meta.tiles)) {
+  | Some(tile) => Some(Tile(tile))
+  | None =>
+    List.find_opt((g: Grout.t) => g.id == id, ed.state.meta.holes)
+    |> Option.map(g => Piece.Grout(g))
+  };
+};

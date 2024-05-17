@@ -47,3 +47,68 @@ let of_zipper = (z: Zipper.t): Zipper.t => {
     },
   };
 };
+
+let move_out_of_piece =
+    (d: Util.Direction.t, rel: Indicated.relation, z: Zipper.t): Zipper.t =>
+  /* Might not work for pieces with more than 2 delims */
+  switch (rel) {
+  | Sibling => {...z, caret: Outer}
+  | Parent =>
+    switch (Zipper.move(d, {...z, caret: Outer})) {
+    | Some(z) => z
+    | None => z
+    }
+  };
+
+let update = (f, id, z) => {
+  ...z,
+  projectors: Projector.Map.update(id, f, z.projectors),
+};
+
+let set = (prj, id, z) => update(_ => prj, id, z);
+
+let can_project = (prj: Projector.t, p: Piece.t) =>
+  switch (prj) {
+  | Infer(_) =>
+    Piece.is_convex(p)
+    && (
+      switch (p) {
+      | Tile(t) => t.mold.out == Exp || t.mold.out == Pat
+      | _ => false
+      }
+    )
+  | Fold => Piece.is_convex(p)
+  };
+
+let default_infer: Projector.t = Infer({expected_ty: None});
+
+let project = (prj, id, d, rel, z) =>
+  z |> set(Some(prj), id) |> move_out_of_piece(d, rel) |> Option.some;
+
+let toggle = (id, z: Zipper.t, piece, d, rel) =>
+  switch (Projector.Map.find(id, z.projectors)) {
+  | Some(Fold) =>
+    if (can_project(default_infer, piece)) {
+      project(default_infer, id, d, rel, z);
+    } else {
+      Some(set(None, id, z));
+    }
+  | Some(Infer(_)) => Some(set(None, id, z))
+  | None when Piece.is_convex(piece) =>
+    if (can_project(Fold, piece)) {
+      project(Fold, id, d, rel, z);
+    } else {
+      None;
+    }
+  | None => None
+  };
+
+let go = (a: Action.project, z: Zipper.t) =>
+  switch (Indicated.for_index(z)) {
+  | None => None
+  | Some((p, d, rel)) =>
+    switch (a) {
+    | ToggleFold => toggle(Piece.id(p), z, p, d, rel)
+    | Toggle(id) => toggle(id, z, p, d, rel)
+    }
+  };
