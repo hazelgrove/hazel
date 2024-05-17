@@ -211,6 +211,34 @@ module Pervasives = {
           }
         | d => Error(InvalidBoxedTuple(d)),
       );
+
+    let atom =
+      unary(
+        fun
+        | StringLit(s) => Ok(PropLit(Atom(s)))
+        | d => Error(InvalidBoxedStringLit(d)),
+      );
+
+    let and_ =
+      unary(
+        fun
+        | Tuple([PropLit(p1), PropLit(p2)]) => Ok(PropLit(And(p1, p2)))
+        | d => Error(InvalidBoxedTuple(d)),
+      );
+
+    let or_ =
+      unary(
+        fun
+        | Tuple([PropLit(p1), PropLit(p2)]) => Ok(PropLit(Or(p1, p2)))
+        | d => Error(InvalidBoxedTuple(d)),
+      );
+
+    let implies =
+      unary(
+        fun
+        | Tuple([PropLit(p1), PropLit(p2)]) => Ok(PropLit(Implies(p1, p2)))
+        | d => Error(InvalidBoxedTuple(d)),
+      );
   };
 
   open Impls;
@@ -268,7 +296,11 @@ module Pervasives = {
          Prod([String, Int, Int]),
          String,
          string_sub("string_sub"),
-       );
+       )
+    |> fn("atom", String, Prop, atom)
+    |> fn("and", Prod([Prop, Prop]), Prop, and_)
+    |> fn("or", Prod([Prop, Prop]), Prop, or_)
+    |> fn("implies", Prod([Prop, Prop]), Prop, implies);
 };
 
 let ctx_init: Ctx.t = {

@@ -97,6 +97,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | IntLit(_)
     | FloatLit(_)
     | StringLit(_)
+    | PropLit(_)
     | BinBoolOp(_)
     | BinIntOp(_)
     | BinFloatOp(_)
@@ -144,6 +145,7 @@ let rec dhexp_of_uexp =
       | Int(n) => Some(IntLit(n))
       | Float(n) => Some(FloatLit(n))
       | String(s) => Some(StringLit(s))
+      | Prop(p) => Some(PropLit(p))
       | ListLit(es) =>
         let* ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
         let+ ty = fixed_exp_typ(m, uexp);

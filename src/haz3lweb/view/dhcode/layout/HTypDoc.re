@@ -50,6 +50,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
     | Float => (text("Float"), parenthesize)
     | Bool => (text("Bool"), parenthesize)
     | String => (text("String"), parenthesize)
+    | Prop => (text("Prop"), parenthesize)
     | Var(name) => (text(name), parenthesize)
     | List(ty) => (
         hcats([

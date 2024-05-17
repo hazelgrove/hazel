@@ -112,6 +112,7 @@ and UExp: {
     | Int
     | Float
     | String
+    | Prop
     | ListLit
     | Tag
     | Fun
@@ -146,6 +147,7 @@ and UExp: {
     | Int(int)
     | Float(float)
     | String(string)
+    | Prop(Derivation.Prop.t)
     | ListLit(list(t))
     | Constructor(string)
     | Fun(UPat.t, t)
@@ -250,6 +252,7 @@ and UExp: {
     | Int
     | Float
     | String
+    | Prop
     | ListLit
     | Tag
     | Fun
@@ -284,6 +287,7 @@ and UExp: {
     | Int(int)
     | Float(float)
     | String(string)
+    | Prop(Derivation.Prop.t)
     | ListLit(list(t))
     | Constructor(string)
     | Fun(UPat.t, t)
@@ -415,6 +419,7 @@ and UTyp: {
     | Float
     | Bool
     | String
+    | Prop
     | List(t)
     | Var(string)
     | Constructor(string)
@@ -440,6 +445,7 @@ and UTyp: {
     | Float
     | Bool
     | String
+    | Prop
     | List(t)
     | Var(string)
     | Constructor(string)

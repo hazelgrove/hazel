@@ -55,6 +55,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Test(_)
   | FloatLit(_)
   | StringLit(_)
+  | PropLit(_)
   | ListLit(_)
   | Prj(_)
   | EmptyHole(_)
@@ -356,6 +357,7 @@ let mk =
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
       | StringLit(s) => DHDoc_common.mk_StringLit(s)
+      | PropLit(p) => DHDoc_common.mk_PropLit(p)
       | Test(_, d) => DHDoc_common.mk_Test(go'(d, Test))
       | Sequence(d1, d2) =>
         let (doc1, doc2) = (go'(d1, Sequence1), go'(d2, Sequence2));

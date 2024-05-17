@@ -104,6 +104,8 @@ let mk_IntLit = n => Doc.text(string_of_int(n));
 
 let mk_StringLit = s => Doc.text(Form.string_quote(s));
 
+let mk_PropLit = p => Doc.text(Derivation.Prop.repr(p));
+
 let mk_Test = t => Doc.(hcats([text("Test"), t, text("End")]));
 
 let mk_FloatLit = (f: float) =>

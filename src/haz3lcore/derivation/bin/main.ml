@@ -1,73 +1,82 @@
 open Derivation_system.Verification
 open Derivation_system.DerivationType
 
-let d1 : Derivation.t =
+(* A ∧ B ⊢ B ∧ A *)
+let d_simple : Derivation.t =
   let a : Prop.t = Atom "A" in
   let b : Prop.t = Atom "B" in
+  let gamma : Ctx.t = [ And (a, b) ] in
   D
-    ( Entail ([ And (a, b) ], And (b, a)),
+    ( Entail (gamma, And (b, a)),
       And_I,
       [
         D
-          ( Entail ([ And (a, b) ], b),
+          ( Entail (gamma, b),
             And_E_R,
-            [ D (Entail ([ And (a, b) ], And (a, b)), Assumption, []) ] );
+            [ D (Entail (gamma, And (a, b)), Assumption, []) ] );
         D
-          ( Entail ([ And (a, b) ], a),
+          ( Entail (gamma, a),
             And_E_L,
-            [ D (Entail ([ And (a, b) ], And (a, b)), Assumption, []) ] );
+            [ D (Entail (gamma, And (a, b)), Assumption, []) ] );
       ] )
 
-let d2 : Derivation.t =
+(* ⊢ ¬(A ∨ B) ⊃ (¬A ∧ ¬B) *)
+let d_490_24wi_a6_e1_p3 : Derivation.t =
   let a : Prop.t = Atom "A" in
   let b : Prop.t = Atom "B" in
-  let c : Prop.t = Atom "C" in
-  let gamma : Prop.t list = [ And (a, Or (b, c)) ] in
-  let gamma_b : Prop.t list = gamma @ [ b ] in
-  let gamma_c : Prop.t list = gamma @ [ c ] in
+  let not_a : Prop.t = Implies (a, Falsity) in
+  let not_b : Prop.t = Implies (b, Falsity) in
+  let not_a__and__not_b : Prop.t = And (not_a, not_b) in
+  let a_or_b : Prop.t = Or (a, b) in
+  let not__a_or_b : Prop.t = Implies (a_or_b, Falsity) in
+  let gamma : Ctx.t = [ not__a_or_b ] in
+  let gamma_a : Ctx.t = gamma @ [ a ] in
+  let gamma_b : Ctx.t = gamma @ [ b ] in
+  let d_a : Derivation.t =
+    D
+      ( Entail (gamma_a, Falsity),
+        Implies_E,
+        [
+          D (Entail (gamma_a, not__a_or_b), Assumption, []);
+          D
+            ( Entail (gamma_a, a_or_b),
+              Or_I_L,
+              [ D (Entail (gamma_a, a), Assumption, []) ] );
+        ] )
+  in
+  let d_b : Derivation.t =
+    D
+      ( Entail (gamma_b, Falsity),
+        Implies_E,
+        [
+          D (Entail (gamma_b, not__a_or_b), Assumption, []);
+          D
+            ( Entail (gamma_b, a_or_b),
+              Or_I_R,
+              [ D (Entail (gamma_b, b), Assumption, []) ] );
+        ] )
+  in
   D
-    ( Entail ([], Implies (And (a, Or (b, c)), Or (And (a, b), And (a, c)))),
+    ( Entail ([], Implies (not__a_or_b, not_a__and__not_b)),
       Implies_I,
       [
         D
-          ( Entail (gamma, Or (And (a, b), And (a, c))),
-            Or_E,
+          ( Entail (gamma, not_a__and__not_b),
+            And_I,
             [
-              D (Entail (gamma, Or (b, c)), Assumption, []);
-              D
-                ( Entail (gamma_b, Or (And (a, b), And (a, c))),
-                  Or_I_L,
-                  [
-                    D
-                      ( Entail (gamma_b, And (a, b)),
-                        And_I,
-                        [
-                          D (Entail (gamma_b, a), Assumption, []);
-                          D (Entail (gamma_b, b), Assumption, []);
-                        ] );
-                  ] );
-              D
-                ( Entail (gamma_c, Or (And (a, b), And (a, c))),
-                  Or_I_R,
-                  [
-                    D
-                      ( Entail (gamma_c, And (a, c)),
-                        And_I,
-                        [
-                          D (Entail (gamma_c, a), Assumption, []);
-                          D (Entail (gamma_c, c), Assumption, []);
-                        ] );
-                  ] );
+              D (Entail (gamma, not_a), Implies_I, [ d_a ]);
+              D (Entail (gamma, not_b), Implies_I, [ d_b ]);
             ] );
       ] )
 
-let d3 : Derivation.t =
+(* ⊢ (A ∧ (B ∨ C)) ⊃ ((A ∧ B) ∨ (A ∧ C)) *)
+let d_490_24wi_final_q1 : Derivation.t =
   let a : Prop.t = Atom "A" in
   let b : Prop.t = Atom "B" in
   let c : Prop.t = Atom "C" in
-  let gamma : Prop.t list = [ And (a, Or (b, c)) ] in
-  let gamma_b : Prop.t list = gamma @ [ b ] in
-  let gamma_c : Prop.t list = gamma @ [ c ] in
+  let gamma : Ctx.t = [ And (a, Or (b, c)) ] in
+  let gamma_b : Ctx.t = gamma @ [ b ] in
+  let gamma_c : Ctx.t = gamma @ [ c ] in
   D
     ( Entail ([], Implies (And (a, Or (b, c)), Or (And (a, b), And (a, c)))),
       Implies_I,
@@ -123,139 +132,43 @@ let d3 : Derivation.t =
             ] );
       ] )
 
-let ds = [ d1; d2; d3 ]
+(* A ⊃ ⊥, B ⊃ ⊥, A ∨ B ⊢ ⊥ *)
+let d_490_24wi_a6_eg : Derivation.t =
+  let a : Prop.t = Atom "A" in
+  let b : Prop.t = Atom "B" in
+  let not_a : Prop.t = Implies (a, Falsity) in
+  let not_b : Prop.t = Implies (b, Falsity) in
+  let a_or_b : Prop.t = Or (a, b) in
+  let gamma : Ctx.t = [ not_a; not_b; a_or_b ] in
+  let gamma_a : Ctx.t = gamma @ [ a ] in
+  let gamma_b : Ctx.t = gamma @ [ b ] in
+  let d_a : Derivation.t =
+    D
+      ( Entail (gamma_a, Falsity),
+        Implies_E,
+        [
+          D (Entail (gamma_a, not_a), Assumption, []);
+          D (Entail (gamma_a, a), Assumption, []);
+        ] )
+  in
+  let d_b : Derivation.t =
+    D
+      ( Entail (gamma_b, Falsity),
+        Implies_E,
+        [
+          D (Entail (gamma_b, not_b), Assumption, []);
+          D (Entail (gamma_b, b), Assumption, []);
+        ] )
+  in
+  D
+    ( Entail (gamma, Falsity),
+      Or_E,
+      [ D (Entail (gamma, a_or_b), Assumption, []); d_a; d_b ] )
+
+let ds =
+  [ d_simple; d_490_24wi_a6_e1_p3; d_490_24wi_final_q1; d_490_24wi_a6_eg ]
 
 let () =
   List.iter
     (fun d -> print_endline ("------\n" ^ MarkedDerivation.repr (mark d)))
     ds
-
-(* open Derivation_system.Abbreviation
-
-   let ( let* ) (b : string * DerivationBind.bindable)
-       (a : unit -> DerivationBind.t) : DerivationBind.t =
-     match b with s, b -> Bind (s, b, a ())
-
-   let da1 : DerivationBind.t =
-     let a : PropAbbr.t = Just (Atom "A") in
-     let b : PropAbbr.t = Just (Atom "B") in
-     let c : PropAbbr.t = Just (Atom "C") in
-     let gamma' : PropAbbr.t list = [ Just (And (a, b)) ] in
-     let gamma : CtxAbbr.t = Just gamma' in
-     let gamma_b : CtxAbbr.t = Just (b :: gamma') in
-     let gamma_c : CtxAbbr.t = Just (c :: gamma') in
-     let* _ = ("Γ", Ctx gamma) in
-     let* _ = ("Γ_b", Ctx gamma_b) in
-     let* _ = ("Γ_c", Ctx gamma_c) in
-     let* _ =
-       ( "D_1",
-         Derivation
-           (Just
-              (D
-                 ( Just (Entail (Abbr "Γ_b", Just (And (a, b)))),
-                   And_I,
-                   [
-                     Just
-                       (D
-                          ( Just (Entail (Abbr "Γ_b", a)),
-                            And_E_L,
-                            [
-                              Just
-                                (D
-                                   ( Just
-                                       (Entail
-                                          ( Abbr "Γ_b",
-                                            Just (And (a, Just (Or (b, c)))) )),
-                                     Assumption,
-                                     [] ));
-                            ] ));
-                     Just (D (Just (Entail (Abbr "Γ_b", b)), Assumption, []));
-                   ] ))) )
-     in
-     let* _ =
-       ( "D_2",
-         Derivation
-           (Just
-              (D
-                 ( Just (Entail (Abbr "Γ_c", Just (And (a, b)))),
-                   And_I,
-                   [
-                     Just
-                       (D
-                          ( Just (Entail (Abbr "Γ_c", a)),
-                            And_E_L,
-                            [
-                              Just
-                                (D
-                                   ( Just
-                                       (Entail
-                                          ( Abbr "Γ_c",
-                                            Just (And (a, Just (Or (b, c)))) )),
-                                     Assumption,
-                                     [] ));
-                            ] ));
-                     Just (D (Just (Entail (Abbr "Γ_c", c)), Assumption, []));
-                   ] ))) )
-     in
-     Just
-       (Just
-          (D
-             ( Just
-                 (Entail
-                    ( Just [],
-                      Just
-                        (Implies
-                           ( Just (And (a, Just (Or (b, c)))),
-                             Just (Or (Just (And (a, b)), Just (And (a, c)))) )) )),
-               Implies_I,
-               [
-                 Just
-                   (D
-                      ( Just
-                          (Entail
-                             ( Abbr "Γ",
-                               Just (Or (Just (And (a, b)), Just (And (a, c)))) )),
-                        Or_E,
-                        [
-                          Just
-                            (D
-                               ( Just (Entail (Abbr "Γ", Just (Or (b, c)))),
-                                 And_E_R,
-                                 [
-                                   Just
-                                     (D
-                                        ( Just
-                                            (Entail
-                                               ( Abbr "Γ",
-                                                 Just (And (a, Just (Or (b, c))))
-                                               )),
-                                          Assumption,
-                                          [] ));
-                                 ] ));
-                          Just
-                            (D
-                               ( Just
-                                   (Entail
-                                      ( Abbr "Γ_b",
-                                        Just
-                                          (Or (Just (And (a, b)), Just (And (a, c))))
-                                      )),
-                                 Or_I_L,
-                                 [ Abbr "D_1" ] ));
-                          Just
-                            (D
-                               ( Just
-                                   (Entail
-                                      ( Abbr "Γ_c",
-                                        Just
-                                          (Or (Just (And (a, b)), Just (And (a, c))))
-                                      )),
-                                 Or_I_R,
-                                 [ Abbr "D_2" ] ));
-                        ] ));
-               ] )))
-
-   let () = print_endline ("------\n" ^ DerivationBind.repr da1)
-
-   let () =
-     print_endline (MarkedDerivationBind.repr (MarkedDerivationBind.mark da1)) *)

@@ -45,6 +45,17 @@ let str_typ: form = {
   };
 };
 
+let prop_typ: form = {
+  let explanation = "The `Prop` type classifies propositions.";
+  {
+    id: PropTyp,
+    syntactic_form: [typ("Prop")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
 let var_typ = (name: string): form => {
   let explanation = "`%s` is a type variable.";
   {
@@ -63,5 +74,7 @@ let float: group = {id: FloatTyp, forms: [float_typ]};
 let bool: group = {id: BoolTyp, forms: [bool_typ]};
 
 let str: group = {id: StrTyp, forms: [str_typ]};
+
+let prop: group = {id: PropTyp, forms: [prop_typ]};
 
 let var = (name: string): group => {id: VarTyp, forms: [var_typ(name)]};

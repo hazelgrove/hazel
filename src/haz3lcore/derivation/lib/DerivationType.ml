@@ -13,7 +13,9 @@ module Prop = struct
     | Atom s -> s
     | And (a, b) -> Printf.sprintf "(%s ∧ %s)" (repr a) (repr b)
     | Or (a, b) -> Printf.sprintf "(%s ∨ %s)" (repr a) (repr b)
-    | Implies (a, b) -> Printf.sprintf "(%s ⊃ %s)" (repr a) (repr b)
+    | Implies (a, b) ->
+        if b = Falsity then Printf.sprintf "¬%s" (repr a)
+        else Printf.sprintf "%s ⊃ %s" (repr a) (repr b)
     | Truth -> "⊤"
     | Falsity -> "⊥"
 
@@ -102,6 +104,7 @@ module Derivation = struct
     String.concat "" (List.map (fun d -> repr_helper indent d) ds)
 
   let repr = repr_helper 0
+  let premises (D (_, _, ds)) = List.map (fun (D (j, _, _)) -> j) ds
 end
 
 module MarkedDerivation = struct

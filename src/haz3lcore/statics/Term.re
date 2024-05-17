@@ -29,6 +29,7 @@ module UTyp = {
     | Float
     | Bool
     | String
+    | Prop
     | Arrow
     | Tuple
     | Sum
@@ -60,6 +61,7 @@ module UTyp = {
     | Float => Float
     | Bool => Bool
     | String => String
+    | Prop => Prop
     | List(_) => List
     | Arrow(_) => Arrow
     | Var(_) => Var
@@ -77,6 +79,7 @@ module UTyp = {
     | Int
     | Float
     | String
+    | Prop
     | Bool => "Base type"
     | Var => "Type variable"
     | Constructor => "Sum constructor"
@@ -98,6 +101,7 @@ module UTyp = {
       | Int => Int
       | Float => Float
       | String => String
+      | Prop => Prop
       | Var(name) =>
         switch (Ctx.lookup_tvar(ctx, name)) {
         | Some(_) => Var(name)
@@ -385,6 +389,7 @@ module UExp = {
     | Int
     | Float
     | String
+    | Prop
     | ListLit
     | Constructor
     | Fun
@@ -429,6 +434,7 @@ module UExp = {
     | Int(_) => Int
     | Float(_) => Float
     | String(_) => String
+    | Prop(_) => Prop
     | ListLit(_) => ListLit
     | Constructor(_) => Constructor
     | Fun(_) => Fun
@@ -524,6 +530,7 @@ module UExp = {
     | Int => "Integer literal"
     | Float => "Float literal"
     | String => "String literal"
+    | Prop => "Proposition"
     | ListLit => "List literal"
     | Constructor => "Constructor"
     | Fun => "Function literal"
@@ -559,6 +566,7 @@ module UExp = {
     | Int(_)
     | Float(_)
     | String(_)
+    | Prop(_)
     | ListLit(_)
     | Tuple(_)
     | Var(_)
@@ -595,6 +603,7 @@ module UExp = {
       | Int(_)
       | Float(_)
       | String(_)
+      | Prop(_)
       | ListLit(_)
       | Fun(_)
       | Var(_)
@@ -645,6 +654,7 @@ module UExp = {
       | Int(_)
       | Float(_)
       | String(_)
+      | Prop(_)
       | ListLit(_)
       | Fun(_)
       | Var(_)

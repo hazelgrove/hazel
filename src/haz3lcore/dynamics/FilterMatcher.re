@@ -75,6 +75,9 @@ let rec matches_exp =
   | (StringLit(dv), StringLit(fv)) => dv == fv
   | (StringLit(_), _) => false
 
+  | (PropLit(dv), PropLit(fv)) => Derivation.Prop.eq(dv, fv)
+  | (PropLit(_), _) => false
+
   | (Constructor(_), Ap(Constructor("~MVal"), Tuple([]))) => true
   | (Constructor(dt), Constructor(ft)) => dt == ft
   | (Constructor(_), _) => false

@@ -226,3 +226,133 @@ module MarkedDerivationBind = struct
                   (MarkedDerivationAbbr.strip (DerivationAbbr.strip d)),
                 mark_helper t ctx ))
 end
+
+(* open Derivation_system.Abbreviation
+
+   let ( let* ) (b : string * DerivationBind.bindable)
+       (a : unit -> DerivationBind.t) : DerivationBind.t =
+     match b with s, b -> Bind (s, b, a ())
+
+   let da1 : DerivationBind.t =
+     let a : PropAbbr.t = Just (Atom "A") in
+     let b : PropAbbr.t = Just (Atom "B") in
+     let c : PropAbbr.t = Just (Atom "C") in
+     let gamma' : PropAbbr.t list = [ Just (And (a, b)) ] in
+     let gamma : CtxAbbr.t = Just gamma' in
+     let gamma_b : CtxAbbr.t = Just (b :: gamma') in
+     let gamma_c : CtxAbbr.t = Just (c :: gamma') in
+     let* _ = ("Γ", Ctx gamma) in
+     let* _ = ("Γ_b", Ctx gamma_b) in
+     let* _ = ("Γ_c", Ctx gamma_c) in
+     let* _ =
+       ( "D_1",
+         Derivation
+           (Just
+              (D
+                 ( Just (Entail (Abbr "Γ_b", Just (And (a, b)))),
+                   And_I,
+                   [
+                     Just
+                       (D
+                          ( Just (Entail (Abbr "Γ_b", a)),
+                            And_E_L,
+                            [
+                              Just
+                                (D
+                                   ( Just
+                                       (Entail
+                                          ( Abbr "Γ_b",
+                                            Just (And (a, Just (Or (b, c)))) )),
+                                     Assumption,
+                                     [] ));
+                            ] ));
+                     Just (D (Just (Entail (Abbr "Γ_b", b)), Assumption, []));
+                   ] ))) )
+     in
+     let* _ =
+       ( "D_2",
+         Derivation
+           (Just
+              (D
+                 ( Just (Entail (Abbr "Γ_c", Just (And (a, b)))),
+                   And_I,
+                   [
+                     Just
+                       (D
+                          ( Just (Entail (Abbr "Γ_c", a)),
+                            And_E_L,
+                            [
+                              Just
+                                (D
+                                   ( Just
+                                       (Entail
+                                          ( Abbr "Γ_c",
+                                            Just (And (a, Just (Or (b, c)))) )),
+                                     Assumption,
+                                     [] ));
+                            ] ));
+                     Just (D (Just (Entail (Abbr "Γ_c", c)), Assumption, []));
+                   ] ))) )
+     in
+     Just
+       (Just
+          (D
+             ( Just
+                 (Entail
+                    ( Just [],
+                      Just
+                        (Implies
+                           ( Just (And (a, Just (Or (b, c)))),
+                             Just (Or (Just (And (a, b)), Just (And (a, c)))) )) )),
+               Implies_I,
+               [
+                 Just
+                   (D
+                      ( Just
+                          (Entail
+                             ( Abbr "Γ",
+                               Just (Or (Just (And (a, b)), Just (And (a, c)))) )),
+                        Or_E,
+                        [
+                          Just
+                            (D
+                               ( Just (Entail (Abbr "Γ", Just (Or (b, c)))),
+                                 And_E_R,
+                                 [
+                                   Just
+                                     (D
+                                        ( Just
+                                            (Entail
+                                               ( Abbr "Γ",
+                                                 Just (And (a, Just (Or (b, c))))
+                                               )),
+                                          Assumption,
+                                          [] ));
+                                 ] ));
+                          Just
+                            (D
+                               ( Just
+                                   (Entail
+                                      ( Abbr "Γ_b",
+                                        Just
+                                          (Or (Just (And (a, b)), Just (And (a, c))))
+                                      )),
+                                 Or_I_L,
+                                 [ Abbr "D_1" ] ));
+                          Just
+                            (D
+                               ( Just
+                                   (Entail
+                                      ( Abbr "Γ_c",
+                                        Just
+                                          (Or (Just (And (a, b)), Just (And (a, c))))
+                                      )),
+                                 Or_I_R,
+                                 [ Abbr "D_2" ] ));
+                        ] ));
+               ] )))
+
+   let () = print_endline ("------\n" ^ DerivationBind.repr da1)
+
+   let () =
+     print_endline (MarkedDerivationBind.repr (MarkedDerivationBind.mark da1)) *)

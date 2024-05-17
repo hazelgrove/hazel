@@ -145,6 +145,7 @@ type form_id =
   | IntExp
   | FloatExp
   | StringExp
+  | PropExp
   | VarExp
   | CtrExp
   | ListExp
@@ -190,6 +191,7 @@ type form_id =
   | FloatTyp
   | BoolTyp
   | StrTyp
+  | PropTyp
   | VarTyp
   | ListTyp
   | ArrowTyp
@@ -232,6 +234,7 @@ type group_id =
   | IntExp
   | FloatExp
   | StringExp
+  | PropExp
   | VarExp
   | CtrExp
   | ListExp
@@ -278,6 +281,7 @@ type group_id =
   | FloatTyp
   | BoolTyp
   | StrTyp
+  | PropTyp
   | VarTyp
   | ListTyp
   | ArrowTyp

@@ -218,6 +218,7 @@ and uexp_to_info_map =
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))
   | String(_) => atomic(Just(String))
+  | Prop(_) => atomic(Just(Prop))
   | ListLit(es) =>
     let ids = List.map(UExp.rep_id, es);
     let modes = Mode.of_list_lit(ctx, List.length(es), mode);
@@ -606,6 +607,7 @@ and utyp_to_info_map =
   | Int
   | Float
   | Bool
+  | Prop
   | String => add(m)
   | Var(_)
   | Constructor(_) =>

@@ -29,6 +29,7 @@ module rec DHExp: {
     | IntLit(int)
     | FloatLit(float)
     | StringLit(string)
+    | PropLit(Derivation.Prop.t)
     | BinBoolOp(TermBase.UExp.op_bin_bool, t, t)
     | BinIntOp(TermBase.UExp.op_bin_int, t, t)
     | BinFloatOp(TermBase.UExp.op_bin_float, t, t)
@@ -86,6 +87,7 @@ module rec DHExp: {
     | IntLit(int)
     | FloatLit(float)
     | StringLit(string)
+    | PropLit(Derivation.Prop.t)
     | BinBoolOp(TermBase.UExp.op_bin_bool, t, t)
     | BinIntOp(TermBase.UExp.op_bin_int, t, t)
     | BinFloatOp(TermBase.UExp.op_bin_float, t, t)
@@ -128,6 +130,7 @@ module rec DHExp: {
     | IntLit(_) => "IntLit"
     | FloatLit(_) => "FloatLit"
     | StringLit(_) => "StringLit"
+    | PropLit(_) => "PropLit"
     | BinBoolOp(_, _, _) => "BinBoolOp"
     | BinIntOp(_, _, _) => "BinIntOp"
     | BinFloatOp(_, _, _) => "BinFloatOp"
@@ -206,6 +209,7 @@ module rec DHExp: {
     | IntLit(_) as d
     | FloatLit(_) as d
     | StringLit(_) as d
+    | PropLit(_) as d
     | Constructor(_) as d
     | InvalidOperation(_) as d => d
     | IfThenElse(consistent, c, d1, d2) =>
@@ -228,6 +232,8 @@ module rec DHExp: {
     | (Constructor(_), _) => d1 == d2
     | (StringLit(s1), StringLit(s2)) => String.equal(s1, s2)
     | (StringLit(_), _) => false
+    | (PropLit(p1), PropLit(p2)) => Derivation.Prop.eq(p1, p2)
+    | (PropLit(_), _) => false
 
     /* Non-hole forms: recurse */
     | (Test(id1, d1), Test(id2, d2)) => id1 == id2 && fast_equal(d1, d2)

@@ -6,28 +6,28 @@ exception UnReachable
 module PropVer = struct
   open Prop
 
-  let bind_unzip (p : t bind) =
-    match p.value with
-    | And (a, b) | Or (a, b) | Implies (a, b) ->
-        ( { location = p.location; value = a },
-          { location = p.location; value = b } )
-    | _ -> raise UnReachable
-
   let expect (v : variant) p : (t bind, VerErr.t) result =
     if variant_match v p.value then Ok p else Error (MisMatch (Prop (v, p)))
 
-  let expect_Atom p = expect Atom p
+  let bind_unit = function Ok _ -> Ok () | Error e -> Error e
 
-  let expect_prod_common = function
-    | Ok p -> Ok (bind_unzip p)
+  let bind_unzip (res : (t bind, VerErr.t) result) =
+    match res with
+    | Ok p ->
+        Ok
+          (match p.value with
+          | And (a, b) | Or (a, b) | Implies (a, b) ->
+              ( { location = p.location; value = a },
+                { location = p.location; value = b } )
+          | _ -> raise UnReachable)
     | Error e -> Error e
 
-  let expect_And p = expect And p |> expect_prod_common
-  let expect_Or p = expect Or p |> expect_prod_common
-  let expect_Implies p = expect Implies p |> expect_prod_common
-  let expect_unit_common = function Ok _ -> Ok () | Error e -> Error e
-  let expect_Truth p = expect Truth p |> expect_unit_common
-  let expect_Falsity p = expect Falsity p |> expect_unit_common
+  let expect_Atom p = expect Atom p
+  let expect_And p = expect And p |> bind_unzip
+  let expect_Or p = expect Or p |> bind_unzip
+  let expect_Implies p = expect Implies p |> bind_unzip
+  let expect_Truth p = expect Truth p |> bind_unit
+  let expect_Falsity p = expect Falsity p |> bind_unit
 
   let expect_eq (a : t bind) (b : t bind) : (unit, VerErr.t) result =
     if equal a.value b.value then Ok () else Error (NotEqual (Prop (a, b)))
@@ -51,21 +51,21 @@ end
 module JudgementVer = struct
   open Judgement
 
-  let bind_unzip (j : t bind) =
-    match j.value with
-    | Entail (c, p) ->
-        ( { location = j.location; value = c },
-          { location = j.location; value = p } )
-
   let expect (v : variant) (j : t bind) : (t bind, VerErr.t) result =
     if variant_match v j.value then Ok j
     else Error (MisMatch (Judgement (v, j)))
 
-  let expect_prod_common = function
-    | Ok p -> Ok (bind_unzip p)
+  let bind_unzip (res : (t bind, VerErr.t) result) =
+    match res with
+    | Ok j ->
+        Ok
+          (match j.value with
+          | Entail (c, p) ->
+              ( { location = j.location; value = c },
+                { location = j.location; value = p } ))
     | Error e -> Error e
 
-  let expect_Entail j = expect Entail j |> expect_prod_common
+  let expect_Entail j = expect Entail j |> bind_unzip
 
   let expect_eq (a : t bind) (b : t bind) : (unit, VerErr.t) result =
     if equal a.value b.value then Ok () else Error (NotEqual (Judgement (a, b)))
@@ -183,10 +183,8 @@ let verify (conclusion : Judgement.t) (rule : Rule.t)
 let rec mark (d : Derivation.t) : MarkedDerivation.t =
   match d with
   | D (conclusion, rule, derivations) -> (
-      let premises =
-        List.map (function Derivation.D (j, _, _) -> j) derivations
-      in
       let marked = (conclusion, rule, List.map mark derivations) in
+      let premises = Derivation.premises d in
       match verify conclusion rule premises with
       | Ok () -> Correct marked
       | Error e -> Incorrect (marked, VerErr.repr e))

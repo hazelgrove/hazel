@@ -366,6 +366,7 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
         | (["Int"], []) => Int
         | (["Float"], []) => Float
         | (["String"], []) => String
+        | (["Prop"], []) => Prop
         | ([t], []) when Form.is_typ_var(t) => Var(t)
         | (["(", ")"], [Typ(body)]) => Parens(body)
         | (["[", "]"], [Typ(body)]) => List(body)

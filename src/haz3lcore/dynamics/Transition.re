@@ -106,6 +106,7 @@ module CastHelpers = {
     | Int
     | Float
     | String
+    | Prop
     | Var(_)
     | Rec(_)
     | Arrow(Unknown(_), Unknown(_))
@@ -321,6 +322,7 @@ module Transition = (EV: EV_MODE) => {
     | IntLit(_)
     | FloatLit(_)
     | StringLit(_)
+    | PropLit(_)
     | Constructor(_)
     | BuiltinFun(_) =>
       let. _ = otherwise(env, d);
