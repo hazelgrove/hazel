@@ -84,6 +84,12 @@ let disassemble = (p: t): segment =>
 let shapes =
   get(_ => None, g => Some(Grout.shapes(g)), t => Some(Tile.shapes(t)));
 
+let is_convex = (p: t): bool =>
+  switch (shapes(p)) {
+  | Some((Convex, Convex)) => true
+  | _ => false
+  };
+
 let is_grout: t => bool =
   fun
   | Grout(_) => true

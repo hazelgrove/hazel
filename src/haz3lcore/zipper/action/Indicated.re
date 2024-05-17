@@ -85,10 +85,11 @@ let shard_index = (z: Zipper.t): option(int) =>
     }
   };
 
+let for_index =
+  piece'(~no_ws=false, ~ign=Piece.is_secondary, ~trim_secondary=false);
+
 let index = (z: Zipper.t): option(Id.t) =>
-  switch (
-    piece'(~no_ws=false, ~ign=Piece.is_secondary, ~trim_secondary=false, z)
-  ) {
+  switch (for_index(z)) {
   | None => None
   | Some((p, _, _)) => Some(Piece.id(p))
   };

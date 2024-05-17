@@ -82,11 +82,12 @@ module Make = (M: Editor.Meta.S) => {
     z |> Zipper.set_caret(Inner(d_init, c_max)) |> Zipper.move(d);
 
   let primary = (chunkiness: chunkiness, d: Direction.t, z: t): option(t) => {
-    print_endline("Move.primary");
     switch (d, z.caret, neighbor_movability(chunkiness, z)) {
     /* this case maybe shouldn't be necessary but currently covers an edge
        (select an open parens to left of a multichar token and press left) */
     | _ when z.selection.content != [] => pop_move(d, z)
+    /* Need this case to avoid moving sub-caret onto projectors: */
+    | _ when Zipper.projector_move(d, z) != None => Zipper.move(d, z)
     | (Left, Outer, (CanEnter(dlm, c_max), _)) =>
       inner_end(d, dlm, c_max, z)
     | (Left, Outer, _) => Zipper.move(d, z)
