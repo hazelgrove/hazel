@@ -199,35 +199,18 @@ let find_t = (t: Tile.t, map): measurement => {
       let last = ListUtil.assoc_err(Tile.r_shard(t), shards, "find_t");
       (first, last);
     }) {
-    | _ =>
-      print_endline("FuCkNASTY hackzz");
-      let s = shards |> List.hd;
-      (s |> snd, s |> snd);
+    | _ => failwith("find_t: inconsistent shard infor between tile and map")
+    // let s = shards |> List.hd;
+    // (s |> snd, s |> snd);
     };
   {origin: first.origin, last: last.last};
 };
-// let find_a = ({shards: (l, r), _} as a: Ancestor.t, map) =>
-//   List.assoc(l @ r, Id.Map.find(a.id, map.tiles));
 let find_p = (~msg="", p: Piece.t, map): measurement =>
   try(
     p
     |> Piece.get(
          w => find_w(w, map),
-         g =>
-           //TODO(andrew): find better way to reconcile this
-           try(find_g(g, map)) {
-           | _ =>
-             find_t(
-               {
-                 id: g.id,
-                 label: [String.make(2, ' ')],
-                 mold: Mold.mk_op(Any, []),
-                 shards: [0],
-                 children: [],
-               },
-               map,
-             )
-           },
+         g => find_g(g, map),
          t => find_t(t, map),
        )
   ) {

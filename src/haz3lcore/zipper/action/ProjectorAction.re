@@ -37,16 +37,19 @@ let of_selection =
   };
 };
 
-let of_zipper = (z: Zipper.t): Zipper.t => {
-  {
-    ...z,
-    selection: of_selection(z.projectors, z.selection),
-    relatives: {
-      ancestors: of_ancestors(z.projectors, z.relatives.ancestors),
-      siblings: of_siblings(z.projectors, z.relatives.siblings),
-    },
+let of_zipper = (z: Zipper.t): Zipper.t =>
+  if (Id.Map.is_empty(z.projectors)) {
+    z;
+  } else {
+    {
+      ...z,
+      selection: of_selection(z.projectors, z.selection),
+      relatives: {
+        ancestors: of_ancestors(z.projectors, z.relatives.ancestors),
+        siblings: of_siblings(z.projectors, z.relatives.siblings),
+      },
+    };
   };
-};
 
 let move_out_of_piece =
     (d: Util.Direction.t, rel: Indicated.relation, z: Zipper.t): Zipper.t =>
