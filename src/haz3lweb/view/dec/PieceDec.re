@@ -59,6 +59,19 @@ let simple_shard =
     simple_shard_path(shapes, measurement.last.col - measurement.origin.col),
   );
 
+let relative_shard =
+    (~font_metrics, ~shapes, ~measurement: Measured.measurement) =>
+  simple_shard(
+    ~absolute=false,
+    ~font_metrics,
+    ~shapes,
+    ~path_cls=[],
+    ~base_cls=[],
+    measurement,
+  );
+
+let convex_shard = relative_shard(~shapes=(Convex, Convex));
+
 let simple_shard_selected =
     (~font_metrics, ~shapes, ~measurement: Measured.measurement, ~buffer): t => {
   let path_cls = [

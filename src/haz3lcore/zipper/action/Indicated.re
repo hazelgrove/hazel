@@ -7,20 +7,15 @@ type relation =
   | Sibling;
 
 let piece' =
-    (~no_ws: bool, ~ign: Piece.t => bool, ~trim_secondary=false, z: Zipper.t)
+    (~no_ws: bool, ~ign: Piece.t => bool, z: Zipper.t)
     : option((Piece.t, Direction.t, relation)) => {
-  let sibs =
-    trim_secondary
-      ? sibs_with_sel(z) |> Siblings.trim_secondary : sibs_with_sel(z);
   /* Returns the piece currently indicated (if any) and which side of
      that piece the caret is on. We favor indicating the piece to the
      (R)ight, but may end up indicating the (P)arent or the (L)eft.
      We don't indicate secondary tiles. This function ignores whether
      or not there is a selection so this can be used to get the caret
      direction, but the caller shouldn't indicate if there's a selection */
-  switch (Siblings.neighbors(sibs), parent(z)) {
-  /* Non-empty selection => no indication */
-  //| _ when z.selection.content != [] => None
+  switch (Siblings.neighbors(sibs_with_sel(z)), parent(z)) {
   /* Empty syntax => no indication */
   | ((None, None), None) => None
   /* L not secondary, R is secondary => indicate L */
@@ -85,8 +80,7 @@ let shard_index = (z: Zipper.t): option(int) =>
     }
   };
 
-let for_index =
-  piece'(~no_ws=false, ~ign=Piece.is_secondary, ~trim_secondary=false);
+let for_index = piece'(~no_ws=false, ~ign=Piece.is_secondary);
 
 let index = (z: Zipper.t): option(Id.t) =>
   switch (for_index(z)) {
@@ -101,9 +95,7 @@ let ci_of = (z: Zipper.t, info_map: Statics.Map.t): option(Statics.Info.t) =>
    * Secondary. But if this doesn't succeed, then we create a 'virtual'
    * info map entry representing the Secondary notation, which takes on
    * some of the semantic context of a nearby 'proxy' term */
-  switch (
-    piece'(~no_ws=true, ~ign=Piece.is_secondary, ~trim_secondary=false, z)
-  ) {
+  switch (piece'(~no_ws=true, ~ign=Piece.is_secondary, z)) {
   | Some((p, _, _)) => Id.Map.find_opt(Piece.id(p), info_map)
   | None =>
     let sibs = sibs_with_sel(z);
