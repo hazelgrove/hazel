@@ -60,9 +60,11 @@ let to_rows =
   };
 };
 
-let pretty_print = (~measured: Measured.t, z: Zipper.t): string =>
+let pretty_print =
+    (~holes: option(string)=Some(""), ~measured: Measured.t, z: Zipper.t)
+    : string =>
   to_rows(
-    ~holes=None,
+    ~holes,
     ~measured,
     ~caret=None,
     ~indent=" ",
@@ -70,58 +72,30 @@ let pretty_print = (~measured: Measured.t, z: Zipper.t): string =>
   )
   |> String.concat("\n");
 
-let to_string_editor =
-    (~holes: option(string)=Some(""), editor: Editor.t): string =>
+let zipper_to_string =
+    (~holes: option(string)=Some(""), z: Zipper.t): string =>
   to_rows(
     ~holes,
-    ~measured=editor.state.meta.measured_real,
+    ~measured=Zipper.measured(z),
     ~caret=None,
     ~indent="",
-    ~segment=seg_of_zip(editor.state.zipper),
+    ~segment=seg_of_zip(z),
   )
   |> String.concat("\n");
 
+let to_string_editor =
+    (~holes: option(string)=Some(""), editor: Editor.t): string =>
+  zipper_to_string(~holes, editor.state.zipper);
+
 let to_string_selection = (editor: Editor.t): string =>
   to_rows(
-    ~measured=editor.state.meta.measured_real,
+    ~measured=Zipper.measured(editor.state.zipper),
     ~caret=None,
     ~indent=" ",
     ~holes=None,
     ~segment=editor.state.zipper.selection.content,
   )
   |> String.concat("\n");
-
-let to_log = (~measured: Measured.t, z: Zipper.t): t => {
-  code:
-    to_rows(
-      ~holes=None,
-      ~measured,
-      ~caret=Some(Zipper.caret_point(measured, z)),
-      ~indent=" ",
-      ~segment=seg_of_zip(z),
-    ),
-  selection: z.selection.content |> of_segment(~holes=None) |> lines_to_list,
-  backpack:
-    List.map(
-      (s: Selection.t) =>
-        s.content |> of_segment(~holes=None) |> lines_to_list,
-      z.backpack,
-    ),
-};
-
-let to_log_flat = (~measured, z: Zipper.t): string => {
-  let {code, selection, backpack} = to_log(~measured, z);
-  Printf.sprintf(
-    "CODE:\n%s\nSELECTION:\n%s\n%s\n",
-    String.concat("\n", code),
-    String.concat("\n", selection),
-    backpack
-    |> List.mapi((i, b) =>
-         Printf.sprintf("BP(%d):\n %s\n", i, String.concat("\n", b))
-       )
-    |> String.concat(""),
-  );
-};
 
 let zipper_of_string =
     (~zipper_init=Zipper.init(), str: string): option(Zipper.t) => {

@@ -61,15 +61,7 @@ let neighbor_movability =
 };
 
 module Make = (M: Editor.Meta.S) => {
-  let caret_point = t => {
-    // print_endline("Move.caret_point");
-    Zipper.caret_point(
-      M.measured_projected,
-      //TODO(andrew): why real here? if use projected,
-      // get caret point errs but only for grout not tiles
-      t,
-    );
-  };
+  let caret_point = t => Zipper.caret_point(M.measured, t);
 
   let pop_out = z => Some(z |> Zipper.set_caret(Outer));
   let pop_move = (d, z) => z |> Zipper.set_caret(Outer) |> Zipper.move(d);
@@ -238,7 +230,7 @@ module Make = (M: Editor.Meta.S) => {
     };
 
   let jump_to_id = (z: t, id: Id.t): option(t) => {
-    let* {origin, _} = Measured.find_by_id(id, M.measured_projected);
+    let* {origin, _} = Measured.find_by_id(id, M.measured);
     let z =
       switch (to_start(z)) {
       | None => z

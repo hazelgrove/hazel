@@ -2,15 +2,12 @@ open Sexplib.Std;
 open Util;
 
 module Meta = {
-  type t = {
-    col_target: int,
-    touched: Touched.t,
-    segment_real: Segment.t,
-    measured_real: Measured.t,
-    z_projected: Zipper.t,
-    segment_projected: Segment.t,
-    measured_projected: Measured.t,
-    term_projected: Term.UExp.t,
+  /* Derived data for projected zipper */
+  type projected = {
+    z: Zipper.t,
+    segment: Segment.t,
+    measured: Measured.t,
+    term: Term.UExp.t,
     term_ranges: TermRanges.t,
     terms: TermMap.t,
     tiles: TileMap.t,
@@ -18,34 +15,39 @@ module Meta = {
     buffer_ids: list(Id.t),
   };
 
+  type t = {
+    col_target: int,
+    touched: Touched.t,
+    projected,
+  };
+
+  let init_projected = (z_projected: Zipper.t): projected => {
+    let segment = Zipper.unselect_and_zip(z_projected);
+    let (term, terms) = MakeTerm.go(segment);
+    {
+      z: z_projected,
+      segment,
+      term,
+      terms,
+      term_ranges: TermRanges.mk(segment),
+      tiles: TileMap.mk(segment),
+      holes: Segment.holes(segment),
+      measured: Measured.of_segment(segment),
+      buffer_ids: Selection.buffer_ids(z_projected.selection),
+    };
+  };
+
   let init = (z: Zipper.t) => {
-    let segment_real = Zipper.unselect_and_zip(z);
-    let measured_real = Measured.of_segment(segment_real);
-    let is_proj = !Id.Map.is_empty(z.projectors);
-    let z_projected = is_proj ? ProjectorAction.of_zipper(z) : z;
-    let segment_projected =
-      is_proj ? Zipper.unselect_and_zip(z_projected) : segment_real;
-    let (term_projected, terms) = MakeTerm.go(segment_projected);
     {
       col_target: 0,
       touched: Touched.empty,
-      z_projected,
-      segment_real,
-      measured_real,
-      measured_projected: Measured.of_segment(segment_projected),
-      segment_projected,
-      term_ranges: TermRanges.mk(segment_projected),
-      tiles: TileMap.mk(segment_projected),
-      term_projected,
-      terms,
-      holes: Segment.holes(segment_projected),
-      buffer_ids: Selection.buffer_ids(z.selection),
+      projected: z |> ProjectorAction.of_zipper |> init_projected,
     };
   };
 
   module type S = {
     let touched: Touched.t;
-    let measured_projected: Measured.t;
+    let measured: Measured.t;
     let term_ranges: TermRanges.t;
     let col_target: int;
   };
@@ -53,8 +55,8 @@ module Meta = {
     (module
      {
        let touched = m.touched;
-       let measured_projected = m.measured_projected;
-       let term_ranges = m.term_ranges;
+       let measured = m.projected.measured;
+       let term_ranges = m.projected.term_ranges;
        let col_target = m.col_target;
      });
 
@@ -64,58 +66,40 @@ module Meta = {
   let yojson_of_t = _ => failwith("Editor.Meta.yojson_of_t");
   let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
+  let next_projected = (z, ~touched, ~old) => {
+    let segment = Zipper.unselect_and_zip(z);
+    let (term, terms) = MakeTerm.go(segment);
+    let measured = Measured.of_segment(~touched, ~old, segment);
+    {
+      z,
+      segment,
+      term,
+      terms,
+      measured,
+      term_ranges: TermRanges.mk(segment),
+      tiles: TileMap.mk(segment),
+      holes: Segment.holes(segment),
+      buffer_ids: Selection.buffer_ids(z.selection),
+    };
+  };
+
   let next =
       (~effects: list(Effect.t)=[], a: Action.t, z: Zipper.t, meta: t): t => {
-    let {touched, measured_real, measured_projected, col_target, _} = meta;
-    let touched = Touched.update(Time.tick(), effects, touched);
-    //TODO(andrew): gate appropriate things on edit
-    let is_edit = Action.is_edit(a);
-    let is_proj = !Id.Map.is_empty(z.projectors);
-    let segment_real =
-      is_edit ? Zipper.unselect_and_zip(z) : meta.segment_real;
-    let measured_real =
-      Measured.of_segment(~touched, ~old=measured_real, segment_real);
-    let z_projected = is_proj ? ProjectorAction.of_zipper(z) : z;
-    let segment_projected =
-      is_proj
-        ? Projector.of_segment(z.projectors, segment_real) : segment_real;
-    let measured_projected =
-      is_proj
-        ? Measured.of_segment(
-            ~touched,
-            ~old=measured_projected,
-            segment_projected,
-          )
-        : measured_real;
-    let term_ranges =
-      is_edit ? TermRanges.mk(segment_projected) : meta.term_ranges;
+    let touched = Touched.update(Time.tick(), effects, meta.touched);
     let col_target =
       switch (a) {
       | Move(Local(Up | Down))
-      | Select(Resize(Local(Up | Down))) => col_target
-      | _ =>
-        print_endline("Editor.next.caret_point");
-        Zipper.caret_point(measured_projected, z_projected).col;
+      | Select(Resize(Local(Up | Down))) => meta.col_target
+      | _ => Zipper.caret_point(meta.projected.measured, meta.projected.z).col
       };
-    let (term_projected, terms) =
-      is_edit
-        ? MakeTerm.go(segment_projected) : (meta.term_projected, meta.terms);
-    {
-      col_target,
-      touched,
-      z_projected,
-      measured_real,
-      measured_projected,
-      segment_real,
-      segment_projected,
-      term_ranges,
-      tiles: is_edit ? TileMap.mk(segment_projected) : meta.tiles,
-      term_projected,
-      terms,
-      //NOTE(andrew): this is seg_project bc otherwise Code.of_hole crashes
-      holes: is_edit ? Segment.holes(segment_projected) : meta.holes,
-      buffer_ids: Selection.buffer_ids(z.selection),
-    };
+    let z_projected = ProjectorAction.of_zipper(z);
+    let projected =
+      switch (Action.is_edit(a)) {
+      | false => {...meta.projected, z: z_projected}
+      | _ =>
+        next_projected(z_projected, ~touched, ~old=meta.projected.measured)
+      };
+    {touched, col_target, projected};
   };
 };
 
@@ -240,10 +224,10 @@ let map_projectors = (f: (Id.t, Projector.t) => Projector.t, ed: t) =>
 let get_projected_piece = (ed: t, id: Id.t): option(Piece.t) => {
   /* Assumes for the moment that the projected thing is either
    * a tile or a grout (not secondary or segment) */
-  switch (Id.Map.find_opt(id, ed.state.meta.tiles)) {
+  switch (Id.Map.find_opt(id, ed.state.meta.projected.tiles)) {
   | Some(tile) => Some(Tile(tile))
   | None =>
-    List.find_opt((g: Grout.t) => g.id == id, ed.state.meta.holes)
+    List.find_opt((g: Grout.t) => g.id == id, ed.state.meta.projected.holes)
     |> Option.map(g => Piece.Grout(g))
   };
 };

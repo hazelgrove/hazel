@@ -123,12 +123,7 @@ let deco =
       {
         state: {
           meta: {
-            z_projected,
-            term_ranges,
-            segment_projected,
-            measured_projected,
-            terms,
-            tiles,
+            projected: {z, term_ranges, segment, measured, terms, tiles, _},
             _,
           },
           _,
@@ -138,7 +133,7 @@ let deco =
     ) => {
   module Deco =
     Deco.Deco({
-      let map = measured_projected;
+      let map = measured;
       let terms = terms;
       let term_ranges = term_ranges;
       let tiles = tiles;
@@ -146,19 +141,12 @@ let deco =
       let show_backpack_targets = show_backpack_targets;
       let error_ids = error_ids;
     });
-  let decos =
-    selected
-      ? Deco.all(~inject, z_projected, segment_projected) : Deco.err_holes();
+  let decos = selected ? Deco.all(~inject, z, segment) : Deco.err_holes();
   let decos =
     switch (test_results) {
     | None => decos
     | Some(test_results) =>
-      decos
-      @ test_result_layer(
-          ~font_metrics,
-          ~measured=measured_projected,
-          test_results,
-        ) // TODO move into decos
+      decos @ test_result_layer(~font_metrics, ~measured, test_results) // TODO move into decos
     };
   switch (highlights) {
   | Some(colorMap) =>

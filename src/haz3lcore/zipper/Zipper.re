@@ -317,30 +317,6 @@ let move = (d: Direction.t, z: t): option(t) =>
 let select = (d: Direction.t, z: t): option(t) =>
   d == z.selection.focus ? grow_selection(z) : shrink_selection(z);
 
-// let id_on = (d: Direction.t, id: Id.t, z: t): bool =>
-//   switch (d) {
-//   | Left =>
-//     switch (z.relatives.siblings, z.relatives.ancestors) {
-//     | (([_, ..._] as ls, _), _) => Piece.id(ListUtil.last(ls)) == id
-//     | _ => false
-//     }
-//   | Right =>
-//     switch (z.relatives.siblings, z.relatives.ancestors) {
-//     | ((_, [r, ..._]), _) => Piece.id(r) == id
-//     | _ => false
-//     }
-//   };
-
-/* Loop action until pred is satisfied */
-// let rec do_until =
-//         (action: t => option(t), pred: t => bool, z: t): option(t) =>
-//   pred(z)
-//     ? Some(z)
-//     : {
-//       let* z = action(z);
-//       do_until(action, pred, z);
-//     };
-
 let pick_up = (z: t): t => {
   let (selected, z) = update_selection(Selection.empty, z);
   let selection =
@@ -468,9 +444,32 @@ let caret_direction = (z: t): option(Direction.t) =>
     }
   };
 
+let get_projector = (z: t, id: Id.t): option(Projector.t) =>
+  Projector.Map.find(id, z.projectors);
+
+let measured = z => {
+  z |> unselect_and_zip |> Measured.of_segment;
+};
+
 let base_point = (measured: Measured.t, z: t): Measured.Point.t => {
   switch (representative_piece(z)) {
   | Some((p, d)) =>
+    /* NOTE(andrew): Below conversion necessary because sometimes
+     * we call this with measured based on projected zipper
+     * measurements but also z is the non-projected zipper.
+     * This should work okay since the core movement/selection
+     * actions in Zipper avoid cursor positions around pieces
+     * which would be absent in the projected zipper. The problem
+     * is the projected tile itself. Specifically because looking
+     * up measurements is not currently homogenous; it takes a
+     * piece, not an id. Piece-based lookups will fail if (say)
+     * a Grout becomes a Tile. Hence we convert pieces that
+     * would be projected to their placeholders before lookup */
+    let p =
+      switch (get_projector(z, Piece.id(p))) {
+      | Some(pr) => Projector.placeholder(pr, Piece.id(p))
+      | None => p
+      };
     let seg = Piece.disassemble(p);
     switch (d) {
     | Left =>

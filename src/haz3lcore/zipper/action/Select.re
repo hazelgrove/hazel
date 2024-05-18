@@ -22,7 +22,7 @@ module Make = (M: Editor.Meta.S) => {
   let range = (l: Id.t, r: Id.t, z: Zipper.t): option(Zipper.t) => {
     let* z = Move.jump_to_id(z, l);
     print_endline("Select.range: first");
-    let* Measured.{last, _} = Measured.find_by_id(r, M.measured_projected);
+    let* Measured.{last, _} = Measured.find_by_id(r, M.measured);
     print_endline("Select.range: last");
     Move.do_towards(Zipper.select, last, z);
   };
@@ -41,7 +41,7 @@ module Make = (M: Editor.Meta.S) => {
 
   let tile = (id: Id.t, z: Zipper.t): option(Zipper.t) => {
     let* z = Move.jump_to_id(z, id);
-    let* Measured.{last, _} = Measured.find_by_id(id, M.measured_projected);
+    let* Measured.{last, _} = Measured.find_by_id(id, M.measured);
     Move.do_towards(primary, last, z);
   };
 
@@ -49,8 +49,7 @@ module Make = (M: Editor.Meta.S) => {
     switch (d) {
     | Goal(Piece(_)) => failwith("Select.go not implemented for Piece Goal")
     | Goal(Point(goal)) =>
-      let anchor =
-        z |> Zipper.toggle_focus |> Zipper.caret_point(M.measured_projected);
+      let anchor = z |> Zipper.toggle_focus |> Zipper.caret_point(M.measured);
       Move.do_towards(~anchor, primary, goal, z);
     | Extreme(d) => Move.do_extreme(primary, d, z)
     | Local(d) =>
