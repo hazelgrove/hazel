@@ -94,10 +94,6 @@ module Meta = {
       | Move(Local(Up | Down))
       | Select(Resize(Local(Up | Down))) => col_target
       | _ =>
-        // switch (Indicated.index(z_projected)) {
-        // | Some(i) => print_endline("indicated_id:" ++ Id.show(i))
-        // | None => print_endline("no indicated_id")
-        // };
         print_endline("Editor.next.caret_point");
         Zipper.caret_point(measured_projected, z_projected).col;
       };

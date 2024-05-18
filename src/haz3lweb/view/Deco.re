@@ -43,35 +43,27 @@ module Deco =
           (start_shape: Nib.Shape.t, p: Piece.t)
           : (Nib.Shape.t, list(option(shard_data))) => {
     let shard_data =
-      try(
-        switch (p) {
-        | Tile(t) => sel_of_tile(~start_shape, t)
-        | Grout(g) => [
-            Some(
-              sel_shard_svg(
-                ~start_shape,
-                Measured.find_g(~msg="Deco.sel_of_piece", g, M.map),
-                p,
-              ),
+      switch (p) {
+      | Tile(t) => sel_of_tile(~start_shape, t)
+      | Grout(g) => [
+          Some(
+            sel_shard_svg(
+              ~start_shape,
+              Measured.find_g(~msg="Deco.sel_of_piece", g, M.map),
+              p,
             ),
-          ]
-        | Secondary(w) when Secondary.is_linebreak(w) => [None]
-        | Secondary(w) => [
-            Some(
-              sel_shard_svg(
-                ~start_shape,
-                Measured.find_w(~msg="Deco.sel_of_piece", w, M.map),
-                p,
-              ),
+          ),
+        ]
+      | Secondary(w) when Secondary.is_linebreak(w) => [None]
+      | Secondary(w) => [
+          Some(
+            sel_shard_svg(
+              ~start_shape,
+              Measured.find_w(~msg="Deco.sel_of_piece", w, M.map),
+              p,
             ),
-          ]
-        }
-      ) {
-      | _ =>
-        print_endline("PROJECTOR CRASH: sel_of_piece");
-        //TODO(andrew): relax. this is the case when tiles are missing
-        //measured info due to being hidden by a projector
-        [];
+          ),
+        ]
       };
     let start_shape =
       switch (Piece.nibs(p)) {

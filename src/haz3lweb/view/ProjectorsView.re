@@ -10,16 +10,6 @@ let stop_mousedown_propagation =
     Virtual_dom.Vdom.Effect.Ignore;
   });
 
-let simple_shard = (~font_metrics, ~measurement: Measured.measurement) =>
-  PieceDec.simple_shard(
-    ~absolute=false,
-    ~font_metrics,
-    ~shapes=(Convex, Convex),
-    ~path_cls=[],
-    ~base_cls=[],
-    measurement,
-  );
-
 let fold_view = (id, clss, ~font_metrics, ~inject, ~measurement) =>
   div(
     ~attr=
@@ -31,7 +21,7 @@ let fold_view = (id, clss, ~font_metrics, ~inject, ~measurement) =>
         ),
         DecUtil.abs_style(measurement, ~font_metrics),
       ]),
-    [text("⋱"), simple_shard(~font_metrics, ~measurement)],
+    [text("⋱"), PieceDec.convex_shard(~font_metrics, ~measurement)],
   );
 
 let infer_view =
@@ -53,7 +43,10 @@ let infer_view =
         ),
         DecUtil.abs_style(measurement, ~font_metrics),
       ]),
-    [Type.view(expected_ty), simple_shard(~font_metrics, ~measurement)],
+    [
+      Type.view(expected_ty),
+      PieceDec.convex_shard(~font_metrics, ~measurement),
+    ],
   );
 
 let display_ty = (expected_ty: option(Typ.t)): Typ.t =>
