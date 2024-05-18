@@ -86,11 +86,6 @@ module Shards = {
         snd(List.hd(row)).origin.row == snd(hd).origin.row
           ? [[hd, ...row], ...rows] : [[hd], row, ...rows]
       };
-  // let last = (shards: t) =>
-  //   shards
-  //   |> List.sort(((i, _), (j, _)) => Int.compare(i, j))
-  //   |> ListUtil.last_opt
-  //   |> Option.map(snd);
 };
 
 type t = {
@@ -200,8 +195,6 @@ let find_t = (t: Tile.t, map): measurement => {
       (first, last);
     }) {
     | _ => failwith("find_t: inconsistent shard infor between tile and map")
-    // let s = shards |> List.hd;
-    // (s |> snd, s |> snd);
     };
   {origin: first.origin, last: last.last};
 };
