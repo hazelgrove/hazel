@@ -111,7 +111,7 @@ let go = (a: Action.project, z: Zipper.t) =>
   | None => None
   | Some((p, d, rel)) =>
     switch (a) {
-    | ToggleFold => toggle(Piece.id(p), z, p, d, rel)
+    | ToggleIndicated => toggle(Piece.id(p), z, p, d, rel)
     | Toggle(id) => toggle(id, z, p, d, rel)
     }
   };

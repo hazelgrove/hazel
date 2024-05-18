@@ -38,13 +38,9 @@ module Map = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Id.Map.t(p);
   let empty = empty;
-  let add = add;
-  let remove = remove;
   let find = find_opt;
   let mem = mem;
-  let fold = fold;
   let mapi = mapi;
-  let cardinal = cardinal;
   let update = update;
 };
 

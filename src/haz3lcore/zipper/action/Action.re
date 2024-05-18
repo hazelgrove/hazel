@@ -45,7 +45,7 @@ type select =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type project =
-  | ToggleFold
+  | ToggleIndicated
   | Toggle(Id.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -81,7 +81,7 @@ module Result = {
 
 let is_edit: t => bool =
   fun
-  | Project(_) //TODO(andrew): maybe yes as want to trigger infer?
+  | Project(_) => true //TODO(andrew): revisit
   | Insert(_)
   | Destruct(_)
   | Pick_up

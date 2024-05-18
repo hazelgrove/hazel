@@ -3,8 +3,7 @@ open Zipper;
 
 let is_write_action = (a: Action.t) => {
   switch (a) {
-  //TODO: revist as projectors grow
-  | Project(_) => false
+  | Project(_) => false //TODO(andrew): revisit
   | Move(_)
   | MoveToNextHole(_)
   | Unselect(_)

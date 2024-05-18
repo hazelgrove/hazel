@@ -61,7 +61,7 @@ let neighbor_movability =
 };
 
 module Make = (M: Editor.Meta.S) => {
-  let caret_point = t => Zipper.caret_point(M.measured, t);
+  let caret_point = Zipper.caret_point(M.measured);
 
   let pop_out = z => Some(z |> Zipper.set_caret(Outer));
   let pop_move = (d, z) => z |> Zipper.set_caret(Outer) |> Zipper.move(d);
