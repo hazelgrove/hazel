@@ -1,5 +1,4 @@
 open Derivation_system.Verification
-open Derivation_system.DerivationType
 
 (* A ∧ B ⊢ B ∧ A *)
 let d_simple : Derivation.t =
