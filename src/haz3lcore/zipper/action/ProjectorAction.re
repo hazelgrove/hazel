@@ -70,7 +70,7 @@ let update = (f, id, z) => {
 
 let set = (prj, id, z) => update(_ => prj, id, z);
 
-let can_project = (prj: Projector.t, p: Piece.t) =>
+let can_project = (prj: Projector.t, p: Piece.t): bool =>
   switch (prj) {
   | Infer(_) =>
     Piece.is_convex(p)
@@ -83,19 +83,18 @@ let can_project = (prj: Projector.t, p: Piece.t) =>
   | Fold => Piece.is_convex(p)
   };
 
-let default_infer: Projector.t = Infer({expected_ty: None});
-
 let project = (prj, id, d, rel, z) =>
   z |> set(Some(prj), id) |> move_out_of_piece(d, rel) |> Option.some;
 
-let toggle = (id, z: Zipper.t, piece, d, rel) =>
+let toggle = (id: Id.t, z: Zipper.t, piece, d, rel) =>
   switch (Projector.Map.find(id, z.projectors)) {
   | Some(Fold) =>
+    let default_infer = Projector.Infer({expected_ty: None});
     if (can_project(default_infer, piece)) {
       project(default_infer, id, d, rel, z);
     } else {
       Some(set(None, id, z));
-    }
+    };
   | Some(Infer(_)) => Some(set(None, id, z))
   | None when Piece.is_convex(piece) =>
     if (can_project(Fold, piece)) {
