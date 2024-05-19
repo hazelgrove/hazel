@@ -55,7 +55,7 @@ module Prop: {
     let precedence = precedence(prop);
     let parathesize = (s: string) =>
       if (p < precedence) {
-        Printf.sprintf("(%s)", s);
+        s |> Printf.sprintf("(%s)");
       } else {
         s;
       };
@@ -81,7 +81,7 @@ module Prop: {
     | Falsity => "⊥"
     };
   };
-  let repr = repr_helper(Precedence.entail);
+  let repr = repr_helper(0);
 
   let cls_repr = (v: cls) =>
     switch (v) {
@@ -119,7 +119,7 @@ module Ctx: {
     if (List.length(ctx) == 0) {
       "·";
     } else {
-      String.concat(", ", List.map(Prop.repr, ctx));
+      ctx |> List.map(Prop.repr) |> String.concat(", ");
     };
   let eq = (a: t, b: t) => a == b;
   let extend = (ctx, prop) =>
@@ -211,11 +211,11 @@ module Derivation = {
     };
   }
   and repr_list = (indent: int, ds: list(t)): string =>
-    String.concat("", List.map(d => repr_helper(indent, d), ds));
+    ds |> List.map(d => repr_helper(indent, d)) |> String.concat("");
 
   let repr = repr_helper(0);
   let premises = ([@implicit_arity] D(_, _, ds)) =>
-    List.map(([@implicit_arity] D(j, _, _)) => j, ds);
+    ds |> List.map(([@implicit_arity] D(j, _, _)) => j);
 };
 
 module MarkedDerivation = {
@@ -249,7 +249,7 @@ module MarkedDerivation = {
     };
   }
   and repr_list = (indent: int, ds: list(t)): string =>
-    String.concat("", List.map(d => repr_helper(indent, d), ds));
+    ds |> List.map(d => repr_helper(indent, d)) |> String.concat("");
 
   let repr = repr_helper(0);
 
@@ -263,7 +263,7 @@ module MarkedDerivation = {
   let correct =
     fun
     | Correct(_) => true
-    | _ => false;
+    | Incorrect(_) => false;
   let all_correct = fold((acc, d) => acc && correct(d), true);
 };
 
@@ -275,7 +275,7 @@ module Location = {
   let repr =
     fun
     | Conclusion => "Conclusion"
-    | Premise(i) => Printf.sprintf("Premise %d", i);
+    | Premise(i) => i |> Printf.sprintf("Premise %d");
 };
 
 type bind('a) = {
@@ -495,4 +495,220 @@ module PremiseVer = {
     } else {
       Error(PremiseMismatch(n, List.length(premises)));
     };
+};
+
+// let verify (conclusion : Judgement.t) (rule : Rule.t)
+//     (premises : Judgement.t list) : (unit, VerErr.t) result =
+//   let conclusion = { location = Conclusion; value = conclusion } in
+//   match rule with
+//   | Assumption ->
+//       let$ _ = PremiseVer.expect_len premises 0 in
+//       let$ ctx, prop = JudgementVer.expect_Entail conclusion in
+//       let$ () = CtxVer.expect_in_ctx prop ctx in
+//       Ok ()
+//   | And_I ->
+//       let$ p = PremiseVer.expect_len premises 2 in
+//       let$ ctx, prop = JudgementVer.expect_Entail conclusion in
+//       let$ a, b = PropVer.expect_And prop in
+//       let$ ctx', a' = JudgementVer.expect_Entail (p 0) in
+//       let$ () = CtxVer.expect_eq ctx ctx' in
+//       let$ () = PropVer.expect_eq a a' in
+//       let$ ctx', b' = JudgementVer.expect_Entail (p 1) in
+//       let$ () = CtxVer.expect_eq ctx ctx' in
+//       let$ () = PropVer.expect_eq b b' in
+//       Ok ()
+//   | And_E_L ->
+//       let$ p = PremiseVer.expect_len premises 1 in
+//       let$ ctx, a = JudgementVer.expect_Entail conclusion in
+//       let$ ctx', prop' = JudgementVer.expect_Entail (p 0) in
+//       let$ a', _ = PropVer.expect_And prop' in
+//       let$ () = CtxVer.expect_eq ctx ctx' in
+//       let$ () = PropVer.expect_eq a a' in
+//       Ok ()
+//   | And_E_R ->
+//       let$ p = PremiseVer.expect_len premises 1 in
+//       let$ ctx, b = JudgementVer.expect_Entail conclusion in
+//       let$ ctx', prop' = JudgementVer.expect_Entail (p 0) in
+//       let$ _, b' = PropVer.expect_And prop' in
+//       let$ () = CtxVer.expect_eq ctx ctx' in
+//       let$ () = PropVer.expect_eq b b' in
+//       Ok ()
+//   | Or_I_L ->
+//       let$ p = PremiseVer.expect_len premises 1 in
+//       let$ ctx, prop = JudgementVer.expect_Entail conclusion in
+//       let$ a, _ = PropVer.expect_Or prop in
+//       let$ ctx', a' = JudgementVer.expect_Entail (p 0) in
+//       let$ () = CtxVer.expect_eq ctx ctx' in
+//       let$ () = PropVer.expect_eq a a' in
+//       Ok ()
+//   | Or_I_R ->
+//       let$ p = PremiseVer.expect_len premises 1 in
+//       let$ ctx, prop = JudgementVer.expect_Entail conclusion in
+//       let$ _, b = PropVer.expect_Or prop in
+//       let$ ctx', b' = JudgementVer.expect_Entail (p 0) in
+//       let$ () = CtxVer.expect_eq ctx ctx' in
+//       let$ () = PropVer.expect_eq b b' in
+//       Ok ()
+//   | Or_E ->
+//       let$ p = PremiseVer.expect_len premises 3 in
+//       let$ ctx, c = JudgementVer.expect_Entail conclusion in
+//       let$ ctx', prop = JudgementVer.expect_Entail (p 0) in
+//       let$ a, b = PropVer.expect_Or prop in
+//       let$ () = CtxVer.expect_eq ctx ctx' in
+//       let$ ctx_a', c' = JudgementVer.expect_Entail (p 1) in
+//       let$ () = CtxVer.expect_eq_after_extend ctx ctx_a' a in
+//       let$ () = PropVer.expect_eq c c' in
+//       let$ ctx_b', c' = JudgementVer.expect_Entail (p 2) in
+//       let$ () = CtxVer.expect_eq_after_extend ctx ctx_b' b in
+//       let$ () = PropVer.expect_eq c c' in
+//       Ok ()
+//   | Implies_I ->
+//       let$ p = PremiseVer.expect_len premises 1 in
+//       let$ ctx, prop = JudgementVer.expect_Entail conclusion in
+//       let$ a, b = PropVer.expect_Implies prop in
+//       let$ ctx_a', b' = JudgementVer.expect_Entail (p 0) in
+//       let$ () = CtxVer.expect_eq_after_extend ctx ctx_a' a in
+//       let$ () = PropVer.expect_eq b b' in
+//       Ok ()
+//   | Implies_E ->
+//       let$ p = PremiseVer.expect_len premises 2 in
+//       let$ ctx, b = JudgementVer.expect_Entail conclusion in
+//       let$ ctx', prop = JudgementVer.expect_Entail (p 0) in
+//       let$ a, b' = PropVer.expect_Implies prop in
+//       let$ () = CtxVer.expect_eq ctx ctx' in
+//       let$ () = PropVer.expect_eq b b' in
+//       let$ ctx', a' = JudgementVer.expect_Entail (p 1) in
+//       let$ () = CtxVer.expect_eq ctx ctx' in
+//       let$ () = PropVer.expect_eq a a' in
+//       Ok ()
+//   | Truth_I ->
+//       let$ _ = PremiseVer.expect_len premises 0 in
+//       let$ _, prop = JudgementVer.expect_Entail conclusion in
+//       let$ () = PropVer.expect_Truth prop in
+//       Ok ()
+//   | Falsity_E ->
+//       let$ p = PremiseVer.expect_len premises 1 in
+//       let$ ctx, _ = JudgementVer.expect_Entail conclusion in
+//       let$ ctx', prop = JudgementVer.expect_Entail (p 0) in
+//       let$ () = CtxVer.expect_eq ctx ctx' in
+//       let$ () = PropVer.expect_Falsity prop in
+//       Ok ()
+
+module RuleVer: {
+  let verify: (Rule.t, Judgement.t, list(Judgement.t)) => bool;
+} = {
+  open Rule;
+  let (let$) = (x, f) =>
+    switch (x) {
+    | Ok(x) => f(x)
+    | Error(e) => Error(e)
+    };
+
+  let verify =
+      (rule: t, conclusion: Judgement.t, premises: list(Judgement.t)) => {
+    let conclusion = {location: Conclusion, value: conclusion};
+    switch (rule) {
+    | Assumption =>
+      let$ _ = PremiseVer.expect_len(premises, 0);
+      let$ (ctx, prop) = JudgementVer.expect_Entail(conclusion);
+      let$ () = CtxVer.expect_in_ctx(prop, ctx);
+      Ok();
+    | And_I =>
+      let$ p = PremiseVer.expect_len(premises, 2);
+      let$ (ctx, prop) = JudgementVer.expect_Entail(conclusion);
+      let$ (a, b) = PropVer.expect_And(prop);
+      let$ (ctx', a') = JudgementVer.expect_Entail(p(0));
+      let$ () = CtxVer.expect_eq(ctx, ctx');
+      let$ () = PropVer.expect_eq(a, a');
+      let$ (ctx', b') = JudgementVer.expect_Entail(p(1));
+      let$ () = CtxVer.expect_eq(ctx, ctx');
+      let$ () = PropVer.expect_eq(b, b');
+      Ok();
+    | And_E_L =>
+      let$ p = PremiseVer.expect_len(premises, 1);
+      let$ (ctx, a) = JudgementVer.expect_Entail(conclusion);
+      let$ (ctx', prop') = JudgementVer.expect_Entail(p(0));
+      let$ (a', _) = PropVer.expect_And(prop');
+      let$ () = CtxVer.expect_eq(ctx, ctx');
+      let$ () = PropVer.expect_eq(a, a');
+      Ok();
+    | And_E_R =>
+      let$ p = PremiseVer.expect_len(premises, 1);
+      let$ (ctx, b) = JudgementVer.expect_Entail(conclusion);
+      let$ (ctx', prop') = JudgementVer.expect_Entail(p(0));
+      let$ (_, b') = PropVer.expect_And(prop');
+      let$ () = CtxVer.expect_eq(ctx, ctx');
+      let$ () = PropVer.expect_eq(b, b');
+      Ok();
+    | Or_I_L =>
+      let$ p = PremiseVer.expect_len(premises, 1);
+      let$ (ctx, prop) = JudgementVer.expect_Entail(conclusion);
+      let$ (a, _) = PropVer.expect_Or(prop);
+      let$ (ctx', a') = JudgementVer.expect_Entail(p(0));
+      let$ () = CtxVer.expect_eq(ctx, ctx');
+      let$ () = PropVer.expect_eq(a, a');
+      Ok();
+    | Or_I_R =>
+      let$ p = PremiseVer.expect_len(premises, 1);
+      let$ (ctx, prop) = JudgementVer.expect_Entail(conclusion);
+      let$ (_, b) = PropVer.expect_Or(prop);
+      let$ (ctx', b') = JudgementVer.expect_Entail(p(0));
+      let$ () = CtxVer.expect_eq(ctx, ctx');
+      let$ () = PropVer.expect_eq(b, b');
+      Ok();
+    | Or_E =>
+      let$ p = PremiseVer.expect_len(premises, 3);
+      let$ (ctx, c) = JudgementVer.expect_Entail(conclusion);
+      let$ (ctx', prop) = JudgementVer.expect_Entail(p(0));
+      let$ (a, b) = PropVer.expect_Or(prop);
+      let$ () = CtxVer.expect_eq(ctx, ctx');
+      let$ (ctx_a', c') = JudgementVer.expect_Entail(p(1));
+      let$ () = CtxVer.expect_eq_after_extend(ctx, ctx_a', a);
+      let$ () = PropVer.expect_eq(c, c');
+      let$ (ctx_b', c') = JudgementVer.expect_Entail(p(2));
+      let$ () = CtxVer.expect_eq_after_extend(ctx, ctx_b', b);
+      let$ () = PropVer.expect_eq(c, c');
+      Ok();
+    | Implies_I =>
+      let$ p = PremiseVer.expect_len(premises, 1);
+      let$ (ctx, prop) = JudgementVer.expect_Entail(conclusion);
+      let$ (a, b) = PropVer.expect_Implies(prop);
+      let$ (ctx_a', b') = JudgementVer.expect_Entail(p(0));
+      let$ () = CtxVer.expect_eq_after_extend(ctx, ctx_a', a);
+      let$ () = PropVer.expect_eq(b, b');
+      Ok();
+    | Implies_E =>
+      let$ p = PremiseVer.expect_len(premises, 2);
+      let$ (ctx, b) = JudgementVer.expect_Entail(conclusion);
+      let$ (ctx', prop) = JudgementVer.expect_Entail(p(0));
+      let$ (a, b') = PropVer.expect_Implies(prop);
+      let$ () = CtxVer.expect_eq(ctx, ctx');
+      let$ () = PropVer.expect_eq(b, b');
+      let$ (ctx', a') = JudgementVer.expect_Entail(p(1));
+      let$ () = CtxVer.expect_eq(ctx, ctx');
+      let$ () = PropVer.expect_eq(a, a');
+      Ok();
+    | Truth_I =>
+      let$ _ = PremiseVer.expect_len(premises, 0);
+      let$ (_, prop) = JudgementVer.expect_Entail(conclusion);
+      let$ () = PropVer.expect_Truth(prop);
+      Ok();
+    | Falsity_E =>
+      let$ p = PremiseVer.expect_len(premises, 1);
+      let$ (ctx, _) = JudgementVer.expect_Entail(conclusion);
+      let$ (ctx', prop) = JudgementVer.expect_Entail(p(0));
+      let$ () = CtxVer.expect_eq(ctx, ctx');
+      let$ () = PropVer.expect_Falsity(prop);
+      Ok();
+    };
+  };
+
+  /* This verision only handle bool result, will be deleted later */
+  let verify =
+      (rule: t, conclusion: Judgement.t, premises: list(Judgement.t)) => {
+    switch (verify(rule, conclusion, premises)) {
+    | Ok(_) => true
+    | Error(_) => false
+    };
+  };
 };
