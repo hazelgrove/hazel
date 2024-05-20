@@ -247,12 +247,14 @@ module UTyp = {
           List.hd(ids);
         };
         let rec upat_to_ctx =
-                ((outer_ctx: Ctx.t, inner_ctx: Ctx.t), upat: TermBase.UPat.t) => {
+                (
+                  (outer_ctx: Ctx.t, inner_ctx: Ctx.t, incomplete: bool),
+                  upat: TermBase.UPat.t,
+                ) => {
           switch (upat.term) {
           | Invalid(_)
           | EmptyHole
           | MultiHole(_)
-          | Wild
           | Int(_)
           | Float(_)
           | Bool(_)
@@ -261,7 +263,9 @@ module UTyp = {
           | ListLit(_)
           | Cons(_)
           | Tuple(_)
-          | Ap(_) => (outer_ctx, inner_ctx)
+          | Wild
+          | Ap(_) => (outer_ctx, inner_ctx, incomplete)
+          // | Wild => (outer_ctx, inner_ctx, true) // disabled due to casting issues.
           | TypeAnn(var, utyp1) =>
             switch (var.term, utyp1.term) {
             | (Var(name), _)
@@ -276,8 +280,9 @@ module UTyp = {
                   }),
                   ...inner_ctx,
                 ],
+                incomplete,
               )
-            | _ => (outer_ctx, inner_ctx)
+            | _ => (outer_ctx, inner_ctx, incomplete)
             }
           | Var(name) => (
               outer_ctx,
@@ -285,6 +290,7 @@ module UTyp = {
                 VarEntry({name, id: rep_id_p(upat), typ: Unknown(TypeHole)}),
                 ...inner_ctx,
               ],
+              incomplete,
             )
           | Constructor(name) => (
               outer_ctx,
@@ -296,6 +302,7 @@ module UTyp = {
                 }),
                 ...inner_ctx,
               ],
+              incomplete,
             )
           | TyAlias(typat, utyp) =>
             switch (typat.term) {
@@ -339,22 +346,23 @@ module UTyp = {
               | Some(sm) => (
                   Ctx.add_ctrs(ctx_body, name, rep_id(utyp), sm),
                   Ctx.add_ctrs(new_inner, name, rep_id(utyp), sm),
+                  incomplete,
                 )
-              | None => (ctx_body, new_inner)
+              | None => (ctx_body, new_inner, incomplete)
               };
 
-            | _ => (outer_ctx, inner_ctx)
+            | _ => (outer_ctx, inner_ctx, incomplete)
             }
-          | Parens(p) => upat_to_ctx((outer_ctx, inner_ctx), p)
+          | Parens(p) => upat_to_ctx((outer_ctx, inner_ctx, incomplete), p)
           };
         };
         let rec get_Tuple: TermBase.UPat.t => Typ.t = (
           ut =>
             switch (ut.term) {
             | Tuple(us) =>
-              let (_, module_ctx) =
-                List.fold_left(upat_to_ctx, (ctx, []), us);
-              Module(module_ctx);
+              let (_, inner_ctx, incomplete) =
+                List.fold_left(upat_to_ctx, (ctx, [], false), us);
+              Module({inner_ctx, incomplete});
             | Parens(p) => get_Tuple(p)
             | TypeAnn(_)
             | Var(_)
@@ -372,8 +380,9 @@ module UTyp = {
             | ListLit(_)
             | Cons(_)
             | Ap(_) =>
-              let (_, module_ctx) = upat_to_ctx((ctx, []), ut);
-              Module(module_ctx);
+              let (_, inner_ctx, incomplete) =
+                upat_to_ctx((ctx, [], false), ut);
+              Module({inner_ctx, incomplete});
             }
         );
         get_Tuple(u);

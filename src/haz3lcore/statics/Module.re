@@ -31,7 +31,7 @@ let rec get_module =
   | Constructor(tag_name)
   | Var(tag_name) =>
     switch (Ctx.lookup_var(ctx, tag_name)) {
-    | Some({typ: Module(inner_ctx), _}) =>
+    | Some({typ: Module({inner_ctx, _}), _}) =>
       Some((name ++ tag_name ++ ".", Some(inner_ctx)))
     | _ => Some((name ++ tag_name ++ ".", None))
     }
@@ -41,7 +41,7 @@ let rec get_module =
     let inner_ctx = {
       let* ctx = ctx;
       switch (Ctx.lookup_var(ctx, tag_name)) {
-      | Some({typ: Module(inner_ctx), _}) => Some(inner_ctx)
+      | Some({typ: Module({inner_ctx, _}), _}) => Some(inner_ctx)
       | _ => None
       };
     };
@@ -51,5 +51,8 @@ let rec get_module =
   };
 };
 let mk = (name: Var.t, id: Id.t) => {
-  Typ.Module([VarEntry({name, id, typ: Unknown(Internal)})]);
+  Typ.Module({
+    inner_ctx: [VarEntry({name, id, typ: Unknown(Internal)})],
+    incomplete: true,
+  });
 };

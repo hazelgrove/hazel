@@ -153,7 +153,7 @@ let typ_ok_view = (cls: Term.Cls.t, ok: Info.ok_typ) =>
   | Module(name, inner_ctx) => [
       Type.view(Var(String.sub(name, 0, String.length(name) - 1))),
       text("is a module of type"),
-      Type.view(Module(inner_ctx)),
+      Type.view(Module({inner_ctx, incomplete: false})),
     ]
   | Variant(name, sum_ty) => [
       Type.view(Var(name)),

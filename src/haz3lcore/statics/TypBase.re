@@ -19,6 +19,11 @@ module rec Typ: {
     | Free(TypVar.t)
     | Internal;
 
+  type module_typ = {
+    inner_ctx: Ctx.t,
+    incomplete: bool,
+  };
+
   /* TYP.T: Hazel types */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -32,7 +37,7 @@ module rec Typ: {
     | Arrow(t, t)
     | Sum(sum_map)
     | Prod(list(t))
-    | Module(Ctx.t)
+    | Module(module_typ)
     | Member(Token.t, t)
     | Rec(TypVar.t, t)
     | Forall(TypVar.t, t)
@@ -83,7 +88,13 @@ module rec Typ: {
     | Free(TypVar.t)
     | Internal;
 
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type module_typ = {
+    inner_ctx: Ctx.t,
+    incomplete: bool,
+  };
   /* TYP.T: Hazel types */
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Unknown(type_provenance)
@@ -96,7 +107,7 @@ module rec Typ: {
     | Arrow(t, t)
     | Sum(sum_map)
     | Prod(list(t))
-    | Module(Ctx.t)
+    | Module(module_typ)
     | Member(Token.t, t)
     | Rec(TypVar.t, t)
     | Forall(TypVar.t, t)
@@ -167,7 +178,7 @@ module rec Typ: {
         List.map(snd, sm),
       )
     | Prod(tys) => ListUtil.flat_map(free_vars(~bound), tys)
-    | Module(inner_ctx) =>
+    | Module({inner_ctx, _}) =>
       let ctx_entry_subst = (l: list(Token.t), e: Ctx.entry): list(Token.t) => {
         switch (e) {
         | VarEntry(t)
@@ -210,7 +221,7 @@ module rec Typ: {
     | Forall(y, ty) => Forall(y, subst(s, x, ty))
     | List(ty) => List(subst(s, x, ty))
     | Var(y) => TypVar.eq(x, y) ? s : Var(y)
-    | Module(inner_ctx) =>
+    | Module({inner_ctx, incomplete}) =>
       let ctx_entry_subst = (e: Ctx.entry): Ctx.entry => {
         switch (e) {
         | VarEntry(t) => VarEntry({...t, typ: subst(s, x, t.typ)})
@@ -219,7 +230,7 @@ module rec Typ: {
         | TVarEntry(_) => e
         };
       };
-      Module(List.map(ctx_entry_subst, inner_ctx));
+      Module({inner_ctx: List.map(ctx_entry_subst, inner_ctx), incomplete});
     | Member(name, ty) => Member(name, subst(s, x, ty))
     };
   };
@@ -257,7 +268,8 @@ module rec Typ: {
         | _ => false
         };
       };
-      List.equal(entry_equal, ctx1, ctx2);
+      List.equal(entry_equal, ctx1.inner_ctx, ctx2.inner_ctx)
+      && ctx1.incomplete == ctx2.incomplete;
     | (Module(_), _) => false
     | (Rec(x1, t1), Rec(x2, t2))
     | (Forall(x1, t1), Forall(x2, t2)) =>
@@ -399,24 +411,39 @@ module rec Typ: {
       List(ty);
     | (List(_), _) => None
     | (Module(ctx1), Module(ctx2)) =>
+      /* Module types can join if and only if for every variable,
+         Either: it appears in both ctxs and the types can join,
+         Or: it appears only in one ctx and the other ctx is incomplete */
       let join_entry =
-          (ctx2: Ctx.t, ctx_joined: option(Ctx.t), ctx1_entry: Ctx.entry)
+          (
+            {inner_ctx, incomplete}: module_typ,
+            ctx_joined: option(Ctx.t),
+            ctx1_entry: Ctx.entry,
+          )
           : option(Ctx.t) => {
+        let do_incomplete = (entry1: 'a, entry2: option('a)): option('a) =>
+          if (incomplete && entry2 == None) {
+            Some(entry1);
+          } else {
+            entry2;
+          };
         let* ctx_joined = ctx_joined;
         switch (ctx1_entry) {
-        | VarEntry({name, typ, id}) =>
-          let* entry2 = Ctx.lookup_var(ctx2, name);
+        | VarEntry({name, typ, id} as entry1) =>
+          let* entry2 =
+            Ctx.lookup_var(inner_ctx, name) |> do_incomplete(entry1);
           let+ typ_joined = join'(typ, entry2.typ);
           Ctx.extend(ctx_joined, VarEntry({name, typ: typ_joined, id}));
-        | ConstructorEntry({name, typ, id}) =>
-          let* entry2 = Ctx.lookup_ctr(ctx2, name);
+        | ConstructorEntry({name, typ, id} as entry1) =>
+          let* entry2 =
+            Ctx.lookup_ctr(inner_ctx, name) |> do_incomplete(entry1);
           let+ typ_joined = join'(typ, entry2.typ);
           Ctx.extend(
             ctx_joined,
             ConstructorEntry({name, typ: typ_joined, id}),
           );
         | TVarEntry({name, kind, id}) =>
-          let* entry2 = Ctx.lookup_tvar(ctx2, name);
+          let* entry2 = Ctx.lookup_tvar(inner_ctx, name);
           let+ kind_joined =
             switch (kind, entry2.kind) {
             | (Abstract, Abstract) => Some(Kind.Abstract)
@@ -428,8 +455,15 @@ module rec Typ: {
           Ctx.extend(ctx_joined, TVarEntry({name, kind: kind_joined, id}));
         };
       };
-      let* ctx = List.fold_left(join_entry(ctx2), Some([]), ctx1);
-      Some(Module(ctx));
+      let* ctx = List.fold_left(join_entry(ctx2), Some([]), ctx1.inner_ctx);
+      let* ctx =
+        List.fold_left(join_entry(ctx1), Some(ctx), ctx2.inner_ctx);
+      Some(
+        Module({
+          inner_ctx: ctx |> Ctx.filter_duplicates,
+          incomplete: ctx1.incomplete && ctx2.incomplete,
+        }),
+      );
     | (Module(_), _) => None
     };
   }
@@ -488,7 +522,7 @@ module rec Typ: {
     | Arrow(t1, t2) => Arrow(normalize(ctx, t1), normalize(ctx, t2))
     | Prod(ts) => Prod(List.map(normalize(ctx), ts))
     | Sum(ts) => Sum(ConstructorMap.map(Option.map(normalize(ctx)), ts))
-    | Module(inner_ctx) =>
+    | Module({inner_ctx, incomplete}) =>
       let ctx_entry_subst = (e: Ctx.entry): Ctx.entry => {
         switch (e) {
         | VarEntry(t) => VarEntry({...t, typ: normalize(ctx, t.typ)})
@@ -497,7 +531,7 @@ module rec Typ: {
         | TVarEntry(_) => e
         };
       };
-      Module(List.map(ctx_entry_subst, inner_ctx));
+      Module({inner_ctx: List.map(ctx_entry_subst, inner_ctx), incomplete});
     | Member(name, ty) => Member(name, normalize(ctx, ty))
     | Rec(name, ty) =>
       /* NOTE: Dummy tvar added has fake id but shouldn't matter
@@ -641,8 +675,9 @@ module rec Typ: {
            ts,
          )
       ++ ")"
-    | Module([]) => "Module"
-    | Module([e, ...es]) =>
+    | Module({inner_ctx: [], incomplete: false}) => "Module"
+    | Module({inner_ctx: [], incomplete: true}) => "Module{...}"
+    | Module({inner_ctx: [e, ...es], incomplete}) =>
       let view_entry = (m: Ctx.entry): string => {
         switch (m) {
         | VarEntry({name: n0, typ: t0, _})
@@ -663,6 +698,7 @@ module rec Typ: {
            es,
          )
       ++ view_entry(e)
+      ++ (incomplete ? ",..." : "")
       ++ "}";
     | Member(name, _) => name
     | Rec(tv, t) => "rec " ++ tv ++ "->" ++ pretty_print(t)
@@ -886,7 +922,7 @@ and Ctx: {
     | Var(n) =>
       x == n
         ? Var(n) : Member(x ++ "." ++ n, Typ.weak_head_normalize(ctx, ty))
-    | Module(inner_ctx) =>
+    | Module({inner_ctx, incomplete}) =>
       let ctx_entry_modulize = (e: entry): entry => {
         switch (e) {
         | VarEntry(t) => VarEntry({...t, typ: modulize_item(ctx, x, t.typ)})
@@ -895,28 +931,36 @@ and Ctx: {
         | TVarEntry(_) => e
         };
       };
-      Module(List.map(ctx_entry_modulize, inner_ctx));
+      Module({
+        inner_ctx: List.map(ctx_entry_modulize, inner_ctx),
+        incomplete,
+      });
     | Forall(_, t) => modulize_item(ctx, x, t)
     };
   };
 
   let modulize = (ty: Typ.t, x: string): Typ.t => {
     switch (ty) {
-    | Module(ctx) =>
-      Module(
-        List.map(
-          (e: entry): entry => {
-            switch (e) {
-            | VarEntry(t) =>
-              VarEntry({...t, typ: modulize_item(ctx, x, t.typ)})
-            | ConstructorEntry(t) =>
-              ConstructorEntry({...t, typ: modulize_item(ctx, x, t.typ)})
-            | TVarEntry(_) => e
-            }
-          },
-          ctx,
-        ),
-      )
+    | Module({inner_ctx, incomplete}) =>
+      Module({
+        inner_ctx:
+          List.map(
+            (e: entry): entry => {
+              switch (e) {
+              | VarEntry(t) =>
+                VarEntry({...t, typ: modulize_item(inner_ctx, x, t.typ)})
+              | ConstructorEntry(t) =>
+                ConstructorEntry({
+                  ...t,
+                  typ: modulize_item(inner_ctx, x, t.typ),
+                })
+              | TVarEntry(_) => e
+              }
+            },
+            inner_ctx,
+          ),
+        incomplete,
+      })
     | _ => ty
     };
   };

@@ -524,7 +524,7 @@ and uexp_to_info_map =
       };
     };
     switch (ty) {
-    | Module(inner_ctx) =>
+    | Module({inner_ctx, _}) =>
       let (body, m) = go'(~ctx=inner_ctx, ~mode, e_mem, m);
       let m =
         e_mem.ids
@@ -744,7 +744,7 @@ and upat_to_info_map =
       add the type alias to the current context */
       let ctx = {
         switch (ctx_typ) {
-        | Module(inner_ctx) =>
+        | Module({inner_ctx, _}) =>
           switch (Ctx.lookup_tvar(inner_ctx, ctr)) {
           | Some({kind: Singleton(ty), _}) =>
             /** Currently all type shadowing are disallowed. See TyAlias */
@@ -977,7 +977,7 @@ and uexp_to_module =
       m: Map.t,
       inner_ctx: Ctx.t,
     )
-    : (Ctx.t, Info.exp, Map.t) => {
+    : (Typ.module_typ, Info.exp, Map.t) => {
   let mode =
     switch (mode) {
     | Ana(Unknown(SynSwitch)) => Mode.Syn
@@ -1018,7 +1018,7 @@ and uexp_to_module =
       // Var like patterns are looked up in the module context.
       | Var(name)
       | Constructor(name) =>
-        switch (Ctx.lookup_var(m, name)) {
+        switch (Ctx.lookup_var(m.inner_ctx, name)) {
         | Some(t) => Ana(t.typ)
         | None => Syn
         }
@@ -1286,7 +1286,7 @@ and uexp_to_module =
       let expects: Info.typ_expects =
         switch (mode) {
         | Ana(Module(m)) =>
-          switch (Ctx.lookup_alias(m, name)) {
+          switch (Ctx.lookup_alias(m.inner_ctx, name)) {
           | Some(ty) =>
             /* This check is moved here because utyp_to_info_map
                does not handle recursion. */
@@ -1342,7 +1342,7 @@ and uexp_to_module =
     (
       switch (mode) {
       | Ana(Module(m)) => m
-      | _ => inner_ctx
+      | _ => {inner_ctx, incomplete: false}
       },
       info,
       m,

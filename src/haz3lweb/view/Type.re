@@ -84,8 +84,11 @@ let rec view_ty = (~strip_outer_parens=false, ty: Haz3lcore.Typ.t): Node.t =>
         }
       ),
     )
-  | Module([]) => div(~attr=clss(["typ-view", "Module"]), [text("Module")])
-  | Module([e, ...es]) =>
+  | Module({inner_ctx: [], incomplete: false}) =>
+    div(~attr=clss(["typ-view", "Module"]), [text("Module")])
+  | Module({inner_ctx: [], incomplete: true}) =>
+    div(~attr=clss(["typ-view", "Module"]), [text("Module{...}")])
+  | Module({inner_ctx: [e, ...es], incomplete}) =>
     let view_entry = (m: Haz3lcore.TypBase.Ctx.entry): list(t) => {
       switch (m) {
       | VarEntry({name: n0, typ: t0, _})
@@ -122,7 +125,7 @@ let rec view_ty = (~strip_outer_parens=false, ty: Haz3lcore.Typ.t): Node.t =>
           )
           @ view_entry(e),
         ),
-        text("}"),
+        text((incomplete ? "..." : "") ++ "}"),
       ],
     );
   | Sum(ts) =>

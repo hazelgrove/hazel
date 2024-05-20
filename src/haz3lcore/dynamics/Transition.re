@@ -103,17 +103,19 @@ module CastHelpers = {
   let grounded_List = NotGroundOrHole(List(Unknown(Internal)));
   let grounded_Module = (ctx: Ctx.t) =>
     NotGroundOrHole(
-      Typ.Module(
-        List.map(
-          fun
-          | Ctx.VarEntry(var_entry) =>
-            Ctx.VarEntry({...var_entry, typ: Unknown(Internal)})
-          | Ctx.ConstructorEntry(var_entry) =>
-            Ctx.ConstructorEntry({...var_entry, typ: Unknown(Internal)})
-          | Ctx.TVarEntry(tvar_entry) => Ctx.TVarEntry(tvar_entry),
-          ctx,
-        ),
-      ),
+      Typ.Module({
+        inner_ctx:
+          List.map(
+            fun
+            | Ctx.VarEntry(var_entry) =>
+              Ctx.VarEntry({...var_entry, typ: Unknown(Internal)})
+            | Ctx.ConstructorEntry(var_entry) =>
+              Ctx.ConstructorEntry({...var_entry, typ: Unknown(Internal)})
+            | Ctx.TVarEntry(tvar_entry) => Ctx.TVarEntry(tvar_entry),
+            ctx,
+          ),
+        incomplete: false,
+      }),
     );
 
   let rec ground_cases_of = (ty: Typ.t): ground_cases => {
@@ -144,19 +146,8 @@ module CastHelpers = {
       } else {
         tys |> List.length |> grounded_Prod;
       }
-    | Module(ctx) =>
-      if (List.for_all(
-            fun
-            | Ctx.VarEntry(var_entry)
-            | Ctx.ConstructorEntry(var_entry) =>
-              var_entry.typ == Unknown(Internal)
-            | Ctx.TVarEntry(_) => true,
-            ctx,
-          )) {
-        Ground;
-      } else {
-        grounded_Module(ctx);
-      }
+    | Module({inner_ctx: [], incomplete: true}) => Ground
+    | Module(_) => NotGroundOrHole(Module({inner_ctx: [], incomplete: true}))
     | Sum(sm) =>
       sm |> ConstructorMap.is_ground(is_ground_arg)
         ? Ground : grounded_Sum(sm)
@@ -311,12 +302,12 @@ module Transition = (EV: EV_MODE) => {
       | (Cast(d3', Module(ctx), Module(ctx')), BoundVar(name))
       | (Cast(d3', Module(ctx), Module(ctx')), Constructor(name)) =>
         let ty =
-          switch (Ctx.lookup_var(ctx, name)) {
+          switch (Ctx.lookup_var(ctx.inner_ctx, name)) {
           | None => Typ.Unknown(Internal)
           | Some(var) => var.typ
           };
         let ty' =
-          switch (Ctx.lookup_var(ctx', name)) {
+          switch (Ctx.lookup_var(ctx'.inner_ctx, name)) {
           | None => Typ.Unknown(Internal)
           | Some(var) => var.typ
           };

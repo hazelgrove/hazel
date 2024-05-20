@@ -312,7 +312,7 @@ let rec dhexp_of_uexp =
           switch (Id.Map.find_opt(Term.UPat.rep_id(p), m)) {
           | Some(InfoPat({ty, _})) =>
             switch (ty) {
-            | Module(c) => c
+            | Module(c) => c.inner_ctx
             | _ => []
             }
           | _ => []
