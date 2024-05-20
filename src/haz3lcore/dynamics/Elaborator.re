@@ -174,7 +174,7 @@ let rec elaborate_pattern =
         | (_, Some({typ: syn_ty, _})) => syn_ty
         | _ => Unknown(Internal) |> Typ.temp
         };
-      upat |> cast_from(t);
+      upat |> cast_from(t |> Typ.normalize(ctx));
     };
   (dpat, elaborated_type);
 };
@@ -192,6 +192,9 @@ let rec elaborate_pattern =
    however, no guarantee that the returned type is even consistent with
    the "elaborated type" at the top, so you should fresh_cast EVERYWHERE
    just in case.
+
+   Important invariant: any cast in an elaborated expression should have
+   normalized types.
 
    [Matt] A lot of these fresh_cast calls are redundant, however if you
    want to remove one, I'd ask you instead comment it out and leave
@@ -251,7 +254,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
         | (_, Some({typ: syn_ty, _})) => syn_ty
         | _ => Unknown(Internal) |> Typ.temp
         };
-      uexp |> cast_from(t);
+      uexp |> cast_from(t |> Typ.normalize(ctx));
     | Fun(p, e, env, n) =>
       let (p', typ) = elaborate_pattern(m, p);
       let (e', tye) = elaborate(m, e);
