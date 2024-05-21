@@ -133,16 +133,14 @@ let main_view =
       let statics = CachedStatics.lookup(statics, result_key);
       let selected =
         switch (ui_state.active_editor) {
-        | Some(Editors.Selection.Documentation(i)) => Some(i)
+        | Some(Editors.Selection.Scratch(i)) => Some(i)
         | _ => None
         };
       info
       @ ScratchMode.view(
           ~select=
             s =>
-              inject(
-                UpdateAction.MakeActive(Editors.Selection.Documentation(s)),
-              ),
+              inject(UpdateAction.MakeActive(Editors.Selection.Scratch(s))),
           ~inject,
           ~ui_state,
           ~settings,
