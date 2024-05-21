@@ -212,10 +212,7 @@ let schedule_evaluation = (~schedule_action, model: Model.t): unit =>
     /* Not sending stepper to worker for now bc closure perf */
     let new_rs =
       model.results
-      |> ModelResults.update_elabs(
-           ~settings=model.settings.core.evaluation,
-           elabs,
-         );
+      |> ModelResults.update_elabs(~settings=model.settings.core, elabs);
     let step_rs = ModelResults.to_step(new_rs);
     if (!ModelResults.is_empty(step_rs)) {
       let new_rs =
@@ -303,8 +300,11 @@ let switch_scratch_slide =
 let export_persistent_data = () => {
   let data: PersistentData.t = {
     documentation:
-      Store.Documentation.load() |> Store.Documentation.to_persistent,
-    scratch: Store.Scratch.load() |> Store.Scratch.to_persistent,
+      Store.Documentation.load(~settings=CoreSettings.off)
+      |> Store.Documentation.to_persistent,
+    scratch:
+      Store.Scratch.load(~settings=CoreSettings.off)
+      |> Store.Scratch.to_persistent,
     settings: Store.Settings.load(),
   };
   let contents =
@@ -524,18 +524,6 @@ let rec apply =
         model.results
         |> ModelResults.find(key)
         |> ModelResult.step_forward(idx);
-      let _ = print_endline("Ouch");
-      let _ =
-        print_endline(
-          Stepper.show_stepper_state(
-            (
-              fun
-              | (Stepper(s): ModelResult.t) => s
-              | _ => failwith("")
-            )(r).
-              stepper_state,
-          ),
-        );
       Ok({...model, results: model.results |> ModelResults.add(key, r)});
     | StepperAction(key, StepBackward) =>
       let r =
@@ -553,9 +541,7 @@ let rec apply =
                Some(
                  v
                  |> Option.value(~default=NoElab: ModelResult.t)
-                 |> ModelResult.toggle_stepper(
-                      ~settings=model.settings.core.evaluation,
-                    ),
+                 |> ModelResult.toggle_stepper(~settings=model.settings.core),
                )
              ),
       })

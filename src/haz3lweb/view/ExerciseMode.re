@@ -2,6 +2,8 @@ open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
 
+type model = Exercise.stitched(CellEditor.model);
+
 type vis_marked('a) =
   | InstructorOnly(unit => 'a)
   | Always('a);
@@ -20,7 +22,7 @@ let render_cells = (settings: Settings.t, v: list(vis_marked(Node.t))) => {
 let view =
     (
       ~select,
-      ~inject,
+      ~inject_global,
       ~ui_state: Model.ui_state,
       ~selection: option((Exercise.pos, Editors.Selection.cell)),
       ~settings: Settings.t,
@@ -55,27 +57,53 @@ let view =
         ~editor: Editor.t,
         ~caption: string,
         ~subcaption: option(string)=?,
-        ~footer=?,
         ~di: Exercise.DynamicsItem.t,
-        this_pos,
+        ~result_kind=CellResult.View.NoResults,
+        this_pos: Exercise.pos,
       ) => {
-    Cell.editor_view(
+    CellEditor.view(
       ~select=s => select((this_pos, s)),
       ~selected=
         switch (selection) {
         | Some((pos, s)) when pos == this_pos => Some(s)
         | _ => None
         },
-      ~error_ids=
-        Statics.Map.error_ids(editor.state.meta.term_ranges, di.info_map),
-      ~inject,
+      ~inject=
+        fun
+        | ResultAction(StepperEditorAction(_, a))
+        | MainEditor(a) => inject_global(UpdateAction.PerformAction(a))
+        | ResultAction(StepperAction(a)) =>
+          inject_global(
+            UpdateAction.StepperAction(
+              Exercise.key_for_statics(this_pos),
+              a,
+            ),
+          )
+        | ResultAction(ToggleStepper) =>
+          inject_global(
+            UpdateAction.ToggleStepper(Exercise.key_for_statics(this_pos)),
+          ),
+      ~inject_global,
       ~ui_state,
       ~settings,
       ~highlights,
+      ~result_kind,
       ~caption=Cell.caption(caption, ~rest=?subcaption),
-      ~test_results=ModelResult.test_results(di.result),
-      ~footer?,
-      editor,
+      {
+        editor: {
+          editor,
+          statics: {
+            term: di.term,
+            info_map: di.info_map,
+            error_ids:
+              Statics.Map.error_ids(
+                editor.state.meta.term_ranges,
+                di.info_map,
+              ),
+          },
+        },
+        result: di.result,
+      },
     );
   };
 
@@ -136,7 +164,7 @@ let view =
             switch (specific_ctx) {
             | None => Node.div([text("No context available")]) // TODO show exercise configuration error
             | Some(specific_ctx) =>
-              CtxInspector.ctx_view(~inject, specific_ctx)
+              CtxInspector.ctx_view(~inject=inject_global, specific_ctx)
             };
           };
         };
@@ -160,13 +188,7 @@ let view =
         ~subcaption=": Your Tests vs. Correct Implementation",
         ~editor=eds.your_tests.tests,
         ~di=test_validation,
-        ~footer=[
-          Grading.TestValidationReport.view(
-            ~inject,
-            grading_report.test_validation_report,
-            grading_report.point_distribution.test_validation,
-          ),
-        ],
+        ~result_kind=TestResults,
       ),
     );
 
@@ -189,7 +211,7 @@ let view =
   let mutation_testing_view =
     Always(
       Grading.MutationTestingReport.view(
-        ~inject,
+        ~inject=inject_global,
         grading_report.mutation_testing_report,
         grading_report.point_distribution.mutation_testing,
       ),
@@ -202,17 +224,7 @@ let view =
         ~caption="Your Implementation",
         ~editor=eds.your_impl,
         ~di=user_impl,
-        ~footer=
-          Cell.footer(
-            ~locked=false,
-            ~settings,
-            ~select=s => select((YourImpl, s)),
-            ~inject,
-            ~ui_state,
-            ~selected=None,
-            ~result=user_impl.result,
-            ~result_key=Exercise.user_impl_key,
-          ),
+        ~result_kind=EvalResults,
       ),
     );
   };
@@ -229,12 +241,7 @@ let view =
           ": Your Tests (code synchronized with Test Validation cell above) vs. Your Implementation",
         ~editor=eds.your_tests.tests,
         ~di=user_tests,
-        ~footer=[
-          Cell.test_report_footer_view(
-            ~inject,
-            ~test_results=ModelResult.test_results(user_tests.result),
-          ),
-        ],
+        ~result_kind=TestResults,
       ),
     );
 
@@ -252,7 +259,7 @@ let view =
   let impl_grading_view =
     Always(
       Grading.ImplGradingReport.view(
-        ~inject,
+        ~inject=inject_global,
         ~report=grading_report.impl_grading_report,
         ~syntax_report=grading_report.syntax_report,
         ~max_points=grading_report.point_distribution.impl_grading,

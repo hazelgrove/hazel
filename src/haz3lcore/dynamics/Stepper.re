@@ -14,7 +14,10 @@ type stepper_state =
   | StepTimeout(EvalObj.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type history = Aba.t((DHExp.t, Editor.t, EvaluatorState.t), step);
+type a = (CachedStatics.statics, Editor.t, EvaluatorState.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type history = Aba.t(a, step);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
@@ -196,8 +199,8 @@ let should_hide_step = (~settings, x: step): (FilterAction.action, step) =>
   };
 
 let get_elab = ({history, _}: t): Elaborator.Elaboration.t => {
-  let (d, _, _) = Aba.last_a(history);
-  {d: d};
+  let (cs: CachedStatics.statics, _, _) = Aba.last_a(history);
+  {d: cs.term};
 };
 
 let get_next_steps = s => s.next_options;
@@ -212,12 +215,14 @@ let step_pending = (idx: int, stepper: t) => {
   {...stepper, stepper_state: StepPending(idx)};
 };
 
-let rec evaluate_pending = (~settings, s: t) => {
+let rec evaluate_pending = (~settings: CoreSettings.t, s: t) => {
   switch (s.stepper_state) {
   | StepperDone
   | StepTimeout(_) => s
   | StepperReady =>
-    let next' = s.next_options |> List.map(should_hide_eval_obj(~settings));
+    let next' =
+      s.next_options
+      |> List.map(should_hide_eval_obj(~settings=settings.evaluation));
     let next'' = List.mapi((i, x) => (i, x), next');
     switch (
       List.find_opt(((_, (act, _))) => act == FilterAction.Eval, next'')
@@ -228,7 +233,7 @@ let rec evaluate_pending = (~settings, s: t) => {
     };
   | StepPending(i) =>
     let eo = List.nth(s.next_options, i);
-    let (d, _, state) = Aba.hd(s.history);
+    let ({term: d, _}: CachedStatics.statics, _, state) = Aba.hd(s.history);
     let state_ref = ref(state);
     let d_loc' =
       (
@@ -250,8 +255,9 @@ let rec evaluate_pending = (~settings, s: t) => {
     };
     let new_state = state_ref^;
     let editor = ExpToSegment.exp_to_editor(~inline=false, d');
+    let statics = CachedStatics.statics_of_term(~settings, d', editor);
     {
-      history: s.history |> Aba.cons((d', editor, new_state), new_step),
+      history: s.history |> Aba.cons((statics, editor, new_state), new_step),
       stepper_state: StepperReady,
       next_options: decompose(d', new_state),
     }
@@ -273,8 +279,9 @@ let rec evaluate_full = (~settings, s: t) => {
 let init = ({d}: Elaborator.Elaboration.t, ~settings) => {
   let state = EvaluatorState.init;
   let editor = ExpToSegment.exp_to_editor(~inline=false, d);
+  let statics = CachedStatics.statics_of_term(~settings, d, editor);
   {
-    history: Aba.singleton((d, editor, state)),
+    history: Aba.singleton((statics, editor, state)),
     next_options: decompose(d, state),
     stepper_state: StepperReady,
   }
@@ -304,8 +311,8 @@ let step_backward = (~settings, s: t) => {
   {
     history: h',
     next_options: {
-      let (d, _, st) = Aba.hd(h');
-      decompose(d, st);
+      let (cs, _, st) = Aba.hd(h');
+      decompose(cs.term, st);
     },
     stepper_state: StepperDone,
   };
@@ -356,8 +363,7 @@ let get_justification: step_kind => string =
   | UnOp(Meta(Unquote)) => failwith("INVALID STEP");
 
 type step_info = {
-  hidden_history:
-    Aba.t((DHExp.t, Editor.t, EvaluatorState.t), (step, Id.t)),
+  hidden_history: Aba.t(a, (step, Id.t)),
   chosen_step: option(step), // The step that was taken next
   previous_step: option((step, Id.t)) // The step that will be displayed above this one (an Id in included because it may have changed since the step was taken)
 };
@@ -448,30 +454,33 @@ let (sexp_of_persistent, persistent_of_sexp) =
   );
 
 let to_persistent_history = history =>
-  Aba.map_a(((d, _, s)) => (d, s), history);
+  Aba.map_a((({term: d, _}, _, s): a) => (d, s), history);
 
 // Remove EvalObj.t objects from stepper to prevent problems when loading
 let to_persistent: t => persistent =
   ({history, _}) => {persistent_history: history |> to_persistent_history};
 
-let from_persistent_history = history =>
+let from_persistent_history = (~settings, history) =>
   Aba.map_a(
-    ((d, s)) => (d, ExpToSegment.exp_to_editor(d, ~inline=false), s),
+    ((d, s)) => {
+      let editor = ExpToSegment.exp_to_editor(d, ~inline=false);
+      let statics = CachedStatics.statics_of_term(~settings, d, editor);
+      (statics, editor, s);
+    },
     history,
   );
 
-let from_persistent: persistent => t =
-  ({persistent_history}) => {
-    let history = persistent_history |> from_persistent_history;
-    {
-      history,
-      next_options: {
-        let (d, _, state) = Aba.hd(history);
-        decompose(d, state);
-      },
-      stepper_state: StepperDone,
-    };
+let from_persistent = (~settings, {persistent_history}) => {
+  let history = persistent_history |> from_persistent_history(~settings);
+  {
+    history,
+    next_options: {
+      let ({term: d, _}: CachedStatics.statics, _, state) = Aba.hd(history);
+      decompose(d, state);
+    },
+    stepper_state: StepperDone,
   };
+};
 
 type selection = int;
 

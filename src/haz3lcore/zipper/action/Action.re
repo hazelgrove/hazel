@@ -71,6 +71,8 @@ module Failure = {
     | Cant_paste
     | Cant_undo
     | Cant_redo;
+
+  exception Exception(t);
 };
 
 module Result = {

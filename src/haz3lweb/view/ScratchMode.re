@@ -3,50 +3,41 @@ open Haz3lcore;
 let view =
     (
       ~select,
-      ~inject,
+      ~inject: UpdateAction.t => Ui_effect.t(unit),
       ~ui_state: Model.ui_state,
       ~settings: Settings.t,
       ~highlights,
       ~results: ModelResults.t,
       ~result_key,
-      ~statics as {error_ids, _}: CachedStatics.statics,
+      ~statics: CachedStatics.statics,
       ~selected,
       editor: Editor.t,
     ) => {
-  let result = ModelResults.lookup(results, result_key);
-  let test_results = Util.OptUtil.and_then(ModelResult.test_results, result);
-  let footer =
-    settings.core.elaborate || settings.core.dynamics
-      ? result
-        |> Option.map(result =>
-             Cell.footer(
-               ~locked=false,
-               ~settings,
-               ~select,
-               ~inject,
-               ~ui_state,
-               ~result,
-               ~selected=
-                 switch (selected) {
-                 | Some(Editors.Selection.Result(i)) => Some(i)
-                 | _ => None
-                 },
-               ~result_key,
-             )
-           )
-      : None;
+  let result = ModelResults.lookup(results, result_key) |> Option.get;
   [
-    Cell.editor_view(
+    CellEditor.view(
       ~select,
-      ~inject,
+      ~inject=
+        fun
+        | MainEditor(a) => inject(PerformAction(a))
+        | ResultAction(StepperAction(a)) =>
+          inject(StepperAction(result_key, a))
+        | ResultAction(ToggleStepper) => inject(ToggleStepper(result_key))
+        | ResultAction(StepperEditorAction(_, a)) =>
+          inject(PerformAction(a)),
+      ~inject_global=inject,
       ~ui_state,
       ~settings,
-      ~error_ids,
-      ~test_results,
-      ~footer?,
       ~highlights,
       ~selected,
-      editor,
+      ~locked=false,
+      {
+        editor: {
+          editor,
+          statics,
+        },
+        result,
+      },
     ),
   ];
 };
