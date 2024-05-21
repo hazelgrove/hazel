@@ -7,30 +7,40 @@ module TestMap = Haz3lcore.TestMap;
 module TestResults = Haz3lcore.TestResults;
 module Interface = Haz3lcore.Interface;
 
-let test_instance_view =
-    (
-      ~settings,
-      ~inject,
-      ~font_metrics,
-      ~infomap,
-      (d, status): TestMap.instance_report,
-    ) =>
-  div(
-    ~attr=
-      Attr.many([clss(["test-instance", TestStatus.to_string(status)])]),
-    [
-      DHCode.view(
-        ~inject,
-        ~settings,
-        ~selected_hole_instance=None,
-        ~font_metrics,
-        ~width=40,
-        ~result_key="",
-        ~infomap,
-        d,
-      ),
-    ],
-  );
+// let test_instance_view =
+//     (
+//       ~settings,
+//       ~inject,
+//       ~font_metrics,
+//       ~infomap,
+//       (d, status): TestMap.instance_report,
+//     ) =>
+//   div(
+//     ~attr=
+//       Attr.many([clss(["test-instance", TestStatus.to_string(status)])]),
+//     [
+//       ReadOnlyEditor.view(
+//         ~inject,
+//         ~settings,
+//         ~font_metrics,
+//         ~width=40,
+//         ~result_key="",
+//         ~infomap,
+//         d,
+//       ),
+//       )
+//       DHCode.view(
+//         ~inject,
+//         ~settings,
+//         ~selected_hole_instance=None,
+//         ~font_metrics,
+//         ~width=40,
+//         ~result_key="",
+//         ~infomap,
+//         d,
+//       ),
+//     ],
+//   );
 
 let jump_to_test = (~inject, pos, id, _) => {
   let effect1 = inject(Update.MakeActive(Exercises(pos, MainEditor)));
@@ -38,75 +48,75 @@ let jump_to_test = (~inject, pos, id, _) => {
   Effect.bind(effect1, ~f=_result1 => effect2);
 };
 
-let test_report_view =
-    (
-      ~settings,
-      ~inject,
-      ~font_metrics,
-      ~description: option(string)=None,
-      ~infomap,
-      i: int,
-      (id, instance_reports): TestMap.report,
-    ) => {
-  let status =
-    instance_reports |> TestMap.joint_status |> TestStatus.to_string;
-  div(
-    ~attr=
-      Attr.many([
-        Attr.class_("test-report"),
-        Attr.on_click(jump_to_test(~inject, YourTestsTesting, id)),
-      ]),
-    [
-      div(
-        ~attr=clss(["test-id", "Test" ++ status]),
-        // note: prints lexical index, not id
-        [text(string_of_int(i + 1))],
-      ),
-      div(
-        ~attr=Attr.class_("test-instances"),
-        List.map(
-          test_instance_view(~infomap, ~settings, ~inject, ~font_metrics),
-          instance_reports,
-        ),
-      ),
-    ]
-    @ (
-      switch (description) {
-      | None => []
-      | Some(d) => [div(~attr=clss(["test-description"]), [text(d)])]
-      }
-    ),
-  );
-};
+// let test_report_view =
+//     (
+//       ~settings,
+//       ~inject,
+//       ~font_metrics,
+//       ~description: option(string)=None,
+//       ~infomap,
+//       i: int,
+//       (id, instance_reports): TestMap.report,
+//     ) => {
+//   let status =
+//     instance_reports |> TestMap.joint_status |> TestStatus.to_string;
+//   div(
+//     ~attr=
+//       Attr.many([
+//         Attr.class_("test-report"),
+//         Attr.on_click(jump_to_test(~inject, YourTestsTesting, id)),
+//       ]),
+//     [
+//       div(
+//         ~attr=clss(["test-id", "Test" ++ status]),
+//         // note: prints lexical index, not id
+//         [text(string_of_int(i + 1))],
+//       ),
+//       div(
+//         ~attr=Attr.class_("test-instances"),
+//         List.map(
+//           test_instance_view(~infomap, ~settings, ~inject, ~font_metrics),
+//           instance_reports,
+//         ),
+//       ),
+//     ]
+//     @ (
+//       switch (description) {
+//       | None => []
+//       | Some(d) => [div(~attr=clss(["test-description"]), [text(d)])]
+//       }
+//     ),
+//   );
+// };
 
-let test_reports_view =
-    (
-      ~settings,
-      ~inject,
-      ~font_metrics,
-      ~infomap,
-      ~test_results: option(TestResults.t),
-    ) =>
-  div(
-    ~attr=clss(["panel-body", "test-reports"]),
-    switch (test_results) {
-    | None => [Node.text("No test report available.")]
-    | Some(test_results) =>
-      List.mapi(
-        (i, r) =>
-          test_report_view(
-            ~settings,
-            ~inject,
-            ~font_metrics,
-            ~infomap,
-            ~description=List.nth_opt(test_results.descriptions, i),
-            i,
-            r,
-          ),
-        test_results.test_map,
-      )
-    },
-  );
+// let test_reports_view =
+//     (
+//       ~settings,
+//       ~inject,
+//       ~font_metrics,
+//       ~infomap,
+//       ~test_results: option(TestResults.t),
+//     ) =>
+//   div(
+//     ~attr=clss(["panel-body", "test-reports"]),
+//     switch (test_results) {
+//     | None => [Node.text("No test report available.")]
+//     | Some(test_results) =>
+//       List.mapi(
+//         (i, r) =>
+//           test_report_view(
+//             ~settings,
+//             ~inject,
+//             ~font_metrics,
+//             ~infomap,
+//             ~description=List.nth_opt(test_results.descriptions, i),
+//             i,
+//             r,
+//           ),
+//         test_results.test_map,
+//       )
+//     },
+//   );
 
 let test_bar_segment = (~inject, pos, (id, reports)) => {
   let status = reports |> TestMap.joint_status |> TestStatus.to_string;
@@ -171,32 +181,32 @@ let view_of_main_title_bar = (title_text: string) =>
     [Node.text(title_text)],
   );
 
-let inspector_view =
-    (
-      ~settings,
-      ~inject,
-      ~font_metrics,
-      ~test_map: TestMap.t,
-      ~infomap,
-      id: Haz3lcore.Id.t,
-    )
-    : option(t) => {
-  switch (TestMap.lookup(id, test_map)) {
-  | Some(instances) when TestMap.joint_status(instances) != Indet =>
-    Some(
-      div(
-        ~attr=Attr.class_("test-inspector"),
-        [
-          div(
-            ~attr=Attr.class_("test-instances"),
-            List.map(
-              test_instance_view(~settings, ~inject, ~font_metrics, ~infomap),
-              instances,
-            ),
-          ),
-        ],
-      ),
-    )
-  | _ => None
-  };
-};
+// let inspector_view =
+//     (
+//       ~settings,
+//       ~inject,
+//       ~font_metrics,
+//       ~test_map: TestMap.t,
+//       ~infomap,
+//       id: Haz3lcore.Id.t,
+//     )
+//     : option(t) => {
+//   switch (TestMap.lookup(id, test_map)) {
+//   | Some(instances) when TestMap.joint_status(instances) != Indet =>
+//     Some(
+//       div(
+//         ~attr=Attr.class_("test-inspector"),
+//         [
+//           div(
+//             ~attr=Attr.class_("test-instances"),
+//             List.map(
+//               test_instance_view(~settings, ~inject, ~font_metrics, ~infomap),
+//               instances,
+//             ),
+//           ),
+//         ],
+//       ),
+//     )
+//   | _ => None
+//   };
+// };
