@@ -41,7 +41,7 @@ module Meta = {
     {
       col_target: 0,
       touched: Touched.empty,
-      projected: z |> ProjectorAction.of_zipper |> init_projected,
+      projected: z |> ProjectorAction.project |> init_projected,
     };
   };
 
@@ -92,10 +92,12 @@ module Meta = {
       | Select(Resize(Local(Up | Down))) => meta.col_target
       | _ => Zipper.caret_point(meta.projected.measured, meta.projected.z).col
       };
-    let z_projected = ProjectorAction.of_zipper(z);
+    let z_projected = ProjectorAction.project(z);
     let projected =
       switch (Action.is_edit(a)) {
-      | false => {...meta.projected, z: z_projected}
+      //TODO(andrew): reenable
+      //TODO: andrew figure out why core desyncs from view on measure length.. prob use diff statics
+      //| false => {...meta.projected, z: z_projected}
       | _ =>
         next_projected(z_projected, ~touched, ~old=meta.projected.measured)
       };
