@@ -139,6 +139,7 @@ module View = {
       ~attr=
         Attr.many([
           Attr.classes(["cell-item"]),
+          Attr.classes(["code-editor"]),
           Attr.on_mousedown(on_mousedown),
         ]),
       mousedown_overlay @ [code_view],
