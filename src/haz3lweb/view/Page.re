@@ -65,6 +65,11 @@ let main_view =
       ~inject: UpdateAction.t => Ui_effect.t(unit),
       {settings, editors, explainThisModel, results, statics, ui_state, _}: Model.t,
     ) => {
+  let _ =
+    switch (ui_state.active_editor) {
+    | Some(ae) => print_endline("SELECTED: " ++ Editors.Selection.show(ae))
+    | None => print_endline("NO ACTIVE EDITOR")
+    };
   let cursor_info =
     Editors.get_cursor_info(
       ~selection=ui_state.active_editor,
@@ -160,7 +165,7 @@ let main_view =
             inject(
               UpdateAction.MakeActive(Editors.Selection.Exercises(pos, sel)),
             ),
-        ~inject,
+        ~inject_global=inject,
         ~ui_state,
         ~settings,
         ~selection,

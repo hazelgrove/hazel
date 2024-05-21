@@ -49,8 +49,7 @@ let run_pending = (~settings: CoreSettings.t) =>
       evaluation: Interface.evaluate(~settings, elab.d),
     })
   | Evaluation(_) as e => e
-  | Stepper(s) =>
-    Stepper(Stepper.evaluate_pending(~settings=settings.evaluation, s));
+  | Stepper(s) => Stepper(Stepper.evaluate_pending(~settings, s));
 
 let update_evaluation =
     (
@@ -134,10 +133,10 @@ let to_persistent: t => persistent =
   | Evaluation(_) => Evaluation
   | Stepper(s) => Stepper(Stepper.to_persistent(s));
 
-let of_persistent: persistent => t =
+let of_persistent = (~settings) =>
   fun
   | Evaluation => NoElab
-  | Stepper(s) => Stepper(Stepper.from_persistent(s));
+  | Stepper(s) => Stepper(Stepper.from_persistent(~settings, s));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type selection = int;
@@ -167,3 +166,25 @@ let put_selected_editor = (~selection: selection, mr: t, editor) =>
   | Evaluation(_) => mr
   | Stepper(s) => Stepper(Stepper.put_selected_editor(~selection, s, editor))
   };
+
+let get_elaboration = mr =>
+  switch (mr) {
+  | NoElab => None
+  | Evaluation({elab, _}) => Some(elab)
+  | Stepper(s) => Some(Stepper.get_elab(s))
+  };
+
+let perform = (~settings, idx, action, mr) => {
+  get_selected_editor(~selection=idx, mr)
+  |> Option.map(editor =>
+       editor
+       |> Perform.go(~settings, action)
+       |> (
+         fun
+         | Ok(editor) => editor
+         | Error(e) => raise(Action.Failure.Exception(e))
+       )
+       |> put_selected_editor(~selection=idx, mr)
+     )
+  |> Option.value(~default=mr);
+};

@@ -128,7 +128,12 @@ let next_step_indicated =
     ~shapes,
     ~path_cls,
     ~base_cls,
-    ~attr=[Attr.on_mousedown(_ => {inject()})],
+    ~attr=[
+      Attr.on_mousedown(_ => {
+        print_endline("CLICK!");
+        inject();
+      }),
+    ],
     measurement,
   );
 };
@@ -145,6 +150,37 @@ let next_step_shards_indicated =
     ((index, measurement)) =>
       next_step_indicated(
         ~inject,
+        ~font_metrics,
+        ~has_caret=caret == (id, index),
+        ~shapes=Mold.nib_shapes(~index, mold),
+        ~sort=mold.out,
+        ~measurement,
+      ),
+    shards,
+  );
+
+let taken_step_indicated =
+    (
+      ~font_metrics,
+      ~has_caret,
+      ~shapes,
+      ~sort,
+      ~measurement: Measured.measurement,
+    )
+    : t => {
+  let path_cls =
+    ["tile-path", "raised", Sort.to_string(sort)]
+    @ (has_caret ? ["indicated-caret"] : ["indicated"]);
+  let base_cls = ["tile-taken-step"];
+  simple_shard(~font_metrics, ~shapes, ~path_cls, ~base_cls, measurement);
+};
+
+let taken_step_shards_indicated =
+    (~font_metrics: FontMetrics.t, ~caret: (Id.t, int), (id, mold, shards))
+    : list(t) =>
+  List.map(
+    ((index, measurement)) =>
+      taken_step_indicated(
         ~font_metrics,
         ~has_caret=caret == (id, index),
         ~shapes=Mold.nib_shapes(~index, mold),

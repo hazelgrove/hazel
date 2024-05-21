@@ -57,21 +57,20 @@ let mk = (editors, results, statics) => {
 let blank =
   mk(Editors.Scratch(0, []), ModelResults.empty, CachedStatics.empty);
 
-let load_editors =
-    (~mode: Settings.mode, ~instructor_mode: bool)
-    : (Editors.t, ModelResults.t) =>
-  switch (mode) {
+let load_editors = (~settings: Settings.t): (Editors.t, ModelResults.t) =>
+  switch (settings.mode) {
   | Scratch =>
-    let (idx, slides, results) = Store.Scratch.load();
+    let (idx, slides, results) = Store.Scratch.load(~settings=settings.core);
     (Scratch(idx, slides), results);
   | Documentation =>
-    let (name, slides, results) = Store.Documentation.load();
+    let (name, slides, results) =
+      Store.Documentation.load(~settings=settings.core);
     (Documentation(name, slides), results);
   | Exercises =>
     let (n, specs, exercise) =
       Store.Exercise.load(
         ~specs=ExerciseSettings.exercises,
-        ~instructor_mode,
+        ~instructor_mode=settings.instructor_mode,
       );
     (Exercises(n, specs, exercise), ModelResults.empty);
   };
@@ -90,11 +89,7 @@ let save_editors =
 let load = (init_model: t): t => {
   let settings = Store.Settings.load();
   let explainThisModel = Store.ExplainThisModel.load();
-  let (editors, results) =
-    load_editors(
-      ~mode=settings.mode,
-      ~instructor_mode=settings.instructor_mode,
-    );
+  let (editors, results) = load_editors(~settings);
   let ui_state = init_model.ui_state;
   let statics = Editors.mk_statics(~settings, editors);
   {editors, settings, results, statics, explainThisModel, ui_state};
@@ -114,10 +109,10 @@ let reset = (model: t): t => {
   /* Reset model to default, including in localstorage,
      but don't otherwise erase localstorage, allowing
      e.g. api keys to persist */
-  ignore(Store.Settings.init());
+  let settings = Store.Settings.init().core;
   ignore(Store.ExplainThisModel.init());
-  ignore(Store.Scratch.init());
-  ignore(Store.Documentation.init());
+  ignore(Store.Scratch.init(~settings));
+  ignore(Store.Documentation.init(~settings));
   ignore(Store.Exercise.init(~instructor_mode=true));
   let new_model = load(blank);
   {

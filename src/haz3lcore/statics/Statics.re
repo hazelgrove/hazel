@@ -229,10 +229,10 @@ and uexp_to_info_map =
   let go_pat = upat_to_info_map(~ctx, ~ancestors);
   let atomic = self => add(~self, ~co_ctx=CoCtx.empty, m);
   switch (term) {
-  | Closure(_) =>
-    failwith(
-      "TODO: implement closure type checking - see how dynamic type assignment does it",
-    )
+  | Closure(_, e) =>
+    // TODO: implement closure type checking properly - see how dynamic type assignment does it
+    let (e, m) = go(~mode, e, m);
+    add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
   | MultiHole(tms) =>
     let (co_ctxs, m) = multi(~ctx, ~ancestors, m, tms);
     add(~self=IsMulti, ~co_ctx=CoCtx.union(co_ctxs), m);

@@ -2,25 +2,21 @@ open Virtual_dom.Vdom;
 open Util;
 open Haz3lcore;
 
-module Deco =
-       (
-         M: {
-           let font_metrics: FontMetrics.t;
-           let map: Measured.t;
-           let show_backpack_targets: bool;
-           let terms: TermMap.t;
-           let term_ranges: TermRanges.t;
-           let error_ids: list(Id.t);
-           let tiles: TileMap.t;
-           let next_steps: list(Id.t);
-         },
-       ) => {
-  let font_metrics = M.font_metrics;
+module Deco = (M: {
+                 let ui_state: Model.ui_state;
+                 let editor: Editor.t;
+               }) => {
+  let font_metrics = M.ui_state.font_metrics;
+  let map = M.editor.state.meta.measured;
+  let show_backpack_targets = M.ui_state.show_backpack_targets;
+  let terms = M.editor.state.meta.terms;
+  let term_ranges = M.editor.state.meta.term_ranges;
+  let tiles = M.editor.state.meta.tiles;
 
-  let tile = id => Id.Map.find(id, M.tiles);
+  let tile = id => Id.Map.find(id, tiles);
 
   let caret = (z: Zipper.t): list(Node.t) => {
-    let origin = Zipper.caret_point(M.map, z);
+    let origin = Zipper.caret_point(map, z);
     let shape = Zipper.caret_direction(z);
     let side =
       switch (Indicated.piece(z)) {
@@ -46,11 +42,11 @@ module Deco =
       switch (p) {
       | Tile(t) => sel_of_tile(~start_shape, t)
       | Grout(g) => [
-          Some(sel_shard_svg(~start_shape, Measured.find_g(g, M.map), p)),
+          Some(sel_shard_svg(~start_shape, Measured.find_g(g, map), p)),
         ]
       | Secondary(w) when Secondary.is_linebreak(w) => [None]
       | Secondary(w) => [
-          Some(sel_shard_svg(~start_shape, Measured.find_w(w, M.map), p)),
+          Some(sel_shard_svg(~start_shape, Measured.find_w(w, map), p)),
         ]
       };
     let start_shape =
@@ -62,7 +58,7 @@ module Deco =
   }
   and sel_of_tile = (~start_shape, t: Tile.t): list(option(shard_data)) => {
     let tile_shards =
-      Measured.find_shards(t, M.map)
+      Measured.find_shards(t, map)
       |> List.filter(((i, _)) => List.mem(i, t.shards))
       |> List.map(((index, measurement)) =>
            [
@@ -120,12 +116,12 @@ module Deco =
         };
       let range: option((Measured.Point.t, Measured.Point.t)) = {
         // if (Piece.has_ends(p)) {
-        let id = Id.Map.find(Piece.id(p), M.terms) |> Any.rep_id;
-        switch (TermRanges.find_opt(id, M.term_ranges)) {
+        let id = Id.Map.find(Piece.id(p), terms) |> Any.rep_id;
+        switch (TermRanges.find_opt(id, term_ranges)) {
         | None => None
         | Some((p_l, p_r)) =>
-          let l = Measured.find_p(p_l, M.map).origin;
-          let r = Measured.find_p(p_r, M.map).last;
+          let l = Measured.find_p(p_l, map).origin;
+          let r = Measured.find_p(p_r, map).last;
           Some((l, r));
         };
       };
@@ -138,7 +134,7 @@ module Deco =
       | None => []
       | Some(range) =>
         let tiles =
-          Id.Map.find(Piece.id(p), M.terms)
+          Id.Map.find(Piece.id(p), terms)
           |> Any.ids
           /* NOTE(andrew): dark_ids were originally filtered here.
            * Leaving this comment in place in case issues in the
@@ -146,11 +142,11 @@ module Deco =
            * |> List.filter(id => id >= 0)*/
           |> List.map(id => {
                let t = tile(id);
-               (id, t.mold, Measured.find_shards(t, M.map));
+               (id, t.mold, Measured.find_shards(t, map));
              });
         PieceDec.indicated(
           ~font_metrics,
-          ~rows=M.map.rows,
+          ~rows=map.rows,
           ~caret=(Piece.id(p), index),
           ~tiles,
           range,
@@ -179,10 +175,10 @@ module Deco =
                switch (Siblings.neighbors((l, r))) {
                | (None, None) => failwith("impossible")
                | (_, Some(p)) =>
-                 let m = Measured.find_p(p, M.map);
+                 let m = Measured.find_p(p, map);
                  Measured.{origin: m.origin, last: m.origin};
                | (Some(p), _) =>
-                 let m = Measured.find_p(p, M.map);
+                 let m = Measured.find_p(p, map);
                  Measured.{origin: m.last, last: m.last};
                };
              let profile =
@@ -210,15 +206,11 @@ module Deco =
   };
 
   let backpack = (z: Zipper.t): list(Node.t) => [
-    BackpackView.view(
-      ~font_metrics,
-      ~origin=Zipper.caret_point(M.map, z),
-      z,
-    ),
+    BackpackView.view(~font_metrics, ~origin=Zipper.caret_point(map, z), z),
   ];
 
   let targets' = (backpack, seg) => {
-    M.show_backpack_targets && Backpack.restricted(backpack)
+    show_backpack_targets && Backpack.restricted(backpack)
       ? targets(backpack, seg) : [];
   };
 
@@ -228,20 +220,20 @@ module Deco =
         deco:
           ((Measured.Point.t, Measured.Point.t, SvgUtil.Path.t)) => Node.t,
       ) => {
-    let (p_l, p_r) = TermRanges.find(id, M.term_ranges);
-    let l = Measured.find_p(p_l, M.map).origin;
-    let r = Measured.find_p(p_r, M.map).last;
+    let (p_l, p_r) = TermRanges.find(id, term_ranges);
+    let l = Measured.find_p(p_l, map).origin;
+    let r = Measured.find_p(p_r, map).last;
     open SvgUtil.Path;
     let r_edge =
       ListUtil.range(~lo=l.row, r.row + 1)
       |> List.concat_map(i => {
-           let row = Measured.Rows.find(i, M.map.rows);
+           let row = Measured.Rows.find(i, map.rows);
            [h(~x=i == r.row ? r.col : row.max_col), v_(~dy=1)];
          });
     let l_edge =
       ListUtil.range(~lo=l.row, r.row + 1)
       |> List.rev_map(i => {
-           let row = Measured.Rows.find(i, M.map.rows);
+           let row = Measured.Rows.find(i, map.rows);
            [h(~x=i == l.row ? l.col : row.indent), v_(~dy=-1)];
          })
       |> List.concat;
@@ -279,16 +271,16 @@ module Deco =
   };
 
   // faster info_map traversal
-  let err_holes = (_z: Zipper.t) =>
-    List.map(term_highlight(~clss=["err-hole"]), M.error_ids);
+  let err_holes = error_ids =>
+    List.map(term_highlight(~clss=["err-hole"]), error_ids);
 
-  let next_steps = (_z: Zipper.t, ~inject) => {
-    let tiles = List.filter_map(TileMap.find_opt(_, M.tiles), M.next_steps);
+  let next_steps = (next_steps, ~inject) => {
+    let tiles = List.filter_map(TileMap.find_opt(_, tiles), next_steps);
     List.mapi(
       (i, t: Tile.t) => {
         let id = Tile.id(t);
         let mold = t.mold;
-        let shards = Measured.find_shards(t, M.map);
+        let shards = Measured.find_shards(t, map);
         PieceDec.next_step_shards_indicated(
           ~font_metrics,
           ~caret=(Id.invalid, 0),
@@ -301,13 +293,36 @@ module Deco =
     |> List.flatten;
   };
 
-  let all = (zipper, sel_seg) =>
+  let taken_step = taken_step => {
+    let tiles =
+      List.filter_map(
+        TileMap.find_opt(_, tiles),
+        taken_step |> Option.to_list,
+      );
+    List.map(
+      (t: Tile.t) => {
+        let id = Tile.id(t);
+        let mold = t.mold;
+        let shards = Measured.find_shards(t, map);
+        PieceDec.taken_step_shards_indicated(
+          ~font_metrics,
+          ~caret=(Id.invalid, 0),
+          (id, mold, shards),
+        );
+      },
+      tiles,
+    )
+    |> List.flatten;
+  };
+
+  let statics = eh => err_holes(eh);
+
+  let editor = (zipper, sel_seg) =>
     List.concat([
       caret(zipper),
       indicated_piece_deco(zipper),
       selected_pieces(zipper),
       backpack(zipper),
       targets'(zipper.backpack, sel_seg),
-      err_holes(zipper),
     ]);
 };

@@ -209,21 +209,16 @@ let expander_deco =
       ~docs: ExplainThisModel.t,
       ~settings: Settings.t,
       ~inject,
-      ~ui_state as {font_metrics, _}: Model.ui_state,
+      ~ui_state as {font_metrics, _} as ui_state: Model.ui_state,
       ~options: list((ExplainThisForm.form_id, Segment.t)),
       ~group: ExplainThisForm.group,
       ~doc: ExplainThisForm.form,
+      editor,
     ) => {
   module Deco =
     Deco.Deco({
-      let font_metrics = font_metrics;
-      let map = Measured.of_segment(doc.syntactic_form);
-      let show_backpack_targets = false;
-      let (_term, terms) = MakeTerm.go(doc.syntactic_form);
-      let term_ranges = TermRanges.mk(doc.syntactic_form);
-      let tiles = TileMap.mk(doc.syntactic_form);
-      let error_ids = [];
-      let next_steps = [];
+      let editor = editor;
+      let ui_state = ui_state;
     });
   switch (doc.expandable_id, List.length(options)) {
   | (None, _)
@@ -331,7 +326,6 @@ let expander_deco =
 
 let example_view =
     (
-      ~select,
       ~inject,
       ~ui_state,
       ~settings: Settings.t,
@@ -346,7 +340,7 @@ let example_view =
       div(
         ~attr=Attr.id("examples"),
         List.mapi(
-          (idx, {term, message, sub_id, _}: ExplainThisForm.example) => {
+          (_, {term, message, sub_id, _}: ExplainThisForm.example) => {
             let feedback =
               settings.explainThis.show_feedback
                 ? [
@@ -362,13 +356,49 @@ let example_view =
             div(
               ~attr=clss(["example"]),
               [
-                Cell.locked(
-                  ~segment=term,
-                  ~target_id="example" ++ string_of_int(idx),
+                CellEditor.view(
+                  ~select=_ => Ui_effect.Ignore,
+                  ~inject=_ => Ui_effect.Ignore,
+                  ~inject_global=_ => Ui_effect.Ignore,
                   ~ui_state,
                   ~settings,
-                  ~select,
-                  ~inject,
+                  ~highlights=None,
+                  ~selected=None,
+                  ~caption=None,
+                  ~locked=true,
+                  {
+                    let editor =
+                      Editor.init(~read_only=true, Zipper.unzip(term));
+                    let (term, _) =
+                      MakeTerm.from_zip_for_sem(editor.state.zipper);
+                    let statics =
+                      CachedStatics.statics_of_term(
+                        ~settings=settings.core,
+                        term,
+                        editor,
+                      );
+                    let result: ModelResult.t =
+                      settings.core.dynamics
+                        ? Evaluation({
+                            elab: {
+                              d: term,
+                            },
+                            evaluation:
+                              Interface.evaluate(
+                                ~settings=settings.core,
+                                term,
+                              ),
+                            previous: ResultPending,
+                          })
+                        : NoElab;
+                    {
+                      editor: {
+                        editor,
+                        statics,
+                      },
+                      result,
+                    };
+                  },
                 ),
                 div(
                   ~attr=clss(["explanation"]),
@@ -474,6 +504,8 @@ let get_doc =
         |> List.to_seq
         |> Id.Map.of_seq
         |> Option.some;
+      let editor =
+        Editor.init(~read_only=true, doc.syntactic_form |> Zipper.unzip);
       let expander_deco =
         expander_deco(
           ~docs,
@@ -483,21 +515,30 @@ let get_doc =
           ~options,
           ~group,
           ~doc,
+          editor,
         );
+      let highlight_deco =
+        switch (highlights) {
+        | Some(highlights) =>
+          module Deco =
+            Deco.Deco({
+              let editor = editor;
+              let ui_state = ui_state;
+            });
+          Deco.color_highlights(ColorSteps.to_list(highlights));
+        | None => []
+        };
+      let statics = CachedStatics.empty_statics;
       let syntactic_form_view =
-        Cell.locked_no_statics(
-          ~select=_ => Ui_effect.Ignore,
-          ~inject,
+        ReadOnlyEditor.view(
           ~ui_state,
-          ~segment=doc.syntactic_form,
-          ~highlights,
           ~settings,
+          ~overlays=highlight_deco @ [expander_deco],
           ~sort,
-          ~expander_deco,
+          {editor, statics},
         );
       let example_view =
         example_view(
-          ~select=_ => Ui_effect.Ignore,
           ~inject,
           ~ui_state,
           ~settings,
@@ -506,7 +547,7 @@ let get_doc =
           ~examples=doc.examples,
           ~model=docs,
         );
-      (syntactic_form_view, ([explanation], color_map), example_view);
+      ([syntactic_form_view], ([explanation], color_map), example_view);
     | Colorings =>
       let (_, color_map) = mk_translation(~inject=None, explanation_msg);
       ([], ([], color_map), []);
