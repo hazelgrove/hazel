@@ -12,7 +12,6 @@ module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Scratch(cell)
-    | Documentation(cell)
     | Exercises(Exercise.pos, cell);
 };
 
@@ -91,7 +90,7 @@ let lookup_statics =
   | (Scratch(idx, _), Scratch(_)) =>
     let key = ScratchSlide.scratch_key(string_of_int(idx));
     CachedStatics.lookup(statics, key);
-  | (Documentation(name, _), Documentation(_)) =>
+  | (Documentation(name, _), Scratch(_)) =>
     let key = ScratchSlide.scratch_key(name);
     CachedStatics.lookup(statics, key);
   | (Exercises(_), Exercises(pos, _)) =>
@@ -129,7 +128,7 @@ let get_spliced_elabs =
     let CachedStatics.{term, info_map, _} =
       lookup_statics(
         ~settings,
-        ~selection=Documentation(MainEditor),
+        ~selection=Scratch(MainEditor),
         ~statics,
         editors,
       );
@@ -205,9 +204,9 @@ let switch_example_slide = (editors: t, name: string): option(t) =>
 let get_selected_editor =
     (~selection: Selection.t, editors: t, model_results: ModelResults.t) =>
   switch (editors, selection) {
-  | (Documentation(name, slides), Documentation(MainEditor)) =>
+  | (Documentation(name, slides), Scratch(MainEditor)) =>
     List.assoc_opt(name, slides)
-  | (Documentation(n, _), Documentation(Result(selection))) =>
+  | (Documentation(n, _), Scratch(Result(selection))) =>
     let key = ScratchSlide.scratch_key(n);
     let* result = ModelResults.lookup(model_results, key);
     ModelResult.get_selected_editor(~selection, result);
@@ -237,10 +236,10 @@ let put_selected_editor =
     )
     : (t, ModelResults.t) =>
   switch (editors, selection) {
-  | (Documentation(name, slides), Documentation(MainEditor)) =>
+  | (Documentation(name, slides), Scratch(MainEditor)) =>
     let slides = ListUtil.update_assoc((name, editor), slides);
     (Documentation(name, slides), model_results);
-  | (Documentation(n, _), Documentation(Result(selection))) =>
+  | (Documentation(n, _), Scratch(Result(selection))) =>
     let key = ScratchSlide.scratch_key(n);
     let results = {
       let+ result = ModelResults.lookup(model_results, key);
