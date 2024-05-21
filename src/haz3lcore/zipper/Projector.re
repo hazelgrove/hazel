@@ -30,6 +30,32 @@ let placeholder = (pr: t, id: Id.t): Piece.t =>
     children: [],
   });
 
+let update = (ci: option(Info.t), p: t): t =>
+  switch (p) {
+  | Fold => Fold
+  | Infer(_) =>
+    print_endline("updating infer projector");
+    let expected_ty =
+      switch (ci) {
+      | Some(InfoExp({mode, _}) | InfoPat({mode, _})) => Mode.ty_of(mode)
+      | _ => Typ.Float
+      };
+    Infer({expected_ty: Some(expected_ty)});
+  };
+
+let can_project = (prj: t, p: Piece.t) =>
+  switch (prj) {
+  | Infer(_) =>
+    Piece.is_convex(p)
+    && (
+      switch (p) {
+      | Tile(t) => t.mold.out == Exp || t.mold.out == Pat
+      | _ => false
+      }
+    )
+  | Fold => Piece.is_convex(p)
+  };
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 module Map = {
   [@deriving (show({with_path: false}), sexp, yojson)]

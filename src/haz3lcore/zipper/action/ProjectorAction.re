@@ -1,5 +1,3 @@
-open Zipper;
-
 let of_siblings =
     (projectors: Projector.Map.t, siblings: Siblings.t): Siblings.t => {
   let l_sibs = Projector.of_segment(projectors, fst(siblings));
@@ -37,7 +35,7 @@ let of_selection =
   };
 };
 
-let of_zipper = (z: Zipper.t): Zipper.t =>
+let project = (z: Zipper.t): Zipper.t =>
   if (Id.Map.is_empty(z.projectors)) {
     z;
   } else {
@@ -63,55 +61,53 @@ let move_out_of_piece =
     }
   };
 
-let update = (f, id, z) => {
+let set = (p: option(Projector.t), id: Id.t, ps: Projector.Map.t) =>
+  Projector.Map.update(id, _ => p, ps);
+
+let set = (p: option(Projector.t), id: Id.t, z: Zipper.t) => {
   ...z,
-  projectors: Projector.Map.update(id, f, z.projectors),
+  projectors: set(p, id, z.projectors),
 };
 
-let set = (prj, id, z) => update(_ => prj, id, z);
-
-let can_project = (prj: Projector.t, p: Piece.t) =>
-  switch (prj) {
-  | Infer(_) =>
-    Piece.is_convex(p)
-    && (
-      switch (p) {
-      | Tile(t) => t.mold.out == Exp || t.mold.out == Pat
-      | _ => false
-      }
-    )
-  | Fold => Piece.is_convex(p)
-  };
-
-let default_infer: Projector.t = Infer({expected_ty: None});
-
-let project = (prj, id, d, rel, z) =>
+let set_project =
+    (
+      prj: Projector.t,
+      id: Id.t,
+      d: Util.Direction.t,
+      rel: Indicated.relation,
+      z: Zipper.t,
+    ) =>
   z |> set(Some(prj), id) |> move_out_of_piece(d, rel) |> Option.some;
 
-let toggle = (id, z: Zipper.t, piece, d, rel) =>
+let toggle = (id, info, z: Zipper.t, piece, d, rel) => {
   switch (Projector.Map.find(id, z.projectors)) {
   | Some(Fold) =>
-    if (can_project(default_infer, piece)) {
-      project(default_infer, id, d, rel, z);
+    let infer = Projector.update(info, Infer({expected_ty: None}));
+    if (Projector.can_project(infer, piece)) {
+      set_project(infer, id, d, rel, z);
     } else {
       Some(set(None, id, z));
-    }
+    };
   | Some(Infer(_)) => Some(set(None, id, z))
   | None when Piece.is_convex(piece) =>
-    if (can_project(Fold, piece)) {
-      project(Fold, id, d, rel, z);
+    if (Projector.can_project(Fold, piece)) {
+      set_project(Fold, id, d, rel, z);
     } else {
       None;
     }
   | None => None
   };
+};
 
-let go = (a: Action.project, z: Zipper.t) =>
+let go = (a: Action.project, statics: CachedStatics.statics, z: Zipper.t) =>
+  //TODO(andrew): avoid bringing statics in here?
   switch (Indicated.for_index(z)) {
   | None => None
   | Some((p, d, rel)) =>
+    let id = Piece.id(p);
+    let info = Id.Map.find_opt(id, statics.info_map);
     switch (a) {
-    | ToggleIndicated => toggle(Piece.id(p), z, p, d, rel)
-    | Toggle(id) => toggle(id, z, p, d, rel)
-    }
+    | ToggleIndicated => toggle(id, info, z, p, d, rel)
+    | Toggle(id) => toggle(id, info, z, p, d, rel)
+    };
   };
