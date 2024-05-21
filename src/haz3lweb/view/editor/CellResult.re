@@ -131,17 +131,17 @@ module View = {
         );
       let previous_step =
           (~hidden: bool, ~idx as _, step: Stepper.step_info): list(Node.t) => {
-        let (statics, editor, _) = hd.hidden_history |> Aba.hd;
-        let _ = "One" |> print_endline;
+        let (statics, editor, _) = step.hidden_history |> Aba.hd;
         let model: StepperEditor.Stepped.model = {
           editor: {
             editor,
             statics,
           },
-          step: step.chosen_step |> Option.get, // TODO[Matt]: refactor away Option.get
-          step_id: (step.chosen_step |> Option.get).d_loc |> Exp.rep_id,
+          step: step.chosen_step, // TODO[Matt]: refactor away Option.get
+          step_id:
+            step.chosen_step
+            |> Option.map((x: EvaluatorStep.step) => x.d_loc |> Exp.rep_id),
         };
-        let _ = "Two" |> print_endline;
         [
           div(
             ~attr=
@@ -185,9 +185,7 @@ module View = {
                   history,
                 )
                 |> List.flatten
-                |> List.rev
-                |> List.tl
-                |> List.rev;
+                |> List.tl;
               List.mapi(
                 (idx, (hidden, step)) =>
                   previous_step(~hidden, ~idx=idx + 1, step),
