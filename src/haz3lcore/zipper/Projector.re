@@ -38,7 +38,7 @@ let update = (ci: option(Info.t), p: t): t =>
     let expected_ty =
       switch (ci) {
       | Some(InfoExp({mode, _}) | InfoPat({mode, _})) => Mode.ty_of(mode)
-      | _ => Typ.Float
+      | _ => Typ.Unknown(Internal)
       };
     Infer({expected_ty: Some(expected_ty)});
   };
@@ -50,6 +50,7 @@ let can_project = (prj: t, p: Piece.t) =>
     && (
       switch (p) {
       | Tile(t) => t.mold.out == Exp || t.mold.out == Pat
+      | Grout(_) => true
       | _ => false
       }
     )
