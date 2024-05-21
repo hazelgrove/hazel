@@ -3,8 +3,8 @@ open Haz3lcore;
 module Stepped = {
   type model = {
     editor: ReadOnlyEditor.model,
-    step: EvaluatorStep.step,
-    step_id: Id.t,
+    step: option(EvaluatorStep.step),
+    step_id: option(Id.t),
   };
 
   type action = ReadOnlyEditor.action;
@@ -21,7 +21,7 @@ module Stepped = {
           let editor = model.editor.editor;
           let ui_state = ui_state;
         });
-      overlays @ Deco.taken_step(Some(model.step_id));
+      overlays @ Deco.taken_step(model.step_id);
     };
     ReadOnlyEditor.view(~ui_state, ~settings, ~overlays, model.editor);
   };
