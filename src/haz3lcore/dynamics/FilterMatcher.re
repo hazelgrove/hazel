@@ -213,6 +213,7 @@ let rec matches_exp =
   | (ExpandingKeyword(_), _) => false
   | (InvalidText(_), _) => false
   | (InvalidOperation(_), _) => false
+  | (InvalidDerivation(_), _) => false
 
   | (ApBuiltin(dname, darg), ApBuiltin(fname, farg)) =>
     dname == fname && matches_exp(env, darg, farg)

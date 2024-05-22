@@ -69,6 +69,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Constructor(_)
   | FailedCast(_)
   | InvalidOperation(_)
+  | InvalidDerivation(_)
   | IfThenElse(_)
   | Closure(_)
   | BuiltinFun(_)
@@ -533,6 +534,13 @@ let mk =
         let decoration =
           Doc.text(InvalidOperationError.err_msg(err))
           |> annot(DHAnnot.OperationError(err));
+        hcats([d_doc, decoration]);
+
+      | InvalidDerivation(u, err) =>
+        let d_doc = go'(u, InvalidDerivation);
+        let decoration =
+          Doc.text(DerivationError.VerErr.repr(err))
+          |> annot(DHAnnot.DerivationError(err));
         hcats([d_doc, decoration]);
 
       | IfThenElse(_, c, d1, d2) =>

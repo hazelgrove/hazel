@@ -327,6 +327,9 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
     | InvalidOperation(ctx, err) =>
       let d = compose(ctx, d);
       InvalidOperation(d, err);
+    | InvalidDerivation(ctx, err) =>
+      let d = compose(ctx, d);
+      InvalidDerivation(d, err);
     | NonEmptyHole(reason, u, i, ctx) =>
       let d = compose(ctx, d);
       NonEmptyHole(reason, u, i, d);

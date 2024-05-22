@@ -87,7 +87,8 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | Closure(_)
     | Filter(_)
     | FailedCast(_)
-    | InvalidOperation(_) => d
+    | InvalidOperation(_)
+    | InvalidDerivation(_) => d
     /* Normal cases: wrap */
     | BoundVar(_)
     | Ap(_)

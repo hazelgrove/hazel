@@ -152,6 +152,10 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     let* d'' = pp_eval(d');
     InvalidOperation(d'', reason) |> return;
 
+  | InvalidDerivation(d', reason) =>
+    let* d'' = pp_eval(d');
+    InvalidDerivation(d'', reason) |> return;
+
   | IfThenElse(consistent, c, d1, d2) =>
     let* c' = pp_eval(c);
     let* d1' = pp_eval(d1);
@@ -409,6 +413,10 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* d'' = pp_uneval(env, d');
     InvalidOperation(d'', reason) |> return;
 
+  | InvalidDerivation(d', reason) =>
+    let* d'' = pp_uneval(env, d');
+    InvalidDerivation(d'', reason) |> return;
+
   | ConsistentCase(Case(scrut, rules, i)) =>
     let* scrut' = pp_uneval(env, scrut);
     let* rules' = pp_uneval_rules(env, rules);
@@ -492,7 +500,8 @@ let rec track_children_of_hole =
   | Prj(d, _)
   | Cast(d, _, _)
   | FailedCast(d, _, _)
-  | InvalidOperation(d, _) => track_children_of_hole(hii, parent, d)
+  | InvalidOperation(d, _)
+  | InvalidDerivation(d, _) => track_children_of_hole(hii, parent, d)
   | Sequence(d1, d2)
   | Let(_, d1, d2)
   | Ap(d1, d2)

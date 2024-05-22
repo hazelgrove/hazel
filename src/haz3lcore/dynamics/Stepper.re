@@ -173,6 +173,9 @@ let rec matches =
     | InvalidOperation(ctx, error) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       InvalidOperation(ctx, error);
+    | InvalidDerivation(ctx, error) =>
+      let+ ctx = matches(env, flt, ctx, exp, act, idx);
+      InvalidDerivation(ctx, error);
     | ConsistentCase(Case(ctx, rs, i)) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       ConsistentCase(Case(ctx, rs, i));

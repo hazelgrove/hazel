@@ -1911,6 +1911,7 @@ svg.expandable path {
 }
 
 .DHCode .OperationError,
+.DHCode .DerivationError,
 .DHCode .CastDecoration,
 .DHCode .FailedCastDecoration {
   display: inline-block;

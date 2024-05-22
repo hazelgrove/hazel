@@ -261,37 +261,47 @@ module Pervasives = {
       | JudgementLit(j) => Some(j)
       | _ => None;
 
-    let rule = rule =>
+    let rule = (name, rule) =>
       unary(
         fun
         | Tuple([
             JudgementLit(conclusion),
             ListLit(_, _, Judgement, premises),
-          ]) =>
+          ]) as d =>
           switch (premises |> List.map(judgement_of) |> Util.OptUtil.sequence) {
           | Some(premises) =>
             Ok(
-              BoolLit(Derivation.RuleVer.verify(rule, conclusion, premises)),
+              switch (
+                DerivationError.RuleVer.verify(rule, conclusion, premises)
+              ) {
+              | Ok(_) => JudgementLit(conclusion)
+              | Error(e) =>
+                let d' = DHExp.Ap(DHExp.BuiltinFun(name), d);
+                InvalidDerivation(d', e);
+              },
             )
           | None => Error(InvalidBoxedListLit(List.hd(premises)))
           }
         | d => Error(InvalidBoxedTuple(d)),
       );
 
-    let rule_Assumption = rule(Assumption);
-    let rule_And_I = rule(And_I);
-    let rule_And_E_L = rule(And_E_L);
-    let rule_And_E_R = rule(And_E_R);
-    let rule_Or_I_L = rule(Or_I_L);
-    let rule_Or_I_R = rule(Or_I_R);
-    let rule_Or_E = rule(Or_E);
-    let rule_Implies_I = rule(Implies_I);
-    let rule_Implies_E = rule(Implies_E);
-    let rule_Truth_I = rule(Truth_I);
-    let rule_Falsity_E = rule(Falsity_E);
+    let rule_Assumption = rule("rule_Assumption", Assumption);
+    let rule_And_I = rule("rule_And_I", And_I);
+    let rule_And_E_L = rule("rule_And_E_L", And_E_L);
+    let rule_And_E_R = rule("rule_And_E_R", And_E_R);
+    let rule_Or_I_L = rule("rule_Or_I_L", Or_I_L);
+    let rule_Or_I_R = rule("rule_Or_I_R", Or_I_R);
+    let rule_Or_E = rule("rule_Or_E", Or_E);
+    let rule_Implies_I = rule("rule_Implies_I", Implies_I);
+    let rule_Implies_E = rule("rule_Implies_E", Implies_E);
+    let rule_Truth_I = rule("rule_Truth_I", Truth_I);
+    let rule_Falsity_E = rule("rule_Falsity_E", Falsity_E);
   };
 
   open Impls;
+
+  let rule = (name, func) =>
+    fn(name, Prod([Judgement, List(Judgement)]), Judgement, func);
   let builtins =
     VarMap.empty
     |> const("infinity", Float, infinity)
@@ -354,67 +364,17 @@ module Pervasives = {
     |> const("truth", Prop, PropLit(Truth))
     |> const("falsity", Prop, PropLit(Falsity))
     |> fn("entail", Prod([List(Prop), Prop]), Judgement, entail)
-    |> fn(
-         "rule_Assumption",
-         Prod([Judgement, List(Judgement)]),
-         Bool,
-         rule_Assumption,
-       )
-    |> fn(
-         "rule_And_I",
-         Prod([Judgement, List(Judgement)]),
-         Bool,
-         rule_And_I,
-       )
-    |> fn(
-         "rule_And_E_L",
-         Prod([Judgement, List(Judgement)]),
-         Bool,
-         rule_And_E_L,
-       )
-    |> fn(
-         "rule_And_E_R",
-         Prod([Judgement, List(Judgement)]),
-         Bool,
-         rule_And_E_R,
-       )
-    |> fn(
-         "rule_Or_I_L",
-         Prod([Judgement, List(Judgement)]),
-         Bool,
-         rule_Or_I_L,
-       )
-    |> fn(
-         "rule_Or_I_R",
-         Prod([Judgement, List(Judgement)]),
-         Bool,
-         rule_Or_I_R,
-       )
-    |> fn("rule_Or_E", Prod([Judgement, List(Judgement)]), Bool, rule_Or_E)
-    |> fn(
-         "rule_Implies_I",
-         Prod([Judgement, List(Judgement)]),
-         Bool,
-         rule_Implies_I,
-       )
-    |> fn(
-         "rule_Implies_E",
-         Prod([Judgement, List(Judgement)]),
-         Bool,
-         rule_Implies_E,
-       )
-    |> fn(
-         "rule_Truth_I",
-         Prod([Judgement, List(Judgement)]),
-         Bool,
-         rule_Truth_I,
-       )
-    |> fn(
-         "rule_Falsity_E",
-         Prod([Judgement, List(Judgement)]),
-         Bool,
-         rule_Falsity_E,
-       );
+    |> rule("rule_Assumption", rule_Assumption)
+    |> rule("rule_And_I", rule_And_I)
+    |> rule("rule_And_E_L", rule_And_E_L)
+    |> rule("rule_And_E_R", rule_And_E_R)
+    |> rule("rule_Or_I_L", rule_Or_I_L)
+    |> rule("rule_Or_I_R", rule_Or_I_R)
+    |> rule("rule_Or_E", rule_Or_E)
+    |> rule("rule_Implies_I", rule_Implies_I)
+    |> rule("rule_Implies_E", rule_Implies_E)
+    |> rule("rule_Truth_I", rule_Truth_I)
+    |> rule("rule_Falsity_E", rule_Falsity_E);
 };
 
 let ctx_init: Ctx.t = {

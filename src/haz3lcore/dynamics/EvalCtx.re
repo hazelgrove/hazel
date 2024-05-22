@@ -43,6 +43,7 @@ type cls =
   | Cast
   | FailedCast
   | InvalidOperation
+  | InvalidDerivation
   | ConsistentCase
   | ConsistentCaseRule(int)
   | InconsistentBranches
@@ -98,6 +99,7 @@ type t =
   | Cast(t, Typ.t, Typ.t)
   | FailedCast(t, Typ.t, Typ.t)
   | InvalidOperation(t, InvalidOperationError.t)
+  | InvalidDerivation(t, DerivationError.VerErr.t)
   | ConsistentCase(case)
   | ConsistentCaseRule(
       DHExp.t,
@@ -161,6 +163,7 @@ let rec fuzzy_mark =
   | Prj(_)
   | NonEmptyHole(_)
   | InvalidOperation(_)
+  | InvalidDerivation(_)
   | ConsistentCase(_)
   | ConsistentCaseRule(_)
   | InconsistentBranches(_)

@@ -47,6 +47,7 @@ module rec DHExp: {
     | Cast(t, Typ.t, Typ.t)
     | FailedCast(t, Typ.t, Typ.t)
     | InvalidOperation(t, InvalidOperationError.t)
+    | InvalidDerivation(t, DerivationError.VerErr.t)
     | IfThenElse(if_consistency, t, t, t) // use bool tag to track if branches are consistent
   and case =
     | Case(t, list(rule), int)
@@ -108,6 +109,7 @@ module rec DHExp: {
     | Cast(t, Typ.t, Typ.t)
     | FailedCast(t, Typ.t, Typ.t)
     | InvalidOperation(t, InvalidOperationError.t)
+    | InvalidDerivation(t, DerivationError.VerErr.t)
     | IfThenElse(if_consistency, t, t, t)
   and case =
     | Case(t, list(rule), int)
@@ -155,6 +157,7 @@ module rec DHExp: {
     | Cast(_, _, _) => "Cast"
     | FailedCast(_, _, _) => "FailedCast"
     | InvalidOperation(_) => "InvalidOperation"
+    | InvalidDerivation(_) => "InvalidDerivation"
     | IfThenElse(_, _, _, _) => "IfThenElse"
     };
 
@@ -223,7 +226,8 @@ module rec DHExp: {
     | PropLit(_) as d
     | JudgementLit(_) as d
     | Constructor(_) as d
-    | InvalidOperation(_) as d => d
+    | InvalidOperation(_) as d
+    | InvalidDerivation(_) as d => d
     | IfThenElse(consistent, c, d1, d2) =>
       IfThenElse(
         consistent,
@@ -292,6 +296,8 @@ module rec DHExp: {
       fast_equal(d1, d2) && ty11 == ty12 && ty21 == ty22
     | (InvalidOperation(d1, reason1), InvalidOperation(d2, reason2)) =>
       fast_equal(d1, d2) && reason1 == reason2
+    | (InvalidDerivation(d1, ver1), InvalidDerivation(d2, ver2)) =>
+      fast_equal(d1, d2) && ver1 == ver2
     | (ConsistentCase(case1), ConsistentCase(case2)) =>
       fast_equal_case(case1, case2)
     | (IfThenElse(c1, d11, d12, d13), IfThenElse(c2, d21, d22, d23)) =>
@@ -324,6 +330,7 @@ module rec DHExp: {
     | (Cast(_), _)
     | (FailedCast(_), _)
     | (InvalidOperation(_), _)
+    | (InvalidDerivation(_), _)
     | (IfThenElse(_), _)
     | (ConsistentCase(_), _) => false
 

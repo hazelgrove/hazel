@@ -253,6 +253,7 @@ and matches_cast_Sum =
   | FailedCast(_, _, _)
   | Test(_)
   | InvalidOperation(_)
+  | InvalidDerivation(_)
   | ConsistentCase(_)
   | Prj(_)
   | IfThenElse(_)
@@ -370,6 +371,7 @@ and matches_cast_Tuple =
   | NonEmptyHole(_) => IndetMatch
   | FailedCast(_, _, _) => IndetMatch
   | InvalidOperation(_) => IndetMatch
+  | InvalidDerivation(_) => IndetMatch
   | IfThenElse(_) => IndetMatch
   }
 and matches_cast_Cons =
@@ -512,5 +514,6 @@ and matches_cast_Cons =
   | NonEmptyHole(_) => IndetMatch
   | FailedCast(_, _, _) => IndetMatch
   | InvalidOperation(_) => IndetMatch
+  | InvalidDerivation(_) => IndetMatch
   | IfThenElse(_) => IndetMatch
   };

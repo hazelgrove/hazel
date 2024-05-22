@@ -104,6 +104,10 @@ let view_of_layout =
                  [with_cls("OperationError", txt)],
                  ds,
                )
+             | DerivationError(_) => (
+                 [with_cls("DerivationError", txt)],
+                 ds,
+               )
              | VarHole(_) => ([with_cls("InVarHole", txt)], ds)
              | Invalid((_, (-666))) =>
                /* Evaluation and Elaboration exceptions */

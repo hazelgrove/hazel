@@ -632,6 +632,7 @@ module Transition = (EV: EV_MODE) => {
     | FreeVar(_)
     | InvalidText(_)
     | InvalidOperation(_)
+    | InvalidDerivation(_)
     | ExpandingKeyword(_) =>
       let. _ = otherwise(env, d);
       Indet;
