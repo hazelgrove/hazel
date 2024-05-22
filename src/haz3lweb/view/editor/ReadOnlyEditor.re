@@ -35,24 +35,12 @@ type event;
 type selection;
 
 let view =
-    (
-      ~ui_state: Model.ui_state,
-      ~settings,
-      ~overlays: list(Node.t)=[],
-      ~sort=Sort.root,
-      model: model,
-    ) => {
-  let code_text_view =
-    Code.view(
-      ~sort,
-      ~font_metrics=ui_state.font_metrics,
-      ~settings,
-      model.editor,
-    );
+    (~globals, ~overlays: list(Node.t)=[], ~sort=Sort.root, model: model) => {
+  let code_text_view = Code.view(~globals, ~sort, model.editor);
   let statics_decos = {
     module Deco =
       Deco.Deco({
-        let ui_state = ui_state;
+        let globals = globals;
         let editor = model.editor;
       });
     Deco.statics(model.statics.error_ids);

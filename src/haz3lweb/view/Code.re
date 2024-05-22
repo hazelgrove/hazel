@@ -147,10 +147,10 @@ let simple_view =
   );
 };
 
-let of_hole = (~font_metrics, ~measured, g: Grout.t) =>
+let of_hole = (~globals: Globals.t, ~measured, g: Grout.t) =>
   // TODO(d) fix sort
   EmptyHoleDec.view(
-    ~font_metrics,
+    ~font_metrics=globals.font_metrics,
     {
       measurement: Measured.find_g(g, measured),
       mold: Mold.of_grout(g, Any),
@@ -159,18 +159,17 @@ let of_hole = (~font_metrics, ~measured, g: Grout.t) =>
 
 let view =
     (
+      ~globals: Globals.t,
       ~sort: Sort.t,
-      ~font_metrics,
-      ~settings: Settings.t,
       {state: {meta: {measured, buffer_ids, unselected, holes, _}, _}, _}: Editor.t,
     )
     : Node.t => {
   module Text =
     Text({
       let map = measured;
-      let settings = settings;
+      let settings = globals.settings;
     });
   let code = Text.of_segment(buffer_ids, false, sort, unselected);
-  let holes = List.map(of_hole(~measured, ~font_metrics), holes);
+  let holes = List.map(of_hole(~measured, ~globals), holes);
   div(~attr=Attr.class_("code"), [span_c("code-text", code), ...holes]);
 };

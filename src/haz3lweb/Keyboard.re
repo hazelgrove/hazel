@@ -13,7 +13,7 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
        keydown, making an update here may trigger an entire
        extra redraw, contingent on model.cutoff */
     switch (key) {
-    | "Alt" => Some(SetMeta(ShowBackpackTargets(false)))
+    | "Alt" => Some(Globals(SetShowBackpackTargets(false)))
     | _ => None
     }
   | {key: D(key), sys: _, shift: Down, meta: Up, ctrl: Up, alt: Up}
@@ -111,7 +111,7 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
     switch (sys, key) {
     | (_, "ArrowLeft") => now(MoveToBackpackTarget(Left(ByToken)))
     | (_, "ArrowRight") => now(MoveToBackpackTarget(Right(ByToken)))
-    | (_, "Alt") => Some(SetMeta(ShowBackpackTargets(true)))
+    | (_, "Alt") => Some(Globals(SetShowBackpackTargets(true)))
     | (_, "ArrowUp") => now(MoveToBackpackTarget(Up))
     | (_, "ArrowDown") => now(MoveToBackpackTarget(Down))
     | _ => None

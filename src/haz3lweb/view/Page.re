@@ -7,7 +7,7 @@ open Node;
 
 let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit), model) => {
   let get_selection = (model: Model.t): option(string) => {
-    let* selection = model.ui_state.active_editor;
+    let* selection = model.active_editor;
     Editors.get_selected_editor(~selection, model.editors, model.results)
     |> Option.map(Printer.to_string_selection);
   };
@@ -26,7 +26,7 @@ let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit), model) => {
     Attr.on_keyup(key_handler(~inject, ~dir=KeyUp)),
     Attr.on_keydown(key_handler(~inject, ~dir=KeyDown)),
     /* safety handler in case mousedown overlay doesn't catch it */
-    Attr.on_mouseup(_ => inject(SetMeta(Mouseup))),
+    Attr.on_mouseup(_ => inject(Globals(SetMousedown(false)))),
     Attr.on_blur(_ => {
       JsUtil.focus_clipboard_shim();
       Effect.Ignore;
@@ -63,16 +63,18 @@ let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit), model) => {
 let main_view =
     (
       ~inject: UpdateAction.t => Ui_effect.t(unit),
-      {settings, editors, explainThisModel, results, statics, ui_state, _}: Model.t,
+      {globals, editors, explainThisModel, results, statics, active_editor, _}: Model.t,
     ) => {
+  let globals = {...globals, inject_global: x => inject(Globals(x))};
+  let settings = globals.settings;
   let _ =
-    switch (ui_state.active_editor) {
+    switch (active_editor) {
     | Some(ae) => print_endline("SELECTED: " ++ Editors.Selection.show(ae))
     | None => print_endline("NO ACTIVE EDITOR")
     };
   let cursor_info =
     Editors.get_cursor_info(
-      ~selection=ui_state.active_editor,
+      ~selection=active_editor,
       ~settings,
       editors,
       results,
@@ -85,16 +87,10 @@ let main_view =
       @ [div(~attr=Attr.id("title"), [text("hazel")])]
       @ [EditorModeView.view(~inject, ~settings, ~editors)],
     );
-  let bottom_bar = CursorInspector.view(~inject, ~settings, cursor_info);
+  let bottom_bar = CursorInspector.view(~globals, cursor_info);
   let sidebar =
     settings.explainThis.show && settings.core.statics
-      ? ExplainThis.view(
-          ~inject,
-          ~ui_state,
-          ~settings,
-          ~explainThisModel,
-          cursor_info,
-        )
+      ? ExplainThis.view(~globals, ~inject, ~explainThisModel, cursor_info)
       : div([]);
   let highlights =
     ExplainThis.get_color_map(~settings, ~explainThisModel, cursor_info);
@@ -105,7 +101,7 @@ let main_view =
       let result_key = ScratchSlide.scratch_key(string_of_int(idx));
       let statics = CachedStatics.lookup(statics, result_key);
       let selected =
-        switch (ui_state.active_editor) {
+        switch (active_editor) {
         | Some(Editors.Selection.Scratch(i)) => Some(i)
         | _ => None
         };
@@ -114,8 +110,7 @@ let main_view =
           s =>
             inject(UpdateAction.MakeActive(Editors.Selection.Scratch(s))),
         ~inject,
-        ~ui_state,
-        ~settings,
+        ~globals,
         ~highlights,
         ~results,
         ~result_key,
@@ -132,7 +127,7 @@ let main_view =
         |> Option.to_list;
       let statics = CachedStatics.lookup(statics, result_key);
       let selected =
-        switch (ui_state.active_editor) {
+        switch (active_editor) {
         | Some(Editors.Selection.Scratch(i)) => Some(i)
         | _ => None
         };
@@ -142,8 +137,7 @@ let main_view =
             s =>
               inject(UpdateAction.MakeActive(Editors.Selection.Scratch(s))),
           ~inject,
-          ~ui_state,
-          ~settings,
+          ~globals,
           ~highlights,
           ~results,
           ~result_key,
@@ -153,7 +147,7 @@ let main_view =
         );
     | Exercises(_, _, exercise) =>
       let selection =
-        switch (ui_state.active_editor) {
+        switch (active_editor) {
         | Some(Editors.Selection.Exercises(pos, sel)) => Some((pos, sel))
         | _ => None
         };
@@ -163,9 +157,8 @@ let main_view =
             inject(
               UpdateAction.MakeActive(Editors.Selection.Exercises(pos, sel)),
             ),
-        ~inject_global=inject,
-        ~ui_state,
-        ~settings,
+        ~inject,
+        ~globals,
         ~selection,
         ~highlights,
         ~results,
@@ -178,7 +171,7 @@ let main_view =
       ~attr=
         Attr.many([
           Attr.id("main"),
-          Attr.classes([Settings.show_mode(settings.mode)]),
+          Attr.classes([Settings.Model.show_mode(settings.mode)]),
         ]),
       editors_view,
     ),

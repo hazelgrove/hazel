@@ -105,10 +105,18 @@ let highlight =
       Attr.many([
         classes,
         Attr.on_mouseenter(_ =>
-          inject(UpdateAction.Set(ExplainThis(SetHighlight(Hover(id)))))
+          inject(
+            UpdateAction.Globals(
+              Set(ExplainThis(SetHighlight(Hover(id)))),
+            ),
+          )
         ),
         Attr.on_mouseleave(_ =>
-          inject(UpdateAction.Set(ExplainThis(SetHighlight(UnsetHover))))
+          inject(
+            UpdateAction.Globals(
+              Set(ExplainThis(SetHighlight(UnsetHover))),
+            ),
+          )
         ),
         Attr.on_click(_ =>
           inject(UpdateAction.PerformAction(Select(Term(Id(id, Left)))))
@@ -206,10 +214,9 @@ let mk_explanation =
 
 let expander_deco =
     (
+      ~globals as {font_metrics, settings, _} as globals: Globals.t,
       ~docs: ExplainThisModel.t,
-      ~settings: Settings.t,
       ~inject,
-      ~ui_state as {font_metrics, _} as ui_state: Model.ui_state,
       ~options: list((ExplainThisForm.form_id, Segment.t)),
       ~group: ExplainThisForm.group,
       ~doc: ExplainThisForm.form,
@@ -218,7 +225,7 @@ let expander_deco =
   module Deco =
     Deco.Deco({
       let editor = editor;
-      let ui_state = ui_state;
+      let globals = globals;
     });
   switch (doc.expandable_id, List.length(options)) {
   | (None, _)
@@ -326,9 +333,8 @@ let expander_deco =
 
 let example_view =
     (
+      ~globals: Globals.t,
       ~inject,
-      ~ui_state,
-      ~settings: Settings.t,
       ~group_id,
       ~form_id,
       ~examples: list(ExplainThisForm.example),
@@ -342,7 +348,7 @@ let example_view =
         List.mapi(
           (_, {term, message, sub_id, _}: ExplainThisForm.example) => {
             let feedback =
-              settings.explainThis.show_feedback
+              globals.settings.explainThis.show_feedback
                 ? [
                   example_feedback_view(
                     ~inject,
@@ -357,11 +363,9 @@ let example_view =
               ~attr=clss(["example"]),
               [
                 CellEditor.view(
+                  ~globals,
                   ~select=_ => Ui_effect.Ignore,
                   ~inject=_ => Ui_effect.Ignore,
-                  ~inject_global=_ => Ui_effect.Ignore,
-                  ~ui_state,
-                  ~settings,
                   ~highlights=None,
                   ~selected=None,
                   ~caption=None,
@@ -373,19 +377,19 @@ let example_view =
                       MakeTerm.from_zip_for_sem(editor.state.zipper);
                     let statics =
                       CachedStatics.statics_of_term(
-                        ~settings=settings.core,
+                        ~settings=globals.settings.core,
                         term,
                         editor,
                       );
                     let result: ModelResult.t =
-                      settings.core.dynamics
+                      globals.settings.core.dynamics
                         ? Evaluation({
                             elab: {
                               d: term,
                             },
                             evaluation:
                               Interface.evaluate(
-                                ~settings=settings.core,
+                                ~settings=globals.settings.core,
                                 term,
                               ),
                             previous: ResultPending,
@@ -446,8 +450,7 @@ let rec bypass_parens_typ = (typ: Typ.t) => {
 type message_mode =
   | MessageContent(
       UpdateAction.t => Virtual_dom.Vdom.Effect.t(unit),
-      Model.ui_state,
-      Settings.t,
+      Globals.t,
     )
   | Colorings;
 
@@ -480,10 +483,10 @@ let get_doc =
       | (_, None) => doc.explanation
       };
     switch (mode) {
-    | MessageContent(inject, ui_state, settings) =>
+    | MessageContent(inject, globals) =>
       let (explanation, color_map) =
         mk_explanation(
-          ~settings,
+          ~settings=globals.settings,
           ~inject,
           group.id,
           doc.id,
@@ -508,10 +511,9 @@ let get_doc =
         Editor.init(~read_only=true, doc.syntactic_form |> Zipper.unzip);
       let expander_deco =
         expander_deco(
+          ~globals,
           ~docs,
-          ~settings,
           ~inject,
-          ~ui_state,
           ~options,
           ~group,
           ~doc,
@@ -523,7 +525,7 @@ let get_doc =
           module Deco =
             Deco.Deco({
               let editor = editor;
-              let ui_state = ui_state;
+              let globals = globals;
             });
           Deco.color_highlights(ColorSteps.to_list(highlights));
         | None => []
@@ -531,17 +533,15 @@ let get_doc =
       let statics = CachedStatics.empty_statics;
       let syntactic_form_view =
         ReadOnlyEditor.view(
-          ~ui_state,
-          ~settings,
+          ~globals,
           ~overlays=highlight_deco @ [expander_deco],
           ~sort,
           {editor, statics},
         );
       let example_view =
         example_view(
+          ~globals,
           ~inject,
-          ~ui_state,
-          ~settings,
           ~group_id=group.id,
           ~form_id=doc.id,
           ~examples=doc.examples,
@@ -2398,18 +2398,13 @@ let get_color_map =
 
 let view =
     (
+      ~globals: Globals.t,
       ~inject,
-      ~ui_state: Model.ui_state,
-      ~settings: Settings.t,
       ~explainThisModel: ExplainThisModel.t,
       info: option(Info.t),
     ) => {
   let (syn_form, (explanation, _), example) =
-    get_doc(
-      ~docs=explainThisModel,
-      info,
-      MessageContent(inject, ui_state, settings),
-    );
+    get_doc(~docs=explainThisModel, info, MessageContent(inject, globals));
   div(
     ~attr=Attr.id("side-bar"),
     [
@@ -2422,16 +2417,18 @@ let view =
               Widgets.toggle(
                 ~tooltip="Toggle highlighting",
                 "🔆",
-                settings.explainThis.highlight == All,
+                globals.settings.explainThis.highlight == All,
                 _ =>
-                inject(UpdateAction.Set(ExplainThis(SetHighlight(Toggle))))
+                globals.inject_global(
+                  Set(ExplainThis(SetHighlight(Toggle))),
+                )
               ),
               div(
                 ~attr=
                   Attr.many([
                     clss(["close"]),
                     Attr.on_click(_ =>
-                      inject(UpdateAction.Set(ExplainThis(ToggleShow)))
+                      globals.inject_global(Set(ExplainThis(ToggleShow)))
                     ),
                   ]),
                 [text("x")],

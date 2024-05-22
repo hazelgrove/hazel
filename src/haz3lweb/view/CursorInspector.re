@@ -12,44 +12,50 @@ let div_ok = div(~attr=clss([okc]));
 let code_err = (code: string): Node.t =>
   div(~attr=clss(["code"]), [text(code)]);
 
-let explain_this_toggle = (~inject, ~show_explain_this: bool): Node.t => {
+let explain_this_toggle = (~globals: Globals.t): Node.t => {
   let tooltip = "Toggle language documentation";
   let toggle_explain_this = _ =>
     Virtual_dom.Vdom.Effect.Many([
-      inject(Update.Set(ExplainThis(ToggleShow))),
+      globals.inject_global(Set(ExplainThis(ToggleShow))),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   div(
     ~attr=clss(["explain-this-button"]),
-    [Widgets.toggle(~tooltip, "?", show_explain_this, toggle_explain_this)],
+    [
+      Widgets.toggle(
+        ~tooltip,
+        "?",
+        globals.settings.explainThis.show,
+        toggle_explain_this,
+      ),
+    ],
   );
 };
 
 let cls_view = (ci: Info.t): Node.t =>
   div(~attr=clss(["syntax-class"]), [text(ci |> Info.cls_of |> Cls.show)]);
 
-let ctx_toggle = (~inject, context_inspector: bool): Node.t =>
+let ctx_toggle = (~globals: Globals.t): Node.t =>
   div(
     ~attr=
       Attr.many([
-        Attr.on_click(_ => inject(Update.Set(ContextInspector))),
-        clss(["gamma"] @ (context_inspector ? ["visible"] : [])),
+        Attr.on_click(_ => globals.inject_global(Set(ContextInspector))),
+        clss(
+          ["gamma"] @ (globals.settings.context_inspector ? ["visible"] : []),
+        ),
       ]),
     [text("Γ")],
   );
 
-let term_view = (~inject, ~settings: Settings.t, ci) => {
+let term_view = (~globals: Globals.t, ci) => {
   let sort = ci |> Info.sort_of |> Sort.show;
   div(
     ~attr=clss(["ci-header", sort] @ (Info.is_error(ci) ? [errc] : [])),
     [
-      ctx_toggle(~inject, settings.context_inspector),
-      CtxInspector.view(~inject, ~settings, ci),
+      ctx_toggle(~globals),
+      CtxInspector.view(~globals, ci),
       div(~attr=clss(["term-tag"]), [text(sort)]),
-      explain_this_toggle(
-        ~inject,
-        ~show_explain_this=settings.explainThis.show,
-      ),
+      explain_this_toggle(~globals),
       cls_view(ci),
     ],
   );
@@ -238,12 +244,9 @@ let tpat_view = (_: Cls.t, status: Info.status_tpat) =>
 
 let secondary_view = (cls: Cls.t) => div_ok([text(cls |> Cls.show)]);
 
-let view_of_info = (~inject, ~settings, ci): Node.t => {
+let view_of_info = (~globals, ci): Node.t => {
   let wrapper = status_view =>
-    div(
-      ~attr=clss(["info"]),
-      [term_view(~inject, ~settings, ci), status_view],
-    );
+    div(~attr=clss(["info"]), [term_view(~globals, ci), status_view]);
   switch (ci) {
   | Secondary(_) => wrapper(div([]))
   | InfoExp({cls, status, _}) => wrapper(exp_view(cls, status))
@@ -253,13 +256,13 @@ let view_of_info = (~inject, ~settings, ci): Node.t => {
   };
 };
 
-let inspector_view = (~inject, ~settings, ci): Node.t =>
+let inspector_view = (~globals, ci): Node.t =>
   div(
     ~attr=clss(["cursor-inspector"] @ [Info.is_error(ci) ? errc : okc]),
-    [view_of_info(~inject, ~settings, ci)],
+    [view_of_info(~globals, ci)],
   );
 
-let view = (~inject, ~settings: Settings.t, cursor_info: option(Info.t)) => {
+let view = (~globals: Globals.t, cursor_info: option(Info.t)) => {
   let bar_view = div(~attr=Attr.id("bottom-bar"));
   let err_view = err =>
     bar_view([
@@ -269,11 +272,11 @@ let view = (~inject, ~settings: Settings.t, cursor_info: option(Info.t)) => {
       ),
     ]);
   switch (cursor_info) {
-  | _ when !settings.core.statics => div_empty
+  | _ when !globals.settings.core.statics => div_empty
   | None => err_view("Whitespace or Comment")
   | Some(ci) =>
     bar_view([
-      inspector_view(~inject, ~settings, ci),
+      inspector_view(~globals, ci),
       div(
         ~attr=clss(["id"]),
         [text(String.sub(Id.to_string(Info.id_of(ci)), 0, 4))],

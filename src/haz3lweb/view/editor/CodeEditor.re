@@ -12,9 +12,7 @@ let update = ReadOnlyEditor.update;
 let calculate = ReadOnlyEditor.calculate;
 
 type event =
-  | MakeActive
-  | MouseUp
-  | MouseDown;
+  | MakeActive;
 
 module View = {
   let get_goal =
@@ -35,13 +33,13 @@ module View = {
     };
   };
 
-  let mousedown_overlay = (~signal, ~inject, ~font_metrics) =>
+  let mousedown_overlay = (~globals: Globals.t, ~inject) =>
     Node.div(
       ~attr=
         Attr.many(
           Attr.[
             id("mousedown-overlay"),
-            on_mouseup(_ => signal(MouseUp)),
+            on_mouseup(_ => globals.inject_global(SetMousedown(false))),
             on_mousemove(e => {
               let mouse_handler =
                 e##.target |> Js.Opt.get(_, _ => failwith("no target"));
@@ -53,7 +51,8 @@ module View = {
                   "code-container",
                 )
                 |> Option.get;
-              let goal = get_goal(~font_metrics, text_box, e);
+              let goal =
+                get_goal(~font_metrics=globals.font_metrics, text_box, e);
               inject(Action.Select(Resize(Goal(Point(goal)))));
             }),
           ],
@@ -61,10 +60,10 @@ module View = {
       [],
     );
 
-  let mousedown_handler = (~signal, ~inject, ~font_metrics, evt) => {
+  let mousedown_handler = (~globals: Globals.t, ~signal, ~inject, evt) => {
     let goal =
       get_goal(
-        ~font_metrics,
+        ~font_metrics=globals.font_metrics,
         evt##.currentTarget
         |> Js.Opt.get(_, _ => failwith(""))
         |> JsUtil.get_child_with_class(_, "code-container")
@@ -80,7 +79,7 @@ module View = {
       ])
     | (false, 1) =>
       Effect.Many([
-        signal(MouseDown),
+        globals.inject_global(SetMousedown(true)),
         signal(MakeActive),
         inject(Action.Move(Goal(Point(goal)))),
       ])
@@ -91,10 +90,9 @@ module View = {
 
   let view =
       (
+        ~globals: Globals.t,
         ~signal: event => Ui_effect.t(unit),
         ~inject: action => Ui_effect.t(unit),
-        ~ui_state: Model.ui_state,
-        ~settings: Settings.t,
         ~selected: bool,
         ~highlights: option(ColorSteps.colorMap),
         ~overlays: list(Node.t)=[],
@@ -105,9 +103,13 @@ module View = {
       module Deco =
         Deco.Deco({
           let editor = model.editor;
-          let ui_state = ui_state;
+          let globals = globals;
         });
-      Deco.editor(model.editor.state.zipper, model.editor.state.meta.segment)
+      Deco.editor(
+        model.editor.state.zipper,
+        model.editor.state.meta.segment,
+        selected,
+      )
       @ (
         switch (highlights) {
         | Some(colorMap) =>
@@ -117,24 +119,11 @@ module View = {
       );
     };
     let overlays = edit_decos @ overlays;
-    let code_view =
-      ReadOnlyEditor.view(~ui_state, ~settings, ~overlays, ~sort?, model);
+    let code_view = ReadOnlyEditor.view(~globals, ~overlays, ~sort?, model);
     let mousedown_overlay =
-      selected && ui_state.mousedown
-        ? [
-          mousedown_overlay(
-            ~signal,
-            ~inject,
-            ~font_metrics=ui_state.font_metrics,
-          ),
-        ]
-        : [];
-    let on_mousedown =
-      mousedown_handler(
-        ~signal,
-        ~inject,
-        ~font_metrics=ui_state.font_metrics,
-      );
+      selected && globals.mousedown
+        ? [mousedown_overlay(~globals, ~inject)] : [];
+    let on_mousedown = mousedown_handler(~globals, ~signal, ~inject);
     Node.div(
       ~attr=
         Attr.many([

@@ -1,4 +1,3 @@
-open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
 
@@ -22,10 +21,6 @@ let simple_cell_view = (items: list(t)) =>
 
 let report_footer_view = content => {
   div(~attr=Attr.classes(["cell-item", "cell-report"]), content);
-};
-
-let test_report_footer_view = (~inject, ~test_results: option(TestResults.t)) => {
-  report_footer_view([TestView.test_summary(~inject, ~test_results)]);
 };
 
 let panel = (~classes=[], content, ~footer: option(t)) => {

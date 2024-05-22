@@ -18,44 +18,16 @@ open Haz3lcore;
 [@deriving (show({with_path: false}), yojson, sexp)]
 type timestamp = float;
 
-/* Non-persistent application state */
-[@deriving (show({with_path: false}), yojson, sexp)]
-type ui_state = {
-  font_metrics: FontMetrics.t,
-  show_backpack_targets: bool,
-  mousedown: bool,
-  active_editor: option(Editors.Selection.t),
-};
-
-let ui_state_init = {
-  font_metrics: FontMetrics.init,
-  show_backpack_targets: false,
-  mousedown: false,
-  active_editor: None,
-};
-
 type t = {
   editors: Editors.t,
-  settings: Settings.t,
   results: ModelResults.t,
   statics: CachedStatics.t,
   explainThisModel: ExplainThisModel.t,
-  ui_state,
+  globals: Globals.t,
+  active_editor: option(Editors.Selection.t),
 };
 
 let cutoff = (===);
-
-let mk = (editors, results, statics) => {
-  editors,
-  settings: Init.startup.settings,
-  results,
-  statics,
-  explainThisModel: ExplainThisModel.init,
-  ui_state: ui_state_init,
-};
-
-let blank =
-  mk(Editors.Scratch(0, []), ModelResults.empty, CachedStatics.empty);
 
 let load_editors = (~settings: Settings.t): (Editors.t, ModelResults.t) =>
   switch (settings.mode) {
@@ -86,19 +58,23 @@ let save_editors =
     Store.Exercise.save((n, specs, exercise), ~instructor_mode)
   };
 
-let load = (init_model: t): t => {
-  let settings = Store.Settings.load();
-  let explainThisModel = Store.ExplainThisModel.load();
+let load = (): t => {
+  let globals = Globals.Model.load();
+  let settings = globals.settings;
   let (editors, results) = load_editors(~settings);
-  let ui_state = init_model.ui_state;
   let statics = Editors.mk_statics(~settings, editors);
-  {editors, settings, results, statics, explainThisModel, ui_state};
+  let explainThisModel = Store.ExplainThisModel.load();
+  {editors, results, statics, globals, explainThisModel, active_editor: None};
 };
 
-let save = ({editors, settings, explainThisModel, results, _}: t) => {
-  save_editors(editors, results, ~instructor_mode=settings.instructor_mode);
+let save = ({editors, globals, results, explainThisModel, _}: t) => {
+  save_editors(
+    editors,
+    results,
+    ~instructor_mode=globals.settings.instructor_mode,
+  );
+  Globals.Model.save(globals);
   Store.ExplainThisModel.save(explainThisModel);
-  Store.Settings.save(settings);
 };
 
 let save_and_return = (model: t) => {
@@ -114,12 +90,12 @@ let reset = (model: t): t => {
   ignore(Store.Scratch.init(~settings));
   ignore(Store.Documentation.init(~settings));
   ignore(Store.Exercise.init(~instructor_mode=true));
-  let new_model = load(blank);
+  let new_model = load();
   {
     ...new_model,
-    ui_state: {
-      ...model.ui_state,
-      font_metrics: model.ui_state.font_metrics,
+    globals: {
+      ...model.globals,
+      font_metrics: model.globals.font_metrics,
     },
   };
 };

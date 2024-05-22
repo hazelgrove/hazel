@@ -19,11 +19,9 @@ type event = CodeEditor.event;
 
 let view =
     (
+      ~globals: Globals.t,
       ~select: Editors.Selection.cell => Ui_effect.t(unit),
       ~inject,
-      ~inject_global,
-      ~ui_state: Model.ui_state,
-      ~settings: Settings.t,
       ~highlights: option(ColorSteps.colorMap),
       ~selected: option(Editors.Selection.cell),
       ~caption: option(Node.t)=?,
@@ -34,15 +32,16 @@ let view =
     ) => {
   let (footer, overlays) =
     CellResult.view(
+      ~globals,
       ~signal=
         fun
         | MakeActive(a) => select(a)
-        | MouseUp => inject_global(Update.SetMeta(Mouseup))
-        | MouseDown => inject_global(Update.SetMeta(Mousedown)),
+        | JumpTo(id) =>
+          Effect.Many([
+            select(MainEditor),
+            inject(MainEditor(Jump(TileId(id)))),
+          ]),
       ~inject=a => inject(ResultAction(a)),
-      ~inject_global,
-      ~ui_state,
-      ~settings,
       ~selected=selected == Some(Result(0)),
       ~result_kind?,
       ~locked,
@@ -58,19 +57,15 @@ let view =
     Option.to_list(caption)
     @ [
       CodeEditor.view(
+        ~globals,
         ~signal=
           locked
             ? _ => Ui_effect.Ignore
             : fun
-              | MouseUp => inject_global(Update.SetMeta(Mouseup))
-              | MouseDown => inject_global(Update.SetMeta(Mousedown))
               | MakeActive => select(Editors.Selection.MainEditor),
         ~inject=
           locked
-            ? _ => Ui_effect.Ignore
-            : (action => inject_global(PerformAction(action))),
-        ~ui_state,
-        ~settings,
+            ? _ => Ui_effect.Ignore : (action => inject(MainEditor(action))),
         ~selected=selected == Some(MainEditor),
         ~highlights,
         ~overlays=overlays(model.editor.editor),

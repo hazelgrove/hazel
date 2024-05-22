@@ -29,7 +29,7 @@ module Settings = {
       data
       |> Sexplib.Sexp.of_string
       |> Settings.t_of_sexp
-      |> Settings.fix_instructor_mode
+      |> Settings.Model.fix_instructor_mode
     ) {
     | _ =>
       print_endline("Could not deserialize settings.");

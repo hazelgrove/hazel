@@ -13,17 +13,16 @@ module Stepped = {
 
   type selection = ReadOnlyEditor.selection;
 
-  let view =
-      (~ui_state: Model.ui_state, ~settings, ~overlays=[], model: model) => {
+  let view = (~globals: Globals.t, ~overlays=[], model: model) => {
     let overlays = {
       module Deco =
         Deco.Deco({
           let editor = model.editor.editor;
-          let ui_state = ui_state;
+          let globals = globals;
         });
       overlays @ Deco.taken_step(model.step_id);
     };
-    ReadOnlyEditor.view(~ui_state, ~settings, ~overlays, model.editor);
+    ReadOnlyEditor.view(~globals, ~overlays, model.editor);
   };
 };
 
@@ -40,9 +39,8 @@ module Steppable = {
 
   let view =
       (
+        ~globals: Globals.t,
         ~signal: event => Ui_effect.t(unit),
-        ~ui_state: Model.ui_state,
-        ~settings,
         ~overlays=[],
         model: model,
       ) => {
@@ -50,11 +48,11 @@ module Steppable = {
       module Deco =
         Deco.Deco({
           let editor = model.editor.editor;
-          let ui_state = ui_state;
+          let globals = globals;
         });
       overlays
       @ Deco.next_steps(model.next_steps, ~inject=x => signal(TakeStep(x)));
     };
-    ReadOnlyEditor.view(~ui_state, ~settings, ~overlays, model.editor);
+    ReadOnlyEditor.view(~globals, ~overlays, model.editor);
   };
 };
