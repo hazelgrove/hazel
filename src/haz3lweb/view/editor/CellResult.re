@@ -217,7 +217,7 @@ module View = {
       CodeEditor.view(
         ~signal=
           fun
-          | MakeActive => signal(MakeActive(MainEditor)),
+          | MakeActive => signal(MakeActive(Result(0))),
         ~inject=a => inject(StepperEditorAction(0, a)),
         ~globals,
         ~selected,
