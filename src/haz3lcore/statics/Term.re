@@ -404,6 +404,7 @@ module UExp = {
     | Let
     | TyAlias
     | Ap
+    | Derive
     | DeferredAp
     | Pipeline
     | If
@@ -451,6 +452,7 @@ module UExp = {
     | Let(_) => Let
     | TyAlias(_) => TyAlias
     | Ap(_) => Ap
+    | Derive(_) => Derive
     | DeferredAp(_) => DeferredAp
     | Pipeline(_) => Pipeline
     | If(_) => If
@@ -557,6 +559,7 @@ module UExp = {
     | Let => "Let expression"
     | TyAlias => "Type Alias definition"
     | Ap => "Application"
+    | Derive => "Derivation"
     | DeferredAp => "Partial Application"
     | Pipeline => "Pipeline expression"
     | If => "If expression"
@@ -592,6 +595,7 @@ module UExp = {
     | Let(_)
     | TyAlias(_)
     | Ap(_)
+    | Derive(_)
     | DeferredAp(_)
     | Pipeline(_)
     | If(_)
@@ -631,6 +635,7 @@ module UExp = {
       | Let(_)
       | TyAlias(_)
       | Ap(_)
+      | Derive(_)
       | DeferredAp(_)
       | Pipeline(_)
       | If(_)
@@ -685,6 +690,7 @@ module UExp = {
       | Filter(_)
       | TyAlias(_)
       | Ap(_)
+      | Derive(_)
       | DeferredAp(_)
       | Pipeline(_)
       | If(_)

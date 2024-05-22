@@ -89,6 +89,15 @@ let rec matches =
     | Ap2(d1, ctx) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       Ap2(d1, ctx);
+    | Derive1(ctx, d2, d3) =>
+      let+ ctx = matches(env, flt, ctx, exp, act, idx);
+      Derive1(ctx, d2, d3);
+    | Derive2(d1, ctx, d3) =>
+      let+ ctx = matches(env, flt, ctx, exp, act, idx);
+      Derive2(d1, ctx, d3);
+    | Derive3(d1, d2, ctx) =>
+      let+ ctx = matches(env, flt, ctx, exp, act, idx);
+      Derive3(d1, d2, ctx);
     | IfThenElse1(c, ctx, d2, d3) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       IfThenElse1(c, ctx, d2, d3);

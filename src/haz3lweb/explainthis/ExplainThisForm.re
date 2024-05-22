@@ -80,6 +80,7 @@ type example_id =
   | Let(let_examples)
   | FunAp
   | ConAp
+  | Derive
   | DeferredAp
   | IfTrue
   | IfFalse
@@ -160,6 +161,7 @@ type form_id =
   | LetExp(pat_sub_form_id)
   | FunApExp
   | ConApExp
+  | DeriveExp
   | DeferredApExp
   | IfExp
   | SeqExp
@@ -252,6 +254,7 @@ type group_id =
   | LetExp(pat_sub_form_id)
   | FunApExp
   | ConApExp
+  | DeriveExp
   | DeferredApExp
   | IfExp
   | SeqExp

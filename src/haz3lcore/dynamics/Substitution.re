@@ -52,6 +52,11 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     Ap(d3, d4);
+  | Derive(d3, d4, d5) =>
+    let d3 = subst_var(d1, x, d3);
+    let d4 = subst_var(d1, x, d4);
+    let d5 = subst_var(d1, x, d5);
+    Derive(d3, d4, d5);
   | ApBuiltin(ident, d1) =>
     let d2 = subst_var(d1, x, d1);
     ApBuiltin(ident, d2);

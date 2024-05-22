@@ -305,6 +305,47 @@ module Transition = (EV: EV_MODE) => {
           value: true,
         })
       };
+    | Derive(conclusion, premises, rule) =>
+      let. _ =
+        otherwise(env, (conclusion, premises, rule) =>
+          Derive(conclusion, premises, rule)
+        )
+      and. rule' =
+        req_final(
+          req(state, env),
+          rule => Derive3(conclusion, premises, rule),
+          rule,
+        )
+      and. premises' =
+        req_final(
+          req(state, env),
+          premises => Derive2(conclusion, premises, rule),
+          premises,
+        )
+      and. conclusion' =
+        req_final(
+          req(state, env),
+          conclusion => Derive1(conclusion, premises, rule),
+          conclusion,
+        );
+      switch (rule') {
+      | BuiltinFun(ident) =>
+        Step({
+          apply: () => {
+            ApBuiltin(ident, Tuple([conclusion', premises']));
+          },
+          kind: BuiltinAp(ident),
+          value: false,
+        })
+      | _ =>
+        Step({
+          apply: () => {
+            raise(EvaluatorError.Exception(InvalidBoxedFun(rule')));
+          },
+          kind: InvalidStep,
+          value: true,
+        })
+      };
     | ApBuiltin(ident, arg) =>
       let. _ = otherwise(env, arg => ApBuiltin(ident, arg))
       and. arg' =

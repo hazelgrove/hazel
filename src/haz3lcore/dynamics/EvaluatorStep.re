@@ -234,6 +234,15 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
     | Ap2(d1, ctx) =>
       let d2 = compose(ctx, d);
       Ap(d1, d2);
+    | Derive1(ctx, d2, d3) =>
+      let d1 = compose(ctx, d);
+      Derive(d1, d2, d3);
+    | Derive2(d1, ctx, d3) =>
+      let d2 = compose(ctx, d);
+      Derive(d1, d2, d3);
+    | Derive3(d1, d2, ctx) =>
+      let d3 = compose(ctx, d);
+      Derive(d1, d2, d3);
     | ApBuiltin(s, ctx) =>
       let d' = compose(ctx, d);
       ApBuiltin(s, d');

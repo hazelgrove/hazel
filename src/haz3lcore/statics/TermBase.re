@@ -128,6 +128,7 @@ and UExp: {
     | Var
     | Let
     | Ap
+    | Derive
     | If
     | Seq
     | Test
@@ -166,6 +167,7 @@ and UExp: {
     | Let(UPat.t, t, t)
     | TyAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)
+    | Derive(t, t, t)
     | DeferredAp(t, list(t))
     | Pipeline(t, t)
     | If(t, t, t)
@@ -280,6 +282,7 @@ and UExp: {
     | Var
     | Let
     | Ap
+    | Derive
     | If
     | Seq
     | Test
@@ -318,6 +321,7 @@ and UExp: {
     | Let(UPat.t, t, t)
     | TyAlias(UTPat.t, UTyp.t, t)
     | Ap(t, t)
+    | Derive(t, t, t)
     | DeferredAp(t, list(t))
     | Pipeline(t, t)
     | If(t, t, t)

@@ -330,6 +330,20 @@ and uexp_to_info_map =
       && !Typ.is_consistent(ctx, ty_in, Prod([]))
         ? BadTrivAp(ty_in) : Just(ty_out);
     add(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
+  | Derive(conclusion, premises, rule) =>
+    let (rule, m) =
+      go(
+        ~mode=Ana(Arrow(Prod([Judgement, List(Judgement)]), Judgement)),
+        rule,
+        m,
+      );
+    let (conclusion, m) = go(~mode=Ana(Judgement), conclusion, m);
+    let (premises, m) = go(~mode=Ana(List(Judgement)), premises, m);
+    add(
+      ~self=Just(Judgement),
+      ~co_ctx=CoCtx.union([rule.co_ctx, conclusion.co_ctx, premises.co_ctx]),
+      m,
+    );
   | DeferredAp(fn, args) =>
     let fn_mode = Mode.of_ap(ctx, mode, UExp.ctr_name(fn));
     let (fn, m) = go(~mode=fn_mode, fn, m);

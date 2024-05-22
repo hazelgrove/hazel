@@ -86,6 +86,7 @@ let rec find_fn =
   | ListConcat(u1, u2)
   | Entail(u1, u2)
   | BinOp(_, u1, u2) => l |> find_fn(name, u1) |> find_fn(name, u2)
+  | Derive(u1, u2, u3)
   | If(u1, u2, u3) =>
     l |> find_fn(name, u1) |> find_fn(name, u2) |> find_fn(name, u3)
   | DeferredAp(fn, args) =>
@@ -186,6 +187,7 @@ let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
   | BinOp(_, u1, u2) => var_mention(name, u1) || var_mention(name, u2)
   | DeferredAp(u1, us) =>
     var_mention(name, u1) || List.exists(var_mention(name), us)
+  | Derive(u1, u2, u3)
   | If(u1, u2, u3) =>
     var_mention(name, u1) || var_mention(name, u2) || var_mention(name, u3)
   | Match(g, l) =>
@@ -238,6 +240,10 @@ let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
     | Var(x) => x == name ? true : var_applied(name, u2)
     | _ => var_applied(name, u1) || var_applied(name, u2)
     }
+  | Derive(concl, prems, rule) =>
+    var_applied(name, concl)
+    || var_applied(name, prems)
+    || var_applied(name, rule)
   | DeferredAp(u1, us) =>
     switch (u1.term) {
     | Var(x) => x == name ? true : List.exists(var_applied(name), us)
@@ -319,6 +325,10 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   | Parens(u) => tail_check(name, u)
   | UnOp(_, u) => !var_mention(name, u)
   | Ap(u1, u2) => var_mention(name, u2) ? false : tail_check(name, u1)
+  | Derive(concl, prems, rule) =>
+    var_mention(name, concl)
+    || var_mention(name, prems)
+    || var_mention(name, rule)
   | DeferredAp(fn, args) =>
     tail_check(
       name,

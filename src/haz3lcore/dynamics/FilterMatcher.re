@@ -109,6 +109,12 @@ let rec matches_exp =
     matches_exp(env, d1, f1) && matches_exp(env, d2, f2)
   | (Ap(_), _) => false
 
+  | (Derive(d1, d2, d3), Derive(f1, f2, f3)) =>
+    matches_exp(env, d1, f1)
+    && matches_exp(env, d2, f2)
+    && matches_exp(env, d3, f3)
+  | (Derive(_), _) => false
+
   | (IfThenElse(dc, d1, d2, d3), IfThenElse(fc, f1, f2, f3)) =>
     dc == fc
     && matches_exp(env, d1, f1)

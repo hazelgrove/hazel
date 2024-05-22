@@ -77,6 +77,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
   | Ap(_) => DHDoc_common.precedence_Ap
+  | Derive(_, _, _) => DHDoc_common.precedence_Ap
   | ApBuiltin(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
   | ListConcat(_) => DHDoc_common.precedence_Plus
@@ -388,6 +389,13 @@ let mk =
           go'(d2, Ap2),
         );
         DHDoc_common.mk_Ap(doc1, doc2);
+      | Derive(d1, d2, d3) =>
+        let (doc1, doc2, doc3) = (
+          go'(d1, Derive1),
+          go'(d2, Derive2),
+          go'(d3, Derive3),
+        );
+        DHDoc_common.mk_Derive(doc1, doc2, doc3);
       | ApBuiltin(ident, d) =>
         DHDoc_common.mk_Ap(
           text(ident),

@@ -13,6 +13,9 @@ type cls =
   | Let2
   | Ap1
   | Ap2
+  | Derive1
+  | Derive2
+  | Derive3
   | Fun
   | FixF
   | BinBoolOp1
@@ -65,6 +68,9 @@ type t =
   | FixF(Var.t, Typ.t, t)
   | Ap1(t, DHExp.t)
   | Ap2(DHExp.t, t)
+  | Derive1(t, DHExp.t, DHExp.t)
+  | Derive2(DHExp.t, t, DHExp.t)
+  | Derive3(DHExp.t, DHExp.t, t)
   | IfThenElse1(if_consistency, t, DHExp.t, DHExp.t)
   | IfThenElse2(if_consistency, DHExp.t, t, DHExp.t)
   | IfThenElse3(if_consistency, DHExp.t, DHExp.t, t)
@@ -138,6 +144,9 @@ let rec fuzzy_mark =
   | FixF(_)
   | Ap1(_)
   | Ap2(_)
+  | Derive1(_)
+  | Derive2(_)
+  | Derive3(_)
   | IfThenElse1(_)
   | IfThenElse2(_)
   | IfThenElse3(_)

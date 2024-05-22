@@ -241,6 +241,7 @@ and matches_cast_Sum =
   | InvalidText(_)
   | Let(_)
   | Ap(_)
+  | Derive(_)
   | ApBuiltin(_)
   | BinBoolOp(_)
   | BinIntOp(_)
@@ -344,6 +345,7 @@ and matches_cast_Tuple =
   | Closure(_, _) => IndetMatch
   | Filter(_, _) => IndetMatch
   | Ap(_, _) => IndetMatch
+  | Derive(_) => IndetMatch
   | ApBuiltin(_, _) => IndetMatch
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)
@@ -488,6 +490,7 @@ and matches_cast_Cons =
   | Closure(_, d') => matches_cast_Cons(dp, d', elt_casts)
   | Filter(_, d') => matches_cast_Cons(dp, d', elt_casts)
   | Ap(_, _) => IndetMatch
+  | Derive(_) => IndetMatch
   | ApBuiltin(_, _) => IndetMatch
   | BinBoolOp(_, _, _)
   | BinIntOp(_, _, _)

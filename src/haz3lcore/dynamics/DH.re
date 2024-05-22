@@ -22,6 +22,7 @@ module rec DHExp: {
     | FixF(Var.t, Typ.t, t)
     | Fun(DHPat.t, Typ.t, t, option(Var.t))
     | Ap(t, t)
+    | Derive(t, t, t)
     | ApBuiltin(string, t)
     | BuiltinFun(string)
     | Test(KeywordID.t, t)
@@ -84,6 +85,7 @@ module rec DHExp: {
     | FixF(Var.t, Typ.t, t)
     | Fun(DHPat.t, Typ.t, t, option(Var.t))
     | Ap(t, t)
+    | Derive(t, t, t)
     | ApBuiltin(string, t)
     | BuiltinFun(string)
     | Test(KeywordID.t, t)
@@ -131,6 +133,7 @@ module rec DHExp: {
     | Fun(_, _, _, _) => "Fun"
     | Closure(_, _) => "Closure"
     | Ap(_, _) => "Ap"
+    | Derive(_, _, _) => "Derive"
     | ApBuiltin(_, _) => "ApBuiltin"
     | BuiltinFun(_) => "BuiltinFun"
     | Test(_) => "Test"
@@ -195,6 +198,8 @@ module rec DHExp: {
     | FixF(a, b, c) => FixF(a, b, strip_casts(c))
     | Fun(a, b, c, d) => Fun(a, b, strip_casts(c), d)
     | Ap(a, b) => Ap(strip_casts(a), strip_casts(b))
+    | Derive(a, b, c) =>
+      Derive(strip_casts(a), strip_casts(b), strip_casts(c))
     | Test(id, a) => Test(id, strip_casts(a))
     | ApBuiltin(fn, args) => ApBuiltin(fn, strip_casts(args))
     | BuiltinFun(fn) => BuiltinFun(fn)
@@ -265,7 +270,10 @@ module rec DHExp: {
       f1 == f2 && ty1 == ty2 && fast_equal(d1, d2)
     | (Fun(dp1, ty1, d1, s1), Fun(dp2, ty2, d2, s2)) =>
       dp1 == dp2 && ty1 == ty2 && fast_equal(d1, d2) && s1 == s2
-    | (Ap(d11, d21), Ap(d12, d22))
+    | (Ap(d11, d21), Ap(d12, d22)) =>
+      fast_equal(d11, d12) && fast_equal(d21, d22)
+    | (Derive(d11, d21, d31), Derive(d12, d22, d32)) =>
+      fast_equal(d11, d12) && fast_equal(d21, d22) && fast_equal(d31, d32)
     | (Cons(d11, d21), Cons(d12, d22)) =>
       fast_equal(d11, d12) && fast_equal(d21, d22)
     | (ListConcat(d11, d21), ListConcat(d12, d22)) =>
@@ -314,6 +322,7 @@ module rec DHExp: {
     | (Fun(_), _)
     | (Test(_), _)
     | (Ap(_), _)
+    | (Derive(_), _)
     | (ApBuiltin(_), _)
     | (BuiltinFun(_), _)
     | (Cons(_), _)

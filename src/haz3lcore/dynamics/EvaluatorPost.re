@@ -64,6 +64,12 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     let* d2' = pp_eval(d2);
     Ap(d1', d2') |> return;
 
+  | Derive(d1, d2, d3) =>
+    let* d1' = pp_eval(d1);
+    let* d2' = pp_eval(d2);
+    let+ d3' = pp_eval(d3);
+    Derive(d1', d2', d3');
+
   | ApBuiltin(f, d1) =>
     let* d1' = pp_eval(d1);
     ApBuiltin(f, d1') |> return;
@@ -321,6 +327,12 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* d2' = pp_uneval(env, d2);
     Ap(d1', d2') |> return;
 
+  | Derive(d1, d2, d3) =>
+    let* d1' = pp_uneval(env, d1);
+    let* d2' = pp_uneval(env, d2);
+    let+ d3' = pp_uneval(env, d3);
+    Derive(d1', d2', d3');
+
   | ApBuiltin(f, d1) =>
     let* d1' = pp_uneval(env, d1);
     ApBuiltin(f, d1') |> return;
@@ -544,6 +556,11 @@ let rec track_children_of_hole =
     Util.TimeUtil.measure_time("track_children_of_hole_rules", true, () =>
       track_children_of_hole_rules(hii, parent, rules)
     );
+
+  | Derive(d1, d2, d3) =>
+    let hii = track_children_of_hole(hii, parent, d1);
+    let hii = track_children_of_hole(hii, parent, d2);
+    track_children_of_hole(hii, parent, d3);
 
   | ApBuiltin(_, d) => track_children_of_hole(hii, parent, d)
 

@@ -92,6 +92,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     /* Normal cases: wrap */
     | BoundVar(_)
     | Ap(_)
+    | Derive(_)
     | ApBuiltin(_)
     | BuiltinFun(_)
     | Prj(_)
@@ -285,6 +286,11 @@ let rec dhexp_of_uexp =
         let* c_fn = dhexp_of_uexp(m, fn);
         let+ c_arg = dhexp_of_uexp(m, arg);
         DHExp.Ap(c_fn, c_arg);
+      | Derive(conclusion, premises, rule) =>
+        let* dconcl = dhexp_of_uexp(m, conclusion);
+        let* dprems = dhexp_of_uexp(m, premises);
+        let+ drule = dhexp_of_uexp(m, rule);
+        DHExp.Derive(dconcl, dprems, drule);
       | DeferredAp(fn, args) =>
         switch (err_status) {
         | InHole(BadPartialAp(NoDeferredArgs)) => dhexp_of_uexp(m, fn)
