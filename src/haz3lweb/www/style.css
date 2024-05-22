@@ -677,6 +677,7 @@ select {
 
 .code-container {
   position: relative;
+  flex-grow:1;
 }
 
 .code {
@@ -2360,7 +2361,7 @@ svg.expandable path {
   min-width: 7.5in;
   width: 7.5in;
 }
-
+  
 .slide h1 {
   margin-top: 0;
 }
@@ -2371,6 +2372,10 @@ svg.expandable path {
 
 .tile-next-step .tile-path.Exp.indicated {
   fill: #8aeda6;
+}
+
+.tile-taken-step .tile-path.Exp.indicated {
+  fill: #ddcda3;
 }
 
 svg.tile-next-step {
