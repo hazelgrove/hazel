@@ -2,10 +2,9 @@ open Haz3lcore;
 
 let view =
     (
+      ~globals,
       ~select,
       ~inject: UpdateAction.t => Ui_effect.t(unit),
-      ~ui_state: Model.ui_state,
-      ~settings: Settings.t,
       ~highlights,
       ~results: ModelResults.t,
       ~result_key,
@@ -16,6 +15,7 @@ let view =
   let result = ModelResults.lookup(results, result_key) |> Option.get;
   [
     CellEditor.view(
+      ~globals,
       ~select,
       ~inject=
         fun
@@ -25,9 +25,6 @@ let view =
         | ResultAction(ToggleStepper) => inject(ToggleStepper(result_key))
         | ResultAction(StepperEditorAction(_, a)) =>
           inject(PerformAction(a)),
-      ~inject_global=inject,
-      ~ui_state,
-      ~settings,
       ~highlights,
       ~selected,
       ~locked=false,

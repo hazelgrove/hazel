@@ -5,7 +5,7 @@ open OptUtil.Syntax;
 
 let assistant_action_to_editor_actions =
     (
-      {settings, ui_state: {active_editor: selection, _}, _} as model: Model.t,
+      {globals: {settings, _}, active_editor: selection, _} as model: Model.t,
       agent_action,
     )
     : list(Action.t) =>

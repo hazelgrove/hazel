@@ -1,3 +1,6 @@
+open Sexplib.Std;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type colorMap = Haz3lcore.Id.Map.t(string);
 
 /*[@deriving sexp]*/

@@ -66,9 +66,14 @@ module TestValidationReport = {
             report.test_results
             |> Option.map(test_results =>
                  TestView.test_bar(
-                   ~inject,
+                   ~inject_jump=
+                     TestView.jump_to_test(
+                       ~inject,
+                       YourTestsValidation,
+                       _,
+                       (),
+                     ),
                    ~test_results,
-                   YourTestsValidation,
                  )
                ),
           ),
@@ -444,7 +449,11 @@ module ImplGradingReport = {
               @ Option.to_list(
                   report.test_results
                   |> Option.map(test_results =>
-                       TestView.test_bar(~inject, ~test_results, HiddenTests)
+                       TestView.test_bar(
+                         ~inject_jump=
+                           TestView.jump_to_test(~inject, HiddenTests, _, ()),
+                         ~test_results,
+                       )
                      ),
                 ),
             ),

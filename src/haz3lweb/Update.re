@@ -2,192 +2,11 @@ open Haz3lcore;
 
 include UpdateAction; // to prevent circularity
 
-let update_settings =
-    (a: settings_action, {settings, _} as model: Model.t): Model.t =>
-  switch (a) {
-  | Statics =>
-    /* NOTE: dynamics depends on statics, so if dynamics is on and
-       we're turning statics off, turn dynamics off as well */
-    {
-      ...model,
-      settings: {
-        ...settings,
-        core: {
-          statics: !settings.core.statics,
-          assist: !settings.core.statics,
-          elaborate: settings.core.elaborate,
-          dynamics: !settings.core.statics && settings.core.dynamics,
-          evaluation: settings.core.evaluation,
-        },
-      },
-    }
-  | Elaborate => {
-      ...model,
-      settings: {
-        ...settings,
-        core: {
-          statics: !settings.core.elaborate || settings.core.statics,
-          assist: settings.core.assist,
-          elaborate: !settings.core.elaborate,
-          dynamics: settings.core.dynamics,
-          evaluation: settings.core.evaluation,
-        },
-      },
-    }
-  | Dynamics => {
-      ...model,
-      settings: {
-        ...settings,
-        core: {
-          statics: !settings.core.dynamics || settings.core.statics,
-          assist: settings.core.assist,
-          elaborate: settings.core.elaborate,
-          dynamics: !settings.core.dynamics,
-          evaluation: settings.core.evaluation,
-        },
-      },
-    }
-  | Assist => {
-      ...model,
-      settings: {
-        ...settings,
-        core: {
-          statics: !settings.core.assist || settings.core.statics,
-          assist: !settings.core.assist,
-          elaborate: settings.core.elaborate,
-          dynamics: settings.core.dynamics,
-          evaluation: settings.core.evaluation,
-        },
-      },
-    }
-  | Evaluation(u) =>
-    let evaluation = settings.core.evaluation;
-    let evaluation' = {
-      switch (u) {
-      | ShowRecord => {
-          ...evaluation,
-          stepper_history: !evaluation.stepper_history,
-        }
-      | ShowCaseClauses => {
-          ...evaluation,
-          show_case_clauses: !evaluation.show_case_clauses,
-        }
-      | ShowFnBodies => {
-          ...evaluation,
-          show_fn_bodies: !evaluation.show_fn_bodies,
-        }
-      | ShowCasts => {...evaluation, show_casts: !evaluation.show_casts}
-      | ShowFixpoints => {
-          ...evaluation,
-          show_fixpoints: !evaluation.show_fixpoints,
-        }
-      | ShowLookups => {
-          ...evaluation,
-          show_lookup_steps: !evaluation.show_lookup_steps,
-        }
-      | ShowFilters => {
-          ...evaluation,
-          show_stepper_filters: !evaluation.show_stepper_filters,
-        }
-      | ShowSettings => {
-          ...evaluation,
-          show_settings: !evaluation.show_settings,
-        }
-      | ShowHiddenSteps => {
-          ...evaluation,
-          show_hidden_steps: !evaluation.show_hidden_steps,
-        }
-      };
-    };
-    {
-      ...model,
-      settings: {
-        ...settings,
-        core: {
-          ...settings.core,
-          evaluation: evaluation',
-        },
-      },
-    };
-  | ExplainThis(ToggleShow) =>
-    let explainThis = {
-      ...settings.explainThis,
-      show: !settings.explainThis.show,
-    };
-    let settings = {...settings, explainThis};
-    {...model, settings};
-  | ExplainThis(ToggleShowFeedback) =>
-    let explainThis = {
-      ...settings.explainThis,
-      show_feedback: !settings.explainThis.show_feedback,
-    };
-    let settings = {...settings, explainThis};
-    {...model, settings};
-  | ExplainThis(SetHighlight(a)) =>
-    let highlight: ExplainThisModel.Settings.highlight =
-      switch (a, settings.explainThis.highlight) {
-      | (Toggle, All) => NoHighlight
-      | (Toggle, _) => All
-      | (Hover(_), All) => All
-      | (Hover(id), _) => One(id)
-      | (UnsetHover, All) => All
-      | (UnsetHover, _) => NoHighlight
-      };
-    let explainThis = {...settings.explainThis, highlight};
-    let settings = {...settings, explainThis};
-    {...model, settings};
-  | Benchmark => {
-      ...model,
-      settings: {
-        ...settings,
-        benchmark: !settings.benchmark,
-      },
-    }
-  | Captions => {
-      ...model,
-      settings: {
-        ...settings,
-        captions: !settings.captions,
-      },
-    }
-  | SecondaryIcons => {
-      ...model,
-      settings: {
-        ...settings,
-        secondary_icons: !settings.secondary_icons,
-      },
-    }
-  | ContextInspector => {
-      ...model,
-      settings: {
-        ...settings,
-        context_inspector: !settings.context_inspector,
-      },
-    }
-  | InstructorMode =>
-    let new_mode = !settings.instructor_mode;
-    {
-      ...model,
-      editors: Editors.set_instructor_mode(model.editors, new_mode),
-      settings: {
-        ...settings,
-        instructor_mode: !settings.instructor_mode,
-      },
-    };
-  | Mode(mode) => {
-      ...model,
-      settings: {
-        ...settings,
-        mode,
-      },
-    }
-  };
-
 let schedule_evaluation = (~schedule_action, model: Model.t): unit =>
-  if (model.settings.core.dynamics) {
+  if (model.globals.settings.core.dynamics) {
     let elabs =
       Editors.get_spliced_elabs(
-        ~settings=model.settings,
+        ~settings=model.globals.settings,
         model.statics,
         model.editors,
       );
@@ -212,11 +31,15 @@ let schedule_evaluation = (~schedule_action, model: Model.t): unit =>
     /* Not sending stepper to worker for now bc closure perf */
     let new_rs =
       model.results
-      |> ModelResults.update_elabs(~settings=model.settings.core, elabs);
+      |> ModelResults.update_elabs(
+           ~settings=model.globals.settings.core,
+           elabs,
+         );
     let step_rs = ModelResults.to_step(new_rs);
     if (!ModelResults.is_empty(step_rs)) {
       let new_rs =
-        step_rs |> ModelResults.run_pending(~settings=model.settings.core);
+        step_rs
+        |> ModelResults.run_pending(~settings=model.globals.settings.core);
       schedule_action(UpdateResult(new_rs));
     } else {
       schedule_action(UpdateResult(new_rs));
@@ -227,10 +50,13 @@ let update_cached_data = (~schedule_action, update, m: Model.t): Model.t => {
   let update_statics = is_edit(update) || reevaluate_post_update(update);
   let update_dynamics = reevaluate_post_update(update);
   let m =
-    update_statics || update_dynamics && m.settings.core.statics
-      ? {...m, statics: Editors.mk_statics(~settings=m.settings, m.editors)}
+    update_statics || update_dynamics && m.globals.settings.core.statics
+      ? {
+        ...m,
+        statics: Editors.mk_statics(~settings=m.globals.settings, m.editors),
+      }
       : m;
-  if (update_dynamics && m.settings.core.dynamics) {
+  if (update_dynamics && m.globals.settings.core.dynamics) {
     schedule_evaluation(~schedule_action, m);
     m;
   } else {
@@ -241,19 +67,19 @@ let update_cached_data = (~schedule_action, update, m: Model.t): Model.t => {
 let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
   switch (
     Editors.get_selected_editor(
-      ~selection=model.ui_state.active_editor |> Option.get,
+      ~selection=model.active_editor |> Option.get,
       model.editors,
       model.results,
     )
     |> Option.get
-    |> Haz3lcore.Perform.go(~settings=model.settings.core, a)
+    |> Haz3lcore.Perform.go(~settings=model.globals.settings.core, a)
   ) {
   | exception (Invalid_argument(_)) => Ok(model)
   | Error(err) => Error(FailedToPerform(err))
   | Ok(ed) =>
     let (editors, results) =
       Editors.put_selected_editor(
-        ~selection=model.ui_state.active_editor |> Option.get,
+        ~selection=model.active_editor |> Option.get,
         model.editors,
         model.results,
         ed,
@@ -317,36 +143,47 @@ let export_persistent_data = () => {
   print_endline("INFO: Persistent data exported to Init.ml");
 };
 
-let ui_state_update =
-    (ui_state: Model.ui_state, update: set_meta, ~schedule_action as _)
-    : Model.ui_state => {
-  switch (update) {
-  | Mousedown => {...ui_state, mousedown: true}
-  | Mouseup => {...ui_state, mousedown: false}
-  | ShowBackpackTargets(b) => {...ui_state, show_backpack_targets: b}
-  | FontMetrics(font_metrics) => {...ui_state, font_metrics}
-  };
-};
-
 let rec apply =
         (model: Model.t, update: t, state: State.t, ~schedule_action)
         : Result.t(Model.t) => {
   let m: Result.t(Model.t) =
     switch (update) {
     | Reset => Ok(Model.reset(model))
-    | Set(Evaluation(_) as s_action) => Ok(update_settings(s_action, model))
-    | Set(s_action) =>
-      let model = update_settings(s_action, model);
-      Model.save(model);
-      switch (update) {
-      // NOTE: Load here necessary to load editors on switching mode
-      | Set(Mode(_)) => Ok(Model.load(model))
-      | _ => Ok(model)
-      };
-    | SetMeta(action) =>
-      let ui_state =
-        ui_state_update(model.ui_state, action, ~schedule_action);
-      Ok({...model, ui_state});
+    | Globals(SetMousedown(b)) =>
+      Ok({
+        ...model,
+        globals: {
+          ...model.globals,
+          mousedown: b,
+        },
+      })
+    | Globals(SetShowBackpackTargets(b)) =>
+      Ok({
+        ...model,
+        globals: {
+          ...model.globals,
+          show_backpack_targets: b,
+        },
+      })
+    | Globals(SetFontMetrics(fm)) =>
+      Ok({
+        ...model,
+        globals: {
+          ...model.globals,
+          font_metrics: fm,
+        },
+      })
+    | Globals(Set(s)) =>
+      Ok({
+        ...model,
+        globals: {
+          ...model.globals,
+          settings: Settings.Update.update(s, model.globals.settings),
+        },
+      })
+    | Globals(JumpToTile(tile)) =>
+      // TODO: jump to tiles in other editors
+      perform_actions(model, [Jump(TileId(tile))])
     | UpdateExplainThisModel(u) =>
       let explainThisModel =
         ExplainThisUpdate.set_update(model.explainThisModel, u);
@@ -363,7 +200,7 @@ let rec apply =
       | None => Ok(model)
       | Some(data) =>
         Export.import_all(data, ~specs=ExerciseSettings.exercises);
-        Ok(Model.load(model));
+        Ok(Model.load());
       }
     | InitImportScratchpad(file) =>
       JsUtil.read_file(file, data =>
@@ -377,11 +214,11 @@ let rec apply =
       export_persistent_data();
       Ok(model);
     | ResetCurrentEditor =>
-      let instructor_mode = model.settings.instructor_mode;
+      let instructor_mode = model.globals.settings.instructor_mode;
       let editors = Editors.reset_current(model.editors, ~instructor_mode);
       Model.save_and_return({...model, editors});
     | SwitchScratchSlide(n) =>
-      let instructor_mode = model.settings.instructor_mode;
+      let instructor_mode = model.globals.settings.instructor_mode;
       switch (switch_scratch_slide(model.editors, ~instructor_mode, n)) {
       | None => Error(FailedToSwitch)
       | Some(editors) => Model.save_and_return({...model, editors})
@@ -391,14 +228,7 @@ let rec apply =
       | None => Error(FailedToSwitch)
       | Some(editors) => Model.save_and_return({...model, editors})
       }
-    | MakeActive(pos) =>
-      Ok({
-        ...model,
-        ui_state: {
-          ...model.ui_state,
-          active_editor: Some(pos),
-        },
-      })
+    | MakeActive(pos) => Ok({...model, active_editor: Some(pos)})
     | TAB =>
       /* Attempt to act intelligently when TAB is pressed.
        * TODO(andrew): Consider more advanced TAB logic. Instead
@@ -408,7 +238,7 @@ let rec apply =
        * put down, farthest position where can put down, next hole */
       let z =
         Editors.get_selected_editor(
-          ~selection=model.ui_state.active_editor |> Option.get,
+          ~selection=model.active_editor |> Option.get,
           model.editors,
           model.results,
         )
@@ -421,7 +251,9 @@ let rec apply =
               ? PerformAction(Put_down) : MoveToNextHole(Right);
       apply(model, a, state, ~schedule_action);
     | PerformAction(a)
-        when model.settings.core.assist && model.settings.core.statics =>
+        when
+          model.globals.settings.core.assist
+          && model.globals.settings.core.statics =>
       open Result.Syntax;
       let* model = perform_actions(model, [ResetSuggestion, a]);
       // let actions =
@@ -436,7 +268,7 @@ let rec apply =
       /* This serializes the current editor to text, resets the current
          editor, and then deserializes. It is intended as a (tactical)
          nuclear option for weird backpack states */
-      switch (model.ui_state.active_editor) {
+      switch (model.active_editor) {
       | None => Ok(model)
       | Some(selection) =>
         switch (
@@ -476,7 +308,7 @@ let rec apply =
     | Undo =>
       switch (
         Editors.update_selected_editor(
-          ~selection=model.ui_state.active_editor,
+          ~selection=model.active_editor,
           editor =>
             switch (Haz3lcore.Editor.undo(editor)) {
             | None => Error(Cant_undo)
@@ -492,7 +324,7 @@ let rec apply =
     | Redo =>
       switch (
         Editors.update_selected_editor(
-          ~selection=model.ui_state.active_editor,
+          ~selection=model.active_editor,
           editor =>
             switch (Haz3lcore.Editor.redo(editor)) {
             | None => Error(Cant_redo)
@@ -529,7 +361,9 @@ let rec apply =
       let r =
         model.results
         |> ModelResults.find(key)
-        |> ModelResult.step_backward(~settings=model.settings.core.evaluation);
+        |> ModelResult.step_backward(
+             ~settings=model.globals.settings.core.evaluation,
+           );
       Ok({...model, results: model.results |> ModelResults.add(key, r)});
     | StepperAction(key, HideStepper)
     | ToggleStepper(key) =>
@@ -541,7 +375,9 @@ let rec apply =
                Some(
                  v
                  |> Option.value(~default=NoElab: ModelResult.t)
-                 |> ModelResult.toggle_stepper(~settings=model.settings.core),
+                 |> ModelResult.toggle_stepper(
+                      ~settings=model.globals.settings.core,
+                    ),
                )
              ),
       })

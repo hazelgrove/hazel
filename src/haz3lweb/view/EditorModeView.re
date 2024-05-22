@@ -8,17 +8,19 @@ let option_view = (name, n) =>
     [text(n)],
   );
 
-let mode_menu = (~inject: Update.t => 'a, ~mode: Settings.mode) =>
+let mode_menu = (~inject: Update.t => 'a, ~mode: Settings.Model.mode) =>
   div(
     ~attr=Attr.many([Attr.class_("mode-name"), Attr.title("Toggle Mode")]),
     [
       select(
         ~attr=
           Attr.on_change((_, name) =>
-            inject(Set(Mode(Settings.mode_of_string(name))))
+            inject(
+              Globals(Set(Mode(Settings.Model.mode_of_string(name)))),
+            )
           ),
         List.map(
-          option_view(Settings.show_mode(mode)),
+          option_view(Settings.Model.show_mode(mode)),
           ["Scratch", "Documentation", "Exercises"],
         ),
       ),
@@ -98,14 +100,14 @@ let instructor_toggle = (~inject, ~instructor_mode) =>
   ExerciseSettings.show_instructor
     ? [
       toggle("🎓", ~tooltip="Toggle Instructor Mode", instructor_mode, _ =>
-        inject(Update.Set(InstructorMode))
+        inject(Globals.Update.Set(InstructorMode))
       ),
     ]
     : [];
 
 let exercises_view = (~inject, ~cur_slide, ~specs, ~instructor_mode) => {
   [mode_menu(~inject, ~mode=Exercises)]
-  @ instructor_toggle(~inject, ~instructor_mode)
+  @ instructor_toggle(~inject=u => inject(Globals(u)), ~instructor_mode)
   @ slide_select(~inject, ~cur_slide, ~num_slides=List.length(specs));
 };
 

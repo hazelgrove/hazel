@@ -29,8 +29,7 @@ let update = (~settings: CoreSettings.t, action, model) =>
 module View = {
   type event =
     | MakeActive(Editors.Selection.cell)
-    | MouseUp
-    | MouseDown;
+    | JumpTo(Haz3lcore.Id.t);
 
   let error_msg = (err: ProgramResult.error) =>
     switch (err) {
@@ -48,11 +47,9 @@ module View = {
 
   let stepper_view =
       (
+        ~globals as {settings, inject_global, _} as globals: Globals.t,
         ~signal as _: event => Ui_effect.t(unit),
         ~inject: action => Ui_effect.t(unit),
-        ~inject_global: Update.t => Ui_effect.t(unit),
-        ~ui_state,
-        ~settings: Settings.t,
         ~read_only: bool,
         stepper: Stepper.t,
       ) => {
@@ -105,10 +102,9 @@ module View = {
               div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
               StepperEditor.Steppable.view(
                 // TODO: Maybe get rid of this signal?
+                ~globals,
                 ~signal=
                   (TakeStep(x)) => inject(StepperAction(StepForward(x))),
-                ~ui_state,
-                ~settings,
                 ~overlays=[],
                 current_model,
               ),
@@ -116,10 +112,9 @@ module View = {
             : [
               div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
               StepperEditor.Steppable.view(
+                ~globals,
                 ~signal=
                   (TakeStep(x)) => inject(StepperAction(StepForward(x))),
-                ~ui_state,
-                ~settings,
                 ~overlays=[],
                 current_model,
               ),
@@ -150,12 +145,7 @@ module View = {
               ),
             [
               div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
-              StepperEditor.Stepped.view(
-                ~ui_state,
-                ~settings,
-                ~overlays=[],
-                model,
-              ),
+              StepperEditor.Stepped.view(~globals, ~overlays=[], model),
               div(
                 ~attr=Attr.classes(["stepper-justification"]),
                 step.chosen_step
@@ -200,7 +190,7 @@ module View = {
       @ (
         settings.core.evaluation.show_settings
           ? SettingsModal.view(
-              ~inject=inject_global,
+              ~inject=u => inject_global(Set(u)),
               settings.core.evaluation,
             )
           : []
@@ -210,10 +200,9 @@ module View = {
 
   let live_eval =
       (
+        ~globals: Globals.t,
         ~signal: event => Ui_effect.t(unit),
         ~inject: action => Ui_effect.t(unit),
-        ~ui_state,
-        ~settings: Settings.t,
         ~selected,
         ~locked,
         result: ModelResult.eval_result,
@@ -228,12 +217,9 @@ module View = {
       CodeEditor.view(
         ~signal=
           fun
-          | MakeActive => signal(MakeActive(MainEditor))
-          | MouseUp => signal(MouseUp)
-          | MouseDown => signal(MouseDown),
+          | MakeActive => signal(MakeActive(MainEditor)),
         ~inject=a => inject(StepperEditorAction(0, a)),
-        ~ui_state,
-        ~settings,
+        ~globals,
         ~selected,
         ~highlights=None,
         ~sort=Sort.root,
@@ -278,39 +264,28 @@ module View = {
 
   let footer =
       (
+        ~globals: Globals.t,
         ~signal,
         ~inject,
-        ~inject_global,
-        ~ui_state: Model.ui_state,
-        ~settings: Settings.t,
         ~result: ModelResult.t,
         ~selected: option(int),
         ~locked,
       ) =>
     switch (result) {
-    | _ when !settings.core.dynamics => []
+    | _ when !globals.settings.core.dynamics => []
     | NoElab => []
     | Evaluation(result) => [
         live_eval(
+          ~globals,
           ~signal,
           ~inject,
-          ~ui_state,
-          ~settings,
           ~selected=selected == Some(0),
           ~locked,
           result,
         ),
       ]
     | Stepper(s) =>
-      stepper_view(
-        ~signal,
-        ~inject,
-        ~inject_global,
-        ~settings,
-        ~ui_state,
-        ~read_only=locked,
-        s,
-      )
+      stepper_view(~globals, ~signal, ~inject, ~read_only=locked, s)
     };
 
   let test_status_icon_view =
@@ -347,11 +322,9 @@ module View = {
 
   let view =
       (
+        ~globals: Globals.t,
         ~signal: event => Ui_effect.t(unit),
         ~inject: action => Ui_effect.t(unit),
-        ~inject_global: UpdateAction.t => Ui_effect.t(unit),
-        ~ui_state: Model.ui_state,
-        ~settings: Settings.t,
         ~selected: bool,
         ~result_kind=EvalResults,
         ~locked: bool,
@@ -359,14 +332,12 @@ module View = {
       ) =>
     switch (result_kind) {
     // Normal case:
-    | EvalResults when settings.core.dynamics =>
+    | EvalResults when globals.settings.core.dynamics =>
       let result =
         footer(
+          ~globals,
           ~signal,
           ~inject,
-          ~inject_global,
-          ~ui_state: Model.ui_state,
-          ~settings,
           ~result=model,
           ~selected=selected ? Some(0) : None,
           ~locked,
@@ -375,7 +346,7 @@ module View = {
         switch (ModelResult.test_results(model)) {
         | Some(result) =>
           test_result_layer(
-            ~font_metrics=ui_state.font_metrics,
+            ~font_metrics=globals.font_metrics,
             ~measured=editor.state.meta.measured,
             result,
           )
@@ -384,14 +355,13 @@ module View = {
       (result, test_overlay);
 
     // Just showing elaboration because evaluation is off:
-    | EvalResults when settings.core.elaborate =>
+    | EvalResults when globals.settings.core.elaborate =>
       let result = [
         text("Evaluation disabled, showing elaboration:"),
         switch (ModelResult.get_elaboration(model)) {
         | Some(elab) =>
           ReadOnlyEditor.view(
-            ~ui_state,
-            ~settings,
+            ~globals,
             {
               editor: elab.d |> ExpToSegment.exp_to_editor(~inline=false),
               statics: CachedStatics.empty_statics,
@@ -413,7 +383,7 @@ module View = {
         switch (ModelResult.test_results(model)) {
         | Some(result) =>
           test_result_layer(
-            ~font_metrics=ui_state.font_metrics,
+            ~font_metrics=globals.font_metrics,
             ~measured=editor.state.meta.measured,
             result,
           )
@@ -422,7 +392,10 @@ module View = {
       (
         [
           Cell.report_footer_view([
-            TestView.test_summary(~inject=inject_global, ~test_results),
+            TestView.test_summary(
+              ~inject_jump=tile => signal(JumpTo(tile)),
+              ~test_results,
+            ),
           ]),
         ],
         test_overlay,

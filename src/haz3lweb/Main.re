@@ -79,7 +79,7 @@ module App = {
   let on_startup = (~schedule_action, m: Model.t) => {
     let _ =
       observe_font_specimen("font-specimen", fm =>
-        schedule_action(Haz3lweb.Update.SetMeta(FontMetrics(fm)))
+        schedule_action(Haz3lweb.Update.Globals(SetFontMetrics(fm)))
       );
 
     JsUtil.focus_clipboard_shim();
@@ -138,6 +138,6 @@ switch (JsUtil.Fragment.get_current()) {
     (module App),
     ~debug=false,
     ~bind_to_element_with_id="container",
-    ~initial_model=Model.load(Model.blank),
+    ~initial_model=Model.load(),
   )
 };

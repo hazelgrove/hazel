@@ -3,12 +3,12 @@ open Util;
 open Haz3lcore;
 
 module Deco = (M: {
-                 let ui_state: Model.ui_state;
+                 let globals: Globals.t;
                  let editor: Editor.t;
                }) => {
-  let font_metrics = M.ui_state.font_metrics;
+  let font_metrics = M.globals.font_metrics;
   let map = M.editor.state.meta.measured;
-  let show_backpack_targets = M.ui_state.show_backpack_targets;
+  let show_backpack_targets = M.globals.show_backpack_targets;
   let terms = M.editor.state.meta.terms;
   let term_ranges = M.editor.state.meta.term_ranges;
   let tiles = M.editor.state.meta.tiles;
@@ -317,12 +317,14 @@ module Deco = (M: {
 
   let statics = eh => err_holes(eh);
 
-  let editor = (zipper, sel_seg) =>
-    List.concat([
-      caret(zipper),
-      indicated_piece_deco(zipper),
-      selected_pieces(zipper),
-      backpack(zipper),
-      targets'(zipper.backpack, sel_seg),
-    ]);
+  let editor = (zipper, sel_seg, selected) =>
+    selected
+      ? List.concat([
+          caret(zipper),
+          indicated_piece_deco(zipper),
+          selected_pieces(zipper),
+          backpack(zipper),
+          targets'(zipper.backpack, sel_seg),
+        ])
+      : [];
 };

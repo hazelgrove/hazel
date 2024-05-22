@@ -6,7 +6,7 @@ open Haz3lcore;
 
 let print =
     (
-      {settings, editors, ui_state: {active_editor, _}, results, _}: Model.t,
+      {globals: {settings, _}, editors, active_editor, results, _}: Model.t,
       key: string,
     )
     : unit => {

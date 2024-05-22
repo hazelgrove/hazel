@@ -3,7 +3,7 @@ open Node;
 open Util.Web;
 
 let jump_to = entry =>
-  UpdateAction.PerformAction(Jump(TileId(Haz3lcore.Ctx.get_id(entry))));
+  Globals.Update.JumpToTile(Haz3lcore.Ctx.get_id(entry));
 
 let context_entry_view = (~inject, entry: Haz3lcore.Ctx.entry): Node.t => {
   let div_name =
@@ -52,11 +52,11 @@ let ctx_sorts_view = (~inject, ci: Haz3lcore.Statics.Info.t) =>
   |> List.rev
   |> List.map(context_entry_view(~inject));
 
-let view =
-    (~inject, ~settings: Settings.t, ci: Haz3lcore.Statics.Info.t): Node.t => {
+let view = (~globals: Globals.t, ci: Haz3lcore.Statics.Info.t): Node.t => {
   let clss =
     clss(
-      ["context-inspector"] @ (settings.context_inspector ? ["visible"] : []),
+      ["context-inspector"]
+      @ (globals.settings.context_inspector ? ["visible"] : []),
     );
-  div(~attr=clss, ctx_sorts_view(~inject, ci));
+  div(~attr=clss, ctx_sorts_view(~inject=globals.inject_global, ci));
 };

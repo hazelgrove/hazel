@@ -3,33 +3,6 @@ open Util;
 open Haz3lcore;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type evaluation_settings_action =
-  | ShowRecord
-  | ShowCaseClauses
-  | ShowFnBodies
-  | ShowCasts
-  | ShowFixpoints
-  | ShowLookups
-  | ShowFilters
-  | ShowSettings
-  | ShowHiddenSteps;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type settings_action =
-  | Captions
-  | SecondaryIcons
-  | Statics
-  | Dynamics
-  | Assist
-  | Elaborate
-  | Benchmark
-  | ContextInspector
-  | InstructorMode
-  | Evaluation(evaluation_settings_action)
-  | ExplainThis(ExplainThisModel.Settings.action)
-  | Mode(Settings.mode);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type stepper_action =
   | StepForward(int)
   | StepBackward
@@ -43,13 +16,6 @@ type agent =
 type agent_action =
   | Prompt(agent)
   | AcceptSuggestion;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type set_meta =
-  | Mousedown
-  | Mouseup
-  | ShowBackpackTargets(bool)
-  | FontMetrics(FontMetrics.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type benchmark_action =
@@ -69,9 +35,8 @@ type cell_action =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   /* meta */
+  | Globals(Globals.Update.t)
   | Reset
-  | Set(settings_action)
-  | SetMeta(set_meta)
   | UpdateExplainThisModel(ExplainThisUpdate.update)
   | ExportPersistentData
   | DebugConsole(string)
@@ -121,7 +86,7 @@ module Result = {
 let is_edit: t => bool =
   fun
   | PerformAction(a) => Action.is_edit(a)
-  | Set(s_action) =>
+  | Globals(Set(s_action)) =>
     switch (s_action) {
     | Mode(_) => true
     | Captions
@@ -136,13 +101,11 @@ let is_edit: t => bool =
     | InstructorMode
     | Evaluation(_) => false
     }
-  | SetMeta(meta_action) =>
-    switch (meta_action) {
-    | Mousedown
-    | Mouseup
-    | ShowBackpackTargets(_)
-    | FontMetrics(_) => false
-    }
+  | Globals(
+      SetMousedown(_) | SetShowBackpackTargets(_) | SetFontMetrics(_) |
+      JumpToTile(_),
+    ) =>
+    false
   | Cut
   | Undo
   | Redo
@@ -174,7 +137,7 @@ let is_edit: t => bool =
 let reevaluate_post_update: t => bool =
   fun
   | PerformAction(a) => Action.is_edit(a)
-  | Set(s_action) =>
+  | Globals(Set(s_action)) =>
     switch (s_action) {
     | Assist
     | Captions
@@ -196,13 +159,11 @@ let reevaluate_post_update: t => bool =
     | InstructorMode
     | Mode(_) => true
     }
-  | SetMeta(meta_action) =>
-    switch (meta_action) {
-    | Mousedown
-    | Mouseup
-    | ShowBackpackTargets(_)
-    | FontMetrics(_) => false
-    }
+  | Globals(
+      SetMousedown(_) | SetShowBackpackTargets(_) | SetFontMetrics(_) |
+      JumpToTile(_),
+    ) =>
+    false
   | Assistant(AcceptSuggestion) => true
   | Assistant(Prompt(_)) => false
   | MoveToNextHole(_)
@@ -233,7 +194,7 @@ let reevaluate_post_update: t => bool =
 
 let should_scroll_to_caret =
   fun
-  | Set(s_action) =>
+  | Globals(Set(s_action)) =>
     switch (s_action) {
     | Mode(_) => true
     | Captions
@@ -248,13 +209,9 @@ let should_scroll_to_caret =
     | InstructorMode
     | Evaluation(_) => false
     }
-  | SetMeta(meta_action) =>
-    switch (meta_action) {
-    | FontMetrics(_) => true
-    | Mousedown
-    | Mouseup
-    | ShowBackpackTargets(_) => false
-    }
+  | Globals(SetFontMetrics(_)) => true
+  | Globals(SetMousedown(_) | SetShowBackpackTargets(_) | JumpToTile(_)) =>
+    false
   | Assistant(Prompt(_))
   | UpdateResult(_)
   | UpdateEvals(_)

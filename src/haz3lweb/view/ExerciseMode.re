@@ -21,11 +21,10 @@ let render_cells = (settings: Settings.t, v: list(vis_marked(Node.t))) => {
 
 let view =
     (
+      ~globals: Globals.t,
+      ~inject,
       ~select,
-      ~inject_global,
-      ~ui_state: Model.ui_state,
       ~selection: option((Exercise.pos, Editors.Selection.cell)),
-      ~settings: Settings.t,
       ~exercise,
       ~results,
       ~highlights,
@@ -33,9 +32,9 @@ let view =
   let Exercise.{eds} = exercise;
   let stitched_dynamics =
     Exercise.stitch_dynamic(
-      settings.core,
+      globals.settings.core,
       exercise,
-      settings.core.dynamics ? Some(results) : None,
+      globals.settings.core.dynamics ? Some(results) : None,
     );
   let {
     test_validation,
@@ -62,6 +61,7 @@ let view =
         this_pos: Exercise.pos,
       ) => {
     CellEditor.view(
+      ~globals,
       ~select=s => select((this_pos, s)),
       ~selected=
         switch (selection) {
@@ -71,21 +71,18 @@ let view =
       ~inject=
         fun
         | ResultAction(StepperEditorAction(_, a))
-        | MainEditor(a) => inject_global(UpdateAction.PerformAction(a))
+        | MainEditor(a) => inject(UpdateAction.PerformAction(a))
         | ResultAction(StepperAction(a)) =>
-          inject_global(
+          inject(
             UpdateAction.StepperAction(
               Exercise.key_for_statics(this_pos),
               a,
             ),
           )
         | ResultAction(ToggleStepper) =>
-          inject_global(
+          inject(
             UpdateAction.ToggleStepper(Exercise.key_for_statics(this_pos)),
           ),
-      ~inject_global,
-      ~ui_state,
-      ~settings,
       ~highlights,
       ~result_kind,
       ~caption=Cell.caption(caption, ~rest=?subcaption),
@@ -119,7 +116,7 @@ let view =
       editor_view(
         Prelude,
         ~caption="Prelude",
-        ~subcaption=settings.instructor_mode ? "" : " (Read-Only)",
+        ~subcaption=globals.settings.instructor_mode ? "" : " (Read-Only)",
         ~editor=eds.prelude,
         ~di=prelude,
       ),
@@ -164,7 +161,10 @@ let view =
             switch (specific_ctx) {
             | None => Node.div([text("No context available")]) // TODO show exercise configuration error
             | Some(specific_ctx) =>
-              CtxInspector.ctx_view(~inject=inject_global, specific_ctx)
+              CtxInspector.ctx_view(
+                ~inject=globals.inject_global,
+                specific_ctx,
+              )
             };
           };
         };
@@ -211,7 +211,7 @@ let view =
   let mutation_testing_view =
     Always(
       Grading.MutationTestingReport.view(
-        ~inject=inject_global,
+        ~inject,
         grading_report.mutation_testing_report,
         grading_report.point_distribution.mutation_testing,
       ),
@@ -259,7 +259,7 @@ let view =
   let impl_grading_view =
     Always(
       Grading.ImplGradingReport.view(
-        ~inject=inject_global,
+        ~inject,
         ~report=grading_report.impl_grading_report,
         ~syntax_report=grading_report.syntax_report,
         ~max_points=grading_report.point_distribution.impl_grading,
@@ -268,7 +268,7 @@ let view =
 
   [score_view, title_view, prompt_view]
   @ render_cells(
-      settings,
+      globals.settings,
       [
         prelude_view,
         correct_impl_view,

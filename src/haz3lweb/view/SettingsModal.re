@@ -2,15 +2,17 @@ open Virtual_dom.Vdom;
 open Node;
 open Haz3lcore;
 
-let view = (~inject, settings: CoreSettings.Evaluation.t) => {
+let view =
+    (
+      ~inject: Settings.Update.t => Ui_effect.t(unit),
+      settings: CoreSettings.Evaluation.t,
+    ) => {
   let modal = div(~attr=Attr.many([Attr.class_("settings-modal")]));
-  let setting = (icon, name, current, action: UpdateAction.settings_action) =>
+  let setting = (icon, name, current, action: Settings.Update.t) =>
     div(
       ~attr=Attr.many([Attr.class_("settings-toggle")]),
       [
-        Widgets.toggle(~tooltip=name, icon, current, _ =>
-          inject(Update.Set(action))
-        ),
+        Widgets.toggle(~tooltip=name, icon, current, _ => inject(action)),
         text(name),
       ],
     );
@@ -18,11 +20,7 @@ let view = (~inject, settings: CoreSettings.Evaluation.t) => {
     modal([
       div(
         ~attr=Attr.many([Attr.class_("settings-modal-top")]),
-        [
-          Widgets.button(Icons.x, _ =>
-            inject(Update.Set(Evaluation(ShowSettings)))
-          ),
-        ],
+        [Widgets.button(Icons.x, _ => inject(Evaluation(ShowSettings)))],
       ),
       setting(
         "h",
@@ -77,9 +75,7 @@ let view = (~inject, settings: CoreSettings.Evaluation.t) => {
       ~attr=
         Attr.many([
           Attr.class_("modal-back"),
-          Attr.on_mousedown(_ =>
-            inject(Update.Set(Evaluation(ShowSettings)))
-          ),
+          Attr.on_mousedown(_ => inject(Evaluation(ShowSettings))),
         ]),
       [],
     ),

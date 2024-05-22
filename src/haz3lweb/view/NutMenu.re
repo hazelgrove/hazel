@@ -49,7 +49,7 @@ let settings_menu =
     ) => {
   let toggle = (icon, tooltip, bool, setting) =>
     toggle_named(icon, ~tooltip, bool, _ =>
-      inject(UpdateAction.Set(setting))
+      inject(UpdateAction.Globals(Set(setting)))
     );
   [
     toggle("τ", "Toggle Statics", core.statics, Statics),

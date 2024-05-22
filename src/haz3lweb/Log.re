@@ -4,7 +4,10 @@ open Sexplib.Std;
 
 let is_action_logged: UpdateAction.t => bool =
   fun
-  | SetMeta(_)
+  | Globals(
+      SetMousedown(_) | SetShowBackpackTargets(_) | SetFontMetrics(_) |
+      JumpToTile(_),
+    )
   | Save
   | InitImportAll(_)
   | InitImportScratchpad(_)
@@ -18,7 +21,7 @@ let is_action_logged: UpdateAction.t => bool =
   | Reset
   | TAB
   | Assistant(_)
-  | Set(_)
+  | Globals(Set(_))
   | SwitchScratchSlide(_)
   | SwitchDocumentationSlide(_)
   | MakeActive(_)
