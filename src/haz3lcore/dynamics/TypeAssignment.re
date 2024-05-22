@@ -15,6 +15,7 @@ let delta_ty = (id: MetaVar.t, m: Statics.Map.t): option(Typ.t) => {
   | Some(InfoExp({mode, ctx, _})) =>
     switch (mode) {
     | Syn
+    | SynTypFun
     | SynFun => Some(Unknown(Internal))
     | Ana(ana_ty) => Some(Typ.normalize(ctx, ana_ty))
     }
@@ -29,7 +30,8 @@ let ground = (ty: Typ.t): bool => {
   };
 };
 
-let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) => {
+let dhpat_extend_ctx =
+    (dhpat: DHPat.t, ty: Typ.t, m: Statics.Map.t, ctx: Ctx.t): option(Ctx.t) => {
   let rec dhpat_var_entry =
           (dhpat: DHPat.t, ty: Typ.t): option(list(Ctx.entry)) => {
     switch (dhpat) {
@@ -65,18 +67,25 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
     | Ap(Constructor(_, typ), dhp) =>
       let (ty1, ty2) = Typ.matched_arrow(ctx, typ);
       Typ.eq(ty2, ty) ? dhpat_var_entry(dhp, ty1) : None;
-    | EmptyHole(_)
-    | NonEmptyHole(_)
+    | EmptyHole(id, _) =>
+      switch (delta_ty(id, m)) {
+      | None => None
+      | Some(_) => Some([])
+      }
+    | NonEmptyHole(_, id, _, dhp) =>
+      switch (delta_ty(id, m)) {
+      | None => None
+      | Some(_) => dhpat_var_entry(dhp, ty)
+      }
     | Wild
-    | ExpandingKeyword(_)
     | InvalidText(_)
-    | BadConstructor(_)
-    | IntLit(_)
-    | FloatLit(_)
-    | BoolLit(_)
-    | StringLit(_)
-    | Constructor(_)
-    | Ap(_) => Some([])
+    | Ap(_)
+    | BadConstructor(_) => Some([])
+    | IntLit(_) => Typ.eq(ty, Int) ? Some([]) : None
+    | FloatLit(_) => Typ.eq(ty, Float) ? Some([]) : None
+    | BoolLit(_) => Typ.eq(ty, Bool) ? Some([]) : None
+    | StringLit(_) => Typ.eq(ty, String) ? Some([]) : None
+    | Constructor(_, typ) => Typ.eq(ty, typ) ? Some([]) : None
     };
   };
   let+ l = dhpat_var_entry(dhpat, ty);
@@ -93,21 +102,21 @@ let rec typ_of_dhexp =
     | Some(_) => delta_ty(id, m)
     }
   | FreeVar(id, _, _) => delta_ty(id, m)
-  | ExpandingKeyword(_)
   | InvalidText(_) => Some(Unknown(Internal))
   | InconsistentBranches(_, _, Case(d_scrut, d_rules, _)) =>
     let* ty' = typ_of_dhexp(ctx, m, d_scrut);
-    let typ_cases =
+    let* typ_cases =
       d_rules
       |> List.map((DHExp.Rule(dhp, de)) => {
-           let* ctx = dhpat_extend_ctx(dhp, ty', ctx);
+           let* ctx = dhpat_extend_ctx(dhp, ty', m, ctx);
            typ_of_dhexp(ctx, m, de);
          })
       |> OptUtil.sequence;
 
-    switch (typ_cases) {
-    | None => None
-    | Some(_) => Some(Typ.Unknown(Internal))
+    //Making sure that there at least one inconsistent branch
+    switch (equal_typ_list(typ_cases)) {
+    | None => Some(Typ.Unknown(Internal))
+    | Some(_) => None
     };
   | Closure(env, d) =>
     let* l =
@@ -134,15 +143,17 @@ let rec typ_of_dhexp =
     typ_of_dhexp(ctx, m, d2);
   | Let(dhp, de, db) =>
     let* ty1 = typ_of_dhexp(ctx, m, de);
-    let* ctx = dhpat_extend_ctx(dhp, ty1, ctx);
+    let* ctx = dhpat_extend_ctx(dhp, ty1, m, ctx);
     typ_of_dhexp(ctx, m, db);
   | FixF(name, ty1, d) =>
     let entry = Ctx.VarEntry({name, id: Id.invalid, typ: ty1});
     typ_of_dhexp(Ctx.extend(ctx, entry), m, d);
   | Fun(dhp, ty1, d, _) =>
-    let* ctx = dhpat_extend_ctx(dhp, ty1, ctx);
+    let* ctx = dhpat_extend_ctx(dhp, ty1, m, ctx);
     let* ty2 = typ_of_dhexp(ctx, m, d);
     Some(Typ.Arrow(ty1, ty2));
+  | TypFun(_, d, _) => typ_of_dhexp(ctx, m, d)
+  | TypAp(d, _) => typ_of_dhexp(ctx, m, d)
   | Ap(d1, d2) =>
     let* ty1 = typ_of_dhexp(ctx, m, d1);
     let* ty2 = typ_of_dhexp(ctx, m, d2);
@@ -253,7 +264,7 @@ let rec typ_of_dhexp =
     let* typ_cases: list(Typ.t) =
       d_rules
       |> List.map((DHExp.Rule(dhp, de)) => {
-           let* ctx = dhpat_extend_ctx(dhp, ty', ctx);
+           let* ctx = dhpat_extend_ctx(dhp, ty', m, ctx);
            typ_of_dhexp(ctx, m, de);
          })
       |> OptUtil.sequence;
@@ -282,9 +293,9 @@ let rec typ_of_dhexp =
   | IfThenElse(InconsistentIf, d_scrut, d1, d2) =>
     let* ty = typ_of_dhexp(ctx, m, d_scrut);
     if (Typ.eq(ty, Bool)) {
-      let* _ = typ_of_dhexp(ctx, m, d1);
-      let* _ = typ_of_dhexp(ctx, m, d2);
-      Some(Typ.Unknown(Internal));
+      let* ty1 = typ_of_dhexp(ctx, m, d1);
+      let* ty2 = typ_of_dhexp(ctx, m, d2);
+      Typ.eq(ty1, ty2) ? None : Some(Typ.Unknown(Internal));
     } else {
       None;
     };
