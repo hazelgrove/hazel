@@ -140,14 +140,21 @@ let common_ok_view = (cls: Term.Cls.t, ok: Info.ok_pat) => {
 let typ_ok_view = (cls: Term.Cls.t, ok: Info.ok_typ) =>
   switch (ok) {
   | Type(_) when cls == Typ(EmptyHole) => [text("Fillable by any type")]
-  | Type(ty) => [Type.view(ty)]
+  | Type(ty) => [Type.view(ty), text("is a type")]
   | TypeAlias(name, ty_lookup) => [
       Type.view(Var(name)),
       text("is an alias for"),
       Type.view(ty_lookup),
     ]
-  | Variant(name, _sum_ty) => [Type.view(Var(name))]
-  | VariantIncomplete(_sum_ty) => [text("is incomplete")]
+  | Variant(name, sum_ty) => [
+      Type.view(Var(name)),
+      text("is a sum type constuctor of type"),
+      Type.view(sum_ty),
+    ]
+  | VariantIncomplete(sum_ty) => [
+      text("An incomplete sum type constuctor of type"),
+      Type.view(sum_ty),
+    ]
   };
 
 let typ_err_view = (ok: Info.error_typ) =>
@@ -166,10 +173,21 @@ let typ_err_view = (ok: Info.error_typ) =>
     ]
   };
 
-let exp_view = (cls: Term.Cls.t, status: Info.status_exp) =>
+let rec exp_view = (cls: Term.Cls.t, status: Info.status_exp) =>
   switch (status) {
   | InHole(FreeVariable(name)) =>
     div_err([code_err(name), text("not found")])
+  | InHole(InexhaustiveMatch(additional_err)) =>
+    let cls_str = Term.Cls.show(cls);
+    switch (additional_err) {
+    | None => div_err([text(cls_str ++ " is inexhaustive")])
+    | Some(err) =>
+      let cls_str = String.uncapitalize_ascii(cls_str);
+      div_err([
+        exp_view(cls, InHole(Common(err))),
+        text("; " ++ cls_str ++ " is inexhaustive"),
+      ]);
+    };
   | InHole(UnusedDeferral) =>
     div_err([text("Deferral must appear as a function argument")])
   | InHole(BadPartialAp(NoDeferredArgs)) =>
@@ -192,9 +210,15 @@ let exp_view = (cls: Term.Cls.t, status: Info.status_exp) =>
   | NotInHole(Common(ok)) => div_ok(common_ok_view(cls, ok))
   };
 
-let pat_view = (cls: Term.Cls.t, status: Info.status_pat) =>
+let rec pat_view = (cls: Term.Cls.t, status: Info.status_pat) =>
   switch (status) {
   | InHole(ExpectedConstructor) => div_err([text("Expected a constructor")])
+  | InHole(Redundant(additional_err)) =>
+    switch (additional_err) {
+    | None => div_err([text("Pattern is redundant")])
+    | Some(err) =>
+      div_err([pat_view(cls, InHole(err)), text("; pattern is redundant")])
+    }
   | InHole(Common(error)) => div_err(common_err_view(cls, error))
   | NotInHole(ok) => div_ok(common_ok_view(cls, ok))
   };
@@ -212,10 +236,15 @@ let tpat_view = (_: Term.Cls.t, status: Info.status_tpat) =>
   | InHole(NotAVar(NotCapitalized)) =>
     div_err([text("Must begin with a capital letter")])
   | InHole(NotAVar(_)) => div_err([text("Expected an alias")])
-  | InHole(ShadowsType(name)) when Form.is_base_typ(name) =>
+  | InHole(ShadowsType(name, BaseTyp)) =>
     div_err([text("Can't shadow base type"), Type.view(Var(name))])
-  | InHole(ShadowsType(name)) =>
+  | InHole(ShadowsType(name, TyAlias)) =>
     div_err([text("Can't shadow existing alias"), Type.view(Var(name))])
+  | InHole(ShadowsType(name, TyVar)) =>
+    div_err([
+      text("Can't shadow existing type variable"),
+      Type.view(Var(name)),
+    ])
   };
 
 let secondary_view = (cls: Term.Cls.t) =>
