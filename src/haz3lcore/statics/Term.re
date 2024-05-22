@@ -447,7 +447,8 @@ module UExp = {
     | UnOp(op_un)
     | BinOp(op_bin)
     | Match
-    | ListConcat;
+    | ListConcat
+    | Theorem;
 
   let hole = (tms: list(any)): term =>
     switch (tms) {
@@ -488,7 +489,8 @@ module UExp = {
     | ListConcat(_) => ListConcat
     | UnOp(op, _) => UnOp(op)
     | BinOp(op, _, _) => BinOp(op)
-    | Match(_) => Match;
+    | Match(_) => Match
+    | Theorem(_) => Theorem;
 
   let show_op_un_meta: op_un_meta => string =
     fun
@@ -582,7 +584,8 @@ module UExp = {
     | ListConcat => "List Concatenation"
     | BinOp(op) => show_binop(op)
     | UnOp(op) => show_unop(op)
-    | Match => "Case expression";
+    | Match => "Case expression"
+    | Theorem => "Theorem";
 
   let rec is_fun = (e: t) => {
     switch (e.term) {
@@ -612,6 +615,7 @@ module UExp = {
     | UnOp(_)
     | BinOp(_)
     | Match(_)
+    | Theorem(_)
     | Constructor(_) => false
     };
   };
@@ -646,6 +650,7 @@ module UExp = {
       | UnOp(_)
       | BinOp(_)
       | Match(_)
+      | Theorem(_)
       | Constructor(_) => false
       }
     );

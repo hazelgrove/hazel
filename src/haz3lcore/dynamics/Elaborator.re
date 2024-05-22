@@ -199,6 +199,7 @@ let rec dhexp_of_uexp =
       | Test(test) =>
         let+ dtest = dhexp_of_uexp(m, test);
         DHExp.Test(id, dtest);
+      | Theorem(_, _, e) => dhexp_of_uexp(m, e)
       | Filter(act, cond, body) =>
         let* dcond = dhexp_of_uexp(~in_filter=true, m, cond);
         let+ dbody = dhexp_of_uexp(m, body);

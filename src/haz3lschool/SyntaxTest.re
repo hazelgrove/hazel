@@ -50,6 +50,9 @@ let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
   | Let(p, def, body) =>
     find_var_upat(name, p)
       ? false : var_mention(name, def) || var_mention(name, body)
+  | Theorem(p, def, body) =>
+    find_var_upat(name, p)
+      ? false : var_mention(name, def) || var_mention(name, body)
   | Test(u)
   | Parens(u)
   | UnOp(_, u)
@@ -94,6 +97,9 @@ let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
   | Tuple(l) =>
     List.fold_left((acc, ue) => {acc || var_applied(name, ue)}, false, l)
   | Let(p, def, body) =>
+    find_var_upat(name, p)
+      ? false : var_applied(name, def) || var_applied(name, body)
+  | Theorem(p, def, body) =>
     find_var_upat(name, p)
       ? false : var_applied(name, def) || var_applied(name, body)
   | Test(u)
@@ -181,6 +187,8 @@ let rec find_fn =
   switch (uexp.term) {
   | Let(up, def, body) =>
     l |> find_in_let(name, up, def) |> find_fn(name, body)
+  | Theorem(up, def, body) =>
+    l |> find_in_let(name, up, def) |> find_fn(name, body)
   | ListLit(ul)
   | Tuple(ul) =>
     List.fold_left((acc, u1) => {find_fn(name, u1, acc)}, l, ul)
@@ -246,6 +254,9 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   | Fun(args, body) =>
     find_var_upat(name, args) ? false : tail_check(name, body)
   | Let(p, def, body) =>
+    find_var_upat(name, p) || var_mention(name, def)
+      ? false : tail_check(name, body)
+  | Theorem(p, def, body) =>
     find_var_upat(name, p) || var_mention(name, def)
       ? false : tail_check(name, body)
   | ListLit(l)
