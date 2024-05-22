@@ -102,7 +102,6 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | BinFloatOp(_)
     | BinStringOp(_)
     | Test(_) => DHExp.cast(d, self_ty, ana_ty)
-    // | Theorem(_, _, _)
     };
   };
 
