@@ -79,7 +79,7 @@ let set_project =
     ) =>
   z |> set(Some(prj), id) |> move_out_of_piece(d, rel) |> Option.some;
 
-let toggle = (id, info, z: Zipper.t, piece, d, rel) => {
+let _toggle = (id, info, z: Zipper.t, piece, d, rel) => {
   switch (Projector.Map.find(id, z.projectors)) {
   | Some(Fold) =>
     let infer = Projector.update(info, Infer({expected_ty: None}));
@@ -99,15 +99,40 @@ let toggle = (id, info, z: Zipper.t, piece, d, rel) => {
   };
 };
 
+let toggle_fold = (id, _info, z: Zipper.t, piece, d, rel) => {
+  switch (Projector.Map.find(id, z.projectors)) {
+  | Some(Fold) => Some(set(None, id, z))
+  | _ =>
+    if (Projector.can_project(Fold, piece)) {
+      set_project(Fold, id, d, rel, z);
+    } else {
+      None;
+    }
+  };
+};
+
+let toggle_infer = (id, info, z: Zipper.t) => {
+  //TODO: get piece of target for predicate
+  switch (Projector.Map.find(id, z.projectors)) {
+  | Some(Fold) =>
+    let infer = Projector.update(info, Infer({expected_ty: None}));
+    Some(set(Some(infer), id, z));
+  | _ => Some(set(Some(Fold), id, z))
+  };
+};
+
 let go = (a: Action.project, statics: CachedStatics.statics, z: Zipper.t) =>
   //TODO(andrew): avoid bringing statics in here?
   switch (Indicated.for_index(z)) {
   | None => None
   | Some((p, d, rel)) =>
-    let id = Piece.id(p);
-    let info = Id.Map.find_opt(id, statics.info_map);
     switch (a) {
-    | ToggleIndicated => toggle(id, info, z, p, d, rel)
-    | Toggle(id) => toggle(id, info, z, p, d, rel)
-    };
+    | ToggleIndicated =>
+      let id = Piece.id(p);
+      let info = Id.Map.find_opt(id, statics.info_map);
+      toggle_fold(id, info, z, p, d, rel);
+    | Toggle(id) =>
+      let info = Id.Map.find_opt(id, statics.info_map);
+      toggle_infer(id, info, z);
+    }
   };

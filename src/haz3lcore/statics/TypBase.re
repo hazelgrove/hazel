@@ -493,7 +493,7 @@ module rec Typ: {
     | Forall(_, _) => true
     | List(_) => false /* is already wrapped in [] */
     | Arrow(_, _) => true
-    | Prod(_)
+    | Prod(_) => false /* is already wrapped in () in this printer */
     | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
     };
 
