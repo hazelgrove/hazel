@@ -698,6 +698,7 @@ select {
 }
 .projector.infer {
   opacity: 60%;
+  color: var(--typ-text-color);
 }
 
 .code-container .infer svg {
@@ -709,6 +710,7 @@ select {
   z-index: 13;
   display: flex;
   justify-content: center;
+  cursor: pointer !important;
 }
 
 .projector.indicated svg {
@@ -719,9 +721,6 @@ select {
 }
 .projector.indicated.fold svg {
   fill: var(--exp-bg-off-color);
-}
-.projector.indicated.infer .typ-view {
-  color: var(--typ-text-color);
 }
 .projector.indicated.infer svg {
   fill: var(--typ-bg-off-color);

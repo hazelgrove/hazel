@@ -21,6 +21,7 @@ let is_write_action = (a: Action.t) => {
 let go_z =
     (
       ~meta: option(Editor.Meta.t)=?,
+      ~statics: CachedStatics.statics=CachedStatics.empty_statics,
       ~settings: CoreSettings.t,
       a: Action.t,
       z: Zipper.t,
@@ -47,7 +48,7 @@ let go_z =
 
   switch (a) {
   | Project(a) =>
-    switch (ProjectorAction.go(a, z)) {
+    switch (ProjectorAction.go(a, statics, z)) {
     | None => Error(Action.Failure.Cant_project)
     | Some(z) => Ok(z)
     }
@@ -191,7 +192,12 @@ let go_z =
 };
 
 let go =
-    (~settings: CoreSettings.t, a: Action.t, ed: Editor.t)
+    (
+      ~settings: CoreSettings.t,
+      ~statics: CachedStatics.statics=CachedStatics.empty_statics,
+      a: Action.t,
+      ed: Editor.t,
+    )
     : Action.Result.t(Editor.t) =>
   if (ed.read_only && is_write_action(a)) {
     Result.Ok(ed);
@@ -199,6 +205,6 @@ let go =
     open Result.Syntax;
     let Editor.State.{zipper, meta} = ed.state;
     Effect.s_clear();
-    let+ z = go_z(~settings, ~meta, a, zipper);
+    let+ z = go_z(~statics, ~settings, ~meta, a, zipper);
     Editor.new_state(~effects=Effect.s^, a, z, ed);
   };

@@ -213,6 +213,15 @@ let schedule_evaluation = (~schedule_action, model: Model.t): unit =>
     };
   };
 
+let update_projectors = (model: Model.t): Model.t => {
+  let statics = Model.current_statics(model);
+  let editors =
+    Editors.map_projectors(model.editors, (id, p) =>
+      Projector.update(Id.Map.find_opt(id, statics.info_map), p)
+    );
+  {...model, editors};
+};
+
 let update_cached_data = (~schedule_action, update, m: Model.t): Model.t => {
   let update_statics = is_edit(update) || reevaluate_post_update(update);
   let update_dynamics = reevaluate_post_update(update);
@@ -221,7 +230,7 @@ let update_cached_data = (~schedule_action, update, m: Model.t): Model.t => {
       ? {
         print_endline("UPDATING STATICS");
         let statics = Editors.mk_statics(~settings=m.settings, m.editors);
-        ProjectorsUpdate.update_all({...m, statics});
+        update_projectors({...m, statics});
       }
       : m;
   if (update_dynamics && m.settings.core.dynamics) {
@@ -236,7 +245,11 @@ let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
   switch (
     model.editors
     |> Editors.get_editor
-    |> Haz3lcore.Perform.go(~settings=model.settings.core, a)
+    |> Haz3lcore.Perform.go(
+         ~statics=Model.current_statics(model),
+         ~settings=model.settings.core,
+         a,
+       )
   ) {
   | Error(err) => Error(FailedToPerform(err))
   | Ok(ed) =>

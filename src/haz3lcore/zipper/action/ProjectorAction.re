@@ -1,5 +1,3 @@
-open Zipper;
-
 let of_siblings =
     (projectors: Projector.Map.t, siblings: Siblings.t): Siblings.t => {
   let l_sibs = Projector.of_segment(projectors, fst(siblings));
@@ -37,7 +35,7 @@ let of_selection =
   };
 };
 
-let of_zipper = (z: Zipper.t): Zipper.t =>
+let project = (z: Zipper.t): Zipper.t =>
   if (Id.Map.is_empty(z.projectors)) {
     z;
   } else {
@@ -63,54 +61,65 @@ let move_out_of_piece =
     }
   };
 
-let update = (f, id, z) => {
+let set = (p: option(module Projector.P), id: Id.t, ps: Projector.Map.t) =>
+  Projector.Map.update(id, _ => p, ps);
+
+let set = (p: option(module Projector.P), id: Id.t, z: Zipper.t) => {
   ...z,
-  projectors: Projector.Map.update(id, f, z.projectors),
+  projectors: set(p, id, z.projectors),
 };
 
-let set = (prj, id, z) => update(_ => prj, id, z);
-
-let can_project = (prj: Projector.t, p: Piece.t): bool =>
-  switch (prj) {
-  | Infer(_) =>
-    Piece.is_convex(p)
-    && (
-      switch (p) {
-      | Tile(t) => t.mold.out == Exp || t.mold.out == Pat
-      | _ => false
-      }
-    )
-  | Fold => Piece.is_convex(p)
-  };
-
-let project = (prj, id, d, rel, z) =>
+let set_project =
+    (
+      prj: (module Projector.P),
+      id: Id.t,
+      d: Util.Direction.t,
+      rel: Indicated.relation,
+      z: Zipper.t,
+    ) =>
   z |> set(Some(prj), id) |> move_out_of_piece(d, rel) |> Option.some;
 
-let toggle = (id: Id.t, z: Zipper.t, piece, d, rel) =>
+let toggle_fold = (id, _info, z: Zipper.t, piece, d, rel) => {
   switch (Projector.Map.find(id, z.projectors)) {
-  | Some(Fold) =>
-    let default_infer = Projector.Infer({expected_ty: None});
-    if (can_project(default_infer, piece)) {
-      project(default_infer, id, d, rel, z);
-    } else {
-      Some(set(None, id, z));
-    };
-  | Some(Infer(_)) => Some(set(None, id, z))
-  | None when Piece.is_convex(piece) =>
-    if (can_project(Fold, piece)) {
-      project(Fold, id, d, rel, z);
+  | Some(p) =>
+    let (module P) = p;
+    P.proj_type == Fold ? Some(set(None, id, z)) : None;
+  | _ =>
+    let p: module Projector.P = Projector.mkFold();
+    let (module P) = p;
+    if (P.can_project(piece)) {
+      set_project(p, id, d, rel, z);
     } else {
       None;
-    }
-  | None => None
+    };
   };
+};
 
-let go = (a: Action.project, z: Zipper.t) =>
+let toggle_infer = (id, _info, z: Zipper.t) => {
+  //TODO: get piece of target for predicate
+  switch (Projector.Map.find(id, z.projectors)) {
+  // | Some(p) =>
+  //   let (module P) = p;
+  //   let infer = Projector.mkFInfer(P.update(info);)
+  //   Some(set(Some(infer), id, z));
+  | _ =>
+    let p: module Projector.P = Projector.mkFold();
+    Some(set(Some(p), id, z));
+  };
+};
+
+let go = (a: Action.project, statics: CachedStatics.statics, z: Zipper.t) =>
+  //TODO(andrew): avoid bringing statics in here?
   switch (Indicated.for_index(z)) {
   | None => None
   | Some((p, d, rel)) =>
     switch (a) {
-    | ToggleIndicated => toggle(Piece.id(p), z, p, d, rel)
-    | Toggle(id) => toggle(id, z, p, d, rel)
+    | ToggleIndicated =>
+      let id = Piece.id(p);
+      let info = Id.Map.find_opt(id, statics.info_map);
+      toggle_fold(id, info, z, p, d, rel);
+    | Toggle(id) =>
+      let info = Id.Map.find_opt(id, statics.info_map);
+      toggle_infer(id, info, z);
     }
   };

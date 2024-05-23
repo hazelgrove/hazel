@@ -27,6 +27,7 @@ type t = {
   backpack: Backpack.t,
   relatives: Relatives.t,
   caret: Caret.t,
+  [@opaque]
   projectors: Projector.Map.t,
 };
 
@@ -444,7 +445,7 @@ let caret_direction = (z: t): option(Direction.t) =>
     }
   };
 
-let get_projector = (z: t, id: Id.t): option(Projector.t) =>
+let get_projector = (z: t, id: Id.t): option(module Projector.P) =>
   Projector.Map.find(id, z.projectors);
 
 let measured = z => {

@@ -141,7 +141,8 @@ let deco =
       let show_backpack_targets = show_backpack_targets;
       let error_ids = error_ids;
     });
-  let decos = selected ? Deco.all(~inject, z, segment) : Deco.err_holes();
+  let decos =
+    selected ? Deco.all(~inject, z, segment) : Deco.always(~inject, z);
   let decos =
     switch (test_results) {
     | None => decos
