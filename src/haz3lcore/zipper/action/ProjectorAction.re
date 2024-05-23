@@ -83,7 +83,10 @@ let toggle_fold = (id, _info, z: Zipper.t, piece, d, rel) => {
   switch (Projector.Map.find(id, z.projectors)) {
   | Some(p) =>
     let (module P) = p;
-    P.proj_type == Fold ? Some(set(None, id, z)) : None;
+    switch (P.proj_type) {
+    | Fold(_) => Some(set(None, id, z))
+    | Infer(_) => None
+    };
   | _ =>
     let p: module Projector.P = Projector.mkFold();
     let (module P) = p;
@@ -95,13 +98,16 @@ let toggle_fold = (id, _info, z: Zipper.t, piece, d, rel) => {
   };
 };
 
-let toggle_infer = (id, _info, z: Zipper.t) => {
+let toggle_infer = (id, info, z: Zipper.t) => {
   //TODO: get piece of target for predicate
   switch (Projector.Map.find(id, z.projectors)) {
-  // | Some(p) =>
-  //   let (module P) = p;
-  //   let infer = Projector.mkFInfer(P.update(info);)
-  //   Some(set(Some(infer), id, z));
+  | Some(p) =>
+    let (module P) = p;
+    let infer = Projector.mkFInfer({expected_ty: None});
+    let (module I) = infer;
+    I.update(info);
+    //TODO(andrew): does this nonsense make sense?
+    Some(set(Some(infer), id, z));
   | _ =>
     let p: module Projector.P = Projector.mkFold();
     Some(set(Some(p), id, z));

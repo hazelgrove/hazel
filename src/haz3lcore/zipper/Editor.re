@@ -216,7 +216,8 @@ let trailing_hole_ctx = (ed: t, info_map: Statics.Map.t) => {
 
 let get_projectors = (ed: t) => ed.state.zipper.projectors;
 
-let map_projectors = (f: (Id.t, Projector.t) => Projector.t, ed: t) =>
+let map_projectors =
+    (f: (Id.t, (module Projector.P)) => (module Projector.P), ed: t) =>
   update_z(
     z => {...z, projectors: Projector.Map.mapi(f, z.projectors)},
     ed,

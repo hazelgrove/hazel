@@ -1,20 +1,28 @@
 open Util;
 open Sexplib.Std;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type infer = {expected_ty: option(Typ.t)};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type fold = unit;
+
 type proj_type =
-  | Fold
-  | Infer;
+  | Fold(ref(fold))
+  | Infer(ref(infer));
 
 module type P = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t;
   let proj_type: proj_type;
-  let data: t;
+  let data: ref(t);
+
   let placeholder_length: unit => int; //Projector
-  let to_string: unit => string; //Projector //TODO: rename to ci_string or something
+
   let can_project: Piece.t => bool; //ProjectorAction
-  let update: option(Info.t) => t; // ProjectorsUpdate
+  let update: option(Info.t) => unit; // ProjectorsUpdate
   //let toggle = (id: Id.t, z: Zipper.t, piece, d, rel) //ProjectorAction
+  let get: unit => t;
 };
 
 let mkFold = (data): (module P) =>
@@ -22,24 +30,21 @@ let mkFold = (data): (module P) =>
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
      type t = unit;
-     let proj_type = Fold;
-     let data = data;
-     let to_string = () => "F";
+     let data = ref(data);
+     let proj_type = Fold(data);
      let can_project = Piece.is_convex;
      let placeholder_length = () => 2;
      let update = _ => ();
+     let get = () => ();
    });
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type infer = {expected_ty: option(Typ.t)};
 let mkFInfer = (data: infer): (module P) =>
   (module
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
      type t = infer;
-     let proj_type = Infer;
-     let data = data;
-     let to_string: unit => string = _ => "I";
+     let data = ref(data);
+     let proj_type = Infer(data);
      let can_project = (p: Piece.t): bool =>
        Piece.is_convex(p)
        && (
@@ -49,7 +54,7 @@ let mkFInfer = (data: infer): (module P) =>
          }
        );
      let placeholder_length = _ =>
-       switch (data) {
+       switch (data^) {
        | {expected_ty: None, _} => "-" |> String.length
        | {expected_ty: Some(expected_ty), _} =>
          /* NOTE: This assumes pretty_print handles whitespace the same as view */
@@ -63,7 +68,7 @@ let mkFInfer = (data: infer): (module P) =>
          );
          expected_ty |> Typ.pretty_print |> String.length;
        };
-     let update = (ci: option(Info.t)): t => {
+     let update = (ci: option(Info.t)): unit => {
        print_endline("updating infer projector");
        let expected_ty =
          switch (ci) {
@@ -71,42 +76,11 @@ let mkFInfer = (data: infer): (module P) =>
            Mode.ty_of(mode)
          | _ => Typ.Float
          };
-       {expected_ty: Some(expected_ty)};
+
+       data := {expected_ty: Some(expected_ty)};
      };
+     let get = () => data^;
    });
-
-// let placeholder = (pr: P.t, id: Id.t): Piece.t => {
-//   Piece.Tile({
-//     id,
-//     label: [String.make(P.placeholder_length(pr), ' ')],
-//     mold: Mold.mk_op(Any, []),
-//     shards: [0],
-//     children: [],
-//   });
-// };
-// let placeholder = (type p, module X: P with type t = p, pr: p, id: Id.t) => {
-//   Piece.Tile({
-//     id,
-//     label: [String.make(X.placeholder_length(pr), ' ')],
-//     mold: Mold.mk_op(Any, []),
-//     shards: [0],
-//     children: [],
-//   });
-// };
-
-let i: module P = mkFInfer({expected_ty: None});
-let f: module P = mkFold();
-
-let xs: list(module P) = [i, f];
-
-let _ =
-  List.map(
-    (p: (module P)) => {
-      let (module P) = p;
-      P.placeholder_length();
-    },
-    xs,
-  );
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 module Map = {

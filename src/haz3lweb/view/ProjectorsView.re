@@ -3,6 +3,7 @@ open Virtual_dom.Vdom;
 open Node;
 open Projector;
 open Util.OptUtil.Syntax;
+open Sexplib.Std;
 
 let stop_mousedown_propagation =
   Attr.on_mousedown(evt => {
@@ -10,7 +11,7 @@ let stop_mousedown_propagation =
     Virtual_dom.Vdom.Effect.Ignore;
   });
 
-let fold_view = (id, clss, ~font_metrics, ~inject, ~measurement) =>
+let fold_view = (clss, id, ~font_metrics, ~inject, ~measurement) =>
   div(
     ~attr=
       Attr.many([
@@ -24,11 +25,23 @@ let fold_view = (id, clss, ~font_metrics, ~inject, ~measurement) =>
     [text("⋱"), PieceDec.convex_shard(~font_metrics, ~measurement)],
   );
 
+let display_ty = (expected_ty: option(Typ.t)): Typ.t =>
+  switch (expected_ty) {
+  | Some(expected_ty) =>
+    print_endline(
+      "ProjectorsView: infer_view. expected_ty:" ++ Typ.show(expected_ty),
+    );
+    expected_ty;
+  | None =>
+    print_endline("ProjectorsView: infer_view. expected_ty: None");
+    Var("-");
+  };
+
 let infer_view =
     (
-      id: Id.t,
       clss,
-      expected_ty,
+      expected_ty: option(Typ.t),
+      id: Id.t,
       ~font_metrics,
       ~inject,
       ~measurement: Measured.measurement,
@@ -44,62 +57,94 @@ let infer_view =
         DecUtil.abs_style(measurement, ~font_metrics),
       ]),
     [
-      text(Typ.pretty_print(expected_ty)),
+      text(expected_ty |> display_ty |> Typ.pretty_print),
       //Type.view(expected_ty),
       PieceDec.convex_shard(~font_metrics, ~measurement),
     ],
   );
 
-let display_ty = (expected_ty: option(Typ.t)): Typ.t =>
-  switch (expected_ty) {
-  | Some(expected_ty) =>
-    print_endline(
-      "ProjectorsView: infer_view. expected_ty:" ++ Typ.show(expected_ty),
-    );
-    expected_ty;
-  | None =>
-    print_endline("ProjectorsView: infer_view. expected_ty: None");
-    Var("-");
-  };
+module type PV = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t;
+  //let proj_type: Projector.proj_type;
+  let data: t;
 
-let projector_view =
-    (id, p: Projector.t, ~inject, ~font_metrics, ~measurement) =>
-  switch (p) {
-  | Fold => fold_view(id, [], ~inject, ~font_metrics, ~measurement)
-  | Infer({expected_ty, _}) =>
-    let ty = display_ty(expected_ty);
-    infer_view(id, [], ~inject, ~font_metrics, ty, ~measurement);
-  };
+  let normal:
+    (
+      Id.t,
+      ~font_metrics: FontMetrics.t,
+      ~inject: UpdateAction.t => Ui_effect.t(unit),
+      ~measurement: Measured.measurement
+    ) =>
+    Node.t;
 
-let indicated_view =
-    (id, p: Projector.t, ~inject, ~font_metrics, ~measurement) =>
-  switch (p) {
-  | Fold =>
-    fold_view(id, ["indicated"], ~measurement, ~font_metrics, ~inject)
-  | Infer({expected_ty, _}) =>
-    let ty = display_ty(expected_ty);
-    infer_view(id, ["indicated"], ~inject, ty, ~measurement, ~font_metrics);
-  };
+  let indicated:
+    (
+      Id.t,
+      ~font_metrics: FontMetrics.t,
+      ~inject: UpdateAction.t => Ui_effect.t(unit),
+      ~measurement: Measured.measurement
+    ) =>
+    Node.t;
 
-let key_handler = (p: t, id: Id.t, key: Key.t): option(UpdateAction.t) =>
-  switch (p) {
-  | Infer(_) =>
-    switch (key) {
-    | {key: D("Escape"), _} => Some(PerformAction(Project(Toggle(id))))
-    | _ => None
-    }
-  | Fold =>
-    switch (key) {
-    | {key: D("Escape"), _} => Some(PerformAction(Project(Toggle(id))))
-    | _ => None
-    }
+  let key_handler: (Id.t, Key.t) => option(UpdateAction.t);
+  let to_string: unit => string; //Projector //TODO: rename to ci_string or something
+};
+
+let mkFold = (data): (module PV) =>
+  (module
+   {
+     [@deriving (show({with_path: false}), sexp, yojson)]
+     type t = unit;
+     let data = data;
+     let normal = fold_view([]);
+     let indicated = fold_view(["indicated"]);
+     let key_handler = (id, key: Key.t): option(UpdateAction.t) =>
+       switch (key) {
+       | {key: D("Escape"), _} =>
+         Some(PerformAction(Project(Toggle(id))))
+       | _ => None
+       };
+     let to_string = () => "F";
+   });
+
+let mkInfer = (data): (module PV) =>
+  (module
+   {
+     [@deriving (show({with_path: false}), sexp, yojson)]
+     type t = Projector.infer;
+     let data = data;
+     let normal = infer_view([], data.expected_ty);
+     let indicated = infer_view(["indicated"], data.expected_ty);
+     let key_handler = (id, key: Key.t): option(UpdateAction.t) =>
+       switch (key) {
+       | {key: D("Escape"), _} =>
+         Some(PerformAction(Project(Toggle(id))))
+       | _ => None
+       };
+     let to_string: unit => string = _ => "I";
+   });
+
+let proj_view_m = (p: (module Projector.P)): (module PV) => {
+  let (module P) = p;
+  switch (P.proj_type) {
+  | Fold(data) => mkFold(data^)
+  | Infer(data) => mkInfer(data^)
   };
+};
+
+let key_handler =
+    (p: (module Projector.P), id: Id.t, key: Key.t): option(UpdateAction.t) => {
+  let (module PV) = proj_view_m(p);
+  PV.key_handler(id, key);
+};
 
 let view =
     (id: Id.t, ps: Map.t, ~measured: Measured.t, ~inject, ~font_metrics) => {
   let* p = Projector.Map.find(id, ps);
   let+ measurement = Measured.find_by_id(id, measured);
-  projector_view(id, p, ~inject, ~font_metrics, ~measurement);
+  let (module PV) = proj_view_m(p);
+  PV.normal(id, ~inject, ~font_metrics, ~measurement);
 };
 
 let indication_view =
@@ -107,7 +152,8 @@ let indication_view =
     : option(Node.t) => {
   let* p = Projector.Map.find(id, ps);
   let+ measurement = Measured.find_by_id(id, measured);
-  indicated_view(id, p, ~inject, ~font_metrics, ~measurement);
+  let (module PV) = proj_view_m(p);
+  PV.indicated(id, ~inject, ~font_metrics, ~measurement);
 };
 
 let view_all = (ps: Map.t, measured: Measured.t, ~inject, ~font_metrics) =>
@@ -131,9 +177,7 @@ let dispatch_key_to = (editor: Editor.t, key: Key.t): option(UpdateAction.t) =>
   };
 
 let ci = (~inject as _, editor: Editor.t) => {
-  let+ (_, projector) = indicated_proj_ed(editor);
-  div(
-    ~attr=Attr.classes(["projector-ci"]),
-    [text(Projector.to_string(projector))],
-  );
+  let+ (_, p) = indicated_proj_ed(editor);
+  let (module PV) = proj_view_m(p);
+  div(~attr=Attr.classes(["projector-ci"]), [text(PV.to_string())]);
 };

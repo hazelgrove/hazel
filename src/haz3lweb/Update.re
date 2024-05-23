@@ -216,8 +216,14 @@ let schedule_evaluation = (~schedule_action, model: Model.t): unit =>
 let update_projectors = (model: Model.t): Model.t => {
   let statics = Model.current_statics(model);
   let editors =
-    Editors.map_projectors(model.editors, (id, p) =>
-      Projector.update(Id.Map.find_opt(id, statics.info_map), p)
+    Editors.map_projectors(
+      model.editors,
+      (id, p) => {
+        let (module P) = p;
+        //TODO(andrew): do i need to repackage this?
+        P.update(Id.Map.find_opt(id, statics.info_map));
+        p;
+      },
     );
   {...model, editors};
 };
