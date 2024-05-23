@@ -44,7 +44,8 @@ let infer_view =
         DecUtil.abs_style(measurement, ~font_metrics),
       ]),
     [
-      Type.view(expected_ty),
+      text(Typ.pretty_print(expected_ty)),
+      //Type.view(expected_ty),
       PieceDec.convex_shard(~font_metrics, ~measurement),
     ],
   );

@@ -318,13 +318,17 @@ module Deco =
     | _ => indicated_piece_deco(z)
     };
 
-  let all = (~inject, zipper, sel_seg) =>
+  let active = (~inject, zipper, sel_seg) =>
     List.concat([
       caret(zipper),
       indication_deco(~inject, zipper),
       selected_pieces(zipper),
       backpack(zipper),
       targets'(zipper.backpack, sel_seg),
+    ]);
+
+  let always = (~inject, zipper: Zipper.t) =>
+    List.concat([
       err_holes(),
       ProjectorsView.view_all(
         zipper.projectors,
@@ -332,5 +336,11 @@ module Deco =
         ~font_metrics,
         M.map,
       ),
+    ]);
+
+  let all = (~inject, zipper, sel_seg) =>
+    List.concat([
+      active(~inject, zipper, sel_seg),
+      always(~inject, zipper),
     ]);
 };

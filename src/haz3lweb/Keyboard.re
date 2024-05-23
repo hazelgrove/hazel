@@ -89,6 +89,7 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
     }
   | {key: D(key), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
     switch (key) {
+    | "e" => Some(PerformAction(Project(ToggleIndicated)))
     | "z" => Some(Undo)
     | "d" => now(Select(Term(Current)))
     | "p" => Some(PerformAction(Pick_up))
