@@ -1035,8 +1035,10 @@ let mk_grammar = (pre_grammar: pre_grammar): string => {
 let go = (~db, ~settings: settings): unit => {
   let z =
     LSFiles.get_zipper(~db, settings.data.program, settings.data.new_token);
+
+  print_endline("backpack-is-empty: " ++ string_of_bool(z.backpack == []));
   let grammar = z |> dispatch_generation(~settings, ~db) |> mk_grammar;
-  db("LSP: Grammar:");
+  db("LS: Grammar:");
   print_endline(grammar);
 };
 
