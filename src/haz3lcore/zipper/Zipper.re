@@ -445,7 +445,7 @@ let caret_direction = (z: t): option(Direction.t) =>
     }
   };
 
-let get_projector = (z: t, id: Id.t): option(module Projector.P) =>
+let get_projector = (z: t, id: Id.t): option(Projector.t) =>
   Projector.Map.find(id, z.projectors);
 
 let measured = z => {

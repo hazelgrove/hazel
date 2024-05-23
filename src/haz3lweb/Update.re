@@ -220,7 +220,6 @@ let update_projectors = (model: Model.t): Model.t => {
       model.editors,
       (id, p) => {
         let (module P) = p;
-        //TODO(andrew): do i need to repackage this?
         P.update(Id.Map.find_opt(id, statics.info_map));
         p;
       },
