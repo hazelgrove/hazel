@@ -3,7 +3,6 @@ open Virtual_dom.Vdom;
 open Node;
 open Projector;
 open Util.OptUtil.Syntax;
-open Sexplib.Std;
 
 let stop_mousedown_propagation =
   Attr.on_mousedown(evt => {
@@ -24,18 +23,6 @@ let fold_view = (clss, id, ~font_metrics, ~inject, ~measurement) =>
       ]),
     [text("⋱"), PieceDec.convex_shard(~font_metrics, ~measurement)],
   );
-
-let display_ty = (expected_ty: option(Typ.t)): Typ.t =>
-  switch (expected_ty) {
-  | Some(expected_ty) =>
-    print_endline(
-      "ProjectorsView: infer_view. expected_ty:" ++ Typ.show(expected_ty),
-    );
-    expected_ty;
-  | None =>
-    print_endline("ProjectorsView: infer_view. expected_ty: None");
-    Var("-");
-  };
 
 let infer_view =
     (
@@ -66,7 +53,6 @@ let infer_view =
 module type PV = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t;
-  //let proj_type: Projector.proj_type;
   let data: t;
 
   let normal:
@@ -88,14 +74,14 @@ module type PV = {
     Node.t;
 
   let key_handler: (Id.t, Key.t) => option(UpdateAction.t);
-  let to_string: unit => string; //Projector //TODO: rename to ci_string or something
+  let ci_string: unit => string; //Projector //TODO: rename to ci_string or something
 };
 
 let mkFold = (data): (module PV) =>
   (module
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
-     type t = unit;
+     type t = Projector.fold;
      let data = data;
      let normal = fold_view([]);
      let indicated = fold_view(["indicated"]);
@@ -105,7 +91,7 @@ let mkFold = (data): (module PV) =>
          Some(PerformAction(Project(Toggle(id))))
        | _ => None
        };
-     let to_string = () => "F";
+     let ci_string = () => "F";
    });
 
 let mkInfer = (data): (module PV) =>
@@ -122,10 +108,10 @@ let mkInfer = (data): (module PV) =>
          Some(PerformAction(Project(Toggle(id))))
        | _ => None
        };
-     let to_string: unit => string = _ => "I";
+     let ci_string: unit => string = _ => "I";
    });
 
-let proj_view_m = (p: (module Projector.P)): (module PV) => {
+let convert = (p: Projector.t): (module PV) => {
   let (module P) = p;
   switch (P.proj_type) {
   | Fold(data) => mkFold(data^)
@@ -133,17 +119,11 @@ let proj_view_m = (p: (module Projector.P)): (module PV) => {
   };
 };
 
-let key_handler =
-    (p: (module Projector.P), id: Id.t, key: Key.t): option(UpdateAction.t) => {
-  let (module PV) = proj_view_m(p);
-  PV.key_handler(id, key);
-};
-
 let view =
     (id: Id.t, ps: Map.t, ~measured: Measured.t, ~inject, ~font_metrics) => {
   let* p = Projector.Map.find(id, ps);
   let+ measurement = Measured.find_by_id(id, measured);
-  let (module PV) = proj_view_m(p);
+  let (module PV) = convert(p);
   PV.normal(id, ~inject, ~font_metrics, ~measurement);
 };
 
@@ -152,7 +132,7 @@ let indication_view =
     : option(Node.t) => {
   let* p = Projector.Map.find(id, ps);
   let+ measurement = Measured.find_by_id(id, measured);
-  let (module PV) = proj_view_m(p);
+  let (module PV) = convert(p);
   PV.indicated(id, ~inject, ~font_metrics, ~measurement);
 };
 
@@ -170,14 +150,16 @@ let indicated_proj_ed = (editor: Editor.t) => {
   (id, projector);
 };
 
-let dispatch_key_to = (editor: Editor.t, key: Key.t): option(UpdateAction.t) =>
+let key_handler = (editor: Editor.t, key: Key.t): option(UpdateAction.t) =>
   switch (indicated_proj_ed(editor)) {
   | None => None
-  | Some((id, p)) => key_handler(p, id, key)
+  | Some((id, p)) =>
+    let (module PV) = convert(p);
+    PV.key_handler(id, key);
   };
 
 let ci = (~inject as _, editor: Editor.t) => {
   let+ (_, p) = indicated_proj_ed(editor);
-  let (module PV) = proj_view_m(p);
-  div(~attr=Attr.classes(["projector-ci"]), [text(PV.to_string())]);
+  let (module PV) = convert(p);
+  div(~attr=Attr.classes(["projector-ci"]), [text(PV.ci_string())]);
 };

@@ -16,16 +16,14 @@ module type P = {
   type t;
   let proj_type: proj_type;
   let data: ref(t);
-
-  let placeholder_length: unit => int; //Projector
-
-  let can_project: Piece.t => bool; //ProjectorAction
-  let update: option(Info.t) => unit; // ProjectorsUpdate
-  //let toggle = (id: Id.t, z: Zipper.t, piece, d, rel) //ProjectorAction
-  let get: unit => t;
+  let placeholder_length: unit => int;
+  let can_project: Piece.t => bool;
+  let update: option(Info.t) => unit;
 };
 
-let mkFold = (data): (module P) =>
+type t = (module P);
+
+let mkFold = (data): t =>
   (module
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
@@ -35,10 +33,23 @@ let mkFold = (data): (module P) =>
      let can_project = Piece.is_convex;
      let placeholder_length = () => 2;
      let update = _ => ();
-     let get = () => ();
    });
 
-let mkFInfer = (data: infer): (module P) =>
+//TODO(andrew): proper serialization
+let t_of_sexp = _ => mkFold();
+let sexp_of_t = _ => Sexplib.Sexp.Atom("OPAQUE");
+let yojson_of_t = _ => Yojson.Safe.from_string("OPAQUE");
+let t_of_yojson = _ => mkFold();
+let pp: (Format.formatter, t) => unit = (_fmt, _map) => ();
+let compare = (_, _) => 0;
+
+let display_ty = (expected_ty: option(Typ.t)): Typ.t =>
+  switch (expected_ty) {
+  | Some(expected_ty) => expected_ty
+  | None => Unknown(Internal)
+  };
+
+let mkFInfer = (data: infer): t =>
   (module
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
@@ -54,20 +65,7 @@ let mkFInfer = (data: infer): (module P) =>
          }
        );
      let placeholder_length = _ =>
-       switch (data^) {
-       | {expected_ty: None, _} => "-" |> String.length
-       | {expected_ty: Some(expected_ty), _} =>
-         /* NOTE: This assumes pretty_print handles whitespace the same as view */
-         //TODO(andrew): cleanup
-         print_endline("placeholder_ty: " ++ Typ.pretty_print(expected_ty));
-         print_endline(
-           "placeholder_length "
-           ++ (
-             expected_ty |> Typ.pretty_print |> String.length |> string_of_int
-           ),
-         );
-         expected_ty |> Typ.pretty_print |> String.length;
-       };
+       display_ty(data^.expected_ty) |> Typ.pretty_print |> String.length;
      let update = (ci: option(Info.t)): unit => {
        print_endline("updating infer projector");
        let expected_ty =
@@ -76,31 +74,26 @@ let mkFInfer = (data: infer): (module P) =>
            Mode.ty_of(mode)
          | _ => Typ.Float
          };
-
        data := {expected_ty: Some(expected_ty)};
      };
-     let get = () => data^;
    });
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 module Map = {
-  //[@deriving (show({with_path: false}), sexp, yojson)]
-  type p = (module P);
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type p = t;
+
   open Id.Map;
-  //[@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Id.Map.t(p);
   let empty = empty;
   let find = find_opt;
   let mem = mem;
   let mapi = mapi;
   let update = update;
-  let t_of_sexp = _ => Id.Map.empty;
-  let sexp_of_t = _ => Sexplib.Sexp.Atom("OPAQUE");
-  let yojson_of_t = _ => Yojson.Safe.from_string("OPAQUE");
-  let t_of_yojson = _ => Id.Map.empty;
 };
 
-let placeholder = (p: (module P), id: Id.t) => {
+let placeholder = (p: t, id: Id.t) => {
   let (module P) = p;
   Piece.Tile({
     id,

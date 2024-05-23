@@ -61,17 +61,17 @@ let move_out_of_piece =
     }
   };
 
-let set = (p: option(module Projector.P), id: Id.t, ps: Projector.Map.t) =>
+let set = (p: option(Projector.t), id: Id.t, ps: Projector.Map.t) =>
   Projector.Map.update(id, _ => p, ps);
 
-let set = (p: option(module Projector.P), id: Id.t, z: Zipper.t) => {
+let set = (p: option(Projector.t), id: Id.t, z: Zipper.t) => {
   ...z,
   projectors: set(p, id, z.projectors),
 };
 
 let set_project =
     (
-      prj: (module Projector.P),
+      prj: Projector.t,
       id: Id.t,
       d: Util.Direction.t,
       rel: Indicated.relation,
