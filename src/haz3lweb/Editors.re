@@ -179,5 +179,6 @@ let switch_example_slide = (editors: t, name: string): option(t) =>
   | Documentation(_, slides) => Some(Documentation(name, slides))
   };
 
-let map_projectors = (editors: t, f: (Id.t, Projector.t) => Projector.t): t =>
+let map_projectors =
+    (editors: t, f: (Id.t, Projector.proj_type2) => Projector.proj_type2): t =>
   put_editor(editors |> get_editor |> Editor.map_projectors(f), editors);

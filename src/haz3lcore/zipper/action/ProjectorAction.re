@@ -61,17 +61,17 @@ let move_out_of_piece =
     }
   };
 
-let set = (p: option(Projector.t), id: Id.t, ps: Projector.Map.t) =>
+let set = (p: option(Projector.proj_type2), id: Id.t, ps: Projector.Map.t) =>
   Projector.Map.update(id, _ => p, ps);
 
-let set = (p: option(Projector.t), id: Id.t, z: Zipper.t) => {
+let set = (p: option(Projector.proj_type2), id: Id.t, z: Zipper.t) => {
   ...z,
   projectors: set(p, id, z.projectors),
 };
 
 let set_project =
     (
-      prj: Projector.t,
+      prj: Projector.proj_type2,
       id: Id.t,
       d: Util.Direction.t,
       rel: Indicated.relation,
@@ -79,38 +79,28 @@ let set_project =
     ) =>
   z |> set(Some(prj), id) |> move_out_of_piece(d, rel) |> Option.some;
 
-let toggle_fold = (id, _info, z: Zipper.t, piece, d, rel) => {
+let toggle_local = (id, _info, z: Zipper.t, piece, d, rel) => {
   switch (Projector.Map.find(id, z.projectors)) {
-  | Some(p) =>
-    let (module P) = p;
-    switch (P.proj_type) {
-    | Fold(_) => Some(set(None, id, z))
-    | Infer(_) => None
-    };
+  | Some(_) => Some(set(None, id, z))
   | _ =>
-    let p: module Projector.P = Projector.mkFold();
-    let (module P) = p;
+    let (module P) = Projector.mkFold();
     if (P.can_project(piece)) {
-      set_project(p, id, d, rel, z);
+      set_project(Fold(), id, d, rel, z);
     } else {
       None;
     };
   };
 };
 
-let toggle_infer = (id, info, z: Zipper.t) => {
+let toggle_click = (id, info, z: Zipper.t) => {
   //TODO: get piece of target for predicate
-  switch (Projector.Map.find(id, z.projectors)) {
-  | Some(p) =>
-    let (module P) = p;
-    let infer = Projector.mkFInfer({expected_ty: None});
-    let (module I) = infer;
-    I.update(info);
-    //TODO(andrew): does this nonsense make sense?
-    Some(set(Some(infer), id, z));
-  | _ =>
-    let p: module Projector.P = Projector.mkFold();
-    Some(set(Some(p), id, z));
+  switch (Projector.Map.find2(id, z.projectors)) {
+  | Some(Infer(_)) => Some(set(Some(Fold()), id, z))
+  | Some(Fold ()) =>
+    let (module I) = Projector.mkFInfer({expected_ty: None});
+    //TODO: get piece of target for I.can_project(piece)
+    Some(set(Some(I.update(info)), id, z));
+  | None => Some(set(Some(Fold()), id, z))
   };
 };
 
@@ -123,9 +113,9 @@ let go = (a: Action.project, statics: CachedStatics.statics, z: Zipper.t) =>
     | ToggleIndicated =>
       let id = Piece.id(p);
       let info = Id.Map.find_opt(id, statics.info_map);
-      toggle_fold(id, info, z, p, d, rel);
+      toggle_local(id, info, z, p, d, rel);
     | Toggle(id) =>
       let info = Id.Map.find_opt(id, statics.info_map);
-      toggle_infer(id, info, z);
+      toggle_click(id, info, z);
     }
   };

@@ -1,5 +1,6 @@
 open Util;
 open Sexplib.Std;
+open OptUtil.Syntax;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type infer = {expected_ty: option(Typ.t)};
@@ -7,6 +8,10 @@ type infer = {expected_ty: option(Typ.t)};
 [@deriving (show({with_path: false}), sexp, yojson)]
 type fold = unit;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type proj_type2 =
+  | Fold(fold)
+  | Infer(infer);
 type proj_type =
   | Fold(ref(fold))
   | Infer(ref(infer));
@@ -18,7 +23,7 @@ module type P = {
   let data: ref(t);
   let placeholder_length: unit => int;
   let can_project: Piece.t => bool;
-  let update: option(Info.t) => unit;
+  let update: option(Info.t) => proj_type2;
 };
 
 type t = (module P);
@@ -32,7 +37,7 @@ let mkFold = (data): t =>
      let proj_type = Fold(data);
      let can_project = Piece.is_convex;
      let placeholder_length = () => 2;
-     let update = _ => ();
+     let update = _: proj_type2 => Fold();
    });
 
 //TODO(andrew): proper serialization
@@ -66,7 +71,7 @@ let mkFInfer = (data: infer): t =>
        );
      let placeholder_length = _ =>
        display_ty(data^.expected_ty) |> Typ.pretty_print |> String.length;
-     let update = (ci: option(Info.t)): unit => {
+     let update = (ci: option(Info.t)): proj_type2 => {
        print_endline("updating infer projector");
        let expected_ty =
          switch (ci) {
@@ -75,22 +80,38 @@ let mkFInfer = (data: infer): t =>
          | _ => Typ.Float
          };
        data := {expected_ty: Some(expected_ty)};
+       Infer(data^);
      };
    });
+
+let to_module = (p: proj_type2): t =>
+  switch ((p: proj_type2)) {
+  | Fold(data) => mkFold(data)
+  | Infer(data) => mkFInfer(data)
+  };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 module Map = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type p = t;
+  type p = proj_type2;
 
   open Id.Map;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Id.Map.t(p);
   let empty = empty;
-  let find = find_opt;
+  let find2 = find_opt;
+  let find = (key, map) => {
+    let+ p = find_opt(key, map);
+    to_module(p);
+  };
   let mem = mem;
-  let mapi = mapi;
-  let update = update;
+  let mapi = (f: (Id.t, p) => p, map: Id.Map.t(p)): Id.Map.t(p) => {
+    mapi(f, map);
+  };
+
+  let update = (key, f, map) => {
+    update(key, f, map);
+  };
 };
 
 let placeholder = (p: t, id: Id.t) => {
