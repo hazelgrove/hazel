@@ -1,34 +1,12 @@
-open Sexplib.Std;
 open Util;
 open OptUtil.Syntax;
+open ZipperBase;
 
-module Caret = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | Outer
-    | Inner(int, int);
-
-  let decrement: t => t =
-    fun
-    | Outer
-    | Inner(_, 0) => Outer
-    | Inner(d, c) => Inner(d, c - 1);
-
-  let offset: t => int =
-    fun
-    | Outer => 0
-    | Inner(_, c) => c + 1;
-};
-
-// assuming single backpack, shards may appear in selection, backpack, or siblings
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = {
-  selection: Selection.t,
-  backpack: Backpack.t,
-  relatives: Relatives.t,
-  caret: Caret.t,
-  projectors: Projector.Map.t,
-};
+type t = ZipperBase.t;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+module Caret = ZipperBase.Caret;
 
 let init: unit => t =
   () => {
@@ -39,7 +17,7 @@ let init: unit => t =
       ancestors: [],
     },
     caret: Outer,
-    projectors: Projector.Map.empty,
+    projectors: ProjectorMap.empty,
   };
 
 let next_blank = _ => Id.mk();
@@ -70,16 +48,6 @@ let update_caret = (f: Caret.t => Caret.t, z: t): t => {
 };
 let set_caret = (caret: Caret.t): (t => t) => update_caret(_ => caret);
 
-let update_relatives = (f: Relatives.t => Relatives.t, z: t): t => {
-  ...z,
-  relatives: f(z.relatives),
-};
-
-let update_siblings: (Siblings.t => Siblings.t, t) => t =
-  f => update_relatives(rs => {...rs, siblings: f(rs.siblings)});
-
-let put_siblings = (siblings, z: t): t => update_siblings(_ => siblings, z);
-
 let parent = (z: t): option(Piece.t) =>
   Relatives.parent(~sel=z.selection.content, z.relatives);
 
@@ -99,7 +67,7 @@ let unzip = (seg: Segment.t): t => {
     ancestors: [],
   },
   caret: Outer,
-  projectors: Projector.Map.empty,
+  projectors: ProjectorMap.empty,
 };
 
 let sibs_with_sel =
@@ -175,79 +143,8 @@ let update_selection = (selection: Selection.t, z: t): (Selection.t, t) => {
 let put_selection = (sel: Selection.t, z: t): t =>
   snd(update_selection(sel, z));
 
-let put_selection_content = (content: Segment.t, z): t => {
-  ...z,
-  selection: {
-    ...z.selection,
-    content,
-  },
-};
-
-let push_right = ((ls: Segment.t, rs: Segment.t)): (Segment.t, Segment.t) =>
-  switch (ls |> List.rev) {
-  | [l, ...ls] => (ls |> List.rev, [l, ...rs])
-  | [] => (ls, rs)
-  };
-
-let push_left = ((ls: Segment.t, rs: Segment.t)): (Segment.t, Segment.t) =>
-  switch (rs) {
-  | [r, ...rs] => (ls @ [r], rs)
-  | [] => (ls, rs)
-  };
-
-let skip_grow_left = ({relatives: {siblings: (ls, rs), _}, _} as z: t) => {
-  let (ls, content) = push_right((ls, z.selection.content));
-  z
-  |> put_selection_content(content)
-  |> put_siblings((ls, rs))
-  |> Option.some;
-};
-
-let skip_grow_right = ({relatives: {siblings: (ls, rs), _}, _} as z: t) => {
-  let (content, rs) = push_left((z.selection.content, rs));
-  z
-  |> put_selection_content(content)
-  |> put_siblings((ls, rs))
-  |> Option.some;
-};
-
-let projector_grow_selection =
-    ({relatives: {siblings, _}, projectors, _} as z: t): option(t) =>
-  switch (z.selection.focus, Projector.neighbor_is(projectors, siblings)) {
-  | (Left, (Some(_), _)) => skip_grow_left(z)
-  | (Right, (_, Some(_))) => skip_grow_right(z)
-  | _ => None
-  };
-
-let skip_shrink_left = ({relatives: {siblings: (ls, rs), _}, _} as z: t) => {
-  let (ls, content) = push_left((ls, z.selection.content));
-  z
-  |> put_selection_content(content)
-  |> put_siblings((ls, rs))
-  |> Option.some;
-};
-
-let skip_shrink_right = ({relatives: {siblings: (ls, rs), _}, _} as z: t) => {
-  let (content, rs) = push_right((z.selection.content, rs));
-  z
-  |> put_selection_content(content)
-  |> put_siblings((ls, rs))
-  |> Option.some;
-};
-
-let projector_shrink_selection =
-    ({selection, projectors, _} as z: t): option(t) =>
-  switch (
-    selection.focus,
-    Projector.selection_sides_is(projectors, selection),
-  ) {
-  | (Left, (Some(_), _)) => skip_shrink_left(z)
-  | (Right, (_, Some(_))) => skip_shrink_right(z)
-  | _ => None
-  };
-
 let grow_selection = (z: t): option(t) => {
-  switch (projector_grow_selection(z)) {
+  switch (Projector.Select.grow(z)) {
   | Some(z) => Some(z)
   | None =>
     let+ (p, relatives) = Relatives.pop(z.selection.focus, z.relatives);
@@ -263,7 +160,7 @@ let shrink_selection = (z: t): option(t) => {
     let selection = Selection.toggle_focus(z.selection);
     grow_selection({...z, selection});
   | Some((p, selection)) =>
-    switch (projector_shrink_selection(z)) {
+    switch (Projector.Select.shrink(z)) {
     | Some(z) => Some(z)
     | None =>
       let relatives =
@@ -285,22 +182,9 @@ let directional_unselect = (d: Direction.t, z: t): t => {
   unselect({...z, selection});
 };
 
-let skip_left = ({relatives: {siblings, _}, _} as z: t): option(t) =>
-  z |> put_siblings(push_right(siblings)) |> Option.some;
-
-let skip_right = ({relatives: {siblings, _}, _} as z: t): option(t) =>
-  z |> put_siblings(push_left(siblings)) |> Option.some;
-
-let projector_move = (d: Direction.t, z: t): option(t) =>
-  switch (d, Projector.neighbor_is(z.projectors, z.relatives.siblings)) {
-  | (Left, (Some(_), _)) => skip_left(z)
-  | (Right, (_, Some(_))) => skip_right(z)
-  | _ => None
-  };
-
 let move = (d: Direction.t, z: t): option(t) =>
   if (Selection.is_empty(z.selection)) {
-    switch (projector_move(d, z)) {
+    switch (Projector.Move.go(d, z)) {
     | Some(z) => Some(z)
     | None =>
       let+ (p, relatives) = Relatives.pop(d, z.relatives);
@@ -444,12 +328,7 @@ let caret_direction = (z: t): option(Direction.t) =>
     }
   };
 
-let get_projector = (z: t, id: Id.t): option(Projector.t) =>
-  Projector.Map.find(id, z.projectors);
-
-let measured = z => {
-  z |> unselect_and_zip |> Measured.of_segment;
-};
+let measured = z => z |> unselect_and_zip |> Measured.of_segment;
 
 let base_point = (measured: Measured.t, z: t): Measured.Point.t => {
   switch (representative_piece(z)) {
@@ -466,7 +345,7 @@ let base_point = (measured: Measured.t, z: t): Measured.Point.t => {
      * a Grout becomes a Tile. Hence we convert pieces that
      * would be projected to their placeholders before lookup */
     let p =
-      switch (get_projector(z, Piece.id(p))) {
+      switch (ProjectorMap.find(Piece.id(p), z.projectors)) {
       | Some(pr) => Projector.placeholder(pr, Piece.id(p))
       | None => p
       };

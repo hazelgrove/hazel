@@ -41,7 +41,7 @@ module Meta = {
     {
       col_target: 0,
       touched: Touched.empty,
-      projected: z |> ProjectorAction.project |> init_projected,
+      projected: z |> Projector.Project.go |> init_projected,
     };
   };
 
@@ -92,7 +92,7 @@ module Meta = {
       | Select(Resize(Local(Up | Down))) => meta.col_target
       | _ => Zipper.caret_point(meta.projected.measured, meta.projected.z).col
       };
-    let z_projected = ProjectorAction.project(z);
+    let z_projected = Projector.Project.go(z);
     let projected =
       switch (Action.is_edit(a)) {
       //TODO(andrew): reenable
