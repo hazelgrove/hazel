@@ -1,98 +1,25 @@
 open Util;
-open Sexplib.Std;
+open ZipperBase;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type infer = {expected_ty: option(Typ.t)};
+module Map = ProjectorMap;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type fold = unit;
+type fold = ZipperBase.fold;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type proj_type =
-  | Fold(fold)
-  | Infer(infer);
+type infer = ZipperBase.infer;
 
-module type P = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t;
-  let proj_type: proj_type;
-  let data: t;
-  let placeholder_length: unit => int;
-  let can_project: Piece.t => bool;
-  let update: option(Info.t) => proj_type;
-};
-
-type p = (module P);
-
-let mkFold = (data): p =>
-  (module
-   {
-     [@deriving (show({with_path: false}), sexp, yojson)]
-     type t = unit;
-     let data = data;
-     let proj_type = Fold(data);
-     let can_project = Piece.is_convex;
-     let placeholder_length = () => 2;
-     let update = _: proj_type => Fold();
-   });
-
-let display_ty = (expected_ty: option(Typ.t)): Typ.t =>
-  switch (expected_ty) {
-  | Some(expected_ty) => expected_ty
-  | None => Unknown(Internal)
-  };
-
-let mkFInfer = (data: infer): p =>
-  (module
-   {
-     [@deriving (show({with_path: false}), sexp, yojson)]
-     type t = infer;
-     let data = data;
-     let proj_type = Infer(data);
-     let can_project = (p: Piece.t): bool =>
-       Piece.is_convex(p)
-       && (
-         switch (p) {
-         | Tile(t) => t.mold.out == Exp || t.mold.out == Pat
-         | _ => false
-         }
-       );
-     let placeholder_length = _ =>
-       display_ty(data.expected_ty) |> Typ.pretty_print |> String.length;
-     let update = (ci: option(Info.t)): proj_type => {
-       print_endline("updating infer projector");
-       let expected_ty =
-         switch (ci) {
-         | Some(InfoExp({mode, _}) | InfoPat({mode, _})) =>
-           Mode.ty_of(mode)
-         | _ => Typ.Float
-         };
-       Infer({expected_ty: Some(expected_ty)});
-     };
-   });
-
-let to_module = (p: proj_type): p =>
+let to_module = (p: proj_type): projector_module =>
   switch ((p: proj_type)) {
-  | Fold(data) => mkFold(data)
-  | Infer(data) => mkFInfer(data)
+  | Fold(data) => FoldProjectorCore.mk(data)
+  | Infer(data) => InferProjectorCore.mk(data)
   };
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-module Map = {
-  open Id.Map;
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Id.Map.t(proj_type);
-  let empty = empty;
-  let find = find_opt;
-  let mem = mem;
-  let mapi = mapi;
-  let update = update;
-};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = proj_type;
 
-let placeholder = (p: t, id: Id.t) => {
+let placeholder = (p: t, id: Id.t): Piece.t => {
   let (module P) = to_module(p);
   Piece.Tile({
     id,
@@ -102,65 +29,155 @@ let placeholder = (p: t, id: Id.t) => {
     children: [],
   });
 };
-let placehold = (ps: Map.t, p: Piece.t) =>
-  switch (Map.find(Piece.id(p), ps)) {
-  | None => p
-  | Some(pr) => placeholder(pr, Piece.id(p))
-  };
 
-let rec of_segment = (projectors, seg: Segment.t): Segment.t => {
-  seg |> List.map(placehold(projectors)) |> List.map(of_piece(projectors));
-}
-and of_piece = (projectors, p: Piece.t): Piece.t => {
-  switch (p) {
-  | Tile(t) => Tile(of_tile(projectors, t))
-  | Grout(_) => p
-  | Secondary(_) => p
-  };
-}
-and of_tile = (projectors, t: Tile.t): Tile.t => {
-  {...t, children: List.map(of_segment(projectors), t.children)};
-};
-
-let piece_is = (projectors: Map.t, p: option(Piece.t)) =>
-  switch (p) {
-  | Some(p) when Map.mem(Piece.id(p), projectors) =>
-    Map.mem(Piece.id(p), projectors) ? Some(Piece.id(p)) : None
+let piece_is = (ps: Map.t, piece: option(Piece.t)): option(Id.t) =>
+  switch (piece) {
+  | Some(p) when Map.mem(Piece.id(p), ps) =>
+    Map.mem(Piece.id(p), ps) ? Some(Piece.id(p)) : None
   | _ => None
   };
 
-let neighbor_is = (projectors, s: Siblings.t): (option(Id.t), option(Id.t)) => (
-  piece_is(projectors, Siblings.left_neighbor(s)),
-  piece_is(projectors, Siblings.right_neighbor(s)),
+let neighbor_is = (ps, s: Siblings.t): (option(Id.t), option(Id.t)) => (
+  piece_is(ps, Siblings.left_neighbor(s)),
+  piece_is(ps, Siblings.right_neighbor(s)),
 );
 
-let selection_sides_is =
-    (projectors, s: Selection.t): (option(Id.t), option(Id.t)) => (
-  piece_is(projectors, ListUtil.hd_opt(s.content)),
-  piece_is(projectors, ListUtil.last_opt(s.content)),
-);
-
-let toggle_click = (id, info, projectors: Map.t) => {
-  switch (Map.find(id, projectors)) {
-  | Some(Infer(_)) => (Some(Fold()), id)
-  | Some(Fold ()) =>
-    let (module I) = mkFInfer({expected_ty: None});
-    //TODO(andrew): get piece of target for I.can_project(piece)
-    (Some(I.update(info)), id);
-  | None => (Some(Fold()), id)
+module Select = {
+  let skip_grow_left =
+      ({relatives: {siblings: (ls, rs), _}, _} as z: ZipperBase.t) => {
+    let (ls, content) = Segment.push_right((ls, z.selection.content));
+    z
+    |> put_selection_content(content)
+    |> put_siblings((ls, rs))
+    |> Option.some;
   };
+
+  let skip_grow_right =
+      ({relatives: {siblings: (ls, rs), _}, _} as z: ZipperBase.t) => {
+    let (content, rs) = Segment.push_left((z.selection.content, rs));
+    z
+    |> put_selection_content(content)
+    |> put_siblings((ls, rs))
+    |> Option.some;
+  };
+
+  let grow =
+      ({relatives: {siblings, _}, projectors, _} as z: ZipperBase.t)
+      : option(ZipperBase.t) =>
+    switch (z.selection.focus, neighbor_is(projectors, siblings)) {
+    | (Left, (Some(_), _)) => skip_grow_left(z)
+    | (Right, (_, Some(_))) => skip_grow_right(z)
+    | _ => None
+    };
+
+  let skip_shrink_left =
+      ({relatives: {siblings: (ls, rs), _}, _} as z: ZipperBase.t) => {
+    let (ls, content) = Segment.push_left((ls, z.selection.content));
+    z
+    |> put_selection_content(content)
+    |> put_siblings((ls, rs))
+    |> Option.some;
+  };
+
+  let skip_shrink_right =
+      ({relatives: {siblings: (ls, rs), _}, _} as z: ZipperBase.t) => {
+    let (content, rs) = Segment.push_right((z.selection.content, rs));
+    z
+    |> put_selection_content(content)
+    |> put_siblings((ls, rs))
+    |> Option.some;
+  };
+
+  let selection_sides_is =
+      (projectors, s: Selection.t): (option(Id.t), option(Id.t)) => (
+    piece_is(projectors, ListUtil.hd_opt(s.content)),
+    piece_is(projectors, ListUtil.last_opt(s.content)),
+  );
+
+  let shrink =
+      ({selection, projectors, _} as z: ZipperBase.t): option(ZipperBase.t) =>
+    switch (selection.focus, selection_sides_is(projectors, selection)) {
+    | (Left, (Some(_), _)) => skip_shrink_left(z)
+    | (Right, (_, Some(_))) => skip_shrink_right(z)
+    | _ => None
+    };
 };
 
-let toggle_local = (id, projectors: Map.t, piece) => {
-  // returns prev, next
-  switch (Map.find(id, projectors)) {
-  | Some(p) => (Some(p), None)
-  | None =>
-    let (module P) = mkFold();
-    if (P.can_project(piece)) {
-      (None, Some(Fold()));
-    } else {
-      (None, None);
+module Move = {
+  let go = (d: Direction.t, z: ZipperBase.t): option(ZipperBase.t) =>
+    switch (d, neighbor_is(z.projectors, z.relatives.siblings)) {
+    | (Left, (Some(_), _)) =>
+      Some(put_siblings(Segment.push_right(z.relatives.siblings), z))
+    | (Right, (_, Some(_))) =>
+      Some(put_siblings(Segment.push_left(z.relatives.siblings), z))
+    | _ => None
+    };
+};
+
+module Project = {
+  let placehold = (ps: Map.t, p: Piece.t) =>
+    switch (Map.find(Piece.id(p), ps)) {
+    | None => p
+    | Some(pr) => placeholder(pr, Piece.id(p))
+    };
+
+  let rec of_segment = (projectors, seg: Segment.t): Segment.t => {
+    seg
+    |> List.map(placehold(projectors))
+    |> List.map(of_piece(projectors));
+  }
+  and of_piece = (projectors, p: Piece.t): Piece.t => {
+    switch (p) {
+    | Tile(t) => Tile(of_tile(projectors, t))
+    | Grout(_) => p
+    | Secondary(_) => p
+    };
+  }
+  and of_tile = (projectors, t: Tile.t): Tile.t => {
+    {...t, children: List.map(of_segment(projectors), t.children)};
+  };
+
+  let of_siblings = (projectors: Map.t, siblings: Siblings.t): Siblings.t => {
+    let l_sibs = of_segment(projectors, fst(siblings));
+    let r_sibs = of_segment(projectors, snd(siblings));
+    (l_sibs, r_sibs);
+  };
+
+  let of_ancestor = (projectors: Map.t, ancestor: Ancestor.t): Ancestor.t => {
+    {
+      ...ancestor,
+      children: (
+        List.map(of_segment(projectors), fst(ancestor.children)),
+        List.map(of_segment(projectors), snd(ancestor.children)),
+      ),
     };
   };
+
+  let of_generation =
+      (projectors: Map.t, generation: Ancestors.generation)
+      : Ancestors.generation => (
+    of_ancestor(projectors, fst(generation)),
+    of_siblings(projectors, snd(generation)),
+  );
+
+  let of_ancestors = (projectors: Map.t, ancestors: Ancestors.t): Ancestors.t =>
+    List.map(of_generation(projectors), ancestors);
+
+  let of_selection = (projectors: Map.t, selection: Selection.t): Selection.t => {
+    {...selection, content: of_segment(projectors, selection.content)};
+  };
+
+  let go = (z: ZipperBase.t): ZipperBase.t =>
+    if (Id.Map.is_empty(z.projectors)) {
+      z;
+    } else {
+      {
+        ...z,
+        selection: of_selection(z.projectors, z.selection),
+        relatives: {
+          ancestors: of_ancestors(z.projectors, z.relatives.ancestors),
+          siblings: of_siblings(z.projectors, z.relatives.siblings),
+        },
+      };
+    };
 };
