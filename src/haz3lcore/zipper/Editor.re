@@ -41,7 +41,7 @@ module Meta = {
     {
       col_target: 0,
       touched: Touched.empty,
-      projected: z |> ProjectorAction.project |> init_projected,
+      projected: z |> PerformProjector.project |> init_projected,
     };
   };
 
@@ -92,7 +92,7 @@ module Meta = {
       | Select(Resize(Local(Up | Down))) => meta.col_target
       | _ => Zipper.caret_point(meta.projected.measured, meta.projected.z).col
       };
-    let z_projected = ProjectorAction.project(z);
+    let z_projected = PerformProjector.project(z);
     let projected =
       switch (Action.is_edit(a)) {
       //TODO(andrew): reenable
@@ -216,8 +216,7 @@ let trailing_hole_ctx = (ed: t, info_map: Statics.Map.t) => {
 
 let get_projectors = (ed: t) => ed.state.zipper.projectors;
 
-let map_projectors =
-    (f: (Id.t, Projector.proj_type2) => Projector.proj_type2, ed: t) =>
+let map_projectors = (f: (Id.t, Projector.t) => Projector.t, ed: t) =>
   update_z(
     z => {...z, projectors: Projector.Map.mapi(f, z.projectors)},
     ed,

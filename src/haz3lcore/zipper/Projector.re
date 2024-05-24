@@ -1,6 +1,5 @@
 open Util;
 open Sexplib.Std;
-open OptUtil.Syntax;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type infer = {expected_ty: option(Typ.t)};
@@ -9,44 +8,33 @@ type infer = {expected_ty: option(Typ.t)};
 type fold = unit;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type proj_type2 =
+type proj_type =
   | Fold(fold)
   | Infer(infer);
-type proj_type =
-  | Fold(ref(fold))
-  | Infer(ref(infer));
 
 module type P = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t;
   let proj_type: proj_type;
-  let data: ref(t);
+  let data: t;
   let placeholder_length: unit => int;
   let can_project: Piece.t => bool;
-  let update: option(Info.t) => proj_type2;
+  let update: option(Info.t) => proj_type;
 };
 
-type t = (module P);
+type p = (module P);
 
-let mkFold = (data): t =>
+let mkFold = (data): p =>
   (module
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
      type t = unit;
-     let data = ref(data);
+     let data = data;
      let proj_type = Fold(data);
      let can_project = Piece.is_convex;
      let placeholder_length = () => 2;
-     let update = _: proj_type2 => Fold();
+     let update = _: proj_type => Fold();
    });
-
-//TODO(andrew): proper serialization
-let t_of_sexp = _ => mkFold();
-let sexp_of_t = _ => Sexplib.Sexp.Atom("OPAQUE");
-let yojson_of_t = _ => Yojson.Safe.from_string("OPAQUE");
-let t_of_yojson = _ => mkFold();
-let pp: (Format.formatter, t) => unit = (_fmt, _map) => ();
-let compare = (_, _) => 0;
 
 let display_ty = (expected_ty: option(Typ.t)): Typ.t =>
   switch (expected_ty) {
@@ -54,12 +42,12 @@ let display_ty = (expected_ty: option(Typ.t)): Typ.t =>
   | None => Unknown(Internal)
   };
 
-let mkFInfer = (data: infer): t =>
+let mkFInfer = (data: infer): p =>
   (module
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
      type t = infer;
-     let data = ref(data);
+     let data = data;
      let proj_type = Infer(data);
      let can_project = (p: Piece.t): bool =>
        Piece.is_convex(p)
@@ -70,8 +58,8 @@ let mkFInfer = (data: infer): t =>
          }
        );
      let placeholder_length = _ =>
-       display_ty(data^.expected_ty) |> Typ.pretty_print |> String.length;
-     let update = (ci: option(Info.t)): proj_type2 => {
+       display_ty(data.expected_ty) |> Typ.pretty_print |> String.length;
+     let update = (ci: option(Info.t)): proj_type => {
        print_endline("updating infer projector");
        let expected_ty =
          switch (ci) {
@@ -79,43 +67,33 @@ let mkFInfer = (data: infer): t =>
            Mode.ty_of(mode)
          | _ => Typ.Float
          };
-       data := {expected_ty: Some(expected_ty)};
-       Infer(data^);
+       Infer({expected_ty: Some(expected_ty)});
      };
    });
 
-let to_module = (p: proj_type2): t =>
-  switch ((p: proj_type2)) {
+let to_module = (p: proj_type): p =>
+  switch ((p: proj_type)) {
   | Fold(data) => mkFold(data)
   | Infer(data) => mkFInfer(data)
   };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 module Map = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type p = proj_type2;
-
   open Id.Map;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Id.Map.t(p);
+  type t = Id.Map.t(proj_type);
   let empty = empty;
-  let find2 = find_opt;
-  let find = (key, map) => {
-    let+ p = find_opt(key, map);
-    to_module(p);
-  };
+  let find = find_opt;
   let mem = mem;
-  let mapi = (f: (Id.t, p) => p, map: Id.Map.t(p)): Id.Map.t(p) => {
-    mapi(f, map);
-  };
-
-  let update = (key, f, map) => {
-    update(key, f, map);
-  };
+  let mapi = mapi;
+  let update = update;
 };
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type t = proj_type;
+
 let placeholder = (p: t, id: Id.t) => {
-  let (module P) = p;
+  let (module P) = to_module(p);
   Piece.Tile({
     id,
     label: [String.make(P.placeholder_length(), ' ')],
@@ -161,3 +139,28 @@ let selection_sides_is =
   piece_is(projectors, ListUtil.hd_opt(s.content)),
   piece_is(projectors, ListUtil.last_opt(s.content)),
 );
+
+let toggle_click = (id, info, projectors: Map.t) => {
+  switch (Map.find(id, projectors)) {
+  | Some(Infer(_)) => (Some(Fold()), id)
+  | Some(Fold ()) =>
+    let (module I) = mkFInfer({expected_ty: None});
+    //TODO(andrew): get piece of target for I.can_project(piece)
+    (Some(I.update(info)), id);
+  | None => (Some(Fold()), id)
+  };
+};
+
+let toggle_local = (id, projectors: Map.t, piece) => {
+  // returns prev, next
+  switch (Map.find(id, projectors)) {
+  | Some(p) => (Some(p), None)
+  | None =>
+    let (module P) = mkFold();
+    if (P.can_project(piece)) {
+      (None, Some(Fold()));
+    } else {
+      (None, None);
+    };
+  };
+};

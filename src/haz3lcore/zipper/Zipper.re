@@ -445,12 +445,7 @@ let caret_direction = (z: t): option(Direction.t) =>
     }
   };
 
-let get_projector = (z: t, id: Id.t): option(Projector.t) =>
-  Projector.Map.find(id, z.projectors);
-
-let measured = z => {
-  z |> unselect_and_zip |> Measured.of_segment;
-};
+let measured = z => z |> unselect_and_zip |> Measured.of_segment;
 
 let base_point = (measured: Measured.t, z: t): Measured.Point.t => {
   switch (representative_piece(z)) {
@@ -467,7 +462,7 @@ let base_point = (measured: Measured.t, z: t): Measured.Point.t => {
      * a Grout becomes a Tile. Hence we convert pieces that
      * would be projected to their placeholders before lookup */
     let p =
-      switch (get_projector(z, Piece.id(p))) {
+      switch (Projector.Map.find(Piece.id(p), z.projectors)) {
       | Some(pr) => Projector.placeholder(pr, Piece.id(p))
       | None => p
       };
