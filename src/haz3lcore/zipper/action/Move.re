@@ -79,7 +79,7 @@ module Make = (M: Editor.Meta.S) => {
        (select an open parens to left of a multichar token and press left) */
     | _ when z.selection.content != [] => pop_move(d, z)
     /* Need this case to avoid moving sub-caret onto projectors: */
-    | _ when Zipper.projector_move(d, z) != None => Zipper.move(d, z)
+    | _ when Projector.Move.go(d, z) != None => Zipper.move(d, z)
     | (Left, Outer, (CanEnter(dlm, c_max), _)) =>
       inner_end(d, dlm, c_max, z)
     | (Left, Outer, _) => Zipper.move(d, z)

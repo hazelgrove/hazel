@@ -160,3 +160,9 @@ module Fragment = {
     Url.Current.get() |> Option.map(fragment_of_url);
   };
 };
+
+let stop_mousedown_propagation =
+  Attr.on_mousedown(evt => {
+    Js_of_ocaml.Dom_html.stopPropagation(evt);
+    Virtual_dom.Vdom.Effect.Ignore;
+  });
