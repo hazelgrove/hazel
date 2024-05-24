@@ -61,47 +61,12 @@ let move_out_of_piece =
     }
   };
 
-let set = (p: option(Projector.proj_type2), id: Id.t, ps: Projector.Map.t) =>
+let set = (p: option(Projector.t), id: Id.t, ps: Projector.Map.t) =>
   Projector.Map.update(id, _ => p, ps);
 
-let set = (p: option(Projector.proj_type2), id: Id.t, z: Zipper.t) => {
+let set = (p: option(Projector.t), id: Id.t, z: Zipper.t) => {
   ...z,
   projectors: set(p, id, z.projectors),
-};
-
-let set_project =
-    (
-      prj: Projector.proj_type2,
-      id: Id.t,
-      d: Util.Direction.t,
-      rel: Indicated.relation,
-      z: Zipper.t,
-    ) =>
-  z |> set(Some(prj), id) |> move_out_of_piece(d, rel) |> Option.some;
-
-let toggle_local = (id, _info, z: Zipper.t, piece, d, rel) => {
-  switch (Projector.Map.find(id, z.projectors)) {
-  | Some(_) => Some(set(None, id, z))
-  | _ =>
-    let (module P) = Projector.mkFold();
-    if (P.can_project(piece)) {
-      set_project(Fold(), id, d, rel, z);
-    } else {
-      None;
-    };
-  };
-};
-
-let toggle_click = (id, info, z: Zipper.t) => {
-  //TODO: get piece of target for predicate
-  switch (Projector.Map.find2(id, z.projectors)) {
-  | Some(Infer(_)) => Some(set(Some(Fold()), id, z))
-  | Some(Fold ()) =>
-    let (module I) = Projector.mkFInfer({expected_ty: None});
-    //TODO: get piece of target for I.can_project(piece)
-    Some(set(Some(I.update(info)), id, z));
-  | None => Some(set(Some(Fold()), id, z))
-  };
 };
 
 let go = (a: Action.project, statics: CachedStatics.statics, z: Zipper.t) =>
@@ -112,10 +77,15 @@ let go = (a: Action.project, statics: CachedStatics.statics, z: Zipper.t) =>
     switch (a) {
     | ToggleIndicated =>
       let id = Piece.id(p);
-      let info = Id.Map.find_opt(id, statics.info_map);
-      toggle_local(id, info, z, p, d, rel);
+      switch (Projector.toggle_local(id, z.projectors, p)) {
+      | (None, None) => None
+      | (None, opt_p) =>
+        Some(set(opt_p, id, z) |> move_out_of_piece(d, rel))
+      | _ => Some(set(None, id, z))
+      };
     | Toggle(id) =>
       let info = Id.Map.find_opt(id, statics.info_map);
-      toggle_click(id, info, z);
+      let (opt_p, id) = Projector.toggle_click(id, info, z.projectors);
+      Some(set(opt_p, id, z));
     }
   };

@@ -111,19 +111,17 @@ let mkInfer = (data): (module PV) =>
      let ci_string: unit => string = _ => "I";
    });
 
-let convert = (p: Projector.t): (module PV) => {
-  let (module P) = p;
-  switch (P.proj_type) {
-  | Fold(data) => mkFold(data^)
-  | Infer(data) => mkInfer(data^)
+let to_module = (p: Projector.t): (module PV) =>
+  switch (p) {
+  | Fold(data) => mkFold(data)
+  | Infer(data) => mkInfer(data)
   };
-};
 
 let view =
     (id: Id.t, ps: Map.t, ~measured: Measured.t, ~inject, ~font_metrics) => {
   let* p = Projector.Map.find(id, ps);
   let+ measurement = Measured.find_by_id(id, measured);
-  let (module PV) = convert(p);
+  let (module PV) = to_module(p);
   PV.normal(id, ~inject, ~font_metrics, ~measurement);
 };
 
@@ -132,7 +130,7 @@ let indication_view =
     : option(Node.t) => {
   let* p = Projector.Map.find(id, ps);
   let+ measurement = Measured.find_by_id(id, measured);
-  let (module PV) = convert(p);
+  let (module PV) = to_module(p);
   PV.indicated(id, ~inject, ~font_metrics, ~measurement);
 };
 
@@ -154,12 +152,12 @@ let key_handler = (editor: Editor.t, key: Key.t): option(UpdateAction.t) =>
   switch (indicated_proj_ed(editor)) {
   | None => None
   | Some((id, p)) =>
-    let (module PV) = convert(p);
+    let (module PV) = to_module(p);
     PV.key_handler(id, key);
   };
 
 let ci = (~inject as _, editor: Editor.t) => {
   let+ (_, p) = indicated_proj_ed(editor);
-  let (module PV) = convert(p);
+  let (module PV) = to_module(p);
   div(~attr=Attr.classes(["projector-ci"]), [text(PV.ci_string())]);
 };

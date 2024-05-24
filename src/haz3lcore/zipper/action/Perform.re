@@ -48,7 +48,7 @@ let go_z =
 
   switch (a) {
   | Project(a) =>
-    switch (ProjectorAction.go(a, statics, z)) {
+    switch (PerformProjector.go(a, statics, z)) {
     | None => Error(Action.Failure.Cant_project)
     | Some(z) => Ok(z)
     }
