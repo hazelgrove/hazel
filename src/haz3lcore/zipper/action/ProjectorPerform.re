@@ -12,55 +12,34 @@ let move_out_of_piece =
     }
   };
 
-let set = (p: option(t), id: Id.t, ps: Map.t) => Map.update(id, _ => p, ps);
-
-let set = (p: option(t), id: Id.t, z: ZipperBase.t) => {
+let set = (id: Id.t, p: option(t), z: ZipperBase.t) => {
   ...z,
-  projectors: set(p, id, z.projectors),
+  projectors: Map.update(id, _ => p, z.projectors),
 };
 
-let toggle_click = (id: Id.t, info: Projector.info, ps: Map.t): option(t) => {
-  switch (Map.find(id, ps)) {
-  | Some(Infer(_)) => Some(Fold())
-  | Some(Fold ()) =>
-    let (module I) = InferProjectorCore.mk({expected_ty: None});
-    //TODO(andrew): get piece of target for I.can_project(piece)
-    Some(I.update(info));
-  | None => Some(Fold())
+let add_or_remove = (id: Id.t, z: Zipper.t, info_map, p, piece, d, rel) =>
+  switch (Map.mem(id, z.projectors)) {
+  | false =>
+    switch (Projector.create(p, piece, id, info_map)) {
+    | None => Error(Action.Failure.Cant_project)
+    | opt_p => Ok(set(id, opt_p, z) |> move_out_of_piece(d, rel))
+    }
+  | true => Ok(set(id, None, z))
   };
-};
-
-let toggle_local =
-    (id: Id.t, projectors: Map.t, piece: Piece.t): (option(t), option(t)) => {
-  /* returns prev & new projector model */
-  switch (Map.find(id, projectors)) {
-  | Some(p) => (Some(p), None)
-  | None =>
-    let (module P) = FoldProjectorCore.mk();
-    if (P.can_project(piece)) {
-      (None, Some(Fold()));
-    } else {
-      (None, None);
-    };
-  };
-};
 
 let go = (a: Action.project, statics: CachedStatics.statics, z: ZipperBase.t) =>
   //TODO(andrew): avoid bringing statics in here?
-  switch (Indicated.for_index(z)) {
-  | None => None
-  | Some((p, d, rel)) =>
-    switch (a) {
-    | ToggleIndicated =>
-      let id = Piece.id(p);
-      switch (toggle_local(id, z.projectors, p)) {
-      | (None, None) => None
-      | (None, opt_p) =>
-        Some(set(opt_p, id, z) |> move_out_of_piece(d, rel))
-      | _ => Some(set(None, id, z))
-      };
-    | Toggle(id) =>
-      let info = Id.Map.find_opt(id, statics.info_map);
-      Some(set(toggle_click(id, {info: info}, z.projectors), id, z));
+  //TODO(andrew): method to remotely get projected piece
+  switch (a) {
+  | AddOrRemoveIndicated(p) =>
+    switch (Indicated.for_index(z)) {
+    | None => Error(Action.Failure.Cant_project)
+    | Some((piece, d, rel)) =>
+      add_or_remove(Piece.id(piece), z, statics.info_map, p, piece, d, rel)
+    }
+  | Remove(id) =>
+    switch (Map.mem(id, z.projectors)) {
+    | false => Error(Action.Failure.Cant_project)
+    | true => Ok(set(id, None, z))
     }
   };

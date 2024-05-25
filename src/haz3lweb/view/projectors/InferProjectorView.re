@@ -2,6 +2,8 @@ open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
 
+let remove = id => Update.PerformAction(Project(Remove(id)));
+
 let base =
     (
       clss,
@@ -16,9 +18,7 @@ let base =
       Attr.many([
         Attr.classes(["projector", "infer"] @ clss),
         JsUtil.stop_mousedown_propagation,
-        Attr.on_pointerdown(_ =>
-          Effect.Many([inject(Update.PerformAction(Project(Toggle(id))))])
-        ),
+        Attr.on_double_click(_ => inject(remove(id))),
         DecUtil.abs_style(measurement, ~font_metrics),
       ]),
     [
@@ -35,10 +35,9 @@ let mk = (data: Projector.infer): ProjectorViewModule.t =>
      let data = data;
      let normal = base([], data.expected_ty);
      let indicated = base(["indicated"], data.expected_ty);
-     let key_handler = (id, key: Key.t): option(UpdateAction.t) =>
+     let key_handler = (id, key: Key.t) =>
        switch (key) {
-       | {key: D("Escape"), _} =>
-         Some(PerformAction(Project(Toggle(id))))
+       | {key: D("Escape"), _} => Some(remove(id))
        | _ => None
        };
      let ci_string: unit => string = _ => "I";
