@@ -5,19 +5,22 @@ open ZipperBase;
 module Map = ProjectorMap;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type info = ZipperBase.projector_info;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type fold = ZipperBase.fold;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type infer = ZipperBase.infer;
 
-let to_module = (p: proj_type): projector_module =>
-  switch ((p: proj_type)) {
+let to_module = (p: projector): projector_core =>
+  switch ((p: projector)) {
   | Fold(data) => FoldProjectorCore.mk(data)
   | Infer(data) => InferProjectorCore.mk(data)
   };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = proj_type;
+type t = projector;
 
 let placeholder = (p: t, id: Id.t): Piece.t => {
   let (module P) = to_module(p);
