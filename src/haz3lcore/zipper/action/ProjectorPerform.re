@@ -27,15 +27,15 @@ let add_or_remove = (id: Id.t, z: Zipper.t, info_map, p, piece, d, rel) =>
   | true => Ok(set(id, None, z))
   };
 
-let go = (a: Action.project, statics: CachedStatics.statics, z: ZipperBase.t) =>
+let go = (a: Action.project, info_map: Statics.Map.t, z: ZipperBase.t) =>
   //TODO(andrew): avoid bringing statics in here?
   //TODO(andrew): method to remotely get projected piece
   switch (a) {
-  | AddOrRemoveIndicated(p) =>
+  | ToggleIndicated(p) =>
     switch (Indicated.for_index(z)) {
     | None => Error(Action.Failure.Cant_project)
     | Some((piece, d, rel)) =>
-      add_or_remove(Piece.id(piece), z, statics.info_map, p, piece, d, rel)
+      add_or_remove(Piece.id(piece), z, info_map, p, piece, d, rel)
     }
   | Remove(id) =>
     switch (Map.mem(id, z.projectors)) {

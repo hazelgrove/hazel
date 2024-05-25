@@ -109,11 +109,11 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
     }
   | {key: D(key), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     switch (key) {
-    | "ƒ" => Some(PerformAction(Project(AddOrRemoveIndicated(Fold()))))
+    | "ƒ" => Some(PerformAction(Project(ToggleIndicated(Fold()))))
     | "†" =>
       Some(
         PerformAction(
-          Project(AddOrRemoveIndicated(Infer({expected_ty: None}))),
+          Project(ToggleIndicated(Infer({expected_ty: None}))),
         ),
       )
     | "ArrowLeft" => now(MoveToBackpackTarget(Left(ByToken)))
