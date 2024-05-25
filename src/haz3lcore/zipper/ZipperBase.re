@@ -9,7 +9,7 @@ type infer = {expected_ty: option(Typ.t)};
 type fold = unit;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type proj_type =
+type projector =
   | Fold(fold)
   | Infer(infer);
 
@@ -17,7 +17,7 @@ type proj_type =
 module ProjectorMap = {
   open Id.Map;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Id.Map.t(proj_type);
+  type t = Id.Map.t(projector);
   let empty = empty;
   let find = find_opt;
   let mem = mem;
@@ -25,17 +25,20 @@ module ProjectorMap = {
   let update = update;
 };
 
-module type P = {
+[@deriving (show({with_path: false}), sexp, yojson)]
+type projector_info = {info: option(Info.t)};
+
+module type ProjectorCore = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t;
-  let proj_type: proj_type;
+  let projector: projector;
   let data: t;
   let placeholder_length: unit => int;
   let can_project: Piece.t => bool;
-  let update: option(Info.t) => proj_type;
+  let update: projector_info => projector;
 };
 
-type projector_module = (module P);
+type projector_core = (module ProjectorCore);
 
 module Caret = {
   [@deriving (show({with_path: false}), sexp, yojson)]

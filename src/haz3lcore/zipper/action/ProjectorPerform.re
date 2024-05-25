@@ -19,21 +19,20 @@ let set = (p: option(t), id: Id.t, z: ZipperBase.t) => {
   projectors: set(p, id, z.projectors),
 };
 
-let toggle_click =
-    (id: Id.t, info: option(Info.t), ps: Map.t): (option(t), Id.t) => {
+let toggle_click = (id: Id.t, info: Projector.info, ps: Map.t): option(t) => {
   switch (Map.find(id, ps)) {
-  | Some(Infer(_)) => (Some(Fold()), id)
+  | Some(Infer(_)) => Some(Fold())
   | Some(Fold ()) =>
     let (module I) = InferProjectorCore.mk({expected_ty: None});
     //TODO(andrew): get piece of target for I.can_project(piece)
-    (Some(I.update(info)), id);
-  | None => (Some(Fold()), id)
+    Some(I.update(info));
+  | None => Some(Fold())
   };
 };
 
 let toggle_local =
-    (id, projectors: Map.t, piece: Piece.t): (option(t), option(t)) => {
-  // returns prev & new projector model
+    (id: Id.t, projectors: Map.t, piece: Piece.t): (option(t), option(t)) => {
+  /* returns prev & new projector model */
   switch (Map.find(id, projectors)) {
   | Some(p) => (Some(p), None)
   | None =>
@@ -62,7 +61,6 @@ let go = (a: Action.project, statics: CachedStatics.statics, z: ZipperBase.t) =>
       };
     | Toggle(id) =>
       let info = Id.Map.find_opt(id, statics.info_map);
-      let (opt_p, id) = toggle_click(id, info, z.projectors);
-      Some(set(opt_p, id, z));
+      Some(set(toggle_click(id, {info: info}, z.projectors), id, z));
     }
   };
