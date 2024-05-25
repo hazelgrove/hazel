@@ -47,11 +47,7 @@ let go_z =
     };
 
   switch (a) {
-  | Project(a) =>
-    switch (ProjectorPerform.go(a, statics, z)) {
-    | None => Error(Action.Failure.Cant_project)
-    | Some(z) => Ok(z)
-    }
+  | Project(a) => ProjectorPerform.go(a, statics, z)
   | Move(d) =>
     Move.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move)
   | MoveToNextHole(d) =>

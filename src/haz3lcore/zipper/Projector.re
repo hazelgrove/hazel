@@ -33,6 +33,13 @@ let placeholder = (p: t, id: Id.t): Piece.t => {
   });
 };
 
+let create =
+    (p: t, piece: Piece.t, id: Id.t, info_map: Statics.Map.t): option(t) => {
+  let (module P) = to_module(p);
+  P.can_project(piece)
+    ? Some(P.update({info: Id.Map.find_opt(id, info_map)})) : None;
+};
+
 let piece_is = (ps: Map.t, piece: option(Piece.t)): option(Id.t) =>
   switch (piece) {
   | Some(p) when Map.mem(Piece.id(p), ps) =>

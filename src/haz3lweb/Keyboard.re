@@ -73,7 +73,6 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
     }
   | {key: D(key), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up} =>
     switch (key) {
-    | "e" => Some(PerformAction(Project(ToggleIndicated)))
     | "z" => Some(Undo)
     | "d" => now(Select(Term(Current)))
     | "p" => Some(PerformAction(Pick_up))
@@ -89,7 +88,6 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
     }
   | {key: D(key), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
     switch (key) {
-    | "e" => Some(PerformAction(Project(ToggleIndicated)))
     | "z" => Some(Undo)
     | "d" => now(Select(Term(Current)))
     | "p" => Some(PerformAction(Pick_up))
@@ -109,13 +107,20 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
     | "e" => now(Move(Extreme(Right(ByToken))))
     | _ => None
     }
-  | {key: D(key), sys, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-    switch (sys, key) {
-    | (_, "ArrowLeft") => now(MoveToBackpackTarget(Left(ByToken)))
-    | (_, "ArrowRight") => now(MoveToBackpackTarget(Right(ByToken)))
-    | (_, "Alt") => Some(SetMeta(ShowBackpackTargets(true)))
-    | (_, "ArrowUp") => now(MoveToBackpackTarget(Up))
-    | (_, "ArrowDown") => now(MoveToBackpackTarget(Down))
+  | {key: D(key), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
+    switch (key) {
+    | "ƒ" => Some(PerformAction(Project(AddOrRemoveIndicated(Fold()))))
+    | "†" =>
+      Some(
+        PerformAction(
+          Project(AddOrRemoveIndicated(Infer({expected_ty: None}))),
+        ),
+      )
+    | "ArrowLeft" => now(MoveToBackpackTarget(Left(ByToken)))
+    | "ArrowRight" => now(MoveToBackpackTarget(Right(ByToken)))
+    | "Alt" => Some(SetMeta(ShowBackpackTargets(true)))
+    | "ArrowUp" => now(MoveToBackpackTarget(Up))
+    | "ArrowDown" => now(MoveToBackpackTarget(Down))
     | _ => None
     }
   | _ => None
