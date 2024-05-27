@@ -79,8 +79,8 @@ let dhpat_extend_ctx =
       }
     | Wild
     | InvalidText(_)
-    | Ap(_)
     | BadConstructor(_) => Some([])
+    | Ap(_) => None
     | IntLit(_) => Typ.eq(ty, Int) ? Some([]) : None
     | FloatLit(_) => Typ.eq(ty, Float) ? Some([]) : None
     | BoolLit(_) => Typ.eq(ty, Bool) ? Some([]) : None
@@ -152,8 +152,18 @@ let rec typ_of_dhexp =
     let* ctx = dhpat_extend_ctx(dhp, ty1, m, ctx);
     let* ty2 = typ_of_dhexp(ctx, m, d);
     Some(Typ.Arrow(ty1, ty2));
-  | TypFun(_, d, _) => typ_of_dhexp(ctx, m, d)
-  | TypAp(d, _) => typ_of_dhexp(ctx, m, d)
+  | TypFun({term: Var(name), _}, d, _) =>
+    let* ty = typ_of_dhexp(ctx, m, d);
+    Some(Typ.Forall(name, ty));
+  | TypFun(_, d, _) =>
+    let* ty = typ_of_dhexp(ctx, m, d);
+    Some(Typ.Forall("?", ty));
+  | TypAp(d, ty1) =>
+    let* ty = typ_of_dhexp(ctx, m, d);
+    switch (ty) {
+    | Forall(name, ty2) => Some(Typ.subst(ty1, name, ty2))
+    | _ => None
+    };
   | Ap(d1, d2) =>
     let* ty1 = typ_of_dhexp(ctx, m, d1);
     let* ty2 = typ_of_dhexp(ctx, m, d2);
