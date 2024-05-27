@@ -20,7 +20,7 @@ module rec DHExp: {
     | BoundVar(Var.t) //e
     | Sequence(t, t) //e1; e2
     | Let(DHPat.t, t, t) //let p = e1 in e2
-    | FixF(Var.t, Typ.t, t) //_FIX f Int -> Int fun: Int x -> 1 + x f in 55
+    | FixF(Var.t, Typ.t, t) //fix x : ty => e
     | Fun(DHPat.t, Typ.t, t, option(Var.t)) //fun: t p -> e
     | TypFun(Term.UTPat.t, t, option(Var.t))
     | TypAp(t, Typ.t)

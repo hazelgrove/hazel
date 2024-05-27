@@ -3,6 +3,7 @@ open AST
 %}
 
 
+%token FIX
 %token BAD_CONSTRUCTOR
 %token WILD
 %token QUESTION
@@ -189,7 +190,7 @@ funExp:
 
 ifExp:
     | IF; e1 = exp; THEN; e2 = exp; ELSE; e3 = exp { If (Consistent, e1, e2, e3) }
-    | HOLE; IF; e1 = exp; THEN; e2 = exp; ELSE; e3 = exp { If (Inconsistent, e1, e2, e3) }
+    | OPEN_BRACKET; OPEN_BRACKET; QUESTION; IF; e1 = exp; THEN; e2 = exp; ELSE; e3 = exp; CLOSE_BRACKET; CLOSE_BRACKET { If (Inconsistent, e1, e2, e3) }
 
 filterAction:
     | PAUSE { Pause }
@@ -215,7 +216,7 @@ exp:
     | e1 = exp; QUESTION; LESS_THAN; t1 = typ; EQUAL_ARROW; t2 = typ; GREATER_THAN {FailedCast(e1, t1, t2)}
     | e1 = exp; LESS_THAN; t1 = typ; EQUAL_ARROW; t2 = typ; GREATER_THAN { Cast(e1, t1, t2) }
     | TRUE { Bool true }
-    | FIX; s = IDENT; t = typ; f = funExp { FixF(s, t, f) }
+    | FIX; s = IDENT; COLON; t = typ; EQUAL_ARROW; e = exp { FixF(s, t, e) }
     | f = funExp {f}
     | FALSE { Bool false }
     | OPEN_BRACKET; OPEN_BRACKET; e = exp; CLOSE_BRACKET; CLOSE_BRACKET {NonEmptyHole e}

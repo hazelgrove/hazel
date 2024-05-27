@@ -105,6 +105,7 @@ rule token =
     | "?" {QUESTION}
     | "_" {WILD}
     | "_BAD" {BAD_CONSTRUCTOR}
+    | "fix" {FIX}
     | identifier as i { IDENT(i) }
     | constructor_ident as i { CONSTRUCTOR_IDENT(i)}
     | eof { EOF }
