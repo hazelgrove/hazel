@@ -1,22 +1,23 @@
 open Sexplib.Std;
 
+//Below comments show the textual syntax to build a DHPat whe nusing the menhir parser
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
-  | EmptyHole(MetaVar.t, MetaVarInst.t) // () or _HOLE
-  | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, MetaVarInst.t, t) //(_HOLE x)
+  | EmptyHole(MetaVar.t, MetaVarInst.t) // ?
+  | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, MetaVarInst.t, t) //{{p}}
   | Wild //_
   | InvalidText(MetaVar.t, MetaVarInst.t, string)
   | BadConstructor(MetaVar.t, MetaVarInst.t, string) //_BAD x
-  | Var(Var.t) // x
+  | Var(Var.t) // p
   | IntLit(int) // 1
   | FloatLit(float) //1.0
   | BoolLit(bool) // false
   | StringLit(string) //"hello"
-  | ListLit(Typ.t, list(t)) //[a, b, c]
-  | Cons(t, t) //a :: b
-  | Tuple(list(t)) //(a, b)
-  | Constructor(string) //X
-  | Ap(t, t); //a(1)
+  | ListLit(Typ.t, list(t)) //[p1, p2, p3]
+  | Cons(t, t) //p1 :: p2
+  | Tuple(list(t)) //(p1, p2)
+  | Constructor(string) //P (must be capitalized)
+  | Ap(t, t); //p1(p2)
 
 let mk_tuple: list(t) => t =
   fun

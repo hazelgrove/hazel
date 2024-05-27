@@ -21,16 +21,17 @@ module rec Typ: {
     | Internal;
 
   /* TYP.T: Hazel types */
+    //Commens show the textual syntax for Typ when using the Menhir parser. 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | Unknown(type_provenance)
-    | Int
-    | Float
-    | Bool
-    | String
+    | Unknown(type_provenance) //Unknown type_provenance
+    | Int //Int
+    | Float //Float
+    | Bool //Bool
+    | String //String
     | Var(TypVar.t)
-    | List(t)
-    | Arrow(t, t)
+    | List(t) //(t1, t2 ...)
+    | Arrow(t, t) //t1 -> t2
     | Sum(sum_map)
     | Prod(list(t))
     | Rec(TypVar.t, t)
