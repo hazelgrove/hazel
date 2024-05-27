@@ -95,7 +95,7 @@ let let_fun_uexp: Term.UExp.t = {
 };
 let let_fun_str = "
 let f : Int -> Int =
-    _FIX f Int -> Int fun: Int x ->
+    fix f: Int -> Int => fun: Int x ->
         1 + x
     f
     in
@@ -108,7 +108,7 @@ let let_fun_menhir = () =>
   );
 
 //Test for an empty hole
-let empty_hole_str = "()";
+let empty_hole_str = "?";
 let empty_hole_uexp: Term.UExp.t = {ids: [id_at(0)], term: EmptyHole};
 let empty_hole_menhir = () =>
   alco_check_menhir(
@@ -127,7 +127,7 @@ let free_var_menhir = () =>
     "Nonempty hole with free variable (menhir)",
     Some(
       Haz3lcore.DHExp.of_menhir_ast(
-        Hazel_menhir.Interface.parse_program("(_HOLE _FREE y)"),
+        Hazel_menhir.Interface.parse_program("{{?y}}"),
         get_id_menhir_closure(1),
       ),
     ),
@@ -149,9 +149,7 @@ let bin_op_menhir = () =>
     "Inconsistent binary integer operation (plus)",
     Some(
       Haz3lcore.DHExp.of_menhir_ast(
-        Hazel_menhir.Interface.parse_program(
-          "(_HOLE false) + (_HOLE _FREE y)",
-        ),
+        Hazel_menhir.Interface.parse_program("{{false}} + {{? y}}"),
         get_id_menhir_closure(1),
       ),
     ),
@@ -160,10 +158,10 @@ let bin_op_menhir = () =>
 
 //Inconsistent branches menhir test
 let inconsistent_case_menhir_str = "
-    (_HOLE (case 4 == 3
+    {{?case 4 == 3
     | true => 24
     | false => false
-    end) )
+    end}}
 ";
 let inconsistent_case_uexp: Term.UExp.t = {
   ids: [id_at(0)],
@@ -222,7 +220,7 @@ let ap_fun_uexp: Term.UExp.t = {
     ),
 };
 let ap_fun_str = "
-    (fun: Unknown Internal x -> 4 + x <Unknown Internal => Int>)((_HOLE _FREE y))
+    (fun: Unknown Internal x -> 4 + x <Unknown Internal => Int>)({{? y}})
 ";
 let ap_fun_menhir = () =>
   alco_check(

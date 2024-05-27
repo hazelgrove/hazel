@@ -181,7 +181,8 @@ rul:
 
 case:
     | CASE; e = exp; l = list(rul); END; { CaseExp(e, l) }
-    | OPEN_BRACKET; OPEN_BRACKET; QUESTION; e = exp; l = list(rul); END; CLOSE_BRACKET; CLOSE_BRACKET { InconsistentCaseExp(e, l)}
+    (* | OPEN_BRACKET; OPEN_BRACKET; QUESTION; CASE; e = exp; l = list(rul); END; CLOSE_BRACKET; CLOSE_BRACKET { InconsistentCaseExp(e, l)} *)
+    |  QUESTION; CASE; e = exp; l = list(rul); END; { InconsistentCaseExp(e, l)}
 
 funExp: 
     | FUN; COLON; t = typ; p = pat; DASH_ARROW; e1 = exp;  { Fun (t, p, e1, None) }
@@ -203,7 +204,7 @@ exp:
     | f = FLOAT { Float f }
     | v = IDENT { Var v }
     | c = CONSTRUCTOR_IDENT { Constructor c }
-    | OPEN_BRACKET; OPEN_BRACKET; QUESTION; v = IDENT CLOSE_BRACKET; CLOSE_BRACKET; { FreeVar v }
+    |  QUESTION; v = IDENT { FreeVar v }
     | s = STRING { String s}
     | b = binExp { b }
     | OPEN_PAREN; e = exp; CLOSE_PAREN { e }

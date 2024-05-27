@@ -12,7 +12,7 @@ module rec DHExp: {
   type t =
     | EmptyHole(MetaVar.t, HoleInstanceId.t) //?
     | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, HoleInstanceId.t, t) //{{e}}
-    | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t) //{{?e}}
+    | FreeVar(MetaVar.t, HoleInstanceId.t, Var.t) //?e
     | InvalidText(MetaVar.t, HoleInstanceId.t, string)
     | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case) //{{? case ...}}
     | Closure([@opaque] ClosureEnvironment.t, t)
