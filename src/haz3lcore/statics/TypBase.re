@@ -21,7 +21,7 @@ module rec Typ: {
     | Internal;
 
   /* TYP.T: Hazel types */
-    //Commens show the textual syntax for Typ when using the Menhir parser. 
+  //Commens show the textual syntax for Typ when using the Menhir parser.
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Unknown(type_provenance) //Unknown type_provenance
