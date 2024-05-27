@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Formal Derivation Example</title>
+<style>
+  .derivation {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .premises, .conclusion {
+    text-align: center;
+  }
+
+  .horizontal-line {
+    width: 100%;
+    border-top: 1px solid black;
+    margin: 5px 0;
+  }
+
+  .rule {
+    align-self: flex-end;
+    text-align: center;
+    vertical-align: top;
+  }
+
+  .derivation-container {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .derivation-block {
+    border-left: 2px solid black;
+    padding-left: 10px;
+  }
+</style>
+</head>
+<body>
+
+<div class="derivation-container">
+  <span class="derivation">
+    <span class="premises">
+      <span>P</span>
+      <span>Q</span>
+    </span>
+    <span class="horizontal-line"></span>
+    <span class="conclusion">
+      <span>R</span>
+    </span>
+  </span>
+  <span class="rule">
+    <span>(∧E)</span>
+  </span>
+</div>
+
+</body>
+</html>

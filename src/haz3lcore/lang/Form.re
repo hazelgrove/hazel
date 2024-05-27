@@ -326,7 +326,10 @@ let forms: list((string, t)) = [
     mk(ds, ["type", "=", "in"], mk_pre(P.let_, Exp, [TPat, Typ])),
   ),
   ("if_", mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))),
-  ("derive", mk(ds, ["from", "to", "by"], mk_pre(P.ap, Exp, [Exp, Exp]))),
+  (
+    "derive",
+    mk(ds, ["from", "to", "by", "end"], mk_op(Exp, [Exp, Exp, Exp])),
+  ),
 ];
 
 let get: String.t => t =

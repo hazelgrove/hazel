@@ -26,9 +26,8 @@ let derive_exp: form = {
       mk_derive([
         [space(), _exp_prems, linebreak()],
         [space(), _exp_concl, linebreak()],
+        [space(), _exp_rule],
       ]),
-      space(),
-      _exp_rule,
     ],
     expandable_id: None,
     explanation,

@@ -42,6 +42,7 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
   switch (d) {
   /* Non-hole expressions: recurse through subexpressions */
   | Test(_)
+  | Derive(_, _, _)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
@@ -63,12 +64,6 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     let* d1' = pp_eval(d1);
     let* d2' = pp_eval(d2);
     Ap(d1', d2') |> return;
-
-  | Derive(d1, d2, d3) =>
-    let* d1' = pp_eval(d1);
-    let* d2' = pp_eval(d2);
-    let+ d3' = pp_eval(d3);
-    Derive(d1', d2', d3');
 
   | ApBuiltin(f, d1) =>
     let* d1' = pp_eval(d1);

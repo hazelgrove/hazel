@@ -108,7 +108,16 @@ module Text = (M: {
     |> Aba.join(of_delim(is_in_buffer, is_consistent, t), ((seg, sort)) =>
          of_segment(buffer_ids, false, sort, seg)
        )
-    |> List.concat;
+    |> List.concat
+    // Note(zhiyao): intended for derivation
+    |> {
+      x =>
+        if (t.label == ["from", "to", "by"]) {
+          [span(~attr=Attr.class_("derivaton"), x)];
+        } else {
+          x;
+        };
+    };
   };
 };
 

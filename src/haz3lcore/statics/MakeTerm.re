@@ -166,6 +166,11 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         | term => ret(ListLit([term]))
         }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
+      | (
+          ["from", "to", "by", "end"],
+          [Exp(prems), Exp(concl), Exp(rule)],
+        ) =>
+        ret(Derive(prems, concl, rule))
       | (["case", "end"], [Rul({ids, term: Rules(scrut, rules)})]) => (
           Match(scrut, rules),
           ids,
@@ -186,8 +191,6 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         | (["!"], []) => UnOp(Bool(Not), r)
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
-        | (["from", "to", "by"], [Exp(prems), Exp(concl)]) =>
-          Derive(prems, concl, r)
         | (["hide", "in"], [Exp(filter)]) =>
           Filter((Eval, One), filter, r)
         | (["eval", "in"], [Exp(filter)]) =>
