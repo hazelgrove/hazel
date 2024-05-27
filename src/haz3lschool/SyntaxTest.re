@@ -240,9 +240,9 @@ let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
     | Var(x) => x == name ? true : var_applied(name, u2)
     | _ => var_applied(name, u1) || var_applied(name, u2)
     }
-  | Derive(concl, prems, rule) =>
-    var_applied(name, concl)
-    || var_applied(name, prems)
+  | Derive(prems, concl, rule) =>
+    var_applied(name, prems)
+    || var_applied(name, concl)
     || var_applied(name, rule)
   | DeferredAp(u1, us) =>
     switch (u1.term) {
@@ -325,9 +325,9 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   | Parens(u) => tail_check(name, u)
   | UnOp(_, u) => !var_mention(name, u)
   | Ap(u1, u2) => var_mention(name, u2) ? false : tail_check(name, u1)
-  | Derive(concl, prems, rule) =>
-    var_mention(name, concl)
-    || var_mention(name, prems)
+  | Derive(prems, concl, rule) =>
+    var_mention(name, prems)
+    || var_mention(name, concl)
     || var_mention(name, rule)
   | DeferredAp(fn, args) =>
     tail_check(

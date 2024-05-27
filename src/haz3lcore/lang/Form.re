@@ -106,6 +106,9 @@ let keywords = [
   "if",
   "then",
   "else",
+  "from",
+  "to",
+  "by",
 ];
 let reserved_keywords = ["of", "when", "with", "switch", "match"];
 let is_keyword = regexp("^(" ++ String.concat("|", keywords) ++ ")$");
@@ -323,6 +326,7 @@ let forms: list((string, t)) = [
     mk(ds, ["type", "=", "in"], mk_pre(P.let_, Exp, [TPat, Typ])),
   ),
   ("if_", mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))),
+  ("derive", mk(ds, ["from", "to", "by"], mk_pre(P.ap, Exp, [Exp, Exp]))),
 ];
 
 let get: String.t => t =

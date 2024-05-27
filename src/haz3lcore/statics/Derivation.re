@@ -133,10 +133,15 @@ module Ctx: {
 module Judgement: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
+    | Verified(j)
+    | Wrong(j)
+    | Partial(j)
+  and j =
     | Entail(Ctx.t, Prop.t);
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Cls_Entail;
+  let just: t => j;
   let repr: t => string;
   let cls_repr: cls => string;
   let cls_match: (cls, t) => bool;
@@ -144,23 +149,50 @@ module Judgement: {
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
+    | Verified(j)
+    | Wrong(j)
+    | Partial(j)
+  and j =
     | Entail(Ctx.t, Prop.t);
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Cls_Entail;
-
-  let repr =
-    fun
-    | Entail(ctx, prop) =>
-      Printf.sprintf("%s ⊢ %s", Ctx.repr(ctx), Prop.repr(prop));
-
-  let cls_repr = (v: cls) =>
+  let just = (v: t) =>
     switch (v) {
-    | Cls_Entail => "Entail(⊢)"
+    | Verified(j) => j
+    | Wrong(j) => j
+    | Partial(j) => j
     };
-  let cls_match = (v: cls) =>
+  let repr = (v: t) => {
+    let symbol =
+      switch (v) {
+      | Verified(_) => "✅"
+      | Wrong(_) => "❌"
+      | Partial(_) => "⚠️"
+      };
+    v
+    |> just
+    |> (
+      fun
+      | Entail(ctx, prop) =>
+        Printf.sprintf(
+          "%s %s ⊢ %s",
+          symbol,
+          Ctx.repr(ctx),
+          Prop.repr(prop),
+        )
+    );
+  };
+  let cls_repr =
     fun
-    | Entail(_) => v == Cls_Entail;
+    | Cls_Entail => "Entail(⊢)";
+  let cls_match = (c: cls, v: t) =>
+    v
+    |> just
+    |> (
+      fun
+      | Entail(_, _) => c == Cls_Entail
+    );
   let eq = (a: t, b: t) => a == b;
 };
 
@@ -207,96 +239,4 @@ module Rule: {
     | Implies_E => "⊃-E"
     | Truth_I => "⊤-I"
     | Falsity_E => "⊥-E";
-};
-
-module Derivation: {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | D(d)
-  and d = (Judgement.t, Rule.t, list(t));
-
-  let repr: t => string;
-  let premises: t => list(Judgement.t);
-} = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | D(d)
-  and d = (Judgement.t, Rule.t, list(t));
-
-  let rec repr_helper = (indent: int, d: t): string => {
-    let indent_str = String.make(indent, ' ');
-    switch (d) {
-    | [@implicit_arity] D(judgement, rule, derivations) =>
-      Printf.sprintf(
-        "%s\n%s<%s>\n%s%s",
-        repr_list(indent + 2, derivations),
-        indent_str,
-        Rule.repr(rule),
-        indent_str,
-        Judgement.repr(judgement),
-      )
-    };
-  }
-  and repr_list = (indent: int, ds: list(t)): string =>
-    ds |> List.map(d => repr_helper(indent, d)) |> String.concat("");
-
-  let repr = repr_helper(0);
-  let premises = ([@implicit_arity] D(_, _, ds)) =>
-    ds |> List.map(([@implicit_arity] D(j, _, _)) => j);
-};
-
-module MarkedDerivation: {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | Correct(d)
-    | Incorrect(d, string)
-  and d = (Judgement.t, Rule.t, list(t));
-
-  let repr: t => string;
-} = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | Correct(d)
-    | Incorrect(d, string)
-  and d = (Judgement.t, Rule.t, list(t));
-
-  let rec repr_helper = (indent: int, d: t): string => {
-    let indent_str = String.make(indent, ' ');
-    switch (d) {
-    | [@implicit_arity] Correct(judgement, rule, derivations) =>
-      Printf.sprintf(
-        "%s\n%s<%s>✅\n%s%s",
-        repr_list(indent + 2, derivations),
-        indent_str,
-        Rule.repr(rule),
-        indent_str,
-        Judgement.repr(judgement),
-      )
-    | Incorrect((judgement, rule, derivations), msg) =>
-      Printf.sprintf(
-        "%s\n%s<%s>❌: %s\n%s%s",
-        repr_list(indent + 2, derivations),
-        indent_str,
-        Rule.repr(rule),
-        msg,
-        indent_str,
-        Judgement.repr(judgement),
-      )
-    };
-  }
-  and repr_list = (indent: int, ds: list(t)): string =>
-    ds |> List.map(d => repr_helper(indent, d)) |> String.concat("");
-
-  let repr = repr_helper(0);
-  // let rec fold = (f, acc, d) =>
-  //   switch (d) {
-  //   | [@implicit_arity] Correct(_, _, ds) =>
-  //     List.fold_left(fold(f), f(acc, d), ds)
-  //   | Incorrect(_) => f(acc, d)
-  //   };
-  // let correct =
-  //   fun
-  //   | Correct(_) => true
-  //   | Incorrect(_) => false;
-  // let all_correct = fold((acc, d) => acc && correct(d), true);
 };

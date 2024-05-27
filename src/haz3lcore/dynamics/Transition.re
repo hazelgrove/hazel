@@ -305,46 +305,37 @@ module Transition = (EV: EV_MODE) => {
           value: true,
         })
       };
-    | Derive(conclusion, premises, rule) =>
+    | Derive(prems, concl, rule) =>
       let. _ =
-        otherwise(env, (conclusion, premises, rule) =>
-          Derive(conclusion, premises, rule)
+        otherwise(env, (prems, concl, rule) => Derive(prems, concl, rule))
+      and. prems' =
+        req_final(
+          req(state, env),
+          prems => Derive1(prems, concl, rule),
+          prems,
+        )
+      and. concl' =
+        req_final(
+          req(state, env),
+          concl => Derive2(prems, concl, rule),
+          concl,
         )
       and. rule' =
         req_final(
           req(state, env),
-          rule => Derive3(conclusion, premises, rule),
+          rule => Derive3(prems, concl, rule),
           rule,
-        )
-      and. premises' =
-        req_final(
-          req(state, env),
-          premises => Derive2(conclusion, premises, rule),
-          premises,
-        )
-      and. conclusion' =
-        req_final(
-          req(state, env),
-          conclusion => Derive1(conclusion, premises, rule),
-          conclusion,
         );
       switch (rule') {
       | BuiltinFun(ident) =>
         Step({
           apply: () => {
-            ApBuiltin(ident, Tuple([conclusion', premises']));
+            ApBuiltin(ident, Tuple([concl', prems']));
           },
           kind: BuiltinAp(ident),
           value: false,
         })
-      | _ =>
-        Step({
-          apply: () => {
-            raise(EvaluatorError.Exception(InvalidBoxedFun(rule')));
-          },
-          kind: InvalidStep,
-          value: true,
-        })
+      | _ => Indet
       };
     | ApBuiltin(ident, arg) =>
       let. _ = otherwise(env, arg => ApBuiltin(ident, arg))
@@ -607,8 +598,7 @@ module Transition = (EV: EV_MODE) => {
         ) {
         | Some(ctx) =>
           Step({
-            apply: () =>
-              JudgementLit(Derivation.Judgement.Entail(ctx, prop)),
+            apply: () => JudgementLit(Wrong(Entail(ctx, prop))),
             kind: Entail,
             value: true,
           })

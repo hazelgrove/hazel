@@ -148,7 +148,7 @@ let mk_Ap = (doc1, doc2) =>
   Doc.(hcats([doc1, text("("), doc2, text(")")]));
 
 let mk_Derive = (doc1, doc2, doc3) =>
-  Doc.(hcats([doc1, text("\\"), doc2, text("("), doc3, text(")")]));
+  Doc.(hcats([doc1, text("=>"), doc2, text("<"), doc3, text(">")]));
 
 let mk_Prj = (targ, n) =>
   Doc.hcats([targ, Delim.projection_dot, Doc.text(string_of_int(n))]);

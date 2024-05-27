@@ -230,7 +230,7 @@ module JudgementVer = {
     switch (res) {
     | Ok(j) =>
       Ok(
-        switch (j.value) {
+        switch (just(j.value)) {
         | Entail(c, p) => (
             {location: j.location, value: c},
             {location: j.location, value: p},
@@ -371,12 +371,4 @@ module RuleVer: {
       Ok();
     };
   };
-  /* This verision only handle bool result, will be deleted later */
-  // let verify =
-  //     (rule: t, conclusion: Judgement.t, premises: list(Judgement.t)) => {
-  //   switch (verify(rule, conclusion, premises)) {
-  //   | Ok(_) => true
-  //   | Error(_) => false
-  //   };
-  // };
 };

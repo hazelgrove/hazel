@@ -250,7 +250,7 @@ module Pervasives = {
         fun
         | Tuple([ListLit(_, _, Prop, ctx), PropLit(p)]) =>
           switch (ctx |> List.map(prop_of) |> Util.OptUtil.sequence) {
-          | Some(ctx) => Ok(JudgementLit(Entail(ctx, p)))
+          | Some(ctx) => Ok(JudgementLit(Wrong(Entail(ctx, p))))
           | None => Error(InvalidBoxedListLit(List.hd(ctx)))
           }
         | d => Error(InvalidBoxedTuple(d)),
@@ -261,23 +261,36 @@ module Pervasives = {
       | JudgementLit(j) => Some(j)
       | _ => None;
 
-    let rule = (name, rule) =>
+    let rule = (_name, rule) =>
       unary(
         fun
         | Tuple([
             JudgementLit(conclusion),
             ListLit(_, _, Judgement, premises),
-          ]) as d =>
+          ]) =>
           switch (premises |> List.map(judgement_of) |> Util.OptUtil.sequence) {
           | Some(premises) =>
             Ok(
               switch (
                 DerivationError.RuleVer.verify(rule, conclusion, premises)
               ) {
-              | Ok(_) => JudgementLit(conclusion)
-              | Error(e) =>
-                let d' = DHExp.Ap(DHExp.BuiltinFun(name), d);
-                InvalidDerivation(d', e);
+              | Ok(_) =>
+                if (premises
+                    |> List.exists(
+                         fun
+                         | Derivation.Judgement.Verified(_) => false
+                         | _ => true,
+                       )) {
+                  JudgementLit(
+                    Partial(Derivation.Judgement.just(conclusion)),
+                  );
+                } else {
+                  JudgementLit(
+                    Verified(Derivation.Judgement.just(conclusion)),
+                  );
+                }
+              | Error(_e) =>
+                JudgementLit(Wrong(Derivation.Judgement.just(conclusion)))
               },
             )
           | None => Error(InvalidBoxedListLit(List.hd(premises)))

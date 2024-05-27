@@ -1609,22 +1609,21 @@ let get_doc =
           let color_map = (mapping, List.length(args) + 1);
           ([], ([], color_map), []);
         };
-      | Derive(concl, prems, rule) =>
-        let concl_id = List.nth(concl.ids, 0);
+      | Derive(prems, concl, rule) =>
         let prems_id = List.nth(prems.ids, 0);
+        let concl_id = List.nth(concl.ids, 0);
         let rule_id = List.nth(rule.ids, 0);
         get_message(
           ~colorings=
-            DeriveExp.derive_exp_coloring_ids(~concl_id, ~prems_id, ~rule_id),
+            DeriveExp.derive_exp_coloring_ids(~prems_id, ~concl_id, ~rule_id),
           ~format=
             Some(
               msg =>
                 Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s%s%s%s"),
-                  Id.to_string(concl_id),
+                  Scanf.format_from_string(msg, "%s%s%s"),
                   Id.to_string(prems_id),
-                  Id.to_string(rule_id),
                   Id.to_string(concl_id),
+                  Id.to_string(rule_id),
                 ),
             ),
           DeriveExp.derives,
