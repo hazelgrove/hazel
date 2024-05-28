@@ -29,6 +29,7 @@ type join_type =
 type t =
   | Just(Typ.t) /* Just a regular type */
   | NoJoin(join_type, list(Typ.source)) /* Inconsistent types for e.g match, listlits */
+  | BadEqual(Typ.t) /* Type equality failed because of arrow type inside */
   | BadToken(Token.t) /* Invalid expression token, treated as hole */
   | BadTrivAp(Typ.t) /* Trivial (nullary) ap on function that doesn't take triv */
   | IsMulti /* Multihole, treated as hole */
@@ -71,6 +72,7 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
     fun
     | Just(typ) => Some(typ)
     | IsConstructor({syn_ty, _}) => syn_ty
+    | BadEqual(_) => Some(Bool)
     | BadToken(_)
     | BadTrivAp(_)
     | IsMulti

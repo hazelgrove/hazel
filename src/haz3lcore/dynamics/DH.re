@@ -60,6 +60,7 @@ module rec DHExp: {
   let strip_casts: t => t;
 
   let fast_equal: (t, t) => bool;
+  let has_arrow: t => bool;
 
   let assign_name_if_none: (t, option(Var.t)) => t;
   let ty_subst: (Typ.t, TypVar.t, t) => t;
@@ -350,6 +351,47 @@ module rec DHExp: {
        )
     && i1 == i2;
   };
+
+  let rec has_arrow =
+    fun
+    | Fun(_, _, _, _)
+    | BuiltinFun(_) => true
+    | EmptyHole(_)
+    | FreeVar(_)
+    | InvalidText(_)
+    | BoundVar(_)
+    | BoolLit(_)
+    | IntLit(_)
+    | FloatLit(_)
+    | StringLit(_)
+    | Constructor(_)
+    | InvalidOperation(_) => false
+    | Closure(_, d)
+    | Cast(d, _, _)
+    | FailedCast(d, _, _)
+    | Prj(d, _)
+    | NonEmptyHole(_, _, _, d)
+    | Filter(_, d)
+    | FixF(_, _, d)
+    | TypFun(_, d, _)
+    | TypAp(d, _)
+    | Test(_, d)
+    | ApBuiltin(_, d)
+    | ConsistentCase(Case(d, _, _))
+    | InconsistentBranches(_, _, Case(d, _, _)) => has_arrow(d)
+    | Tuple(ds)
+    | ListLit(_, _, _, ds) => ds |> List.exists(has_arrow)
+    | Cons(d1, d2)
+    | ListConcat(d1, d2)
+    | Sequence(d1, d2)
+    | Let(_, d1, d2)
+    | Ap(d1, d2)
+    | BinBoolOp(_, d1, d2)
+    | BinIntOp(_, d1, d2)
+    | BinFloatOp(_, d1, d2)
+    | BinStringOp(_, d1, d2) => has_arrow(d1) || has_arrow(d2)
+    | IfThenElse(_, d1, d2, d3) =>
+      has_arrow(d1) || has_arrow(d2) || has_arrow(d3);
 
   let assign_name_if_none = (t, name) =>
     switch (t) {

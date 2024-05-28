@@ -73,6 +73,7 @@ module rec Typ: {
   let is_unknown: t => bool;
   let needs_parens: t => bool;
   let pretty_print: t => string;
+  let has_arrow: t => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type type_provenance =
@@ -541,6 +542,28 @@ module rec Typ: {
       "(" ++ pretty_print(typ) ++ ")";
     } else {
       pretty_print(typ);
+    };
+
+  let rec has_arrow = (ty: t): bool =>
+    switch (ty) {
+    | Unknown(_)
+    | Int
+    | Float
+    | Bool
+    | String
+    | Var(_) => false
+    | List(t) => has_arrow(t)
+    | Arrow(_, _) => true
+    | Sum(sm) =>
+      List.exists(
+        fun
+        | None => false
+        | Some(t) => has_arrow(t),
+        List.map(snd, sm),
+      )
+    | Prod(tys) => List.exists(has_arrow, tys)
+    | Rec(_, t) => has_arrow(t)
+    | Forall(_, t) => has_arrow(t)
     };
 }
 
