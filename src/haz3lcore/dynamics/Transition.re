@@ -451,21 +451,15 @@ module Transition = (EV: EV_MODE) => {
       });
     | BinIntOp(op, d1, d2) when op == Equals || op == NotEquals =>
       let. _ = otherwise(env, (d1, d2) => BinIntOp(op, d1, d2))
-      and. d1' = req_final(req(state, env), d1 => BinIntOp1(op, d1, d2), d1)
+      and. d1' = req_value(req(state, env), d1 => BinIntOp1(op, d1, d2), d1)
       and. d2' =
-        req_final(req(state, env), d2 => BinIntOp2(op, d1, d2), d2);
+        req_value(req(state, env), d2 => BinIntOp2(op, d1, d2), d2);
       let (d1', d2') = (DHExp.strip_casts(d1'), DHExp.strip_casts(d2'));
       if (DHExp.has_arrow(d1') || DHExp.has_arrow(d2')) {
         Indet;
       } else {
-        Step({
-          apply: () =>
-            BoolLit(
-              DHExp.fast_equal(d1', d2') |> (b => op == Equals ? b : !b),
-            ),
-          kind: BinIntOp(op),
-          value: false,
-        });
+        let res = DHExp.fast_equal(d1', d2') |> (b => op == Equals ? b : !b);
+        Step({apply: () => BoolLit(res), kind: BinIntOp(op), value: false});
       };
     | BinIntOp(op, d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => BinIntOp(op, d1, d2))
