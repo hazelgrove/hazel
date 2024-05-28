@@ -18,7 +18,7 @@ type history = Aba.t((DHExp.t, EvaluatorState.t), step);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   history,
-  next_options: list(EvalObj.t),
+  next_options: list((FilterAction.action, EvalObj.t)),
   stepper_state,
 };
 
@@ -38,7 +38,7 @@ let rec matches =
   let (act, idx) =
     switch (ctx) {
     | Term({term: Filter(_, _), _}) => (pact, pidx)
-    | _ => midx > idx ? (mact, midx) : (pact, pidx)
+    | _ => midx > pidx ? (mact, midx) : (pact, pidx)
     };
   let map = ((a, i, c), f) => {
     (a, i, f(c));
@@ -57,10 +57,15 @@ let rec matches =
         let flt = flt |> FilterEnvironment.extends(flt');
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Filter(Filter(flt'), ctx) |> rewrap;
-      | Filter(Residue(idx, act), ctx) =>
-        let (ract, ridx, rctx) = matches(env, flt, ctx, exp, act, idx);
-        if (ridx == idx && ract |> snd == All) {
-          (ract, ridx, Filter(Residue(idx, act), rctx) |> rewrap);
+      | Filter(Residue(idx', act'), ctx) =>
+        let (ract, ridx, rctx) =
+          if (idx > idx') {
+            matches(env, flt, ctx, exp, act, idx);
+          } else {
+            matches(env, flt, ctx, exp, act', idx');
+          };
+        if (act' |> snd == All) {
+          (ract, ridx, Filter(Residue(idx', act'), rctx) |> rewrap);
         } else {
           (ract, ridx, rctx);
         };
@@ -160,7 +165,7 @@ let rec matches =
     };
   switch (ctx) {
   | Term({term: Filter(_), _}) => (ract, ridx, rctx)
-  | _ when midx == ridx && midx > pidx && mact |> snd == All => (
+  | _ when midx > pidx && mact |> snd == All => (
       ract,
       ridx,
       Term({term: Filter(Residue(midx, mact), rctx), ids: [Id.mk()]}),
@@ -171,7 +176,7 @@ let rec matches =
 
 let should_hide_eval_obj =
     (~settings, x: EvalObj.t): (FilterAction.action, EvalObj.t) =>
-  if (should_hide_step(~settings, x.knd)) {
+  if (should_hide_step_kind(~settings, x.knd)) {
     (Eval, x);
   } else {
     let (act, _, ctx) =
@@ -183,7 +188,7 @@ let should_hide_eval_obj =
   };
 
 let should_hide_step = (~settings, x: step): (FilterAction.action, step) =>
-  if (should_hide_step(~settings, x.knd)) {
+  if (should_hide_step_kind(~settings, x.knd)) {
     (Eval, x);
   } else {
     let (act, _, ctx) =
@@ -199,7 +204,7 @@ let get_elab = ({history, _}: t): Elaborator.Elaboration.t => {
   {d: d};
 };
 
-let get_next_steps = s => s.next_options;
+let get_next_steps = s => s.next_options |> List.map(snd);
 
 let current_expr = ({history, _}: t) => Aba.hd(history) |> fst;
 
@@ -209,11 +214,11 @@ let step_pending = (idx: int, stepper: t) => {
   {...stepper, stepper_state: StepPending(idx)};
 };
 
-let init = ({d}: Elaborator.Elaboration.t) => {
+let init = (~settings, {d}: Elaborator.Elaboration.t) => {
   let state = EvaluatorState.init;
   {
     history: Aba.singleton((d, state)),
-    next_options: decompose(d, state),
+    next_options: decompose(~settings, d, state),
     stepper_state: StepperReady,
   };
 };
@@ -223,17 +228,16 @@ let rec evaluate_pending = (~settings, s: t) => {
   | StepperDone
   | StepTimeout(_) => s
   | StepperReady =>
-    let next' = s.next_options |> List.map(should_hide_eval_obj(~settings));
-    let next'' = List.mapi((i, x) => (i, x), next');
+    let next' = List.mapi((i, x) => (i, x), s.next_options);
     switch (
-      List.find_opt(((_, (act, _))) => act == FilterAction.Eval, next'')
+      List.find_opt(((_, (act, _))) => act == FilterAction.Eval, next')
     ) {
     | Some((i, (_, _))) =>
       {...s, stepper_state: StepPending(i)} |> evaluate_pending(~settings)
     | None => {...s, stepper_state: StepperDone}
     };
   | StepPending(i) =>
-    let eo = List.nth(s.next_options, i);
+    let (_, eo) = List.nth(s.next_options, i);
     let (d, state) = Aba.hd(s.history);
     let state_ref = ref(state);
     let d_loc' =
@@ -258,7 +262,7 @@ let rec evaluate_pending = (~settings, s: t) => {
     {
       history: s.history |> Aba.cons((d', new_state), new_step),
       stepper_state: StepperReady,
-      next_options: decompose(d', new_state),
+      next_options: decompose(~settings, d', new_state),
     }
     |> evaluate_pending(~settings);
   };
@@ -279,7 +283,7 @@ let timeout =
   fun
   | {stepper_state: StepPending(idx), _} as s => {
       ...s,
-      stepper_state: StepTimeout(List.nth(s.next_options, idx)),
+      stepper_state: StepTimeout(List.nth(s.next_options, idx) |> snd),
     }
   | {stepper_state: StepTimeout(_) | StepperReady | StepperDone, _} as s => s;
 
@@ -297,7 +301,8 @@ let step_backward = (~settings, s: t) => {
     |> Option.value(~default=s.history);
   {
     history: h',
-    next_options: decompose(Aba.hd(h') |> fst, Aba.hd(h') |> snd),
+    next_options:
+      decompose(~settings, Aba.hd(h') |> fst, Aba.hd(h') |> snd),
     stepper_state: StepperDone,
   };
 };
@@ -429,12 +434,11 @@ let (sexp_of_persistent, persistent_of_sexp) =
 // Remove EvalObj.t objects from stepper to prevent problems when loading
 let to_persistent: t => persistent = ({history, _}) => {history: history};
 
-let from_persistent: persistent => t =
-  ({history}) => {
-    {
-      history,
-      next_options:
-        decompose(Aba.hd(history) |> fst, Aba.hd(history) |> snd),
-      stepper_state: StepperDone,
-    };
+let from_persistent = (~settings, {history}) => {
+  {
+    history,
+    next_options:
+      decompose(~settings, Aba.hd(history) |> fst, Aba.hd(history) |> snd),
+    stepper_state: StepperDone,
   };
+};
