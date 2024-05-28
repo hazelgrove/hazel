@@ -43,6 +43,8 @@ type error_inconsistent =
     })
   /* Inconsistent match or listlit */
   | Internal(list(Typ.t))
+  /* Bad type equality due to arrow type inside */
+  | WithoutArrow(Typ.t)
   /* Bad function position */
   | WithArrow(Typ.t);
 
@@ -354,6 +356,7 @@ let rec status_common =
     | (_, Some(syn_ty)) => status_common(ctx, mode, Just(syn_ty))
     | _ => InHole(NoType(FreeConstructor(name)))
     }
+  | (BadEqual(ty), _) => InHole(Inconsistent(WithoutArrow(ty)))
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
   | (BadTrivAp(ty), _) => InHole(NoType(BadTrivAp(ty)))
   | (IsMulti, _) => NotInHole(Syn(Unknown(Internal)))

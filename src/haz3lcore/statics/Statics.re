@@ -275,7 +275,16 @@ and uexp_to_info_map =
   | BinOp(Int(Equals | NotEquals), e1, e2) =>
     let (e1, m) = go(~mode=Syn, e1, m);
     let (e2, m) = go(~mode=Ana(e1.ty), e2, m);
-    add(~self=Just(Bool), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
+    add(
+      ~self=
+        if (Typ.has_arrow(e2.ty)) {
+          BadEqual(e2.ty);
+        } else {
+          Just(Bool);
+        },
+      ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
+      m,
+    );
   | BinOp(op, e1, e2) =>
     let (ty1, ty2, ty_out) = typ_exp_binop(op);
     let (e1, m) = go(~mode=Ana(ty1), e1, m);
