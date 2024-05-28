@@ -95,7 +95,7 @@ let let_fun_uexp: Term.UExp.t = {
 };
 let let_fun_str = "
 let f : Int -> Int =
-    fix f: Int -> Int => fun: Int x ->
+    fix (f: Int -> Int) -> fun: Int x ->
         1 + x
     f
     in
