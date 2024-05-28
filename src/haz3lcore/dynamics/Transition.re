@@ -461,8 +461,7 @@ module Transition = (EV: EV_MODE) => {
         Step({
           apply: () =>
             BoolLit(
-              DHExp.fast_equal(d1', d2')
-              |> (b => op == Equals ? b : !b),
+              DHExp.fast_equal(d1', d2') |> (b => op == Equals ? b : !b),
             ),
           kind: BinIntOp(op),
           value: false,
