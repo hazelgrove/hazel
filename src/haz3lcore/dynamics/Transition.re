@@ -384,7 +384,7 @@ module Transition = (EV: EV_MODE) => {
                        EvaluatorError.Exception(InvalidBuiltin(ident)),
                      )
                    });
-              builtin(d2);
+              builtin(d2');
             },
             state_update,
             kind: BuiltinAp(ident),
