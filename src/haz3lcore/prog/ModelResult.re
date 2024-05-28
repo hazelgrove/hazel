@@ -14,14 +14,14 @@ type t =
 let init_eval = (elab: Elaborator.Elaboration.t) =>
   Evaluation({elab, evaluation: ResultPending, previous: ResultPending});
 
-let update_elab = elab =>
+let update_elab = (~settings, elab) =>
   fun
   | NoElab =>
     Evaluation({elab, evaluation: ResultPending, previous: ResultPending})
   | Evaluation({evaluation, _}) =>
     Evaluation({elab, evaluation: ResultPending, previous: evaluation})
   | Stepper(s) as s' when DHExp.fast_equal(elab.d, Stepper.get_elab(s).d) => s'
-  | Stepper(_) => Stepper(Stepper.init(elab));
+  | Stepper(_) => Stepper(Stepper.init(~settings, elab));
 
 let update_stepper = f =>
   fun
@@ -55,10 +55,10 @@ let timeout: t => t =
     Evaluation({...e, evaluation: ResultFail(Timeout), previous: evaluation})
   | Stepper(s) => Stepper(Stepper.timeout(s));
 
-let toggle_stepper =
+let toggle_stepper = (~settings) =>
   fun
   | NoElab => NoElab
-  | Evaluation({elab, _}) => Stepper(Stepper.init(elab))
+  | Evaluation({elab, _}) => Stepper(Stepper.init(~settings, elab))
   | Stepper(s) =>
     Evaluation({
       elab: Stepper.get_elab(s),
@@ -95,7 +95,7 @@ let to_persistent: t => persistent =
   | Evaluation(_) => Evaluation
   | Stepper(s) => Stepper(Stepper.to_persistent(s));
 
-let of_persistent: persistent => t =
+let of_persistent = (~settings) =>
   fun
   | Evaluation => NoElab
-  | Stepper(s) => Stepper(Stepper.from_persistent(s));
+  | Stepper(s) => Stepper(Stepper.from_persistent(~settings, s));

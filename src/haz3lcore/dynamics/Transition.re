@@ -775,7 +775,7 @@ module Transition = (EV: EV_MODE) => {
   };
 };
 
-let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
+let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   fun
   | LetBind
   | Seq
