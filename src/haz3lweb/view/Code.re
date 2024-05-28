@@ -108,16 +108,33 @@ module Text = (M: {
     |> Aba.join(of_delim(is_in_buffer, is_consistent, t), ((seg, sort)) =>
          of_segment(buffer_ids, false, sort, seg)
        )
-    |> List.concat
-    // Note(zhiyao): intended for derivation
-    |> {
-      x =>
-        if (t.label == ["from", "to", "by"]) {
-          [span(~attr=Attr.class_("derivaton"), x)];
-        } else {
-          x;
-        };
-    };
+    |> List.concat;
+    // TODO(zhiyao): intended for derivation
+    // |> {
+    //   x =>
+    //     if (t.label == ["from", "to", "by", "end"]) {
+    //       let class_names = [
+    //         "label-from",
+    //         "term-prems",
+    //         "label-to",
+    //         "term-concl",
+    //         "label-by",
+    //         "term-rule",
+    //         "label-end",
+    //       ];
+    //       [
+    //         div(
+    //           ~attr=Attr.class_("derivaton"),
+    //           x
+    //           |> List.mapi((i, c) =>
+    //                div(~attr=Attr.class_(List.nth(class_names, i)), c)
+    //              ),
+    //         ),
+    //       ];
+    //     } else {
+    //       x |> List.concat;
+    //     };
+    // };
   };
 };
 

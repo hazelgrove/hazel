@@ -865,6 +865,32 @@ select {
   text-shadow: 1px 1px 0px rgb(45, 34, 6), -0.5px -0.5px 0 #ff9b00;
 }
 
+/* .code .derivation {
+  text-align: center;
+  height: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.code .label-from {
+  display: none;
+}
+
+.code .label-to {
+  display: none;
+  border-top: 1px solid black;
+  margin: 5px 0;
+}
+
+.code .label-by {
+  display: none;
+}
+
+.code .label-end {
+  display: none;
+} */
+
 .child-backing {
   z-index: -1;
 }
