@@ -217,7 +217,7 @@ exp:
     | e1 = exp; QUESTION; LESS_THAN; t1 = typ; EQUAL_ARROW; t2 = typ; GREATER_THAN {FailedCast(e1, t1, t2)}
     | e1 = exp; LESS_THAN; t1 = typ; EQUAL_ARROW; t2 = typ; GREATER_THAN { Cast(e1, t1, t2) }
     | TRUE { Bool true }
-    | FIX; s = IDENT; COLON; t = typ; EQUAL_ARROW; e = exp { FixF(s, t, e) }
+    | FIX; OPEN_PAREN; s = IDENT; COLON; t = typ; CLOSE_PAREN; DASH_ARROW; e = exp { FixF(s, t, e) }
     | f = funExp {f}
     | FALSE { Bool false }
     | OPEN_BRACKET; OPEN_BRACKET; e = exp; CLOSE_BRACKET; CLOSE_BRACKET {NonEmptyHole e}
