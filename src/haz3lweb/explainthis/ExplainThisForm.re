@@ -75,7 +75,9 @@ type numeric_bin_op_examples =
   | GreaterThanEqualEqual
   | GreaterThanEqualFalse
   | EqualFalse
-  | EqualTrue;
+  | EqualTrue
+  | PolyEqualFalse
+  | PolyEqualTrue;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type example_id =

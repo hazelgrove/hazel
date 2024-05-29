@@ -546,14 +546,16 @@ module rec Typ: {
 
   let rec has_arrow = (ty: t): bool =>
     switch (ty) {
+    | Arrow(_, _)
+    | Forall(_, _) => true
     | Unknown(_)
     | Int
     | Float
     | Bool
     | String
     | Var(_) => false
-    | List(t) => has_arrow(t)
-    | Arrow(_, _) => true
+    | List(t)
+    | Rec(_, t) => has_arrow(t)
     | Sum(sm) =>
       List.exists(
         fun
@@ -562,8 +564,6 @@ module rec Typ: {
         List.map(snd, sm),
       )
     | Prod(tys) => List.exists(has_arrow, tys)
-    | Rec(_, t) => has_arrow(t)
-    | Forall(_, t) => has_arrow(t)
     };
 }
 
