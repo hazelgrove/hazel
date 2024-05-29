@@ -76,9 +76,39 @@ let view =
 
   let title_view = Cell.title_cell(eds.title);
 
+  // let prompt_view =
+  //   Cell.narrative_cell(
+  //     div(
+  //       ~attr=Attr.class_("cell-prompt"), [eds.prompt],
+  //     ),
+  //   );
+
   let prompt_view =
     Cell.narrative_cell(
-      div(~attr=Attr.class_("cell-prompt"), [eds.prompt]),
+      div(
+        ~attr=Attr.class_("cell-prompt"),
+        [
+          eds.prompt,
+          div(
+            ~attr=
+              Attr.style(
+                Css_gen.concat([
+                  Css_gen.create(~field="display", ~value="flex"),
+                  Css_gen.create(~field="flex-direction", ~value="column"),
+                  Css_gen.create(~field="align-items", ~value="center"),
+                ]),
+              ),
+            [
+              editor_view(
+                Prelude,
+                ~caption="Prompt",
+                ~editor=eds.prelude,
+                ~di=instructor,
+              ),
+            ],
+          ),
+        ],
+      ),
     );
 
   let prelude_view =
