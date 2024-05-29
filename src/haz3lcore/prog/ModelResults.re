@@ -22,7 +22,7 @@ type t = M.t(ModelResult.t);
 let init_eval = (ds: list((Key.t, DHExp.t))): t =>
   ds |> List.to_seq |> of_seq |> map(ModelResult.init_eval);
 
-let update_elabs =
+let update_elabs = (~settings) =>
   List.fold_right(((k, elab), acc) =>
     update(
       k,
@@ -30,7 +30,7 @@ let update_elabs =
         Some(
           v
           |> Option.value(~default=ModelResult.NoElab)
-          |> ModelResult.update_elab(elab),
+          |> ModelResult.update_elab(~settings, elab),
         ),
       acc,
     )

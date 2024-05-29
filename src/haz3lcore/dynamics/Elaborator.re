@@ -143,7 +143,7 @@ let rec dhexp_of_uexp =
     dhexp_of_uexp(m, uexp, in_filter);
   };
   switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
-  | Some(InfoExp({mode, self, ctx, ancestors, _})) =>
+  | Some(InfoExp({mode, self, ctx, ancestors, co_ctx, _})) =>
     let err_status = Info.status_exp(ctx, mode, self);
     let id = Term.UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
     let+ d: DHExp.t =
@@ -247,7 +247,12 @@ let rec dhexp_of_uexp =
         let* ddef = dhexp_of_uexp(m, def);
         let* dbody = dhexp_of_uexp(m, body);
         let+ ty = fixed_pat_typ(m, p);
-        if (!Statics.is_recursive(ctx, p, def, ty)) {
+        let is_recursive =
+          Statics.is_recursive(ctx, p, def, ty)
+          && Term.UPat.get_bindings(p)
+          |> Option.get
+          |> List.exists(f => VarMap.lookup(co_ctx, f) != None);
+        if (!is_recursive) {
           /* not recursive */
           DHExp.Let(
             dp,
@@ -376,7 +381,8 @@ let rec dhexp_of_uexp =
           |> OptUtil.sequence;
         let d = DHExp.Case(d_scrut, d_rules, 0);
         switch (err_status) {
-        | InHole(Common(Inconsistent(Internal(_)))) =>
+        | InHole(Common(Inconsistent(Internal(_))))
+        | InHole(InexhaustiveMatch(Some(Inconsistent(Internal(_))))) =>
           DHExp.InconsistentBranches(id, 0, d)
         | _ => ConsistentCase(d)
         };
@@ -393,6 +399,13 @@ let rec dhexp_of_uexp =
 and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
   switch (Id.Map.find_opt(Term.UPat.rep_id(upat), m)) {
   | Some(InfoPat({mode, self, ctx, _})) =>
+    // NOTE: for the current implementation, redundancy is considered a static error
+    // but not a runtime error.
+    let self =
+      switch (self) {
+      | Redundant(self) => self
+      | _ => self
+      };
     let err_status = Info.status_pat(ctx, mode, self);
     let maybe_reason: option(ErrStatus.HoleReason.t) =
       switch (err_status) {
