@@ -355,7 +355,10 @@ module rec DHExp: {
   let rec has_arrow =
     fun
     | Fun(_, _, _, _)
-    | BuiltinFun(_) => true
+    | BuiltinFun(_)
+    | Constructor(_)
+    | FixF(_, _, _)
+    | TypFun(_, _, _) => true
     | EmptyHole(_)
     | FreeVar(_)
     | InvalidText(_)
@@ -364,7 +367,6 @@ module rec DHExp: {
     | IntLit(_)
     | FloatLit(_)
     | StringLit(_)
-    | Constructor(_)
     | InvalidOperation(_) => false
     | Closure(_, d)
     | Cast(d, _, _)
@@ -372,8 +374,6 @@ module rec DHExp: {
     | Prj(d, _)
     | NonEmptyHole(_, _, _, d)
     | Filter(_, d)
-    | FixF(_, _, d)
-    | TypFun(_, d, _)
     | TypAp(d, _)
     | Test(_, d)
     | ApBuiltin(_, d)
