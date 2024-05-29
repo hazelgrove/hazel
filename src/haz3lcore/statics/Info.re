@@ -382,7 +382,11 @@ let rec status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
   | (_, Redundant(self)) =>
     let additional_err =
       switch (status_pat(ctx, mode, self)) {
-      | InHole(Common(Inconsistent(Internal(_) | Expectation(_))) as err)
+      | InHole(
+          Common(
+            Inconsistent(Internal(_) | Expectation(_) | WithoutArrow(_)),
+          ) as err,
+        )
       | InHole(Common(NoType(_)) as err) => Some(err)
       | NotInHole(_) => None
       | InHole(Common(Inconsistent(WithArrow(_))))
@@ -419,7 +423,12 @@ let rec status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
       | InHole(Common(Inconsistent(Internal(_)) as inconsistent_err)) =>
         Some(inconsistent_err)
       | NotInHole(_)
-      | InHole(Common(Inconsistent(Expectation(_) | WithArrow(_)))) => None /* Type checking should fail and these errors would be nullified */
+      | InHole(
+          Common(
+            Inconsistent(Expectation(_) | WithArrow(_) | WithoutArrow(_)),
+          ),
+        ) =>
+        None /* Type checking should fail and these errors would be nullified */
       | InHole(Common(NoType(_)))
       | InHole(
           FreeVariable(_) | InexhaustiveMatch(_) | UnusedDeferral |
