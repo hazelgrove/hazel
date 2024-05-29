@@ -720,14 +720,22 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d1 => FailedCast(d1, t1, t2))
       and. _ = req_final(req(state, env), d1 => FailedCast(d1, t1, t2), d1);
       Indet;
-    | Filter(f1, d1) =>
+    | Filter(Filter({pat: Closure(_), _}) as f1, d1)
+    | Filter(Residue(_) as f1, d1) =>
       let. _ = otherwise(env, d1 => Filter(f1, d1))
       and. d1 = req_final(req(state, env), d1 => Filter(f1, d1), d1);
       Step({apply: () => d1, kind: CompleteFilter, value: true});
+    | Filter(Filter({pat, act}) as f1, d1) =>
+      let. _ = otherwise(env, Filter(f1, d1));
+      Step({
+        apply: () => Filter(Filter({pat: Closure(env, pat), act}), d1),
+        kind: CompleteFilter,
+        value: false,
+      });
     };
 };
 
-let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
+let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   fun
   | LetBind
   | Sequence

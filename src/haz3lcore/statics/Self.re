@@ -50,12 +50,14 @@ type error_partial_ap =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type exp =
   | Free(Var.t)
+  | InexhaustiveMatch(exp)
   | IsDeferral(Term.UExp.deferral_position)
   | IsBadPartialAp(error_partial_ap)
   | Common(t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pat =
+  | Redundant(pat)
   | Common(t);
 
 let join_of = (j: join_type, ty: Typ.t): Typ.t =>
@@ -82,13 +84,15 @@ let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
   ctx =>
     fun
     | Free(_)
+    | InexhaustiveMatch(_)
     | IsDeferral(_)
     | IsBadPartialAp(_) => None
     | Common(self) => typ_of(ctx, self);
 
-let typ_of_pat: (Ctx.t, pat) => option(Typ.t) =
+let rec typ_of_pat: (Ctx.t, pat) => option(Typ.t) =
   ctx =>
     fun
+    | Redundant(pat) => typ_of_pat(ctx, pat)
     | Common(self) => typ_of(ctx, self);
 
 /* The self of a var depends on the ctx; if the
