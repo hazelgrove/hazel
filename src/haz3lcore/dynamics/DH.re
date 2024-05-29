@@ -356,9 +356,9 @@ module rec DHExp: {
     fun
     | Fun(_, _, _, _)
     | BuiltinFun(_)
-    | Constructor(_)
     | FixF(_, _, _)
     | TypFun(_, _, _) => true
+    | Constructor(_)
     | EmptyHole(_)
     | FreeVar(_)
     | InvalidText(_)
