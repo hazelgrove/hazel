@@ -209,6 +209,7 @@ and uexp_to_info_map =
       ([], m),
     );
   let go_pat = upat_to_info_map(~ctx, ~ancestors);
+  let go_module = uexp_to_module(~ancestors);
   let atomic = self => add(~self, ~co_ctx=CoCtx.empty, m);
   switch (term) {
   | MultiHole(tms) =>
@@ -306,7 +307,24 @@ and uexp_to_info_map =
     let (e1, m) = go(~mode=Syn, e1, m);
     let (e2, m) = go(~mode, e2, m);
     add(~self=Just(e2.ty), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
-  | Constructor(ctr) => atomic(Self.of_ctr(ctx, ctr))
+  | Constructor(ctr) =>
+    /*
+     Now Tags are not only Constructors but also possibly modules,
+     don't know if necessary to add to free as Var.
+     */
+    let self = Self.of_exp_var(ctx, ctr);
+    switch (self) {
+    | Common(_) =>
+      add'(
+        ~self,
+        ~co_ctx=CoCtx.singleton(ctr, UExp.rep_id(uexp), Mode.ty_of(mode)),
+        m,
+      )
+    | Free(_)
+    | IsDeferral(_)
+    | IsBadPartialAp(_)
+    | InexhaustiveMatch(_) => atomic(Self.of_ctr(ctx, ctr))
+    };
   | Ap(fn, arg)
   | Pipeline(arg, fn) =>
     let fn_mode = Mode.of_ap(ctx, mode, UExp.ctr_name(fn));
@@ -447,6 +465,107 @@ and uexp_to_info_map =
       ~co_ctx=CoCtx.union([cond.co_ctx, cons.co_ctx, alt.co_ctx]),
       m,
     );
+  | Module(p, def, body) =>
+    let (p_syn, _) =
+      go_pat(
+        ~is_synswitch=true,
+        ~co_ctx=CoCtx.empty,
+        ~mode=Syn,
+        ~is_module=true,
+        p,
+        m,
+      );
+
+    let (def1, _) = go(~mode=Syn, def, m);
+    let ty =
+      switch (p_syn.ty) {
+      | Module(_)
+      | Unknown(_) => p_syn.ty
+      | _ => Typ.Unknown(SynSwitch)
+      };
+    let (def_ty, def, m) =
+      switch (def1.ty) {
+      /* if get module type, apply alias.*/
+      | Module(_) =>
+        let (def, m) = go(~mode=Ana(ty), def, m);
+        (def.ty, def1, m);
+      | _ =>
+        let (inner_ctx, def, m) =
+          go_module(~ctx, ~mode=Mode.Ana(ty), def, m, []);
+        (Typ.Module(inner_ctx), def, m);
+      };
+    /* Analyze pattern to incorporate def type into ctx */
+    let (p_ana, _) =
+      go_pat(
+        ~is_synswitch=false,
+        ~co_ctx=CoCtx.empty,
+        ~mode=Ana(def_ty),
+        ~is_module=true,
+        p,
+        m,
+      );
+    let (body, m) = go'(~ctx=p_ana.ctx, ~mode, body, m);
+    /* add co_ctx to pattern */
+    let (p_ana, m) =
+      go_pat(
+        ~is_synswitch=false,
+        ~co_ctx=body.co_ctx,
+        ~mode=Ana(def_ty),
+        ~is_module=true,
+        p,
+        m,
+      );
+    add(
+      ~self=Just(body.ty),
+      ~co_ctx=
+        CoCtx.union([def.co_ctx, CoCtx.mk(ctx, p_ana.ctx, body.co_ctx)]),
+      m,
+    );
+  | Dot(e_mod, e_mem) =>
+    let (ty, m) = {
+      let (info_modul, m) = go(~mode=Syn, e_mod, m);
+      switch (e_mem.term, info_modul.ty) {
+      | (Var(name), Unknown(_))
+      | (Constructor(name), Unknown(_)) =>
+        let ty = Module.mk(name, UExp.rep_id(e_mem));
+        let (_, m) = go(~mode=Mode.Ana(ty), e_mod, m);
+        (ty, m);
+      | _ => (info_modul.ty, m)
+      };
+    };
+    switch (ty) {
+    | Module({inner_ctx, _}) =>
+      let (body, m) = go'(~ctx=inner_ctx, ~mode, e_mem, m);
+      let m =
+        e_mem.ids
+        |> List.fold_left(
+             (m, id) =>
+               Id.Map.update(
+                 id,
+                 fun
+                 | Some(Info.InfoExp(exp)) =>
+                   Some(Info.InfoExp({...exp, ctx}))
+                 | _ as info => info,
+                 m,
+               ),
+             m,
+           );
+      add(
+        ~self=Just(body.ty),
+        // Accessing member variables in the module shouldn't change co_ctx
+        ~co_ctx=body.co_ctx,
+        m,
+      );
+    | _ =>
+      let (body, m) = go'(~ctx=[], ~mode, e_mem, m);
+      add(
+        ~self=Just(body.ty),
+        // Accessing member variables in the module shouldn't change co_ctx
+        ~co_ctx=body.co_ctx,
+        m,
+      );
+    };
+
   | Match(scrut, rules) =>
     let (scrut, m) = go(~mode=Syn, scrut, m);
     let (ps, es) = List.split(rules);
@@ -520,6 +639,7 @@ and uexp_to_info_map =
                   ~mode=p.mode,
                   ~ancestors=p.ancestors,
                   ~self,
+                  ~is_module=false,
                   // Mark patterns as redundant at the top level
                   // because redundancy doesn't make sense in a smaller context
                   ~constraint_=p_constraint,
@@ -627,6 +747,7 @@ and upat_to_info_map =
       ~co_ctx,
       ~ancestors: Info.ancestors,
       ~mode: Mode.t=Mode.Syn,
+      ~is_module=false,
       {ids, term} as upat: UPat.t,
       m: Map.t,
     )
@@ -639,6 +760,7 @@ and upat_to_info_map =
         ~co_ctx,
         ~mode,
         ~ancestors,
+        ~is_module,
         ~self=Common(self),
         ~constraint_,
       );
@@ -646,7 +768,7 @@ and upat_to_info_map =
   };
   let atomic = (self, constraint_) => add(~self, ~ctx, ~constraint_, m);
   let ancestors = [UPat.rep_id(upat)] @ ancestors;
-  let go = upat_to_info_map(~is_synswitch, ~ancestors, ~co_ctx);
+  let go = upat_to_info_map(~is_synswitch, ~ancestors, ~co_ctx, ~is_module);
   let unknown = Typ.Unknown(is_synswitch ? SynSwitch : Internal);
   let ctx_fold = (ctx: Ctx.t, m) =>
     List.fold_left2(
@@ -709,18 +831,22 @@ and upat_to_info_map =
     );
   | Wild => atomic(Just(unknown), Constraint.Truth)
   | Var(name) =>
-    /* NOTE: The self type assigned to pattern variables (Unknown)
-       may be SynSwitch, but SynSwitch is never added to the context;
-       Unknown(Internal) is used in this case */
-    let ctx_typ =
-      Info.fixed_typ_pat(ctx, mode, Common(Just(Unknown(Internal))));
-    let entry = Ctx.VarEntry({name, id: UPat.rep_id(upat), typ: ctx_typ});
-    add(
-      ~self=Just(unknown),
-      ~ctx=Ctx.extend(ctx, entry),
-      ~constraint_=Constraint.Truth,
-      m,
-    );
+    /* Note the self type assigned to pattern variables (unknown)
+       may be SynSwitch, but the type we add to the context is
+       always Unknown Internal */
+    if (Mode.is_module_ana(mode, ctx, is_module)) {
+      hole(BadToken(name));
+    } else {
+      let ctx_typ =
+        Info.fixed_typ_pat(ctx, mode, Common(Just(Unknown(Internal))));
+      let entry = Ctx.VarEntry({name, id: UPat.rep_id(upat), typ: ctx_typ});
+      add(
+        ~self=Just(unknown),
+        ~ctx=Ctx.extend(ctx, entry),
+        ~constraint_=Constraint.Truth,
+        m,
+      );
+    }
   | Tuple(ps) =>
     let modes = Mode.of_prod(ctx, mode, List.length(ps));
     let (ctx, tys, cons, m) = ctx_fold(ctx, m, ps, modes);
@@ -740,8 +866,43 @@ and upat_to_info_map =
     let (p, m) = go(~ctx, ~mode, p, m);
     add(~self=Just(p.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
   | Constructor(ctr) =>
-    let self = Self.of_ctr(ctx, ctr);
-    atomic(self, Constraint.of_ctr(ctx, mode, ctr, self));
+    if (Mode.is_module_ana(mode, ctx, is_module)) {
+      let ctx_typ =
+        Info.fixed_typ_pat(ctx, mode, Common(Just(Unknown(Internal))));
+      /* Change type var to be type member of module. */
+      let ctx_typ = Ctx.modulize(ctx_typ, ctr);
+      /** If module has a type member with same name,
+      add the type alias to the current context */
+      let ctx = {
+        switch (ctx_typ) {
+        | Module({inner_ctx, _}) =>
+          switch (Ctx.lookup_tvar(inner_ctx, ctr)) {
+          | Some({kind: Singleton(ty), _}) =>
+            /** Currently all type shadowing are disallowed. See TyAlias */
+            (
+              if (!Ctx.shadows_typ(ctx, ctr)) {
+                Ctx.extend_alias(ctx, ctr, UPat.rep_id(upat), ty);
+              } else {
+                ctx;
+              }
+            )
+          | _ => ctx
+          }
+        | _ => ctx
+        };
+      };
+      let entry =
+        Ctx.VarEntry({name: ctr, id: UPat.rep_id(upat), typ: ctx_typ});
+      add(
+        ~self=Just(unknown),
+        ~ctx=Ctx.extend(ctx, entry),
+        ~constraint_=Constraint.Truth,
+        m,
+      );
+    } else {
+      let self = Self.of_ctr(ctx, ctr);
+      atomic(self, Constraint.of_ctr(ctx, mode, ctr, self));
+    }
   | Ap(fn, arg) =>
     let ctr = UPat.ctr_name(fn);
     let fn_mode = Mode.of_ap(ctx, mode, ctr);
@@ -759,6 +920,40 @@ and upat_to_info_map =
     let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
     let (p, m) = go(~ctx, ~mode=Ana(ann.ty), p, m);
     add(~self=Just(ann.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
+  | TyAlias(typat, utyp) =>
+    let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;
+    switch (typat.term) {
+    | Var(name)
+        when !Form.is_base_typ(name) && Ctx.lookup_alias(ctx, name) == None =>
+      let (ty_def, ctx_def, ctx_body) = {
+        let ty_pre = UTyp.to_typ(Ctx.extend_dummy_tvar(ctx, name), utyp);
+        switch (utyp.term) {
+        | Sum(_) when List.mem(name, Typ.free_vars(ty_pre)) =>
+          let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
+          let ctx_def =
+            Ctx.extend_alias(ctx, name, UTPat.rep_id(typat), ty_rec);
+          (ty_rec, ctx_def, ctx_def);
+        | _ =>
+          let ty = UTyp.to_typ(ctx, utyp);
+          (ty, ctx, Ctx.extend_alias(ctx, name, UTPat.rep_id(typat), ty));
+        };
+      };
+      let ctx_body =
+        switch (Typ.get_sum_constructors(ctx, ty_def)) {
+        | Some(sm) => Ctx.add_ctrs(ctx_body, name, UTyp.rep_id(utyp), sm)
+        | None => ctx_body
+        };
+      let m = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp, m) |> snd;
+      add(
+        ~self=Just(ty_def),
+        ~ctx=ctx_body,
+        ~constraint_=Constraint.Truth,
+        m,
+      );
+    | _ =>
+      let m = utyp_to_info_map(~ctx, ~ancestors, utyp, m) |> snd;
+      add(~self=Just(unknown), ~ctx, ~constraint_=Constraint.Truth, m);
+    };
   };
 }
 and utyp_to_info_map =
@@ -820,6 +1015,31 @@ and utyp_to_info_map =
         (m, []),
         variants,
       );
+    add(m);
+  | Module(p) =>
+    let (_, m) =
+      upat_to_info_map(
+        ~is_synswitch=true,
+        ~ctx,
+        ~co_ctx=CoCtx.empty,
+        ~ancestors,
+        ~mode=Syn,
+        p,
+        m,
+      );
+    add(m);
+  | Dot(ty_mod, ty_mem) =>
+    let (_, m) =
+      utyp_to_info_map(~ctx, ~expects=ModuleExpected, ~ancestors, ty_mod, m);
+    let inner_ctx = {
+      let res = Module.get_module("", ctx, ty_mod);
+      switch (res) {
+      | Some((_, Some(inner_ctx))) => inner_ctx
+      | _ => VarMap.empty
+      };
+    };
+    let (_, m) =
+      utyp_to_info_map(~ctx=inner_ctx, ~expects, ~ancestors, ty_mem, m);
     add(m);
   | Forall({term: Var(name), _} as utpat, tbody) =>
     let body_ctx =
@@ -886,6 +1106,399 @@ and utpat_to_info_map =
   | Var(_) => add(m)
   };
 }
+/**
+This function is used to generate Info for definition expressions as modules.
+
+For most case it simply calls uexp_to_info_map,
+But for Let, Module and Type, it not only does what uexp_to_info_map does,
+but also does additional work including extend the inner_ctx
+and sometimes switch to Ana mode according to the mode of the entire module.
+
+If those memtioned branches in uexp_to_info_map is updated,
+corresponding parts here should also be updated.
+ */
+and uexp_to_module =
+    (
+      ~ctx: Ctx.t,
+      ~mode=Mode.Syn,
+      ~ancestors,
+      {ids, _} as uexp: UExp.t,
+      m: Map.t,
+      inner_ctx: Ctx.t,
+    )
+    : (Typ.module_typ, Info.exp, Map.t) => {
+  let mode =
+    switch (mode) {
+    | Ana(Unknown(SynSwitch)) => Mode.Syn
+    | _ => mode
+    };
+  let add' = (~self, ~co_ctx, m, ty_module) => {
+    let info =
+      Info.derived_exp(~uexp, ~ctx, ~mode=Syn, ~ancestors, ~self, ~co_ctx);
+    (ty_module, info, add_info(ids, InfoExp(info), m));
+  };
+  let add = (~self, ~co_ctx, m, ty_module) =>
+    add'(~self=Common(self), ~co_ctx, m, ty_module);
+  let ancestors = [UExp.rep_id(uexp)] @ ancestors;
+  let go' = uexp_to_info_map(~ancestors);
+  let go = go'(~ctx);
+  let go_pat = upat_to_info_map(~ctx, ~ancestors);
+  let go_pat' = upat_to_info_map(~ctx=inner_ctx, ~ancestors);
+  let go_module = uexp_to_module(~ancestors);
+  /**generates mode for let/module patterns according to the mode of module. */
+  let rec module_to_member_mode =
+          (module_mode: Mode.t, pat: Term.UPat.t): Mode.t => {
+    switch (module_mode) {
+    | Ana(Module(m)) =>
+      // Basic patterns won't change mode
+      switch (pat.term) {
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_)
+      | Wild
+      | Int(_)
+      | Float(_)
+      | Bool(_)
+      | String(_)
+      | Triv
+      | ListLit([])
+      | TyAlias(_)
+      | Ap(_) => Syn
+      // Var like patterns are looked up in the module context.
+      | Var(name)
+      | Constructor(name) =>
+        switch (Ctx.lookup_var(m.inner_ctx, name)) {
+        | Some(t) => Ana(t.typ)
+        | None => Syn
+        }
+      // Composit patterns goes recursively.
+      | Parens(pat) => module_to_member_mode(module_mode, pat)
+      | Tuple(pats) =>
+        List.fold_left(
+          (mode: Mode.t, p: Term.UPat.t): Mode.t => {
+            switch (mode, module_to_member_mode(module_mode, p)) {
+            | (Ana(Prod(ps)), Ana(t)) => Ana(Prod(ps @ [t]))
+            | _ => Syn
+            }
+          },
+          Ana(Prod([])),
+          pats,
+        )
+      | ListLit(pats) =>
+        List.fold_left(
+          (mode: Mode.t, p: Term.UPat.t): Mode.t => {
+            switch (mode, module_to_member_mode(module_mode, p)) {
+            | (Ana(List(t1)), Ana(t2)) =>
+              switch (Typ.join(ctx, t1, t2, ~fix=false)) {
+              | Some(t) => Ana(List(t))
+              | None => Syn
+              }
+            | _ => Syn
+            }
+          },
+          Ana(Prod([])),
+          pats,
+        )
+      | TypeAnn(pat, _) => module_to_member_mode(module_mode, pat)
+      | Cons(p1, p2) =>
+        switch (
+          module_to_member_mode(module_mode, p1),
+          module_to_member_mode(module_mode, p2),
+        ) {
+        | (Ana(t1), Ana(List(t2))) =>
+          switch (Typ.join(ctx, t1, t2, ~fix=false)) {
+          | Some(t) => Ana(List(t))
+          | None => Syn
+          }
+        | _ => Syn
+        }
+      }
+    // Modes that are not analyzing to a module type won't change member mode.
+    | Ana(_)
+    | SynFun
+    | SynTypFun
+    | Syn => Syn
+    };
+  };
+  switch (uexp.term) {
+  | Let(p, def, body) =>
+    let mode_pat = module_to_member_mode(mode, p);
+    let (p_syn, _) =
+      go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~mode=mode_pat, p, m);
+
+    // The type specified in the module type overrides the type of pattern.
+    let ty_pat =
+      switch (mode_pat) {
+      | Ana(t) => t
+      | Syn
+      | SynTypFun
+      | SynFun => p_syn.ty
+      };
+    let (def, p_ana_ctx, m, ty_p_ana, new_inner) =
+      if (!is_recursive(ctx, p, def, p_syn.ty)) {
+        let (def, m) = go'(~ctx, ~mode=Ana(ty_pat), def, m);
+        let ty_p_ana =
+          switch (mode_pat) {
+          | Ana(t) => t
+          | Syn
+          | SynTypFun
+          | SynFun => def.ty
+          };
+        let (p_ana', _) =
+          go_pat(
+            ~is_synswitch=false,
+            ~co_ctx=CoCtx.empty,
+            ~mode=Ana(ty_p_ana),
+            p,
+            m,
+          );
+        let (p_ana2, _m) =
+          go_pat'(
+            ~is_synswitch=false,
+            ~co_ctx=CoCtx.empty,
+            ~mode=Ana(ty_p_ana),
+            p,
+            m,
+          );
+        (def, p_ana'.ctx, m, ty_p_ana, p_ana2.ctx);
+      } else {
+        let (def_base, _) = go'(~ctx, ~mode=Ana(ty_pat), def, m);
+        let ty_p_ana =
+          switch (mode_pat) {
+          | Ana(t) => t
+          | Syn
+          | SynTypFun
+          | SynFun => def_base.ty
+          };
+        /* Analyze pattern to incorporate def type into ctx */
+        let (p_ana', _) =
+          go_pat(
+            ~is_synswitch=false,
+            ~co_ctx=CoCtx.empty,
+            ~mode=Ana(ty_p_ana),
+            p,
+            m,
+          );
+        let (p_ana2, _m) =
+          go_pat'(
+            ~is_synswitch=false,
+            ~co_ctx=CoCtx.empty,
+            ~mode=Ana(ty_p_ana),
+            p,
+            m,
+          );
+        let def_ctx = p_ana'.ctx;
+        let new_inner = p_ana2.ctx;
+        let (def_base2, _) = go'(~ctx=def_ctx, ~mode=Ana(p_syn.ty), def, m);
+        let ana_ty_fn = ((ty_fn1, ty_fn2), ty_p) => {
+          ty_p == Typ.Unknown(SynSwitch) && !Typ.eq(ty_fn1, ty_fn2)
+            ? ty_fn1 : ty_p;
+        };
+        let ana =
+          switch ((def_base.ty, def_base2.ty), p_syn.ty) {
+          | ((Prod(ty_fns1), Prod(ty_fns2)), Prod(ty_ps)) =>
+            let tys =
+              List.map2(ana_ty_fn, List.combine(ty_fns1, ty_fns2), ty_ps);
+            Typ.Prod(tys);
+          | ((ty_fn1, ty_fn2), ty_p) => ana_ty_fn((ty_fn1, ty_fn2), ty_p)
+          };
+        let (def, m) = go'(~ctx=def_ctx, ~mode=Ana(ana), def, m);
+        (def, def_ctx, m, ty_p_ana, new_inner);
+      };
+    let (ty_module, body, m) =
+      go_module(~ctx=p_ana_ctx, ~mode, body, m, new_inner);
+    let (p_ana1, m) =
+      go_pat(
+        ~is_synswitch=false,
+        ~co_ctx=body.co_ctx,
+        ~mode=Ana(ty_p_ana),
+        p,
+        m,
+      );
+    add(
+      ~self=Just(body.ty),
+      ~co_ctx=
+        CoCtx.union([def.co_ctx, CoCtx.mk(ctx, p_ana1.ctx, body.co_ctx)]),
+      m,
+      ty_module,
+    );
+
+  | Module(p, def, body) =>
+    let mode_pat = module_to_member_mode(mode, p);
+    let (p_syn, _) =
+      go_pat(
+        ~is_synswitch=true,
+        ~co_ctx=CoCtx.empty,
+        ~mode=mode_pat,
+        ~is_module=true,
+        p,
+        m,
+      );
+    // The type specified in the module type overrides the type of pattern.
+    let ty_pat =
+      switch (mode_pat) {
+      | Ana(t) => t
+      | Syn
+      | SynTypFun
+      | SynFun => p_syn.ty
+      };
+    let (def1, m1) = go(~mode=Syn, def, m);
+    let (inner_ctx, def, m) =
+      switch (def1.ty) {
+      /* if get module type, apply alias.*/
+      | Module(module_ctx) => (module_ctx, def1, m1)
+      | _ => go_module(~ctx, ~mode=Mode.Ana(ty_pat), def, m, [])
+      };
+    let typ_def: Typ.t = Module(inner_ctx);
+    let ty_def =
+      switch (mode_pat) {
+      | Ana(t) => t
+      | Syn
+      | SynTypFun
+      | SynFun => typ_def
+      };
+    // Need to update both context. This is a stopgap measure, given that
+    // upat_to_info_map no longer provides a single ctx entry but an updated ctx as a whole
+    let (p_ana1, m1) =
+      go_pat(
+        ~is_synswitch=false,
+        ~co_ctx=CoCtx.empty,
+        ~mode=Ana(ty_def),
+        ~is_module=true,
+        p,
+        m,
+      );
+    let (p_ana2, _m) =
+      go_pat'(
+        ~is_synswitch=false,
+        ~co_ctx=CoCtx.empty,
+        ~mode=Ana(ty_def),
+        ~is_module=true,
+        p,
+        m,
+      );
+    let ctx_body = p_ana1.ctx;
+    let new_inner = p_ana2.ctx;
+    let (ty_module, body, m) =
+      go_module(~ctx=ctx_body, ~mode, body, m1, new_inner);
+    add(
+      ~self=Just(body.ty),
+      ~co_ctx=
+        CoCtx.union([def.co_ctx, CoCtx.mk(ctx, p_ana1.ctx, body.co_ctx)]),
+      m,
+      ty_module,
+    );
+  | TyAlias(typat, utyp, body) =>
+    let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;
+    switch (typat.term) {
+    | Var(name)
+        when
+          !Form.is_base_typ(name)
+          && Ctx.lookup_alias(inner_ctx, name) == None =>
+      /* NOTE(andrew): See TyAlias in uexp_to_info_map */
+      let (ty_def, ctx_def, ctx_body, new_inner) = {
+        let ty_pre = UTyp.to_typ(Ctx.extend_dummy_tvar(ctx, name), utyp);
+        switch (utyp.term) {
+        | Sum(_) when List.mem(name, Typ.free_vars(ty_pre)) =>
+          let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
+          let ctx_def =
+            Ctx.extend_alias(ctx, name, UTPat.rep_id(typat), ty_rec);
+          (
+            ty_rec,
+            ctx_def,
+            ctx_def,
+            Ctx.extend_alias(inner_ctx, name, UTPat.rep_id(typat), ty_rec),
+          );
+        | _ =>
+          let ty = UTyp.to_typ(ctx, utyp);
+          (
+            ty,
+            ctx,
+            Ctx.extend_alias(ctx, name, UTPat.rep_id(typat), ty),
+            Ctx.extend_alias(inner_ctx, name, UTPat.rep_id(typat), ty),
+          );
+        };
+      };
+      let (ctx_body, new_inner) =
+        switch (Typ.get_sum_constructors(ctx, ty_def)) {
+        | Some(sm) => (
+            Ctx.add_ctrs(ctx_body, name, UTyp.rep_id(utyp), sm),
+            Ctx.add_ctrs(new_inner, name, UTyp.rep_id(utyp), sm),
+          )
+        | None => (ctx_body, new_inner)
+        };
+      let (ty_module, Info.{co_ctx, ty: ty_body, _}: Info.exp, m) =
+        go_module(~ctx=ctx_body, ~mode, body, m, new_inner);
+      /* Make sure types don't escape their scope */
+      let ty_escape = Typ.subst(ty_def, name, ty_body);
+      /* Mark type member inconsistency. */
+      let expects: Info.typ_expects =
+        switch (mode) {
+        | Ana(Module(m)) =>
+          switch (Ctx.lookup_alias(m.inner_ctx, name)) {
+          | Some(ty) =>
+            /* This check is moved here because utyp_to_info_map
+               does not handle recursion. */
+            switch (Typ.join(ctx, ty, ty_def, ~fix=false)) {
+            | Some(_) => TypeExpected
+            | None => AnaTypeExpected(ty)
+            }
+          | None => TypeExpected
+          }
+        | _ => TypeExpected
+        };
+      let m =
+        utyp_to_info_map(~ctx=ctx_def, ~expects, ~ancestors, utyp, m) |> snd;
+      add(~self=Just(ty_escape), ~co_ctx, m, ty_module);
+    | _ =>
+      let (ty_module, Info.{co_ctx, ty: ty_body, _}: Info.exp, m) =
+        go_module(~ctx, ~mode, body, m, inner_ctx);
+      let m = utyp_to_info_map(~ctx, ~ancestors, utyp, m) |> snd;
+      add(~self=Just(ty_body), ~co_ctx, m, ty_module);
+    };
+
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | Triv
+  | Bool(_)
+  | Int(_)
+  | Float(_)
+  | String(_)
+  | ListLit(_)
+  | Constructor(_)
+  | Fun(_)
+  | Tuple(_)
+  | Var(_)
+  | Dot(_)
+  | Ap(_)
+  | Deferral(_)
+  | DeferredAp(_)
+  | If(_)
+  | Seq(_)
+  | Test(_)
+  | Parens(_)
+  | Cons(_)
+  | UnOp(_)
+  | BinOp(_)
+  | Match(_)
+  | Pipeline(_)
+  | Filter(_)
+  | TypFun(_)
+  | TypAp(_)
+  | ListConcat(_) =>
+    let (info, m) = go(~mode=Syn, uexp, m);
+    (
+      switch (mode) {
+      | Ana(Module(m)) => m
+      | _ => {inner_ctx, incomplete: false}
+      },
+      info,
+      m,
+    );
+  };
+}
+
 and variant_to_info_map =
     (~ctx, ~ancestors, ~ty_sum, (m, ctrs), uty: UTyp.variant) => {
   let go = expects => utyp_to_info_map(~ctx, ~ancestors, ~expects);

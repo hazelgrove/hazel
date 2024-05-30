@@ -81,6 +81,8 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
       switch (ana_ty, self_ty) {
       | (Unknown(prov), Rec(_, Sum(_)))
       | (Unknown(prov), Sum(_)) => DHExp.cast(d, self_ty, Unknown(prov))
+      | (_, Module(_))
+      | (Module(_), _) => DHExp.cast(d, self_ty, ana_ty)
       | _ => d
       }
     /* Forms with special ana rules but no particular typing requirements */
@@ -89,6 +91,8 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | IfThenElse(_)
     | Sequence(_)
     | Let(_)
+    | Module(_)
+    | Dot(_)
     | FixF(_) => d
     /* Hole-like forms: Don't cast */
     | InvalidText(_)
@@ -103,6 +107,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | InvalidOperation(_) => d
     /* Normal cases: wrap */
     | BoundVar(_)
+    | ModuleVal(_)
     | Ap(_)
     | ApBuiltin(_)
     | BuiltinFun(_)
@@ -294,6 +299,60 @@ let rec dhexp_of_uexp =
             Let(dp, FixF(self_id, ty, substituted_def), dbody);
           };
         };
+      | Module(p, def, body) =>
+        let* dp = dhpat_of_upat(m, p);
+        let* ddef = dhexp_of_uexp(m, def);
+        let+ dbody = dhexp_of_uexp(m, body);
+        /* if get module type, apply alias(Let).*/
+        let is_alias =
+          switch (Id.Map.find_opt(Term.UExp.rep_id(def), m)) {
+          | Some(InfoExp({self, _})) =>
+            switch (self) {
+            | Common(Just(Module(_))) => true
+            | _ => false
+            }
+          | _ => false
+          };
+        let signiture =
+          switch (Id.Map.find_opt(Term.UPat.rep_id(p), m)) {
+          | Some(InfoPat({ty, _})) =>
+            switch (ty) {
+            | Module(c) => c.inner_ctx
+            | _ => []
+            }
+          | _ => []
+          };
+        let (closure, names) =
+          List.fold_left(
+            ((closure, names): (ClosureEnvironment.t, list(Var.t))) =>
+              fun
+              | Ctx.VarEntry({name, id, _}) => (
+                  Environment.extend(
+                    closure |> ClosureEnvironment.map_of,
+                    (name, EmptyHole(id, 0)),
+                  )
+                  |> ClosureEnvironment.wrap(
+                       ClosureEnvironment.id_of(closure),
+                     ),
+                  [name, ...names],
+                )
+              | Ctx.TVarEntry(_)
+              | Ctx.ConstructorEntry(_) => (closure, names),
+            (ClosureEnvironment.empty, []),
+            signiture,
+          );
+        let rec body_modulize: DHExp.t => DHExp.t = (
+          fun
+          | Let(dp, d1, d2) => Let(dp, d1, body_modulize(d2))
+          | Module(dp, d1, d2) => Module(dp, d1, body_modulize(d2))
+          | _ as d => is_alias ? d : ModuleVal(closure, names)
+        );
+        let ddef = ddef |> body_modulize;
+        DHExp.Module(dp, ddef, dbody);
+      | Dot(e_mod, e_mem) =>
+        let* e_mod = dhexp_of_uexp(m, e_mod);
+        let+ e_mem = dhexp_of_uexp(m, e_mem);
+        DHExp.Dot(e_mod, e_mem);
       | Ap(fn, arg)
       | Pipeline(arg, fn) =>
         let* c_fn = dhexp_of_uexp(m, fn);
@@ -456,6 +515,7 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
     | TypeAnn(p, _ty) =>
       let* dp = dhpat_of_upat(m, p);
       wrap(dp);
+    | TyAlias(_, _) => Some(DHPat.InvalidText(u, 0, ""))
     };
   | Some(InfoExp(_) | InfoTyp(_) | InfoTPat(_) | Secondary(_))
   | None => None

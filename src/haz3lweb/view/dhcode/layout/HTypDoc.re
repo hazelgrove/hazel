@@ -130,6 +130,52 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
         ]),
         parenthesize,
       )
+    | Module({inner_ctx: [], incomplete: false}) => (
+        text("Module{}"),
+        parenthesize,
+      )
+    | Module({inner_ctx: [], incomplete: true}) => (
+        text("Module{...}"),
+        parenthesize,
+      )
+    | Module({inner_ctx, incomplete}) =>
+      let decomp_entry =
+          (m: Haz3lcore.TypBase.Ctx.entry): list((string, Typ.t)) => {
+        switch (m) {
+        | VarEntry({name: n0, typ: t0, _})
+        | ConstructorEntry({name: n0, typ: t0, _}) => [(n0, t0)]
+        | TVarEntry(_) => []
+        };
+      };
+      let ntpairs = List.map(decomp_entry, inner_ctx) |> List.flatten;
+      let center =
+        List.mapi(
+          (i, (name, ty)) =>
+            hcats([
+              text(name ++ ":"),
+              annot(
+                HTypAnnot.Step(i + 1),
+                mk'(
+                  ~parenthesize=Typ.precedence(ty) <= TypBase.precedence_Prod,
+                  ty,
+                ),
+              ),
+            ]),
+          ntpairs,
+        )
+        |> ListUtil.join(
+             hcats([text(","), choices([linebreak(), space()])]),
+           )
+        |> hcats;
+      (
+        hcats([
+          text("Module{"),
+          center,
+          text((incomplete ? "..." : "") ++ "}"),
+        ]),
+        parenthesize,
+      );
+    | Member(name, _) => (text(name), parenthesize)
     | Sum(sum_map) =>
       let center =
         List.mapi(

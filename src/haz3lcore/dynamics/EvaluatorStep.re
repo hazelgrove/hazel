@@ -291,6 +291,18 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
     | Let2(dp, d1, ctx) =>
       let d = compose(ctx, d);
       Let(dp, d1, d);
+    | Module1(dp, ctx, d2) =>
+      let d = compose(ctx, d);
+      Module(dp, d, d2);
+    | Module2(dp, d1, ctx) =>
+      let d = compose(ctx, d);
+      Module(dp, d1, d);
+    | Dot1(ctx, d2) =>
+      let d1 = compose(ctx, d);
+      Dot(d1, d2);
+    | Dot2(d1, ctx) =>
+      let d2 = compose(ctx, d);
+      Dot(d1, d2);
     | Fun(dp, t, ctx, v) =>
       let d = compose(ctx, d);
       Fun(dp, t, d, v);
@@ -397,6 +409,18 @@ let rec matches =
     | Let2(d1, d2, ctx) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       Let2(d1, d2, ctx);
+    | Module1(d1, ctx, d3) =>
+      let+ ctx = matches(env, flt, ctx, exp, act, idx);
+      Module1(d1, ctx, d3);
+    | Module2(d1, d2, ctx) =>
+      let+ ctx = matches(env, flt, ctx, exp, act, idx);
+      Module2(d1, d2, ctx);
+    | Dot1(ctx, d2) =>
+      let+ ctx = matches(env, flt, ctx, exp, act, idx);
+      Dot1(ctx, d2);
+    | Dot2(d1, ctx) =>
+      let+ ctx = matches(env, flt, ctx, exp, act, idx);
+      Dot2(d1, ctx);
     | Fun(dp, ty, ctx, name) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       Fun(dp, ty, ctx, name);

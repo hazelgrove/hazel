@@ -48,8 +48,11 @@ open DH;
 type step_kind =
   | InvalidStep
   | VarLookup
+  | ModuleLookup
   | Sequence
   | LetBind
+  | ModuleBind
+  | DotAccess
   | FunClosure
   | FixUnwrap
   | FixClosure
@@ -98,6 +101,22 @@ module CastHelpers = {
     NotGroundOrHole(Sum(sm'));
   };
   let grounded_List = NotGroundOrHole(List(Unknown(Internal)));
+  let grounded_Module = (ctx: Ctx.t) =>
+    NotGroundOrHole(
+      Typ.Module({
+        inner_ctx:
+          List.map(
+            fun
+            | Ctx.VarEntry(var_entry) =>
+              Ctx.VarEntry({...var_entry, typ: Unknown(Internal)})
+            | Ctx.ConstructorEntry(var_entry) =>
+              Ctx.ConstructorEntry({...var_entry, typ: Unknown(Internal)})
+            | Ctx.TVarEntry(tvar_entry) => Ctx.TVarEntry(tvar_entry),
+            ctx,
+          ),
+        incomplete: false,
+      }),
+    );
 
   let rec ground_cases_of = (ty: Typ.t): ground_cases => {
     let is_ground_arg: option(Typ.t) => bool =
@@ -127,12 +146,15 @@ module CastHelpers = {
       } else {
         tys |> List.length |> grounded_Prod;
       }
+    | Module({inner_ctx: [], incomplete: true}) => Ground
+    | Module(_) => NotGroundOrHole(Module({inner_ctx: [], incomplete: true}))
     | Sum(sm) =>
       sm |> ConstructorMap.is_ground(is_ground_arg)
         ? Ground : grounded_Sum(sm)
     | Arrow(_, _) => grounded_Arrow
     | Forall(_) => grounded_Forall
     | List(_) => grounded_List
+    | Member(_, ty) => ground_cases_of(ty)
     };
   };
 };
@@ -205,12 +227,29 @@ module type EV_MODE = {
 module Transition = (EV: EV_MODE) => {
   open EV;
   open DHExp;
+
   let (let.match) = ((env, match_result), r) =>
     switch (match_result) {
     | IndetMatch
     | DoesNotMatch => Indet
     | Matches(env') => r(evaluate_extend_env(env', env))
     };
+
+  let rec extend_module = (d, match_result) => {
+    switch (match_result) {
+    | IndetMatch
+    | DoesNotMatch => d
+    | Matches(env') =>
+      switch (d) {
+      | Let(dp, d1, d2) => Let(dp, d1, extend_module(d2, match_result))
+      | Module(dp, d1, d2) =>
+        Module(dp, d1, extend_module(d2, match_result))
+      | ModuleVal(env, names) =>
+        ModuleVal(evaluate_extend_env(env', env), names)
+      | _ => d
+      }
+    };
+  };
 
   let transition = (req, state, env, d): 'a =>
     switch (d) {
@@ -229,8 +268,56 @@ module Transition = (EV: EV_MODE) => {
     | Let(dp, d1, d2) =>
       let. _ = otherwise(env, d1 => Let(dp, d1, d2))
       and. d1' = req_final(req(state, env), d1 => Let1(dp, d1, d2), d1);
-      let.match env' = (env, matches(dp, d1'));
-      Step({apply: () => Closure(env', d2), kind: LetBind, value: false});
+      let result = matches(dp, d1');
+      let d2' = extend_module(d2, result);
+      let.match env' = (env, result);
+      Step({apply: () => Closure(env', d2'), kind: LetBind, value: false});
+    | Module(dp, d1, d2) =>
+      let. _ = otherwise(env, d1 => Module(dp, d1, d2))
+      and. d1' = req_final(req(state, env), d1 => Module1(dp, d1, d2), d1);
+      let result = matches(dp, d1');
+      let d2' = extend_module(d2, result);
+      let.match env' = (env, result);
+      Step({
+        apply: () => Closure(env', d2'),
+        kind: ModuleBind,
+        value: false,
+      });
+    | Dot(d1, d2) =>
+      let. _ = otherwise(env, d1 => Dot(d1, d2))
+      and. d1' = req_value(req(state, env), d1 => Dot1(d1, d2), d1);
+      switch (d1', d2) {
+      | (ModuleVal(inner_env, _), _) =>
+        Step({
+          apply: () => Closure(inner_env, d2),
+          kind: DotAccess,
+          value: false,
+        })
+      | (_, Cast(d2', ty, ty')) =>
+        Step({
+          apply: () => Cast(Dot(d1, d2'), ty, ty'),
+          kind: CastAp,
+          value: false,
+        })
+      | (Cast(d3', Module(ctx), Module(ctx')), BoundVar(name))
+      | (Cast(d3', Module(ctx), Module(ctx')), Constructor(name)) =>
+        let ty =
+          switch (Ctx.lookup_var(ctx.inner_ctx, name)) {
+          | None => Typ.Unknown(Internal)
+          | Some(var) => var.typ
+          };
+        let ty' =
+          switch (Ctx.lookup_var(ctx'.inner_ctx, name)) {
+          | None => Typ.Unknown(Internal)
+          | Some(var) => var.typ
+          };
+        Step({
+          apply: () => Cast(Dot(d3', d2), ty, ty'),
+          kind: CastAp,
+          value: false,
+        });
+      | _ => Indet
+      };
     | TypFun(_)
     | Fun(_, _, Closure(_), _) =>
       let. _ = otherwise(env, d);
@@ -387,7 +474,16 @@ module Transition = (EV: EV_MODE) => {
     | IntLit(_)
     | FloatLit(_)
     | StringLit(_)
-    | Constructor(_)
+    | ModuleVal(_) =>
+      let. _ = otherwise(env, d);
+      Constructor;
+    | Constructor(x) =>
+      let. _ = otherwise(env, d);
+      switch (ClosureEnvironment.lookup(env, x)) {
+      | None => Constructor
+      | Some(d) => Step({apply: () => d, kind: ModuleLookup, value: false})
+      };
+
     | BuiltinFun(_) =>
       let. _ = otherwise(env, d);
       Constructor;
@@ -726,6 +822,8 @@ module Transition = (EV: EV_MODE) => {
 let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   fun
   | LetBind
+  | ModuleBind
+  | DotAccess
   | Sequence
   | UpdateTest
   | TypFunAp
@@ -742,6 +840,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | Skip
   | Conditional(_)
   | InvalidStep => false
+  | ModuleLookup
   | VarLookup => !settings.show_lookup_steps
   | CastTypAp
   | CastAp

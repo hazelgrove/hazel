@@ -26,6 +26,19 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
         subst_var(d1, x, d4);
       };
     Let(dp, d3, d4);
+  | Module(dp, d3, d4) =>
+    let d3 = subst_var(d1, x, d3);
+    let d4 =
+      if (DHPat.binds_var(x, dp)) {
+        d4;
+      } else {
+        subst_var(d1, x, d4);
+      };
+    Module(dp, d3, d4);
+  | Dot(d3, d4) =>
+    let d3 = subst_var(d1, x, d3);
+    let d4 = subst_var(d1, x, d4);
+    Dot(d3, d4);
   | FixF(y, ty, d3) =>
     let d3 =
       if (Var.eq(x, y)) {
@@ -60,6 +73,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   | IntLit(_)
   | FloatLit(_)
   | StringLit(_)
+  | ModuleVal(_)
   | Constructor(_) => d2
   | ListLit(a, b, c, ds) =>
     ListLit(a, b, c, List.map(subst_var(d1, x), ds))

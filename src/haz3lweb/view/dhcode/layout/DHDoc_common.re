@@ -112,6 +112,23 @@ let mk_FloatLit = (f: float) =>
 
 let mk_BoolLit = b => Doc.text(string_of_bool(b));
 
+let mk_ModuleVal = e =>
+  /* inlining empty modules. Maybe can do better. */
+  switch (e) {
+  | [] => Doc.(hcats([text("Module( )")]))
+  | _ =>
+    Doc.(
+      hcats([
+        text("Module("),
+        linebreak(),
+        indent_and_align(Doc.(hcats(e))),
+        linebreak(),
+        text(")"),
+      ])
+    )
+  };
+
+let mk_Dot = (doc1, doc2) => Doc.(hcats([doc1, text("."), doc2]));
 let mk_ConstructorLit = Doc.text;
 
 let mk_Cons = (hd, tl) => Doc.(hcats([hd, text("::"), tl]));

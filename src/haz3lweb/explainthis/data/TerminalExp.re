@@ -86,3 +86,15 @@ let ctr_exp = (c: string): form => {
   examples: [],
 };
 let ctr = (c: string): group => {id: CtrExp, forms: [ctr_exp(c)]};
+
+let module_var_exp = (c: string): form => {
+  id: ModuleVarExp,
+  syntactic_form: [c |> abbreviate |> exp],
+  expandable_id: None,
+  explanation: "`%s` is a name for a module variable.",
+  examples: [],
+};
+let module_var = (c: string): group => {
+  id: ModuleVarExp,
+  forms: [module_var_exp(c)],
+};

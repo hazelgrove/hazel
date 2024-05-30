@@ -61,6 +61,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | FailedCast(_)
   | InvalidOperation(_)
   | IfThenElse(_)
+  | ModuleVal(_)
   | BuiltinFun(_)
   | Filter(_)
   | Closure(_) => DHDoc_common.precedence_const
@@ -69,12 +70,14 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Ap(_)
   | TypAp(_) => DHDoc_common.precedence_Ap
   | ApBuiltin(_) => DHDoc_common.precedence_Ap
+  | Dot(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
   | ListConcat(_) => DHDoc_common.precedence_Plus
   | Tuple(_) => DHDoc_common.precedence_Comma
   | TypFun(_)
   | Fun(_) => DHDoc_common.precedence_max
   | Let(_)
+  | Module(_)
   | FixF(_)
   | ConsistentCase(_)
   | InconsistentBranches(_) => DHDoc_common.precedence_max
@@ -136,11 +139,15 @@ let mk =
         | (FunAp, _) => []
         | (LetBind, Let(p, _, _)) => DHPat.bound_vars(p)
         | (LetBind, _) => []
+        | (ModuleBind, Module(p, _, _)) => DHPat.bound_vars(p)
+        | (ModuleBind, _) => []
         | (FixUnwrap, FixF(f, _, _)) => [f]
         | (FixUnwrap, _) => []
         | (TypFunAp, _) // TODO: Could also do something here for type variable substitution like in FunAp?
         | (InvalidStep, _)
         | (VarLookup, _)
+        | (ModuleLookup, _)
+        | (DotAccess, _)
         | (Sequence, _)
         | (FunClosure, _)
         | (FixClosure, _)
@@ -352,10 +359,50 @@ let mk =
           }
         }
       | BuiltinFun(f) => text(f)
-      | Constructor(name) => DHDoc_common.mk_ConstructorLit(name)
+      | Constructor(name) =>
+        switch (ClosureEnvironment.lookup(env, name)) {
+        | None => DHDoc_common.mk_ConstructorLit(name)
+        | Some(d') =>
+          if (List.mem(name, recent_subst)) {
+            hcats([
+              go'(~env=ClosureEnvironment.empty, BoundVar(name), BoundVar)
+              |> annot(DHAnnot.Substituted),
+              go'(~env=ClosureEnvironment.empty, d', BoundVar),
+            ]);
+          } else {
+            go'(~env=ClosureEnvironment.empty, d', BoundVar);
+          }
+        }
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
+      | ModuleVal(e, names) =>
+        if (enforce_inline) {
+          fail();
+        } else {
+          let envlist =
+            names
+            |> List.map(name =>
+                 [
+                   Doc.text(name),
+                   switch (ClosureEnvironment.lookup(e, name)) {
+                   | Some(exp) =>
+                     Doc.(hcats([Doc.text(" = "), go'(exp, ModuleVal)]))
+                   | None => Doc.empty()
+                   },
+                   Doc.text(";"),
+                   linebreak(),
+                 ]
+               )
+            |> List.flatten
+            |> List.rev;
+          let envlist =
+            switch (envlist) {
+            | [] => []
+            | [_hd, ...envlist] => envlist
+            };
+          DHDoc_common.mk_ModuleVal(List.rev(envlist));
+        }
       | StringLit(s) => DHDoc_common.mk_StringLit(s)
       | Test(_, d) => DHDoc_common.mk_Test(go'(d, Test))
       | Sequence(d1, d2) =>
@@ -372,6 +419,10 @@ let mk =
           go'(d2, Ap2),
         );
         DHDoc_common.mk_Ap(doc1, doc2);
+      | Dot(d1, d2) =>
+        let doc1 = go'(d1, Dot1);
+        let doc2 = go'(d2, Dot2);
+        DHDoc_common.mk_Dot(doc1, doc2);
       | TypAp(d1, ty) =>
         let doc1 = go'(d1, TypAp);
         let doc2 = DHDoc_Typ.mk(~enforce_inline=true, ty);
@@ -482,6 +533,38 @@ let mk =
                 List.filter(x => !List.mem(x, bindings), next_recent_subst),
               dbody,
               Let2,
+            ),
+          ]);
+        }
+      | Module(dp, ddef, dbody) =>
+        if (enforce_inline) {
+          fail();
+        } else {
+          let bindings = DHPat.bound_vars(dp);
+          let def_doc = go_formattable(ddef, Module1);
+          vseps([
+            hcats([
+              DHDoc_common.Delim.mk("module"),
+              DHDoc_Pat.mk(dp)
+              |> DHDoc_common.pad_child(
+                   ~inline_padding=(space(), space()),
+                   ~enforce_inline,
+                 ),
+              DHDoc_common.Delim.mk("="),
+              def_doc
+              |> DHDoc_common.pad_child(
+                   ~inline_padding=(space(), space()),
+                   ~enforce_inline=false,
+                 ),
+              DHDoc_common.Delim.mk("in"),
+            ]),
+            go'(
+              ~enforce_inline=false,
+              ~env=ClosureEnvironment.without_keys(bindings, env),
+              ~recent_subst=
+                List.filter(x => !List.mem(x, bindings), recent_subst),
+              dbody,
+              Module2,
             ),
           ]);
         }

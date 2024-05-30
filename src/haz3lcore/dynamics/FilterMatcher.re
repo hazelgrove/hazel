@@ -178,6 +178,14 @@ let rec matches_exp =
     | (Let(dp, d1, d2), Let(fp, f1, f2)) =>
       matches_pat(dp, fp) && matches_exp(d1, f1) && matches_exp(d2, f2)
     | (Let(_), _) => false
+    | (Module(dp, d1, d2), Module(fp, f1, f2)) =>
+      matches_pat(dp, fp) && matches_exp(d1, f1) && matches_exp(d2, f2)
+    | (Module(_), _) => false
+    | (Dot(d1, d2), Dot(f1, f2)) =>
+      matches_exp(d1, f1) && matches_exp(d2, f2)
+    | (Dot(_), _) => false
+    | (ModuleVal(a1, b1), ModuleVal(a2, b2)) => a1 == a2 && b1 == b2
+    | (ModuleVal(_), _) => false
 
     | (TypAp(d1, t1), TypAp(d2, t2)) =>
       matches_exp(d1, d2) && matches_typ(t1, t2)

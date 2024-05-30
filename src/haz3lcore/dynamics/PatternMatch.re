@@ -35,6 +35,13 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (NonEmptyHole(_), _) => IndetMatch
   | (Wild, _) => Matches(Environment.empty)
   | (InvalidText(_), _) => IndetMatch
+  | (Var(_), ModuleVal(_)) => DoesNotMatch
+  | (Constructor(x), ModuleVal(_))
+  | (Constructor(x), Cast(_, Module(_), Module(_)))
+  | (Constructor(x), Cast(_, Module(_), Unknown(_)))
+  | (Constructor(x), Cast(_, Unknown(_), Module(_))) =>
+    let env = Environment.extend(Environment.empty, (x, d));
+    Matches(env);
   | (BadConstructor(_), _) => IndetMatch
   | (Var(x), _) =>
     let env = Environment.extend(Environment.empty, (x, d));
@@ -238,6 +245,7 @@ and matches_cast_Sum =
   | FreeVar(_)
   | InvalidText(_)
   | Let(_)
+  | Module(_)
   | TypAp(_)
   | Ap(_)
   | ApBuiltin(_)
@@ -257,6 +265,8 @@ and matches_cast_Sum =
   | BuiltinFun(_) => IndetMatch
   | Cast(_)
   | BoundVar(_)
+  | Dot(_)
+  | ModuleVal(_)
   | FixF(_)
   | TypFun(_)
   | Fun(_)
@@ -332,6 +342,8 @@ and matches_cast_Tuple =
   | FreeVar(_) => IndetMatch
   | InvalidText(_) => IndetMatch
   | Let(_, _, _) => IndetMatch
+  | Module(_, _, _) => IndetMatch
+  | Dot(_, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
   | TypFun(_, _, _) => DoesNotMatch
   | Fun(_, _, _, _) => DoesNotMatch
@@ -347,6 +359,7 @@ and matches_cast_Tuple =
   | BinStringOp(_)
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
+  | ModuleVal(_) => DoesNotMatch
   | Sequence(_)
   | BuiltinFun(_)
   | Test(_) => DoesNotMatch
@@ -473,6 +486,8 @@ and matches_cast_Cons =
   | FreeVar(_) => IndetMatch
   | InvalidText(_) => IndetMatch
   | Let(_, _, _) => IndetMatch
+  | Module(_, _, _) => IndetMatch
+  | Dot(_, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
   | TypFun(_, _, _) => DoesNotMatch
   | Fun(_, _, _, _) => DoesNotMatch
@@ -489,6 +504,7 @@ and matches_cast_Cons =
   | BuiltinFun(_) => DoesNotMatch
   | BoolLit(_) => DoesNotMatch
   | IntLit(_) => DoesNotMatch
+  | ModuleVal(_) => DoesNotMatch
   | Sequence(_)
   | Test(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch

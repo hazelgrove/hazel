@@ -117,6 +117,10 @@ let common_ok_view = (cls: Term.Cls.t, ok: Info.ok_pat) => {
       text(":"),
       Type.view(ana),
     ]
+  | (Pat(ModuleVar), Ana(Consistent({ana: Module(_) as ana, _}))) => [
+      text(":"),
+      Type.view(ana),
+    ]
   | (_, Ana(Consistent({ana, syn, _}))) when ana == syn => [
       text(":"),
       Type.view(syn),
@@ -146,6 +150,11 @@ let typ_ok_view = (cls: Term.Cls.t, ok: Info.ok_typ) =>
       text("is an alias for"),
       Type.view(ty_lookup),
     ]
+  | Module(name, inner_ctx) => [
+      Type.view(Var(String.sub(name, 0, String.length(name) - 1))),
+      text("is a module of type"),
+      Type.view(Module({inner_ctx, incomplete: false})),
+    ]
   | Variant(name, sum_ty) => [
       Type.view(Var(name)),
       text("is a sum type constuctor of type"),
@@ -167,9 +176,21 @@ let typ_err_view = (ok: Info.error_typ) =>
   | WantConstructorFoundAp
   | WantConstructorFoundType(_) => [text("Expected a constructor")]
   | WantTypeFoundAp => [text("Must be part of a sum type")]
+  | WantModule => [text("Expect a valid module")]
   | DuplicateConstructor(name) => [
       Type.view(Var(name)),
       text("already used in this sum"),
+    ]
+  | FreeTypeMember(name) => [
+      text("Member type variable"),
+      Type.view(Var(name)),
+      text("is not bound in module."),
+    ]
+  | InconsistentMember({ana, syn}) => [
+      text("Expecting"),
+      Type.view(ana),
+      text("but got"),
+      Type.view(syn),
     ]
   };
 
@@ -212,6 +233,15 @@ let rec exp_view = (cls: Term.Cls.t, status: Info.status_exp) =>
 
 let rec pat_view = (cls: Term.Cls.t, status: Info.status_pat) =>
   switch (status) {
+  | InHole(ExpectedModule(token)) =>
+    div_err([
+      text(
+        Printf.sprintf(
+          "\"%s\" isn't a valid module name (module names must be capitalized)",
+          token,
+        ),
+      ),
+    ])
   | InHole(ExpectedConstructor) => div_err([text("Expected a constructor")])
   | InHole(Redundant(additional_err)) =>
     switch (additional_err) {

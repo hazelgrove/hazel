@@ -11,6 +11,11 @@ type cls =
   | Sequence2
   | Let1
   | Let2
+  | Module1
+  | Module2
+  | ModuleVal
+  | Dot1
+  | Dot2
   | TypAp
   | Ap1
   | Ap2
@@ -57,6 +62,10 @@ type t =
   | Sequence2(DHExp.t, t)
   | Let1(DHPat.t, t, DHExp.t)
   | Let2(DHPat.t, DHExp.t, t)
+  | Module1(DHPat.t, t, DHExp.t)
+  | Module2(DHPat.t, DHExp.t, t)
+  | Dot1(t, DHExp.t)
+  | Dot2(DHExp.t, t)
   | Fun(DHPat.t, Typ.t, t, option(Var.t))
   | FixF(Var.t, Typ.t, t)
   | TypAp(t, Typ.t)
@@ -126,6 +135,10 @@ let rec fuzzy_mark =
   | Sequence2(_)
   | Let1(_)
   | Let2(_)
+  | Module1(_)
+  | Module2(_)
+  | Dot1(_)
+  | Dot2(_)
   | Fun(_)
   | FixF(_)
   | TypAp(_)
@@ -173,6 +186,10 @@ let rec unwrap = (ctx: t, sel: cls): option(t) => {
   | (Sequence2, Sequence2(_, c))
   | (Let1, Let1(_, c, _))
   | (Let2, Let2(_, _, c))
+  | (Module1, Module1(_, c, _))
+  | (Module2, Module2(_, _, c))
+  | (Dot1, Dot1(c, _))
+  | (Dot2, Dot2(_, c))
   | (Fun, Fun(_, _, c, _))
   | (FixF, FixF(_, _, c))
   | (TypAp, TypAp(c, _))
@@ -228,6 +245,10 @@ let rec unwrap = (ctx: t, sel: cls): option(t) => {
   | (IfThenElse3, IfThenElse2(_))
   | (Let1, Let2(_))
   | (Let2, Let1(_))
+  | (Module1, Module2(_))
+  | (Module2, Module1(_))
+  | (Dot1, Dot2(_, _))
+  | (Dot2, Dot1(_, _))
   | (BinBoolOp1, BinBoolOp2(_))
   | (BinBoolOp2, BinBoolOp1(_))
   | (BinIntOp1, BinIntOp2(_))

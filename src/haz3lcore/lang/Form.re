@@ -117,12 +117,17 @@ let is_reserved_keyword =
 
 /* Potential tokens: These are fallthrough classes which determine
  * the behavior when inserting a character in contact with a token */
-let is_potential_operand = regexp("^[a-zA-Z0-9_'\\.?]+$");
+let is_potential_operand =
+    /* gensofubi: "." is used as a operator for module,
+       only recognized as potential operand if not appearing with letters */
+    x =>
+  regexp("^[a-zA-Z0-9_'?]+$", x) || regexp("^[0-9_'\\.?]+$", x);
 /* Anything else is considered a potential operator, as long
  *  as it does not contain any whitespace, linebreaks, comment
  *  delimiters, string delimiters, or the instant expanding paired
- *  delimiters: ()[]| */
-let is_potential_operator = regexp("^[^a-zA-Z0-9_'?\"#⏎\\s\\[\\]\\(\\)]+$");
+ *  delimiters: ()[]|{} */
+let is_potential_operator =
+  regexp("^[^a-zA-Z0-9_'?\"#⏎\\s\\[\\]\\(\\)\\{\\}]+$");
 let is_potential_token = t =>
   is_potential_operand(t)
   || is_potential_operator(t)
@@ -160,6 +165,7 @@ let is_var = str =>
        str,
      );
 let is_capitalized_name = regexp("^[A-Z][A-Za-z0-9_]*$");
+let is_tag = is_capitalized_name;
 let is_ctr = is_capitalized_name;
 let base_typs = ["String", "Int", "Float", "Bool"];
 let is_base_typ = regexp("^(" ++ String.concat("|", base_typs) ++ ")$");
@@ -275,6 +281,8 @@ let forms: list((string, t)) = [
   ("fgte", mk_infix(">=.", Exp, P.eqs)),
   ("flte", mk_infix("<=.", Exp, P.eqs)),
   ("logical_and", mk_infix("&&", Exp, P.and_)),
+  ("dot_var", mk_infix(".", Exp, P.max)),
+  ("dot_typ", mk_infix(".", Typ, P.max)),
   ("logical_or_legacy", mk_infix("\\/", Exp, P.or_)),
   ("logical_or", mk_infix("||", Exp, P.or_)),
   ("list_concat", mk_infix("@", Exp, P.plus)),
@@ -326,8 +334,17 @@ let forms: list((string, t)) = [
   // TRIPLE DELIMITERS
   ("let_", mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))),
   (
+    "module_",
+    mk(ds, ["module", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp])),
+  ),
+  ("module_type", mk(ii, ["{", "}"], mk_op(Typ, [Pat]))),
+  (
     "type_alias",
     mk(ds, ["type", "=", "in"], mk_pre(P.let_, Exp, [TPat, Typ])),
+  ),
+  (
+    "type_alias_pat",
+    mk(ds, ["Type", "="], mk_pre'(P.if_, Pat, Pat, [TPat], Typ)),
   ),
   ("if_", mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))),
 ];

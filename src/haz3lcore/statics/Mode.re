@@ -143,6 +143,19 @@ let of_ap = (ctx, mode, ctr: option(Constructor.t)): t =>
   | None => SynFun
   };
 
+let is_module_ana = (mode: t, ctx: Ctx.t, default: bool): bool => {
+  switch (mode) {
+  | Ana(ty) =>
+    switch (Typ.normalize(ctx, ty)) {
+    | Module(_) => true
+    | Unknown(_) => default
+    | _ => false
+    }
+  | Syn => default
+  | SynFun
+  | SynTypFun => false
+  };
+};
 let typap_mode: t = SynTypFun;
 
 let of_deferred_ap_args = (length: int, ty_ins: list(Typ.t)): list(t) =>
