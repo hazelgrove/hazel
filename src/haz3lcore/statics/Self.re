@@ -23,13 +23,14 @@ open Sexplib.Std;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type join_type =
   | Id
-  | List;
+  | List
+  | PolyEq;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Just(Typ.t) /* Just a regular type */
   | NoJoin(join_type, list(Typ.source)) /* Inconsistent types for e.g match, listlits */
-  | BadEqual(Typ.t) /* Type equality failed because of arrow type inside */
+  | CmpArrow(Typ.t) /* Type equality failed because of arrow type inside */
   | BadToken(Token.t) /* Invalid expression token, treated as hole */
   | BadTrivAp(Typ.t) /* Trivial (nullary) ap on function that doesn't take triv */
   | IsMulti /* Multihole, treated as hole */
@@ -64,6 +65,7 @@ let join_of = (j: join_type, ty: Typ.t): Typ.t =>
   switch (j) {
   | Id => ty
   | List => List(ty)
+  | PolyEq => ty
   };
 
 /* What the type would be if the position had been
@@ -74,7 +76,7 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
     fun
     | Just(typ) => Some(typ)
     | IsConstructor({syn_ty, _}) => syn_ty
-    | BadEqual(_) => Some(Bool)
+    | CmpArrow(_) => Some(Bool)
     | BadToken(_)
     | BadTrivAp(_)
     | IsMulti
@@ -151,4 +153,11 @@ let list_concat = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
   switch (Typ.join_all(~empty=Unknown(Internal), ctx, tys)) {
   | None => NoJoin(List, add_source(ids, tys))
   | Some(ty) => Just(ty)
+  };
+
+let poly_eq = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
+  switch (Typ.join_all(~empty=Unknown(Internal), ctx, tys)) {
+  | None => NoJoin(PolyEq, add_source(ids, tys))
+  | Some(ty) when Typ.has_arrow(ty) => CmpArrow(ty)
+  | Some(_) => Just(Bool)
   };

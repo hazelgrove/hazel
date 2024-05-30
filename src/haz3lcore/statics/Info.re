@@ -44,7 +44,7 @@ type error_inconsistent =
   /* Inconsistent match or listlit */
   | Internal(list(Typ.t))
   /* Bad type equality due to arrow type inside */
-  | WithoutArrow(Typ.t)
+  | CmpArrow(Typ.t)
   /* Bad function position */
   | WithArrow(Typ.t);
 
@@ -360,7 +360,7 @@ let rec status_common =
     | (_, Some(syn_ty)) => status_common(ctx, mode, Just(syn_ty))
     | _ => InHole(NoType(FreeConstructor(name)))
     }
-  | (BadEqual(ty), _) => InHole(Inconsistent(WithoutArrow(ty)))
+  | (CmpArrow(ty), _) => InHole(Inconsistent(CmpArrow(ty)))
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
   | (BadTrivAp(ty), _) => InHole(NoType(BadTrivAp(ty)))
   | (IsMulti, _) => NotInHole(Syn(Unknown(Internal)))
@@ -383,9 +383,7 @@ let rec status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
     let additional_err =
       switch (status_pat(ctx, mode, self)) {
       | InHole(
-          Common(
-            Inconsistent(Internal(_) | Expectation(_) | WithoutArrow(_)),
-          ) as err,
+          Common(Inconsistent(Internal(_) | Expectation(_) | CmpArrow(_))) as err,
         )
       | InHole(Common(NoType(_)) as err) => Some(err)
       | NotInHole(_) => None
@@ -424,9 +422,7 @@ let rec status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
         Some(inconsistent_err)
       | NotInHole(_)
       | InHole(
-          Common(
-            Inconsistent(Expectation(_) | WithArrow(_) | WithoutArrow(_)),
-          ),
+          Common(Inconsistent(Expectation(_) | WithArrow(_) | CmpArrow(_))),
         ) =>
         None /* Type checking should fail and these errors would be nullified */
       | InHole(Common(NoType(_)))
