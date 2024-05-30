@@ -143,7 +143,7 @@ let rec dhexp_of_uexp =
     dhexp_of_uexp(m, uexp, in_filter);
   };
   switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
-  | Some(InfoExp({mode, self, ctx, ancestors, _})) =>
+  | Some(InfoExp({mode, self, ctx, ancestors, co_ctx, _})) =>
     let err_status = Info.status_exp(ctx, mode, self);
     let id = Term.UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
     let+ d: DHExp.t =
@@ -260,7 +260,12 @@ let rec dhexp_of_uexp =
         let* ddef = dhexp_of_uexp(m, def);
         let* dbody = dhexp_of_uexp(m, body);
         let+ ty = fixed_pat_typ(m, p);
-        if (!Statics.is_recursive(ctx, p, def, ty)) {
+        let is_recursive =
+          Statics.is_recursive(ctx, p, def, ty)
+          && Term.UPat.get_bindings(p)
+          |> Option.get
+          |> List.exists(f => VarMap.lookup(co_ctx, f) != None);
+        if (!is_recursive) {
           /* not recursive */
           DHExp.Let(
             dp,
