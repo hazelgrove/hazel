@@ -63,6 +63,7 @@ let elements_noun: Term.Cls.t => string =
   | Exp(Match | If) => "Branches"
   | Exp(ListLit)
   | Pat(ListLit) => "Elements"
+  | Exp(BinOp(Int(Equals | NotEquals)))
   | Exp(ListConcat) => "Operands"
   | _ => failwith("elements_noun: Cls doesn't have elements");
 
@@ -85,7 +86,7 @@ let common_err_view = (cls: Term.Cls.t, err: Info.error_common) =>
       Type.view(typ),
       text("inconsistent with arrow type"),
     ]
-  | Inconsistent(WithoutArrow(typ)) => [
+  | Inconsistent(CmpArrow(typ)) => [
       text(":"),
       Type.view(typ),
       text("contains arrow type"),
