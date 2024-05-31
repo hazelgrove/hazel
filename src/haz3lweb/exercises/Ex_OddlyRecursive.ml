@@ -59,5 +59,6 @@ let exercise : Exercise.spec =
           hints = [ "zero" ];
         };
       syntax_tests = [ ("odd is recursive", IsRecursive "odd") ];
-      derivation = { concl = "A |- A"; rule = Assumption; prems = [] };
+      derivation =
+        { value = { concl = "A |- A"; rule = Assumption }; child = [] };
     }

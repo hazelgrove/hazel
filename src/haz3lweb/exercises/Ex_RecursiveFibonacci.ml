@@ -67,5 +67,6 @@ let exercise : Exercise.spec =
           hints = [];
         };
       syntax_tests = [ ("fib is recursive", IsRecursive "fib") ];
-      derivation = { concl = "A |- A"; rule = Assumption; prems = [] };
+      derivation =
+        { value = { concl = "A |- A"; rule = Assumption }; child = [] };
     }

@@ -82,12 +82,7 @@ let view =
       div(~attr=Attr.class_("cell-prompt"), [eds.prompt]),
     );
 
-  let derivation_view_maker =
-      (
-        concl: ((Editor.t, Exercise.DynamicsItem.t), Exercise.derive_pos),
-        rule,
-        prems_view,
-      ) =>
+  let derivation_view_maker = (value, child) =>
     div(
       ~attr=
         Attr.style(
@@ -99,14 +94,14 @@ let view =
         ),
       [
         editor_view(
-          Exercise.Derive(snd(concl)),
+          Exercise.Derive(snd(value)),
           ~caption="Derivation",
-          ~editor=fst(fst(concl)),
-          ~di=snd(fst(concl)),
+          ~editor=fst(fst(value)).Exercise.concl,
+          ~di=snd(fst(value)),
         ),
-        text(Derivation.Rule.repr(rule)),
+        text(Derivation.Rule.repr(fst(fst(value)).Exercise.rule)),
       ]
-      @ prems_view,
+      @ child,
     );
 
   let derivation_view =
@@ -115,27 +110,27 @@ let view =
         ~attr=Attr.class_("cell-prompt"),
         [
           eds.prompt,
-          Exercise.fold_derive(
+          Util.Tree.fold(
             derivation_view_maker,
-            Exercise.combine_derive((
-              Exercise.combine_derive((eds.derivation, derivation)),
-              derivation |> Exercise.mapi_derive((p, _) => p),
+            Util.Tree.combine((
+              Util.Tree.combine((eds.derivation, derivation)),
+              derivation |> Util.Tree.mapi((pos, _) => pos),
             )),
           ),
         ],
       ),
     );
 
-  // let prelude_view =
-  //   Always(
-  //     editor_view(
-  //       Prelude,
-  //       ~caption="Prelude",
-  //       ~subcaption=settings.instructor_mode ? "" : " (Read-Only)",
-  //       ~editor=eds.prelude,
-  //       ~di=prelude,
-  //     ),
-  //   );
+  let prelude_view =
+    Always(
+      editor_view(
+        Prelude,
+        ~caption="Prelude",
+        ~subcaption=settings.instructor_mode ? "" : " (Read-Only)",
+        ~editor=eds.prelude,
+        ~di=prelude,
+      ),
+    );
 
   let correct_impl_view =
     InstructorOnly(
@@ -301,7 +296,7 @@ let view =
   @ render_cells(
       settings,
       [
-        // prelude_view,
+        prelude_view,
         correct_impl_view,
         correct_impl_ctx_view,
         your_tests_view,

@@ -18,31 +18,38 @@ let exercise : Exercise.spec =
       syntax_tests = [];
       derivation =
         {
-          concl = "[a /\\ b] |- b /\\ a";
-          rule = And_I;
-          prems =
+          (* concl = "[a /\\ b] |- b /\\ a";
+             rule = And_I; *)
+          value = { concl = "[a /\\ b] |- b /\\ a"; rule = And_I };
+          child =
             [
               {
-                concl = "[a /\\ b] |- b";
-                rule = And_E_L;
-                prems =
+                (* concl = "[a /\\ b] |- b";
+                   rule = And_E_L; *)
+                value = { concl = "[a /\\ b] |- b"; rule = And_E_L };
+                child =
                   [
                     {
-                      concl = "[a /\\ b] |- a /\\ b";
-                      rule = Assumption;
-                      prems = [];
+                      (* concl = "[a /\\ b] |- a /\\ b";
+                         rule = Assumption; *)
+                      value =
+                        { concl = "[a /\\ b] |- a /\\ b"; rule = Assumption };
+                      child = [];
                     };
                   ];
               };
               {
-                concl = "[a /\\ b] |- a";
-                rule = And_E_R;
-                prems =
+                (* concl = "[a /\\ b] |- a";
+                   rule = And_E_R; *)
+                value = { concl = "[a /\\ b] |- a"; rule = And_E_R };
+                child =
                   [
                     {
-                      concl = "[a /\\ b] |- a /\\ b";
-                      rule = Assumption;
-                      prems = [];
+                      (* concl = "[a /\\ b] |- a /\\ b";
+                         rule = Assumption; *)
+                      value =
+                        { concl = "[a /\\ b] |- a /\\ b"; rule = Assumption };
+                      child = [];
                     };
                   ];
               };
