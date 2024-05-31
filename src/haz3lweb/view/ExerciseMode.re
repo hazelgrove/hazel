@@ -82,43 +82,69 @@ let view =
       div(~attr=Attr.class_("cell-prompt"), [eds.prompt]),
     );
 
-  let derivation_view_maker = (value, child) =>
-    div(
-      ~attr=
-        Attr.style(
-          Css_gen.concat([
-            Css_gen.create(~field="display", ~value="flex"),
-            Css_gen.create(~field="flex-direction", ~value="column"),
-            Css_gen.create(~field="align-items", ~value="center"),
-          ]),
-        ),
-      [
-        editor_view(
-          Exercise.Derive(snd(value)),
-          ~caption="Derivation",
-          ~editor=fst(fst(value)).Exercise.concl,
-          ~di=snd(fst(value)),
-        ),
-        text(Derivation.Rule.repr(fst(fst(value)).Exercise.rule)),
-      ]
-      @ child,
-    );
-
-  let derivation_view =
-    Cell.narrative_cell(
+  let derivation_view_maker = (value, child) => {
+    let rule = fst(fst(value)).Exercise.rule;
+    let pos = Exercise.Derive(snd(value));
+    let editor = fst(fst(value)).Exercise.concl;
+    let di = snd(fst(value));
+    let di_child = child |> List.map(snd);
+    let res =
+      Grading.ImplGradingReport.DerivationReport.verify_single(
+        di,
+        rule,
+        di_child,
+      );
+    (
       div(
-        ~attr=Attr.class_("cell-prompt"),
+        ~attr=Attr.class_("derivation-block"),
         [
-          eds.prompt,
-          Util.Tree.fold(
-            derivation_view_maker,
-            Util.Tree.combine((
-              Util.Tree.combine((eds.derivation, derivation)),
-              derivation |> Util.Tree.mapi((pos, _) => pos),
-            )),
+          div(
+            ~attr=Attr.class_("derivation-premises"),
+            (child |> List.map(fst))
+            @ [
+              text(Derivation.Rule.repr(rule)),
+              text(
+                res
+                |> (
+                  fun
+                  | Ok(_) => "✅"
+                  | Error(e) => "❌" ++ DerivationError.VerErr.repr(e)
+                ),
+              ),
+            ],
           ),
+          editor_view(pos, ~caption="Derivation", ~editor, ~di),
         ],
       ),
+      di,
+    );
+  };
+
+  let derivation_view =
+    div(
+      ~attr=Attr.class_("cell"),
+      [
+        div(
+          ~attr=Attr.class_("cell-item"),
+          [
+            Cell.caption("Derivation"),
+            div(
+              ~attr=Attr.class_("cell-derivation"),
+              [
+                fst(
+                  Util.Tree.fold(
+                    derivation_view_maker,
+                    Util.Tree.combine((
+                      Util.Tree.combine((eds.derivation, derivation)),
+                      derivation |> Util.Tree.mapi((pos, _) => pos),
+                    )),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
     );
 
   let prelude_view =
@@ -292,26 +318,33 @@ let view =
       ),
     );
 
+  // TODO(zhiyao): derivation_view not well integrated
   [score_view, title_view, prompt_view]
-  @ render_cells(
-      settings,
-      [
-        prelude_view,
-        correct_impl_view,
-        correct_impl_ctx_view,
-        your_tests_view,
-      ]
-      @ wrong_impl_views
-      @ [
-        mutation_testing_view,
-        your_impl_view,
-        syntax_grading_view,
-        impl_validation_view,
-        hidden_tests_view,
-        impl_grading_view,
-      ],
-    )
-  @ [derivation_view];
+  @ render_cells(settings, [prelude_view, Always(derivation_view)])
+  @ [
+    div(
+      ~attr=Attr.style(Css_gen.create(~field="display", ~value="none")),
+      render_cells(
+        settings,
+        [
+          prelude_view,
+          Always(derivation_view),
+          correct_impl_view,
+          correct_impl_ctx_view,
+          your_tests_view,
+        ]
+        @ wrong_impl_views
+        @ [
+          mutation_testing_view,
+          your_impl_view,
+          syntax_grading_view,
+          impl_validation_view,
+          hidden_tests_view,
+          impl_grading_view,
+        ],
+      ),
+    ),
+  ];
 };
 
 let reset_button = inject =>

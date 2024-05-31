@@ -41,7 +41,7 @@ let rec get = ({value, child}, pos) =>
   | Child(i, pos) => pos |> get(List.nth(child, i))
   };
 
-let set = (pos, t) => mapi((pos', t') => pos' == pos ? t' : t);
+let set = (pos, t) => mapi((pos', t') => pos == pos' ? t : t');
 
 let flaten_pos = t => t |> mapi((pos, _) => pos) |> flaten;
 

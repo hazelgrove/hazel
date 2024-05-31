@@ -103,7 +103,8 @@ module VerErr: {
     | NotInContext(bind(Prop.t), bind(Ctx.t))
     | MisMatch(MisMatchCommon.t)
     | NotEqual(NotEqualCommon.t)
-    | CtxNotEqualAfterExtend(bind(Ctx.t), bind(Ctx.t), bind(Prop.t)); /* expected, actual, prop */
+    | CtxNotEqualAfterExtend(bind(Ctx.t), bind(Ctx.t), bind(Prop.t)) /* expected, actual, prop */
+    | External(string);
 
   let repr: t => string;
 } = {
@@ -113,7 +114,8 @@ module VerErr: {
     | NotInContext(bind(Prop.t), bind(Ctx.t))
     | MisMatch(MisMatchCommon.t)
     | NotEqual(NotEqualCommon.t)
-    | CtxNotEqualAfterExtend(bind(Ctx.t), bind(Ctx.t), bind(Prop.t)); /* expected, actual, prop */
+    | CtxNotEqualAfterExtend(bind(Ctx.t), bind(Ctx.t), bind(Prop.t)) /* expected, actual, prop */
+    | External(string);
 
   let repr =
     fun
@@ -138,7 +140,8 @@ module VerErr: {
         Location.repr(b.location),
         Prop.repr(p.value),
         Location.repr(p.location),
-      );
+      )
+    | External(e) => e;
 
   let repr = (e: t): string => "Error: " ++ repr(e);
 };
