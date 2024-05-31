@@ -40,6 +40,22 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type derive('code) = {
+    concl: 'code,
+    rule: Derivation.Rule.t,
+    prems: list(derive('code)),
+  };
+
+  let rec fold_derive = (f, {concl, rule, prems}) =>
+    f(concl, rule, prems |> List.map(fold_derive(f)));
+
+  let rec combine_derive = ((d1, d2)) => {
+    concl: (d1.concl, d2.concl),
+    rule: d1.rule,
+    prems: List.combine(d1.prems, d2.prems) |> List.map(combine_derive),
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type point_distribution = {
     test_validation: int,
     mutation_testing: int,
@@ -66,6 +82,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     hidden_bugs: list(wrong_impl('code)),
     hidden_tests: hidden_tests('code),
     syntax_tests,
+    derivation: derive('code),
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -80,6 +97,11 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type derive_pos =
+    | Concl
+    | Prems(int, derive_pos);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type pos =
     | Prelude
     | CorrectImpl
@@ -87,13 +109,32 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     | YourTestsTesting
     | YourImpl
     | HiddenBugs(int)
-    | HiddenTests;
+    | HiddenTests
+    | Derive(derive_pos);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type spec = p(Zipper.t);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type transitionary_spec = p(CodeString.t);
+
+  let rec map_derive = (f: 'a => 'b, {concl, rule, prems}) => {
+    concl: f(concl),
+    rule,
+    prems: prems |> List.map(derive => derive |> map_derive(f)),
+  };
+
+  let rec mapi_derive_helper = (f, acc_pos, {concl, rule, prems}) => {
+    concl: f(acc_pos(Concl), concl),
+    rule,
+    prems:
+      prems
+      |> List.mapi((i, prem) =>
+           mapi_derive_helper(f, pos => acc_pos(Prems(i, pos)), prem)
+         ),
+  };
+
+  let mapi_derive = (f, derive) => mapi_derive_helper(f, Fun.id, derive);
 
   let map = (p: p('a), f: 'a => 'b): p('b) => {
     {
@@ -123,6 +164,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         hints: p.hidden_tests.hints,
       },
       syntax_tests: p.syntax_tests,
+      derivation: p.derivation |> map_derive(f),
     };
   };
 
@@ -140,6 +182,12 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent_state = (pos, list((pos, PersistentZipper.t)));
 
+  let rec get_derive = (pos, {concl, prems, _}) =>
+    switch (pos) {
+    | Concl => concl
+    | Prems(i, pos) => List.nth(prems, i) |> get_derive(pos)
+    };
+
   let editor_of_state: state => Editor.t =
     ({pos, eds, _}) =>
       switch (pos) {
@@ -150,7 +198,11 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       | YourImpl => eds.your_impl
       | HiddenBugs(i) => List.nth(eds.hidden_bugs, i).impl
       | HiddenTests => eds.hidden_tests.tests
+      | Derive(pos) => eds.derivation |> get_derive(pos)
       };
+
+  let set_derive = (pos, item) =>
+    mapi_derive((pos', item') => {pos == pos' ? item : item'});
 
   let put_editor = ({pos, eds, _} as state: state, editor: Editor.t) =>
     switch (pos) {
@@ -208,7 +260,17 @@ module F = (ExerciseEnv: ExerciseEnv) => {
           },
         },
       }
+    | Derive(pos) => {
+        ...state,
+        eds: {
+          ...eds,
+          derivation: set_derive(pos, editor, eds.derivation),
+        },
+      }
     };
+
+  let rec flaten_derive = ({concl, prems, _}) =>
+    [concl] @ (prems |> List.map(flaten_derive) |> List.concat);
 
   let editors = ({eds, _}: state) =>
     [
@@ -219,12 +281,17 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       eds.your_impl,
     ]
     @ List.map(wrong_impl => wrong_impl.impl, eds.hidden_bugs)
-    @ [eds.hidden_tests.tests];
+    @ [eds.hidden_tests.tests]
+    @ flaten_derive(eds.derivation);
+
+  let flaten_derive_pos = d =>
+    d |> mapi_derive((pos, _) => pos) |> flaten_derive;
 
   let editor_positions = ({eds, _}: state) =>
     [Prelude, CorrectImpl, YourTestsTesting, YourTestsValidation, YourImpl]
     @ List.mapi((i, _) => HiddenBugs(i), eds.hidden_bugs)
-    @ [HiddenTests];
+    @ [HiddenTests]
+    @ (eds.derivation |> flaten_derive_pos |> List.map(pos => Derive(pos)));
 
   let positioned_editors = state =>
     List.combine(editor_positions(state), editors(state));
@@ -243,6 +310,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         failwith("invalid hidden bug index");
       }
     | HiddenTests => 5 + List.length(p.hidden_bugs)
+    // TODO(GuoDCZ): this may not be correct.
+    | Derive(_) => 5 + List.length(p.hidden_bugs) + 1
     };
 
   let pos_of_idx = (p: p('code), idx: int) =>
@@ -259,6 +328,9 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         HiddenBugs(idx - 5);
       } else if (idx == 5 + List.length(p.hidden_bugs)) {
         HiddenTests;
+      } else if (idx == 5 + List.length(p.hidden_bugs) + 1) {
+        Derive
+          (Concl); // TODO(GuoDCZ): this may not be correct.
       } else {
         failwith("element idx");
       }
@@ -297,6 +369,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         hidden_bugs,
         hidden_tests,
         syntax_tests,
+        derivation,
       },
     ) => {
       let prelude = zipper_of_code(prelude);
@@ -320,6 +393,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         let tests = zipper_of_code(tests);
         {tests, hints};
       };
+      let derivation = derivation |> map_derive(zipper_of_code);
       {
         title,
         version,
@@ -333,6 +407,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         hidden_bugs,
         hidden_tests,
         syntax_tests,
+        derivation,
       };
     };
 
@@ -352,6 +427,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         hidden_bugs,
         hidden_tests,
         syntax_tests,
+        derivation,
       },
     ) => {
       let prelude = editor_of_serialization(prelude);
@@ -372,6 +448,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         let tests = editor_of_serialization(tests);
         {tests, hints};
       };
+      let derivation = derivation |> map_derive(editor_of_serialization);
       {
         title,
         version,
@@ -385,6 +462,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         hidden_bugs,
         hidden_tests,
         syntax_tests,
+        derivation,
       };
     };
 
@@ -474,6 +552,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     | YourImpl => true
     | HiddenBugs(_) => instructor_mode
     | HiddenTests => instructor_mode
+    | Derive(_) => true
     };
   };
 
@@ -522,7 +601,9 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         spec.hidden_bugs,
       );
     let hidden_tests_tests = lookup(HiddenTests, spec.hidden_tests.tests);
-
+    let derivation =
+      spec.derivation
+      |> mapi_derive((pos, concl) => lookup(Derive(pos), concl));
     set_instructor_mode(
       {
         pos,
@@ -546,6 +627,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
             hints: spec.hidden_tests.hints,
           },
           syntax_tests: spec.syntax_tests,
+          derivation,
         },
       },
       instructor_mode,
@@ -573,6 +655,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     instructor: 'a, // prelude + correct_impl + hidden_tests.tests // TODO only needs to run in instructor mode
     hidden_bugs: list('a), // prelude + hidden_bugs[i].impl + your_tests,
     hidden_tests: 'a,
+    derivation: derive('a) // prelude + your_impl + derivation
   };
 
   let wrap_filter = (act: FilterAction.action, term: Term.UExp.t): Term.UExp.t =>
@@ -630,6 +713,12 @@ module F = (ExerciseEnv: ExerciseEnv) => {
           eds.hidden_bugs,
         ),
       hidden_tests: wrap(hidden_tests_term, eds.hidden_tests.tests),
+      derivation:
+        map_derive(
+          d =>
+            wrap(d |> term_of |> EditorUtil.append_exp(user_impl_term), d),
+          eds.derivation,
+        ),
     };
   };
   let stitch_term = Core.Memo.general(stitch_term);
@@ -660,6 +749,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       instructor,
       hidden_bugs: List.map(mk, t.hidden_bugs),
       hidden_tests: mk(t.hidden_tests),
+      derivation: t.derivation |> map_derive(mk),
     };
   };
 
@@ -675,6 +765,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     | YourImpl => s.user_impl
     | HiddenBugs(idx) => List.nth(s.hidden_bugs, idx)
     | HiddenTests => s.hidden_tests
+    | Derive(pos) => get_derive(pos, s.derivation)
     };
 
   let statics_of = (~settings, exercise: state): StaticsItem.t =>
@@ -691,6 +782,15 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   let hidden_bugs_key = n => "hidden_bugs_" ++ string_of_int(n);
   let hidden_tests_key = "hidden_tests";
 
+  let derivation_key = {
+    let rec aux = (acc, pos) =>
+      switch (pos) {
+      | Concl => acc
+      | Prems(i, pos) => aux(acc ++ "_" ++ string_of_int(i), pos)
+      };
+    aux("derivation");
+  };
+
   let key_for_statics = (state: state): string =>
     switch (state.pos) {
     | Prelude => prelude_key
@@ -700,6 +800,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     | YourImpl => user_impl_key
     | HiddenBugs(idx) => hidden_bugs_key(idx)
     | HiddenTests => hidden_tests_key
+    | Derive(pos) => derivation_key(pos)
     };
 
   let spliced_elabs =
@@ -713,6 +814,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       instructor,
       hidden_bugs,
       hidden_tests,
+      derivation,
     } =
       stitch_static(settings, stitch_term(state));
     let elab = (s: CachedStatics.statics) =>
@@ -729,6 +831,11 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       |> List.mapi((n, hidden_bug: StaticsItem.t) =>
            (hidden_bugs_key(n), elab(hidden_bug))
          )
+    )
+    @ (
+      derivation
+      |> mapi_derive((pos, d) => (derivation_key(pos), elab(d)))
+      |> flaten_derive
     );
   };
 
@@ -747,7 +854,12 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     @ List.mapi(
         (n, hidden_bug: StaticsItem.t) => (hidden_bugs_key(n), hidden_bug),
         stitched.hidden_bugs,
-      );
+      )
+    @ (
+      stitched.derivation
+      |> mapi_derive((pos, d) => (derivation_key(pos), d))
+      |> flaten_derive
+    );
   };
 
   module DynamicsItem = {
@@ -787,6 +899,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       instructor,
       hidden_bugs,
       hidden_tests,
+      derivation,
     } =
       stitch_static(settings, stitch_term(state));
     let result_of = key =>
@@ -845,6 +958,16 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         info_map: hidden_tests.info_map,
         result: result_of(hidden_tests_key),
       };
+    let derivation =
+      mapi_derive(
+        (pos, statics_item: StaticsItem.t) =>
+          DynamicsItem.{
+            term: statics_item.term,
+            info_map: statics_item.info_map,
+            result: result_of(derivation_key(pos)),
+          },
+        derivation,
+      );
     {
       test_validation,
       user_impl,
@@ -853,6 +976,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       prelude,
       hidden_bugs,
       hidden_tests,
+      derivation,
     };
   };
 
@@ -875,6 +999,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         prelude: DynamicsItem.statics_only(t.prelude),
         hidden_bugs: List.map(DynamicsItem.statics_only, t.hidden_bugs),
         hidden_tests: DynamicsItem.statics_only(t.hidden_tests),
+        derivation: map_derive(DynamicsItem.statics_only, t.derivation),
       };
     } else {
       {
@@ -888,6 +1013,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
             DynamicsItem.empty
           ),
         hidden_tests: DynamicsItem.empty,
+        derivation: map_derive(_ => DynamicsItem.empty, state.eds.derivation),
       };
     };
   let stitch_dynamic = Core.Memo.general(stitch_dynamic);
@@ -959,6 +1085,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         },
       );
     let hidden_tests_tests = Zipper.next_blank();
+    let derivation = {concl: Zipper.next_blank(), rule: Falsity_E, prems: []};
     {
       title,
       version: 1,
@@ -979,6 +1106,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         hints: [],
       },
       syntax_tests: [],
+      derivation,
     };
   };
 

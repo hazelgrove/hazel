@@ -41,6 +41,7 @@ let view =
     instructor,
     hidden_bugs,
     hidden_tests: _,
+    derivation,
   }:
     Exercise.stitched(Exercise.DynamicsItem.t) = stitched_dynamics;
 
@@ -76,51 +77,65 @@ let view =
 
   let title_view = Cell.title_cell(eds.title);
 
-  // let prompt_view =
-  //   Cell.narrative_cell(
-  //     div(
-  //       ~attr=Attr.class_("cell-prompt"), [eds.prompt],
-  //     ),
-  //   );
-
   let prompt_view =
+    Cell.narrative_cell(
+      div(~attr=Attr.class_("cell-prompt"), [eds.prompt]),
+    );
+
+  let derivation_view_maker =
+      (
+        concl: ((Editor.t, Exercise.DynamicsItem.t), Exercise.derive_pos),
+        rule,
+        prems_view,
+      ) =>
+    div(
+      ~attr=
+        Attr.style(
+          Css_gen.concat([
+            Css_gen.create(~field="display", ~value="flex"),
+            Css_gen.create(~field="flex-direction", ~value="column"),
+            Css_gen.create(~field="align-items", ~value="center"),
+          ]),
+        ),
+      [
+        editor_view(
+          Exercise.Derive(snd(concl)),
+          ~caption="Derivation",
+          ~editor=fst(fst(concl)),
+          ~di=snd(fst(concl)),
+        ),
+        text(Derivation.Rule.repr(rule)),
+      ]
+      @ prems_view,
+    );
+
+  let derivation_view =
     Cell.narrative_cell(
       div(
         ~attr=Attr.class_("cell-prompt"),
         [
           eds.prompt,
-          div(
-            ~attr=
-              Attr.style(
-                Css_gen.concat([
-                  Css_gen.create(~field="display", ~value="flex"),
-                  Css_gen.create(~field="flex-direction", ~value="column"),
-                  Css_gen.create(~field="align-items", ~value="center"),
-                ]),
-              ),
-            [
-              editor_view(
-                Prelude,
-                ~caption="Prompt",
-                ~editor=eds.prelude,
-                ~di=instructor,
-              ),
-            ],
+          Exercise.fold_derive(
+            derivation_view_maker,
+            Exercise.combine_derive((
+              Exercise.combine_derive((eds.derivation, derivation)),
+              derivation |> Exercise.mapi_derive((p, _) => p),
+            )),
           ),
         ],
       ),
     );
 
-  let prelude_view =
-    Always(
-      editor_view(
-        Prelude,
-        ~caption="Prelude",
-        ~subcaption=settings.instructor_mode ? "" : " (Read-Only)",
-        ~editor=eds.prelude,
-        ~di=prelude,
-      ),
-    );
+  // let prelude_view =
+  //   Always(
+  //     editor_view(
+  //       Prelude,
+  //       ~caption="Prelude",
+  //       ~subcaption=settings.instructor_mode ? "" : " (Read-Only)",
+  //       ~editor=eds.prelude,
+  //       ~di=prelude,
+  //     ),
+  //   );
 
   let correct_impl_view =
     InstructorOnly(
@@ -286,7 +301,7 @@ let view =
   @ render_cells(
       settings,
       [
-        prelude_view,
+        // prelude_view,
         correct_impl_view,
         correct_impl_ctx_view,
         your_tests_view,
@@ -300,7 +315,8 @@ let view =
         hidden_tests_view,
         impl_grading_view,
       ],
-    );
+    )
+  @ [derivation_view];
 };
 
 let reset_button = inject =>
