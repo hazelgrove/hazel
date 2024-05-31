@@ -640,8 +640,8 @@ module UExp = {
     | LessThanOrEqual => "Integer Less Than or Equal"
     | GreaterThan => "Integer Greater Than"
     | GreaterThanOrEqual => "Integer Greater Than or Equal"
-    | Equals => "Integer Equality"
-    | NotEquals => "Integer Inequality";
+    | Equals => "Structural Equality"
+    | NotEquals => "Structural Inequality";
 
   let show_op_bin_float: op_bin_float => string =
     fun

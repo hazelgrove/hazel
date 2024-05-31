@@ -441,7 +441,7 @@ let int_eq_exp_coloring_ids =
     ~right_id,
   );
 let int_eq_exp: form = {
-  let explanation = "Performs a polymorphic comparison. If the [*left operand*](%s) is equal to the [*right operand*](%s), evaluates to `true`. Otherwise, evaluates to `false`.";
+  let explanation = "Performs a structural comparison. If the [*left operand*](%s) is equal to the [*right operand*](%s), evaluates to `true`. Otherwise, evaluates to `false`.";
   {
     id: BinOpExp(Int(Equals)),
     syntactic_form: [_exp1, space(), equals(), space(), _exp2],
@@ -461,7 +461,7 @@ let int_neq_exp_coloring_ids =
     ~right_id,
   );
 let int_neq_exp: form = {
-  let explanation = "Performs a polymorphic comparison. If the [*left operand*](%s) is not equal to the [*right operand*](%s), evaluates to `true`. Otherwise, evaluates to `false`.";
+  let explanation = "Performs a structural comparison. If the [*left operand*](%s) is not equal to the [*right operand*](%s), evaluates to `true`. Otherwise, evaluates to `false`.";
   {
     id: BinOpExp(Int(NotEquals)),
     syntactic_form: [_exp1, space(), not_equals(), space(), _exp2],
