@@ -82,6 +82,17 @@ let view =
       div(~attr=Attr.class_("cell-prompt"), [eds.prompt]),
     );
 
+  // select(
+  //   ~attr=
+  //     Attr.on_change((_, name) =>
+  //       inject(Set(Mode(Settings.mode_of_string(name))))
+  //     ),
+  //   List.map(
+  //     option_view(Settings.show_mode(mode)),
+  //     ["Scratch", "Documentation", "Exercises"],
+  //   ),
+  // ),
+
   let derivation_view_maker = (value, child) => {
     let rule = fst(fst(value)).Exercise.rule;
     let pos = Exercise.Derive(snd(value));
@@ -113,7 +124,10 @@ let view =
               ),
             ],
           ),
-          editor_view(pos, ~caption="Derivation", ~editor, ~di),
+          div(
+            ~attr=Attr.class_("derivation-conclusion"),
+            [editor_view(pos, ~caption="Derivation", ~editor, ~di)],
+          ),
         ],
       ),
       di,

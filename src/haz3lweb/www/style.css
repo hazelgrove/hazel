@@ -868,7 +868,6 @@ select {
 /* DERIVATION */
 .cell-derivation {
   display: flex;
-  overflow-x: auto;
   flex-wrap: nowrap;
 }
 
@@ -888,15 +887,22 @@ select {
 .cell-derivation .derivation-block {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 0 1em;
+  flex-wrap: nowrap;
+  padding: 0 0.5em;
+  justify-content: center;
+}
+
+.cell-derivation .derivation-conclusion {
+  align-self: center;
 }
 
 .cell-derivation .derivation-premises {
+  border-bottom: 2px solid;
   display: flex;
   flex-direction: row;
-  align-items: end;
-  border-bottom: 2px solid;
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  justify-content: flex-end;
 }
 
 /* .code .derivation {
