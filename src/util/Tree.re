@@ -4,15 +4,69 @@ open Sexplib.Std;
 type t('a) =
   | Node('a, list(t('a)));
 
-let rec fold = (f, Node(v, c)) => f(v, c |> List.map(fold(f)));
-
-let rec combine = ((Node(v1, c1), Node(v2, c2))) =>
-  Node((v1, v2), List.combine(c1, c2) |> List.map(combine));
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pos =
   | Value
   | Children(int, pos);
+
+let value = (Node(v, _)) => v;
+
+let children = (Node(_, c)) => c;
+
+// @raise `Failure` if children is empty
+let hd_children = t => t |> children |> List.hd;
+
+let hd_children_opt = t => t |> children |> ListUtil.hd_opt;
+
+// @raise `Failure` if children is empty
+let tl_children = t => t |> children |> List.tl;
+
+let tl_children_opt = t =>
+  t
+  |> children
+  |> (
+    fun
+    | [] => None
+    | [_, ...tl] => Some(tl)
+  );
+
+// @raise `Failure` if pos not exists in the tree
+let rec nth_node = (Node(v, c)) =>
+  fun
+  | Value => Node(v, c)
+  | Children(i, pos) => pos |> nth_node(List.nth(c, i));
+
+let nth_node_opt = (t, pos) =>
+  try(Some(nth_node(t, pos))) {
+  | Failure(_) => None
+  };
+
+// @raise `Failure` if pos not exists in the tree
+let nth = (t, pos) => nth_node(t, pos) |> value;
+
+let nth_opt = (t, pos) =>
+  try(Some(nth(t, pos))) {
+  | Failure(_) => None
+  };
+
+let init = f => Node(f(), []);
+
+let rec flatten = (Node(v, c)) =>
+  [v] @ (c |> List.map(flatten) |> List.concat);
+
+/* Two Tree */
+
+// @return `false` if the two trees have different structures
+let rec equal = (eq, Node(v1, c1), Node(v2, c2)) =>
+  eq(v1, v2) && List.equal(equal(eq), c1, c2);
+
+let equal_struct = (n1, n2) => equal((_, _) => true, n1, n2);
+
+// @raise `Invalid_argument` if the two trees have different structures
+let rec combine = ((Node(v1, c1), Node(v2, c2))) =>
+  Node((v1, v2), List.combine(c1, c2) |> List.map(combine));
+
+/* Iterators */
 
 let rec map = (f, Node(v, c)) => Node(f(v), c |> List.map(map(f)));
 
@@ -25,10 +79,13 @@ let mapi = f => {
   aux(f, Fun.id);
 };
 
-let rec flatten = (Node(v, c)) =>
-  [v] @ (c |> List.map(flatten) |> List.concat);
+let rec fold_deep = (f, Node(v, c)) => f(v, c |> List.map(fold_deep(f)));
 
-let flatten_pos = t => t |> mapi((pos, _) => pos) |> flatten;
+let fold_right = (f, n) => n |> flatten |> List.fold_right(f);
+
+let fold_left = (f, init, n) => n |> flatten |> List.fold_left(f, init);
+
+/* Scanning */
 
 let rec exists = (f, Node(v, c)) =>
   f(v) || c |> List.exists(node => exists(f, node));
@@ -36,53 +93,48 @@ let rec exists = (f, Node(v, c)) =>
 let rec for_all = (f, Node(v, c)) =>
   f(v) && c |> List.for_all(node => for_all(f, node));
 
-/* Path Utilities */
-// Note: get/set does not handle pos not exists, use exists_pos when necessary.
+/* Position */
 
-// pos not exists behavior => raise Failure
-let rec get = (f, Node(v, c)) =>
-  fun
-  | Value => f(Node(v, c))
-  | Children(i, pos) => pos |> get(f, List.nth(c, i));
-
-// pos not exists behavior => failwith("out of bounds") 😱
-let rec set = (f, Node(v, c)) =>
-  fun
-  | Value => f(Node(v, c))
-  | Children(i, pos) =>
-    Node(v, c |> ListUtil.map_nth(i, t => set(f, t, pos)));
+let flatten_pos = t => t |> mapi((pos, _) => pos) |> flatten;
 
 let exists_pos = (t, pos) =>
-  try(get(_ => true, t, pos)) {
+  try(nth_node(t, pos) |> Fun.const(true)) {
   | Failure(_) => false
   };
 
-let get_value = pos => pos |> get((Node(v, _)) => v);
+// For all functions below:
+// @failwith("out of bounds") if pos not exists in the tree 😱
 
-let set_value = v' => set((Node(_, c)) => Node(v', c));
+let rec map_nth_node = (f, Node(v, c)) =>
+  fun
+  | Value => f(Node(v, c))
+  | Children(i, pos) =>
+    Node(v, c |> ListUtil.map_nth(i, t => map_nth_node(f, t, pos)));
 
-let get_children = pos => pos |> get((Node(_, c)) => c);
+let map_nth = f => map_nth_node((Node(v, c)) => Node(f(v), c));
 
-let set_children = c' => set((Node(v, _)) => Node(v, c'));
+let put_nth_node = t' => map_nth_node(_ => t');
 
-let get_tree = pos => pos |> get(Fun.id);
+let put_nth = v' => map_nth(_ => v');
 
-let set_tree = t' => set(_ => t');
+let rec split_n = (f, Node(v, c)) =>
+  fun
+  | Value => f(Node(v, c))
+  | Children(i, pos) => {
+      let (v', t) = pos |> split_n(f, List.nth(c, i));
+      (v', Node(v, c |> ListUtil.put_nth(i, t)));
+    };
 
-/* Mutation Utilities */
+// Add a new child to the node at the given position
+let add = v' =>
+  map_nth_node((Node(v, c)) => Node(v, [init(Fun.const(v')), ...c]));
 
-let mk = v => Node(v, []);
-
-let add = v' => set((Node(v, c)) => Node(v, [mk(v'), ...c]));
-
+// Remove a child from the node at the given position
+// @raise `Failure` if children is empty
 let del = pos =>
-  pos
-  |> set((Node(v, c)) =>
-       Node(
-         v,
-         switch (c) {
-         | [] => []
-         | [_, ...cs] => cs
-         },
-       )
-     );
+  pos |> split_n((Node(v, c)) => (List.hd(c), Node(v, List.tl(c))));
+
+let del_opt = (t, pos) =>
+  try(Some(del(t, pos))) {
+  | Failure(_) => None
+  };

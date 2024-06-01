@@ -39,6 +39,12 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     provided: int,
   };
 
+  type derivation_tree('code) = {
+    judgement: list('code),
+    rules: list(Derivation.Rule.t),
+    tree: Util.FlatTree.t,
+  };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type point_distribution = {
     test_validation: int,

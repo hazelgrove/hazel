@@ -82,6 +82,8 @@ let view =
       div(~attr=Attr.class_("cell-prompt"), [eds.prompt]),
     );
 
+  // Note(zhiyao): construction area starts
+
   let flat_tree: Util.FlatTree.t = {
     Util.FlatTree.tree:
       Node(
@@ -91,7 +93,7 @@ let view =
           Node(3, [Node(4, []), Node(5, []), Node(6, [])]),
         ],
       ),
-    assignment: [0, 0, 0, 0, 0, 0, 0, 7, 8],
+    idles: [7, 8],
   };
 
   let flat_rules: list(Derivation.Rule.t) = [
@@ -168,7 +170,7 @@ let view =
       List.combine(flat_rules, List.init(List.length(flat_rules), i => i)),
     );
 
-  let combined_tree = Util.FlatTree.map(flat_tree, combined_list);
+  let combined_tree = Util.FlatTree.mk_tree(combined_list, flat_tree.tree);
 
   let derivation_view =
     div(
@@ -180,12 +182,18 @@ let view =
             Cell.caption("Derivation"),
             div(
               ~attr=Attr.class_("cell-derivation"),
-              [fst(Util.Tree.fold(derivation_view_maker, combined_tree))],
+              [
+                fst(
+                  Util.Tree.fold_deep(derivation_view_maker, combined_tree),
+                ),
+              ],
             ),
           ],
         ),
       ],
     );
+
+  // Note(zhiyao): construction area ends
 
   let prelude_view =
     Always(
