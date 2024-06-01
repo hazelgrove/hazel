@@ -82,6 +82,30 @@ let view =
       div(~attr=Attr.class_("cell-prompt"), [eds.prompt]),
     );
 
+  let flat_tree: Util.FlatTree.t = {
+    Util.FlatTree.tree:
+      Node(
+        0,
+        [
+          Node(1, [Node(2, [])]),
+          Node(3, [Node(4, []), Node(5, []), Node(6, [])]),
+        ],
+      ),
+    assignment: [0, 0, 0, 0, 0, 0, 0, 7, 8],
+  };
+
+  let flat_rules: list(Derivation.Rule.t) = [
+    Derivation.Rule.Assumption,
+    Derivation.Rule.And_E_L,
+    Derivation.Rule.And_E_R,
+    Derivation.Rule.And_I,
+    Derivation.Rule.Or_I_L,
+    Derivation.Rule.Or_I_R,
+    Derivation.Rule.Or_E,
+    Derivation.Rule.Implies_E,
+    Derivation.Rule.Implies_I,
+  ];
+
   // select(
   //   ~attr=
   //     Attr.on_change((_, name) =>
@@ -93,11 +117,7 @@ let view =
   //   ),
   // ),
 
-  let derivation_view_maker = (value, child) => {
-    let rule = fst(fst(value)).Exercise.rule;
-    let pos = Exercise.Derive(snd(value));
-    let editor = fst(fst(value)).Exercise.concl;
-    let di = snd(fst(value));
+  let derivation_view_maker = (((ed, di), (rule, pos)), child) => {
     let di_child = child |> List.map(snd);
     let res =
       Grading.ImplGradingReport.DerivationReport.verify_single(
@@ -126,13 +146,29 @@ let view =
           ),
           div(
             ~attr=Attr.class_("derivation-conclusion"),
-            [editor_view(pos, ~caption="Derivation", ~editor, ~di)],
+            [
+              editor_view(
+                Derive(pos),
+                ~caption="Derivation",
+                ~editor=ed,
+                ~di,
+              ),
+            ],
           ),
         ],
       ),
       di,
     );
   };
+
+  // (ed * di) * (rule * pos)
+  let combined_list =
+    List.combine(
+      List.combine(eds.derivation, derivation),
+      List.combine(flat_rules, List.init(List.length(flat_rules), i => i)),
+    );
+
+  let combined_tree = Util.FlatTree.map(flat_tree, combined_list);
 
   let derivation_view =
     div(
@@ -144,17 +180,7 @@ let view =
             Cell.caption("Derivation"),
             div(
               ~attr=Attr.class_("cell-derivation"),
-              [
-                fst(
-                  Util.Tree.fold(
-                    derivation_view_maker,
-                    Util.Tree.combine((
-                      Util.Tree.combine((eds.derivation, derivation)),
-                      derivation |> Util.Tree.mapi((pos, _) => pos),
-                    )),
-                  ),
-                ),
-              ],
+              [fst(Util.Tree.fold(derivation_view_maker, combined_tree))],
             ),
           ],
         ),

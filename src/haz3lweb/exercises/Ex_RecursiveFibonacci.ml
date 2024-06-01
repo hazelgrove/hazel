@@ -67,5 +67,16 @@ let exercise : Exercise.spec =
           hints = [];
         };
       syntax_tests = [ ("fib is recursive", IsRecursive "fib") ];
-      derivation = Node ({ concl = "A |- A"; rule = Assumption }, []);
+      derivation =
+        [
+          "gamma |- b /\\ a";
+          "gamma |- b";
+          "gamma |- b";
+          "gamma |- b /\\ a";
+          "gamma |- a /\\ b";
+          "gamma |- b";
+          "gamma |- b";
+          "gamma |- b /\\ a";
+          "gamma |- a /\\ b";
+        ];
     }

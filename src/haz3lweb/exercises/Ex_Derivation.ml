@@ -20,16 +20,15 @@ let exercise : Exercise.spec =
       hidden_tests = { tests = ""; hints = [ "no hints" ] };
       syntax_tests = [];
       derivation =
-        Node
-          ( { concl = "gamma |- b /\\ a"; rule = And_I },
-            [
-              Node
-                ( { concl = "gamma |- b"; rule = And_E_R },
-                  [ Node ({ concl = "gamma |- b"; rule = Assumption }, []) ] );
-              Node
-                ( { concl = "gamma |- b /\\ a"; rule = And_E_L },
-                  [
-                    Node ({ concl = "gamma |- a /\\ b"; rule = Assumption }, []);
-                  ] );
-            ] );
+        [
+          "gamma |- b /\\ a";
+          "gamma |- b";
+          "gamma |- b";
+          "gamma |- b /\\ a";
+          "gamma |- a /\\ b";
+          "gamma |- b";
+          "gamma |- b";
+          "gamma |- b /\\ a";
+          "gamma |- a /\\ b";
+        ];
     }

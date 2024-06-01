@@ -40,17 +40,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type derivation_fork('code) = {
-    concl: 'code,
-    rule: Derivation.Rule.t,
-  };
-
-  let map_concl = (f, {concl, rule}) => {concl: f(concl), rule};
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type derivation_tree('code) = Util.Tree.t(derivation_fork('code));
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
   type point_distribution = {
     test_validation: int,
     mutation_testing: int,
@@ -77,7 +66,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     hidden_bugs: list(wrong_impl('code)),
     hidden_tests: hidden_tests('code),
     syntax_tests,
-    derivation: derivation_tree('code),
+    derivation: list('code),
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -100,7 +89,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     | YourImpl
     | HiddenBugs(int)
     | HiddenTests
-    | Derive(Util.Tree.pos);
+    | Derive(int);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type spec = p(Zipper.t);
@@ -136,7 +125,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         hints: p.hidden_tests.hints,
       },
       syntax_tests: p.syntax_tests,
-      derivation: p.derivation |> Util.Tree.map(f |> map_concl),
+      derivation: p.derivation |> List.map(f),
     };
   };
 
@@ -164,7 +153,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       | YourImpl => eds.your_impl
       | HiddenBugs(i) => List.nth(eds.hidden_bugs, i).impl
       | HiddenTests => eds.hidden_tests.tests
-      | Derive(pos) => Util.Tree.get_value(eds.derivation, pos).concl
+      | Derive(i) => List.nth(eds.derivation, i)
       };
 
   let put_editor = ({pos, eds, _} as state: state, editor: Editor.t) =>
@@ -223,16 +212,11 @@ module F = (ExerciseEnv: ExerciseEnv) => {
           },
         },
       }
-    | Derive(pos) => {
+    | Derive(i) => {
         ...state,
         eds: {
           ...eds,
-          derivation:
-            Util.Tree.set(
-              pos,
-              {...Util.Tree.get_value(eds.derivation, pos), concl: editor},
-              eds.derivation,
-            ),
+          derivation: Util.ListUtil.put_nth(i, editor, eds.derivation),
         },
       }
     };
@@ -247,19 +231,13 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     ]
     @ List.map(wrong_impl => wrong_impl.impl, eds.hidden_bugs)
     @ [eds.hidden_tests.tests]
-    @ (
-      eds.derivation
-      |> Util.Tree.map(({concl, _}) => concl)
-      |> Util.Tree.flatten
-    );
+    @ eds.derivation;
 
   let editor_positions = ({eds, _}: state) =>
     [Prelude, CorrectImpl, YourTestsTesting, YourTestsValidation, YourImpl]
     @ List.mapi((i, _) => HiddenBugs(i), eds.hidden_bugs)
     @ [HiddenTests]
-    @ (
-      eds.derivation |> Util.Tree.flatten_pos |> List.map(pos => Derive(pos))
-    );
+    @ List.mapi((i, _) => Derive(i), eds.derivation);
 
   let positioned_editors = state =>
     List.combine(editor_positions(state), editors(state));
@@ -278,8 +256,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         failwith("invalid hidden bug index");
       }
     | HiddenTests => 5 + List.length(p.hidden_bugs)
-    // TODO(GuoDCZ): this may not be correct.
-    | Derive(_) => 5 + List.length(p.hidden_bugs) + 1
+    | Derive(i) => 5 + List.length(p.hidden_bugs) + 1 + i
     };
 
   let pos_of_idx = (p: p('code), idx: int) =>
@@ -296,9 +273,9 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         HiddenBugs(idx - 5);
       } else if (idx == 5 + List.length(p.hidden_bugs)) {
         HiddenTests;
-      } else if (idx == 5 + List.length(p.hidden_bugs) + 1) {
-        Derive
-          (Value); // TODO(GuoDCZ): this may not be correct.
+                   // Node(zhiyao): Assuming # all nodes is less than 100
+      } else if (idx < 100) {
+        Derive(idx - 5 - List.length(p.hidden_bugs) - 1);
       } else {
         failwith("element idx");
       }
@@ -347,22 +324,28 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         {tests, required: your_tests.required, provided: your_tests.provided};
       };
       let your_impl = zipper_of_code(your_impl);
+      // Note(zhiyao): I think it's better to use List.map here
+      // let hidden_bugs =
+      //   List.fold_left(
+      //     (acc, {impl, hint}) => {
+      //       let impl = zipper_of_code(impl);
+      //       acc @ [{impl, hint}];
+      //     },
+      //     [],
+      //     hidden_bugs,
+      //   );
       let hidden_bugs =
-        List.fold_left(
-          (acc, {impl, hint}) => {
-            let impl = zipper_of_code(impl);
-            acc @ [{impl, hint}];
-          },
-          [],
-          hidden_bugs,
-        );
+        hidden_bugs
+        |> List.map(({impl, hint}) => {
+             let impl = zipper_of_code(impl);
+             {impl, hint};
+           });
       let hidden_tests = {
         let {tests, hints} = hidden_tests;
         let tests = zipper_of_code(tests);
         {tests, hints};
       };
-      let derivation =
-        derivation |> Util.Tree.map(zipper_of_code |> map_concl);
+      let derivation = derivation |> List.map(zipper_of_code);
       {
         title,
         version,
@@ -417,8 +400,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         let tests = editor_of_serialization(tests);
         {tests, hints};
       };
-      let derivation =
-        derivation |> Util.Tree.map(editor_of_serialization |> map_concl);
+      let derivation = derivation |> List.map(editor_of_serialization);
       {
         title,
         version,
@@ -561,21 +543,25 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     let correct_impl = lookup(CorrectImpl, spec.correct_impl);
     let your_tests_tests = lookup(YourTestsValidation, spec.your_tests.tests);
     let your_impl = lookup(YourImpl, spec.your_impl);
-    let (_, hidden_bugs) =
-      List.fold_left(
-        ((i, hidden_bugs: list(wrong_impl(Editor.t))), {impl, hint}) => {
-          let impl = lookup(HiddenBugs(i), impl);
-          (i + 1, hidden_bugs @ [{impl, hint}]);
-        },
-        (0, []),
-        spec.hidden_bugs,
-      );
+    // Note(zhiyao): I think it's better to use List.mapi here
+    // let (_, hidden_bugs) =
+    //   List.fold_left(
+    //     ((i, hidden_bugs: list(wrong_impl(Editor.t))), {impl, hint}) => {
+    //       let impl = lookup(HiddenBugs(i), impl);
+    //       (i + 1, hidden_bugs @ [{impl, hint}]);
+    //     },
+    //     (0, []),
+    //     spec.hidden_bugs,
+    //   );
+    let hidden_bugs =
+      spec.hidden_bugs
+      |> List.mapi((i, {impl, hint}) => {
+           let impl = lookup(HiddenBugs(i), impl);
+           {impl, hint};
+         });
     let hidden_tests_tests = lookup(HiddenTests, spec.hidden_tests.tests);
     let derivation =
-      spec.derivation
-      |> Util.Tree.mapi((pos, {concl, rule}) =>
-           {concl: lookup(Derive(pos), concl), rule}
-         );
+      spec.derivation |> List.mapi((i, ed) => lookup(Derive(i), ed));
     set_instructor_mode(
       {
         pos,
@@ -627,7 +613,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     instructor: 'a, // prelude + correct_impl + hidden_tests.tests // TODO only needs to run in instructor mode
     hidden_bugs: list('a), // prelude + hidden_bugs[i].impl + your_tests,
     hidden_tests: 'a,
-    derivation: Util.Tree.t('a) // prelude + your_impl + derivation
+    derivation: list('a) // prelude + your_impl + derivation
   };
 
   let wrap_filter = (act: FilterAction.action, term: Term.UExp.t): Term.UExp.t =>
@@ -686,11 +672,10 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         ),
       hidden_tests: wrap(hidden_tests_term, eds.hidden_tests.tests),
       derivation:
-        Util.Tree.map(
-          d =>
-            wrap(d |> term_of |> EditorUtil.append_exp(user_impl_term), d),
-          eds.derivation |> Util.Tree.map(({concl, _}) => concl),
-        ),
+        eds.derivation
+        |> List.map(d =>
+             wrap(d |> term_of |> EditorUtil.append_exp(user_impl_term), d)
+           ),
     };
   };
   let stitch_term = Core.Memo.general(stitch_term);
@@ -721,7 +706,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       instructor,
       hidden_bugs: List.map(mk, t.hidden_bugs),
       hidden_tests: mk(t.hidden_tests),
-      derivation: t.derivation |> Util.Tree.map(mk),
+      derivation: List.map(mk, t.derivation),
     };
   };
 
@@ -737,7 +722,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     | YourImpl => s.user_impl
     | HiddenBugs(idx) => List.nth(s.hidden_bugs, idx)
     | HiddenTests => s.hidden_tests
-    | Derive(pos) => Util.Tree.get_value(s.derivation, pos)
+    | Derive(idx) => List.nth(s.derivation, idx)
     };
 
   let statics_of = (~settings, exercise: state): StaticsItem.t =>
@@ -754,13 +739,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   let hidden_bugs_key = n => "hidden_bugs_" ++ string_of_int(n);
   let hidden_tests_key = "hidden_tests";
 
-  let derivation_key = {
-    let rec aux = acc =>
-      fun
-      | Util.Tree.Value => acc
-      | Children(i, pos) => aux(acc ++ "_" ++ string_of_int(i), pos);
-    aux("derivation");
-  };
+  let derivation_key = n => "derivation_" ++ string_of_int(n);
 
   let key_for_statics = (state: state): string =>
     switch (state.pos) {
@@ -771,7 +750,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     | YourImpl => user_impl_key
     | HiddenBugs(idx) => hidden_bugs_key(idx)
     | HiddenTests => hidden_tests_key
-    | Derive(pos) => derivation_key(pos)
+    | Derive(idx) => derivation_key(idx)
     };
 
   let spliced_elabs =
@@ -803,11 +782,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
            (hidden_bugs_key(n), elab(hidden_bug))
          )
     )
-    @ (
-      derivation
-      |> Util.Tree.mapi((pos, d) => (derivation_key(pos), elab(d)))
-      |> Util.Tree.flatten
-    );
+    @ (derivation |> List.mapi((n, d) => (derivation_key(n), elab(d))));
   };
 
   let mk_statics =
@@ -826,11 +801,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         (n, hidden_bug: StaticsItem.t) => (hidden_bugs_key(n), hidden_bug),
         stitched.hidden_bugs,
       )
-    @ (
-      stitched.derivation
-      |> Util.Tree.mapi((pos, d) => (derivation_key(pos), d))
-      |> Util.Tree.flatten
-    );
+    @ (stitched.derivation |> List.mapi((n, d) => (derivation_key(n), d)));
   };
 
   module DynamicsItem = {
@@ -930,15 +901,14 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         result: result_of(hidden_tests_key),
       };
     let derivation =
-      Util.Tree.mapi(
-        (pos, statics_item: StaticsItem.t) =>
-          DynamicsItem.{
-            term: statics_item.term,
-            info_map: statics_item.info_map,
-            result: result_of(derivation_key(pos)),
-          },
-        derivation,
-      );
+      derivation
+      |> List.mapi((n, statics_item: StaticsItem.t) =>
+           DynamicsItem.{
+             term: statics_item.term,
+             info_map: statics_item.info_map,
+             result: result_of(derivation_key(n)),
+           }
+         );
     {
       test_validation,
       user_impl,
@@ -970,7 +940,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         prelude: DynamicsItem.statics_only(t.prelude),
         hidden_bugs: List.map(DynamicsItem.statics_only, t.hidden_bugs),
         hidden_tests: DynamicsItem.statics_only(t.hidden_tests),
-        derivation: Util.Tree.map(DynamicsItem.statics_only, t.derivation),
+        derivation: List.map(DynamicsItem.statics_only, t.derivation),
       };
     } else {
       {
@@ -985,7 +955,9 @@ module F = (ExerciseEnv: ExerciseEnv) => {
           ),
         hidden_tests: DynamicsItem.empty,
         derivation:
-          Util.Tree.map(_ => DynamicsItem.empty, state.eds.derivation),
+          List.init(List.length(state.eds.derivation), _ =>
+            DynamicsItem.empty
+          ),
       };
     };
   let stitch_dynamic = Core.Memo.general(stitch_dynamic);
@@ -1057,8 +1029,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         },
       );
     let hidden_tests_tests = Zipper.next_blank();
-    let derivation =
-      Util.Tree.Node({concl: Zipper.next_blank(), rule: Falsity_E}, []);
+    let derivation = List.init(1, _ => Zipper.next_blank());
     {
       title,
       version: 1,

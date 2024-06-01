@@ -59,5 +59,16 @@ let exercise : Exercise.spec =
           hints = [ "zero" ];
         };
       syntax_tests = [ ("odd is recursive", IsRecursive "odd") ];
-      derivation = Node ({ concl = "A |- A"; rule = Assumption }, []);
+      derivation =
+        [
+          "gamma |- b /\\ a";
+          "gamma |- b";
+          "gamma |- b";
+          "gamma |- b /\\ a";
+          "gamma |- a /\\ b";
+          "gamma |- b";
+          "gamma |- b";
+          "gamma |- b /\\ a";
+          "gamma |- a /\\ b";
+        ];
     }

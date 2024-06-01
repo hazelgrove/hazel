@@ -36,18 +36,26 @@ let rec exists = (f, Node(v, c)) =>
 let rec for_all = (f, Node(v, c)) =>
   f(v) && c |> List.for_all(node => for_all(f, node));
 
-// Note: pos not in tree behavior => raise Failure
+/* Path Utilities */
+// Note: get/set does not handle pos not exists, use exists_pos when necessary.
+
+// pos not exists behavior => raise Failure
 let rec get = (f, Node(v, c)) =>
   fun
   | Value => f(Node(v, c))
   | Children(i, pos) => pos |> get(f, List.nth(c, i));
 
-// Note: pos not in tree behavior => no change
+// pos not exists behavior => failwith("out of bounds") 😱
 let rec set = (f, Node(v, c)) =>
   fun
   | Value => f(Node(v, c))
   | Children(i, pos) =>
-    Node(v, c |> List.mapi((j, t) => j == i ? set(f, t, pos) : t));
+    Node(v, c |> ListUtil.map_nth(i, t => set(f, t, pos)));
+
+let exists_pos = (t, pos) =>
+  try(get(_ => true, t, pos)) {
+  | Failure(_) => false
+  };
 
 let get_value = pos => pos |> get((Node(v, _)) => v);
 
@@ -73,19 +81,8 @@ let del = pos =>
        Node(
          v,
          switch (c) {
-         // Note: this case should be handled by the caller
-         | [] => failwith("del: empty children")
+         | [] => []
          | [_, ...cs] => cs
          },
        )
      );
-
-let exists_pos = (t, pos) =>
-  try(
-    {
-      ignore(get(ignore, t, pos));
-      true;
-    }
-  ) {
-  | Failure(_) => false
-  };

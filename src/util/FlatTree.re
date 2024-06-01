@@ -9,7 +9,9 @@ type t = {
   assignment: list(int),
 };
 
-let init = len => {tree: Node(0, []), assignment: List.init(len, i => i)};
+let map = ({tree, _}, l) => Tree.map(i => List.nth(l, i), tree);
+
+let init = len => {tree: Node(0, []), assignment: List.init(len, Fun.id)};
 
 let find_empty = l =>
   try(Some(List.find(i => i != 0, l))) {
@@ -18,11 +20,11 @@ let find_empty = l =>
 
 // Note: pos not in tree behavior => no change
 // Note: pos already empty behavior => no change
-let set_empty = (l, i) => l |> List.mapi((j, a) => j == i ? i : a);
+let set_empty = (l, i) => l |> ListUtil.put_nth(i, i);
 
 // Note: pos not in tree behavior => no change
 // Note: pos already assigned behavior => no change
-let set_assigned = (l, i) => l |> List.mapi((j, a) => j == i ? 0 : a);
+let set_assigned = (l, i) => l |> ListUtil.put_nth(i, 0);
 
 type add_error =
   | InvalidPosition(Tree.pos)
