@@ -69,6 +69,7 @@ type t =
   | InitImportAll([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
   | FinishImportAll(option(string))
   | SwitchEditor(Exercise.pos) //exercisemode only
+  | SwitchDerivationRule(Exercise.pos, Derivation.Rule.t) //exercisemode only
   | SwitchDocumentationSlide(string) //examplemode only
   // editors: scratchmode only
   | InitImportScratchpad([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
@@ -151,6 +152,7 @@ let is_edit: t => bool =
   | Reset => true
   | UpdateResult(_)
   | SwitchEditor(_)
+  | SwitchDerivationRule(_)
   | ExportPersistentData
   | Save
   | Copy
@@ -206,6 +208,7 @@ let reevaluate_post_update: t => bool =
   | ExportPersistentData
   | UpdateResult(_)
   | SwitchEditor(_)
+  | SwitchDerivationRule(_)
   | DebugConsole(_)
   | TAB
   | Benchmark(_) => false
@@ -256,6 +259,7 @@ let should_scroll_to_caret =
   | FinishImportAll(_)
   | ResetCurrentEditor
   | SwitchEditor(_)
+  | SwitchDerivationRule(_)
   | SwitchScratchSlide(_)
   | SwitchDocumentationSlide(_)
   | ReparseCurrentEditor

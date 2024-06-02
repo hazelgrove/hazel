@@ -20,15 +20,15 @@ let exercise : Exercise.spec =
       hidden_tests = { tests = ""; hints = [ "no hints" ] };
       syntax_tests = [];
       derivation =
-        [
-          "gamma |- b /\\ a";
-          "gamma |- b";
-          "gamma |- b";
-          "gamma |- b /\\ a";
-          "gamma |- a /\\ b";
-          "gamma |- b";
-          "gamma |- b";
-          "gamma |- b /\\ a";
-          "gamma |- a /\\ b";
-        ];
+        Node
+          ( ("gamma |- b /\\ a", And_I),
+            [
+              Node
+                ( ("gamma |- b", And_E_R),
+                  [ Node (("gamma |- a /\\ b", Assumption), []) ] );
+              Node
+                ( ("gamma |- a", And_E_L),
+                  [ Node (("gamma |- a /\\ b", Assumption), []) ] );
+            ] )
+        |> Exercise.mk_derivation_tree;
     }

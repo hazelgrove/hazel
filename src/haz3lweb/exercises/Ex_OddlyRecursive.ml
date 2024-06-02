@@ -60,15 +60,9 @@ let exercise : Exercise.spec =
         };
       syntax_tests = [ ("odd is recursive", IsRecursive "odd") ];
       derivation =
-        [
-          "gamma |- b /\\ a";
-          "gamma |- b";
-          "gamma |- b";
-          "gamma |- b /\\ a";
-          "gamma |- a /\\ b";
-          "gamma |- b";
-          "gamma |- b";
-          "gamma |- b /\\ a";
-          "gamma |- a /\\ b";
-        ];
+        {
+          judgements = [ "" ];
+          rules = [ Assumption ];
+          tree = Util.FlatTree.init 1;
+        };
     }

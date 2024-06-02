@@ -39,10 +39,25 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     provided: int,
   };
 
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type derivation_tree('code) = {
-    judgement: list('code),
+    judgements: list('code),
     rules: list(Derivation.Rule.t),
     tree: Util.FlatTree.t,
+  };
+
+  let mk_derivation_tree = t => {
+    let (flattened, tree) = Util.FlatTree.init_with(100, t);
+    let (judgements, rules) = List.split(flattened);
+    let judgements =
+      judgements @ List.init(100 - List.length(judgements), Fun.const(""));
+    let rules =
+      rules
+      @ List.init(
+          100 - List.length(rules),
+          Fun.const(Derivation.Rule.Assumption),
+        );
+    {judgements, rules, tree};
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -72,7 +87,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     hidden_bugs: list(wrong_impl('code)),
     hidden_tests: hidden_tests('code),
     syntax_tests,
-    derivation: list('code),
+    derivation: derivation_tree('code),
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -131,7 +146,11 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         hints: p.hidden_tests.hints,
       },
       syntax_tests: p.syntax_tests,
-      derivation: p.derivation |> List.map(f),
+      derivation: {
+        judgements: List.map(f, p.derivation.judgements),
+        rules: p.derivation.rules,
+        tree: p.derivation.tree,
+      },
     };
   };
 
@@ -159,7 +178,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       | YourImpl => eds.your_impl
       | HiddenBugs(i) => List.nth(eds.hidden_bugs, i).impl
       | HiddenTests => eds.hidden_tests.tests
-      | Derive(i) => List.nth(eds.derivation, i)
+      | Derive(i) => List.nth(eds.derivation.judgements, i)
       };
 
   let put_editor = ({pos, eds, _} as state: state, editor: Editor.t) =>
@@ -222,7 +241,11 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         ...state,
         eds: {
           ...eds,
-          derivation: Util.ListUtil.put_nth(i, editor, eds.derivation),
+          derivation: {
+            ...eds.derivation,
+            judgements:
+              Util.ListUtil.put_nth(i, editor, eds.derivation.judgements),
+          },
         },
       }
     };
@@ -237,13 +260,13 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     ]
     @ List.map(wrong_impl => wrong_impl.impl, eds.hidden_bugs)
     @ [eds.hidden_tests.tests]
-    @ eds.derivation;
+    @ eds.derivation.judgements;
 
   let editor_positions = ({eds, _}: state) =>
     [Prelude, CorrectImpl, YourTestsTesting, YourTestsValidation, YourImpl]
     @ List.mapi((i, _) => HiddenBugs(i), eds.hidden_bugs)
     @ [HiddenTests]
-    @ List.mapi((i, _) => Derive(i), eds.derivation);
+    @ List.mapi((i, _) => Derive(i), eds.derivation.judgements);
 
   let positioned_editors = state =>
     List.combine(editor_positions(state), editors(state));
@@ -296,6 +319,38 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       };
     } else {
       {eds: exercise.eds, pos};
+    };
+
+  let switch_derivation_rule = (~pos, ~rule, ~exercise) =>
+    switch (pos) {
+    | Derive(idx) =>
+      let {judgements, tree, rules} = exercise.eds.derivation;
+      let pos_list = tree.tree |> Util.Tree.flatten_pos;
+      let pos = List.nth(pos_list, idx);
+      let old_rule = List.nth(rules, idx);
+      let old_prems_num = Derivation.Rule.prem_num(old_rule);
+      let new_prems_num = Derivation.Rule.prem_num(rule);
+      let delta = new_prems_num - old_prems_num;
+      let rec iter = (f, n, x) => n == 0 ? x : iter(f, n - 1, f(x));
+      let tree =
+        if (delta > 0) {
+          iter(Util.FlatTree.add(pos), delta, tree);
+        } else {
+          iter(Util.FlatTree.del(pos), - delta, tree);
+        };
+      let rules = Util.ListUtil.put_nth(idx, rule, rules);
+      {
+        ...exercise,
+        eds: {
+          ...exercise.eds,
+          derivation: {
+            judgements,
+            rules,
+            tree,
+          },
+        },
+      };
+    | _ => exercise
     };
 
   let zipper_of_code = code => {
@@ -351,7 +406,10 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         let tests = zipper_of_code(tests);
         {tests, hints};
       };
-      let derivation = derivation |> List.map(zipper_of_code);
+      let derivation = {
+        ...derivation,
+        judgements: derivation.judgements |> List.map(zipper_of_code),
+      };
       {
         title,
         version,
@@ -406,7 +464,11 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         let tests = editor_of_serialization(tests);
         {tests, hints};
       };
-      let derivation = derivation |> List.map(editor_of_serialization);
+      let derivation = {
+        ...derivation,
+        judgements:
+          derivation.judgements |> List.map(editor_of_serialization),
+      };
       {
         title,
         version,
@@ -566,8 +628,12 @@ module F = (ExerciseEnv: ExerciseEnv) => {
            {impl, hint};
          });
     let hidden_tests_tests = lookup(HiddenTests, spec.hidden_tests.tests);
-    let derivation =
-      spec.derivation |> List.mapi((i, ed) => lookup(Derive(i), ed));
+    let derivation = {
+      ...spec.derivation,
+      judgements:
+        spec.derivation.judgements
+        |> List.mapi((i, ed) => lookup(Derive(i), ed)),
+    };
     set_instructor_mode(
       {
         pos,
@@ -678,7 +744,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         ),
       hidden_tests: wrap(hidden_tests_term, eds.hidden_tests.tests),
       derivation:
-        eds.derivation
+        eds.derivation.judgements
         |> List.map(d =>
              wrap(d |> term_of |> EditorUtil.append_exp(user_impl_term), d)
            ),
@@ -961,7 +1027,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
           ),
         hidden_tests: DynamicsItem.empty,
         derivation:
-          List.init(List.length(state.eds.derivation), _ =>
+          List.init(List.length(state.eds.derivation.judgements), _ =>
             DynamicsItem.empty
           ),
       };
@@ -1056,7 +1122,11 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         hints: [],
       },
       syntax_tests: [],
-      derivation,
+      derivation: {
+        judgements: derivation,
+        rules: [],
+        tree: Util.FlatTree.init(100),
+      },
     };
   };
 

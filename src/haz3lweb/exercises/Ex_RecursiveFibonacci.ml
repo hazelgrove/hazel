@@ -68,15 +68,9 @@ let exercise : Exercise.spec =
         };
       syntax_tests = [ ("fib is recursive", IsRecursive "fib") ];
       derivation =
-        [
-          "gamma |- b /\\ a";
-          "gamma |- b";
-          "gamma |- b";
-          "gamma |- b /\\ a";
-          "gamma |- a /\\ b";
-          "gamma |- b";
-          "gamma |- b";
-          "gamma |- b /\\ a";
-          "gamma |- a /\\ b";
-        ];
+        {
+          judgements = [ "" ];
+          rules = [ Assumption ];
+          tree = Util.FlatTree.init 1;
+        };
     }

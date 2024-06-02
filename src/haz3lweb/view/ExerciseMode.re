@@ -84,30 +84,6 @@ let view =
 
   // Note(zhiyao): construction area starts
 
-  let flat_tree: Util.FlatTree.t = {
-    Util.FlatTree.tree:
-      Node(
-        0,
-        [
-          Node(1, [Node(2, [])]),
-          Node(3, [Node(4, []), Node(5, []), Node(6, [])]),
-        ],
-      ),
-    idles: [7, 8],
-  };
-
-  let flat_rules: list(Derivation.Rule.t) = [
-    Derivation.Rule.Assumption,
-    Derivation.Rule.And_E_L,
-    Derivation.Rule.And_E_R,
-    Derivation.Rule.And_I,
-    Derivation.Rule.Or_I_L,
-    Derivation.Rule.Or_I_R,
-    Derivation.Rule.Or_E,
-    Derivation.Rule.Implies_E,
-    Derivation.Rule.Implies_I,
-  ];
-
   // select(
   //   ~attr=
   //     Attr.on_change((_, name) =>
@@ -136,6 +112,46 @@ let view =
             (child |> List.map(fst))
             @ [
               text(Derivation.Rule.repr(rule)),
+              select(
+                ~attr=
+                  Attr.on_change((_, name) =>
+                    inject(
+                      UpdateAction.SwitchDerivationRule(
+                        Derive(pos),
+                        Derivation.Rule.of_string(name),
+                      ),
+                    )
+                  ),
+                List.map(
+                  r =>
+                    Derivation.Rule.show(r)
+                    |> EditorModeView.option_view(Derivation.Rule.repr(rule)),
+                  [
+                    Derivation.Rule.Assumption,
+                    Derivation.Rule.And_I,
+                    Derivation.Rule.And_E_L,
+                    Derivation.Rule.And_E_R,
+                    Derivation.Rule.Or_I_L,
+                    Derivation.Rule.Or_I_R,
+                    Derivation.Rule.Or_E,
+                    Derivation.Rule.Implies_I,
+                    Derivation.Rule.Implies_E,
+                    Derivation.Rule.Truth_I,
+                    Derivation.Rule.Falsity_E,
+                  ],
+                  // | Assumption
+                  // | And_I
+                  // | And_E_L
+                  // | And_E_R
+                  // | Or_I_L
+                  // | Or_I_R
+                  // | Or_E
+                  // | Implies_I
+                  // | Implies_E
+                  // | Truth_I
+                  // | Falsity_E;
+                ),
+              ),
               text(
                 res
                 |> (
@@ -166,11 +182,15 @@ let view =
   // (ed * di) * (rule * pos)
   let combined_list =
     List.combine(
-      List.combine(eds.derivation, derivation),
-      List.combine(flat_rules, List.init(List.length(flat_rules), i => i)),
+      List.combine(eds.derivation.judgements, derivation),
+      List.combine(
+        eds.derivation.rules,
+        List.init(List.length(derivation), Fun.id),
+      ),
     );
 
-  let combined_tree = Util.FlatTree.mk_tree(combined_list, flat_tree.tree);
+  let combined_tree =
+    Util.FlatTree.mk_tree(combined_list, eds.derivation.tree.tree);
 
   let derivation_view =
     div(

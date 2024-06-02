@@ -211,6 +211,8 @@ module Rule: {
     | Truth_I
     | Falsity_E;
   let repr: t => string;
+  let prem_num: t => int;
+  let of_string: string => t;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -225,7 +227,6 @@ module Rule: {
     | Implies_E
     | Truth_I
     | Falsity_E;
-
   let repr =
     fun
     | Assumption => "assumption"
@@ -239,4 +240,34 @@ module Rule: {
     | Implies_E => "⊃-E"
     | Truth_I => "⊤-I"
     | Falsity_E => "⊥-E";
+
+  let of_string = (s: string) =>
+    switch (s) {
+    | "Assumption" => Assumption
+    | "And_I" => And_I
+    | "And_E_L" => And_E_L
+    | "And_E_R" => And_E_R
+    | "Or_I_L" => Or_I_L
+    | "Or_I_R" => Or_I_R
+    | "Or_E" => Or_E
+    | "Implies_I" => Implies_I
+    | "Implies_E" => Implies_E
+    | "Truth_I" => Truth_I
+    | "Falsity_E" => Falsity_E
+    | _ => failwith("invalid rule")
+    };
+
+  let prem_num =
+    fun
+    | Assumption => 0
+    | And_I => 2
+    | And_E_L => 1
+    | And_E_R => 1
+    | Or_I_L => 1
+    | Or_I_R => 1
+    | Or_E => 3
+    | Implies_I => 1
+    | Implies_E => 2
+    | Truth_I => 0
+    | Falsity_E => 1;
 };

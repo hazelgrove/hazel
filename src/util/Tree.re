@@ -81,6 +81,12 @@ let mapi = f => {
 
 let rec fold_deep = (f, Node(v, c)) => f(v, c |> List.map(fold_deep(f)));
 
+let rec fold_left_map = (f, init, Node(v, c)) => {
+  let (init, v) = f(init, v);
+  let (final, c) = c |> ListUtil.fold_left_map(fold_left_map(f), init);
+  (final, Node(v, c));
+};
+
 let fold_right = (f, n) => n |> flatten |> List.fold_right(f);
 
 let fold_left = (f, init, n) => n |> flatten |> List.fold_left(f, init);
