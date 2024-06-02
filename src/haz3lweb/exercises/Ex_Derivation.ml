@@ -19,16 +19,19 @@ let exercise : Exercise.spec =
       hidden_bugs = [];
       hidden_tests = { tests = ""; hints = [ "no hints" ] };
       syntax_tests = [];
-      derivation =
+      derivation_tree =
         Node
-          ( ("gamma |- b /\\ a", And_I),
+          ( { jdmt = "gamma |- b /\\ a"; rule = And_I },
             [
               Node
-                ( ("gamma |- b", And_E_R),
-                  [ Node (("gamma |- a /\\ b", Assumption), []) ] );
+                ( { jdmt = "gamma |- b"; rule = And_E_R },
+                  [
+                    Node ({ jdmt = "gamma |- a /\\ b"; rule = Assumption }, []);
+                  ] );
               Node
-                ( ("gamma |- a", And_E_L),
-                  [ Node (("gamma |- a /\\ b", Assumption), []) ] );
-            ] )
-        |> Exercise.mk_derivation_tree;
+                ( { jdmt = "gamma |- a"; rule = And_E_L },
+                  [
+                    Node ({ jdmt = "gamma |- a /\\ b"; rule = Assumption }, []);
+                  ] );
+            ] );
     }

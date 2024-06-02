@@ -59,10 +59,5 @@ let exercise : Exercise.spec =
           hints = [ "zero" ];
         };
       syntax_tests = [ ("odd is recursive", IsRecursive "odd") ];
-      derivation =
-        {
-          judgements = [ "" ];
-          rules = [ Assumption ];
-          tree = Util.FlatTree.init 1;
-        };
+      derivation_tree = Node ({ jdmt = ""; rule = Assumption }, []);
     }

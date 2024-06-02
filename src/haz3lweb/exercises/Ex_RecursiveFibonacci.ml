@@ -67,10 +67,5 @@ let exercise : Exercise.spec =
           hints = [];
         };
       syntax_tests = [ ("fib is recursive", IsRecursive "fib") ];
-      derivation =
-        {
-          judgements = [ "" ];
-          rules = [ Assumption ];
-          tree = Util.FlatTree.init 1;
-        };
+      derivation_tree = Node ({ jdmt = ""; rule = Assumption }, []);
     }

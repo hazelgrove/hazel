@@ -41,7 +41,7 @@ let view =
     instructor,
     hidden_bugs,
     hidden_tests: _,
-    derivation,
+    derivation_tree,
   }:
     Exercise.stitched(Exercise.DynamicsItem.t) = stitched_dynamics;
 
@@ -95,7 +95,8 @@ let view =
   //   ),
   // ),
 
-  let derivation_view_maker = (((ed, di), (rule, pos)), child) => {
+  let derivation_view_maker = (({Exercise.jdmt, rule}, (pos, di)), child) => {
+    let ed = jdmt;
     let di_child = child |> List.map(snd);
     let res =
       Grading.ImplGradingReport.DerivationReport.verify_single(
@@ -111,7 +112,6 @@ let view =
             ~attr=Attr.class_("derivation-premises"),
             (child |> List.map(fst))
             @ [
-              text(Derivation.Rule.repr(rule)),
               select(
                 ~attr=
                   Attr.on_change((_, name) =>
@@ -125,7 +125,7 @@ let view =
                 List.map(
                   r =>
                     Derivation.Rule.show(r)
-                    |> EditorModeView.option_view(Derivation.Rule.repr(rule)),
+                    |> EditorModeView.option_view(Derivation.Rule.show(rule)),
                   [
                     Derivation.Rule.Assumption,
                     Derivation.Rule.And_I,
@@ -157,6 +157,8 @@ let view =
                 |> (
                   fun
                   | Ok(_) => "✅"
+                  | Error(External("E-252")) => "✋"
+                  | Error(External(_)) => "⌛️"
                   | Error(e) => "❌" ++ DerivationError.VerErr.repr(e)
                 ),
               ),
@@ -180,17 +182,11 @@ let view =
   };
 
   // (ed * di) * (rule * pos)
-  let combined_list =
-    List.combine(
-      List.combine(eds.derivation.judgements, derivation),
-      List.combine(
-        eds.derivation.rules,
-        List.init(List.length(derivation), Fun.id),
-      ),
-    );
-
   let combined_tree =
-    Util.FlatTree.mk_tree(combined_list, eds.derivation.tree.tree);
+    Util.Tree.combine((
+      eds.derivation_tree,
+      Util.Tree.mapi((pos, t) => (pos, t), derivation_tree),
+    ));
 
   let derivation_view =
     div(

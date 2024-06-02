@@ -40,25 +40,31 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type derivation_tree('code) = {
-    judgements: list('code),
-    rules: list(Derivation.Rule.t),
-    tree: Util.FlatTree.t,
+  type derivation('code) = {
+    jdmt: 'code,
+    rule: Derivation.Rule.t,
   };
 
-  let mk_derivation_tree = t => {
-    let (flattened, tree) = Util.FlatTree.init_with(100, t);
-    let (judgements, rules) = List.split(flattened);
-    let judgements =
-      judgements @ List.init(100 - List.length(judgements), Fun.const(""));
-    let rules =
-      rules
-      @ List.init(
-          100 - List.length(rules),
-          Fun.const(Derivation.Rule.Assumption),
-        );
-    {judgements, rules, tree};
-  };
+  let map_jdmt = (f, {jdmt, rule}) => {jdmt: f(jdmt), rule};
+
+  let put_jdmt = (jdmt, {rule, _}) => {jdmt, rule};
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type derivation_tree('code) = Util.Tree.t(derivation('code));
+
+  // let mk_derivation_tree = t => {
+  //   let (flattened, tree) = Util.FlatTree.init_with(100, t);
+  //   let (judgements, rules) = List.split(flattened);
+  //   let judgements =
+  //     judgements @ List.init(100 - List.length(judgements), Fun.const(""));
+  //   let rules =
+  //     rules
+  //     @ List.init(
+  //         100 - List.length(rules),
+  //         Fun.const(Derivation.Rule.Assumption),
+  //       );
+  //   {judgements, rules, tree};
+  // };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type point_distribution = {
@@ -87,7 +93,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     hidden_bugs: list(wrong_impl('code)),
     hidden_tests: hidden_tests('code),
     syntax_tests,
-    derivation: derivation_tree('code),
+    derivation_tree: derivation_tree('code),
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -110,7 +116,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     | YourImpl
     | HiddenBugs(int)
     | HiddenTests
-    | Derive(int);
+    | Derive(Util.Tree.pos);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type spec = p(Zipper.t);
@@ -146,11 +152,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         hints: p.hidden_tests.hints,
       },
       syntax_tests: p.syntax_tests,
-      derivation: {
-        judgements: List.map(f, p.derivation.judgements),
-        rules: p.derivation.rules,
-        tree: p.derivation.tree,
-      },
+      derivation_tree: p.derivation_tree |> Util.Tree.map(f |> map_jdmt),
     };
   };
 
@@ -178,7 +180,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       | YourImpl => eds.your_impl
       | HiddenBugs(i) => List.nth(eds.hidden_bugs, i).impl
       | HiddenTests => eds.hidden_tests.tests
-      | Derive(i) => List.nth(eds.derivation.judgements, i)
+      | Derive(pos) => Util.Tree.nth(eds.derivation_tree, pos).jdmt
       };
 
   let put_editor = ({pos, eds, _} as state: state, editor: Editor.t) =>
@@ -237,15 +239,12 @@ module F = (ExerciseEnv: ExerciseEnv) => {
           },
         },
       }
-    | Derive(i) => {
+    | Derive(pos) => {
         ...state,
         eds: {
           ...eds,
-          derivation: {
-            ...eds.derivation,
-            judgements:
-              Util.ListUtil.put_nth(i, editor, eds.derivation.judgements),
-          },
+          derivation_tree:
+            Util.Tree.map_nth(put_jdmt(editor), eds.derivation_tree, pos),
         },
       }
     };
@@ -260,13 +259,17 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     ]
     @ List.map(wrong_impl => wrong_impl.impl, eds.hidden_bugs)
     @ [eds.hidden_tests.tests]
-    @ eds.derivation.judgements;
+    @ (eds.derivation_tree |> Util.Tree.map(d => d.jdmt) |> Util.Tree.flatten);
 
   let editor_positions = ({eds, _}: state) =>
     [Prelude, CorrectImpl, YourTestsTesting, YourTestsValidation, YourImpl]
     @ List.mapi((i, _) => HiddenBugs(i), eds.hidden_bugs)
     @ [HiddenTests]
-    @ List.mapi((i, _) => Derive(i), eds.derivation.judgements);
+    @ (
+      eds.derivation_tree
+      |> Util.Tree.flatten_pos
+      |> List.map(pos => Derive(pos))
+    );
 
   let positioned_editors = state =>
     List.combine(editor_positions(state), editors(state));
@@ -285,7 +288,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         failwith("invalid hidden bug index");
       }
     | HiddenTests => 5 + List.length(p.hidden_bugs)
-    | Derive(i) => 5 + List.length(p.hidden_bugs) + 1 + i
+    // Node(zhiyao): This could be wrong
+    | Derive(_) => 5 + List.length(p.hidden_bugs) + 1
     };
 
   let pos_of_idx = (p: p('code), idx: int) =>
@@ -302,9 +306,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         HiddenBugs(idx - 5);
       } else if (idx == 5 + List.length(p.hidden_bugs)) {
         HiddenTests;
-                   // Node(zhiyao): Assuming # all nodes is less than 100
-      } else if (idx < 100) {
-        Derive(idx - 5 - List.length(p.hidden_bugs) - 1);
+                   // Node(zhiyao): This could be wrong
       } else {
         failwith("element idx");
       }
@@ -321,44 +323,58 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       {eds: exercise.eds, pos};
     };
 
-  let switch_derivation_rule = (~pos, ~rule, ~exercise) =>
-    switch (pos) {
-    | Derive(idx) =>
-      let {judgements, tree, rules} = exercise.eds.derivation;
-      let pos_list = tree.tree |> Util.Tree.flatten_pos;
-      let pos = List.nth(pos_list, idx);
-      let old_rule = List.nth(rules, idx);
-      let old_prems_num = Derivation.Rule.prem_num(old_rule);
-      let new_prems_num = Derivation.Rule.prem_num(rule);
-      let delta = new_prems_num - old_prems_num;
-      let rec iter = (f, n, x) => n == 0 ? x : iter(f, n - 1, f(x));
-      let tree =
-        if (delta > 0) {
-          iter(Util.FlatTree.add(pos), delta, tree);
-        } else {
-          iter(Util.FlatTree.del(pos), - delta, tree);
-        };
-      let rules = Util.ListUtil.put_nth(idx, rule, rules);
-      {
-        ...exercise,
-        eds: {
-          ...exercise.eds,
-          derivation: {
-            judgements,
-            rules,
-            tree,
-          },
-        },
-      };
-    | _ => exercise
-    };
-
   let zipper_of_code = code => {
     switch (Printer.zipper_of_string(code)) {
     | None => failwith("Transition failed.")
     | Some(zipper) => zipper
     };
   };
+
+  let switch_derivation_rule = (~pos, ~new_rule, ~exercise) =>
+    switch (pos) {
+    | Derive(pos) =>
+      let tree = exercise.eds.derivation_tree;
+      let Node({jdmt, rule}, children) = Util.Tree.nth_node(tree, pos);
+      let old_prems_num = Derivation.Rule.prem_num(rule);
+      let new_prems_num = Derivation.Rule.prem_num(new_rule);
+      let delta = new_prems_num - old_prems_num;
+      let rec iter = (f, n, x) => n == 0 ? x : iter(f, n - 1, f(x));
+      let children =
+        if (delta > 0) {
+          iter(
+            fun
+            | c => [
+                Util.Tree.init(_ =>
+                  {jdmt: Editor.init(zipper_of_code("")), rule: Assumption}
+                ),
+                ...c,
+              ],
+            delta,
+            children,
+          );
+        } else {
+          iter(
+            fun
+            | c => List.tl(c),
+            - delta,
+            children,
+          );
+        };
+      let tree =
+        Util.Tree.put_nth_node(
+          Node({jdmt, rule: new_rule}, children),
+          tree,
+          pos,
+        );
+      {
+        ...exercise,
+        eds: {
+          ...exercise.eds,
+          derivation_tree: tree,
+        },
+      };
+    | _ => exercise
+    };
 
   let transition: transitionary_spec => spec =
     (
@@ -375,7 +391,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         hidden_bugs,
         hidden_tests,
         syntax_tests,
-        derivation,
+        derivation_tree,
       },
     ) => {
       let prelude = zipper_of_code(prelude);
@@ -406,10 +422,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         let tests = zipper_of_code(tests);
         {tests, hints};
       };
-      let derivation = {
-        ...derivation,
-        judgements: derivation.judgements |> List.map(zipper_of_code),
-      };
+      let derivation_tree =
+        derivation_tree |> Util.Tree.map(zipper_of_code |> map_jdmt);
       {
         title,
         version,
@@ -423,7 +437,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         hidden_bugs,
         hidden_tests,
         syntax_tests,
-        derivation,
+        derivation_tree,
       };
     };
 
@@ -443,7 +457,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         hidden_bugs,
         hidden_tests,
         syntax_tests,
-        derivation,
+        derivation_tree,
       },
     ) => {
       let prelude = editor_of_serialization(prelude);
@@ -464,11 +478,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         let tests = editor_of_serialization(tests);
         {tests, hints};
       };
-      let derivation = {
-        ...derivation,
-        judgements:
-          derivation.judgements |> List.map(editor_of_serialization),
-      };
+      let derivation_tree =
+        derivation_tree |> Util.Tree.map(editor_of_serialization |> map_jdmt);
       {
         title,
         version,
@@ -482,7 +493,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         hidden_bugs,
         hidden_tests,
         syntax_tests,
-        derivation,
+        derivation_tree,
       };
     };
 
@@ -628,12 +639,12 @@ module F = (ExerciseEnv: ExerciseEnv) => {
            {impl, hint};
          });
     let hidden_tests_tests = lookup(HiddenTests, spec.hidden_tests.tests);
-    let derivation = {
-      ...spec.derivation,
-      judgements:
-        spec.derivation.judgements
-        |> List.mapi((i, ed) => lookup(Derive(i), ed)),
-    };
+    let derivation_tree =
+      spec.derivation_tree
+      |> Util.Tree.mapi((pos, {jdmt, rule}) => {
+           let jdmt = lookup(Derive(pos), jdmt);
+           {jdmt, rule};
+         });
     set_instructor_mode(
       {
         pos,
@@ -657,7 +668,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
             hints: spec.hidden_tests.hints,
           },
           syntax_tests: spec.syntax_tests,
-          derivation,
+          derivation_tree,
         },
       },
       instructor_mode,
@@ -685,7 +696,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     instructor: 'a, // prelude + correct_impl + hidden_tests.tests // TODO only needs to run in instructor mode
     hidden_bugs: list('a), // prelude + hidden_bugs[i].impl + your_tests,
     hidden_tests: 'a,
-    derivation: list('a) // prelude + your_impl + derivation
+    derivation_tree: Util.Tree.t('a) // prelude + your_impl + derivation
   };
 
   let wrap_filter = (act: FilterAction.action, term: Term.UExp.t): Term.UExp.t =>
@@ -743,10 +754,13 @@ module F = (ExerciseEnv: ExerciseEnv) => {
           eds.hidden_bugs,
         ),
       hidden_tests: wrap(hidden_tests_term, eds.hidden_tests.tests),
-      derivation:
-        eds.derivation.judgements
-        |> List.map(d =>
-             wrap(d |> term_of |> EditorUtil.append_exp(user_impl_term), d)
+      derivation_tree:
+        eds.derivation_tree
+        |> Util.Tree.map(({jdmt, _}) =>
+             wrap(
+               jdmt |> term_of |> EditorUtil.append_exp(user_impl_term),
+               jdmt,
+             )
            ),
     };
   };
@@ -778,7 +792,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       instructor,
       hidden_bugs: List.map(mk, t.hidden_bugs),
       hidden_tests: mk(t.hidden_tests),
-      derivation: List.map(mk, t.derivation),
+      derivation_tree: t.derivation_tree |> Util.Tree.map(mk),
     };
   };
 
@@ -794,7 +808,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     | YourImpl => s.user_impl
     | HiddenBugs(idx) => List.nth(s.hidden_bugs, idx)
     | HiddenTests => s.hidden_tests
-    | Derive(idx) => List.nth(s.derivation, idx)
+    | Derive(pos) => Util.Tree.nth(s.derivation_tree, pos)
     };
 
   let statics_of = (~settings, exercise: state): StaticsItem.t =>
@@ -811,7 +825,14 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   let hidden_bugs_key = n => "hidden_bugs_" ++ string_of_int(n);
   let hidden_tests_key = "hidden_tests";
 
-  let derivation_key = n => "derivation_" ++ string_of_int(n);
+  let derivation_tree_key = {
+    let rec aux = (acc, pos: Util.Tree.pos) =>
+      switch (pos) {
+      | Value => acc
+      | Children(i, pos) => aux(acc ++ "_" ++ string_of_int(i), pos)
+      };
+    aux("derivation");
+  };
 
   let key_for_statics = (state: state): string =>
     switch (state.pos) {
@@ -822,7 +843,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     | YourImpl => user_impl_key
     | HiddenBugs(idx) => hidden_bugs_key(idx)
     | HiddenTests => hidden_tests_key
-    | Derive(idx) => derivation_key(idx)
+    | Derive(pos) => derivation_tree_key(pos)
     };
 
   let spliced_elabs =
@@ -836,7 +857,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       instructor,
       hidden_bugs,
       hidden_tests,
-      derivation,
+      derivation_tree,
     } =
       stitch_static(settings, stitch_term(state));
     let elab = (s: CachedStatics.statics) =>
@@ -854,7 +875,11 @@ module F = (ExerciseEnv: ExerciseEnv) => {
            (hidden_bugs_key(n), elab(hidden_bug))
          )
     )
-    @ (derivation |> List.mapi((n, d) => (derivation_key(n), elab(d))));
+    @ (
+      derivation_tree
+      |> Util.Tree.mapi((pos, si) => (derivation_tree_key(pos), elab(si)))
+      |> Util.Tree.flatten
+    );
   };
 
   let mk_statics =
@@ -873,7 +898,11 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         (n, hidden_bug: StaticsItem.t) => (hidden_bugs_key(n), hidden_bug),
         stitched.hidden_bugs,
       )
-    @ (stitched.derivation |> List.mapi((n, d) => (derivation_key(n), d)));
+    @ (
+      stitched.derivation_tree
+      |> Util.Tree.mapi((pos, si) => (derivation_tree_key(pos), si))
+      |> Util.Tree.flatten
+    );
   };
 
   module DynamicsItem = {
@@ -913,7 +942,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       instructor,
       hidden_bugs,
       hidden_tests,
-      derivation,
+      derivation_tree,
     } =
       stitch_static(settings, stitch_term(state));
     let result_of = key =>
@@ -972,13 +1001,13 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         info_map: hidden_tests.info_map,
         result: result_of(hidden_tests_key),
       };
-    let derivation =
-      derivation
-      |> List.mapi((n, statics_item: StaticsItem.t) =>
+    let derivation_tree =
+      derivation_tree
+      |> Util.Tree.mapi((pos, statics_item: StaticsItem.t) =>
            DynamicsItem.{
              term: statics_item.term,
              info_map: statics_item.info_map,
-             result: result_of(derivation_key(n)),
+             result: result_of(derivation_tree_key(pos)),
            }
          );
     {
@@ -989,7 +1018,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       prelude,
       hidden_bugs,
       hidden_tests,
-      derivation,
+      derivation_tree,
     };
   };
 
@@ -1012,7 +1041,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         prelude: DynamicsItem.statics_only(t.prelude),
         hidden_bugs: List.map(DynamicsItem.statics_only, t.hidden_bugs),
         hidden_tests: DynamicsItem.statics_only(t.hidden_tests),
-        derivation: List.map(DynamicsItem.statics_only, t.derivation),
+        derivation_tree:
+          Util.Tree.map(DynamicsItem.statics_only, t.derivation_tree),
       };
     } else {
       {
@@ -1026,10 +1056,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
             DynamicsItem.empty
           ),
         hidden_tests: DynamicsItem.empty,
-        derivation:
-          List.init(List.length(state.eds.derivation.judgements), _ =>
-            DynamicsItem.empty
-          ),
+        derivation_tree:
+          state.eds.derivation_tree |> Util.Tree.map(_ => DynamicsItem.empty),
       };
     };
   let stitch_dynamic = Core.Memo.general(stitch_dynamic);
@@ -1101,7 +1129,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         },
       );
     let hidden_tests_tests = Zipper.next_blank();
-    let derivation = List.init(1, _ => Zipper.next_blank());
+    let derivation_tree = Util.Tree.init(Zipper.next_blank);
     {
       title,
       version: 1,
@@ -1122,11 +1150,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         hints: [],
       },
       syntax_tests: [],
-      derivation: {
-        judgements: derivation,
-        rules: [],
-        tree: Util.FlatTree.init(100),
-      },
+      derivation_tree:
+        derivation_tree |> Util.Tree.map(jdmt => {jdmt, rule: Assumption}),
     };
   };
 

@@ -375,13 +375,13 @@ let rec apply =
       | None => Error(FailedToSwitch)
       | Some(editors) => Ok({...model, editors})
       };
-    | SwitchDerivationRule(pos, rule) =>
+    | SwitchDerivationRule(pos, new_rule) =>
       switch (model.editors) {
       | Documentation(_)
       | Scratch(_) => Error(FailedToSwitch)
       | Exercises(m, specs, exercise) =>
         let exercise =
-          Exercise.switch_derivation_rule(~pos, ~rule, ~exercise);
+          Exercise.switch_derivation_rule(~pos, ~new_rule, ~exercise);
         let editors = Editors.Exercises(m, specs, exercise);
         Ok({...model, editors});
       }
