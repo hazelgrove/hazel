@@ -152,7 +152,13 @@ let rec typ_of_dhexp =
     let* ctx = dhpat_extend_ctx(dhp, ty1, m, ctx);
     let* ty2 = typ_of_dhexp(ctx, m, d);
     Some(Typ.Arrow(ty1, ty2));
-  | TypFun({term: Var(name), _}, d, _) =>
+  | TypFun({term: Var(name), _} as utpat, d, _)
+      when !Ctx.shadows_typ(ctx, name) =>
+    let ctx =
+      Ctx.extend_tvar(
+        ctx,
+        {name, id: Term.UTPat.rep_id(utpat), kind: Abstract},
+      );
     let* ty = typ_of_dhexp(ctx, m, d);
     Some(Typ.Forall(name, ty));
   | TypFun(_, d, _) =>
@@ -316,7 +322,9 @@ let property_test = (uexp_typ: Typ.t, dhexp: DHExp.t, m: Statics.Map.t): bool =>
   let dhexp_typ = typ_of_dhexp(Builtins.ctx_init, m, dhexp);
 
   switch (dhexp_typ) {
-  | None => false
+  | None =>
+    print_endline("GOT NONE");
+    false;
   | Some(dh_typ) => Typ.eq(dh_typ, uexp_typ)
   };
 };
