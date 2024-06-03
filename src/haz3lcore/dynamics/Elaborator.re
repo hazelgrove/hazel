@@ -495,5 +495,9 @@ let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t =>
       | Some(ty) => ty
       | None => Typ.Unknown(Internal)
       };
+    print_endline("TEST");
+    print_endline(DHExp.show(d));
+    TypeAssignment.property_test(ty, d, m)
+      ? print_endline("GOOD") : print_endline("BAD");
     Elaborates(d, ty, Delta.empty);
   };
