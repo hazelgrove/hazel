@@ -807,3 +807,43 @@ let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
   | FunClosure
   | FixClosure
   | RemoveParens => true;
+
+let stepper_justification: step_kind => string =
+  fun
+  | LetBind => "substitution"
+  | Seq => "sequence"
+  | FixUnwrap => "unroll fixpoint"
+  | UpdateTest => "update test"
+  | TypFunAp => "apply type function"
+  | FunAp => "apply function"
+  | DeferredAp => "deferred application"
+  | BuiltinWrap => "wrap builtin"
+  | BuiltinAp(s) => "evaluate " ++ s
+  | UnOp(Int(Minus))
+  | BinIntOp(Plus | Minus | Times | Power | Divide)
+  | BinFloatOp(Plus | Minus | Times | Power | Divide) => "arithmetic"
+  | BinIntOp(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual)
+  | BinFloatOp(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual) => "comparison"
+  | BinIntOp(Equals | NotEquals)
+  | BinFloatOp(Equals | NotEquals)
+  | BinStringOp(Equals) => "check equality"
+  | BinStringOp(Concat) => "string manipulation"
+  | UnOp(Bool(Not))
+  | BinBoolOp(_) => "boolean logic"
+  | Conditional(_) => "conditional"
+  | ListCons => "list manipulation"
+  | ListConcat => "list manipulation"
+  | CaseApply => "case selection"
+  | Projection => "projection" // TODO(Matt): We don't want to show projection to the user
+  | InvalidStep => "error"
+  | VarLookup => "variable lookup"
+  | CastTypAp
+  | CastAp
+  | Cast => "cast calculus"
+  | FixClosure => "fixpoint closure"
+  | CompleteFilter => "complete filter"
+  | CompleteClosure => "complete closure"
+  | FunClosure => "function closure"
+  | RemoveTypeAlias => "define type"
+  | RemoveParens => "remove parentheses"
+  | UnOp(Meta(Unquote)) => failwith("INVALID STEP");

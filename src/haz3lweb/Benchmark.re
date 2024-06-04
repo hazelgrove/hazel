@@ -38,17 +38,17 @@ let non_empty_hole : Int = true in
 2 + 2
 |};
 
-let str_to_inserts = (str: string): list(UpdateAction.t) =>
+let str_to_inserts = (str: string): list(Editors.Update.t) =>
   List.init(
     String.length(str),
     i => {
       let c = String.sub(str, i, 1);
       let c = c == "\n" ? Haz3lcore.Form.linebreak : c;
-      UpdateAction.PerformAction(Insert(c));
+      Editors.Update.Scratch(CellAction(MainEditor(Perform(Insert(c)))));
     },
   );
 
-let actions_1 = str_to_inserts(sample_1) @ [Benchmark(Finish)];
+let actions_1 = str_to_inserts(sample_1);
 
 let time = ref(-1.0);
 

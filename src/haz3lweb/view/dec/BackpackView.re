@@ -13,7 +13,7 @@ let backpack_sel_view =
   module Text =
     Code.Text({
       let map = Measured.of_segment(content);
-      let settings = Init.startup.settings;
+      let settings = Settings.Model.init;
     });
   // TODO(andrew): Maybe use init sort at caret to prime this
   div(

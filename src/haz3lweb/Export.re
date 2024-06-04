@@ -20,16 +20,11 @@ type all_f22 = {
 };
 
 let mk_all = (~instructor_mode, ~log) => {
-  let settings = Store.Settings.export();
-  let explainThisModel = Store.ExplainThisModel.export();
-  let scratch = Store.Scratch.export(~settings=Haz3lcore.CoreSettings.off);
-  let documentation =
-    Store.Documentation.export(~settings=Haz3lcore.CoreSettings.off);
-  let exercise =
-    Store.Exercise.export(
-      ~specs=ExerciseSettings.exercises,
-      ~instructor_mode,
-    );
+  let settings = Settings.Store.export();
+  let explainThisModel = ExplainThisModel.Store.export();
+  let scratch = ScratchMode.Store.export();
+  let documentation = ScratchMode.StoreDocumentation.export();
+  let exercise = ExercisesMode.Store.export(~instructor_mode);
   {settings, explainThisModel, scratch, documentation, exercise, log};
 };
 
@@ -37,7 +32,7 @@ let export_all = (~instructor_mode, ~log) => {
   mk_all(~instructor_mode, ~log) |> yojson_of_all;
 };
 
-let import_all = (data, ~specs) => {
+let import_all = (~import_log: string => unit, data, ~specs) => {
   let all =
     try(data |> Yojson.Safe.from_string |> all_of_yojson) {
     | _ =>
@@ -51,10 +46,11 @@ let import_all = (data, ~specs) => {
         explainThisModel: "",
       };
     };
-  let settings = Store.Settings.import(all.settings);
-  Store.ExplainThisModel.import(all.explainThisModel);
+  Settings.Store.import(all.settings);
+  let settings = Settings.Store.load();
+  ExplainThisModel.Store.import(all.explainThisModel);
   let instructor_mode = settings.instructor_mode;
-  Store.Scratch.import(~settings=settings.core, all.scratch);
-  Store.Exercise.import(all.exercise, ~specs, ~instructor_mode);
-  Log.import(all.log);
+  ScratchMode.Store.import(all.scratch);
+  ExercisesMode.Store.import(all.exercise, ~specs, ~instructor_mode);
+  import_log(all.log);
 };

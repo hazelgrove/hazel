@@ -1,36 +1,5 @@
 let startup : PersistentData.t =
   {
-    settings =
-      {
-        captions = true;
-        secondary_icons = false;
-        core =
-          {
-            statics = true;
-            elaborate = false;
-            assist = true;
-            dynamics = true;
-            evaluation =
-              {
-                show_case_clauses = true;
-                show_fn_bodies = false;
-                show_fixpoints = false;
-                show_casts = false;
-                show_lookup_steps = false;
-                show_stepper_filters = false;
-                stepper_history = false;
-                show_settings = false;
-                show_hidden_steps = false;
-              };
-          };
-        async_evaluation = false;
-        context_inspector = false;
-        instructor_mode = true;
-        benchmark = false;
-        mode = Documentation;
-        explainThis =
-          { show = true; show_feedback = false; highlight = NoHighlight };
-      };
     scratch =
       ( 0,
         [
@@ -126,10 +95,9 @@ let startup : PersistentData.t =
                Convex))))))(ancestors())))(caret Outer))";
             backup_text = "     ";
           };
-        ],
-        [ ("scratch_0", Evaluation) ] );
+        ] );
     documentation =
-      ( "Programming Expressively",
+      ( 6,
         [
           ( "Casting",
             {
@@ -16503,9 +16471,5 @@ let startup : PersistentData.t =
                  Convex))))))(ancestors())))(caret Outer))";
               backup_text = " ";
             } );
-        ],
-        [
-          ("scratch_Basic Reference", Evaluation);
-          ("scratch_Programming Expressively", Evaluation);
         ] );
   }

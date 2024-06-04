@@ -11,11 +11,12 @@ module Action = {
     | SetShowBackpackTargets(bool)
     | SetFontMetrics(FontMetrics.t)
     | Set(Settings.Update.t)
-    | JumpToTile(Haz3lcore.Id.t);
+    | JumpToTile(Haz3lcore.Id.t) // Perform(Select(Term(Id(id, Left))))
+    | InitImportAll([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
+    | FinishImportAll(option(string));
 };
 
 module Model = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     // Persistent:
     settings: Settings.t,
@@ -30,10 +31,13 @@ module Model = {
     /* inject_global is not really part of the model, but added here for
        convenience to avoid having to pass it around everywhere. Can only
        be used in view functions. */
+    get_log_and: (string => unit) => unit,
+    export_all: (~instructor_mode: bool, ~log: string) => Yojson.Safe.t,
+    import_log: string => unit,
   };
 
   let load = () => {
-    let settings = Store.Settings.load();
+    let settings = Settings.Store.load();
     {
       font_metrics: FontMetrics.init,
       show_backpack_targets: false,
@@ -44,11 +48,17 @@ module Model = {
         failwith(
           "Cannot use inject_global outside of the main view function!",
         ),
+      get_log_and: _ =>
+        failwith("Cannot use get_log_and outside of the main view function!"),
+      export_all: (~instructor_mode as _, ~log as _) =>
+        failwith("Cannot use export_all outside of the main view function!"),
+      import_log: _ =>
+        failwith("Cannot use import_log outside of the main view function!"),
     };
   };
 
   let save = model => {
-    Store.Settings.save(model.settings);
+    Settings.Store.save(model.settings);
   };
 };
 
@@ -63,5 +73,4 @@ module Update = {
   };
 };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
 type t = Model.t;

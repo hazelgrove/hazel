@@ -2,40 +2,39 @@
 
 open Sexplib.Std;
 
-let is_action_logged: UpdateAction.t => bool =
-  fun
-  | Globals(
-      SetMousedown(_) | SetShowBackpackTargets(_) | SetFontMetrics(_) |
-      JumpToTile(_),
-    )
-  | Save
-  | InitImportAll(_)
-  | InitImportScratchpad(_)
-  | ExportPersistentData
-  | FinishImportAll(_)
-  | FinishImportScratchpad(_)
-  | Benchmark(_)
-  | UpdateResult(_)
-  | UpdateEvals(_)
-  | DebugConsole(_) => false
-  | Reset
-  | TAB
-  | Assistant(_)
-  | Globals(Set(_))
-  | SwitchScratchSlide(_)
-  | SwitchDocumentationSlide(_)
-  | MakeActive(_)
-  | ResetCurrentEditor
-  | ReparseCurrentEditor
-  | PerformAction(_)
-  | Cut
-  | Copy
-  | Undo
-  | Redo
-  | MoveToNextHole(_)
-  | ToggleStepper(_)
-  | StepperAction(_, StepForward(_) | StepBackward | HideStepper)
-  | UpdateExplainThisModel(_) => true;
+// let is_action_logged: UpdateAction.t => bool =
+//   fun
+//   | Globals(
+//       SetMousedown(_) | SetShowBackpackTargets(_) | SetFontMetrics(_) |
+//       JumpToTile(_),
+//     )
+//   | Save
+//   | InitImportAll(_)
+//   | InitImportScratchpad(_)
+//   | ExportPersistentData
+//   | FinishImportAll(_)
+//   | FinishImportScratchpad(_)
+//   | Benchmark(_)
+//   | UpdateResult(_)
+//   | UpdateEvals(_)
+//   | DebugConsole(_) => false
+//   | Reset
+//   | TAB
+//   | Assistant(_)
+//   | Globals(Set(_))
+//   | Editors(SwitchScratchSlide(_))
+//   | Editors(SwitchDocumentationSlide(_))
+//   | MakeActive(_)
+//   | Editors(ResetCurrentEditor)
+//   | ReparseCurrentEditor
+//   | Editors(Perform(_))
+//   | Cut
+//   | Copy
+//   | Undo
+//   | Redo
+//   | MoveToNextHole(_)
+//   | Editors(_)
+//   | UpdateExplainThisModel(_) => true;
 
 module DB = {
   open Ezjs_idb;
@@ -81,7 +80,10 @@ module DB = {
 
 module Entry = {
   [@deriving (show({with_path: false}), yojson, sexp)]
-  type t = (Model.timestamp, UpdateAction.t);
+  type timestamp = float;
+
+  [@deriving (show({with_path: false}), yojson, sexp)]
+  type t = (timestamp, Page.Update.t);
 
   [@deriving (show({with_path: false}), yojson, sexp)]
   type s = list(t);
@@ -110,8 +112,8 @@ let import = (data: string): unit =>
     }
   );
 
-let update = (action: UpdateAction.t): unit =>
-  if (is_action_logged(action)) {
+let update = (action: Page.Update.t, result: Updated.t('a)): unit =>
+  if (result.logged) {
     Entry.save(Entry.mk(action));
   };
 

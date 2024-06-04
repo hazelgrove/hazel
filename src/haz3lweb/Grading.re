@@ -51,7 +51,8 @@ module TestValidationReport = {
     };
   };
 
-  let view = (~inject, report: t, max_points: int) => {
+  // YourTestsValidation
+  let view = (~signal_jump, report: t, max_points: int) => {
     Cell.report_footer_view([
       div(
         ~attr=Attr.classes(["test-summary"]),
@@ -65,16 +66,7 @@ module TestValidationReport = {
         @ Option.to_list(
             report.test_results
             |> Option.map(test_results =>
-                 TestView.test_bar(
-                   ~inject_jump=
-                     TestView.jump_to_test(
-                       ~inject,
-                       YourTestsValidation,
-                       _,
-                       (),
-                     ),
-                   ~test_results,
-                 )
+                 TestView.test_bar(~inject_jump=signal_jump, ~test_results)
                ),
           ),
       ),
@@ -92,19 +84,16 @@ module MutationTestingReport = {
       [score_view(score), text(summary_str(~total, ~found))],
     );
 
-  let bar = (~inject, instances) =>
+  let bar = (~inject as _, instances) =>
     div(
       ~attr=Attr.classes(["test-bar"]),
       List.mapi(
-        (id, (status, _)) =>
+        (_id, (status, _)) =>
           div(
             ~attr=
               Attr.many([
                 Attr.classes(["segment", TestStatus.to_string(status)]),
-                Attr.on_click(
-                  //TODO: wire up test ids
-                  TestView.jump_to_test(~inject, HiddenBugs(id), Id.invalid),
-                ),
+                // TODO: Wire up test ids.
               ]),
             [],
           ),
@@ -138,15 +127,13 @@ module MutationTestingReport = {
     );
   };
 
-  let individual_report = (id, ~inject, ~hint: string, ~status: TestStatus.t) =>
+  let individual_report =
+      (id, ~inject as _, ~hint: string, ~status: TestStatus.t) =>
     div(
       ~attr=
         Attr.many([
           Attr.classes(["test-report"]),
           //TODO: wire up test ids
-          Attr.on_click(
-            TestView.jump_to_test(~inject, HiddenBugs(id), Id.invalid),
-          ),
         ]),
       [
         div(
@@ -360,12 +347,12 @@ module ImplGradingReport = {
   //   );
   // };
 
-  let individual_report = (i, ~inject, ~hint: string, ~status, (id, _)) =>
+  let individual_report = (i, ~signal_jump, ~hint: string, ~status, (id, _)) =>
     div(
       ~attr=
         Attr.many([
           Attr.classes(["test-report"]),
-          Attr.on_click(TestView.jump_to_test(~inject, HiddenTests, id)),
+          Attr.on_click(_ => signal_jump(id)),
         ]),
       [
         div(
@@ -392,7 +379,7 @@ module ImplGradingReport = {
       ],
     );
 
-  let individual_reports = (~inject, ~report) => {
+  let individual_reports = (~signal_jump, ~report) => {
     switch (report.test_results) {
     | Some(test_results)
         when
@@ -405,7 +392,7 @@ module ImplGradingReport = {
         |> List.mapi((i, (status, hint)) =>
              individual_report(
                i,
-               ~inject,
+               ~signal_jump,
                ~hint,
                ~status,
                List.nth(test_results.test_map, i),
@@ -416,8 +403,14 @@ module ImplGradingReport = {
     };
   };
 
+  // HiddenTests
   let view =
-      (~inject, ~report: t, ~syntax_report: SyntaxReport.t, ~max_points: int) => {
+      (
+        ~signal_jump,
+        ~report: t,
+        ~syntax_report: SyntaxReport.t,
+        ~max_points: int,
+      ) => {
     Cell.panel(
       ~classes=["cell-item", "panel", "test-panel"],
       [
@@ -425,7 +418,7 @@ module ImplGradingReport = {
           "Implementation Grading",
           ~rest=": Hidden Tests vs. Your Implementation",
         ),
-        individual_reports(~inject, ~report),
+        individual_reports(~signal_jump, ~report),
       ],
       ~footer=
         Some(
@@ -450,8 +443,7 @@ module ImplGradingReport = {
                   report.test_results
                   |> Option.map(test_results =>
                        TestView.test_bar(
-                         ~inject_jump=
-                           TestView.jump_to_test(~inject, HiddenTests, _, ()),
+                         ~inject_jump=signal_jump,
                          ~test_results,
                        )
                      ),

@@ -4,12 +4,12 @@ open Node;
 open Util.Web;
 open Widgets;
 
-let export_persistent_data = (~inject: Update.t => 'a) =>
-  button_named(
-    Icons.sprout,
-    _ => inject(ExportPersistentData),
-    ~tooltip="Export All Persistent Data",
-  );
+// let export_persistent_data = (~inject: Globals.Update.t => 'a) =>
+//   button_named(
+//     Icons.sprout,
+//     _ => inject(ExportPersistentData),
+//     ~tooltip="Export All Persistent Data",
+//   );
 
 let reset_hazel =
   button(
@@ -28,29 +28,40 @@ let reset_hazel =
     ~tooltip="Clear Local Storage and Reload (LOSE ALL DATA)",
   );
 
-let reparse = (~inject: Update.t => 'a) =>
-  button(
-    Icons.backpack,
-    _ => inject(ReparseCurrentEditor),
-    ~tooltip="Reparse Current Editor",
-  );
+let reparse = (~inject_reparse: option(unit => 'a)) =>
+  switch (inject_reparse) {
+  | Some(inject_reparse) =>
+    button(
+      Icons.backpack,
+      _ => inject_reparse(),
+      ~tooltip="Reparse Current Editor",
+    )
+  | None =>
+    button_d(
+      Icons.backpack,
+      Effect.Ignore,
+      ~tooltip="Reparse Current Editor",
+      ~disabled=true,
+    )
+  };
 
 let settings_menu =
     (
-      ~inject,
-      ~settings as
+      ~globals as
         {
-          core: {evaluation, _} as core,
-          benchmark,
-          secondary_icons,
-          explainThis,
+          inject_global,
+          settings: {
+            core: {evaluation, _} as core,
+            benchmark,
+            secondary_icons,
+            explainThis,
+            _,
+          },
           _,
-        }: Settings.t,
+        }: Globals.t,
     ) => {
   let toggle = (icon, tooltip, bool, setting) =>
-    toggle_named(icon, ~tooltip, bool, _ =>
-      inject(UpdateAction.Globals(Set(setting)))
-    );
+    toggle_named(icon, ~tooltip, bool, _ => inject_global(Set(setting)));
   [
     toggle("τ", "Toggle Statics", core.statics, Statics),
     toggle("⇲", "Toggle Completion", core.assist, Assist),
@@ -115,37 +126,6 @@ let settings_menu =
   ];
 };
 
-let export_menu = (~inject, ~settings: Settings.t, editors: Editors.t) =>
-  switch (editors) {
-  | Scratch(slide_idx, slides) =>
-    let state = List.nth(slides, slide_idx);
-    [ScratchMode.export_button(state)];
-  | Documentation(name, slides) =>
-    let state = List.assoc(name, slides);
-    [ScratchMode.export_button(state)];
-  | Exercises(_, _, exercise) when settings.instructor_mode => [
-      export_persistent_data(~inject),
-      ExerciseMode.export_submission(~settings),
-      ExerciseMode.instructor_export(exercise),
-      ExerciseMode.instructor_transitionary_export(exercise),
-      ExerciseMode.instructor_grading_export(exercise),
-    ]
-  | Exercises(_) => [ExerciseMode.export_submission(~settings)]
-  };
-
-let import_menu = (~inject, editors: Editors.t) =>
-  switch (editors) {
-  | Scratch(_)
-  | Documentation(_) => [
-      ScratchMode.import_button(inject),
-      ScratchMode.reset_button(inject),
-    ]
-  | Exercises(_) => [
-      ExerciseMode.import_submission(~inject),
-      ExerciseMode.reset_button(inject),
-    ]
-  };
-
 let submenu = (~tooltip, ~icon, menu) =>
   div(
     ~attr=clss(["top-menu-item"]),
@@ -159,27 +139,45 @@ let submenu = (~tooltip, ~icon, menu) =>
   );
 
 let view =
-    (~inject: Update.t => 'a, ~settings: Settings.t, ~editors: Editors.t) => [
+    (
+      ~globals: Globals.t,
+      ~selection: option(Editors.Selection.t),
+      ~inject: Editors.Update.t => 'a,
+      ~editors: Editors.Model.t,
+    ) => [
   a(~attr=clss(["nut-icon"]), [Icons.hazelnut]),
   div(
     ~attr=clss(["nut-menu"]),
     [
-      submenu(
-        ~tooltip="Settings",
-        ~icon=Icons.gear,
-        settings_menu(~inject, ~settings),
-      ),
+      submenu(~tooltip="Settings", ~icon=Icons.gear, settings_menu(~globals)),
       submenu(
         ~tooltip="Export",
         ~icon=Icons.export,
-        export_menu(~inject, ~settings, editors),
+        Editors.View.export_menu(~globals, editors),
       ),
       submenu(
         ~tooltip="Import",
         ~icon=Icons.import,
-        import_menu(~inject, editors),
+        Editors.View.import_menu(~globals, ~inject, editors),
       ),
-      reparse(~inject),
+      reparse(
+        ~inject_reparse={
+          let update =
+            Editors.Selection.handle_key_event(
+              ~selection,
+              ~event={
+                key: D("k"),
+                sys: PC,
+                shift: Up,
+                meta: Down,
+                ctrl: Down,
+                alt: Up,
+              },
+              editors,
+            );
+          Option.map((u, ()) => inject(u), update);
+        },
+      ),
       reset_hazel,
       link(
         Icons.github,

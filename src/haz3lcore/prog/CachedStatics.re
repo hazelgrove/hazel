@@ -7,14 +7,6 @@ type statics = {
   error_ids: list(Id.t),
 };
 
-let statics_of_term = (~settings, term: UExp.t, editor: Editor.t): statics => {
-  let info_map =
-    Interface.Statics.mk_map_ctx(settings, Builtins.ctx_init, term);
-  let error_ids =
-    Statics.Map.error_ids(editor.state.meta.term_ranges, info_map);
-  {term, info_map, error_ids};
-};
-
 let empty_statics: statics = {
   term: UExp.{ids: [Id.invalid], copied: false, term: Tuple([])},
   info_map: Id.Map.empty,
