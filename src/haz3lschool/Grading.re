@@ -73,14 +73,11 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
 
     let hidden_bug_status =
         (
-          test_validation_data: DynamicsItem.t,
-          hidden_bug_data: DynamicsItem.t,
+          test_validation_data: option(TestResults.t),
+          hidden_bug_data: option(TestResults.t),
         )
         : TestStatus.t => {
-      switch (
-        ModelResult.test_results(test_validation_data.result),
-        ModelResult.test_results(hidden_bug_data.result),
-      ) {
+      switch (test_validation_data, hidden_bug_data) {
       | (None, _)
       | (_, None) => Indet
       | (Some(test_validation_data), Some(hidden_bug_data)) =>
@@ -119,9 +116,9 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
 
     let mk =
         (
-          ~test_validation: DynamicsItem.t,
+          ~test_validation,
           ~hidden_bugs_state: list(wrong_impl(Editor.t)),
-          ~hidden_bugs: list(DynamicsItem.t),
+          ~hidden_bugs,
         )
         : t => {
       let results =
@@ -251,26 +248,22 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
       impl_grading_report: ImplGradingReport.t,
     };
 
-    let mk = (eds: eds, ~stitched_dynamics: stitched(DynamicsItem.t)) => {
+    let mk = (eds: eds, ~stitched_tests: stitched(option(TestResults.t))) => {
       point_distribution: eds.point_distribution,
       test_validation_report:
-        TestValidationReport.mk(
-          eds,
-          ModelResult.test_results(stitched_dynamics.test_validation.result),
-        ),
+        TestValidationReport.mk(eds, stitched_tests.test_validation),
       mutation_testing_report:
         MutationTestingReport.mk(
-          ~test_validation=stitched_dynamics.test_validation,
+          ~test_validation=stitched_tests.test_validation,
           ~hidden_bugs_state=eds.hidden_bugs,
-          ~hidden_bugs=stitched_dynamics.hidden_bugs,
+          ~hidden_bugs=stitched_tests.hidden_bugs,
         ),
       syntax_report:
         SyntaxReport.mk(~your_impl=eds.your_impl, ~tests=eds.syntax_tests),
       impl_grading_report:
         ImplGradingReport.mk(
           ~hints=eds.hidden_tests.hints,
-          ~test_results=
-            ModelResult.test_results(stitched_dynamics.hidden_tests.result),
+          ~test_results=stitched_tests.hidden_tests,
         ),
     };
 

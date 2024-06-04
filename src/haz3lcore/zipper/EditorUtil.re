@@ -94,3 +94,21 @@ let rec append_exp = {
     )
   );
 };
+
+let wrap_filter = (act: FilterAction.action, term: UExp.t): UExp.t =>
+  Exp.{
+    term:
+      Exp.Filter(
+        Filter({
+          act: FilterAction.(act, One),
+          pat: {
+            term: Constructor("$e"),
+            copied: false,
+            ids: [Id.mk()],
+          },
+        }),
+        term,
+      ),
+    copied: false,
+    ids: [Id.mk()],
+  };

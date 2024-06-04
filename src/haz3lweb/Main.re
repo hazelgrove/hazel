@@ -35,51 +35,57 @@ let restart_caret_animation = () =>
   | _ => ()
   };
 
-let apply = (model, action, state, ~schedule_action): Model.t => {
+let apply =
+    (
+      model: Page.Model.t,
+      action: Page.Update.t,
+      _state: unit,
+      ~schedule_action,
+    )
+    : Page.Model.t => {
   restart_caret_animation();
-  if (UpdateAction.is_edit(action)) {
-    last_edit_action := JsUtil.timestamp();
-    edit_action_applied := true;
-  };
-  if (Update.should_scroll_to_caret(action)) {
-    scroll_to_caret := true;
-  };
-  last_edit_action := JsUtil.timestamp();
-  switch (
-    try({
-      let new_model = Update.apply(model, action, state, ~schedule_action);
-      Log.update(action);
-      new_model;
-    }) {
+  let updated: Updated.t(Page.Model.t) =
+    try(
+      Page.Update.update(
+        ~import_log=Log.import,
+        ~schedule_action,
+        action,
+        model,
+      )
+    ) {
     | exc =>
       Printf.printf(
         "ERROR: Exception during apply: %s\n",
         Printexc.to_string(exc),
       );
-      Error(Exception(Printexc.to_string(exc)));
-    }
-  ) {
-  | Ok(model) => model
-  | Error(FailedToPerform(err)) =>
-    // TODO(andrew): reinstate this history functionality
-    print_endline(Update.Failure.show(FailedToPerform(err)));
-    //{...model, history: ActionHistory.failure(err, model.history)};
-    model;
-  | Error(err) =>
-    print_endline(Update.Failure.show(err));
-    model;
+      model |> Updated.return_quiet;
+    };
+  let model' =
+    updated.recalculate
+      ? updated.model |> Page.Update.calculate(~schedule_action)
+      : updated.model;
+  if (updated.is_edit) {
+    last_edit_action := JsUtil.timestamp();
+    edit_action_applied := true;
   };
+  if (updated.scroll_active) {
+    scroll_to_caret := true;
+  };
+  model';
 };
 
 module App = {
-  module Model = Model;
-  module Action = Update;
-  module State = State;
+  module Model = Page.Model;
+  module Action = Page.Update;
+  module State = {
+    type t = unit;
+    let init = () => ();
+  };
 
-  let on_startup = (~schedule_action, m: Model.t) => {
+  let on_startup = (~schedule_action, _: Model.t) => {
     let _ =
       observe_font_specimen("font-specimen", fm =>
-        schedule_action(Haz3lweb.Update.Globals(SetFontMetrics(fm)))
+        schedule_action(Haz3lweb.Page.Update.Globals(SetFontMetrics(fm)))
       );
 
     JsUtil.focus_clipboard_shim();
@@ -87,8 +93,7 @@ module App = {
     /* initialize state. */
     let state = State.init();
 
-    /* Initial evaluation on a worker */
-    Update.schedule_evaluation(~schedule_action, m);
+    schedule_action(Start);
 
     Os.is_mac :=
       Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
@@ -99,11 +104,7 @@ module App = {
   };
 
   let create =
-      (
-        model: Incr.t(Haz3lweb.Model.t),
-        ~old_model as _: Incr.t(Haz3lweb.Model.t),
-        ~inject,
-      ) => {
+      (model: Incr.t(Model.t), ~old_model as _: Incr.t(Model.t), ~inject) => {
     open Incr.Let_syntax;
     let%map model = model;
     /* Note: mapping over the old_model here may
@@ -111,7 +112,11 @@ module App = {
     Component.create(
       ~apply_action=apply(model),
       model,
-      Haz3lweb.Page.view(~inject, model),
+      Haz3lweb.Page.View.view(
+        ~log={get_log_and: Log.get_and, import_log: Log.import},
+        ~inject,
+        model,
+      ),
       ~on_display=(_, ~schedule_action) => {
         if (edit_action_applied^
             && JsUtil.timestamp()
@@ -120,7 +125,7 @@ module App = {
              has been applied for 1 second, save the model. */
           edit_action_applied := false;
           print_endline("Saving...");
-          schedule_action(Update.Save);
+          schedule_action(Page.Update.Save);
         };
         if (scroll_to_caret.contents) {
           scroll_to_caret := false;
@@ -138,6 +143,6 @@ switch (JsUtil.Fragment.get_current()) {
     (module App),
     ~debug=false,
     ~bind_to_element_with_id="container",
-    ~initial_model=Model.load(),
+    ~initial_model=Page.Store.load(),
   )
 };

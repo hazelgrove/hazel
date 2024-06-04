@@ -1,7 +1,7 @@
 open Sexplib.Std;
 
 [@deriving (show({with_path: false}), yojson, sexp)]
-type t = (float, UpdateAction.t);
+type t = (float, Page.Update.t);
 
 let mk = (update): t => {
   (JsUtil.timestamp(), update);
@@ -16,7 +16,7 @@ let to_string = ((timestamp, update): t) => {
   Printf.sprintf(
     "%.0f: %s",
     timestamp,
-    UpdateAction.show(update),
+    Page.Update.show(update),
     //status,
   );
 };

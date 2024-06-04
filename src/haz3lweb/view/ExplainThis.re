@@ -31,7 +31,8 @@ let feedback_view = (message, up_active, up_action, down_active, down_action) =>
   );
 };
 
-let explanation_feedback_view = (~inject, group_id, form_id, model) => {
+let explanation_feedback_view =
+    (~inject: ExplainThisUpdate.update => 'a, group_id, form_id, model) => {
   let (up_active, down_active) =
     switch (
       ExplainThisModel.get_explanation_feedback(group_id, form_id, model)
@@ -43,23 +44,20 @@ let explanation_feedback_view = (~inject, group_id, form_id, model) => {
   feedback_view(
     "This explanation is helpful",
     up_active,
-    _ =>
-      inject(
-        UpdateAction.UpdateExplainThisModel(
-          ToggleExplanationFeedback(group_id, form_id, ThumbsUp),
-        ),
-      ),
+    _ => inject(ToggleExplanationFeedback(group_id, form_id, ThumbsUp)),
     down_active,
-    _ =>
-      inject(
-        UpdateAction.UpdateExplainThisModel(
-          ToggleExplanationFeedback(group_id, form_id, ThumbsDown),
-        ),
-      ),
+    _ => inject(ToggleExplanationFeedback(group_id, form_id, ThumbsDown)),
   );
 };
 
-let example_feedback_view = (~inject, group_id, form_id, example_id, model) => {
+let example_feedback_view =
+    (
+      ~inject: ExplainThisUpdate.update => 'a,
+      group_id,
+      form_id,
+      example_id,
+      model,
+    ) => {
   let (up_active, down_active) =
     switch (
       ExplainThisModel.get_example_feedback(
@@ -77,17 +75,11 @@ let example_feedback_view = (~inject, group_id, form_id, example_id, model) => {
     "This example is helpful",
     up_active,
     _ =>
-      inject(
-        UpdateAction.UpdateExplainThisModel(
-          ToggleExampleFeedback(group_id, form_id, example_id, ThumbsUp),
-        ),
-      ),
+      inject(ToggleExampleFeedback(group_id, form_id, example_id, ThumbsUp)),
     down_active,
     _ =>
       inject(
-        UpdateAction.UpdateExplainThisModel(
-          ToggleExampleFeedback(group_id, form_id, example_id, ThumbsDown),
-        ),
+        ToggleExampleFeedback(group_id, form_id, example_id, ThumbsDown),
       ),
   );
 };
@@ -95,35 +87,27 @@ let example_feedback_view = (~inject, group_id, form_id, example_id, model) => {
 let code_node = text => Node.span(~attr=clss(["code"]), [Node.text(text)]);
 
 let highlight =
-    (~inject, msg: list(Node.t), id: Id.t, mapping: ColorSteps.t)
+    (
+      ~globals: Globals.t,
+      ~inject as _: ExplainThisUpdate.update => 'a,
+      msg: list(Node.t),
+      id: Id.t,
+      mapping: ColorSteps.t,
+    )
     : (Node.t, ColorSteps.t) => {
   let (c, mapping) = ColorSteps.get_color(id, mapping);
   let classes = clss(["highlight-" ++ c, "clickable"]);
   let attr =
-    switch (inject) {
-    | Some(inject) =>
-      Attr.many([
-        classes,
-        Attr.on_mouseenter(_ =>
-          inject(
-            UpdateAction.Globals(
-              Set(ExplainThis(SetHighlight(Hover(id)))),
-            ),
-          )
-        ),
-        Attr.on_mouseleave(_ =>
-          inject(
-            UpdateAction.Globals(
-              Set(ExplainThis(SetHighlight(UnsetHover))),
-            ),
-          )
-        ),
-        Attr.on_click(_ =>
-          inject(UpdateAction.PerformAction(Select(Term(Id(id, Left)))))
-        ),
-      ])
-    | None => classes
-    };
+    Attr.many([
+      classes,
+      Attr.on_mouseenter(_ =>
+        globals.inject_global(Set(ExplainThis(SetHighlight(Hover(id)))))
+      ),
+      Attr.on_mouseleave(_ =>
+        globals.inject_global(Set(ExplainThis(SetHighlight(UnsetHover))))
+      ),
+      Attr.on_click(_ => globals.inject_global(JumpToTile(id))),
+    ]);
   (Node.span(~attr, msg), mapping);
 };
 
@@ -135,7 +119,8 @@ let highlight =
  code: `code`
  italics: *word*
  */
-let mk_translation = (~inject, text: string): (list(Node.t), ColorSteps.t) => {
+let mk_translation =
+    (~globals, ~inject, text: string): (list(Node.t), ColorSteps.t) => {
   let omd = Omd.of_string(text);
   //print_markdown(omd);
   let rec translate =
@@ -164,7 +149,8 @@ let mk_translation = (~inject, text: string): (list(Node.t), ColorSteps.t) => {
             | Some(id) => id
             | None => Id.invalid
             };
-          let (inner_msg, mapping) = highlight(~inject, d, id, mapping);
+          let (inner_msg, mapping) =
+            highlight(~globals, ~inject, d, id, mapping);
           (List.append(msg, [inner_msg]), mapping);
         | Emph(d) =>
           let (d, mapping) = translate(d, mapping);
@@ -194,17 +180,17 @@ let mk_translation = (~inject, text: string): (list(Node.t), ColorSteps.t) => {
 
 let mk_explanation =
     (
+      ~globals,
       ~inject,
-      ~settings: Settings.t,
       group_id,
       form_id,
       text: string,
       model: ExplainThisModel.t,
     )
     : (Node.t, ColorSteps.t) => {
-  let (msg, color_map) = mk_translation(~inject=Some(inject), text);
+  let (msg, color_map) = mk_translation(~globals, ~inject, text);
   let feedback =
-    settings.explainThis.show_feedback
+    globals.settings.explainThis.show_feedback
       ? [explanation_feedback_view(~inject, group_id, form_id, model)] : [];
   (
     div([div(~attr=clss(["explanation-contents"]), msg)] @ feedback),
@@ -277,9 +263,7 @@ let expander_deco =
                     ? ["selected"] @ get_clss(segment) : get_clss(segment);
                 let update_group_selection = _ =>
                   inject(
-                    UpdateAction.UpdateExplainThisModel(
-                      ExplainThisUpdate.UpdateGroupSelection(group.id, id),
-                    ),
+                    ExplainThisUpdate.UpdateGroupSelection(group.id, id),
                   );
                 Node.div(
                   ~attr=
@@ -317,9 +301,7 @@ let expander_deco =
               DecUtil.abs_position(~font_metrics, origin),
               Attr.on_click(_ => {
                 inject(
-                  UpdateAction.UpdateExplainThisModel(
-                    ExplainThisUpdate.SpecificityOpen(!docs.specificity_open),
-                  ),
+                  ExplainThisUpdate.SpecificityOpen(!docs.specificity_open),
                 )
               }),
             ]),
@@ -362,46 +344,24 @@ let example_view =
             div(
               ~attr=clss(["example"]),
               [
-                CellEditor.view(
+                CellEditor.View.view(
                   ~globals,
-                  ~select=_ => Ui_effect.Ignore,
+                  ~signal=_ => Ui_effect.Ignore,
                   ~inject=_ => Ui_effect.Ignore,
-                  ~highlights=None,
                   ~selected=None,
                   ~caption=None,
                   ~locked=true,
                   {
-                    let editor =
-                      Editor.init(~read_only=true, Zipper.unzip(term));
-                    let (term, _) =
-                      MakeTerm.from_zip_for_sem(editor.state.zipper);
-                    let statics =
-                      CachedStatics.statics_of_term(
-                        ~settings=globals.settings.core,
-                        term,
-                        editor,
-                      );
-                    let result: ModelResult.t =
-                      globals.settings.core.dynamics
-                        ? Evaluation({
-                            elab: {
-                              d: term,
-                            },
-                            evaluation:
-                              Interface.evaluate(
-                                ~settings=globals.settings.core,
-                                term,
-                              ),
-                            previous: ResultPending,
-                          })
-                        : NoElab;
-                    {
-                      editor: {
-                        editor,
-                        statics,
-                      },
-                      result,
-                    };
+                    term
+                    |> Zipper.unzip
+                    |> Editor.init(~read_only=true)
+                    |> CellEditor.Model.mk
+                    |> CellEditor.Update.calculate(
+                         ~settings=globals.settings.core,
+                         ~schedule_action=_ => (),
+                         ~stitch=x => x,
+                         ~immediate=true,
+                       );
                   },
                 ),
                 div(
@@ -446,16 +406,16 @@ let rec bypass_parens_typ = (typ: Typ.t) => {
   };
 };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
 type message_mode =
   | MessageContent(
-      UpdateAction.t => Virtual_dom.Vdom.Effect.t(unit),
+      ExplainThisUpdate.update => Virtual_dom.Vdom.Effect.t(unit),
       Globals.t,
     )
   | Colorings;
 
 let get_doc =
     (
+      ~globals: Globals.t,
       ~docs: ExplainThisModel.t,
       info: option(Statics.Info.t),
       mode: message_mode,
@@ -486,7 +446,7 @@ let get_doc =
     | MessageContent(inject, globals) =>
       let (explanation, color_map) =
         mk_explanation(
-          ~settings=globals.settings,
+          ~globals,
           ~inject,
           group.id,
           doc.id,
@@ -532,7 +492,7 @@ let get_doc =
         };
       let statics = CachedStatics.empty_statics;
       let syntactic_form_view =
-        ReadOnlyEditor.view(
+        ReadOnlyEditor.View.view(
           ~globals,
           ~overlays=highlight_deco @ [expander_deco],
           ~sort,
@@ -549,7 +509,8 @@ let get_doc =
         );
       ([syntactic_form_view], ([explanation], color_map), example_view);
     | Colorings =>
-      let (_, color_map) = mk_translation(~inject=None, explanation_msg);
+      let (_, color_map) =
+        mk_translation(~globals, ~inject=_ => (), explanation_msg);
       ([], ([], color_map), []);
     };
   };
@@ -2383,15 +2344,15 @@ let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
   );
 
 let get_color_map =
-    (~settings: Settings.t, ~explainThisModel: ExplainThisModel.t, info) =>
-  switch (settings.explainThis.highlight) {
-  | All when settings.explainThis.show =>
+    (~globals: Globals.t, ~explainThisModel: ExplainThisModel.t, info) =>
+  switch (globals.settings.explainThis.highlight) {
+  | All when globals.settings.explainThis.show =>
     let (_, (_, (color_map, _)), _) =
-      get_doc(~docs=explainThisModel, info, Colorings);
+      get_doc(~globals, ~docs=explainThisModel, info, Colorings);
     Some(color_map);
-  | One(id) when settings.explainThis.show =>
+  | One(id) when globals.settings.explainThis.show =>
     let (_, (_, (color_map, _)), _) =
-      get_doc(~docs=explainThisModel, info, Colorings);
+      get_doc(~globals, ~docs=explainThisModel, info, Colorings);
     Some(Id.Map.filter((id', _) => id == id', color_map));
   | _ => None
   };
@@ -2404,7 +2365,12 @@ let view =
       info: option(Info.t),
     ) => {
   let (syn_form, (explanation, _), example) =
-    get_doc(~docs=explainThisModel, info, MessageContent(inject, globals));
+    get_doc(
+      ~globals,
+      ~docs=explainThisModel,
+      info,
+      MessageContent(inject, globals),
+    );
   div(
     ~attr=Attr.id("side-bar"),
     [

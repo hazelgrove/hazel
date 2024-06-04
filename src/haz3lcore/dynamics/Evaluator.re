@@ -1,25 +1,6 @@
 open Transition;
 
-module Result = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | BoxedValue(DHExp.t)
-    | Indet(DHExp.t);
-
-  let unbox =
-    fun
-    | BoxedValue(d)
-    | Indet(d) => d;
-
-  let fast_equal = (r1, r2) =>
-    switch (r1, r2) {
-    | (BoxedValue(d1), BoxedValue(d2))
-    | (Indet(d1), Indet(d2)) => DHExp.fast_equal(d1, d2)
-    | _ => false
-    };
-};
-
-open Result;
+open ProgramResult.Result;
 
 module EvaluatorEVMode: {
   type status =
@@ -132,7 +113,7 @@ let rec evaluate = (state, env, d) => {
   };
 };
 
-let evaluate = (env, {d, _}: Elaborator.Elaboration.t) => {
+let evaluate' = (env, {d, _}: Elaborator.Elaboration.t) => {
   let state = ref(EvaluatorState.init);
   let env = ClosureEnvironment.of_environment(env);
   let result = evaluate(state, env, d);
@@ -144,3 +125,20 @@ let evaluate = (env, {d, _}: Elaborator.Elaboration.t) => {
     };
   (state^, result);
 };
+
+let evaluate =
+    (~settings: CoreSettings.t, ~env=Builtins.env_init, elab: DHExp.t)
+    : ProgramResult.t(ProgramResult.inner) =>
+  switch () {
+  | _ when !settings.dynamics => Off({d: elab})
+  | _ =>
+    switch (evaluate'(env, {d: elab})) {
+    | exception (EvaluatorError.Exception(reason)) =>
+      print_endline("EvaluatorError:" ++ EvaluatorError.show(reason));
+      ResultFail(EvaulatorError(reason));
+    | exception exn =>
+      print_endline("EXN:" ++ Printexc.to_string(exn));
+      ResultFail(UnknownException(Printexc.to_string(exn)));
+    | (state, result) => ResultOk({result, state})
+    }
+  };

@@ -18,7 +18,7 @@ module Response = {
   [@deriving (show, sexp, yojson)]
   type value =
     Result.t(
-      (Haz3lcore.Evaluator.Result.t, Haz3lcore.EvaluatorState.t),
+      (Haz3lcore.ProgramResult.Result.t, Haz3lcore.EvaluatorState.t),
       Haz3lcore.ProgramResult.error,
     );
   [@deriving (show, sexp, yojson)]
@@ -30,7 +30,7 @@ module Response = {
 
 let work = (res: Request.value): Response.value =>
   switch (
-    Haz3lcore.Evaluator.evaluate(Haz3lcore.Builtins.env_init, {d: res})
+    Haz3lcore.Evaluator.evaluate'(Haz3lcore.Builtins.env_init, {d: res})
   ) {
   | exception (Haz3lcore.EvaluatorError.Exception(reason)) =>
     print_endline(

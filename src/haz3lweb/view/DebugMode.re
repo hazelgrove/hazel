@@ -8,8 +8,8 @@ type action =
 let perform = (action: action): unit => {
   switch (action) {
   | TurnOffDynamics =>
-    let settings = Store.Settings.load();
-    Store.Settings.save({
+    let settings = Settings.Store.load();
+    Settings.Store.save({
       ...settings,
       core: {
         ...settings.core,

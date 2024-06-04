@@ -205,3 +205,15 @@ let get_form_and_options =
     (group: group, model: t): (form, list((form_id, Segment.t))) => {
   (get_selected_option(group, model), get_options(group));
 };
+
+// To prevent OCaml thinking t is a recursive type lower down
+[@deriving (show({with_path: false}), yojson, sexp)]
+type explainthismodel = t;
+
+module Store =
+  Store.F({
+    [@deriving (show({with_path: false}), yojson, sexp)]
+    type t = explainthismodel;
+    let default = () => init;
+    let key = Store.ExplainThis;
+  });
