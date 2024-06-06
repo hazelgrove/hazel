@@ -7,7 +7,7 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type b = {
     // Updated:
-    step: Haz3lcore.Stepper.Step.t,
+    step: Haz3lcore.EvaluatorStep.EvalObj.t,
     // Calculated:
     to_ids: list(Id.t),
     hidden: bool,
@@ -102,7 +102,7 @@ module Model = {
     model.history |> Aba.get_bs |> List.exists((b: b) => !b.hidden);
   };
 
-  type persistent = list(Haz3lcore.Stepper.Step.persistent);
+  type persistent = list(Haz3lcore.EvaluatorStep.EvalObj.persistent);
 };
 
 module Update = {

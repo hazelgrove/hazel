@@ -30,6 +30,13 @@ module EvalObj = {
     ...obj,
     ctx: obj.ctx |> f,
   };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type persistent = {
+    old_id: Id.t, // The id of the term about to be stepped
+    new_id: Id.t, // The id of the term after it is stepped
+    knd: step_kind,
+  };
 };
 
 let rec matches =
