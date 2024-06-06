@@ -1,5 +1,4 @@
 open Haz3lcore;
-include UpdateAction;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type agent =

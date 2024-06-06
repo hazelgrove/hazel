@@ -1,4 +1,4 @@
-let intro : ScratchSlide.persistent_state =
+let intro : Haz3lcore.PersistentZipper.t =
   {
     zipper =
       "((selection((focus \
@@ -117,7 +117,7 @@ let intro : ScratchSlide.persistent_state =
        your_function(\"argument\") + 1\n";
   }
 
-let lang_ref : ScratchSlide.persistent_state =
+let lang_ref : Haz3lcore.PersistentZipper.t =
   {
     zipper =
       "((selection((focus \
@@ -1642,7 +1642,7 @@ let lang_ref : ScratchSlide.persistent_state =
        2 + 2\n";
   }
 
-let basic_type_egs : ScratchSlide.persistent_state =
+let basic_type_egs : Haz3lcore.PersistentZipper.t =
   {
     zipper =
       "((selection((focus \
@@ -3393,7 +3393,7 @@ let basic_type_egs : ScratchSlide.persistent_state =
        \"BYE\"";
   }
 
-let adt_egs : ScratchSlide.persistent_state =
+let adt_egs : Haz3lcore.PersistentZipper.t =
   {
     zipper =
       "((selection((focus \
@@ -5436,7 +5436,7 @@ let adt_egs : ScratchSlide.persistent_state =
        \"Thats all, folks\"\n";
   }
 
-let adt_dynamics_tests : ScratchSlide.persistent_state =
+let adt_dynamics_tests : Haz3lcore.PersistentZipper.t =
   {
     zipper =
       "((selection((focus \
