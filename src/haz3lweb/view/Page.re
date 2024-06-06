@@ -311,7 +311,14 @@ module View = {
       );
     [
       top_bar,
-      div(~attr=Attr.many([Attr.id("main")]), editors_view),
+      div(
+        ~attr=
+          Attr.many([
+            Attr.id("main"),
+            Attr.class_(Editors.Model.mode_string(editors)),
+          ]),
+        editors_view,
+      ),
       sidebar,
       bottom_bar,
     ];
