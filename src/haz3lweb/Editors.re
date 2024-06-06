@@ -10,6 +10,12 @@ module Model = {
     | Scratch(ScratchMode.Model.t)
     | Documentation(ScratchMode.Model.t)
     | Exercises(ExercisesMode.Model.t);
+
+  let mode_string: t => string =
+    fun
+    | Scratch(_) => "Scratch"
+    | Documentation(_) => "Documentation"
+    | Exercises(_) => "Exercises";
 };
 
 module StoreMode =
@@ -27,7 +33,7 @@ module Store = {
     | Scratch =>
       Model.Scratch(ScratchMode.Store.load() |> ScratchMode.Model.unpersist)
     | Documentation =>
-      Model.Scratch(
+      Model.Documentation(
         ScratchMode.StoreDocumentation.load()
         |> ScratchMode.Model.unpersist_documentation,
       )
@@ -42,12 +48,16 @@ module Store = {
   let save = (~instructor_mode, model: Model.t) => {
     switch (model) {
     | Model.Scratch(m) =>
-      ScratchMode.Store.save(ScratchMode.Model.persist(m))
+      StoreMode.save(Scratch);
+      ScratchMode.Store.save(ScratchMode.Model.persist(m));
     | Model.Documentation(m) =>
+      StoreMode.save(Documentation);
       ScratchMode.StoreDocumentation.save(
         ScratchMode.Model.persist_documentation(m),
-      )
-    | Model.Exercises(m) => ExercisesMode.Store.save(~instructor_mode, m)
+      );
+    | Model.Exercises(m) =>
+      StoreMode.save(Exercises);
+      ExercisesMode.Store.save(~instructor_mode, m);
     };
   };
 };
@@ -84,7 +94,7 @@ module Update = {
           action,
           m,
         );
-      Model.Scratch(scratch);
+      Model.Documentation(scratch);
     | (Exercises(action), Exercises(m)) =>
       let* exercises =
         ExercisesMode.Update.update(

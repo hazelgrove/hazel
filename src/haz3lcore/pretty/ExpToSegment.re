@@ -486,7 +486,7 @@ and typ_to_pretty = (~inline, typ: Typ.t): pretty => {
     let id = typ |> Typ.rep_id;
     let+ t1 = go(t1)
     and+ t2 = go(t2);
-    t1 @ [mk_form("arrow", id, [])] @ t2;
+    t1 @ [mk_form("type-arrow", id, [])] @ t2;
   | Sum([]) => failwith("Empty Sums are not allowed")
   | Sum([t]) =>
     let id = typ |> Typ.rep_id;
