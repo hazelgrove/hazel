@@ -53,7 +53,7 @@ module TestValidationReport = {
 
   // YourTestsValidation
   let view = (~signal_jump, report: t, max_points: int) => {
-    Cell.report_footer_view([
+    CellCommon.report_footer_view([
       div(
         ~attr=Attr.classes(["test-summary"]),
         [
@@ -229,10 +229,10 @@ module MutationTestingReport = {
     if (max_points == 0) {
       Node.div([]);
     } else {
-      Cell.panel(
+      CellCommon.panel(
         ~classes=["test-panel"],
         [
-          Cell.caption(
+          CellCommon.caption(
             "Mutation Testing",
             ~rest=": Your Tests vs. Buggy Implementations (hidden)",
           ),
@@ -275,10 +275,10 @@ module SyntaxReport = {
   };
 
   let view = (syntax_report: t) => {
-    Cell.panel(
+    CellCommon.panel(
       ~classes=["test-panel"],
       [
-        Cell.caption(
+        CellCommon.caption(
           "Syntax Validation",
           ~rest=
             ": Does your implementation satisfy the syntactic requirements?",
@@ -287,7 +287,7 @@ module SyntaxReport = {
       ],
       ~footer=
         Some(
-          Cell.report_footer_view([
+          CellCommon.report_footer_view([
             div(
               ~attr=Attr.classes(["test-summary"]),
               [
@@ -411,10 +411,10 @@ module ImplGradingReport = {
         ~syntax_report: SyntaxReport.t,
         ~max_points: int,
       ) => {
-    Cell.panel(
+    CellCommon.panel(
       ~classes=["cell-item", "panel", "test-panel"],
       [
-        Cell.caption(
+        CellCommon.caption(
           "Implementation Grading",
           ~rest=": Hidden Tests vs. Your Implementation",
         ),
@@ -422,7 +422,7 @@ module ImplGradingReport = {
       ],
       ~footer=
         Some(
-          Cell.report_footer_view([
+          CellCommon.report_footer_view([
             div(
               ~attr=Attr.classes(["test-summary"]),
               [

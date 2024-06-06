@@ -316,7 +316,7 @@ module View = {
                 | _ => failwith("Invalid mode")
               ),
             List.map(
-              EditorModeView.option_view(
+              SlideSelect.option_view(
                 switch (editors) {
                 | Scratch(_) => "Scratch"
                 | Documentation(_) => "Documentation"

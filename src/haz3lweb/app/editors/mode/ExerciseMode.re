@@ -264,15 +264,15 @@ module View = {
           },
         ~inject=a => inject(Editor(this_pos, a)),
         ~result_kind,
-        ~caption=Cell.caption(caption, ~rest=?subcaption),
+        ~caption=CellCommon.caption(caption, ~rest=?subcaption),
         cell,
       );
     };
 
-    let title_view = Cell.title_cell(eds.title);
+    let title_view = CellCommon.title_cell(eds.title);
 
     let prompt_view =
-      Cell.narrative_cell(
+      CellCommon.narrative_cell(
         div(~attr=Attr.class_("cell-prompt"), [eds.prompt]),
       );
 
@@ -334,9 +334,9 @@ module View = {
               };
             };
           };
-          Cell.simple_cell_view([
-            Cell.simple_cell_item([
-              Cell.caption(
+          CellCommon.simple_cell_view([
+            CellCommon.simple_cell_item([
+              CellCommon.caption(
                 "Correct Implementation",
                 ~rest=" (Type Signatures Only)",
               ),

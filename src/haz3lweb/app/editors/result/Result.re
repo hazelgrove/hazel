@@ -464,7 +464,7 @@ module View = {
         };
       (
         [
-          Cell.report_footer_view([
+          CellCommon.report_footer_view([
             TestView.test_summary(
               ~inject_jump=tile => signal(JumpTo(tile)),
               ~test_results,
