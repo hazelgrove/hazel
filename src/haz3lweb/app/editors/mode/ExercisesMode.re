@@ -251,7 +251,7 @@ module View = {
 
   let top_bar =
       (~globals as _: Globals.t, ~inject: Update.t => 'a, model: Model.t) =>
-    EditorModeView.SlideSelect.view(
+    SlideSelect.view(
       ~signal=
         fun
         | Previous =>
@@ -267,9 +267,6 @@ module View = {
             ),
           ),
       ~indicator=
-        EditorModeView.SlideSelect.indicator_n(
-          model.current,
-          List.length(model.exercises),
-        ),
+        SlideSelect.indicator_n(model.current, List.length(model.exercises)),
     );
 };

@@ -6,8 +6,6 @@ module Stepped = {
     step_id: option(Id.t),
   };
 
-  type action = ReadOnlyEditor.Update.t;
-
   type event = ReadOnlyEditor.View.event;
 
   let view = (~globals: Globals.t, ~overlays=[], model: model) => {
@@ -28,8 +26,6 @@ module Steppable = {
     editor: CodeEditor.Model.t,
     next_steps: list(Id.t),
   };
-
-  type action = CodeEditor.Update.t;
 
   type event =
     | TakeStep(int);
