@@ -23,7 +23,7 @@ type t = {
   elab: DHExp.t,
   previous: list(step),
   current,
-  next: list(EvalObj.t),
+  next: list((FilterAction.action, EvalObj.t)),
 };
 
 let rec matches =
@@ -42,7 +42,7 @@ let rec matches =
   let (act, idx) =
     switch (ctx) {
     | Filter(_, _) => (pact, pidx)
-    | _ => midx > idx ? (mact, midx) : (pact, pidx)
+    | _ => midx > pidx ? (mact, midx) : (pact, pidx)
     };
   let map = ((a, i, c), f: EvalCtx.t => EvalCtx.t) => {
     (a, i, f(c));
@@ -58,10 +58,15 @@ let rec matches =
       let flt = flt |> FilterEnvironment.extends(flt');
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       Filter(Filter(flt'), ctx);
-    | Filter(Residue(idx, act), ctx) =>
-      let (ract, ridx, rctx) = matches(env, flt, ctx, exp, act, idx);
-      if (ridx == idx && ract |> snd == All) {
-        (ract, ridx, Filter(Residue(idx, act), rctx));
+    | Filter(Residue(idx', act'), ctx) =>
+      let (ract, ridx, rctx) =
+        if (idx > idx') {
+          matches(env, flt, ctx, exp, act, idx);
+        } else {
+          matches(env, flt, ctx, exp, act', idx');
+        };
+      if (act' |> snd == All) {
+        (ract, ridx, Filter(Residue(idx', act'), rctx));
       } else {
         (ract, ridx, rctx);
       };
@@ -83,6 +88,9 @@ let rec matches =
     | FixF(name, ty, ctx) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       FixF(name, ty, ctx);
+    | TypAp(ctx, ty) =>
+      let+ ctx = matches(env, flt, ctx, exp, act, idx);
+      TypAp(ctx, ty);
     | Ap1(ctx, d2) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       Ap1(ctx, d2);
@@ -182,7 +190,7 @@ let rec matches =
     };
   switch (ctx) {
   | Filter(_) => (ract, ridx, rctx)
-  | _ when midx == ridx && midx > pidx && mact |> snd == All => (
+  | _ when midx > pidx && mact |> snd == All => (
       ract,
       ridx,
       Filter(Residue(midx, mact), rctx),
@@ -193,7 +201,7 @@ let rec matches =
 
 let should_hide_eval_obj =
     (~settings, x: EvalObj.t): (FilterAction.action, EvalObj.t) =>
-  if (should_hide_step(~settings, x.knd)) {
+  if (should_hide_step_kind(~settings, x.knd)) {
     (Eval, x);
   } else {
     let (act, _, ctx) =
@@ -205,7 +213,7 @@ let should_hide_eval_obj =
   };
 
 let should_hide_step = (~settings, x: step): (FilterAction.action, step) =>
-  if (should_hide_step(~settings, x.knd)) {
+  if (should_hide_step_kind(~settings, x.knd)) {
     (Eval, x);
   } else {
     let (act, _, ctx) =
@@ -230,7 +238,7 @@ let current_expr = (s: t) =>
 
 let step_pending = (idx: int, {elab, previous, current, next}: t) => {
   // TODO[Matt]: change to nth_opt after refactor
-  let eo = List.nth(next, idx);
+  let eo = List.nth(next, idx) |> snd;
   switch (current) {
   | StepperOK(d, s) => {
       elab,
@@ -258,29 +266,13 @@ let step_pending = (idx: int, {elab, previous, current, next}: t) => {
   };
 };
 
-let init = (elab: DHExp.t) => {
+let init = (~settings, elab: DHExp.t) => {
   {
     elab,
     previous: [],
     current: StepPending(elab, EvaluatorState.init, None),
-    next: decompose(elab),
+    next: decompose(~settings, elab),
   };
-};
-
-let update_result =
-    (
-      (
-        d: DHExp.t,
-        state: EvaluatorState.t,
-        next_eval_objs: list(EvalObj.t),
-        skipped_steps: list(step),
-      ),
-      s: t,
-    ) => {
-  previous: skipped_steps @ s.previous,
-  current: StepperOK(d, state),
-  next: next_eval_objs,
-  elab: s.elab,
 };
 
 let rec evaluate_pending = (~settings, s: t) => {
@@ -302,27 +294,26 @@ let rec evaluate_pending = (~settings, s: t) => {
         ...s.previous,
       ],
       current: StepPending(d', state_ref^, None),
-      next: decompose(d'),
+      next: decompose(~settings, d'),
     }
     |> evaluate_pending(~settings);
   | StepPending(d, state, None) =>
-    let next' = s.next |> List.map(should_hide_eval_obj(~settings));
-    switch (List.find_opt(((act, _)) => act == FilterAction.Eval, next')) {
+    switch (List.find_opt(((act, _)) => act == FilterAction.Eval, s.next)) {
     | Some((_, eo)) =>
       {
         elab: s.elab,
         previous: s.previous,
         current: StepPending(d, state, Some(eo)),
-        next: next' |> List.map(snd),
+        next: s.next,
       }
       |> evaluate_pending(~settings)
     | None => {
         elab: s.elab,
         previous: s.previous,
         current: StepperOK(d, state),
-        next: next' |> List.map(snd),
+        next: s.next,
       }
-    };
+    }
   };
 };
 
@@ -385,7 +376,7 @@ let step_backward = (~settings, s: t) =>
   | None => failwith("cannot step backwards")
   | Some((x, xs)) => {
       current: StepperOK(x.d, x.state),
-      next: decompose(x.d),
+      next: decompose(~settings, x.d),
       previous: xs,
       elab: s.elab,
     }
@@ -397,6 +388,7 @@ let get_justification: step_kind => string =
   | Sequence => "sequence"
   | FixUnwrap => "unroll fixpoint"
   | UpdateTest => "update test"
+  | TypFunAp => "apply type function"
   | FunAp => "apply function"
   | BuiltinWrap => "wrap builtin"
   | BuiltinAp(s) => "evaluate " ++ s
@@ -418,11 +410,13 @@ let get_justification: step_kind => string =
   | Projection => "projection" // TODO(Matt): We don't want to show projection to the user
   | InvalidStep => "error"
   | VarLookup => "variable lookup"
+  | CastTypAp
   | CastAp
   | Cast => "cast calculus"
-  | CompleteFilter => "unidentified step"
-  | CompleteClosure => "unidentified step"
-  | FunClosure => "unidentified step"
+  | FixClosure => "fixpoint closure"
+  | CompleteFilter => "complete filter"
+  | CompleteClosure => "complete closure"
+  | FunClosure => "function closure"
   | Skip => "skipped steps";
 
 let get_history = (~settings, stepper) => {
@@ -477,8 +471,7 @@ let to_persistent: t => persistent =
     }
   | {elab, previous, current, _} => {elab, previous, current};
 
-let from_persistent: persistent => t =
-  ({elab, previous, current}) => {
-    let s = {elab, previous, current, next: []};
-    {elab, previous, current, next: decompose(current_expr(s))};
-  };
+let from_persistent = (~settings, {elab, previous, current}) => {
+  let s = {elab, previous, current, next: []};
+  {elab, previous, current, next: decompose(~settings, current_expr(s))};
+};

@@ -1799,6 +1799,10 @@ svg.expandable path {
   padding: 0.1em 0.4em 0.1em 0.4em;
 }
 
+.cell-result.hidden {
+  background-color: #E8DCBF;
+}
+
 .cell-result .toggle-switch {
   mix-blend-mode: luminosity;
 }

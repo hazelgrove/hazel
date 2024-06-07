@@ -545,6 +545,7 @@ let get_doc =
           TyAliasExp.tyalias_exps,
         );
       | Triv => get_message(TerminalExp.triv_exps)
+      | Deferral(_) => get_message(TerminalExp.deferral_exps)
       | Bool(b) => get_message(TerminalExp.bool_exps(b))
       | Int(i) => get_message(TerminalExp.int_exps(i))
       | Float(f) => get_message(TerminalExp.float_exps(f))
@@ -561,6 +562,30 @@ let get_doc =
             ),
           ListExp.listlits,
         )
+      | TypFun(tpat, body) =>
+        let basic = group_id => {
+          let tpat_id = List.nth(tpat.ids, 0);
+          let body_id = List.nth(body.ids, 0);
+          get_message(
+            ~colorings=
+              FunctionExp.function_exp_coloring_ids(
+                ~pat_id=tpat_id,
+                ~body_id,
+              ),
+            ~format=
+              Some(
+                msg =>
+                  Printf.sprintf(
+                    Scanf.format_from_string(msg, "%s%s"),
+                    Id.to_string(tpat_id),
+                    Id.to_string(body_id),
+                  ),
+              ),
+            group_id,
+          );
+        };
+        /* TODO: More could be done here probably for different patterns. */
+        basic(TypFunctionExp.type_functions_basic);
       | Fun(pat, body) =>
         let basic = group_id => {
           let pat_id = List.nth(pat.ids, 0);
@@ -1537,6 +1562,27 @@ let get_doc =
             ~fn_id=Term.UExp.rep_id(fn),
           ),
         )
+      | TypAp(f, typ) =>
+        let f_id = List.nth(f.ids, 0);
+        let typ_id = List.nth(typ.ids, 0);
+        let basic = (group, format, coloring_ids) => {
+          get_message(
+            ~colorings=coloring_ids(~f_id, ~typ_id),
+            ~format=Some(format),
+            group,
+          );
+        };
+        basic(
+          TypAppExp.typfunaps,
+          msg =>
+            Printf.sprintf(
+              Scanf.format_from_string(msg, "%s%s"),
+              Id.to_string(f_id),
+              Id.to_string(typ_id),
+            ),
+          TypAppExp.typfunapp_exp_coloring_ids,
+        );
+
       | Ap(x, arg) =>
         let x_id = List.nth(x.ids, 0);
         let arg_id = List.nth(arg.ids, 0);
@@ -1571,6 +1617,47 @@ let get_doc =
               ),
             AppExp.funapp_exp_coloring_ids,
           )
+        };
+      | DeferredAp(x, args) =>
+        let x_id = List.nth(x.ids, 0);
+        let supplied_id = Id.mk();
+        let deferred_id = {
+          let deferral = List.find(Term.UExp.is_deferral, args);
+          List.nth(deferral.ids, 0);
+        };
+        switch (mode) {
+        | MessageContent(_) =>
+          get_message(
+            ~colorings=
+              AppExp.deferred_funapp_exp_coloring_ids(~x_id, ~deferred_id),
+            ~format=
+              Some(
+                msg =>
+                  Printf.sprintf(
+                    Scanf.format_from_string(msg, "%s%s%s"),
+                    Id.to_string(x_id),
+                    Id.to_string(supplied_id),
+                    Id.to_string(deferred_id),
+                  ),
+              ),
+            AppExp.deferredaps,
+          )
+        | Colorings =>
+          let color_fn = List.nth(ColorSteps.child_colors, 0);
+          let color_supplied = List.nth(ColorSteps.child_colors, 1);
+          let color_deferred = List.nth(ColorSteps.child_colors, 2);
+          let add = (mapping, arg: Term.UExp.t) => {
+            let arg_id = List.nth(arg.ids, 0);
+            Haz3lcore.Id.Map.add(
+              arg_id,
+              Term.UExp.is_deferral(arg) ? color_deferred : color_supplied,
+              mapping,
+            );
+          };
+          let mapping = Haz3lcore.Id.Map.singleton(x_id, color_fn);
+          let mapping = List.fold_left(add, mapping, args);
+          let color_map = (mapping, List.length(args) + 1);
+          ([], ([], color_map), []);
         };
       | If(cond, then_, else_) =>
         let cond_id = List.nth(cond.ids, 0);
@@ -2047,6 +2134,38 @@ let get_doc =
               ),
           ),
         ListTyp.list,
+      );
+    | Forall(tpat, typ) =>
+      let tpat_id = List.nth(tpat.ids, 0);
+      let tbody_id = List.nth(typ.ids, 0);
+      get_message(
+        ~colorings=ForallTyp.forall_typ_coloring_ids(~tpat_id, ~tbody_id),
+        ~format=
+          Some(
+            msg =>
+              Printf.sprintf(
+                Scanf.format_from_string(msg, "%s%s"),
+                Id.to_string(tpat_id),
+                Id.to_string(tbody_id),
+              ),
+          ),
+        ForallTyp.forall,
+      );
+    | Rec(tpat, typ) =>
+      let tpat_id = List.nth(tpat.ids, 0);
+      let tbody_id = List.nth(typ.ids, 0);
+      get_message(
+        ~colorings=RecTyp.rec_typ_coloring_ids(~tpat_id, ~tbody_id),
+        ~format=
+          Some(
+            msg =>
+              Printf.sprintf(
+                Scanf.format_from_string(msg, "%s%s"),
+                Id.to_string(tpat_id),
+                Id.to_string(tbody_id),
+              ),
+          ),
+        RecTyp.rec_,
       );
     | Arrow(arg, result) =>
       let arg_id = List.nth(arg.ids, 0);
