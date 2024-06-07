@@ -5,7 +5,7 @@ type t =
   | DivideByZero
   | NegativeExponent
   | OutOfFuel
-  | CmpArrow;
+  | CompareArrow;
 
 let err_msg = (err: t): string =>
   switch (err) {
@@ -14,5 +14,5 @@ let err_msg = (err: t): string =>
   | DivideByZero => "Error: Divide by Zero"
   | NegativeExponent => "Error: Negative Exponent in Integer Exponentiation (Consider using **.)"
   | OutOfFuel => "Error: Out of Fuel"
-  | CmpArrow => "Error: Comparison of Arrow Types"
+  | CompareArrow => "Error: Comparison of Arrow Types"
   };
