@@ -109,6 +109,7 @@ module CastHelpers = {
     | Var(_)
     | Rec(_)
     | Arrow(Unknown(_), Unknown(_))
+    | Label(_, Unknown(_))
     | List(Unknown(_)) => Ground
     | Prod(tys) =>
       if (List.for_all(
@@ -126,7 +127,8 @@ module CastHelpers = {
         ? Ground : grounded_Sum(sm)
     | Arrow(_, _) => grounded_Arrow
     | List(_) => grounded_List
-    | Label(_, ty) => ground_cases_of(ty) // TODO (Anthony): what to do here?
+    | Label(_, _) => NotGroundOrHole(Unknown(Internal))
+    // | Label(_, ty) => ground_cases_of(ty)
     };
   };
 };
@@ -195,7 +197,7 @@ module Transition = (EV: EV_MODE) => {
     | Matches(env') => r(evaluate_extend_env(env', env))
     };
 
-  let transition = (req, state, env, d): 'a =>
+  let transition = (req, state, env, d): 'a => {
     switch (d) {
     | BoundVar(x) =>
       let. _ = otherwise(env, BoundVar(x));
@@ -219,21 +221,6 @@ module Transition = (EV: EV_MODE) => {
       Constructor;
     | Fun(p, t, d, v) =>
       let. _ = otherwise(env, Fun(p, t, d, v));
-      let p =
-        switch (p) {
-        | Tuple(l) =>
-          DHPat.Tuple(
-            List.map(
-              (x): DHPat.t =>
-                switch (x) {
-                | DHPat.Var(s) => TupLabel(s, x)
-                | _ => x
-                },
-              l,
-            ),
-          )
-        | _ => p
-        };
       Step({
         apply: () => Fun(p, t, Closure(env, d), v),
         kind: FunClosure,
@@ -487,14 +474,7 @@ module Transition = (EV: EV_MODE) => {
         apply: () =>
           switch (d') {
           | Tuple(ds) =>
-            let filt: t => option(LabeledTuple.t) = (
-              e =>
-                switch (e) {
-                | TupLabel(s, _) => Some(s)
-                | _ => None
-                }
-            );
-            let element = LabeledTuple.find_label(filt, ds, s);
+            let element = LabeledTuple.find_label(DHExp.get_label, ds, s);
             switch (element) {
             | Some(TupLabel(_, exp)) => exp
             | _ => raise(EvaluatorError.Exception(BadPatternMatch))
@@ -627,7 +607,6 @@ module Transition = (EV: EV_MODE) => {
       Indet;
     | Cast(d, t1, t2) =>
       open CastHelpers; /* Cast calculus */
-
       let. _ = otherwise(env, d => Cast(d, t1, t2))
       and. d' = req_final(req(state, env), d => Cast(d, t1, t2), d);
       switch (ground_cases_of(t1), ground_cases_of(t2)) {
@@ -690,6 +669,7 @@ module Transition = (EV: EV_MODE) => {
       and. d1 = req_final(req(state, env), d1 => Filter(f1, d1), d1);
       Step({apply: () => d1, kind: CompleteFilter, value: true});
     };
+  };
 };
 
 let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>

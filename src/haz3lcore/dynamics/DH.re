@@ -61,6 +61,8 @@ module rec DHExp: {
   let strip_casts: t => t;
 
   let fast_equal: (t, t) => bool;
+
+  let get_label: t => option((LabeledTuple.t, t));
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -158,15 +160,22 @@ module rec DHExp: {
     | [_] => failwith("mk_tuple: expected at least 2 elements")
     | xs => Tuple(xs);
 
+  let get_label: t => option((LabeledTuple.t, t)) =
+    fun
+    | TupLabel(s, t') => Some((s, t'))
+    | _ => None;
+
   let cast = (d: t, t1: Typ.t, t2: Typ.t): t => {
     // TODO (Anthony): Other cases for label casting?
-    let islabel =
+    let (islabel, lab) =
       switch (t2) {
-      | Label(_, Unknown(SynSwitch)) => true
-      | _ => false
+      | Label(s, Unknown(SynSwitch)) => (true, s)
+      | _ => (false, "")
       };
-    if (Typ.eq(t1, t2) || t2 == Unknown(SynSwitch) || islabel) {
+    if (Typ.eq(t1, t2) || t2 == Unknown(SynSwitch)) {
       d;
+    } else if (islabel) {
+      TupLabel(lab, d);
     } else {
       Cast(d, t1, t2);
     };
@@ -267,13 +276,6 @@ module rec DHExp: {
     | (ListConcat(d11, d21), ListConcat(d12, d22)) =>
       fast_equal(d11, d12) && fast_equal(d21, d22)
     | (Tuple(ds1), Tuple(ds2)) =>
-      let filt: t => (option(LabeledTuple.t), t) = (
-        d =>
-          switch (d) {
-          | TupLabel(s, d') => (Some(s), d')
-          | _ => (None, d)
-          }
-      );
       let f = (b, ds1_val, ds2_val) => {
         switch (b) {
         | false => false
@@ -281,7 +283,15 @@ module rec DHExp: {
         };
       };
       List.length(ds1) == List.length(ds2)
-      && LabeledTuple.ana_tuple(filt, filt, f, true, false, ds1, ds2);
+      && LabeledTuple.ana_tuple(
+           get_label,
+           get_label,
+           f,
+           true,
+           false,
+           ds1,
+           ds2,
+         );
     | (Dot(d1, s1), Dot(d2, s2)) =>
       LabeledTuple.compare(s1, s2) == 0 && d1 == d2
     | (Prj(d1, n), Prj(d2, m)) => n == m && fast_equal(d1, d2)

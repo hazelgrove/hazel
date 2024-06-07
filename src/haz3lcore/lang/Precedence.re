@@ -24,16 +24,17 @@ let or_ = 12;
 let ann = 13;
 let if_ = 14;
 let fun_ = 15;
-let prod = 16;
-let semi = 17;
-let let_ = 18;
-let filter = 19;
-let rule_arr = 20;
-let rule_pre = 21;
-let rule_sep = 22;
-let case_ = 23;
+let lab = 16;
+let prod = 17;
+let semi = 18;
+let let_ = 19;
+let filter = 20;
+let rule_arr = 21;
+let rule_pre = 22;
+let rule_sep = 23;
+let case_ = 24;
 
-let min = 24;
+let min = 25;
 
 let compare = (p1: t, p2: t): int =>
   (-1) * Int.compare((p1 :> int), (p2 :> int));

@@ -427,6 +427,13 @@ module UPat = {
     | Constructor(name) => Some(name)
     | _ => None
     };
+
+  let get_label: t => option((LabeledTuple.t, t)) =
+    p =>
+      switch (p.term) {
+      | TupLabel(s, p') => Some((s, p'))
+      | _ => None
+      };
 };
 
 module UExp = {
@@ -604,22 +611,22 @@ module UExp = {
     | UnOp(op) => show_unop(op)
     | Match => "Case expression";
 
+  let get_label: t => option((LabeledTuple.t, t)) =
+    e =>
+      switch (e.term) {
+      | TupLabel(s, e') => Some((s, e'))
+      | _ => None
+      };
+
   let rec is_fun = (e: t) => {
     switch (e.term) {
     | Parens(e) => is_fun(e)
     | TupLabel(_, e) => is_fun(e)
     | Fun(_) => true
     | Dot(e, s) =>
-      let filt: t => option(LabeledTuple.t) = (
-        e =>
-          switch (e.term) {
-          | TupLabel(s, _) => Some(s)
-          | _ => None
-          }
-      );
       let element: option(t) =
         switch (e.term) {
-        | Tuple(ts) => LabeledTuple.find_label(filt, ts, s)
+        | Tuple(ts) => LabeledTuple.find_label(get_label, ts, s)
         | _ => None // TODO (Anthony): other exps
         };
       switch (element) {
@@ -662,16 +669,9 @@ module UExp = {
       | TupLabel(_, e) => is_tuple_of_functions(e)
       | Tuple(es) => es |> List.for_all(is_fun)
       | Dot(e, s) =>
-        let filt: t => option(LabeledTuple.t) = (
-          e =>
-            switch (e.term) {
-            | TupLabel(s, _) => Some(s)
-            | _ => None
-            }
-        );
         let element: option(t) =
           switch (e.term) {
-          | Tuple(ts) => LabeledTuple.find_label(filt, ts, s)
+          | Tuple(ts) => LabeledTuple.find_label(get_label, ts, s)
           | _ => None // TODO (Anthony): other exps
           };
         switch (element) {

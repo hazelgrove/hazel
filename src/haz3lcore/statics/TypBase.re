@@ -55,7 +55,7 @@ module rec Typ: {
   let matched_arrow: (Ctx.t, t) => (t, t);
   let matched_label: (Ctx.t, t) => t;
   let matched_prod:
-    (Ctx.t, list('a), 'a => (option(LabeledTuple.t), 'a), t) => list(t);
+    (Ctx.t, list('a), 'a => option((LabeledTuple.t, 'a)), t) => list(t);
   let matched_list: (Ctx.t, t) => t;
   let precedence: t => int;
   let subst: (t, TypVar.t, t) => t;
@@ -71,6 +71,7 @@ module rec Typ: {
   let sum_entry: (Constructor.t, sum_map) => option(sum_entry);
   let get_sum_constructors: (Ctx.t, t) => option(sum_map);
   let is_unknown: t => bool;
+  let get_label: t => option((LabeledTuple.t, t));
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type type_provenance =
@@ -165,6 +166,11 @@ module rec Typ: {
     | _ => ty
     };
 
+  let get_label: t => option((LabeledTuple.t, t)) =
+    fun
+    | Label(s, t') => Some((s, t'))
+    | _ => None;
+
   /* Type Equality: At the moment, this coincides with alpha equivalence,
      but this will change when polymorphic types are implemented */
   let rec eq = (t1: t, t2: t): bool => {
@@ -187,13 +193,6 @@ module rec Typ: {
     | (Arrow(t1, t2), Arrow(t1', t2')) => eq(t1, t1') && eq(t2, t2')
     | (Arrow(_), _) => false
     | (Prod(tys1), Prod(tys2)) =>
-      let filt: t => (option(LabeledTuple.t), t) = (
-        d =>
-          switch (d) {
-          | Label(s, d') => (Some(s), d')
-          | _ => (None, d)
-          }
-      );
       let f = (b, tys1_val, tys2_val) => {
         switch (b) {
         | false => false
@@ -203,8 +202,24 @@ module rec Typ: {
       // TODO (Anthony): optimize to work both way intead of run-twice hack.
       List.length(tys1) == List.length(tys2)
       && (
-        LabeledTuple.ana_tuple(filt, filt, f, true, false, tys1, tys2)
-        || LabeledTuple.ana_tuple(filt, filt, f, true, false, tys2, tys1)
+        LabeledTuple.ana_tuple(
+          get_label,
+          get_label,
+          f,
+          true,
+          false,
+          tys1,
+          tys2,
+        )
+        || LabeledTuple.ana_tuple(
+             get_label,
+             get_label,
+             f,
+             true,
+             false,
+             tys2,
+             tys1,
+           )
       );
     | (Prod(_), _) => false
     | (List(t1), List(t2)) => eq(t1, t2)
@@ -309,120 +324,19 @@ module rec Typ: {
       Arrow(ty1, ty2);
     | (Arrow(_), _) => None
     | (Prod(tys1), Prod(tys2)) =>
-      let filt: t => option(LabeledTuple.t) = (
-        d =>
-          switch (d) {
-          | Label(s, _) => Some(s)
-          | _ => None
-          }
-      );
-      let filt2: t => (option(LabeledTuple.t), t) = (
-        d =>
-          switch (d) {
-          | Label(s, ty) => (Some(s), ty)
-          | ty => (None, ty)
-          }
-      );
       //TODO (Anthony): Clean up the repetition
-      let (l1_valid, l1_lab, _) =
-        LabeledTuple.validate_uniqueness(filt, tys1);
-      let (l2_valid, l2_lab, _) =
-        LabeledTuple.validate_uniqueness(filt, tys2);
-      let l1 = List.map(filt2, tys1);
-      let l2_matched =
-        List.fold_left(
-          (l2_matched, l1_item) => {
-            let l2_item =
-              LabeledTuple.find_opt(
-                l2_item => {
-                  switch (l1_item, l2_item) {
-                  | ((Some(s1), _), (Some(s2), _)) => compare(s1, s2) == 0
-                  | (_, _) => false
-                  }
-                },
-                l2_lab,
-              );
-            switch (l2_item) {
-            | Some((_, l2_val)) => l2_matched @ [filt2(l2_val)]
-            | None => l2_matched
-            };
-          },
-          [],
-          l1_lab,
-        );
-      // TODO (Anthony): clean up error handling
-      // if (!l1_valid
-      //     || !l2_valid
-      //     || List.length(l2_matched) != List.length(l1_lab)) {
-      // let* tys = Some(List.init(List.length(tys1), _ => None));
-      // let+ tys = OptUtil.sequence(tys);
-      // Prod(tys);
-      // }
+      let (l1_valid, _, _) =
+        LabeledTuple.validate_uniqueness(get_label, tys1);
+      let (l2_valid, _, _) =
+        LabeledTuple.validate_uniqueness(get_label, tys2);
       if (!l1_valid || !l2_valid || List.length(tys1) != List.length(tys2)) {
-        print_endline("Tuple join fail");
         None;
       } else {
-        let l2_rem =
-          List.fold_left(
-            (l2_rem, item) => {
-              let lab_opt = filt2(item);
-              switch (lab_opt) {
-              | (Some(s1), _)
-                  when
-                    List.exists(
-                      l => {
-                        switch (l) {
-                        | (Some(s2), _) => compare(s1, s2) == 0
-                        | _ => false
-                        }
-                      },
-                      l2_matched,
-                    ) => l2_rem
-              | (Some(s), it) => l2_rem @ [Label(s, it)]
-              | (None, it) => l2_rem @ [it]
-              };
-            },
-            [],
-            tys2,
+        let tys2 =
+          LabeledTuple.rearrange(get_label, get_label, tys1, tys2, (t, b) =>
+            Label(t, b)
           );
-        let rec f =
-                (l1: list('a), l2_matched: list('a), l2_rem: list('b))
-                : list(option(t)) =>
-          switch (l1) {
-          | [hd, ...tl] =>
-            switch (hd) {
-            | (Some(s1), l1_val) =>
-              switch (l2_matched) {
-              | [] =>
-                switch (l2_rem) {
-                | [hd2, ...tl2] =>
-                  [join'(Label(s1, l1_val), hd2)] @ f(tl, l2_matched, tl2)
-                | [] => [None] @ f(tl, l2_matched, l2_rem) // should never happen
-                }
-              | [hd2, ...tl2] =>
-                switch (hd2) {
-                | (Some(s2), l2_val) when LabeledTuple.compare(s1, s2) == 0 =>
-                  [join'(Label(s1, l1_val), Label(s2, l2_val))]
-                  @ f(tl, tl2, l2_rem)
-                | _ =>
-                  switch (l2_rem) {
-                  | [hd2, ...tl2] =>
-                    [join'(Label(s1, l1_val), hd2)]
-                    @ f(tl, l2_matched, tl2)
-                  | [] => [None] @ f(tl, l2_matched, l2_rem) // should never happen
-                  }
-                }
-              }
-            | (None, l1_val) =>
-              switch (l2_rem) {
-              | [hd2, ...tl2] =>
-                [join'(l1_val, hd2)] @ f(tl, l2_matched, tl2)
-              | [] => [None] @ f(tl, l2_matched, l2_rem) // should never happen
-              }
-            }
-          | [] => []
-          };
-        let* tys = Some(f(l1, l2_matched, l2_rem));
+        let* tys = ListUtil.map2_opt(join', tys1, tys2);
         let+ tys = OptUtil.sequence(tys);
         Prod(tys);
       };
@@ -527,113 +441,20 @@ module rec Typ: {
     | _ => Unknown(Internal)
     };
 
-  let matched_prod = (ctx, ts, filt, ty) => {
+  let matched_prod = (ctx, ts, get_label_ts, ty) => {
     //TODO (Anthony): Clean up the repetition
-    let filt2 = d =>
-      switch (d) {
-      | Label(s, d') => (Some(s), d')
-      | _ => (None, d)
-      };
-    let filt_lab = d =>
-      switch (filt(d)) {
-      | (Some(s), _) => Some(s)
-      | (None, _) => None
-      };
-    let filt2_lab = d =>
-      switch (d) {
-      | Label(s, _) => Some(s)
-      | _ => None
-      };
     switch (weak_head_normalize(ctx, ty)) {
     | Prod(tys) =>
-      let (l1_valid, l1_lab, _) =
-        LabeledTuple.validate_uniqueness(filt_lab, ts);
-      let (l2_valid, l2_lab, _) =
-        LabeledTuple.validate_uniqueness(filt2_lab, tys);
-      let l2_matched =
-        List.fold_left(
-          (l2_matched, l1_item) => {
-            let l2_item =
-              LabeledTuple.find_opt(
-                l2_item => {
-                  switch (l1_item, l2_item) {
-                  | ((Some(s1), _), (Some(s2), _)) => compare(s1, s2) == 0
-                  | (_, _) => false
-                  }
-                },
-                l2_lab,
-              );
-            switch (l2_item) {
-            | Some(l2_item) => l2_matched @ [l2_item]
-            | None => l2_matched
-            };
-          },
-          [],
-          l1_lab,
-        );
-      if (!l1_valid
-          || !l2_valid
-          || List.length(l2_matched) != List.length(l1_lab)) {
+      let (l1_valid, _, _) =
+        LabeledTuple.validate_uniqueness(get_label_ts, ts);
+      let (l2_valid, _, _) =
+        LabeledTuple.validate_uniqueness(get_label, tys);
+      if (!l1_valid || !l2_valid || List.length(ts) != List.length(tys)) {
         List.init(List.length(ts), _ => Unknown(Internal));
       } else {
-        let l2_rem =
-          List.fold_left(
-            (l2_rem, item) => {
-              let lab_opt = filt2(item);
-              switch (lab_opt) {
-              | (Some(s1), _)
-                  when
-                    List.exists(
-                      l => {
-                        switch (l) {
-                        | (Some(s2), _) => compare(s1, s2) == 0
-                        | _ => false
-                        }
-                      },
-                      l2_matched,
-                    ) => l2_rem
-              | (Some(_), it)
-              | (None, it) => l2_rem @ [it]
-              };
-            },
-            [],
-            tys,
-          );
-        let rec f =
-                (l1: list('a), l2_matched: list('b), l2_rem: list('c))
-                : list(t) =>
-          switch (l1) {
-          | [hd, ...tl] =>
-            switch (filt_lab(hd)) {
-            | Some(s1) =>
-              switch (l2_matched) {
-              | [] => [Unknown(Internal)] @ f(tl, l2_matched, l2_rem) // should never happen
-              | [hd2, ...tl2] =>
-                switch (hd2) {
-                | (Some(s2), l2_val) when LabeledTuple.compare(s1, s2) == 0 =>
-                  [l2_val] @ f(tl, tl2, l2_rem)
-                | _ =>
-                  switch (l2_rem) {
-                  | [hd2, ...tl2] =>
-                    switch (hd2) {
-                    | Label(_) =>
-                      [Unknown(Internal)] @ f(tl, l2_matched, l2_rem)
-                    | _ => [Label(s1, hd2)] @ f(tl, l2_matched, tl2)
-                    }
-                  | [] => [Unknown(Internal)] @ f(tl, l2_matched, l2_rem)
-                  }
-                }
-              }
-            | None =>
-              switch (l2_rem) {
-              | [hd2, ...tl2] => [hd2] @ f(tl, l2_matched, tl2)
-              | [] => [Unknown(Internal)] @ f(tl, l2_matched, l2_rem)
-              }
-            }
-          | [] => []
-          };
-        let tys = f(ts, l2_matched, l2_rem);
-        tys;
+        LabeledTuple.rearrange(get_label_ts, get_label, ts, tys, (t, b) =>
+          Label(t, b)
+        );
       };
     | Unknown(SynSwitch) =>
       List.init(List.length(ts), _ => Unknown(SynSwitch))

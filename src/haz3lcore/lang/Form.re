@@ -278,9 +278,9 @@ let forms: list((string, t)) = [
   ("cons_exp", mk_infix("::", Exp, P.cons)),
   ("cons_pat", mk_infix("::", Pat, P.cons)),
   ("typeann", mk(ss, [":"], mk_bin'(P.ann, Pat, Pat, [], Typ))),
-  ("tuple_label_exp", mk(ss, ["="], mk_bin'(P.ann, Exp, Pat, [], Exp))), // TODO: Rename
-  ("tuple_label_pat", mk(ss, ["="], mk_bin'(P.ann, Pat, Pat, [], Pat))), // TODO: Rename
-  ("tuple_label_typ", mk(ss, ["="], mk_bin'(P.ann, Typ, Pat, [], Typ))), // TODO: Rename
+  ("tuple_label_exp", mk(ss, ["="], mk_bin'(P.lab, Exp, Pat, [], Exp))), // TODO: Rename
+  ("tuple_label_pat", mk(ss, ["="], mk_bin'(P.lab, Pat, Pat, [], Pat))), // TODO: Rename
+  ("tuple_label_typ", mk(ss, ["="], mk_bin'(P.lab, Typ, Pat, [], Typ))), // TODO: Rename
   ("dot_exp", mk(ss, ["."], mk_bin'(P.dot, Exp, Exp, [], Pat))), // TODO: Check precedence
   // ("dot_pat", mk(ss, ["."], mk_bin'(P.dot, Pat, Pat, [], Pat))), // Only for exp?
   // ("dot_typ", mk(ss, ["."], mk_bin'(P.dot, Typ, Typ, [], Pat))), // Only for exp?
