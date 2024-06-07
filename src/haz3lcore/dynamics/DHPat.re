@@ -5,7 +5,6 @@ type t =
   | EmptyHole(MetaVar.t, MetaVarInst.t)
   | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, MetaVarInst.t, t)
   | Wild
-  | ExpandingKeyword(MetaVar.t, MetaVarInst.t, ExpandingKeyword.t)
   | InvalidText(MetaVar.t, MetaVarInst.t, string)
   | BadConstructor(MetaVar.t, MetaVarInst.t, string)
   | Var(Var.t)
@@ -40,8 +39,7 @@ let rec binds_var = (x: Var.t, dp: t): bool =>
   | FloatLit(_)
   | BoolLit(_)
   | StringLit(_)
-  | Constructor(_)
-  | ExpandingKeyword(_, _, _) => false
+  | Constructor(_) => false
   | Var(y) => Var.eq(x, y)
   | TupLabel(_, dp) => binds_var(x, dp)
   | Tuple(dps) => dps |> List.exists(binds_var(x))
@@ -63,8 +61,7 @@ let rec bound_vars = (dp: t): list(Var.t) =>
   | FloatLit(_)
   | BoolLit(_)
   | StringLit(_)
-  | Constructor(_)
-  | ExpandingKeyword(_, _, _) => []
+  | Constructor(_) => []
   | Var(y) => [y]
   | TupLabel(_, dp) => bound_vars(dp)
   | Tuple(dps) => List.flatten(List.map(bound_vars, dps))

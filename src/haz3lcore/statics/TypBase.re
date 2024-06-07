@@ -34,6 +34,7 @@ module rec Typ: {
     | Prod(list(t))
     | Rec(TypVar.t, t)
     | Label(string, t)
+    | Forall(TypVar.t, t)
   and sum_map = ConstructorMap.t(option(t));
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -53,10 +54,12 @@ module rec Typ: {
   let join_type_provenance:
     (type_provenance, type_provenance) => type_provenance;
   let matched_arrow: (Ctx.t, t) => (t, t);
+  let matched_forall: (Ctx.t, t) => (option(string), t);
   let matched_label: (Ctx.t, t) => t;
   let matched_prod:
     (Ctx.t, list('a), 'a => option((LabeledTuple.t, 'a)), t) => list(t);
   let matched_list: (Ctx.t, t) => t;
+  let matched_args: (Ctx.t, int, t) => list(t);
   let precedence: t => int;
   let subst: (t, TypVar.t, t) => t;
   let unroll: t => t;
@@ -72,6 +75,8 @@ module rec Typ: {
   let get_sum_constructors: (Ctx.t, t) => option(sum_map);
   let is_unknown: t => bool;
   let get_label: t => option((LabeledTuple.t, t));
+  let needs_parens: t => bool;
+  let pretty_print: t => string;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type type_provenance =
@@ -95,6 +100,7 @@ module rec Typ: {
     | Prod(list(t))
     | Rec(TypVar.t, t)
     | Label(string, t)
+    | Forall(TypVar.t, t)
   and sum_map = ConstructorMap.t(option(t));
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -135,12 +141,43 @@ module rec Typ: {
     | Unknown(_)
     | Var(_)
     | Rec(_)
-    | Label(_, _) => precedence_Sum
+    | Label(_, _)
+    | Forall(_)
     | Sum(_) => precedence_Sum
     | List(_) => precedence_Const
     | Prod(_) => precedence_Prod
     | Arrow(_, _) => precedence_Arrow
     };
+
+  let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
+    switch (ty) {
+    | Unknown(_)
+    | Int
+    | Float
+    | Bool
+    | String => []
+    | Var(v) => List.mem(v, bound) ? [] : [v]
+    | List(ty) => free_vars(~bound, ty)
+    | Arrow(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
+    | Sum(sm) =>
+      ListUtil.flat_map(
+        fun
+        | None => []
+        | Some(typ) => free_vars(~bound, typ),
+        List.map(snd, sm),
+      )
+    | Prod(tys) => ListUtil.flat_map(free_vars(~bound), tys)
+    | Rec(x, ty) => free_vars(~bound=[x, ...bound], ty)
+    | Label(_, ty) => free_vars(~bound, ty)
+    | Forall(x, ty) => free_vars(~bound=[x, ...bound], ty)
+    };
+
+  let var_count = ref(0);
+  let fresh_var = (var_name: string) => {
+    let x = var_count^;
+    var_count := x + 1;
+    var_name ++ "_α" ++ string_of_int(x);
+  };
 
   let rec subst = (s: t, x: TypVar.t, ty: t) => {
     switch (ty) {
@@ -153,7 +190,15 @@ module rec Typ: {
     | Prod(tys) => Prod(List.map(subst(s, x), tys))
     | Sum(sm) => Sum(ConstructorMap.map(Option.map(subst(s, x)), sm))
     | Rec(y, ty) when TypVar.eq(x, y) => Rec(y, ty)
+    | Rec(y, ty) when List.mem(y, free_vars(s)) =>
+      let fresh = fresh_var(y);
+      Rec(fresh, subst(s, x, subst(Var(fresh), y, ty)));
     | Rec(y, ty) => Rec(y, subst(s, x, ty))
+    | Forall(y, ty) when TypVar.eq(x, y) => Forall(y, ty)
+    | Forall(y, ty) when List.mem(y, free_vars(s)) =>
+      let fresh = fresh_var(y);
+      Forall(fresh, subst(s, x, subst(Var(fresh), y, ty)));
+    | Forall(y, ty) => Forall(y, subst(s, x, ty))
     | List(ty) => List(subst(s, x, ty))
     | Var(y) => TypVar.eq(x, y) ? s : Var(y)
     | Label(st, ty) => Label(st, subst(s, x, ty))
@@ -165,21 +210,28 @@ module rec Typ: {
     | Rec(x, ty_body) => subst(ty, x, ty_body)
     | _ => ty
     };
-
   let get_label: t => option((LabeledTuple.t, t)) =
     fun
     | Label(s, t') => Some((s, t'))
     | _ => None;
 
-  /* Type Equality: At the moment, this coincides with alpha equivalence,
-     but this will change when polymorphic types are implemented */
-  let rec eq = (t1: t, t2: t): bool => {
+  /* Type Equality: This coincides with alpha equivalence for normalized types.
+     Other types may be equivalent but this will not detect so if they are not normalized. */
+  let rec eq_internal = (n: int, t1: t, t2: t) => {
     switch (t1, t2) {
-    | (Label(s1, t1), Label(s2, t2)) => compare(s1, s2) == 0 && eq(t1, t2)
-    | (Label(_, t1), t2) => eq(t1, t2)
-    | (t1, Label(_, t2)) => eq(t1, t2)
-    | (Rec(x1, t1), Rec(x2, t2)) => eq(t1, subst(Var(x1), x2, t2))
+    | (Label(s1, t1), Label(s2, t2)) =>
+      compare(s1, s2) == 0 && eq_internal(n, t1, t2)
+    | (Label(_, t1), t2) => eq_internal(n, t1, t2)
+    | (t1, Label(_, t2)) => eq_internal(n, t1, t2)
+    | (Rec(x1, t1), Rec(x2, t2))
+    | (Forall(x1, t1), Forall(x2, t2)) =>
+      eq_internal(
+        n + 1,
+        subst(Var("=" ++ string_of_int(n)), x1, t1),
+        subst(Var("=" ++ string_of_int(n)), x2, t2),
+      )
     | (Rec(_), _) => false
+    | (Forall(_), _) => false
     | (Int, Int) => true
     | (Int, _) => false
     | (Float, Float) => true
@@ -190,13 +242,14 @@ module rec Typ: {
     | (String, _) => false
     | (Unknown(_), Unknown(_)) => true
     | (Unknown(_), _) => false
-    | (Arrow(t1, t2), Arrow(t1', t2')) => eq(t1, t1') && eq(t2, t2')
+    | (Arrow(t1, t2), Arrow(t1', t2')) =>
+      eq_internal(n, t1, t1') && eq_internal(n, t2, t2')
     | (Arrow(_), _) => false
     | (Prod(tys1), Prod(tys2)) =>
       let f = (b, tys1_val, tys2_val) => {
         switch (b) {
         | false => false
-        | true => eq(tys1_val, tys2_val)
+        | true => eq_internal(n, tys1_val, tys2_val)
         };
       };
       // TODO (Anthony): optimize to work both way intead of run-twice hack.
@@ -222,37 +275,18 @@ module rec Typ: {
            )
       );
     | (Prod(_), _) => false
-    | (List(t1), List(t2)) => eq(t1, t2)
+    | (List(t1), List(t2)) => eq_internal(n, t1, t2)
     | (List(_), _) => false
     | (Sum(sm1), Sum(sm2)) =>
-      ConstructorMap.equal(Option.equal(eq), sm1, sm2)
+      /* Does not normalize the types. */
+      ConstructorMap.equal(Option.equal(eq_internal(n)), sm1, sm2)
     | (Sum(_), _) => false
     | (Var(n1), Var(n2)) => n1 == n2
     | (Var(_), _) => false
     };
   };
 
-  let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
-    switch (ty) {
-    | Unknown(_)
-    | Int
-    | Float
-    | Bool
-    | String => []
-    | Var(v) => List.mem(v, bound) ? [] : [v]
-    | List(ty) => free_vars(~bound, ty)
-    | Arrow(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
-    | Sum(sm) =>
-      ListUtil.flat_map(
-        fun
-        | None => []
-        | Some(typ) => free_vars(~bound, typ),
-        List.map(snd, sm),
-      )
-    | Prod(tys) => ListUtil.flat_map(free_vars(~bound), tys)
-    | Rec(x, ty) => free_vars(~bound=[x, ...bound], ty)
-    | Label(_, ty) => free_vars(~bound, ty)
-    };
+  let eq = (t1: t, t2: t): bool => eq_internal(0, t1, t2);
 
   /* Lattice join on types. This is a LUB join in the hazel2
      sense in that any type dominates Unknown. The optional
@@ -271,7 +305,7 @@ module rec Typ: {
     | (Unknown(p1), Unknown(p2)) =>
       Some(Unknown(join_type_provenance(p1, p2)))
     | (Unknown(_), ty)
-    | (ty, Unknown(Internal | SynSwitch)) => Some(ty)
+    | (ty, Unknown(_)) => Some(ty)
     | (Var(n1), Var(n2)) =>
       if (n1 == n2) {
         Some(Var(n1));
@@ -298,18 +332,23 @@ module rec Typ: {
     | (Label(_, ty1), ty) => join'(ty1, ty)
     | (ty, Label(_, ty2)) => join'(ty, ty2)
     | (Rec(x1, ty1), Rec(x2, ty2)) =>
-      /* TODO:
-           This code isn't fully correct, as we may be doing
-           substitution on open terms; if x1 occurs in ty2,
-           we should be substituting x1 for a fresh variable
-           in ty2. This is annoying, and should be obviated
-           by the forthcoming debruijn index implementation
-         */
       let ctx = Ctx.extend_dummy_tvar(ctx, x1);
       let+ ty_body =
-        join(~resolve, ~fix, ctx, ty1, subst(Var(x1), x2, ty2));
+        join(~resolve, ~fix, ctx, subst(Var(x2), x1, ty1), ty2);
       Rec(x1, ty_body);
+    | (Forall(x1, ty1), Forall(x2, ty2)) =>
+      let ctx = Ctx.extend_dummy_tvar(ctx, x1);
+      let+ ty_body =
+        join(~resolve, ~fix, ctx, subst(Var(x2), x1, ty1), ty2);
+      Forall(x1, ty_body);
+    /* Note for above: there is no danger of free variable capture as
+       subst itself performs capture avoiding substitution. However this
+       may generate internal type variable names that in corner cases can
+       be exposed to the user. We preserve the variable name of the
+       second type to preserve synthesized type variable names, which
+       come from user annotations. */
     | (Rec(_), _) => None
+    | (Forall(_), _) => None
     | (Int, Int) => Some(Int)
     | (Int, _) => None
     | (Float, Float) => Some(Float)
@@ -423,6 +462,8 @@ module rec Typ: {
          surface syntax, so we won't try to jump to them. */
       Rec(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty))
     | Label(s, t) => Label(s, normalize(ctx, t))
+    | Forall(name, ty) =>
+      Forall(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty))
     };
   };
 
@@ -433,8 +474,14 @@ module rec Typ: {
     | _ => (Unknown(Internal), Unknown(Internal))
     };
 
+  let matched_forall = (ctx, ty) =>
+    switch (weak_head_normalize(ctx, ty)) {
+    | Forall(t, ty) => (Some(t), ty)
+    | Unknown(SynSwitch) => (None, Unknown(SynSwitch))
+    | _ => (None, Unknown(Internal))
+    };
+
   let matched_label = (ctx, ty) =>
-    // "true" is for if the label statics are Label(s, ty); "false" for ty
     switch (weak_head_normalize(ctx, ty)) {
     | Label(_, ty) => ty
     | Unknown(SynSwitch) => Unknown(SynSwitch)
@@ -467,6 +514,13 @@ module rec Typ: {
     | List(ty) => ty
     | Unknown(SynSwitch) => Unknown(SynSwitch)
     | _ => Unknown(Internal)
+    };
+
+  let matched_args = (ctx, default_arity, ty) =>
+    switch (weak_head_normalize(ctx, ty)) {
+    | Prod([_, ..._] as tys) => tys
+    | Unknown(_) as ty_unknown => List.init(default_arity, _ => ty_unknown)
+    | _ as ty => [ty]
     };
 
   let sum_entry = (ctr: Constructor.t, ctrs: sum_map): option(sum_entry) =>
@@ -514,7 +568,73 @@ module rec Typ: {
     | Unknown(_) => true
     | _ => false
     };
+
+  /* Does the type require parentheses when on the left of an arrow for printing? */
+  let needs_parens = (ty: t): bool =>
+    switch (ty) {
+    | Unknown(_)
+    | Int
+    | Float
+    | String
+    | Bool
+    | Label(_)
+    | Var(_) => false
+    | Rec(_, _)
+    | Forall(_, _) => true
+    | List(_) => false /* is already wrapped in [] */
+    | Arrow(_, _) => true
+    | Prod(_)
+    | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
+    };
+
+  /* Essentially recreates haz3lweb/view/Type.re's view_ty but with string output */
+  let rec pretty_print = (ty: t): string =>
+    switch (ty) {
+    | Unknown(_) => "?"
+    | Int => "Int"
+    | Float => "Float"
+    | Bool => "Bool"
+    | String => "String"
+    | Var(tvar) => tvar
+    | List(t) => "[" ++ pretty_print(t) ++ "]"
+    | Arrow(t1, t2) => paren_pretty_print(t1) ++ "->" ++ pretty_print(t2)
+    | Sum(sm) =>
+      switch (sm) {
+      | [] => "+?"
+      | [t0] => "+" ++ ctr_pretty_print(t0)
+      | [t0, ...ts] =>
+        List.fold_left(
+          (acc, t) => acc ++ "+" ++ ctr_pretty_print(t),
+          ctr_pretty_print(t0),
+          ts,
+        )
+      }
+    | Label(s, t) => s ++ "=" ++ pretty_print(t)
+    | Prod([]) => "()"
+    | Prod([t0, ...ts]) =>
+      "("
+      ++ List.fold_left(
+           (acc, t) => acc ++ ", " ++ pretty_print(t),
+           pretty_print(t0),
+           ts,
+         )
+      ++ ")"
+    | Rec(tv, t) => "rec " ++ tv ++ "->" ++ pretty_print(t)
+    | Forall(tv, t) => "forall " ++ tv ++ "->" ++ pretty_print(t)
+    }
+  and ctr_pretty_print = ((ctr, typ)) =>
+    switch (typ) {
+    | None => ctr
+    | Some(typ) => ctr ++ "(" ++ pretty_print(typ) ++ ")"
+    }
+  and paren_pretty_print = typ =>
+    if (needs_parens(typ)) {
+      "(" ++ pretty_print(typ) ++ ")";
+    } else {
+      pretty_print(typ);
+    };
 }
+
 and Ctx: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type var_entry = {
@@ -549,6 +669,7 @@ and Ctx: {
   let lookup_var: (t, string) => option(var_entry);
   let lookup_ctr: (t, string) => option(var_entry);
   let is_alias: (t, TypVar.t) => bool;
+  let is_abstract: (t, TypVar.t) => bool;
   let add_ctrs: (t, TypVar.t, Id.t, Typ.sum_map) => t;
   let subtract_prefix: (t, t) => option(t);
   let added_bindings: (t, t) => t;
@@ -632,6 +753,12 @@ and Ctx: {
     | None => false
     };
 
+  let is_abstract = (ctx: t, name: TypVar.t): bool =>
+    switch (lookup_tvar(ctx, name)) {
+    | Some({kind: Abstract, _}) => true
+    | _ => false
+    };
+
   let add_ctrs = (ctx: t, name: TypVar.t, id: Id.t, ctrs: Typ.sum_map): t =>
     List.map(
       ((ctr, typ)) =>
@@ -696,7 +823,7 @@ and Ctx: {
     |> (((ctx, _, _)) => List.rev(ctx));
 
   let shadows_typ = (ctx: t, name: TypVar.t): bool =>
-    Form.is_base_typ(name) || lookup_alias(ctx, name) != None;
+    Form.is_base_typ(name) || is_alias(ctx, name) || is_abstract(ctx, name);
 }
 and Kind: {
   [@deriving (show({with_path: false}), sexp, yojson)]

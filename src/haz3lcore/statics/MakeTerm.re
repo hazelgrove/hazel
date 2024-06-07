@@ -150,6 +150,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     | ([(_id, t)], []) =>
       switch (t) {
       | ([t], []) when Form.is_empty_tuple(t) => ret(Triv)
+      | ([t], []) when Form.is_wild(t) => ret(Deferral(OutsideAp))
       | ([t], []) when Form.is_empty_list(t) => ret(ListLit([]))
       | ([t], []) when Form.is_bool(t) => ret(Bool(bool_of_string(t)))
       | ([t], []) when Form.is_int(t) => ret(Int(int_of_string(t)))
@@ -184,6 +185,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         | (["-"], []) => UnOp(Int(Minus), r)
         | (["!"], []) => UnOp(Bool(Not), r)
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r)
+        | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
         | (["hide", "in"], [Exp(filter)]) =>
           Filter((Eval, One), filter, r)
@@ -208,7 +210,27 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       switch (t) {
       | (["()"], []) =>
         ret(Ap(l, {ids: [Id.nullary_ap_flag], term: Triv}))
-      | (["(", ")"], [Exp(arg)]) => ret(Ap(l, arg))
+      | (["(", ")"], [Exp(arg)]) =>
+        let use_deferral = (arg: UExp.t): UExp.t => {
+          ids: arg.ids,
+          term: Deferral(InAp),
+        };
+        switch (arg.term) {
+        | _ when UExp.is_deferral(arg) =>
+          ret(DeferredAp(l, [use_deferral(arg)]))
+        | Tuple(es) when List.exists(UExp.is_deferral, es) => (
+            DeferredAp(
+              l,
+              List.map(
+                arg => UExp.is_deferral(arg) ? use_deferral(arg) : arg,
+                es,
+              ),
+            ),
+            arg.ids,
+          )
+        | _ => ret(Ap(l, arg))
+        };
+      | (["@<", ">"], [Typ(ty)]) => ret(TypAp(l, ty))
       | _ => ret(hole(tm))
       }
     | _ => ret(hole(tm))
@@ -277,7 +299,6 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
     }
   | tm => ret(hole(tm));
 }
-
 and pat = unsorted => {
   let (term, inner_ids) = pat_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
@@ -389,6 +410,13 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
     | ([(_, (["(", ")"], [Typ(typ)]))], []) => ret(Ap(t, typ))
     | _ => ret(hole(tm))
     }
+  /* forall and rec have to be before sum so that they bind tighter.
+   * Thus `rec A -> Left(A) + Right(B)` get parsed as `rec A -> (Left(A) + Right(B))`
+   * If this is below the case for sum, then it gets parsed as an invalid form. */
+  | Pre(([(_id, (["forall", "->"], [TPat(tpat)]))], []), Typ(t)) =>
+    ret(Forall(tpat, t))
+  | Pre(([(_id, (["rec", "->"], [TPat(tpat)]))], []), Typ(t)) =>
+    ret(Rec(tpat, t))
   | Pre(tiles, Typ({term: Sum(t0), ids})) as tm =>
     /* Case for leading prefix + preceeding a sum */
     switch (tiles) {

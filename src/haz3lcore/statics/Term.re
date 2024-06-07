@@ -17,142 +17,7 @@
    without correponding syntax classes */
 
 include TermBase.Any;
-
 type any = t;
-module UTyp = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type cls =
-    | Invalid
-    | EmptyHole
-    | MultiHole
-    | Int
-    | Float
-    | Bool
-    | String
-    | Arrow
-    | TupLabel
-    | Tuple
-    | Sum
-    | List
-    | Var
-    | Constructor
-    | Parens
-    | Ap;
-
-  include TermBase.UTyp;
-
-  let rep_id = ({ids, _}: t) => {
-    assert(ids != []);
-    List.hd(ids);
-  };
-
-  let hole = (tms: list(any)) =>
-    switch (tms) {
-    | [] => EmptyHole
-    | [_, ..._] => MultiHole(tms)
-    };
-
-  let cls_of_term: term => cls =
-    fun
-    | Invalid(_) => Invalid
-    | EmptyHole => EmptyHole
-    | MultiHole(_) => MultiHole
-    | Int => Int
-    | Float => Float
-    | Bool => Bool
-    | String => String
-    | List(_) => List
-    | Arrow(_) => Arrow
-    | Var(_) => Var
-    | Constructor(_) => Constructor
-    | TupLabel(_) => TupLabel
-    | Tuple(_) => Tuple
-    | Parens(_) => Parens
-    | Ap(_) => Ap
-    | Sum(_) => Sum;
-
-  let show_cls: cls => string =
-    fun
-    | Invalid => "Invalid type"
-    | MultiHole => "Broken type"
-    | EmptyHole => "Empty type hole"
-    | Int
-    | Float
-    | String
-    | Bool => "Base type"
-    | Var => "Type variable"
-    | Constructor => "Sum constructor"
-    | List => "List type"
-    | Arrow => "Function type"
-    | TupLabel => "Labeled Tuple Item type"
-    | Tuple => "Product type"
-    | Sum => "Sum type"
-    | Parens => "Parenthesized type"
-    | Ap => "Constructor application";
-
-  let rec is_arrow = (typ: t) => {
-    switch (typ.term) {
-    | Parens(typ) => is_arrow(typ)
-    | TupLabel(_, typ) => is_arrow(typ)
-    | Arrow(_) => true
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_)
-    | Int
-    | Float
-    | Bool
-    | String
-    | List(_)
-    | Tuple(_)
-    | Var(_)
-    | Constructor(_)
-    | Ap(_)
-    | Sum(_) => false
-    };
-  };
-
-  /* Converts a syntactic type into a semantic type */
-  let rec to_typ: (Ctx.t, t) => Typ.t =
-    (ctx, utyp) =>
-      switch (utyp.term) {
-      | Invalid(_)
-      | MultiHole(_) => Unknown(Internal)
-      | EmptyHole => Unknown(TypeHole)
-      | Bool => Bool
-      | Int => Int
-      | Float => Float
-      | String => String
-      | Var(name) =>
-        switch (Ctx.lookup_tvar(ctx, name)) {
-        | Some(_) => Var(name)
-        | None => Unknown(Free(name))
-        }
-      | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
-      | TupLabel(s, ut) => Label(s, to_typ(ctx, ut))
-      | Tuple(us) => Prod(List.map(to_typ(ctx), us))
-      | Sum(uts) => Sum(to_ctr_map(ctx, uts))
-      | List(u) => List(to_typ(ctx, u))
-      | Parens(u) => to_typ(ctx, u)
-      /* The below cases should occur only inside sums */
-      | Constructor(_)
-      | Ap(_) => Unknown(Internal)
-      }
-  and to_variant:
-    (Ctx.t, variant) => option(ConstructorMap.binding(option(Typ.t))) =
-    ctx =>
-      fun
-      | Variant(ctr, _, u) => Some((ctr, Option.map(to_typ(ctx), u)))
-      | BadEntry(_) => None
-  and to_ctr_map = (ctx: Ctx.t, uts: list(variant)): Typ.sum_map => {
-    List.fold_left(
-      (acc, ut) =>
-        List.find_opt(((ctr, _)) => ctr == fst(ut), acc) == None
-          ? acc @ [ut] : acc,
-      [],
-      List.filter_map(to_variant(ctx), uts),
-    );
-  };
-};
 
 module UTPat = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -184,10 +49,204 @@ module UTPat = {
 
   let show_cls: cls => string =
     fun
-    | Invalid => "Invalid type alias"
-    | MultiHole => "Broken type alias"
-    | EmptyHole => "Empty type alias hole"
-    | Var => "Type alias";
+    | Invalid => "Invalid type binding name"
+    | MultiHole => "Broken type binding"
+    | EmptyHole => "Empty type binding hole"
+    | Var => "Type binding";
+
+  let tyvar_of_utpat = ({ids: _, term}) =>
+    switch (term) {
+    | Var(x) => Some(x)
+    | _ => None
+    };
+};
+
+module UTyp = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type cls =
+    | Invalid
+    | EmptyHole
+    | MultiHole
+    | Int
+    | Float
+    | Bool
+    | String
+    | Arrow
+    | TupLabel
+    | Tuple
+    | Sum
+    | List
+    | Var
+    | Constructor
+    | Parens
+    | Ap
+    | Forall
+    | Rec;
+
+  include TermBase.UTyp;
+
+  let rep_id = ({ids, _}: t) => {
+    assert(ids != []);
+    List.hd(ids);
+  };
+
+  let hole = (tms: list(any)) =>
+    switch (tms) {
+    | [] => EmptyHole
+    | [_, ..._] => MultiHole(tms)
+    };
+
+  let cls_of_term: term => cls =
+    fun
+    | Invalid(_) => Invalid
+    | EmptyHole => EmptyHole
+    | MultiHole(_) => MultiHole
+    | Int => Int
+    | Float => Float
+    | Bool => Bool
+    | String => String
+    | List(_) => List
+    | Arrow(_) => Arrow
+    | Var(_) => Var
+    | Constructor(_) => Constructor
+    | TupLabel(_) => TupLabel
+    | Tuple(_) => Tuple
+    | Parens(_) => Parens
+    | Ap(_) => Ap
+    | Sum(_) => Sum
+    | Forall(_) => Forall
+    | Rec(_) => Rec;
+
+  let show_cls: cls => string =
+    fun
+    | Invalid => "Invalid type"
+    | MultiHole => "Broken type"
+    | EmptyHole => "Empty type hole"
+    | Int
+    | Float
+    | String
+    | Bool => "Base type"
+    | Var => "Type variable"
+    | Constructor => "Sum constructor"
+    | List => "List type"
+    | Arrow => "Function type"
+    | TupLabel => "Labeled Tuple Item type"
+    | Tuple => "Product type"
+    | Sum => "Sum type"
+    | Parens => "Parenthesized type"
+    | Ap => "Constructor application"
+    | Forall => "Forall Type"
+    | Rec => "Recursive Type";
+
+  let rec is_arrow = (typ: t) => {
+    switch (typ.term) {
+    | Parens(typ)
+    | TupLabel(_, typ) => is_arrow(typ)
+    | Arrow(_) => true
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Int
+    | Float
+    | Bool
+    | String
+    | List(_)
+    | Tuple(_)
+    | Var(_)
+    | Constructor(_)
+    | Ap(_)
+    | Sum(_)
+    | Forall(_)
+    | Rec(_) => false
+    };
+  };
+
+  let rec is_forall = (typ: t) => {
+    switch (typ.term) {
+    | Parens(typ)
+    | TupLabel(_, typ) => is_forall(typ)
+    | Forall(_) => true
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Int
+    | Float
+    | Bool
+    | String
+    | Arrow(_)
+    | List(_)
+    | Tuple(_)
+    | Var(_)
+    | Constructor(_)
+    | Ap(_)
+    | Sum(_)
+    | Rec(_) => false
+    };
+  };
+
+  /* Converts a syntactic type into a semantic type */
+  let rec to_typ: (Ctx.t, t) => Typ.t =
+    (ctx, utyp) =>
+      switch (utyp.term) {
+      | Invalid(_)
+      | MultiHole(_) => Unknown(Internal)
+      | EmptyHole => Unknown(TypeHole)
+      | Bool => Bool
+      | Int => Int
+      | Float => Float
+      | String => String
+      | Var(name) =>
+        switch (Ctx.lookup_tvar(ctx, name)) {
+        | Some(_) => Var(name)
+        | None => Unknown(Free(name))
+        }
+      | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
+      | TupLabel(s, ut) => Label(s, to_typ(ctx, ut))
+      | Tuple(us) => Prod(List.map(to_typ(ctx), us))
+      | Sum(uts) => Sum(to_ctr_map(ctx, uts))
+      | List(u) => List(to_typ(ctx, u))
+      | Parens(u) => to_typ(ctx, u)
+      | Forall({term: Var(name), _} as utpat, tbody) =>
+        let ctx =
+          Ctx.extend_tvar(
+            ctx,
+            {name, id: UTPat.rep_id(utpat), kind: Abstract},
+          );
+        Forall(name, to_typ(ctx, tbody));
+      // Rec is same as Forall
+      | Rec({term: Var(name), _} as utpat, tbody) =>
+        let ctx =
+          Ctx.extend_tvar(
+            ctx,
+            {name, id: UTPat.rep_id(utpat), kind: Abstract},
+          );
+        Rec(name, to_typ(ctx, tbody));
+      | Forall({term: Invalid(_), _}, tbody)
+      | Forall({term: EmptyHole, _}, tbody)
+      | Forall({term: MultiHole(_), _}, tbody) =>
+        Forall("?", to_typ(ctx, tbody))
+      | Rec({term: Invalid(_), _}, tbody)
+      | Rec({term: EmptyHole, _}, tbody)
+      | Rec({term: MultiHole(_), _}, tbody) => Rec("?", to_typ(ctx, tbody))
+      /* The below cases should occur only inside sums */
+      | Constructor(_)
+      | Ap(_) => Unknown(Internal)
+      }
+  and to_variant:
+    (Ctx.t, variant) => option(ConstructorMap.binding(option(Typ.t))) =
+    ctx =>
+      fun
+      | Variant(ctr, _, u) => Some((ctr, Option.map(to_typ(ctx), u)))
+      | BadEntry(_) => None
+  and to_ctr_map = (ctx: Ctx.t, uts: list(variant)): Typ.sum_map => {
+    List.fold_left(
+      (acc, ut) =>
+        List.find_opt(((ctr, _)) => ctr == fst(ut), acc) == None
+          ? acc @ [ut] : acc,
+      [],
+      List.filter_map(to_variant(ctx), uts),
+    );
+  };
 };
 
 module UPat = {
@@ -269,10 +328,10 @@ module UPat = {
 
   let rec is_var = (pat: t) => {
     switch (pat.term) {
-    | Parens(pat) => is_var(pat)
-    | TupLabel(_, pat) => is_var(pat)
+    | Parens(pat)
+    | TupLabel(_, pat)
+    | TypeAnn(pat, _) => is_var(pat)
     | Var(_) => true
-    | TypeAnn(_)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -294,7 +353,8 @@ module UPat = {
     switch (pat.term) {
     | Parens(pat) => is_fun_var(pat)
     | TupLabel(_, pat) => is_fun_var(pat)
-    | TypeAnn(pat, typ) => is_var(pat) && UTyp.is_arrow(typ)
+    | TypeAnn(pat, typ) =>
+      is_var(pat) && (UTyp.is_arrow(typ) || UTyp.is_forall(typ))
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -338,12 +398,37 @@ module UPat = {
       }
     );
 
+  let rec is_tuple_of_vars = (pat: t) =>
+    is_var(pat)
+    || (
+      switch (pat.term) {
+      | Parens(pat)
+      | TupLabel(_, pat)
+      | TypeAnn(pat, _) => is_tuple_of_vars(pat)
+      | Tuple(pats) => pats |> List.for_all(is_var)
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_)
+      | Wild
+      | Int(_)
+      | Float(_)
+      | Bool(_)
+      | String(_)
+      | Triv
+      | ListLit(_)
+      | Cons(_, _)
+      | Var(_)
+      | Constructor(_)
+      | Ap(_) => false
+      }
+    );
+
   let rec get_var = (pat: t) => {
     switch (pat.term) {
-    | Parens(pat) => get_var(pat)
-    | TupLabel(_, pat) => get_var(pat)
+    | Parens(pat)
+    | TupLabel(_, pat)
+    | TypeAnn(pat, _) => get_var(pat)
     | Var(x) => Some(x)
-    | TypeAnn(_)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -366,7 +451,7 @@ module UPat = {
     | Parens(pat) => get_fun_var(pat)
     | TupLabel(_, pat) => get_fun_var(pat)
     | TypeAnn(pat, typ) =>
-      if (UTyp.is_arrow(typ)) {
+      if (UTyp.is_arrow(typ) || UTyp.is_forall(typ)) {
         get_var(pat) |> Option.map(var => var);
       } else {
         None;
@@ -389,19 +474,47 @@ module UPat = {
     };
   };
 
-  let rec get_recursive_bindings = (pat: t) => {
-    switch (get_fun_var(pat)) {
+  let rec get_num_of_vars = (pat: t) =>
+    if (is_var(pat)) {
+      Some(1);
+    } else {
+      switch (pat.term) {
+      | Parens(pat)
+      | TupLabel(_, pat)
+      | TypeAnn(pat, _) => get_num_of_vars(pat)
+      | Tuple(pats) =>
+        is_tuple_of_vars(pat) ? Some(List.length(pats)) : None
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_)
+      | Wild
+      | Int(_)
+      | Float(_)
+      | Bool(_)
+      | String(_)
+      | Triv
+      | ListLit(_)
+      | Cons(_, _)
+      | Var(_)
+      | Constructor(_)
+      | Ap(_) => None
+      };
+    };
+
+  let rec get_bindings = (pat: t) =>
+    switch (get_var(pat)) {
     | Some(x) => Some([x])
     | None =>
       switch (pat.term) {
-      | Parens(pat) => get_recursive_bindings(pat)
-      | TupLabel(_, pat) => get_recursive_bindings(pat)
+      | Parens(pat)
+      | TupLabel(_, pat)
+      | TypeAnn(pat, _) => get_bindings(pat)
       | Tuple(pats) =>
-        let fun_vars = pats |> List.map(get_fun_var);
-        if (List.exists(Option.is_none, fun_vars)) {
+        let vars = pats |> List.map(get_var);
+        if (List.exists(Option.is_none, vars)) {
           None;
         } else {
-          Some(List.map(Option.get, fun_vars));
+          Some(List.map(Option.get, vars));
         };
       | Invalid(_)
       | EmptyHole
@@ -415,12 +528,10 @@ module UPat = {
       | ListLit(_)
       | Cons(_, _)
       | Var(_)
-      | TypeAnn(_)
       | Constructor(_)
       | Ap(_) => None
       }
     };
-  };
 
   let ctr_name = (p: t): option(Constructor.t) =>
     switch (p.term) {
@@ -445,6 +556,7 @@ module UExp = {
     | EmptyHole
     | MultiHole
     | Triv
+    | Deferral
     | Bool
     | Int
     | Float
@@ -453,6 +565,7 @@ module UExp = {
     | Constructor
     | Fun
     | TupLabel
+    | TypFun
     | Tuple
     | Dot
     | Var
@@ -460,6 +573,8 @@ module UExp = {
     | Let
     | TyAlias
     | Ap
+    | TypAp
+    | DeferredAp
     | Pipeline
     | If
     | Seq
@@ -489,6 +604,7 @@ module UExp = {
     | EmptyHole => EmptyHole
     | MultiHole(_) => MultiHole
     | Triv => Triv
+    | Deferral(_) => Deferral
     | Bool(_) => Bool
     | Int(_) => Int
     | Float(_) => Float
@@ -497,12 +613,15 @@ module UExp = {
     | Constructor(_) => Constructor
     | Fun(_) => Fun
     | TupLabel(_, _) => TupLabel
+    | TypFun(_) => TypFun
     | Tuple(_) => Tuple
     | Dot(_) => Dot
     | Var(_) => Var
     | Let(_) => Let
     | TyAlias(_) => TyAlias
     | Ap(_) => Ap
+    | TypAp(_) => TypAp
+    | DeferredAp(_) => DeferredAp
     | Pipeline(_) => Pipeline
     | If(_) => If
     | Seq(_) => Seq
@@ -584,6 +703,7 @@ module UExp = {
     | MultiHole => "Broken expression"
     | EmptyHole => "Empty expression hole"
     | Triv => "Trivial literal"
+    | Deferral => "Deferral"
     | Bool => "Boolean literal"
     | Int => "Integer literal"
     | Float => "Float literal"
@@ -592,6 +712,7 @@ module UExp = {
     | Constructor => "Constructor"
     | Fun => "Function literal"
     | TupLabel => "Labeled Tuple literal"
+    | TypFun => "Type Function Literal"
     | Tuple => "Tuple literal"
     | Dot => "Dot operator"
     | Var => "Variable reference"
@@ -599,6 +720,8 @@ module UExp = {
     | Let => "Let expression"
     | TyAlias => "Type Alias definition"
     | Ap => "Application"
+    | TypAp => "Type application"
+    | DeferredAp => "Partial Application"
     | Pipeline => "Pipeline expression"
     | If => "If expression"
     | Seq => "Sequence expression"
@@ -618,10 +741,13 @@ module UExp = {
       | _ => None
       };
 
+  // Typfun should be treated as a function here as this is only used to
+  // determine when to allow for recursive definitions in a let binding.
   let rec is_fun = (e: t) => {
     switch (e.term) {
     | Parens(e) => is_fun(e)
     | TupLabel(_, e) => is_fun(e)
+    | TypFun(_)
     | Fun(_) => true
     | Dot(e, s) =>
       let element: option(t) =
@@ -637,6 +763,7 @@ module UExp = {
     | EmptyHole
     | MultiHole(_)
     | Triv
+    | Deferral(_)
     | Bool(_)
     | Int(_)
     | Float(_)
@@ -647,6 +774,8 @@ module UExp = {
     | Let(_)
     | TyAlias(_)
     | Ap(_)
+    | TypAp(_)
+    | DeferredAp(_)
     | Pipeline(_)
     | If(_)
     | Seq(_)
@@ -682,16 +811,20 @@ module UExp = {
       | EmptyHole
       | MultiHole(_)
       | Triv
+      | Deferral(_)
       | Bool(_)
       | Int(_)
       | Float(_)
       | String(_)
       | ListLit(_)
       | Fun(_)
+      | TypFun(_)
       | Var(_)
       | Let(_)
       | TyAlias(_)
       | Ap(_)
+      | TypAp(_)
+      | DeferredAp(_)
       | Pipeline(_)
       | If(_)
       | Seq(_)
@@ -710,6 +843,54 @@ module UExp = {
     switch (e.term) {
     | Constructor(name) => Some(name)
     | _ => None
+    };
+
+  let is_deferral = (e: t) => {
+    switch (e.term) {
+    | Deferral(_) => true
+    | _ => false
+    };
+  };
+
+  let rec get_num_of_functions = (e: t) =>
+    if (is_fun(e)) {
+      Some(1);
+    } else {
+      switch (e.term) {
+      | Parens(e)
+      | TupLabel(_, e)
+      | Dot(e, _) => get_num_of_functions(e)
+      | Tuple(es) => is_tuple_of_functions(e) ? Some(List.length(es)) : None
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_)
+      | Triv
+      | Deferral(_)
+      | Bool(_)
+      | Int(_)
+      | Float(_)
+      | String(_)
+      | ListLit(_)
+      | Fun(_)
+      | TypFun(_)
+      | Var(_)
+      | Let(_)
+      | Filter(_)
+      | TyAlias(_)
+      | Ap(_)
+      | TypAp(_)
+      | DeferredAp(_)
+      | Pipeline(_)
+      | If(_)
+      | Seq(_)
+      | Test(_)
+      | Cons(_)
+      | ListConcat(_)
+      | UnOp(_)
+      | BinOp(_)
+      | Match(_)
+      | Constructor(_) => None
+      };
     };
 };
 

@@ -37,14 +37,26 @@ type t =
       syn_ty: option(Typ.t),
     }); /* Constructors have special ana logic */
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type error_partial_ap =
+  | NoDeferredArgs
+  | ArityMismatch({
+      expected: int,
+      actual: int,
+    });
+
 /* Expressions can also be free variables */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type exp =
   | Free(Var.t)
+  | InexhaustiveMatch(exp)
+  | IsDeferral(Term.UExp.deferral_position)
+  | IsBadPartialAp(error_partial_ap)
   | Common(t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pat =
+  | Redundant(pat)
   | Common(t);
 
 let join_of = (j: join_type, ty: Typ.t): Typ.t =>
@@ -69,12 +81,16 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
 let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
   ctx =>
     fun
-    | Free(_) => None
+    | Free(_)
+    | InexhaustiveMatch(_)
+    | IsDeferral(_)
+    | IsBadPartialAp(_) => None
     | Common(self) => typ_of(ctx, self);
 
-let typ_of_pat: (Ctx.t, pat) => option(Typ.t) =
+let rec typ_of_pat: (Ctx.t, pat) => option(Typ.t) =
   ctx =>
     fun
+    | Redundant(pat) => typ_of_pat(ctx, pat)
     | Common(self) => typ_of(ctx, self);
 
 /* The self of a var depends on the ctx; if the
@@ -97,6 +113,23 @@ let of_ctr = (ctx: Ctx.t, name: Constructor.t): t =>
       | Some({typ, _}) => Some(typ)
       },
   });
+
+let of_deferred_ap = (args, ty_ins: list(Typ.t), ty_out: Typ.t): exp => {
+  let expected = List.length(ty_ins);
+  let actual = List.length(args);
+  if (expected != actual) {
+    IsBadPartialAp(ArityMismatch({expected, actual}));
+  } else if (List.for_all(Term.UExp.is_deferral, args)) {
+    IsBadPartialAp(NoDeferredArgs);
+  } else {
+    let ty_ins =
+      List.combine(args, ty_ins)
+      |> List.filter(((arg, _ty)) => Term.UExp.is_deferral(arg))
+      |> List.map(snd);
+    let ty_in = List.length(ty_ins) == 1 ? List.hd(ty_ins) : Prod(ty_ins);
+    Common(Just(Arrow(ty_in, ty_out)));
+  };
+};
 
 let add_source = List.map2((id, ty) => Typ.{id, ty});
 
