@@ -176,13 +176,15 @@ module Update = {
 };
 
 module Selection = {
+  open Cursor;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = (Exercise.pos, CellEditor.Selection.t);
 
-  let get_cursor_info = (~selection, model: Model.t) => {
+  let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
     let (pos, s) = selection;
     let cell_editor = Exercise.get_stitched(pos, model.cells);
-    CellEditor.Selection.get_cursor_info(~selection=s, cell_editor);
+    let+ a = CellEditor.Selection.get_cursor_info(~selection=s, cell_editor);
+    Update.Editor(pos, a);
   };
 
   let handle_key_event = (~selection, ~event, model: Model.t) => {

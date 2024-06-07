@@ -216,7 +216,7 @@ let rec exp_to_pretty = (~inline, exp: Exp.t): pretty => {
     and+ t = typ_to_pretty(~inline, t)
     and+ e = go(e);
     let e = inline ? e : [Secondary(Secondary.mk_newline(Id.mk()))] @ e;
-    [mk_form("tyalias", id, [tp, t])] @ e;
+    [mk_form("type_alias", id, [tp, t])] @ e;
   | Ap(Forward, e1, e2) =>
     let id = exp |> Exp.rep_id;
     let+ e1 = go(e1)

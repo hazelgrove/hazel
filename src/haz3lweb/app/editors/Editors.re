@@ -114,7 +114,7 @@ module Update = {
       Model.Scratch(ScratchMode.Store.load() |> ScratchMode.Model.unpersist)
       |> return
     | (SwitchMode(Documentation), _) =>
-      Model.Scratch(
+      Model.Documentation(
         ScratchMode.StoreDocumentation.load()
         |> ScratchMode.Model.unpersist_documentation,
       )
@@ -161,22 +161,26 @@ module Update = {
 };
 
 module Selection = {
+  open Cursor;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Scratch(ScratchMode.Selection.t)
     | Exercises(ExerciseMode.Selection.t);
 
-  let get_cursor_info = (~selection: t, editors: Model.t) => {
+  let get_cursor_info = (~selection: t, editors: Model.t): cursor(Update.t) => {
     switch (selection, editors) {
     | (Scratch(selection), Scratch(m)) =>
-      ScratchMode.Selection.get_cursor_info(~selection, m)
+      let+ ci = ScratchMode.Selection.get_cursor_info(~selection, m);
+      Update.Scratch(ci);
     | (Scratch(selection), Documentation(m)) =>
-      ScratchMode.Selection.get_cursor_info(~selection, m)
+      let+ ci = ScratchMode.Selection.get_cursor_info(~selection, m);
+      Update.Scratch(ci);
     | (Exercises(selection), Exercises(m)) =>
-      ExercisesMode.Selection.get_cursor_info(~selection, m)
+      let+ ci = ExercisesMode.Selection.get_cursor_info(~selection, m);
+      Update.Exercises(ci);
     | (Scratch(_), Exercises(_))
     | (Exercises(_), Scratch(_))
-    | (Exercises(_), Documentation(_)) => None
+    | (Exercises(_), Documentation(_)) => empty
     };
   };
 

@@ -144,14 +144,19 @@ module Update = {
 };
 
 module Selection = {
+  open Cursor;
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = CellEditor.Selection.t;
 
-  let get_cursor_info = (~selection, model: Model.t) =>
-    CellEditor.Selection.get_cursor_info(
-      ~selection,
-      List.nth(model.scratchpads, model.current) |> snd,
-    );
+  let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
+    let+ ci =
+      CellEditor.Selection.get_cursor_info(
+        ~selection,
+        List.nth(model.scratchpads, model.current) |> snd,
+      );
+    Update.CellAction(ci);
+  };
 
   let handle_key_event =
       (~selection, ~event: Key.t, model: Model.t): option(Update.t) =>
