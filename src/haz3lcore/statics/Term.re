@@ -211,6 +211,36 @@ module Pat = {
     };
   };
 
+  let rec get_bindings = (pat: t) =>
+    switch (get_var(pat)) {
+    | Some(x) => Some([x])
+    | None =>
+      switch (pat.term) {
+      | Parens(pat)
+      | Cast(pat, _, _) => get_bindings(pat)
+      | Tuple(pats) =>
+        let vars = pats |> List.map(get_var);
+        if (List.exists(Option.is_none, vars)) {
+          None;
+        } else {
+          Some(List.map(Option.get, vars));
+        };
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_)
+      | Wild
+      | Int(_)
+      | Float(_)
+      | Bool(_)
+      | String(_)
+      | ListLit(_)
+      | Cons(_, _)
+      | Var(_)
+      | Constructor(_)
+      | Ap(_) => None
+      }
+    };
+
   let rec get_num_of_vars = (pat: t) =>
     if (is_var(pat)) {
       Some(1);

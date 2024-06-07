@@ -47,10 +47,15 @@ let fresh_pat_cast = (p: DHPat.t, t1: Typ.t, t2: Typ.t): DHPat.t => {
     };
 };
 
-let elaborated_type = (m: Statics.Map.t, uexp: UExp.t): (Typ.t, Ctx.t) => {
-  let (mode, self_ty, ctx) =
+let elaborated_type = (m: Statics.Map.t, uexp: UExp.t): (Typ.t, Ctx.t, 'a) => {
+  let (mode, self_ty, ctx, co_ctx) =
     switch (Id.Map.find_opt(Exp.rep_id(uexp), m)) {
-    | Some(Info.InfoExp({mode, ty, ctx, _})) => (mode, ty, ctx)
+    | Some(Info.InfoExp({mode, ty, ctx, co_ctx, _})) => (
+        mode,
+        ty,
+        ctx,
+        co_ctx,
+      )
     | _ => raise(MissingTypeInfo)
     };
   let elab_ty =
@@ -66,7 +71,7 @@ let elaborated_type = (m: Statics.Map.t, uexp: UExp.t): (Typ.t, Ctx.t) => {
     // We need to remove the synswitches from this type.
     | Ana(ana_ty) => Typ.match_synswitch(ana_ty, self_ty)
     };
-  (elab_ty |> Typ.normalize(ctx), ctx);
+  (elab_ty |> Typ.normalize(ctx), ctx, co_ctx);
 };
 
 let elaborated_pat_type = (m: Statics.Map.t, upat: UPat.t): (Typ.t, Ctx.t) => {
@@ -200,7 +205,7 @@ let rec elaborate_pattern =
    want to remove one, I'd ask you instead comment it out and leave
    a comment explaining why it's redundant.  */
 let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
-  let (elaborated_type, ctx) = elaborated_type(m, uexp);
+  let (elaborated_type, ctx, co_ctx) = elaborated_type(m, uexp);
   let cast_from = (ty, exp) => fresh_cast(exp, ty, elaborated_type);
   let (term, rewrap) = UExp.unwrap(uexp);
   let dhexp =
@@ -287,7 +292,12 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
         }
       );
       let (p, ty1) = elaborate_pattern(m, p);
-      if (!Statics.is_recursive(ctx, p, def, ty1)) {
+      let is_recursive =
+        Statics.is_recursive(ctx, p, def, ty1)
+        && Pat.get_bindings(p)
+        |> Option.get
+        |> List.exists(f => VarMap.lookup(co_ctx, f) != None);
+      if (!is_recursive) {
         let def = add_name(Pat.get_var(p), def);
         let (def, ty2) = elaborate(m, def);
         let (body, ty) = elaborate(m, body);
