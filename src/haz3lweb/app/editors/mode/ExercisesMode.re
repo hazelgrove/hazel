@@ -201,14 +201,19 @@ module Update = {
 };
 
 module Selection = {
+  open Cursor;
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = ExerciseMode.Selection.t;
 
-  let get_cursor_info = (~selection, model: Model.t) =>
-    ExerciseMode.Selection.get_cursor_info(
-      ~selection,
-      List.nth(model.exercises, model.current),
-    );
+  let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
+    let+ ci =
+      ExerciseMode.Selection.get_cursor_info(
+        ~selection,
+        List.nth(model.exercises, model.current),
+      );
+    Update.Exercise(ci);
+  };
 
   let handle_key_event = (~selection, ~event, model: Model.t) =>
     ExerciseMode.Selection.handle_key_event(

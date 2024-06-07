@@ -204,34 +204,36 @@ module Update = {
 };
 
 module Selection = {
+  open Cursor;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | Evaluation
-    | Stepper(Stepper.Selection.t);
+    | Evaluation(CodeEditor.Selection.t);
+  // TODO: Selection in stepper
 
-  let get_cursor_info =
-      (~selection: t, mr: Model.t): option(Haz3lcore.Info.t) =>
+  let get_cursor_info = (~selection: t, mr: Model.t): cursor(Update.t) =>
     switch (selection, mr.result) {
-    | (_, NoElab) => None
-    | (Evaluation, Evaluation({result: ResultOk((editor, _)), _})) =>
-      CodeEditor.Selection.get_cursor_info(editor)
-    | (_, Evaluation(_)) => None
-    | (Stepper(selection), Stepper(s)) =>
-      Stepper.Selection.get_cursor_info(~selection, s)
-    | (_, Stepper(_)) => None
+    | (_, NoElab) => empty
+    | (
+        Evaluation(selection),
+        Evaluation({result: ResultOk((editor, _)), _}),
+      ) =>
+      let+ ci = CodeEditor.Selection.get_cursor_info(~selection, editor);
+      Update.EvalEditorAction(ci);
+    | (_, Evaluation(_)) => empty
+    | (_, Stepper(_)) => empty
     };
 
   let handle_key_event =
       (~selection: t, ~event, mr: Model.t): option(Update.t) =>
     switch (selection, mr.result) {
     | (_, NoElab) => None
-    | (Evaluation, Evaluation({result: ResultOk((editor, _)), _})) =>
-      CodeEditor.Selection.handle_key_event(editor, event)
+    | (
+        Evaluation(selection),
+        Evaluation({result: ResultOk((editor, _)), _}),
+      ) =>
+      CodeEditor.Selection.handle_key_event(~selection, editor, event)
       |> Option.map(x => Update.EvalEditorAction(x))
     | (_, Evaluation(_)) => None
-    | (Stepper(selection), Stepper(s)) =>
-      Stepper.Selection.handle_key_event(~selection, ~event, s)
-      |> Option.map(x => Update.StepperAction(x))
     | (_, Stepper(_)) => None
     };
 };
@@ -276,10 +278,10 @@ module View = {
            )
       };
     let code_view =
-      CodeEditor.view(
+      CodeEditor.View.view(
         ~signal=
           fun
-          | MakeActive => signal(MakeActive(Evaluation)),
+          | MakeActive => signal(MakeActive(Evaluation())),
         ~inject=a => inject(EvalEditorAction(a)),
         ~globals,
         ~selected,
@@ -340,7 +342,7 @@ module View = {
           ~globals,
           ~signal,
           ~inject,
-          ~selected=selected == Some(Evaluation),
+          ~selected=selected == Some(Evaluation()),
           ~locked,
           elab,
           result,
@@ -352,7 +354,6 @@ module View = {
         ~signal=
           fun
           | HideStepper => inject(ToggleStepper)
-          | MakeActive(x) => signal(MakeActive(Stepper(x)))
           | JumpTo(id) => signal(JumpTo(id)),
         ~inject=x => inject(StepperAction(x)),
         ~read_only=locked,

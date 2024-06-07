@@ -222,35 +222,12 @@ module Update = {
   };
 };
 
-module Selection = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = int;
-
-  let get_cursor_info =
-      (~selection: t, mr: Model.t): option(Haz3lcore.Info.t) =>
-    mr.history
-    |> Aba.get_as
-    |> List.nth_opt(_, selection)
-    |> Option.bind(
-         _,
-         fun
-         | Model.A({editor, _}) =>
-           CodeEditor.Selection.get_cursor_info(editor)
-         | _ => None,
-       );
-
-  let handle_key_event = (~selection as _: t, ~event as _, _mr: Model.t) => {
-    None; // TODO[Matt]: complete
-  };
-};
-
 module View = {
   open Virtual_dom.Vdom;
   open Node;
 
   type event =
     | HideStepper
-    | MakeActive(Selection.t)
     | JumpTo(Haz3lcore.Id.t);
 
   let view =

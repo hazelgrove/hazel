@@ -61,16 +61,21 @@ module Update = {
 };
 
 module Selection = {
+  open Cursor;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | MainEditor
     | Result(Result.Selection.t);
 
-  let get_cursor_info = (~selection, model: Model.t) => {
+  let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
     switch (selection) {
-    | MainEditor => CodeEditor.Selection.get_cursor_info(model.editor)
+    | MainEditor =>
+      let+ ci =
+        CodeEditor.Selection.get_cursor_info(~selection=(), model.editor);
+      Update.MainEditor(ci);
     | Result(selection) =>
-      Result.Selection.get_cursor_info(~selection, model.result)
+      let+ ci = Result.Selection.get_cursor_info(~selection, model.result);
+      Update.ResultAction(ci);
     };
   };
 
@@ -78,7 +83,11 @@ module Selection = {
       (~selection, ~event, model: Model.t): option(Update.t) => {
     switch (selection) {
     | MainEditor =>
-      CodeEditor.Selection.handle_key_event(model.editor, event)
+      CodeEditor.Selection.handle_key_event(
+        ~selection=(),
+        model.editor,
+        event,
+      )
       |> Option.map(x => Update.MainEditor(x))
     | Result(selection) =>
       Result.Selection.handle_key_event(~selection, model.result, ~event)
@@ -139,7 +148,7 @@ module View = {
         ]),
       Option.to_list(caption)
       @ [
-        CodeEditor.view(
+        CodeEditor.View.view(
           ~globals,
           ~signal=
             locked

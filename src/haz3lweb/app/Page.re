@@ -184,7 +184,7 @@ module Update = {
       ExplainThis.get_color_map(
         ~globals=model.globals,
         ~explainThisModel=model.explain_this,
-        cursor_info,
+        cursor_info.info,
       );
     let globals = Globals.Update.calculate(color_highlights, model.globals);
     {...model, globals, editors};
@@ -192,6 +192,8 @@ module Update = {
 };
 
 module Selection = {
+  open Cursor;
+
   type t = selection;
 
   let handle_key_event =
@@ -209,13 +211,19 @@ module Selection = {
     };
   };
 
-  let get_cursor_info = (~selection: t, model: Model.t) => {
-    Editors.Selection.get_cursor_info(~selection, model.editors);
+  let get_cursor_info = (~selection: t, model: Model.t): cursor(Update.t) => {
+    let+ ci = Editors.Selection.get_cursor_info(~selection, model.editors);
+    Update.Editors(ci);
   };
 };
 
 module View = {
-  let handlers = (~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
+  let handlers =
+      (
+        ~inject: Update.t => Ui_effect.t(unit),
+        ~cursor: Cursor.cursor(Update.t),
+        model: Model.t,
+      ) => {
     let key_handler =
         (~inject, ~dir: Key.dir, evt: Js.t(Dom_html.keyboardEvent))
         : Effect.t(unit) =>
@@ -246,7 +254,44 @@ module View = {
         JsUtil.focus_clipboard_shim();
         Effect.Ignore;
       }),
-    ];
+      Attr.on_copy(_ => {
+        JsUtil.copy(cursor.selected_text |> Option.value(~default=""));
+        Effect.Ignore;
+      }),
+      Attr.on_cut(_ => {
+        JsUtil.copy(cursor.selected_text |> Option.value(~default=""));
+        Option.map(
+          inject,
+          Selection.handle_key_event(
+            ~selection=Some(model.selection),
+            ~event=
+              Key.{
+                key: D("Delete"),
+                sys: Os.is_mac^ ? Mac : PC,
+                shift: Up,
+                meta: Up,
+                ctrl: Up,
+                alt: Up,
+              },
+            model,
+          ),
+        )
+        |> Option.value(~default=Effect.Ignore);
+      }),
+    ]
+    @ (
+      cursor.paste
+      |> Option.map(paste =>
+           Attr.on_paste(evt => {
+             let pasted_text =
+               Js.to_string(evt##.clipboardData##getData(Js.string("text")))
+               |> Str.global_replace(Str.regexp("\n[ ]*"), "\n");
+             Dom.preventDefault(evt);
+             inject(paste(pasted_text));
+           })
+         )
+      |> Option.to_list
+    );
   };
 
   /* HACK: this is the only way I could find to be able to pass
@@ -260,6 +305,7 @@ module View = {
       (
         ~log as {get_log_and, import_log}: log_functions,
         ~inject: Update.t => Ui_effect.t(unit),
+        ~cursor: Cursor.cursor(Update.t),
         {globals, editors, explain_this: explainThisModel, selection} as model: Model.t,
       ) => {
     let globals = {
@@ -270,7 +316,6 @@ module View = {
       import_log,
     };
     let settings = globals.settings;
-    let cursor_info = Selection.get_cursor_info(~selection, model);
     let top_bar =
       div(
         ~attr=Attr.id("top-bar"),
@@ -289,14 +334,14 @@ module View = {
           ),
         ],
       );
-    let bottom_bar = CursorInspector.view(~globals, cursor_info);
+    let bottom_bar = CursorInspector.view(~globals, cursor.info);
     let sidebar =
       settings.explainThis.show && settings.core.statics
         ? ExplainThis.view(
             ~globals,
             ~inject=a => inject(ExplainThis(a)),
             ~explainThisModel,
-            cursor_info,
+            cursor.info,
           )
         : div([]);
     let editors_view =
@@ -324,14 +369,17 @@ module View = {
     ];
   };
 
-  let view = (~log, ~inject: Update.t => Ui_effect.t(unit), model: Model.t) =>
+  let view = (~log, ~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
+    let cursor = Selection.get_cursor_info(~selection=model.selection, model);
     div(
-      ~attr=Attr.many(Attr.[id("page"), ...handlers(~inject, model)]),
+      ~attr=
+        Attr.many(Attr.[id("page"), ...handlers(~cursor, ~inject, model)]),
       [
         FontSpecimen.view("font-specimen"),
         DecUtil.filters,
         JsUtil.clipboard_shim,
       ]
-      @ main_view(~log, ~inject, model),
+      @ main_view(~log, ~cursor, ~inject, model),
     );
+  };
 };

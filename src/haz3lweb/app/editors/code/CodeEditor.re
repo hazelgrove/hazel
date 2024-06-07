@@ -114,11 +114,20 @@ module Update = {
 };
 
 module Selection = {
-  let get_cursor_info = (model: Model.t) => {
-    Indicated.ci_of(model.editor.state.zipper, model.statics.info_map);
+  open Cursor;
+
+  // Editor selection is handled within Editor.t
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = unit;
+
+  let get_cursor_info = (~selection as (), model: Model.t): cursor(Update.t) => {
+    info: Indicated.ci_of(model.editor.state.zipper, model.statics.info_map),
+    selected_text: Some(Printer.to_string_selection(model.editor)),
+    paste: Some(x => Update.Perform(Paste(x))),
   };
 
-  let handle_key_event = (model: Model.t): (Key.t => option(Update.t)) =>
+  let handle_key_event =
+      (~selection as (), model: Model.t): (Key.t => option(Update.t)) =>
     fun
     | {key: D("b"), sys: Mac | PC, shift: Up, meta: Down, ctrl: Up, alt: Up} =>
       Some(Update.Reparse)
@@ -330,5 +339,3 @@ module View = {
     );
   };
 };
-
-let view = View.view;
