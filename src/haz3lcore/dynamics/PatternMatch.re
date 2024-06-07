@@ -229,6 +229,11 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result => {
     switch (d) {
     | TupLabel(_, Tuple(ds))
     | Tuple(ds) =>
+      let ds =
+        LabeledTuple.rearrange(
+          Typ.get_label, DHExp.get_label, tys, ds, (s, e) =>
+          TupLabel(s, e)
+        );
       let d_typ_pairs = List.combine(ds, tys);
       let get_label_pair:
         ((DHExp.t, Typ.t)) => option((LabeledTuple.t, (DHExp.t, Typ.t))) = (
@@ -440,6 +445,11 @@ and matches_cast_Tuple =
       switch (d') {
       | TupLabel(_, Tuple(ds))
       | Tuple(ds) =>
+        let ds =
+          LabeledTuple.rearrange(
+            Typ.get_label, DHExp.get_label, tys, ds, (s, e) =>
+            TupLabel(s, e)
+          );
         let d_typ_pairs = List.combine(ds, tys);
         let get_label_pair:
           ((DHExp.t, Typ.t)) => option((LabeledTuple.t, (DHExp.t, Typ.t))) = (
