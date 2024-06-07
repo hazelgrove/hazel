@@ -1,6 +1,5 @@
 open Alcotest;
 open Haz3lcore;
-// open Hazel_menhir;
 
 let dhexp_eq = (d1: option(DHExp.t), d2: option(DHExp.t)): bool =>
   switch (d1, d2) {
@@ -47,7 +46,7 @@ let alco_check_menhir = (name: string, dhexp: string, uexp: Term.UExp.t) =>
     name,
     Some(
       Haz3lcore.DHExp.of_menhir_ast(
-        Hazel_menhir.Interface.parse_program(dhexp),
+        Haz3lmenhir.Interface.parse_program(dhexp),
         get_id_menhir_closure(0),
       ),
     ),
@@ -127,7 +126,7 @@ let free_var_menhir = () =>
     "Nonempty hole with free variable (menhir)",
     Some(
       Haz3lcore.DHExp.of_menhir_ast(
-        Hazel_menhir.Interface.parse_program("{{?y}}"),
+        Haz3lmenhir.Interface.parse_program("{{?y}}"),
         get_id_menhir_closure(1),
       ),
     ),
@@ -149,7 +148,7 @@ let bin_op_menhir = () =>
     "Inconsistent binary integer operation (plus)",
     Some(
       Haz3lcore.DHExp.of_menhir_ast(
-        Hazel_menhir.Interface.parse_program("{{false}} + {{? y}}"),
+        Haz3lmenhir.Interface.parse_program("{{false}} + {{? y}}"),
         get_id_menhir_closure(1),
       ),
     ),
@@ -227,7 +226,7 @@ let ap_fun_menhir = () =>
     "Application of a function of a free variable wrapped inside a nonempty hole constructor (menhir)",
     Some(
       Haz3lcore.DHExp.of_menhir_ast(
-        Hazel_menhir.Interface.parse_program(ap_fun_str),
+        Haz3lmenhir.Interface.parse_program(ap_fun_str),
         get_id_menhir_closure(6),
       ),
     ),
@@ -252,7 +251,7 @@ let consistent_if_menhir = () =>
     "Consistent case with rules (BoolLit(true), IntLit(8)) and (BoolLit(false), IntLit(6))",
     Some(
       Haz3lcore.DHExp.of_menhir_ast(
-        Hazel_menhir.Interface.parse_program(consistent_if_str),
+        Haz3lmenhir.Interface.parse_program(consistent_if_str),
         get_id_menhir_closure(6),
       ),
     ),

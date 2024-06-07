@@ -13,9 +13,9 @@ let read_whole_file = (filename): string => {
 
 let file_contents = read_whole_file(test_file);
 
-// print_endline(AST.show_exp(Hazel_menhir.Interface.parse_program(file_contents)));
+// print_endline(AST.show_exp(Haz3lmenhir.Interface.parse_program(file_contents)));
 
-// let prog: AST.exp = Hazel_menhir.Interface.parse_program(file_contents);
+// let prog: AST.exp = Haz3lmenhir.Interface.parse_program(file_contents);
 
 // let dhexp = of_menhir_ast(prog);
 // print_endline(show(dhexp));
@@ -30,7 +30,7 @@ let parser_test = (a, expected, actual, ()) =>
     testable_ast,
     a,
     expected,
-    Hazel_menhir.Interface.parse_program(actual),
+    Haz3lmenhir.Interface.parse_program(actual),
   );
 
 // let bigger_expression =
