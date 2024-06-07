@@ -36,7 +36,7 @@ module Update = {
       perform(action, model)
       |> Updated.return(
            ~is_edit=Action.is_edit(action),
-           ~recalculate=Action.is_edit(action),
+           ~recalculate=true,
            ~scroll_active={
              switch (action) {
              | Move(_)
