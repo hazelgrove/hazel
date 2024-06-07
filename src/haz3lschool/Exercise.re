@@ -412,6 +412,11 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     | HiddenTests => s.hidden_tests
     };
 
+  let map2_stitched =
+      (f: (pos, 'a, 'b) => 'c, s1: stitched('a), s2: stitched('b))
+      : stitched('c) =>
+    map_stitched((pos, a) => f(pos, a, get_stitched(pos, s2)), s1);
+
   let put_stitched = (pos, s: stitched('a), x: 'a): stitched('a) =>
     switch (pos) {
     | YourTestsValidation => {...s, test_validation: x}

@@ -160,16 +160,22 @@ module Update = {
   let calculate = (~settings, ~schedule_action, model: Model.t): Model.t => {
     let stitched_elabs = Exercise.stitch_term(model.editors);
     let cells =
-      Exercise.map_stitched(
-        (pos, {term, editor}: Exercise.TermItem.t) =>
-          editor
-          |> CellEditor.Model.mk
+      Exercise.map2_stitched(
+        (pos, {term, editor}: Exercise.TermItem.t, cell: CellEditor.Model.t) =>
+          {
+            editor: {
+              editor,
+              statics: cell.editor.statics,
+            },
+            result: cell.result,
+          }
           |> CellEditor.Update.calculate(
                ~settings,
                ~schedule_action=a => schedule_action(Editor(pos, a)),
                ~stitch=_ => term,
              ),
         stitched_elabs,
+        model.cells,
       );
     {spec: model.spec, editors: model.editors, cells};
   };
