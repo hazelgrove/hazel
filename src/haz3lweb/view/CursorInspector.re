@@ -87,7 +87,7 @@ let common_err_view = (cls: Term.Cls.t, err: Info.error_common) =>
       text("inconsistent with arrow type"),
     ]
   | Inconsistent(CompareArrow(typ)) => [
-      text("Cannot compare types containing arrow:"),
+      text("Cannot compare arrow types:"),
       Type.view(typ),
     ]
   | Inconsistent(Expectation({ana, syn})) => [
