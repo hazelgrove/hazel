@@ -268,14 +268,7 @@ and uexp_to_info_map =
     let (e, m) = go(~mode, e, m);
     add(~self=Just(Label(s, e.ty)), ~co_ctx=e.co_ctx, m);
   | Tuple(es) =>
-    let filt: UExp.t => (option(LabeledTuple.t), UExp.t) = (
-      e =>
-        switch (e.term) {
-        | TupLabel(s, e') => (Some(s), e')
-        | _ => (None, e)
-        }
-    );
-    let modes = Mode.of_prod(ctx, mode, es, filt);
+    let modes = Mode.of_prod(ctx, mode, es, UExp.get_label);
     let (es, m) = map_m_go(m, modes, es);
     add(
       ~self=Just(Prod(List.map(Info.exp_ty, es))),
@@ -285,16 +278,9 @@ and uexp_to_info_map =
   | Dot(e, s) =>
     // TODO (Anthony): Fix this
     let (e, m) = go(~mode=Syn, e, m);
-    let filt: Typ.t => option(LabeledTuple.t) = (
-      t =>
-        switch (t) {
-        | Label(s, _) => Some(s)
-        | _ => None
-        }
-    );
     let element: option(Typ.t) =
       switch (e.ty) {
-      | Prod(ts) => LabeledTuple.find_label(filt, ts, s)
+      | Prod(ts) => LabeledTuple.find_label(Typ.get_label, ts, s)
       | Label(l, t) when LabeledTuple.compare(s, l) == 0 => Some(t)
       | _ => None // TODO (Anthony): other exps
       };
@@ -552,14 +538,7 @@ and upat_to_info_map =
     let (p, m) = go(~ctx, ~mode, p, m);
     add(~self=Just(Label(s, p.ty)), ~ctx=p.ctx, m);
   | Tuple(ps) =>
-    let filt: UPat.t => (option(LabeledTuple.t), UPat.t) = (
-      p =>
-        switch (p.term) {
-        | TupLabel(s, p') => (Some(s), p')
-        | _ => (None, p)
-        }
-    );
-    let modes = Mode.of_prod(ctx, mode, ps, filt);
+    let modes = Mode.of_prod(ctx, mode, ps, UPat.get_label);
     let (ctx, tys, m) = ctx_fold(ctx, m, ps, modes);
     add(~self=Just(Prod(tys)), ~ctx, m);
   | Parens(p) =>

@@ -28,19 +28,9 @@ let cast_sum_maps =
   };
 };
 
-let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
+let rec matches = (dp: DHPat.t, d: DHExp.t): match_result => {
   switch (dp, d) {
   // TODO: Fix TupLabel matching
-  /* Labels are a special case */
-  | (TupLabel(s1, dp), TupLabel(s2, d)) =>
-    if (LabeledTuple.compare(s1, s2) == 0) {
-      matches(dp, d);
-    } else {
-      DoesNotMatch;
-    }
-  | (TupLabel(_, dp), _) => matches(dp, d)
-  | (_, TupLabel(_, d)) => matches(dp, d)
-
   | (_, BoundVar(_)) => DoesNotMatch
   | (EmptyHole(_), _)
   | (NonEmptyHole(_), _) => IndetMatch
@@ -48,6 +38,39 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (ExpandingKeyword(_), _) => DoesNotMatch
   | (InvalidText(_), _) => IndetMatch
   | (BadConstructor(_), _) => IndetMatch
+  /* Labels are a special case */
+  | (TupLabel(s1, dp), TupLabel(s2, d)) =>
+    if (LabeledTuple.compare(s1, s2) == 0) {
+      matches(dp, d);
+    } else {
+      DoesNotMatch;
+    }
+  | (Var(x), TupLabel(s, d)) when LabeledTuple.compare(x, s) == 0 =>
+    let env = Environment.extend(Environment.empty, (x, d));
+    Matches(env);
+  // | (_, Cast(TupLabel(_, d), t1, t2)) => matches(dp, Cast(d, t1, t2))
+  | (TupLabel(_), Cast(d, Label(_, _), Unknown(_))) =>
+    switch (d) {
+    | TupLabel(_, d) => matches(dp, d)
+    | _ => matches(dp, d)
+    }
+  | (TupLabel(_), Cast(d, Unknown(_), Label(s2, _))) =>
+    switch (d) {
+    | TupLabel(_, d) => matches(dp, TupLabel(s2, d))
+    | _ => matches(dp, TupLabel(s2, d))
+    }
+  | (_, Cast(d, Label(_, ty1), ty2)) =>
+    switch (d) {
+    | TupLabel(_, d) => matches(dp, Cast(d, ty1, ty2))
+    | _ => matches(dp, Cast(d, ty1, ty2))
+    }
+  | (_, Cast(d, ty1, Label(_, ty2))) =>
+    switch (d) {
+    | TupLabel(_, d) => matches(dp, Cast(d, ty1, ty2)) // shouldn't happen?
+    | _ => matches(dp, Cast(d, ty1, ty2))
+    }
+  | (TupLabel(_, dp), _) => matches(dp, d)
+  | (_, TupLabel(_, d)) => matches(dp, d)
   | (Var(x), _) =>
     let env = Environment.extend(Environment.empty, (x, d));
     Matches(env);
@@ -153,20 +176,6 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Constructor(_), _) => DoesNotMatch
 
   | (Tuple(dps), Tuple(ds)) =>
-    let filt1: DHPat.t => (option(LabeledTuple.t), DHPat.t) = (
-      d =>
-        switch (d) {
-        | TupLabel(s, d') => (Some(s), d')
-        | _ => (None, d)
-        }
-    );
-    let filt2: DHExp.t => (option(LabeledTuple.t), DHExp.t) = (
-      d =>
-        switch (d) {
-        | TupLabel(s, d') => (Some(s), d')
-        | _ => (None, d)
-        }
-    );
     let f = (result, dp, d) => {
       switch (result) {
       | DoesNotMatch => DoesNotMatch
@@ -194,8 +203,8 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     };
     let fin =
       LabeledTuple.ana_tuple(
-        filt1,
-        filt2,
+        DHPat.get_label,
+        DHExp.get_label,
         f,
         Matches(Environment.empty),
         DoesNotMatch,
@@ -205,8 +214,8 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     switch (fin) {
     | DoesNotMatch =>
       LabeledTuple.ana_tuple(
-        filt2,
-        filt1,
+        DHExp.get_label,
+        DHPat.get_label,
         f_reverse,
         Matches(Environment.empty),
         DoesNotMatch,
@@ -217,11 +226,36 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     };
   | (Tuple(dps), Cast(d, Prod(tys), Prod(tys'))) =>
     assert(List.length(tys) == List.length(tys'));
-    matches_cast_Tuple(
-      dps,
-      d,
-      List.map(p => [p], List.combine(tys, tys')),
-    );
+    switch (d) {
+    | TupLabel(_, Tuple(ds))
+    | Tuple(ds) =>
+      let d_typ_pairs = List.combine(ds, tys);
+      let get_label_pair:
+        ((DHExp.t, Typ.t)) => option((LabeledTuple.t, (DHExp.t, Typ.t))) = (
+        ((d, t)) =>
+          switch (t) {
+          | Label(s, t') => Some((s, (d, t')))
+          | _ => None
+          }
+      );
+      let d_typ_pairs =
+        LabeledTuple.rearrange(
+          Typ.get_label, get_label_pair, tys', d_typ_pairs, (s, (d, t)) =>
+          (TupLabel(s, d), Label(s, t))
+        );
+      let (ds, tys) = List.split(d_typ_pairs);
+      matches_cast_Tuple(
+        dps,
+        DHExp.Tuple(ds),
+        List.map(p => [p], List.combine(tys, tys')),
+      );
+    | _ =>
+      matches_cast_Tuple(
+        dps,
+        d,
+        List.map(p => [p], List.combine(tys, tys')),
+      )
+    };
   | (Tuple(dps), Cast(d, Prod(tys), Unknown(_))) =>
     matches_cast_Tuple(
       dps,
@@ -253,7 +287,8 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (Cons(_, _), ListLit(_))
   | (ListLit(_), ListLit(_)) => matches_cast_Cons(dp, d, [])
   | (Cons(_) | ListLit(_), _) => DoesNotMatch
-  }
+  };
+}
 and matches_cast_Sum =
     (
       ctr: string,
@@ -339,18 +374,12 @@ and matches_cast_Tuple =
     if (List.length(dps) != List.length(ds)) {
       DoesNotMatch;
     } else {
-      let filt1: DHPat.t => (option(LabeledTuple.t), DHPat.t) = (
-        d =>
-          switch (d) {
-          | TupLabel(s, d') => (Some(s), d')
-          | _ => (None, d)
-          }
-      );
-      let filt2: ((DHExp.t, 'a)) => (option(LabeledTuple.t), (DHExp.t, 'a)) = (
+      let ds_elts = List.combine(ds, elt_casts);
+      let filt2: ((DHExp.t, 'a)) => option((LabeledTuple.t, (DHExp.t, 'a))) = (
         ((d, c)) =>
           switch (d) {
-          | TupLabel(s, d') => (Some(s), (d', c))
-          | _ => (None, (d, c))
+          | TupLabel(s, d') => Some((s, (d', c)))
+          | _ => None
           }
       );
       assert(List.length(List.combine(dps, ds)) == List.length(elt_casts));
@@ -381,23 +410,23 @@ and matches_cast_Tuple =
       };
       let fin =
         LabeledTuple.ana_tuple(
-          filt1,
+          DHPat.get_label,
           filt2,
           f,
           Matches(Environment.empty),
           DoesNotMatch,
           dps,
-          List.combine(ds, elt_casts),
+          ds_elts,
         );
       switch (fin) {
       | DoesNotMatch =>
         LabeledTuple.ana_tuple(
           filt2,
-          filt1,
+          DHPat.get_label,
           f_reverse,
           Matches(Environment.empty),
           DoesNotMatch,
-          List.combine(ds, elt_casts),
+          ds_elts,
           dps,
         )
       | _ => fin
@@ -408,11 +437,36 @@ and matches_cast_Tuple =
       DoesNotMatch;
     } else {
       assert(List.length(tys) == List.length(tys'));
-      matches_cast_Tuple(
-        dps,
-        d',
-        List.map2(List.cons, List.combine(tys, tys'), elt_casts),
-      );
+      switch (d') {
+      | TupLabel(_, Tuple(ds))
+      | Tuple(ds) =>
+        let d_typ_pairs = List.combine(ds, tys);
+        let get_label_pair:
+          ((DHExp.t, Typ.t)) => option((LabeledTuple.t, (DHExp.t, Typ.t))) = (
+          ((d, t)) =>
+            switch (t) {
+            | Label(s, t') => Some((s, (d, t')))
+            | _ => None
+            }
+        );
+        let d_typ_pairs =
+          LabeledTuple.rearrange(
+            Typ.get_label, get_label_pair, tys', d_typ_pairs, (s, (d, t)) =>
+            (TupLabel(s, d), Label(s, t))
+          );
+        let (ds, tys) = List.split(d_typ_pairs);
+        matches_cast_Tuple(
+          dps,
+          DHExp.Tuple(ds),
+          List.map2(List.cons, List.combine(tys, tys'), elt_casts),
+        );
+      | _ =>
+        matches_cast_Tuple(
+          dps,
+          d',
+          List.map2(List.cons, List.combine(tys, tys'), elt_casts),
+        )
+      };
     }
   | Cast(d', Prod(tys), Unknown(_)) =>
     let tys' = List.init(List.length(tys), const_unknown);
