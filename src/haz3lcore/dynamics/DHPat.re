@@ -49,7 +49,7 @@ let rec binds_var = (x: Var.t, dp: t): bool =>
   | Ap(_, _) => false
   };
 
-let rec of_menhir_ast = (pat: Hazel_menhir.AST.pat, getId: bool => Uuidm.t): t => {
+let rec of_menhir_ast = (pat: Haz3lmenhir.AST.pat, getId: bool => Uuidm.t): t => {
   let of_menhir_ast_noid = of_menhir_ast(_, getId);
   // let getId_all_args = getId;
   let getId_no_inc = () => getId(false);

@@ -20,7 +20,7 @@ let string_of_t = v => {
   };
 };
 
-let of_menhir_ast = (a: Hazel_menhir.AST.filter_action): t => {
+let of_menhir_ast = (a: Haz3lmenhir.AST.filter_action): t => {
   switch (a) {
   | Eval => (Eval, All)
   | Pause => (Step, One)
