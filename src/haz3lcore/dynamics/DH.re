@@ -1,5 +1,5 @@
 open Sexplib.Std;
-open Hazel_menhir.AST;
+open Haz3lmenhir.AST;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type if_consistency =
@@ -64,7 +64,7 @@ module rec DHExp: {
 
   let fast_equal: (t, t) => bool;
 
-  let of_menhir_ast: (Hazel_menhir.AST.exp, bool => Uuidm.t) => t;
+  let of_menhir_ast: (Haz3lmenhir.AST.exp, bool => Uuidm.t) => t;
   let assign_name_if_none: (t, option(Var.t)) => t;
   let ty_subst: (Typ.t, TypVar.t, t) => t;
 } = {
@@ -357,14 +357,14 @@ module rec DHExp: {
 
   let rec rule_of_menhir_ast =
           (
-            (pat: Hazel_menhir.AST.pat, exp: Hazel_menhir.AST.exp),
+            (pat: Haz3lmenhir.AST.pat, exp: Haz3lmenhir.AST.exp),
             getId: bool => Id.t,
           )
           : rule => {
     Rule(DHPat.of_menhir_ast(pat, getId), of_menhir_ast(exp, getId));
   }
   //whenever we assign a hole an id, make sure to increment the idIndex value
-  and of_menhir_ast = (exp: Hazel_menhir.AST.exp, getId: bool => Id.t): t => {
+  and of_menhir_ast = (exp: Haz3lmenhir.AST.exp, getId: bool => Id.t): t => {
     let of_menhir_ast_noid = of_menhir_ast(_, getId);
     let getId_all_args = getId;
     let getId_no_inc = () => getId(false);

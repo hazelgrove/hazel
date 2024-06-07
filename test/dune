@@ -9,7 +9,7 @@
   base
   ptmap
   incr_dom
-  hazel_menhir
+  haz3lmenhir
   junit
   junit_alcotest)
  (modes js)

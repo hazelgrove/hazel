@@ -1,7 +1,7 @@
 open Sexplib.Std;
 open Util;
 open OptUtil.Syntax;
-open Hazel_menhir.AST;
+open Haz3lmenhir.AST;
 
 let precedence_Prod = 1;
 let precedence_Arrow = 2;
@@ -74,7 +74,7 @@ module rec Typ: {
   let get_sum_constructors: (Ctx.t, t) => option(sum_map);
   let is_unknown: t => bool;
 
-  let of_menhir_ast: Hazel_menhir.AST.typ => t;
+  let of_menhir_ast: Haz3lmenhir.AST.typ => t;
   let needs_parens: t => bool;
   let pretty_print: t => string;
 } = {
@@ -484,7 +484,7 @@ module rec Typ: {
     | _ => false
     };
 
-  let rec of_menhir_ast = (typ: Hazel_menhir.AST.typ): t => {
+  let rec of_menhir_ast = (typ: Haz3lmenhir.AST.typ): t => {
     switch (typ) {
     | IntType => Int
     | FloatType => Float

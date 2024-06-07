@@ -1,4 +1,4 @@
-open Hazel_menhir;
+open Haz3lmenhir;
 // open Haz3lcore.DHExp;
 open Alcotest;
 
