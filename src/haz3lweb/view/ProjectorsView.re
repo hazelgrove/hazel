@@ -4,18 +4,18 @@ open Node;
 open Projector;
 open Util.OptUtil.Syntax;
 
-let to_module = (p: Projector.t): ProjectorViewModule.t =>
+let to_module = (id, p: Projector.t): ProjectorViewModule.t =>
   switch (p) {
-  | Fold(data) => FoldProjectorView.mk(data)
-  | Infer(data) => InferProjectorView.mk(data)
+  | Fold(model) => FoldProjectorView.mk(id, model)
+  | Infer(model) => InferProjectorView.mk(id, model)
   };
 
 let view =
     (id: Id.t, ps: Map.t, ~measured: Measured.t, ~inject, ~font_metrics) => {
   let* p = Projector.Map.find(id, ps);
   let+ measurement = Measured.find_by_id(id, measured);
-  let (module PV) = to_module(p);
-  PV.normal(id, ~inject, ~font_metrics, ~measurement);
+  let (module PV) = to_module(id, p);
+  PV.normal(~inject, ~font_metrics, ~measurement);
 };
 
 let indication_view =
@@ -23,8 +23,8 @@ let indication_view =
     : option(Node.t) => {
   let* p = Projector.Map.find(id, ps);
   let+ measurement = Measured.find_by_id(id, measured);
-  let (module PV) = to_module(p);
-  PV.indicated(id, ~inject, ~font_metrics, ~measurement);
+  let (module PV) = to_module(id, p);
+  PV.indicated(~inject, ~font_metrics, ~measurement);
 };
 
 let view_all = (ps: Map.t, measured: Measured.t, ~inject, ~font_metrics) =>
@@ -45,12 +45,12 @@ let key_handler = (editor: Editor.t, key: Key.t): option(UpdateAction.t) =>
   switch (indicated_proj_ed(editor)) {
   | None => None
   | Some((id, p)) =>
-    let (module PV) = to_module(p);
-    PV.key_handler(id, key);
+    let (module PV) = to_module(id, p);
+    PV.key_handler(key);
   };
 
 let ci = (~inject as _, editor: Editor.t) => {
-  let+ (_, p) = indicated_proj_ed(editor);
-  let (module PV) = to_module(p);
+  let+ (id, p) = indicated_proj_ed(editor);
+  let (module PV) = to_module(id, p);
   div(~attr=Attr.classes(["projector-ci"]), [text(PV.ci_string())]);
 };

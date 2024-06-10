@@ -30,12 +30,14 @@ type projector_info = {info: option(Info.t)};
 
 module type ProjectorCore = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t;
+  type model;
+  type action;
   let projector: projector;
-  let data: t;
+  let model: model;
   let placeholder_length: unit => int;
   let can_project: Piece.t => bool;
   let update: projector_info => projector;
+  let act: action => projector;
 };
 
 type projector_core = (module ProjectorCore);
