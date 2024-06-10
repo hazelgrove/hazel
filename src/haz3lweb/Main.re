@@ -110,17 +110,6 @@ module App = {
       ],
       [%js
         {
-          val id = "Proceed To Next Hole";
-          val title = "Proceed To Next Hole";
-          val mdIcon = "arrow_forward";
-          val handler =
-            () => {
-              schedule_action(PerformAction(MoveToNextHole(Right)));
-            }
-        }
-      ],
-      [%js
-        {
           val id = "Undo";
           val title = "Undo";
           val mdIcon = "undo";
