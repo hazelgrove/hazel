@@ -6,13 +6,20 @@ let display_ty = (expected_ty: option(Typ.t)): Typ.t =>
   | None => Unknown(Internal)
   };
 
-let mk = (data: infer): projector_core =>
+let expected_ty = (info: option(Info.t)) =>
+  switch (info) {
+  | Some(InfoExp({mode, _}) | InfoPat({mode, _})) => Mode.ty_of(mode)
+  | _ => Unknown(Internal)
+  };
+
+let mk = (model: infer): projector_core =>
   (module
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
-     type t = infer;
-     let data = data;
-     let projector = Infer(data);
+     type model = infer;
+     type action = unit;
+     let model = model;
+     let projector = Infer(model);
 
      let can_project = (p: Piece.t): bool =>
        Piece.is_convex(p)
@@ -24,16 +31,14 @@ let mk = (data: infer): projector_core =>
        );
 
      let placeholder_length = _ =>
-       display_ty(data.expected_ty) |> Typ.pretty_print |> String.length;
+       display_ty(model.expected_ty) |> Typ.pretty_print |> String.length;
 
      let update = ({info, _}): projector => {
        print_endline("updating infer projector");
-       let expected_ty =
-         switch (info) {
-         | Some(InfoExp({mode, _}) | InfoPat({mode, _})) =>
-           Mode.ty_of(mode)
-         | _ => Typ.Float
-         };
-       Infer({expected_ty: Some(expected_ty)});
+       Infer({expected_ty: Some(expected_ty(info))});
      };
+     let act = (action: action): projector =>
+       switch (action) {
+       | () => Infer({expected_ty: None})
+       };
    });

@@ -16,18 +16,21 @@ let base = (clss, id, ~font_metrics, ~inject, ~measurement) =>
     [text("⋱"), PieceDec.convex_shard(~font_metrics, ~measurement)],
   );
 
-let mk = (data: Projector.fold): ProjectorViewModule.t =>
+let key_handler = (id: Id.t, key: Key.t): option(UpdateAction.t) =>
+  switch (key) {
+  | {key: D("Escape"), _} => Some(remove(id))
+  | _ => None
+  };
+
+let mk = (id: Id.t, model: Projector.fold): ProjectorViewModule.t =>
   (module
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
-     type t = Projector.fold;
-     let data = data;
-     let normal = base([]);
-     let indicated = base(["indicated"]);
-     let key_handler = (id, key: Key.t): option(UpdateAction.t) =>
-       switch (key) {
-       | {key: D("Escape"), _} => Some(remove(id))
-       | _ => None
-       };
+     type model = Projector.fold;
+     let model = model;
+     let id = id;
+     let normal = base([], id);
+     let indicated = base(["indicated"], id);
+     let key_handler = key_handler(id);
      let ci_string = () => "F";
    });

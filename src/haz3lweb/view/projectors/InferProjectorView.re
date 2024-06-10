@@ -7,8 +7,8 @@ let remove = id => Update.PerformAction(Project(Remove(id)));
 let base =
     (
       clss,
-      expected_ty: option(Typ.t),
       id: Id.t,
+      expected_ty: option(Typ.t),
       ~font_metrics,
       ~inject,
       ~measurement: Measured.measurement,
@@ -27,18 +27,21 @@ let base =
     ],
   );
 
-let mk = (data: Projector.infer): ProjectorViewModule.t =>
+let key_handler = (id: Id.t, key: Key.t): option(UpdateAction.t) =>
+  switch (key) {
+  | {key: D("Escape"), _} => Some(remove(id))
+  | _ => None
+  };
+
+let mk = (id: Id.t, model: Projector.infer): ProjectorViewModule.t =>
   (module
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
-     type t = Projector.infer;
-     let data = data;
-     let normal = base([], data.expected_ty);
-     let indicated = base(["indicated"], data.expected_ty);
-     let key_handler = (id, key: Key.t) =>
-       switch (key) {
-       | {key: D("Escape"), _} => Some(remove(id))
-       | _ => None
-       };
+     type model = Projector.infer;
+     let model = model;
+     let id = id;
+     let normal = base([], id, model.expected_ty);
+     let indicated = base(["indicated"], id, model.expected_ty);
+     let key_handler = key_handler(id);
      let ci_string: unit => string = _ => "I";
    });

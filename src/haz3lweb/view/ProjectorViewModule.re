@@ -3,12 +3,12 @@ open Virtual_dom.Vdom;
 
 module type ProjectorView = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t;
-  let data: t;
+  type model;
+  let model: model;
+  let id: Id.t;
 
   let normal:
     (
-      Id.t,
       ~font_metrics: FontMetrics.t,
       ~inject: UpdateAction.t => Ui_effect.t(unit),
       ~measurement: Measured.measurement
@@ -17,14 +17,13 @@ module type ProjectorView = {
 
   let indicated:
     (
-      Id.t,
       ~font_metrics: FontMetrics.t,
       ~inject: UpdateAction.t => Ui_effect.t(unit),
       ~measurement: Measured.measurement
     ) =>
     Node.t;
 
-  let key_handler: (Id.t, Key.t) => option(UpdateAction.t);
+  let key_handler: Key.t => option(UpdateAction.t);
   let ci_string: unit => string;
 };
 
