@@ -81,68 +81,8 @@ module App = {
       observe_font_specimen("font-specimen", fm =>
         schedule_action(Haz3lweb.Update.SetMeta(FontMetrics(fm)))
       );
-    let ninja = JsUtil.get_elem_by_id("ninja-keys");
 
-    let ninja_options = [|
-      [%js
-        {
-          val id = "Go To Definition";
-          val title = "Go to Definition";
-          val mdIcon = "arrow_forward";
-          val handler =
-            () => {
-              schedule_action(
-                PerformAction(Jump(BindingSiteOfIndicatedVar)),
-              );
-            }
-        }
-      ],
-      [%js
-        {
-          val id = "Proceed To Next Hole";
-          val title = "Proceed To Next Hole";
-          val mdIcon = "arrow_forward";
-          val handler =
-            () => {
-              schedule_action(PerformAction(MoveToNextHole(Right)));
-            }
-        }
-      ],
-      [%js
-        {
-          val id = "Undo";
-          val title = "Undo";
-          val mdIcon = "undo";
-          val handler =
-            () => {
-              schedule_action(Undo);
-            }
-        }
-      ],
-      [%js
-        {
-          val id = "Redo";
-          val title = "Redo";
-          val mdIcon = "redo";
-          val handler =
-            () => {
-              schedule_action(Redo);
-            }
-        }
-      ],
-      [%js
-        {
-          val id = "Reparse Current Editor";
-          val title = "Reparse Current Editor";
-          val mdIcon = "refresh";
-          val handler =
-            () => {
-              schedule_action(ReparseCurrentEditor);
-            }
-        }
-      ],
-    |];
-    Js.Unsafe.set(ninja, "data", Js.array(ninja_options));
+    NinjaKeys.initialize(NinjaKeys.options(schedule_action));
     JsUtil.focus_clipboard_shim();
 
     /* initialize state. */
