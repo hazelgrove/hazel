@@ -117,6 +117,8 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
         ),
       )
     | "ç" => Some(PerformAction(Project(ToggleIndicated(Checkbox()))))
+    | "ß" =>
+      Some(PerformAction(Project(ToggleIndicated(Slider({value: 10})))))
     | "ArrowLeft" => now(MoveToBackpackTarget(Left(ByToken)))
     | "ArrowRight" => now(MoveToBackpackTarget(Right(ByToken)))
     | "Alt" => Some(SetMeta(ShowBackpackTargets(true)))

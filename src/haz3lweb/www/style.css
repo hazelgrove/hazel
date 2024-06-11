@@ -676,68 +676,54 @@ select {
   position: relative;
 }
 
-/* PROJECTORS */
+/* PROJECTORS: default */
 
 .projector {
   position: absolute;
   z-index: 12;
   cursor: pointer;
-}
-
-.projector.fold {
   display: flex;
   justify-content: center;
   color: #c7b480;
 }
-.projector.fold:hover {
-  color: black;
-}
-.projector.fold svg {
-  fill: #f0e7d6;
-  z-index: -1;
-}
-.projector.infer {
-  opacity: 60%;
-  color: var(--typ-text-color);
-}
-
-.code-container .infer svg {
-  fill: var(--typ-bg-off-color);
-  z-index: -1;
-}
-
-.projector.checkbox {
-  display: flex;
-  justify-content: center;
-  color: #c7b480;
-}
-.projector.checkbox svg {
-  fill: #f0e7d6;
-  z-index: -1;
-}
-
 .projector.indicated {
   z-index: 13;
   display: flex;
   justify-content: center;
   cursor: pointer !important;
 }
-
-.projector.indicated svg {
+.projector > svg {
   z-index: -1;
+  fill: #f0e7d6;
 }
+.projector.indicated > svg {
+  fill: var(--exp-bg-off-color);
+}
+
+/* PROJECTOR: FOLD */
+
+.projector.fold:hover,
 .projector.indicated.fold {
   color: black;
 }
-.projector.indicated.fold svg {
-  fill: var(--exp-bg-off-color);
+
+/* PROJECTOR: INFER */
+
+.projector.infer {
+  opacity: 60%;
+  color: var(--typ-text-color);
 }
-.projector.indicated.infer svg {
+.projector.infer > svg {
   fill: var(--typ-bg-off-color);
 }
-.projector.indicated.checkbox svg {
-  fill: var(--exp-bg-off-color);
+
+/* PROJECTOR: SLIDER */
+
+.projector.slider > input {
+  width: 100%;
 }
+
+/* END PROJECTORS */
 
 .code {
   /*white-space: nowrap;*/

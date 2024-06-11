@@ -6,11 +6,12 @@ let mk = (): projector_core =>
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
      type model = unit;
+     [@deriving (show({with_path: false}), sexp, yojson)]
      type action = unit;
      let model = ();
      let projector = Fold();
      let can_project = _ => true;
      let placeholder_length = () => 2;
      let auto_update = _: projector => Fold();
-     let act = _ => Fold();
+     let update = _action => Fold();
    });

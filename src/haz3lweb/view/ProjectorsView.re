@@ -4,13 +4,25 @@ open Node;
 open Projector;
 open Util.OptUtil.Syntax;
 
-let proj_inject = (id, action: Projector.action('action)): UpdateAction.t => {
+let handle = (id, action): UpdateAction.t => {
   switch (action) {
   | Remove => PerformAction(Project(Remove(id)))
   | UpdateSyntax(f) => PerformAction(Project(UpdateSyntax(id, f)))
-  | Internal(_) =>
+  | UpdateModel(_action) =>
     //TODO(andrew)
-    PerformAction(Project(Remove(id)))
+    print_endline("TODO: update model");
+    // PerformAction(
+    //   Project(
+    //     UpdateModel(
+    //       id,
+    //       p => {
+    //         let (module P) = Projector.to_module(p);
+    //         P.update(action);
+    //       },
+    //     ),
+    //   ),
+    // );
+    PerformAction(Project(UpdateModel(id, x => x)));
   };
 };
 
@@ -22,11 +34,15 @@ let to_module =
       ~inject: UpdateAction.t => Ui_effect.t(unit),
     )
     : ProjectorViewModule.t => {
-  let inject = action => inject(proj_inject(id, action));
   switch (p) {
-  | Fold(model) => FoldView.mk(syntax, model, ~inject)
-  | Infer(model) => InferView.mk(syntax, model, ~inject)
-  | Checkbox(model) => CheckboxView.mk(syntax, model, ~inject)
+  | Fold(model) =>
+    FoldView.mk(syntax, model, ~inject=a => inject(handle(id, a)))
+  | Infer(model) =>
+    InferView.mk(syntax, model, ~inject=a => inject(handle(id, a)))
+  | Checkbox(model) =>
+    CheckboxView.mk(syntax, model, ~inject=a => inject(handle(id, a)))
+  | Slider(model) =>
+    SliderView.mk(syntax, model, ~inject=a => inject(handle(id, a)))
   };
 };
 
@@ -52,7 +68,7 @@ let view =
     (
       id: Id.t,
       ps: Map.t,
-      syntax_map,
+      ~syntax_map: Id.Map.t(syntax),
       ~measured: Measured.t,
       ~inject: UpdateAction.t => Ui_effect.t(unit),
       ~font_metrics,
@@ -68,8 +84,8 @@ let indication_view =
     (
       id: Id.t,
       ps: Map.t,
-      syntax_map,
-      measured: Measured.t,
+      ~syntax_map: Id.Map.t(syntax),
+      ~measured: Measured.t,
       ~inject: UpdateAction.t => Ui_effect.t(unit),
       ~font_metrics,
     )
@@ -84,20 +100,20 @@ let indication_view =
 let view_all =
     (
       ps: Map.t,
-      syntax_map,
-      measured: Measured.t,
+      ~syntax_map: Id.Map.t(syntax),
+      ~measured: Measured.t,
       ~inject: UpdateAction.t => Ui_effect.t(unit),
       ~font_metrics,
     ) =>
   List.filter_map(
     ((id, _)) =>
-      view(id, ps, syntax_map, ~measured, ~inject, ~font_metrics),
+      view(id, ps, ~syntax_map, ~measured, ~inject, ~font_metrics),
     Id.Map.bindings(ps),
   );
 
 let indicated_proj_ed = (editor: Editor.t) => {
   let projectors = Editor.get_projectors(editor);
-  //TODO(andrew): use z_proj instead of zipper?
+  //TODO(andrew): In future use z_proj instead of zipper?
   let* id = Indicated.index(editor.state.zipper);
   let+ projector = Projector.Map.find(id, projectors);
   (id, projector);
@@ -115,8 +131,8 @@ let key_handler =
   | Some((id, p)) =>
     let* syntax = Id.Map.find_opt(id, editor.state.meta.projected.syntax_map);
     let (module PV) = to_module(id, syntax, p, ~inject);
-    let+ action = PV.key_handler(key);
-    proj_inject(id, action);
+    let+ action = PV.keymap(key);
+    handle(id, action);
   };
 
 let ci = (editor: Editor.t, ~inject: UpdateAction.t => Ui_effect.t(unit)) => {

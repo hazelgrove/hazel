@@ -1,25 +1,21 @@
 open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
-open Sexplib.Std;
 
 let mk =
-    (syntax: Piece.t, model: Projector.fold, ~inject): ProjectorViewModule.t =>
+    (_syntax: Piece.t, model: ZipperBase.fold, ~inject): ProjectorViewModule.t =>
   (module
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
-     type model = Projector.fold;
+     type model = ZipperBase.fold;
      [@deriving (show({with_path: false}), sexp, yojson)]
-     type action = unit;
+     type action = ZipperBase.fold_action;
 
      let model = model;
-     let syntax = syntax;
-     let inject = inject;
-
      let view =
        div(
          ~attr=Attr.on_double_click(_ => inject(Projector.Remove)),
          [text("⋱")],
        );
-     let key_handler = _: option(Projector.action(action)) => None;
+     let keymap = _: option(Projector.action(action)) => None;
    });
