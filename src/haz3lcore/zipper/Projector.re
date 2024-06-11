@@ -150,7 +150,7 @@ module Move = {
 };
 
 module MapPiece = {
-  type updater = syntax => syntax;
+  type updater = Piece.t => Piece.t;
 
   let rec of_segment = (f: updater, seg: Segment.t): Segment.t => {
     seg |> List.map(f) |> List.map(of_piece(f));
