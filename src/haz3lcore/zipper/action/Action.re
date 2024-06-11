@@ -46,9 +46,9 @@ type select =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type project =
   | UpdateSyntax(Id.t, Piece.t => Piece.t)
+  | UpdateModel(Id.t, Projector.t => Projector.t)
   | ToggleIndicated(Projector.t)
   | Remove(Id.t);
-//| UpdateModel(Id.t, projector_type(X)_action)
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =

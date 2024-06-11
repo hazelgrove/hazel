@@ -2,7 +2,7 @@ open Projector;
 
 let move_out_of_piece =
     (d: Util.Direction.t, rel: Indicated.relation, z: Zipper.t): Zipper.t =>
-  /* Might not work for pieces with more than 2 delims */
+  /* NOTE: Might not work for pieces with more than 2 delims */
   switch (rel) {
   | Sibling => {...z, caret: Outer}
   | Parent =>
@@ -29,7 +29,6 @@ let add_or_remove = (id: Id.t, z: Zipper.t, info_map, p, piece, d, rel) =>
 
 let go = (a: Action.project, info_map: Statics.Map.t, z: ZipperBase.t) =>
   //TODO(andrew): avoid bringing statics in here?
-  //TODO(andrew): method to remotely get projected piece
   switch (a) {
   | ToggleIndicated(p) =>
     switch (Indicated.for_index(z)) {
@@ -43,4 +42,6 @@ let go = (a: Action.project, info_map: Statics.Map.t, z: ZipperBase.t) =>
     | true => Ok(set(id, None, z))
     }
   | UpdateSyntax(id, f) => Ok(Projector.UpdateSyntax.go(f, id, z))
+  | UpdateModel(id, f) =>
+    Ok({...z, projectors: Map.update(id, Option.map(f), z.projectors)})
   };
