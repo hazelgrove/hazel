@@ -2,26 +2,41 @@ open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
 
-let base =
+let wrap =
     (
-      clss,
-      expected_ty: option(Typ.t),
       ~font_metrics,
-      ~inject,
       ~measurement: Measured.measurement,
+      clss, // include projector name
+      guy,
     ) =>
   div(
     ~attr=
       Attr.many([
-        Attr.classes(["projector", "infer"] @ clss),
+        Attr.classes(["projector"] @ clss),
         JsUtil.stop_mousedown_propagation,
-        Attr.on_double_click(_ => inject(Projector.Remove)),
         DecUtil.abs_style(measurement, ~font_metrics),
       ]),
-    [
-      text(expected_ty |> InferProjectorCore.display_ty |> Typ.pretty_print),
-      PieceDec.convex_shard(~font_metrics, ~measurement),
-    ],
+    [guy, PieceDec.convex_shard(~font_metrics, ~measurement)],
+  );
+
+let base =
+    (
+      ~font_metrics,
+      ~measurement: Measured.measurement,
+      ~inject,
+      clss,
+      expected_ty: option(Typ.t),
+    ) =>
+  wrap(
+    ~font_metrics,
+    ~measurement,
+    ["infer", ...clss],
+    div(
+      ~attr=Attr.on_double_click(_ => inject(Projector.Remove)),
+      [
+        text(expected_ty |> InferProjectorCore.display_ty |> Typ.pretty_print),
+      ],
+    ),
   );
 
 let key_handler = (key: Key.t): option(Projector.action(unit)) =>
