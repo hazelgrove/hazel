@@ -12,6 +12,7 @@ module Deco =
            let term_ranges: TermRanges.t;
            let error_ids: list(Id.t);
            let tiles: TileMap.t;
+           let syntax_map: Id.Map.t(Piece.t);
          },
        ) => {
   let font_metrics = M.font_metrics;
@@ -308,6 +309,7 @@ module Deco =
           ~inject,
           id,
           z.projectors,
+          M.syntax_map,
           M.map,
           ~font_metrics,
         )
@@ -332,6 +334,7 @@ module Deco =
       err_holes(),
       ProjectorsView.view_all(
         zipper.projectors,
+        M.syntax_map,
         ~inject,
         ~font_metrics,
         M.map,

@@ -123,7 +123,16 @@ let deco =
       {
         state: {
           meta: {
-            projected: {z, term_ranges, segment, measured, terms, tiles, _},
+            projected: {
+              z,
+              term_ranges,
+              segment,
+              measured,
+              terms,
+              tiles,
+              syntax_map,
+              _,
+            },
             _,
           },
           _,
@@ -140,6 +149,7 @@ let deco =
       let font_metrics = font_metrics;
       let show_backpack_targets = show_backpack_targets;
       let error_ids = error_ids;
+      let syntax_map = syntax_map;
     });
   let decos =
     selected ? Deco.all(~inject, z, segment) : Deco.always(~inject, z);

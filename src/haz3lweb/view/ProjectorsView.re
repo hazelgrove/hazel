@@ -4,32 +4,51 @@ open Node;
 open Projector;
 open Util.OptUtil.Syntax;
 
-let to_module = (id, p: Projector.t): ProjectorViewModule.t =>
+let to_module = (id, syntax: Piece.t, p: Projector.t): ProjectorViewModule.t =>
   switch (p) {
-  | Fold(model) => FoldProjectorView.mk(id, model)
-  | Infer(model) => InferProjectorView.mk(id, model)
+  | Fold(model) => FoldProjectorView.mk(id, syntax, model)
+  | Infer(model) => InferProjectorView.mk(id, syntax, model)
+  | Checkbox(model) => CheckboxProjectorView.mk(id, syntax, model)
   };
 
 let view =
-    (id: Id.t, ps: Map.t, ~measured: Measured.t, ~inject, ~font_metrics) => {
+    (
+      id: Id.t,
+      ps: Map.t,
+      syntax_map,
+      ~measured: Measured.t,
+      ~inject,
+      ~font_metrics,
+    ) => {
   let* p = Projector.Map.find(id, ps);
+  let* syntax = Id.Map.find_opt(id, syntax_map);
   let+ measurement = Measured.find_by_id(id, measured);
-  let (module PV) = to_module(id, p);
+  let (module PV) = to_module(id, syntax, p);
   PV.normal(~inject, ~font_metrics, ~measurement);
 };
 
 let indication_view =
-    (id: Id.t, ps: Map.t, measured: Measured.t, ~inject, ~font_metrics)
+    (
+      id: Id.t,
+      ps: Map.t,
+      syntax_map,
+      measured: Measured.t,
+      ~inject,
+      ~font_metrics,
+    )
     : option(Node.t) => {
   let* p = Projector.Map.find(id, ps);
+  let* syntax = Id.Map.find_opt(id, syntax_map);
   let+ measurement = Measured.find_by_id(id, measured);
-  let (module PV) = to_module(id, p);
+  let (module PV) = to_module(id, syntax, p);
   PV.indicated(~inject, ~font_metrics, ~measurement);
 };
 
-let view_all = (ps: Map.t, measured: Measured.t, ~inject, ~font_metrics) =>
+let view_all =
+    (ps: Map.t, syntax_map, measured: Measured.t, ~inject, ~font_metrics) =>
   List.filter_map(
-    ((id, _)) => view(id, ps, ~measured, ~inject, ~font_metrics),
+    ((id, _)) =>
+      view(id, ps, syntax_map, ~measured, ~inject, ~font_metrics),
     Id.Map.bindings(ps),
   );
 
@@ -45,12 +64,14 @@ let key_handler = (editor: Editor.t, key: Key.t): option(UpdateAction.t) =>
   switch (indicated_proj_ed(editor)) {
   | None => None
   | Some((id, p)) =>
-    let (module PV) = to_module(id, p);
+    let* syntax = Id.Map.find_opt(id, editor.state.meta.projected.syntax_map);
+    let (module PV) = to_module(id, syntax, p);
     PV.key_handler(key);
   };
 
 let ci = (~inject as _, editor: Editor.t) => {
-  let+ (id, p) = indicated_proj_ed(editor);
-  let (module PV) = to_module(id, p);
+  let* (id, p) = indicated_proj_ed(editor);
+  let+ syntax = Id.Map.find_opt(id, editor.state.meta.projected.syntax_map);
+  let (module PV) = to_module(id, syntax, p);
   div(~attr=Attr.classes(["projector-ci"]), [text(PV.ci_string())]);
 };

@@ -33,7 +33,7 @@ let mk = (model: infer): projector_core =>
      let placeholder_length = _ =>
        display_ty(model.expected_ty) |> Typ.pretty_print |> String.length;
 
-     let update = ({info, _}): projector => {
+     let auto_update = ({info, _}): projector => {
        print_endline("updating infer projector");
        Infer({expected_ty: Some(expected_ty(info))});
      };

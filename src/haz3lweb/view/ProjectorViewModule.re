@@ -6,6 +6,7 @@ module type ProjectorView = {
   type model;
   let model: model;
   let id: Id.t;
+  let syntax: Piece.t;
 
   let normal:
     (

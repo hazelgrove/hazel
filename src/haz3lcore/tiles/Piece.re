@@ -151,3 +151,10 @@ let mold_of = (~shape=Nib.Shape.Convex, p: t) =>
   | Grout(g) => Mold.of_grout(g, Any)
   | Secondary(_) => Mold.of_secondary({sort: Any, shape})
   };
+
+let replace_id = (id: Id.t, p: t): t =>
+  switch (p) {
+  | Tile(t) => Tile({...t, id})
+  | Grout(g) => Grout({...g, id})
+  | Secondary(w) => Secondary({...w, id})
+  };
