@@ -22,13 +22,10 @@ let mk = (model: infer): projector_core =>
      let projector = Infer(model);
 
      let can_project = (p: Piece.t): bool =>
-       Piece.is_convex(p)
-       && (
-         switch (p) {
-         | Tile(t) => t.mold.out == Exp || t.mold.out == Pat
-         | _ => false
-         }
-       );
+       switch (p) {
+       | Tile(t) => t.mold.out == Exp || t.mold.out == Pat
+       | _ => false
+       };
 
      let placeholder_length = _ =>
        display_ty(model.expected_ty) |> Typ.pretty_print |> String.length;

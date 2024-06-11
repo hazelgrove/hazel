@@ -158,3 +158,14 @@ let replace_id = (id: Id.t, p: t): t =>
   | Grout(g) => Grout({...g, id})
   | Secondary(w) => Secondary({...w, id})
   };
+
+let mk_tile: (Form.t, list(list(t))) => t =
+  //TODO: asserts
+  (form, children) =>
+    Tile({
+      id: Id.mk(),
+      label: form.label,
+      mold: form.mold,
+      shards: List.mapi((i, _) => i, form.label),
+      children,
+    });

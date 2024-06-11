@@ -2,36 +2,18 @@ open Haz3lcore;
 open Virtual_dom.Vdom;
 open Sexplib.Std;
 
-let put = (bool: bool) =>
-  Example.mk_monotile(Form.mk_atomic(Exp, string_of_bool(bool)));
-
-let get = piece =>
-  switch (CheckboxProjectorCore.state_of(piece)) {
-  | None => failwith("toggle: not boolean literal")
-  | Some(s) => s
-  };
-
-let toggle = (piece: Piece.t) => {
-  let cur =
-    switch (CheckboxProjectorCore.state_of(piece)) {
-    | None => failwith("toggle: not boolean literal")
-    | Some(s) => s
-    };
-  put(!cur);
-};
-
-let view = (~inject, syntax) =>
+let view = (~inject: Projector.action(unit) => Ui_effect.t(unit), syntax) =>
   Node.input(
     ~attr=
       Attr.many(
         [
           Attr.create("type", "checkbox"),
-          Attr.on_input((_evt, _str) =>
-            inject(Projector.UpdateSyntax(toggle))
+          Attr.on_input((_, _) =>
+            inject(UpdateSyntax(CheckboxCore.toggle))
           ),
           JsUtil.stop_mousedown_propagation,
         ]
-        @ (get(syntax) ? [Attr.checked] : []),
+        @ (CheckboxCore.get(syntax) ? [Attr.checked] : []),
       ),
     [],
   );

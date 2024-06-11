@@ -18,18 +18,22 @@ type checkbox = ZipperBase.checkbox;
 
 let to_module = (p: projector): projector_core =>
   switch ((p: projector)) {
-  | Fold(model) => FoldProjectorCore.mk(model)
-  | Infer(model) => InferProjectorCore.mk(model)
-  | Checkbox(model) => CheckboxProjectorCore.mk(model)
+  | Fold(model) => FoldCore.mk(model)
+  | Infer(model) => InferCore.mk(model)
+  | Checkbox(model) => CheckboxCore.mk(model)
   };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = projector;
 
+/* The kind of syntax data to which projection can apply */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type syntax = Piece.t;
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action('action) =
   | Remove
-  | UpdateSyntax(Piece.t => Piece.t)
+  | UpdateSyntax(syntax => syntax)
   | Internal('action);
 
 let name = (p: t): string =>
@@ -39,7 +43,7 @@ let name = (p: t): string =>
   | Checkbox(_) => "checkbox"
   };
 
-let placeholder = (p: t, id: Id.t): Piece.t => {
+let placeholder = (p: t, id: Id.t): syntax => {
   let (module P) = to_module(p);
   Piece.Tile({
     id,
@@ -50,15 +54,19 @@ let placeholder = (p: t, id: Id.t): Piece.t => {
   });
 };
 
+/* Currently projection is limited to convex pieces */
+let minimum_projection_condition = (syntax: syntax): bool =>
+  Piece.is_convex(syntax);
+
 let create =
-    (p: t, piece: Piece.t, id: Id.t, info_map: Statics.Map.t): option(t) => {
+    (p: t, syntax: syntax, id: Id.t, info_map: Statics.Map.t): option(t) => {
   let (module P) = to_module(p);
-  P.can_project(piece)
+  P.can_project(syntax) && minimum_projection_condition(syntax)
     ? Some(P.auto_update({info: Id.Map.find_opt(id, info_map)})) : None;
 };
 
-let piece_is = (ps: Map.t, piece: option(Piece.t)): option(Id.t) =>
-  switch (piece) {
+let piece_is = (ps: Map.t, syntax: option(syntax)): option(Id.t) =>
+  switch (syntax) {
   | Some(p) when Map.mem(Piece.id(p), ps) =>
     Map.mem(Piece.id(p), ps) ? Some(Piece.id(p)) : None
   | _ => None
@@ -142,7 +150,7 @@ module Move = {
 };
 
 module MapPiece = {
-  type updater = Piece.t => Piece.t;
+  type updater = syntax => syntax;
 
   let rec of_segment = (f: updater, seg: Segment.t): Segment.t => {
     seg |> List.map(f) |> List.map(of_piece(f));
@@ -199,18 +207,18 @@ module MapPiece = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type proj_ret = {
   z: ZipperBase.t,
-  syntax_map: Id.Map.t(Piece.t),
+  syntax_map: Id.Map.t(syntax),
 };
 
 module Project = {
-  let syntax_map: ref(Id.Map.t(Piece.t)) = ref(Id.Map.empty);
+  let syntax_map: ref(Id.Map.t(syntax)) = ref(Id.Map.empty);
 
-  let placehold = (projectors: Map.t, piece: Piece.t) =>
-    switch (Map.find(Piece.id(piece), projectors)) {
-    | None => piece
+  let placehold = (projectors: Map.t, syntax: syntax) =>
+    switch (Map.find(Piece.id(syntax), projectors)) {
+    | None => syntax
     | Some(pr) =>
-      syntax_map := Id.Map.add(Piece.id(piece), piece, syntax_map^);
-      placeholder(pr, Piece.id(piece));
+      syntax_map := Id.Map.add(Piece.id(syntax), syntax, syntax_map^);
+      placeholder(pr, Piece.id(syntax));
     };
 
   let go = (z: ZipperBase.t): proj_ret => {
@@ -228,8 +236,8 @@ module Project = {
 };
 
 module UpdateSyntax = {
-  let update_piece = (f, id: Id.t, piece: Piece.t) =>
-    id == Piece.id(piece) ? f(piece) : piece;
+  let update_piece = (f, id: Id.t, syntax: syntax) =>
+    id == Piece.id(syntax) ? f(syntax) : syntax;
 
   let sib_has_id = (get, z: ZipperBase.t, id: Id.t): bool => {
     switch (z.relatives.siblings |> get) {
@@ -241,13 +249,13 @@ module UpdateSyntax = {
   let left_sib_has_id = sib_has_id(Siblings.left_neighbor);
   let right_sib_has_id = sib_has_id(Siblings.right_neighbor);
 
-  let update_left_sib = (f: Piece.t => Piece.t, z: ZipperBase.t) => {
+  let update_left_sib = (f: syntax => syntax, z: ZipperBase.t) => {
     let (l, r) = z.relatives.siblings;
     let sibs = (List.map(f, l), List.map(f, r));
     z |> put_siblings(sibs);
   };
 
-  let update_right_sib = (f: Piece.t => Piece.t, z: ZipperBase.t) => {
+  let update_right_sib = (f: syntax => syntax, z: ZipperBase.t) => {
     let sibs =
       switch (z.relatives.siblings) {
       | (l, [hd, ...tl]) => (l, [f(hd), ...tl])
@@ -256,15 +264,19 @@ module UpdateSyntax = {
     z |> put_siblings(sibs);
   };
 
-  let go = (f: Piece.t => Piece.t, id: Id.t, z: ZipperBase.t): ZipperBase.t => {
+  let go = (f: syntax => syntax, id: Id.t, z: ZipperBase.t): ZipperBase.t => {
     /* This applies the function to the piece in the zipper having id id, and
      * then replaces the id of the resulting piece with the idea of the old
      * piece, ensuring that the root id remains stable. This function assumes
      * the cursor is not inside the piece to be updated. This is optimized to
      * be O(1) when the piece is directly to the left or right of the cursor,
      * otherwise it is O(|zipper|) */
-    let f = piece =>
-      update_piece(p => p |> f |> Piece.replace_id(Piece.id(p)), id, piece);
+    let f = syntax =>
+      update_piece(
+        p => p |> f |> Piece.replace_id(Piece.id(p)),
+        id,
+        syntax,
+      );
     if (left_sib_has_id(z, id)) {
       update_left_sib(f, z);
     } else if (right_sib_has_id(z, id)) {
@@ -274,25 +286,3 @@ module UpdateSyntax = {
     };
   };
 };
-//TODO(andrew): rm if unused
-//   exception PieceFound(Piece.t);
-//   let get = (id: Id.t, z: ZipperBase.t): option(Piece.t) => {
-//     /* Gets the piece under the projector with id id. This is optimized to
-//      * be O(1) when the piece is directly to the left or right of the cursor,
-//      * otherwise it is O(|zipper|) */
-//     let f = piece => {
-//       if (Piece.id(piece) == id) {
-//         raise(PieceFound(piece));
-//       };
-//       piece;
-//     };
-//     try(
-//       {
-//         go(f, id, z) |> ignore;
-//         None;
-//       }
-//     ) {
-//     | PieceFound(piece) => Some(piece)
-//     };
-//   };
-//

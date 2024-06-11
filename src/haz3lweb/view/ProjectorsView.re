@@ -16,27 +16,27 @@ let proj_inject = (id, action: Projector.action('action)): UpdateAction.t => {
 
 let to_module =
     (
-      id,
+      id: Id.t,
       syntax: Piece.t,
       p: Projector.t,
       ~inject: UpdateAction.t => Ui_effect.t(unit),
     )
     : ProjectorViewModule.t => {
-  let inject = pa => inject(proj_inject(id, pa));
+  let inject = action => inject(proj_inject(id, action));
   switch (p) {
-  | Fold(model) => FoldProjectorView.mk(syntax, model, ~inject)
-  | Infer(model) => InferProjectorView.mk(syntax, model, ~inject)
-  | Checkbox(model) => CheckboxProjectorView.mk(syntax, model, ~inject)
+  | Fold(model) => FoldView.mk(syntax, model, ~inject)
+  | Infer(model) => InferView.mk(syntax, model, ~inject)
+  | Checkbox(model) => CheckboxView.mk(syntax, model, ~inject)
   };
 };
 
 let wrap =
     (
-      ~font_metrics,
+      ~font_metrics: FontMetrics.t,
       ~measurement: Measured.measurement,
       p: Projector.t,
       clss: list(string),
-      guy,
+      view: Node.t,
     ) =>
   div(
     ~attr=
@@ -45,7 +45,7 @@ let wrap =
         JsUtil.stop_mousedown_propagation,
         DecUtil.abs_style(measurement, ~font_metrics),
       ]),
-    [guy, PieceDec.convex_shard(~font_metrics, ~measurement)],
+    [view, PieceDec.convex_shard(~font_metrics, ~measurement)],
   );
 
 let view =
