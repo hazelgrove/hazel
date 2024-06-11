@@ -1,6 +1,5 @@
 open Haz3lcore;
 open Virtual_dom.Vdom;
-open Sexplib.Std;
 
 let view = (~inject: Projector.action(unit) => Ui_effect.t(unit), syntax) =>
   Node.input(
@@ -18,23 +17,23 @@ let view = (~inject: Projector.action(unit) => Ui_effect.t(unit), syntax) =>
     [],
   );
 
-let key_handler = (key: Key.t): option(Projector.action(unit)) =>
+let keymap = (key: Key.t): option(Projector.action(unit)) =>
   switch (key) {
   | {key: D("Escape"), _} => Some(Remove)
   | _ => None
   };
 
 let mk =
-    (syntax: Piece.t, ~inject, model: Projector.fold): ProjectorViewModule.t =>
+    (syntax: Piece.t, ~inject, model: ZipperBase.checkbox)
+    : ProjectorViewModule.t =>
   (module
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
-     type model = Projector.checkbox;
+     type model = ZipperBase.checkbox;
      [@deriving (show({with_path: false}), sexp, yojson)]
-     type action = unit;
+     type action = ZipperBase.checkbox_action;
+
      let model = model;
-     let syntax = syntax;
-     let inject = inject;
      let view = view(syntax, ~inject);
-     let key_handler = key_handler;
+     let keymap = keymap;
    });

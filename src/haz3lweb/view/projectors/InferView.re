@@ -1,7 +1,6 @@
 open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
-open Sexplib.Std;
 
 let view = (~inject, expected_ty: option(Typ.t)) =>
   div(
@@ -9,23 +8,23 @@ let view = (~inject, expected_ty: option(Typ.t)) =>
     [text(expected_ty |> InferCore.display_ty |> Typ.pretty_print)],
   );
 
-let key_handler = (key: Key.t): option(Projector.action(unit)) =>
+let keymap = (key: Key.t): option(Projector.action(unit)) =>
   switch (key) {
   | {key: D("Escape"), _} => Some(Remove)
   | _ => None
   };
 
 let mk =
-    (syntax: Piece.t, model: Projector.infer, ~inject): ProjectorViewModule.t =>
+    (_syntax: Piece.t, model: ZipperBase.infer, ~inject)
+    : ProjectorViewModule.t =>
   (module
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
-     type model = Projector.infer;
+     type model = ZipperBase.infer;
      [@deriving (show({with_path: false}), sexp, yojson)]
-     type action = unit;
+     type action = ZipperBase.infer_action;
+
      let model = model;
-     let syntax = syntax;
-     let inject = inject;
      let view = view(~inject, model.expected_ty);
-     let key_handler = key_handler;
+     let keymap = keymap;
    });

@@ -306,11 +306,11 @@ module Deco =
     | Some(id) =>
       switch (
         ProjectorsView.indication_view(
-          ~inject,
           id,
           z.projectors,
-          M.syntax_map,
-          M.map,
+          ~inject,
+          ~syntax_map=M.syntax_map,
+          ~measured=M.map,
           ~font_metrics,
         )
       ) {
@@ -334,10 +334,10 @@ module Deco =
       err_holes(),
       ProjectorsView.view_all(
         zipper.projectors,
-        M.syntax_map,
+        ~syntax_map=M.syntax_map,
         ~inject,
         ~font_metrics,
-        M.map,
+        ~measured=M.map,
       ),
     ]);
 

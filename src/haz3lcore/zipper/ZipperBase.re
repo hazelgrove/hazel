@@ -3,19 +3,32 @@ open Sexplib.Std;
 /* Projector model types */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type infer = {expected_ty: option(Typ.t)};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type fold = unit;
-
+[@deriving (show({with_path: false}), sexp, yojson)]
+type infer = {expected_ty: option(Typ.t)};
 [@deriving (show({with_path: false}), sexp, yojson)]
 type checkbox = unit;
+[@deriving (show({with_path: false}), sexp, yojson)]
+type slider = {value: int};
+
+/* Projector action types */
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type fold_action = unit;
+[@deriving (show({with_path: false}), sexp, yojson)]
+type infer_action = unit;
+[@deriving (show({with_path: false}), sexp, yojson)]
+type checkbox_action = unit;
+[@deriving (show({with_path: false}), sexp, yojson)]
+type slider_action =
+  | Set(int);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type projector =
   | Fold(fold)
   | Infer(infer)
-  | Checkbox(checkbox);
+  | Checkbox(checkbox)
+  | Slider(slider);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 module ProjectorMap = {
@@ -36,13 +49,14 @@ type projector_info = {info: option(Info.t)};
 module type ProjectorCore = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model;
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type action;
   let projector: projector;
   let model: model;
   let placeholder_length: unit => int;
   let can_project: Piece.t => bool;
   let auto_update: projector_info => projector;
-  let act: action => projector;
+  let update: action => projector;
 };
 
 type projector_core = (module ProjectorCore);

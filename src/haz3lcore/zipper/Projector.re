@@ -7,20 +7,12 @@ module Map = ProjectorMap;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type info = ZipperBase.projector_info;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type fold = ZipperBase.fold;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type infer = ZipperBase.infer;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type checkbox = ZipperBase.checkbox;
-
 let to_module = (p: projector): projector_core =>
   switch ((p: projector)) {
   | Fold(model) => FoldCore.mk(model)
   | Infer(model) => InferCore.mk(model)
   | Checkbox(model) => CheckboxCore.mk(model)
+  | Slider(model) => SliderCore.mk(model)
   };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -34,13 +26,14 @@ type syntax = Piece.t;
 type action('action) =
   | Remove
   | UpdateSyntax(syntax => syntax)
-  | Internal('action);
+  | UpdateModel('action);
 
 let name = (p: t): string =>
   switch (p) {
   | Fold(_) => "fold"
   | Infer(_) => "infer"
   | Checkbox(_) => "checkbox"
+  | Slider(_) => "slider"
   };
 
 let placeholder = (p: t, id: Id.t): syntax => {
