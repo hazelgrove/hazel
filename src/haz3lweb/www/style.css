@@ -706,6 +706,16 @@ select {
   z-index: -1;
 }
 
+.projector.checkbox {
+  display: flex;
+  justify-content: center;
+  color: #c7b480;
+}
+.projector.checkbox svg {
+  fill: #f0e7d6;
+  z-index: -1;
+}
+
 .projector.indicated {
   z-index: 13;
   display: flex;
@@ -724,6 +734,9 @@ select {
 }
 .projector.indicated.infer svg {
   fill: var(--typ-bg-off-color);
+}
+.projector.indicated.checkbox svg {
+  fill: var(--exp-bg-off-color);
 }
 
 .code {

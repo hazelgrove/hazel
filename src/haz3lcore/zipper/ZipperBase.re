@@ -9,9 +9,13 @@ type infer = {expected_ty: option(Typ.t)};
 type fold = unit;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type checkbox = unit;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type projector =
   | Fold(fold)
-  | Infer(infer);
+  | Infer(infer)
+  | Checkbox(checkbox);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 module ProjectorMap = {
@@ -28,6 +32,12 @@ module ProjectorMap = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type projector_info = {info: option(Info.t)};
 
+//TODO(andrew): use or lose
+// [@deriving (show({with_path: false}), sexp, yojson)]
+// type projector_action('action) =
+//   | UpdateSyntax(Piece.t => Piece.t)
+//   | Internal('action);
+
 module type ProjectorCore = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model;
@@ -36,7 +46,7 @@ module type ProjectorCore = {
   let model: model;
   let placeholder_length: unit => int;
   let can_project: Piece.t => bool;
-  let update: projector_info => projector;
+  let auto_update: projector_info => projector;
   let act: action => projector;
 };
 

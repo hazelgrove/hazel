@@ -22,13 +22,15 @@ let key_handler = (id: Id.t, key: Key.t): option(UpdateAction.t) =>
   | _ => None
   };
 
-let mk = (id: Id.t, model: Projector.fold): ProjectorViewModule.t =>
+let mk =
+    (id: Id.t, syntax: Piece.t, model: Projector.fold): ProjectorViewModule.t =>
   (module
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
      type model = Projector.fold;
      let model = model;
      let id = id;
+     let syntax = syntax;
      let normal = base([], id);
      let indicated = base(["indicated"], id);
      let key_handler = key_handler(id);

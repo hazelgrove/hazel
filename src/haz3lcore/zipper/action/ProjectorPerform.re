@@ -42,4 +42,5 @@ let go = (a: Action.project, info_map: Statics.Map.t, z: ZipperBase.t) =>
     | false => Error(Action.Failure.Cant_project)
     | true => Ok(set(id, None, z))
     }
+  | UpdateSyntax(id, f) => Ok(Projector.UpdateSyntax.go(f, id, z))
   };

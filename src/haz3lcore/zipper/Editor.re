@@ -13,6 +13,7 @@ module Meta = {
     tiles: TileMap.t,
     holes: list(Grout.t),
     buffer_ids: list(Id.t),
+    syntax_map: Id.Map.t(Piece.t),
   };
 
   type t = {
@@ -21,11 +22,11 @@ module Meta = {
     projected,
   };
 
-  let init_projected = (z_projected: Zipper.t): projected => {
-    let segment = Zipper.unselect_and_zip(z_projected);
+  let init_projected = (z_projected: Projector.proj_ret): projected => {
+    let segment = Zipper.unselect_and_zip(z_projected.z);
     let (term, terms) = MakeTerm.go(segment);
     {
-      z: z_projected,
+      z: z_projected.z,
       segment,
       term,
       terms,
@@ -33,7 +34,8 @@ module Meta = {
       tiles: TileMap.mk(segment),
       holes: Segment.holes(segment),
       measured: Measured.of_segment(segment),
-      buffer_ids: Selection.buffer_ids(z_projected.selection),
+      buffer_ids: Selection.buffer_ids(z_projected.z.selection),
+      syntax_map: z_projected.syntax_map,
     };
   };
 
@@ -41,7 +43,7 @@ module Meta = {
     {
       col_target: 0,
       touched: Touched.empty,
-      projected: z |> Projector.Project.go |> init_projected,
+      projected: Projector.Project.go(z) |> init_projected,
     };
   };
 
@@ -66,12 +68,12 @@ module Meta = {
   let yojson_of_t = _ => failwith("Editor.Meta.yojson_of_t");
   let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
-  let next_projected = (z, ~touched, ~old) => {
-    let segment = Zipper.unselect_and_zip(z);
+  let next_projected = (z_projected: Projector.proj_ret, ~touched, ~old) => {
+    let segment = Zipper.unselect_and_zip(z_projected.z);
     let (term, terms) = MakeTerm.go(segment);
     let measured = Measured.of_segment(~touched, ~old, segment);
     {
-      z,
+      z: z_projected.z,
       segment,
       term,
       terms,
@@ -79,7 +81,8 @@ module Meta = {
       term_ranges: TermRanges.mk(segment),
       tiles: TileMap.mk(segment),
       holes: Segment.holes(segment),
-      buffer_ids: Selection.buffer_ids(z.selection),
+      buffer_ids: Selection.buffer_ids(z_projected.z.selection),
+      syntax_map: z_projected.syntax_map,
     };
   };
 

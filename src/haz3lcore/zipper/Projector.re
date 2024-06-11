@@ -13,10 +13,14 @@ type fold = ZipperBase.fold;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type infer = ZipperBase.infer;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type checkbox = ZipperBase.checkbox;
+
 let to_module = (p: projector): projector_core =>
   switch ((p: projector)) {
-  | Fold(data) => FoldProjectorCore.mk(data)
-  | Infer(data) => InferProjectorCore.mk(data)
+  | Fold(model) => FoldProjectorCore.mk(model)
+  | Infer(model) => InferProjectorCore.mk(model)
+  | Checkbox(model) => CheckboxProjectorCore.mk(model)
   };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -37,7 +41,7 @@ let create =
     (p: t, piece: Piece.t, id: Id.t, info_map: Statics.Map.t): option(t) => {
   let (module P) = to_module(p);
   P.can_project(piece)
-    ? Some(P.update({info: Id.Map.find_opt(id, info_map)})) : None;
+    ? Some(P.auto_update({info: Id.Map.find_opt(id, info_map)})) : None;
 };
 
 let piece_is = (ps: Map.t, piece: option(Piece.t)): option(Id.t) =>
@@ -124,70 +128,158 @@ module Move = {
     };
 };
 
-module Project = {
-  let placehold = (ps: Map.t, p: Piece.t) =>
-    switch (Map.find(Piece.id(p), ps)) {
-    | None => p
-    | Some(pr) => placeholder(pr, Piece.id(p))
-    };
+module MapPiece = {
+  type updater = Piece.t => Piece.t;
 
-  let rec of_segment = (projectors, seg: Segment.t): Segment.t => {
-    seg
-    |> List.map(placehold(projectors))
-    |> List.map(of_piece(projectors));
+  let rec of_segment = (f: updater, seg: Segment.t): Segment.t => {
+    seg |> List.map(f) |> List.map(of_piece(f));
   }
-  and of_piece = (projectors, p: Piece.t): Piece.t => {
-    switch (p) {
-    | Tile(t) => Tile(of_tile(projectors, t))
-    | Grout(_) => p
-    | Secondary(_) => p
+  and of_piece = (f: updater, piece: Piece.t): Piece.t => {
+    switch (piece) {
+    | Tile(t) => Tile(of_tile(f, t))
+    | Grout(_)
+    | Secondary(_) => piece
     };
   }
-  and of_tile = (projectors, t: Tile.t): Tile.t => {
-    {...t, children: List.map(of_segment(projectors), t.children)};
+  and of_tile = (f: updater, t: Tile.t): Tile.t => {
+    {...t, children: List.map(of_segment(f), t.children)};
   };
 
-  let of_siblings = (projectors: Map.t, siblings: Siblings.t): Siblings.t => {
-    let l_sibs = of_segment(projectors, fst(siblings));
-    let r_sibs = of_segment(projectors, snd(siblings));
-    (l_sibs, r_sibs);
-  };
+  let of_siblings = (f: updater, sibs: Siblings.t): Siblings.t => (
+    of_segment(f, fst(sibs)),
+    of_segment(f, snd(sibs)),
+  );
 
-  let of_ancestor = (projectors: Map.t, ancestor: Ancestor.t): Ancestor.t => {
+  let of_ancestor = (f: updater, ancestor: Ancestor.t): Ancestor.t => {
     {
       ...ancestor,
       children: (
-        List.map(of_segment(projectors), fst(ancestor.children)),
-        List.map(of_segment(projectors), snd(ancestor.children)),
+        List.map(of_segment(f), fst(ancestor.children)),
+        List.map(of_segment(f), snd(ancestor.children)),
       ),
     };
   };
 
   let of_generation =
-      (projectors: Map.t, generation: Ancestors.generation)
-      : Ancestors.generation => (
-    of_ancestor(projectors, fst(generation)),
-    of_siblings(projectors, snd(generation)),
+      (f: updater, generation: Ancestors.generation): Ancestors.generation => (
+    of_ancestor(f, fst(generation)),
+    of_siblings(f, snd(generation)),
   );
 
-  let of_ancestors = (projectors: Map.t, ancestors: Ancestors.t): Ancestors.t =>
-    List.map(of_generation(projectors), ancestors);
+  let of_ancestors = (f: updater, ancestors: Ancestors.t): Ancestors.t =>
+    List.map(of_generation(f), ancestors);
 
-  let of_selection = (projectors: Map.t, selection: Selection.t): Selection.t => {
-    {...selection, content: of_segment(projectors, selection.content)};
+  let of_selection = (f: updater, selection: Selection.t): Selection.t => {
+    {...selection, content: of_segment(f, selection.content)};
   };
 
-  let go = (z: ZipperBase.t): ZipperBase.t =>
-    if (Id.Map.is_empty(z.projectors)) {
-      z;
-    } else {
-      {
-        ...z,
-        selection: of_selection(z.projectors, z.selection),
-        relatives: {
-          ancestors: of_ancestors(z.projectors, z.relatives.ancestors),
-          siblings: of_siblings(z.projectors, z.relatives.siblings),
-        },
-      };
-    };
+  let go = (f: updater, z: ZipperBase.t): ZipperBase.t => {
+    ...z,
+    selection: of_selection(f, z.selection),
+    relatives: {
+      ancestors: of_ancestors(f, z.relatives.ancestors),
+      siblings: of_siblings(f, z.relatives.siblings),
+    },
+  };
 };
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type proj_ret = {
+  z: ZipperBase.t,
+  syntax_map: Id.Map.t(Piece.t),
+};
+
+module Project = {
+  let syntax_map: ref(Id.Map.t(Piece.t)) = ref(Id.Map.empty);
+
+  let placehold = (projectors: Map.t, piece: Piece.t) =>
+    switch (Map.find(Piece.id(piece), projectors)) {
+    | None => piece
+    | Some(pr) =>
+      syntax_map := Id.Map.add(Piece.id(piece), piece, syntax_map^);
+      placeholder(pr, Piece.id(piece));
+    };
+
+  let go = (z: ZipperBase.t): proj_ret => {
+    syntax_map := Id.Map.empty;
+    if (Id.Map.is_empty(z.projectors)) {
+      {z, syntax_map: syntax_map^};
+    } else {
+      let z = MapPiece.go(placehold(z.projectors), z);
+      // print_endline(
+      //   "map card:" ++ string_of_int(Id.Map.cardinal(syntax_map^)),
+      // );
+      {z, syntax_map: syntax_map^};
+    };
+  };
+};
+
+module UpdateSyntax = {
+  let update_piece = (f, id: Id.t, piece: Piece.t) =>
+    id == Piece.id(piece) ? f(piece) : piece;
+
+  let sib_has_id = (get, z: ZipperBase.t, id: Id.t): bool => {
+    switch (z.relatives.siblings |> get) {
+    | Some(l) => Piece.id(l) == id
+    | _ => false
+    };
+  };
+
+  let left_sib_has_id = sib_has_id(Siblings.left_neighbor);
+  let right_sib_has_id = sib_has_id(Siblings.right_neighbor);
+
+  let update_left_sib = (f: Piece.t => Piece.t, z: ZipperBase.t) => {
+    let (l, r) = z.relatives.siblings;
+    let sibs = (List.map(f, l), List.map(f, r));
+    z |> put_siblings(sibs);
+  };
+
+  let update_right_sib = (f: Piece.t => Piece.t, z: ZipperBase.t) => {
+    let sibs =
+      switch (z.relatives.siblings) {
+      | (l, [hd, ...tl]) => (l, [f(hd), ...tl])
+      | sibs => sibs
+      };
+    z |> put_siblings(sibs);
+  };
+
+  let go = (f: Piece.t => Piece.t, id: Id.t, z: ZipperBase.t): ZipperBase.t => {
+    /* This applies the function to the piece in the zipper having id id, and
+     * then replaces the id of the resulting piece with the idea of the old
+     * piece, ensuring that the root id remains stable. This function assumes
+     * the cursor is not inside the piece to be updated. This is optimized to
+     * be O(1) when the piece is directly to the left or right of the cursor,
+     * otherwise it is O(|zipper|) */
+    let f = piece =>
+      update_piece(p => p |> f |> Piece.replace_id(Piece.id(p)), id, piece);
+    if (left_sib_has_id(z, id)) {
+      update_left_sib(f, z);
+    } else if (right_sib_has_id(z, id)) {
+      update_right_sib(f, z);
+    } else {
+      MapPiece.go(f, z);
+    };
+  };
+};
+//TODO(andrew): rm if unused
+//   exception PieceFound(Piece.t);
+//   let get = (id: Id.t, z: ZipperBase.t): option(Piece.t) => {
+//     /* Gets the piece under the projector with id id. This is optimized to
+//      * be O(1) when the piece is directly to the left or right of the cursor,
+//      * otherwise it is O(|zipper|) */
+//     let f = piece => {
+//       if (Piece.id(piece) == id) {
+//         raise(PieceFound(piece));
+//       };
+//       piece;
+//     };
+//     try(
+//       {
+//         go(f, id, z) |> ignore;
+//         None;
+//       }
+//     ) {
+//     | PieceFound(piece) => Some(piece)
+//     };
+//   };
+// };

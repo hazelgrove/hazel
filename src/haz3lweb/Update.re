@@ -221,7 +221,7 @@ let update_projectors = (model: Model.t): Model.t => {
       (id, p) => {
         let (module P) = Projector.to_module(p);
         let info = Id.Map.find_opt(id, statics.info_map);
-        P.update({info: info});
+        P.auto_update({info: info});
       },
     );
   {...model, editors};

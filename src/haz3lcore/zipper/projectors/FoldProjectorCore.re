@@ -11,6 +11,6 @@ let mk = (model): projector_core =>
      let projector = Fold(model);
      let can_project = Piece.is_convex;
      let placeholder_length = () => 2;
-     let update = _: projector => Fold();
+     let auto_update = _: projector => Fold();
      let act = _ => Fold();
    });
