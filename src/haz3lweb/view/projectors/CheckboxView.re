@@ -24,16 +24,13 @@ let keymap = (key: Key.t): option(Projector.action(unit)) =>
   };
 
 let mk =
-    (syntax: Piece.t, ~inject, model: ZipperBase.checkbox)
+    (syntax: Piece.t, _model: ZipperBase.checkbox, ~inject)
     : ProjectorViewModule.t =>
   (module
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
-     type model = ZipperBase.checkbox;
-     [@deriving (show({with_path: false}), sexp, yojson)]
      type action = ZipperBase.checkbox_action;
 
-     let model = model;
      let view = view(syntax, ~inject);
      let keymap = keymap;
    });
