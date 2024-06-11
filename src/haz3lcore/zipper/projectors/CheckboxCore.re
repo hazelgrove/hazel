@@ -8,6 +8,17 @@ let state_of = (piece: Piece.t): option(bool) =>
   | _ => None
   };
 
+let get = (piece: Piece.t): bool =>
+  switch (state_of(piece)) {
+  | None => failwith("Checkbox: not boolean literal")
+  | Some(s) => s
+  };
+
+let put = (bool: bool): Piece.t =>
+  bool |> string_of_bool |> Form.mk_atomic(Exp) |> Piece.mk_tile(_, []);
+
+let toggle = (piece: Piece.t) => put(!get(piece));
+
 let mk = (model): projector_core =>
   (module
    {
@@ -16,7 +27,7 @@ let mk = (model): projector_core =>
      type action = unit;
      let model = model;
      let projector = Checkbox(model);
-     let can_project = p => Piece.is_convex(p) && state_of(p) != None;
+     let can_project = p => state_of(p) != None;
      let placeholder_length = () => 2;
      let auto_update = _: projector => Checkbox();
      let act = _ => Checkbox();

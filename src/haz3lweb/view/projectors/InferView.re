@@ -6,7 +6,7 @@ open Sexplib.Std;
 let view = (~inject, expected_ty: option(Typ.t)) =>
   div(
     ~attr=Attr.on_double_click(_ => inject(Projector.Remove)),
-    [text(expected_ty |> InferProjectorCore.display_ty |> Typ.pretty_print)],
+    [text(expected_ty |> InferCore.display_ty |> Typ.pretty_print)],
   );
 
 let key_handler = (key: Key.t): option(Projector.action(unit)) =>
