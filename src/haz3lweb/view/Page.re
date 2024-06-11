@@ -12,7 +12,7 @@ let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit), model: Model.t) =>
     open Effect;
     let key = Key.mk(dir, evt);
     let editor = Editors.get_editor(model.editors);
-    switch (ProjectorsView.key_handler(editor, key)) {
+    switch (ProjectorsView.key_handler(editor, ~inject, key)) {
     | Some(action) =>
       Many([Prevent_default, Stop_propagation, inject(action)])
     | None =>

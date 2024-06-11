@@ -26,6 +26,12 @@ let to_module = (p: projector): projector_core =>
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = projector;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type action('action) =
+  | Remove
+  | UpdateSyntax(Piece.t => Piece.t)
+  | Internal('action);
+
 let placeholder = (p: t, id: Id.t): Piece.t => {
   let (module P) = to_module(p);
   Piece.Tile({
@@ -282,4 +288,4 @@ module UpdateSyntax = {
 //     | PieceFound(piece) => Some(piece)
 //     };
 //   };
-// };
+//
