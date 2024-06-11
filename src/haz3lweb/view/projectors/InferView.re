@@ -20,11 +20,8 @@ let mk =
   (module
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
-     type model = ZipperBase.infer;
-     [@deriving (show({with_path: false}), sexp, yojson)]
      type action = ZipperBase.infer_action;
 
-     let model = model;
      let view = view(~inject, model.expected_ty);
      let keymap = keymap;
    });

@@ -32,10 +32,8 @@ let mk =
   (module
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
-     type model = ZipperBase.slider;
-     [@deriving (show({with_path: false}), sexp, yojson)]
      type action = ZipperBase.slider_action;
-     let model = model;
+
      let view = view(model.value, ~inject);
      let keymap = keymap;
    });
