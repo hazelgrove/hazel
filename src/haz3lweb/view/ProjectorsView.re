@@ -30,6 +30,24 @@ let to_module =
   };
 };
 
+let wrap =
+    (
+      ~font_metrics,
+      ~measurement: Measured.measurement,
+      p: Projector.t,
+      clss: list(string),
+      guy,
+    ) =>
+  div(
+    ~attr=
+      Attr.many([
+        Attr.classes(["projector", Projector.name(p)] @ clss),
+        JsUtil.stop_mousedown_propagation,
+        DecUtil.abs_style(measurement, ~font_metrics),
+      ]),
+    [guy, PieceDec.convex_shard(~font_metrics, ~measurement)],
+  );
+
 let view =
     (
       id: Id.t,
@@ -43,7 +61,7 @@ let view =
   let* syntax = Id.Map.find_opt(id, syntax_map);
   let+ measurement = Measured.find_by_id(id, measured);
   let (module PV) = to_module(id, syntax, p, ~inject);
-  PV.normal(~font_metrics, ~measurement);
+  wrap(~font_metrics, ~measurement, p, [], PV.view);
 };
 
 let indication_view =
@@ -60,7 +78,7 @@ let indication_view =
   let* syntax = Id.Map.find_opt(id, syntax_map);
   let+ measurement = Measured.find_by_id(id, measured);
   let (module PV) = to_module(id, syntax, p, ~inject);
-  PV.indicated(~font_metrics, ~measurement);
+  wrap(~font_metrics, ~measurement, p, ["indicated"], PV.view);
 };
 
 let view_all =
@@ -105,5 +123,8 @@ let ci = (editor: Editor.t, ~inject: UpdateAction.t => Ui_effect.t(unit)) => {
   let* (id, p) = indicated_proj_ed(editor);
   let+ syntax = Id.Map.find_opt(id, editor.state.meta.projected.syntax_map);
   let (module PV) = to_module(id, syntax, p, ~inject);
-  div(~attr=Attr.classes(["projector-ci"]), [text(PV.ci_string())]);
+  div(
+    ~attr=Attr.classes(["projector-ci"]),
+    [text(String.sub(Projector.name(p), 0, 1))],
+  );
 };
