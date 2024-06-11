@@ -18,6 +18,13 @@ let to_module = (p: projector): projector_core =>
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = projector;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type kind =
+  | Fold
+  | Infer
+  | Checkbox
+  | Slider;
+
 /* The kind of syntax data to which projection can apply */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type syntax = Piece.t;
@@ -51,9 +58,17 @@ let placeholder = (p: t, id: Id.t): syntax => {
 let minimum_projection_condition = (syntax: syntax): bool =>
   Piece.is_convex(syntax);
 
+let init = (f: kind): projector_core =>
+  switch (f) {
+  | Fold => FoldCore.mk()
+  | Infer => InferCore.mk({expected_ty: None})
+  | Checkbox => CheckboxCore.mk()
+  | Slider => SliderCore.mk({value: 10})
+  };
+
 let create =
-    (p: t, syntax: syntax, id: Id.t, info_map: Statics.Map.t): option(t) => {
-  let (module P) = to_module(p);
+    (k: kind, syntax: syntax, id: Id.t, info_map: Statics.Map.t): option(t) => {
+  let (module P) = init(k);
   P.can_project(syntax) && minimum_projection_condition(syntax)
     ? Some(P.auto_update({info: Id.Map.find_opt(id, info_map)})) : None;
 };

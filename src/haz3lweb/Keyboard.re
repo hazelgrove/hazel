@@ -109,16 +109,10 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
     }
   | {key: D(key), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     switch (key) {
-    | "ƒ" => Some(PerformAction(Project(ToggleIndicated(Fold()))))
-    | "†" =>
-      Some(
-        PerformAction(
-          Project(ToggleIndicated(Infer({expected_ty: None}))),
-        ),
-      )
-    | "ç" => Some(PerformAction(Project(ToggleIndicated(Checkbox()))))
-    | "ß" =>
-      Some(PerformAction(Project(ToggleIndicated(Slider({value: 10})))))
+    | "ƒ" => Some(PerformAction(Project(ToggleIndicated(Fold))))
+    | "†" => Some(PerformAction(Project(ToggleIndicated(Infer))))
+    | "ç" => Some(PerformAction(Project(ToggleIndicated(Checkbox))))
+    | "ß" => Some(PerformAction(Project(ToggleIndicated(Slider))))
     | "ArrowLeft" => now(MoveToBackpackTarget(Left(ByToken)))
     | "ArrowRight" => now(MoveToBackpackTarget(Right(ByToken)))
     | "Alt" => Some(SetMeta(ShowBackpackTargets(true)))
