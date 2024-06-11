@@ -20,31 +20,43 @@ let toggle = (piece: Piece.t) => {
   put(!cur);
 };
 
-let base = (clss, syntax, ~font_metrics, ~inject, ~measurement) =>
+let wrap =
+    (
+      ~font_metrics,
+      ~measurement: Measured.measurement,
+      clss, // include projector name
+      guy,
+    ) =>
   div(
     ~attr=
       Attr.many([
-        Attr.classes(["projector", "checkbox"] @ clss),
+        Attr.classes(["projector"] @ clss),
         JsUtil.stop_mousedown_propagation,
         DecUtil.abs_style(measurement, ~font_metrics),
       ]),
-    [
-      Node.input(
-        ~attr=
-          Attr.many(
-            [
-              Attr.create("type", "checkbox"),
-              Attr.on_input((_evt, _str) =>
-                inject(Projector.UpdateSyntax(toggle))
-              ),
-              JsUtil.stop_mousedown_propagation,
-            ]
-            @ (get(syntax) ? [Attr.checked] : []),
-          ),
-        [],
-      ),
-      PieceDec.convex_shard(~font_metrics, ~measurement),
-    ],
+    [guy, PieceDec.convex_shard(~font_metrics, ~measurement)],
+  );
+
+let base =
+    (~font_metrics, ~measurement: Measured.measurement, ~inject, clss, syntax) =>
+  wrap(
+    ~font_metrics,
+    ~measurement,
+    ["checkbox", ...clss],
+    Node.input(
+      ~attr=
+        Attr.many(
+          [
+            Attr.create("type", "checkbox"),
+            Attr.on_input((_evt, _str) =>
+              inject(Projector.UpdateSyntax(toggle))
+            ),
+            JsUtil.stop_mousedown_propagation,
+          ]
+          @ (get(syntax) ? [Attr.checked] : []),
+        ),
+      [],
+    ),
   );
 
 let key_handler = (key: Key.t): option(Projector.action(unit)) =>
