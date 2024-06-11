@@ -29,14 +29,9 @@ module ProjectorMap = {
   let update = update;
 };
 
+/* Externally calculated info to be fed to projectors */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type projector_info = {info: option(Info.t)};
-
-//TODO(andrew): use or lose
-// [@deriving (show({with_path: false}), sexp, yojson)]
-// type projector_action('action) =
-//   | UpdateSyntax(Piece.t => Piece.t)
-//   | Internal('action);
 
 module type ProjectorCore = {
   [@deriving (show({with_path: false}), sexp, yojson)]

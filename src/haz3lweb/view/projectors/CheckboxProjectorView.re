@@ -2,8 +2,6 @@ open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
 
-let remove = id => Update.PerformAction(Project(Remove(id)));
-
 let put = (bool: bool) =>
   Example.mk_monotile(Form.mk_atomic(Exp, string_of_bool(bool)));
 
@@ -22,10 +20,7 @@ let toggle = (piece: Piece.t) => {
   put(!cur);
 };
 
-let toggle = id =>
-  UpdateAction.PerformAction(Project(UpdateSyntax(id, toggle)));
-
-let base = (clss, syntax, id, ~font_metrics, ~inject, ~measurement) =>
+let base = (clss, syntax, ~font_metrics, ~inject, ~measurement) =>
   div(
     ~attr=
       Attr.many([
@@ -39,7 +34,9 @@ let base = (clss, syntax, id, ~font_metrics, ~inject, ~measurement) =>
           Attr.many(
             [
               Attr.create("type", "checkbox"),
-              Attr.on_input((_evt, _str) => {inject(toggle(id))}),
+              Attr.on_input((_evt, _str) =>
+                inject(Projector.UpdateSyntax(toggle))
+              ),
               JsUtil.stop_mousedown_propagation,
             ]
             @ (get(syntax) ? [Attr.checked] : []),
@@ -50,23 +47,24 @@ let base = (clss, syntax, id, ~font_metrics, ~inject, ~measurement) =>
     ],
   );
 
-let key_handler = (id: Id.t, key: Key.t): option(UpdateAction.t) =>
+let key_handler = (key: Key.t): option(Projector.action(unit)) =>
   switch (key) {
-  | {key: D("Escape"), _} => Some(remove(id))
+  | {key: D("Escape"), _} => Some(Remove)
   | _ => None
   };
 
 let mk =
-    (id: Id.t, syntax: Piece.t, model: Projector.fold): ProjectorViewModule.t =>
+    (syntax: Piece.t, ~inject, model: Projector.fold): ProjectorViewModule.t =>
   (module
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
      type model = Projector.checkbox;
+     type action = unit; //TODO(andrew)
      let model = model;
-     let id = id;
      let syntax = syntax;
-     let normal = base([], syntax, id);
-     let indicated = base(["indicated"], syntax, id);
-     let key_handler = key_handler(id);
+     let inject = inject;
+     let normal = base([], syntax, ~inject);
+     let indicated = base(["indicated"], syntax, ~inject);
+     let key_handler = key_handler;
      let ci_string = () => "F";
    });

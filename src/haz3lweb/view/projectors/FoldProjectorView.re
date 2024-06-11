@@ -2,37 +2,36 @@ open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
 
-let remove = id => Update.PerformAction(Project(Remove(id)));
-
-let base = (clss, id, ~font_metrics, ~inject, ~measurement) =>
+let base = (clss, ~font_metrics, ~inject, ~measurement) =>
   div(
     ~attr=
       Attr.many([
         Attr.classes(["projector", "fold"] @ clss),
         JsUtil.stop_mousedown_propagation,
-        Attr.on_double_click(_ => inject(remove(id))),
+        Attr.on_double_click(_ => inject(Projector.Remove)),
         DecUtil.abs_style(measurement, ~font_metrics),
       ]),
     [text("⋱"), PieceDec.convex_shard(~font_metrics, ~measurement)],
   );
 
-let key_handler = (id: Id.t, key: Key.t): option(UpdateAction.t) =>
+let key_handler = (key: Key.t): option(Projector.action(unit)) =>
   switch (key) {
-  | {key: D("Escape"), _} => Some(remove(id))
+  | {key: D("Escape"), _} => Some(Projector.Remove)
   | _ => None
   };
 
 let mk =
-    (id: Id.t, syntax: Piece.t, model: Projector.fold): ProjectorViewModule.t =>
+    (syntax: Piece.t, model: Projector.fold, ~inject): ProjectorViewModule.t =>
   (module
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
      type model = Projector.fold;
+     type action = unit;
      let model = model;
-     let id = id;
      let syntax = syntax;
-     let normal = base([], id);
-     let indicated = base(["indicated"], id);
-     let key_handler = key_handler(id);
+     let inject = inject;
+     let normal = base([], ~inject);
+     let indicated = base(["indicated"], ~inject);
+     let key_handler = key_handler;
      let ci_string = () => "F";
    });
