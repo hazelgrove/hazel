@@ -1,42 +1,12 @@
 open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
+open Sexplib.Std;
 
-let wrap =
-    (
-      ~font_metrics,
-      ~measurement: Measured.measurement,
-      clss, // include projector name
-      guy,
-    ) =>
+let view = (~inject, expected_ty: option(Typ.t)) =>
   div(
-    ~attr=
-      Attr.many([
-        Attr.classes(["projector"] @ clss),
-        JsUtil.stop_mousedown_propagation,
-        DecUtil.abs_style(measurement, ~font_metrics),
-      ]),
-    [guy, PieceDec.convex_shard(~font_metrics, ~measurement)],
-  );
-
-let base =
-    (
-      ~font_metrics,
-      ~measurement: Measured.measurement,
-      ~inject,
-      clss,
-      expected_ty: option(Typ.t),
-    ) =>
-  wrap(
-    ~font_metrics,
-    ~measurement,
-    ["infer", ...clss],
-    div(
-      ~attr=Attr.on_double_click(_ => inject(Projector.Remove)),
-      [
-        text(expected_ty |> InferProjectorCore.display_ty |> Typ.pretty_print),
-      ],
-    ),
+    ~attr=Attr.on_double_click(_ => inject(Projector.Remove)),
+    [text(expected_ty |> InferProjectorCore.display_ty |> Typ.pretty_print)],
   );
 
 let key_handler = (key: Key.t): option(Projector.action(unit)) =>
@@ -51,12 +21,11 @@ let mk =
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
      type model = Projector.infer;
+     [@deriving (show({with_path: false}), sexp, yojson)]
      type action = unit;
      let model = model;
      let syntax = syntax;
      let inject = inject;
-     let normal = base([], model.expected_ty, ~inject);
-     let indicated = base(["indicated"], model.expected_ty, ~inject);
+     let view = view(~inject, model.expected_ty);
      let key_handler = key_handler;
-     let ci_string: unit => string = _ => "I";
    });

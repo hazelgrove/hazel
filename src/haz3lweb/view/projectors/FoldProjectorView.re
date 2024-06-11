@@ -1,33 +1,12 @@
 open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
+open Sexplib.Std;
 
-let wrap =
-    (
-      ~font_metrics,
-      ~measurement: Measured.measurement,
-      clss, // include projector name
-      guy,
-    ) =>
+let view = (~inject) =>
   div(
-    ~attr=
-      Attr.many([
-        Attr.classes(["projector"] @ clss),
-        JsUtil.stop_mousedown_propagation,
-        DecUtil.abs_style(measurement, ~font_metrics),
-      ]),
-    [guy, PieceDec.convex_shard(~font_metrics, ~measurement)],
-  );
-
-let base = (~font_metrics, ~measurement: Measured.measurement, ~inject, clss) =>
-  wrap(
-    ~font_metrics,
-    ~measurement,
-    ["fold", ...clss],
-    div(
-      ~attr=Attr.on_double_click(_ => inject(Projector.Remove)),
-      [text("⋱")],
-    ),
+    ~attr=Attr.on_double_click(_ => inject(Projector.Remove)),
+    [text("⋱")],
   );
 
 let key_handler = (key: Key.t): option(Projector.action(unit)) =>
@@ -42,12 +21,11 @@ let mk =
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
      type model = Projector.fold;
+     [@deriving (show({with_path: false}), sexp, yojson)]
      type action = unit;
      let model = model;
      let syntax = syntax;
      let inject = inject;
-     let normal = base([], ~inject);
-     let indicated = base(["indicated"], ~inject);
+     let view = view(~inject);
      let key_handler = key_handler;
-     let ci_string = () => "F";
    });

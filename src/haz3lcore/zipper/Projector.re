@@ -32,6 +32,13 @@ type action('action) =
   | UpdateSyntax(Piece.t => Piece.t)
   | Internal('action);
 
+let name = (p: t): string =>
+  switch (p) {
+  | Fold(_) => "fold"
+  | Infer(_) => "infer"
+  | Checkbox(_) => "checkbox"
+  };
+
 let placeholder = (p: t, id: Id.t): Piece.t => {
   let (module P) = to_module(p);
   Piece.Tile({
