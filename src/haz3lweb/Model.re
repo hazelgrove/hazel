@@ -56,14 +56,14 @@ let blank =
   mk(Editors.Scratch(0, []), ModelResults.empty, CachedStatics.empty);
 
 let load_editors =
-    (~mode: Settings.mode, ~instructor_mode: bool)
+    (~settings, ~mode: Settings.mode, ~instructor_mode: bool)
     : (Editors.t, ModelResults.t) =>
   switch (mode) {
   | Scratch =>
-    let (idx, slides, results) = Store.Scratch.load();
+    let (idx, slides, results) = Store.Scratch.load(~settings);
     (Scratch(idx, slides), results);
   | Documentation =>
-    let (name, slides, results) = Store.Documentation.load();
+    let (name, slides, results) = Store.Documentation.load(~settings);
     (Documentation(name, slides), results);
   | Exercises =>
     let (n, specs, exercise) =
@@ -90,6 +90,7 @@ let load = (init_model: t): t => {
   let explainThisModel = Store.ExplainThisModel.load();
   let (editors, results) =
     load_editors(
+      ~settings=settings.core.evaluation,
       ~mode=settings.mode,
       ~instructor_mode=settings.instructor_mode,
     );
@@ -113,10 +114,11 @@ let reset = (model: t): t => {
   /* Reset model to default, including in localstorage,
      but don't otherwise erase localstorage, allowing
      e.g. api keys to persist */
-  ignore(Store.Settings.init());
+  let settings = Store.Settings.init();
+  ignore(settings);
   ignore(Store.ExplainThisModel.init());
-  ignore(Store.Scratch.init());
-  ignore(Store.Documentation.init());
+  ignore(Store.Scratch.init(~settings=settings.core.evaluation));
+  ignore(Store.Documentation.init(~settings=settings.core.evaluation));
   ignore(Store.Exercise.init(~instructor_mode=true));
   let new_model = load(blank);
   {
