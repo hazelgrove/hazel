@@ -28,10 +28,10 @@ include TermBase.Typ;
 let term_of: t => term = IdTagged.term_of;
 let unwrap: t => (term, term => t) = IdTagged.unwrap;
 let fresh: term => t = IdTagged.fresh;
-/* fresh assigns a random id, whereas mk_fast assigns Id.invalid, which
+/* fresh assigns a random id, whereas temp assigns Id.invalid, which
    is a lot faster, and since we so often make types and throw them away
    shortly after, it makes sense to use it. */
-let mk_fast: term => t = term => {term, ids: [Id.invalid], copied: false};
+let temp: term => t = term => {term, ids: [Id.invalid], copied: false};
 let rep_id: t => Id.t = IdTagged.rep_id;
 
 let hole = (tms: list(TermBase.Any.t)) =>
@@ -121,75 +121,6 @@ let rec is_forall = (typ: t) => {
   };
 };
 
-/* Converts a syntactic type into a semantic type, specifically
-   it adds implicit recursive types, and removes duplicate
-   constructors. */
-let rec to_typ: (Ctx.t, t) => t =
-  (ctx, utyp) => {
-    let (term, rewrap) = IdTagged.unwrap(utyp);
-    switch (term) {
-    | Unknown(_)
-    | Bool
-    | Int
-    | Float
-    | String => utyp
-    | Var(name) =>
-      switch (Ctx.lookup_tvar(ctx, name)) {
-      | Some(_) => Var(name) |> rewrap
-      | None => Unknown(Hole(Invalid(name))) |> rewrap
-      }
-    | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2)) |> rewrap
-    | Prod(us) => Prod(List.map(to_typ(ctx), us)) |> rewrap
-    | Sum(uts) => Sum(to_ctr_map(ctx, uts)) |> rewrap
-    | List(u) => List(to_typ(ctx, u)) |> rewrap
-    | Parens(u) => to_typ(ctx, u)
-    | Forall({term: Invalid(_), _} as tpat, tbody)
-    | Forall({term: EmptyHole, _} as tpat, tbody)
-    | Forall({term: MultiHole(_), _} as tpat, tbody) =>
-      Forall(tpat, to_typ(ctx, tbody)) |> rewrap
-    | Forall({term: Var(name), _} as utpat, tbody) =>
-      let ctx =
-        Ctx.extend_tvar(
-          ctx,
-          {name, id: IdTagged.rep_id(utpat), kind: Abstract},
-        );
-      Forall(utpat, to_typ(ctx, tbody)) |> rewrap;
-    | Rec({term: Invalid(_), _} as tpat, tbody)
-    | Rec({term: EmptyHole, _} as tpat, tbody)
-    | Rec({term: MultiHole(_), _} as tpat, tbody) =>
-      Rec(tpat, to_typ(ctx, tbody)) |> rewrap
-    | Rec({term: Var(name), _} as utpat, tbody) =>
-      let ctx =
-        Ctx.extend_tvar(
-          ctx,
-          {name, id: IdTagged.rep_id(utpat), kind: Abstract},
-        );
-      Rec(utpat, to_typ(ctx, tbody)) |> rewrap;
-    /* The below cases should occur only inside sums */
-    | Ap(_) => Unknown(Internal) |> rewrap
-    };
-  }
-and to_variant:
-  (Ctx.t, ConstructorMap.variant(t)) => ConstructorMap.variant(t) =
-  ctx =>
-    fun
-    | Variant(ctr, ids, u) =>
-      ConstructorMap.Variant(ctr, ids, Option.map(to_typ(ctx), u))
-    | BadEntry(u) => ConstructorMap.BadEntry(to_typ(ctx, u))
-and to_ctr_map = (ctx: Ctx.t, uts: list(ConstructorMap.variant(t))) => {
-  uts
-  |> List.map(to_variant(ctx))
-  |> ListUtil.dedup_f(
-       (x: ConstructorMap.variant(t), y: ConstructorMap.variant(t)) =>
-       switch (x, y) {
-       | (Variant(c1, _, _), Variant(c2, _, _)) => c1 == c2
-       | (Variant(_), BadEntry(_))
-       | (BadEntry(_), Variant(_))
-       | (BadEntry(_), BadEntry(_)) => false
-       }
-     );
-};
-
 /* Functions below this point assume that types have been through the to_typ function above */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -270,7 +201,7 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
        casts. Documentation/Dynamics has regression tests */
     Some(ty2)
   | (Unknown(p1), Unknown(p2)) =>
-    Some(Unknown(join_type_provenance(p1, p2)) |> mk_fast)
+    Some(Unknown(join_type_provenance(p1, p2)) |> temp)
   | (Unknown(_), _) => Some(ty2)
   | (_, Unknown(Internal | SynSwitch)) => Some(ty1)
   | (Var(n1), Var(n2)) =>
@@ -295,21 +226,21 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
     let ctx = Ctx.extend_dummy_tvar(ctx, tp1);
     let ty1' =
       switch (TPat.tyvar_of_utpat(tp2)) {
-      | Some(x2) => subst(Var(x2) |> mk_fast, tp1, ty1)
+      | Some(x2) => subst(Var(x2) |> temp, tp1, ty1)
       | None => ty1
       };
     let+ ty_body = join(~resolve, ~fix, ctx, ty1', ty2);
-    Rec(tp1, ty_body) |> mk_fast;
+    Rec(tp1, ty_body) |> temp;
   | (Rec(_), _) => None
   | (Forall(x1, ty1), Forall(x2, ty2)) =>
     let ctx = Ctx.extend_dummy_tvar(ctx, x1);
     let ty1' =
       switch (TPat.tyvar_of_utpat(x2)) {
-      | Some(x2) => subst(Var(x2) |> mk_fast, x1, ty1)
+      | Some(x2) => subst(Var(x2) |> temp, x1, ty1)
       | None => ty1
       };
     let+ ty_body = join(~resolve, ~fix, ctx, ty1', ty2);
-    Forall(x1, ty_body) |> mk_fast;
+    Forall(x1, ty_body) |> temp;
   /* Note for above: there is no danger of free variable capture as
      subst itself performs capture avoiding substitution. However this
      may generate internal type variable names that in corner cases can
@@ -328,27 +259,27 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
     let* ty1 = join'(ty1, ty1');
     let+ ty2 = join'(ty2, ty2');
-    Arrow(ty1, ty2) |> mk_fast;
+    Arrow(ty1, ty2) |> temp;
   | (Arrow(_), _) => None
   | (Prod(tys1), Prod(tys2)) =>
     let* tys = ListUtil.map2_opt(join', tys1, tys2);
     let+ tys = OptUtil.sequence(tys);
-    Prod(tys) |> mk_fast;
+    Prod(tys) |> temp;
   | (Prod(_), _) => None
   | (Sum(sm1), Sum(sm2)) =>
     let+ sm' = ConstructorMap.join(eq, join(~resolve, ~fix, ctx), sm1, sm2);
-    Sum(sm') |> mk_fast;
+    Sum(sm') |> temp;
   | (Sum(_), _) => None
   | (List(ty1), List(ty2)) =>
     let+ ty = join'(ty1, ty2);
-    List(ty) |> mk_fast;
+    List(ty) |> temp;
   | (List(_), _) => None
   | (Ap(_), _) => failwith("Type join of ap")
   };
 };
 
 /* REQUIRES NORMALIZED TYPES
-   Remove synswitches from t1 by maching against t2 */
+   Remove synswitches from t1 by matching against t2 */
 let rec match_synswitch = (t1: t, t2: t) => {
   let (term1, rewrap1) = unwrap(t1);
   switch (term1, term_of(t2)) {
@@ -375,7 +306,7 @@ let rec match_synswitch = (t1: t, t2: t) => {
     Prod(tys) |> rewrap1;
   | (Prod(_), _) => t1
   | (Sum(sm1), Sum(sm2)) =>
-    let sm' = ConstructorMap.match_synswitch(match_synswitch, sm1, sm2);
+    let sm' = ConstructorMap.match_synswitch(match_synswitch, eq, sm1, sm2);
     Sum(sm') |> rewrap1;
   | (Sum(_), _) => t1
   };
@@ -434,50 +365,55 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
   };
 };
 
-let matched_arrow = (ctx, ty) =>
+let rec matched_arrow = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
+  | Parens(ty) => matched_arrow(ctx, ty)
   | Arrow(ty_in, ty_out) => (ty_in, ty_out)
   | Unknown(SynSwitch) => (
-      Unknown(SynSwitch) |> mk_fast,
-      Unknown(SynSwitch) |> mk_fast,
+      Unknown(SynSwitch) |> temp,
+      Unknown(SynSwitch) |> temp,
     )
-  | _ => (Unknown(Internal) |> mk_fast, Unknown(Internal) |> mk_fast)
+  | _ => (Unknown(Internal) |> temp, Unknown(Internal) |> temp)
   };
 
-let matched_forall = (ctx, ty) =>
+let rec matched_forall = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
+  | Parens(ty) => matched_forall(ctx, ty)
   | Forall(t, ty) => (Some(t), ty)
-  | Unknown(SynSwitch) => (None, Unknown(SynSwitch) |> mk_fast)
-  | _ => (None, Unknown(Internal) |> mk_fast)
+  | Unknown(SynSwitch) => (None, Unknown(SynSwitch) |> temp)
+  | _ => (None, Unknown(Internal) |> temp)
   };
 
-let matched_prod = (ctx, length, ty) =>
+let rec matched_prod = (ctx, length, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
+  | Parens(ty) => matched_prod(ctx, length, ty)
   | Prod(tys) when List.length(tys) == length => tys
-  | Unknown(SynSwitch) =>
-    List.init(length, _ => Unknown(SynSwitch) |> mk_fast)
-  | _ => List.init(length, _ => Unknown(Internal) |> mk_fast)
+  | Unknown(SynSwitch) => List.init(length, _ => Unknown(SynSwitch) |> temp)
+  | _ => List.init(length, _ => Unknown(Internal) |> temp)
   };
 
-let matched_list = (ctx, ty) =>
+let rec matched_list = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
+  | Parens(ty) => matched_list(ctx, ty)
   | List(ty) => ty
-  | Unknown(SynSwitch) => Unknown(SynSwitch) |> mk_fast
-  | _ => Unknown(Internal) |> mk_fast
+  | Unknown(SynSwitch) => Unknown(SynSwitch) |> temp
+  | _ => Unknown(Internal) |> temp
   };
 
-let matched_args = (ctx, default_arity, ty) => {
+let rec matched_args = (ctx, default_arity, ty) => {
   let ty' = weak_head_normalize(ctx, ty);
   switch (term_of(ty')) {
+  | Parens(ty) => matched_args(ctx, default_arity, ty)
   | Prod([_, ..._] as tys) => tys
   | Unknown(_) => List.init(default_arity, _ => ty')
   | _ => [ty']
   };
 };
 
-let get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
+let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
   let ty = weak_head_normalize(ctx, ty);
   switch (term_of(ty)) {
+  | Parens(ty) => get_sum_constructors(ctx, ty)
   | Sum(sm) => Some(sm)
   | Rec(_) =>
     /* Note: We must unroll here to get right ctr types;
@@ -507,8 +443,9 @@ let get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
   };
 };
 
-let is_unknown = (ty: t): bool =>
+let rec is_unknown = (ty: t): bool =>
   switch (ty |> term_of) {
+  | Parens(x) => is_unknown(x)
   | Unknown(_) => true
   | _ => false
   };

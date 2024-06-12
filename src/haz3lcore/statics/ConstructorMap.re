@@ -6,8 +6,30 @@ type variant('a) =
   | Variant(Constructor.t, list(Id.t), option('a))
   | BadEntry('a);
 
+// Invariant: Must not have duplicate constructors
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t('a) = list(variant('a));
+
+let mk =
+    (
+      ~mk_bad: (Constructor.t, list(Id.t), option('a)) => 'a,
+      with_duplicates: list(variant('a)),
+    )
+    : t('a) => {
+  let rec go = (xs, seen: list(Constructor.t)) => {
+    switch (xs) {
+    | [] => []
+    | [BadEntry(x), ...xs] => [BadEntry(x), ...go(xs, seen)]
+    | [Variant(ctr, ids, value), ...xs] =>
+      if (List.mem(ctr, seen)) {
+        [BadEntry(mk_bad(ctr, ids, value)), ...go(xs, seen)];
+      } else {
+        [Variant(ctr, ids, value), ...go(xs, List.cons(ctr, seen))];
+      }
+    };
+  };
+  go(with_duplicates, []);
+};
 
 let equal_constructor =
     (eq: ('a, 'a) => bool, x: variant('a), y: variant('a)): bool =>
@@ -90,9 +112,7 @@ let join_entry =
   | (Variant(ctr1, ids1, None), Variant(ctr2, _, None))
       when Constructor.equal(ctr1, ctr2) =>
     Some(Variant(ctr1, ids1, None))
-  | (BadEntry(x), BadEntry(y)) =>
-    let+ value = join(x, y);
-    BadEntry(value);
+  | (BadEntry(x), BadEntry(_)) => Some(BadEntry(x))
   | _ => None
   };
 
@@ -125,14 +145,23 @@ let join =
 };
 
 let match_synswitch =
-    (match_synswitch: ('a, 'a) => 'a, m1: t('a), m2: t('a)): t('a) => {
-  List.map(
-    fun
-    | (Variant(ctr, ids, Some(value1)), Variant(_, _, Some(value2))) =>
-      Variant(ctr, ids, Some(match_synswitch(value1, value2)))
-    | (v, _) => v,
-    List.combine(m1, m2),
-  );
+    (
+      match_synswitch: ('a, 'a) => 'a,
+      eq: ('a, 'a) => bool,
+      m1: t('a),
+      m2: t('a),
+    )
+    : t('a) => {
+  let (inter, left, _) = venn_regions(same_constructor(eq), m1, m2);
+  let inter' =
+    List.map(
+      fun
+      | (Variant(ctr, ids, Some(value1)), Variant(_, _, Some(value2))) =>
+        Variant(ctr, ids, Some(match_synswitch(value1, value2)))
+      | (v, _) => v,
+      inter,
+    );
+  inter' @ left;
 };
 
 let equal = (eq: ('a, 'a) => bool, m1: t('a), m2: t('a)) => {
@@ -178,3 +207,20 @@ let has_constructor_no_args = ctr =>
     | Variant(_) => false
     | BadEntry(_) => false,
   );
+
+let get_constructors =
+  List.filter_map(
+    fun
+    | Variant(ctr, _, _) => Some(ctr)
+    | BadEntry(_) => None,
+    _,
+  );
+
+let nth = (map: t('a), ctr: Constructor.t): option(int) => {
+  // TODO: use List.find_index instead, which is available for OCaml 5.1
+  let ctrs_sorted = map |> get_constructors |> List.sort(String.compare);
+  List.find_opt(
+    nth => List.nth(ctrs_sorted, nth) == ctr,
+    List.init(List.length(ctrs_sorted), Fun.id),
+  );
+};

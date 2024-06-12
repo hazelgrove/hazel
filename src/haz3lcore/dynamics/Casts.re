@@ -29,26 +29,23 @@ type ground_cases =
 
 let grounded_Arrow =
   NotGroundOrHole(
-    Arrow(
-      Unknown(Internal) |> Typ.mk_fast,
-      Unknown(Internal) |> Typ.mk_fast,
-    )
-    |> Typ.mk_fast,
+    Arrow(Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp)
+    |> Typ.temp,
   );
 let grounded_Forall =
   NotGroundOrHole(
-    Forall(EmptyHole |> TPat.fresh, Unknown(Internal) |> Typ.mk_fast)
-    |> Typ.mk_fast,
+    Forall(EmptyHole |> TPat.fresh, Unknown(Internal) |> Typ.temp)
+    |> Typ.temp,
   );
 let grounded_Prod = length =>
   NotGroundOrHole(
-    Prod(ListUtil.replicate(length, Typ.Unknown(Internal) |> Typ.mk_fast))
-    |> Typ.mk_fast,
+    Prod(ListUtil.replicate(length, Typ.Unknown(Internal) |> Typ.temp))
+    |> Typ.temp,
   );
 let grounded_Sum: unit => Typ.sum_map =
-  () => [BadEntry(Typ.mk_fast(Unknown(Internal)))];
+  () => [BadEntry(Typ.temp(Unknown(Internal)))];
 let grounded_List =
-  NotGroundOrHole(List(Unknown(Internal) |> Typ.mk_fast) |> Typ.mk_fast);
+  NotGroundOrHole(List(Unknown(Internal) |> Typ.temp) |> Typ.temp);
 
 let rec ground_cases_of = (ty: Typ.t): ground_cases => {
   let is_hole: Typ.t => bool =
@@ -80,7 +77,7 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
     }
   | Sum(sm) =>
     sm |> ConstructorMap.is_ground(is_hole)
-      ? Ground : NotGroundOrHole(Sum(grounded_Sum()) |> Typ.mk_fast)
+      ? Ground : NotGroundOrHole(Sum(grounded_Sum()) |> Typ.temp)
   | Arrow(_, _) => grounded_Arrow
   | Forall(_) => grounded_Forall
   | List(_) => grounded_List

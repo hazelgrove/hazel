@@ -3,7 +3,44 @@ open Sexplib.Std;
 let continue = x => x;
 let stop = (_, x) => x;
 
-/* TODO[Matt]: Explain map_term */
+/*
+   This megafile contains the definitions of the expression data types in
+   Hazel. They are all in one file because they are mutually recursive, and
+   OCaml doesn't let us have mutually recursive files. Any definition that
+   is not mutually recursive across the whole data structure should be
+   defined in Any.re, Exp.re, Typ.re, Pat.re, TPat.re, etc...
+
+   Each module has:
+
+   - A type definition for the term
+
+   - A map_term function that allows you to apply a function to every term in
+     the data structure with the following type:
+
+     map_term:
+     (
+       ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
+       ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
+       ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
+       ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
+       ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
+       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
+       t
+     ) =>
+     t;
+
+     Each argument to `map_term` specifies what should happen at each node in the
+     data structure. Each function takes two arguments: a `continue` function that
+     allows the map to continue on all the children nodes, and the current node
+     itself. If you don't explicitly call the `continue` function, the map will
+     not traverse the children nodes. If you don't provide a function for a
+     specific kind of node, the map will simply continue at that node without
+     any additional action.
+
+   - A fast_equal function that compares two terms for equality, it performs
+     structural equality except for the case of closures, where it just compares
+     the id of the closure.
+ */
 
 module rec Any: {
   [@deriving (show({with_path: false}), sexp, yojson)]

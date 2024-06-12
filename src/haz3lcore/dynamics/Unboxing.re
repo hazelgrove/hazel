@@ -118,17 +118,27 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         when name1 == name2 =>
       Matches(d3)
     | (SumWithArg(_), Ap(_, {term: Constructor(_), _}, _)) => DoesNotMatch
-    | (SumWithArg(name), Cast(d1, {term: Sum(_), _}, {term: Sum(s2), _}))
-        when
-          ConstructorMap.get_entry(name, s2) != None
-          || ConstructorMap.has_bad_entry(s2) =>
-      let* d1 = unbox(SumWithArg(name), d1);
-      Matches(d1 |> fixup_cast);
-    | (SumWithArg(_), Cast(_, {term: Sum(_), _}, {term: Sum(_), _})) =>
-      IndetMatch
+    | (SumWithArg(name), Cast(d1, {term: Sum(s1), _}, {term: Sum(s2), _})) =>
+      let get_entry_or_bad = s =>
+        switch (ConstructorMap.get_entry(name, s)) {
+        | Some(x) => Some(x)
+        | None when ConstructorMap.has_bad_entry(s) =>
+          Some(Typ.temp(Unknown(Internal)))
+        | None => None
+        };
+      switch (get_entry_or_bad(s1), get_entry_or_bad(s2)) {
+      | (Some(x), Some(y)) =>
+        let* d1 = unbox(SumWithArg(name), d1);
+        Matches(Cast(d1, x, y) |> Exp.fresh |> fixup_cast);
+      | _ => IndetMatch
+      };
+    // There should be some sort of failure here when the cast doesn't go through.
 
     /* Any cast from unknown is indet */
     | (_, Cast(_, {term: Unknown(_), _}, _)) => IndetMatch
+
+    /* Any failed cast is indet */
+    | (_, FailedCast(_)) => IndetMatch
 
     /* Forms that are the wrong type of value - these cases indicate an error
        in elaboration or in the cast calculus. */
@@ -163,9 +173,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     /* Forms that are not yet or will never be a value */
     | (
         _,
-        Invalid(_) | EmptyHole | MultiHole(_) | DynamicErrorHole(_) |
-        FailedCast(_) |
-        Var(_) |
+        Invalid(_) | EmptyHole | MultiHole(_) | DynamicErrorHole(_) | Var(_) |
         Let(_) |
         Fun(_, _, _, None) |
         FixF(_) |
