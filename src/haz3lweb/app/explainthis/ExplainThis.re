@@ -352,9 +352,8 @@ let example_view =
                     |> CellEditor.Model.mk
                     |> CellEditor.Update.calculate(
                          ~settings=globals.settings.core,
-                         ~schedule_action=_ => (),
                          ~stitch=x => x,
-                         ~immediate=true,
+                         ~queue_worker=None,
                        );
                   },
                 ),

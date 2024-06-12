@@ -46,16 +46,13 @@ module Update = {
     };
   };
 
-  let calculate =
-      (~settings, ~schedule_action, ~stitch, ~immediate=false, model: Model.t)
-      : Model.t => {
+  let calculate = (~settings, ~queue_worker, ~stitch, model: Model.t): Model.t => {
     let editor =
       CodeEditable.Update.calculate(~settings, ~stitch, model.editor);
     let result =
       Result.Update.calculate(
         ~settings,
-        ~schedule_action=a => schedule_action(ResultAction(a)),
-        ~immediate,
+        ~queue_worker,
         editor |> CodeEditable.Model.get_elab,
         model.result,
       );

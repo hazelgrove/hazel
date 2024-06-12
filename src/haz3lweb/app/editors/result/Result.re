@@ -135,7 +135,12 @@ module Update = {
     };
 
   let calculate =
-      (~settings, ~schedule_action, ~immediate, elab, model: Model.t) => {
+      (
+        ~settings,
+        ~queue_worker: option(Haz3lcore.Exp.t => unit),
+        elab,
+        model: Model.t,
+      ) => {
     switch (model.kind, model.result) {
     // If elab hasn't changed, don't recalculate
     | (Evaluation, Evaluation({elab: elab', result}))
@@ -161,8 +166,8 @@ module Update = {
       }
     // If elab has changed, recalculate
     | (Evaluation, _) when settings.dynamics =>
-      if (immediate) {
-        {
+      switch (queue_worker) {
+      | None => {
           ...model,
           result:
             Evaluation({
@@ -183,23 +188,10 @@ module Update = {
                 };
               },
             }),
-        };
-      } else {
-        WorkerClient.request(
-          [("", elab)],
-          ~handler=
-            r =>
-              schedule_action(
-                UpdateResult(
-                  switch (r |> List.hd |> snd) {
-                  | Ok((r, s)) =>
-                    Haz3lcore.ProgramResult.ResultOk({result: r, state: s})
-                  | Error(e) => Haz3lcore.ProgramResult.ResultFail(e)
-                  },
-                ),
-              ),
-          ~timeout=_ => schedule_action(UpdateResult(ResultFail(Timeout))),
-        );
+        }
+
+      | Some(queue_worker) =>
+        queue_worker(elab);
         {
           ...model,
           result:

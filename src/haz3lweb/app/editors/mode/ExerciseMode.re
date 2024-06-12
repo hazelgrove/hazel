@@ -166,6 +166,11 @@ module Update = {
 
   let calculate = (~settings, ~schedule_action, model: Model.t): Model.t => {
     let stitched_elabs = Exercise.stitch_term(model.editors);
+    let worker_request = ref([]);
+    let queue_worker = (pos, expr) => {
+      worker_request :=
+        worker_request^ @ [(pos |> Exercise.key_for_statics, expr)];
+    };
     let cells =
       Exercise.map2_stitched(
         (pos, {term, editor}: Exercise.TermItem.t, cell: CellEditor.Model.t) =>
@@ -177,13 +182,42 @@ module Update = {
             result: cell.result,
           }
           |> CellEditor.Update.calculate(
-               ~settings,
-               ~schedule_action=a => schedule_action(Editor(pos, a)),
-               ~stitch=_ => term,
+               ~settings, ~queue_worker=Some(queue_worker(pos)), ~stitch=_ =>
+               term
              ),
         stitched_elabs,
         model.cells,
       );
+    WorkerClient.request(
+      worker_request^,
+      ~handler=
+        List.iter(((pos, result)) => {
+          let pos' = Exercise.pos_of_key(pos);
+          let result':
+            Haz3lcore.ProgramResult.t(Haz3lcore.ProgramResult.inner) =
+            switch (result) {
+            | Ok((r, s)) => ResultOk({result: r, state: s})
+            | Error(e) => ResultFail(e)
+            };
+          schedule_action(
+            Editor(pos', ResultAction(UpdateResult(result'))),
+          );
+        }),
+      ~timeout=_ => {
+        let _ =
+          Exercise.map_stitched(
+            (pos, _) =>
+              schedule_action(
+                Editor(
+                  pos,
+                  ResultAction(UpdateResult(ResultFail(Timeout))),
+                ),
+              ),
+            model.cells,
+          );
+        ();
+      },
+    );
     {spec: model.spec, editors: model.editors, cells};
   };
 };

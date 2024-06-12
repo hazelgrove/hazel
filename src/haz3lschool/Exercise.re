@@ -512,6 +512,25 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     | HiddenTests => hidden_tests_key
     };
 
+  let pos_of_key = (key: string): pos =>
+    switch () {
+    | _ when key == prelude_key => Prelude
+    | _ when key == test_validation_key => YourTestsValidation
+    | _ when key == user_impl_key => YourImpl
+    | _ when key == user_tests_key => YourTestsTesting
+    | _ when key == instructor_key => CorrectImpl
+    | _ when String.starts_with(key, ~prefix="hidden_bugs_") =>
+      let n =
+        String.sub(
+          key,
+          String.length("hidden_bugs_"),
+          String.length(key) - String.length("hidden_bugs_"),
+        );
+      HiddenBugs(int_of_string(n));
+    | _ when key == hidden_tests_key => HiddenTests
+    | _ => failwith("invalid key")
+    };
+
   // // Module Export
 
   let editor_pp = (fmt, editor: Editor.t) => {
