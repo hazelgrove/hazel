@@ -158,6 +158,6 @@ let list_concat = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
 let poly_eq = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
   switch (Typ.join_all(~empty=Unknown(Internal), ctx, tys)) {
   | None => NoJoin(PolyEq, add_source(ids, tys))
-  | Some(ty) when Typ.has_arrow(ty) => CompareArrow(ty)
+  | Some(ty) when Typ.has_arrow(ctx, ty) => CompareArrow(ty)
   | Some(_) => Just(Bool)
   };

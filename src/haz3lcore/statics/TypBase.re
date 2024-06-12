@@ -73,7 +73,7 @@ module rec Typ: {
   let is_unknown: t => bool;
   let needs_parens: t => bool;
   let pretty_print: t => string;
-  let has_arrow: t => bool;
+  let has_arrow: (Ctx.t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type type_provenance =
@@ -544,7 +544,7 @@ module rec Typ: {
       pretty_print(typ);
     };
 
-  let rec has_arrow = (ty: t): bool =>
+  let rec has_arrow = (ctx: Ctx.t, ty: t): bool =>
     switch (ty) {
     | Arrow(_, _)
     | Forall(_, _) => true
@@ -552,18 +552,22 @@ module rec Typ: {
     | Int
     | Float
     | Bool
-    | String
-    | Var(_) => false
-    | List(t)
-    | Rec(_, t) => has_arrow(t)
+    | String => false
+    | Var(tvar) =>
+      switch (Ctx.lookup_alias(ctx, tvar)) {
+      | Some(t) => has_arrow(ctx, t)
+      | None => false
+      }
+    | List(t) => has_arrow(ctx, t)
+    | Rec(tvar, tbody) => has_arrow(Ctx.extend_dummy_tvar(ctx, tvar), tbody)
     | Sum(sm) =>
       List.exists(
         fun
-        | None => false
-        | Some(t) => has_arrow(t),
-        List.map(snd, sm),
+        | (_, None) => false
+        | (_, Some(t)) => has_arrow(ctx, t),
+        sm,
       )
-    | Prod(tys) => List.exists(has_arrow, tys)
+    | Prod(tys) => List.exists(has_arrow(ctx), tys)
     };
 }
 

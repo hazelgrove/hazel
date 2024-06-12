@@ -455,20 +455,33 @@ module Transition = (EV: EV_MODE) => {
       and. d2' =
         req_value(req(state, env), d2 => BinIntOp2(op, d1, d2), d2);
       let (d1', d2') = (DHExp.strip_casts(d1'), DHExp.strip_casts(d2'));
-      Step({
-        apply: () => {
-          // Constructor with arrow type inside is the only case that
-          // we want to check here. Others should have been caught by
-          // statics in Elaborator.re.
-          DHExp.has_arrow(d1') || DHExp.has_arrow(d2')
-            ? InvalidOperation(BinIntOp(op, d1', d2'), CompareArrow)
-            : BoolLit(
-                DHExp.fast_equal(d1', d2') |> (b => op == Equals ? b : !b),
-              );
-        },
-        kind: BinIntOp(op),
-        value: false,
-      });
+      if (DHExp.has_arrow(d1') || DHExp.has_arrow(d2')) {
+        Step({
+          apply: () => {
+            // Constructor with arrow type inside is the only case that
+            // we want to check here. Others should have been caught by
+            // statics in Elaborator.re.
+            InvalidOperation(
+              BinIntOp(op, d1', d2'),
+              CompareArrow,
+            );
+          },
+          kind: BinIntOp(op),
+          value: false,
+        });
+      } else if (!DHExp.ty_equal(d1', d2')) {
+        Indet;
+      } else {
+        Step({
+          apply: () => {
+            BoolLit(
+              DHExp.fast_equal(d1', d2') |> (b => op == Equals ? b : !b),
+            );
+          },
+          kind: BinIntOp(op),
+          value: false,
+        });
+      };
     | BinIntOp(op, d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => BinIntOp(op, d1, d2))
       and. d1' = req_value(req(state, env), d1 => BinIntOp1(op, d1, d2), d1)
