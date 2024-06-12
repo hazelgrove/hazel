@@ -33,7 +33,6 @@ module Model = {
        be used in view functions. */
     get_log_and: (string => unit) => unit,
     export_all: (~instructor_mode: bool, ~log: string) => Yojson.Safe.t,
-    import_log: string => unit,
   };
 
   let load = () => {
@@ -52,8 +51,6 @@ module Model = {
         failwith("Cannot use get_log_and outside of the main view function!"),
       export_all: (~instructor_mode as _, ~log as _) =>
         failwith("Cannot use export_all outside of the main view function!"),
-      import_log: _ =>
-        failwith("Cannot use import_log outside of the main view function!"),
     };
   };
 

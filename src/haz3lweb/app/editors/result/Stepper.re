@@ -21,45 +21,20 @@ module Model = {
         // Calculated:
         expr: Exp.t,
         state: EvaluatorState.t,
-        editor: ReadOnlyEditor.Model.t,
+        editor: CodeWithStatics.Model.t,
         previous_substitutions: list(Id.t),
         next_steps: list(b),
       });
 
-  let mk_a = (~settings, expr, state, previous_substitutions) => {
-    let editor = ReadOnlyEditor.Model.mk_from_exp(~settings, expr);
-    let next_steps =
-      EvaluatorStep.decompose(expr, state)
-      |> List.map(
-           EvaluatorStep.should_hide_eval_obj(~settings=settings.evaluation),
-         )
-      |> List.map(
-           fun
-           | (FilterAction.Step, x) => {
-               hidden: false,
-               step: x,
-               to_ids: [Id.mk()],
-               valid: true,
-             }
-           | (FilterAction.Eval, x) => {
-               hidden: true,
-               step: x,
-               to_ids: [Id.mk()],
-               valid: true,
-             },
-         );
-    A({expr, state, editor, previous_substitutions, next_steps});
-  };
-
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     history: Aba.t(a, b),
-    cached_settings: CoreSettings.t,
+    cached_settings: option(CoreSettings.t),
   };
 
-  let init = (~settings) => {
+  let init = () => {
     history: Aba.singleton(PendingStep),
-    cached_settings: settings,
+    cached_settings: None,
   };
 
   let get_next_steps = (model: Aba.t(a, b)): list(b) =>
@@ -164,7 +139,28 @@ module Update = {
            )
       );
     let next_expr = EvalCtx.compose(b.step.ctx, next_expr);
-    Model.mk_a(~settings, next_expr, next_state, previous_substitutions);
+    let editor =
+      CodeWithStatics.Model.mk_from_exp(next_expr)
+      |> CodeWithStatics.Update.calculate(~settings, ~stitch=x => x);
+    let next_steps =
+      EvaluatorStep.decompose(next_expr, next_state)
+      |> List.map(
+           EvaluatorStep.should_hide_eval_obj(~settings=settings.evaluation),
+         )
+      |> List.map(
+           fun
+           | (FilterAction.Step, x) =>
+             Model.{hidden: false, step: x, to_ids: [Id.mk()], valid: true}
+           | (FilterAction.Eval, x) =>
+             Model.{hidden: true, step: x, to_ids: [Id.mk()], valid: true},
+         );
+    Model.A({
+      expr: next_expr,
+      state: next_state,
+      previous_substitutions,
+      editor,
+      next_steps,
+    });
   };
 
   let rec take_hidden_steps =
@@ -205,12 +201,20 @@ module Update = {
             };
           },
           _ =>
-            Model.mk_a(~settings, elab, EvaluatorState.init, [])
+            Model.A({
+              expr: elab,
+              state: EvaluatorState.init,
+              editor:
+                CodeWithStatics.Model.mk_from_exp(elab)
+                |> CodeWithStatics.Update.calculate(~settings, ~stitch=x => x),
+              previous_substitutions: [],
+              next_steps: [],
+            })
             |> Aba.singleton,
           model.history,
         )
         |> take_hidden_steps(~settings),
-      cached_settings: settings,
+      cached_settings: Some(settings),
     };
   };
 

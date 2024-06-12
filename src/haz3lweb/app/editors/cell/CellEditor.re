@@ -2,10 +2,12 @@ open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
 
+/* A "Cell" with user-editable text at the top, and evaluation results at the bottom. */
+
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    editor: CodeEditor.Model.t,
+    editor: CodeEditable.Model.t,
     result: Result.Model.t,
   };
 
@@ -18,9 +20,9 @@ module Model = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = CodeEditor.Model.persistent;
+  type persistent = CodeEditable.Model.persistent;
 
-  let persist = model => model.editor |> CodeEditor.Model.persist;
+  let persist = model => model.editor |> CodeEditable.Model.persist;
   let unpersist = pz => pz |> PersistentZipper.unpersist |> Editor.init |> mk;
 };
 
@@ -29,13 +31,14 @@ module Update = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | MainEditor(CodeEditor.Update.t)
+    | MainEditor(CodeEditable.Update.t)
     | ResultAction(Result.Update.t);
 
   let update = (~settings, action, model: Model.t) => {
     switch (action) {
     | MainEditor(action) =>
-      let* editor = CodeEditor.Update.update(~settings, action, model.editor);
+      let* editor =
+        CodeEditable.Update.update(~settings, action, model.editor);
       {...model, editor};
     | ResultAction(action) =>
       let* result = Result.Update.update(~settings, action, model.result);
@@ -47,13 +50,13 @@ module Update = {
       (~settings, ~schedule_action, ~stitch, ~immediate=false, model: Model.t)
       : Model.t => {
     let editor =
-      CodeEditor.Update.calculate(~settings, ~stitch, model.editor);
+      CodeEditable.Update.calculate(~settings, ~stitch, model.editor);
     let result =
       Result.Update.calculate(
         ~settings,
         ~schedule_action=a => schedule_action(ResultAction(a)),
         ~immediate,
-        editor |> CodeEditor.Model.get_elab,
+        editor |> CodeEditable.Model.get_elab,
         model.result,
       );
     {editor, result};
@@ -71,7 +74,7 @@ module Selection = {
     switch (selection) {
     | MainEditor =>
       let+ ci =
-        CodeEditor.Selection.get_cursor_info(~selection=(), model.editor);
+        CodeEditable.Selection.get_cursor_info(~selection=(), model.editor);
       Update.MainEditor(ci);
     | Result(selection) =>
       let+ ci = Result.Selection.get_cursor_info(~selection, model.result);
@@ -83,7 +86,7 @@ module Selection = {
       (~selection, ~event, model: Model.t): option(Update.t) => {
     switch (selection) {
     | MainEditor =>
-      CodeEditor.Selection.handle_key_event(
+      CodeEditable.Selection.handle_key_event(
         ~selection=(),
         model.editor,
         event,
@@ -96,7 +99,7 @@ module Selection = {
   };
 
   let jump_to_tile = (tile, model: Model.t): option((Update.t, t)) => {
-    CodeEditor.Selection.jump_to_tile(tile, model.editor)
+    CodeEditable.Selection.jump_to_tile(tile, model.editor)
     |> Option.map(x => (Update.MainEditor(x), MainEditor));
   };
 };
@@ -148,7 +151,7 @@ module View = {
         ]),
       Option.to_list(caption)
       @ [
-        CodeEditor.View.view(
+        CodeEditable.View.view(
           ~globals,
           ~signal=
             locked

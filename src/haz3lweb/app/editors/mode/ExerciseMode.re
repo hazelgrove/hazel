@@ -3,6 +3,8 @@ open Virtual_dom.Vdom;
 open Sexplib.Std;
 open Node;
 
+/* The exercises mode interface for a single exercise. Composed of multiple editors and results. */
+
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -112,18 +114,20 @@ module Update = {
     | ResetExercise;
 
   let update =
-      (~settings, ~schedule_action as _, action, model: Model.t)
+      (~settings: Settings.t, ~schedule_action as _, action, model: Model.t)
       : Updated.t(Model.t) => {
+    let instructor_mode = settings.instructor_mode;
     switch (action) {
-    | Editor(pos, MainEditor(action)) =>
+    | Editor(pos, MainEditor(action))
+        when Exercise.visible_in(pos, ~instructor_mode) =>
       // Redirect to editors
       let editor =
         Exercise.main_editor_of_state(~selection=pos, model.editors);
       let* new_editor =
         // Hack[Matt]: put Editor.t into a CodeEditor.t to use its update function
         editor
-        |> CodeEditor.Model.mk
-        |> CodeEditor.Update.update(~settings, action);
+        |> CodeEditable.Model.mk
+        |> CodeEditable.Update.update(~settings, action);
       {
         ...model,
         editors:
@@ -133,10 +137,13 @@ module Update = {
             new_editor.editor,
           ),
       };
-    | Editor(pos, ResultAction(_) as action) =>
+    | Editor(pos, ResultAction(_) as action)
+        when Exercise.visible_in(pos, ~instructor_mode) =>
       let cell = Exercise.get_stitched(pos, model.cells);
       let* new_cell = CellEditor.Update.update(~settings, action, cell);
       {...model, cells: Exercise.put_stitched(pos, model.cells, new_cell)};
+    | Editor(_, MainEditor(_) | ResultAction(_)) =>
+      Updated.return_quiet(model) // TODO: better feedback
     | ResetEditor(pos) =>
       let spec = Exercise.main_editor_of_state(~selection=pos, model.spec);
       let new_editor = Editor.init(spec);
@@ -241,6 +248,8 @@ module View = {
       Exercise.stitched('a) =
       model.cells;
 
+    let instructor_mode = globals.settings.instructor_mode;
+
     let stitched_tests =
       Exercise.map_stitched(
         (_, cell_editor: CellEditor.Model.t) =>
@@ -264,7 +273,9 @@ module View = {
         ~globals,
         ~signal=
           fun
-          | MakeActive(a) => signal(MakeActive((this_pos, a))),
+          | MakeActive(a) =>
+            Exercise.visible_in(this_pos, ~instructor_mode)
+              ? signal(MakeActive((this_pos, a))) : Effect.Ignore,
         ~selected=
           switch (selection) {
           | Some((pos, s)) when pos == this_pos => Some(s)

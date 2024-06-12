@@ -1,6 +1,9 @@
 open Sexplib.Std;
 open Util;
 
+/* This file handles the pagenation of Exercise Mode, and switching between
+   exercises. ExerciseMode.re handles the actual exercise. */
+
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -254,24 +257,40 @@ module View = {
     );
   };
 
-  let top_bar =
-      (~globals as _: Globals.t, ~inject: Update.t => 'a, model: Model.t) =>
-    SlideSelect.view(
-      ~signal=
-        fun
-        | Previous =>
-          inject(
-            Update.SwitchExercise(
-              model.current - 1 mod List.length(model.exercises),
+  let instructor_toggle = (~inject, ~instructor_mode) =>
+    ExerciseSettings.show_instructor
+      ? [
+        Widgets.toggle(
+          "🎓", ~tooltip="Toggle Instructor Mode", instructor_mode, _ =>
+          inject(Globals.Update.Set(InstructorMode))
+        ),
+      ]
+      : [];
+
+  let top_bar = (~globals: Globals.t, ~inject: Update.t => 'a, model: Model.t) =>
+    instructor_toggle(
+      ~inject=globals.inject_global,
+      ~instructor_mode=globals.settings.instructor_mode,
+    )
+    @ SlideSelect.view(
+        ~signal=
+          fun
+          | Previous =>
+            inject(
+              Update.SwitchExercise(
+                model.current - 1 mod List.length(model.exercises),
+              ),
+            )
+          | Next =>
+            inject(
+              Update.SwitchExercise(
+                model.current + 1 mod List.length(model.exercises),
+              ),
             ),
-          )
-        | Next =>
-          inject(
-            Update.SwitchExercise(
-              model.current + 1 mod List.length(model.exercises),
-            ),
+        ~indicator=
+          SlideSelect.indicator_n(
+            model.current,
+            List.length(model.exercises),
           ),
-      ~indicator=
-        SlideSelect.indicator_n(model.current, List.length(model.exercises)),
-    );
+      );
 };

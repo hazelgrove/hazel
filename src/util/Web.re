@@ -1,4 +1,6 @@
 open Virtual_dom.Vdom;
+
+module Node = Node;
 open Node;
 
 let clss = Attr.classes;

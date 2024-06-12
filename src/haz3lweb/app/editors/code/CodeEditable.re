@@ -4,7 +4,9 @@ open Virtual_dom.Vdom;
 type editor_id = string;
 open Sexplib.Std;
 
-module Model = ReadOnlyEditor.Model;
+module Model = CodeWithStatics.Model;
+
+/* A selectable editable code container component with statics and type-directed code completion. */
 
 module Update = {
   open Updated;
@@ -102,15 +104,7 @@ module Update = {
     };
   };
 
-  let calculate = (~settings, ~stitch, model: Model.t): Model.t =>
-    if (DHExp.fast_equal(
-          MakeTerm.from_zip_for_sem(model.editor.state.zipper) |> fst,
-          model.statics.term,
-        )) {
-      model;
-    } else {
-      Model.mk_from_editor(~settings, ~stitch, model.editor);
-    };
+  let calculate = CodeWithStatics.Update.calculate;
 };
 
 module Selection = {
@@ -123,7 +117,7 @@ module Selection = {
   let get_cursor_info = (~selection as (), model: Model.t): cursor(Update.t) => {
     info: Indicated.ci_of(model.editor.state.zipper, model.statics.info_map),
     selected_text: Some(Printer.to_string_selection(model.editor)),
-    paste: Some(x => Update.Perform(Paste(x))),
+    paste: x => Some(Update.Perform(Paste(x))),
   };
 
   let handle_key_event =
@@ -165,7 +159,8 @@ module Selection = {
         : Zipper.can_put_down(model.editor.state.zipper)
             ? Some(Update.Perform(Put_down))
             : Some(Update.Perform(MoveToNextHole(Right)))
-    | {key: D("/"), sys: Mac | PC, shift: Up, meta: Down, ctrl: Up, alt: Up} =>
+    | {key: D("/"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
+    | {key: D("/"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
       Some(Assistant(Prompt(TyDi)))
     | {key: D(key), sys: Mac | PC, shift: Down, meta: Up, ctrl: Up, alt: Up}
         when Keyboard.is_f_key(key) =>
@@ -289,52 +284,20 @@ module View = {
     };
     let overlays = edit_decos @ overlays;
     let code_view =
-      ReadOnlyEditor.View.view(~globals, ~overlays, ~sort?, model);
+      CodeWithStatics.View.view(~globals, ~overlays, ~sort?, model);
     let mousedown_overlay =
       selected && globals.mousedown
         ? [mousedown_overlay(~globals, ~inject=x => inject(Perform(x)))]
         : [];
     let on_mousedown =
       mousedown_handler(~globals, ~signal, ~inject=x => inject(Perform(x)));
-    let paste_handler =
-      selected
-        ? [
-          Attr.on_paste(evt => {
-            let pasted_text =
-              Js.to_string(evt##.clipboardData##getData(Js.string("text")))
-              |> Str.global_replace(Str.regexp("\n[ ]*"), "\n");
-            Dom.preventDefault(evt);
-            inject(Update.Perform(Paste(pasted_text)));
-          }),
-        ]
-        : [];
-    let copy_handler =
-      selected
-        ? {
-          let selection = Printer.to_string_selection(model.editor);
-          [
-            Attr.on_copy(_ => {
-              JsUtil.copy(selection);
-              Effect.Ignore;
-            }),
-            Attr.on_cut(_ => {
-              JsUtil.copy(selection);
-              inject(Update.Perform(Destruct(Left)));
-            }),
-          ];
-        }
-        : [];
     Node.div(
       ~attr=
-        Attr.many(
-          [
-            Attr.classes(["cell-item"]),
-            Attr.classes(["code-editor"]),
-            Attr.on_mousedown(on_mousedown),
-          ]
-          @ paste_handler
-          @ copy_handler,
-        ),
+        Attr.many([
+          Attr.classes(["cell-item"]),
+          Attr.classes(["code-editor"]),
+          Attr.on_mousedown(on_mousedown),
+        ]),
       mousedown_overlay @ [code_view],
     );
   };
