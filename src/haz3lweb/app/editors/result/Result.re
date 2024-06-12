@@ -1,6 +1,15 @@
 open Virtual_dom.Vdom;
 open Node;
 
+module type Model = {
+  type t;
+};
+
+/* The result box at the bottom of a cell. This is either the TestResutls
+   kind where only a summary of test results is shown, or the EvalResults kind
+   where users can choose whether they want to use a single-stepper or see the
+   result of full evaluation. */
+
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type result =
@@ -9,7 +18,7 @@ module Model = {
         elab: Haz3lcore.Exp.t,
         result:
           Haz3lcore.ProgramResult.t(
-            (CodeEditor.Model.t, Haz3lcore.EvaluatorState.t),
+            (CodeSelectable.Model.t, Haz3lcore.EvaluatorState.t),
           ),
       })
     | Stepper(Stepper.Model.t);
@@ -80,7 +89,7 @@ module Update = {
   type t =
     | ToggleStepper
     | StepperAction(Stepper.Update.t)
-    | EvalEditorAction(CodeEditor.Update.t)
+    | EvalEditorAction(CodeSelectable.Update.t)
     | UpdateResult(Haz3lcore.ProgramResult.t(Haz3lcore.ProgramResult.inner));
 
   let update = (~settings, action, model: Model.t): Updated.t(Model.t) =>
@@ -97,7 +106,7 @@ module Update = {
         EvalEditorAction(a),
         {result: Evaluation({elab, result: ResultOk((ed, st))}), _},
       ) =>
-      let* ed' = CodeEditor.Update.update(~settings, a, ed);
+      let* ed' = CodeSelectable.Update.update(~settings, a, ed);
       {...model, result: Evaluation({elab, result: ResultOk((ed', st))})};
     | (EvalEditorAction(_), _) => model |> Updated.return_quiet
     | (UpdateResult(update), {result: Evaluation({elab, _}), _}) =>
@@ -111,7 +120,11 @@ module Update = {
                 ({result: r, state: s}: Haz3lcore.ProgramResult.inner) =>
                   r
                   |> Haz3lcore.ProgramResult.Result.unbox
-                  |> CodeEditor.Model.mk_from_exp(~settings=settings.core)
+                  |> CodeSelectable.Model.mk_from_exp
+                  |> CodeSelectable.Update.calculate(
+                       ~settings=settings.core, ~stitch=x =>
+                       x
+                     )
                   |> (x => (x, s)),
                 update,
               ),
@@ -135,7 +148,7 @@ module Update = {
               Haz3lcore.ProgramResult.map(
                 ((res, state)) =>
                   (
-                    CodeEditor.Update.calculate(
+                    CodeSelectable.Update.calculate(
                       ~settings,
                       ~stitch=x => x,
                       res,
@@ -160,7 +173,10 @@ module Update = {
                   Haz3lcore.ProgramResult.ResultOk(
                     r
                     |> Haz3lcore.ProgramResult.Result.unbox
-                    |> CodeEditor.Model.mk_from_exp(~settings)
+                    |> CodeSelectable.Model.mk_from_exp
+                    |> CodeSelectable.Update.calculate(~settings, ~stitch=x =>
+                         x
+                       )
                     |> (x => (x, s)),
                   )
                 | Error(e) => Haz3lcore.ProgramResult.ResultFail(e)
@@ -196,8 +212,7 @@ module Update = {
       {...model, result: Stepper(s')};
     | (Stepper, _) =>
       let s =
-        Stepper.Model.init(~settings)
-        |> Stepper.Update.calculate(~settings, elab);
+        Stepper.Model.init() |> Stepper.Update.calculate(~settings, elab);
       {...model, result: Stepper(s)};
     };
   };
@@ -207,7 +222,7 @@ module Selection = {
   open Cursor;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | Evaluation(CodeEditor.Selection.t);
+    | Evaluation(CodeSelectable.Selection.t);
   // TODO: Selection in stepper
 
   let get_cursor_info = (~selection: t, mr: Model.t): cursor(Update.t) =>
@@ -217,7 +232,7 @@ module Selection = {
         Evaluation(selection),
         Evaluation({result: ResultOk((editor, _)), _}),
       ) =>
-      let+ ci = CodeEditor.Selection.get_cursor_info(~selection, editor);
+      let+ ci = CodeSelectable.Selection.get_cursor_info(~selection, editor);
       Update.EvalEditorAction(ci);
     | (_, Evaluation(_)) => empty
     | (_, Stepper(_)) => empty
@@ -231,7 +246,7 @@ module Selection = {
         Evaluation(selection),
         Evaluation({result: ResultOk((editor, _)), _}),
       ) =>
-      CodeEditor.Selection.handle_key_event(~selection, editor, event)
+      CodeSelectable.Selection.handle_key_event(~selection, editor, event)
       |> Option.map(x => Update.EvalEditorAction(x))
     | (_, Evaluation(_)) => None
     | (_, Stepper(_)) => None
@@ -265,20 +280,15 @@ module View = {
         ~selected,
         ~locked,
         elab: Haz3lcore.Exp.t,
-        result: Haz3lcore.ProgramResult.t((CodeEditor.Model.t, 'a)),
+        result: Haz3lcore.ProgramResult.t((CodeSelectable.Model.t, 'a)),
       ) => {
     let editor =
       switch (result) {
       | ResultOk((res, _)) => res
-      | _ =>
-        elab
-        |> ReadOnlyEditor.Model.mk_from_exp(
-             ~settings=globals.settings.core,
-             ~inline=false,
-           )
+      | _ => elab |> CodeSelectable.Model.mk_from_exp(~inline=false)
       };
     let code_view =
-      CodeEditor.View.view(
+      CodeSelectable.View.view(
         ~signal=
           fun
           | MakeActive => signal(MakeActive(Evaluation())),
@@ -432,15 +442,7 @@ module View = {
       let result = [
         text("Evaluation disabled, showing elaboration:"),
         switch (Model.get_elaboration(model)) {
-        | Some(elab) =>
-          ReadOnlyEditor.View.view(
-            ~globals,
-            {
-              editor:
-                elab |> Haz3lcore.ExpToSegment.exp_to_editor(~inline=false),
-              statics: Haz3lcore.CachedStatics.empty_statics,
-            }: CodeEditor.Model.t,
-          )
+        | Some(elab) => CodeViewable.view_exp(~globals, ~inline=false, elab)
         | None => text("No elaboration found")
         },
       ];

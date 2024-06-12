@@ -90,6 +90,12 @@ module App = {
 
     JsUtil.focus_clipboard_shim();
 
+    Js.Unsafe.set(
+      Js.Unsafe.global##._Error,
+      "stackTraceLimit",
+      Js.number_of_float(infinity),
+    );
+
     /* initialize state. */
     let state = State.init();
 
@@ -112,11 +118,7 @@ module App = {
     Component.create(
       ~apply_action=apply(model),
       model,
-      Haz3lweb.Page.View.view(
-        ~log={get_log_and: Log.get_and, import_log: Log.import},
-        ~inject,
-        model,
-      ),
+      Haz3lweb.Page.View.view(~get_log_and=Log.get_and, ~inject, model),
       ~on_display=(_, ~schedule_action) => {
         if (edit_action_applied^
             && JsUtil.timestamp()

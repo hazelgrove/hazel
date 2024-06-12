@@ -2,11 +2,11 @@ open Haz3lcore;
 
 module Stepped = {
   type model = {
-    editor: ReadOnlyEditor.Model.t,
+    editor: CodeWithStatics.Model.t,
     step_id: option(Id.t),
   };
 
-  type event = ReadOnlyEditor.View.event;
+  type event = CodeWithStatics.View.event;
 
   let view = (~globals: Globals.t, ~overlays=[], model: model) => {
     let overlays = {
@@ -17,13 +17,13 @@ module Stepped = {
         });
       overlays @ Deco.taken_step(model.step_id);
     };
-    ReadOnlyEditor.View.view(~globals, ~overlays, model.editor);
+    CodeWithStatics.View.view(~globals, ~overlays, model.editor);
   };
 };
 
 module Steppable = {
   type model = {
-    editor: CodeEditor.Model.t,
+    editor: CodeWithStatics.Model.t,
     next_steps: list(Id.t),
   };
 
@@ -46,6 +46,6 @@ module Steppable = {
       overlays
       @ Deco.next_steps(model.next_steps, ~inject=x => signal(TakeStep(x)));
     };
-    ReadOnlyEditor.View.view(~globals, ~overlays, model.editor);
+    CodeWithStatics.View.view(~globals, ~overlays, model.editor);
   };
 };

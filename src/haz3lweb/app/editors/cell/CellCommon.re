@@ -1,6 +1,8 @@
 open Virtual_dom.Vdom;
 open Node;
 
+/* Helpers for creating cell ui components - mostly used by exercise mode */
+
 let narrative_cell = (content: Node.t) =>
   div(
     ~attr=Attr.class_("cell"),

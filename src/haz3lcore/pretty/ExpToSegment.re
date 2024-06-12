@@ -946,3 +946,10 @@ let exp_to_editor = (~inline, exp: Exp.t): Editor.t => {
   let seg = p |> PrettySegment.select;
   Editor.init(~read_only=true, Zipper.unzip(seg));
 };
+
+let typ_to_editor = (~inline, typ: Typ.t): Editor.t => {
+  let typ = parenthesize_typ(typ);
+  let p = typ_to_pretty(~inline, typ);
+  let seg = p |> PrettySegment.select;
+  Editor.init(~read_only=true, Zipper.unzip(seg));
+};

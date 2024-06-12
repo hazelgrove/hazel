@@ -4,6 +4,8 @@ open Haz3lcore;
 open Util;
 open Util.Web;
 
+/* Helpers for rendering code text with holes and syntax highlighting */
+
 let of_delim' =
   Core.Memo.general(
     ~cache_size_bound=10000,
@@ -112,41 +114,6 @@ module Text = (M: {
   };
 };
 
-let rec holes =
-        (~font_metrics, ~map: Measured.t, seg: Segment.t): list(Node.t) =>
-  seg
-  |> List.concat_map(
-       fun
-       | Piece.Secondary(_) => []
-       | Tile(t) => List.concat_map(holes(~map, ~font_metrics), t.children)
-       | Grout(g) => [
-           EmptyHoleDec.view(
-             ~font_metrics, // TODO(d) fix sort
-             {
-               measurement: Measured.find_g(g, map),
-               mold: Mold.of_grout(g, Any),
-             },
-           ),
-         ],
-     );
-
-let simple_view =
-    (~font_metrics, ~unselected, ~map, ~settings: Settings.Model.t): Node.t => {
-  module Text =
-    Text({
-      let map = map;
-      let settings = settings;
-    });
-  let holes = holes(~map, ~font_metrics, unselected);
-  div(
-    ~attr=Attr.class_("code"),
-    [
-      span_c("code-text", Text.of_segment([], false, Sort.Any, unselected)),
-      ...holes,
-    ],
-  );
-};
-
 let of_hole = (~globals: Globals.t, ~measured, g: Grout.t) =>
   // TODO(d) fix sort
   EmptyHoleDec.view(
@@ -156,20 +123,3 @@ let of_hole = (~globals: Globals.t, ~measured, g: Grout.t) =>
       mold: Mold.of_grout(g, Any),
     },
   );
-
-let view =
-    (
-      ~globals: Globals.t,
-      ~sort: Sort.t,
-      {state: {meta: {measured, buffer_ids, unselected, holes, _}, _}, _}: Editor.t,
-    )
-    : Node.t => {
-  module Text =
-    Text({
-      let map = measured;
-      let settings = globals.settings;
-    });
-  let code = Text.of_segment(buffer_ids, false, sort, unselected);
-  let holes = List.map(of_hole(~measured, ~globals), holes);
-  div(~attr=Attr.class_("code"), [span_c("code-text", code), ...holes]);
-};

@@ -200,7 +200,7 @@ let mk_explanation =
 
 let expander_deco =
     (
-      ~globals as {font_metrics, settings, _} as globals: Globals.t,
+      ~globals as {font_metrics, _} as globals: Globals.t,
       ~docs: ExplainThisModel.t,
       ~inject,
       ~options: list((ExplainThisForm.form_id, Segment.t)),
@@ -250,14 +250,8 @@ let expander_deco =
               ]),
             List.map(
               ((id: ExplainThisForm.form_id, segment: Segment.t)): Node.t => {
-                let map = Measured.of_segment(segment);
                 let code_view =
-                  Code.simple_view(
-                    ~font_metrics,
-                    ~unselected=segment,
-                    ~map,
-                    ~settings,
-                  );
+                  CodeViewable.view_segment(~globals, ~sort=Exp, segment);
                 let classes =
                   id == doc.id
                     ? ["selected"] @ get_clss(segment) : get_clss(segment);
@@ -492,7 +486,7 @@ let get_doc =
         };
       let statics = CachedStatics.empty_statics;
       let syntactic_form_view =
-        ReadOnlyEditor.View.view(
+        CodeWithStatics.View.view(
           ~globals,
           ~overlays=highlight_deco @ [expander_deco],
           ~sort,

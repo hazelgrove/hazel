@@ -2,6 +2,8 @@ open Js_of_ocaml;
 open Virtual_dom.Vdom;
 open Node;
 
+/* The top-level UI component of Hazel */
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type selection = Editors.Selection.t;
 
@@ -279,31 +281,23 @@ module View = {
         |> Option.value(~default=Effect.Ignore);
       }),
     ]
-    @ (
-      cursor.paste
-      |> Option.map(paste =>
-           Attr.on_paste(evt => {
-             let pasted_text =
-               Js.to_string(evt##.clipboardData##getData(Js.string("text")))
-               |> Str.global_replace(Str.regexp("\n[ ]*"), "\n");
-             Dom.preventDefault(evt);
-             inject(paste(pasted_text));
-           })
-         )
-      |> Option.to_list
-    );
-  };
-
-  /* HACK: this is the only way I could find to be able to pass
-     the polymorphic get_log_and function to the main view function */
-  type log_functions = {
-    get_log_and: 'a. (string => unit) => unit,
-    import_log: string => unit,
+    @ [
+      Attr.on_paste(evt => {
+        let pasted_text =
+          Js.to_string(evt##.clipboardData##getData(Js.string("text")))
+          |> Str.global_replace(Str.regexp("\n[ ]*"), "\n");
+        Dom.preventDefault(evt);
+        switch (cursor.paste(pasted_text)) {
+        | None => Effect.Ignore
+        | Some(action) => inject(action)
+        };
+      }),
+    ];
   };
 
   let main_view =
       (
-        ~log as {get_log_and, import_log}: log_functions,
+        ~get_log_and: (string => unit) => unit,
         ~inject: Update.t => Ui_effect.t(unit),
         ~cursor: Cursor.cursor(Update.t),
         {globals, editors, explain_this: explainThisModel, selection} as model: Model.t,
@@ -313,7 +307,6 @@ module View = {
       inject_global: x => inject(Globals(x)),
       get_log_and,
       export_all: Export.export_all,
-      import_log,
     };
     let settings = globals.settings;
     let top_bar =
@@ -369,7 +362,8 @@ module View = {
     ];
   };
 
-  let view = (~log, ~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
+  let view =
+      (~get_log_and, ~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
     let cursor = Selection.get_cursor_info(~selection=model.selection, model);
     div(
       ~attr=
@@ -379,7 +373,7 @@ module View = {
         DecUtil.filters,
         JsUtil.clipboard_shim,
       ]
-      @ main_view(~log, ~cursor, ~inject, model),
+      @ main_view(~get_log_and, ~cursor, ~inject, model),
     );
   };
 };
