@@ -167,7 +167,7 @@ let d9: Exp.t =
         BinOp(Int(Plus), Int(1) |> Exp.fresh, Var("x") |> Exp.fresh)
         |> Exp.fresh,
         None,
-        Some("f+"),
+        Some("f"),
       )
       |> Exp.fresh,
       None,

@@ -109,6 +109,14 @@ let parse_sum_term: UTyp.t => ConstructorMap.variant(UTyp.t) =
     Variant(ctr, ids_ctr @ ids_ap, Some(u))
   | t => BadEntry(t);
 
+let mk_bad = (ctr, ids, value) => {
+  let t: Typ.t = {ids, copied: false, term: Var(ctr)};
+  switch (value) {
+  | None => t
+  | Some(u) => Ap(t, u) |> Typ.fresh
+  };
+};
+
 let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): t =>
   switch (s) {
   | Pat => Pat(pat(unsorted(skel, seg)))
@@ -406,13 +414,19 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
     }
   | Pre(tiles, Typ(t)) as tm =>
     switch (tiles) {
-    | ([(_, (["+"], []))], []) => ret(Sum([parse_sum_term(t)]))
+    | ([(_, (["+"], []))], []) =>
+      ret(Sum([parse_sum_term(t)] |> ConstructorMap.mk(~mk_bad)))
     | _ => ret(hole(tm))
     }
   | Bin(Typ(t1), tiles, Typ(t2)) as tm when is_typ_bsum(tiles) != None =>
     switch (is_typ_bsum(tiles)) {
     | Some(between_kids) =>
-      ret(Sum(List.map(parse_sum_term, [t1] @ between_kids @ [t2])))
+      ret(
+        Sum(
+          List.map(parse_sum_term, [t1] @ between_kids @ [t2])
+          |> ConstructorMap.mk(~mk_bad),
+        ),
+      )
     | None => ret(hole(tm))
     }
   | Bin(Typ(l), tiles, Typ(r)) as tm =>

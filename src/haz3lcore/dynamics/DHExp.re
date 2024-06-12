@@ -1,8 +1,8 @@
 /* DHExp.re
 
    This module is specifically for dynamic expressions. They are stored
-   using the same data structure as user expressions, but dynamic
-   expressions are specifically paired with a `Satic.Map.t`.
+   using the same data structure as user expressions, have been modified
+   slightly as described in Elaborator.re.
    */
 
 include Exp;

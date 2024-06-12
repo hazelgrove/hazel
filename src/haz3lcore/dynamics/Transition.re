@@ -256,10 +256,10 @@ module Transition = (EV: EV_MODE) => {
           is_value: false,
         });
       }
-    | Test(d) =>
+    | Test(d'') =>
       let. _ = otherwise(env, ((d, _)) => Test(d) |> rewrap)
       and. (d', is_value) =
-        req_final_or_value(req(state, env), d => Test(d) |> wrap_ctx, d);
+        req_final_or_value(req(state, env), d => Test(d) |> wrap_ctx, d'');
       let result: TestStatus.t =
         if (is_value) {
           switch (Unboxing.unbox(Bool, d')) {
@@ -384,7 +384,7 @@ module Transition = (EV: EV_MODE) => {
                        EvaluatorError.Exception(InvalidBuiltin(ident)),
                      )
                    });
-              builtin(d2);
+              builtin(d2');
             },
             state_update,
             kind: BuiltinAp(ident),
@@ -559,7 +559,7 @@ module Transition = (EV: EV_MODE) => {
             | Times => Int(n1 * n2)
             | Divide when n2 == 0 =>
               DynamicErrorHole(
-                BinOp(Int(op), d1', d1') |> rewrap,
+                BinOp(Int(op), d1', d2') |> rewrap,
                 DivideByZero,
               )
             | Divide => Int(n1 / n2)
@@ -775,7 +775,7 @@ module Transition = (EV: EV_MODE) => {
   };
 };
 
-let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
+let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   fun
   | LetBind
   | Seq

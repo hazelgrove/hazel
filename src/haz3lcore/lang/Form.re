@@ -282,7 +282,7 @@ let forms: list((string, t)) = [
   ("cons_pat", mk_infix("::", Pat, P.cons)),
   ("typeann", mk(ss, [":"], mk_bin'(P.ann, Pat, Pat, [], Typ))),
   // UNARY PREFIX OPERATORS
-  ("not", mk(ii, ["!"], mk_pre(P.not_, Exp, []))), //TODO: precedence
+  ("not", mk(ii, ["!"], mk_pre(P.not_, Exp, []))),
   ("typ_sum_single", mk(ss, ["+"], mk_pre(P.or_, Typ, []))),
   ("unary_minus", mk(ss, ["-"], mk_pre(P.neg, Exp, []))),
   ("unquote", mk(ss, ["$"], mk_pre(P.unquote, Exp, []))),
