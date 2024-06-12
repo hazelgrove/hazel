@@ -61,6 +61,7 @@ module rec DHExp: {
 
   let fast_equal: (t, t) => bool;
   let has_arrow: t => bool;
+  let ty_equal: (t, t) => bool;
 
   let assign_name_if_none: (t, option(Var.t)) => t;
   let ty_subst: (Typ.t, TypVar.t, t) => t;
@@ -392,6 +393,63 @@ module rec DHExp: {
     | BinStringOp(_, d1, d2) => has_arrow(d1) || has_arrow(d2)
     | IfThenElse(_, d1, d2, d3) =>
       has_arrow(d1) || has_arrow(d2) || has_arrow(d3);
+
+  let rec ty_equal = (d1: t, d2: t): bool =>
+    switch (d1, d2) {
+    /* Primitive forms: regular structural equality */
+    | (BoundVar(_), BoundVar(_))
+    | (BoolLit(_), BoolLit(_))
+    | (IntLit(_), IntLit(_))
+    | (FloatLit(_), FloatLit(_))
+    | (Constructor(_), Constructor(_))
+    | (StringLit(_), StringLit(_)) => true
+    /* Non-hole forms: recurse */
+    | (Ap(d11, d21), Ap(d12, d22)) =>
+      ty_equal(d11, d12) && ty_equal(d21, d22)
+    | (Tuple(ds1), Tuple(ds2)) =>
+      List.length(ds1) == List.length(ds2)
+      && List.for_all2(ty_equal, ds1, ds2)
+    | (ListLit(_, _, _, ds1), ListLit(_, _, _, ds2)) =>
+      List.length(ds1) == List.length(ds2)
+      && List.for_all2(ty_equal, ds1, ds2)
+    | (BoundVar(_), _)
+    | (BoolLit(_), _)
+    | (IntLit(_), _)
+    | (FloatLit(_), _)
+    | (Constructor(_), _)
+    | (StringLit(_), _)
+    | (Sequence(_), _)
+    | (Filter(_), _)
+    | (Let(_), _)
+    | (FixF(_), _)
+    | (Fun(_), _)
+    | (TypFun(_), _)
+    | (Test(_), _)
+    | (Ap(_), _)
+    | (TypAp(_), _)
+    | (ApBuiltin(_), _)
+    | (BuiltinFun(_), _)
+    | (Cons(_), _)
+    | (ListConcat(_), _)
+    | (ListLit(_), _)
+    | (Tuple(_), _)
+    | (Prj(_), _)
+    | (BinBoolOp(_), _)
+    | (BinIntOp(_), _)
+    | (BinFloatOp(_), _)
+    | (BinStringOp(_), _)
+    | (Cast(_), _)
+    | (FailedCast(_), _)
+    | (InvalidOperation(_), _)
+    | (IfThenElse(_), _)
+    | (ConsistentCase(_), _)
+    | (EmptyHole(_), _)
+    | (NonEmptyHole(_), _)
+    | (FreeVar(_), _)
+    | (InvalidText(_), _)
+    | (Closure(_), _)
+    | (InconsistentBranches(_), _) => false
+    };
 
   let assign_name_if_none = (t, name) =>
     switch (t) {
