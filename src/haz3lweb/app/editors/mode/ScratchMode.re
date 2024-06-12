@@ -130,13 +130,39 @@ module Update = {
 
   let calculate = (~settings, ~schedule_action, model: Model.t): Model.t => {
     let (key, ed) = List.nth(model.scratchpads, model.current);
+    let worker_request = ref([]);
+    let queue_worker =
+      Some(expr => {worker_request := worker_request^ @ [("", expr)]});
     let new_ed =
       CellEditor.Update.calculate(
         ~settings,
-        ~schedule_action=a => schedule_action(CellAction(a)),
+        ~queue_worker,
         ~stitch=x => x,
         ed,
       );
+    WorkerClient.request(
+      worker_request^,
+      ~handler=
+        r =>
+          schedule_action(
+            CellAction(
+              ResultAction(
+                UpdateResult(
+                  switch (r |> List.hd |> snd) {
+                  | Ok((r, s)) =>
+                    Haz3lcore.ProgramResult.ResultOk({result: r, state: s})
+                  | Error(e) => Haz3lcore.ProgramResult.ResultFail(e)
+                  },
+                ),
+              ),
+            ),
+          ),
+      ~timeout=
+        _ =>
+          schedule_action(
+            CellAction(ResultAction(UpdateResult(ResultFail(Timeout)))),
+          ),
+    );
     let new_sp =
       ListUtil.put_nth(model.current, (key, new_ed), model.scratchpads);
     {...model, scratchpads: new_sp};
