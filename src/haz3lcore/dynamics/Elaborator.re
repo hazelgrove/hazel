@@ -211,7 +211,14 @@ let rec dhexp_of_uexp =
         let (_, cons) = exp_binop_of(op);
         let* dc1 = dhexp_of_uexp(m, e1);
         let+ dc2 = dhexp_of_uexp(m, e2);
-        cons(dc1, dc2);
+        switch (op, err_status) {
+        | (
+            Int(Equals | NotEquals),
+            InHole(Common(Inconsistent(CompareArrow(_)))),
+          ) =>
+          DHExp.InvalidOperation(cons(dc1, dc2), CompareArrow)
+        | _ => cons(dc1, dc2)
+        };
       | Parens(e) => dhexp_of_uexp(m, e)
       | Seq(e1, e2) =>
         let* d1 = dhexp_of_uexp(m, e1);

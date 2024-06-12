@@ -457,6 +457,9 @@ module Transition = (EV: EV_MODE) => {
       let (d1', d2') = (DHExp.strip_casts(d1'), DHExp.strip_casts(d2'));
       Step({
         apply: () => {
+          // Constructor with arrow type inside is the only case that
+          // we want to check here. Others should have been caught by
+          // statics in Elaborator.re.
           DHExp.has_arrow(d1') || DHExp.has_arrow(d2')
             ? InvalidOperation(BinIntOp(op, d1', d2'), CompareArrow)
             : BoolLit(
