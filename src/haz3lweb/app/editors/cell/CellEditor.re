@@ -53,7 +53,8 @@ module Update = {
       Result.Update.calculate(
         ~settings,
         ~queue_worker,
-        editor |> CodeEditable.Model.get_elab,
+        editor |> CodeEditable.Model.get_statics,
+        editor |> CodeEditable.Model.get_term,
         model.result,
       );
     {editor, result};

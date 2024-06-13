@@ -138,9 +138,11 @@ module Update = {
       (
         ~settings,
         ~queue_worker: option(Haz3lcore.Exp.t => unit),
-        elab,
+        statics,
+        term,
         model: Model.t,
       ) => {
+    let elab = Haz3lcore.Interface.elaborate(~settings, statics, term);
     switch (model.kind, model.result) {
     // If elab hasn't changed, don't recalculate
     | (Evaluation, Evaluation({elab: elab', result}))
