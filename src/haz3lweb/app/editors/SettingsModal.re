@@ -52,12 +52,13 @@ let view =
         settings.show_casts,
         Evaluation(ShowCasts),
       ),
-      setting(
-        "🔍",
-        "show lookup steps",
-        settings.show_lookup_steps,
-        Evaluation(ShowLookups),
-      ),
+      // Disabled until we have a way to print closures
+      // setting(
+      //   "🔍",
+      //   "show lookup steps",
+      //   settings.show_lookup_steps,
+      //   Evaluation(ShowLookups),
+      // ),
       setting(
         "⏯️",
         "show stepper filters",

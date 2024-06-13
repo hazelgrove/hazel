@@ -566,6 +566,105 @@ module Exp = {
       | Constructor(_) => None
       };
     };
+
+  let rec substitute_closures = (env: ClosureEnvironment.t) =>
+    map_term(
+      ~f_exp=
+        (cont, e) => {
+          let (term, rewrap) = unwrap(e);
+          switch (term) {
+          // Variables: lookup if bound
+          | Var(x) =>
+            switch (ClosureEnvironment.lookup(env, x)) {
+            | Some(e) => e
+            | None => Var(x) |> rewrap // TODO: add some logic to ensure that unbound variables always show up
+            }
+          // Forms with environments: look up in new environment
+          | Closure(env, e) => substitute_closures(env, e)
+          | Fun(p, e, Some(env), n) =>
+            Fun(
+              p,
+              substitute_closures(
+                env |> ClosureEnvironment.without_keys(Pat.bound_vars(p)),
+                e,
+              ),
+              None,
+              n,
+            )
+            |> rewrap
+          | FixF(p, e, Some(env)) =>
+            FixF(
+              p,
+              substitute_closures(
+                env |> ClosureEnvironment.without_keys(Pat.bound_vars(p)),
+                e,
+              ),
+              None,
+            )
+            |> rewrap
+          // Cases with binders: remove binder from env
+          | Let(p, e1, e2) =>
+            Let(
+              p,
+              substitute_closures(env, e1),
+              substitute_closures(
+                env |> ClosureEnvironment.without_keys(Pat.bound_vars(p)),
+                e2,
+              ),
+            )
+            |> rewrap
+          | Match(e, cases) =>
+            Match(
+              substitute_closures(env, e),
+              cases
+              |> List.map(((p, e)) =>
+                   (
+                     p,
+                     substitute_closures(
+                       env
+                       |> ClosureEnvironment.without_keys(Pat.bound_vars(p)),
+                       e,
+                     ),
+                   )
+                 ),
+            )
+            |> rewrap
+          // Other cases: recurse
+          | Invalid(_)
+          | EmptyHole
+          | MultiHole(_)
+          | DynamicErrorHole(_)
+          | FailedCast(_)
+          | Deferral(_)
+          | Bool(_)
+          | Int(_)
+          | Float(_)
+          | String(_)
+          | ListLit(_)
+          | Constructor(_)
+          | Fun(_, _, None, _)
+          | TypFun(_)
+          | Tuple(_)
+          | FixF(_)
+          | TyAlias(_)
+          | Ap(_)
+          | TypAp(_)
+          | DeferredAp(_)
+          | If(_)
+          | Seq(_)
+          | Test(_)
+          | Filter(_)
+          | Parens(_)
+          | Cons(_)
+          | ListConcat(_)
+          | UnOp(_)
+          | BinOp(_)
+          | BuiltinFun(_)
+          | Cast(_) => cont(e)
+          };
+        },
+      _,
+    );
 };
 
 module Rul = {

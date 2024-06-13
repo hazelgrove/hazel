@@ -93,12 +93,13 @@ let settings_menu =
       evaluation.show_casts,
       Evaluation(ShowCasts),
     ),
-    toggle(
-      "🔍",
-      "Show Lookup Steps",
-      evaluation.show_lookup_steps,
-      Evaluation(ShowLookups),
-    ),
+    // Disabled until we have a way to print closures
+    // toggle(
+    //   "🔍",
+    //   "Show Lookup Steps",
+    //   evaluation.show_lookup_steps,
+    //   Evaluation(ShowLookups),
+    // ),
     toggle(
       "⏯️",
       "Show Stepper Filters",
