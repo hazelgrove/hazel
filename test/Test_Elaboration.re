@@ -160,17 +160,12 @@ let u9: Exp.t =
 let d9: Exp.t =
   Let(
     Var("f") |> Pat.fresh,
-    FixF(
-      Var("f") |> Pat.fresh,
-      Fun(
-        Var("x") |> Pat.fresh,
-        BinOp(Int(Plus), Int(1) |> Exp.fresh, Var("x") |> Exp.fresh)
-        |> Exp.fresh,
-        None,
-        Some("f"),
-      )
+    Fun(
+      Var("x") |> Pat.fresh,
+      BinOp(Int(Plus), Int(1) |> Exp.fresh, Var("x") |> Exp.fresh)
       |> Exp.fresh,
       None,
+      Some("f"),
     )
     |> Exp.fresh,
     Int(55) |> Exp.fresh,
@@ -179,7 +174,7 @@ let d9: Exp.t =
 
 let let_fun = () =>
   alco_check(
-    "Let expression for function which wraps a fix point constructor around the function",
+    "Let expression for function which is not recursive",
     d9,
     dhexp_of_uexp(u9),
   );
