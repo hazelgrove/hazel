@@ -39,7 +39,7 @@ module Model = {
 
   let get_next_steps = (model: Aba.t(a, b)): list(b) =>
     model
-    |> Aba.last_a
+    |> Aba.hd
     |> (
       fun
       | A({next_steps, _}) => next_steps
@@ -184,7 +184,7 @@ module Update = {
     {
       history:
         Aba.fold_right(
-          (a, b: Model.b, c) => {
+          (_, b: Model.b, c) => {
             let b' = {
               let (let&) = (x, y) => Util.OptUtil.get(y, x);
               let options = Model.get_next_steps(c);
@@ -199,7 +199,7 @@ module Update = {
             switch (get_next_a(~settings, model.history, b'), b'.valid) {
             | (Some(a'), true) => Aba.cons(a', b', c)
             | (None, _)
-            | (_, false) => Aba.cons(a, {...b, valid: false}, c)
+            | (_, false) => c
             };
           },
           _ =>
@@ -301,7 +301,8 @@ module View = {
              ]
            }
          )
-      |> List.flatten;
+      |> List.flatten
+      |> List.rev;
     };
     let _ = print_endline(Model.show(stepper));
     let current_step = {
