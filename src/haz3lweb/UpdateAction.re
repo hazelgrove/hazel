@@ -89,7 +89,8 @@ type t =
   | Assistant(agent_action)
   | ToggleStepper(ModelResults.Key.t)
   | StepperAction(ModelResults.Key.t, stepper_action)
-  | UpdateResult(ModelResults.t);
+  | UpdateResult(ModelResults.t)
+  | UpdateTitle(string);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -150,6 +151,7 @@ let is_edit: t => bool =
   | Assistant(AcceptSuggestion)
   | Reset => true
   | UpdateResult(_)
+  | UpdateTitle(_)
   | SwitchEditor(_)
   | ExportPersistentData
   | Save
@@ -205,6 +207,7 @@ let reevaluate_post_update: t => bool =
   | UpdateExplainThisModel(_)
   | ExportPersistentData
   | UpdateResult(_)
+  | UpdateTitle(_)
   | SwitchEditor(_)
   | DebugConsole(_)
   | TAB
@@ -249,6 +252,7 @@ let should_scroll_to_caret =
     }
   | Assistant(Prompt(_))
   | UpdateResult(_)
+  | UpdateTitle(_)
   | ToggleStepper(_)
   | StepperAction(_, StepBackward | StepForward(_)) => false
   | Assistant(AcceptSuggestion) => true

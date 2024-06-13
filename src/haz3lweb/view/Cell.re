@@ -332,11 +332,28 @@ let panel = (~classes=[], content, ~footer: option(t)) => {
   );
 };
 
-let title_cell = title => {
+let title_cell = (~inject, ~init_title) => {
+  let handle_input = (evt, _) => {
+    let newTitle = Id.to_string(evt##.target##.value);
+    let event = [
+      inject(UpdateTitle(newTitle))
+    ];
+    Virtual_dom.Vdom.Effect.Many(event);
+  };
+
   simple_cell_view([
     div(
       ~attr=Attr.class_("title-cell"),
-      [div(~attr=Attr.class_("title-text"), [text(title)])],
+      [
+        input(
+          ~attr=Attr.many([
+            Attr.class_("title-text"),
+            Attr.value(init_title),
+            Attr.on_input(handle_input),
+          ]),
+          [],
+        ),
+      ],
     ),
   ]);
 };

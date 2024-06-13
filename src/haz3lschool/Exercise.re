@@ -81,6 +81,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type pos =
+    // | Title
     | Prelude
     | CorrectImpl
     | YourTestsValidation
