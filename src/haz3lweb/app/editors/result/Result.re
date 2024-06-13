@@ -99,8 +99,8 @@ module Update = {
     | (ToggleStepper, {kind: Evaluation, _}) =>
       {...model, kind: Stepper} |> Updated.return
     | (StepperAction(a), {result: Stepper(s), _}) =>
-      {...model, result: Stepper(Stepper.Update.update(a, s))}
-      |> Updated.return
+      let* stepper = Stepper.Update.update(a, s);
+      {...model, result: Stepper(stepper)};
     | (StepperAction(_), _) => model |> Updated.return_quiet
     | (
         EvalEditorAction(a),

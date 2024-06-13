@@ -86,9 +86,10 @@ module Update = {
     | StepForward(int)
     | StepBackward;
 
-  let update = (action: t, model: Model.t): Model.t => {
+  let update = (action: t, model: Model.t): Updated.t(Model.t) => {
     switch (action) {
-    | StepForward(idx) => {
+    | StepForward(idx) =>
+      {
         ...model,
         history:
           Aba.cons(
@@ -97,7 +98,9 @@ module Update = {
             model.history,
           ),
       }
-    | StepBackward => {
+      |> Updated.return
+    | StepBackward =>
+      {
         ...model,
         history: {
           let rec step_backward:
@@ -111,6 +114,7 @@ module Update = {
           step_backward(model.history);
         },
       }
+      |> Updated.return
     };
   };
 
