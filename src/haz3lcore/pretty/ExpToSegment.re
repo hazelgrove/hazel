@@ -86,14 +86,16 @@ let (@) = (seg1: Segment.t, seg2: Segment.t): Segment.t =>
       that the expression has no DynamicErrorHoles, Casts, or FailedCasts
    */
 let rec exp_to_pretty = (~inline, exp: Exp.t): pretty => {
+  let exp = Exp.substitute_closures(ClosureEnvironment.empty, exp);
   let go = (~inline=inline) => exp_to_pretty(~inline);
   switch (exp |> Exp.term_of) {
   // Assume these have been removed by the parenthesizer
   | DynamicErrorHole(_)
   | Cast(_)
   | FailedCast(_)
-  | Closure(_)
   | Filter(_) => failwith("printing these not implemented yet")
+  // Forms which should be removed by substitute_closures
+  | Closure(_) => failwith("closure not removed before printing")
   // Other cases
   | Invalid(x) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, x)
   | EmptyHole =>
