@@ -21,7 +21,9 @@ module Model = {
     ExpToSegment.exp_to_editor(term, ~inline) |> mk;
   };
 
-  let get_elab = model => model.statics.term;
+  let get_term = model => model.statics.term;
+
+  let get_statics = model => model.statics.info_map;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = PersistentZipper.t;
