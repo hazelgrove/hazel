@@ -304,7 +304,6 @@ module View = {
       |> List.flatten
       |> List.rev;
     };
-    let _ = print_endline(Model.show(stepper));
     let current_step = {
       let model = stepper.history |> Aba.hd;
       div(
