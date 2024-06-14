@@ -181,6 +181,20 @@ let update_settings =
         mode,
       },
     }
+  | Accessibility(ToggleEnable) =>
+    let accessibility = {
+      ...settings.accessibility,
+      enable: !settings.accessibility.enable,
+    };
+    let settings = {...settings, accessibility};
+    {...model, settings};
+  | Accessibility(ToggleIsEditing) =>
+    let accessibility = {
+      ...settings.accessibility,
+      is_editing: !settings.accessibility.is_editing,
+    };
+    let settings = {...settings, accessibility};
+    {...model, settings};
   };
 
 let schedule_evaluation = (~schedule_action, model: Model.t): unit =>
@@ -399,6 +413,19 @@ let rec apply =
           : Zipper.can_put_down(z)
               ? PerformAction(Put_down) : MoveToNextHole(Right);
       apply(model, a, state, ~schedule_action);
+    | PerformAction(a) when model.settings.accessibility.is_editing =>
+      let accessibilityModel =
+        AccessibilityUpdate.update_model(
+          ~settings=model.settings,
+          ~ctx_init=
+            model.editors |> Editors.get_ctx_init(~settings=model.settings),
+          ~editor=model.editors |> Editors.get_editor,
+          model.accessibilityModel,
+          Edit(a),
+        );
+      let model = {...model, accessibilityModel};
+      JsUtil.log(model.accessibilityModel.input);
+      Ok(model);
     | PerformAction(a)
         when model.settings.core.assist && model.settings.core.statics =>
       let model = UpdateAssistant.reset_buffer(model);
