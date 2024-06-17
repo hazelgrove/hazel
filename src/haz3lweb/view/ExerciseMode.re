@@ -514,50 +514,82 @@ let reset_button = inject =>
   );
 
 let instructor_export = (exercise: Exercise.state) =>
-  Widgets.button_named(
-    Icons.star,
-    _ => {
-      // .ml files because show uses OCaml syntax (dune handles seamlessly)
-      let module_name = exercise.eds.module_name;
-      let filename = exercise.eds.module_name ++ ".ml";
-      let content_type = "text/plain";
-      let contents = Exercise.export_module(module_name, exercise);
-      JsUtil.download_string_file(~filename, ~content_type, ~contents);
-      Virtual_dom.Vdom.Effect.Ignore;
-    },
-    ~tooltip="Export Exercise Module",
-  );
+  switch (exercise) {
+  | Programming(exercise) =>
+    Widgets.button_named(
+      Icons.star,
+      _ => {
+        // .ml files because show uses OCaml syntax (dune handles seamlessly)
+        let module_name = exercise.eds.module_name;
+        let filename = exercise.eds.module_name ++ ".ml";
+        let content_type = "text/plain";
+        let contents =
+          Exercise.export_module(module_name, Programming(exercise));
+        JsUtil.download_string_file(~filename, ~content_type, ~contents);
+        Virtual_dom.Vdom.Effect.Ignore;
+      },
+      ~tooltip="Export Exercise Module",
+    )
+  | Proof(_) =>
+    Widgets.button_named(
+      Icons.star,
+      _ => Virtual_dom.Vdom.Effect.Ignore,
+      ~tooltip="Export Exercise Module (Not Implemented yet)",
+    )
+  };
 
 let instructor_transitionary_export = (exercise: Exercise.state) =>
-  Widgets.button_named(
-    Icons.star,
-    _ => {
-      // .ml files because show uses OCaml syntax (dune handles seamlessly)
-      let module_name = exercise.eds.module_name;
-      let filename = exercise.eds.module_name ++ ".ml";
-      let content_type = "text/plain";
-      let contents =
-        Exercise.export_transitionary_module(module_name, exercise);
-      JsUtil.download_string_file(~filename, ~content_type, ~contents);
-      Virtual_dom.Vdom.Effect.Ignore;
-    },
-    ~tooltip="Export Transitionary Exercise Module",
-  );
+  switch (exercise) {
+  | Programming(exercise) =>
+    Widgets.button_named(
+      Icons.star,
+      _ => {
+        // .ml files because show uses OCaml syntax (dune handles seamlessly)
+        let module_name = exercise.eds.module_name;
+        let filename = exercise.eds.module_name ++ ".ml";
+        let content_type = "text/plain";
+        let contents =
+          Exercise.export_transitionary_module(
+            module_name,
+            Programming(exercise),
+          );
+        JsUtil.download_string_file(~filename, ~content_type, ~contents);
+        Virtual_dom.Vdom.Effect.Ignore;
+      },
+      ~tooltip="Export Transitionary Exercise Module",
+    )
+  | Proof(_) =>
+    Widgets.button_named(
+      Icons.star,
+      _ => Virtual_dom.Vdom.Effect.Ignore,
+      ~tooltip="Export Transitionary Exercise Module (Not Implemented yet)",
+    )
+  };
 
 let instructor_grading_export = (exercise: Exercise.state) =>
-  Widgets.button_named(
-    Icons.star,
-    _ => {
-      // .ml files because show uses OCaml syntax (dune handles seamlessly)
-      let module_name = exercise.eds.module_name;
-      let filename = exercise.eds.module_name ++ "_grading.ml";
-      let content_type = "text/plain";
-      let contents = Exercise.export_grading_module(module_name, exercise);
-      JsUtil.download_string_file(~filename, ~content_type, ~contents);
-      Virtual_dom.Vdom.Effect.Ignore;
-    },
-    ~tooltip="Export Grading Exercise Module",
-  );
+  switch (exercise) {
+  | Programming(exercise) =>
+    Widgets.button_named(
+      Icons.star,
+      _ => {
+        // .ml files because show uses OCaml syntax (dune handles seamlessly)
+        let module_name = exercise.eds.module_name;
+        let filename = exercise.eds.module_name ++ "_grading.ml";
+        let content_type = "text/plain";
+        let contents =
+          Exercise.export_grading_module(module_name, Programming(exercise));
+        JsUtil.download_string_file(~filename, ~content_type, ~contents);
+        Virtual_dom.Vdom.Effect.Ignore;
+      },
+      ~tooltip="Export Grading Exercise Module",
+    )
+  | Proof(_) =>
+    Widgets.button_named(
+      Icons.star,
+      _ => Virtual_dom.Vdom.Effect.Ignore,
+      ~tooltip="Export Grading Exercise Module (Not Implemented yet)",
+    )
+  };
 
 let download_editor_state = (~instructor_mode) =>
   Log.get_and(log => {
