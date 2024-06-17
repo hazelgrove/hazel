@@ -7,9 +7,6 @@ module type ExerciseEnv = {
   let output_header: string => string;
 };
 
-let output_header_grading = _module_name =>
-  "module Exercise = GradePrelude.Exercise\n" ++ "let prompt = ()\n";
-
 module F = (ExerciseEnv: ExerciseEnv) => {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type derivation('code) = {
@@ -274,12 +271,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         prompt,
         // point_distribution,
         prelude,
-        // correct_impl,
-        // your_tests,
-        // your_impl,
-        // hidden_bugs,
-        // hidden_tests,
-        // syntax_tests,
         derivation_tree,
       },
     ) => {
@@ -450,28 +441,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   };
 
   // TODO: to be refactored
-  let wrap_filter = (act: FilterAction.action, term: Term.UExp.t): Term.UExp.t =>
-    TermBase.UExp.{
-      term:
-        TermBase.UExp.Filter(
-          FilterAction.(act, One),
-          {term: Constructor("$e"), ids: [Id.mk()]},
-          term,
-        ),
-      ids: [Id.mk()],
-    };
-
-  // TODO: to be refactored
-  let wrap = (term, editor: Editor.t): TermItem.t => {
-    term,
-    term_ranges: editor.state.meta.term_ranges,
-  };
-
-  // TODO: to be refactored
-  let term_of = (editor: Editor.t): Term.UExp.t =>
-    editor.state.meta.view_term;
-
-  // TODO: to be refactored
   // let stitch3 = (ed1: Editor.t, ed2: Editor.t, ed3: Editor.t) =>
   //   EditorUtil.append_exp(
   //     EditorUtil.append_exp(term_of(ed1), term_of(ed2)),
@@ -636,111 +605,4 @@ module F = (ExerciseEnv: ExerciseEnv) => {
           state.eds.derivation_tree |> Util.Tree.map(_ => DynamicsItem.empty),
       };
     };
-
-  // Module Export
-
-  // TODO: to be refactored
-  let editor_pp = (fmt, editor: Editor.t) => {
-    let zipper = editor.state.zipper;
-    let serialization = Zipper.show(zipper);
-    // let string_literal = "\"" ++ String.escaped(serialization) ++ "\"";
-    Format.pp_print_string(fmt, serialization);
-  };
-
-  // TODO: to be refactored
-  let export_module = (module_name, {eds, _}: state) => {
-    let prefix =
-      "let prompt = "
-      ++ module_name
-      ++ "_prompt.prompt\n"
-      ++ "let exercise: Exercise.spec = ";
-    let record = show_p(editor_pp, eds);
-    let data = prefix ++ record ++ "\n";
-    data;
-  };
-
-  // TODO: to be refactored
-  let transitionary_editor_pp = (fmt, editor: Editor.t) => {
-    let zipper = editor.state.zipper;
-    let code = Printer.to_string_basic(zipper);
-    Format.pp_print_string(fmt, "\"" ++ String.escaped(code) ++ "\"");
-  };
-
-  // TODO: to be refactored
-  let export_transitionary_module = (module_name, {eds, _}: state) => {
-    let prefix =
-      "let prompt = "
-      ++ module_name
-      ++ "_prompt.prompt\n"
-      ++ "let exercise: Exercise.spec = Exercise.transition(";
-    let record = show_p(transitionary_editor_pp, eds);
-    let data = prefix ++ record ++ ")\n";
-    data;
-  };
-
-  // TODO: to be refactored
-  let export_grading_module = (module_name, {eds, _}: state) => {
-    let header = output_header_grading(module_name);
-    let prefix = "let exercise: Exercise.spec = ";
-    let record = show_p(editor_pp, eds);
-    let data = header ++ prefix ++ record ++ "\n";
-    data;
-  };
-
-  // TODO: to be refactored
-  let blank_spec =
-      (
-        ~title,
-        ~module_name,
-        ~point_distribution,
-        ~required_tests,
-        ~provided_tests,
-        ~num_wrong_impls,
-      ) => {
-    let prelude = Zipper.next_blank();
-    let derivation_tree = Util.Tree.init(Zipper.next_blank);
-    ignore(point_distribution);
-    ignore(required_tests);
-    ignore(provided_tests);
-    ignore(num_wrong_impls);
-    {
-      title,
-      version: 1,
-      module_name,
-      prompt: ExerciseEnv.default,
-      // point_distribution,
-      prelude,
-      derivation_tree:
-        derivation_tree |> Util.Tree.map(jdmt => {jdmt, rule: Assumption}),
-    };
-  };
-
-  // From Store
-
-  // TODO: to be refactored
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type exercise_export = {
-    cur_exercise: key,
-    exercise_data: list((key, persistent_state)),
-  };
-
-  // TODO: to be refactored
-  let serialize_exercise = (exercise, ~instructor_mode) => {
-    persistent_state_of_state(exercise, ~instructor_mode)
-    |> sexp_of_persistent_state
-    |> Sexplib.Sexp.to_string;
-  };
-
-  // TODO: to be refactored
-  let deserialize_exercise = (data, ~spec, ~instructor_mode) => {
-    data
-    |> Sexplib.Sexp.of_string
-    |> persistent_state_of_sexp
-    |> unpersist_state(~spec, ~instructor_mode);
-  };
-
-  // TODO: to be refactored
-  let deserialize_exercise_export = data => {
-    data |> Sexplib.Sexp.of_string |> exercise_export_of_sexp;
-  };
 };

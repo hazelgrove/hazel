@@ -14,13 +14,17 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   module Programming = ExerciseProgramming.F(ExerciseEnv);
   module Proof = ExerciseProof.F(ExerciseEnv);
 
+  type mode =
+    | Programming
+    | Proof;
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type p('code) =
     | Programming(Programming.p('code))
     | Proof(Proof.p('code));
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type key = (string, int);
+  type key = (string, int); // title, version
 
   let key_of =
     fun
@@ -48,9 +52,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type eds =
-    | Programming(Programming.eds)
-    | Proof(Proof.eds);
+  type eds = p(Editor.t);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type state =
@@ -246,25 +248,46 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   // Module Export
 
-  let export_module = (module_name, state: state) =>
-    switch (state) {
-    | Programming(state) => Programming.export_module(module_name, state)
-    | Proof(state) => Proof.export_module(module_name, state)
-    };
+  // TODO: to be refactored
+  let editor_pp = (fmt, editor: Editor.t) => {
+    let zipper = editor.state.zipper;
+    let serialization = Zipper.show(zipper);
+    // let string_literal = "\"" ++ String.escaped(serialization) ++ "\"";
+    Format.pp_print_string(fmt, serialization);
+  };
 
-  let export_transitionary_module = (module_name, state: state) =>
-    switch (state) {
-    | Programming(state) =>
-      Programming.export_transitionary_module(module_name, state)
-    | Proof(state) => Proof.export_transitionary_module(module_name, state)
-    };
+  let export_module = (module_name, eds: eds) => {
+    let prefix =
+      "let prompt = "
+      ++ module_name
+      ++ "_prompt.prompt\n"
+      ++ "let exercise: Exercise.spec = ";
+    let record = show_p(editor_pp, eds);
+    prefix ++ record ++ "\n";
+  };
 
-  let export_grading_module = (module_name, state: state) =>
-    switch (state) {
-    | Programming(state) =>
-      Programming.export_grading_module(module_name, state)
-    | Proof(state) => Proof.export_grading_module(module_name, state)
-    };
+  let transitionary_editor_pp = (fmt, editor: Editor.t) => {
+    let zipper = editor.state.zipper;
+    let code = Printer.to_string_basic(zipper);
+    Format.pp_print_string(fmt, "\"" ++ String.escaped(code) ++ "\"");
+  };
+
+  let export_transitionary_module = (module_name, eds: eds) => {
+    let prefix =
+      "let prompt = "
+      ++ module_name
+      ++ "_prompt.prompt\n"
+      ++ "let exercise: Exercise.spec = Exercise.transition(";
+    let record = show_p(transitionary_editor_pp, eds);
+    prefix ++ record ++ ")\n";
+  };
+
+  let export_grading_module = (module_name, eds: eds) => {
+    let header = output_header_grading(module_name);
+    let prefix = "let exercise: Exercise.spec = ";
+    let record = show_p(editor_pp, eds);
+    header ++ prefix ++ record ++ "\n";
+  };
 
   // From Store
 

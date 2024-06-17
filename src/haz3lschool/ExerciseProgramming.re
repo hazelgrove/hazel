@@ -7,9 +7,6 @@ module type ExerciseEnv = {
   let output_header: string => string;
 };
 
-let output_header_grading = _module_name =>
-  "module Exercise = GradePrelude.Exercise\n" ++ "let prompt = ()\n";
-
 module F = (ExerciseEnv: ExerciseEnv) => {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type wrong_impl('code) = {
@@ -576,31 +573,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     hidden_tests: 'a,
   };
 
-  let wrap_filter = (act: FilterAction.action, term: Term.UExp.t): Term.UExp.t =>
-    TermBase.UExp.{
-      term:
-        TermBase.UExp.Filter(
-          FilterAction.(act, One),
-          {term: Constructor("$e"), ids: [Id.mk()]},
-          term,
-        ),
-      ids: [Id.mk()],
-    };
-
-  let wrap = (term, editor: Editor.t): TermItem.t => {
-    term,
-    term_ranges: editor.state.meta.term_ranges,
-  };
-
-  let term_of = (editor: Editor.t): Term.UExp.t =>
-    editor.state.meta.view_term;
-
-  let stitch3 = (ed1: Editor.t, ed2: Editor.t, ed3: Editor.t) =>
-    EditorUtil.append_exp(
-      EditorUtil.append_exp(term_of(ed1), term_of(ed2)),
-      term_of(ed3),
-    );
-
   let stitch_term = ({eds, _}: state): stitched(TermItem.t) => {
     let instructor =
       stitch3(eds.prelude, eds.correct_impl, eds.hidden_tests.tests);
@@ -872,119 +844,49 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         hidden_tests: DynamicsItem.empty,
       };
     };
-
-  // Module Export
-
-  let editor_pp = (fmt, editor: Editor.t) => {
-    let zipper = editor.state.zipper;
-    let serialization = Zipper.show(zipper);
-    // let string_literal = "\"" ++ String.escaped(serialization) ++ "\"";
-    Format.pp_print_string(fmt, serialization);
-  };
-
-  let export_module = (module_name, {eds, _}: state) => {
-    let prefix =
-      "let prompt = "
-      ++ module_name
-      ++ "_prompt.prompt\n"
-      ++ "let exercise: Exercise.spec = ";
-    let record = show_p(editor_pp, eds);
-    let data = prefix ++ record ++ "\n";
-    data;
-  };
-
-  let transitionary_editor_pp = (fmt, editor: Editor.t) => {
-    let zipper = editor.state.zipper;
-    let code = Printer.to_string_basic(zipper);
-    Format.pp_print_string(fmt, "\"" ++ String.escaped(code) ++ "\"");
-  };
-
-  let export_transitionary_module = (module_name, {eds, _}: state) => {
-    let prefix =
-      "let prompt = "
-      ++ module_name
-      ++ "_prompt.prompt\n"
-      ++ "let exercise: Exercise.spec = Exercise.transition(";
-    let record = show_p(transitionary_editor_pp, eds);
-    let data = prefix ++ record ++ ")\n";
-    data;
-  };
-
-  let export_grading_module = (module_name, {eds, _}: state) => {
-    let header = output_header_grading(module_name);
-    let prefix = "let exercise: Exercise.spec = ";
-    let record = show_p(editor_pp, eds);
-    let data = header ++ prefix ++ record ++ "\n";
-    data;
-  };
-
-  let blank_spec =
-      (
-        ~title,
-        ~module_name,
-        ~point_distribution,
-        ~required_tests,
-        ~provided_tests,
-        ~num_wrong_impls,
-      ) => {
-    let prelude = Zipper.next_blank();
-    let correct_impl = Zipper.next_blank();
-    let your_tests_tests = Zipper.next_blank();
-    let your_impl = Zipper.next_blank();
-    let hidden_bugs =
-      List.init(
-        num_wrong_impls,
-        i => {
-          let zipper = Zipper.next_blank();
-          {impl: zipper, hint: "TODO: hint " ++ string_of_int(i)};
-        },
-      );
-    let hidden_tests_tests = Zipper.next_blank();
-    {
-      title,
-      version: 1,
-      module_name,
-      prompt: ExerciseEnv.default,
-      point_distribution,
-      prelude,
-      correct_impl,
-      your_tests: {
-        tests: your_tests_tests,
-        required: required_tests,
-        provided: provided_tests,
-      },
-      your_impl,
-      hidden_bugs,
-      hidden_tests: {
-        tests: hidden_tests_tests,
-        hints: [],
-      },
-      syntax_tests: [],
-    };
-  };
-
-  // From Store
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type exercise_export = {
-    cur_exercise: key,
-    exercise_data: list((key, persistent_state)),
-  };
-
-  let serialize_exercise = (exercise, ~instructor_mode) => {
-    persistent_state_of_state(exercise, ~instructor_mode)
-    |> sexp_of_persistent_state
-    |> Sexplib.Sexp.to_string;
-  };
-
-  let deserialize_exercise = (data, ~spec, ~instructor_mode) => {
-    data
-    |> Sexplib.Sexp.of_string
-    |> persistent_state_of_sexp
-    |> unpersist_state(~spec, ~instructor_mode);
-  };
-
-  let deserialize_exercise_export = data => {
-    data |> Sexplib.Sexp.of_string |> exercise_export_of_sexp;
-  };
+  // NOTE(zhiyao): This function may be unnecessary
+  // let blank_spec =
+  //     (
+  //       ~title,
+  //       ~module_name,
+  //       ~point_distribution,
+  //       ~required_tests,
+  //       ~provided_tests,
+  //       ~num_wrong_impls,
+  //     ) => {
+  //   let prelude = Zipper.next_blank();
+  //   let correct_impl = Zipper.next_blank();
+  //   let your_tests_tests = Zipper.next_blank();
+  //   let your_impl = Zipper.next_blank();
+  //   let hidden_bugs =
+  //     List.init(
+  //       num_wrong_impls,
+  //       i => {
+  //         let zipper = Zipper.next_blank();
+  //         {impl: zipper, hint: "TODO: hint " ++ string_of_int(i)};
+  //       },
+  //     );
+  //   let hidden_tests_tests = Zipper.next_blank();
+  //   {
+  //     title,
+  //     version: 1,
+  //     module_name,
+  //     prompt: ExerciseEnv.default,
+  //     point_distribution,
+  //     prelude,
+  //     correct_impl,
+  //     your_tests: {
+  //       tests: your_tests_tests,
+  //       required: required_tests,
+  //       provided: provided_tests,
+  //     },
+  //     your_impl,
+  //     hidden_bugs,
+  //     hidden_tests: {
+  //       tests: hidden_tests_tests,
+  //       hints: [],
+  //     },
+  //     syntax_tests: [],
+  //   };
+  // };
 };

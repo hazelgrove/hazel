@@ -33,3 +33,29 @@ module DynamicsItem = {
     {term, info_map, result: NoElab};
   };
 };
+
+// # Stitching
+
+let wrap_filter = (act: FilterAction.action, term: Term.UExp.t): Term.UExp.t =>
+  TermBase.UExp.{
+    term:
+      TermBase.UExp.Filter(
+        FilterAction.(act, One),
+        {term: Constructor("$e"), ids: [Id.mk()]},
+        term,
+      ),
+    ids: [Id.mk()],
+  };
+
+let wrap = (term, editor: Editor.t): TermItem.t => {
+  term,
+  term_ranges: editor.state.meta.term_ranges,
+};
+
+let term_of = (editor: Editor.t): Term.UExp.t => editor.state.meta.view_term;
+
+let stitch3 = (ed1: Editor.t, ed2: Editor.t, ed3: Editor.t) =>
+  EditorUtil.append_exp(
+    EditorUtil.append_exp(term_of(ed1), term_of(ed2)),
+    term_of(ed3),
+  );

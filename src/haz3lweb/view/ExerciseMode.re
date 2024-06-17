@@ -524,7 +524,7 @@ let instructor_export = (exercise: Exercise.state) =>
         let filename = exercise.eds.module_name ++ ".ml";
         let content_type = "text/plain";
         let contents =
-          Exercise.export_module(module_name, Programming(exercise));
+          Exercise.export_module(module_name, Programming(exercise.eds));
         JsUtil.download_string_file(~filename, ~content_type, ~contents);
         Virtual_dom.Vdom.Effect.Ignore;
       },
@@ -551,7 +551,7 @@ let instructor_transitionary_export = (exercise: Exercise.state) =>
         let contents =
           Exercise.export_transitionary_module(
             module_name,
-            Programming(exercise),
+            Programming(exercise.eds),
           );
         JsUtil.download_string_file(~filename, ~content_type, ~contents);
         Virtual_dom.Vdom.Effect.Ignore;
@@ -577,7 +577,10 @@ let instructor_grading_export = (exercise: Exercise.state) =>
         let filename = exercise.eds.module_name ++ "_grading.ml";
         let content_type = "text/plain";
         let contents =
-          Exercise.export_grading_module(module_name, Programming(exercise));
+          Exercise.export_grading_module(
+            module_name,
+            Programming(exercise.eds),
+          );
         JsUtil.download_string_file(~filename, ~content_type, ~contents);
         Virtual_dom.Vdom.Effect.Ignore;
       },
