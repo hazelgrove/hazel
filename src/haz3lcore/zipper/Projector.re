@@ -243,7 +243,7 @@ module Project = {
   };
 };
 
-module UpdateSyntax = {
+module Syntax = {
   let update_piece = (f, id: Id.t, syntax: syntax) =>
     id == Piece.id(syntax) ? f(syntax) : syntax;
 
@@ -272,7 +272,7 @@ module UpdateSyntax = {
     z |> put_siblings(sibs);
   };
 
-  let go = (f: syntax => syntax, id: Id.t, z: ZipperBase.t): ZipperBase.t => {
+  let update = (f: syntax => syntax, id: Id.t, z: ZipperBase.t): ZipperBase.t => {
     /* This applies the function to the piece in the zipper having id id, and
      * then replaces the id of the resulting piece with the idea of the old
      * piece, ensuring that the root id remains stable. This function assumes

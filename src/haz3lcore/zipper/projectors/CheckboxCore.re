@@ -1,21 +1,25 @@
 open Sexplib.Std;
 open ZipperBase;
 
-let state_of = (piece: Piece.t): option(bool) =>
-  switch (piece) {
-  | Tile({label: ["true"], _}) => Some(true)
-  | Tile({label: ["false"], _}) => Some(false)
+let of_mono = (syntax: Piece.t): option(string) =>
+  switch (syntax) {
+  | Tile({label: [l], _}) => Some(l)
   | _ => None
   };
 
+let mk_mono = (sort: Sort.t, string: string): Piece.t =>
+  string |> Form.mk_atomic(sort) |> Piece.mk_tile(_, []);
+
+let state_of = (piece: Piece.t): option(bool) =>
+  piece |> of_mono |> Option.map(bool_of_string);
+
 let get = (piece: Piece.t): bool =>
-  switch (state_of(piece)) {
+  switch (piece |> of_mono |> Option.map(bool_of_string)) {
   | None => failwith("Checkbox: not boolean literal")
   | Some(s) => s
   };
 
-let put = (bool: bool): Piece.t =>
-  bool |> string_of_bool |> Form.mk_atomic(Exp) |> Piece.mk_tile(_, []);
+let put = (bool: bool): Piece.t => bool |> string_of_bool |> mk_mono(Exp);
 
 let toggle = (piece: Piece.t) => put(!get(piece));
 

@@ -162,7 +162,7 @@ let code_svg =
   // (https://bugs.chromium.org/p/chromium/issues/detail?id=424288) that
   // causes miaslignment between piece decorations and text.
   // Using a different viewBox size seems to fix this.
-  let scale = 2.;
+  let scale = 0.5;
   create_svg(
     "svg",
     ~attr=

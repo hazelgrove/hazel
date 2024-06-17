@@ -20,7 +20,6 @@ module Deco =
   let tile = id => Id.Map.find(id, M.tiles);
 
   let caret = (z: Zipper.t): list(Node.t) => {
-    print_endline("Deco.caret_point");
     let origin = Zipper.caret_point(M.map, z);
     let shape = Zipper.caret_direction(z);
     let side =

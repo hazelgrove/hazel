@@ -15,5 +15,5 @@ let mk =
          ~attr=Attr.on_double_click(_ => inject(Projector.Remove)),
          [text("⋱")],
        );
-     let keymap = _: option(Projector.action(action)) => None;
+     let keymap = _: option(Projector.action(string)) => None;
    });

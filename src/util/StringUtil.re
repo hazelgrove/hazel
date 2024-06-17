@@ -24,3 +24,7 @@ let repeat = (n, s) => String.concat("", List.init(n, _ => s));
 
 let abbreviate = (max_len, s) =>
   String.length(s) > max_len ? String.sub(s, 0, max_len) ++ "..." : s;
+
+let num_linebreaks = (s: string) =>
+  List.init(String.length(s), String.get(s))
+  |> List.fold_left((acc, c) => c == '\n' ? acc + 1 : acc, 0);

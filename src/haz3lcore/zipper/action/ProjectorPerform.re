@@ -41,7 +41,7 @@ let go = (a: Action.project, info_map: Statics.Map.t, z: ZipperBase.t) =>
     | false => Error(Action.Failure.Cant_project)
     | true => Ok(set(id, None, z))
     }
-  | UpdateSyntax(id, f) => Ok(Projector.UpdateSyntax.go(f, id, z))
+  | UpdateSyntax(id, f) => Ok(Projector.Syntax.update(f, id, z))
   | UpdateModel(id, f) =>
     Ok({...z, projectors: Map.update(id, Option.map(f), z.projectors)})
   };

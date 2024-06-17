@@ -1,5 +1,11 @@
 open ZipperBase;
 
+let serialize = a =>
+  a |> ZipperBase.sexp_of_slider_action |> Sexplib.Sexp.to_string;
+
+let deserialize = a =>
+  a |> Sexplib.Sexp.of_string |> ZipperBase.slider_action_of_sexp;
+
 let mk = (model): projector_core =>
   (module
    {
@@ -12,7 +18,8 @@ let mk = (model): projector_core =>
      let can_project = _ => true;
      let placeholder_length = () => 10;
      let auto_update = _: projector => Slider(model);
-     let update =
-       fun
-       | Set(value) => Slider({value: value});
+     let update = (action: string) =>
+       switch (deserialize(action)) {
+       | Set(value) => Slider({value: value})
+       };
    });

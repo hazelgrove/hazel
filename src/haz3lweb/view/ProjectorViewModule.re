@@ -6,7 +6,7 @@ module type ProjectorView = {
   type action;
 
   let view: Node.t;
-  let keymap: Key.t => option(Projector.action(action));
+  let keymap: Key.t => option(Projector.action(string));
 };
 
 type t = (module ProjectorView);
