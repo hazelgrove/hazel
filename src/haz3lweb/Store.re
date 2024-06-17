@@ -256,7 +256,7 @@ module Exercise = {
     JsUtil.set_localstore(keystring, value);
   };
 
-  let init_exercise = (spec, ~instructor_mode) => {
+  let init_exercise = (spec: Exercise.p('a), ~instructor_mode) => {
     let key = Exercise.key_of(spec);
     let keystring = keystring_of_key(key);
     let exercise = Exercise.state_of_spec(spec, ~instructor_mode);

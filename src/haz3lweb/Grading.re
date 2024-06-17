@@ -1,7 +1,7 @@
 open Virtual_dom.Vdom;
 open Node;
 
-include Haz3lschool.Grading.F(Exercise.ExerciseEnv);
+include Haz3lschool.GradingProgramming.F(Exercise.ExerciseEnv);
 
 let score_view = ((earned: points, max: points)) => {
   div(
@@ -68,7 +68,7 @@ module TestValidationReport = {
                  TestView.test_bar(
                    ~inject,
                    ~test_results,
-                   YourTestsValidation,
+                   Programming(YourTestsValidation),
                  )
                ),
           ),
@@ -98,7 +98,11 @@ module MutationTestingReport = {
                 Attr.classes(["segment", TestStatus.to_string(status)]),
                 Attr.on_click(
                   //TODO: wire up test ids
-                  TestView.jump_to_test(~inject, HiddenBugs(id), Id.invalid),
+                  TestView.jump_to_test(
+                    ~inject,
+                    Programming(HiddenBugs(id)),
+                    Id.invalid,
+                  ),
                 ),
               ]),
             [],
@@ -140,7 +144,11 @@ module MutationTestingReport = {
           Attr.classes(["test-report"]),
           //TODO: wire up test ids
           Attr.on_click(
-            TestView.jump_to_test(~inject, HiddenBugs(id), Id.invalid),
+            TestView.jump_to_test(
+              ~inject,
+              Programming(HiddenBugs(id)),
+              Id.invalid,
+            ),
           ),
         ]),
       [
@@ -360,7 +368,9 @@ module ImplGradingReport = {
       ~attr=
         Attr.many([
           Attr.classes(["test-report"]),
-          Attr.on_click(TestView.jump_to_test(~inject, HiddenTests, id)),
+          Attr.on_click(
+            TestView.jump_to_test(~inject, Programming(HiddenTests), id),
+          ),
         ]),
       [
         div(
@@ -444,7 +454,11 @@ module ImplGradingReport = {
               @ Option.to_list(
                   report.test_results
                   |> Option.map(test_results =>
-                       TestView.test_bar(~inject, ~test_results, HiddenTests)
+                       TestView.test_bar(
+                         ~inject,
+                         ~test_results,
+                         Programming(HiddenTests),
+                       )
                      ),
                 ),
             ),
@@ -460,4 +474,8 @@ module GradingReport = {
   let view_overall_score = (report: t) => {
     score_view(overall_score(report));
   };
+};
+
+module ProofReport = {
+  include Haz3lschool.GradingProof.F(Exercise.ExerciseEnv);
 };

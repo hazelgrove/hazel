@@ -17,33 +17,37 @@ let render_cells = (settings: Settings.t, v: list(vis_marked(Node.t))) => {
   );
 };
 
-let view =
+let programming_view =
     (
       ~inject,
       ~ui_state: Model.ui_state,
       ~settings: Settings.t,
-      ~exercise,
+      ~exercise: Exercise.Programming.state,
       ~results,
       ~highlights,
     ) => {
-  let Exercise.{eds, pos} = exercise;
+  let Exercise.Programming.{eds, pos} = exercise;
   let stitched_dynamics =
     Exercise.stitch_dynamic(
       settings.core,
-      exercise,
+      Programming(exercise),
       settings.core.dynamics ? Some(results) : None,
     );
-  let {
-    test_validation,
-    user_impl,
-    user_tests,
-    prelude,
-    instructor,
-    hidden_bugs,
-    hidden_tests: _,
-    derivation_tree,
-  }:
-    Exercise.stitched(Exercise.DynamicsItem.t) = stitched_dynamics;
+
+  let stitched_dynamics =
+    switch (stitched_dynamics) {
+    | Programming(stitched_dynamics) => stitched_dynamics
+    | Proof(_) => failwith("Impossible")
+    };
+  let Exercise.Programming.{
+        test_validation,
+        user_impl,
+        user_tests,
+        prelude,
+        instructor,
+        hidden_bugs,
+        hidden_tests: _,
+      } = stitched_dynamics;
 
   let grading_report = Grading.GradingReport.mk(eds, ~stitched_dynamics);
 
@@ -59,7 +63,7 @@ let view =
         this_pos,
       ) => {
     Cell.editor_view(
-      ~selected=pos == this_pos,
+      ~selected=(Programming(pos): Exercise.pos) == this_pos,
       ~error_ids=
         Statics.Map.error_ids(editor.state.meta.term_ranges, di.info_map),
       ~inject,
@@ -82,139 +86,10 @@ let view =
       div(~attr=Attr.class_("cell-prompt"), [eds.prompt]),
     );
 
-  // Note(zhiyao): construction area starts
-
-  // select(
-  //   ~attr=
-  //     Attr.on_change((_, name) =>
-  //       inject(Set(Mode(Settings.mode_of_string(name))))
-  //     ),
-  //   List.map(
-  //     option_view(Settings.show_mode(mode)),
-  //     ["Scratch", "Documentation", "Exercises"],
-  //   ),
-  // ),
-
-  let derivation_view_maker = (({Exercise.jdmt, rule}, (pos, di)), child) => {
-    let ed = jdmt;
-    let di_child = child |> List.map(snd);
-    let res =
-      Grading.ImplGradingReport.DerivationReport.verify_single(
-        di,
-        rule,
-        di_child,
-      );
-    (
-      div(
-        ~attr=Attr.class_("derivation-block"),
-        [
-          div(
-            ~attr=Attr.class_("derivation-premises"),
-            (child |> List.map(fst))
-            @ [
-              select(
-                ~attr=
-                  Attr.on_change((_, name) =>
-                    inject(
-                      UpdateAction.SwitchDerivationRule(
-                        Derive(pos),
-                        Derivation.Rule.of_string(name),
-                      ),
-                    )
-                  ),
-                List.map(
-                  r =>
-                    Derivation.Rule.show(r)
-                    |> EditorModeView.option_view(Derivation.Rule.show(rule)),
-                  [
-                    Derivation.Rule.Assumption,
-                    Derivation.Rule.And_I,
-                    Derivation.Rule.And_E_L,
-                    Derivation.Rule.And_E_R,
-                    Derivation.Rule.Or_I_L,
-                    Derivation.Rule.Or_I_R,
-                    Derivation.Rule.Or_E,
-                    Derivation.Rule.Implies_I,
-                    Derivation.Rule.Implies_E,
-                    Derivation.Rule.Truth_I,
-                    Derivation.Rule.Falsity_E,
-                  ],
-                  // | Assumption
-                  // | And_I
-                  // | And_E_L
-                  // | And_E_R
-                  // | Or_I_L
-                  // | Or_I_R
-                  // | Or_E
-                  // | Implies_I
-                  // | Implies_E
-                  // | Truth_I
-                  // | Falsity_E;
-                ),
-              ),
-              text(
-                res
-                |> (
-                  fun
-                  | Ok(_) => "✅"
-                  | Error(External("E-252")) => "✋"
-                  | Error(External(_)) => "⌛️"
-                  | Error(e) => "❌" ++ DerivationError.VerErr.repr(e)
-                ),
-              ),
-            ],
-          ),
-          div(
-            ~attr=Attr.class_("derivation-conclusion"),
-            [
-              editor_view(
-                Derive(pos),
-                ~caption="Derivation",
-                ~editor=ed,
-                ~di,
-              ),
-            ],
-          ),
-        ],
-      ),
-      di,
-    );
-  };
-
-  // (ed * di) * (rule * pos)
-  let combined_tree =
-    Util.Tree.combine((
-      eds.derivation_tree,
-      Util.Tree.mapi((pos, t) => (pos, t), derivation_tree),
-    ));
-
-  let derivation_view =
-    div(
-      ~attr=Attr.class_("cell"),
-      [
-        div(
-          ~attr=Attr.class_("cell-item"),
-          [
-            Cell.caption("Derivation"),
-            div(
-              ~attr=Attr.class_("cell-derivation"),
-              [
-                fst(
-                  Util.Tree.fold_deep(derivation_view_maker, combined_tree),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ],
-    );
-
-  // Note(zhiyao): construction area ends
-
   let prelude_view =
     Always(
       editor_view(
-        Prelude,
+        Programming(Prelude),
         ~caption="Prelude",
         ~subcaption=settings.instructor_mode ? "" : " (Read-Only)",
         ~editor=eds.prelude,
@@ -226,7 +101,7 @@ let view =
     InstructorOnly(
       () =>
         editor_view(
-          CorrectImpl,
+          Programming(CorrectImpl),
           ~caption="Correct Implementation",
           ~editor=eds.correct_impl,
           ~di=instructor,
@@ -280,7 +155,7 @@ let view =
   let your_tests_view =
     Always(
       editor_view(
-        YourTestsValidation,
+        Programming(YourTestsValidation),
         ~caption="Test Validation",
         ~subcaption=": Your Tests vs. Correct Implementation",
         ~editor=eds.your_tests.tests,
@@ -297,11 +172,11 @@ let view =
 
   let wrong_impl_views =
     List.mapi(
-      (i, (Exercise.{impl, _}, di)) => {
+      (i, (Exercise.Programming.{impl, _}, di)) => {
         InstructorOnly(
           () =>
             editor_view(
-              HiddenBugs(i),
+              Programming(HiddenBugs(i)),
               ~caption="Wrong Implementation " ++ string_of_int(i + 1),
               ~editor=impl,
               ~di,
@@ -323,7 +198,7 @@ let view =
   let your_impl_view = {
     Always(
       editor_view(
-        YourImpl,
+        Programming(YourImpl),
         ~caption="Your Implementation",
         ~editor=eds.your_impl,
         ~di=user_impl,
@@ -334,7 +209,7 @@ let view =
             ~inject,
             ~ui_state,
             ~result=user_impl.result,
-            ~result_key=Exercise.user_impl_key,
+            ~result_key=Exercise.Programming.user_impl_key,
           ),
       ),
     );
@@ -346,7 +221,7 @@ let view =
   let impl_validation_view =
     Always(
       editor_view(
-        YourTestsTesting,
+        Programming(YourTestsTesting),
         ~caption="Implementation Validation",
         ~subcaption=
           ": Your Tests (code synchronized with Test Validation cell above) vs. Your Implementation",
@@ -365,7 +240,7 @@ let view =
     InstructorOnly(
       () =>
         editor_view(
-          HiddenTests,
+          Programming(HiddenTests),
           ~caption="Hidden Tests",
           ~editor=eds.hidden_tests.tests,
           ~di=instructor,
@@ -384,31 +259,241 @@ let view =
 
   // TODO(zhiyao): derivation_view not well integrated
   [score_view, title_view, prompt_view]
-  @ render_cells(settings, [prelude_view, Always(derivation_view)])
-  @ [
-    div(
-      ~attr=Attr.style(Css_gen.create(~field="display", ~value="none")),
-      render_cells(
-        settings,
+  @ render_cells(
+      settings,
+      [
+        prelude_view,
+        correct_impl_view,
+        correct_impl_ctx_view,
+        your_tests_view,
+      ]
+      @ wrong_impl_views
+      @ [
+        mutation_testing_view,
+        your_impl_view,
+        syntax_grading_view,
+        impl_validation_view,
+        hidden_tests_view,
+        impl_grading_view,
+      ],
+    );
+};
+
+let proof_view =
+    (
+      ~inject,
+      ~ui_state: Model.ui_state,
+      ~settings: Settings.t,
+      ~exercise: Exercise.Proof.state,
+      ~results,
+      ~highlights,
+    ) => {
+  let Exercise.Proof.{eds, pos} = exercise;
+  let stitched_dynamics =
+    Exercise.stitch_dynamic(
+      settings.core,
+      Proof(exercise),
+      settings.core.dynamics ? Some(results) : None,
+    );
+  let stitched_dynamics =
+    switch (stitched_dynamics) {
+    | Proof(stitched_dynamics) => stitched_dynamics
+    | Programming(_) => failwith("Impossible")
+    };
+
+  let Exercise.Proof.{derivation_tree, prelude, _} = stitched_dynamics;
+
+  let editor_view =
+      (
+        ~editor: Editor.t,
+        ~caption: string,
+        ~subcaption: option(string)=?,
+        ~footer=?,
+        ~di: Exercise.DynamicsItem.t,
+        this_pos,
+      ) => {
+    Cell.editor_view(
+      ~selected=(Proof(pos): Exercise.pos) == this_pos,
+      ~error_ids=
+        Statics.Map.error_ids(editor.state.meta.term_ranges, di.info_map),
+      ~inject,
+      ~ui_state,
+      ~mousedown_updates=[SwitchEditor(this_pos)],
+      ~settings,
+      ~highlights,
+      ~caption=Cell.caption(caption, ~rest=?subcaption),
+      ~target_id=Exercise.show_pos(this_pos),
+      ~test_results=ModelResult.test_results(di.result),
+      ~footer?,
+      editor,
+    );
+  };
+
+  let title_view = Cell.title_cell(eds.title);
+
+  let prompt_view =
+    Cell.narrative_cell(
+      div(~attr=Attr.class_("cell-prompt"), [eds.prompt]),
+    );
+
+  let derivation_view_maker =
+      (({Exercise.Proof.jdmt, rule}, (pos, di)), child) => {
+    let ed = jdmt;
+    let di_child = child |> List.map(snd);
+    let res =
+      Grading.ProofReport.DerivationReport.verify_single(di, rule, di_child);
+    (
+      div(
+        ~attr=Attr.class_("derivation-block"),
         [
-          prelude_view,
-          Always(derivation_view),
-          correct_impl_view,
-          correct_impl_ctx_view,
-          your_tests_view,
-        ]
-        @ wrong_impl_views
-        @ [
-          mutation_testing_view,
-          your_impl_view,
-          syntax_grading_view,
-          impl_validation_view,
-          hidden_tests_view,
-          impl_grading_view,
+          div(
+            ~attr=Attr.class_("derivation-premises"),
+            (child |> List.map(fst))
+            @ [
+              select(
+                ~attr=
+                  Attr.on_change((_, name) =>
+                    inject(
+                      UpdateAction.SwitchDerivationRule(
+                        Proof(Derive(pos)),
+                        Derivation.Rule.of_string(name),
+                      ),
+                    )
+                  ),
+                List.map(
+                  r =>
+                    Derivation.Rule.show(r)
+                    |> EditorModeView.option_view(Derivation.Rule.show(rule)),
+                  [
+                    Derivation.Rule.Assumption,
+                    Derivation.Rule.And_I,
+                    Derivation.Rule.And_E_L,
+                    Derivation.Rule.And_E_R,
+                    Derivation.Rule.Or_I_L,
+                    Derivation.Rule.Or_I_R,
+                    Derivation.Rule.Or_E,
+                    Derivation.Rule.Implies_I,
+                    Derivation.Rule.Implies_E,
+                    Derivation.Rule.Truth_I,
+                    Derivation.Rule.Falsity_E,
+                  ],
+                  // | Assumption
+                  // | And_I
+                  // | And_E_L
+                  // | And_E_R
+                  // | Or_I_L
+                  // | Or_I_R
+                  // | Or_E
+                  // | Implies_I
+                  // | Implies_E
+                  // | Truth_I
+                  // | Falsity_E;
+                ),
+              ),
+              text(
+                res
+                |> (
+                  fun
+                  | Ok(_) => "✅"
+                  | Error(External("E-252")) => "✋"
+                  | Error(External(_)) => "⌛️"
+                  | Error(e) => "❌" ++ DerivationError.VerErr.repr(e)
+                ),
+              ),
+            ],
+          ),
+          div(
+            ~attr=Attr.class_("derivation-conclusion"),
+            [
+              editor_view(
+                Proof(Derive(pos)),
+                ~caption="Derivation",
+                ~editor=ed,
+                ~di,
+              ),
+            ],
+          ),
         ],
       ),
-    ),
-  ];
+      di,
+    );
+  };
+
+  // (ed * di) * (rule * pos)
+  let combined_tree =
+    Util.Tree.combine((
+      eds.derivation_tree,
+      Util.Tree.mapi((pos, t) => (pos, t), derivation_tree),
+    ));
+
+  let derivation_view =
+    div(
+      ~attr=Attr.class_("cell"),
+      [
+        div(
+          ~attr=Attr.class_("cell-item"),
+          [
+            Cell.caption("Derivation"),
+            div(
+              ~attr=Attr.class_("cell-derivation"),
+              [
+                fst(
+                  Util.Tree.fold_deep(derivation_view_maker, combined_tree),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+
+  // Note(zhiyao): construction area ends
+
+  let prelude_view =
+    Always(
+      editor_view(
+        Proof(Prelude),
+        ~caption="Prelude",
+        ~subcaption=settings.instructor_mode ? "" : " (Read-Only)",
+        ~editor=eds.prelude,
+        ~di=prelude,
+      ),
+    );
+
+  // TODO(zhiyao): derivation_view not well integrated
+  [title_view, prompt_view]
+  @ render_cells(settings, [prelude_view, Always(derivation_view)]);
+};
+
+let view =
+    (
+      ~inject,
+      ~ui_state: Model.ui_state,
+      ~settings: Settings.t,
+      ~exercise: Exercise.state,
+      ~results,
+      ~highlights,
+    ) => {
+  switch (exercise) {
+  | Programming(exercise) =>
+    programming_view(
+      ~inject,
+      ~ui_state,
+      ~settings,
+      ~exercise,
+      ~results,
+      ~highlights,
+    )
+  | Proof(exercise) =>
+    proof_view(
+      ~inject,
+      ~ui_state,
+      ~settings,
+      ~exercise,
+      ~results,
+      ~highlights,
+    )
+  };
 };
 
 let reset_button = inject =>

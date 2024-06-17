@@ -4,8 +4,10 @@ open Haz3lschool;
 open Core;
 
 open Specs;
-open GradePrelude.Exercise;
-open GradePrelude.Grading;
+// open GradePrelude.Exercise;
+// open GradePrelude.Grading;
+open GradingProgramming.F(GradePrelude.ExerciseEnv);
+open ExerciseProgramming.F(GradePrelude.ExerciseEnv);
 
 [@deriving (sexp, yojson)]
 type item = {

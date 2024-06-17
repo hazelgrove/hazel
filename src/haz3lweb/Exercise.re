@@ -8,3 +8,5 @@ module ExerciseEnv = {
 };
 
 include Haz3lschool.Exercise.F(ExerciseEnv);
+
+include Haz3lschool.ExerciseBase;

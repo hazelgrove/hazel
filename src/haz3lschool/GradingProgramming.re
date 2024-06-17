@@ -2,7 +2,8 @@ open Haz3lcore;
 open Sexplib.Std;
 
 module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
-  open Exercise.F(ExerciseEnv);
+  open ExerciseProgramming.F(ExerciseEnv);
+  open ExerciseBase;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type percentage = float;
@@ -239,50 +240,6 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
         ~q_str="indeterminate",
         ~r_str="valid",
       );
-    };
-
-    module DerivationReport = {
-      type t = {verify_results: Util.Tree.t(bool)};
-
-      let get_judgement = ({result, _}: DynamicsItem.t) =>
-        switch (result) {
-        | Evaluation({
-            evaluation: ResultOk({result: BoxedValue(JudgementLit(j)), _}),
-            _,
-          }) =>
-          Ok(j)
-        | Evaluation({evaluation: ResultOk({result: BoxedValue(_), _}), _}) =>
-          Error("E-249")
-        | Evaluation(_) => Error("Pending")
-        | Stepper(_) => Error("E-251")
-        | NoElab => Error("E-252")
-        };
-
-      let get_judgement2 = ({result, _}: DynamicsItem.t) =>
-        switch (result) {
-        | Evaluation({
-            evaluation: ResultOk({result: BoxedValue(JudgementLit(j)), _}),
-            _,
-          }) =>
-          Some(j)
-        | _ => None
-        };
-
-      let verify_single =
-          (
-            concl: DynamicsItem.t,
-            rule: Derivation.Rule.t,
-            prems: list(DynamicsItem.t),
-          ) => {
-        let concl = get_judgement(concl);
-        let prems =
-          List.map(get_judgement2, prems) |> List.filter_map(Fun.id);
-        switch (concl, prems) {
-        | (Ok(concl), prems) =>
-          DerivationError.RuleVer.verify(rule, concl, prems)
-        | (Error(e), _) => Error(DerivationError.VerErr.External(e))
-        };
-      };
     };
   };
 
