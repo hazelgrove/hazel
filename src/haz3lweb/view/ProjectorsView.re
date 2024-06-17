@@ -8,21 +8,21 @@ let handle = (id, action): UpdateAction.t => {
   switch (action) {
   | Remove => PerformAction(Project(Remove(id)))
   | UpdateSyntax(f) => PerformAction(Project(UpdateSyntax(id, f)))
-  | UpdateModel(_action) =>
+  | UpdateModel(action) =>
     //TODO(andrew)
-    print_endline("TODO: update model");
-    // PerformAction(
-    //   Project(
-    //     UpdateModel(
-    //       id,
-    //       p => {
-    //         let (module P) = Projector.to_module(p);
-    //         P.update(action);
-    //       },
-    //     ),
-    //   ),
-    // );
-    PerformAction(Project(UpdateModel(id, x => x)));
+    // print_endline("TODO: update model");
+    PerformAction(
+      Project(
+        UpdateModel(
+          id,
+          p => {
+            let (module P) = Projector.to_module(p);
+            P.update(action);
+          },
+        ),
+      ),
+    )
+  // PerformAction(Project(UpdateModel(id, x => x)));
   };
 };
 
@@ -58,10 +58,19 @@ let wrap =
     ~attr=
       Attr.many([
         Attr.classes(["projector", Projector.name(p)] @ clss),
-        JsUtil.stop_mousedown_propagation,
         DecUtil.abs_style(measurement, ~font_metrics),
       ]),
-    [view, PieceDec.convex_shard(~font_metrics, ~measurement)],
+    [
+      div(
+        ~attr=
+          Attr.many([
+            Attr.classes(["projector-wrapper"] @ clss),
+            JsUtil.stop_mousedown_propagation,
+          ]),
+        [view],
+      ),
+      PieceDec.convex_shard(~font_metrics, ~measurement),
+    ],
   );
 
 let view =

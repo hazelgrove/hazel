@@ -681,16 +681,18 @@ select {
 .projector {
   position: absolute;
   z-index: 12;
-  cursor: pointer;
   display: flex;
   justify-content: center;
+  align-items: center;
   color: #c7b480;
+}
+.projector-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 .projector.indicated {
   z-index: 13;
-  display: flex;
-  justify-content: center;
-  cursor: pointer !important;
 }
 .projector > svg {
   z-index: -1;
@@ -706,21 +708,44 @@ select {
 .projector.indicated.fold {
   color: black;
 }
+.projector.fold .projector-wrapper {
+ cursor: pointer;
+} 
 
 /* PROJECTOR: INFER */
 
 .projector.infer {
-  opacity: 60%;
+  opacity: 0.5;
   color: var(--typ-text-color);
+}
+.projector.infer:hover {
+  opacity: 1;
 }
 .projector.infer > svg {
   fill: var(--typ-bg-off-color);
 }
+.projector.infer .projector-wrapper div {
+  cursor: pointer;
+}
+
+/* PROJECTOR: CHECKBOX */
+
+.projector.checkbox input {
+  margin: 0;
+  filter: sepia(1);
+  cursor: pointer;
+}
 
 /* PROJECTOR: SLIDER */
 
-.projector.slider > input {
+.projector.slider .projector-wrapper {
+  width: 95%;
+}
+.projector.slider input {
+  margin: 0;
   width: 100%;
+  filter: sepia(1);
+  cursor: pointer;
 }
 
 /* END PROJECTORS */

@@ -56,7 +56,7 @@ module type ProjectorCore = {
   let placeholder_length: unit => int;
   let can_project: Piece.t => bool;
   let auto_update: projector_info => projector;
-  let update: action => projector;
+  let update: string => projector;
 };
 
 type projector_core = (module ProjectorCore);

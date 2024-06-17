@@ -1,5 +1,4 @@
 open ZipperBase;
-open Sexplib.Std;
 
 let display_ty = (expected_ty: option(Typ.t)): Typ.t =>
   switch (expected_ty) {
@@ -19,7 +18,7 @@ let mk = (model: infer): projector_core =>
      [@deriving (show({with_path: false}), sexp, yojson)]
      type model = infer;
      [@deriving (show({with_path: false}), sexp, yojson)]
-     type action = unit;
+     type action = infer_action;
      let model = model;
      let projector = Infer(model);
 
@@ -29,8 +28,9 @@ let mk = (model: infer): projector_core =>
        | _ => false
        };
 
-     let placeholder_length = _ =>
-       display_ty(model.expected_ty) |> Typ.pretty_print |> String.length;
+     let placeholder_length = () =>
+       3
+       + (display_ty(model.expected_ty) |> Typ.pretty_print |> String.length);
 
      let auto_update = ({info, _}): projector => {
        print_endline("updating infer projector");
