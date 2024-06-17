@@ -150,6 +150,7 @@ type form_id =
   | EmptyHoleExp
   | MultiHoleExp
   | TrivExp
+  | UndefinedExp
   | DeferralExp
   | BoolExp
   | IntExp
@@ -241,6 +242,7 @@ type group_id =
   | EmptyHoleExp
   | MultiHoleExp
   | TrivExp
+  | UndefinedExp
   | DeferralExp
   | BoolExp
   | IntExp

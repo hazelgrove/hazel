@@ -149,9 +149,12 @@ let is_float = str =>
 let is_bad_float = str => is_arbitary_float(str) && !is_float(str);
 let bools = ["true", "false"];
 let is_bool = regexp("^(" ++ String.concat("|", bools) ++ ")$");
+let undefined = "undefined";
+let is_undefined = regexp("^" ++ undefined ++ "$");
 
 let is_var = str =>
   !is_bool(str)
+  && !is_undefined(str)
   && str != "_"
   //&& !is_keyword(str)
   //&& !is_reserved(str)
@@ -201,7 +204,7 @@ let duomerges = (lbl: Label.t): option(Label.t) =>
 
 //TODO(andrew): refactor atomic_forms to seperate these out
 let const_mono_delims =
-  base_typs @ bools @ [wild, empty_list, empty_tuple, empty_string];
+  base_typs @ bools @ [undefined, wild, empty_list, empty_tuple, empty_string];
 
 let explicit_hole = "?";
 let is_explicit_hole = t => t == explicit_hole;
@@ -229,6 +232,7 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("int_lit", (is_int, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("float_lit", (is_float, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("bool_lit", (is_bool, [mk_op(Exp, []), mk_op(Pat, [])])),
+  ("undefined_lit", (is_undefined, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("empty_list", (is_empty_list, [mk_op(Exp, []), mk_op(Pat, [])])),
   (
     "empty_tuple",
