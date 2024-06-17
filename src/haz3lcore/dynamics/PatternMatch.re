@@ -270,6 +270,7 @@ and matches_cast_Sum =
   | Closure(_)
   | Filter(_)
   | Cons(_)
+  | Undefined
   | ListConcat(_) => DoesNotMatch
   }
 and matches_cast_Tuple =
@@ -364,6 +365,7 @@ and matches_cast_Tuple =
   | FailedCast(_, _, _) => IndetMatch
   | InvalidOperation(_) => IndetMatch
   | IfThenElse(_) => IndetMatch
+  | Undefined => DoesNotMatch
   }
 and matches_cast_Cons =
     (dp: DHPat.t, d: DHExp.t, elt_casts: list((Typ.t, Typ.t))): match_result =>
@@ -503,4 +505,5 @@ and matches_cast_Cons =
   | FailedCast(_, _, _) => IndetMatch
   | InvalidOperation(_) => IndetMatch
   | IfThenElse(_) => IndetMatch
+  | Undefined => DoesNotMatch
   };
