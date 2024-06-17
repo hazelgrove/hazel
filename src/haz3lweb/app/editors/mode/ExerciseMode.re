@@ -381,6 +381,7 @@ module View = {
               | None => Node.div([text("No context available")]) // TODO show exercise configuration error
               | Some(specific_ctx) =>
                 CtxInspector.ctx_view(
+                  ~globals,
                   ~inject=globals.inject_global,
                   specific_ctx,
                 )

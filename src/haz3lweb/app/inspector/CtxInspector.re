@@ -2,10 +2,15 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
 
+let alias_view = (s: string): Node.t =>
+  div(~attr=clss(["typ-alias-view"]), [text(s)]);
+
 let jump_to = entry =>
   Globals.Update.JumpToTile(Haz3lcore.Ctx.get_id(entry));
 
-let context_entry_view = (~inject, entry: Haz3lcore.Ctx.entry): Node.t => {
+let context_entry_view =
+    (~globals, ~inject, entry: Haz3lcore.Ctx.entry): Node.t => {
+  let view_type = CodeViewable.view_typ(~globals, ~inline=true);
   let div_name =
     div(
       ~attr=
@@ -22,35 +27,35 @@ let context_entry_view = (~inject, entry: Haz3lcore.Ctx.entry): Node.t => {
       [
         div_name([text(name)]),
         div(~attr=clss(["seperator"]), [text(":")]),
-        Type.view(typ),
+        view_type(typ),
       ],
     )
   | TVarEntry({name, kind, _}) =>
     div_c(
       "context-entry",
       [
-        div_name([Type.alias_view(name)]),
+        div_name([alias_view(name)]),
         div(~attr=clss(["seperator"]), [text("::")]),
-        Kind.view(kind),
+        Kind.view(~globals, kind),
       ],
     )
   };
 };
 
-let ctx_view = (~inject, ctx: Haz3lcore.Ctx.t): Node.t =>
+let ctx_view = (~globals, ~inject, ctx: Haz3lcore.Ctx.t): Node.t =>
   div(
     ~attr=clss(["context-entries"]),
     List.map(
-      context_entry_view(~inject),
+      context_entry_view(~globals, ~inject),
       ctx |> Haz3lcore.Ctx.filter_duplicates |> List.rev,
     ),
   );
 
-let ctx_sorts_view = (~inject, ci: Haz3lcore.Statics.Info.t) =>
+let ctx_sorts_view = (~globals, ~inject, ci: Haz3lcore.Statics.Info.t) =>
   Haz3lcore.Info.ctx_of(ci)
   |> Haz3lcore.Ctx.filter_duplicates
   |> List.rev
-  |> List.map(context_entry_view(~inject));
+  |> List.map(context_entry_view(~globals, ~inject));
 
 let view = (~globals: Globals.t, ci: Haz3lcore.Statics.Info.t): Node.t => {
   let clss =
@@ -58,5 +63,8 @@ let view = (~globals: Globals.t, ci: Haz3lcore.Statics.Info.t): Node.t => {
       ["context-inspector"]
       @ (globals.settings.context_inspector ? ["visible"] : []),
     );
-  div(~attr=clss, ctx_sorts_view(~inject=globals.inject_global, ci));
+  div(
+    ~attr=clss,
+    ctx_sorts_view(~globals, ~inject=globals.inject_global, ci),
+  );
 };
