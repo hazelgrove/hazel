@@ -13,6 +13,7 @@ let output_header_grading = _module_name =>
 module F = (ExerciseEnv: ExerciseEnv) => {
   module Programming = ExerciseProgramming.F(ExerciseEnv);
   module Proof = ExerciseProof.F(ExerciseEnv);
+  include ExerciseBase.F(ExerciseEnv);
 
   type mode =
     | Programming
@@ -45,10 +46,10 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type transitionary_spec = p(CodeString.t);
 
-  let map = (p: p('a), f: 'a => 'b): p('b) =>
+  let map = (f: 'a => 'b, p: p('a)): p('b) =>
     switch (p) {
-    | Programming(spec) => Programming(Programming.map(spec, f))
-    | Proof(spec) => Proof(Proof.map(spec, f))
+    | Programming(spec) => Programming(Programming.map(f, spec))
+    | Proof(spec) => Proof(Proof.map(f, spec))
     };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -200,7 +201,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     };
 
   // # Stitching
-  open ExerciseBase;
 
   type stitched('a) =
     | Programming(Programming.stitched('a))

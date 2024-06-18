@@ -4,10 +4,13 @@ let exercise : Exercise.spec =
   Exercise.transition
     (Exercise.Proof
        {
-         title = "Derivation";
-         version = 1;
-         module_name = "Ex_Derivation";
-         prompt;
+         header =
+           {
+             title = "Derivation";
+             version = 1;
+             module_name = "Ex_Derivation";
+             prompt;
+           };
          prelude =
            "let a = atom(\"A\") in\n\
             let b = atom(\"B\") in\n\

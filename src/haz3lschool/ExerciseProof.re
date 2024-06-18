@@ -8,15 +8,12 @@ module type ExerciseEnv = {
 };
 
 module F = (ExerciseEnv: ExerciseEnv) => {
+  open ExerciseBase.F(ExerciseEnv);
   [@deriving (show({with_path: false}), sexp, yojson)]
   type derivation('code) = {
     jdmt: 'code,
     rule: Derivation.Rule.t,
   };
-
-  let map_jdmt = (f, {jdmt, rule}) => {jdmt: f(jdmt), rule};
-
-  let put_jdmt = (jdmt, {rule, _}) => {jdmt, rule};
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type derivation_tree('code) = Util.Tree.t(derivation('code));
@@ -35,21 +32,15 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   // TODO: To be refactored
   // title, version, module_name, and prompt are shared by all exercise types
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type p('code) = {
-    title: string,
-    version: int,
-    module_name: string,
-    prompt:
-      [@printer (fmt, _) => Format.pp_print_string(fmt, "prompt")] [@opaque] ExerciseEnv.node,
-    // point_distribution,
+    header,
     prelude: 'code,
     derivation_tree: derivation_tree('code),
   };
 
-  let key_of = p => {
-    (p.title, p.version);
-  };
+  let key_of = ({header, _}) => (header.title, header.version);
 
   let find_key_opt = (key, specs: list(p('code))) => {
     specs |> Util.ListUtil.findi_opt(spec => key_of(spec) == key);
@@ -66,17 +57,54 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type transitionary_spec = p(CodeString.t);
 
-  let map = (p: p('a), f: 'a => 'b): p('b) => {
+  let map = (f: 'a => 'b, p: p('a)): p('b) => {
     {
-      title: p.title,
-      version: p.version,
-      module_name: p.module_name,
-      prompt: p.prompt,
-      // point_distribution: p.point_distribution,
-      prelude: f(p.prelude),
-      derivation_tree: p.derivation_tree |> Util.Tree.map(f |> map_jdmt),
+      ...p,
+      prelude: p.prelude |> f,
+      derivation_tree:
+        p.derivation_tree
+        |> Util.Tree.map(({jdmt, rule}) => {jdmt: jdmt |> f, rule}),
     };
   };
+
+  let mapi = (f, p: p('a)): p('b) => {
+    {
+      header: p.header,
+      prelude: f(Prelude, p.prelude),
+      derivation_tree:
+        p.derivation_tree
+        |> Util.Tree.mapi((pos, {jdmt, rule}) => {
+             {jdmt: f(Derive(pos), jdmt), rule}
+           }),
+    };
+  };
+
+  let nth = (p: p('a), pos: pos): 'a =>
+    switch (pos) {
+    | Prelude => p.prelude
+    | Derive(pos) => Util.Tree.nth(p.derivation_tree, pos).jdmt
+    };
+
+  let map_nth = (f, p: p('a), pos: pos): p('a) =>
+    switch (pos) {
+    | Prelude => {...p, prelude: f(p.prelude)}
+    | Derive(pos) => {
+        ...p,
+        derivation_tree:
+          Util.Tree.map_nth(
+            ({jdmt, rule}) => {jdmt: jdmt |> f, rule},
+            p.derivation_tree,
+            pos,
+          ),
+      }
+    };
+
+  let put_nth = (x: 'a, p: p('a), pos: pos): p('a) =>
+    map_nth(Fun.const(x), p, pos);
+
+  let flatten = p =>
+    [p.prelude]
+    @ (p.derivation_tree |> Util.Tree.map(d => d.jdmt) |> Util.Tree.flatten);
 
   // TODO: To be refactored
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -96,43 +124,17 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent_state = (pos, list((pos, PersistentZipper.t)));
 
-  let editor_of_state: state => Editor.t =
-    ({pos, eds, _}) =>
-      switch (pos) {
-      | Prelude => eds.prelude
-      | Derive(pos) => Util.Tree.nth(eds.derivation_tree, pos).jdmt
-      };
+  let editor_of_state = ({pos, eds}: state): Editor.t => nth(eds, pos);
 
-  let put_editor = ({pos, eds, _} as state: state, editor: Editor.t) =>
-    switch (pos) {
-    | Prelude => {
-        ...state,
-        eds: {
-          ...eds,
-          prelude: editor,
-        },
-      }
-    | Derive(pos) => {
-        ...state,
-        eds: {
-          ...eds,
-          derivation_tree:
-            Util.Tree.map_nth(put_jdmt(editor), eds.derivation_tree, pos),
-        },
-      }
-    };
+  let put_editor = ({pos, eds}: state, editor: Editor.t): state => {
+    pos,
+    eds: put_nth(editor, eds, pos),
+  };
 
-  let editors = ({eds, _}: state) =>
-    [eds.prelude]
-    @ (eds.derivation_tree |> Util.Tree.map(d => d.jdmt) |> Util.Tree.flatten);
+  let editors = ({eds, _}: state): list(Editor.t) => eds |> flatten;
 
-  let editor_positions = ({eds, _}: state) =>
-    [Prelude]
-    @ (
-      eds.derivation_tree
-      |> Util.Tree.flatten_pos
-      |> List.map(pos => Derive(pos))
-    );
+  let editor_positions = ({eds, _}: state): list(pos) =>
+    eds |> mapi((i, _) => i) |> flatten;
 
   let positioned_editors = state =>
     List.combine(editor_positions(state), editors(state));
@@ -177,7 +179,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   let switch_editor = (~pos, instructor_mode, ~exercise) => {
     ignore(instructor_mode); // TODO: settle instructor mode
-    {eds: exercise.eds, pos};
+    {...exercise, pos};
   };
 
   // TODO: To be refactored
@@ -234,136 +236,16 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     | _ => exercise
     };
 
-  let transition: transitionary_spec => spec =
-    (
-      {
-        title,
-        version,
-        module_name,
-        prompt,
-        // point_distribution,
-        prelude,
-        derivation_tree,
-      },
-    ) => {
-      let prelude = zipper_of_code(prelude);
-      let derivation_tree =
-        derivation_tree |> Util.Tree.map(zipper_of_code |> map_jdmt);
-      {
-        title,
-        version,
-        module_name,
-        prompt,
-        // point_distribution,
-        prelude,
-        derivation_tree,
-      };
-    };
+  let transition: transitionary_spec => spec = map(zipper_of_code);
 
   // TODO: To be refactored
   let editor_of_serialization = zipper => Editor.init(zipper);
-  let eds_of_spec: spec => eds =
-    (
-      {
-        title,
-        version,
-        module_name,
-        prompt,
-        // point_distribution,
-        prelude,
-        derivation_tree,
-      },
-    ) => {
-      let prelude = editor_of_serialization(prelude);
-      let derivation_tree =
-        derivation_tree |> Util.Tree.map(editor_of_serialization |> map_jdmt);
-      {
-        title,
-        version,
-        module_name,
-        prompt,
-        // point_distribution,
-        prelude,
-        derivation_tree,
-      };
-    };
-
-  //
-  // Old version of above that did string-based parsing, may be useful
-  // for transitions between zipper data structure versions (TODO)
-  //
-  // let editor_of_code = (init_id, code) =>
-  //   switch (EditorUtil.editor_of_code(init_id, code)) {
-  //   | None => failwith("Exercise error: invalid code")
-  //   | Some(x) => x
-  //   };
-  // let eds_of_spec: spec => eds =
-  //   (
-  //     {
-  //
-  //       title,
-  //       version,
-  //       prompt,
-  //       point_distribution,
-  //       prelude,
-  //       correct_impl,
-  //       your_tests,
-  //       your_impl,
-  //       hidden_bugs,
-  //       hidden_tests,
-  //     },
-  //   ) => {
-  //     let id = next_id;
-  //     let (id, prelude) = editor_of_code(id, prelude);
-  //     let (id, correct_impl) = editor_of_code(id, correct_impl);
-  //     let (id, your_tests) = {
-  //       let (id, tests) = editor_of_code(id, your_tests.tests);
-  //       (
-  //         id,
-  //         {
-  //           tests,
-  //           num_required: your_tests.num_required,
-  //           minimum: your_tests.minimum,
-  //         },
-  //       );
-  //     };
-  //     let (id, your_impl) = editor_of_code(id, your_impl);
-  //     let (id, hidden_bugs) =
-  //       List.fold_left(
-  //         ((id, acc), {impl, hint}) => {
-  //           let (id, impl) = editor_of_code(id, impl);
-  //           (id, acc @ [{impl, hint}]);
-  //         },
-  //         (id, []),
-  //         hidden_bugs,
-  //       );
-  //     let (id, hidden_tests) = {
-  //       let {tests, hints} = hidden_tests;
-  //       let (id, tests) = editor_of_code(id, tests);
-  //       (id, {tests, hints});
-  //     };
-  //     {
-  //       next_id: id,
-  //       title,
-  //       version,
-  //       prompt,
-  //       point_distribution,
-  //       prelude,
-  //       correct_impl,
-  //       your_tests,
-  //       your_impl,
-  //       hidden_bugs,
-  //       hidden_tests,
-  //     };
-  //   };
+  let eds_of_spec: spec => eds = map(editor_of_serialization);
 
   // TODO: setting instructor mode
-  let set_instructor_mode = ({eds, _} as state: state, new_mode: bool) => {
-    ...state,
-    eds: {
-      ...eds,
-      prelude: Editor.set_read_only(eds.prelude, !new_mode),
-    },
+  let set_instructor_mode = (state: state, new_mode: bool) => {
+    ignore(new_mode);
+    state;
   };
 
   // TODO: setting instructor mode
@@ -374,10 +256,9 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   };
 
   // TODO: setting instructor mode
-  let state_of_spec = (spec, ~instructor_mode: bool): state => {
-    let eds = eds_of_spec(spec);
+  let state_of_spec = (spec: spec, ~instructor_mode: bool): state => {
     ignore(instructor_mode);
-    {pos: Prelude, eds};
+    {pos: Prelude, eds: eds_of_spec(spec)};
     // set_instructor_mode({pos: YourImpl, eds}, instructor_mode);
   };
 
@@ -408,32 +289,11 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       } else {
         editor_of_serialization(default);
       };
-    let prelude = lookup(Prelude, spec.prelude);
-    let derivation_tree =
-      spec.derivation_tree
-      |> Util.Tree.mapi((pos, {jdmt, rule}) => {
-           let jdmt = lookup(Derive(pos), jdmt);
-           {jdmt, rule};
-         });
-    set_instructor_mode(
-      {
-        pos,
-        eds: {
-          title: spec.title,
-          version: spec.version,
-          module_name: spec.module_name,
-          prompt: spec.prompt,
-          // point_distribution: spec.point_distribution,
-          prelude,
-          derivation_tree,
-        },
-      },
-      instructor_mode,
-    );
+    let eds = spec |> mapi(lookup);
+    set_instructor_mode({pos, eds}, instructor_mode);
   };
 
   // # Stitching
-  open ExerciseBase;
 
   type stitched('a) = {
     prelude: 'a, // prelude

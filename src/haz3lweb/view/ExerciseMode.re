@@ -329,11 +329,11 @@ let proof_view =
     );
   };
 
-  let title_view = Cell.title_cell(eds.title);
+  let title_view = Cell.title_cell(eds.header.title);
 
   let prompt_view =
     Cell.narrative_cell(
-      div(~attr=Attr.class_("cell-prompt"), [eds.prompt]),
+      div(~attr=Attr.class_("cell-prompt"), [eds.header.prompt]),
     );
 
   let derivation_view_maker =
@@ -419,7 +419,7 @@ let proof_view =
     );
   };
 
-  // (ed * di) * (rule * pos)
+  // (ed * rule) * (pos * di)
   let combined_tree =
     Util.Tree.combine((
       eds.derivation_tree,

@@ -4,10 +4,13 @@ let exercise : Exercise.spec =
   Exercise.transition
     (Programming
        {
+         (* header =
+            { *)
          title = "Recursive Fibonacci";
          version = 1;
          module_name = "Ex_RecursiveFibonacci";
          prompt;
+         (* }; *)
          point_distribution =
            { test_validation = 1; mutation_testing = 1; impl_grading = 2 };
          prelude = " ";

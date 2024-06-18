@@ -3,7 +3,7 @@ open Sexplib.Std;
 
 module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
   open ExerciseProgramming.F(ExerciseEnv);
-  open ExerciseBase;
+  open ExerciseBase.F(ExerciseEnv);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type percentage = float;
