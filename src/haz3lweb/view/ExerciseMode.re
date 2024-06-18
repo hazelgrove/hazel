@@ -79,11 +79,11 @@ let programming_view =
     );
   };
 
-  let title_view = Cell.title_cell(eds.title);
+  let title_view = Cell.title_cell(eds.header.title);
 
   let prompt_view =
     Cell.narrative_cell(
-      div(~attr=Attr.class_("cell-prompt"), [eds.prompt]),
+      div(~attr=Attr.class_("cell-prompt"), [eds.header.prompt]),
     );
 
   let prelude_view =
@@ -155,7 +155,7 @@ let programming_view =
   let your_tests_view =
     Always(
       editor_view(
-        Programming(YourTestsValidation),
+        Programming(YourTests(Validation)),
         ~caption="Test Validation",
         ~subcaption=": Your Tests vs. Correct Implementation",
         ~editor=eds.your_tests.tests,
@@ -221,7 +221,7 @@ let programming_view =
   let impl_validation_view =
     Always(
       editor_view(
-        Programming(YourTestsTesting),
+        Programming(YourTests(Testing)),
         ~caption="Implementation Validation",
         ~subcaption=
           ": Your Tests (code synchronized with Test Validation cell above) vs. Your Implementation",
@@ -520,8 +520,8 @@ let instructor_export = (exercise: Exercise.state) =>
       Icons.star,
       _ => {
         // .ml files because show uses OCaml syntax (dune handles seamlessly)
-        let module_name = exercise.eds.module_name;
-        let filename = exercise.eds.module_name ++ ".ml";
+        let module_name = exercise.eds.header.module_name;
+        let filename = exercise.eds.header.module_name ++ ".ml";
         let content_type = "text/plain";
         let contents =
           Exercise.export_module(module_name, Programming(exercise.eds));
@@ -545,8 +545,8 @@ let instructor_transitionary_export = (exercise: Exercise.state) =>
       Icons.star,
       _ => {
         // .ml files because show uses OCaml syntax (dune handles seamlessly)
-        let module_name = exercise.eds.module_name;
-        let filename = exercise.eds.module_name ++ ".ml";
+        let module_name = exercise.eds.header.module_name;
+        let filename = exercise.eds.header.module_name ++ ".ml";
         let content_type = "text/plain";
         let contents =
           Exercise.export_transitionary_module(
@@ -573,8 +573,8 @@ let instructor_grading_export = (exercise: Exercise.state) =>
       Icons.star,
       _ => {
         // .ml files because show uses OCaml syntax (dune handles seamlessly)
-        let module_name = exercise.eds.module_name;
-        let filename = exercise.eds.module_name ++ "_grading.ml";
+        let module_name = exercise.eds.header.module_name;
+        let filename = exercise.eds.header.module_name ++ "_grading.ml";
         let content_type = "text/plain";
         let contents =
           Exercise.export_grading_module(

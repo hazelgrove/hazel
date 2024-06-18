@@ -47,7 +47,7 @@ let test_report_view =
       Attr.many([
         Attr.class_("test-report"),
         Attr.on_click(
-          jump_to_test(~inject, Programming(YourTestsTesting), id),
+          jump_to_test(~inject, Programming(YourTests(Testing)), id),
         ),
       ]),
     [
@@ -145,7 +145,7 @@ let test_summary = (~inject, ~test_results: option(TestResults.t)) => {
       | None => [Node.text("No test results available.")]
       | Some(test_results) => [
           test_text(test_results),
-          test_bar(~inject, ~test_results, Programming(YourTestsTesting)),
+          test_bar(~inject, ~test_results, Programming(YourTests(Testing))),
         ]
       };
     },

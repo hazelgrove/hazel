@@ -4,13 +4,13 @@ let exercise : Exercise.spec =
   Exercise.transition
     (Exercise.Programming
        {
-         (* header =
-            { *)
-         title = "Oddly Recursive";
-         version = 1;
-         module_name = "Ex_OddlyRecursive";
-         prompt;
-         (* }; *)
+         header =
+           {
+             title = "Oddly Recursive";
+             version = 1;
+             module_name = "Ex_OddlyRecursive";
+             prompt;
+           };
          point_distribution =
            { test_validation = 1; mutation_testing = 1; impl_grading = 2 };
          prelude =

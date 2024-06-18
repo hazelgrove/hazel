@@ -8,6 +8,7 @@ module type ExerciseEnv = {
 };
 
 module F = (ExerciseEnv: ExerciseEnv) => {
+  open ExerciseBase.F(ExerciseEnv);
   [@deriving (show({with_path: false}), sexp, yojson)]
   type wrong_impl('code) = {
     impl: 'code,
@@ -50,11 +51,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type p('code) = {
-    title: string,
-    version: int,
-    module_name: string,
-    prompt:
-      [@printer (fmt, _) => Format.pp_print_string(fmt, "prompt")] [@opaque] ExerciseEnv.node,
+    header,
     point_distribution,
     prelude: 'code,
     correct_impl: 'code,
@@ -65,9 +62,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     syntax_tests,
   };
 
-  let key_of = p => {
-    (p.title, p.version);
-  };
+  let key_of = ({header, _}) => (header.title, header.version);
 
   let find_key_opt = (key, specs: list(p('code))) =>
     specs |> Util.ListUtil.findi_opt(spec => key_of(spec) == key);
@@ -76,11 +71,13 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   type pos =
     | Prelude
     | CorrectImpl
-    | YourTestsValidation
-    | YourTestsTesting
+    | YourTests(your_tests_usage)
     | YourImpl
     | HiddenBugs(int)
-    | HiddenTests;
+    | HiddenTests
+  and your_tests_usage =
+    | Validation
+    | Testing;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type spec = p(Zipper.t);
@@ -88,36 +85,121 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type transitionary_spec = p(CodeString.t);
 
-  let map = (p: p('a), f: 'a => 'b): p('b) => {
+  // let map = (f: 'a => 'b, p: p('a)): p('b) => {
+  //   {
+  //     header: p.header,
+  //     point_distribution: p.point_distribution,
+  //     prelude: f(p.prelude),
+  //     correct_impl: f(p.correct_impl),
+  //     your_tests: {
+  //       ...p.your_tests,
+  //       tests: f(p.your_tests.tests),
+  //     },
+  //     your_impl: f(p.your_impl),
+  //     hidden_bugs:
+  //       p.hidden_bugs
+  //       |> List.map(wrong_impl => {
+  //            {
+  //              impl: PersistentZipper.persist(wrong_impl.impl),
+  //              hint: wrong_impl.hint,
+  //            }
+  //          }),
+  //     hidden_tests: {
+  //       tests: PersistentZipper.persist(p.hidden_tests.tests),
+  //       hints: p.hidden_tests.hints,
+  //     },
+  //     syntax_tests: p.syntax_tests,
+  //   };
+  // };
+
+  let map = (f: 'a => 'b, p: p('a)): p('b) => {
     {
-      title: p.title,
-      version: p.version,
-      module_name: p.module_name,
-      prompt: p.prompt,
-      point_distribution: p.point_distribution,
-      prelude: f(p.prelude),
-      correct_impl: f(p.correct_impl),
+      ...p,
+      prelude: p.prelude |> f,
+      correct_impl: p.correct_impl |> f,
       your_tests: {
-        tests: f(p.your_tests.tests),
-        required: p.your_tests.required,
-        provided: p.your_tests.provided,
+        ...p.your_tests,
+        tests: p.your_tests.tests |> f,
       },
-      your_impl: f(p.your_impl),
+      your_impl: p.your_impl |> f,
       hidden_bugs:
-        p.hidden_bugs
-        |> List.map(wrong_impl => {
-             {
-               impl: PersistentZipper.persist(wrong_impl.impl),
-               hint: wrong_impl.hint,
-             }
-           }),
+        p.hidden_bugs |> List.map(({impl, hint}) => {impl: f(impl), hint}),
       hidden_tests: {
-        tests: PersistentZipper.persist(p.hidden_tests.tests),
-        hints: p.hidden_tests.hints,
+        ...p.hidden_tests,
+        tests: p.hidden_tests.tests |> f,
       },
-      syntax_tests: p.syntax_tests,
     };
   };
+
+  let mapi = (f, p: p('a)): p('b) => {
+    {
+      ...p,
+      prelude: p.prelude |> f(Prelude),
+      correct_impl: p.correct_impl |> f(CorrectImpl),
+      your_tests: {
+        ...p.your_tests,
+        tests: p.your_tests.tests |> f(YourTests(Validation)),
+      },
+      your_impl: p.your_impl |> f(YourImpl),
+      hidden_bugs:
+        p.hidden_bugs
+        |> List.mapi((i, {impl, hint}) =>
+             {impl: impl |> f(HiddenBugs(i)), hint}
+           ),
+      hidden_tests: {
+        ...p.hidden_tests,
+        tests: p.hidden_tests.tests |> f(HiddenTests),
+      },
+    };
+  };
+
+  let nth = (p: p('a), pos: pos): 'a =>
+    switch (pos) {
+    | Prelude => p.prelude
+    | CorrectImpl => p.correct_impl
+    | YourTests(_) => p.your_tests.tests
+    | YourImpl => p.your_impl
+    | HiddenBugs(i) => List.nth(p.hidden_bugs, i).impl
+    | HiddenTests => p.hidden_tests.tests
+    };
+
+  let map_nth = (f: 'a => 'b, p: p('a), pos: pos): p('b) =>
+    switch (pos) {
+    | Prelude => {...p, prelude: p.prelude |> f}
+    | CorrectImpl => {...p, correct_impl: p.correct_impl |> f}
+    | YourTests(_) => {
+        ...p,
+        your_tests: {
+          ...p.your_tests,
+          tests: p.your_tests.tests |> f,
+        },
+      }
+    | YourImpl => {...p, your_impl: p.your_impl |> f}
+    | HiddenBugs(i) => {
+        ...p,
+        hidden_bugs:
+          Util.ListUtil.map_nth(
+            i,
+            ({impl, hint}) => {impl: impl |> f, hint},
+            p.hidden_bugs,
+          ),
+      }
+    | HiddenTests => {
+        ...p,
+        hidden_tests: {
+          ...p.hidden_tests,
+          tests: p.hidden_tests.tests |> f,
+        },
+      }
+    };
+
+  let put_nth = (x: 'a, p: p('a), pos: pos): p('a) =>
+    map_nth(Fun.const(x), p, pos);
+
+  let flatten = p =>
+    [p.prelude, p.correct_impl, p.your_tests.tests, p.your_impl]
+    @ (p.hidden_bugs |> List.map(({impl, _}) => impl))
+    @ [p.hidden_tests.tests];
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type eds = p(Editor.t);
@@ -133,130 +215,56 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent_state = (pos, list((pos, PersistentZipper.t)));
 
-  let editor_of_state: state => Editor.t =
-    ({pos, eds, _}) =>
-      switch (pos) {
-      | Prelude => eds.prelude
-      | CorrectImpl => eds.correct_impl
-      | YourTestsValidation => eds.your_tests.tests
-      | YourTestsTesting => eds.your_tests.tests
-      | YourImpl => eds.your_impl
-      | HiddenBugs(i) => List.nth(eds.hidden_bugs, i).impl
-      | HiddenTests => eds.hidden_tests.tests
-      };
+  let editor_of_state = ({pos, eds}: state): Editor.t => nth(eds, pos);
 
-  let put_editor = ({pos, eds, _} as state: state, editor: Editor.t) =>
-    switch (pos) {
-    | Prelude => {
-        ...state,
-        eds: {
-          ...eds,
-          prelude: editor,
-        },
-      }
-    | CorrectImpl => {
-        ...state,
-        eds: {
-          ...eds,
-          correct_impl: editor,
-        },
-      }
-    | YourTestsValidation
-    | YourTestsTesting => {
-        ...state,
-        eds: {
-          ...eds,
-          your_tests: {
-            ...eds.your_tests,
-            tests: editor,
-          },
-        },
-      }
-    | YourImpl => {
-        ...state,
-        eds: {
-          ...eds,
-          your_impl: editor,
-        },
-      }
-    | HiddenBugs(n) => {
-        ...state,
-        eds: {
-          ...eds,
-          hidden_bugs:
-            Util.ListUtil.put_nth(
-              n,
-              {...List.nth(eds.hidden_bugs, n), impl: editor},
-              eds.hidden_bugs,
-            ),
-        },
-      }
-    | HiddenTests => {
-        ...state,
-        eds: {
-          ...eds,
-          hidden_tests: {
-            ...eds.hidden_tests,
-            tests: editor,
-          },
-        },
-      }
-    };
+  let put_editor = ({pos, eds}: state, editor: Editor.t): state => {
+    pos,
+    eds: put_nth(editor, eds, pos),
+  };
 
-  let editors = ({eds, _}: state) =>
-    [
-      eds.prelude,
-      eds.correct_impl,
-      eds.your_tests.tests,
-      eds.your_tests.tests,
-      eds.your_impl,
-    ]
-    @ List.map(wrong_impl => wrong_impl.impl, eds.hidden_bugs)
-    @ [eds.hidden_tests.tests];
+  let editors = ({eds, _}: state) => eds |> flatten;
 
   let editor_positions = ({eds, _}: state) =>
-    [Prelude, CorrectImpl, YourTestsTesting, YourTestsValidation, YourImpl]
-    @ List.mapi((i, _) => HiddenBugs(i), eds.hidden_bugs)
-    @ [HiddenTests];
+    eds |> mapi((i, _) => i) |> flatten;
 
   let positioned_editors = state =>
     List.combine(editor_positions(state), editors(state));
 
-  let idx_of_pos = (pos, p: p('code)) =>
-    switch (pos) {
-    | Prelude => 0
-    | CorrectImpl => 1
-    | YourTestsTesting => 2
-    | YourTestsValidation => 3
-    | YourImpl => 4
-    | HiddenBugs(i) =>
-      if (i < List.length(p.hidden_bugs)) {
-        5 + i;
-      } else {
-        failwith("invalid hidden bug index");
-      }
-    | HiddenTests => 5 + List.length(p.hidden_bugs)
-    };
+  // let idx_of_pos = (pos, p: p('code)) =>
+  //   switch (pos) {
+  //   | Prelude => 0
+  //   | CorrectImpl => 1
+  //   | YourTestsTesting => 2
+  //   | YourTestsValidation => 3
+  //   | YourImpl => 4
+  //   | HiddenBugs(i) =>
+  //     if (i < List.length(p.hidden_bugs)) {
+  //       5 + i;
+  //     } else {
+  //       failwith("invalid hidden bug index");
+  //     }
+  //   | HiddenTests => 5 + List.length(p.hidden_bugs)
+  //   };
 
-  let pos_of_idx = (p: p('code), idx: int) =>
-    switch (idx) {
-    | 0 => Prelude
-    | 1 => CorrectImpl
-    | 2 => YourTestsTesting
-    | 3 => YourTestsValidation
-    | 4 => YourImpl
-    | _ =>
-      if (idx < 0) {
-        failwith("negative idx");
-      } else if (idx < 5 + List.length(p.hidden_bugs)) {
-        HiddenBugs(idx - 5);
-      } else if (idx == 5 + List.length(p.hidden_bugs)) {
-        HiddenTests;
-                   // Node(zhiyao): This could be wrong
-      } else {
-        failwith("element idx");
-      }
-    };
+  // let pos_of_idx = (p: p('code), idx: int) =>
+  //   switch (idx) {
+  //   | 0 => Prelude
+  //   | 1 => CorrectImpl
+  //   | 2 => YourTestsTesting
+  //   | 3 => YourTestsValidation
+  //   | 4 => YourImpl
+  //   | _ =>
+  //     if (idx < 0) {
+  //       failwith("negative idx");
+  //     } else if (idx < 5 + List.length(p.hidden_bugs)) {
+  //       HiddenBugs(idx - 5);
+  //     } else if (idx == 5 + List.length(p.hidden_bugs)) {
+  //       HiddenTests;
+  //                  // Node(zhiyao): This could be wrong
+  //     } else {
+  //       failwith("element idx");
+  //     }
+  //   };
 
   let switch_editor = (~pos, instructor_mode, ~exercise) =>
     if (!instructor_mode) {
@@ -276,118 +284,10 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     };
   };
 
-  let transition: transitionary_spec => spec =
-    (
-      {
-        title,
-        version,
-        module_name,
-        prompt,
-        point_distribution,
-        prelude,
-        correct_impl,
-        your_tests,
-        your_impl,
-        hidden_bugs,
-        hidden_tests,
-        syntax_tests,
-      },
-    ) => {
-      let prelude = zipper_of_code(prelude);
-      let correct_impl = zipper_of_code(correct_impl);
-      let your_tests = {
-        let tests = zipper_of_code(your_tests.tests);
-        {tests, required: your_tests.required, provided: your_tests.provided};
-      };
-      let your_impl = zipper_of_code(your_impl);
-      // Note(zhiyao): I think it's better to use List.map here
-      // let hidden_bugs =
-      //   List.fold_left(
-      //     (acc, {impl, hint}) => {
-      //       let impl = zipper_of_code(impl);
-      //       acc @ [{impl, hint}];
-      //     },
-      //     [],
-      //     hidden_bugs,
-      //   );
-      let hidden_bugs =
-        hidden_bugs
-        |> List.map(({impl, hint}) => {
-             let impl = zipper_of_code(impl);
-             {impl, hint};
-           });
-      let hidden_tests = {
-        let {tests, hints} = hidden_tests;
-        let tests = zipper_of_code(tests);
-        {tests, hints};
-      };
-      {
-        title,
-        version,
-        module_name,
-        prompt,
-        point_distribution,
-        prelude,
-        correct_impl,
-        your_tests,
-        your_impl,
-        hidden_bugs,
-        hidden_tests,
-        syntax_tests,
-      };
-    };
+  let transition: transitionary_spec => spec = map(zipper_of_code);
 
   let editor_of_serialization = zipper => Editor.init(zipper);
-  let eds_of_spec: spec => eds =
-    (
-      {
-        title,
-        version,
-        module_name,
-        prompt,
-        point_distribution,
-        prelude,
-        correct_impl,
-        your_tests,
-        your_impl,
-        hidden_bugs,
-        hidden_tests,
-        syntax_tests,
-      },
-    ) => {
-      let prelude = editor_of_serialization(prelude);
-      let correct_impl = editor_of_serialization(correct_impl);
-      let your_tests = {
-        let tests = editor_of_serialization(your_tests.tests);
-        {tests, required: your_tests.required, provided: your_tests.provided};
-      };
-      let your_impl = editor_of_serialization(your_impl);
-      let hidden_bugs =
-        hidden_bugs
-        |> List.map(({impl, hint}) => {
-             let impl = editor_of_serialization(impl);
-             {impl, hint};
-           });
-      let hidden_tests = {
-        let {tests, hints} = hidden_tests;
-        let tests = editor_of_serialization(tests);
-        {tests, hints};
-      };
-      {
-        title,
-        version,
-        module_name,
-        prompt,
-        point_distribution,
-        prelude,
-        correct_impl,
-        your_tests,
-        your_impl,
-        hidden_bugs,
-        hidden_tests,
-        syntax_tests,
-      };
-    };
+  let eds_of_spec: spec => eds = map(editor_of_serialization);
 
   //
   // Old version of above that did string-based parsing, may be useful
@@ -458,8 +358,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   //     };
   //   };
 
-  let set_instructor_mode = ({eds, _} as state: state, new_mode: bool) => {
-    ...state,
+  let set_instructor_mode = ({eds, pos}: state, new_mode: bool) => {
+    pos,
     eds: {
       ...eds,
       prelude: Editor.set_read_only(eds.prelude, !new_mode),
@@ -470,8 +370,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     switch (pos) {
     | Prelude => instructor_mode
     | CorrectImpl => instructor_mode
-    | YourTestsValidation => true
-    | YourTestsTesting => false
+    | YourTests(Validation) => true
+    | YourTests(Testing) => false
     | YourImpl => true
     | HiddenBugs(_) => instructor_mode
     | HiddenTests => instructor_mode
@@ -509,59 +409,9 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       } else {
         editor_of_serialization(default);
       };
-    let prelude = lookup(Prelude, spec.prelude);
-    let correct_impl = lookup(CorrectImpl, spec.correct_impl);
-    let your_tests_tests = lookup(YourTestsValidation, spec.your_tests.tests);
-    let your_impl = lookup(YourImpl, spec.your_impl);
-    // Note(zhiyao): I think it's better to use List.mapi here
-    // let (_, hidden_bugs) =
-    //   List.fold_left(
-    //     ((i, hidden_bugs: list(wrong_impl(Editor.t))), {impl, hint}) => {
-    //       let impl = lookup(HiddenBugs(i), impl);
-    //       (i + 1, hidden_bugs @ [{impl, hint}]);
-    //     },
-    //     (0, []),
-    //     spec.hidden_bugs,
-    //   );
-    let hidden_bugs =
-      spec.hidden_bugs
-      |> List.mapi((i, {impl, hint}) => {
-           let impl = lookup(HiddenBugs(i), impl);
-           {impl, hint};
-         });
-    let hidden_tests_tests = lookup(HiddenTests, spec.hidden_tests.tests);
-
-    set_instructor_mode(
-      {
-        pos,
-        eds: {
-          title: spec.title,
-          version: spec.version,
-          module_name: spec.module_name,
-          prompt: spec.prompt,
-          point_distribution: spec.point_distribution,
-          prelude,
-          correct_impl,
-          your_tests: {
-            tests: your_tests_tests,
-            required: spec.your_tests.required,
-            provided: spec.your_tests.provided,
-          },
-          your_impl,
-          hidden_bugs,
-          hidden_tests: {
-            tests: hidden_tests_tests,
-            hints: spec.hidden_tests.hints,
-          },
-          syntax_tests: spec.syntax_tests,
-        },
-      },
-      instructor_mode,
-    );
+    let eds = spec |> mapi(lookup);
+    set_instructor_mode({pos, eds}, instructor_mode);
   };
-
-  // # Stitching
-  open ExerciseBase;
 
   type stitched('a) = {
     test_validation: 'a, // prelude + correct_impl + your_tests
@@ -643,8 +493,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     switch (state.pos) {
     | Prelude => s.prelude
     | CorrectImpl => s.instructor
-    | YourTestsValidation => s.test_validation
-    | YourTestsTesting => s.user_tests
+    | YourTests(Validation) => s.test_validation
+    | YourTests(Testing) => s.user_tests
     | YourImpl => s.user_impl
     | HiddenBugs(idx) => List.nth(s.hidden_bugs, idx)
     | HiddenTests => s.hidden_tests
@@ -668,8 +518,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     switch (state.pos) {
     | Prelude => prelude_key
     | CorrectImpl => instructor_key
-    | YourTestsValidation => test_validation_key
-    | YourTestsTesting => user_tests_key
+    | YourTests(Validation) => test_validation_key
+    | YourTests(Testing) => user_tests_key
     | YourImpl => user_impl_key
     | HiddenBugs(idx) => hidden_bugs_key(idx)
     | HiddenTests => hidden_tests_key

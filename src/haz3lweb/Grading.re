@@ -68,7 +68,7 @@ module TestValidationReport = {
                  TestView.test_bar(
                    ~inject,
                    ~test_results,
-                   Programming(YourTestsValidation),
+                   Programming(YourTests(Validation)),
                  )
                ),
           ),
