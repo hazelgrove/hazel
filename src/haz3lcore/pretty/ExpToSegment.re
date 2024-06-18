@@ -505,6 +505,10 @@ and typ_to_pretty = (~inline, typ: Typ.t): pretty => {
           ts,
         ),
       );
+  | Proof(e) =>
+    let id = typ |> Typ.rep_id;
+    let+ e = exp_to_pretty(~inline, e);
+    [mk_form("proof", id, [e])];
   };
 }
 and tpat_to_pretty = (~inline, tpat: TPat.t): pretty => {
@@ -634,7 +638,8 @@ let exteral_precedence_typ = (tp: Typ.t) =>
 
   // Same goes for forms which are already surrounded
   | Parens(_)
-  | List(_) => Precedence.max
+  | List(_)
+  | Proof(_) => Precedence.max
 
   // Other forms
   | Prod(_) => Precedence.prod
@@ -939,6 +944,7 @@ and parenthesize_typ = (typ: Typ.t): Typ.t => {
     )
     |> rewrap
   | Unknown(Hole(MultiHole(_))) => typ // TODO: Parenthesize through multiholes
+  | Proof(e) => Proof(parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
   };
 };
 

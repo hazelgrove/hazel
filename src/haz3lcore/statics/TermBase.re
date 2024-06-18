@@ -612,6 +612,7 @@ and Typ: {
     | Ap(t, t)
     | Rec(TPat.t, t)
     | Forall(TPat.t, t)
+    | Proof(Exp.t)
   and t = IdTagged.t(term);
 
   type sum_map = ConstructorMap.t(t);
@@ -664,6 +665,7 @@ and Typ: {
     | Ap(t, t)
     | Rec(TPat.t, t)
     | Forall(TPat.t, t)
+    | Proof(Exp.t)
   and t = IdTagged.t(term);
 
   type sum_map = ConstructorMap.t(t);
@@ -684,6 +686,8 @@ and Typ: {
       Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let tpat_map_term =
       TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+    let exp_map_term =
+      Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let rec_call = ({term, _} as exp: t) => {
       ...exp,
       term:
@@ -717,6 +721,7 @@ and Typ: {
           )
         | Rec(tp, t) => Rec(tpat_map_term(tp), typ_map_term(t))
         | Forall(tp, t) => Forall(tpat_map_term(tp), typ_map_term(t))
+        | Proof(e) => Proof(exp_map_term(e))
         },
     };
     x |> f_typ(rec_call);
@@ -748,6 +753,7 @@ and Typ: {
       | Var(y) => str == y ? s : Var(y) |> rewrap
       | Parens(ty) => Parens(subst(s, x, ty)) |> rewrap
       | Ap(t1, t2) => Ap(subst(s, x, t1), subst(s, x, t2)) |> rewrap
+      | Proof(e) => Proof(e) |> rewrap // TODO: proper subst in case there are types in here
       };
     | None => ty
     };
@@ -797,6 +803,8 @@ and Typ: {
     | (Sum(_), _) => false
     | (Var(n1), Var(n2)) => n1 == n2
     | (Var(_), _) => false
+    | (Proof(e1), Proof(e2)) => Exp.fast_equal(e1, e2)
+    | (Proof(_), _) => false
     };
   };
 

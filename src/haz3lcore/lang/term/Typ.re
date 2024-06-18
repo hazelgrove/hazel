@@ -21,7 +21,8 @@ type cls =
   | Parens
   | Ap
   | Rec
-  | Forall;
+  | Forall
+  | Proof;
 
 include TermBase.Typ;
 
@@ -59,7 +60,8 @@ let cls_of_term: term => cls =
   | Ap(_) => Ap
   | Sum(_) => Sum
   | Rec(_) => Rec
-  | Forall(_) => Forall;
+  | Forall(_) => Forall
+  | Proof(_) => Proof;
 
 let show_cls: cls => string =
   fun
@@ -81,7 +83,8 @@ let show_cls: cls => string =
   | Parens => "Parenthesized type"
   | Ap => "Constructor application"
   | Rec => "Recursive type"
-  | Forall => "Forall type";
+  | Forall => "Forall type"
+  | Proof => "Proof type";
 
 let rec is_arrow = (typ: t) => {
   switch (typ.term) {
@@ -98,7 +101,8 @@ let rec is_arrow = (typ: t) => {
   | Ap(_)
   | Sum(_)
   | Forall(_)
-  | Rec(_) => false
+  | Rec(_)
+  | Proof(_) => false
   };
 };
 
@@ -117,7 +121,8 @@ let rec is_forall = (typ: t) => {
   | Var(_)
   | Ap(_)
   | Sum(_)
-  | Rec(_) => false
+  | Rec(_)
+  | Proof(_) => false
   };
 };
 
@@ -166,6 +171,7 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Rec(x, ty)
   | Forall(x, ty) =>
     free_vars(~bound=(x |> TPat.tyvar_of_utpat |> Option.to_list) @ bound, ty)
+  | Proof(_) => [] // TODO: free variables in proofs
   };
 
 let var_count = ref(0);
@@ -275,6 +281,8 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
     List(ty) |> temp;
   | (List(_), _) => None
   | (Ap(_), _) => failwith("Type join of ap")
+  | (Proof(e1), Proof(e2)) when TermBase.Exp.fast_equal(e1, e2) => Some(ty1)
+  | (Proof(_), _) => None
   };
 };
 
@@ -294,7 +302,8 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Var(_), _)
   | (Ap(_), _)
   | (Rec(_), _)
-  | (Forall(_), _) => t1
+  | (Forall(_), _)
+  | (Proof(_), _) => t1
   // These might
   | (List(ty1), List(ty2)) => List(match_synswitch(ty1, ty2)) |> rewrap1
   | (List(_), _) => t1
@@ -362,6 +371,7 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
     Rec(tpat, normalize(Ctx.extend_dummy_tvar(ctx, tpat), ty)) |> rewrap
   | Forall(name, ty) =>
     Forall(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
+  | Proof(_) => ty // Maybe we should deep-normalize here?
   };
 };
 
@@ -467,6 +477,7 @@ let rec needs_parens = (ty: t): bool =>
   | Arrow(_, _) => true
   | Prod(_)
   | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
+  | Proof(_) => false
   };
 
 let pretty_print_tvar = (tv: TPat.t): string =>
@@ -513,6 +524,7 @@ let rec pretty_print = (ty: t): string =>
   | Rec(tv, t) => "rec " ++ pretty_print_tvar(tv) ++ "->" ++ pretty_print(t)
   | Forall(tv, t) =>
     "forall " ++ pretty_print_tvar(tv) ++ "->" ++ pretty_print(t)
+  | Proof(_) => "Proof"
   }
 and ctr_pretty_print =
   fun

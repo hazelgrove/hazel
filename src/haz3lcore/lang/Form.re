@@ -331,6 +331,7 @@ let forms: list((string, t)) = [
     mk(ds, ["type", "=", "in"], mk_pre(P.let_, Exp, [TPat, Typ])),
   ),
   ("if_", mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))),
+  ("proof", mk(ds, ["proof_of", "end"], mk_op(Typ, [Exp]))),
 ];
 
 let get: String.t => t =

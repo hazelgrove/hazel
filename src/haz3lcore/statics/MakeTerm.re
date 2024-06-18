@@ -385,6 +385,7 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
         | (["Float"], []) => Float
         | (["String"], []) => String
         | ([t], []) when Form.is_typ_var(t) => Var(t)
+        | (["proof_of", "end"], [Exp(prf)]) => Proof(prf)
         | (["(", ")"], [Typ(body)]) => Parens(body)
         | (["[", "]"], [Typ(body)]) => List(body)
         | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>

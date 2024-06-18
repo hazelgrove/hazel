@@ -926,6 +926,11 @@ and utyp_to_info_map =
       |> snd;
     let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
     add(m); // TODO: check with andrew
+  | Proof(e) =>
+    let m =
+      uexp_to_info_map(~ctx, ~mode=Ana(Typ.temp(Bool)), ~ancestors, e, m)
+      |> snd;
+    add(m);
   };
 }
 and utpat_to_info_map =
