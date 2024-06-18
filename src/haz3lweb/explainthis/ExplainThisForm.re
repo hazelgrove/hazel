@@ -115,7 +115,9 @@ type example_id =
   | FilterEval
   | FilterHide
   | FilterDebug
-  | FilterSelector;
+  | FilterSelector
+  | Undefined1
+  | Undefined2;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type example = {

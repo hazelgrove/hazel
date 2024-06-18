@@ -10,15 +10,6 @@ let triv_exp: form = {
 };
 let triv_exps: group = {id: TrivExp, forms: [triv_exp]};
 
-let undefined_exp: form = {
-  id: UndefinedExp,
-  syntactic_form: [exp("Undefined")],
-  expandable_id: None,
-  explanation: "Undefined.",
-  examples: [],
-};
-let undefined_exps: group = {id: UndefinedExp, forms: [undefined_exp]};
-
 let deferral_exp_ex = {
   sub_id: Deferral,
   term:

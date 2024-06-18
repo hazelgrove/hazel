@@ -41,6 +41,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     Matches(env);
   | (_, EmptyHole(_)) => IndetMatch
   | (_, NonEmptyHole(_)) => IndetMatch
+  | (_, Undefined) => IndetMatch
   | (_, FailedCast(_)) => IndetMatch
   | (_, InvalidOperation(_)) => IndetMatch
   | (_, FreeVar(_)) => IndetMatch
@@ -254,6 +255,7 @@ and matches_cast_Sum =
   | ConsistentCase(_)
   | Prj(_)
   | IfThenElse(_)
+  | Undefined
   | BuiltinFun(_) => IndetMatch
   | Cast(_)
   | BoundVar(_)
@@ -270,7 +272,6 @@ and matches_cast_Sum =
   | Closure(_)
   | Filter(_)
   | Cons(_)
-  | Undefined
   | ListConcat(_) => DoesNotMatch
   }
 and matches_cast_Tuple =
@@ -365,7 +366,7 @@ and matches_cast_Tuple =
   | FailedCast(_, _, _) => IndetMatch
   | InvalidOperation(_) => IndetMatch
   | IfThenElse(_) => IndetMatch
-  | Undefined => DoesNotMatch
+  | Undefined => IndetMatch
   }
 and matches_cast_Cons =
     (dp: DHPat.t, d: DHExp.t, elt_casts: list((Typ.t, Typ.t))): match_result =>
@@ -505,5 +506,5 @@ and matches_cast_Cons =
   | FailedCast(_, _, _) => IndetMatch
   | InvalidOperation(_) => IndetMatch
   | IfThenElse(_) => IndetMatch
-  | Undefined => DoesNotMatch
+  | Undefined => IndetMatch
   };
