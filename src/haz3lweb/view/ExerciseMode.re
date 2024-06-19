@@ -22,24 +22,14 @@ let programming_view =
       ~inject,
       ~ui_state: Model.ui_state,
       ~settings: Settings.t,
-      ~exercise: Exercise.Programming.state,
-      ~results,
+      ~pos: Exercise.Programming.pos,
+      ~header: Exercise.header,
+      ~eds: Exercise.Programming.p(Editor.t),
+      ~stitched_dynamics:
+         Exercise.ProgrammingStitch.p(Exercise.DynamicsItem.t),
       ~highlights,
     ) => {
-  let Exercise.Programming.{eds, pos} = exercise;
-  let stitched_dynamics =
-    Exercise.stitch_dynamic(
-      settings.core,
-      Programming(exercise),
-      settings.core.dynamics ? Some(results) : None,
-    );
-
-  let stitched_dynamics =
-    switch (stitched_dynamics) {
-    | Programming(stitched_dynamics) => stitched_dynamics
-    | Proof(_) => failwith("Impossible")
-    };
-  let Exercise.Programming.{
+  let Exercise.ProgrammingStitch.{
         test_validation,
         user_impl,
         user_tests,
@@ -79,11 +69,11 @@ let programming_view =
     );
   };
 
-  let title_view = Cell.title_cell(eds.header.title);
+  let title_view = Cell.title_cell(header.title);
 
   let prompt_view =
     Cell.narrative_cell(
-      div(~attr=Attr.class_("cell-prompt"), [eds.header.prompt]),
+      div(~attr=Attr.class_("cell-prompt"), [header.prompt]),
     );
 
   let prelude_view =
@@ -209,7 +199,7 @@ let programming_view =
             ~inject,
             ~ui_state,
             ~result=user_impl.result,
-            ~result_key=Exercise.Programming.user_impl_key,
+            ~result_key=Exercise.ProgrammingStitch.key(YourImpl),
           ),
       ),
     );
@@ -284,24 +274,13 @@ let proof_view =
       ~inject,
       ~ui_state: Model.ui_state,
       ~settings: Settings.t,
-      ~exercise: Exercise.Proof.state,
-      ~results,
+      ~pos: Exercise.Proof.pos,
+      ~header: Exercise.header,
+      ~eds: Exercise.Proof.p(Editor.t),
+      ~stitched_dynamics: Exercise.ProofStitch.p(Exercise.DynamicsItem.t),
       ~highlights,
     ) => {
-  let Exercise.Proof.{eds, pos} = exercise;
-  let stitched_dynamics =
-    Exercise.stitch_dynamic(
-      settings.core,
-      Proof(exercise),
-      settings.core.dynamics ? Some(results) : None,
-    );
-  let stitched_dynamics =
-    switch (stitched_dynamics) {
-    | Proof(stitched_dynamics) => stitched_dynamics
-    | Programming(_) => failwith("Impossible")
-    };
-
-  let Exercise.Proof.{derivation_tree, prelude, _} = stitched_dynamics;
+  let Exercise.ProofStitch.{derivation_tree, prelude, _} = stitched_dynamics;
 
   let editor_view =
       (
@@ -329,11 +308,11 @@ let proof_view =
     );
   };
 
-  let title_view = Cell.title_cell(eds.header.title);
+  let title_view = Cell.title_cell(header.title);
 
   let prompt_view =
     Cell.narrative_cell(
-      div(~attr=Attr.class_("cell-prompt"), [eds.header.prompt]),
+      div(~attr=Attr.class_("cell-prompt"), [header.prompt]),
     );
 
   let derivation_view_maker =
@@ -350,56 +329,120 @@ let proof_view =
             ~attr=Attr.class_("derivation-premises"),
             (child |> List.map(fst))
             @ [
-              select(
-                ~attr=
-                  Attr.on_change((_, name) =>
-                    inject(
-                      UpdateAction.SwitchDerivationRule(
-                        Proof(Derive(pos)),
-                        Derivation.Rule.of_string(name),
-                      ),
-                    )
+              div(
+                ~attr=Attr.class_("rule-block"),
+                [
+                  div(
+                    ~attr=Attr.class_("rule-block-btn"),
+                    [text(Derivation.Rule.show(rule))],
                   ),
-                List.map(
-                  r =>
-                    Derivation.Rule.show(r)
-                    |> EditorModeView.option_view(Derivation.Rule.show(rule)),
-                  [
-                    Derivation.Rule.Assumption,
-                    Derivation.Rule.And_I,
-                    Derivation.Rule.And_E_L,
-                    Derivation.Rule.And_E_R,
-                    Derivation.Rule.Or_I_L,
-                    Derivation.Rule.Or_I_R,
-                    Derivation.Rule.Or_E,
-                    Derivation.Rule.Implies_I,
-                    Derivation.Rule.Implies_E,
-                    Derivation.Rule.Truth_I,
-                    Derivation.Rule.Falsity_E,
-                  ],
-                  // | Assumption
-                  // | And_I
-                  // | And_E_L
-                  // | And_E_R
-                  // | Or_I_L
-                  // | Or_I_R
-                  // | Or_E
-                  // | Implies_I
-                  // | Implies_E
-                  // | Truth_I
-                  // | Falsity_E;
-                ),
+                  div(
+                    ~attr=Attr.class_("rule-block-content"),
+                    [
+                      div(
+                        ~attr=Attr.class_("rule-block-info"),
+                        [
+                          text(
+                            res
+                            |> (
+                              fun
+                              | Ok(_) => "✅"
+                              | Error(External("E-252")) => "✋"
+                              | Error(External(_)) => "⌛️"
+                              | Error(e) =>
+                                "❌" ++ DerivationError.VerErr.repr(e)
+                            ),
+                          ),
+                        ],
+                      ),
+                      div(
+                        ~attr=Attr.class_("rule-option-container"),
+                        List.map(
+                          r =>
+                            div(
+                              ~attr=
+                                Attr.many([
+                                  Attr.class_("rule-option"),
+                                  Attr.on_click(_ =>
+                                    inject(
+                                      UpdateAction.SwitchDerivationRule(
+                                        Proof(Derive(pos)),
+                                        r,
+                                      ),
+                                    )
+                                  ),
+                                ]),
+                              [text(Derivation.Rule.show(r))],
+                            ),
+                          [
+                            Derivation.Rule.Assumption,
+                            Derivation.Rule.And_I,
+                            Derivation.Rule.And_E_L,
+                            Derivation.Rule.And_E_R,
+                            Derivation.Rule.Or_I_L,
+                            Derivation.Rule.Or_I_R,
+                            Derivation.Rule.Or_E,
+                            Derivation.Rule.Implies_I,
+                            Derivation.Rule.Implies_E,
+                            Derivation.Rule.Truth_I,
+                            Derivation.Rule.Falsity_E,
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              text(
-                res
-                |> (
-                  fun
-                  | Ok(_) => "✅"
-                  | Error(External("E-252")) => "✋"
-                  | Error(External(_)) => "⌛️"
-                  | Error(e) => "❌" ++ DerivationError.VerErr.repr(e)
-                ),
-              ),
+              // select(
+              //   ~attr=
+              //     Attr.on_change((_, name) =>
+              //       inject(
+              //         UpdateAction.SwitchDerivationRule(
+              //           Proof(Derive(pos)),
+              //           Derivation.Rule.of_string(name),
+              //         ),
+              //       )
+              //     ),
+              //   List.map(
+              //     r =>
+              //       Derivation.Rule.show(r)
+              //       |> EditorModeView.option_view(Derivation.Rule.show(rule)),
+              //     [
+              //       Derivation.Rule.Assumption,
+              //       Derivation.Rule.And_I,
+              //       Derivation.Rule.And_E_L,
+              //       Derivation.Rule.And_E_R,
+              //       Derivation.Rule.Or_I_L,
+              //       Derivation.Rule.Or_I_R,
+              //       Derivation.Rule.Or_E,
+              //       Derivation.Rule.Implies_I,
+              //       Derivation.Rule.Implies_E,
+              //       Derivation.Rule.Truth_I,
+              //       Derivation.Rule.Falsity_E,
+              //     ],
+              //     // | Assumption
+              //     // | And_I
+              //     // | And_E_L
+              //     // | And_E_R
+              //     // | Or_I_L
+              //     // | Or_I_R
+              //     // | Or_E
+              //     // | Implies_I
+              //     // | Implies_E
+              //     // | Truth_I
+              //     // | Falsity_E;
+              //   ),
+              // ),
+              // text(
+              //   res
+              //   |> (
+              //     fun
+              //     | Ok(_) => "✅"
+              //     | Error(External("E-252")) => "✋"
+              //     | Error(External(_)) => "⌛️"
+              //     | Error(e) => "❌" ++ DerivationError.VerErr.repr(e)
+              //   ),
+              // ),
             ],
           ),
           div(
@@ -474,25 +517,39 @@ let view =
       ~results,
       ~highlights,
     ) => {
-  switch (exercise) {
-  | Programming(exercise) =>
+  let stitched_dynamics =
+    Exercise.stitch_dynamic(
+      settings.core,
+      exercise,
+      settings.core.dynamics ? Some(results) : None,
+    );
+  switch (exercise, stitched_dynamics) {
+  | (
+      {pos: Programming(pos), header, model: Programming(eds)},
+      Programming(stitched_dynamics),
+    ) =>
     programming_view(
       ~inject,
       ~ui_state,
       ~settings,
-      ~exercise,
-      ~results,
+      ~header,
+      ~pos,
+      ~eds,
+      ~stitched_dynamics,
       ~highlights,
     )
-  | Proof(exercise) =>
+  | ({pos: Proof(pos), header, model: Proof(eds)}, Proof(stitched_dynamics)) =>
     proof_view(
       ~inject,
       ~ui_state,
       ~settings,
-      ~exercise,
-      ~results,
+      ~header,
+      ~pos,
+      ~eds,
+      ~stitched_dynamics,
       ~highlights,
     )
+  | _ => failwith("Impossible")
   };
 };
 
@@ -514,85 +571,50 @@ let reset_button = inject =>
   );
 
 let instructor_export = (exercise: Exercise.state) =>
-  switch (exercise) {
-  | Programming(exercise) =>
-    Widgets.button_named(
-      Icons.star,
-      _ => {
-        // .ml files because show uses OCaml syntax (dune handles seamlessly)
-        let module_name = exercise.eds.header.module_name;
-        let filename = exercise.eds.header.module_name ++ ".ml";
-        let content_type = "text/plain";
-        let contents =
-          Exercise.export_module(module_name, Programming(exercise.eds));
-        JsUtil.download_string_file(~filename, ~content_type, ~contents);
-        Virtual_dom.Vdom.Effect.Ignore;
-      },
-      ~tooltip="Export Exercise Module",
-    )
-  | Proof(_) =>
-    Widgets.button_named(
-      Icons.star,
-      _ => Virtual_dom.Vdom.Effect.Ignore,
-      ~tooltip="Export Exercise Module (Not Implemented yet)",
-    )
-  };
+  Widgets.button_named(
+    Icons.star,
+    _ => {
+      // .ml files because show uses OCaml syntax (dune handles seamlessly)
+      let module_name = exercise.header.module_name;
+      let filename = exercise.header.module_name ++ ".ml";
+      let content_type = "text/plain";
+      let contents = Exercise.export_module(module_name, exercise);
+      JsUtil.download_string_file(~filename, ~content_type, ~contents);
+      Virtual_dom.Vdom.Effect.Ignore;
+    },
+    ~tooltip="Export Exercise Module",
+  );
 
 let instructor_transitionary_export = (exercise: Exercise.state) =>
-  switch (exercise) {
-  | Programming(exercise) =>
-    Widgets.button_named(
-      Icons.star,
-      _ => {
-        // .ml files because show uses OCaml syntax (dune handles seamlessly)
-        let module_name = exercise.eds.header.module_name;
-        let filename = exercise.eds.header.module_name ++ ".ml";
-        let content_type = "text/plain";
-        let contents =
-          Exercise.export_transitionary_module(
-            module_name,
-            Programming(exercise.eds),
-          );
-        JsUtil.download_string_file(~filename, ~content_type, ~contents);
-        Virtual_dom.Vdom.Effect.Ignore;
-      },
-      ~tooltip="Export Transitionary Exercise Module",
-    )
-  | Proof(_) =>
-    Widgets.button_named(
-      Icons.star,
-      _ => Virtual_dom.Vdom.Effect.Ignore,
-      ~tooltip="Export Transitionary Exercise Module (Not Implemented yet)",
-    )
-  };
+  Widgets.button_named(
+    Icons.star,
+    _ => {
+      // .ml files because show uses OCaml syntax (dune handles seamlessly)
+      let module_name = exercise.header.module_name;
+      let filename = exercise.header.module_name ++ ".ml";
+      let content_type = "text/plain";
+      let contents =
+        Exercise.export_transitionary_module(module_name, exercise);
+      JsUtil.download_string_file(~filename, ~content_type, ~contents);
+      Virtual_dom.Vdom.Effect.Ignore;
+    },
+    ~tooltip="Export Transitionary Exercise Module",
+  );
 
 let instructor_grading_export = (exercise: Exercise.state) =>
-  switch (exercise) {
-  | Programming(exercise) =>
-    Widgets.button_named(
-      Icons.star,
-      _ => {
-        // .ml files because show uses OCaml syntax (dune handles seamlessly)
-        let module_name = exercise.eds.header.module_name;
-        let filename = exercise.eds.header.module_name ++ "_grading.ml";
-        let content_type = "text/plain";
-        let contents =
-          Exercise.export_grading_module(
-            module_name,
-            Programming(exercise.eds),
-          );
-        JsUtil.download_string_file(~filename, ~content_type, ~contents);
-        Virtual_dom.Vdom.Effect.Ignore;
-      },
-      ~tooltip="Export Grading Exercise Module",
-    )
-  | Proof(_) =>
-    Widgets.button_named(
-      Icons.star,
-      _ => Virtual_dom.Vdom.Effect.Ignore,
-      ~tooltip="Export Grading Exercise Module (Not Implemented yet)",
-    )
-  };
+  Widgets.button_named(
+    Icons.star,
+    _ => {
+      // .ml files because show uses OCaml syntax (dune handles seamlessly)
+      let module_name = exercise.header.module_name;
+      let filename = exercise.header.module_name ++ "_grading.ml";
+      let content_type = "text/plain";
+      let contents = Exercise.export_grading_module(module_name, exercise);
+      JsUtil.download_string_file(~filename, ~content_type, ~contents);
+      Virtual_dom.Vdom.Effect.Ignore;
+    },
+    ~tooltip="Export Grading Exercise Module",
+  );
 
 let download_editor_state = (~instructor_mode) =>
   Log.get_and(log => {

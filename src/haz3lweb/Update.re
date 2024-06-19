@@ -252,7 +252,7 @@ let switch_scratch_slide =
   | Exercises(_, specs, _) when idx >= List.length(specs) => None
   | Exercises(_, specs, _) =>
     let spec = List.nth(specs, idx);
-    let key = Exercise.key_of(spec);
+    let key = Exercise.key(spec);
     let exercise = Store.Exercise.load_exercise(key, spec, ~instructor_mode);
     Some(Exercises(idx, specs, exercise));
   };
@@ -262,11 +262,11 @@ let switch_exercise_editor =
   switch (editors) {
   | Documentation(_)
   | Scratch(_) => None
-  | Exercises(m, specs, exercise) =>
-    let exercise = Exercise.switch_editor(~pos, instructor_mode, ~exercise);
+  | Exercises(m, specs, state) =>
+    let state = Exercise.switch_editor(~pos, instructor_mode, ~state);
     //Note: now saving after each edit (delayed by 1 second) so no need to save here
     //Store.Exercise.save_exercise(exercise, ~instructor_mode);
-    Some(Exercises(m, specs, exercise));
+    Some(Exercises(m, specs, state));
   };
 
 /* This action saves a file which serializes all current editor

@@ -124,7 +124,7 @@ let set_instructor_mode = (editors: t, instructor_mode: bool): t =>
     Exercises(
       n,
       specs,
-      Exercise.set_instructor_mode(exercise, instructor_mode),
+      Exercise.set_instructor_mode(exercise, ~new_mode=instructor_mode),
     )
   };
 

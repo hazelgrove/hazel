@@ -1,8 +1,8 @@
 open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t('a) =
-  | Node('a, list(t('a)));
+type p('a) =
+  | Node('a, list(p('a)));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pos =

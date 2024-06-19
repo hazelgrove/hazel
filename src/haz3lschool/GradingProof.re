@@ -2,8 +2,7 @@ open Haz3lcore;
 open Sexplib.Std;
 
 module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
-  open ExerciseProof.F(ExerciseEnv);
-  open ExerciseBase.F(ExerciseEnv);
+  open Exercise.F(ExerciseEnv);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type percentage = float;
@@ -18,9 +17,9 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
   };
 
   module DerivationReport = {
-    type t = {verify_results: Util.Tree.t(bool)};
+    type t = {verify_results: Util.Tree.p(bool)};
 
-    let mk = (~verify_results: Util.Tree.t(bool)) => {
+    let mk = (~verify_results: Util.Tree.p(bool)) => {
       verify_results;
     };
 
@@ -67,7 +66,7 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
   module GradingReport = {
     type t = {derivation_report: DerivationReport.t};
 
-    let mk = (_eds: eds, ~_stitched_dynamics: stitched(DynamicsItem.t)) => {
+    let mk = (_eds: 'a, ~_stitched_dynamics: stitched(DynamicsItem.t)) => {
       // derivation_report:
       //   DerivationReport.mk(~verify_results=stitched_dynamics);
       derivation_report: {

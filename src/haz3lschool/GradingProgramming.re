@@ -2,8 +2,7 @@ open Haz3lcore;
 open Sexplib.Std;
 
 module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
-  open ExerciseProgramming.F(ExerciseEnv);
-  open ExerciseBase.F(ExerciseEnv);
+  open Exercise.F(ExerciseEnv);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type percentage = float;
@@ -24,12 +23,11 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
       provided: int,
     };
 
-    let mk = (eds: eds, test_results: option(TestResults.t)) => {
-      {
-        test_results,
-        required: eds.your_tests.required,
-        provided: eds.your_tests.provided,
-      };
+    let mk =
+        (eds: Programming.p(Editor.t), test_results: option(TestResults.t)) => {
+      test_results,
+      required: eds.your_tests.required,
+      provided: eds.your_tests.provided,
     };
 
     let percentage = (report: t): percentage => {
@@ -121,7 +119,7 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
     let mk =
         (
           ~test_validation: DynamicsItem.t,
-          ~hidden_bugs_state: list(wrong_impl(Editor.t)),
+          ~hidden_bugs_state: list(Programming.wrong_impl(Editor.t)),
           ~hidden_bugs: list(DynamicsItem.t),
         )
         : t => {
@@ -129,7 +127,7 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
         List.map(hidden_bug_status(test_validation), hidden_bugs);
       let hints =
         List.map(
-          (wrong_impl: wrong_impl(Editor.t)) => wrong_impl.hint,
+          (wrong_impl: Programming.wrong_impl(Editor.t)) => wrong_impl.hint,
           hidden_bugs_state,
         );
       let results = List.combine(results, hints);
@@ -167,11 +165,11 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
 
   module SyntaxReport = {
     type t = {
-      hinted_results: list((bool, hint)),
+      hinted_results: list((bool, Programming.hint)),
       percentage,
     };
 
-    let mk = (~your_impl: Editor.t, ~tests: syntax_tests): t => {
+    let mk = (~your_impl: Editor.t, ~tests: Programming.syntax_tests): t => {
       let user_impl_term = your_impl.state.meta.view_term;
 
       let predicates =
@@ -245,14 +243,18 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
 
   module GradingReport = {
     type t = {
-      point_distribution,
+      point_distribution: Programming.point_distribution,
       test_validation_report: TestValidationReport.t,
       mutation_testing_report: MutationTestingReport.t,
       syntax_report: SyntaxReport.t,
       impl_grading_report: ImplGradingReport.t,
     };
 
-    let mk = (eds: eds, ~stitched_dynamics: stitched(DynamicsItem.t)) => {
+    let mk =
+        (
+          eds: Programming.p(Editor.t),
+          ~stitched_dynamics: ProgrammingStitch.p(DynamicsItem.t),
+        ) => {
       point_distribution: eds.point_distribution,
       test_validation_report:
         TestValidationReport.mk(

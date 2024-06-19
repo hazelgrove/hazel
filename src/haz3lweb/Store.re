@@ -238,7 +238,7 @@ module Exercise = {
   };
 
   let keystring_of = p => {
-    key_of(p) |> keystring_of_key;
+    key(p) |> keystring_of_key;
   };
 
   let key_of_keystring = keystring => {
@@ -250,14 +250,14 @@ module Exercise = {
   };
 
   let save_exercise = (exercise, ~instructor_mode) => {
-    let key = Exercise.key_of_state(exercise);
+    let key = Exercise.key(exercise);
     let keystring = keystring_of_key(key);
     let value = Exercise.serialize_exercise(exercise, ~instructor_mode);
     JsUtil.set_localstore(keystring, value);
   };
 
   let init_exercise = (spec: Exercise.p('a), ~instructor_mode) => {
-    let key = Exercise.key_of(spec);
+    let key = Exercise.key(spec);
     let keystring = keystring_of_key(key);
     let exercise = Exercise.state_of_spec(spec, ~instructor_mode);
     save_exercise(exercise, ~instructor_mode);
@@ -280,7 +280,7 @@ module Exercise = {
   };
 
   let save = ((n, specs, exercise), ~instructor_mode) => {
-    let key = key_of(List.nth(specs, n));
+    let key = key(List.nth(specs, n));
     let keystring = keystring_of_key(key);
     save_exercise(exercise, ~instructor_mode);
     JsUtil.set_localstore(cur_exercise_key, keystring);
@@ -321,7 +321,7 @@ module Exercise = {
       | None =>
         // invalid current exercise key saved, load the first exercise
         let first_spec = List.nth(specs, 0);
-        let first_key = Exercise.key_of(first_spec);
+        let first_key = Exercise.key(first_spec);
         (0, specs, load_exercise(first_key, first_spec, ~instructor_mode));
       };
     | None => init(~instructor_mode)
@@ -337,7 +337,7 @@ module Exercise = {
       exercise_data:
         specs
         |> List.map(spec => {
-             let key = Exercise.key_of(spec);
+             let key = Exercise.key(spec);
              let exercise =
                load_exercise(key, spec, ~instructor_mode)
                |> Exercise.persistent_state_of_state(~instructor_mode);

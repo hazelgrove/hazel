@@ -1,0 +1,183 @@
+/* define colors */
+
+:root {
+    --light-page-color: #fdf6e3;
+    --light-text-color: #586e75;
+    --top_bar_icon_fill: #c7b480;
+    --top-bar-text: #a79f89;
+    --test-panel-bkg: #f8ebc6;
+    --code-emphasis: #ce9600;
+    --err-color: red;
+    --err-color-dark: #c00;
+    --selection-color: #fae294;
+    --selection-shadow-color: rosybrown;
+    --hole-stroke-color: #dc322f;
+    --cell-selected-accent: red;
+    --nul-text-color: red;
+    --nul-off-color: var(--nul-text-color);
+    --nul-token-color: var(--nul-text-color);
+    --nul-shadow-color: #ffa000;
+    --nul-bg-color: #ffacac;
+    --nul-bg-off-color: var(--nul-bg-color);
+    --any-text-color: var(--nul-text-color);
+    --any-off-color: var(--nul-off-color);
+    --any-token-color: var(--nul-token-color);
+    --any-shadow-color: var(--nul-shadow-color);
+    --any-bg-color: var(--nul-bg-color);
+    --any-bg-off-color: var(--nul-bg-off-color);
+    --exp-text-color: var(--light-text-color);
+    --exp-off-color: #b1a47f;
+    --exp-token-color: var(--light-text-color);
+    --exp-shadow-color: #c4b599;
+    --exp-bg-color: #ebdfc5;
+    --exp-bg-off-color: #feddb3;
+    --pat-text-color: #169fdc;
+    --pat-off-color: #13aed2;
+    --pat-token-color: #a2dffb;
+    --pat-shadow-color: var(--pat-off-color);
+    --pat-bg-color: #b2e8ff;
+    --pat-bg-off-color: #d7f3ff;
+    --tpat-text-color: #16c8dc;
+    --tpat-off-color: #13d2d2;
+    --tpat-token-color: #a2fbf9;
+    --tpat-shadow-color: var(--pat-off-color);
+    --tpat-bg-color: #b2fbff;
+    --tpat-bg-off-color: #d7fff7;
+    --typ-text-color: #772cff;
+    --typ-off-color: #975dff;
+    --typ-token-color: #cfb5ff;
+    --typ-shadow-color: var(--typ-off-color);
+    --typ-bg-color: #f2ccff;
+    --typ-bg-off-color: #f9e8ff;
+    --rul-text-color: var(--exp-text-color);
+    --rul-off-color: var(--exp-off-color);
+    --rul-token-color: #ccc2af;
+    --rul-shadow-color: var(--exp-shadow-color);
+    --rul-bg-color: var(--exp-bg-color);
+    --rul-bg-off-color: var(--exp-bg-off-color);
+    --string-lit-color: rgb(205 165 56);
+    --bar-color: #dfdacc;
+    --key-bg-color: var(--light-text-color);
+    --key-text-color: whitesmoke;
+    --action-text-color: var(--light-text-color);
+    --err-flash-duration: 0.4s;
+    --err-msg-duration: 5s;
+    --disabled-action-table-opacity: 0.25;
+    --line-height: 1.45;
+    --step-hole-color: green;
+    --selection-box-z: 1;
+    --genie-z: 1;
+    --empty-hole-z: 5;
+    --tile-z: 4;
+    --err-hole-z: 5;
+    --code-text-z: 6;
+    --code-text-shards-z: 7;
+    --bar-z: 0;
+    --inner-cousin-z: 9;
+    --outer-cousin-caret-position-z: 9;
+    --caret-position-z: 13;
+    --current-caret-pos-z: 15;
+    --caret-z: 14;
+    --docs-highlight-z: 8;
+    --type-inspector-z: 14;
+    --top-bar-z: 15;
+    --test-panel-z: 20;
+    --result-z: 30;
+    --modal-z: 10001;
+    --modal-back-z: 10000;
+    --shadow-color: 44deg 28% 59%;
+    --shadow-elevation-low: 0.3px 0.5px 0.7px hsl(var(--shadow-color) / 0.34), 0.4px 0.8px 1px -1.2px hsl(var(--shadow-color) / 0.34), 1px 2px 2.5px -2.5px hsl(var(--shadow-color) / 0.34);
+    --shadow-elevation-medium: 0.3px 0.5px 0.7px hsl(var(--shadow-color) / 0.36), 0.8px 1.6px 2px -0.8px hsl(var(--shadow-color) / 0.36), 2.1px 4.1px 5.2px -1.7px hsl(var(--shadow-color) / 0.36), 5px 10px 12.6px -2.5px hsl(var(--shadow-color) / 0.36);
+    --shadow-elevation-high: 0.3px 0.5px 0.7px hsl(var(--shadow-color) / 0.34), 1.5px 2.9px 3.7px -0.4px hsl(var(--shadow-color) / 0.34), 2.7px 5.4px 6.8px -0.7px hsl(var(--shadow-color) / 0.34), 4.5px 8.9px 11.2px -1.1px hsl(var(--shadow-color) / 0.34), 7.1px 14.3px 18px -1.4px hsl(var(--shadow-color) / 0.34), 11.2px 22.3px 28.1px -1.8px hsl(var(--shadow-color) / 0.34), 17px 33.9px 42.7px -2.1px hsl(var(--shadow-color) / 0.34), 25px 50px 62.9px -2.5px hsl(var(--shadow-color) / 0.34);
+}
+
+body {
+    padding: 100px;
+}
+
+/* The dropdown container */
+.rule-block {
+    float: left;
+    overflow: hidden;
+    /* position: relative; */
+}
+
+/* Dropdown button */
+.rule-block-btn {
+    color: var(--light-page-color);
+    height: 1.7em;
+    display: flex;
+    padding: 0 1em 0 1em;
+    font-size: 0.7em;
+    background-color: var(--top_bar_icon_fill);
+    align-items: center;
+    border-radius: 1.08em;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    margin: 0;
+}
+
+/* Dropdown content (hidden by default) */
+.rule-block-content {
+    display: none;
+    position: absolute;
+    background-color: var(--light-page-color);
+    max-width: 230px;
+    border: var(--top_bar_icon_fill) 0.1em solid;
+    border-radius: 1.08em;
+    border-top-left-radius: 0;
+}
+
+.rule-block-info {
+    padding: 0.5em;
+    text-align: center;
+    font-size: 0.7em;
+    border-bottom: var(--top_bar_icon_fill) 0.1em solid;
+}
+
+/* Links inside the dropdown */
+.rule-option-container {
+    padding: 0.5em;
+    display: flex;
+    gap: 0.3em;
+    flex-wrap: wrap;
+    text-align: left;
+    max-width: fit-content;
+}
+
+/* Show the dropdown menu on hover */
+.rule-block:hover .rule-block-content {
+    display: block;
+}
+
+.rule-option {
+    color: var(--light-page-color);
+    height: 1.7em;
+    display: flex;
+    padding: 0 0.7em;
+    font-size: 0.7em;
+    border: none;
+    border-radius: 1.08em;
+    background-color: var(--top_bar_icon_fill);
+    align-items: center;
+    width: max-content;
+}
+
+.rule-option.abbr,
+.rule-option.default {
+    box-sizing: border-box;
+    color: var(--exp-text-color);
+    background-color: var(--light-page-color);
+    border: var(--exp-text-color) 0.15em solid;
+}
+
+.rule-option.default {
+    color: #ffd04f !important;
+    text-shadow: 1px 1px 0px rgb(45, 34, 6), -0.5px -0.5px 0 #ff9b00;
+}
+
+/* Add a grey background color to dropdown links on hover */
+.rule-option:hover {
+    cursor: pointer;
+    text-decoration: strong;
+}
