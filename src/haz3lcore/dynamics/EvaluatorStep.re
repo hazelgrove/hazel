@@ -31,11 +31,16 @@ module EvalObj = {
     ctx: obj.ctx |> f,
   };
 
+  // TODO: this persistent type is slightly misnamed
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = {
     old_id: Id.t, // The id of the term about to be stepped
-    new_id: Id.t, // The id of the term after it is stepped
-    knd: step_kind,
+    new_id: Id.t // The id of the term after it is stepped
+  };
+
+  let persist = (obj: t): persistent => {
+    {old_id: obj.d_loc |> DHExp.rep_id, new_id: Id.mk()};
   };
 };
 

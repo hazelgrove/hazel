@@ -1,80 +1,51 @@
 open Util;
 open Haz3lcore;
 open Sexplib.Std;
-open OptUtil.Syntax;
 
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type b = {
-    // Updated:
-    step: Haz3lcore.EvaluatorStep.EvalObj.t,
+  type b = Step.Model.t
+  and a = {
     // Calculated:
-    to_ids: list(Id.t),
-    hidden: bool,
-    valid: bool,
-  };
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type a =
-    | PendingStep
-    | A({
-        // Calculated:
-        expr: Exp.t,
-        state: EvaluatorState.t,
-        editor: CodeWithStatics.Model.t,
-        previous_substitutions: list(Id.t),
-        next_steps: list(b),
-      });
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    history: Aba.t(a, b),
+    expr: Exp.t,
+    state: EvaluatorState.t,
+    editor: CodeWithStatics.Model.t,
+  }
+  and t = {
+    history: Aba.t(option(a), b), // None means pending
+    // Calculated:
     cached_settings: option(CoreSettings.t),
+    next_steps: list((FilterAction.action, EvaluatorStep.EvalObj.t)),
   };
 
   let init = () => {
-    history: Aba.singleton(PendingStep),
+    history: Aba.singleton(None),
     cached_settings: None,
+    next_steps: [],
   };
 
-  let get_next_steps = (model: Aba.t(a, b)): list(b) =>
+  let get_next_steps = (model: t) => model.next_steps;
+
+  let get_state = (model: Aba.t(option(a), b)): EvaluatorState.t =>
     model
     |> Aba.hd
     |> (
       fun
-      | A({next_steps, _}) => next_steps
-      | PendingStep => []
-    );
-
-  let get_state = (model: Aba.t(a, b)): EvaluatorState.t =>
-    model
-    |> Aba.last_a
-    |> (
-      fun
-      | A({state, _}) => state
-      | PendingStep => EvaluatorState.init
-    );
-
-  let get_previous_substitutions = (model: Aba.t(a, b)): list(Id.t) =>
-    model
-    |> Aba.last_a
-    |> (
-      fun
-      | A({previous_substitutions, _}) => previous_substitutions
-      | PendingStep => []
+      | Some({state, _}) => state
+      | None => EvaluatorState.init
     );
 
   let get_elaboration = (model: t): option(Exp.t) =>
-    model.history
-    |> Aba.hd
-    |> (
-      fun
-      | A({expr, _}) => Some(expr)
-      | _ => None
-    );
+    model.history |> Aba.hd |> Option.map(({expr, _}) => expr);
 
   let can_undo = (model: t) => {
-    model.history |> Aba.get_bs |> List.exists((b: b) => !b.hidden);
+    model.history
+    |> Aba.get_bs
+    |> List.exists((b: b) =>
+         switch (b) {
+         | EvalStep({hidden, _}) => !hidden
+         }
+       );
   };
 
   type persistent = list(Haz3lcore.EvaluatorStep.EvalObj.persistent);
@@ -85,6 +56,7 @@ module Update = {
   type t =
     | StepForward(int)
     | StepBackward;
+  // | Induct
 
   let update = (action: t, model: Model.t): Updated.t(Model.t) => {
     switch (action) {
@@ -93,8 +65,18 @@ module Update = {
         ...model,
         history:
           Aba.cons(
-            Model.PendingStep,
-            model.history |> Model.get_next_steps |> List.nth(_, idx),
+            None,
+            Step.Model.EvalStep(
+              EvalStep.Model.mk({
+                old_id:
+                  model
+                  |> Model.get_next_steps
+                  |> List.nth(_, idx)
+                  |> snd
+                  |> ((x: EvaluatorStep.EvalObj.t) => x.d_loc |> Exp.rep_id),
+                new_id: Id.mk(),
+              }),
+            ),
             model.history,
           ),
       }
@@ -104,9 +86,10 @@ module Update = {
         ...model,
         history: {
           let rec step_backward:
-            Aba.t(Model.a, Model.b) => Aba.t(Model.a, Model.b) = (
+            Aba.t(option(Model.a), Model.b) =>
+            Aba.t(option(Model.a), Model.b) = (
             fun
-            | ([_, ...as_], [{hidden: true, _}, ...bs]) =>
+            | ([_, ...as_], [EvalStep({hidden: true, _}), ...bs]) =>
               (as_, bs) |> step_backward
             | ([_, ...as_], [_, ...bs]) => (as_, bs)
             | x => x
@@ -118,97 +101,99 @@ module Update = {
     };
   };
 
-  let calc_a = (~settings, expr: Exp.t, state, previous_substitutions) => {
-    let editor =
-      CodeWithStatics.Model.mk_from_exp(expr)
-      |> CodeWithStatics.Update.calculate(~settings, ~stitch=x => x);
-    let next_steps =
-      EvaluatorStep.decompose(expr, state)
-      |> List.map(
-           EvaluatorStep.should_hide_eval_obj(~settings=settings.evaluation),
-         )
-      |> List.map(
-           fun
-           | (FilterAction.Step, x) =>
-             Model.{hidden: false, step: x, to_ids: [Id.mk()], valid: true}
-           | (FilterAction.Eval, x) =>
-             Model.{hidden: true, step: x, to_ids: [Id.mk()], valid: true},
-         );
-    Model.A({expr, state, previous_substitutions, editor, next_steps});
+  let calc_b = Step.Update.calculate;
+
+  let get_next_a = (~settings, b: Model.b): Model.a => {
+    switch (b) {
+    | EvalStep({next_expr, next_state, _}) =>
+      let editor =
+        CodeWithStatics.Model.mk_from_exp(next_expr)
+        |> CodeWithStatics.Update.calculate(~settings, ~stitch=x => x);
+      Model.{expr: next_expr, state: next_state, editor};
+    };
   };
 
-  let get_next_a =
-      (~settings, history: Aba.t(Model.a, Model.b), b: Model.b)
-      : option(Model.a) => {
-    let state = ref(Model.get_state(history));
-    let+ next_expr =
-      EvaluatorStep.take_step(
-        state,
-        ClosureEnvironment.of_environment(Builtins.env_init),
-        b.step.d_loc,
-      );
-    let next_expr = {...next_expr, ids: b.to_ids};
-    let next_state = state^;
-    let previous_substitutions =
-      (b.step.knd == Transition.VarLookup ? [b.step.d_loc |> Exp.rep_id] : [])
-      @ (
-        Model.get_previous_substitutions(history)
-        |> List.map((id: Id.t) =>
-             if (id == (b.step.d_loc |> Exp.rep_id)) {
-               next_expr |> Exp.rep_id;
-             } else {
-               id;
-             }
-           )
-      );
-    let next_expr = EvalCtx.compose(b.step.ctx, next_expr);
-    calc_a(~settings, next_expr, next_state, previous_substitutions);
+  let eval_steps_of = (~settings, expr, state) => {
+    EvaluatorStep.decompose(expr, state)
+    |> List.map(EvaluatorStep.should_hide_eval_obj(~settings));
   };
 
-  let rec take_hidden_steps =
-          (~settings, history: Aba.t(Model.a, Model.b))
-          : Aba.t(Model.a, Model.b) => {
-    let next_steps = Model.get_next_steps(history);
-    let hidden_steps = List.filter((s: Model.b) => s.hidden, next_steps);
+  let take_hidden_step = (~settings, model: Model.t) => {
+    let hidden_steps =
+      List.filter(
+        fun
+        | (FilterAction.Eval, _) => true
+        | (FilterAction.Step, _) => false,
+        model.next_steps,
+      );
     switch (hidden_steps) {
-    | [] => history
+    | [] => None
     | [x, ..._] =>
-      switch (get_next_a(~settings, history, x)) {
-      | Some(a') => take_hidden_steps(~settings, Aba.cons(a', x, history))
-      | None => history
+      let next_b =
+        Step.Model.EvalStep(
+          EvalStep.Model.mk(EvaluatorStep.EvalObj.persist(x |> snd)),
+        );
+      let next_a = get_next_a(~settings, next_b);
+      Some((next_a, next_b));
+    };
+  };
+
+  let rec take_hidden_steps = (~settings, expr, state, model) => {
+    switch (take_hidden_step(~settings, model)) {
+    | None => model
+    | Some((a, b)) =>
+      Model.{
+        history: Aba.cons(Some(a), b, model.history),
+        cached_settings: Some(settings),
+        next_steps: eval_steps_of(~settings=settings.evaluation, expr, state),
       }
+      |> take_hidden_steps(~settings, a.expr, a.state)
     };
   };
 
   let full_calculate = (~settings, elab: Exp.t, model: Model.t): Model.t => {
-    {
-      history:
-        Aba.fold_right(
-          (_, b: Model.b, c) => {
-            let b' = {
-              let (let&) = (x, y) => Util.OptUtil.get(y, x);
-              let options = Model.get_next_steps(c);
-              let correct_id =
-                List.filter(
-                  (b': Model.b) => b'.step.d_loc.ids == b.step.d_loc.ids,
-                  options,
-                );
-              let& () = List.nth_opt(correct_id, 0);
-              {...b, valid: false};
-            };
-            switch (get_next_a(~settings, model.history, b'), b'.valid) {
-            | (Some(a'), true) => Aba.cons(a', b', c)
-            | (None, _)
-            | (_, false) => c
-            };
+    Aba.fold_right(
+      (_, b: Model.b, (aba, expr, state)) => {
+        let next_b =
+          calc_b(
+            ~settings,
+            ~options=
+              eval_steps_of(~settings=settings.evaluation, expr, state),
+            ~prev_expr=expr,
+            ~state,
+            b,
+          );
+        let next_a = get_next_a(~settings, next_b);
+        (Aba.cons(Some(next_a), next_b, aba), next_a.expr, next_a.state);
+      },
+      _ =>
+        (
+          Some(
+            Model.{
+              expr: elab,
+              state: EvaluatorState.init,
+              editor: CodeWithStatics.Model.mk_from_exp(elab),
+            },
+          )
+          |> Aba.singleton,
+          elab,
+          EvaluatorState.init,
+        ),
+      model.history,
+    )
+    |> (
+      ((aba, e, s)) =>
+        take_hidden_steps(
+          ~settings,
+          e,
+          s,
+          {
+            history: aba,
+            cached_settings: Some(settings),
+            next_steps: eval_steps_of(~settings=settings.evaluation, e, s),
           },
-          _ =>
-            calc_a(~settings, elab, EvaluatorState.init, []) |> Aba.singleton,
-          model.history,
         )
-        |> take_hidden_steps(~settings),
-      cached_settings: Some(settings),
-    };
+    );
   };
 
   // TODO[Matt]: faster calculation
@@ -264,41 +249,33 @@ module View = {
       |> (settings.core.evaluation.stepper_history ? x => x : (_ => []))
       |> (
         settings.core.evaluation.show_hidden_steps
-          ? x => x : List.filter(((_, b: Model.b, _)) => !b.hidden)
+          ? x => x
+          : List.filter(((_, b: Model.b, _)) => !Step.View.is_hidden(b))
       )
-      |> List.map(((_, b: Model.b, a: Model.a)) =>
+      |> List.map(((_, b: Model.b, a: option(Model.a))) =>
            switch (a) {
-           | A(a) => [
+           | Some(a) => [
                div(
                  ~attr=
                    Attr.classes(
                      ["cell-item", "cell-result"]
-                     @ (b.hidden ? ["hidden"] : []),
+                     @ (Step.View.is_hidden(b) ? ["hidden"] : []),
                    ),
                  [
                    div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
                    StepperEditor.Stepped.view(
                      ~globals,
                      ~overlays=[],
-                     {
-                       editor: a.editor,
-                       step_id: Some(b.step.d_loc |> Exp.rep_id),
-                     },
+                     {editor: a.editor, step_id: Step.View.stepped_id(b)},
                    ),
                    div(
                      ~attr=Attr.classes(["stepper-justification"]),
-                     [
-                       b.step.knd
-                       |> Transition.stepper_justification
-                       |> Node.text,
-                     ],
+                     [Step.View.get_text(b)],
                    ),
                  ],
                ),
              ]
-           | PendingStep => [
-               div(~attr=Attr.class_("cell-item"), [text("...")]),
-             ]
+           | None => [div(~attr=Attr.class_("cell-item"), [text("...")])]
            }
          )
       |> List.flatten
@@ -310,7 +287,7 @@ module View = {
         ~attr=Attr.classes(["cell-item", "cell-result"]),
         (
           switch (model) {
-          | A(model) => [
+          | Some(model) => [
               div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
               StepperEditor.Steppable.view(
                 ~globals,
@@ -320,15 +297,14 @@ module View = {
                   editor: model.editor,
                   next_steps:
                     List.map(
-                      (option: Model.b) => option.step.d_loc |> Exp.rep_id,
-                      model.next_steps,
+                      ((_, eo: EvaluatorStep.EvalObj.t)) =>
+                        eo.d_loc |> Exp.rep_id,
+                      stepper.next_steps,
                     ),
                 },
               ),
             ]
-          | PendingStep => [
-              div(~attr=Attr.class_("cell-item"), [text("...")]),
-            ]
+          | None => [div(~attr=Attr.class_("cell-item"), [text("...")])]
           }
         )
         @ (
