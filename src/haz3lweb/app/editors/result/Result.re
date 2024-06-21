@@ -44,7 +44,7 @@ module Model = {
       )
     | Stepper(s) =>
       Some(
-        s.history
+        s
         |> Stepper.Model.get_state
         |> Haz3lcore.EvaluatorState.get_tests
         |> Haz3lcore.TestResults.mk_results,
@@ -65,7 +65,7 @@ module Model = {
       )
     | Stepper(s) =>
       Some(
-        s.history
+        s
         |> Stepper.Model.get_state
         |> Haz3lcore.EvaluatorState.get_tests
         |> Haz3lcore.TestResults.mk_results,
@@ -99,7 +99,7 @@ module Update = {
     | (ToggleStepper, {kind: Evaluation, _}) =>
       {...model, kind: Stepper} |> Updated.return
     | (StepperAction(a), {result: Stepper(s), _}) =>
-      let* stepper = Stepper.Update.update(a, s);
+      let* stepper = Stepper.Update.update(~settings, a, s);
       {...model, result: Stepper(stepper)};
     | (StepperAction(_), _) => model |> Updated.return_quiet
     | (

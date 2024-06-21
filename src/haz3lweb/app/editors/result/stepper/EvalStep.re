@@ -23,11 +23,19 @@ module Model = {
     };
   };
 
+  let get_next_expr = (model: t) => model.next_expr;
+  let get_next_state = (model: t) => model.next_state;
+
   type persistent = EvaluatorStep.EvalObj.persistent;
 };
 
 module Update = {
-  type t;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    |;
+
+  let update = (~settings as _, _, _): Updated.t(Model.t) =>
+    failwith("EvalStep: no updates available");
 
   let calculate =
       (
