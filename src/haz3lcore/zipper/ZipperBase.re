@@ -24,6 +24,11 @@ type slider_action =
   | Set(int);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type shape =
+  | Inline(int)
+  | Block(int);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type projector =
   | Fold(fold)
   | Infer(infer)
@@ -53,7 +58,7 @@ module type ProjectorCore = {
   type action;
   let projector: projector;
   let model: model;
-  let placeholder_length: unit => int;
+  let placeholder: unit => shape;
   let can_project: Piece.t => bool;
   let auto_update: projector_info => projector;
   let update: string => projector;

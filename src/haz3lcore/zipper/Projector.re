@@ -43,16 +43,23 @@ let name = (p: t): string =>
   | Slider(_) => "slider"
   };
 
-let placeholder = (p: t, id: Id.t): syntax => {
+let shape = (p: t): shape => {
   let (module P) = to_module(p);
+  P.placeholder();
+};
+
+let placeholder = (p: t, id: Id.t): syntax =>
   Piece.Tile({
     id,
-    label: [String.make(P.placeholder_length(), ' ')],
+    label:
+      switch (shape(p)) {
+      | Inline(width) => [String.make(width, ' ')]
+      | Block(height) => [String.make(height, '\n')]
+      },
     mold: Mold.mk_op(Any, []),
     shards: [0],
     children: [],
   });
-};
 
 /* Currently projection is limited to convex pieces */
 let minimum_projection_condition = (syntax: syntax): bool =>

@@ -28,9 +28,10 @@ let mk = (model: infer): projector_core =>
        | _ => false
        };
 
-     let placeholder_length = () =>
-       3
-       + (display_ty(model.expected_ty) |> Typ.pretty_print |> String.length);
+     let len =
+       display_ty(model.expected_ty) |> Typ.pretty_print |> String.length;
+
+     let placeholder = () => Inline(3 + len);
 
      let auto_update = ({info, _}): projector => {
        print_endline("updating infer projector");

@@ -119,12 +119,20 @@ module Make = (M: Editor.Meta.S) => {
         ? Direction.Left : Right;
     let rec go = (prev: t, curr: t) => {
       let curr_p = caret_point(curr);
+      let prev_p = caret_point(prev);
       switch (
         Measured.Point.dcomp(d, curr_p.col, goal.col),
         Measured.Point.dcomp(d, curr_p.row, goal.row),
       ) {
       | (Exact, Exact) => curr
-      | (_, Over) => prev
+      //TODO(andrew): document
+      //| (_, Over) when init != caret_point(prev) => curr
+      | (_, Over) =>
+        switch (Measured.Point.dcomp(d, prev_p.row, goal.row)) {
+        | Under => curr
+        | _ => prev
+        }
+      //| (_, Over) => prev
       | (_, Under)
       | (Under, Exact) =>
         switch (f(d, curr)) {

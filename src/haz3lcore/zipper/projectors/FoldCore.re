@@ -11,7 +11,7 @@ let mk = (): projector_core =>
      let model = ();
      let projector = Fold();
      let can_project = _ => true;
-     let placeholder_length = () => 2;
+     let placeholder = () => Inline(2);
      let auto_update = _: projector => Fold();
      let update = _action => Fold();
    });

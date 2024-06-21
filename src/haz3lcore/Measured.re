@@ -282,6 +282,24 @@ let is_indented_map = (seg: Segment.t) => {
   go(seg);
 };
 
+let num_linebreaks = (str: string) => {
+  let rec go = (~count=0, str: string) =>
+    if (str == "") {
+      count;
+    } else {
+      let (c, rest) = (
+        String.sub(str, 0, 1),
+        String.sub(str, 1, String.length(str) - 1),
+      );
+      if (c == "\n") {
+        go(~count=count + 1, rest);
+      } else {
+        go(~count, rest);
+      };
+    };
+  go(str);
+};
+
 let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
   let is_indented = is_indented_map(seg);
 
@@ -377,11 +395,17 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
           | Tile(t) =>
             let token = List.nth(t.label);
             let add_shard = (origin, shard, map) => {
+              //TODO(andrew): properize
               let last =
-                Point.{
-                  ...origin,
-                  col: origin.col + String.length(token(shard)),
-                };
+                num_linebreaks(token(shard)) == 0
+                  ? Point.{
+                      col: origin.col + String.length(token(shard)),
+                      row: origin.row,
+                    }
+                  : Point.{
+                      col: 0,
+                      row: origin.row + num_linebreaks(token(shard)),
+                    };
               let map = map |> add_s(t.id, shard, {origin, last});
               (last, map);
             };

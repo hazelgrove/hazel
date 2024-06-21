@@ -16,7 +16,7 @@ let mk = (model): projector_core =>
      let model = model;
      let projector = Slider(model);
      let can_project = _ => true;
-     let placeholder_length = () => 10;
+     let placeholder = () => Inline(10);
      let auto_update = _: projector => Slider(model);
      let update = (action: string) =>
        switch (deserialize(action)) {

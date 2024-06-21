@@ -33,7 +33,7 @@ let mk = (model): projector_core =>
      let model = model;
      let projector = Checkbox(model);
      let can_project = p => state_of(p) != None;
-     let placeholder_length = () => 2;
+     let placeholder = () => Block(4);
      let auto_update = _: projector => Checkbox();
      let update = _action => Checkbox();
    });
