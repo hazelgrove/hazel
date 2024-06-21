@@ -480,3 +480,13 @@ let first_and_last = (xss: list(list('a))): list(('a, 'a)) =>
        | [x] => Some((x, x))
        | [x, ...xs] => Some((x, last(xs))),
      );
+
+let rec prune = (xs: list('a), n: int, f: unit => 'a): list('a) =>
+  if (n <= 0) {
+    [];
+  } else {
+    switch (xs) {
+    | [] => [f(), ...prune([], n - 1, f)]
+    | [x, ...xs] => [x, ...prune(xs, n - 1, f)]
+    };
+  };

@@ -99,7 +99,6 @@ body {
 .rule-block {
     float: left;
     overflow: hidden;
-    /* position: relative; */
 }
 
 /* Dropdown button */

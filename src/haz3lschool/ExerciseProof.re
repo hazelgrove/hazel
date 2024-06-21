@@ -78,27 +78,11 @@ module Model = {
     | Prelude => m
     | Derive(pos) =>
       let tree = m.derivation_tree;
-      let new_prems_num = Derivation.Rule.prem_num(rule);
-      let Node({jdmt, rule}, children) = Tree.nth_node(tree, pos);
-      let old_prems_num = Derivation.Rule.prem_num(rule);
-      let delta = new_prems_num - old_prems_num;
-      let rec iter = (f, n, x) => n == 0 ? x : iter(f, n - 1, f(x));
+      let Node({jdmt, _}, children) = Tree.nth_node(tree, pos);
       let children =
-        if (delta > 0) {
-          iter(
-            fun
-            | c => [Tree.init(_ => {jdmt: init(), rule: Assumption}), ...c],
-            delta,
-            children,
-          );
-        } else {
-          iter(
-            fun
-            | c => List.tl(c),
-            - delta,
-            children,
-          );
-        };
+        Util.ListUtil.prune(children, Derivation.Rule.prem_num(rule), _ =>
+          Tree.init(_ => {jdmt: init(), rule: Assumption})
+        );
       let tree = Tree.put_nth_node(Node({jdmt, rule}, children), tree, pos);
       {...m, derivation_tree: tree};
     };

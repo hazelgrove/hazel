@@ -135,6 +135,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     switch (pos, exercise.model) {
     | (Proof(pos), Proof(m)) => {
         ...exercise,
+        pos: Proof(pos),
         model:
           Proof(
             Proof.switch_derivation_rule(

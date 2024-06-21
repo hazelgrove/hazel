@@ -12,6 +12,11 @@ let get_elem_by_id = id => {
   );
 };
 
+let get_elems_by_cls = (cls, elm) => {
+  elm##getElementsByClassName(Js.string(cls))
+  |> Js_of_ocaml.Dom.list_of_nodeList;
+};
+
 let date_now = () => {
   [%js new Js.date_now];
 };

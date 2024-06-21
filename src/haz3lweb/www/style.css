@@ -904,7 +904,7 @@ select {
   display: none;
 }
 
-.cell-derivation .derivation-block {
+.derivation-block {
   display: flex;
   flex-direction: column;
   flex-wrap: nowrap;
@@ -912,12 +912,12 @@ select {
   justify-content: center;
 }
 
-.cell-derivation .derivation-conclusion {
+.derivation-conclusion {
   align-self: center;
 }
 
-.cell-derivation .derivation-premises {
-  border-bottom: 2px solid;
+.derivation-premises {
+  border-bottom: var(--top_bar_icon_fill) 2px solid;
   display: flex;
   flex-direction: row;
   flex-wrap: nowrap;
@@ -955,7 +955,7 @@ select {
   max-width: 230px;
   border: var(--top_bar_icon_fill) 0.1em solid;
   border-radius: 1.08em;
-  border-top-left-radius: 0;
+  z-index: var(--top-bar-z);
 }
 
 .rule-block-info {
@@ -963,6 +963,61 @@ select {
   text-align: center;
   font-size: 0.7em;
   border-bottom: var(--top_bar_icon_fill) 0.1em solid;
+}
+
+:root {
+  --green: #4fad66;
+  --red: #d9534f;
+  --blue: #5bc0de;
+  --grey: #999;
+}
+
+.derivation-premises.correct {
+  border-bottom: var(--green) 0.1em solid;
+}
+
+.rule-block-btn.correct {
+  background-color: var(--green);
+}
+
+.rule-block-content.correct {
+  border: var(--green) 0.1em solid;
+}
+
+.derivation-premises.incorrect {
+  border-bottom: var(--red) 0.1em solid;
+}
+
+.rule-block-btn.incorrect {
+  background-color: var(--red);
+}
+
+.rule-block-content.incorrect {
+  border: var(--red) 0.1em solid;
+}
+
+.derivation-premises.partial {
+  border-bottom: var(--blue) 0.1em solid;
+}
+
+.rule-block-btn.partial {
+  background-color: var(--blue);
+}
+
+.rule-block-content.partial {
+  border: var(--blue) 0.1em solid;
+}
+
+.derivation-premises.pending {
+  border-bottom: var(--grey) 0.1em solid;
+}
+
+.rule-block-btn.pending {
+  background-color: var(--grey);
+}
+
+.rule-block-content.pending {
+  border: var(--grey) 0.1em solid;
 }
 
 /* Links inside the dropdown */
@@ -973,6 +1028,7 @@ select {
   flex-wrap: wrap;
   text-align: left;
   max-width: fit-content;
+  min-width: 200px;
 }
 
 /* Show the dropdown menu on hover */

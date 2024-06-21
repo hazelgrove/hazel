@@ -212,6 +212,7 @@ module Rule: {
     | Falsity_E;
   let repr: t => string;
   let prem_num: t => int;
+  let for_each: (t => 'a) => list('a);
   let of_string: string => t;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -229,7 +230,7 @@ module Rule: {
     | Falsity_E;
   let repr =
     fun
-    | Assumption => "assumption"
+    | Assumption => "Asm."
     | And_I => "∧-I"
     | And_E_L => "∧-E-L"
     | And_E_R => "∧-E-R"
@@ -270,4 +271,20 @@ module Rule: {
     | Implies_E => 2
     | Truth_I => 0
     | Falsity_E => 1;
+
+  let for_each = f =>
+    [
+      Assumption,
+      And_I,
+      And_E_L,
+      And_E_R,
+      Or_I_L,
+      Or_I_R,
+      Or_E,
+      Implies_I,
+      Implies_E,
+      Truth_I,
+      Falsity_E,
+    ]
+    |> List.map(f);
 };
