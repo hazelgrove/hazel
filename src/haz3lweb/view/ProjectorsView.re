@@ -69,7 +69,11 @@ let wrap =
           ]),
         [view],
       ),
-      PieceDec.convex_shard(~font_metrics, ~measurement),
+      //TODO(andrew): document
+      switch (Projector.shape(p)) {
+      | Inline(_) => PieceDec.convex_shard(~font_metrics, ~measurement)
+      | Block(_) => div([])
+      },
     ],
   );
 
