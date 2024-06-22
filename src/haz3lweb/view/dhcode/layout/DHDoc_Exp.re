@@ -80,7 +80,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | InconsistentBranches(_) => DHDoc_common.precedence_max
 
   | BinBoolOp(op, _, _) => precedence_bin_bool_op(op)
-  | BinIntOp(op, _, _) => precedence_bin_int_op(op)
+  | BinIntOp(_, op, _, _) => precedence_bin_int_op(op)
   | BinFloatOp(op, _, _) => precedence_bin_float_op(op)
   | BinStringOp(op, _, _) => precedence_bin_string_op(op)
 
@@ -382,7 +382,7 @@ let mk =
           go_formattable(d, ApBuiltin)
           |> parenthesize(precedence(d) > DHDoc_common.precedence_Ap),
         )
-      | BinIntOp(op, d1, d2) =>
+      | BinIntOp(_, op, d1, d2) =>
         // TODO assumes all bin int ops are left associative
         let (doc1, doc2) =
           mk_left_associative_operands(

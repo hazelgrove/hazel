@@ -92,7 +92,8 @@ let view_of_layout =
              | CastDecoration => ([with_cls("CastDecoration", txt)], ds)
              | OperationError(
                  DivideByZero | InvalidOfString | IndexOutOfBounds |
-                 CompareArrow,
+                 CompareArrow |
+                 Inconsistent,
                ) => (
                  [with_cls("OperationError", txt)],
                  ds,

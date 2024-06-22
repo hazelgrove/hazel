@@ -10,7 +10,7 @@ module ElaborationResult = {
 
 let exp_binop_of: Term.UExp.op_bin => (Typ.t, (_, _) => DHExp.t) =
   fun
-  | Int(op) => (Int, ((e1, e2) => BinIntOp(op, e1, e2)))
+  | Int(op) => (Int, ((e1, e2) => BinIntOp(ConsistentPolyEq, op, e1, e2)))
   | Float(op) => (Float, ((e1, e2) => BinFloatOp(op, e1, e2)))
   | Bool(op) => (Bool, ((e1, e2) => BinBoolOp(op, e1, e2)))
   | String(op) => (String, ((e1, e2) => BinStringOp(op, e1, e2)));
@@ -193,7 +193,7 @@ let rec dhexp_of_uexp =
         }
       | UnOp(Int(Minus), e) =>
         let+ dc = dhexp_of_uexp(m, e);
-        DHExp.BinIntOp(Minus, IntLit(0), dc);
+        DHExp.BinIntOp(ConsistentPolyEq, Minus, IntLit(0), dc);
       | UnOp(Bool(Not), e) =>
         let+ d_scrut = dhexp_of_uexp(m, e);
         let d_rules =
@@ -213,10 +213,10 @@ let rec dhexp_of_uexp =
         let+ dc2 = dhexp_of_uexp(m, e2);
         switch (op, err_status) {
         | (
-            Int(Equals | NotEquals),
-            InHole(Common(Inconsistent(CompareArrow(_)))),
+            Int((Equals | NotEquals) as op),
+            InHole(Common(Inconsistent(CompareArrow(_) | Internal(_)))),
           ) =>
-          DHExp.InvalidOperation(cons(dc1, dc2), CompareArrow)
+          DHExp.BinIntOp(InconsistentPolyEq, op, dc1, dc2)
         | _ => cons(dc1, dc2)
         };
       | Parens(e) => dhexp_of_uexp(m, e)

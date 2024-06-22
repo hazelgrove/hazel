@@ -170,7 +170,8 @@ let startup : PersistentData.t =
                             (Haz3lcore.Id.of_string
                                "f83ccda8-abe1-4840-901f-4fbb4367130a"),
                           BinIntOp
-                            ( Equals,
+                            ( ConsistentPolyEq,
+                              Equals,
                               BinFloatOp (Plus, FloatLit 2., FloatLit 2.),
                               FloatLit 4. ) ),
                       EmptyHole
@@ -248,14 +249,20 @@ let startup : PersistentData.t =
                               ( Option.get
                                   (Haz3lcore.Id.of_string
                                      "f83ccda8-abe1-4840-901f-4fbb4367130a"),
-                                BinIntOp (Equals, FloatLit 4., FloatLit 4.) ),
+                                BinIntOp
+                                  ( ConsistentPolyEq,
+                                    Equals,
+                                    FloatLit 4.,
+                                    FloatLit 4. ) ),
                             EmptyHole
                               ( Option.get
                                   (Haz3lcore.Id.of_string
                                      "3eab49cf-c190-4742-8bd5-0af1056a69bb"),
                                 0 ) );
                       state = { stats = { step = 0 }; tests = [] };
-                      d_loc = BinIntOp (Equals, FloatLit 4., FloatLit 4.);
+                      d_loc =
+                        BinIntOp
+                          (ConsistentPolyEq, Equals, FloatLit 4., FloatLit 4.);
                       ctx =
                         Sequence1
                           ( Test
@@ -278,7 +285,8 @@ let startup : PersistentData.t =
                                   (Haz3lcore.Id.of_string
                                      "f83ccda8-abe1-4840-901f-4fbb4367130a"),
                                 BinIntOp
-                                  ( Equals,
+                                  ( ConsistentPolyEq,
+                                    Equals,
                                     BinFloatOp (Plus, FloatLit 2., FloatLit 2.),
                                     FloatLit 4. ) ),
                             EmptyHole
