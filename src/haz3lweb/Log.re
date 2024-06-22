@@ -30,6 +30,7 @@ let is_action_logged: UpdateAction.t => bool =
   | Redo
   | MoveToNextHole(_)
   | UpdateResult(_)
+  | UpdateTitle(_)
   | ToggleStepper(_)
   | StepperAction(_, StepForward(_) | StepBackward)
   | UpdateExplainThisModel(_) => true;

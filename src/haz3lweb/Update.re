@@ -245,6 +245,14 @@ let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
     Ok(model);
   };
 
+/*
+ let update_title =
+     (model: Cell.title_model, start: bool): Result.t(Cell.title_model) => {
+   let model = start ? {...model, editing: true} : {...model, editing: false};
+   Ok(model);
+ };
+ */
+
 let switch_scratch_slide =
     (editors: Editors.t, ~instructor_mode, idx: int): option(Editors.t) =>
   switch (editors) {
@@ -508,6 +516,13 @@ let rec apply =
       let results =
         ModelResults.union((_, _a, b) => Some(b), model.results, results);
       Ok({...model, results});
+    | UpdateTitle(_) =>
+      /* let new_title =
+         switch (action) {
+           | Start => "old title"
+           | Finish(updated_title) => updated_title
+         } */
+      Ok(model)
     };
   m |> Result.map(~f=update_cached_data(~schedule_action, update));
 };

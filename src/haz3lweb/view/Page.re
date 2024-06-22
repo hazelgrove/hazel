@@ -12,8 +12,7 @@ let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit), model) => {
     Effect.(
       switch (Keyboard.handle_key_event(Key.mk(dir, evt))) {
       | None => Ignore
-      | Some(action) =>
-        Many([Prevent_default, Stop_propagation, inject(action)])
+      | Some(action) => Many([Prevent_default, inject(action)])
       }
     );
   [
