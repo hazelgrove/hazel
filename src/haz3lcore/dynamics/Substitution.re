@@ -77,10 +77,10 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     BinBoolOp(op, d3, d4);
-  | BinIntOp(op, d3, d4) =>
+  | BinIntOp(c, op, d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
-    BinIntOp(op, d3, d4);
+    BinIntOp(c, op, d3, d4);
   | BinFloatOp(op, d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);

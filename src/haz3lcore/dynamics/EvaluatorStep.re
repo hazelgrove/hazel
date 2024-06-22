@@ -251,10 +251,10 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
       BinBoolOp(op, d1, d2);
     | BinIntOp1(op, ctx, d2) =>
       let d1 = compose(ctx, d);
-      BinIntOp(op, d1, d2);
+      BinIntOp(ConsistentPolyEq, op, d1, d2);
     | BinIntOp2(op, d1, ctx) =>
       let d2 = compose(ctx, d);
-      BinIntOp(op, d1, d2);
+      BinIntOp(ConsistentPolyEq, op, d1, d2);
     | BinFloatOp1(op, ctx, d2) =>
       let d1 = compose(ctx, d);
       BinFloatOp(op, d1, d2);

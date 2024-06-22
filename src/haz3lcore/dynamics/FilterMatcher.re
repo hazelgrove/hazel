@@ -224,7 +224,7 @@ let rec matches_exp =
 
     | (BinBoolOp(_), _) => false
 
-    | (BinIntOp(d_op_bin, d1, d2), BinIntOp(f_op_bin, f1, f2)) =>
+    | (BinIntOp(_, d_op_bin, d1, d2), BinIntOp(_, f_op_bin, f1, f2)) =>
       d_op_bin == f_op_bin && matches_exp(d1, f1) && matches_exp(d2, f2)
     | (BinIntOp(_), _) => false
 

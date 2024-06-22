@@ -83,7 +83,7 @@ let d4: DHExp.t =
   Let(
     Tuple([Var("a"), Var("b")]),
     Tuple([IntLit(4), IntLit(6)]),
-    BinIntOp(Minus, BoundVar("a"), BoundVar("b")),
+    BinIntOp(ConsistentPolyEq, Minus, BoundVar("a"), BoundVar("b")),
   );
 let let_exp = () =>
   alco_check(
@@ -103,6 +103,7 @@ let u5: Term.UExp.t = {
 };
 let d5: DHExp.t =
   BinIntOp(
+    ConsistentPolyEq,
     Plus,
     NonEmptyHole(TypeInconsistent, id_at(1), 0, BoolLit(false)),
     NonEmptyHole(TypeInconsistent, id_at(2), 0, FreeVar(id_at(2), 0, "y")),
@@ -161,6 +162,7 @@ let d7: DHExp.t =
       Var("x"),
       Unknown(Internal),
       BinIntOp(
+        ConsistentPolyEq,
         Plus,
         IntLit(4),
         Cast(BoundVar("x"), Unknown(Internal), Int),
@@ -201,7 +203,8 @@ let u8: Term.UExp.t = {
       ],
     ),
 };
-let d8scrut: DHExp.t = BinIntOp(Equals, IntLit(4), IntLit(3));
+let d8scrut: DHExp.t =
+  BinIntOp(ConsistentPolyEq, Equals, IntLit(4), IntLit(3));
 let d8rules =
   DHExp.[
     Rule(BoolLit(true), IntLit(24)),
@@ -261,7 +264,7 @@ let d9: DHExp.t =
     Fun(
       Var("x"),
       Int,
-      BinIntOp(Plus, IntLit(1), BoundVar("x")),
+      BinIntOp(ConsistentPolyEq, Plus, IntLit(1), BoundVar("x")),
       Some("f"),
     ),
     IntLit(55),

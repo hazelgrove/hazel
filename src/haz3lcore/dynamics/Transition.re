@@ -449,41 +449,44 @@ module Transition = (EV: EV_MODE) => {
         kind: BinBoolOp(Or),
         value: false,
       });
-    | BinIntOp(op, d1, d2) when op == Equals || op == NotEquals =>
-      let. _ = otherwise(env, (d1, d2) => BinIntOp(op, d1, d2))
+    | BinIntOp(c, op, d1, d2) when op == Equals || op == NotEquals =>
+      let. _ = otherwise(env, (d1, d2) => BinIntOp(c, op, d1, d2))
       and. d1' = req_value(req(state, env), d1 => BinIntOp1(op, d1, d2), d1)
       and. d2' =
         req_value(req(state, env), d2 => BinIntOp2(op, d1, d2), d2);
-      let (d1', d2') = (DHExp.strip_casts(d1'), DHExp.strip_casts(d2'));
-      if (DHExp.has_arrow(d1') || DHExp.has_arrow(d2')) {
+      switch (c) {
+      // Note: Handled by static, avoid double check here
+      | InconsistentPolyEq => Indet
+      | ConsistentPolyEq =>
+        let (d1', d2') = (DHExp.strip_casts(d1'), DHExp.strip_casts(d2'));
         Step({
-          apply: () => {
-            // Constructor with arrow type inside is the only case that
-            // we want to check here. Others should have been caught by
-            // statics in Elaborator.re.
-            InvalidOperation(
-              BinIntOp(op, d1', d2'),
-              CompareArrow,
-            );
-          },
-          kind: BinIntOp(op),
-          value: false,
-        });
-      } else if (!DHExp.ty_equal(d1', d2')) {
-        Indet;
-      } else {
-        Step({
-          apply: () => {
-            BoolLit(
-              DHExp.fast_equal(d1', d2') |> (b => op == Equals ? b : !b),
-            );
-          },
+          apply: () =>
+            // Note: ty_comparable should not fail here
+            // This is for testing purposes
+            if (!DHExp.ty_comparable(d1')) {
+              raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1')));
+            } else if (!DHExp.ty_comparable(d2')) {
+              raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2')));
+            } else {
+              switch (DHExp.poly_equal(d1', d2')) {
+              // Happy path
+              | Ok(b) => BoolLit(op == Equals ? b : !b)
+              // Dynamic Catched Inconsistent
+              // TODO: IfThenElse has a similar case, but it use Indet instead
+              // of an explicit error. Maybe we should change either one.
+              | Inconsistent =>
+                InvalidOperation(BinIntOp(c, op, d1', d2'), Inconsistent)
+              // Dynamic Catched Comparison of Arrow Types
+              | CompareArrow =>
+                InvalidOperation(BinIntOp(c, op, d1', d2'), CompareArrow)
+              };
+            },
           kind: BinIntOp(op),
           value: false,
         });
       };
-    | BinIntOp(op, d1, d2) =>
-      let. _ = otherwise(env, (d1, d2) => BinIntOp(op, d1, d2))
+    | BinIntOp(c, op, d1, d2) =>
+      let. _ = otherwise(env, (d1, d2) => BinIntOp(c, op, d1, d2))
       and. d1' = req_value(req(state, env), d1 => BinIntOp1(op, d1, d2), d1)
       and. d2' =
         req_value(req(state, env), d2 => BinIntOp2(op, d1, d2), d2);
@@ -496,14 +499,14 @@ module Transition = (EV: EV_MODE) => {
             | Minus => IntLit(n1 - n2)
             | Power when n2 < 0 =>
               InvalidOperation(
-                BinIntOp(op, IntLit(n1), IntLit(n2)),
+                BinIntOp(c, op, IntLit(n1), IntLit(n2)),
                 NegativeExponent,
               )
             | Power => IntLit(IntUtil.ipow(n1, n2))
             | Times => IntLit(n1 * n2)
             | Divide when n2 == 0 =>
               InvalidOperation(
-                BinIntOp(op, IntLit(n1), IntLit(n2)),
+                BinIntOp(c, op, IntLit(n1), IntLit(n2)),
                 DivideByZero,
               )
             | Divide => IntLit(n1 / n2)

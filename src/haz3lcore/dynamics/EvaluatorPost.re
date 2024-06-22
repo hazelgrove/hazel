@@ -77,10 +77,10 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
 
   | BuiltinFun(f) => BuiltinFun(f) |> return
 
-  | BinIntOp(op, d1, d2) =>
+  | BinIntOp(c, op, d1, d2) =>
     let* d1' = pp_eval(d1);
     let* d2' = pp_eval(d2);
-    BinIntOp(op, d1', d2') |> return;
+    BinIntOp(c, op, d1', d2') |> return;
 
   | BinFloatOp(op, d1, d2) =>
     let* d1' = pp_eval(d1);
@@ -328,10 +328,10 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* d1' = pp_uneval(env, d1);
     let* d2' = pp_uneval(env, d2);
     BinBoolOp(op, d1', d2') |> return;
-  | BinIntOp(op, d1, d2) =>
+  | BinIntOp(c, op, d1, d2) =>
     let* d1' = pp_uneval(env, d1);
     let* d2' = pp_uneval(env, d2);
-    BinIntOp(op, d1', d2') |> return;
+    BinIntOp(c, op, d1', d2') |> return;
 
   | BinFloatOp(op, d1, d2) =>
     let* d1' = pp_uneval(env, d1);
@@ -485,7 +485,7 @@ let rec track_children_of_hole =
   | Let(_, d1, d2)
   | Ap(d1, d2)
   | BinBoolOp(_, d1, d2)
-  | BinIntOp(_, d1, d2)
+  | BinIntOp(_, _, d1, d2)
   | BinFloatOp(_, d1, d2)
   | BinStringOp(_, d1, d2)
   | Cons(d1, d2) =>

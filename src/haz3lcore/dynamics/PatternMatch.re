@@ -342,7 +342,7 @@ and matches_cast_Tuple =
   | Ap(_, _) => IndetMatch
   | ApBuiltin(_, _) => IndetMatch
   | BinBoolOp(_, _, _)
-  | BinIntOp(_, _, _)
+  | BinIntOp(_, _, _, _)
   | BinFloatOp(_, _, _)
   | BinStringOp(_)
   | BoolLit(_) => DoesNotMatch
@@ -482,7 +482,7 @@ and matches_cast_Cons =
   | Ap(_, _) => IndetMatch
   | ApBuiltin(_, _) => IndetMatch
   | BinBoolOp(_, _, _)
-  | BinIntOp(_, _, _)
+  | BinIntOp(_, _, _, _)
   | BinFloatOp(_, _, _)
   | BinStringOp(_)
   | ListConcat(_)

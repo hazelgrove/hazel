@@ -5,6 +5,11 @@ type if_consistency =
   | ConsistentIf
   | InconsistentIf;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type polyeq_consistency =
+  | ConsistentPolyEq
+  | InconsistentPolyEq;
+
 module rec DHExp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -31,7 +36,7 @@ module rec DHExp: {
     | FloatLit(float)
     | StringLit(string)
     | BinBoolOp(TermBase.UExp.op_bin_bool, t, t)
-    | BinIntOp(TermBase.UExp.op_bin_int, t, t)
+    | BinIntOp(polyeq_consistency, TermBase.UExp.op_bin_int, t, t)
     | BinFloatOp(TermBase.UExp.op_bin_float, t, t)
     | BinStringOp(TermBase.UExp.op_bin_string, t, t)
     | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t))
@@ -60,8 +65,15 @@ module rec DHExp: {
   let strip_casts: t => t;
 
   let fast_equal: (t, t) => bool;
-  let has_arrow: t => bool;
-  let ty_equal: (t, t) => bool;
+
+  let ty_comparable: t => bool;
+  type poly_equal_result =
+    | Ok(bool)
+    | Inconsistent
+    | CompareArrow;
+  let poly_equal: (t, t) => poly_equal_result;
+  // let has_arrow: t => bool;
+  // let ty_equal: (t, t) => bool;
 
   let assign_name_if_none: (t, option(Var.t)) => t;
   let ty_subst: (Typ.t, TypVar.t, t) => t;
@@ -94,7 +106,7 @@ module rec DHExp: {
     | FloatLit(float)
     | StringLit(string)
     | BinBoolOp(TermBase.UExp.op_bin_bool, t, t)
-    | BinIntOp(TermBase.UExp.op_bin_int, t, t)
+    | BinIntOp(polyeq_consistency, TermBase.UExp.op_bin_int, t, t)
     | BinFloatOp(TermBase.UExp.op_bin_float, t, t)
     | BinStringOp(TermBase.UExp.op_bin_string, t, t)
     | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t))
@@ -137,7 +149,7 @@ module rec DHExp: {
     | FloatLit(_) => "FloatLit"
     | StringLit(_) => "StringLit"
     | BinBoolOp(_, _, _) => "BinBoolOp"
-    | BinIntOp(_, _, _) => "BinIntOp"
+    | BinIntOp(_, _, _, _) => "BinIntOp"
     | BinFloatOp(_, _, _) => "BinFloatOp"
     | BinStringOp(_, _, _) => "BinStringOp"
     | ListLit(_) => "ListLit"
@@ -193,7 +205,8 @@ module rec DHExp: {
     | ApBuiltin(fn, args) => ApBuiltin(fn, strip_casts(args))
     | BuiltinFun(fn) => BuiltinFun(fn)
     | BinBoolOp(a, b, c) => BinBoolOp(a, strip_casts(b), strip_casts(c))
-    | BinIntOp(a, b, c) => BinIntOp(a, strip_casts(b), strip_casts(c))
+    | BinIntOp(consistent, a, b, c) =>
+      BinIntOp(consistent, a, strip_casts(b), strip_casts(c))
     | BinFloatOp(a, b, c) => BinFloatOp(a, strip_casts(b), strip_casts(c))
     | BinStringOp(a, b, c) =>
       BinStringOp(a, strip_casts(b), strip_casts(c))
@@ -269,8 +282,8 @@ module rec DHExp: {
       && List.for_all2(fast_equal, ds1, ds2)
     | (BinBoolOp(op1, d11, d21), BinBoolOp(op2, d12, d22)) =>
       op1 == op2 && fast_equal(d11, d12) && fast_equal(d21, d22)
-    | (BinIntOp(op1, d11, d21), BinIntOp(op2, d12, d22)) =>
-      op1 == op2 && fast_equal(d11, d12) && fast_equal(d21, d22)
+    | (BinIntOp(c1, op1, d11, d21), BinIntOp(c2, op2, d12, d22)) =>
+      op1 == op2 && fast_equal(d11, d12) && fast_equal(d21, d22) && c1 == c2
     | (BinFloatOp(op1, d11, d21), BinFloatOp(op2, d12, d22)) =>
       op1 == op2 && fast_equal(d11, d12) && fast_equal(d21, d22)
     | (BinStringOp(op1, d11, d21), BinStringOp(op2, d12, d22)) =>
@@ -353,103 +366,111 @@ module rec DHExp: {
     && i1 == i2;
   };
 
-  let rec has_arrow =
+  let rec ty_comparable: t => bool =
     fun
-    | Fun(_, _, _, _)
-    | BuiltinFun(_)
-    | FixF(_, _, _)
-    | TypFun(_, _, _) => true
-    | Constructor(_)
     | EmptyHole(_)
+    | NonEmptyHole(_)
     | FreeVar(_)
     | InvalidText(_)
+    | InconsistentBranches(_)
+    | Closure(_)
+    | Filter(_)
     | BoundVar(_)
+    | Sequence(_)
+    | Let(_)
+    | FixF(_)
+    | TypAp(_)
+    | ApBuiltin(_) // Note: True iif there is no builtin constructor
+    | Test(_)
+    | BinBoolOp(_)
+    | BinIntOp(_)
+    | BinFloatOp(_)
+    | BinStringOp(_)
+    | Cons(_)
+    | ListConcat(_)
+    | Prj(_)
+    | ConsistentCase(_)
+    | Cast(_)
+    | FailedCast(_)
+    | InvalidOperation(_)
+    | IfThenElse(_) => false
+    // Note: Fun, TypFun, BuiltinFun are not comparable but will be handled elsewhere
+    | Fun(_)
+    | TypFun(_)
+    | BuiltinFun(_)
     | BoolLit(_)
     | IntLit(_)
     | FloatLit(_)
     | StringLit(_)
-    | InvalidOperation(_) => false
-    | Closure(_, d)
-    | Cast(d, _, _)
-    | FailedCast(d, _, _)
-    | Prj(d, _)
-    | NonEmptyHole(_, _, _, d)
-    | Filter(_, d)
-    | TypAp(d, _)
-    | Test(_, d)
-    | ApBuiltin(_, d)
-    | Ap(_, d)
-    | ConsistentCase(Case(d, _, _))
-    | InconsistentBranches(_, _, Case(d, _, _)) => has_arrow(d)
-    | Tuple(ds)
-    | ListLit(_, _, _, ds) => ds |> List.exists(has_arrow)
-    | Cons(d1, d2)
-    | ListConcat(d1, d2)
-    | Sequence(d1, d2)
-    | Let(_, d1, d2)
-    | BinBoolOp(_, d1, d2)
-    | BinIntOp(_, d1, d2)
-    | BinFloatOp(_, d1, d2)
-    | BinStringOp(_, d1, d2) => has_arrow(d1) || has_arrow(d2)
-    | IfThenElse(_, d1, d2, d3) =>
-      has_arrow(d1) || has_arrow(d2) || has_arrow(d3);
+    // TODO: Check if this is correct
+    | Constructor(_) => true
+    | ListLit(_, _, _, tys)
+    | Tuple(tys) => tys |> List.for_all(ty_comparable)
+    // Note: Only Constructor Ap is comparable
+    | Ap(Constructor(_), ty2) => ty_comparable(ty2)
+    | Ap(_) => false;
 
-  let rec ty_equal = (d1: t, d2: t): bool =>
+  type poly_equal_result =
+    | Ok(bool)
+    | Inconsistent
+    | CompareArrow;
+
+  let rec poly_equal = (d1, d2) => {
+    // Note: Args go in this function should be checked by ty_comparable first
     switch (d1, d2) {
-    /* Primitive forms: regular structural equality */
-    | (BoundVar(_), BoundVar(_))
+    | (Fun(_), Fun(_))
+    | (TypFun(_), TypFun(_))
+    | (BuiltinFun(_), BuiltinFun(_)) => CompareArrow
     | (BoolLit(_), BoolLit(_))
     | (IntLit(_), IntLit(_))
     | (FloatLit(_), FloatLit(_))
     | (Constructor(_), Constructor(_))
-    | (StringLit(_), StringLit(_)) => true
-    /* Non-hole forms: recurse */
-    | (Ap(d11, d21), Ap(d12, d22)) =>
-      ty_equal(d11, d12) && ty_equal(d21, d22)
+    | (StringLit(_), StringLit(_)) => Ok(d1 == d2)
+    | (ListLit(_, _, _, ds1), ListLit(_, _, _, ds2))
     | (Tuple(ds1), Tuple(ds2)) =>
-      List.length(ds1) == List.length(ds2)
-      && List.for_all2(ty_equal, ds1, ds2)
-    | (ListLit(_, _, _, ds1), ListLit(_, _, _, ds2)) =>
-      List.length(ds1) == List.length(ds2)
-      && List.for_all2(ty_equal, ds1, ds2)
-    | (BoundVar(_), _)
-    | (BoolLit(_), _)
-    | (IntLit(_), _)
-    | (FloatLit(_), _)
-    | (Constructor(_), _)
-    | (StringLit(_), _)
-    | (Sequence(_), _)
-    | (Filter(_), _)
-    | (Let(_), _)
-    | (FixF(_), _)
-    | (Fun(_), _)
-    | (TypFun(_), _)
-    | (Test(_), _)
-    | (Ap(_), _)
-    | (TypAp(_), _)
-    | (ApBuiltin(_), _)
-    | (BuiltinFun(_), _)
-    | (Cons(_), _)
-    | (ListConcat(_), _)
-    | (ListLit(_), _)
-    | (Tuple(_), _)
-    | (Prj(_), _)
-    | (BinBoolOp(_), _)
-    | (BinIntOp(_), _)
-    | (BinFloatOp(_), _)
-    | (BinStringOp(_), _)
-    | (Cast(_), _)
-    | (FailedCast(_), _)
-    | (InvalidOperation(_), _)
-    | (IfThenElse(_), _)
-    | (ConsistentCase(_), _)
-    | (EmptyHole(_), _)
-    | (NonEmptyHole(_), _)
-    | (FreeVar(_), _)
-    | (InvalidText(_), _)
-    | (Closure(_), _)
-    | (InconsistentBranches(_), _) => false
+      // Note(zhiyao): Notice there is a possibility to create a list of
+      // different types without static/dynamic error (is it intended?), e.g.
+      // ```hazel
+      // let a : ? = 1. in
+      // [1, a]
+      // ```
+      // I wrote is function with the assumption that the list should have the
+      // same type, but please be aware of this.
+      let rec combine_min = (l1, l2) =>
+        switch (l1, l2) {
+        | ([], _)
+        | (_, []) => []
+        | ([x, ...xs], [y, ...ys]) => [(x, y), ...combine_min(xs, ys)]
+        };
+      let merge_res = (r1, r2): poly_equal_result =>
+        switch (r1, r2) {
+        | (Ok(b1), Ok(b2)) => Ok(b1 && b2)
+        | (Inconsistent, _)
+        | (_, Inconsistent) => Inconsistent
+        | (CompareArrow, _)
+        | (_, CompareArrow) => CompareArrow
+        };
+      List.fold_left(
+        (acc, (d1, d2)) => merge_res(acc, poly_equal(d1, d2)),
+        Ok(List.length(ds1) == List.length(ds2)),
+        combine_min(ds1, ds2),
+      );
+    // Note(zhiyao): constructor type in dynamic may eval to different DHExp.t
+    // Cannot check if they come from the same sum type
+    | (Ap(Constructor(_), _), Constructor(_))
+    | (Constructor(_), Ap(Constructor(_), _)) => Ok(false)
+    | (Ap(Constructor(c1), d1), Ap(Constructor(c2), d2)) =>
+      // Note(zhiyao): there is no way to know if a sum type contains a
+      // arrow branch in dynamic, because hazel constructor is type alias.
+      if (String.equal(c1, c2)) {
+        poly_equal(d1, d2);
+      } else {
+        Ok(false);
+      }
+
+    | _ => Inconsistent
     };
+  };
 
   let assign_name_if_none = (t, name) =>
     switch (t) {
@@ -486,7 +507,7 @@ module rec DHExp: {
     | Ap(t1, t2) => Ap(re(t1), re(t2))
     | ApBuiltin(s, args) => ApBuiltin(s, re(args))
     | BinBoolOp(op, t1, t2) => BinBoolOp(op, re(t1), re(t2))
-    | BinIntOp(op, t1, t2) => BinIntOp(op, re(t1), re(t2))
+    | BinIntOp(c, op, t1, t2) => BinIntOp(c, op, re(t1), re(t2))
     | BinFloatOp(op, t1, t2) => BinFloatOp(op, re(t1), re(t2))
     | BinStringOp(op, t1, t2) => BinStringOp(op, re(t1), re(t2))
     | Cons(t1, t2) => Cons(re(t1), re(t2))
