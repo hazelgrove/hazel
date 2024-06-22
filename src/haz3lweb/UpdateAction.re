@@ -54,12 +54,7 @@ type set_meta =
 type benchmark_action =
   | Start
   | Finish;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type titleAction =
-  | Start
-  | Finish(string);
-
+  
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   /* meta */
@@ -95,7 +90,7 @@ type t =
   | ToggleStepper(ModelResults.Key.t)
   | StepperAction(ModelResults.Key.t, stepper_action)
   | UpdateResult(ModelResults.t)
-  | UpdateTitle(titleAction);
+  | UpdateTitle(string);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]

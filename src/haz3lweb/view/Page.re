@@ -12,11 +12,12 @@ let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit), model) => {
     Effect.(
       switch (Keyboard.handle_key_event(Key.mk(dir, evt))) {
       | None => Ignore
-      | Some(action) => Many([Prevent_default, inject(action)])
+      | Some(action) =>
+        Many([/* Prevent_default, Stop_propagation, */ inject(action)])
       }
     );
   [
-    Attr.on_keypress(_ => Effect.Prevent_default),
+    // Attr.on_keypress(_ => Effect.Prevent_default),
     Attr.on_keyup(key_handler(~inject, ~dir=KeyUp)),
     Attr.on_keydown(key_handler(~inject, ~dir=KeyDown)),
     /* safety handler in case mousedown overlay doesn't catch it */

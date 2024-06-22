@@ -517,12 +517,7 @@ let rec apply =
         ModelResults.union((_, _a, b) => Some(b), model.results, results);
       Ok({...model, results});
     | UpdateTitle(_) =>
-      /* let new_title =
-         switch (action) {
-           | Start => "old title"
-           | Finish(updated_title) => updated_title
-         } */
-      Ok(model)
+      Ok({...model, editors: Exercises.})
     };
   m |> Result.map(~f=update_cached_data(~schedule_action, update));
 };

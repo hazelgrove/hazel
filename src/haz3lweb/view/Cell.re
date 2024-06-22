@@ -332,44 +332,27 @@ let panel = (~classes=[], content, ~footer: option(t)) => {
   );
 };
 
-type title_model = {
-  title: string,
-  editing: bool,
-};
-
-let title_cell = (~inject: UpdateAction.t => 'a, ~model: title_model) => {
-  let handle_double_click = _ => {
-    // Change display from div block to text-box
-    //Virtual_dom.Vdom.Effect.()
-    inject(
-      UpdateTitle(Start),
-    );
-  };
+let title_cell = (~inject: UpdateAction.t => 'a, ~title: string, ~flag: bool) => {
   let handle_input = (_, new_title) => {
-    //Virtual_dom.Vdom.Effect.()
-    inject(UpdateTitle(Finish(new_title)));
+    inject(UpdateTitle(new_title));
   };
   simple_cell_view([
     div(
       ~attr=Attr.class_("title-cell"),
       [
-        model.editing
+        flag
           ? input(
               ~attr=
                 Attr.many([
                   Attr.class_("title-text"),
-                  Attr.value(model.title),
+                  Attr.value(title),
                   Attr.on_input(handle_input),
                 ]),
               [],
             )
           : div(
-              ~attr=
-                Attr.many([
-                  Attr.class_("title-text"),
-                  Attr.on_double_click(handle_double_click),
-                ]),
-              [text(model.title)],
+              ~attr=Attr.class_("title-text"),
+              [text(title)],
             ),
       ],
     ),
