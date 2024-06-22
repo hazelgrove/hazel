@@ -74,8 +74,12 @@ let view =
     );
   };
 
-  let init_model: Cell.title_model = {title: eds.title, editing: true};
-  let title_view = Cell.title_cell(~inject, ~model=init_model);
+  let title_view =
+    Cell.title_cell(
+      ~inject,
+      ~title=eds.title,
+      ~flag=settings.instructor_mode,
+    );
 
   let prompt_view =
     Cell.narrative_cell(
