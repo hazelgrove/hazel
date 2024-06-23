@@ -10,7 +10,7 @@ let view = (~inject: Projector.action(_) => Ui_effect.t(unit), syntax) =>
           Attr.on_input((_, _) =>
             inject(UpdateSyntax(CheckboxCore.toggle))
           ),
-          JsUtil.stop_mousedown_propagation,
+          //JsUtil.stop_mousedown_propagation,
         ]
         @ (CheckboxCore.get(syntax) ? [Attr.checked] : []),
       ),

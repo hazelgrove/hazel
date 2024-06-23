@@ -13,6 +13,7 @@ let to_module = (p: projector): projector_core =>
   | Infer(model) => InferCore.mk(model)
   | Checkbox(model) => CheckboxCore.mk(model)
   | Slider(model) => SliderCore.mk(model)
+  | TextArea(model) => TextAreaCore.mk(model)
   };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -23,7 +24,27 @@ type kind =
   | Fold
   | Infer
   | Checkbox
-  | Slider;
+  | Slider
+  | TextArea;
+
+let name_ = (p: kind): string =>
+  switch (p) {
+  | Fold => "fold"
+  | Infer => "type"
+  | Checkbox => "check"
+  | Slider => "slide"
+  | TextArea => "text"
+  };
+
+let of_name = (p: string): kind =>
+  switch (p) {
+  | "fold" => Fold
+  | "type" => Infer
+  | "check" => Checkbox
+  | "slide" => Slider
+  | "text" => TextArea
+  | _ => failwith("Unknown projector kind")
+  };
 
 /* The kind of syntax data to which projection can apply */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -31,17 +52,23 @@ type syntax = Piece.t;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action('action) =
+  | Default // Defer to focal DOM element
   | Remove
+  | Focus
   | UpdateSyntax(syntax => syntax)
-  | UpdateModel('action);
+  | UpdateModel('action)
+  | Seq(action('action), action('action));
 
-let name = (p: t): string =>
+let kind = (p: t): kind =>
   switch (p) {
-  | Fold(_) => "fold"
-  | Infer(_) => "infer"
-  | Checkbox(_) => "checkbox"
-  | Slider(_) => "slider"
+  | Fold(_) => Fold
+  | Infer(_) => Infer
+  | Checkbox(_) => Checkbox
+  | Slider(_) => Slider
+  | TextArea(_) => TextArea
   };
+
+let name = (p: t): string => p |> kind |> name_;
 
 let shape = (p: t): shape => {
   let (module P) = to_module(p);
@@ -71,6 +98,7 @@ let init = (f: kind): projector_core =>
   | Infer => InferCore.mk({expected_ty: None})
   | Checkbox => CheckboxCore.mk()
   | Slider => SliderCore.mk({value: 10})
+  | TextArea => TextAreaCore.mk({value: "TODO(andrew)"})
   };
 
 let create =

@@ -17,19 +17,27 @@ let set = (id: Id.t, p: option(t), z: ZipperBase.t) => {
   projectors: Map.update(id, _ => p, z.projectors),
 };
 
+let add = (id: Id.t, z: Zipper.t, info_map, p, piece, d, rel) =>
+  switch (Projector.create(p, piece, id, info_map)) {
+  | None => Error(Action.Failure.Cant_project)
+  | opt_p => Ok(set(id, opt_p, z) |> move_out_of_piece(d, rel))
+  };
+
 let add_or_remove = (id: Id.t, z: Zipper.t, info_map, p, piece, d, rel) =>
   switch (Map.mem(id, z.projectors)) {
-  | false =>
-    switch (Projector.create(p, piece, id, info_map)) {
-    | None => Error(Action.Failure.Cant_project)
-    | opt_p => Ok(set(id, opt_p, z) |> move_out_of_piece(d, rel))
-    }
+  | false => add(id, z, info_map, p, piece, d, rel)
   | true => Ok(set(id, None, z))
   };
 
 let go = (a: Action.project, info_map: Statics.Map.t, z: ZipperBase.t) =>
   //TODO(andrew): avoid bringing statics in here?
   switch (a) {
+  | SetIndicated(p) =>
+    switch (Indicated.for_index(z)) {
+    | None => Error(Action.Failure.Cant_project)
+    | Some((piece, d, rel)) =>
+      add(Piece.id(piece), z, info_map, p, piece, d, rel)
+    }
   | ToggleIndicated(p) =>
     switch (Indicated.for_index(z)) {
     | None => Error(Action.Failure.Cant_project)

@@ -13,18 +13,42 @@ let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit), model: Model.t) =>
     let key = Key.mk(dir, evt);
     let editor = Editors.get_editor(model.editors);
     switch (ProjectorsView.key_handler(editor, ~inject, key)) {
+    | Some(PerformAction(Project(Remove(id)))) when id == Id.invalid =>
+      //TODO(andrew): cleanup
+      Ignore
     | Some(action) =>
-      Many([Prevent_default, Stop_propagation, inject(action)])
+      Many([
+        Prevent_default,
+        // Stop_propagation,
+        inject(action),
+      ])
     | None =>
       switch (Keyboard.handle_key_event(key)) {
       | None => Ignore
       | Some(action) =>
-        Many([Prevent_default, Stop_propagation, inject(action)])
+        Many([
+          Prevent_default,
+          // Stop_propagation,
+          inject(action),
+        ])
       }
     };
   };
+  let keypress_handler =
+      (~inject, ~dir: Key.dir, evt: Js.t(Dom_html.keyboardEvent))
+      : Effect.t(unit) => {
+    open Effect; //TODO(andrew): cleanup
+
+    let key = Key.mk(dir, evt);
+    let editor = Editors.get_editor(model.editors);
+    switch (ProjectorsView.key_handler(editor, ~inject, key)) {
+    | Some(PerformAction(Project(Remove(id)))) when id == Id.invalid =>
+      Ignore
+    | _ => Effect.Prevent_default
+    };
+  };
   [
-    Attr.on_keypress(_ => Effect.Prevent_default),
+    Attr.on_keypress(keypress_handler(~inject, ~dir=KeyDown)),
     Attr.on_keyup(key_handler(~inject, ~dir=KeyUp)),
     Attr.on_keydown(key_handler(~inject, ~dir=KeyDown)),
     /* safety handler in case mousedown overlay doesn't catch it */

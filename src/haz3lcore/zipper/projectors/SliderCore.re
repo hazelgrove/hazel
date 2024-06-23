@@ -6,6 +6,15 @@ let serialize = a =>
 let deserialize = a =>
   a |> Sexplib.Sexp.of_string |> ZipperBase.slider_action_of_sexp;
 
+let of_mono = (syntax: Piece.t): option(string) =>
+  switch (syntax) {
+  | Tile({label: [l], _}) => Some(l)
+  | _ => None
+  };
+
+let state_of = (piece: Piece.t): option(int) =>
+  piece |> of_mono |> Option.map(int_of_string);
+
 let mk = (model): projector_core =>
   (module
    {
@@ -15,7 +24,7 @@ let mk = (model): projector_core =>
      type action = ZipperBase.slider_action;
      let model = model;
      let projector = Slider(model);
-     let can_project = _ => true;
+     let can_project = p => state_of(p) != None;
      let placeholder = () => Inline(10);
      let auto_update = _: projector => Slider(model);
      let update = (action: string) =>
