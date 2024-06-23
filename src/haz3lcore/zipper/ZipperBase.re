@@ -10,6 +10,8 @@ type infer = {expected_ty: option(Typ.t)};
 type checkbox = unit;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type slider = {value: int};
+[@deriving (show({with_path: false}), sexp, yojson)]
+type textarea = {value: string};
 
 /* Projector action types */
 
@@ -22,6 +24,8 @@ type checkbox_action = unit;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type slider_action =
   | Set(int);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type textarea_action = unit;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type shape =
@@ -33,7 +37,8 @@ type projector =
   | Fold(fold)
   | Infer(infer)
   | Checkbox(checkbox)
-  | Slider(slider);
+  | Slider(slider)
+  | TextArea(textarea);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 module ProjectorMap = {

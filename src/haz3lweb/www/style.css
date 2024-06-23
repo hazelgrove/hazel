@@ -709,39 +709,46 @@ select {
   color: black;
 }
 .projector.fold .projector-wrapper {
- cursor: pointer;
-} 
+  cursor: pointer;
+}
 
 /* PROJECTOR: INFER */
 
-.projector.infer {
+.projector.type {
   opacity: 0.5;
   color: var(--typ-text-color);
 }
-.projector.infer:hover {
+.projector.type:hover {
   opacity: 1;
 }
-.projector.infer > svg {
+.projector.type > svg {
   fill: var(--typ-bg-off-color);
 }
-.projector.infer .projector-wrapper div {
+.projector.type .projector-wrapper div {
   cursor: pointer;
 }
 
 /* PROJECTOR: CHECKBOX */
 
-.projector.checkbox input {
+.projector.check input {
   margin: 0;
   filter: sepia(1);
   cursor: pointer;
 }
 
+/* PROJECTOR: TEXTAREA */
+
+.projector.text textarea {
+  filter: sepia(1);
+  caret-color: red;
+}
+
 /* PROJECTOR: SLIDER */
 
-.projector.slider .projector-wrapper {
+.projector.slide .projector-wrapper {
   width: 95%;
 }
-.projector.slider input {
+.projector.slide input {
   margin: 0;
   width: 100%;
   filter: sepia(1);
@@ -1545,14 +1552,52 @@ svg.tile-selected {
   mix-blend-mode: luminosity;
 }
 
-#bottom-bar .id {
+#bottom-bar #projectors {
   display: flex;
-  gap: 1em;
+  gap: 1.3em;
   font-size: 0.6em;
   align-items: center;
-  padding-left: 1em;
+  padding-left: 1.3em;
   padding-right: 1em;
   white-space: nowrap;
+  border-radius: 2em 0 0 0;
+  outline: 0.3px solid #ada187;
+  background-color: #ffde88;
+}
+
+#bottom-bar #projectors img {
+  width: 1.4em;
+}
+
+#bottom-bar #projectors select {
+  background: none;
+  border: none;
+  font-size: 1.2em;
+  color: #807350;
+  padding: 0;
+  text-transform: capitalize;
+  width: 4.5em;
+}
+
+#bottom-bar #projectors option {
+  font-size: 1em;
+  color: #807350;
+  
+}
+
+#bottom-bar #projectors .toggle-switch {
+  height: 2em;
+  width: 3.5em;
+  display: flex;
+  align-items: center;
+}
+
+#bottom-bar #projectors .toggle-knob {
+  width: 2em;
+  height: 90%;
+}
+#bottom-bar #projectors .toggle-switch.active .toggle-knob {
+  margin-left: 1.3em;
 }
 
 .bottom-bar .id-and-class .syntax-class {
@@ -2426,11 +2471,11 @@ svg.expandable path {
   margin-bottom: 1em;
 }
 
-.slide {
+/* .slide {
   margin-bottom: 2em;
   min-width: 7.5in;
   width: 7.5in;
-}
+} */
 
 .slide h1 {
   margin-top: 0;
