@@ -292,11 +292,18 @@ let uni_lines =
       ];
     } else if (r.row > m_last.last.row) {
       let min_col =
-        Measured.Rows.min_col(
-          ListUtil.range(~lo=m_last.last.row, r.row + 1),
-          rows,
-        )
-        |> min(m_last.last.col);
+        try(
+          Measured.Rows.min_col(
+            ListUtil.range(~lo=m_last.last.row, r.row + 1),
+            rows,
+          )
+          |> min(m_last.last.col)
+        ) {
+        | _ =>
+          //this crashes when manuvering in the presence of multiline tokens
+          print_endline("TODO(andrew)");
+          0;
+        };
       // let r_indent = Measured.Rows.find(r.row, rows).indent;
       let (_, m_flast) = {
         let shard_rows = Measured.Shards.split_by_row(shards);
