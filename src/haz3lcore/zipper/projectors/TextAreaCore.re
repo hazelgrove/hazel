@@ -1,13 +1,23 @@
 open ZipperBase;
 
+/* Function to escape linebreaks */
+let escape_linebreaks = (str: string): string => {
+  Re.Str.global_replace(Re.Str.regexp("\n"), "\\n", str);
+};
+
+/* Function to unescape linebreaks */
+let unescape_linebreaks = (str: string): string => {
+  Re.Str.global_replace(Re.Str.regexp("\\\\n"), "\n", str);
+};
+
 let of_mono = (syntax: Piece.t): option(string) =>
   switch (syntax) {
-  | Tile({label: [l], _}) => Some(l)
+  | Tile({label: [l], _}) => Some(unescape_linebreaks(l))
   | _ => None
   };
 
 let mk_mono = (sort: Sort.t, string: string): Piece.t =>
-  string |> Form.mk_atomic(sort) |> Piece.mk_tile(_, []);
+  string |> escape_linebreaks |> Form.mk_atomic(sort) |> Piece.mk_tile(_, []);
 
 let state_of = (piece: Piece.t): option(string) => piece |> of_mono;
 
