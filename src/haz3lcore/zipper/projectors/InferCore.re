@@ -12,6 +12,9 @@ let expected_ty = (info: option(Info.t)) =>
   | _ => Unknown(Internal)
   };
 
+let display = expected_ty =>
+  "⋱ ⇐ " ++ (expected_ty |> display_ty |> Typ.pretty_print);
+
 let mk = (model: infer): projector_core =>
   (module
    {
@@ -28,10 +31,8 @@ let mk = (model: infer): projector_core =>
        | _ => false
        };
 
-     let len =
-       display_ty(model.expected_ty) |> Typ.pretty_print |> String.length;
-
-     let placeholder = () => Inline(3 + len);
+     let placeholder = () =>
+       Inline((model.expected_ty |> display |> String.length) - 2);
 
      let auto_update = ({info, _}): projector => {
        print_endline("updating infer projector");
