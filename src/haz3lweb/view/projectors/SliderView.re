@@ -17,7 +17,7 @@ let view = (~inject: Projector.action(_) => Ui_effect.t(unit), value: int) =>
     [],
   );
 
-let keymap = (key: Key.t): option(Projector.action(string)) =>
+let keymap = (_, key: Key.t): option(Projector.action(string)) =>
   switch (key) {
   | {key: D("Escape"), _} => Some(Remove)
   | _ => None

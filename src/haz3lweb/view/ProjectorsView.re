@@ -69,7 +69,7 @@ let wrap =
   div(
     ~attr=
       Attr.many([
-        JsUtil.stop_mousedown_propagation,
+        // JsUtil.stop_mousedown_propagation,
         Attr.classes(["projector", Projector.name(p)] @ clss),
         DecUtil.abs_style(measurement, ~font_metrics),
       ]),
@@ -77,6 +77,7 @@ let wrap =
       div(
         ~attr=
           Attr.many([
+            JsUtil.stop_mousedown_propagation,
             Attr.classes(["projector-wrapper"] @ clss),
             // Attr.on_mousedown(_ => {
             //   print_endline("WRAPPPER");
@@ -160,7 +161,8 @@ let key_handler =
   | Some((id, p)) =>
     let* syntax = Id.Map.find_opt(id, editor.state.meta.projected.syntax_map);
     let (module PV) = to_module(id, syntax, p, ~inject);
-    let+ action = PV.keymap(key);
+    let* (_, d, _) = Indicated.piece(editor.state.zipper);
+    let+ action = PV.keymap(d, key);
     handle(id, action);
   };
 

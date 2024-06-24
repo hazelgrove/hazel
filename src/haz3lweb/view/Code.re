@@ -7,7 +7,7 @@ open Util.Web;
 let of_delim' =
   Core.Memo.general(
     ~cache_size_bound=10000,
-    ((label, is_in_buffer, sort, is_consistent, is_complete, i)) => {
+    ((label, is_in_buffer, sort, is_consistent, is_complete, indent, i)) => {
       let cls =
         switch (label) {
         | _ when is_in_buffer => "in-buffer"
@@ -19,23 +19,30 @@ let of_delim' =
         };
       let plurality = List.length(label) == 1 ? "mono" : "poly";
       let label = is_in_buffer ? AssistantExpander.mark(label) : label;
+      let token = List.nth(label, i);
+      /* Add indent to multiline tokens: */
+      let token =
+        StringUtil.num_linebreaks(token) == 0
+          ? token : token ++ StringUtil.repeat(indent, Unicode.nbsp);
       [
         span(
           ~attr=
             Attr.classes(["token", cls, Sort.to_string(sort), plurality]),
-          [Node.text(List.nth(label, i))],
+          [Node.text(token)],
         ),
       ];
     },
   );
 let of_delim =
-    (is_in_buffer, is_consistent, t: Piece.tile, i: int): list(Node.t) =>
+    (is_in_buffer, is_consistent, indent, t: Piece.tile, i: int)
+    : list(Node.t) =>
   of_delim'((
     t.label,
     is_in_buffer,
     t.mold.out,
     is_consistent,
     Tile.is_complete(t),
+    indent,
     i,
   ));
 
@@ -105,7 +112,9 @@ module Text = (M: {
     let is_consistent = Sort.consistent(t.mold.out, expected_sort);
     let is_in_buffer = List.mem(t.id, buffer_ids);
     Aba.mk(t.shards, children_and_sorts)
-    |> Aba.join(of_delim(is_in_buffer, is_consistent, t), ((seg, sort)) =>
+    |> Aba.join(
+         of_delim(is_in_buffer, is_consistent, m(Tile(t)).origin.col, t),
+         ((seg, sort)) =>
          of_segment(buffer_ids, false, sort, seg)
        )
     |> List.concat;

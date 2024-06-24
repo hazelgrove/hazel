@@ -30,7 +30,7 @@ type textarea_action = unit;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type shape =
   | Inline(int)
-  | Block(int);
+  | Block(Measured.Point.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type projector =

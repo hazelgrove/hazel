@@ -81,7 +81,9 @@ let placeholder = (p: t, id: Id.t): syntax =>
     label:
       switch (shape(p)) {
       | Inline(width) => [String.make(width, ' ')]
-      | Block(height) => [String.make(height, '\n')]
+      | Block({row, col}) => [
+          String.make(row, '\n') ++ String.make(col, ' '),
+        ]
       },
     mold: Mold.mk_op(Any, []),
     shards: [0],

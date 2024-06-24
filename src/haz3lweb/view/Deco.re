@@ -303,6 +303,7 @@ module Deco =
   let indication_deco = (~inject, z: Zipper.t) =>
     switch (Indicated.index(z)) {
     | Some(id) =>
+      //TODO(andrew): do this in a way that doesn't duplicate the view
       switch (
         ProjectorsView.indication_view(
           id,

@@ -738,9 +738,40 @@ select {
 
 /* PROJECTOR: TEXTAREA */
 
+.projector.text {
+  display: flex;
+  justify-content: left;
+  align-items: start;
+}
+
+.projector.text .projector-wrapper {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  justify-content: start;
+  align-items: start;
+}
+
 .projector.text textarea {
-  filter: sepia(1);
+  /* filter: sepia(1); */
+  height: 100%;
+  width: 100%;
   caret-color: red;
+  padding: 0;
+  line-height: var(--line-height);
+  font-family: "Source Code Pro", monospace;
+  font-size: inherit;
+  border: none;
+  border-radius: 0.1em;
+  outline: 1px solid #a69460;
+  background-color: #f0e7d6;
+  color: #8c7e62;
+  
+}
+
+.projector.text textarea::selection {
+  color: black;
+  background-color: var(--selection-color);
 }
 
 /* PROJECTOR: SLIDER */
