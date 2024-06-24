@@ -25,6 +25,7 @@ type settings_action =
   | Benchmark
   | ContextInspector
   | InstructorMode
+  | EditingTitle
   | Evaluation(evaluation_settings_action)
   | ExplainThis(ExplainThisModel.Settings.action)
   | Mode(Settings.mode);
@@ -54,7 +55,13 @@ type set_meta =
 type benchmark_action =
   | Start
   | Finish;
-  
+
+// To-do: Use this to update either title or model
+[@deriving (show({with_path: false}), sexp, yojson)]
+type edit_action =
+  | Title
+  | Model;
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   /* meta */
@@ -127,6 +134,7 @@ let is_edit: t => bool =
     | Benchmark
     | ContextInspector
     | InstructorMode
+    | EditingTitle
     | Evaluation(_) => false
     }
   | SetMeta(meta_action) =>
@@ -149,9 +157,9 @@ let is_edit: t => bool =
   | FinishImportScratchpad(_)
   | ResetCurrentEditor
   | Assistant(AcceptSuggestion)
+  | UpdateTitle(_)
   | Reset => true
   | UpdateResult(_)
-  | UpdateTitle(_)
   | SwitchEditor(_)
   | ExportPersistentData
   | Save
@@ -188,6 +196,7 @@ let reevaluate_post_update: t => bool =
     | Elaborate
     | Dynamics
     | InstructorMode
+    | EditingTitle
     | Mode(_) => true
     }
   | SetMeta(meta_action) =>
@@ -198,6 +207,7 @@ let reevaluate_post_update: t => bool =
     | FontMetrics(_) => false
     }
   | Assistant(AcceptSuggestion) => true
+  | UpdateTitle(_)
   | Assistant(Prompt(_)) => false
   | MoveToNextHole(_)
   | Save
@@ -207,7 +217,6 @@ let reevaluate_post_update: t => bool =
   | UpdateExplainThisModel(_)
   | ExportPersistentData
   | UpdateResult(_)
-  | UpdateTitle(_)
   | SwitchEditor(_)
   | DebugConsole(_)
   | TAB
@@ -241,6 +250,7 @@ let should_scroll_to_caret =
     | Benchmark
     | ContextInspector
     | InstructorMode
+    | EditingTitle
     | Evaluation(_) => false
     }
   | SetMeta(meta_action) =>
@@ -252,8 +262,8 @@ let should_scroll_to_caret =
     }
   | Assistant(Prompt(_))
   | UpdateResult(_)
-  | UpdateTitle(_)
   | ToggleStepper(_)
+  | UpdateTitle(_)
   | StepperAction(_, StepBackward | StepForward(_)) => false
   | Assistant(AcceptSuggestion) => true
   | FinishImportScratchpad(_)
