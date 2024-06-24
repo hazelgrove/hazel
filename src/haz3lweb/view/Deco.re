@@ -76,11 +76,15 @@ module Deco =
     let tile_shards =
       Measured.find_shards(~msg="sel_of_tile", t, M.map)
       |> List.filter(((i, _)) => List.mem(i, t.shards))
-      |> List.map(((index, measurement)) =>
+      |> List.map(((index, measurement)) => {
+           let token = List.nth(t.label, index);
+           // Adjustment for multi-line tokens e.g. projector placeholders
+           let num_lb = StringUtil.num_linebreaks(token);
            [
              Some(sel_shard_svg(~start_shape, ~index, measurement, Tile(t))),
            ]
-         );
+           @ List.init(num_lb, _ => None);
+         });
     let shape_at = index => snd(Mold.nibs(~index, t.mold)).shape;
     let children_shards =
       t.children |> List.mapi(index => sel_of_segment(shape_at(index)));

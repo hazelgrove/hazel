@@ -79,8 +79,6 @@ module Make = (M: Editor.Meta.S) => {
        (select an open parens to left of a multichar token and press left) */
     | _ when z.selection.content != [] => pop_move(d, z)
     /* Need this case to avoid moving sub-caret onto projectors: */
-    // | (Right, _, _) when Projector.Move.go(d, z) != None =>
-    //   Zipper.move(d, z)
     | (_, Outer, _) when Projector.Move.go(d, z) != None =>
       Zipper.move(d, z)
     | (Left, Outer, (CanEnter(dlm, c_max), _)) =>
@@ -122,20 +120,20 @@ module Make = (M: Editor.Meta.S) => {
         ? Direction.Left : Right;
     let rec go = (prev: t, curr: t) => {
       let curr_p = caret_point(curr);
-      let prev_p = caret_point(prev);
       switch (
         Measured.Point.dcomp(d, curr_p.col, goal.col),
         Measured.Point.dcomp(d, curr_p.row, goal.row),
       ) {
       | (Exact, Exact) => curr
       //TODO(andrew): document
-      //| (_, Over) when init != caret_point(prev) => curr
+      //TODO(andrew): pick new goal to get right col
+      //| (_, Over) => prev
       | (_, Over) =>
+        let prev_p = caret_point(prev);
         switch (Measured.Point.dcomp(d, prev_p.row, goal.row)) {
         | Under => curr
         | _ => prev
-        }
-      //| (_, Over) => prev
+        };
       | (_, Under)
       | (Under, Exact) =>
         switch (f(d, curr)) {
