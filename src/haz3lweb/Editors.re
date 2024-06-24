@@ -128,6 +128,22 @@ let set_instructor_mode = (editors: t, instructor_mode: bool): t =>
     )
   };
 
+let update_exercise_title =
+    (editors: t, new_title: string, instructor_mode: bool): t =>
+  switch (editors) {
+  | Scratch(_)
+  | Documentation(_) => editors
+  | Exercises(n, specs, _) =>
+    Exercises(
+      n,
+      specs,
+      Exercise.state_of_spec(
+        {...List.nth(specs, n), title: new_title},
+        ~instructor_mode,
+      ),
+    )
+  };
+
 let reset_nth_slide = (n, slides) => {
   let (_, init_editors, _) = Init.startup.scratch;
   let data = List.nth(init_editors, n);

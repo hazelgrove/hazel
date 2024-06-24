@@ -332,33 +332,6 @@ let panel = (~classes=[], content, ~footer: option(t)) => {
   );
 };
 
-let title_cell = (~inject: UpdateAction.t => 'a, ~title: string, ~flag: bool) => {
-  let handle_input = (_, new_title) => {
-    inject(UpdateTitle(new_title));
-  };
-  simple_cell_view([
-    div(
-      ~attr=Attr.class_("title-cell"),
-      [
-        flag
-          ? input(
-              ~attr=
-                Attr.many([
-                  Attr.class_("title-text"),
-                  Attr.value(title),
-                  Attr.on_input(handle_input),
-                ]),
-              [],
-            )
-          : div(
-              ~attr=Attr.class_("title-text"),
-              [text(title)],
-            ),
-      ],
-    ),
-  ]);
-};
-
 /* An editor view that is not selectable or editable,
  * and does not show error holes or test results.
  * Used in Docs to display the header example */

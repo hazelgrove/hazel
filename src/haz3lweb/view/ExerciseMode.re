@@ -74,12 +74,50 @@ let view =
     );
   };
 
-  let title_view =
-    Cell.title_cell(
-      ~inject,
-      ~title=eds.title,
-      ~flag=settings.instructor_mode,
-    );
+  let title_view = {
+    Cell.simple_cell_view([
+      div(
+        ~attr=Attr.class_("title-cell"),
+        [
+          settings.instructor_mode
+            ? settings.editing_title
+                ? input(
+                    ~attr=
+                      Attr.many([
+                        Attr.class_("title-text"),
+                        Attr.value(eds.title),
+                        Attr.id("title-input"),
+                        Attr.on_keydown(evt =>
+                          if (evt##.keyCode === 13) {
+                            let new_title = Obj.magic(evt##.target)##.value;
+                            let update_events = [
+                              inject(Set(EditingTitle)),
+                              inject(UpdateTitle(new_title)),
+                            ];
+                            Virtual_dom.Vdom.Effect.Many(update_events);
+                          } else {
+                            // This is placeholder until I figure out how to "do nothing"
+                            inject(
+                              FinishImportAll(None),
+                            );
+                          }
+                        ),
+                      ]),
+                    [],
+                  )
+                : div(
+                    ~attr=
+                      Attr.many([
+                        Attr.class_("title-text"),
+                        Attr.on_double_click(_ => inject(Set(EditingTitle))),
+                      ]),
+                    [text(eds.title)],
+                  )
+            : div(~attr=Attr.class_("title-text"), [text(eds.title)]),
+        ],
+      ),
+    ]);
+  };
 
   let prompt_view =
     Cell.narrative_cell(
