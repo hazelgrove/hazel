@@ -23,7 +23,6 @@ type t = {
   context_inspector: bool,
   instructor_mode: bool,
   editing_title: bool,
-  // editing_module: bool,
   benchmark: bool,
   explainThis: ExplainThisModel.Settings.t,
   mode,

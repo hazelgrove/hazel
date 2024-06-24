@@ -146,7 +146,7 @@ let update_exercise_title =
       n,
       specs,
       Exercise.state_of_spec(
-        {...List.nth(specs, n), title: new_title},
+        {...List.nth(specs, n), title: new_title, module_name: new_title},
         ~instructor_mode,
       ),
     )
