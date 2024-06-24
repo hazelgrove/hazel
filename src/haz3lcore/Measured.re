@@ -282,24 +282,6 @@ let is_indented_map = (seg: Segment.t) => {
   go(seg);
 };
 
-let num_linebreaks = (str: string) => {
-  let rec go = (~count=0, str: string) =>
-    if (str == "") {
-      count;
-    } else {
-      let (c, rest) = (
-        String.sub(str, 0, 1),
-        String.sub(str, 1, String.length(str) - 1),
-      );
-      if (c == "\n") {
-        go(~count=count + 1, rest);
-      } else {
-        go(~count, rest);
-      };
-    };
-  go(str);
-};
-
 let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
   let is_indented = is_indented_map(seg);
 
@@ -394,9 +376,9 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
             (contained_indent, last, map);
           | Tile(t) =>
             let add_shard = (origin, shard, map) => {
-              let token = List.nth(t.label, shard);
               //TODO(andrew): properize or document
-              let num_lb = num_linebreaks(token);
+              let token = List.nth(t.label, shard);
+              let num_lb = StringUtil.num_linebreaks(token);
               let last =
                 num_lb == 0
                   ? Point.{
