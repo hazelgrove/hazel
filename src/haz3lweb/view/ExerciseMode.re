@@ -106,12 +106,13 @@ let view =
                     [],
                   )
                 : div(
-                    ~attr=
-                      Attr.many([
-                        Attr.class_("title-text"),
-                        Attr.on_double_click(_ => inject(Set(EditingTitle))),
-                      ]),
-                    [text(eds.title)],
+                    ~attr=Attr.many([Attr.class_("title-text")]),
+                    [
+                      text(eds.title),
+                      Widgets.button(Icons.pencil, _ =>
+                        inject(Set(EditingTitle))
+                      ),
+                    ],
                   )
             : div(~attr=Attr.class_("title-text"), [text(eds.title)]),
         ],

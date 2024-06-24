@@ -255,14 +255,6 @@ let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
     Ok(model);
   };
 
-/*
- let update_title =
-     (model: Cell.title_model, start: bool): Result.t(Cell.title_model) => {
-   let model = start ? {...model, editing: true} : {...model, editing: false};
-   Ok(model);
- };
- */
-
 let switch_scratch_slide =
     (editors: Editors.t, ~instructor_mode, idx: int): option(Editors.t) =>
   switch (editors) {
