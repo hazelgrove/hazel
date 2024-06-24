@@ -6,8 +6,9 @@ let view =
   Node.textarea(
     ~attr=
       Attr.many([
-        Attr.create("rows", "4"),
-        Attr.create("cols", "30"),
+        //TODO(andrew): fudge factors below
+        // Attr.create("rows", "4"),
+        // Attr.create("cols", "21"),
         Attr.on_mousedown(_ => inject(Focus)),
         Attr.on_input((_evt, new_val) =>
           inject(
@@ -20,8 +21,14 @@ let view =
     [Node.text(value)],
   );
 
-let keymap = (key: Key.t): option(Projector.action(string)) =>
-  switch (key) {
+let keymap = (_direction, key: Key.t): option(Projector.action(string)) =>
+  switch (key.key) {
+  | D(
+      "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown" | "Enter" |
+      "Backspace" |
+      " ",
+    ) =>
+    None
   | _ => Some(Default)
   };
 

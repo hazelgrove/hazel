@@ -39,7 +39,8 @@ let mk = (model): projector_core =>
      let model = model;
      let projector = TextArea(model);
      let can_project = _ => true;
-     let placeholder = () => Block(4);
+     //TODO(andrew): fudge factors below
+     let placeholder = () => Block({row: 4 - 1, col: 20 + 2});
      let auto_update = _: projector => TextArea(model);
      let update = _ => TextArea(model);
    });
