@@ -122,7 +122,7 @@ module App = {
           print_endline("Saving...");
           schedule_action(Update.Save);
         };
-        if (scroll_to_caret.contents) {
+        if (scroll_to_caret.contents && !model.settings.editing_title) {
           scroll_to_caret := false;
           JsUtil.scroll_cursor_into_view_if_needed();
         };

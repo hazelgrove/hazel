@@ -174,13 +174,16 @@ let update_settings =
         instructor_mode: !settings.instructor_mode,
       },
     };
-  | EditingTitle => {
+  | EditingTitle =>
+    let editing = !settings.editing_title;
+    {
       ...model,
+      editors: Editors.set_editing_title(model.editors, editing),
       settings: {
         ...settings,
-        editing_title: !settings.editing_title,
+        editing_title: editing,
       },
-    }
+    };
   | Mode(mode) => {
       ...model,
       settings: {
