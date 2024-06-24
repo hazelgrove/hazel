@@ -680,7 +680,7 @@ select {
 
 .projector {
   position: absolute;
-  z-index: 12;
+  
   display: flex;
   justify-content: center;
   align-items: center;
@@ -688,6 +688,7 @@ select {
 }
 .projector-wrapper {
   display: flex;
+  z-index: 12;
   justify-content: center;
   align-items: center;
 }
@@ -695,7 +696,7 @@ select {
   z-index: 13;
 }
 .projector > svg {
-  z-index: -1;
+  z-index: 1;
   fill: #f0e7d6;
 }
 .projector.indicated > svg {
@@ -715,7 +716,7 @@ select {
 /* PROJECTOR: INFER */
 
 .projector.type {
-  opacity: 0.5;
+  /* opacity: 0.5; */
   color: var(--typ-text-color);
 }
 .projector.type:hover {
