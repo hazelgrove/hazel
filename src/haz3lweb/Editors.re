@@ -128,6 +128,14 @@ let set_instructor_mode = (editors: t, instructor_mode: bool): t =>
     )
   };
 
+let set_editing_title = (editors: t, editing: bool): t =>
+  switch (editors) {
+  | Scratch(_)
+  | Documentation(_) => editors
+  | Exercises(n, specs, exercise) =>
+    Exercises(n, specs, Exercise.set_editing_title(exercise, editing))
+  };
+
 let update_exercise_title =
     (editors: t, new_title: string, instructor_mode: bool): t =>
   switch (editors) {
