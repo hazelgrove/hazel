@@ -85,6 +85,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result => {
   | (_, BinBoolOp(_)) => IndetMatch
   | (_, BinIntOp(_)) => IndetMatch
   | (_, BinFloatOp(_)) => IndetMatch
+  | (_, Dot(_)) => IndetMatch
   | (_, ConsistentCase(Case(_))) => IndetMatch
 
   /* Closure should match like underlying expression. */
