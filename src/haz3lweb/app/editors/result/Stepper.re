@@ -557,7 +557,9 @@ and Step: {
           ),
         )
       | InductionStep(m) => {
-          InductionStep(m);
+          InductionStep(
+            InductionStep.Update.calculate(~settings, m, ~prev_expr, ~state),
+          );
         }; // TODO[Matt]: Calculate
   };
 
@@ -644,6 +646,14 @@ and InductionStep: {
     type t;
 
     let update: (~settings: Settings.t, t, Model.t) => Updated.t(Model.t);
+    let calculate:
+      (
+        ~settings: CoreSettings.t,
+        ~prev_expr: Exp.t,
+        ~state: EvaluatorState.t,
+        Model.t
+      ) =>
+      Model.t;
   };
 
   module Selection: {
@@ -736,6 +746,35 @@ and InductionStep: {
         let cases = [new_case, ...model.cases];
         {...model, cases} |> Updated.return;
       };
+    };
+
+    let calculate =
+        (~settings, ~prev_expr, ~state as _, model: Model.t): Model.t => {
+      // TODO[Matt]: something about stitching with contexts.
+      let scrut =
+        CodeEditable.Update.calculate(~settings, ~stitch=x => x, model.scrut);
+      let cases =
+        model.cases
+        |> List.map(((p, st)) => {
+             // TODO[Matt:] Calculate should take account of sort
+             let p: CodeEditable.Model.t =
+               CodeEditable.Update.calculate(~settings, ~stitch=x => x, p);
+             // TODO[Matt]: THIS IS NOT SOUND
+             let goal =
+               Exp.map_term(
+                 ~f_exp=
+                   (cont, e) =>
+                     if (Exp.fast_equal(e, scrut.statics.term)) {
+                       p.statics.term;
+                     } else {
+                       cont(e);
+                     },
+                 prev_expr,
+               );
+             let st = Stepper.Update.calculate(~settings, goal, st);
+             (p, st);
+           });
+      {...model, cases, scrut};
     };
   };
 

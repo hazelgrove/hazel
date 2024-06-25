@@ -665,6 +665,28 @@ module Exp = {
         },
       _,
     );
+
+  let rec pat_to_new_exp = (pat: Pat.t): t => {
+    switch (pat |> Pat.term_of) {
+    | EmptyHole => EmptyHole |> fresh
+    | MultiHole(u) => MultiHole(u) |> fresh
+    | Wild => EmptyHole |> fresh // TODO[Matt]: not sure what desired behaviour is here
+    | Invalid(s) => Invalid(s) |> fresh
+    | Int(i) => Int(i) |> fresh
+    | Float(f) => Float(f) |> fresh
+    | Bool(b) => Bool(b) |> fresh
+    | String(s) => String(s) |> fresh
+    | ListLit(ps) => ListLit(List.map(pat_to_new_exp, ps)) |> fresh
+    | Constructor(c) => Constructor(c) |> fresh
+    | Cons(p1, p2) => Cons(pat_to_new_exp(p1), pat_to_new_exp(p2)) |> fresh
+    | Var(x) => Var(x) |> fresh
+    | Tuple(ps) => Tuple(List.map(pat_to_new_exp, ps)) |> fresh
+    | Parens(p) => Parens(pat_to_new_exp(p)) |> fresh
+    | Ap(c, p) =>
+      Ap(Forward, pat_to_new_exp(c), pat_to_new_exp(p)) |> fresh
+    | Cast(p, t1, t2) => Cast(pat_to_new_exp(p), t1, t2) |> fresh
+    };
+  };
 };
 
 module Rul = {
