@@ -1,5 +1,6 @@
 open Js_of_ocaml;
 open Virtual_dom.Vdom;
+open Sexplib.Std;
 
 let get_elem_by_id = id => {
   let doc = Dom_html.document;
@@ -7,6 +8,17 @@ let get_elem_by_id = id => {
     doc##getElementById(Js.string(id)),
     () => {
       print_endline(id);
+      assert(false);
+    },
+  );
+};
+
+let get_elem_by_selector = selector => {
+  let doc = Dom_html.document;
+  Js.Opt.get(
+    doc##querySelector(Js.string(selector)),
+    () => {
+      print_endline(selector);
       assert(false);
     },
   );
@@ -166,3 +178,74 @@ let stop_mousedown_propagation =
     Js_of_ocaml.Dom_html.stopPropagation(evt);
     Virtual_dom.Vdom.Effect.Ignore;
   });
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type text_position = {
+  row: int,
+  col: int,
+};
+
+let get_textarea = (selector: string): Js.t(Dom_html.textAreaElement) =>
+  Dom_html.CoerceTo.textarea(get_elem_by_selector(selector))
+  |> Js.Opt.get(_, _ => failwith("get_caret_text_position"));
+
+let get_textarea_lines =
+    (textarea: Js.t(Dom_html.textAreaElement)): list(string) => {
+  let text_content = Js.to_string(textarea##.value);
+  Str.split(Str.regexp("\n"), text_content);
+};
+
+let textarea_max_row = (selector: string): int => {
+  let textarea = get_textarea(selector);
+  let lines = get_textarea_lines(textarea);
+  List.length(lines) - 1;
+};
+
+let textarea_caret_position = (selector: string): text_position => {
+  let textarea = get_textarea(selector);
+  let lines = get_textarea_lines(textarea);
+  let caret_position = textarea##.selectionStart;
+  let rec find_position = (lines, current_position, row, col) => {
+    switch (lines) {
+    | [] => {row, col}
+    | [line, ...rest] =>
+      let line_length = String.length(line) + 1; // +1 for the newline
+      if (current_position <= line_length) {
+        {row, col: current_position};
+      } else {
+        find_position(rest, current_position - line_length, row + 1, 0);
+      };
+    };
+  };
+  find_position(lines, caret_position, 0, 0);
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type position_type =
+  | First
+  | Middle
+  | Last;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type caret_position = {
+  rows: position_type,
+  cols: position_type,
+};
+
+let get_caret_position_type = (selector: string): caret_position => {
+  //TODO(andrew): This isn't quite right; first col non-first row isn't right
+  let determine_position = (current, max) =>
+    if (current == 0) {
+      First;
+    } else if (current == max) {
+      Last;
+    } else {
+      Middle;
+    };
+  let lines = selector |> get_textarea |> get_textarea_lines;
+  let {row, col} = textarea_caret_position(selector);
+  {
+    rows: determine_position(row, List.length(lines) - 1),
+    cols: determine_position(col, String.length(List.nth(lines, row)) - 1),
+  };
+};

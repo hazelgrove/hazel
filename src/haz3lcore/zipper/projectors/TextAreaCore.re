@@ -1,10 +1,10 @@
 open ZipperBase;
 
 let serialize = a =>
-  a |> ZipperBase.sexp_of_slider_action |> Sexplib.Sexp.to_string;
+  a |> ZipperBase.sexp_of_textarea_action |> Sexplib.Sexp.to_string;
 
 let deserialize = a =>
-  a |> Sexplib.Sexp.of_string |> ZipperBase.slider_action_of_sexp;
+  a |> Sexplib.Sexp.of_string |> ZipperBase.textarea_action_of_sexp;
 
 /* Function to escape linebreaks */
 let escape_linebreaks = (str: string): string => {
@@ -48,10 +48,8 @@ let mk = (model): projector_core =>
      //TODO(andrew): fudge factors below
      let placeholder = () => Block({row: 4 - 1, col: 20 + 2});
      let auto_update = _: projector => TextArea(model);
-     let update = _ => TextArea(model);
-   }
-   //  let update = (action: string) =>
-   //    switch (deserialize(action)) {
-   //    | Set(value) => Slider({value: value})
-   //    };
-);
+     let update = (a: string) =>
+       switch (deserialize(a)) {
+       | SetInside(b) => TextArea({inside: b})
+       };
+   });

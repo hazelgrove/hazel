@@ -54,7 +54,8 @@ type syntax = Piece.t;
 type action('action) =
   | Default // Defer to focal DOM element
   | Remove
-  | Focus
+  | FocusInternal
+  | JumpTo
   | UpdateSyntax(syntax => syntax)
   | UpdateModel('action)
   | Seq(action('action), action('action));
@@ -100,7 +101,7 @@ let init = (f: kind): projector_core =>
   | Infer => InferCore.mk({expected_ty: None})
   | Checkbox => CheckboxCore.mk()
   | Slider => SliderCore.mk({value: 10})
-  | TextArea => TextAreaCore.mk({value: "TODO(andrew)"})
+  | TextArea => TextAreaCore.mk({inside: false})
   };
 
 let create =

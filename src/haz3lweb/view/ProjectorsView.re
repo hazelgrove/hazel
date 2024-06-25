@@ -7,9 +7,25 @@ open Util.Web;
 
 let rec handle = (id, action): UpdateAction.t => {
   switch (action) {
-  | Focus =>
+  | JumpTo =>
     //TODO(andrew): end up on nearest side
+    //TODO(andrew): set inside
     PerformAction(Jump(TileId(id)))
+  | FocusInternal =>
+    //TODO(andrew): unhardcode selector
+    JsUtil.get_elem_by_selector(".projector.text textarea")##focus;
+    PerformAction(
+      Project(
+        UpdateModel(
+          id,
+          p => {
+            //TODO(andrew): remove this crime
+            let (module P) = Projector.to_module(p);
+            P.update(TextAreaCore.serialize(SetInside(true)));
+          },
+        ),
+      ),
+    );
   | Default =>
     //TODO(andrew): no-op
     PerformAction(Project(Remove(Id.invalid)))
