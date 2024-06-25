@@ -714,12 +714,27 @@ select {
 
 .title-cell {
   padding-left: 1em;
+  display: flex;
+  align-items: center;
 }
 
 .title-cell .title-text {
   font-size: 1.5rem;
   font-weight: bold;
   color: var(--light-text-color);
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+}
+
+.title-cell .pencil-icon {
+  margin-left: 0.5em;
+  cursor: pointer;
+  color: #7a6219;
+}
+
+.title-cell .pencil-icon:hover {
+  animation: wobble 0.6s ease 0s 1 normal forwards;
 }
 
 .cell-prompt {
