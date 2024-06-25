@@ -1,5 +1,11 @@
 open ZipperBase;
 
+let serialize = a =>
+  a |> ZipperBase.sexp_of_slider_action |> Sexplib.Sexp.to_string;
+
+let deserialize = a =>
+  a |> Sexplib.Sexp.of_string |> ZipperBase.slider_action_of_sexp;
+
 /* Function to escape linebreaks */
 let escape_linebreaks = (str: string): string => {
   Re.Str.global_replace(Re.Str.regexp("\n"), "\\n", str);
@@ -43,4 +49,9 @@ let mk = (model): projector_core =>
      let placeholder = () => Block({row: 4 - 1, col: 20 + 2});
      let auto_update = _: projector => TextArea(model);
      let update = _ => TextArea(model);
-   });
+   }
+   //  let update = (action: string) =>
+   //    switch (deserialize(action)) {
+   //    | Set(value) => Slider({value: value})
+   //    };
+);

@@ -1,7 +1,7 @@
 open Haz3lcore;
 open Virtual_dom.Vdom;
 
-let view = (~inject: Projector.action(_) => Ui_effect.t(unit), syntax) =>
+let view = (~inject: Projector.action(_) => Ui_effect.t(unit), syntax, _) =>
   Node.input(
     ~attr=
       Attr.many(

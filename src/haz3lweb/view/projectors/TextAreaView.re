@@ -1,8 +1,12 @@
 open Haz3lcore;
 open Virtual_dom.Vdom;
+open Util.Web;
 
-let view =
-    (~inject: Projector.action(_) => Ui_effect.t(unit), value: string) =>
+let put = (str: string): Projector.action(_) =>
+  Projector.UpdateSyntax(_ => str |> Form.string_quote |> TextAreaCore.put);
+
+let textarea2 =
+    (~inject: Projector.action(_) => Ui_effect.t(unit), text: string) =>
   Node.textarea(
     ~attr=
       Attr.many([
@@ -10,15 +14,20 @@ let view =
         // Attr.create("rows", "4"),
         // Attr.create("cols", "21"),
         Attr.on_mousedown(_ => inject(Focus)),
-        Attr.on_input((_evt, new_val) =>
-          inject(
-            UpdateSyntax(
-              _ => new_val |> Form.string_quote |> TextAreaCore.put,
-            ),
-          )
-        ),
+        Attr.on_input((_, new_text) => inject(put(new_text))),
       ]),
-    [Node.text(value)],
+    [Node.text(text)],
+  );
+
+let n_of = (n: int) =>
+  [Node.text(".")]
+  @ (List.init(n, _ => [Node.br(), Node.text(".")]) |> List.flatten);
+
+let view = (~inject, text, indicated: option(ProjectorViewModule.accent)) =>
+  Node.div(
+    ~attr=clss(["cols"] @ ProjectorViewModule.cls(indicated)),
+    n_of(3)  //TODO(andrew): magic number
+    @ [textarea2(~inject, text)],
   );
 
 let keymap = (_direction, key: Key.t): option(Projector.action(string)) =>

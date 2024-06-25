@@ -2,7 +2,7 @@ open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
 
-let view = (~inject, expected_ty: option(Typ.t)) =>
+let view = (~inject, expected_ty: option(Typ.t), _) =>
   div(
     ~attr=Attr.on_double_click(_ => inject(Projector.Remove)),
     [text(InferCore.display(expected_ty))],

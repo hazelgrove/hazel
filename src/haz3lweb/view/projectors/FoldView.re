@@ -10,7 +10,7 @@ let mk =
      [@deriving (show({with_path: false}), sexp, yojson)]
      type action = ZipperBase.fold_action;
 
-     let view =
+     let view = _ =>
        div(
          ~attr=Attr.on_double_click(_ => inject(Projector.Remove)),
          [text("⋱")],

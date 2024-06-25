@@ -22,10 +22,10 @@ type infer_action = unit;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type checkbox_action = unit;
 [@deriving (show({with_path: false}), sexp, yojson)]
-type slider_action =
-  | Set(int);
+type slider_action = unit;
 [@deriving (show({with_path: false}), sexp, yojson)]
-type textarea_action = unit;
+type textarea_action =
+  | Set(int);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type shape =
