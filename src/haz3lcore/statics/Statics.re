@@ -306,7 +306,8 @@ and uexp_to_info_map =
       };
     switch (element) {
     | Some(Label(_, exp)) => add(~self=Just(exp), ~co_ctx=e.co_ctx, m)
-    | _ => add(~self=Just(Unknown(Internal)), ~co_ctx=e.co_ctx, m)
+    | Some(exp) => add(~self=Just(exp), ~co_ctx=e.co_ctx, m)
+    | None => add(~self=Just(Unknown(Internal)), ~co_ctx=e.co_ctx, m)
     };
   | Test(e) =>
     let (e, m) = go(~mode=Ana(Bool), e, m);

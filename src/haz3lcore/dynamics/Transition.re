@@ -217,6 +217,7 @@ module Transition = (EV: EV_MODE) => {
     };
 
   let transition = (req, state, env, d): 'a => {
+    // print_endline(DHExp.show(d));
     switch (d) {
     | BoundVar(x) =>
       let. _ = otherwise(env, BoundVar(x));
@@ -547,6 +548,8 @@ module Transition = (EV: EV_MODE) => {
     | Dot(d, s) =>
       let. _ = otherwise(env, d => Dot(d, s))
       and. d' = req_final(req(state, env), d => Dot(d, s), d);
+      // print_endline("dot final");
+      // print_endline(DHExp.show(d'));
       // TODO (Anthony): fix step if needed
       Step({
         apply: () =>
@@ -557,11 +560,11 @@ module Transition = (EV: EV_MODE) => {
             | Some(TupLabel(_, exp)) => exp
             | _ => raise(EvaluatorError.Exception(BadPatternMatch))
             };
-          | TupLabel(l, e) when LabeledTuple.compare(s, l) == 0 => e
+          | TupLabel(l, exp) when LabeledTuple.compare(s, l) == 0 => exp
           | _ => raise(EvaluatorError.Exception(BadPatternMatch))
           },
         kind: Dot(s),
-        value: true,
+        value: false,
       });
     | TupLabel(p, d1) =>
       // TODO (Anthony): Fix this if needed
@@ -680,6 +683,8 @@ module Transition = (EV: EV_MODE) => {
       open CastHelpers; /* Cast calculus */
       let. _ = otherwise(env, d => Cast(d, t1, t2))
       and. d' = req_final(req(state, env), d => Cast(d, t1, t2), d);
+      // print_endline("cast final");
+      // print_endline(DHExp.show(d'));
       switch (ground_cases_of(t1), ground_cases_of(t2)) {
       | (Hole, Hole)
       | (Ground, Ground) =>
