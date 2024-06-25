@@ -11,7 +11,7 @@ type checkbox = unit;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type slider = {value: int};
 [@deriving (show({with_path: false}), sexp, yojson)]
-type textarea = {value: string};
+type textarea = {inside: bool};
 
 /* Projector action types */
 
@@ -25,7 +25,7 @@ type checkbox_action = unit;
 type slider_action = unit;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type textarea_action =
-  | Set(int);
+  | SetInside(bool);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type shape =
