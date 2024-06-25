@@ -22,8 +22,20 @@ module rec Stepper: {
     let calculate: (~settings: CoreSettings.t, Exp.t, Model.t) => Model.t;
   };
 
+  module Selection: {
+    open Cursor;
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t = (int, Step.Selection.t);
+
+    let get_cursor_info: (~selection: t, Model.t) => cursor(Update.t);
+
+    let handle_key_event:
+      (~selection: t, ~event: Key.t, Model.t) => option(Update.t);
+  };
+
   module View: {
     type event =
+      | MakeActive(Selection.t)
       | HideStepper
       | JumpTo(Haz3lcore.Id.t);
 
@@ -32,6 +44,7 @@ module rec Stepper: {
         ~globals: Globals.t,
         ~signal: event => Ui_effect.t(unit),
         ~inject: Update.t => Ui_effect.t(unit),
+        ~selected: option(Selection.t),
         ~read_only: bool,
         Model.t
       ) =>
@@ -92,6 +105,7 @@ module rec Stepper: {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t =
       | StepForward(int)
+      | AddInduction
       | StepBackward
       | StepAction(int, Step.Update.t);
     // | Induct
@@ -134,6 +148,17 @@ module rec Stepper: {
             );
             step_backward(model.history);
           },
+        }
+        |> Updated.return
+      | AddInduction =>
+        {
+          ...model,
+          history:
+            Aba.cons(
+              None,
+              Step.Model.InductionStep(InductionStep.Model.init),
+              model.history,
+            ),
         }
         |> Updated.return
       | StepAction(n, a) =>
@@ -247,11 +272,34 @@ module rec Stepper: {
     };
   };
 
+  module Selection = {
+    open Cursor;
+
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t = (int, Step.Selection.t);
+
+    let get_cursor_info = (~selection: t, model: Model.t): cursor(Update.t) => {
+      let step = model.history |> Aba.get_bs |> List.nth(_, selection |> fst);
+      let+ ci =
+        Step.Selection.get_cursor_info(~selection=selection |> snd, step);
+      Update.StepAction(selection |> fst, ci);
+    };
+
+    let handle_key_event =
+        (~selection: t, ~event, model: Model.t): option(Update.t) =>
+      model.history
+      |> Aba.get_bs
+      |> List.nth(_, selection |> fst)
+      |> Step.Selection.handle_key_event(~selection=selection |> snd, ~event)
+      |> Option.map(x => Update.StepAction(selection |> fst, x));
+  };
+
   module View = {
     open Virtual_dom.Vdom;
     open Node;
 
     type event =
+      | MakeActive(Selection.t)
       | HideStepper
       | JumpTo(Haz3lcore.Id.t);
 
@@ -260,6 +308,7 @@ module rec Stepper: {
           ~globals as {settings, inject_global, _} as globals: Globals.t,
           ~signal: event => Ui_effect.t(unit),
           ~inject: Update.t => Ui_effect.t(unit),
+          ~selected: option(Selection.t),
           ~read_only: bool,
           stepper: Model.t,
         ) => {
@@ -269,6 +318,13 @@ module rec Stepper: {
           inject(StepBackward),
           ~disabled=!Model.can_undo(stepper),
           ~tooltip="Step Backwards",
+        );
+      let button_induction =
+        Widgets.button_d(
+          Icons.star,
+          inject(AddInduction),
+          ~disabled=false,
+          ~tooltip="Begin a proof by induction",
         );
       let button_hide_stepper =
         Widgets.toggle(~tooltip="Show Stepper", "s", true, _ =>
@@ -289,15 +345,19 @@ module rec Stepper: {
       let previous_steps = {
         stepper.history
         |> Aba.aba_triples
+        |> List.mapi((i, x) => (i, x))
         |> (settings.core.evaluation.stepper_history ? x => x : (_ => []))
         |> (
           settings.core.evaluation.show_hidden_steps
             ? x => x
-            : List.filter(((_, b: Model.b, _)) => !Step.View.is_hidden(b))
+            : List.filter(((_, (_, b: Model.b, _))) =>
+                !Step.View.is_hidden(b)
+              )
         )
-        |> List.map(((_, b: Model.b, a: option(Model.a))) =>
+        |> List.map(((i, (_, b: Model.b, a: option(Model.a)))) =>
              switch (a) {
-             | Some(a) => [
+             | Some(a) =>
+               [
                  div(
                    ~attr=
                      Attr.classes(
@@ -318,13 +378,24 @@ module rec Stepper: {
                    ],
                  ),
                ]
+               @ Step.View.view(
+                   ~globals,
+                   ~selection=
+                     switch (selected) {
+                     | Some((i', x)) when i' == i => Some(x)
+                     | _ => None
+                     },
+                   ~signal=(MakeActive(x)) => signal(MakeActive((i, x))),
+                   ~inject=a => inject(StepAction(i, a)),
+                   b,
+                 )
              | None => [
                  div(~attr=Attr.class_("cell-item"), [text("...")]),
                ]
              }
            )
-        |> List.flatten
-        |> List.rev;
+        |> List.rev
+        |> List.flatten;
       };
       let current_step = {
         let model = stepper.history |> Aba.hd;
@@ -357,6 +428,7 @@ module rec Stepper: {
               ? []
               : [
                 button_back,
+                button_induction,
                 eval_settings,
                 toggle_show_history,
                 button_hide_stepper,
@@ -402,10 +474,33 @@ and Step: {
       Model.t;
   };
 
+  module Selection: {
+    open Cursor;
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t =
+      | EvalStep
+      | InductionStep(InductionStep.Selection.t);
+
+    let get_cursor_info: (~selection: t, Model.t) => cursor(Update.t);
+
+    let handle_key_event:
+      (~selection: t, ~event: Key.t, Model.t) => option(Update.t);
+  };
+
   module View: {
+    type signal =
+      | MakeActive(Selection.t);
     let is_hidden: Model.t => bool;
     let stepped_id: Model.t => option(Haz3lcore.Id.t);
-    let view: Model.t => list(Web.Node.t);
+    let view:
+      (
+        ~globals: Globals.t,
+        ~selection: option(Selection.t),
+        ~signal: signal => Ui_effect.t(unit),
+        ~inject: Update.t => Ui_effect.t(unit),
+        Model.t
+      ) =>
+      list(Web.Node.t);
     let get_text: Model.t => Web.Node.t;
   };
 } = {
@@ -461,10 +556,44 @@ and Step: {
             ~state,
           ),
         )
-      | InductionStep(m) => InductionStep(m); // TODO[Matt]: Calculate
+      | InductionStep(m) => {
+          InductionStep(m);
+        }; // TODO[Matt]: Calculate
+  };
+
+  module Selection = {
+    open Cursor;
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t =
+      | EvalStep
+      | InductionStep(InductionStep.Selection.t);
+
+    let get_cursor_info = (~selection: t, model: Model.t): cursor(Update.t) => {
+      switch (selection, model) {
+      | (EvalStep, EvalStep(_)) => Cursor.empty
+      | (EvalStep, _) => Cursor.empty
+      | (InductionStep(s), InductionStep(m)) =>
+        let+ ci = InductionStep.Selection.get_cursor_info(~selection=s, m);
+        Update.InductionStep(ci);
+      | (InductionStep(_), _) => Cursor.empty
+      };
+    };
+
+    let handle_key_event =
+        (~selection: t, ~event, model: Model.t): option(Update.t) =>
+      switch (selection, model) {
+      | (EvalStep, _) => None
+      | (InductionStep(s), InductionStep(model)) =>
+        InductionStep.Selection.handle_key_event(~selection=s, ~event, model)
+        |> Option.map(x => Update.InductionStep(x))
+      | (InductionStep(_), _) => None
+      };
   };
 
   module View = {
+    type signal =
+      | MakeActive(Selection.t);
+
     let is_hidden: Model.t => bool =
       fun
       | EvalStep(m) => EvalStep.View.is_hidden(m)
@@ -475,10 +604,23 @@ and Step: {
       | EvalStep(m) => EvalStep.View.stepped_id(m)
       | InductionStep(_) => None;
 
-    let view: Model.t => 'a =
+    let view =
+        (~globals, ~selection: option(Selection.t), ~signal, ~inject)
+        : (Model.t => 'a) =>
       fun
       | EvalStep(m) => EvalStep.View.view(m)
-      | InductionStep(m) => InductionStep.View.view(m);
+      | InductionStep(m) =>
+        InductionStep.View.view(
+          ~globals,
+          ~selection=
+            switch (selection) {
+            | Some(InductionStep(s)) => Some(s)
+            | _ => None
+            },
+          ~signal=(MakeActive(a)) => signal(MakeActive(InductionStep(a))),
+          ~inject=a => inject(Update.InductionStep(a)),
+          m,
+        );
 
     let get_text: Model.t => 'a =
       fun
@@ -492,6 +634,7 @@ and InductionStep: {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t;
 
+    let init: t;
     let get_next_expr: t => Exp.t;
     let get_next_state: t => EvaluatorState.t;
   };
@@ -503,8 +646,33 @@ and InductionStep: {
     let update: (~settings: Settings.t, t, Model.t) => Updated.t(Model.t);
   };
 
+  module Selection: {
+    open Cursor;
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t =
+      | ScrutEditor
+      | CasePatternEditor(int)
+      | CaseStepper(int, Stepper.Selection.t);
+
+    let get_cursor_info: (~selection: t, Model.t) => cursor(Update.t);
+
+    let handle_key_event:
+      (~selection: t, ~event: Key.t, Model.t) => option(Update.t);
+  };
+
   module View: {
-    let view: Model.t => list(Web.Node.t);
+    type signal =
+      | MakeActive(Selection.t);
+
+    let view:
+      (
+        ~globals: Globals.t,
+        ~selection: option(Selection.t),
+        ~signal: signal => Ui_effect.t(unit),
+        ~inject: Update.t => Ui_effect.t(unit),
+        Model.t
+      ) =>
+      list(Web.Node.t);
   };
 } = {
   module Model = {
@@ -520,6 +688,16 @@ and InductionStep: {
       induction_valid: bool,
     };
 
+    let init = {
+      scrut: CodeEditable.Model.mk_from_exp(Exp.EmptyHole |> Exp.fresh),
+      cases: [],
+      result_editor:
+        CodeEditable.Model.mk_from_exp(Exp.EmptyHole |> Exp.fresh),
+      result: Exp.EmptyHole |> Exp.fresh,
+      result_state: EvaluatorState.init,
+      induction_valid: false,
+    };
+
     let get_next_expr = (model: t): Exp.t => model.result;
     let get_next_state = (model: t): EvaluatorState.t => model.result_state;
   };
@@ -531,7 +709,8 @@ and InductionStep: {
     type t =
       | ScrutUpdate(CodeEditable.Update.t)
       | CasePatternUpdate(int, CodeEditable.Update.t)
-      | CaseStepperUpdate(int, Stepper.Update.t);
+      | CaseStepperUpdate(int, Stepper.Update.t)
+      | AddCase;
 
     let update = (~settings, update, model: Model.t) => {
       switch (update) {
@@ -549,12 +728,120 @@ and InductionStep: {
         let* st = Stepper.Update.update(~settings, update, st);
         let cases = Util.ListUtil.put_nth(n, (p, st), model.cases);
         {...model, cases};
+      | AddCase =>
+        let new_case = (
+          CodeEditable.Model.mk_from_exp(Exp.EmptyHole |> Exp.fresh),
+          Stepper.Model.init(),
+        );
+        let cases = [new_case, ...model.cases];
+        {...model, cases} |> Updated.return;
       };
     };
   };
 
+  module Selection = {
+    open Cursor;
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t =
+      | ScrutEditor
+      | CasePatternEditor(int)
+      | CaseStepper(int, Stepper.Selection.t);
+
+    let get_cursor_info = (~selection: t, model: Model.t): cursor(Update.t) => {
+      switch (selection) {
+      | ScrutEditor =>
+        let+ ci =
+          CodeEditable.Selection.get_cursor_info(~selection=(), model.scrut);
+        Update.ScrutUpdate(ci);
+      | CasePatternEditor(n) =>
+        let (p, _) = List.nth(model.cases, n);
+        let+ ci = CodeEditable.Selection.get_cursor_info(~selection=(), p);
+        Update.CasePatternUpdate(n, ci);
+      | CaseStepper(n, s) =>
+        let (_, st) = List.nth(model.cases, n);
+        let+ ci = Stepper.Selection.get_cursor_info(~selection=s, st);
+        Update.CaseStepperUpdate(n, ci);
+      };
+    };
+
+    let handle_key_event =
+        (~selection: t, ~event, model: Model.t): option(Update.t) =>
+      switch (selection) {
+      | ScrutEditor =>
+        CodeEditable.Selection.handle_key_event(
+          ~selection=(),
+          model.scrut,
+          event,
+        )
+        |> Option.map(x => Update.ScrutUpdate(x))
+      | CasePatternEditor(n) =>
+        let (p, _) = List.nth(model.cases, n);
+        CodeEditable.Selection.handle_key_event(~selection=(), p, event)
+        |> Option.map(x => Update.CasePatternUpdate(n, x));
+      | CaseStepper(n, s) =>
+        let (_, st) = List.nth(model.cases, n);
+        Stepper.Selection.handle_key_event(~selection=s, ~event, st)
+        |> Option.map(x => Update.CaseStepperUpdate(n, x));
+      };
+  };
+
   module View = {
-    let view = (_: Model.t) => [];
+    type signal =
+      | MakeActive(Selection.t);
+
+    let view = (~globals, ~selection, ~signal, ~inject, model: Model.t) =>
+      [
+        Web.Node.text("Induction Step not implemented yet!"),
+        CodeEditable.View.view(
+          ~globals,
+          ~signal=
+            fun
+            | MakeActive => signal(MakeActive(ScrutEditor)),
+          ~inject=a => inject(Update.ScrutUpdate(a)),
+          ~selected=selection == Some(Selection.ScrutEditor),
+          model.scrut,
+        ),
+        Widgets.button_d(
+          Icons.star,
+          inject(AddCase),
+          ~disabled=false,
+          ~tooltip="Add a case to the induction",
+        ),
+      ]
+      @ (
+        model.cases
+        |> List.mapi((i, (p, c)) =>
+             [
+               CodeEditable.View.view(
+                 ~globals,
+                 ~signal=
+                   fun
+                   | MakeActive => signal(MakeActive(CasePatternEditor(i))),
+                 ~inject=a => inject(Update.CasePatternUpdate(i, a)),
+                 ~selected=selection == Some(Selection.CasePatternEditor(i)),
+                 ~sort=Sort.Pat,
+                 p,
+               ),
+             ]
+             @ Stepper.View.view(
+                 ~globals,
+                 ~selected=
+                   switch (selection) {
+                   | Some(CaseStepper(n, x)) when n == 0 => Some(x)
+                   | _ => None
+                   },
+                 ~signal=
+                   fun
+                   | MakeActive(x) => signal(MakeActive(CaseStepper(i, x)))
+                   | HideStepper => Ui_effect.Ignore
+                   | JumpTo(_) => Ui_effect.Ignore,
+                 ~inject=a => inject(Update.CaseStepperUpdate(i, a)),
+                 ~read_only=false,
+                 c,
+               )
+           )
+        |> List.flatten
+      );
   };
 };
 

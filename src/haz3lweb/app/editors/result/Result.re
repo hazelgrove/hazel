@@ -216,8 +216,8 @@ module Selection = {
   open Cursor;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | Evaluation(CodeSelectable.Selection.t);
-  // TODO: Selection in stepper
+    | Evaluation(CodeSelectable.Selection.t)
+    | Stepper(Stepper.Selection.t);
 
   let get_cursor_info = (~selection: t, mr: Model.t): cursor(Update.t) =>
     switch (selection, mr.result) {
@@ -229,6 +229,9 @@ module Selection = {
       let+ ci = CodeSelectable.Selection.get_cursor_info(~selection, editor);
       Update.EvalEditorAction(ci);
     | (_, Evaluation(_)) => empty
+    | (Stepper(selection), Stepper(s)) =>
+      let+ ci = Stepper.Selection.get_cursor_info(~selection, s);
+      Update.StepperAction(ci);
     | (_, Stepper(_)) => empty
     };
 
@@ -243,6 +246,9 @@ module Selection = {
       CodeSelectable.Selection.handle_key_event(~selection, editor, event)
       |> Option.map(x => Update.EvalEditorAction(x))
     | (_, Evaluation(_)) => None
+    | (Stepper(selection), Stepper(s)) =>
+      Stepper.Selection.handle_key_event(~selection, s, ~event)
+      |> Option.map(x => Update.StepperAction(x))
     | (_, Stepper(_)) => None
     };
 };
@@ -358,8 +364,14 @@ module View = {
         ~signal=
           fun
           | HideStepper => inject(ToggleStepper)
-          | JumpTo(id) => signal(JumpTo(id)),
+          | JumpTo(id) => signal(JumpTo(id))
+          | MakeActive(s) => signal(MakeActive(Stepper(s))),
         ~inject=x => inject(StepperAction(x)),
+        ~selected=
+          switch (selected) {
+          | Some(Stepper(s')) => Some(s')
+          | _ => None
+          },
         ~read_only=locked,
         s,
       )

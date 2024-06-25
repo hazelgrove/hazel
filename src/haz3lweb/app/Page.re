@@ -138,6 +138,7 @@ module Update = {
 
   let update =
       (~import_log, ~schedule_action: t => unit, action: t, model: Model.t) => {
+    let _ = action |> show |> print_endline;
     switch (action) {
     | Globals(action) =>
       update_global(~import_log, ~schedule_action, action, model)
@@ -196,6 +197,7 @@ module Update = {
 module Selection = {
   open Cursor;
 
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = selection;
 
   let handle_key_event =
@@ -226,6 +228,7 @@ module View = {
         ~cursor: Cursor.cursor(Update.t),
         model: Model.t,
       ) => {
+    let _ = model.selection |> Selection.show |> print_endline;
     let key_handler =
         (~inject, ~dir: Key.dir, evt: Js.t(Dom_html.keyboardEvent))
         : Effect.t(unit) =>

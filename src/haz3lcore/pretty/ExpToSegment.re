@@ -942,16 +942,16 @@ and parenthesize_typ = (typ: Typ.t): Typ.t => {
   };
 };
 
-let exp_to_editor = (~inline, exp: Exp.t): Editor.t => {
+let exp_to_editor = (~read_only=false, ~inline, exp: Exp.t): Editor.t => {
   let exp = parenthesize(exp);
   let p = exp_to_pretty(~inline, exp);
   let seg = p |> PrettySegment.select;
-  Editor.init(~read_only=true, Zipper.unzip(seg));
+  Editor.init(~read_only, Zipper.unzip(seg));
 };
 
-let typ_to_editor = (~inline, typ: Typ.t): Editor.t => {
+let typ_to_editor = (~read_only=false, ~inline, typ: Typ.t): Editor.t => {
   let typ = parenthesize_typ(typ);
   let p = typ_to_pretty(~inline, typ);
   let seg = p |> PrettySegment.select;
-  Editor.init(~read_only=true, Zipper.unzip(seg));
+  Editor.init(~read_only, Zipper.unzip(seg));
 };
