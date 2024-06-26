@@ -53,14 +53,12 @@ type syntax = Piece.t;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action('action) =
-  | Default // Defer to focal DOM element
   | Remove
   | FocusInternal(string)
-  | JumpTo
+  | Default // Defer input to focal DOM element
   | Escape(string, Util.Direction.t)
   | UpdateSyntax(syntax => syntax)
-  | UpdateModel('action)
-  | Seq(action('action), action('action));
+  | UpdateModel('action);
 
 let kind = (p: t): kind =>
   switch (p) {

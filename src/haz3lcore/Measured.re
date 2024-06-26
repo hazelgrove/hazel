@@ -376,8 +376,8 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
             (contained_indent, last, map);
           | Tile(t) =>
             let add_shard = (origin, shard, map) => {
-              //TODO(andrew): properize or document
               let token = List.nth(t.label, shard);
+              // Adjustment for multi-line tokens e.g. projector placeholders
               let num_lb = StringUtil.num_linebreaks(token);
               let last =
                 num_lb == 0

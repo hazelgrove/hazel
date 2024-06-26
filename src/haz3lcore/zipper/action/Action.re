@@ -49,6 +49,7 @@ type project =
   | UpdateModel(Id.t, Projector.t => Projector.t)
   | SetIndicated(Projector.kind)
   | ToggleIndicated(Projector.kind)
+  | SetKeyDispatch(Id.t, bool)
   | Remove(Id.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]

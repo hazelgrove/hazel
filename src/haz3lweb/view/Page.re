@@ -13,26 +13,14 @@ let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit), model: Model.t) =>
     let key = Key.mk(dir, evt);
     let editor = Editors.get_editor(model.editors);
     switch (ProjectorsView.key_handler(editor, ~inject, key)) {
-    | Some([PerformAction(Project(Remove(id)))]) when id == Id.invalid =>
-      //TODO(andrew): cleanup
+    | Some([]) =>
+      //TODO(andrew): proper no-op (see ProjectorsView)
       Ignore
-    | Some(action) =>
-      Many(
-        [
-          Prevent_default,
-          // Stop_propagation,
-        ]
-        @ List.map(inject, action),
-      )
+    | Some(action) => Many([Prevent_default] @ List.map(inject, action))
     | None =>
       switch (Keyboard.handle_key_event(key)) {
       | None => Ignore
-      | Some(action) =>
-        Many([
-          Prevent_default,
-          // Stop_propagation,
-          inject(action),
-        ])
+      | Some(action) => Many([Prevent_default, inject(action)])
       }
     };
   };
@@ -44,8 +32,8 @@ let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit), model: Model.t) =>
     let key = Key.mk(dir, evt);
     let editor = Editors.get_editor(model.editors);
     switch (ProjectorsView.key_handler(editor, ~inject, key)) {
-    | Some([PerformAction(Project(Remove(id)))]) when id == Id.invalid =>
-      //TODO(andrew): cleanup
+    | Some([]) =>
+      //TODO(andrew): proper no-op (see ProjectorsView)
       Ignore
     | _ => Effect.Prevent_default
     };
