@@ -45,8 +45,9 @@ let mk = (model): projector_core =>
      let model = model;
      let projector = TextArea(model);
      let can_project = _ => true;
-     //TODO(andrew): fudge factors below
-     let placeholder = () => Block({row: 4 - 1, col: 20 + 2});
+     //TODO(andrew): unhardcode below numbers
+     let row = 4 - 1; //Util.StringUtil.num_linebreaks(get(syntax));
+     let placeholder = () => Block({row, col: 20 + 2});
      let auto_update = _: projector => TextArea(model);
      let update = (a: string) =>
        switch (deserialize(a)) {
