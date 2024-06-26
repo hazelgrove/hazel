@@ -209,11 +209,11 @@ let textarea_caret_position = (selector: string): text_position => {
     switch (lines) {
     | [] => {row, col}
     | [line, ...rest] =>
-      let line_length = String.length(line) + 1; // +1 for the newline
+      let line_length = String.length(line); // +1 for the newline
       if (current_position <= line_length) {
         {row, col: current_position};
       } else {
-        find_position(rest, current_position - line_length, row + 1, 0);
+        find_position(rest, current_position - line_length - 1, row + 1, 0);
       };
     };
   };
@@ -232,20 +232,30 @@ type caret_position = {
   cols: position_type,
 };
 
-let get_caret_position_type = (selector: string): caret_position => {
-  //TODO(andrew): This isn't quite right; first col non-first row isn't right
-  let determine_position = (current, max) =>
-    if (current == 0) {
-      First;
-    } else if (current == max) {
-      Last;
-    } else {
-      Middle;
-    };
+let boundary_pos = (current, max) =>
+  if (current == 0) {
+    First;
+  } else if (current == max) {
+    Last;
+  } else {
+    Middle;
+  };
+
+let textarea_caret_rel_pos = (selector: string): caret_position => {
   let lines = selector |> get_textarea |> get_textarea_lines;
   let {row, col} = textarea_caret_position(selector);
   {
-    rows: determine_position(row, List.length(lines) - 1),
-    cols: determine_position(col, String.length(List.nth(lines, row)) - 1),
+    rows: boundary_pos(row, List.length(lines) - 1),
+    cols: boundary_pos(col, String.length(List.nth(lines, row))),
   };
+};
+
+let set_textarea_caret_to_end = (selector: string): unit => {
+  let textarea = get_textarea(selector);
+  // Focus the textarea
+  textarea##focus;
+  // Set the selection start (and implicitly, the end) to the length of the content
+  let content_length = String.length(Js.to_string(textarea##.value));
+  textarea##.selectionStart := content_length;
+  textarea##.selectionEnd := content_length;
 };

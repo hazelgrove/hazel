@@ -1,5 +1,6 @@
 open Util;
 open ZipperBase;
+open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 module Map = ProjectorMap;
@@ -54,8 +55,9 @@ type syntax = Piece.t;
 type action('action) =
   | Default // Defer to focal DOM element
   | Remove
-  | FocusInternal
+  | FocusInternal(string)
   | JumpTo
+  | Escape(string, Util.Direction.t)
   | UpdateSyntax(syntax => syntax)
   | UpdateModel('action)
   | Seq(action('action), action('action));
@@ -95,7 +97,7 @@ let placeholder = (p: t, id: Id.t): syntax =>
 let minimum_projection_condition = (syntax: syntax): bool =>
   Piece.is_convex(syntax);
 
-let init = (f: kind): projector_core =>
+let init = (f: kind, _syntax): projector_core =>
   switch (f) {
   | Fold => FoldCore.mk()
   | Infer => InferCore.mk({expected_ty: None})
@@ -106,7 +108,7 @@ let init = (f: kind): projector_core =>
 
 let create =
     (k: kind, syntax: syntax, id: Id.t, info_map: Statics.Map.t): option(t) => {
-  let (module P) = init(k);
+  let (module P) = init(k, syntax);
   P.can_project(syntax) && minimum_projection_condition(syntax)
     ? Some(P.auto_update({info: Id.Map.find_opt(id, info_map)})) : None;
 };

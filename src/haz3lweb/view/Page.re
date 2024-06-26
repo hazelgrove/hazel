@@ -13,15 +13,17 @@ let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit), model: Model.t) =>
     let key = Key.mk(dir, evt);
     let editor = Editors.get_editor(model.editors);
     switch (ProjectorsView.key_handler(editor, ~inject, key)) {
-    | Some(PerformAction(Project(Remove(id)))) when id == Id.invalid =>
+    | Some([PerformAction(Project(Remove(id)))]) when id == Id.invalid =>
       //TODO(andrew): cleanup
       Ignore
     | Some(action) =>
-      Many([
-        Prevent_default,
-        // Stop_propagation,
-        inject(action),
-      ])
+      Many(
+        [
+          Prevent_default,
+          // Stop_propagation,
+        ]
+        @ List.map(inject, action),
+      )
     | None =>
       switch (Keyboard.handle_key_event(key)) {
       | None => Ignore
@@ -42,7 +44,8 @@ let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit), model: Model.t) =>
     let key = Key.mk(dir, evt);
     let editor = Editors.get_editor(model.editors);
     switch (ProjectorsView.key_handler(editor, ~inject, key)) {
-    | Some(PerformAction(Project(Remove(id)))) when id == Id.invalid =>
+    | Some([PerformAction(Project(Remove(id)))]) when id == Id.invalid =>
+      //TODO(andrew): cleanup
       Ignore
     | _ => Effect.Prevent_default
     };

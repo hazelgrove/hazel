@@ -5,48 +5,55 @@ open Projector;
 open Util.OptUtil.Syntax;
 open Util.Web;
 
-let rec handle = (id, action): UpdateAction.t => {
+let handle = (id, action): list(UpdateAction.t) => {
+  let crime = (b, p) => {
+    //TODO(andrew): remove this crime
+    let (module P) = Projector.to_module(p);
+    P.update(TextAreaCore.serialize(SetInside(b)));
+  };
   switch (action) {
+  | Escape(selector, Left) =>
+    JsUtil.get_elem_by_selector(selector)##blur;
+    [
+      PerformAction(Project(UpdateModel(id, crime(false)))),
+      PerformAction(Move(Local(Right(ByToken)))),
+    ];
+  | Escape(selector, Right) =>
+    JsUtil.get_elem_by_selector(selector)##blur;
+    [PerformAction(Project(UpdateModel(id, crime(false))))];
   | JumpTo =>
     //TODO(andrew): end up on nearest side
     //TODO(andrew): set inside
-    PerformAction(Jump(TileId(id)))
-  | FocusInternal =>
-    //TODO(andrew): unhardcode selector
-    JsUtil.get_elem_by_selector(".projector.text textarea")##focus;
-    PerformAction(
-      Project(
-        UpdateModel(
-          id,
-          p => {
-            //TODO(andrew): remove this crime
-            let (module P) = Projector.to_module(p);
-            P.update(TextAreaCore.serialize(SetInside(true)));
-          },
-        ),
-      ),
-    );
+    [PerformAction(Jump(TileId(id)))]
+  | FocusInternal(selector) =>
+    JsUtil.get_elem_by_selector(selector)##focus;
+    /* Note: jumping her normalizes position, so when exiting
+     * we know we're intially to the left and can move or not accordingly */
+    [
+      PerformAction(Jump(TileId(id))),
+      PerformAction(Project(UpdateModel(id, crime(true)))),
+    ];
   | Default =>
     //TODO(andrew): no-op
-    PerformAction(Project(Remove(Id.invalid)))
-  | Remove => PerformAction(Project(Remove(id)))
-  | UpdateSyntax(f) => PerformAction(Project(UpdateSyntax(id, f)))
+    [PerformAction(Project(Remove(Id.invalid)))]
+  | Remove => [PerformAction(Project(Remove(id)))]
+  | UpdateSyntax(f) => [PerformAction(Project(UpdateSyntax(id, f)))]
   | UpdateModel(action) =>
     //TODO(andrew)
-    // print_endline("TODO: update model");
-    PerformAction(
-      Project(
-        UpdateModel(
-          id,
-          p => {
-            let (module P) = Projector.to_module(p);
-            P.update(action);
-          },
+    [
+      PerformAction(
+        Project(
+          UpdateModel(
+            id,
+            p => {
+              let (module P) = Projector.to_module(p);
+              P.update(action);
+            },
+          ),
         ),
       ),
-    )
-  // PerformAction(Project(UpdateModel(id, x => x)));
-  | Seq(a1, _a2) => handle(id, a1) //TODO
+    ]
+  | Seq(_a1, _a2) => [] //TODO(andrew)
   };
 };
 
@@ -60,15 +67,25 @@ let to_module =
     : ProjectorViewModule.t => {
   switch (p) {
   | Fold(model) =>
-    FoldView.mk(syntax, model, ~inject=a => inject(handle(id, a)))
+    FoldView.mk(syntax, model, ~inject=a =>
+      Effect.Many(List.map(inject, handle(id, a)))
+    )
   | Infer(model) =>
-    InferView.mk(syntax, model, ~inject=a => inject(handle(id, a)))
+    InferView.mk(syntax, model, ~inject=a =>
+      Effect.Many(List.map(inject, handle(id, a)))
+    )
   | Checkbox(model) =>
-    CheckboxView.mk(syntax, model, ~inject=a => inject(handle(id, a)))
+    CheckboxView.mk(syntax, model, ~inject=a =>
+      Effect.Many(List.map(inject, handle(id, a)))
+    )
   | Slider(model) =>
-    SliderView.mk(syntax, model, ~inject=a => inject(handle(id, a)))
+    SliderView.mk(syntax, model, ~inject=a =>
+      Effect.Many(List.map(inject, handle(id, a)))
+    )
   | TextArea(model) =>
-    TextAreaView.mk(syntax, model, ~inject=a => inject(handle(id, a)))
+    TextAreaView.mk(syntax, model, ~inject=a =>
+      Effect.Many(List.map(inject, handle(id, a)))
+    )
   };
 };
 
@@ -214,7 +231,7 @@ let key_handler =
       key: Key.t,
       ~inject: UpdateAction.t => Ui_effect.t(unit),
     )
-    : option(UpdateAction.t) =>
+    : option(list(UpdateAction.t)) =>
   switch (indicated_proj_ed(editor)) {
   | None => None
   | Some((id, p)) =>
