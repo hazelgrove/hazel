@@ -759,6 +759,7 @@ select {
   background-color: #e0d1b7;
   color: #f0e7d6;
   height: 100%;
+  width:100%;
   align-items: start;
   display: flex;
   border-left: 2px solid #0000;
@@ -783,7 +784,7 @@ select {
   /* filter: sepia(1); */
   resize: none;
   height: 100%;
-  /* width: 100%; */
+  width: 100%;
   caret-color: red;
   padding: 0;
   margin: 0;

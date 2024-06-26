@@ -5,12 +5,12 @@ open Projector;
 open Util.OptUtil.Syntax;
 open Util.Web;
 
-let update_model = (action, p) => {
-  let (module P) = Projector.to_module(p);
+let update_model = (action, syntax, p) => {
+  let (module P) = Projector.to_module(syntax, p);
   P.update(action);
 };
 
-let handle = (id, action): list(UpdateAction.t) => {
+let handle = (id, syntax, action): list(UpdateAction.t) => {
   switch (action) {
   | FocusInternal(selector) =>
     JsUtil.get_elem_by_selector(selector)##focus;
@@ -35,7 +35,9 @@ let handle = (id, action): list(UpdateAction.t) => {
   | Remove => [PerformAction(Project(Remove(id)))]
   | UpdateSyntax(f) => [PerformAction(Project(UpdateSyntax(id, f)))]
   | UpdateModel(action) => [
-      PerformAction(Project(UpdateModel(id, update_model(action)))),
+      PerformAction(
+        Project(UpdateModel(id, update_model(action, syntax))),
+      ),
     ]
   };
 };
@@ -51,23 +53,23 @@ let to_module =
   switch (p) {
   | Fold(model) =>
     FoldView.mk(syntax, model, ~inject=a =>
-      Effect.Many(List.map(inject, handle(id, a)))
+      Effect.Many(List.map(inject, handle(id, syntax, a)))
     )
   | Infer(model) =>
     InferView.mk(syntax, model, ~inject=a =>
-      Effect.Many(List.map(inject, handle(id, a)))
+      Effect.Many(List.map(inject, handle(id, syntax, a)))
     )
   | Checkbox(model) =>
     CheckboxView.mk(syntax, model, ~inject=a =>
-      Effect.Many(List.map(inject, handle(id, a)))
+      Effect.Many(List.map(inject, handle(id, syntax, a)))
     )
   | Slider(model) =>
     SliderView.mk(syntax, model, ~inject=a =>
-      Effect.Many(List.map(inject, handle(id, a)))
+      Effect.Many(List.map(inject, handle(id, syntax, a)))
     )
   | TextArea(model) =>
     TextAreaView.mk(syntax, model, ~inject=a =>
-      Effect.Many(List.map(inject, handle(id, a)))
+      Effect.Many(List.map(inject, handle(id, syntax, a)))
     )
   };
 };
@@ -79,6 +81,7 @@ let wrap = //TODO(andrew): cleanup params
       ~font_metrics: FontMetrics.t,
       ~measurement: Measured.measurement,
       ~accent: option(ProjectorViewModule.accent),
+      ~syntax,
       p: Projector.t,
       view: Node.t,
     ) =>
@@ -105,7 +108,7 @@ let wrap = //TODO(andrew): cleanup params
         [view],
       ),
       //TODO(andrew): document
-      switch (Projector.shape(p)) {
+      switch (Projector.shape(p, syntax)) {
       | Inline(_) => PieceDec.convex_shard(~font_metrics, ~measurement)
       | Block(_) => div([])
       },
@@ -133,6 +136,7 @@ let view =
     ~id,
     ~measurement,
     ~accent,
+    ~syntax,
     p,
     PV.view(accent),
   );
@@ -186,9 +190,9 @@ let kind = (editor: Editor.t) => {
   Projector.kind(p);
 };
 
-let shape = (z: Zipper.t) => {
+let shape = (z: Zipper.t, syntax) => {
   let+ (_, p) = indicated_proj_z(z);
-  Projector.shape(p);
+  Projector.shape(p, syntax);
 };
 
 let id = (editor: Editor.t) => {
@@ -222,7 +226,7 @@ let key_handler =
     let (module PV) = to_module(id, syntax, p, ~inject);
     let* (_, d, _) = Indicated.piece(editor.state.zipper);
     let+ action = PV.keymap(d, key);
-    handle(id, action);
+    handle(id, syntax, action);
   };
 
 let option_view = (name, n) =>

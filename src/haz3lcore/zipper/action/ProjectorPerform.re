@@ -29,19 +29,24 @@ let add_or_remove = (id: Id.t, z: Zipper.t, info_map, p, piece, d, rel) =>
   | true => Ok(set(id, None, z))
   };
 
-let go = (a: Action.project, info_map: Statics.Map.t, z: ZipperBase.t) =>
+let go =
+    (a: Action.project, info_map: Statics.Map.t, syntax_map, z: ZipperBase.t) =>
   //TODO(andrew): avoid bringing statics in here?
   switch (a) {
   | SetKeyDispatch(id, b) =>
-    let crime = (b, p) => {
-      //TODO(andrew): remove this crime
-      let (module P) = Projector.to_module(p);
-      P.update(TextAreaCore.serialize(SetInside(b)));
-    };
-    Ok({
-      ...z,
-      projectors: Map.update(id, Option.map(crime(b)), z.projectors),
-    });
+    switch (Id.Map.find_opt(id, syntax_map)) {
+    | Some(syntax) =>
+      let crime = (b, p) => {
+        //TODO(andrew): remove this crime
+        let (module P) = Projector.to_module(syntax, p);
+        P.update(TextAreaCore.serialize(SetInside(b)));
+      };
+      Ok({
+        ...z,
+        projectors: Map.update(id, Option.map(crime(b)), z.projectors),
+      });
+    | None => Error(Action.Failure.Cant_project)
+    }
   | SetIndicated(p) =>
     switch (Indicated.for_index(z)) {
     | None => Error(Action.Failure.Cant_project)

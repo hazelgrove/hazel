@@ -20,7 +20,17 @@ module Deco =
   let tile = id => Id.Map.find(id, M.tiles);
 
   let caret = (z: Zipper.t): list(Node.t) => {
-    switch (ProjectorsView.shape(z)) {
+    //TODO(andrew): document
+    let shape =
+      switch (Indicated.index(z)) {
+      | Some(id) =>
+        switch (Id.Map.find_opt(id, M.syntax_map)) {
+        | Some(syntax) => ProjectorsView.shape(z, syntax)
+        | None => None
+        }
+      | None => None
+      };
+    switch (shape) {
     | Some(Block(_)) => []
     | _ =>
       let origin = Zipper.caret_point(M.map, z);
