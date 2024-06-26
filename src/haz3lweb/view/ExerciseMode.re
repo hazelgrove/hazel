@@ -74,6 +74,18 @@ let view =
     );
   };
 
+  let update_title = _ => {
+    let new_title =
+      Obj.magic(
+        Js_of_ocaml.Js.some(JsUtil.get_elem_by_id("title-input-box")),
+      )##.value;
+    let update_events = [
+      inject(Set(EditingTitle)),
+      inject(UpdateTitle(new_title)),
+    ];
+    Virtual_dom.Vdom.Effect.Many(update_events);
+  };
+
   let title_view = {
     Cell.simple_cell_view([
       div(
@@ -81,35 +93,38 @@ let view =
         [
           settings.instructor_mode
             ? settings.editing_title
-                ? input(
-                    ~attr=
-                      Attr.many([
-                        Attr.class_("title-text"),
-                        Attr.value(eds.title),
-                        Attr.on_keydown(evt =>
-                          if (evt##.keyCode === 13) {
-                            let new_title = Obj.magic(evt##.target)##.value;
-                            let update_events = [
-                              inject(Set(EditingTitle)),
-                              inject(UpdateTitle(new_title)),
-                            ];
-                            Virtual_dom.Vdom.Effect.Many(update_events);
-                          } else {
-                            // This is placeholder until I figure out how to "do nothing"
-                            inject(
-                              FinishImportAll(None),
-                            );
-                          }
-                        ),
-                      ]),
-                    [],
+                ? div(
+                    ~attr=Attr.many([Attr.class_("title-edit")]),
+                    [
+                      input(
+                        ~attr=
+                          Attr.many([
+                            Attr.class_("title-text"),
+                            Attr.id("title-input-box"),
+                            Attr.value(eds.title),
+                          ]),
+                        [],
+                      ),
+                      div(
+                        ~attr=Attr.class_("edit-icon"),
+                        [Widgets.button(Icons.confirm, update_title)],
+                      ),
+                      div(
+                        ~attr=Attr.class_("edit-icon"),
+                        [
+                          Widgets.button(Icons.cancel, _ =>
+                            inject(Set(EditingTitle))
+                          ),
+                        ],
+                      ),
+                    ],
                   )
                 : div(
-                    ~attr=Attr.many([Attr.class_("title-text")]),
+                    ~attr=Attr.many([Attr.class_("title-edit")]),
                     [
                       text(eds.title),
                       div(
-                        ~attr=Attr.class_("pencil-icon"),
+                        ~attr=Attr.class_("edit-icon"),
                         [
                           Widgets.button(Icons.pencil, _ =>
                             inject(Set(EditingTitle))
