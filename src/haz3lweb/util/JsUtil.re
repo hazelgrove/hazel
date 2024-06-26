@@ -179,83 +179,76 @@ let stop_mousedown_propagation =
     Virtual_dom.Vdom.Effect.Ignore;
   });
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type text_position = {
-  row: int,
-  col: int,
-};
+module TextArea = {
+  type t = Js.t(Dom_html.textAreaElement);
 
-let get_textarea = (selector: string): Js.t(Dom_html.textAreaElement) =>
-  Dom_html.CoerceTo.textarea(get_elem_by_selector(selector))
-  |> Js.Opt.get(_, _ => failwith("get_caret_text_position"));
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type pos = {
+    row: int,
+    col: int,
+  };
 
-let get_textarea_lines =
-    (textarea: Js.t(Dom_html.textAreaElement)): list(string) => {
-  let text_content = Js.to_string(textarea##.value);
-  Str.split(Str.regexp("\n"), text_content);
-};
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type rel =
+    | First
+    | Middle
+    | Last;
 
-let textarea_max_row = (selector: string): int => {
-  let textarea = get_textarea(selector);
-  let lines = get_textarea_lines(textarea);
-  List.length(lines) - 1;
-};
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type rel_pos = {
+    rows: rel,
+    cols: rel,
+  };
 
-let textarea_caret_position = (selector: string): text_position => {
-  let textarea = get_textarea(selector);
-  let lines = get_textarea_lines(textarea);
-  let caret_position = textarea##.selectionStart;
-  let rec find_position = (lines, current_position, row, col) => {
-    switch (lines) {
-    | [] => {row, col}
-    | [line, ...rest] =>
-      let line_length = String.length(line); // +1 for the newline
-      if (current_position <= line_length) {
-        {row, col: current_position};
-      } else {
-        find_position(rest, current_position - line_length - 1, row + 1, 0);
+  let get = (selector: string): Js.t(Dom_html.textAreaElement) =>
+    selector
+    |> get_elem_by_selector
+    |> Dom_html.CoerceTo.textarea
+    |> Js.Opt.get(_, _ => failwith("TextArea.get"));
+
+  let lines = (textarea: t): list(string) =>
+    Str.split(Str.regexp("\n"), Js.to_string(textarea##.value));
+
+  let caret_pos = (textarea: t): pos => {
+    let rec find_position = (lines, cur_pos, row, col) => {
+      switch (lines) {
+      | [] => {row, col}
+      | [line, ...rest] =>
+        let line_length = String.length(line);
+        if (cur_pos <= line_length) {
+          {row, col: cur_pos};
+        } else {
+          find_position(rest, cur_pos - line_length - 1, row + 1, 0);
+        };
       };
     };
-  };
-  find_position(lines, caret_position, 0, 0);
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type position_type =
-  | First
-  | Middle
-  | Last;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type caret_position = {
-  rows: position_type,
-  cols: position_type,
-};
-
-let boundary_pos = (current, max) =>
-  if (current == 0) {
-    First;
-  } else if (current == max) {
-    Last;
-  } else {
-    Middle;
+    let lines = lines(textarea);
+    let caret_position = textarea##.selectionStart;
+    find_position(lines, caret_position, 0, 0);
   };
 
-let textarea_caret_rel_pos = (selector: string): caret_position => {
-  let lines = selector |> get_textarea |> get_textarea_lines;
-  let {row, col} = textarea_caret_position(selector);
-  {
-    rows: boundary_pos(row, List.length(lines) - 1),
-    cols: boundary_pos(col, String.length(List.nth(lines, row))),
-  };
-};
+  let rel = (current: int, max: int): rel =>
+    if (current == 0) {
+      First;
+    } else if (current == max) {
+      Last;
+    } else {
+      Middle;
+    };
 
-let set_textarea_caret_to_end = (selector: string): unit => {
-  let textarea = get_textarea(selector);
-  // Focus the textarea
-  textarea##focus;
-  // Set the selection start (and implicitly, the end) to the length of the content
-  let content_length = String.length(Js.to_string(textarea##.value));
-  textarea##.selectionStart := content_length;
-  textarea##.selectionEnd := content_length;
+  let caret_rel_pos = (textarea: t): rel_pos => {
+    let lines = textarea |> lines;
+    let {row, col} = caret_pos(textarea);
+    {
+      rows: rel(row, List.length(lines) - 1),
+      cols: rel(col, String.length(List.nth(lines, row))),
+    };
+  };
+
+  let set_caret_to_end = (textarea: t): unit => {
+    textarea##focus;
+    let content_length = String.length(Js.to_string(textarea##.value));
+    textarea##.selectionStart := content_length;
+    textarea##.selectionEnd := content_length;
+  };
 };

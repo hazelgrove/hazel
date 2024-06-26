@@ -5,55 +5,38 @@ open Projector;
 open Util.OptUtil.Syntax;
 open Util.Web;
 
+let update_model = (action, p) => {
+  let (module P) = Projector.to_module(p);
+  P.update(action);
+};
+
 let handle = (id, action): list(UpdateAction.t) => {
-  let crime = (b, p) => {
-    //TODO(andrew): remove this crime
-    let (module P) = Projector.to_module(p);
-    P.update(TextAreaCore.serialize(SetInside(b)));
-  };
   switch (action) {
-  | Escape(selector, Left) =>
-    JsUtil.get_elem_by_selector(selector)##blur;
-    [
-      PerformAction(Project(UpdateModel(id, crime(false)))),
-      PerformAction(Move(Local(Right(ByToken)))),
-    ];
-  | Escape(selector, Right) =>
-    JsUtil.get_elem_by_selector(selector)##blur;
-    [PerformAction(Project(UpdateModel(id, crime(false))))];
-  | JumpTo =>
-    //TODO(andrew): end up on nearest side
-    //TODO(andrew): set inside
-    [PerformAction(Jump(TileId(id)))]
   | FocusInternal(selector) =>
     JsUtil.get_elem_by_selector(selector)##focus;
     /* Note: jumping her normalizes position, so when exiting
      * we know we're intially to the left and can move or not accordingly */
     [
       PerformAction(Jump(TileId(id))),
-      PerformAction(Project(UpdateModel(id, crime(true)))),
+      PerformAction(Project(SetKeyDispatch(id, true))),
     ];
+  | Escape(selector, Left) =>
+    JsUtil.get_elem_by_selector(selector)##blur;
+    [
+      PerformAction(Project(SetKeyDispatch(id, false))),
+      PerformAction(Move(Local(Right(ByToken)))),
+    ];
+  | Escape(selector, Right) =>
+    JsUtil.get_elem_by_selector(selector)##blur;
+    [PerformAction(Project(SetKeyDispatch(id, false)))];
   | Default =>
-    //TODO(andrew): no-op
-    [PerformAction(Project(Remove(Id.invalid)))]
+    //TODO(andrew): proper no-op
+    []
   | Remove => [PerformAction(Project(Remove(id)))]
   | UpdateSyntax(f) => [PerformAction(Project(UpdateSyntax(id, f)))]
-  | UpdateModel(action) =>
-    //TODO(andrew)
-    [
-      PerformAction(
-        Project(
-          UpdateModel(
-            id,
-            p => {
-              let (module P) = Projector.to_module(p);
-              P.update(action);
-            },
-          ),
-        ),
-      ),
+  | UpdateModel(action) => [
+      PerformAction(Project(UpdateModel(id, update_model(action)))),
     ]
-  | Seq(_a1, _a2) => [] //TODO(andrew)
   };
 };
 
@@ -89,7 +72,7 @@ let to_module =
   };
 };
 
-let wrap =
+let wrap = //TODO(andrew): cleanup params
     (
       ~inject as _,
       ~id as _,
