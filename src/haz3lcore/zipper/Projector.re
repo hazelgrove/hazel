@@ -8,13 +8,13 @@ module Map = ProjectorMap;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type info = ZipperBase.projector_info;
 
-let to_module = (p: projector): projector_core =>
+let to_module = (syntax, p: projector): projector_core =>
   switch ((p: projector)) {
   | Fold(model) => FoldCore.mk(model)
   | Infer(model) => InferCore.mk(model)
   | Checkbox(model) => CheckboxCore.mk(model)
   | Slider(model) => SliderCore.mk(model)
-  | TextArea(model) => TextAreaCore.mk(model)
+  | TextArea(model) => TextAreaCore.mk(syntax, model)
   };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -71,16 +71,16 @@ let kind = (p: t): kind =>
 
 let name = (p: t): string => p |> kind |> name_;
 
-let shape = (p: t): shape => {
-  let (module P) = to_module(p);
+let shape = (p: t, syntax): shape => {
+  let (module P) = to_module(syntax, p);
   P.placeholder();
 };
 
-let placeholder = (p: t, id: Id.t): syntax =>
+let placeholder = (p: t, syntax: syntax): syntax =>
   Piece.Tile({
-    id,
+    id: Piece.id(syntax),
     label:
-      switch (shape(p)) {
+      switch (shape(p, syntax)) {
       | Inline(width) => [String.make(width, ' ')]
       | Block({row, col}) => [
           String.make(row, '\n') ++ String.make(col, ' '),
@@ -95,13 +95,13 @@ let placeholder = (p: t, id: Id.t): syntax =>
 let minimum_projection_condition = (syntax: syntax): bool =>
   Piece.is_convex(syntax);
 
-let init = (f: kind, _syntax): projector_core =>
+let init = (f: kind, syntax): projector_core =>
   switch (f) {
   | Fold => FoldCore.mk()
   | Infer => InferCore.mk({expected_ty: None})
   | Checkbox => CheckboxCore.mk()
   | Slider => SliderCore.mk({value: 10})
-  | TextArea => TextAreaCore.mk({inside: false})
+  | TextArea => TextAreaCore.mk(syntax, {inside: false})
   };
 
 let create =
@@ -264,7 +264,7 @@ module Project = {
     | None => syntax
     | Some(pr) =>
       syntax_map := Id.Map.add(Piece.id(syntax), syntax, syntax_map^);
-      placeholder(pr, Piece.id(syntax));
+      placeholder(pr, syntax);
     };
 
   let go = (z: ZipperBase.t): proj_ret => {

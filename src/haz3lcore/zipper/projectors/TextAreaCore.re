@@ -35,7 +35,7 @@ let get = (piece: Piece.t): string =>
 
 let put = (s: string): Piece.t => s |> mk_mono(Exp);
 
-let mk = (model): projector_core =>
+let mk = (syntax, model): projector_core =>
   (module
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
@@ -45,9 +45,20 @@ let mk = (model): projector_core =>
      let model = model;
      let projector = TextArea(model);
      let can_project = _ => true;
-     //TODO(andrew): unhardcode below numbers
-     let row = 4 - 1; //Util.StringUtil.num_linebreaks(get(syntax));
-     let placeholder = () => Block({row, col: 20 + 2});
+     //TODO(andrew): cleanup
+     let row = Util.StringUtil.num_linebreaks(get(syntax));
+     /* +2 for left and right padding */
+     let col =
+       2
+       + List.fold_left(
+           max,
+           0,
+           List.map(
+             String.length,
+             Re.Str.split(Re.Str.regexp("\n"), get(syntax)),
+           ),
+         );
+     let placeholder = () => Block({row, col});
      let auto_update = _: projector => TextArea(model);
      let update = (a: string) =>
        switch (deserialize(a)) {
