@@ -166,12 +166,15 @@ let update_settings =
     }
   | InstructorMode =>
     let new_mode = !settings.instructor_mode;
+    let editors = Editors.set_editing_title(model.editors, false);
+    let editors = Editors.set_instructor_mode(editors, new_mode);
     {
       ...model,
-      editors: Editors.set_instructor_mode(model.editors, new_mode),
+      editors,
       settings: {
         ...settings,
         instructor_mode: !settings.instructor_mode,
+        editing_title: false,
       },
     };
   | EditingTitle =>
@@ -521,14 +524,9 @@ let rec apply =
         ModelResults.union((_, _a, b) => Some(b), model.results, results);
       Ok({...model, results});
     | UpdateTitle(new_title) =>
-      Ok({
+      Model.save_and_return({
         ...model,
-        editors:
-          Editors.update_exercise_title(
-            model.editors,
-            new_title,
-            model.settings.instructor_mode,
-          ),
+        editors: Editors.update_exercise_title(model.editors, new_title),
       })
     };
   m |> Result.map(~f=update_cached_data(~schedule_action, update));

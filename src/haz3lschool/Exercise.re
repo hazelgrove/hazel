@@ -483,6 +483,14 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     },
   };
 
+  let update_exercise_title = ({eds, _} as state: state, new_title: string) => {
+    ...state,
+    eds: {
+      ...eds,
+      title: new_title,
+    },
+  };
+
   let visible_in = (pos, ~instructor_mode) => {
     switch (pos) {
     | Prelude => instructor_mode

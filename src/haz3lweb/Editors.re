@@ -136,19 +136,15 @@ let set_editing_title = (editors: t, editing: bool): t =>
     Exercises(n, specs, Exercise.set_editing_title(exercise, editing))
   };
 
-let update_exercise_title =
-    (editors: t, new_title: string, instructor_mode: bool): t =>
+let update_exercise_title = (editors: t, new_title: string): t =>
   switch (editors) {
   | Scratch(_)
   | Documentation(_) => editors
-  | Exercises(n, specs, _) =>
+  | Exercises(n, specs, exercise) =>
     Exercises(
       n,
-      specs,
-      Exercise.state_of_spec(
-        {...List.nth(specs, n), title: new_title, module_name: new_title},
-        ~instructor_mode,
-      ),
+      ListUtil.update_nth(n, specs, spec => {{...spec, title: new_title}}),
+      Exercise.update_exercise_title(exercise, new_title),
     )
   };
 
