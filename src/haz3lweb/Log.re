@@ -31,6 +31,8 @@ let is_action_logged: UpdateAction.t => bool =
   | MoveToNextHole(_)
   | UpdateResult(_)
   | UpdateTitle(_)
+  | AddBuggyImplementation
+  | DeleteBuggyImplementation(_)
   | ToggleStepper(_)
   | StepperAction(_, StepForward(_) | StepBackward)
   | UpdateExplainThisModel(_) => true;

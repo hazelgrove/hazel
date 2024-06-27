@@ -304,13 +304,14 @@ let editor_view =
         locked ? "locked" : "unlocked",
       ]),
     [
+      div(~attr=Attr.class_("cell-item"), Option.to_list(caption)),
       div(
         ~attr=
           Attr.many([
             Attr.class_("cell-item"),
             Attr.on_mousedown(on_mousedown),
           ]),
-        Option.to_list(caption) @ mousedown_overlay @ [code_view],
+        mousedown_overlay @ [code_view],
       ),
     ]
     @ (footer |> Option.to_list |> List.concat),
@@ -402,7 +403,7 @@ let instructor_title_cell = (~inject, ~title) => {
   );
 };
 
-let wrong_impl_caption = (~inject, sub: string) => {
+let wrong_impl_caption = (~inject, sub: string, n: int) => {
   div(
     ~attr=Attr.class_("wrong-impl-cell-caption"),
     [
@@ -412,7 +413,7 @@ let wrong_impl_caption = (~inject, sub: string) => {
         [
           Widgets.button(
             Icons.delete,
-            _ => inject(UpdateAction.Set(EditingTitle)),
+            _ => inject(UpdateAction.DeleteBuggyImplementation(n)),
             ~tooltip="Delete Buggy Implementation",
           ),
         ],
