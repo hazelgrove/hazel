@@ -712,6 +712,27 @@ select {
   border-bottom-right-radius: 0.4em;
 }
 
+.wrong-impl-cell-caption {
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+}
+
+.instructor-edit-icon {
+  margin-top: 0.175em;
+  margin-left: 1em;
+  cursor: pointer;
+  fill: #7a6219;
+}
+
+#add-icon {
+  margin-left: 0em;
+}
+
+.instructor-edit-icon:hover {
+  animation: wobble 0.6s ease 0s 1 normal forwards;
+}
+
 .title-cell {
   padding-left: 1em;
   display: flex;
@@ -731,16 +752,6 @@ select {
   flex-grow: 1;
   display: flex;
   align-items: center;
-}
-
-.title-edit .edit-icon {
-  margin-left: 0.5em;
-  cursor: pointer;
-  fill: #7a6219;
-}
-
-.title-edit .edit-icon:hover {
-  animation: wobble 0.6s ease 0s 1 normal forwards;
 }
 
 .cell-prompt {
