@@ -68,7 +68,7 @@ let view =
       ~highlights,
       ~caption=
         switch (this_pos) {
-        | HiddenBugs(_) => Cell.wrong_impl_caption(~inject, caption)
+        | HiddenBugs(n) => Cell.wrong_impl_caption(~inject, caption, n)
         | _ => Cell.caption(caption, ~rest=?subcaption)
         },
       ~target_id=Exercise.show_pos(this_pos),
@@ -210,7 +210,7 @@ let view =
               [
                 Widgets.button(
                   Icons.add,
-                  _ => inject(UpdateAction.Set(EditingTitle)),
+                  _ => inject(UpdateAction.AddBuggyImplementation),
                   ~tooltip="Add Buggy Implementation",
                 ),
               ],
