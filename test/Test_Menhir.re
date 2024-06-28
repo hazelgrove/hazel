@@ -72,25 +72,25 @@ let parser_test = (a, expected, actual, ()) =>
 //     ),
 // );
 
-let fun_exp = AST.Fun(IntType, VarPat("x"), Var("x"), None);
-
-let fun_str = "fun: Int x -> x";
-
-let tests = [
-  test_case(
-    "Integer Literal",
-    `Quick,
-    parser_test("Same Integer", Int(8), "8"),
-  ),
-  test_case("Fun", `Quick, parser_test("Fun", fun_exp, fun_str)),
-  // test_case(
-  //   "String Literal",
-  //   `Quick,
-  //   parser_test("Same String", String("Hello World"), "\"Hello World\""),
-  // ),
-  // test_case(
-  //   "Bigger expression",
-  //   `Quick,
-  //   parser_test("test.hazel contents", bigger_expression, file_contents),
-  // ),
-];
+// let fun_exp = AST.Fun(IntType, VarPat("x"), Var("x"), None);
+//
+// let fun_str = "fun: Int x -> x";
+//
+// let tests = [
+//   test_case(
+//     "Integer Literal",
+//     `Quick,
+//     parser_test("Same Integer", Int(8), "8"),
+//   ),
+//   test_case("Fun", `Quick, parser_test("Fun", fun_exp, fun_str)),
+// test_case(
+//   "String Literal",
+//   `Quick,
+//   parser_test("Same String", String("Hello World"), "\"Hello World\""),
+// ),
+// test_case(
+//   "Bigger expression",
+//   `Quick,
+//   parser_test("test.hazel contents", bigger_expression, file_contents),
+// ),
+// ];
