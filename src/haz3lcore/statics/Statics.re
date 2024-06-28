@@ -171,6 +171,7 @@ and uexp_to_info_map =
       ~ctx: Ctx.t,
       ~mode=Mode.Syn,
       ~is_in_filter=false,
+      ~is_contained=false,
       ~ancestors,
       {ids, term} as uexp: UExp.t,
       m: Map.t,
@@ -194,18 +195,27 @@ and uexp_to_info_map =
         ~ctx,
         ~mode=Mode.Syn,
         ~is_in_filter=is_in_filter,
+        ~is_contained=false,
         ~ancestors=ancestors,
         uexp: UExp.t,
         m: Map.t,
       ) => {
-    uexp_to_info_map(~ctx, ~mode, ~is_in_filter, ~ancestors, uexp, m);
+    uexp_to_info_map(
+      ~ctx,
+      ~mode,
+      ~is_in_filter,
+      ~is_contained,
+      ~ancestors,
+      uexp,
+      m,
+    );
   };
   let go' = uexp_to_info_map(~ancestors);
   let go = go'(~ctx);
   let map_m_go = m =>
     List.fold_left2(
       ((es, m), mode, e) =>
-        go(~mode, e, m) |> (((e, m)) => (es @ [e], m)),
+        go(~mode, e, m, ~is_contained=true) |> (((e, m)) => (es @ [e], m)),
       ([], m),
     );
   let go_pat = upat_to_info_map(~ctx, ~ancestors);
@@ -283,10 +293,15 @@ and uexp_to_info_map =
     let (e1, m) = go(~mode=Ana(ty1), e1, m);
     let (e2, m) = go(~mode=Ana(ty2), e2, m);
     add(~self=Just(ty_out), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
+  | TupLabel(s, e) when is_contained =>
+    let mode = Mode.of_label(ctx, mode);
+    let (e, m) = go(~mode, e, m);
+    // treating standalone labeled expressions as within a tuple of size 1
+    add(~self=Just(Label(s, e.ty)), ~co_ctx=e.co_ctx, m);
   | TupLabel(s, e) =>
     let mode = Mode.of_label(ctx, mode);
     let (e, m) = go(~mode, e, m);
-    add(~self=Just(Label(s, e.ty)), ~co_ctx=e.co_ctx, m);
+    add(~self=Just(Prod([Label(s, e.ty)])), ~co_ctx=e.co_ctx, m);
   | Tuple(es) =>
     let modes = Mode.of_prod(ctx, mode, es, UExp.get_label);
     let (es, m) = map_m_go(m, modes, es);
@@ -301,7 +316,7 @@ and uexp_to_info_map =
     let element: option(Typ.t) =
       switch (e.ty) {
       | Prod(ts) => LabeledTuple.find_label(Typ.get_label, ts, s)
-      | Label(l, t) when LabeledTuple.compare(s, l) == 0 => Some(t)
+      // | Label(l, t) when LabeledTuple.compare(s, l) == 0 => Some(t)
       | _ => None // TODO (Anthony): other exps
       };
     switch (element) {
