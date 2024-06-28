@@ -101,11 +101,16 @@ rule token =
     | ";" {SEMI_COLON}
     | "test" {TEST}
     | "::" { CONS }
-    | "@" {LIST_CONCAT}
+    | "@" {AT_SYMBOL}
     | "?" {QUESTION}
     | "_" {WILD}
     | "_BAD" {BAD_CONSTRUCTOR}
     | "fix" {FIX}
+    | "_InAp" {IN_AP}
+    | "_OutAp" {OUT_AP}
+    | "typfun" {TYP_FUN}
+    | "type" {TYP}
+    | "$" {DOLLAR_SIGN}
     | identifier as i { IDENT(i) }
     | constructor_ident as i { CONSTRUCTOR_IDENT(i)}
     | eof { EOF }

@@ -119,7 +119,7 @@ module Deco =
         };
       let range: option((Measured.Point.t, Measured.Point.t)) = {
         // if (Piece.has_ends(p)) {
-        let id = Id.Map.find(Piece.id(p), M.terms) |> Term.rep_id;
+        let id = Id.Map.find(Piece.id(p), M.terms) |> Any.rep_id;
         switch (TermRanges.find_opt(id, M.term_ranges)) {
         | None => None
         | Some((p_l, p_r)) =>
@@ -138,7 +138,7 @@ module Deco =
       | Some(range) =>
         let tiles =
           Id.Map.find(Piece.id(p), M.terms)
-          |> Term.ids
+          |> Any.ids
           /* NOTE(andrew): dark_ids were originally filtered here.
            * Leaving this comment in place in case issues in the
            * future are traced back to here.
@@ -277,7 +277,7 @@ module Deco =
     );
   };
 
-  // faster infomap traversal
+  // faster info_map traversal
   let err_holes = (_z: Zipper.t) =>
     List.map(term_highlight(~clss=["err-hole"]), M.error_ids);
 

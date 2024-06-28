@@ -3,11 +3,16 @@ open AST
 %}
 
 
+%token DOLLAR_SIGN
+%token TYP
+%token TYP_FUN
+%token IN_AP
+%token OUT_AP
 %token FIX
 %token BAD_CONSTRUCTOR
 %token WILD
 %token QUESTION
-%token LIST_CONCAT
+%token AT_SYMBOL
 %token CONS
 %token TEST
 %token PAUSE
@@ -137,6 +142,7 @@ binExp:
     | e1 = exp; b = binOp; e2 = exp { BinExp (e1, b, e2) }
 
 typ:
+    | QUESTION; s = STRING { InvalidTyp(s) }
     | INT_TYPE { IntType }
     | FLOAT_TYPE { FloatType }
     | BOOL_TYPE { BoolType }
@@ -151,15 +157,15 @@ varPat:
     | i = IDENT { VarPat (i) }
 
 pat: 
-    | OPEN_BRACKET; OPEN_BRACKET; p = pat; CLOSE_BRACKET; CLOSE_BRACKET; {NonEmptyHolePat p}
+    | QUESTION; s = STRING { InvalidPat(s) }
+    | OPEN_BRACKET; OPEN_BRACKET; p = pat; CLOSE_BRACKET; CLOSE_BRACKET; {MultiHolePat p}
     | WILD { WildPat }
     | QUESTION { EmptyHolePat }
-    | BAD_CONSTRUCTOR; c = CONSTRUCTOR_IDENT {BadConstructorPat(c)}
-    | OPEN_SQUARE_BRACKET; l = separated_list(COMMA, pat); CLOSE_SQUARE_BRACKET; COLON; t = typ { ListPat(l, t) }
+    | OPEN_SQUARE_BRACKET; l = separated_list(COMMA, pat); CLOSE_SQUARE_BRACKET; { ListPat(l) }
     | c = CONSTRUCTOR_IDENT { ConstructorPat(c) }
     | p = varPat {p}
     | t = patTuple { t }
-    | t = typeAnn { t }
+    (* | t = typeAnn { t } *)
     | i = INT { IntPat i }
     | f = FLOAT { FloatPat f }
     | s = STRING { StringPat s}
@@ -173,25 +179,22 @@ pat:
 patTuple: 
     | OPEN_PAREN; pats = separated_list(COMMA, pat); CLOSE_PAREN { TuplePat(pats) }
 
-typeAnn: 
-    | p = pat; COLON; t = typ { TypeAnn(p, t) }
+(* typeAnn:  *)
+    (* | p = pat; COLON; t = typ { TypeAnn(p, t) } *)
 
 rul:
     | TURNSTILE; p = pat; EQUAL_ARROW; e = exp; { (p, e) }
 
 case:
     | CASE; e = exp; l = list(rul); END; { CaseExp(e, l) }
-    (* | OPEN_BRACKET; OPEN_BRACKET; QUESTION; CASE; e = exp; l = list(rul); END; CLOSE_BRACKET; CLOSE_BRACKET { InconsistentCaseExp(e, l)} *)
-    |  QUESTION; CASE; e = exp; l = list(rul); END; { InconsistentCaseExp(e, l)}
 
 funExp: 
-    | FUN; COLON; t = typ; p = pat; DASH_ARROW; e1 = exp;  { Fun (t, p, e1, None) }
-    | FUN; COLON; t = typ; p = pat; DASH_ARROW; e1 = exp; name = IDENT { Fun (t, p, e1, Some(name)) }
+    | FUN; p = pat; DASH_ARROW; e1 = exp;  { Fun (p, e1, None) }
+    | FUN; p = pat; DASH_ARROW; e1 = exp; name = IDENT { Fun (p, e1, Some(name)) }
 
 
 ifExp:
-    | IF; e1 = exp; THEN; e2 = exp; ELSE; e3 = exp { If (Consistent, e1, e2, e3) }
-    | OPEN_BRACKET; OPEN_BRACKET; QUESTION; IF; e1 = exp; THEN; e2 = exp; ELSE; e3 = exp; CLOSE_BRACKET; CLOSE_BRACKET { If (Inconsistent, e1, e2, e3) }
+    | IF; e1 = exp; THEN; e2 = exp; ELSE; e3 = exp { If (e1, e2, e3) }
 
 filterAction:
     | PAUSE { Pause }
@@ -199,31 +202,48 @@ filterAction:
     | HIDE { Hide }
     | EVAL { Eval }
 
+tpat:
+    | QUESTION; s = STRING {InvalidTPat(s)}
+    | QUESTION {EmptyHoleTPat}
+    | OPEN_BRACKET; OPEN_BRACKET; t = tpat; CLOSE_BRACKET; CLOSE_BRACKET; {MultiHoleTPat t}
+    | v = IDENT {VarTPat v}
+
+unExp:
+    | DOLLAR_SIGN; e = exp {UnOp(Meta(Unquote), e)}
+    | MINUS; e = exp {UnOp(Int(Minus), e)}
+    | L_NOT; e = exp {UnOp(Bool(Not), e)}
+
 exp:
     | i = INT { Int i }
     | f = FLOAT { Float f }
     | v = IDENT { Var v }
     | c = CONSTRUCTOR_IDENT { Constructor c }
-    |  QUESTION; v = IDENT { FreeVar v }
     | s = STRING { String s}
     | b = binExp { b }
     | OPEN_PAREN; e = exp; CLOSE_PAREN { e }
     | OPEN_PAREN; l = separated_list(COMMA, exp); CLOSE_PAREN { TupleExp(l)}
     | c = case { c }
-    | OPEN_SQUARE_BRACKET; e = separated_list(COMMA, exp); CLOSE_SQUARE_BRACKET; COLON; t = typ { ListExp(e, t) }
+    | OPEN_SQUARE_BRACKET; e = separated_list(COMMA, exp); CLOSE_SQUARE_BRACKET { ListExp(e) }
     | f = exp; OPEN_PAREN; a = exp; CLOSE_PAREN { ApExp(f, a) }
     | LET; i = pat; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Let (i, e1, e2) }
     | i = ifExp { i}
     | e1 = exp; QUESTION; LESS_THAN; t1 = typ; EQUAL_ARROW; t2 = typ; GREATER_THAN {FailedCast(e1, t1, t2)}
     | e1 = exp; LESS_THAN; t1 = typ; EQUAL_ARROW; t2 = typ; GREATER_THAN { Cast(e1, t1, t2) }
     | TRUE { Bool true }
-    | FIX; OPEN_PAREN; s = IDENT; COLON; t = typ; CLOSE_PAREN; DASH_ARROW; e = exp { FixF(s, t, e) }
     | f = funExp {f}
-    | FALSE { Bool false }
-    | OPEN_BRACKET; OPEN_BRACKET; e = exp; CLOSE_BRACKET; CLOSE_BRACKET {NonEmptyHole e}
+    | FALSE { Bool false }    
+    | FIX;  p = pat; DASH_ARROW; e = exp { FixF(p, e) }
+    | TYP_FUN; t = tpat; DASH_ARROW; e = exp {TypFun(t, e)}
+    | OPEN_BRACKET; OPEN_BRACKET; e = exp; CLOSE_BRACKET; CLOSE_BRACKET {MultiHole e}
     | QUESTION { EmptyHole }
     | a = filterAction; cond = exp; body = exp { Filter(a, cond, body)}
     | TEST; e = exp; END { Test(e) }
-    | e1 = exp; LIST_CONCAT; e2 = exp { ListConcat(e1, e2) }
+    | e1 = exp; AT_SYMBOL; e2 = exp { ListConcat(e1, e2) }
     | e1 = exp; CONS; e2 = exp { Cons(e1, e2) }
     | e1 = exp; SEMI_COLON; e2 = exp { Seq(e1, e2) }
+    | QUESTION; s = STRING; { InvalidExp(s) }
+    | IN_AP; WILD {Deferral(InAp)}
+    | OUT_AP; WILD {Deferral(OutsideAp)}
+    | e = exp; AT_SYMBOL; OPEN_BRACKET; ty = typ; CLOSE_BRACKET; {TypAp(e, ty)}
+    | TYP; tp = tpat; SINGLE_EQUAL; ty = typ; IN; e = exp {TyAlias(tp, ty, e)}
+    | u = unExp { u }

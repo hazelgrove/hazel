@@ -8,7 +8,13 @@ module TestResults = Haz3lcore.TestResults;
 module Interface = Haz3lcore.Interface;
 
 let test_instance_view =
-    (~settings, ~inject, ~font_metrics, (d, status): TestMap.instance_report) =>
+    (
+      ~settings,
+      ~inject,
+      ~font_metrics,
+      ~infomap,
+      (d, status): TestMap.instance_report,
+    ) =>
   div(
     ~attr=
       Attr.many([clss(["test-instance", TestStatus.to_string(status)])]),
@@ -20,6 +26,7 @@ let test_instance_view =
         ~font_metrics,
         ~width=40,
         ~result_key="",
+        ~infomap,
         d,
       ),
     ],
@@ -37,6 +44,7 @@ let test_report_view =
       ~inject,
       ~font_metrics,
       ~description: option(string)=None,
+      ~infomap,
       i: int,
       (id, instance_reports): TestMap.report,
     ) => {
@@ -57,7 +65,7 @@ let test_report_view =
       div(
         ~attr=Attr.class_("test-instances"),
         List.map(
-          test_instance_view(~settings, ~inject, ~font_metrics),
+          test_instance_view(~infomap, ~settings, ~inject, ~font_metrics),
           instance_reports,
         ),
       ),
@@ -72,7 +80,13 @@ let test_report_view =
 };
 
 let test_reports_view =
-    (~settings, ~inject, ~font_metrics, ~test_results: option(TestResults.t)) =>
+    (
+      ~settings,
+      ~inject,
+      ~font_metrics,
+      ~infomap,
+      ~test_results: option(TestResults.t),
+    ) =>
   div(
     ~attr=clss(["panel-body", "test-reports"]),
     switch (test_results) {
@@ -84,6 +98,7 @@ let test_reports_view =
             ~settings,
             ~inject,
             ~font_metrics,
+            ~infomap,
             ~description=List.nth_opt(test_results.descriptions, i),
             i,
             r,
@@ -162,6 +177,7 @@ let inspector_view =
       ~inject,
       ~font_metrics,
       ~test_map: TestMap.t,
+      ~infomap,
       id: Haz3lcore.Id.t,
     )
     : option(t) => {
@@ -174,7 +190,7 @@ let inspector_view =
           div(
             ~attr=Attr.class_("test-instances"),
             List.map(
-              test_instance_view(~settings, ~inject, ~font_metrics),
+              test_instance_view(~settings, ~inject, ~font_metrics, ~infomap),
               instances,
             ),
           ),

@@ -95,7 +95,7 @@ let index = (z: Zipper.t): option(Id.t) =>
 
 let ci_of = (z: Zipper.t, info_map: Statics.Map.t): option(Statics.Info.t) =>
   /* This version takes into accounts Secondary, while accounting for the
-   * fact that Secondary is not currently added to the infomap. First we
+   * fact that Secondary is not currently added to the info_map. First we
    * try the basic indication function, specifying that we do not want
    * Secondary. But if this doesn't succeed, then we create a 'virtual'
    * info map entry representing the Secondary notation, which takes on

@@ -105,12 +105,9 @@ let view_of_layout =
                  ds,
                )
              | VarHole(_) => ([with_cls("InVarHole", txt)], ds)
-             | Invalid((_, (-666))) =>
-               /* Evaluation and Elaboration exceptions */
-               ([with_cls("exception", txt)], ds)
-             | NonEmptyHole(_)
+             | NonEmptyHole
              | InconsistentBranches(_)
-             | Invalid(_) =>
+             | Invalid =>
                let offset = start.col - indent;
                let decoration =
                  Decoration_common.container(
@@ -137,15 +134,16 @@ let view =
       ~locked as _=false, // NOTE: When we add mouse events to this, ignore them if locked
       ~inject,
       ~settings: CoreSettings.Evaluation.t,
-      ~selected_hole_instance: option(HoleInstance.t),
+      ~selected_hole_instance: option(Id.t),
       ~font_metrics: FontMetrics.t,
       ~width: int,
       ~pos=0,
-      ~previous_step: option(EvaluatorStep.step)=None, // The step that will be displayed above this one
-      ~hidden_steps: list(EvaluatorStep.step)=[], // The hidden steps between the above and the current one
+      ~previous_step: option((EvaluatorStep.step, Id.t))=None, // The step that will be displayed above this one
+      ~hidden_steps: list((EvaluatorStep.step, Id.t))=[], // The hidden steps between the above and the current one
       ~chosen_step: option(EvaluatorStep.step)=None, // The step that will be taken next
-      ~next_steps: list(EvaluatorStep.EvalObj.t)=[],
+      ~next_steps: list((int, Id.t))=[],
       ~result_key: string,
+      ~infomap,
       d: DHExp.t,
     )
     : Node.t => {
@@ -158,6 +156,7 @@ let view =
     ~settings,
     ~enforce_inline=false,
     ~selected_hole_instance,
+    ~infomap,
     d,
   )
   |> LayoutOfDoc.layout_of_doc(~width, ~pos)

@@ -1,19 +1,18 @@
-open Sexplib.Std;
 open Util;
+open Sexplib.Std;
 open PatternMatch;
-open DH;
 
 /* Transition.re
 
    This module defines the evaluation semantics of Hazel in terms of small step
    evaluation. These small steps are wrapped up into a big step in Evaluator.re.
 
-   I'll use the Sequence case as an example:
+   I'll use the Seq case as an example:
 
-    | Sequence(d1, d2) =>
-        let. _ = otherwise(d1 => Sequence(d1, d2))
+    | Seq(d1, d2) =>
+        let. _ = otherwise(d1 => Seq(d1, d2))
         and. _ = req_final(req(state, env), 0, d1);
-        Step({apply: () => d2, kind: Sequence, final: false});
+        Step({expr: d2, state, kind: Seq, final: false});
 
 
     Each step semantics starts with a `let. () = otherwise(...)` that defines how
@@ -34,9 +33,9 @@ open DH;
     secondly a `kind`, that describes the step (which will be used in the stepper)
 
     Lastly, the `value` field allows for some speeding up of the evaluator. If you
-    are unsure, it is always safe to put `value: false`.
+    are unsure, it is always safe to put `is_value: false`.
 
-    `value: true` guarantees:
+    `is_value: true` guarantees:
       - if all requirements are values, then the output will be a value
       - if some requirements are indet, then the output will be indet
 
@@ -48,7 +47,7 @@ open DH;
 type step_kind =
   | InvalidStep
   | VarLookup
-  | Sequence
+  | Seq
   | LetBind
   | FunClosure
   | FixUnwrap
@@ -56,98 +55,26 @@ type step_kind =
   | UpdateTest
   | TypFunAp
   | FunAp
+  | DeferredAp
   | CastTypAp
   | CastAp
   | BuiltinWrap
   | BuiltinAp(string)
-  | BinBoolOp(TermBase.UExp.op_bin_bool)
-  | BinIntOp(TermBase.UExp.op_bin_int)
-  | BinFloatOp(TermBase.UExp.op_bin_float)
-  | BinStringOp(TermBase.UExp.op_bin_string)
+  | UnOp(Operators.op_un)
+  | BinBoolOp(Operators.op_bin_bool)
+  | BinIntOp(Operators.op_bin_int)
+  | BinFloatOp(Operators.op_bin_float)
+  | BinStringOp(Operators.op_bin_string)
   | Conditional(bool)
   | Projection
   | ListCons
   | ListConcat
   | CaseApply
-  | CaseNext
   | CompleteClosure
   | CompleteFilter
   | Cast
-  | Skip;
-
-module CastHelpers = {
-  [@deriving sexp]
-  type ground_cases =
-    | Hole
-    | Ground
-    | NotGroundOrHole(Typ.t) /* the argument is the corresponding ground type */;
-
-  let const_unknown: 'a => Typ.t = _ => Unknown(Internal);
-
-  let grounded_Arrow =
-    NotGroundOrHole(Arrow(Unknown(Internal), Unknown(Internal)));
-  // TODO: Maybe the Forall should allow a hole in the variable position?
-  let grounded_Forall =
-    NotGroundOrHole(Forall("grounded_forall", Unknown(Internal)));
-  let grounded_Prod = length =>
-    NotGroundOrHole(
-      Prod(ListUtil.replicate(length, Typ.Unknown(Internal))),
-    );
-  let grounded_Sum = (sm: Typ.sum_map): ground_cases => {
-    let sm' = sm |> ConstructorMap.map(Option.map(const_unknown));
-    NotGroundOrHole(Sum(sm'));
-  };
-  let grounded_List = NotGroundOrHole(List(Unknown(Internal)));
-
-  let rec ground_cases_of = (ty: Typ.t): ground_cases => {
-    let is_ground_arg: option(Typ.t) => bool =
-      fun
-      | None
-      | Some(Typ.Unknown(_)) => true
-      | Some(ty) => ground_cases_of(ty) == Ground;
-    switch (ty) {
-    | Unknown(_) => Hole
-    | Bool
-    | Int
-    | Float
-    | String
-    | Var(_)
-    | Rec(_)
-    | Forall(_, Unknown(_))
-    | Arrow(Unknown(_), Unknown(_))
-    | List(Unknown(_)) => Ground
-    | Prod(tys) =>
-      if (List.for_all(
-            fun
-            | Typ.Unknown(_) => true
-            | _ => false,
-            tys,
-          )) {
-        Ground;
-      } else {
-        tys |> List.length |> grounded_Prod;
-      }
-    | Sum(sm) =>
-      sm |> ConstructorMap.is_ground(is_ground_arg)
-        ? Ground : grounded_Sum(sm)
-    | Arrow(_, _) => grounded_Arrow
-    | Forall(_) => grounded_Forall
-    | List(_) => grounded_List
-    };
-  };
-};
-
-let rec unbox_list = (d: DHExp.t): DHExp.t =>
-  switch (d) {
-  | Cast(d, List(t1), List(t2)) =>
-    switch (unbox_list(d)) {
-    | ListLit(u, i, _, xs) =>
-      ListLit(u, i, t2, List.map(x => DHExp.Cast(x, t1, t2), xs))
-    | d => d
-    }
-  | d => d
-  };
-
+  | RemoveTypeAlias
+  | RemoveParens;
 let evaluate_extend_env =
     (new_bindings: Environment.t, to_extend: ClosureEnvironment.t)
     : ClosureEnvironment.t => {
@@ -159,12 +86,20 @@ let evaluate_extend_env =
 
 type rule =
   | Step({
-      apply: unit => DHExp.t,
+      expr: DHExp.t,
+      state_update: unit => unit,
       kind: step_kind,
-      value: bool,
+      is_value: bool,
     })
   | Constructor
   | Indet;
+
+let (let-unbox) = ((request, v), f) =>
+  switch (Unboxing.unbox(request, v)) {
+  | IndetMatch
+  | DoesNotMatch => Indet
+  | Matches(n) => f(n)
+  };
 
 module type EV_MODE = {
   type state;
@@ -192,6 +127,9 @@ module type EV_MODE = {
       list(DHExp.t)
     ) =>
     requirement(list(DHExp.t));
+  let req_final_or_value:
+    (DHExp.t => result, EvalCtx.t => EvalCtx.t, DHExp.t) =>
+    requirement((DHExp.t, bool));
 
   let (let.): (requirements('a, DHExp.t), 'a => rule) => result;
   let (and.):
@@ -199,549 +137,673 @@ module type EV_MODE = {
     requirements(('a, 'c), 'b);
   let otherwise: (ClosureEnvironment.t, 'a) => requirements(unit, 'a);
 
-  let update_test: (state, KeywordID.t, TestMap.instance_report) => unit;
+  let update_test: (state, Id.t, TestMap.instance_report) => unit;
 };
 
 module Transition = (EV: EV_MODE) => {
   open EV;
   open DHExp;
-  let (let.match) = ((env, match_result), r) =>
+
+  // Default state update
+  let state_update = () => ();
+
+  let (let.match) = ((env, match_result: PatternMatch.match_result), r) =>
     switch (match_result) {
     | IndetMatch
     | DoesNotMatch => Indet
     | Matches(env') => r(evaluate_extend_env(env', env))
     };
 
-  let transition = (req, state, env, d): 'a =>
-    switch (d) {
-    | BoundVar(x) =>
-      let. _ = otherwise(env, BoundVar(x));
-      let d =
-        ClosureEnvironment.lookup(env, x)
-        |> OptUtil.get(() => {
-             raise(EvaluatorError.Exception(FreeInvalidVar(x)))
-           });
-      Step({apply: () => d, kind: VarLookup, value: false});
-    | Sequence(d1, d2) =>
-      let. _ = otherwise(env, d1 => Sequence(d1, d2))
-      and. _ = req_final(req(state, env), d1 => Sequence1(d1, d2), d1);
-      Step({apply: () => d2, kind: Sequence, value: false});
+  /* Note[Matt]: For IDs, I'm currently using a fresh id
+     if anything about the current node changes, if only its
+     children change, we use rewrap */
+
+  let transition = (req, state, env, d): 'a => {
+    // Split DHExp into term and id information
+    let (term, rewrap) = DHExp.unwrap(d);
+    let wrap_ctx = (term): EvalCtx.t => Term({term, ids: [rep_id(d)]});
+
+    // Transition rules
+    switch (term) {
+    | Var(x) =>
+      let. _ = otherwise(env, Var(x) |> rewrap);
+      switch (ClosureEnvironment.lookup(env, x)) {
+      | Some(d) =>
+        Step({
+          expr: d |> fast_copy(Id.mk()),
+          state_update,
+          kind: VarLookup,
+          is_value: false,
+        })
+      | None => Indet
+      };
+    | Seq(d1, d2) =>
+      let. _ = otherwise(env, d1 => Seq(d1, d2) |> rewrap)
+      and. _ =
+        req_final(req(state, env), d1 => Seq1(d1, d2) |> wrap_ctx, d1);
+      Step({expr: d2, state_update, kind: Seq, is_value: false});
     | Let(dp, d1, d2) =>
-      let. _ = otherwise(env, d1 => Let(dp, d1, d2))
-      and. d1' = req_final(req(state, env), d1 => Let1(dp, d1, d2), d1);
+      let. _ = otherwise(env, d1 => Let(dp, d1, d2) |> rewrap)
+      and. d1' =
+        req_final(req(state, env), d1 => Let1(dp, d1, d2) |> wrap_ctx, d1);
       let.match env' = (env, matches(dp, d1'));
-      Step({apply: () => Closure(env', d2), kind: LetBind, value: false});
+      Step({
+        expr: Closure(env', d2) |> fresh,
+        state_update,
+        kind: LetBind,
+        is_value: false,
+      });
     | TypFun(_)
-    | Fun(_, _, Closure(_), _) =>
+    | Fun(_, _, Some(_), _) =>
       let. _ = otherwise(env, d);
       Constructor;
-    | Fun(p, t, d, v) =>
-      let. _ = otherwise(env, Fun(p, t, d, v));
-      Step({
-        apply: () => Fun(p, t, Closure(env, d), v),
-        kind: FunClosure,
-        value: true,
-      });
-    | FixF(f, _, Closure(env, d1)) =>
+    | Fun(p, d1, None, v) =>
       let. _ = otherwise(env, d);
-      let env' = evaluate_extend_env(Environment.singleton((f, d)), env);
-      Step({apply: () => Closure(env', d1), kind: FixUnwrap, value: false});
-    | FixF(f, t, d1) =>
-      let. _ = otherwise(env, FixF(f, t, d1));
       Step({
-        apply: () => FixF(f, t, Closure(env, d1)),
-        kind: FixClosure,
-        value: false,
+        expr: Fun(p, d1, Some(env), v) |> rewrap,
+        state_update,
+        kind: FunClosure,
+        is_value: true,
       });
-    | Test(id, d) =>
-      let. _ = otherwise(env, d => Test(id, d))
-      and. d' = req_final(req(state, env), d => Test(id, d), d);
+    | FixF(dp, d1, None) =>
+      let. _ = otherwise(env, FixF(dp, d1, None) |> rewrap);
       Step({
-        apply: () =>
-          switch (d') {
-          | BoolLit(true) =>
-            update_test(state, id, (d', Pass));
-            Tuple([]);
-          | BoolLit(false) =>
-            update_test(state, id, (d', Fail));
-            Tuple([]);
-          /* Hack: assume if final and not Bool, then Indet; this won't catch errors in statics */
-          | _ =>
-            update_test(state, id, (d', Indet));
-            Tuple([]);
-          },
+        expr: FixF(dp, d1, Some(env)) |> rewrap,
+        state_update,
+        kind: FixClosure,
+        is_value: false,
+      });
+    | FixF(dp, d1, Some(env)) =>
+      switch (DHPat.get_var(dp)) {
+      // Simple Recursion case
+      | Some(f) =>
+        let. _ = otherwise(env, d);
+        let env'' =
+          evaluate_extend_env(
+            Environment.singleton((f, FixF(dp, d1, Some(env)) |> rewrap)),
+            env,
+          );
+        Step({
+          expr: Closure(env'', d1) |> fresh,
+          state_update,
+          kind: FixUnwrap,
+          is_value: false,
+        });
+      // Mutual Recursion case
+      | None =>
+        let. _ = otherwise(env, d);
+        let bindings = DHPat.bound_vars(dp);
+        let substitutions =
+          List.map(
+            binding =>
+              (
+                binding,
+                Let(
+                  dp,
+                  FixF(dp, d1, Some(env)) |> rewrap,
+                  Var(binding) |> fresh,
+                )
+                |> fresh,
+              ),
+            bindings,
+          );
+        let env'' =
+          evaluate_extend_env(Environment.of_list(substitutions), env);
+        Step({
+          expr: Closure(env'', d1) |> fresh,
+          state_update,
+          kind: FixUnwrap,
+          is_value: false,
+        });
+      }
+    | Test(d'') =>
+      let. _ = otherwise(env, ((d, _)) => Test(d) |> rewrap)
+      and. (d', is_value) =
+        req_final_or_value(req(state, env), d => Test(d) |> wrap_ctx, d'');
+      let result: TestStatus.t =
+        if (is_value) {
+          switch (Unboxing.unbox(Bool, d')) {
+          | DoesNotMatch
+          | IndetMatch => Indet
+          | Matches(b) => b ? Pass : Fail
+          };
+        } else {
+          Indet;
+        };
+      Step({
+        expr: Tuple([]) |> fresh,
+        state_update: () =>
+          update_test(state, DHExp.rep_id(d), (d', result)),
         kind: UpdateTest,
-        value: true,
+        is_value: true,
       });
     | TypAp(d, tau) =>
-      let. _ = otherwise(env, d => TypAp(d, tau))
-      and. d' = req_value(req(state, env), d => TypAp(d, tau), d);
-      switch (d') {
+      let. _ = otherwise(env, d => TypAp(d, tau) |> rewrap)
+      and. d' =
+        req_value(req(state, env), d => TypAp(d, tau) |> wrap_ctx, d);
+      switch (DHExp.term_of(d')) {
       | TypFun(utpat, tfbody, name) =>
         /* Rule ITTLam */
-        switch (Term.UTPat.tyvar_of_utpat(utpat)) {
-        | Some(tyvar) =>
-          /* Perform substitution */
-          Step({
-            apply: () =>
-              DHExp.assign_name_if_none(
-                /* Inherit name for user clarity */
-                DHExp.ty_subst(tau, tyvar, tfbody),
-                Option.map(
-                  x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">",
-                  name,
-                ),
+        Step({
+          expr:
+            DHExp.assign_name_if_none(
+              /* Inherit name for user clarity */
+              DHExp.ty_subst(tau, utpat, tfbody),
+              Option.map(
+                x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">",
+                name,
               ),
-            kind: TypFunAp,
-            value: false,
-          })
-        | None =>
-          /* Treat a hole or invalid tyvar name as a unique type variable that doesn't appear anywhere else. Thus instantiating it at anything doesn't produce any substitutions. */
-          Step({
-            apply: () =>
-              DHExp.assign_name_if_none(
-                tfbody,
-                Option.map(
-                  x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">",
-                  name,
-                ),
-              ),
-            kind: TypFunAp,
-            value: false,
-          })
-        }
-      | Cast(d'', Forall(x, t), Forall(x', t')) =>
+            ),
+          state_update,
+          kind: TypFunAp,
+          is_value: false,
+        })
+      | Cast(
+          d'',
+          {term: Forall(tp1, _), _} as t1,
+          {term: Forall(tp2, _), _} as t2,
+        ) =>
         /* Rule ITTApCast */
         Step({
-          apply: () =>
+          expr:
             Cast(
-              TypAp(d'', tau),
-              Typ.subst(tau, x, t),
-              Typ.subst(tau, x', t'),
-            ),
+              TypAp(d'', tau) |> Exp.fresh,
+              Typ.subst(tau, tp1, t1),
+              Typ.subst(tau, tp2, t2),
+            )
+            |> Exp.fresh,
+          state_update,
           kind: CastTypAp,
-          value: false,
+          is_value: false,
         })
-      | _ =>
-        Step({
-          apply: () => {
-            raise(EvaluatorError.Exception(InvalidBoxedTypFun(d')));
-          },
-          kind: InvalidStep,
-          value: true,
-        })
+      | _ => raise(EvaluatorError.Exception(InvalidBoxedTypFun(d')))
       };
-    | Ap(d1, d2) =>
-      let. _ = otherwise(env, (d1, d2) => Ap(d1, d2))
-      and. d1' = req_value(req(state, env), d1 => Ap1(d1, d2), d1)
-      and. d2' = req_final(req(state, env), d2 => Ap2(d1, d2), d2);
-      switch (d1') {
+    | DeferredAp(d1, ds) =>
+      let. _ = otherwise(env, (d1, ds) => DeferredAp(d1, ds) |> rewrap)
+      and. _ =
+        req_final(
+          req(state, env),
+          d1 => DeferredAp1(d1, ds) |> wrap_ctx,
+          d1,
+        )
+      and. _ =
+        req_all_final(
+          req(state, env),
+          (d2, ds) => DeferredAp2(d1, d2, ds) |> wrap_ctx,
+          ds,
+        );
+      Constructor;
+    | Ap(dir, d1, d2) =>
+      let. _ = otherwise(env, (d1, (d2, _)) => Ap(dir, d1, d2) |> rewrap)
+      and. d1' =
+        req_value(req(state, env), d1 => Ap1(dir, d1, d2) |> wrap_ctx, d1)
+      and. (d2', d2_is_value) =
+        req_final_or_value(
+          req(state, env),
+          d2 => Ap2(dir, d1, d2) |> wrap_ctx,
+          d2,
+        );
+      switch (DHExp.term_of(d1')) {
       | Constructor(_) => Constructor
-      | Fun(dp, _, Closure(env', d3), _) =>
+      | Fun(dp, d3, Some(env'), _) =>
         let.match env'' = (env', matches(dp, d2'));
-        Step({apply: () => Closure(env'', d3), kind: FunAp, value: false});
-      | Cast(d3', Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
         Step({
-          apply: () => Cast(Ap(d3', Cast(d2', ty1', ty1)), ty2, ty2'),
+          expr: Closure(env'', d3) |> fresh,
+          state_update,
+          kind: FunAp,
+          is_value: false,
+        });
+      | Cast(
+          d3',
+          {term: Arrow(ty1, ty2), _},
+          {term: Arrow(ty1', ty2'), _},
+        ) =>
+        Step({
+          expr:
+            Cast(
+              Ap(dir, d3', Cast(d2', ty1', ty1) |> fresh) |> fresh,
+              ty2,
+              ty2',
+            )
+            |> fresh,
+          state_update,
           kind: CastAp,
-          value: false,
+          is_value: false,
         })
       | BuiltinFun(ident) =>
+        if (d2_is_value) {
+          Step({
+            expr: {
+              let builtin =
+                VarMap.lookup(Builtins.forms_init, ident)
+                |> OptUtil.get(() => {
+                     /* This exception should never be raised because there is
+                        no way for the user to create a BuiltinFun. They are all
+                        inserted into the context before evaluation. */
+                     raise(
+                       EvaluatorError.Exception(InvalidBuiltin(ident)),
+                     )
+                   });
+              builtin(d2');
+            },
+            state_update,
+            kind: BuiltinAp(ident),
+            is_value: false // Not necessarily a value because of InvalidOperations
+          });
+        } else {
+          Indet;
+        }
+      /* This case isn't currently used because deferrals are elaborated away */
+      | DeferredAp(d3, d4s) =>
+        let n_args =
+          List.length(
+            List.map(
+              fun
+              | {term: Deferral(_), _} => true
+              | _ => false: Exp.t => bool,
+              d4s,
+            ),
+          );
+        let-unbox args = (Tuple(n_args), d2);
+        let new_args = {
+          let rec go = (deferred, args) =>
+            switch ((deferred: list(Exp.t))) {
+            | [] => []
+            | [{term: Deferral(_), _}, ...deferred] =>
+              /* I can use List.hd and List.tl here because let-unbox ensure that
+                 there are the correct number of args */
+              [List.hd(args), ...go(deferred, List.tl(args))]
+            | [x, ...deferred] => [x, ...go(deferred, args)]
+            };
+          go(d4s, args);
+        };
         Step({
-          apply: () => {
-            //HACK[Matt]: This step is just so we can check that d2' is not indet
-            ApBuiltin(
-              ident,
-              d2',
-            );
-          },
-          kind: BuiltinWrap,
-          value: false // Not necessarily a value because of InvalidOperations
-        })
+          expr: Ap(Forward, d3, Tuple(new_args) |> fresh) |> fresh,
+          state_update,
+          kind: DeferredAp,
+          is_value: false,
+        });
+      | Cast(_)
+      | FailedCast(_) => Indet
+      | FixF(_) =>
+        print_endline(Exp.show(d1));
+        print_endline(Exp.show(d1'));
+        print_endline("FIXF");
+        failwith("FixF in Ap");
       | _ =>
         Step({
-          apply: () => {
+          expr: {
             raise(EvaluatorError.Exception(InvalidBoxedFun(d1')));
           },
+          state_update,
           kind: InvalidStep,
-          value: true,
+          is_value: true,
         })
       };
-    | ApBuiltin(ident, arg) =>
-      let. _ = otherwise(env, arg => ApBuiltin(ident, arg))
-      and. arg' =
-        req_value(req(state, env), arg => ApBuiltin(ident, arg), arg);
-      Step({
-        apply: () => {
-          let builtin =
-            VarMap.lookup(Builtins.forms_init, ident)
-            |> OptUtil.get(() => {
-                 raise(EvaluatorError.Exception(InvalidBuiltin(ident)))
-               });
-          builtin(arg');
-        },
-        kind: BuiltinAp(ident),
-        value: false // Not necessarily a value because of InvalidOperations
-      });
-    | BoolLit(_)
-    | IntLit(_)
-    | FloatLit(_)
-    | StringLit(_)
+    | Deferral(_) =>
+      let. _ = otherwise(env, d);
+      Indet;
+    | Bool(_)
+    | Int(_)
+    | Float(_)
+    | String(_)
     | Constructor(_)
     | BuiltinFun(_) =>
       let. _ = otherwise(env, d);
       Constructor;
-    | IfThenElse(consistent, c, d1, d2) =>
-      let. _ = otherwise(env, c => IfThenElse(consistent, c, d1, d2))
+    | If(c, d1, d2) =>
+      let. _ = otherwise(env, c => If(c, d1, d2) |> rewrap)
       and. c' =
+        req_value(req(state, env), c => If1(c, d1, d2) |> wrap_ctx, c);
+      let-unbox b = (Bool, c');
+      Step({
+        expr: {
+          b ? d1 : d2;
+        },
+        state_update,
+        // Attach c' to indicate which branch taken.
+        kind: Conditional(b),
+        is_value: false,
+      });
+    | UnOp(Meta(Unquote), _) =>
+      let. _ = otherwise(env, d);
+      Indet;
+    | UnOp(Int(Minus), d1) =>
+      let. _ = otherwise(env, d1 => UnOp(Int(Minus), d1) |> rewrap)
+      and. d1' =
         req_value(
           req(state, env),
-          c => IfThenElse1(consistent, c, d1, d2),
-          c,
+          c => UnOp(Int(Minus), c) |> wrap_ctx,
+          d1,
         );
-      switch (consistent, c') {
-      | (ConsistentIf, BoolLit(b)) =>
-        Step({
-          apply: () => {
-            b ? d1 : d2;
-          },
-          // Attach c' to indicate which branch taken.
-          kind: Conditional(b),
-          value: false,
-        })
-      // Use a seperate case for invalid conditionals. Makes extracting the bool from BoolLit (above) easier.
-      | (ConsistentIf, _) =>
-        Step({
-          apply: () => {
-            raise(EvaluatorError.Exception(InvalidBoxedBoolLit(c')));
-          },
-          kind: InvalidStep,
-          value: true,
-        })
-      // Inconsistent branches should be Indet
-      | (InconsistentIf, _) => Indet
-      };
-    | BinBoolOp(And, d1, d2) =>
-      let. _ = otherwise(env, d1 => BinBoolOp(And, d1, d2))
-      and. d1' =
-        req_value(req(state, env), d1 => BinBoolOp1(And, d1, d2), d1);
+      let-unbox n = (Int, d1');
       Step({
-        apply: () =>
-          switch (d1') {
-          | BoolLit(true) => d2
-          | BoolLit(false) => BoolLit(false)
-          | _ => raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d1')))
-          },
+        expr: Int(- n) |> fresh,
+        state_update,
+        kind: UnOp(Int(Minus)),
+        is_value: true,
+      });
+    | UnOp(Bool(Not), d1) =>
+      let. _ = otherwise(env, d1 => UnOp(Bool(Not), d1) |> rewrap)
+      and. d1' =
+        req_value(
+          req(state, env),
+          c => UnOp(Bool(Not), c) |> wrap_ctx,
+          d1,
+        );
+      let-unbox b = (Bool, d1');
+      Step({
+        expr: Bool(!b) |> fresh,
+        state_update,
+        kind: UnOp(Bool(Not)),
+        is_value: true,
+      });
+    | BinOp(Bool(And), d1, d2) =>
+      let. _ = otherwise(env, d1 => BinOp(Bool(And), d1, d2) |> rewrap)
+      and. d1' =
+        req_value(
+          req(state, env),
+          d1 => BinOp1(Bool(And), d1, d2) |> wrap_ctx,
+          d1,
+        );
+      let-unbox b1 = (Bool, d1');
+      Step({
+        expr: b1 ? d2 : Bool(false) |> fresh,
+        state_update,
         kind: BinBoolOp(And),
-        value: false,
+        is_value: false,
       });
-    | BinBoolOp(Or, d1, d2) =>
-      let. _ = otherwise(env, d1 => BinBoolOp(Or, d1, d2))
+    | BinOp(Bool(Or), d1, d2) =>
+      let. _ = otherwise(env, d1 => BinOp(Bool(Or), d1, d2) |> rewrap)
       and. d1' =
-        req_value(req(state, env), d1 => BinBoolOp1(Or, d1, d2), d1);
+        req_value(
+          req(state, env),
+          d1 => BinOp1(Bool(Or), d1, d2) |> wrap_ctx,
+          d1,
+        );
+      let-unbox b1 = (Bool, d1');
       Step({
-        apply: () =>
-          switch (d1') {
-          | BoolLit(true) => BoolLit(true)
-          | BoolLit(false) => d2
-          | _ => raise(EvaluatorError.Exception(InvalidBoxedBoolLit(d2)))
-          },
+        expr: b1 ? Bool(true) |> fresh : d2,
+        state_update,
         kind: BinBoolOp(Or),
-        value: false,
+        is_value: false,
       });
-    | BinIntOp(op, d1, d2) =>
-      let. _ = otherwise(env, (d1, d2) => BinIntOp(op, d1, d2))
-      and. d1' = req_value(req(state, env), d1 => BinIntOp1(op, d1, d2), d1)
+    | BinOp(Int(op), d1, d2) =>
+      let. _ = otherwise(env, (d1, d2) => BinOp(Int(op), d1, d2) |> rewrap)
+      and. d1' =
+        req_value(
+          req(state, env),
+          d1 => BinOp1(Int(op), d1, d2) |> wrap_ctx,
+          d1,
+        )
       and. d2' =
-        req_value(req(state, env), d2 => BinIntOp2(op, d1, d2), d2);
+        req_value(
+          req(state, env),
+          d2 => BinOp2(Int(op), d1, d2) |> wrap_ctx,
+          d2,
+        );
+      let-unbox n1 = (Int, d1');
+      let-unbox n2 = (Int, d2');
       Step({
-        apply: () =>
-          switch (d1', d2') {
-          | (IntLit(n1), IntLit(n2)) =>
+        expr:
+          (
             switch (op) {
-            | Plus => IntLit(n1 + n2)
-            | Minus => IntLit(n1 - n2)
+            | Plus => Int(n1 + n2)
+            | Minus => Int(n1 - n2)
             | Power when n2 < 0 =>
-              InvalidOperation(
-                BinIntOp(op, IntLit(n1), IntLit(n2)),
+              DynamicErrorHole(
+                BinOp(Int(op), d1', d2') |> rewrap,
                 NegativeExponent,
               )
-            | Power => IntLit(IntUtil.ipow(n1, n2))
-            | Times => IntLit(n1 * n2)
+            | Power => Int(IntUtil.ipow(n1, n2))
+            | Times => Int(n1 * n2)
             | Divide when n2 == 0 =>
-              InvalidOperation(
-                BinIntOp(op, IntLit(n1), IntLit(n2)),
+              DynamicErrorHole(
+                BinOp(Int(op), d1', d2') |> rewrap,
                 DivideByZero,
               )
-            | Divide => IntLit(n1 / n2)
-            | LessThan => BoolLit(n1 < n2)
-            | LessThanOrEqual => BoolLit(n1 <= n2)
-            | GreaterThan => BoolLit(n1 > n2)
-            | GreaterThanOrEqual => BoolLit(n1 >= n2)
-            | Equals => BoolLit(n1 == n2)
-            | NotEquals => BoolLit(n1 != n2)
+            | Divide => Int(n1 / n2)
+            | LessThan => Bool(n1 < n2)
+            | LessThanOrEqual => Bool(n1 <= n2)
+            | GreaterThan => Bool(n1 > n2)
+            | GreaterThanOrEqual => Bool(n1 >= n2)
+            | Equals => Bool(n1 == n2)
+            | NotEquals => Bool(n1 != n2)
             }
-          | (IntLit(_), _) =>
-            raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2')))
-          | _ => raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1')))
-          },
+          )
+          |> fresh,
+        state_update,
         kind: BinIntOp(op),
         // False so that InvalidOperations are caught and made indet by the next step
-        value: false,
+        is_value: false,
       });
-    | BinFloatOp(op, d1, d2) =>
-      let. _ = otherwise(env, (d1, d2) => BinFloatOp(op, d1, d2))
+    | BinOp(Float(op), d1, d2) =>
+      let. _ =
+        otherwise(env, (d1, d2) => BinOp(Float(op), d1, d2) |> rewrap)
       and. d1' =
-        req_value(req(state, env), d1 => BinFloatOp1(op, d1, d2), d1)
+        req_value(
+          req(state, env),
+          d1 => BinOp1(Float(op), d1, d2) |> wrap_ctx,
+          d1,
+        )
       and. d2' =
-        req_value(req(state, env), d2 => BinFloatOp2(op, d1, d2), d2);
+        req_value(
+          req(state, env),
+          d2 => BinOp2(Float(op), d1, d2) |> wrap_ctx,
+          d2,
+        );
+      let-unbox n1 = (Float, d1');
+      let-unbox n2 = (Float, d2');
       Step({
-        apply: () =>
-          switch (d1', d2') {
-          | (FloatLit(n1), FloatLit(n2)) =>
+        expr:
+          (
             switch (op) {
-            | Plus => FloatLit(n1 +. n2)
-            | Minus => FloatLit(n1 -. n2)
-            | Power => FloatLit(n1 ** n2)
-            | Times => FloatLit(n1 *. n2)
-            | Divide => FloatLit(n1 /. n2)
-            | LessThan => BoolLit(n1 < n2)
-            | LessThanOrEqual => BoolLit(n1 <= n2)
-            | GreaterThan => BoolLit(n1 > n2)
-            | GreaterThanOrEqual => BoolLit(n1 >= n2)
-            | Equals => BoolLit(n1 == n2)
-            | NotEquals => BoolLit(n1 != n2)
+            | Plus => Float(n1 +. n2)
+            | Minus => Float(n1 -. n2)
+            | Power => Float(n1 ** n2)
+            | Times => Float(n1 *. n2)
+            | Divide => Float(n1 /. n2)
+            | LessThan => Bool(n1 < n2)
+            | LessThanOrEqual => Bool(n1 <= n2)
+            | GreaterThan => Bool(n1 > n2)
+            | GreaterThanOrEqual => Bool(n1 >= n2)
+            | Equals => Bool(n1 == n2)
+            | NotEquals => Bool(n1 != n2)
             }
-          | (FloatLit(_), _) =>
-            raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d2')))
-          | _ => raise(EvaluatorError.Exception(InvalidBoxedFloatLit(d1')))
-          },
+          )
+          |> fresh,
+        state_update,
         kind: BinFloatOp(op),
-        value: true,
+        is_value: true,
       });
-    | BinStringOp(op, d1, d2) =>
-      let. _ = otherwise(env, (d1, d2) => BinStringOp(op, d1, d2))
+    | BinOp(String(op), d1, d2) =>
+      let. _ =
+        otherwise(env, (d1, d2) => BinOp(String(op), d1, d2) |> rewrap)
       and. d1' =
-        req_value(req(state, env), d1 => BinStringOp1(op, d1, d2), d1)
+        req_value(
+          req(state, env),
+          d1 => BinOp1(String(op), d1, d2) |> wrap_ctx,
+          d1,
+        )
       and. d2' =
-        req_value(req(state, env), d2 => BinStringOp2(op, d1, d2), d2);
+        req_value(
+          req(state, env),
+          d2 => BinOp2(String(op), d1, d2) |> wrap_ctx,
+          d2,
+        );
+      let-unbox s1 = (String, d1');
+      let-unbox s2 = (String, d2');
       Step({
-        apply: () =>
-          switch (d1', d2') {
-          | (StringLit(s1), StringLit(s2)) =>
-            switch (op) {
-            | Concat => StringLit(s1 ++ s2)
-            | Equals => BoolLit(s1 == s2)
-            }
-          | (StringLit(_), _) =>
-            raise(EvaluatorError.Exception(InvalidBoxedStringLit(d2')))
-          | _ => raise(EvaluatorError.Exception(InvalidBoxedStringLit(d1')))
+        expr:
+          switch (op) {
+          | Concat => String(s1 ++ s2) |> fresh
+          | Equals => Bool(s1 == s2) |> fresh
           },
+        state_update,
         kind: BinStringOp(op),
-        value: true,
+        is_value: true,
       });
     | Tuple(ds) =>
-      let. _ = otherwise(env, ds => Tuple(ds))
-      and. _ =
-        req_all_final(req(state, env), (d1, ds) => Tuple(d1, ds), ds);
-      Constructor;
-    | Prj(d1, n) =>
-      let. _ = otherwise(env, d1 => Prj(d1, n))
-      and. d1' = req_final(req(state, env), d1 => Prj(d1, n), d1);
-      Step({
-        apply: () =>
-          switch (d1') {
-          | Tuple(ds) when n < 0 || List.length(ds) <= n =>
-            raise(EvaluatorError.Exception(InvalidProjection(n)))
-          | Tuple(ds) => List.nth(ds, n)
-          | Cast(_, Prod(ts), Prod(_)) when n < 0 || List.length(ts) <= n =>
-            raise(EvaluatorError.Exception(InvalidProjection(n)))
-          | Cast(d2, Prod(ts1), Prod(ts2)) =>
-            Cast(Prj(d2, n), List.nth(ts1, n), List.nth(ts2, n))
-          | _ => raise(EvaluatorError.Exception(InvalidProjection(n)))
-          },
-        kind: Projection,
-        value: false,
-      });
-    | Cons(d1, d2) =>
-      let. _ = otherwise(env, (d1, d2) => Cons(d1, d2))
-      and. d1' = req_final(req(state, env), d1 => Cons1(d1, d2), d1)
-      and. d2' = req_final(req(state, env), d2 => Cons2(d1, d2), d2);
-      switch (unbox_list(d2')) {
-      | ListLit(u, i, ty, ds) =>
-        Step({
-          apply: () => ListLit(u, i, ty, [d1', ...ds]),
-          kind: ListCons,
-          value: true,
-        })
-      | _ => Indet
-      };
-    | ListConcat(d1, d2) =>
-      let. _ = otherwise(env, (d1, d2) => ListConcat(d1, d2))
-      and. d1' = req_final(req(state, env), d1 => ListConcat1(d1, d2), d1)
-      and. d2' = req_final(req(state, env), d2 => ListConcat2(d1, d2), d2);
-      switch (unbox_list(d1'), unbox_list(d2')) {
-      | (ListLit(u1, i1, t1, ds1), ListLit(_, _, _, ds2)) =>
-        Step({
-          apply: () => ListLit(u1, i1, t1, ds1 @ ds2),
-          kind: ListConcat,
-          value: true,
-        })
-      | _ => Indet
-      };
-    | ListLit(u, i, ty, ds) =>
-      let. _ = otherwise(env, ds => ListLit(u, i, ty, ds))
+      let. _ = otherwise(env, ds => Tuple(ds) |> rewrap)
       and. _ =
         req_all_final(
           req(state, env),
-          (d1, ds) => ListLit(u, i, ty, d1, ds),
+          (d1, ds) => Tuple(d1, ds) |> wrap_ctx,
           ds,
         );
       Constructor;
-    // TODO(Matt): This will currently re-traverse d1 if it is a large constructor
-    | ConsistentCase(Case(d1, rules, n)) =>
-      let. _ = otherwise(env, d1 => ConsistentCase(Case(d1, rules, n)))
+    | Cons(d1, d2) =>
+      let. _ = otherwise(env, (d1, d2) => Cons(d1, d2) |> rewrap)
       and. d1' =
-        req_final(
+        req_final(req(state, env), d1 => Cons1(d1, d2) |> wrap_ctx, d1)
+      and. d2' =
+        req_value(req(state, env), d2 => Cons2(d1, d2) |> wrap_ctx, d2);
+      let-unbox ds = (List, d2');
+      Step({
+        expr: ListLit([d1', ...ds]) |> fresh,
+        state_update,
+        kind: ListCons,
+        is_value: true,
+      });
+    | ListConcat(d1, d2) =>
+      let. _ = otherwise(env, (d1, d2) => ListConcat(d1, d2) |> rewrap)
+      and. d1' =
+        req_value(
           req(state, env),
-          d1 => ConsistentCase(Case(d1, rules, n)),
+          d1 => ListConcat1(d1, d2) |> wrap_ctx,
           d1,
+        )
+      and. d2' =
+        req_value(
+          req(state, env),
+          d2 => ListConcat2(d1, d2) |> wrap_ctx,
+          d2,
         );
-      switch (List.nth_opt(rules, n)) {
-      | None => Indet
-      | Some(Rule(dp, d2)) =>
-        switch (matches(dp, d1')) {
-        | Matches(env') =>
-          Step({
-            apply: () => Closure(evaluate_extend_env(env', env), d2),
-            kind: CaseApply,
-            value: false,
-          })
-        | DoesNotMatch =>
-          Step({
-            apply: () => ConsistentCase(Case(d1', rules, n + 1)),
-            kind: CaseNext,
-            value: false,
-          })
-        | IndetMatch => Indet
-        }
-      };
-    | InconsistentBranches(_) as d =>
-      let. _ = otherwise(env, d);
-      Indet;
-    | Closure(env', d) =>
-      let. _ = otherwise(env, d => Closure(env', d))
-      and. d' = req_final(req(state, env'), d1 => Closure(env', d1), d);
-      Step({apply: () => d', kind: CompleteClosure, value: true});
-    | NonEmptyHole(reason, u, i, d1) =>
-      let. _ = otherwise(env, d1 => NonEmptyHole(reason, u, i, d1))
+      let-unbox ds1 = (List, d1');
+      let-unbox ds2 = (List, d2');
+      Step({
+        expr: ListLit(ds1 @ ds2) |> fresh,
+        state_update,
+        kind: ListConcat,
+        is_value: true,
+      });
+    | ListLit(ds) =>
+      let. _ = otherwise(env, ds => ListLit(ds) |> rewrap)
       and. _ =
+        req_all_final(
+          req(state, env),
+          (d1, ds) => ListLit(d1, ds) |> wrap_ctx,
+          ds,
+        );
+      Constructor;
+    | Match(d1, rules) =>
+      let. _ = otherwise(env, d1 => Match(d1, rules) |> rewrap)
+      and. d1 =
         req_final(
           req(state, env),
-          d1 => NonEmptyHole(reason, u, i, d1),
+          d1 => MatchScrut(d1, rules) |> wrap_ctx,
           d1,
         );
+      let rec next_rule = (
+        fun
+        | [] => None
+        | [(dp, d2), ...rules] =>
+          switch (matches(dp, d1)) {
+          | Matches(env') => Some((env', d2))
+          | DoesNotMatch => next_rule(rules)
+          | IndetMatch => None
+          }
+      );
+      switch (next_rule(rules)) {
+      | Some((env', d2)) =>
+        Step({
+          expr: Closure(evaluate_extend_env(env', env), d2) |> fresh,
+          state_update,
+          kind: CaseApply,
+          is_value: false,
+        })
+      | None => Indet
+      };
+    | Closure(env', d) =>
+      let. _ = otherwise(env, d => Closure(env', d) |> rewrap)
+      and. d' =
+        req_final(req(state, env'), d1 => Closure(env', d1) |> wrap_ctx, d);
+      Step({expr: d', state_update, kind: CompleteClosure, is_value: true});
+    | MultiHole(_) =>
+      let. _ = otherwise(env, d);
+      // and. _ =
+      //   req_all_final(
+      //     req(state, env),
+      //     (d1, ds) => MultiHole(d1, ds) |> wrap_ctx,
+      //     ds,
+      //   );
       Indet;
-    | EmptyHole(_)
-    | FreeVar(_)
-    | InvalidText(_)
-    | InvalidOperation(_) =>
+    | EmptyHole
+    | Invalid(_)
+    | DynamicErrorHole(_) =>
       let. _ = otherwise(env, d);
       Indet;
     | Cast(d, t1, t2) =>
-      open CastHelpers; /* Cast calculus */
-
-      let. _ = otherwise(env, d => Cast(d, t1, t2))
-      and. d' = req_final(req(state, env), d => Cast(d, t1, t2), d);
-      switch (ground_cases_of(t1), ground_cases_of(t2)) {
-      | (Hole, Hole)
-      | (Ground, Ground) =>
-        /* if two types are ground and consistent, then they are eq */
-        Step({apply: () => d', kind: Cast, value: true})
-      | (Ground, Hole) =>
-        /* can't remove the cast or do anything else here, so we're done */
-        Constructor
-      | (Hole, Ground) =>
-        switch (d') {
-        | Cast(d2, t3, Unknown(_)) =>
-          /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
-          if (Typ.eq(t3, t2)) {
-            Step({apply: () => d2, kind: Cast, value: true});
-          } else {
-            Step({
-              apply: () => FailedCast(d', t1, t2),
-              kind: Cast,
-              value: false,
-            });
-          }
-        | _ => Indet
-        }
-      | (Hole, NotGroundOrHole(t2_grounded)) =>
-        /* ITExpand rule */
-        Step({
-          apply: () =>
-            DHExp.Cast(Cast(d', t1, t2_grounded), t2_grounded, t2),
-          kind: Cast,
-          value: false,
-        })
-      | (NotGroundOrHole(t1_grounded), Hole) =>
-        /* ITGround rule */
-        Step({
-          apply: () =>
-            DHExp.Cast(Cast(d', t1, t1_grounded), t1_grounded, t2),
-          kind: Cast,
-          value: false,
-        })
-      | (Ground, NotGroundOrHole(_))
-      | (NotGroundOrHole(_), Ground) =>
-        /* can't do anything when casting between diseq, non-hole types */
-        Constructor
-      | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
-        /* they might be eq in this case, so remove cast if so */
-        if (Typ.eq(t1, t2)) {
-          Step({apply: () => d', kind: Cast, value: true});
-        } else {
-          Constructor;
-        }
+      let. _ = otherwise(env, d => Cast(d, t1, t2) |> rewrap)
+      and. d' =
+        req_final(req(state, env), d => Cast(d, t1, t2) |> wrap_ctx, d);
+      switch (Casts.transition(Cast(d', t1, t2) |> rewrap)) {
+      | Some(d) => Step({expr: d, state_update, kind: Cast, is_value: false})
+      | None => Constructor
       };
     | FailedCast(d1, t1, t2) =>
-      let. _ = otherwise(env, d1 => FailedCast(d1, t1, t2))
-      and. _ = req_final(req(state, env), d1 => FailedCast(d1, t1, t2), d1);
+      let. _ = otherwise(env, d1 => FailedCast(d1, t1, t2) |> rewrap)
+      and. _ =
+        req_final(
+          req(state, env),
+          d1 => FailedCast(d1, t1, t2) |> wrap_ctx,
+          d1,
+        );
       Indet;
+    | Parens(d) =>
+      let. _ = otherwise(env, d);
+      Step({expr: d, state_update, kind: RemoveParens, is_value: false});
+    | TyAlias(_, _, d) =>
+      let. _ = otherwise(env, d);
+      Step({expr: d, state_update, kind: RemoveTypeAlias, is_value: false});
     | Filter(f1, d1) =>
-      let. _ = otherwise(env, d1 => Filter(f1, d1))
-      and. d1 = req_final(req(state, env), d1 => Filter(f1, d1), d1);
-      Step({apply: () => d1, kind: CompleteFilter, value: true});
+      let. _ = otherwise(env, d1 => Filter(f1, d1) |> rewrap)
+      and. d1 =
+        req_final(req(state, env), d1 => Filter(f1, d1) |> wrap_ctx, d1);
+      Step({expr: d1, state_update, kind: CompleteFilter, is_value: true});
     };
+  };
 };
 
-let should_hide_step = (~settings: CoreSettings.Evaluation.t) =>
+let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   fun
   | LetBind
-  | Sequence
+  | Seq
   | UpdateTest
   | TypFunAp
   | FunAp
+  | DeferredAp
   | BuiltinAp(_)
   | BinBoolOp(_)
   | BinIntOp(_)
   | BinFloatOp(_)
   | BinStringOp(_)
+  | UnOp(_)
   | ListCons
   | ListConcat
   | CaseApply
   | Projection // TODO(Matt): We don't want to show projection to the user
-  | Skip
   | Conditional(_)
+  | RemoveTypeAlias
   | InvalidStep => false
   | VarLookup => !settings.show_lookup_steps
   | CastTypAp
   | CastAp
   | Cast => !settings.show_casts
   | FixUnwrap => !settings.show_fixpoints
-  | CaseNext
   | CompleteClosure
   | CompleteFilter
   | BuiltinWrap
   | FunClosure
-  | FixClosure => true;
+  | FixClosure
+  | RemoveParens => true;
