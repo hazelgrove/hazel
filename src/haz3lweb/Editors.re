@@ -98,20 +98,20 @@ let lookup_statics =
    Used in the Update module */
 let get_spliced_elabs =
     (~settings: Settings.t, statics, editors: t)
-    : list((ModelResults.key, DHExp.t)) =>
+    : list((ModelResults.key, Elaborator.Elaboration.t)) =>
   switch (editors) {
   | Scratch(idx, _) =>
     let key = ScratchSlide.scratch_key(idx |> string_of_int);
     let CachedStatics.{term, info_map, _} =
       lookup_statics(~settings, ~statics, editors);
     let d = Interface.elaborate(~settings=settings.core, info_map, term);
-    [(key, d)];
+    [(key, {d: d})];
   | Documentation(name, _) =>
     let key = ScratchSlide.scratch_key(name);
     let CachedStatics.{term, info_map, _} =
       lookup_statics(~settings, ~statics, editors);
     let d = Interface.elaborate(~settings=settings.core, info_map, term);
-    [(key, d)];
+    [(key, {d: d})];
   | Exercises(_, _, exercise) =>
     Exercise.spliced_elabs(settings.core, exercise)
   };

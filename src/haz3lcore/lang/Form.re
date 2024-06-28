@@ -282,7 +282,7 @@ let forms: list((string, t)) = [
   ("cons_pat", mk_infix("::", Pat, P.cons)),
   ("typeann", mk(ss, [":"], mk_bin'(P.ann, Pat, Pat, [], Typ))),
   // UNARY PREFIX OPERATORS
-  ("not", mk(ii, ["!"], mk_pre(5, Exp, []))), //TODO: precedence
+  ("not", mk(ii, ["!"], mk_pre(P.not_, Exp, []))),
   ("typ_sum_single", mk(ss, ["+"], mk_pre(P.or_, Typ, []))),
   ("unary_minus", mk(ss, ["-"], mk_pre(P.neg, Exp, []))),
   ("unquote", mk(ss, ["$"], mk_pre(P.unquote, Exp, []))),
@@ -302,11 +302,15 @@ let forms: list((string, t)) = [
   ("ap_exp", mk(ii, ["(", ")"], mk_post(P.ap, Exp, [Exp]))),
   ("ap_pat", mk(ii, ["(", ")"], mk_post(P.ap, Pat, [Pat]))),
   ("ap_typ", mk(ii, ["(", ")"], mk_post(P.ap, Typ, [Typ]))),
-  ("ap_exp_typ", mk(ii, ["@<", ">"], mk_post(P.ap, Exp, [Typ]))),
+  (
+    "ap_exp_typ",
+    mk((Instant, Static), ["@<", ">"], mk_post(P.ap, Exp, [Typ])),
+  ),
   ("at_sign", mk_nul_infix("@", P.eqs)), // HACK: SUBSTRING REQ
   ("case", mk(ds, ["case", "end"], mk_op(Exp, [Rul]))),
   ("test", mk(ds, ["test", "end"], mk_op(Exp, [Exp]))),
   ("fun_", mk(ds, ["fun", "->"], mk_pre(P.fun_, Exp, [Pat]))),
+  ("fix", mk(ds, ["fix", "->"], mk_pre(P.fun_, Exp, [Pat]))),
   ("typfun", mk(ds, ["typfun", "->"], mk_pre(P.fun_, Exp, [TPat]))),
   ("forall", mk(ds, ["forall", "->"], mk_pre(P.fun_, Typ, [TPat]))),
   ("rec", mk(ds, ["rec", "->"], mk_pre(P.fun_, Typ, [TPat]))),

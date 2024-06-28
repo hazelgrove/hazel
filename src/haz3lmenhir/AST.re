@@ -47,6 +47,24 @@ type binOp =
   | BoolOp(op_bin_bool);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type op_un_meta =
+  | Unquote;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type op_un_int =
+  | Minus;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type op_un_bool =
+  | Not;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type op_un =
+  | Meta(op_un_meta)
+  | Int(op_un_int)
+  | Bool(op_un_bool);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type typ_provenance =
   | Internal;
 
@@ -60,25 +78,25 @@ type typ =
   | UnknownType(typ_provenance)
   | TupleType(list(typ))
   | ArrayType(typ)
-  | ArrowType(typ, typ);
+  | ArrowType(typ, typ)
+  | InvalidTyp(string);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pat =
   | EmptyHolePat
   | WildPat
-  | NonEmptyHolePat(pat)
+  | MultiHolePat(pat)
   | IntPat(int)
   | FloatPat(float)
   | VarPat(string)
   | ConstructorPat(string)
-  | BadConstructorPat(string)
   | StringPat(string)
-  | TypeAnn(pat, typ)
   | TuplePat(list(pat))
   | BoolPat(bool)
   | ConsPat(pat, pat)
-  | ListPat(list(pat), typ)
-  | ApPat(pat, pat);
+  | ListPat(list(pat))
+  | ApPat(pat, pat)
+  | InvalidPat(string);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type if_consistency =
@@ -86,30 +104,46 @@ type if_consistency =
   | Inconsistent;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type deferral_pos =
+  | InAp
+  | OutsideAp;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type tpat =
+  | InvalidTPat(string)
+  | EmptyHoleTPat
+  | MultiHoleTPat(tpat)
+  | VarTPat(string);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type exp =
   | Int(int)
   | Float(float)
   | Var(string)
   | Constructor(string)
-  | FreeVar(string)
   | String(string)
-  | ListExp(list(exp), typ)
+  | ListExp(list(exp))
   | TupleExp(list(exp))
   | BinExp(exp, binOp, exp)
+  | UnOp(op_un, exp)
   | Let(pat, exp, exp)
-  | Fun(typ, pat, exp, option(string))
-  | FixF(string, typ, exp)
+  | Fun(pat, exp, option(string))
   | CaseExp(exp, list((pat, exp)))
-  | InconsistentCaseExp(exp, list((pat, exp)))
   | ApExp(exp, exp)
+  | FixF(pat, exp)
   | Bool(bool)
   | Cast(exp, typ, typ)
   | FailedCast(exp, typ, typ)
-  | NonEmptyHole(exp)
+  | MultiHole(exp)
   | EmptyHole
   | Filter(filter_action, exp, exp)
   | Seq(exp, exp)
   | Test(exp)
+  | Deferral(deferral_pos)
+  | TypFun(tpat, exp)
   | Cons(exp, exp)
   | ListConcat(exp, exp)
-  | If(if_consistency, exp, exp, exp);
+  | If(exp, exp, exp)
+  | InvalidExp(string)
+  | TypAp(exp, typ)
+  | TyAlias(tpat, typ, exp);

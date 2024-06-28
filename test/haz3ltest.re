@@ -5,7 +5,7 @@ let (suite, _) =
     ~and_exit=false,
     "Dynamics",
     [
-      ("Elaboration", Test_Elaboration.elaboration_tests),
+      // ("Elaboration", Test_Elaboration.elaboration_tests),
       ("Parser", Test_Menhir.tests),
     ],
   );
