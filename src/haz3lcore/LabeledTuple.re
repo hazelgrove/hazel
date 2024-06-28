@@ -13,6 +13,23 @@ let compare = String.compare;
 
 let find_opt: ('a => bool, list('a)) => option('a) = List.find_opt;
 
+// returns a pair containing a list of option(t) and a list of 'a
+let seperate_labels:
+  ('a => option((t, 'a)), list('a)) => (list(option(t)), list('a)) =
+  (get_label, es) => {
+    let results =
+      List.fold_left(
+        ((ls, ns), e) =>
+          switch (get_label(e)) {
+          | Some((s1, e)) => (ls @ [Some(s1)], ns @ [e])
+          | None => (ls @ [None], ns @ [e])
+          },
+        ([], []),
+        es,
+      );
+    results;
+  };
+
 // returns ordered list of (Some(string), TupLabel)
 // and another of (None, not-TupLabel)
 // TODO: Need to check uniqueness earlier
@@ -53,6 +70,7 @@ let validate_uniqueness:
 // Assumes all labels are unique
 // filt returns Some(string) if TupLabel or None if not a TupLabel
 // returns a permutation of l2 that matches labels in l1
+// other labels are in order, even if not matching.
 let rearrange:
   (
     'a => option((t, 'a)),
@@ -127,7 +145,9 @@ let rearrange:
             switch (l2_rem) {
             | [hd2, ...tl2] =>
               switch (hd2) {
-              | (Some(_), _) => raise(Exception)
+              | (Some(s2), rem_val) =>
+                [constructor(s2, rem_val)]
+                @ rearrange_helper(tl, l2_matched, tl2)
               | (None, rem_val) =>
                 [constructor(s1, rem_val)]
                 @ rearrange_helper(tl, l2_matched, tl2)
@@ -142,7 +162,9 @@ let rearrange:
               switch (l2_rem) {
               | [hd2, ...tl2] =>
                 switch (hd2) {
-                | (Some(_), _) => raise(Exception)
+                | (Some(s2), rem_val) =>
+                  [constructor(s2, rem_val)]
+                  @ rearrange_helper(tl, l2_matched, tl2)
                 | (None, rem_val) =>
                   [constructor(s1, rem_val)]
                   @ rearrange_helper(tl, l2_matched, tl2)
