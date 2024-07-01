@@ -943,7 +943,12 @@ and parenthesize_typ = (typ: Typ.t): Typ.t => {
 };
 
 let exp_to_editor = (~inline, exp: Exp.t): Editor.t => {
-  let exp = parenthesize(exp);
+  let exp =
+    exp
+    |> Exp.substitute_closures(
+         Builtins.env_init |> ClosureEnvironment.of_environment,
+       )
+    |> parenthesize;
   let p = exp_to_pretty(~inline, exp);
   let seg = p |> PrettySegment.select;
   Editor.init(~read_only=true, Zipper.unzip(seg));
