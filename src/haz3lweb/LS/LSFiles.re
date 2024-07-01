@@ -123,16 +123,19 @@ let mk_dir = (dirPath: string): unit =>
     );
   };
 
-let getCurrentGitCommit = (): string => {
-  let tempFile = "git_commit.tmp";
-  let command = "git rev-parse HEAD > " ++ tempFile;
-  ignore(Sys.command(command)); /* Executes the command and ignores its exit status */
-  let channel = open_in(tempFile); /* Open the temporary file for reading */
-  let commitHash = input_line(channel); /* Read the first line, which contains the commit hash */
-  close_in(channel);
-  Sys.remove(tempFile); /* Clean up the temporary file */
-  commitHash;
-};
+let getCurrentGitCommit = (): string =>
+  try({
+    let tempFile = "git_commit.tmp";
+    let command = "git rev-parse HEAD > " ++ tempFile;
+    ignore(Sys.command(command)); /* Executes the command and ignores its exit status */
+    let channel = open_in(tempFile); /* Open the temporary file for reading */
+    let commitHash = input_line(channel); /* Read the first line, which contains the commit hash */
+    close_in(channel);
+    Sys.remove(tempFile); /* Clean up the temporary file */
+    commitHash;
+  }) {
+  | _ => "UNKNOWN"
+  };
 
 let getCurrentUnixTimestamp = (): string => {
   let date = JsUtil.date_now();

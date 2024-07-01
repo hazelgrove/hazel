@@ -194,7 +194,10 @@ let record_init_info =
   );
   io.add(
     opt_pre("rag"),
-    options.rag |> Option.to_list |> (!=)([]) |> string_of_bool,
+    switch (options.rag) {
+    | None => "None"
+    | Some(x) => x
+    },
   );
   io.add(
     opt_pre("error_rounds_max"),

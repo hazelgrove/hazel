@@ -148,16 +148,9 @@ and parse_get_prompt = (strs, args: arguments): arguments =>
 and parse_runtest = (strs, args: arguments): arguments =>
   switch (strs) {
   /* must be last runtest-specific arg */
-  //| ["--api-key", key_path, ...rest] =>
-  | ["--api-key", key_path] =>
-    switch (LSFiles.string_of_file(key_path)) {
-    | exception _ =>
-      failwith("LSP: EXN: Could not load api key from path: " ++ key_path)
-    | key =>
-      let rt = get_runtest(args.command);
-      {...args, command: RunTest({...rt, key})};
-    //parse_base(rest, {...args, command: RunTest({...rt, api_key})});
-    }
+  | ["--api-key", key] =>
+    let rt = get_runtest(args.command);
+    {...args, command: RunTest({...rt, key})};
   | ["--source_folder", path_base, ...rest] =>
     let common_path = path_base ++ "..//common.haze";
     let common =
