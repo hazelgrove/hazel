@@ -408,6 +408,7 @@ let uni_lines =
 
 let indicated =
     (
+      ~simple_shards,
       ~font_metrics: FontMetrics.t,
       ~rows: Measured.Rows.t,
       ~caret,
@@ -415,7 +416,13 @@ let indicated =
       range,
     )
     : list(Node.t) => {
-  List.concat_map(simple_shards_indicated(~font_metrics, ~caret), tiles)
+  List.concat_map(simple_shards(~font_metrics, ~caret), tiles)
   @ uni_lines(~font_metrics, ~rows, range, tiles)
   @ bi_lines(~font_metrics, ~rows, tiles);
 };
+
+let next_step_indicated = (~inject) =>
+  indicated(~simple_shards=next_step_shards_indicated(~inject));
+let taken_step_indicated =
+  indicated(~simple_shards=taken_step_shards_indicated);
+let indicated = indicated(~simple_shards=simple_shards_indicated);

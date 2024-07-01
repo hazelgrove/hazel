@@ -281,15 +281,29 @@ module Deco = (M: {
         let id = Tile.id(t);
         let mold = t.mold;
         let shards = Measured.find_shards(t, map);
-        PieceDec.next_step_shards_indicated(
+        let range: option((Measured.Point.t, Measured.Point.t)) = {
+          // if (Piece.has_ends(p)) {
+          let id = Id.Map.find(id, terms) |> Any.rep_id;
+          switch (TermRanges.find_opt(id, term_ranges)) {
+          | None => None
+          | Some((p_l, p_r)) =>
+            let l = Measured.find_p(p_l, map).origin;
+            let r = Measured.find_p(p_r, map).last;
+            Some((l, r));
+          };
+        };
+        PieceDec.next_step_indicated(
           ~font_metrics,
           ~caret=(Id.invalid, 0),
           ~inject=() => inject(i),
-          (id, mold, shards),
-        );
+          ~rows=M.editor.state.meta.measured.rows,
+          ~tiles=[(id, mold, shards)],
+        )
+        |> Option.map(_, range);
       },
       tiles,
     )
+    |> List.filter_map(x => x)
     |> List.flatten;
   };
 
@@ -299,16 +313,29 @@ module Deco = (M: {
         TileMap.find_opt(_, tiles),
         taken_step |> Option.to_list,
       );
-    List.map(
+    List.filter_map(
       (t: Tile.t) => {
         let id = Tile.id(t);
         let mold = t.mold;
         let shards = Measured.find_shards(t, map);
-        PieceDec.taken_step_shards_indicated(
+        let range: option((Measured.Point.t, Measured.Point.t)) = {
+          // if (Piece.has_ends(p)) {
+          let id = Id.Map.find(id, terms) |> Any.rep_id;
+          switch (TermRanges.find_opt(id, term_ranges)) {
+          | None => None
+          | Some((p_l, p_r)) =>
+            let l = Measured.find_p(p_l, map).origin;
+            let r = Measured.find_p(p_r, map).last;
+            Some((l, r));
+          };
+        };
+        PieceDec.taken_step_indicated(
           ~font_metrics,
           ~caret=(Id.invalid, 0),
-          (id, mold, shards),
-        );
+          ~tiles=[(id, mold, shards)],
+          ~rows=M.editor.state.meta.measured.rows,
+        )
+        |> Option.map(_, range);
       },
       tiles,
     )
