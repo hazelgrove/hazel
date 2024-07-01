@@ -481,12 +481,16 @@ let first_and_last = (xss: list(list('a))): list(('a, 'a)) =>
        | [x, ...xs] => Some((x, last(xs))),
      );
 
-let rec prune = (xs: list('a), n: int, f: unit => 'a): list('a) =>
-  if (n <= 0) {
-    [];
-  } else {
-    switch (xs) {
-    | [] => [f(), ...prune([], n - 1, f)]
-    | [x, ...xs] => [x, ...prune(xs, n - 1, f)]
-    };
+let rec insert = (x, xs, i) =>
+  switch (xs, i) {
+  | (_, 0) => [x, ...xs]
+  | ([hd, ...tl], _) => [hd, ...insert(x, tl, i - 1)]
+  | ([], _) => failwith("ListUtil.insert")
+  };
+
+let rec remove = (xs, i) =>
+  switch (xs, i) {
+  | ([_, ...tl], 0) => tl
+  | ([hd, ...tl], _) => [hd, ...remove(tl, i - 1)]
+  | ([], _) => failwith("ListUtil.remove")
   };

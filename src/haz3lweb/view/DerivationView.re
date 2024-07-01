@@ -57,9 +57,7 @@ let proof_view =
         Attr.many([
           Attr.class_("rule-option"),
           Attr.on_click(_ =>
-            inject(
-              UpdateAction.SwitchDerivationRule(Proof(Derive(pos)), rule),
-            )
+            inject(UpdateAction.SwitchDerivationRule(pos, rule))
           ),
         ]),
       [text(Derivation.Rule.repr(rule))],
@@ -149,11 +147,47 @@ let proof_view =
       [rule_btn_view(~pos, ~res, ~rule), dropdown_view(~pos, ~res)],
     );
 
-  let premises_view = (~children_node, ~pos, ~res, ~rule): t =>
+  let add_premise_btn_view = (~pos, ~index) =>
+    div(
+      ~attr=
+        Attr.many([
+          Attr.class_("add-premise-btn"),
+          Attr.on_click(_ => inject(UpdateAction.InsertPremise(pos, index))),
+        ]),
+      [text("+")],
+    );
+
+  let del_premise_btn_view = (~pos, ~index) =>
+    div(
+      ~attr=
+        Attr.many([
+          Attr.class_("add-premise-btn"),
+          Attr.on_click(_ => inject(UpdateAction.RemovePremise(pos, index))),
+        ]),
+      [text("-")],
+    );
+
+  let premises_view = (~children_node, ~pos, ~res, ~rule): t => {
+    let n = List.length(children_node);
     div(
       ~attr=Attr.many([Attr.class_("derivation-premises"), to_class(res)]),
-      children_node @ [rule_block_view(~pos, ~res, ~rule)],
+      (
+        children_node
+        |> List.mapi((index, node) =>
+             [
+               add_premise_btn_view(~pos, ~index),
+               node,
+               del_premise_btn_view(~pos, ~index),
+             ]
+           )
+        |> List.concat
+      )
+      @ [
+        add_premise_btn_view(~pos, ~index=n),
+        rule_block_view(~pos, ~res, ~rule),
+      ],
     );
+  };
 
   let conclusion_view =
       (~editor: Editor.t, ~di: Exercise.DynamicsItem.t, this_pos): t =>
@@ -179,6 +213,7 @@ let proof_view =
   let single_derivation_view =
       (({Exercise.Proof.jdmt: ed, rule}, (pos, di)), children) => {
     let (children_node, children) = children |> List.split;
+    let children_node = children_node |> List.concat;
     let (children_di, children_res) = children |> List.split;
     let res =
       Grading.ProofReport.DerivationReport.verify_single(
@@ -188,13 +223,15 @@ let proof_view =
       );
     let res = to_verifyRes(res, children_res);
     (
-      div(
-        ~attr=Attr.class_("derivation-block"),
-        [
-          premises_view(~children_node, ~pos, ~res, ~rule),
-          conclusion_view(~editor=ed, ~di, Proof(Derive(pos))),
-        ],
-      ),
+      [
+        div(
+          ~attr=Attr.class_("derivation-block"),
+          [
+            premises_view(~children_node, ~pos, ~res, ~rule),
+            conclusion_view(~editor=ed, ~di, Proof(Derive(pos))),
+          ],
+        ),
+      ],
       (di, res),
     );
   };
@@ -212,7 +249,7 @@ let proof_view =
         Cell.caption("Derivation"),
         div(
           ~attr=Attr.class_("cell-derivation"),
-          [fst(Util.Tree.fold_deep(single_derivation_view, combined_tree))],
+          fst(Util.Tree.fold_deep(single_derivation_view, combined_tree)),
         ),
       ]),
     ]);

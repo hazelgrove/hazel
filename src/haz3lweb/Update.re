@@ -375,13 +375,31 @@ let rec apply =
       | None => Error(FailedToSwitch)
       | Some(editors) => Ok({...model, editors})
       };
-    | SwitchDerivationRule(pos, new_rule) =>
+    | SwitchDerivationRule(pos, rule) =>
       switch (model.editors) {
       | Documentation(_)
       | Scratch(_) => Error(FailedToSwitch)
       | Exercises(m, specs, exercise) =>
         let exercise =
-          Exercise.switch_derivation_rule(~pos, ~new_rule, ~exercise);
+          Exercise.switch_derivation_rule(~pos, ~rule, ~exercise);
+        let editors = Editors.Exercises(m, specs, exercise);
+        Ok({...model, editors});
+      }
+    | InsertPremise(pos, index) =>
+      switch (model.editors) {
+      | Documentation(_)
+      | Scratch(_) => Error(FailedToSwitch)
+      | Exercises(m, specs, exercise) =>
+        let exercise = Exercise.add_premise(~pos, ~index, ~exercise);
+        let editors = Editors.Exercises(m, specs, exercise);
+        Ok({...model, editors});
+      }
+    | RemovePremise(pos, index) =>
+      switch (model.editors) {
+      | Documentation(_)
+      | Scratch(_) => Error(FailedToSwitch)
+      | Exercises(m, specs, exercise) =>
+        let exercise = Exercise.del_premise(~pos, ~index, ~exercise);
         let editors = Editors.Exercises(m, specs, exercise);
         Ok({...model, editors});
       }

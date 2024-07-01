@@ -21,6 +21,8 @@ let is_action_logged: UpdateAction.t => bool =
   | SwitchDocumentationSlide(_)
   | SwitchEditor(_)
   | SwitchDerivationRule(_)
+  | InsertPremise(_)
+  | RemovePremise(_)
   | ResetCurrentEditor
   | ReparseCurrentEditor
   | PerformAction(_)

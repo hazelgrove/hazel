@@ -72,20 +72,22 @@ module Model = {
   };
 
   let switch_derivation_rule =
-      (~pos: pos, ~m: p('a), ~rule: Derivation.Rule.t, ~init: unit => 'a)
-      : p('a) =>
-    switch (pos) {
-    | Prelude => m
-    | Derive(pos) =>
-      let tree = m.derivation_tree;
-      let Node({jdmt, _}, children) = Tree.nth_node(tree, pos);
-      let children =
-        Util.ListUtil.prune(children, Derivation.Rule.prem_num(rule), _ =>
-          Tree.init(_ => {jdmt: init(), rule: Assumption})
-        );
-      let tree = Tree.put_nth_node(Node({jdmt, rule}, children), tree, pos);
-      {...m, derivation_tree: tree};
-    };
+      (~pos: Tree.pos, ~m: p('a), ~rule: Derivation.Rule.t): p('a) => {
+    let tree = m.derivation_tree;
+    let {jdmt, _} = Tree.nth(tree, pos);
+    let tree = Tree.put_nth({jdmt, rule}, tree, pos);
+    {...m, derivation_tree: tree};
+  };
+
+  let add_premise = (~pos: Tree.pos, ~m: p('a), ~index: int, ~init): p('a) => {
+    ...m,
+    derivation_tree: Tree.insert(init(), index, m.derivation_tree, pos),
+  };
+
+  let del_premise = (~pos: Tree.pos, ~m: p('a), ~index: int): p('a) => {
+    ...m,
+    derivation_tree: Tree.remove(index, m.derivation_tree, pos) |> snd,
+  };
 
   let readonly_in = (pos: pos, instructor_mode: bool): bool => {
     ignore(instructor_mode);

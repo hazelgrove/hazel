@@ -131,21 +131,33 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       state;
     };
 
-  let switch_derivation_rule = (~pos: pos, ~new_rule, ~exercise: state): state =>
-    switch (pos, exercise.model) {
-    | (Proof(pos), Proof(m)) => {
-        ...exercise,
-        pos: Proof(pos),
-        model:
-          Proof(
-            Proof.switch_derivation_rule(
-              ~pos,
-              ~rule=new_rule,
-              ~m,
-              ~init=Editor.init(zipper_of_code("")) |> Fun.const,
-            ),
-          ),
-      }
+  let switch_derivation_rule =
+      (~pos: Util.Tree.pos, ~exercise: state, ~rule: Derivation.Rule.t): state =>
+    switch (exercise.model) {
+    | Proof(m) =>
+      let m = Proof.switch_derivation_rule(~pos, ~rule, ~m);
+      {...exercise, pos: Proof(Derive(pos)), model: Proof(m)};
+    | _ => exercise
+    };
+
+  let add_premise =
+      (~pos: Util.Tree.pos, ~index: int, ~exercise: state): state =>
+    switch (exercise.model) {
+    | Proof(m) =>
+      let jdmt = "" |> zipper_of_code |> Editor.init;
+      let rule = Derivation.Rule.Assumption;
+      let init = {Proof.jdmt, rule} |> Fun.const;
+      let m = Proof.add_premise(~pos, ~index, ~m, ~init);
+      {...exercise, pos: Proof(Derive(pos)), model: Proof(m)};
+    | _ => exercise
+    };
+
+  let del_premise =
+      (~pos: Util.Tree.pos, ~index: int, ~exercise: state): state =>
+    switch (exercise.model) {
+    | Proof(m) =>
+      let m = Proof.del_premise(~pos, ~index, ~m);
+      {...exercise, pos: Proof(Derive(pos)), model: Proof(m)};
     | _ => exercise
     };
 

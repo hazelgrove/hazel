@@ -144,3 +144,14 @@ let del_opt = (t, pos) =>
   try(Some(del(t, pos))) {
   | Failure(_) => None
   };
+
+// Insert a new child at the given position
+let insert = (v', i) =>
+  map_nth_node((Node(v, c)) =>
+    Node(v, ListUtil.insert(init(Fun.const(v')), c, i))
+  );
+
+let remove = i =>
+  split_n((Node(v, c)) =>
+    (List.nth(c, i), Node(v, ListUtil.remove(c, i)))
+  );
