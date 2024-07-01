@@ -141,12 +141,7 @@ module Update = {
       (~settings, history: Aba.t(Model.a, Model.b), b: Model.b)
       : option(Model.a) => {
     let state = ref(Model.get_state(history));
-    let+ next_expr =
-      EvaluatorStep.take_step(
-        state,
-        ClosureEnvironment.of_environment(Builtins.env_init),
-        b.step.d_loc,
-      );
+    let+ next_expr = EvaluatorStep.take_step(state, b.step.env, b.step.d_loc);
     let next_expr = {...next_expr, ids: b.to_ids};
     let next_state = state^;
     let previous_substitutions =
@@ -175,7 +170,7 @@ module Update = {
     | [x, ..._] =>
       switch (get_next_a(~settings, history, x)) {
       | Some(a') => take_hidden_steps(~settings, Aba.cons(a', x, history))
-      | None => history
+      | None => failwith("Unable to take step!")
       }
     };
   };
