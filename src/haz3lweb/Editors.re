@@ -123,7 +123,7 @@ let get_ctx_init = (~settings: Settings.t, editors: t): Ctx.t =>
   | Scratch(_)
   | DebugLoad
   | Exercise(_)
-  | Examples(_) => Builtins.ctx_init
+  | Examples(_) => Common.ctx
   };
 
 let get_env_init = (~settings: Settings.t, editors: t): Environment.t =>
@@ -138,7 +138,7 @@ let get_env_init = (~settings: Settings.t, editors: t): Environment.t =>
   | Scratch(_)
   | DebugLoad
   | Exercise(_)
-  | Examples(_) => Builtins.env_init
+  | Examples(_) => Common.env
   };
 
 /* Each mode (e.g. Scratch, School) requires

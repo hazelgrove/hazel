@@ -1,12 +1,8 @@
 open Lwt.Infix;
 
-module type TIMER = {
-  let delay: (unit => unit, int) => unit;
-};
+module type TIMER = {let delay: (unit => unit, int) => unit;};
 
-module type S = {
-  let wrap: (int, Lwt.t('a)) => Lwt.t(option('a));
-};
+module type S = {let wrap: (int, Lwt.t('a)) => Lwt.t(option('a));};
 
 exception TimedOut;
 module Make = (T: TIMER) => {
