@@ -38,6 +38,14 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | Arrow(_) => d
     | _ => failwith("Elaborator.wrap: SynFun non-arrow-type")
     }
+  | SynTypFun =>
+    switch (self_ty) {
+    | Unknown(prov) =>
+      /* ? |> forall _. ? */
+      DHExp.cast(d, Unknown(prov), Forall("_", Unknown(prov)))
+    | Forall(_) => d
+    | _ => failwith("Elaborator.wrap: SynTypFun non-forall-type")
+    }
   | Ana(ana_ty) =>
     let ana_ty = Typ.normalize(ctx, ana_ty);
     /* Forms with special ana rules get cast from their appropriate Matched types */
@@ -54,6 +62,12 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
       let (_, ana_out) = Typ.matched_arrow(ctx, ana_ty);
       let (self_in, _) = Typ.matched_arrow(ctx, self_ty);
       DHExp.cast(d, Arrow(self_in, ana_out), ana_ty);
+    | TypFun(_) =>
+      switch (ana_ty) {
+      | Unknown(prov) =>
+        DHExp.cast(d, Forall("grounded_forall", Unknown(prov)), ana_ty)
+      | _ => d
+      }
     | Tuple(ds) =>
       switch (ana_ty) {
       | Unknown(prov) =>
@@ -63,6 +77,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
       }
     | Ap(NonEmptyHole(_, _, _, Constructor(_)), _)
     | Ap(Constructor(_), _)
+    | TypAp(Constructor(_), _)
     | Constructor(_) =>
       switch (ana_ty, self_ty) {
       | (Unknown(prov), Rec(_, Sum(_)))
@@ -79,7 +94,6 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     /* Hole-like forms: Don't cast */
     | InvalidText(_)
     | FreeVar(_)
-    | ExpandingKeyword(_)
     | EmptyHole(_)
     | NonEmptyHole(_) => d
     /* DHExp-specific forms: Don't cast */
@@ -109,6 +123,9 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | BinPropOp(_)
     | Entail(_)
     | Test(_) => DHExp.cast(d, self_ty, ana_ty)
+    | TypAp(_) =>
+      // TODO: check with andrew
+      DHExp.cast(d, self_ty, ana_ty)
     };
   };
 
@@ -133,7 +150,7 @@ let rec dhexp_of_uexp =
     dhexp_of_uexp(m, uexp, in_filter);
   };
   switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
-  | Some(InfoExp({mode, self, ctx, ancestors, _})) =>
+  | Some(InfoExp({mode, self, ctx, ancestors, co_ctx, _})) =>
     let err_status = Info.status_exp(ctx, mode, self);
     let id = Term.UExp.rep_id(uexp); /* NOTE: using term uids for hole ids */
     let+ d: DHExp.t =
@@ -163,6 +180,9 @@ let rec dhexp_of_uexp =
         let* d1 = dhexp_of_uexp(m, body);
         let+ ty = fixed_pat_typ(m, p);
         DHExp.Fun(dp, ty, d1, None);
+      | TypFun(tpat, body) =>
+        let+ d1 = dhexp_of_uexp(m, body);
+        DHExp.TypFun(tpat, d1, None);
       | Tuple(es) =>
         let+ ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
         DHExp.Tuple(ds);
@@ -233,13 +253,19 @@ let rec dhexp_of_uexp =
           name =>
             fun
             | Fun(p, ty, e, _) => DHExp.Fun(p, ty, e, name)
+            | TypFun(tpat, e, _) => DHExp.TypFun(tpat, e, name)
             | d => d
         );
         let* dp = dhpat_of_upat(m, p);
         let* ddef = dhexp_of_uexp(m, def);
         let* dbody = dhexp_of_uexp(m, body);
         let+ ty = fixed_pat_typ(m, p);
-        if (!Statics.is_recursive(ctx, p, def, ty)) {
+        let is_recursive =
+          Statics.is_recursive(ctx, p, def, ty)
+          && Term.UPat.get_bindings(p)
+          |> Option.get
+          |> List.exists(f => VarMap.lookup(co_ctx, f) != None);
+        if (!is_recursive) {
           /* not recursive */
           DHExp.Let(
             dp,
@@ -291,6 +317,9 @@ let rec dhexp_of_uexp =
         let* dconcl = dhexp_of_uexp(m, concl);
         let+ drule = dhexp_of_uexp(m, rule);
         DHExp.Derive(dprems, dconcl, drule);
+      | TypAp(fn, uty_arg) =>
+        let+ d_fn = dhexp_of_uexp(m, fn);
+        DHExp.TypAp(d_fn, Term.UTyp.to_typ(ctx, uty_arg));
       | DeferredAp(fn, args) =>
         switch (err_status) {
         | InHole(BadPartialAp(NoDeferredArgs)) => dhexp_of_uexp(m, fn)
@@ -370,7 +399,8 @@ let rec dhexp_of_uexp =
           |> OptUtil.sequence;
         let d = DHExp.Case(d_scrut, d_rules, 0);
         switch (err_status) {
-        | InHole(Common(Inconsistent(Internal(_)))) =>
+        | InHole(Common(Inconsistent(Internal(_))))
+        | InHole(InexhaustiveMatch(Some(Inconsistent(Internal(_))))) =>
           DHExp.InconsistentBranches(id, 0, d)
         | _ => ConsistentCase(d)
         };
@@ -387,6 +417,13 @@ let rec dhexp_of_uexp =
 and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
   switch (Id.Map.find_opt(Term.UPat.rep_id(upat), m)) {
   | Some(InfoPat({mode, self, ctx, _})) =>
+    // NOTE: for the current implementation, redundancy is considered a static error
+    // but not a runtime error.
+    let self =
+      switch (self) {
+      | Redundant(self) => self
+      | _ => self
+      };
     let err_status = Info.status_pat(ctx, mode, self);
     let maybe_reason: option(ErrStatus.HoleReason.t) =
       switch (err_status) {

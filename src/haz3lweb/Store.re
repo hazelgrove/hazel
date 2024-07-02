@@ -121,14 +121,14 @@ module Scratch = {
     |> ModelResults.bindings,
   );
 
-  let of_persistent = ((idx, slides, results): persistent) => {
+  let of_persistent = (~settings, (idx, slides, results): persistent) => {
     (
       idx,
       List.map(ScratchSlide.unpersist, slides),
       results
       |> List.to_seq
       |> ModelResults.of_seq
-      |> ModelResults.map(ModelResult.of_persistent),
+      |> ModelResults.map(ModelResult.of_persistent(~settings)),
     );
   };
 
@@ -144,23 +144,23 @@ module Scratch = {
     JsUtil.set_localstore(save_scratch_key, serialize(scratch));
   };
 
-  let init = () => {
-    let scratch = of_persistent(Init.startup.scratch);
+  let init = (~settings) => {
+    let scratch = of_persistent(~settings, Init.startup.scratch);
     save(scratch);
     scratch;
   };
 
-  let load = () =>
+  let load = (~settings) =>
     switch (JsUtil.get_localstore(save_scratch_key)) {
-    | None => init()
+    | None => init(~settings)
     | Some(data) =>
-      try(deserialize(data)) {
-      | _ => init()
+      try(deserialize(~settings, data)) {
+      | _ => init(~settings)
       }
     };
 
-  let export = () => serialize(load());
-  let import = data => save(deserialize(data));
+  let export = (~settings) => serialize(load(~settings));
+  let import = (~settings, data) => save(deserialize(~settings, data));
 };
 
 module Documentation = {
@@ -186,14 +186,14 @@ module Documentation = {
     |> ModelResults.bindings,
   );
 
-  let of_persistent = ((string, slides, results): persistent) => {
+  let of_persistent = (~settings, (string, slides, results): persistent) => {
     (
       string,
       List.map(unpersist, slides),
       results
       |> List.to_seq
       |> ModelResults.of_seq
-      |> ModelResults.map(ModelResult.of_persistent),
+      |> ModelResults.map(ModelResult.of_persistent(~settings)),
     );
   };
 
@@ -209,23 +209,23 @@ module Documentation = {
     JsUtil.set_localstore(save_documentation_key, serialize(slides));
   };
 
-  let init = () => {
-    let documentation = of_persistent(Init.startup.documentation);
+  let init = (~settings) => {
+    let documentation = of_persistent(~settings, Init.startup.documentation);
     save(documentation);
     documentation;
   };
 
-  let load = () =>
+  let load = (~settings) =>
     switch (JsUtil.get_localstore(save_documentation_key)) {
-    | None => init()
+    | None => init(~settings)
     | Some(data) =>
-      try(deserialize(data)) {
-      | _ => init()
+      try(deserialize(~settings, data)) {
+      | _ => init(~settings)
       }
     };
 
-  let export = () => serialize(load());
-  let import = data => save(deserialize(data));
+  let export = (~settings) => serialize(load(~settings));
+  let import = (~settings, data) => save(deserialize(~settings, data));
 };
 
 module Exercise = {

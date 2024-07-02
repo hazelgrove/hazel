@@ -11,6 +11,7 @@ type cls =
   | Sequence2
   | Let1
   | Let2
+  | TypAp
   | Ap1
   | Ap2
   | Derive1
@@ -66,6 +67,7 @@ type t =
   | Let2(DHPat.t, DHExp.t, t)
   | Fun(DHPat.t, Typ.t, t, option(Var.t))
   | FixF(Var.t, Typ.t, t)
+  | TypAp(t, Typ.t)
   | Ap1(t, DHExp.t)
   | Ap2(DHExp.t, t)
   | Derive1(t, DHExp.t, DHExp.t)
@@ -142,6 +144,7 @@ let rec fuzzy_mark =
   | Let2(_)
   | Fun(_)
   | FixF(_)
+  | TypAp(_)
   | Ap1(_)
   | Ap2(_)
   | Derive1(_)
@@ -196,6 +199,7 @@ let rec unwrap = (ctx: t, sel: cls): option(t) => {
   | (Let2, Let2(_, _, c))
   | (Fun, Fun(_, _, c, _))
   | (FixF, FixF(_, _, c))
+  | (TypAp, TypAp(c, _))
   | (Ap1, Ap1(c, _))
   | (Ap2, Ap2(_, c))
   | (BinBoolOp1, BinBoolOp1(_, c, _))

@@ -68,9 +68,6 @@ module Delim: {
 let mk_EmptyHole:
   (~selected: bool=?, HoleInstance.t) => Pretty.Doc.t(DHAnnot.t);
 
-let mk_ExpandingKeyword:
-  (HoleInstance.t, ExpandingKeyword.t) => Pretty.Doc.t(DHAnnot.t);
-
 let mk_InvalidText: (string, HoleInstance.t) => Pretty.Doc.t(DHAnnot.t);
 
 let mk_Sequence: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
@@ -100,6 +97,8 @@ let mk_Entail: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 let mk_ListLit: list(Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 
 let mk_Tuple: list(Pretty.Doc.t('a)) => Pretty.Doc.t('a);
+
+let mk_TypAp: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 
 let mk_Ap: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 
