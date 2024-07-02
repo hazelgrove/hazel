@@ -37,7 +37,7 @@ type io = {
 };
 
 let default_params: OpenAI.params = {
-  llm: OpenAI.Starcoder2_15B_Instruct,
+  llm: OpenAI.DeepSeek_Coder_V2,
   temperature: 1.0,
   top_p: 1.0,
 };
@@ -92,7 +92,8 @@ let get_caret_mode_and_ctx = (~db, ~init_ctx, ~common, ~prelude, sketch_pre) => 
 
 let ask_gpt = (~key, ~params: OpenAI.params, ~prompt, ~handler): unit => {
   if (params.llm != OpenAI.Azure_GPT4_0613
-      && params.llm != OpenAI.Starcoder2_15B_Instruct) {
+      && params.llm != OpenAI.Starcoder2_15B_Instruct
+      && params.llm != OpenAI.DeepSeek_Coder_V2) {
     failwith("LS: ask_gpt: Unsupported chat model");
   };
   API.node_request(
@@ -105,6 +106,7 @@ let ask_gpt = (~key, ~params: OpenAI.params, ~prompt, ~handler): unit => {
           "hazel2" // resource
         )
       | OpenAI.Starcoder2_15B_Instruct => "20.115.44.142"
+      | OpenAI.DeepSeek_Coder_V2 => "api.deepseek.com"
       | _ => failwith("LS: ask_gpt: Unsupported chat model")
       },
     ~port=
@@ -126,9 +128,16 @@ let ask_gpt = (~key, ~params: OpenAI.params, ~prompt, ~handler): unit => {
           "2023-05-15" // api version
         )
       | OpenAI.Starcoder2_15B_Instruct => "/v1/chat/completions"
+      | OpenAI.DeepSeek_Coder_V2 => "/chat/completions"
       | _ => failwith("LS: ask_gpt: Unsupported chat model")
       },
-    ~headers=[("Content-Type", "application/json"), ("api-key", key)],
+    ~headers=[
+      ("Content-Type", "application/json"),
+      switch (params.llm) {
+      | OpenAI.DeepSeek_Coder_V2 => ("Authorization", "Bearer " ++ key)
+      | _ => ("api-key", key)
+      },
+    ],
     ~body=OpenAI.body(~params, prompt),
     handler,
   );
