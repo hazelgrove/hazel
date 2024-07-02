@@ -1,8 +1,3 @@
-(*
-   NOTE(zhiyao): Due to the refactoring of the exercise, this file may be obsolete.
-   Please refer to template for each exercise mode provided my exercise author.
-*)
-
 (* copy this file, filling in the details below, to create a blank exercise that you can then edit in Hazel
    and export, overwriting your copy of the below
 

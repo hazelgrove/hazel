@@ -177,6 +177,50 @@ module Model = {
     | HiddenBugs(_) => instructor_mode
     | HiddenTests => instructor_mode
     };
+
+  let init = (init: pos => 'a): p('a) => {
+    point_distribution: {
+      test_validation: 0,
+      mutation_testing: 0,
+      impl_grading: 0,
+    },
+    prelude: Prelude |> init,
+    correct_impl: CorrectImpl |> init,
+    your_tests: {
+      tests: YourTests(Testing) |> init,
+      required: 0,
+      provided: 0,
+    },
+    your_impl: YourImpl |> init,
+    hidden_bugs: [],
+    hidden_tests: {
+      tests: HiddenTests |> init,
+      hints: [],
+    },
+    syntax_tests: [],
+  };
+
+  let fill = (p: p('a), init: pos => 'b): p('b) => {
+    point_distribution: p.point_distribution,
+    prelude: Prelude |> init,
+    correct_impl: CorrectImpl |> init,
+    your_tests: {
+      tests: YourTests(Testing) |> init,
+      required: p.your_tests.required,
+      provided: p.your_tests.provided,
+    },
+    your_impl: YourImpl |> init,
+    hidden_bugs:
+      List.map(
+        ({impl, hint}) => {impl: impl |> init, hint},
+        p.hidden_bugs,
+      ),
+    hidden_tests: {
+      tests: HiddenTests |> init,
+      hints: p.hidden_tests.hints,
+    },
+    syntax_tests: p.syntax_tests,
+  };
 };
 
 module Stitch = {
@@ -311,4 +355,24 @@ module Stitch = {
     [m.test_validation, m.user_impl, m.user_tests, m.prelude, m.instructor]
     @ (m.hidden_bugs |> List.map(Fun.id))
     @ [m.hidden_tests];
+
+  let init = (init: Model.pos => 'a): p('a) => {
+    test_validation: YourTests(Validation) |> init,
+    user_impl: YourImpl |> init,
+    user_tests: YourTests(Testing) |> init,
+    prelude: Prelude |> init,
+    instructor: CorrectImpl |> init,
+    hidden_bugs: [],
+    hidden_tests: HiddenTests |> init,
+  };
+
+  let fill = (p: Model.p('a), init: Model.pos => 'b): p('b) => {
+    test_validation: YourTests(Validation) |> init,
+    user_impl: YourImpl |> init,
+    user_tests: YourTests(Testing) |> init,
+    prelude: Prelude |> init,
+    instructor: CorrectImpl |> init,
+    hidden_bugs: List.mapi((i, _) => HiddenBugs(i) |> init, p.hidden_bugs),
+    hidden_tests: HiddenTests |> init,
+  };
 };

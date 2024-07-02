@@ -79,9 +79,17 @@ module Model = {
     {...m, derivation_tree: tree};
   };
 
+  let derivation_init_wrapper = (init: unit => 'a): derivation('a) => {
+    jdmt: init(),
+    rule: Derivation.Rule.Assumption,
+  };
+
   let add_premise = (~pos: Tree.pos, ~m: p('a), ~index: int, ~init): p('a) => {
-    ...m,
-    derivation_tree: Tree.insert(init(), index, m.derivation_tree, pos),
+    let init = derivation_init_wrapper(init);
+    {
+      ...m,
+      derivation_tree: Tree.insert(init, index, m.derivation_tree, pos),
+    };
   };
 
   let del_premise = (~pos: Tree.pos, ~m: p('a), ~index: int): p('a) => {
@@ -99,6 +107,25 @@ module Model = {
     ignore(instructor_mode);
     ignore(pos);
     true;
+  };
+
+  let init = (init: pos => 'a): p('a) => {
+    prelude: Prelude |> init,
+    derivation_tree:
+      Tree.init(
+        derivation_init_wrapper(init(Derive(Value)) |> Fun.const)
+        |> Fun.const,
+      ),
+  };
+
+  let fill = (m: p('a), init: pos => 'b): p('b) => {
+    prelude: Prelude |> init,
+    derivation_tree:
+      Tree.mapi(
+        (pos, _) =>
+          derivation_init_wrapper(init(Derive(pos)) |> Fun.const),
+        m.derivation_tree,
+      ),
   };
 };
 
@@ -146,4 +173,15 @@ module Stitch = {
     };
 
   let flatten = m => [m.prelude] @ (m.derivation_tree |> Tree.flatten);
+
+  let init = (init: Model.pos => 'a): p('a) => {
+    prelude: Prelude |> init,
+    derivation_tree: Tree.init(Derive(Value) |> init |> Fun.const),
+  };
+
+  let fill = (m: Model.p('a), init: Model.pos => 'b): p('b) => {
+    prelude: Prelude |> init,
+    derivation_tree:
+      Tree.mapi((pos, _) => Derive(pos) |> init, m.derivation_tree),
+  };
 };
