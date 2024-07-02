@@ -25,7 +25,9 @@ module rec Stepper: {
   module Selection: {
     open Cursor;
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = (int, Step.Selection.t);
+    type t =
+      | Step(int, Step.Selection.t)
+      | Editor(CodeTermSelectable.Selection.t);
 
     let get_cursor_info: (~selection: t, Model.t) => cursor(Update.t);
 
@@ -107,7 +109,8 @@ module rec Stepper: {
       | StepForward(int)
       | AddInduction
       | StepBackward
-      | StepAction(int, Step.Update.t);
+      | StepAction(int, Step.Update.t)
+      | EditorAction(int, CodeTermSelectable.Update.t);
     // | Induct
 
     let update = (~settings, action: t, model: Model.t): Updated.t(Model.t) => {
@@ -170,18 +173,42 @@ module rec Stepper: {
             Util.ListUtil.put_nth(n, b, model.history |> Aba.get_bs),
           );
         {...model, history};
+      | EditorAction(n, action) =>
+        let a = List.nth(model.history |> Aba.get_as, n);
+        switch (a) {
+        | None => model |> Updated.return_quiet
+        | Some(a) =>
+          let* a_editor =
+            CodeTermSelectable.Update.update(~settings, action, a.editor);
+          let a = {...a, editor: a_editor};
+          let history =
+            Aba.mk(
+              Util.ListUtil.put_nth(n, Some(a), model.history |> Aba.get_as),
+              model.history |> Aba.get_bs,
+            );
+          {...model, history};
+        };
       };
     };
 
     let calc_b = Step.Update.calculate;
 
-    let get_next_a = (~settings, b: Model.b): Model.a => {
-      let expr = Step.Model.get_next_expr(b);
-      let state = Step.Model.get_next_state(b);
-      let editor =
-        CodeWithStatics.Model.mk_from_exp(expr)
-        |> CodeWithStatics.Update.calculate(~settings, ~stitch=x => x);
-      Model.{expr, state, editor};
+    let get_next_a =
+        (
+          ~settings,
+          ~prev_a: option(Model.a)=None,
+          expr: Exp.t,
+          state: EvaluatorState.t,
+        )
+        : Model.a => {
+      switch (prev_a) {
+      | Some({expr: expr', _} as prev_a) when Exp.fast_equal(expr, expr') => prev_a
+      | _ =>
+        let editor =
+          CodeWithStatics.Model.mk_from_exp(expr)
+          |> CodeWithStatics.Update.calculate(~settings, ~stitch=x => x);
+        Model.{expr, state, editor};
+      };
     };
 
     let eval_steps_of = (~settings, expr, state) => {
@@ -204,7 +231,12 @@ module rec Stepper: {
           Step.Model.EvalStep(
             EvalStep.Model.mk(EvaluatorStep.EvalObj.persist(x |> snd)),
           );
-        let next_a = get_next_a(~settings, next_b);
+        let next_a =
+          get_next_a(
+            ~settings,
+            Step.Model.get_next_expr(next_b),
+            Step.Model.get_next_state(next_b),
+          );
         Some((next_a, next_b));
       };
     };
@@ -226,23 +258,23 @@ module rec Stepper: {
     let full_calculate =
         (~settings: CoreSettings.t, elab: Exp.t, model: Model.t): Model.t => {
       Aba.fold_right(
-        (_, b: Model.b, (aba, expr, state)) => {
+        (prev_a: option(Model.a), b: Model.b, (aba, expr, state)) => {
           let options =
             eval_steps_of(~settings=settings.evaluation, expr, state);
           let next_b =
             calc_b(~settings, ~prev_expr=expr, ~state, ~options, b);
-          let next_a = get_next_a(~settings, next_b);
+          let next_a =
+            get_next_a(
+              ~settings,
+              ~prev_a,
+              Step.Model.get_next_expr(next_b),
+              Step.Model.get_next_state(next_b),
+            );
           (Aba.cons(Some(next_a), next_b, aba), next_a.expr, next_a.state);
         },
-        _ =>
+        prev_a =>
           (
-            Some(
-              Model.{
-                expr: elab,
-                state: EvaluatorState.init,
-                editor: CodeWithStatics.Model.mk_from_exp(elab),
-              },
-            )
+            Some(get_next_a(~settings, ~prev_a, elab, EvaluatorState.init))
             |> Aba.singleton,
             elab,
             EvaluatorState.init,
@@ -267,8 +299,8 @@ module rec Stepper: {
     // TODO[Matt]: faster calculation
     // let calculate_pending = (~settings, elab: Exp.t) => {};
 
-    let calculate = (~settings, elab: Exp.t) => {
-      full_calculate(~settings, elab);
+    let calculate = (~settings, elab: Exp.t, model: Model.t) => {
+      full_calculate(~settings, elab, model);
     };
   };
 
@@ -276,22 +308,51 @@ module rec Stepper: {
     open Cursor;
 
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = (int, Step.Selection.t);
+    type t =
+      | Step(int, Step.Selection.t)
+      | Editor(CodeTermSelectable.Selection.t);
 
     let get_cursor_info = (~selection: t, model: Model.t): cursor(Update.t) => {
-      let step = model.history |> Aba.get_bs |> List.nth(_, selection |> fst);
-      let+ ci =
-        Step.Selection.get_cursor_info(~selection=selection |> snd, step);
-      Update.StepAction(selection |> fst, ci);
+      switch (selection) {
+      | Step(i, s) =>
+        let step = model.history |> Aba.get_bs |> List.nth(_, i);
+        let+ ci = Step.Selection.get_cursor_info(~selection=s, step);
+        Update.StepAction(i, ci);
+      | Editor(s) =>
+        switch (Aba.hd(model.history)) {
+        | None => Cursor.empty
+        | Some(a) =>
+          let+ ci =
+            CodeTermSelectable.Selection.get_cursor_info(
+              ~selection=s,
+              a.editor,
+            );
+          Update.EditorAction(0, ci);
+        }
+      };
     };
 
     let handle_key_event =
         (~selection: t, ~event, model: Model.t): option(Update.t) =>
-      model.history
-      |> Aba.get_bs
-      |> List.nth(_, selection |> fst)
-      |> Step.Selection.handle_key_event(~selection=selection |> snd, ~event)
-      |> Option.map(x => Update.StepAction(selection |> fst, x));
+      switch (selection) {
+      | Step(i, s) =>
+        model.history
+        |> Aba.get_bs
+        |> List.nth(_, i)
+        |> Step.Selection.handle_key_event(~selection=s, ~event)
+        |> Option.map(x => Update.StepAction(i, x))
+      | Editor(s) =>
+        switch (Aba.hd(model.history)) {
+        | None => None
+        | Some(a) =>
+          CodeTermSelectable.Selection.handle_key_event(
+            ~selection=s,
+            a.editor,
+            event,
+          )
+          |> Option.map(x => Update.EditorAction(0, x))
+        }
+      };
   };
 
   module View = {
@@ -382,10 +443,11 @@ module rec Stepper: {
                    ~globals,
                    ~selection=
                      switch (selected) {
-                     | Some((i', x)) when i' == i => Some(x)
+                     | Some(Step(i', x)) when i' == i => Some(x)
                      | _ => None
                      },
-                   ~signal=(MakeActive(x)) => signal(MakeActive((i, x))),
+                   ~signal=
+                     (MakeActive(x)) => signal(MakeActive(Step(i, x))),
                    ~inject=a => inject(StepAction(i, a)),
                    b,
                  )
@@ -405,19 +467,27 @@ module rec Stepper: {
             switch (model) {
             | Some(model) => [
                 div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
-                StepperEditor.Steppable.view(
+                CodeTermSelectable.View.view(
                   ~globals,
-                  ~signal=(TakeStep(x)) => inject(Update.StepForward(x)),
+                  //~signal=(TakeStep(x)) => inject(Update.StepForward(x)),
                   ~overlays=[],
-                  {
-                    editor: model.editor,
-                    next_steps:
-                      List.map(
-                        ((_, eo: EvaluatorStep.EvalObj.t)) =>
-                          eo.d_loc |> Exp.rep_id,
-                        stepper.next_steps,
-                      ),
-                  },
+                  ~signal=(MakeActive) => signal(MakeActive(Editor())),
+                  ~inject=x => inject(Update.EditorAction(0, x)),
+                  // {
+                  //   editor: model.editor,
+                  //   next_steps:
+                  //     List.map(
+                  //       ((_, eo: EvaluatorStep.EvalObj.t)) =>
+                  //         eo.d_loc |> Exp.rep_id,
+                  //       stepper.next_steps,
+                  //     ),
+                  // },
+                  ~selected=
+                    switch (selected) {
+                    | Some(Editor(_)) => true
+                    | _ => false
+                    },
+                  model.editor,
                 ),
               ]
             | None => [div(~attr=Attr.class_("cell-item"), [text("...")])]

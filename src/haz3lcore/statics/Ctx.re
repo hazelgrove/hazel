@@ -21,10 +21,19 @@ type tvar_entry = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type rewrite_entry = {
+  id: Id.t,
+  quantifiers: list((string, TermBase.Typ.t)),
+  lhs: TermBase.Exp.t,
+  rhs: TermBase.Exp.t,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type entry =
   | VarEntry(var_entry)
   | ConstructorEntry(var_entry)
-  | TVarEntry(tvar_entry);
+  | TVarEntry(tvar_entry)
+  | RewriteEntry(rewrite_entry);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = list(entry);
@@ -63,7 +72,8 @@ let get_id: entry => Id.t =
   fun
   | VarEntry({id, _})
   | ConstructorEntry({id, _})
-  | TVarEntry({id, _}) => id;
+  | TVarEntry({id, _})
+  | RewriteEntry({id, _}) => id;
 
 let lookup_var = (ctx: t, name: string): option(var_entry) =>
   List.find_map(
@@ -169,6 +179,11 @@ let filter_duplicates = (ctx: t): t =>
            VarSet.mem(name, typ_set)
              ? (ctx, term_set, typ_set)
              : ([entry, ...ctx], term_set, VarSet.add(name, typ_set))
+         | RewriteEntry({id: _, quantifiers: _, lhs: _, rhs: _}) => (
+             [entry, ...ctx],
+             term_set,
+             typ_set,
+           )
          }
        },
        ([], VarSet.empty, VarSet.empty),

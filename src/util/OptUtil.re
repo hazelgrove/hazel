@@ -5,6 +5,12 @@ let get = (if_none, o) =>
   };
 let get_or_fail = s => get(() => failwith(s));
 let get_or_raise = e => get(() => raise(e));
+let get_opt = (if_none, o) => {
+  switch (o) {
+  | None => if_none()
+  | Some(a) => Some(a)
+  };
+};
 
 let map2 = (f, o1, o2) =>
   switch (o1, o2) {

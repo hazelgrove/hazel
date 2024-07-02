@@ -2382,3 +2382,7 @@ svg.tile-next-step {
   pointer-events: all;
   cursor: pointer;
 }
+
+svg.tile-taken-step {
+  z-index: 5;
+}

@@ -11,6 +11,7 @@ let jump_to = entry =>
 let context_entry_view =
     (~globals, ~inject, entry: Haz3lcore.Ctx.entry): Node.t => {
   let view_type = CodeViewable.view_typ(~globals, ~inline=true);
+  let view_expr = CodeViewable.view_exp(~globals, ~inline=true);
   let div_name =
     div(
       ~attr=
@@ -37,6 +38,15 @@ let context_entry_view =
         div_name([alias_view(name)]),
         div(~attr=clss(["seperator"]), [text("::")]),
         Kind.view(~globals, kind),
+      ],
+    )
+  | RewriteEntry({lhs, rhs, _}) =>
+    div_c(
+      "context-entry",
+      [
+        view_expr(lhs),
+        div(~attr=clss(["seperator"]), [text("≡")]),
+        view_expr(rhs),
       ],
     )
   };

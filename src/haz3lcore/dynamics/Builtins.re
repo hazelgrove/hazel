@@ -349,6 +349,18 @@ module Pervasives = {
        );
 };
 
+let rewrites: list(Ctx.rewrite_entry) = [
+  {
+    id: Id.mk(),
+    quantifiers: [("A", Typ.fresh(Typ.Int))],
+    lhs:
+      Exp.fresh(
+        BinOp(Int(Plus), Exp.fresh(Var("A")), Exp.fresh(Int(0))),
+      ),
+    rhs: Exp.fresh(Var("A")),
+  },
+];
+
 let ctx_init: Ctx.t = {
   let meta_cons_map: ConstructorMap.t(Typ.t) = [
     Variant("$e", [Id.mk()], None),

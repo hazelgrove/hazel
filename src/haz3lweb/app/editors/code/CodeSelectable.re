@@ -70,10 +70,13 @@ module View = {
   type event = CodeEditable.View.event;
 
   let view = (~inject: Update.t => 'a) =>
-    CodeEditable.View.view(~inject=a =>
-      switch (Update.convert_action(a)) {
-      | Some(action) => inject(action)
-      | None => Ui_effect.Ignore
-      }
+    CodeEditable.View.view(
+      ~inject=
+        a =>
+          switch (Update.convert_action(a)) {
+          | Some(action) => inject(action)
+          | None => Ui_effect.Ignore
+          },
+      ~indicate=false,
     );
 };

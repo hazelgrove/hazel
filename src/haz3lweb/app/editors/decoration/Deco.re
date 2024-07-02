@@ -317,14 +317,14 @@ module Deco = (M: {
 
   let statics = eh => err_holes(eh);
 
-  let editor = (zipper, sel_seg, selected) =>
+  let editor = (~indicate, zipper, sel_seg, selected) =>
     selected
-      ? List.concat([
-          caret(zipper),
-          indicated_piece_deco(zipper),
-          selected_pieces(zipper),
-          backpack(zipper),
-          targets'(zipper.backpack, sel_seg),
-        ])
+      ? caret(zipper)
+        @ (indicate ? indicated_piece_deco(zipper) : [])
+        @ List.concat([
+            selected_pieces(zipper),
+            backpack(zipper),
+            targets'(zipper.backpack, sel_seg),
+          ])
       : [];
 };

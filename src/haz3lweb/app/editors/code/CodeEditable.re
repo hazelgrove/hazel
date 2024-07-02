@@ -260,6 +260,7 @@ module View = {
         ~inject: Update.t => Ui_effect.t(unit),
         ~selected: bool,
         ~overlays: list(Node.t)=[],
+        ~indicate=true,
         ~sort=?,
         model: Model.t,
       ) => {
@@ -270,6 +271,7 @@ module View = {
           let globals = globals;
         });
       Deco.editor(
+        ~indicate,
         model.editor.state.zipper,
         model.editor.state.meta.segment,
         selected,
@@ -282,7 +284,7 @@ module View = {
         }
       );
     };
-    let overlays = edit_decos @ overlays;
+    let overlays = overlays @ edit_decos;
     let code_view =
       CodeWithStatics.View.view(~globals, ~overlays, ~sort?, model);
     let mousedown_overlay =

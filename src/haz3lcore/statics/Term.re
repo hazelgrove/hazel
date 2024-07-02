@@ -580,7 +580,9 @@ module Exp = {
             | None => Var(x) |> rewrap // TODO: add some logic to ensure that unbound variables always show up
             }
           // Forms with environments: look up in new environment
-          | Closure(env, e) => substitute_closures(env, e)
+          // Matt: I'm worried about the computational complexity here
+          | Closure(env', e) =>
+            substitute_closures(env', e) |> substitute_closures(env)
           | Fun(p, e, Some(env), n) =>
             Fun(
               p,
