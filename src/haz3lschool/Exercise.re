@@ -281,22 +281,19 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     exercise_data: list((key, persistent_state)),
   };
 
-  let serialize_exercise = (exercise, ~instructor_mode) => {
+  let serialize_exercise = (exercise, ~instructor_mode) =>
     persistent_state_of_state(exercise, ~instructor_mode)
     |> sexp_of_persistent_state
     |> Sexplib.Sexp.to_string;
-  };
 
-  let deserialize_exercise = (data, ~spec, ~instructor_mode) => {
+  let deserialize_exercise = (data, ~spec, ~instructor_mode) =>
     data
     |> Sexplib.Sexp.of_string
     |> persistent_state_of_sexp
     |> unpersist_state(~spec, ~instructor_mode);
-  };
 
-  let deserialize_exercise_export = data => {
+  let deserialize_exercise_export = data =>
     data |> Sexplib.Sexp.of_string |> exercise_export_of_sexp;
-  };
 
   // # Stitching
   module ProgrammingStitch = ExerciseProgramming.Stitch;
@@ -328,14 +325,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       | (Programming(pos), Programming(s)) => ProgrammingStitch.nth(s, pos)
       | (Proof(pos), Proof(s)) => ProofStitch.nth(s, pos)
       | _ => failwith("Exercise(StitchUtil.nth): mismatch")
-      };
-
-    let map_nth = (f: 'a => 'a, s: stitched('a), pos: pos): stitched('a) =>
-      switch (pos, s) {
-      | (Programming(pos), Programming(s)) =>
-        Programming(ProgrammingStitch.map_nth(f, s, pos))
-      | (Proof(pos), Proof(s)) => Proof(ProofStitch.map_nth(f, s, pos))
-      | _ => failwith("Exercise(StitchUtil.map_nth): position mismatch")
       };
 
     let flatten = (s: stitched('a)) =>
@@ -479,15 +468,11 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   };
   let stitch_static = Core.Memo.general(stitch_static);
 
-  let statics_of_stiched =
-      (state: state, s: stitched(StaticsItem.t)): StaticsItem.t =>
-    StitchUtil.nth(s, state.pos);
-
   let statics_of = (~settings, exercise: state): StaticsItem.t =>
-    exercise
-    |> stitch_term
-    |> stitch_static(settings)
-    |> statics_of_stiched(exercise);
+    StitchUtil.nth(
+      exercise |> stitch_term |> stitch_static(settings),
+      exercise.pos,
+    );
 
   let key_for_statics = (state: state): string => StitchUtil.key(state.pos);
 
