@@ -37,7 +37,7 @@ type io = {
 };
 
 let default_params: OpenAI.params = {
-  llm: OpenAI.Azure_GPT4_0613,
+  llm: OpenAI.Starcoder2_15B_Instruct,
   temperature: 1.0,
   top_p: 1.0,
 };
@@ -46,7 +46,7 @@ let default_options: FillerOptions.t = {
   params: default_params,
   instructions: true,
   syntax_notes: true,
-  num_examples: 9,
+  num_examples: 11,
   expected_type: false,
   error_rounds_max: 0,
   relevant_ctx: false,
@@ -91,22 +91,43 @@ let get_caret_mode_and_ctx = (~db, ~init_ctx, ~common, ~prelude, sketch_pre) => 
 };
 
 let ask_gpt = (~key, ~params: OpenAI.params, ~prompt, ~handler): unit => {
-  if (params.llm != OpenAI.Azure_GPT4_0613) {
+  if (params.llm != OpenAI.Azure_GPT4_0613
+      && params.llm != OpenAI.Starcoder2_15B_Instruct) {
     failwith("LS: ask_gpt: Unsupported chat model");
   };
   API.node_request(
     ~method=POST,
     ~hostname=
-      Printf.sprintf(
-        "%s.openai.azure.com",
-        "hazel2" // resource
-      ),
+      switch (params.llm) {
+      | OpenAI.Azure_GPT4_0613 =>
+        Printf.sprintf(
+          "%s.openai.azure.com",
+          "hazel2" // resource
+        )
+      | OpenAI.Starcoder2_15B_Instruct => "20.115.44.142"
+      | _ => failwith("LS: ask_gpt: Unsupported chat model")
+      },
+    ~port=
+      switch (params.llm) {
+      | OpenAI.Starcoder2_15B_Instruct => Some(11434)
+      | _ => None
+      },
+    ~use_https=
+      switch (params.llm) {
+      | OpenAI.Starcoder2_15B_Instruct => false
+      | _ => true
+      },
     ~path=
-      Printf.sprintf(
-        "/openai/deployments/%s/chat/completions?api-version=%s",
-        "hazel-gpt-4", // deployment
-        "2023-05-15" // api version
-      ),
+      switch (params.llm) {
+      | OpenAI.Azure_GPT4_0613 =>
+        Printf.sprintf(
+          "/openai/deployments/%s/chat/completions?api-version=%s",
+          "hazel-gpt-4", // deployment
+          "2023-05-15" // api version
+        )
+      | OpenAI.Starcoder2_15B_Instruct => "/v1/chat/completions"
+      | _ => failwith("LS: ask_gpt: Unsupported chat model")
+      },
     ~headers=[("Content-Type", "application/json"), ("api-key", key)],
     ~body=OpenAI.body(~params, prompt),
     handler,

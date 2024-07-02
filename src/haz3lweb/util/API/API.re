@@ -97,30 +97,42 @@ let request =
   };
   request##send(body |> Json.to_string |> Js.string |> Js.Opt.return);
 };
-
 let node_request =
     (
       ~debug=false,
       ~with_credentials=false,
+      ~use_https=true,
       ~method: method,
       ~hostname: string, /* Do not include 'https://' */
+      ~port: option(int)=None,
       ~path: string,
       ~headers: list((string, string))=[],
       ~body: Json.t=`Null,
       handler: option(Json.t) => unit,
     )
     : unit => {
-  let https = Js.Unsafe.js_expr("require('https')");
+  let http_module =
+    if (use_https) {
+      Js.Unsafe.js_expr("require('https')");
+    } else {
+      Js.Unsafe.js_expr("require('http')");
+    };
   debug ? Yojson.Safe.pp(Format.std_formatter, body) : ();
+  let port_str =
+    switch (port) {
+    | Some(p) => Printf.sprintf(", port: %d", p)
+    | None => ""
+    };
   let options =
     Printf.sprintf(
-      "({hostname: \"%s\", path: \"%s\", method: \"%s\", headers: { %s } })",
+      "({hostname: \"%s\", path: \"%s\", method: \"%s\", headers: { %s } %s })",
       hostname,
       path,
       string_of_method(method),
       headers
       |> List.map(((k, v)) => Printf.sprintf("\"%s\": \"%s\"", k, v))
       |> String.concat(","),
+      port_str,
     );
   debug ? Printf.printf("options: %s", options) : ();
   let callback =
@@ -143,7 +155,7 @@ let node_request =
         ),
       );
     });
-  let req = https##request(Js.Unsafe.js_expr(options), callback);
+  let req = http_module##request(Js.Unsafe.js_expr(options), callback);
   if (with_credentials) {
     req##withCredentials := Js._true;
   };
