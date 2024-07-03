@@ -271,7 +271,15 @@ let inspector_view = (~inject, ~settings, ci): Node.t =>
     [view_of_info(~inject, ~settings, ci)],
   );
 
-let view = (~inject, ~settings: Settings.t, cursor_info: option(Info.t)) => {
+let _projectors_view = (~inject, editor: Editor.t, ci: Info.t) =>
+  div(
+    ~attr=clss(["id"]),
+    [text(String.sub(Id.to_string(Info.id_of(ci)), 0, 4))]
+    @ Option.to_list(ProjectorsView.ci(~inject, editor)),
+  );
+
+let view =
+    (~inject, ~settings: Settings.t, editor, cursor_info: option(Info.t)) => {
   let bar_view = div(~attr=Attr.id("bottom-bar"));
   let err_view = err =>
     bar_view([
@@ -286,10 +294,7 @@ let view = (~inject, ~settings: Settings.t, cursor_info: option(Info.t)) => {
   | Some(ci) =>
     bar_view([
       inspector_view(~inject, ~settings, ci),
-      div(
-        ~attr=clss(["id"]),
-        [text(String.sub(Id.to_string(Info.id_of(ci)), 0, 4))],
-      ),
+      ProjectorsView.panel(~inject, editor, ci),
     ])
   };
 };

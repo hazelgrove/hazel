@@ -197,7 +197,10 @@ let proof_view =
         Cell.editor_view(
           ~selected=(Proof(pos): Exercise.pos) == this_pos,
           ~error_ids=
-            Statics.Map.error_ids(editor.state.meta.term_ranges, di.info_map),
+            Statics.Map.error_ids(
+              editor.state.meta.projected.term_ranges,
+              di.info_map,
+            ),
           ~inject,
           ~ui_state,
           ~mousedown_updates=[SwitchEditor(this_pos)],
@@ -259,7 +262,7 @@ let proof_view =
       ~selected=(Proof(pos): Exercise.pos) == Proof(Prelude),
       ~error_ids=
         Statics.Map.error_ids(
-          eds.prelude.state.meta.term_ranges,
+          eds.prelude.state.meta.projected.term_ranges,
           prelude.info_map,
         ),
       ~inject,

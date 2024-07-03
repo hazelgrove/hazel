@@ -538,11 +538,12 @@ module rec Typ: {
     | Forall(_, _) => true
     | List(_) => false /* is already wrapped in [] */
     | Arrow(_, _) => true
-    | Prod(_)
+    | Prod(_) => false /* is already wrapped in () in this printer */
     | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
     };
 
-  /* Essentially recreates haz3lweb/view/Type.re's view_ty but with string output */
+  /* Essentially recreates haz3lweb/view/Type.re's view_ty but with string output.
+   * NOTE: Projectors rely on this including whitespace agreeing with view */
   let rec pretty_print = (ty: t): string =>
     switch (ty) {
     | Unknown(_) => "?"
@@ -554,14 +555,14 @@ module rec Typ: {
     | Judgement => "Judgement"
     | Var(tvar) => tvar
     | List(t) => "[" ++ pretty_print(t) ++ "]"
-    | Arrow(t1, t2) => paren_pretty_print(t1) ++ "->" ++ pretty_print(t2)
+    | Arrow(t1, t2) => paren_pretty_print(t1) ++ " -> " ++ pretty_print(t2)
     | Sum(sm) =>
       switch (sm) {
       | [] => "+?"
       | [t0] => "+" ++ ctr_pretty_print(t0)
       | [t0, ...ts] =>
         List.fold_left(
-          (acc, t) => acc ++ "+" ++ ctr_pretty_print(t),
+          (acc, t) => acc ++ " + " ++ ctr_pretty_print(t),
           ctr_pretty_print(t0),
           ts,
         )
@@ -575,8 +576,8 @@ module rec Typ: {
            ts,
          )
       ++ ")"
-    | Rec(tv, t) => "rec " ++ tv ++ "->" ++ pretty_print(t)
-    | Forall(tv, t) => "forall " ++ tv ++ "->" ++ pretty_print(t)
+    | Rec(tv, t) => "rec " ++ tv ++ " -> " ++ pretty_print(t)
+    | Forall(tv, t) => "forall " ++ tv ++ " -> " ++ pretty_print(t)
     }
   and ctr_pretty_print = ((ctr, typ)) =>
     switch (typ) {

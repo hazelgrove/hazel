@@ -3,21 +3,43 @@ open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
 
-let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit), model) => {
+let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit), model: Model.t) => {
   let get_selection = (model: Model.t): string =>
     model.editors |> Editors.get_editor |> Printer.to_string_selection;
   let key_handler =
       (~inject, ~dir: Key.dir, evt: Js.t(Dom_html.keyboardEvent))
-      : Effect.t(unit) =>
-    Effect.(
-      switch (Keyboard.handle_key_event(Key.mk(dir, evt))) {
+      : Effect.t(unit) => {
+    open Effect;
+    let key = Key.mk(dir, evt);
+    let editor = Editors.get_editor(model.editors);
+    switch (ProjectorsView.key_handler(editor, ~inject, key)) {
+    | Some([]) =>
+      //TODO(andrew): proper no-op (see ProjectorsView)
+      Ignore
+    | Some(action) => Many([Prevent_default] @ List.map(inject, action))
+    | None =>
+      switch (Keyboard.handle_key_event(key)) {
       | None => Ignore
-      | Some(action) =>
-        Many([Prevent_default, Stop_propagation, inject(action)])
+      | Some(action) => Many([Prevent_default, inject(action)])
       }
-    );
+    };
+  };
+  let keypress_handler =
+      (~inject, ~dir: Key.dir, evt: Js.t(Dom_html.keyboardEvent))
+      : Effect.t(unit) => {
+    open Effect; //TODO(andrew): cleanup
+
+    let key = Key.mk(dir, evt);
+    let editor = Editors.get_editor(model.editors);
+    switch (ProjectorsView.key_handler(editor, ~inject, key)) {
+    | Some([]) =>
+      //TODO(andrew): proper no-op (see ProjectorsView)
+      Ignore
+    | _ => Effect.Prevent_default
+    };
+  };
   [
-    Attr.on_keypress(_ => Effect.Prevent_default),
+    Attr.on_keypress(keypress_handler(~inject, ~dir=KeyDown)),
     Attr.on_keyup(key_handler(~inject, ~dir=KeyUp)),
     Attr.on_keydown(key_handler(~inject, ~dir=KeyDown)),
     /* safety handler in case mousedown overlay doesn't catch it */
@@ -63,7 +85,8 @@ let main_view =
       @ [div(~attr=Attr.id("title"), [text("hazel")])]
       @ [EditorModeView.view(~inject, ~settings, ~editors)],
     );
-  let bottom_bar = CursorInspector.view(~inject, ~settings, cursor_info);
+  let bottom_bar =
+    CursorInspector.view(~inject, ~settings, editor, cursor_info);
   let sidebar =
     settings.explainThis.show && settings.core.statics
       ? ExplainThis.view(

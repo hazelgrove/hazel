@@ -44,7 +44,17 @@ type select =
   | Term(rel);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type project =
+  | UpdateSyntax(Id.t, Piece.t => Piece.t)
+  | UpdateModel(Id.t, Projector.t => Projector.t)
+  | SetIndicated(Projector.kind)
+  | ToggleIndicated(Projector.kind)
+  | SetKeyDispatch(Id.t, bool)
+  | Remove(Id.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
+  | Project(project)
   | Move(move)
   | MoveToNextHole(Direction.t)
   | Jump(jump_target)
@@ -64,7 +74,8 @@ module Failure = {
     | Cant_insert
     | Cant_destruct
     | Cant_select
-    | Cant_put_down;
+    | Cant_put_down
+    | Cant_project;
 };
 
 module Result = {
@@ -74,6 +85,7 @@ module Result = {
 
 let is_edit: t => bool =
   fun
+  | Project(_) => true //TODO(andrew): revisit
   | Insert(_)
   | Destruct(_)
   | Pick_up

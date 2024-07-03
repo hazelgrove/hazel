@@ -45,6 +45,7 @@ let simple_shard =
       ~path_cls,
       ~base_cls,
       ~fudge=DecUtil.fzero,
+      ~absolute=true,
       measurement: Measured.measurement,
     )
     : t =>
@@ -54,8 +55,22 @@ let simple_shard =
     ~base_cls,
     ~path_cls,
     ~fudge,
+    ~absolute,
     simple_shard_path(shapes, measurement.last.col - measurement.origin.col),
   );
+
+let relative_shard =
+    (~font_metrics, ~shapes, ~measurement: Measured.measurement) =>
+  simple_shard(
+    ~absolute=false,
+    ~font_metrics,
+    ~shapes,
+    ~path_cls=[],
+    ~base_cls=[],
+    measurement,
+  );
+
+let convex_shard = relative_shard(~shapes=(Convex, Convex));
 
 let simple_shard_selected =
     (~font_metrics, ~shapes, ~measurement: Measured.measurement, ~buffer): t => {

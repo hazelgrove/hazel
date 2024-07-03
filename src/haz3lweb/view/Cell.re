@@ -113,6 +113,7 @@ let test_result_layer =
 
 let deco =
     (
+      ~inject,
       ~font_metrics,
       ~show_backpack_targets,
       ~selected,
@@ -121,8 +122,19 @@ let deco =
       ~highlights: option(ColorSteps.colorMap),
       {
         state: {
-          zipper,
-          meta: {term_ranges, segment, measured, terms, tiles, _},
+          meta: {
+            projected: {
+              z,
+              term_ranges,
+              segment,
+              measured,
+              terms,
+              tiles,
+              syntax_map,
+              _,
+            },
+            _,
+          },
           _,
         },
         _,
@@ -137,8 +149,10 @@ let deco =
       let font_metrics = font_metrics;
       let show_backpack_targets = show_backpack_targets;
       let error_ids = error_ids;
+      let syntax_map = syntax_map;
     });
-  let decos = selected ? Deco.all(zipper, segment) : Deco.err_holes(zipper);
+  let decos =
+    selected ? Deco.all(~inject, z, segment) : Deco.always(~inject, z);
   let decos =
     switch (test_results) {
     | None => decos
@@ -269,6 +283,7 @@ let editor_view =
   let code_text_view = Code.view(~sort, ~font_metrics, ~settings, editor);
   let deco_view =
     deco(
+      ~inject,
       ~font_metrics,
       ~show_backpack_targets,
       ~selected,
@@ -393,7 +408,7 @@ let locked =
       ? Interface.elaborate(
           ~settings=settings.core,
           statics.info_map,
-          editor.state.meta.view_term,
+          statics.term,
         )
       : DHExp.BoolLit(true);
   let result: ModelResult.t =

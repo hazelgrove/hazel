@@ -291,6 +291,7 @@ let should_scroll_to_caret =
     | Put_down
     | RotateBackpack
     | MoveToBackpackTarget(_) => true
+    | Project(_)
     | Unselect(_)
     | Select(All) => false
     }

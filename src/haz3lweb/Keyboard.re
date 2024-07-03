@@ -107,13 +107,18 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
     | "e" => now(Move(Extreme(Right(ByToken))))
     | _ => None
     }
-  | {key: D(key), sys, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-    switch (sys, key) {
-    | (_, "ArrowLeft") => now(MoveToBackpackTarget(Left(ByToken)))
-    | (_, "ArrowRight") => now(MoveToBackpackTarget(Right(ByToken)))
-    | (_, "Alt") => Some(SetMeta(ShowBackpackTargets(true)))
-    | (_, "ArrowUp") => now(MoveToBackpackTarget(Up))
-    | (_, "ArrowDown") => now(MoveToBackpackTarget(Down))
+  | {key: D(key), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
+    switch (key) {
+    | "ƒ" => Some(PerformAction(Project(ToggleIndicated(Fold))))
+    | "†" => Some(PerformAction(Project(ToggleIndicated(Infer))))
+    | "ç" => Some(PerformAction(Project(ToggleIndicated(Checkbox))))
+    | "ß" => Some(PerformAction(Project(ToggleIndicated(Slider))))
+    | "∑" => Some(PerformAction(Project(ToggleIndicated(TextArea))))
+    | "ArrowLeft" => now(MoveToBackpackTarget(Left(ByToken)))
+    | "ArrowRight" => now(MoveToBackpackTarget(Right(ByToken)))
+    | "Alt" => Some(SetMeta(ShowBackpackTargets(true)))
+    | "ArrowUp" => now(MoveToBackpackTarget(Up))
+    | "ArrowDown" => now(MoveToBackpackTarget(Down))
     | _ => None
     }
   | _ => None

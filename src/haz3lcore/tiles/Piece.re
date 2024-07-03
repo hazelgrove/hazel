@@ -84,6 +84,12 @@ let disassemble = (p: t): segment =>
 let shapes =
   get(_ => None, g => Some(Grout.shapes(g)), t => Some(Tile.shapes(t)));
 
+let is_convex = (p: t): bool =>
+  switch (shapes(p)) {
+  | Some((Convex, Convex)) => true
+  | _ => false
+  };
+
 let is_grout: t => bool =
   fun
   | Grout(_) => true
@@ -145,3 +151,21 @@ let mold_of = (~shape=Nib.Shape.Convex, p: t) =>
   | Grout(g) => Mold.of_grout(g, Any)
   | Secondary(_) => Mold.of_secondary({sort: Any, shape})
   };
+
+let replace_id = (id: Id.t, p: t): t =>
+  switch (p) {
+  | Tile(t) => Tile({...t, id})
+  | Grout(g) => Grout({...g, id})
+  | Secondary(w) => Secondary({...w, id})
+  };
+
+let mk_tile: (Form.t, list(list(t))) => t =
+  //TODO: asserts
+  (form, children) =>
+    Tile({
+      id: Id.mk(),
+      label: form.label,
+      mold: form.mold,
+      shards: List.mapi((i, _) => i, form.label),
+      children,
+    });

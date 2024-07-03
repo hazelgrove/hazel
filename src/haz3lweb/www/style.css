@@ -333,12 +333,10 @@ body {
   display: none;
 }
 
-
 #main {
   grid-row: 2;
   grid-column: 1 / span 1;
   overflow: auto;
-
 }
 
 #main.Scratch,
@@ -697,6 +695,162 @@ select {
 .code-container {
   position: relative;
 }
+
+/* PROJECTORS: default */
+
+.projector {
+  position: absolute;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #c7b480;
+}
+
+.projector-wrapper {
+  display: flex;
+  z-index: 12;
+  justify-content: center;
+  align-items: center;
+}
+
+.projector.indicated {
+  z-index: 13;
+}
+
+.projector>svg {
+  z-index: 1;
+  fill: #f0e7d6;
+}
+
+.projector.indicated>svg {
+  fill: var(--exp-bg-off-color);
+}
+
+/* PROJECTOR: FOLD */
+
+.projector.fold:hover,
+.projector.indicated.fold {
+  color: black;
+}
+
+.projector.fold .projector-wrapper {
+  cursor: pointer;
+}
+
+/* PROJECTOR: INFER */
+
+.projector.type {
+  /* opacity: 0.5; */
+  color: var(--typ-text-color);
+}
+
+.projector.type:hover {
+  opacity: 1;
+}
+
+.projector.type>svg {
+  fill: var(--typ-bg-off-color);
+}
+
+.projector.type .projector-wrapper div {
+  cursor: pointer;
+}
+
+/* PROJECTOR: CHECKBOX */
+
+.projector.check input {
+  margin: 0;
+  filter: sepia(1);
+  cursor: pointer;
+}
+
+/* PROJECTOR: TEXTAREA */
+
+.projector.text {
+  display: flex;
+  justify-content: left;
+  align-items: start;
+}
+
+.projector.text .projector-wrapper {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  justify-content: start;
+  align-items: start;
+}
+
+.projector.text .cols {
+  border-radius: 0.1em;
+  outline: 0.3px solid #a69460;
+  background-color: #e0d1b7;
+  color: #f0e7d6;
+  height: 100%;
+  width: 100%;
+  align-items: start;
+  display: flex;
+  border-left: 2px solid #0000;
+  /* border-right: 2px solid #0000; */
+  margin-left: -2px;
+  margin-right: -2px;
+}
+
+.projector.text .cols.indicated.left {
+  position: relative;
+  border-right: 2px solid red;
+  animation: 1s blink_border_right step-end infinite;
+  /* right: 2px; */
+}
+
+.projector.text .cols.indicated.right {
+  position: relative;
+  border-left: 2px solid red;
+  animation: 1s blink_border_left step-end infinite;
+  /* right: 2px; */
+}
+
+.projector.text textarea {
+  /* filter: sepia(1); */
+  resize: none;
+  height: 100%;
+  width: 100%;
+  caret-color: red;
+  padding: 0;
+  margin: 0;
+  line-height: var(--line-height);
+  font-family: "Source Code Pro", monospace;
+  font-size: inherit;
+  border: none;
+  border-radius: 0.1em;
+  outline: 0.3px solid #a69460;
+  background-color: #f0e7d6;
+  color: #8c7e62;
+}
+
+.projector.text textarea {
+  background: repeating-linear-gradient(#f0e7d6, #f0e7d6 1.4em, #e0d1b7 1.4em, #e0d1b7 1.46em);
+}
+
+.projector.text textarea::selection {
+  color: black;
+  background-color: var(--selection-color);
+}
+
+/* PROJECTOR: SLIDER */
+
+.projector.slide .projector-wrapper {
+  width: 95%;
+}
+
+.projector.slide input {
+  margin: 0;
+  width: 100%;
+  filter: sepia(1);
+  cursor: pointer;
+}
+
+/* END PROJECTORS */
 
 .code {
   /*white-space: nowrap;*/
@@ -1535,6 +1689,30 @@ svg.tile-selected {
   }
 }
 
+@keyframes blink_border_left {
+
+  from,
+  to {
+    border-left-color: red;
+  }
+
+  50% {
+    border-left-color: rgba(255, 0, 0, 0);
+  }
+}
+
+@keyframes blink_border_right {
+
+  from,
+  to {
+    border-right-color: red;
+  }
+
+  50% {
+    border-right-color: rgba(255, 0, 0, 0);
+  }
+}
+
 /* STATICS */
 
 .code-container svg.err-hole {
@@ -1758,14 +1936,53 @@ svg.tile-selected {
   mix-blend-mode: luminosity;
 }
 
-#bottom-bar .id {
+#bottom-bar #projectors {
   display: flex;
-  gap: 1em;
+  gap: 1.3em;
   font-size: 0.6em;
   align-items: center;
-  padding-left: 1em;
+  padding-left: 1.3em;
   padding-right: 1em;
   white-space: nowrap;
+  border-radius: 2em 0 0 0;
+  outline: 0.3px solid #ada187;
+  background-color: #ffde88;
+}
+
+#bottom-bar #projectors img {
+  width: 1.4em;
+}
+
+#bottom-bar #projectors select {
+  background: none;
+  border: none;
+  font-size: 1.2em;
+  color: #807350;
+  padding: 0;
+  text-transform: capitalize;
+  width: 4.5em;
+}
+
+#bottom-bar #projectors option {
+  font-size: 1em;
+  color: #807350;
+
+}
+
+#bottom-bar #projectors .toggle-switch {
+  height: 2em;
+  width: 3.5em;
+  display: flex;
+  align-items: center;
+}
+
+#bottom-bar #projectors .toggle-knob {
+  width: 2em;
+  height: 90%;
+}
+
+#bottom-bar #projectors .toggle-switch.active .toggle-knob {
+  margin-left: 1.3em;
 }
 
 .bottom-bar .id-and-class .syntax-class {
@@ -2093,7 +2310,7 @@ svg.expandable path {
 }
 
 .cell-result.hidden {
-  background-color: #E8DCBF;
+  background-color: #e8dcbf;
 }
 
 .cell-result .toggle-switch {
@@ -2101,7 +2318,7 @@ svg.expandable path {
 }
 
 .cell-result .equiv {
-  font-family: 'Source Code Pro';
+  font-family: "Source Code Pro";
 }
 
 .cell-report {
@@ -2131,8 +2348,6 @@ svg.expandable path {
   padding: 0.25em;
   color: black;
 }
-
-;
 
 .cell-result .icon:hover svg {
   animation: wobble 0.6s ease 0s 1 normal forwards;
@@ -2654,11 +2869,11 @@ svg.expandable path {
   margin-bottom: 1em;
 }
 
-.slide {
+/* .slide {
   margin-bottom: 2em;
   min-width: 7.5in;
   width: 7.5in;
-}
+} */
 
 .slide h1 {
   margin-top: 0;

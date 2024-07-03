@@ -109,6 +109,7 @@ let save_and_return = (model: t) => {
   save(model);
   Ok(model);
 };
+
 let reset = (model: t): t => {
   /* Reset model to default, including in localstorage,
      but don't otherwise erase localstorage, allowing
@@ -128,3 +129,7 @@ let reset = (model: t): t => {
     },
   };
 };
+
+let current_statics =
+    ({settings, editors, statics, _}: t): CachedStatics.statics =>
+  Editors.lookup_statics(~settings, ~statics, editors);

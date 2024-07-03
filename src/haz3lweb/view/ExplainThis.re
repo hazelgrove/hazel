@@ -223,6 +223,7 @@ let expander_deco =
       let term_ranges = TermRanges.mk(doc.syntactic_form);
       let tiles = TileMap.mk(doc.syntactic_form);
       let error_ids = [];
+      let syntax_map = Id.Map.empty;
     });
   switch (doc.expandable_id, List.length(options)) {
   | (None, _)
@@ -263,12 +264,7 @@ let expander_deco =
               ((id: ExplainThisForm.form_id, segment: Segment.t)): Node.t => {
                 let map = Measured.of_segment(segment);
                 let code_view =
-                  Code.simple_view(
-                    ~font_metrics,
-                    ~unselected=segment,
-                    ~map,
-                    ~settings,
-                  );
+                  Code.simple_view(~font_metrics, ~segment, ~map, ~settings);
                 let classes =
                   id == doc.id
                     ? ["selected"] @ get_clss(segment) : get_clss(segment);

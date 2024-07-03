@@ -381,7 +381,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   let stitch_term = ({model, _}: state): stitched(TermItem.t) => {
     let term_of = (editor: Editor.t): Term.UExp.t =>
-      editor.state.meta.view_term;
+      MakeTerm.from_zip_for_sem(editor.state.zipper) |> fst;
     let stitch2 = (ed1: Editor.t, ed2: Editor.t) =>
       EditorUtil.append_exp(term_of(ed1), term_of(ed2));
     let stitch3 = (ed1: Editor.t, ed2: Editor.t, ed3: Editor.t) =>
@@ -445,7 +445,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       };
     let wrap = (term, editor: Editor.t): TermItem.t => {
       term,
-      term_ranges: editor.state.meta.term_ranges,
+      term_ranges: editor.state.meta.projected.term_ranges,
     };
     terms |> StitchUtil.mapi((pos, t) => wrap(t, ModelUtil.nth(model, pos)));
   };
