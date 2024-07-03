@@ -44,8 +44,8 @@ let neighbor_movability =
         Unicode.length(content_string) - 1,
         Unicode.length(content_string) - 2,
       );
-    | Some(_) => CanPass
-    | _ => supernhbr_l
+    | Some(Secondary(_) | Grout(_)) => CanPass
+    | None => supernhbr_l
     };
   let r =
     switch (r_nhbr) {
@@ -54,8 +54,8 @@ let neighbor_movability =
       // Comments are always length >= 2
       let content_string = Secondary.get_string(w.content);
       CanEnter(0, Unicode.length(content_string) - 2);
-    | Some(_) => CanPass
-    | _ => supernhbr_r
+    | Some(Secondary(_) | Grout(_)) => CanPass
+    | None => supernhbr_r
     };
   (l, r);
 };
@@ -78,6 +78,8 @@ module Make = (M: Editor.Meta.S) => {
     /* this case maybe shouldn't be necessary but currently covers an edge
        (select an open parens to left of a multichar token and press left) */
     | _ when z.selection.content != [] => pop_move(d, z)
+    /* Need this case to avoid moving sub-caret onto projectors: */
+    | _ when Projector.Move.go(d, z) != None => Zipper.move(d, z)
     | (Left, Outer, (CanEnter(dlm, c_max), _)) =>
       inner_end(d, dlm, c_max, z)
     | (Left, Outer, _) => Zipper.move(d, z)

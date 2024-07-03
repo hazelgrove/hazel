@@ -310,7 +310,8 @@ let view = (~globals: Globals.t, cursor_info: option(Info.t)) => {
       inspector_view(~globals, ci),
       div(
         ~attr=clss(["id"]),
-        [text(String.sub(Id.to_string(Info.id_of(ci)), 0, 4))],
+        [text(String.sub(Id.to_string(Info.id_of(ci)), 0, 4))]
+        @ Option.to_list(ProjectorsView.ci(~inject, editor)),
       ),
     ])
   };

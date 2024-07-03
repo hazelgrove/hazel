@@ -59,30 +59,40 @@ let pos_str = (~d: dims, ~fudge: fdims=fzero, font_metrics: FontMetrics.t) =>
     Float.of_int(d.height) *. (font_metrics.row_height +. fudge.height),
   );
 
+let abs_dims = ({origin, last}: Haz3lcore.Measured.measurement): dims => {
+  left: origin.col,
+  top: origin.row,
+  width: abs(last.col - origin.col),
+  height: abs(last.row - origin.row + 1),
+};
+
+let abs_style = (~font_metrics, measurement): Attr.t =>
+  Attr.create("style", pos_str(~d=abs_dims(measurement), font_metrics));
+
 let code_svg_sized =
     (
       ~font_metrics: FontMetrics.t,
-      ~measurement as {origin, last}: Haz3lcore.Measured.measurement,
+      ~absolute=true,
+      ~measurement: Haz3lcore.Measured.measurement,
       ~base_cls=[],
       ~path_cls=[],
       ~attr=[],
       ~fudge: fdims=fzero,
       paths: list(SvgUtil.Path.cmd),
     ) => {
-  let (left, top) = (origin.col, origin.row);
-  let (width, height) = (
-    abs(last.col - origin.col),
-    abs(last.row - origin.row + 1),
-  );
-  let style = pos_str(~d={left, top, width, height}, ~fudge, font_metrics);
+  let d = abs_dims(measurement);
+  let d = absolute ? d : {left: 0, top: 0, width: d.width, height: d.height};
   create_svg(
     "svg",
     ~attr=
       Attr.many(
         [
           Attr.classes(base_cls),
-          Attr.create("style", style),
-          Attr.create("viewBox", Printf.sprintf("0 0 %d %d", width, height)),
+          Attr.create("style", pos_str(~d, ~fudge, font_metrics)),
+          Attr.create(
+          "viewBox",
+          Printf.sprintf("0 0 %d %d", d.width, d.height),
+        ),
           Attr.create("preserveAspectRatio", "none"),
         ]
         @ attr,
@@ -156,7 +166,7 @@ let code_svg =
   // (https://bugs.chromium.org/p/chromium/issues/detail?id=424288) that
   // causes miaslignment between piece decorations and text.
   // Using a different viewBox size seems to fix this.
-  let scale = 2.;
+  let scale = 0.5;
   create_svg(
     "svg",
     ~attr=

@@ -42,11 +42,23 @@ module Deco = (M: {
       switch (p) {
       | Tile(t) => sel_of_tile(~start_shape, t)
       | Grout(g) => [
-          Some(sel_shard_svg(~start_shape, Measured.find_g(g, map), p)),
+          Some(
+            sel_shard_svg(
+              ~start_shape,
+              Measured.find_g(~msg="Deco.sel_of_piece", g, map),
+              p,
+            ),
+          ),
         ]
       | Secondary(w) when Secondary.is_linebreak(w) => [None]
       | Secondary(w) => [
-          Some(sel_shard_svg(~start_shape, Measured.find_w(w, map), p)),
+          Some(
+            sel_shard_svg(
+              ~start_shape,
+              Measured.find_w(~msg="Deco.sel_of_piece", w, map),
+              p,
+            ),
+          ),
         ]
       };
     let start_shape =
@@ -58,7 +70,7 @@ module Deco = (M: {
   }
   and sel_of_tile = (~start_shape, t: Tile.t): list(option(shard_data)) => {
     let tile_shards =
-      Measured.find_shards(t, map)
+      Measured.find_shards(~msg="sel_of_tile", t, map)
       |> List.filter(((i, _)) => List.mem(i, t.shards))
       |> List.map(((index, measurement)) =>
            [
@@ -120,8 +132,8 @@ module Deco = (M: {
         switch (TermRanges.find_opt(id, term_ranges)) {
         | None => None
         | Some((p_l, p_r)) =>
-          let l = Measured.find_p(p_l, map).origin;
-          let r = Measured.find_p(p_r, map).last;
+          let l = Measured.find_p(~msg="Deco.indicated", p_l, map).origin;
+          let r = Measured.find_p(~msg="Deco.indicated", p_r, map).last;
           Some((l, r));
         };
       };
@@ -142,7 +154,11 @@ module Deco = (M: {
            * |> List.filter(id => id >= 0)*/
           |> List.map(id => {
                let t = tile(id);
-               (id, t.mold, Measured.find_shards(t, map));
+               (
+                 id,
+                 t.mold,
+                 Measured.find_shards(~msg="Deco.indicated", t, map),
+               );
              });
         PieceDec.indicated(
           ~font_metrics,
@@ -175,10 +191,10 @@ module Deco = (M: {
                switch (Siblings.neighbors((l, r))) {
                | (None, None) => failwith("impossible")
                | (_, Some(p)) =>
-                 let m = Measured.find_p(p, map);
+                 let m = Measured.find_p(~msg="Deco.targets", p, map);
                  Measured.{origin: m.origin, last: m.origin};
                | (Some(p), _) =>
-                 let m = Measured.find_p(p, map);
+                 let m = Measured.find_p(~msg="Deco.targets", p, map);
                  Measured.{origin: m.last, last: m.last};
                };
              let profile =
@@ -221,8 +237,8 @@ module Deco = (M: {
           ((Measured.Point.t, Measured.Point.t, SvgUtil.Path.t)) => Node.t,
       ) => {
     let (p_l, p_r) = TermRanges.find(id, term_ranges);
-    let l = Measured.find_p(p_l, map).origin;
-    let r = Measured.find_p(p_r, map).last;
+    let l = Measured.find_p(~msg="Deco.term", p_l, map).origin;
+    let r = Measured.find_p(~msg="Deco.term", p_r, map).last;
     open SvgUtil.Path;
     let r_edge =
       ListUtil.range(~lo=l.row, r.row + 1)
@@ -354,4 +370,52 @@ module Deco = (M: {
           targets'(zipper.backpack, sel_seg),
         ])
       : [];
+  let err_holes = () =>
+    List.map(term_highlight(~clss=["err-hole"]), M.error_ids);
+
+  let indication_deco = (~inject, z: Zipper.t) =>
+    switch (Indicated.index(z)) {
+    | Some(id) =>
+      switch (
+        ProjectorsView.indication_view(
+          id,
+          z.projectors,
+          ~inject,
+          ~syntax_map=M.syntax_map,
+          ~measured=M.map,
+          ~font_metrics,
+        )
+      ) {
+      | Some(v) => [v]
+      | None => indicated_piece_deco(z)
+      }
+    | _ => indicated_piece_deco(z)
+    };
+
+  let active = (~inject, zipper, sel_seg) =>
+    List.concat([
+      caret(zipper),
+      indication_deco(~inject, zipper),
+      selected_pieces(zipper),
+      backpack(zipper),
+      targets'(zipper.backpack, sel_seg),
+    ]);
+
+  let always = (~inject, zipper: Zipper.t) =>
+    List.concat([
+      err_holes(),
+      ProjectorsView.view_all(
+        zipper.projectors,
+        ~syntax_map=M.syntax_map,
+        ~inject,
+        ~font_metrics,
+        ~measured=M.map,
+      ),
+    ]);
+
+  let all = (~inject, zipper, sel_seg) =>
+    List.concat([
+      active(~inject, zipper, sel_seg),
+      always(~inject, zipper),
+    ]);
 };

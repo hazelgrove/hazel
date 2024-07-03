@@ -328,12 +328,10 @@ body {
   display: none;
 }
 
-
 #main {
   grid-row: 2;
   grid-column: 1 / span 1;
   overflow: auto;
-  
 }
 
 #main.Scratch,
@@ -679,6 +677,80 @@ select {
   position: relative;
   flex-grow:1;
 }
+
+/* PROJECTORS: default */
+
+.projector {
+  position: absolute;
+  z-index: 12;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #c7b480;
+}
+.projector-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.projector.indicated {
+  z-index: 13;
+}
+.projector > svg {
+  z-index: -1;
+  fill: #f0e7d6;
+}
+.projector.indicated > svg {
+  fill: var(--exp-bg-off-color);
+}
+
+/* PROJECTOR: FOLD */
+
+.projector.fold:hover,
+.projector.indicated.fold {
+  color: black;
+}
+.projector.fold .projector-wrapper {
+ cursor: pointer;
+} 
+
+/* PROJECTOR: INFER */
+
+.projector.infer {
+  opacity: 0.5;
+  color: var(--typ-text-color);
+}
+.projector.infer:hover {
+  opacity: 1;
+}
+.projector.infer > svg {
+  fill: var(--typ-bg-off-color);
+}
+.projector.infer .projector-wrapper div {
+  cursor: pointer;
+}
+
+/* PROJECTOR: CHECKBOX */
+
+.projector.checkbox input {
+  margin: 0;
+  filter: sepia(1);
+  cursor: pointer;
+}
+
+/* PROJECTOR: SLIDER */
+
+.projector.slider .projector-wrapper {
+  width: 95%;
+}
+.projector.slider input {
+  margin: 0;
+  width: 100%;
+  filter: sepia(1);
+  cursor: pointer;
+}
+
+/* END PROJECTORS */
 
 .code {
   /*white-space: nowrap;*/
@@ -1802,14 +1874,14 @@ svg.expandable path {
 }
 
 .cell-result.hidden {
-  background-color: #E8DCBF;
+  background-color: #e8dcbf;
 }
 
 .cell-result .toggle-switch {
   mix-blend-mode: luminosity;
 }
 .cell-result .equiv {
-  font-family: 'Source Code Pro';
+  font-family: "Source Code Pro";
 }
 
 .cell-report {
@@ -1837,7 +1909,7 @@ svg.expandable path {
 .cell-item.cell-result .error-msg {
   padding: 0.25em;
   color: black;
-};
+}
 
 .cell-result .icon:hover svg {
   animation: wobble 0.6s ease 0s 1 normal forwards;

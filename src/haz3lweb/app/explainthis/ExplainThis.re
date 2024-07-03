@@ -212,6 +212,7 @@ let expander_deco =
     Deco.Deco({
       let editor = editor;
       let globals = globals;
+      let syntax_map = Id.Map.empty;
     });
   switch (doc.expandable_id, List.length(options)) {
   | (None, _)

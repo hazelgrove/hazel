@@ -1,34 +1,12 @@
-open Sexplib.Std;
 open Util;
 open OptUtil.Syntax;
+open ZipperBase;
 
-module Caret = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | Outer
-    | Inner(int, int);
-
-  let decrement: t => t =
-    fun
-    | Outer
-    | Inner(_, 0) => Outer
-    | Inner(d, c) => Inner(d, c - 1);
-
-  let offset: t => int =
-    fun
-    | Outer => 0
-    | Inner(_, c) => c + 1;
-};
-
-// assuming single backpack, shards may appear in selection, backpack, or siblings
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = {
-  selection: Selection.t,
-  backpack: Backpack.t,
-  relatives: Relatives.t,
-  caret: Caret.t,
-  // col_target: int,
-};
+type t = ZipperBase.t;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+module Caret = ZipperBase.Caret;
 
 let init: unit => t =
   () => {
@@ -39,7 +17,7 @@ let init: unit => t =
       ancestors: [],
     },
     caret: Outer,
-    // col_target: 0,
+    projectors: ProjectorMap.empty,
   };
 
 let next_blank = _ => Id.mk();
@@ -70,14 +48,6 @@ let update_caret = (f: Caret.t => Caret.t, z: t): t => {
 };
 let set_caret = (caret: Caret.t): (t => t) => update_caret(_ => caret);
 
-let update_relatives = (f: Relatives.t => Relatives.t, z: t): t => {
-  ...z,
-  relatives: f(z.relatives),
-};
-
-let update_siblings: (Siblings.t => Siblings.t, t) => t =
-  f => update_relatives(rs => {...rs, siblings: f(rs.siblings)});
-
 let parent = (z: t): option(Piece.t) =>
   Relatives.parent(~sel=z.selection.content, z.relatives);
 
@@ -97,6 +67,7 @@ let unzip = (seg: Segment.t): t => {
     ancestors: [],
   },
   caret: Outer,
+  projectors: ProjectorMap.empty,
 };
 
 let sibs_with_sel =
@@ -173,9 +144,13 @@ let put_selection = (sel: Selection.t, z: t): t =>
   snd(update_selection(sel, z));
 
 let grow_selection = (z: t): option(t) => {
-  let+ (p, relatives) = Relatives.pop(z.selection.focus, z.relatives);
-  let selection = Selection.push(p, z.selection);
-  {...z, selection, relatives};
+  switch (Projector.Select.grow(z)) {
+  | Some(z) => Some(z)
+  | None =>
+    let+ (p, relatives) = Relatives.pop(z.selection.focus, z.relatives);
+    let selection = Selection.push(p, z.selection);
+    {...z, selection, relatives};
+  };
 };
 
 // toggles focus and grows if selection is empty
@@ -185,11 +160,15 @@ let shrink_selection = (z: t): option(t) => {
     let selection = Selection.toggle_focus(z.selection);
     grow_selection({...z, selection});
   | Some((p, selection)) =>
-    let relatives =
-      z.relatives
-      |> Relatives.push(selection.focus, p)
-      |> Relatives.reassemble;
-    Some({...z, selection, relatives});
+    switch (Projector.Select.shrink(z)) {
+    | Some(z) => Some(z)
+    | None =>
+      let relatives =
+        z.relatives
+        |> Relatives.push(selection.focus, p)
+        |> Relatives.reassemble;
+      Some({...z, selection, relatives});
+    }
   };
 };
 
@@ -205,13 +184,16 @@ let directional_unselect = (d: Direction.t, z: t): t => {
 
 let move = (d: Direction.t, z: t): option(t) =>
   if (Selection.is_empty(z.selection)) {
-    // let balanced = !Backpack.is_balanced(z.backpack);
-    let+ (p, relatives) = Relatives.pop(d, z.relatives);
-    let relatives =
-      relatives
-      |> Relatives.push(Direction.toggle(d), p)
-      |> Relatives.reassemble;
-    {...z, relatives};
+    switch (Projector.Move.go(d, z)) {
+    | Some(z) => Some(z)
+    | None =>
+      let+ (p, relatives) = Relatives.pop(d, z.relatives);
+      let relatives =
+        relatives
+        |> Relatives.push(Direction.toggle(d), p)
+        |> Relatives.reassemble;
+      {...z, relatives};
+    };
   } else {
     Some(directional_unselect(d, z));
   };
@@ -346,18 +328,36 @@ let caret_direction = (z: t): option(Direction.t) =>
     }
   };
 
+let measured = z => z |> unselect_and_zip |> Measured.of_segment;
+
 let base_point = (measured: Measured.t, z: t): Measured.Point.t => {
   switch (representative_piece(z)) {
   | Some((p, d)) =>
+    /* NOTE(andrew): Below conversion necessary because sometimes
+     * we call this with measured based on projected zipper
+     * measurements but also z is the non-projected zipper.
+     * This should work okay since the core movement/selection
+     * actions in Zipper avoid cursor positions around pieces
+     * which would be absent in the projected zipper. The problem
+     * is the projected tile itself. Specifically because looking
+     * up measurements is not currently homogenous; it takes a
+     * piece, not an id. Piece-based lookups will fail if (say)
+     * a Grout becomes a Tile. Hence we convert pieces that
+     * would be projected to their placeholders before lookup */
+    let p =
+      switch (ProjectorMap.find(Piece.id(p), z.projectors)) {
+      | Some(pr) => Projector.placeholder(pr, Piece.id(p))
+      | None => p
+      };
     let seg = Piece.disassemble(p);
     switch (d) {
     | Left =>
       let p = ListUtil.last(seg);
-      let m = Measured.find_p(p, measured);
+      let m = Measured.find_p(~msg="base_point", p, measured);
       m.last;
     | Right =>
       let p = List.hd(seg);
-      let m = Measured.find_p(p, measured);
+      let m = Measured.find_p(~msg="base_point", p, measured);
       m.origin;
     };
   | None => {row: 0, col: 0}

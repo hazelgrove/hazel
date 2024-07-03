@@ -755,6 +755,18 @@ let rec get_incomplete_ids = (seg: t): list(Id.t) =>
 let ids_of_incomplete_tiles_in_bidelimiteds = (seg: t): list(Id.t) =>
   get_childrens(seg) |> List.concat |> get_incomplete_ids;
 
+let push_right = ((ls: t, rs: t)): (t, t) =>
+  switch (ls |> List.rev) {
+  | [l, ...ls] => (ls |> List.rev, [l, ...rs])
+  | [] => (ls, rs)
+  };
+
+let push_left = ((ls: t, rs: t)): (t, t) =>
+  switch (rs) {
+  | [r, ...rs] => (ls @ [r], rs)
+  | [] => (ls, rs)
+  };
+
 let first_string =
   fun
   | [] => "FIRST"
