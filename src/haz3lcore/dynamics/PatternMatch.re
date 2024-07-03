@@ -47,7 +47,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result => {
   | (Var(x), TupLabel(s, d)) when LabeledTuple.compare(x, s) == 0 =>
     let env = Environment.extend(Environment.empty, (x, d));
     Matches(env);
-  // | (_, Cast(TupLabel(_, d), t1, t2)) => matches(dp, Cast(d, t1, t2))
+  // TODO: Label casting need fixing?
   | (TupLabel(_), Cast(d, Label(_, _), Unknown(_))) =>
     switch (d) {
     | TupLabel(_, d) => matches(dp, d)

@@ -343,6 +343,22 @@ module Transition = (EV: EV_MODE) => {
       switch (d1') {
       | Constructor(_) => Constructor
       | Fun(dp, _, Closure(env', d3), _) =>
+        // Wrap the arguments into labels for label rearrangement
+        let dp: DHPat.t =
+          switch (dp) {
+          | Tuple(args) =>
+            Tuple(
+              List.map(
+                (p): DHPat.t =>
+                  switch (p) {
+                  | DHPat.Var(s) => TupLabel(s, p)
+                  | _ => p
+                  },
+                args,
+              ),
+            )
+          | _ => dp
+          };
         let.match env'' = (env', matches(dp, d2'));
         Step({apply: () => Closure(env'', d3), kind: FunAp, value: false});
       | Cast(d3', Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
