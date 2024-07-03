@@ -8,6 +8,7 @@ type chat_models =
   | GPT3_5Turbo
   | Azure_GPT4_0613
   | Azure_GPT3_5Turbo
+  | Starcoder2_15B
   | Starcoder2_15B_Instruct
   | DeepSeek_Coder_V2
   | DeepSeek_Coder_V2_Lite;
@@ -55,6 +56,7 @@ let string_of_chat_model =
   | GPT3_5Turbo => "gpt-3.5-turbo"
   | Azure_GPT4_0613 => "azure-gpt-4"
   | Azure_GPT3_5Turbo => "azure-gpt-3.5-turbo"
+  | Starcoder2_15B => "starcoder2:15b-q5_K_M"
   | Starcoder2_15B_Instruct => "sc2"
   | DeepSeek_Coder_V2 => "deepseek-coder"
   | DeepSeek_Coder_V2_Lite => "deepseek-coder-v2:16b";
@@ -83,12 +85,26 @@ let body = (~params: params, messages: prompt): Json.t => {
   ]);
 };
 
+let completion_body =
+    (~params: params, ~prompt: string, ~stop: list(string), ~n_predict: int)
+    : Json.t => {
+  `Assoc([
+    ("model", `String(string_of_chat_model(params.llm))),
+    ("temperature", `Float(params.temperature)),
+    ("top_p", `Float(params.top_p)),
+    ("prompt", `String(prompt)),
+    ("stop", `List(List.map(s => `String(s), stop))),
+    ("n_predict", `Int(n_predict)),
+  ]);
+};
+
 let lookup_key = (llm: chat_models) =>
   switch (llm) {
   | Azure_GPT3_5Turbo => Store.Generic.load("AZURE")
   | Azure_GPT4_0613 => Store.Generic.load("AZURE4")
   | GPT3_5Turbo
   | GPT4 => Store.Generic.load("OpenAI")
+  | Starcoder2_15B
   | Starcoder2_15B_Instruct => Store.Generic.load("Starcoder2")
   | DeepSeek_Coder_V2
   | DeepSeek_Coder_V2_Lite => Store.Generic.load("DeepSeek")
@@ -176,6 +192,7 @@ let start_chat = (~params, ~key, prompt: prompt, handler): unit => {
   | Azure_GPT4_0613 => chat_azure4(~key, ~body, ~handler)
   | GPT3_5Turbo
   | GPT4 => chat(~key, ~body, ~handler)
+  | Starcoder2_15B
   | Starcoder2_15B_Instruct
   | DeepSeek_Coder_V2
   | DeepSeek_Coder_V2_Lite =>
@@ -211,6 +228,23 @@ let handle_chat = (~db=ignore, response: option(Json.t)): option(reply) => {
   let* usage = Json.dot("usage", json);
   let* content = first_message_content(choices);
   let+ usage = of_usage(usage);
+  {content, usage};
+};
+
+let handle_completion =
+    (~db=ignore, response: option(Json.t)): option(reply) => {
+  db("Completion response:");
+  Option.map(r => r |> Json.to_string |> db, response) |> ignore;
+  let* json = response;
+  let* content = Json.dot("content", json);
+  let* content = Json.str(content);
+  let* timings = Json.dot("timings", json);
+  let* prompt_n = Json.dot("prompt_n", timings);
+  let* completion_n = Json.dot("predicted_n", timings);
+  let* prompt_tokens = Json.int(prompt_n);
+  let+ completion_tokens = Json.int(completion_n);
+  let total_tokens = prompt_tokens + completion_tokens;
+  let usage = {prompt_tokens, completion_tokens, total_tokens};
   {content, usage};
 };
 

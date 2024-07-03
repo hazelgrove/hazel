@@ -37,7 +37,7 @@ type io = {
 };
 
 let default_params: OpenAI.params = {
-  llm: OpenAI.DeepSeek_Coder_V2_Lite,
+  llm: OpenAI.Starcoder2_15B,
   temperature: 1.0,
   top_p: 1.0,
 };
@@ -88,6 +88,46 @@ let get_caret_mode_and_ctx = (~db, ~init_ctx, ~common, ~prelude, sketch_pre) => 
   | InfoPat({mode, ctx, _}) => (mode, ctx)
   | _ => (Syn, [])
   };
+};
+
+let ask_completion =
+    (
+      ~params: OpenAI.params,
+      ~prompt: string,
+      ~stop: list(string),
+      ~n_predict: int,
+      ~handler,
+    )
+    : unit => {
+  if (params.llm != OpenAI.Starcoder2_15B) {
+    failwith("LS: ask_completion: Unsupported chat model");
+  };
+  API.node_request(
+    ~method=POST,
+    ~hostname=
+      switch (params.llm) {
+      | OpenAI.Starcoder2_15B => /*"20.115.44.142"*/ "localhost"
+      | _ => failwith("LS: ask_gpt: Unsupported chat model")
+      },
+    ~port=
+      switch (params.llm) {
+      | OpenAI.Starcoder2_15B => Some(8080)
+      | _ => failwith("LS: ask_completion: Unsupported chat model")
+      },
+    ~use_https=
+      switch (params.llm) {
+      | OpenAI.Starcoder2_15B => false
+      | _ => failwith("LS: ask_completion: Unsupported chat model")
+      },
+    ~path=
+      switch (params.llm) {
+      | OpenAI.Starcoder2_15B => "/completion"
+      | _ => failwith("LS: ask_completion: Unsupported chat model")
+      },
+    ~headers=[("Content-Type", "application/json")],
+    ~body=OpenAI.completion_body(~params, ~prompt, ~stop, ~n_predict),
+    handler,
+  );
 };
 
 let ask_gpt = (~key, ~params: OpenAI.params, ~prompt, ~handler): unit => {
@@ -429,20 +469,27 @@ let final_handler =
     ) => {
   let completed_sketch = sketch_pre ++ reply.content ++ sketch_suf;
   let results =
-    LSChecker.test_combined(
-      ~db=ignore,
-      {
-        init_ctx,
-        check: LSActions.Dynamic,
-        data: {
-          common: Some(common),
-          prelude: Some(prelude),
-          program: completed_sketch,
-          new_token: None,
-          epilogue: Some(epilogue),
+    // Kevin Hack: Catch (Failure "LSP: EXN: Couldn't parse string")
+    try(
+      LSChecker.test_combined(
+        ~db=ignore,
+        {
+          init_ctx,
+          check: LSActions.Dynamic,
+          data: {
+            common: Some(common),
+            prelude: Some(prelude),
+            program: completed_sketch,
+            new_token: None,
+            epilogue: Some(epilogue),
+          },
         },
-      },
-    );
+      )
+    ) {
+    | _ =>
+      db("LS: RunTest: LSChecker.test_combined failed");
+      [TestStatus.Fail]; // Return a single failed test as placeholder
+    };
   record_final_info(~db, ~io, results, completed_sketch);
   record_derived(~io);
   exit(0);
@@ -466,6 +513,52 @@ let first_handler =
       req,
     ) =>
   switch (OpenAI.handle_chat(~db, req)) {
+  | Some(reply) =>
+    let handler =
+      final_handler(
+        ~db,
+        ~io,
+        ~sketch_pre,
+        ~sketch_suf,
+        ~common,
+        ~prelude,
+        ~epilogue,
+        ~init_ctx,
+      );
+    error_loop(
+      ~db,
+      ~io,
+      ~params=options.params,
+      ~key,
+      ~caret_ctx,
+      ~caret_mode,
+      ~handler,
+      ~max=options.error_rounds_max,
+      ~fuel=options.error_rounds_max,
+      ~prompt,
+      ~reply,
+    );
+  | None => failwith("APINode: handler returned None")
+  };
+
+let first_completion_handler =
+    (
+      ~db,
+      ~io,
+      ~key,
+      ~caret_ctx,
+      ~caret_mode,
+      ~init_ctx,
+      ~prompt,
+      ~common,
+      ~prelude,
+      ~epilogue,
+      ~options: FillerOptions.t,
+      sketch_pre,
+      sketch_suf,
+      req,
+    ) =>
+  switch (OpenAI.handle_completion(~db, req)) {
   | Some(reply) =>
     let handler =
       final_handler(
@@ -525,36 +618,78 @@ let go =
       Some(LSFiles.string_of_file(source_path ++ "/" ++ rag_path))
     | None => None
     };
-  switch (
-    Filler.prompt(~sketch, ~expected_ty, ~relevant_ctx_str, ~rag, options)
-  ) {
-  | None => db("LS: RunTest: Prompt generation failed")
-  | Some(prompt) =>
-    db("LS: RunTest: Prompt generation succeeded");
-    io.save("initial-prompt", OpenAI.show_prompt(prompt));
-    print_endline(OpenAI.show_prompt(prompt));
-    // failwith("YOLO5000") |> ignore;
-    ask_gpt(
-      ~params=options.params,
-      ~key,
-      ~prompt,
-      ~handler=
-        first_handler(
-          ~db,
-          ~io,
-          ~prompt,
-          ~init_ctx,
-          ~key,
-          ~caret_mode,
-          ~caret_ctx,
-          ~options,
-          ~common,
-          ~prelude,
-          ~epilogue,
-          sketch_pre,
-          sketch_suf,
-        ),
-    );
+  switch (options.params.llm) {
+  | Starcoder2_15B =>
+    switch (
+      Filler.completion_prompt(
+        ~common,
+        ~sketch,
+        ~expected_ty,
+        ~relevant_ctx_str,
+        ~rag,
+        options,
+      )
+    ) {
+    | None => db("LS: RunTest: Completion prompt generation failed")
+    | Some(prompt) =>
+      db("LS: RunTest: Prompt generation succeeded");
+      io.save("initial-prompt", prompt);
+      print_endline(prompt);
+      ask_completion(
+        ~params=options.params,
+        ~prompt,
+        ~stop=["in\n\n"],
+        ~n_predict=512,
+        ~handler=
+          first_completion_handler(
+            ~db,
+            ~io,
+            ~prompt=[], // Kevin Hack: Placeholder for OpenAI prompt, completion uses a string prompt instead
+            ~init_ctx,
+            ~key,
+            ~caret_mode,
+            ~caret_ctx,
+            ~options,
+            ~common,
+            ~prelude,
+            ~epilogue,
+            sketch_pre,
+            sketch_suf,
+          ),
+      );
+    }
+  | _ =>
+    switch (
+      Filler.prompt(~sketch, ~expected_ty, ~relevant_ctx_str, ~rag, options)
+    ) {
+    | None => db("LS: RunTest: Prompt generation failed")
+    | Some(prompt) =>
+      db("LS: RunTest: Prompt generation succeeded");
+      io.save("initial-prompt", OpenAI.show_prompt(prompt));
+      print_endline(OpenAI.show_prompt(prompt));
+      // failwith("YOLO5000") |> ignore;
+      ask_gpt(
+        ~params=options.params,
+        ~key,
+        ~prompt,
+        ~handler=
+          first_handler(
+            ~db,
+            ~io,
+            ~prompt,
+            ~init_ctx,
+            ~key,
+            ~caret_mode,
+            ~caret_ctx,
+            ~options,
+            ~common,
+            ~prelude,
+            ~epilogue,
+            sketch_pre,
+            sketch_suf,
+          ),
+      );
+    }
   };
 };
 

@@ -194,6 +194,36 @@ let get_samples = (num_examples, samples) =>
   | None => []
   };
 
+let clean_hint = hint =>
+  Str.global_replace(Str.regexp("let \\(.*\\) =  in"), "# \\1 #", hint);
+
+let completion_prompt =
+    (
+      ~rag=None,
+      {expected_type, relevant_ctx, _}: FillerOptions.t,
+      ~common,
+      ~sketch,
+      ~expected_ty,
+      ~relevant_ctx_str,
+    )
+    : option(string) => {
+  // Remove anything after the hole "??"
+  let sketch = List.hd(Str.split(Str.regexp("\\?\\?"), sketch));
+  let+ () = String.trim(sketch) == "" ? None : Some();
+  let expected_ty = expected_type ? expected_ty : "";
+  let expected_ty = clean_hint(expected_ty);
+  let relevant_ctx = relevant_ctx ? relevant_ctx_str : "";
+  let relevant_ctx = clean_hint(relevant_ctx);
+  let rag =
+    switch (rag) {
+    | Some(rag) =>
+      // Remove the snippet comment to avoid confusing StarCoder2
+      Str.global_replace(Str.regexp("# SNIPPET [0-9]+ #\n"), "", rag)
+    | None => ""
+    };
+  common ++ expected_ty ++ relevant_ctx ++ rag ++ "\n" ++ sketch;
+};
+
 let prompt =
     (
       ~rag=None,
