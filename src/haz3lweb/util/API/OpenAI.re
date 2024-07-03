@@ -9,7 +9,8 @@ type chat_models =
   | Azure_GPT4_0613
   | Azure_GPT3_5Turbo
   | Starcoder2_15B_Instruct
-  | DeepSeek_Coder_V2;
+  | DeepSeek_Coder_V2
+  | DeepSeek_Coder_V2_Lite;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type role =
@@ -55,7 +56,8 @@ let string_of_chat_model =
   | Azure_GPT4_0613 => "azure-gpt-4"
   | Azure_GPT3_5Turbo => "azure-gpt-3.5-turbo"
   | Starcoder2_15B_Instruct => "sc2"
-  | DeepSeek_Coder_V2 => "deepseek-coder";
+  | DeepSeek_Coder_V2 => "deepseek-coder"
+  | DeepSeek_Coder_V2_Lite => "deepseek-coder-v2:16b";
 
 let string_of_role =
   fun
@@ -88,7 +90,8 @@ let lookup_key = (llm: chat_models) =>
   | GPT3_5Turbo
   | GPT4 => Store.Generic.load("OpenAI")
   | Starcoder2_15B_Instruct => Store.Generic.load("Starcoder2")
-  | DeepSeek_Coder_V2 => Store.Generic.load("DeepSeek")
+  | DeepSeek_Coder_V2
+  | DeepSeek_Coder_V2_Lite => Store.Generic.load("DeepSeek")
   };
 
 /* SAMPLE OPENAI CHAT RESPONSE:
@@ -174,7 +177,9 @@ let start_chat = (~params, ~key, prompt: prompt, handler): unit => {
   | GPT3_5Turbo
   | GPT4 => chat(~key, ~body, ~handler)
   | Starcoder2_15B_Instruct
-  | DeepSeek_Coder_V2 => failwith("LS: start_chat: Unsupported chat model")
+  | DeepSeek_Coder_V2
+  | DeepSeek_Coder_V2_Lite =>
+    failwith("LS: start_chat: Unsupported chat model")
   };
 };
 
