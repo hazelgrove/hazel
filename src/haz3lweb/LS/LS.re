@@ -4,7 +4,7 @@ open LSActions;
 
 let usage_check = "<syntax|statics|dynamics>";
 let usage_completions = "<grammar|context|types>";
-let usage_runtest = "[--expected_type] [--error-rounds-max (0 <= N < 10)] [--run_name <run-name>] --source_folder <path-base> --api-key <api-key-path>";
+let usage_runtest = "[--expected_type] [--error-rounds-max (0 <= N < 10)] [--run_name <run-name>] --source_folder <path-base>  --base-url <base-url> --port <port> --api-key <api-key-path>";
 let usage_command =
   "<CHECK " ++ usage_check ++ " | COMPLETIONS " ++ usage_completions ++ ">";
 let usage_debug = "[--debug]";
@@ -151,6 +151,15 @@ and parse_runtest = (strs, args: arguments): arguments =>
   | ["--api-key", key] =>
     let rt = get_runtest(args.command);
     {...args, command: RunTest({...rt, key})};
+  | ["--base-url", base_url, ...rest] =>
+    let rt = get_runtest(args.command);
+    parse_runtest(rest, {...args, command: RunTest({...rt, base_url})});
+  | ["--port", port, ...rest] =>
+    let rt = get_runtest(args.command);
+    parse_runtest(
+      rest,
+      {...args, command: RunTest({...rt, port: int_of_string(port)})},
+    );
   | ["--source_folder", path_base, ...rest] =>
     let common_path = path_base ++ "..//common.haze";
     let common =
@@ -255,7 +264,7 @@ let main = ({debug, data, command, init_ctx}: LSActions.arguments) => {
   | Completions(completions) =>
     LSCompletions.go(~db, ~settings={data, completions, init_ctx})
   | Check(check) => LSChecker.go(~db, ~settings={data, check, init_ctx})
-  | RunTest({run_name, key, options, source_path}) =>
+  | RunTest({run_name, key, base_url, port, options, source_path}) =>
     LSTest.go(
       ~db,
       ~settings={
@@ -269,6 +278,8 @@ let main = ({debug, data, command, init_ctx}: LSActions.arguments) => {
         init_ctx,
       },
       ~key,
+      ~base_url,
+      ~port,
     )
   | GetPrompt(options) =>
     LSTest.get_prompt_info(

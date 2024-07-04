@@ -21,6 +21,8 @@ type runtest = {
   run_name: string,
   source_path: string,
   key: string,
+  base_url: string,
+  port: int,
   options: FillerOptions.t,
 };
 

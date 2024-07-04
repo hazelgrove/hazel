@@ -55,6 +55,8 @@ let default_options: FillerOptions.t = {
 
 let default: LSActions.runtest = {
   key: "NULL",
+  base_url: "NULL",
+  port: 0,
   run_name: "NULL",
   source_path: "NULL",
   options: default_options,
@@ -92,6 +94,8 @@ let get_caret_mode_and_ctx = (~db, ~init_ctx, ~common, ~prelude, sketch_pre) => 
 
 let ask_completion =
     (
+      ~base_url: string,
+      ~port: int,
       ~params: OpenAI.params,
       ~prompt: string,
       ~stop: list(string),
@@ -106,12 +110,12 @@ let ask_completion =
     ~method=POST,
     ~hostname=
       switch (params.llm) {
-      | OpenAI.Starcoder2_15B => /*"20.115.44.142"*/ "localhost"
+      | OpenAI.Starcoder2_15B => base_url
       | _ => failwith("LS: ask_gpt: Unsupported chat model")
       },
     ~port=
       switch (params.llm) {
-      | OpenAI.Starcoder2_15B => Some(8080)
+      | OpenAI.Starcoder2_15B => Some(port)
       | _ => failwith("LS: ask_completion: Unsupported chat model")
       },
     ~use_https=
@@ -602,6 +606,8 @@ let go =
           source_path,
         }: settings,
       ~key,
+      ~base_url,
+      ~port,
     ) => {
   let io = mk_io(run_name);
   db("LS: RunTest: Setting up output folder");
@@ -636,6 +642,8 @@ let go =
       io.save("initial-prompt", prompt);
       print_endline(prompt);
       ask_completion(
+        ~base_url,
+        ~port,
         ~params=options.params,
         ~prompt,
         ~stop=["in\n\n"],
