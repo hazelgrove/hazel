@@ -113,6 +113,7 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
     | "†" => Some(PerformAction(Project(ToggleIndicated(Infer))))
     | "ç" => Some(PerformAction(Project(ToggleIndicated(Checkbox))))
     | "ß" => Some(PerformAction(Project(ToggleIndicated(Slider))))
+    | "∂" => Some(PerformAction(Project(ToggleIndicated(DeriveArea))))
     | "∑" => Some(PerformAction(Project(ToggleIndicated(TextArea))))
     | "ArrowLeft" => now(MoveToBackpackTarget(Left(ByToken)))
     | "ArrowRight" => now(MoveToBackpackTarget(Right(ByToken)))

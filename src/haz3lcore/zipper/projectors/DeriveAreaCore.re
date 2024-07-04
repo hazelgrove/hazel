@@ -68,6 +68,8 @@ let mk = (syntax, _model): projector_core =>
      let projector = DeriveArea(model);
      let can_project = _ => true;
      //TODO(andrew): cleanup
+     let measured = Measured.of_segment([syntax]);
+     ignore(measured);
      let row = Util.StringUtil.num_linebreaks(get(syntax));
      /* +2 for left and right padding */
      let col =

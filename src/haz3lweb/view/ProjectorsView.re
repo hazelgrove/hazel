@@ -256,6 +256,7 @@ let applicable_projectors = (ci: Info.t) =>
     | Pat(Int) => [Slider]
     | Exp(String)
     | Pat(String) => [TextArea]
+    | Exp(Derive) => [DeriveArea]
     | _ => []
     }
   )
