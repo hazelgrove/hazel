@@ -11,6 +11,8 @@ type checkbox = unit;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type slider = {value: int};
 [@deriving (show({with_path: false}), sexp, yojson)]
+type derivearea = unit;
+[@deriving (show({with_path: false}), sexp, yojson)]
 type textarea = {inside: bool};
 
 /* Projector action types */
@@ -24,13 +26,16 @@ type checkbox_action = unit;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type slider_action = unit;
 [@deriving (show({with_path: false}), sexp, yojson)]
+type derivearea_action = unit;
+[@deriving (show({with_path: false}), sexp, yojson)]
 type textarea_action =
   | SetInside(bool);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type shape =
   | Inline(int)
-  | Block(Measured.Point.t);
+  | Block(Measured.Point.t)
+  | Multi(list(shape));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type projector =
@@ -38,6 +43,7 @@ type projector =
   | Infer(infer)
   | Checkbox(checkbox)
   | Slider(slider)
+  | DeriveArea(derivearea)
   | TextArea(textarea);
 
 [@deriving (show({with_path: false}), sexp, yojson)]

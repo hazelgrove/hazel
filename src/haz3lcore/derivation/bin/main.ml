@@ -167,7 +167,52 @@ let d_490_24wi_a6_eg : Derivation.t =
 let ds =
   [ d_simple; d_490_24wi_a6_e1_p3; d_490_24wi_final_q1; d_490_24wi_a6_eg ]
 
-let () =
-  List.iter
-    (fun d -> print_endline ("------\n" ^ MarkedDerivation.repr (mark d)))
-    ds
+let _ = ignore ds
+(* let () =
+   List.iter
+     (fun d -> print_endline ("------\n" ^ MarkedDerivation.repr (mark d)))
+     ds *)
+
+open Derivation_system.Code
+
+let ex_derivation : derive tree =
+  Node
+    ( { jdmt = "gamma |- b /\\ a"; rule = "And_I" },
+      [
+        Node
+          ( { jdmt = "gamma |- b"; rule = "And_E_R" },
+            [ Node ({ jdmt = "gamma |- a /\\ b"; rule = "Assumption" }, []) ] );
+        Node
+          ( { jdmt = "gamma |- a"; rule = "And_E_L" },
+            [ Node ({ jdmt = "gamma |- a /\\ b"; rule = "Assumption" }, []) ] );
+      ] )
+
+(* let _ = pipeline ex_derivation
+   let _ = print_endline ""
+   let _ = print_endline "Done!"
+
+   let ex_derivation : derive tree =
+    Node
+      ( { jdmt = "gamma |- b"; rule = "And_E_R" },
+        [ Node ({ jdmt = "gamma |- a /\\ b"; rule = "Assumption" }, []) ] ) *)
+
+(* let vnt = mk_virtual_node_tree ex_derivation
+   let szt = mk_size_tree vnt
+
+   let _ = Tree.combine (szt, vnt) |>
+   Tree.map(
+     fun ({w;h}, vn) ->
+       print_endline (Printf.sprintf "(%d,%d): %s" w h (vn |> (function
+       | Leaf s -> s | Branch (_) -> ""))
+       )
+   )
+
+   let _ = ex_derivation |> mk_virtual_node_tree |> mk_loc_list |>
+   List.map(
+     fun (loc, s) -> print_endline (Printf.sprintf "(%s,%s): %s" (string_of_int loc.y)(string_of_int loc.x) s)
+   )
+
+   let ex_derivation : derive tree =
+     Node ({ jdmt = "gamma |- a /\\ b"; rule = "Assumption" }, [])
+*)
+let _ = pipeline ex_derivation

@@ -1,0 +1,4 @@
+Assumption              Assumption
+gamma |- a /\ b And_E_R gamma |- a /\ b And_E_L
+gamma |- b              gamma |- a              And_I
+gamma |- b /\ a

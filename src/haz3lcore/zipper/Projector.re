@@ -14,6 +14,7 @@ let to_module = (syntax, p: projector): projector_core =>
   | Infer(model) => InferCore.mk(model)
   | Checkbox(model) => CheckboxCore.mk(model)
   | Slider(model) => SliderCore.mk(model)
+  | DeriveArea(model) => DeriveAreaCore.mk(syntax, model)
   | TextArea(model) => TextAreaCore.mk(syntax, model)
   };
 
@@ -26,6 +27,7 @@ type kind =
   | Infer
   | Checkbox
   | Slider
+  | DeriveArea
   | TextArea;
 
 let name_ = (p: kind): string =>
@@ -34,6 +36,7 @@ let name_ = (p: kind): string =>
   | Infer => "type"
   | Checkbox => "check"
   | Slider => "slide"
+  | DeriveArea => "derive"
   | TextArea => "text"
   };
 
@@ -43,6 +46,7 @@ let of_name = (p: string): kind =>
   | "type" => Infer
   | "check" => Checkbox
   | "slide" => Slider
+  | "derive" => DeriveArea
   | "text" => TextArea
   | _ => failwith("Unknown projector kind")
   };
@@ -66,6 +70,7 @@ let kind = (p: t): kind =>
   | Infer(_) => Infer
   | Checkbox(_) => Checkbox
   | Slider(_) => Slider
+  | DeriveArea(_) => DeriveArea
   | TextArea(_) => TextArea
   };
 
@@ -76,21 +81,40 @@ let shape = (p: t, syntax): shape => {
   P.placeholder();
 };
 
-let placeholder = (p: t, syntax: syntax): syntax =>
+let placeholder = (p: t, syntax: syntax): syntax => {
+  let rec mk_label =
+    fun
+    | Inline(width) => [String.make(width, ' ')]
+    | Block({row, col}) => [
+        String.make(row, '\n') ++ String.make(col, ' '),
+      ]
+    | Multi(shapes) => shapes |> List.map(mk_label) |> List.concat;
+  let mk_children: t => list('a) =
+    fun
+    | DeriveArea(_) => []
+    | Fold(_)
+    | Infer(_)
+    | Checkbox(_)
+    | Slider(_)
+    | TextArea(_) => [];
+  // TODO(zhiyao): dont know what shards are
+  let mk_shards = (p: t): list(int) =>
+    switch (p) {
+    | DeriveArea(_) => [0]
+    | Fold(_) => [0]
+    | Infer(_) => [0]
+    | Checkbox(_) => [0]
+    | Slider(_) => [0]
+    | TextArea(_) => [0]
+    };
   Piece.Tile({
     id: Piece.id(syntax),
-    label:
-      switch (shape(p, syntax)) {
-      | Inline(width) => [String.make(width, ' ')]
-      | Block({row, col}) => [
-          String.make(row, '\n') ++ String.make(col, ' '),
-        ]
-      },
+    label: shape(p, syntax) |> mk_label,
     mold: Mold.mk_op(Any, []),
-    shards: [0],
-    children: [],
+    shards: mk_shards(p),
+    children: mk_children(p),
   });
-
+};
 /* Currently projection is limited to convex pieces */
 let minimum_projection_condition = (syntax: syntax): bool =>
   Piece.is_convex(syntax);
@@ -101,6 +125,7 @@ let init = (f: kind, syntax): projector_core =>
   | Infer => InferCore.mk({expected_ty: None})
   | Checkbox => CheckboxCore.mk()
   | Slider => SliderCore.mk({value: 10})
+  | DeriveArea => DeriveAreaCore.mk(syntax, ())
   | TextArea => TextAreaCore.mk(syntax, {inside: false})
   };
 

@@ -67,6 +67,11 @@ let to_module =
     SliderView.mk(syntax, model, ~inject=a =>
       Effect.Many(List.map(inject, handle(id, syntax, a)))
     )
+  | DeriveArea(model) =>
+    // TODO(zhiyao)
+    CheckboxView.mk(syntax, model, ~inject=a =>
+      Effect.Many(List.map(inject, handle(id, syntax, a)))
+    )
   | TextArea(model) =>
     TextAreaView.mk(syntax, model, ~inject=a =>
       Effect.Many(List.map(inject, handle(id, syntax, a)))
@@ -111,6 +116,8 @@ let wrap = //TODO(andrew): cleanup params
       switch (Projector.shape(p, syntax)) {
       | Inline(_) => PieceDec.convex_shard(~font_metrics, ~measurement)
       | Block(_) => div([])
+      // TODO(zhiyao)
+      | Multi(_) => div([])
       },
     ],
   );
