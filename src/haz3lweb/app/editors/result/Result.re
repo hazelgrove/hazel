@@ -424,7 +424,7 @@ module View = {
         | Some(result) =>
           test_result_layer(
             ~font_metrics=globals.font_metrics,
-            ~measured=editor.state.meta.measured,
+            ~measured=editor.state.meta.projected.measured,
             result,
           )
         | None => []
@@ -454,7 +454,7 @@ module View = {
         | Some(result) =>
           test_result_layer(
             ~font_metrics=globals.font_metrics,
-            ~measured=editor.state.meta.measured,
+            ~measured=editor.state.meta.projected.measured,
             result,
           )
         | None => []

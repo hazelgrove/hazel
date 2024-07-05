@@ -3,13 +3,13 @@ open ZipperBase;
 let display_ty = (expected_ty: option(Typ.t)): Typ.t =>
   switch (expected_ty) {
   | Some(expected_ty) => expected_ty
-  | None => Unknown(Internal)
+  | None => Unknown(Internal) |> Typ.temp
   };
 
 let expected_ty = (info: option(Info.t)) =>
   switch (info) {
   | Some(InfoExp({mode, _}) | InfoPat({mode, _})) => Mode.ty_of(mode)
-  | _ => Unknown(Internal)
+  | _ => Unknown(Internal) |> Typ.temp
   };
 
 let mk = (model: infer): projector_core =>

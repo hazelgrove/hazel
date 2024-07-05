@@ -90,9 +90,9 @@ let code_svg_sized =
           Attr.classes(base_cls),
           Attr.create("style", pos_str(~d, ~fudge, font_metrics)),
           Attr.create(
-          "viewBox",
-          Printf.sprintf("0 0 %d %d", d.width, d.height),
-        ),
+            "viewBox",
+            Printf.sprintf("0 0 %d %d", d.width, d.height),
+          ),
           Attr.create("preserveAspectRatio", "none"),
         ]
         @ attr,

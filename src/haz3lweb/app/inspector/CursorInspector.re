@@ -293,7 +293,12 @@ let inspector_view = (~globals, ci): Node.t =>
     [view_of_info(~globals, ci)],
   );
 
-let view = (~globals: Globals.t, cursor_info: option(Info.t)) => {
+let view =
+    (
+      ~globals: Globals.t,
+      cursor_info: option(Info.t),
+      projector_info: option(Node.t),
+    ) => {
   let bar_view = div(~attr=Attr.id("bottom-bar"));
   let err_view = err =>
     bar_view([
@@ -311,7 +316,7 @@ let view = (~globals: Globals.t, cursor_info: option(Info.t)) => {
       div(
         ~attr=clss(["id"]),
         [text(String.sub(Id.to_string(Info.id_of(ci)), 0, 4))]
-        @ Option.to_list(ProjectorsView.ci(~inject, editor)),
+        @ Option.to_list(projector_info),
       ),
     ])
   };

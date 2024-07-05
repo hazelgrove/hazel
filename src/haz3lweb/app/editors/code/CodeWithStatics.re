@@ -43,7 +43,10 @@ module Update = {
     let info_map =
       Interface.Statics.mk_map_ctx(settings, Builtins.ctx_init, term);
     let error_ids =
-      Statics.Map.error_ids(model.editor.state.meta.term_ranges, info_map);
+      Statics.Map.error_ids(
+        model.editor.state.meta.projected.term_ranges,
+        info_map,
+      );
     {
       editor: model.editor,
       statics: {

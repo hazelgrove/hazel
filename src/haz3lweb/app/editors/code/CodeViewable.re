@@ -8,7 +8,13 @@ let view =
     (
       ~globals: Globals.t,
       ~sort: Sort.t,
-      {state: {meta: {measured, buffer_ids, unselected, holes, _}, _}, _}: Editor.t,
+      {
+        state: {
+          meta: {projected: {measured, buffer_ids, holes, segment, _}, _},
+          _,
+        },
+        _,
+      }: Editor.t,
     )
     : Node.t => {
   module Text =
@@ -16,13 +22,17 @@ let view =
       let map = measured;
       let settings = globals.settings;
     });
-  let code = Text.of_segment(buffer_ids, false, sort, unselected);
-  let holes = List.map(Code.of_hole(~measured, ~globals), holes);
+  let code = Text.of_segment(buffer_ids, false, sort, segment);
+  let holes =
+    List.map(
+      Code.of_hole(~measured, ~font_metrics=globals.font_metrics),
+      holes,
+    );
   div_c("code", [Util.Web.span_c("code-text", code), ...holes]);
 };
 
-let view_segment = (~globals: Globals.t, ~sort: Sort.t, unselected: Segment.t) => {
-  unselected
+let view_segment = (~globals: Globals.t, ~sort: Sort.t, segment: Segment.t) => {
+  segment
   |> Zipper.unzip
   |> Editor.init(~read_only=true)
   |> view(~globals, ~sort);

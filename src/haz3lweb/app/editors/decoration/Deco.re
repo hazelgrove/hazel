@@ -7,11 +7,12 @@ module Deco = (M: {
                  let editor: Editor.t;
                }) => {
   let font_metrics = M.globals.font_metrics;
-  let map = M.editor.state.meta.measured;
+  let map = M.editor.state.meta.projected.measured;
   let show_backpack_targets = M.globals.show_backpack_targets;
-  let terms = M.editor.state.meta.terms;
-  let term_ranges = M.editor.state.meta.term_ranges;
-  let tiles = M.editor.state.meta.tiles;
+  let terms = M.editor.state.meta.projected.terms;
+  let term_ranges = M.editor.state.meta.projected.term_ranges;
+  let tiles = M.editor.state.meta.projected.tiles;
+  let syntax_map = M.editor.state.meta.projected.syntax_map;
 
   let tile = id => Id.Map.find(id, tiles);
 
@@ -312,7 +313,7 @@ module Deco = (M: {
           ~font_metrics,
           ~caret=(Id.invalid, 0),
           ~inject=() => inject(i),
-          ~rows=M.editor.state.meta.measured.rows,
+          ~rows=M.editor.state.meta.projected.measured.rows,
           ~tiles=[(id, mold, shards)],
         )
         |> Option.map(_, range);
@@ -349,7 +350,7 @@ module Deco = (M: {
           ~font_metrics,
           ~caret=(Id.invalid, 0),
           ~tiles=[(id, mold, shards)],
-          ~rows=M.editor.state.meta.measured.rows,
+          ~rows=M.editor.state.meta.projected.measured.rows,
         )
         |> Option.map(_, range);
       },
@@ -370,8 +371,6 @@ module Deco = (M: {
           targets'(zipper.backpack, sel_seg),
         ])
       : [];
-  let err_holes = () =>
-    List.map(term_highlight(~clss=["err-hole"]), M.error_ids);
 
   let indication_deco = (~inject, z: Zipper.t) =>
     switch (Indicated.index(z)) {
@@ -381,8 +380,8 @@ module Deco = (M: {
           id,
           z.projectors,
           ~inject,
-          ~syntax_map=M.syntax_map,
-          ~measured=M.map,
+          ~syntax_map,
+          ~measured=map,
           ~font_metrics,
         )
       ) {
@@ -401,21 +400,21 @@ module Deco = (M: {
       targets'(zipper.backpack, sel_seg),
     ]);
 
-  let always = (~inject, zipper: Zipper.t) =>
+  let always = (~inject, error_ids, zipper: Zipper.t) =>
     List.concat([
-      err_holes(),
+      err_holes(error_ids),
       ProjectorsView.view_all(
         zipper.projectors,
-        ~syntax_map=M.syntax_map,
+        ~syntax_map,
         ~inject,
         ~font_metrics,
-        ~measured=M.map,
+        ~measured=map,
       ),
     ]);
 
-  let all = (~inject, zipper, sel_seg) =>
+  let all = (~inject, error_ids, zipper, sel_seg) =>
     List.concat([
       active(~inject, zipper, sel_seg),
-      always(~inject, zipper),
+      always(~inject, error_ids, zipper),
     ]);
 };

@@ -51,7 +51,8 @@ module Update = {
              | Put_down
              | RotateBackpack
              | MoveToBackpackTarget(_)
-             | Paste(_) => true
+             | Paste(_)
+             | Project(_) => true
              | Unselect(_)
              | Select(All)
              | Suggest(_)
@@ -118,6 +119,9 @@ module Selection = {
     info: Indicated.ci_of(model.editor.state.zipper, model.statics.info_map),
     selected_text: Some(Printer.to_string_selection(model.editor)),
     paste: x => Some(Update.Perform(Paste(x))),
+    projector:
+      ProjectorsView.ci(model.editor)
+      |> Option.map((proj, inject) => proj(u => inject(Update.Perform(u)))),
   };
 
   let handle_key_event =
@@ -169,7 +173,7 @@ module Selection = {
       Keyboard.handle_key_event(k) |> Option.map(x => Update.Perform(x));
 
   let jump_to_tile = (tile, model: Model.t) => {
-    switch (TileMap.find_opt(tile, model.editor.state.meta.tiles)) {
+    switch (TileMap.find_opt(tile, model.editor.state.meta.projected.tiles)) {
     | Some(_) => Some(Update.Perform(Jump(TileId(tile))))
     | None => None
     };
@@ -271,7 +275,7 @@ module View = {
         });
       Deco.editor(
         model.editor.state.zipper,
-        model.editor.state.meta.segment,
+        model.editor.state.meta.projected.segment,
         selected,
       )
       @ (

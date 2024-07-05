@@ -152,7 +152,7 @@ let simple_view =
 let of_hole = (~font_metrics, ~measured, g: Grout.t) =>
   // TODO(d) fix sort
   EmptyHoleDec.view(
-    ~font_metrics=globals.font_metrics,
+    ~font_metrics,
     {
       measurement: Measured.find_g(~msg="Code.of_hole", g, measured),
       mold: Mold.of_grout(g, Any),

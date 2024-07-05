@@ -22,15 +22,15 @@ let is_write_action = (a: Action.t) => {
   };
 };
 
-let go_z =
-    (
-      ~meta: option(Editor.Meta.t)=?,
-      ~statics: CachedStatics.statics=CachedStatics.empty_statics,
-      ~settings: CoreSettings.t,
-      a: Action.t,
-      z: Zipper.t,
-    )
-    : Action.Result.t(Zipper.t) => {
+let rec go_z =
+        (
+          ~meta: option(Editor.Meta.t)=?,
+          ~statics: CachedStatics.statics=CachedStatics.empty_statics,
+          ~settings: CoreSettings.t,
+          a: Action.t,
+          z: Zipper.t,
+        )
+        : Action.Result.t(Zipper.t) => {
   let meta =
     switch (meta) {
     | Some(m) => m

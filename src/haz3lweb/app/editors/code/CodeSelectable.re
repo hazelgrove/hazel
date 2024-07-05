@@ -45,7 +45,8 @@ module Update = {
         Put_down |
         Paste(_) |
         Suggest(_) |
-        ResetSuggestion,
+        ResetSuggestion |
+        Project(_),
       )
     | Undo
     | Redo

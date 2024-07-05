@@ -449,6 +449,11 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       ids: [Id.mk()],
     };
 
+  let wrap = (term, editor: Editor.t): TermItem.t => {term, editor};
+
+  let term_of = (editor: Editor.t): Exp.t =>
+    MakeTerm.from_zip_for_sem(editor.state.zipper) |> fst;
+
   let stitch3 = (ed1: Editor.t, ed2: Editor.t, ed3: Editor.t) =>
     EditorUtil.append_exp(
       EditorUtil.append_exp(term_of(ed1), term_of(ed2)),

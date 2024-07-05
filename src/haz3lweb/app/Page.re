@@ -327,7 +327,12 @@ module View = {
           ),
         ],
       );
-    let bottom_bar = CursorInspector.view(~globals, cursor.info);
+    let bottom_bar =
+      CursorInspector.view(
+        ~globals,
+        cursor.info,
+        cursor.projector |> Option.map(x => x(inject)),
+      );
     let sidebar =
       settings.explainThis.show && settings.core.statics
         ? ExplainThis.view(

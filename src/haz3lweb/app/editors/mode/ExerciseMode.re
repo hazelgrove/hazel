@@ -245,7 +245,7 @@ module Selection = {
       (~settings: Settings.t, tile, model: Model.t): option((Update.t, t)) => {
     Exercise.positioned_editors(model.editors)
     |> List.find_opt(((p, e: Editor.t)) =>
-         TileMap.find_opt(tile, e.state.meta.tiles) != None
+         TileMap.find_opt(tile, e.state.meta.projected.tiles) != None
          && Exercise.visible_in(p, ~instructor_mode=settings.instructor_mode)
        )
     |> Option.map(((pos, _)) =>

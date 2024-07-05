@@ -4,22 +4,20 @@ open Node;
 open Projector;
 open Util.OptUtil.Syntax;
 
-let handle = (id, action): UpdateAction.t => {
+let handle = (id, action): Action.t => {
   switch (action) {
-  | Remove => PerformAction(Project(Remove(id)))
-  | UpdateSyntax(f) => PerformAction(Project(UpdateSyntax(id, f)))
+  | Remove => Project(Remove(id))
+  | UpdateSyntax(f) => Project(UpdateSyntax(id, f))
   | UpdateModel(action) =>
     //TODO(andrew)
     // print_endline("TODO: update model");
-    PerformAction(
-      Project(
-        UpdateModel(
-          id,
-          p => {
-            let (module P) = Projector.to_module(p);
-            P.update(action);
-          },
-        ),
+    Project(
+      UpdateModel(
+        id,
+        p => {
+          let (module P) = Projector.to_module(p);
+          P.update(action);
+        },
       ),
     )
   // PerformAction(Project(UpdateModel(id, x => x)));
@@ -31,7 +29,7 @@ let to_module =
       id: Id.t,
       syntax: Piece.t,
       p: Projector.t,
-      ~inject: UpdateAction.t => Ui_effect.t(unit),
+      ~inject: Action.t => Ui_effect.t(unit),
     )
     : ProjectorViewModule.t => {
   switch (p) {
@@ -79,7 +77,7 @@ let view =
       ps: Map.t,
       ~syntax_map: Id.Map.t(syntax),
       ~measured: Measured.t,
-      ~inject: UpdateAction.t => Ui_effect.t(unit),
+      ~inject: Action.t => Ui_effect.t(unit),
       ~font_metrics,
     ) => {
   let* p = Projector.Map.find(id, ps);
@@ -95,7 +93,7 @@ let indication_view =
       ps: Map.t,
       ~syntax_map: Id.Map.t(syntax),
       ~measured: Measured.t,
-      ~inject: UpdateAction.t => Ui_effect.t(unit),
+      ~inject: Action.t => Ui_effect.t(unit),
       ~font_metrics,
     )
     : option(Node.t) => {
@@ -111,7 +109,7 @@ let view_all =
       ps: Map.t,
       ~syntax_map: Id.Map.t(syntax),
       ~measured: Measured.t,
-      ~inject: UpdateAction.t => Ui_effect.t(unit),
+      ~inject: Action.t => Ui_effect.t(unit),
       ~font_metrics,
     ) =>
   List.filter_map(
@@ -129,12 +127,8 @@ let indicated_proj_ed = (editor: Editor.t) => {
 };
 
 let key_handler =
-    (
-      editor: Editor.t,
-      key: Key.t,
-      ~inject: UpdateAction.t => Ui_effect.t(unit),
-    )
-    : option(UpdateAction.t) =>
+    (editor: Editor.t, key: Key.t, ~inject: Action.t => Ui_effect.t(unit))
+    : option(Action.t) =>
   switch (indicated_proj_ed(editor)) {
   | None => None
   | Some((id, p)) =>
@@ -144,12 +138,14 @@ let key_handler =
     handle(id, action);
   };
 
-let ci = (editor: Editor.t, ~inject: UpdateAction.t => Ui_effect.t(unit)) => {
+let ci = (editor: Editor.t) => {
   let* (id, p) = indicated_proj_ed(editor);
   let+ syntax = Id.Map.find_opt(id, editor.state.meta.projected.syntax_map);
-  let (module PV) = to_module(id, syntax, p, ~inject);
-  div(
-    ~attr=Attr.classes(["projector-ci"]),
-    [text(String.sub(Projector.name(p), 0, 1))],
-  );
+  (inject: Action.t => Ui_effect.t(unit)) => {
+    let (module PV) = to_module(id, syntax, p, ~inject);
+    div(
+      ~attr=Attr.classes(["projector-ci"]),
+      [text(String.sub(Projector.name(p), 0, 1))],
+    );
+  };
 };
