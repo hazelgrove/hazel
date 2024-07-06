@@ -1,3 +1,5 @@
+open Haz3lcore;
+
 let sample_1 = {|# Hazel Language Quick Reference #
 
 # Recursive Functions (arrow type annotation required) #

@@ -1,8 +1,7 @@
 open Haz3lcore;
 open Virtual_dom.Vdom;
 
-let view =
-    (~inject: Projector.action(_) => Ui_effect.t(unit), value: int, _) =>
+let view = (~inject: ProjectorsUpdate.t => Ui_effect.t(unit), value: int, _) =>
   Node.input(
     ~attr=
       Attr.many([
@@ -15,7 +14,7 @@ let view =
     [],
   );
 
-let keymap = (_, key: Key.t): option(Projector.action(string)) =>
+let keymap = (_, key: Key.t): option(ProjectorsUpdate.t) =>
   switch (key) {
   | {key: D("Escape"), _} => Some(Remove)
   | _ => None

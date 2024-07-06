@@ -3,6 +3,7 @@ open Js_of_ocaml;
 open Node;
 open Util.Web;
 open Widgets;
+open Haz3lcore;
 
 let export_persistent_data = (~inject: Update.t => 'a) =>
   button_named(

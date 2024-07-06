@@ -320,8 +320,7 @@ module Deco =
 
   let accent = (z: Zipper.t) =>
     switch (Indicated.piece(z)) {
-    | Some((p, d, _)) =>
-      Some((Piece.id(p), ProjectorViewModule.Indicated(d)))
+    | Some((p, d, _)) => Some((Piece.id(p), ZipperBase.Indicated(d)))
     | None => None
     };
 

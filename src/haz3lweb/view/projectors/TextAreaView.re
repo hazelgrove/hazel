@@ -7,13 +7,13 @@ open Util.Web;
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 let selector = ".projector.text textarea";
 
-let put = (str: string): Projector.action(_) =>
-  Projector.UpdateSyntax(_ => str |> Form.string_quote |> TextAreaCore.put);
+// let put = (str: string):ProjectorsUpdate.t =>
+//   UpdateSyntax(_ => str |> Form.string_quote |> TextAreaCore.put);
 
 let textarea =
     (
       ~selector,
-      ~inject: Projector.action(string) => Ui_effect.t(unit),
+      ~inject: ProjectorsUpdate.t => Ui_effect.t(unit),
       text: string,
     ) =>
   Node.textarea(
@@ -25,7 +25,7 @@ let textarea =
           inject(UpdateModel(TextAreaCore.serialize(SetInside(false))))
         ),
         Attr.on_click(_ => inject(FocusInternal(selector))),
-        Attr.on_input((_, new_text) => inject(put(new_text))),
+        //Attr.on_input((_, new_text) => inject(put(new_text))),
       ]),
     [Node.text(text)],
   );
@@ -58,7 +58,7 @@ let keymap =
       direction: Util.Direction.t,
       key: Key.t,
     )
-    : option(Projector.action(string)) => {
+    : option(ProjectorsUpdate.t) => {
   let textarea = JsUtil.TextArea.get(selector);
   let focussed = model.inside;
   //TODO(andrew): make actual focus king?

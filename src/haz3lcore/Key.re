@@ -1,3 +1,5 @@
+open Js_of_ocaml;
+
 [@deriving (show({with_path: false}), yojson)]
 type dir =
   | KeyUp
@@ -28,8 +30,16 @@ type t = {
   alt: held,
 };
 
+let get_key = evt =>
+  Js.to_string(Js.Optdef.get(evt##.key, () => failwith("JsUtil.get_key")));
+
+let ctrl_held = evt => Js.to_bool(evt##.ctrlKey);
+let shift_held = evt => Js.to_bool(evt##.shiftKey);
+let alt_held = evt => Js.to_bool(evt##.altKey);
+let meta_held = evt => Js.to_bool(evt##.metaKey);
+
 let key_of = (dir: dir, evt): key => {
-  let key = JsUtil.get_key(evt);
+  let key = get_key(evt);
   switch (dir) {
   | KeyUp => U(key)
   | KeyDown => D(key)
@@ -41,10 +51,10 @@ let to_held: bool => held = b => b ? Down : Up;
 let mk = (dir, evt): t => {
   key: key_of(dir, evt),
   sys: Os.is_mac^ ? Mac : PC,
-  shift: to_held(JsUtil.shift_held(evt)),
-  meta: to_held(JsUtil.meta_held(evt)),
-  ctrl: to_held(JsUtil.ctrl_held(evt)),
-  alt: to_held(JsUtil.alt_held(evt)),
+  shift: to_held(shift_held(evt)),
+  meta: to_held(meta_held(evt)),
+  ctrl: to_held(ctrl_held(evt)),
+  alt: to_held(alt_held(evt)),
 };
 
 let modifier_string = (h: held, m): string => h == Down ? " + " ++ m : "";

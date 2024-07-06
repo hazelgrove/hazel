@@ -1,4 +1,5 @@
 open ZipperBase;
+open Virtual_dom.Vdom;
 
 let of_mono = (syntax: Piece.t): option(string) =>
   switch (syntax) {
@@ -20,7 +21,26 @@ let get = (piece: Piece.t): int =>
   | Some(s) => s
   };
 
-let mk = (model): projector_core =>
+let view = (~inject: ProjectorsUpdate.t => Ui_effect.t(unit), value: int, _) =>
+  Node.input(
+    ~attr=
+      Attr.many([
+        Attr.create("type", "range"),
+        Attr.create("value", string_of_int(value)),
+        Attr.on_input((_evt, new_val) =>
+          inject(UpdateSyntax(_ => put(new_val)))
+        ),
+      ]),
+    [],
+  );
+
+let keymap = (_, key: Key.t): option(ProjectorsUpdate.t) =>
+  switch (key) {
+  | {key: D("Escape"), _} => Some(Remove)
+  | _ => None
+  };
+
+let mk = (model, ~syntax): projector_core =>
   (module
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
@@ -28,9 +48,11 @@ let mk = (model): projector_core =>
      [@deriving (show({with_path: false}), sexp, yojson)]
      type action = ZipperBase.slider_action;
      let model = model;
-     let projector = Slider(model);
+     let projector: projector = Slider(model);
      let can_project = p => state_of(p) != None;
      let placeholder = () => Inline(10);
      let auto_update = _: projector => Slider(model);
-     let update = _ => Slider(model);
+     let update = _: projector => Slider(model);
+     let view = view(get(syntax));
+     let keymap = keymap;
    });
