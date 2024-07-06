@@ -1,6 +1,8 @@
 open Haz3lcore;
 open Virtual_dom.Vdom;
 
+//TODO(andrew): cleanup/rm
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type accent =
   | Indicated(Util.Direction.t)
@@ -19,7 +21,7 @@ module type ProjectorView = {
   type action;
 
   let view: option(accent) => Node.t;
-  let keymap: (Util.Direction.t, Key.t) => option(Projector.action(string));
+  let keymap: (Util.Direction.t, Key.t) => option(ProjectorsUpdate.t);
 };
 
 type t = (module ProjectorView);

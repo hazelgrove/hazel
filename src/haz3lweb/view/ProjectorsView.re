@@ -10,68 +10,31 @@ let update_model = (action, syntax, p) => {
   P.update(action);
 };
 
-let handle = (id, syntax, action): list(UpdateAction.t) => {
-  switch (action) {
-  | FocusInternal(selector) =>
-    JsUtil.get_elem_by_selector(selector)##focus;
-    /* Note: jumping her normalizes position, so when exiting
-     * we know we're intially to the left and can move or not accordingly */
-    [
-      PerformAction(Jump(TileId(id))),
-      PerformAction(Project(SetKeyDispatch(id, true))),
-    ];
-  | Escape(selector, Left) =>
-    JsUtil.get_elem_by_selector(selector)##blur;
-    [
-      PerformAction(Project(SetKeyDispatch(id, false))),
-      PerformAction(Move(Local(Right(ByToken)))),
-    ];
-  | Escape(selector, Right) =>
-    JsUtil.get_elem_by_selector(selector)##blur;
-    [PerformAction(Project(SetKeyDispatch(id, false)))];
-  | Default =>
-    //TODO(andrew): proper no-op
-    []
-  | Remove => [PerformAction(Project(Remove(id)))]
-  | UpdateSyntax(f) => [PerformAction(Project(UpdateSyntax(id, f)))]
-  | UpdateModel(action) => [
-      PerformAction(
+let handle = (id, syntax, action: ProjectorsUpdate.t): list(UpdateAction.t) => {
+  (
+    switch (action) {
+    | FocusInternal(selector) =>
+      JsUtil.get_elem_by_selector(selector)##focus;
+      /* Note: jumping her normalizes position, so when exiting
+       * we know we're intially to the left and can move or not accordingly */
+      [Jump(TileId(id)), Project(SetKeyDispatch(id, true))];
+    | Escape(selector, Left) =>
+      JsUtil.get_elem_by_selector(selector)##blur;
+      [Project(SetKeyDispatch(id, false)), Move(Local(Right(ByToken)))];
+    | Escape(selector, Right) =>
+      JsUtil.get_elem_by_selector(selector)##blur;
+      [Project(SetKeyDispatch(id, false))];
+    | Default =>
+      //TODO(andrew): proper no-op
+      []
+    | Remove => [Project(Remove(id))]
+    | UpdateSyntax(f) => [Project(UpdateSyntax(id, f))]
+    | UpdateModel(action) => [
         Project(UpdateModel(id, update_model(action, syntax))),
-      ),
-    ]
-  };
-};
-
-let to_module =
-    (
-      id: Id.t,
-      syntax: Piece.t,
-      p: Projector.t,
-      ~inject: UpdateAction.t => Ui_effect.t(unit),
-    )
-    : ProjectorViewModule.t => {
-  switch (p) {
-  | Fold(model) =>
-    FoldView.mk(syntax, model, ~inject=a =>
-      Effect.Many(List.map(inject, handle(id, syntax, a)))
-    )
-  | Infer(model) =>
-    InferView.mk(syntax, model, ~inject=a =>
-      Effect.Many(List.map(inject, handle(id, syntax, a)))
-    )
-  | Checkbox(model) =>
-    CheckboxView.mk(syntax, model, ~inject=a =>
-      Effect.Many(List.map(inject, handle(id, syntax, a)))
-    )
-  | Slider(model) =>
-    SliderView.mk(syntax, model, ~inject=a =>
-      Effect.Many(List.map(inject, handle(id, syntax, a)))
-    )
-  | TextArea(model) =>
-    TextAreaView.mk(syntax, model, ~inject=a =>
-      Effect.Many(List.map(inject, handle(id, syntax, a)))
-    )
-  };
+      ]
+    }
+  )
+  |> List.map(a => Update.PerformAction(a));
 };
 
 let wrap = //TODO(andrew): cleanup params
@@ -80,7 +43,7 @@ let wrap = //TODO(andrew): cleanup params
       ~id as _,
       ~font_metrics: FontMetrics.t,
       ~measurement: Measured.measurement,
-      ~accent: option(ProjectorViewModule.accent),
+      ~accent: option(ZipperBase.accent),
       ~syntax,
       p: Projector.t,
       view: Node.t,
@@ -90,7 +53,7 @@ let wrap = //TODO(andrew): cleanup params
       Attr.many([
         // JsUtil.stop_mousedown_propagation,
         Attr.classes(
-          ["projector", Projector.name(p)] @ ProjectorViewModule.cls(accent),
+          ["projector", Projector.name(p)] @ ZipperBase.cls(accent),
         ),
         DecUtil.abs_style(measurement, ~font_metrics),
       ]),
@@ -123,13 +86,17 @@ let view =
       ~measured: Measured.t,
       ~inject: UpdateAction.t => Ui_effect.t(unit),
       ~font_metrics,
-      ~accent: option(ProjectorViewModule.accent),
+      ~accent: option(ZipperBase.accent),
     )
     : option(Node.t) => {
   let* p = Projector.Map.find(id, ps);
   let* syntax = Id.Map.find_opt(id, syntax_map);
   let+ measurement = Measured.find_by_id(id, measured);
-  let (module PV) = to_module(id, syntax, p, ~inject);
+  let (module PV) = to_module(syntax, p);
+  let inject = a =>
+    handle(id, syntax, a)
+    |> List.map(x => inject(x))
+    |> (x => Virtual_dom.Vdom.Effect.Many(x));
   wrap(
     ~font_metrics,
     ~inject,
@@ -138,7 +105,7 @@ let view =
     ~accent,
     ~syntax,
     p,
-    PV.view(accent),
+    PV.view(~inject, accent),
   );
 };
 
@@ -202,10 +169,11 @@ let id = (editor: Editor.t) => {
   };
 };
 
-let ci = (editor: Editor.t, ~inject: UpdateAction.t => Ui_effect.t(unit)) => {
-  let* (id, p) = indicated_proj_ed(editor);
-  let+ syntax = Id.Map.find_opt(id, editor.state.meta.projected.syntax_map);
-  let (module PV) = to_module(id, syntax, p, ~inject);
+let ci =
+    (editor: Editor.t, ~inject as _: UpdateAction.t => Ui_effect.t(unit)) => {
+  let+ (_id, p) = indicated_proj_ed(editor);
+  //let+ syntax = Id.Map.find_opt(id, editor.state.meta.projected.syntax_map);
+  //let (module P) = to_module(syntax, p);
   div(
     ~attr=Attr.classes(["projector-ci"]),
     [text(String.sub(Projector.name(p), 0, 1))],
@@ -216,16 +184,16 @@ let key_handler =
     (
       editor: Editor.t,
       key: Key.t,
-      ~inject: UpdateAction.t => Ui_effect.t(unit),
+      ~inject as _: UpdateAction.t => Ui_effect.t(unit),
     )
     : option(list(UpdateAction.t)) =>
   switch (indicated_proj_ed(editor)) {
   | None => None
   | Some((id, p)) =>
     let* syntax = Id.Map.find_opt(id, editor.state.meta.projected.syntax_map);
-    let (module PV) = to_module(id, syntax, p, ~inject);
+    let (module P) = to_module(syntax, p);
     let* (_, d, _) = Indicated.piece(editor.state.zipper);
-    let+ action = PV.keymap(d, key);
+    let+ action = P.keymap(d, key);
     handle(id, syntax, action);
   };
 
@@ -235,16 +203,16 @@ let option_view = (name, n) =>
     [text(n)],
   );
 
-let set = (k: Projector.kind) =>
+let set = (k: ZipperBase.kind) =>
   Update.PerformAction(Project(SetIndicated(k)));
 
 let remove = (id: Id.t) => Update.PerformAction(Project(Remove(id)));
 
-let applicable_projectors = (ci: Info.t) =>
+let applicable_projectors = (ci: Info.t): list(ZipperBase.kind) =>
   (
     switch (Info.cls_of(ci)) {
     | Exp(Bool)
-    | Pat(Bool) => [Checkbox]
+    | Pat(Bool) => [ZipperBase.Checkbox]
     | Exp(Int)
     | Pat(Int) => [Slider]
     | Exp(String)
@@ -252,7 +220,7 @@ let applicable_projectors = (ci: Info.t) =>
     | _ => []
     }
   )
-  @ [Fold]
+  @ [ZipperBase.Fold]
   @ (
     switch (ci) {
     | InfoExp(_)
@@ -306,7 +274,7 @@ let panel = (~inject, editor: Editor.t, ci: Info.t) => {
             ),
           ]),
         applicable_projectors(ci)
-        |> List.map((k: Projector.kind) => Projector.name_(k))
+        |> List.map((k: ZipperBase.kind) => Projector.name_(k))
         |> List.map(currently_selected(editor)),
       ),
     ],

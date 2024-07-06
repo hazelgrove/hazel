@@ -4,11 +4,11 @@ open Node;
 
 let view = (~inject, expected_ty: option(Typ.t), _) =>
   div(
-    ~attr=Attr.on_double_click(_ => inject(Projector.Remove)),
+    ~attr=Attr.on_double_click(_ => inject(ProjectorsUpdate.Remove)),
     [text(InferCore.display(expected_ty))],
   );
 
-let keymap = (_, key: Key.t): option(Projector.action(string)) =>
+let keymap = (_, key: Key.t): option(ProjectorsUpdate.t) =>
   switch (key) {
   | {key: D("Escape"), _} => Some(Remove)
   | _ => None

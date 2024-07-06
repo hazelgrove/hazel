@@ -47,8 +47,8 @@ type select =
 type project =
   | UpdateSyntax(Id.t, Piece.t => Piece.t)
   | UpdateModel(Id.t, Projector.t => Projector.t)
-  | SetIndicated(Projector.kind)
-  | ToggleIndicated(Projector.kind)
+  | SetIndicated(ZipperBase.kind)
+  | ToggleIndicated(ZipperBase.kind)
   | SetKeyDispatch(Id.t, bool)
   | Remove(Id.t);
 

@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open Virtual_dom.Vdom;
 
 /* Projector model types */
 
@@ -28,11 +29,6 @@ type textarea_action =
   | SetInside(bool);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type shape =
-  | Inline(int)
-  | Block(Measured.Point.t);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type projector =
   | Fold(fold)
   | Infer(infer)
@@ -56,6 +52,32 @@ module ProjectorMap = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type projector_info = {info: option(Info.t)};
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type shape =
+  | Inline(int)
+  | Block(Measured.Point.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type accent =
+  | Indicated(Util.Direction.t)
+  | Selected;
+
+let cls = (indicated: option(accent)) =>
+  switch (indicated) {
+  | Some(Indicated(Left)) => ["indicated", "left"]
+  | Some(Indicated(Right)) => ["indicated", "right"]
+  | Some(Selected) => ["selected"]
+  | None => []
+  };
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type kind =
+  | Fold
+  | Infer
+  | Checkbox
+  | Slider
+  | TextArea;
+
 module type ProjectorCore = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model;
@@ -67,6 +89,10 @@ module type ProjectorCore = {
   let can_project: Piece.t => bool;
   let auto_update: projector_info => projector;
   let update: string => projector;
+  let view:
+    (~inject: ProjectorsUpdate.t => Ui_effect.t(unit), option(accent)) =>
+    Node.t;
+  let keymap: (Util.Direction.t, Key.t) => option(ProjectorsUpdate.t);
 };
 
 type projector_core = (module ProjectorCore);

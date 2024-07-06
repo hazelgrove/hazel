@@ -1,4 +1,5 @@
 open Virtual_dom.Vdom;
+open Haz3lcore;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action =

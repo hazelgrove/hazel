@@ -208,7 +208,7 @@ module TextArea = {
     |> Js.Opt.get(_, _ => failwith("TextArea.get"));
 
   let lines = (textarea: t): list(string) =>
-    Str.split(Str.regexp("\n"), Js.to_string(textarea##.value));
+    Re.Str.split(Re.Str.regexp("\n"), Js.to_string(textarea##.value));
 
   let caret_pos = (textarea: t): pos => {
     let rec find_position = (lines, cur_pos, row, col) => {

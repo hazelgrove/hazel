@@ -12,8 +12,8 @@ let mk =
 
      let view = _ =>
        div(
-         ~attr=Attr.on_double_click(_ => inject(Projector.Remove)),
+         ~attr=Attr.on_double_click(_ => inject(ProjectorsUpdate.Remove)),
          [text("⋱")],
        );
-     let keymap = (_, _): option(Projector.action(string)) => None;
+     let keymap = (_, _): option(ProjectorsUpdate.t) => None;
    });
