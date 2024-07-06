@@ -25,7 +25,8 @@ let get_elem_by_selector = selector => {
 };
 
 let date_now = () => {
-  [%js new Js.date_now];
+  %js
+  new Js.date_now;
 };
 
 let timestamp = () => date_now()##valueOf;
