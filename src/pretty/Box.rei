@@ -29,6 +29,4 @@ type t('annot) =
   | VBox(list(t('annot)))
   | Annot('annot, t('annot));
 
-module Make: (MemoTbl.S) => {
-                              let mk: Layout.t('annot) => t('annot);
-                            };
+module Make: (MemoTbl.S) => {let mk: Layout.t('annot) => t('annot);};
