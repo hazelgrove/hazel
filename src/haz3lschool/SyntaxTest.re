@@ -85,6 +85,8 @@ let rec find_fn =
   switch (uexp.term) {
   | Let(up, def, body) =>
     l |> find_in_let(name, up, def) |> find_fn(name, body)
+  | Theorem(up, def, body) =>
+    l |> find_in_let(name, up, def) |> find_fn(name, body)
   | ListLit(ul)
   | Tuple(ul) =>
     List.fold_left((acc, u1) => {find_fn(name, u1, acc)}, l, ul)

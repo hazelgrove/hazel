@@ -193,6 +193,17 @@ module Transition = (EV: EV_MODE) => {
         kind: LetBind,
         is_value: false,
       });
+    | Theorem(dp, d1, d2) =>
+      let. _ = otherwise(env, d1 => Theorem(dp, d1, d2) |> rewrap)
+      and. d1' =
+        req_final(req(state, env), d1 => Let1(dp, d1, d2) |> wrap_ctx, d1);
+      let.match env' = (env, matches(dp, d1'));
+      Step({
+        expr: Closure(env', d2) |> fresh,
+        state_update,
+        kind: LetBind,
+        is_value: false,
+      });
     | TypFun(_)
     | Fun(_, _, Some(_), _) =>
       let. _ = otherwise(env, d);

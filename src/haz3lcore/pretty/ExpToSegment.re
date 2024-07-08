@@ -205,6 +205,14 @@ let rec exp_to_pretty = (~inline, exp: Exp.t): pretty => {
     and+ e2 = go(e2);
     let e2 = inline ? e2 : [Secondary(Secondary.mk_newline(Id.mk()))] @ e2;
     [mk_form("let_", id, [p, e1])] @ e2;
+  | Theorem(p, e1, e2) =>
+    // TODO: Add optional newlines
+    let id = exp |> Exp.rep_id;
+    let+ p = pat_to_pretty(~inline, p)
+    and+ e1 = go(e1)
+    and+ e2 = go(e2);
+    let e2 = inline ? e2 : [Secondary(Secondary.mk_newline(Id.mk()))] @ e2;
+    [mk_form("let_", id, [p, e1])] @ e2;
   | FixF(p, e, _) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -586,6 +594,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Filter(_)
   | TyAlias(_)
   | Let(_) => Precedence.let_
+  | Theorem(_) => Precedence.let_
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
   | MultiHole(_) => Precedence.min
@@ -721,6 +730,13 @@ let rec parenthesize = (exp: Exp.t): Exp.t => {
     |> rewrap
   | Let(p, e1, e2) =>
     Let(
+      parenthesize_pat(p) |> paren_pat_at(Precedence.min),
+      parenthesize(e1) |> paren_at(Precedence.min),
+      parenthesize(e2) |> paren_assoc_at(Precedence.let_),
+    )
+    |> rewrap
+  | Theorem(p, e1, e2) =>
+    Theorem(
       parenthesize_pat(p) |> paren_pat_at(Precedence.min),
       parenthesize(e1) |> paren_at(Precedence.min),
       parenthesize(e2) |> paren_assoc_at(Precedence.let_),

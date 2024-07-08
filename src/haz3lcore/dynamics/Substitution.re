@@ -26,6 +26,15 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
         subst_var(m, d1, x, d4);
       };
     Let(dp, d3, d4) |> rewrap;
+  | Theorem(dp, d3, d4) =>
+    let d3 = subst_var(m, d1, x, d3);
+    let d4 =
+      if (DHPat.binds_var(m, x, dp)) {
+        d4;
+      } else {
+        subst_var(m, d1, x, d4);
+      };
+    Theorem(dp, d3, d4) |> rewrap;
   | FixF(y, d3, env) =>
     let env' = Option.map(subst_var_env(m, d1, x), env);
     let d3 =
