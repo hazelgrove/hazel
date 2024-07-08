@@ -12,7 +12,7 @@ let move_out_of_piece =
     }
   };
 
-let set = (id: Id.t, p: option(t), z: ZipperBase.t) => {
+let set = (id: Id.t, p: option(t), z: Zipper.t) => {
   ...z,
   projectors: Map.update(id, _ => p, z.projectors),
 };
@@ -29,8 +29,7 @@ let add_or_remove = (id: Id.t, z: Zipper.t, info_map, p, piece, d, rel) =>
   | true => Ok(set(id, None, z))
   };
 
-let go =
-    (a: Action.project, info_map: Statics.Map.t, syntax_map, z: ZipperBase.t) =>
+let go = (a: Action.project, info_map: Statics.Map.t, syntax_map, z: Zipper.t) =>
   //TODO(andrew): avoid bringing statics in here?
   switch (a) {
   | SetKeyDispatch(id, b) =>

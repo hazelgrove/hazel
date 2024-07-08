@@ -1,12 +1,6 @@
 open Util;
 open OptUtil.Syntax;
-open ZipperBase;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t = ZipperBase.t;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-module Caret = ZipperBase.Caret;
+include ZipperBase;
 
 let init: unit => t =
   () => {
@@ -17,7 +11,7 @@ let init: unit => t =
       ancestors: [],
     },
     caret: Outer,
-    projectors: ProjectorMap.empty,
+    projectors: ProjectorBase.Map.empty,
   };
 
 let next_blank = _ => Id.mk();
@@ -67,7 +61,7 @@ let unzip = (seg: Segment.t): t => {
     ancestors: [],
   },
   caret: Outer,
-  projectors: ProjectorMap.empty,
+  projectors: ProjectorBase.Map.empty,
 };
 
 let sibs_with_sel =
@@ -345,7 +339,7 @@ let base_point = (measured: Measured.t, z: t): Measured.Point.t => {
      * a Grout becomes a Tile. Hence we convert pieces that
      * would be projected to their placeholders before lookup */
     let p =
-      switch (ProjectorMap.find(Piece.id(p), z.projectors)) {
+      switch (ProjectorBase.Map.find(Piece.id(p), z.projectors)) {
       | Some(pr) => Projector.placeholder(pr, p)
       | None => p
       };
