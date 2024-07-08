@@ -1,4 +1,6 @@
 open ZipperBase;
+open Virtual_dom.Vdom;
+open Node;
 
 let display_ty = (expected_ty: option(Typ.t)): Typ.t =>
   switch (expected_ty) {
@@ -12,7 +14,10 @@ let expected_ty = (info: option(Info.t)) =>
   | _ => Unknown(Internal)
   };
 
-let mk = (model: infer): projector_core =>
+let display = expected_ty =>
+  "⋱ ⇐ " ++ (expected_ty |> display_ty |> Typ.pretty_print);
+
+let mk = (model: ZipperBase.infer, ~syntax as _): projector_core =>
   (module
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
@@ -20,7 +25,7 @@ let mk = (model: infer): projector_core =>
      [@deriving (show({with_path: false}), sexp, yojson)]
      type action = infer_action;
      let model = model;
-     let projector = Infer(model);
+     let projector: projector = Infer(model);
 
      let can_project = (p: Piece.t): bool =>
        switch (p) {
@@ -28,13 +33,24 @@ let mk = (model: infer): projector_core =>
        | _ => false
        };
 
-     let placeholder_length = () =>
-       3
-       + (display_ty(model.expected_ty) |> Typ.pretty_print |> String.length);
+     let placeholder = () =>
+       Inline((model.expected_ty |> display |> String.length) - 2);
 
      let auto_update = ({info, _}): projector => {
        print_endline("updating infer projector");
        Infer({expected_ty: Some(expected_ty(info))});
      };
-     let update = _action => Infer(model);
+     let update = (_action): projector => Infer(model);
+
+     let view = (~inject, _) =>
+       div(
+         ~attrs=[Attr.on_double_click(_ => inject(ProjectorsUpdate.Remove))],
+         [text(display(model.expected_ty))],
+       );
+
+     let keymap = (_, key: Key.t): option(ProjectorsUpdate.t) =>
+       switch (key) {
+       | {key: D("Escape"), _} => Some(Remove)
+       | _ => None
+       };
    });

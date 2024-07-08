@@ -1,5 +1,8 @@
 open Js_of_ocaml;
+open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
+
 open Virtual_dom.Vdom;
+open Sexplib.Std;
 
 let get_elem_by_id = id => {
   let doc = Dom_html.document;
@@ -7,6 +10,17 @@ let get_elem_by_id = id => {
     doc##getElementById(Js.string(id)),
     () => {
       print_endline(id);
+      assert(false);
+    },
+  );
+};
+
+let get_elem_by_selector = selector => {
+  let doc = Dom_html.document;
+  Js.Opt.get(
+    doc##querySelector(Js.string(selector)),
+    () => {
+      print_endline(selector);
       assert(false);
     },
   );
@@ -101,7 +115,7 @@ let clipboard_shim_id = "clipboard-shim";
 let focus_clipboard_shim = () => get_elem_by_id(clipboard_shim_id)##focus;
 
 let clipboard_shim = {
-  Node.textarea(~attr=Attr.many([Attr.id(clipboard_shim_id)]), []);
+  Node.textarea(~attrs=[Attr.id(clipboard_shim_id)], []);
 };
 
 let copy = (str: string) => {
@@ -166,3 +180,77 @@ let stop_mousedown_propagation =
     Js_of_ocaml.Dom_html.stopPropagation(evt);
     Virtual_dom.Vdom.Effect.Ignore;
   });
+
+module TextArea = {
+  type t = Js.t(Dom_html.textAreaElement);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type pos = {
+    row: int,
+    col: int,
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type rel =
+    | First
+    | Middle
+    | Last;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type rel_pos = {
+    rows: rel,
+    cols: rel,
+  };
+
+  let get = (selector: string): Js.t(Dom_html.textAreaElement) =>
+    selector
+    |> get_elem_by_selector
+    |> Dom_html.CoerceTo.textarea
+    |> Js.Opt.get(_, _ => failwith("TextArea.get"));
+
+  let lines = (textarea: t): list(string) =>
+    Re.Str.split(Re.Str.regexp("\n"), Js.to_string(textarea##.value));
+
+  let caret_pos = (textarea: t): pos => {
+    let rec find_position = (lines, cur_pos, row, col) => {
+      switch (lines) {
+      | [] => {row, col}
+      | [line, ...rest] =>
+        let line_length = String.length(line);
+        if (cur_pos <= line_length) {
+          {row, col: cur_pos};
+        } else {
+          find_position(rest, cur_pos - line_length - 1, row + 1, 0);
+        };
+      };
+    };
+    let lines = lines(textarea);
+    let caret_position = textarea##.selectionStart;
+    find_position(lines, caret_position, 0, 0);
+  };
+
+  let rel = (current: int, max: int): rel =>
+    if (current == 0) {
+      First;
+    } else if (current == max) {
+      Last;
+    } else {
+      Middle;
+    };
+
+  let caret_rel_pos = (textarea: t): rel_pos => {
+    let lines = textarea |> lines;
+    let {row, col} = caret_pos(textarea);
+    {
+      rows: rel(row, List.length(lines) - 1),
+      cols: rel(col, String.length(List.nth(lines, row))),
+    };
+  };
+
+  let set_caret_to_end = (textarea: t): unit => {
+    textarea##focus;
+    let content_length = String.length(Js.to_string(textarea##.value));
+    textarea##.selectionStart := content_length;
+    textarea##.selectionEnd := content_length;
+  };
+};

@@ -13,18 +13,33 @@ let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit), model: Model.t) =>
     let key = Key.mk(dir, evt);
     let editor = Editors.get_editor(model.editors);
     switch (ProjectorsView.key_handler(editor, ~inject, key)) {
-    | Some(action) =>
-      Many([Prevent_default, Stop_propagation, inject(action)])
+    | Some([]) =>
+      //TODO(andrew): proper no-op (see ProjectorsView)
+      Ignore
+    | Some(action) => Many([Prevent_default] @ List.map(inject, action))
     | None =>
       switch (Keyboard.handle_key_event(key)) {
       | None => Ignore
-      | Some(action) =>
-        Many([Prevent_default, Stop_propagation, inject(action)])
+      | Some(action) => Many([Prevent_default, inject(action)])
       }
     };
   };
+  let keypress_handler =
+      (~inject, ~dir: Key.dir, evt: Js.t(Dom_html.keyboardEvent))
+      : Effect.t(unit) => {
+    open Effect; //TODO(andrew): cleanup
+
+    let key = Key.mk(dir, evt);
+    let editor = Editors.get_editor(model.editors);
+    switch (ProjectorsView.key_handler(editor, ~inject, key)) {
+    | Some([]) =>
+      //TODO(andrew): proper no-op (see ProjectorsView)
+      Ignore
+    | _ => Effect.Prevent_default
+    };
+  };
   [
-    Attr.on_keypress(_ => Effect.Prevent_default),
+    Attr.on_keypress(keypress_handler(~inject, ~dir=KeyDown)),
     Attr.on_keyup(key_handler(~inject, ~dir=KeyUp)),
     Attr.on_keydown(key_handler(~inject, ~dir=KeyDown)),
     /* safety handler in case mousedown overlay doesn't catch it */
@@ -65,9 +80,9 @@ let main_view =
   let cursor_info = Indicated.ci_of(editor.state.zipper, statics.info_map);
   let top_bar =
     div(
-      ~attr=Attr.id("top-bar"),
+      ~attrs=[Attr.id("top-bar")],
       NutMenu.view(~inject, ~settings, ~editors)
-      @ [div(~attr=Attr.id("title"), [text("hazel")])]
+      @ [div(~attrs=[Attr.id("title")], [text("hazel")])]
       @ [EditorModeView.view(~inject, ~settings, ~editors)],
     );
   let bottom_bar =
@@ -102,7 +117,7 @@ let main_view =
       let result_key = ScratchSlide.scratch_key(name);
       let info =
         SlideContent.get_content(editors)
-        |> Option.map(i => div(~attr=Attr.id("slide"), [i]))
+        |> Option.map(i => div(~attrs=[Attr.id("slide")], [i]))
         |> Option.to_list;
       info
       @ ScratchMode.view(
@@ -128,11 +143,10 @@ let main_view =
   [
     top_bar,
     div(
-      ~attr=
-        Attr.many([
-          Attr.id("main"),
-          Attr.classes([Settings.show_mode(settings.mode)]),
-        ]),
+      ~attrs=[
+        Attr.id("main"),
+        Attr.classes([Settings.show_mode(settings.mode)]),
+      ],
       editors_view,
     ),
     sidebar,
@@ -145,7 +159,7 @@ let get_selection = (model: Model.t): string =>
 
 let view = (~inject: UpdateAction.t => Ui_effect.t(unit), model: Model.t) =>
   div(
-    ~attr=Attr.many(Attr.[id("page"), ...handlers(~inject, model)]),
+    ~attrs=Attr.[id("page"), ...handlers(~inject, model)],
     [
       FontSpecimen.view("font-specimen"),
       DecUtil.filters,
