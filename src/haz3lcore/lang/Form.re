@@ -106,6 +106,7 @@ let keywords = [
   "type",
   "case",
   "test",
+  "theorem",
   "if",
   "then",
   "else",
@@ -331,6 +332,11 @@ let forms: list((string, t)) = [
     mk(ds, ["type", "=", "in"], mk_pre(P.let_, Exp, [TPat, Typ])),
   ),
   ("if_", mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))),
+  (
+    "theorem_",
+    // use same precedence for Theorem and Let, using let_ directly
+    mk(ds, ["theorem", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp])),
+  ),
 ];
 
 let get: String.t => t =

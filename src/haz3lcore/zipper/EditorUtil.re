@@ -84,6 +84,9 @@ let rec append_exp = (e1: Exp.t, e2: Exp.t): Exp.t => {
     | Let(p, edef, ebody) =>
       let ebody' = append_exp(ebody, e2);
       {ids: e1.ids, copied: false, term: Let(p, edef, ebody')};
+    | Theorem(name, edef, ebody) =>
+      let ebody' = append_exp(ebody, e2);
+      TermBase.UExp.{ids: e1.ids, term: Theorem(name, edef, ebody')};
     | TyAlias(tp, tdef, ebody) =>
       let ebody' = append_exp(ebody, e2);
       {ids: e1.ids, copied: false, term: TyAlias(tp, tdef, ebody')};

@@ -163,6 +163,7 @@ and Exp: {
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
+    | Theorem(Pat.t, t, t)
     | Filter(StepperFilterKind.t, t)
     | Closure([@show.opaque] ClosureEnvironment.t, t)
     | Parens(t) // (
@@ -229,6 +230,7 @@ and Exp: {
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
+    | Theorem(Pat.t, t, t)
     | Filter(StepperFilterKind.t, t)
     | Closure([@show.opaque] ClosureEnvironment.t, t)
     | Parens(t)
@@ -304,6 +306,8 @@ and Exp: {
           If(exp_map_term(e1), exp_map_term(e2), exp_map_term(e3))
         | Seq(e1, e2) => Seq(exp_map_term(e1), exp_map_term(e2))
         | Test(e) => Test(exp_map_term(e))
+        | Theorem(p, e1, e2) =>
+          Theorem(pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
         | Filter(f, e) => Filter(flt_map_term(f), exp_map_term(e))
         | Closure(env, e) => Closure(env, exp_map_term(e))
         | Parens(e) => Parens(exp_map_term(e))
@@ -382,6 +386,8 @@ and Exp: {
     | (Seq(e1, e2), Seq(e3, e4)) =>
       fast_equal(e1, e3) && fast_equal(e2, e4)
     | (Test(e1), Test(e2)) => fast_equal(e1, e2)
+    | (Theorem(p1, e1, e2), Theorem(p2, e3, e4)) =>
+      Pat.fast_equal(p1, p2) && fast_equal(e1, e3) && fast_equal(e2, e4)
     | (Filter(f1, e1), Filter(f2, e2)) =>
       StepperFilterKind.fast_equal(f1, f2) && fast_equal(e1, e2)
     | (Closure(c1, e1), Closure(c2, e2)) =>
@@ -435,6 +441,7 @@ and Exp: {
     | (BinOp(_), _)
     | (BuiltinFun(_), _)
     | (Match(_), _)
+    | (Theorem(_), _)
     | (Cast(_), _)
     | (MultiHole(_), _)
     | (EmptyHole, _) => false

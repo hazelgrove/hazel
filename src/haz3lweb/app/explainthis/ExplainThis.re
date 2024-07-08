@@ -1112,6 +1112,7 @@ let get_doc =
         | _ => basic(TupleExp.tuples)
         };
       | Var(n) => get_message(TerminalExp.var_exps(n))
+      | Theorem(pat, def, body)
       | Let(pat, def, body) =>
         let pat = bypass_parens_and_annot_pat(pat);
         let pat_id = List.nth(pat.ids, 0);

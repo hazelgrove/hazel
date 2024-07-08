@@ -335,7 +335,8 @@ module Exp = {
     | BuiltinFun
     | Match
     | Cast
-    | ListConcat;
+    | ListConcat
+    | Theorem;
 
   let hole = (tms: list(TermBase.Any.t)): term =>
     switch (tms) {
@@ -384,6 +385,7 @@ module Exp = {
     | BinOp(op, _, _) => BinOp(op)
     | BuiltinFun(_) => BuiltinFun
     | Match(_) => Match
+    | Theorem(_) => Theorem
     | Cast(_) => Cast;
 
   let show_cls: cls => string =
@@ -425,6 +427,7 @@ module Exp = {
     | UnOp(op) => Operators.show_unop(op)
     | BuiltinFun => "Built-in Function"
     | Match => "Case expression"
+    | Theorem => "Theorem expression"
     | Cast => "Cast expression";
 
   // Typfun should be treated as a function here as this is only used to
@@ -465,6 +468,7 @@ module Exp = {
     | UnOp(_)
     | BinOp(_)
     | Match(_)
+    | Theorem(_)
     | Constructor(_) => false
     };
   };
@@ -507,6 +511,7 @@ module Exp = {
       | UnOp(_)
       | BinOp(_)
       | Match(_)
+      | Theorem(_)
       | Constructor(_) => false
       }
     );
@@ -563,6 +568,7 @@ module Exp = {
       | UnOp(_)
       | BinOp(_)
       | Match(_)
+      | Theorem(_)
       | Constructor(_) => None
       };
     };
@@ -605,6 +611,16 @@ module Exp = {
           // Cases with binders: remove binder from env
           | Let(p, e1, e2) =>
             Let(
+              p,
+              substitute_closures(env, e1),
+              substitute_closures(
+                env |> ClosureEnvironment.without_keys(Pat.bound_vars(p)),
+                e2,
+              ),
+            )
+            |> rewrap
+          | Theorem(p, e1, e2) =>
+            Theorem(
               p,
               substitute_closures(env, e1),
               substitute_closures(
