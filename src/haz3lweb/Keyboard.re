@@ -3,6 +3,45 @@ open Haz3lcore;
 let is_digit = s => Re.Str.(string_match(regexp("^[0-9]$"), s, 0));
 let is_f_key = s => Re.Str.(string_match(regexp("^F[0-9][0-9]*$"), s, 0));
 
+type shortcut = {
+  key: Key.t, // Backwards compatibility. Still debating between this impl and hotkeys
+  update_action: option(UpdateAction.t),
+  hotkey: string,
+  label: string,
+  mdIcon: option(string),
+};
+
+let shortcuts: list(shortcut) = [
+  {
+    key: {
+      key: D("F7"),
+      sys: PC,
+      shift: Down,
+      meta: Up,
+      ctrl: Up,
+      alt: Up,
+    },
+    update_action: Some(Benchmark(Start)),
+    hotkey: "F7",
+    label: "Run Benchmark",
+    mdIcon: None,
+  },
+  {
+    key: {
+      key: D("F12"),
+      sys: PC,
+      shift: Up,
+      meta: Up,
+      ctrl: Up,
+      alt: Up,
+    },
+    update_action: Some(PerformAction(Jump(BindingSiteOfIndicatedVar))),
+    hotkey: "F12",
+    label: "Go to Definition",
+    mdIcon: Some("arrow_forward"),
+  },
+];
+
 let handle_key_event = (k: Key.t): option(Update.t) => {
   let now = (a: Action.t): option(UpdateAction.t) =>
     Some(PerformAction(a));
@@ -19,7 +58,6 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
   | {key: D(key), sys: _, shift: Down, meta: Up, ctrl: Up, alt: Up}
       when is_f_key(key) =>
     switch (key) {
-    | "F7" => Some(Benchmark(Start))
     | _ => Some(DebugConsole(key))
     }
   | {key: D(key), sys: _, shift, meta: Up, ctrl: Up, alt: Up} =>
@@ -34,7 +72,6 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
     | (Up, "Delete") => now(Destruct(Right))
     | (Up, "Escape") => now(Unselect(None))
     | (Up, "Tab") => Some(TAB)
-    | (Up, "F12") => now(Jump(BindingSiteOfIndicatedVar))
     | (Down, "Tab") => Some(MoveToNextHole(Left))
     | (Down, "ArrowLeft") => now(Select(Resize(Local(Left(ByToken)))))
     | (Down, "ArrowRight") => now(Select(Resize(Local(Right(ByToken)))))
