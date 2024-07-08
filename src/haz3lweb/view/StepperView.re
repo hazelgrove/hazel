@@ -3,10 +3,10 @@ open Node;
 open Haz3lcore;
 
 let settings_modal = (~inject, settings: CoreSettings.Evaluation.t) => {
-  let modal = div(~attr=Attr.many([Attr.class_("settings-modal")]));
+  let modal = div(~attrs=[Attr.class_("settings-modal")]);
   let setting = (icon, name, current, action: UpdateAction.settings_action) =>
     div(
-      ~attr=Attr.many([Attr.class_("settings-toggle")]),
+      ~attrs=[Attr.class_("settings-toggle")],
       [
         Widgets.toggle(~tooltip=name, icon, current, _ =>
           inject(Update.Set(action))
@@ -17,7 +17,7 @@ let settings_modal = (~inject, settings: CoreSettings.Evaluation.t) => {
   [
     modal([
       div(
-        ~attr=Attr.many([Attr.class_("settings-modal-top")]),
+        ~attrs=[Attr.class_("settings-modal-top")],
         [
           Widgets.button(Icons.x, _ =>
             inject(Update.Set(Evaluation(ShowSettings)))
@@ -74,13 +74,12 @@ let settings_modal = (~inject, settings: CoreSettings.Evaluation.t) => {
       ),
     ]),
     div(
-      ~attr=
-        Attr.many([
-          Attr.class_("modal-back"),
-          Attr.on_mousedown(_ =>
-            inject(Update.Set(Evaluation(ShowSettings)))
-          ),
-        ]),
+      ~attrs=[
+        Attr.class_("modal-back"),
+        Attr.on_mousedown(_ =>
+          inject(Update.Set(Evaluation(ShowSettings)))
+        ),
+      ],
       [],
     ),
   ];
@@ -109,7 +108,7 @@ let stepper_view =
     };
   let dh_code_previous = (step_with_previous: Stepper.step_with_previous) =>
     div(
-      ~attr=Attr.classes(["result"]),
+      ~attrs=[Attr.classes(["result"])],
       [
         DHCode.view(
           ~inject,
@@ -140,15 +139,16 @@ let stepper_view =
           (~hidden=false, step: Stepper.step_with_previous): list(Node.t) => {
     [
       div(
-        ~attr=
+        ~attrs=[
           Attr.classes(
             ["cell-item", "cell-result"] @ (hidden ? ["hidden"] : []),
           ),
+        ],
         [
-          div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
+          div(~attrs=[Attr.class_("equiv")], [Node.text("≡")]),
           dh_code_previous(step),
           div(
-            ~attr=Attr.classes(["stepper-justification"]),
+            ~attrs=[Attr.classes(["stepper-justification"])],
             [
               Node.text(
                 Stepper.get_justification(step.step.knd)
@@ -175,7 +175,7 @@ let stepper_view =
   };
   let dh_code_current = d =>
     div(
-      ~attr=Attr.classes(["result"]),
+      ~attrs=[Attr.classes(["result"])],
       [
         DHCode.view(
           ~inject,
@@ -214,9 +214,9 @@ let stepper_view =
       switch (stepper.current) {
       | StepperOK(d, _) =>
         div(
-          ~attr=Attr.classes(["cell-item", "cell-result"]),
+          ~attrs=[Attr.classes(["cell-item", "cell-result"])],
           [
-            div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
+            div(~attrs=[Attr.class_("equiv")], [Node.text("≡")]),
             dh_code_current(d),
             button_back,
             eval_settings,

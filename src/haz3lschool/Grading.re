@@ -1,5 +1,6 @@
 open Haz3lcore;
 open Sexplib.Std;
+open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
 
 module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
   open Exercise.F(ExerciseEnv);
