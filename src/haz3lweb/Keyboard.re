@@ -4,41 +4,73 @@ let is_digit = s => Re.Str.(string_match(regexp("^[0-9]$"), s, 0));
 let is_f_key = s => Re.Str.(string_match(regexp("^F[0-9][0-9]*$"), s, 0));
 
 type shortcut = {
-  key: Key.t, // Backwards compatibility. Still debating between this impl and hotkeys
   update_action: option(UpdateAction.t),
-  hotkey: string,
+  hotkey: option(string),
   label: string,
   mdIcon: option(string),
 };
 
+// Currently PC only. I need to figure out how to handle mac.
 let shortcuts: list(shortcut) = [
   {
-    key: {
-      key: D("F7"),
-      sys: PC,
-      shift: Down,
-      meta: Up,
-      ctrl: Up,
-      alt: Up,
-    },
     update_action: Some(Benchmark(Start)),
-    hotkey: "F7",
+    hotkey: Some("F7"),
     label: "Run Benchmark",
     mdIcon: None,
   },
   {
-    key: {
-      key: D("F12"),
-      sys: PC,
-      shift: Up,
-      meta: Up,
-      ctrl: Up,
-      alt: Up,
-    },
     update_action: Some(PerformAction(Jump(BindingSiteOfIndicatedVar))),
-    hotkey: "F12",
+    hotkey: Some("F12"),
     label: "Go to Definition",
     mdIcon: Some("arrow_forward"),
+  },
+  {
+    update_action: Some(Redo),
+    hotkey: Some("ctrl+shift+z"),
+    label: "Redo",
+    mdIcon: Some("redo"),
+  },
+  {
+    update_action: Some(Undo),
+    hotkey: Some("ctrl+z"),
+    label: "Undo",
+    mdIcon: Some("undo"),
+  },
+  {
+    update_action: Some(MoveToNextHole(Left)),
+    hotkey: Some("shift+tab"),
+    label: "Go To Previous Hole",
+    mdIcon: Some("swipe_left_alt"),
+  },
+  {
+    update_action: Some(MoveToNextHole(Right)),
+    hotkey: None, // Tab is overloaded so not setting it here
+    label: "Go To Next Hole",
+    mdIcon: Some("swipe_right_alt"),
+  },
+  {
+    update_action: Some(ReparseCurrentEditor),
+    hotkey: None, // ctrl+k conflicts with the command palette
+    label: "Reparse Current Editor",
+    mdIcon: Some("refresh"),
+  },
+  {
+    update_action: Some(PerformAction(Select(Term(Current)))),
+    hotkey: Some("ctrl+d"),
+    label: "Select current term",
+    mdIcon: Some("select_all"),
+  },
+  {
+    update_action: Some(PerformAction(Pick_up)),
+    hotkey: Some("ctrl+p"),
+    label: "Pick up selected term",
+    mdIcon: Some("backpack"),
+  },
+  {
+    update_action: Some(PerformAction(Select(All))),
+    hotkey: Some("ctrl+a"),
+    label: "Select All",
+    mdIcon: Some("select_all"),
   },
 ];
 
@@ -72,7 +104,6 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
     | (Up, "Delete") => now(Destruct(Right))
     | (Up, "Escape") => now(Unselect(None))
     | (Up, "Tab") => Some(TAB)
-    | (Down, "Tab") => Some(MoveToNextHole(Left))
     | (Down, "ArrowLeft") => now(Select(Resize(Local(Left(ByToken)))))
     | (Down, "ArrowRight") => now(Select(Resize(Local(Right(ByToken)))))
     | (Down, "ArrowUp") => now(Select(Resize(Local(Up))))
@@ -98,8 +129,6 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
     }
   | {key: D(key), sys: PC, shift: Down, meta: Up, ctrl: Down, alt: Up} =>
     switch (key) {
-    | "Z"
-    | "z" => Some(Redo)
     | "ArrowLeft" => now(Select(Resize(Local(Left(ByToken)))))
     | "ArrowRight" => now(Select(Resize(Local(Right(ByToken)))))
     | "ArrowUp" => now(Select(Resize(Local(Up))))
@@ -125,10 +154,6 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
     }
   | {key: D(key), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
     switch (key) {
-    | "z" => Some(Undo)
-    | "d" => now(Select(Term(Current)))
-    | "p" => Some(PerformAction(Pick_up))
-    | "a" => now(Select(All))
     // | "k" => Some(ReparseCurrentEditor)
     | "/" => Some(Assistant(Prompt(TyDi)))
     | _ when is_digit(key) => Some(SwitchScratchSlide(int_of_string(key)))
