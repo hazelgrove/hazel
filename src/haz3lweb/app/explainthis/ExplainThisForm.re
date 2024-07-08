@@ -207,7 +207,7 @@ type form_id =
   | StrTyp
   | VarTyp
   | ListTyp
-  | ForallTyp
+  | TypeTyp
   | RecTyp
   | ArrowTyp
   | Arrow3Typ
@@ -300,7 +300,7 @@ type group_id =
   | StrTyp
   | VarTyp
   | ListTyp
-  | ForallTyp
+  | TypeTyp
   | RecTyp
   | ArrowTyp
   | Arrow3Typ

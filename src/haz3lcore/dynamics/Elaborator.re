@@ -65,9 +65,9 @@ let elaborated_type = (m: Statics.Map.t, uexp: UExp.t): (Typ.t, Ctx.t, 'a) => {
       let (ty1, ty2) = Typ.matched_arrow(ctx, self_ty);
       Typ.Arrow(ty1, ty2) |> Typ.temp;
     | SynTypFun =>
-      let (tpat, ty) = Typ.matched_forall(ctx, self_ty);
+      let (tpat, ty) = Typ.matched_type(ctx, self_ty);
       let tpat = Option.value(tpat, ~default=TPat.fresh(EmptyHole));
-      Typ.Forall(tpat, ty) |> Typ.temp;
+      Typ.Type(tpat, ty) |> Typ.temp;
     // We need to remove the synswitches from this type.
     | Ana(ana_ty) => Typ.match_synswitch(ana_ty, self_ty)
     };
@@ -92,9 +92,9 @@ let elaborated_pat_type = (m: Statics.Map.t, upat: UPat.t): (Typ.t, Ctx.t) => {
       let (ty1, ty2) = Typ.matched_arrow(ctx, self_ty);
       Typ.Arrow(ty1, ty2) |> Typ.temp;
     | SynTypFun =>
-      let (tpat, ty) = Typ.matched_forall(ctx, self_ty);
+      let (tpat, ty) = Typ.matched_type(ctx, self_ty);
       let tpat = Option.value(tpat, ~default=TPat.fresh(EmptyHole));
-      Typ.Forall(tpat, ty) |> Typ.temp;
+      Typ.Type(tpat, ty) |> Typ.temp;
     | Ana(ana_ty) =>
       switch (prev_synswitch) {
       | None => ana_ty
@@ -270,7 +270,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       let (e', tye) = elaborate(m, e);
       Exp.TypFun(tpat, e', name)
       |> rewrap
-      |> cast_from(Typ.Forall(tpat, tye) |> Typ.temp);
+      |> cast_from(Typ.Type(tpat, tye) |> Typ.temp);
     | Tuple(es) =>
       let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
       Exp.Tuple(ds) |> rewrap |> cast_from(Prod(tys) |> Typ.temp);
@@ -352,7 +352,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       |> cast_from(Arrow(remaining_arg_ty, tyf2) |> Typ.temp);
     | TypAp(e, ut) =>
       let (e', tye) = elaborate(m, e);
-      let (tpat, tye') = Typ.matched_forall(ctx, tye);
+      let (tpat, tye') = Typ.matched_type(ctx, tye);
       let ut' = Typ.normalize(ctx, ut);
       let tye'' =
         Typ.subst(

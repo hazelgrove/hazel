@@ -340,7 +340,7 @@ let rec status_common =
     switch (
       Typ.join_fix(
         ctx,
-        Forall(Var("?") |> TPat.fresh, Unknown(Internal) |> Typ.temp)
+        Type(Var("?") |> TPat.fresh, Unknown(Internal) |> Typ.temp)
         |> Typ.temp,
         ty,
       )

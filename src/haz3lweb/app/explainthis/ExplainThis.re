@@ -2138,11 +2138,11 @@ let get_doc =
           ),
         ListTyp.list,
       );
-    | Forall(tpat, typ) =>
+    | Type(tpat, typ) =>
       let tpat_id = List.nth(tpat.ids, 0);
       let tbody_id = List.nth(typ.ids, 0);
       get_message(
-        ~colorings=ForallTyp.forall_typ_coloring_ids(~tpat_id, ~tbody_id),
+        ~colorings=TypeTyp.type_typ_coloring_ids(~tpat_id, ~tbody_id),
         ~format=
           Some(
             msg =>
@@ -2152,7 +2152,7 @@ let get_doc =
                 Id.to_string(tbody_id),
               ),
           ),
-        ForallTyp.forall,
+        TypeTyp.type_typ,
       );
     | Rec(tpat, typ) =>
       let tpat_id = List.nth(tpat.ids, 0);

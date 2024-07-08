@@ -618,7 +618,7 @@ and Typ: {
     | Parens(t)
     | Ap(t, t)
     | Rec(TPat.t, t)
-    | Forall(TPat.t, t)
+    | Type(TPat.t, t)
   and t = IdTagged.t(term);
 
   type sum_map = ConstructorMap.t(t);
@@ -670,7 +670,7 @@ and Typ: {
     | Parens(t)
     | Ap(t, t)
     | Rec(TPat.t, t)
-    | Forall(TPat.t, t)
+    | Type(TPat.t, t)
   and t = IdTagged.t(term);
 
   type sum_map = ConstructorMap.t(t);
@@ -723,7 +723,7 @@ and Typ: {
             ),
           )
         | Rec(tp, t) => Rec(tpat_map_term(tp), typ_map_term(t))
-        | Forall(tp, t) => Forall(tpat_map_term(tp), typ_map_term(t))
+        | Type(tp, t) => Type(tpat_map_term(tp), typ_map_term(t))
         },
     };
     x |> f_typ(rec_call);
@@ -744,10 +744,10 @@ and Typ: {
       | Prod(tys) => Prod(List.map(subst(s, x), tys)) |> rewrap
       | Sum(sm) =>
         Sum(ConstructorMap.map(Option.map(subst(s, x)), sm)) |> rewrap
-      | Forall(tp2, ty)
+      | Type(tp2, ty)
           when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
-        Forall(tp2, ty) |> rewrap
-      | Forall(tp2, ty) => Forall(tp2, subst(s, x, ty)) |> rewrap
+        Type(tp2, ty) |> rewrap
+      | Type(tp2, ty) => Type(tp2, subst(s, x, ty)) |> rewrap
       | Rec(tp2, ty) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
         Rec(tp2, ty) |> rewrap
       | Rec(tp2, ty) => Rec(tp2, subst(s, x, ty)) |> rewrap
@@ -768,7 +768,7 @@ and Typ: {
     | (Parens(t1), _) => eq_internal(n, t1, t2)
     | (_, Parens(t2)) => eq_internal(n, t1, t2)
     | (Rec(x1, t1), Rec(x2, t2))
-    | (Forall(x1, t1), Forall(x2, t2)) =>
+    | (Type(x1, t1), Type(x2, t2)) =>
       let alpha_subst =
         subst({
           term: Var("=" ++ string_of_int(n)),
@@ -777,7 +777,7 @@ and Typ: {
         });
       eq_internal(n + 1, alpha_subst(x1, t1), alpha_subst(x2, t2));
     | (Rec(_), _) => false
-    | (Forall(_), _) => false
+    | (Type(_), _) => false
     | (Int, Int) => true
     | (Int, _) => false
     | (Float, Float) => true

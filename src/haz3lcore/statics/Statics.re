@@ -69,7 +69,7 @@ let rec is_arrow_like = (t: Typ.t) => {
   switch (t |> Typ.term_of) {
   | Unknown(_) => true
   | Arrow(_) => true
-  | Forall(_, t) => is_arrow_like(t)
+  | Type(_, t) => is_arrow_like(t)
   | _ => false
   };
 };
@@ -359,7 +359,7 @@ and uexp_to_info_map =
     let typfn_mode = Mode.typap_mode;
     let (fn, m) = go(~mode=typfn_mode, fn, m);
     let (_, m) = utyp_to_info_map(~ctx, ~ancestors, utyp, m);
-    let (option_name, ty_body) = Typ.matched_forall(ctx, fn.ty);
+    let (option_name, ty_body) = Typ.matched_type(ctx, fn.ty);
     switch (option_name) {
     | Some(name) =>
       add(~self=Just(Typ.subst(utyp, name, ty_body)), ~co_ctx=fn.co_ctx, m)
@@ -393,22 +393,22 @@ and uexp_to_info_map =
     add'(~self, ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx), m);
   | TypFun({term: Var(name), _} as utpat, body, _)
       when !Ctx.shadows_typ(ctx, name) =>
-    let mode_body = Mode.of_forall(ctx, Some(name), mode);
+    let mode_body = Mode.of_type(ctx, Some(name), mode);
     let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
     let ctx_body =
       Ctx.extend_tvar(ctx, {name, id: TPat.rep_id(utpat), kind: Abstract});
     let (body, m) = go'(~ctx=ctx_body, ~mode=mode_body, body, m);
     add(
-      ~self=Just(Forall(utpat, body.ty) |> Typ.temp),
+      ~self=Just(Type(utpat, body.ty) |> Typ.temp),
       ~co_ctx=body.co_ctx,
       m,
     );
   | TypFun(utpat, body, _) =>
-    let mode_body = Mode.of_forall(ctx, None, mode);
+    let mode_body = Mode.of_type(ctx, None, mode);
     let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
     let (body, m) = go(~mode=mode_body, body, m);
     add(
-      ~self=Just(Forall(utpat, body.ty) |> Typ.temp),
+      ~self=Just(Type(utpat, body.ty) |> Typ.temp),
       ~co_ctx=body.co_ctx,
       m,
     );
@@ -895,7 +895,7 @@ and utyp_to_info_map =
         variants,
       );
     add(m);
-  | Forall({term: Var(name), _} as utpat, tbody) =>
+  | Type({term: Var(name), _} as utpat, tbody) =>
     let body_ctx =
       Ctx.extend_tvar(ctx, {name, id: TPat.rep_id(utpat), kind: Abstract});
     let m =
@@ -909,7 +909,7 @@ and utyp_to_info_map =
       |> snd;
     let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
     add(m); // TODO: check with andrew
-  | Forall(utpat, tbody) =>
+  | Type(utpat, tbody) =>
     let m =
       utyp_to_info_map(tbody, ~ctx, ~ancestors, ~expects=TypeExpected, m)
       |> snd;

@@ -311,8 +311,8 @@ module Transition = (EV: EV_MODE) => {
         })
       | Cast(
           d'',
-          {term: Forall(tp1, _), _} as t1,
-          {term: Forall(tp2, _), _} as t2,
+          {term: Type(tp1, _), _} as t1,
+          {term: Type(tp2, _), _} as t2,
         ) =>
         /* Rule ITTApCast */
         Step({

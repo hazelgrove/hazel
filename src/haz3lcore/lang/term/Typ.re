@@ -21,7 +21,7 @@ type cls =
   | Parens
   | Ap
   | Rec
-  | Forall;
+  | Type;
 
 include TermBase.Typ;
 
@@ -59,7 +59,7 @@ let cls_of_term: term => cls =
   | Ap(_) => Ap
   | Sum(_) => Sum
   | Rec(_) => Rec
-  | Forall(_) => Forall;
+  | Type(_) => Type;
 
 let show_cls: cls => string =
   fun
@@ -81,7 +81,7 @@ let show_cls: cls => string =
   | Parens => "Parenthesized type"
   | Ap => "Constructor application"
   | Rec => "Recursive type"
-  | Forall => "Forall type";
+  | Type => "Type type";
 
 let rec is_arrow = (typ: t) => {
   switch (typ.term) {
@@ -97,15 +97,15 @@ let rec is_arrow = (typ: t) => {
   | Var(_)
   | Ap(_)
   | Sum(_)
-  | Forall(_)
+  | Type(_)
   | Rec(_) => false
   };
 };
 
-let rec is_forall = (typ: t) => {
+let rec is_type = (typ: t) => {
   switch (typ.term) {
-  | Parens(typ) => is_forall(typ)
-  | Forall(_) => true
+  | Parens(typ) => is_type(typ)
+  | Type(_) => true
   | Unknown(_)
   | Int
   | Float
@@ -164,7 +164,7 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Sum(sm) => ConstructorMap.free_variables(free_vars(~bound), sm)
   | Prod(tys) => ListUtil.flat_map(free_vars(~bound), tys)
   | Rec(x, ty)
-  | Forall(x, ty) =>
+  | Type(x, ty) =>
     free_vars(~bound=(x |> TPat.tyvar_of_utpat |> Option.to_list) @ bound, ty)
   };
 
@@ -232,7 +232,7 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
     let+ ty_body = join(~resolve, ~fix, ctx, ty1', ty2);
     Rec(tp1, ty_body) |> temp;
   | (Rec(_), _) => None
-  | (Forall(x1, ty1), Forall(x2, ty2)) =>
+  | (Type(x1, ty1), Type(x2, ty2)) =>
     let ctx = Ctx.extend_dummy_tvar(ctx, x1);
     let ty1' =
       switch (TPat.tyvar_of_utpat(x2)) {
@@ -240,14 +240,14 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
       | None => ty1
       };
     let+ ty_body = join(~resolve, ~fix, ctx, ty1', ty2);
-    Forall(x1, ty_body) |> temp;
+    Type(x1, ty_body) |> temp;
   /* Note for above: there is no danger of free variable capture as
      subst itself performs capture avoiding substitution. However this
      may generate internal type variable names that in corner cases can
      be exposed to the user. We preserve the variable name of the
      second type to preserve synthesized type variable names, which
      come from user annotations. */
-  | (Forall(_), _) => None
+  | (Type(_), _) => None
   | (Int, Int) => Some(ty1)
   | (Int, _) => None
   | (Float, Float) => Some(ty1)
@@ -294,7 +294,7 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Var(_), _)
   | (Ap(_), _)
   | (Rec(_), _)
-  | (Forall(_), _) => t1
+  | (Type(_), _) => t1
   // These might
   | (List(ty1), List(ty2)) => List(match_synswitch(ty1, ty2)) |> rewrap1
   | (List(_), _) => t1
@@ -360,8 +360,8 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
        as in current implementation Recs do not occur in the
        surface syntax, so we won't try to jump to them. */
     Rec(tpat, normalize(Ctx.extend_dummy_tvar(ctx, tpat), ty)) |> rewrap
-  | Forall(name, ty) =>
-    Forall(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
+  | Type(name, ty) =>
+    Type(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
   };
 };
 
@@ -376,10 +376,10 @@ let rec matched_arrow = (ctx, ty) =>
   | _ => (Unknown(Internal) |> temp, Unknown(Internal) |> temp)
   };
 
-let rec matched_forall = (ctx, ty) =>
+let rec matched_type = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
-  | Parens(ty) => matched_forall(ctx, ty)
-  | Forall(t, ty) => (Some(t), ty)
+  | Parens(ty) => matched_type(ctx, ty)
+  | Type(t, ty) => (Some(t), ty)
   | Unknown(SynSwitch) => (None, Unknown(SynSwitch) |> temp)
   | _ => (None, Unknown(Internal) |> temp)
   };
@@ -462,7 +462,7 @@ let rec needs_parens = (ty: t): bool =>
   | Bool
   | Var(_) => false
   | Rec(_, _)
-  | Forall(_, _) => true
+  | Type(_, _) => true
   | List(_) => false /* is already wrapped in [] */
   | Arrow(_, _) => true
   | Prod(_)
@@ -511,8 +511,8 @@ let rec pretty_print = (ty: t): string =>
        )
     ++ ")"
   | Rec(tv, t) => "rec " ++ pretty_print_tvar(tv) ++ "->" ++ pretty_print(t)
-  | Forall(tv, t) =>
-    "forall " ++ pretty_print_tvar(tv) ++ "->" ++ pretty_print(t)
+  | Type(tv, t) =>
+    "type " ++ pretty_print_tvar(tv) ++ "->" ++ pretty_print(t)
   }
 and ctr_pretty_print =
   fun

@@ -100,7 +100,7 @@ module Pat = {
     switch (pat.term) {
     | Parens(pat) => is_fun_var(pat)
     | Cast(pat, typ, _) =>
-      is_var(pat) && (UTyp.is_arrow(typ) || Typ.is_forall(typ))
+      is_var(pat) && (UTyp.is_arrow(typ) || Typ.is_type(typ))
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -189,7 +189,7 @@ module Pat = {
     switch (pat.term) {
     | Parens(pat) => get_fun_var(pat)
     | Cast(pat, t1, _) =>
-      if (Typ.is_arrow(t1) || UTyp.is_forall(t1)) {
+      if (Typ.is_arrow(t1) || UTyp.is_type(t1)) {
         get_var(pat) |> Option.map(var => var);
       } else {
         None;
