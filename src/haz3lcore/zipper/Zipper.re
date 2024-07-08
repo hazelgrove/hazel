@@ -346,7 +346,7 @@ let base_point = (measured: Measured.t, z: t): Measured.Point.t => {
      * would be projected to their placeholders before lookup */
     let p =
       switch (ProjectorMap.find(Piece.id(p), z.projectors)) {
-      | Some(pr) => Projector.placeholder(pr, Piece.id(p))
+      | Some(pr) => Projector.placeholder(pr, p)
       | None => p
       };
     let seg = Piece.disassemble(p);

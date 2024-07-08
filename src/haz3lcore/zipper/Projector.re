@@ -1,5 +1,6 @@
 open Util;
 open ZipperBase;
+// open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 module Map = ProjectorMap;
@@ -7,68 +8,87 @@ module Map = ProjectorMap;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type info = ZipperBase.projector_info;
 
-let to_module = (p: projector): projector_core =>
+[@deriving (show({with_path: false}), sexp, yojson)]
+type syntax = Piece.t;
+
+let to_module = (syntax, p: projector): projector_core =>
   switch ((p: projector)) {
-  | Fold(model) => FoldCore.mk(model)
-  | Infer(model) => InferCore.mk(model)
-  | Checkbox(model) => CheckboxCore.mk(model)
-  | Slider(model) => SliderCore.mk(model)
+  | Fold(model) => FoldCore.mk(model, ~syntax)
+  | Infer(model) => InferCore.mk(model, ~syntax)
+  | Checkbox(model) => CheckboxCore.mk(model, ~syntax)
+  | Slider(model) => SliderCore.mk(model, ~syntax)
+  | TextArea(model) => TextAreaCore.mk(model, ~syntax)
+  };
+
+let init = (f: kind, syntax): projector_core =>
+  switch (f) {
+  | Fold => FoldCore.mk((), ~syntax)
+  | Infer => InferCore.mk({expected_ty: None}, ~syntax)
+  | Checkbox => CheckboxCore.mk((), ~syntax)
+  | Slider => SliderCore.mk({value: 10}, ~syntax)
+  | TextArea => TextAreaCore.mk({inside: false}, ~syntax)
   };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = projector;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type kind =
-  | Fold
-  | Infer
-  | Checkbox
-  | Slider;
-
-/* The kind of syntax data to which projection can apply */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type syntax = Piece.t;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type action('action) =
-  | Remove
-  | UpdateSyntax(syntax => syntax)
-  | UpdateModel('action);
-
-let name = (p: t): string =>
+let name_ = (p: kind): string =>
   switch (p) {
-  | Fold(_) => "fold"
-  | Infer(_) => "infer"
-  | Checkbox(_) => "checkbox"
-  | Slider(_) => "slider"
+  | Fold => "fold"
+  | Infer => "type"
+  | Checkbox => "check"
+  | Slider => "slide"
+  | TextArea => "text"
   };
 
-let placeholder = (p: t, id: Id.t): syntax => {
-  let (module P) = to_module(p);
+let of_name = (p: string): kind =>
+  switch (p) {
+  | "fold" => Fold
+  | "type" => Infer
+  | "check" => Checkbox
+  | "slide" => Slider
+  | "text" => TextArea
+  | _ => failwith("Unknown projector kind")
+  };
+
+let kind = (p: t): kind =>
+  switch (p) {
+  | Fold(_) => Fold
+  | Infer(_) => Infer
+  | Checkbox(_) => Checkbox
+  | Slider(_) => Slider
+  | TextArea(_) => TextArea
+  };
+
+let name = (p: t): string => p |> kind |> name_;
+
+let shape = (p: t, syntax): shape => {
+  let (module P) = to_module(syntax, p);
+  P.placeholder();
+};
+
+let placeholder = (p: t, syntax: syntax): syntax =>
   Piece.Tile({
-    id,
-    label: [String.make(P.placeholder_length(), ' ')],
+    id: Piece.id(syntax),
+    label:
+      switch (shape(p, syntax)) {
+      | Inline(width) => [String.make(width, ' ')]
+      | Block({row, col}) => [
+          String.make(row, '\n') ++ String.make(col, ' '),
+        ]
+      },
     mold: Mold.mk_op(Any, []),
     shards: [0],
     children: [],
   });
-};
 
 /* Currently projection is limited to convex pieces */
 let minimum_projection_condition = (syntax: syntax): bool =>
   Piece.is_convex(syntax);
 
-let init = (f: kind): projector_core =>
-  switch (f) {
-  | Fold => FoldCore.mk()
-  | Infer => InferCore.mk({expected_ty: None})
-  | Checkbox => CheckboxCore.mk()
-  | Slider => SliderCore.mk({value: 10})
-  };
-
 let create =
     (k: kind, syntax: syntax, id: Id.t, info_map: Statics.Map.t): option(t) => {
-  let (module P) = init(k);
+  let (module P) = init(k, syntax);
   P.can_project(syntax) && minimum_projection_condition(syntax)
     ? Some(P.auto_update({info: Id.Map.find_opt(id, info_map)})) : None;
 };
@@ -226,7 +246,7 @@ module Project = {
     | None => syntax
     | Some(pr) =>
       syntax_map := Id.Map.add(Piece.id(syntax), syntax, syntax_map^);
-      placeholder(pr, Piece.id(syntax));
+      placeholder(pr, syntax);
     };
 
   let go = (z: ZipperBase.t): proj_ret => {

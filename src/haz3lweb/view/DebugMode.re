@@ -1,4 +1,5 @@
 open Virtual_dom.Vdom;
+open Haz3lcore;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action =
@@ -27,13 +28,12 @@ let perform = (action: action): unit => {
 let btn = (caption, action) => {
   Node.(
     button(
-      ~attr=
-        Attr.many([
-          Attr.on_click(_ => {
-            perform(action);
-            Ui_effect.Ignore;
-          }),
-        ]),
+      ~attrs=[
+        Attr.on_click(_ => {
+          perform(action);
+          Ui_effect.Ignore;
+        }),
+      ],
       [text(caption)],
     )
   );

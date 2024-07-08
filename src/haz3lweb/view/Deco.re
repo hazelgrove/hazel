@@ -20,14 +20,28 @@ module Deco =
   let tile = id => Id.Map.find(id, M.tiles);
 
   let caret = (z: Zipper.t): list(Node.t) => {
-    let origin = Zipper.caret_point(M.map, z);
-    let shape = Zipper.caret_direction(z);
-    let side =
-      switch (Indicated.piece(z)) {
-      | Some((_, side, _)) => side
-      | _ => Right
+    //TODO(andrew): document
+    let shape =
+      switch (Indicated.index(z)) {
+      | Some(id) =>
+        switch (Id.Map.find_opt(id, M.syntax_map)) {
+        | Some(syntax) => ProjectorsView.shape(z, syntax)
+        | None => None
+        }
+      | None => None
       };
-    [CaretDec.view(~font_metrics, ~profile={side, origin, shape})];
+    switch (shape) {
+    | Some(Block(_)) => []
+    | _ =>
+      let origin = Zipper.caret_point(M.map, z);
+      let shape = Zipper.caret_direction(z);
+      let side =
+        switch (Indicated.piece(z)) {
+        | Some((_, side, _)) => side
+        | _ => Right
+        };
+      [CaretDec.view(~font_metrics, ~profile={side, origin, shape})];
+    };
   };
 
   type shard_data = (Measured.measurement, Nibs.shapes);
@@ -76,11 +90,15 @@ module Deco =
     let tile_shards =
       Measured.find_shards(~msg="sel_of_tile", t, M.map)
       |> List.filter(((i, _)) => List.mem(i, t.shards))
-      |> List.map(((index, measurement)) =>
-           [
-             Some(sel_shard_svg(~start_shape, ~index, measurement, Tile(t))),
-           ]
-         );
+      |> List.map(((index, m)) => {
+           let token = List.nth(t.label, index);
+           switch (StringUtil.num_linebreaks(token)) {
+           | 0 => [Some(sel_shard_svg(~start_shape, ~index, m, Tile(t)))]
+           /* No deco for multi-line tokens e.g. projector placeholders,
+            * but need to leave some blank lines */
+           | num_lb => List.init(num_lb, _ => None)
+           };
+         });
     let shape_at = index => snd(Mold.nibs(~index, t.mold)).shape;
     let children_shards =
       t.children |> List.mapi(index => sel_of_segment(shape_at(index)));
@@ -300,29 +318,22 @@ module Deco =
   let err_holes = () =>
     List.map(term_highlight(~clss=["err-hole"]), M.error_ids);
 
-  let indication_deco = (~inject, z: Zipper.t) =>
-    switch (Indicated.index(z)) {
-    | Some(id) =>
-      switch (
-        ProjectorsView.indication_view(
-          id,
-          z.projectors,
-          ~inject,
-          ~syntax_map=M.syntax_map,
-          ~measured=M.map,
-          ~font_metrics,
-        )
-      ) {
-      | Some(v) => [v]
-      | None => indicated_piece_deco(z)
-      }
-    | _ => indicated_piece_deco(z)
+  let accent = (z: Zipper.t) =>
+    switch (Indicated.piece(z)) {
+    | Some((p, d, _)) => Some((Piece.id(p), ZipperBase.Indicated(d)))
+    | None => None
     };
 
-  let active = (~inject, zipper, sel_seg) =>
+  let indication_deco = (z: Zipper.t) =>
+    switch (ProjectorsView.indicated_proj_z(z)) {
+    | Some(_) => []
+    | None => indicated_piece_deco(z)
+    };
+
+  let active = (zipper, sel_seg) =>
     List.concat([
       caret(zipper),
-      indication_deco(~inject, zipper),
+      indication_deco(zipper),
       selected_pieces(zipper),
       backpack(zipper),
       targets'(zipper.backpack, sel_seg),
@@ -337,12 +348,10 @@ module Deco =
         ~inject,
         ~font_metrics,
         ~measured=M.map,
+        ~accent=accent(zipper),
       ),
     ]);
 
   let all = (~inject, zipper, sel_seg) =>
-    List.concat([
-      active(~inject, zipper, sel_seg),
-      always(~inject, zipper),
-    ]);
+    List.concat([active(zipper, sel_seg), always(~inject, zipper)]);
 };

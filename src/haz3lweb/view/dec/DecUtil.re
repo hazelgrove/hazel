@@ -83,16 +83,12 @@ let code_svg_sized =
   let d = absolute ? d : {left: 0, top: 0, width: d.width, height: d.height};
   create_svg(
     "svg",
-    ~attr=
-      Attr.many([
-        Attr.classes(base_cls),
-        Attr.create("style", pos_str(~d, ~fudge, font_metrics)),
-        Attr.create(
-          "viewBox",
-          Printf.sprintf("0 0 %d %d", d.width, d.height),
-        ),
-        Attr.create("preserveAspectRatio", "none"),
-      ]),
+    ~attrs=[
+      Attr.classes(base_cls),
+      Attr.create("style", pos_str(~d, ~fudge, font_metrics)),
+      Attr.create("viewBox", Printf.sprintf("0 0 %d %d", d.width, d.height)),
+      Attr.create("preserveAspectRatio", "none"),
+    ],
     [SvgUtil.Path.view(~attrs=[Attr.classes(path_cls)], paths)],
   );
 };
@@ -165,35 +161,33 @@ let code_svg =
   let scale = 0.5;
   create_svg(
     "svg",
-    ~attr=
-      Attr.many(
-        (id == "" ? [] : [Attr.id(id)])
-        @ [
-          Attr.classes(base_cls),
-          abs_pos
-            ? abs_position(
-                ~font_metrics,
-                ~left_fudge,
-                ~top_fudge,
-                ~width_fudge,
-                ~height_fudge,
-                ~scale,
-                origin,
-              )
-            : position(
-                ~font_metrics,
-                ~left_fudge,
-                ~top_fudge,
-                ~width_fudge,
-                ~height_fudge,
-                ~scale,
-                origin,
-              ),
-          Attr.create("viewBox", Printf.sprintf("0 0 %f %f", scale, scale)),
-          Attr.create("preserveAspectRatio", "none"),
-        ]
-        @ attrs,
-      ),
+    ~attrs=
+      (id == "" ? [] : [Attr.id(id)])
+      @ [
+        Attr.classes(base_cls),
+        abs_pos
+          ? abs_position(
+              ~font_metrics,
+              ~left_fudge,
+              ~top_fudge,
+              ~width_fudge,
+              ~height_fudge,
+              ~scale,
+              origin,
+            )
+          : position(
+              ~font_metrics,
+              ~left_fudge,
+              ~top_fudge,
+              ~width_fudge,
+              ~height_fudge,
+              ~scale,
+              origin,
+            ),
+        Attr.create("viewBox", Printf.sprintf("0 0 %f %f", scale, scale)),
+        Attr.create("preserveAspectRatio", "none"),
+      ]
+      @ attrs,
     [SvgUtil.Path.view(~attrs=[Attr.classes(path_cls)], paths)],
   );
 };
@@ -202,17 +196,16 @@ let raised_shadow_filter = (sort: Haz3lcore.Sort.t) => {
   let s = Haz3lcore.Sort.to_string(sort);
   create_svg(
     "filter",
-    ~attr=Attr.id("raised-drop-shadow-" ++ s),
+    ~attrs=[Attr.id("raised-drop-shadow-" ++ s)],
     [
       create_svg(
         "feDropShadow",
-        ~attr=
-          Attr.many([
-            Attr.classes(["tile-drop-shadow"]),
-            Attr.create("dx", raised_shadow_dx),
-            Attr.create("dy", raised_shadow_dy),
-            Attr.create("stdDeviation", "0"),
-          ]),
+        ~attrs=[
+          Attr.classes(["tile-drop-shadow"]),
+          Attr.create("dx", raised_shadow_dx),
+          Attr.create("dy", raised_shadow_dy),
+          Attr.create("stdDeviation", "0"),
+        ],
         [],
       ),
     ],
@@ -223,17 +216,16 @@ let shadow_filter = (sort: Haz3lcore.Sort.t) => {
   let s = Haz3lcore.Sort.to_string(sort);
   create_svg(
     "filter",
-    ~attr=Attr.id("drop-shadow-" ++ s),
+    ~attrs=[Attr.id("drop-shadow-" ++ s)],
     [
       create_svg(
         "feDropShadow",
-        ~attr=
-          Attr.many([
-            Attr.classes(["tile-drop-shadow"]),
-            Attr.create("dx", shadow_dx),
-            Attr.create("dy", shadow_dy),
-            Attr.create("stdDeviation", "0"),
-          ]),
+        ~attrs=[
+          Attr.classes(["tile-drop-shadow"]),
+          Attr.create("dx", shadow_dx),
+          Attr.create("dy", shadow_dy),
+          Attr.create("stdDeviation", "0"),
+        ],
         [],
       ),
     ],

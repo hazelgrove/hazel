@@ -1,5 +1,6 @@
 open Util;
 open Sexplib.Std;
+open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
 open Zipper;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -47,7 +48,9 @@ type select =
 type project =
   | UpdateSyntax(Id.t, Piece.t => Piece.t)
   | UpdateModel(Id.t, Projector.t => Projector.t)
-  | ToggleIndicated(Projector.kind)
+  | SetIndicated(ZipperBase.kind)
+  | ToggleIndicated(ZipperBase.kind)
+  | SetKeyDispatch(Id.t, bool)
   | Remove(Id.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]

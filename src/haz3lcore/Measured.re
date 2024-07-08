@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -375,14 +376,34 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
             let map = map |> add_g(g, {origin, last});
             (contained_indent, last, map);
           | Tile(t) =>
-            let token = List.nth(t.label);
             let add_shard = (origin, shard, map) => {
+              let token = List.nth(t.label, shard);
+              // Adjustment for multi-line tokens e.g. projector placeholders
+              let num_lb = StringUtil.num_linebreaks(token);
               let last =
-                Point.{
-                  ...origin,
-                  col: origin.col + String.length(token(shard)),
-                };
+                num_lb == 0
+                  ? Point.{
+                      col: origin.col + String.length(token),
+                      row: origin.row,
+                    }
+                  : Point.{
+                      col: origin.col + String.length(token) - num_lb,
+                      row: origin.row + num_lb,
+                    };
               let map = map |> add_s(t.id, shard, {origin, last});
+              let row_indent = container_indent + contained_indent;
+              let rec add_n_rows = (n, map) =>
+                switch (n) {
+                | 0 => map
+                | _ =>
+                  map
+                  |> add_n_rows(n - 1)
+                  |> add_row(
+                       origin.row + n - 1,
+                       {indent: row_indent, max_col: origin.col},
+                     )
+                };
+              let map = num_lb == 0 ? map : map |> add_n_rows(num_lb);
               (last, map);
             };
             let (last, map) =

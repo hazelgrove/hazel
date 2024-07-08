@@ -2,6 +2,7 @@ open Zipper;
 open Util;
 open OptUtil.Syntax;
 open Sexplib.Std;
+open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type movability =
@@ -79,7 +80,8 @@ module Make = (M: Editor.Meta.S) => {
        (select an open parens to left of a multichar token and press left) */
     | _ when z.selection.content != [] => pop_move(d, z)
     /* Need this case to avoid moving sub-caret onto projectors: */
-    | _ when Projector.Move.go(d, z) != None => Zipper.move(d, z)
+    | (_, Outer, _) when Projector.Move.go(d, z) != None =>
+      Zipper.move(d, z)
     | (Left, Outer, (CanEnter(dlm, c_max), _)) =>
       inner_end(d, dlm, c_max, z)
     | (Left, Outer, _) => Zipper.move(d, z)
@@ -124,7 +126,15 @@ module Make = (M: Editor.Meta.S) => {
         Measured.Point.dcomp(d, curr_p.row, goal.row),
       ) {
       | (Exact, Exact) => curr
-      | (_, Over) => prev
+      //TODO(andrew): document
+      //TODO(andrew): pick new goal to get right col
+      //| (_, Over) => prev
+      | (_, Over) =>
+        let prev_p = caret_point(prev);
+        switch (Measured.Point.dcomp(d, prev_p.row, goal.row)) {
+        | Under => curr
+        | _ => prev
+        };
       | (_, Under)
       | (Under, Exact) =>
         switch (f(d, curr)) {
