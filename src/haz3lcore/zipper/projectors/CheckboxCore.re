@@ -1,6 +1,6 @@
 open Sexplib.Std;
 open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
-open ZipperBase;
+open ProjectorBase;
 open Virtual_dom.Vdom;
 
 let of_mono = (syntax: Piece.t): option(string) =>
@@ -43,7 +43,7 @@ let keymap = (_, key: Key.t): option(ProjectorsUpdate.t) =>
   | _ => None
   };
 
-let mk = (model, ~syntax): projector_core =>
+let mk = (model, ~syntax): core =>
   (module
    {
      [@deriving (show({with_path: false}), sexp, yojson)]

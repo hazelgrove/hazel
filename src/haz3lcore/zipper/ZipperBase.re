@@ -1,102 +1,5 @@
 open Sexplib.Std;
 open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
-open Virtual_dom.Vdom;
-
-/* Projector model types */
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type fold = unit;
-[@deriving (show({with_path: false}), sexp, yojson)]
-type infer = {expected_ty: option(Typ.t)};
-[@deriving (show({with_path: false}), sexp, yojson)]
-type checkbox = unit;
-[@deriving (show({with_path: false}), sexp, yojson)]
-type slider = {value: int};
-[@deriving (show({with_path: false}), sexp, yojson)]
-type textarea = {inside: bool};
-
-/* Projector action types */
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type fold_action = unit;
-[@deriving (show({with_path: false}), sexp, yojson)]
-type infer_action = unit;
-[@deriving (show({with_path: false}), sexp, yojson)]
-type checkbox_action = unit;
-[@deriving (show({with_path: false}), sexp, yojson)]
-type slider_action = unit;
-[@deriving (show({with_path: false}), sexp, yojson)]
-type textarea_action =
-  | SetInside(bool);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type projector =
-  | Fold(fold)
-  | Infer(infer)
-  | Checkbox(checkbox)
-  | Slider(slider)
-  | TextArea(textarea);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-module ProjectorMap = {
-  open Id.Map;
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Id.Map.t(projector);
-  let empty = empty;
-  let find = find_opt;
-  let mem = mem;
-  let mapi = mapi;
-  let update = update;
-};
-
-/* Externally calculated info to be fed to projectors */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type projector_info = {info: option(Info.t)};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type shape =
-  | Inline(int)
-  | Block(Measured.Point.t);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type accent =
-  | Indicated(Util.Direction.t)
-  | Selected;
-
-let cls = (indicated: option(accent)) =>
-  switch (indicated) {
-  | Some(Indicated(Left)) => ["indicated", "left"]
-  | Some(Indicated(Right)) => ["indicated", "right"]
-  | Some(Selected) => ["selected"]
-  | None => []
-  };
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type kind =
-  | Fold
-  | Infer
-  | Checkbox
-  | Slider
-  | TextArea;
-
-module type ProjectorCore = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type model;
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type action;
-  let projector: projector;
-  let model: model;
-  let placeholder: unit => shape;
-  let can_project: Piece.t => bool;
-  let auto_update: projector_info => projector;
-  let update: string => projector;
-  let view:
-    (~inject: ProjectorsUpdate.t => Ui_effect.t(unit), option(accent)) =>
-    Node.t;
-  let keymap: (Util.Direction.t, Key.t) => option(ProjectorsUpdate.t);
-};
-
-type projector_core = (module ProjectorCore);
 
 module Caret = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -124,7 +27,7 @@ type t = {
   relatives: Relatives.t,
   caret: Caret.t,
   [@opaque]
-  projectors: ProjectorMap.t,
+  projectors: ProjectorBase.Map.t,
 };
 
 let update_relatives = (f: Relatives.t => Relatives.t, z: t): t => {

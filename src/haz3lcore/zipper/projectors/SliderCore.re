@@ -1,4 +1,5 @@
-open ZipperBase;
+open Sexplib.Std;
+open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
 open Virtual_dom.Vdom;
 
 let of_mono = (syntax: Piece.t): option(string) =>
@@ -39,19 +40,19 @@ let keymap = (_, key: Key.t): option(ProjectorsUpdate.t) =>
   | _ => None
   };
 
-let mk = (model, ~syntax): projector_core =>
+let mk = (model, ~syntax): ProjectorBase.core =>
   (module
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
-     type model = ZipperBase.slider;
+     type model = ProjectorBase.slider;
      [@deriving (show({with_path: false}), sexp, yojson)]
-     type action = ZipperBase.slider_action;
+     type action = unit;
      let model = model;
-     let projector: projector = Slider(model);
+     let projector: ProjectorBase.projector = Slider(model);
      let can_project = p => state_of(p) != None;
-     let placeholder = () => Inline(10);
-     let auto_update = _: projector => Slider(model);
-     let update = _: projector => Slider(model);
+     let placeholder = (): ProjectorBase.shape => Inline(10);
+     let auto_update = _: ProjectorBase.projector => Slider(model);
+     let update = _: ProjectorBase.projector => Slider(model);
      let view = view(get(syntax));
      let keymap = keymap;
    });

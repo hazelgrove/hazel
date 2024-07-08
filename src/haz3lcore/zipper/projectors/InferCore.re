@@ -1,4 +1,6 @@
-open ZipperBase;
+open ProjectorBase;
+open Sexplib.Std;
+open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
 open Virtual_dom.Vdom;
 open Node;
 
@@ -17,13 +19,13 @@ let expected_ty = (info: option(Info.t)) =>
 let display = expected_ty =>
   "⋱ ⇐ " ++ (expected_ty |> display_ty |> Typ.pretty_print);
 
-let mk = (model: ZipperBase.infer, ~syntax as _): projector_core =>
+let mk = (model: infer, ~syntax as _): core =>
   (module
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
      type model = infer;
      [@deriving (show({with_path: false}), sexp, yojson)]
-     type action = infer_action;
+     type action = unit;
      let model = model;
      let projector: projector = Infer(model);
 

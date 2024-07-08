@@ -1,17 +1,10 @@
 open Util;
-open ZipperBase;
-// open Sexplib.Std;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-module Map = ProjectorMap;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type info = ZipperBase.projector_info;
+include ProjectorBase;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type syntax = Piece.t;
 
-let to_module = (syntax, p: projector): projector_core =>
+let to_module = (syntax, p: projector): core =>
   switch ((p: projector)) {
   | Fold(model) => FoldCore.mk(model, ~syntax)
   | Infer(model) => InferCore.mk(model, ~syntax)
@@ -20,7 +13,7 @@ let to_module = (syntax, p: projector): projector_core =>
   | TextArea(model) => TextAreaCore.mk(model, ~syntax)
   };
 
-let init = (f: kind, syntax): projector_core =>
+let init = (f: kind, syntax): core =>
   switch (f) {
   | Fold => FoldCore.mk((), ~syntax)
   | Infer => InferCore.mk({expected_ty: None}, ~syntax)
@@ -110,8 +103,8 @@ module Select = {
       ({relatives: {siblings: (ls, rs), _}, _} as z: ZipperBase.t) => {
     let (ls, content) = Segment.push_right((ls, z.selection.content));
     z
-    |> put_selection_content(content)
-    |> put_siblings((ls, rs))
+    |> ZipperBase.put_selection_content(content)
+    |> ZipperBase.put_siblings((ls, rs))
     |> Option.some;
   };
 
@@ -119,8 +112,8 @@ module Select = {
       ({relatives: {siblings: (ls, rs), _}, _} as z: ZipperBase.t) => {
     let (content, rs) = Segment.push_left((z.selection.content, rs));
     z
-    |> put_selection_content(content)
-    |> put_siblings((ls, rs))
+    |> ZipperBase.put_selection_content(content)
+    |> ZipperBase.put_siblings((ls, rs))
     |> Option.some;
   };
 
@@ -137,8 +130,8 @@ module Select = {
       ({relatives: {siblings: (ls, rs), _}, _} as z: ZipperBase.t) => {
     let (ls, content) = Segment.push_left((ls, z.selection.content));
     z
-    |> put_selection_content(content)
-    |> put_siblings((ls, rs))
+    |> ZipperBase.put_selection_content(content)
+    |> ZipperBase.put_siblings((ls, rs))
     |> Option.some;
   };
 
@@ -146,8 +139,8 @@ module Select = {
       ({relatives: {siblings: (ls, rs), _}, _} as z: ZipperBase.t) => {
     let (content, rs) = Segment.push_right((z.selection.content, rs));
     z
-    |> put_selection_content(content)
-    |> put_siblings((ls, rs))
+    |> ZipperBase.put_selection_content(content)
+    |> ZipperBase.put_siblings((ls, rs))
     |> Option.some;
   };
 
@@ -170,9 +163,13 @@ module Move = {
   let go = (d: Direction.t, z: ZipperBase.t): option(ZipperBase.t) =>
     switch (d, neighbor_is(z.projectors, z.relatives.siblings)) {
     | (Left, (Some(_), _)) =>
-      Some(put_siblings(Segment.push_right(z.relatives.siblings), z))
+      Some(
+        ZipperBase.put_siblings(Segment.push_right(z.relatives.siblings), z),
+      )
     | (Right, (_, Some(_))) =>
-      Some(put_siblings(Segment.push_left(z.relatives.siblings), z))
+      Some(
+        ZipperBase.put_siblings(Segment.push_left(z.relatives.siblings), z),
+      )
     | _ => None
     };
 };
@@ -280,7 +277,7 @@ module Syntax = {
   let update_left_sib = (f: syntax => syntax, z: ZipperBase.t) => {
     let (l, r) = z.relatives.siblings;
     let sibs = (List.map(f, l), List.map(f, r));
-    z |> put_siblings(sibs);
+    z |> ZipperBase.put_siblings(sibs);
   };
 
   let update_right_sib = (f: syntax => syntax, z: ZipperBase.t) => {
@@ -289,7 +286,7 @@ module Syntax = {
       | (l, [hd, ...tl]) => (l, [f(hd), ...tl])
       | sibs => sibs
       };
-    z |> put_siblings(sibs);
+    z |> ZipperBase.put_siblings(sibs);
   };
 
   let update = (f: syntax => syntax, id: Id.t, z: ZipperBase.t): ZipperBase.t => {

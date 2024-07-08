@@ -43,7 +43,7 @@ let wrap = //TODO(andrew): cleanup params
       ~id as _,
       ~font_metrics: FontMetrics.t,
       ~measurement: Measured.measurement,
-      ~accent: option(ZipperBase.accent),
+      ~accent: option(Projector.accent),
       ~syntax,
       p: Projector.t,
       view: Node.t,
@@ -52,7 +52,7 @@ let wrap = //TODO(andrew): cleanup params
     ~attrs=[
       // JsUtil.stop_mousedown_propagation,
       Attr.classes(
-        ["projector", Projector.name(p)] @ ZipperBase.cls(accent),
+        ["projector", Projector.name(p)] @ Projector.cls(accent),
       ),
       DecUtil.abs_style(measurement, ~font_metrics),
     ],
@@ -84,7 +84,7 @@ let view =
       ~measured: Measured.t,
       ~inject: UpdateAction.t => Ui_effect.t(unit),
       ~font_metrics,
-      ~accent: option(ZipperBase.accent),
+      ~accent: option(Projector.accent),
     )
     : option(Node.t) => {
   let* p = Projector.Map.find(id, ps);
@@ -167,17 +167,6 @@ let id = (editor: Editor.t) => {
   };
 };
 
-let ci =
-    (editor: Editor.t, ~inject as _: UpdateAction.t => Ui_effect.t(unit)) => {
-  let+ (_id, p) = indicated_proj_ed(editor);
-  //let+ syntax = Id.Map.find_opt(id, editor.state.meta.projected.syntax_map);
-  //let (module P) = to_module(syntax, p);
-  div(
-    ~attrs=[Attr.classes(["projector-ci"])],
-    [text(String.sub(Projector.name(p), 0, 1))],
-  );
-};
-
 let key_handler =
     (
       editor: Editor.t,
@@ -201,16 +190,16 @@ let option_view = (name, n) =>
     [text(n)],
   );
 
-let set = (k: ZipperBase.kind) =>
+let set = (k: Projector.kind) =>
   Update.PerformAction(Project(SetIndicated(k)));
 
 let remove = (id: Id.t) => Update.PerformAction(Project(Remove(id)));
 
-let applicable_projectors = (ci: Info.t): list(ZipperBase.kind) =>
+let applicable_projectors = (ci: Info.t): list(Projector.kind) =>
   (
     switch (Info.cls_of(ci)) {
     | Exp(Bool)
-    | Pat(Bool) => [ZipperBase.Checkbox]
+    | Pat(Bool) => [Projector.Checkbox]
     | Exp(Int)
     | Pat(Int) => [Slider]
     | Exp(String)
@@ -218,7 +207,7 @@ let applicable_projectors = (ci: Info.t): list(ZipperBase.kind) =>
     | _ => []
     }
   )
-  @ [ZipperBase.Fold]
+  @ [Projector.Fold]
   @ (
     switch (ci) {
     | InfoExp(_)
@@ -274,7 +263,7 @@ let panel = (~inject, editor: Editor.t, ci: Info.t) => {
           ),
         ],
         applicable_projectors(ci)
-        |> List.map((k: ZipperBase.kind) => Projector.name_(k))
+        |> List.map((k: Projector.kind) => Projector.name_(k))
         |> List.map(currently_selected(editor)),
       ),
     ],

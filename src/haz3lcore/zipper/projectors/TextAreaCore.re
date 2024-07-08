@@ -1,16 +1,20 @@
-open ZipperBase;
+open Sexplib.Std;
+open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
 open Virtual_dom.Vdom;
 
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //TODO(andrew): unhardcode element !!!!!!!!!!
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type action_ =
+  | SetInside(bool);
+
 let selector = ".projector.text textarea";
 
-let serialize = a =>
-  a |> ZipperBase.sexp_of_textarea_action |> Sexplib.Sexp.to_string;
+let serialize = a => a |> sexp_of_action_ |> Sexplib.Sexp.to_string;
 
-let deserialize = a =>
-  a |> Sexplib.Sexp.of_string |> ZipperBase.textarea_action_of_sexp;
+let deserialize = a => a |> Sexplib.Sexp.of_string |> action__of_sexp;
 
 /* Function to escape linebreaks */
 let escape_linebreaks = (str: string): string => {
@@ -69,14 +73,14 @@ let view =
     (
       ~inject,
       ~selector,
-      model: ZipperBase.textarea,
+      model: ProjectorBase.textarea,
       text: string,
-      indicated: option(ZipperBase.accent),
+      indicated: option(ProjectorBase.accent),
     ) =>
   Node.div(
     ~attrs=[
       Attr.classes(
-        ["cols"] @ (model.inside ? [] : ZipperBase.cls(indicated)),
+        ["cols"] @ (model.inside ? [] : ProjectorBase.cls(indicated)),
       ),
     ],
     n_of(1 + Util.StringUtil.num_linebreaks(text))
@@ -86,7 +90,7 @@ let view =
 let keymap =
     (
       ~selector,
-      model: ZipperBase.textarea,
+      model: ProjectorBase.textarea,
       direction: Util.Direction.t,
       key: Key.t,
     )
@@ -121,15 +125,15 @@ let keymap =
   };
 };
 
-let mk = (~syntax, model): projector_core =>
+let mk = (~syntax, model): ProjectorBase.core =>
   (module
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
-     type model = ZipperBase.textarea;
+     type model = ProjectorBase.textarea;
      [@deriving (show({with_path: false}), sexp, yojson)]
-     type action = ZipperBase.textarea_action;
+     type action = action_;
      let model = model;
-     let projector: projector = TextArea(model);
+     let projector: ProjectorBase.projector = TextArea(model);
      let can_project = _ => true;
      //TODO(andrew): cleanup
      let row = Util.StringUtil.num_linebreaks(get(syntax));
@@ -144,9 +148,9 @@ let mk = (~syntax, model): projector_core =>
              Re.Str.split(Re.Str.regexp("\n"), get(syntax)),
            ),
          );
-     let placeholder = () => Block({row, col});
-     let auto_update = _: projector => TextArea(model);
-     let update = (a: string): projector =>
+     let placeholder = (): ProjectorBase.shape => Block({row, col});
+     let auto_update = _: ProjectorBase.projector => TextArea(model);
+     let update = (a: string): ProjectorBase.projector =>
        switch (deserialize(a)) {
        | SetInside(b) => TextArea({inside: b})
        };
