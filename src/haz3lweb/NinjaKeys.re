@@ -15,7 +15,7 @@ let from_shortcut =
      val id = shortcut.label;
      val title = shortcut.label;
      val mdIcon = Js.Opt.option(shortcut.mdIcon);
-     val hotkey = Js.Opt.return(shortcut.hotkey);
+     val hotkey = Js.Opt.option(shortcut.hotkey);
      val handler =
        () => {
          let foo = shortcut.update_action;
@@ -29,62 +29,8 @@ let from_shortcut =
 };
 
 let options = (schedule_action: UpdateAction.t => unit) => {
-  let shortcuts =
-    Array.of_list(
-      List.map(from_shortcut(schedule_action), Keyboard.shortcuts),
-    );
-  Array.append(
-    shortcuts,
-    [|
-      [%js
-        {
-          val id = "Proceed To Next Hole";
-          val title = "Proceed To Next Hole";
-          val mdIcon = Js.Opt.return("arrow_forward");
-          val hotkey = Js.Opt.empty;
-          val handler =
-            () => {
-              schedule_action(PerformAction(MoveToNextHole(Right)));
-            }
-        }
-      ],
-      [%js
-        {
-          val id = "Undo";
-          val title = "Undo";
-          val mdIcon = Js.Opt.return("undo");
-          val hotkey = Js.Opt.empty;
-          val handler =
-            () => {
-              schedule_action(Undo);
-            }
-        }
-      ],
-      [%js
-        {
-          val id = "Redo";
-          val title = "Redo";
-          val mdIcon = Js.Opt.return("redo");
-          val hotkey = Js.Opt.empty;
-          val handler =
-            () => {
-              schedule_action(Redo);
-            }
-        }
-      ],
-      [%js
-        {
-          val id = "Reparse Current Editor";
-          val title = "Reparse Current Editor";
-          val mdIcon = Js.Opt.return("refresh");
-          val hotkey = Js.Opt.empty;
-          val handler =
-            () => {
-              schedule_action(ReparseCurrentEditor);
-            }
-        }
-      ],
-    |],
+  Array.of_list(
+    List.map(from_shortcut(schedule_action), Keyboard.shortcuts),
   );
 };
 
