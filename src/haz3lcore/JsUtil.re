@@ -1,4 +1,6 @@
 open Js_of_ocaml;
+open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
+
 open Virtual_dom.Vdom;
 open Sexplib.Std;
 
@@ -25,8 +27,7 @@ let get_elem_by_selector = selector => {
 };
 
 let date_now = () => {
-  %js
-  new Js.date_now;
+  [%js new Js.date_now];
 };
 
 let timestamp = () => date_now()##valueOf;
@@ -114,7 +115,7 @@ let clipboard_shim_id = "clipboard-shim";
 let focus_clipboard_shim = () => get_elem_by_id(clipboard_shim_id)##focus;
 
 let clipboard_shim = {
-  Node.textarea(~attr=Attr.many([Attr.id(clipboard_shim_id)]), []);
+  Node.textarea(~attrs=[Attr.id(clipboard_shim_id)], []);
 };
 
 let copy = (str: string) => {

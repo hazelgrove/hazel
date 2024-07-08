@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
 open ZipperBase;
 open Virtual_dom.Vdom;
 
@@ -26,16 +27,14 @@ let toggle = (piece: Piece.t) => put(!get(piece));
 
 let view = (~inject: ProjectorsUpdate.t => Ui_effect.t(unit), ~syntax, _) =>
   Node.input(
-    ~attr=
-      Attr.many(
-        [
-          Attr.create("type", "checkbox"),
-          Attr.on_input((_, _) => inject(UpdateSyntax(toggle))),
-          //JsUtil.stop_mousedown_propagation,
-        ]
-        @ (get(syntax) ? [Attr.checked] : []),
-      ),
-    [],
+    ~attrs=
+      [
+        Attr.create("type", "checkbox"),
+        Attr.on_input((_, _) => inject(UpdateSyntax(toggle))),
+        //JsUtil.stop_mousedown_propagation,
+      ]
+      @ (get(syntax) ? [Attr.checked] : []),
+    (),
   );
 
 let keymap = (_, key: Key.t): option(ProjectorsUpdate.t) =>

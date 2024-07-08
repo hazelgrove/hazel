@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
 open ZipperBase;
 open Virtual_dom.Vdom;
 open Node;
@@ -18,7 +19,7 @@ let mk = (_model: ZipperBase.fold, ~syntax as _): projector_core =>
      let update = (_action): ZipperBase.projector => Fold();
      let view = (~inject, _) =>
        div(
-         ~attr=Attr.on_double_click(_ => inject(ProjectorsUpdate.Remove)),
+         ~attrs=[Attr.on_double_click(_ => inject(ProjectorsUpdate.Remove))],
          [text("⋱")],
        );
      let keymap = (_, _): option(ProjectorsUpdate.t) => None;

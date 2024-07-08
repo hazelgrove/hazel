@@ -44,7 +44,7 @@ let mk = (model: ZipperBase.infer, ~syntax as _): projector_core =>
 
      let view = (~inject, _) =>
        div(
-         ~attr=Attr.on_double_click(_ => inject(ProjectorsUpdate.Remove)),
+         ~attrs=[Attr.on_double_click(_ => inject(ProjectorsUpdate.Remove))],
          [text(display(model.expected_ty))],
        );
 

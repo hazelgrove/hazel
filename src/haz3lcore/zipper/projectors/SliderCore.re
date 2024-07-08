@@ -23,15 +23,14 @@ let get = (piece: Piece.t): int =>
 
 let view = (~inject: ProjectorsUpdate.t => Ui_effect.t(unit), value: int, _) =>
   Node.input(
-    ~attr=
-      Attr.many([
-        Attr.create("type", "range"),
-        Attr.create("value", string_of_int(value)),
-        Attr.on_input((_evt, new_val) =>
-          inject(UpdateSyntax(_ => put(new_val)))
-        ),
-      ]),
-    [],
+    ~attrs=[
+      Attr.create("type", "range"),
+      Attr.create("value", string_of_int(value)),
+      Attr.on_input((_evt, new_val) =>
+        inject(UpdateSyntax(_ => put(new_val)))
+      ),
+    ],
+    (),
   );
 
 let keymap = (_, key: Key.t): option(ProjectorsUpdate.t) =>
