@@ -1,6 +1,6 @@
 open Util;
 open ZipperBase;
-open Sexplib.Std;
+// open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 module Map = ProjectorMap;
@@ -8,25 +8,29 @@ module Map = ProjectorMap;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type info = ZipperBase.projector_info;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type syntax = Piece.t;
+
 let to_module = (syntax, p: projector): projector_core =>
   switch ((p: projector)) {
-  | Fold(model) => FoldCore.mk(model)
-  | Infer(model) => InferCore.mk(model)
-  | Checkbox(model) => CheckboxCore.mk(model)
-  | Slider(model) => SliderCore.mk(model)
-  | TextArea(model) => TextAreaCore.mk(syntax, model)
+  | Fold(model) => FoldCore.mk(model, ~syntax)
+  | Infer(model) => InferCore.mk(model, ~syntax)
+  | Checkbox(model) => CheckboxCore.mk(model, ~syntax)
+  | Slider(model) => SliderCore.mk(model, ~syntax)
+  | TextArea(model) => TextAreaCore.mk(model, ~syntax)
+  };
+
+let init = (f: kind, syntax): projector_core =>
+  switch (f) {
+  | Fold => FoldCore.mk((), ~syntax)
+  | Infer => InferCore.mk({expected_ty: None}, ~syntax)
+  | Checkbox => CheckboxCore.mk((), ~syntax)
+  | Slider => SliderCore.mk({value: 10}, ~syntax)
+  | TextArea => TextAreaCore.mk({inside: false}, ~syntax)
   };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = projector;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type kind =
-  | Fold
-  | Infer
-  | Checkbox
-  | Slider
-  | TextArea;
 
 let name_ = (p: kind): string =>
   switch (p) {
@@ -46,19 +50,6 @@ let of_name = (p: string): kind =>
   | "text" => TextArea
   | _ => failwith("Unknown projector kind")
   };
-
-/* The kind of syntax data to which projection can apply */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type syntax = Piece.t;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type action('action) =
-  | Remove
-  | FocusInternal(string)
-  | Default // Defer input to focal DOM element
-  | Escape(string, Util.Direction.t)
-  | UpdateSyntax(syntax => syntax)
-  | UpdateModel('action);
 
 let kind = (p: t): kind =>
   switch (p) {
@@ -94,15 +85,6 @@ let placeholder = (p: t, syntax: syntax): syntax =>
 /* Currently projection is limited to convex pieces */
 let minimum_projection_condition = (syntax: syntax): bool =>
   Piece.is_convex(syntax);
-
-let init = (f: kind, syntax): projector_core =>
-  switch (f) {
-  | Fold => FoldCore.mk()
-  | Infer => InferCore.mk({expected_ty: None})
-  | Checkbox => CheckboxCore.mk()
-  | Slider => SliderCore.mk({value: 10})
-  | TextArea => TextAreaCore.mk(syntax, {inside: false})
-  };
 
 let create =
     (k: kind, syntax: syntax, id: Id.t, info_map: Statics.Map.t): option(t) => {

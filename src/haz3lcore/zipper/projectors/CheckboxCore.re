@@ -1,5 +1,7 @@
 open Sexplib.Std;
+open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
 open ZipperBase;
+open Virtual_dom.Vdom;
 
 let of_mono = (syntax: Piece.t): option(string) =>
   switch (syntax) {
@@ -23,7 +25,25 @@ let put = (bool: bool): Piece.t => bool |> string_of_bool |> mk_mono(Exp);
 
 let toggle = (piece: Piece.t) => put(!get(piece));
 
-let mk = (model): projector_core =>
+let view = (~inject: ProjectorsUpdate.t => Ui_effect.t(unit), ~syntax, _) =>
+  Node.input(
+    ~attrs=
+      [
+        Attr.create("type", "checkbox"),
+        Attr.on_input((_, _) => inject(UpdateSyntax(toggle))),
+        //JsUtil.stop_mousedown_propagation,
+      ]
+      @ (get(syntax) ? [Attr.checked] : []),
+    (),
+  );
+
+let keymap = (_, key: Key.t): option(ProjectorsUpdate.t) =>
+  switch (key) {
+  | {key: D("Escape"), _} => Some(Remove)
+  | _ => None
+  };
+
+let mk = (model, ~syntax): projector_core =>
   (module
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
@@ -31,9 +51,11 @@ let mk = (model): projector_core =>
      [@deriving (show({with_path: false}), sexp, yojson)]
      type action = unit;
      let model = model;
-     let projector = Checkbox(model);
+     let projector: projector = Checkbox(model);
      let can_project = p => state_of(p) != None;
      let placeholder = () => Inline(2);
      let auto_update = _: projector => Checkbox();
-     let update = _action => Checkbox();
+     let update = (_action): projector => Checkbox();
+     let view = view(~syntax);
+     let keymap = keymap;
    });
