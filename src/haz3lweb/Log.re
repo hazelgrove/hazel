@@ -1,6 +1,7 @@
 /* Logging system for actions. Persists log via IndexedDB */
 
 open Sexplib.Std;
+open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
 
 let is_action_logged: UpdateAction.t => bool =
   fun
