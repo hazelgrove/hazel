@@ -1,4 +1,6 @@
 open Js_of_ocaml;
+open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
+
 open Virtual_dom.Vdom;
 open Sexplib.Std;
 
@@ -113,7 +115,7 @@ let clipboard_shim_id = "clipboard-shim";
 let focus_clipboard_shim = () => get_elem_by_id(clipboard_shim_id)##focus;
 
 let clipboard_shim = {
-  Node.textarea(~attr=Attr.many([Attr.id(clipboard_shim_id)]), []);
+  Node.textarea(~attrs=[Attr.id(clipboard_shim_id)], []);
 };
 
 let copy = (str: string) => {
@@ -207,7 +209,7 @@ module TextArea = {
     |> Js.Opt.get(_, _ => failwith("TextArea.get"));
 
   let lines = (textarea: t): list(string) =>
-    Str.split(Str.regexp("\n"), Js.to_string(textarea##.value));
+    Re.Str.split(Re.Str.regexp("\n"), Js.to_string(textarea##.value));
 
   let caret_pos = (textarea: t): pos => {
     let rec find_position = (lines, cur_pos, row, col) => {

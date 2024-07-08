@@ -3,6 +3,7 @@ open Js_of_ocaml;
 open Node;
 open Util.Web;
 open Widgets;
+open Haz3lcore;
 
 let export_persistent_data = (~inject: Update.t => 'a) =>
   button_named(
@@ -148,21 +149,21 @@ let import_menu = (~inject, editors: Editors.t) =>
 
 let submenu = (~tooltip, ~icon, menu) =>
   div(
-    ~attr=clss(["top-menu-item"]),
+    ~attrs=[clss(["top-menu-item"])],
     [
       div(
-        ~attr=Attr.many([clss(["submenu-icon"]), Attr.title(tooltip)]),
-        [div(~attr=clss(["icon"]), [icon])],
+        ~attrs=[clss(["submenu-icon"]), Attr.title(tooltip)],
+        [div(~attrs=[clss(["icon"])], [icon])],
       ),
-      div(~attr=clss(["submenu"]), menu),
+      div(~attrs=[clss(["submenu"])], menu),
     ],
   );
 
 let view =
     (~inject: Update.t => 'a, ~settings: Settings.t, ~editors: Editors.t) => [
-  a(~attr=clss(["nut-icon"]), [Icons.hazelnut]),
+  a(~attrs=[clss(["nut-icon"])], [Icons.hazelnut]),
   div(
-    ~attr=clss(["nut-menu"]),
+    ~attrs=[clss(["nut-menu"])],
     [
       submenu(
         ~tooltip="Settings",
