@@ -51,16 +51,13 @@ let textarea =
       text: string,
     ) =>
   Node.textarea(
-    ~attr=
-      Attr.many([
-        // Attr.create("rows", "4"),
-        // Attr.create("cols", "21"),
-        Attr.on_blur(_ =>
-          inject(UpdateModel(serialize(SetInside(false))))
-        ),
-        Attr.on_click(_ => inject(FocusInternal(selector))),
-        Attr.on_input((_, new_text) => inject(put(new_text))),
-      ]),
+    ~attrs=[
+      // Attr.create("rows", "4"),
+      // Attr.create("cols", "21"),
+      Attr.on_blur(_ => inject(UpdateModel(serialize(SetInside(false))))),
+      Attr.on_click(_ => inject(FocusInternal(selector))),
+      Attr.on_input((_, new_text) => inject(put(new_text))),
+    ],
     [Node.text(text)],
   );
 
@@ -77,10 +74,11 @@ let view =
       indicated: option(ZipperBase.accent),
     ) =>
   Node.div(
-    ~attr=
+    ~attrs=[
       Attr.classes(
         ["cols"] @ (model.inside ? [] : ZipperBase.cls(indicated)),
       ),
+    ],
     n_of(1 + Util.StringUtil.num_linebreaks(text))
     @ [textarea(~inject, ~selector, text)],
   );

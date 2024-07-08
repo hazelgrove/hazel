@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
 
 /* The kind of syntax data to which projection can apply */
 [@deriving (show({with_path: false}), sexp, yojson)]

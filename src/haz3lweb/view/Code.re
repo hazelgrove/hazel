@@ -26,8 +26,9 @@ let of_delim' =
           ? token : token ++ StringUtil.repeat(indent, Unicode.nbsp);
       [
         span(
-          ~attr=
+          ~attrs=[
             Attr.classes(["token", cls, Sort.to_string(sort), plurality]),
+          ],
           [Node.text(token)],
         ),
       ];
@@ -148,7 +149,7 @@ let simple_view =
     });
   let holes = holes(~map, ~font_metrics, segment);
   div(
-    ~attr=Attr.class_("code"),
+    ~attrs=[Attr.class_("code")],
     [
       span_c("code-text", Text.of_segment([], false, Sort.Any, segment)),
       ...holes,
@@ -172,10 +173,11 @@ let view =
       ~font_metrics,
       ~settings: Settings.t,
       {
-        state: {
-          meta: {projected: {measured, buffer_ids, segment, holes, _}, _},
-          _,
-        },
+        state:
+          {
+            meta: {projected: {measured, buffer_ids, segment, holes, _}, _},
+            _,
+          },
         _,
       }: Editor.t,
     )
@@ -187,5 +189,8 @@ let view =
     });
   let code = Text.of_segment(buffer_ids, false, sort, segment);
   let holes = List.map(of_hole(~measured, ~font_metrics), holes);
-  div(~attr=Attr.class_("code"), [span_c("code-text", code), ...holes]);
+  div(
+    ~attrs=[Attr.class_("code")],
+    [span_c("code-text", code), ...holes],
+  );
 };

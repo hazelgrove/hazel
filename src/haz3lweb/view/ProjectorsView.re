@@ -6,7 +6,7 @@ open Util.OptUtil.Syntax;
 open Util.Web;
 
 let update_model = (action, syntax, p) => {
-  let (module P) = Projector.to_module(syntax, p);
+  let (module P) = to_module(syntax, p);
   P.update(action);
 };
 
@@ -49,25 +49,23 @@ let wrap = //TODO(andrew): cleanup params
       view: Node.t,
     ) =>
   div(
-    ~attr=
-      Attr.many([
-        // JsUtil.stop_mousedown_propagation,
-        Attr.classes(
-          ["projector", Projector.name(p)] @ ZipperBase.cls(accent),
-        ),
-        DecUtil.abs_style(measurement, ~font_metrics),
-      ]),
+    ~attrs=[
+      // JsUtil.stop_mousedown_propagation,
+      Attr.classes(
+        ["projector", Projector.name(p)] @ ZipperBase.cls(accent),
+      ),
+      DecUtil.abs_style(measurement, ~font_metrics),
+    ],
     [
       div(
-        ~attr=
-          Attr.many([
-            JsUtil.stop_mousedown_propagation,
-            Attr.classes(["projector-wrapper"]),
-            // Attr.on_mousedown(_ => {
-            //   print_endline("WRAPPPER");
-            //   inject(Update.PerformAction(Jump(TileId(id))));
-            // }),
-          ]),
+        ~attrs=[
+          JsUtil.stop_mousedown_propagation,
+          Attr.classes(["projector-wrapper"]),
+          // Attr.on_mousedown(_ => {
+          //   print_endline("WRAPPPER");
+          //   inject(Update.PerformAction(Jump(TileId(id))));
+          // }),
+        ],
         [view],
       ),
       //TODO(andrew): document
@@ -92,7 +90,7 @@ let view =
   let* p = Projector.Map.find(id, ps);
   let* syntax = Id.Map.find_opt(id, syntax_map);
   let+ measurement = Measured.find_by_id(id, measured);
-  let (module PV) = to_module(syntax, p);
+  let (module P) = to_module(syntax, p);
   let inject = a =>
     handle(id, syntax, a)
     |> List.map(x => inject(x))
@@ -105,7 +103,7 @@ let view =
     ~accent,
     ~syntax,
     p,
-    PV.view(~inject, accent),
+    P.view(~inject, accent),
   );
 };
 
@@ -175,7 +173,7 @@ let ci =
   //let+ syntax = Id.Map.find_opt(id, editor.state.meta.projected.syntax_map);
   //let (module P) = to_module(syntax, p);
   div(
-    ~attr=Attr.classes(["projector-ci"]),
+    ~attrs=[Attr.classes(["projector-ci"])],
     [text(String.sub(Projector.name(p), 0, 1))],
   );
 };
@@ -199,7 +197,7 @@ let key_handler =
 
 let option_view = (name, n) =>
   option(
-    ~attr=n == name ? Attr.create("selected", "selected") : Attr.many([]),
+    ~attrs=n == name ? [Attr.create("selected", "selected")] : [],
     [text(n)],
   );
 
@@ -231,23 +229,26 @@ let applicable_projectors = (ci: Info.t): list(ZipperBase.kind) =>
 
 let toggle_view = (~inject, ci, id, active: bool) =>
   div(
-    ~attr=
-      Attr.many([
-        clss(["toggle-switch"] @ (active ? ["active"] : [])),
-        Attr.on_click(_ =>
-          inject(
-            active
-              ? remove(id)
-              : applicable_projectors(ci) != []
-                  ? set(List.hd(applicable_projectors(ci))) : remove(id),
-          )
-        ),
-      ]),
+    ~attrs=[
+      clss(["toggle-switch"] @ (active ? ["active"] : [])),
+      Attr.on_click(_ =>
+        inject(
+          active
+            ? remove(id)
+            : applicable_projectors(ci) != []
+                ? set(List.hd(applicable_projectors(ci))) : remove(id),
+        )
+      ),
+    ],
     [
       div(
-        ~attr=clss(["toggle-knob"]),
+        ~attrs=[clss(["toggle-knob"])],
         [
-          Node.create("img", ~attr=Attr.src("img/noun-fold-1593402.svg"), []),
+          Node.create(
+            "img",
+            ~attrs=[Attr.src("img/noun-fold-1593402.svg")],
+            [],
+          ),
         ],
       ),
     ],
@@ -263,16 +264,15 @@ let currently_selected = editor =>
 
 let panel = (~inject, editor: Editor.t, ci: Info.t) => {
   div(
-    ~attr=Attr.id("projectors"),
+    ~attrs=[Attr.id("projectors")],
     [
       toggle_view(~inject, ci, id(editor), kind(editor) != None),
       Node.select(
-        ~attr=
-          Attr.many([
-            Attr.on_change((_, name) =>
-              inject(set(Projector.of_name(name)))
-            ),
-          ]),
+        ~attrs=[
+          Attr.on_change((_, name) =>
+            inject(set(Projector.of_name(name)))
+          ),
+        ],
         applicable_projectors(ci)
         |> List.map((k: ZipperBase.kind) => Projector.name_(k))
         |> List.map(currently_selected(editor)),
