@@ -1,4 +1,4 @@
-open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
+open Util;
 
 [@deriving (show({with_path: false}), yojson)]
 type dir =
