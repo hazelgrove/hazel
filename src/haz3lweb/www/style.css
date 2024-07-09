@@ -386,7 +386,7 @@ select {
   font-family: "Source Code Pro", monospace;
   font-weight: normal;
   font-size: 13pt;
-  pointer-events: none;
+  pointer-events: visible;
 }
 
 #editor-mode,
