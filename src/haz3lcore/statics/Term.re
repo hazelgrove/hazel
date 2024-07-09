@@ -584,17 +584,11 @@ module Exp = {
             | Some(e) =>
               e |> substitute_closures(env, old_bound_vars, new_bound_vars)
             | None =>
-              print_endline(
-                "old:"
-                ++ String.concat(" ", old_bound_vars)
-                ++ "    new:"
-                ++ String.concat(" ", new_bound_vars),
-              );
               Var(
                 List.mem(x, old_bound_vars)
                   ? x : Var.free_name(x, new_bound_vars),
               )
-              |> rewrap;
+              |> rewrap
             }
           // Forms with environments: look up in new environment
           | Closure(env, e) =>
