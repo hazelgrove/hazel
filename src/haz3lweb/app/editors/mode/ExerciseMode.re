@@ -47,9 +47,12 @@ module Model = {
     open Exercise;
     let lookup = (pos, default) =>
       if (visible_in(pos, ~instructor_mode)) {
-        positioned_zippers |> List.assoc(pos) |> PersistentZipper.unpersist;
+        positioned_zippers
+        |> List.assoc_opt(pos)
+        |> Option.map(PersistentZipper.unpersist)
+        |> Option.value(~default);
       } else {
-        default |> PersistentZipper.persist |> PersistentZipper.unpersist;
+        default;
       };
     let prelude = lookup(Prelude, spec.prelude);
     let correct_impl = lookup(CorrectImpl, spec.correct_impl);
