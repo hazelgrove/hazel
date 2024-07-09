@@ -290,7 +290,7 @@ let view =
   | Some(ci) =>
     bar_view([
       inspector_view(~inject, ~settings, ci),
-      ProjectorsView.panel(
+      ProjectorView.panel(
         ~inject=a => inject(PerformAction(Project(a))),
         editor,
         ci,

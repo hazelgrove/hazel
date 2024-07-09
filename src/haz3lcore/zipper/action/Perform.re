@@ -48,7 +48,7 @@ let go_z =
 
   switch (a) {
   | Project(a) =>
-    ProjectorsPerform.go(
+    ProjectorPerform.go(
       Move.jump_to_id,
       Move.primary,
       a,

@@ -10,8 +10,12 @@ let update_model = (action, syntax, p) => {
   P.update(action);
 };
 
-let handle = (id, syntax, action: ProjectorsUpdate.t): Action.project =>
+let handle = (id, syntax, action: ProjectorBase.action): Action.project =>
   switch (action) {
+  | Default =>
+    //TODO(andrew): proper no-op
+    Remove(Id.invalid)
+  | Remove => Remove(id)
   | FocusInternal(selector) =>
     JsUtil.get_elem_by_selector(selector)##focus;
     Action.(FocusInternal(id));
@@ -21,12 +25,20 @@ let handle = (id, syntax, action: ProjectorsUpdate.t): Action.project =>
   | Escape(selector, Right) =>
     JsUtil.get_elem_by_selector(selector)##blur;
     Escape(id, Right);
-  | Default =>
-    //TODO(andrew): proper no-op
-    Remove(Id.invalid)
-  | Remove => Remove(id)
   | UpdateSyntax(f) => UpdateSyntax(id, f)
   | UpdateModel(action) => UpdateModel(id, update_model(action, syntax))
+  };
+
+let backing_deco =
+    (
+      ~font_metrics: FontMetrics.t,
+      ~measurement: Measured.measurement,
+      ~syntax,
+      p: Projector.t,
+    ) =>
+  switch (Projector.shape(p, syntax)) {
+  | Inline(_) => PieceDec.convex_shard(~font_metrics, ~measurement)
+  | Block(_) => div([])
   };
 
 let wrap =
@@ -40,7 +52,6 @@ let wrap =
     ) =>
   div(
     ~attrs=[
-      // JsUtil.stop_mousedown_propagation,
       Attr.classes(
         ["projector", Projector.name(p)] @ Projector.cls(accent),
       ),
@@ -51,18 +62,10 @@ let wrap =
         ~attrs=[
           JsUtil.stop_mousedown_propagation,
           Attr.classes(["projector-wrapper"]),
-          // Attr.on_mousedown(_ => {
-          //   print_endline("WRAPPPER");
-          //   inject(Update.PerformAction(Jump(TileId(id))));
-          // }),
         ],
         [view],
       ),
-      //TODO(andrew): document
-      switch (Projector.shape(p, syntax)) {
-      | Inline(_) => PieceDec.convex_shard(~font_metrics, ~measurement)
-      | Block(_) => div([])
-      },
+      backing_deco(~font_metrics, ~measurement, ~syntax, p),
     ],
   );
 
@@ -91,12 +94,6 @@ let view =
     P.view(~inject, accent),
   );
 };
-
-let bdfg = z =>
-  switch (Indicated.piece(z)) {
-  | Some((_, d, _)) => Some(d)
-  | None => None
-  };
 
 let view_all =
     (
@@ -169,15 +166,11 @@ let option_view = (name, n) =>
     [text(n)],
   );
 
-let set = (k: Projector.kind) => Action.SetIndicated(k);
-
-let remove = (id: Id.t) => Action.Remove(id);
-
 let applicable_projectors = (ci: Info.t): list(Projector.kind) =>
   (
     switch (Info.cls_of(ci)) {
     | Exp(Bool)
-    | Pat(Bool) => [Projector.Checkbox]
+    | Pat(Bool) => [Checkbox]
     | Exp(Int)
     | Pat(Int) => [Slider]
     | Exp(String)
@@ -194,18 +187,15 @@ let applicable_projectors = (ci: Info.t): list(Projector.kind) =>
     }
   );
 
+let toggle_projector = (active, id, ci): Action.project =>
+  active || applicable_projectors(ci) == []
+    ? Remove(id) : SetIndicated(List.hd(applicable_projectors(ci)));
+
 let toggle_view = (~inject, ci, id, active: bool) =>
   div(
     ~attrs=[
       clss(["toggle-switch"] @ (active ? ["active"] : [])),
-      Attr.on_click(_ =>
-        inject(
-          active
-            ? remove(id)
-            : applicable_projectors(ci) != []
-                ? set(List.hd(applicable_projectors(ci))) : remove(id),
-        )
-      ),
+      Attr.on_click(_ => inject(toggle_projector(active, id, ci))),
     ],
     [
       div(
@@ -225,7 +215,7 @@ let currently_selected = editor =>
   option_view(
     switch (kind(editor)) {
     | None => "Fold"
-    | Some(k) => Projector.name_(k)
+    | Some(k) => Projector.name_of_kind(k)
     },
   );
 
@@ -237,11 +227,11 @@ let panel = (~inject, editor: Editor.t, ci: Info.t) => {
       Node.select(
         ~attrs=[
           Attr.on_change((_, name) =>
-            inject(set(Projector.of_name(name)))
+            inject(SetIndicated(Projector.of_name(name)))
           ),
         ],
         applicable_projectors(ci)
-        |> List.map((k: Projector.kind) => Projector.name_(k))
+        |> List.map(Projector.name_of_kind)
         |> List.map(currently_selected(editor)),
       ),
     ],

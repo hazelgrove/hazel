@@ -1,8 +1,8 @@
-open ProjectorBase;
 open Sexplib.Std;
 open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
 open Virtual_dom.Vdom;
 open Node;
+open ProjectorBase;
 
 let display_ty = (expected_ty: option(Typ.t)): Typ.t =>
   switch (expected_ty) {
@@ -27,7 +27,7 @@ let mk = (model: infer, ~syntax as _): core =>
      [@deriving (show({with_path: false}), sexp, yojson)]
      type action = unit;
      let model = model;
-     let projector: projector = Infer(model);
+     let projector = Infer(model);
 
      let can_project = (p: Piece.t): bool =>
        switch (p) {
@@ -38,19 +38,19 @@ let mk = (model: infer, ~syntax as _): core =>
      let placeholder = () =>
        Inline((model.expected_ty |> display |> String.length) - 2);
 
-     let auto_update = ({info, _}): projector => {
+     let auto_update = ({info, _}) => {
        print_endline("updating infer projector");
        Infer({expected_ty: Some(expected_ty(info))});
      };
-     let update = (_action): projector => Infer(model);
+     let update = _ => Infer(model);
 
      let view = (~inject, _) =>
        div(
-         ~attrs=[Attr.on_double_click(_ => inject(ProjectorsUpdate.Remove))],
+         ~attrs=[Attr.on_double_click(_ => inject(Remove))],
          [text(display(model.expected_ty))],
        );
 
-     let keymap = (_, key: Key.t): option(ProjectorsUpdate.t) =>
+     let keymap = (_, key: Key.t): option(ProjectorBase.action) =>
        switch (key) {
        | {key: D("Escape"), _} => Some(Remove)
        | _ => None
