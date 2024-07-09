@@ -567,7 +567,8 @@ module Exp = {
       };
     };
 
-  let rec substitute_closures = (env: ClosureEnvironment.t) =>
+  let rec substitute_closures =
+          (env: ClosureEnvironment.t, bound_vars: list(string)) =>
     map_term(
       ~f_exp=
         (cont, e) => {
@@ -576,16 +577,18 @@ module Exp = {
           // Variables: lookup if bound
           | Var(x) =>
             switch (ClosureEnvironment.lookup(env, x)) {
-            | Some(e) => e
-            | None => Var(x) |> rewrap // TODO: add some logic to ensure that unbound variables always show up
+            | Some(e) =>
+              e |> substitute_closures(ClosureEnvironment.empty, bound_vars)
+            | None => Var(Var.free_name(x, bound_vars)) |> rewrap
             }
           // Forms with environments: look up in new environment
-          | Closure(env, e) => substitute_closures(env, e)
+          | Closure(env, e) => substitute_closures(env, bound_vars, e)
           | Fun(p, e, Some(env), n) =>
             Fun(
               p,
               substitute_closures(
                 env |> ClosureEnvironment.without_keys(Pat.bound_vars(p)),
+                Pat.bound_vars(p) @ bound_vars,
                 e,
               ),
               None,
@@ -597,6 +600,7 @@ module Exp = {
               p,
               substitute_closures(
                 env |> ClosureEnvironment.without_keys(Pat.bound_vars(p)),
+                Pat.bound_vars(p) @ bound_vars,
                 e,
               ),
               None,
@@ -606,16 +610,17 @@ module Exp = {
           | Let(p, e1, e2) =>
             Let(
               p,
-              substitute_closures(env, e1),
+              substitute_closures(env, bound_vars, e1),
               substitute_closures(
                 env |> ClosureEnvironment.without_keys(Pat.bound_vars(p)),
+                Pat.bound_vars(p) @ bound_vars,
                 e2,
               ),
             )
             |> rewrap
           | Match(e, cases) =>
             Match(
-              substitute_closures(env, e),
+              substitute_closures(env, bound_vars, e),
               cases
               |> List.map(((p, e)) =>
                    (
@@ -623,6 +628,7 @@ module Exp = {
                      substitute_closures(
                        env
                        |> ClosureEnvironment.without_keys(Pat.bound_vars(p)),
+                       Pat.bound_vars(p) @ bound_vars,
                        e,
                      ),
                    )
@@ -665,6 +671,7 @@ module Exp = {
         },
       _,
     );
+  let substitute_closures = substitute_closures(_, []);
 };
 
 module Rul = {
