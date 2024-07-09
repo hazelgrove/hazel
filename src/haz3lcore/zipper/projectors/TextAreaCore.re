@@ -1,6 +1,7 @@
 open Sexplib.Std;
 open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
 open Virtual_dom.Vdom;
+open ProjectorBase;
 
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //TODO(andrew): unhardcode element !!!!!!!!!!
@@ -45,19 +46,17 @@ let get = (piece: Piece.t): string =>
 
 let put = (s: string): Piece.t => s |> mk_mono(Exp);
 
-let put = (str: string): ProjectorsUpdate.t =>
+let put = (str: string): ProjectorBase.action =>
   UpdateSyntax(_ => str |> Form.string_quote |> put);
 
 let textarea =
     (
       ~selector,
-      ~inject: ProjectorsUpdate.t => Ui_effect.t(unit),
+      ~inject: ProjectorBase.action => Ui_effect.t(unit),
       text: string,
     ) =>
   Node.textarea(
     ~attrs=[
-      // Attr.create("rows", "4"),
-      // Attr.create("cols", "21"),
       Attr.on_blur(_ => inject(UpdateModel(serialize(SetInside(false))))),
       Attr.on_click(_ => inject(FocusInternal(selector))),
       Attr.on_input((_, new_text) => inject(put(new_text))),
@@ -73,28 +72,19 @@ let view =
     (
       ~inject,
       ~selector,
-      model: ProjectorBase.textarea,
+      model: textarea,
       text: string,
-      indicated: option(ProjectorBase.accent),
+      indicated: option(accent),
     ) =>
   Node.div(
-    ~attrs=[
-      Attr.classes(
-        ["cols"] @ (model.inside ? [] : ProjectorBase.cls(indicated)),
-      ),
-    ],
+    ~attrs=[Attr.classes(["cols"] @ (model.inside ? [] : cls(indicated)))],
     n_of(1 + Util.StringUtil.num_linebreaks(text))
     @ [textarea(~inject, ~selector, text)],
   );
 
 let keymap =
-    (
-      ~selector,
-      model: ProjectorBase.textarea,
-      direction: Util.Direction.t,
-      key: Key.t,
-    )
-    : option(ProjectorsUpdate.t) => {
+    (~selector, model: textarea, direction: Util.Direction.t, key: Key.t)
+    : option(ProjectorBase.action) => {
   let textarea = JsUtil.TextArea.get(selector);
   let focussed = model.inside;
   //TODO(andrew): make actual focus king?
@@ -125,32 +115,36 @@ let keymap =
   };
 };
 
-let mk = (~syntax, model): ProjectorBase.core =>
+let placeholder = (syntax, ()) => {
+  //TODO(andrew): cleanup
+  let row = Util.StringUtil.num_linebreaks(get(syntax));
+  /* +2 for left and right padding */
+  let col =
+    2
+    + List.fold_left(
+        max,
+        0,
+        List.map(
+          String.length,
+          Re.Str.split(Re.Str.regexp("\n"), get(syntax)),
+        ),
+      );
+  Block({row, col});
+};
+
+let mk = (~syntax, model): core =>
   (module
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
-     type model = ProjectorBase.textarea;
+     type model = textarea;
      [@deriving (show({with_path: false}), sexp, yojson)]
      type action = action_;
      let model = model;
-     let projector: ProjectorBase.projector = TextArea(model);
+     let projector = TextArea(model);
      let can_project = _ => true;
-     //TODO(andrew): cleanup
-     let row = Util.StringUtil.num_linebreaks(get(syntax));
-     /* +2 for left and right padding */
-     let col =
-       2
-       + List.fold_left(
-           max,
-           0,
-           List.map(
-             String.length,
-             Re.Str.split(Re.Str.regexp("\n"), get(syntax)),
-           ),
-         );
-     let placeholder = (): ProjectorBase.shape => Block({row, col});
-     let auto_update = _: ProjectorBase.projector => TextArea(model);
-     let update = (a: string): ProjectorBase.projector =>
+     let placeholder = placeholder(syntax);
+     let auto_update = _ => TextArea(model);
+     let update = (a: string) =>
        switch (deserialize(a)) {
        | SetInside(b) => TextArea({inside: b})
        };

@@ -1,6 +1,7 @@
 open Sexplib.Std;
 open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
 open Virtual_dom.Vdom;
+open ProjectorBase;
 
 let of_mono = (syntax: Piece.t): option(string) =>
   switch (syntax) {
@@ -22,7 +23,8 @@ let get = (piece: Piece.t): int =>
   | Some(s) => s
   };
 
-let view = (~inject: ProjectorsUpdate.t => Ui_effect.t(unit), value: int, _) =>
+let view =
+    (~inject: ProjectorBase.action => Ui_effect.t(unit), value: int, _) =>
   Node.input(
     ~attrs=[
       Attr.create("type", "range"),
@@ -34,25 +36,25 @@ let view = (~inject: ProjectorsUpdate.t => Ui_effect.t(unit), value: int, _) =>
     (),
   );
 
-let keymap = (_, key: Key.t): option(ProjectorsUpdate.t) =>
+let keymap = (_, key: Key.t): option(ProjectorBase.action) =>
   switch (key) {
   | {key: D("Escape"), _} => Some(Remove)
   | _ => None
   };
 
-let mk = (model, ~syntax): ProjectorBase.core =>
+let mk = (model, ~syntax): core =>
   (module
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
-     type model = ProjectorBase.slider;
+     type model = slider;
      [@deriving (show({with_path: false}), sexp, yojson)]
      type action = unit;
      let model = model;
-     let projector: ProjectorBase.projector = Slider(model);
+     let projector = Slider(model);
      let can_project = p => state_of(p) != None;
-     let placeholder = (): ProjectorBase.shape => Inline(10);
-     let auto_update = _: ProjectorBase.projector => Slider(model);
-     let update = _: ProjectorBase.projector => Slider(model);
+     let placeholder = () => Inline(10);
+     let auto_update = _ => Slider(model);
+     let update = _ => Slider(model);
      let view = view(get(syntax));
      let keymap = keymap;
    });

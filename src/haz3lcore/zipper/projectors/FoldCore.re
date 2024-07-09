@@ -12,15 +12,15 @@ let mk = (_model: fold, ~syntax as _): core =>
      [@deriving (show({with_path: false}), sexp, yojson)]
      type action = unit;
      let model = ();
-     let projector: projector = Fold();
+     let projector = Fold();
      let can_project = _ => true;
      let placeholder = () => Inline(2);
-     let auto_update = _: projector => Fold();
-     let update = (_action): projector => Fold();
+     let auto_update = _ => Fold();
+     let update = _ => Fold();
      let view = (~inject, _) =>
        div(
-         ~attrs=[Attr.on_double_click(_ => inject(ProjectorsUpdate.Remove))],
+         ~attrs=[Attr.on_double_click(_ => inject(Remove))],
          [text("⋱")],
        );
-     let keymap = (_, _): option(ProjectorsUpdate.t) => None;
+     let keymap = (_, _): option(ProjectorBase.action) => None;
    });

@@ -25,7 +25,7 @@ module Deco =
       switch (Indicated.index(z)) {
       | Some(id) =>
         switch (Id.Map.find_opt(id, M.syntax_map)) {
-        | Some(syntax) => ProjectorsView.shape(z, syntax)
+        | Some(syntax) => ProjectorView.shape(z, syntax)
         | None => None
         }
       | None => None
@@ -325,7 +325,7 @@ module Deco =
     };
 
   let indication_deco = (z: Zipper.t) =>
-    switch (ProjectorsView.indicated_proj_z(z)) {
+    switch (ProjectorView.indicated_proj_z(z)) {
     | Some(_) => []
     | None => indicated_piece_deco(z)
     };
@@ -342,7 +342,7 @@ module Deco =
   let always = (~inject, zipper: Zipper.t) =>
     List.concat([
       err_holes(),
-      ProjectorsView.view_all(
+      ProjectorView.view_all(
         zipper.projectors,
         ~syntax_map=M.syntax_map,
         ~inject,

@@ -2,7 +2,15 @@ open Util;
 include ProjectorBase;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type syntax = Piece.t;
+type t = projector;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type kind =
+  | Fold
+  | Infer
+  | Checkbox
+  | Slider
+  | TextArea;
 
 let to_module = (syntax, p: projector): core =>
   switch ((p: projector)) {
@@ -13,19 +21,25 @@ let to_module = (syntax, p: projector): core =>
   | TextArea(model) => TextAreaCore.mk(model, ~syntax)
   };
 
+let kind = (p: t): kind =>
+  switch (p) {
+  | Fold(_) => Fold
+  | Infer(_) => Infer
+  | Checkbox(_) => Checkbox
+  | Slider(_) => Slider
+  | TextArea(_) => TextArea
+  };
+
 let init = (f: kind, syntax): core =>
   switch (f) {
   | Fold => FoldCore.mk((), ~syntax)
   | Infer => InferCore.mk({expected_ty: None}, ~syntax)
   | Checkbox => CheckboxCore.mk((), ~syntax)
-  | Slider => SliderCore.mk({value: 10}, ~syntax)
+  | Slider => SliderCore.mk((), ~syntax)
   | TextArea => TextAreaCore.mk({inside: false}, ~syntax)
   };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t = projector;
-
-let name_ = (p: kind): string =>
+let name_of_kind = (p: kind): string =>
   switch (p) {
   | Fold => "fold"
   | Infer => "type"
@@ -44,16 +58,7 @@ let of_name = (p: string): kind =>
   | _ => failwith("Unknown projector kind")
   };
 
-let kind = (p: t): kind =>
-  switch (p) {
-  | Fold(_) => Fold
-  | Infer(_) => Infer
-  | Checkbox(_) => Checkbox
-  | Slider(_) => Slider
-  | TextArea(_) => TextArea
-  };
-
-let name = (p: t): string => p |> kind |> name_;
+let name = (p: t): string => p |> kind |> name_of_kind;
 
 let shape = (p: t, syntax): shape => {
   let (module P) = to_module(syntax, p);

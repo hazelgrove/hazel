@@ -12,9 +12,9 @@ let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit), model: Model.t) =>
     open Effect;
     let key = Key.mk(dir, evt);
     let editor = Editors.get_editor(model.editors);
-    switch (ProjectorsView.key_handler(editor, key)) {
+    switch (ProjectorView.key_handler(editor, key)) {
     | Some(Remove(id)) when id == Id.invalid =>
-      //TODO(andrew): proper no-op (see ProjectorsView)
+      //TODO(andrew): proper no-op (see ProjectorView)
       Ignore
     | Some(action) =>
       Many([
@@ -32,10 +32,10 @@ let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit), model: Model.t) =>
       (~dir: Key.dir, evt: Js.t(Dom_html.keyboardEvent)): Effect.t(unit) => {
     let key = Key.mk(dir, evt);
     let editor = Editors.get_editor(model.editors);
-    switch (ProjectorsView.key_handler(editor, key)) {
+    switch (ProjectorView.key_handler(editor, key)) {
     | Some(Remove(id)) when id == Id.invalid =>
       //TODO(andrew): document why this exists
-      //TODO(andrew): proper no-op (see ProjectorsView)
+      //TODO(andrew): proper no-op (see ProjectorView)
       Effect.Ignore
     | _ => Effect.Prevent_default
     };
