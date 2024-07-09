@@ -48,7 +48,14 @@ let go_z =
 
   switch (a) {
   | Project(a) =>
-    ProjectorsPerform.go(a, statics.info_map, meta.projected.syntax_map, z)
+    ProjectorsPerform.go(
+      Move.jump_to_id,
+      Move.primary,
+      a,
+      statics.info_map,
+      meta.projected.syntax_map,
+      z,
+    )
   | Move(d) =>
     Move.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move)
   | MoveToNextHole(d) =>

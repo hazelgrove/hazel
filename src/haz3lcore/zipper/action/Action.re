@@ -50,7 +50,8 @@ type project =
   | UpdateModel(Id.t, Projector.t => Projector.t)
   | SetIndicated(Projector.kind)
   | ToggleIndicated(Projector.kind)
-  | SetKeyDispatch(Id.t, bool)
+  | FocusInternal(Id.t)
+  | Escape(Id.t, Direction.t)
   | Remove(Id.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]

@@ -10,37 +10,27 @@ let update_model = (action, syntax, p) => {
   P.update(action);
 };
 
-let handle = (id, syntax, action: ProjectorsUpdate.t): list(UpdateAction.t) => {
-  (
-    switch (action) {
-    | FocusInternal(selector) =>
-      JsUtil.get_elem_by_selector(selector)##focus;
-      /* Note: jumping her normalizes position, so when exiting
-       * we know we're intially to the left and can move or not accordingly */
-      [Jump(TileId(id)), Project(SetKeyDispatch(id, true))];
-    | Escape(selector, Left) =>
-      JsUtil.get_elem_by_selector(selector)##blur;
-      [Project(SetKeyDispatch(id, false)), Move(Local(Right(ByToken)))];
-    | Escape(selector, Right) =>
-      JsUtil.get_elem_by_selector(selector)##blur;
-      [Project(SetKeyDispatch(id, false))];
-    | Default =>
-      //TODO(andrew): proper no-op
-      []
-    | Remove => [Project(Remove(id))]
-    | UpdateSyntax(f) => [Project(UpdateSyntax(id, f))]
-    | UpdateModel(action) => [
-        Project(UpdateModel(id, update_model(action, syntax))),
-      ]
-    }
-  )
-  |> List.map(a => Update.PerformAction(a));
-};
+let handle = (id, syntax, action: ProjectorsUpdate.t): Action.project =>
+  switch (action) {
+  | FocusInternal(selector) =>
+    JsUtil.get_elem_by_selector(selector)##focus;
+    Action.(FocusInternal(id));
+  | Escape(selector, Left) =>
+    JsUtil.get_elem_by_selector(selector)##blur;
+    Escape(id, Left);
+  | Escape(selector, Right) =>
+    JsUtil.get_elem_by_selector(selector)##blur;
+    Escape(id, Right);
+  | Default =>
+    //TODO(andrew): proper no-op
+    Remove(Id.invalid)
+  | Remove => Remove(id)
+  | UpdateSyntax(f) => UpdateSyntax(id, f)
+  | UpdateModel(action) => UpdateModel(id, update_model(action, syntax))
+  };
 
-let wrap = //TODO(andrew): cleanup params
+let wrap =
     (
-      ~inject as _,
-      ~id as _,
       ~font_metrics: FontMetrics.t,
       ~measurement: Measured.measurement,
       ~accent: option(Projector.accent),
@@ -82,7 +72,7 @@ let view =
       ps: Map.t,
       ~syntax_map: Id.Map.t(syntax),
       ~measured: Measured.t,
-      ~inject: UpdateAction.t => Ui_effect.t(unit),
+      ~inject: Action.project => Ui_effect.t(unit),
       ~font_metrics,
       ~accent: option(Projector.accent),
     )
@@ -91,14 +81,9 @@ let view =
   let* syntax = Id.Map.find_opt(id, syntax_map);
   let+ measurement = Measured.find_by_id(id, measured);
   let (module P) = to_module(syntax, p);
-  let inject = a =>
-    handle(id, syntax, a)
-    |> List.map(x => inject(x))
-    |> (x => Virtual_dom.Vdom.Effect.Many(x));
+  let inject = a => handle(id, syntax, a) |> inject;
   wrap(
     ~font_metrics,
-    ~inject,
-    ~id,
     ~measurement,
     ~accent,
     ~syntax,
@@ -118,7 +103,7 @@ let view_all =
       ps: Map.t,
       ~syntax_map: Id.Map.t(syntax),
       ~measured: Measured.t,
-      ~inject: UpdateAction.t => Ui_effect.t(unit),
+      ~inject: Action.project => Ui_effect.t(unit),
       ~font_metrics,
       ~accent,
     ) =>
@@ -167,13 +152,7 @@ let id = (editor: Editor.t) => {
   };
 };
 
-let key_handler =
-    (
-      editor: Editor.t,
-      key: Key.t,
-      ~inject as _: UpdateAction.t => Ui_effect.t(unit),
-    )
-    : option(list(UpdateAction.t)) =>
+let key_handler = (editor: Editor.t, key: Key.t): option(Action.project) =>
   switch (indicated_proj_ed(editor)) {
   | None => None
   | Some((id, p)) =>
@@ -190,10 +169,9 @@ let option_view = (name, n) =>
     [text(n)],
   );
 
-let set = (k: Projector.kind) =>
-  Update.PerformAction(Project(SetIndicated(k)));
+let set = (k: Projector.kind) => Action.SetIndicated(k);
 
-let remove = (id: Id.t) => Update.PerformAction(Project(Remove(id)));
+let remove = (id: Id.t) => Action.Remove(id);
 
 let applicable_projectors = (ci: Info.t): list(Projector.kind) =>
   (
