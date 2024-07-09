@@ -1013,6 +1013,7 @@ and ClosureEnvironment: {
   let fold: (((Var.t, Exp.t), 'b) => 'b, 'b, t) => 'b;
 
   let without_keys: (list(Var.t), t) => t;
+  let with_symbolic_keys: (list(Var.t), t) => t;
 
   let placeholder: t;
 } = {
@@ -1090,6 +1091,12 @@ and ClosureEnvironment: {
   let placeholder = wrap(Id.invalid, Environment.empty);
 
   let without_keys = keys => update(Environment.without_keys(keys));
+  let with_symbolic_keys = (keys, env) =>
+    List.fold_right(
+      (key, env) => extend(env, (key, Exp.Var(key) |> IdTagged.fresh)),
+      keys,
+      env,
+    );
 }
 and StepperFilterKind: {
   [@deriving (show({with_path: false}), sexp, yojson)]

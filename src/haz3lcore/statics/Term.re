@@ -568,7 +568,11 @@ module Exp = {
     };
 
   let rec substitute_closures =
-          (env: ClosureEnvironment.t, bound_vars: list(string)) =>
+          (
+            env: ClosureEnvironment.t,
+            old_bound_vars: list(string),
+            new_bound_vars: list(string),
+          ) =>
     map_term(
       ~f_exp=
         (cont, e) => {
@@ -578,63 +582,109 @@ module Exp = {
           | Var(x) =>
             switch (ClosureEnvironment.lookup(env, x)) {
             | Some(e) =>
-              e |> substitute_closures(ClosureEnvironment.empty, bound_vars)
-            | None => Var(Var.free_name(x, bound_vars)) |> rewrap
+              e |> substitute_closures(env, old_bound_vars, new_bound_vars)
+            | None =>
+              print_endline(
+                "old:"
+                ++ String.concat(" ", old_bound_vars)
+                ++ "    new:"
+                ++ String.concat(" ", new_bound_vars),
+              );
+              Var(
+                List.mem(x, old_bound_vars)
+                  ? x : Var.free_name(x, new_bound_vars),
+              )
+              |> rewrap;
             }
           // Forms with environments: look up in new environment
-          | Closure(env, e) => substitute_closures(env, bound_vars, e)
+          | Closure(env, e) =>
+            substitute_closures(env, [], new_bound_vars, e)
           | Fun(p, e, Some(env), n) =>
+            let pat_bound_vars = Pat.bound_vars(p);
             Fun(
               p,
               substitute_closures(
-                env |> ClosureEnvironment.without_keys(Pat.bound_vars(p)),
-                Pat.bound_vars(p) @ bound_vars,
+                env |> ClosureEnvironment.without_keys(pat_bound_vars),
+                pat_bound_vars,
+                pat_bound_vars @ new_bound_vars,
                 e,
               ),
               None,
               n,
             )
-            |> rewrap
+            |> rewrap;
           | FixF(p, e, Some(env)) =>
+            let pat_bound_vars = Pat.bound_vars(p);
             FixF(
               p,
               substitute_closures(
-                env |> ClosureEnvironment.without_keys(Pat.bound_vars(p)),
-                Pat.bound_vars(p) @ bound_vars,
+                env |> ClosureEnvironment.without_keys(pat_bound_vars),
+                pat_bound_vars,
+                pat_bound_vars @ new_bound_vars,
                 e,
               ),
               None,
             )
-            |> rewrap
+            |> rewrap;
           // Cases with binders: remove binder from env
           | Let(p, e1, e2) =>
+            let pat_bound_vars = Pat.bound_vars(p);
             Let(
               p,
-              substitute_closures(env, bound_vars, e1),
+              substitute_closures(env, old_bound_vars, new_bound_vars, e1),
               substitute_closures(
-                env |> ClosureEnvironment.without_keys(Pat.bound_vars(p)),
-                Pat.bound_vars(p) @ bound_vars,
+                env |> ClosureEnvironment.without_keys(pat_bound_vars),
+                pat_bound_vars @ old_bound_vars,
+                pat_bound_vars @ new_bound_vars,
                 e2,
               ),
             )
-            |> rewrap
+            |> rewrap;
           | Match(e, cases) =>
             Match(
-              substitute_closures(env, bound_vars, e),
+              substitute_closures(env, old_bound_vars, new_bound_vars, e),
               cases
-              |> List.map(((p, e)) =>
+              |> List.map(((p, e)) => {
+                   let pat_bound_vars = Pat.bound_vars(p);
                    (
                      p,
                      substitute_closures(
-                       env
-                       |> ClosureEnvironment.without_keys(Pat.bound_vars(p)),
-                       Pat.bound_vars(p) @ bound_vars,
+                       env |> ClosureEnvironment.without_keys(pat_bound_vars),
+                       pat_bound_vars @ old_bound_vars,
+                       pat_bound_vars @ new_bound_vars,
                        e,
                      ),
-                   )
-                 ),
+                   );
+                 }),
             )
             |> rewrap
+          | Fun(p, e, None, n) =>
+            let pat_bound_vars = Pat.bound_vars(p);
+            Fun(
+              p,
+              substitute_closures(
+                env |> ClosureEnvironment.without_keys(pat_bound_vars),
+                pat_bound_vars @ old_bound_vars,
+                pat_bound_vars @ new_bound_vars,
+                e,
+              ),
+              None,
+              n,
+            )
+            |> rewrap;
+          | FixF(p, e, None) =>
+            let pat_bound_vars = Pat.bound_vars(p);
+            FixF(
+              p,
+              substitute_closures(
+                env |> ClosureEnvironment.without_keys(pat_bound_vars),
+                pat_bound_vars @ old_bound_vars,
+                pat_bound_vars @ new_bound_vars,
+                e,
+              ),
+              None,
+            )
+            |> rewrap;
           // Other cases: recurse
           | Invalid(_)
           | EmptyHole
@@ -648,10 +698,8 @@ module Exp = {
           | String(_)
           | ListLit(_)
           | Constructor(_)
-          | Fun(_, _, None, _)
           | TypFun(_)
           | Tuple(_)
-          | FixF(_)
           | TyAlias(_)
           | Ap(_)
           | TypAp(_)
@@ -671,7 +719,7 @@ module Exp = {
         },
       _,
     );
-  let substitute_closures = substitute_closures(_, []);
+  let substitute_closures = substitute_closures(_, [], []);
 };
 
 module Rul = {
