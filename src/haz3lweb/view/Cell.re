@@ -262,7 +262,7 @@ let footer =
 
 let editor_view =
     (
-      ~inject,
+      ~inject: UpdateAction.t => Ui_effect.t(unit),
       ~ui_state as
         {font_metrics, show_backpack_targets, mousedown, _}: Model.ui_state,
       ~settings: Settings.t,
@@ -282,7 +282,7 @@ let editor_view =
   let code_text_view = Code.view(~sort, ~font_metrics, ~settings, editor);
   let deco_view =
     deco(
-      ~inject,
+      ~inject=a => inject(PerformAction(Project(a))),
       ~font_metrics,
       ~show_backpack_targets,
       ~selected,

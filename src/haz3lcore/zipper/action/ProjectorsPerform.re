@@ -29,23 +29,54 @@ let add_or_remove = (id: Id.t, z: Zipper.t, info_map, p, piece, d, rel) =>
   | true => Ok(set(id, None, z))
   };
 
-let go = (a: Action.project, info_map: Statics.Map.t, syntax_map, z: Zipper.t) =>
+let go =
+    (
+      jump_to_id,
+      primary:
+        (Zipper.chunkiness, Util.Direction.t, Zipper.t) => option(Zipper.t),
+      a: Action.project,
+      info_map: Statics.Map.t,
+      syntax_map,
+      z: Zipper.t,
+    ) => {
   //TODO(andrew): avoid bringing statics in here?
-  switch (a) {
-  | SetKeyDispatch(id, b) =>
+  let crime = (syntax, b, p) => {
+    //TODO(andrew): remove this crime
+    let (module P) = Projector.to_module(syntax, p);
+    P.update(TextAreaCore.serialize(SetInside(b)));
+  };
+  let set_dispatch = (z: Zipper.t, id, b) =>
     switch (Id.Map.find_opt(id, syntax_map)) {
     | Some(syntax) =>
-      let crime = (b, p) => {
-        //TODO(andrew): remove this crime
-        let (module P) = Projector.to_module(syntax, p);
-        P.update(TextAreaCore.serialize(SetInside(b)));
-      };
       Ok({
         ...z,
-        projectors: Map.update(id, Option.map(crime(b)), z.projectors),
-      });
+        projectors:
+          Map.update(id, Option.map(crime(syntax, b)), z.projectors),
+      })
     | None => Error(Action.Failure.Cant_project)
-    }
+    };
+  switch (a) {
+  | FocusInternal(id) =>
+    /* Note: jumping her normalizes position, so when exiting
+     * we know we're intially to the left and can move or not accordingly */
+    let z =
+      switch (jump_to_id(z, id)) {
+      | Some(z) => z
+      | None => z
+      };
+    set_dispatch(z, id, true);
+  // JsUtil.get_elem_by_selector(selector)##focus;
+  | Escape(id, Left) =>
+    // JsUtil.get_elem_by_selector(selector)##blur;
+    let z =
+      switch (primary(ByToken, Right, z)) {
+      | Some(z) => z
+      | None => z
+      };
+    set_dispatch(z, id, false);
+  | Escape(id, Right) =>
+    // JsUtil.get_elem_by_selector(selector)##blur;
+    set_dispatch(z, id, false)
   | SetIndicated(p) =>
     switch (Indicated.for_index(z)) {
     | None => Error(Action.Failure.Cant_project)
@@ -67,3 +98,4 @@ let go = (a: Action.project, info_map: Statics.Map.t, syntax_map, z: Zipper.t) =
   | UpdateModel(id, f) =>
     Ok({...z, projectors: Map.update(id, Option.map(f), z.projectors)})
   };
+};
