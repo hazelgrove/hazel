@@ -1,6 +1,5 @@
 open Util;
 open Util.OptUtil.Syntax;
-open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
 
 [@deriving (show({with_path: false}), yojson)]
 type t = {
