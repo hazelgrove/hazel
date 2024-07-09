@@ -287,6 +287,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
           let (term, rewrap) = DHExp.unwrap(exp);
           switch (term) {
           | Fun(p, e, ctx, _) => Fun(p, e, ctx, name) |> rewrap
+          | TypFun(tpat, e, _) => TypFun(tpat, e, name) |> rewrap
           | _ => exp
           };
         }
