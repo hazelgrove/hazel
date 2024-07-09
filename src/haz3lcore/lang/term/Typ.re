@@ -21,7 +21,8 @@ type cls =
   | Parens
   | Ap
   | Rec
-  | Type;
+  | Type
+  | Forall;
 
 include TermBase.Typ;
 
@@ -59,7 +60,8 @@ let cls_of_term: term => cls =
   | Ap(_) => Ap
   | Sum(_) => Sum
   | Rec(_) => Rec
-  | Type(_) => Type;
+  | Type(_) => Type
+  | Forall(_) => Forall;
 
 let show_cls: cls => string =
   fun
@@ -81,7 +83,8 @@ let show_cls: cls => string =
   | Parens => "Parenthesized type"
   | Ap => "Constructor application"
   | Rec => "Recursive type"
-  | Type => "Type type";
+  | Type => "Type type"
+  | Forall => "Forall type";
 
 let rec is_arrow = (typ: t) => {
   switch (typ.term) {
@@ -98,6 +101,7 @@ let rec is_arrow = (typ: t) => {
   | Ap(_)
   | Sum(_)
   | Type(_)
+  | Forall(_)
   | Rec(_) => false
   };
 };
@@ -117,9 +121,30 @@ let rec is_type = (typ: t) => {
   | Var(_)
   | Ap(_)
   | Sum(_)
+  | Forall(_)
   | Rec(_) => false
   };
 };
+
+// let rec is_forall = (typ: t) => {
+//   switch (typ.term) {
+//   | Parens(typ) => is_forall(typ)
+//   | Forall(_) => true
+//   | Unknown(_)
+//   | Int
+//   | Float
+//   | Bool
+//   | String
+//   | Arrow(_)
+//   | List(_)
+//   | Prod(_)
+//   | Var(_)
+//   | Ap(_)
+//   | Sum(_)
+//   | Type(_)
+//   | Rec(_) => false
+//   };
+// };
 
 /* Functions below this point assume that types have been through the to_typ function above */
 
@@ -166,6 +191,9 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Rec(x, ty)
   | Type(x, ty) =>
     free_vars(~bound=(x |> TPat.tyvar_of_utpat |> Option.to_list) @ bound, ty)
+  //  What goes in free vars?
+  // | Forall(x, ty) =>
+  //   free_vars(~bound=(x |> TPat.tyvar_of_utpat |> Option.to_list) @ bound, ty)
   };
 
 let var_count = ref(0);

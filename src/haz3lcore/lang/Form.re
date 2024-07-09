@@ -314,6 +314,7 @@ let forms: list((string, t)) = [
   ("fix", mk(ds, ["fix", "->"], mk_pre(P.fun_, Exp, [Pat]))),
   ("typfun", mk(ds, ["typfun", "->"], mk_pre(P.fun_, Exp, [TPat]))),
   ("type", mk(ds, ["type", "->"], mk_pre(P.fun_, Typ, [TPat]))),
+  ("forall", mk(ds, ["forall", "->"], mk_pre(P.fun_, Typ, [TPat]))),
   ("rec", mk(ds, ["rec", "->"], mk_pre(P.fun_, Typ, [TPat]))),
   (
     "rule",
