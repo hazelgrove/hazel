@@ -652,25 +652,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   let stitch_static = Core.Memo.general(stitch_static);
 
-  let statics_of_stiched =
-      (state: state, s: stitched(Editor.CachedStatics.t))
-      : Editor.CachedStatics.t =>
-    switch (state.pos) {
-    | Prelude => s.prelude
-    | CorrectImpl => s.instructor
-    | YourTestsValidation => s.test_validation
-    | YourTestsTesting => s.user_tests
-    | YourImpl => s.user_impl
-    | HiddenBugs(idx) => List.nth(s.hidden_bugs, idx)
-    | HiddenTests => s.hidden_tests
-    };
-
-  let statics_of = (~settings, exercise: state): Editor.CachedStatics.t =>
-    exercise
-    |> stitch_term
-    |> stitch_static(settings)
-    |> statics_of_stiched(exercise);
-
   let prelude_key = "prelude";
   let test_validation_key = "test_validation";
   let user_impl_key = "user_impl";
@@ -722,22 +703,27 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   module DynamicsItem = {
     type t = {
-      term: TermBase.UExp.t,
-      info_map: Statics.Map.t,
+      statics: Editor.CachedStatics.t,
       result: ModelResult.t,
     };
-    let empty: t = {
-      term: {
-        term: Tuple([]),
-        ids: [Id.mk()],
-      },
-      info_map: Id.Map.empty,
+    let empty: t = {statics: Editor.CachedStatics.empty, result: NoElab};
+    let statics_only = (statics: Editor.CachedStatics.t): t => {
+      statics,
       result: NoElab,
     };
-    let statics_only = ({term, info_map, _}: Editor.CachedStatics.t): t => {
-      {term, info_map, result: NoElab};
-    };
   };
+
+  let statics_of_stiched_dynamics =
+      (state: state, s: stitched(DynamicsItem.t)): Editor.CachedStatics.t =>
+    switch (state.pos) {
+    | Prelude => s.prelude.statics
+    | CorrectImpl => s.instructor.statics
+    | YourTestsValidation => s.test_validation.statics
+    | YourTestsTesting => s.user_tests.statics
+    | YourImpl => s.user_impl.statics
+    | HiddenBugs(idx) => List.nth(s.hidden_bugs, idx).statics
+    | HiddenTests => s.hidden_tests.statics
+    };
 
   /* Given the evaluation results, collects the
      relevant information for producing dynamic
@@ -769,50 +755,27 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
     let test_validation =
       DynamicsItem.{
-        term: test_validation.term,
-        info_map: test_validation.info_map,
+        statics: test_validation,
         result: result_of(test_validation_key),
       };
 
     let user_impl =
-      DynamicsItem.{
-        term: user_impl.term,
-        info_map: user_impl.info_map,
-        result: result_of(user_impl_key),
-      };
+      DynamicsItem.{statics: user_impl, result: result_of(user_impl_key)};
 
     let user_tests =
-      DynamicsItem.{
-        term: user_tests.term,
-        info_map: user_tests.info_map,
-        result: result_of(user_tests_key),
-      };
-    let prelude =
-      DynamicsItem.{
-        term: prelude.term,
-        info_map: prelude.info_map,
-        result: NoElab,
-      };
+      DynamicsItem.{statics: user_tests, result: result_of(user_tests_key)};
+    let prelude = DynamicsItem.{statics: prelude, result: NoElab};
     let instructor =
-      DynamicsItem.{
-        term: instructor.term,
-        info_map: instructor.info_map,
-        result: result_of(instructor_key),
-      };
+      DynamicsItem.{statics: instructor, result: result_of(instructor_key)};
     let hidden_bugs =
       List.mapi(
-        (n, statics_item: Editor.CachedStatics.t) =>
-          DynamicsItem.{
-            term: statics_item.term,
-            info_map: statics_item.info_map,
-            result: result_of(hidden_bugs_key(n)),
-          },
+        (n, statics: Editor.CachedStatics.t) =>
+          DynamicsItem.{statics, result: result_of(hidden_bugs_key(n))},
         hidden_bugs,
       );
     let hidden_tests =
       DynamicsItem.{
-        term: hidden_tests.term,
-        info_map: hidden_tests.info_map,
+        statics: hidden_tests,
         result: result_of(hidden_tests_key),
       };
     {

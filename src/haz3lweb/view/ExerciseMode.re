@@ -23,16 +23,16 @@ let view =
       ~ui_state: Model.ui_state,
       ~settings: Settings.t,
       ~exercise,
-      ~results,
+      ~stitched_dynamics,
       ~highlights,
     ) => {
   let Exercise.{eds, pos} = exercise;
-  let stitched_dynamics =
-    Exercise.stitch_dynamic(
-      settings.core,
-      exercise,
-      settings.core.dynamics ? Some(results) : None,
-    );
+  // let stitched_dynamics =
+  //   Exercise.stitch_dynamic(
+  //     settings.core,
+  //     exercise,
+  //     settings.core.dynamics ? Some(results) : None,
+  //   );
   let {
     test_validation,
     user_impl,
@@ -59,15 +59,7 @@ let view =
       ) => {
     Cell.editor_view(
       ~selected=pos == this_pos,
-      // ~statics={
-      //   term: di.term,
-      //   info_map: di.info_map,
-      //   error_ids:
-      //     Statics.Map.error_ids(
-      //       editor.state.meta.projected.term_ranges,
-      //       di.info_map,
-      //     ),
-      // },
+      ~override_statics=di.statics,
       ~inject,
       ~ui_state,
       ~mousedown_updates=[SwitchEditor(this_pos)],
@@ -119,10 +111,13 @@ let view =
           let correct_impl_trailing_hole_ctx =
             Haz3lcore.Editor.trailing_hole_ctx(
               eds.correct_impl,
-              instructor.info_map,
+              instructor.statics.info_map,
             );
           let prelude_trailing_hole_ctx =
-            Haz3lcore.Editor.trailing_hole_ctx(eds.prelude, prelude.info_map);
+            Haz3lcore.Editor.trailing_hole_ctx(
+              eds.prelude,
+              prelude.statics.info_map,
+            );
           switch (correct_impl_trailing_hole_ctx, prelude_trailing_hole_ctx) {
           | (None, _) => Node.div([text("No context available (1)")])
           | (_, None) => Node.div([text("No context available (2)")]) // TODO show exercise configuration error

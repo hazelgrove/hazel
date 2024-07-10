@@ -250,10 +250,17 @@ let editor_view =
       ~highlights: option(ColorSteps.colorMap),
       ~overlayer: option(Node.t)=None,
       ~sort=Sort.root,
+      ~override_statics: option(Editor.CachedStatics.t)=?,
       editor: Editor.t,
     ) => {
   let Model.{font_metrics, mousedown, _} = ui_state;
-  let code_text_view = Code.view(~sort, ~font_metrics, ~settings, editor);
+  let meta =
+    /* For exercises modes */
+    switch (override_statics) {
+    | None => editor.state.meta
+    | Some(statics) => {...editor.state.meta, statics}
+    };
+  let code_text_view = Code.view(~sort, ~font_metrics, ~settings, meta);
   let deco_view =
     deco(
       ~inject=a => inject(PerformAction(Project(a))),
@@ -261,7 +268,7 @@ let editor_view =
       ~selected,
       ~test_results,
       ~highlights,
-      editor.state.meta,
+      meta,
     );
   let code_view =
     div(
