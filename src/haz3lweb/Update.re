@@ -186,11 +186,7 @@ let update_settings =
 let schedule_evaluation = (~schedule_action, model: Model.t): unit =>
   if (model.settings.core.dynamics) {
     let elabs =
-      Editors.get_spliced_elabs(
-        ~settings=model.settings,
-        model.statics,
-        model.editors,
-      );
+      Editors.get_spliced_elabs(~settings=model.settings.core, model.editors);
     let eval_rs = ModelResults.to_evaluate(model.results, elabs);
     if (!ModelResults.is_empty(eval_rs)) {
       schedule_action(UpdateResult(eval_rs));
@@ -216,45 +212,6 @@ let schedule_evaluation = (~schedule_action, model: Model.t): unit =>
     };
   };
 
-//TODO(andrew): cleanup
-// let update_projectors = (model: Model.t): Model.t => {
-//   let statics = Model.current_statics(model);
-//   //let editor = Editors.get_editor(model.editors);
-//   //let syntax_map = editor.state.meta.projected.syntax_map;
-//   let editors =
-//     Editors.map_projectors(
-//       model.editors,
-//       (id, p) => {
-//         //let syntax = Id.Map.find(id, syntax_map);
-//         let (module P) = Projector.to_module(p);
-//         let info = Id.Map.find_opt(id, statics.info_map);
-//         P.auto_update({info: info});
-//       },
-//     );
-//   {...model, editors};
-// };
-
-let update_cached_data = (~schedule_action, update, m: Model.t): Model.t => {
-  let update_statics = is_edit(update) || reevaluate_post_update(update);
-  let update_dynamics = reevaluate_post_update(update);
-  let m =
-    update_statics || update_dynamics && m.settings.core.statics
-      ? {
-        print_endline("UPDATING STATICS. TODO(andrew): disable this!!!!!");
-        //TODO(andrew): cleanup
-        let statics = Editors.mk_statics(~settings=m.settings, m.editors);
-        //update_projectors({...m, statics});
-        {...m, statics};
-      }
-      : m;
-  if (update_dynamics && m.settings.core.dynamics) {
-    schedule_evaluation(~schedule_action, m);
-    m;
-  } else {
-    m;
-  };
-};
-
 let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
   switch (
     model.editors
@@ -268,6 +225,33 @@ let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
        we wait a second after the last edit action (see Main.re) */
     Ok(model);
   };
+
+let update_cached_data = (~schedule_action, update, m: Model.t): Model.t => {
+  let update_dynamics = reevaluate_post_update(update);
+  let m =
+    if (update_dynamics
+        && (
+          switch (update) {
+          //TODO(andrew): explain or make better
+          | PerformAction(_) => false
+          | _ => true
+          }
+        )) {
+      print_endline("update_cached_data: performing RecalcStatics");
+      switch (perform_action(m, RecalcStatics)) {
+      | Ok(m) => m
+      | Error(_) => failwith("ERROR: RecalcStatics failed")
+      };
+    } else {
+      m;
+    };
+  if (update_dynamics && m.settings.core.dynamics) {
+    schedule_evaluation(~schedule_action, m);
+    m;
+  } else {
+    m;
+  };
+};
 
 let switch_scratch_slide =
     (~settings, editors: Editors.t, ~instructor_mode, idx: int)

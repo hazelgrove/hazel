@@ -36,22 +36,12 @@ module Map = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Id.Map.t(Info.t);
 
-  let error_ids = (term_ranges: TermRanges.t, info_map: t): list(Id.t) =>
+  let error_ids = (info_map: t): list(Id.t) =>
     Id.Map.fold(
       (id, info, acc) =>
-        /* Because of artefacts in Maketerm ID handling,
-         * there are be situations where ids appear in the
-         * info_map which do not occur in term_ranges. These
-         * ids should be purely duplicative, so skipping them
-         * when iterating over the info_map should have no
-         * effect, beyond supressing the resulting Not_found exs */
-        switch (Id.Map.find_opt(id, term_ranges)) {
-        | Some(_) when Info.is_error(info) && id == Info.id_of(info) => [
-            id,
-            ...acc,
-          ]
-        | _ => acc
-        },
+        /* Second clause is to eliminate non-representative ids,
+         * which will not be found in the measurements map */
+        Info.is_error(info) && id == Info.id_of(info) ? [id, ...acc] : acc,
       info_map,
       [],
     );
@@ -911,6 +901,15 @@ and variant_to_info_map =
       };
     (m, [ctr, ...ctrs]);
   };
+};
+
+let mk =
+  Core.Memo.general(~cache_size_bound=1000, (ctx, e) => {
+    uexp_to_info_map(~ctx, ~ancestors=[], e, Id.Map.empty) |> snd
+  });
+let mk = (core: CoreSettings.t, ctx, exp) => {
+  print_endline("RETICULATING STATICS"); //TODO(andrew): rm
+  core.statics ? mk(ctx, exp) : Id.Map.empty;
 };
 
 let collect_errors = (map: Map.t): list((Id.t, Info.error)) =>

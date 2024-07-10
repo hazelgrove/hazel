@@ -57,39 +57,6 @@ let get_env_init = (~settings as _: Settings.t, editors: t): Environment.t =>
   | Documentation(_) => Builtins.env_init
   };
 
-let mk_statics = (~settings: Settings.t, editors: t): CachedStatics.t => {
-  let editor = get_editor(editors);
-  let ctx_init = get_ctx_init(~settings, editors);
-  switch (editors) {
-  | _ when !settings.core.statics => CachedStatics.mk([])
-  | Scratch(idx, _) =>
-    let key = ScratchSlide.scratch_key(string_of_int(idx));
-    [(key, ScratchSlide.mk_statics(~settings, editor, ctx_init))]
-    |> CachedStatics.mk;
-  | Documentation(name, _) =>
-    let key = ScratchSlide.scratch_key(name);
-    [(key, ScratchSlide.mk_statics(~settings, editor, ctx_init))]
-    |> CachedStatics.mk;
-  | Exercises(_, _, exercise) =>
-    Exercise.mk_statics(settings.core, exercise) |> CachedStatics.mk
-  };
-};
-
-let lookup_statics =
-    (~settings: Settings.t, ~statics, editors: t): CachedStatics.statics =>
-  switch (editors) {
-  | _ when !settings.core.statics => CachedStatics.empty_statics
-  | Scratch(idx, _) =>
-    let key = ScratchSlide.scratch_key(string_of_int(idx));
-    CachedStatics.lookup(statics, key);
-  | Documentation(name, _) =>
-    let key = ScratchSlide.scratch_key(name);
-    CachedStatics.lookup(statics, key);
-  | Exercises(_, _, exercise) =>
-    let key = Exercise.key_for_statics(exercise);
-    CachedStatics.lookup(statics, key);
-  };
-
 /* Each mode (e.g. Scratch, School) requires
    elaborating on some number of expressions
    that are spliced together from the editors
@@ -98,23 +65,20 @@ let lookup_statics =
 
    Used in the Update module */
 let get_spliced_elabs =
-    (~settings: Settings.t, statics, editors: t)
+    (~settings: CoreSettings.t, editors: t)
     : list((ModelResults.key, DHExp.t)) =>
   switch (editors) {
   | Scratch(idx, _) =>
     let key = ScratchSlide.scratch_key(idx |> string_of_int);
-    let CachedStatics.{term, info_map, _} =
-      lookup_statics(~settings, ~statics, editors);
-    let d = Interface.elaborate(~settings=settings.core, info_map, term);
+    let statics = get_editor(editors).state.meta.statics;
+    let d = Interface.elaborate(~settings, statics.info_map, statics.term);
     [(key, d)];
   | Documentation(name, _) =>
     let key = ScratchSlide.scratch_key(name);
-    let CachedStatics.{term, info_map, _} =
-      lookup_statics(~settings, ~statics, editors);
-    let d = Interface.elaborate(~settings=settings.core, info_map, term);
+    let statics = get_editor(editors).state.meta.statics;
+    let d = Interface.elaborate(~settings, statics.info_map, statics.term);
     [(key, d)];
-  | Exercises(_, _, exercise) =>
-    Exercise.spliced_elabs(settings.core, exercise)
+  | Exercises(_, _, exercise) => Exercise.spliced_elabs(settings, exercise)
   };
 
 let set_instructor_mode = (editors: t, instructor_mode: bool): t =>

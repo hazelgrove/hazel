@@ -17,18 +17,20 @@ let print = ({settings, editors, _}: Model.t, key: string): unit => {
   | "F4" =>
     z
     |> term
-    |> Interface.Statics.mk_map_ctx(settings.core, ctx_init)
+    |> Statics.mk(settings.core, ctx_init)
     |> Statics.Map.show
     |> print
   | "F5" =>
     let env_init = Editors.get_env_init(~settings, editors);
-    Interface.eval_z(~settings=settings.core, ~env_init, ~ctx_init, z)
+    let (term, _) = MakeTerm.from_zip_for_sem(z);
+    let info_map = Statics.mk(settings.core, ctx_init, term);
+    let d = Interface.elaborate(~settings=settings.core, info_map, term);
+    Interface.evaluate(~settings=settings.core, ~env=env_init, d)
     |> ProgramResult.show
     |> print;
   | "F6" =>
     let index = Indicated.index(z);
-    let map =
-      z |> term |> Interface.Statics.mk_map_ctx(settings.core, ctx_init);
+    let map = z |> term |> Statics.mk(settings.core, ctx_init);
     switch (index) {
     | Some(index) =>
       switch (Haz3lcore.Id.Map.find_opt(index, map)) {
@@ -37,7 +39,6 @@ let print = ({settings, editors, _}: Model.t, key: string): unit => {
       }
     | None => print("DEBUG: No indicated index")
     };
-
   | _ => print("DEBUG: No action for key: " ++ key)
   };
 };

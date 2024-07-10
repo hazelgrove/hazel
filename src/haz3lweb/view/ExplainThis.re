@@ -208,22 +208,21 @@ let expander_deco =
       ~docs: ExplainThisModel.t,
       ~settings: Settings.t,
       ~inject,
-      ~ui_state as {font_metrics, _}: Model.ui_state,
+      ~ui_state: Model.ui_state,
       ~options: list((ExplainThisForm.form_id, Segment.t)),
       ~group: ExplainThisForm.group,
       ~doc: ExplainThisForm.form,
     ) => {
   module Deco =
     Deco.Deco({
-      let font_metrics = font_metrics;
-      let map = Measured.of_segment(doc.syntactic_form);
-      let show_backpack_targets = false;
-      let (_, terms) = MakeTerm.go(doc.syntactic_form);
-      let term_ranges = TermRanges.mk(doc.syntactic_form);
-      let tiles = TileMap.mk(doc.syntactic_form);
-      let statics = CachedStatics.empty_statics;
-      let syntax_map = Id.Map.empty;
+      let ui_state = ui_state;
+      let meta =
+        Editor.Meta.init(
+          ~settings=CoreSettings.off,
+          Zipper.unzip(doc.syntactic_form),
+        );
     });
+  let Model.{font_metrics, _} = ui_state;
   switch (doc.expandable_id, List.length(options)) {
   | (None, _)
   | (_, 0 | 1) => div([])

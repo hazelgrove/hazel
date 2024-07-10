@@ -559,17 +559,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   // # Stitching
 
-  module TermItem = {
-    type t = {
-      term: TermBase.UExp.t,
-      term_ranges: TermRanges.t,
-    };
-  };
-
-  module StaticsItem = {
-    type t = CachedStatics.statics;
-  };
-
   type stitched('a) = {
     test_validation: 'a, // prelude + correct_impl + your_tests
     user_impl: 'a, // prelude + your_impl
@@ -591,11 +580,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       ids: [Id.mk()],
     };
 
-  let wrap = (term, editor: Editor.t): TermItem.t => {
-    term,
-    term_ranges: editor.state.meta.projected.term_ranges,
-  };
-
   let term_of = (editor: Editor.t): Term.UExp.t =>
     MakeTerm.from_zip_for_sem(editor.state.zipper) |> fst;
 
@@ -605,7 +589,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       term_of(ed3),
     );
 
-  let stitch_term = ({eds, _}: state): stitched(TermItem.t) => {
+  let stitch_term = ({eds, _}: state): stitched(TermBase.UExp.t) => {
     let instructor =
       stitch3(eds.prelude, eds.correct_impl, eds.hidden_tests.tests);
     let user_impl_term = {
@@ -622,24 +606,24 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     let hidden_tests_term =
       EditorUtil.append_exp(user_impl_term, term_of(eds.hidden_tests.tests));
     {
-      test_validation: wrap(test_validation_term, eds.your_tests.tests),
-      user_impl: wrap(user_impl_term, eds.your_impl),
-      user_tests: wrap(user_tests_term, eds.your_tests.tests),
+      test_validation: test_validation_term,
+      user_impl: user_impl_term,
+      user_tests: user_tests_term,
       // instructor works here as long as you don't shadow anything in the prelude
-      prelude: wrap(instructor, eds.prelude),
-      instructor: wrap(instructor, eds.correct_impl),
+      prelude: instructor,
+      instructor,
       hidden_bugs:
         List.map(
-          (t): TermItem.t =>
-            wrap(stitch3(eds.prelude, t.impl, eds.your_tests.tests), t.impl),
+          (t): TermBase.UExp.t =>
+            stitch3(eds.prelude, t.impl, eds.your_tests.tests),
           eds.hidden_bugs,
         ),
-      hidden_tests: wrap(hidden_tests_term, eds.hidden_tests.tests),
+      hidden_tests: hidden_tests_term,
     };
   };
   let stitch_term = Core.Memo.general(stitch_term);
 
-  type stitched_statics = stitched(StaticsItem.t);
+  type stitched_statics = stitched(Editor.CachedStatics.t);
 
   /* Multiple stitchings are needed for each exercise
      (see comments in the stitched type above)
@@ -647,14 +631,12 @@ module F = (ExerciseEnv: ExerciseEnv) => {
      Stitching is necessary to concatenate terms
      from different editors, which are then typechecked. */
   let stitch_static =
-      (settings: CoreSettings.t, t: stitched(TermItem.t)): stitched_statics => {
-    let mk = ({term, term_ranges, _}: TermItem.t): StaticsItem.t => {
-      let info_map = Interface.Statics.mk_map(settings, term);
-      {
-        term,
-        error_ids: Statics.Map.error_ids(term_ranges, info_map),
-        info_map,
-      };
+      (settings: CoreSettings.t, t: stitched(TermBase.UExp.t))
+      : stitched_statics => {
+    let mk = (term: TermBase.UExp.t): Editor.CachedStatics.t => {
+      //NOTE: this is expensive and _almost_ redundant to the statics in Editor
+      let info_map = Statics.mk(settings, Builtins.ctx_init, term);
+      {term, error_ids: Statics.Map.error_ids(info_map), info_map};
     };
     let instructor = mk(t.instructor);
     {
@@ -671,7 +653,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   let stitch_static = Core.Memo.general(stitch_static);
 
   let statics_of_stiched =
-      (state: state, s: stitched(StaticsItem.t)): StaticsItem.t =>
+      (state: state, s: stitched(Editor.CachedStatics.t))
+      : Editor.CachedStatics.t =>
     switch (state.pos) {
     | Prelude => s.prelude
     | CorrectImpl => s.instructor
@@ -682,7 +665,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     | HiddenTests => s.hidden_tests
     };
 
-  let statics_of = (~settings, exercise: state): StaticsItem.t =>
+  let statics_of = (~settings, exercise: state): Editor.CachedStatics.t =>
     exercise
     |> stitch_term
     |> stitch_static(settings)
@@ -720,7 +703,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       hidden_tests,
     } =
       stitch_static(settings, stitch_term(state));
-    let elab = (s: CachedStatics.statics) =>
+    let elab = (s: Editor.CachedStatics.t) =>
       Interface.elaborate(~settings, s.info_map, s.term);
     [
       (test_validation_key, elab(test_validation)),
@@ -731,28 +714,10 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     ]
     @ (
       hidden_bugs
-      |> List.mapi((n, hidden_bug: StaticsItem.t) =>
+      |> List.mapi((n, hidden_bug: Editor.CachedStatics.t) =>
            (hidden_bugs_key(n), elab(hidden_bug))
          )
     );
-  };
-
-  let mk_statics =
-      (settings: CoreSettings.t, state: state)
-      : list((ModelResults.key, StaticsItem.t)) => {
-    let stitched = stitch_static(settings, stitch_term(state));
-    [
-      (prelude_key, stitched.prelude),
-      (test_validation_key, stitched.test_validation),
-      (user_impl_key, stitched.user_impl),
-      (user_tests_key, stitched.user_tests),
-      (instructor_key, stitched.instructor),
-      (hidden_tests_key, stitched.hidden_tests),
-    ]
-    @ List.mapi(
-        (n, hidden_bug: StaticsItem.t) => (hidden_bugs_key(n), hidden_bug),
-        stitched.hidden_bugs,
-      );
   };
 
   module DynamicsItem = {
@@ -769,7 +734,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       info_map: Id.Map.empty,
       result: NoElab,
     };
-    let statics_only = ({term, info_map, _}: StaticsItem.t): t => {
+    let statics_only = ({term, info_map, _}: Editor.CachedStatics.t): t => {
       {term, info_map, result: NoElab};
     };
   };
@@ -836,7 +801,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       };
     let hidden_bugs =
       List.mapi(
-        (n, statics_item: StaticsItem.t) =>
+        (n, statics_item: Editor.CachedStatics.t) =>
           DynamicsItem.{
             term: statics_item.term,
             info_map: statics_item.info_map,

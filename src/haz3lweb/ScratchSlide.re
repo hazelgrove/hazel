@@ -50,13 +50,3 @@ let import = (data: string, ~settings: CoreSettings.t): state => {
 let export_init = (state: state): string => {
   state |> persist |> show_persistent_state;
 };
-
-let mk_statics =
-    (~settings: Settings.t, editor: Editor.t, ctx_init: Ctx.t)
-    : CachedStatics.statics => {
-  let term = MakeTerm.from_zip_for_sem(editor.state.zipper) |> fst;
-  let info_map = Interface.Statics.mk_map_ctx(settings.core, ctx_init, term);
-  let error_ids =
-    Statics.Map.error_ids(editor.state.meta.projected.term_ranges, info_map);
-  {term, info_map, error_ids};
-};

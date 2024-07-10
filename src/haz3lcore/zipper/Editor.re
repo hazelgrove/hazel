@@ -2,6 +2,29 @@ open Sexplib.Std;
 open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
 open Util;
 
+module CachedStatics = {
+  type t = {
+    term: Term.UExp.t,
+    info_map: Statics.Map.t,
+    error_ids: list(Id.t),
+  };
+
+  let empty: t = {
+    term: Term.UExp.{ids: [Id.invalid], term: Triv},
+    info_map: Id.Map.empty,
+    error_ids: [],
+  };
+
+  let mk = (~settings: CoreSettings.t, z: Zipper.t): t => {
+    //TODO(andrew): allow pass-in of init ctx
+    let ctx_init = Builtins.ctx_init;
+    let term = MakeTerm.from_zip_for_sem(z) |> fst;
+    let info_map = Statics.mk(settings, ctx_init, term);
+    let error_ids = Statics.Map.error_ids(info_map);
+    {term, info_map, error_ids};
+  };
+};
+
 module Meta = {
   /* Derived data for projected zipper */
   type projected = {
@@ -17,12 +40,10 @@ module Meta = {
     syntax_map: Id.Map.t(Piece.t),
   };
 
-  type statics = CachedStatics.statics;
-
   type t = {
     col_target: int,
     touched: Touched.t,
-    statics,
+    statics: CachedStatics.t,
     projected,
   };
 
@@ -43,15 +64,13 @@ module Meta = {
     };
   };
 
+  let mk_statics = (~settings: CoreSettings.t, z: Zipper.t) =>
+    settings.statics ? CachedStatics.mk(~settings, z) : CachedStatics.empty;
+
   let init = (~settings: CoreSettings.t, z: Zipper.t) => {
-    //TODO(andrew): allow pass-in of init ctx
-    //TODO(andrew): cleanup
-    let ctx_init = Builtins.ctx_init;
-    let term = MakeTerm.from_zip_for_sem(z) |> fst;
-    let info_map = Interface.Statics.mk_map_ctx(settings, ctx_init, term);
-    let projected = Projector.Project.go(z, info_map) |> init_projected;
-    let error_ids = Statics.Map.error_ids(projected.term_ranges, info_map);
-    let statics = CachedStatics.{term, info_map, error_ids};
+    let statics = mk_statics(~settings, z);
+    let projected =
+      Projector.Project.go(z, statics.info_map) |> init_projected;
     {col_target: 0, touched: Touched.empty, statics, projected};
   };
 
@@ -94,6 +113,21 @@ module Meta = {
     };
   };
 
+  let next_statics =
+      (
+        ~settings: CoreSettings.t,
+        a: Action.t,
+        z: Zipper.t,
+        old_statics: CachedStatics.t,
+      ) =>
+    if (!settings.statics) {
+      CachedStatics.empty;
+    } else if (!Action.is_edit(a)) {
+      old_statics;
+    } else {
+      CachedStatics.mk(~settings, z);
+    };
+
   let next =
       (
         ~effects: list(Effect.t)=[],
@@ -110,33 +144,13 @@ module Meta = {
       | Select(Resize(Local(Up | Down))) => meta.col_target
       | _ => Zipper.caret_point(meta.projected.measured, meta.projected.z).col
       };
-    //TODO(andrew): cleanup
-    let (term, info_map) =
-      switch (Action.is_edit(a)) {
-      | false => (meta.statics.term, meta.statics.info_map)
-      | _ =>
-        //TODO(andrew): allow pass-in of init ctx
-        let ctx_init = Builtins.ctx_init;
-        let term = MakeTerm.from_zip_for_sem(z) |> fst;
-        let info_map = Interface.Statics.mk_map_ctx(settings, ctx_init, term);
-        (term, info_map);
-      };
-    let z_projected = Projector.Project.go(z, info_map);
+    let statics = next_statics(~settings, a, z, meta.statics);
+    let z_projected = Projector.Project.go(z, statics.info_map);
     let projected =
       switch (Action.is_edit(a)) {
-      //TODO(andrew): reenable
-      //TODO: andrew figure out why core desyncs from view on measure length.. prob use diff statics
       | false => {...meta.projected, z: z_projected.z}
       | _ =>
         next_projected(z_projected, ~touched, ~old=meta.projected.measured)
-      };
-    let statics =
-      switch (Action.is_edit(a)) {
-      | false => meta.statics
-      | _ =>
-        let error_ids =
-          Statics.Map.error_ids(projected.term_ranges, info_map);
-        CachedStatics.{term, info_map, error_ids};
       };
     {touched, col_target, projected, statics};
   };

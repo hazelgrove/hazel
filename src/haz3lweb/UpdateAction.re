@@ -172,7 +172,6 @@ let reevaluate_post_update: t => bool =
     | Assist
     | Captions
     | SecondaryIcons
-    | Statics
     | ContextInspector
     | Benchmark
     | ExplainThis(_)
@@ -185,6 +184,7 @@ let reevaluate_post_update: t => bool =
       ) =>
       false
     | Elaborate
+    | Statics
     | Dynamics
     | InstructorMode
     | Mode(_) => true
@@ -280,6 +280,7 @@ let should_scroll_to_caret =
     | Put_down
     | RotateBackpack
     | MoveToBackpackTarget(_) => true
+    | RecalcStatics
     | Project(_)
     | Unselect(_)
     | Select(All) => false
