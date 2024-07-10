@@ -319,16 +319,28 @@ module Deco = (M: {
     (l, r, path) |> deco;
   };
 
-  let term_highlight = (~clss: list(string), id: Id.t) => {
-    term_decoration(~id, ((origin, last, path)) =>
-      DecUtil.code_svg_sized(
-        ~font_metrics,
-        ~measurement={origin, last},
-        ~base_cls=clss,
-        path,
+  let term_highlight = (~clss: list(string), id: Id.t) =>
+    try(
+      term_decoration(~id, ((origin, last, path)) =>
+        DecUtil.code_svg_sized(
+          ~font_metrics,
+          ~measurement={origin, last},
+          ~base_cls=clss,
+          path,
+        )
       )
-    );
-  };
+    ) {
+    | _ =>
+      /* This is caused by the statics overloading for exercise mode. The overriding
+       * Exercise mode statics is calculated based on splicing together multiple
+       * editors; the way the splicings are designed, a given splicing might cover more
+       * than just the editor to which it's statics are being applied, so there may
+       * be error holes that don't occur in the editor. However, any errors that do
+       * occur in the editor will be represented, so this hack works for now */
+      //TODO(andrew)
+      print_endline("WARNING: Deco.term_highlight: Not found");
+      Node.div([]);
+    };
 
   let color_highlights = (colorings: list((Id.t, string))) => {
     List.filter_map(

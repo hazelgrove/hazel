@@ -172,14 +172,7 @@ let view =
       ~sort: Sort.t,
       ~font_metrics,
       ~settings: Settings.t,
-      {
-        state:
-          {
-            meta: {projected: {measured, buffer_ids, segment, holes, _}, _},
-            _,
-          },
-        _,
-      }: Editor.t,
+      {projected: {measured, buffer_ids, segment, holes, _}, _}: Editor.Meta.t,
     )
     : Node.t => {
   module Text =

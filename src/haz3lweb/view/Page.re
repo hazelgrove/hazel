@@ -78,8 +78,76 @@ let main_view =
       {settings, editors, explainThisModel, results, ui_state, _}: Model.t,
     ) => {
   let editor = Editors.get_editor(editors);
-  let info_map = editor.state.meta.statics.info_map;
-  let cursor_info = Indicated.ci_of(editor.state.zipper, info_map);
+  let common = () => {
+    let cursor_info =
+      Indicated.ci_of(
+        editor.state.zipper,
+        editor.state.meta.statics.info_map,
+      );
+    let highlights =
+      ExplainThis.get_color_map(~settings, ~explainThisModel, cursor_info);
+    (cursor_info, highlights);
+  };
+  let (editors_view, cursor_info) =
+    switch (editors) {
+    | Scratch(idx, _) =>
+      let result_key = ScratchSlide.scratch_key(string_of_int(idx));
+      let (cursor_info, highlights) = common();
+      let view =
+        ScratchMode.view(
+          ~inject,
+          ~ui_state,
+          ~settings,
+          ~highlights,
+          ~results,
+          ~result_key,
+          editor,
+        );
+      (view, cursor_info);
+    | Documentation(name, _) =>
+      let result_key = ScratchSlide.scratch_key(name);
+      let (cursor_info, highlights) = common();
+      let info =
+        SlideContent.get_content(editors)
+        |> Option.map(i => div(~attrs=[Attr.id("slide")], [i]))
+        |> Option.to_list;
+      let view =
+        info
+        @ ScratchMode.view(
+            ~inject,
+            ~ui_state,
+            ~settings,
+            ~highlights,
+            ~results,
+            ~result_key,
+            editor,
+          );
+      (view, cursor_info);
+    | Exercises(_, _, exercise) =>
+      //TODO(andrew): make less costly
+      let stitched_dynamics =
+        Exercise.stitch_dynamic(
+          settings.core,
+          exercise,
+          settings.core.dynamics ? Some(results) : None,
+        );
+      let statics =
+        Exercise.statics_of_stiched_dynamics(exercise, stitched_dynamics);
+      let cursor_info =
+        Indicated.ci_of(editor.state.zipper, statics.info_map);
+      let highlights =
+        ExplainThis.get_color_map(~settings, ~explainThisModel, cursor_info);
+      let view =
+        ExerciseMode.view(
+          ~inject,
+          ~ui_state,
+          ~settings,
+          ~highlights,
+          ~stitched_dynamics,
+          ~exercise,
+        );
+      (view, cursor_info);
+    };
   let top_bar =
     div(
       ~attrs=[Attr.id("top-bar")],
@@ -99,47 +167,6 @@ let main_view =
           cursor_info,
         )
       : div([]);
-  let highlights =
-    ExplainThis.get_color_map(~settings, ~explainThisModel, cursor_info);
-  let editors_view =
-    switch (editors) {
-    | Scratch(idx, _) =>
-      let result_key = ScratchSlide.scratch_key(string_of_int(idx));
-      ScratchMode.view(
-        ~inject,
-        ~ui_state,
-        ~settings,
-        ~highlights,
-        ~results,
-        ~result_key,
-        editor,
-      );
-    | Documentation(name, _) =>
-      let result_key = ScratchSlide.scratch_key(name);
-      let info =
-        SlideContent.get_content(editors)
-        |> Option.map(i => div(~attrs=[Attr.id("slide")], [i]))
-        |> Option.to_list;
-      info
-      @ ScratchMode.view(
-          ~inject,
-          ~ui_state,
-          ~settings,
-          ~highlights,
-          ~results,
-          ~result_key,
-          editor,
-        );
-    | Exercises(_, _, exercise) =>
-      ExerciseMode.view(
-        ~inject,
-        ~ui_state,
-        ~settings,
-        ~highlights,
-        ~results,
-        ~exercise,
-      )
-    };
   [
     top_bar,
     div(
