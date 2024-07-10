@@ -1,5 +1,5 @@
-open Sexplib.Std;
-open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
+// open Sexplib.Std;
+// open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
 open Virtual_dom.Vdom;
 open ProjectorBase;
 
@@ -7,25 +7,22 @@ open ProjectorBase;
 //TODO(andrew): unhardcode element !!!!!!!!!!
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type action_ =
-  | SetInside(bool);
+//TODO(andrew): reinstate
+// [@deriving (show({with_path: false}), sexp, yojson)]
+// type inner_action +=
+//   | SetInside(bool);
 
 let selector = ".projector.text textarea";
 
-let serialize = a => a |> sexp_of_action_ |> Sexplib.Sexp.to_string;
+// let serialize = a => a |> sexp_of_action_ |> Sexplib.Sexp.to_string;
 
-let deserialize = a => a |> Sexplib.Sexp.of_string |> action__of_sexp;
+// let deserialize = a => a |> Sexplib.Sexp.of_string |> action__of_sexp;
 
-/* Function to escape linebreaks */
-let escape_linebreaks = (str: string): string => {
-  Re.Str.global_replace(Re.Str.regexp("\n"), "\\n", str);
-};
+let escape_linebreaks: string => string =
+  Re.Str.global_replace(Re.Str.regexp("\n"), "\\n");
 
-/* Function to unescape linebreaks */
-let unescape_linebreaks = (str: string): string => {
-  Re.Str.global_replace(Re.Str.regexp("\\\\n"), "\n", str);
-};
+let unescape_linebreaks: string => string =
+  Re.Str.global_replace(Re.Str.regexp("\\\\n"), "\n");
 
 let of_mono = (syntax: Piece.t): option(string) =>
   switch (syntax) {
@@ -57,8 +54,10 @@ let textarea =
     ) =>
   Node.textarea(
     ~attrs=[
-      Attr.on_blur(_ => inject(UpdateModel(serialize(SetInside(false))))),
+      Attr.on_blur(_ => inject(UpdateModel(SetInside(false)))),
+      Attr.on_focus(_ => inject(UpdateModel(SetInside(true)))),
       Attr.on_click(_ => inject(FocusInternal(selector))),
+      Attr.on_mousedown(_ => inject(FocusInternal(selector))),
       Attr.on_input((_, new_text) => inject(put(new_text))),
     ],
     [Node.text(text)],
@@ -68,19 +67,14 @@ let n_of = (n: int) =>
   [Node.text("·")]
   @ (List.init(n, _ => [Node.br(), Node.text("·")]) |> List.flatten);
 
-let view =
-    (
-      ~inject,
-      ~selector,
-      model: textarea,
-      text: string,
-      indicated: option(accent),
-    ) =>
+let view = (model: textarea, ~selector, ~status, ~syntax, ~info as _, ~inject) => {
+  let text = syntax |> get |> Form.strip_quotes;
   Node.div(
-    ~attrs=[Attr.classes(["cols"] @ (model.inside ? [] : cls(indicated)))],
+    ~attrs=[Attr.classes(["cols"] @ (model.inside ? [] : cls(status)))],
     n_of(1 + Util.StringUtil.num_linebreaks(text))
     @ [textarea(~inject, ~selector, text)],
   );
+};
 
 let keymap =
     (~selector, model: textarea, direction: Util.Direction.t, key: Key.t)
@@ -115,40 +109,33 @@ let keymap =
   };
 };
 
-let placeholder = (syntax, ()) => {
-  //TODO(andrew): cleanup
-  let row = Util.StringUtil.num_linebreaks(get(syntax));
-  /* +2 for left and right padding */
-  let col =
-    2
-    + List.fold_left(
-        max,
-        0,
-        List.map(
-          String.length,
-          Re.Str.split(Re.Str.regexp("\n"), get(syntax)),
-        ),
-      );
-  Block({row, col});
-};
+let line_lengths = syntax =>
+  List.map(String.length, Re.Str.split(Re.Str.regexp("\n"), get(syntax)));
 
-let mk = (~syntax, model): core =>
+let num_lines = syntax => List.fold_left(max, 0, line_lengths(syntax));
+
+let placeholder = syntax =>
+  Block({
+    row: Util.StringUtil.num_linebreaks(get(syntax)),
+    col: 2 + num_lines(syntax) /* +2 for left and right padding */
+  });
+
+let mk = (model): core =>
   (module
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
      type model = textarea;
-     [@deriving (show({with_path: false}), sexp, yojson)]
-     type action = action_;
      let model = model;
-     let projector = TextArea(model);
      let can_project = _ => true;
-     let placeholder = placeholder(syntax);
+     let placeholder = placeholder;
      let auto_update = _ => TextArea(model);
-     let update = (a: string) =>
-       switch (deserialize(a)) {
-       | SetInside(b) => TextArea({inside: b})
+     let update = a =>
+       switch (a) {
+       | SetInside(b) =>
+         print_endline("setting inside:" ++ string_of_bool(b));
+         TextArea({inside: b});
+       | _ => TextArea(model)
        };
-     let value = syntax |> get |> Form.strip_quotes;
-     let view = view(model, value, ~selector);
+     let view = view(model, ~selector);
      let keymap = keymap(~selector, model);
    });

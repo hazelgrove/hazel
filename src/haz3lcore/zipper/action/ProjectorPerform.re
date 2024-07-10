@@ -40,10 +40,11 @@ let go =
       z: Zipper.t,
     ) => {
   //TODO(andrew): avoid bringing statics in here?
-  let crime = (syntax, b, p) => {
+  let crime = (_syntax, b, p) => {
     //TODO(andrew): remove this crime
-    let (module P) = Projector.to_module(syntax, p);
-    P.update(TextAreaCore.serialize(SetInside(b)));
+    let (module P) = Projector.to_module(p);
+    P.update(SetInside(b));
+    //p;
   };
   let set_dispatch = (z: Zipper.t, id, b) =>
     switch (Id.Map.find_opt(id, syntax_map)) {

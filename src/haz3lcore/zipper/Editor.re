@@ -101,7 +101,7 @@ module Meta = {
       switch (Action.is_edit(a)) {
       //TODO(andrew): reenable
       //TODO: andrew figure out why core desyncs from view on measure length.. prob use diff statics
-      //| false => {...meta.projected, z: z_projected}
+      //| false => {...meta.projected, z: z_projected.z}
       | _ =>
         next_projected(z_projected, ~touched, ~old=meta.projected.measured)
       };

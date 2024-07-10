@@ -110,7 +110,7 @@ let deco =
       ~font_metrics,
       ~show_backpack_targets,
       ~selected,
-      ~error_ids,
+      ~statics: CachedStatics.statics,
       ~test_results: option(TestResults.t),
       ~highlights: option(ColorSteps.colorMap),
       {
@@ -144,7 +144,7 @@ let deco =
       let tiles = tiles;
       let font_metrics = font_metrics;
       let show_backpack_targets = show_backpack_targets;
-      let error_ids = error_ids;
+      let statics = statics;
       let syntax_map = syntax_map;
     });
   let decos =
@@ -275,7 +275,7 @@ let editor_view =
       ~footer: option(list(Node.t))=?,
       ~highlights: option(ColorSteps.colorMap),
       ~overlayer: option(Node.t)=None,
-      ~error_ids: list(Id.t),
+      ~statics: CachedStatics.statics,
       ~sort=Sort.root,
       editor: Editor.t,
     ) => {
@@ -286,7 +286,7 @@ let editor_view =
       ~font_metrics,
       ~show_backpack_targets,
       ~selected,
-      ~error_ids,
+      ~statics,
       ~test_results,
       ~highlights,
       editor,
@@ -380,7 +380,7 @@ let locked_no_statics =
     ~target_id,
     ~footer=[],
     ~test_results=None,
-    ~error_ids=[],
+    ~statics=CachedStatics.empty_statics,
     ~overlayer=Some(expander_deco),
     ~sort,
     segment |> Zipper.unzip |> Editor.init(~read_only=true),
@@ -440,7 +440,7 @@ let locked =
     ~target_id,
     ~footer,
     ~test_results=ModelResult.test_results(result),
-    ~error_ids=statics.error_ids,
+    ~statics=CachedStatics.empty_statics,
     editor,
   );
 };

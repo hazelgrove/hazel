@@ -218,10 +218,10 @@ let expander_deco =
       let font_metrics = font_metrics;
       let map = Measured.of_segment(doc.syntactic_form);
       let show_backpack_targets = false;
-      let (_term, terms) = MakeTerm.go(doc.syntactic_form);
+      let (_, terms) = MakeTerm.go(doc.syntactic_form);
       let term_ranges = TermRanges.mk(doc.syntactic_form);
       let tiles = TileMap.mk(doc.syntactic_form);
-      let error_ids = [];
+      let statics = CachedStatics.empty_statics;
       let syntax_map = Id.Map.empty;
     });
   switch (doc.expandable_id, List.length(options)) {

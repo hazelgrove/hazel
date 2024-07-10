@@ -327,7 +327,7 @@ let measured = z => z |> unselect_and_zip |> Measured.of_segment;
 let base_point = (measured: Measured.t, z: t): Measured.Point.t => {
   switch (representative_piece(z)) {
   | Some((p, d)) =>
-    /* NOTE(andrew): Below conversion necessary because sometimes
+    /* NOTE: Below conversion necessary because sometimes
      * we call this with measured based on projected zipper
      * measurements but also z is the non-projected zipper.
      * This should work okay since the core movement/selection
@@ -340,6 +340,16 @@ let base_point = (measured: Measured.t, z: t): Measured.Point.t => {
      * would be projected to their placeholders before lookup */
     let p =
       switch (ProjectorBase.Map.find(Piece.id(p), z.projectors)) {
+      | _ when Projector.is_placeholder(p) =>
+        /* NOTE: If OTOH we call this on the projected zipper, then
+         * p will already be a placeholder. In this case we may not
+         * want to call Projector.placeholder, as it may not be able
+         * to account for recieving a placeholder. AFAIK disabling
+         * this check doesn't currently cause any issues, but it
+         * did in the past when we were reifying the module in the
+         * below call, resulting in trying to interpret the syntax
+         * of the placeholder as e.g. an int for the slider */
+        p
       | Some(pr) => Projector.placeholder(pr, p)
       | None => p
       };

@@ -218,14 +218,14 @@ let schedule_evaluation = (~schedule_action, model: Model.t): unit =>
 
 let update_projectors = (model: Model.t): Model.t => {
   let statics = Model.current_statics(model);
-  let editor = Editors.get_editor(model.editors);
-  let syntax_map = editor.state.meta.projected.syntax_map;
+  //let editor = Editors.get_editor(model.editors);
+  //let syntax_map = editor.state.meta.projected.syntax_map;
   let editors =
     Editors.map_projectors(
       model.editors,
       (id, p) => {
-        let syntax = Id.Map.find(id, syntax_map);
-        let (module P) = Projector.to_module(syntax, p);
+        //let syntax = Id.Map.find(id, syntax_map);
+        let (module P) = Projector.to_module(p);
         let info = Id.Map.find_opt(id, statics.info_map);
         P.auto_update({info: info});
       },

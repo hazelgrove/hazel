@@ -12,13 +12,13 @@ type kind =
   | Slider
   | TextArea;
 
-let to_module = (syntax, p: projector): core =>
+let to_module = (p: projector): core =>
   switch ((p: projector)) {
-  | Fold(model) => FoldCore.mk(model, ~syntax)
-  | Infer(model) => InferCore.mk(model, ~syntax)
-  | Checkbox(model) => CheckboxCore.mk(model, ~syntax)
-  | Slider(model) => SliderCore.mk(model, ~syntax)
-  | TextArea(model) => TextAreaCore.mk(model, ~syntax)
+  | Fold(model) => FoldCore.mk(model)
+  | Infer(model) => InferCore.mk(model)
+  | Checkbox(model) => CheckboxCore.mk(model)
+  | Slider(model) => SliderCore.mk(model)
+  | TextArea(model) => TextAreaCore.mk(model)
   };
 
 let kind = (p: t): kind =>
@@ -30,13 +30,13 @@ let kind = (p: t): kind =>
   | TextArea(_) => TextArea
   };
 
-let init = (f: kind, syntax): core =>
+let init = (f: kind): core =>
   switch (f) {
-  | Fold => FoldCore.mk((), ~syntax)
-  | Infer => InferCore.mk({expected_ty: None}, ~syntax)
-  | Checkbox => CheckboxCore.mk((), ~syntax)
-  | Slider => SliderCore.mk((), ~syntax)
-  | TextArea => TextAreaCore.mk({inside: false}, ~syntax)
+  | Fold => FoldCore.mk()
+  | Infer => InferCore.mk({expected_ty: None})
+  | Checkbox => CheckboxCore.mk()
+  | Slider => SliderCore.mk()
+  | TextArea => TextAreaCore.mk({inside: false})
   };
 
 let name_of_kind = (p: kind): string =>
@@ -61,20 +61,28 @@ let of_name = (p: string): kind =>
 let name = (p: t): string => p |> kind |> name_of_kind;
 
 let shape = (p: t, syntax): shape => {
-  let (module P) = to_module(syntax, p);
-  P.placeholder();
+  let (module P) = to_module(p);
+  P.placeholder(syntax);
 };
+
+let is_placeholder = (p: Piece.t): bool => {
+  //TODO: Revisit
+  switch (p) {
+  | Tile({label: [s], _}) => s |> String.trim |> String.length == 0
+  | _ => false
+  };
+};
+
+let placeholder_label = (p: t, syntax): list(string) =>
+  switch (shape(p, syntax)) {
+  | Inline(width) => [String.make(width, ' ')]
+  | Block({row, col}) => [String.make(row, '\n') ++ String.make(col, ' ')]
+  };
 
 let placeholder = (p: t, syntax: syntax): syntax =>
   Piece.Tile({
     id: Piece.id(syntax),
-    label:
-      switch (shape(p, syntax)) {
-      | Inline(width) => [String.make(width, ' ')]
-      | Block({row, col}) => [
-          String.make(row, '\n') ++ String.make(col, ' '),
-        ]
-      },
+    label: placeholder_label(p, syntax),
     mold: Mold.mk_op(Any, []),
     shards: [0],
     children: [],
@@ -86,7 +94,7 @@ let minimum_projection_condition = (syntax: syntax): bool =>
 
 let create =
     (k: kind, syntax: syntax, id: Id.t, info_map: Statics.Map.t): option(t) => {
-  let (module P) = init(k, syntax);
+  let (module P) = init(k);
   P.can_project(syntax) && minimum_projection_condition(syntax)
     ? Some(P.auto_update({info: Id.Map.find_opt(id, info_map)})) : None;
 };
