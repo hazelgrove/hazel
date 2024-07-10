@@ -103,13 +103,12 @@ module App = {
       (
         model: Incr.t(Haz3lweb.Model.t),
         ~old_model as _: Incr.t(Haz3lweb.Model.t),
-        ~inject: UpdateAction.t => Ui_effect.t(unit),
+        ~inject,
       ) => {
     open Incr.Let_syntax;
     let%map model = model;
     /* Note: mapping over the old_model here may
        trigger an additional redraw */
-
     Component.create(
       ~apply_action=apply(model),
       model,
