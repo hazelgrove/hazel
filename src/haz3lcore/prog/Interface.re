@@ -1,37 +1,3 @@
-module Statics = {
-  let mk_map' =
-    Core.Memo.general(~cache_size_bound=1000, e => {
-      Statics.uexp_to_info_map(
-        ~ctx=Builtins.ctx_init,
-        ~ancestors=[],
-        e,
-        Id.Map.empty,
-      )
-      |> snd
-    });
-  let mk_map = (core: CoreSettings.t, exp) =>
-    core.statics ? mk_map'(exp) : Id.Map.empty;
-
-  let mk_map_and_info_ctx =
-    Core.Memo.general(~cache_size_bound=1000, (ctx, e) => {
-      Statics.uexp_to_info_map(~ctx, ~ancestors=[], e, Id.Map.empty)
-    });
-  let mk_map_and_info_ctx = (core: CoreSettings.t, ctx, exp) =>
-    core.statics
-      ? {
-        let (info, map) = mk_map_and_info_ctx(ctx, exp);
-        (Some(info), map);
-      }
-      : (None, Id.Map.empty);
-
-  let mk_map_ctx =
-    Core.Memo.general(~cache_size_bound=1000, (ctx, e) => {
-      Statics.uexp_to_info_map(~ctx, ~ancestors=[], e, Id.Map.empty) |> snd
-    });
-  let mk_map_ctx = (core: CoreSettings.t, ctx, exp) =>
-    core.statics ? mk_map_ctx(ctx, exp) : Id.Map.empty;
-};
-
 let dh_err = (error: string): DHExp.t => BoundVar(error);
 
 let elaborate =
@@ -66,17 +32,3 @@ let evaluate =
     | (state, result) => ResultOk({result, state})
     }
   };
-
-let eval_z =
-    (
-      ~settings: CoreSettings.t,
-      ~ctx_init: Ctx.t,
-      ~env_init: Environment.t,
-      z: Zipper.t,
-    )
-    : ProgramResult.t => {
-  let (term, _) = MakeTerm.from_zip_for_sem(z);
-  let info_map = Statics.mk_map_ctx(settings, ctx_init, term);
-  let d = elaborate(~settings, info_map, term);
-  evaluate(~settings, ~env=env_init, d);
-};

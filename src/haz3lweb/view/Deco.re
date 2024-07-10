@@ -2,25 +2,16 @@ open Virtual_dom.Vdom;
 open Util;
 open Haz3lcore;
 
-module Deco =
-       (
-         M: {
-           let font_metrics: FontMetrics.t;
-           let map: Measured.t;
-           let show_backpack_targets: bool;
-           let terms: TermMap.t;
-           let term_ranges: TermRanges.t;
-           let statics: CachedStatics.statics;
-           let tiles: TileMap.t;
-           let syntax_map: Id.Map.t(Piece.t);
-         },
-       ) => {
-  let font_metrics = M.font_metrics;
+module Deco = (M: {
+                 let ui_state: Model.ui_state;
+                 let meta: Editor.Meta.t;
+               }) => {
+  let font_metrics = M.ui_state.font_metrics;
 
-  let tile = id => Id.Map.find(id, M.tiles);
+  let tile = id => Id.Map.find(id, M.meta.projected.tiles);
 
   let base_caret = (z: Zipper.t): list(Node.t) => {
-    let origin = Zipper.caret_point(M.map, z);
+    let origin = Zipper.caret_point(M.meta.projected.measured, z);
     let shape = Zipper.caret_direction(z);
     let side =
       switch (Indicated.piece(z)) {
@@ -32,7 +23,13 @@ module Deco =
 
   let caret = (z: Zipper.t): list(Node.t) =>
     /* Projectors can override adjacent carets */
-    switch (ProjectorView.caret(z, M.syntax_map, M.statics.info_map)) {
+    switch (
+      ProjectorView.caret(
+        z,
+        M.meta.projected.syntax_map,
+        M.meta.statics.info_map,
+      )
+    ) {
     | Some(caret) => caret
     | None => base_caret(z)
     };
@@ -56,7 +53,11 @@ module Deco =
           Some(
             sel_shard_svg(
               ~start_shape,
-              Measured.find_g(~msg="Deco.sel_of_piece", g, M.map),
+              Measured.find_g(
+                ~msg="Deco.sel_of_piece",
+                g,
+                M.meta.projected.measured,
+              ),
               p,
             ),
           ),
@@ -66,7 +67,11 @@ module Deco =
           Some(
             sel_shard_svg(
               ~start_shape,
-              Measured.find_w(~msg="Deco.sel_of_piece", w, M.map),
+              Measured.find_w(
+                ~msg="Deco.sel_of_piece",
+                w,
+                M.meta.projected.measured,
+              ),
               p,
             ),
           ),
@@ -81,7 +86,7 @@ module Deco =
   }
   and sel_of_tile = (~start_shape, t: Tile.t): list(option(shard_data)) => {
     let tile_shards =
-      Measured.find_shards(~msg="sel_of_tile", t, M.map)
+      Measured.find_shards(~msg="sel_of_tile", t, M.meta.projected.measured)
       |> List.filter(((i, _)) => List.mem(i, t.shards))
       |> List.map(((index, m)) => {
            let token = List.nth(t.label, index);
@@ -144,12 +149,25 @@ module Deco =
         };
       let range: option((Measured.Point.t, Measured.Point.t)) = {
         // if (Piece.has_ends(p)) {
-        let id = Id.Map.find(Piece.id(p), M.terms) |> Term.rep_id;
-        switch (TermRanges.find_opt(id, M.term_ranges)) {
+        let id =
+          Id.Map.find(Piece.id(p), M.meta.projected.terms) |> Term.rep_id;
+        switch (TermRanges.find_opt(id, M.meta.projected.term_ranges)) {
         | None => None
         | Some((p_l, p_r)) =>
-          let l = Measured.find_p(~msg="Deco.indicated", p_l, M.map).origin;
-          let r = Measured.find_p(~msg="Deco.indicated", p_r, M.map).last;
+          let l =
+            Measured.find_p(
+              ~msg="Deco.indicated",
+              p_l,
+              M.meta.projected.measured,
+            ).
+              origin;
+          let r =
+            Measured.find_p(
+              ~msg="Deco.indicated",
+              p_r,
+              M.meta.projected.measured,
+            ).
+              last;
           Some((l, r));
         };
       };
@@ -162,7 +180,7 @@ module Deco =
       | None => []
       | Some(range) =>
         let tiles =
-          Id.Map.find(Piece.id(p), M.terms)
+          Id.Map.find(Piece.id(p), M.meta.projected.terms)
           |> Term.ids
           /* NOTE(andrew): dark_ids were originally filtered here.
            * Leaving this comment in place in case issues in the
@@ -173,12 +191,16 @@ module Deco =
                (
                  id,
                  t.mold,
-                 Measured.find_shards(~msg="Deco.indicated", t, M.map),
+                 Measured.find_shards(
+                   ~msg="Deco.indicated",
+                   t,
+                   M.meta.projected.measured,
+                 ),
                );
              });
         PieceDec.indicated(
           ~font_metrics,
-          ~rows=M.map.rows,
+          ~rows=M.meta.projected.measured.rows,
           ~caret=(Piece.id(p), index),
           ~tiles,
           range,
@@ -207,10 +229,20 @@ module Deco =
                switch (Siblings.neighbors((l, r))) {
                | (None, None) => failwith("impossible")
                | (_, Some(p)) =>
-                 let m = Measured.find_p(~msg="Deco.targets", p, M.map);
+                 let m =
+                   Measured.find_p(
+                     ~msg="Deco.targets",
+                     p,
+                     M.meta.projected.measured,
+                   );
                  Measured.{origin: m.origin, last: m.origin};
                | (Some(p), _) =>
-                 let m = Measured.find_p(~msg="Deco.targets", p, M.map);
+                 let m =
+                   Measured.find_p(
+                     ~msg="Deco.targets",
+                     p,
+                     M.meta.projected.measured,
+                   );
                  Measured.{origin: m.last, last: m.last};
                };
              let profile =
@@ -242,14 +274,14 @@ module Deco =
     [
       BackpackView.view(
         ~font_metrics,
-        ~origin=Zipper.caret_point(M.map, z),
+        ~origin=Zipper.caret_point(M.meta.projected.measured, z),
         z,
       ),
     ];
   };
 
   let targets' = (backpack, seg) => {
-    M.show_backpack_targets && Backpack.restricted(backpack)
+    M.ui_state.show_backpack_targets && Backpack.restricted(backpack)
       ? targets(backpack, seg) : [];
   };
 
@@ -259,20 +291,23 @@ module Deco =
         deco:
           ((Measured.Point.t, Measured.Point.t, SvgUtil.Path.t)) => Node.t,
       ) => {
-    let (p_l, p_r) = TermRanges.find(id, M.term_ranges);
-    let l = Measured.find_p(~msg="Deco.term", p_l, M.map).origin;
-    let r = Measured.find_p(~msg="Deco.term", p_r, M.map).last;
+    let (p_l, p_r) = TermRanges.find(id, M.meta.projected.term_ranges);
+    let l =
+      Measured.find_p(~msg="Deco.term", p_l, M.meta.projected.measured).
+        origin;
+    let r =
+      Measured.find_p(~msg="Deco.term", p_r, M.meta.projected.measured).last;
     open SvgUtil.Path;
     let r_edge =
       ListUtil.range(~lo=l.row, r.row + 1)
       |> List.concat_map(i => {
-           let row = Measured.Rows.find(i, M.map.rows);
+           let row = Measured.Rows.find(i, M.meta.projected.measured.rows);
            [h(~x=i == r.row ? r.col : row.max_col), v_(~dy=1)];
          });
     let l_edge =
       ListUtil.range(~lo=l.row, r.row + 1)
       |> List.rev_map(i => {
-           let row = Measured.Rows.find(i, M.map.rows);
+           let row = Measured.Rows.find(i, M.meta.projected.measured.rows);
            [h(~x=i == l.row ? l.col : row.indent), v_(~dy=-1)];
          })
       |> List.concat;
@@ -310,7 +345,7 @@ module Deco =
   };
 
   let err_holes = () =>
-    List.map(term_highlight(~clss=["err-hole"]), M.statics.error_ids);
+    List.map(term_highlight(~clss=["err-hole"]), M.meta.statics.error_ids);
 
   let indication_deco = (z: Zipper.t) =>
     switch (ProjectorView.indicated_proj_z(z)) {
@@ -327,19 +362,22 @@ module Deco =
       targets'(zipper.backpack, sel_seg),
     ]);
 
-  let always = (~inject, zipper: Zipper.t) =>
+  let always = (~inject) =>
     List.concat([
       err_holes(),
       ProjectorView.view_all(
-        zipper,
-        ~syntax_map=M.syntax_map,
-        ~info_map=M.statics.info_map,
+        M.meta.projected.z,
+        ~syntax_map=M.meta.projected.syntax_map,
+        ~info_map=M.meta.statics.info_map,
         ~inject,
         ~font_metrics,
-        ~measured=M.map,
+        ~measured=M.meta.projected.measured,
       ),
     ]);
 
-  let all = (~inject, zipper, sel_seg) =>
-    List.concat([active(zipper, sel_seg), always(~inject, zipper)]);
+  let all = (~inject) =>
+    List.concat([
+      active(M.meta.projected.z, M.meta.projected.segment),
+      always(~inject),
+    ]);
 };

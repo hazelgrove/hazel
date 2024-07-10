@@ -3,6 +3,7 @@ open Zipper;
 
 let is_write_action = (a: Action.t) => {
   switch (a) {
+  | RecalcStatics
   | Project(_) => false //TODO(andrew): revisit
   | Move(_)
   | MoveToNextHole(_)
@@ -46,12 +47,14 @@ let go_z =
     };
 
   switch (a) {
+  | RecalcStatics =>
+    print_endline("RecalcStatics action called");
+    Ok(z);
   | Project(a) =>
     ProjectorPerform.go(
       Move.jump_to_id,
       Move.primary,
       a,
-      // statics.info_map,
       meta.projected.syntax_map,
       z,
     )
@@ -64,11 +67,7 @@ let go_z =
     open OptUtil.Syntax;
 
     let idx = Indicated.index(z);
-    let (term, _) =
-      Util.TimeUtil.measure_time("Perform.go_z => MakeTerm.from_zip", true, () =>
-        MakeTerm.from_zip_for_view(z)
-      );
-    let statics = Interface.Statics.mk_map(settings, term);
+    let statics = meta.statics.info_map;
 
     (
       switch (jump_target) {
@@ -106,9 +105,7 @@ let go_z =
     if (!tile_is_term) {
       select_term_current(z);
     } else {
-      //PERF: this is expensive
-      let (term, _) = MakeTerm.from_zip_for_view(z);
-      let statics = Interface.Statics.mk_map(settings, term);
+      let statics = meta.statics.info_map;
       let target =
         switch (
           Indicated.index(z)

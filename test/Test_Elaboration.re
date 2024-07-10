@@ -19,7 +19,7 @@ let dhexp_typ = testable(Fmt.using(dhexp_print, Fmt.string), dhexp_eq);
 
 let ids = List.init(12, _ => Id.mk());
 let id_at = x => x |> List.nth(ids);
-let mk_map = CoreSettings.on |> Interface.Statics.mk_map;
+let mk_map =  Statics.mk(CoreSettings.on, Builtins.ctx_init);
 let dhexp_of_uexp = u => Elaborator.dhexp_of_uexp(mk_map(u), u, false);
 let alco_check = dhexp_typ |> Alcotest.check;
 

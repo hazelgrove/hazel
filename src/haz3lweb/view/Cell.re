@@ -107,53 +107,28 @@ let test_result_layer =
 let deco =
     (
       ~inject,
-      ~font_metrics,
-      ~show_backpack_targets,
+      ~ui_state,
       ~selected,
       ~test_results: option(TestResults.t),
       ~highlights: option(ColorSteps.colorMap),
-      {
-        state:
-          {
-            meta:
-              {
-                statics,
-                projected:
-                  {
-                    z,
-                    term_ranges,
-                    segment,
-                    measured,
-                    terms,
-                    tiles,
-                    syntax_map,
-                    _,
-                  },
-                _,
-              },
-            _,
-          },
-        _,
-      }: Editor.t,
+      meta: Editor.Meta.t,
     ) => {
   module Deco =
     Deco.Deco({
-      let map = measured;
-      let terms = terms;
-      let term_ranges = term_ranges;
-      let tiles = tiles;
-      let font_metrics = font_metrics;
-      let show_backpack_targets = show_backpack_targets;
-      let statics = statics;
-      let syntax_map = syntax_map;
+      let ui_state = ui_state;
+      let meta = meta;
     });
-  let decos =
-    selected ? Deco.all(~inject, z, segment) : Deco.always(~inject, z);
+  let decos = selected ? Deco.all(~inject) : Deco.always(~inject);
   let decos =
     switch (test_results) {
     | None => decos
     | Some(test_results) =>
-      decos @ test_result_layer(~font_metrics, ~measured, test_results) // TODO move into decos
+      decos
+      @ test_result_layer(
+          ~font_metrics=ui_state.font_metrics,
+          ~measured=meta.projected.measured,
+          test_results,
+        ) // TODO move into decos
     };
   switch (highlights) {
   | Some(colorMap) =>
@@ -263,8 +238,7 @@ let footer =
 let editor_view =
     (
       ~inject: UpdateAction.t => Ui_effect.t(unit),
-      ~ui_state as
-        {font_metrics, show_backpack_targets, mousedown, _}: Model.ui_state,
+      ~ui_state: Model.ui_state,
       ~settings: Settings.t,
       ~target_id: string,
       ~mousedown_updates: list(Update.t)=[],
@@ -278,16 +252,16 @@ let editor_view =
       ~sort=Sort.root,
       editor: Editor.t,
     ) => {
+  let Model.{font_metrics, mousedown, _} = ui_state;
   let code_text_view = Code.view(~sort, ~font_metrics, ~settings, editor);
   let deco_view =
     deco(
       ~inject=a => inject(PerformAction(Project(a))),
-      ~font_metrics,
-      ~show_backpack_targets,
+      ~ui_state,
       ~selected,
       ~test_results,
       ~highlights,
-      editor,
+      editor.state.meta,
     );
   let code_view =
     div(
@@ -401,10 +375,7 @@ let locked =
     segment
     |> Zipper.unzip
     |> Editor.init(~settings=settings.core, ~read_only=true);
-  let statics =
-    settings.core.statics
-      ? ScratchSlide.mk_statics(~settings, editor, Builtins.ctx_init)
-      : CachedStatics.empty_statics;
+  let statics = editor.state.meta.statics;
   let elab =
     settings.core.elaborate || settings.core.dynamics
       ? Interface.elaborate(

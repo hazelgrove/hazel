@@ -16,6 +16,7 @@ let reset_buffer = (model: Model.t) => {
   let settings = model.settings.core;
   switch (z.selection.mode) {
   | Buffer(_) =>
+    //TODO(andrew): make sure this is synced with statics properly
     switch (Perform.go_z(~settings, Destruct(Left), z)) {
     | Error(_) => model
     | Ok(z) =>
@@ -40,8 +41,8 @@ let apply =
   let z = editor.state.zipper;
   switch (update) {
   | Prompt(TyDi) =>
-    let ctx_init = Editors.get_ctx_init(~settings, model.editors);
-    switch (TyDi.set_buffer(~settings=settings.core, ~ctx=ctx_init, z)) {
+    let info_map = editor.state.meta.statics.info_map;
+    switch (TyDi.set_buffer(~info_map, z)) {
     | None => Ok(model)
     | Some(z) =>
       let ed = Editor.new_state(~settings=settings.core, Pick_up, z, editor);

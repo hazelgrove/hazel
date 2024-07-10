@@ -56,6 +56,7 @@ type project =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
+  | RecalcStatics /* Could refactor to SetInitCtx(ctx) */
   | Project(project)
   | Move(move)
   | MoveToNextHole(Direction.t)
@@ -87,9 +88,16 @@ module Result = {
 
 let is_edit: t => bool =
   fun
+  | RecalcStatics => true
   | Project(_) => true //TODO(andrew): revisit
   | Insert(_)
   | Destruct(_)
   | Pick_up
   | Put_down => true
-  | _ => false;
+  | Move(_)
+  | MoveToNextHole(_)
+  | Jump(_)
+  | Select(_)
+  | Unselect(_)
+  | RotateBackpack
+  | MoveToBackpackTarget(_) => false;
