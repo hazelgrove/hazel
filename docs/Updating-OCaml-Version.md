@@ -24,7 +24,7 @@ To update do the following:
     `git checkout -b update_ocaml_VERSION`
 
 - `opam switch create VERSION`, where `VERSION` is the most recent OCaml version
-  that does not contain a `+` character (e.g., `5.2.0``).
+  that does not contain a `+` character (e.g., `5.2.0`).
 
 - `make deps`
 
