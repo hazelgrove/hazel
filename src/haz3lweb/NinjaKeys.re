@@ -1,5 +1,10 @@
 open Js_of_ocaml;
 
+/*
+Configuration of the command palette using the https://github.com/ssleptsov/ninja-keys web component.
+*/
+
+
 let from_shortcut =
     (schedule_action: UpdateAction.t => unit, shortcut: Keyboard.shortcut)
     : {
