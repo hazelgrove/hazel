@@ -47,3 +47,20 @@ let put_selection_content = (content: Segment.t, z): t => {
     content,
   },
 };
+
+let parent = (z: t): option(Piece.t) =>
+  Relatives.parent(~sel=z.selection.content, z.relatives);
+
+let sibs_with_sel =
+    (
+      {
+        selection: {content, focus, _},
+        relatives: {siblings: (l_sibs, r_sibs), _},
+        _,
+      }: t,
+    )
+    : Siblings.t =>
+  switch (focus) {
+  | Left => (l_sibs, content @ r_sibs)
+  | Right => (l_sibs @ content, r_sibs)
+  };

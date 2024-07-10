@@ -67,10 +67,12 @@ let n_of = (n: int) =>
   [Node.text("·")]
   @ (List.init(n, _ => [Node.br(), Node.text("·")]) |> List.flatten);
 
-let view = (model: textarea, ~selector, ~status, ~syntax, ~info as _, ~inject) => {
-  let text = syntax |> get |> Form.strip_quotes;
+let view = (model: textarea, ~selector, ~info, ~inject) => {
+  let text = info.syntax |> get |> Form.strip_quotes;
   Node.div(
-    ~attrs=[Attr.classes(["cols"] @ (model.inside ? [] : cls(status)))],
+    ~attrs=[
+      Attr.classes(["cols"] @ (model.inside ? [] : cls(info.status))),
+    ],
     n_of(1 + Util.StringUtil.num_linebreaks(text))
     @ [textarea(~inject, ~selector, text)],
   );
@@ -114,10 +116,10 @@ let line_lengths = syntax =>
 
 let num_lines = syntax => List.fold_left(max, 0, line_lengths(syntax));
 
-let placeholder = syntax =>
+let placeholder = info =>
   Block({
-    row: Util.StringUtil.num_linebreaks(get(syntax)),
-    col: 2 + num_lines(syntax) /* +2 for left and right padding */
+    row: Util.StringUtil.num_linebreaks(get(info.syntax)),
+    col: 2 + num_lines(info.syntax) /* +2 for left and right padding */
   });
 
 let mk = (model): core =>
@@ -128,7 +130,7 @@ let mk = (model): core =>
      let model = model;
      let can_project = _ => true;
      let placeholder = placeholder;
-     let auto_update = _ => TextArea(model);
+     //  let auto_update = _ => TextArea(model);
      let update = a =>
        switch (a) {
        | SetInside(b) =>

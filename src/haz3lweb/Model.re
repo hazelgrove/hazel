@@ -69,6 +69,7 @@ let load_editors =
   | Exercises =>
     let (n, specs, exercise) =
       Store.Exercise.load(
+        ~settings,
         ~specs=ExerciseSettings.exercises,
         ~instructor_mode,
       );
@@ -91,7 +92,7 @@ let load = (init_model: t): t => {
   let explainThisModel = Store.ExplainThisModel.load();
   let (editors, results) =
     load_editors(
-      ~settings=settings.core.evaluation,
+      ~settings=settings.core,
       ~mode=settings.mode,
       ~instructor_mode=settings.instructor_mode,
     );
@@ -116,11 +117,11 @@ let reset = (model: t): t => {
      but don't otherwise erase localstorage, allowing
      e.g. api keys to persist */
   let settings = Store.Settings.init();
-  ignore(settings);
+  let settings = settings.core;
   ignore(Store.ExplainThisModel.init());
-  ignore(Store.Scratch.init(~settings=settings.core.evaluation));
-  ignore(Store.Documentation.init(~settings=settings.core.evaluation));
-  ignore(Store.Exercise.init(~instructor_mode=true));
+  ignore(Store.Scratch.init(~settings));
+  ignore(Store.Documentation.init(~settings));
+  ignore(Store.Exercise.init(~settings, ~instructor_mode=true));
   let new_model = load(blank);
   {
     ...new_model,

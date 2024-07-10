@@ -19,24 +19,15 @@ let put = (new_val: string): Piece.t => mk_mono(Exp, new_val);
 
 let get = (piece: Piece.t): int =>
   switch (state_of(piece)) {
-  | None =>
-    //TODO(andrew): fix this bug (moving caret to right of slider crashes)
-    switch (of_mono(piece)) {
-    | Some(p) =>
-      print_endline("ERROR: Slider: not integer literal: " ++ p);
-      0;
-    | None =>
-      print_endline("ERROR: Slider: not integer literal: No piece");
-      0;
-    }
+  | None => failwith("ERROR: Slider: not integer literal")
   | Some(s) => s
   };
 
-let view = (~inject: ProjectorBase.action => Ui_effect.t(unit), value: int) =>
+let view = (~info, ~inject: ProjectorBase.action => Ui_effect.t(unit)) =>
   Node.input(
     ~attrs=[
       Attr.create("type", "range"),
-      Attr.create("value", string_of_int(value)),
+      Attr.create("value", string_of_int(get(info.syntax))),
       Attr.on_input((_evt, new_val) =>
         inject(UpdateSyntax(_ => put(new_val)))
       ),
@@ -58,8 +49,8 @@ let mk = (model): core =>
      let model = model;
      let can_project = p => state_of(p) != None;
      let placeholder = _ => Inline(10);
-     let auto_update = _ => Slider(model);
+     //  let auto_update = _ => Slider(model);
      let update = _ => Slider(model);
-     let view = (~status as _, ~syntax, ~info as _) => view(get(syntax));
+     let view = view;
      let keymap = keymap;
    });

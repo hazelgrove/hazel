@@ -45,6 +45,7 @@ type section = {
 type chapter = list(section);
 
 module Main = {
+  let settings = CoreSettings.on; /* Statics and Dynamics on */
   let name_to_exercise_export = path => {
     let yj = Yojson.Safe.from_file(path);
     switch (yj) {
@@ -66,7 +67,6 @@ module Main = {
         zipper,
       );
     };
-    let settings = CoreSettings.on;
     let model_results =
       spliced_elabs(settings, exercise)
       |> ModelResults.init_eval
@@ -118,6 +118,7 @@ module Main = {
              let exercise =
                unpersist_state(
                  persistent_state,
+                 ~settings,
                  ~spec,
                  ~instructor_mode=true,
                );

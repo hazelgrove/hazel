@@ -13,12 +13,13 @@ let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) => {
 let reset_buffer = (model: Model.t) => {
   let ed = model.editors |> Editors.get_editor;
   let z = ed.state.zipper;
+  let settings = model.settings.core;
   switch (z.selection.mode) {
   | Buffer(_) =>
-    switch (Perform.go_z(~settings=model.settings.core, Destruct(Left), z)) {
+    switch (Perform.go_z(~settings, Destruct(Left), z)) {
     | Error(_) => model
     | Ok(z) =>
-      let ed = Editor.new_state(Destruct(Left), z, ed);
+      let ed = Editor.new_state(~settings, Destruct(Left), z, ed);
       //TODO(andrew): fix double action
       {...model, editors: Editors.put_editor(ed, model.editors)};
     }
@@ -43,7 +44,7 @@ let apply =
     switch (TyDi.set_buffer(~settings=settings.core, ~ctx=ctx_init, z)) {
     | None => Ok(model)
     | Some(z) =>
-      let ed = Editor.new_state(Pick_up, z, editor);
+      let ed = Editor.new_state(~settings=settings.core, Pick_up, z, editor);
       //TODO: add correct action to history (Pick_up is wrong)
       let editors = Editors.put_editor(ed, model.editors);
       Ok({...model, editors});

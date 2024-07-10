@@ -17,9 +17,12 @@ module Meta = {
     syntax_map: Id.Map.t(Piece.t),
   };
 
+  type statics = CachedStatics.statics;
+
   type t = {
     col_target: int,
     touched: Touched.t,
+    statics,
     projected,
   };
 
@@ -40,12 +43,16 @@ module Meta = {
     };
   };
 
-  let init = (z: Zipper.t) => {
-    {
-      col_target: 0,
-      touched: Touched.empty,
-      projected: Projector.Project.go(z) |> init_projected,
-    };
+  let init = (~settings: CoreSettings.t, z: Zipper.t) => {
+    //TODO(andrew): allow pass-in of init ctx
+    //TODO(andrew): cleanup
+    let ctx_init = Builtins.ctx_init;
+    let term = MakeTerm.from_zip_for_sem(z) |> fst;
+    let info_map = Interface.Statics.mk_map_ctx(settings, ctx_init, term);
+    let projected = Projector.Project.go(z, info_map) |> init_projected;
+    let error_ids = Statics.Map.error_ids(projected.term_ranges, info_map);
+    let statics = CachedStatics.{term, info_map, error_ids};
+    {col_target: 0, touched: Touched.empty, statics, projected};
   };
 
   module type S = {
@@ -88,7 +95,14 @@ module Meta = {
   };
 
   let next =
-      (~effects: list(Effect.t)=[], a: Action.t, z: Zipper.t, meta: t): t => {
+      (
+        ~effects: list(Effect.t)=[],
+        ~settings: CoreSettings.t,
+        a: Action.t,
+        z: Zipper.t,
+        meta: t,
+      )
+      : t => {
     let touched = Touched.update(Time.tick(), effects, meta.touched);
     let col_target =
       switch (a) {
@@ -96,16 +110,35 @@ module Meta = {
       | Select(Resize(Local(Up | Down))) => meta.col_target
       | _ => Zipper.caret_point(meta.projected.measured, meta.projected.z).col
       };
-    let z_projected = Projector.Project.go(z);
+    //TODO(andrew): cleanup
+    let (term, info_map) =
+      switch (Action.is_edit(a)) {
+      | false => (meta.statics.term, meta.statics.info_map)
+      | _ =>
+        //TODO(andrew): allow pass-in of init ctx
+        let ctx_init = Builtins.ctx_init;
+        let term = MakeTerm.from_zip_for_sem(z) |> fst;
+        let info_map = Interface.Statics.mk_map_ctx(settings, ctx_init, term);
+        (term, info_map);
+      };
+    let z_projected = Projector.Project.go(z, info_map);
     let projected =
       switch (Action.is_edit(a)) {
       //TODO(andrew): reenable
       //TODO: andrew figure out why core desyncs from view on measure length.. prob use diff statics
-      //| false => {...meta.projected, z: z_projected.z}
+      | false => {...meta.projected, z: z_projected.z}
       | _ =>
         next_projected(z_projected, ~touched, ~old=meta.projected.measured)
       };
-    {touched, col_target, projected};
+    let statics =
+      switch (Action.is_edit(a)) {
+      | false => meta.statics
+      | _ =>
+        let error_ids =
+          Statics.Map.error_ids(projected.term_ranges, info_map);
+        CachedStatics.{term, info_map, error_ids};
+      };
+    {touched, col_target, projected, statics};
   };
 };
 
@@ -117,11 +150,21 @@ module State = {
     meta: Meta.t,
   };
 
-  let init = zipper => {zipper, meta: Meta.init(zipper)};
+  let init = (zipper, ~settings: CoreSettings.t) => {
+    zipper,
+    meta: Meta.init(zipper, ~settings),
+  };
 
-  let next = (~effects: list(Effect.t)=[], a: Action.t, z: Zipper.t, state) => {
+  let next =
+      (
+        ~effects: list(Effect.t)=[],
+        ~settings: CoreSettings.t,
+        a: Action.t,
+        z: Zipper.t,
+        state,
+      ) => {
     zipper: z,
-    meta: Meta.next(~effects, a, z, state.meta),
+    meta: Meta.next(~effects, ~settings, a, z, state.meta),
   };
 };
 
@@ -146,12 +189,12 @@ type t = {
   read_only: bool,
 };
 
-let init = (~read_only=false, z) => {
-  state: State.init(z),
+let init = (~read_only=false, z, ~settings: CoreSettings.t) => {
+  state: State.init(z, ~settings),
   history: History.empty,
   read_only,
 };
-let empty = id => init(~read_only=false, Zipper.init(id));
+// let empty = id => init(~read_only=false, Zipper.init(id));
 
 let update_z = (f: Zipper.t => Zipper.t, ed: t) => {
   ...ed,
@@ -169,8 +212,15 @@ let update_z_opt = (f: Zipper.t => option(Zipper.t), ed: t) => {
 };
 
 let new_state =
-    (~effects: list(Effect.t)=[], a: Action.t, z: Zipper.t, ed: t): t => {
-  let state = State.next(~effects, a, z, ed.state);
+    (
+      ~effects: list(Effect.t)=[],
+      ~settings: CoreSettings.t,
+      a: Action.t,
+      z: Zipper.t,
+      ed: t,
+    )
+    : t => {
+  let state = State.next(~effects, ~settings, a, z, ed.state);
   let history = History.add(a, ed.state, ed.history);
   {state, history, read_only: ed.read_only};
 };

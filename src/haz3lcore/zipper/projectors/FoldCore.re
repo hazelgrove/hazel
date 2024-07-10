@@ -12,9 +12,9 @@ let mk = (_model: fold): core =>
      let model = ();
      let can_project = _ => true;
      let placeholder = _ => Inline(2);
-     let auto_update = _ => Fold();
+     //  let auto_update = _ => Fold();
      let update = _ => Fold();
-     let view = (~status as _, ~syntax as _, ~info as _, ~inject) =>
+     let view = (~info as _, ~inject) =>
        div(
          ~attrs=[Attr.on_double_click(_ => inject(Remove))],
          [text("⋱")],

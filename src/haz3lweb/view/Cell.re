@@ -110,7 +110,6 @@ let deco =
       ~font_metrics,
       ~show_backpack_targets,
       ~selected,
-      ~statics: CachedStatics.statics,
       ~test_results: option(TestResults.t),
       ~highlights: option(ColorSteps.colorMap),
       {
@@ -118,6 +117,7 @@ let deco =
           {
             meta:
               {
+                statics,
                 projected:
                   {
                     z,
@@ -275,7 +275,6 @@ let editor_view =
       ~footer: option(list(Node.t))=?,
       ~highlights: option(ColorSteps.colorMap),
       ~overlayer: option(Node.t)=None,
-      ~statics: CachedStatics.statics,
       ~sort=Sort.root,
       editor: Editor.t,
     ) => {
@@ -286,7 +285,6 @@ let editor_view =
       ~font_metrics,
       ~show_backpack_targets,
       ~selected,
-      ~statics,
       ~test_results,
       ~highlights,
       editor,
@@ -380,10 +378,11 @@ let locked_no_statics =
     ~target_id,
     ~footer=[],
     ~test_results=None,
-    ~statics=CachedStatics.empty_statics,
     ~overlayer=Some(expander_deco),
     ~sort,
-    segment |> Zipper.unzip |> Editor.init(~read_only=true),
+    segment
+    |> Zipper.unzip
+    |> Editor.init(~settings=CoreSettings.off, ~read_only=true),
   ),
 ];
 
@@ -398,7 +397,10 @@ let locked =
       ~target_id,
       ~segment: Segment.t,
     ) => {
-  let editor = segment |> Zipper.unzip |> Editor.init(~read_only=true);
+  let editor =
+    segment
+    |> Zipper.unzip
+    |> Editor.init(~settings=settings.core, ~read_only=true);
   let statics =
     settings.core.statics
       ? ScratchSlide.mk_statics(~settings, editor, Builtins.ctx_init)
@@ -440,7 +442,6 @@ let locked =
     ~target_id,
     ~footer,
     ~test_results=ModelResult.test_results(result),
-    ~statics=CachedStatics.empty_statics,
     editor,
   );
 };

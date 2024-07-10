@@ -42,9 +42,6 @@ let update_caret = (f: Caret.t => Caret.t, z: t): t => {
 };
 let set_caret = (caret: Caret.t): (t => t) => update_caret(_ => caret);
 
-let parent = (z: t): option(Piece.t) =>
-  Relatives.parent(~sel=z.selection.content, z.relatives);
-
 let delete_parent = (z: t): t => {
   ...z,
   relatives: Relatives.delete_parent(z.relatives),
@@ -63,20 +60,6 @@ let unzip = (seg: Segment.t): t => {
   caret: Outer,
   projectors: ProjectorBase.Map.empty,
 };
-
-let sibs_with_sel =
-    (
-      {
-        selection: {content, focus, _},
-        relatives: {siblings: (l_sibs, r_sibs), _},
-        _,
-      }: t,
-    )
-    : Siblings.t =>
-  switch (focus) {
-  | Left => (l_sibs, content @ r_sibs)
-  | Right => (l_sibs @ content, r_sibs)
-  };
 
 let pop_backpack = (z: t) =>
   Backpack.pop(Relatives.local_incomplete_tiles(z.relatives), z.backpack);
@@ -350,7 +333,9 @@ let base_point = (measured: Measured.t, z: t): Measured.Point.t => {
          * below call, resulting in trying to interpret the syntax
          * of the placeholder as e.g. an int for the slider */
         p
-      | Some(pr) => Projector.placeholder(pr, p)
+      | Some(pr) =>
+        //TODO(andrew): figure out if ci None below will causes problems with eg Infer
+        Projector.placeholder(pr, {syntax: p, status: None, ci: None})
       | None => p
       };
     let seg = Piece.disassemble(p);

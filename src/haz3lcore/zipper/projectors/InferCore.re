@@ -32,19 +32,19 @@ let mk = (model: infer): core =>
        | _ => false
        };
 
-     let placeholder = _ =>
-       Inline((model.expected_ty |> display |> String.length) - 2);
+     let placeholder = (info: ProjectorBase.info) =>
+       Inline((Some(expected_ty(info.ci)) |> display |> String.length) - 2);
 
-     let auto_update = ({info, _}) => {
-       print_endline("updating infer projector");
-       Infer({expected_ty: Some(expected_ty(info))});
-     };
+     //  let auto_update = ({ci, _}) => {
+     //    print_endline("updating infer projector");
+     //    Infer({expected_ty: Some(expected_ty(Some(ci)))});
+     //  };
      let update = _ => Infer(model);
 
-     let view = (~status as _, ~syntax as _, ~info, ~inject) =>
+     let view = (~info: ProjectorBase.info, ~inject) =>
        div(
          ~attrs=[Attr.on_double_click(_ => inject(Remove))],
-         [text(display(Some(expected_ty(Some(info)))))],
+         [text(display(Some(expected_ty(info.ci))))],
        );
 
      let keymap = (_, key: Key.t): option(ProjectorBase.action) =>

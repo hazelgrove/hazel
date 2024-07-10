@@ -5,41 +5,41 @@ let editor_of_code = (~read_only=false, code: CodeString.t) => {
   };
 };
 
-let editors_for =
-    (~read_only=false, xs: list('a), f: 'a => option(string))
-    : (int, list(('a, option(Editor.t)))) => {
-  let zs =
-    List.fold_left(
-      (acc_zs, a) => {
-        switch (f(a)) {
-        | Some(str) =>
-          switch (Printer.zipper_of_string(str)) {
-          | None => acc_zs @ [(a, Some(Zipper.init()))]
-          | Some(z) => acc_zs @ [(a, Some(z))]
-          }
-        | None => acc_zs @ [(a, None)]
-        }
-      },
-      [],
-      xs,
-    );
-  (
-    0,
-    List.map(
-      ((a, sz)) =>
-        switch (sz) {
-        | Some(z) => (a, Some(Editor.init(z, ~read_only)))
-        | None => (a, None)
-        },
-      zs,
-    ),
-  );
-};
+// let editors_for =
+//     (~read_only=false, xs: list('a), f: 'a => option(string))
+//     : (int, list(('a, option(Editor.t)))) => {
+//   let zs =
+//     List.fold_left(
+//       (acc_zs, a) => {
+//         switch (f(a)) {
+//         | Some(str) =>
+//           switch (Printer.zipper_of_string(str)) {
+//           | None => acc_zs @ [(a, Some(Zipper.init()))]
+//           | Some(z) => acc_zs @ [(a, Some(z))]
+//           }
+//         | None => acc_zs @ [(a, None)]
+//         }
+//       },
+//       [],
+//       xs,
+//     );
+//   (
+//     0,
+//     List.map(
+//       ((a, sz)) =>
+//         switch (sz) {
+//         | Some(z) => (a, Some(Editor.init(z, ~read_only)))
+//         | None => (a, None)
+//         },
+//       zs,
+//     ),
+//   );
+// };
 
-let editors_of_strings = (~read_only=false, xs: list(string)) => {
-  let (i, aes) = editors_for(xs, x => Some(x), ~read_only);
-  (i, List.map(((_, oe)) => Option.get(oe), aes));
-};
+// let editors_of_strings = (~read_only=false, xs: list(string)) => {
+//   let (i, aes) = editors_for(xs, x => Some(x), ~read_only);
+//   (i, List.map(((_, oe)) => Option.get(oe), aes));
+// };
 
 let rec append_exp = (e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   switch (e1.term) {

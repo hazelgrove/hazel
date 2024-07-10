@@ -32,7 +32,7 @@ module Deco =
 
   let caret = (z: Zipper.t): list(Node.t) =>
     /* Projectors can override adjacent carets */
-    switch (ProjectorView.caret(z, M.syntax_map)) {
+    switch (ProjectorView.caret(z, M.syntax_map, M.statics.info_map)) {
     | Some(caret) => caret
     | None => base_caret(z)
     };
