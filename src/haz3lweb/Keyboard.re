@@ -10,7 +10,7 @@ type shortcut = {
   mdIcon: option(string),
 };
 
-// Currently PC only. I need to figure out how to handle mac.
+// List of shortcuts configured to show up in the command palette and have hotkey support
 let shortcuts: list(shortcut) = [
   {
     update_action: Some(Benchmark(Start)),
@@ -153,7 +153,6 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
     }
   | {key: D(key), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
     switch (key) {
-    // | "k" => Some(ReparseCurrentEditor)
     | "/" => Some(Assistant(Prompt(TyDi)))
     | _ when is_digit(key) => Some(SwitchScratchSlide(int_of_string(key)))
     | "ArrowLeft" => now(Move(Local(Left(ByToken))))
