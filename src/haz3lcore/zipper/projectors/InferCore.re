@@ -1,5 +1,5 @@
-open Sexplib.Std;
-open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
+// open Sexplib.Std;
+// open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
 open Virtual_dom.Vdom;
 open Node;
 open ProjectorBase;
@@ -19,15 +19,12 @@ let expected_ty = (info: option(Info.t)) =>
 let display = expected_ty =>
   "⋱ ⇐ " ++ (expected_ty |> display_ty |> Typ.pretty_print);
 
-let mk = (model: infer, ~syntax as _): core =>
+let mk = (model: infer): core =>
   (module
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
      type model = infer;
-     [@deriving (show({with_path: false}), sexp, yojson)]
-     type action = unit;
      let model = model;
-     let projector = Infer(model);
 
      let can_project = (p: Piece.t): bool =>
        switch (p) {
@@ -35,7 +32,7 @@ let mk = (model: infer, ~syntax as _): core =>
        | _ => false
        };
 
-     let placeholder = () =>
+     let placeholder = _ =>
        Inline((model.expected_ty |> display |> String.length) - 2);
 
      let auto_update = ({info, _}) => {
@@ -44,10 +41,10 @@ let mk = (model: infer, ~syntax as _): core =>
      };
      let update = _ => Infer(model);
 
-     let view = (~inject, _) =>
+     let view = (~status as _, ~syntax as _, ~info, ~inject) =>
        div(
          ~attrs=[Attr.on_double_click(_ => inject(Remove))],
-         [text(display(model.expected_ty))],
+         [text(display(Some(expected_ty(Some(info)))))],
        );
 
      let keymap = (_, key: Key.t): option(ProjectorBase.action) =>

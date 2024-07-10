@@ -10,7 +10,7 @@ let view =
       ~highlights,
       ~results: ModelResults.t,
       ~result_key,
-      ~statics as {error_ids, _}: CachedStatics.statics,
+      ~statics: CachedStatics.statics,
       editor: Editor.t,
     ) => {
   let result = ModelResults.lookup(results, result_key);
@@ -36,7 +36,7 @@ let view =
       ~ui_state,
       ~settings,
       ~target_id,
-      ~error_ids,
+      ~statics,
       ~test_results,
       ~footer?,
       ~highlights,

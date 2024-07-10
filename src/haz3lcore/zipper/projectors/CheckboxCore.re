@@ -16,7 +16,7 @@ let state_of = (piece: Piece.t): option(bool) =>
   piece |> of_mono |> Option.map(bool_of_string);
 
 let get = (piece: Piece.t): bool =>
-  switch (piece |> of_mono |> Option.map(bool_of_string)) {
+  switch (piece |> of_mono |> Util.OptUtil.and_then(bool_of_string_opt)) {
   | None => failwith("Checkbox: not boolean literal")
   | Some(s) => s
   };
@@ -25,7 +25,13 @@ let put = (bool: bool): Piece.t => bool |> string_of_bool |> mk_mono(Exp);
 
 let toggle = (piece: Piece.t) => put(!get(piece));
 
-let view = (~inject: ProjectorBase.action => Ui_effect.t(unit), ~syntax, _) =>
+let view =
+    (
+      ~status as _,
+      ~syntax,
+      ~info as _,
+      ~inject: ProjectorBase.action => Ui_effect.t(unit),
+    ) =>
   Node.input(
     ~attrs=
       [
@@ -43,19 +49,16 @@ let keymap = (_, key: Key.t): option(ProjectorBase.action) =>
   | _ => None
   };
 
-let mk = (model, ~syntax): core =>
+let mk = (model): core =>
   (module
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
      type model = unit;
-     [@deriving (show({with_path: false}), sexp, yojson)]
-     type action = unit;
      let model = model;
-     let projector: projector = Checkbox(model);
      let can_project = p => state_of(p) != None;
-     let placeholder = () => Inline(2);
+     let placeholder = _ => Inline(2);
      let auto_update = _: projector => Checkbox();
      let update = (_action): projector => Checkbox();
-     let view = view(~syntax);
+     let view = view;
      let keymap = keymap;
    });

@@ -4,20 +4,17 @@ open ProjectorBase;
 open Virtual_dom.Vdom;
 open Node;
 
-let mk = (_model: fold, ~syntax as _): core =>
+let mk = (_model: fold): core =>
   (module
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
      type model = unit;
-     [@deriving (show({with_path: false}), sexp, yojson)]
-     type action = unit;
      let model = ();
-     let projector = Fold();
      let can_project = _ => true;
-     let placeholder = () => Inline(2);
+     let placeholder = _ => Inline(2);
      let auto_update = _ => Fold();
      let update = _ => Fold();
-     let view = (~inject, _) =>
+     let view = (~status as _, ~syntax as _, ~info as _, ~inject) =>
        div(
          ~attrs=[Attr.on_double_click(_ => inject(Remove))],
          [text("⋱")],

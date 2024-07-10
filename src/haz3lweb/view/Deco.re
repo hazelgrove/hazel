@@ -10,7 +10,7 @@ module Deco =
            let show_backpack_targets: bool;
            let terms: TermMap.t;
            let term_ranges: TermRanges.t;
-           let error_ids: list(Id.t);
+           let statics: CachedStatics.statics;
            let tiles: TileMap.t;
            let syntax_map: Id.Map.t(Piece.t);
          },
@@ -19,30 +19,23 @@ module Deco =
 
   let tile = id => Id.Map.find(id, M.tiles);
 
-  let caret = (z: Zipper.t): list(Node.t) => {
-    //TODO(andrew): document
-    let shape =
-      switch (Indicated.index(z)) {
-      | Some(id) =>
-        switch (Id.Map.find_opt(id, M.syntax_map)) {
-        | Some(syntax) => ProjectorView.shape(z, syntax)
-        | None => None
-        }
-      | None => None
+  let base_caret = (z: Zipper.t): list(Node.t) => {
+    let origin = Zipper.caret_point(M.map, z);
+    let shape = Zipper.caret_direction(z);
+    let side =
+      switch (Indicated.piece(z)) {
+      | Some((_, side, _)) => side
+      | _ => Right
       };
-    switch (shape) {
-    | Some(Block(_)) => []
-    | _ =>
-      let origin = Zipper.caret_point(M.map, z);
-      let shape = Zipper.caret_direction(z);
-      let side =
-        switch (Indicated.piece(z)) {
-        | Some((_, side, _)) => side
-        | _ => Right
-        };
-      [CaretDec.view(~font_metrics, ~profile={side, origin, shape})];
-    };
+    [CaretDec.view(~font_metrics, ~profile={side, origin, shape})];
   };
+
+  let caret = (z: Zipper.t): list(Node.t) =>
+    /* Projectors can override adjacent carets */
+    switch (ProjectorView.caret(z, M.syntax_map)) {
+    | Some(caret) => caret
+    | None => base_caret(z)
+    };
 
   type shard_data = (Measured.measurement, Nibs.shapes);
 
@@ -94,6 +87,7 @@ module Deco =
            let token = List.nth(t.label, index);
            switch (StringUtil.num_linebreaks(token)) {
            | 0 => [Some(sel_shard_svg(~start_shape, ~index, m, Tile(t)))]
+           //TODO(andrew): decoration for selections
            /* No deco for multi-line tokens e.g. projector placeholders,
             * but need to leave some blank lines */
            | num_lb => List.init(num_lb, _ => None)
@@ -316,17 +310,11 @@ module Deco =
   };
 
   let err_holes = () =>
-    List.map(term_highlight(~clss=["err-hole"]), M.error_ids);
-
-  let accent = (z: Zipper.t) =>
-    switch (Indicated.piece(z)) {
-    | Some((p, d, _)) => Some((Piece.id(p), Projector.Indicated(d)))
-    | None => None
-    };
+    List.map(term_highlight(~clss=["err-hole"]), M.statics.error_ids);
 
   let indication_deco = (z: Zipper.t) =>
     switch (ProjectorView.indicated_proj_z(z)) {
-    | Some(_) => []
+    | Some(_) => [] /* projector indication handled internally */
     | None => indicated_piece_deco(z)
     };
 
@@ -343,12 +331,12 @@ module Deco =
     List.concat([
       err_holes(),
       ProjectorView.view_all(
-        zipper.projectors,
+        zipper,
         ~syntax_map=M.syntax_map,
+        ~info_map=M.statics.info_map,
         ~inject,
         ~font_metrics,
         ~measured=M.map,
-        ~accent=accent(zipper),
       ),
     ]);
 

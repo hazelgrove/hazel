@@ -5,12 +5,12 @@ open Projector;
 open Util.OptUtil.Syntax;
 open Util.Web;
 
-let update_model = (action, syntax, p) => {
-  let (module P) = to_module(syntax, p);
+let update_model = (action: ProjectorBase.inner_action, p) => {
+  let (module P) = to_module(p);
   P.update(action);
 };
 
-let handle = (id, syntax, action: ProjectorBase.action): Action.project =>
+let handle = (id, action: ProjectorBase.action): Action.project =>
   switch (action) {
   | Default =>
     //TODO(andrew): proper no-op
@@ -26,7 +26,7 @@ let handle = (id, syntax, action: ProjectorBase.action): Action.project =>
     JsUtil.get_elem_by_selector(selector)##blur;
     Escape(id, Right);
   | UpdateSyntax(f) => UpdateSyntax(id, f)
-  | UpdateModel(action) => UpdateModel(id, update_model(action, syntax))
+  | UpdateModel(action) => UpdateModel(id, update_model(action))
   };
 
 let backing_deco =
@@ -41,11 +41,11 @@ let backing_deco =
   | Block(_) => div([])
   };
 
-let wrap =
+let view_inner =
     (
       ~font_metrics: FontMetrics.t,
       ~measurement: Measured.measurement,
-      ~accent: option(Projector.accent),
+      ~status: option(Projector.status),
       ~syntax,
       p: Projector.t,
       view: Node.t,
@@ -53,7 +53,7 @@ let wrap =
   div(
     ~attrs=[
       Attr.classes(
-        ["projector", Projector.name(p)] @ Projector.cls(accent),
+        ["projector", Projector.name(p)] @ Projector.cls(status),
       ),
       DecUtil.abs_style(measurement, ~font_metrics),
     ],
@@ -69,57 +69,67 @@ let wrap =
     ],
   );
 
-let view =
+let view_setup =
     (
       id: Id.t,
       ps: Map.t,
       ~syntax_map: Id.Map.t(syntax),
+      ~info_map: Statics.Map.t,
       ~measured: Measured.t,
       ~inject: Action.project => Ui_effect.t(unit),
       ~font_metrics,
-      ~accent: option(Projector.accent),
+      ~status: option(Projector.status),
     )
     : option(Node.t) => {
   let* p = Projector.Map.find(id, ps);
   let* syntax = Id.Map.find_opt(id, syntax_map);
+  let* info = Id.Map.find_opt(id, info_map);
   let+ measurement = Measured.find_by_id(id, measured);
-  let (module P) = to_module(syntax, p);
-  let inject = a => handle(id, syntax, a) |> inject;
-  wrap(
+  let (module P) = to_module(p);
+  let inject = a => handle(id, a) |> inject;
+  view_inner(
     ~font_metrics,
     ~measurement,
-    ~accent,
+    ~status,
     ~syntax,
     p,
-    P.view(~inject, accent),
+    P.view(~status, ~syntax, ~info, ~inject),
   );
 };
 
+let status = (z: Zipper.t) =>
+  switch (Indicated.piece(z)) {
+  | Some((p, d, _)) => Some((Piece.id(p), Projector.Indicated(d)))
+  | None => None
+  };
+
 let view_all =
     (
-      ps: Map.t,
+      z: Zipper.t,
+      ~info_map: Statics.Map.t,
       ~syntax_map: Id.Map.t(syntax),
       ~measured: Measured.t,
       ~inject: Action.project => Ui_effect.t(unit),
       ~font_metrics,
-      ~accent,
     ) =>
   List.filter_map(
-    ((id, _)) =>
-      view(
+    ((id, _)) => {
+      view_setup(
         id,
-        ps,
+        z.projectors,
         ~syntax_map,
+        ~info_map,
         ~measured,
         ~inject,
         ~font_metrics,
-        ~accent=
-          switch (accent) {
+        ~status=
+          switch (status(z)) {
           | Some((ind_id, ind_d)) when ind_id == id => Some(ind_d)
           | _ => None
           },
-      ),
-    Id.Map.bindings(ps),
+      )
+    },
+    Id.Map.bindings(z.projectors),
   );
 
 let indicated_proj_z = (z: Zipper.t) => {
@@ -137,7 +147,7 @@ let kind = (editor: Editor.t) => {
   Projector.kind(p);
 };
 
-let shape = (z: Zipper.t, syntax) => {
+let shape = (z: Zipper.t, syntax): option(shape) => {
   let+ (_, p) = indicated_proj_z(z);
   Projector.shape(p, syntax);
 };
@@ -149,15 +159,28 @@ let id = (editor: Editor.t) => {
   };
 };
 
+let shape_from_map = (z, syntax_map): option(shape) => {
+  let* id = Indicated.index(z);
+  let* syntax = Id.Map.find_opt(id, syntax_map);
+  shape(z, syntax);
+};
+
+let caret = (z: Zipper.t, syntax_map): option(list(Node.t)) =>
+  switch (shape_from_map(z, syntax_map)) {
+  | None => None
+  | Some(Inline(_)) => None
+  | Some(Block(_)) => Some([])
+  };
+
 let key_handler = (editor: Editor.t, key: Key.t): option(Action.project) =>
   switch (indicated_proj_ed(editor)) {
   | None => None
   | Some((id, p)) =>
-    let* syntax = Id.Map.find_opt(id, editor.state.meta.projected.syntax_map);
-    let (module P) = to_module(syntax, p);
+    //let* syntax = Id.Map.find_opt(id, editor.state.meta.projected.syntax_map);
     let* (_, d, _) = Indicated.piece(editor.state.zipper);
+    let (module P) = to_module(p);
     let+ action = P.keymap(d, key);
-    handle(id, syntax, action);
+    handle(id, action);
   };
 
 let option_view = (name, n) =>

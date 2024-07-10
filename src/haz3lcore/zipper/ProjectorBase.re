@@ -43,23 +43,27 @@ type shape =
   | Block(Measured.Point.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type accent =
+type status =
   | Indicated(Util.Direction.t)
   | Selected;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type syntax = Piece.t;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+type inner_action = ..;
+//TODO(andrew): decide how to rm
+type inner_action +=
+  | SetInside(bool);
+
 type action =
   | Remove /* Remove projector */
   | FocusInternal(string) /* DOM Focus on projector */
   | Default /* Defer input to focal DOM element */
   | Escape(string, Util.Direction.t) /* Pass key control to parent editor */
   | UpdateSyntax(syntax => syntax)
-  | UpdateModel(string);
+  | UpdateModel(inner_action);
 
-let cls = (indicated: option(accent)) =>
+let cls = (indicated: option(status)) =>
   switch (indicated) {
   | Some(Indicated(Left)) => ["indicated", "left"]
   | Some(Indicated(Right)) => ["indicated", "right"]
@@ -71,17 +75,26 @@ module type Core = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model;
 
-  let model: model;
-  let view: (~inject: action => Ui_effect.t(unit), option(accent)) => Node.t;
-  let update: string => projector;
-  let keymap: (Util.Direction.t, Key.t) => option(action);
-  let placeholder: unit => shape;
   let can_project: Piece.t => bool;
-  let auto_update: info => projector;
-  let projector: projector;
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type action;
+  let model: model;
+  // let projector: projector;
+
+  let view:
+    (
+      ~status: option(status),
+      ~syntax: syntax,
+      ~info: Info.t,
+      ~inject: action => Ui_effect.t(unit)
+    ) =>
+    Node.t;
+  let placeholder: syntax => shape;
+
+  //[@deriving (show({with_path: false}), sexp, yojson)]
+  //type action;
+  let update: inner_action => projector;
+  let auto_update: info => projector;
+  let keymap: (Util.Direction.t, Key.t) => option(action);
 };
 
 type core = (module Core);

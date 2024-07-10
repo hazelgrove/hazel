@@ -59,11 +59,15 @@ let view =
       ) => {
     Cell.editor_view(
       ~selected=pos == this_pos,
-      ~error_ids=
-        Statics.Map.error_ids(
-          editor.state.meta.projected.term_ranges,
-          di.info_map,
-        ),
+      ~statics={
+        term: di.term,
+        info_map: di.info_map,
+        error_ids:
+          Statics.Map.error_ids(
+            editor.state.meta.projected.term_ranges,
+            di.info_map,
+          ),
+      },
       ~inject,
       ~ui_state,
       ~mousedown_updates=[SwitchEditor(this_pos)],

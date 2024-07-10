@@ -1,5 +1,5 @@
-open Sexplib.Std;
-open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
+// open Sexplib.Std;
+// open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
 open Virtual_dom.Vdom;
 open ProjectorBase;
 
@@ -13,18 +13,26 @@ let mk_mono = (sort: Sort.t, string: string): Piece.t =>
   string |> Form.mk_atomic(sort) |> Piece.mk_tile(_, []);
 
 let state_of = (piece: Piece.t): option(int) =>
-  piece |> of_mono |> Option.map(int_of_string);
+  piece |> of_mono |> Util.OptUtil.and_then(int_of_string_opt);
 
 let put = (new_val: string): Piece.t => mk_mono(Exp, new_val);
 
 let get = (piece: Piece.t): int =>
-  switch (piece |> of_mono |> Option.map(int_of_string)) {
-  | None => failwith("Slider: not integer literal")
+  switch (state_of(piece)) {
+  | None =>
+    //TODO(andrew): fix this bug (moving caret to right of slider crashes)
+    switch (of_mono(piece)) {
+    | Some(p) =>
+      print_endline("ERROR: Slider: not integer literal: " ++ p);
+      0;
+    | None =>
+      print_endline("ERROR: Slider: not integer literal: No piece");
+      0;
+    }
   | Some(s) => s
   };
 
-let view =
-    (~inject: ProjectorBase.action => Ui_effect.t(unit), value: int, _) =>
+let view = (~inject: ProjectorBase.action => Ui_effect.t(unit), value: int) =>
   Node.input(
     ~attrs=[
       Attr.create("type", "range"),
@@ -42,19 +50,16 @@ let keymap = (_, key: Key.t): option(ProjectorBase.action) =>
   | _ => None
   };
 
-let mk = (model, ~syntax): core =>
+let mk = (model): core =>
   (module
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
      type model = slider;
-     [@deriving (show({with_path: false}), sexp, yojson)]
-     type action = unit;
      let model = model;
-     let projector = Slider(model);
      let can_project = p => state_of(p) != None;
-     let placeholder = () => Inline(10);
+     let placeholder = _ => Inline(10);
      let auto_update = _ => Slider(model);
      let update = _ => Slider(model);
-     let view = view(get(syntax));
+     let view = (~status as _, ~syntax, ~info as _) => view(get(syntax));
      let keymap = keymap;
    });
