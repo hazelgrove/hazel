@@ -75,11 +75,11 @@ let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit), model: Model.t) =>
 let main_view =
     (
       ~inject: UpdateAction.t => Ui_effect.t(unit),
-      {settings, editors, explainThisModel, results, statics, ui_state, _}: Model.t,
+      {settings, editors, explainThisModel, results, ui_state, _}: Model.t,
     ) => {
   let editor = Editors.get_editor(editors);
-  let statics = Editors.lookup_statics(~settings, ~statics, editors);
-  let cursor_info = Indicated.ci_of(editor.state.zipper, statics.info_map);
+  let info_map = editor.state.meta.statics.info_map;
+  let cursor_info = Indicated.ci_of(editor.state.zipper, info_map);
   let top_bar =
     div(
       ~attrs=[Attr.id("top-bar")],
@@ -112,7 +112,6 @@ let main_view =
         ~highlights,
         ~results,
         ~result_key,
-        ~statics,
         editor,
       );
     | Documentation(name, _) =>
@@ -129,7 +128,6 @@ let main_view =
           ~highlights,
           ~results,
           ~result_key,
-          ~statics,
           editor,
         );
     | Exercises(_, _, exercise) =>

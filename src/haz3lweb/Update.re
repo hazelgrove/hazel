@@ -216,22 +216,23 @@ let schedule_evaluation = (~schedule_action, model: Model.t): unit =>
     };
   };
 
-let update_projectors = (model: Model.t): Model.t => {
-  let statics = Model.current_statics(model);
-  //let editor = Editors.get_editor(model.editors);
-  //let syntax_map = editor.state.meta.projected.syntax_map;
-  let editors =
-    Editors.map_projectors(
-      model.editors,
-      (id, p) => {
-        //let syntax = Id.Map.find(id, syntax_map);
-        let (module P) = Projector.to_module(p);
-        let info = Id.Map.find_opt(id, statics.info_map);
-        P.auto_update({info: info});
-      },
-    );
-  {...model, editors};
-};
+//TODO(andrew): cleanup
+// let update_projectors = (model: Model.t): Model.t => {
+//   let statics = Model.current_statics(model);
+//   //let editor = Editors.get_editor(model.editors);
+//   //let syntax_map = editor.state.meta.projected.syntax_map;
+//   let editors =
+//     Editors.map_projectors(
+//       model.editors,
+//       (id, p) => {
+//         //let syntax = Id.Map.find(id, syntax_map);
+//         let (module P) = Projector.to_module(p);
+//         let info = Id.Map.find_opt(id, statics.info_map);
+//         P.auto_update({info: info});
+//       },
+//     );
+//   {...model, editors};
+// };
 
 let update_cached_data = (~schedule_action, update, m: Model.t): Model.t => {
   let update_statics = is_edit(update) || reevaluate_post_update(update);
@@ -239,9 +240,11 @@ let update_cached_data = (~schedule_action, update, m: Model.t): Model.t => {
   let m =
     update_statics || update_dynamics && m.settings.core.statics
       ? {
-        print_endline("UPDATING STATICS");
+        print_endline("UPDATING STATICS. TODO(andrew): disable this!!!!!");
+        //TODO(andrew): cleanup
         let statics = Editors.mk_statics(~settings=m.settings, m.editors);
-        update_projectors({...m, statics});
+        //update_projectors({...m, statics});
+        {...m, statics};
       }
       : m;
   if (update_dynamics && m.settings.core.dynamics) {
@@ -256,11 +259,7 @@ let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
   switch (
     model.editors
     |> Editors.get_editor
-    |> Haz3lcore.Perform.go(
-         ~statics=Model.current_statics(model),
-         ~settings=model.settings.core,
-         a,
-       )
+    |> Haz3lcore.Perform.go(~settings=model.settings.core, a)
   ) {
   | Error(err) => Error(FailedToPerform(err))
   | Ok(ed) =>
@@ -271,7 +270,8 @@ let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
   };
 
 let switch_scratch_slide =
-    (editors: Editors.t, ~instructor_mode, idx: int): option(Editors.t) =>
+    (~settings, editors: Editors.t, ~instructor_mode, idx: int)
+    : option(Editors.t) =>
   switch (editors) {
   | Documentation(_) => None
   | Scratch(n, _) when n == idx => None
@@ -281,7 +281,8 @@ let switch_scratch_slide =
   | Exercises(_, specs, _) =>
     let spec = List.nth(specs, idx);
     let key = Exercise.key_of(spec);
-    let exercise = Store.Exercise.load_exercise(key, spec, ~instructor_mode);
+    let exercise =
+      Store.Exercise.load_exercise(key, spec, ~instructor_mode, ~settings);
     Some(Exercises(idx, specs, exercise));
   };
 
@@ -310,10 +311,10 @@ let export_persistent_data = () => {
   let settings = Store.Settings.load();
   let data: PersistentData.t = {
     documentation:
-      Store.Documentation.load(~settings=settings.core.evaluation)
+      Store.Documentation.load(~settings=settings.core)
       |> Store.Documentation.to_persistent,
     scratch:
-      Store.Scratch.load(~settings=settings.core.evaluation)
+      Store.Scratch.load(~settings=settings.core)
       |> Store.Scratch.to_persistent,
     settings,
   };
@@ -381,18 +382,35 @@ let rec apply =
       );
       Ok(model);
     | FinishImportScratchpad(data) =>
-      let editors = Editors.import_current(model.editors, data);
+      let editors =
+        Editors.import_current(
+          ~settings=model.settings.core,
+          model.editors,
+          data,
+        );
       Model.save_and_return({...model, editors});
     | ExportPersistentData =>
       export_persistent_data();
       Ok(model);
     | ResetCurrentEditor =>
       let instructor_mode = model.settings.instructor_mode;
-      let editors = Editors.reset_current(model.editors, ~instructor_mode);
+      let editors =
+        Editors.reset_current(
+          ~settings=model.settings.core,
+          model.editors,
+          ~instructor_mode,
+        );
       Model.save_and_return({...model, editors});
     | SwitchScratchSlide(n) =>
       let instructor_mode = model.settings.instructor_mode;
-      switch (switch_scratch_slide(model.editors, ~instructor_mode, n)) {
+      switch (
+        switch_scratch_slide(
+          ~settings=model.settings.core,
+          model.editors,
+          ~instructor_mode,
+          n,
+        )
+      ) {
       | None => Error(FailedToSwitch)
       | Some(editors) => Model.save_and_return({...model, editors})
       };
@@ -450,7 +468,13 @@ let rec apply =
       | None => Error(CantReset)
       | Some(z) =>
         //TODO: add correct action to history (Pick_up is wrong)
-        let editor = Haz3lcore.Editor.new_state(Pick_up, z, ed);
+        let editor =
+          Haz3lcore.Editor.new_state(
+            ~settings=model.settings.core,
+            Pick_up,
+            z,
+            ed,
+          );
         let editors = Editors.put_editor(editor, model.editors);
         Ok({...model, editors});
       };
@@ -467,7 +491,13 @@ let rec apply =
       | None => Error(CantPaste)
       | Some(z) =>
         //HACK(andrew): below is not strictly a insert action...
-        let ed = Haz3lcore.Editor.new_state(Insert(clipboard), z, ed);
+        let ed =
+          Haz3lcore.Editor.new_state(
+            ~settings=model.settings.core,
+            Insert(clipboard),
+            z,
+            ed,
+          );
         let editors = Editors.put_editor(ed, model.editors);
         Ok({...model, editors});
       };

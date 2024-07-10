@@ -33,10 +33,6 @@ module Map = {
   let update = update;
 };
 
-/* Externally calculated info to be fed to projectors */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type info = {info: option(Info.t)};
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type shape =
   | Inline(int)
@@ -63,6 +59,14 @@ type action =
   | UpdateSyntax(syntax => syntax)
   | UpdateModel(inner_action);
 
+/* Externally calculated info to be fed to projectors */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type info = {
+  syntax,
+  status: option(status),
+  ci: option(Info.t),
+};
+
 let cls = (indicated: option(status)) =>
   switch (indicated) {
   | Some(Indicated(Left)) => ["indicated", "left"]
@@ -80,20 +84,13 @@ module type Core = {
   let model: model;
   // let projector: projector;
 
-  let view:
-    (
-      ~status: option(status),
-      ~syntax: syntax,
-      ~info: Info.t,
-      ~inject: action => Ui_effect.t(unit)
-    ) =>
-    Node.t;
-  let placeholder: syntax => shape;
+  let view: (~info: info, ~inject: action => Ui_effect.t(unit)) => Node.t;
+  let placeholder: info => shape;
 
   //[@deriving (show({with_path: false}), sexp, yojson)]
   //type action;
   let update: inner_action => projector;
-  let auto_update: info => projector;
+  // let auto_update: info => projector;
   let keymap: (Util.Direction.t, Key.t) => option(action);
 };
 

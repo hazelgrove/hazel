@@ -33,10 +33,10 @@ let backing_deco =
     (
       ~font_metrics: FontMetrics.t,
       ~measurement: Measured.measurement,
-      ~syntax,
+      ~info,
       p: Projector.t,
     ) =>
-  switch (Projector.shape(p, syntax)) {
+  switch (Projector.shape(p, info)) {
   | Inline(_) => PieceDec.convex_shard(~font_metrics, ~measurement)
   | Block(_) => div([])
   };
@@ -46,7 +46,7 @@ let view_inner =
       ~font_metrics: FontMetrics.t,
       ~measurement: Measured.measurement,
       ~status: option(Projector.status),
-      ~syntax,
+      ~info: info,
       p: Projector.t,
       view: Node.t,
     ) =>
@@ -65,7 +65,7 @@ let view_inner =
         ],
         [view],
       ),
-      backing_deco(~font_metrics, ~measurement, ~syntax, p),
+      backing_deco(~font_metrics, ~measurement, ~info, p),
     ],
   );
 
@@ -83,7 +83,8 @@ let view_setup =
     : option(Node.t) => {
   let* p = Projector.Map.find(id, ps);
   let* syntax = Id.Map.find_opt(id, syntax_map);
-  let* info = Id.Map.find_opt(id, info_map);
+  let ci = Id.Map.find_opt(id, info_map);
+  let info = {ci, syntax, status};
   let+ measurement = Measured.find_by_id(id, measured);
   let (module P) = to_module(p);
   let inject = a => handle(id, a) |> inject;
@@ -91,17 +92,11 @@ let view_setup =
     ~font_metrics,
     ~measurement,
     ~status,
-    ~syntax,
+    ~info,
     p,
-    P.view(~status, ~syntax, ~info, ~inject),
+    P.view(~info, ~inject),
   );
 };
-
-let status = (z: Zipper.t) =>
-  switch (Indicated.piece(z)) {
-  | Some((p, d, _)) => Some((Piece.id(p), Projector.Indicated(d)))
-  | None => None
-  };
 
 let view_all =
     (
@@ -123,7 +118,7 @@ let view_all =
         ~inject,
         ~font_metrics,
         ~status=
-          switch (status(z)) {
+          switch (Projector.status_and_id(z)) {
           | Some((ind_id, ind_d)) when ind_id == id => Some(ind_d)
           | _ => None
           },
@@ -159,14 +154,18 @@ let id = (editor: Editor.t) => {
   };
 };
 
-let shape_from_map = (z, syntax_map): option(shape) => {
+let shape_from_map = (z, syntax_map, info_map): option(shape) => {
   let* id = Indicated.index(z);
   let* syntax = Id.Map.find_opt(id, syntax_map);
-  shape(z, syntax);
+  let ci = Id.Map.find_opt(id, info_map);
+  let status = Projector.status(z);
+  let info = {syntax, status, ci};
+  shape(z, info);
 };
 
-let caret = (z: Zipper.t, syntax_map): option(list(Node.t)) =>
-  switch (shape_from_map(z, syntax_map)) {
+let caret =
+    (z: Zipper.t, syntax_map, info_map: Statics.Map.t): option(list(Node.t)) =>
+  switch (shape_from_map(z, syntax_map, info_map)) {
   | None => None
   | Some(Inline(_)) => None
   | Some(Block(_)) => Some([])

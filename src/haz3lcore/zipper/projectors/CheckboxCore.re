@@ -25,13 +25,7 @@ let put = (bool: bool): Piece.t => bool |> string_of_bool |> mk_mono(Exp);
 
 let toggle = (piece: Piece.t) => put(!get(piece));
 
-let view =
-    (
-      ~status as _,
-      ~syntax,
-      ~info as _,
-      ~inject: ProjectorBase.action => Ui_effect.t(unit),
-    ) =>
+let view = (~info, ~inject: ProjectorBase.action => Ui_effect.t(unit)) =>
   Node.input(
     ~attrs=
       [
@@ -39,7 +33,7 @@ let view =
         Attr.on_input((_, _) => inject(UpdateSyntax(toggle))),
         //JsUtil.stop_mousedown_propagation,
       ]
-      @ (get(syntax) ? [Attr.checked] : []),
+      @ (get(info.syntax) ? [Attr.checked] : []),
     (),
   );
 
@@ -57,7 +51,7 @@ let mk = (model): core =>
      let model = model;
      let can_project = p => state_of(p) != None;
      let placeholder = _ => Inline(2);
-     let auto_update = _: projector => Checkbox();
+     //  let auto_update = _: projector => Checkbox();
      let update = (_action): projector => Checkbox();
      let view = view;
      let keymap = keymap;

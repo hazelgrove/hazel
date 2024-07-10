@@ -30,13 +30,22 @@ let kind = (p: t): kind =>
   | TextArea(_) => TextArea
   };
 
-let init = (f: kind): core =>
+// let init = (f: kind): core =>
+//   switch (f) {
+//   | Fold => FoldCore.mk()
+//   | Infer => InferCore.mk({expected_ty: None})
+//   | Checkbox => CheckboxCore.mk()
+//   | Slider => SliderCore.mk()
+//   | TextArea => TextAreaCore.mk({inside: false})
+//   };
+
+let init = (f: kind): projector =>
   switch (f) {
-  | Fold => FoldCore.mk()
-  | Infer => InferCore.mk({expected_ty: None})
-  | Checkbox => CheckboxCore.mk()
-  | Slider => SliderCore.mk()
-  | TextArea => TextAreaCore.mk({inside: false})
+  | Fold => Fold()
+  | Infer => Infer({expected_ty: None})
+  | Checkbox => Checkbox()
+  | Slider => Slider()
+  | TextArea => TextArea({inside: false})
   };
 
 let name_of_kind = (p: kind): string =>
@@ -60,6 +69,19 @@ let of_name = (p: string): kind =>
 
 let name = (p: t): string => p |> kind |> name_of_kind;
 
+let status_and_id = (z: ZipperBase.t) =>
+  //TODO(andrew): add Selected, Focused (maybe)
+  switch (Indicated.piece(z)) {
+  | Some((p, d, _)) => Some((Piece.id(p), Indicated(d)))
+  | None => None
+  };
+
+let status = (z: ZipperBase.t): option(status) =>
+  switch (status_and_id(z)) {
+  | Some((_, status)) => Some(status)
+  | None => None
+  };
+
 let shape = (p: t, syntax): shape => {
   let (module P) = to_module(p);
   P.placeholder(syntax);
@@ -79,10 +101,10 @@ let placeholder_label = (p: t, syntax): list(string) =>
   | Block({row, col}) => [String.make(row, '\n') ++ String.make(col, ' ')]
   };
 
-let placeholder = (p: t, syntax: syntax): syntax =>
+let placeholder = (p: t, info: info): syntax =>
   Piece.Tile({
-    id: Piece.id(syntax),
-    label: placeholder_label(p, syntax),
+    id: Piece.id(info.syntax),
+    label: placeholder_label(p, info),
     mold: Mold.mk_op(Any, []),
     shards: [0],
     children: [],
@@ -92,11 +114,11 @@ let placeholder = (p: t, syntax: syntax): syntax =>
 let minimum_projection_condition = (syntax: syntax): bool =>
   Piece.is_convex(syntax);
 
-let create =
-    (k: kind, syntax: syntax, id: Id.t, info_map: Statics.Map.t): option(t) => {
-  let (module P) = init(k);
+let create = (k: kind, syntax: syntax): option(t) => {
+  let p = init(k);
+  let (module P) = to_module(p);
   P.can_project(syntax) && minimum_projection_condition(syntax)
-    ? Some(P.auto_update({info: Id.Map.find_opt(id, info_map)})) : None;
+    ? Some(p) : None;
 };
 
 let piece_is = (ps: Map.t, syntax: option(syntax)): option(Id.t) =>
@@ -191,7 +213,7 @@ module MapPiece = {
   type updater = Piece.t => Piece.t;
 
   let rec of_segment = (f: updater, seg: Segment.t): Segment.t => {
-    seg |> List.map(f) |> List.map(of_piece(f));
+    seg |> List.map(p => f(p)) |> List.map(of_piece(f));
   }
   and of_piece = (f: updater, piece: Piece.t): Piece.t => {
     switch (piece) {
@@ -251,23 +273,27 @@ type proj_ret = {
 module Project = {
   let syntax_map: ref(Id.Map.t(syntax)) = ref(Id.Map.empty);
 
-  let placehold = (projectors: Map.t, syntax: syntax) =>
-    switch (Map.find(Piece.id(syntax), projectors)) {
+  let placehold = (projectors: Map.t, info_map: Statics.Map.t, syntax: syntax) => {
+    let id = Piece.id(syntax);
+    switch (Map.find(id, projectors)) {
     | None => syntax
     | Some(pr) =>
-      syntax_map := Id.Map.add(Piece.id(syntax), syntax, syntax_map^);
-      placeholder(pr, syntax);
+      let info: info = {
+        syntax,
+        status: None, //TODO(andrew)
+        ci: Id.Map.find_opt(id, info_map),
+      };
+      syntax_map := Id.Map.add(id, syntax, syntax_map^);
+      placeholder(pr, info);
     };
+  };
 
-  let go = (z: ZipperBase.t): proj_ret => {
+  let go = (z: ZipperBase.t, info_map: Statics.Map.t): proj_ret => {
     syntax_map := Id.Map.empty;
     if (Id.Map.is_empty(z.projectors)) {
       {z, syntax_map: syntax_map^};
     } else {
-      let z = MapPiece.go(placehold(z.projectors), z);
-      // print_endline(
-      //   "map card:" ++ string_of_int(Id.Map.cardinal(syntax_map^)),
-      // );
+      let z = MapPiece.go(placehold(z.projectors, info_map), z);
       {z, syntax_map: syntax_map^};
     };
   };

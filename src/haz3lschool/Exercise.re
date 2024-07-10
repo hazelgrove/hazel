@@ -337,57 +337,59 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       };
     };
 
-  let editor_of_serialization = zipper => Editor.init(zipper);
-  let eds_of_spec: spec => eds =
-    (
-      {
-        title,
-        version,
-        module_name,
-        prompt,
-        point_distribution,
-        prelude,
-        correct_impl,
-        your_tests,
-        your_impl,
-        hidden_bugs,
-        hidden_tests,
-        syntax_tests,
-      },
-    ) => {
-      let prelude = editor_of_serialization(prelude);
-      let correct_impl = editor_of_serialization(correct_impl);
-      let your_tests = {
-        let tests = editor_of_serialization(your_tests.tests);
-        {tests, required: your_tests.required, provided: your_tests.provided};
-      };
-      let your_impl = editor_of_serialization(your_impl);
-      let hidden_bugs =
-        hidden_bugs
-        |> List.map(({impl, hint}) => {
-             let impl = editor_of_serialization(impl);
-             {impl, hint};
-           });
-      let hidden_tests = {
-        let {tests, hints} = hidden_tests;
-        let tests = editor_of_serialization(tests);
-        {tests, hints};
-      };
-      {
-        title,
-        version,
-        module_name,
-        prompt,
-        point_distribution,
-        prelude,
-        correct_impl,
-        your_tests,
-        your_impl,
-        hidden_bugs,
-        hidden_tests,
-        syntax_tests,
-      };
+  let eds_of_spec =
+      (
+        {
+          title,
+          version,
+          module_name,
+          prompt,
+          point_distribution,
+          prelude,
+          correct_impl,
+          your_tests,
+          your_impl,
+          hidden_bugs,
+          hidden_tests,
+          syntax_tests,
+        },
+        ~settings: CoreSettings.t,
+      )
+      : eds => {
+    let editor_of_serialization = Editor.init(~settings);
+    let prelude = editor_of_serialization(prelude);
+    let correct_impl = editor_of_serialization(correct_impl);
+    let your_tests = {
+      let tests = editor_of_serialization(your_tests.tests);
+      {tests, required: your_tests.required, provided: your_tests.provided};
     };
+    let your_impl = editor_of_serialization(your_impl);
+    let hidden_bugs =
+      hidden_bugs
+      |> List.map(({impl, hint}) => {
+           let impl = editor_of_serialization(impl);
+           {impl, hint};
+         });
+    let hidden_tests = {
+      let {tests, hints} = hidden_tests;
+      let tests = editor_of_serialization(tests);
+      {tests, hints};
+    };
+    {
+      title,
+      version,
+      module_name,
+      prompt,
+      point_distribution,
+      prelude,
+      correct_impl,
+      your_tests,
+      your_impl,
+      hidden_bugs,
+      hidden_tests,
+      syntax_tests,
+    };
+  };
 
   //
   // Old version of above that did string-based parsing, may be useful
@@ -478,8 +480,9 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     };
   };
 
-  let state_of_spec = (spec, ~instructor_mode: bool): state => {
-    let eds = eds_of_spec(spec);
+  let state_of_spec =
+      (spec, ~instructor_mode: bool, ~settings: CoreSettings.t): state => {
+    let eds = eds_of_spec(~settings, spec);
     set_instructor_mode({pos: YourImpl, eds}, instructor_mode);
   };
 
@@ -499,15 +502,16 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         (pos, positioned_zippers): persistent_state,
         ~spec: spec,
         ~instructor_mode: bool,
+        ~settings: CoreSettings.t,
       )
       : state => {
     let lookup = (pos, default) =>
       if (visible_in(pos, ~instructor_mode)) {
         let persisted_zipper = List.assoc(pos, positioned_zippers);
         let zipper = PersistentZipper.unpersist(persisted_zipper);
-        Editor.init(zipper);
+        Editor.init(zipper, ~settings);
       } else {
-        editor_of_serialization(default);
+        Editor.init(default, ~settings);
       };
     let prelude = lookup(Prelude, spec.prelude);
     let correct_impl = lookup(CorrectImpl, spec.correct_impl);
