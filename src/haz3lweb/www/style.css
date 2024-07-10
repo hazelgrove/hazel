@@ -2373,6 +2373,6 @@ ninja-keys {
   --ninja-accent-color: var(--selection-shadow-color);
   --ninja-secondary-background-color: #efe7d6;
   --ninja-selected-background: var(--light-page-color);
-  --ninja-secondary-text-color: var(--light-text-color); /* Pick another light color */
+  --ninja-secondary-text-color: var(--light-text-color);
   --ninja-modal-background: #fffcf3;
 }
