@@ -93,6 +93,10 @@ let update_settings =
           ...evaluation,
           show_settings: !evaluation.show_settings,
         }
+      | ShowHiddenSteps => {
+          ...evaluation,
+          show_hidden_steps: !evaluation.show_hidden_steps,
+        }
       };
     };
     {
@@ -202,7 +206,12 @@ let schedule_evaluation = (~schedule_action, model: Model.t): unit =>
     let step_rs = ModelResults.to_step(model.results);
     if (!ModelResults.is_empty(step_rs)) {
       let new_rs =
-        ModelResults.run_pending(~settings=model.settings.core, step_rs);
+        step_rs
+        |> ModelResults.update_elabs(
+             ~settings=model.settings.core.evaluation,
+             elabs,
+           )
+        |> ModelResults.run_pending(~settings=model.settings.core);
       schedule_action(UpdateResult(new_rs));
     };
   };
@@ -273,11 +282,15 @@ let switch_exercise_editor =
    this between users. The former is a TODO, currently difficult
    due to the more complex architecture of Exercises. */
 let export_persistent_data = () => {
+  let settings = Store.Settings.load();
   let data: PersistentData.t = {
     documentation:
-      Store.Documentation.load() |> Store.Documentation.to_persistent,
-    scratch: Store.Scratch.load() |> Store.Scratch.to_persistent,
-    settings: Store.Settings.load(),
+      Store.Documentation.load(~settings=settings.core.evaluation)
+      |> Store.Documentation.to_persistent,
+    scratch:
+      Store.Scratch.load(~settings=settings.core.evaluation)
+      |> Store.Scratch.to_persistent,
+    settings,
   };
   let contents =
     "let startup : PersistentData.t = " ++ PersistentData.show(data);
@@ -485,7 +498,9 @@ let rec apply =
                Some(
                  v
                  |> Option.value(~default=NoElab: ModelResult.t)
-                 |> ModelResult.toggle_stepper,
+                 |> ModelResult.toggle_stepper(
+                      ~settings=model.settings.core.evaluation,
+                    ),
                )
              ),
       })

@@ -258,15 +258,11 @@ let u9: Term.UExp.t = {
 let d9: DHExp.t =
   Let(
     Var("f"),
-    FixF(
-      "f",
-      Arrow(Int, Int),
-      Fun(
-        Var("x"),
-        Int,
-        BinIntOp(Plus, IntLit(1), BoundVar("x")),
-        Some("f"),
-      ),
+    Fun(
+      Var("x"),
+      Int,
+      BinIntOp(Plus, IntLit(1), BoundVar("x")),
+      Some("f"),
     ),
     IntLit(55),
   );
