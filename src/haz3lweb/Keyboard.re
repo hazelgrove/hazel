@@ -26,13 +26,13 @@ let shortcuts: list(shortcut) = [
   },
   {
     update_action: Some(Redo),
-    hotkey: Some("ctrl+shift+z"),
+    hotkey: Some("ctrl+shift+z,cmd+shift+z"),
     label: "Redo",
     mdIcon: Some("redo"),
   },
   {
     update_action: Some(Undo),
-    hotkey: Some("ctrl+z"),
+    hotkey: Some("ctrl+z,cmd+z"),
     label: "Undo",
     mdIcon: Some("undo"),
   },
@@ -56,21 +56,27 @@ let shortcuts: list(shortcut) = [
   },
   {
     update_action: Some(PerformAction(Select(Term(Current)))),
-    hotkey: Some("ctrl+d"),
+    hotkey: Some("ctrl+d,cmd+d"),
     label: "Select current term",
     mdIcon: Some("select_all"),
   },
   {
     update_action: Some(PerformAction(Pick_up)),
-    hotkey: Some("ctrl+p"),
+    hotkey: Some("ctrl+p,cmd+p"),
     label: "Pick up selected term",
     mdIcon: Some("backpack"),
   },
   {
     update_action: Some(PerformAction(Select(All))),
-    hotkey: Some("ctrl+a"),
+    hotkey: Some("ctrl+a,cmd+a"),
     label: "Select All",
     mdIcon: Some("select_all"),
+  },
+  {
+    update_action: Some(Assistant(Prompt(TyDi))), // I haven't figured out how to trigger this in the editor
+    hotkey: Some("ctrl+/,cmd+/"),
+    label: "TyDi Assistant",
+    mdIcon: Some("assistant"),
   },
 ];
 
@@ -119,8 +125,6 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
     }
   | {key: D(key), sys: Mac, shift: Down, meta: Down, ctrl: Up, alt: Up} =>
     switch (key) {
-    | "Z"
-    | "z" => Some(Redo)
     | "ArrowLeft" => now(Select(Resize(Extreme(Left(ByToken)))))
     | "ArrowRight" => now(Select(Resize(Extreme(Right(ByToken)))))
     | "ArrowUp" => now(Select(Resize(Extreme(Up))))
@@ -139,11 +143,6 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
     }
   | {key: D(key), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up} =>
     switch (key) {
-    | "z" => Some(Undo)
-    | "d" => now(Select(Term(Current)))
-    | "p" => Some(PerformAction(Pick_up))
-    | "a" => now(Select(All))
-    // | "k" => Some(ReparseCurrentEditor)
     | "/" => Some(Assistant(Prompt(TyDi)))
     | _ when is_digit(key) => Some(SwitchScratchSlide(int_of_string(key)))
     | "ArrowLeft" => now(Move(Extreme(Left(ByToken))))
