@@ -2375,5 +2375,4 @@ ninja-keys {
   --ninja-selected-background: var(--light-page-color);
   --ninja-secondary-text-color: var(--light-text-color); /* Pick another light color */
   --ninja-modal-background: #fffcf3;
-  /* --ninja-placeholder-color: var(--light-text-color); */
 }
