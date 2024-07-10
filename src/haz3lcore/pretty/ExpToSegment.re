@@ -942,7 +942,7 @@ and parenthesize_typ = (typ: Typ.t): Typ.t => {
   };
 };
 
-let exp_to_editor = (~inline, exp: Exp.t): Editor.t => {
+let exp_to_segment = (~inline, exp: Exp.t): Segment.t => {
   let exp =
     exp
     |> Exp.substitute_closures(
@@ -950,13 +950,11 @@ let exp_to_editor = (~inline, exp: Exp.t): Editor.t => {
        )
     |> parenthesize;
   let p = exp_to_pretty(~inline, exp);
-  let seg = p |> PrettySegment.select;
-  Editor.init(~read_only=true, Zipper.unzip(seg));
+  p |> PrettySegment.select;
 };
 
-let typ_to_editor = (~inline, typ: Typ.t): Editor.t => {
+let typ_to_segment = (~inline, typ: Typ.t): Segment.t => {
   let typ = parenthesize_typ(typ);
   let p = typ_to_pretty(~inline, typ);
-  let seg = p |> PrettySegment.select;
-  Editor.init(~read_only=true, Zipper.unzip(seg));
+  p |> PrettySegment.select;
 };
