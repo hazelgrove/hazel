@@ -18,7 +18,10 @@ module Model = {
   let mk = editor => {editor, statics: CachedStatics.empty_statics};
 
   let mk_from_exp = (~inline=false, term: Exp.t) => {
-    ExpToSegment.exp_to_editor(term, ~inline) |> mk;
+    ExpToSegment.exp_to_segment(term, ~inline)
+    |> Zipper.unzip
+    |> Editor.init
+    |> mk;
   };
 
   let get_term = model => model.statics.term;
@@ -61,7 +64,8 @@ module View = {
 
   let view =
       (~globals, ~overlays: list(Node.t)=[], ~sort=Sort.root, model: Model.t) => {
-    let code_text_view = CodeViewable.view(~globals, ~sort, model.editor);
+    let code_text_view =
+      CodeViewable.view_editor(~globals, ~sort, model.editor);
     let statics_decos = {
       module Deco =
         Deco.Deco({
