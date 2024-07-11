@@ -5,12 +5,13 @@ let is_write_action = (a: Action.t) => {
   switch (a) {
   | RecalcStatics
   | Project(_) => false //TODO(andrew): revisit
+  | Copy
   | Move(_)
-  | MoveToNextHole(_)
   | Unselect(_)
   | Jump(_)
   | Select(_) => false
   | Buffer(Set(_) | Clear | Accept)
+  | Cut
   | Paste(_)
   | Reparse
   | Destruct(_)
@@ -76,6 +77,13 @@ let rec go_z =
     | None => Error(CantPaste)
     | Some(z) => Ok(z)
     }
+  | Cut =>
+    /* System clipboard handling is done in Page.view handlers */
+    go_z(~settings, ~meta, Destruct(Left), z)
+  | Copy =>
+    /* System clipboard handling itself is done in Page.view handlers.
+     * This doesn't change state but is included here for logging purposes */
+    Ok(z)
   | Reparse =>
     switch (Printer.reparse(z)) {
     | None => Error(CantReparse)
@@ -125,7 +133,7 @@ let rec go_z =
           [
             Paste(AssistantExpander.trim(completion)),
             Move(Goal(Point(start))),
-            MoveToNextHole(Right),
+            Move(Goal(Piece(Grout, Right))),
             Move(Local(Left(ByToken))),
           ],
         );
@@ -146,9 +154,6 @@ let rec go_z =
     )
   | Move(d) =>
     Move.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move)
-  | MoveToNextHole(d) =>
-    Move.go(Goal(Piece(Grout, d)), z)
-    |> Result.of_option(~error=Action.Failure.Cant_move)
   | Jump(jump_target) =>
     open OptUtil.Syntax;
 

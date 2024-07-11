@@ -418,18 +418,10 @@ let rec apply =
         Selection.is_buffer(z.selection)
           ? PerformAction(Buffer(Accept))
           : Zipper.can_put_down(z)
-              ? PerformAction(Put_down) : MoveToNextHole(Right);
+              ? PerformAction(Put_down)
+              : PerformAction(Move(Goal(Piece(Grout, Right))));
       apply(model, a, state, ~schedule_action);
     | PerformAction(a) => perform_action(model, a)
-    | Cut =>
-      // system clipboard handling itself is done in Page.view handlers
-      perform_action(model, Destruct(Left))
-    | Copy =>
-      // system clipboard handling itself is done in Page.view handlers
-      // doesn't change the state but including as an action for logging purposes
-      Ok(model)
-    | MoveToNextHole(d) =>
-      perform_action(model, Move(Goal(Piece(Grout, d))))
     | Undo =>
       let ed = Editors.get_editor(model.editors);
       switch (Haz3lcore.Editor.undo(ed)) {
