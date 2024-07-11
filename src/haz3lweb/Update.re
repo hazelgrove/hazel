@@ -212,14 +212,6 @@ let schedule_evaluation = (~schedule_action, model: Model.t): unit =>
     };
   };
 
-let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) => {
-  let ed = Editors.get_editor(model.editors);
-  switch (Haz3lcore.Perform.go(~settings=model.settings.core, a, ed)) {
-  | Error(err) => Error(FailedToPerform(err))
-  | Ok(ed) => Ok({...model, editors: Editors.put_editor(ed, model.editors)})
-  };
-};
-
 let update_cached_data = (~schedule_action, update, m: Model.t): Model.t => {
   let update_dynamics = reevaluate_post_update(update);
   /* If we swtich editors, or change settings which require statics
@@ -323,6 +315,15 @@ let ui_state_update =
 let apply =
     (model: Model.t, update: t, _state: State.t, ~schedule_action)
     : Result.t(Model.t) => {
+  let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) => {
+    switch (
+      Haz3lcore.Perform.go(~settings=model.settings.core, a)
+      |> Editors.update_err(model.editors)
+    ) {
+    | Error(err) => Error(FailedToPerform(err))
+    | Ok(editors) => Ok({...model, editors})
+    };
+  };
   let m: Result.t(Model.t) =
     switch (update) {
     | Reset => Ok(Model.reset(model))
@@ -408,15 +409,12 @@ let apply =
       };
     | TAB =>
       /* Attempt to act intelligently when TAB is pressed.
-       * TODO(andrew): Consider more advanced TAB logic. Instead
+       * TODO: Consider more advanced TAB logic. Instead
        * of simply moving to next hole, if the backpack is non-empty
        * but can't immediately put down, move to next position of
        * interest, which is closet of: nearest position where can
        * put down, farthest position where can put down, next hole */
-      let z =
-        model.editors
-        |> Editors.get_editor
-        |> ((ed: Editor.t) => ed.state.zipper);
+      let z = Editors.get_editor(model.editors).state.zipper;
       let action: Action.t =
         Selection.is_buffer(z.selection)
           ? Buffer(Accept)
@@ -425,19 +423,15 @@ let apply =
       perform_action(model, action);
     | PerformAction(a) => perform_action(model, a)
     | Undo =>
-      let ed = Editors.get_editor(model.editors);
-      switch (Haz3lcore.Editor.undo(ed)) {
+      switch (Editors.update_opt(model.editors, Editor.undo)) {
       | None => Error(CantUndo)
-      | Some(ed) =>
-        Ok({...model, editors: Editors.put_editor(ed, model.editors)})
-      };
+      | Some(editors) => Ok({...model, editors})
+      }
     | Redo =>
-      let ed = Editors.get_editor(model.editors);
-      switch (Haz3lcore.Editor.redo(ed)) {
+      switch (Editors.update_opt(model.editors, Editor.redo)) {
       | None => Error(CantRedo)
-      | Some(ed) =>
-        Ok({...model, editors: Editors.put_editor(ed, model.editors)})
-      };
+      | Some(editors) => Ok({...model, editors})
+      }
     | Benchmark(Start) =>
       List.iter(schedule_action, Benchmark.actions_1);
       Benchmark.start();

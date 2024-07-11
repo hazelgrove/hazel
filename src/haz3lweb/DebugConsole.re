@@ -5,9 +5,8 @@ open Haz3lcore;
    dependency on the model, which is technically against architecture */
 
 let print = ({settings, editors, _}: Model.t, key: string): unit => {
-  let z = Editors.get_zipper(editors);
+  let z = Editors.get_editor(editors).state.zipper;
   let print = str => str |> print_endline;
-  let settings = settings;
   let term = z => z |> MakeTerm.from_zip_for_view |> fst;
   let ctx_init = Editors.get_ctx_init(~settings, editors);
   switch (key) {
@@ -24,8 +23,8 @@ let print = ({settings, editors, _}: Model.t, key: string): unit => {
     let env_init = Editors.get_env_init(~settings, editors);
     let (term, _) = MakeTerm.from_zip_for_sem(z);
     let info_map = Statics.mk(settings.core, ctx_init, term);
-    let d = Interface.elaborate(~settings=settings.core, info_map, term);
-    Interface.evaluate(~settings=settings.core, ~env=env_init, d)
+    Interface.elaborate(~settings=settings.core, info_map, term)
+    |> Interface.evaluate(~settings=settings.core, ~env=env_init)
     |> ProgramResult.show
     |> print;
   | "F6" =>
