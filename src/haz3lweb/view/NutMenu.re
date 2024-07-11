@@ -32,7 +32,7 @@ let reset_hazel =
 let reparse = (~inject: Update.t => 'a) =>
   button(
     Icons.backpack,
-    _ => inject(ReparseCurrentEditor),
+    _ => inject(PerformAction(Reparse)),
     ~tooltip="Reparse Current Editor",
   );
 
