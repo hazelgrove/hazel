@@ -41,13 +41,24 @@ let put_editor = (ed: Editor.t, eds: t): t =>
     Exercises(n, specs, Exercise.put_editor(exercise, ed))
   };
 
-let update_editor = (f: Editor.t => Editor.t, editors: t): t =>
-  put_editor(f(get_editor(editors)), editors);
+let update = (f: Editor.t => Editor.t, editors: t): t =>
+  editors |> get_editor |> f |> put_editor(_, editors);
+
+let update_opt = (editors: t, f: Editor.t => option(Editor.t)): option(t) =>
+  editors |> get_editor |> f |> Option.map(put_editor(_, editors));
+
+let update_err =
+    (editors: t, f: Editor.t => Result.t(Editor.t, 'a)): Result.t(t, 'a) => {
+  open Result.Syntax;
+  let+ ed = f(get_editor(editors));
+  put_editor(ed, editors);
+};
 
 let update_current_editor_statics = settings =>
-  update_editor(Editor.update_statics(~settings));
+  update(Editor.update_statics(~settings));
 
-let get_zipper = (editors: t): Zipper.t => get_editor(editors).state.zipper;
+let map_projectors = (editors: t, f: (Id.t, Projector.t) => Projector.t): t =>
+  editors |> get_editor |> Editor.map_projectors(f) |> put_editor(_, editors);
 
 let get_ctx_init = (~settings as _: Settings.t, editors: t): Ctx.t =>
   switch (editors) {
@@ -152,6 +163,3 @@ let switch_example_slide = (editors: t, name: string): option(t) =>
     None
   | Documentation(_, slides) => Some(Documentation(name, slides))
   };
-
-let map_projectors = (editors: t, f: (Id.t, Projector.t) => Projector.t): t =>
-  put_editor(editors |> get_editor |> Editor.map_projectors(f), editors);
