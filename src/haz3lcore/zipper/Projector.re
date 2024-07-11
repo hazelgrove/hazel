@@ -10,6 +10,7 @@ type kind =
   | Infer
   | Checkbox
   | Slider
+  | SliderF
   | TextArea;
 
 let to_module = (p: projector): core =>
@@ -18,6 +19,7 @@ let to_module = (p: projector): core =>
   | Infer(model) => InferCore.mk(model)
   | Checkbox(model) => CheckboxCore.mk(model)
   | Slider(model) => SliderCore.mk(model)
+  | SliderF(model) => SliderFCore.mk(model)
   | TextArea(model) => TextAreaCore.mk(model)
   };
 
@@ -27,6 +29,7 @@ let kind = (p: t): kind =>
   | Infer(_) => Infer
   | Checkbox(_) => Checkbox
   | Slider(_) => Slider
+  | SliderF(_) => SliderF
   | TextArea(_) => TextArea
   };
 
@@ -45,6 +48,7 @@ let init = (f: kind): projector =>
   | Infer => Infer({expected_ty: None})
   | Checkbox => Checkbox()
   | Slider => Slider()
+  | SliderF => SliderF()
   | TextArea => TextArea({inside: false})
   };
 
@@ -54,15 +58,18 @@ let name_of_kind = (p: kind): string =>
   | Infer => "type"
   | Checkbox => "check"
   | Slider => "slide"
+  | SliderF => "slidef"
   | TextArea => "text"
   };
 
+/* Needs to be 1-to-1 for menu selection */
 let of_name = (p: string): kind =>
   switch (p) {
   | "fold" => Fold
   | "type" => Infer
   | "check" => Checkbox
   | "slide" => Slider
+  | "slidef" => SliderF
   | "text" => TextArea
   | _ => failwith("Unknown projector kind")
   };

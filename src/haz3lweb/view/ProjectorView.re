@@ -195,6 +195,8 @@ let applicable_projectors = (ci: Info.t): list(Projector.kind) =>
     | Pat(Bool) => [Checkbox]
     | Exp(Int)
     | Pat(Int) => [Slider]
+    | Exp(Float)
+    | Pat(Float) => [SliderF]
     | Exp(String)
     | Pat(String) => [TextArea]
     | _ => []

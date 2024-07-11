@@ -1,21 +1,24 @@
 open Virtual_dom.Vdom;
 open ProjectorBase;
 
-let put: string => Piece.t = Piece.mk_mono(Exp);
+/* Some decimal places necessary to avoid becoming an int */
+let float_of_float = s => s |> float_of_string |> Printf.sprintf("%.2f");
 
-let get_opt = (piece: Piece.t): option(int) =>
-  piece |> Piece.of_mono |> Util.OptUtil.and_then(int_of_string_opt);
+let put = (s: string): Piece.t => s |> float_of_float |> Piece.mk_mono(Exp);
 
-let get = (piece: Piece.t): string =>
+let get_opt = (piece: Piece.t): option(float) =>
+  piece |> Piece.of_mono |> Util.OptUtil.and_then(float_of_string_opt);
+
+let get = (piece: Piece.t): float =>
   switch (get_opt(piece)) {
-  | None => failwith("ERROR: Slider: not integer literal")
-  | Some(s) => string_of_int(s)
+  | None => failwith("ERROR: Slider: not float literal")
+  | Some(s) => s
   };
 
 let view = (~info, ~inject: ProjectorBase.action => Ui_effect.t(unit)) =>
   Util.Web.range(
     ~attrs=[Attr.on_input((_, v) => inject(UpdateSyntax(_ => put(v))))],
-    get(info.syntax),
+    info.syntax |> get |> Printf.sprintf("%.2f"),
   );
 
 let mk = (model): core =>
