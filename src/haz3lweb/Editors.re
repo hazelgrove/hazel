@@ -47,11 +47,14 @@ let update = (f: Editor.t => Editor.t, editors: t): t =>
 let update_opt = (editors: t, f: Editor.t => option(Editor.t)): option(t) =>
   editors |> get_editor |> f |> Option.map(put_editor(_, editors));
 
-let update_err =
-    (editors: t, f: Editor.t => Result.t(Editor.t, 'a)): Result.t(t, 'a) => {
-  open Result.Syntax;
-  let+ ed = f(get_editor(editors));
-  put_editor(ed, editors);
+let perform_action =
+    (~settings: CoreSettings.t, editors: t, a: Action.t)
+    : UpdateAction.Result.t(t) => {
+  let ed = Perform.go(~settings, a, get_editor(editors));
+  switch (ed) {
+  | Error(err) => Error(FailedToPerform(err))
+  | Ok(ed) => Ok(put_editor(ed, editors))
+  };
 };
 
 let update_current_editor_statics = settings =>
