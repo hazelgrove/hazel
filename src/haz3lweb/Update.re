@@ -222,19 +222,22 @@ let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) => {
 
 let update_cached_data = (~schedule_action, update, m: Model.t): Model.t => {
   let update_dynamics = reevaluate_post_update(update);
+  /* If we swtich editors, or change settings which require statics
+   * when statics was previously off, we may need updated statics */
+  let non_edit_action_requiring_statics_refresh =
+    update_dynamics
+    && (
+      switch (update) {
+      | PerformAction(_) => false
+      | _ => true
+      }
+    );
   let m =
-    if (update_dynamics
-        && (
-          switch (update) {
-          //TODO(andrew): explain or make better
-          | PerformAction(_) => false
-          | _ => true
-          }
-        )) {
-      print_endline("update_cached_data: performing RecalcStatics");
-      switch (perform_action(m, RecalcStatics)) {
-      | Ok(m) => m
-      | Error(_) => failwith("ERROR: RecalcStatics failed")
+    if (non_edit_action_requiring_statics_refresh) {
+      {
+        ...m,
+        editors:
+          Editors.update_current_editor_statics(m.settings.core, m.editors),
       };
     } else {
       m;
@@ -317,9 +320,9 @@ let ui_state_update =
   };
 };
 
-let rec apply =
-        (model: Model.t, update: t, state: State.t, ~schedule_action)
-        : Result.t(Model.t) => {
+let apply =
+    (model: Model.t, update: t, _state: State.t, ~schedule_action)
+    : Result.t(Model.t) => {
   let m: Result.t(Model.t) =
     switch (update) {
     | Reset => Ok(Model.reset(model))
@@ -414,13 +417,12 @@ let rec apply =
         model.editors
         |> Editors.get_editor
         |> ((ed: Editor.t) => ed.state.zipper);
-      let a =
+      let action: Action.t =
         Selection.is_buffer(z.selection)
-          ? PerformAction(Buffer(Accept))
+          ? Buffer(Accept)
           : Zipper.can_put_down(z)
-              ? PerformAction(Put_down)
-              : PerformAction(Move(Goal(Piece(Grout, Right))));
-      apply(model, a, state, ~schedule_action);
+              ? Put_down : Move(Goal(Piece(Grout, Right)));
+      perform_action(model, action);
     | PerformAction(a) => perform_action(model, a)
     | Undo =>
       let ed = Editors.get_editor(model.editors);

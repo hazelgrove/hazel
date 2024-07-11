@@ -241,6 +241,22 @@ let new_state =
   {state, history, read_only: ed.read_only};
 };
 
+let update_statics = (~settings: CoreSettings.t, ed: t): t => {
+  /* Use this function to force a statics update when (for example)
+   * changing the statics settings */
+  let statics = Meta.mk_statics(~settings, ed.state.zipper);
+  {
+    ...ed,
+    state: {
+      ...ed.state,
+      meta: {
+        ...ed.state.meta,
+        statics,
+      },
+    },
+  };
+};
+
 let undo = (ed: t) =>
   switch (ed.history) {
   | ([], _) => None

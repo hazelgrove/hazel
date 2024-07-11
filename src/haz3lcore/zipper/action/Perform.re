@@ -280,37 +280,34 @@ let rec go_z =
     Move.to_backpack_target(d, z)
     |> Result.of_option(~error=Action.Failure.Cant_move)
   };
-};
-
-let go_base =
+}
+and go_history =
     (~settings: CoreSettings.t, a: Action.t, ed: Editor.t)
-    : Action.Result.t(Editor.t) =>
-  /* This function enforces read-only editors and
-   * is responsible for mainting the action history */
-  if (ed.read_only && is_write_action(a)) {
-    Result.Ok(ed);
-  } else {
-    open Result.Syntax;
-    let Editor.State.{zipper, meta} = ed.state;
-    Effect.s_clear();
-    let+ z = go_z(~settings, ~meta, a, zipper);
-    Editor.new_state(~effects=Effect.s^, ~settings, a, z, ed);
-  };
-
-let go =
+    : Action.Result.t(Editor.t) => {
+  open Result.Syntax;
+  /* This function is responsible for the action history */
+  let Editor.State.{zipper, meta} = ed.state;
+  Effect.s_clear();
+  let+ z = go_z(~settings, ~meta, a, zipper);
+  Editor.new_state(~effects=Effect.s^, ~settings, a, z, ed);
+}
+and go =
     (~settings: CoreSettings.t, a: Action.t, ed: Editor.t)
     : Action.Result.t(Editor.t) =>
   /* This function wraps assistant completions. If completions are enabled,
    * then beginning any action (other than accepting a completion) clears
    * the completion buffer before performing the action. Conversely,
    * after any edit action, a new completion is set in the buffer */
-  if (settings.assist && settings.statics) {
+  if (ed.read_only && is_write_action(a)) {
+    Result.Ok(ed);
+  } else if (settings.assist && settings.statics) {
     open Result.Syntax;
     let* ed =
-      a == Buffer(Accept) ? Ok(ed) : go_base(~settings, Buffer(Clear), ed);
-    let* ed = go_base(~settings, a, ed);
+      a == Buffer(Accept)
+        ? Ok(ed) : go_history(~settings, Buffer(Clear), ed);
+    let* ed = go_history(~settings, a, ed);
     Action.is_edit(a)
-      ? go_base(~settings, Buffer(Set(TyDi)), ed) : Ok(ed);
+      ? go_history(~settings, Buffer(Set(TyDi)), ed) : Ok(ed);
   } else {
-    go_base(~settings, a, ed);
+    go_history(~settings, a, ed);
   };

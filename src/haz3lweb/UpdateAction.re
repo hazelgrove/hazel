@@ -143,7 +143,6 @@ let reevaluate_post_update: t => bool =
   | PerformAction(a) => Action.is_edit(a)
   | Set(s_action) =>
     switch (s_action) {
-    | Assist
     | Captions
     | SecondaryIcons
     | ContextInspector
@@ -159,6 +158,7 @@ let reevaluate_post_update: t => bool =
       false
     | Elaborate
     | Statics
+    | Assist
     | Dynamics
     | InstructorMode
     | Mode(_) => true
