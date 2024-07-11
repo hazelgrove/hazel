@@ -3,7 +3,6 @@ open Zipper;
 
 let is_write_action = (a: Action.t) => {
   switch (a) {
-  | RecalcStatics
   | Project(_) => false //TODO(andrew): revisit
   | Copy
   | Move(_)
@@ -141,9 +140,6 @@ let rec go_z =
         go_z(~meta, ~settings, Paste(AssistantExpander.trim(completion)), z)
       }
     }
-  | RecalcStatics =>
-    print_endline("RecalcStatics action called");
-    Ok(z);
   | Project(a) =>
     ProjectorPerform.go(
       Move.jump_to_id,
