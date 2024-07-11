@@ -78,21 +78,17 @@ let main_view =
       {settings, editors, explainThisModel, results, ui_state, _}: Model.t,
     ) => {
   let editor = Editors.get_editor(editors);
-  let common = () => {
-    let cursor_info =
-      Indicated.ci_of(
-        editor.state.zipper,
-        editor.state.meta.statics.info_map,
-      );
-    let highlights =
-      ExplainThis.get_color_map(~settings, ~explainThisModel, cursor_info);
-    (cursor_info, highlights);
-  };
   let (editors_view, cursor_info) =
     switch (editors) {
     | Scratch(idx, _) =>
       let result_key = ScratchSlide.scratch_key(string_of_int(idx));
-      let (cursor_info, highlights) = common();
+      let cursor_info =
+        Indicated.ci_of(
+          editor.state.zipper,
+          editor.state.meta.statics.info_map,
+        );
+      let highlights =
+        ExplainThis.get_color_map(~settings, ~explainThisModel, cursor_info);
       let view =
         ScratchMode.view(
           ~inject,
@@ -106,7 +102,13 @@ let main_view =
       (view, cursor_info);
     | Documentation(name, _) =>
       let result_key = ScratchSlide.scratch_key(name);
-      let (cursor_info, highlights) = common();
+      let cursor_info =
+        Indicated.ci_of(
+          editor.state.zipper,
+          editor.state.meta.statics.info_map,
+        );
+      let highlights =
+        ExplainThis.get_color_map(~settings, ~explainThisModel, cursor_info);
       let info =
         SlideContent.get_content(editors)
         |> Option.map(i => div(~attrs=[Attr.id("slide")], [i]))

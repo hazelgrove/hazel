@@ -7,7 +7,7 @@ type t = projector;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type kind =
   | Fold
-  | Infer
+  | Info
   | Checkbox
   | Slider
   | SliderF
@@ -16,7 +16,7 @@ type kind =
 let to_module = (p: projector): core =>
   switch ((p: projector)) {
   | Fold(model) => FoldCore.mk(model)
-  | Infer(model) => InferCore.mk(model)
+  | Info(model) => InfoCore.mk(model)
   | Checkbox(model) => CheckboxCore.mk(model)
   | Slider(model) => SliderCore.mk(model)
   | SliderF(model) => SliderFCore.mk(model)
@@ -26,26 +26,17 @@ let to_module = (p: projector): core =>
 let kind = (p: t): kind =>
   switch (p) {
   | Fold(_) => Fold
-  | Infer(_) => Infer
+  | Info(_) => Info
   | Checkbox(_) => Checkbox
   | Slider(_) => Slider
   | SliderF(_) => SliderF
   | TextArea(_) => TextArea
   };
 
-// let init = (f: kind): core =>
-//   switch (f) {
-//   | Fold => FoldCore.mk()
-//   | Infer => InferCore.mk({expected_ty: None})
-//   | Checkbox => CheckboxCore.mk()
-//   | Slider => SliderCore.mk()
-//   | TextArea => TextAreaCore.mk({inside: false})
-//   };
-
 let init = (f: kind): projector =>
   switch (f) {
   | Fold => Fold()
-  | Infer => Infer({expected_ty: None})
+  | Info => Info(Expected)
   | Checkbox => Checkbox()
   | Slider => Slider()
   | SliderF => SliderF()
@@ -55,7 +46,7 @@ let init = (f: kind): projector =>
 let name_of_kind = (p: kind): string =>
   switch (p) {
   | Fold => "fold"
-  | Infer => "type"
+  | Info => "type"
   | Checkbox => "check"
   | Slider => "slide"
   | SliderF => "slidef"
@@ -66,7 +57,7 @@ let name_of_kind = (p: kind): string =>
 let of_name = (p: string): kind =>
   switch (p) {
   | "fold" => Fold
-  | "type" => Infer
+  | "type" => Info
   | "check" => Checkbox
   | "slide" => Slider
   | "slidef" => SliderF

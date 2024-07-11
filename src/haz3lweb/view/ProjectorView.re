@@ -206,7 +206,7 @@ let applicable_projectors = (ci: Info.t): list(Projector.kind) =>
   @ (
     switch (ci) {
     | InfoExp(_)
-    | InfoPat(_) => [Infer]
+    | InfoPat(_) => [Info]
     | _ => []
     }
   );

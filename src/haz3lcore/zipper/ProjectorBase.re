@@ -5,7 +5,9 @@ open Virtual_dom.Vdom;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type fold = unit;
 [@deriving (show({with_path: false}), sexp, yojson)]
-type infer = {expected_ty: option(Typ.t)}; //TODO(andrew): rf
+type infer =
+  | Expected
+  | Self;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type checkbox = unit;
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -18,7 +20,7 @@ type textarea = {inside: bool}; //TODO(andrew): rm
 [@deriving (show({with_path: false}), sexp, yojson)]
 type projector =
   | Fold(fold)
-  | Infer(infer)
+  | Info(infer)
   | Checkbox(checkbox)
   | Slider(slider)
   | SliderF(sliderf)

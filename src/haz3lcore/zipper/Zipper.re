@@ -334,7 +334,7 @@ let base_point = (measured: Measured.t, z: t): Measured.Point.t => {
          * of the placeholder as e.g. an int for the slider */
         p
       | Some(pr) =>
-        //TODO(andrew): figure out if ci None below will causes problems with eg Infer
+        //TODO(andrew): figure out if ci None below will causes problems with eg Info
         Projector.placeholder(pr, {syntax: p, status: None, ci: None})
       | None => p
       };
