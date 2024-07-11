@@ -67,7 +67,7 @@ let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit), model: Model.t) =>
         Js.to_string(evt##.clipboardData##getData(Js.string("text")))
         |> Str.global_replace(Str.regexp("\n[ ]*"), "\n");
       Dom.preventDefault(evt);
-      inject(UpdateAction.Paste(pasted_text));
+      inject(PerformAction(Paste(pasted_text)));
     }),
   ];
 };

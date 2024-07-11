@@ -235,7 +235,9 @@ let new_state =
     )
     : t => {
   let state = State.next(~effects, ~settings, a, z, ed.state);
-  let history = History.add(a, ed.state, ed.history);
+  let history =
+    Action.is_historic(a)
+      ? History.add(a, ed.state, ed.history) : ed.history;
   {state, history, read_only: ed.read_only};
 };
 

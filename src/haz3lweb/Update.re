@@ -212,20 +212,6 @@ let schedule_evaluation = (~schedule_action, model: Model.t): unit =>
     };
   };
 
-let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
-  switch (
-    model.editors
-    |> Editors.get_editor
-    |> Haz3lcore.Perform.go(~settings=model.settings.core, a)
-  ) {
-  | Error(err) => Error(FailedToPerform(err))
-  | Ok(ed) =>
-    let model = {...model, editors: Editors.put_editor(ed, model.editors)};
-    /* Note: Not saving here as saving is costly to do each keystroke,
-       we wait a second after the last edit action (see Main.re) */
-    Ok(model);
-  };
-
 let update_cached_data = (~schedule_action, update, m: Model.t): Model.t => {
   let update_dynamics = reevaluate_post_update(update);
   let m =
@@ -428,40 +414,38 @@ let rec apply =
       apply(model, a, state, ~schedule_action);
     | PerformAction(a)
         when model.settings.core.assist && model.settings.core.statics =>
-      let model = UpdateAssistant.reset_buffer(model);
-      switch (perform_action(model, a)) {
-      | Ok(model) when Action.is_edit(a) =>
-        UpdateAssistant.apply(
-          model,
-          Prompt(TyDi),
-          ~schedule_action,
-          ~state,
-          ~main=apply,
-        )
+      switch (perform_action(model, ResetBuffer)) {
+      | Ok(model) =>
+        switch (perform_action(model, a)) {
+        | Ok(model) when Action.is_edit(a) =>
+          perform_action(model, SetBuffer(TyDi))
+        | x => x
+        }
       | x => x
-      };
+      }
     | PerformAction(a) => perform_action(model, a)
-    | ReparseCurrentEditor =>
-      /* This serializes the current editor to text, resets the current
-         editor, and then deserializes. It is intended as a (tactical)
-         nuclear option for weird backpack states */
-      let ed = Editors.get_editor(model.editors);
-      let zipper_init = Zipper.init();
-      let ed_str = Printer.to_string_editor(ed);
-      switch (Printer.zipper_of_string(~zipper_init, ed_str)) {
-      | None => Error(CantReset)
-      | Some(z) =>
-        //TODO: add correct action to history (Pick_up is wrong)
-        let editor =
-          Haz3lcore.Editor.new_state(
-            ~settings=model.settings.core,
-            Pick_up,
-            z,
-            ed,
-          );
-        let editors = Editors.put_editor(editor, model.editors);
-        Ok({...model, editors});
-      };
+    | ReparseCurrentEditor => Ok(model)
+    //TODO(andrew): rm
+    /* This serializes the current editor to text, resets the current
+       editor, and then deserializes. It is intended as a (tactical)
+       nuclear option for weird backpack states */
+    // let ed = Editors.get_editor(model.editors);
+    // let zipper_init = Zipper.init();
+    // let ed_str = Printer.to_string_editor(ed);
+    // switch (Printer.zipper_of_string(~zipper_init, ed_str)) {
+    // | None => Error(CantReset)
+    // | Some(z) =>
+    //   //TODO: add correct action to history (Pick_up is wrong)
+    //   let editor =
+    //     Haz3lcore.Editor.new_state(
+    //       ~settings=model.settings.core,
+    //       Pick_up,
+    //       z,
+    //       ed,
+    //     );
+    //   let editors = Editors.put_editor(editor, model.editors);
+    //   Ok({...model, editors});
+    // };
     | Cut =>
       // system clipboard handling itself is done in Page.view handlers
       perform_action(model, Destruct(Left))
@@ -469,22 +453,24 @@ let rec apply =
       // system clipboard handling itself is done in Page.view handlers
       // doesn't change the state but including as an action for logging purposes
       Ok(model)
-    | Paste(clipboard) =>
-      let ed = Editors.get_editor(model.editors);
-      switch (Printer.paste_into_zip(ed.state.zipper, clipboard)) {
-      | None => Error(CantPaste)
-      | Some(z) =>
-        //HACK(andrew): below is not strictly a insert action...
-        let ed =
-          Haz3lcore.Editor.new_state(
-            ~settings=model.settings.core,
-            Insert(clipboard),
-            z,
-            ed,
-          );
-        let editors = Editors.put_editor(ed, model.editors);
-        Ok({...model, editors});
-      };
+    | Paste(_clipboard) =>
+      //TODO(andrew): rm
+      // let ed = Editors.get_editor(model.editors);
+      // switch (Printer.paste_into_zip(ed.state.zipper, clipboard)) {
+      // | None => Error(CantPaste)
+      // | Some(z) =>
+      //   //HACK(andrew): below is not strictly a insert action...
+      //   let ed =
+      //     Haz3lcore.Editor.new_state(
+      //       ~settings=model.settings.core,
+      //       Insert(clipboard),
+      //       z,
+      //       ed,
+      //     );
+      //   let editors = Editors.put_editor(ed, model.editors);
+      //   Ok({...model, editors});
+      // };
+      Ok(model)
     | Undo =>
       let ed = Editors.get_editor(model.editors);
       switch (Haz3lcore.Editor.undo(ed)) {

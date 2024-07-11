@@ -36,12 +36,7 @@ type stepper_action =
   | StepBackward;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type agent =
-  | TyDi;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type agent_action =
-  | Prompt(agent)
   | AcceptSuggestion;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -97,10 +92,6 @@ module Failure = {
   type t =
     | CantUndo
     | CantRedo
-    | CantPaste
-    | CantReset
-    | CantSuggest
-    | FailedToLoad
     | FailedToSwitch
     | FailedToPerform(Action.Failure.t)
     | Exception(string);
@@ -161,8 +152,7 @@ let is_edit: t => bool =
   | InitImportScratchpad(_)
   | MoveToNextHole(_)
   | Benchmark(_)
-  | TAB
-  | Assistant(Prompt(_)) => false;
+  | TAB => false;
 
 let reevaluate_post_update: t => bool =
   fun
@@ -197,7 +187,6 @@ let reevaluate_post_update: t => bool =
     | FontMetrics(_) => false
     }
   | Assistant(AcceptSuggestion) => true
-  | Assistant(Prompt(_)) => false
   | MoveToNextHole(_)
   | Save
   | Copy
@@ -248,7 +237,6 @@ let should_scroll_to_caret =
     | Mouseup
     | ShowBackpackTargets(_) => false
     }
-  | Assistant(Prompt(_))
   | UpdateResult(_)
   | ToggleStepper(_)
   | StepperAction(_, StepBackward | StepForward(_)) => false
@@ -279,7 +267,11 @@ let should_scroll_to_caret =
     | Pick_up
     | Put_down
     | RotateBackpack
-    | MoveToBackpackTarget(_) => true
+    | MoveToBackpackTarget(_)
+    | SetBuffer(_)
+    | ResetBuffer
+    | Paste(_)
+    | Reparse => true
     | RecalcStatics
     | Project(_)
     | Unselect(_)
@@ -292,3 +284,11 @@ let should_scroll_to_caret =
   | ExportPersistentData
   | DebugConsole(_)
   | Benchmark(_) => false;
+
+let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) => {
+  let ed = Editors.get_editor(model.editors);
+  switch (Haz3lcore.Perform.go(~settings=model.settings.core, a, ed)) {
+  | Error(err) => Error(FailedToPerform(err))
+  | Ok(ed) => Ok({...model, editors: Editors.put_editor(ed, model.editors)})
+  };
+};

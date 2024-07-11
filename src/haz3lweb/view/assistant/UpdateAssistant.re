@@ -1,61 +1,19 @@
 open Haz3lcore;
 include UpdateAction;
 
-/* NOTE: this is duplicated from Update */
-let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) => {
-  let ed_init = Editors.get_editor(model.editors);
-  switch (Haz3lcore.Perform.go(~settings=model.settings.core, a, ed_init)) {
-  | Error(err) => Error(FailedToPerform(err))
-  | Ok(ed) => Ok({...model, editors: Editors.put_editor(ed, model.editors)})
-  };
-};
-
-let reset_buffer = (model: Model.t) => {
-  let ed = model.editors |> Editors.get_editor;
-  let z = ed.state.zipper;
-  let settings = model.settings.core;
-  switch (z.selection.mode) {
-  | Buffer(_) =>
-    //TODO(andrew): make sure this is synced with statics properly
-    switch (Perform.go_z(~settings, Destruct(Left), z)) {
-    | Error(_) => model
-    | Ok(z) =>
-      let ed = Editor.new_state(~settings, Destruct(Left), z, ed);
-      //TODO(andrew): fix double action
-      {...model, editors: Editors.put_editor(ed, model.editors)};
-    }
-  | _ => model
-  };
-};
-
 let apply =
-    (
-      {settings, _} as model: Model.t,
-      update: agent_action,
-      ~schedule_action,
-      ~state,
-      ~main,
-    )
+    (model: Model.t, update: agent_action, ~schedule_action, ~state, ~main)
     : Result.t(Model.t) => {
-  let editor = model.editors |> Editors.get_editor;
-  let z = editor.state.zipper;
   switch (update) {
-  | Prompt(TyDi) =>
-    let info_map = editor.state.meta.statics.info_map;
-    switch (TyDi.set_buffer(~info_map, z)) {
-    | None => Ok(model)
-    | Some(z) =>
-      let ed = Editor.new_state(~settings=settings.core, Pick_up, z, editor);
-      //TODO: add correct action to history (Pick_up is wrong)
-      let editors = Editors.put_editor(ed, model.editors);
-      Ok({...model, editors});
-    };
+  //| Prompt(TyDi) => Ok(set_buffer(model))
   | AcceptSuggestion =>
-    print_endline("accepting suggestion");
+    let editor = model.editors |> Editors.get_editor;
+    let z = editor.state.zipper;
     let trim = AssistantExpander.trim;
     switch (z.selection.mode) {
     | Normal => Ok(model)
-    | Buffer(Parsed) => perform_action(model, Unselect(Some(Right)))
+    | Buffer(Parsed) =>
+      UpdateAction.perform_action(model, Unselect(Some(Right)))
     | Buffer(Unparsed) =>
       switch (TyDi.get_buffer(z)) {
       | None => Ok(model)
@@ -86,14 +44,19 @@ let apply =
         do_actions(
           model,
           [
-            Paste(trim(completion)),
+            PerformAction(Paste(trim(completion))),
             PerformAction(Move(Goal(Point(start)))),
             PerformAction(MoveToNextHole(Right)),
             PerformAction(Move(Local(Left(ByToken)))),
           ],
         );
       | Some(completion) =>
-        main(model, Paste(trim(completion)), state, ~schedule_action)
+        main(
+          model,
+          PerformAction(Paste(trim(completion))),
+          state,
+          ~schedule_action,
+        )
       }
     };
   };

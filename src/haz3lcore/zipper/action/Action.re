@@ -55,8 +55,16 @@ type project =
   | Remove(Id.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type agent =
+  | TyDi;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | RecalcStatics /* Could refactor to SetInitCtx(ctx) */
+  | SetBuffer(agent)
+  | ResetBuffer
+  | Paste(string)
+  | Reparse
   | Project(project)
   | Move(move)
   | MoveToNextHole(Direction.t)
@@ -78,7 +86,9 @@ module Failure = {
     | Cant_destruct
     | Cant_select
     | Cant_put_down
-    | Cant_project;
+    | Cant_project
+    | CantPaste
+    | CantReparse;
 };
 
 module Result = {
@@ -90,6 +100,10 @@ let is_edit: t => bool =
   fun
   | RecalcStatics => true
   | Project(_) => true //TODO(andrew): revisit
+  | SetBuffer(_) => true //TODO(andrew): revisit
+  | ResetBuffer => true //TODO(andrew): revisit
+  | Paste(_)
+  | Reparse
   | Insert(_)
   | Destruct(_)
   | Pick_up
@@ -101,3 +115,26 @@ let is_edit: t => bool =
   | Unselect(_)
   | RotateBackpack
   | MoveToBackpackTarget(_) => false;
+
+/* Determines whether undo/redo skips action */
+let is_historic: t => bool =
+  fun
+  | RecalcStatics =>
+    /* If we add this to history, we can basically never undo */
+    false
+  | SetBuffer(_)
+  | ResetBuffer
+  | Move(_)
+  | MoveToNextHole(_)
+  | Jump(_)
+  | Select(_)
+  | Unselect(_)
+  | RotateBackpack
+  | MoveToBackpackTarget(_) => false
+  | Paste(_)
+  | Reparse
+  | Project(_)
+  | Insert(_)
+  | Destruct(_)
+  | Pick_up
+  | Put_down => true;

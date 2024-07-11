@@ -5,11 +5,15 @@ let is_write_action = (a: Action.t) => {
   switch (a) {
   | RecalcStatics
   | Project(_) => false //TODO(andrew): revisit
+  | SetBuffer(_)
+  | ResetBuffer
   | Move(_)
   | MoveToNextHole(_)
   | Unselect(_)
   | Jump(_)
   | Select(_) => false
+  | Paste(_)
+  | Reparse
   | Destruct(_)
   | Insert(_)
   | Pick_up
@@ -19,14 +23,14 @@ let is_write_action = (a: Action.t) => {
   };
 };
 
-let go_z =
-    (
-      ~meta: option(Editor.Meta.t)=?,
-      ~settings: CoreSettings.t,
-      a: Action.t,
-      z: Zipper.t,
-    )
-    : Action.Result.t(Zipper.t) => {
+let rec go_z =
+        (
+          ~meta: option(Editor.Meta.t)=?,
+          ~settings: CoreSettings.t,
+          a: Action.t,
+          z: Zipper.t,
+        )
+        : Action.Result.t(Zipper.t) => {
   let meta =
     switch (meta) {
     | Some(m) => m
@@ -46,7 +50,46 @@ let go_z =
       }
     };
 
+  let paste = (z: Zipper.t, str: string): option(Zipper.t) => {
+    open Util.OptUtil.Syntax;
+    /* HACK(andrew): These two perform calls are a hack to
+       deal with the fact that pasting something like "let a = b in"
+       won't trigger the barfing of the "in"; to trigger this, we
+       insert a space, and then we immediately delete it. */
+    let settings = CoreSettings.off;
+    let* z = Printer.zipper_of_string(~zipper_init=z, str);
+    switch (go_z(~settings, Insert(" "), z)) {
+    | Error(_) => None
+    | Ok(z) =>
+      switch (go_z(~settings, Destruct(Left), z)) {
+      | Error(_) => None
+      | Ok(z) => Some(z)
+      }
+    };
+  };
+
   switch (a) {
+  | Paste(clipboard) =>
+    switch (paste(z, clipboard)) {
+    | None => Error(CantPaste)
+    | Some(z) => Ok(z)
+    }
+  | Reparse =>
+    switch (Printer.reparse(z)) {
+    | None => Error(CantReparse)
+    | Some(z) => Ok(z)
+    }
+  | ResetBuffer =>
+    switch (z.selection.mode) {
+    | Buffer(_) => Ok({...z, selection: Selection.mk([])})
+    | _ => Ok(z)
+    }
+  | SetBuffer(TyDi) =>
+    let info_map = meta.statics.info_map;
+    switch (TyDi.set_buffer(~info_map, z)) {
+    | None => Ok(z)
+    | Some(z) => Ok(z)
+    };
   | RecalcStatics =>
     print_endline("RecalcStatics action called");
     Ok(z);
