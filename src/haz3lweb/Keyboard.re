@@ -110,7 +110,7 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
   | {key: D(key), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     switch (key) {
     | "ƒ" => Some(PerformAction(Project(ToggleIndicated(Fold))))
-    | "†" => Some(PerformAction(Project(ToggleIndicated(Infer))))
+    | "†" => Some(PerformAction(Project(ToggleIndicated(Info))))
     | "ç" => Some(PerformAction(Project(ToggleIndicated(Checkbox))))
     | "ß" => Some(PerformAction(Project(ToggleIndicated(Slider))))
     | "∑" => Some(PerformAction(Project(ToggleIndicated(TextArea))))

@@ -1,18 +1,15 @@
-open Sexplib.Std;
-open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
 open ProjectorBase;
 open Virtual_dom.Vdom;
 open Node;
 
-let mk = (_model: fold): core =>
+let mk = (_: fold): core =>
   (module
    {
      [@deriving (show({with_path: false}), sexp, yojson)]
-     type model = unit;
+     type model = fold;
      let model = ();
      let can_project = _ => true;
      let placeholder = _ => Inline(2);
-     //  let auto_update = _ => Fold();
      let update = _ => Fold();
      let view = (~info as _, ~inject) =>
        div(
