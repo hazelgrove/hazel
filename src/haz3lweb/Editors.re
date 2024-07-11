@@ -41,24 +41,11 @@ let put_editor = (ed: Editor.t, eds: t): t =>
     Exercises(n, specs, Exercise.put_editor(exercise, ed))
   };
 
-//TODO(andrew): use or lose
-// let update_editor =
-//     (
-//       editors: t,
-//       ~f: Editor.t => Result.t(Zipper.t, 'b),
-//       ~settings,
-//       ~action,
-//       ~err: 'b => Result.t(t, 'c),
-//     )
-//     : Result.t(t, 'c) => {
-//   let ed = get_editor(editors);
-//   switch (f(ed)) {
-//   | Error(e) => err(e)
-//   | Ok(z) =>
-//     let ed = Editor.new_state(~settings, action, z, ed);
-//     Ok(put_editor(ed, editors));
-//   };
-// };
+let update_editor = (f: Editor.t => Editor.t, editors: t): t =>
+  put_editor(f(get_editor(editors)), editors);
+
+let update_current_editor_statics = settings =>
+  update_editor(Editor.update_statics(~settings));
 
 let get_zipper = (editors: t): Zipper.t => get_editor(editors).state.zipper;
 
