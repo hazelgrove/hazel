@@ -66,7 +66,6 @@ type buffer =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
-  | RecalcStatics /* Could refactor to SetInitCtx(ctx) */
   | Reparse
   | Buffer(buffer)
   | Paste(string)
@@ -105,7 +104,6 @@ module Result = {
 
 let is_edit: t => bool =
   fun
-  | RecalcStatics => true
   | Project(_) => true //TODO(andrew): revisit
   | Buffer(Accept | Clear | Set(_))
   | Paste(_)
@@ -126,9 +124,6 @@ let is_edit: t => bool =
 /* Determines whether undo/redo skips action */
 let is_historic: t => bool =
   fun
-  | RecalcStatics =>
-    /* If we add this to history, we can basically never undo */
-    false
   | Buffer(Clear | Set(_))
   | Copy
   | Move(_)

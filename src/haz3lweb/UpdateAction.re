@@ -126,7 +126,8 @@ let is_edit: t => bool =
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
   | ResetCurrentEditor
-  | Reset => true
+  | Reset
+  | TAB => true
   | UpdateResult(_)
   | SwitchEditor(_)
   | ExportPersistentData
@@ -135,8 +136,7 @@ let is_edit: t => bool =
   | DebugConsole(_)
   | InitImportAll(_)
   | InitImportScratchpad(_)
-  | Benchmark(_)
-  | TAB => false;
+  | Benchmark(_) => false;
 
 let reevaluate_post_update: t => bool =
   fun
@@ -178,8 +178,8 @@ let reevaluate_post_update: t => bool =
   | UpdateResult(_)
   | SwitchEditor(_)
   | DebugConsole(_)
-  | TAB
   | Benchmark(_) => false
+  | TAB
   | StepperAction(_, StepForward(_) | StepBackward)
   | ToggleStepper(_)
   | FinishImportAll(_)
@@ -244,7 +244,6 @@ let should_scroll_to_caret =
     | Copy
     | Cut
     | Reparse => true
-    | RecalcStatics
     | Project(_)
     | Unselect(_)
     | Select(All) => false
