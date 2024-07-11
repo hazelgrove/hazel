@@ -317,10 +317,9 @@ let apply =
     : Result.t(Model.t) => {
   let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) => {
     switch (
-      Haz3lcore.Perform.go(~settings=model.settings.core, a)
-      |> Editors.update_err(model.editors)
+      Editors.perform_action(~settings=model.settings.core, model.editors, a)
     ) {
-    | Error(err) => Error(FailedToPerform(err))
+    | Error(err) => Error(err)
     | Ok(editors) => Ok({...model, editors})
     };
   };
