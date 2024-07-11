@@ -763,7 +763,6 @@ select {
   align-items: start;
   display: flex;
   border-left: 2px solid #0000;
-  /* border-right: 2px solid #0000; */
   margin-left: -2px;
   margin-right: -2px;
 }
@@ -771,17 +770,14 @@ select {
   position: relative;
   border-right: 2px solid red;
   animation: 1s blink_border_right step-end infinite;
-  /* right: 2px; */
 }
 .projector.text .cols.indicated.right {
   position: relative;
   border-left: 2px solid red;
   animation: 1s blink_border_left step-end infinite;
-  /* right: 2px; */
 }
 
 .projector.text textarea {
-  /* filter: sepia(1); */
   resize: none;
   height: 100%;
   width: 100%;
@@ -806,12 +802,14 @@ select {
   background-color: var(--selection-color);
 }
 
-/* PROJECTOR: SLIDER */
+/* PROJECTOR: SLIDERS (INT & FLOAT) */
 
-.projector.slide .projector-wrapper {
+.projector.slide .projector-wrapper,
+.projector.slidef .projector-wrapper {
   width: 95%;
 }
-.projector.slide input {
+.projector.slide input,
+.projector.slidef input {
   margin: 0;
   width: 100%;
   filter: sepia(1);

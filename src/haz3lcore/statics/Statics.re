@@ -909,8 +909,8 @@ let mk =
   });
 let mk = (core: CoreSettings.t, ctx, exp) => {
   //TODO(andrew): document or rm
-  let exp =
-    EditorUtil.append_exp(exp, {ids: [Id.ctx_sentinel], term: EmptyHole});
+  // let exp =
+  //   EditorUtil.append_exp(exp, {ids: [Id.ctx_sentinel], term: EmptyHole});
   print_endline("RETICULATING STATICS"); //TODO(andrew): rm
   core.statics ? mk(ctx, exp) : Id.Map.empty;
 };

@@ -169,3 +169,12 @@ let mk_tile: (Form.t, list(list(t))) => t =
       shards: List.mapi((i, _) => i, form.label),
       children,
     });
+
+let mk_mono = (sort: Sort.t, string: string): t =>
+  string |> Form.mk_atomic(sort) |> mk_tile(_, []);
+
+let of_mono = (syntax: t): option(string) =>
+  switch (syntax) {
+  | Tile({label: [l], _}) => Some(l)
+  | _ => None
+  };
