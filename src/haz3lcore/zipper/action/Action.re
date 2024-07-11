@@ -67,12 +67,13 @@ type buffer =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | RecalcStatics /* Could refactor to SetInitCtx(ctx) */
+  | Reparse
   | Buffer(buffer)
   | Paste(string)
-  | Reparse
+  | Copy
+  | Cut
   | Project(project)
   | Move(move)
-  | MoveToNextHole(Direction.t)
   | Jump(jump_target)
   | Select(select)
   | Unselect(option(Direction.t))
@@ -108,13 +109,14 @@ let is_edit: t => bool =
   | Project(_) => true //TODO(andrew): revisit
   | Buffer(Accept | Clear | Set(_))
   | Paste(_)
+  | Cut
   | Reparse
   | Insert(_)
   | Destruct(_)
   | Pick_up
   | Put_down => true
+  | Copy
   | Move(_)
-  | MoveToNextHole(_)
   | Jump(_)
   | Select(_)
   | Unselect(_)
@@ -128,13 +130,14 @@ let is_historic: t => bool =
     /* If we add this to history, we can basically never undo */
     false
   | Buffer(Clear | Set(_))
+  | Copy
   | Move(_)
-  | MoveToNextHole(_)
   | Jump(_)
   | Select(_)
   | Unselect(_)
   | RotateBackpack
   | MoveToBackpackTarget(_) => false
+  | Cut
   | Buffer(Accept)
   | Paste(_)
   | Reparse

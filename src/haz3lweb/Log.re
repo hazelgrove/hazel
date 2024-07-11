@@ -23,11 +23,8 @@ let is_action_logged: UpdateAction.t => bool =
   | SwitchEditor(_)
   | ResetCurrentEditor
   | PerformAction(_)
-  | Cut
-  | Copy
   | Undo
   | Redo
-  | MoveToNextHole(_)
   | UpdateResult(_)
   | ToggleStepper(_)
   | StepperAction(_, StepForward(_) | StepBackward)

@@ -70,11 +70,8 @@ type t =
   | TAB
   | Save
   | PerformAction(Action.t)
-  | Cut
-  | Copy
   | Undo
   | Redo
-  | MoveToNextHole(Direction.t)
   | Benchmark(benchmark_action)
   | ToggleStepper(ModelResults.Key.t)
   | StepperAction(ModelResults.Key.t, stepper_action)
@@ -120,7 +117,6 @@ let is_edit: t => bool =
     | ShowBackpackTargets(_)
     | FontMetrics(_) => false
     }
-  | Cut
   | Undo
   | Redo
   | SwitchScratchSlide(_)
@@ -135,12 +131,10 @@ let is_edit: t => bool =
   | SwitchEditor(_)
   | ExportPersistentData
   | Save
-  | Copy
   | UpdateExplainThisModel(_)
   | DebugConsole(_)
   | InitImportAll(_)
   | InitImportScratchpad(_)
-  | MoveToNextHole(_)
   | Benchmark(_)
   | TAB => false;
 
@@ -176,9 +170,7 @@ let reevaluate_post_update: t => bool =
     | ShowBackpackTargets(_)
     | FontMetrics(_) => false
     }
-  | MoveToNextHole(_)
   | Save
-  | Copy
   | InitImportAll(_)
   | InitImportScratchpad(_)
   | UpdateExplainThisModel(_)
@@ -196,7 +188,6 @@ let reevaluate_post_update: t => bool =
   | SwitchScratchSlide(_)
   | SwitchDocumentationSlide(_)
   | Reset
-  | Cut
   | Undo
   | Redo => true;
 
@@ -234,16 +225,12 @@ let should_scroll_to_caret =
   | SwitchScratchSlide(_)
   | SwitchDocumentationSlide(_)
   | Reset
-  | Copy
-  | Cut
   | Undo
   | Redo
-  | MoveToNextHole(_)
   | TAB => true
   | PerformAction(a) =>
     switch (a) {
     | Move(_)
-    | MoveToNextHole(_)
     | Jump(_)
     | Select(Resize(_) | Term(_) | Smart | Tile(_))
     | Destruct(_)
@@ -254,6 +241,8 @@ let should_scroll_to_caret =
     | MoveToBackpackTarget(_)
     | Buffer(Set(_) | Clear | Accept)
     | Paste(_)
+    | Copy
+    | Cut
     | Reparse => true
     | RecalcStatics
     | Project(_)
