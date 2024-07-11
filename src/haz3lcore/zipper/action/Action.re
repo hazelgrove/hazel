@@ -59,10 +59,15 @@ type agent =
   | TyDi;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type buffer =
+  | Set(agent)
+  | Clear
+  | Accept;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | RecalcStatics /* Could refactor to SetInitCtx(ctx) */
-  | SetBuffer(agent)
-  | ResetBuffer
+  | Buffer(buffer)
   | Paste(string)
   | Reparse
   | Project(project)
@@ -88,7 +93,8 @@ module Failure = {
     | Cant_put_down
     | Cant_project
     | CantPaste
-    | CantReparse;
+    | CantReparse
+    | CantAccept;
 };
 
 module Result = {
@@ -100,8 +106,7 @@ let is_edit: t => bool =
   fun
   | RecalcStatics => true
   | Project(_) => true //TODO(andrew): revisit
-  | SetBuffer(_) => true //TODO(andrew): revisit
-  | ResetBuffer => true //TODO(andrew): revisit
+  | Buffer(Accept | Clear | Set(_))
   | Paste(_)
   | Reparse
   | Insert(_)
@@ -122,8 +127,7 @@ let is_historic: t => bool =
   | RecalcStatics =>
     /* If we add this to history, we can basically never undo */
     false
-  | SetBuffer(_)
-  | ResetBuffer
+  | Buffer(Clear | Set(_))
   | Move(_)
   | MoveToNextHole(_)
   | Jump(_)
@@ -131,6 +135,7 @@ let is_historic: t => bool =
   | Unselect(_)
   | RotateBackpack
   | MoveToBackpackTarget(_) => false
+  | Buffer(Accept)
   | Paste(_)
   | Reparse
   | Project(_)

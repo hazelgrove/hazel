@@ -95,7 +95,7 @@ let clear_unparsed_buffer = (z: t) =>
 let unselect = (~erase_buffer=false, z: t): t => {
   /* NOTE(andrew): Erase buffer flag only applies to unparsed buffer,
    * that is, the buffer style that just contains a single flat token.
-   * Erasing a buffer the contains arbitrary tiles would be more complex
+   * Erasing a buffer that contains arbitrary tiles would be more complex
    * as we can't just empty the selection without regrouting */
   let z = erase_buffer ? clear_unparsed_buffer(z) : z;
   let relatives =

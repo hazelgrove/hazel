@@ -17,17 +17,14 @@ let is_action_logged: UpdateAction.t => bool =
   | DebugConsole(_) => false
   | Reset
   | TAB
-  | Assistant(_)
   | Set(_)
   | SwitchScratchSlide(_)
   | SwitchDocumentationSlide(_)
   | SwitchEditor(_)
   | ResetCurrentEditor
-  | ReparseCurrentEditor
   | PerformAction(_)
   | Cut
   | Copy
-  | Paste(_)
   | Undo
   | Redo
   | MoveToNextHole(_)
