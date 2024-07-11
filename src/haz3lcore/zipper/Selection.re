@@ -2,8 +2,8 @@ open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type buffer =
-  | Unparsed
-  | Parsed;
+  //| Parsed
+  | Unparsed;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type mode =

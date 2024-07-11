@@ -36,10 +36,6 @@ type stepper_action =
   | StepBackward;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type agent_action =
-  | AcceptSuggestion;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type set_meta =
   | Mousedown
   | Mouseup
@@ -74,15 +70,12 @@ type t =
   | TAB
   | Save
   | PerformAction(Action.t)
-  | ReparseCurrentEditor
   | Cut
   | Copy
-  | Paste(string)
   | Undo
   | Redo
   | MoveToNextHole(Direction.t)
   | Benchmark(benchmark_action)
-  | Assistant(agent_action)
   | ToggleStepper(ModelResults.Key.t)
   | StepperAction(ModelResults.Key.t, stepper_action)
   | UpdateResult(ModelResults.t);
@@ -130,16 +123,13 @@ let is_edit: t => bool =
   | Cut
   | Undo
   | Redo
-  | Paste(_)
   | SwitchScratchSlide(_)
   | SwitchDocumentationSlide(_)
   | ToggleStepper(_)
   | StepperAction(_)
-  | ReparseCurrentEditor
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
   | ResetCurrentEditor
-  | Assistant(AcceptSuggestion)
   | Reset => true
   | UpdateResult(_)
   | SwitchEditor(_)
@@ -186,7 +176,6 @@ let reevaluate_post_update: t => bool =
     | ShowBackpackTargets(_)
     | FontMetrics(_) => false
     }
-  | Assistant(AcceptSuggestion) => true
   | MoveToNextHole(_)
   | Save
   | Copy
@@ -201,7 +190,6 @@ let reevaluate_post_update: t => bool =
   | Benchmark(_) => false
   | StepperAction(_, StepForward(_) | StepBackward)
   | ToggleStepper(_)
-  | ReparseCurrentEditor
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
   | ResetCurrentEditor
@@ -209,7 +197,6 @@ let reevaluate_post_update: t => bool =
   | SwitchDocumentationSlide(_)
   | Reset
   | Cut
-  | Paste(_)
   | Undo
   | Redo => true;
 
@@ -240,17 +227,14 @@ let should_scroll_to_caret =
   | UpdateResult(_)
   | ToggleStepper(_)
   | StepperAction(_, StepBackward | StepForward(_)) => false
-  | Assistant(AcceptSuggestion) => true
   | FinishImportScratchpad(_)
   | FinishImportAll(_)
   | ResetCurrentEditor
   | SwitchEditor(_)
   | SwitchScratchSlide(_)
   | SwitchDocumentationSlide(_)
-  | ReparseCurrentEditor
   | Reset
   | Copy
-  | Paste(_)
   | Cut
   | Undo
   | Redo
@@ -268,8 +252,7 @@ let should_scroll_to_caret =
     | Put_down
     | RotateBackpack
     | MoveToBackpackTarget(_)
-    | SetBuffer(_)
-    | ResetBuffer
+    | Buffer(Set(_) | Clear | Accept)
     | Paste(_)
     | Reparse => true
     | RecalcStatics
@@ -284,11 +267,3 @@ let should_scroll_to_caret =
   | ExportPersistentData
   | DebugConsole(_)
   | Benchmark(_) => false;
-
-let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) => {
-  let ed = Editors.get_editor(model.editors);
-  switch (Haz3lcore.Perform.go(~settings=model.settings.core, a, ed)) {
-  | Error(err) => Error(FailedToPerform(err))
-  | Ok(ed) => Ok({...model, editors: Editors.put_editor(ed, model.editors)})
-  };
-};
