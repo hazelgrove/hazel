@@ -191,9 +191,9 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Rec(x, ty)
   | Type(x, ty) =>
     free_vars(~bound=(x |> TPat.tyvar_of_utpat |> Option.to_list) @ bound, ty)
-  //  What goes in free vars?
+  //  TODO(theorem): What goes in free vars? uncommenting leads to a dependency cycle
   // | Forall(x, ty) =>
-  //   free_vars(~bound=(x |> TPat.tyvar_of_utpat |> Option.to_list) @ bound, ty)
+  //   free_vars(~bound=(x |> Pat.tyvar_of_utpat |> Option.to_list) @ bound, ty)
   };
 
 let var_count = ref(0);
@@ -269,6 +269,17 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
       };
     let+ ty_body = join(~resolve, ~fix, ctx, ty1', ty2);
     Type(x1, ty_body) |> temp;
+  // TODO(theorem): uncommenting the below leads to a dependency cycle?
+  // | (Forall(x1, ty1), Forall(x2, ty2)) =>
+  //   let ctx = Ctx.extend_dummy_tvar(ctx, x1);
+  //   let ty1' =
+  //     // TODO(theorem): Pat needs its own tyvar of pat?
+  //     switch (Pat.tyvar_of_utpat(x2)) {
+  //     | Some(x2) => subst(Var(x2) |> temp, x1, ty1)
+  //     | None => ty1
+  //     };
+  //   let+ ty_body = join(~resolve, ~fix, ctx, ty1', ty2);
+  //   Forall(x1, ty_body) |> temp;
   /* Note for above: there is no danger of free variable capture as
      subst itself performs capture avoiding substitution. However this
      may generate internal type variable names that in corner cases can
@@ -322,6 +333,7 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Var(_), _)
   | (Ap(_), _)
   | (Rec(_), _)
+  | (Forall(_), _)
   | (Type(_), _) => t1
   // These might
   | (List(ty1), List(ty2)) => List(match_synswitch(ty1, ty2)) |> rewrap1
@@ -390,6 +402,9 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
     Rec(tpat, normalize(Ctx.extend_dummy_tvar(ctx, tpat), ty)) |> rewrap
   | Type(name, ty) =>
     Type(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
+  // TODO(theorem): get below working with extend_dummy_tvar for Pat.t
+  // | Forall(name, ty) =>
+  //   Forall(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
   };
 };
 
@@ -490,6 +505,7 @@ let rec needs_parens = (ty: t): bool =>
   | Bool
   | Var(_) => false
   | Rec(_, _)
+  | Forall(_, _)
   | Type(_, _) => true
   | List(_) => false /* is already wrapped in [] */
   | Arrow(_, _) => true
@@ -541,6 +557,8 @@ let rec pretty_print = (ty: t): string =>
   | Rec(tv, t) => "rec " ++ pretty_print_tvar(tv) ++ "->" ++ pretty_print(t)
   | Type(tv, t) =>
     "type " ++ pretty_print_tvar(tv) ++ "->" ++ pretty_print(t)
+  // TODO(theorem): write a different pretty_print? and then uncomment below
+  // | Forall(tv, t) => "type " ++ pretty_print(tv) ++ "->" ++ pretty_print(t)
   }
 and ctr_pretty_print =
   fun

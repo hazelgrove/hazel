@@ -43,6 +43,13 @@ let extend_dummy_tvar = (ctx: t, tvar: TPat.t) =>
   | None => ctx
   };
 
+// TODO(theorem): add "extend_dummy_tvar" that handles a `Pat.t`?
+// let extend_dummy_tvar = (ctx: t, tvar: Pat.t) =>
+//   switch (Pat.tyvar_of_upat(tvar)) {
+//   | Some(name) => extend_tvar(ctx, {kind: Abstract, name, id: Id.invalid})
+//   | None => ctx
+//   };
+
 let lookup_tvar = (ctx: t, name: string): option(kind) =>
   List.find_map(
     fun
