@@ -129,7 +129,7 @@ let mk_translation = (~inject, text: string): (list(Node.t), ColorSteps.t) => {
   let omd = Omd.of_string(text);
   //print_markdown(omd);
   let rec translate =
-          (doc: Omd.t, mapping: ColorSteps.t): (list(Node.t), ColorSteps.t) =>
+          (doc: Omd.doc, mapping: ColorSteps.t): (list(Node.t), ColorSteps.t) =>
     List.fold_left(
       ((msg, mapping), elem) => {
         switch (elem) {
