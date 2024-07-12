@@ -41,21 +41,33 @@ let backing_deco =
   | Block(_) => div([])
   };
 
+let cls = (indicated: option(status), selected) =>
+  (selected ? ["selected"] : [])
+  @ (
+    switch (indicated) {
+    | Some(Indicated(Left)) => ["indicated", "left"]
+    | Some(Indicated(Right)) => ["indicated", "right"]
+    | None => []
+    }
+  );
+
 let view_inner =
     (
       ~font_metrics: FontMetrics.t,
       ~measurement: Measured.measurement,
       ~status: option(Projector.status),
       ~info: info,
+      ~selected: bool,
       p: Projector.t,
       view: Node.t,
-    ) =>
+    ) => {
+  let fudge = selected ? PieceDec.selection_fudge : DecUtil.fzero;
   div(
     ~attrs=[
       Attr.classes(
-        ["projector", Projector.name(p)] @ Projector.cls(status),
+        ["projector", Projector.name(p)] @ cls(status, selected),
       ),
-      DecUtil.abs_style(measurement, ~font_metrics),
+      DecUtil.abs_style(measurement, ~fudge, ~font_metrics),
     ],
     [
       div(
@@ -68,24 +80,22 @@ let view_inner =
       backing_deco(~font_metrics, ~measurement, ~info, p),
     ],
   );
+};
 
 let view_setup =
     (
       id: Id.t,
-      ps: Map.t,
-      ~syntax_map: Id.Map.t(syntax),
-      ~info_map: Statics.Map.t,
-      ~measured: Measured.t,
+      ~meta: Editor.Meta.t,
       ~inject: Action.project => Ui_effect.t(unit),
       ~font_metrics,
       ~status: option(Projector.status),
     )
     : option(Node.t) => {
-  let* p = Projector.Map.find(id, ps);
-  let* syntax = Id.Map.find_opt(id, syntax_map);
-  let ci = Id.Map.find_opt(id, info_map);
+  let* p = Projector.Map.find(id, meta.projected.z.projectors);
+  let* syntax = Id.Map.find_opt(id, meta.projected.syntax_map);
+  let ci = Id.Map.find_opt(id, meta.statics.info_map);
   let info = {ci, syntax, status};
-  let+ measurement = Measured.find_by_id(id, measured);
+  let+ measurement = Measured.find_by_id(id, meta.projected.measured);
   let (module P) = to_module(p);
   let inject = a => handle(id, a) |> inject;
   view_inner(
@@ -93,17 +103,28 @@ let view_setup =
     ~measurement,
     ~status,
     ~info,
+    ~selected=List.mem(id, meta.selection_ids),
     p,
     P.view(~info, ~inject),
   );
 };
 
+let status_and_id = (z: ZipperBase.t) =>
+  //TODO(andrew): add Selected, Focused (maybe)
+  switch (Indicated.piece(z)) {
+  | Some((p, d, _)) => Some((Piece.id(p), Indicated(d)))
+  | None => None
+  };
+
+let status = (z: ZipperBase.t): option(status) =>
+  switch (status_and_id(z)) {
+  | Some((_, status)) => Some(status)
+  | None => None
+  };
+
 let view_all =
     (
-      z: Zipper.t,
-      ~info_map: Statics.Map.t,
-      ~syntax_map: Id.Map.t(syntax),
-      ~measured: Measured.t,
+      ~meta: Editor.Meta.t,
       ~inject: Action.project => Ui_effect.t(unit),
       ~font_metrics,
     ) =>
@@ -111,20 +132,17 @@ let view_all =
     ((id, _)) => {
       view_setup(
         id,
-        z.projectors,
-        ~syntax_map,
-        ~info_map,
-        ~measured,
+        ~meta,
         ~inject,
         ~font_metrics,
         ~status=
-          switch (Projector.status_and_id(z)) {
+          switch (status_and_id(meta.projected.z)) {
           | Some((ind_id, ind_d)) when ind_id == id => Some(ind_d)
           | _ => None
           },
       )
     },
-    Id.Map.bindings(z.projectors),
+    Id.Map.bindings(meta.projected.z.projectors),
   );
 
 let indicated_proj_z = (z: Zipper.t) => {
@@ -154,18 +172,17 @@ let id = (editor: Editor.t) => {
   };
 };
 
-let shape_from_map = (z, syntax_map, info_map): option(shape) => {
+let shape_from_map = (z, meta: Editor.Meta.t): option(shape) => {
   let* id = Indicated.index(z);
-  let* syntax = Id.Map.find_opt(id, syntax_map);
-  let ci = Id.Map.find_opt(id, info_map);
-  let status = Projector.status(z);
+  let* syntax = Id.Map.find_opt(id, meta.projected.syntax_map);
+  let ci = Id.Map.find_opt(id, meta.statics.info_map);
+  let status = status(z);
   let info = {syntax, status, ci};
   shape(z, info);
 };
 
-let caret =
-    (z: Zipper.t, syntax_map, info_map: Statics.Map.t): option(list(Node.t)) =>
-  switch (shape_from_map(z, syntax_map, info_map)) {
+let caret = (z: Zipper.t, meta: Editor.Meta.t): option(list(Node.t)) =>
+  switch (shape_from_map(z, meta)) {
   | None => None
   | Some(Inline(_)) => None
   | Some(Block(_)) => Some([])

@@ -23,13 +23,7 @@ module Deco = (M: {
 
   let caret = (z: Zipper.t): list(Node.t) =>
     /* Projectors can override adjacent carets */
-    switch (
-      ProjectorView.caret(
-        z,
-        M.meta.projected.syntax_map,
-        M.meta.statics.info_map,
-      )
-    ) {
+    switch (ProjectorView.caret(z, M.meta)) {
     | Some(caret) => caret
     | None => base_caret(z)
     };
@@ -377,14 +371,7 @@ module Deco = (M: {
   let always = (~inject) =>
     List.concat([
       err_holes(),
-      ProjectorView.view_all(
-        M.meta.projected.z,
-        ~syntax_map=M.meta.projected.syntax_map,
-        ~info_map=M.meta.statics.info_map,
-        ~inject,
-        ~font_metrics,
-        ~measured=M.meta.projected.measured,
-      ),
+      ProjectorView.view_all(~meta=M.meta, ~inject, ~font_metrics),
     ]);
 
   let all = (~inject) =>

@@ -36,13 +36,13 @@ module Meta = {
     terms: TermMap.t,
     tiles: TileMap.t,
     holes: list(Grout.t),
-    buffer_ids: list(Id.t),
     syntax_map: Id.Map.t(Piece.t),
   };
 
   type t = {
     col_target: int,
     touched: Touched.t,
+    selection_ids: list(Id.t),
     statics: CachedStatics.t,
     projected,
   };
@@ -59,7 +59,6 @@ module Meta = {
       tiles: TileMap.mk(segment),
       holes: Segment.holes(segment),
       measured: Measured.of_segment(segment),
-      buffer_ids: Selection.buffer_ids(z_projected.z.selection),
       syntax_map: z_projected.syntax_map,
     };
   };
@@ -71,7 +70,13 @@ module Meta = {
     let statics = mk_statics(~settings, z);
     let projected =
       Projector.Project.go(z, statics.info_map) |> init_projected;
-    {col_target: 0, touched: Touched.empty, statics, projected};
+    {
+      col_target: 0,
+      touched: Touched.empty,
+      selection_ids: Selection.selection_ids(projected.z.selection),
+      statics,
+      projected,
+    };
   };
 
   module type S = {
@@ -108,7 +113,6 @@ module Meta = {
       term_ranges: TermRanges.mk(segment),
       tiles: TileMap.mk(segment),
       holes: Segment.holes(segment),
-      buffer_ids: Selection.buffer_ids(z_projected.z.selection),
       syntax_map: z_projected.syntax_map,
     };
   };
@@ -130,14 +134,15 @@ module Meta = {
 
   let next =
       (
-        ~effects: list(Effect.t)=[],
+        ~effects as _: list(Effect.t)=[],
         ~settings: CoreSettings.t,
         a: Action.t,
         z: Zipper.t,
         meta: t,
       )
       : t => {
-    let touched = Touched.update(Time.tick(), effects, meta.touched);
+    //TODO(andrew): remove or reinstate touched/effects
+    let touched = meta.touched; //Touched.update(Time.tick(), effects, meta.touched);
     let col_target =
       switch (a) {
       | Move(Local(Up | Down))
@@ -152,7 +157,13 @@ module Meta = {
       | _ =>
         next_projected(z_projected, ~touched, ~old=meta.projected.measured)
       };
-    {touched, col_target, projected, statics};
+    {
+      touched,
+      col_target,
+      projected,
+      selection_ids: Selection.selection_ids(projected.z.selection),
+      statics,
+    };
   };
 };
 

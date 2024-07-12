@@ -766,3 +766,11 @@ let push_left = ((ls: t, rs: t)): (t, t) =>
   | [r, ...rs] => (ls @ [r], rs)
   | [] => (ls, rs)
   };
+
+let rec ids = (s: t): list(Id.t) => List.concat_map(ids_of_piece, s)
+and ids_of_piece = (p: Piece.t): list(Id.t) =>
+  switch (p) {
+  | Tile(t) => [Piece.id(p), ...ids(List.concat(t.children))]
+  | Grout(_)
+  | Secondary(_) => [Piece.id(p)]
+  };

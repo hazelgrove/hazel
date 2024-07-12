@@ -66,8 +66,11 @@ let abs_dims = ({origin, last}: Haz3lcore.Measured.measurement): dims => {
   height: abs(last.row - origin.row + 1),
 };
 
-let abs_style = (~font_metrics, measurement): Attr.t =>
-  Attr.create("style", pos_str(~d=abs_dims(measurement), font_metrics));
+let abs_style = (~font_metrics, ~fudge: fdims=fzero, measurement): Attr.t =>
+  Attr.create(
+    "style",
+    pos_str(~d=abs_dims(measurement), ~fudge, font_metrics),
+  );
 
 let code_svg_sized =
     (

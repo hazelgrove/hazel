@@ -72,6 +72,13 @@ let relative_shard =
 
 let convex_shard = relative_shard(~shapes=(Convex, Convex));
 
+let selection_fudge: DecUtil.fdims = {
+  height: 0.3,
+  top: 0.,
+  width: 0.,
+  left: 0.,
+};
+
 let simple_shard_selected =
     (~font_metrics, ~shapes, ~measurement: Measured.measurement, ~buffer): t => {
   let path_cls = [
@@ -82,7 +89,7 @@ let simple_shard_selected =
   let base_cls = ["tile-selected"];
   simple_shard(
     /* Increase height slightly to avoid leaving spaces between selected lines */
-    ~fudge={height: 0.3, top: 0., width: 0., left: 0.},
+    ~fudge=selection_fudge,
     ~font_metrics,
     ~shapes,
     ~path_cls,

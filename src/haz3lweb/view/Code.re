@@ -172,7 +172,7 @@ let view =
       ~sort: Sort.t,
       ~font_metrics,
       ~settings: Settings.t,
-      {projected: {measured, buffer_ids, segment, holes, _}, _}: Editor.Meta.t,
+      {projected: {z, measured, segment, holes, _}, selection_ids, _}: Editor.Meta.t,
     )
     : Node.t => {
   module Text =
@@ -180,6 +180,7 @@ let view =
       let map = measured;
       let settings = settings;
     });
+  let buffer_ids = Selection.is_buffer(z.selection) ? selection_ids : [];
   let code = Text.of_segment(buffer_ids, false, sort, segment);
   let holes = List.map(of_hole(~measured, ~font_metrics), holes);
   div(
