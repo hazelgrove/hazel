@@ -60,7 +60,7 @@ type action =
   | FocusInternal(string) /* DOM Focus on projector */
   | Default /* Defer input to focal DOM element */
   | Escape(string, Util.Direction.t) /* Pass key control to parent editor */
-  | UpdateSyntax(syntax => syntax)
+  | SetSyntax(syntax)
   | UpdateModel(inner_action);
 
 /* Externally calculated info to be fed to projectors */

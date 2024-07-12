@@ -44,7 +44,7 @@ let get = (piece: Piece.t): string =>
 let put = (s: string): Piece.t => s |> mk_mono(Exp);
 
 let put = (str: string): ProjectorBase.action =>
-  UpdateSyntax(_ => str |> Form.string_quote |> put);
+  SetSyntax(str |> Form.string_quote |> put);
 
 let textarea =
     (
@@ -54,17 +54,21 @@ let textarea =
     ) =>
   Node.textarea(
     ~attrs=[
+      Attr.id("sdfsdf"),
       Attr.on_blur(_ => inject(UpdateModel(SetInside(false)))),
       Attr.on_focus(_ => inject(UpdateModel(SetInside(true)))),
-      Attr.on_click(_ => inject(FocusInternal(selector))),
-      Attr.on_mousedown(_ => inject(FocusInternal(selector))),
+      //Attr.on_click(_ => inject(FocusInternal(selector))),
+      Attr.on_mousedown(_ => {
+        //JsUtil.focus("sdfsdf");
+        inject(FocusInternal(selector))
+      }),
       Attr.on_input((_, new_text) => inject(put(new_text))),
     ],
     [Node.text(text)],
   );
 
 let n_of = (n: int) =>
-  //•
+  //·•⬤
   [Node.text("·")]
   @ (List.init(n, _ => [Node.br(), Node.text("·")]) |> List.flatten);
 
@@ -97,9 +101,9 @@ let keymap =
   // print_endline("pos: " ++ JsUtil.TextArea.show_rel_pos(rel_pos));
   // print_endline("pos': " ++ JsUtil.TextArea.show_pos(pos));
   switch (key.key, direction) {
-  | (D("ArrowRight"), Right) when !focussed =>
+  | (D("ArrowRight"), Right) when !focussed && !(key.shift == Down) =>
     Some(FocusInternal(selector))
-  | (D("ArrowLeft"), Left) when !focussed =>
+  | (D("ArrowLeft"), Left) when !focussed && !(key.shift == Down) =>
     JsUtil.TextArea.set_caret_to_end(textarea);
     Some(FocusInternal(selector));
   | (D("ArrowRight" | "ArrowDown"), _) when focussed && is_last_pos =>

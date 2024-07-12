@@ -92,7 +92,7 @@ let go =
     | false => Error(Action.Failure.Cant_project)
     | true => Ok(set(id, None, z))
     }
-  | UpdateSyntax(id, f) => Ok(Projector.Syntax.update(f, id, z))
+  | SetSyntax(id, p) => Ok(Projector.Syntax.update(_ => p, id, z))
   | UpdateModel(id, f) =>
     Ok({...z, projectors: Map.update(id, Option.map(f), z.projectors)})
   };

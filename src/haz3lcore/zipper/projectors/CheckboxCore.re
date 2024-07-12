@@ -30,8 +30,9 @@ let view = (~info, ~inject: ProjectorBase.action => Ui_effect.t(unit)) =>
     ~attrs=
       [
         Attr.create("type", "checkbox"),
-        Attr.on_input((_, _) => inject(UpdateSyntax(toggle))),
-        //JsUtil.stop_mousedown_propagation,
+        Attr.on_input((_, _) =>
+          inject(SetSyntax(put(!get(info.syntax))))
+        ),
       ]
       @ (get(info.syntax) ? [Attr.checked] : []),
     (),
@@ -51,7 +52,6 @@ let mk = (model): core =>
      let model = model;
      let can_project = p => state_of(p) != None;
      let placeholder = _ => Inline(2);
-     //  let auto_update = _: projector => Checkbox();
      let update = (_action): projector => Checkbox();
      let view = view;
      let keymap = keymap;

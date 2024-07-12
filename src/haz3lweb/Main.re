@@ -36,7 +36,8 @@ let restart_caret_animation = () =>
   | _ => ()
   };
 
-let apply = (model, action, state, ~schedule_action): Model.t => {
+let apply = (model: Model.t, action, state, ~schedule_action): Model.t => {
+  JsUtil.focus(~site="apply", model.ui_state.focus);
   restart_caret_animation();
   if (UpdateAction.is_edit(action)) {
     last_edit_action := JsUtil.timestamp();
