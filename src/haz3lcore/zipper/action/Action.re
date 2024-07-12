@@ -46,7 +46,7 @@ type select =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type project =
-  | UpdateSyntax(Id.t, Piece.t => Piece.t)
+  | SetSyntax(Id.t, Piece.t)
   | UpdateModel(Id.t, Projector.t => Projector.t)
   | SetIndicated(Projector.kind)
   | ToggleIndicated(Projector.kind)
@@ -61,7 +61,6 @@ type agent =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type buffer =
   | Set(agent)
-  | Clear
   | Accept;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -105,7 +104,7 @@ module Result = {
 let is_edit: t => bool =
   fun
   | Project(_) => true //TODO(andrew): revisit
-  | Buffer(Accept | Clear | Set(_))
+  | Buffer(Accept)
   | Paste(_)
   | Cut
   | Reparse
@@ -113,6 +112,7 @@ let is_edit: t => bool =
   | Destruct(_)
   | Pick_up
   | Put_down => true
+  | Buffer(Set(_))
   | Copy
   | Move(_)
   | Jump(_)
@@ -124,7 +124,7 @@ let is_edit: t => bool =
 /* Determines whether undo/redo skips action */
 let is_historic: t => bool =
   fun
-  | Buffer(Clear | Set(_))
+  | Buffer(Set(_))
   | Copy
   | Move(_)
   | Jump(_)

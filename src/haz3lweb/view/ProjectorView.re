@@ -25,7 +25,7 @@ let handle = (id, action: ProjectorBase.action): Action.project =>
   | Escape(selector, Right) =>
     JsUtil.get_elem_by_selector(selector)##blur;
     Escape(id, Right);
-  | UpdateSyntax(f) => UpdateSyntax(id, f)
+  | SetSyntax(f) => SetSyntax(id, f)
   | UpdateModel(action) => UpdateModel(id, update_model(action))
   };
 

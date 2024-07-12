@@ -110,6 +110,14 @@ let log = data => {
   Firebug.console##log(data);
 };
 
+let focus = (~site="", id: string) =>
+  try(get_elem_by_id(id)##focus) {
+  | _ =>
+    print_endline(
+      "WARNING: Failed to focus in update: " ++ id ++ " site: " ++ site,
+    )
+  };
+
 let clipboard_shim_id = "clipboard-shim";
 
 let focus_clipboard_shim = () => get_elem_by_id(clipboard_shim_id)##focus;

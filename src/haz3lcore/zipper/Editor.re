@@ -1,6 +1,5 @@
 open Sexplib.Std;
 open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
-open Util;
 
 module CachedStatics = {
   type t = {
@@ -141,14 +140,9 @@ module Meta = {
         meta: t,
       )
       : t => {
+    print_endline("Editor.next. Action:" ++ Action.show(a));
     //TODO(andrew): remove or reinstate touched/effects
     let touched = meta.touched; //Touched.update(Time.tick(), effects, meta.touched);
-    let col_target =
-      switch (a) {
-      | Move(Local(Up | Down))
-      | Select(Resize(Local(Up | Down))) => meta.col_target
-      | _ => Zipper.caret_point(meta.projected.measured, meta.projected.z).col
-      };
     let statics = next_statics(~settings, a, z, meta.statics);
     let z_projected = Projector.Project.go(z, statics.info_map);
     let projected =
@@ -156,6 +150,12 @@ module Meta = {
       | false => {...meta.projected, z: z_projected.z}
       | _ =>
         next_projected(z_projected, ~touched, ~old=meta.projected.measured)
+      };
+    let col_target =
+      switch (a) {
+      | Move(Local(Up | Down))
+      | Select(Resize(Local(Up | Down))) => meta.col_target
+      | _ => Zipper.caret_point(projected.measured, projected.z).col
       };
     {
       touched,
@@ -219,7 +219,6 @@ let init = (~read_only=false, z, ~settings: CoreSettings.t) => {
   history: History.empty,
   read_only,
 };
-// let empty = id => init(~read_only=false, Zipper.init(id));
 
 let update_z = (f: Zipper.t => Zipper.t, ed: t) => {
   ...ed,
@@ -227,13 +226,6 @@ let update_z = (f: Zipper.t => Zipper.t, ed: t) => {
     ...ed.state,
     zipper: f(ed.state.zipper),
   },
-};
-let put_z = (z: Zipper.t) => update_z(_ => z);
-
-let update_z_opt = (f: Zipper.t => option(Zipper.t), ed: t) => {
-  open OptUtil.Syntax;
-  let+ z = f(ed.state.zipper);
-  put_z(z, ed);
 };
 
 let new_state =

@@ -14,7 +14,7 @@ let get = (piece: Piece.t): string =>
 
 let view = (~info, ~inject: ProjectorBase.action => Ui_effect.t(unit)) =>
   Util.Web.range(
-    ~attrs=[Attr.on_input((_, v) => inject(UpdateSyntax(_ => put(v))))],
+    ~attrs=[Attr.on_input((_, v) => inject(SetSyntax(put(v))))],
     get(info.syntax),
   );
 

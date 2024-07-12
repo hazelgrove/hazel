@@ -110,6 +110,7 @@ module Make = (M: Editor.Meta.S) => {
   let do_towards =
       (
         ~anchor: option(Measured.Point.t)=?,
+        ~force_progress=true,
         f: (Direction.t, t) => option(t),
         goal: Measured.Point.t,
         z: t,
@@ -126,15 +127,14 @@ module Make = (M: Editor.Meta.S) => {
         Measured.Point.dcomp(d, curr_p.row, goal.row),
       ) {
       | (Exact, Exact) => curr
-      //TODO(andrew): document
-      //TODO(andrew): pick new goal to get right col
-      //| (_, Over) => prev
-      | (_, Over) =>
-        let prev_p = caret_point(prev);
-        switch (Measured.Point.dcomp(d, prev_p.row, goal.row)) {
-        | Under => curr
-        | _ => prev
-        };
+      /* Up/down movement works by setting a goal one row below the current.
+       * When adjacent to a multiline token (eg livelit), the nearest next
+       * caret position may be multiple lines down. We must allow this overshoot
+       * in order to be able to make progress. However, doing so causes flicker
+       * during mouse-based selection. I don't fully understand why this is,
+       * but disabling this special case in that case seems to work */
+      | (_, Over) when caret_point(prev) == init && force_progress => curr
+      | (_, Over) => prev
       | (_, Under)
       | (Under, Exact) =>
         switch (f(d, curr)) {

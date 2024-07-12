@@ -9,7 +9,7 @@ let is_write_action = (a: Action.t) => {
   | Unselect(_)
   | Jump(_)
   | Select(_) => false
-  | Buffer(Set(_) | Clear | Accept)
+  | Buffer(Set(_) | Accept)
   | Cut
   | Paste(_)
   | Reparse
@@ -22,14 +22,26 @@ let is_write_action = (a: Action.t) => {
   };
 };
 
-let rec go_z =
-        (
-          ~meta: option(Editor.Meta.t)=?,
-          ~settings: CoreSettings.t,
-          a: Action.t,
-          z: Zipper.t,
-        )
-        : Action.Result.t(Zipper.t) => {
+let buffer_clear = (z: t): t =>
+  switch (z.selection.mode) {
+  | Buffer(_) => {...z, selection: Selection.mk([])}
+  | _ => z
+  };
+
+let buffer_set = (info_map: Statics.Map.t, z: t): t =>
+  switch (TyDi.set_buffer(~info_map, z)) {
+  | None => z
+  | Some(z) => z
+  };
+
+let go_z =
+    (
+      ~meta: option(Editor.Meta.t)=?,
+      ~settings: CoreSettings.t,
+      a: Action.t,
+      z: Zipper.t,
+    )
+    : Action.Result.t(Zipper.t) => {
   let meta =
     switch (meta) {
     | Some(m) => m
@@ -58,15 +70,16 @@ let rec go_z =
        that in general it's not safe to call go_z recursively
        (the meta may change) but as long as we're not relying
        on anything but the raw zipper we're fine. */
-    let settings = CoreSettings.off;
+    //let settings = CoreSettings.off;
     let* z = Printer.zipper_of_string(~zipper_init=z, str);
-    switch (go_z(~settings, Insert(" "), z)) {
-    | Error(_) => None
-    | Ok(z) =>
-      switch (go_z(~settings, Destruct(Left), z)) {
-      | Error(_) => None
-      | Ok(z) => Some(z)
-      }
+    switch (Insert.go(" ", z)) {
+    | None => None
+    | Some(z) => z |> Destruct.go(Left) |> Option.map(remold_regrout(Left))
+    //|> Result.of_option(~error=Action.Failure.Cant_destruct)
+    // switch (go_z(~settings, Destruct(Left), z)) {
+    // | Error(_) => None
+    // | Ok(z) => Some(z)
+    // }
     };
   };
 
@@ -78,7 +91,11 @@ let rec go_z =
     }
   | Cut =>
     /* System clipboard handling is done in Page.view handlers */
-    go_z(~settings, ~meta, Destruct(Left), z)
+    switch (Destruct.go(Left, z)) {
+    | None => Error(Cant_destruct)
+    | Some(z) => Ok(z)
+    }
+  // go_z(~settings, ~meta, Destruct(Left), z)
   | Copy =>
     /* System clipboard handling itself is done in Page.view handlers.
      * This doesn't change state but is included here for logging purposes */
@@ -88,17 +105,7 @@ let rec go_z =
     | None => Error(CantReparse)
     | Some(z) => Ok(z)
     }
-  | Buffer(Clear) =>
-    switch (z.selection.mode) {
-    | Buffer(_) => Ok({...z, selection: Selection.mk([])})
-    | _ => Ok(z)
-    }
-  | Buffer(Set(TyDi)) =>
-    let info_map = meta.statics.info_map;
-    switch (TyDi.set_buffer(~info_map, z)) {
-    | None => Ok(z)
-    | Some(z) => Ok(z)
-    };
+  | Buffer(Set(TyDi)) => Ok(buffer_set(meta.statics.info_map, z))
   | Buffer(Accept) =>
     switch (z.selection.mode) {
     | Normal => Ok(z)
@@ -112,32 +119,24 @@ let rec go_z =
          * In such a case, we insert the completion as normal by
          * pasting, then return to the beginning and advance to the
          * first hole. This should be revisited if completions are
-         * refactored to use a more structured buffer format.
-         *
-         * Note that calling go_z like this without recalculating
-         * the meta is iffy; the goal movement only works because
-         * the paste only changes measurements south of the start */
+         * refactored to use a more structured buffer format. */
         let start = Zipper.caret_point(M.measured, meta.projected.z);
-        let rec do_actions = (z, actions: list(Action.t)) =>
-          switch (actions) {
-          | [] => Ok(z)
-          | [a, ...tl] =>
-            switch (go_z(~meta, ~settings, a, z)) {
-            | Error(err) => Error(err)
-            | Ok(z) => do_actions(z, tl)
-            }
-          };
-        do_actions(
-          z,
-          [
-            Paste(AssistantExpander.trim(completion)),
-            Move(Goal(Point(start))),
-            Move(Goal(Piece(Grout, Right))),
-            Move(Local(Left(ByToken))),
-          ],
-        );
+        let z = {
+          open OptUtil.Syntax;
+          let* z = paste(z, completion);
+          let* z = Move.go(Goal(Point(start)), z);
+          let* z = Move.go(Goal(Piece(Grout, Right)), z);
+          Move.go(Local(Left(ByToken)), z);
+        };
+        switch (z) {
+        | None => Error(CantAccept)
+        | Some(z) => Ok(z)
+        };
       | Some(completion) =>
-        go_z(~meta, ~settings, Paste(AssistantExpander.trim(completion)), z)
+        switch (paste(z, AssistantExpander.trim(completion))) {
+        | None => Error(CantAccept)
+        | Some(z) => Ok(z)
+        }
       }
     }
   | Project(a) =>
@@ -276,8 +275,9 @@ let rec go_z =
     Move.to_backpack_target(d, z)
     |> Result.of_option(~error=Action.Failure.Cant_move)
   };
-}
-and go_history =
+};
+
+let go_history =
     (~settings: CoreSettings.t, a: Action.t, ed: Editor.t)
     : Action.Result.t(Editor.t) => {
   open Result.Syntax;
@@ -286,8 +286,9 @@ and go_history =
   Effect.s_clear();
   let+ z = go_z(~settings, ~meta, a, zipper);
   Editor.new_state(~effects=Effect.s^, ~settings, a, z, ed);
-}
-and go =
+};
+
+let go =
     (~settings: CoreSettings.t, a: Action.t, ed: Editor.t)
     : Action.Result.t(Editor.t) =>
   /* This function wraps assistant completions. If completions are enabled,
@@ -298,12 +299,11 @@ and go =
     Result.Ok(ed);
   } else if (settings.assist && settings.statics) {
     open Result.Syntax;
-    let* ed =
-      a == Buffer(Accept)
-        ? Ok(ed) : go_history(~settings, Buffer(Clear), ed);
+    let ed = a == Buffer(Accept) ? ed : Editor.update_z(buffer_clear, ed);
     let* ed = go_history(~settings, a, ed);
     Action.is_edit(a)
-      ? go_history(~settings, Buffer(Set(TyDi)), ed) : Ok(ed);
+      ? Ok(Editor.update_z(buffer_set(ed.state.meta.statics.info_map), ed))
+      : Ok(ed);
   } else {
     go_history(~settings, a, ed);
   };
