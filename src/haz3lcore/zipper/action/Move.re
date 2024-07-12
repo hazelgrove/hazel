@@ -107,10 +107,18 @@ module Make = (M: Editor.Meta.S) => {
     };
   };
 
+  let anchor_case =
+      (anchor: Measured.Point.t, d, prev, curr, goal: Measured.Point.t) => {
+    /* This is for dragging selections */
+    let anchor_d: Direction.t =
+      goal.row < anchor.row || goal.row == anchor.row && goal.col < anchor.col
+        ? Left : Right;
+    anchor_d == d ? curr : prev;
+  };
+
   let do_towards =
       (
         ~anchor: option(Measured.Point.t)=?,
-        ~force_progress=true,
         f: (Direction.t, t) => option(t),
         goal: Measured.Point.t,
         z: t,
@@ -127,14 +135,17 @@ module Make = (M: Editor.Meta.S) => {
         Measured.Point.dcomp(d, curr_p.row, goal.row),
       ) {
       | (Exact, Exact) => curr
-      /* Up/down movement works by setting a goal one row below the current.
-       * When adjacent to a multiline token (eg livelit), the nearest next
-       * caret position may be multiple lines down. We must allow this overshoot
-       * in order to be able to make progress. However, doing so causes flicker
-       * during mouse-based selection. I don't fully understand why this is,
-       * but disabling this special case in that case seems to work */
-      | (_, Over) when caret_point(prev) == init && force_progress => curr
-      | (_, Over) => prev
+      // | (_, Over) when caret_point(prev) == init && force_progress => curr
+      // | (_, Over) => prev
+      | (_, Over) =>
+        /* Up/down movement works by setting a goal one row below current.
+         * When adjacent to multiline token (eg livelit), the nearest next
+         * caret position may be multiple lines down. We must allow this
+         * overshoot in order to be able to make progress. */
+        switch (anchor) {
+        | None => caret_point(prev) == init ? curr : prev
+        | Some(anchor) => anchor_case(anchor, d, prev, curr, goal)
+        }
       | (_, Under)
       | (Under, Exact) =>
         switch (f(d, curr)) {
@@ -159,19 +170,12 @@ module Make = (M: Editor.Meta.S) => {
               // default to going over when equal
               d_prev < d_curr ? prev : curr;
             }
-        | Some(anchor) =>
-          let anchor_d =
-            goal.row < anchor.row
-            || goal.row == anchor.row
-            && goal.col < anchor.col
-              ? Direction.Left : Right;
-          anchor_d == d ? curr : prev;
+        | Some(anchor) => anchor_case(anchor, d, prev, curr, goal)
         }
       };
     };
     let res = go(z, z);
-    Measured.Point.equals(caret_point(res), caret_point(z))
-      ? None : Some(res);
+    Measured.Point.equals(caret_point(res), init) ? None : Some(res);
   };
   let do_vertical =
       (f: (Direction.t, t) => option(t), d: Direction.t, z: t): option(t) => {
