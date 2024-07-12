@@ -64,6 +64,7 @@ let textarea =
   );
 
 let n_of = (n: int) =>
+  //•
   [Node.text("·")]
   @ (List.init(n, _ => [Node.br(), Node.text("·")]) |> List.flatten);
 
@@ -71,9 +72,10 @@ let view = (model: textarea, ~selector, ~info, ~inject) => {
   let text = info.syntax |> get |> Form.strip_quotes;
   Node.div(
     ~attrs=[
-      Attr.classes(["cols"] @ (model.inside ? [] : cls(info.status))),
+      Attr.classes(["cols"] @ (model.inside ? ["inside"] : [])),
+      // Attr.classes(["cols"] @ (model.inside ? [] : cls(info.status))),
     ],
-    n_of(1 + Util.StringUtil.num_linebreaks(text))
+    n_of(Util.StringUtil.num_linebreaks(text))
     @ [textarea(~inject, ~selector, text)],
   );
 };

@@ -45,8 +45,7 @@ type shape =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type status =
-  | Indicated(Util.Direction.t)
-  | Selected;
+  | Indicated(Util.Direction.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type syntax = Piece.t;
@@ -71,14 +70,6 @@ type info = {
   status: option(status),
   ci: option(Info.t),
 };
-
-let cls = (indicated: option(status)) =>
-  switch (indicated) {
-  | Some(Indicated(Left)) => ["indicated", "left"]
-  | Some(Indicated(Right)) => ["indicated", "right"]
-  | Some(Selected) => ["selected"]
-  | None => []
-  };
 
 module type Core = {
   [@deriving (show({with_path: false}), sexp, yojson)]

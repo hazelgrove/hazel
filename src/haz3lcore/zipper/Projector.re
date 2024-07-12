@@ -67,19 +67,6 @@ let of_name = (p: string): kind =>
 
 let name = (p: t): string => p |> kind |> name_of_kind;
 
-let status_and_id = (z: ZipperBase.t) =>
-  //TODO(andrew): add Selected, Focused (maybe)
-  switch (Indicated.piece(z)) {
-  | Some((p, d, _)) => Some((Piece.id(p), Indicated(d)))
-  | None => None
-  };
-
-let status = (z: ZipperBase.t): option(status) =>
-  switch (status_and_id(z)) {
-  | Some((_, status)) => Some(status)
-  | None => None
-  };
-
 let shape = (p: t, syntax): shape => {
   let (module P) = to_module(p);
   P.placeholder(syntax);

@@ -680,7 +680,7 @@ select {
 
 .projector {
   position: absolute;
-  
+
   display: flex;
   justify-content: center;
   align-items: center;
@@ -740,41 +740,52 @@ select {
 /* PROJECTOR: TEXTAREA */
 
 .projector.text {
-  display: flex;
-  justify-content: left;
-  align-items: start;
 }
 
 .projector.text .projector-wrapper {
   height: 100%;
   width: 100%;
-  display: flex;
-  justify-content: start;
-  align-items: start;
+  border-radius: 0.1em;
+  border-left: 2px solid #0000;
+  border-right: 2px solid #0000;
+  margin-left: -2px;
+  margin-right: -2px;
+}
+.projector.text.indicated.left .projector-wrapper {
+  border-right: 2px solid red;
+  animation: 1s blink_border_right step-end infinite;
+}
+.projector.text.indicated.right .projector-wrapper {
+  border-left: 2px solid red;
+  animation: 1s blink_border_left step-end infinite;
+}
+.projector.text .projector-wrapper:has(.cols.inside),
+.projector.text .projector-wrapper:has(.cols.inside) {
+  border-color: #0000;
+  animation: none;
 }
 
 .projector.text .cols {
+  height: 100%;
+  width: 100%;
+  display: flex;
   border-radius: 0.1em;
   outline: 0.3px solid #a69460;
   background-color: #e0d1b7;
   color: #f0e7d6;
-  height: 100%;
-  width:100%;
-  align-items: start;
-  display: flex;
-  border-left: 2px solid #0000;
-  margin-left: -2px;
-  margin-right: -2px;
 }
-.projector.text .cols.indicated.left {
-  position: relative;
-  border-right: 2px solid red;
-  animation: 1s blink_border_right step-end infinite;
+
+.projector.text.selected .cols {
+  background-color: var(--selection-color);
+  color: #c7b491;
 }
-.projector.text .cols.indicated.right {
-  position: relative;
-  border-left: 2px solid red;
-  animation: 1s blink_border_left step-end infinite;
+.projector.text.selected textarea {
+  background: repeating-linear-gradient(
+    var(--selection-color),
+    var(--selection-color) 1.4em,
+    #e0d1b7 1.4em,
+    #e0d1b7 1.46em
+  );
 }
 
 .projector.text textarea {
@@ -790,11 +801,13 @@ select {
   border: none;
   border-radius: 0.1em;
   outline: 0.3px solid #a69460;
-  background-color: #f0e7d6;
   color: #8c7e62;
-}
-.projector.text textarea {
-  background: repeating-linear-gradient(#f0e7d6, #f0e7d6 1.4em, #e0d1b7 1.4em, #e0d1b7 1.46em);
+  background: repeating-linear-gradient(
+    #f0e7d6,
+    #f0e7d6 1.4em,
+    #e0d1b7 1.4em,
+    #e0d1b7 1.46em
+  );
 }
 
 .projector.text textarea::selection {
@@ -1392,7 +1405,7 @@ svg.tile-selected {
   }
 }
 
-@keyframes blink_border_left{
+@keyframes blink_border_left {
   from,
   to {
     border-left-color: red;
@@ -1663,7 +1676,6 @@ svg.tile-selected {
 #bottom-bar #projectors option {
   font-size: 1em;
   color: #807350;
-  
 }
 
 #bottom-bar #projectors .toggle-switch {
