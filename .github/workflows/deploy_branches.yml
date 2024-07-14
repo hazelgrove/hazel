@@ -40,7 +40,7 @@ jobs:
         working-directory: ./source
       - name: Run Tests
         id: test
-        continue-on-error: true
+        continue-on-error: true # We're not differentiating between this failing for test reasons and compilation reasons
         run: |
           eval $(opam env)
           make test > test_output
@@ -52,12 +52,13 @@ jobs:
         working-directory: ./source
       - name: Test Report
         uses: dorny/test-reporter@v1
+        continue-on-error: true
         with:
           name: Test Report
           path: junit_tests*.xml
           reporter: java-junit
           fail-on-error: false
-          fail-on-empty: true
+          fail-on-empty: true # Use an empty test report to detect when something failed with the test runner
           working-directory: ./source
       - name: Checkout the website build artifacts repo
         uses: actions/checkout@v2
