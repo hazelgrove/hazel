@@ -52,12 +52,12 @@ jobs:
         working-directory: ./source
       - name: Test Report
         uses: dorny/test-reporter@v1
-        continue-on-error: true
         with:
           name: Test Report
           path: junit_tests*.xml
           reporter: java-junit
-          fail-on-error: true
+          fail-on-error: false
+          fail-on-empty: true
           working-directory: ./source
       - name: Checkout the website build artifacts repo
         uses: actions/checkout@v2
