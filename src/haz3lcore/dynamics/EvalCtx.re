@@ -31,6 +31,7 @@ type cls =
   | ListLit(int)
   | ApBuiltin
   | Test
+  | HintedTest
   | Cons1
   | Cons2
   | ListConcat1

@@ -97,6 +97,8 @@ type example_id =
   | SeqTest
   | TestTrue
   | TestFalse
+  | HintedTestTrue
+  | HintedTestFalse
   | IntUnaryMinus
   | Int(numeric_bin_op_examples)
   | Float(numeric_bin_op_examples)
@@ -173,6 +175,7 @@ type form_id =
   | IfExp
   | SeqExp
   | TestExp
+  | HintedTestExp
   | UnOpExp(Term.UExp.op_un)
   | BinOpExp(Term.UExp.op_bin)
   | CaseExp
@@ -264,6 +267,7 @@ type group_id =
   | IfExp
   | SeqExp
   | TestExp
+  | HintedTestExp
   | UnOpExp(Term.UExp.op_un)
   | BinOpExp(Term.UExp.op_bin)
   | CaseExp

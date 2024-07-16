@@ -109,6 +109,7 @@ let keywords = [
   "if",
   "then",
   "else",
+  "hintedtest",
 ];
 let reserved_keywords = ["of", "when", "with", "switch", "match"];
 let is_keyword = regexp("^(" ++ String.concat("|", keywords) ++ ")$");
@@ -309,6 +310,7 @@ let forms: list((string, t)) = [
   ("at_sign", mk_nul_infix("@", P.eqs)), // HACK: SUBSTRING REQ
   ("case", mk(ds, ["case", "end"], mk_op(Exp, [Rul]))),
   ("test", mk(ds, ["test", "end"], mk_op(Exp, [Exp]))),
+  ("hintedtest", mk(ds, ["hintedtest", "end"], mk_op(Exp, [Exp]))),
   ("fun_", mk(ds, ["fun", "->"], mk_pre(P.fun_, Exp, [Pat]))),
   ("typfun", mk(ds, ["typfun", "->"], mk_pre(P.fun_, Exp, [TPat]))),
   ("forall", mk(ds, ["forall", "->"], mk_pre(P.fun_, Typ, [TPat]))),
