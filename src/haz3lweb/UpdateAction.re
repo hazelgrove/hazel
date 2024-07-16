@@ -62,6 +62,7 @@ type benchmark_action =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   /* meta */
+  | PrintSexp
   | Reset
   | Set(settings_action)
   | SetMeta(set_meta)
