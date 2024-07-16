@@ -3,34 +3,34 @@ open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
 open Virtual_dom.Vdom;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type fold = unit;
+type kind =
+  | Fold
+  | Info
+  | Checkbox
+  | Slider
+  | SliderF
+  | TextArea;
+
+[@deriving (show({with_path: false}), sexp)]
+type sexp2 = Sexplib.Sexp.t;
+//TODO(andrew): proper serialization
+let sexp2_of_yojson = _ =>
+  Sexplib.Sexp.Atom("TODO(andrew): proper serialization");
+let yojson_of_sexp2 = _ => Yojson.Safe.from_string("TODOTODOTODO");
 [@deriving (show({with_path: false}), sexp, yojson)]
-type infer =
-  | Expected
-  | Self;
-[@deriving (show({with_path: false}), sexp, yojson)]
-type checkbox = unit;
-[@deriving (show({with_path: false}), sexp, yojson)]
-type slider = unit;
-[@deriving (show({with_path: false}), sexp, yojson)]
-type sliderf = unit;
-[@deriving (show({with_path: false}), sexp, yojson)]
-type textarea = {inside: bool}; //TODO(andrew): rm
+type model = sexp2;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type projector =
-  | Fold(fold)
-  | Info(infer)
-  | Checkbox(checkbox)
-  | Slider(slider)
-  | SliderF(sliderf)
-  | TextArea(textarea);
+type entry = {
+  kind,
+  model,
+};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 module Map = {
   open Id.Map;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Id.Map.t(projector);
+  type t = Id.Map.t(entry);
   let empty = empty;
   let find = find_opt;
   let mem = mem;
@@ -52,6 +52,7 @@ type syntax = Piece.t;
 
 type inner_action = ..;
 //TODO(andrew): decide how to rm
+// [@deriving (show({with_path: false}), sexp, yojson)]
 type inner_action +=
   | SetInside(bool);
 
@@ -71,23 +72,36 @@ type info = {
   ci: option(Info.t),
 };
 
-module type Core = {
+module type CoreInner = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model;
 
+  let init: model;
   let can_project: Piece.t => bool;
-
-  let model: model;
-  // let projector: projector;
-
-  let view: (~info: info, ~inject: action => Ui_effect.t(unit)) => Node.t;
-  let placeholder: info => shape;
-
-  //[@deriving (show({with_path: false}), sexp, yojson)]
-  //type action;
-  let update: inner_action => projector;
-  // let auto_update: info => projector;
-  let keymap: (Util.Direction.t, Key.t) => option(action);
+  let view:
+    (model, ~info: info, ~inject: action => Ui_effect.t(unit)) => Node.t;
+  let placeholder: (model, info) => shape;
+  let update: (model, inner_action) => model;
+  let keymap: (model, Util.Direction.t, Key.t) => option(action);
 };
 
-type core = (module Core);
+module type CoreOuter = {
+  let init: model;
+  let can_project: Piece.t => bool;
+  let view:
+    (model, ~info: info, ~inject: action => Ui_effect.t(unit)) => Node.t;
+  let placeholder: (model, info) => shape;
+  let update: (model, inner_action) => model;
+  let keymap: (model, Util.Direction.t, Key.t) => option(action);
+};
+
+module CoreOuterMk = (C: CoreInner) : CoreOuter => {
+  let init = C.sexp_of_model(C.init);
+  let can_project = C.can_project;
+  let view = m => m |> C.model_of_sexp |> C.view;
+  let placeholder = m => m |> C.model_of_sexp |> C.placeholder;
+  let update = (m, a) => C.update(C.model_of_sexp(m), a) |> C.sexp_of_model;
+  let keymap = (m: Sexplib.Sexp.t) => m |> C.model_of_sexp |> C.keymap;
+};
+
+type core = (module CoreOuter);

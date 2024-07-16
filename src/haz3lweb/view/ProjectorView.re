@@ -5,9 +5,31 @@ open Projector;
 open Util.OptUtil.Syntax;
 open Util.Web;
 
-let update_model = (action: ProjectorBase.inner_action, p) => {
-  let (module P) = to_module(p);
-  P.update(action);
+let name = (p: kind): string =>
+  switch (p) {
+  | Fold => "fold"
+  | Info => "type"
+  | Checkbox => "check"
+  | Slider => "slide"
+  | SliderF => "slidef"
+  | TextArea => "text"
+  };
+
+/* Needs to be 1-to-1 for menu selection */
+let of_name = (p: string): kind =>
+  switch (p) {
+  | "fold" => Fold
+  | "type" => Info
+  | "check" => Checkbox
+  | "slide" => Slider
+  | "slidef" => SliderF
+  | "text" => TextArea
+  | _ => failwith("Unknown projector kind")
+  };
+
+let update_model = (action: ProjectorBase.inner_action, {kind, model}) => {
+  let (module P) = to_module(kind);
+  {kind, model: P.update(model, action)};
 };
 
 let handle = (id, action: ProjectorBase.action): Action.project =>
@@ -34,9 +56,9 @@ let backing_deco =
       ~font_metrics: FontMetrics.t,
       ~measurement: Measured.measurement,
       ~info,
-      p: Projector.t,
+      entry,
     ) =>
-  switch (Projector.shape(p, info)) {
+  switch (Projector.shape(entry, info)) {
   | Inline(_) => PieceDec.convex_shard(~font_metrics, ~measurement)
   | Block(_) => div([])
   };
@@ -58,14 +80,14 @@ let view_inner =
       ~status: option(Projector.status),
       ~info: info,
       ~selected: bool,
-      p: Projector.t,
+      entry: Projector.entry,
       view: Node.t,
     ) => {
   let fudge = selected ? PieceDec.selection_fudge : DecUtil.fzero;
   div(
     ~attrs=[
       Attr.classes(
-        ["projector", Projector.name(p)] @ cls(status, selected),
+        ["projector", name(entry.kind)] @ cls(status, selected),
       ),
       DecUtil.abs_style(measurement, ~fudge, ~font_metrics),
     ],
@@ -77,7 +99,7 @@ let view_inner =
         ],
         [view],
       ),
-      backing_deco(~font_metrics, ~measurement, ~info, p),
+      backing_deco(~font_metrics, ~measurement, ~info, entry),
     ],
   );
 };
@@ -96,7 +118,7 @@ let view_setup =
   let ci = Id.Map.find_opt(id, meta.statics.info_map);
   let info = {ci, syntax, status};
   let+ measurement = Measured.find_by_id(id, meta.projected.measured);
-  let (module P) = to_module(p);
+  let (module P) = to_module(p.kind);
   let inject = a => handle(id, a) |> inject;
   view_inner(
     ~font_metrics,
@@ -105,7 +127,7 @@ let view_setup =
     ~info,
     ~selected=List.mem(id, meta.selection_ids),
     p,
-    P.view(~info, ~inject),
+    P.view(p.model, ~info, ~inject),
   );
 };
 
@@ -157,7 +179,7 @@ let indicated_proj_ed = (editor: Editor.t) =>
 
 let kind = (editor: Editor.t) => {
   let+ (_, p) = indicated_proj_ed(editor);
-  Projector.kind(p);
+  p.kind;
 };
 
 let shape = (z: Zipper.t, syntax): option(shape) => {
@@ -191,11 +213,11 @@ let caret = (z: Zipper.t, meta: Editor.Meta.t): option(list(Node.t)) =>
 let key_handler = (editor: Editor.t, key: Key.t): option(Action.project) =>
   switch (indicated_proj_ed(editor)) {
   | None => None
-  | Some((id, p)) =>
+  | Some((id, {kind, model})) =>
     //let* syntax = Id.Map.find_opt(id, editor.state.meta.projected.syntax_map);
     let* (_, d, _) = Indicated.piece(editor.state.zipper);
-    let (module P) = to_module(p);
-    let+ action = P.keymap(d, key);
+    let (module P) = to_module(kind);
+    let+ action = P.keymap(model, d, key);
     handle(id, action);
   };
 
@@ -209,7 +231,7 @@ let applicable_projectors = (ci: Info.t): list(Projector.kind) =>
   (
     switch (Info.cls_of(ci)) {
     | Exp(Bool)
-    | Pat(Bool) => [Checkbox]
+    | Pat(Bool) => [(Checkbox: Projector.kind)]
     | Exp(Int)
     | Pat(Int) => [Slider]
     | Exp(Float)
@@ -219,11 +241,11 @@ let applicable_projectors = (ci: Info.t): list(Projector.kind) =>
     | _ => []
     }
   )
-  @ [Projector.Fold]
+  @ [(Fold: Projector.kind)]
   @ (
     switch (ci) {
     | InfoExp(_)
-    | InfoPat(_) => [Info]
+    | InfoPat(_) => [(Info: Projector.kind)]
     | _ => []
     }
   );
@@ -256,7 +278,7 @@ let currently_selected = editor =>
   option_view(
     switch (kind(editor)) {
     | None => "Fold"
-    | Some(k) => Projector.name_of_kind(k)
+    | Some(k) => name(k)
     },
   );
 
@@ -267,12 +289,10 @@ let panel = (~inject, editor: Editor.t, ci: Info.t) => {
       toggle_view(~inject, ci, id(editor), kind(editor) != None),
       Node.select(
         ~attrs=[
-          Attr.on_change((_, name) =>
-            inject(SetIndicated(Projector.of_name(name)))
-          ),
+          Attr.on_change((_, name) => inject(SetIndicated(of_name(name)))),
         ],
         applicable_projectors(ci)
-        |> List.map(Projector.name_of_kind)
+        |> List.map(name)
         |> List.map(currently_selected(editor)),
       ),
     ],

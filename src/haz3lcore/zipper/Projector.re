@@ -1,75 +1,19 @@
 open Util;
 include ProjectorBase;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t = projector;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type kind =
-  | Fold
-  | Info
-  | Checkbox
-  | Slider
-  | SliderF
-  | TextArea;
-
-let to_module = (p: projector): core =>
-  switch ((p: projector)) {
-  | Fold(model) => FoldCore.mk(model)
-  | Info(model) => InfoCore.mk(model)
-  | Checkbox(model) => CheckboxCore.mk(model)
-  | Slider(model) => SliderCore.mk(model)
-  | SliderF(model) => SliderFCore.mk(model)
-  | TextArea(model) => TextAreaCore.mk(model)
+let to_module = (kind: kind): core =>
+  switch (kind) {
+  | Fold => (module CoreOuterMk(FoldCore.M))
+  | Info => (module CoreOuterMk(InfoCore.M))
+  | Slider => (module CoreOuterMk(SliderCore.M))
+  | SliderF => (module CoreOuterMk(SliderFCore.M))
+  | Checkbox => (module CoreOuterMk(CheckboxCore.M))
+  | TextArea => (module CoreOuterMk(TextAreaCore.M))
   };
 
-let kind = (p: t): kind =>
-  switch (p) {
-  | Fold(_) => Fold
-  | Info(_) => Info
-  | Checkbox(_) => Checkbox
-  | Slider(_) => Slider
-  | SliderF(_) => SliderF
-  | TextArea(_) => TextArea
-  };
-
-let init = (f: kind): projector =>
-  switch (f) {
-  | Fold => Fold()
-  | Info => Info(Expected)
-  | Checkbox => Checkbox()
-  | Slider => Slider()
-  | SliderF => SliderF()
-  | TextArea => TextArea({inside: false})
-  };
-
-let name_of_kind = (p: kind): string =>
-  switch (p) {
-  | Fold => "fold"
-  | Info => "type"
-  | Checkbox => "check"
-  | Slider => "slide"
-  | SliderF => "slidef"
-  | TextArea => "text"
-  };
-
-/* Needs to be 1-to-1 for menu selection */
-let of_name = (p: string): kind =>
-  switch (p) {
-  | "fold" => Fold
-  | "type" => Info
-  | "check" => Checkbox
-  | "slide" => Slider
-  | "slidef" => SliderF
-  | "text" => TextArea
-  | _ => failwith("Unknown projector kind")
-  };
-
-let name = (p: t): string => p |> kind |> name_of_kind;
-
-let shape = (p: t, syntax): shape => {
-  let (module P) = to_module(p);
-  P.placeholder(syntax);
+let shape = (p: entry, syntax): shape => {
+  let (module P) = to_module(p.kind);
+  P.placeholder(p.model, syntax);
 };
 
 let is_placeholder = (p: Piece.t): bool => {
@@ -80,13 +24,13 @@ let is_placeholder = (p: Piece.t): bool => {
   };
 };
 
-let placeholder_label = (p: t, syntax): list(string) =>
+let placeholder_label = (p: entry, syntax): list(string) =>
   switch (shape(p, syntax)) {
   | Inline(width) => [String.make(width, ' ')]
   | Block({row, col}) => [String.make(row, '\n') ++ String.make(col, ' ')]
   };
 
-let placeholder = (p: t, info: info): syntax =>
+let placeholder = (p: entry, info: info): syntax =>
   Piece.Tile({
     id: Piece.id(info.syntax),
     label: placeholder_label(p, info),
@@ -99,11 +43,10 @@ let placeholder = (p: t, info: info): syntax =>
 let minimum_projection_condition = (syntax: syntax): bool =>
   Piece.is_convex(syntax);
 
-let create = (k: kind, syntax: syntax): option(t) => {
-  let p = init(k);
-  let (module P) = to_module(p);
+let create = (kind: kind, syntax: syntax): option(entry) => {
+  let (module P) = to_module(kind);
   P.can_project(syntax) && minimum_projection_condition(syntax)
-    ? Some(p) : None;
+    ? Some({kind, model: P.init}) : None;
 };
 
 let piece_is = (ps: Map.t, syntax: option(syntax)): option(Id.t) =>
@@ -249,7 +192,7 @@ module MapPiece = {
   };
 };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp)]
 type proj_ret = {
   z: ZipperBase.t,
   syntax_map: Id.Map.t(syntax),

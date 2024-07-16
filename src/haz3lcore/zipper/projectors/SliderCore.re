@@ -1,3 +1,5 @@
+open Sexplib.Std;
+open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
 open Virtual_dom.Vdom;
 open ProjectorBase;
 
@@ -12,21 +14,17 @@ let get = (piece: Piece.t): string =>
   | Some(s) => string_of_int(s)
   };
 
-let view = (~info, ~inject: ProjectorBase.action => Ui_effect.t(unit)) =>
-  Util.Web.range(
-    ~attrs=[Attr.on_input((_, v) => inject(SetSyntax(put(v))))],
-    get(info.syntax),
-  );
-
-let mk = (model): core =>
-  (module
-   {
-     [@deriving (show({with_path: false}), sexp, yojson)]
-     type model = slider;
-     let model = model;
-     let can_project = p => get_opt(p) != None;
-     let placeholder = _ => Inline(10);
-     let update = _ => Slider(model);
-     let view = view;
-     let keymap = (_, _) => None;
-   });
+module M: CoreInner = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type model = unit;
+  let init = ();
+  let can_project = p => get_opt(p) != None;
+  let placeholder = (_, _) => Inline(10);
+  let update = (model, _) => model;
+  let view = (_, ~info, ~inject: ProjectorBase.action => Ui_effect.t(unit)) =>
+    Util.Web.range(
+      ~attrs=[Attr.on_input((_, v) => inject(SetSyntax(put(v))))],
+      get(info.syntax),
+    );
+  let keymap = (_, _, _) => None;
+};

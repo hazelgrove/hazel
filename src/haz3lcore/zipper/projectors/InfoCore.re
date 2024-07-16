@@ -37,44 +37,39 @@ let syn_display = info =>
 let ana_display = info =>
   "⋱ ⇐ " ++ (info |> expected_ty |> display_ty |> Typ.pretty_print);
 
-let display = (model: infer, info) =>
-  switch (model) {
-  | _ when mode(info) == Some(Syn) => syn_display(info)
-  | Self => syn_display(info)
-  | Expected => ana_display(info)
-  };
+module M: CoreInner = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type model =
+    | Expected
+    | Self;
+  let init = Expected;
+  let can_project = (p: Piece.t): bool =>
+    switch (Piece.sort(p)) {
+    | (Exp | Pat, _) => true
+    | _ => false
+    };
+  let display = (model, info) =>
+    switch (model) {
+    | _ when mode(info) == Some(Syn) => syn_display(info)
+    | Self => syn_display(info)
+    | Expected => ana_display(info)
+    };
 
-let mk = (model: infer): core =>
-  (module
-   {
-     [@deriving (show({with_path: false}), sexp, yojson)]
-     type model = infer;
-     let model = model;
-
-     let can_project = (p: Piece.t): bool =>
-       switch (Piece.sort(p)) {
-       | (Exp | Pat, _) => true
-       | _ => false
-       };
-
-     let placeholder = (info: ProjectorBase.info) =>
-       Inline((display(model, info.ci) |> String.length) - 2);
-
-     let update = (a: inner_action) =>
-       switch (a, model) {
-       | (ToggleDisplay, Expected) => Info(Self)
-       | (ToggleDisplay, Self) => Info(Expected)
-       | _ => Info(model)
-       };
-
-     let view = (~info: ProjectorBase.info, ~inject) =>
-       div(
-         ~attrs=[
-           Attr.on_mousedown(_ => inject(UpdateModel(ToggleDisplay))),
-           //Attr.on_double_click(_ => inject(Remove)),
-         ],
-         [text(display(model, info.ci))],
-       );
-
-     let keymap = (_, _): option(_) => None;
-   });
+  let placeholder = (model, info: ProjectorBase.info) =>
+    Inline((display(model, info.ci) |> String.length) - 2);
+  let update = (model, a: inner_action) =>
+    switch (a, model) {
+    | (ToggleDisplay, Expected) => Self
+    | (ToggleDisplay, Self) => Expected
+    | _ => model
+    };
+  let view = (model, ~info: ProjectorBase.info, ~inject) =>
+    div(
+      ~attrs=[
+        Attr.on_mousedown(_ => inject(UpdateModel(ToggleDisplay))),
+        //Attr.on_double_click(_ => inject(Remove)),
+      ],
+      [text(display(model, info.ci))],
+    );
+  let keymap = (_, _, _): option(_) => None;
+};

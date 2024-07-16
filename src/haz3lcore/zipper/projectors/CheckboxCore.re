@@ -25,7 +25,7 @@ let put = (bool: bool): Piece.t => bool |> string_of_bool |> mk_mono(Exp);
 
 let toggle = (piece: Piece.t) => put(!get(piece));
 
-let view = (~info, ~inject: ProjectorBase.action => Ui_effect.t(unit)) =>
+let view = (_, ~info, ~inject: ProjectorBase.action => Ui_effect.t(unit)) =>
   Node.input(
     ~attrs=
       [
@@ -38,21 +38,19 @@ let view = (~info, ~inject: ProjectorBase.action => Ui_effect.t(unit)) =>
     (),
   );
 
-let keymap = (_, key: Key.t): option(ProjectorBase.action) =>
+let keymap = (_, _, key: Key.t): option(ProjectorBase.action) =>
   switch (key) {
   | {key: D("Escape"), _} => Some(Remove)
   | _ => None
   };
 
-let mk = (model): core =>
-  (module
-   {
-     [@deriving (show({with_path: false}), sexp, yojson)]
-     type model = unit;
-     let model = model;
-     let can_project = p => state_of(p) != None;
-     let placeholder = _ => Inline(2);
-     let update = (_action): projector => Checkbox();
-     let view = view;
-     let keymap = keymap;
-   });
+module M: CoreInner = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type model = unit;
+  let init = ();
+  let can_project = p => state_of(p) != None;
+  let placeholder = (_, _) => Inline(2);
+  let update = (model, _) => model;
+  let view = view;
+  let keymap = keymap;
+};

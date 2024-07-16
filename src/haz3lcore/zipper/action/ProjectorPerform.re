@@ -12,7 +12,7 @@ let move_out_of_piece =
     }
   };
 
-let set = (id: Id.t, p: option(t), z: Zipper.t) => {
+let set = (id: Id.t, p: option(entry), z: Zipper.t) => {
   ...z,
   projectors: Map.update(id, _ => p, z.projectors),
 };
@@ -38,10 +38,10 @@ let go =
       syntax_map,
       z: Zipper.t,
     ) => {
-  let crime = (_syntax, b, p) => {
+  let crime = (_syntax, b, {kind, model}: entry): entry => {
     //TODO(andrew): remove this crime
-    let (module P) = Projector.to_module(p);
-    P.update(SetInside(b));
+    let (module P) = Projector.to_module(kind);
+    {kind, model: P.update(model, SetInside(b))};
     //p;
   };
   let set_dispatch = (z: Zipper.t, id, b) =>
@@ -94,6 +94,10 @@ let go =
     }
   | SetSyntax(id, p) => Ok(Projector.Syntax.update(_ => p, id, z))
   | UpdateModel(id, f) =>
-    Ok({...z, projectors: Map.update(id, Option.map(f), z.projectors)})
+    Ok({
+      ...z,
+      projectors:
+        Map.update(id, entry => Option.map(f, entry), z.projectors),
+    })
   };
 };
