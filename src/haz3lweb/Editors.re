@@ -60,7 +60,8 @@ let perform_action =
 let update_current_editor_statics = settings =>
   update(Editor.update_statics(~settings));
 
-let map_projectors = (editors: t, f: (Id.t, Projector.t) => Projector.t): t =>
+let map_projectors =
+    (editors: t, f: (Id.t, Projector.entry) => Projector.entry): t =>
   editors |> get_editor |> Editor.map_projectors(f) |> put_editor(_, editors);
 
 let get_ctx_init = (~settings as _: Settings.t, editors: t): Ctx.t =>

@@ -1,7 +1,10 @@
-// open Sexplib.Std;
-// open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
+open Sexplib.Std;
+open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
 open Virtual_dom.Vdom;
 open ProjectorBase;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type textarea = {inside: bool};
 
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //TODO(andrew): unhardcode element !!!!!!!!!!
@@ -13,9 +16,7 @@ open ProjectorBase;
 //   | SetInside(bool);
 
 let selector = ".projector.text textarea";
-
 // let serialize = a => a |> sexp_of_action_ |> Sexplib.Sexp.to_string;
-
 // let deserialize = a => a |> Sexplib.Sexp.of_string |> action__of_sexp;
 
 let escape_linebreaks: string => string =
@@ -122,35 +123,30 @@ let keymap =
     None;
   };
 };
-
 let line_lengths = syntax =>
   List.map(String.length, Re.Str.split(Re.Str.regexp("\n"), get(syntax)));
-
 let num_lines = syntax => List.fold_left(max, 0, line_lengths(syntax));
-
-let placeholder = info =>
+let placeholder = (_, info) =>
   Block({
     row: Util.StringUtil.num_linebreaks(get(info.syntax)),
     col: 2 + num_lines(info.syntax) /* +2 for left and right padding */
   });
 
-let mk = (model): core =>
-  (module
-   {
-     [@deriving (show({with_path: false}), sexp, yojson)]
-     type model = textarea;
-     let model = model;
-     let can_project = _ => true;
-     let placeholder = placeholder;
-     //  let auto_update = _ => TextArea(model);
-     let update = a =>
-       switch (a) {
-       | SetInside(b) =>
-         JsUtil.get_elem_by_selector(selector)##focus;
-         print_endline("setting inside:" ++ string_of_bool(b));
-         TextArea({inside: b});
-       | _ => TextArea(model)
-       };
-     let view = view(model, ~selector);
-     let keymap = keymap(~selector, model);
-   });
+module M: CoreInner = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type model = textarea;
+  let init = {inside: false};
+  let can_project = _ => true; //TODO(andrew): restrict
+  let placeholder = placeholder;
+  //  let auto_update = _ => TextArea(model);
+  let update = (model, a) =>
+    switch (a) {
+    | SetInside(b) =>
+      JsUtil.get_elem_by_selector(selector)##focus;
+      print_endline("setting inside:" ++ string_of_bool(b));
+      {inside: b};
+    | _ => model
+    };
+  let view = view(~selector);
+  let keymap = keymap(~selector);
+};
