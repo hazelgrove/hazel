@@ -145,17 +145,12 @@ module Make = (M: Editor.Meta.S) => {
       /* If we're there, stop */
       | (Exact, Exact) => curr
       /* If we've overshot, meaning the exact goal is inaccessible,
-       * we choose between current and previous (undershot) positions,
-       * according to some heuristics that ensure that (a) vertical
-       * keyboard movement will always result in up/down movement
-       * unless at the beginning/end of the program, and (b) making a
-       * selection by dragging the mouse makes a consistent decision
-       * about progress, preventing flicker. */
+       * we choose between current and previous (undershot) positions */
       | (Over, Over | Exact | Under)
       | (Exact, Over) when anchor != None =>
         /* If we're dragging to make a selection, decide whether or
-         * not to force progress based on whether we're before or
-         * after the place where we started dragging */
+         * not to force progress based on the relative position of the
+         * anchor (the position where the drag was started) */
         direction_to_from(goal, Option.get(anchor)) == d_to_goal
           ? curr : prev
       | (Over, Over | Exact | Under) =>
