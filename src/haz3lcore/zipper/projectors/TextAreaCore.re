@@ -55,12 +55,18 @@ let textarea =
   Node.textarea(
     ~attrs=[
       Attr.id("sdfsdf"),
-      Attr.on_blur(_ => inject(UpdateModel(SetInside(false)))),
-      Attr.on_focus(_ => inject(UpdateModel(SetInside(true)))),
+      // Attr.on_blur(_ => inject(UpdateModel(SetInside(false)))),
+      // Attr.on_focus(_ => inject(UpdateModel(SetInside(true)))),
       //Attr.on_click(_ => inject(FocusInternal(selector))),
       Attr.on_mousedown(_ => {
         //JsUtil.focus("sdfsdf");
-        inject(FocusInternal(selector))
+        JsUtil.get_elem_by_selector(selector)##focus;
+        Effect.Ignore;
+        //inject(FocusInternal(selector))
+        // Effect.Many([
+        //   inject(UpdateModel(SetInside(true))),
+        //   inject(FocusInternal(selector)),
+        // ]);
       }),
       Attr.on_input((_, new_text) => inject(put(new_text))),
     ],
@@ -140,6 +146,7 @@ let mk = (model): core =>
      let update = a =>
        switch (a) {
        | SetInside(b) =>
+         JsUtil.get_elem_by_selector(selector)##focus;
          print_endline("setting inside:" ++ string_of_bool(b));
          TextArea({inside: b});
        | _ => TextArea(model)

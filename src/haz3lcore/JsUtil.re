@@ -158,7 +158,9 @@ let scroll_cursor_into_view_if_needed = () =>
       caret_elem##scrollIntoView(Js._false);
     };
   }) {
-  | Assert_failure(_) => ()
+  | Assert_failure(_) =>
+    print_endline("WARNING: caret not found");
+    ();
   };
 
 module Fragment = {
