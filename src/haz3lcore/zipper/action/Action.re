@@ -103,6 +103,7 @@ module Result = {
 
 let is_edit: t => bool =
   fun
+  | Project(FocusInternal(_) | Escape(_)) => false
   | Project(_) => true //TODO(andrew): revisit
   | Buffer(Accept)
   | Paste(_)

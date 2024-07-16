@@ -107,14 +107,18 @@ module Make = (M: Editor.Meta.S) => {
     };
   };
 
-  let anchor_case =
-      (anchor: Measured.Point.t, d, prev, curr, goal: Measured.Point.t) => {
-    /* This is for dragging selections */
-    let anchor_d: Direction.t =
-      goal.row < anchor.row || goal.row == anchor.row && goal.col < anchor.col
-        ? Left : Right;
-    anchor_d == d ? curr : prev;
+  let direction_to_from =
+      (p1: Measured.Point.t, p2: Measured.Point.t): Direction.t => {
+    let before_row = p1.row < p2.row;
+    let at_row = p1.row == p2.row;
+    let before_col = p1.col < p2.col;
+    before_row || at_row && before_col ? Left : Right;
   };
+
+  let closer_to_prev = (curr, prev, goal: Measured.Point.t) =>
+    /* Default to true if equal */
+    abs(caret_point(prev).col - goal.col)
+    < abs(caret_point(curr).col - goal.col);
 
   let do_towards =
       (
@@ -125,53 +129,52 @@ module Make = (M: Editor.Meta.S) => {
       )
       : option(t) => {
     let init = caret_point(z);
-    let d =
-      goal.row < init.row || goal.row == init.row && goal.col < init.col
-        ? Direction.Left : Right;
+    let d_to_goal = direction_to_from(goal, init);
     let rec go = (prev: t, curr: t) => {
       let curr_p = caret_point(curr);
-      switch (
-        Measured.Point.dcomp(d, curr_p.col, goal.col),
-        Measured.Point.dcomp(d, curr_p.row, goal.row),
-      ) {
-      | (Exact, Exact) => curr
-      // | (_, Over) when caret_point(prev) == init && force_progress => curr
-      // | (_, Over) => prev
-      | (_, Over) =>
-        /* Up/down movement works by setting a goal one row below current.
-         * When adjacent to multiline token (eg livelit), the nearest next
-         * caret position may be multiple lines down. We must allow this
-         * overshoot in order to be able to make progress. */
-        switch (anchor) {
-        | None => caret_point(prev) == init ? curr : prev
-        | Some(anchor) => anchor_case(anchor, d, prev, curr, goal)
-        }
-      | (_, Under)
-      | (Under, Exact) =>
-        switch (f(d, curr)) {
-        | None => curr
+      let x_progress = Measured.Point.dcomp(d_to_goal, curr_p.col, goal.col);
+      let y_progress = Measured.Point.dcomp(d_to_goal, curr_p.row, goal.row);
+      switch (y_progress, x_progress) {
+      /* If we're not there yet, keep going */
+      | (Under, Over | Exact | Under)
+      | (Exact, Under) =>
+        switch (f(d_to_goal, curr)) {
         | Some(next) => go(curr, next)
+        | None => curr /* Should only occur at start/end of program */
         }
-      | (Over, Exact) =>
-        switch (anchor) {
-        | None =>
-          /* Special case for when you're (eg) you're trying
-             to move down, but you're at the right end of a row
-             and the first position of the next row is further
-             right than the current row's end. In this case we
-             want to progress regardless of whether the new
-             position would be closer or futher from the
-             goal col */
-          is_at_side_of_row(Direction.toggle(d), curr)
-            ? curr
-            : {
-              let d_curr = abs(curr_p.col - goal.col);
-              let d_prev = abs(caret_point(prev).col - goal.col);
-              // default to going over when equal
-              d_prev < d_curr ? prev : curr;
-            }
-        | Some(anchor) => anchor_case(anchor, d, prev, curr, goal)
-        }
+      /* If we're there, stop */
+      | (Exact, Exact) => curr
+      /* If we've overshot, meaning the exact goal is inaccessible,
+       * we choose between current and previous (undershot) positions,
+       * according to some heuristics that ensure that (a) vertical
+       * keyboard movement will always result in up/down movement
+       * unless at the beginning/end of the program, and (b) making a
+       * selection by dragging the mouse makes a consistent decision
+       * about progress, preventing flicker. */
+      | (Over, Over | Exact | Under)
+      | (Exact, Over) when anchor != None =>
+        /* If we're dragging to make a selection, decide whether or
+         * not to force progress based on whether we're before or
+         * after the place where we started dragging */
+        direction_to_from(goal, Option.get(anchor)) == d_to_goal
+          ? curr : prev
+      | (Over, Over | Exact | Under) =>
+        /* Up/down kb movement works by setting a goal one row
+         * below the current. When adjacent to a multiline token,
+         * the nearest next caret position may be multiple lines down.
+         * We must allow this overshoot in order to make progress. */
+        caret_point(prev) == init ? curr : prev
+      | (Exact, Over)
+          when is_at_side_of_row(Direction.toggle(d_to_goal), curr) =>
+        /* If you're trying to (eg) move down at the end of a row
+         * but the first position of the next row is further right
+         * than the currentrow's end, we want to make progress
+         * regardless of whether thenew position would be closer
+         * or further from the goal */
+        curr
+      | (Exact, Over) =>
+        /* Otherwise, we try to just get as close as we can */
+        closer_to_prev(curr, prev, goal) ? prev : curr
       };
     };
     let res = go(z, z);
