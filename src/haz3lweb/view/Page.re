@@ -3,15 +3,17 @@ open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
 
-let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit), model: Model.t) => {
-  let get_selection = (model: Model.t): string =>
-    model.editors |> Editors.get_editor |> Printer.to_string_selection;
+let handlers =
+    (
+      ~inject: UpdateAction.t => Ui_effect.t(unit),
+      _page_id,
+      editor: Editor.t,
+    ) => {
   let key_handler =
       (~inject, ~dir: Key.dir, evt: Js.t(Dom_html.keyboardEvent))
       : Effect.t(unit) => {
     open Effect;
     let key = Key.mk(dir, evt);
-    let editor = Editors.get_editor(model.editors);
     switch (ProjectorView.key_handler(editor, key)) {
     | Some(Remove(id)) when id == Id.invalid =>
       //TODO(andrew): proper no-op (see ProjectorView)
@@ -28,24 +30,29 @@ let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit), model: Model.t) =>
       }
     };
   };
-  let keypress_handler =
-      (~dir: Key.dir, evt: Js.t(Dom_html.keyboardEvent)): Effect.t(unit) => {
-    let key = Key.mk(dir, evt);
-    let editor = Editors.get_editor(model.editors);
-    switch (ProjectorView.key_handler(editor, key)) {
-    | Some(Remove(id)) when id == Id.invalid =>
-      //TODO(andrew): document why this exists
-      //TODO(andrew): proper no-op (see ProjectorView)
-      Effect.Ignore
-    | _ => Effect.Prevent_default
-    };
-  };
+  // let keypress_handler =
+  //     (~dir: Key.dir, evt: Js.t(Dom_html.keyboardEvent)): Effect.t(unit) => {
+  //   let key = Key.mk(dir, evt);
+  //   switch (ProjectorView.key_handler(editor, key)) {
+  //   | Some(Remove(id)) when id == Id.invalid =>
+  //     //TODO(andrew): document why this exists
+  //     //TODO(andrew): proper no-op (see ProjectorView)
+  //     Effect.Ignore
+  //   | _ => Effect.Prevent_default
+  //   };
+  // };
   [
-    Attr.on_keypress(keypress_handler(~dir=KeyDown)),
+    //Attr.on_keypress(keypress_handler(~dir=KeyDown)),
     Attr.on_keyup(key_handler(~inject, ~dir=KeyUp)),
     Attr.on_keydown(key_handler(~inject, ~dir=KeyDown)),
     /* safety handler in case mousedown overlay doesn't catch it */
     Attr.on_mouseup(_ => inject(SetMeta(Mouseup))),
+    // Attr.on_mousedown(_ => {
+    //   //TODO(andrew): check if below focus is load bearing
+    //   print_endline("page mousedown; setting focus: page");
+    //   //Effect.Ignore;
+    //   inject(SetMeta(Focus(page_id)));
+    // }),
     Attr.on_blur(_ => {
       JsUtil.focus_clipboard_shim();
       Effect.Ignore;
@@ -55,11 +62,11 @@ let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit), model: Model.t) =>
       Effect.Ignore;
     }),
     Attr.on_copy(_ => {
-      JsUtil.copy(get_selection(model));
+      JsUtil.copy(Printer.to_string_selection(editor));
       Effect.Ignore;
     }),
     Attr.on_cut(_ => {
-      JsUtil.copy(get_selection(model));
+      JsUtil.copy(Printer.to_string_selection(editor));
       inject(UpdateAction.PerformAction(Destruct(Left)));
     }),
     Attr.on_paste(evt => {
@@ -78,17 +85,14 @@ let main_view =
       {settings, editors, explainThisModel, results, ui_state, _}: Model.t,
     ) => {
   let editor = Editors.get_editor(editors);
+  let cursor_info =
+    Indicated.ci_of(editor.state.zipper, editor.state.meta.statics.info_map);
+  let highlights =
+    ExplainThis.get_color_map(~settings, ~explainThisModel, cursor_info);
   let (editors_view, cursor_info) =
     switch (editors) {
     | Scratch(idx, _) =>
       let result_key = ScratchSlide.scratch_key(string_of_int(idx));
-      let cursor_info =
-        Indicated.ci_of(
-          editor.state.zipper,
-          editor.state.meta.statics.info_map,
-        );
-      let highlights =
-        ExplainThis.get_color_map(~settings, ~explainThisModel, cursor_info);
       let view =
         ScratchMode.view(
           ~inject,
@@ -102,31 +106,24 @@ let main_view =
       (view, cursor_info);
     | Documentation(name, _) =>
       let result_key = ScratchSlide.scratch_key(name);
-      let cursor_info =
-        Indicated.ci_of(
-          editor.state.zipper,
-          editor.state.meta.statics.info_map,
+      let view =
+        ScratchMode.view(
+          ~inject,
+          ~ui_state,
+          ~settings,
+          ~highlights,
+          ~results,
+          ~result_key,
+          editor,
         );
-      let highlights =
-        ExplainThis.get_color_map(~settings, ~explainThisModel, cursor_info);
       let info =
         SlideContent.get_content(editors)
         |> Option.map(i => div(~attrs=[Attr.id("slide")], [i]))
         |> Option.to_list;
-      let view =
-        info
-        @ ScratchMode.view(
-            ~inject,
-            ~ui_state,
-            ~settings,
-            ~highlights,
-            ~results,
-            ~result_key,
-            editor,
-          );
-      (view, cursor_info);
+      (info @ view, cursor_info);
     | Exercises(_, _, exercise) =>
-      //TODO(andrew): make less costly
+      /* Note the exercises mode uses a seperate path to calculate
+       * statics and dynamics via stitching together multiple editors */
       let stitched_dynamics =
         Exercise.stitch_dynamic(
           settings.core,
@@ -186,9 +183,16 @@ let main_view =
 let get_selection = (model: Model.t): string =>
   model.editors |> Editors.get_editor |> Printer.to_string_selection;
 
+let page_id = "page";
+
 let view = (~inject: UpdateAction.t => Ui_effect.t(unit), model: Model.t) =>
   div(
-    ~attrs=Attr.[id("page"), ...handlers(~inject, model)],
+    ~attrs=
+      Attr.[
+        tabindex(0),
+        id(page_id),
+        ...handlers(~inject, page_id, Editors.get_editor(model.editors)),
+      ],
     [
       FontSpecimen.view("font-specimen"),
       DecUtil.filters,

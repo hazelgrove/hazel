@@ -50,8 +50,15 @@ let update_opt = (editors: t, f: Editor.t => option(Editor.t)): option(t) =>
 let perform_action =
     (~settings: CoreSettings.t, editors: t, a: Action.t)
     : UpdateAction.Result.t(t) => {
-  let ed = Perform.go(~settings, a, get_editor(editors));
-  switch (ed) {
+  let settings =
+    switch (editors) {
+    | Exercises(_) =>
+      /* If we're in exercises mode, statics is calculated externally,
+       * so we set it to off here to disable internal calculation*/
+      CoreSettings.off
+    | _ => settings
+    };
+  switch (Perform.go(~settings, a, get_editor(editors))) {
   | Error(err) => Error(FailedToPerform(err))
   | Ok(ed) => Ok(put_editor(ed, editors))
   };
