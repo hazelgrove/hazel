@@ -59,6 +59,7 @@ let textarea =
       // Attr.on_blur(_ => inject(UpdateModel(SetInside(false)))),
       // Attr.on_focus(_ => inject(UpdateModel(SetInside(true)))),
       //Attr.on_click(_ => inject(FocusInternal(selector))),
+      Attr.on_keydown(_ => Effect.Stop_propagation),
       Attr.on_mousedown(_ => {
         //JsUtil.focus("sdfsdf");
         JsUtil.get_elem_by_selector(selector)##focus;
@@ -79,11 +80,21 @@ let n_of = (n: int) =>
   [Node.text("·")]
   @ (List.init(n, _ => [Node.br(), Node.text("·")]) |> List.flatten);
 
+let key_handler = (~inject as _, ~dir: Key.dir, evt): Effect.t(unit) => {
+  open Effect;
+  let _key = Key.mk(dir, evt);
+  print_endline("LALALLA TExtcoree....");
+  //Ignore;
+  Prevent_default;
+};
+
 let view = (model: textarea, ~selector, ~info, ~inject) => {
   let text = info.syntax |> get |> Form.strip_quotes;
   Node.div(
     ~attrs=[
       Attr.classes(["cols"] @ (model.inside ? ["inside"] : [])),
+      //Attr.on_keypress(key_handler(~inject, ~dir=KeyDown)),
+      Attr.on_keydown(key_handler(~inject, ~dir=KeyDown)),
       // Attr.classes(["cols"] @ (model.inside ? [] : cls(info.status))),
     ],
     n_of(Util.StringUtil.num_linebreaks(text))

@@ -907,11 +907,9 @@ let mk =
   Core.Memo.general(~cache_size_bound=1000, (ctx, e) => {
     uexp_to_info_map(~ctx, ~ancestors=[], e, Id.Map.empty) |> snd
   });
+
 let mk = (core: CoreSettings.t, ctx, exp) => {
-  //TODO(andrew): document or rm
-  // let exp =
-  //   EditorUtil.append_exp(exp, {ids: [Id.ctx_sentinel], term: EmptyHole});
-  print_endline("RETICULATING STATICS"); //TODO(andrew): rm
+  print_endline("RETICULATING SPLINES"); //TODO(andrew): rm
   core.statics ? mk(ctx, exp) : Id.Map.empty;
 };
 
