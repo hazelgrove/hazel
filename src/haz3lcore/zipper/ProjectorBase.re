@@ -52,13 +52,10 @@ type syntax = Piece.t;
 
 type inner_action = ..;
 //TODO(andrew): decide how to rm
-// [@deriving (show({with_path: false}), sexp, yojson)]
-type inner_action +=
-  | SetInside(bool);
 
 type action =
   | Remove /* Remove projector */
-  | FocusInternal(string) /* DOM Focus on projector */
+  | FocusInternal(string, Util.Direction.t) /* DOM Focus on projector */
   | Default /* Defer input to focal DOM element */
   | Escape(string, Util.Direction.t) /* Pass key control to parent editor */
   | SetSyntax(syntax)

@@ -38,15 +38,12 @@ let handle = (id, action: ProjectorBase.action): Action.project =>
     //TODO(andrew): proper no-op
     Remove(Id.invalid)
   | Remove => Remove(id)
-  | FocusInternal(selector) =>
+  | FocusInternal(selector, d) =>
     JsUtil.get_elem_by_selector(selector)##focus;
-    Action.(FocusInternal(id));
-  | Escape(selector, Left) =>
+    Action.(FocusInternal(id, d));
+  | Escape(selector, d) =>
     JsUtil.get_elem_by_selector(selector)##blur;
-    Escape(id, Left);
-  | Escape(selector, Right) =>
-    JsUtil.get_elem_by_selector(selector)##blur;
-    Escape(id, Right);
+    Escape(id, d);
   | SetSyntax(f) => SetSyntax(id, f)
   | UpdateModel(action) => UpdateModel(id, update_model(action))
   };
@@ -75,9 +72,11 @@ let cls = (indicated: option(status), selected) =>
 
 let view_inner =
     (
+      ~inject as _,
       ~font_metrics: FontMetrics.t,
       ~measurement: Measured.measurement,
       ~status: option(Projector.status),
+      ~id as _,
       ~info: info,
       ~selected: bool,
       entry: Projector.entry,
@@ -94,6 +93,10 @@ let view_inner =
     [
       div(
         ~attrs=[
+          // Attr.on_mousedown(_ => {
+          //   print_endline("projector external wrapper mousedown");
+          //   inject(Update.PerformAction(Jump(TileId(id))));
+          // }),
           JsUtil.stop_mousedown_propagation,
           Attr.classes(["projector-wrapper"]),
         ],
@@ -108,7 +111,7 @@ let view_setup =
     (
       id: Id.t,
       ~meta: Editor.Meta.t,
-      ~inject: Action.project => Ui_effect.t(unit),
+      ~inject,
       ~font_metrics,
       ~status: option(Projector.status),
     )
@@ -119,15 +122,20 @@ let view_setup =
   let info = {ci, syntax, status};
   let+ measurement = Measured.find_by_id(id, meta.projected.measured);
   let (module P) = to_module(p.kind);
-  let inject = a => handle(id, a) |> inject;
+  //let inject = a => PerformAction(Project(handle(id, a) |> inject));
+
   view_inner(
+    ~inject,
+    ~id,
     ~font_metrics,
     ~measurement,
     ~status,
     ~info,
     ~selected=List.mem(id, meta.selection_ids),
     p,
-    P.view(p.model, ~info, ~inject),
+    P.view(p.model, ~info, ~inject=a =>
+      inject(UpdateAction.PerformAction(Project(handle(id, a))))
+    ),
   );
 };
 
@@ -144,12 +152,7 @@ let status = (z: ZipperBase.t): option(status) =>
   | None => None
   };
 
-let view_all =
-    (
-      ~meta: Editor.Meta.t,
-      ~inject: Action.project => Ui_effect.t(unit),
-      ~font_metrics,
-    ) =>
+let view_all = (~meta: Editor.Meta.t, ~inject, ~font_metrics) =>
   List.filter_map(
     ((id, _)) => {
       view_setup(
@@ -213,11 +216,47 @@ let caret = (z: Zipper.t, meta: Editor.Meta.t): option(list(Node.t)) =>
 let key_handler = (editor: Editor.t, key: Key.t): option(Action.project) =>
   switch (indicated_proj_ed(editor)) {
   | None => None
-  | Some((id, {kind, model})) =>
+  | Some((id, {kind: _, model: _})) =>
+    print_endline("HANDLER: ProjectorView.key_handler");
     //let* syntax = Id.Map.find_opt(id, editor.state.meta.projected.syntax_map);
     let* (_, d, _) = Indicated.piece(editor.state.zipper);
-    let (module P) = to_module(kind);
-    let+ action = P.keymap(model, d, key);
+    //let (module P) = to_module(kind);
+    //TODO(andrew): unhardcode element !!!!!!!!!!
+    let selector = ".projector.text textarea";
+    let+ action =
+      switch (key, d) {
+      | (
+          {
+            key: D("ArrowRight"),
+            sys: _,
+            shift: Up,
+            meta: Up,
+            ctrl: Up,
+            alt: Up,
+          },
+          Right,
+        )
+          when !(key.shift == Down) =>
+        Some(FocusInternal(selector, Left))
+      | (
+          {
+            key: D("ArrowLeft"),
+            sys: _,
+            shift: Up,
+            meta: Up,
+            ctrl: Up,
+            alt: Up,
+          },
+          Left,
+        )
+          when !(key.shift == Down) =>
+        //TODO(andrew): internalize into textarea
+        let textarea = JsUtil.TextArea.get(selector);
+        JsUtil.TextArea.set_caret_to_end(textarea);
+        Some(FocusInternal(selector, Right));
+      | _ => None
+      };
+    //let+ action = P.keymap(model, d, key);
     handle(id, action);
   };
 

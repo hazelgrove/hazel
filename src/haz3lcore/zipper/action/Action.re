@@ -50,7 +50,7 @@ type project =
   | UpdateModel(Id.t, Projector.entry => Projector.entry)
   | SetIndicated(Projector.kind)
   | ToggleIndicated(Projector.kind)
-  | FocusInternal(Id.t)
+  | FocusInternal(Id.t, Util.Direction.t)
   | Escape(Id.t, Direction.t)
   | Remove(Id.t);
 
