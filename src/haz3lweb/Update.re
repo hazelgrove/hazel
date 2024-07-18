@@ -321,8 +321,10 @@ let rec apply =
       let term = MakeTerm.go(sel) |> fst;
       let sexp = SexpConversion.go(term);
       let str = Sexplib.Sexp.to_string_hum(sexp);
+      let alt_str = SexpConversion.sexp_of_uexp(sexp);
 
       print_endline("PrintSexp: " ++ str);
+      print_endline("PrintSexp (alt): " ++ alt_str);
       Ok(model);
     | Reset => Ok(Model.reset(model))
     | Set(s_action) =>
