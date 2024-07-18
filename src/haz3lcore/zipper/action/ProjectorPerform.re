@@ -35,47 +35,48 @@ let go =
       primary:
         (Zipper.chunkiness, Util.Direction.t, Zipper.t) => option(Zipper.t),
       a: Action.project,
-      syntax_map,
+      _syntax_map,
       z: Zipper.t,
     ) => {
-  let crime = (_syntax, b, {kind, model}: entry): entry => {
-    //TODO(andrew): remove this crime
-    let (module P) = Projector.to_module(kind);
-    {kind, model: P.update(model, SetInside(b))};
-    //p;
-  };
-  let set_dispatch = (z: Zipper.t, id, b) =>
-    switch (Id.Map.find_opt(id, syntax_map)) {
-    | Some(syntax) =>
-      Ok({
-        ...z,
-        projectors:
-          Map.update(id, Option.map(crime(syntax, b)), z.projectors),
-      })
-    | None => Error(Action.Failure.Cant_project)
-    };
   switch (a) {
-  | FocusInternal(id) =>
-    /* Note: jumping her normalizes position, so when exiting
-     * we know we're intially to the left and can move or not accordingly */
+  | FocusInternal(id, d) =>
+    //TODO(andrew): document
     let z =
       switch (jump_to_id(z, id)) {
       | Some(z) => z
       | None => z
       };
-    set_dispatch(z, id, true);
-  // JsUtil.get_elem_by_selector(selector)##focus;
+    let z =
+      d == Left
+        ? z
+        : (
+          switch (primary(ByToken, Right, z)) {
+          | Some(z) => z
+          | None => z
+          }
+        );
+    Ok(z);
   | Escape(id, Left) =>
-    // JsUtil.get_elem_by_selector(selector)##blur;
+    let z =
+      switch (jump_to_id(z, id)) {
+      | Some(z) => z
+      | None => z
+      };
+    JsUtil.get_elem_by_selector(".projector.text textarea")##blur;
+    Ok(z);
+  | Escape(id, Right) =>
+    let z =
+      switch (jump_to_id(z, id)) {
+      | Some(z) => z
+      | None => z
+      };
     let z =
       switch (primary(ByToken, Right, z)) {
       | Some(z) => z
       | None => z
       };
-    set_dispatch(z, id, false);
-  | Escape(id, Right) =>
-    // JsUtil.get_elem_by_selector(selector)##blur;
-    set_dispatch(z, id, false)
+    JsUtil.get_elem_by_selector(".projector.text textarea")##blur;
+    Ok(z);
   | SetIndicated(p) =>
     switch (Indicated.for_index(z)) {
     | None => Error(Action.Failure.Cant_project)

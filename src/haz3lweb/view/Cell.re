@@ -259,14 +259,7 @@ let editor_view =
     };
   let code_text_view = Code.view(~sort, ~font_metrics, ~settings, meta);
   let deco_view =
-    deco(
-      ~inject=a => inject(PerformAction(Project(a))),
-      ~ui_state,
-      ~selected,
-      ~test_results,
-      ~highlights,
-      meta,
-    );
+    deco(~inject, ~ui_state, ~selected, ~test_results, ~highlights, meta);
   let code_view =
     div(
       ~attrs=[Attr.id(target_id), Attr.classes(["code-container"])],

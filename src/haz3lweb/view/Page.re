@@ -15,12 +15,13 @@ let handlers =
     open Effect;
     let key = Key.mk(dir, evt);
     switch (ProjectorView.key_handler(editor, key)) {
-    | Some(Remove(id)) when id == Id.invalid =>
-      //TODO(andrew): proper no-op (see ProjectorView)
-      Ignore
+    // | Some(Remove(id)) when id == Id.invalid =>
+    //   //TODO(andrew): proper no-op (see ProjectorView)
+    //   Ignore
     | Some(action) =>
       Many([
         Prevent_default,
+        // Stop_propagation,
         inject(Update.PerformAction(Project(action))),
       ])
     | None =>
@@ -189,7 +190,7 @@ let view = (~inject: UpdateAction.t => Ui_effect.t(unit), model: Model.t) =>
   div(
     ~attrs=
       Attr.[
-        tabindex(0),
+        //tabindex(0),
         id(page_id),
         ...handlers(~inject, page_id, Editors.get_editor(model.editors)),
       ],
