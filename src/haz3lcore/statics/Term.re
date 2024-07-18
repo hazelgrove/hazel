@@ -553,6 +553,7 @@ module UExp = {
     | If
     | Seq
     | Test
+    | HintedTest
     | Filter
     | Parens
     | Cons
@@ -598,6 +599,7 @@ module UExp = {
     | If(_) => If
     | Seq(_) => Seq
     | Test(_) => Test
+    | HintedTest(_) => HintedTest
     | Filter(_) => Filter
     | Parens(_) => Parens
     | Cons(_) => Cons
@@ -672,7 +674,7 @@ module UExp = {
   let show_cls: cls => string =
     fun
     | Invalid => "Invalid expression"
-    | MultiHole => "Broken expression"
+    | MultiHole => ""
     | EmptyHole => "Empty expression hole"
     | Triv => "Trivial literal"
     | Deferral => "Deferral"
@@ -696,6 +698,7 @@ module UExp = {
     | If => "If expression"
     | Seq => "Sequence expression"
     | Test => "Test"
+    | HintedTest => "Hinted Test"
     | Filter => "Filter"
     | Parens => "Parenthesized expression"
     | Cons => "Cons"
@@ -732,6 +735,7 @@ module UExp = {
     | If(_)
     | Seq(_)
     | Test(_)
+    | HintedTest(_)
     | Filter(_)
     | Cons(_)
     | ListConcat(_)
@@ -770,6 +774,7 @@ module UExp = {
       | If(_)
       | Seq(_)
       | Test(_)
+      | HintedTest(_)
       | Filter(_)
       | Cons(_)
       | ListConcat(_)
@@ -823,6 +828,7 @@ module UExp = {
       | If(_)
       | Seq(_)
       | Test(_)
+      | HintedTest(_)
       | Cons(_)
       | ListConcat(_)
       | UnOp(_)

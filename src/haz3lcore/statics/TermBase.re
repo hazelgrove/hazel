@@ -125,6 +125,7 @@ and UExp: {
     | If
     | Seq
     | Test
+    | HintedTest
     | Filter
     | Parens
     | Cons
@@ -164,6 +165,7 @@ and UExp: {
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
+    | HintedTest(t)
     | Filter(FilterAction.t, t, t)
     | Parens(t) // (
     | Cons(t, t)
@@ -268,6 +270,7 @@ and UExp: {
     | If
     | Seq
     | Test
+    | HintedTest
     | Filter
     | Parens
     | Cons
@@ -307,6 +310,7 @@ and UExp: {
     | If(t, t, t)
     | Seq(t, t)
     | Test(t)
+    | HintedTest(t)
     | Filter(FilterAction.t, t, t)
     | Parens(t) // (
     | Cons(t, t)

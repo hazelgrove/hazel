@@ -64,6 +64,7 @@ let rec append_exp = (e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   | Pipeline(_)
   | If(_)
   | Test(_)
+  | HintedTest(_)
   | Parens(_)
   | Cons(_)
   | ListConcat(_)

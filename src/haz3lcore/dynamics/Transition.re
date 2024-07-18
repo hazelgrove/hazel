@@ -273,6 +273,26 @@ module Transition = (EV: EV_MODE) => {
         kind: UpdateTest,
         value: true,
       });
+    | HintedTest(id, d) =>
+      let. _ = otherwise(env, d => Test(id, d))
+      and. d' = req_final(req(state, env), d => Test(id, d), d);
+      Step({
+        apply: () =>
+          switch (d') {
+          | BoolLit(true) =>
+            update_test(state, id, (d', Pass));
+            Tuple([]);
+          | BoolLit(false) =>
+            update_test(state, id, (d', Fail));
+            Tuple([]);
+          /* Hack: assume if final and not Bool, then Indet; this won't catch errors in statics */
+          | _ =>
+            update_test(state, id, (d', Indet));
+            Tuple([]);
+          },
+        kind: UpdateTest,
+        value: true,
+      });
     | TypAp(d, tau) =>
       let. _ = otherwise(env, d => TypAp(d, tau))
       and. d' = req_value(req(state, env), d => TypAp(d, tau), d);

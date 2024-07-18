@@ -116,6 +116,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | BinFloatOp(_)
     | BinStringOp(_)
     | Test(_)
+    | HintedTest(_)
     | TypAp(_) =>
       // TODO: check with andrew
       DHExp.cast(d, self_ty, ana_ty)
@@ -219,6 +220,9 @@ let rec dhexp_of_uexp =
         DHExp.Sequence(d1, d2);
       | Test(test) =>
         let+ dtest = dhexp_of_uexp(m, test);
+        DHExp.Test(id, dtest);
+      | HintedTest(hintedtest) =>
+        let+ dtest = dhexp_of_uexp(m, hintedtest);
         DHExp.Test(id, dtest);
       | Filter(act, cond, body) =>
         let* dcond = dhexp_of_uexp(~in_filter=true, m, cond);

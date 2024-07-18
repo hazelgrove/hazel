@@ -201,6 +201,10 @@ let rec matches_exp =
     | (Test(id1, d2), Test(id2, f2)) => id1 == id2 && matches_exp(d2, f2)
     | (Test(_), _) => false
 
+    | (HintedTest(id1, d2), HintedTest(id2, f2)) =>
+      id1 == id2 && matches_exp(d2, f2)
+    | (HintedTest(_), _) => false
+
     | (Cons(d1, d2), Cons(f1, f2)) =>
       matches_exp(d1, f1) && matches_exp(d2, f2)
     | (Cons(_), _) => false

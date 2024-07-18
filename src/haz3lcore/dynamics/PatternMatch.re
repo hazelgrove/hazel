@@ -250,6 +250,7 @@ and matches_cast_Sum =
   | NonEmptyHole(_)
   | FailedCast(_, _, _)
   | Test(_)
+  | HintedTest(_)
   | InvalidOperation(_)
   | ConsistentCase(_)
   | Prj(_)
@@ -350,6 +351,7 @@ and matches_cast_Tuple =
   | Sequence(_)
   | BuiltinFun(_)
   | Test(_) => DoesNotMatch
+  | HintedTest(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
   | StringLit(_) => DoesNotMatch
   | ListLit(_) => DoesNotMatch
@@ -491,6 +493,7 @@ and matches_cast_Cons =
   | IntLit(_) => DoesNotMatch
   | Sequence(_)
   | Test(_) => DoesNotMatch
+  | HintedTest(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
   | StringLit(_) => DoesNotMatch
   | Tuple(_) => DoesNotMatch

@@ -42,6 +42,7 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
   switch (d) {
   /* Non-hole expressions: recurse through subexpressions */
   | Test(_)
+  | HintedTest(_)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)
@@ -284,6 +285,10 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let+ d1' = pp_uneval(env, d1);
     Test(id, d1');
 
+  | HintedTest(id, d1) =>
+    let+ d1' = pp_uneval(env, d1);
+    HintedTest(id, d1');
+
   | Sequence(d1, d2) =>
     let* d1' = pp_uneval(env, d1);
     let+ d2' = pp_uneval(env, d2);
@@ -473,6 +478,7 @@ let rec track_children_of_hole =
   | BuiltinFun(_)
   | BoundVar(_) => hii
   | Test(_, d)
+  | HintedTest(_, d)
   | FixF(_, _, d)
   | Fun(_, _, d, _)
   | TypFun(_, d, _)

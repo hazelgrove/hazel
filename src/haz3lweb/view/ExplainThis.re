@@ -1728,6 +1728,20 @@ let get_doc =
             ),
           TestExp.tests,
         );
+      | HintedTest(body) =>
+        let body_id = List.nth(body.ids, 0);
+        get_message(
+          ~colorings=HintedTestExp.hinted_test_exp_coloring_ids(~body_id),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s"),
+                  Id.to_string(body_id),
+                ),
+            ),
+          HintedTestExp.tests,
+        );
       | Parens(term) => get_message_exp(term.term) // No Special message?
       | Cons(hd, tl) =>
         let hd_id = List.nth(hd.ids, 0);
