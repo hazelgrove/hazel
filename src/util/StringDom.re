@@ -4,8 +4,8 @@ open Tree;
 type tree('a) = p('a);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t =
-  | Leaf(string)
+type t('a) =
+  | Leaf('a)
   | Branch(flex_direction, align_items)
 and flex_direction =
   | Row
@@ -20,16 +20,16 @@ type size = {
   h: int,
 };
 
-let rec mk_size_tree = (Node(vn, c)) => {
-  let children_size = List.map(mk_size_tree, c);
+let rec mk_size_tree = (f, Node(vn, c)) => {
+  let children_size = List.map(mk_size_tree(f), c);
   let size =
     switch (vn) {
-    | Leaf(s) =>
-      let lines = s |> String.split_on_char('\n');
-      {
-        w: lines |> List.map(String.length) |> List.fold_left(max, 0),
-        h: lines |> List.length,
-      };
+    | Leaf(s) => f(s)
+    // let lines = s |> String.split_on_char('\n');
+    // {
+    //   w: lines |> List.map(String.length) |> List.fold_left(max, 0),
+    //   h: lines |> List.length,
+    // };
     | Branch(fd, _) =>
       let get_acc_size = ({w, h}, Node({w: w', h: h'}, _)) =>
         switch (fd) {
@@ -81,10 +81,10 @@ let rec mk_loc_tree = (loc, Node(vn, c_vn), Node(sz, c_sz)) =>
       List.fold_left2(get_acc_loc, (ref_loc, []), c_vn, c_sz);
     Node(loc, c_loc);
   };
-let mk_loc_tree = (loc, t) => mk_loc_tree(loc, t, mk_size_tree(t));
+let mk_loc_tree = (loc, f, t) => mk_loc_tree(loc, t, mk_size_tree(f, t));
 
-let mk_loc_list = (loc, t) =>
-  Tree.combine((t, mk_loc_tree(loc, t)))
+let mk_loc_list = (loc, f, t) =>
+  Tree.combine((t, mk_loc_tree(loc, f, t)))
   |> flatten
   |> List.filter_map(
        fun
@@ -95,13 +95,13 @@ let mk_loc_list = (loc, t) =>
        y1 == y2 ? x1 - x2 : y1 - y2
      );
 
-type tile =
+type tile('a) =
   | Inline(int)
   | Block(size)
-  | Text(string);
+  | Just('a);
 
-let flatloc2tiles = t => {
-  let get_acc_tiles = ((acc, {x, y}), ({x: x', y: y'}, str)) => {
+let flatloc2tiles = (f, t) => {
+  let get_acc_tiles = ((acc, {x, y}), ({x: x', y: y'}, s)) => {
     let acc =
       acc
       @ [
@@ -110,22 +110,23 @@ let flatloc2tiles = t => {
         } else {
           Block({w: x', h: y' - y});
         },
-        Text(str),
+        Just(s),
       ];
-
-    (acc, {x: x' + String.length(str), y: y'});
+    (acc, {x: x' + f(s).w, y: y'});
   };
-
-  t |> List.fold_left(get_acc_tiles, ([], {x: 0, y: 0})) |> fst;
+  t
+  |> List.fold_left(get_acc_tiles, ([], {x: 0, y: 0}))
+  |> fst
+  |> (l => l @ [Inline(0)]);
 };
 
-let print_tile = tile =>
-  switch (tile) {
-  | Text(str) => print_string(str)
-  | Block({w, h}) =>
-    let str = String.make(h, '\n') ++ String.make(w, ' ');
-    print_string(str);
-  | Inline(w) => print_string(String.make(w, ' '))
-  };
+// let print_tile = tile =>
+//   switch (tile) {
+//   | Text(str) => print_string(str)
+//   | Block({w, h}) =>
+//     let str = String.make(h, '\n') ++ String.make(w, ' ');
+//     print_string(str);
+//   | Inline(w) => print_string(String.make(w, ' '))
+//   };
 
-let print_tiles = tiles => List.iter(print_tile, tiles);
+// let print_tiles = tiles => List.iter(print_tile, tiles);

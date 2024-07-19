@@ -31,6 +31,7 @@ let mk = (model): projector_core =>
      let projector = Slider(model);
      let can_project = p => state_of(p) != None;
      let placeholder = () => Inline(10);
+     let children = [];
      let auto_update = _: projector => Slider(model);
      let update = _ => Slider(model);
    });

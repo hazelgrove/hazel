@@ -70,6 +70,7 @@ module type ProjectorCore = {
   let projector: projector;
   let model: model;
   let placeholder: unit => shape;
+  let children: list(Piece.segment);
   let can_project: Piece.t => bool;
   let auto_update: projector_info => projector;
   let update: string => projector;

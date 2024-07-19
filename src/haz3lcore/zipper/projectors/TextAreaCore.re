@@ -59,6 +59,7 @@ let mk = (syntax, model): projector_core =>
            ),
          );
      let placeholder = () => Block({row, col});
+     let children = [];
      let auto_update = _: projector => TextArea(model);
      let update = (a: string) =>
        switch (deserialize(a)) {

@@ -69,7 +69,7 @@ let to_module =
     )
   | DeriveArea(model) =>
     // TODO(zhiyao)
-    CheckboxView.mk(syntax, model, ~inject=a =>
+    DeriveAreaView.mk(syntax, model, ~inject=a =>
       Effect.Many(List.map(inject, handle(id, syntax, a)))
     )
   | TextArea(model) =>

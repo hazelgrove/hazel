@@ -31,6 +31,8 @@ module Deco =
       | None => None
       };
     switch (shape) {
+    // TODO(zhiyao)
+    | Some(Multi(_))
     | Some(Block(_)) => []
     | _ =>
       let origin = Zipper.caret_point(M.map, z);

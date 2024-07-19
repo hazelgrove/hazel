@@ -89,31 +89,17 @@ let placeholder = (p: t, syntax: syntax): syntax => {
         String.make(row, '\n') ++ String.make(col, ' '),
       ]
     | Multi(shapes) => shapes |> List.map(mk_label) |> List.concat;
-  let mk_children: t => list('a) =
-    fun
-    | DeriveArea(_) => []
-    | Fold(_)
-    | Infer(_)
-    | Checkbox(_)
-    | Slider(_)
-    | TextArea(_) => [];
-  // TODO(zhiyao): dont know what shards are
-  let mk_shards = (p: t): list(int) =>
-    switch (p) {
-    | DeriveArea(_) => [0]
-    | Fold(_) => [0]
-    | Infer(_) => [0]
-    | Checkbox(_) => [0]
-    | Slider(_) => [0]
-    | TextArea(_) => [0]
-    };
-  Piece.Tile({
-    id: Piece.id(syntax),
-    label: shape(p, syntax) |> mk_label,
-    mold: Mold.mk_op(Any, []),
-    shards: mk_shards(p),
-    children: mk_children(p),
-  });
+  // TODO(zhiyao): simplify code
+  let (label, shards, children, mold) = {
+    let (module P) = to_module(syntax, p);
+    let label = shape(p, syntax) |> mk_label;
+    let children = P.children;
+    let shards = List.init(List.length(children) + 1, Fun.id);
+    let mold =
+      Mold.mk_op(Any, List.init(List.length(children), _ => Sort.Any));
+    (label, shards, children, mold);
+  };
+  Piece.Tile({id: Piece.id(syntax), label, mold, shards, children});
 };
 /* Currently projection is limited to convex pieces */
 let minimum_projection_condition = (syntax: syntax): bool =>

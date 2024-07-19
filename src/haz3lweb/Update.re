@@ -262,7 +262,7 @@ let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
          a,
        )
   ) {
-  | Error(err) => Error(FailedToPerform(err))
+  | Error(err) => Error(Failure.FailedToPerform(err))
   | Ok(ed) =>
     let model = {...model, editors: Editors.put_editor(ed, model.editors)};
     /* Note: Not saving here as saving is costly to do each keystroke,
