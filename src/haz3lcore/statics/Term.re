@@ -674,7 +674,7 @@ module UExp = {
   let show_cls: cls => string =
     fun
     | Invalid => "Invalid expression"
-    | MultiHole => ""
+    | MultiHole => "Broken expression"
     | EmptyHole => "Empty expression hole"
     | Triv => "Trivial literal"
     | Deferral => "Deferral"

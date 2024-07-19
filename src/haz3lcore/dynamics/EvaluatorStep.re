@@ -243,6 +243,9 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
     | Test(lit, ctx) =>
       let d1 = compose(ctx, d);
       Test(lit, d1);
+    | HintedTest(lit, ctx) =>
+      let d1 = compose(ctx, d);
+      HintedTest(lit, d1);
     | BinBoolOp1(op, ctx, d2) =>
       let d1 = compose(ctx, d);
       BinBoolOp(op, d1, d2);
@@ -451,6 +454,9 @@ let rec matches =
     | Test(id, ctx) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       Test(id, ctx);
+    | HintedTest(id, ctx) =>
+      let+ ctx = matches(env, flt, ctx, exp, act, idx);
+      HintedTest(id, ctx);
     | ListLit(u, i, ty, ctx, ds) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       ListLit(u, i, ty, ctx, ds);

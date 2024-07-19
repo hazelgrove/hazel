@@ -274,8 +274,8 @@ module Transition = (EV: EV_MODE) => {
         value: true,
       });
     | HintedTest(id, d) =>
-      let. _ = otherwise(env, d => Test(id, d))
-      and. d' = req_final(req(state, env), d => Test(id, d), d);
+      let. _ = otherwise(env, d => HintedTest(id, d))
+      and. d' = req_final(req(state, env), d => HintedTest(id, d), d);
       Step({
         apply: () =>
           switch (d') {
