@@ -63,7 +63,6 @@ and goUPat: Term.UPat.t => Sexp.t =
     | Tuple(list) => List([Sexp.Atom("tuple")] @ List.map(goUPat, list))
     | Wild => Atom("_")
     | TypeAnn(pat, typ) => List([goUPat(pat), goTyp(typ)])
-    // | _ => Atom("Not implemented")
     };
   }
 
@@ -71,9 +70,9 @@ and goUPat: Term.UPat.t => Sexp.t =
 and goUTPat: Term.UTPat.t => Sexp.t =
   pat => {
     switch (pat.term) {
-    | EmptyHole => Atom("EmptyHole")
-    | MultiHole(_) => Atom("MultiHole")
-    | Invalid(string) => Atom("Invalid: " ++ string)
+    | EmptyHole => Atom("?")
+    | MultiHole(_) => Atom("Not implemented")
+    | Invalid(string) => Atom(string)
     | Var(string) => Atom(string)
     };
   }
@@ -82,21 +81,17 @@ and goTyp: Term.UTyp.t => Sexp.t =
   typ => {
     switch (typ.term) {
     | EmptyHole => Atom("EmptyHole")
-    // | Wild => Atom("Wild")
-    // | Triv => Atom("Triv")
     | MultiHole(_) => Atom("MultiHole")
     | Int => Atom("Int")
     | Float => Atom("Float")
     | Bool => Atom("Bool")
     | String => Atom("String")
-    | List(_) => Atom("List")
+    | List(t) => List([Sexp.Atom("list"), goTyp(t)])
+    //Atom("[" ++ Sexp.to_string_mach(goTyp(t)) ++ "]")
     | Tuple(list) => List([Sexp.Atom("tuple")] @ List.map(goTyp, list))
-    // | Fun(_, _) => Atom("Fun")
     | Var(string) => Atom(string)
     | Constructor(string) => Atom(string)
-    // | TypeApp(_, _) => Atom("TypeApp")
-    // | TypeAnn(_, _) => Atom("TypeAnn")
-    | Invalid(string) => Atom("Invalid: " ++ string)
+    | Invalid(string) => Atom(string)
     | Sum(_list) => Atom("list") //List([Sexp.Atom("sum")] @ List.map(goTyp, list))
     | Arrow(_, _) => Atom("Arrow")
     | Parens(_) => Atom("Parens")
@@ -104,6 +99,7 @@ and goTyp: Term.UTyp.t => Sexp.t =
     };
   };
 
+// Inverse of go
 let rec sexp_of_uexp: Sexplib.Sexp.t => string =
   sexp => {
     switch (sexp) {
@@ -116,6 +112,34 @@ let rec sexp_of_uexp: Sexplib.Sexp.t => string =
       ++ "\n"
       ++ String.concat("\n", List.map(rule_to_string, cases))
       ++ "\nend"
+    | List([Atom("let"), List([exp1, exp2]), pat]) =>
+      "let "
+      ++ sexp_of_uexp(pat)
+      ++ " = "
+      ++ sexp_of_uexp(exp1)
+      ++ " in "
+      ++ sexp_of_uexp(exp2)
+    | List([Atom("type"), pat, typ, exp]) =>
+      "type "
+      ++ sexp_of_uexp(pat)
+      ++ " = "
+      ++ sexp_of_uexp(typ)
+      ++ " in "
+      ++ sexp_of_uexp(exp)
+    | List([Atom("if"), cond, thenBranch, elseBranch]) =>
+      "if "
+      ++ sexp_of_uexp(cond)
+      ++ " then "
+      ++ sexp_of_uexp(thenBranch)
+      ++ " else "
+      ++ sexp_of_uexp(elseBranch)
+    | List([Atom("seq"), exp1, exp2]) =>
+      sexp_of_uexp(exp1) ++ "; " ++ sexp_of_uexp(exp2)
+    | List([Atom("test"), t]) => "test " ++ sexp_of_uexp(t)
+    | List([Atom("cons"), head, tail]) =>
+      sexp_of_uexp(head) ++ " :: " ++ sexp_of_uexp(tail)
+    | List([Atom("@"), list1, list2]) =>
+      sexp_of_uexp(list1) ++ " @ " ++ sexp_of_uexp(list2)
     | List(list) =>
       "(" ++ String.concat(" ", List.map(sexp_of_uexp, list)) ++ ")"
     };
