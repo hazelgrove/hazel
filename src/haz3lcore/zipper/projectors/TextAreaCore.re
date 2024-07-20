@@ -69,9 +69,15 @@ let n_of = (n: int) =>
 let view = (_, ~info, ~go as _, ~inject) => {
   let text = info.syntax |> get |> Form.strip_quotes;
   Node.div(
-    ~attrs=[Attr.classes(["cols"])],
-    n_of(Util.StringUtil.num_linebreaks(text))
-    @ [textarea(info.id, ~inject, text)],
+    //TODO(andrew): rm wrapper?
+    ~attrs=[Attr.classes(["projector-wrapper"])],
+    [
+      Node.div(
+        ~attrs=[Attr.classes(["cols"])],
+        n_of(Util.StringUtil.num_linebreaks(text))
+        @ [textarea(info.id, ~inject, text)],
+      ),
+    ],
   );
 };
 
@@ -93,6 +99,7 @@ module M: Projector = {
   type action = unit;
   let init = ();
   let can_project = _ => true; //TODO(andrew): restrict somehow
+  let can_focus = true;
   let placeholder = placeholder;
   let update = (model, _) => model;
   let view = view;

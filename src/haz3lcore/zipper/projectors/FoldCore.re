@@ -11,6 +11,7 @@ module M: Projector = {
   type action = unit;
   let init = ();
   let can_project = _ => true;
+  let can_focus = false;
   let placeholder = (_, _) => Inline(2);
   let update = (_, _) => ();
   let view = (_, ~info as _, ~go as _, ~inject) =>
