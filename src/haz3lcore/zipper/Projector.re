@@ -207,6 +207,7 @@ module Project = {
     | None => syntax
     | Some(pr) =>
       let info: info = {
+        id,
         syntax,
         status: None, //TODO(andrew)
         ci: Id.Map.find_opt(id, info_map),

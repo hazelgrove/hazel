@@ -212,9 +212,9 @@ module TextArea = {
     cols: rel,
   };
 
-  let get = (selector: string): Js.t(Dom_html.textAreaElement) =>
-    selector
-    |> get_elem_by_selector
+  let get = (id: string): Js.t(Dom_html.textAreaElement) =>
+    id
+    |> get_elem_by_id
     |> Dom_html.CoerceTo.textarea
     |> Js.Opt.get(_, _ => failwith("TextArea.get"));
 
