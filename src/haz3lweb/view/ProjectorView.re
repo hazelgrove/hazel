@@ -67,22 +67,9 @@ let view_wrapper =
         ["projector", name(entry.kind)] @ cls(status, selected),
       ),
       DecUtil.abs_style(measurement, ~fudge, ~font_metrics),
+      JsUtil.stop_mousedown_propagation,
     ],
-    [
-      div(
-        ~attrs=[
-          //TODO(andrew): cleanup (can we just remove the -wrapper?)
-          // Attr.on_mousedown(_ => {
-          //   print_endline("projector external wrapper mousedown");
-          //   inject(Update.PerformAction(Jump(TileId(id))));
-          // }),
-          JsUtil.stop_mousedown_propagation,
-          Attr.classes(["projector-wrapper"]),
-        ],
-        [view],
-      ),
-      backing_deco(~font_metrics, ~measurement, ~info, entry),
-    ],
+    [view, backing_deco(~font_metrics, ~measurement, ~info, entry)],
   );
 };
 
@@ -209,7 +196,7 @@ let key_handoff = (editor: Editor.t, key: Key.t): option(Action.project) =>
     let* (_, d, _) = Indicated.piece(editor.state.zipper);
     let (module P) = to_module(p.kind);
     switch (key) {
-    | {key, sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up} =>
+    | {key, sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up} when P.can_focus =>
       switch (key, d) {
       | (D("ArrowRight"), Right) =>
         P.activate((id, Left));

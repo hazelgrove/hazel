@@ -74,6 +74,7 @@ module type Projector = {
   type action;
   let init: model;
   let can_project: Piece.t => bool;
+  let can_focus: bool;
   let view:
     (
       model,
@@ -93,6 +94,7 @@ type serialized_action = string;
 module type Cooked = {
   let init: serialized_model;
   let can_project: Piece.t => bool;
+  let can_focus: bool;
   let view:
     (
       serialized_model,
@@ -113,6 +115,7 @@ module Cook = (C: Projector) : Cooked => {
   let deserialize_a = s => s |> Sexplib.Sexp.of_string |> C.action_of_sexp;
   let init = C.init |> serialize_m;
   let can_project = C.can_project;
+  let can_focus = C.can_focus;
   let view = (m, ~info, ~go, ~inject) =>
     C.view(deserialize_m(m), ~info, ~go=a => go(serialize_a(a)), ~inject);
   let placeholder = m =>

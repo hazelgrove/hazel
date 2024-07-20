@@ -54,6 +54,8 @@ module M: Projector = {
     };
   };
 
+  let can_focus = false;
+
   let display = (model, info) =>
     switch (model) {
     | _ when mode(info) == Some(Syn) => syn_display(info)

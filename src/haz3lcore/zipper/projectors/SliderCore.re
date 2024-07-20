@@ -21,6 +21,7 @@ module M: Projector = {
   type action = unit;
   let init = ();
   let can_project = p => get_opt(p) != None;
+  let can_focus = false;
   let placeholder = (_, _) => Inline(10);
   let update = (model, _) => model;
   let view =

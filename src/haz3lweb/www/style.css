@@ -685,11 +685,8 @@ select {
   align-items: center;
   color: #c7b480;
 }
-.projector-wrapper {
-  display: flex;
+.projector > * {
   z-index: 12;
-  justify-content: center;
-  align-items: center;
 }
 .projector.indicated {
   z-index: 13;
@@ -708,11 +705,11 @@ select {
 .projector.indicated.fold {
   color: black;
 }
-.projector.fold .projector-wrapper {
+.projector.fold {
   cursor: pointer;
 }
 
-/* PROJECTOR: INFER */
+/* PROJECTOR: INFO */
 
 .projector.type {
   /* opacity: 0.5; */
@@ -724,7 +721,7 @@ select {
 .projector.type > svg {
   fill: var(--typ-bg-off-color);
 }
-.projector.type .projector-wrapper div {
+.projector.type {
   cursor: pointer;
 }
 
