@@ -712,7 +712,6 @@ select {
 /* PROJECTOR: INFO */
 
 .projector.type {
-  /* opacity: 0.5; */
   color: var(--typ-text-color);
 }
 .projector.type:hover {
@@ -733,9 +732,20 @@ select {
   cursor: pointer;
 }
 
+/* PROJECTOR: SLIDERS (INT & FLOAT) */
+
+.projector.slide input,
+.projector.slidef input {
+  margin: 0;
+  width: 90%;
+  filter: sepia(1);
+  cursor: pointer;
+}
+
 /* PROJECTOR: TEXTAREA */
 
 .projector.text {
+  cursor: default;
 }
 
 .projector.text .projector-wrapper {
@@ -809,20 +819,6 @@ select {
 .projector.text textarea::selection {
   color: black;
   background-color: var(--selection-color);
-}
-
-/* PROJECTOR: SLIDERS (INT & FLOAT) */
-
-.projector.slide .projector-wrapper,
-.projector.slidef .projector-wrapper {
-  width: 95%;
-}
-.projector.slide input,
-.projector.slidef input {
-  margin: 0;
-  width: 100%;
-  filter: sepia(1);
-  cursor: pointer;
 }
 
 /* END PROJECTORS */
