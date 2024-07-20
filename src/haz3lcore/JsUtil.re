@@ -249,11 +249,31 @@ module TextArea = {
     };
 
   let caret_rel_pos = (textarea: t): rel_pos => {
+    /* precondition: lines nonempty */
     let lines = textarea |> lines;
     let {row, col} = caret_pos(textarea);
+    let full_row = List.nth(lines, row);
     {
       rows: rel(row, List.length(lines) - 1),
-      cols: rel(col, String.length(List.nth(lines, row))),
+      cols: rel(col, String.length(full_row)),
+    };
+  };
+
+  let caret_at_start = (textarea: t): bool => {
+    switch (textarea |> lines) {
+    | [] => true
+    | _ =>
+      let {rows, cols} = caret_rel_pos(textarea);
+      rows == First && cols == First;
+    };
+  };
+
+  let caret_at_end = (textarea: t): bool => {
+    switch (textarea |> lines) {
+    | [] => true
+    | lines =>
+      let {rows, cols} = caret_rel_pos(textarea);
+      rows == Last && cols == Last || rows == First && List.length(lines) == 1;
     };
   };
 

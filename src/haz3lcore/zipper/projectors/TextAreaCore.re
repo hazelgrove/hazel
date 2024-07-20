@@ -36,9 +36,10 @@ let put = (str: string): ProjectorBase.action =>
 let key_handler = (id, ~inject, evt) => {
   open Effect;
   let key = Key.mk(KeyDown, evt);
-  let pos = JsUtil.TextArea.caret_rel_pos(JsUtil.TextArea.get(of_id(id)));
-  let is_last_pos = pos.rows == Last && pos.cols == Last;
-  let is_first_pos = pos.rows == First && pos.cols == First;
+  let is_last_pos =
+    JsUtil.TextArea.caret_at_end(JsUtil.TextArea.get(of_id(id)));
+  let is_first_pos =
+    JsUtil.TextArea.caret_at_start(JsUtil.TextArea.get(of_id(id)));
   switch (key.key) {
   | D("ArrowRight" | "ArrowDown") when is_last_pos =>
     JsUtil.get_elem_by_id(of_id(id))##blur;
