@@ -35,12 +35,11 @@ let go =
       primary:
         (Zipper.chunkiness, Util.Direction.t, Zipper.t) => option(Zipper.t),
       a: Action.project,
-      _syntax_map,
       z: Zipper.t,
     ) => {
+  //TODO(andrew): document
   switch (a) {
   | FocusInternal(id, d) =>
-    //TODO(andrew): document
     let z =
       switch (jump_to_id(z, id)) {
       | Some(z) => z
@@ -62,7 +61,6 @@ let go =
       | Some(z) => z
       | None => z
       };
-    JsUtil.get_elem_by_selector(".projector.text textarea")##blur;
     Ok(z);
   | Escape(id, Right) =>
     let z =
@@ -75,7 +73,6 @@ let go =
       | Some(z) => z
       | None => z
       };
-    JsUtil.get_elem_by_selector(".projector.text textarea")##blur;
     Ok(z);
   | SetIndicated(p) =>
     switch (Indicated.for_index(z)) {

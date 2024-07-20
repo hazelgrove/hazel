@@ -26,5 +26,6 @@ module M: CoreInner = {
       ~attrs=[Attr.on_input((_, v) => inject(SetSyntax(put(v))))],
       get(info.syntax),
     );
-  let keymap = (_, _, _) => None;
+  let activate = _ => ();
+  // let keymap = (_, _, _) => None;
 };

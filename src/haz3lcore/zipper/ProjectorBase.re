@@ -1,5 +1,6 @@
 open Sexplib.Std;
 open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
+open Util;
 open Virtual_dom.Vdom;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -55,9 +56,8 @@ type inner_action = ..;
 
 type action =
   | Remove /* Remove projector */
-  | FocusInternal(string, Util.Direction.t) /* DOM Focus on projector */
-  | Default /* Defer input to focal DOM element */
-  | Escape(string, Util.Direction.t) /* Pass key control to parent editor */
+  | FocusInternal(Util.Direction.t) /* DOM Focus on projector */
+  | Escape(Util.Direction.t) /* Pass key control to parent editor */
   | SetSyntax(syntax)
   | UpdateModel(inner_action);
 
@@ -79,7 +79,8 @@ module type CoreInner = {
     (model, ~info: info, ~inject: action => Ui_effect.t(unit)) => Node.t;
   let placeholder: (model, info) => shape;
   let update: (model, inner_action) => model;
-  let keymap: (model, Util.Direction.t, Key.t) => option(action);
+  let activate: Direction.t => unit;
+  // let keymap: (model, Util.Direction.t, Key.t) => option(action);
 };
 
 module type CoreOuter = {
@@ -89,7 +90,8 @@ module type CoreOuter = {
     (model, ~info: info, ~inject: action => Ui_effect.t(unit)) => Node.t;
   let placeholder: (model, info) => shape;
   let update: (model, inner_action) => model;
-  let keymap: (model, Util.Direction.t, Key.t) => option(action);
+  let activate: Direction.t => unit;
+  // let keymap: (model, Util.Direction.t, Key.t) => option(action);
 };
 
 module CoreOuterMk = (C: CoreInner) : CoreOuter => {
@@ -98,7 +100,8 @@ module CoreOuterMk = (C: CoreInner) : CoreOuter => {
   let view = m => m |> C.model_of_sexp |> C.view;
   let placeholder = m => m |> C.model_of_sexp |> C.placeholder;
   let update = (m, a) => C.update(C.model_of_sexp(m), a) |> C.sexp_of_model;
-  let keymap = (m: Sexplib.Sexp.t) => m |> C.model_of_sexp |> C.keymap;
+  let activate = C.activate;
+  // let keymap = (m: Sexplib.Sexp.t) => m |> C.model_of_sexp |> C.keymap;
 };
 
 type core = (module CoreOuter);

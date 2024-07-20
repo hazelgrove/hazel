@@ -42,12 +42,15 @@ module M: CoreInner = {
   type model =
     | Expected
     | Self;
+
   let init = Expected;
+
   let can_project = (p: Piece.t): bool =>
     switch (Piece.sort(p)) {
     | (Exp | Pat, _) => true
     | _ => false
     };
+
   let display = (model, info) =>
     switch (model) {
     | _ when mode(info) == Some(Syn) => syn_display(info)
@@ -57,19 +60,18 @@ module M: CoreInner = {
 
   let placeholder = (model, info: ProjectorBase.info) =>
     Inline((display(model, info.ci) |> String.length) - 2);
+
   let update = (model, a: inner_action) =>
     switch (a, model) {
     | (ToggleDisplay, Expected) => Self
     | (ToggleDisplay, Self) => Expected
     | _ => model
     };
+
   let view = (model, ~info: ProjectorBase.info, ~inject) =>
     div(
-      ~attrs=[
-        Attr.on_mousedown(_ => inject(UpdateModel(ToggleDisplay))),
-        //Attr.on_double_click(_ => inject(Remove)),
-      ],
+      ~attrs=[Attr.on_mousedown(_ => inject(UpdateModel(ToggleDisplay)))],
       [text(display(model, info.ci))],
     );
-  let keymap = (_, _, _): option(_) => None;
+  let activate = _ => ();
 };

@@ -34,16 +34,9 @@ let update_model = (action: ProjectorBase.inner_action, {kind, model}) => {
 
 let handle = (id, action: ProjectorBase.action): Action.project =>
   switch (action) {
-  | Default =>
-    //TODO(andrew): proper no-op
-    Remove(Id.invalid)
   | Remove => Remove(id)
-  | FocusInternal(selector, d) =>
-    JsUtil.get_elem_by_selector(selector)##focus;
-    Action.(FocusInternal(id, d));
-  | Escape(selector, d) =>
-    JsUtil.get_elem_by_selector(selector)##blur;
-    Escape(id, d);
+  | FocusInternal(d) => FocusInternal(id, d)
+  | Escape(d) => Escape(id, d)
   | SetSyntax(f) => SetSyntax(id, f)
   | UpdateModel(action) => UpdateModel(id, update_model(action))
   };
@@ -70,13 +63,12 @@ let cls = (indicated: option(status), selected) =>
     }
   );
 
-let view_inner =
+let view_wrapper =
     (
       ~inject as _,
       ~font_metrics: FontMetrics.t,
       ~measurement: Measured.measurement,
       ~status: option(Projector.status),
-      ~id as _,
       ~info: info,
       ~selected: bool,
       entry: Projector.entry,
@@ -93,6 +85,7 @@ let view_inner =
     [
       div(
         ~attrs=[
+          //TODO(andrew): cleanup (can we just remove the -wrapper?)
           // Attr.on_mousedown(_ => {
           //   print_endline("projector external wrapper mousedown");
           //   inject(Update.PerformAction(Jump(TileId(id))));
@@ -111,7 +104,7 @@ let view_setup =
     (
       id: Id.t,
       ~meta: Editor.Meta.t,
-      ~inject,
+      ~inject: UpdateAction.t => Ui_effect.t(unit),
       ~font_metrics,
       ~status: option(Projector.status),
     )
@@ -122,25 +115,20 @@ let view_setup =
   let info = {ci, syntax, status};
   let+ measurement = Measured.find_by_id(id, meta.projected.measured);
   let (module P) = to_module(p.kind);
-  //let inject = a => PerformAction(Project(handle(id, a) |> inject));
-
-  view_inner(
+  let inject_proj = a => inject(PerformAction(Project(handle(id, a))));
+  view_wrapper(
     ~inject,
-    ~id,
     ~font_metrics,
     ~measurement,
     ~status,
     ~info,
     ~selected=List.mem(id, meta.selection_ids),
     p,
-    P.view(p.model, ~info, ~inject=a =>
-      inject(UpdateAction.PerformAction(Project(handle(id, a))))
-    ),
+    P.view(p.model, ~info, ~inject=inject_proj),
   );
 };
 
 let status_and_id = (z: ZipperBase.t) =>
-  //TODO(andrew): add Selected, Focused (maybe)
   switch (Indicated.piece(z)) {
   | Some((p, d, _)) => Some((Piece.id(p), Indicated(d)))
   | None => None
@@ -213,51 +201,25 @@ let caret = (z: Zipper.t, meta: Editor.Meta.t): option(list(Node.t)) =>
   | Some(Block(_)) => Some([])
   };
 
-let key_handler = (editor: Editor.t, key: Key.t): option(Action.project) =>
+let key_handoff = (editor: Editor.t, key: Key.t): option(Action.project) =>
   switch (indicated_proj_ed(editor)) {
   | None => None
-  | Some((id, {kind: _, model: _})) =>
-    print_endline("HANDLER: ProjectorView.key_handler");
-    //let* syntax = Id.Map.find_opt(id, editor.state.meta.projected.syntax_map);
+  | Some((id, p)) =>
     let* (_, d, _) = Indicated.piece(editor.state.zipper);
-    //let (module P) = to_module(kind);
-    //TODO(andrew): unhardcode element !!!!!!!!!!
-    let selector = ".projector.text textarea";
-    let+ action =
+    let (module P) = to_module(p.kind);
+    switch (key) {
+    | {key, sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up} =>
       switch (key, d) {
-      | (
-          {
-            key: D("ArrowRight"),
-            sys: _,
-            shift: Up,
-            meta: Up,
-            ctrl: Up,
-            alt: Up,
-          },
-          Right,
-        )
-          when !(key.shift == Down) =>
-        Some(FocusInternal(selector, Left))
-      | (
-          {
-            key: D("ArrowLeft"),
-            sys: _,
-            shift: Up,
-            meta: Up,
-            ctrl: Up,
-            alt: Up,
-          },
-          Left,
-        )
-          when !(key.shift == Down) =>
-        //TODO(andrew): internalize into textarea
-        let textarea = JsUtil.TextArea.get(selector);
-        JsUtil.TextArea.set_caret_to_end(textarea);
-        Some(FocusInternal(selector, Right));
+      | (D("ArrowRight"), Right) =>
+        P.activate(Left);
+        Some(Action.FocusInternal(id, Left));
+      | (D("ArrowLeft"), Left) =>
+        P.activate(Right);
+        Some(FocusInternal(id, Right));
       | _ => None
-      };
-    //let+ action = P.keymap(model, d, key);
-    handle(id, action);
+      }
+    | _ => None
+    };
   };
 
 let option_view = (name, n) =>
@@ -270,7 +232,7 @@ let applicable_projectors = (ci: Info.t): list(Projector.kind) =>
   (
     switch (Info.cls_of(ci)) {
     | Exp(Bool)
-    | Pat(Bool) => [(Checkbox: Projector.kind)]
+    | Pat(Bool) => [Checkbox]
     | Exp(Int)
     | Pat(Int) => [Slider]
     | Exp(Float)

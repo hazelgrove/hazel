@@ -16,5 +16,6 @@ module M: CoreInner = {
       ~attrs=[Attr.on_double_click(_ => inject(Remove))],
       [text("⋱")],
     );
-  let keymap = (_, _, _): option(action) => None;
+  let activate = _ => ();
+  // let keymap = (_, _, _): option(action) => None;
 };
