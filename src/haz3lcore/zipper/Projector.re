@@ -1,14 +1,14 @@
 open Util;
 include ProjectorBase;
 
-let to_module = (kind: kind): core =>
+let to_module = (kind: kind): (module Cooked) =>
   switch (kind) {
-  | Fold => (module CoreOuterMk(FoldCore.M))
-  | Info => (module CoreOuterMk(InfoCore.M))
-  | Slider => (module CoreOuterMk(SliderCore.M))
-  | SliderF => (module CoreOuterMk(SliderFCore.M))
-  | Checkbox => (module CoreOuterMk(CheckboxCore.M))
-  | TextArea => (module CoreOuterMk(TextAreaCore.M))
+  | Fold => (module Cook(FoldCore.M))
+  | Info => (module Cook(InfoCore.M))
+  | Slider => (module Cook(SliderCore.M))
+  | SliderF => (module Cook(SliderFCore.M))
+  | Checkbox => (module Cook(CheckboxCore.M))
+  | TextArea => (module Cook(TextAreaCore.M))
   };
 
 let shape = (p: entry, syntax): shape => {

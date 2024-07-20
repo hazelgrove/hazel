@@ -47,7 +47,7 @@ type select =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type project =
   | SetSyntax(Id.t, Piece.t)
-  | UpdateModel(Id.t, Projector.entry => Projector.entry)
+  | UpdateModel(Id.t, string)
   | SetIndicated(Projector.kind)
   | ToggleIndicated(Projector.kind)
   | FocusInternal(Id.t, Util.Direction.t)

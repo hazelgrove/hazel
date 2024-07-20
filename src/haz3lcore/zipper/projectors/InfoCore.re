@@ -2,9 +2,6 @@ open Virtual_dom.Vdom;
 open Node;
 open ProjectorBase;
 
-type inner_action +=
-  | ToggleDisplay;
-
 let mode = (info: option(Info.t)): option(Mode.t) =>
   switch (info) {
   | Some(InfoExp({mode, _}))
@@ -37,11 +34,15 @@ let syn_display = info =>
 let ana_display = info =>
   "⋱ ⇐ " ++ (info |> expected_ty |> display_ty |> Typ.pretty_print);
 
-module M: CoreInner = {
+module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model =
     | Expected
     | Self;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type action =
+    | ToggleDisplay;
 
   let init = Expected;
 
@@ -63,16 +64,15 @@ module M: CoreInner = {
   let placeholder = (model, info: ProjectorBase.info) =>
     Inline((display(model, info.ci) |> String.length) - 2);
 
-  let update = (model, a: inner_action) =>
+  let update = (model, a: action) =>
     switch (a, model) {
     | (ToggleDisplay, Expected) => Self
     | (ToggleDisplay, Self) => Expected
-    | _ => model
     };
 
-  let view = (model, ~info: ProjectorBase.info, ~inject) =>
+  let view = (model, ~info: ProjectorBase.info, ~go, ~inject as _) =>
     div(
-      ~attrs=[Attr.on_mousedown(_ => inject(UpdateModel(ToggleDisplay)))],
+      ~attrs=[Attr.on_mousedown(_ => go(ToggleDisplay))],
       [text(display(model, info.ci))],
     );
   let activate = _ => ();
