@@ -4,6 +4,9 @@ open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
 open Virtual_dom.Vdom;
 open ProjectorBase;
 
+let of_id = (id: Id.t) =>
+  "id" ++ (id |> Id.to_string |> String.sub(_, 0, 8));
+
 let escape_linebreaks: string => string =
   Re.Str.global_replace(Re.Str.regexp("\n"), "\\n");
 
@@ -30,32 +33,29 @@ let put = (s: string): Piece.t => s |> mk_mono(Exp);
 let put = (str: string): ProjectorBase.action =>
   SetSyntax(str |> Form.string_quote |> put);
 
-let key_handler = (~inject, ~selector, direction: Util.Direction.t, evt) => {
+let key_handler = (id, ~inject, evt) => {
   open Effect;
   let key = Key.mk(KeyDown, evt);
-  let pos = JsUtil.TextArea.caret_rel_pos(JsUtil.TextArea.get(selector));
+  let pos = JsUtil.TextArea.caret_rel_pos(JsUtil.TextArea.get(of_id(id)));
   let is_last_pos = pos.rows == Last && pos.cols == Last;
   let is_first_pos = pos.rows == First && pos.cols == First;
-  switch (key.key, direction) {
-  | (D("ArrowRight" | "ArrowDown"), _) when is_last_pos =>
-    JsUtil.get_elem_by_selector(selector)##blur;
+  switch (key.key) {
+  | D("ArrowRight" | "ArrowDown") when is_last_pos =>
+    JsUtil.get_elem_by_id(of_id(id))##blur;
     Many([inject(Escape(Right)), Prevent_default, Stop_propagation]);
-  | (D("ArrowLeft" | "ArrowUp"), _) when is_first_pos =>
-    JsUtil.get_elem_by_selector(selector)##blur;
+  | D("ArrowLeft" | "ArrowUp") when is_first_pos =>
+    JsUtil.get_elem_by_id(of_id(id))##blur;
     Many([inject(Escape(Left)), Prevent_default, Stop_propagation]);
   | _ => Stop_propagation
   };
 };
 
 let textarea =
-    (
-      ~selector,
-      ~inject: ProjectorBase.action => Ui_effect.t(unit),
-      text: string,
-    ) =>
+    (id, ~inject: ProjectorBase.action => Ui_effect.t(unit), text: string) =>
   Node.textarea(
     ~attrs=[
-      Attr.on_keydown(key_handler(~selector, Left, ~inject)),
+      Attr.id(of_id(id)),
+      Attr.on_keydown(key_handler(id, ~inject)),
       Attr.on_input((_, new_text) => inject(put(new_text))),
     ],
     [Node.text(text)],
@@ -66,12 +66,12 @@ let n_of = (n: int) =>
   [Node.text("·")]
   @ (List.init(n, _ => [Node.br(), Node.text("·")]) |> List.flatten);
 
-let view = (_, ~selector, ~info, ~go as _, ~inject) => {
+let view = (_, ~info, ~go as _, ~inject) => {
   let text = info.syntax |> get |> Form.strip_quotes;
   Node.div(
     ~attrs=[Attr.classes(["cols"])],
     n_of(Util.StringUtil.num_linebreaks(text))
-    @ [textarea(~inject, ~selector, text)],
+    @ [textarea(info.id, ~inject, text)],
   );
 };
 
@@ -95,17 +95,13 @@ module M: Projector = {
   let can_project = _ => true; //TODO(andrew): restrict somehow
   let placeholder = placeholder;
   let update = (model, _) => model;
-  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  //TODO(andrew): unhardcode element !!!!!!!!!!
-  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  let selector = ".projector.text textarea";
-  let view = view(~selector);
-  let activate = (d: Direction.t) => {
-    JsUtil.get_elem_by_selector(selector)##focus;
+  let view = view;
+  let activate = ((id: Id.t, d: Direction.t)) => {
+    JsUtil.get_elem_by_id(of_id(id))##focus;
     switch (d) {
     | Left => ()
     | Right =>
-      JsUtil.TextArea.set_caret_to_end(JsUtil.TextArea.get(selector))
+      JsUtil.TextArea.set_caret_to_end(JsUtil.TextArea.get(of_id(id)))
     };
   };
 };

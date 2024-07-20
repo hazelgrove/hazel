@@ -335,7 +335,7 @@ let base_point = (measured: Measured.t, z: t): Measured.Point.t => {
         p
       | Some(pr) =>
         //TODO(andrew): figure out if ci None below will causes problems with eg Info
-        Projector.placeholder(pr, {syntax: p, status: None, ci: None})
+        Projector.placeholder(pr, Projector.info_init(p))
       | None => p
       };
     let seg = Piece.disassemble(p);

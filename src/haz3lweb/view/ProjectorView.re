@@ -112,7 +112,7 @@ let view_setup =
   let* p = Projector.Map.find(id, meta.projected.z.projectors);
   let* syntax = Id.Map.find_opt(id, meta.projected.syntax_map);
   let ci = Id.Map.find_opt(id, meta.statics.info_map);
-  let info = {ci, syntax, status};
+  let info = {id, ci, syntax, status};
   let+ measurement = Measured.find_by_id(id, meta.projected.measured);
   let (module P) = to_module(p.kind);
   let inject_proj = a => inject(PerformAction(Project(handle(id, a))));
@@ -191,7 +191,7 @@ let shape_from_map = (z, meta: Editor.Meta.t): option(shape) => {
   let* syntax = Id.Map.find_opt(id, meta.projected.syntax_map);
   let ci = Id.Map.find_opt(id, meta.statics.info_map);
   let status = status(z);
-  let info = {syntax, status, ci};
+  let info = {id, syntax, status, ci};
   shape(z, info);
 };
 
@@ -212,10 +212,10 @@ let key_handoff = (editor: Editor.t, key: Key.t): option(Action.project) =>
     | {key, sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up} =>
       switch (key, d) {
       | (D("ArrowRight"), Right) =>
-        P.activate(Left);
+        P.activate((id, Left));
         Some(Action.FocusInternal(id, Left));
       | (D("ArrowLeft"), Left) =>
-        P.activate(Right);
+        P.activate((id, Right));
         Some(FocusInternal(id, Right));
       | _ => None
       }

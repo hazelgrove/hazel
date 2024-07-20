@@ -54,9 +54,17 @@ type p_action = action;
 /* Externally calculated info to be fed to projectors */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type info = {
+  id: Id.t,
   syntax,
   status: option(status),
   ci: option(Info.t),
+};
+
+let info_init = (p: syntax) => {
+  id: Piece.id(p),
+  syntax: p,
+  status: None,
+  ci: None,
 };
 
 module type Projector = {
@@ -76,11 +84,12 @@ module type Projector = {
     Node.t;
   let placeholder: (model, info) => shape;
   let update: (model, action) => model;
-  let activate: Direction.t => unit;
+  let activate: ((Id.t, Direction.t)) => unit;
 };
 
 type serialized_model = string;
 type serialized_action = string;
+
 module type Cooked = {
   let init: serialized_model;
   let can_project: Piece.t => bool;
@@ -94,7 +103,7 @@ module type Cooked = {
     Node.t;
   let placeholder: (serialized_model, info) => shape;
   let update: (serialized_model, serialized_action) => serialized_model;
-  let activate: Direction.t => unit;
+  let activate: ((Id.t, Direction.t)) => unit;
 };
 
 module Cook = (C: Projector) : Cooked => {
