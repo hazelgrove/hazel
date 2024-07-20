@@ -27,20 +27,6 @@ let of_name = (p: string): kind =>
   | _ => failwith("Unknown projector kind")
   };
 
-let update_model = (action: ProjectorBase.inner_action, {kind, model}) => {
-  let (module P) = to_module(kind);
-  {kind, model: P.update(model, action)};
-};
-
-let handle = (id, action: ProjectorBase.action): Action.project =>
-  switch (action) {
-  | Remove => Remove(id)
-  | FocusInternal(d) => FocusInternal(id, d)
-  | Escape(d) => Escape(id, d)
-  | SetSyntax(f) => SetSyntax(id, f)
-  | UpdateModel(action) => UpdateModel(id, update_model(action))
-  };
-
 let backing_deco =
     (
       ~font_metrics: FontMetrics.t,
@@ -100,6 +86,20 @@ let view_wrapper =
   );
 };
 
+let handle = (id, action: ProjectorBase.action): Action.project =>
+  switch (action) {
+  | Remove => Remove(id)
+  | FocusInternal(d) => FocusInternal(id, d)
+  | Escape(d) => Escape(id, d)
+  | SetSyntax(f) => SetSyntax(id, f)
+  | UpdateModel(sexp) => UpdateModel(id, sexp)
+  };
+
+let update_model = (action, {kind, model}) => {
+  let (module P) = to_module(kind);
+  {kind, model: P.update(model, action)};
+};
+
 let view_setup =
     (
       id: Id.t,
@@ -116,6 +116,7 @@ let view_setup =
   let+ measurement = Measured.find_by_id(id, meta.projected.measured);
   let (module P) = to_module(p.kind);
   let inject_proj = a => inject(PerformAction(Project(handle(id, a))));
+  let go = a => inject_proj(UpdateModel(P.update(p.model, a)));
   view_wrapper(
     ~inject,
     ~font_metrics,
@@ -124,7 +125,7 @@ let view_setup =
     ~info,
     ~selected=List.mem(id, meta.selection_ids),
     p,
-    P.view(p.model, ~info, ~inject=inject_proj),
+    P.view(p.model, ~info, ~go, ~inject=inject_proj),
   );
 };
 

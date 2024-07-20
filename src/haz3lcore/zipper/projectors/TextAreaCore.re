@@ -66,7 +66,7 @@ let n_of = (n: int) =>
   [Node.text("·")]
   @ (List.init(n, _ => [Node.br(), Node.text("·")]) |> List.flatten);
 
-let view = (_, ~selector, ~info, ~inject) => {
+let view = (_, ~selector, ~info, ~go as _, ~inject) => {
   let text = info.syntax |> get |> Form.strip_quotes;
   Node.div(
     ~attrs=[Attr.classes(["cols"])],
@@ -86,9 +86,11 @@ let placeholder = (_, info) =>
     col: 2 + num_lines(info.syntax) /* +2 for left and right padding */
   });
 
-module M: CoreInner = {
+module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = unit;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type action = unit;
   let init = ();
   let can_project = _ => true; //TODO(andrew): restrict somehow
   let placeholder = placeholder;

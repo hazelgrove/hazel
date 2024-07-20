@@ -12,19 +12,10 @@ type kind =
   | SliderF
   | TextArea;
 
-[@deriving (show({with_path: false}), sexp)]
-type sexp2 = Sexplib.Sexp.t;
-//TODO(andrew): proper serialization
-let sexp2_of_yojson = _ =>
-  Sexplib.Sexp.Atom("TODO(andrew): proper serialization");
-let yojson_of_sexp2 = _ => Yojson.Safe.from_string("TODOTODOTODO");
-[@deriving (show({with_path: false}), sexp, yojson)]
-type model = sexp2;
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type entry = {
   kind,
-  model,
+  model: string,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -51,15 +42,14 @@ type status =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type syntax = Piece.t;
 
-type inner_action = ..;
-//TODO(andrew): decide how to rm
-
 type action =
   | Remove /* Remove projector */
   | FocusInternal(Util.Direction.t) /* DOM Focus on projector */
   | Escape(Util.Direction.t) /* Pass key control to parent editor */
-  | SetSyntax(syntax)
-  | UpdateModel(inner_action);
+  | SetSyntax(syntax) /* Set underlying syntax */
+  | UpdateModel(string); /* Set serialized model */
+
+type p_action = action;
 
 /* Externally calculated info to be fed to projectors */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -69,39 +59,56 @@ type info = {
   ci: option(Info.t),
 };
 
-module type CoreInner = {
+module type Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model;
-
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type action;
   let init: model;
   let can_project: Piece.t => bool;
   let view:
-    (model, ~info: info, ~inject: action => Ui_effect.t(unit)) => Node.t;
+    (
+      model,
+      ~info: info,
+      ~go: action => Ui_effect.t(unit),
+      ~inject: p_action => Ui_effect.t(unit)
+    ) =>
+    Node.t;
   let placeholder: (model, info) => shape;
-  let update: (model, inner_action) => model;
+  let update: (model, action) => model;
   let activate: Direction.t => unit;
-  // let keymap: (model, Util.Direction.t, Key.t) => option(action);
 };
 
-module type CoreOuter = {
-  let init: model;
+type serialized_model = string;
+type serialized_action = string;
+module type Cooked = {
+  let init: serialized_model;
   let can_project: Piece.t => bool;
   let view:
-    (model, ~info: info, ~inject: action => Ui_effect.t(unit)) => Node.t;
-  let placeholder: (model, info) => shape;
-  let update: (model, inner_action) => model;
+    (
+      serialized_model,
+      ~info: info,
+      ~go: serialized_action => Ui_effect.t(unit),
+      ~inject: p_action => Ui_effect.t(unit)
+    ) =>
+    Node.t;
+  let placeholder: (serialized_model, info) => shape;
+  let update: (serialized_model, serialized_action) => serialized_model;
   let activate: Direction.t => unit;
-  // let keymap: (model, Util.Direction.t, Key.t) => option(action);
 };
 
-module CoreOuterMk = (C: CoreInner) : CoreOuter => {
-  let init = C.sexp_of_model(C.init);
+module Cook = (C: Projector) : Cooked => {
+  let serialize_m = m => m |> C.sexp_of_model |> Sexplib.Sexp.to_string;
+  let deserialize_m = s => s |> Sexplib.Sexp.of_string |> C.model_of_sexp;
+  let serialize_a = a => a |> C.sexp_of_action |> Sexplib.Sexp.to_string;
+  let deserialize_a = s => s |> Sexplib.Sexp.of_string |> C.action_of_sexp;
+  let init = C.init |> serialize_m;
   let can_project = C.can_project;
-  let view = m => m |> C.model_of_sexp |> C.view;
-  let placeholder = m => m |> C.model_of_sexp |> C.placeholder;
-  let update = (m, a) => C.update(C.model_of_sexp(m), a) |> C.sexp_of_model;
+  let view = (m, ~info, ~go, ~inject) =>
+    C.view(deserialize_m(m), ~info, ~go=a => go(serialize_a(a)), ~inject);
+  let placeholder = m =>
+    m |> Sexplib.Sexp.of_string |> C.model_of_sexp |> C.placeholder;
+  let update = (m, a) =>
+    C.update(m |> deserialize_m, a |> deserialize_a) |> serialize_m;
   let activate = C.activate;
-  // let keymap = (m: Sexplib.Sexp.t) => m |> C.model_of_sexp |> C.keymap;
 };
-
-type core = (module CoreOuter);

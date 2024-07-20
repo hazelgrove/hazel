@@ -25,7 +25,8 @@ let put = (bool: bool): Piece.t => bool |> string_of_bool |> mk_mono(Exp);
 
 let toggle = (piece: Piece.t) => put(!get(piece));
 
-let view = (_, ~info, ~inject: ProjectorBase.action => Ui_effect.t(unit)) =>
+let view =
+    (_, ~info, ~go as _, ~inject: ProjectorBase.action => Ui_effect.t(unit)) =>
   Node.input(
     ~attrs=
       [
@@ -44,14 +45,15 @@ let keymap = (_, _, key: Key.t): option(ProjectorBase.action) =>
   | _ => None
   };
 
-module M: CoreInner = {
+module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = unit;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type action = unit;
   let init = ();
   let can_project = p => state_of(p) != None;
   let placeholder = (_, _) => Inline(2);
   let update = (model, _) => model;
   let view = view;
   let activate = _ => ();
-  // let keymap = keymap;
 };

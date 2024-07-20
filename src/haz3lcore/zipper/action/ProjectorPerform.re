@@ -91,11 +91,15 @@ let go =
     | true => Ok(set(id, None, z))
     }
   | SetSyntax(id, p) => Ok(Projector.Syntax.update(_ => p, id, z))
-  | UpdateModel(id, f) =>
+  | UpdateModel(id, model) =>
     Ok({
       ...z,
       projectors:
-        Map.update(id, entry => Option.map(f, entry), z.projectors),
+        Map.update(
+          id,
+          entry => Option.map(e => {model, kind: e.kind}, entry),
+          z.projectors,
+        ),
     })
   };
 };

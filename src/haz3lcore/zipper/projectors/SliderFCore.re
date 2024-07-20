@@ -17,18 +17,25 @@ let get = (piece: Piece.t): float =>
   | Some(s) => s
   };
 
-module M: CoreInner = {
+module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = unit;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type action = unit;
   let init = ();
   let can_project = p => get_opt(p) != None;
   let placeholder = (_, _) => Inline(10);
   let update = (model, _) => model;
-  let view = (_, ~info, ~inject: ProjectorBase.action => Ui_effect.t(unit)) =>
+  let view =
+      (
+        _,
+        ~info,
+        ~go as _,
+        ~inject: ProjectorBase.action => Ui_effect.t(unit),
+      ) =>
     Util.Web.range(
       ~attrs=[Attr.on_input((_, v) => inject(SetSyntax(put(v))))],
       get(info.syntax) |> Printf.sprintf("%.2f"),
     );
   let activate = _ => ();
-  // let keymap = (_, _, _) => None;
 };
