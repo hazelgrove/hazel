@@ -139,14 +139,7 @@ let go_z =
         }
       }
     }
-  | Project(a) =>
-    ProjectorPerform.go(
-      Move.jump_to_id,
-      Move.primary,
-      a,
-      meta.projected.syntax_map,
-      z,
-    )
+  | Project(a) => ProjectorPerform.go(Move.jump_to_id, Move.primary, a, z)
   | Move(d) =>
     Move.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move)
   | Jump(jump_target) =>

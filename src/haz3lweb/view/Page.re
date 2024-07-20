@@ -3,57 +3,34 @@ open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
 
-let handlers =
+let key_handler =
     (
       ~inject: UpdateAction.t => Ui_effect.t(unit),
-      _page_id,
+      ~dir: Key.dir,
       editor: Editor.t,
-    ) => {
-  let key_handler =
-      (~inject, ~dir: Key.dir, evt: Js.t(Dom_html.keyboardEvent))
-      : Effect.t(unit) => {
-    open Effect;
-    let key = Key.mk(dir, evt);
-    switch (ProjectorView.key_handler(editor, key)) {
-    // | Some(Remove(id)) when id == Id.invalid =>
-    //   //TODO(andrew): proper no-op (see ProjectorView)
-    //   Ignore
-    | Some(action) =>
-      Many([
-        Prevent_default,
-        // Stop_propagation,
-        inject(Update.PerformAction(Project(action))),
-      ])
-    | None =>
-      switch (Keyboard.handle_key_event(key)) {
-      | None => Ignore
-      | Some(action) => Many([Prevent_default, inject(action)])
-      }
-    };
+      evt: Js.t(Dom_html.keyboardEvent),
+    )
+    : Effect.t(unit) => {
+  open Effect;
+  let key = Key.mk(dir, evt);
+  switch (ProjectorView.key_handoff(editor, key)) {
+  | Some(action) =>
+    Many([Prevent_default, inject(PerformAction(Project(action)))])
+  | None =>
+    switch (Keyboard.handle_key_event(key)) {
+    | None => Ignore
+    | Some(action) => Many([Prevent_default, inject(action)])
+    }
   };
-  // let keypress_handler =
-  //     (~dir: Key.dir, evt: Js.t(Dom_html.keyboardEvent)): Effect.t(unit) => {
-  //   let key = Key.mk(dir, evt);
-  //   switch (ProjectorView.key_handler(editor, key)) {
-  //   | Some(Remove(id)) when id == Id.invalid =>
-  //     //TODO(andrew): document why this exists
-  //     //TODO(andrew): proper no-op (see ProjectorView)
-  //     Effect.Ignore
-  //   | _ => Effect.Prevent_default
-  //   };
-  // };
+};
+
+let handlers =
+    (~inject: UpdateAction.t => Ui_effect.t(unit), editor: Editor.t) => {
   [
-    //Attr.on_keypress(keypress_handler(~dir=KeyDown)),
-    Attr.on_keyup(key_handler(~inject, ~dir=KeyUp)),
-    Attr.on_keydown(key_handler(~inject, ~dir=KeyDown)),
+    Attr.on_keyup(key_handler(~inject, editor, ~dir=KeyUp)),
+    Attr.on_keydown(key_handler(~inject, editor, ~dir=KeyDown)),
     /* safety handler in case mousedown overlay doesn't catch it */
     Attr.on_mouseup(_ => inject(SetMeta(Mouseup))),
-    // Attr.on_mousedown(_ => {
-    //   //TODO(andrew): check if below focus is load bearing
-    //   print_endline("page mousedown; setting focus: page");
-    //   //Effect.Ignore;
-    //   inject(SetMeta(Focus(page_id)));
-    // }),
     Attr.on_blur(_ => {
       JsUtil.focus_clipboard_shim();
       Effect.Ignore;
@@ -184,15 +161,12 @@ let main_view =
 let get_selection = (model: Model.t): string =>
   model.editors |> Editors.get_editor |> Printer.to_string_selection;
 
-let page_id = "page";
-
 let view = (~inject: UpdateAction.t => Ui_effect.t(unit), model: Model.t) =>
   div(
     ~attrs=
       Attr.[
-        //tabindex(0),
-        id(page_id),
-        ...handlers(~inject, page_id, Editors.get_editor(model.editors)),
+        id("page"),
+        ...handlers(~inject, Editors.get_editor(model.editors)),
       ],
     [
       FontSpecimen.view("font-specimen"),

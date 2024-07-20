@@ -52,5 +52,6 @@ module M: CoreInner = {
   let placeholder = (_, _) => Inline(2);
   let update = (model, _) => model;
   let view = view;
-  let keymap = keymap;
+  let activate = _ => ();
+  // let keymap = keymap;
 };
