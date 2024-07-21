@@ -2,7 +2,7 @@
 
 ## Current version
 
-The most recent version that we use is Ocaml 5.0.0.
+The most recent version that we use is Ocaml 5.2.0.
 If there are known issues with more recent version of OCaml, we will list them here.
 
 ## How to update Hazel to use a new version of ocaml
@@ -16,7 +16,7 @@ To update do the following:
 - `opam switch list-available`
 
 - Choose the most recent version, but no later than the public release on 
-  ocaml.org (e.g., `5.0.0`).
+  ocaml.org (e.g., `5.2.0`).
 
 - Create a new branch called `update_ocaml_VERSION` where VERSION is the 
   version of OCaml you intend to upgrade to. 
@@ -24,7 +24,7 @@ To update do the following:
     `git checkout -b update_ocaml_VERSION`
 
 - `opam switch create VERSION`, where `VERSION` is the most recent OCaml version
-  that does not contain a `+` character (e.g., `4.12.1`).
+  that does not contain a `+` character (e.g., `5.2.0`).
 
 - `make deps`
 

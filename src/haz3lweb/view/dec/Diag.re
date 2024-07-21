@@ -1,7 +1,6 @@
 open DecUtil;
 open SvgUtil.Path;
-open Sexplib.Std;
-open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
+open Util;
 
 //TODO(?): deprecate this module
 

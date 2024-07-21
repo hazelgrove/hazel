@@ -307,10 +307,6 @@ let ui_state_update =
   switch (update) {
   | Mousedown => {...ui_state, mousedown: true}
   | Mouseup => {...ui_state, mousedown: false}
-  | Focus(focus) =>
-    //print_endline("Update: setting focus=" ++ focus);
-    //JsUtil.focus(~site="update", focus);
-    {...ui_state, focus}
   | ShowBackpackTargets(b) => {...ui_state, show_backpack_targets: b}
   | FontMetrics(font_metrics) => {...ui_state, font_metrics}
   };

@@ -1,6 +1,4 @@
 open Util;
-open Sexplib.Std;
-open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
 open Virtual_dom.Vdom;
 open ProjectorBase;
 
@@ -48,9 +46,7 @@ let key_handler = (id, ~inject, evt) => {
   | D("ArrowLeft" | "ArrowUp") when is_first_pos =>
     JsUtil.get_elem_by_id(of_id(id))##blur;
     Many([inject(Escape(Left)), Stop_propagation]);
-  | _ =>
-    JsUtil.focus(of_id(id));
-    Stop_propagation;
+  | _ => Stop_propagation
   };
 };
 
@@ -64,11 +60,10 @@ let textarea =
       //   print_endline("textarea: on_keyup");
       //   Effect.(Many([Stop_propagation]));
       // }),
-      Attr.on_keypress(_ => {
-        print_endline("textarea: on_keyup");
-        JsUtil.focus(of_id(id));
-        Effect.(Many([Stop_propagation]));
-      }),
+      // Attr.on_keyup(_ => {
+      //   print_endline("textarea: on_keyup");
+      //   Effect.(Many([Stop_propagation]));
+      // }),
       Attr.on_input((_, new_text) => {
         print_endline("textarea: on_input");
         Effect.(Many([inject(put(new_text))]));

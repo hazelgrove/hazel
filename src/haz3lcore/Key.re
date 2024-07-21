@@ -1,5 +1,5 @@
+open Util;
 open Js_of_ocaml;
-open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
 
 [@deriving (show({with_path: false}), yojson)]
 type dir =

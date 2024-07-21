@@ -1,5 +1,4 @@
-open Sexplib.Std;
-open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
+open Util;
 
 /* FIXME: Make more obvious names. */
 [@deriving (show({with_path: false}), sexp, yojson)]
