@@ -183,12 +183,6 @@ module Fragment = {
   };
 };
 
-let stop_mousedown_propagation =
-  Attr.on_mousedown(evt => {
-    Js_of_ocaml.Dom_html.stopPropagation(evt);
-    Virtual_dom.Vdom.Effect.Ignore;
-  });
-
 module TextArea = {
   type t = Js.t(Dom_html.textAreaElement);
 
