@@ -1,6 +1,6 @@
 (library
  (name util)
- (libraries base ptmap incr_dom)
+ (libraries re base ptmap incr_dom)
  (js_of_ocaml
   (flags
    (:include js-of-ocaml-flags-%{profile})))
