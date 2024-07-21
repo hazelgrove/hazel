@@ -266,14 +266,13 @@ module TextArea = {
     /* precondition: lines nonempty */
     let lines = lines(textarea);
     let {rows, cols} = caret_rel_pos(textarea);
-    rows == Last
-    && cols == Last
-    || rows == First
-    && cols == Last
-    && List.length(lines) == 1
-    || rows == First
-    && cols == First
-    && lines == [""];
+    switch (rows, cols, List.rev(lines)) {
+    | (Last, Last, _) => true
+    | (Last, First, ["", ..._]) => true
+    | (First, Last, [_]) => true
+    | (First, First, [""]) => true
+    | _ => false
+    };
   };
 
   let set_caret_to_end = (textarea: t): unit => {

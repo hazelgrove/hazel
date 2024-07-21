@@ -22,17 +22,11 @@ let self_ty = (info: option(Info.t)): option(Typ.t) =>
   | _ => None
   };
 
-let display_ty = (expected_ty: option(Typ.t)): Typ.t =>
+let totalize_ty = (expected_ty: option(Typ.t)): Typ.t =>
   switch (expected_ty) {
   | Some(expected_ty) => expected_ty
   | None => Unknown(Internal)
   };
-
-let syn_display = info =>
-  "⋱ ⇒ " ++ (info |> self_ty |> display_ty |> Typ.pretty_print);
-
-let ana_display = info =>
-  "⋱ ⇐ " ++ (info |> expected_ty |> display_ty |> Typ.pretty_print);
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -56,15 +50,25 @@ module M: Projector = {
 
   let can_focus = false;
 
-  let display = (model, info) =>
+  let display_ty = (model, info) =>
     switch (model) {
-    | _ when mode(info) == Some(Syn) => syn_display(info)
-    | Self => syn_display(info)
-    | Expected => ana_display(info)
+    | _ when mode(info) == Some(Syn) => info |> self_ty
+    | Self => info |> self_ty
+    | Expected => info |> expected_ty
     };
 
+  let display_mode = (model, info): string =>
+    switch (model) {
+    | _ when mode(info) == Some(Syn) => "⇐"
+    | Self => "⇐"
+    | Expected => "⇒"
+    };
+
+  let display = (model, info) =>
+    display_ty(model, info) |> totalize_ty |> Typ.pretty_print;
+
   let placeholder = (model, info: ProjectorBase.info) =>
-    Inline((display(model, info.ci) |> String.length) - 2);
+    Inline((display(model, info.ci) |> String.length) + 5);
 
   let update = (model, a: action) =>
     switch (a, model) {
@@ -74,8 +78,17 @@ module M: Projector = {
 
   let view = (model, ~info: ProjectorBase.info, ~go, ~inject as _) =>
     div(
-      ~attrs=[Attr.on_mousedown(_ => go(ToggleDisplay))],
-      [text(display(model, info.ci))],
+      ~attrs=[
+        Attr.class_("info"),
+        Attr.on_mousedown(_ => go(ToggleDisplay)),
+      ],
+      [
+        text("⋱ " ++ display_mode(model, info.ci) ++ " "),
+        div(
+          ~attrs=[Attr.class_("type")],
+          [text(display(model, info.ci))],
+        ),
+      ],
     );
   let activate = _ => ();
 };
