@@ -113,9 +113,6 @@ let invalid: t =
 let nullary_ap_flag: t =
   "DEADBEEF-0000-0000-0000-000000000000" |> Uuidm.of_string |> Option.get;
 
-let ctx_sentinel: t =
-  "DEADBEEF-DEAD-BEEF-DEAD-DEADBEEFDEAD" |> Uuidm.of_string |> Option.get;
-
 let is_nullary_ap_flag = (ids: list(t)) =>
   switch (ids) {
   | [id] when id == nullary_ap_flag => true
