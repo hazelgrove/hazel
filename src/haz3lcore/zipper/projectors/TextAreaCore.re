@@ -29,8 +29,8 @@ let put = (str: string): ProjectorBase.action =>
   SetSyntax(str |> Form.string_quote |> put);
 
 let key_handler = (id, ~inject, evt) => {
-  print_endline("textarea: keydown");
-  open Effect;
+  open Effect; //print_endline("textarea: keydown");
+
   let key = Key.mk(KeyDown, evt);
   let is_last_pos =
     JsUtil.TextArea.caret_at_end(JsUtil.TextArea.get(of_id(id)));
@@ -65,8 +65,10 @@ let textarea =
       //   Effect.(Many([Stop_propagation]));
       // }),
       Attr.on_input((_, new_text) => {
-        print_endline("textarea: on_input");
-        Effect.(Many([inject(put(new_text))]));
+        //print_endline("textarea: on_input");
+        Effect.(
+          Many([inject(put(new_text))])
+        )
       }),
       // Attr.on_change((_, _) => {
       //   print_endline("textarea: on_change");
@@ -76,20 +78,15 @@ let textarea =
     [Node.text(text)],
   );
 
-let n_of = (n: int) =>
-  [Node.text("·")]  //·•⬤
-  @ (List.init(n, _ => [Node.br(), Node.text("·")]) |> List.flatten);
-
 let view = (_, ~info, ~go as _, ~inject) => {
   let text = info.syntax |> get |> Form.strip_quotes;
   Node.div(
     //TODO(andrew): rm wrapper?
-    ~attrs=[Attr.classes(["projector-wrapper"])],
+    ~attrs=[Attr.classes(["wrapper"])],
     [
       Node.div(
         ~attrs=[Attr.classes(["cols"])],
-        n_of(StringUtil.num_linebreaks(text))
-        @ [textarea(info.id, ~inject, text)],
+        [Node.text("·")] @ [textarea(info.id, ~inject, text)],
       ),
     ],
   );
@@ -105,9 +102,6 @@ module M: Projector = {
   let can_focus = true;
   let placeholder = (_, info) => {
     let str = Form.strip_quotes(get(info.syntax));
-    // print_endline(
-    //   "num-rows:" ++ (str |> StringUtil.num_lines |> string_of_int),
-    // );
     Block({
       row: StringUtil.num_lines(str),
       /* +2 for left and right padding */

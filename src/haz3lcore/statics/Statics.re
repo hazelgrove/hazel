@@ -909,8 +909,9 @@ let mk =
   });
 
 let mk = (core: CoreSettings.t, ctx, exp) => {
-  print_endline("RETICULATING SPLINES"); //TODO(andrew): rm
-  core.statics ? mk(ctx, exp) : Id.Map.empty;
+  //print_endline("RETICULATING SPLINES");
+  core.statics
+    ? mk(ctx, exp) : Id.Map.empty;
 };
 
 let collect_errors = (map: Map.t): list((Id.t, Info.error)) =>

@@ -698,6 +698,9 @@ select {
 .projector.indicated > svg {
   fill: var(--exp-bg-off-color);
 }
+.projector > svg > path {
+    /* filter: url(#raised-drop-shadow-Exp) !important; */
+}
 
 /* PROJECTOR: FOLD */
 
@@ -711,17 +714,20 @@ select {
 
 /* PROJECTOR: INFO */
 
-.projector.type {
+.projector.type .type {
   color: var(--typ-text-color);
 }
-.projector.type:hover {
-  opacity: 1;
-}
-.projector.type > svg {
+/* .projector.type > svg {
   fill: var(--typ-bg-off-color);
-}
+} */
 .projector.type {
   cursor: pointer;
+}
+.projector.type .info {
+  display: flex;
+}
+.projector.type:hover {
+  color: black;
 }
 
 /* PROJECTOR: CHECKBOX */
@@ -730,6 +736,9 @@ select {
   margin: 0;
   filter: sepia(1);
   cursor: pointer;
+}
+.projector.check:not(.indicated):not(:hover) > svg {
+  fill: #0000;
 }
 
 /* PROJECTOR: SLIDERS (INT & FLOAT) */
@@ -741,6 +750,10 @@ select {
   filter: sepia(1);
   cursor: pointer;
 }
+.projector.slide:not(.indicated):not(:hover) > svg,
+.projector.slidef:not(.indicated):not(:hover) > svg {
+  fill: #0000;
+}
 
 /* PROJECTOR: TEXTAREA */
 
@@ -748,7 +761,7 @@ select {
   cursor: default;
 }
 
-.projector.text .projector-wrapper {
+.projector.text .wrapper {
   height: 100%;
   width: 100%;
   border-radius: 0.1em;
@@ -757,16 +770,16 @@ select {
   margin-left: -2px;
   margin-right: -2px;
 }
-.projector.text.indicated.left .projector-wrapper {
+.projector.text.indicated.left .wrapper {
   border-right: 2px solid red;
   animation: 1s blink_border_right step-end infinite;
 }
-.projector.text.indicated.right .projector-wrapper {
+.projector.text.indicated.right .wrapper {
   border-left: 2px solid red;
   animation: 1s blink_border_left step-end infinite;
 }
-.projector.text .projector-wrapper:has(.cols.inside),
-.projector.text .projector-wrapper:has(.cols.inside) {
+.projector.text .wrapper:has(.cols.inside),
+.projector.text .wrapper:has(.cols.inside) {
   border-color: #0000;
   animation: none;
 }
@@ -775,28 +788,30 @@ select {
   height: 100%;
   width: 100%;
   display: flex;
-  border-radius: 0.1em;
+  border-radius: 0 0.1em 0.1em 0.1em;
   outline: 0.3px solid #a69460;
-  background-color: #e0d1b7;
-  color: #f0e7d6;
+  color: #fff;
+  background: repeating-linear-gradient(
+    #f0e7d6,
+    #f0e7d6 1.4em,
+    #add8ff 1.4em,
+    #add8ff 1.46em
+  );
 }
 
 .projector.text.selected .cols {
-  background-color: var(--selection-color);
-  color: #c7b491;
-}
-.projector.text.selected textarea {
   background: repeating-linear-gradient(
     var(--selection-color),
     var(--selection-color) 1.4em,
     #e0d1b7 1.4em,
     #e0d1b7 1.46em
   );
+  color: #c7b491;
 }
 
 .projector.text textarea {
+  outline: none;
   resize: none;
-  height: 100%;
   width: 100%;
   caret-color: red;
   padding: 0;
@@ -805,15 +820,9 @@ select {
   font-family: "Source Code Pro", monospace;
   font-size: inherit;
   border: none;
-  border-radius: 0.1em;
-  outline: 0.3px solid #a69460;
   color: #8c7e62;
-  background: repeating-linear-gradient(
-    #f0e7d6,
-    #f0e7d6 1.4em,
-    #e0d1b7 1.4em,
-    #e0d1b7 1.46em
-  );
+  background: none;
+  box-shadow: inset 1px 0 0 #ff8ea88a;
 }
 
 .projector.text textarea::selection {

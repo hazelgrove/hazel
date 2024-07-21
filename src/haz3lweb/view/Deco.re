@@ -264,7 +264,6 @@ module Deco = (M: {
   };
 
   let backpack = (z: Zipper.t): list(Node.t) => {
-    print_endline("Deco.backpack.caret_point");
     [
       BackpackView.view(
         ~font_metrics,
@@ -371,7 +370,7 @@ module Deco = (M: {
   let always = (~inject) =>
     List.concat([
       err_holes(),
-      ProjectorView.view_all(~meta=M.meta, ~inject, ~font_metrics),
+      ProjectorView.view_all(~meta=M.meta, ~inject, ~font_metrics) |> List.rev,
     ]);
 
   let all = (~inject) =>
