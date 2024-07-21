@@ -407,20 +407,18 @@ and uexp_to_info_map =
       go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~mode=Syn, p, m);
     let (def, p_ana_ctx, m, ty_p_ana) =
       if (!is_recursive(ctx, p, def, p_syn.ty)) {
-        let (def, p) =
+        let (def, p, p_syn) =
           switch (check_annotated_function(p)) {
           | Some((f_name, f_args, f_type)) =>
             let def: UExp.t = {ids, term: UExp.Fun(f_args, def)};
-            let p: UPat.t =
-              switch (f_type.term) {
-              | EmptyHole => {ids, term: UPat.Var(f_name)}
-              | _ => {
-                  ids,
-                  term: UPat.TypeAnn({ids, term: UPat.Var(f_name)}, f_type),
-                }
-              };
-            (def, p);
-          | None => (def, p) // Use the original code
+            let p: UPat.t = {
+              ids,
+              term: UPat.TypeAnn({ids, term: UPat.Var(f_name)}, f_type),
+            };
+            let (p_syn, _) =
+              go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~mode=Syn, p, m);
+            (def, p, p_syn);
+          | None => (def, p, p_syn) // Use the original code
           };
 
         let (def, m) = go(~mode=Ana(p_syn.ty), def, m);
