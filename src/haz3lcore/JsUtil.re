@@ -1,6 +1,4 @@
 open Util;
-open Sexplib.Std;
-open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
 open Js_of_ocaml;
 open Virtual_dom.Vdom;
 

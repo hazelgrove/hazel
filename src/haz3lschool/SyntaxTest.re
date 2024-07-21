@@ -1,6 +1,5 @@
 open Haz3lcore;
-open Sexplib.Std;
-open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
+open Util;
 
 /*
   These are the syntax test functions used for the syntax validation

@@ -1,5 +1,3 @@
-open Sexplib.Std;
-open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
 open Util;
 open Haz3lcore;
 
@@ -39,7 +37,6 @@ type stepper_action =
 type set_meta =
   | Mousedown
   | Mouseup
-  | Focus(string)
   | ShowBackpackTargets(bool)
   | FontMetrics(FontMetrics.t);
 
@@ -115,7 +112,6 @@ let is_edit: t => bool =
     switch (meta_action) {
     | Mousedown
     | Mouseup
-    | Focus(_)
     | ShowBackpackTargets(_)
     | FontMetrics(_) => false
     }
@@ -169,7 +165,6 @@ let reevaluate_post_update: t => bool =
     switch (meta_action) {
     | Mousedown
     | Mouseup
-    | Focus(_)
     | ShowBackpackTargets(_)
     | FontMetrics(_) => false
     }
@@ -216,7 +211,6 @@ let should_scroll_to_caret =
     | FontMetrics(_) => true
     | Mousedown
     | Mouseup
-    | Focus(_)
     | ShowBackpackTargets(_) => false
     }
   | UpdateResult(_)

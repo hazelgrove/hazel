@@ -1,5 +1,4 @@
-open Sexplib.Std;
-open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
+open Util;
 
 /*
  ModelResults is used to store the results of

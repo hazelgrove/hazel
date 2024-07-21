@@ -1,6 +1,5 @@
 open Haz3lcore;
-open Sexplib.Std;
-open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
+open Util;
 
 // A generic key-value store for saving/loading data to/from local storage
 module Generic = {
