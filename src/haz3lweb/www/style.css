@@ -699,7 +699,7 @@ select {
   fill: var(--exp-bg-off-color);
 }
 .projector > svg > path {
-    /* filter: url(#raised-drop-shadow-Exp) !important; */
+  /* filter: url(#raised-drop-shadow-Exp) !important; */
 }
 
 /* PROJECTOR: FOLD */
@@ -826,6 +826,7 @@ select {
   color: #8c7e62;
   background: none;
   box-shadow: inset 1px 0 0 #ff8ea88a;
+  overflow: hidden; /* hack: scrolls in chrome without this? */
 }
 
 .projector.text textarea::selection {
