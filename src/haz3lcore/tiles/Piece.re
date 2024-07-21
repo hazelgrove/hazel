@@ -160,7 +160,6 @@ let replace_id = (id: Id.t, p: t): t =>
   };
 
 let mk_tile: (Form.t, list(list(t))) => t =
-  //TODO: asserts
   (form, children) =>
     Tile({
       id: Id.mk(),
