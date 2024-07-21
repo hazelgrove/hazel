@@ -51,7 +51,7 @@ let cls = (indicated: option(status), selected) =>
 
 let view_wrapper =
     (
-      ~inject as _,
+      ~inject: UpdateAction.t => Ui_effect.t(unit),
       ~font_metrics: FontMetrics.t,
       ~measurement: Measured.measurement,
       ~status: option(Projector.status),
@@ -66,8 +66,15 @@ let view_wrapper =
       Attr.classes(
         ["projector", name(entry.kind)] @ cls(status, selected),
       ),
+      Attr.on_mousedown(_ =>
+        Effect.(
+          Many([
+            Stop_propagation,
+            inject(PerformAction(Jump(TileId(info.id)))),
+          ])
+        )
+      ),
       DecUtil.abs_style(measurement, ~fudge, ~font_metrics),
-      JsUtil.stop_mousedown_propagation,
     ],
     [view, backing_deco(~font_metrics, ~measurement, ~info, entry)],
   );

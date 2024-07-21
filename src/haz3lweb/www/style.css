@@ -778,10 +778,13 @@ select {
   border-left: 2px solid red;
   animation: 1s blink_border_left step-end infinite;
 }
-.projector.text .wrapper:has(.cols.inside),
-.projector.text .wrapper:has(.cols.inside) {
+.projector.text.indicated:has(textarea:focus) .wrapper {
   border-color: #0000;
   animation: none;
+}
+
+.projector.text.indicated:has(textarea:focus) .cols {
+  color: red;
 }
 
 .projector.text .cols {
@@ -793,8 +796,8 @@ select {
   color: #fff;
   background: repeating-linear-gradient(
     #f0e7d6,
-    #f0e7d6 1.4em,
-    #add8ff 1.4em,
+    #f0e7d6 1.41em,
+    #add8ff 1.41em,
     #add8ff 1.46em
   );
 }
