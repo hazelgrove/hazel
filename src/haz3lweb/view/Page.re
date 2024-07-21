@@ -48,9 +48,10 @@ let handlers =
       inject(UpdateAction.PerformAction(Destruct(Left)));
     }),
     Attr.on_paste(evt => {
+      //TODO(andrew): use StringUtil regexp
       let pasted_text =
         Js.to_string(evt##.clipboardData##getData(Js.string("text")))
-        |> Str.global_replace(Str.regexp("\n[ ]*"), "\n");
+        |> Util.StringUtil.trim_leading;
       Dom.preventDefault(evt);
       inject(PerformAction(Paste(pasted_text)));
     }),

@@ -11,9 +11,9 @@ let to_module = (kind: kind): (module Cooked) =>
   | TextArea => (module Cook(TextAreaCore.M))
   };
 
-let shape = (p: entry, syntax): shape => {
+let shape = (p: entry, info: info): shape => {
   let (module P) = to_module(p.kind);
-  P.placeholder(p.model, syntax);
+  P.placeholder(p.model, info);
 };
 
 let is_placeholder = (p: Piece.t): bool => {
@@ -27,7 +27,9 @@ let is_placeholder = (p: Piece.t): bool => {
 let placeholder_label = (p: entry, syntax): list(string) =>
   switch (shape(p, syntax)) {
   | Inline(width) => [String.make(width, ' ')]
-  | Block({row, col}) => [String.make(row, '\n') ++ String.make(col, ' ')]
+  | Block({row, col}) => [
+      String.make(row - 1, '\n') ++ String.make(col, ' '),
+    ]
   };
 
 let placeholder = (p: entry, info: info): syntax =>

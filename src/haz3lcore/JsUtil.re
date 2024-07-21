@@ -1,8 +1,8 @@
-open Js_of_ocaml;
-open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
-
-open Virtual_dom.Vdom;
+open Util;
 open Sexplib.Std;
+open Ppx_yojson_conv_lib.Yojson_conv.Primitives;
+open Js_of_ocaml;
+open Virtual_dom.Vdom;
 
 let get_elem_by_id = id => {
   let doc = Dom_html.document;
@@ -219,7 +219,7 @@ module TextArea = {
     |> Js.Opt.get(_, _ => failwith("TextArea.get"));
 
   let lines = (textarea: t): list(string) =>
-    Re.Str.split(Re.Str.regexp("\n"), Js.to_string(textarea##.value));
+    StringUtil.to_lines(Js.to_string(textarea##.value));
 
   let caret_pos = (textarea: t): pos => {
     let rec find_position = (lines, cur_pos, row, col) => {
@@ -260,21 +260,22 @@ module TextArea = {
   };
 
   let caret_at_start = (textarea: t): bool => {
-    switch (textarea |> lines) {
-    | [] => true
-    | _ =>
-      let {rows, cols} = caret_rel_pos(textarea);
-      rows == First && cols == First;
-    };
+    let {rows, cols} = caret_rel_pos(textarea);
+    rows == First && cols == First;
   };
 
   let caret_at_end = (textarea: t): bool => {
-    switch (textarea |> lines) {
-    | [] => true
-    | lines =>
-      let {rows, cols} = caret_rel_pos(textarea);
-      rows == Last && cols == Last || rows == First && List.length(lines) == 1;
-    };
+    /* precondition: lines nonempty */
+    let lines = lines(textarea);
+    let {rows, cols} = caret_rel_pos(textarea);
+    rows == Last
+    && cols == Last
+    || rows == First
+    && cols == Last
+    && List.length(lines) == 1
+    || rows == First
+    && cols == First
+    && lines == [""];
   };
 
   let set_caret_to_end = (textarea: t): unit => {

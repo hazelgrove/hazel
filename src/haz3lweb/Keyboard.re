@@ -1,7 +1,8 @@
 open Haz3lcore;
+open Util;
 
-let is_digit = s => Re.Str.(string_match(regexp("^[0-9]$"), s, 0));
-let is_f_key = s => Re.Str.(string_match(regexp("^F[0-9][0-9]*$"), s, 0));
+let is_digit = s => StringUtil.(match(regexp("^[0-9]$"), s));
+let is_f_key = s => StringUtil.(match(regexp("^F[0-9][0-9]*$"), s));
 
 let handle_key_event = (k: Key.t): option(Update.t) => {
   let now = (a: Action.t): option(UpdateAction.t) =>

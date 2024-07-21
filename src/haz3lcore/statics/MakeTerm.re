@@ -300,10 +300,7 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
         | ([t], []) when Form.is_bool(t) => Bool(bool_of_string(t))
         | ([t], []) when Form.is_float(t) => Float(float_of_string(t))
         | ([t], []) when Form.is_int(t) => Int(int_of_string(t))
-        | ([t], []) when Form.is_string(t) =>
-          let s = Re.Str.string_after(t, 1);
-          let s = Re.Str.string_before(s, String.length(s) - 1);
-          String(s);
+        | ([t], []) when Form.is_string(t) => String(Form.strip_quotes(t))
         | ([t], []) when Form.is_var(t) => Var(t)
         | ([t], []) when Form.is_wild(t) => Wild
         | ([t], []) when Form.is_ctr(t) => Constructor(t)

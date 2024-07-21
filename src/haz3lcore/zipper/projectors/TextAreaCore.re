@@ -7,20 +7,17 @@ open ProjectorBase;
 let of_id = (id: Id.t) =>
   "id" ++ (id |> Id.to_string |> String.sub(_, 0, 8));
 
-let escape_linebreaks: string => string =
-  Re.Str.global_replace(Re.Str.regexp("\n"), "\\n");
-
-let unescape_linebreaks: string => string =
-  Re.Str.global_replace(Re.Str.regexp("\\\\n"), "\n");
-
 let of_mono = (syntax: Piece.t): option(string) =>
   switch (syntax) {
-  | Tile({label: [l], _}) => Some(unescape_linebreaks(l))
+  | Tile({label: [l], _}) => Some(StringUtil.unescape_linebreaks(l))
   | _ => None
   };
 
 let mk_mono = (sort: Sort.t, string: string): Piece.t =>
-  string |> escape_linebreaks |> Form.mk_atomic(sort) |> Piece.mk_tile(_, []);
+  string
+  |> StringUtil.escape_linebreaks
+  |> Form.mk_atomic(sort)
+  |> Piece.mk_tile(_, []);
 
 let get = (piece: Piece.t): string =>
   switch (piece |> of_mono) {
@@ -34,6 +31,7 @@ let put = (str: string): ProjectorBase.action =>
   SetSyntax(str |> Form.string_quote |> put);
 
 let key_handler = (id, ~inject, evt) => {
+  print_endline("textarea: keydown");
   open Effect;
   let key = Key.mk(KeyDown, evt);
   let is_last_pos =
@@ -41,13 +39,18 @@ let key_handler = (id, ~inject, evt) => {
   let is_first_pos =
     JsUtil.TextArea.caret_at_start(JsUtil.TextArea.get(of_id(id)));
   switch (key.key) {
+  // | D("Enter") =>
+  //   print_endline("textarea: enter");
+  //   Many([Stop_propagation]);
   | D("ArrowRight" | "ArrowDown") when is_last_pos =>
     JsUtil.get_elem_by_id(of_id(id))##blur;
-    Many([inject(Escape(Right)), Prevent_default, Stop_propagation]);
+    Many([inject(Escape(Right)), Stop_propagation]);
   | D("ArrowLeft" | "ArrowUp") when is_first_pos =>
     JsUtil.get_elem_by_id(of_id(id))##blur;
-    Many([inject(Escape(Left)), Prevent_default, Stop_propagation]);
-  | _ => Stop_propagation
+    Many([inject(Escape(Left)), Stop_propagation]);
+  | _ =>
+    JsUtil.focus(of_id(id));
+    Stop_propagation;
   };
 };
 
@@ -57,14 +60,29 @@ let textarea =
     ~attrs=[
       Attr.id(of_id(id)),
       Attr.on_keydown(key_handler(id, ~inject)),
-      Attr.on_input((_, new_text) => inject(put(new_text))),
+      // Attr.on_keyup(_ => {
+      //   print_endline("textarea: on_keyup");
+      //   Effect.(Many([Stop_propagation]));
+      // }),
+      Attr.on_keypress(_ => {
+        print_endline("textarea: on_keyup");
+        JsUtil.focus(of_id(id));
+        Effect.(Many([Stop_propagation]));
+      }),
+      Attr.on_input((_, new_text) => {
+        print_endline("textarea: on_input");
+        Effect.(Many([inject(put(new_text))]));
+      }),
+      // Attr.on_change((_, _) => {
+      //   print_endline("textarea: on_change");
+      //   Effect.(Many([Stop_propagation, Prevent_default]));
+      // }),
     ],
     [Node.text(text)],
   );
 
 let n_of = (n: int) =>
-  //·•⬤
-  [Node.text("·")]
+  [Node.text("·")]  //·•⬤
   @ (List.init(n, _ => [Node.br(), Node.text("·")]) |> List.flatten);
 
 let view = (_, ~info, ~go as _, ~inject) => {
@@ -75,23 +93,12 @@ let view = (_, ~info, ~go as _, ~inject) => {
     [
       Node.div(
         ~attrs=[Attr.classes(["cols"])],
-        n_of(Util.StringUtil.num_linebreaks(text))
+        n_of(StringUtil.num_linebreaks(text))
         @ [textarea(info.id, ~inject, text)],
       ),
     ],
   );
 };
-
-let line_lengths = syntax =>
-  List.map(String.length, Re.Str.split(Re.Str.regexp("\n"), get(syntax)));
-
-let num_lines = syntax => List.fold_left(max, 0, line_lengths(syntax));
-
-let placeholder = (_, info) =>
-  Block({
-    row: Util.StringUtil.num_linebreaks(get(info.syntax)),
-    col: 2 + num_lines(info.syntax) /* +2 for left and right padding */
-  });
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -101,7 +108,17 @@ module M: Projector = {
   let init = ();
   let can_project = _ => true; //TODO(andrew): restrict somehow
   let can_focus = true;
-  let placeholder = placeholder;
+  let placeholder = (_, info) => {
+    let str = Form.strip_quotes(get(info.syntax));
+    // print_endline(
+    //   "num-rows:" ++ (str |> StringUtil.num_lines |> string_of_int),
+    // );
+    Block({
+      row: StringUtil.num_lines(str),
+      /* +2 for left and right padding */
+      col: 2 + StringUtil.max_line_width(str),
+    });
+  };
   let update = (model, _) => model;
   let view = view;
   let activate = ((id: Id.t, d: Direction.t)) => {

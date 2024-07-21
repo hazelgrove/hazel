@@ -9,7 +9,6 @@
  (name workerServer)
  (modules WorkerServer)
  (libraries
-  str
   incr_dom
   virtual_dom.input_widgets
   util
