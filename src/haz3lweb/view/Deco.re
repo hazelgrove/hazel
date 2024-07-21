@@ -1,5 +1,6 @@
 open Virtual_dom.Vdom;
 open Util;
+open Util.Web;
 open Haz3lcore;
 
 module Deco = (M: {
@@ -10,7 +11,7 @@ module Deco = (M: {
 
   let tile = id => Id.Map.find(id, M.meta.projected.tiles);
 
-  let base_caret = (z: Zipper.t): list(Node.t) => {
+  let base_caret = (z: Zipper.t): Node.t => {
     let origin = Zipper.caret_point(M.meta.projected.measured, z);
     let shape = Zipper.caret_direction(z);
     let side =
@@ -18,10 +19,10 @@ module Deco = (M: {
       | Some((_, side, _)) => side
       | _ => Right
       };
-    [CaretDec.view(~font_metrics, ~profile={side, origin, shape})];
+    CaretDec.view(~font_metrics, ~profile={side, origin, shape});
   };
 
-  let caret = (z: Zipper.t): list(Node.t) =>
+  let caret = (z: Zipper.t): Node.t =>
     /* Projectors can override adjacent carets */
     switch (ProjectorView.caret(z, M.meta)) {
     | Some(caret) => caret
@@ -263,20 +264,19 @@ module Deco = (M: {
     };
   };
 
-  let backpack = (z: Zipper.t): list(Node.t) => {
-    [
-      BackpackView.view(
-        ~font_metrics,
-        ~origin=Zipper.caret_point(M.meta.projected.measured, z),
-        z,
-      ),
-    ];
-  };
+  let backpack = (z: Zipper.t): Node.t =>
+    BackpackView.view(
+      ~font_metrics,
+      ~origin=Zipper.caret_point(M.meta.projected.measured, z),
+      z,
+    );
 
-  let targets' = (backpack, seg) => {
-    M.ui_state.show_backpack_targets && Backpack.restricted(backpack)
-      ? targets(backpack, seg) : [];
-  };
+  let backpack_targets = (backpack, seg) =>
+    div_c(
+      "backpack-targets",
+      M.ui_state.show_backpack_targets && Backpack.restricted(backpack)
+        ? targets(backpack, seg) : [],
+    );
 
   let term_decoration =
       (
@@ -349,33 +349,31 @@ module Deco = (M: {
     );
   };
 
-  let err_holes = () =>
-    List.map(term_highlight(~clss=["err-hole"]), M.meta.statics.error_ids);
+  let errors = () =>
+    div_c(
+      "errors",
+      List.map(
+        term_highlight(~clss=["err-hole"]),
+        M.meta.statics.error_ids,
+      ),
+    );
 
-  let indication_deco = (z: Zipper.t) =>
+  let indication = (z: Zipper.t) =>
     switch (ProjectorView.indicated_proj_z(z)) {
-    | Some(_) => [] /* projector indication handled internally */
-    | None => indicated_piece_deco(z)
+    | Some(_) => Node.div([]) /* projector indication handled internally */
+    | None => div_c("indication", indicated_piece_deco(z))
     };
 
-  let active = (zipper, sel_seg) =>
-    List.concat([
-      caret(zipper),
-      indication_deco(zipper),
-      selected_pieces(zipper),
-      backpack(zipper),
-      targets'(zipper.backpack, sel_seg),
-    ]);
+  let selection = (z: Zipper.t) => div_c("selects", selected_pieces(z));
 
-  let always = (~inject) =>
-    List.concat([
-      err_holes(),
-      ProjectorView.view_all(~meta=M.meta, ~inject, ~font_metrics) |> List.rev,
-    ]);
+  let always = () => [errors()];
 
-  let all = (~inject) =>
-    List.concat([
-      active(M.meta.projected.z, M.meta.projected.segment),
-      always(~inject),
-    ]);
+  let all = () => [
+    caret(M.meta.projected.z),
+    indication(M.meta.projected.z),
+    selection(M.meta.projected.z),
+    backpack(M.meta.projected.z),
+    backpack_targets(M.meta.projected.z.backpack, M.meta.projected.segment),
+    errors(),
+  ];
 };

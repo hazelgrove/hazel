@@ -71,6 +71,7 @@ let view_wrapper =
           Many([
             Stop_propagation,
             inject(PerformAction(Jump(TileId(info.id)))),
+            inject(PerformAction(Project(Remove(info.id)))),
           ])
         )
       ),
@@ -136,21 +137,24 @@ let status = (z: ZipperBase.t): option(status) =>
   };
 
 let view_all = (~meta: Editor.Meta.t, ~inject, ~font_metrics) =>
-  List.filter_map(
-    ((id, _)) => {
-      view_setup(
-        id,
-        ~meta,
-        ~inject,
-        ~font_metrics,
-        ~status=
-          switch (status_and_id(meta.projected.z)) {
-          | Some((ind_id, ind_d)) when ind_id == id => Some(ind_d)
-          | _ => None
-          },
-      )
-    },
-    Id.Map.bindings(meta.projected.z.projectors),
+  div_c(
+    "projectors",
+    List.filter_map(
+      ((id, _)) => {
+        view_setup(
+          id,
+          ~meta,
+          ~inject,
+          ~font_metrics,
+          ~status=
+            switch (status_and_id(meta.projected.z)) {
+            | Some((ind_id, ind_d)) when ind_id == id => Some(ind_d)
+            | _ => None
+            },
+        )
+      },
+      Id.Map.bindings(meta.projected.z.projectors) |> List.rev,
+    ),
   );
 
 let indicated_proj_z = (z: Zipper.t) => {
@@ -189,11 +193,11 @@ let shape_from_map = (z, meta: Editor.Meta.t): option(shape) => {
   shape(z, info);
 };
 
-let caret = (z: Zipper.t, meta: Editor.Meta.t): option(list(Node.t)) =>
+let caret = (z: Zipper.t, meta: Editor.Meta.t): option(Node.t) =>
   switch (shape_from_map(z, meta)) {
   | None => None
   | Some(Inline(_)) => None
-  | Some(Block(_)) => Some([])
+  | Some(Block(_)) => Some(div([]))
   };
 
 let key_handoff = (editor: Editor.t, key: Key.t): option(Action.project) =>

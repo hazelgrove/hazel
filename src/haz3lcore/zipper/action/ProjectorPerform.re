@@ -29,6 +29,14 @@ let add_or_remove = (id: Id.t, z: Zipper.t, p, piece, d, rel) =>
   | true => Ok(set(id, None, z))
   };
 
+//TODO(andrew): dupe, rm
+let indicated_proj_z = (z: Zipper.t) => {
+  open Util.OptUtil.Syntax;
+  let* id = Indicated.index(z);
+  let+ projector = Projector.Map.find(id, z.projectors);
+  (id, projector);
+};
+
 let go =
     (
       jump_to_id,
@@ -86,10 +94,19 @@ let go =
       add_or_remove(Piece.id(piece), z, p, piece, d, rel)
     }
   | Remove(id) =>
-    switch (Map.mem(id, z.projectors)) {
-    | false => Error(Action.Failure.Cant_project)
-    | true => Ok(set(id, None, z))
-    }
+    let p = indicated_proj_z(z) |> Option.map(snd);
+    switch (p) {
+    | Some(p) =>
+      let (module P) = to_module(p.kind);
+      P.activate((id, Left));
+      Error(Action.Failure.Cant_project);
+    | None => Error(Action.Failure.Cant_project)
+    };
+  // | Remove(id) =>
+  //   switch (Map.mem(id, z.projectors)) {
+  //   | false => Error(Action.Failure.Cant_project)
+  //   | true => Ok(set(id, None, z))
+  //   }
   | SetSyntax(id, p) => Ok(Projector.Syntax.update(_ => p, id, z))
   | UpdateModel(id, model) =>
     Ok({
