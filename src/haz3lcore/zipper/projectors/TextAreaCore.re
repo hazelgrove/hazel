@@ -28,22 +28,20 @@ let put = (s: string): Piece.t => s |> mk_mono(Exp);
 let put = (str: string): ProjectorBase.action =>
   SetSyntax(str |> Form.string_quote |> put);
 
-let key_handler = (id, ~inject, evt) => {
-  open Effect; //print_endline("textarea: keydown");
+let is_last_pos = id =>
+  JsUtil.TextArea.caret_at_end(JsUtil.TextArea.get(of_id(id)));
+let is_first_pos = id =>
+  JsUtil.TextArea.caret_at_start(JsUtil.TextArea.get(of_id(id)));
 
+let key_handler = (id, ~inject, evt) => {
+  open Effect;
   let key = Key.mk(KeyDown, evt);
-  let is_last_pos =
-    JsUtil.TextArea.caret_at_end(JsUtil.TextArea.get(of_id(id)));
-  let is_first_pos =
-    JsUtil.TextArea.caret_at_start(JsUtil.TextArea.get(of_id(id)));
+
   switch (key.key) {
-  // | D("Enter") =>
-  //   print_endline("textarea: enter");
-  //   Many([Stop_propagation]);
-  | D("ArrowRight" | "ArrowDown") when is_last_pos =>
+  | D("ArrowRight" | "ArrowDown") when is_last_pos(id) =>
     JsUtil.get_elem_by_id(of_id(id))##blur;
     Many([inject(Escape(Right)), Stop_propagation]);
-  | D("ArrowLeft" | "ArrowUp") when is_first_pos =>
+  | D("ArrowLeft" | "ArrowUp") when is_first_pos(id) =>
     JsUtil.get_elem_by_id(of_id(id))##blur;
     Many([inject(Escape(Left)), Stop_propagation]);
   | _ => Stop_propagation
@@ -56,24 +54,15 @@ let textarea =
     ~attrs=[
       Attr.id(of_id(id)),
       Attr.on_keydown(key_handler(id, ~inject)),
-      // Attr.on_keyup(_ => {
-      //   print_endline("textarea: on_keyup");
-      //   Effect.(Many([Stop_propagation]));
-      // }),
-      // Attr.on_keyup(_ => {
-      //   print_endline("textarea: on_keyup");
-      //   Effect.(Many([Stop_propagation]));
-      // }),
-      Attr.on_input((_, new_text) => {
-        //print_endline("textarea: on_input");
-        Effect.(
-          Many([inject(put(new_text))])
-        )
-      }),
-      // Attr.on_change((_, _) => {
-      //   print_endline("textarea: on_change");
-      //   Effect.(Many([Stop_propagation, Prevent_default]));
-      // }),
+      Attr.on_input((_, new_text) =>
+        Effect.(Many([inject(put(new_text))]))
+      ),
+      /* Note: adding these handlers below because
+       * currently these are handled on page level.
+       * unnecesary maybe if we move handling down */
+      Attr.on_copy(_ => Effect.Stop_propagation),
+      Attr.on_cut(_ => Effect.Stop_propagation),
+      Attr.on_paste(_ => Effect.Stop_propagation),
     ],
     [Node.text(text)],
   );
@@ -81,7 +70,6 @@ let textarea =
 let view = (_, ~info, ~go as _, ~inject) => {
   let text = info.syntax |> get |> Form.strip_quotes;
   Node.div(
-    //TODO(andrew): rm wrapper?
     ~attrs=[Attr.classes(["wrapper"])],
     [
       Node.div(

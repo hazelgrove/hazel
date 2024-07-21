@@ -48,7 +48,6 @@ let handlers =
       inject(UpdateAction.PerformAction(Destruct(Left)));
     }),
     Attr.on_paste(evt => {
-      //TODO(andrew): use StringUtil regexp
       let pasted_text =
         Js.to_string(evt##.clipboardData##getData(Js.string("text")))
         |> Util.StringUtil.trim_leading;
