@@ -115,7 +115,16 @@ let deco =
       let ui_state = ui_state;
       let meta = meta;
     });
-  let decos = selected ? Deco.all(~inject) : Deco.always(~inject);
+  let decos = selected ? Deco.all() : Deco.always();
+  let decos =
+    decos
+    @ [
+      ProjectorView.view_all(
+        ~meta,
+        ~inject,
+        ~font_metrics=ui_state.font_metrics,
+      ),
+    ];
   let decos =
     switch (test_results) {
     | None => decos
@@ -257,17 +266,21 @@ let editor_view =
     | None => editor.state.meta
     | Some(statics) => {...editor.state.meta, statics}
     };
-  let code_text_view = Code.view(~sort, ~font_metrics, ~settings, meta);
-  let deco_view =
-    deco(~inject, ~ui_state, ~selected, ~test_results, ~highlights, meta);
-  let code_view =
-    div(
-      ~attrs=[Attr.id(target_id), Attr.classes(["code-container"])],
-      [code_text_view] @ deco_view @ Option.to_list(overlayer),
-    );
   let mousedown_overlay =
     selected && mousedown
       ? [mousedown_overlay(~inject, ~font_metrics, ~target_id)] : [];
+  let code_text_view = Code.view(~sort, ~font_metrics, ~settings, meta);
+  let deco_view =
+    deco(~inject, ~ui_state, ~selected, ~test_results, ~highlights, meta);
+
+  let code_view =
+    div(
+      ~attrs=[Attr.id(target_id), Attr.classes(["code-container"])],
+      [code_text_view]
+      @ deco_view
+      @ Option.to_list(overlayer)
+      @ mousedown_overlay,
+    );
   let on_mousedown =
     locked
       ? _ =>
@@ -292,7 +305,7 @@ let editor_view =
           Attr.classes(["cell-item"]),
           Attr.on_mousedown(on_mousedown),
         ],
-        Option.to_list(caption) @ mousedown_overlay @ [code_view],
+        Option.to_list(caption) @ [code_view],
       ),
     ]
     @ (footer |> Option.to_list |> List.concat),

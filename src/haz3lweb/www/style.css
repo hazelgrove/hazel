@@ -923,10 +923,6 @@ select {
   vector-effect: non-scaling-stroke;
 }
 
-.selection {
-  position: relative;
-}
-
 .selection-box {
   position: absolute;
   z-index: var(--selection-box-z);
