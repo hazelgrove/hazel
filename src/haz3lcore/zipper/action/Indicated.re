@@ -90,6 +90,8 @@ let index = (z: ZipperBase.t): option(Id.t) =>
   | Some((p, _, _)) => Some(Piece.id(p))
   };
 
+let piece'' = piece'(~no_ws=true, ~ign=Piece.is_secondary);
+
 let ci_of =
     (z: ZipperBase.t, info_map: Statics.Map.t): option(Statics.Info.t) =>
   /* This version takes into accounts Secondary, while accounting for the
@@ -98,7 +100,7 @@ let ci_of =
    * Secondary. But if this doesn't succeed, then we create a 'virtual'
    * info map entry representing the Secondary notation, which takes on
    * some of the semantic context of a nearby 'proxy' term */
-  switch (piece'(~no_ws=true, ~ign=Piece.is_secondary, z)) {
+  switch (piece''(z)) {
   | Some((p, _, _)) => Id.Map.find_opt(Piece.id(p), info_map)
   | None =>
     let sibs = ZipperBase.sibs_with_sel(z);
