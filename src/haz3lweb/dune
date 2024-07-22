@@ -92,7 +92,7 @@
    (flags (:standard)))))
 
 (rule
- (write-file js-of-ocaml-flags-dev "(:standard)"))
+ (write-file js-of-ocaml-flags-dev "(:standard --debuginfo --noinline)"))
 
 (rule
  (write-file js-of-ocaml-flags-release "(:standard)"))

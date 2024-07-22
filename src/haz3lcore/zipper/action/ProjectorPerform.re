@@ -93,7 +93,7 @@ let go =
     | Some((piece, d, rel)) =>
       add_or_remove(Piece.id(piece), z, p, piece, d, rel)
     }
-  | Remove(id) =>
+  | Activate(id) =>
     let p = indicated_proj_z(z) |> Option.map(snd);
     switch (p) {
     | Some(p) =>
@@ -102,11 +102,11 @@ let go =
       Error(Action.Failure.Cant_project);
     | None => Error(Action.Failure.Cant_project)
     };
-  // | Remove(id) =>
-  //   switch (Map.mem(id, z.projectors)) {
-  //   | false => Error(Action.Failure.Cant_project)
-  //   | true => Ok(set(id, None, z))
-  //   }
+  | Remove(id) =>
+    switch (Map.mem(id, z.projectors)) {
+    | false => Error(Action.Failure.Cant_project)
+    | true => Ok(set(id, None, z))
+    }
   | SetSyntax(id, p) => Ok(Projector.Syntax.update(_ => p, id, z))
   | UpdateModel(id, model) =>
     Ok({

@@ -38,7 +38,43 @@ let simple_shard_path = ((l, r): Nibs.shapes, length: int): list(Path.cmd) =>
     ],
   );
 
+let chonky_shard_path =
+    ((l, r): Nibs.shapes, length: int, height: int): list(Path.cmd) =>
+  List.flatten(
+    Path.[
+      [m(~x=0, ~y=0), h(~x=length), v(~y=height)],
+      r_hook(r),
+      [h(~x=0), v(~y=1)],
+      l_hook(l),
+    ],
+  );
+
 let simple_shard =
+    (
+      ~font_metrics,
+      ~shapes,
+      ~path_cls,
+      ~base_cls,
+      ~fudge=DecUtil.fzero,
+      ~absolute=true,
+      measurement: Measured.measurement,
+    )
+    : t =>
+  DecUtil.code_svg_sized(
+    ~font_metrics,
+    ~measurement,
+    ~base_cls,
+    ~path_cls,
+    ~fudge,
+    ~absolute,
+    chonky_shard_path(
+      shapes,
+      measurement.last.col - measurement.origin.col,
+      measurement.last.row - measurement.origin.row,
+    ),
+  );
+
+let _simple_shard =
     (
       ~font_metrics,
       ~shapes,
@@ -113,6 +149,32 @@ let simple_shard_indicated =
   let base_cls = ["tile-indicated"];
   simple_shard(~font_metrics, ~shapes, ~path_cls, ~base_cls, measurement);
 };
+
+let simple_shard_error =
+    (~font_metrics, ~shapes, ~measurement: Measured.measurement): t => {
+  let path_cls = ["tile-path", "error"];
+  let base_cls = ["tile-error"];
+  simple_shard(
+    ~fudge=selection_fudge,
+    ~font_metrics,
+    ~shapes,
+    ~path_cls,
+    ~base_cls,
+    measurement,
+  );
+};
+
+let simple_shards_errors =
+    (~font_metrics: FontMetrics.t, (_, mold, shards)): list(t) =>
+  List.map(
+    ((index, measurement)) =>
+      simple_shard_error(
+        ~font_metrics,
+        ~shapes=Mold.nib_shapes(~index, mold),
+        ~measurement,
+      ),
+    shards,
+  );
 
 let simple_shards_indicated =
     (~font_metrics: FontMetrics.t, ~caret: (Id.t, int), (id, mold, shards))

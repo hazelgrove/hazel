@@ -25,7 +25,7 @@ module Deco = (M: {
   let caret = (z: Zipper.t): Node.t =>
     /* Projectors can override adjacent carets */
     switch (ProjectorView.caret(z, M.meta)) {
-    | Some(caret) => caret
+    | Some(_caret) => base_caret(z) //caret
     | None => base_caret(z)
     };
 
@@ -349,14 +349,35 @@ module Deco = (M: {
     );
   };
 
-  let errors = () =>
+  let errors_of_tile = (id: Id.t) => {
+    let tiles =
+      Id.Map.find(id, M.meta.projected.terms)
+      |> Term.ids
+      |> List.map(id => {
+           let t = tile(id);
+           (
+             id,
+             t.mold,
+             Measured.find_shards(
+               ~msg="Deco.errors_of_tile",
+               t,
+               M.meta.projected.measured,
+             ),
+           );
+         });
+    div_c(
+      "errors-piece",
+      List.concat_map(PieceDec.simple_shards_errors(~font_metrics), tiles),
+    );
+  };
+
+  let errors = () => {
     div_c(
       "errors",
-      List.map(
-        term_highlight(~clss=["err-hole"]),
-        M.meta.statics.error_ids,
-      ),
+      //List.concat_map(PieceDec.simple_shards_errors(~font_metrics), tiles),
+      List.map(errors_of_tile, M.meta.statics.error_ids),
     );
+  };
 
   let indication = (z: Zipper.t) =>
     switch (ProjectorView.indicated_proj_z(z)) {
