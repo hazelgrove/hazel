@@ -14,7 +14,7 @@ module CachedStatics = {
   };
 
   let mk = (~settings: CoreSettings.t, z: Zipper.t): t => {
-    //TODO(andrew): allow pass-in of init ctx
+    // Modify here to allow passing in an initial context
     let ctx_init = Builtins.ctx_init;
     let term = MakeTerm.from_zip_for_sem(z) |> fst;
     let info_map = Statics.mk(settings, ctx_init, term);
@@ -140,7 +140,7 @@ module Meta = {
       )
       : t => {
     print_endline("Editor.next. Action:" ++ Action.show(a));
-    //TODO(andrew): remove or reinstate touched/effects
+    // Effects disabled below; if nothing breaks due to this then rip them out
     let touched = meta.touched; //Touched.update(Time.tick(), effects, meta.touched);
     let statics = next_statics(~settings, a, z, meta.statics);
     let z_projected = Projector.Project.go(z, statics.info_map);
@@ -302,22 +302,8 @@ let trailing_hole_ctx = (ed: t, info_map: Statics.Map.t) => {
   };
 };
 
-let get_projectors = (ed: t) => ed.state.zipper.projectors;
-
 let map_projectors = (f: (Id.t, Projector.entry) => Projector.entry, ed: t) =>
   update_z(
     z => {...z, projectors: Projector.Map.mapi(f, z.projectors)},
     ed,
   );
-
-//TODO(andrew): use or lose
-let get_projected_piece = (ed: t, id: Id.t): option(Piece.t) => {
-  /* Assumes for the moment that the projected thing is either
-   * a tile or a grout (not secondary or segment) */
-  switch (Id.Map.find_opt(id, ed.state.meta.projected.tiles)) {
-  | Some(tile) => Some(Tile(tile))
-  | None =>
-    List.find_opt((g: Grout.t) => g.id == id, ed.state.meta.projected.holes)
-    |> Option.map(g => Piece.Grout(g))
-  };
-};

@@ -63,55 +63,22 @@ let go_z =
 
   let paste = (z: Zipper.t, str: string): option(Zipper.t) => {
     open Util.OptUtil.Syntax;
-    /* HACK(andrew): The two perform calls are a hack to
-       deal with the fact that pasting something like "let a = b in"
-       won't trigger the barfing of the "in"; to trigger this, we
-       insert a space, and then we immediately delete it. Note
-       that in general it's not safe to call go_z recursively
-       (the meta may change) but as long as we're not relying
-       on anything but the raw zipper we're fine. */
-    //let settings = CoreSettings.off;
     let* z = Printer.zipper_of_string(~zipper_init=z, str);
-    switch (Insert.go(" ", z)) {
-    | None => None
-    | Some(z) => z |> Destruct.go(Left) |> Option.map(remold_regrout(Left))
-    //|> Result.of_option(~error=Action.Failure.Cant_destruct)
-    // switch (go_z(~settings, Destruct(Left), z)) {
-    // | Error(_) => None
-    // | Ok(z) => Some(z)
-    // }
-    };
+    /* HACK(andrew): Insert/Destruct below is a hack to deal
+       with the fact that pasting something like "let a = b in"
+       won't trigger the barfing of the "in"; to trigger this,
+       we insert a space, and then we immediately delete it */
+    let* z = Insert.go(" ", z);
+    let+ z = Destruct.go(Left, z);
+    remold_regrout(Left, z);
   };
 
-  switch (a) {
-  | Paste(clipboard) =>
-    switch (paste(z, clipboard)) {
-    | None => Error(CantPaste)
-    | Some(z) => Ok(z)
-    }
-  | Cut =>
-    /* System clipboard handling is done in Page.view handlers */
-    switch (Destruct.go(Left, z)) {
-    | None => Error(Cant_destruct)
-    | Some(z) => Ok(z)
-    }
-  // go_z(~settings, ~meta, Destruct(Left), z)
-  | Copy =>
-    /* System clipboard handling itself is done in Page.view handlers.
-     * This doesn't change state but is included here for logging purposes */
-    Ok(z)
-  | Reparse =>
-    switch (Printer.reparse(z)) {
-    | None => Error(CantReparse)
-    | Some(z) => Ok(z)
-    }
-  | Buffer(Set(TyDi)) => Ok(buffer_set(meta.statics.info_map, z))
-  | Buffer(Accept) =>
+  let buffer_accept = (z): option(Zipper.t) =>
     switch (z.selection.mode) {
-    | Normal => Ok(z)
+    | Normal => None
     | Buffer(Unparsed) =>
       switch (TyDi.get_buffer(z)) {
-      | None => Error(CantAccept)
+      | None => None
       | Some(completion) when String.contains(completion, ' ') =>
         /* Slightly hacky. We assume that if a completion string has
          * spaces in it, that means it will have a hole in it. This
@@ -128,29 +95,48 @@ let go_z =
           let* z = Move.go(Goal(Piece(Grout, Right)), z);
           Move.go(Local(Left(ByToken)), z);
         };
-        switch (z) {
-        | None => Error(CantAccept)
-        | Some(z) => Ok(z)
-        };
-      | Some(completion) =>
-        switch (paste(z, AssistantExpander.trim(completion))) {
-        | None => Error(CantAccept)
-        | Some(z) => Ok(z)
-        }
+        z;
+      | Some(completion) => paste(z, AssistantExpander.trim(completion))
       }
+    };
+
+  switch (a) {
+  | Paste(clipboard) =>
+    switch (paste(z, clipboard)) {
+    | None => Error(CantPaste)
+    | Some(z) => Ok(z)
+    }
+  | Cut =>
+    /* System clipboard handling is done in Page.view handlers */
+    switch (Destruct.go(Left, z)) {
+    | None => Error(Cant_destruct)
+    | Some(z) => Ok(z)
+    }
+  | Copy =>
+    /* System clipboard handling itself is done in Page.view handlers.
+     * This doesn't change state but is included here for logging purposes */
+    Ok(z)
+  | Reparse =>
+    switch (Printer.reparse(z)) {
+    | None => Error(CantReparse)
+    | Some(z) => Ok(z)
+    }
+  | Buffer(Set(TyDi)) => Ok(buffer_set(meta.statics.info_map, z))
+  | Buffer(Accept) =>
+    switch (buffer_accept(z)) {
+    | None => Error(CantAccept)
+    | Some(z) => Ok(z)
     }
   | Project(a) => ProjectorPerform.go(Move.jump_to_id, Move.primary, a, z)
   | Move(d) =>
     Move.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move)
   | Jump(jump_target) =>
-    open OptUtil.Syntax;
-
     let idx = Indicated.index(z);
     let statics = meta.statics.info_map;
-
     (
       switch (jump_target) {
       | BindingSiteOfIndicatedVar =>
+        open OptUtil.Syntax;
         let* idx = idx;
         let* ci = Id.Map.find_opt(idx, statics);
         let* binding_id = Info.get_binding_site(ci);
@@ -289,7 +275,7 @@ let go =
    * the completion buffer before performing the action. Conversely,
    * after any edit action, a new completion is set in the buffer */
   if (ed.read_only && is_write_action(a)) {
-    Result.Ok(ed);
+    Ok(ed);
   } else if (settings.assist && settings.statics) {
     open Result.Syntax;
     let ed = a == Buffer(Accept) ? ed : Editor.update_z(buffer_clear, ed);

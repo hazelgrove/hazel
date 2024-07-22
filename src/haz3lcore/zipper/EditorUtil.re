@@ -1,10 +1,3 @@
-// let editor_of_code = (~read_only=false, code: CodeString.t) => {
-//   switch (Printer.zipper_of_string(code)) {
-//   | None => None
-//   | Some(z) => Some(Editor.init(~read_only, z))
-//   };
-// };
-
 let rec append_exp = (e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   switch (e1.term) {
   | EmptyHole

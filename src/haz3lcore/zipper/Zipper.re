@@ -333,9 +333,7 @@ let base_point = (measured: Measured.t, z: t): Measured.Point.t => {
          * below call, resulting in trying to interpret the syntax
          * of the placeholder as e.g. an int for the slider */
         p
-      | Some(pr) =>
-        //TODO(andrew): figure out if ci None below will causes problems with eg Info
-        Projector.placeholder(pr, Projector.info_init(p))
+      | Some(pr) => Projector.placeholder(pr, Projector.info_init(p))
       | None => p
       };
     let seg = Piece.disassemble(p);
