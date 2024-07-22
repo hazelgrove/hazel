@@ -55,5 +55,5 @@ module M: Projector = {
   let placeholder = (_, _) => Inline(2);
   let update = (model, _) => model;
   let view = view;
-  let activate = _ => ();
+  let focus = _ => ();
 };

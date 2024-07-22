@@ -798,7 +798,7 @@ select {
   width: 100%;
   display: flex;
   border-radius: 0 0.1em 0.1em 0.1em;
-  /* color: #fff; */
+  color: #fff;
   background: repeating-linear-gradient(
     #0000,
     #0000 1.41em,

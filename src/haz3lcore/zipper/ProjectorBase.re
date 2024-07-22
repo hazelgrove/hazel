@@ -41,11 +41,11 @@ type status =
 type syntax = Piece.t;
 
 type action =
-  | Remove /* Remove projector */
-  | FocusInternal(Util.Direction.t) /* DOM Focus on projector */
-  | Escape(Util.Direction.t) /* Pass key control to parent editor */
+  | Remove /* Remove projector entirely */
+  | Focus(option(Util.Direction.t)) /* Pass focus to projector */
+  | Escape(Util.Direction.t) /* Pass focus to parent editor */
   | SetSyntax(syntax) /* Set underlying syntax */
-  | UpdateModel(string); /* Set serialized model */
+  | SetModel(string); /* Set projector model */
 
 type p_action = action;
 
@@ -83,7 +83,7 @@ module type Projector = {
     Node.t;
   let placeholder: (model, info) => shape;
   let update: (model, action) => model;
-  let activate: ((Id.t, Direction.t)) => unit;
+  let focus: ((Id.t, Direction.t)) => unit;
 };
 
 type serialized_model = string;
@@ -103,7 +103,7 @@ module type Cooked = {
     Node.t;
   let placeholder: (serialized_model, info) => shape;
   let update: (serialized_model, serialized_action) => serialized_model;
-  let activate: ((Id.t, Direction.t)) => unit;
+  let focus: ((Id.t, Direction.t)) => unit;
 };
 
 module Cook = (C: Projector) : Cooked => {
@@ -120,5 +120,5 @@ module Cook = (C: Projector) : Cooked => {
     m |> Sexplib.Sexp.of_string |> C.model_of_sexp |> C.placeholder;
   let update = (m, a) =>
     C.update(m |> deserialize_m, a |> deserialize_a) |> serialize_m;
-  let activate = C.activate;
+  let focus = C.focus;
 };

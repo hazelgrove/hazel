@@ -46,11 +46,10 @@ type select =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type project =
   | SetSyntax(Id.t, Piece.t)
-  | UpdateModel(Id.t, string)
+  | SetModel(Id.t, string)
   | SetIndicated(Projector.kind)
   | ToggleIndicated(Projector.kind)
-  | FocusInternal(Id.t, Util.Direction.t)
-  | Activate(Id.t)
+  | Focus(Id.t, option(Util.Direction.t))
   | Escape(Id.t, Direction.t)
   | Remove(Id.t);
 
@@ -103,7 +102,7 @@ module Result = {
 
 let is_edit: t => bool =
   fun
-  | Project(FocusInternal(_) | Escape(_)) => false
+  | Project(Focus(_) | Escape(_)) => false
   | Project(_) => true //TODO(andrew): revisit
   | Buffer(Accept)
   | Paste(_)

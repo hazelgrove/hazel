@@ -76,8 +76,7 @@ let view_wrapper =
         Effect.(
           Many([
             Stop_propagation,
-            inject(PerformAction(Jump(TileId(info.id)))),
-            inject(PerformAction(Project(Activate(info.id)))),
+            inject(PerformAction(Project(Focus(info.id, None)))),
           ])
         )
       ),
@@ -90,10 +89,10 @@ let view_wrapper =
 let handle = (id, action: ProjectorBase.action): Action.project =>
   switch (action) {
   | Remove => Remove(id)
-  | FocusInternal(d) => FocusInternal(id, d)
+  | Focus(d) => Focus(id, d)
   | Escape(d) => Escape(id, d)
   | SetSyntax(f) => SetSyntax(id, f)
-  | UpdateModel(sexp) => UpdateModel(id, sexp)
+  | SetModel(sexp) => SetModel(id, sexp)
   };
 
 let update_model = (action, {kind, model}) => {
@@ -117,7 +116,7 @@ let view_setup =
   let+ measurement = Measured.find_by_id(id, meta.projected.measured);
   let (module P) = to_module(p.kind);
   let inject_proj = a => inject(PerformAction(Project(handle(id, a))));
-  let go = a => inject_proj(UpdateModel(P.update(p.model, a)));
+  let go = a => inject_proj(SetModel(P.update(p.model, a)));
   view_wrapper(
     ~inject,
     ~font_metrics,
@@ -216,11 +215,11 @@ let key_handoff = (editor: Editor.t, key: Key.t): option(Action.project) =>
     | {key, sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up} when P.can_focus =>
       switch (key, d) {
       | (D("ArrowRight"), Right) =>
-        P.activate((id, Left));
-        Some(Action.FocusInternal(id, Left));
+        P.focus((id, Left));
+        Some(Action.Focus(id, Some(Left)));
       | (D("ArrowLeft"), Left) =>
-        P.activate((id, Right));
-        Some(FocusInternal(id, Right));
+        P.focus((id, Right));
+        Some(Focus(id, Some(Right)));
       | _ => None
       }
     | _ => None

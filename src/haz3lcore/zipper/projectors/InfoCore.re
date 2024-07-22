@@ -90,5 +90,5 @@ module M: Projector = {
         ),
       ],
     );
-  let activate = _ => ();
+  let focus = _ => ();
 };
