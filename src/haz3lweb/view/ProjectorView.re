@@ -31,16 +31,21 @@ let backing_deco =
     (
       ~font_metrics: FontMetrics.t,
       ~measurement: Measured.measurement,
-      ~info,
-      entry,
+      ~shape: shape,
     ) =>
-  switch (Projector.shape(entry, info)) {
+  switch (shape) {
   | Inline(_) => PieceDec.convex_shard(~font_metrics, ~measurement)
-  | Block(_) => div([])
+  | Block(_) => PieceDec.convex_shard(~font_metrics, ~measurement)
   };
 
-let cls = (indicated: option(status), selected) =>
+let cls = (indicated: option(status), selected: bool, shape: shape) =>
   (selected ? ["selected"] : [])
+  @ (
+    switch (shape) {
+    | Inline(_) => ["inline"]
+    | Block(_) => ["block"]
+    }
+  )
   @ (
     switch (indicated) {
     | Some(Indicated(Left)) => ["indicated", "left"]
@@ -61,23 +66,24 @@ let view_wrapper =
       view: Node.t,
     ) => {
   let fudge = selected ? PieceDec.selection_fudge : DecUtil.fzero;
+  let shape = Projector.shape(entry, info);
   div(
     ~attrs=[
       Attr.classes(
-        ["projector", name(entry.kind)] @ cls(status, selected),
+        ["projector", name(entry.kind)] @ cls(status, selected, shape),
       ),
       Attr.on_mousedown(_ =>
         Effect.(
           Many([
             Stop_propagation,
             inject(PerformAction(Jump(TileId(info.id)))),
-            inject(PerformAction(Project(Remove(info.id)))),
+            inject(PerformAction(Project(Activate(info.id)))),
           ])
         )
       ),
       DecUtil.abs_style(measurement, ~fudge, ~font_metrics),
     ],
-    [view, backing_deco(~font_metrics, ~measurement, ~info, entry)],
+    [view, backing_deco(~font_metrics, ~measurement, ~shape)],
   );
 };
 

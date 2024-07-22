@@ -685,20 +685,27 @@ select {
   align-items: center;
   color: #c7b480;
 }
-.projector > * {
+.projector > *:not(svg) {
   z-index: 12;
 }
-.projector.indicated {
-  z-index: 13;
-}
 .projector > svg {
-  z-index: 1;
+  z-index: 4;
   fill: #f0e7d6;
+}
+.projector.block > svg {
+  stroke-width: 0.5px;
+  stroke: #c7b480;
 }
 .projector.indicated > svg {
   fill: var(--exp-bg-off-color);
 }
+.projector.selected > svg,
+.projector.selected.indicated > svg,
+.projector.block.selected.indicated > svg  {
+  fill: var(--selection-color);
+}
 .projector > svg > path {
+  vector-effect: non-scaling-stroke;
   /* filter: url(#raised-drop-shadow-Exp) !important; */
 }
 
@@ -770,21 +777,20 @@ select {
   margin-left: -2px;
   margin-right: -2px;
 }
-.projector.text.indicated.left .wrapper {
-  border-right: 2px solid red;
-  animation: 1s blink_border_right step-end infinite;
-}
-.projector.text.indicated.right .wrapper {
-  border-left: 2px solid red;
-  animation: 1s blink_border_left step-end infinite;
-}
-.projector.text.indicated:has(textarea:focus) .wrapper {
-  border-color: #0000;
-  animation: none;
+
+/* turn of caret when a block projector is focused */
+#caret:has(~ .projectors .projector.block *:focus) {
+  display: none;
 }
 
-.projector.text.indicated:has(textarea:focus) .cols {
+.projector.text.indicated .cols,
+.projector.text:has(textarea:focus) .cols {
   color: red;
+}
+
+.projector.text.indicated > svg {
+  fill: rgb(255, 249, 240);
+  stroke: #868686;
 }
 
 .projector.text .cols {
@@ -792,24 +798,23 @@ select {
   width: 100%;
   display: flex;
   border-radius: 0 0.1em 0.1em 0.1em;
-  outline: 0.3px solid #a69460;
-  color: #fff;
+  /* color: #fff; */
   background: repeating-linear-gradient(
-    #f0e7d6,
-    #f0e7d6 1.41em,
+    #0000,
+    #0000 1.41em,
     #add8ff 1.41em,
     #add8ff 1.46em
   );
 }
 
 .projector.text.selected .cols {
-  background: repeating-linear-gradient(
-    var(--selection-color),
-    var(--selection-color) 1.4em,
-    #e0d1b7 1.4em,
-    #e0d1b7 1.46em
-  );
   color: #c7b491;
+  background: repeating-linear-gradient(
+    #0000,
+    #0000 1.41em,
+    rgba(200, 138, 24, 0.3) 1.41em,
+    rgba(200, 138, 24, 0.3) 1.46em
+  );
 }
 
 .projector.text textarea {
@@ -1841,6 +1846,18 @@ svg.tile-selected {
 
 .explain-this .section .explanation-contents {
   white-space: normal;
+}
+
+.tile-error {
+  z-index: var(--err-hole-z);
+}
+.tile-path.error {
+  fill: #ff00000a;
+  stroke: #ff000087;
+  stroke-width: 0.75px;
+  vector-effect: non-scaling-stroke;
+  stroke-dasharray: 1,1;
+  stroke-linecap: butt;
 }
 
 .highlight-blue {

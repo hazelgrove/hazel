@@ -50,6 +50,7 @@ type project =
   | SetIndicated(Projector.kind)
   | ToggleIndicated(Projector.kind)
   | FocusInternal(Id.t, Util.Direction.t)
+  | Activate(Id.t)
   | Escape(Id.t, Direction.t)
   | Remove(Id.t);
 
