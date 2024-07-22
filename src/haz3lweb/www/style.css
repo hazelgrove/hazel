@@ -1690,6 +1690,9 @@ svg.tile-selected {
   display: flex;
   align-items: center;
 }
+#bottom-bar #projectors .toggle-switch.inactive {
+  opacity: 40%;
+}
 
 #bottom-bar #projectors .toggle-knob {
   width: 2em;
