@@ -51,10 +51,8 @@ let num_linebreaks = (s: string) =>
   |> List.fold_left((acc, c) => c == '\n' ? acc + 1 : acc, 0);
 
 // let escape_linebreaks: string => string = replace(regexp("\n"), "\\n");
-
 // let unescape_linebreaks: string => string = replace(regexp("\\\\n"), "\n");
-
-//let trim_leading = replace(regexp("\n[ ]*"), "\n");
+// let trim_leading = replace(regexp("\n[ ]*"), "\n");
 
 //TODO(andrew): figure out why above dont work
 

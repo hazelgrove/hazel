@@ -38,7 +38,7 @@ let backing_deco =
   | Block(_) => PieceDec.convex_shard(~font_metrics, ~measurement)
   };
 
-let cls = (indicated: option(status), selected: bool, shape: shape) =>
+let cls = (indicated: option(list(string)), selected: bool, shape: shape) =>
   (selected ? ["selected"] : [])
   @ (
     switch (shape) {
@@ -48,8 +48,7 @@ let cls = (indicated: option(status), selected: bool, shape: shape) =>
   )
   @ (
     switch (indicated) {
-    | Some(Indicated(Left)) => ["indicated", "left"]
-    | Some(Indicated(Right)) => ["indicated", "right"]
+    | Some(indicated) => indicated
     | None => []
     }
   );
@@ -59,10 +58,10 @@ let view_wrapper =
       ~inject: UpdateAction.t => Ui_effect.t(unit),
       ~font_metrics: FontMetrics.t,
       ~measurement: Measured.measurement,
-      ~status: option(Projector.status),
       ~info: info,
+      ~indication: option(list(string)),
       ~selected: bool,
-      entry: Projector.entry,
+      entry: Map.entry,
       view: Node.t,
     ) => {
   let fudge = selected ? PieceDec.selection_fudge : DecUtil.fzero;
@@ -70,7 +69,7 @@ let view_wrapper =
   div(
     ~attrs=[
       Attr.classes(
-        ["projector", name(entry.kind)] @ cls(status, selected, shape),
+        ["projector", name(entry.kind)] @ cls(indication, selected, shape),
       ),
       Attr.on_mousedown(_ =>
         Effect.(
@@ -95,7 +94,7 @@ let handle = (id, action: ProjectorBase.action): Action.project =>
   | SetModel(sexp) => SetModel(id, sexp)
   };
 
-let update_model = (action, {kind, model}) => {
+let update_model = (action, {kind, model}: Map.entry): Map.entry => {
   let (module P) = to_module(kind);
   {kind, model: P.update(model, action)};
 };
@@ -106,13 +105,13 @@ let view_setup =
       ~meta: Editor.Meta.t,
       ~inject: UpdateAction.t => Ui_effect.t(unit),
       ~font_metrics,
-      ~status: option(Projector.status),
+      ~indication: option(list(string)),
     )
     : option(Node.t) => {
   let* p = Projector.Map.find(id, meta.projected.z.projectors);
   let* syntax = Id.Map.find_opt(id, meta.projected.syntax_map);
   let ci = Id.Map.find_opt(id, meta.statics.info_map);
-  let info = {id, ci, syntax, status};
+  let info = {id, ci, syntax};
   let+ measurement = Measured.find_by_id(id, meta.projected.measured);
   let (module P) = to_module(p.kind);
   let inject_proj = a => inject(PerformAction(Project(handle(id, a))));
@@ -121,7 +120,7 @@ let view_setup =
     ~inject,
     ~font_metrics,
     ~measurement,
-    ~status,
+    ~indication,
     ~info,
     ~selected=List.mem(id, meta.selection_ids),
     p,
@@ -129,15 +128,10 @@ let view_setup =
   );
 };
 
-let status_and_id = (z: ZipperBase.t) =>
+let indication = (z: ZipperBase.t) =>
   switch (Indicated.piece(z)) {
-  | Some((p, d, _)) => Some((Piece.id(p), Indicated(d)))
-  | None => None
-  };
-
-let status = (z: ZipperBase.t): option(status) =>
-  switch (status_and_id(z)) {
-  | Some((_, status)) => Some(status)
+  | Some((p, Left, _)) => Some((Piece.id(p), ["indicated", "left"]))
+  | Some((p, Right, _)) => Some((Piece.id(p), ["indicated", "right"]))
   | None => None
   };
 
@@ -151,9 +145,10 @@ let view_all = (~meta: Editor.Meta.t, ~inject, ~font_metrics) =>
           ~meta,
           ~inject,
           ~font_metrics,
-          ~status=
-            switch (status_and_id(meta.projected.z)) {
-            | Some((ind_id, ind_d)) when ind_id == id => Some(ind_d)
+          ~indication=
+            switch (indication(meta.projected.z)) {
+            | Some((ind_id, indication)) when ind_id == id =>
+              Some(indication)
             | _ => None
             },
         )
@@ -193,8 +188,7 @@ let shape_from_map = (z, meta: Editor.Meta.t): option(shape) => {
   let* id = Indicated.index(z);
   let* syntax = Id.Map.find_opt(id, meta.projected.syntax_map);
   let ci = Id.Map.find_opt(id, meta.statics.info_map);
-  let status = status(z);
-  let info = {id, syntax, status, ci};
+  let info = {id, syntax, ci};
   shape(z, info);
 };
 

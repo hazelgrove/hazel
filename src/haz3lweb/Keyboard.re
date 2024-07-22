@@ -111,10 +111,6 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
   | {key: D(key), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     switch (key) {
     | "ƒ" => Some(PerformAction(Project(ToggleIndicated(Fold))))
-    | "†" => Some(PerformAction(Project(ToggleIndicated(Info))))
-    | "ç" => Some(PerformAction(Project(ToggleIndicated(Checkbox))))
-    | "ß" => Some(PerformAction(Project(ToggleIndicated(Slider))))
-    | "∑" => Some(PerformAction(Project(ToggleIndicated(TextArea))))
     | "ArrowLeft" => now(MoveToBackpackTarget(Left(ByToken)))
     | "ArrowRight" => now(MoveToBackpackTarget(Right(ByToken)))
     | "Alt" => Some(SetMeta(ShowBackpackTargets(true)))

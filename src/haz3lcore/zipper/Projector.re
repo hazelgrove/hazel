@@ -11,7 +11,7 @@ let to_module = (kind: kind): (module Cooked) =>
   | TextArea => (module Cook(TextAreaCore.M))
   };
 
-let shape = (p: entry, info: info): shape => {
+let shape = (p: Map.entry, info: info): shape => {
   let (module P) = to_module(p.kind);
   P.placeholder(p.model, info);
 };
@@ -24,7 +24,7 @@ let is_placeholder = (p: Piece.t): bool => {
   };
 };
 
-let placeholder_label = (p: entry, syntax): list(string) =>
+let placeholder_label = (p: Map.entry, syntax): list(string) =>
   switch (shape(p, syntax)) {
   | Inline(width) => [String.make(width, ' ')]
   | Block({row, col}) => [
@@ -32,7 +32,7 @@ let placeholder_label = (p: entry, syntax): list(string) =>
     ]
   };
 
-let placeholder = (p: entry, info: info): syntax =>
+let placeholder = (p: Map.entry, info: info): syntax =>
   Piece.Tile({
     id: Piece.id(info.syntax),
     label: placeholder_label(p, info),
@@ -45,7 +45,7 @@ let placeholder = (p: entry, info: info): syntax =>
 let minimum_projection_condition = (syntax: syntax): bool =>
   Piece.is_convex(syntax);
 
-let create = (kind: kind, syntax: syntax): option(entry) => {
+let create = (kind: kind, syntax: syntax): option(Map.entry) => {
   let (module P) = to_module(kind);
   P.can_project(syntax) && minimum_projection_condition(syntax)
     ? Some({kind, model: P.init}) : None;
@@ -208,12 +208,7 @@ module Project = {
     switch (Map.find(id, projectors)) {
     | None => syntax
     | Some(pr) =>
-      let info: info = {
-        id,
-        syntax,
-        status: None, //TODO(andrew)
-        ci: Id.Map.find_opt(id, info_map),
-      };
+      let info: info = {id, syntax, ci: Id.Map.find_opt(id, info_map)};
       syntax_map := Id.Map.add(id, syntax, syntax_map^);
       placeholder(pr, info);
     };
