@@ -302,7 +302,8 @@ let trailing_hole_ctx = (ed: t, info_map: Statics.Map.t) => {
   };
 };
 
-let map_projectors = (f: (Id.t, Projector.entry) => Projector.entry, ed: t) =>
+let map_projectors =
+    (f: (Id.t, Projector.Map.entry) => Projector.Map.entry, ed: t) =>
   update_z(
     z => {...z, projectors: Projector.Map.mapi(f, z.projectors)},
     ed,

@@ -12,7 +12,7 @@ let move_out_of_piece =
     }
   };
 
-let set = (id: Id.t, p: option(entry), z: Zipper.t) => {
+let set = (id: Id.t, p: option(Map.entry), z: Zipper.t) => {
   ...z,
   projectors: Map.update(id, _ => p, z.projectors),
 };
@@ -94,7 +94,7 @@ let go =
     }
   | SetSyntax(id, syntax) => Ok(Projector.Syntax.update(_ => syntax, id, z))
   | SetModel(id, model) =>
-    let update = entry => Option.map(e => {model, kind: e.kind}, entry);
+    let update = entry => Option.map(e => Map.{model, kind: e.kind}, entry);
     Ok({...z, projectors: Map.update(id, update, z.projectors)});
   };
 };

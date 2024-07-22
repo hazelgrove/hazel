@@ -701,12 +701,11 @@ select {
 }
 .projector.selected > svg,
 .projector.selected.indicated > svg,
-.projector.block.selected.indicated > svg  {
+.projector.block.selected.indicated > svg {
   fill: var(--selection-color);
 }
 .projector > svg > path {
   vector-effect: non-scaling-stroke;
-  /* filter: url(#raised-drop-shadow-Exp) !important; */
 }
 
 /* PROJECTOR: FOLD */
@@ -724,9 +723,6 @@ select {
 .projector.type .type {
   color: var(--typ-text-color);
 }
-/* .projector.type > svg {
-  fill: var(--typ-bg-off-color);
-} */
 .projector.type {
   cursor: pointer;
 }
@@ -803,7 +799,7 @@ select {
     #0000,
     #0000 1.41em,
     #add8ff 1.41em,
-    #add8ff 1.46em
+    #add8ff 1.45em /* line-height */
   );
 }
 
@@ -813,7 +809,7 @@ select {
     #0000,
     #0000 1.41em,
     rgba(200, 138, 24, 0.3) 1.41em,
-    rgba(200, 138, 24, 0.3) 1.46em
+    rgba(200, 138, 24, 0.3) 1.45em /* line-height */
   );
 }
 
@@ -1859,7 +1855,7 @@ svg.tile-selected {
   stroke: #ff000087;
   stroke-width: 0.75px;
   vector-effect: non-scaling-stroke;
-  stroke-dasharray: 1,1;
+  stroke-dasharray: 1, 1;
   stroke-linecap: butt;
 }
 
