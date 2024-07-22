@@ -17,7 +17,7 @@ let shape = (p: entry, info: info): shape => {
 };
 
 let is_placeholder = (p: Piece.t): bool => {
-  //TODO: Revisit
+  // Eventually placeholders should be more principled
   switch (p) {
   | Tile({label: [s], _}) => s |> String.trim |> String.length == 0
   | _ => false
