@@ -25,7 +25,7 @@ let get = (piece: Piece.t): string =>
 
 let put = (s: string): Piece.t => s |> mk_mono(Exp);
 
-let put = (str: string): ProjectorBase.action =>
+let put = (str: string): ProjectorBase.external_action =>
   SetSyntax(str |> Form.string_quote |> put);
 
 let is_last_pos = id =>
@@ -49,7 +49,11 @@ let key_handler = (id, ~inject, evt) => {
 };
 
 let textarea =
-    (id, ~inject: ProjectorBase.action => Ui_effect.t(unit), text: string) =>
+    (
+      id,
+      ~inject: ProjectorBase.external_action => Ui_effect.t(unit),
+      text: string,
+    ) =>
   Node.textarea(
     ~attrs=[
       Attr.id(of_id(id)),

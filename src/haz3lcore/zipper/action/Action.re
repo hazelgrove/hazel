@@ -43,15 +43,19 @@ type select =
   | Tile(rel)
   | Term(rel);
 
+/* This type defines the top-level actions used to manage
+ * projectors,as distinguished from ProjectorBase.external_action,
+ * which defines the actions available internally to all projectors,
+ * and from each projector's own internal action type */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type project =
-  | SetSyntax(Id.t, Piece.t)
-  | SetModel(Id.t, string)
-  | SetIndicated(Projector.kind)
-  | ToggleIndicated(Projector.kind)
-  | Focus(Id.t, option(Util.Direction.t))
-  | Escape(Id.t, Direction.t)
-  | Remove(Id.t);
+  | SetIndicated(Projector.kind) /* Project syntax at caret */
+  | ToggleIndicated(Projector.kind) /* Un/Project syntax at caret */
+  | Remove(Id.t) /* Remove projector at Id */
+  | SetSyntax(Id.t, Piece.t) /* Set underlying syntax */
+  | SetModel(Id.t, string) /* Set serialized projector model */
+  | Focus(Id.t, option(Util.Direction.t)) /* Pass control to projector */
+  | Escape(Id.t, Direction.t); /* Pass control to parent editor */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type agent =

@@ -46,34 +46,31 @@ type shape =
   | Inline(int)
   | Block(Measured.Point.t);
 
+/* The type of syntax which a projector can replace.
+ * Right now projectors can replace a single piece */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type syntax = Piece.t;
 
-type action =
+/* Global actions available to handlers in all projectors */
+type external_action =
   | Remove /* Remove projector entirely */
-  | Focus(option(Util.Direction.t)) /* Pass focus to projector */
   | Escape(Util.Direction.t) /* Pass focus to parent editor */
-  | SetSyntax(syntax) /* Set underlying syntax */
-  | SetModel(string); /* Set projector model */
+  | SetSyntax(syntax); /* Set underlying syntax */
 
-type p_action = action;
-
-/* Externally calculated info to be fed to projectors */
+/* External info fed to all projectors. Eventually
+ * dynamic information will be added here. Projector
+ * position and dimensions in base editor could be
+ * added here if needed */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type info = {
   id: Id.t,
   syntax,
-  //status: option(status),
   ci: option(Info.t),
 };
 
-let info_init = (p: syntax) => {
-  id: Piece.id(p),
-  syntax: p,
-  //status: None,
-  ci: None,
-};
+let info_init = (p: syntax) => {id: Piece.id(p), syntax: p, ci: None};
 
+/* To add a new projector, implement this module signature */
 module type Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model;
@@ -104,7 +101,7 @@ module type Projector = {
       model,
       ~info: info,
       ~go: action => Ui_effect.t(unit),
-      ~inject: p_action => Ui_effect.t(unit)
+      ~inject: external_action => Ui_effect.t(unit)
     ) =>
     Node.t;
   /* Renders a DOM view for the projector, given the
@@ -147,7 +144,7 @@ module type Cooked = {
       serialized_model,
       ~info: info,
       ~go: serialized_action => Ui_effect.t(unit),
-      ~inject: p_action => Ui_effect.t(unit)
+      ~inject: external_action => Ui_effect.t(unit)
     ) =>
     Node.t;
   let placeholder: (serialized_model, info) => shape;

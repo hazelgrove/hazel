@@ -122,11 +122,7 @@ let deco =
   let decos =
     decos
     @ [
-      ProjectorView.view_all(
-        ~meta,
-        ~inject,
-        ~font_metrics=ui_state.font_metrics,
-      ),
+      ProjectorView.all(~meta, ~inject, ~font_metrics=ui_state.font_metrics),
     ];
   let decos =
     switch (test_results) {

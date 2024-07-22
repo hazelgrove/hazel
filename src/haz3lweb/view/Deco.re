@@ -11,7 +11,7 @@ module Deco = (M: {
 
   let tile = id => Id.Map.find(id, M.meta.projected.tiles);
 
-  let base_caret = (z: Zipper.t): Node.t => {
+  let caret = (z: Zipper.t): Node.t => {
     let origin = Zipper.caret_point(M.meta.projected.measured, z);
     let shape = Zipper.caret_direction(z);
     let side =
@@ -21,13 +21,6 @@ module Deco = (M: {
       };
     CaretDec.view(~font_metrics, ~profile={side, origin, shape});
   };
-
-  let caret = (z: Zipper.t): Node.t =>
-    /* Projectors can override adjacent carets */
-    switch (ProjectorView.caret(z, M.meta)) {
-    | Some(_caret) => base_caret(z) //caret
-    | None => base_caret(z)
-    };
 
   type shard_data = (Measured.measurement, Nibs.shapes);
 

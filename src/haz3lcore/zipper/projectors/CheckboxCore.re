@@ -25,7 +25,12 @@ let put = (bool: bool): Piece.t => bool |> string_of_bool |> mk_mono(Exp);
 let toggle = (piece: Piece.t) => put(!get(piece));
 
 let view =
-    (_, ~info, ~go as _, ~inject: ProjectorBase.action => Ui_effect.t(unit)) =>
+    (
+      _,
+      ~info,
+      ~go as _,
+      ~inject: ProjectorBase.external_action => Ui_effect.t(unit),
+    ) =>
   Node.input(
     ~attrs=
       [
@@ -38,7 +43,7 @@ let view =
     (),
   );
 
-let keymap = (_, _, key: Key.t): option(ProjectorBase.action) =>
+let keymap = (_, _, key: Key.t): option(ProjectorBase.external_action) =>
   switch (key) {
   | {key: D("Escape"), _} => Some(Remove)
   | _ => None

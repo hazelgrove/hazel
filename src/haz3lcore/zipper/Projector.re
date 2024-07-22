@@ -1,6 +1,12 @@
 open Util;
 include ProjectorBase;
 
+/* See ProjectorBase for an introduction */
+
+/* After adding a new projector module, add it here so that
+ * it can be instantiated. The first-class module created by
+ * this function must be reified whenever projector methods
+ * are to be called; see `shape` below for an example */
 let to_module = (kind: kind): (module Cooked) =>
   switch (kind) {
   | Fold => (module Cook(FoldCore.M))
@@ -16,14 +22,12 @@ let shape = (p: Map.entry, info: info): shape => {
   P.placeholder(p.model, info);
 };
 
-let is_placeholder = (p: Piece.t): bool => {
-  // Eventually placeholders should be more principled
-  switch (p) {
-  | Tile({label: [s], _}) => s |> String.trim |> String.length == 0
-  | _ => false
-  };
-};
-
+/* A projector is replaced by a placeholder in the underlying
+ * editor for view purposes. This projector is an all-whitespace
+ * monotile. Currently there is no explicit notion of placeholders
+ * in the zipper; a tile consisting of any number of whitespaces
+ * is considered a placeholder. This could be made more principled.
+ * Note that a placeholder retains the UUID of the underlying. */
 let placeholder_label = (p: Map.entry, syntax): list(string) =>
   switch (shape(p, syntax)) {
   | Inline(width) => [String.make(width, ' ')]
@@ -41,28 +45,47 @@ let placeholder = (p: Map.entry, info: info): syntax =>
     children: [],
   });
 
+/* Must be in-sync with placeholder_label / placeholder above */
+let is_placeholder = (p: Piece.t): bool =>
+  switch (p) {
+  | Tile({label: [s], _}) => s |> String.trim |> String.length == 0
+  | _ => false
+  };
+
 /* Currently projection is limited to convex pieces */
 let minimum_projection_condition = (syntax: syntax): bool =>
   Piece.is_convex(syntax);
 
+/* Add a new projector, gated on the predicated on the syntax */
 let create = (kind: kind, syntax: syntax): option(Map.entry) => {
   let (module P) = to_module(kind);
   P.can_project(syntax) && minimum_projection_condition(syntax)
     ? Some({kind, model: P.init}) : None;
 };
 
-let piece_is = (ps: Map.t, syntax: option(syntax)): option(Id.t) =>
+/* Is a piece of syntax currently projected? */
+let syntax_is = (ps: Map.t, syntax: option(syntax)): option(Id.t) =>
   switch (syntax) {
   | Some(p) when Map.mem(Piece.id(p), ps) =>
     Map.mem(Piece.id(p), ps) ? Some(Piece.id(p)) : None
   | _ => None
   };
 
+/* Is neighboring syntax currently projected? */
 let neighbor_is = (ps, s: Siblings.t): (option(Id.t), option(Id.t)) => (
-  piece_is(ps, Siblings.left_neighbor(s)),
-  piece_is(ps, Siblings.right_neighbor(s)),
+  syntax_is(ps, Siblings.left_neighbor(s)),
+  syntax_is(ps, Siblings.right_neighbor(s)),
 );
 
+/* This handles the logic for selecting around projectors.
+ * This amounts to simply selecting over the projected syntax
+ * as if it were atomic instead of selecting into it. In principle,
+ * this should work the same as if the projected syntax was replaced
+ * by its placeholder, the selection was made on that projections,
+ * and then the placeholder was replaced by former syntax. In an
+ * updated syntax model, it should maybe work this way, or else
+ * projected syntax should be represented in the zipper in
+ * a more first-class way */
 module Select = {
   let skip_grow_left =
       ({relatives: {siblings: (ls, rs), _}, _} as z: ZipperBase.t) => {
@@ -111,8 +134,8 @@ module Select = {
 
   let selection_sides_is =
       (projectors, s: Selection.t): (option(Id.t), option(Id.t)) => (
-    piece_is(projectors, ListUtil.hd_opt(s.content)),
-    piece_is(projectors, ListUtil.last_opt(s.content)),
+    syntax_is(projectors, ListUtil.hd_opt(s.content)),
+    syntax_is(projectors, ListUtil.last_opt(s.content)),
   );
 
   let shrink =
@@ -124,6 +147,7 @@ module Select = {
     };
 };
 
+/* See Select description above */
 module Move = {
   let go = (d: Direction.t, z: ZipperBase.t): option(ZipperBase.t) =>
     switch (d, neighbor_is(z.projectors, z.relatives.siblings)) {
@@ -200,6 +224,10 @@ type proj_ret = {
   syntax_map: Id.Map.t(syntax),
 };
 
+/* Creates a projected version of the zipper for the view.
+ * This replaces all projected pieces of syntax with their
+ * corresponding placeholders. For convience, it also returns
+ * a map from projector/syntax ids to the corresponding syntax */
 module Project = {
   let syntax_map: ref(Id.Map.t(syntax)) = ref(Id.Map.empty);
 
@@ -225,6 +253,7 @@ module Project = {
   };
 };
 
+/* Updates the underlying piece of syntax for a projector */
 module Syntax = {
   let update_piece = (f, id: Id.t, syntax: syntax) =>
     id == Piece.id(syntax) ? f(syntax) : syntax;
