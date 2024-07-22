@@ -36,8 +36,6 @@ let replace = Js_of_ocaml.Regexp.global_replace;
 
 let split = Js_of_ocaml.Regexp.split;
 
-let trim_leading = replace(regexp("\n[ ]*"), "\n");
-
 let to_lines = (s: string): list(string) => split(regexp("\n"), s);
 
 let line_widths = (s: string): list(int) =>
@@ -52,9 +50,11 @@ let num_linebreaks = (s: string) =>
   List.init(String.length(s), String.get(s))
   |> List.fold_left((acc, c) => c == '\n' ? acc + 1 : acc, 0);
 
-// let escape_linebreaks: string => string = replace(regexp("\n"), "\\\\n");
+// let escape_linebreaks: string => string = replace(regexp("\n"), "\\n");
 
 // let unescape_linebreaks: string => string = replace(regexp("\\\\n"), "\n");
+
+//let trim_leading = replace(regexp("\n[ ]*"), "\n");
 
 //TODO(andrew): figure out why above dont work
 
@@ -63,3 +63,5 @@ let escape_linebreaks: string => string =
 
 let unescape_linebreaks: string => string =
   Re.Str.global_replace(Re.Str.regexp("\\\\n"), "\n");
+
+let trim_leading = Re.Str.global_replace(Re.Str.regexp("\n[ ]*"), "\n");
