@@ -18,5 +18,5 @@ module M: Projector = {
       ~attrs=[Attr.on_double_click(_ => inject(Remove))],
       [text("⋱")],
     );
-  let activate = _ => ();
+  let focus = _ => ();
 };

@@ -8,7 +8,10 @@ let get_goal = (~font_metrics: FontMetrics.t, ~target_id, e) => {
   let goal_y = float_of_int(e##.clientY);
   Measured.Point.{
     row: Float.to_int((goal_y -. rect##.top) /. font_metrics.row_height),
-    col: Float.(to_int((goal_x -. rect##.left) /. font_metrics.col_width)),
+    col:
+      Float.(
+        to_int(round((goal_x -. rect##.left) /. font_metrics.col_width))
+      ),
   };
 };
 

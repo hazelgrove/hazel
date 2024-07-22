@@ -45,24 +45,33 @@ let go =
       a: Action.project,
       z: Zipper.t,
     ) => {
-  //TODO(andrew): document
   switch (a) {
-  | FocusInternal(id, d) =>
+  | Focus(id, d) =>
     let z =
       switch (jump_to_id(z, id)) {
       | Some(z) => z
       | None => z
       };
-    let z =
-      d == Left
-        ? z
-        : (
-          switch (primary(ByToken, Right, z)) {
-          | Some(z) => z
-          | None => z
-          }
-        );
-    Ok(z);
+    switch (d) {
+    | None =>
+      let p = indicated_proj_z(z) |> Option.map(snd);
+      switch (p) {
+      | Some(p) =>
+        let (module P) = to_module(p.kind);
+        P.focus((id, Left));
+        Ok(z);
+      | None => Error(Action.Failure.Cant_project)
+      };
+    | Some(Left) => Ok(z)
+    | Some(Right) =>
+      let z =
+        switch (primary(ByToken, Right, z)) {
+        | Some(z) => z
+        | None => z
+        };
+      Ok(z);
+    };
+
   | Escape(id, Left) =>
     let z =
       switch (jump_to_id(z, id)) {
@@ -93,22 +102,13 @@ let go =
     | Some((piece, d, rel)) =>
       add_or_remove(Piece.id(piece), z, p, piece, d, rel)
     }
-  | Activate(id) =>
-    let p = indicated_proj_z(z) |> Option.map(snd);
-    switch (p) {
-    | Some(p) =>
-      let (module P) = to_module(p.kind);
-      P.activate((id, Left));
-      Error(Action.Failure.Cant_project);
-    | None => Error(Action.Failure.Cant_project)
-    };
   | Remove(id) =>
     switch (Map.mem(id, z.projectors)) {
     | false => Error(Action.Failure.Cant_project)
     | true => Ok(set(id, None, z))
     }
   | SetSyntax(id, p) => Ok(Projector.Syntax.update(_ => p, id, z))
-  | UpdateModel(id, model) =>
+  | SetModel(id, model) =>
     Ok({
       ...z,
       projectors:

@@ -34,5 +34,5 @@ module M: Projector = {
       ~attrs=[Attr.on_input((_, v) => inject(SetSyntax(put(v))))],
       get(info.syntax),
     );
-  let activate = _ => ();
+  let focus = _ => ();
 };

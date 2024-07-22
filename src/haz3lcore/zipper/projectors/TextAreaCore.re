@@ -98,7 +98,7 @@ module M: Projector = {
   };
   let update = (model, _) => model;
   let view = view;
-  let activate = ((id: Id.t, d: Direction.t)) => {
+  let focus = ((id: Id.t, d: Direction.t)) => {
     JsUtil.get_elem_by_id(of_id(id))##focus;
     switch (d) {
     | Left => ()
