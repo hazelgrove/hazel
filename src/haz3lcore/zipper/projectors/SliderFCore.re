@@ -31,7 +31,7 @@ module M: Projector = {
         _,
         ~info,
         ~go as _,
-        ~inject: ProjectorBase.action => Ui_effect.t(unit),
+        ~inject: ProjectorBase.external_action => Ui_effect.t(unit),
       ) =>
     Util.Web.range(
       ~attrs=[Attr.on_input((_, v) => inject(SetSyntax(put(v))))],

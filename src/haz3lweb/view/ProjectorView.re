@@ -2,9 +2,13 @@ open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
 open Projector;
+open Util;
 open Util.OptUtil.Syntax;
 open Util.Web;
 
+/* A friendly name for each projector. This is used
+ * both for identifying a projector in the CSS and for
+ * selecting projectors in the projector panel menu */
 let name = (p: kind): string =>
   switch (p) {
   | Fold => "fold"
@@ -15,7 +19,9 @@ let name = (p: kind): string =>
   | TextArea => "text"
   };
 
-/* Needs to be 1-to-1 for menu selection */
+/* This must be updated and kept 1-to-1 with the above
+ * name function in order to be able to select the
+ * projector in the projector panel menu */
 let of_name = (p: string): kind =>
   switch (p) {
   | "fold" => Fold
@@ -27,6 +33,9 @@ let of_name = (p: string): kind =>
   | _ => failwith("Unknown projector kind")
   };
 
+/* Projectors get a default backing decoration similar
+ * to token decorations. This can be made transparent
+ * in the CSS if no backing is wanted */
 let backing_deco =
     (
       ~font_metrics: FontMetrics.t,
@@ -34,11 +43,13 @@ let backing_deco =
       ~shape: shape,
     ) =>
   switch (shape) {
-  | Inline(_) => PieceDec.convex_shard(~font_metrics, ~measurement)
+  | Inline(_)
   | Block(_) => PieceDec.convex_shard(~font_metrics, ~measurement)
   };
 
-let cls = (indicated: option(list(string)), selected: bool, shape: shape) =>
+/* Adds attributes to a projector UI to support
+ * custom styling when selected or indicated */
+let status = (indicated: option(Direction.t), selected: bool, shape: shape) =>
   (selected ? ["selected"] : [])
   @ (
     switch (shape) {
@@ -48,64 +59,66 @@ let cls = (indicated: option(list(string)), selected: bool, shape: shape) =>
   )
   @ (
     switch (indicated) {
-    | Some(indicated) => indicated
+    | Some(d) => ["indicated", Direction.show(d)]
     | None => []
     }
   );
 
+/* Wraps the view function for a projector, absolutely positioning
+ * relative to the syntax, adding a default backing decoration, and
+ * adding fallthrough handlers where appropriate*/
 let view_wrapper =
     (
       ~inject: UpdateAction.t => Ui_effect.t(unit),
       ~font_metrics: FontMetrics.t,
       ~measurement: Measured.measurement,
       ~info: info,
-      ~indication: option(list(string)),
+      ~indication: option(Direction.t),
       ~selected: bool,
       entry: Map.entry,
       view: Node.t,
     ) => {
   let fudge = selected ? PieceDec.selection_fudge : DecUtil.fzero;
   let shape = Projector.shape(entry, info);
+  let focus = (id, _) =>
+    Effect.(
+      Many([
+        Stop_propagation,
+        inject(PerformAction(Project(Focus(id, None)))),
+      ])
+    );
   div(
     ~attrs=[
       Attr.classes(
-        ["projector", name(entry.kind)] @ cls(indication, selected, shape),
+        ["projector", name(entry.kind)]
+        @ status(indication, selected, shape),
       ),
-      Attr.on_mousedown(_ =>
-        Effect.(
-          Many([
-            Stop_propagation,
-            inject(PerformAction(Project(Focus(info.id, None)))),
-          ])
-        )
-      ),
+      Attr.on_mousedown(focus(info.id)),
       DecUtil.abs_style(measurement, ~fudge, ~font_metrics),
     ],
     [view, backing_deco(~font_metrics, ~measurement, ~shape)],
   );
 };
 
-let handle = (id, action: ProjectorBase.action): Action.project =>
+/* Dispatches projector external actions to editor-level actions */
+let handle = (id, action: ProjectorBase.external_action): Action.project =>
   switch (action) {
   | Remove => Remove(id)
-  | Focus(d) => Focus(id, d)
   | Escape(d) => Escape(id, d)
   | SetSyntax(f) => SetSyntax(id, f)
-  | SetModel(sexp) => SetModel(id, sexp)
   };
 
-let update_model = (action, {kind, model}: Map.entry): Map.entry => {
-  let (module P) = to_module(kind);
-  {kind, model: P.update(model, action)};
-};
-
-let view_setup =
+/* Extracts projector-instance-specific metadata necessary to
+ * render the view, instantiates appropriate action handlers,
+ * renders the view, and then wraps it so as to position it
+ * correctly with respect to the underyling editor */
+let setup_view =
     (
       id: Id.t,
       ~meta: Editor.Meta.t,
       ~inject: UpdateAction.t => Ui_effect.t(unit),
       ~font_metrics,
-      ~indication: option(list(string)),
+      ~indication: option(Direction.t),
     )
     : option(Node.t) => {
   let* p = Projector.Map.find(id, meta.projected.z.projectors);
@@ -115,7 +128,8 @@ let view_setup =
   let+ measurement = Measured.find_by_id(id, meta.projected.measured);
   let (module P) = to_module(p.kind);
   let inject_proj = a => inject(PerformAction(Project(handle(id, a))));
-  let go = a => inject_proj(SetModel(P.update(p.model, a)));
+  let go = a =>
+    inject(PerformAction(Project(SetModel(id, P.update(p.model, a)))));
   view_wrapper(
     ~inject,
     ~font_metrics,
@@ -128,35 +142,6 @@ let view_setup =
   );
 };
 
-let indication = (z: ZipperBase.t) =>
-  switch (Indicated.piece(z)) {
-  | Some((p, Left, _)) => Some((Piece.id(p), ["indicated", "left"]))
-  | Some((p, Right, _)) => Some((Piece.id(p), ["indicated", "right"]))
-  | None => None
-  };
-
-let view_all = (~meta: Editor.Meta.t, ~inject, ~font_metrics) =>
-  div_c(
-    "projectors",
-    List.filter_map(
-      ((id, _)) => {
-        view_setup(
-          id,
-          ~meta,
-          ~inject,
-          ~font_metrics,
-          ~indication=
-            switch (indication(meta.projected.z)) {
-            | Some((ind_id, indication)) when ind_id == id =>
-              Some(indication)
-            | _ => None
-            },
-        )
-      },
-      Id.Map.bindings(meta.projected.z.projectors) |> List.rev,
-    ),
-  );
-
 let indicated_proj_z = (z: Zipper.t) => {
   let* id = Indicated.index(z);
   let+ projector = Projector.Map.find(id, z.projectors);
@@ -164,41 +149,36 @@ let indicated_proj_z = (z: Zipper.t) => {
 };
 
 let indicated_proj_ed = (editor: Editor.t) =>
-  //TODO(andrew): In future use z_proj instead of zipper?
   indicated_proj_z(editor.state.zipper);
 
-let kind = (editor: Editor.t) => {
-  let+ (_, p) = indicated_proj_ed(editor);
-  p.kind;
-};
-
-let shape = (z: Zipper.t, syntax): option(shape) => {
-  let+ (_, p) = indicated_proj_z(z);
-  Projector.shape(p, syntax);
-};
-
-let id = (editor: Editor.t) => {
-  switch (indicated_proj_ed(editor)) {
-  | Some((id, _)) => id
-  | None => Id.invalid
-  };
-};
-
-let shape_from_map = (z, meta: Editor.Meta.t): option(shape) => {
-  let* id = Indicated.index(z);
-  let* syntax = Id.Map.find_opt(id, meta.projected.syntax_map);
-  let ci = Id.Map.find_opt(id, meta.statics.info_map);
-  let info = {id, syntax, ci};
-  shape(z, info);
-};
-
-let caret = (z: Zipper.t, meta: Editor.Meta.t): option(Node.t) =>
-  switch (shape_from_map(z, meta)) {
-  | None => None
-  | Some(Inline(_)) => None
-  | Some(Block(_)) => Some(div([]))
+let indication = (z, id) =>
+  switch (Indicated.piece(z)) {
+  | Some((p, d, _)) when Piece.id(p) == id => Some(Direction.toggle(d))
+  | _ => None
   };
 
+/* Returns a div containing all projector UIs, intended to
+ * be absolutely positioned atop a rendered editor UI */
+let all = (~meta: Editor.Meta.t, ~inject, ~font_metrics) =>
+  div_c(
+    "projectors",
+    List.filter_map(
+      ((id, _)) => {
+        let indication = indication(meta.projected.z, id);
+        setup_view(id, ~meta, ~inject, ~font_metrics, ~indication);
+      },
+      Id.Map.bindings(meta.projected.z.projectors) |> List.rev,
+    ),
+  );
+
+/* When the caret is directly adjacent to a projector, keyboard commands
+ * can be overidden here. Right now, trying to move into the projector,
+ * that is, pressing left when it's to the right or vice-versa, without
+ * holding down a modifier, will give the projector focus (if its can_focus)
+ * flag is set. Be conservative about these kind of overloads; you need
+ * to consider how they interact with all the editor keyboard commands.
+ * For example, without the modifiers check, this would break selection
+ * around a projector. */
 let key_handoff = (editor: Editor.t, key: Key.t): option(Action.project) =>
   switch (indicated_proj_ed(editor)) {
   | None => None
@@ -216,6 +196,7 @@ let key_handoff = (editor: Editor.t, key: Key.t): option(Action.project) =>
     };
   };
 
+/* The projector selection panel on the right of the bottom bar */
 module Panel = {
   let option_view = (name, n) =>
     option(
@@ -223,6 +204,9 @@ module Panel = {
       [text(n)],
     );
 
+  /* Decide which projectors are applicable based on the cursor info.
+   * This is slightly inside-out as elsewhere it depends on the underlying
+   * syntax, which is not easily available here */
   let applicable_projectors = (ci: Info.t): list(Projector.kind) =>
     (
       switch (Info.cls_of(ci)) {
@@ -237,7 +221,7 @@ module Panel = {
       | _ => []
       }
     )
-    @ [(Fold: Projector.kind)]
+    @ [Fold]
     @ (
       switch (ci) {
       | InfoExp(_)
@@ -273,6 +257,18 @@ module Panel = {
         ),
       ],
     );
+
+  let kind = (editor: Editor.t) => {
+    let+ (_, p) = indicated_proj_ed(editor);
+    p.kind;
+  };
+
+  let id = (editor: Editor.t) => {
+    switch (indicated_proj_ed(editor)) {
+    | Some((id, _)) => id
+    | None => Id.invalid
+    };
+  };
 
   let currently_selected = editor =>
     option_view(
