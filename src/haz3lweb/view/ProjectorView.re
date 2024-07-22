@@ -214,12 +214,8 @@ let key_handoff = (editor: Editor.t, key: Key.t): option(Action.project) =>
     switch (key) {
     | {key, sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up} when P.can_focus =>
       switch (key, d) {
-      | (D("ArrowRight"), Right) =>
-        P.focus((id, Left));
-        Some(Action.Focus(id, Some(Left)));
-      | (D("ArrowLeft"), Left) =>
-        P.focus((id, Right));
-        Some(Focus(id, Some(Right)));
+      | (D("ArrowRight"), Right) => Some(Action.Focus(id, Some(Left)))
+      | (D("ArrowLeft"), Left) => Some(Focus(id, Some(Right)))
       | _ => None
       }
     | _ => None

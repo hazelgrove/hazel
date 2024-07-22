@@ -28,7 +28,7 @@ let buffer_clear = (z: t): t =>
   | _ => z
   };
 
-let buffer_set = (info_map: Statics.Map.t, z: t): t =>
+let set_buffer = (info_map: Statics.Map.t, z: t): t =>
   switch (TyDi.set_buffer(~info_map, z)) {
   | None => z
   | Some(z) => z
@@ -121,7 +121,7 @@ let go_z =
     | None => Error(CantReparse)
     | Some(z) => Ok(z)
     }
-  | Buffer(Set(TyDi)) => Ok(buffer_set(meta.statics.info_map, z))
+  | Buffer(Set(TyDi)) => Ok(set_buffer(meta.statics.info_map, z))
   | Buffer(Accept) =>
     switch (buffer_accept(z)) {
     | None => Error(CantAccept)
@@ -281,7 +281,17 @@ let go =
     let ed = a == Buffer(Accept) ? ed : Editor.update_z(buffer_clear, ed);
     let* ed = go_history(~settings, a, ed);
     Action.is_edit(a)
-      ? Ok(Editor.update_z(buffer_set(ed.state.meta.statics.info_map), ed))
+      ? {
+        //TODO(andrew): fix completion bug
+        // let _ =
+        //   switch (go_history(~settings, Buffer(Set(TyDi)), ed)) {
+        //   | Error(err) => Error(err)
+        //   | Ok(ed) => Ok(ed)
+        //   };
+        Ok(
+          Editor.update_z(set_buffer(ed.state.meta.statics.info_map), ed),
+        );
+      }
       : Ok(ed);
   } else {
     go_history(~settings, a, ed);

@@ -83,7 +83,7 @@ module type Projector = {
     Node.t;
   let placeholder: (model, info) => shape;
   let update: (model, action) => model;
-  let focus: ((Id.t, Direction.t)) => unit;
+  let focus: ((Id.t, option(Direction.t))) => unit;
 };
 
 type serialized_model = string;
@@ -103,7 +103,7 @@ module type Cooked = {
     Node.t;
   let placeholder: (serialized_model, info) => shape;
   let update: (serialized_model, serialized_action) => serialized_model;
-  let focus: ((Id.t, Direction.t)) => unit;
+  let focus: ((Id.t, option(Direction.t))) => unit;
 };
 
 module Cook = (C: Projector) : Cooked => {
