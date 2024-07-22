@@ -44,7 +44,8 @@ let go =
         (Zipper.chunkiness, Util.Direction.t, Zipper.t) => option(Zipper.t),
       a: Action.project,
       z: Zipper.t,
-    ) => {
+    )
+    : result(ZipperBase.t, Action.Failure.t) => {
   switch (a) {
   | Focus(id, d) =>
     let z =
@@ -52,18 +53,22 @@ let go =
       | Some(z) => z
       | None => z
       };
-    switch (d) {
-    | None =>
-      let p = indicated_proj_z(z) |> Option.map(snd);
-      switch (p) {
-      | Some(p) =>
-        let (module P) = to_module(p.kind);
-        P.focus((id, Left));
-        Ok(z);
-      | None => Error(Action.Failure.Cant_project)
+    switch (indicated_proj_z(z)) {
+    | Some((_, p)) =>
+      let (module P) = to_module(p.kind);
+      P.focus((id, d));
+      Ok(z);
+    | None => Error(Cant_project)
+    };
+  | Escape(id, d) =>
+    let z =
+      switch (jump_to_id(z, id)) {
+      | Some(z) => z
+      | None => z
       };
-    | Some(Left) => Ok(z)
-    | Some(Right) =>
+    switch (d) {
+    | Left => Ok(z)
+    | Right =>
       let z =
         switch (primary(ByToken, Right, z)) {
         | Some(z) => z
@@ -71,52 +76,25 @@ let go =
         };
       Ok(z);
     };
-
-  | Escape(id, Left) =>
-    let z =
-      switch (jump_to_id(z, id)) {
-      | Some(z) => z
-      | None => z
-      };
-    Ok(z);
-  | Escape(id, Right) =>
-    let z =
-      switch (jump_to_id(z, id)) {
-      | Some(z) => z
-      | None => z
-      };
-    let z =
-      switch (primary(ByToken, Right, z)) {
-      | Some(z) => z
-      | None => z
-      };
-    Ok(z);
   | SetIndicated(p) =>
     switch (Indicated.for_index(z)) {
-    | None => Error(Action.Failure.Cant_project)
+    | None => Error(Cant_project)
     | Some((piece, d, rel)) => add(Piece.id(piece), z, p, piece, d, rel)
     }
   | ToggleIndicated(p) =>
     switch (Indicated.for_index(z)) {
-    | None => Error(Action.Failure.Cant_project)
+    | None => Error(Cant_project)
     | Some((piece, d, rel)) =>
       add_or_remove(Piece.id(piece), z, p, piece, d, rel)
     }
   | Remove(id) =>
     switch (Map.mem(id, z.projectors)) {
-    | false => Error(Action.Failure.Cant_project)
+    | false => Error(Cant_project)
     | true => Ok(set(id, None, z))
     }
-  | SetSyntax(id, p) => Ok(Projector.Syntax.update(_ => p, id, z))
+  | SetSyntax(id, syntax) => Ok(Projector.Syntax.update(_ => syntax, id, z))
   | SetModel(id, model) =>
-    Ok({
-      ...z,
-      projectors:
-        Map.update(
-          id,
-          entry => Option.map(e => {model, kind: e.kind}, entry),
-          z.projectors,
-        ),
-    })
+    let update = entry => Option.map(e => {model, kind: e.kind}, entry);
+    Ok({...z, projectors: Map.update(id, update, z.projectors)});
   };
 };

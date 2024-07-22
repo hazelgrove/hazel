@@ -98,11 +98,12 @@ module M: Projector = {
   };
   let update = (model, _) => model;
   let view = view;
-  let focus = ((id: Id.t, d: Direction.t)) => {
+  let focus = ((id: Id.t, d: option(Direction.t))) => {
     JsUtil.get_elem_by_id(of_id(id))##focus;
     switch (d) {
-    | Left => ()
-    | Right =>
+    | None
+    | Some(Left) => ()
+    | Some(Right) =>
       JsUtil.TextArea.set_caret_to_end(JsUtil.TextArea.get(of_id(id)))
     };
   };
