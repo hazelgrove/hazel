@@ -524,6 +524,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         (pos, positioned_zippers): persistent_state,
         ~spec: spec,
         ~instructor_mode: bool,
+        ~editing_title: bool,
       )
       : state => {
     let lookup = (pos, default) =>
@@ -549,33 +550,35 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       );
     let hidden_tests_tests = lookup(HiddenTests, spec.hidden_tests.tests);
 
-    set_instructor_mode(
-      {
-        pos,
-        eds: {
-          title: spec.title,
-          version: spec.version,
-          module_name: spec.module_name,
-          prompt: spec.prompt,
-          point_distribution: spec.point_distribution,
-          prelude,
-          correct_impl,
-          your_tests: {
-            tests: your_tests_tests,
-            required: spec.your_tests.required,
-            provided: spec.your_tests.provided,
+    let state =
+      set_instructor_mode(
+        {
+          pos,
+          eds: {
+            title: spec.title,
+            version: spec.version,
+            module_name: spec.module_name,
+            prompt: spec.prompt,
+            point_distribution: spec.point_distribution,
+            prelude,
+            correct_impl,
+            your_tests: {
+              tests: your_tests_tests,
+              required: spec.your_tests.required,
+              provided: spec.your_tests.provided,
+            },
+            your_impl,
+            hidden_bugs,
+            hidden_tests: {
+              tests: hidden_tests_tests,
+              hints: spec.hidden_tests.hints,
+            },
+            syntax_tests: spec.syntax_tests,
           },
-          your_impl,
-          hidden_bugs,
-          hidden_tests: {
-            tests: hidden_tests_tests,
-            hints: spec.hidden_tests.hints,
-          },
-          syntax_tests: spec.syntax_tests,
         },
-      },
-      instructor_mode,
-    );
+        instructor_mode,
+      );
+    set_editing_title(state, editing_title);
   };
 
   // # Stitching
@@ -1022,11 +1025,11 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     |> Sexplib.Sexp.to_string;
   };
 
-  let deserialize_exercise = (data, ~spec, ~instructor_mode) => {
+  let deserialize_exercise = (data, ~spec, ~instructor_mode, ~editing_title) => {
     data
     |> Sexplib.Sexp.of_string
     |> persistent_state_of_sexp
-    |> unpersist_state(~spec, ~instructor_mode);
+    |> unpersist_state(~spec, ~instructor_mode, ~editing_title);
   };
 
   let deserialize_exercise_export = data => {

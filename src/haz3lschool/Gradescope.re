@@ -119,6 +119,7 @@ module Main = {
                  persistent_state,
                  ~spec,
                  ~instructor_mode=true,
+                 ~editing_title=false,
                );
              let report = exercise |> gen_grading_report;
              {name, report};

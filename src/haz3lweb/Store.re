@@ -265,12 +265,20 @@ module Exercise = {
     exercise;
   };
 
-  let load_exercise = (key, spec, ~instructor_mode): Exercise.state => {
+  let load_exercise =
+      (key, spec, ~instructor_mode, ~editing_title): Exercise.state => {
     let keystring = keystring_of_key(key);
     switch (JsUtil.get_localstore(keystring)) {
     | Some(data) =>
       let exercise =
-        try(Exercise.deserialize_exercise(data, ~spec, ~instructor_mode)) {
+        try(
+          Exercise.deserialize_exercise(
+            data,
+            ~spec,
+            ~instructor_mode,
+            ~editing_title,
+          )
+        ) {
         | _ => init_exercise(spec, ~instructor_mode)
         };
       JsUtil.set_localstore(cur_exercise_key, keystring);
@@ -299,7 +307,7 @@ module Exercise = {
     exercises;
   };
 
-  let load = (~specs, ~instructor_mode) => {
+  let load = (~specs, ~instructor_mode, ~editing_title) => {
     switch (JsUtil.get_localstore(cur_exercise_key)) {
     | Some(keystring) =>
       let key = key_of_keystring(keystring);
@@ -308,7 +316,14 @@ module Exercise = {
         switch (JsUtil.get_localstore(keystring)) {
         | Some(data) =>
           let exercise =
-            try(deserialize_exercise(data, ~spec, ~instructor_mode)) {
+            try(
+              deserialize_exercise(
+                data,
+                ~spec,
+                ~instructor_mode,
+                ~editing_title,
+              )
+            ) {
             | _ => init_exercise(spec, ~instructor_mode)
             };
           (n, specs, exercise);
@@ -322,13 +337,22 @@ module Exercise = {
         // invalid current exercise key saved, load the first exercise
         let first_spec = List.nth(specs, 0);
         let first_key = Exercise.key_of(first_spec);
-        (0, specs, load_exercise(first_key, first_spec, ~instructor_mode));
+        (
+          0,
+          specs,
+          load_exercise(
+            first_key,
+            first_spec,
+            ~instructor_mode,
+            ~editing_title,
+          ),
+        );
       };
     | None => init(~instructor_mode)
     };
   };
 
-  let prep_exercise_export = (~specs, ~instructor_mode) => {
+  let prep_exercise_export = (~specs, ~instructor_mode, ~editing_title) => {
     {
       cur_exercise:
         key_of_keystring(
@@ -339,7 +363,7 @@ module Exercise = {
         |> List.map(spec => {
              let key = Exercise.key_of(spec);
              let exercise =
-               load_exercise(key, spec, ~instructor_mode)
+               load_exercise(key, spec, ~instructor_mode, ~editing_title)
                |> Exercise.persistent_state_of_state(~instructor_mode);
              (key, exercise);
            }),
@@ -347,7 +371,7 @@ module Exercise = {
   };
 
   let serialize_exercise_export = (~specs, ~instructor_mode) => {
-    prep_exercise_export(~specs, ~instructor_mode)
+    prep_exercise_export(~specs, ~instructor_mode, ~editing_title=false)
     |> sexp_of_exercise_export
     |> Sexplib.Sexp.to_string;
   };
@@ -356,7 +380,7 @@ module Exercise = {
     serialize_exercise_export(~specs, ~instructor_mode);
   };
 
-  let import = (data, ~specs, ~instructor_mode) => {
+  let import = (data, ~specs, ~instructor_mode, ~editing_title) => {
     let exercise_export = data |> deserialize_exercise_export;
     save_exercise_key(exercise_export.cur_exercise);
     exercise_export.exercise_data
@@ -371,6 +395,7 @@ module Exercise = {
                persistent_state,
                ~spec,
                ~instructor_mode,
+               ~editing_title,
              ),
              ~instructor_mode,
            )
