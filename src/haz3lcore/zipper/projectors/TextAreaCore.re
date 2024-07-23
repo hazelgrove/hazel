@@ -33,17 +33,17 @@ let is_last_pos = id =>
 let is_first_pos = id =>
   JsUtil.TextArea.caret_at_start(JsUtil.TextArea.get(of_id(id)));
 
-let key_handler = (id, ~inject, evt) => {
+let key_handler = (id, ~parent, evt) => {
   open Effect;
   let key = Key.mk(KeyDown, evt);
 
   switch (key.key) {
   | D("ArrowRight" | "ArrowDown") when is_last_pos(id) =>
     JsUtil.get_elem_by_id(of_id(id))##blur;
-    Many([inject(Escape(Right)), Stop_propagation]);
+    Many([parent(Escape(Right)), Stop_propagation]);
   | D("ArrowLeft" | "ArrowUp") when is_first_pos(id) =>
     JsUtil.get_elem_by_id(of_id(id))##blur;
-    Many([inject(Escape(Left)), Stop_propagation]);
+    Many([parent(Escape(Left)), Stop_propagation]);
   | _ => Stop_propagation
   };
 };
@@ -51,15 +51,15 @@ let key_handler = (id, ~inject, evt) => {
 let textarea =
     (
       id,
-      ~inject: ProjectorBase.external_action => Ui_effect.t(unit),
+      ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
       text: string,
     ) =>
   Node.textarea(
     ~attrs=[
       Attr.id(of_id(id)),
-      Attr.on_keydown(key_handler(id, ~inject)),
+      Attr.on_keydown(key_handler(id, ~parent)),
       Attr.on_input((_, new_text) =>
-        Effect.(Many([inject(put(new_text))]))
+        Effect.(Many([parent(put(new_text))]))
       ),
       /* Note: adding these handlers below because
        * currently these are handled on page level.
@@ -71,14 +71,14 @@ let textarea =
     [Node.text(text)],
   );
 
-let view = (_, ~info, ~go as _, ~inject) => {
+let view = (_, ~info, ~local as _, ~parent) => {
   let text = info.syntax |> get |> Form.strip_quotes;
   Node.div(
     ~attrs=[Attr.classes(["wrapper"])],
     [
       Node.div(
         ~attrs=[Attr.classes(["cols"])],
-        [Node.text("·")] @ [textarea(info.id, ~inject, text)],
+        [Node.text("·")] @ [textarea(info.id, ~parent, text)],
       ),
     ],
   );

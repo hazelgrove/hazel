@@ -13,9 +13,9 @@ module M: Projector = {
   let can_focus = false;
   let placeholder = (_, _) => Inline(2);
   let update = (_, _) => ();
-  let view = (_, ~info as _, ~go as _, ~inject) =>
+  let view = (_, ~info as _, ~local as _, ~parent) =>
     div(
-      ~attrs=[Attr.on_double_click(_ => inject(Remove))],
+      ~attrs=[Attr.on_double_click(_ => parent(Remove))],
       [text("⋱")],
     );
   let focus = _ => ();

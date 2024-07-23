@@ -76,11 +76,11 @@ module M: Projector = {
     | (ToggleDisplay, Self) => Expected
     };
 
-  let view = (model, ~info: ProjectorBase.info, ~go, ~inject as _) =>
+  let view = (model, ~info: ProjectorBase.info, ~local, ~parent as _) =>
     div(
       ~attrs=[
         Attr.class_("info"),
-        Attr.on_mousedown(_ => go(ToggleDisplay)),
+        Attr.on_mousedown(_ => local(ToggleDisplay)),
       ],
       [
         text("⋱ " ++ display_mode(model, info.ci) ++ " "),

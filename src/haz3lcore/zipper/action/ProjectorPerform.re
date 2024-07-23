@@ -50,21 +50,6 @@ let go =
     | None => z
     };
   switch (a) {
-  | Focus(id, d) =>
-    let z = jump(z, id);
-    switch (Projector.indicated(z)) {
-    | Some((_, p)) =>
-      let (module P) = to_module(p.kind);
-      P.focus((id, d));
-      Ok(z);
-    | None => Error(Cant_project)
-    };
-  | Escape(id, d) =>
-    let z = jump(z, id);
-    switch (d) {
-    | Left => Ok(z)
-    | Right => Ok(switch_side(z))
-    };
   | SetIndicated(p) =>
     switch (Indicated.for_index(z)) {
     | None => Error(Cant_project)
@@ -85,5 +70,20 @@ let go =
   | SetModel(id, model) =>
     let update = entry => Option.map(e => Map.{model, kind: e.kind}, entry);
     Ok({...z, projectors: Map.update(id, update, z.projectors)});
+  | Focus(id, d) =>
+    let z = jump(z, id);
+    switch (Projector.indicated(z)) {
+    | Some((_, p)) =>
+      let (module P) = to_module(p.kind);
+      P.focus((id, d));
+      Ok(z);
+    | None => Error(Cant_project)
+    };
+  | Escape(id, d) =>
+    let z = jump(z, id);
+    switch (d) {
+    | Left => Ok(z)
+    | Right => Ok(switch_side(z))
+    };
   };
 };
