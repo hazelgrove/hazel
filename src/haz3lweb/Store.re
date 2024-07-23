@@ -178,15 +178,32 @@ module Documentation = {
     (name, Editor.init(zipper, ~read_only=false));
   };
 
-  let to_persistent = ((string, slides, results)): persistent => (
+  let fromEditor = (editor: Editor.t): ScratchSlide.persistent_state => {
+    title: "", 
+    description: "", 
+    hidden_tests: { tests: { zipper: editor, backup_text: "" }, hints: [] },
+  };
+
+  let to_persistent = ((string, slides, results)): persistent => {
+    let slides = List.map(persist, slides);
+    let to_ser = ((str: string, slide: Zipper.t)) => {
+        (str, PersistentZipper.serialize(slide));
+    };
+    let slides = List.map(to_ser, slides);
+    (
     string,
     List.map(persist, slides),
     results
     |> ModelResults.map(ModelResult.to_persistent)
     |> ModelResults.bindings,
-  );
+  ) };
 
   let of_persistent = (~settings, (string, slides, results): persistent) => {
+    let state_to_zipper = ((str : string, status : ScratchSlide.persistent_state)) => { 
+      (str, ScratchSlide.unpersist(status))
+    };
+    let slides = List.map(state_to_zipper, slides);
+    let slides = List.map(persist, slides);
     (
       string,
       List.map(unpersist, slides),
