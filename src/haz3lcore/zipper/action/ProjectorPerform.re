@@ -1,8 +1,9 @@
 open Projector;
 
+/* If the caret is inside the indicated piece, move it out
+ * NOTE: Might need to be updated to support pieces with more than 2 delims */
 let move_out_of_piece =
     (d: Util.Direction.t, rel: Indicated.relation, z: Zipper.t): Zipper.t =>
-  /* NOTE: Might not work for pieces with more than 2 delims */
   switch (rel) {
   | Sibling => {...z, caret: Outer}
   | Parent =>
@@ -29,14 +30,6 @@ let add_or_remove = (id: Id.t, z: Zipper.t, p, piece, d, rel) =>
   | true => Ok(set(id, None, z))
   };
 
-//TODO(andrew): dupe, rm
-let indicated_proj_z = (z: Zipper.t) => {
-  open Util.OptUtil.Syntax;
-  let* id = Indicated.index(z);
-  let+ projector = Projector.Map.find(id, z.projectors);
-  (id, projector);
-};
-
 let go =
     (
       jump_to_id,
@@ -46,14 +39,20 @@ let go =
       z: Zipper.t,
     )
     : result(ZipperBase.t, Action.Failure.t) => {
+  let jump = (z, id) =>
+    switch (jump_to_id(z, id)) {
+    | Some(z) => z
+    | None => z
+    };
+  let switch_side = z =>
+    switch (primary(ByToken, Right, z)) {
+    | Some(z) => z
+    | None => z
+    };
   switch (a) {
   | Focus(id, d) =>
-    let z =
-      switch (jump_to_id(z, id)) {
-      | Some(z) => z
-      | None => z
-      };
-    switch (indicated_proj_z(z)) {
+    let z = jump(z, id);
+    switch (Projector.indicated(z)) {
     | Some((_, p)) =>
       let (module P) = to_module(p.kind);
       P.focus((id, d));
@@ -61,20 +60,10 @@ let go =
     | None => Error(Cant_project)
     };
   | Escape(id, d) =>
-    let z =
-      switch (jump_to_id(z, id)) {
-      | Some(z) => z
-      | None => z
-      };
+    let z = jump(z, id);
     switch (d) {
     | Left => Ok(z)
-    | Right =>
-      let z =
-        switch (primary(ByToken, Right, z)) {
-        | Some(z) => z
-        | None => z
-        };
-      Ok(z);
+    | Right => Ok(switch_side(z))
     };
   | SetIndicated(p) =>
     switch (Indicated.for_index(z)) {

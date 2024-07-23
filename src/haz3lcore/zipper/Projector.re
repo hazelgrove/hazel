@@ -63,6 +63,14 @@ let create = (kind: kind, syntax: syntax): option(Map.entry) => {
     ? Some({kind, model: P.init}) : None;
 };
 
+/* Returns the projector at the caret, if any */
+let indicated = (z: ZipperBase.t) => {
+  open Util.OptUtil.Syntax;
+  let* id = Indicated.index(z);
+  let+ projector = Map.find(id, z.projectors);
+  (id, projector);
+};
+
 /* Is a piece of syntax currently projected? */
 let syntax_is = (ps: Map.t, syntax: option(syntax)): option(Id.t) =>
   switch (syntax) {

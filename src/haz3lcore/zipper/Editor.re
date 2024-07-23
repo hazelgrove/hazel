@@ -302,6 +302,9 @@ let trailing_hole_ctx = (ed: t, info_map: Statics.Map.t) => {
   };
 };
 
+let indicated_projector = (editor: t) =>
+  Projector.indicated(editor.state.zipper);
+
 let map_projectors =
     (f: (Id.t, Projector.Map.entry) => Projector.Map.entry, ed: t) =>
   update_z(

@@ -142,15 +142,6 @@ let setup_view =
   );
 };
 
-let indicated_proj_z = (z: Zipper.t) => {
-  let* id = Indicated.index(z);
-  let+ projector = Projector.Map.find(id, z.projectors);
-  (id, projector);
-};
-
-let indicated_proj_ed = (editor: Editor.t) =>
-  indicated_proj_z(editor.state.zipper);
-
 let indication = (z, id) =>
   switch (Indicated.piece(z)) {
   | Some((p, d, _)) when Piece.id(p) == id => Some(Direction.toggle(d))
@@ -180,7 +171,7 @@ let all = (~meta: Editor.Meta.t, ~inject, ~font_metrics) =>
  * For example, without the modifiers check, this would break selection
  * around a projector. */
 let key_handoff = (editor: Editor.t, key: Key.t): option(Action.project) =>
-  switch (indicated_proj_ed(editor)) {
+  switch (Editor.indicated_projector(editor)) {
   | None => None
   | Some((id, p)) =>
     let* (_, d, _) = Indicated.piece(editor.state.zipper);
@@ -259,12 +250,12 @@ module Panel = {
     );
 
   let kind = (editor: Editor.t) => {
-    let+ (_, p) = indicated_proj_ed(editor);
+    let+ (_, p) = Editor.indicated_projector(editor);
     p.kind;
   };
 
   let id = (editor: Editor.t) => {
-    switch (indicated_proj_ed(editor)) {
+    switch (Editor.indicated_projector(editor)) {
     | Some((id, _)) => id
     | None => Id.invalid
     };
