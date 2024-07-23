@@ -127,8 +127,8 @@ let setup_view =
   let info = {id, ci, syntax};
   let+ measurement = Measured.find_by_id(id, meta.projected.measured);
   let (module P) = to_module(p.kind);
-  let inject_proj = a => inject(PerformAction(Project(handle(id, a))));
-  let go = a =>
+  let parent = a => inject(PerformAction(Project(handle(id, a))));
+  let local = a =>
     inject(PerformAction(Project(SetModel(id, P.update(p.model, a)))));
   view_wrapper(
     ~inject,
@@ -138,7 +138,7 @@ let setup_view =
     ~info,
     ~selected=List.mem(id, meta.selection_ids),
     p,
-    P.view(p.model, ~info, ~go, ~inject=inject_proj),
+    P.view(p.model, ~info, ~local, ~parent),
   );
 };
 

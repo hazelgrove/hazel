@@ -28,15 +28,15 @@ let view =
     (
       _,
       ~info,
-      ~go as _,
-      ~inject: ProjectorBase.external_action => Ui_effect.t(unit),
+      ~local as _,
+      ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
     ) =>
   Node.input(
     ~attrs=
       [
         Attr.create("type", "checkbox"),
         Attr.on_input((_, _) =>
-          inject(SetSyntax(put(!get(info.syntax))))
+          parent(SetSyntax(put(!get(info.syntax))))
         ),
       ]
       @ (get(info.syntax) ? [Attr.checked] : []),

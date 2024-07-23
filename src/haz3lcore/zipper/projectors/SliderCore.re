@@ -27,11 +27,11 @@ module M: Projector = {
       (
         _,
         ~info,
-        ~go as _,
-        ~inject: ProjectorBase.external_action => Ui_effect.t(unit),
+        ~local as _,
+        ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
       ) =>
     Util.Web.range(
-      ~attrs=[Attr.on_input((_, v) => inject(SetSyntax(put(v))))],
+      ~attrs=[Attr.on_input((_, v) => parent(SetSyntax(put(v))))],
       get(info.syntax),
     );
   let focus = _ => ();

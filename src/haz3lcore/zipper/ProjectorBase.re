@@ -100,15 +100,15 @@ module type Projector = {
     (
       model,
       ~info: info,
-      ~go: action => Ui_effect.t(unit),
-      ~inject: external_action => Ui_effect.t(unit)
+      ~local: action => Ui_effect.t(unit),
+      ~parent: external_action => Ui_effect.t(unit)
     ) =>
     Node.t;
   /* Renders a DOM view for the projector, given the
    * model, an info packet (see info type for details),
-   * and has two callbacks: inject calls global projector
-   * actions (see action type above), and go calls this
-   * projector's local update function. */
+   * and has two callbacks: ~parent for parent editor
+   * actions(see external_action type above), and ~local
+   * for this projector's local update function. */
   let placeholder: (model, info) => shape;
   /* How much space should be left in the code view for
    * this projector? This determines how the base code
@@ -143,8 +143,8 @@ module type Cooked = {
     (
       serialized_model,
       ~info: info,
-      ~go: serialized_action => Ui_effect.t(unit),
-      ~inject: external_action => Ui_effect.t(unit)
+      ~local: serialized_action => Ui_effect.t(unit),
+      ~parent: external_action => Ui_effect.t(unit)
     ) =>
     Node.t;
   let placeholder: (serialized_model, info) => shape;
@@ -160,8 +160,13 @@ module Cook = (C: Projector) : Cooked => {
   let init = C.init |> serialize_m;
   let can_project = C.can_project;
   let can_focus = C.can_focus;
-  let view = (m, ~info, ~go, ~inject) =>
-    C.view(deserialize_m(m), ~info, ~go=a => go(serialize_a(a)), ~inject);
+  let view = (m, ~info, ~local, ~parent) =>
+    C.view(
+      deserialize_m(m),
+      ~info,
+      ~local=a => local(serialize_a(a)),
+      ~parent,
+    );
   let placeholder = m =>
     m |> Sexplib.Sexp.of_string |> C.model_of_sexp |> C.placeholder;
   let update = (m, a) =>
