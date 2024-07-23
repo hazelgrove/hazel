@@ -373,7 +373,7 @@ module Deco = (M: {
   };
 
   let indication = (z: Zipper.t) =>
-    switch (ProjectorView.indicated_proj_z(z)) {
+    switch (Projector.indicated(z)) {
     | Some(_) => Node.div([]) /* projector indication handled internally */
     | None => div_c("indication", indicated_piece_deco(z))
     };
