@@ -166,7 +166,9 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         | term => ret(ListLit([term]))
         }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
-      | (["hintedtest", "end"], [Exp(test)]) => ret(HintedTest(test))
+      | (["hint", "test", "end"], [Exp(_hint), Exp(test)]) =>
+        ret(HintedTest(test))
+      // | (["hintedtest", "end"], [Exp(test)]) => ret(HintedTest(test))
       | (["case", "end"], [Rul({ids, term: Rules(scrut, rules)})]) => (
           Match(scrut, rules),
           ids,
