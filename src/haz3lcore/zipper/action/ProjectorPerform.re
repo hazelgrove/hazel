@@ -41,14 +41,16 @@ let go =
       z: Zipper.t,
     )
     : result(ZipperBase.t, Action.Failure.t) => {
-  let jump = (z, id) =>
-    switch (jump_to_id(z, id)) {
-    | Some(z) => z
-    | None => z
-    };
   let switch_side = z =>
     switch (primary(ByToken, Right, z)) {
     | Some(z) => z
+    | None => z
+    };
+  let jump = (z, id) =>
+    switch (jump_to_id(z, id)) {
+    /* Moves to right side, as right side always implies it's indicated.
+     * For example,"(|x)" or "!|x" wouldn't have "x" indicated */
+    | Some(z) => switch_side(z)
     | None => z
     };
   switch (a) {
@@ -69,6 +71,7 @@ let go =
   | SetModel(id, model) =>
     Ok(ProjMeta.Update.update(pr => {...pr, model}, id, z))
   | Focus(id, d) =>
+    //TODO(andrew): this fails if moving to e.g. "![checkbox]"
     let z = jump(z, id);
     switch (ProjMeta.indicated(z)) {
     | Some((_, p)) =>

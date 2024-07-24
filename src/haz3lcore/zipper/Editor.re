@@ -27,7 +27,8 @@ module Meta = {
   /* Derived data for projected zipper */
   type projected = {
     //z: Zipper.t,
-    projectors: Id.Map.t(ProjMeta.SyntaxMap.entry),
+    //syntax_map: Id.Map.t(Piece.t),
+    projectors: Id.Map.t(Base.projector),
     segment: Segment.t,
     measured: Measured.t,
     term: Term.UExp.t,
@@ -35,7 +36,6 @@ module Meta = {
     terms: TermMap.t,
     tiles: TileMap.t,
     holes: list(Grout.t),
-    syntax_map: Id.Map.t(Piece.t),
   };
 
   type t = {
@@ -52,10 +52,10 @@ module Meta = {
     let (term, terms) =
       MakeTerm.go(Zipper.unselect_and_zip(ProjMeta.Update.remove_all(z)));
     //TODO(andrew): deprec projectors?
-    let (syntax_map, projectors) = ProjMeta.SyntaxMap.go(z);
+    let projectors = ProjMeta.SyntaxMap.go(z);
     {
       projectors,
-      syntax_map,
+      //syntax_map,
       segment,
       term,
       terms,
@@ -109,10 +109,10 @@ module Meta = {
       MakeTerm.go(Zipper.unselect_and_zip(ProjMeta.Update.remove_all(z)));
     let measured = Measured.of_segment(~touched, ~old, segment);
     //TODO(andrew): deprec projectors?
-    let (syntax_map, projectors) = ProjMeta.SyntaxMap.go(z);
+    let projectors = ProjMeta.SyntaxMap.go(z);
     {
       projectors,
-      syntax_map,
+      // syntax_map,
       segment,
       term,
       terms,
