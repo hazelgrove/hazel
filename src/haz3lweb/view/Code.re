@@ -102,7 +102,7 @@ module Text = (M: {
       of_secondary((content, M.settings.secondary_icons, m(p).last.col))
     | Projector(p) =>
       of_delim'((
-        [ProjMeta.placeholder_str(p)],
+        [Projector.placeholder_str(p)],
         false,
         expected_sort, //TODO(andrew): ??
         true, //TODO(andrew): ??

@@ -12,7 +12,7 @@ let exercise : Exercise.spec =
       { test_validation = 1; mutation_testing = 1; impl_grading = 2 };
     prelude =
       {
-        projectors = Projector.Map.empty;
+        projectors = Id.Map.empty;
         selection = { focus = Left; content = []; mode = Normal };
         backpack = [];
         relatives =
@@ -259,7 +259,7 @@ let exercise : Exercise.spec =
       };
     correct_impl =
       {
-        projectors = Projector.Map.empty;
+        projectors = Id.Map.empty;
         selection = { focus = Left; content = []; mode = Normal };
         backpack = [];
         relatives =
@@ -802,7 +802,7 @@ let exercise : Exercise.spec =
       {
         tests =
           {
-            projectors = Projector.Map.empty;
+            projectors = Id.Map.empty;
             selection = { focus = Right; content = []; mode = Normal };
             backpack = [];
             relatives =
@@ -1057,7 +1057,7 @@ let exercise : Exercise.spec =
       };
     your_impl =
       {
-        projectors = Projector.Map.empty;
+        projectors = Id.Map.empty;
         selection = { focus = Left; content = []; mode = Normal };
         backpack = [];
         relatives =
@@ -1242,7 +1242,7 @@ let exercise : Exercise.spec =
         {
           impl =
             {
-              projectors = Projector.Map.empty;
+              projectors = Id.Map.empty;
               selection = { focus = Left; content = []; mode = Normal };
               backpack = [];
               relatives =
@@ -1449,7 +1449,7 @@ let exercise : Exercise.spec =
         {
           impl =
             {
-              projectors = Projector.Map.empty;
+              projectors = Id.Map.empty;
               selection = { focus = Left; content = []; mode = Normal };
               backpack = [];
               relatives =
@@ -1656,7 +1656,7 @@ let exercise : Exercise.spec =
         {
           impl =
             {
-              projectors = Projector.Map.empty;
+              projectors = Id.Map.empty;
               selection = { focus = Left; content = []; mode = Normal };
               backpack = [];
               relatives =
@@ -2456,7 +2456,7 @@ let exercise : Exercise.spec =
       {
         tests =
           {
-            projectors = Projector.Map.empty;
+            projectors = Id.Map.empty;
             selection = { focus = Left; content = []; mode = Normal };
             backpack = [];
             relatives =

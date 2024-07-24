@@ -380,7 +380,7 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
             let map = map |> add_g(g, {origin, last});
             (contained_indent, last, map);
           | Projector(p) =>
-            let token = ProjMeta.placeholder_str(p);
+            let token = Projector.placeholder_str(p);
             let last = last_of_token(token, origin);
             let map = extra_rows(token, origin, map);
             let map = add_pr(p, {origin, last}, map);
