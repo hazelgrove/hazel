@@ -29,8 +29,7 @@ let get_child_with_class = (element: Js.t(Dom_html.element), className) => {
 };
 
 let date_now = () => {
-  %js
-  new Js.date_now;
+  [%js new Js.date_now];
 };
 
 let timestamp = () => date_now()##valueOf;

@@ -1,7 +1,9 @@
 open Virtual_dom.Vdom;
 open Node;
 
-module type Model = {type t;};
+module type Model = {
+  type t;
+};
 
 /* The result box at the bottom of a cell. This is either the TestResutls
    kind where only a summary of test results is shown, or the EvalResults kind
