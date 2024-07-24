@@ -111,6 +111,7 @@ let deco =
       ~selected,
       ~test_results: option(TestResults.t),
       ~highlights: option(ColorSteps.colorMap),
+      z,
       meta: Editor.Meta.t,
     ) => {
   module Deco =
@@ -118,11 +119,16 @@ let deco =
       let ui_state = ui_state;
       let meta = meta;
     });
-  let decos = selected ? Deco.all() : Deco.always();
+  let decos = selected ? Deco.all(z) : Deco.always();
   let decos =
     decos
     @ [
-      ProjectorView.all(~meta, ~inject, ~font_metrics=ui_state.font_metrics),
+      ProjectorView.all(
+        z,
+        ~meta,
+        ~inject,
+        ~font_metrics=ui_state.font_metrics,
+      ),
     ];
   let decos =
     switch (test_results) {
@@ -268,9 +274,18 @@ let editor_view =
   let mousedown_overlay =
     selected && mousedown
       ? [mousedown_overlay(~inject, ~font_metrics, ~target_id)] : [];
-  let code_text_view = Code.view(~sort, ~font_metrics, ~settings, meta);
+  let code_text_view =
+    Code.view(~sort, ~font_metrics, ~settings, editor.state.zipper, meta);
   let deco_view =
-    deco(~inject, ~ui_state, ~selected, ~test_results, ~highlights, meta);
+    deco(
+      ~inject,
+      ~ui_state,
+      ~selected,
+      ~test_results,
+      ~highlights,
+      editor.state.zipper,
+      meta,
+    );
 
   let code_view =
     div(

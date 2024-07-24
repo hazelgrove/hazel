@@ -9,12 +9,15 @@ let shapes = _ => Nib.Shape.(Convex, Convex);
 
 //TODO(andrew): cleanup, docs
 let mold_of: (t, Sort.t) => Mold.t =
-  (_, sort) => {
-    nibs: {
-      ({shape: Convex, sort}, {shape: Convex, sort});
-    },
-    out: sort,
-    in_: [],
+  (p, sort) => {
+    let (l, r) = shapes(p);
+    {
+      nibs: {
+        ({shape: l, sort}, {shape: r, sort});
+      },
+      out: sort,
+      in_: [],
+    };
   };
 
 /* Projectors currently have two options for placeholder

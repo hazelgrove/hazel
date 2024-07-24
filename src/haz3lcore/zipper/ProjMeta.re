@@ -1,11 +1,8 @@
-//open Util;
+open Util;
 //open Virtual_dom.Vdom;
 open ProjNew;
 
-let seg_for_maketerm = (_: Base.projector): Base.segment =>
-  failwith("TODO(andrew): seg_for_maketerm");
-
-let placeholder_str = _ => failwith("TODO(andrew)");
+let seg_for_maketerm = (p: Base.projector): Base.segment => [p.syntax];
 
 /* After adding a new projector module, add it here so that
  * it can be instantiated. The first-class module created by
@@ -32,18 +29,20 @@ let shape = (kind, model, info: info): shape => {
  * in the zipper; a tile consisting of any number of whitespaces
  * is considered a placeholder. This could be made more principled.
  * Note that a placeholder retains the UUID of the underlying. */
-let placeholder_label = (kind, model, info): list(string) =>
+let placeholder_str' = (kind, model, info): string =>
   switch (shape(kind, model, info)) {
-  | Inline(width) => [String.make(width, ' ')]
-  | Block({row, col}) => [
-      String.make(row - 1, '\n') ++ String.make(col, ' '),
-    ]
+  | Inline(width) => String.make(width, ' ')
+  | Block({row, col}) => String.make(row - 1, '\n') ++ String.make(col, ' ')
   };
+
+let placeholder_str = ({id, kind, syntax, model}: Base.projector): string =>
+  //TODO(andrew): pipe InfoMap to Measured/Code/Deco so can get it here i guess
+  placeholder_str'(kind, model, {id, syntax, ci: None});
 
 let placeholder = (kind, model, info: info): syntax =>
   Piece.Tile({
     id: Piece.id(info.syntax),
-    label: placeholder_label(kind, model, info),
+    label: [placeholder_str'(kind, model, info)],
     mold: Mold.mk_op(Any, []),
     shards: [0],
     children: [],
@@ -137,27 +136,40 @@ module MapPiece = {
 };
 
 //TODO(andrew): refine or remove
-module Project = {
+module SyntaxMap = {
   let syntax_map: ref(Id.Map.t(syntax)) = ref(Id.Map.empty);
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type entry = {
+    kind: Base.kind,
+    model: string,
+  };
+  let projectors_map: ref(Id.Map.t(entry)) = ref(Id.Map.empty);
 
   let placehold = (syntax: syntax) => {
     let id = Piece.id(syntax);
     switch (syntax) {
-    | Projector(pr) =>
-      syntax_map := Id.Map.add(id, pr.syntax, syntax_map^);
-      pr.syntax;
+    | Projector({kind, model, syntax, _}) =>
+      projectors_map := Id.Map.add(id, {kind, model}, projectors_map^);
+      syntax_map := Id.Map.add(id, syntax, syntax_map^);
+      syntax;
     | _ => syntax
     };
   };
 
-  let go = (z: ZipperBase.t): Id.Map.t(syntax) => {
+  let go = (z: ZipperBase.t): (Id.Map.t(syntax), Id.Map.t(entry)) => {
     syntax_map := Id.Map.empty;
-    if (Id.Map.is_empty(z.projectors)) {
-      syntax_map^;
-    } else {
-      MapPiece.go(placehold, z) |> ignore;
-      syntax_map^;
-    };
+    projectors_map := Id.Map.empty;
+    // if (Id.Map.is_empty(z.projectors)) {
+    //   ();
+    // } else {
+    MapPiece.go(placehold, z) |> ignore;
+    // };
+    // print_endline("syntaxMap.go: z:" ++ (z |> ZipperBase.show));
+    // print_endline(
+    //   "SyntaxMap.go:num_prog:"
+    //   ++ (Id.Map.cardinal(syntax_map^) |> Int.to_string),
+    // );
+    (syntax_map^, projectors_map^);
   };
 };
 
@@ -237,7 +249,7 @@ module Update = {
     };
 
   let add = (k: Base.kind, id: Id.t, z: ZipperBase.t): ZipperBase.t => {
-    let f = syntax => add_projector(k, id, syntax);
+    let f = add_projector(k, id);
     // if (left_sib_has_id(z, id)) {
     //   update_left_sib(f, z);
     // } else if (right_sib_has_id(z, id)) {
@@ -260,7 +272,7 @@ module Update = {
     };
 
   let add_or_remove = (k: Base.kind, id: Id.t, z: ZipperBase.t): ZipperBase.t => {
-    let f = syntax => add_or_remove_projector(k, id, syntax);
+    let f = add_or_remove_projector(k, id);
     // if (left_sib_has_id(z, id)) {
     //   update_left_sib(f, z);
     // } else if (right_sib_has_id(z, id)) {
@@ -270,17 +282,33 @@ module Update = {
     //  };
   };
 
-  let remove_projector = (kind: Base.kind, id: Id.t, syntax: syntax) =>
+  let remove_projector = (id: Id.t, syntax: syntax) =>
     //TODO(andrew): same id still? make sure these aren't creating dupes somewhere
     switch (syntax) {
-    | Projector(pr) when pr.id == id =>
-      let (module P) = to_module(kind);
-      Base.Projector({id, kind, model: P.init, syntax});
+    | Projector(pr) when pr.id == id => syntax
     | x => x
     };
 
-  let remove = (k: Base.kind, id: Id.t, z: ZipperBase.t): ZipperBase.t => {
-    let f = syntax => remove_projector(k, id, syntax);
+  let remove = (id: Id.t, z: ZipperBase.t): ZipperBase.t => {
+    let f = remove_projector(id);
+    // if (left_sib_has_id(z, id)) {
+    //   update_left_sib(f, z);
+    // } else if (right_sib_has_id(z, id)) {
+    //   update_right_sib(f, z);
+    // } else {
+    MapPiece.go(f, z);
+    // };
+  };
+
+  let remove_all_projectors = (syntax: syntax) =>
+    //TODO(andrew): same id still? make sure these aren't creating dupes somewhere
+    switch (syntax) {
+    | Projector(pr) => pr.syntax
+    | x => x
+    };
+
+  let remove_all = (z: ZipperBase.t): ZipperBase.t => {
+    let f = remove_all_projectors;
     // if (left_sib_has_id(z, id)) {
     //   update_left_sib(f, z);
     // } else if (right_sib_has_id(z, id)) {

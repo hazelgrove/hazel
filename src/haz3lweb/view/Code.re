@@ -183,7 +183,8 @@ let view =
       ~sort: Sort.t,
       ~font_metrics,
       ~settings: Settings.t,
-      {projected: {z, measured, segment, holes, _}, selection_ids, _}: Editor.Meta.t,
+      z: Zipper.t,
+      {projected: {measured, segment, holes, _}, selection_ids, _}: Editor.Meta.t,
     )
     : Node.t => {
   module Text =

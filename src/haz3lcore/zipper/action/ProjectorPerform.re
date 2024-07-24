@@ -13,22 +13,24 @@ let move_out_of_piece =
     }
   };
 
-let set = (id: Id.t, p: option(Map.entry), z: Zipper.t) => {
-  ...z,
-  projectors: Map.update(id, _ => p, z.projectors),
-};
+// let set = (id: Id.t, p: option(Map.entry), z: Zipper.t) => {
+//   ...z,
+//   projectors: Map.update(id, _ => p, z.projectors),
+// };
 
-let add = (id: Id.t, z: Zipper.t, p, piece, d, rel) =>
-  switch (Projector.create(p, piece)) {
-  | None => Error(Action.Failure.Cant_project)
-  | opt_p => Ok(set(id, opt_p, z) |> move_out_of_piece(d, rel))
-  };
+let add = (id: Id.t, z: Zipper.t, p, _piece, d, rel) =>
+  Ok(move_out_of_piece(d, rel, z) |> ProjMeta.Update.add(p, id));
+// switch (Projector.create(p, piece)) {
+// | None => Error(Action.Failure.Cant_project)
+// | opt_p => Ok(set(id, opt_p, z) |> move_out_of_piece(d, rel))
+// };
 
-let add_or_remove = (id: Id.t, z: Zipper.t, p, piece, d, rel) =>
-  switch (Map.mem(id, z.projectors)) {
-  | false => add(id, z, p, piece, d, rel)
-  | true => Ok(set(id, None, z))
-  };
+let add_or_remove = (id: Id.t, z: Zipper.t, p, _piece, d, rel) =>
+  Ok(ProjMeta.Update.add_or_remove(p, id, z) |> move_out_of_piece(d, rel));
+// switch (Map.mem(id, z.projectors)) {
+// | false => add(id, z, p, piece, d, rel)
+// | true => Ok(set(id, None, z))
+// };
 
 let go =
     (
@@ -61,18 +63,14 @@ let go =
     | Some((piece, d, rel)) =>
       add_or_remove(Piece.id(piece), z, p, piece, d, rel)
     }
-  | Remove(id) =>
-    switch (Map.mem(id, z.projectors)) {
-    | false => Error(Cant_project)
-    | true => Ok(set(id, None, z))
-    }
-  | SetSyntax(id, syntax) => Ok(Projector.Syntax.update(_ => syntax, id, z))
+  | Remove(id) => Ok(ProjMeta.Update.remove(id, z))
+  | SetSyntax(id, syntax) =>
+    Ok(ProjMeta.Update.update(p => {...p, syntax}, id, z))
   | SetModel(id, model) =>
-    let update = entry => Option.map(e => Map.{model, kind: e.kind}, entry);
-    Ok({...z, projectors: Map.update(id, update, z.projectors)});
+    Ok(ProjMeta.Update.update(pr => {...pr, model}, id, z))
   | Focus(id, d) =>
     let z = jump(z, id);
-    switch (Projector.indicated(z)) {
+    switch (ProjMeta.indicated(z)) {
     | Some((_, p)) =>
       let (module P) = to_module(p.kind);
       P.focus((id, d));

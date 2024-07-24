@@ -321,21 +321,21 @@ let base_point = (measured: Measured.t, z: t): Point.t => {
      * piece, not an id. Piece-based lookups will fail if (say)
      * a Grout becomes a Tile. Hence we convert pieces that
      * would be projected to their placeholders before lookup */
-    let p =
-      switch (ProjectorBase.Map.find(Piece.id(p), z.projectors)) {
-      | _ when Projector.is_placeholder(p) =>
-        /* NOTE: If OTOH we call this on the projected zipper, then
-         * p will already be a placeholder. In this case we may not
-         * want to call Projector.placeholder, as it may not be able
-         * to account for recieving a placeholder. AFAIK disabling
-         * this check doesn't currently cause any issues, but it
-         * did in the past when we were reifying the module in the
-         * below call, resulting in trying to interpret the syntax
-         * of the placeholder as e.g. an int for the slider */
-        p
-      | Some(pr) => Projector.placeholder(pr, Projector.info_init(p))
-      | None => p
-      };
+    // let p =
+    //   switch (ProjectorBase.Map.find(Piece.id(p), z.projectors)) {
+    //   | _ when Projector.is_placeholder(p) =>
+    //     /* NOTE: If OTOH we call this on the projected zipper, then
+    //      * p will already be a placeholder. In this case we may not
+    //      * want to call Projector.placeholder, as it may not be able
+    //      * to account for recieving a placeholder. AFAIK disabling
+    //      * this check doesn't currently cause any issues, but it
+    //      * did in the past when we were reifying the module in the
+    //      * below call, resulting in trying to interpret the syntax
+    //      * of the placeholder as e.g. an int for the slider */
+    //     p
+    //   | Some(pr) => Projector.placeholder(pr, Projector.info_init(p))
+    //   | None => p
+    //   };
     let seg = Piece.disassemble(p);
     switch (d) {
     | Left =>
