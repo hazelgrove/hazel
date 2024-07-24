@@ -38,7 +38,7 @@ let backpack_sel_view =
 let view =
     (
       ~font_metrics: FontMetrics.t,
-      ~origin: Measured.Point.t,
+      ~origin: Point.t,
       {backpack, _} as z: Zipper.t,
     )
     : Node.t => {

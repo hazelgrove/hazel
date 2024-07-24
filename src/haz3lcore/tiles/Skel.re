@@ -78,6 +78,8 @@ let rel = (p1: Piece.t, p2: Piece.t): option(rel) =>
     | Convex => Some(Lt)
     | Concave => Some(Gt)
     }
+  | (Projector(_), _) => Some(Gt)
+  | (_, Projector(_)) => Some(Lt)
   | (Tile(t1), Tile(t2)) =>
     open Labels;
     let lbl1 = (==)(t1.label);

@@ -16,7 +16,7 @@ let of_piece_goal =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type goal =
-  | Point(Measured.Point.t)
+  | Point(Point.t)
   | Piece(piece_goal, Direction.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]

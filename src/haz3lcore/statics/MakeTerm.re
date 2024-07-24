@@ -19,6 +19,7 @@ let tokens =
     _ => [],
     _ => [" "],
     (t: Tile.t) => t.shards |> List.map(List.nth(t.label)),
+    _ => [] //TODO(andrew)
   );
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -470,6 +471,12 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
     switch (p) {
     | Secondary(_)
     | Grout(_) => []
+    | Projector(p) =>
+      Aba.aba_triples(Aba.mk([0], [ProjMeta.seg_for_maketerm(p)]))
+      |> List.map(((_l, kid, _r)) => {
+           let s = Sort.Any; //TODO(andrew)
+           go_s(s, Segment.skel(kid), kid);
+         })
     | Tile({mold, shards, children, _}) =>
       Aba.aba_triples(Aba.mk(shards, children))
       |> List.map(((l, kid, r)) => {

@@ -20,6 +20,7 @@ and of_piece = (~holes, p: Piece.t): string =>
   | Grout({shape: Convex, _}) => " "
   | Secondary(w) =>
     Secondary.is_linebreak(w) ? "\n" : Secondary.get_string(w.content)
+  | Projector(_) => ""
   }
 and of_tile = (~holes, t: Tile.t): string =>
   Aba.mk(t.shards, t.children)
@@ -39,7 +40,7 @@ let to_rows =
     (
       ~holes: option(string),
       ~measured: Measured.t,
-      ~caret: option(Measured.Point.t),
+      ~caret: option(Point.t),
       ~indent: string,
       ~segment: Segment.t,
     )

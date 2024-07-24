@@ -181,6 +181,7 @@ module MapPiece = {
     switch (piece) {
     | Tile(t) => Tile(of_tile(f, t))
     | Grout(_)
+    | Projector(_)
     | Secondary(_) => piece
     };
   }

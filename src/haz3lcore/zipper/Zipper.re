@@ -307,7 +307,7 @@ let caret_direction = (z: t): option(Direction.t) =>
 
 let measured = z => z |> unselect_and_zip |> Measured.of_segment;
 
-let base_point = (measured: Measured.t, z: t): Measured.Point.t => {
+let base_point = (measured: Measured.t, z: t): Point.t => {
   switch (representative_piece(z)) {
   | Some((p, d)) =>
     /* NOTE: Below conversion necessary because sometimes
@@ -350,8 +350,8 @@ let base_point = (measured: Measured.t, z: t): Measured.Point.t => {
   | None => {row: 0, col: 0}
   };
 };
-let caret_point = (measured, z: t): Measured.Point.t => {
-  let Measured.Point.{row, col} = base_point(measured, z);
+let caret_point = (measured, z: t): Point.t => {
+  let Point.{row, col} = base_point(measured, z);
   {row, col: col + Caret.offset(z.caret)};
 };
 
