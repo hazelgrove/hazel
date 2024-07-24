@@ -100,7 +100,7 @@ module Deco = (M: {
         failwith("TODO(andrew): Deco.sel_of_projector: missing measurement")
       | Some(m) => m
       };
-    let token = ProjMeta.placeholder_str(p);
+    let token = Projector.placeholder_str(p);
     switch (StringUtil.num_linebreaks(token)) {
     | 0 => [Some(sel_shard_svg(~start_shape, ~index=0, m, Projector(p)))]
     //TODO(andrew): decoration for selections
@@ -389,7 +389,7 @@ module Deco = (M: {
   };
 
   let indication = (z: Zipper.t) =>
-    switch (ProjMeta.indicated(z)) {
+    switch (Projector.indicated(z)) {
     | Some(_) => Node.div([]) /* projector indication handled internally */
     | None => div_c("indication", indicated_piece_deco(z))
     };

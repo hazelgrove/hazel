@@ -2,7 +2,7 @@ open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
 open ProjNew;
-open ProjMeta;
+open Projector;
 open Util;
 open Util.OptUtil.Syntax;
 open Util.Web;
@@ -82,7 +82,7 @@ let view_wrapper =
       view: Node.t,
     ) => {
   let fudge = selected ? PieceDec.selection_fudge : DecUtil.fzero;
-  let shape = ProjMeta.shape(p, info);
+  let shape = Projector.shape(p, info);
   let focus = (id, _) =>
     Effect.(
       Many([

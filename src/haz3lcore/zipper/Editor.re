@@ -50,9 +50,9 @@ module Meta = {
     let segment = Zipper.unselect_and_zip(z);
     //TODO(andrew):...
     let (term, terms) =
-      MakeTerm.go(Zipper.unselect_and_zip(ProjMeta.Update.remove_all(z)));
+      MakeTerm.go(Zipper.unselect_and_zip(Projector.Update.remove_all(z)));
     //TODO(andrew): deprec projectors?
-    let projectors = ProjMeta.SyntaxMap.go(z);
+    let projectors = Projector.SyntaxMap.go(z);
     {
       projectors,
       //syntax_map,
@@ -106,10 +106,10 @@ module Meta = {
     let segment = Zipper.unselect_and_zip(z);
     //TODO(andrew): ...
     let (term, terms) =
-      MakeTerm.go(Zipper.unselect_and_zip(ProjMeta.Update.remove_all(z)));
+      MakeTerm.go(Zipper.unselect_and_zip(Projector.Update.remove_all(z)));
     let measured = Measured.of_segment(~touched, ~old, segment);
     //TODO(andrew): deprec projectors?
-    let projectors = ProjMeta.SyntaxMap.go(z);
+    let projectors = Projector.SyntaxMap.go(z);
     {
       projectors,
       // syntax_map,
@@ -310,4 +310,4 @@ let trailing_hole_ctx = (ed: t, info_map: Statics.Map.t) => {
 };
 
 let indicated_projector = (editor: t) =>
-  ProjMeta.indicated(editor.state.zipper);
+  Projector.indicated(editor.state.zipper);

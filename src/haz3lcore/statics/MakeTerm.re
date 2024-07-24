@@ -473,7 +473,7 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
     | Grout(_) => []
     | Projector(p) =>
       let s = Sort.Any; //TODO(andrew)
-      let kid = ProjMeta.seg_for_maketerm(p);
+      let kid = Projector.seg_for_maketerm(p);
       [go_s(s, Segment.skel(kid), kid)];
     | Tile({mold, shards, children, _}) =>
       Aba.aba_triples(Aba.mk(shards, children))
@@ -528,7 +528,7 @@ let go =
   );
 
 let from_zip = (~dump_backpack: bool, ~erase_buffer: bool, z: Zipper.t) => {
-  let z = ProjMeta.Update.remove_all(z);
+  let z = Projector.Update.remove_all(z);
   let seg = Zipper.smart_seg(~dump_backpack, ~erase_buffer, z);
   go(seg);
 };
