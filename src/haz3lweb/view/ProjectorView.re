@@ -1,10 +1,13 @@
 open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
-open Projector;
+open ProjNew;
+open ProjMeta;
 open Util;
 open Util.OptUtil.Syntax;
 open Util.Web;
+
+type kind = Base.kind;
 
 /* A friendly name for each projector. This is used
  * both for identifying a projector in the CSS and for
@@ -75,7 +78,7 @@ let view_wrapper =
       ~info: info,
       ~indication: option(Direction.t),
       ~selected: bool,
-      entry: Map.entry,
+      entry: Projector.Map.entry,
       view: Node.t,
     ) => {
   let fudge = selected ? PieceDec.selection_fudge : DecUtil.fzero;
@@ -101,7 +104,7 @@ let view_wrapper =
 };
 
 /* Dispatches projector external actions to editor-level actions */
-let handle = (id, action: ProjectorBase.external_action): Action.project =>
+let handle = (id, action: ProjNew.external_action): Action.project =>
   switch (action) {
   | Remove => Remove(id)
   | Escape(d) => Escape(id, d)
@@ -198,11 +201,11 @@ module Panel = {
   /* Decide which projectors are applicable based on the cursor info.
    * This is slightly inside-out as elsewhere it depends on the underlying
    * syntax, which is not easily available here */
-  let applicable_projectors = (ci: Info.t): list(Projector.kind) =>
+  let applicable_projectors = (ci: Info.t): list(Base.kind) =>
     (
       switch (Info.cls_of(ci)) {
       | Exp(Bool)
-      | Pat(Bool) => [Checkbox]
+      | Pat(Bool) => [Base.Checkbox]
       | Exp(Int)
       | Pat(Int) => [Slider]
       | Exp(Float)
@@ -212,11 +215,11 @@ module Panel = {
       | _ => []
       }
     )
-    @ [Fold]
+    @ [Base.Fold]
     @ (
       switch (ci) {
       | InfoExp(_)
-      | InfoPat(_) => [(Info: Projector.kind)]
+      | InfoPat(_) => [(Info: Base.kind)]
       | _ => []
       }
     );
@@ -272,7 +275,7 @@ module Panel = {
   let view = (~inject, editor: Editor.t, ci: Info.t) => {
     let might_project =
       switch (Indicated.piece''(editor.state.zipper)) {
-      | Some((p, _, _)) => Projector.minimum_projection_condition(p)
+      | Some((p, _, _)) => minimum_projection_condition(p)
       | None => false
       };
     div(
