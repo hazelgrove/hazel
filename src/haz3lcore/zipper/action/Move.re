@@ -43,7 +43,7 @@ let neighbor_movability =
         Unicode.length(content_string) - 1,
         Unicode.length(content_string) - 2,
       );
-    | Some(Secondary(_) | Grout(_)) => CanPass
+    | Some(Secondary(_) | Grout(_) | Projector(_)) => CanPass
     | None => supernhbr_l
     };
   let r =
@@ -53,7 +53,7 @@ let neighbor_movability =
       // Comments are always length >= 2
       let content_string = Secondary.get_string(w.content);
       CanEnter(0, Unicode.length(content_string) - 2);
-    | Some(Secondary(_) | Grout(_)) => CanPass
+    | Some(Secondary(_) | Grout(_) | Projector(_)) => CanPass
     | None => supernhbr_r
     };
   (l, r);
@@ -96,33 +96,32 @@ module Make = (M: Editor.Meta.S) => {
   };
 
   let is_at_side_of_row = (d: Direction.t, z: Zipper.t) => {
-    let Measured.Point.{row, col} = caret_point(z);
+    let Point.{row, col} = caret_point(z);
     switch (Zipper.move(d, z)) {
     | None => true
     | Some(z) =>
-      let Measured.Point.{row: rowp, col: colp} = caret_point(z);
+      let Point.{row: rowp, col: colp} = caret_point(z);
       row != rowp || col == colp;
     };
   };
 
-  let direction_to_from =
-      (p1: Measured.Point.t, p2: Measured.Point.t): Direction.t => {
+  let direction_to_from = (p1: Point.t, p2: Point.t): Direction.t => {
     let before_row = p1.row < p2.row;
     let at_row = p1.row == p2.row;
     let before_col = p1.col < p2.col;
     before_row || at_row && before_col ? Left : Right;
   };
 
-  let closer_to_prev = (curr, prev, goal: Measured.Point.t) =>
+  let closer_to_prev = (curr, prev, goal: Point.t) =>
     /* Default to true if equal */
     abs(caret_point(prev).col - goal.col)
     < abs(caret_point(curr).col - goal.col);
 
   let do_towards =
       (
-        ~anchor: option(Measured.Point.t)=?,
+        ~anchor: option(Point.t)=?,
         f: (Direction.t, t) => option(t),
-        goal: Measured.Point.t,
+        goal: Point.t,
         z: t,
       )
       : option(t) => {
@@ -130,8 +129,8 @@ module Make = (M: Editor.Meta.S) => {
     let d_to_goal = direction_to_from(goal, init);
     let rec go = (prev: t, curr: t) => {
       let curr_p = caret_point(curr);
-      let x_progress = Measured.Point.dcomp(d_to_goal, curr_p.col, goal.col);
-      let y_progress = Measured.Point.dcomp(d_to_goal, curr_p.row, goal.row);
+      let x_progress = Point.dcomp(d_to_goal, curr_p.col, goal.col);
+      let y_progress = Point.dcomp(d_to_goal, curr_p.row, goal.row);
       switch (y_progress, x_progress) {
       /* If we're not there yet, keep going */
       | (Under, Over | Exact | Under)
@@ -171,7 +170,7 @@ module Make = (M: Editor.Meta.S) => {
       };
     };
     let res = go(z, z);
-    Measured.Point.equals(caret_point(res), init) ? None : Some(res);
+    Point.equals(caret_point(res), init) ? None : Some(res);
   };
   let do_vertical =
       (f: (Direction.t, t) => option(t), d: Direction.t, z: t): option(t) => {
@@ -180,17 +179,14 @@ module Make = (M: Editor.Meta.S) => {
        caret position to a target derived from the initial position */
     let cur_p = caret_point(z);
     let goal =
-      Measured.Point.{
-        col: M.col_target,
-        row: cur_p.row + (d == Right ? 1 : (-1)),
-      };
+      Point.{col: M.col_target, row: cur_p.row + (d == Right ? 1 : (-1))};
     do_towards(f, goal, z);
   };
 
   let do_extreme =
       (f: (Direction.t, t) => option(t), d: planar, z: t): option(t) => {
     let cur_p = caret_point(z);
-    let goal: Measured.Point.t =
+    let goal: Point.t =
       switch (d) {
       | Right(_) => {col: Int.max_int, row: cur_p.row}
       | Left(_) => {col: 0, row: cur_p.row}

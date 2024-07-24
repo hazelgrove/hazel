@@ -1,6 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
-open ProjectorBase;
+open ProjNew;
 
 let mode = (info: option(Info.t)): option(Mode.t) =>
   switch (info) {
@@ -67,7 +67,7 @@ module M: Projector = {
   let display = (model, info) =>
     display_ty(model, info) |> totalize_ty |> Typ.pretty_print;
 
-  let placeholder = (model, info: ProjectorBase.info) =>
+  let placeholder = (model, info) =>
     Inline((display(model, info.ci) |> String.length) + 5);
 
   let update = (model, a: action) =>
@@ -76,7 +76,7 @@ module M: Projector = {
     | (ToggleDisplay, Self) => Expected
     };
 
-  let view = (model, ~info: ProjectorBase.info, ~local, ~parent as _) =>
+  let view = (model, ~info, ~local, ~parent as _) =>
     div(
       ~attrs=[
         Attr.class_("info"),

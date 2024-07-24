@@ -37,6 +37,7 @@ module Deco = (M: {
     let shard_data =
       switch (p) {
       | Tile(t) => sel_of_tile(~start_shape, t)
+      | Projector(p) => sel_of_projector(~start_shape, p)
       | Grout(g) => [
           Some(
             sel_shard_svg(
@@ -91,6 +92,19 @@ module Deco = (M: {
       t.children |> List.mapi(index => sel_of_segment(shape_at(index)));
     ListUtil.interleave(tile_shards, children_shards) |> List.flatten;
   }
+  and sel_of_projector =
+      (~start_shape, p: Base.projector): list(option(shard_data)) => {
+    let m =
+      Measured.find_pr(~msg="sel_of_tile", p, M.meta.projected.measured);
+    let token = ProjMeta.placeholder_str(p);
+    switch (StringUtil.num_linebreaks(token)) {
+    | 0 => [Some(sel_shard_svg(~start_shape, ~index=0, m, Projector(p)))]
+    //TODO(andrew): decoration for selections
+    /* No deco for multi-line tokens e.g. projector placeholders,
+     * but need to leave some blank lines */
+    | num_lb => List.init(num_lb, _ => None)
+    };
+  }
   and sel_of_segment =
       (start_shape: Nib.Shape.t, seg: Segment.t): list(option(shard_data)) => {
     seg
@@ -135,7 +149,7 @@ module Deco = (M: {
         | None => Nib.Shape.Convex
         | Some(nib) => Nib.Shape.relative(nib, side)
         };
-      let range: option((Measured.Point.t, Measured.Point.t)) = {
+      let range: option((Point.t, Point.t)) = {
         // if (Piece.has_ends(p)) {
         let id =
           Id.Map.find(Piece.id(p), M.meta.projected.terms) |> Term.rep_id;
@@ -272,11 +286,7 @@ module Deco = (M: {
     );
 
   let term_decoration =
-      (
-        ~id: Id.t,
-        deco:
-          ((Measured.Point.t, Measured.Point.t, SvgUtil.Path.t)) => Node.t,
-      ) => {
+      (~id: Id.t, deco: ((Point.t, Point.t, SvgUtil.Path.t)) => Node.t) => {
     let (p_l, p_r) = TermRanges.find(id, M.meta.projected.term_ranges);
     let l =
       Measured.find_p(~msg="Deco.term", p_l, M.meta.projected.measured).

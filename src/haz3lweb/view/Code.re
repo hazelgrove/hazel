@@ -100,6 +100,16 @@ module Text = (M: {
     | Grout(_) => of_grout
     | Secondary({content, _}) =>
       of_secondary((content, M.settings.secondary_icons, m(p).last.col))
+    | Projector(p) =>
+      of_delim'((
+        [ProjMeta.placeholder_str(p)],
+        false,
+        expected_sort, //TODO(andrew): ??
+        true, //TODO(andrew): ??
+        true,
+        m(Projector(p)).origin.col,
+        0,
+      ))
     };
   }
   and of_tile = (buffer_ids, expected_sort: Sort.t, t: Tile.t): list(Node.t) => {
@@ -128,6 +138,7 @@ let rec holes =
   |> List.concat_map(
        fun
        | Piece.Secondary(_) => []
+       | Projector(_) => []
        | Tile(t) => List.concat_map(holes(~map, ~font_metrics), t.children)
        | Grout(g) => [
            EmptyHoleDec.view(

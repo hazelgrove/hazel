@@ -72,7 +72,8 @@ let shard_index = (z: ZipperBase.t): option(int) =>
     | Sibling =>
       switch (p) {
       | Secondary(_)
-      | Grout(_) => Some(0)
+      | Grout(_)
+      | Projector(_) => Some(0)
       | Tile(t) =>
         switch (side) {
         | Left => Some(List.length(t.children))

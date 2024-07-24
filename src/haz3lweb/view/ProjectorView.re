@@ -124,7 +124,7 @@ let setup_view =
   let* p = Projector.Map.find(id, meta.projected.z.projectors);
   let* syntax = Id.Map.find_opt(id, meta.projected.syntax_map);
   let ci = Id.Map.find_opt(id, meta.statics.info_map);
-  let info = {id, ci, syntax};
+  let info = ProjNew.{id, ci, syntax};
   let+ measurement = Measured.find_by_id(id, meta.projected.measured);
   let (module P) = to_module(p.kind);
   let parent = a => inject(PerformAction(Project(handle(id, a))));

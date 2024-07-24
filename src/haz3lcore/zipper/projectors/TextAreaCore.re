@@ -1,6 +1,6 @@
 open Util;
 open Virtual_dom.Vdom;
-open ProjectorBase;
+open ProjNew;
 
 let of_id = (id: Id.t) =>
   "id" ++ (id |> Id.to_string |> String.sub(_, 0, 8));
@@ -25,7 +25,7 @@ let get = (piece: Piece.t): string =>
 
 let put = (s: string): Piece.t => s |> mk_mono(Exp);
 
-let put = (str: string): ProjectorBase.external_action =>
+let put = (str: string): external_action =>
   SetSyntax(str |> Form.string_quote |> put);
 
 let is_last_pos = id =>
@@ -49,11 +49,7 @@ let key_handler = (id, ~parent, evt) => {
 };
 
 let textarea =
-    (
-      id,
-      ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
-      text: string,
-    ) =>
+    (id, ~parent: external_action => Ui_effect.t(unit), text: string) =>
   Node.textarea(
     ~attrs=[
       Attr.id(of_id(id)),

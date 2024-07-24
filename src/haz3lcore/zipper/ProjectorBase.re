@@ -42,33 +42,25 @@ module Map = {
  * display with given length & height. Both of these can
  * depend on the projector model and info package */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type shape =
-  | Inline(int)
-  | Block(Measured.Point.t);
+type shape = ProjNew.shape;
 
 /* The type of syntax which a projector can replace.
  * Right now projectors can replace a single piece */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type syntax = Piece.t;
+type syntax = ProjNew.syntax;
 
 /* Global actions available to handlers in all projectors */
-type external_action =
-  | Remove /* Remove projector entirely */
-  | Escape(Util.Direction.t) /* Pass focus to parent editor */
-  | SetSyntax(syntax); /* Set underlying syntax */
+type external_action = ProjNew.external_action;
 
 /* External info fed to all projectors. Eventually
  * dynamic information will be added here. Projector
  * position and dimensions in base editor could be
  * added here if needed */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type info = {
-  id: Id.t,
-  syntax,
-  ci: option(Info.t),
-};
+type info = ProjNew.info;
 
-let info_init = (p: syntax) => {id: Piece.id(p), syntax: p, ci: None};
+let info_init = (p: syntax) =>
+  ProjNew.{id: Piece.id(p), syntax: p, ci: None};
 
 /* To add a new projector, implement this module signature */
 module type Projector = {
