@@ -209,6 +209,7 @@ type form_id =
   | ListTyp
   | TypeTyp
   | RecTyp
+  | ForallTyp
   | ArrowTyp
   | Arrow3Typ
   | TupleTyp
@@ -302,6 +303,7 @@ type group_id =
   | ListTyp
   | TypeTyp
   | RecTyp
+  | ForallTyp
   | ArrowTyp
   | Arrow3Typ
   | TupleTyp

@@ -2154,6 +2154,22 @@ let get_doc =
           ),
         TypeTyp.type_typ,
       );
+    | Forall(pat, typ) =>
+      let pat_id = List.nth(pat.ids, 0);
+      let tbody_id = List.nth(typ.ids, 0);
+      get_message(
+        ~colorings=ForallTyp.forall_typ_coloring_ids(~pat_id, ~tbody_id),
+        ~format=
+          Some(
+            msg =>
+              Printf.sprintf(
+                Scanf.format_from_string(msg, "%s%s"),
+                Id.to_string(pat_id),
+                Id.to_string(tbody_id),
+              ),
+          ),
+        ForallTyp.forall_typ,
+      );
     | Rec(tpat, typ) =>
       let tpat_id = List.nth(tpat.ids, 0);
       let tbody_id = List.nth(typ.ids, 0);
