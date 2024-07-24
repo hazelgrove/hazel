@@ -620,6 +620,7 @@ and Typ: {
     | Rec(TPat.t, t)
     | Type(TPat.t, t)
     | Forall(Pat.t, t)
+    | Equals(Exp.t, Exp.t)
   and t = IdTagged.t(term);
 
   type sum_map = ConstructorMap.t(t);
@@ -673,6 +674,7 @@ and Typ: {
     | Rec(TPat.t, t)
     | Type(TPat.t, t)
     | Forall(Pat.t, t)
+    | Equals(Exp.t, Exp.t)
   and t = IdTagged.t(term);
 
   type sum_map = ConstructorMap.t(t);
@@ -687,6 +689,8 @@ and Typ: {
         ~f_any=continue,
         x,
       ) => {
+    let exp_map_term =
+      Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let typ_map_term =
       Typ.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let any_map_term =
@@ -729,6 +733,7 @@ and Typ: {
         | Rec(tp, t) => Rec(tpat_map_term(tp), typ_map_term(t))
         | Type(tp, t) => Type(tpat_map_term(tp), typ_map_term(t))
         | Forall(tp, t) => Forall(pat_map_term(tp), typ_map_term(t))
+        | Equals(e1, e2) => Equals(exp_map_term(e1), exp_map_term(e2))
         },
     };
     x |> f_typ(rec_call);
@@ -754,6 +759,7 @@ and Typ: {
         Type(tp2, ty) |> rewrap
       | Type(tp2, ty) => Type(tp2, subst(s, x, ty)) |> rewrap
       | Forall(tp2, ty) => Forall(tp2, subst(s, x, ty)) |> rewrap
+      | Equals(e1, e2) => Equals(e1, e2) |> rewrap
       | Rec(tp2, ty) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
         Rec(tp2, ty) |> rewrap
       | Rec(tp2, ty) => Rec(tp2, subst(s, x, ty)) |> rewrap
@@ -782,9 +788,12 @@ and Typ: {
           ids: [Id.invalid],
         });
       eq_internal(n + 1, alpha_subst(x1, t1), alpha_subst(x2, t2));
+    // TODO(theorem): use more intelligent equality between exps
+    | (Equals(e1, e2), Equals(e3, e4)) when e1 == e3 && e2 == e4 => true
     | (Rec(_), _) => false
     | (Type(_), _) => false
     | (Forall(_), _) => false
+    | (Equals(_), _) => false
     | (Int, Int) => true
     | (Int, _) => false
     | (Float, Float) => true

@@ -299,6 +299,7 @@ let forms: list((string, t)) = [
   ("parens_exp", mk(ii, ["(", ")"], mk_op(Exp, [Exp]))),
   ("parens_pat", mk(ii, ["(", ")"], mk_op(Pat, [Pat]))),
   ("parens_typ", mk(ii, ["(", ")"], mk_op(Typ, [Typ]))),
+  ("equals", mk(ii, ["{", "=", "}"], mk_op(Typ, [Exp, Exp]))),
   ("ap_exp_empty", mk(ii, ["()"], mk_post(P.ap, Exp, []))),
   ("ap_exp", mk(ii, ["(", ")"], mk_post(P.ap, Exp, [Exp]))),
   ("ap_pat", mk(ii, ["(", ")"], mk_post(P.ap, Pat, [Pat]))),

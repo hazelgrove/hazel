@@ -497,6 +497,11 @@ and typ_to_pretty = (~inline, typ: Typ.t): pretty => {
     let+ p = pat_to_pretty(~inline, p)
     and+ t = go(t);
     [mk_form("forall", id, [p])] @ t;
+  | Equals(e1, e2) =>
+    let id = typ |> Typ.rep_id;
+    let+ e1 = exp_to_pretty(~inline, e1)
+    and+ e2 = exp_to_pretty(~inline, e2);
+    [mk_form("equals", id, [e1, e2])];
   | Arrow(t1, t2) =>
     let id = typ |> Typ.rep_id;
     let+ t1 = go(t1)
@@ -648,7 +653,8 @@ let exteral_precedence_typ = (tp: Typ.t) =>
 
   // Same goes for forms which are already surrounded
   | Parens(_)
-  | List(_) => Precedence.max
+  | List(_)
+  | Equals(_, _) => Precedence.max
 
   // Other forms
   | Prod(_) => Precedence.prod
@@ -946,6 +952,7 @@ and parenthesize_typ = (typ: Typ.t): Typ.t => {
   | Forall(p, t) =>
     Forall(p, parenthesize_typ(t) |> paren_typ_assoc_at(Precedence.let_))
     |> rewrap
+  | Equals(e1, e2) => Equals(parenthesize(e1), parenthesize(e2)) |> rewrap
   | Arrow(t1, t2) =>
     Arrow(
       parenthesize_typ(t1) |> paren_typ_at(Precedence.power),

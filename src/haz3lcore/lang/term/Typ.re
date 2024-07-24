@@ -22,7 +22,8 @@ type cls =
   | Ap
   | Rec
   | Type
-  | Forall;
+  | Forall
+  | Equals;
 
 include TermBase.Typ;
 let term_of: t => term = IdTagged.term_of;
@@ -60,7 +61,8 @@ let cls_of_term: term => cls =
   | Sum(_) => Sum
   | Rec(_) => Rec
   | Type(_) => Type
-  | Forall(_) => Forall;
+  | Forall(_) => Forall
+  | Equals(_) => Equals;
 
 let show_cls: cls => string =
   fun
@@ -83,7 +85,8 @@ let show_cls: cls => string =
   | Ap => "Constructor application"
   | Rec => "Recursive type"
   | Type => "Type type"
-  | Forall => "Forall type";
+  | Forall => "Forall type"
+  | Equals => "Equals type";
 
 let rec is_arrow = (typ: t) => {
   switch (typ.term) {
@@ -101,6 +104,7 @@ let rec is_arrow = (typ: t) => {
   | Sum(_)
   | Type(_)
   | Forall(_)
+  | Equals(_)
   | Rec(_) => false
   };
 };
@@ -121,6 +125,7 @@ let rec is_type = (typ: t) => {
   | Ap(_)
   | Sum(_)
   | Forall(_)
+  | Equals(_)
   | Rec(_) => false
   };
 };
@@ -179,7 +184,9 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Int
   | Float
   | Bool
-  | String => []
+  | String
+  // TODO(theorem): may need the free exp variables or free type variables in the equation
+  | Equals(_) => []
   | Ap(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
   | Var(v) => List.mem(v, bound) ? [] : [v]
   | Parens(ty) => free_vars(~bound, ty)
@@ -277,8 +284,11 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
   | (Forall(x1, ty1), Forall(x2, ty2)) when x1 == x2 =>
     let+ ty_body = join(~resolve, ~fix, ctx, ty1, ty2);
     Forall(x1, ty_body) |> temp;
+  | (Equals(e1, e2), Equals(e3, e4)) when e1 == e3 && e2 == e4 =>
+    Some(Equals(e1, e2) |> temp)
   | (Type(_), _) => None
   | (Forall(_), _) => None
+  | (Equals(_), _) => None
   | (Int, Int) => Some(ty1)
   | (Int, _) => None
   | (Float, Float) => Some(ty1)
@@ -326,7 +336,9 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Ap(_), _)
   | (Rec(_), _)
   | (Forall(_), _)
-  | (Type(_), _) => t1
+  | (Type(_), _)
+  // TODO(theorem): can this have a synswitch inside?
+  | (Equals(_), _) => t1
   // These might
   | (List(ty1), List(ty2)) => List(match_synswitch(ty1, ty2)) |> rewrap1
   | (List(_), _) => t1
@@ -396,6 +408,7 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
     Type(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
   /* NOTE(theorem): I don't think the ctx needs to be exteded with name */
   | Forall(name, ty) => Forall(name, normalize(ctx, ty)) |> rewrap
+  | Equals(e1, e2) => Equals(e1, e2) |> rewrap
   };
 };
 
@@ -498,10 +511,17 @@ let rec needs_parens = (ty: t): bool =>
   | Rec(_, _)
   | Forall(_, _)
   | Type(_, _) => true
+  | Equals(_) /* is already wrapped in {} */
   | List(_) => false /* is already wrapped in [] */
   | Arrow(_, _) => true
   | Prod(_)
   | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
+  };
+
+let pretty_print_exp = (e: TermBase.Exp.t): string =>
+  switch (IdTagged.term_of(e)) {
+  | _ => failwith("Unimplemented: pretty printing expressions")
+  /* TODO(theorem): this function needs to be completed, and perhaps relocated */
   };
 
 let pretty_print_pat = (v: TermBase.Pat.t): string =>
@@ -560,6 +580,8 @@ let rec pretty_print = (ty: t): string =>
     "type " ++ pretty_print_tvar(tv) ++ "->" ++ pretty_print(t)
   | Forall(v, t) =>
     "forall " ++ pretty_print_pat(v) ++ ". " ++ pretty_print(t)
+  | Equals(e1, e2) =>
+    "{" ++ pretty_print_exp(e1) ++ " = " ++ pretty_print_exp(e2) ++ "}"
   }
 and ctr_pretty_print =
   fun

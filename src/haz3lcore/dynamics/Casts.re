@@ -40,6 +40,10 @@ let grounded_Forall =
   NotGroundOrHole(
     Forall(EmptyHole |> Pat.fresh, Unknown(Internal) |> Typ.temp) |> Typ.temp,
   );
+let grounded_Equals =
+  NotGroundOrHole(
+    Equals(EmptyHole |> Exp.fresh, EmptyHole |> Exp.fresh) |> Typ.temp,
+  );
 let grounded_Prod = length =>
   NotGroundOrHole(
     Prod(ListUtil.replicate(length, Typ.Unknown(Internal) |> Typ.temp))
@@ -85,6 +89,7 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
   | Type(_) => grounded_Type
   | List(_) => grounded_List
   | Forall(_) => grounded_Forall
+  | Equals(_) => grounded_Equals
   | Ap(_) => failwith("type application in dynamics")
   };
 };

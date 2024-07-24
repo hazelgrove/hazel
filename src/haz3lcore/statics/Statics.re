@@ -939,7 +939,8 @@ and utyp_to_info_map =
     let m =
       utyp_to_info_map(tbody, ~ctx, ~ancestors, ~expects=TypeExpected, m)
       |> snd;
-    add(m); // TODO: what should the binding do?
+    add(m); // TODO(theorem): what should the binding do?
+  | Equals(_) => add(m) // TODO(theorem): what should happen here?
   };
 }
 and utpat_to_info_map =

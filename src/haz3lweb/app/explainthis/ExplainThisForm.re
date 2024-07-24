@@ -210,6 +210,7 @@ type form_id =
   | TypeTyp
   | RecTyp
   | ForallTyp
+  | EqualsTyp
   | ArrowTyp
   | Arrow3Typ
   | TupleTyp
@@ -304,6 +305,7 @@ type group_id =
   | TypeTyp
   | RecTyp
   | ForallTyp
+  | EqualsTyp
   | ArrowTyp
   | Arrow3Typ
   | TupleTyp
