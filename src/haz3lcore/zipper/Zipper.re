@@ -11,7 +11,7 @@ let init: unit => t =
       ancestors: [],
     },
     caret: Outer,
-    projectors: ProjectorBase.Map.empty,
+    projectors: Id.Map.empty,
   };
 
 let next_blank = _ => Id.mk();
@@ -58,7 +58,7 @@ let unzip = (seg: Segment.t): t => {
     ancestors: [],
   },
   caret: Outer,
-  projectors: ProjectorBase.Map.empty,
+  projectors: Id.Map.empty,
 };
 
 let pop_backpack = (z: t) =>

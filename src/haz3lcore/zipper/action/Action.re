@@ -49,8 +49,8 @@ type select =
  * and from each projector's own internal action type */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type project =
-  | SetIndicated(Projector.kind) /* Project syntax at caret */
-  | ToggleIndicated(Projector.kind) /* Un/Project syntax at caret */
+  | SetIndicated(Base.kind) /* Project syntax at caret */
+  | ToggleIndicated(Base.kind) /* Un/Project syntax at caret */
   | Remove(Id.t) /* Remove projector at Id */
   | SetSyntax(Id.t, Piece.t) /* Set underlying syntax */
   | SetModel(Id.t, string) /* Set serialized projector model */
