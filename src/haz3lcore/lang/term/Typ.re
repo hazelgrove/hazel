@@ -25,7 +25,6 @@ type cls =
   | Forall;
 
 include TermBase.Typ;
-
 let term_of: t => term = IdTagged.term_of;
 let unwrap: t => (term, term => t) = IdTagged.unwrap;
 let fresh: term => t = IdTagged.fresh;
@@ -191,9 +190,7 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Rec(x, ty)
   | Type(x, ty) =>
     free_vars(~bound=(x |> TPat.tyvar_of_utpat |> Option.to_list) @ bound, ty)
-  //  TODO(theorem): What goes in free vars? uncommenting leads to a dependency cycle
-  // | Forall(x, ty) =>
-  //   free_vars(~bound=(x |> Pat.tyvar_of_utpat |> Option.to_list) @ bound, ty)
+  | Forall(_, ty) => free_vars(~bound, ty)
   };
 
 let var_count = ref(0);
@@ -212,6 +209,62 @@ let unroll = (ty: t): t =>
 /* Type Equality: This coincides with alpha equivalence for normalized types.
    Other types may be equivalent but this will not detect so if they are not normalized. */
 let eq = (t1: t, t2: t): bool => fast_equal(t1, t2);
+
+/* Joins two consistent patterns, returning substitutions that need to be
+   applied to the body bound by the patterns to continue the join operation. */
+let rec join_pat =
+        (p1: TermBase.Pat.t, p2: TermBase.Pat.t)
+        : option((TermBase.Pat.t, t => t, t => t)) => {
+  switch (IdTagged.term_of(p1), IdTagged.term_of(p2)) {
+  | (Parens(p1), _) => join_pat(p1, p2)
+  | (_, Parens(p2)) => join_pat(p1, p2)
+  // Note(Thomas): I don't actually know what this case means, so I'm not sure about this
+  | (Invalid(x), Invalid(y)) when x == y => Some((p1, (t => t), (t => t)))
+  | (Invalid(_), _) => None
+  | (EmptyHole, _)
+  | (MultiHole(_), _)
+  | (Wild, _) => Some((p2, (t => t), (t => t)))
+  | (_, EmptyHole)
+  | (_, MultiHole(_))
+  | (_, Wild) => Some((p1, (t => t), (t => t)))
+  | (Var(x), Var(y)) =>
+    Some((p1, (t => t), (t => subst(Var(y) |> temp, p2, t)))) // TODO
+  | (Var(x), p) => None // TODO
+  | (p, Var(x)) => None // TODO
+  | (Int(x), Int(y)) when x == y => Some((p1, (t => t), (t => t)))
+  | (Int(_), _) => None
+  | (Float(x), Float(y)) when x == y => Some((p1, (t => t), (t => t)))
+  | (Float(_), _) => None
+  | (Bool(x), Bool(y)) when x == y => Some((p1, (t => t), (t => t)))
+  | (Bool(_), _) => None
+  | (String(x), String(y)) when x == y => Some((p1, (t => t), (t => t)))
+  | (String(_), _) => None
+  | (Constructor(x), Constructor(y)) when x == y =>
+    Some((p1, (t => t), (t => t)))
+  | (Constructor(_), _) => None
+  | (Ap(p1, p2), Ap(p3, p4)) =>
+    let* (pat1, f1, g1) = join_pat(p1, p3);
+    let* (pat2, f2, g2) = join_pat(p2, p4);
+    let (_, rewrap: _ => IdTagged.t(TermBase.Pat.term)) =
+      IdTagged.unwrap(p1);
+    Some((rewrap(Ap(pat1, pat2)), (x => f2(f1(x))), (x => g2(g1(x)))));
+  | (Ap(_, _), _) => None
+  | (Cons(p1, p2), Cons(p3, p4)) =>
+    let* (pat1, f1, g1) = join_pat(p1, p3);
+    let* (pat2, f2, g2) = join_pat(p2, p4);
+    let (_, rewrap: _ => IdTagged.t(TermBase.Pat.term)) =
+      IdTagged.unwrap(p1);
+    Some((
+      rewrap(Cons(pat1, pat2)),
+      (x => f2(f1(x))),
+      (x => g2(g1(x))),
+    ));
+  | (Cons(_, _), _) => None
+  | (ListLit(ps), _) => None
+  | (Tuple(ps), _) => None
+  | (Cast(p, t1, t2), _) => None
+  };
+};
 
 /* Lattice join on types. This is a LUB join in the hazel2
    sense in that any type dominates Unknown. The optional
@@ -261,6 +314,7 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
     Rec(tp1, ty_body) |> temp;
   | (Rec(_), _) => None
   | (Type(x1, ty1), Type(x2, ty2)) =>
+    // Note(Thomas): should this ctx be extended with x2 instead?
     let ctx = Ctx.extend_dummy_tvar(ctx, x1);
     let ty1' =
       switch (TPat.tyvar_of_utpat(x2)) {
@@ -270,16 +324,16 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
     let+ ty_body = join(~resolve, ~fix, ctx, ty1', ty2);
     Type(x1, ty_body) |> temp;
   // TODO(theorem): uncommenting the below leads to a dependency cycle?
-  // | (Forall(x1, ty1), Forall(x2, ty2)) =>
-  //   let ctx = Ctx.extend_dummy_tvar(ctx, x1);
-  //   let ty1' =
-  //     // TODO(theorem): Pat needs its own tyvar of pat?
-  //     switch (Pat.tyvar_of_utpat(x2)) {
-  //     | Some(x2) => subst(Var(x2) |> temp, x1, ty1)
-  //     | None => ty1
-  //     };
-  //   let+ ty_body = join(~resolve, ~fix, ctx, ty1', ty2);
-  //   Forall(x1, ty_body) |> temp;
+  | (Forall(x1, ty1), Forall(x2, ty2)) =>
+    // let ctx = Ctx.extend_dummy_tvar(ctx, x1);
+    // let ty1' =
+    //   // TODO(theorem): Pat needs its own tyvar of pat?
+    //   switch (Pat.tyvar_of_utpat(x2)) {
+    //   | Some(x2) => subst(Var(x2) |> temp, x1, ty1)
+    //   | None => ty1
+    //   };
+    let+ ty_body = join(~resolve, ~fix, ctx, ty1, ty2);
+    Forall(TODO, ty_body) |> temp;
   /* Note for above: there is no danger of free variable capture as
      subst itself performs capture avoiding substitution. However this
      may generate internal type variable names that in corner cases can
@@ -287,6 +341,7 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
      second type to preserve synthesized type variable names, which
      come from user annotations. */
   | (Type(_), _) => None
+  | (Forall(_), _) => None
   | (Int, Int) => Some(ty1)
   | (Int, _) => None
   | (Float, Float) => Some(ty1)
@@ -402,9 +457,8 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
     Rec(tpat, normalize(Ctx.extend_dummy_tvar(ctx, tpat), ty)) |> rewrap
   | Type(name, ty) =>
     Type(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
-  // TODO(theorem): get below working with extend_dummy_tvar for Pat.t
-  // | Forall(name, ty) =>
-  //   Forall(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
+  /* NOTE(theorem): I don't think the ctx needs to be exteded with name */
+  | Forall(name, ty) => Forall(name, normalize(ctx, ty)) |> rewrap
   };
 };
 
@@ -513,6 +567,12 @@ let rec needs_parens = (ty: t): bool =>
   | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
   };
 
+let pretty_print_var = (v: TermBase.Pat.t): string =>
+  switch (IdTagged.term_of(v)) {
+  | Var(x) => x
+  /* TODO(theorem): this function needs to be completed, and perhaps relocated */
+  };
+
 let pretty_print_tvar = (tv: TPat.t): string =>
   switch (IdTagged.term_of(tv)) {
   | Var(x) => x
@@ -557,8 +617,8 @@ let rec pretty_print = (ty: t): string =>
   | Rec(tv, t) => "rec " ++ pretty_print_tvar(tv) ++ "->" ++ pretty_print(t)
   | Type(tv, t) =>
     "type " ++ pretty_print_tvar(tv) ++ "->" ++ pretty_print(t)
-  // TODO(theorem): write a different pretty_print? and then uncomment below
-  // | Forall(tv, t) => "type " ++ pretty_print(tv) ++ "->" ++ pretty_print(t)
+  | Forall(v, t) =>
+    "forall " ++ pretty_print_var(v) ++ ". " ++ pretty_print(t)
   }
 and ctr_pretty_print =
   fun

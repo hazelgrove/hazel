@@ -66,7 +66,7 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
   | Prod(tys) =>
     if (List.for_all(
           fun
-          | ({term: Typ.Unknown(_), _}: Typ.t) => true
+          | {term: Typ.Unknown(_), _}: Typ.t => true
           | _ => false,
           tys,
         )) {
