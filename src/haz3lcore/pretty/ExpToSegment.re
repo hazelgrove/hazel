@@ -492,6 +492,11 @@ and typ_to_pretty = (~inline, typ: Typ.t): pretty => {
     let+ tp = tpat_to_pretty(~inline, tp)
     and+ t = go(t);
     [mk_form("type", id, [tp])] @ t;
+  | Forall(p, t) =>
+    let id = typ |> Typ.rep_id;
+    let+ p = pat_to_pretty(~inline, p)
+    and+ t = go(t);
+    [mk_form("forall", id, [p])] @ t;
   | Arrow(t1, t2) =>
     let id = typ |> Typ.rep_id;
     let+ t1 = go(t1)
@@ -652,6 +657,7 @@ let exteral_precedence_typ = (tp: Typ.t) =>
   | Sum(_) => Precedence.plus
   | Rec(_, _) => Precedence.let_
   | Type(_, _) => Precedence.let_
+  | Forall(_, _) => Precedence.let_
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
   | Unknown(Hole(MultiHole(_))) => Precedence.min
@@ -936,6 +942,9 @@ and parenthesize_typ = (typ: Typ.t): Typ.t => {
     |> rewrap
   | Type(tp, t) =>
     Type(tp, parenthesize_typ(t) |> paren_typ_assoc_at(Precedence.let_))
+    |> rewrap
+  | Forall(p, t) =>
+    Forall(p, parenthesize_typ(t) |> paren_typ_assoc_at(Precedence.let_))
     |> rewrap
   | Arrow(t1, t2) =>
     Arrow(

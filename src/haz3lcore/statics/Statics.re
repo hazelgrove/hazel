@@ -935,6 +935,11 @@ and utyp_to_info_map =
       |> snd;
     let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
     add(m); // TODO: check with andrew
+  | Forall(_, tbody) =>
+    let m =
+      utyp_to_info_map(tbody, ~ctx, ~ancestors, ~expects=TypeExpected, m)
+      |> snd;
+    add(m); // TODO: what should the binding do?
   };
 }
 and utpat_to_info_map =
