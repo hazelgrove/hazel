@@ -74,6 +74,7 @@ let shape_affix =
         (([[w, ...ws], ...wss], gs), s, tl);
       | Grout(g) => (Aba.cons([], g, wgw), s, tl)
       | Projector(p) =>
+        //TODO(andrew): ???
         let (l, _) =
           ProjNew.shapes(p) |> (d == Left ? TupleUtil.swap : Fun.id);
         (empty_wgw, l, tl);
@@ -84,42 +85,6 @@ let shape_affix =
     };
   go((d == Left ? List.rev : Fun.id)(affix), r);
 };
-let shape = shape_affix(Right);
-
-let rec convex = seg => {
-  open OptUtil.Syntax;
-  let l =
-    fold_right(
-      (p: Piece.t, shape) => {
-        let* s = shape;
-        switch (p) {
-        | Secondary(_) => shape
-        | Grout(g) =>
-          Grout.fits_shape(g, s) ? Some(fst(Grout.shapes(g))) : None
-        | Projector(p) =>
-          let (l, r) = ProjNew.shapes(p);
-          Nib.Shape.fits(r, s) ? Some(l) : None;
-        | Tile(t) =>
-          let (l, r) = Tile.shapes(t);
-          List.for_all(convex, t.children) && Nib.Shape.fits(r, s)
-            ? Some(l) : None;
-        };
-      },
-      seg,
-      Some(Nib.Shape.concave()),
-    );
-  switch (l) {
-  | None => false
-  | Some(l) => Nib.Shape.fits(Nib.Shape.concave(), l)
-  };
-};
-
-let split_by_grout: t => Aba.t(t, Grout.t) =
-  Aba.split(
-    fun
-    | Piece.Grout(g) => Either.R(g)
-    | p => L(p),
-  );
 
 let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
   switch (s) {
@@ -690,26 +655,6 @@ let edge_shape_of = (d: Direction.t, ps: t): option(Nib.Shape.t) => {
 
 let edge_direction_of = (d: Direction.t, ps: t): option(Direction.t) =>
   Option.map(Nib.Shape.absolute(d), edge_shape_of(d, ps));
-
-// let rec serialize = (seg: t) =>
-//   seg
-//   |> List.concat_map(
-//        fun
-//        | (Piece.Secondary(_) | Grout(_) | Tile({shards: [_], _}) | Projector(_)) as p => [
-//            p,
-//          ]
-//        | Tile(t) => {
-//            let shards =
-//              List.map(
-//                Tile.to_piece,
-//                Tile.split_shards(t.id, t.label, t.mold, t.shards),
-//              );
-//            let children = List.map(serialize, t.children);
-//            Aba.mk(shards, children)
-//            |> Aba.join(s => [s], Fun.id)
-//            |> List.concat;
-//          },
-//      );
 
 let sameline_secondary =
   List.for_all(

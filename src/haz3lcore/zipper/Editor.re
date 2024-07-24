@@ -26,7 +26,8 @@ module CachedStatics = {
 module Meta = {
   /* Derived data for projected zipper */
   type projected = {
-    z: Zipper.t,
+    //z: Zipper.t,
+    projectors: Id.Map.t(ProjMeta.SyntaxMap.entry),
     segment: Segment.t,
     measured: Measured.t,
     term: Term.UExp.t,
@@ -45,11 +46,16 @@ module Meta = {
     projected,
   };
 
-  let init_projected = (z_projected: Projector.proj_ret): projected => {
-    let segment = Zipper.unselect_and_zip(z_projected.z);
-    let (term, terms) = MakeTerm.go(segment);
+  let init_projected = (z): projected => {
+    let segment = Zipper.unselect_and_zip(z);
+    //TODO(andrew):...
+    let (term, terms) =
+      MakeTerm.go(Zipper.unselect_and_zip(ProjMeta.Update.remove_all(z)));
+    //TODO(andrew): deprec projectors?
+    let (syntax_map, projectors) = ProjMeta.SyntaxMap.go(z);
     {
-      z: z_projected.z,
+      projectors,
+      syntax_map,
       segment,
       term,
       terms,
@@ -57,7 +63,6 @@ module Meta = {
       tiles: TileMap.mk(segment),
       holes: Segment.holes(segment),
       measured: Measured.of_segment(segment),
-      syntax_map: z_projected.syntax_map,
     };
   };
 
@@ -66,12 +71,11 @@ module Meta = {
 
   let init = (~settings: CoreSettings.t, z: Zipper.t) => {
     let statics = mk_statics(~settings, z);
-    let projected =
-      Projector.Project.go(z, statics.info_map) |> init_projected;
+    let projected = init_projected(z);
     {
       col_target: 0,
       touched: Touched.empty,
-      selection_ids: Selection.selection_ids(projected.z.selection),
+      selection_ids: Selection.selection_ids(z.selection),
       statics,
       projected,
     };
@@ -98,12 +102,17 @@ module Meta = {
   let yojson_of_t = _ => failwith("Editor.Meta.yojson_of_t");
   let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
-  let next_projected = (z_projected: Projector.proj_ret, ~touched, ~old) => {
-    let segment = Zipper.unselect_and_zip(z_projected.z);
-    let (term, terms) = MakeTerm.go(segment);
+  let next_projected = (z, ~touched, ~old) => {
+    let segment = Zipper.unselect_and_zip(z);
+    //TODO(andrew): ...
+    let (term, terms) =
+      MakeTerm.go(Zipper.unselect_and_zip(ProjMeta.Update.remove_all(z)));
     let measured = Measured.of_segment(~touched, ~old, segment);
+    //TODO(andrew): deprec projectors?
+    let (syntax_map, projectors) = ProjMeta.SyntaxMap.go(z);
     {
-      z: z_projected.z,
+      projectors,
+      syntax_map,
       segment,
       term,
       terms,
@@ -111,7 +120,6 @@ module Meta = {
       term_ranges: TermRanges.mk(segment),
       tiles: TileMap.mk(segment),
       holes: Segment.holes(segment),
-      syntax_map: z_projected.syntax_map,
     };
   };
 
@@ -127,7 +135,8 @@ module Meta = {
     } else if (!Action.is_edit(a)) {
       old_statics;
     } else {
-      CachedStatics.mk(~settings, z);
+      let x = CachedStatics.mk(~settings, z);
+      x;
     };
 
   let next =
@@ -143,24 +152,22 @@ module Meta = {
     // Effects disabled below; if nothing breaks due to this then rip them out
     let touched = meta.touched; //Touched.update(Time.tick(), effects, meta.touched);
     let statics = next_statics(~settings, a, z, meta.statics);
-    let z_projected = Projector.Project.go(z, statics.info_map);
     let projected =
       switch (Action.is_edit(a)) {
-      | false => {...meta.projected, z: z_projected.z}
-      | _ =>
-        next_projected(z_projected, ~touched, ~old=meta.projected.measured)
+      | false => meta.projected
+      | _ => next_projected(z, ~touched, ~old=meta.projected.measured)
       };
     let col_target =
       switch (a) {
       | Move(Local(Up | Down))
       | Select(Resize(Local(Up | Down))) => meta.col_target
-      | _ => Zipper.caret_point(projected.measured, projected.z).col
+      | _ => (Zipper.caret_point(projected.measured))(. z).col
       };
     {
       touched,
       col_target,
       projected,
-      selection_ids: Selection.selection_ids(projected.z.selection),
+      selection_ids: Selection.selection_ids(z.selection),
       statics,
     };
   };
@@ -303,4 +310,4 @@ let trailing_hole_ctx = (ed: t, info_map: Statics.Map.t) => {
 };
 
 let indicated_projector = (editor: t) =>
-  Projector.indicated(editor.state.zipper);
+  ProjMeta.indicated(editor.state.zipper);

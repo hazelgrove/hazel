@@ -95,7 +95,7 @@ module Deco = (M: {
   and sel_of_projector =
       (~start_shape, p: Base.projector): list(option(shard_data)) => {
     let m =
-      Measured.find_pr(~msg="sel_of_tile", p, M.meta.projected.measured);
+      Measured.find_pr(~msg="sel_of_projector", p, M.meta.projected.measured);
     let token = ProjMeta.placeholder_str(p);
     switch (StringUtil.num_linebreaks(token)) {
     | 0 => [Some(sel_shard_svg(~start_shape, ~index=0, m, Projector(p)))]
@@ -383,7 +383,7 @@ module Deco = (M: {
   };
 
   let indication = (z: Zipper.t) =>
-    switch (Projector.indicated(z)) {
+    switch (ProjMeta.indicated(z)) {
     | Some(_) => Node.div([]) /* projector indication handled internally */
     | None => div_c("indication", indicated_piece_deco(z))
     };
@@ -392,12 +392,12 @@ module Deco = (M: {
 
   let always = () => [errors()];
 
-  let all = () => [
-    caret(M.meta.projected.z),
-    indication(M.meta.projected.z),
-    selection(M.meta.projected.z),
-    backpack(M.meta.projected.z),
-    backpack_targets(M.meta.projected.z.backpack, M.meta.projected.segment),
+  let all = z => [
+    caret(z),
+    indication(z),
+    selection(z),
+    backpack(z),
+    backpack_targets(z.backpack, M.meta.projected.segment),
     errors(),
   ];
 };

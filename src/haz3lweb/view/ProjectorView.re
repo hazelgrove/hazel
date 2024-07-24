@@ -78,11 +78,11 @@ let view_wrapper =
       ~info: info,
       ~indication: option(Direction.t),
       ~selected: bool,
-      entry: Projector.Map.entry,
+      entry: ProjMeta.SyntaxMap.entry,
       view: Node.t,
     ) => {
   let fudge = selected ? PieceDec.selection_fudge : DecUtil.fzero;
-  let shape = Projector.shape(entry, info);
+  let shape = ProjMeta.shape(entry.kind, entry.model, info);
   let focus = (id, _) =>
     Effect.(
       Many([
@@ -124,11 +124,17 @@ let setup_view =
       ~indication: option(Direction.t),
     )
     : option(Node.t) => {
-  let* p = Projector.Map.find(id, meta.projected.z.projectors);
+  let* p = Id.Map.find_opt(id, meta.projected.projectors);
   let* syntax = Id.Map.find_opt(id, meta.projected.syntax_map);
   let ci = Id.Map.find_opt(id, meta.statics.info_map);
   let info = ProjNew.{id, ci, syntax};
-  let+ measurement = Measured.find_by_id(id, meta.projected.measured);
+  let+ measurement =
+    Some(
+      Measured.find_pr(
+        {id, kind: p.kind, syntax, model: p.model},
+        meta.projected.measured,
+      ),
+    );
   let (module P) = to_module(p.kind);
   let parent = a => inject(PerformAction(Project(handle(id, a))));
   let local = a =>
@@ -153,17 +159,23 @@ let indication = (z, id) =>
 
 /* Returns a div containing all projector UIs, intended to
  * be absolutely positioned atop a rendered editor UI */
-let all = (~meta: Editor.Meta.t, ~inject, ~font_metrics) =>
+let all = (z, ~meta: Editor.Meta.t, ~inject, ~font_metrics) => {
+  // print_endline(
+  //   "cardinal: "
+  //   ++ (meta.projected.projectors |> Id.Map.cardinal |> string_of_int),
+  // );
   div_c(
     "projectors",
     List.filter_map(
       ((id, _)) => {
-        let indication = indication(meta.projected.z, id);
+        //TODO(andrew): cleanup
+        let indication = indication(z, id);
         setup_view(id, ~meta, ~inject, ~font_metrics, ~indication);
       },
-      Id.Map.bindings(meta.projected.z.projectors) |> List.rev,
+      Id.Map.bindings(meta.projected.projectors) |> List.rev,
     ),
   );
+};
 
 /* When the caret is directly adjacent to a projector, keyboard commands
  * can be overidden here. Right now, trying to move into the projector,

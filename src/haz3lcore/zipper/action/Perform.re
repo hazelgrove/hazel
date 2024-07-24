@@ -87,7 +87,7 @@ let go_z =
          * pasting, then return to the beginning and advance to the
          * first hole. This should be revisited if completions are
          * refactored to use a more structured buffer format. */
-        let start = Zipper.caret_point(M.measured, meta.projected.z);
+        let start = Zipper.caret_point(M.measured, z);
         let z = {
           open OptUtil.Syntax;
           let* z = paste(z, completion);
