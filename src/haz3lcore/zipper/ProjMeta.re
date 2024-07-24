@@ -1,4 +1,4 @@
-open Util;
+//open Util;
 //open Virtual_dom.Vdom;
 open ProjNew;
 
@@ -18,9 +18,9 @@ let to_module = (kind: Base.kind): (module Cooked) =>
   | TextArea => (module Cook(TextAreaCore.M))
   };
 
-let shape = (kind, model, info: info): shape => {
-  let (module P) = to_module(kind);
-  P.placeholder(model, info);
+let shape = (p: Base.projector, info: info): shape => {
+  let (module P) = to_module(p.kind);
+  P.placeholder(p.model, info);
 };
 
 /* A projector is replaced by a placeholder in the underlying
@@ -29,31 +29,28 @@ let shape = (kind, model, info: info): shape => {
  * in the zipper; a tile consisting of any number of whitespaces
  * is considered a placeholder. This could be made more principled.
  * Note that a placeholder retains the UUID of the underlying. */
-let placeholder_str' = (kind, model, info): string =>
-  switch (shape(kind, model, info)) {
+let placeholder_str = ({id, syntax, _} as p: Base.projector): string =>
+  //TODO(andrew): pipe InfoMap to Measured/Code/Deco so can get it here i guess
+  switch (shape(p, {id, syntax, ci: None})) {
   | Inline(width) => String.make(width, ' ')
   | Block({row, col}) => String.make(row - 1, '\n') ++ String.make(col, ' ')
   };
 
-let placeholder_str = ({id, kind, syntax, model}: Base.projector): string =>
-  //TODO(andrew): pipe InfoMap to Measured/Code/Deco so can get it here i guess
-  placeholder_str'(kind, model, {id, syntax, ci: None});
-
-let placeholder = (kind, model, info: info): syntax =>
-  Piece.Tile({
-    id: Piece.id(info.syntax),
-    label: [placeholder_str'(kind, model, info)],
-    mold: Mold.mk_op(Any, []),
-    shards: [0],
-    children: [],
-  });
+// let _placeholder = (p: Base.projector, info: info): syntax =>
+//   Piece.Tile({
+//     id: Piece.id(info.syntax),
+//     label: [placeholder_str'(p, info)],
+//     mold: Mold.mk_op(Any, []),
+//     shards: [0],
+//     children: [],
+//   });
 
 /* Must be in-sync with placeholder_label / placeholder above */
-let is_placeholder = (p: Piece.t): bool =>
-  switch (p) {
-  | Tile({label: [s], _}) => s |> String.trim |> String.length == 0
-  | _ => false
-  };
+// let is_placeholder = (p: Piece.t): bool =>
+//   switch (p) {
+//   | Tile({label: [s], _}) => s |> String.trim |> String.length == 0
+//   | _ => false
+//   };
 
 /* Currently projection is limited to convex pieces */
 let minimum_projection_condition = (syntax: syntax): bool =>
@@ -137,27 +134,27 @@ module MapPiece = {
 
 //TODO(andrew): refine or remove
 module SyntaxMap = {
-  let syntax_map: ref(Id.Map.t(syntax)) = ref(Id.Map.empty);
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type entry = {
-    kind: Base.kind,
-    model: string,
-  };
-  let projectors_map: ref(Id.Map.t(entry)) = ref(Id.Map.empty);
+  // let syntax_map: ref(Id.Map.t(syntax)) = ref(Id.Map.empty);
+  // [@deriving (show({with_path: false}), sexp, yojson)]
+  // type entry = {
+  //   kind: Base.kind,
+  //   model: string,
+  // };
+  let projectors_map: ref(Id.Map.t(Base.projector)) = ref(Id.Map.empty);
 
   let placehold = (syntax: syntax) => {
     let id = Piece.id(syntax);
     switch (syntax) {
-    | Projector({kind, model, syntax, _}) =>
-      projectors_map := Id.Map.add(id, {kind, model}, projectors_map^);
-      syntax_map := Id.Map.add(id, syntax, syntax_map^);
+    | Projector(pr) =>
+      projectors_map := Id.Map.add(id, pr, projectors_map^);
+      // syntax_map := Id.Map.add(id, syntax, syntax_map^);
       syntax;
     | _ => syntax
     };
   };
 
-  let go = (z: ZipperBase.t): (Id.Map.t(syntax), Id.Map.t(entry)) => {
-    syntax_map := Id.Map.empty;
+  let go = (z: ZipperBase.t): Id.Map.t(Base.projector) => {
+    // syntax_map := Id.Map.empty;
     projectors_map := Id.Map.empty;
     // if (Id.Map.is_empty(z.projectors)) {
     //   ();
@@ -169,62 +166,62 @@ module SyntaxMap = {
     //   "SyntaxMap.go:num_prog:"
     //   ++ (Id.Map.cardinal(syntax_map^) |> Int.to_string),
     // );
-    (syntax_map^, projectors_map^);
+    /*syntax_map^,*/ projectors_map^;
   };
 };
 
 /* Updates the underlying piece of syntax for a projector */
 module Update = {
-  let update_piece =
-      (f: Base.projector => Base.projector, id: Id.t, syntax: syntax) =>
-    switch (syntax) {
-    | Projector(pr) when pr.id == id => Base.Projector(f(pr))
-    | x => x
+  let sib_has_id = (get, z: ZipperBase.t, id: Id.t): bool => {
+    switch (z.relatives.siblings |> get) {
+    | Some(l) => Piece.id(l) == id
+    | _ => false
     };
+  };
 
-  // let sib_has_id = (get, z: ZipperBase.t, id: Id.t): bool => {
-  //   switch (z.relatives.siblings |> get) {
-  //   | Some(l) => Piece.id(l) == id
-  //   | _ => false
-  //   };
-  // };
+  let left_sib_has_id = sib_has_id(Siblings.left_neighbor);
+  let right_sib_has_id = sib_has_id(Siblings.right_neighbor);
 
-  // let left_sib_has_id = sib_has_id(Siblings.left_neighbor);
-  // let right_sib_has_id = sib_has_id(Siblings.right_neighbor);
+  let update_left_sib = (f: syntax => syntax, z: ZipperBase.t) => {
+    let (l, r) = z.relatives.siblings;
+    let sibs = (List.map(f, l), List.map(f, r));
+    z |> ZipperBase.put_siblings(sibs);
+  };
 
-  // let update_left_sib = (f: syntax => syntax, z: ZipperBase.t) => {
-  //   let (l, r) = z.relatives.siblings;
-  //   let sibs = (List.map(f, l), List.map(f, r));
-  //   z |> ZipperBase.put_siblings(sibs);
-  // };
+  let update_right_sib = (f: syntax => syntax, z: ZipperBase.t) => {
+    let sibs =
+      switch (z.relatives.siblings) {
+      | (l, [hd, ...tl]) => (l, [f(hd), ...tl])
+      | sibs => sibs
+      };
+    z |> ZipperBase.put_siblings(sibs);
+  };
 
-  // let update_right_sib = (f: syntax => syntax, z: ZipperBase.t) => {
-  //   let sibs =
-  //     switch (z.relatives.siblings) {
-  //     | (l, [hd, ...tl]) => (l, [f(hd), ...tl])
-  //     | sibs => sibs
-  //     };
-  //   z |> ZipperBase.put_siblings(sibs);
-  // };
-
-  let update =
-      (f: Base.projector => Base.projector, id: Id.t, z: ZipperBase.t)
-      : ZipperBase.t => {
+  let eff_update =
+      (f: Piece.t => Piece.t, id: Id.t, z: ZipperBase.t): ZipperBase.t =>
     /* This applies the function to the piece in the zipper having id id, and
      * then replaces the id of the resulting piece with the idea of the old
      * piece, ensuring that the root id remains stable. This function assumes
      * the cursor is not inside the piece to be updated. This is optimized to
      * be O(1) when the piece is directly to the left or right of the cursor,
      * otherwise it is O(|zipper|) */
-    let f = syntax => update_piece(f, id, syntax);
-    // if (left_sib_has_id(z, id)) {
-    //   update_left_sib(f, z);
-    // } else if (right_sib_has_id(z, id)) {
-    //   update_right_sib(f, z);
-    // } else {
-    MapPiece.go(f, z);
-    // };
-  };
+    if (left_sib_has_id(z, id)) {
+      print_endline("ProjMeta.Update.update: left_sib_has_id");
+      update_left_sib(f, z);
+    } else if (right_sib_has_id(z, id)) {
+      print_endline("ProjMeta.Update.update: right_sib_has_id");
+      update_right_sib(f, z);
+    } else {
+      print_endline("ProjMeta.Update.update: MapPiece.go");
+      MapPiece.go(f, z);
+    };
+
+  let update_piece =
+      (f: Base.projector => Base.projector, id: Id.t, syntax: syntax) =>
+    switch (syntax) {
+    | Projector(pr) when pr.id == id => Base.Projector(f(pr))
+    | x => x
+    };
 
   let init = (kind, id, syntax): option(Base.projector) => {
     let (module P) = to_module(kind);
@@ -248,17 +245,6 @@ module Update = {
     | x => x
     };
 
-  let add = (k: Base.kind, id: Id.t, z: ZipperBase.t): ZipperBase.t => {
-    let f = add_projector(k, id);
-    // if (left_sib_has_id(z, id)) {
-    //   update_left_sib(f, z);
-    // } else if (right_sib_has_id(z, id)) {
-    //   update_right_sib(f, z);
-    // } else {
-    MapPiece.go(f, z);
-    // };
-  };
-
   let add_or_remove_projector = (kind: Base.kind, id: Id.t, syntax: syntax) =>
     //TODO(andrew): same id still? make sure these aren't creating dupes somewhere
     switch (syntax) {
@@ -271,50 +257,33 @@ module Update = {
     | x => x
     };
 
-  let add_or_remove = (k: Base.kind, id: Id.t, z: ZipperBase.t): ZipperBase.t => {
-    let f = add_or_remove_projector(k, id);
-    // if (left_sib_has_id(z, id)) {
-    //   update_left_sib(f, z);
-    // } else if (right_sib_has_id(z, id)) {
-    //   update_right_sib(f, z);
-    // } else {
-    MapPiece.go(f, z);
-    //  };
-  };
-
   let remove_projector = (id: Id.t, syntax: syntax) =>
     //TODO(andrew): same id still? make sure these aren't creating dupes somewhere
     switch (syntax) {
-    | Projector(pr) when pr.id == id => syntax
+    | Projector(pr) when pr.id == id => pr.syntax
     | x => x
     };
 
-  let remove = (id: Id.t, z: ZipperBase.t): ZipperBase.t => {
-    let f = remove_projector(id);
-    // if (left_sib_has_id(z, id)) {
-    //   update_left_sib(f, z);
-    // } else if (right_sib_has_id(z, id)) {
-    //   update_right_sib(f, z);
-    // } else {
-    MapPiece.go(f, z);
-    // };
-  };
+  let update =
+      (f: Base.projector => Base.projector, id: Id.t, z: ZipperBase.t)
+      : ZipperBase.t =>
+    eff_update(update_piece(f, id), id, z);
+
+  let add = (k: Base.kind, id: Id.t, z: ZipperBase.t): ZipperBase.t =>
+    eff_update(add_projector(k, id), id, z);
+  let add_or_remove = (k: Base.kind, id: Id.t, z: ZipperBase.t): ZipperBase.t =>
+    eff_update(add_or_remove_projector(k, id), id, z);
+
+  let remove = (id: Id.t, z: ZipperBase.t): ZipperBase.t =>
+    eff_update(remove_projector(id), id, z);
 
   let remove_all_projectors = (syntax: syntax) =>
-    //TODO(andrew): same id still? make sure these aren't creating dupes somewhere
+    //TODO(andrew): avoid the need to remove all
     switch (syntax) {
     | Projector(pr) => pr.syntax
     | x => x
     };
 
-  let remove_all = (z: ZipperBase.t): ZipperBase.t => {
-    let f = remove_all_projectors;
-    // if (left_sib_has_id(z, id)) {
-    //   update_left_sib(f, z);
-    // } else if (right_sib_has_id(z, id)) {
-    //   update_right_sib(f, z);
-    // } else {
-    MapPiece.go(f, z);
-    // };
-  };
+  let remove_all = (z: ZipperBase.t): ZipperBase.t =>
+    MapPiece.go(remove_all_projectors, z);
 };

@@ -95,7 +95,11 @@ module Deco = (M: {
   and sel_of_projector =
       (~start_shape, p: Base.projector): list(option(shard_data)) => {
     let m =
-      Measured.find_pr(~msg="sel_of_projector", p, M.meta.projected.measured);
+      switch (Measured.find_pr_opt(p, M.meta.projected.measured)) {
+      | None =>
+        failwith("TODO(andrew): Deco.sel_of_projector: missing measurement")
+      | Some(m) => m
+      };
     let token = ProjMeta.placeholder_str(p);
     switch (StringUtil.num_linebreaks(token)) {
     | 0 => [Some(sel_shard_svg(~start_shape, ~index=0, m, Projector(p)))]
@@ -353,6 +357,7 @@ module Deco = (M: {
   };
 
   let errors_of_tile = (id: Id.t) => {
+    //TODO(andrew): needs projectors update; err holes on projs crash
     let tiles =
       Id.Map.find(id, M.meta.projected.terms)
       |> Term.ids
@@ -378,7 +383,8 @@ module Deco = (M: {
     div_c(
       "errors",
       //List.concat_map(PieceDec.simple_shards_errors(~font_metrics), tiles),
-      List.map(errors_of_tile, M.meta.statics.error_ids),
+      //TODO(andrew): reinistate
+      [] //List.map(errors_of_tile, M.meta.statics.error_ids),
     );
   };
 

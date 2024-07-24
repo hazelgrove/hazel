@@ -167,6 +167,8 @@ let find_pr = (~msg="", p: Base.projector, map): measurement =>
   try(Id.Map.find(p.id, map.projectors)) {
   | _ => failwith("find_g: " ++ msg)
   };
+let find_pr_opt = (p: Base.projector, map): option(measurement) =>
+  Id.Map.find_opt(p.id, map.projectors);
 // returns the measurement spanning the whole tile
 let find_t = (t: Tile.t, map): measurement => {
   let shards = Id.Map.find(t.id, map.tiles);
@@ -212,8 +214,15 @@ let find_by_id = (id: Id.t, map: t): option(measurement) => {
           );
         Some({origin: first.origin, last: last.last});
       | None =>
-        Printf.printf("Measured.WARNING: id %s not found", Id.to_string(id));
-        None;
+        switch (Id.Map.find_opt(id, map.projectors)) {
+        | Some(m) => Some(m)
+        | None =>
+          Printf.printf(
+            "Measured.WARNING: id %s not found",
+            Id.to_string(id),
+          );
+          None;
+        }
       }
     }
   };

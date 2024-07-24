@@ -78,11 +78,11 @@ let view_wrapper =
       ~info: info,
       ~indication: option(Direction.t),
       ~selected: bool,
-      entry: ProjMeta.SyntaxMap.entry,
+      p: Base.projector,
       view: Node.t,
     ) => {
   let fudge = selected ? PieceDec.selection_fudge : DecUtil.fzero;
-  let shape = ProjMeta.shape(entry.kind, entry.model, info);
+  let shape = ProjMeta.shape(p, info);
   let focus = (id, _) =>
     Effect.(
       Many([
@@ -93,8 +93,7 @@ let view_wrapper =
   div(
     ~attrs=[
       Attr.classes(
-        ["projector", name(entry.kind)]
-        @ status(indication, selected, shape),
+        ["projector", name(p.kind)] @ status(indication, selected, shape),
       ),
       Attr.on_mousedown(focus(info.id)),
       DecUtil.abs_style(measurement, ~fudge, ~font_metrics),
@@ -125,16 +124,10 @@ let setup_view =
     )
     : option(Node.t) => {
   let* p = Id.Map.find_opt(id, meta.projected.projectors);
-  let* syntax = Id.Map.find_opt(id, meta.projected.syntax_map);
+  let* syntax = Some(p.syntax);
   let ci = Id.Map.find_opt(id, meta.statics.info_map);
   let info = ProjNew.{id, ci, syntax};
-  let+ measurement =
-    Some(
-      Measured.find_pr(
-        {id, kind: p.kind, syntax, model: p.model},
-        meta.projected.measured,
-      ),
-    );
+  let+ measurement = Measured.find_pr_opt(p, meta.projected.measured);
   let (module P) = to_module(p.kind);
   let parent = a => inject(PerformAction(Project(handle(id, a))));
   let local = a =>
