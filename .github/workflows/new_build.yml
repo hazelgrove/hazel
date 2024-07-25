@@ -1,0 +1,28 @@
+# General notes on github actions: Note that both the working directory
+# and environment variables generally are not shared between steps.
+name: Build using setup ocaml
+on: [push]
+jobs:
+  Deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the hazel repo on the current branch
+        uses: actions/checkout@v2
+        with:
+          path: source
+      - name: Add the name of the current branch to the environment as BRANCH_NAME
+        uses: nelonoel/branch-name@v1.0.1
+      - name: Set-up OCaml
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: 5.0.0
+      - name: Install dependencies
+        run: |
+          eval $(opam env)
+          export OPAMYES=1
+          opam switch import opam.export 
+        working-directory: ./source
+      - name: Build Release
+        run: |
+          opam exec dune build @src/fmt --auto-promote src --profile release
+        working-directory: ./source
