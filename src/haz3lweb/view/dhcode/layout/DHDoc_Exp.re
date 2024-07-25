@@ -353,7 +353,7 @@ let mk =
           }
         }
       | BuiltinFun(f) => text(f)
-      | Constructor(name) => DHDoc_common.mk_ConstructorLit(name)
+      | Constructor(name, _) => DHDoc_common.mk_ConstructorLit(name)
       | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
