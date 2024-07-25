@@ -237,7 +237,7 @@ let should_scroll_to_caret =
     | Put_down
     | RotateBackpack
     | MoveToBackpackTarget(_)
-    | Buffer(Set(_) | Accept)
+    | Buffer(Set(_) | Accept | Clear)
     | Paste(_)
     | Copy
     | Cut
