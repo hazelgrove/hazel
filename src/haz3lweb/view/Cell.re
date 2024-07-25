@@ -137,7 +137,7 @@ let deco =
       decos
       @ test_result_layer(
           ~font_metrics=ui_state.font_metrics,
-          ~measured=meta.projected.measured,
+          ~measured=meta.syntax.measured,
           test_results,
         ) // TODO move into decos
     };

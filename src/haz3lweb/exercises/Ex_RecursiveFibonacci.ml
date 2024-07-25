@@ -20,11 +20,9 @@ let exercise : Exercise.spec =
             ancestors = [];
           };
         caret = Outer;
-        projectors = Id.Map.empty;
       };
     correct_impl =
       {
-        projectors = Id.Map.empty;
         selection = { focus = Left; content = []; mode = Normal };
         backpack = [];
         relatives =
@@ -481,7 +479,6 @@ let exercise : Exercise.spec =
       {
         tests =
           {
-            projectors = Id.Map.empty;
             selection = { focus = Left; content = []; mode = Normal };
             backpack = [];
             relatives =
@@ -496,7 +493,6 @@ let exercise : Exercise.spec =
       };
     your_impl =
       {
-        projectors = Id.Map.empty;
         selection = { focus = Left; content = []; mode = Normal };
         backpack = [];
         relatives =
@@ -684,7 +680,6 @@ let exercise : Exercise.spec =
         {
           impl =
             {
-              projectors = Id.Map.empty;
               selection = { focus = Left; content = []; mode = Normal };
               backpack = [];
               relatives =
@@ -1407,7 +1402,6 @@ let exercise : Exercise.spec =
         {
           impl =
             {
-              projectors = Id.Map.empty;
               selection = { focus = Left; content = []; mode = Normal };
               backpack = [];
               relatives =
@@ -1991,7 +1985,6 @@ let exercise : Exercise.spec =
       {
         tests =
           {
-            projectors = Id.Map.empty;
             selection = { focus = Left; content = []; mode = Normal };
             backpack = [];
             relatives =

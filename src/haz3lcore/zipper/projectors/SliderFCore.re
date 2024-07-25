@@ -1,6 +1,6 @@
 open Util;
 open Virtual_dom.Vdom;
-open ProjNew;
+open ProjectorBase;
 
 /* Some decimal places necessary to avoid becoming an int */
 let float_of_float = s => s |> float_of_string |> Printf.sprintf("%.2f");

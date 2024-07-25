@@ -9,10 +9,10 @@ module Deco = (M: {
                }) => {
   let font_metrics = M.ui_state.font_metrics;
 
-  let tile = id => Id.Map.find(id, M.meta.projected.tiles);
+  let tile = id => Id.Map.find(id, M.meta.syntax.tiles);
 
   let caret = (z: Zipper.t): Node.t => {
-    let origin = Zipper.caret_point(M.meta.projected.measured, z);
+    let origin = Zipper.caret_point(M.meta.syntax.measured, z);
     let shape = Zipper.caret_direction(z);
     let side =
       switch (Indicated.piece(z)) {
@@ -45,7 +45,7 @@ module Deco = (M: {
               Measured.find_g(
                 ~msg="Deco.sel_of_piece",
                 g,
-                M.meta.projected.measured,
+                M.meta.syntax.measured,
               ),
               p,
             ),
@@ -59,7 +59,7 @@ module Deco = (M: {
               Measured.find_w(
                 ~msg="Deco.sel_of_piece",
                 w,
-                M.meta.projected.measured,
+                M.meta.syntax.measured,
               ),
               p,
             ),
@@ -75,7 +75,7 @@ module Deco = (M: {
   }
   and sel_of_tile = (~start_shape, t: Tile.t): list(option(shard_data)) => {
     let tile_shards =
-      Measured.find_shards(~msg="sel_of_tile", t, M.meta.projected.measured)
+      Measured.find_shards(~msg="sel_of_tile", t, M.meta.syntax.measured)
       |> List.filter(((i, _)) => List.mem(i, t.shards))
       |> List.map(((index, m)) => {
            let token = List.nth(t.label, index);
@@ -95,7 +95,7 @@ module Deco = (M: {
   and sel_of_projector =
       (~start_shape, p: Base.projector): list(option(shard_data)) => {
     let m =
-      switch (Measured.find_pr_opt(p, M.meta.projected.measured)) {
+      switch (Measured.find_pr_opt(p, M.meta.syntax.measured)) {
       | None =>
         failwith("TODO(andrew): Deco.sel_of_projector: missing measurement")
       | Some(m) => m
@@ -156,22 +156,22 @@ module Deco = (M: {
       let range: option((Point.t, Point.t)) = {
         // if (Piece.has_ends(p)) {
         let id =
-          Id.Map.find(Piece.id(p), M.meta.projected.terms) |> Term.rep_id;
-        switch (TermRanges.find_opt(id, M.meta.projected.term_ranges)) {
+          Id.Map.find(Piece.id(p), M.meta.syntax.terms) |> Term.rep_id;
+        switch (TermRanges.find_opt(id, M.meta.syntax.term_ranges)) {
         | None => None
         | Some((p_l, p_r)) =>
           let l =
             Measured.find_p(
               ~msg="Deco.indicated",
               p_l,
-              M.meta.projected.measured,
+              M.meta.syntax.measured,
             ).
               origin;
           let r =
             Measured.find_p(
               ~msg="Deco.indicated",
               p_r,
-              M.meta.projected.measured,
+              M.meta.syntax.measured,
             ).
               last;
           Some((l, r));
@@ -186,7 +186,7 @@ module Deco = (M: {
       | None => []
       | Some(range) =>
         let tiles =
-          Id.Map.find(Piece.id(p), M.meta.projected.terms)
+          Id.Map.find(Piece.id(p), M.meta.syntax.terms)
           |> Term.ids
           /* NOTE(andrew): dark_ids were originally filtered here.
            * Leaving this comment in place in case issues in the
@@ -200,13 +200,13 @@ module Deco = (M: {
                  Measured.find_shards(
                    ~msg="Deco.indicated",
                    t,
-                   M.meta.projected.measured,
+                   M.meta.syntax.measured,
                  ),
                );
              });
         PieceDec.indicated(
           ~font_metrics,
-          ~rows=M.meta.projected.measured.rows,
+          ~rows=M.meta.syntax.measured.rows,
           ~caret=(Piece.id(p), index),
           ~tiles,
           range,
@@ -239,7 +239,7 @@ module Deco = (M: {
                    Measured.find_p(
                      ~msg="Deco.targets",
                      p,
-                     M.meta.projected.measured,
+                     M.meta.syntax.measured,
                    );
                  Measured.{origin: m.origin, last: m.origin};
                | (Some(p), _) =>
@@ -247,7 +247,7 @@ module Deco = (M: {
                    Measured.find_p(
                      ~msg="Deco.targets",
                      p,
-                     M.meta.projected.measured,
+                     M.meta.syntax.measured,
                    );
                  Measured.{origin: m.last, last: m.last};
                };
@@ -278,7 +278,7 @@ module Deco = (M: {
   let backpack = (z: Zipper.t): Node.t =>
     BackpackView.view(
       ~font_metrics,
-      ~origin=Zipper.caret_point(M.meta.projected.measured, z),
+      ~origin=Zipper.caret_point(M.meta.syntax.measured, z),
       z,
     );
 
@@ -291,23 +291,22 @@ module Deco = (M: {
 
   let term_decoration =
       (~id: Id.t, deco: ((Point.t, Point.t, SvgUtil.Path.t)) => Node.t) => {
-    let (p_l, p_r) = TermRanges.find(id, M.meta.projected.term_ranges);
+    let (p_l, p_r) = TermRanges.find(id, M.meta.syntax.term_ranges);
     let l =
-      Measured.find_p(~msg="Deco.term", p_l, M.meta.projected.measured).
-        origin;
+      Measured.find_p(~msg="Deco.term", p_l, M.meta.syntax.measured).origin;
     let r =
-      Measured.find_p(~msg="Deco.term", p_r, M.meta.projected.measured).last;
+      Measured.find_p(~msg="Deco.term", p_r, M.meta.syntax.measured).last;
     open SvgUtil.Path;
     let r_edge =
       ListUtil.range(~lo=l.row, r.row + 1)
       |> List.concat_map(i => {
-           let row = Measured.Rows.find(i, M.meta.projected.measured.rows);
+           let row = Measured.Rows.find(i, M.meta.syntax.measured.rows);
            [h(~x=i == r.row ? r.col : row.max_col), v_(~dy=1)];
          });
     let l_edge =
       ListUtil.range(~lo=l.row, r.row + 1)
       |> List.rev_map(i => {
-           let row = Measured.Rows.find(i, M.meta.projected.measured.rows);
+           let row = Measured.Rows.find(i, M.meta.syntax.measured.rows);
            [h(~x=i == l.row ? l.col : row.indent), v_(~dy=-1)];
          })
       |> List.concat;
@@ -359,7 +358,7 @@ module Deco = (M: {
   let errors_of_tile = (id: Id.t) => {
     //TODO(andrew): needs projectors update; err holes on projs crash
     let tiles =
-      Id.Map.find(id, M.meta.projected.terms)
+      Id.Map.find(id, M.meta.syntax.terms)
       |> Term.ids
       |> List.map(id => {
            let t = tile(id);
@@ -369,7 +368,7 @@ module Deco = (M: {
              Measured.find_shards(
                ~msg="Deco.errors_of_tile",
                t,
-               M.meta.projected.measured,
+               M.meta.syntax.measured,
              ),
            );
          });
@@ -403,7 +402,7 @@ module Deco = (M: {
     indication(z),
     selection(z),
     backpack(z),
-    backpack_targets(z.backpack, M.meta.projected.segment),
+    backpack_targets(z.backpack, M.meta.syntax.segment),
     errors(),
   ];
 };

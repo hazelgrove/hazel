@@ -76,7 +76,7 @@ let shape_affix =
       | Projector(p) =>
         //TODO(andrew): ???
         let (l, _) =
-          ProjNew.shapes(p) |> (d == Left ? TupleUtil.swap : Fun.id);
+          ProjectorBase.shapes(p) |> (d == Left ? TupleUtil.swap : Fun.id);
         (empty_wgw, l, tl);
       | Tile(t) =>
         let (l, _) = Tile.shapes(t) |> (d == Left ? TupleUtil.swap : Fun.id);
@@ -525,7 +525,7 @@ and regrout_affix =
         | Projector(p) =>
           let p = Piece.Projector(p);
           let (l', r') =
-            ProjNew.shapes(p) |> (d == Left ? TupleUtil.swap : Fun.id);
+            ProjectorBase.shapes(p) |> (d == Left ? TupleUtil.swap : Fun.id);
           let trim = Trim.regrout(d, (r', r), trim);
           (Trim.empty, l', [p, ...Trim.to_seg(trim)] @ tl);
         | Tile(t) =>

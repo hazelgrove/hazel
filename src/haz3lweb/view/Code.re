@@ -184,7 +184,7 @@ let view =
       ~font_metrics,
       ~settings: Settings.t,
       z: Zipper.t,
-      {projected: {measured, segment, holes, _}, selection_ids, _}: Editor.Meta.t,
+      {syntax: {measured, segment, holes, _}, selection_ids, _}: Editor.Meta.t,
     )
     : Node.t => {
   module Text =

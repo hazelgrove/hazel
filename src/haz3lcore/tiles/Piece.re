@@ -36,7 +36,7 @@ let nibs =
     },
     t => Some(Tile.nibs(t)),
     p => {
-      let (l, r) = ProjNew.shapes(p);
+      let (l, r) = ProjectorBase.shapes(p);
       Some(Nib.({shape: l, sort: Any}, {shape: r, sort: Any}));
     },
   );
@@ -97,7 +97,7 @@ let shapes =
     _ => None,
     g => Some(Grout.shapes(g)),
     t => Some(Tile.shapes(t)),
-    p => Some(ProjNew.shapes(p)),
+    p => Some(ProjectorBase.shapes(p)),
   );
 
 let is_convex = (p: t): bool =>
@@ -151,7 +151,7 @@ let mold_of = (~shape=Nib.Shape.Convex, p: t) =>
   | Tile(t) => t.mold
   | Grout(g) => Mold.of_grout(g, Any)
   | Secondary(_) => Mold.of_secondary({sort: Any, shape})
-  | Projector(p) => ProjNew.mold_of(p.kind, Any)
+  | Projector(p) => ProjectorBase.mold_of(p.kind, Any)
   };
 
 let replace_id = (id: Id.t, p: t): t =>
