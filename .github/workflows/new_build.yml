@@ -24,5 +24,5 @@ jobs:
         working-directory: ./source
       - name: Build Release
         run: |
-          opam exec dune build @src/fmt --auto-promote src --profile release
+          opam exec -- dune build @src/fmt --auto-promote src --profile release
         working-directory: ./source
