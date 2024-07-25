@@ -96,6 +96,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | EmptyHole(_)
     | NonEmptyHole(_) => d
     /* DHExp-specific forms: Don't cast */
+    | Undefined
     | Cast(_)
     | Closure(_)
     | Filter(_)
@@ -155,6 +156,7 @@ let rec dhexp_of_uexp =
            Make sure new dhexp form is properly considered Indet
            to avoid casting issues. */
         Some(EmptyHole(id, 0))
+      | Undefined => Some(Undefined)
       | Triv => Some(Tuple([]))
       | Deferral(_) => Some(DHExp.InvalidText(id, 0, "_"))
       | Bool(b) => Some(BoolLit(b))
@@ -170,6 +172,7 @@ let rec dhexp_of_uexp =
         let* dp = dhpat_of_upat(m, p);
         let* d1 = dhexp_of_uexp(m, body);
         let+ ty = fixed_pat_typ(m, p);
+        let ty = Typ.normalize(ctx, ty);
         DHExp.Fun(dp, ty, d1, None);
       | TypFun(tpat, body) =>
         let+ d1 = dhexp_of_uexp(m, body);
@@ -187,8 +190,10 @@ let rec dhexp_of_uexp =
         DHExp.ListConcat(dc1, dc2);
       | UnOp(Meta(Unquote), e) =>
         switch (e.term) {
-        | Var("e") when in_filter => Some(Constructor("$e"))
-        | Var("v") when in_filter => Some(Constructor("$v"))
+        | Var("e") when in_filter =>
+          Some(Constructor("$e", Unknown(Internal)))
+        | Var("v") when in_filter =>
+          Some(Constructor("$v", Unknown(Internal)))
         | _ => Some(DHExp.EmptyHole(id, 0))
         }
       | UnOp(Int(Minus), e) =>
@@ -233,7 +238,17 @@ let rec dhexp_of_uexp =
         switch (err_status) {
         | InHole(Common(NoType(FreeConstructor(_)))) =>
           Some(FreeVar(id, 0, name))
-        | _ => Some(Constructor(name))
+        | _ =>
+          let ty =
+            switch (Ctx.lookup_ctr(ctx, name)) {
+            | None => Typ.Unknown(Internal)
+            | Some({typ, _}) => Typ.normalize(ctx, typ)
+            };
+          switch (mode) {
+          | Ana(ana_ty) =>
+            Some(Constructor(name, Typ.normalize(ctx, ana_ty)))
+          | _ => Some(Constructor(name, ty))
+          };
         }
       | Let(p, def, body) =>
         let add_name: (option(string), DHExp.t) => DHExp.t = (
@@ -260,6 +275,7 @@ let rec dhexp_of_uexp =
             dbody,
           );
         } else {
+          let ty = Typ.normalize(ctx, ty);
           switch (Term.UPat.get_bindings(p) |> Option.get) {
           | [f] =>
             /* simple recursion */
@@ -438,7 +454,19 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
       switch (err_status) {
       | InHole(Common(NoType(FreeConstructor(_)))) =>
         Some(BadConstructor(u, 0, name))
-      | _ => wrap(Constructor(name))
+      | _ =>
+        let ty =
+          switch (Ctx.lookup_ctr(ctx, name)) {
+          | None => Typ.Unknown(Internal)
+          | Some({typ, _}) => Typ.normalize(ctx, typ)
+          };
+        let dc =
+          switch (mode) {
+          | Ana(ana_ty) =>
+            DHPat.Constructor(name, Typ.normalize(ctx, ana_ty))
+          | _ => DHPat.Constructor(name, ty)
+          };
+        wrap(dc);
       }
     | Cons(hd, tl) =>
       let* d_hd = dhpat_of_upat(m, hd);
