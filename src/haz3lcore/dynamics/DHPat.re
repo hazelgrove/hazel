@@ -15,7 +15,7 @@ type t =
   | ListLit(Typ.t, list(t))
   | Cons(t, t)
   | Tuple(list(t))
-  | Constructor(string)
+  | Constructor(string, Typ.t)
   | Ap(t, t);
 
 let mk_tuple: list(t) => t =
