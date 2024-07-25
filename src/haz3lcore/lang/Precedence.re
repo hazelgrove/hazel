@@ -51,7 +51,6 @@ let associativity_map: IntMap.t(Direction.t) =
     (concat, Right),
     (ann, Left),
     (eqs, Left),
-    (type_plus, Left),
     (type_arrow, Right),
   ]
   |> List.to_seq
