@@ -63,8 +63,6 @@ installed: [
   "fpath.0.7.3"
   "gen.1.1"
   "gen_js_api.1.1.2"
-  "host-arch-x86_64.1"
-  "host-system-other.1"
   "incr_dom.v0.16.0"
   "incr_map.v0.16.0"
   "incr_select.v0.16.0"
