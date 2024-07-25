@@ -89,6 +89,10 @@ let download_slide_state = state => {
   JsUtil.download_json("hazel-scratchpad", json_data);
 };
 
+let get_sexp = _state => {
+  print_endline("get_sexp");
+};
+
 let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
   let export_button =
     Widgets.button(
@@ -98,6 +102,12 @@ let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
         Virtual_dom.Vdom.Effect.Ignore;
       },
       ~tooltip="Export Scratchpad",
+    );
+  let debug_button =
+    Widgets.button(
+      Icons.eye,
+      _ => {inject(UpdateAction.PrintSexp)},
+      ~tooltip="Debug",
     );
   let import_button =
     Widgets.file_select_button(
@@ -128,5 +138,5 @@ let toolbar_buttons = (~inject, state: ScratchSlide.state) => {
       },
       ~tooltip="Reset Scratchpad",
     );
-  [export_button, import_button] @ [reset_button];
+  [export_button, import_button, debug_button] @ [reset_button];
 };

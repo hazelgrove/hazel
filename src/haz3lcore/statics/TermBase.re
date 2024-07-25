@@ -147,6 +147,8 @@ and UExp: {
   let int_op_to_string: op_bin_int => string;
   let float_op_to_string: op_bin_float => string;
   let string_op_to_string: op_bin_string => string;
+  let bin_op_to_string: op_bin => string;
+  let un_op_to_string: op_un => string;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type op_un_bool =

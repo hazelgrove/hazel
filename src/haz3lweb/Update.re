@@ -172,6 +172,7 @@ let reevaluate_post_update = (settings: Settings.t) =>
   | DebugAction(_)
   | DoTheThing
   | StoreKey(_)
+  | PrintSexp
   | ExportPersistentData => false
   | MUVSyntax(_)
   | Benchmark(_)
@@ -312,6 +313,19 @@ let rec apply =
         : Result.t(Model.t) => {
   let m: Result.t(Model.t) =
     switch (update) {
+    | PrintSexp =>
+      let editor = model.editors |> Editors.get_editor;
+      // let str = Printer.to_string_selection(editor);
+      let zipper = Editor.get_z(editor);
+      let sel = zipper.selection.content;
+      let term = MakeTerm.go(sel) |> fst;
+      let sexp = SexpConversion.go(term);
+      let str = Sexplib.Sexp.to_string_hum(sexp);
+      let alt_str = SexpConversion.sexp_of_uexp(sexp);
+
+      print_endline("PrintSexp: " ++ str);
+      print_endline("PrintSexp (alt): " ++ alt_str);
+      Ok(model);
     | Reset => Ok(Model.reset(model))
     | Set(s_action) =>
       let model = update_settings(s_action, model);
