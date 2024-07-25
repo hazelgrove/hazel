@@ -74,7 +74,7 @@ let shape_affix =
         (([[w, ...ws], ...wss], gs), s, tl);
       | Grout(g) => (Aba.cons([], g, wgw), s, tl)
       | Projector(p) =>
-        //TODO(andrew): ???
+        //TODO(andrew): ??? ask d
         let (l, _) =
           ProjectorBase.shapes(p) |> (d == Left ? TupleUtil.swap : Fun.id);
         (empty_wgw, l, tl);

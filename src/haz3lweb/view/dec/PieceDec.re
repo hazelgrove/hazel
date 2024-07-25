@@ -164,8 +164,7 @@ let simple_shard_error =
   );
 };
 
-let simple_shards_errors =
-    (~font_metrics: FontMetrics.t, (_, mold, shards)): list(t) =>
+let simple_shards_errors = (~font_metrics: FontMetrics.t, mold, shards) =>
   List.map(
     ((index, measurement)) =>
       simple_shard_error(

@@ -100,7 +100,8 @@ module Deco = (M: {
         failwith("TODO(andrew): Deco.sel_of_projector: missing measurement")
       | Some(m) => m
       };
-    let token = Projector.placeholder_str(p);
+    let ci = Id.Map.find_opt(p.id, M.meta.statics.info_map);
+    let token = Projector.placeholder(p, ci);
     switch (StringUtil.num_linebreaks(token)) {
     | 0 => [Some(sel_shard_svg(~start_shape, ~index=0, m, Projector(p)))]
     //TODO(andrew): decoration for selections
@@ -355,37 +356,35 @@ module Deco = (M: {
     );
   };
 
-  let errors_of_tile = (id: Id.t) => {
-    //TODO(andrew): needs projectors update; err holes on projs crash
-    let tiles =
-      Id.Map.find(id, M.meta.syntax.terms)
-      |> Term.ids
-      |> List.map(id => {
-           let t = tile(id);
-           (
-             id,
-             t.mold,
-             Measured.find_shards(
-               ~msg="Deco.errors_of_tile",
-               t,
-               M.meta.syntax.measured,
-             ),
-           );
-         });
-    div_c(
-      "errors-piece",
-      List.concat_map(PieceDec.simple_shards_errors(~font_metrics), tiles),
-    );
-  };
+  let error_view = (id: Id.t) =>
+    switch (Id.Map.find_opt(id, M.meta.syntax.projectors)) {
+    | Some(p) =>
+      /* Special case for projectors as they are not in tile map */
+      let shapes = ProjectorBase.shapes(p);
+      let measurement = Id.Map.find(id, M.meta.syntax.measured.projectors);
+      div_c(
+        "errors-piece",
+        [PieceDec.simple_shard_error(~font_metrics, ~shapes, ~measurement)],
+      );
+    | None =>
+      let tiles =
+        Id.Map.find(id, M.meta.syntax.terms)
+        |> Term.ids
+        |> List.map(id => {
+             let t = tile(id);
+             let shards =
+               Measured.find_shards(
+                 ~msg="Deco.errors_of_tile",
+                 t,
+                 M.meta.syntax.measured,
+               );
+             PieceDec.simple_shards_errors(~font_metrics, t.mold, shards);
+           });
+      div_c("errors-piece", List.flatten(tiles));
+    };
 
-  let errors = () => {
-    div_c(
-      "errors",
-      //List.concat_map(PieceDec.simple_shards_errors(~font_metrics), tiles),
-      //TODO(andrew): reinistate
-      [] //List.map(errors_of_tile, M.meta.statics.error_ids),
-    );
-  };
+  let errors = () =>
+    div_c("errors", List.map(error_view, M.meta.statics.error_ids));
 
   let indication = (z: Zipper.t) =>
     switch (Projector.indicated(z)) {
