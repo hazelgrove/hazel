@@ -25,14 +25,12 @@ type ui_state = {
   font_metrics: FontMetrics.t,
   show_backpack_targets: bool,
   mousedown: bool,
-  focus: string,
 };
 
 let ui_state_init = {
   font_metrics: FontMetrics.init,
   show_backpack_targets: false,
   mousedown: false,
-  focus: "code-container",
 };
 
 type t = {
