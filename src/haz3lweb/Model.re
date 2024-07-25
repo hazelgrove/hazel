@@ -55,15 +55,29 @@ let mk = (editors, results, statics) => {
 let blank =
   mk(Editors.Scratch(0, []), ModelResults.empty, CachedStatics.empty);
 
+let fromEditor = (editor: Editor.t): ScratchSlide.state => {
+  title: "",
+  description: "",
+  hidden_tests: {
+    tests: editor,
+    hints: [],
+  },
+};
+
 let load_editors =
     (~settings, ~mode: Settings.mode, ~instructor_mode: bool)
     : (Editors.t, ModelResults.t) =>
   switch (mode) {
   | Scratch =>
     let (idx, slides, results) = Store.Scratch.load(~settings);
+    let slides = List.map(fromEditor, slides);
     (Scratch(idx, slides), results);
   | Documentation =>
     let (name, slides, results) = Store.Documentation.load(~settings);
+    let for_tuple = ((str: string, editor: Editor.t)) => {
+      (str, fromEditor(editor));
+    };
+    let slides = List.map(for_tuple, slides);
     (Documentation(name, slides), results);
   | Exercises =>
     let (n, specs, exercise) =
@@ -78,9 +92,20 @@ let save_editors =
     (editors: Editors.t, results: ModelResults.t, ~instructor_mode: bool)
     : unit =>
   switch (editors) {
-  | Scratch(n, slides) => Store.Scratch.save((n, slides, results))
+  | Scratch(n, slides) =>
+    let slides = List.map(ScratchSlide.serialize, slides);
+    let slides = List.map(ScratchSlide.deserialize, slides);
+    Store.Scratch.save((n, slides, results));
   | Documentation(name, slides) =>
-    Store.Documentation.save((name, slides, results))
+    let ser_tuple = ((str: string, state: ScratchSlide.state)) => {
+      (str, ScratchSlide.serialize(state));
+    };
+    let deser_tuple = ((str: string, stri: string)) => {
+      (str, ScratchSlide.deserialize(stri));
+    };
+    let slides = List.map(ser_tuple, slides);
+    let slides = List.map(deser_tuple, slides);
+    Store.Documentation.save((name, slides, results));
   | Exercises(n, specs, exercise) =>
     Store.Exercise.save((n, specs, exercise), ~instructor_mode)
   };

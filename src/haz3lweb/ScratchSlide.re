@@ -20,23 +20,21 @@ type state = p(Editor.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type persistent_state = p(PersistentZipper.t);
 
-
 // why are neither of these functions working?
 let toEditor = (state: state): Editor.t => {
-    switch (state) {
-    | s => s.hidden_tests.tests
-    };
+  switch (state) {
+  | s => s.hidden_tests.tests
+  };
 };
 
 let fromEditor = (editor: Editor.t): state => {
-  title: "", 
-  description: "", 
-  hidden_tests: { 
-    tests : editor,
-    hints : [], 
+  title: "",
+  description: "",
+  hidden_tests: {
+    tests: editor,
+    hints: [],
   },
 };
-
 
 let scratch_key = n => "scratch_" ++ n;
 
