@@ -17,19 +17,17 @@ let get_goal = (~font_metrics: FontMetrics.t, ~target_id, e) => {
 
 let mousedown_overlay = (~inject, ~font_metrics, ~target_id) =>
   div(
-    ~attr=
-      Attr.many(
-        Attr.[
-          id("mousedown-overlay"),
-          on_mouseup(_ => inject(Update.SetMeta(Mouseup))),
-          on_mousemove(e => {
-            let goal = get_goal(~font_metrics, ~target_id, e);
-            inject(
-              Update.PerformAction(Select(Resize(Goal(Point(goal))))),
-            );
-          }),
-        ],
-      ),
+    ~attrs=
+      Attr.[
+        id("mousedown-overlay"),
+        on_mouseup(_ => inject(Update.SetMeta(Mouseup))),
+        on_mousemove(e => {
+          let goal = get_goal(~font_metrics, ~target_id, e);
+          inject(
+            Update.PerformAction(Select(Resize(Goal(Point(goal))))),
+          );
+        }),
+      ],
     [],
   );
 
@@ -68,21 +66,21 @@ let mousedown_handler =
 
 let narrative_cell = (content: Node.t) =>
   div(
-    ~attr=Attr.class_("cell"),
-    [div(~attr=Attr.class_("cell-chapter"), [content])],
+    ~attrs=[Attr.class_("cell")],
+    [div(~attrs=[Attr.class_("cell-chapter")], [content])],
   );
 
 let simple_cell_item = (content: list(Node.t)) =>
-  div(~attr=Attr.classes(["cell-item"]), content);
+  div(~attrs=[Attr.classes(["cell-item"])], content);
 
 let caption = (~rest: option(string)=?, bolded: string) =>
   div(
-    ~attr=Attr.many([Attr.classes(["cell-caption"])]),
+    ~attrs=[Attr.classes(["cell-caption"])],
     [strong([text(bolded)])] @ (rest |> Option.map(text) |> Option.to_list),
   );
 
 let simple_cell_view = (items: list(t)) =>
-  div(~attr=Attr.class_("cell"), items);
+  div(~attrs=[Attr.class_("cell")], items);
 
 let test_status_icon_view =
     (~font_metrics, insts, ms: Measured.Shards.t): option(t) =>
@@ -90,12 +88,7 @@ let test_status_icon_view =
   | [(_, {origin: _, last}), ..._] =>
     let status = insts |> TestMap.joint_status |> TestStatus.to_string;
     let pos = DecUtil.abs_position(~font_metrics, last);
-    Some(
-      div(
-        ~attr=Attr.many([Attr.classes(["test-result", status]), pos]),
-        [],
-      ),
-    );
+    Some(div(~attrs=[Attr.classes(["test-result", status]), pos], []));
   | _ => None
   };
 
@@ -120,11 +113,12 @@ let deco =
       ~test_results: option(TestResults.t),
       ~highlights: option(ColorSteps.colorMap),
       {
-        state: {
-          zipper,
-          meta: {term_ranges, segment, measured, terms, tiles, _},
-          _,
-        },
+        state:
+          {
+            zipper,
+            meta: {term_ranges, segment, measured, terms, tiles, _},
+            _,
+          },
         _,
       }: Editor.t,
     ) => {
@@ -196,23 +190,26 @@ let live_eval =
   let exn_view =
     switch (result.evaluation) {
     | ResultFail(err) => [
-        div(~attr=Attr.classes(["error-msg"]), [text(error_msg(err))]),
+        div(
+          ~attrs=[Attr.classes(["error-msg"])],
+          [text(error_msg(err))],
+        ),
       ]
     | _ => []
     };
   div(
-    ~attr=Attr.classes(["cell-item", "cell-result"]),
+    ~attrs=[Attr.classes(["cell-item", "cell-result"])],
     exn_view
     @ [
       div(
-        ~attr=Attr.classes(["status", status_of(result.evaluation)]),
+        ~attrs=[Attr.classes(["status", status_of(result.evaluation)])],
         [
-          div(~attr=Attr.classes(["spinner"]), []),
-          div(~attr=Attr.classes(["eq"]), [text("≡")]),
+          div(~attrs=[Attr.classes(["spinner"])], []),
+          div(~attrs=[Attr.classes(["eq"])], [text("≡")]),
         ],
       ),
       div(
-        ~attr=Attr.classes(["result", status_of(result.evaluation)]),
+        ~attrs=[Attr.classes(["result", status_of(result.evaluation)])],
         [dhcode_view],
       ),
       Widgets.toggle(~tooltip="Show Stepper", "s", false, _ =>
@@ -279,8 +276,7 @@ let editor_view =
     );
   let code_view =
     div(
-      ~attr=
-        Attr.many([Attr.id(target_id), Attr.classes(["code-container"])]),
+      ~attrs=[Attr.id(target_id), Attr.classes(["code-container"])],
       [code_text_view] @ deco_view @ Option.to_list(overlayer),
     );
   let mousedown_overlay =
@@ -297,19 +293,19 @@ let editor_view =
           ~mousedown_updates,
         );
   div(
-    ~attr=
+    ~attrs=[
       Attr.classes([
         "cell",
         selected ? "selected" : "deselected",
         locked ? "locked" : "unlocked",
       ]),
+    ],
     [
       div(
-        ~attr=
-          Attr.many([
-            Attr.classes(["cell-item"]),
-            Attr.on_mousedown(on_mousedown),
-          ]),
+        ~attrs=[
+          Attr.classes(["cell-item"]),
+          Attr.on_mousedown(on_mousedown),
+        ],
         Option.to_list(caption) @ mousedown_overlay @ [code_view],
       ),
     ]
@@ -318,7 +314,7 @@ let editor_view =
 };
 
 let report_footer_view = content => {
-  div(~attr=Attr.classes(["cell-item", "cell-report"]), content);
+  div(~attrs=[Attr.classes(["cell-item", "cell-report"])], content);
 };
 
 let test_report_footer_view = (~inject, ~test_results: option(TestResults.t)) => {
@@ -327,7 +323,9 @@ let test_report_footer_view = (~inject, ~test_results: option(TestResults.t)) =>
 
 let panel = (~classes=[], content, ~footer: option(t)) => {
   simple_cell_view(
-    [div(~attr=Attr.classes(["cell-item", "panel"] @ classes), content)]
+    [
+      div(~attrs=[Attr.classes(["cell-item", "panel"] @ classes)], content),
+    ]
     @ Option.to_list(footer),
   );
 };
@@ -335,8 +333,8 @@ let panel = (~classes=[], content, ~footer: option(t)) => {
 let title_cell = title => {
   simple_cell_view([
     div(
-      ~attr=Attr.class_("title-cell"),
-      [div(~attr=Attr.class_("title-text"), [text(title)])],
+      ~attrs=[Attr.class_("title-cell")],
+      [div(~attrs=[Attr.class_("title-text")], [text(title)])],
     ),
   ]);
 };

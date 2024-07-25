@@ -1,4 +1,5 @@
-open Sexplib.Std;
+open Util;
+
 open Haz3lcore;
 
 // TODO Make unified way of using consistent metavariables for syntactic forms

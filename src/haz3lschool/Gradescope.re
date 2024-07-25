@@ -1,5 +1,6 @@
 open Haz3lcore;
-// open Sexplib.Std;
+open Util;
+
 open Haz3lschool;
 open Core;
 

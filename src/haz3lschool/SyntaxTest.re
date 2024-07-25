@@ -1,5 +1,5 @@
 open Haz3lcore;
-open Sexplib.Std;
+open Util;
 
 /*
   These are the syntax test functions used for the syntax validation
