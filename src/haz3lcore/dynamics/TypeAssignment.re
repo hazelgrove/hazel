@@ -315,6 +315,7 @@ let rec typ_of_dhexp =
     } else {
       None;
     };
+  | Undefined => Some(Typ.Unknown(Internal))
   };
 };
 

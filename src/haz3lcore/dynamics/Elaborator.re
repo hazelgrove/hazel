@@ -455,11 +455,16 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
       | InHole(Common(NoType(FreeConstructor(_)))) =>
         Some(BadConstructor(u, 0, name))
       | _ =>
-        let dc =
+        let ty =
           switch (Ctx.lookup_ctr(ctx, name)) {
-          | None => DHPat.Constructor(name, Unknown(Internal))
-          | Some({typ, _}) =>
-            DHPat.Constructor(name, Typ.normalize(ctx, typ))
+          | None => Typ.Unknown(Internal)
+          | Some({typ, _}) => Typ.normalize(ctx, typ)
+          };
+        let dc =
+          switch (mode) {
+          | Ana(ana_ty) =>
+            DHPat.Constructor(name, Typ.normalize(ctx, ana_ty))
+          | _ => DHPat.Constructor(name, ty)
           };
         wrap(dc);
       }
