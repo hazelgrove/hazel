@@ -116,7 +116,9 @@ type example_id =
   | FilterEval
   | FilterHide
   | FilterDebug
-  | FilterSelector;
+  | FilterSelector
+  | Undefined1
+  | Undefined2;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type example = {
@@ -151,6 +153,7 @@ type form_id =
   | EmptyHoleExp
   | MultiHoleExp
   | TrivExp
+  | UndefinedExp
   | DeferralExp
   | BoolExp
   | IntExp
@@ -242,6 +245,7 @@ type group_id =
   | EmptyHoleExp
   | MultiHoleExp
   | TrivExp
+  | UndefinedExp
   | DeferralExp
   | BoolExp
   | IntExp
