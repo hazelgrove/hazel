@@ -384,7 +384,14 @@ module Deco = (M: {
     };
 
   let errors = () =>
-    div_c("errors", List.map(error_view, M.meta.statics.error_ids));
+    div_c(
+      "errors",
+      try(List.map(error_view, M.meta.statics.error_ids)) {
+      | Not_found =>
+        print_endline("WARNING: Deco.errors: Not_found");
+        [];
+      },
+    );
 
   let indication = (z: Zipper.t) =>
     switch (Projector.indicated(z)) {

@@ -171,13 +171,10 @@ module Update = {
      * be O(1) when the piece is directly to the left or right of the cursor,
      * otherwise it is O(|zipper|) */
     if (left_sib_has_id(z, id)) {
-      print_endline("Projector.Update.update: left_sib_has_id");
       update_left_sib(f, z);
     } else if (right_sib_has_id(z, id)) {
-      print_endline("Projector.Update.update: right_sib_has_id");
       update_right_sib(f, z);
     } else {
-      print_endline("Projector.Update.update: MapPiece.go");
       MapPiece.go(f, z);
     };
 
@@ -243,7 +240,6 @@ module Update = {
     fast_update(remove_projector(id), id, z);
 
   let remove_all_projectors = (syntax: syntax) =>
-    //TODO(andrew): avoid the need to remove all
     switch (syntax) {
     | Projector(pr) => pr.syntax
     | x => x

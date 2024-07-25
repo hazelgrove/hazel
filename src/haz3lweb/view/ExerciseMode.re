@@ -26,6 +26,7 @@ let view =
       ~stitched_dynamics,
       ~highlights,
     ) => {
+  print_endline("AAA");
   let Exercise.{eds, pos} = exercise;
   // let stitched_dynamics =
   //   Exercise.stitch_dynamic(
@@ -43,11 +44,11 @@ let view =
     hidden_tests: _,
   }:
     Exercise.stitched(Exercise.DynamicsItem.t) = stitched_dynamics;
-
+  print_endline("DDD");
   let grading_report = Grading.GradingReport.mk(eds, ~stitched_dynamics);
-
+  print_endline("EEE");
   let score_view = Grading.GradingReport.view_overall_score(grading_report);
-
+  print_endline("FFF");
   let editor_view =
       (
         ~editor: Editor.t,
@@ -72,14 +73,14 @@ let view =
       editor,
     );
   };
-
+  print_endline("GGG");
   let title_view = Cell.title_cell(eds.title);
 
   let prompt_view =
     Cell.narrative_cell(
       div(~attrs=[Attr.class_("cell-prompt")], [eds.prompt]),
     );
-
+  print_endline("HHH");
   let prelude_view =
     Always(
       editor_view(
@@ -101,7 +102,7 @@ let view =
           ~di=instructor,
         ),
     );
-
+  print_endline("III");
   // determine trailing hole
   // TODO: module
   let correct_impl_ctx_view =
@@ -148,7 +149,7 @@ let view =
         ]);
       },
     );
-
+  print_endline("JJJ");
   let your_tests_view =
     Always(
       editor_view(
@@ -166,7 +167,7 @@ let view =
         ],
       ),
     );
-
+  print_endline("KKK");
   let wrong_impl_views =
     List.mapi(
       (i, (Exercise.{impl, _}, di)) => {
@@ -182,7 +183,7 @@ let view =
       },
       List.combine(eds.hidden_bugs, hidden_bugs),
     );
-
+  print_endline("LLL");
   let mutation_testing_view =
     Always(
       Grading.MutationTestingReport.view(
@@ -191,7 +192,7 @@ let view =
         grading_report.point_distribution.mutation_testing,
       ),
     );
-
+  print_endline("MMM");
   let your_impl_view = {
     Always(
       editor_view(
@@ -211,7 +212,6 @@ let view =
       ),
     );
   };
-
   let syntax_grading_view =
     Always(Grading.SyntaxReport.view(grading_report.syntax_report));
 
@@ -253,7 +253,7 @@ let view =
         ~max_points=grading_report.point_distribution.impl_grading,
       ),
     );
-
+  print_endline("CCC");
   [score_view, title_view, prompt_view]
   @ render_cells(
       settings,
