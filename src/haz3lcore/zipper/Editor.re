@@ -41,14 +41,14 @@ module CachedSyntax = {
     projectors: Id.Map.t(Base.projector),
     segment: Segment.t,
     measured: Measured.t,
+    tiles: TileMap.t,
+    holes: list(Grout.t),
     term: Term.UExp.t,
     term_ranges: TermRanges.t,
     terms: TermMap.t,
-    tiles: TileMap.t,
-    holes: list(Grout.t),
   };
 
-  let init = (z): t => {
+  let init = (z, info_map): t => {
     let segment = Zipper.unselect_and_zip(z);
     //TODO(andrew): avoid remove_all
     let (term, terms) =
@@ -63,13 +63,13 @@ module CachedSyntax = {
       term_ranges: TermRanges.mk(segment),
       tiles: TileMap.mk(segment),
       holes: Segment.holes(segment),
-      measured: Measured.of_segment(segment),
+      measured: Measured.of_segment(segment, info_map),
     };
   };
 
-  let update = (z, ~touched, ~old): t => {
+  let update = (z, info_map, ~touched, ~old): t => {
     let segment = Zipper.unselect_and_zip(z);
-    let measured = Measured.of_segment(~touched, ~old, segment);
+    let measured = Measured.of_segment(~touched, ~old, segment, info_map);
     //TODO(andrew): remove/consolidate remove_all and syntaxMap
     let (term, terms) =
       MakeTerm.go(Zipper.unselect_and_zip(Projector.Update.remove_all(z)));
@@ -86,8 +86,9 @@ module CachedSyntax = {
     };
   };
 
-  let next = (a: Action.t, z: Zipper.t, old: t, ~touched) =>
-    Action.is_edit(a) ? update(z, ~touched, ~old=old.measured) : old;
+  let next = (a: Action.t, z: Zipper.t, info_map, old: t, ~touched) =>
+    Action.is_edit(a)
+      ? update(z, info_map, ~touched, ~old=old.measured) : old;
 };
 
 module Meta = {
@@ -100,11 +101,14 @@ module Meta = {
   };
 
   let init = (~settings: CoreSettings.t, z: Zipper.t) => {
-    col_target: 0,
-    touched: Touched.empty,
-    selection_ids: Selection.selection_ids(z.selection),
-    statics: CachedStatics.mk(~settings, z),
-    syntax: CachedSyntax.init(z),
+    let statics = CachedStatics.mk(~settings, z);
+    {
+      col_target: 0,
+      touched: Touched.empty,
+      selection_ids: Selection.selection_ids(z.selection),
+      statics,
+      syntax: CachedSyntax.init(z, statics.info_map),
+    };
   };
 
   module type S = {
@@ -140,7 +144,8 @@ module Meta = {
     print_endline("Editor.next. Action:" ++ Action.show(a));
     // Effects disabled below; if nothing breaks due to this then rip them out
     let touched = meta.touched; //Touched.update(Time.tick(), effects, meta.touched);
-    let syntax = CachedSyntax.next(~touched, a, z, meta.syntax);
+    let syntax =
+      CachedSyntax.next(~touched, a, z, meta.statics.info_map, meta.syntax);
     let statics = CachedStatics.next(~settings, a, z, meta.statics);
     let col_target =
       switch (a) {

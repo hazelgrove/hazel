@@ -61,12 +61,13 @@ let to_rows =
   };
 };
 
-let pretty_print =
-    (~holes: option(string)=Some(""), ~measured: Measured.t, z: Zipper.t)
-    : string =>
+let measured = z =>
+  z |> Zipper.seg_without_buffer |> Measured.of_segment(_, Id.Map.empty);
+
+let pretty_print = (~holes: option(string)=Some(""), z: Zipper.t): string =>
   to_rows(
     ~holes,
-    ~measured,
+    ~measured=measured(z),
     ~caret=None,
     ~indent=" ",
     ~segment=seg_of_zip(z),
@@ -77,7 +78,7 @@ let zipper_to_string =
     (~holes: option(string)=Some(""), z: Zipper.t): string =>
   to_rows(
     ~holes,
-    ~measured=Zipper.measured(z),
+    ~measured=measured(z),
     ~caret=None,
     ~indent="",
     ~segment=seg_of_zip(z),
@@ -90,7 +91,7 @@ let to_string_editor =
 
 let to_string_selection = (editor: Editor.t): string =>
   to_rows(
-    ~measured=Zipper.measured(editor.state.zipper),
+    ~measured=measured(editor.state.zipper),
     ~caret=None,
     ~indent=" ",
     ~holes=None,

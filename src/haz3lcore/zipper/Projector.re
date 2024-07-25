@@ -27,9 +27,9 @@ let shape = (p: Base.projector, info: info): shape => {
  * in the zipper; a tile consisting of any number of whitespaces
  * is considered a placeholder. This could be made more principled.
  * Note that a placeholder retains the UUID of the underlying. */
-let placeholder_str = ({id, syntax, _} as p: Base.projector): string =>
+let placeholder = (p: Base.projector, ci: option(Info.t)): string =>
   //TODO(andrew): pipe InfoMap to Measured/Code/Deco so can get it here i guess
-  switch (shape(p, {id, syntax, ci: None})) {
+  switch (shape(p, {id: p.id, syntax: p.syntax, ci})) {
   | Inline(width) => String.make(width, ' ')
   | Block({row, col}) => String.make(row - 1, '\n') ++ String.make(col, ' ')
   };
@@ -162,7 +162,7 @@ module Update = {
     z |> ZipperBase.put_siblings(sibs);
   };
 
-  let eff_update =
+  let fast_update =
       (f: Piece.t => Piece.t, id: Id.t, z: ZipperBase.t): ZipperBase.t =>
     /* This applies the function to the piece in the zipper having id id, and
      * then replaces the id of the resulting piece with the idea of the old
@@ -223,7 +223,6 @@ module Update = {
     };
 
   let remove_projector = (id: Id.t, syntax: syntax) =>
-    //TODO(andrew): same id still? make sure these aren't creating dupes somewhere
     switch (syntax) {
     | Projector(pr) when pr.id == id => pr.syntax
     | x => x
@@ -232,15 +231,16 @@ module Update = {
   let update =
       (f: Base.projector => Base.projector, id: Id.t, z: ZipperBase.t)
       : ZipperBase.t =>
-    eff_update(update_piece(f, id), id, z);
+    fast_update(update_piece(f, id), id, z);
 
   let add = (k: Base.kind, id: Id.t, z: ZipperBase.t): ZipperBase.t =>
-    eff_update(add_projector(k, id), id, z);
+    fast_update(add_projector(k, id), id, z);
+
   let add_or_remove = (k: Base.kind, id: Id.t, z: ZipperBase.t): ZipperBase.t =>
-    eff_update(add_or_remove_projector(k, id), id, z);
+    fast_update(add_or_remove_projector(k, id), id, z);
 
   let remove = (id: Id.t, z: ZipperBase.t): ZipperBase.t =>
-    eff_update(remove_projector(id), id, z);
+    fast_update(remove_projector(id), id, z);
 
   let remove_all_projectors = (syntax: syntax) =>
     //TODO(andrew): avoid the need to remove all

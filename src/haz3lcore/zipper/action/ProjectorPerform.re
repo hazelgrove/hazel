@@ -56,7 +56,14 @@ let go =
     }
   | Remove(id) => Ok(Projector.Update.remove(id, z))
   | SetSyntax(id, syntax) =>
-    Ok(Projector.Update.update(p => {...p, syntax}, id, z))
+    /* Note we update piece id to keep in sync with projector id */
+    Ok(
+      Projector.Update.update(
+        p => {...p, syntax: Piece.replace_id(id, syntax)},
+        id,
+        z,
+      ),
+    )
   | SetModel(id, model) =>
     Ok(Projector.Update.update(pr => {...pr, model}, id, z))
   | Focus(id, d) =>

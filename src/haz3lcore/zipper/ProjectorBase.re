@@ -4,16 +4,15 @@ open Virtual_dom.Vdom;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = Base.kind;
 
-//TODO(andrew): docs
+/* Projectors are currently all convex */
 let shapes = _ => Nib.Shape.(Convex, Convex);
 
-//TODO(andrew): cleanup, docs
-let mold_of: (t, Sort.t) => Mold.t =
-  (p, sort) => {
-    let (l, r) = shapes(p);
+/* Projectors are currentlt all convex and any-sorted */
+let mold_of: Sort.t => Mold.t =
+  sort => {
     {
       nibs: {
-        ({shape: l, sort}, {shape: r, sort});
+        ({shape: Convex, sort}, {shape: Convex, sort});
       },
       out: sort,
       in_: [],

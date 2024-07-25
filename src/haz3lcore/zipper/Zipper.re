@@ -291,8 +291,6 @@ let caret_direction = (z: t): option(Direction.t) =>
     }
   };
 
-let measured = z => z |> unselect_and_zip |> Measured.of_segment;
-
 let base_point = (measured: Measured.t, z: t): Point.t => {
   switch (representative_piece(z)) {
   | Some((p, d)) =>

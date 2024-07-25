@@ -282,7 +282,14 @@ let last_of_token = (token: string, origin: Point.t): Point.t =>
     row: origin.row + StringUtil.num_linebreaks(token),
   };
 
-let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
+let of_segment =
+    (
+      ~old: t=empty,
+      ~touched=Touched.empty,
+      seg: Segment.t,
+      info_map: Statics.Map.t,
+    )
+    : t => {
   let is_indented = is_indented_map(seg);
 
   // recursive across seg's bidelimited containers
@@ -380,7 +387,8 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
             let map = map |> add_g(g, {origin, last});
             (contained_indent, last, map);
           | Projector(p) =>
-            let token = Projector.placeholder_str(p);
+            let token =
+              Projector.placeholder(p, Id.Map.find_opt(p.id, info_map));
             let last = last_of_token(token, origin);
             let map = extra_rows(token, origin, map);
             let map = add_pr(p, {origin, last}, map);
@@ -454,28 +462,3 @@ let length = (seg: Segment.t, map: t): int =>
     let last = find_p(ListUtil.last(tl), map);
     last.last.col - first.origin.col;
   };
-
-let segment_origin = (seg: Segment.t): option(Point.t) =>
-  Option.map(
-    first => find_p(first, of_segment(seg)).origin,
-    ListUtil.hd_opt(seg),
-  );
-
-let segment_last = (seg: Segment.t): option(Point.t) =>
-  Option.map(
-    last => find_p(last, of_segment(seg)).last,
-    ListUtil.last_opt(seg),
-  );
-
-let segment_height = (seg: Segment.t) =>
-  switch (segment_last(seg), segment_origin(seg)) {
-  | (Some(last), Some(first)) => 1 + last.row - first.row
-  | _ => 0
-  };
-
-let segment_width = (seg: Segment.t): int =>
-  IntMap.fold(
-    (_, {max_col, _}: Rows.shape, acc) => max(max_col, acc),
-    of_segment(seg).rows,
-    0,
-  );
