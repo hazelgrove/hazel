@@ -50,26 +50,6 @@ module CachedSyntax = {
 
   let init = (z, info_map): t => {
     let segment = Zipper.unselect_and_zip(z);
-    //TODO(andrew): avoid remove_all
-    let (term, terms) =
-      MakeTerm.go(Zipper.unselect_and_zip(Projector.Update.remove_all(z)));
-    //TODO(andrew): consolidate with remove_all?
-    let projectors = Projector.SyntaxMap.go(z);
-    {
-      projectors,
-      segment,
-      term,
-      terms,
-      term_ranges: TermRanges.mk(segment),
-      tiles: TileMap.mk(segment),
-      holes: Segment.holes(segment),
-      measured: Measured.of_segment(segment, info_map),
-    };
-  };
-
-  let update = (z, info_map, ~touched, ~old): t => {
-    let segment = Zipper.unselect_and_zip(z);
-    let measured = Measured.of_segment(~touched, ~old, segment, info_map);
     //TODO(andrew): remove/consolidate remove_all and syntaxMap
     let (term, terms) =
       MakeTerm.go(Zipper.unselect_and_zip(Projector.Update.remove_all(z)));
@@ -77,12 +57,30 @@ module CachedSyntax = {
     {
       projectors,
       segment,
-      term,
-      terms,
-      measured,
       term_ranges: TermRanges.mk(segment),
       tiles: TileMap.mk(segment),
       holes: Segment.holes(segment),
+      measured: Measured.of_segment(segment, info_map),
+      term,
+      terms,
+    };
+  };
+
+  let update = (z, info_map, ~touched, ~old): t => {
+    let segment = Zipper.unselect_and_zip(z);
+    //TODO(andrew): remove/consolidate remove_all and syntaxMap
+    let (term, terms) =
+      MakeTerm.go(Zipper.unselect_and_zip(Projector.Update.remove_all(z)));
+    let projectors = Projector.SyntaxMap.go(z);
+    {
+      projectors,
+      segment,
+      term_ranges: TermRanges.mk(segment),
+      tiles: TileMap.mk(segment),
+      holes: Segment.holes(segment),
+      measured: Measured.of_segment(~touched, ~old, segment, info_map),
+      term,
+      terms,
     };
   };
 
@@ -214,14 +212,6 @@ let init = (~read_only=false, z, ~settings: CoreSettings.t) => {
   state: State.init(z, ~settings),
   history: History.empty,
   read_only,
-};
-
-let update_z = (f: Zipper.t => Zipper.t, ed: t) => {
-  ...ed,
-  state: {
-    ...ed.state,
-    zipper: f(ed.state.zipper),
-  },
 };
 
 let new_state =
