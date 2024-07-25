@@ -30,12 +30,11 @@ let rule_pre = 20;
 let rule_sep = 21;
 let case_ = 22;
 
-let type_prod = 3;
 let comma = 15;
 
-let type_arrow = 5;
-
 let type_plus = 4;
+let type_arrow = 5;
+let type_prod = 6;
 
 let min = 26;
 
