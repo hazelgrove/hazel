@@ -541,6 +541,7 @@ let get_doc =
             ),
           TyAliasExp.tyalias_exps,
         );
+      | Undefined => get_message(UndefinedExp.undefined_exps)
       | Triv => get_message(TerminalExp.triv_exps)
       | Deferral(_) => get_message(TerminalExp.deferral_exps)
       | Bool(b) => get_message(TerminalExp.bool_exps(b))
