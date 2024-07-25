@@ -16,7 +16,7 @@ let of_piece_goal =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type goal =
-  | Point(Measured.Point.t)
+  | Point(Point.t)
   | Piece(piece_goal, Direction.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -44,13 +44,13 @@ type select =
   | Term(rel);
 
 /* This type defines the top-level actions used to manage
- * projectors,as distinguished from ProjectorBase.external_action,
+ * projectors,as distinguished from external_action,
  * which defines the actions available internally to all projectors,
  * and from each projector's own internal action type */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type project =
-  | SetIndicated(Projector.kind) /* Project syntax at caret */
-  | ToggleIndicated(Projector.kind) /* Un/Project syntax at caret */
+  | SetIndicated(Base.kind) /* Project syntax at caret */
+  | ToggleIndicated(Base.kind) /* Un/Project syntax at caret */
   | Remove(Id.t) /* Remove projector at Id */
   | SetSyntax(Id.t, Piece.t) /* Set underlying syntax */
   | SetModel(Id.t, string) /* Set serialized projector model */
@@ -64,6 +64,7 @@ type agent =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type buffer =
   | Set(agent)
+  | Clear
   | Accept;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -108,15 +109,14 @@ let is_edit: t => bool =
   fun
   | Project(Focus(_) | Escape(_)) => false
   | Project(_) => true //TODO(andrew): revisit
-  | Buffer(Accept)
   | Paste(_)
   | Cut
   | Reparse
   | Insert(_)
   | Destruct(_)
   | Pick_up
-  | Put_down => true
-  | Buffer(Set(_))
+  | Put_down
+  | Buffer(Accept | Clear | Set(_)) => true
   | Copy
   | Move(_)
   | Jump(_)
@@ -128,7 +128,7 @@ let is_edit: t => bool =
 /* Determines whether undo/redo skips action */
 let is_historic: t => bool =
   fun
-  | Buffer(Set(_))
+  | Buffer(Set(_) | Clear)
   | Copy
   | Move(_)
   | Jump(_)

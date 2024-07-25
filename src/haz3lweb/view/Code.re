@@ -69,10 +69,25 @@ let of_secondary =
     }
   );
 
-module Text = (M: {
-                 let map: Measured.t;
-                 let settings: Settings.t;
-               }) => {
+let of_projector = (p, expected_sort, indent, info_map) =>
+  of_delim'((
+    [Projector.placeholder(p, Id.Map.find_opt(p.id, info_map))],
+    false,
+    expected_sort,
+    true,
+    true,
+    indent,
+    0,
+  ));
+
+module Text =
+       (
+         M: {
+           let map: Measured.t;
+           let settings: Settings.t;
+           let info_map: Statics.Map.t;
+         },
+       ) => {
   let m = p => Measured.find_p(~msg="Text", p, M.map);
   let rec of_segment =
           (buffer_ids, no_sorts, sort, seg: Segment.t): list(Node.t) => {
@@ -100,6 +115,8 @@ module Text = (M: {
     | Grout(_) => of_grout
     | Secondary({content, _}) =>
       of_secondary((content, M.settings.secondary_icons, m(p).last.col))
+    | Projector(p) =>
+      of_projector(p, expected_sort, m(Projector(p)).origin.col, M.info_map)
     };
   }
   and of_tile = (buffer_ids, expected_sort: Sort.t, t: Tile.t): list(Node.t) => {
@@ -128,6 +145,7 @@ let rec holes =
   |> List.concat_map(
        fun
        | Piece.Secondary(_) => []
+       | Projector(_) => []
        | Tile(t) => List.concat_map(holes(~map, ~font_metrics), t.children)
        | Grout(g) => [
            EmptyHoleDec.view(
@@ -140,12 +158,13 @@ let rec holes =
          ],
      );
 
-let simple_view =
-    (~font_metrics, ~segment, ~map, ~settings: Settings.t): Node.t => {
+let simple_view = (~font_metrics, ~segment, ~settings: Settings.t): Node.t => {
+  let map = Measured.of_segment(segment, Id.Map.empty);
   module Text =
     Text({
       let map = map;
       let settings = settings;
+      let info_map = Id.Map.empty; /* Assume this doesn't contain projectors */
     });
   let holes = holes(~map, ~font_metrics, segment);
   div(
@@ -172,13 +191,15 @@ let view =
       ~sort: Sort.t,
       ~font_metrics,
       ~settings: Settings.t,
-      {projected: {z, measured, segment, holes, _}, selection_ids, _}: Editor.Meta.t,
+      z: Zipper.t,
+      {syntax: {measured, segment, holes, _}, statics, selection_ids, _}: Editor.Meta.t,
     )
     : Node.t => {
   module Text =
     Text({
       let map = measured;
       let settings = settings;
+      let info_map = statics.info_map;
     });
   let buffer_ids = Selection.is_buffer(z.selection) ? selection_ids : [];
   let code = Text.of_segment(buffer_ids, false, sort, segment);

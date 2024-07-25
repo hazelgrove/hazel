@@ -420,7 +420,9 @@ let apply =
           : Zipper.can_put_down(z)
               ? Put_down : Move(Goal(Piece(Grout, Right)));
       perform_action(model, action);
-    | PerformAction(a) => perform_action(model, a)
+    | PerformAction(a) =>
+      let r = perform_action(model, a);
+      r;
     | Undo =>
       switch (Editors.update_opt(model.editors, Editor.undo)) {
       | None => Error(CantUndo)

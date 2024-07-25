@@ -25,8 +25,6 @@ type t = {
   backpack: Backpack.t,
   relatives: Relatives.t,
   caret: Caret.t,
-  [@opaque]
-  projectors: ProjectorBase.Map.t,
 };
 
 let update_relatives = (f: Relatives.t => Relatives.t, z: t): t => {

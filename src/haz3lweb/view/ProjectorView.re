@@ -1,10 +1,13 @@
 open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
+open ProjectorBase;
 open Projector;
 open Util;
 open Util.OptUtil.Syntax;
 open Util.Web;
+
+type kind = Base.kind;
 
 /* A friendly name for each projector. This is used
  * both for identifying a projector in the CSS and for
@@ -75,11 +78,11 @@ let view_wrapper =
       ~info: info,
       ~indication: option(Direction.t),
       ~selected: bool,
-      entry: Map.entry,
+      p: Base.projector,
       view: Node.t,
     ) => {
   let fudge = selected ? PieceDec.selection_fudge : DecUtil.fzero;
-  let shape = Projector.shape(entry, info);
+  let shape = Projector.shape(p, info);
   let focus = (id, _) =>
     Effect.(
       Many([
@@ -90,8 +93,7 @@ let view_wrapper =
   div(
     ~attrs=[
       Attr.classes(
-        ["projector", name(entry.kind)]
-        @ status(indication, selected, shape),
+        ["projector", name(p.kind)] @ status(indication, selected, shape),
       ),
       Attr.on_mousedown(focus(info.id)),
       DecUtil.abs_style(measurement, ~fudge, ~font_metrics),
@@ -101,7 +103,7 @@ let view_wrapper =
 };
 
 /* Dispatches projector external actions to editor-level actions */
-let handle = (id, action: ProjectorBase.external_action): Action.project =>
+let handle = (id, action: external_action): Action.project =>
   switch (action) {
   | Remove => Remove(id)
   | Escape(d) => Escape(id, d)
@@ -121,11 +123,11 @@ let setup_view =
       ~indication: option(Direction.t),
     )
     : option(Node.t) => {
-  let* p = Projector.Map.find(id, meta.projected.z.projectors);
-  let* syntax = Id.Map.find_opt(id, meta.projected.syntax_map);
+  let* p = Id.Map.find_opt(id, meta.syntax.projectors);
+  let* syntax = Some(p.syntax);
   let ci = Id.Map.find_opt(id, meta.statics.info_map);
   let info = {id, ci, syntax};
-  let+ measurement = Measured.find_by_id(id, meta.projected.measured);
+  let+ measurement = Measured.find_pr_opt(p, meta.syntax.measured);
   let (module P) = to_module(p.kind);
   let parent = a => inject(PerformAction(Project(handle(id, a))));
   let local = a =>
@@ -150,17 +152,23 @@ let indication = (z, id) =>
 
 /* Returns a div containing all projector UIs, intended to
  * be absolutely positioned atop a rendered editor UI */
-let all = (~meta: Editor.Meta.t, ~inject, ~font_metrics) =>
+let all = (z, ~meta: Editor.Meta.t, ~inject, ~font_metrics) => {
+  // print_endline(
+  //   "cardinal: "
+  //   ++ (meta.projected.projectors |> Id.Map.cardinal |> string_of_int),
+  // );
   div_c(
     "projectors",
     List.filter_map(
       ((id, _)) => {
-        let indication = indication(meta.projected.z, id);
+        //TODO(andrew): cleanup
+        let indication = indication(z, id);
         setup_view(id, ~meta, ~inject, ~font_metrics, ~indication);
       },
-      Id.Map.bindings(meta.projected.z.projectors) |> List.rev,
+      Id.Map.bindings(meta.syntax.projectors) |> List.rev,
     ),
   );
+};
 
 /* When the caret is directly adjacent to a projector, keyboard commands
  * can be overidden here. Right now, trying to move into the projector,
@@ -198,11 +206,11 @@ module Panel = {
   /* Decide which projectors are applicable based on the cursor info.
    * This is slightly inside-out as elsewhere it depends on the underlying
    * syntax, which is not easily available here */
-  let applicable_projectors = (ci: Info.t): list(Projector.kind) =>
+  let applicable_projectors = (ci: Info.t): list(Base.kind) =>
     (
       switch (Info.cls_of(ci)) {
       | Exp(Bool)
-      | Pat(Bool) => [Checkbox]
+      | Pat(Bool) => [Base.Checkbox]
       | Exp(Int)
       | Pat(Int) => [Slider]
       | Exp(Float)
@@ -212,11 +220,11 @@ module Panel = {
       | _ => []
       }
     )
-    @ [Fold]
+    @ [Base.Fold]
     @ (
       switch (ci) {
       | InfoExp(_)
-      | InfoPat(_) => [(Info: Projector.kind)]
+      | InfoPat(_) => [(Info: Base.kind)]
       | _ => []
       }
     );
@@ -272,7 +280,7 @@ module Panel = {
   let view = (~inject, editor: Editor.t, ci: Info.t) => {
     let might_project =
       switch (Indicated.piece''(editor.state.zipper)) {
-      | Some((p, _, _)) => Projector.minimum_projection_condition(p)
+      | Some((p, _, _)) => minimum_projection_condition(p)
       | None => false
       };
     div(

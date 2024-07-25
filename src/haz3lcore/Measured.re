@@ -1,44 +1,7 @@
 open Util;
+open Point;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type row = int;
-[@deriving (show({with_path: false}), sexp, yojson)]
-type col = int;
-
-module Point = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    row,
-    col,
-  };
-  let zero = {row: 0, col: 0};
-
-  let equals: (t, t) => bool = (p, q) => p.row == q.row && p.col == q.col;
-
-  type comparison =
-    | Exact
-    | Under
-    | Over;
-
-  let comp = (current, target): comparison =>
-    switch () {
-    | _ when current == target => Exact
-    | _ when current < target => Under
-    | _ => Over
-    };
-  let compare = (p1, p2) =>
-    switch (comp(p1, p2)) {
-    | Exact => 0
-    | Under => (-1)
-    | Over => 1
-    };
-
-  let dcomp = (direction: Direction.t, a, b) =>
-    switch (direction) {
-    | Right => comp(a, b)
-    | Left => comp(b, a)
-    };
-};
+module Point = Point;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type measurement = {
@@ -91,6 +54,7 @@ type t = {
   tiles: Id.Map.t(Shards.t),
   grout: Id.Map.t(measurement),
   secondary: Id.Map.t(measurement),
+  projectors: Id.Map.t(measurement),
   rows: Rows.t,
   linebreaks: Id.Map.t(rel_indent),
 };
@@ -99,6 +63,7 @@ let empty = {
   tiles: Id.Map.empty,
   grout: Id.Map.empty,
   secondary: Id.Map.empty,
+  projectors: Id.Map.empty,
   rows: Rows.empty,
   linebreaks: Id.Map.empty,
 };
@@ -139,18 +104,32 @@ let add_w = (w: Secondary.t, m, map) => {
   ...map,
   secondary: map.secondary |> Id.Map.add(w.id, m),
 };
+let add_pr = (p: Base.projector, m, map) => {
+  ...map,
+  projectors: map.projectors |> Id.Map.add(p.id, m),
+};
 let add_p = (p: Piece.t, m, map) =>
   p
   |> Piece.get(
        w => add_w(w, m, map),
        g => add_g(g, m, map),
        t => add_t(t, m, map),
+       pr => add_pr(pr, m, map),
      );
 
 let add_row = (row: int, shape: Rows.shape, map) => {
   ...map,
   rows: Rows.add(row, shape, map.rows),
 };
+
+let rec add_n_rows = (origin: Point.t, row_indent, n: abs_indent, map: t): t =>
+  switch (n) {
+  | 0 => map
+  | _ =>
+    map
+    |> add_n_rows(origin, row_indent, n - 1)
+    |> add_row(origin.row + n - 1, {indent: row_indent, max_col: origin.col})
+  };
 
 let add_lb = (id, indent, map) => {
   ...map,
@@ -184,6 +163,12 @@ let find_g = (~msg="", g: Grout.t, map): measurement =>
   try(Id.Map.find(g.id, map.grout)) {
   | _ => failwith("find_g: " ++ msg)
   };
+let find_pr = (~msg="", p: Base.projector, map): measurement =>
+  try(Id.Map.find(p.id, map.projectors)) {
+  | _ => failwith("find_g: " ++ msg)
+  };
+let find_pr_opt = (p: Base.projector, map): option(measurement) =>
+  Id.Map.find_opt(p.id, map.projectors);
 // returns the measurement spanning the whole tile
 let find_t = (t: Tile.t, map): measurement => {
   let shards = Id.Map.find(t.id, map.tiles);
@@ -204,6 +189,7 @@ let find_p = (~msg="", p: Piece.t, map): measurement =>
          w => find_w(w, map),
          g => find_g(g, map),
          t => find_t(t, map),
+         p => find_pr(p, map),
        )
   ) {
   | _ => failwith("find_p: " ++ msg ++ "id: " ++ Id.to_string(p |> Piece.id))
@@ -228,8 +214,15 @@ let find_by_id = (id: Id.t, map: t): option(measurement) => {
           );
         Some({origin: first.origin, last: last.last});
       | None =>
-        Printf.printf("Measured.WARNING: id %s not found", Id.to_string(id));
-        None;
+        switch (Id.Map.find_opt(id, map.projectors)) {
+        | Some(m) => Some(m)
+        | None =>
+          Printf.printf(
+            "Measured.WARNING: id %s not found",
+            Id.to_string(id),
+          );
+          None;
+        }
       }
     }
   };
@@ -265,6 +258,7 @@ let is_indented_map = (seg: Segment.t) => {
              )
            | Secondary(_)
            | Grout(_) => (is_indented, map)
+           | Projector(_) => (is_indented, map) // TODO(andrew): ??
            | Tile(t) =>
              let is_indented = is_indented || post_tile_indent(t);
              let map =
@@ -281,7 +275,21 @@ let is_indented_map = (seg: Segment.t) => {
   go(seg);
 };
 
-let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
+let last_of_token = (token: string, origin: Point.t): Point.t =>
+  // Adjustment for multi-line tokens e.g. projector placeholders
+  Point.{
+    col: origin.col + StringUtil.max_line_width(token),
+    row: origin.row + StringUtil.num_linebreaks(token),
+  };
+
+let of_segment =
+    (
+      ~old: t=empty,
+      ~touched=Touched.empty,
+      seg: Segment.t,
+      info_map: Statics.Map.t,
+    )
+    : t => {
   let is_indented = is_indented_map(seg);
 
   // recursive across seg's bidelimited containers
@@ -333,6 +341,11 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
              );
         (origin, map);
       | [hd, ...tl] =>
+        let extra_rows = (token, origin, map) => {
+          let row_indent = container_indent + contained_indent;
+          let num_extra_rows = StringUtil.num_linebreaks(token);
+          add_n_rows(origin, row_indent, num_extra_rows, map);
+        };
         let (contained_indent, origin, map) =
           switch (hd) {
           | Secondary(w) when Secondary.is_linebreak(w) =>
@@ -373,31 +386,46 @@ let of_segment = (~old: t=empty, ~touched=Touched.empty, seg: Segment.t): t => {
             let last = {...origin, col: origin.col + 1};
             let map = map |> add_g(g, {origin, last});
             (contained_indent, last, map);
+          | Projector(p) =>
+            let token =
+              Projector.placeholder(p, Id.Map.find_opt(p.id, info_map));
+            let last = last_of_token(token, origin);
+            let map = extra_rows(token, origin, map);
+            let map = add_pr(p, {origin, last}, map);
+            (contained_indent, last, map);
           | Tile(t) =>
             let add_shard = (origin, shard, map) => {
               let token = List.nth(t.label, shard);
-              // Adjustment for multi-line tokens e.g. projector placeholders
-              let last =
-                Point.{
-                  col: origin.col + StringUtil.max_line_width(token),
-                  row: origin.row + StringUtil.num_linebreaks(token),
-                };
-              let map = map |> add_s(t.id, shard, {origin, last});
-              let row_indent = container_indent + contained_indent;
-              let rec add_n_rows = (n, map) =>
-                switch (n) {
-                | 0 => map
-                | _ =>
-                  map
-                  |> add_n_rows(n - 1)
-                  |> add_row(
-                       origin.row + n - 1,
-                       {indent: row_indent, max_col: origin.col},
-                     )
-                };
-              let map = map |> add_n_rows(StringUtil.num_linebreaks(token));
+              let map = extra_rows(token, origin, map);
+              let last = last_of_token(token, origin);
+              let map = add_s(t.id, shard, {origin, last}, map);
               (last, map);
             };
+            //TODO(andrew)
+            // let add_shard = (origin, shard, map) => {
+            //   let token = List.nth(t.label, shard);
+            //   // Adjustment for multi-line tokens e.g. projector placeholders
+            //   let last =
+            //     Point.{
+            //       col: origin.col + StringUtil.max_line_width(token),
+            //       row: origin.row + StringUtil.num_linebreaks(token),
+            //     };
+            //   let map = map |> add_s(t.id, shard, {origin, last});
+            //   let row_indent = container_indent + contained_indent;
+            //   let rec add_n_rows = (n, map) =>
+            //     switch (n) {
+            //     | 0 => map
+            //     | _ =>
+            //       map
+            //       |> add_n_rows(n - 1)
+            //       |> add_row(
+            //            origin.row + n - 1,
+            //            {indent: row_indent, max_col: origin.col},
+            //          )
+            //     };
+            //   let map = map |> add_n_rows(StringUtil.num_linebreaks(token));
+            //   (last, map);
+            // };
             let (last, map) =
               Aba.mk(t.shards, t.children)
               |> Aba.fold_left(
@@ -434,28 +462,3 @@ let length = (seg: Segment.t, map: t): int =>
     let last = find_p(ListUtil.last(tl), map);
     last.last.col - first.origin.col;
   };
-
-let segment_origin = (seg: Segment.t): option(Point.t) =>
-  Option.map(
-    first => find_p(first, of_segment(seg)).origin,
-    ListUtil.hd_opt(seg),
-  );
-
-let segment_last = (seg: Segment.t): option(Point.t) =>
-  Option.map(
-    last => find_p(last, of_segment(seg)).last,
-    ListUtil.last_opt(seg),
-  );
-
-let segment_height = (seg: Segment.t) =>
-  switch (segment_last(seg), segment_origin(seg)) {
-  | (Some(last), Some(first)) => 1 + last.row - first.row
-  | _ => 0
-  };
-
-let segment_width = (seg: Segment.t): int =>
-  IntMap.fold(
-    (_, {max_col, _}: Rows.shape, acc) => max(max_col, acc),
-    of_segment(seg).rows,
-    0,
-  );

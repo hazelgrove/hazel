@@ -1,11 +1,21 @@
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type kind =
+  | Fold
+  | Info
+  | Checkbox
+  | Slider
+  | SliderF
+  | TextArea;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type segment = list(piece)
 and piece =
   | Tile(tile)
   | Grout(Grout.t)
   | Secondary(Secondary.t)
+  | Projector(projector)
 and tile = {
   // invariants:
   // - length(mold.in_) + 1 == length(label)
@@ -17,6 +27,12 @@ and tile = {
   mold: Mold.t,
   shards: list(int),
   children: list(segment),
+}
+and projector = {
+  id: Id.t,
+  kind,
+  syntax: piece,
+  model: string,
 };
 
 // This is for comment insertion
