@@ -96,6 +96,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | EmptyHole(_)
     | NonEmptyHole(_) => d
     /* DHExp-specific forms: Don't cast */
+    | Undefined
     | Cast(_)
     | Closure(_)
     | Filter(_)
@@ -155,6 +156,7 @@ let rec dhexp_of_uexp =
            Make sure new dhexp form is properly considered Indet
            to avoid casting issues. */
         Some(EmptyHole(id, 0))
+      | Undefined => Some(Undefined)
       | Triv => Some(Tuple([]))
       | Deferral(_) => Some(DHExp.InvalidText(id, 0, "_"))
       | Bool(b) => Some(BoolLit(b))
