@@ -1,5 +1,5 @@
 open Util;
-open ProjNew;
+open ProjectorBase;
 open Virtual_dom.Vdom;
 
 let of_mono = (syntax: Piece.t): option(string) =>

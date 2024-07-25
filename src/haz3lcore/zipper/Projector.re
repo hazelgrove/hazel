@@ -1,4 +1,4 @@
-open ProjNew;
+open ProjectorBase;
 
 let seg_for_maketerm = (p: Base.projector): Base.segment => [p.syntax];
 

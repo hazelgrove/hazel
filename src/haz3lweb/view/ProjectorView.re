@@ -1,7 +1,7 @@
 open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
-open ProjNew;
+open ProjectorBase;
 open Projector;
 open Util;
 open Util.OptUtil.Syntax;
@@ -103,7 +103,7 @@ let view_wrapper =
 };
 
 /* Dispatches projector external actions to editor-level actions */
-let handle = (id, action: ProjNew.external_action): Action.project =>
+let handle = (id, action: external_action): Action.project =>
   switch (action) {
   | Remove => Remove(id)
   | Escape(d) => Escape(id, d)
@@ -123,11 +123,11 @@ let setup_view =
       ~indication: option(Direction.t),
     )
     : option(Node.t) => {
-  let* p = Id.Map.find_opt(id, meta.projected.projectors);
+  let* p = Id.Map.find_opt(id, meta.syntax.projectors);
   let* syntax = Some(p.syntax);
   let ci = Id.Map.find_opt(id, meta.statics.info_map);
-  let info = ProjNew.{id, ci, syntax};
-  let+ measurement = Measured.find_pr_opt(p, meta.projected.measured);
+  let info = {id, ci, syntax};
+  let+ measurement = Measured.find_pr_opt(p, meta.syntax.measured);
   let (module P) = to_module(p.kind);
   let parent = a => inject(PerformAction(Project(handle(id, a))));
   let local = a =>
@@ -165,7 +165,7 @@ let all = (z, ~meta: Editor.Meta.t, ~inject, ~font_metrics) => {
         let indication = indication(z, id);
         setup_view(id, ~meta, ~inject, ~font_metrics, ~indication);
       },
-      Id.Map.bindings(meta.projected.projectors) |> List.rev,
+      Id.Map.bindings(meta.syntax.projectors) |> List.rev,
     ),
   );
 };

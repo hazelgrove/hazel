@@ -1,6 +1,6 @@
 open Util;
 open Virtual_dom.Vdom;
-open ProjNew;
+open ProjectorBase;
 
 let of_id = (id: Id.t) =>
   "id" ++ (id |> Id.to_string |> String.sub(_, 0, 8));

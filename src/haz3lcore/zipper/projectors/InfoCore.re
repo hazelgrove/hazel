@@ -1,6 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
-open ProjNew;
+open ProjectorBase;
 
 let mode = (info: option(Info.t)): option(Mode.t) =>
   switch (info) {

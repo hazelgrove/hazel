@@ -44,7 +44,7 @@ type select =
   | Term(rel);
 
 /* This type defines the top-level actions used to manage
- * projectors,as distinguished from ProjectorBase.external_action,
+ * projectors,as distinguished from external_action,
  * which defines the actions available internally to all projectors,
  * and from each projector's own internal action type */
 [@deriving (show({with_path: false}), sexp, yojson)]

@@ -1,6 +1,6 @@
 open Util;
 open Virtual_dom.Vdom;
-open ProjNew;
+open ProjectorBase;
 
 let put: string => Piece.t = Piece.mk_mono(Exp);
 
