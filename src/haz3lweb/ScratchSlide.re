@@ -1,10 +1,40 @@
+open Sexplib.Std;
 open Haz3lcore;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type state = Editor.t;
+type hidden_tests('code) = {
+  tests: 'code,
+  hints: list(string),
+};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type persistent_state = PersistentZipper.t;
+type p('code) = {
+  title: string,
+  description: string,
+  hidden_tests: hidden_tests('code),
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type state = p(Editor.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type persistent_state = p(PersistentZipper.t);
+
+// why are neither of these functions working?
+let toEditor = (state: state): Editor.t => {
+  switch (state) {
+  | s => s.hidden_tests.tests
+  };
+};
+
+let fromEditor = (editor: Editor.t): state => {
+  title: "",
+  description: "",
+  hidden_tests: {
+    tests: editor,
+    hints: [],
+  },
+};
 
 let scratch_key = n => "scratch_" ++ n;
 
@@ -12,13 +42,29 @@ let persist = (editor: Editor.t) => {
   PersistentZipper.persist(editor.state.zipper);
 };
 
+// let persist = (editor: p(Editor.t)) => {
+//   let zip = editor.hidden_tests.tests.state.zipper;
+//   PersistentZipper.persist(zip);
+// };
+
 let unpersist = (zipper: persistent_state) => {
-  let zipper = PersistentZipper.unpersist(zipper);
+  let zipper = PersistentZipper.unpersist(zipper.hidden_tests.tests);
   Editor.init(zipper, ~read_only=false);
 };
 
 let serialize = (state: state) => {
-  persist(state) |> sexp_of_persistent_state |> Sexplib.Sexp.to_string;
+  let editor = persist(state.hidden_tests.tests);
+  let persistent_state: persistent_state = {
+    title: state.title,
+    description: state.description,
+    hidden_tests: {
+      tests: editor,
+      hints: state.hidden_tests.hints,
+    },
+  };
+  // Sexplib.Sexp.to_string (sexp_of_persistent_state persistent_state)
+  persistent_state |> sexp_of_persistent_state |> Sexplib.Sexp.to_string;
+  // Persist(editor) |> sexp_of_persistent_state |> Sexplib.Sexp.to_string;
 };
 
 let deserialize = (data: string) => {
@@ -34,16 +80,42 @@ let deserialize_opt = (data: string) => {
 };
 
 let export = (state: state) => {
-  state |> persist |> yojson_of_persistent_state;
+  let editor = persist(state.hidden_tests.tests);
+  let persistent_state: persistent_state = {
+    title: state.title,
+    description: state.description,
+    hidden_tests: {
+      tests: editor,
+      hints: state.hidden_tests.hints,
+    },
+  };
+  persistent_state |> yojson_of_persistent_state;
 };
+
+// let export = (state: persistent_state) => {
+//   state |> yojson_of_persistent_state;
+// };
 
 let import = (data: string) => {
   data |> Yojson.Safe.from_string |> persistent_state_of_yojson |> unpersist;
 };
 
 let export_init = (state: state) => {
-  state |> persist |> show_persistent_state;
+  let editor = persist(state.hidden_tests.tests);
+  let persistent_state: persistent_state = {
+    title: state.title,
+    description: state.description,
+    hidden_tests: {
+      tests: editor,
+      hints: state.hidden_tests.hints,
+    },
+  };
+  persistent_state |> show_persistent_state;
 };
+
+// let export_init = (state: persistent_state) => {
+//   state |> show_persistent_state;
+// };
 
 let mk_statics =
     (~settings: Settings.t, editor: Editor.t, ctx_init: Ctx.t)

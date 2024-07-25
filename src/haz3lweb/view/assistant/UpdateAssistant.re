@@ -1,12 +1,25 @@
 open Haz3lcore;
 include UpdateAction;
 
+let fromEditor = (editor: Editor.t): ScratchSlide.state => {
+  title: "",
+  description: "",
+  hidden_tests: {
+    tests: editor,
+    hints: [],
+  },
+};
+
 /* NOTE: this is duplicated from Update */
 let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) => {
   let ed_init = Editors.get_editor(model.editors);
   switch (Haz3lcore.Perform.go(~settings=model.settings.core, a, ed_init)) {
   | Error(err) => Error(FailedToPerform(err))
-  | Ok(ed) => Ok({...model, editors: Editors.put_editor(ed, model.editors)})
+  | Ok(ed) =>
+    Ok({
+      ...model,
+      editors: Editors.put_editor(fromEditor(ed), model.editors),
+    })
   };
 };
 
@@ -20,7 +33,10 @@ let reset_buffer = (model: Model.t) => {
     | Ok(z) =>
       let ed = Editor.new_state(Destruct(Left), z, ed);
       //TODO(andrew): fix double action
-      {...model, editors: Editors.put_editor(ed, model.editors)};
+      {
+        ...model,
+        editors: Editors.put_editor(fromEditor(ed), model.editors),
+      };
     }
   | _ => model
   };
@@ -45,7 +61,7 @@ let apply =
     | Some(z) =>
       let ed = Editor.new_state(Pick_up, z, editor);
       //TODO: add correct action to history (Pick_up is wrong)
-      let editors = Editors.put_editor(ed, model.editors);
+      let editors = Editors.put_editor(fromEditor(ed), model.editors);
       Ok({...model, editors});
     };
   | AcceptSuggestion =>

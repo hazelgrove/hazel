@@ -1,6 +1,10 @@
 open Sexplib.Std;
 open Haz3lcore;
 open Util;
+// open Init;
+open ScratchSlide;
+
+// module Init = Haz3lweb__Init;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type scratch = (int, list(ScratchSlide.state));
@@ -21,14 +25,14 @@ let get_editor = (editors: t): Editor.t =>
   switch (editors) {
   | Scratch(n, slides) =>
     assert(n < List.length(slides));
-    List.nth(slides, n);
+    List.nth(slides, n).hidden_tests.tests;
   | Documentation(name, slides) =>
     assert(List.mem_assoc(name, slides));
-    List.assoc(name, slides);
+    List.assoc(name, slides).hidden_tests.tests;
   | Exercises(_, _, exercise) => Exercise.editor_of_state(exercise)
   };
 
-let put_editor = (ed: Editor.t, eds: t): t =>
+let put_editor = (ed: ScratchSlide.state, eds: t): t =>
   switch (eds) {
   | Scratch(n, slides) =>
     assert(n < List.length(slides));
@@ -37,10 +41,24 @@ let put_editor = (ed: Editor.t, eds: t): t =>
     assert(List.mem_assoc(name, slides));
     Documentation(name, slides |> ListUtil.update_assoc((name, ed)));
   | Exercises(n, specs, exercise) =>
-    Exercises(n, specs, Exercise.put_editor(exercise, ed))
+    Exercises(n, specs, Exercise.put_editor(exercise, ed.hidden_tests.tests))
   };
 
 let get_zipper = (editors: t): Zipper.t => get_editor(editors).state.zipper;
+
+let toEditor = (state: state): Editor.t => {
+  switch (state) {
+  | s => s.hidden_tests.tests
+  };
+};
+let fromEditor = (editor: Editor.t): state => {
+  title: "",
+  description: "",
+  hidden_tests: {
+    tests: editor,
+    hints: [],
+  },
+};
 
 let get_ctx_init = (~settings as _: Settings.t, editors: t): Ctx.t =>
   switch (editors) {
@@ -144,9 +162,27 @@ let reset_named_slide = (name, slides) => {
 
 let reset_current = (editors: t, ~instructor_mode: bool): t =>
   switch (editors) {
-  | Scratch(n, slides) => Scratch(n, reset_nth_slide(n, slides))
+  // trying to map to type state but func not working
+  | Scratch(n, slides) =>
+    let slides = List.map(toEditor, slides);
+    let editorList = reset_nth_slide(n, slides);
+    let editorList = List.map(fromEditor, editorList);
+    Scratch(n, editorList);
+
   | Documentation(name, slides) =>
-    Documentation(name, reset_named_slide(name, slides))
+    let from_tup = ((word: string, status: state)) => (
+      word,
+      toEditor(status),
+    );
+    let slides = List.map(from_tup, slides);
+    let slides = reset_named_slide(name, slides);
+    let to_tup = ((word: string, editor: Editor.t)) => (
+      word,
+      fromEditor(editor),
+    );
+    let slides = List.map(to_tup, slides);
+    Documentation(name, slides);
+
   | Exercises(n, specs, _) =>
     Exercises(
       n,
@@ -163,9 +199,23 @@ let import_current = (editors: t, data: option(string)): t =>
     switch (data) {
     | None => editors
     | Some(data) =>
-      let state = ScratchSlide.import(data);
-      let slides = Util.ListUtil.put_nth(idx, state, slides);
-      Scratch(idx, slides);
+      // let state = ScratchSlide.import(data);
+      // let updated_slides = Util.ListUtil.put_nth(idx, state, editorList);
+      // let editorList = List.map(fromEditor, updated_slides);
+      // Scratch(idx, editorList);
+      let temp_editor = ScratchSlide.import(data);
+      let state = {
+        title: "",
+        description: "",
+        hidden_tests: {
+          tests: temp_editor,
+          hints: [],
+        },
+      };
+
+      let updatedSlides: list(ScratchSlide.state) =
+        Util.ListUtil.put_nth(idx, state, slides);
+      Scratch(idx, updatedSlides);
     }
   };
 

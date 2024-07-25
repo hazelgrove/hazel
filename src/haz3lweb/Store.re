@@ -113,13 +113,29 @@ module Scratch = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = PersistentData.scratch;
 
-  let to_persistent = ((idx, slides, results)): persistent => (
-    idx,
-    List.map(ScratchSlide.persist, slides),
-    results
-    |> ModelResults.map(ModelResult.to_persistent)
-    |> ModelResults.bindings,
-  );
+  let pzipper_to_pstate =
+      (slide: PersistentZipper.t): ScratchSlide.persistent_state => {
+    // {
+    title: "",
+    description: "",
+    hidden_tests: {
+      tests: slide,
+      hints: [],
+    },
+    // };
+  };
+
+  let to_persistent = ((idx, slides, results)): persistent => {
+    let slides = List.map(ScratchSlide.persist, slides);
+    let slides = List.map(pzipper_to_pstate, slides);
+    (
+      idx,
+      slides,
+      results
+      |> ModelResults.map(ModelResult.to_persistent)
+      |> ModelResults.bindings,
+    );
+  };
 
   let of_persistent = (~settings, (idx, slides, results): persistent) => {
     (
@@ -178,15 +194,47 @@ module Documentation = {
     (name, Editor.init(zipper, ~read_only=false));
   };
 
-  let to_persistent = ((string, slides, results)): persistent => (
-    string,
-    List.map(persist, slides),
-    results
-    |> ModelResults.map(ModelResult.to_persistent)
-    |> ModelResults.bindings,
-  );
+  // let fromEditor = (editor: Editor.t): ScratchSlide.persistent_state => {
+  //   title: "",
+  //   description: "",
+  //   hidden_tests: { tests: { zipper: serialize(editor), backup_text: "" }, hints: [] },
+  // };
+
+  let pzipper_to_pstate =
+      (slide: PersistentZipper.t): ScratchSlide.persistent_state => {
+    // {
+    title: "",
+    description: "",
+    hidden_tests: {
+      tests: slide,
+      hints: [],
+    },
+    // };
+  };
+
+  let to_persistent = ((string, slides, results)): persistent => {
+    let pz_to_ps = ((str: string, zipper: PersistentZipper.t)) => {
+      (str, pzipper_to_pstate(zipper));
+    };
+
+    let slides = List.map(persist, slides);
+    let slides = List.map(pz_to_ps, slides);
+    (
+      string,
+      slides,
+      results
+      |> ModelResults.map(ModelResult.to_persistent)
+      |> ModelResults.bindings,
+    );
+  };
 
   let of_persistent = (~settings, (string, slides, results): persistent) => {
+    let state_to_zipper =
+        ((str: string, status: ScratchSlide.persistent_state)) => {
+      (str, ScratchSlide.unpersist(status));
+    };
+    let slides = List.map(state_to_zipper, slides);
+    let slides = List.map(persist, slides);
     (
       string,
       List.map(unpersist, slides),
