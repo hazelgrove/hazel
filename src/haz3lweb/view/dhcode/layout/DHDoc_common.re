@@ -140,3 +140,5 @@ let mk_Ap = (doc1, doc2) =>
 
 let mk_Prj = (targ, n) =>
   Doc.hcats([targ, Delim.projection_dot, Doc.text(string_of_int(n))]);
+
+let mk_Undefined = () => Doc.text("undefined");

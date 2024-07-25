@@ -9,15 +9,15 @@ open DHExp;
    See the existing ones for reference.
  */
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp)]
 type builtin =
   | Const(Typ.t, DHExp.t)
   | Fn(Typ.t, Typ.t, DHExp.t => DHExp.t);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp)]
 type t = VarMap.t_(builtin);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp)]
 type forms = VarMap.t_(DHExp.t => DHExp.t);
 
 type result = Result.t(DHExp.t, EvaluatorError.t);
