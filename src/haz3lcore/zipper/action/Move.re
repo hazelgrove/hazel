@@ -1,7 +1,6 @@
 open Zipper;
 open Util;
 open OptUtil.Syntax;
-open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type movability =

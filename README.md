@@ -17,7 +17,7 @@ can also be accessed at:
 
 ### Short version
 
-If you already have `ocaml` version 5.0.0 and least version 2.0 of `opam`
+If you already have `ocaml` version 5.2.0 and at least version 2.0 of `opam`
 installed, you can build Hazel by running the following commands.
 
 - `git clone git@github.com:hazelgrove/hazel.git`
@@ -155,7 +155,7 @@ To obtain an clean build, you may need to:
 
   ```sh
   # opam switch remove ./
-  opam switch create ./ 5.0.0
+  opam switch create ./ 5.2.0
   eval $(opam env)
   make deps
   make
@@ -205,3 +205,12 @@ that will build that branch (in `release` mode) and deploy it to the URL
 It usually takes about 2 minutes if the build environment cache hits, or 
 20+ minutes if not. You can view the status of the build in the [Actions 
 tab on Github](https://github.com/hazelgrove/hazel/actions).
+
+Builds prior to July 2024 are archived at `https://hazel.org/build/<branch name>`.
+
+Note: If another archive needs to be performed, make sure to redeploy the following
+branches manually since we refer to them in various public material (websites and
+published papers):
+
+  dev
+  livelits
