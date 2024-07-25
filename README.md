@@ -205,3 +205,5 @@ that will build that branch (in `release` mode) and deploy it to the URL
 It usually takes about 2 minutes if the build environment cache hits, or 
 20+ minutes if not. You can view the status of the build in the [Actions 
 tab on Github](https://github.com/hazelgrove/hazel/actions).
+
+Builds prior to July 2024 are archived at `https://hazel.org/build/<branch name>`.
