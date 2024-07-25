@@ -8,7 +8,9 @@
   (pps ppx_let ppx_sexp_conv ppx_deriving.show ppx_yojson_conv)))
 
 (rule
- (write-file js-of-ocaml-flags-dev "(:standard)"))
+ (write-file
+  js-of-ocaml-flags-dev
+  "(:standard --debug-info --no-inline --pretty --source-map)"))
 
 (rule
  (write-file js-of-ocaml-flags-release "(:standard)"))
