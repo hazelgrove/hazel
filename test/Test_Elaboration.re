@@ -247,7 +247,7 @@ let u9: Term.UExp.t = {
                 BinOp(
                   Int(Plus),
                   {ids: [id_at(9)], term: Int(1)},
-                  {ids: [id_at(10)], term: Var("u")},
+                  {ids: [id_at(10)], term: Var("x")},
                 ),
             },
           ),
