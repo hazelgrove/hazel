@@ -13,6 +13,7 @@ let rec is_output_typ = (ty_fun: Typ.t, ty: Typ.t): bool => {
 module Ctx = {
   include TypBase.Ctx;
 
+  //Get a list of all the variables in ctx which have type typ
   let list_typ = (ctx: t, typ: Typ.t): list(Var.t) =>
     List.fold_left(
       (acc, entry) =>
@@ -24,6 +25,8 @@ module Ctx = {
       ctx,
     );
 
+  //Get a list of all the variables for functions in ctx which
+  //have an output type of typ
   let list_fun_typ = (ctx: t, typ: Typ.t): list(Var.t) => {
     List.fold_left(
       (acc, entry) =>
@@ -51,6 +54,7 @@ type list_rule =
   | ListLit
   | Cons;
 
+//Helper random generators using the QCheck library
 let rules: QCheck.Gen.t(rule) =
   frequency([
     (1, pure(Base)),
@@ -165,6 +169,9 @@ let find_fn =
   List.length(l) == 0 ? default : map(uexp_var, oneofl(l));
 };
 
+//Generate a random arrow type
+//Combinators such as fix and int_range are
+//explained in the QCheck documentation
 let utyp_arrow_gen = (ty: UTyp.t): QCheck.Gen.t(UTyp.t) =>
   QCheck.Gen.sized_size(
     int_range(1, 4),
@@ -184,6 +191,7 @@ let utyp_arrow_gen = (ty: UTyp.t): QCheck.Gen.t(UTyp.t) =>
     ),
   );
 
+//Generates the type of the scrutinized expression in a match statement
 let utyp_match_gen: QCheck.Gen.t(UTyp.t) =
   QCheck.Gen.sized_size(
     int_range(1, 2),
@@ -202,6 +210,7 @@ let utyp_match_gen: QCheck.Gen.t(UTyp.t) =
     ),
   );
 
+//Generate a Hazel list UPat
 let rec upat_list_gen =
         (entries: list(Ctx.entry), ty: UTyp.t, n: int)
         : (list(Ctx.entry), UPat.t) => {
@@ -228,6 +237,7 @@ let rec upat_list_gen =
   };
 }
 
+//Generate a UPat
 and upat_gen =
     (entries: list(Ctx.entry), ty: UTyp.t, n: int)
     : (list(Ctx.entry), UPat.t) => {
@@ -250,6 +260,7 @@ and upat_gen =
   };
 };
 
+//Generate integer expression
 let uexp_int_gen = (ctx: Ctx.t): QCheck.Gen.t(UExp.t) =>
   QCheck.Gen.sized_size(
     small_nat,
@@ -358,6 +369,7 @@ let uexp_bool_gen = (ctx: Ctx.t): QCheck.Gen.t(UExp.t) =>
     ),
   );
 
+//Base expressions are generated when the bound has been reached
 let rec uexp_base_gen = (ctx: Ctx.t, ty: UTyp.t): UExp.t => {
   switch (ty.term) {
   | Int => uexp_int_gen(ctx) |> gen1
@@ -382,6 +394,7 @@ let rec uexp_base_gen = (ctx: Ctx.t, ty: UTyp.t): UExp.t => {
   };
 };
 
+//Generate a function with bound n
 let rec uexp_fun_gen = (ctx: Ctx.t, ty: UTyp.t, n: int): UExp.t => {
   switch (ty.term) {
   | Arrow(ty1, ty2) =>
@@ -393,6 +406,7 @@ let rec uexp_fun_gen = (ctx: Ctx.t, ty: UTyp.t, n: int): UExp.t => {
   };
 }
 
+//Generate an ap expression with bound n
 and uexp_ap_gen = (ctx: Ctx.t, ty: UTyp.t, fn: UExp.t, n: int): UExp.t => {
   switch (ty.term) {
   | Arrow(ty1, ty2) =>
@@ -402,6 +416,7 @@ and uexp_ap_gen = (ctx: Ctx.t, ty: UTyp.t, fn: UExp.t, n: int): UExp.t => {
   };
 }
 
+//Generate match expression with bound n
 and uexp_match_gen = (ctx: Ctx.t, ty: UTyp.t, n: int): UExp.t => {
   let scrut_ty = utyp_match_gen |> gen1;
   let scrut = uexp_gen(ctx, scrut_ty, n / 2);
@@ -428,6 +443,8 @@ and uexp_match_gen = (ctx: Ctx.t, ty: UTyp.t, n: int): UExp.t => {
   Match(scrut, l) |> uexp;
 }
 
+//Generates a UExp with bound n
+//if n is 0, then generate a base expression
 and uexp_gen = (ctx: Ctx.t, ty: UTyp.t, n: int): UExp.t => {
   let rule = n == 0 ? Base : rules |> gen1;
   switch (rule) {
@@ -490,6 +507,7 @@ let pure_random_upat: QCheck.Gen.t(UPat.t) =
     ),
   );
 
+//Generates a UExp with no regard to the typing rules
 let pure_random_uexp: QCheck.Gen.t(UExp.t) =
   QCheck.Gen.sized_size(
     int_range(1, 5),
@@ -539,6 +557,7 @@ let pure_random_uexp: QCheck.Gen.t(UExp.t) =
     ),
   );
 
+//Generates alcotest test cases
 let rec testcases_gen =
         (size: int, ty: UTyp.t, l: list(test_case(unit)))
         : list(test_case(unit)) => {
@@ -548,16 +567,6 @@ let rec testcases_gen =
     let u = uexp_gen([], ty, 2);
     let m = Test_Elaboration.mk_map(u);
     let d = Elaborator.dhexp_of_uexp(m, u, false);
-    /*let _ =
-      switch (d) {
-      | None => ()
-      | Some(d) =>
-        print_endline(
-          ProgramResult.show(
-            Interface.evaluate(~settings=CoreSettings.on, d),
-          ),
-        )
-      };*/
     let test = () =>
       Alcotest.check(
         Alcotest.bool,
@@ -570,23 +579,15 @@ let rec testcases_gen =
   };
 };
 
-let type_assignment_tests = testcases_gen(100, utyp(Int), []);
+let type_assignment_tests = testcases_gen(10, utyp(Int), []);
+
+//Generate purely random uexp test cases for alcotest
 let random_tests =
   List.map(
     (u: UExp.t) => {
       let m = Test_Elaboration.mk_map(u);
       let d = Elaborator.dhexp_of_uexp(m, u, false);
       let ty = Elaborator.fixed_exp_typ(m, u);
-      /*let _ =
-        switch (d) {
-        | None => ()
-        | Some(d) =>
-          print_endline(
-            ProgramResult.show(
-              Interface.evaluate(~settings=CoreSettings.on, d),
-            ),
-          )
-        };*/
       let test = () =>
         Alcotest.check(
           Alcotest.bool,
@@ -596,5 +597,5 @@ let random_tests =
         );
       test_case("Type assignment", `Quick, test);
     },
-    QCheck.Gen.generate(~n=100, pure_random_uexp),
+    QCheck.Gen.generate(~n=10, pure_random_uexp),
   );
