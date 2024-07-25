@@ -1,6 +1,6 @@
 open DecUtil;
 open SvgUtil.Path;
-open Sexplib.Std;
+open Util;
 
 //TODO(?): deprecate this module
 

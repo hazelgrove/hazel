@@ -8,23 +8,21 @@ open Haz3lcore;
 
 let feedback_view = (message, up_active, up_action, down_active, down_action) => {
   div(
-    ~attr=clss(["feedback"]),
+    ~attrs=[clss(["feedback"])],
     [
-      div(~attr=clss(["message"]), [text(message)]),
+      div(~attrs=[clss(["message"])], [text(message)]),
       div(
-        ~attr=
-          Attr.many([
-            clss(["option"] @ (up_active ? ["active"] : [])),
-            Attr.on_click(up_action),
-          ]),
+        ~attrs=[
+          clss(["option"] @ (up_active ? ["active"] : [])),
+          Attr.on_click(up_action),
+        ],
         [text("👍")],
       ),
       div(
-        ~attr=
-          Attr.many([
-            clss(["option"] @ (down_active ? ["active"] : [])),
-            Attr.on_click(down_action),
-          ]),
+        ~attrs=[
+          clss(["option"] @ (down_active ? ["active"] : [])),
+          Attr.on_click(down_action),
+        ],
         [text("👎")],
       ),
     ],
@@ -92,17 +90,17 @@ let example_feedback_view = (~inject, group_id, form_id, example_id, model) => {
   );
 };
 
-let code_node = text => Node.span(~attr=clss(["code"]), [Node.text(text)]);
+let code_node = text =>
+  Node.span(~attrs=[clss(["code"])], [Node.text(text)]);
 
 let highlight =
     (~inject, msg: list(Node.t), id: Id.t, mapping: ColorSteps.t)
     : (Node.t, ColorSteps.t) => {
   let (c, mapping) = ColorSteps.get_color(id, mapping);
   let classes = clss(["highlight-" ++ c, "clickable"]);
-  let attr =
+  let attrs =
     switch (inject) {
-    | Some(inject) =>
-      Attr.many([
+    | Some(inject) => [
         classes,
         Attr.on_mouseenter(_ =>
           inject(UpdateAction.Set(ExplainThis(SetHighlight(Hover(id)))))
@@ -113,10 +111,10 @@ let highlight =
         Attr.on_click(_ =>
           inject(UpdateAction.PerformAction(Select(Term(Id(id, Left)))))
         ),
-      ])
-    | None => classes
+      ]
+    | None => [classes]
     };
-  (Node.span(~attr, msg), mapping);
+  (Node.span(~attrs, msg), mapping);
 };
 
 /*
@@ -165,10 +163,11 @@ let mk_translation = (~inject, text: string): (list(Node.t), ColorSteps.t) => {
               msg,
               [
                 Node.span(
-                  ~attr=
+                  ~attrs=[
                     Attr.style(
                       Css_gen.create(~field="font-style", ~value="italic"),
                     ),
+                  ],
                   d,
                 ),
               ],
@@ -199,7 +198,7 @@ let mk_explanation =
     settings.explainThis.show_feedback
       ? [explanation_feedback_view(~inject, group_id, form_id, model)] : [];
   (
-    div([div(~attr=clss(["explanation-contents"]), msg)] @ feedback),
+    div([div(~attrs=[clss(["explanation-contents"])], msg)] @ feedback),
     color_map,
   );
 };
@@ -254,11 +253,10 @@ let expander_deco =
 
         let specificity_menu =
           Node.div(
-            ~attr=
-              Attr.many([
-                clss(["specificity-options-menu", "expandable"]),
-                specificity_style,
-              ]),
+            ~attrs=[
+              clss(["specificity-options-menu", "expandable"]),
+              specificity_style,
+            ],
             List.map(
               ((id: ExplainThisForm.form_id, segment: Segment.t)): Node.t => {
                 let map = Measured.of_segment(segment);
@@ -279,11 +277,10 @@ let expander_deco =
                     ),
                   );
                 Node.div(
-                  ~attr=
-                    Attr.many([
-                      clss(classes),
-                      Attr.on_click(update_group_selection),
-                    ]),
+                  ~attrs=[
+                    clss(classes),
+                    Attr.on_click(update_group_selection),
+                  ],
                   [code_view],
                 );
               },
@@ -293,10 +290,7 @@ let expander_deco =
 
         let expand_arrow_style = Attr.create("style", specificity_pos);
         let expand_arrow =
-          Node.div(
-            ~attr=Attr.many([clss(["arrow"]), expand_arrow_style]),
-            [],
-          );
+          Node.div(~attrs=[clss(["arrow"]), expand_arrow_style], []);
 
         let expandable_deco =
           DecUtil.code_svg(
@@ -308,18 +302,17 @@ let expander_deco =
           );
 
         Node.div(
-          ~attr=
-            Attr.many([
-              clss(["expandable-target"]),
-              DecUtil.abs_position(~font_metrics, origin),
-              Attr.on_click(_ => {
-                inject(
-                  UpdateAction.UpdateExplainThisModel(
-                    ExplainThisUpdate.SpecificityOpen(!docs.specificity_open),
-                  ),
-                )
-              }),
-            ]),
+          ~attrs=[
+            clss(["expandable-target"]),
+            DecUtil.abs_position(~font_metrics, origin),
+            Attr.on_click(_ => {
+              inject(
+                UpdateAction.UpdateExplainThisModel(
+                  ExplainThisUpdate.SpecificityOpen(!docs.specificity_open),
+                ),
+              )
+            }),
+          ],
           [expandable_deco, specificity_menu]
           @ (docs.specificity_open ? [] : [expand_arrow]),
         );
@@ -342,7 +335,7 @@ let example_view =
     ? []
     : [
       div(
-        ~attr=Attr.id("examples"),
+        ~attrs=[Attr.id("examples")],
         List.mapi(
           (idx, {term, message, sub_id, _}: ExplainThisForm.example) => {
             let feedback =
@@ -358,7 +351,7 @@ let example_view =
                 ]
                 : [];
             div(
-              ~attr=clss(["example"]),
+              ~attrs=[clss(["example"])],
               [
                 Cell.locked(
                   ~segment=term,
@@ -368,7 +361,7 @@ let example_view =
                   ~inject,
                 ),
                 div(
-                  ~attr=clss(["explanation"]),
+                  ~attrs=[clss(["explanation"])],
                   [text(message)] @ feedback,
                 ),
               ],
@@ -541,6 +534,7 @@ let get_doc =
             ),
           TyAliasExp.tyalias_exps,
         );
+      | Undefined => get_message(UndefinedExp.undefined_exps)
       | Triv => get_message(TerminalExp.triv_exps)
       | Deferral(_) => get_message(TerminalExp.deferral_exps)
       | Bool(b) => get_message(TerminalExp.bool_exps(b))
@@ -2321,8 +2315,8 @@ let get_doc =
 
 let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
   div(
-    ~attr=clss(["section", section_clss]),
-    [div(~attr=clss(["section-title"]), [text(title)])] @ contents,
+    ~attrs=[clss(["section", section_clss])],
+    [div(~attrs=[clss(["section-title"])], [text(title)])] @ contents,
   );
 
 let get_color_map =
@@ -2354,13 +2348,13 @@ let view =
       MessageContent(inject, ui_state, settings),
     );
   div(
-    ~attr=Attr.id("side-bar"),
+    ~attrs=[Attr.id("side-bar")],
     [
       div(
-        ~attr=clss(["explain-this"]),
+        ~attrs=[clss(["explain-this"])],
         [
           div(
-            ~attr=clss(["top-bar"]),
+            ~attrs=[clss(["top-bar"])],
             [
               Widgets.toggle(
                 ~tooltip="Toggle highlighting",
@@ -2370,13 +2364,12 @@ let view =
                 inject(UpdateAction.Set(ExplainThis(SetHighlight(Toggle))))
               ),
               div(
-                ~attr=
-                  Attr.many([
-                    clss(["close"]),
-                    Attr.on_click(_ =>
-                      inject(UpdateAction.Set(ExplainThis(ToggleShow)))
-                    ),
-                  ]),
+                ~attrs=[
+                  clss(["close"]),
+                  Attr.on_click(_ =>
+                    inject(UpdateAction.Set(ExplainThis(ToggleShow)))
+                  ),
+                ],
                 [text("x")],
               ),
             ],

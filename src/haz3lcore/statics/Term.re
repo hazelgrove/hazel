@@ -533,6 +533,7 @@ module UExp = {
     | MultiHole
     | Triv
     | Deferral
+    | Undefined
     | Bool
     | Int
     | Float
@@ -579,6 +580,7 @@ module UExp = {
     | MultiHole(_) => MultiHole
     | Triv => Triv
     | Deferral(_) => Deferral
+    | Undefined => Undefined
     | Bool(_) => Bool
     | Int(_) => Int
     | Float(_) => Float
@@ -676,6 +678,7 @@ module UExp = {
     | EmptyHole => "Empty expression hole"
     | Triv => "Trivial literal"
     | Deferral => "Deferral"
+    | Undefined => "Undefined expression"
     | Bool => "Boolean literal"
     | Int => "Integer literal"
     | Float => "Float literal"
@@ -716,6 +719,7 @@ module UExp = {
     | MultiHole(_)
     | Triv
     | Deferral(_)
+    | Undefined
     | Bool(_)
     | Int(_)
     | Float(_)
@@ -753,6 +757,7 @@ module UExp = {
       | MultiHole(_)
       | Triv
       | Deferral(_)
+      | Undefined
       | Bool(_)
       | Int(_)
       | Float(_)
@@ -805,6 +810,7 @@ module UExp = {
       | MultiHole(_)
       | Triv
       | Deferral(_)
+      | Undefined
       | Bool(_)
       | Int(_)
       | Float(_)

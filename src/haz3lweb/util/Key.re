@@ -1,3 +1,5 @@
+open Util;
+
 [@deriving (show({with_path: false}), yojson)]
 type dir =
   | KeyUp

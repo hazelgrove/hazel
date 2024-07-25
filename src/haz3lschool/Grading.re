@@ -1,5 +1,5 @@
 open Haz3lcore;
-open Sexplib.Std;
+open Util;
 
 module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
   open Exercise.F(ExerciseEnv);

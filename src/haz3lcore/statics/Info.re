@@ -1,4 +1,3 @@
-open Sexplib.Std;
 open Util;
 open OptUtil.Syntax;
 open Term;
