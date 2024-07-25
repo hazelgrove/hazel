@@ -146,4 +146,5 @@ type exp =
   | If(exp, exp, exp)
   | InvalidExp(string)
   | TypAp(exp, typ)
+  | DeferredAp(exp, exp)
   | TyAlias(tpat, typ, exp);

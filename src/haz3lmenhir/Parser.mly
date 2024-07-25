@@ -22,6 +22,7 @@ open AST
 %token <string> IDENT
 %token <string> CONSTRUCTOR_IDENT
 %token <string> STRING
+%token <string> BUILTIN
 %token TRUE 
 %token FALSE
 %token <int> INT
@@ -221,10 +222,11 @@ exp:
     | s = STRING { String s}
     | b = binExp { b }
     | OPEN_PAREN; e = exp; CLOSE_PAREN { e }
-    | OPEN_PAREN; l = separated_list(COMMA, exp); CLOSE_PAREN { TupleExp(l)}
+    | OPEN_PAREN; l = separated_list(COMMA, exp); CLOSE_PAREN { TupleExp(l) }
     | c = case { c }
     | OPEN_SQUARE_BRACKET; e = separated_list(COMMA, exp); CLOSE_SQUARE_BRACKET { ListExp(e) }
     | f = exp; OPEN_PAREN; a = exp; CLOSE_PAREN { ApExp(f, a) }
+    | WILD; f = exp; OPEN_PAREN; a = exp; CLOSE_PAREN { DeferredAp(f, a) }
     | LET; i = pat; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Let (i, e1, e2) }
     | i = ifExp { i}
     | e1 = exp; QUESTION; LESS_THAN; t1 = typ; EQUAL_ARROW; t2 = typ; GREATER_THAN {FailedCast(e1, t1, t2)}
@@ -244,6 +246,7 @@ exp:
     | QUESTION; s = STRING; { InvalidExp(s) }
     | IN_AP; WILD {Deferral(InAp)}
     | OUT_AP; WILD {Deferral(OutsideAp)}
-    | e = exp; AT_SYMBOL; OPEN_BRACKET; ty = typ; CLOSE_BRACKET; {TypAp(e, ty)}
+    | e = exp; AT_SYMBOL; LESS_THAN; ty = typ; GREATER_THAN; {TypAp(e, ty)}
     | TYP; tp = tpat; SINGLE_EQUAL; ty = typ; IN; e = exp {TyAlias(tp, ty, e)}
+    | b = BUILTIN; OPEN_PAREN; a = exp; CLOSE_PAREN {BuiltinAp(b, a)}
     | u = unExp { u }
