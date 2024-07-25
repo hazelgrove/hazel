@@ -15,6 +15,7 @@ module rec DHExp: {
     | InconsistentBranches(MetaVar.t, HoleInstanceId.t, case)
     | Closure([@opaque] ClosureEnvironment.t, t)
     | Filter(DHFilter.t, t)
+    | Undefined
     | BoundVar(Var.t)
     | Sequence(t, t)
     | Let(DHPat.t, t, t)
@@ -39,7 +40,7 @@ module rec DHExp: {
     | ListConcat(t, t)
     | Tuple(list(t))
     | Prj(t, int)
-    | Constructor(string)
+    | Constructor(string, Typ.t)
     | ConsistentCase(case)
     | Cast(t, Typ.t, Typ.t)
     | FailedCast(t, Typ.t, Typ.t)
@@ -76,6 +77,7 @@ module rec DHExp: {
     | Closure(ClosureEnvironment.t, t)
     | Filter(DHFilter.t, t)
     /* Other expressions forms */
+    | Undefined
     | BoundVar(Var.t)
     | Sequence(t, t)
     | Let(DHPat.t, t, t)
@@ -100,7 +102,7 @@ module rec DHExp: {
     | ListConcat(t, t)
     | Tuple(list(t))
     | Prj(t, int)
-    | Constructor(string)
+    | Constructor(string, Typ.t)
     | ConsistentCase(case)
     | Cast(t, Typ.t, Typ.t)
     | FailedCast(t, Typ.t, Typ.t)
@@ -117,6 +119,7 @@ module rec DHExp: {
     | NonEmptyHole(_, _, _, _) => "NonEmptyHole"
     | FreeVar(_, _, _) => "FreeVar"
     | InvalidText(_) => "InvalidText"
+    | Undefined => "Undefined"
     | BoundVar(_) => "BoundVar"
     | Sequence(_, _) => "Sequence"
     | Filter(_, _) => "Filter"
@@ -208,6 +211,7 @@ module rec DHExp: {
     | EmptyHole(_) as d
     | FreeVar(_) as d
     | InvalidText(_) as d
+    | Undefined as d
     | BoundVar(_) as d
     | BoolLit(_) as d
     | IntLit(_) as d
@@ -226,6 +230,7 @@ module rec DHExp: {
 
   let rec fast_equal = (d1: t, d2: t): bool => {
     switch (d1, d2) {
+    | (Undefined, _)
     /* Primitive forms: regular structural equality */
     | (BoundVar(_), _)
     /* TODO: Not sure if this is right... */
@@ -404,6 +409,7 @@ module rec DHExp: {
     | FreeVar(_, _, _)
     | InvalidText(_, _, _)
     | Constructor(_)
+    | Undefined
     | BoundVar(_)
     | BoolLit(_)
     | IntLit(_)
