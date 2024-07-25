@@ -186,4 +186,3 @@ installed: [
   "zarith.1.13"
   "zarith_stubs_js.v0.16.1"
 ]
-pinned: "omd.2.0.0~alpha4"
