@@ -1,6 +1,4 @@
-module type STATE = {
-  type t;
-};
+module type STATE = {type t;};
 
 module type S = {
   type state;

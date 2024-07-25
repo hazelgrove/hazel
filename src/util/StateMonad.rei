@@ -5,9 +5,7 @@
 /**
   State type module specification.
  */
-module type STATE = {
-  type t;
-};
+module type STATE = {type t;};
 
 /**
   Output of the functor [Make].
