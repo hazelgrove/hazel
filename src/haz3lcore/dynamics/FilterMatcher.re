@@ -268,6 +268,8 @@ let rec matches_exp =
     | (InvalidText(_), _) => false
     | (InvalidOperation(_), _) => false
 
+    | (Undefined, _) => false
+
     | (ApBuiltin(dname, darg), ApBuiltin(fname, farg)) =>
       dname == fname && matches_exp(darg, farg)
     | (ApBuiltin(_), _) => false

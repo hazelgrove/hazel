@@ -63,6 +63,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | IfThenElse(_)
   | BuiltinFun(_)
   | Filter(_)
+  | Undefined
   | Closure(_) => DHDoc_common.precedence_const
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_const : precedence'(d1)
@@ -357,6 +358,7 @@ let mk =
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
       | StringLit(s) => DHDoc_common.mk_StringLit(s)
+      | Undefined => DHDoc_common.mk_Undefined()
       | Test(_, d) => DHDoc_common.mk_Test(go'(d, Test))
       | Sequence(d1, d2) =>
         let (doc1, doc2) = (go'(d1, Sequence1), go'(d2, Sequence2));
