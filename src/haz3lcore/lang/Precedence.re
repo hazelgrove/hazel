@@ -22,7 +22,6 @@ let or_ = 11;
 let ann = 12;
 let if_ = 13;
 let fun_ = 14;
-let prod = 15;
 let semi = 16;
 let let_ = 17;
 let filter = 18;
@@ -31,7 +30,14 @@ let rule_pre = 20;
 let rule_sep = 21;
 let case_ = 22;
 
-let min = 23;
+let type_prod = 3;
+let comma = 15;
+
+let type_arrow = 5;
+
+let type_plus = 4;
+
+let min = 26;
 
 let compare = (p1: t, p2: t): int =>
   (-1) * Int.compare((p1 :> int), (p2 :> int));
@@ -46,6 +52,9 @@ let associativity_map: IntMap.t(Direction.t) =
     (concat, Right),
     (ann, Left),
     (eqs, Left),
+    (type_plus, Left),
+    (type_arrow, Right),
+    (type_prod, Left),
   ]
   |> List.to_seq
   |> IntMap.of_seq;

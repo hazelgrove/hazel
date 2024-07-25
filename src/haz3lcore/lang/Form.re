@@ -252,9 +252,9 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
 
 let forms: list((string, t)) = [
   // INFIX OPERATORS
-  ("typ_plus", mk_infix("+", Typ, P.or_)),
-  ("type-arrow", mk_infix("->", Typ, 6)),
-  ("cell-join", mk_infix(";", Exp, 10)),
+  ("typ_plus", mk_infix("+", Typ, P.type_plus)),
+  ("type-arrow", mk_infix("->", Typ, P.type_arrow)),
+  ("cell-join", mk_infix(";", Exp, P.semi)),
   ("plus", mk_infix("+", Exp, P.plus)),
   ("minus", mk_infix("-", Exp, P.plus)),
   ("times", mk_infix("*", Exp, P.mult)),
@@ -292,9 +292,9 @@ let forms: list((string, t)) = [
   ("unary_minus", mk(ss, ["-"], mk_pre(P.neg, Exp, []))),
   ("unquote", mk(ss, ["$"], mk_pre(P.unquote, Exp, []))),
   // N-ARY OPS (on the semantics level)
-  ("comma_exp", mk_infix(",", Exp, P.prod)),
-  ("comma_pat", mk_infix(",", Pat, P.prod)),
-  ("comma_typ", mk_infix(",", Typ, P.prod)),
+  ("comma_exp", mk_infix(",", Exp, P.type_prod)),
+  ("comma_pat", mk_infix(",", Pat, P.comma)),
+  ("comma_typ", mk_infix(",", Typ, P.comma)),
   // PAIRED DELIMITERS:
   ("list_lit_exp", mk(ii, ["[", "]"], mk_op(Exp, [Exp]))),
   ("list_lit_pat", mk(ii, ["[", "]"], mk_op(Pat, [Pat]))),
