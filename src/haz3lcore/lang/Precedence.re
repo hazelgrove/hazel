@@ -34,7 +34,7 @@ let comma = 15;
 
 let type_plus = 4;
 let type_arrow = 5;
-let type_prod = 6;
+let type_prod = comma;
 
 let min = 26;
 
@@ -53,7 +53,6 @@ let associativity_map: IntMap.t(Direction.t) =
     (eqs, Left),
     (type_plus, Left),
     (type_arrow, Right),
-    (type_prod, Left),
   ]
   |> List.to_seq
   |> IntMap.of_seq;
