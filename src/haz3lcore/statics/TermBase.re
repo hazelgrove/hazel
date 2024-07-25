@@ -137,8 +137,8 @@ and Exp: {
   type term =
     | Invalid(string) //? s
     | EmptyHole //?
-    | MultiHole(list(Any.t)) //<<e>>
-    | DynamicErrorHole(t, InvalidOperationError.t) //TODO menhir
+    | MultiHole(list(Any.t)) //<<e>> TODO: not necessary for parser - cyrus
+    | DynamicErrorHole(t, InvalidOperationError.t) //TODO menhir - for the error message take the s exp serialization of the type and pass it in to the s expression parser
     | FailedCast(t, Typ.t, Typ.t) //e ?<ty1 => ty2>
     | Deferral(deferral_position) /*InAp _*/ /*OutAp _*/
     | Bool(bool) //false
@@ -160,14 +160,14 @@ and Exp: {
     | FixF(Pat.t, t, option(ClosureEnvironment.t)) //fix p -> e
     | TyAlias(TPat.t, Typ.t, t) //type tp = ty in e
     | Ap(Operators.ap_direction, t, t) //e1(e2)
-    | TypAp(t, Typ.t) /*e @ {ty} */ /*NOTE: syntax is ugly bc of menhir parser conflicts*/
-    | DeferredAp(t, list(t)) //TODO menhir
+    | TypAp(t, Typ.t) /*e @ <ty> */
+    | DeferredAp(t, list(t)) //_e1(e2)
     | If(t, t, t) //if e1 then e2 else e3
     | Seq(t, t) //e1;e2
     | Test(t) //test e end
     | Filter(StepperFilterKind.t, t) /*let act represent filter action*/ //act e1 e2
-    | Closure([@show.opaque] ClosureEnvironment.t, t) //TODO menhir
-    | Parens(t) //TODO menhir
+    | Closure([@show.opaque] ClosureEnvironment.t, t) // menhir - spoke with cyrus we don't need closures in the menhir
+    | Parens(t) // (e)
     | Cons(t, t) //e1 :: e2
     | ListConcat(t, t) //e1 @ e2
     | UnOp(Operators.op_un, t) //!e    -e    $e
@@ -267,7 +267,12 @@ and Exp: {
       | OutsideAp => Deferral(OutsideAp)
       }
     | ListExp(l) => ListLit(List.map(of_menhir_ast, l))
-    | TupleExp(t) => Tuple(List.map(of_menhir_ast, t))
+    | TupleExp(t) =>
+      if (List.length(t) == 1) {
+        Parens(of_menhir_ast(List.hd(t)));
+      } else {
+        Tuple(List.map(of_menhir_ast, t));
+      }
     | Let(p, e1, e2) =>
       Let(Pat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
     | FixF(p, e) => FixF(Pat.of_menhir_ast(p), of_menhir_ast(e), None)
@@ -278,6 +283,7 @@ and Exp: {
         Typ.of_menhir_ast(ty),
         of_menhir_ast(e),
       )
+    | DeferredAp(f, a) => DeferredAp(of_menhir_ast(f), [of_menhir_ast(a)])
     | Fun(p, e, name_opt) =>
       switch (name_opt) {
       | Some(name_str) =>
