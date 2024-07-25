@@ -252,7 +252,7 @@ let u9: Term.UExp.t = {
             },
           ),
       },
-      {ids: [id_at(11)], term: Int(55)},
+      {ids: [id_at(11)], term: Int()},
     ),
 };
 let d9: DHExp.t =
