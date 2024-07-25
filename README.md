@@ -120,3 +120,7 @@ You can run all of the unit tests located in `src/hazelcore/test` by running `ma
 Unit tests are written using [ppx_expect](https://github.com/janestreet/ppx_expect/tree/master/example) and [ppx_inline_tests](https://github.com/janestreet/ppx_inline_test/tree/master/example). If you would like to adjust your expect tests to assert for the output that was last printed, run `make fix-test-answers`.
 
 If the inline test runner causes problems for you, you can likely resolve the issue by running `opam update` then `opam upgrade`.
+
+### Deployment
+
+This branch is deployed to hazel.org/build/livelits. There is a redirect from hazel.org/livelits.
