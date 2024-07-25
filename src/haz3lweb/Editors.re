@@ -4,7 +4,7 @@ open Util;
 // open Init;
 open ScratchSlide;
 
-module Init = Haz3lweb__Init;
+// module Init = Haz3lweb__Init;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type scratch = (int, list(ScratchSlide.state));
