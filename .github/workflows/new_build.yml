@@ -15,7 +15,7 @@ jobs:
       - name: Set-up OCaml
         uses: ocaml/setup-ocaml@v3
         with:
-          ocaml-compiler: 5.0.0
+          ocaml-compiler: 5.2.0
       - name: Install dependencies
         run: |
           eval $(opam env)
