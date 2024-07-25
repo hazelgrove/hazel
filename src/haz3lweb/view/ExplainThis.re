@@ -128,59 +128,83 @@ let highlight =
 let mk_translation = (~inject, text: string): (list(Node.t), ColorSteps.t) => {
   let omd = Omd.of_string(text);
   //print_markdown(omd);
-  let rec translate =
-          (doc: Omd.t, mapping: ColorSteps.t): (list(Node.t), ColorSteps.t) =>
+
+  let rec translate_inline =
+          (inline: Omd.inline(_), msg, mapping: ColorSteps.t, ~inject)
+          : (list(Node.t), ColorSteps.t) => {
+    switch (inline) {
+    | Omd.Concat(_, items) =>
+      let (nodes, mapping) =
+        List.fold_left(
+          ((msg, mapping), item) => {
+            let (translated_item, mapping) =
+              translate_inline(item, [], mapping, ~inject);
+            (List.concat([msg, translated_item]), mapping);
+          },
+          ([], mapping),
+          items,
+        );
+      (List.append(msg, nodes), mapping);
+    | Omd.Text(_, d) => (List.append(msg, [Node.text(d)]), mapping)
+    | Omd.Code(_, d) => (List.append(msg, [code_node(d)]), mapping)
+    | Omd.Link(_, {label, destination, _}) =>
+      let (d, mapping) = translate_inline(label, [], mapping, ~inject);
+      let id =
+        switch (Id.of_string(destination)) {
+        | Some(id) => id
+        | None => Id.invalid
+        };
+      let (inner_msg, mapping) = highlight(~inject, d, id, mapping);
+      (List.append(msg, [inner_msg]), mapping);
+    | Omd.Emph(_, d) =>
+      let (d, mapping) = translate_inline(d, [], mapping, ~inject);
+      (
+        List.append(
+          msg,
+          [
+            Node.span(
+              ~attrs=[
+                Attr.style(
+                  Css_gen.create(~field="font-style", ~value="italic"),
+                ),
+              ],
+              d,
+            ),
+          ],
+        ),
+        mapping,
+      );
+    | _ => (msg, mapping)
+    };
+  };
+
+  let rec translate_block =
+          (doc: Omd.doc, mapping: ColorSteps.t)
+          : (list(Node.t), ColorSteps.t) => {
     List.fold_left(
       ((msg, mapping), elem) => {
         switch (elem) {
-        | Omd.Paragraph(d) => translate(d, mapping)
-        | Text(t) => (List.append(msg, [Node.text(t)]), mapping)
-        | Ul(items) =>
+        | Omd.Paragraph(_, d) => translate_inline(d, msg, mapping, ~inject)
+        | Omd.List(_, _, _, items) =>
           let (bullets, mapping) =
             List.fold_left(
               ((nodes, mapping), d) => {
-                let (n, mapping) = translate(d, mapping);
+                let (n, mapping) = translate_block(d, mapping);
                 (List.append(nodes, [Node.li(n)]), mapping);
               },
               ([], mapping),
               items,
             );
           (List.append(msg, [Node.ul(bullets)]), mapping); /* TODO Hannah - Should this be an ordered list instead of an unordered list? */
-        | Code(_name, t) => (List.append(msg, [code_node(t)]), mapping)
-        | Url(id, d, _title) =>
-          let (d, mapping) = translate(d, mapping);
-          let id =
-            switch (Id.of_string(id)) {
-            | Some(id) => id
-            | None => Id.invalid
-            };
-          let (inner_msg, mapping) = highlight(~inject, d, id, mapping);
-          (List.append(msg, [inner_msg]), mapping);
-        | Emph(d) =>
-          let (d, mapping) = translate(d, mapping);
-          (
-            List.append(
-              msg,
-              [
-                Node.span(
-                  ~attrs=[
-                    Attr.style(
-                      Css_gen.create(~field="font-style", ~value="italic"),
-                    ),
-                  ],
-                  d,
-                ),
-              ],
-            ),
-            mapping,
-          );
         | _ => (msg, mapping)
         }
       },
       ([], mapping),
       doc,
     );
-  translate(omd, ColorSteps.empty);
+  };
+
+  translate_block(omd, ColorSteps.empty);
 };
 
 let mk_explanation =
