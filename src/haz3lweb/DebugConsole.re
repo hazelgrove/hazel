@@ -24,10 +24,11 @@ let print = ({settings, editors, _}: Model.t, key: string): unit => {
     let index = Indicated.index(zipper);
     switch (index) {
     | Some(index) =>
+      print("id:" ++ Id.to_string(index));
       switch (Id.Map.find_opt(index, map)) {
       | Some(ci) => print(Info.show(ci))
       | None => print("DEBUG: No CI found for index")
-      }
+      };
     | None => print("DEBUG: No indicated index")
     };
   | _ => print("DEBUG: No action for key: " ++ key)

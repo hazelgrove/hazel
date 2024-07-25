@@ -62,10 +62,7 @@ module Main = {
   };
   let gen_grading_report = exercise => {
     let zipper_pp = zipper => {
-      Printer.pretty_print(
-        ~measured=Measured.of_segment(Zipper.seg_without_buffer(zipper)),
-        zipper,
-      );
+      Printer.pretty_print(zipper);
     };
     let model_results =
       spliced_elabs(settings, exercise)

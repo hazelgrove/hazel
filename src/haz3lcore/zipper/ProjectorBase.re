@@ -1,41 +1,23 @@
 open Util;
 open Virtual_dom.Vdom;
 
-/* This module, along with ZipperBase, exists to resolve
- * cyclic dependencies between Zipper and Projector. All
- * projector functionality should be added to Projector.re
- * or above unless it would create such a cycle */
-
-/* Enumeration of different kinds of projectors. This is
- * used as a key when adding new projectors to an editor. */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type kind =
-  | Fold
-  | Info
-  | Checkbox
-  | Slider
-  | SliderF
-  | TextArea;
+type t = Base.kind;
 
-/* The projector map is store alongside the zipper and
- * maps syntax UUIDs to instantiated projectors. This
- * is how projector placement and models are persisted */
-[@deriving (show({with_path: false}), sexp, yojson)]
-module Map = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type entry = {
-    kind,
-    model: string,
+/* Projectors are currently all convex */
+let shapes = _ => Nib.Shape.(Convex, Convex);
+
+/* Projectors are currentlt all convex and any-sorted */
+let mold_of: Sort.t => Mold.t =
+  sort => {
+    {
+      nibs: {
+        ({shape: Convex, sort}, {shape: Convex, sort});
+      },
+      out: sort,
+      in_: [],
+    };
   };
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Id.Map.t(entry);
-  open Id.Map;
-  let empty = empty;
-  let find = find_opt;
-  let mem = mem;
-  let mapi = mapi;
-  let update = update;
-};
 
 /* Projectors currently have two options for placeholder
  * shapes: A inline display of a given length, or a block
@@ -44,12 +26,12 @@ module Map = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type shape =
   | Inline(int)
-  | Block(Measured.Point.t);
+  | Block(Point.t);
 
 /* The type of syntax which a projector can replace.
  * Right now projectors can replace a single piece */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type syntax = Piece.t;
+type syntax = Base.piece;
 
 /* Global actions available to handlers in all projectors */
 type external_action =
@@ -68,8 +50,6 @@ type info = {
   ci: option(Info.t),
 };
 
-let info_init = (p: syntax) => {id: Piece.id(p), syntax: p, ci: None};
-
 /* To add a new projector, implement this module signature */
 module type Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -84,7 +64,7 @@ module type Projector = {
    * actions (type `action`) above suffice */
   let init: model;
   /* Initial state of the model */
-  let can_project: Piece.t => bool;
+  let can_project: Base.piece => bool;
   /* A predicate determining if the given underlying
    * syntax (currently limited to convex pieces) is
    * supported by this projector. This is used to gate
@@ -137,7 +117,7 @@ type serialized_action = string;
  * signature except model & action are serialized */
 module type Cooked = {
   let init: serialized_model;
-  let can_project: Piece.t => bool;
+  let can_project: Base.piece => bool;
   let can_focus: bool;
   let view:
     (

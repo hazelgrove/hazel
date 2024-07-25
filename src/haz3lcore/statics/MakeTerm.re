@@ -19,6 +19,7 @@ let tokens =
     _ => [],
     _ => [" "],
     (t: Tile.t) => t.shards |> List.map(List.nth(t.label)),
+    _ => [] //TODO(andrew)
   );
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -470,6 +471,10 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
     switch (p) {
     | Secondary(_)
     | Grout(_) => []
+    | Projector(p) =>
+      let s = Sort.Any; //TODO(andrew)
+      let kid = Projector.seg_for_maketerm(p);
+      [go_s(s, Segment.skel(kid), kid)];
     | Tile({mold, shards, children, _}) =>
       Aba.aba_triples(Aba.mk(shards, children))
       |> List.map(((l, kid, r)) => {
@@ -522,19 +527,15 @@ let go =
     },
   );
 
-let from_zip = (~dump_backpack: bool, ~erase_buffer: bool, z: Zipper.t) => {
+let from_zip_for_sem =
+    (~dump_backpack: bool, ~erase_buffer: bool, z: Zipper.t) => {
+  let z = Projector.Update.remove_all(z); //TODO(andrew)
   let seg = Zipper.smart_seg(~dump_backpack, ~erase_buffer, z);
   go(seg);
 };
 
-let from_zip_for_view =
-  Core.Memo.general(
-    ~cache_size_bound=1000,
-    from_zip(~dump_backpack=false, ~erase_buffer=true),
-  );
-
 let from_zip_for_sem =
   Core.Memo.general(
     ~cache_size_bound=1000,
-    from_zip(~dump_backpack=true, ~erase_buffer=true),
+    from_zip_for_sem(~dump_backpack=true, ~erase_buffer=true),
   );

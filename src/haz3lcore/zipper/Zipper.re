@@ -11,7 +11,6 @@ let init: unit => t =
       ancestors: [],
     },
     caret: Outer,
-    projectors: ProjectorBase.Map.empty,
   };
 
 let next_blank = _ => Id.mk();
@@ -58,7 +57,6 @@ let unzip = (seg: Segment.t): t => {
     ancestors: [],
   },
   caret: Outer,
-  projectors: ProjectorBase.Map.empty,
 };
 
 let pop_backpack = (z: t) =>
@@ -121,13 +119,9 @@ let put_selection = (sel: Selection.t, z: t): t =>
   snd(update_selection(sel, z));
 
 let grow_selection = (z: t): option(t) => {
-  switch (Projector.Select.grow(z)) {
-  | Some(z) => Some(z)
-  | None =>
-    let+ (p, relatives) = Relatives.pop(z.selection.focus, z.relatives);
-    let selection = Selection.push(p, z.selection);
-    {...z, selection, relatives};
-  };
+  let+ (p, relatives) = Relatives.pop(z.selection.focus, z.relatives);
+  let selection = Selection.push(p, z.selection);
+  {...z, selection, relatives};
 };
 
 // toggles focus and grows if selection is empty
@@ -137,15 +131,11 @@ let shrink_selection = (z: t): option(t) => {
     let selection = Selection.toggle_focus(z.selection);
     grow_selection({...z, selection});
   | Some((p, selection)) =>
-    switch (Projector.Select.shrink(z)) {
-    | Some(z) => Some(z)
-    | None =>
-      let relatives =
-        z.relatives
-        |> Relatives.push(selection.focus, p)
-        |> Relatives.reassemble;
-      Some({...z, selection, relatives});
-    }
+    let relatives =
+      z.relatives
+      |> Relatives.push(selection.focus, p)
+      |> Relatives.reassemble;
+    Some({...z, selection, relatives});
   };
 };
 
@@ -161,16 +151,12 @@ let directional_unselect = (d: Direction.t, z: t): t => {
 
 let move = (d: Direction.t, z: t): option(t) =>
   if (Selection.is_empty(z.selection)) {
-    switch (Projector.Move.go(d, z)) {
-    | Some(z) => Some(z)
-    | None =>
-      let+ (p, relatives) = Relatives.pop(d, z.relatives);
-      let relatives =
-        relatives
-        |> Relatives.push(Direction.toggle(d), p)
-        |> Relatives.reassemble;
-      {...z, relatives};
-    };
+    let+ (p, relatives) = Relatives.pop(d, z.relatives);
+    let relatives =
+      relatives
+      |> Relatives.push(Direction.toggle(d), p)
+      |> Relatives.reassemble;
+    {...z, relatives};
   } else {
     Some(directional_unselect(d, z));
   };
@@ -305,37 +291,9 @@ let caret_direction = (z: t): option(Direction.t) =>
     }
   };
 
-let measured = z => z |> unselect_and_zip |> Measured.of_segment;
-
-let base_point = (measured: Measured.t, z: t): Measured.Point.t => {
+let base_point = (measured: Measured.t, z: t): Point.t => {
   switch (representative_piece(z)) {
   | Some((p, d)) =>
-    /* NOTE: Below conversion necessary because sometimes
-     * we call this with measured based on projected zipper
-     * measurements but also z is the non-projected zipper.
-     * This should work okay since the core movement/selection
-     * actions in Zipper avoid cursor positions around pieces
-     * which would be absent in the projected zipper. The problem
-     * is the projected tile itself. Specifically because looking
-     * up measurements is not currently homogenous; it takes a
-     * piece, not an id. Piece-based lookups will fail if (say)
-     * a Grout becomes a Tile. Hence we convert pieces that
-     * would be projected to their placeholders before lookup */
-    let p =
-      switch (ProjectorBase.Map.find(Piece.id(p), z.projectors)) {
-      | _ when Projector.is_placeholder(p) =>
-        /* NOTE: If OTOH we call this on the projected zipper, then
-         * p will already be a placeholder. In this case we may not
-         * want to call Projector.placeholder, as it may not be able
-         * to account for recieving a placeholder. AFAIK disabling
-         * this check doesn't currently cause any issues, but it
-         * did in the past when we were reifying the module in the
-         * below call, resulting in trying to interpret the syntax
-         * of the placeholder as e.g. an int for the slider */
-        p
-      | Some(pr) => Projector.placeholder(pr, Projector.info_init(p))
-      | None => p
-      };
     let seg = Piece.disassemble(p);
     switch (d) {
     | Left =>
@@ -350,8 +308,8 @@ let base_point = (measured: Measured.t, z: t): Measured.Point.t => {
   | None => {row: 0, col: 0}
   };
 };
-let caret_point = (measured, z: t): Measured.Point.t => {
-  let Measured.Point.{row, col} = base_point(measured, z);
+let caret_point = (measured, z: t): Point.t => {
+  let Point.{row, col} = base_point(measured, z);
   {row, col: col + Caret.offset(z.caret)};
 };
 

@@ -259,9 +259,8 @@ let expander_deco =
             ],
             List.map(
               ((id: ExplainThisForm.form_id, segment: Segment.t)): Node.t => {
-                let map = Measured.of_segment(segment);
                 let code_view =
-                  Code.simple_view(~font_metrics, ~segment, ~map, ~settings);
+                  Code.simple_view(~font_metrics, ~segment, ~settings);
                 let classes =
                   id == doc.id
                     ? ["selected"] @ get_clss(segment) : get_clss(segment);

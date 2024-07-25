@@ -13,23 +13,6 @@ let move_out_of_piece =
     }
   };
 
-let set = (id: Id.t, p: option(Map.entry), z: Zipper.t) => {
-  ...z,
-  projectors: Map.update(id, _ => p, z.projectors),
-};
-
-let add = (id: Id.t, z: Zipper.t, p, piece, d, rel) =>
-  switch (Projector.create(p, piece)) {
-  | None => Error(Action.Failure.Cant_project)
-  | opt_p => Ok(set(id, opt_p, z) |> move_out_of_piece(d, rel))
-  };
-
-let add_or_remove = (id: Id.t, z: Zipper.t, p, piece, d, rel) =>
-  switch (Map.mem(id, z.projectors)) {
-  | false => add(id, z, p, piece, d, rel)
-  | true => Ok(set(id, None, z))
-  };
-
 let go =
     (
       jump_to_id,
@@ -39,38 +22,52 @@ let go =
       z: Zipper.t,
     )
     : result(ZipperBase.t, Action.Failure.t) => {
-  let jump = (z, id) =>
-    switch (jump_to_id(z, id)) {
-    | Some(z) => z
-    | None => z
-    };
   let switch_side = z =>
     switch (primary(ByToken, Right, z)) {
     | Some(z) => z
+    | None => z
+    };
+  let jump = (z, id) =>
+    switch (jump_to_id(z, id)) {
+    /* Moves to right side, as right side always implies it's indicated.
+     * For example,"(|x)" or "!|x" wouldn't have "x" indicated */
+    //TODO(andrew): just making this change breaks escape
+    | Some(z) => z //switch_side(z)
     | None => z
     };
   switch (a) {
   | SetIndicated(p) =>
     switch (Indicated.for_index(z)) {
     | None => Error(Cant_project)
-    | Some((piece, d, rel)) => add(Piece.id(piece), z, p, piece, d, rel)
+    | Some((piece, d, rel)) =>
+      Ok(
+        move_out_of_piece(d, rel, z)
+        |> Projector.Update.add(p, Piece.id(piece)),
+      )
     }
   | ToggleIndicated(p) =>
     switch (Indicated.for_index(z)) {
     | None => Error(Cant_project)
     | Some((piece, d, rel)) =>
-      add_or_remove(Piece.id(piece), z, p, piece, d, rel)
+      Ok(
+        move_out_of_piece(d, rel, z)
+        |> Projector.Update.add_or_remove(p, Piece.id(piece)),
+      )
     }
-  | Remove(id) =>
-    switch (Map.mem(id, z.projectors)) {
-    | false => Error(Cant_project)
-    | true => Ok(set(id, None, z))
-    }
-  | SetSyntax(id, syntax) => Ok(Projector.Syntax.update(_ => syntax, id, z))
+  | Remove(id) => Ok(Projector.Update.remove(id, z))
+  | SetSyntax(id, syntax) =>
+    /* Note we update piece id to keep in sync with projector id */
+    Ok(
+      Projector.Update.update(
+        p => {...p, syntax: Piece.replace_id(id, syntax)},
+        id,
+        z,
+      ),
+    )
   | SetModel(id, model) =>
-    let update = entry => Option.map(e => Map.{model, kind: e.kind}, entry);
-    Ok({...z, projectors: Map.update(id, update, z.projectors)});
+    Ok(Projector.Update.update(pr => {...pr, model}, id, z))
   | Focus(id, d) =>
+    //TODO(andrew): this fails if moving to e.g. "![checkbox]"
     let z = jump(z, id);
     switch (Projector.indicated(z)) {
     | Some((_, p)) =>

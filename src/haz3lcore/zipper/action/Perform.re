@@ -9,7 +9,7 @@ let is_write_action = (a: Action.t) => {
   | Unselect(_)
   | Jump(_)
   | Select(_) => false
-  | Buffer(Set(_) | Accept)
+  | Buffer(Set(_) | Accept | Clear)
   | Cut
   | Paste(_)
   | Reparse
@@ -87,7 +87,7 @@ let go_z =
          * pasting, then return to the beginning and advance to the
          * first hole. This should be revisited if completions are
          * refactored to use a more structured buffer format. */
-        let start = Zipper.caret_point(M.measured, meta.projected.z);
+        let start = Zipper.caret_point(M.measured, z);
         let z = {
           open OptUtil.Syntax;
           let* z = paste(z, completion);
@@ -127,6 +127,7 @@ let go_z =
     | None => Error(CantAccept)
     | Some(z) => Ok(z)
     }
+  | Buffer(Clear) => Ok(buffer_clear(z))
   | Project(a) => ProjectorPerform.go(Move.jump_to_id, Move.primary, a, z)
   | Move(d) =>
     Move.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move)
@@ -278,19 +279,22 @@ let go =
     Ok(ed);
   } else if (settings.assist && settings.statics) {
     open Result.Syntax;
-    let ed = a == Buffer(Accept) ? ed : Editor.update_z(buffer_clear, ed);
+    let ed =
+      a == Buffer(Accept)
+        ? ed
+        : (
+          switch (go_history(~settings, Buffer(Clear), ed)) {
+          | Ok(ed) => ed
+          | Error(_) => ed
+          }
+        );
     let* ed = go_history(~settings, a, ed);
     Action.is_edit(a)
       ? {
-        //TODO(andrew): fix completion bug
-        // let _ =
-        //   switch (go_history(~settings, Buffer(Set(TyDi)), ed)) {
-        //   | Error(err) => Error(err)
-        //   | Ok(ed) => Ok(ed)
-        //   };
-        Ok(
-          Editor.update_z(set_buffer(ed.state.meta.statics.info_map), ed),
-        );
+        switch (go_history(~settings, Buffer(Set(TyDi)), ed)) {
+        | Error(err) => Error(err)
+        | Ok(ed) => Ok(ed)
+        };
       }
       : Ok(ed);
   } else {
