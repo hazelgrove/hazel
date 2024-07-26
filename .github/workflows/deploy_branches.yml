@@ -24,6 +24,13 @@ jobs:
           path: '/home/runner/.opam/'
           key: ${{ runner.os }}-modules-${{ hashFiles('./source/hazel.opam.locked') }}
             # NOTE: position the below lines in the code between two steps
+      - name: Retrieve the switch environment if cached
+        id: opam-cache-switch
+        uses: actions/cache@v4
+        with:
+          path: '_opam'
+          key: ${{ runner.os }}-modules-${{ hashFiles('./source/hazel.opam.locked') }}
+            # NOTE: position the below lines in the code between two steps
       # and uncomment them to open an ssh connection at that point:
       - name: Debugging with ssh
         uses: lhotari/action-upterm@v1
