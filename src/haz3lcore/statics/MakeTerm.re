@@ -19,7 +19,7 @@ let tokens =
     _ => [],
     _ => [" "],
     (t: Tile.t) => t.shards |> List.map(List.nth(t.label)),
-    _ => [] //TODO(andrew)
+    _ => [],
   );
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -94,6 +94,12 @@ let kids_of_unsorted =
   | Post(l, tiles) => [l] @ kids_of_tiles(tiles)
   | Bin(l, tiles, r) => [l] @ kids_of_tiles(tiles) @ [r];
 
+type data = {
+  term: Term.UExp.t,
+  terms: TermMap.t,
+  projectors: Id.Map.t(Piece.projector),
+};
+
 // Need this map to collect all structural terms,
 // not just the ones recognized in Statics.
 // TODO unhack
@@ -102,6 +108,21 @@ let return = (wrap, ids, tm) => {
   map := TermMap.add_all(ids, wrap(tm), map^);
   tm;
 };
+
+/* Map to collect projector ids */
+let projectors: ref(Id.Map.t(Piece.projector)) = ref(Id.Map.empty);
+
+/* Strip a projector from a segment and log it in the map */
+let rm_and_log_projectors = (seg: Segment.t): Segment.t =>
+  List.map(
+    fun
+    | Piece.Projector(pr) => {
+        projectors := Id.Map.add(pr.id, pr, projectors^);
+        pr.syntax;
+      }
+    | x => x,
+    seg,
+  );
 
 let parse_sum_term: UTyp.t => UTyp.variant =
   fun
@@ -468,14 +489,14 @@ and rul = (unsorted: unsorted): URul.t => {
 }
 
 and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
+  /* Remove projectors. We do this here as opposed to removing
+   * them in an external call to save a whole-syntax pass. */
+  let seg = rm_and_log_projectors(seg);
   let tile_kids = (p: Piece.t): list(any) =>
     switch (p) {
     | Secondary(_)
     | Grout(_) => []
-    | Projector(p) =>
-      let s = Sort.Any; //TODO(andrew)
-      let kid = Projector.seg_for_maketerm(p);
-      [go_s(s, Segment.skel(kid), kid)];
+    | Projector(_) => []
     | Tile({mold, shards, children, _}) =>
       Aba.aba_triples(Aba.mk(shards, children))
       |> List.map(((l, kid, r)) => {
@@ -523,14 +544,14 @@ let go =
     ~cache_size_bound=1000,
     seg => {
       map := TermMap.empty;
-      let e = exp(unsorted(Segment.skel(seg), seg));
-      (e, map^);
+      projectors := Id.Map.empty;
+      let term = exp(unsorted(Segment.skel(seg), seg));
+      {term, terms: map^, projectors: projectors^};
     },
   );
 
 let from_zip_for_sem =
     (~dump_backpack: bool, ~erase_buffer: bool, z: Zipper.t) => {
-  let z = Projector.Update.remove_all(z); //TODO(andrew)
   let seg = Zipper.smart_seg(~dump_backpack, ~erase_buffer, z);
   go(seg);
 };
