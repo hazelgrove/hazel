@@ -496,8 +496,7 @@ module rec Typ: {
     | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
     };
 
-  /* Essentially recreates haz3lweb/view/Type.re's view_ty but with string output.
-   * NOTE: Projectors rely on this including whitespace agreeing with view */
+  /* Essentially recreates haz3lweb/view/Type.re's view_ty but with string output */
   let rec pretty_print = (ty: t): string =>
     switch (ty) {
     | Unknown(_) => "?"

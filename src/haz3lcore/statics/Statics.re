@@ -909,11 +909,8 @@ let mk =
     uexp_to_info_map(~ctx, ~ancestors=[], e, Id.Map.empty) |> snd
   });
 
-let mk = (core: CoreSettings.t, ctx, exp) => {
-  //print_endline("RETICULATING SPLINES");
-  core.statics
-    ? mk(ctx, exp) : Id.Map.empty;
-};
+let mk = (core: CoreSettings.t, ctx, exp) =>
+  core.statics ? mk(ctx, exp) : Id.Map.empty;
 
 let collect_errors = (map: Map.t): list((Id.t, Info.error)) =>
   Id.Map.fold(

@@ -192,7 +192,7 @@ let view =
       ~font_metrics,
       ~settings: Settings.t,
       z: Zipper.t,
-      {syntax: {measured, segment, holes, _}, statics, selection_ids, _}: Editor.Meta.t,
+      {syntax: {measured, segment, holes, selection_ids, _}, statics, _}: Editor.Meta.t,
     )
     : Node.t => {
   module Text =

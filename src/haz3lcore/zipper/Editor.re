@@ -13,7 +13,7 @@ module CachedStatics = {
     error_ids: [],
   };
 
-  let mk = (~settings: CoreSettings.t, z: Zipper.t): t => {
+  let init = (~settings: CoreSettings.t, z: Zipper.t): t => {
     // Modify here to allow passing in an initial context
     let ctx_init = Builtins.ctx_init;
     let term = MakeTerm.from_zip_for_sem(z).term;
@@ -22,8 +22,8 @@ module CachedStatics = {
     {term, info_map, error_ids};
   };
 
-  let mk = (~settings: CoreSettings.t, z: Zipper.t) =>
-    settings.statics ? mk(~settings, z) : empty;
+  let init = (~settings: CoreSettings.t, z: Zipper.t) =>
+    settings.statics ? init(~settings, z) : empty;
 
   let next =
       (~settings: CoreSettings.t, a: Action.t, z: Zipper.t, old_statics: t): t =>
@@ -32,79 +32,56 @@ module CachedStatics = {
     } else if (!Action.is_edit(a)) {
       old_statics;
     } else {
-      mk(~settings, z);
+      init(~settings, z);
     };
 };
 
 module CachedSyntax = {
   type t = {
-    projectors: Id.Map.t(Base.projector),
     segment: Segment.t,
     measured: Measured.t,
     tiles: TileMap.t,
     holes: list(Grout.t),
+    selection_ids: list(Id.t),
     term: Term.UExp.t,
     term_ranges: TermRanges.t,
     terms: TermMap.t,
+    projectors: Id.Map.t(Base.projector),
   };
 
   let init = (z, info_map): t => {
     let segment = Zipper.unselect_and_zip(z);
     let MakeTerm.{term, terms, projectors} = MakeTerm.go(segment);
     {
-      projectors,
       segment,
       term_ranges: TermRanges.mk(segment),
       tiles: TileMap.mk(segment),
       holes: Segment.holes(segment),
       measured: Measured.of_segment(segment, info_map),
+      selection_ids: Selection.selection_ids(z.selection),
       term,
       terms,
-    };
-  };
-
-  let update = (z, info_map, ~touched, ~old): t => {
-    let segment = Zipper.unselect_and_zip(z);
-    let MakeTerm.{term, terms, projectors} = MakeTerm.go(segment);
-    {
       projectors,
-      segment,
-      term_ranges: TermRanges.mk(segment),
-      tiles: TileMap.mk(segment),
-      holes: Segment.holes(segment),
-      measured: Measured.of_segment(~touched, ~old, segment, info_map),
-      term,
-      terms,
     };
   };
 
-  let next = (a: Action.t, z: Zipper.t, info_map, old: t, ~touched) =>
-    Action.is_edit(a)
-      ? update(z, info_map, ~touched, ~old=old.measured) : old;
+  let next = (a: Action.t, z: Zipper.t, info_map, old: t) =>
+    Action.is_edit(a) ? init(z, info_map) : old;
 };
 
 module Meta = {
   type t = {
     col_target: int,
-    touched: Touched.t,
-    selection_ids: list(Id.t),
     statics: CachedStatics.t,
     syntax: CachedSyntax.t,
   };
 
   let init = (~settings: CoreSettings.t, z: Zipper.t) => {
-    let statics = CachedStatics.mk(~settings, z);
-    {
-      col_target: 0,
-      touched: Touched.empty,
-      selection_ids: Selection.selection_ids(z.selection),
-      statics,
-      syntax: CachedSyntax.init(z, statics.info_map),
-    };
+    let statics = CachedStatics.init(~settings, z);
+    {col_target: 0, statics, syntax: CachedSyntax.init(z, statics.info_map)};
   };
 
   module type S = {
-    let touched: Touched.t;
     let measured: Measured.t;
     let term_ranges: TermRanges.t;
     let col_target: int;
@@ -112,7 +89,6 @@ module Meta = {
   let module_of_t = (m: t): (module S) =>
     (module
      {
-       let touched = m.touched;
        let measured = m.syntax.measured;
        let term_ranges = m.syntax.term_ranges;
        let col_target = m.col_target;
@@ -134,10 +110,7 @@ module Meta = {
       )
       : t => {
     print_endline("Editor.next. Action:" ++ Action.show(a));
-    // Effects disabled below; if nothing breaks due to this then rip them out
-    let touched = meta.touched; //Touched.update(Time.tick(), effects, meta.touched);
-    let syntax =
-      CachedSyntax.next(~touched, a, z, meta.statics.info_map, meta.syntax);
+    let syntax = CachedSyntax.next(a, z, meta.statics.info_map, meta.syntax);
     let statics = CachedStatics.next(~settings, a, z, meta.statics);
     let col_target =
       switch (a) {
@@ -145,13 +118,7 @@ module Meta = {
       | Select(Resize(Local(Up | Down))) => meta.col_target
       | _ => (Zipper.caret_point(syntax.measured))(. z).col
       };
-    {
-      touched,
-      col_target,
-      syntax,
-      selection_ids: Selection.selection_ids(z.selection),
-      statics,
-    };
+    {col_target, syntax, statics};
   };
 };
 
@@ -227,7 +194,7 @@ let new_state =
 let update_statics = (~settings: CoreSettings.t, ed: t): t => {
   /* Use this function to force a statics update when (for example)
    * changing the statics settings */
-  let statics = CachedStatics.mk(~settings, ed.state.zipper);
+  let statics = CachedStatics.init(~settings, ed.state.zipper);
   {
     ...ed,
     state: {
