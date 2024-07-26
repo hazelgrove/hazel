@@ -8,7 +8,7 @@ all: dev
 
 deps:
 	opam update
-	opam switch import opam.export
+	opam install ./hazel.opam.locked --deps-only --with-test
 
 change-deps:
 	opam lock .
