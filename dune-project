@@ -7,15 +7,15 @@
 (source
  (github hazelgrove/hazel))
 
-; (authors "Author")
-; (maintainers "Maintainer")
+(authors "Hazel Development Team")
+(maintainers "Hazel Development Team")
 
 (license MIT)
 
 (package
  (name hazel)
  (allow_empty)
-;  (synopsis "A short synopsis")
+ (synopsis "Hazel, a live functional programming environment with typed holes")
 ;  (description "A longer description")
  ; (tags
  ; (topics "to describe" your project))
@@ -25,12 +25,12 @@
   (menhir
    (>= 2.0))
   yojson
-  (reason (= 3.11.0))
-  (ppx_yojson_conv_lib (= v0.16.0))
-  (ppx_yojson_conv (= v0.16.0))
-  (incr_dom (= v0.16.0))
-  (omd (= 2.0.0~alpha4))
-  (ezjs_idb (= 0.1.1))
+  reason
+  ppx_yojson_conv_lib
+  ppx_yojson_conv
+  incr_dom
+  (omd (>= 2.0.0~alpha4))
+  ezjs_idb
   virtual_dom
   ppx_deriving
   ptmap
