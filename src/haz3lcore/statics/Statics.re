@@ -209,6 +209,7 @@ and uexp_to_info_map =
   | Triv => atomic(Just(Prod([])))
   | Deferral(position) =>
     add'(~self=IsDeferral(position), ~co_ctx=CoCtx.empty, m)
+  | Undefined => atomic(Just(Unknown(TypeHole)))
   | Bool(_) => atomic(Just(Bool))
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))

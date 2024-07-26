@@ -4,6 +4,7 @@ let rec append_exp = (e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   | Invalid(_)
   | MultiHole(_)
   | Triv
+  | Undefined
   | Deferral(_)
   | Bool(_)
   | Int(_)
