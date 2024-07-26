@@ -171,9 +171,6 @@ let pick_up = (z: t): t => {
     |> Segment.trim_grout_around_secondary(Left)
     |> Segment.trim_grout_around_secondary(Right)
     |> Selection.mk;
-  Segment.tiles(selection.content)
-  |> List.map((t: Tile.t) => t.id)
-  |> Effect.s_touch;
   let backpack = Backpack.push(selection, z.backpack);
   {...z, backpack};
 };
@@ -192,7 +189,6 @@ let destruct = (~destroy_kids=true, z: t): t => {
   let to_pick_up =
     destroy_kids
       ? List.map(Tile.disintegrate, to_pick_up) |> List.flatten : to_pick_up;
-  Effect.s_touch(List.map((t: Tile.t) => t.id, to_pick_up));
   let backpack =
     backpack
     |> Backpack.remove_matching(to_remove)
@@ -208,9 +204,6 @@ let delete = (d: Direction.t, z: t): option(t) =>
 let put_down = (d: Direction.t, z: t): option(t) => {
   let z = destruct(z);
   let* (_, popped, backpack) = pop_backpack(z);
-  Segment.tiles(popped.content)
-  |> List.map((t: Tile.t) => t.id)
-  |> Effect.s_touch;
   let z = {...z, backpack} |> put_selection(popped) |> unselect;
   switch (d) {
   | Left => Some(z)
@@ -229,7 +222,6 @@ let rec construct =
     /* Special case for comments, can't rely on the last branch to construct */
     let content = Secondary.construct_comment(content);
     let id = Id.mk();
-    Effect.s_touch([id]);
     let z = destruct(z);
     let selections = [Selection.mk(Base.mk_secondary(id, content))];
     let backpack = Backpack.push_s(selections, z.backpack);
@@ -238,7 +230,6 @@ let rec construct =
   | [content] when Form.is_secondary(content) =>
     let content = Secondary.Whitespace(content);
     let id = Id.mk();
-    Effect.s_touch([id]);
     z |> update_siblings(((l, r)) => (l @ [Secondary({id, content})], r));
   | _ =>
     let z = destruct(z);
@@ -247,7 +238,6 @@ let rec construct =
     // initial mold to typecheck, will be remolded
     let mold = List.hd(molds);
     let id = Id.mk();
-    Effect.s_touch([id]);
     let selections =
       Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
       |> List.map(Segment.of_tile)

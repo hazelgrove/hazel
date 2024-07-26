@@ -102,15 +102,7 @@ module Meta = {
   let yojson_of_t = _ => failwith("Editor.Meta.yojson_of_t");
   let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
-  let next =
-      (
-        ~effects as _: list(Effect.t)=[],
-        ~settings: CoreSettings.t,
-        a: Action.t,
-        z: Zipper.t,
-        meta: t,
-      )
-      : t => {
+  let next = (~settings: CoreSettings.t, a: Action.t, z: Zipper.t, meta: t): t => {
     print_endline("Editor.next. Action:" ++ Action.show(a));
     let syntax = CachedSyntax.next(a, z, meta.statics.info_map, meta.syntax);
     let statics = CachedStatics.next(~settings, a, z, meta.statics);
@@ -137,16 +129,9 @@ module State = {
     meta: Meta.init(zipper, ~settings),
   };
 
-  let next =
-      (
-        ~effects: list(Effect.t)=[],
-        ~settings: CoreSettings.t,
-        a: Action.t,
-        z: Zipper.t,
-        state,
-      ) => {
+  let next = (~settings: CoreSettings.t, a: Action.t, z: Zipper.t, state) => {
     zipper: z,
-    meta: Meta.next(~effects, ~settings, a, z, state.meta),
+    meta: Meta.next(~settings, a, z, state.meta),
   };
 };
 
@@ -178,15 +163,8 @@ let init = (~read_only=false, z, ~settings: CoreSettings.t) => {
 };
 
 let new_state =
-    (
-      ~effects: list(Effect.t)=[],
-      ~settings: CoreSettings.t,
-      a: Action.t,
-      z: Zipper.t,
-      ed: t,
-    )
-    : t => {
-  let state = State.next(~effects, ~settings, a, z, ed.state);
+    (~settings: CoreSettings.t, a: Action.t, z: Zipper.t, ed: t): t => {
+  let state = State.next(~settings, a, z, ed.state);
   let history =
     Action.is_historic(a)
       ? History.add(a, ed.state, ed.history) : ed.history;
