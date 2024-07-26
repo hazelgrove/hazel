@@ -17,80 +17,64 @@ let meta = (sys: Key.sys): string => {
   };
 };
 
+let mk_shortcut = (~hotkey=?, ~mdIcon=?, label, update_action): shortcut => {
+  {update_action: Some(update_action), hotkey, label, mdIcon};
+};
+
 // List of shortcuts configured to show up in the command palette and have hotkey support
 let shortcuts = (sys: Key.sys): list(shortcut) => [
-  {
-    update_action: Some(PerformAction(Jump(BindingSiteOfIndicatedVar))),
-    hotkey: Some("F12"),
-    label: "Go to Definition",
-    mdIcon: Some("arrow_forward"),
-  },
-  {
-    update_action: Some(MoveToNextHole(Left)),
-    hotkey: Some("shift+tab"),
-    label: "Go To Previous Hole",
-    mdIcon: Some("swipe_left_alt"),
-  },
-  {
-    update_action: Some(MoveToNextHole(Right)),
-    hotkey: None, // Tab is overloaded so not setting it here
-    label: "Go To Next Hole",
-    mdIcon: Some("swipe_right_alt"),
-  },
-  {
-    update_action: Some(Undo),
-    hotkey: Some(meta(sys) ++ "+z"),
-    label: "Undo",
-    mdIcon: Some("undo"),
-  },
-  {
-    update_action: Some(Redo),
-    hotkey: Some(meta(sys) ++ "+shift+z"),
-    label: "Redo",
-    mdIcon: Some("redo"),
-  },
-  {
-    update_action: Some(PerformAction(Select(Term(Current)))),
-    hotkey: Some(meta(sys) ++ "+d"),
-    label: "Select current term",
-    mdIcon: Some("select_all"),
-  },
-  {
-    update_action: Some(PerformAction(Pick_up)),
-    hotkey: Some(meta(sys) ++ "+p"),
-    label: "Pick up selected term",
-    mdIcon: Some("backpack"),
-  },
-  {
-    update_action: Some(PerformAction(Select(All))),
-    hotkey: Some(meta(sys) ++ "+a"),
-    label: "Select All",
-    mdIcon: Some("select_all"),
-  },
-  {
-    update_action: Some(Assistant(Prompt(TyDi))), // I haven't figured out how to trigger this in the editor
-    hotkey: Some(meta(sys) ++ "+/"),
-    label: "TyDi Assistant",
-    mdIcon: Some("assistant"),
-  },
-  {
-    update_action: Some(ExportScratchSlide),
-    hotkey: None,
-    label: "Export Scratch Slide",
-    mdIcon: None,
-  },
-  {
-    update_action: Some(ReparseCurrentEditor),
-    hotkey: None, // ctrl+k conflicts with the command palette
-    label: "Reparse Current Editor",
-    mdIcon: Some("refresh"),
-  },
-  {
-    update_action: Some(Benchmark(Start)),
-    hotkey: Some("F7"),
-    label: "Run Benchmark",
-    mdIcon: None,
-  },
+  mk_shortcut(
+    ~hotkey="F12",
+    ~mdIcon="arrow_forward",
+    "Go to Definition",
+    PerformAction(Jump(BindingSiteOfIndicatedVar)),
+  ),
+  mk_shortcut(
+    ~hotkey="shift+tab",
+    ~mdIcon="swipe_left_alt",
+    "Go to Definition",
+    MoveToNextHole(Left),
+  ),
+  mk_shortcut(
+    ~mdIcon="swipe_right_alt",
+    "Go To Next Hole",
+    MoveToNextHole(Right),
+    // Tab is overloaded so not setting it here
+  ),
+  mk_shortcut(~mdIcon="undo", ~hotkey=meta(sys) ++ "+z", "Undo", Undo),
+  mk_shortcut(~hotkey=meta(sys) ++ "+shift+z", ~mdIcon="redo", "Redo", Redo),
+  mk_shortcut(
+    ~hotkey=meta(sys) ++ "+d",
+    ~mdIcon="select_all",
+    "Select current term",
+    PerformAction(Select(Term(Current))),
+  ),
+  mk_shortcut(
+    ~hotkey=meta(sys) ++ "+p",
+    ~mdIcon="backpack",
+    "Pick up selected term",
+    PerformAction(Pick_up),
+  ),
+  mk_shortcut(
+    ~mdIcon="select_all",
+    ~hotkey=meta(sys) ++ "+a",
+    "Select All",
+    PerformAction(Select(All)),
+  ),
+  mk_shortcut(
+    ~hotkey=meta(sys) ++ "+/",
+    ~mdIcon="assistant",
+    "TyDi Assistant",
+    Assistant(Prompt(TyDi)) // I haven't figured out how to trigger this in the editor
+  ),
+  mk_shortcut("Export Scratch Slide", ExportScratchSlide),
+  mk_shortcut(
+    // ctrl+k conflicts with the command palette
+    ~mdIcon="refresh",
+    "Reparse Current Editor",
+    ReparseCurrentEditor,
+  ),
+  mk_shortcut(~hotkey="F7", "Run Benchmark", Benchmark(Start)),
 ];
 
 let handle_key_event = (k: Key.t): option(Update.t) => {
