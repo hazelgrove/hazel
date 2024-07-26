@@ -151,7 +151,7 @@ let mold_of = (~shape=Nib.Shape.Convex, p: t) =>
   | Tile(t) => t.mold
   | Grout(g) => Mold.of_grout(g, Any)
   | Secondary(_) => Mold.of_secondary({sort: Any, shape})
-  | Projector(_) => ProjectorBase.mold_of(Any)
+  | Projector(p) => ProjectorBase.mold_of(p, Any)
   };
 
 let replace_id = (id: Id.t, p: t): t =>

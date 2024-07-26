@@ -85,10 +85,6 @@ let zipper_to_string =
   )
   |> String.concat("\n");
 
-let to_string_editor =
-    (~holes: option(string)=Some(""), editor: Editor.t): string =>
-  zipper_to_string(~holes, editor.state.zipper);
-
 let to_string_selection = (editor: Editor.t): string =>
   to_rows(
     ~measured=measured(editor.state.zipper),

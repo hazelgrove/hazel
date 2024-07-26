@@ -1,4 +1,69 @@
 open Projector;
+open ProjectorBase;
+
+/* Updates the underlying piece of syntax for a projector */
+module Update = {
+  let update_piece =
+      (f: Base.projector => Base.projector, id: Id.t, syntax: syntax) =>
+    switch (syntax) {
+    | Projector(pr) when pr.id == id => Base.Projector(f(pr))
+    | x => x
+    };
+
+  let init = (kind: t, syntax: syntax): syntax => {
+    /* We set the projector id equal to the Piece id for convienence
+     * including cursor-info association. We maintain this invariant
+     * when we update a projector's contained syntax */
+    let (module P) = to_module(kind);
+    switch (P.can_project(syntax)) {
+    | false => syntax
+    | true => Projector({id: Piece.id(syntax), kind, model: P.init, syntax})
+    };
+  };
+
+  let add_projector = (kind: Base.kind, id: Id.t, syntax: syntax) =>
+    switch (syntax) {
+    | Projector(pr) when Piece.id(syntax) == id => init(kind, pr.syntax)
+    | syntax when Piece.id(syntax) == id => init(kind, syntax)
+    | x => x
+    };
+
+  let remove_projector = (id: Id.t, syntax: syntax) =>
+    switch (syntax) {
+    | Projector(pr) when pr.id == id => pr.syntax
+    | x => x
+    };
+
+  let add_or_remove_projector = (kind: Base.kind, id: Id.t, syntax: syntax) =>
+    switch (syntax) {
+    | Projector(pr) when Piece.id(syntax) == id => pr.syntax
+    | syntax when Piece.id(syntax) == id => init(kind, syntax)
+    | x => x
+    };
+
+  let remove_any_projector = (syntax: syntax) =>
+    switch (syntax) {
+    | Projector(pr) => pr.syntax
+    | x => x
+    };
+
+  let update =
+      (f: Base.projector => Base.projector, id: Id.t, z: ZipperBase.t)
+      : ZipperBase.t =>
+    ZipperBase.MapPiece.fast_local(update_piece(f, id), id, z);
+
+  let add = (k: Base.kind, id: Id.t, z: ZipperBase.t): ZipperBase.t =>
+    ZipperBase.MapPiece.fast_local(add_projector(k, id), id, z);
+
+  let add_or_remove = (k: Base.kind, id: Id.t, z: ZipperBase.t): ZipperBase.t =>
+    ZipperBase.MapPiece.fast_local(add_or_remove_projector(k, id), id, z);
+
+  let remove = (id: Id.t, z: ZipperBase.t): ZipperBase.t =>
+    ZipperBase.MapPiece.fast_local(remove_projector(id), id, z);
+
+  let remove_all = (z: ZipperBase.t): ZipperBase.t =>
+    ZipperBase.MapPiece.go(remove_any_projector, z);
+};
 
 /* If the caret is inside the indicated piece, move it out
  * NOTE: Might need to be updated to support pieces with more than 2 delims */
@@ -21,10 +86,7 @@ let go =
     switch (Indicated.for_index(z)) {
     | None => Error(Cant_project)
     | Some((piece, d, rel)) =>
-      Ok(
-        move_out_of_piece(d, rel, z)
-        |> Projector.Update.add(p, Piece.id(piece)),
-      )
+      Ok(move_out_of_piece(d, rel, z) |> Update.add(p, Piece.id(piece)))
     }
   | ToggleIndicated(p) =>
     switch (Indicated.for_index(z)) {
@@ -32,26 +94,26 @@ let go =
     | Some((piece, d, rel)) =>
       Ok(
         move_out_of_piece(d, rel, z)
-        |> Projector.Update.add_or_remove(p, Piece.id(piece)),
+        |> Update.add_or_remove(p, Piece.id(piece)),
       )
     }
-  | Remove(id) => Ok(Projector.Update.remove(id, z))
+  | Remove(id) => Ok(Update.remove(id, z))
   | SetSyntax(id, syntax) =>
-    /* Note we update piece id to keep in sync with projector id */
+    /* Note we update piece id to keep in sync with projector id;
+     * See intial id setting in Update.init */
     Ok(
-      Projector.Update.update(
+      Update.update(
         p => {...p, syntax: Piece.replace_id(id, syntax)},
         id,
         z,
       ),
     )
-  | SetModel(id, model) =>
-    Ok(Projector.Update.update(pr => {...pr, model}, id, z))
+  | SetModel(id, model) => Ok(Update.update(pr => {...pr, model}, id, z))
   | Focus(id, d) =>
     let z =
       switch (d) {
       | None =>
-        /* d==None means a mouse click */
+        /* d == None means focus by mouse click */
         jump_to_id_indicated(z, id) |> Option.value(~default=z)
       | Some(_) => z
       };
