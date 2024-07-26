@@ -30,6 +30,7 @@ jobs:
         working-directory: ./source
       - name: Build Release
         run: |
+          export DUNE_CACHE=enabled
           opam exec -- dune build @src/fmt --auto-promote src --profile release
         working-directory: ./source
       - name: Checkout the website build artifacts repo
