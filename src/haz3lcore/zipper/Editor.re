@@ -16,7 +16,7 @@ module CachedStatics = {
   let mk = (~settings: CoreSettings.t, z: Zipper.t): t => {
     // Modify here to allow passing in an initial context
     let ctx_init = Builtins.ctx_init;
-    let term = MakeTerm.from_zip_for_sem(z) |> fst;
+    let term = MakeTerm.from_zip_for_sem(z).term;
     let info_map = Statics.mk(settings, ctx_init, term);
     let error_ids = Statics.Map.error_ids(info_map);
     {term, info_map, error_ids};
@@ -50,10 +50,7 @@ module CachedSyntax = {
 
   let init = (z, info_map): t => {
     let segment = Zipper.unselect_and_zip(z);
-    //TODO(andrew): remove/consolidate remove_all and syntaxMap
-    let (term, terms) =
-      MakeTerm.go(Zipper.unselect_and_zip(Projector.Update.remove_all(z)));
-    let projectors = Projector.SyntaxMap.go(z);
+    let MakeTerm.{term, terms, projectors} = MakeTerm.go(segment);
     {
       projectors,
       segment,
@@ -68,10 +65,7 @@ module CachedSyntax = {
 
   let update = (z, info_map, ~touched, ~old): t => {
     let segment = Zipper.unselect_and_zip(z);
-    //TODO(andrew): remove/consolidate remove_all and syntaxMap
-    let (term, terms) =
-      MakeTerm.go(Zipper.unselect_and_zip(Projector.Update.remove_all(z)));
-    let projectors = Projector.SyntaxMap.go(z);
+    let MakeTerm.{term, terms, projectors} = MakeTerm.go(segment);
     {
       projectors,
       segment,

@@ -580,7 +580,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     };
 
   let term_of = (editor: Editor.t): Term.UExp.t =>
-    MakeTerm.from_zip_for_sem(editor.state.zipper) |> fst;
+    MakeTerm.from_zip_for_sem(editor.state.zipper).term;
 
   let stitch3 = (ed1: Editor.t, ed2: Editor.t, ed3: Editor.t) =>
     EditorUtil.append_exp(
