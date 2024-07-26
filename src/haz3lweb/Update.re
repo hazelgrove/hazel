@@ -215,7 +215,7 @@ let schedule_evaluation = (~schedule_action, model: Model.t): unit =>
 
 let update_cached_data = (~schedule_action, update, m: Model.t): Model.t => {
   let update_dynamics = reevaluate_post_update(update);
-  /* If we swtich editors, or change settings which require statics
+  /* If we switch editors, or change settings which require statics
    * when statics was previously off, we may need updated statics */
   let non_edit_action_requiring_statics_refresh =
     update_dynamics

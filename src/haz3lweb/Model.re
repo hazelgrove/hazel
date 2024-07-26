@@ -112,8 +112,7 @@ let reset = (model: t): t => {
   /* Reset model to default, including in localstorage,
      but don't otherwise erase localstorage, allowing
      e.g. api keys to persist */
-  let settings = Store.Settings.init();
-  let settings = settings.core;
+  let settings = Store.Settings.init().core;
   ignore(Store.ExplainThisModel.init());
   ignore(Store.Scratch.init(~settings));
   ignore(Store.Documentation.init(~settings));

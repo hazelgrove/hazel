@@ -633,7 +633,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       (settings: CoreSettings.t, t: stitched(TermBase.UExp.t))
       : stitched_statics => {
     let mk = (term: TermBase.UExp.t): Editor.CachedStatics.t => {
-      //NOTE: this is expensive and _almost_ redundant to the statics in Editor
       let info_map = Statics.mk(settings, Builtins.ctx_init, term);
       {term, error_ids: Statics.Map.error_ids(info_map), info_map};
     };
