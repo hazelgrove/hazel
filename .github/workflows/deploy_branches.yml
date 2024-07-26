@@ -34,6 +34,11 @@ jobs:
           export DUNE_CACHE=enabled
           opam install . --deps-only --with-test --locked
         working-directory: ./source
+      - name: Clean opam switch
+        run: |
+          eval $(opam env)
+          export OPAMYES=1
+          opam clean --all-switches --download-cache --logs --repo-cache --unused-repositories
       - name: Build Release
         run: |
           export DUNE_CACHE=enabled
