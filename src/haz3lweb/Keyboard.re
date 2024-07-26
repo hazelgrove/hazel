@@ -4,10 +4,12 @@ let is_digit = s => Re.Str.(string_match(regexp("^[0-9]$"), s, 0));
 let is_f_key = s => Re.Str.(string_match(regexp("^F[0-9][0-9]*$"), s, 0));
 
 type shortcut = {
-  update_action: option(UpdateAction.t),
+  update_action: UpdateAction.t,
   hotkey: option(string),
   label: string,
   mdIcon: option(string),
+  parent: option(string),
+  children: list(string),
 };
 
 let meta = (sys: Key.sys): string => {
@@ -17,8 +19,10 @@ let meta = (sys: Key.sys): string => {
   };
 };
 
-let mk_shortcut = (~hotkey=?, ~mdIcon=?, label, update_action): shortcut => {
-  {update_action: Some(update_action), hotkey, label, mdIcon};
+let mk_shortcut =
+    (~hotkey=?, ~mdIcon=?, ~parent=?, ~children=[], label, update_action)
+    : shortcut => {
+  {update_action, hotkey, label, mdIcon, parent, children};
 };
 
 // List of shortcuts configured to show up in the command palette and have hotkey support
