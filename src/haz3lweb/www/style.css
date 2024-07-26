@@ -1908,6 +1908,7 @@ svg.tile-selected {
 }
 
 div.expandable-target {
+  display: flex;
   cursor: pointer;
   z-index: 40;
 }
@@ -1920,9 +1921,13 @@ div.expandable-target {
 .arrow {
   width: 0;
   height: 0;
-  border-left: 10px solid transparent;
-  border-right: 10px solid transparent;
-  border-top: 10px solid var(--light-text-color);
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid #a69460;
+}
+div.expandable-target:hover .arrow,
+.arrow:hover {
+  border-top: 6px solid black;
 }
 
 svg.expandable {
