@@ -26,6 +26,7 @@ jobs:
         uses: ocaml/setup-ocaml@v3
         with:
           ocaml-compiler: 5.2.0
+          dune-cache: true
       - name: Install dependencies
         run: |
           eval $(opam env)
