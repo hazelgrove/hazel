@@ -19,8 +19,14 @@ jobs:
           dune-cache: true
       # NOTE: position the below lines in the code between two steps
       # and uncomment them to open an ssh connection at that point:
-      - name: Debugging with ssh
-        uses: lhotari/action-upterm@v1
+      # - name: Debugging with ssh
+        # uses: lhotari/action-upterm@v1
+      - name: Retrieve the build environment if cached
+        id: opam-cache
+        uses: actions/cache@v2
+        with:
+          path: '/home/runner/.opam/'
+          key: ${{ runner.os }}-modules-${{ hashFiles('./source/hazel.opam.locked') }}
       - name: Install dependencies
         run: |
           eval $(opam env)
