@@ -282,6 +282,7 @@ let switch_exercise_editor =
    this between users. The former is a TODO, currently difficult
    due to the more complex architecture of Exercises. */
 let export_persistent_data = () => {
+  // TODO Is this parsing and reserializing?
   let settings = Store.Settings.load();
   let data: PersistentData.t = {
     documentation:
@@ -300,6 +301,10 @@ let export_persistent_data = () => {
     ~contents,
   );
   print_endline("INFO: Persistent data exported to Init.ml");
+};
+let export_scratch_slide = (editor: Editor.t): unit => {
+  let json_data = ScratchSlide.export(editor);
+  JsUtil.download_json("hazel-scratchpad", json_data);
 };
 
 let ui_state_update =
@@ -360,6 +365,10 @@ let rec apply =
       Model.save_and_return({...model, editors});
     | ExportPersistentData =>
       export_persistent_data();
+      Ok(model);
+    | ExportScratchSlide =>
+      let editor = Editors.get_editor(model.editors);
+      export_scratch_slide(editor);
       Ok(model);
     | ResetCurrentEditor =>
       let instructor_mode = model.settings.instructor_mode;

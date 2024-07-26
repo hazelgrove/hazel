@@ -62,6 +62,7 @@ type t =
   | SetMeta(set_meta)
   | UpdateExplainThisModel(ExplainThisUpdate.update)
   | ExportPersistentData
+  | ExportScratchSlide // TODO Combine exports
   | DebugConsole(string)
   /* editors */
   | ResetCurrentEditor
@@ -151,6 +152,7 @@ let is_edit: t => bool =
   | UpdateResult(_)
   | SwitchEditor(_)
   | ExportPersistentData
+  | ExportScratchSlide
   | Save
   | Copy
   | UpdateExplainThisModel(_)
@@ -203,6 +205,7 @@ let reevaluate_post_update: t => bool =
   | InitImportScratchpad(_)
   | UpdateExplainThisModel(_)
   | ExportPersistentData
+  | ExportScratchSlide
   | UpdateResult(_)
   | SwitchEditor(_)
   | DebugConsole(_)
@@ -286,5 +289,6 @@ let should_scroll_to_caret =
   | InitImportScratchpad(_)
   | UpdateExplainThisModel(_)
   | ExportPersistentData
+  | ExportScratchSlide
   | DebugConsole(_)
   | Benchmark(_) => false;

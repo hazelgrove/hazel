@@ -74,6 +74,12 @@ let shortcuts = (sys: Key.sys): list(shortcut) => [
     mdIcon: Some("assistant"),
   },
   {
+    update_action: Some(ExportScratchSlide),
+    hotkey: None,
+    label: "Export Scratch Slide",
+    mdIcon: None,
+  },
+  {
     update_action: Some(ReparseCurrentEditor),
     hotkey: None, // ctrl+k conflicts with the command palette
     label: "Reparse Current Editor",
