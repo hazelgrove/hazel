@@ -20,28 +20,10 @@ let meta = (sys: Key.sys): string => {
 // List of shortcuts configured to show up in the command palette and have hotkey support
 let shortcuts = (sys: Key.sys): list(shortcut) => [
   {
-    update_action: Some(Benchmark(Start)),
-    hotkey: Some("F7"),
-    label: "Run Benchmark",
-    mdIcon: None,
-  },
-  {
     update_action: Some(PerformAction(Jump(BindingSiteOfIndicatedVar))),
     hotkey: Some("F12"),
     label: "Go to Definition",
     mdIcon: Some("arrow_forward"),
-  },
-  {
-    update_action: Some(Redo),
-    hotkey: Some(meta(sys) ++ "+shift+z"),
-    label: "Redo",
-    mdIcon: Some("redo"),
-  },
-  {
-    update_action: Some(Undo),
-    hotkey: Some(meta(sys) ++ "+z"),
-    label: "Undo",
-    mdIcon: Some("undo"),
   },
   {
     update_action: Some(MoveToNextHole(Left)),
@@ -56,10 +38,16 @@ let shortcuts = (sys: Key.sys): list(shortcut) => [
     mdIcon: Some("swipe_right_alt"),
   },
   {
-    update_action: Some(ReparseCurrentEditor),
-    hotkey: None, // ctrl+k conflicts with the command palette
-    label: "Reparse Current Editor",
-    mdIcon: Some("refresh"),
+    update_action: Some(Undo),
+    hotkey: Some(meta(sys) ++ "+z"),
+    label: "Undo",
+    mdIcon: Some("undo"),
+  },
+  {
+    update_action: Some(Redo),
+    hotkey: Some(meta(sys) ++ "+shift+z"),
+    label: "Redo",
+    mdIcon: Some("redo"),
   },
   {
     update_action: Some(PerformAction(Select(Term(Current)))),
@@ -84,6 +72,18 @@ let shortcuts = (sys: Key.sys): list(shortcut) => [
     hotkey: Some(meta(sys) ++ "+/"),
     label: "TyDi Assistant",
     mdIcon: Some("assistant"),
+  },
+  {
+    update_action: Some(ReparseCurrentEditor),
+    hotkey: None, // ctrl+k conflicts with the command palette
+    label: "Reparse Current Editor",
+    mdIcon: Some("refresh"),
+  },
+  {
+    update_action: Some(Benchmark(Start)),
+    hotkey: Some("F7"),
+    label: "Run Benchmark",
+    mdIcon: None,
   },
 ];
 
