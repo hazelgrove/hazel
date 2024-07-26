@@ -11,7 +11,7 @@ deps:
 	opam switch import opam.export
 
 change-deps:
-    opam lock .
+	opam lock .
 
 setup-instructor:
 	cp src/haz3lweb/ExerciseSettings_instructor.re src/haz3lweb/ExerciseSettings.re
