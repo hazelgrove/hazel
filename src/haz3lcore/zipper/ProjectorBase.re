@@ -37,30 +37,35 @@ type info = {
 
 /* To add a new projector, implement this module signature */
 module type Projector = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type model;
   /* The internal model type of the projector which will
    * be serialized and persisted. Use `unit` if you don't
    * need other state beyond the underlying syntax */
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type action;
+  type model;
   /* An internal action type to be used in actions which
    * update the model. Use `unit` if the basic projector
    * actions (type `action`) above suffice */
-  let init: model;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type action;
   /* Initial state of the model */
-  let can_project: Base.piece => bool;
+  let init: model;
   /* A predicate determining if the given underlying
    * syntax (currently limited to convex pieces) is
    * supported by this projector. This is used to gate
    * adding the projector */
-  let can_focus: bool;
+  let can_project: Base.piece => bool;
   /* Does this projector have internal position states,
    * overriding the editor caret & keyboard handlers?
    * If yes, the focus method will be called when this
    * projector is either clicked on or if left/right
    * is pressed when the caret is to the immediate
    * right/left of the projector */
+  let can_focus: bool;
+  /* Renders a DOM view for the projector, given the
+   * model, an info packet (see info type for details),
+   * and has two callbacks: ~parent for parent editor
+   * actions(see external_action type above), and ~local
+   * for this projector's local update function. */
   let view:
     (
       model,
@@ -69,12 +74,6 @@ module type Projector = {
       ~parent: external_action => Ui_effect.t(unit)
     ) =>
     Node.t;
-  /* Renders a DOM view for the projector, given the
-   * model, an info packet (see info type for details),
-   * and has two callbacks: ~parent for parent editor
-   * actions(see external_action type above), and ~local
-   * for this projector's local update function. */
-  let placeholder: (model, info) => shape;
   /* How much space should be left in the code view for
    * this projector? This determines how the base code
    * view is laid out, including how movement around the
@@ -82,14 +81,15 @@ module type Projector = {
    * from the view, but this is awkward to do so for now
    * projector writers are responsible for keeping these
    * in sync with each other. */
-  let update: (model, action) => model;
+  let placeholder: (model, info) => shape;
   /* Update the local projector model given an action */
-  let focus: ((Id.t, option(Direction.t))) => unit;
+  let update: (model, action) => model;
   /* Does whatever needs to be done to give a projector
    * keyboard focus. Right now this is only for side
    * effects but could be extended in the future to
    * take/return the model if the projector needs to
    * maintain a complex internal position state */
+  let focus: ((Id.t, option(Direction.t))) => unit;
 };
 
 /* Projector model and action are serialized so that
