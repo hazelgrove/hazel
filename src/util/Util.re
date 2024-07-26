@@ -15,6 +15,7 @@ module StringUtil = StringUtil;
 module TimeUtil = TimeUtil;
 module TupleUtil = TupleUtil;
 module Web = Web;
+module JsUtil = JsUtil;
 
 // Used by [@deriving sexp, yojson)]
 include Sexplib.Std;

@@ -1,3 +1,4 @@
+open Util;
 open Haz3lcore;
 
 type state = (Id.t, Editor.t);
