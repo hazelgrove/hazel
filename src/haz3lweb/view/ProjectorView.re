@@ -138,7 +138,7 @@ let setup_view =
     ~measurement,
     ~indication,
     ~info,
-    ~selected=List.mem(id, meta.selection_ids),
+    ~selected=List.mem(id, meta.syntax.selection_ids),
     p,
     P.view(p.model, ~info, ~local, ~parent),
   );

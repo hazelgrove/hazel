@@ -74,7 +74,6 @@ let shape_affix =
         (([[w, ...ws], ...wss], gs), s, tl);
       | Grout(g) => (Aba.cons([], g, wgw), s, tl)
       | Projector(p) =>
-        //TODO(andrew): ??? ask d
         let (l, _) =
           ProjectorBase.shapes(p) |> (d == Left ? TupleUtil.swap : Fun.id);
         (empty_wgw, l, tl);
@@ -724,8 +723,8 @@ let ids_of_incomplete_tiles_in_bidelimiteds = (seg: t): list(Id.t) =>
   get_childrens(seg) |> List.concat |> get_incomplete_ids;
 
 let push_right = ((ls: t, rs: t)): (t, t) =>
-  switch (ls |> List.rev) {
-  | [l, ...ls] => (ls |> List.rev, [l, ...rs])
+  switch (List.rev(ls)) {
+  | [l, ...ls] => (List.rev(ls), [l, ...rs])
   | [] => (ls, rs)
   };
 
