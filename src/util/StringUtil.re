@@ -36,7 +36,7 @@ let replace = Js_of_ocaml.Regexp.global_replace;
 
 let split = Js_of_ocaml.Regexp.split;
 
-let to_lines = (s: string): list(string) => split(regexp("\n"), s);
+let to_lines = String.split_on_char('\n');
 
 let line_widths = (s: string): list(int) =>
   s |> to_lines |> List.map(String.length);
@@ -46,9 +46,9 @@ let max_line_width = (s: string): int =>
 
 let num_lines = (s: string): int => s |> to_lines |> List.length;
 
-let num_linebreaks = (s: string) =>
-  List.init(String.length(s), String.get(s))
-  |> List.fold_left((acc, c) => c == '\n' ? acc + 1 : acc, 0);
+let num_linebreaks = (s: string) => {
+  s |> String.to_seq |> Seq.filter((==)('\n')) |> Seq.length;
+};
 
 // let escape_linebreaks: string => string = replace(regexp("\n"), "\\n");
 // let unescape_linebreaks: string => string = replace(regexp("\\\\n"), "\n");
