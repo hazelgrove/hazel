@@ -53,7 +53,7 @@ let perform_action =
     | Exercises(_) =>
       /* If we're in exercises mode, statics is calculated externally,
        * so we set it to off here to disable internal calculation*/
-      CoreSettings.off
+      CoreSettings.on
     | _ => settings
     };
   switch (Perform.go(~settings, a, get_editor(editors))) {
