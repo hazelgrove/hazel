@@ -4,21 +4,6 @@ open Virtual_dom.Vdom;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = Base.kind;
 
-/* Projectors are currently all convex */
-let shapes = _ => Nib.Shape.(Convex, Convex);
-
-/* Projectors are currentlt all convex and any-sorted */
-let mold_of: Sort.t => Mold.t =
-  sort => {
-    {
-      nibs: {
-        ({shape: Convex, sort}, {shape: Convex, sort});
-      },
-      out: sort,
-      in_: [],
-    };
-  };
-
 /* Projectors currently have two options for placeholder
  * shapes: A inline display of a given length, or a block
  * display with given length & height. Both of these can
@@ -152,4 +137,19 @@ module Cook = (C: Projector) : Cooked => {
   let update = (m, a) =>
     C.update(m |> deserialize_m, a |> deserialize_a) |> serialize_m;
   let focus = C.focus;
+};
+
+/* Projectors currently are all convex */
+let shapes = (_: Base.projector) => Nib.Shape.(Convex, Convex);
+
+/* Projectors currently have a unique molding */
+let mold_of = (p, sort: Sort.t): Mold.t => {
+  let (l, r) = shapes(p);
+  {
+    nibs: {
+      ({shape: l, sort}, {shape: r, sort});
+    },
+    out: sort,
+    in_: [],
+  };
 };

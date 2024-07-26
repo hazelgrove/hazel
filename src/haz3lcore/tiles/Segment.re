@@ -521,10 +521,10 @@ and regrout_affix =
         switch (p) {
         | Secondary(w) => (Trim.cons_w(w, trim), r, tl)
         | Grout(g) => (Trim.(merge(cons_g(g, trim))), r, tl)
-        | Projector(p) =>
-          let p = Piece.Projector(p);
+        | Projector(pr) =>
+          let p = Piece.Projector(pr);
           let (l', r') =
-            ProjectorBase.shapes(p) |> (d == Left ? TupleUtil.swap : Fun.id);
+            ProjectorBase.shapes(pr) |> (d == Left ? TupleUtil.swap : Fun.id);
           let trim = Trim.regrout(d, (r', r), trim);
           (Trim.empty, l', [p, ...Trim.to_seg(trim)] @ tl);
         | Tile(t) =>
