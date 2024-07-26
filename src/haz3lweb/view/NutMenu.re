@@ -1,3 +1,4 @@
+open Util;
 open Virtual_dom.Vdom;
 open Js_of_ocaml;
 open Node;

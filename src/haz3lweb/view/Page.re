@@ -1,3 +1,4 @@
+open Util;
 open Js_of_ocaml;
 open Haz3lcore;
 open Virtual_dom.Vdom;

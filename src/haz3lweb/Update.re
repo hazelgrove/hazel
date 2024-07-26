@@ -1,3 +1,4 @@
+open Util;
 open Haz3lcore;
 
 include UpdateAction; // to prevent circularity

@@ -1,4 +1,4 @@
-open Haz3lcore;
+open Util;
 
 let sample_1 = {|# Hazel Language Quick Reference #
 
