@@ -18,6 +18,7 @@ module Web = Web;
 module JsUtil = JsUtil;
 module Key = Key;
 module Os = Os;
+module Point = Point;
 
 // Used by [@deriving sexp, yojson)]
 include Sexplib.Std;

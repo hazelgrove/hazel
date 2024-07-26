@@ -105,7 +105,7 @@ let position =
       ~height_fudge=0.0,
       ~scale=1.,
       ~font_metrics: FontMetrics.t,
-      origin: Haz3lcore.Point.t,
+      origin: Point.t,
     ) =>
   Attr.create(
     "style",
@@ -128,7 +128,7 @@ let abs_position =
       ~height_fudge=0.0,
       ~scale=1.,
       ~font_metrics: FontMetrics.t,
-      origin: Haz3lcore.Point.t,
+      origin: Point.t,
     ) => {
   position(
     ~style="position: absolute",
@@ -145,7 +145,7 @@ let abs_position =
 let code_svg =
     (
       ~font_metrics: FontMetrics.t,
-      ~origin: Haz3lcore.Point.t,
+      ~origin: Point.t,
       ~base_cls=[],
       ~path_cls=[],
       ~left_fudge=0.0,

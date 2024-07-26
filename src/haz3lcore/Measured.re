@@ -258,7 +258,7 @@ let is_indented_map = (seg: Segment.t) => {
              )
            | Secondary(_)
            | Grout(_) => (is_indented, map)
-           | Projector(_) => (is_indented, map) // TODO(andrew): ??
+           | Projector(_) => (is_indented, map)
            | Tile(t) =>
              let is_indented = is_indented || post_tile_indent(t);
              let map =
@@ -276,7 +276,7 @@ let is_indented_map = (seg: Segment.t) => {
 };
 
 let last_of_token = (token: string, origin: Point.t): Point.t =>
-  // Adjustment for multi-line tokens e.g. projector placeholders
+  /* Supports multi-line tokens e.g. projector placeholders */
   Point.{
     col: origin.col + StringUtil.max_line_width(token),
     row: origin.row + StringUtil.num_linebreaks(token),
@@ -401,31 +401,6 @@ let of_segment =
               let map = add_s(t.id, shard, {origin, last}, map);
               (last, map);
             };
-            //TODO(andrew)
-            // let add_shard = (origin, shard, map) => {
-            //   let token = List.nth(t.label, shard);
-            //   // Adjustment for multi-line tokens e.g. projector placeholders
-            //   let last =
-            //     Point.{
-            //       col: origin.col + StringUtil.max_line_width(token),
-            //       row: origin.row + StringUtil.num_linebreaks(token),
-            //     };
-            //   let map = map |> add_s(t.id, shard, {origin, last});
-            //   let row_indent = container_indent + contained_indent;
-            //   let rec add_n_rows = (n, map) =>
-            //     switch (n) {
-            //     | 0 => map
-            //     | _ =>
-            //       map
-            //       |> add_n_rows(n - 1)
-            //       |> add_row(
-            //            origin.row + n - 1,
-            //            {indent: row_indent, max_col: origin.col},
-            //          )
-            //     };
-            //   let map = map |> add_n_rows(StringUtil.num_linebreaks(token));
-            //   (last, map);
-            // };
             let (last, map) =
               Aba.mk(t.shards, t.children)
               |> Aba.fold_left(
