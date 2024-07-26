@@ -66,7 +66,9 @@ module CachedSyntax = {
   };
 
   let next = (a: Action.t, z: Zipper.t, info_map, old: t) =>
-    Action.is_edit(a) ? init(z, info_map) : old;
+    Action.is_edit(a)
+      ? init(z, info_map)
+      : {...old, selection_ids: Selection.selection_ids(z.selection)};
 };
 
 module Meta = {

@@ -81,9 +81,9 @@ module Deco = (M: {
            let token = List.nth(t.label, index);
            switch (StringUtil.num_linebreaks(token)) {
            | 0 => [Some(sel_shard_svg(~start_shape, ~index, m, Tile(t)))]
-           //TODO(andrew): decoration for selections
-           /* No deco for multi-line tokens e.g. projector placeholders,
-            * but need to leave some blank lines */
+           //TODO(andrew): clarify
+           /* Deco for multi-line tokens e.g. projector placeholders
+            * handled in ProjectorsView but need to leave some blank lines */
            | num_lb => List.init(num_lb, _ => None)
            };
          });
@@ -104,9 +104,9 @@ module Deco = (M: {
     let token = Projector.placeholder(p, ci);
     switch (StringUtil.num_linebreaks(token)) {
     | 0 => [Some(sel_shard_svg(~start_shape, ~index=0, m, Projector(p)))]
-    //TODO(andrew): decoration for selections
-    /* No deco for multi-line tokens e.g. projector placeholders,
-     * but need to leave some blank lines */
+    //TODO(andrew): clarify
+    /* Deco for multi-line tokens e.g. projector placeholders
+     * handled in ProjectorsView but need to leave some blank lines */
     | num_lb => List.init(num_lb, _ => None)
     };
   }
@@ -189,10 +189,6 @@ module Deco = (M: {
         let tiles =
           Id.Map.find(Piece.id(p), M.meta.syntax.terms)
           |> Term.ids
-          /* NOTE(andrew): dark_ids were originally filtered here.
-           * Leaving this comment in place in case issues in the
-           * future are traced back to here.
-           * |> List.filter(id => id >= 0)*/
           |> List.map(id => {
                let t = tile(id);
                (
@@ -337,9 +333,8 @@ module Deco = (M: {
        * than just the editor to which it's statics are being applied, so there may
        * be error holes that don't occur in the editor. However, any errors that do
        * occur in the editor will be represented, so this hack works for now */
-      //TODO(andrew)
-      print_endline("WARNING: Deco.term_highlight: Not found");
-      Node.div([]);
+      //TODO(andrew): clarify
+      Node.div([])
     };
 
   let color_highlights = (colorings: list((Id.t, string))) => {
@@ -388,8 +383,8 @@ module Deco = (M: {
       "errors",
       try(List.map(error_view, M.meta.statics.error_ids)) {
       | Not_found =>
-        print_endline("WARNING: Deco.errors: Not_found");
-        [];
+        //TODO(andrew): clarify
+        []
       },
     );
 
