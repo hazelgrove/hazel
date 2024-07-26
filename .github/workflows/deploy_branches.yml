@@ -17,13 +17,6 @@ jobs:
         with:
           ocaml-compiler: 5.2.0
           dune-cache: true
-      - name: Retrieve the build environment if cached
-        id: opam-cache
-        uses: actions/cache@v4
-        with:
-          path: '/home/runner/.opam/'
-          key: ${{ runner.os }}-modules-${{ hashFiles('./source/hazel.opam.locked') }}
-            # NOTE: position the below lines in the code between two steps
       - name: Retrieve the switch environment if cached
         id: opam-cache-switch
         uses: actions/cache@v4
