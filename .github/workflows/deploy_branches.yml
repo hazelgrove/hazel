@@ -16,12 +16,6 @@ jobs:
           path: source
       - name: Add the name of the current branch to the environment as BRANCH_NAME
         uses: nelonoel/branch-name@v1.0.1
-      - name: Retrieve the build environment if cached
-        id: opam-cache
-        uses: actions/cache@v4
-        with:
-          path: '/home/runner/.opam/'
-          key: ${{ runner.os }}-modules-${{ hashFiles('./source/hazel.opam.locked') }}
       - name: Set-up OCaml
         uses: ocaml/setup-ocaml@v3
         with:
