@@ -6,6 +6,10 @@ jobs:
   Deploy:
     runs-on: ubuntu-latest
     steps:
+      # NOTE: position the below lines in the code between two steps
+      # and uncomment them to open an ssh connection at that point:
+      #- name: Debugging with ssh
+      #  uses: lhotari/action-upterm@v1
       - name: Checkout the hazel repo on the current branch
         uses: actions/checkout@v2
         with:
@@ -23,10 +27,6 @@ jobs:
         with:
           path: '_opam'
           key: ${{ runner.os }}-modules-${{ hashFiles('./source/hazel.opam.locked') }}
-            # NOTE: position the below lines in the code between two steps
-      # and uncomment them to open an ssh connection at that point:
-      # - name: Debugging with ssh
-      #   uses: lhotari/action-upterm@v1
       - name: Install dependencies
         run: |
           eval $(opam env)
