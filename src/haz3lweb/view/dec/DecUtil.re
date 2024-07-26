@@ -3,8 +3,8 @@ open Node;
 open Util;
 
 let tip_width = 0.32;
-let concave_adj = 0.15; //0.25;
-let convex_adj = 0.; //(-0.13);
+let concave_adj = 0.15;
+let convex_adj = 0.;
 let shadow_adj = 0.015;
 
 let caret_adjust = (side: Direction.t, shape: option(Direction.t)) =>
