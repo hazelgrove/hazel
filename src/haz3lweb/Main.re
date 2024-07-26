@@ -2,7 +2,6 @@ open Util;
 open Js_of_ocaml;
 open Incr_dom;
 open Haz3lweb;
-open Haz3lcore;
 
 let scroll_to_caret = ref(true);
 let edit_action_applied = ref(true);
