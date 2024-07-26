@@ -271,7 +271,7 @@ let go_history =
   let Editor.State.{zipper, meta} = ed.state;
   Effect.s_clear();
   let+ z = go_z(~settings, ~meta, a, zipper);
-  Editor.new_state(~effects=Effect.s^, ~settings, a, z, ed);
+  Editor.new_state(~settings, a, z, ed);
 };
 
 let go =

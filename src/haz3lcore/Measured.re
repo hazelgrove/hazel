@@ -326,7 +326,11 @@ let of_segment = (seg: Segment.t, info_map: Statics.Map.t): t => {
           | Secondary(w) when Secondary.is_linebreak(w) =>
             let row_indent = container_indent + contained_indent;
             let indent =
-              contained_indent + (Id.Map.find(w.id, is_indented) ? 2 : 0);
+              if (Segment.sameline_secondary(tl)) {
+                0;
+              } else {
+                contained_indent + (Id.Map.find(w.id, is_indented) ? 2 : 0);
+              };
             let last =
               Point.{row: origin.row + 1, col: container_indent + indent};
             let map =
