@@ -19,7 +19,7 @@ let precedence_LessThan = P.eqs;
 let precedence_GreaterThan = P.eqs;
 let precedence_And = P.and_;
 let precedence_Or = P.or_;
-let precedence_Comma = P.prod;
+let precedence_Comma = P.comma;
 let precedence_max = P.min;
 
 let pad_child =
@@ -140,3 +140,5 @@ let mk_Ap = (doc1, doc2) =>
 
 let mk_Prj = (targ, n) =>
   Doc.hcats([targ, Delim.projection_dot, Doc.text(string_of_int(n))]);
+
+let mk_Undefined = () => Doc.text("undefined");

@@ -1,4 +1,5 @@
 open Util;
+open StringUtil;
 open Mold;
 module P = Precedence;
 
@@ -10,9 +11,6 @@ module P = Precedence;
    table, for compound forms.
    The wrapping functions seen in both of those tables determine the
    shape, precedence, and expansion behavior of the form. */
-
-let regexp = StringUtil.regexp;
-let match = StringUtil.match;
 
 /* A label is the textual expression of a form's delimiters */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -115,8 +113,7 @@ let is_keyword = match(keyword_regexp);
 
 /* Potential tokens: These are fallthrough classes which determine
  * the behavior when inserting a character in contact with a token */
-let potential_operand_regexp = regexp("^[a-zA-Z0-9_'\\.?]+$");
-let is_potential_operand = match(potential_operand_regexp);
+let is_potential_operand = match(regexp("^[a-zA-Z0-9_'\\.?]+$"));
 /* Anything else is considered a potential operator, as long
  *  as it does not contain any whitespace, linebreaks, comment
  *  delimiters, string delimiters, or the instant expanding paired
@@ -131,8 +128,8 @@ let is_potential_token = t =>
   || is_comment(t);
 
 let int_regexp = regexp("^-?\\d+[0-9_]*$");
-let float_regexp = regexp("^-?[0-9]*\\.?[0-9]*((e|E)-?[0-9]*)?$");
-let is_arbitary_float = x => x != "." && x != "-" && match(float_regexp, x);
+let is_float = match(regexp("^-?[0-9]*\\.?[0-9]*((e|E)-?[0-9]*)?$"));
+let is_arbitary_float = x => x != "." && x != "-" && is_float(x);
 let is_int = str => match(int_regexp, str) && int_of_string_opt(str) != None;
 /* NOTE: The is_arbitary_int check is necessary to prevent
    minuses from being parsed as part of the int token. */
@@ -149,27 +146,28 @@ let is_float = str =>
   && float_of_string_opt(str) != None;
 let is_bad_float = str => is_arbitary_float(str) && !is_float(str);
 let bools = ["true", "false"];
-let bool_regexp = regexp("^(" ++ String.concat("|", bools) ++ ")$");
-let is_bool = match(bool_regexp);
+let is_bool = match(regexp("^(" ++ String.concat("|", bools) ++ ")$"));
+let undefined = "undefined";
+let is_undefined = match(regexp("^" ++ undefined ++ "$"));
 
 let var_regexp =
   regexp(
     {|(^[a-z_][A-Za-z0-9_']*$)|(^[A-Z][A-Za-z0-9_']*\.[a-z][A-Za-z0-9_']*$)|},
   );
 let is_var = str =>
-  !match(bool_regexp, str)
+  !is_bool(str)
+  && !is_undefined(str)
   && str != "_"
   //&& !is_keyword(str)
   && match(var_regexp, str);
-let is_capitalized_name = regexp("^[A-Z][A-Za-z0-9_]*$");
-let is_ctr = match(is_capitalized_name);
+let capitalized_name_regexp = regexp("^[A-Z][A-Za-z0-9_]*$");
+let is_ctr = match(capitalized_name_regexp);
 let base_typs = ["String", "Int", "Float", "Bool"];
-let base_typ_regexp = regexp("^(" ++ String.concat("|", base_typs) ++ ")$");
-let is_base_typ = match(base_typ_regexp);
-let is_typ_var = str => is_var(str) || match(is_capitalized_name, str);
+let is_base_typ =
+  match(regexp("^(" ++ String.concat("|", base_typs) ++ ")$"));
+let is_typ_var = str => is_var(str) || match(capitalized_name_regexp, str);
 let wild = "_";
-let wild_regexp = regexp("^" ++ wild ++ "$");
-let is_wild = match(wild_regexp);
+let is_wild = match(regexp("^" ++ wild ++ "$"));
 
 /* List literals */
 let list_start = "[";
@@ -205,7 +203,7 @@ let duomerges = (lbl: Label.t): option(Label.t) =>
 
 //TODO(andrew): refactor atomic_forms to seperate these out
 let const_mono_delims =
-  base_typs @ bools @ [wild, empty_list, empty_tuple, empty_string];
+  base_typs @ bools @ [undefined, wild, empty_list, empty_tuple, empty_string];
 
 let explicit_hole = "?";
 let is_explicit_hole = t => t == explicit_hole;
@@ -233,6 +231,7 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("int_lit", (is_int, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("float_lit", (is_float, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("bool_lit", (is_bool, [mk_op(Exp, []), mk_op(Pat, [])])),
+  ("undefined_lit", (is_undefined, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("empty_list", (is_empty_list, [mk_op(Exp, []), mk_op(Pat, [])])),
   (
     "empty_tuple",
@@ -251,9 +250,9 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
 
 let forms: list((string, t)) = [
   // INFIX OPERATORS
-  ("typ_plus", mk_infix("+", Typ, P.or_)),
-  ("type-arrow", mk_infix("->", Typ, 6)),
-  ("cell-join", mk_infix(";", Exp, 10)),
+  ("typ_plus", mk_infix("+", Typ, P.type_plus)),
+  ("type-arrow", mk_infix("->", Typ, P.type_arrow)),
+  ("cell-join", mk_infix(";", Exp, P.semi)),
   ("plus", mk_infix("+", Exp, P.plus)),
   ("minus", mk_infix("-", Exp, P.plus)),
   ("times", mk_infix("*", Exp, P.mult)),
@@ -291,9 +290,9 @@ let forms: list((string, t)) = [
   ("unary_minus", mk(ss, ["-"], mk_pre(P.neg, Exp, []))),
   ("unquote", mk(ss, ["$"], mk_pre(P.unquote, Exp, []))),
   // N-ARY OPS (on the semantics level)
-  ("comma_exp", mk_infix(",", Exp, P.prod)),
-  ("comma_pat", mk_infix(",", Pat, P.prod)),
-  ("comma_typ", mk_infix(",", Typ, P.prod)),
+  ("comma_exp", mk_infix(",", Exp, P.comma)),
+  ("comma_pat", mk_infix(",", Pat, P.comma)),
+  ("comma_typ", mk_infix(",", Typ, P.type_prod)),
   // PAIRED DELIMITERS:
   ("list_lit_exp", mk(ii, ["[", "]"], mk_op(Exp, [Exp]))),
   ("list_lit_pat", mk(ii, ["[", "]"], mk_op(Pat, [Pat]))),

@@ -59,10 +59,23 @@ To update do the following:
       
       - Merge your branch with either `dev` or `update_ocaml_VERSION` if that is tricky.
 
-      - Update your OCaml installation by running the following:
+      - Update your `opam`.
 
         ```
         opam update
+        ```
+
+        If you get the following warning:
+
+        ```
+        [WARNING] opam is out-of-date. Please consider updating it (https://opam.ocaml.org/doc/Install.html)
+        ```
+
+        You may want to update opam by following the instructions for your platform at that link.
+
+      - Update your OCaml installation by running the following:
+
+        ```
         opam switch create VERSION
         eval $(opam env)
         make deps
