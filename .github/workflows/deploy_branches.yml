@@ -25,6 +25,7 @@ jobs:
         run: |
           eval $(opam env)
           export OPAMYES=1
+          export DUNE_CACHE=enabled
           opam install ./hazel.opam.locked --deps-only --with-test
         working-directory: ./source
       - name: Build Release
