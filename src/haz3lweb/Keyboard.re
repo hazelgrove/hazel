@@ -10,8 +10,15 @@ type shortcut = {
   mdIcon: option(string),
 };
 
+let meta = (sys: Key.sys): string => {
+  switch (sys) {
+  | Mac => "cmd"
+  | PC => "ctrl"
+  };
+};
+
 // List of shortcuts configured to show up in the command palette and have hotkey support
-let shortcuts: list(shortcut) = [
+let shortcuts = (sys: Key.sys): list(shortcut) => [
   {
     update_action: Some(Benchmark(Start)),
     hotkey: Some("F7"),
@@ -26,13 +33,13 @@ let shortcuts: list(shortcut) = [
   },
   {
     update_action: Some(Redo),
-    hotkey: Some("ctrl+shift+z,cmd+shift+z"),
+    hotkey: Some(meta(sys) ++ "+shift+z"),
     label: "Redo",
     mdIcon: Some("redo"),
   },
   {
     update_action: Some(Undo),
-    hotkey: Some("ctrl+z,cmd+z"),
+    hotkey: Some(meta(sys) ++ "+z"),
     label: "Undo",
     mdIcon: Some("undo"),
   },
@@ -56,25 +63,25 @@ let shortcuts: list(shortcut) = [
   },
   {
     update_action: Some(PerformAction(Select(Term(Current)))),
-    hotkey: Some("ctrl+d,cmd+d"),
+    hotkey: Some(meta(sys) ++ "+d"),
     label: "Select current term",
     mdIcon: Some("select_all"),
   },
   {
     update_action: Some(PerformAction(Pick_up)),
-    hotkey: Some("ctrl+p,cmd+p"),
+    hotkey: Some(meta(sys) ++ "+p"),
     label: "Pick up selected term",
     mdIcon: Some("backpack"),
   },
   {
     update_action: Some(PerformAction(Select(All))),
-    hotkey: Some("ctrl+a,cmd+a"),
+    hotkey: Some(meta(sys) ++ "+a"),
     label: "Select All",
     mdIcon: Some("select_all"),
   },
   {
     update_action: Some(Assistant(Prompt(TyDi))), // I haven't figured out how to trigger this in the editor
-    hotkey: Some("ctrl+/,cmd+/"),
+    hotkey: Some(meta(sys) ++ "+/"),
     label: "TyDi Assistant",
     mdIcon: Some("assistant"),
   },
