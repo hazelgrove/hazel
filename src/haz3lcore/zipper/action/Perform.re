@@ -128,7 +128,13 @@ let go_z =
     | Some(z) => Ok(z)
     }
   | Buffer(Clear) => Ok(buffer_clear(z))
-  | Project(a) => ProjectorPerform.go(Move.jump_to_id, Move.primary, a, z)
+  | Project(a) =>
+    ProjectorPerform.go(
+      Move.jump_to_id_indicated,
+      Move.jump_to_side_of_id,
+      a,
+      z,
+    )
   | Move(d) =>
     Move.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move)
   | Jump(jump_target) =>

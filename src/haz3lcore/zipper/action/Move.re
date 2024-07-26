@@ -232,6 +232,14 @@ module Make = (M: Editor.Meta.S) => {
     | Some(z) => Some(z)
     };
 
+  /* Jump to id moves the caret to the leftmost edge of
+   * the piece with the target id. Note that this may not
+   * mean that the piece at that id will be considered
+   * indicate from the point of view of the code decorations
+   * and cursor info display, since for example in the
+   * expression with (caret "|") "true && !|flag", the
+   * caret is at the leftmost edge of flag, but the not
+   * operator ("!") is indicated */
   let jump_to_id = (z: t, id: Id.t): option(t) => {
     let* {origin, _} = Measured.find_by_id(id, M.measured);
     let z =
@@ -242,6 +250,47 @@ module Make = (M: Editor.Meta.S) => {
     switch (do_towards(primary(ByChar), origin, z)) {
     | None => Some(z)
     | Some(z) => Some(z)
+    };
+  };
+
+  let jump_to_side_of_id = (d: Direction.t, z, id) => {
+    let z =
+      switch (jump_to_id(z, id)) {
+      | Some(z) => z /* Move to left of id */
+      | None => z
+      };
+    switch (d) {
+    | Left => z
+    | Right =>
+      switch (primary(ByToken, Right, z)) {
+      | Some(z) => z
+      | None => z
+      }
+    };
+  };
+
+  /* Same as jump to id, but if the end position doesn't
+   * indicate the target id, move one token to the right.
+   * This is an approximate solution (that I believe works
+   * for all current cases) */
+  let jump_to_id_indicated = (z: t, id: Id.t): option(t) => {
+    let* {origin, _} = Measured.find_by_id(id, M.measured);
+    let z =
+      switch (to_start(z)) {
+      | None => z
+      | Some(z) => z
+      };
+    switch (do_towards(primary(ByChar), origin, z)) {
+    | None => Some(z)
+    | Some(z) =>
+      switch (Indicated.index(z)) {
+      | Some(indicated_id) when id == indicated_id => Some(z)
+      | _ =>
+        switch (primary(ByToken, Right, z)) {
+        | Some(z) => Some(z)
+        | None => Some(z)
+        }
+      }
     };
   };
 
