@@ -114,10 +114,7 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
         let child =
           if (l
               + 1 == r
-              && (
-                List.nth(remolded.mold.in_, l) != List.nth(t.mold.in_, l)
-                || Effect.s_touched(remolded.id)
-              )) {
+              && List.nth(remolded.mold.in_, l) != List.nth(t.mold.in_, l)) {
             remold(child, List.nth(remolded.mold.in_, l));
           } else {
             child;
