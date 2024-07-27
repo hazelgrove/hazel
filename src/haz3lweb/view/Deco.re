@@ -326,67 +326,64 @@ module Deco = (M: {
         )
       )
     ) {
-    | _ =>
+    | Not_found =>
       /* This is caused by the statics overloading for exercise mode. The overriding
-       * Exercise mode statics is calculated based on splicing together multiple
-       * editors; the way the splicings are designed, a given splicing might cover more
-       * than just the editor to which it's statics are being applied, so there may
-       * be error holes that don't occur in the editor. However, any errors that do
-       * occur in the editor will be represented, so this hack works for now */
-      //TODO(andrew): clarify
+       * Exercise mode statics maps are calculated based on splicing together multiple
+       * editors, but error_ids are extracted generically from the statics map, so
+       * there may be error holes that don't occur in the editor being rendered.
+       * Additionally, when showing color highlights when the backpack is non-empty,
+       * the prospective completion may have different ids than the displayed code. */
       Node.div([])
     };
 
   let color_highlights = (colorings: list((Id.t, string))) => {
-    List.filter_map(
+    List.map(
       ((id, color)) =>
-        /* HACK(andrew): Catching exceptions since when showing
-           term highlights when the backpack is non-empty, the
-           prospective completion may have different term ids
-           than the displayed code. */
-        try(Some(term_highlight(~clss=["highlight-code-" ++ color], id))) {
-        | Not_found => None
-        },
+        term_highlight(~clss=["highlight-code-" ++ color], id),
       colorings,
     );
   };
 
   let error_view = (id: Id.t) =>
-    switch (Id.Map.find_opt(id, M.meta.syntax.projectors)) {
-    | Some(p) =>
-      /* Special case for projectors as they are not in tile map */
-      let shapes = ProjectorBase.shapes(p);
-      let measurement = Id.Map.find(id, M.meta.syntax.measured.projectors);
-      div_c(
-        "errors-piece",
-        [PieceDec.simple_shard_error(~font_metrics, ~shapes, ~measurement)],
-      );
-    | None =>
-      let tiles =
-        Id.Map.find(id, M.meta.syntax.terms)
-        |> Term.ids
-        |> List.map(id => {
-             let t = tile(id);
-             let shards =
-               Measured.find_shards(
-                 ~msg="Deco.errors_of_tile",
-                 t,
-                 M.meta.syntax.measured,
-               );
-             PieceDec.simple_shards_errors(~font_metrics, t.mold, shards);
-           });
-      div_c("errors-piece", List.flatten(tiles));
+    try(
+      switch (Id.Map.find_opt(id, M.meta.syntax.projectors)) {
+      | Some(p) =>
+        /* Special case for projectors as they are not in tile map */
+        let shapes = ProjectorBase.shapes(p);
+        let measurement = Id.Map.find(id, M.meta.syntax.measured.projectors);
+        div_c(
+          "errors-piece",
+          [
+            PieceDec.simple_shard_error(~font_metrics, ~shapes, ~measurement),
+          ],
+        );
+      | None =>
+        let tiles =
+          Id.Map.find(id, M.meta.syntax.terms)
+          |> Term.ids
+          |> List.map(id => {
+               let t = tile(id);
+               let shards =
+                 Measured.find_shards(
+                   ~msg="Deco.errors_of_tile",
+                   t,
+                   M.meta.syntax.measured,
+                 );
+               PieceDec.simple_shards_errors(~font_metrics, t.mold, shards);
+             });
+        div_c("errors-piece", List.flatten(tiles));
+      }
+    ) {
+    | Not_found =>
+      /* This is caused by the statics overloading for exercise mode. The overriding
+       * Exercise mode statics maps are calculated based on splicing together multiple
+       * editors, but error_ids are extracted generically from the statics map, so
+       * there may be error holes that don't occur in the editor being rendered */
+      Node.div([])
     };
 
   let errors = () =>
-    div_c(
-      "errors",
-      try(List.map(error_view, M.meta.statics.error_ids)) {
-      | Not_found =>
-        //TODO(andrew): clarify
-        []
-      },
-    );
+    div_c("errors", List.map(error_view, M.meta.statics.error_ids));
 
   let indication = (z: Zipper.t) =>
     switch (Projector.indicated(z)) {
