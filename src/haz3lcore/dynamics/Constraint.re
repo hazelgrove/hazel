@@ -152,3 +152,73 @@ let of_ctr = (ctx, mode, name, self) => {
     };
   of_ap(ctx, mode, Some(name), Truth, syn_ty);
 };
+
+let rec to_upat_term = (xi, ctx, ty): Term.UPat.term => {
+  let to_upat = (term): Term.UPat.t => {ids: [], term};
+  let rec unwrap_sum = (xi, num_variants, acc) =>
+    if (acc == num_variants - 1) {
+      (xi, acc);
+    } else {
+      switch (xi) {
+      | Truth as xi
+      | InjL(xi) => (xi, acc)
+      | InjR(xi) => unwrap_sum(xi, num_variants, acc + 1)
+      | _ => assert(false) // impossible
+      };
+    };
+  let to_upat_term' = (sm): Term.UPat.term => {
+    let (xi, nth) = unwrap_sum(xi, ConstructorMap.cardinal(sm), 0);
+    // TODO: sort
+    // TODO: + functionality in ConstructorMap
+    switch (List.nth(sm, nth)) {
+    | (ctr, None) => Constructor(ctr)
+    | (ctr, Some(ty)) =>
+      Ap(Constructor(ctr) |> to_upat, to_upat_term(xi, ctx, ty) |> to_upat)
+    };
+  };
+  switch (xi, Typ.weak_head_normalize(ctx, ty)) {
+  | (
+      Falsity | Hole | And(_) | Or(_) | NotInt(_) | NotFloat(_) | NotString(_),
+      _,
+    ) =>
+    assert(false) // impossible
+  | (Truth, _) => Wild
+  | (Int(n), _) => Int(n)
+  | (Float(n), _) => Float(n)
+  | (String(s), _) => String(s)
+  | (InjL(_), Bool) => Bool(true)
+  | (InjR(_), Bool) => Bool(false)
+  | (InjL(_), List(_)) => ListLit([])
+  | (InjR(Truth), List(_)) => Cons(Wild |> to_upat, Wild |> to_upat)
+  | (InjR(Pair(xi_first, xi_rest)), List(ty)) =>
+    let upat_first = to_upat_term(xi_first, ctx, ty) |> to_upat;
+    switch (to_upat_term(xi_rest, ctx, List(ty))) {
+    | ListLit(upat_rest) => ListLit([upat_first, ...upat_rest])
+    | upat_rest => Cons(upat_first, upat_rest |> to_upat)
+    };
+  | (Pair(xi1, xi2), Prod([ty1, ty2])) =>
+    Tuple([
+      to_upat_term(xi1, ctx, ty1) |> to_upat,
+      to_upat_term(xi2, ctx, ty2) |> to_upat,
+    ])
+  | (Pair(xi_first, xi_rest), Prod([ty_first, ...ty_rest])) =>
+    switch (to_upat_term(xi_rest, ctx, Prod(ty_rest))) {
+    | Tuple(upat_rest) =>
+      Tuple([to_upat_term(xi_first, ctx, ty_first) |> to_upat, ...upat_rest])
+    | _ => assert(false) // impossible
+    }
+  | (_, Sum(sm)) => to_upat_term'(sm)
+  | (_, Rec(_) as ty) =>
+    // Assumes that anonymous recursive types are not implemented
+    switch (Typ.get_sum_constructors(ctx, ty)) {
+    | Some(sm) => to_upat_term'(sm)
+    | None => assert(false) // impossible
+    }
+  | _ => assert(false) // impossible
+  };
+};
+
+let to_upat = (xi, ctx, ty): Term.UPat.t => {
+  ids: [],
+  term: to_upat_term(xi, ctx, ty),
+};

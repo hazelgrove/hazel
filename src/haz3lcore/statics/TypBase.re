@@ -21,7 +21,7 @@ module rec Typ: {
   /* TYP.T: Hazel types */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | Unknown(type_provenance)
+    | Unknown(type_provenance) // TODO
     | Int
     | Float
     | Bool

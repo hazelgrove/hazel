@@ -538,9 +538,19 @@ and uexp_to_info_map =
           );
         };
         let (m, final_constraint) = pats_to_info_map(ps, m);
+        let e_tys = List.map(Info.exp_ty, es);
+        let unwrapped_self: Self.exp =
+          Common(Self.match(ctx, e_tys, branch_ids));
         let is_exhaustive = Incon.is_exhaustive(final_constraint);
         let self =
-          is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
+          switch (is_exhaustive) {
+          | True => unwrapped_self
+          | False(xi) =>
+            InexhaustiveMatch(
+              unwrapped_self,
+              Constraint.to_upat(xi, ctx, scrut.ty),
+            )
+          };
         (self, m);
       | None =>
         /* Add co-ctxs to patterns */

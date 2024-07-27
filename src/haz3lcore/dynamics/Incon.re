@@ -1,6 +1,10 @@
 open Sets;
 
-let is_inconsistent_int = (xis: list(Constraint.t)): bool => {
+type b =
+  | True
+  | False(Constraint.t);
+
+let is_inconsistent_int = (xis: list(Constraint.t)): b => {
   let (int_set, not_int_list) =
     List.fold_left(
       ((int_set, not_int_list), xi: Constraint.t) =>
@@ -12,11 +16,20 @@ let is_inconsistent_int = (xis: list(Constraint.t)): bool => {
       (IntSet.empty, []),
       xis,
     );
-  IntSet.cardinal(int_set) > 1
-  || List.exists(IntSet.mem(_, int_set), not_int_list);
+  if (IntSet.cardinal(int_set) > 1
+      || List.exists(IntSet.mem(_, int_set), not_int_list)) {
+    True;
+  } else if (IntSet.cardinal(int_set) == 1) {
+    False(Int(IntSet.choose(int_set)));
+  } else {
+    // IntSet.cardinal(int_set) == 0
+    False(
+      Int(List.fold_left(max, List.hd(not_int_list), not_int_list) + 1),
+    );
+  };
 };
 
-let is_inconsistent_float = (xis: list(Constraint.t)): bool => {
+let is_inconsistent_float = (xis: list(Constraint.t)): b => {
   let (float_set, not_float_list) =
     List.fold_left(
       ((float_set, not_float_list), xi: Constraint.t) =>
@@ -28,11 +41,22 @@ let is_inconsistent_float = (xis: list(Constraint.t)): bool => {
       (FloatSet.empty, []),
       xis,
     );
-  FloatSet.cardinal(float_set) > 1
-  || List.exists(FloatSet.mem(_, float_set), not_float_list);
+  if (FloatSet.cardinal(float_set) > 1
+      || List.exists(FloatSet.mem(_, float_set), not_float_list)) {
+    True;
+  } else if (FloatSet.cardinal(float_set) == 1) {
+    False(Float(FloatSet.choose(float_set)));
+  } else {
+    // FloatSet.cardinal(float_set) == 0
+    False(
+      Float(
+        List.fold_left(max, List.hd(not_float_list), not_float_list) +. 1.0,
+      ),
+    );
+  };
 };
 
-let is_inconsistent_string = (xis: list(Constraint.t)): bool => {
+let is_inconsistent_string = (xis: list(Constraint.t)): b => {
   let (string_set, not_string_list) =
     List.fold_left(
       ((string_set, not_string_list), xi: Constraint.t) =>
@@ -44,37 +68,62 @@ let is_inconsistent_string = (xis: list(Constraint.t)): bool => {
       (StringSet.empty, []),
       xis,
     );
-  StringSet.cardinal(string_set) > 1
-  || List.exists(StringSet.mem(_, string_set), not_string_list);
+  if (StringSet.cardinal(string_set) > 1
+      || List.exists(StringSet.mem(_, string_set), not_string_list)) {
+    True;
+  } else if (StringSet.cardinal(string_set) == 1) {
+    False(String(StringSet.choose(string_set)));
+  } else {
+    // StringSet.cardinal(string_set) == 0
+    False(
+      String(
+        List.fold_left(max, List.hd(not_string_list), not_string_list) ++ "1",
+      ),
+    );
+  };
 };
 
-let rec is_inconsistent = (xis: list(Constraint.t)): bool =>
+let rec is_inconsistent = (xis: list(Constraint.t)): b =>
+  is_inconsistent'(xis)
+and is_inconsistent' = (xis: list(Constraint.t)): b =>
   switch (xis) {
-  | [] => false
-  | _
-      when
-        List.exists(Constraint.is_injL, xis)
-        && List.exists(Constraint.is_injR, xis) =>
-    true
+  | [] => False(Constraint.Truth)
   | [xi, ...xis'] =>
     switch (xi) {
     | Truth => is_inconsistent(xis')
-    | Falsity => true
+    | Falsity => True
     | Hole => assert(false) // Impossible
     | And(xi1, xi2) => is_inconsistent([xi1, xi2, ...xis'])
     | Or(xi1, xi2) =>
-      is_inconsistent([xi1, ...xis']) && is_inconsistent([xi2, ...xis'])
+      switch (is_inconsistent([xi1, ...xis'])) {
+      | True => is_inconsistent([xi2, ...xis'])
+      | f => f
+      }
     | InjL(_) =>
-      switch (List.partition(Constraint.is_injL, xis)) {
-      | (injLs, []) =>
-        injLs |> List.map(Constraint.unwrapL) |> is_inconsistent
-      | (injLs, others) => is_inconsistent(others @ injLs)
+      if (List.exists(Constraint.is_injR, xis)) {
+        True;
+      } else {
+        switch (List.partition(Constraint.is_injL, xis)) {
+        | (injLs, []) =>
+          switch (injLs |> List.map(Constraint.unwrapL) |> is_inconsistent) {
+          | True => True
+          | False(xi) => False(InjL(xi))
+          }
+        | (injLs, others) => is_inconsistent(others @ injLs)
+        };
       }
     | InjR(_) =>
-      switch (List.partition(Constraint.is_injR, xis)) {
-      | (injRs, []) =>
-        injRs |> List.map(Constraint.unwrapR) |> is_inconsistent
-      | (injRs, others) => is_inconsistent(others @ injRs)
+      if (List.exists(Constraint.is_injL, xis)) {
+        True;
+      } else {
+        switch (List.partition(Constraint.is_injR, xis)) {
+        | (injRs, []) =>
+          switch (injRs |> List.map(Constraint.unwrapR) |> is_inconsistent) {
+          | True => True
+          | False(xi) => False(InjR(xi))
+          }
+        | (injRs, others) => is_inconsistent(others @ injRs)
+        };
       }
     | Int(_)
     | NotInt(_) =>
@@ -130,7 +179,14 @@ let rec is_inconsistent = (xis: list(Constraint.t)): bool =>
       | (pairs, []) =>
         let (xisL, xisR) =
           pairs |> List.map(Constraint.unwrap_pair) |> List.split;
-        is_inconsistent(xisL) || is_inconsistent(xisR);
+        switch (is_inconsistent(xisL)) {
+        | True => True
+        | False(xiL) =>
+          switch (is_inconsistent(xisR)) {
+          | True => True
+          | False(xiR) => False(Pair(xiL, xiR))
+          }
+        };
       | (pairs, others) => is_inconsistent(others @ pairs)
       }
     }
@@ -139,7 +195,8 @@ let rec is_inconsistent = (xis: list(Constraint.t)): bool =>
 let is_redundant = (xi_cur: Constraint.t, xi_pre: Constraint.t): bool =>
   is_inconsistent(
     Constraint.[And(truify(xi_cur), dual(falsify(xi_pre)))],
-  );
+  )
+  == True;
 
-let is_exhaustive = (xi: Constraint.t): bool =>
+let is_exhaustive = (xi: Constraint.t): b =>
   is_inconsistent(Constraint.[dual(truify(xi))]);

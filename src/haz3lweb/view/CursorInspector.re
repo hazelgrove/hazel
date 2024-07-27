@@ -178,15 +178,27 @@ let rec exp_view = (cls: Term.Cls.t, status: Info.status_exp) =>
   switch (status) {
   | InHole(FreeVariable(name)) =>
     div_err([code_err(name), text("not found")])
-  | InHole(InexhaustiveMatch(additional_err)) =>
+  | InHole(InexhaustiveMatch(additional_err, example)) =>
     let cls_str = Term.Cls.show(cls);
     switch (additional_err) {
-    | None => div_err([text(cls_str ++ " is inexhaustive")])
+    | None =>
+      div_err([
+        text(
+          cls_str
+          ++ " is inexhaustive. An example of an unmatched case is: "
+          ++ Term.UPat.str_rep(example),
+        ),
+      ])
     | Some(err) =>
       let cls_str = String.uncapitalize_ascii(cls_str);
       div_err([
         exp_view(cls, InHole(Common(err))),
-        text("; " ++ cls_str ++ " is inexhaustive"),
+        text(
+          "; "
+          ++ cls_str
+          ++ " is inexhaustive. An example of an unmatched case is: "
+          ++ Term.UPat.str_rep(example),
+        ),
       ]);
     };
   | InHole(UnusedDeferral) =>
