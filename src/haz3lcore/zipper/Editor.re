@@ -103,7 +103,7 @@ module Meta = {
   let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
   let next = (~settings: CoreSettings.t, a: Action.t, z: Zipper.t, meta: t): t => {
-    print_endline("Editor.next. Action:" ++ Action.show(a));
+    //print_endline("Editor.next. Action:" ++ Action.show(a));
     let syntax = CachedSyntax.next(a, z, meta.statics.info_map, meta.syntax);
     let statics = CachedStatics.next(~settings, a, z, meta.statics);
     let col_target =
