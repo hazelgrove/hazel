@@ -23,7 +23,7 @@ open DHExp;
 
 type m('a) = PpMonad.t('a);
 
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type error =
   | ClosureInsideClosure
   | FixFOutsideClosureEnv
@@ -32,7 +32,7 @@ type error =
   | PostprocessedNonHoleInClosure
   | PostprocessedHoleOutsideClosure;
 
-[@deriving sexp]
+[@deriving (show({with_path: false}), sexp, yojson)]
 exception Exception(error);
 
 /**
@@ -46,6 +46,7 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
   | IntLit(_)
   | FloatLit(_)
   | StringLit(_)
+  | Undefined
   | Constructor(_) => d |> return
 
   | Sequence(d1, d2) =>
@@ -53,10 +54,18 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     let+ d2' = pp_eval(d2);
     Sequence(d1', d2');
 
+  | Filter(f, dbody) =>
+    let+ dbody' = pp_eval(dbody);
+    Filter(f, dbody');
+
   | Ap(d1, d2) =>
     let* d1' = pp_eval(d1);
     let* d2' = pp_eval(d2);
     Ap(d1', d2') |> return;
+
+  | TypAp(d1, ty) =>
+    let* d1' = pp_eval(d1);
+    TypAp(d1', ty) |> return;
 
   | ApBuiltin(f, d1) =>
     let* d1' = pp_eval(d1);
@@ -136,14 +145,20 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     let* d'' = pp_eval(d');
     InvalidOperation(d'', reason) |> return;
 
+  | IfThenElse(consistent, c, d1, d2) =>
+    let* c' = pp_eval(c);
+    let* d1' = pp_eval(d1);
+    let* d2' = pp_eval(d2);
+    IfThenElse(consistent, c', d1', d2') |> return;
+
   /* These expression forms should not exist outside closure in evaluated result */
   | BoundVar(_)
   | Let(_)
   | ConsistentCase(_)
   | Fun(_)
+  | TypFun(_)
   | EmptyHole(_)
   | NonEmptyHole(_)
-  | ExpandingKeyword(_)
   | FreeVar(_)
   | InvalidText(_)
   | InconsistentBranches(_) => raise(Exception(UnevalOutsideClosure))
@@ -165,6 +180,10 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
     | Fun(dp, ty, d, s) =>
       let* d = pp_uneval(env, d);
       Fun(dp, ty, d, s) |> return;
+
+    | TypFun(tpat, d1, s) =>
+      let* d1' = pp_uneval(env, d1);
+      TypFun(tpat, d1', s) |> return;
 
     | Let(dp, d1, d2) =>
       /* d1 should already be evaluated, d2 is not */
@@ -203,7 +222,6 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
       |> return;
 
     | EmptyHole(_)
-    | ExpandingKeyword(_)
     | FreeVar(_)
     | InvalidText(_) => pp_uneval(env, d)
 
@@ -261,6 +279,7 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
   | IntLit(_)
   | FloatLit(_)
   | StringLit(_)
+  | Undefined
   | Constructor(_) => d |> return
 
   | Test(id, d1) =>
@@ -272,6 +291,9 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let+ d2' = pp_uneval(env, d2);
     Sequence(d1', d2');
 
+  | Filter(flt, dbody) =>
+    let+ dbody' = pp_uneval(env, dbody);
+    Filter(flt, dbody');
   | Let(dp, d1, d2) =>
     let* d1' = pp_uneval(env, d1);
     let* d2' = pp_uneval(env, d2);
@@ -285,14 +307,23 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* d'' = pp_uneval(env, d');
     Fun(dp, ty, d'', s) |> return;
 
+  | TypFun(tpat, d1, s) =>
+    let* d1' = pp_uneval(env, d1);
+    TypFun(tpat, d1', s) |> return;
+
   | Ap(d1, d2) =>
     let* d1' = pp_uneval(env, d1);
     let* d2' = pp_uneval(env, d2);
     Ap(d1', d2') |> return;
 
+  | TypAp(d1, ty) =>
+    let* d1' = pp_uneval(env, d1);
+    TypAp(d1', ty) |> return;
+
   | ApBuiltin(f, d1) =>
     let* d1' = pp_uneval(env, d1);
     ApBuiltin(f, d1') |> return;
+
   | BuiltinFun(f) => BuiltinFun(f) |> return
 
   | BinBoolOp(op, d1, d2) =>
@@ -313,6 +344,12 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* d1' = pp_uneval(env, d1);
     let* d2' = pp_uneval(env, d2);
     BinStringOp(op, d1', d2') |> return;
+
+  | IfThenElse(consistent, c, d1, d2) =>
+    let* c' = pp_uneval(env, c);
+    let* d1' = pp_uneval(env, d1);
+    let* d2' = pp_uneval(env, d2);
+    IfThenElse(consistent, c', d1', d2') |> return;
 
   | Cons(d1, d2) =>
     let* d1' = pp_uneval(env, d1);
@@ -388,10 +425,6 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let* i = hii_add_instance(u, env);
     Closure(env, NonEmptyHole(reason, u, i, d')) |> return;
 
-  | ExpandingKeyword(u, _, kw) =>
-    let* i = hii_add_instance(u, env);
-    Closure(env, ExpandingKeyword(u, i, kw)) |> return;
-
   | FreeVar(u, _, x) =>
     let* i = hii_add_instance(u, env);
     Closure(env, FreeVar(u, i, x)) |> return;
@@ -440,10 +473,13 @@ let rec track_children_of_hole =
   | FloatLit(_)
   | StringLit(_)
   | BuiltinFun(_)
+  | Undefined
   | BoundVar(_) => hii
   | Test(_, d)
   | FixF(_, _, d)
   | Fun(_, _, d, _)
+  | TypFun(_, d, _)
+  | TypAp(d, _)
   | Prj(d, _)
   | Cast(d, _, _)
   | FailedCast(d, _, _)
@@ -475,6 +511,10 @@ let rec track_children_of_hole =
       ds,
       hii,
     )
+  | IfThenElse(_, c, d1, d2) =>
+    let hii = track_children_of_hole(hii, parent, c);
+    let hii = track_children_of_hole(hii, parent, d1);
+    track_children_of_hole(hii, parent, d2);
 
   | ConsistentCase(Case(scrut, rules, _)) =>
     let hii =
@@ -496,7 +536,6 @@ let rec track_children_of_hole =
     let hii = track_children_of_hole_rules(hii, parent, rules);
     hii |> HoleInstanceInfo.add_parent((u, i), parent);
   | EmptyHole(u, i)
-  | ExpandingKeyword(u, i, _)
   | FreeVar(u, i, _)
   | InvalidText(u, i, _) =>
     hii |> HoleInstanceInfo.add_parent((u, i), parent)
@@ -504,6 +543,7 @@ let rec track_children_of_hole =
   /* The only thing that should exist in closures at this point
      are holes. Ignore the hole environment, not necessary for
      parent tracking. */
+  | Filter(_, d)
   | Closure(_, d) => track_children_of_hole(hii, parent, d)
   }
 

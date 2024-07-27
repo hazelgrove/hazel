@@ -1,4 +1,4 @@
-open Sexplib.Std;
+open Util;
 open Haz3lcore;
 
 [@deriving sexp]
@@ -16,4 +16,7 @@ type t =
   | FailedCastDelim
   | FailedCastDecoration
   | CastDecoration
-  | OperationError(InvalidOperationError.t);
+  | OperationError(InvalidOperationError.t)
+  | Steppable(int)
+  | Stepped
+  | Substituted;

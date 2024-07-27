@@ -1,4 +1,5 @@
-open Sexplib.Std;
+open Util;
+open Ppx_yojson_conv_lib.Yojson_conv;
 module Sexp = Sexplib.Sexp;
 
 module Inner = {
@@ -200,6 +201,10 @@ module Ordered = {
     let map = VarBstMap0.of_list(bindings);
     let rev_order = bindings |> List.map(((x, _)) => (x, ())) |> List.rev;
     {map, rev_order};
+  };
+
+  let without_keys = (keys, m) => {
+    filterk(((s, _)) => !List.exists(x => x == s, keys), m);
   };
 };
 

@@ -4,5 +4,9 @@ type hole_sort =
   | PatternHole;
 
 [@deriving sexp]
-type t = MetaVarMap.t((hole_sort, Typ.t, VarCtx.t));
+type val_ty = (hole_sort, Typ.t, Ctx.t);
+
+[@deriving sexp]
+type t = MetaVarMap.t(val_ty);
+
 let empty: t = (MetaVarMap.empty: t);

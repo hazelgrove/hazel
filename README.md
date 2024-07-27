@@ -17,7 +17,7 @@ can also be accessed at:
 
 ### Short version
 
-If you already have `ocaml` version 5.0.0 and least version 2.0 of `opam`
+If you already have `ocaml` version 5.2.0 and at least version 2.0 of `opam`
 installed, you can build Hazel by running the following commands.
 
 - `git clone git@github.com:hazelgrove/hazel.git`
@@ -155,7 +155,7 @@ To obtain an clean build, you may need to:
 
   ```sh
   # opam switch remove ./
-  opam switch create ./ 5.0.0
+  opam switch create ./ 5.2.0
   eval $(opam env)
   make deps
   make
@@ -190,6 +190,11 @@ for a type named something else like `q`, it will be `show_q`.
 #### Debug Mode
 If Hazel is hanging on load or when you perform certain actions, you can load into Debug Mode by appending `#debug` to the URL and reloading. From there, you have some buttons that will change settings or reset local storage. Refresh without the `#debug` flag and hopefully you can resolve the situation from there.
 
+#### Testing
+You can run all of the unit tests located in `test` by running `make test`.
+
+Unit tests are written using the [Alcotest framework](https://github.com/mirage/alcotest).
+
 ### Continuous Integration
 
 When you push your branch to the main `hazelgrove/hazel` repository, we 
@@ -200,3 +205,12 @@ that will build that branch (in `release` mode) and deploy it to the URL
 It usually takes about 2 minutes if the build environment cache hits, or 
 20+ minutes if not. You can view the status of the build in the [Actions 
 tab on Github](https://github.com/hazelgrove/hazel/actions).
+
+Builds prior to July 2024 are archived at `https://hazel.org/build/<branch name>`.
+
+Note: If another archive needs to be performed, make sure to redeploy the following
+branches manually since we refer to them in various public material (websites and
+published papers):
+
+  dev
+  livelits

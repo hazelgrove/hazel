@@ -1,4 +1,4 @@
-open Sexplib.Std;
+open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = string;
@@ -30,12 +30,6 @@ let is_fun = eq("fun");
 let is_case = eq("case");
 
 let is_wild = eq("_");
-
-let is_keyword = s =>
-  switch (ExpandingKeyword.mk(s)) {
-  | Some(_) => true
-  | None => false
-  };
 
 let split = (pos, name) => {
   let left_var = String.sub(name, 0, pos);

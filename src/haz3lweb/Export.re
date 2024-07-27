@@ -1,12 +1,12 @@
-open Sexplib.Std;
+open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type all = {
   settings: string,
-  langDocMessages: string,
+  explainThisModel: string,
   scratch: string,
   exercise: string,
-  examples: string,
+  documentation: string,
   log: string,
 };
 
@@ -21,15 +21,17 @@ type all_f22 = {
 
 let mk_all = (~instructor_mode, ~log) => {
   let settings = Store.Settings.export();
-  let langDocMessages = Store.LangDocMessages.export();
-  let scratch = Store.Scratch.export();
-  let examples = Store.Examples.export();
+  let explainThisModel = Store.ExplainThisModel.export();
+  let settings_obj = Store.Settings.load();
+  let scratch = Store.Scratch.export(~settings=settings_obj.core.evaluation);
+  let documentation =
+    Store.Documentation.export(~settings=settings_obj.core.evaluation);
   let exercise =
     Store.Exercise.export(
       ~specs=ExerciseSettings.exercises,
       ~instructor_mode,
     );
-  {settings, langDocMessages, scratch, examples, exercise, log};
+  {settings, explainThisModel, scratch, documentation, exercise, log};
 };
 
 let export_all = (~instructor_mode, ~log) => {
@@ -44,16 +46,16 @@ let import_all = (data, ~specs) => {
       {
         settings: all_f22.settings,
         scratch: all_f22.scratch,
-        examples: "",
+        documentation: "",
         exercise: all_f22.exercise,
         log: all_f22.log,
-        langDocMessages: "",
+        explainThisModel: "",
       };
     };
   let settings = Store.Settings.import(all.settings);
-  Store.LangDocMessages.import(all.langDocMessages);
+  Store.ExplainThisModel.import(all.explainThisModel);
   let instructor_mode = settings.instructor_mode;
-  Store.Scratch.import(all.scratch);
+  Store.Scratch.import(~settings=settings.core.evaluation, all.scratch);
   Store.Exercise.import(all.exercise, ~specs, ~instructor_mode);
   Log.import(all.log);
 };

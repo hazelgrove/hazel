@@ -1,4 +1,3 @@
-open Sexplib.Std;
 open Util;
 open OptUtil.Syntax;
 open Term;
@@ -67,6 +66,8 @@ type error_common =
 type error_exp =
   | FreeVariable(Var.t) /* Unbound variable (not in typing context) */
   | InexhaustiveMatch(option(error_common), UPat.t)
+  | UnusedDeferral
+  | BadPartialAp(Self.error_partial_ap)
   | Common(error_common);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -99,7 +100,9 @@ type ok_common =
   | Ana(ok_ana);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type ok_exp = ok_common;
+type ok_exp =
+  | AnaDeferralConsistent(Typ.t)
+  | Common(ok_common);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type ok_pat = ok_common;
@@ -164,10 +167,17 @@ type type_var_err =
   | Other
   | NotCapitalized;
 
+/* What are we shadowing? */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type shadow_src =
+  | BaseTyp
+  | TyAlias
+  | TyVar;
+
 /* Type pattern term errors */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_tpat =
-  | ShadowsType(TypVar.t)
+  | ShadowsType(TypVar.t, shadow_src)
   | NotAVar(type_var_err);
 
 /* Type pattern ok statuses for cursor inspector */
@@ -228,13 +238,22 @@ type tpat = {
   status: status_tpat,
 };
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type secondary = {
+  id: Id.t, // Id of term static info is sourced from
+  cls: Term.Cls.t, // Cls of secondary, not source term
+  sort: Sort.t, // from source term
+  ctx: Ctx.t // from source term
+};
+
 /* The static information collated for each term */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | InfoExp(exp)
   | InfoPat(pat)
   | InfoTyp(typ)
-  | InfoTPat(tpat);
+  | InfoTPat(tpat)
+  | Secondary(secondary);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error =
@@ -248,28 +267,40 @@ let sort_of: t => Sort.t =
   | InfoExp(_) => Exp
   | InfoPat(_) => Pat
   | InfoTyp(_) => Typ
-  | InfoTPat(_) => TPat;
+  | InfoTPat(_) => TPat
+  | Secondary(s) => s.sort;
 
 let cls_of: t => Cls.t =
   fun
   | InfoExp({cls, _})
   | InfoPat({cls, _})
   | InfoTyp({cls, _})
-  | InfoTPat({cls, _}) => cls;
+  | InfoTPat({cls, _})
+  | Secondary({cls, _}) => cls;
 
 let ctx_of: t => Ctx.t =
   fun
   | InfoExp({ctx, _})
   | InfoPat({ctx, _})
   | InfoTyp({ctx, _})
-  | InfoTPat({ctx, _}) => ctx;
+  | InfoTPat({ctx, _})
+  | Secondary({ctx, _}) => ctx;
 
 let ancestors_of: t => ancestors =
   fun
   | InfoExp({ancestors, _})
   | InfoPat({ancestors, _})
   | InfoTyp({ancestors, _})
-  | InfoTPat({ancestors, _}) => ancestors;
+  | InfoTPat({ancestors, _}) => ancestors
+  | Secondary(_) => []; //TODO
+
+let id_of: t => Id.t =
+  fun
+  | InfoExp(i) => Term.UExp.rep_id(i.term)
+  | InfoPat(i) => Term.UPat.rep_id(i.term)
+  | InfoTyp(i) => Term.UTyp.rep_id(i.term)
+  | InfoTPat(i) => Term.UTPat.rep_id(i.term)
+  | Secondary(s) => s.id;
 
 let error_of: t => option(error) =
   fun
@@ -280,7 +311,8 @@ let error_of: t => option(error) =
   | InfoExp({status: InHole(err), _}) => Some(Exp(err))
   | InfoPat({status: InHole(err), _}) => Some(Pat(err))
   | InfoTyp({status: InHole(err), _}) => Some(Typ(err))
-  | InfoTPat({status: InHole(err), _}) => Some(TPat(err));
+  | InfoTPat({status: InHole(err), _}) => Some(TPat(err))
+  | Secondary(_) => None;
 
 let exp_co_ctx: exp => CoCtx.t = ({co_ctx, _}) => co_ctx;
 let exp_ty: exp => Typ.t = ({ty, _}) => ty;
@@ -291,18 +323,29 @@ let pat_constraint: pat => Constraint.t = ({constraint_, _}) => constraint_;
 let rec status_common =
         (ctx: Ctx.t, mode: Mode.t, self: Self.t): status_common =>
   switch (self, mode) {
-  | (Just(syn), Syn) => NotInHole(Syn(syn))
+  | (Just(ty), Syn) => NotInHole(Syn(ty))
+  | (Just(ty), SynFun) =>
+    switch (
+      Typ.join_fix(ctx, Arrow(Unknown(Internal), Unknown(Internal)), ty)
+    ) {
+    | Some(_) => NotInHole(Syn(ty))
+    | None => InHole(Inconsistent(WithArrow(ty)))
+    }
+  | (Just(ty), SynTypFun) =>
+    switch (Typ.join_fix(ctx, Forall("?", Unknown(Internal)), ty)) {
+    | Some(_) => NotInHole(Syn(ty))
+    | None => InHole(Inconsistent(WithArrow(ty)))
+    }
   | (Just(syn), Ana(ana)) =>
-    switch (Typ.join_fix(ctx, ana, syn)) {
+    switch (
+      Typ.join_fix(
+        ctx,
+        ana,
+        syn /* Note: the ordering of ana, syn matters */
+      )
+    ) {
     | None => InHole(Inconsistent(Expectation({syn, ana})))
     | Some(join) => NotInHole(Ana(Consistent({ana, syn, join})))
-    }
-  | (Just(syn), SynFun) =>
-    switch (
-      Typ.join_fix(ctx, Arrow(Unknown(Internal), Unknown(Internal)), syn)
-    ) {
-    | None => InHole(Inconsistent(WithArrow(syn)))
-    | Some(_) => NotInHole(Syn(syn))
     }
   | (IsConstructor({name, syn_ty}), _) =>
     /* If a ctr is being analyzed against (an arrow type returning)
@@ -326,7 +369,7 @@ let rec status_common =
         Ana(InternallyInconsistent({ana, nojoin: Typ.of_source(tys)})),
       )
     };
-  | (NoJoin(_, tys), Syn | SynFun) =>
+  | (NoJoin(_, tys), Syn | SynFun | SynTypFun) =>
     InHole(Inconsistent(Internal(Typ.of_source(tys))))
   };
 
@@ -344,7 +387,7 @@ let rec status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
         failwith("InHole(Redundant(impossible_err))")
       };
     InHole(Redundant(additional_err));
-  | (Syn | Ana(_), Common(self_pat))
+  | (Syn | SynTypFun | Ana(_), Common(self_pat))
   | (SynFun, Common(IsConstructor(_) as self_pat)) =>
     /* Little bit of a hack. Anything other than a bound ctr will, in
        function position, have SynFun mode (see Typ.ap_mode). Since we
@@ -374,13 +417,19 @@ let rec status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
       | NotInHole(_)
       | InHole(Common(Inconsistent(Expectation(_) | WithArrow(_)))) => None /* Type checking should fail and these errors would be nullified */
       | InHole(Common(NoType(_)))
-      | InHole(FreeVariable(_) | InexhaustiveMatch(_)) =>
+      | InHole(
+          FreeVariable(_) | InexhaustiveMatch(_) | UnusedDeferral |
+          BadPartialAp(_),
+        ) =>
         failwith("InHole(InexhaustiveMatch(impossible_err))")
       };
     InHole(InexhaustiveMatch(additional_err, example));
+  | (IsDeferral(InAp), Ana(ana)) => NotInHole(AnaDeferralConsistent(ana))
+  | (IsDeferral(_), _) => InHole(UnusedDeferral)
+  | (IsBadPartialAp(_ as info), _) => InHole(BadPartialAp(info))
   | (Common(self_pat), _) =>
     switch (status_common(ctx, mode, self_pat)) {
-    | NotInHole(ok_exp) => NotInHole(ok_exp)
+    | NotInHole(ok_exp) => NotInHole(Common(ok_exp))
     | InHole(err_pat) => InHole(Common(err_pat))
     }
   };
@@ -409,7 +458,11 @@ let status_typ =
       InHole(DuplicateConstructor(name))
     | TypeExpected =>
       switch (Ctx.is_alias(ctx, name)) {
-      | false => InHole(FreeTypeVariable(name))
+      | false =>
+        switch (Ctx.is_abstract(ctx, name)) {
+        | false => InHole(FreeTypeVariable(name))
+        | true => NotInHole(Type(Var(name)))
+        }
       | true => NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
       }
     }
@@ -436,9 +489,15 @@ let status_typ =
 let status_tpat = (ctx: Ctx.t, utpat: UTPat.t): status_tpat =>
   switch (utpat.term) {
   | EmptyHole => NotInHole(Empty)
-  | Var(name)
-      when Form.is_base_typ(name) || Ctx.lookup_alias(ctx, name) != None =>
-    InHole(ShadowsType(name))
+  | Var(name) when Ctx.shadows_typ(ctx, name) =>
+    let f = src => InHole(ShadowsType(name, src));
+    if (Form.is_base_typ(name)) {
+      f(BaseTyp);
+    } else if (Ctx.is_alias(ctx, name)) {
+      f(TyAlias);
+    } else {
+      f(TyVar);
+    };
   | Var(name) => NotInHole(Var(name))
   | Invalid(_) => InHole(NotAVar(NotCapitalized))
   | MultiHole(_) => InHole(NotAVar(Other))
@@ -467,6 +526,7 @@ let is_error = (ci: t): bool => {
     | InHole(_) => true
     | NotInHole(_) => false
     }
+  | Secondary(_) => false
   };
 };
 
@@ -493,17 +553,28 @@ let fixed_typ_pat = (ctx, mode: Mode.t, self: Self.pat): Typ.t => {
 };
 
 let fixed_constraint_pat =
-    (ctx, mode: Mode.t, self: Self.pat, constraint_: Constraint.t)
+    (
+      upat: UPat.t,
+      ctx,
+      mode: Mode.t,
+      self: Self.pat,
+      constraint_: Constraint.t,
+    )
     : Constraint.t =>
-  switch (fixed_typ_pat(ctx, mode, self)) {
-  | Unknown(_) => Constraint.Hole
-  | _ => constraint_
+  switch (upat.term) {
+  | TypeAnn(_) => constraint_
+  | _ =>
+    switch (fixed_typ_pat(ctx, mode, self)) {
+    | Unknown(_) => Constraint.Hole
+    | _ => constraint_
+    }
   };
 
 let fixed_typ_exp = (ctx, mode: Mode.t, self: Self.exp): Typ.t =>
   switch (status_exp(ctx, mode, self)) {
   | InHole(_) => Unknown(Internal)
-  | NotInHole(ok) => fixed_typ_ok(ok)
+  | NotInHole(AnaDeferralConsistent(ana)) => ana
+  | NotInHole(Common(ok)) => fixed_typ_ok(ok)
   };
 
 /* Add derivable attributes for expression terms */
@@ -522,7 +593,7 @@ let derived_pat =
   let cls = Cls.Pat(UPat.cls_of_term(upat.term));
   let status = status_pat(ctx, mode, self);
   let ty = fixed_typ_pat(ctx, mode, self);
-  let constraint_ = fixed_constraint_pat(ctx, mode, self, constraint_);
+  let constraint_ = fixed_constraint_pat(upat, ctx, mode, self, constraint_);
   {
     cls,
     self,

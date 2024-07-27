@@ -1,4 +1,3 @@
-open Sexplib.Std;
 open Util;
 open OptUtil.Syntax;
 
@@ -88,6 +87,16 @@ let delete_parent = (z: t): t => {
 
 let zip = (z: t): Segment.t =>
   Relatives.zip(~sel=z.selection.content, z.relatives);
+
+let unzip = (seg: Segment.t): t => {
+  selection: Selection.mk([]),
+  backpack: [],
+  relatives: {
+    siblings: (seg, []),
+    ancestors: [],
+  },
+  caret: Outer,
+};
 
 let sibs_with_sel =
     (
@@ -183,6 +192,11 @@ let shrink_selection = (z: t): option(t) => {
   };
 };
 
+let toggle_focus = (z: t): t => {
+  ...z,
+  selection: Selection.toggle_focus(z.selection),
+};
+
 let directional_unselect = (d: Direction.t, z: t): t => {
   let selection = {...z.selection, focus: Direction.toggle(d)};
   unselect({...z, selection});
@@ -219,6 +233,8 @@ let pick_up = (z: t): t => {
 };
 
 let destruct = (~destroy_kids=true, z: t): t => {
+  let backpack =
+    Backpack.remove_uni_tiles_with_deep_matches(z.backpack, z.selection);
   let (selected, z) = update_selection(Selection.empty, z);
   let (to_pick_up, to_remove) =
     Segment.incomplete_tiles(selected.content)
@@ -232,7 +248,7 @@ let destruct = (~destroy_kids=true, z: t): t => {
       ? List.map(Tile.disintegrate, to_pick_up) |> List.flatten : to_pick_up;
   Effect.s_touch(List.map((t: Tile.t) => t.id, to_pick_up));
   let backpack =
-    z.backpack
+    backpack
     |> Backpack.remove_matching(to_remove)
     |> Backpack.push_s(
          to_pick_up |> List.map(Segment.of_tile) |> List.map(Selection.mk),

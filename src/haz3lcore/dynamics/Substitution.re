@@ -9,11 +9,15 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     }
   | FreeVar(_) => d2
   | InvalidText(_) => d2
-  | ExpandingKeyword(_) => d2
+  | Undefined => d2
   | Sequence(d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     Sequence(d3, d4);
+  | Filter(filter, dbody) =>
+    let dbody = subst_var(d1, x, dbody);
+    let filter = subst_var_filter(d1, x, filter);
+    Filter(filter, dbody);
   | Let(dp, d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 =
@@ -38,6 +42,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
       let d3 = subst_var(d1, x, d3);
       Fun(dp, ty, d3, s);
     }
+  | TypFun(tpat, d3, s) => TypFun(tpat, subst_var(d1, x, d3), s)
   | Closure(env, d3) =>
     /* Closure shouldn't appear during substitution (which
        only is called from elaboration currently) */
@@ -48,9 +53,8 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);
     Ap(d3, d4);
-  | ApBuiltin(ident, d1) =>
-    let d2 = subst_var(d1, x, d1);
-    ApBuiltin(ident, d2);
+  | TypAp(d3, ty) => TypAp(subst_var(d1, x, d3), ty)
+  | ApBuiltin(ident, args) => ApBuiltin(ident, subst_var(d1, x, args))
   | BuiltinFun(ident) => BuiltinFun(ident)
   | Test(id, d3) => Test(id, subst_var(d1, x, d3))
   | BoolLit(_)
@@ -107,6 +111,11 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   | InvalidOperation(d, err) =>
     let d' = subst_var(d1, x, d);
     InvalidOperation(d', err);
+  | IfThenElse(d3, d4, d5, d6) =>
+    let d4' = subst_var(d1, x, d4);
+    let d5' = subst_var(d1, x, d5);
+    let d6' = subst_var(d1, x, d6);
+    IfThenElse(d3, d4', d5', d6');
   }
 
 and subst_var_rules =
@@ -152,6 +161,11 @@ and subst_var_env =
        );
 
   ClosureEnvironment.wrap(id, map);
+}
+
+and subst_var_filter =
+    (d1: DHExp.t, x: Var.t, flt: DH.DHFilter.t): DH.DHFilter.t => {
+  flt |> DH.DHFilter.map(subst_var(d1, x));
 };
 
 let subst = (env: Environment.t, d: DHExp.t): DHExp.t =>

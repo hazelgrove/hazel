@@ -1,4 +1,3 @@
-open Sexplib.Std;
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -70,7 +69,9 @@ module Rows = {
 };
 
 module Shards = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type shard = (int, measurement);
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = list(shard);
 
   // elements of returned list are nonempty
@@ -231,7 +232,9 @@ let post_tile_indent = (t: Tile.t) => {
   let complete_fun =
     Tile.is_complete(t)
     && (
-      t.label == Form.get("fun_").label || t.label == Form.get("if_").label
+      t.label == Form.get("fun_").label
+      || t.label == Form.get("typfun").label
+      || t.label == Form.get("if_").label
     );
   let missing_right_extreme = Tile.r_shard(t) < List.length(t.label) - 1;
   complete_fun || missing_right_extreme;

@@ -58,42 +58,42 @@ module Settings = {
   };
 };
 
-// LangDocMessages serialization
-module LangDocMessages = {
-  let save_langDocMessages_key: string = "LANGDOCMESSAGES";
+// ExplainThisModel serialization
+module ExplainThisModel = {
+  let save_ExplainThisModel_key: string = "ExplainThisModel";
 
-  let serialize = langDocMessages =>
-    LangDocMessages.serialize(langDocMessages);
+  let serialize = explainThisModel =>
+    explainThisModel |> ExplainThisModel.sexp_of_t |> Sexplib.Sexp.to_string;
 
   let deserialize = data =>
-    try(LangDocMessages.deserialize(data)) {
+    try(data |> Sexplib.Sexp.of_string |> ExplainThisModel.t_of_sexp) {
     | _ =>
-      print_endline("Could not deserialize langDocMessages.");
-      LangDocMessages.init;
+      print_endline("Could not deserialize ExplainThisModel.");
+      ExplainThisModel.init;
     };
 
-  let save = (langDocMessages: LangDocMessages.t): unit =>
+  let save = (explainThisModel: ExplainThisModel.t): unit =>
     JsUtil.set_localstore(
-      save_langDocMessages_key,
-      serialize(langDocMessages),
+      save_ExplainThisModel_key,
+      serialize(explainThisModel),
     );
 
   let init = () => {
     JsUtil.set_localstore(
-      save_langDocMessages_key,
-      serialize(LangDocMessages.init),
+      save_ExplainThisModel_key,
+      serialize(ExplainThisModel.init),
     );
-    LangDocMessages.init;
+    ExplainThisModel.init;
   };
 
-  let load = (): LangDocMessages.t =>
-    switch (JsUtil.get_localstore(save_langDocMessages_key)) {
+  let load = (): ExplainThisModel.t =>
+    switch (JsUtil.get_localstore(save_ExplainThisModel_key)) {
     | None => init()
     | Some(data) => deserialize(data)
     };
 
   let rec export = () =>
-    switch (JsUtil.get_localstore(save_langDocMessages_key)) {
+    switch (JsUtil.get_localstore(save_ExplainThisModel_key)) {
     | None =>
       let _ = init();
       export();
@@ -101,8 +101,8 @@ module LangDocMessages = {
     };
 
   let import = data => {
-    let langDocMessages = deserialize(data);
-    save(langDocMessages);
+    let explainThisModel = deserialize(data);
+    save(explainThisModel);
   };
 };
 
@@ -113,13 +113,23 @@ module Scratch = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = PersistentData.scratch;
 
-  let to_persistent = ((idx, slides)): persistent => (
+  let to_persistent = ((idx, slides, results)): persistent => (
     idx,
     List.map(ScratchSlide.persist, slides),
+    results
+    |> ModelResults.map(ModelResult.to_persistent)
+    |> ModelResults.bindings,
   );
 
-  let of_persistent = ((idx, slides): persistent) => {
-    (idx, List.map(ScratchSlide.unpersist, slides));
+  let of_persistent = (~settings, (idx, slides, results): persistent) => {
+    (
+      idx,
+      List.map(ScratchSlide.unpersist, slides),
+      results
+      |> List.to_seq
+      |> ModelResults.of_seq
+      |> ModelResults.map(ModelResult.of_persistent(~settings)),
+    );
   };
 
   let serialize = scratch => {
@@ -134,30 +144,30 @@ module Scratch = {
     JsUtil.set_localstore(save_scratch_key, serialize(scratch));
   };
 
-  let init = () => {
-    let scratch = of_persistent(Init.startup.scratch);
+  let init = (~settings) => {
+    let scratch = of_persistent(~settings, Init.startup.scratch);
     save(scratch);
     scratch;
   };
 
-  let load = () =>
+  let load = (~settings) =>
     switch (JsUtil.get_localstore(save_scratch_key)) {
-    | None => init()
+    | None => init(~settings)
     | Some(data) =>
-      try(deserialize(data)) {
-      | _ => init()
+      try(deserialize(~settings, data)) {
+      | _ => init(~settings)
       }
     };
 
-  let export = () => serialize(load());
-  let import = data => save(deserialize(data));
+  let export = (~settings) => serialize(load(~settings));
+  let import = (~settings, data) => save(deserialize(~settings, data));
 };
 
-module Examples = {
-  let save_examples_key: string = "SAVE_EXAMPLES";
+module Documentation = {
+  let save_documentation_key: string = "SAVE_DOCUMENTATION";
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = PersistentData.examples;
+  type persistent = PersistentData.documentation;
 
   let persist = ((name, editor: Editor.t)) => {
     (name, PersistentZipper.persist(editor.state.zipper));
@@ -168,44 +178,54 @@ module Examples = {
     (name, Editor.init(zipper, ~read_only=false));
   };
 
-  let to_persistent = ((string, slides)): persistent => (
+  let to_persistent = ((string, slides, results)): persistent => (
     string,
     List.map(persist, slides),
+    results
+    |> ModelResults.map(ModelResult.to_persistent)
+    |> ModelResults.bindings,
   );
 
-  let of_persistent = ((string, slides): persistent) => {
-    (string, List.map(unpersist, slides));
+  let of_persistent = (~settings, (string, slides, results): persistent) => {
+    (
+      string,
+      List.map(unpersist, slides),
+      results
+      |> List.to_seq
+      |> ModelResults.of_seq
+      |> ModelResults.map(ModelResult.of_persistent(~settings)),
+    );
   };
 
-  let serialize = examples => {
-    examples |> to_persistent |> sexp_of_persistent |> Sexplib.Sexp.to_string;
+  let serialize = slides => {
+    slides |> to_persistent |> sexp_of_persistent |> Sexplib.Sexp.to_string;
   };
 
   let deserialize = data => {
     data |> Sexplib.Sexp.of_string |> persistent_of_sexp |> of_persistent;
   };
 
-  let save = (examples): unit => {
-    JsUtil.set_localstore(save_examples_key, serialize(examples));
+  let save = (slides): unit => {
+    JsUtil.set_localstore(save_documentation_key, serialize(slides));
   };
 
-  let init = () => {
-    let examples = of_persistent(Init.startup.examples);
-    save(examples);
-    examples;
+  let init = (~settings) => {
+    let documentation = of_persistent(~settings, Init.startup.documentation);
+    save(documentation);
+    documentation;
   };
 
-  let load = () =>
-    switch (JsUtil.get_localstore(save_examples_key)) {
-    | None => init()
+  let load = (~settings) =>
+    switch (JsUtil.get_localstore(save_documentation_key)) {
+    | None => init(~settings)
     | Some(data) =>
-      try(deserialize(data)) {
-      | _ => init()
+      try(deserialize(~settings, data)) {
+      | _ => init(~settings)
       }
     };
 
-  let export = () => serialize(load());
-  let import = data => save(deserialize(data));
+  let export = (~settings) => serialize(load(~settings));
+  let import = (~settings, data) => save(deserialize(~settings, data));
 };
 
 module Exercise = {

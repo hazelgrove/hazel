@@ -23,8 +23,8 @@ let container =
       contents: list(Node.t),
     )
     : Node.t => {
-  let buffered_height = height + 1;
-  let buffered_width = width + 1;
+  let buffered_height = height;
+  let buffered_width = width;
 
   let buffered_height_px =
     Float.of_int(buffered_height) *. font_metrics.row_height;
@@ -32,71 +32,60 @@ let container =
     Float.of_int(buffered_width) *. font_metrics.col_width;
 
   let container_origin_x =
-    (Float.of_int(origin.row) -. 0.5) *. font_metrics.row_height;
-  let container_origin_y =
-    (Float.of_int(origin.col) -. 0.5) *. font_metrics.col_width;
+    Float.of_int(origin.row) *. font_metrics.row_height;
+  let container_origin_y = Float.of_int(origin.col) *. font_metrics.col_width;
 
   let inner =
     switch (container_type) {
     | Div =>
       Node.div(
-        ~attr=
-          Attr.many([
-            Attr.classes([
-              "decoration-container",
-              Printf.sprintf("%s-container", cls),
-            ]),
-            Attr.create(
-              "style",
-              Printf.sprintf(
-                "width: %fpx; height: %fpx;",
-                buffered_width_px,
-                buffered_height_px,
-              ),
-            ),
+        ~attrs=[
+          Attr.classes([
+            "decoration-container",
+            Printf.sprintf("%s-container", cls),
           ]),
+          Attr.create(
+            "style",
+            Printf.sprintf(
+              "width: %fpx; height: %fpx;",
+              buffered_width_px,
+              buffered_height_px,
+            ),
+          ),
+        ],
         contents,
       )
     | Svg =>
       Node.create_svg(
         "svg",
-        ~attr=
-          Attr.many([
-            Attr.classes([cls]),
-            Attr.create(
-              "viewBox",
-              Printf.sprintf(
-                "-0.5 -0.5 %d %d",
-                buffered_width,
-                buffered_height,
-              ),
-            ),
-            Attr.create("width", Printf.sprintf("%fpx", buffered_width_px)),
-            Attr.create(
-              "height",
-              Printf.sprintf("%fpx", buffered_height_px),
-            ),
-            Attr.create("preserveAspectRatio", "none"),
-          ]),
+        ~attrs=[
+          Attr.classes([cls]),
+          Attr.create(
+            "viewBox",
+            Printf.sprintf("0 0 %d %d", buffered_width, buffered_height),
+          ),
+          Attr.create("width", Printf.sprintf("%fpx", buffered_width_px)),
+          Attr.create("height", Printf.sprintf("%fpx", buffered_height_px)),
+          Attr.create("preserveAspectRatio", "none"),
+        ],
         contents,
       )
     };
   Node.div(
-    ~attr=
-      Attr.many([
-        Attr.classes([
-          "decoration-container",
-          Printf.sprintf("%s-container", cls),
-        ]),
-        Attr.create(
-          "style",
-          Printf.sprintf(
-            "top: calc(%fpx - 1px); left: %fpx;",
-            container_origin_x,
-            container_origin_y,
-          ),
-        ),
+    ~attrs=[
+      Attr.classes([
+        "decoration-container",
+        Printf.sprintf("%s-container", cls),
       ]),
+      Attr.create(
+        "style",
+        Printf.sprintf(
+          "top: calc(%fpx); left: %fpx;",
+          container_origin_x,
+          container_origin_y,
+        ),
+      ),
+    ],
     [inner],
   );
 };

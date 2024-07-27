@@ -47,6 +47,8 @@ let rec append_exp = (e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   | Invalid(_)
   | MultiHole(_)
   | Triv
+  | Undefined
+  | Deferral(_)
   | Bool(_)
   | Int(_)
   | Float(_)
@@ -54,9 +56,12 @@ let rec append_exp = (e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   | ListLit(_)
   | Constructor(_)
   | Fun(_)
+  | TypFun(_)
   | Tuple(_)
   | Var(_)
   | Ap(_)
+  | TypAp(_)
+  | DeferredAp(_)
   | Pipeline(_)
   | If(_)
   | Test(_)
@@ -69,38 +74,14 @@ let rec append_exp = (e1: TermBase.UExp.t, e2: TermBase.UExp.t) => {
   | Seq(e11, e12) =>
     let e12' = append_exp(e12, e2);
     TermBase.UExp.{ids: e1.ids, term: Seq(e11, e12')};
+  | Filter(act, econd, ebody) =>
+    let ebody' = append_exp(ebody, e2);
+    TermBase.UExp.{ids: e1.ids, term: Filter(act, econd, ebody')};
   | Let(p, edef, ebody) =>
     let ebody' = append_exp(ebody, e2);
     TermBase.UExp.{ids: e1.ids, term: Let(p, edef, ebody')};
   | TyAlias(tp, tdef, ebody) =>
     let ebody' = append_exp(ebody, e2);
     TermBase.UExp.{ids: e1.ids, term: TyAlias(tp, tdef, ebody')};
-  };
-};
-
-let stitch = (editors: list(Editor.t)) => {
-  print_endline("new stitchin'");
-  let exps =
-    List.map(
-      (ed: Editor.t) =>
-        Util.TimeUtil.measure_time(
-          "terms",
-          true,
-          () => {
-            let (term, _) =
-              Util.TimeUtil.measure_time("Time: MakeTerm.from_zip:", true, () =>
-                MakeTerm.from_zip_for_view(ed.state.zipper)
-              );
-            term;
-          },
-        ),
-      editors,
-    );
-  switch (exps) {
-  | [] => failwith("cannot stitch zero expressions")
-  | [e] => e
-  | [e1, ...tl] =>
-    let e = List.fold_left(append_exp, e1, tl);
-    e;
   };
 };

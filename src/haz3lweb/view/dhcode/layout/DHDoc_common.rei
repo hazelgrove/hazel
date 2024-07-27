@@ -40,13 +40,11 @@ module Delim: {
 
   let sym_Fun: DHDoc.t;
   let colon_Fun: DHDoc.t;
-  let open_Fun: DHDoc.t;
-  let close_Fun: DHDoc.t;
+  let arrow_Fun: DHDoc.t;
 
   let fix_FixF: DHDoc.t;
+  let arrow_FixF: DHDoc.t;
   let colon_FixF: DHDoc.t;
-  let open_FixF: DHDoc.t;
-  let close_FixF: DHDoc.t;
 
   let open_Case: DHDoc.t;
   let close_Case: DHDoc.t;
@@ -65,9 +63,6 @@ module Delim: {
 
 let mk_EmptyHole:
   (~selected: bool=?, HoleInstance.t) => Pretty.Doc.t(DHAnnot.t);
-
-let mk_ExpandingKeyword:
-  (HoleInstance.t, ExpandingKeyword.t) => Pretty.Doc.t(DHAnnot.t);
 
 let mk_InvalidText: (string, HoleInstance.t) => Pretty.Doc.t(DHAnnot.t);
 
@@ -93,6 +88,10 @@ let mk_ListLit: list(Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 
 let mk_Tuple: list(Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 
+let mk_TypAp: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
+
 let mk_Ap: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 
 let mk_Prj: (Pretty.Doc.t(DHAnnot.t), int) => Pretty.Doc.t(DHAnnot.t);
+
+let mk_Undefined: unit => Pretty.Doc.t('a);

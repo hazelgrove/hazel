@@ -2,41 +2,6 @@ open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
 
-type t = {
-  exercise: Exercise.state,
-  results: option(ModelResults.t),
-  settings: Settings.t,
-  langDocMessages: LangDocMessages.t,
-  stitched_dynamics: Exercise.stitched(Exercise.DynamicsItem.t),
-  grading_report: Grading.GradingReport.t,
-};
-
-let mk =
-    (
-      ~exercise: Exercise.state,
-      ~results: option(ModelResults.t),
-      ~settings: Settings.t,
-      ~langDocMessages,
-    )
-    : t => {
-  let Exercise.{eds, _} = exercise;
-  let stitched_dynamics =
-    Util.TimeUtil.measure_time("stitch_dynamics", true, () =>
-      Exercise.stitch_dynamic(settings.core, exercise, results)
-    );
-
-  let grading_report = Grading.GradingReport.mk(eds, ~stitched_dynamics);
-
-  {
-    exercise,
-    results,
-    settings,
-    langDocMessages,
-    stitched_dynamics,
-    grading_report,
-  };
-};
-
 type vis_marked('a) =
   | InstructorOnly(unit => 'a)
   | Always('a);
@@ -53,47 +18,59 @@ let render_cells = (settings: Settings.t, v: list(vis_marked(Node.t))) => {
 };
 
 let view =
-    (~inject, ~font_metrics, ~show_backpack_targets, ~mousedown, self: t) => {
-  let {
-    exercise,
-    results: _,
-    settings,
-    stitched_dynamics,
-    grading_report,
-    langDocMessages,
-  } = self;
-  let Exercise.{pos, eds} = exercise;
-  let Exercise.{
-        test_validation,
-        user_impl,
-        user_tests,
-        prelude,
-        instructor,
-        hidden_bugs,
-        hidden_tests: _,
-      } = stitched_dynamics;
-  let (focal_zipper, focal_info_map) =
-    Exercise.focus(exercise, stitched_dynamics);
-
-  let color_highlighting: option(ColorSteps.colorMap) =
-    if (langDocMessages.highlight && langDocMessages.show) {
-      Some(
-        LangDoc.get_color_map(~settings, ~doc=langDocMessages, focal_zipper),
-      );
-    } else {
-      None;
-    };
-
-  // partially apply for convenience below
-  let editor_view = pos => {
-    Cell.editor_view(
+    (
       ~inject,
-      ~font_metrics,
-      ~show_backpack_targets,
-      ~mousedown,
-      ~mousedown_updates=[Update.SwitchEditor(pos)],
+      ~ui_state: Model.ui_state,
+      ~settings: Settings.t,
+      ~exercise,
+      ~results,
+      ~highlights,
+    ) => {
+  let Exercise.{eds, pos} = exercise;
+  let stitched_dynamics =
+    Exercise.stitch_dynamic(
+      settings.core,
+      exercise,
+      settings.core.dynamics ? Some(results) : None,
+    );
+  let {
+    test_validation,
+    user_impl,
+    user_tests,
+    prelude,
+    instructor,
+    hidden_bugs,
+    hidden_tests: _,
+  }:
+    Exercise.stitched(Exercise.DynamicsItem.t) = stitched_dynamics;
+
+  let grading_report = Grading.GradingReport.mk(eds, ~stitched_dynamics);
+
+  let score_view = Grading.GradingReport.view_overall_score(grading_report);
+
+  let editor_view =
+      (
+        ~editor: Editor.t,
+        ~caption: string,
+        ~subcaption: option(string)=?,
+        ~footer=?,
+        ~di: Exercise.DynamicsItem.t,
+        this_pos,
+      ) => {
+    Cell.editor_view(
+      ~selected=pos == this_pos,
+      ~error_ids=
+        Statics.Map.error_ids(editor.state.meta.term_ranges, di.info_map),
+      ~inject,
+      ~ui_state,
+      ~mousedown_updates=[SwitchEditor(this_pos)],
       ~settings,
-      ~color_highlighting,
+      ~highlights,
+      ~caption=Cell.caption(caption, ~rest=?subcaption),
+      ~target_id=Exercise.show_pos(this_pos),
+      ~test_results=ModelResult.test_results(di.result),
+      ~footer?,
+      editor,
     );
   };
 
@@ -101,24 +78,17 @@ let view =
 
   let prompt_view =
     Cell.narrative_cell(
-      div(~attr=Attr.class_("cell-prompt"), [eds.prompt]),
+      div(~attrs=[Attr.class_("cell-prompt")], [eds.prompt]),
     );
 
   let prelude_view =
     Always(
       editor_view(
         Prelude,
-        ~selected=pos == Prelude,
-        ~caption=
-          Cell.bolded_caption(
-            "Prelude",
-            ~rest=?settings.instructor_mode ? None : Some(" (Read-Only)"),
-          ),
-        ~code_id="prelude",
-        ~info_map=prelude.info_map,
-        ~test_results=ModelResult.unwrap_test_results(prelude.simple_result),
-        ~footer=None,
-        eds.prelude,
+        ~caption="Prelude",
+        ~subcaption=settings.instructor_mode ? "" : " (Read-Only)",
+        ~editor=eds.prelude,
+        ~di=prelude,
       ),
     );
 
@@ -127,14 +97,9 @@ let view =
       () =>
         editor_view(
           CorrectImpl,
-          ~selected=pos == CorrectImpl,
-          ~caption=Cell.bolded_caption("Correct Implementation"),
-          ~code_id="correct-impl",
-          ~info_map=instructor.info_map,
-          ~test_results=
-            ModelResult.unwrap_test_results(instructor.simple_result),
-          ~footer=None,
-          eds.correct_impl,
+          ~caption="Correct Implementation",
+          ~editor=eds.correct_impl,
+          ~di=instructor,
         ),
     );
 
@@ -172,7 +137,7 @@ let view =
         };
         Cell.simple_cell_view([
           Cell.simple_cell_item([
-            Cell.bolded_caption(
+            Cell.caption(
               "Correct Implementation",
               ~rest=" (Type Signatures Only)",
             ),
@@ -186,51 +151,30 @@ let view =
     Always(
       editor_view(
         YourTestsValidation,
-        ~selected=pos == YourTestsValidation,
-        ~caption=
-          Cell.bolded_caption(
-            "Test Validation",
-            ~rest=": Your Tests vs. Correct Implementation",
+        ~caption="Test Validation",
+        ~subcaption=": Your Tests vs. Correct Implementation",
+        ~editor=eds.your_tests.tests,
+        ~di=test_validation,
+        ~footer=[
+          Grading.TestValidationReport.view(
+            ~inject,
+            grading_report.test_validation_report,
+            grading_report.point_distribution.test_validation,
           ),
-        ~code_id="your-tests",
-        ~info_map=test_validation.info_map,
-        ~test_results=
-          ModelResult.unwrap_test_results(test_validation.simple_result),
-        ~footer=
-          Some(
-            Grading.TestValidationReport.view(
-              ~inject,
-              grading_report.test_validation_report,
-              grading_report.point_distribution.test_validation,
-            ),
-          ),
-        eds.your_tests.tests,
+        ],
       ),
     );
 
   let wrong_impl_views =
     List.mapi(
-      (
-        i,
-        (
-          Exercise.{impl, _},
-          Exercise.DynamicsItem.{info_map, simple_result, _},
-        ),
-      ) => {
+      (i, (Exercise.{impl, _}, di)) => {
         InstructorOnly(
           () =>
             editor_view(
               HiddenBugs(i),
-              ~selected=pos == HiddenBugs(i),
-              ~caption=
-                Cell.bolded_caption(
-                  "Wrong Implementation " ++ string_of_int(i + 1),
-                ),
-              ~code_id="wrong-implementation-" ++ string_of_int(i + 1),
-              ~info_map,
-              ~test_results=ModelResult.unwrap_test_results(simple_result),
-              ~footer=None,
-              impl,
+              ~caption="Wrong Implementation " ++ string_of_int(i + 1),
+              ~editor=impl,
+              ~di,
             ),
         )
       },
@@ -246,32 +190,25 @@ let view =
       ),
     );
 
-  let your_impl_view =
+  let your_impl_view = {
     Always(
       editor_view(
         YourImpl,
-        ~selected=pos == YourImpl,
-        ~caption=Cell.bolded_caption("Your Implementation"),
-        ~code_id="your-impl",
-        ~info_map=user_impl.info_map,
-        ~test_results=
-          ModelResult.unwrap_test_results(user_impl.simple_result),
+        ~caption="Your Implementation",
+        ~editor=eds.your_impl,
+        ~di=user_impl,
         ~footer=
-          Some(
-            Cell.eval_result_footer_view(
-              ~settings,
-              ~inject,
-              ~font_metrics,
-              ~elab=Haz3lcore.DHExp.Tuple([]), //TODO: placeholder
-              user_impl.simple_result,
-            ),
+          Cell.footer(
+            ~locked=false,
+            ~settings,
+            ~inject,
+            ~ui_state,
+            ~result=user_impl.result,
+            ~result_key=Exercise.user_impl_key,
           ),
-        eds.your_impl,
       ),
     );
-
-  let testing_results =
-    ModelResult.unwrap_test_results(user_tests.simple_result);
+  };
 
   let syntax_grading_view =
     Always(Grading.SyntaxReport.view(grading_report.syntax_report));
@@ -280,24 +217,17 @@ let view =
     Always(
       editor_view(
         YourTestsTesting,
-        ~selected=pos == YourTestsTesting,
-        ~caption=
-          Cell.bolded_caption(
-            "Implementation Validation",
-            ~rest=
-              ": Your Tests (code synchronized with Test Validation cell above) vs. Your Implementation",
+        ~caption="Implementation Validation",
+        ~subcaption=
+          ": Your Tests (code synchronized with Test Validation cell above) vs. Your Implementation",
+        ~editor=eds.your_tests.tests,
+        ~di=user_tests,
+        ~footer=[
+          Cell.test_report_footer_view(
+            ~inject,
+            ~test_results=ModelResult.test_results(user_tests.result),
           ),
-        ~code_id="your-tests-testing-view",
-        ~info_map=user_tests.info_map,
-        ~test_results=testing_results,
-        ~footer=
-          Some(
-            Cell.test_report_footer_view(
-              ~inject,
-              ~test_results=testing_results,
-            ),
-          ),
-        eds.your_tests.tests,
+        ],
       ),
     );
 
@@ -306,14 +236,9 @@ let view =
       () =>
         editor_view(
           HiddenTests,
-          ~selected=pos == HiddenTests,
-          ~caption=Cell.bolded_caption("Hidden Tests"),
-          ~code_id="hidden-tests",
-          ~info_map=instructor.info_map,
-          ~test_results=
-            ModelResult.unwrap_test_results(instructor.simple_result),
-          ~footer=None,
-          eds.hidden_tests.tests,
+          ~caption="Hidden Tests",
+          ~editor=eds.hidden_tests.tests,
+          ~di=instructor,
         ),
     );
 
@@ -327,160 +252,115 @@ let view =
       ),
     );
 
-  let bottom_bar =
-    settings.core.statics
-      ? [
-        CursorInspector.view(
-          ~inject,
-          ~settings,
-          ~show_lang_doc=langDocMessages.show,
-          focal_zipper,
-          focal_info_map,
-        ),
-      ]
-      : [];
-  let sidebar =
-    langDocMessages.show && settings.core.statics
-      ? LangDoc.view(
-          ~inject,
-          ~font_metrics,
-          ~settings,
-          ~doc=langDocMessages,
-          Indicated.index(focal_zipper),
-          focal_info_map,
-        )
-      : div([]);
-  [
-    div(
-      ~attr=Attr.id("main"),
+  [score_view, title_view, prompt_view]
+  @ render_cells(
+      settings,
       [
-        div(
-          ~attr=Attr.classes(["editor", "column"]),
-          [title_view, prompt_view]
-          @ render_cells(
-              settings,
-              [
-                prelude_view,
-                correct_impl_view,
-                correct_impl_ctx_view,
-                your_tests_view,
-              ]
-              @ wrong_impl_views
-              @ [
-                mutation_testing_view,
-                your_impl_view,
-                syntax_grading_view,
-                impl_validation_view,
-                hidden_tests_view,
-                impl_grading_view,
-              ],
-            ),
-        ),
+        prelude_view,
+        correct_impl_view,
+        correct_impl_ctx_view,
+        your_tests_view,
+      ]
+      @ wrong_impl_views
+      @ [
+        mutation_testing_view,
+        your_impl_view,
+        syntax_grading_view,
+        impl_validation_view,
+        hidden_tests_view,
+        impl_grading_view,
       ],
-    ),
-    sidebar,
-  ]
-  @ bottom_bar;
-};
-
-let toolbar_buttons = (~inject, editors: Editors.t, ~settings: Settings.t) => {
-  let (_idx, _specs, exercise): Editors.exercises =
-    switch (editors) {
-    | Exercise(idx, specs, exercise) => (idx, specs, exercise)
-    | _ => assert(false)
-    };
-  let Exercise.{pos: _, eds} = exercise;
-
-  let reset_button =
-    Widgets.button(
-      Icons.trash,
-      _ => {
-        let confirmed =
-          JsUtil.confirm(
-            "Are you SURE you want to reset this exercise? You will lose any existing code that you have written, and course staff have no way to restore it!",
-          );
-        if (confirmed) {
-          inject(Update.ResetCurrentEditor);
-        } else {
-          Virtual_dom.Vdom.Effect.Ignore;
-        };
-      },
-      ~tooltip="Reset Exercise",
     );
-
-  let instructor_export =
-    settings.instructor_mode
-      ? Some(
-          Widgets.button(
-            Icons.export, // TODO(cyrus) distinct icon
-            _ => {
-              // .ml files because show uses OCaml syntax (dune handles seamlessly)
-              let module_name = eds.module_name;
-              let filename = eds.module_name ++ ".ml";
-              let content_type = "text/plain";
-              let contents = Exercise.export_module(module_name, exercise);
-              JsUtil.download_string_file(
-                ~filename,
-                ~content_type,
-                ~contents,
-              );
-              Virtual_dom.Vdom.Effect.Ignore;
-            },
-            ~tooltip="Export Exercise Module (Instructor Mode)",
-          ),
-        )
-      : None;
-
-  let instructor_transitionary_export =
-    settings.instructor_mode
-      ? Some(
-          Widgets.button(
-            Icons.export, // TODO(cyrus) distinct icon
-            _ => {
-              // .ml files because show uses OCaml syntax (dune handles seamlessly)
-              let module_name = eds.module_name;
-              let filename = eds.module_name ++ ".ml";
-              let content_type = "text/plain";
-              let contents =
-                Exercise.export_transitionary_module(module_name, exercise);
-              JsUtil.download_string_file(
-                ~filename,
-                ~content_type,
-                ~contents,
-              );
-              Virtual_dom.Vdom.Effect.Ignore;
-            },
-            ~tooltip="Export Transitionary Exercise Module (Instructor Mode)",
-          ),
-        )
-      : None;
-
-  let instructor_grading_export =
-    settings.instructor_mode
-      ? Some(
-          Widgets.button(
-            Icons.export, // TODO(cyrus) distinct icon
-            _ => {
-              // .ml files because show uses OCaml syntax (dune handles seamlessly)
-              let module_name = eds.module_name;
-              let filename = eds.module_name ++ "_grading.ml";
-              let content_type = "text/plain";
-              let contents =
-                Exercise.export_grading_module(module_name, exercise);
-              JsUtil.download_string_file(
-                ~filename,
-                ~content_type,
-                ~contents,
-              );
-              Virtual_dom.Vdom.Effect.Ignore;
-            },
-            ~tooltip="Export Grading Exercise Module (Instructor Mode)",
-          ),
-        )
-      : None;
-
-  [reset_button]
-  @ Option.to_list(instructor_export)
-  @ Option.to_list(instructor_transitionary_export)
-  @ Option.to_list(instructor_grading_export);
 };
+
+let reset_button = inject =>
+  Widgets.button_named(
+    Icons.trash,
+    _ => {
+      let confirmed =
+        JsUtil.confirm(
+          "Are you SURE you want to reset this exercise? You will lose any existing code that you have written, and course staff have no way to restore it!",
+        );
+      if (confirmed) {
+        inject(UpdateAction.ResetCurrentEditor);
+      } else {
+        Virtual_dom.Vdom.Effect.Ignore;
+      };
+    },
+    ~tooltip="Reset Exercise",
+  );
+
+let instructor_export = (exercise: Exercise.state) =>
+  Widgets.button_named(
+    Icons.star,
+    _ => {
+      // .ml files because show uses OCaml syntax (dune handles seamlessly)
+      let module_name = exercise.eds.module_name;
+      let filename = exercise.eds.module_name ++ ".ml";
+      let content_type = "text/plain";
+      let contents = Exercise.export_module(module_name, exercise);
+      JsUtil.download_string_file(~filename, ~content_type, ~contents);
+      Virtual_dom.Vdom.Effect.Ignore;
+    },
+    ~tooltip="Export Exercise Module",
+  );
+
+let instructor_transitionary_export = (exercise: Exercise.state) =>
+  Widgets.button_named(
+    Icons.star,
+    _ => {
+      // .ml files because show uses OCaml syntax (dune handles seamlessly)
+      let module_name = exercise.eds.module_name;
+      let filename = exercise.eds.module_name ++ ".ml";
+      let content_type = "text/plain";
+      let contents =
+        Exercise.export_transitionary_module(module_name, exercise);
+      JsUtil.download_string_file(~filename, ~content_type, ~contents);
+      Virtual_dom.Vdom.Effect.Ignore;
+    },
+    ~tooltip="Export Transitionary Exercise Module",
+  );
+
+let instructor_grading_export = (exercise: Exercise.state) =>
+  Widgets.button_named(
+    Icons.star,
+    _ => {
+      // .ml files because show uses OCaml syntax (dune handles seamlessly)
+      let module_name = exercise.eds.module_name;
+      let filename = exercise.eds.module_name ++ "_grading.ml";
+      let content_type = "text/plain";
+      let contents = Exercise.export_grading_module(module_name, exercise);
+      JsUtil.download_string_file(~filename, ~content_type, ~contents);
+      Virtual_dom.Vdom.Effect.Ignore;
+    },
+    ~tooltip="Export Grading Exercise Module",
+  );
+
+let download_editor_state = (~instructor_mode) =>
+  Log.get_and(log => {
+    let data = Export.export_all(~instructor_mode, ~log);
+    JsUtil.download_json(ExerciseSettings.filename, data);
+  });
+
+let export_submission = (~settings: Settings.t) =>
+  Widgets.button_named(
+    Icons.star,
+    _ => {
+      download_editor_state(~instructor_mode=settings.instructor_mode);
+      Virtual_dom.Vdom.Effect.Ignore;
+    },
+    ~tooltip="Export Submission",
+  );
+
+let import_submission = (~inject) =>
+  Widgets.file_select_button_named(
+    "import-submission",
+    Icons.star,
+    file => {
+      switch (file) {
+      | None => Virtual_dom.Vdom.Effect.Ignore
+      | Some(file) => inject(UpdateAction.InitImportAll(file))
+      }
+    },
+    ~tooltip="Import Submission",
+  );
