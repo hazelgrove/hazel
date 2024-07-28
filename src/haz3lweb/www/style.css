@@ -297,7 +297,7 @@ body {
   height: 100vh;
   width: 100vw;
   display: grid;
-  grid-template: 2.75em minmax(0, 1fr) 2em / 1fr fit-content(18em);
+  grid-template: 2em minmax(0, 1fr) 2em / 1fr fit-content(18em);
   background-color: var(--light-page-color);
   color: var(--light-text-color);
   user-select: none;
@@ -334,30 +334,33 @@ body {
   overflow: auto;
 }
 
+.cell {
+  border-radius: 0.4em;
+}
+
 #main.Scratch,
 #main.Documentation {
-  padding: 0.8em;
-}
-#main.Exercises {
-  padding: 1.2em 0.8em 1.2em 0.8em;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 1.2em;
-}
-#main.Exercises .editor {
-  /* TODO deprecate */
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 1.2em;
+  padding: 0;
+  background-color: #fffcf3;
 }
 #main.Scratch .cell,
 #main.Documentation .cell {
-  min-width: 30em;
+  border: none;
+}
+
+#main.Exercises {
+  padding: 1em;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1.2em;
 }
 #main.Exercises .cell {
-  width: auto;
+  border-left: 2px solid var(--top_bar_icon_fill);
+}
+#main.Exercises .cell.selected {
+  border-left: 2px solid var(--cell-selected-accent);
+  background-color: #fffcf3;
 }
 
 #main .code-container {
@@ -386,8 +389,6 @@ select {
   font-size: 13pt;
 }
 
-#editor-mode,
-.cell-caption,
 .cell-prompt,
 .test-panel,
 .test-reports,
@@ -418,9 +419,9 @@ select {
   transform: scaleY(0);
   transition: transform 0.07s ease;
   position: fixed;
-  top: 2.75em;
+  top: 2em;
   left: 0;
-  width: 2.75em;
+  width: 2em;
   /*padding-top: 1em;
   padding-bottom: 1em;
   gap: 1em;*/
@@ -436,11 +437,14 @@ select {
   position: absolute;
   width: max-content;
   top: 0em;
-  left: 2.75em;
+  left: 2em;
   flex-direction: column;
   justify-content: center;
-  background-color: #bba874;
+  background-color: #f7ebc5;
   border-radius: 0 0 1.3em 0;
+  /* padding: 0.3em 0.3em 0.3em 0.3em; */
+  outline: 0.6px solid #c7b480;
+  /* gap: 0.1em; */
 }
 #top-bar .nut-menu .submenu-icon:hover + .submenu,
 #top-bar .nut-menu .submenu-icon + .submenu:hover {
@@ -451,17 +455,17 @@ select {
   display: flex;
   justify-content: center;
   align-items: center;
-  width: 2.75em;
-  height: 2.75em;
 }
 
 #top-bar .nut-menu .named-menu-item {
-  height: 2.75em;
+  height: 1.4emem;
   display: flex;
   align-items: center;
-  color: antiquewhite;
+  color: #596e75;
   cursor: pointer;
-  padding-right: 1em;
+  gap: 0.5em;
+  padding: 0.25em 0.25em 0 0.25em;
+  /* padding-right: 1em; */
 }
 #top-bar .nut-menu .named-menu-item:last-child {
   border-radius: 0 0 1.3em 0;
@@ -471,8 +475,8 @@ select {
   color: white;
 }
 #top-bar .nut-menu .named-menu-item .toggle-switch {
-  margin-left: 0.5em;
-  margin-right: 0.5em;
+  /* margin-left: 0.5em;
+  margin-right: 0.5em; */
 }
 
 #top-bar .nut-menu .top-menu-item:hover,
@@ -497,8 +501,8 @@ select {
 #top-bar .nut-menu .icon,
 #top-bar .nut-menu .link {
   display: flex;
-  height: 2.75em;
-  width: 2.75em;
+  height: 2em;
+  aspect-ratio: 1;
   align-items: center;
   justify-content: center;
 }
@@ -511,31 +515,31 @@ select {
 }
 
 #top-bar .nut-icon {
-  width: 2.75em;
-  min-width: 2.75em; /* Seems to be necessary at high zooms? */
-  height: 2.75em;
+  height: 2em;
+  aspect-ratio: 1;
   display: flex;
-  justify-content: center;
-  align-items: center;
+  /* justify-content: center;
+  align-items: center; */
   background-color: var(--top_bar_icon_fill);
   cursor: pointer;
   color: white;
-  /*border-radius: 0 0 1.1em 0;*/
+  border-radius: 0 0 1.1em 0;
   transition: all 0.1s ease-in;
 }
 
-#top-bar .nut-icon:hover {
+#top-bar .nut-icon:hover,
+#top-bar .nut-icon:has( + .nut-menu:hover) {
   border-radius: 0;
 }
 
 #top-bar .nut-icon svg {
+  padding: 0.25em 0 0 0.25em;
   fill: var(--light-page-color);
 }
 
 #top-bar .nut-icon:hover svg,
 #top-bar .nut-icon svg:hover {
-  height: 1.6em;
-  width: 1.6em;
+  scale: 1.2;
   animation: jello 0.6s ease 0s 1 normal forwards;
 }
 
@@ -580,16 +584,16 @@ select {
 }
 
 #top-bar #editor-mode {
-  color: #fdf6e3;
   display: flex;
   align-items: center;
-  gap: 0.5em;
-  cursor: pointer;
-  background-color: #c7b480;
-  border-radius: 0.4em 1em 1em 0.4em;
-  transition: width 0.1s ease-in;
-  font-size: 0.7em;
   white-space: nowrap;
+  cursor: pointer;
+  gap: 0.5em;
+  /* background-color: #c7b480; */
+  /* color: #fdf6e3; */
+  /* border-radius: 0.4em 1em 1em 0.4em; */
+  /* transition: width 0.1s ease-in; */
+  /* font-size: 0.7em; */
 }
 
 #top-bar #editor-mode .icon {
@@ -604,7 +608,7 @@ select {
 }
 
 #top-bar #editor-mode .icon svg {
-  fill: var(--light-page-color);
+  fill: black;
 }
 
 #top-bar #editor-mode .toggle-switch {
@@ -612,11 +616,11 @@ select {
 }
 
 #top-bar #editor-mode .mode-name {
-  border-radius: 0.4em 1em 1em 0.4em;
+  /* border-radius: 0.4em 1em 1em 0.4em;
   padding: 0 0.5em 0 0.5em;
   background-color: #a69460;
   border-bottom: 0.7px solid #ebe0c2;
-  color: #fdf6e3;
+  color: #fdf6e3; */
 }
 
 #top-bar #editor-mode .mode-name select:hover,
@@ -639,9 +643,13 @@ select {
 #top-bar #editor-mode select {
   background-color: #0000;
   border: none;
-  color: white;
+  padding: 0;
+  font-family: inherit;
+  font-size: inherit;
+  text-transform: lowercase;
+  /* color: white;
   font-size: 1em;
-  height: 1.7em;
+  height: 1.7em; */
 }
 
 #top-bar #editor-mode select:focus-visible {
@@ -655,8 +663,8 @@ select {
 }
 
 #top-bar #editor-mode select option {
-  background-color: #a69460;
-  color: #f8d36f;
+  background-color: #bbaa77;
+  color: #392a00;
 }
 
 /* CELL */
@@ -840,21 +848,6 @@ select {
 }
 
 /* END PROJECTORS */
-
-.code {
-  /*white-space: nowrap;*/
-}
-
-.cell {
-  width: fit-content;
-  border-radius: 0.4em;
-  border-left: 2px solid var(--top_bar_icon_fill);
-}
-
-.cell.selected {
-  border-left: 2px solid var(--cell-selected-accent);
-  background-color: #fffcf3;
-}
 
 .cell-item {
   display: flex;
@@ -1466,6 +1459,7 @@ svg.shard.error > path {
 }
 
 .ci-header {
+  outline: 0.6px solid #c7b480;
   padding: 0em 0.6em 0em 0em;
   border-radius: 0 1.1em 0 0;
   display: flex;
@@ -2572,6 +2566,10 @@ svg.expandable path {
   min-width: 7.5in;
   width: 7.5in;
 } */
+
+#slide {
+  padding: 1em;
+}
 
 .slide h1 {
   margin-top: 0;
