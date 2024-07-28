@@ -47,7 +47,12 @@ let backing_deco =
     ) =>
   switch (shape) {
   | Inline(_)
-  | Block(_) => PieceDec.convex_shard(~font_metrics, ~measurement)
+  | Block(_) =>
+    PieceDec.relative_shard({
+      font_metrics,
+      measurement,
+      shapes: (Convex, Convex),
+    })
   };
 
 /* Adds attributes to a projector UI to support
@@ -81,7 +86,6 @@ let view_wrapper =
       p: Base.projector,
       view: Node.t,
     ) => {
-  let fudge = selected ? PieceDec.selection_fudge : DecUtil.fzero;
   let shape = Projector.shape(p, info);
   let focus = (id, _) =>
     Effect.(
@@ -96,7 +100,7 @@ let view_wrapper =
         ["projector", name(p.kind)] @ status(indication, selected, shape),
       ),
       Attr.on_mousedown(focus(info.id)),
-      DecUtil.abs_style(measurement, ~fudge, ~font_metrics),
+      DecUtil.abs_style(measurement, ~font_metrics),
     ],
     [view, backing_deco(~font_metrics, ~measurement, ~shape)],
   );

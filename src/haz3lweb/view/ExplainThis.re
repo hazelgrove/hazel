@@ -245,6 +245,7 @@ let expander_deco =
           ~settings=CoreSettings.off,
           Zipper.unzip(doc.syntactic_form),
         );
+      let highlights: option(ColorSteps.colorMap) = None;
     });
   let Model.{font_metrics, _} = ui_state;
   switch (doc.expandable_id, List.length(options)) {
