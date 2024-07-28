@@ -46,7 +46,7 @@ let view =
 
 let export_button = state =>
   Widgets.button_named(
-    Icons.star,
+    Icons.export,
     _ => {
       let json_data = ScratchSlide.export(state);
       JsUtil.download_json("hazel-scratchpad", json_data);
@@ -57,7 +57,7 @@ let export_button = state =>
 let import_button = inject =>
   Widgets.file_select_button_named(
     "import-scratchpad",
-    Icons.star,
+    Icons.import,
     file => {
       switch (file) {
       | None => Virtual_dom.Vdom.Effect.Ignore
@@ -81,5 +81,5 @@ let reset_button = inject =>
         Virtual_dom.Vdom.Effect.Ignore;
       };
     },
-    ~tooltip="Reset Scratchpad",
+    ~tooltip="Reset Editor",
   );

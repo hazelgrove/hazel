@@ -277,7 +277,7 @@ let reset_button = inject =>
 
 let instructor_export = (exercise: Exercise.state) =>
   Widgets.button_named(
-    Icons.star,
+    Icons.export,
     _ => {
       // .ml files because show uses OCaml syntax (dune handles seamlessly)
       let module_name = exercise.eds.module_name;
@@ -287,12 +287,12 @@ let instructor_export = (exercise: Exercise.state) =>
       JsUtil.download_string_file(~filename, ~content_type, ~contents);
       Virtual_dom.Vdom.Effect.Ignore;
     },
-    ~tooltip="Export Exercise Module",
+    ~tooltip="Exercise Module",
   );
 
 let instructor_transitionary_export = (exercise: Exercise.state) =>
   Widgets.button_named(
-    Icons.star,
+    Icons.export,
     _ => {
       // .ml files because show uses OCaml syntax (dune handles seamlessly)
       let module_name = exercise.eds.module_name;
@@ -303,12 +303,12 @@ let instructor_transitionary_export = (exercise: Exercise.state) =>
       JsUtil.download_string_file(~filename, ~content_type, ~contents);
       Virtual_dom.Vdom.Effect.Ignore;
     },
-    ~tooltip="Export Transitionary Exercise Module",
+    ~tooltip="Transitionary Exercise Module",
   );
 
 let instructor_grading_export = (exercise: Exercise.state) =>
   Widgets.button_named(
-    Icons.star,
+    Icons.export,
     _ => {
       // .ml files because show uses OCaml syntax (dune handles seamlessly)
       let module_name = exercise.eds.module_name;
@@ -318,7 +318,7 @@ let instructor_grading_export = (exercise: Exercise.state) =>
       JsUtil.download_string_file(~filename, ~content_type, ~contents);
       Virtual_dom.Vdom.Effect.Ignore;
     },
-    ~tooltip="Export Grading Exercise Module",
+    ~tooltip="Grading Exercise Module",
   );
 
 let download_editor_state = (~instructor_mode) =>
@@ -329,7 +329,7 @@ let download_editor_state = (~instructor_mode) =>
 
 let export_submission = (~settings: Settings.t) =>
   Widgets.button_named(
-    Icons.star,
+    Icons.export,
     _ => {
       download_editor_state(~instructor_mode=settings.instructor_mode);
       Virtual_dom.Vdom.Effect.Ignore;
@@ -340,7 +340,7 @@ let export_submission = (~settings: Settings.t) =>
 let import_submission = (~inject) =>
   Widgets.file_select_button_named(
     "import-submission",
-    Icons.star,
+    Icons.import,
     file => {
       switch (file) {
       | None => Virtual_dom.Vdom.Effect.Ignore

@@ -27,6 +27,15 @@ let simple_icon = (~transform="", ~view: string, ds: list(string)) =>
     ),
   );
 
+let disk =
+  simple_icon(
+    ~view="0 0 1200 1200",
+    [
+      "m994.5 80.25-132.75 0.066406v331.88h-531v-331.88l-265.5-0.066406v1062h1062v-929.25zm-50.586 977.13h-685.96v-477.36h685.96z",
+      "m693.08 134.91h102.3v210.84h-102.3z",
+    ],
+  );
+
 let gear =
   simple_icon(
     ~view="0 0 1200 1200",
