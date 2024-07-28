@@ -119,6 +119,7 @@ let deco =
     Deco.Deco({
       let ui_state = ui_state;
       let meta = meta;
+      let highlights = highlights;
     });
   let decos = selected ? Deco.all(z) : Deco.always();
   let decos =
@@ -131,21 +132,15 @@ let deco =
         ~font_metrics=ui_state.font_metrics,
       ),
     ];
-  let decos =
-    switch (test_results) {
-    | None => decos
-    | Some(test_results) =>
-      decos
-      @ test_result_layer(
-          ~font_metrics=ui_state.font_metrics,
-          ~measured=meta.syntax.measured,
-          test_results,
-        ) // TODO move into decos
-    };
-  switch (highlights) {
-  | Some(colorMap) =>
-    decos @ Deco.color_highlights(ColorSteps.to_list(colorMap))
-  | _ => decos
+  switch (test_results) {
+  | None => decos
+  | Some(test_results) =>
+    decos
+    @ test_result_layer(
+        ~font_metrics=ui_state.font_metrics,
+        ~measured=meta.syntax.measured,
+        test_results,
+      ) // TODO move into decos
   };
 };
 
