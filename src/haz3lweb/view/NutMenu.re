@@ -62,7 +62,7 @@ let stepper_group = (~inject, ~settings: Settings.t) => {
       ("🔍", "Show lookups", s.show_lookup_steps, Evaluation(ShowLookups)),
       (
         "🤫",
-        "Skip steps",
+        "Show hidden",
         s.show_hidden_steps,
         Evaluation(ShowHiddenSteps),
       ),
@@ -76,7 +76,7 @@ let dev_group = (~inject, ~settings: Settings.t) => {
     ~inject,
     "Developer",
     [
-      ("✓", "Benchmarking", settings.benchmark, Benchmark),
+      ("✓", "Benchmarks", settings.benchmark, Benchmark),
       ("𝑒", "Elaboration", settings.core.elaborate, Elaborate),
       ("↵", "Whitespace", settings.secondary_icons, SecondaryIcons),
     ],
