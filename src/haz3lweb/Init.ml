@@ -18235,7 +18235,7 @@ let startup : PersistentData.t =
                  # All output from examples: #\n\
                  (ex1, ex2, ex3, ex4, ex5)";
             } );
-          ( "Programming Expressively",
+          ( "Expressive Programming",
             {
               zipper =
                 "((selection((focus Left)(content())(mode \
@@ -18244,7 +18244,7 @@ let startup : PersistentData.t =
                  Convex))))))(ancestors())))(caret Outer))";
               backup_text = " ";
             } );
-          ( "Composing Arithmetic Expressions",
+          ( "Composing Expressions",
             {
               zipper =
                 "((selection((focus Left)(content())(mode \

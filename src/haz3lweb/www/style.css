@@ -441,10 +441,9 @@ select {
   flex-direction: column;
   justify-content: center;
   background-color: #f7ebc5;
-  border-radius: 0 0 1.3em 0;
-  /* padding: 0.3em 0.3em 0.3em 0.3em; */
+  border-radius: 0 0 0.5em 0;
   outline: 0.6px solid #c7b480;
-  /* gap: 0.1em; */
+  box-shadow: 0px 10px 20px #77580255;
 }
 #top-bar .nut-menu .submenu-icon:hover + .submenu,
 #top-bar .nut-menu .submenu-icon + .submenu:hover {
@@ -457,34 +456,62 @@ select {
   align-items: center;
 }
 
+.submenu .group {
+  transition: all 0.2s ease-in;
+  padding: 0 0 0.5em 0;
+  display: flex;
+  flex-direction: column;
+  /* gap: 0.3em; */
+}
+.submenu .group:has(+ .group) {
+  border-bottom: 0.3px solid #887a5a;
+}
+
+.submenu .group .name {
+  padding: 0em 0.5em 0em 0.3em;
+  color: #8c795b;
+  height: 2em;
+  display: flex;
+  align-items: center;
+}
+.submenu .group:hover {
+  /* background-color: #f4e1a7; */
+}
+
+.submenu .group .contents {
+  /* gap: 0.1em; */
+  display: flex;
+  flex-direction: column;
+}
+
+.submenu .group .contents .named-menu-item {
+  padding: 0.05em 0.5em 0.05em 0.7em;
+}
+#top-bar .submenu .group .contents .named-menu-item .icon {
+  height: auto;
+}
+.submenu .group .contents .named-menu-item:hover {
+  background-color: #fff9e5;
+}
+
+
 #top-bar .nut-menu .named-menu-item {
-  height: 1.4emem;
   display: flex;
   align-items: center;
   color: #596e75;
   cursor: pointer;
   gap: 0.5em;
-  padding: 0.25em 0.25em 0 0.25em;
+  /* padding: 0.25em 0.25em 0 0.25em; */
   /* padding-right: 1em; */
 }
-#top-bar .nut-menu .named-menu-item:last-child {
-  border-radius: 0 0 1.3em 0;
-}
-#top-bar .nut-menu .named-menu-item:hover {
-  background-color: #c7b480;
-  color: white;
-}
-#top-bar .nut-menu .named-menu-item .toggle-switch {
-  /* margin-left: 0.5em;
-  margin-right: 0.5em; */
-}
+
 
 #top-bar .nut-menu .top-menu-item:hover,
 #top-bar .nut-menu .top-menu-item:has(+ .submenu:hover) {
   background-color: #bba874; /*c7b480*/
 }
-#top-bar .nut-menu .top-menu-item:hover svg,
-#top-bar .nut-menu .top-menu-item:has(+ .submenu:hover) svg {
+#top-bar .nut-menu .top-menu-item:hover > .submenu-icon > .icon > svg,
+#top-bar .nut-menu .top-menu-item:has(+ .submenu:hover) > .submenu-icon > .icon > svg {
   fill: var(--light-page-color);
 }
 
@@ -492,7 +519,7 @@ select {
 #top-bar .nut-icon:hover + .nut-menu {
   transform: scaleY(1);
   display: flex;
-  border-radius: 0 0 1.3em 0;
+  border-radius: 0 0 1em 0;
 }
 
 #top-bar .nut-menu .top-menu-item {
@@ -625,7 +652,8 @@ select {
 
 #top-bar #editor-mode .mode-name select:hover,
 #top-bar #editor-mode select:hover {
-  color: #fad56f;
+  background-color: #f6e4b2;
+  border-radius: 0.5em;
 }
 
 #top-bar #editor-mode .icon svg {
@@ -647,9 +675,8 @@ select {
   font-family: inherit;
   font-size: inherit;
   text-transform: lowercase;
-  /* color: white;
-  font-size: 1em;
-  height: 1.7em; */
+  padding: 0 0.5em;
+  color: #6c5c2e;
 }
 
 #top-bar #editor-mode select:focus-visible {
@@ -664,7 +691,6 @@ select {
 
 #top-bar #editor-mode select option {
   background-color: #bbaa77;
-  color: #392a00;
 }
 
 /* CELL */
