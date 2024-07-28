@@ -130,7 +130,7 @@ let main_view =
     div(
       ~attrs=[Attr.id("top-bar")],
       NutMenu.view(~inject, ~settings, ~editors)
-      @ [div(~attrs=[Attr.id("title")], [text("hazel")])]
+      @ [div(~attrs=[Attr.id("title")], [text("hazel")]), text("/")]
       @ [EditorModeView.view(~inject, ~settings, ~editors)],
     );
   let bottom_bar =
