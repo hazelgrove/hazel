@@ -10,16 +10,18 @@ let from_shortcut =
         .
         "handler": Js.readonly_prop(unit => unit),
         "id": Js.readonly_prop(string),
-        "mdIcon": Js.readonly_prop(Js.opt(string)),
-        "hotkey": Js.readonly_prop(Js.opt(string)),
+        "mdIcon": Js.readonly_prop(Js.optdef(string)),
+        "hotkey": Js.readonly_prop(Js.optdef(string)),
         "title": Js.readonly_prop(string),
+        "section": Js.readonly_prop(Js.optdef(string)),
       } => {
   [%js
    {
      val id = shortcut.label;
      val title = shortcut.label;
-     val mdIcon = Js.Opt.option(shortcut.mdIcon);
-     val hotkey = Js.Opt.option(shortcut.hotkey);
+     val mdIcon = Js.Optdef.option(shortcut.mdIcon);
+     val hotkey = Js.Optdef.option(shortcut.hotkey);
+     val section = Js.Optdef.option(shortcut.section);
      val handler =
        () => {
          let foo = shortcut.update_action;
