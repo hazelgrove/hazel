@@ -363,10 +363,10 @@ let rec apply =
     | FinishImportScratchpad(data) =>
       let editors = Editors.import_current(model.editors, data);
       Model.save_and_return({...model, editors});
-    | ExportPersistentData =>
+    | Export(ExportPersistentData) =>
       export_persistent_data();
       Ok(model);
-    | ExportScratchSlide =>
+    | Export(ExportScratchSlide) =>
       let editor = Editors.get_editor(model.editors);
       export_scratch_slide(editor);
       Ok(model);
