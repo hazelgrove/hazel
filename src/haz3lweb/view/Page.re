@@ -58,7 +58,7 @@ let handlers =
   ];
 };
 
-let top_bar = (~inject, ~settings, ~editors) =>
+let top_bar = (~inject, ~settings: Settings.t, ~editors) =>
   div(
     ~attrs=[Attr.id("top-bar")],
     [
@@ -180,6 +180,7 @@ let view = (~inject: UpdateAction.t => Ui_effect.t(unit), model: Model.t) =>
     ~attrs=
       Attr.[
         id("page"),
+        classes(model.settings.top_bar ? [] : ["top-bar-hidden"]),
         ...handlers(~inject, Editors.get_editor(model.editors)),
       ],
     [

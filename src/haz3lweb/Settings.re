@@ -16,6 +16,7 @@ let mode_of_string = (s: string): mode =>
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
+  top_bar: bool,
   captions: bool,
   secondary_icons: bool,
   core: Haz3lcore.CoreSettings.t,
