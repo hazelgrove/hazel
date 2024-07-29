@@ -124,12 +124,12 @@ let export_menu =
   switch (editors) {
   | Scratch(_) => [ScratchMode.export_button(inject)]
   | Documentation(_) => [ScratchMode.export_button(inject)]
-  | Exercises(_, _, exercise) when settings.instructor_mode => [
+  | Exercises(_) when settings.instructor_mode => [
       export_persistent_data(~inject),
       ExerciseMode.export_submission(inject),
       ExerciseMode.instructor_export(inject),
       ExerciseMode.instructor_transitionary_export(inject),
-      ExerciseMode.instructor_grading_export(exercise),
+      ExerciseMode.instructor_grading_export(inject),
     ]
   | Exercises(_) => [ExerciseMode.export_submission(inject)]
   };

@@ -60,7 +60,8 @@ type export_action =
   | ExportPersistentData
   | ExerciseModule
   | Submission
-  | TransitionaryExerciseModule;
+  | TransitionaryExerciseModule
+  | GradingExerciseModule;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
