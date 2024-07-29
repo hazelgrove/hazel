@@ -107,6 +107,8 @@ let shortcuts = (sys: Key.sys): list(shortcut) => [
     Assistant(Prompt(TyDi)) // I haven't figured out how to trigger this in the editor
   ),
   mk_shortcut("Export Scratch Slide", ExportScratchSlide),
+  // TODO the rest of the exports are skipping the Action type. I need to fix that to get these working consistently
+  mk_shortcut("Export All Persistent Data", ExportPersistentData),
   mk_shortcut(
     // ctrl+k conflicts with the command palette
     ~mdIcon="refresh",
