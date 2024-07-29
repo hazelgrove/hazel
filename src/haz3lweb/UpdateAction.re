@@ -24,6 +24,7 @@ type settings_action =
   | Benchmark
   | ContextInspector
   | InstructorMode
+  | TopBar
   | Evaluation(evaluation_settings_action)
   | ExplainThis(ExplainThisModel.Settings.action)
   | Mode(Settings.mode);
@@ -106,7 +107,8 @@ let is_edit: t => bool =
     | Benchmark
     | ContextInspector
     | InstructorMode
-    | Evaluation(_) => false
+    | Evaluation(_)
+    | TopBar => false
     }
   | SetMeta(meta_action) =>
     switch (meta_action) {
@@ -146,6 +148,7 @@ let reevaluate_post_update: t => bool =
     | ContextInspector
     | Benchmark
     | ExplainThis(_)
+    | TopBar
     | Evaluation(
         ShowCaseClauses | ShowFnBodies | ShowCasts | ShowRecord | ShowFixpoints |
         ShowLookups |
@@ -204,7 +207,8 @@ let should_scroll_to_caret =
     | Benchmark
     | ContextInspector
     | InstructorMode
-    | Evaluation(_) => false
+    | Evaluation(_)
+    | TopBar => false
     }
   | SetMeta(meta_action) =>
     switch (meta_action) {

@@ -203,7 +203,13 @@ let submenu = (~tooltip, ~icon, menu) =>
 
 let view =
     (~inject: Update.t => 'a, ~settings: Settings.t, ~editors: Editors.t) => [
-  a(~attrs=[clss(["nut-icon"])], [Icons.hazelnut]),
+  a(
+    ~attrs=[
+      Attr.on_mousedown(_ => inject(Set(TopBar))),
+      clss(["nut-icon"]),
+    ],
+    [Icons.hazelnut],
+  ),
   div(
     ~attrs=[clss(["nut-menu"])],
     [

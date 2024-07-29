@@ -408,6 +408,39 @@ select {
   border-bottom: 0.6px solid #c7b480;
 }
 
+#page.top-bar-hidden #top-bar {
+  border: none;
+  position: absolute;
+  height: 2em;
+}
+#page.top-bar-hidden #top-bar .wrap:has(.nut-menu) {
+  background: none;
+}
+#page.top-bar-hidden #top-bar .wrap:has(#title),
+#page.top-bar-hidden #top-bar .wrap:has(#editor-mode) {
+  display: none;
+}
+#page.top-bar-hidden #top-bar .wrap:has(.nut-menu):hover ~ .wrap:has(#title),
+#page.top-bar-hidden #top-bar .wrap:has(.nut-menu):hover ~ .wrap:has(#editor-mode),
+#page.top-bar-hidden #top-bar:hover .wrap:has(#title),
+#page.top-bar-hidden #top-bar:hover .wrap:has(#editor-mode) {
+  display: flex;
+}
+#page.top-bar-hidden #top-bar:hover .nut-icon {
+  border-radius: 0;
+}
+#page.top-bar-hidden #top-bar .wrap:has(#editor-mode) {
+  display: none;
+}
+#page.top-bar-hidden #main {
+  grid-row: 1 / span 2;
+  grid-column: 1 / span 1;
+}
+#page.top-bar-hidden #side-bar {
+  grid-row: 1 / span 2;
+  grid-column: 2 / span 1;
+}
+
 #top-bar #title {
   height: 100%;
   display: flex;
@@ -2381,7 +2414,8 @@ svg.expandable path {
   position: absolute;
   top: 0;
   right: 0;
-  margin: 1em;
+  margin: 0.13em;
+  font-size: 1rem;
 }
 
 .test-percent.all-pass {
