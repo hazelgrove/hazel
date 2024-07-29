@@ -58,6 +58,25 @@ let handlers =
   ];
 };
 
+let top_bar = (~inject, ~settings, ~editors) =>
+  div(
+    ~attrs=[Attr.id("top-bar")],
+    [
+      div(
+        ~attrs=[Attr.class_("wrap")],
+        NutMenu.view(~inject, ~settings, ~editors),
+      ),
+      div(
+        ~attrs=[Attr.class_("wrap")],
+        [div(~attrs=[Attr.id("title")], [text("hazel")])],
+      ),
+      div(
+        ~attrs=[Attr.class_("wrap")],
+        [EditorModeView.view(~inject, ~settings, ~editors)],
+      ),
+    ],
+  );
+
 let main_view =
     (
       ~inject: UpdateAction.t => Ui_effect.t(unit),
@@ -126,13 +145,7 @@ let main_view =
         );
       (view, cursor_info);
     };
-  let top_bar =
-    div(
-      ~attrs=[Attr.id("top-bar")],
-      NutMenu.view(~inject, ~settings, ~editors)
-      @ [div(~attrs=[Attr.id("title")], [text("hazel")]), text("/")]
-      @ [EditorModeView.view(~inject, ~settings, ~editors)],
-    );
+
   let bottom_bar =
     CursorInspector.view(~inject, ~settings, editor, cursor_info);
   let sidebar =
@@ -146,7 +159,7 @@ let main_view =
         )
       : div([]);
   [
-    top_bar,
+    top_bar(~inject, ~settings, ~editors),
     div(
       ~attrs=[
         Attr.id("main"),
