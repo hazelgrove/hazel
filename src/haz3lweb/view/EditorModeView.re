@@ -37,7 +37,7 @@ let slide_select = (~inject, ~cur_slide, ~num_slides) => {
 };
 
 let scratch_view = (~inject, ~cur_slide, ~slides) =>
-  [mode_menu(~inject, ~mode=Scratch), text("/")]
+  [text("/"), mode_menu(~inject, ~mode=Scratch), text("/")]
   @ slide_select(~inject, ~cur_slide, ~num_slides=List.length(slides));
 
 let documentation_view = (~inject, ~name, ~editors) => {
@@ -82,9 +82,9 @@ let documentation_view = (~inject, ~name, ~editors) => {
            ),
        );
   [
+    text("/"),
     mode_menu(~inject, ~mode=Documentation),
     text("/"),
-    //prev,
     select(
       ~attrs=[
         Attr.on_change((_, name) =>
@@ -93,7 +93,6 @@ let documentation_view = (~inject, ~name, ~editors) => {
       ],
       List.map(option_view(name), editor_names),
     ),
-    //next,
   ];
 };
 
@@ -107,8 +106,9 @@ let instructor_toggle = (~inject, ~instructor_mode) =>
     : [];
 
 let exercises_view = (~inject, ~cur_slide, ~specs, ~instructor_mode) => {
-  [mode_menu(~inject, ~mode=Exercises)]
+  [text("/"), mode_menu(~inject, ~mode=Exercises), text("/")]
   @ instructor_toggle(~inject, ~instructor_mode)
+  @ [text("/")]
   @ slide_select(~inject, ~cur_slide, ~num_slides=List.length(specs));
 };
 
