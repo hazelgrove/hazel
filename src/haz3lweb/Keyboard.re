@@ -61,6 +61,45 @@ let shortcuts = (sys: Key.sys): list(shortcut) => [
     "Select All",
     PerformAction(Select(All)),
   ),
+  mk_shortcut("Toggle Statics", UpdateAction.Set(Statics)),
+  mk_shortcut("Toggle Completion", UpdateAction.Set(Assist)),
+  mk_shortcut("Toggle Show Whitespace", UpdateAction.Set(SecondaryIcons)),
+  mk_shortcut("Toggle Print Benchmarks", UpdateAction.Set(Benchmark)),
+  mk_shortcut("Toggle Toggle Dynamics", UpdateAction.Set(Dynamics)),
+  mk_shortcut("Toggle Show Elaboration", UpdateAction.Set(Elaborate)),
+  mk_shortcut(
+    "Toggle Show Function Bodies",
+    UpdateAction.Set(Evaluation(ShowFnBodies)),
+  ),
+  mk_shortcut(
+    "Toggle Show Case Clauses",
+    UpdateAction.Set(Evaluation(ShowCaseClauses)),
+  ),
+  mk_shortcut(
+    "Toggle Show fixpoints",
+    UpdateAction.Set(Evaluation(ShowFixpoints)),
+  ),
+  mk_shortcut("Toggle Show Casts", UpdateAction.Set(Evaluation(ShowCasts))),
+  mk_shortcut(
+    "Toggle Show Lookup Steps",
+    UpdateAction.Set(Evaluation(ShowLookups)),
+  ),
+  mk_shortcut(
+    "Toggle Show Stepper Filters",
+    UpdateAction.Set(Evaluation(ShowFilters)),
+  ),
+  mk_shortcut(
+    "Toggle Show Hidden Steps",
+    UpdateAction.Set(Evaluation(ShowHiddenSteps)),
+  ),
+  mk_shortcut(
+    "Toggle Show Docs Sidebar",
+    UpdateAction.Set(ExplainThis(ToggleShow)),
+  ),
+  mk_shortcut(
+    "Toggle Show Docs Feedback",
+    UpdateAction.Set(ExplainThis(ToggleShowFeedback)),
+  ),
   mk_shortcut(
     ~hotkey=meta(sys) ++ "+/",
     ~mdIcon="assistant",
