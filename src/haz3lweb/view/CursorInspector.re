@@ -6,8 +6,8 @@ open Haz3lcore;
 
 let errc = "error";
 let okc = "ok";
-let div_err = div(~attrs=[clss([errc])]);
-let div_ok = div(~attrs=[clss([okc])]);
+let div_err = div(~attrs=[clss(["status", errc])]);
+let div_ok = div(~attrs=[clss(["status", okc])]);
 
 let code_err = (code: string): Node.t =>
   div(~attrs=[clss(["code"])], [text(code)]);
@@ -34,7 +34,11 @@ let cls_view = (ci: Info.t): Node.t =>
 let ctx_toggle = (~inject, context_inspector: bool): Node.t =>
   div(
     ~attrs=[
-      Attr.on_click(_ => inject(Update.Set(ContextInspector))),
+      Attr.on_click(_ => {
+        print_endline("BOTTOMBAR");
+        inject(Update.Set(BottomBar));
+      }),
+      //Attr.on_click(_ => inject(Update.Set(ContextInspector))),
       clss(["gamma"] @ (context_inspector ? ["visible"] : [])),
     ],
     [text("Γ")],
@@ -251,12 +255,11 @@ let tpat_view = (_: Term.Cls.t, status: Info.status_tpat) =>
 let secondary_view = (cls: Term.Cls.t) =>
   div_ok([text(cls |> Term.Cls.show)]);
 
-let view_of_info = (~inject, ~settings, ci): Node.t => {
-  let wrapper = status_view =>
-    div(
-      ~attrs=[clss(["info"])],
-      [term_view(~inject, ~settings, ci), status_view],
-    );
+let view_of_info = (~inject, ~settings, ci): list(Node.t) => {
+  let wrapper = status_view => [
+    term_view(~inject, ~settings, ci),
+    status_view,
+  ];
   switch (ci) {
   | Secondary(_) => wrapper(div([]))
   | InfoExp({cls, status, _}) => wrapper(exp_view(cls, status))
@@ -271,7 +274,7 @@ let inspector_view = (~inject, ~settings, ci): Node.t =>
     ~attrs=[
       clss(["cursor-inspector"] @ [Info.is_error(ci) ? errc : okc]),
     ],
-    [view_of_info(~inject, ~settings, ci)],
+    view_of_info(~inject, ~settings, ci),
   );
 
 let view =
