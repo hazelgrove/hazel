@@ -345,7 +345,7 @@ let instructor_exercise_update =
   | Exercises(_, _, exercise) when model.settings.instructor_mode =>
     fn(exercise);
     Ok(model);
-  | _ => Error(Exception("Invalid Context")) // TODO Make command palette contextual and figure out how to represent that here
+  | _ => Error(InstructorOnly) // TODO Make command palette contextual and figure out how to represent that here
   };
 };
 

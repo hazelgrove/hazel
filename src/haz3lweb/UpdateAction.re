@@ -110,6 +110,7 @@ module Failure = {
     | FailedToLoad
     | FailedToSwitch
     | FailedToPerform(Action.Failure.t)
+    | InstructorOnly
     | Exception(string);
 };
 
