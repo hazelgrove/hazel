@@ -122,7 +122,7 @@ let export_menu = (~inject, ~settings: Settings.t, editors: Editors.t) =>
   | Exercises(_, _, exercise) when settings.instructor_mode => [
       export_persistent_data(~inject),
       ExerciseMode.export_submission(~settings),
-      ExerciseMode.instructor_export(exercise),
+      ExerciseMode.instructor_export(inject),
       ExerciseMode.instructor_transitionary_export(exercise),
       ExerciseMode.instructor_grading_export(exercise),
     ]

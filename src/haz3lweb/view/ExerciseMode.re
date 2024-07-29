@@ -290,18 +290,10 @@ let reset_button = inject =>
     ~tooltip="Reset Exercise",
   );
 
-let instructor_export = (exercise: Exercise.state) =>
+let instructor_export = (inject: UpdateAction.t => Ui_effect.t(unit)) =>
   Widgets.button_named(
     Icons.star,
-    _ => {
-      // .ml files because show uses OCaml syntax (dune handles seamlessly)
-      let module_name = exercise.eds.module_name;
-      let filename = exercise.eds.module_name ++ ".ml";
-      let content_type = "text/plain";
-      let contents = Exercise.export_module(module_name, exercise);
-      JsUtil.download_string_file(~filename, ~content_type, ~contents);
-      Virtual_dom.Vdom.Effect.Ignore;
-    },
+    _ => inject(Export(ExerciseModule)),
     ~tooltip="Export Exercise Module",
   );
 

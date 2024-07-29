@@ -170,12 +170,17 @@ let shortcuts = (sys: Key.sys): list(shortcut) => [
     "Export Scratch Slide",
     Export(ExportScratchSlide),
   ),
-  // TODO the rest of the exports are skipping the Action type. I need to fix that to get these working consistently
   mk_shortcut(
     ~mdIcon="download",
     ~section="Export",
     "Export All Persistent Data",
     Export(ExportPersistentData),
+  ),
+  mk_shortcut(
+    ~mdIcon="download",
+    ~section="Export",
+    "Export Exercise Module",
+    Export(ExerciseModule) // TODO Would we rather skip contextual stuff for now or include it and have it fail
   ),
   mk_shortcut(
     // ctrl+k conflicts with the command palette
