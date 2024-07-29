@@ -328,19 +328,10 @@ let instructor_grading_export = (exercise: Exercise.state) =>
     ~tooltip="Export Grading Exercise Module",
   );
 
-let download_editor_state = (~instructor_mode) =>
-  Log.get_and(log => {
-    let data = Export.export_all(~instructor_mode, ~log);
-    JsUtil.download_json(ExerciseSettings.filename, data);
-  });
-
-let export_submission = (~settings: Settings.t) =>
+let export_submission = (inject: UpdateAction.t => Ui_effect.t(unit)) =>
   Widgets.button_named(
     Icons.star,
-    _ => {
-      download_editor_state(~instructor_mode=settings.instructor_mode);
-      Virtual_dom.Vdom.Effect.Ignore;
-    },
+    _ => inject(Export(Submission)),
     ~tooltip="Export Submission",
   );
 

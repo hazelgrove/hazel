@@ -58,7 +58,8 @@ type benchmark_action =
 type export_action =
   | ExportScratchSlide
   | ExportPersistentData
-  | ExerciseModule;
+  | ExerciseModule
+  | Submission;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
