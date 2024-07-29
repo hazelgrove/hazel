@@ -121,12 +121,12 @@ let export_menu = (~inject, ~settings: Settings.t, editors: Editors.t) =>
   | Documentation(_) => [ScratchMode.export_button(inject)]
   | Exercises(_, _, exercise) when settings.instructor_mode => [
       export_persistent_data(~inject),
-      ExerciseMode.export_submission(~settings),
+      ExerciseMode.export_submission(inject),
       ExerciseMode.instructor_export(inject),
       ExerciseMode.instructor_transitionary_export(exercise),
       ExerciseMode.instructor_grading_export(exercise),
     ]
-  | Exercises(_) => [ExerciseMode.export_submission(~settings)]
+  | Exercises(_) => [ExerciseMode.export_submission(inject)]
   };
 
 let import_menu = (~inject, editors: Editors.t) =>

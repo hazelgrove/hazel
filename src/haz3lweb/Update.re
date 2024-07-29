@@ -315,6 +315,12 @@ let export_exercise_module = (exercise: Exercise.state): unit => {
   JsUtil.download_string_file(~filename, ~content_type, ~contents);
 };
 
+let export_submission = (~instructor_mode) =>
+  Log.get_and(log => {
+    let data = Export.export_all(~instructor_mode, ~log);
+    JsUtil.download_json(ExerciseSettings.filename, data);
+  });
+
 let ui_state_update =
     (ui_state: Model.ui_state, update: set_meta, ~schedule_action as _)
     : Model.ui_state => {
@@ -385,8 +391,10 @@ let rec apply =
         Ok(model);
       | _ => Error(Exception("Invalid Context")) // TODO Make command palette contextual and figure out how to represent that here
       }
-    // Editors.get_exer
+    | Export(Submission) =>
+      export_submission(~instructor_mode=model.settings.instructor_mode);
 
+      Ok(model);
     | ResetCurrentEditor =>
       let instructor_mode = model.settings.instructor_mode;
       let editors = Editors.reset_current(model.editors, ~instructor_mode);
