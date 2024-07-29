@@ -158,6 +158,13 @@ let update_settings =
         top_bar: !settings.top_bar,
       },
     }
+  | BottomBar => {
+      ...model,
+      settings: {
+        ...settings,
+        bottom_bar: !settings.bottom_bar,
+      },
+    }
   | SecondaryIcons => {
       ...model,
       settings: {

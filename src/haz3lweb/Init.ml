@@ -31,6 +31,7 @@ let startup : PersistentData.t =
           { show = true; show_feedback = false; highlight = NoHighlight };
         mode = Exercises;
         top_bar = true;
+        bottom_bar = true;
       };
     scratch =
       ( 0,

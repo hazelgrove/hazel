@@ -177,12 +177,14 @@ let get_selection = (model: Model.t): string =>
 
 let view = (~inject: UpdateAction.t => Ui_effect.t(unit), model: Model.t) =>
   div(
-    ~attrs=
-      Attr.[
-        id("page"),
-        classes(model.settings.top_bar ? [] : ["top-bar-hidden"]),
-        ...handlers(~inject, Editors.get_editor(model.editors)),
-      ],
+    ~attrs=[
+      Attr.id("page"),
+      Attr.classes(
+        (model.settings.top_bar ? [] : ["top-bar-hidden"])
+        @ (model.settings.bottom_bar ? [] : ["bottom-bar-hidden"]),
+      ),
+      ...handlers(~inject, Editors.get_editor(model.editors)),
+    ],
     [
       FontSpecimen.view("font-specimen"),
       DecUtil.filters,
