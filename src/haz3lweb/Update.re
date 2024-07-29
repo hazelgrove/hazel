@@ -330,6 +330,15 @@ let export_transitionary = (exercise: Exercise.state) => {
   JsUtil.download_string_file(~filename, ~content_type, ~contents);
 };
 
+let export_instructor_grading_report = (exercise: Exercise.state) => {
+  // .ml files because show uses OCaml syntax (dune handles seamlessly)
+  let module_name = exercise.eds.module_name;
+  let filename = exercise.eds.module_name ++ "_grading.ml";
+  let content_type = "text/plain";
+  let contents = Exercise.export_grading_module(module_name, exercise);
+  JsUtil.download_string_file(~filename, ~content_type, ~contents);
+};
+
 let instructor_exercise_update =
     (model: Model.t, fn: Exercise.state => unit): Result.t(Model.t) => {
   switch (model.editors) {
@@ -411,6 +420,8 @@ let rec apply =
 
     | Export(TransitionaryExerciseModule) =>
       instructor_exercise_update(model, export_transitionary)
+    | Export(GradingExerciseModule) =>
+      instructor_exercise_update(model, export_instructor_grading_report)
     | ResetCurrentEditor =>
       let instructor_mode = model.settings.instructor_mode;
       let editors = Editors.reset_current(model.editors, ~instructor_mode);
