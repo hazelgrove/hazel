@@ -307,6 +307,14 @@ let export_scratch_slide = (editor: Editor.t): unit => {
   JsUtil.download_json("hazel-scratchpad", json_data);
 };
 
+let export_exercise_module = (exercise: Exercise.state): unit => {
+  let module_name = exercise.eds.module_name;
+  let filename = exercise.eds.module_name ++ ".ml";
+  let content_type = "text/plain";
+  let contents = Exercise.export_module(module_name, exercise);
+  JsUtil.download_string_file(~filename, ~content_type, ~contents);
+};
+
 let ui_state_update =
     (ui_state: Model.ui_state, update: set_meta, ~schedule_action as _)
     : Model.ui_state => {
@@ -370,6 +378,15 @@ let rec apply =
       let editor = Editors.get_editor(model.editors);
       export_scratch_slide(editor);
       Ok(model);
+    | Export(ExerciseModule) =>
+      switch (model.editors) {
+      | Exercises(_, _, exercise) when model.settings.instructor_mode =>
+        export_exercise_module(exercise);
+        Ok(model);
+      | _ => Error(Exception("Invalid Context")) // TODO Make command palette contextual and figure out how to represent that here
+      }
+    // Editors.get_exer
+
     | ResetCurrentEditor =>
       let instructor_mode = model.settings.instructor_mode;
       let editors = Editors.reset_current(model.editors, ~instructor_mode);
