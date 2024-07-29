@@ -117,12 +117,8 @@ let settings_menu =
 
 let export_menu = (~inject, ~settings: Settings.t, editors: Editors.t) =>
   switch (editors) {
-  | Scratch(slide_idx, slides) =>
-    let state = List.nth(slides, slide_idx);
-    [ScratchMode.export_button(state)];
-  | Documentation(name, slides) =>
-    let state = List.assoc(name, slides);
-    [ScratchMode.export_button(state)];
+  | Scratch(_) => [ScratchMode.export_button(inject)]
+  | Documentation(_) => [ScratchMode.export_button(inject)]
   | Exercises(_, _, exercise) when settings.instructor_mode => [
       export_persistent_data(~inject),
       ExerciseMode.export_submission(~settings),
