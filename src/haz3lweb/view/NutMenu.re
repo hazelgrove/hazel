@@ -7,7 +7,7 @@ open Widgets;
 let export_persistent_data = (~inject: Update.t => 'a) =>
   button_named(
     Icons.sprout,
-    _ => inject(ExportPersistentData),
+    _ => inject(Export(ExportPersistentData)),
     ~tooltip="Export All Persistent Data",
   );
 

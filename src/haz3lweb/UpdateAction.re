@@ -55,14 +55,18 @@ type benchmark_action =
   | Finish;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type export_action =
+  | ExportScratchSlide
+  | ExportPersistentData;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   /* meta */
   | Reset
   | Set(settings_action)
   | SetMeta(set_meta)
   | UpdateExplainThisModel(ExplainThisUpdate.update)
-  | ExportPersistentData
-  | ExportScratchSlide // TODO Combine exports
+  | Export(export_action)
   | DebugConsole(string)
   /* editors */
   | ResetCurrentEditor
@@ -151,8 +155,7 @@ let is_edit: t => bool =
   | Reset => true
   | UpdateResult(_)
   | SwitchEditor(_)
-  | ExportPersistentData
-  | ExportScratchSlide
+  | Export(_)
   | Save
   | Copy
   | UpdateExplainThisModel(_)
@@ -204,8 +207,7 @@ let reevaluate_post_update: t => bool =
   | InitImportAll(_)
   | InitImportScratchpad(_)
   | UpdateExplainThisModel(_)
-  | ExportPersistentData
-  | ExportScratchSlide
+  | Export(_)
   | UpdateResult(_)
   | SwitchEditor(_)
   | DebugConsole(_)
@@ -288,7 +290,6 @@ let should_scroll_to_caret =
   | InitImportAll(_)
   | InitImportScratchpad(_)
   | UpdateExplainThisModel(_)
-  | ExportPersistentData
-  | ExportScratchSlide
+  | Export(_)
   | DebugConsole(_)
   | Benchmark(_) => false;

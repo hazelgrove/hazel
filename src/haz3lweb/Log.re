@@ -8,7 +8,7 @@ let is_action_logged: UpdateAction.t => bool =
   | Save
   | InitImportAll(_)
   | InitImportScratchpad(_)
-  | ExportPersistentData
+  | Export(_)
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
   | Benchmark(_)
@@ -32,7 +32,6 @@ let is_action_logged: UpdateAction.t => bool =
   | UpdateResult(_)
   | ToggleStepper(_)
   | StepperAction(_, StepForward(_) | StepBackward)
-  | ExportScratchSlide
   | UpdateExplainThisModel(_) => true;
 
 module DB = {
