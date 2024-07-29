@@ -32,7 +32,7 @@ let shortcuts = (sys: Key.sys): list(shortcut) => [
   mk_shortcut(
     ~hotkey="shift+tab",
     ~mdIcon="swipe_left_alt",
-    "Go to Definition",
+    "Go to Previous Hole",
     MoveToNextHole(Left),
   ),
   mk_shortcut(
