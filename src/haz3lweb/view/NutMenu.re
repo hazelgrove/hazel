@@ -115,7 +115,12 @@ let settings_menu =
   ];
 };
 
-let export_menu = (~inject, ~settings: Settings.t, editors: Editors.t) =>
+let export_menu =
+    (
+      ~inject: UpdateAction.t => Ui_effect.t(unit),
+      ~settings: Settings.t,
+      editors: Editors.t,
+    ) =>
   switch (editors) {
   | Scratch(_) => [ScratchMode.export_button(inject)]
   | Documentation(_) => [ScratchMode.export_button(inject)]
@@ -123,7 +128,7 @@ let export_menu = (~inject, ~settings: Settings.t, editors: Editors.t) =>
       export_persistent_data(~inject),
       ExerciseMode.export_submission(inject),
       ExerciseMode.instructor_export(inject),
-      ExerciseMode.instructor_transitionary_export(exercise),
+      ExerciseMode.instructor_transitionary_export(inject),
       ExerciseMode.instructor_grading_export(exercise),
     ]
   | Exercises(_) => [ExerciseMode.export_submission(inject)]

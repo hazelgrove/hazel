@@ -189,6 +189,12 @@ let shortcuts = (sys: Key.sys): list(shortcut) => [
     Export(Submission) // TODO Would we rather skip contextual stuff for now or include it and have it fail
   ),
   mk_shortcut(
+    ~mdIcon="download",
+    ~section="Export",
+    "Export Transitionary Exercise Module",
+    Export(TransitionaryExerciseModule) // TODO Would we rather skip contextual stuff for now or include it and have it fail
+  ),
+  mk_shortcut(
     // ctrl+k conflicts with the command palette
     ~section="Diagnostics",
     ~mdIcon="refresh",

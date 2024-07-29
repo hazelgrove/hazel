@@ -321,6 +321,25 @@ let export_submission = (~instructor_mode) =>
     JsUtil.download_json(ExerciseSettings.filename, data);
   });
 
+let export_transitionary = (exercise: Exercise.state) => {
+  // .ml files because show uses OCaml syntax (dune handles seamlessly)
+  let module_name = exercise.eds.module_name;
+  let filename = exercise.eds.module_name ++ ".ml";
+  let content_type = "text/plain";
+  let contents = Exercise.export_transitionary_module(module_name, exercise);
+  JsUtil.download_string_file(~filename, ~content_type, ~contents);
+};
+
+let instructor_exercise_update =
+    (model: Model.t, fn: Exercise.state => unit): Result.t(Model.t) => {
+  switch (model.editors) {
+  | Exercises(_, _, exercise) when model.settings.instructor_mode =>
+    fn(exercise);
+    Ok(model);
+  | _ => Error(Exception("Invalid Context")) // TODO Make command palette contextual and figure out how to represent that here
+  };
+};
+
 let ui_state_update =
     (ui_state: Model.ui_state, update: set_meta, ~schedule_action as _)
     : Model.ui_state => {
@@ -385,16 +404,13 @@ let rec apply =
       export_scratch_slide(editor);
       Ok(model);
     | Export(ExerciseModule) =>
-      switch (model.editors) {
-      | Exercises(_, _, exercise) when model.settings.instructor_mode =>
-        export_exercise_module(exercise);
-        Ok(model);
-      | _ => Error(Exception("Invalid Context")) // TODO Make command palette contextual and figure out how to represent that here
-      }
+      instructor_exercise_update(model, export_exercise_module)
     | Export(Submission) =>
       export_submission(~instructor_mode=model.settings.instructor_mode);
-
       Ok(model);
+
+    | Export(TransitionaryExerciseModule) =>
+      instructor_exercise_update(model, export_transitionary)
     | ResetCurrentEditor =>
       let instructor_mode = model.settings.instructor_mode;
       let editors = Editors.reset_current(model.editors, ~instructor_mode);
