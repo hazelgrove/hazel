@@ -23,153 +23,7 @@ let mk_shortcut =
   {update_action: Some(update_action), hotkey, label, mdIcon, section};
 };
 
-// List of shortcuts configured to show up in the command palette and have hotkey support
-let shortcuts = (sys: Key.sys): list(shortcut) => [
-  mk_shortcut(~mdIcon="undo", ~hotkey=meta(sys) ++ "+z", "Undo", Undo),
-  mk_shortcut(~hotkey=meta(sys) ++ "+shift+z", ~mdIcon="redo", "Redo", Redo),
-  mk_shortcut(
-    ~hotkey="F12",
-    ~mdIcon="arrow_forward",
-    ~section="Navigation",
-    "Go to Definition",
-    PerformAction(Jump(BindingSiteOfIndicatedVar)),
-  ),
-  mk_shortcut(
-    ~hotkey="shift+tab",
-    ~mdIcon="swipe_left_alt",
-    ~section="Navigation",
-    "Go to Previous Hole",
-    MoveToNextHole(Left),
-  ),
-  mk_shortcut(
-    ~mdIcon="swipe_right_alt",
-    ~section="Navigation",
-    "Go To Next Hole",
-    MoveToNextHole(Right),
-    // Tab is overloaded so not setting it here
-  ),
-  mk_shortcut(
-    ~hotkey=meta(sys) ++ "+d",
-    ~mdIcon="select_all",
-    ~section="Selection",
-    "Select current term",
-    PerformAction(Select(Term(Current))),
-  ),
-  mk_shortcut(
-    ~hotkey=meta(sys) ++ "+p",
-    ~mdIcon="backpack",
-    "Pick up selected term",
-    PerformAction(Pick_up),
-  ),
-  mk_shortcut(
-    ~mdIcon="select_all",
-    ~hotkey=meta(sys) ++ "+a",
-    ~section="Selection",
-    "Select All",
-    PerformAction(Select(All)),
-  ),
-  mk_shortcut(
-    ~section="Settings",
-    ~mdIcon="tune",
-    "Toggle Statics",
-    UpdateAction.Set(Statics),
-  ),
-  mk_shortcut(
-    ~section="Settings",
-    ~mdIcon="tune",
-    "Toggle Completion",
-    UpdateAction.Set(Assist),
-  ),
-  mk_shortcut(
-    ~section="Settings",
-    ~mdIcon="tune",
-    "Toggle Show Whitespace",
-    UpdateAction.Set(SecondaryIcons),
-  ),
-  mk_shortcut(
-    ~section="Settings",
-    ~mdIcon="tune",
-    "Toggle Print Benchmarks",
-    UpdateAction.Set(Benchmark),
-  ),
-  mk_shortcut(
-    ~section="Settings",
-    ~mdIcon="tune",
-    "Toggle Toggle Dynamics",
-    UpdateAction.Set(Dynamics),
-  ),
-  mk_shortcut(
-    ~section="Settings",
-    ~mdIcon="tune",
-    "Toggle Show Elaboration",
-    UpdateAction.Set(Elaborate),
-  ),
-  mk_shortcut(
-    ~section="Settings",
-    ~mdIcon="tune",
-    "Toggle Show Function Bodies",
-    UpdateAction.Set(Evaluation(ShowFnBodies)),
-  ),
-  mk_shortcut(
-    ~section="Settings",
-    ~mdIcon="tune",
-    "Toggle Show Case Clauses",
-    UpdateAction.Set(Evaluation(ShowCaseClauses)),
-  ),
-  mk_shortcut(
-    ~section="Settings",
-    ~mdIcon="tune",
-    "Toggle Show fixpoints",
-    UpdateAction.Set(Evaluation(ShowFixpoints)),
-  ),
-  mk_shortcut(
-    ~section="Settings",
-    ~mdIcon="tune",
-    "Toggle Show Casts",
-    UpdateAction.Set(Evaluation(ShowCasts)),
-  ),
-  mk_shortcut(
-    ~section="Settings",
-    ~mdIcon="tune",
-    "Toggle Show Lookup Steps",
-    UpdateAction.Set(Evaluation(ShowLookups)),
-  ),
-  mk_shortcut(
-    ~section="Settings",
-    ~mdIcon="tune",
-    "Toggle Show Stepper Filters",
-    UpdateAction.Set(Evaluation(ShowFilters)),
-  ),
-  mk_shortcut(
-    ~section="Settings",
-    ~mdIcon="tune",
-    "Toggle Show Hidden Steps",
-    UpdateAction.Set(Evaluation(ShowHiddenSteps)),
-  ),
-  mk_shortcut(
-    ~section="Settings",
-    ~mdIcon="tune",
-    "Toggle Show Docs Sidebar",
-    UpdateAction.Set(ExplainThis(ToggleShow)),
-  ),
-  mk_shortcut(
-    ~section="Settings",
-    ~mdIcon="tune",
-    "Toggle Show Docs Feedback",
-    UpdateAction.Set(ExplainThis(ToggleShowFeedback)),
-  ),
-  mk_shortcut(
-    ~hotkey=meta(sys) ++ "+/",
-    ~mdIcon="assistant",
-    "TyDi Assistant",
-    Assistant(Prompt(TyDi)) // I haven't figured out how to trigger this in the editor
-  ),
-  mk_shortcut(
-    ~mdIcon="download",
-    ~section="Export",
-    "Export Scratch Slide",
-    Export(ExportScratchSlide),
-  ),
+let instructor_shortcuts: list(shortcut) = [
   mk_shortcut(
     ~mdIcon="download",
     ~section="Export",
@@ -185,12 +39,6 @@ let shortcuts = (sys: Key.sys): list(shortcut) => [
   mk_shortcut(
     ~mdIcon="download",
     ~section="Export",
-    "Export Submission",
-    Export(Submission) // TODO Would we rather skip contextual stuff for now or include it and have it fail
-  ),
-  mk_shortcut(
-    ~mdIcon="download",
-    ~section="Export",
     "Export Transitionary Exercise Module",
     Export(TransitionaryExerciseModule) // TODO Would we rather skip contextual stuff for now or include it and have it fail
   ),
@@ -200,21 +48,183 @@ let shortcuts = (sys: Key.sys): list(shortcut) => [
     "Export Grading Exercise Module",
     Export(GradingExerciseModule) // TODO Would we rather skip contextual stuff for now or include it and have it fail
   ),
-  mk_shortcut(
-    // ctrl+k conflicts with the command palette
-    ~section="Diagnostics",
-    ~mdIcon="refresh",
-    "Reparse Current Editor",
-    ReparseCurrentEditor,
-  ),
-  mk_shortcut(
-    ~mdIcon="timer",
-    ~section="Diagnostics",
-    ~hotkey="F7",
-    "Run Benchmark",
-    Benchmark(Start),
-  ),
 ];
+
+// List of shortcuts configured to show up in the command palette and have hotkey support
+let shortcuts = (sys: Key.sys): list(shortcut) =>
+  [
+    mk_shortcut(~mdIcon="undo", ~hotkey=meta(sys) ++ "+z", "Undo", Undo),
+    mk_shortcut(
+      ~hotkey=meta(sys) ++ "+shift+z",
+      ~mdIcon="redo",
+      "Redo",
+      Redo,
+    ),
+    mk_shortcut(
+      ~hotkey="F12",
+      ~mdIcon="arrow_forward",
+      ~section="Navigation",
+      "Go to Definition",
+      PerformAction(Jump(BindingSiteOfIndicatedVar)),
+    ),
+    mk_shortcut(
+      ~hotkey="shift+tab",
+      ~mdIcon="swipe_left_alt",
+      ~section="Navigation",
+      "Go to Previous Hole",
+      MoveToNextHole(Left),
+    ),
+    mk_shortcut(
+      ~mdIcon="swipe_right_alt",
+      ~section="Navigation",
+      "Go To Next Hole",
+      MoveToNextHole(Right),
+      // Tab is overloaded so not setting it here
+    ),
+    mk_shortcut(
+      ~hotkey=meta(sys) ++ "+d",
+      ~mdIcon="select_all",
+      ~section="Selection",
+      "Select current term",
+      PerformAction(Select(Term(Current))),
+    ),
+    mk_shortcut(
+      ~hotkey=meta(sys) ++ "+p",
+      ~mdIcon="backpack",
+      "Pick up selected term",
+      PerformAction(Pick_up),
+    ),
+    mk_shortcut(
+      ~mdIcon="select_all",
+      ~hotkey=meta(sys) ++ "+a",
+      ~section="Selection",
+      "Select All",
+      PerformAction(Select(All)),
+    ),
+    mk_shortcut(
+      ~section="Settings",
+      ~mdIcon="tune",
+      "Toggle Statics",
+      UpdateAction.Set(Statics),
+    ),
+    mk_shortcut(
+      ~section="Settings",
+      ~mdIcon="tune",
+      "Toggle Completion",
+      UpdateAction.Set(Assist),
+    ),
+    mk_shortcut(
+      ~section="Settings",
+      ~mdIcon="tune",
+      "Toggle Show Whitespace",
+      UpdateAction.Set(SecondaryIcons),
+    ),
+    mk_shortcut(
+      ~section="Settings",
+      ~mdIcon="tune",
+      "Toggle Print Benchmarks",
+      UpdateAction.Set(Benchmark),
+    ),
+    mk_shortcut(
+      ~section="Settings",
+      ~mdIcon="tune",
+      "Toggle Toggle Dynamics",
+      UpdateAction.Set(Dynamics),
+    ),
+    mk_shortcut(
+      ~section="Settings",
+      ~mdIcon="tune",
+      "Toggle Show Elaboration",
+      UpdateAction.Set(Elaborate),
+    ),
+    mk_shortcut(
+      ~section="Settings",
+      ~mdIcon="tune",
+      "Toggle Show Function Bodies",
+      UpdateAction.Set(Evaluation(ShowFnBodies)),
+    ),
+    mk_shortcut(
+      ~section="Settings",
+      ~mdIcon="tune",
+      "Toggle Show Case Clauses",
+      UpdateAction.Set(Evaluation(ShowCaseClauses)),
+    ),
+    mk_shortcut(
+      ~section="Settings",
+      ~mdIcon="tune",
+      "Toggle Show fixpoints",
+      UpdateAction.Set(Evaluation(ShowFixpoints)),
+    ),
+    mk_shortcut(
+      ~section="Settings",
+      ~mdIcon="tune",
+      "Toggle Show Casts",
+      UpdateAction.Set(Evaluation(ShowCasts)),
+    ),
+    mk_shortcut(
+      ~section="Settings",
+      ~mdIcon="tune",
+      "Toggle Show Lookup Steps",
+      UpdateAction.Set(Evaluation(ShowLookups)),
+    ),
+    mk_shortcut(
+      ~section="Settings",
+      ~mdIcon="tune",
+      "Toggle Show Stepper Filters",
+      UpdateAction.Set(Evaluation(ShowFilters)),
+    ),
+    mk_shortcut(
+      ~section="Settings",
+      ~mdIcon="tune",
+      "Toggle Show Hidden Steps",
+      UpdateAction.Set(Evaluation(ShowHiddenSteps)),
+    ),
+    mk_shortcut(
+      ~section="Settings",
+      ~mdIcon="tune",
+      "Toggle Show Docs Sidebar",
+      UpdateAction.Set(ExplainThis(ToggleShow)),
+    ),
+    mk_shortcut(
+      ~section="Settings",
+      ~mdIcon="tune",
+      "Toggle Show Docs Feedback",
+      UpdateAction.Set(ExplainThis(ToggleShowFeedback)),
+    ),
+    mk_shortcut(
+      ~hotkey=meta(sys) ++ "+/",
+      ~mdIcon="assistant",
+      "TyDi Assistant",
+      Assistant(Prompt(TyDi)) // I haven't figured out how to trigger this in the editor
+    ),
+    mk_shortcut(
+      ~mdIcon="download",
+      ~section="Export",
+      "Export Scratch Slide",
+      Export(ExportScratchSlide),
+    ),
+    mk_shortcut(
+      ~mdIcon="download",
+      ~section="Export",
+      "Export Submission",
+      Export(Submission) // TODO Would we rather skip contextual stuff for now or include it and have it fail
+    ),
+    mk_shortcut(
+      // ctrl+k conflicts with the command palette
+      ~section="Diagnostics",
+      ~mdIcon="refresh",
+      "Reparse Current Editor",
+      ReparseCurrentEditor,
+    ),
+    mk_shortcut(
+      ~mdIcon="timer",
+      ~section="Diagnostics",
+      ~hotkey="F7",
+      "Run Benchmark",
+      Benchmark(Start),
+    ),
+  ]
+  @ (if (ExerciseSettings.show_instructor) {instructor_shortcuts} else {[]});
 
 let handle_key_event = (k: Key.t): option(Update.t) => {
   let now = (a: Action.t): option(UpdateAction.t) =>
