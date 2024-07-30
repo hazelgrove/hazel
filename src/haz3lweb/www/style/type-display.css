@@ -1,12 +1,12 @@
 /* TYPES FOR CURSOR & CONTEXT INSPECTORS */
 
 .type .typ-view {
-  color: var(--typ-text-color);
+  color: var(--typ-token-color);
   display: flex;
 }
 
 .typ-alias-view {
-  color: var(--tpat-text-color);
+  color: var(--tpat-token-color);
 }
 
 .type .typ-view.atom.unknown {
