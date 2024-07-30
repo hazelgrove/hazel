@@ -246,8 +246,7 @@ module Deco =
                    );
                  Measured.{origin: m.last, last: m.last};
                };
-             let profile =
-               CaretPosDec.Profile.{style: `Sibling, measurement, sort: Exp};
+             let profile = CaretPosDec.Profile.{style: `Sibling, measurement};
              [CaretPosDec.view(~font_metrics, profile)];
            };
          });

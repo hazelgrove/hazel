@@ -22,10 +22,11 @@
   --cell-selected-accent: red;
   --caret-color: #f62116;
   --ci-status-error-text: #bf0101;
-  --test-fail-active: #ff8a8a;
-  --error-hole-fill: #ff00000a;
   --error-hole-stroke: #ff000087;
   --eval-exception-stroke: #7d0000;
+  --test-fail-active: #ff8a8a;
+  --error-hole-fill: #ff00000a;
+
   --test-fail: var(--err-color);
   --eval-exception: var(--test-fail-active);
   --ci-status-error-bkg: var(--test-fail-active);
@@ -34,102 +35,107 @@
   --code-highlight-b: rgb(0 255 255 / 40%);
   --code-highlight-c: rgb(0 255 0 / 20%);
 
+  --nut-menu: #555f38;
+  --nut-menu-active: #98a379;
+
   --menu-shadow: #77580255;
   --explicit-hole-shadow: #2d2206;
 
-  --active-cell-bkg: #fffcf3;
-  --menu-item-hover-bkg: #fff9e5;
-  --light-page-color: #fdf6e3;
-  --empty-hole-fill: #f1e8cd;
-  --test-panel-bkg: #f8ebc6;
-  --buffer-bkg: #fbf3de;
-  --buffer-token: #d7cdb2;
-  --bottom-bar-bkg: #f9e8bb;
-  --empty-hole-stroke: #dbcca7;
-  --cell-result-hidden: #e8dcbf;
-  --projectors-bkg: #f6eedc;
-  --bar-color: #dfdacc;
+  --code-emphasis: #ce9600;
+  --other-accent: #e4d6a6;
+  --accent-hole-stroke: #dbcca7;
   --menu-bkg: #f7ebc5;
+  --active-cell-bkg: #fffcf3;
+  --menu-item-hover-bkg: #fdf6e3;
+  --ui-text-accent-light: #a69460;
+  --top-bar-text: #a79f89;
+  --projectors-bkg: #f6eedc;
   --explicit-hole-fill: #ffd04f;
   --selection-color: #fae294;
-  --menu-scroll-track: #e4d6a6;
   --string-lit-color: #cda56a;
-  --code-emphasis: #ce9600;
   --subdued-accent: #c7b480;
-  --menu-icon: #ad9963;
-  --top-bar-text: #a79f89;
   --main-bkg: #efe7d6;
-  --cell-result-border: #d2c7ad;
-  --test-indet: #d2b48c;
-  --test-indet-active: #ecd4b4;
-  --ui-text-accent-light: #a69460;
   --ci-icon-bkg: #857548;
   --ui-text-accent: #6c5c2e;
-  --cell-result-text: #7a6219;
-  --token-secondary: #7e5000;
-  --inconsistent-token: #938870;
-  --nut-menu: #555f38;
-  --nut-menu-active: #98a379;
-  --main-scroll-thumb: #dac898;
-
   
+  --token-secondary: #7e5000;
+  
+  --light-page-color: var(--menu-item-hover-bkg);
+
+  --token-inconsistent: var(--top-bar-text);
+  --token-incomplete: var(--code-emphasis);
+
+  --empty-hole-stroke: var(--accent-hole-stroke);
+  --empty-hole-fill: var(--menu-bkg);
+
+  --buffer-bkg: var(--light-page-color);
+  --buffer-token: var(--accent-hole-stroke);
+
+  --backpack-selection: var(--selection-color);
+  --backpack-joiner: var(--backpack-selection);
+  --backpack-genie: var(--backpack-selection);
+  --backpack-selection-outline: var(--light-page-color);
+  --backback-targets: var(--code-emphasis);
+
+  --main-scroll-thumb: var(--accent-hole-stroke);
+
+  --test-panel-bkg: var(--menu-bkg);
   --cell-result: var(--main-bkg);
+  --cell-result-text: var(--ui-text-accent);
+  --cell-result-border: var(--accent-hole-stroke);
+  --cell-result-hidden: var(--other-accent); /* what is this ? */
+
+  --test-indet: var(--subdued-accent);
+  --test-indet-active: var(--other-accent);
+
+  /* Non-code UI */
+
+  --bottom-bar-bkg: var(--menu-bkg);
+  
   --menu-item-text: var(--base-text-color);
+  --menu-scroll-track: var(--other-accent);
   --menu-scroll-thumb: var(--subdued-accent);
   --menu-outline: var(--subdued-accent);
+  --menu-icon: var(--ui-text-accent-light);
+
   --editor-mode-text: var(--ui-text-accent);
   --context-inspector-colon: var(--subdued-accent);
 
+
   /* SORT COLORS */
 
-  --nul-text-color: red;
-  --nul-off-color: var(--nul-text-color);
-  --nul-token-color: var(--nul-text-color);
-  --nul-shadow-color: #ffa000;
-  --nul-bg-color: #ffacac;
-  --nul-bg-off-color: var(--nul-bg-color);
-
-  --any-text-color: var(--nul-text-color);
-  --any-off-color: var(--nul-off-color);
-  --any-token-color: var(--nul-token-color);
-  --any-shadow-color: var(--nul-shadow-color);
-  --any-bg-color: var(--nul-bg-color);
-  --any-bg-off-color: var(--nul-bg-off-color);
-
   --exp-text-color: var(--base-text-color);
-  --exp-off-color: #b1a47f;
-  --exp-token-color: var(--base-text-color);
-  --exp-shadow-color: #c4b599;
+  --exp-shadow-color: #b1a47f;
   --exp-bg-color: #ebdfc5;
-  --exp-bg-off-color: #feddb3;
-
-  --pat-text-color: #169fdc;
-  --pat-off-color: #13aed2;
-  --pat-token-color: #a2dffb;
-  --pat-shadow-color: var(--pat-off-color);
-  --pat-bg-color: #b2e8ff;
-  --pat-bg-off-color: #d7f3ff;
-
-  --tpat-text-color: #16c8dc;
-  --tpat-off-color: #13d2d2;
-  --tpat-token-color: #a2fbf9;
-  --tpat-shadow-color: var(--pat-off-color);
-  --tpat-bg-color: #b2fbff;
-  --tpat-bg-off-color: #d7fff7;
-
-  --typ-text-color: #772cff;
-  --typ-off-color: #975dff;
-  --typ-token-color: #cfb5ff;
-  --typ-shadow-color: var(--typ-off-color);
-  --typ-bg-color: #f2ccff;
-  --typ-bg-off-color: #f9e8ff;
+  --exp-bg-caret-color: #feddb3;
 
   --rul-text-color: var(--exp-text-color);
-  --rul-off-color: var(--exp-off-color);
-  --rul-token-color: #ccc2af;
   --rul-shadow-color: var(--exp-shadow-color);
   --rul-bg-color: var(--exp-bg-color);
-  --rul-bg-off-color: var(--exp-bg-off-color);
+
+  --nul-text-color: red;
+  --nul-shadow-color: red;
+  --nul-bg-color: #ffacac;
+
+  --any-text-color: var(--nul-text-color);
+  --any-shadow-color: var(--nul-shadow-color);
+  --any-bg-color: var(--nul-bg-color);
+
+  --pat-text-color: #169fdc;
+  --pat-shadow-color: #13aed2;
+  --pat-bg-color: #b2e8ff;
+  --pat-bg-caret-color: #d7f3ff;
+
+  --tpat-text-color: #16c8dc;
+  --tpat-shadow-color: #13d2d2;
+  --tpat-bg-color: #b2fbff;
+  --tpat-bg-caret-color: #d7fff7;
+
+  --typ-text-color: #772cff;
+  --typ-shadow-color: #975dff;
+  --typ-bg-color: #f2ccff;
+  --typ-bg-caret-color: #f9e8ff;
+
 
   /* Z-STACK */
 
@@ -137,10 +143,8 @@
   --empty-hole-z: 5;
   --err-hole-z: 5;
   --code-text-z: 6;
-  --outer-cousin-caret-position-z: 9;
   --caret-position-z: 13;
   --caret-z: 14;
-  --current-caret-pos-z: 15;
   --top-bar-z: 15;
   --test-panel-z: 20;
   --modal-z: 10001;

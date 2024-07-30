@@ -55,11 +55,11 @@
 }
 
 .code .token.sort-inconsistent {
-  color: var(--inconsistent-token);
+  color: var(--token-inconsistent);
 }
 
 .code .token.incomplete {
-  color: var(--code-emphasis);
+  color: var(--token-incomplete);
 }
 
 .code .token.explicit-hole {
@@ -125,11 +125,11 @@ svg.shard.indicated.Exp > path {
   filter: url(#raised-drop-shadow-Exp);
 }
 svg.shard.indicated.Pat > path {
-  fill: var(--pat-bg-off-color);
+  fill: var(--pat-bg-caret-color);
   filter: url(#raised-drop-shadow-Pat);
 }
 svg.shard.indicated.Typ > path {
-  fill: var(--typ-bg-off-color);
+  fill: var(--typ-bg-caret-color);
   filter: url(#raised-drop-shadow-Typ);
 }
 svg.shard.indicated.Rul > path {
@@ -137,12 +137,12 @@ svg.shard.indicated.Rul > path {
   filter: url(#raised-drop-shadow-Rul);
 }
 svg.shard.indicated.TPat > path {
-  fill: var(--tpat-bg-off-color);
+  fill: var(--tpat-bg-caret-color);
   filter: url(#raised-drop-shadow-TPat);
 }
 
 svg.shard.indicated.caret.Exp > path {
-  fill: var(--exp-bg-off-color);
+  fill: var(--exp-bg-caret-color);
 }
 svg.shard.indicated.caret.Pat > path {
   fill: var(--pat-bg-color);
@@ -314,68 +314,28 @@ svg.shard.error > path {
   padding: 0 0.2em 0 0.2em;
   line-height: var(--line-height);
   width: fit-content;
-  background-color: var(--selection-color);
-  outline: 1px solid var(--light-page-color);
+  background-color: var(--backpack-selection);
+  outline: 1px solid var(--backpack-selection-outline);
 }
 
 .backpack-joiner {
   border-radius: 2px;
   width: 2px;
-  background-color: var(--selection-color);
+  background-color: var(--backpack-joiner);
 }
 
-.restructuring-genie-path {
+.backpack-genie {
   stroke-width: 0;
-  fill: var(--selection-color);
+  fill: var(--backpack-genie);
   vector-effect: non-scaling-stroke;
 }
 
 /* BACKPACK TARGETS DECO */
 
-.caret-position-path {
-  vector-effect: non-scaling-stroke;
-  stroke-width: 0.1px;
-}
-
-.caret-position-path.outer-cousin {
-  stroke: var(--bar-color);
-  fill: var(--bar-color);
-}
-
-.sibling {
+.backpack-target {
   z-index: var(--caret-position-z);
 }
 
-.caret-position-path.Exp.sibling {
-  stroke: var(--exp-text-color);
-  fill: var(--exp-text-color);
-}
-.caret-position-path.Pat.sibling {
-  stroke: var(--pat-text-color);
-  fill: var(--pat-text-color);
-}
-.caret-position-path.Typ.sibling {
-  stroke: var(--typ-text-color);
-  fill: var(--typ-text-color);
-}
-
-.caret-position-path.Exp.anchor,
-.caret-position-path.Exp.current-caret-pos {
-  stroke: var(--exp-shadow-color);
-  fill: var(--exp-shadow-color);
-}
-.caret-position-path.Pat.anchor,
-.caret-position-path.Pat.current-caret-pos {
-  stroke: var(--pat-text-color);
-  fill: var(--pat-text-color);
-}
-.caret-position-path.Typ.anchor,
-.caret-position-path.Typ.current-caret-pos {
-  stroke: var(--typ-text-color);
-  fill: var(--typ-text-color);
-}
-
-.Exp.caret-position-path.sibling {
-  stroke: var(--code-emphasis);
-  fill: var(--code-emphasis);
+.caret-position-path {
+  fill: var(--backback-targets);
 }

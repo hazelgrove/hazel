@@ -74,31 +74,31 @@
 
 #cursor-inspector .ci-header.Nul {
   background-color: var(--nul-bg-color);
-  color: var(--nul-off-color);
+  color: var(--nul-shadow-color);
 }
 #cursor-inspector .ci-header.Any {
   background-color: var(--any-bg-color);
-  color: var(--any-off-color);
+  color: var(--any-shadow-color);
 }
 #cursor-inspector .ci-header.Exp {
   background-color: var(--exp-bg-color);
-  color: var(--exp-off-color);
+  color: var(--exp-shadow-color);
 }
 #cursor-inspector .ci-header.Pat {
   background-color: var(--pat-bg-color);
-  color: var(--pat-off-color);
+  color: var(--pat-shadow-color);
 }
 #cursor-inspector .ci-header.Typ {
   background-color: var(--typ-bg-color);
-  color: var(--typ-off-color);
+  color: var(--typ-shadow-color);
 }
 #cursor-inspector .ci-header.Rul {
   background-color: var(--rul-bg-color);
-  color: var(--rul-off-color);
+  color: var(--rul-shadow-color);
 }
 #cursor-inspector .ci-header.TPat {
   background-color: var(--tpat-bg-color);
-  color: var(--tpat-off-color);
+  color: var(--tpat-shadow-color);
 }
 
 #cursor-inspector .term-tag {
