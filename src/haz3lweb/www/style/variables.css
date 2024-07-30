@@ -6,13 +6,33 @@
 
   /* UI COLORS */
 
+  --light-accent-text: #fffcf3;
   --light-text-color: #586e75;
   --menu-item-color: var(--light-text-color);
+  --menu-divider: #0006;
 
   --primary-accent: #4fad66;
   --step-hole-color: green;
+  --token-comment: #a0c1aa;
+  --test-pass: green;
+  --test-pass-active: #cfd;
+
   --err-color: red;
   --cell-selected-accent: red;
+  --caret-color: #f62116;
+  --ci-status-error-text: #bf0101;
+  --test-fail-active: #ff8a8a;
+  --error-hole-fill: #ff00000a;
+  --error-hole-stroke: #ff000087;
+  --test-fail: var(--err-color);
+  --ci-status-error-bkg: var(--test-fail-active);
+
+  --code-highlight-a: rgb(255 0 255 / 20%);
+  --code-highlight-b: rgb(0 255 255 / 40%);
+  --code-highlight-c: rgb(0 255 0 / 20%);
+
+  --menu-shadow: #77580255;
+  --explicit-hole-shadow: #2d2206;
 
   --active-cell-bkg: #fffcf3;
   --menu-item-hover-bkg: #fff9e5;
@@ -25,18 +45,29 @@
   --empty-hole-stroke: #dbcca7;
   --bar-color: #dfdacc;
   --menu-bkg: #f7ebc5;
+  --explicit-hole-fill: #ffd04f;
   --selection-color: #fae294;
+  --menu-scroll-track: #e4d6a6;
   --string-lit-color: #cda56a;
   --code-emphasis: #ce9600;
   --subdued-accent: #c7b480;
   --menu-icon: #ad9963;
   --top-bar-text: #a79f89;
+  --test-indet: #d2b48c;
+  --test-indet-active: #ecd4b4;
   --ui-text-accent-light: #a69460;
   --ci-icon-bkg: #857548;
   --ui-text-accent: #6c5c2e;
+  --token-secondary: #7e5000;
   --inconsistent-token: #938870;
   --nut-menu-bkg: #555f38;
   --nut-menu-bkg-hover: #bba874;
+
+  --menu-item-text: var(--light-text-color);
+  --menu-scroll-thumb: var(--subdued-accent);
+  --menu-outline: var(--subdued-accent);
+  --editor-mode-text: var(--ui-text-accent);
+  --context-inspector-colon: var(--subdued-accent);
 
   /* SORT COLORS */
 

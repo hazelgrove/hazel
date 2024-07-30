@@ -6,15 +6,15 @@ let jump_to = entry =>
   UpdateAction.PerformAction(Jump(TileId(Haz3lcore.Ctx.get_id(entry))));
 
 let context_entry_view = (~inject, entry: Haz3lcore.Ctx.entry): Node.t => {
-  let div_name =
-    div(
-      ~attrs=[clss(["name"]), Attr.on_click(_ => inject(jump_to(entry)))],
-    );
+  let div_name = div(~attrs=[clss(["name"])]);
   switch (entry) {
   | VarEntry({name, typ, _})
   | ConstructorEntry({name, typ, _}) =>
     div(
-      ~attrs=[clss(["context-entry", "code"])],
+      ~attrs=[
+        Attr.on_click(_ => inject(jump_to(entry))),
+        clss(["context-entry", "code"]),
+      ],
       [
         div_name([text(name)]),
         div(~attrs=[clss(["seperator"])], [text(":")]),
@@ -23,7 +23,10 @@ let context_entry_view = (~inject, entry: Haz3lcore.Ctx.entry): Node.t => {
     )
   | TVarEntry({name, kind, _}) =>
     div(
-      ~attrs=[clss(["context-entry", "code"])],
+      ~attrs=[
+        Attr.on_click(_ => inject(jump_to(entry))),
+        clss(["context-entry", "code"]),
+      ],
       [
         div_name([Type.alias_view(name)]),
         div(~attrs=[clss(["seperator"])], [text("::")]),
