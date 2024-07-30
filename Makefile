@@ -11,6 +11,9 @@ deps:
 	opam install ./hazel.opam.locked --deps-only --with-test
 
 change-deps:
+    opam update
+	dune build hazel.opam
+	opam install ./hazel.opam --deps-only --with-test
 	opam lock .
 
 setup-instructor:
