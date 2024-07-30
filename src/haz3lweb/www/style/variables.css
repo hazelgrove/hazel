@@ -7,15 +7,16 @@
   /* UI COLORS */
 
   --light-accent-text: #fffcf3;
-  --light-text-color: #586e75;
-  --menu-item-color: var(--light-text-color);
+  --base-text-color: #586e75;
+  --menu-item-color: var(--base-text-color);
   --menu-divider: #0006;
+  --main-scroll-track: #0000;
 
   --primary-accent: #4fad66;
-  --step-hole-color: green;
-  --token-comment: #a0c1aa;
   --test-pass: green;
   --test-pass-active: #cfd;
+  --step-hole-color: var(--test-pass);
+  --token-comment: #a0c1aa;
 
   --err-color: red;
   --cell-selected-accent: red;
@@ -24,7 +25,9 @@
   --test-fail-active: #ff8a8a;
   --error-hole-fill: #ff00000a;
   --error-hole-stroke: #ff000087;
+  --eval-exception-stroke: #7d0000;
   --test-fail: var(--err-color);
+  --eval-exception: var(--test-fail-active);
   --ci-status-error-bkg: var(--test-fail-active);
 
   --code-highlight-a: rgb(255 0 255 / 20%);
@@ -43,6 +46,8 @@
   --buffer-token: #d7cdb2;
   --bottom-bar-bkg: #f9e8bb;
   --empty-hole-stroke: #dbcca7;
+  --cell-result-hidden: #e8dcbf;
+  --projectors-bkg: #f6eedc;
   --bar-color: #dfdacc;
   --menu-bkg: #f7ebc5;
   --explicit-hole-fill: #ffd04f;
@@ -53,17 +58,23 @@
   --subdued-accent: #c7b480;
   --menu-icon: #ad9963;
   --top-bar-text: #a79f89;
+  --main-bkg: #efe7d6;
+  --cell-result-border: #d2c7ad;
   --test-indet: #d2b48c;
   --test-indet-active: #ecd4b4;
   --ui-text-accent-light: #a69460;
   --ci-icon-bkg: #857548;
   --ui-text-accent: #6c5c2e;
+  --cell-result-text: #7a6219;
   --token-secondary: #7e5000;
   --inconsistent-token: #938870;
-  --nut-menu-bkg: #555f38;
-  --nut-menu-bkg-hover: #bba874;
+  --nut-menu: #555f38;
+  --nut-menu-active: #98a379;
+  --main-scroll-thumb: #dac898;
 
-  --menu-item-text: var(--light-text-color);
+  
+  --cell-result: var(--main-bkg);
+  --menu-item-text: var(--base-text-color);
   --menu-scroll-thumb: var(--subdued-accent);
   --menu-outline: var(--subdued-accent);
   --editor-mode-text: var(--ui-text-accent);
@@ -85,9 +96,9 @@
   --any-bg-color: var(--nul-bg-color);
   --any-bg-off-color: var(--nul-bg-off-color);
 
-  --exp-text-color: var(--light-text-color);
+  --exp-text-color: var(--base-text-color);
   --exp-off-color: #b1a47f;
-  --exp-token-color: var(--light-text-color);
+  --exp-token-color: var(--base-text-color);
   --exp-shadow-color: #c4b599;
   --exp-bg-color: #ebdfc5;
   --exp-bg-off-color: #feddb3;
@@ -122,8 +133,8 @@
 
   /* Z-STACK */
 
-  --empty-hole-z: 5;
   --tile-z: 4;
+  --empty-hole-z: 5;
   --err-hole-z: 5;
   --code-text-z: 6;
   --outer-cousin-caret-position-z: 9;
