@@ -15,7 +15,7 @@ let of_delim' =
         | _ when !is_complete => "incomplete"
         | [s] when s == Form.explicit_hole => "explicit-hole"
         | [s] when Form.is_string(s) => "string-lit"
-        | _ => "default"
+        | _ => Sort.to_string(sort)
         };
       let plurality = List.length(label) == 1 ? "mono" : "poly";
       let label = is_in_buffer ? AssistantExpander.mark(label) : label;
@@ -26,9 +26,7 @@ let of_delim' =
           ? token : token ++ StringUtil.repeat(indent, Unicode.nbsp);
       [
         span(
-          ~attrs=[
-            Attr.classes(["token", cls, Sort.to_string(sort), plurality]),
-          ],
+          ~attrs=[Attr.classes(["token", cls, plurality])],
           [Node.text(token)],
         ),
       ];
@@ -123,7 +121,6 @@ module Text =
     let children_and_sorts =
       List.mapi(
         (i, (l, child, r)) =>
-          //TODO(andrew): more subtle logic about sort acceptability
           (child, l + 1 == r ? List.nth(t.mold.in_, i) : Sort.Any),
         Aba.aba_triples(Aba.mk(t.shards, t.children)),
       );

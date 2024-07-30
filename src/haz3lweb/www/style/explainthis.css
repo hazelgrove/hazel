@@ -1,0 +1,198 @@
+#explain-this {
+  display: flex;
+  width: 20em;
+  padding: 0.4em;
+  flex-direction: column;
+  gap: 1em;
+}
+
+#explain-this #examples {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+}
+
+#explain-this .example {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+}
+
+#explain-this .example + .example {
+  border-top: 1px dotted var(--subdued-accent);
+  padding-top: 0.75em;
+}
+
+#explain-this .example .cell {
+  width: auto;
+  background-color: #f7ebd3;
+}
+
+#explain-this .example .cell-result {
+  background-color: #ede0c6;
+}
+
+#explain-this .explanation {
+  white-space: normal;
+}
+
+#explain-this .specificity-options-menu {
+  transform-origin: top;
+  transform: scaleY(0);
+  transition: transform 0.07s ease;
+  background-color: #f1e5bf;
+  border: 0.7px solid #e1c475;
+  border-top: none;
+}
+
+#explain-this .specificity-options-menu .selected {
+  filter: brightness(0.9);
+}
+
+#explain-this-button {
+  text-transform: none;
+}
+
+#explain-this .header {
+  display: flex;
+  justify-content: flex-start;
+  gap: 0.75em;
+}
+
+#explain-this .header .close {
+  cursor: pointer;
+  color: var(--subdued-accent);
+  display: flex;
+  margin-left: auto;
+  align-items: flex-start;
+}
+
+#explain-this .header .close:hover {
+  color: #f55c27;
+  text-shadow: 0.3px 0.3px 0px black;
+  border-radius: 0.2em;
+  scale: 1.8;
+}
+
+#explain-this .section {
+  display: flex;
+  flex-direction: column;
+  padding: 0 0.75em;
+  gap: 0.5em;
+}
+
+#explain-this .section .explanation-contents .code {
+  font-family: var(--code-font);
+}
+
+#explain-this .section .section-title {
+  text-transform: uppercase;
+  font-weight: bold;
+  color: var(--ui-text-accent-light);
+  font-size: 0.8em;
+}
+
+#explain-this .section .explanation-contents {
+  white-space: normal;
+}
+
+#explain-this div.expandable-target {
+  display: flex;
+  cursor: pointer;
+  z-index: 40;
+}
+
+#explain-this .clickable {
+  cursor: pointer;
+}
+
+/* https://css-tricks.com/snippets/css/css-triangle/ */
+#explain-this .arrow {
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid var(--ui-text-accent-light);
+}
+#explain-this div.expandable-target:hover .arrow,
+#explain-this .arrow:hover {
+  border-top: 6px solid black;
+}
+
+#explain-this svg.expandable {
+  fill: rgb(199 180 128 / 0%);
+  stroke-dasharray: 3, 3;
+  stroke: var(--ui-text-accent-light);
+  z-index: var(--err-hole-z);
+}
+
+#explain-this svg.expandable path {
+  vector-effect: non-scaling-stroke;
+}
+
+#explain-this .feedback {
+  display: flex;
+  padding-top: 10px;
+}
+
+#explain-this .feedback .message {
+  font-size: smaller;
+  font-style: italic;
+}
+
+#explain-this .feedback .option {
+  margin-left: 5px;
+  cursor: pointer;
+}
+
+#explain-this .feedback .option.active {
+  background-color: var(--subdued-accent);
+}
+
+.highlight-blue {
+  background-color: rgb(255 0 255 / 20%);
+}
+
+.highlight-code-blue {
+  fill: rgb(255 0 255 / 20%);
+}
+
+.highlight-pink {
+  background-color: rgb(0 255 255 / 40%);
+}
+
+.highlight-code-pink {
+  fill: rgb(0 255 255 / 40%);
+}
+
+.highlight-teal {
+  background-color: rgb(0 255 0 / 20%);
+}
+
+.highlight-code-teal {
+  fill: rgb(0 255 0 / 20%);
+}
+
+.highlight-orange {
+  background-color: rgb(252, 186, 111);
+}
+
+.highlight-code-orange {
+  fill: rgb(252, 186, 111);
+}
+
+.highlight-purple {
+  background-color: rgb(212, 162, 252);
+}
+
+.highlight-code-purple {
+  fill: rgb(212, 162, 252);
+}
+
+.highlight-yellow {
+  background-color: rgb(247, 221, 134);
+}
+
+.highlight-code-yellow {
+  fill: rgb(247, 221, 134);
+}

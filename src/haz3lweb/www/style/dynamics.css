@@ -1,0 +1,304 @@
+/* Value display cell, DHExp rendering, and stepper styles */
+
+/* DYNAMICS */
+
+.cell-result {
+  display: flex;
+  flex-direction: row;
+  background-color: #efe7d6;
+  gap: 0.5em;
+  color: #7a6219;
+  border-top: 1px dotted #d2c7ad;
+  padding: 0.5em;
+  padding-left: 1.2em;
+}
+
+.selected .cell-result {
+  background-color: #efe7d6;
+}
+
+.cell-result .status {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6em;
+  height: 1.6em;
+  white-space: nowrap;
+  font-family: var(--code-font);
+}
+
+.cell-result .status .spinner {
+  height: 50%;
+  width: 60%;
+  background: url("../img/loading.gif");
+  background-repeat: round;
+  filter: sepia(1);
+  opacity: 0;
+  transition: opacity 0.2s linear;
+}
+
+.cell-result .status.pending .spinner {
+  opacity: 0.5;
+  transition: all 0.2s linear;
+}
+
+.cell-result .status .eq {
+  position: absolute;
+  opacity: 1;
+  transition: opacity 0.6s cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+.cell-result .status.pending .eq {
+  opacity: 0;
+  transition: opacity 0.6s cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+.cell-result .result {
+  padding-top: 0.1em;
+  min-height: 1.6em;
+  width: 100%;
+  transition: opacity 0.2s linear;
+}
+
+.cell-result .result.pending {
+  opacity: 0.3;
+  transition: opacity 0.6s cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+.cell-result .result .exception {
+  background-color: #ffa2a2;
+  color: #7d0000;
+  border-radius: 0.3em;
+  font-family: var(--ui-font);
+  font-size: 1rem;
+  padding: 0.1em 0.4em 0.1em 0.4em;
+}
+
+.cell-result.hidden {
+  background-color: #e8dcbf;
+}
+
+.cell-result .toggle-switch {
+  mix-blend-mode: luminosity;
+}
+
+.cell-result .equiv {
+  font-family: var(--code-font);
+}
+
+.cell.selected + .cell-item {
+  border-left: 1px solid var(--cell-selected-accent);
+}
+
+.result {
+  width: 100%;
+}
+
+.cell.deselected + .cell-item {
+  border-left: 1px solid var(--subdued-accent);
+}
+
+.cell-item.cell-result:has(.fail),
+.cell-item.cell-result:has(.exception) {
+  background-color: #ffa2a2;
+}
+
+.cell-item.cell-result .error-msg {
+  padding: 0.25em;
+  color: black;
+}
+
+.cell-result .icon:hover svg {
+  animation: wobble 0.6s ease 0s 1 normal forwards;
+  transform: scale(130%);
+  filter: brightness(1.1);
+}
+
+.cell-result .icon {
+  cursor: pointer;
+  color: var(--subdued-accent);
+  height: 20px;
+}
+
+.cell-result .icon svg {
+  fill: var(--subdued-accent);
+}
+
+.cell-result .icon.disabled {
+  opacity: 0.35;
+}
+
+.cell-result .icon.disabled:hover svg {
+  transform: scale(100%);
+  cursor: not-allowed;
+}
+
+/* DYNAMICS - DHEXP */
+
+.DHCode {
+  position: relative;
+}
+
+.DHCode .decoration-container {
+  position: absolute;
+  pointer-events: none;
+}
+
+.DHCode svg.err-hole {
+  fill: #d001;
+  stroke-dasharray: 1, 1;
+  stroke: var(--err-color);
+  stroke-width: 1.2px;
+}
+
+.DHCode .InVarHole {
+  color: var(--err-color);
+}
+
+.DHCode .EmptyHole {
+  background-color: #ac9a6a;
+  border-radius: 0.2em;
+  color: #75572e;
+  border-bottom: 1px solid #382100;
+}
+
+.cell-result .DHCode .EmptyHole {
+  background-color: #d4c7a5 !important;
+  color: #fdf6e3;
+  border-bottom: 1px solid #aa8926 !important;
+}
+
+.DHCode .Collapsed {
+  color: #493c15;
+}
+
+.DHCode .Align {
+  display: inline-block;
+}
+
+.DHCode .OperationError,
+.DHCode .CastDecoration,
+.DHCode .FailedCastDecoration {
+  display: inline-block;
+  position: relative;
+  font-size: 75%;
+  top: -10px;
+}
+
+.DHCode .FailedCastDelim {
+  color: red;
+}
+
+.DHCode .CastDecoration {
+  background-color: rgba(150, 0, 255, 0.2);
+}
+
+.DHCode .FailedCastDecoration {
+  background-color: rgba(255, 0, 0, 0.2);
+}
+
+/* STEPPER */
+
+.stepper-justification {
+  width: 260px;
+}
+
+.step-expand,
+.step-back {
+  cursor: pointer;
+}
+
+.step-expand:hover span,
+.step-back:hover span {
+  display: none;
+}
+
+.step-expand:hover:before {
+  content: "↕";
+}
+
+.step-back:hover:before {
+  content: "←";
+}
+
+.steppable,
+.steppable *:not(.DHCode .EmptyHole *, .DHCode .EmptyHole) {
+  outline: 1px var(--step-hole-color);
+  background-color: rgb(232, 255, 196);
+  cursor: pointer;
+}
+
+.stepped,
+.stepped *:not(.DHCode .EmptyHole *, .DHCode .EmptyHole) {
+  border: 1px var(--step-hole-color);
+  background-color: #ddcda3;
+}
+
+.substituted {
+  text-decoration: line-through;
+  color: #ac985e;
+}
+
+.settings-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 300px;
+  max-width: 100%;
+  max-height: 100%;
+  background-color: var(--light-page-color);
+  border-radius: 0.4em;
+  z-index: var(--modal-z);
+  box-sizing: border-box;
+  padding: 1em;
+}
+
+.settings-modal-top {
+  justify-content: right;
+  display: flex;
+}
+
+.modal-back {
+  z-index: var(--modal-back-z);
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: #00000060;
+}
+
+.settings-toggle .toggle-switch {
+  margin-right: 1em;
+}
+
+.settings-toggle {
+  margin-bottom: 0.3em;
+}
+
+.settings-modal .icon:hover svg {
+  animation: wobble 0.6s ease 0s 1 normal forwards;
+  transform: scale(130%);
+  filter: brightness(1.1);
+}
+
+.settings-modal .icon {
+  cursor: pointer;
+  color: var(--subdued-accent);
+  height: 20px;
+}
+
+.settings-modal .icon svg {
+  fill: var(--subdued-accent);
+}
+
+.settings-modal .icon.disabled {
+  opacity: 0.35;
+}
+
+.settings-modal .icon.disabled:hover svg {
+  transform: scale(100%);
+  cursor: not-allowed;
+}
