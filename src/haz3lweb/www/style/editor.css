@@ -63,21 +63,21 @@
 }
 
 .code .token.explicit-hole {
-  color: #ffd04f !important;
-  text-shadow: 1px 1px 0px rgb(45, 34, 6), -0.5px -0.5px 0 #ff9b00;
+  color: var(--explicit-hole-fill) !important;
+  text-shadow: 1px 1px 0px var(--explicit-hole-shadow);
 }
 
 .code .secondary {
-  color: rgb(126, 80, 0);
+  color: var(--token-secondary);
   opacity: 20%;
 }
 
 .code .comment {
-  color: #a0c1aa;
+  color: var(--token-comment);
 }
 
 .code .linebreak {
-  color: rgb(126, 80, 0);
+  color: var(--token-secondary);
   opacity: 20%;
   font-family: system-ui;
   vertical-align: middle;
@@ -176,8 +176,8 @@ svg.shard.selected.buffer > path {
   filter: none;
 }
 svg.shard.error > path {
-  fill: #ff00000a;
-  stroke: #ff000087;
+  fill: var(--error-hole-fill);
+  stroke: var(--error-hole-stroke);
   stroke-width: 0.75px;
   stroke-dasharray: 1, 1;
   stroke-linecap: butt;
@@ -259,7 +259,7 @@ svg.shard.error > path {
 }
 
 .caret-path {
-  fill: #f62116;
+  fill: var(--caret-color);
   stroke: none;
 }
 

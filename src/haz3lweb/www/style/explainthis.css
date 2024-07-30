@@ -40,8 +40,8 @@
   transform-origin: top;
   transform: scaleY(0);
   transition: transform 0.07s ease;
-  background-color: #f1e5bf;
-  border: 0.7px solid #e1c475;
+  background-color: var(--menu-bkg);
+  border: 0.6px solid var(--menu-outline);
   border-top: none;
 }
 
@@ -68,9 +68,7 @@
 }
 
 #explain-this .header .close:hover {
-  color: #f55c27;
-  text-shadow: 0.3px 0.3px 0px black;
-  border-radius: 0.2em;
+  filter: saturate(0) invert();
   scale: 1.8;
 }
 
@@ -120,7 +118,7 @@
 }
 
 #explain-this svg.expandable {
-  fill: rgb(199 180 128 / 0%);
+  fill: none;
   stroke-dasharray: 3, 3;
   stroke: var(--ui-text-accent-light);
   z-index: var(--err-hole-z);
@@ -149,50 +147,26 @@
   background-color: var(--subdued-accent);
 }
 
-.highlight-blue {
-  background-color: rgb(255 0 255 / 20%);
+.highlight-a {
+  background-color: var(--code-highlight-a);
 }
 
-.highlight-code-blue {
-  fill: rgb(255 0 255 / 20%);
+.highlight-code-a {
+  fill: var(--code-highlight-a);
 }
 
-.highlight-pink {
-  background-color: rgb(0 255 255 / 40%);
+.highlight-b {
+  background-color: var(--code-highlight-b);
 }
 
-.highlight-code-pink {
-  fill: rgb(0 255 255 / 40%);
+.highlight-code-b {
+  fill: var(--code-highlight-b);
 }
 
-.highlight-teal {
-  background-color: rgb(0 255 0 / 20%);
+.highlight-c {
+  background-color: var(--code-highlight-c);
 }
 
-.highlight-code-teal {
-  fill: rgb(0 255 0 / 20%);
-}
-
-.highlight-orange {
-  background-color: rgb(252, 186, 111);
-}
-
-.highlight-code-orange {
-  fill: rgb(252, 186, 111);
-}
-
-.highlight-purple {
-  background-color: rgb(212, 162, 252);
-}
-
-.highlight-code-purple {
-  fill: rgb(212, 162, 252);
-}
-
-.highlight-yellow {
-  background-color: rgb(247, 221, 134);
-}
-
-.highlight-code-yellow {
-  fill: rgb(247, 221, 134);
+.highlight-code-c {
+  fill: var(--code-highlight-c);
 }

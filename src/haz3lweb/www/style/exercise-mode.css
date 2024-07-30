@@ -12,18 +12,18 @@
 }
 
 #main.Exercises .cell {
-  border-left: 2px solid var(--subdued-accent);
+  border-left: 1px solid var(--subdued-accent);
 }
 
 #main.Exercises .cell.selected {
-  border-left: 2px solid var(--cell-selected-accent);
+  border-left: 1px solid var(--cell-selected-accent);
   background-color: var(--active-cell-bkg);
 }
 
 .cell-report {
   padding: 1.2em;
   background-color: var(--test-panel-bkg);
-  border-left: 1px solid rgba(0, 0, 0, 0);
+  border-left: 1px solid #0000;
 }
 
 .test-panel,
@@ -55,21 +55,21 @@
   align-items: baseline;
   border: 1px outset var(--subdued-accent);
   border-style: dotted;
-  border-left: 0px;
-  border-right: 0px;
+  border-left: 0;
+  border-right: 0;
   border-top: 0;
 }
 
 .test-report:hover {
-  background-color: #cfd;
+  background-color: var(--test-pass-active);
 }
 
 .test-id.Pass {
-  color: green;
+  color: var(--test-pass);
 }
 
 .test-id.Fail {
-  color: var(--err-color);
+  color: var(--test-fail);
 }
 
 .test-result:after {
@@ -83,19 +83,19 @@
 .test-instance.Pass:before,
 .test-result.Pass:after {
   content: "✔";
-  color: green;
+  color: var(--test-pass);
 }
 
 .test-instance.Fail:before,
 .test-result.Fail:after {
   content: "✘";
-  color: var(--err-color);
+  color: var(--test-fail);
 }
 
 .test-instance.Indet:before,
 .test-result.Indet:after {
   content: "?";
-  color: rgb(143, 129, 87);
+  color: var(--test-indet);
 }
 
 .test-instance:before {
@@ -114,34 +114,10 @@
   flex-grow: 1;
 }
 
-.test-report .DHCode {
-  display: inline-block;
-}
-
 .test-instance {
   display: flex;
   flex-grow: 1;
   flex-direction: row;
-}
-
-.test-instance.Pass .DHCode {
-  color: green;
-}
-
-.test-instance.Fail .DHCode {
-  color: var(--err-color);
-  background-color: #0000;
-}
-
-.test-instance.Indet .DHCode {
-  color: #d2b48c;
-}
-
-.test-instance .DHCode .EmptyHole {
-  border-bottom: 1px solid rgb(216 177 110);
-  background-color: #ecdaa5;
-  border-radius: 0.2em;
-  color: #fefcf3;
 }
 
 .test-report {
@@ -193,8 +169,8 @@
 }
 
 .test-percent.all-pass {
-  background-color: #66ffcb;
-  color: #289f87;
+  background-color: var(--test-pass);
+  color: var(--light-accent-text);
   animation: jello 1s ease 0s 1 normal none;
 }
 
@@ -221,40 +197,25 @@
 }
 
 .test-bar .segment.Pass {
-  background-color: #7cb;
+  background-color: var(--test-pass);
 }
 
 .test-bar .segment.Pass:hover {
-  background-color: rgb(81, 242, 194);
+  background-color: var(--test-pass-active);
 }
 
 .test-bar .segment.Fail {
-  background-color: #f66;
+  background-color: var(--test-fail);
 }
 
 .test-bar .segment.Fail:hover {
-  background-color: var(--err-color);
+  background-color: var(--test-fail-active);
 }
 
 .test-bar .segment.Indet {
-  background-color: tan;
+  background-color: var(--test-indet);
 }
 
 .test-bar .segment.Indet:hover {
-  background-color: rgb(255, 199, 125);
-}
-
-.test-inspector .test-instance.Pass .DHCode {
-  color: green;
-}
-
-.test-inspector .test-instance.Fail .DHCode {
-  color: var(--err-color);
-  background-color: #0000;
-}
-
-/* Exercise */
-.exercise-code {
-  white-space: nowrap;
-  font-family: var(--code-font);
+  background-color: var(--test-indet-active);
 }

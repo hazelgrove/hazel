@@ -156,17 +156,11 @@
   color: var(--err-color);
 }
 
-.DHCode .EmptyHole {
-  background-color: #ac9a6a;
-  border-radius: 0.2em;
-  color: #75572e;
-  border-bottom: 1px solid #382100;
-}
-
 .cell-result .DHCode .EmptyHole {
-  background-color: #d4c7a5 !important;
+  border-radius: 0.2em;
+  background-color: #d4c7a5 ;
   color: #fdf6e3;
-  border-bottom: 1px solid #aa8926 !important;
+  border-bottom: 1px solid #aa8926;
 }
 
 .DHCode .Collapsed {
