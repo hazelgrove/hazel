@@ -6,17 +6,22 @@
 
   /* UI COLORS */
 
-  --light-accent-text: #fffcf3;
+  /* GREYS */
+  
   --base-text-color: #586e75;
   --menu-item-color: var(--base-text-color);
   --menu-divider: #0006;
   --main-scroll-track: #0000;
+
+  /* GREENS */
 
   --primary-accent: #4fad66;
   --test-pass: green;
   --test-pass-active: #cfd;
   --step-hole-color: var(--test-pass);
   --token-comment: #a0c1aa;
+
+  /* REDS */
 
   --err-color: red;
   --cell-selected-accent: red;
@@ -31,6 +36,16 @@
   --eval-exception: var(--test-fail-active);
   --ci-status-error-bkg: var(--test-fail-active);
 
+  --nul-token-color: red;
+  --nul-shadow-color: red;
+  --nul-shard-color: #ffacac;
+
+  --any-token-color: var(--nul-token-color);
+  --any-shadow-color: var(--nul-shadow-color);
+  --any-shard-color: var(--nul-shard-color);
+
+  /* HIGHLIGHTS */
+
   --code-highlight-a: rgb(255 0 255 / 20%);
   --code-highlight-b: rgb(0 255 255 / 40%);
   --code-highlight-c: rgb(0 255 0 / 20%);
@@ -40,6 +55,17 @@
 
   --menu-shadow: #77580255;
   --explicit-hole-shadow: #2d2206;
+
+  /* EARTHTONE EXP SORT COLORS */
+
+  --exp-token-color: var(--base-text-color);
+  --exp-shadow-color: #b1a47f;
+  --exp-shard-color: #ebdfc5;
+  --exp-shard-caret-color: #feddb3;
+
+  /* EARTHTONE OTHER COLORS */
+
+  --light-accent-text: #fffcf3;
 
   --code-emphasis: #ce9600;
   --other-accent: #e4d6a6;
@@ -101,41 +127,26 @@
   --editor-mode-text: var(--ui-text-accent);
   --context-inspector-colon: var(--subdued-accent);
 
+  /* OTHER SORT COLORS */
 
-  /* SORT COLORS */
-
-  --exp-text-color: var(--base-text-color);
-  --exp-shadow-color: #b1a47f;
-  --exp-bg-color: #ebdfc5;
-  --exp-bg-caret-color: #feddb3;
-
-  --rul-text-color: var(--exp-text-color);
+  --rul-token-color: var(--exp-token-color);
   --rul-shadow-color: var(--exp-shadow-color);
-  --rul-bg-color: var(--exp-bg-color);
+  --rul-shard-color: var(--exp-shard-color);
 
-  --nul-text-color: red;
-  --nul-shadow-color: red;
-  --nul-bg-color: #ffacac;
-
-  --any-text-color: var(--nul-text-color);
-  --any-shadow-color: var(--nul-shadow-color);
-  --any-bg-color: var(--nul-bg-color);
-
-  --pat-text-color: #169fdc;
+  --pat-token-color: #169fdc;
   --pat-shadow-color: #13aed2;
-  --pat-bg-color: #b2e8ff;
-  --pat-bg-caret-color: #d7f3ff;
+  --pat-shard-color: #b2e8ff;
+  --pat-shard-caret-color: #d7f3ff;
 
-  --tpat-text-color: #16c8dc;
+  --tpat-token-color: #16c8dc;
   --tpat-shadow-color: #13d2d2;
-  --tpat-bg-color: #b2fbff;
-  --tpat-bg-caret-color: #d7fff7;
+  --tpat-shard-color: #b2fbff;
+  --tpat-shard-caret-color: #d7fff7;
 
-  --typ-text-color: #772cff;
+  --typ-token-color: #772cff;
   --typ-shadow-color: #975dff;
-  --typ-bg-color: #f2ccff;
-  --typ-bg-caret-color: #f9e8ff;
-
+  --typ-shard-color: #f2ccff;
+  --typ-shard-caret-color: #f9e8ff;
 
   /* Z-STACK */
 

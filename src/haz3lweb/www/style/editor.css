@@ -21,25 +21,25 @@
 /* TOKEN COLORS */
 
 .code .token.Nul {
-  color: var(--nul-text-color);
+  color: var(--nul-token-color);
 }
 .code .token.Any {
-  color: var(--any-text-color);
+  color: var(--any-token-color);
 }
 .code .token.Exp {
-  color: var(--exp-text-color);
+  color: var(--exp-token-color);
 }
 .code .token.Pat {
-  color: var(--pat-text-color);
+  color: var(--pat-token-color);
 }
 .code .token.Typ {
-  color: var(--typ-text-color);
+  color: var(--typ-token-color);
 }
 .code .token.Rul {
-  color: var(--rul-text-color);
+  color: var(--rul-token-color);
 }
 .code .token.TPat {
-  color: var(--tpat-text-color);
+  color: var(--tpat-token-color);
 }
 
 .code .token.poly {
@@ -91,45 +91,45 @@ svg.shard > path {
 }
 
 svg.shard.indicated.Nul > path {
-  fill: var(--nul-bg-color);
+  fill: var(--nul-shard-color);
   filter: url(#drop-shadow-Nul);
 }
 svg.shard.indicated.Any > path {
-  fill: var(--any-bg-color);
+  fill: var(--any-shard-color);
   filter: url(#drop-shadow-Any);
 }
 svg.shard.indicated.Exp > path {
-  fill: var(--exp-bg-color);
+  fill: var(--exp-shard-color);
   filter: url(#drop-shadow-Exp);
 }
 svg.shard.indicated.Pat > path {
-  fill: var(--pat-bg-caret-color);
+  fill: var(--pat-shard-caret-color);
   filter: url(#drop-shadow-Pat);
 }
 svg.shard.indicated.Typ > path {
-  fill: var(--typ-bg-caret-color);
+  fill: var(--typ-shard-caret-color);
   filter: url(#drop-shadow-Typ);
 }
 svg.shard.indicated.Rul > path {
-  fill: var(--rul-bg-color);
+  fill: var(--rul-shard-color);
   filter: url(#drop-shadow-Rul);
 }
 svg.shard.indicated.TPat > path {
-  fill: var(--tpat-bg-caret-color);
+  fill: var(--tpat-shard-caret-color);
   filter: url(#drop-shadow-TPat);
 }
 
 svg.shard.indicated.caret.Exp > path {
-  fill: var(--exp-bg-caret-color);
+  fill: var(--exp-shard-caret-color);
 }
 svg.shard.indicated.caret.Pat > path {
-  fill: var(--pat-bg-color);
+  fill: var(--pat-shard-color);
 }
 svg.shard.indicated.caret.Typ > path {
-  fill: var(--typ-bg-color);
+  fill: var(--typ-shard-color);
 }
 .svg.shard.indicated.caret.TPat > path {
-  fill: var(--tpat-bg-color);
+  fill: var(--tpat-shard-color);
 }
 
 svg.shard.indicated {

@@ -73,31 +73,31 @@
 }
 
 #cursor-inspector .ci-header.Nul {
-  background-color: var(--nul-bg-color);
+  background-color: var(--nul-shard-color);
   color: var(--nul-shadow-color);
 }
 #cursor-inspector .ci-header.Any {
-  background-color: var(--any-bg-color);
+  background-color: var(--any-shard-color);
   color: var(--any-shadow-color);
 }
 #cursor-inspector .ci-header.Exp {
-  background-color: var(--exp-bg-color);
+  background-color: var(--exp-shard-color);
   color: var(--exp-shadow-color);
 }
 #cursor-inspector .ci-header.Pat {
-  background-color: var(--pat-bg-color);
+  background-color: var(--pat-shard-color);
   color: var(--pat-shadow-color);
 }
 #cursor-inspector .ci-header.Typ {
-  background-color: var(--typ-bg-color);
+  background-color: var(--typ-shard-color);
   color: var(--typ-shadow-color);
 }
 #cursor-inspector .ci-header.Rul {
-  background-color: var(--rul-bg-color);
+  background-color: var(--rul-shard-color);
   color: var(--rul-shadow-color);
 }
 #cursor-inspector .ci-header.TPat {
-  background-color: var(--tpat-bg-color);
+  background-color: var(--tpat-shard-color);
   color: var(--tpat-shadow-color);
 }
 
