@@ -195,11 +195,11 @@ let code_svg =
   );
 };
 
-let raised_shadow_filter = (sort: Haz3lcore.Sort.t) => {
+let drop_shadow_filter = (sort: Haz3lcore.Sort.t) => {
   let s = Haz3lcore.Sort.to_string(sort);
   create_svg(
     "filter",
-    ~attrs=[Attr.id("raised-drop-shadow-" ++ s)],
+    ~attrs=[Attr.id("drop-shadow-" ++ s)],
     [
       create_svg(
         "feDropShadow",
@@ -215,29 +215,8 @@ let raised_shadow_filter = (sort: Haz3lcore.Sort.t) => {
   );
 };
 
-let shadow_filter = (sort: Haz3lcore.Sort.t) => {
-  let s = Haz3lcore.Sort.to_string(sort);
-  create_svg(
-    "filter",
-    ~attrs=[Attr.id("drop-shadow-" ++ s)],
-    [
-      create_svg(
-        "feDropShadow",
-        ~attrs=[
-          Attr.classes(["tile-drop-shadow"]),
-          Attr.create("dx", shadow_dx),
-          Attr.create("dy", shadow_dy),
-          Attr.create("stdDeviation", "0"),
-        ],
-        [],
-      ),
-    ],
-  );
-};
-
 let filters =
   NodeUtil.svg(
     Attr.[id("filters")],
-    List.map(raised_shadow_filter, Haz3lcore.Sort.all)
-    @ List.map(shadow_filter, Haz3lcore.Sort.all),
+    List.map(drop_shadow_filter, Haz3lcore.Sort.all),
   );
