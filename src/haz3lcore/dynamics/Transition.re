@@ -1,5 +1,4 @@
 open Util;
-open Sexplib.Std;
 open PatternMatch;
 
 /* Transition.re
@@ -759,6 +758,9 @@ module Transition = (EV: EV_MODE) => {
           d1 => FailedCast(d1, t1, t2) |> wrap_ctx,
           d1,
         );
+      Indet;
+    | Undefined =>
+      let. _ = otherwise(env, d);
       Indet;
     | Parens(d) =>
       let. _ = otherwise(env, d);
