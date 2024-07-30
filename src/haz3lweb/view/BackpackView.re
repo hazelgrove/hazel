@@ -173,7 +173,7 @@ let view =
       ~font_metrics,
       ~origin={row: 0, col: 0},
       ~base_cls=["restructuring-genie"],
-      ~path_cls=["restructuring-genie-path"],
+      ~path_cls=["backpack-genie"],
       SvgUtil.Path.[
         M({x: 0., y: 0.}),
         V({y: (-1.0)}),

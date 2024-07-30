@@ -26,7 +26,7 @@
   stroke: var(--subdued-accent);
 }
 .projector.indicated > svg {
-  fill: var(--exp-bg-off-color);
+  fill: var(--exp-bg-caret-color);
 }
 .projector > svg > path {
   vector-effect: non-scaling-stroke;
