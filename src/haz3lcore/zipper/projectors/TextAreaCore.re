@@ -73,7 +73,7 @@ let view = (_, ~info, ~local as _, ~parent) => {
     ~attrs=[Attr.classes(["wrapper"])],
     [
       Node.div(
-        ~attrs=[Attr.classes(["cols"])],
+        ~attrs=[Attr.classes(["cols", "code"])],
         [Node.text("·")] @ [textarea(info.id, ~parent, text)],
       ),
     ],

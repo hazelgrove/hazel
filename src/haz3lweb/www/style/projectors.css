@@ -19,7 +19,7 @@
 }
 .projector > svg {
   z-index: 4;
-  fill: var(--exp-bg-color);
+  fill: var(--projectors-bkg);
 }
 .projector.block > svg {
   stroke-width: 0.5px;
@@ -145,7 +145,7 @@
   outline: none;
   resize: none;
   width: 100%;
-  caret-color: red;
+  caret-color: var(--caret-color);
   padding: 0;
   margin: 0;
   line-height: var(--line-height);

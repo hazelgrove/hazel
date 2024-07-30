@@ -5,16 +5,16 @@
 .cell-result {
   display: flex;
   flex-direction: row;
-  background-color: #efe7d6;
+  background-color: var(--cell-result);
   gap: 0.5em;
-  color: #7a6219;
-  border-top: 1px dotted #d2c7ad;
+  color: var(--cell-result-text);
+  border-top: 1px dotted var(--cell-result-border);
   padding: 0.5em;
   padding-left: 1.2em;
 }
 
 .selected .cell-result {
-  background-color: #efe7d6;
+  background-color: var(--cell-result);
 }
 
 .cell-result .status {
@@ -67,8 +67,8 @@
 }
 
 .cell-result .result .exception {
-  background-color: #ffa2a2;
-  color: #7d0000;
+  background-color: var(--eval-exception);
+  color: var(--eval-exception-stroke);
   border-radius: 0.3em;
   font-family: var(--ui-font);
   font-size: 1rem;
@@ -76,7 +76,7 @@
 }
 
 .cell-result.hidden {
-  background-color: #e8dcbf;
+  background-color: var(--cell-result-hidden);
 }
 
 .cell-result .toggle-switch {
@@ -101,7 +101,7 @@
 
 .cell-item.cell-result:has(.fail),
 .cell-item.cell-result:has(.exception) {
-  background-color: #ffa2a2;
+  background-color: var(--eval-exception);
 }
 
 .cell-item.cell-result .error-msg {
@@ -158,7 +158,7 @@
 
 .cell-result .DHCode .EmptyHole {
   border-radius: 0.2em;
-  background-color: #d4c7a5 ;
+  background-color: #d4c7a5;
   color: #fdf6e3;
   border-bottom: 1px solid #aa8926;
 }
@@ -181,7 +181,7 @@
 }
 
 .DHCode .FailedCastDelim {
-  color: red;
+  color: var(--err-color);
 }
 
 .DHCode .CastDecoration {

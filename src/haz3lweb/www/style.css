@@ -26,13 +26,14 @@ body {
 }
 
 select {
+  outline: none;
   cursor: pointer;
   font-family: inherit;
   font-size: inherit;
 }
 
 :root {
-  scrollbar-color: #dac898 #0000;
+  scrollbar-color: var(--main-scroll-thumb) var(--main-scroll-track);
   scrollbar-width: thin;
 }
 
@@ -45,21 +46,14 @@ select {
 }
 
 :root::-webkit-scrollbar-track {
-  background-color: #fdf6e300;
+  background-color: none;
 }
 
 :root::-webkit-scrollbar-thumb {
-  background-color: #e1d1a6;
+  background-color: var(--main-scroll-thumb);
   border-radius: 1em;
-  border: 0.2em solid #fdf6e3;
 }
 
-::-webkit-scrollbar-thumb {
-  background-color: var(--subdued-accent);
-  border-radius: 0 0.5em 0.5em 0em;
-}
-
-/* set button(top and bottom of the scrollbar) */
 :root::-webkit-scrollbar-button,
 :root::-webkit-scrollbar-corner {
   display: none;
@@ -76,7 +70,7 @@ select {
   display: grid;
   grid-template: 2em minmax(0, 1fr) 2em / 1fr fit-content(18em);
   background-color: var(--light-page-color);
-  color: var(--light-text-color);
+  color: var(--base-text-color);
   user-select: none;
 }
 
@@ -90,7 +84,7 @@ select {
   grid-column: 1 / span 1;
   overflow: auto;
   padding: 0;
-  background-color: var(--active-cell-bkg);
+  background-color: var(--main-bkg);
 }
 
 #side-bar {
