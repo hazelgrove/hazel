@@ -107,11 +107,10 @@ let import = (data: string): unit =>
     }
   );
 
-let update = (action: UpdateAction.t): unit => {
-  JsUtil.addToast(UpdateAction.show(action));
+let update = (action: UpdateAction.t): unit =>
   if (is_action_logged(action)) {
+    JsUtil.addToast(UpdateAction.show(action));
     Entry.save(Entry.mk(action));
   };
-};
 let get_and = (f: string => unit): unit =>
   DB.get_all(entries => f("(" ++ String.concat(" ", entries) ++ ")"));
