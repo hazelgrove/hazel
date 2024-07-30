@@ -32,6 +32,10 @@ let num_clicks = (evt: Js.t(Js_of_ocaml.Dom_html.mouseEvent)): int =>
 let is_double_click = (evt: Js.t(Js_of_ocaml.Dom_html.mouseEvent)): bool =>
   num_clicks(evt) == 2;
 
+let addToast = (msg: string): unit => {
+  Js.Unsafe.global##addToast(msg);
+};
+
 let download_string_file =
     (~filename: string, ~content_type: string, ~contents: string) => {
   let blob = File.blob_from_string(~contentType=content_type, contents);

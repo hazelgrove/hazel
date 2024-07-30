@@ -1,27 +1,61 @@
 <!DOCTYPE html>
 <html lang="en" translate="no">
-  <head>
-    <meta charset="utf-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
 
-    <title>hazel</title>
-    <link rel="stylesheet" href="style.css">
-    <link rel="icon" type="image/svg" href = "img/hazelnut.svg">
-  </head>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
 
-  <body spellcheck="false">
-    <div id="container">
-      <div class="loading">
-        <div class="spinner">
-          <img width="100px" height="100px" src="img/loading.gif" />
-          <img class="spinner-nut" width="100px" height="100px" src="img/hazelnut.svg" />
-        </div>
-        loading
+  <title>hazel</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" type="image/svg" href="img/hazelnut.svg">
+</head>
+
+<body spellcheck="false">
+  <div id="container">
+    <div class="loading">
+      <div class="spinner">
+        <img width="100px" height="100px" src="img/loading.gif" />
+        <img class="spinner-nut" width="100px" height="100px" src="img/hazelnut.svg" />
       </div>
+      loading
     </div>
-  </body>
+  </div>
+  <div id="toasts" class="toast-container" />
+</body>
 
-  <script src="hazel.js"></script>
+<script>
+  function addToast(message) {
+    // Create a new toast element
+    const toast = document.createElement('div');
+    toast.className = `toast`;
+    toast.textContent = message;
+
+    // Add the toast to the container
+    const container = document.querySelector('.toast-container');
+    container.appendChild(toast);
+
+    // Automatically remove the toast after 5 seconds
+    setTimeout(() => {
+      fadeOut(toast);
+    }, 4000);
+  }
+
+  function fadeOut(element) {
+    let opacity = 1;
+    const timer = setInterval(() => {
+      if (opacity <= 0.1) {
+        clearInterval(timer);
+        element.remove();
+      } else {
+        opacity -= 0.1;
+        element.style.opacity = opacity;
+      }
+    }, 50);
+  }
+</script>
+
+<script src="hazel.js"></script>
+
 </html>

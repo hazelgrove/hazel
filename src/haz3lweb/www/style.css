@@ -2367,3 +2367,26 @@ svg.expandable path {
 .em {
   font-style: italic;
 }
+
+.toast-container {
+  position: fixed;
+  top: 50px;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 1000;
+}
+
+.toast {
+  background-color: #333;
+  color: #fff;
+  padding: 15px 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  max-width: 300px;
+  min-width: 100px;
+  word-wrap: break-word;
+  font-family: "Helvetica Neue";;
+  text-align: right;
+}
