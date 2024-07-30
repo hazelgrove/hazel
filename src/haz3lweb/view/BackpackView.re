@@ -49,10 +49,10 @@ let backpack_sel_view =
       opacity: float,
       {focus: _, content, _}: Selection.t,
     ) => {
-  // TODO(andrew): Maybe use init sort at caret to prime this
+  // Maybe use init sort at caret to prime this
   div(
     ~attrs=[
-      Attr.classes(["code-text", "backpack-selection"]),
+      Attr.classes(["code-text", "code", "backpack-selection"]),
       Attr.create(
         "style",
         Printf.sprintf(
@@ -76,7 +76,7 @@ let view =
       {backpack, _} as z: Zipper.t,
     )
     : Node.t => {
-  //TODO(andrew): clean up this dumpster fire of a function
+  // This function is a mess
   let height_head =
     switch (backpack) {
     | [] => 0
@@ -99,7 +99,7 @@ let view =
     DecUtil.caret_adjust(side, shape);
   };
   let caret_adj_px =
-    //TODO(andrew): figure out why we need this mystery pixel below
+    // Figure out why we need this mystery pixel below
     (-1.) +. caret_adj *. font_metrics.col_width;
   let max_disp = 3; /* Maximum vertical backpack displacement */
   let vertical_disp = origin.row <= max_disp ? origin.row : max_disp;
@@ -131,7 +131,7 @@ let view =
         let v = backpack_sel_view(x_offset, new_y_offset, scale, opacity, s);
         let new_idx = idx + 1;
         let new_opacity = opacity -. opacity_reduction;
-        //TODO(andrew): am i making this difficult by going backwards?
+        // Am i making this difficult by going backwards?
         (new_idx, new_y_offset, new_opacity, List.cons(v, vs));
       },
       (init_idx, init_y_offset, init_opacity, []),
@@ -168,7 +168,6 @@ let view =
       ],
       [],
     );
-  //TODO(andrew): break out backpack decoration into its own module
   let genie_view =
     DecUtil.code_svg(
       ~font_metrics,

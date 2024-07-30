@@ -202,14 +202,7 @@ let submenu = (~tooltip, ~icon, menu) =>
   );
 
 let view =
-    (~inject: Update.t => 'a, ~settings: Settings.t, ~editors: Editors.t) => [
-  a(
-    ~attrs=[
-      Attr.on_mousedown(_ => inject(Set(TopBar))),
-      clss(["nut-icon"]),
-    ],
-    [Icons.hazelnut],
-  ),
+    (~inject: Update.t => 'a, ~settings: Settings.t, ~editors: Editors.t) =>
   div(
     ~attrs=[clss(["nut-menu"])],
     [
@@ -230,5 +223,4 @@ let view =
       ),
       link(Icons.info, "https://hazel.org", ~tooltip="Hazel Homepage"),
     ],
-  ),
-];
+  );

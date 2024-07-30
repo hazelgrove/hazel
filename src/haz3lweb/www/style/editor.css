@@ -1,0 +1,381 @@
+/* Code text and decoration style */
+
+/* Use this style for all text that should
+ * be formatted like code, even if it's not
+ * going to be inside an editor. For example,
+ * this is used for CI type displays */
+.code {
+  line-height: var(--line-height);
+  white-space: pre;
+  font-family: var(--code-font);
+  font-weight: normal;
+  font-size: var(--base-font-size);
+}
+
+.code-text {
+  position: relative;
+  z-index: var(--code-text-z);
+  white-space: pre;
+}
+
+/* TOKEN COLORS */
+
+.code .token.Nul {
+  color: var(--nul-text-color);
+}
+.code .token.Any {
+  color: var(--any-text-color);
+}
+.code .token.Exp {
+  color: var(--exp-text-color);
+}
+.code .token.Pat {
+  color: var(--pat-text-color);
+}
+.code .token.Typ {
+  color: var(--typ-text-color);
+}
+.code .token.Rul {
+  color: var(--rul-text-color);
+}
+.code .token.TPat {
+  color: var(--tpat-text-color);
+}
+
+.code .token.poly {
+  font-weight: bold;
+}
+
+.code .token.mono.string-lit {
+  color: var(--string-lit-color);
+}
+
+.code .token.in-buffer {
+  color: var(--buffer-token);
+}
+
+.code .token.sort-inconsistent {
+  color: var(--inconsistent-token);
+}
+
+.code .token.incomplete {
+  color: var(--code-emphasis);
+}
+
+.code .token.explicit-hole {
+  color: #ffd04f !important;
+  text-shadow: 1px 1px 0px rgb(45, 34, 6), -0.5px -0.5px 0 #ff9b00;
+}
+
+.code .secondary {
+  color: rgb(126, 80, 0);
+  opacity: 20%;
+}
+
+.code .comment {
+  color: #a0c1aa;
+}
+
+.code .linebreak {
+  color: rgb(126, 80, 0);
+  opacity: 20%;
+  font-family: system-ui;
+  vertical-align: middle;
+  font-size: 0.59em;
+}
+
+/* TOKEN BACKING DECOS */
+
+svg.shard > path {
+  vector-effect: non-scaling-stroke;
+}
+
+svg.shard.Nul > path {
+  filter: url(#drop-shadow-Nul);
+}
+svg.shard.Any > path {
+  filter: url(#drop-shadow-Any);
+}
+svg.shard.Exp > path {
+  filter: url(#drop-shadow-Exp);
+}
+svg.shard.Pat > path {
+  filter: url(#drop-shadow-Pat);
+}
+svg.shard.Typ > path {
+  filter: url(#drop-shadow-Typ);
+}
+svg.shard.Rul > path {
+  filter: url(#drop-shadow-Rul);
+}
+svg.shard.TPat > path {
+  filter: url(#drop-shadow-TPat);
+}
+
+svg.shard.indicated.Nul > path {
+  fill: var(--nul-bg-color);
+  filter: url(#raised-drop-shadow-Nul);
+}
+svg.shard.indicated.Any > path {
+  fill: var(--any-bg-color);
+  filter: url(#raised-drop-shadow-Any);
+}
+svg.shard.indicated.Exp > path {
+  fill: var(--exp-bg-color);
+  filter: url(#raised-drop-shadow-Exp);
+}
+svg.shard.indicated.Pat > path {
+  fill: var(--pat-bg-off-color);
+  filter: url(#raised-drop-shadow-Pat);
+}
+svg.shard.indicated.Typ > path {
+  fill: var(--typ-bg-off-color);
+  filter: url(#raised-drop-shadow-Typ);
+}
+svg.shard.indicated.Rul > path {
+  fill: var(--rul-bg-color);
+  filter: url(#raised-drop-shadow-Rul);
+}
+svg.shard.indicated.TPat > path {
+  fill: var(--tpat-bg-off-color);
+  filter: url(#raised-drop-shadow-TPat);
+}
+
+svg.shard.indicated.caret.Exp > path {
+  fill: var(--exp-bg-off-color);
+}
+svg.shard.indicated.caret.Pat > path {
+  fill: var(--pat-bg-color);
+}
+svg.shard.indicated.caret.Typ > path {
+  fill: var(--typ-bg-color);
+}
+.svg.shard.indicated.caret.TPat > path {
+  fill: var(--tpat-bg-color);
+}
+
+svg.shard.indicated {
+  z-index: var(--tile-z);
+}
+svg.shard.selected {
+  z-index: var(--tile-z);
+}
+svg.shard.error {
+  z-index: var(--err-hole-z);
+}
+
+svg.shard.selected > path {
+  fill: var(--selection-color);
+  stroke-width: 0.5px;
+  stroke: var(--selection-color);
+  filter: url(#raised-drop-shadow-Nul);
+}
+svg.shard.selected.buffer > path {
+  fill: var(--buffer-bkg);
+  stroke-width: 0;
+  filter: none;
+}
+svg.shard.error > path {
+  fill: #ff00000a;
+  stroke: #ff000087;
+  stroke-width: 0.75px;
+  stroke-dasharray: 1, 1;
+  stroke-linecap: butt;
+}
+
+/* SHARD DROP SHADOWS */
+
+#filters {
+  position: fixed;
+  height: 0;
+  width: 0;
+}
+
+#drop-shadow-Nul .tile-drop-shadow {
+  flood-color: var(--nul-shadow-color);
+}
+#drop-shadow-Any .tile-drop-shadow {
+  flood-color: var(--any-shadow-color);
+}
+#drop-shadow-Exp .tile-drop-shadow {
+  flood-color: var(--exp-shadow-color);
+}
+#drop-shadow-Pat .tile-drop-shadow {
+  flood-color: var(--pat-shadow-color);
+}
+#drop-shadow-Typ .tile-drop-shadow {
+  flood-color: var(--typ-shadow-color);
+}
+#drop-shadow-Rul .tile-drop-shadow {
+  flood-color: var(--rul-shadow-color);
+}
+#drop-shadow-TPat .tile-drop-shadow {
+  flood-color: var(--tpat-shadow-color);
+}
+
+#raised-drop-shadow-Nul .tile-drop-shadow {
+  flood-color: var(--nul-shadow-color);
+}
+#raised-drop-shadow-Any .tile-drop-shadow {
+  flood-color: var(--any-shadow-color);
+}
+#raised-drop-shadow-Exp .tile-drop-shadow {
+  flood-color: var(--exp-shadow-color);
+}
+#raised-drop-shadow-Pat .tile-drop-shadow {
+  flood-color: var(--pat-shadow-color);
+}
+#raised-drop-shadow-Typ .tile-drop-shadow {
+  flood-color: var(--typ-shadow-color);
+}
+#raised-drop-shadow-Rul .tile-drop-shadow {
+  flood-color: var(--rul-shadow-color);
+}
+#raised-drop-shadow-TPat .tile-drop-shadow {
+  flood-color: var(--tpat-shadow-color);
+}
+
+/* EMPTY HOLE DECO */
+
+.empty-hole {
+  z-index: var(--empty-hole-z);
+}
+
+.empty-hole-path {
+  fill: var(--empty-hole-fill);
+  stroke: var(--empty-hole-stroke);
+  stroke-width: 0.75px;
+  vector-effect: non-scaling-stroke;
+}
+
+/* CARET DECO */
+
+#caret {
+  z-index: var(--caret-z);
+}
+
+#caret.blink {
+  animation: 1s blink step-end infinite;
+}
+
+.caret-path {
+  fill: #f62116;
+  stroke: none;
+}
+
+/* TERM INDICATION DECO */
+
+.child-line {
+  stroke-width: 1;
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.child-line.Nul {
+  stroke: var(--nul-shadow-color);
+}
+.child-line.Any {
+  stroke: var(--any-shadow-color);
+}
+.child-line.Exp {
+  stroke: var(--exp-shadow-color);
+}
+.child-line.Pat {
+  stroke: var(--pat-shadow-color);
+}
+.child-line.Typ {
+  stroke: var(--typ-shadow-color);
+}
+.child-line.Rul {
+  stroke: var(--rul-shadow-color);
+}
+.child-line.TPat {
+  stroke: var(--tpat-shadow-color);
+}
+
+/* BACKPACK DECO */
+
+.backpack .code-text {
+  position: relative;
+  z-index: 40;
+}
+
+.backpack.cant-put-down {
+  opacity: 40%;
+}
+
+.backpack-joiner {
+  opacity: 40%;
+}
+
+.backpack-selection {
+  white-space: nowrap;
+  border-radius: 0.2em 0.2em 0.2em 0em;
+  padding: 0 0.2em 0 0.2em;
+  line-height: var(--line-height);
+  width: fit-content;
+  background-color: var(--selection-color);
+  outline: 1px solid var(--light-page-color);
+}
+
+.backpack-joiner {
+  border-radius: 2px;
+  width: 2px;
+  background-color: var(--selection-color);
+}
+
+.restructuring-genie-path {
+  stroke-width: 0;
+  fill: var(--selection-color);
+  vector-effect: non-scaling-stroke;
+}
+
+/* BACKPACK TARGETS DECO */
+
+.caret-position-path {
+  vector-effect: non-scaling-stroke;
+  stroke-width: 0.1px;
+}
+
+.caret-position-path.outer-cousin {
+  stroke: var(--bar-color);
+  fill: var(--bar-color);
+}
+
+.sibling {
+  z-index: var(--caret-position-z);
+}
+
+.caret-position-path.Exp.sibling {
+  stroke: var(--exp-text-color);
+  fill: var(--exp-text-color);
+}
+.caret-position-path.Pat.sibling {
+  stroke: var(--pat-text-color);
+  fill: var(--pat-text-color);
+}
+.caret-position-path.Typ.sibling {
+  stroke: var(--typ-text-color);
+  fill: var(--typ-text-color);
+}
+
+.caret-position-path.Exp.anchor,
+.caret-position-path.Exp.current-caret-pos {
+  stroke: var(--exp-shadow-color);
+  fill: var(--exp-shadow-color);
+}
+.caret-position-path.Pat.anchor,
+.caret-position-path.Pat.current-caret-pos {
+  stroke: var(--pat-text-color);
+  fill: var(--pat-text-color);
+}
+.caret-position-path.Typ.anchor,
+.caret-position-path.Typ.current-caret-pos {
+  stroke: var(--typ-text-color);
+  fill: var(--typ-text-color);
+}
+
+.Exp.caret-position-path.sibling {
+  stroke: var(--code-emphasis);
+  fill: var(--code-emphasis);
+}

@@ -1,0 +1,106 @@
+:root {
+  --line-height: 1.45;
+  --base-font-size: 13pt;
+  --code-font: "Source Code Pro", monospace;
+  --ui-font: "Helvetica Neue";
+
+  /* UI COLORS */
+
+  --light-text-color: #586e75;
+  --menu-item-color: var(--light-text-color);
+
+  --primary-accent: #4fad66;
+  --step-hole-color: green;
+  --err-color: red;
+  --cell-selected-accent: red;
+
+  --active-cell-bkg: #fffcf3;
+  --menu-item-hover-bkg: #fff9e5;
+  --light-page-color: #fdf6e3;
+  --empty-hole-fill: #f1e8cd;
+  --test-panel-bkg: #f8ebc6;
+  --buffer-bkg: #fbf3de;
+  --buffer-token: #d7cdb2;
+  --bottom-bar-bkg: #f9e8bb;
+  --empty-hole-stroke: #dbcca7;
+  --bar-color: #dfdacc;
+  --menu-bkg: #f7ebc5;
+  --selection-color: #fae294;
+  --string-lit-color: #cda56a;
+  --code-emphasis: #ce9600;
+  --subdued-accent: #c7b480;
+  --menu-icon: #ad9963;
+  --top-bar-text: #a79f89;
+  --ui-text-accent-light: #a69460;
+  --ci-icon-bkg: #857548;
+  --ui-text-accent: #6c5c2e;
+  --inconsistent-token: #938870;
+  --nut-menu-bkg: #555f38;
+  --nut-menu-bkg-hover: #bba874;
+
+  /* SORT COLORS */
+
+  --nul-text-color: red;
+  --nul-off-color: var(--nul-text-color);
+  --nul-token-color: var(--nul-text-color);
+  --nul-shadow-color: #ffa000;
+  --nul-bg-color: #ffacac;
+  --nul-bg-off-color: var(--nul-bg-color);
+
+  --any-text-color: var(--nul-text-color);
+  --any-off-color: var(--nul-off-color);
+  --any-token-color: var(--nul-token-color);
+  --any-shadow-color: var(--nul-shadow-color);
+  --any-bg-color: var(--nul-bg-color);
+  --any-bg-off-color: var(--nul-bg-off-color);
+
+  --exp-text-color: var(--light-text-color);
+  --exp-off-color: #b1a47f;
+  --exp-token-color: var(--light-text-color);
+  --exp-shadow-color: #c4b599;
+  --exp-bg-color: #ebdfc5;
+  --exp-bg-off-color: #feddb3;
+
+  --pat-text-color: #169fdc;
+  --pat-off-color: #13aed2;
+  --pat-token-color: #a2dffb;
+  --pat-shadow-color: var(--pat-off-color);
+  --pat-bg-color: #b2e8ff;
+  --pat-bg-off-color: #d7f3ff;
+
+  --tpat-text-color: #16c8dc;
+  --tpat-off-color: #13d2d2;
+  --tpat-token-color: #a2fbf9;
+  --tpat-shadow-color: var(--pat-off-color);
+  --tpat-bg-color: #b2fbff;
+  --tpat-bg-off-color: #d7fff7;
+
+  --typ-text-color: #772cff;
+  --typ-off-color: #975dff;
+  --typ-token-color: #cfb5ff;
+  --typ-shadow-color: var(--typ-off-color);
+  --typ-bg-color: #f2ccff;
+  --typ-bg-off-color: #f9e8ff;
+
+  --rul-text-color: var(--exp-text-color);
+  --rul-off-color: var(--exp-off-color);
+  --rul-token-color: #ccc2af;
+  --rul-shadow-color: var(--exp-shadow-color);
+  --rul-bg-color: var(--exp-bg-color);
+  --rul-bg-off-color: var(--exp-bg-off-color);
+
+  /* Z-STACK */
+
+  --empty-hole-z: 5;
+  --tile-z: 4;
+  --err-hole-z: 5;
+  --code-text-z: 6;
+  --outer-cousin-caret-position-z: 9;
+  --caret-position-z: 13;
+  --caret-z: 14;
+  --current-caret-pos-z: 15;
+  --top-bar-z: 15;
+  --test-panel-z: 20;
+  --modal-z: 10001;
+  --modal-back-z: 10000;
+}

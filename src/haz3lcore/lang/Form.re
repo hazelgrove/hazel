@@ -201,7 +201,6 @@ let duomerges = (lbl: Label.t): option(Label.t) =>
   | _ => None
   };
 
-//TODO(andrew): refactor atomic_forms to seperate these out
 let const_mono_delims =
   base_typs @ bools @ [undefined, wild, empty_list, empty_tuple, empty_string];
 

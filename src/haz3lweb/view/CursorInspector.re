@@ -272,7 +272,8 @@ let view_of_info = (~inject, ~settings, ci): list(Node.t) => {
 let inspector_view = (~inject, ~settings, ci): Node.t =>
   div(
     ~attrs=[
-      clss(["cursor-inspector"] @ [Info.is_error(ci) ? errc : okc]),
+      Attr.id("cursor-inspector"),
+      clss([Info.is_error(ci) ? errc : okc]),
     ],
     view_of_info(~inject, ~settings, ci),
   );
@@ -283,7 +284,7 @@ let view =
   let err_view = err =>
     bar_view([
       div(
-        ~attrs=[clss(["cursor-inspector", "no-info"])],
+        ~attrs=[Attr.id("cursor-inspector"), clss(["no-info"])],
         [div(~attrs=[clss(["icon"])], [Icons.magnify]), text(err)],
       ),
     ]);

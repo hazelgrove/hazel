@@ -1,4 +1,5 @@
 open Util;
+open Web;
 open Js_of_ocaml;
 open Haz3lcore;
 open Virtual_dom.Vdom;
@@ -58,14 +59,28 @@ let handlers =
   ];
 };
 
-let top_bar = (~inject, ~settings: Settings.t, ~editors) =>
+let top_bar =
+    (
+      ~inject: UpdateAction.t => Ui_effect.t(unit),
+      ~settings: Settings.t,
+      ~editors,
+    ) =>
   div(
     ~attrs=[Attr.id("top-bar")],
     [
       div(
         ~attrs=[Attr.class_("wrap")],
-        NutMenu.view(~inject, ~settings, ~editors),
+        Attr.[
+          a(
+            ~attrs=[
+              clss(["nut-icon"]),
+              on_mousedown(_ => inject(Set(TopBar))),
+            ],
+            [Icons.hazelnut],
+          ),
+        ],
       ),
+      NutMenu.view(~inject, ~settings, ~editors),
       div(
         ~attrs=[Attr.class_("wrap")],
         [div(~attrs=[Attr.id("title")], [text("hazel")])],

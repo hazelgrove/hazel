@@ -1,0 +1,32 @@
+/* TYPES FOR CURSOR & CONTEXT INSPECTORS */
+
+.type .typ-view {
+  color: var(--typ-text-color);
+  display: flex;
+}
+
+.type .kind-view {
+  display: flex;
+  gap: 0.5em;
+}
+
+.type .typ-view.atom {
+  color: var(--typ-text-color);
+  display: flex;
+  gap: 0em;
+}
+
+.type .typ-view.atom.unknown {
+  /* to advertise provenance display on-hover */
+  cursor: help;
+}
+
+.type .typ-alias-view {
+  color: var(--tpat-text-color);
+  display: flex;
+}
+
+.type .typ-mod {
+  vertical-align: super;
+  font-size: 0.7em;
+}

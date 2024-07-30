@@ -13,8 +13,8 @@ let context_entry_view = (~inject, entry: Haz3lcore.Ctx.entry): Node.t => {
   switch (entry) {
   | VarEntry({name, typ, _})
   | ConstructorEntry({name, typ, _}) =>
-    div_c(
-      "context-entry",
+    div(
+      ~attrs=[clss(["context-entry", "code"])],
       [
         div_name([text(name)]),
         div(~attrs=[clss(["seperator"])], [text(":")]),
@@ -22,8 +22,8 @@ let context_entry_view = (~inject, entry: Haz3lcore.Ctx.entry): Node.t => {
       ],
     )
   | TVarEntry({name, kind, _}) =>
-    div_c(
-      "context-entry",
+    div(
+      ~attrs=[clss(["context-entry", "code"])],
       [
         div_name([Type.alias_view(name)]),
         div(~attrs=[clss(["seperator"])], [text("::")]),
@@ -35,7 +35,7 @@ let context_entry_view = (~inject, entry: Haz3lcore.Ctx.entry): Node.t => {
 
 let ctx_view = (~inject, ctx: Haz3lcore.Ctx.t): Node.t =>
   div(
-    ~attrs=[clss(["context-entries"])],
+    ~attrs=[clss(["context-inspector"])],
     List.map(
       context_entry_view(~inject),
       ctx |> Haz3lcore.Ctx.filter_duplicates |> List.rev,

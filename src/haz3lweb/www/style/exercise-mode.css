@@ -1,0 +1,260 @@
+/* Exercise mode styles. This may also contain
+ * some styling around test decorations which
+ * could be factored out */
+
+#main.Exercises {
+  padding: 1em;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1.2em;
+  background: none;
+}
+
+#main.Exercises .cell {
+  border-left: 2px solid var(--subdued-accent);
+}
+
+#main.Exercises .cell.selected {
+  border-left: 2px solid var(--cell-selected-accent);
+  background-color: var(--active-cell-bkg);
+}
+
+.cell-report {
+  padding: 1.2em;
+  background-color: var(--test-panel-bkg);
+  border-left: 1px solid rgba(0, 0, 0, 0);
+}
+
+.test-panel,
+.test-reports,
+.test-summary,
+.title-bar {
+  font-size: 0.9rem;
+}
+
+.test-panel {
+  z-index: var(--test-panel-z);
+  display: flex;
+  flex-direction: column;
+  gap: 1em;
+  padding: 1em;
+  background-color: var(--test-panel-bkg);
+  border-bottom: 0.5px solid var(--subdued-accent);
+}
+
+.test-reports {
+  position: relative;
+}
+
+.test-report {
+  cursor: pointer;
+  display: flex;
+  gap: 1em;
+  padding: 0.3em;
+  align-items: baseline;
+  border: 1px outset var(--subdued-accent);
+  border-style: dotted;
+  border-left: 0px;
+  border-right: 0px;
+  border-top: 0;
+}
+
+.test-report:hover {
+  background-color: #cfd;
+}
+
+.test-id.Pass {
+  color: green;
+}
+
+.test-id.Fail {
+  color: var(--err-color);
+}
+
+.test-result:after {
+  position: relative;
+  bottom: 0.15em;
+  margin-left: 0.17em;
+  font-size: 64%;
+  vertical-align: super;
+}
+
+.test-instance.Pass:before,
+.test-result.Pass:after {
+  content: "✔";
+  color: green;
+}
+
+.test-instance.Fail:before,
+.test-result.Fail:after {
+  content: "✘";
+  color: var(--err-color);
+}
+
+.test-instance.Indet:before,
+.test-result.Indet:after {
+  content: "?";
+  color: rgb(143, 129, 87);
+}
+
+.test-instance:before {
+  position: relative;
+  margin-top: 0.2em;
+  margin-right: 1em;
+  font-size: 64%;
+  display: flex;
+  align-items: center;
+}
+
+.test-instances {
+  display: flex;
+  flex-direction: row;
+  gap: 0.2em;
+  flex-grow: 1;
+}
+
+.test-report .DHCode {
+  display: inline-block;
+}
+
+.test-instance {
+  display: flex;
+  flex-grow: 1;
+  flex-direction: row;
+}
+
+.test-instance.Pass .DHCode {
+  color: green;
+}
+
+.test-instance.Fail .DHCode {
+  color: var(--err-color);
+  background-color: #0000;
+}
+
+.test-instance.Indet .DHCode {
+  color: #d2b48c;
+}
+
+.test-instance .DHCode .EmptyHole {
+  border-bottom: 1px solid rgb(216 177 110);
+  background-color: #ecdaa5;
+  border-radius: 0.2em;
+  color: #fefcf3;
+}
+
+.test-report {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1em;
+  padding: 0.3em;
+  margin-right: 1em;
+  border-bottom: 1px dotted var(--subdued-accent);
+  cursor: pointer;
+}
+
+.test-summary {
+  display: flex;
+  flex-direction: row;
+  gap: 1em;
+  justify-content: space-between;
+}
+
+.test-bar {
+  width: 16em;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.test-text {
+  display: flex;
+  gap: 0.5em;
+  white-space: nowrap;
+}
+
+.test-percent {
+  height: 1.7em;
+  display: flex;
+  padding: 0 1em 0 1em;
+  font-size: 0.7em;
+  border-radius: 1.08em;
+  background-color: var(--subdued-accent);
+  align-items: center;
+}
+
+#main > .test-percent {
+  position: absolute;
+  top: 0;
+  right: 0;
+  margin: 0.5em;
+}
+
+.test-percent.all-pass {
+  background-color: #66ffcb;
+  color: #289f87;
+  animation: jello 1s ease 0s 1 normal none;
+}
+
+.test-percent.some-fail {
+  color: var(--light-page-color);
+}
+
+.test-bar .segment:first-child {
+  border-radius: 0.3em 0 0 0.3em;
+}
+
+.test-bar .segment:last-child {
+  border-radius: 0 0.3em 0.3em 0;
+}
+
+.test-bar .segment:only-child {
+  border-radius: 0.3em 0.3em 0.3em 0.3em;
+}
+
+.test-bar .segment {
+  flex-grow: 1;
+  height: 0.5em;
+  cursor: pointer;
+}
+
+.test-bar .segment.Pass {
+  background-color: #7cb;
+}
+
+.test-bar .segment.Pass:hover {
+  background-color: rgb(81, 242, 194);
+}
+
+.test-bar .segment.Fail {
+  background-color: #f66;
+}
+
+.test-bar .segment.Fail:hover {
+  background-color: var(--err-color);
+}
+
+.test-bar .segment.Indet {
+  background-color: tan;
+}
+
+.test-bar .segment.Indet:hover {
+  background-color: rgb(255, 199, 125);
+}
+
+.test-inspector .test-instance.Pass .DHCode {
+  color: green;
+}
+
+.test-inspector .test-instance.Fail .DHCode {
+  color: var(--err-color);
+  background-color: #0000;
+}
+
+/* Exercise */
+.exercise-code {
+  white-space: nowrap;
+  font-family: var(--code-font);
+}

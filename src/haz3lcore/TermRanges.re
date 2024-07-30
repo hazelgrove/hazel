@@ -10,7 +10,7 @@ let union = union((_, range, _) => Some(range));
  * this function. Might be better though to just do an
  * unmemoized traversal building a hashtbl avoiding unioning.
 
-   TODO(andrew): Consider setting a limit for the hashtbl size */
+   TODO: Consider setting a limit for the hashtbl size */
 let range_hash: Hashtbl.t(Tile.segment, Id.Map.t(range)) =
   Hashtbl.create(1000);
 
