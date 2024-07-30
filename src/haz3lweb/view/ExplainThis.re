@@ -523,9 +523,6 @@ let get_doc =
       switch (term) {
       | TermBase.UExp.Invalid(_) => simple("Not a valid expression")
       | EmptyHole => get_message(HoleExp.empty_hole_exps)
-      // TODO (Anthony): put in a real message
-      | TupLabel(_, _) => get_message(HoleExp.empty_hole_exps)
-      | Dot(_, _) => get_message(HoleExp.empty_hole_exps)
       | MultiHole(_children) => get_message(HoleExp.multi_hole_exps)
       | TyAlias(ty_pat, ty_def, _body) =>
         let tpat_id = List.nth(ty_pat.ids, 0);
@@ -610,7 +607,6 @@ let get_doc =
         let body_id = List.nth(body.ids, 0);
         switch (pat.term) {
         // TODO (Anthony): put in a real message
-        | TupLabel(_, _)
         | EmptyHole =>
           if (FunctionExp.function_empty_hole_exp.id
               == get_specificity_level(FunctionExp.functions_empty_hole)) {
@@ -897,6 +893,31 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_var);
           }
+        | TupLabel(_, p) =>
+          if (FunctionExp.function_label_exp.id
+              == get_specificity_level(FunctionExp.functions_tuplabel)) {
+            let p_id = List.nth(p.ids, 0);
+            get_message(
+              ~colorings=
+                FunctionExp.function_label_exp_coloring_ids(
+                  ~pat_id,
+                  ~body_id,
+                ),
+              ~format=
+                Some(
+                  msg =>
+                    Printf.sprintf(
+                      Scanf.format_from_string(msg, "%s%s%s"),
+                      Id.to_string(pat_id),
+                      Id.to_string(p_id),
+                      Id.to_string(body_id),
+                    ),
+                ),
+              FunctionExp.functions_tuplabel,
+            );
+          } else {
+            basic(FunctionExp.functions_tuplabel);
+          }
         | Tuple(elements) =>
           let pat_id = List.nth(pat.ids, 0);
           let body_id = List.nth(body.ids, 0);
@@ -1047,6 +1068,8 @@ let get_doc =
         | Parens(_) => default // Shouldn't get hit?
         | TypeAnn(_) => default // Shouldn't get hit?
         };
+      | TupLabel(_, _) => get_message(LabelExp.label_exp)
+      | Dot(_, _) => get_message(DotExp.dot_exp)
       | Tuple(terms) =>
         let basic = group_id =>
           get_message(
@@ -1135,8 +1158,6 @@ let get_doc =
           );
         };
         switch (pat.term) {
-        // TODO (Anthony): put in a real message
-        | TupLabel(_, _)
         | EmptyHole =>
           if (LetExp.let_empty_hole_exp.id
               == get_specificity_level(LetExp.lets_emptyhole)) {
@@ -1417,6 +1438,30 @@ let get_doc =
             );
           } else {
             basic(LetExp.lets_var);
+          }
+        | TupLabel(s, p) =>
+          if (LetExp.let_label_exp.id
+              == get_specificity_level(LetExp.lets_label)) {
+            let p_id = List.nth(p.ids, 0);
+            get_message(
+              ~colorings=
+                LetExp.let_label_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
+              ~format=
+                Some(
+                  msg =>
+                    Printf.sprintf(
+                      Scanf.format_from_string(msg, "%s%s%s%s%s"),
+                      Id.to_string(def_id),
+                      Id.to_string(pat_id),
+                      s,
+                      Id.to_string(body_id),
+                      Id.to_string(p_id),
+                    ),
+                ),
+              LetExp.lets_label,
+            );
+          } else {
+            basic(LetExp.lets_label);
           }
         | Tuple(elements) =>
           let basic_tuple = group_id => {
@@ -1888,8 +1933,6 @@ let get_doc =
     get_message_exp(term.term);
   | Some(InfoPat({term, _})) =>
     switch (bypass_parens_pat(term).term) {
-    // TODO (Anthony): put in a real message
-    | TupLabel(_, _)
     | EmptyHole => get_message(HolePat.empty_hole)
     | MultiHole(_) => get_message(HolePat.multi_hole)
     | Wild => get_message(TerminalPat.wild)
@@ -2000,6 +2043,7 @@ let get_doc =
           ),
         TerminalPat.var(v),
       )
+    | TupLabel(_, _) => get_message(LabelPat.label_pat)
     | Tuple(elements) =>
       let basic = group =>
         get_message(
@@ -2113,8 +2157,6 @@ let get_doc =
     }
   | Some(InfoTyp({term, cls, _})) =>
     switch (bypass_parens_typ(term).term) {
-    // TODO (Anthony): put in a real message
-    | TupLabel(_, _)
     | EmptyHole => get_message(HoleTyp.empty_hole)
     | MultiHole(_) => get_message(HoleTyp.multi_hole)
     | Int => get_message(TerminalTyp.int)
@@ -2213,6 +2255,7 @@ let get_doc =
         }
       | _ => basic(ArrowTyp.arrow)
       };
+    | TupLabel(_, _) => get_message(LabelTyp.label_typ)
     | Tuple(elements) =>
       let basic = group =>
         get_message(
