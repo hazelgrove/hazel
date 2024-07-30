@@ -42,10 +42,10 @@ let rec matches = (dp: Pat.t, d: DHExp.t): match_result =>
     let* m_x = matches(x, x');
     let* m_xs = matches(xs, xs');
     Matches(Environment.union(m_x, m_xs));
-  | Constructor(ctr) =>
+  | Constructor(ctr, _) =>
     let* () = Unboxing.unbox(SumNoArg(ctr), d);
     Matches(Environment.empty);
-  | Ap({term: Constructor(ctr), _}, p2) =>
+  | Ap({term: Constructor(ctr, _), _}, p2) =>
     let* d2 = Unboxing.unbox(SumWithArg(ctr), d);
     matches(p2, d2);
   | Ap(_, _) => IndetMatch // TODO: should this fail?

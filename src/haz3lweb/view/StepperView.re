@@ -3,10 +3,10 @@ open Node;
 open Haz3lcore;
 
 let settings_modal = (~inject, settings: CoreSettings.Evaluation.t) => {
-  let modal = div(~attr=Attr.many([Attr.class_("settings-modal")]));
+  let modal = div(~attrs=[Attr.class_("settings-modal")]);
   let setting = (icon, name, current, action: UpdateAction.settings_action) =>
     div(
-      ~attr=Attr.many([Attr.class_("settings-toggle")]),
+      ~attrs=[Attr.class_("settings-toggle")],
       [
         Widgets.toggle(~tooltip=name, icon, current, _ =>
           inject(Update.Set(action))
@@ -17,7 +17,7 @@ let settings_modal = (~inject, settings: CoreSettings.Evaluation.t) => {
   [
     modal([
       div(
-        ~attr=Attr.many([Attr.class_("settings-modal-top")]),
+        ~attrs=[Attr.class_("settings-modal-top")],
         [
           Widgets.button(Icons.x, _ =>
             inject(Update.Set(Evaluation(ShowSettings)))
@@ -74,13 +74,12 @@ let settings_modal = (~inject, settings: CoreSettings.Evaluation.t) => {
       ),
     ]),
     div(
-      ~attr=
-        Attr.many([
-          Attr.class_("modal-back"),
-          Attr.on_mousedown(_ =>
-            inject(Update.Set(Evaluation(ShowSettings)))
-          ),
-        ]),
+      ~attrs=[
+        Attr.class_("modal-back"),
+        Attr.on_mousedown(_ =>
+          inject(Update.Set(Evaluation(ShowSettings)))
+        ),
+      ],
       [],
     ),
   ];
@@ -101,7 +100,7 @@ let stepper_view =
         {previous_step, hidden_steps, chosen_step, d}: Stepper.step_info,
       ) =>
     div(
-      ~attr=Attr.classes(["result"]),
+      ~attrs=[Attr.classes(["result"])],
       [
         DHCode.view(
           ~inject,
@@ -144,14 +143,14 @@ let stepper_view =
       );
     let current =
       div(
-        ~attr=Attr.classes(["cell-item", "cell-result"]),
+        ~attrs=[Attr.classes(["cell-item", "cell-result"])],
         read_only
           ? [
-            div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
+            div(~attrs=[Attr.class_("equiv")], [Node.text("≡")]),
             step_dh_code(~next_steps=[], hd),
           ]
           : [
-            div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
+            div(~attrs=[Attr.class_("equiv")], [Node.text("≡")]),
             step_dh_code(
               ~next_steps=
                 List.mapi(
@@ -178,15 +177,16 @@ let stepper_view =
           : [];
       [
         div(
-          ~attr=
+          ~attrs=[
             Attr.classes(
               ["cell-item", "cell-result"] @ (hidden ? ["hidden"] : []),
             ),
+          ],
           [
-            div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
+            div(~attrs=[Attr.class_("equiv")], [Node.text("≡")]),
             dh_code_previous(~next_steps=[], step),
             div(
-              ~attr=Attr.classes(["stepper-justification"]),
+              ~attrs=[Attr.classes(["stepper-justification"])],
               step.chosen_step
               |> Option.map((chosen_step: EvaluatorStep.step) =>
                    chosen_step.knd |> Stepper.get_justification |> Node.text

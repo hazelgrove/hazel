@@ -76,6 +76,7 @@ let rec strip_casts =
         | Closure(_)
         | TypFun(_)
         | TypAp(_)
+        | Undefined
         | If(_) => continue(exp)
         /* Remove casts*/
         | FailedCast(d, _, _)
@@ -131,6 +132,7 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | If(_)
           | EmptyHole
           | Invalid(_)
+          | Undefined
           | Constructor(_)
           | Var(_)
           | Bool(_)
