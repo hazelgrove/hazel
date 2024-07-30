@@ -48,16 +48,17 @@
 }
 
 .test-report {
-  cursor: pointer;
+  margin-right: 1em;
   display: flex;
+  justify-content: space-between;
+  align-items: baseline;
   gap: 1em;
   padding: 0.3em;
-  align-items: baseline;
-  border: 1px outset var(--subdued-accent);
-  border-style: dotted;
-  border-left: 0;
-  border-right: 0;
-  border-top: 0;
+  cursor: pointer;
+}
+
+.test-report + .test-report {
+  border-top: 1px dotted var(--subdued-accent);
 }
 
 .test-report:hover {
@@ -118,17 +119,6 @@
   display: flex;
   flex-grow: 1;
   flex-direction: row;
-}
-
-.test-report {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 1em;
-  padding: 0.3em;
-  margin-right: 1em;
-  border-bottom: 1px dotted var(--subdued-accent);
-  cursor: pointer;
 }
 
 .test-summary {

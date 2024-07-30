@@ -12,13 +12,14 @@
   --menu-item-color: var(--base-text-color);
   --menu-divider: #0006;
   --main-scroll-track: #0000;
+  --explicit-hole-shadow: black;
 
   /* GREENS */
 
   --primary-accent: #4fad66;
-  --test-pass: green;
+  --test-pass: var(--primary-accent);
   --test-pass-active: #cfd;
-  --step-hole-color: var(--test-pass);
+  --step-hole-color: var(--primary-accent);
   --token-comment: #a0c1aa;
 
   /* REDS */
@@ -54,36 +55,31 @@
   --nut-menu-active: #98a379;
 
   --menu-shadow: #77580255;
-  --explicit-hole-shadow: #2d2206;
 
-  /* EARTHTONE EXP SORT COLORS */
-
-  --exp-token-color: var(--base-text-color);
-  --exp-shadow-color: #b1a47f;
-  --exp-shard-color: #ebdfc5;
-  --exp-shard-caret-color: #feddb3;
-
-  /* EARTHTONE OTHER COLORS */
+  --exp-token-color: var(--base-text-color); /* EXP TOKEN */
+  
+  /* EARTHTONES */
 
   --light-accent-text: #fffcf3;
-
-  --code-emphasis: #ce9600;
-  --other-accent: #e4d6a6;
-  --accent-hole-stroke: #dbcca7;
-  --menu-bkg: #f7ebc5;
   --active-cell-bkg: #fffcf3;
   --menu-item-hover-bkg: #fdf6e3;
-  --ui-text-accent-light: #a69460;
-  --top-bar-text: #a79f89;
   --projectors-bkg: #f6eedc;
-  --explicit-hole-fill: #ffd04f;
-  --selection-color: #fae294;
-  --string-lit-color: #cda56a;
-  --subdued-accent: #c7b480;
   --main-bkg: #efe7d6;
+  --exp-shard-color: #ebdfc5; /* EXP TOKEN */
+  --menu-bkg: #f7ebc5;
+  --accent-hole-stroke: #dbcca7;
+  --other-accent: #e4d6a6;
+  --selection-color: #fae294;
+  --explicit-hole-fill: #ffd04f;
+  --code-emphasis: #ce9600;
+  --string-lit-color: #cda56a;
+  --exp-shard-caret-color: #feddb3; /* EXP TOKEN */
+  --subdued-accent: #c7b480;
+  --top-bar-text: #a79f89;
+  --exp-shadow-color: #b1a47f; /* EXP TOKEN */
+  --ui-text-accent-light: #a69460;
   --ci-icon-bkg: #857548;
   --ui-text-accent: #6c5c2e;
-  
   --token-secondary: #7e5000;
   
   --light-page-color: var(--menu-item-hover-bkg);
