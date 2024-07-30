@@ -90,55 +90,33 @@ svg.shard > path {
   vector-effect: non-scaling-stroke;
 }
 
-svg.shard.Nul > path {
-  filter: url(#drop-shadow-Nul);
-}
-svg.shard.Any > path {
-  filter: url(#drop-shadow-Any);
-}
-svg.shard.Exp > path {
-  filter: url(#drop-shadow-Exp);
-}
-svg.shard.Pat > path {
-  filter: url(#drop-shadow-Pat);
-}
-svg.shard.Typ > path {
-  filter: url(#drop-shadow-Typ);
-}
-svg.shard.Rul > path {
-  filter: url(#drop-shadow-Rul);
-}
-svg.shard.TPat > path {
-  filter: url(#drop-shadow-TPat);
-}
-
 svg.shard.indicated.Nul > path {
   fill: var(--nul-bg-color);
-  filter: url(#raised-drop-shadow-Nul);
+  filter: url(#drop-shadow-Nul);
 }
 svg.shard.indicated.Any > path {
   fill: var(--any-bg-color);
-  filter: url(#raised-drop-shadow-Any);
+  filter: url(#drop-shadow-Any);
 }
 svg.shard.indicated.Exp > path {
   fill: var(--exp-bg-color);
-  filter: url(#raised-drop-shadow-Exp);
+  filter: url(#drop-shadow-Exp);
 }
 svg.shard.indicated.Pat > path {
   fill: var(--pat-bg-caret-color);
-  filter: url(#raised-drop-shadow-Pat);
+  filter: url(#drop-shadow-Pat);
 }
 svg.shard.indicated.Typ > path {
   fill: var(--typ-bg-caret-color);
-  filter: url(#raised-drop-shadow-Typ);
+  filter: url(#drop-shadow-Typ);
 }
 svg.shard.indicated.Rul > path {
   fill: var(--rul-bg-color);
-  filter: url(#raised-drop-shadow-Rul);
+  filter: url(#drop-shadow-Rul);
 }
 svg.shard.indicated.TPat > path {
   fill: var(--tpat-bg-caret-color);
-  filter: url(#raised-drop-shadow-TPat);
+  filter: url(#drop-shadow-TPat);
 }
 
 svg.shard.indicated.caret.Exp > path {
@@ -168,7 +146,7 @@ svg.shard.selected > path {
   fill: var(--selection-color);
   stroke-width: 0.5px;
   stroke: var(--selection-color);
-  filter: url(#raised-drop-shadow-Nul);
+  filter: url(#drop-shadow-Nul);
 }
 svg.shard.selected.buffer > path {
   fill: var(--buffer-bkg);
@@ -210,28 +188,6 @@ svg.shard.error > path {
   flood-color: var(--rul-shadow-color);
 }
 #drop-shadow-TPat .tile-drop-shadow {
-  flood-color: var(--tpat-shadow-color);
-}
-
-#raised-drop-shadow-Nul .tile-drop-shadow {
-  flood-color: var(--nul-shadow-color);
-}
-#raised-drop-shadow-Any .tile-drop-shadow {
-  flood-color: var(--any-shadow-color);
-}
-#raised-drop-shadow-Exp .tile-drop-shadow {
-  flood-color: var(--exp-shadow-color);
-}
-#raised-drop-shadow-Pat .tile-drop-shadow {
-  flood-color: var(--pat-shadow-color);
-}
-#raised-drop-shadow-Typ .tile-drop-shadow {
-  flood-color: var(--typ-shadow-color);
-}
-#raised-drop-shadow-Rul .tile-drop-shadow {
-  flood-color: var(--rul-shadow-color);
-}
-#raised-drop-shadow-TPat .tile-drop-shadow {
   flood-color: var(--tpat-shadow-color);
 }
 

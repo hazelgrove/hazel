@@ -33,7 +33,7 @@
 }
 .projector.block.selected > svg > path {
   vector-effect: non-scaling-stroke;
-  filter: url(#raised-drop-shadow-Nul) !important;
+  filter: url(#drop-shadow-Nul) !important;
 }
 .projector.selected > svg,
 .projector.selected.indicated > svg,
