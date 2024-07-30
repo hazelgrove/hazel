@@ -24,6 +24,7 @@ depends: [
   "unionFind"
   "ocamlformat"
   "junit_alcotest" {with-test}
+  "ocaml-lsp-server"
   "odoc" {with-doc}
 ]
 build: [
