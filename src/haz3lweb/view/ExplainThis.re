@@ -1728,7 +1728,7 @@ let get_doc =
             ),
           TestExp.tests,
         );
-      | HintedTest(body) =>
+      | HintedTest(body, _hint) =>
         let body_id = List.nth(body.ids, 0);
         get_message(
           ~colorings=HintedTestExp.hinted_test_exp_coloring_ids(~body_id),

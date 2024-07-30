@@ -221,7 +221,7 @@ let rec dhexp_of_uexp =
       | Test(test) =>
         let+ dtest = dhexp_of_uexp(m, test);
         DHExp.Test(id, dtest);
-      | HintedTest(hintedtest) =>
+      | HintedTest(hintedtest, _hint) =>
         let+ dtest = dhexp_of_uexp(m, hintedtest);
         DHExp.Test(id, dtest);
       | Filter(act, cond, body) =>
