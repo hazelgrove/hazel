@@ -3,6 +3,8 @@
 (library
  (name haz3lcore)
  (libraries util re sexplib unionFind uuidm yojson core)
+ (instrumentation
+  (backend bisect_ppx))
  (js_of_ocaml
   (flags
    (:include js-of-ocaml-flags-%{profile})))

@@ -207,6 +207,7 @@ let rec elaborate_pattern =
    a comment explaining why it's redundant.  */
 let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
   let (elaborated_type, ctx, co_ctx) = elaborated_type(m, uexp);
+  let _ = elaborated_type |> Typ.show |> print_endline;
   let cast_from = (ty, exp) => fresh_cast(exp, ty, elaborated_type);
   let (term, rewrap) = UExp.unwrap(uexp);
   let dhexp =

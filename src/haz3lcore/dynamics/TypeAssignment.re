@@ -348,11 +348,21 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
   };
 };
 
-let property_test = (uexp_typ: Typ.t, dhexp: DHExp.t, m: Statics.Map.t): bool => {
-  let dhexp_typ = typ_of_dhexp(Builtins.ctx_init, m, dhexp);
+let property_test =
+    (uexp_typ: option(Typ.t), dhexp: option(DHExp.t), m: Statics.Map.t)
+    : bool => {
+  let dhexp_typ =
+    switch (dhexp) {
+    | None => None
+    | Some(dhexp) => typ_of_dhexp(Builtins.ctx_init, m, dhexp)
+    };
 
-  switch (dhexp_typ) {
-  | None => false
-  | Some(dh_typ) => Typ.eq(dh_typ, uexp_typ)
+  switch (uexp_typ, dhexp_typ) {
+  | (None, None) => true
+  | (Some(uexp_typ), Some(dhexp_typ)) when Typ.eq(dhexp_typ, uexp_typ) =>
+    print_endline(uexp_typ |> Typ.show);
+    print_endline(dhexp_typ |> Typ.show);
+    true;
+  | _ => false
   };
 };
