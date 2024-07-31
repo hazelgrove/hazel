@@ -12,6 +12,7 @@ deps:
 
 change-deps:
 	opam switch export opam.export
+	sed -i '' '/host-/d' opam.export # remove host- lines which are arch-specific
 
 setup-instructor:
 	cp src/haz3lweb/exercises/settings/ExerciseSettings_instructor.re src/haz3lweb/exercises/settings/ExerciseSettings.re

@@ -10,18 +10,14 @@ module Interface = Haz3lcore.Interface;
 let test_bar_segment = (~inject_jump, (id, reports)) => {
   let status = reports |> TestMap.joint_status |> TestStatus.to_string;
   div(
-    ~attr=
-      Attr.many([
-        clss(["segment", status]),
-        Attr.on_click(_ => inject_jump(id)),
-      ]),
+    ~attrs=[clss(["segment", status]), Attr.on_click(_ => inject_jump(id))],
     [],
   );
 };
 
 let test_bar = (~inject_jump, ~test_results: TestResults.t) =>
   div(
-    ~attr=Attr.class_("test-bar"),
+    ~attrs=[Attr.class_("test-bar")],
     List.map(test_bar_segment(~inject_jump), test_results.test_map),
   );
 
@@ -31,7 +27,7 @@ let percent_view = (n: int, p: int): Node.t => {
   let percentage =
     n == 0 ? 100. : 100. *. float_of_int(p) /. float_of_int(n);
   div(
-    ~attr=clss(["test-percent", n == p ? "all-pass" : "some-fail"]),
+    ~attrs=[clss(["test-percent", n == p ? "all-pass" : "some-fail"])],
     [text(Printf.sprintf("%.0f%%", percentage))],
   );
 };
@@ -41,7 +37,7 @@ let test_percentage = (test_results: TestResults.t): Node.t =>
 
 let test_text = (test_results: TestResults.t): Node.t =>
   div(
-    ~attr=Attr.class_("test-text"),
+    ~attrs=[Attr.class_("test-text")],
     [
       test_percentage(test_results),
       div([text(":")]),
@@ -51,7 +47,7 @@ let test_text = (test_results: TestResults.t): Node.t =>
 
 let test_summary = (~inject_jump, ~test_results: option(TestResults.t)) => {
   div(
-    ~attr=clss(["test-summary"]),
+    ~attrs=[clss(["test-summary"])],
     {
       switch (test_results) {
       | None => [Node.text("No test results available.")]
@@ -66,6 +62,6 @@ let test_summary = (~inject_jump, ~test_results: option(TestResults.t)) => {
 
 let view_of_main_title_bar = (title_text: string) =>
   div(
-    ~attr=Attr.many([clss(["title-bar", "panel-title-bar"])]),
+    ~attrs=[clss(["title-bar", "panel-title-bar"])],
     [Node.text(title_text)],
   );

@@ -311,14 +311,14 @@ module View = {
     let settings = globals.settings;
     let top_bar =
       div(
-        ~attr=Attr.id("top-bar"),
+        ~attrs=[Attr.id("top-bar")],
         NutMenu.view(
           ~globals,
           ~selection=Some(selection),
           ~inject=a => inject(Editors(a)),
           ~editors,
         )
-        @ [div(~attr=Attr.id("title"), [text("hazel")])]
+        @ [div(~attrs=[Attr.id("title")], [text("hazel")])]
         @ [
           Editors.View.top_bar(
             ~globals,
@@ -350,11 +350,10 @@ module View = {
     [
       top_bar,
       div(
-        ~attr=
-          Attr.many([
-            Attr.id("main"),
-            Attr.class_(Editors.Model.mode_string(editors)),
-          ]),
+        ~attrs=[
+          Attr.id("main"),
+          Attr.class_(Editors.Model.mode_string(editors)),
+        ],
         editors_view,
       ),
       sidebar,
@@ -366,8 +365,7 @@ module View = {
       (~get_log_and, ~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
     let cursor = Selection.get_cursor_info(~selection=model.selection, model);
     div(
-      ~attr=
-        Attr.many(Attr.[id("page"), ...handlers(~cursor, ~inject, model)]),
+      ~attrs=Attr.[id("page"), ...handlers(~cursor, ~inject, model)],
       [
         FontSpecimen.view("font-specimen"),
         DecUtil.filters,

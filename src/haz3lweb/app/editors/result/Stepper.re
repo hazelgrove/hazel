@@ -265,13 +265,14 @@ module View = {
            switch (a) {
            | A(a) => [
                div(
-                 ~attr=
+                 ~attrs=[
                    Attr.classes(
                      ["cell-item", "cell-result"]
                      @ (b.hidden ? ["hidden"] : []),
                    ),
+                 ],
                  [
-                   div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
+                   div(~attrs=[Attr.class_("equiv")], [Node.text("≡")]),
                    StepperEditor.Stepped.view(
                      ~globals,
                      ~overlays=[],
@@ -281,7 +282,7 @@ module View = {
                      },
                    ),
                    div(
-                     ~attr=Attr.classes(["stepper-justification"]),
+                     ~attrs=[Attr.classes(["stepper-justification"])],
                      [
                        b.step.knd
                        |> Transition.stepper_justification
@@ -292,7 +293,7 @@ module View = {
                ),
              ]
            | PendingStep => [
-               div(~attr=Attr.class_("cell-item"), [text("...")]),
+               div(~attrs=[Attr.class_("cell-item")], [text("...")]),
              ]
            }
          )
@@ -302,11 +303,11 @@ module View = {
     let current_step = {
       let model = stepper.history |> Aba.hd;
       div(
-        ~attr=Attr.classes(["cell-item", "cell-result"]),
+        ~attrs=[Attr.classes(["cell-item", "cell-result"])],
         (
           switch (model) {
           | A(model) => [
-              div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
+              div(~attrs=[Attr.class_("equiv")], [Node.text("≡")]),
               StepperEditor.Steppable.view(
                 ~globals,
                 ~signal=(TakeStep(x)) => inject(Update.StepForward(x)),
@@ -322,7 +323,7 @@ module View = {
               ),
             ]
           | PendingStep => [
-              div(~attr=Attr.class_("cell-item"), [text("...")]),
+              div(~attrs=[Attr.class_("cell-item")], [text("...")]),
             ]
           }
         )

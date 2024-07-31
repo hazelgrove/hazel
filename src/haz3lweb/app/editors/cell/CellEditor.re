@@ -8,7 +8,7 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     editor: CodeEditable.Model.t,
-    result: Result.Model.t,
+    result: EvalResult.Model.t,
   };
 
   let mk = editor => {
@@ -16,7 +16,7 @@ module Model = {
       editor,
       statics: CachedStatics.empty_statics,
     },
-    result: Result.Model.init,
+    result: EvalResult.Model.init,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -32,7 +32,7 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | MainEditor(CodeEditable.Update.t)
-    | ResultAction(Result.Update.t);
+    | ResultAction(EvalResult.Update.t);
 
   let update = (~settings, action, model: Model.t) => {
     switch (action) {
@@ -41,7 +41,7 @@ module Update = {
         CodeEditable.Update.update(~settings, action, model.editor);
       {...model, editor};
     | ResultAction(action) =>
-      let* result = Result.Update.update(~settings, action, model.result);
+      let* result = EvalResult.Update.update(~settings, action, model.result);
       {...model, result};
     };
   };
@@ -50,7 +50,7 @@ module Update = {
     let editor =
       CodeEditable.Update.calculate(~settings, ~stitch, model.editor);
     let result =
-      Result.Update.calculate(
+      EvalResult.Update.calculate(
         ~settings,
         ~queue_worker,
         editor |> CodeEditable.Model.get_statics,
@@ -66,7 +66,7 @@ module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | MainEditor
-    | Result(Result.Selection.t);
+    | Result(EvalResult.Selection.t);
 
   let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
     switch (selection) {
@@ -75,7 +75,8 @@ module Selection = {
         CodeEditable.Selection.get_cursor_info(~selection=(), model.editor);
       Update.MainEditor(ci);
     | Result(selection) =>
-      let+ ci = Result.Selection.get_cursor_info(~selection, model.result);
+      let+ ci =
+        EvalResult.Selection.get_cursor_info(~selection, model.result);
       Update.ResultAction(ci);
     };
   };
@@ -91,7 +92,7 @@ module Selection = {
       )
       |> Option.map(x => Update.MainEditor(x))
     | Result(selection) =>
-      Result.Selection.handle_key_event(~selection, model.result, ~event)
+      EvalResult.Selection.handle_key_event(~selection, model.result, ~event)
       |> Option.map(x => Update.ResultAction(x))
     };
   };
@@ -119,7 +120,7 @@ module View = {
         model: Model.t,
       ) => {
     let (footer, overlays) =
-      Result.View.view(
+      EvalResult.View.view(
         ~globals,
         ~signal=
           fun
@@ -141,12 +142,13 @@ module View = {
         model.result,
       );
     div(
-      ~attr=
+      ~attrs=[
         Attr.classes([
           "cell",
           Option.is_some(selected) ? "selected" : "deselected",
           locked ? "locked" : "unlocked",
         ]),
+      ],
       Option.to_list(caption)
       @ [
         CodeEditable.View.view(

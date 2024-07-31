@@ -1,5 +1,5 @@
 open Haz3lcore;
-open Sexplib.Std;
+open Util;
 
 /* A CodeEditor that's been restricted to only performing selection with
    mouse/keyboard, no edits to the actual code. */

@@ -23,8 +23,9 @@ let of_delim' =
       let label = is_in_buffer ? AssistantExpander.mark(label) : label;
       [
         span(
-          ~attr=
+          ~attrs=[
             Attr.classes(["token", cls, Sort.to_string(sort), plurality]),
+          ],
           [Node.text(List.nth(label, i))],
         ),
       ];

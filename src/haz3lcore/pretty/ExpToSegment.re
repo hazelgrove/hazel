@@ -101,6 +101,7 @@ let rec exp_to_pretty = (~inline, exp: Exp.t): pretty => {
   | EmptyHole =>
     let id = exp |> Exp.rep_id;
     p_just([Grout({id, shape: Convex})]);
+  | Undefined => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "undefined")
   | Bool(b) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Bool.to_string(b))
   | Int(n) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Int.to_string(n))
   // TODO: do floats print right?
@@ -108,7 +109,8 @@ let rec exp_to_pretty = (~inline, exp: Exp.t): pretty => {
     text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Float.to_string(f))
   | String(s) =>
     text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "\"" ++ s ++ "\"")
-  | Constructor(c) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, c)
+  // TODO: Make sure types are correct
+  | Constructor(c, _) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, c)
   | ListLit([]) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "[]")
   | Deferral(_) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "deferral")
   | ListLit([x, ...xs]) =>
@@ -360,7 +362,7 @@ and pat_to_pretty = (~inline, pat: Pat.t): pretty => {
   | Bool(b) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Bool.to_string(b))
   | String(s) =>
     text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "\"" ++ s ++ "\"")
-  | Constructor(c) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, c)
+  | Constructor(c, _) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, c)
   | ListLit([]) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "[]")
   | ListLit([x, ...xs]) =>
     let* x = go(x)
@@ -555,7 +557,8 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | EmptyHole
   | Constructor(_)
   | Deferral(_)
-  | BuiltinFun(_) => Precedence.max
+  | BuiltinFun(_)
+  | Undefined => Precedence.max
 
   // Same goes for forms which are already surrounded
   | Parens(_)
@@ -687,7 +690,8 @@ let rec parenthesize = (exp: Exp.t): Exp.t => {
   | EmptyHole
   | Constructor(_)
   | Deferral(_)
-  | BuiltinFun(_) => exp
+  | BuiltinFun(_)
+  | Undefined => exp
 
   // Forms that currently need to stripped before oututting
   | Closure(_, x)

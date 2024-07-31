@@ -8,23 +8,21 @@ open Haz3lcore;
 
 let feedback_view = (message, up_active, up_action, down_active, down_action) => {
   div(
-    ~attr=clss(["feedback"]),
+    ~attrs=[clss(["feedback"])],
     [
-      div(~attr=clss(["message"]), [text(message)]),
+      div(~attrs=[clss(["message"])], [text(message)]),
       div(
-        ~attr=
-          Attr.many([
-            clss(["option"] @ (up_active ? ["active"] : [])),
-            Attr.on_click(up_action),
-          ]),
+        ~attrs=[
+          clss(["option"] @ (up_active ? ["active"] : [])),
+          Attr.on_click(up_action),
+        ],
         [text("👍")],
       ),
       div(
-        ~attr=
-          Attr.many([
-            clss(["option"] @ (down_active ? ["active"] : [])),
-            Attr.on_click(down_action),
-          ]),
+        ~attrs=[
+          clss(["option"] @ (down_active ? ["active"] : [])),
+          Attr.on_click(down_action),
+        ],
         [text("👎")],
       ),
     ],
@@ -84,7 +82,8 @@ let example_feedback_view =
   );
 };
 
-let code_node = text => Node.span(~attr=clss(["code"]), [Node.text(text)]);
+let code_node = text =>
+  Node.span(~attrs=[clss(["code"])], [Node.text(text)]);
 
 let highlight =
     (
@@ -97,18 +96,17 @@ let highlight =
     : (Node.t, ColorSteps.t) => {
   let (c, mapping) = ColorSteps.get_color(id, mapping);
   let classes = clss(["highlight-" ++ c, "clickable"]);
-  let attr =
-    Attr.many([
-      classes,
-      Attr.on_mouseenter(_ =>
-        globals.inject_global(Set(ExplainThis(SetHighlight(Hover(id)))))
-      ),
-      Attr.on_mouseleave(_ =>
-        globals.inject_global(Set(ExplainThis(SetHighlight(UnsetHover))))
-      ),
-      Attr.on_click(_ => globals.inject_global(JumpToTile(id))),
-    ]);
-  (Node.span(~attr, msg), mapping);
+  let attrs = [
+    classes,
+    Attr.on_mouseenter(_ =>
+      globals.inject_global(Set(ExplainThis(SetHighlight(Hover(id)))))
+    ),
+    Attr.on_mouseleave(_ =>
+      globals.inject_global(Set(ExplainThis(SetHighlight(UnsetHover))))
+    ),
+    Attr.on_click(_ => globals.inject_global(JumpToTile(id))),
+  ];
+  (Node.span(~attrs, msg), mapping);
 };
 
 /*
@@ -123,59 +121,84 @@ let mk_translation =
     (~globals, ~inject, text: string): (list(Node.t), ColorSteps.t) => {
   let omd = Omd.of_string(text);
   //print_markdown(omd);
-  let rec translate =
-          (doc: Omd.t, mapping: ColorSteps.t): (list(Node.t), ColorSteps.t) =>
+
+  let rec translate_inline =
+          (inline: Omd.inline(_), msg, mapping: ColorSteps.t, ~inject)
+          : (list(Node.t), ColorSteps.t) => {
+    switch (inline) {
+    | Omd.Concat(_, items) =>
+      let (nodes, mapping) =
+        List.fold_left(
+          ((msg, mapping), item) => {
+            let (translated_item, mapping) =
+              translate_inline(item, [], mapping, ~inject);
+            (List.concat([msg, translated_item]), mapping);
+          },
+          ([], mapping),
+          items,
+        );
+      (List.append(msg, nodes), mapping);
+    | Omd.Text(_, d) => (List.append(msg, [Node.text(d)]), mapping)
+    | Omd.Code(_, d) => (List.append(msg, [code_node(d)]), mapping)
+    | Omd.Link(_, {label, destination, _}) =>
+      let (d, mapping) = translate_inline(label, [], mapping, ~inject);
+      let id =
+        switch (Id.of_string(destination)) {
+        | Some(id) => id
+        | None => Id.invalid
+        };
+      let (inner_msg, mapping) =
+        highlight(~globals, ~inject, d, id, mapping);
+      (List.append(msg, [inner_msg]), mapping);
+    | Omd.Emph(_, d) =>
+      let (d, mapping) = translate_inline(d, [], mapping, ~inject);
+      (
+        List.append(
+          msg,
+          [
+            Node.span(
+              ~attrs=[
+                Attr.style(
+                  Css_gen.create(~field="font-style", ~value="italic"),
+                ),
+              ],
+              d,
+            ),
+          ],
+        ),
+        mapping,
+      );
+    | _ => (msg, mapping)
+    };
+  };
+
+  let rec translate_block =
+          (doc: Omd.doc, mapping: ColorSteps.t)
+          : (list(Node.t), ColorSteps.t) => {
     List.fold_left(
       ((msg, mapping), elem) => {
         switch (elem) {
-        | Omd.Paragraph(d) => translate(d, mapping)
-        | Text(t) => (List.append(msg, [Node.text(t)]), mapping)
-        | Ul(items) =>
+        | Omd.Paragraph(_, d) => translate_inline(d, msg, mapping, ~inject)
+        | Omd.List(_, _, _, items) =>
           let (bullets, mapping) =
             List.fold_left(
               ((nodes, mapping), d) => {
-                let (n, mapping) = translate(d, mapping);
+                let (n, mapping) = translate_block(d, mapping);
                 (List.append(nodes, [Node.li(n)]), mapping);
               },
               ([], mapping),
               items,
             );
           (List.append(msg, [Node.ul(bullets)]), mapping); /* TODO Hannah - Should this be an ordered list instead of an unordered list? */
-        | Code(_name, t) => (List.append(msg, [code_node(t)]), mapping)
-        | Url(id, d, _title) =>
-          let (d, mapping) = translate(d, mapping);
-          let id =
-            switch (Id.of_string(id)) {
-            | Some(id) => id
-            | None => Id.invalid
-            };
-          let (inner_msg, mapping) =
-            highlight(~globals, ~inject, d, id, mapping);
-          (List.append(msg, [inner_msg]), mapping);
-        | Emph(d) =>
-          let (d, mapping) = translate(d, mapping);
-          (
-            List.append(
-              msg,
-              [
-                Node.span(
-                  ~attr=
-                    Attr.style(
-                      Css_gen.create(~field="font-style", ~value="italic"),
-                    ),
-                  d,
-                ),
-              ],
-            ),
-            mapping,
-          );
         | _ => (msg, mapping)
         }
       },
       ([], mapping),
       doc,
     );
-  translate(omd, ColorSteps.empty);
+  };
+
+  translate_block(omd, ColorSteps.empty);
 };
 
 let mk_explanation =
@@ -193,7 +216,7 @@ let mk_explanation =
     globals.settings.explainThis.show_feedback
       ? [explanation_feedback_view(~inject, group_id, form_id, model)] : [];
   (
-    div([div(~attr=clss(["explanation-contents"]), msg)] @ feedback),
+    div([div(~attrs=[clss(["explanation-contents"])], msg)] @ feedback),
     color_map,
   );
 };
@@ -243,11 +266,10 @@ let expander_deco =
 
         let specificity_menu =
           Node.div(
-            ~attr=
-              Attr.many([
-                clss(["specificity-options-menu", "expandable"]),
-                specificity_style,
-              ]),
+            ~attrs=[
+              clss(["specificity-options-menu", "expandable"]),
+              specificity_style,
+            ],
             List.map(
               ((id: ExplainThisForm.form_id, segment: Segment.t)): Node.t => {
                 let code_view =
@@ -260,11 +282,10 @@ let expander_deco =
                     ExplainThisUpdate.UpdateGroupSelection(group.id, id),
                   );
                 Node.div(
-                  ~attr=
-                    Attr.many([
-                      clss(classes),
-                      Attr.on_click(update_group_selection),
-                    ]),
+                  ~attrs=[
+                    clss(classes),
+                    Attr.on_click(update_group_selection),
+                  ],
                   [code_view],
                 );
               },
@@ -274,10 +295,7 @@ let expander_deco =
 
         let expand_arrow_style = Attr.create("style", specificity_pos);
         let expand_arrow =
-          Node.div(
-            ~attr=Attr.many([clss(["arrow"]), expand_arrow_style]),
-            [],
-          );
+          Node.div(~attrs=[clss(["arrow"]), expand_arrow_style], []);
 
         let expandable_deco =
           DecUtil.code_svg(
@@ -289,16 +307,15 @@ let expander_deco =
           );
 
         Node.div(
-          ~attr=
-            Attr.many([
-              clss(["expandable-target"]),
-              DecUtil.abs_position(~font_metrics, origin),
-              Attr.on_click(_ => {
-                inject(
-                  ExplainThisUpdate.SpecificityOpen(!docs.specificity_open),
-                )
-              }),
-            ]),
+          ~attrs=[
+            clss(["expandable-target"]),
+            DecUtil.abs_position(~font_metrics, origin),
+            Attr.on_click(_ => {
+              inject(
+                ExplainThisUpdate.SpecificityOpen(!docs.specificity_open),
+              )
+            }),
+          ],
           [expandable_deco, specificity_menu]
           @ (docs.specificity_open ? [] : [expand_arrow]),
         );
@@ -320,7 +337,7 @@ let example_view =
     ? []
     : [
       div(
-        ~attr=Attr.id("examples"),
+        ~attrs=[Attr.id("examples")],
         List.mapi(
           (_, {term, message, sub_id, _}: ExplainThisForm.example) => {
             let feedback =
@@ -336,7 +353,7 @@ let example_view =
                 ]
                 : [];
             div(
-              ~attr=clss(["example"]),
+              ~attrs=[clss(["example"])],
               [
                 CellEditor.View.view(
                   ~globals,
@@ -358,7 +375,7 @@ let example_view =
                   },
                 ),
                 div(
-                  ~attr=clss(["explanation"]),
+                  ~attrs=[clss(["explanation"])],
                   [text(message)] @ feedback,
                 ),
               ],
@@ -545,6 +562,7 @@ let get_doc =
             ),
           TyAliasExp.tyalias_exps,
         );
+      | Undefined => get_message(UndefinedExp.undefined_exps)
       | Deferral(_) => get_message(TerminalExp.deferral_exps)
       | Bool(b) => get_message(TerminalExp.bool_exps(b))
       | Int(i) => get_message(TerminalExp.int_exps(i))
@@ -1017,7 +1035,7 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_ap);
           }
-        | Constructor(v) =>
+        | Constructor(v, _) =>
           if (FunctionExp.function_ctr_exp.id
               == get_specificity_level(FunctionExp.functions_ctr)) {
             let pat_id = List.nth(pat.ids, 0);
@@ -1525,7 +1543,7 @@ let get_doc =
           } else {
             basic(LetExp.lets_ap);
           }
-        | Constructor(v) =>
+        | Constructor(v, _) =>
           if (LetExp.let_ctr_exp.id == get_specificity_level(LetExp.lets_ctr)) {
             get_message(
               ~colorings=
@@ -1597,7 +1615,7 @@ let get_doc =
           );
         };
         switch (x.term) {
-        | Constructor(v) =>
+        | Constructor(v, _) =>
           basic(
             AppExp.conaps,
             msg =>
@@ -1880,7 +1898,7 @@ let get_doc =
             ),
           CaseExp.case,
         );
-      | Constructor(v) =>
+      | Constructor(v, _) =>
         get_message(
           ~format=
             Some(
@@ -2084,7 +2102,7 @@ let get_doc =
           ),
         AppPat.ap,
       );
-    | Constructor(con) =>
+    | Constructor(con, _) =>
       get_message(
         ~format=
           Some(
@@ -2332,8 +2350,8 @@ let get_doc =
 
 let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
   div(
-    ~attr=clss(["section", section_clss]),
-    [div(~attr=clss(["section-title"]), [text(title)])] @ contents,
+    ~attrs=[clss(["section", section_clss])],
+    [div(~attrs=[clss(["section-title"])], [text(title)])] @ contents,
   );
 
 let get_color_map =
@@ -2365,13 +2383,13 @@ let view =
       MessageContent(inject, globals),
     );
   div(
-    ~attr=Attr.id("side-bar"),
+    ~attrs=[Attr.id("side-bar")],
     [
       div(
-        ~attr=clss(["explain-this"]),
+        ~attrs=[clss(["explain-this"])],
         [
           div(
-            ~attr=clss(["top-bar"]),
+            ~attrs=[clss(["top-bar"])],
             [
               Widgets.toggle(
                 ~tooltip="Toggle highlighting",
@@ -2383,13 +2401,12 @@ let view =
                 )
               ),
               div(
-                ~attr=
-                  Attr.many([
-                    clss(["close"]),
-                    Attr.on_click(_ =>
-                      globals.inject_global(Set(ExplainThis(ToggleShow)))
-                    ),
-                  ]),
+                ~attrs=[
+                  clss(["close"]),
+                  Attr.on_click(_ =>
+                    globals.inject_global(Set(ExplainThis(ToggleShow)))
+                  ),
+                ],
                 [text("x")],
               ),
             ],

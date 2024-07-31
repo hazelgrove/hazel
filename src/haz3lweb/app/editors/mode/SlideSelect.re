@@ -5,7 +5,7 @@ open Util;
 
 let option_view = (name, n) =>
   option(
-    ~attr=n == name ? Attr.create("selected", "selected") : Attr.many([]),
+    ~attrs=n == name ? [Attr.create("selected", "selected")] : [],
     [text(n)],
   );
 
@@ -24,12 +24,13 @@ let indicator_n = (cur_slide, num_slides) => [
 
 let indicator_select = (~signal: int => 'a, cur_slide, names) => [
   select(
-    ~attr=
+    ~attrs=[
       Attr.on_change((_, name) =>
         signal(
           ListUtil.findi_opt(n => n == name, names) |> Option.get |> fst,
         )
       ),
+    ],
     List.mapi(
       (i, name) => option_view(i == cur_slide ? name : name ++ "+", name),
       names,

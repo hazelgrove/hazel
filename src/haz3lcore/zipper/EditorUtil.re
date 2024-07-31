@@ -49,6 +49,7 @@ let rec append_exp = (e1: Exp.t, e2: Exp.t): Exp.t => {
     | MultiHole(_)
     | DynamicErrorHole(_)
     | FailedCast(_)
+    | Undefined
     | Deferral(_)
     | Bool(_)
     | Int(_)
@@ -98,7 +99,7 @@ let wrap_filter = (act: FilterAction.action, term: UExp.t): UExp.t =>
         Filter({
           act: FilterAction.(act, One),
           pat: {
-            term: Constructor("$e"),
+            term: Constructor("$e", Unknown(Internal) |> Typ.fresh),
             copied: false,
             ids: [Id.mk()],
           },
