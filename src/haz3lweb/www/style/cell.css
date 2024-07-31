@@ -67,7 +67,7 @@
 .title-cell .title-text {
   font-size: 1.5rem;
   font-weight: bold;
-  color: var(--base-text-color);
+  color: var(--MISC0);
 }
 
 .cell-prompt {

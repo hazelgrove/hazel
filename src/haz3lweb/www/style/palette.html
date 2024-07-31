@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hazel Palette</title>
+    <style>
+      :root {
+        /* REDS */
+        --R0: oklch(85% 0.15 21);
+        --R1: oklch(60% 0.3 29);
+        --R2: oklch(40% 0.15 29);
+
+        /* GREENS */
+        --G0: oklch(70% 0.15 150);
+        --G1: oklch(75% 0.15 150);
+        --G2: oklch(80% 0.05 150);
+        --GB0: oklch(70% 0.05 120);
+        --GB1: oklch(45% 0.05 120);
+
+        /* YELLOWS */
+        --Y0: oklch(93% 0.11 95);
+        --Y1: oklch(88% 0.15 90);
+        --Y2: oklch(71% 0.15 80);
+
+        /* TANS */
+        --T0: oklch(99% 0.012 90);
+        --T1: oklch(97% 0.025 90);
+        --T2: oklch(95% 0.025 90);
+        --T3: oklch(93% 0.025 90);
+        --T4: oklch(91% 0.037 90);
+
+        /* BROWNS */
+        --BR0: oklch(0% 0.07 90);
+        --BR1: oklch(from var(--BR0) 90% c h);
+        --BR2: oklch(from var(--BR0) 75% c h);
+        --BR3: oklch(from var(--BR0) 60% c h);
+        --BR4: oklch(from var(--BR0) 50% c h);
+
+        /* MISC */
+        --MISC0: oklch(52% 0.03 220);
+        --MISC1: oklch(72% 0.055 90);
+        --MISC2: oklch(90% 0.065 74);
+        --MISC3: oklch(95% 0.05 90);
+
+        /* PATTERN BLUE */
+        --token-pat: oklch(60% 0.2 225);
+        --shard-caret-pat: oklch(90% 0.1 225);
+        --shard-pat: oklch(95% 0.05 225);
+
+        /* TYPE PURPLE */
+        --token-typ: oklch(60% 0.2 305);
+        --shard-caret-typ: oklch(90% 0.1 305);
+        --shard-typ: oklch(95% 0.05 305);
+
+        /* TYPE ALIAS SEAFOAM */
+        --token-tpat: oklch(60% 0.2 180);
+        --shard-caret-tpat: oklch(90% 0.1 180);
+        --shard-tpat: oklch(95% 0.05 180);
+
+        /* CODE HIGHLIGHTS */
+        --highlight-a: oklch(0.95 0.07 360);
+        --highlight-b: oklch(from var(--highlight-a) l c 240);
+        --highlight-c: oklch(from var(--highlight-a) l c 120);
+      }
+
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+
+      h1 {
+        text-align: center;
+      }
+
+      .columns {
+        display: flex;
+        justify-content: space-between;
+      }
+
+      .column {
+        width: 48%;
+      }
+
+      .color-group {
+        margin-bottom: 30px;
+        text-align: center;
+      }
+
+      h2 {
+        margin-bottom: 10px;
+      }
+
+      .color-palette {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+
+      .color-swatch {
+        width: 80px;
+        height: 80px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        color: black;
+        font-weight: bold;
+        font-size: 14px;
+      }
+
+      .color-swatch.dark {
+        color: white;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Hazel Palette</h1>
+
+    <div class="columns">
+      <div class="column">
+        <div class="color-group">
+          <h2>Tans</h2>
+          <div class="color-palette">
+            <div class="color-swatch" style="background-color: var(--T0)">T0</div>
+            <div class="color-swatch" style="background-color: var(--T1)">T1</div>
+            <div class="color-swatch" style="background-color: var(--T2)">T2</div>
+            <div class="color-swatch" style="background-color: var(--T3)">T3</div>
+            <div class="color-swatch" style="background-color: var(--T4)">T4</div>
+          </div>
+        </div>
+
+        <div class="color-group">
+          <h2>Browns</h2>
+          <div class="color-palette">
+            <div class="color-swatch" style="background-color: var(--BR1)">BR1</div>
+            <div class="color-swatch" style="background-color: var(--BR2)">BR2</div>
+            <div class="color-swatch dark" style="background-color: var(--BR3)">BR3</div>
+            <div class="color-swatch dark" style="background-color: var(--BR4)">BR4</div>
+          </div>
+        </div>
+
+        <div class="color-group">
+          <h2>Yellows</h2>
+          <div class="color-palette">
+            <div class="color-swatch" style="background-color: var(--Y0)">Y0</div>
+            <div class="color-swatch" style="background-color: var(--Y1)">Y1</div>
+            <div class="color-swatch" style="background-color: var(--Y2)">Y2</div>
+          </div>
+        </div>
+
+        <div class="color-group">
+          <h2>Greens</h2>
+          <div class="color-palette">
+            <div class="color-swatch" style="background-color: var(--G0)">G0</div>
+            <div class="color-swatch" style="background-color: var(--G1)">G1</div>
+            <div class="color-swatch" style="background-color: var(--G2)">G2</div>
+            <div class="color-swatch" style="background-color: var(--GB0)">GB0</div>
+            <div class="color-swatch dark" style="background-color: var(--GB1)">GB1</div>
+          </div>
+        </div>
+
+        <div class="color-group">
+          <h2>Reds</h2>
+          <div class="color-palette">
+            <div class="color-swatch" style="background-color: var(--R0)">R0</div>
+            <div class="color-swatch" style="background-color: var(--R1)">R1</div>
+            <div class="color-swatch dark" style="background-color: var(--R2)">R2</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="column">
+        <div class="color-group">
+          <h2>Misc</h2>
+          <div class="color-palette">
+            <div class="color-swatch dark" style="background-color: var(--MISC0)">MISC0</div>
+            <div class="color-swatch" style="background-color: var(--MISC1)">MISC1</div>
+            <div class="color-swatch" style="background-color: var(--MISC2)">MISC2</div>
+            <div class="color-swatch" style="background-color: var(--MISC3)">MISC3</div>
+          </div>
+        </div>
+
+        <div class="color-group">
+          <h2>Pattern Blue</h2>
+          <div class="color-palette">
+            <div class="color-swatch dark" style="background-color: var(--token-pat)">TK-PAT</div>
+            <div class="color-swatch" style="background-color: var(--shard-caret-pat)">SC-PAT</div>
+            <div class="color-swatch" style="background-color: var(--shard-pat)">SH-PAT</div>
+          </div>
+        </div>
+
+        <div class="color-group">
+          <h2>Type Purple</h2>
+          <div class="color-palette">
+            <div class="color-swatch dark" style="background-color: var(--token-typ)">TK-TYP</div>
+            <div class="color-swatch" style="background-color: var(--shard-caret-typ)">SC-TYP</div>
+            <div class="color-swatch" style="background-color: var(--shard-typ)">SH-TYP</div>
+          </div>
+        </div>
+
+        <div class="color-group">
+          <h2>Type Alias Seafoam</h2>
+          <div class="color-palette">
+            <div class="color-swatch dark" style="background-color: var(--token-tpat)">TK-TPAT</div>
+            <div class="color-swatch" style="background-color: var(--shard-caret-tpat)">SC-TPAT</div>
+            <div class="color-swatch" style="background-color: var(--shard-tpat)">SH-TPAT</div>
+          </div>
+        </div>
+
+        <div class="color-group">
+          <h2>Code Highlights</h2>
+          <div class="color-palette">
+            <div class="color-swatch" style="background-color: var(--highlight-a)">HL-A</div>
+            <div class="color-swatch" style="background-color: var(--highlight-b)">HL-B</div>
+            <div class="color-swatch" style="background-color: var(--highlight-c)">HL-C</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

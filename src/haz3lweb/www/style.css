@@ -30,7 +30,7 @@ select {
   cursor: pointer;
   font-family: inherit;
   font-size: inherit;
-  color: var(--ui-text-accent);
+  color: var(--select-text);
 }
 
 :root {
@@ -71,7 +71,7 @@ select {
   display: grid;
   grid-template: 2em minmax(0, 1fr) 2em / 1fr fit-content(18em);
   background-color: var(--light-page-color);
-  color: var(--base-text-color);
+  color: var(--MISC0);
   user-select: none;
 }
 
@@ -91,7 +91,7 @@ select {
 #side-bar {
   grid-row: 2 / span 1;
   grid-column: 2 / span 1;
-  border-left: 0.6px solid var(--subdued-accent);
+  border-left: 0.6px solid var(--BR2);
   overflow-y: scroll;
   overflow-x: hidden;
   width: max-content;
@@ -103,7 +103,7 @@ select {
   z-index: var(--top-bar-z);
   display: flex;
   align-items: center;
-  border-bottom: 0.6px solid var(--subdued-accent);
+  border-bottom: 0.6px solid var(--BR2);
 }
 
 #bottom-bar {
@@ -115,7 +115,7 @@ select {
   justify-content: space-between;
   align-items: stretch;
   background-color: var(--bottom-bar-bkg);
-  outline: 0.6px solid var(--subdued-accent);
+  outline: 0.6px solid var(--BR2);
 }
 
 /* ZEN MODE */
@@ -194,7 +194,7 @@ select {
 }
 
 #page.bottom-bar-hidden #bottom-bar:has(*:hover) .ci-header {
-  outline: 0.6px solid var(--subdued-accent);
+  outline: 0.6px solid var(--BR2);
   padding: 0em 0.6em 0em 0em;
 }
 
@@ -206,7 +206,7 @@ select {
 #page.bottom-bar-hidden #bottom-bar:hover,
 #page.bottom-bar-hidden #bottom-bar:has(*:hover) {
   background-color: var(--bottom-bar-bkg);
-  outline: 0.6px solid var(--subdued-accent);
+  outline: 0.6px solid var(--BR2);
 }
 
 #page.top-bar-hidden.bottom-bar-hidden #main {

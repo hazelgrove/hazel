@@ -52,7 +52,7 @@
 }
 
 #cursor-inspector .ci-header {
-  outline: 0.6px solid var(--subdued-accent);
+  outline: 0.6px solid var(--BR2);
   padding: 0em 0.6em 0em 0em;
   border-radius: 0 1.1em 0 0;
   display: flex;
@@ -85,19 +85,19 @@
 }
 #cursor-inspector .ci-header.Pat {
   background-color: var(--shard-pat);
-  color: var(--shadow-pat);
+  color: var(--token-pat);
 }
 #cursor-inspector .ci-header.Typ {
   background-color: var(--shard-typ);
-  color: var(--shadow-typ);
+  color: var(--token-typ);
 }
 #cursor-inspector .ci-header.Rul {
   background-color: var(--shard-rul);
-  color: var(--rul-shadow-color);
+  color: var(--token-rul);
 }
 #cursor-inspector .ci-header.TPat {
   background-color: var(--shard-tpat);
-  color: var(--shadow-tpat);
+  color: var(--token-tpat);
 }
 
 #cursor-inspector .term-tag {
