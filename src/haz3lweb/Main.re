@@ -2,7 +2,6 @@ open Util;
 open Js_of_ocaml;
 open Incr_dom;
 open Haz3lweb;
-
 let scroll_to_caret = ref(true);
 let edit_action_applied = ref(true);
 let last_edit_action = ref(JsUtil.timestamp());
@@ -76,6 +75,7 @@ module App = {
   module State = State;
 
   let on_startup = (~schedule_action, m: Model.t) => {
+    Brr_poke.define();
     let _ =
       observe_font_specimen("font-specimen", fm =>
         schedule_action(Haz3lweb.Update.SetMeta(FontMetrics(fm)))

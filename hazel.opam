@@ -8,6 +8,7 @@ homepage: "https://github.com/hazelgrove/hazel"
 bug-reports: "https://github.com/hazelgrove/hazel/issues"
 depends: [
   "dune" {>= "3.16"}
+  "brr"
   "ocaml" {>= "5.2.0"}
   "menhir" {>= "2.0"}
   "yojson"

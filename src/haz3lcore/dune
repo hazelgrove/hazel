@@ -15,7 +15,7 @@
 (env
  (dev
   (js_of_ocaml
-   (flags :standard --debuginfo --noinline --dynlink --linkall --sourcemap)))
+   (flags :standard --toplevel --debuginfo --noinline --dynlink --linkall --sourcemap)))
  (release
   (js_of_ocaml
    (flags :standard))))
