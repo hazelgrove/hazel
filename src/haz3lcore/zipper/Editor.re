@@ -2,13 +2,13 @@ open Util;
 
 module CachedStatics = {
   type t = {
-    term: Term.UExp.t,
+    term: UExp.t,
     info_map: Statics.Map.t,
     error_ids: list(Id.t),
   };
 
   let empty: t = {
-    term: Term.UExp.{ids: [Id.invalid], term: Triv},
+    term: UExp.{ids: [Id.invalid], copied: false, term: Tuple([])},
     info_map: Id.Map.empty,
     error_ids: [],
   };
@@ -43,7 +43,7 @@ module CachedSyntax = {
     tiles: TileMap.t,
     holes: list(Grout.t),
     selection_ids: list(Id.t),
-    term: Term.UExp.t,
+    term: UExp.t,
     term_ranges: TermRanges.t,
     terms: TermMap.t,
     projectors: Id.Map.t(Base.projector),

@@ -9,4 +9,4 @@ module HoleReason = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | NotInVarHole
-  | InVarHole(HoleReason.t, MetaVar.t);
+  | InVarHole(HoleReason.t, Id.t);
