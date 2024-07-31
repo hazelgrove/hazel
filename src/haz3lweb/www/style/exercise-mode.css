@@ -12,12 +12,12 @@
 }
 
 #main.Exercises .cell {
-  border-left: 1px solid var(--subdued-accent);
+  border-left: 1px solid var(--cell-exercises-border);
 }
 
 #main.Exercises .cell.selected {
   border-left: 1px solid var(--cell-selected-accent);
-  background-color: var(--active-cell-bkg);
+  background-color: var(--cell-active);
 }
 
 .cell-report {
@@ -160,7 +160,7 @@
 
 .test-percent.all-pass {
   background-color: var(--test-pass);
-  color: var(--light-accent-text);
+  color: var(--test-percent-text);
   animation: jello 1s ease 0s 1 normal none;
 }
 

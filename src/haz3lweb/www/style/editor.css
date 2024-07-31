@@ -21,25 +21,25 @@
 /* TOKEN COLORS */
 
 .code .token.Nul {
-  color: var(--nul-token-color);
+  color: var(--token-nul);
 }
 .code .token.Any {
-  color: var(--any-token-color);
+  color: var(--token-any);
 }
 .code .token.Exp {
-  color: var(--exp-token-color);
+  color: var(--token-exp);
 }
 .code .token.Pat {
-  color: var(--pat-token-color);
+  color: var(--token-pat);
 }
 .code .token.Typ {
-  color: var(--typ-token-color);
+  color: var(--token-typ);
 }
 .code .token.Rul {
-  color: var(--rul-token-color);
+  color: var(--token-rul);
 }
 .code .token.TPat {
-  color: var(--tpat-token-color);
+  color: var(--token-tpat);
 }
 
 .code .token.poly {
@@ -51,7 +51,7 @@
 }
 
 .code .token.in-buffer {
-  color: var(--buffer-token);
+  color: var(--token-buffer);
 }
 
 .code .token.sort-inconsistent {
@@ -63,22 +63,20 @@
 }
 
 .code .token.explicit-hole {
-  color: var(--explicit-hole-fill) !important;
+  color: var(--token-explicit-hole) !important;
   text-shadow: 1px 1px 0px var(--explicit-hole-shadow);
-}
-
-.code .secondary {
-  color: var(--token-secondary);
-  opacity: 20%;
 }
 
 .code .comment {
   color: var(--token-comment);
 }
 
+.code .whitespace {
+  color: var(--token-secondary);
+}
+
 .code .linebreak {
   color: var(--token-secondary);
-  opacity: 20%;
   font-family: system-ui;
   vertical-align: middle;
   font-size: 0.59em;
@@ -91,45 +89,45 @@ svg.shard > path {
 }
 
 svg.shard.indicated.Nul > path {
-  fill: var(--nul-shard-color);
+  fill: var(--shard-nul);
   filter: url(#drop-shadow-Nul);
 }
 svg.shard.indicated.Any > path {
-  fill: var(--any-shard-color);
+  fill: var(--shard-any);
   filter: url(#drop-shadow-Any);
 }
 svg.shard.indicated.Exp > path {
-  fill: var(--exp-shard-color);
+  fill: var(--shard-exp);
   filter: url(#drop-shadow-Exp);
 }
 svg.shard.indicated.Pat > path {
-  fill: var(--pat-shard-caret-color);
+  fill: var(--shard-caret-pat);
   filter: url(#drop-shadow-Pat);
 }
 svg.shard.indicated.Typ > path {
-  fill: var(--typ-shard-caret-color);
+  fill: var(--shard-caret-typ);
   filter: url(#drop-shadow-Typ);
 }
 svg.shard.indicated.Rul > path {
-  fill: var(--rul-shard-color);
+  fill: var(--shard-rul);
   filter: url(#drop-shadow-Rul);
 }
 svg.shard.indicated.TPat > path {
-  fill: var(--tpat-shard-caret-color);
+  fill: var(--shard-caret-tpat);
   filter: url(#drop-shadow-TPat);
 }
 
 svg.shard.indicated.caret.Exp > path {
-  fill: var(--exp-shard-caret-color);
+  fill: var(--shard-exp-caret);
 }
 svg.shard.indicated.caret.Pat > path {
-  fill: var(--pat-shard-color);
+  fill: var(--shard-pat);
 }
 svg.shard.indicated.caret.Typ > path {
-  fill: var(--typ-shard-color);
+  fill: var(--shard-typ);
 }
 .svg.shard.indicated.caret.TPat > path {
-  fill: var(--tpat-shard-color);
+  fill: var(--shard-tpat);
 }
 
 svg.shard.indicated {
@@ -143,13 +141,13 @@ svg.shard.error {
 }
 
 svg.shard.selected > path {
-  fill: var(--selection-color);
+  fill: var(--shard-selected);
   stroke-width: 0.5px;
-  stroke: var(--selection-color);
+  stroke: var(--shard-selected);
   filter: url(#drop-shadow-Nul);
 }
 svg.shard.selected.buffer > path {
-  fill: var(--buffer-bkg);
+  fill: var(--shard-buffer);
   stroke-width: 0;
   filter: none;
 }
@@ -170,25 +168,25 @@ svg.shard.error > path {
 }
 
 #drop-shadow-Nul .tile-drop-shadow {
-  flood-color: var(--nul-shadow-color);
+  flood-color: var(--shadow-nul);
 }
 #drop-shadow-Any .tile-drop-shadow {
-  flood-color: var(--any-shadow-color);
+  flood-color: var(--shadow-any);
 }
 #drop-shadow-Exp .tile-drop-shadow {
   flood-color: var(--exp-shadow-color);
 }
 #drop-shadow-Pat .tile-drop-shadow {
-  flood-color: var(--pat-shadow-color);
+  flood-color: var(--shadow-pat);
 }
 #drop-shadow-Typ .tile-drop-shadow {
-  flood-color: var(--typ-shadow-color);
+  flood-color: var(--shadow-typ);
 }
 #drop-shadow-Rul .tile-drop-shadow {
   flood-color: var(--rul-shadow-color);
 }
 #drop-shadow-TPat .tile-drop-shadow {
-  flood-color: var(--tpat-shadow-color);
+  flood-color: var(--shadow-tpat);
 }
 
 /* EMPTY HOLE DECO */
@@ -228,25 +226,25 @@ svg.shard.error > path {
 }
 
 .child-line.Nul {
-  stroke: var(--nul-shadow-color);
+  stroke: var(--shadow-nul);
 }
 .child-line.Any {
-  stroke: var(--any-shadow-color);
+  stroke: var(--shadow-any);
 }
 .child-line.Exp {
   stroke: var(--exp-shadow-color);
 }
 .child-line.Pat {
-  stroke: var(--pat-shadow-color);
+  stroke: var(--shadow-pat);
 }
 .child-line.Typ {
-  stroke: var(--typ-shadow-color);
+  stroke: var(--shadow-typ);
 }
 .child-line.Rul {
   stroke: var(--rul-shadow-color);
 }
 .child-line.TPat {
-  stroke: var(--tpat-shadow-color);
+  stroke: var(--shadow-tpat);
 }
 
 /* BACKPACK DECO */

@@ -4,7 +4,6 @@
   display: flex;
   align-items: stretch;
   gap: 0.5em;
-  color: var(--ui-text-accent);
 }
 
 #cursor-inspector.no-info {
@@ -12,7 +11,7 @@
 }
 
 #cursor-inspector.error {
-  border-color: var(--err-color);
+  border-color: var(--R1);
 }
 
 #cursor-inspector .icon {
@@ -73,32 +72,32 @@
 }
 
 #cursor-inspector .ci-header.Nul {
-  background-color: var(--nul-shard-color);
-  color: var(--nul-shadow-color);
+  background-color: var(--shard-nul);
+  color: var(--shadow-nul);
 }
 #cursor-inspector .ci-header.Any {
-  background-color: var(--any-shard-color);
-  color: var(--any-shadow-color);
+  background-color: var(--shard-any);
+  color: var(--shadow-any);
 }
 #cursor-inspector .ci-header.Exp {
-  background-color: var(--exp-shard-color);
+  background-color: var(--shard-exp);
   color: var(--exp-shadow-color);
 }
 #cursor-inspector .ci-header.Pat {
-  background-color: var(--pat-shard-color);
-  color: var(--pat-shadow-color);
+  background-color: var(--shard-pat);
+  color: var(--shadow-pat);
 }
 #cursor-inspector .ci-header.Typ {
-  background-color: var(--typ-shard-color);
-  color: var(--typ-shadow-color);
+  background-color: var(--shard-typ);
+  color: var(--shadow-typ);
 }
 #cursor-inspector .ci-header.Rul {
-  background-color: var(--rul-shard-color);
+  background-color: var(--shard-rul);
   color: var(--rul-shadow-color);
 }
 #cursor-inspector .ci-header.TPat {
-  background-color: var(--tpat-shard-color);
-  color: var(--tpat-shadow-color);
+  background-color: var(--shard-tpat);
+  color: var(--shadow-tpat);
 }
 
 #cursor-inspector .term-tag {
@@ -118,6 +117,7 @@
   align-items: center;
   gap: 0.5em;
   white-space: nowrap;
+  color: var(--ci-status-text);
 }
 
 #cursor-inspector .status.error {

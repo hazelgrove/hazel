@@ -19,14 +19,14 @@
 }
 .projector > svg {
   z-index: 4;
-  fill: var(--projectors-bkg);
+  fill: var(--shard_projector);
 }
 .projector.block > svg {
   stroke-width: 0.5px;
   stroke: var(--subdued-accent);
 }
 .projector.indicated > svg {
-  fill: var(--exp-shard-caret-color);
+  fill: var(--shard-exp-caret);
 }
 .projector > svg > path {
   vector-effect: non-scaling-stroke;
@@ -38,7 +38,7 @@
 .projector.selected > svg,
 .projector.selected.indicated > svg,
 .projector.block.selected.indicated > svg {
-  fill: var(--selection-color);
+  fill: var(--shard-selected);
 }
 
 /* PROJECTOR: FOLD */
@@ -54,7 +54,7 @@
 /* PROJECTOR: INFO */
 
 .projector.type .type {
-  color: var(--typ-token-color);
+  color: var(--token-typ);
 }
 .projector.type {
   cursor: pointer;
@@ -160,5 +160,5 @@
 
 .projector.text textarea::selection {
   color: black;
-  background-color: var(--selection-color);
+  background-color: var(--shard-selected);
 }

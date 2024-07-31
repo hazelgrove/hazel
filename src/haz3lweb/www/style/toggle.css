@@ -9,7 +9,7 @@
   height: 1.2em;
   width: 2em;
   display: inline-block;
-  background-color: var(--exp-shard-color);
+  background-color: var(--shard-exp);
   border-radius: 2em;
   cursor: pointer;
   border: solid 1px #dccfad;

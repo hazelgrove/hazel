@@ -20,8 +20,6 @@
   border: none;
   padding: 0;
   width: 4.5em;
-  text-transform: capitalize;
-  color: var(--ui-text-accent);
 }
 
 #projectors option {

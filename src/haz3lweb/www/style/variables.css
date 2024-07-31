@@ -4,145 +4,167 @@
   --code-font: "Source Code Pro", monospace;
   --ui-font: "Helvetica Neue";
 
-  /* UI COLORS */
-
   /* GREYS */
-  
+
   --base-text-color: #586e75;
-  --menu-item-color: var(--base-text-color);
   --menu-divider: #0006;
   --main-scroll-track: #0000;
   --explicit-hole-shadow: black;
 
+  /* PALETTE */
+
+  --R0: #ff8a8a;
+  --R1: #ff0000;
+  --R2: #7d0000;
+
+  --Y0: #fae294;
+  --Y1: #ffd04f;
+  --Y2: #ce9600;
+
+  --T1: #fffcf3;
+  --T2: #f6eedc;
+  --T3: #efe7d6;
+  --T4: #ebdfc5;
+
   /* GREENS */
-
   --primary-accent: #4fad66;
-  --test-pass: var(--primary-accent);
-  --test-pass-active: #cfd;
-  --step-hole-color: var(--primary-accent);
+  --primary-light: #69c680;
   --token-comment: #a0c1aa;
+  --nut-menu-active: #98a379;
+  --nut-menu: #555f38;
 
-  /* REDS */
-
-  --err-color: red;
-  --cell-selected-accent: red;
-  --caret-color: #f62116;
-  --ci-status-error-text: #bf0101;
-  --error-hole-stroke: #ff000087;
-  --eval-exception-stroke: #7d0000;
-  --test-fail-active: #ff8a8a;
   --error-hole-fill: #ff00000a;
+  --menu-shadow: #77580255;
 
-  --test-fail: var(--err-color);
-  --eval-exception: var(--test-fail-active);
-  --ci-status-error-bkg: var(--test-fail-active);
+  --shard-exp-caret: #feddb3; /* EXP */
+  --exp-shadow-color: #b1a47f; /* EXP */
+  --other-accent: #e4d6a6;
+  --subdued-accent: #c7b480;
+  --string-lit-color: #cda56a;
 
-  --nul-token-color: red;
-  --nul-shadow-color: red;
-  --nul-shard-color: #ffacac;
+  --menu-bkg: #f7ebc5;
+  --menu-item-hover-bkg: #fdf6e3;
+  --ci-icon-bkg: #857548;
+  --ui-text-accent: #6c5c2e;
 
-  --any-token-color: var(--nul-token-color);
-  --any-shadow-color: var(--nul-shadow-color);
-  --any-shard-color: var(--nul-shard-color);
-
-  /* HIGHLIGHTS */
 
   --code-highlight-a: rgb(255 0 255 / 20%);
   --code-highlight-b: rgb(0 255 255 / 40%);
   --code-highlight-c: rgb(0 255 0 / 20%);
 
-  --nut-menu: #555f38;
-  --nut-menu-active: #98a379;
+  --token-pat: #169fdc;
+  --shard-pat: #b2e8ff;
+  --shard-caret-pat: #d7f3ff;
+  --shadow-pat: #13aed2;
 
-  --menu-shadow: #77580255;
+  --token-typ: #772cff;
+  --shard-typ: #f2ccff;
+  --shard-caret-typ: #f9e8ff;
+  --shadow-typ: #975dff;
 
-  --exp-token-color: var(--base-text-color); /* EXP TOKEN */
-  
-  /* EARTHTONES */
+  --token-tpat: #16c8dc;
+  --shard-tpat: #b2fbff;
+  --shard-caret-tpat: #d7fff7;
+  --shadow-tpat: #13d2d2;
 
-  --light-accent-text: #fffcf3;
-  --active-cell-bkg: #fffcf3;
-  --menu-item-hover-bkg: #fdf6e3;
-  --projectors-bkg: #f6eedc;
-  --main-bkg: #efe7d6;
-  --exp-shard-color: #ebdfc5; /* EXP TOKEN */
-  --menu-bkg: #f7ebc5;
-  --accent-hole-stroke: #dbcca7;
-  --other-accent: #e4d6a6;
-  --selection-color: #fae294;
-  --explicit-hole-fill: #ffd04f;
-  --code-emphasis: #ce9600;
-  --string-lit-color: #cda56a;
-  --exp-shard-caret-color: #feddb3; /* EXP TOKEN */
-  --subdued-accent: #c7b480;
-  --top-bar-text: #a79f89;
-  --exp-shadow-color: #b1a47f; /* EXP TOKEN */
-  --ui-text-accent-light: #a69460;
-  --ci-icon-bkg: #857548;
-  --ui-text-accent: #6c5c2e;
-  --token-secondary: #7e5000;
-  
-  --light-page-color: var(--menu-item-hover-bkg);
+  /* CODE BACKGROUND */
 
-  --token-inconsistent: var(--top-bar-text);
-  --token-incomplete: var(--code-emphasis);
+  --main-bkg: var(--T3);
+  --light-page-color: var(--menu-item-hover-bkg); /* TODO */
+  --cell-active: var(--T1);
+  --main-scroll-thumb: var(--other-accent);
+  --cell-selected-accent: var(--R1);
 
-  --empty-hole-stroke: var(--accent-hole-stroke);
+  /* CODE DECO */
+
+  --caret-color: var(--R1);
+  --error-hole-stroke: var(--R1);
+
+  /* CODE TOKENS */
+
+  --token-buffer: var(--other-accent);
+  --token-secondary: var(--shard-exp);
+  --token-explicit-hole: var(--Y1);
+  --token-incomplete: var(--Y2);
+  --token-inconsistent: var(--exp-shadow-color);
+
+  --token-exp: var(--base-text-color); /* EXP */
+  --token-rul: var(--token-exp);
+
+  --token-nul: var(--R1);
+  --token-any: var(--token-nul);
+
+  /* CODE SHARDS */
+
+  --shard-selected: var(--Y0);
+
+  --shard-exp: var(--T4); /* EXP */
+
+  --shard-rul: var(--shard-exp);
+  --rul-shadow-color: var(--exp-shadow-color);
+
+  --shard-nul: var(--R0);
+  --shadow-nul: var(--R1);
+
+  --shard-any: var(--shard-nul);
+  --shadow-any: var(--shadow-nul);
+
+  --shard-buffer: var(--light-page-color);
+  --shard_projector: var(--T2);
+
+  --empty-hole-stroke: var(--other-accent);
   --empty-hole-fill: var(--menu-bkg);
 
-  --buffer-bkg: var(--light-page-color);
-  --buffer-token: var(--accent-hole-stroke);
+  /* BACKPACK DECO */
 
-  --backpack-selection: var(--selection-color);
+  --backpack-selection: var(--shard-selected);
   --backpack-joiner: var(--backpack-selection);
   --backpack-genie: var(--backpack-selection);
   --backpack-selection-outline: var(--light-page-color);
-  --backback-targets: var(--code-emphasis);
+  --backback-targets: var(--Y2);
 
-  --main-scroll-thumb: var(--accent-hole-stroke);
+  /* Dynamics */
 
-  --test-panel-bkg: var(--menu-bkg);
-  --cell-result: var(--main-bkg);
   --cell-result-text: var(--ui-text-accent);
-  --cell-result-border: var(--accent-hole-stroke);
-  --cell-result-hidden: var(--other-accent); /* what is this ? */
-
-  --test-indet: var(--subdued-accent);
-  --test-indet-active: var(--other-accent);
+  --cell-result-border: var(--other-accent);
+  --cell-result-hidden: var(--other-accent); /* ?? */
+  --eval-exception: var(--test-fail-active);
+  --eval-exception-stroke: var(--R2);
+  --step-hole-color: var(--primary-accent);
 
   /* Non-code UI */
 
-  --bottom-bar-bkg: var(--menu-bkg);
-  
+  --editor-mode-text: var(--ui-text-accent);
+
   --menu-item-text: var(--base-text-color);
   --menu-scroll-track: var(--other-accent);
   --menu-scroll-thumb: var(--subdued-accent);
   --menu-outline: var(--subdued-accent);
-  --menu-icon: var(--ui-text-accent-light);
+  --menu-icon: var(--exp-shadow-color);
 
-  --editor-mode-text: var(--ui-text-accent);
+  --bottom-bar-bkg: var(--menu-bkg);
+  --ci-status-text: var(--ui-text-accent);
+  --ci-status-error-text: var(--R2);
+  --ci-status-error-bkg: var(--test-fail-active);
   --context-inspector-colon: var(--subdued-accent);
 
-  /* OTHER SORT COLORS */
+  --explain-this-title: var(--exp-shadow-color);
+  --explain-this-expander: var(--exp-shadow-color);
 
-  --rul-token-color: var(--exp-token-color);
-  --rul-shadow-color: var(--exp-shadow-color);
-  --rul-shard-color: var(--exp-shard-color);
+  /* Non-code UI - Exercises Mode */
 
-  --pat-token-color: #169fdc;
-  --pat-shadow-color: #13aed2;
-  --pat-shard-color: #b2e8ff;
-  --pat-shard-caret-color: #d7f3ff;
+  --cell-caption: var(--exp-shadow-color);
+  --cell-result: var(--T3);
+  --cell-exercises-border: var(--subdued-accent);
+  --test-panel-bkg: var(--menu-bkg);
+  --test-percent-text: var(--T1);
 
-  --tpat-token-color: #16c8dc;
-  --tpat-shadow-color: #13d2d2;
-  --tpat-shard-color: #b2fbff;
-  --tpat-shard-caret-color: #d7fff7;
-
-  --typ-token-color: #772cff;
-  --typ-shadow-color: #975dff;
-  --typ-shard-color: #f2ccff;
-  --typ-shard-caret-color: #f9e8ff;
+  --test-pass: var(--primary-accent);
+  --test-pass-active: var(--primary-light);
+  --test-fail: var(--R1);
+  --test-fail-active: var(--R0);
+  --test-indet: var(--subdued-accent);
+  --test-indet-active: var(--other-accent);
 
   /* Z-STACK */
 
