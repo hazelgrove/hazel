@@ -1,4 +1,3 @@
-open Sexplib.Std;
 open Util;
 open PatternMatch;
 open DH;
@@ -689,6 +688,7 @@ module Transition = (EV: EV_MODE) => {
           d1,
         );
       Indet;
+    | Undefined
     | EmptyHole(_)
     | FreeVar(_)
     | InvalidText(_)

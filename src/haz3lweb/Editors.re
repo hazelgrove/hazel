@@ -1,6 +1,5 @@
-open Sexplib.Std;
-open Haz3lcore;
 open Util;
+open Haz3lcore;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type scratch = (int, list(ScratchSlide.state));

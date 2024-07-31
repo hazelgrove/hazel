@@ -1,4 +1,4 @@
-open Sexplib.Std;
+open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
@@ -16,7 +16,7 @@ type t =
   | Cons(t, t)
   | TupLabel(LabeledTuple.t, t)
   | Tuple(list(t))
-  | Constructor(string)
+  | Constructor(string, Typ.t)
   | Ap(t, t);
 
 let mk_tuple: list(t) => t =

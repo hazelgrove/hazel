@@ -1,4 +1,4 @@
-open Sexplib.Std;
+open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
@@ -134,6 +134,7 @@ let of_ap = (ctx, mode, ctr: option(Constructor.t), arg: t, syn_ty): t =>
     switch (ty) {
     | Some(ty) =>
       switch (Typ.weak_head_normalize(ctx, ty)) {
+      | Rec(_, Sum(map))
       | Sum(map) =>
         let num_variants = ConstructorMap.cardinal(map);
         switch (ConstructorMap.nth(map, name)) {

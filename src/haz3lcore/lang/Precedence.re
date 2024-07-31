@@ -1,4 +1,3 @@
-open Sexplib.Std;
 open Util;
 
 /**
@@ -25,7 +24,6 @@ let ann = 13;
 let if_ = 14;
 let fun_ = 15;
 let lab = 16;
-let prod = 17;
 let semi = 18;
 let let_ = 19;
 let filter = 20;
@@ -34,7 +32,13 @@ let rule_pre = 22;
 let rule_sep = 23;
 let case_ = 24;
 
-let min = 25;
+let comma = 17;
+
+let type_plus = 5;
+let type_arrow = 6;
+let type_prod = comma;
+
+let min = 26;
 
 let compare = (p1: t, p2: t): int =>
   (-1) * Int.compare((p1 :> int), (p2 :> int));
@@ -50,6 +54,7 @@ let associativity_map: IntMap.t(Direction.t) =
     (ann, Left),
     (eqs, Left),
     (dot, Left),
+    (type_arrow, Right),
   ]
   |> List.to_seq
   |> IntMap.of_seq;
