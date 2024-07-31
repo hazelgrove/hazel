@@ -47,7 +47,7 @@
 }
 
 .cell.selected .cell-item:first-child {
-  background-color: var(--active-cell-bkg);
+  background-color: var(--cell-active);
 }
 
 .cell-item:first-child {
@@ -75,7 +75,7 @@
 }
 
 .cell-caption {
-  color: var(--top-bar-text);
+  color: var(--cell-caption);
 }
 
 /* DOCUMENTATION SLIDES */
@@ -86,7 +86,7 @@
 }
 
 #slide {
-  background-color: var(--active-cell-bkg);
+  background-color: var(--cell-active);
   padding: 1em;
 }
 

@@ -5,12 +5,12 @@
   padding: 0 0.85em 0 0.75em;
   border-radius: 0 0 1em 0;
   background-color: var(--primary-accent);
-  color: var(--active-cell-bkg);
+  color: var(--cell-active);
 }
 
 #top-bar .wrap:has(#title) {
   height: 100%;
-  background-color: var(--exp-shard-color);
+  background-color: var(--shard-exp);
 }
 #top-bar .wrap:has(.nut-icon) {
   background-color: var(--primary-accent);
@@ -131,7 +131,7 @@
 
 #top-bar .nut-menu .icon > svg,
 #top-bar .nut-menu .icon > a > svg {
-  fill: var(--active-cell-bkg)
+  fill: var(--cell-active)
 }
 
 #top-bar .submenu .icon > svg,
@@ -235,7 +235,7 @@
   gap: 0.5em;
   padding: 0 0.75em;
   border-radius: 0 0 1em 0;
-  background-color: var(--exp-shard-color);
+  background-color: var(--shard-exp);
   color: var(--subdued-accent);
   border-right: 0.6px solid var(--subdued-accent);
   border-bottom: 0.6px solid var(--subdued-accent);
@@ -279,5 +279,4 @@
   padding: 0;
   text-transform: lowercase;
   padding: 0 0.5em;
-  color: var(--ui-text-accent);
 }

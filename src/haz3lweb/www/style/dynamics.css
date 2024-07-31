@@ -148,12 +148,12 @@
 .DHCode svg.err-hole {
   fill: #d001;
   stroke-dasharray: 1, 1;
-  stroke: var(--err-color);
+  stroke: var(--R1);
   stroke-width: 1.2px;
 }
 
 .DHCode .InVarHole {
-  color: var(--err-color);
+  color: var(--R1);
 }
 
 .cell-result .DHCode .EmptyHole {
@@ -181,7 +181,7 @@
 }
 
 .DHCode .FailedCastDelim {
-  color: var(--err-color);
+  color: var(--R1);
 }
 
 .DHCode .CastDecoration {

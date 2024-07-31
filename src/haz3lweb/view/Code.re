@@ -45,7 +45,9 @@ let of_delim =
     i,
   ));
 
-let of_grout = [Node.text(Unicode.nbsp)];
+let space = " "; //Unicode.nbsp;
+
+let of_grout = [Node.text(space)];
 
 let of_secondary =
   Core.Memo.general(
@@ -54,12 +56,12 @@ let of_secondary =
       let str = secondary_icons ? Form.linebreak : "";
       [
         span_c("linebreak", [text(str)]),
-        Node.br(),
-        Node.text(StringUtil.repeat(indent, Unicode.nbsp)),
+        Node.text("\n"),
+        Node.text(StringUtil.repeat(indent, space)),
       ];
     } else if (String.equal(Secondary.get_string(content), Form.space)) {
-      let str = secondary_icons ? "·" : Unicode.nbsp;
-      [span_c("secondary", [text(str)])];
+      let str = secondary_icons ? "·" : space;
+      [span_c("whitespace", [text(str)])];
     } else if (Secondary.content_is_comment(content)) {
       [span_c("comment", [Node.text(Secondary.get_string(content))])];
     } else {

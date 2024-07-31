@@ -86,7 +86,7 @@
 #explain-this .section .section-title {
   text-transform: uppercase;
   font-weight: bold;
-  color: var(--ui-text-accent-light);
+  color: var(--explain-this-title);
   font-size: 0.8em;
 }
 
@@ -110,7 +110,7 @@
   height: 0;
   border-left: 6px solid transparent;
   border-right: 6px solid transparent;
-  border-top: 6px solid var(--ui-text-accent-light);
+  border-top: 6px solid var(--explain-this-expander);
 }
 #explain-this div.expandable-target:hover .arrow,
 #explain-this .arrow:hover {
@@ -120,7 +120,7 @@
 #explain-this svg.expandable {
   fill: none;
   stroke-dasharray: 3, 3;
-  stroke: var(--ui-text-accent-light);
+  stroke: var(--explain-this-expander);
   z-index: var(--err-hole-z);
 }
 
