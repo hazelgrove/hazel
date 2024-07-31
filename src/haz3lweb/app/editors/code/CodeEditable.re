@@ -2,7 +2,7 @@ open Js_of_ocaml;
 open Haz3lcore;
 open Virtual_dom.Vdom;
 type editor_id = string;
-open Sexplib.Std;
+open Util;
 
 module Model = CodeWithStatics.Model;
 
@@ -200,28 +200,26 @@ module View = {
 
   let mousedown_overlay = (~globals: Globals.t, ~inject) =>
     Node.div(
-      ~attr=
-        Attr.many(
-          Attr.[
-            id("mousedown-overlay"),
-            on_mouseup(_ => globals.inject_global(SetMousedown(false))),
-            on_mousemove(e => {
-              let mouse_handler =
-                e##.target |> Js.Opt.get(_, _ => failwith("no target"));
-              let text_box =
-                JsUtil.get_child_with_class(
-                  mouse_handler##.parentNode
-                  |> Js.Opt.get(_, _ => failwith(""))
-                  |> Js.Unsafe.coerce,
-                  "code-container",
-                )
-                |> Option.get;
-              let goal =
-                get_goal(~font_metrics=globals.font_metrics, text_box, e);
-              inject(Action.Select(Resize(Goal(Point(goal)))));
-            }),
-          ],
-        ),
+      ~attrs=
+        Attr.[
+          id("mousedown-overlay"),
+          on_mouseup(_ => globals.inject_global(SetMousedown(false))),
+          on_mousemove(e => {
+            let mouse_handler =
+              e##.target |> Js.Opt.get(_, _ => failwith("no target"));
+            let text_box =
+              JsUtil.get_child_with_class(
+                mouse_handler##.parentNode
+                |> Js.Opt.get(_, _ => failwith(""))
+                |> Js.Unsafe.coerce,
+                "code-container",
+              )
+              |> Option.get;
+            let goal =
+              get_goal(~font_metrics=globals.font_metrics, text_box, e);
+            inject(Action.Select(Resize(Goal(Point(goal)))));
+          }),
+        ],
       [],
     );
 
@@ -292,12 +290,11 @@ module View = {
     let on_mousedown =
       mousedown_handler(~globals, ~signal, ~inject=x => inject(Perform(x)));
     Node.div(
-      ~attr=
-        Attr.many([
-          Attr.classes(["cell-item"]),
-          Attr.classes(["code-editor"]),
-          Attr.on_mousedown(on_mousedown),
-        ]),
+      ~attrs=[
+        Attr.classes(["cell-item"]),
+        Attr.classes(["code-editor"]),
+        Attr.on_mousedown(on_mousedown),
+      ],
       mousedown_overlay @ [code_view],
     );
   };

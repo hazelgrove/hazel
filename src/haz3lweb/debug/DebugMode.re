@@ -27,13 +27,12 @@ let perform = (action: action): unit => {
 let btn = (caption, action) => {
   Node.(
     button(
-      ~attr=
-        Attr.many([
-          Attr.on_click(_ => {
-            perform(action);
-            Ui_effect.Ignore;
-          }),
-        ]),
+      ~attrs=[
+        Attr.on_click(_ => {
+          perform(action);
+          Ui_effect.Ignore;
+        }),
+      ],
       [text(caption)],
     )
   );

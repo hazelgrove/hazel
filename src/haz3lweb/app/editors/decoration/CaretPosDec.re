@@ -33,26 +33,23 @@ let view = (~font_metrics, {style, sort, measurement}: Profile.t) => {
     };
   Node.create_svg(
     "svg",
-    ~attr=
-      Attr.many([
-        Attr.class_(cls),
-        DecUtil.abs_position(~font_metrics, measurement.origin),
-        Attr.create("viewBox", Printf.sprintf("0 0 1 1")),
-        Attr.create("preserveAspectRatio", "none"),
-      ]),
+    ~attrs=[
+      Attr.class_(cls),
+      DecUtil.abs_position(~font_metrics, measurement.origin),
+      Attr.create("viewBox", Printf.sprintf("0 0 1 1")),
+      Attr.create("preserveAspectRatio", "none"),
+    ],
     [
       Node.create_svg(
         "rect",
-        ~attr=
-          Attr.many(
-            Attr.[
-              create("x", Printf.sprintf("%fpx", -. r_x)),
-              create("y", Printf.sprintf("%fpx", 0.1 -. r_y)),
-              create("width", Printf.sprintf("%fpx", 1. *. r_x)),
-              create("height", Printf.sprintf("%fpx", 1. *. r_y)),
-              Attr.classes(["caret-position-path", cls, c_cls]),
-            ],
-          ),
+        ~attrs=
+          Attr.[
+            create("x", Printf.sprintf("%fpx", -. r_x)),
+            create("y", Printf.sprintf("%fpx", 0.1 -. r_y)),
+            create("width", Printf.sprintf("%fpx", 1. *. r_x)),
+            create("height", Printf.sprintf("%fpx", 1. *. r_y)),
+            Attr.classes(["caret-position-path", cls, c_cls]),
+          ],
         [],
       ),
     ],

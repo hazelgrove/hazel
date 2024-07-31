@@ -50,13 +50,14 @@ let settings_menu =
       ~globals as
         {
           inject_global,
-          settings: {
-            core: {evaluation, _} as core,
-            benchmark,
-            secondary_icons,
-            explainThis,
-            _,
-          },
+          settings:
+            {
+              core: {evaluation, _} as core,
+              benchmark,
+              secondary_icons,
+              explainThis,
+              _,
+            },
           _,
         }: Globals.t,
     ) => {
@@ -129,13 +130,13 @@ let settings_menu =
 
 let submenu = (~tooltip, ~icon, menu) =>
   div(
-    ~attr=clss(["top-menu-item"]),
+    ~attrs=[clss(["top-menu-item"])],
     [
       div(
-        ~attr=Attr.many([clss(["submenu-icon"]), Attr.title(tooltip)]),
-        [div(~attr=clss(["icon"]), [icon])],
+        ~attrs=[clss(["submenu-icon"]), Attr.title(tooltip)],
+        [div(~attrs=[clss(["icon"])], [icon])],
       ),
-      div(~attr=clss(["submenu"]), menu),
+      div(~attrs=[clss(["submenu"])], menu),
     ],
   );
 
@@ -146,9 +147,9 @@ let view =
       ~inject: Editors.Update.t => 'a,
       ~editors: Editors.Model.t,
     ) => [
-  a(~attr=clss(["nut-icon"]), [Icons.hazelnut]),
+  a(~attrs=[clss(["nut-icon"])], [Icons.hazelnut]),
   div(
-    ~attr=clss(["nut-menu"]),
+    ~attrs=[clss(["nut-menu"])],
     [
       submenu(~tooltip="Settings", ~icon=Icons.gear, settings_menu(~globals)),
       submenu(

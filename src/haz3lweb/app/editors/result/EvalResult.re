@@ -295,24 +295,27 @@ module View = {
     let exn_view =
       switch (result) {
       | ResultFail(err) => [
-          div(~attr=Attr.classes(["error-msg"]), [text(error_msg(err))]),
+          div(
+            ~attrs=[Attr.classes(["error-msg"])],
+            [text(error_msg(err))],
+          ),
         ]
       | _ => []
       };
     Node.(
       div(
-        ~attr=Attr.classes(["cell-item", "cell-result"]),
+        ~attrs=[Attr.classes(["cell-item", "cell-result"])],
         exn_view
         @ [
           div(
-            ~attr=Attr.classes(["status", status_of(result)]),
+            ~attrs=[Attr.classes(["status", status_of(result)])],
             [
-              div(~attr=Attr.classes(["spinner"]), []),
-              div(~attr=Attr.classes(["eq"]), [text("≡")]),
+              div(~attrs=[Attr.classes(["spinner"])], []),
+              div(~attrs=[Attr.classes(["eq"])], [text("≡")]),
             ],
           ),
           div(
-            ~attr=Attr.classes(["result", status_of(result)]),
+            ~attrs=[Attr.classes(["result", status_of(result)])],
             [code_view],
           ),
         ]
@@ -375,10 +378,7 @@ module View = {
         |> Haz3lcore.TestStatus.to_string;
       let pos = DecUtil.abs_position(~font_metrics, last);
       Some(
-        Node.div(
-          ~attr=Attr.many([Attr.classes(["test-result", status]), pos]),
-          [],
-        ),
+        Node.div(~attrs=[Attr.classes(["test-result", status]), pos], []),
       );
     | _ => None
     };

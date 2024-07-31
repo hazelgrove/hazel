@@ -1,4 +1,4 @@
-open Sexplib.Std;
+open Util;
 open Haz3lcore;
 
 module type ExerciseEnv = {
@@ -438,7 +438,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
           Filter({
             act: FilterAction.(act, One),
             pat: {
-              term: Constructor("$e"),
+              term: Constructor("$e", Unknown(Internal) |> Typ.temp),
               copied: false,
               ids: [Id.mk()],
             },

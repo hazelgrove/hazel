@@ -7,10 +7,10 @@ let view =
       ~inject: Settings.Update.t => Ui_effect.t(unit),
       settings: CoreSettings.Evaluation.t,
     ) => {
-  let modal = div(~attr=Attr.many([Attr.class_("settings-modal")]));
+  let modal = div(~attrs=[Attr.class_("settings-modal")]);
   let setting = (icon, name, current, action: Settings.Update.t) =>
     div(
-      ~attr=Attr.many([Attr.class_("settings-toggle")]),
+      ~attrs=[Attr.class_("settings-toggle")],
       [
         Widgets.toggle(~tooltip=name, icon, current, _ => inject(action)),
         text(name),
@@ -19,7 +19,7 @@ let view =
   [
     modal([
       div(
-        ~attr=Attr.many([Attr.class_("settings-modal-top")]),
+        ~attrs=[Attr.class_("settings-modal-top")],
         [Widgets.button(Icons.x, _ => inject(Evaluation(ShowSettings)))],
       ),
       setting(
@@ -73,11 +73,10 @@ let view =
       ),
     ]),
     div(
-      ~attr=
-        Attr.many([
-          Attr.class_("modal-back"),
-          Attr.on_mousedown(_ => inject(Evaluation(ShowSettings))),
-        ]),
+      ~attrs=[
+        Attr.class_("modal-back"),
+        Attr.on_mousedown(_ => inject(Evaluation(ShowSettings))),
+      ],
       [],
     ),
   ];

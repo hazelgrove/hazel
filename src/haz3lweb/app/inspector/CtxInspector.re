@@ -3,7 +3,7 @@ open Node;
 open Util.Web;
 
 let alias_view = (s: string): Node.t =>
-  div(~attr=clss(["typ-alias-view"]), [text(s)]);
+  div(~attrs=[clss(["typ-alias-view"])], [text(s)]);
 
 let jump_to = entry =>
   Globals.Update.JumpToTile(Haz3lcore.Ctx.get_id(entry));
@@ -13,11 +13,7 @@ let context_entry_view =
   let view_type = CodeViewable.view_typ(~globals, ~inline=true);
   let div_name =
     div(
-      ~attr=
-        Attr.many([
-          clss(["name"]),
-          Attr.on_click(_ => inject(jump_to(entry))),
-        ]),
+      ~attrs=[clss(["name"]), Attr.on_click(_ => inject(jump_to(entry)))],
     );
   switch (entry) {
   | VarEntry({name, typ, _})
@@ -26,7 +22,7 @@ let context_entry_view =
       "context-entry",
       [
         div_name([text(name)]),
-        div(~attr=clss(["seperator"]), [text(":")]),
+        div(~attrs=[clss(["seperator"])], [text(":")]),
         view_type(typ),
       ],
     )
@@ -35,7 +31,7 @@ let context_entry_view =
       "context-entry",
       [
         div_name([alias_view(name)]),
-        div(~attr=clss(["seperator"]), [text("::")]),
+        div(~attrs=[clss(["seperator"])], [text("::")]),
         Kind.view(~globals, kind),
       ],
     )
@@ -44,7 +40,7 @@ let context_entry_view =
 
 let ctx_view = (~globals, ~inject, ctx: Haz3lcore.Ctx.t): Node.t =>
   div(
-    ~attr=clss(["context-entries"]),
+    ~attrs=[clss(["context-entries"])],
     List.map(
       context_entry_view(~globals, ~inject),
       ctx |> Haz3lcore.Ctx.filter_duplicates |> List.rev,
@@ -64,7 +60,7 @@ let view = (~globals: Globals.t, ci: Haz3lcore.Statics.Info.t): Node.t => {
       @ (globals.settings.context_inspector ? ["visible"] : []),
     );
   div(
-    ~attr=clss,
+    ~attrs=[clss],
     ctx_sorts_view(~globals, ~inject=globals.inject_global, ci),
   );
 };

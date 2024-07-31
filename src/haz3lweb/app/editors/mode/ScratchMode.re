@@ -1,5 +1,4 @@
 open Haz3lcore;
-open Sexplib.Std;
 open Util;
 
 module Model = {

@@ -1,4 +1,3 @@
-open Sexplib.Std;
 open Util;
 open OptUtil.Syntax;
 
@@ -677,8 +676,8 @@ let get_binding_site = (info: t): option(Id.t) => {
   | InfoExp({term: {term: Var(name), _}, ctx, _}) =>
     let+ entry = Ctx.lookup_var(ctx, name);
     entry.id;
-  | InfoExp({term: {term: Constructor(name), _}, ctx, _})
-  | InfoPat({term: {term: Constructor(name), _}, ctx, _}) =>
+  | InfoExp({term: {term: Constructor(name, _), _}, ctx, _})
+  | InfoPat({term: {term: Constructor(name, _), _}, ctx, _}) =>
     let+ entry = Ctx.lookup_ctr(ctx, name);
     entry.id;
   | InfoTyp({term: {term: Var(name), _}, ctx, _}) =>

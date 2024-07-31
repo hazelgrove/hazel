@@ -307,11 +307,10 @@ module View = {
       (~globals: Globals.t, ~inject: Update.t => 'a, ~editors: Model.t) => {
     let mode_menu = {
       div(
-        ~attr=
-          Attr.many([Attr.class_("mode-name"), Attr.title("Toggle Mode")]),
+        ~attrs=[Attr.class_("mode-name"), Attr.title("Toggle Mode")],
         [
           select(
-            ~attr=
+            ~attrs=[
               Attr.on_change(_ =>
                 fun
                 | "Scratch" => inject(Update.SwitchMode(Scratch))
@@ -319,6 +318,7 @@ module View = {
                 | "Exercises" => inject(Update.SwitchMode(Exercises))
                 | _ => failwith("Invalid mode")
               ),
+            ],
             List.map(
               SlideSelect.option_view(
                 switch (editors) {
@@ -356,6 +356,6 @@ module View = {
           m,
         )
       };
-    div(~attr=Attr.id("editor-mode"), [mode_menu] @ contents);
+    div(~attrs=[Attr.id("editor-mode")], [mode_menu] @ contents);
   };
 };

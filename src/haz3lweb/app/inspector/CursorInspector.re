@@ -6,11 +6,11 @@ open Haz3lcore;
 
 let errc = "error";
 let okc = "ok";
-let div_err = div(~attr=clss([errc]));
-let div_ok = div(~attr=clss([okc]));
+let div_err = div(~attrs=[clss([errc])]);
+let div_ok = div(~attrs=[clss([okc])]);
 
 let code_err = (code: string): Node.t =>
-  div(~attr=clss(["code"]), [text(code)]);
+  div(~attrs=[clss(["code"])], [text(code)]);
 
 let explain_this_toggle = (~globals: Globals.t): Node.t => {
   let tooltip = "Toggle language documentation";
@@ -20,7 +20,7 @@ let explain_this_toggle = (~globals: Globals.t): Node.t => {
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   div(
-    ~attr=clss(["explain-this-button"]),
+    ~attrs=[clss(["explain-this-button"])],
     [
       Widgets.toggle(
         ~tooltip,
@@ -33,28 +33,32 @@ let explain_this_toggle = (~globals: Globals.t): Node.t => {
 };
 
 let cls_view = (ci: Info.t): Node.t =>
-  div(~attr=clss(["syntax-class"]), [text(ci |> Info.cls_of |> Cls.show)]);
+  div(
+    ~attrs=[clss(["syntax-class"])],
+    [text(ci |> Info.cls_of |> Cls.show)],
+  );
 
 let ctx_toggle = (~globals: Globals.t): Node.t =>
   div(
-    ~attr=
-      Attr.many([
-        Attr.on_click(_ => globals.inject_global(Set(ContextInspector))),
-        clss(
-          ["gamma"] @ (globals.settings.context_inspector ? ["visible"] : []),
-        ),
-      ]),
+    ~attrs=[
+      Attr.on_click(_ => globals.inject_global(Set(ContextInspector))),
+      clss(
+        ["gamma"] @ (globals.settings.context_inspector ? ["visible"] : []),
+      ),
+    ],
     [text("Γ")],
   );
 
 let term_view = (~globals: Globals.t, ci) => {
   let sort = ci |> Info.sort_of |> Sort.show;
   div(
-    ~attr=clss(["ci-header", sort] @ (Info.is_error(ci) ? [errc] : [])),
+    ~attrs=[
+      clss(["ci-header", sort] @ (Info.is_error(ci) ? [errc] : [])),
+    ],
     [
       ctx_toggle(~globals),
       CtxInspector.view(~globals, ci),
-      div(~attr=clss(["term-tag"]), [text(sort)]),
+      div(~attrs=[clss(["term-tag"])], [text(sort)]),
       explain_this_toggle(~globals),
       cls_view(ci),
     ],
@@ -277,7 +281,7 @@ let secondary_view = (cls: Cls.t) => div_ok([text(cls |> Cls.show)]);
 
 let view_of_info = (~globals, ci): Node.t => {
   let wrapper = status_view =>
-    div(~attr=clss(["info"]), [term_view(~globals, ci), status_view]);
+    div(~attrs=[clss(["info"])], [term_view(~globals, ci), status_view]);
   switch (ci) {
   | Secondary(_) => wrapper(div([]))
   | InfoExp({cls, status, _}) => wrapper(exp_view(~globals, cls, status))
@@ -289,17 +293,19 @@ let view_of_info = (~globals, ci): Node.t => {
 
 let inspector_view = (~globals, ci): Node.t =>
   div(
-    ~attr=clss(["cursor-inspector"] @ [Info.is_error(ci) ? errc : okc]),
+    ~attrs=[
+      clss(["cursor-inspector"] @ [Info.is_error(ci) ? errc : okc]),
+    ],
     [view_of_info(~globals, ci)],
   );
 
 let view = (~globals: Globals.t, cursor_info: option(Info.t)) => {
-  let bar_view = div(~attr=Attr.id("bottom-bar"));
+  let bar_view = div(~attrs=[Attr.id("bottom-bar")]);
   let err_view = err =>
     bar_view([
       div(
-        ~attr=clss(["cursor-inspector", "no-info"]),
-        [div(~attr=clss(["icon"]), [Icons.magnify]), text(err)],
+        ~attrs=[clss(["cursor-inspector", "no-info"])],
+        [div(~attrs=[clss(["icon"])], [Icons.magnify]), text(err)],
       ),
     ]);
   switch (cursor_info) {
@@ -309,7 +315,7 @@ let view = (~globals: Globals.t, cursor_info: option(Info.t)) => {
     bar_view([
       inspector_view(~globals, ci),
       div(
-        ~attr=clss(["id"]),
+        ~attrs=[clss(["id"])],
         [text(String.sub(Id.to_string(Info.id_of(ci)), 0, 4))],
       ),
     ])

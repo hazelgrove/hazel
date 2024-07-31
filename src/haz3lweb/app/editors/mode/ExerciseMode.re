@@ -1,6 +1,6 @@
 open Haz3lcore;
 open Virtual_dom.Vdom;
-open Sexplib.Std;
+open Util;
 open Node;
 
 /* The exercises mode interface for a single exercise. Composed of multiple editors and results. */
@@ -290,7 +290,7 @@ module View = {
     let stitched_tests =
       Exercise.map_stitched(
         (_, cell_editor: CellEditor.Model.t) =>
-          cell_editor.result |> Result.Model.make_test_report,
+          cell_editor.result |> EvalResult.Model.make_test_report,
         model.cells,
       );
 
@@ -302,7 +302,7 @@ module View = {
         (
           ~caption: string,
           ~subcaption: option(string)=?,
-          ~result_kind=Result.View.NoResults,
+          ~result_kind=EvalResult.View.NoResults,
           this_pos: Exercise.pos,
           cell: CellEditor.Model.t,
         ) => {
@@ -329,7 +329,7 @@ module View = {
 
     let prompt_view =
       CellCommon.narrative_cell(
-        div(~attr=Attr.class_("cell-prompt"), [eds.prompt]),
+        div(~attrs=[Attr.class_("cell-prompt")], [eds.prompt]),
       );
 
     let prelude_view =
