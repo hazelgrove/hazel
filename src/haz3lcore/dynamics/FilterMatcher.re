@@ -12,8 +12,8 @@ let rec matches_exp =
     true;
   } else {
     switch (d, f) {
-    | (Constructor("$e"), _) => failwith("$e in matched expression")
-    | (Constructor("$v"), _) => failwith("$v in matched expression")
+    | (Constructor("$e", _), _) => failwith("$e in matched expression")
+    | (Constructor("$v", _), _) => failwith("$v in matched expression")
 
     // TODO (Anthony): Is this right?
     /* Labels are a special case*/
@@ -36,7 +36,7 @@ let rec matches_exp =
     | (d, FixF(fp, _, fc)) =>
       matches_exp(d, ~fenv=fenv |> ClosureEnvironment.without_keys([fp]), fc)
 
-    | (_, Constructor("$v")) =>
+    | (_, Constructor("$v", _)) =>
       switch (ValueChecker.check_value(denv, d)) {
       | Indet
       | Value => true
@@ -44,7 +44,7 @@ let rec matches_exp =
       }
 
     | (_, EmptyHole(_))
-    | (_, Constructor("$e")) => true
+    | (_, Constructor("$e", _)) => true
 
     | (Cast(d, _, _), Cast(f, _, _)) => matches_exp(d, f)
     | (Closure(denv, d), Closure(fenv, f)) =>
@@ -153,8 +153,8 @@ let rec matches_exp =
     | (StringLit(dv), StringLit(fv)) => dv == fv
     | (StringLit(_), _) => false
 
-    | (Constructor(_), Ap(Constructor("~MVal"), Tuple([]))) => true
-    | (Constructor(dt), Constructor(ft)) => dt == ft
+    | (Constructor(_), Ap(Constructor("~MVal", _), Tuple([]))) => true
+    | (Constructor(dt, _), Constructor(ft, _)) => dt == ft
     | (Constructor(_), _) => false
 
     | (BuiltinFun(dn), BuiltinFun(fn)) => dn == fn
@@ -278,6 +278,8 @@ let rec matches_exp =
     | (InvalidText(_), _) => false
     | (InvalidOperation(_), _) => false
 
+    | (Undefined, _) => false
+
     | (ApBuiltin(dname, darg), ApBuiltin(fname, farg)) =>
       dname == fname && matches_exp(darg, farg)
     | (ApBuiltin(_), _) => false
@@ -330,7 +332,7 @@ and matches_pat = (d: DHPat.t, f: DHPat.t): bool => {
     | res => matches_typ(dty1, fty1) && res
     }
   | (ListLit(_), _) => false
-  | (Constructor(dt), Constructor(ft)) => dt == ft
+  | (Constructor(dt, _), Constructor(ft, _)) => dt == ft
   | (Constructor(_), _) => false
   | (Var(_), Var(_)) => true
   | (Var(_), _) => false

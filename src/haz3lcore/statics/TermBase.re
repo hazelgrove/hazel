@@ -1,4 +1,4 @@
-open Sexplib.Std;
+open Util;
 
 module rec Any: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -108,6 +108,7 @@ and UExp: {
     | EmptyHole
     | MultiHole
     | Triv
+    | Undefined
     | Bool
     | Int
     | Float
@@ -147,6 +148,7 @@ and UExp: {
     | MultiHole(list(Any.t))
     | Triv
     | Deferral(deferral_position)
+    | Undefined
     | Bool(bool)
     | Int(int)
     | Float(float)
@@ -255,6 +257,7 @@ and UExp: {
     | EmptyHole
     | MultiHole
     | Triv
+    | Undefined
     | Bool
     | Int
     | Float
@@ -294,6 +297,7 @@ and UExp: {
     | MultiHole(list(Any.t))
     | Triv
     | Deferral(deferral_position)
+    | Undefined
     | Bool(bool)
     | Int(int)
     | Float(float)
