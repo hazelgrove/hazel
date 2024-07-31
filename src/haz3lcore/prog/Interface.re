@@ -1,4 +1,4 @@
-let dh_err = (error: string): DHExp.t => BoundVar(error);
+let dh_err = (error: string): DHExp.t => Var(error) |> DHExp.fresh;
 
 let elaborate =
   Core.Memo.general(~cache_size_bound=1000, Elaborator.uexp_elab);
@@ -20,9 +20,9 @@ let evaluate =
     (~settings: CoreSettings.t, ~env=Builtins.env_init, elab: DHExp.t)
     : ProgramResult.t =>
   switch () {
-  | _ when !settings.dynamics => Off(elab)
+  | _ when !settings.dynamics => Off({d: elab})
   | _ =>
-    switch (Evaluator.evaluate(env, elab)) {
+    switch (Evaluator.evaluate(env, {d: elab})) {
     | exception (EvaluatorError.Exception(reason)) =>
       print_endline("EvaluatorError:" ++ EvaluatorError.show(reason));
       ResultFail(EvaulatorError(reason));
