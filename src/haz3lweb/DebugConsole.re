@@ -13,7 +13,7 @@ let print = ({settings, editors, _}: Model.t, key: string): unit => {
   switch (key) {
   | "F1" => z |> Zipper.show |> print
   | "F2" => z |> Zipper.unselect_and_zip |> Segment.show |> print
-  | "F3" => z |> term |> TermBase.UExp.show |> print
+  | "F3" => z |> term |> Exp.show |> print
   | "F4" =>
     z
     |> term
