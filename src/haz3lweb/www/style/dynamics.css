@@ -96,7 +96,7 @@
 }
 
 .cell.deselected + .cell-item {
-  border-left: 1px solid var(--subdued-accent);
+  border-left: 1px solid var(--BR2);
 }
 
 .cell-item.cell-result:has(.fail),
@@ -117,12 +117,12 @@
 
 .cell-result .icon {
   cursor: pointer;
-  color: var(--subdued-accent);
+  color: var(--BR2);
   height: 20px;
 }
 
 .cell-result .icon svg {
-  fill: var(--subdued-accent);
+  fill: var(--BR2);
 }
 
 .cell-result .icon.disabled {
@@ -280,12 +280,12 @@
 
 .settings-modal .icon {
   cursor: pointer;
-  color: var(--subdued-accent);
+  color: var(--BR2);
   height: 20px;
 }
 
 .settings-modal .icon svg {
-  fill: var(--subdued-accent);
+  fill: var(--BR2);
 }
 
 .settings-modal .icon.disabled {

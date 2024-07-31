@@ -19,7 +19,7 @@
 }
 
 #explain-this .example + .example {
-  border-top: 1px dotted var(--subdued-accent);
+  border-top: 1px dotted var(--BR2);
   padding-top: 0.75em;
 }
 
@@ -61,7 +61,7 @@
 
 #explain-this .header .close {
   cursor: pointer;
-  color: var(--subdued-accent);
+  color: var(--BR2);
   display: flex;
   margin-left: auto;
   align-items: flex-start;
@@ -144,29 +144,29 @@
 }
 
 #explain-this .feedback .option.active {
-  background-color: var(--subdued-accent);
+  background-color: var(--BR2);
 }
 
 .highlight-a {
-  background-color: var(--code-highlight-a);
+  background-color: var(--highlight-a);
 }
 
 .highlight-code-a {
-  fill: var(--code-highlight-a);
+  fill: var(--highlight-a);
 }
 
 .highlight-b {
-  background-color: var(--code-highlight-b);
+  background-color: var(--highlight-b);
 }
 
 .highlight-code-b {
-  fill: var(--code-highlight-b);
+  fill: var(--highlight-b);
 }
 
 .highlight-c {
-  background-color: var(--code-highlight-c);
+  background-color: var(--highlight-c);
 }
 
 .highlight-code-c {
-  fill: var(--code-highlight-c);
+  fill: var(--highlight-c);
 }

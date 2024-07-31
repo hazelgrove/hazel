@@ -4,75 +4,53 @@
   --code-font: "Source Code Pro", monospace;
   --ui-font: "Helvetica Neue";
 
-  /* GREYS */
+  /* Below is the base palette, which pulls out most colors
+   * used across Hazel. These should be used for UI elements */
 
-  --base-text-color: #586e75;
-  --menu-divider: #0006;
-  --main-scroll-track: #0000;
-  --explicit-hole-shadow: black;
-
-  /* PALETTE */
-
-  --R0: #ff8a8a;
-  --R1: #ff0000;
-  --R2: #7d0000;
-
-  --Y0: #fae294;
-  --Y1: #ffd04f;
-  --Y2: #ce9600;
-
-  --T1: #fffcf3;
-  --T2: #f6eedc;
-  --T3: #efe7d6;
-  --T4: #ebdfc5;
+  /* REDS */
+  --R0: oklch(85% 0.15 21);
+  --R1: oklch(60% 0.3 29);
+  --R2: oklch(40% 0.15 29);
 
   /* GREENS */
-  --primary-accent: #4fad66;
-  --primary-light: #69c680;
-  --token-comment: #a0c1aa;
-  --nut-menu-active: #98a379;
-  --nut-menu: #555f38;
+  --G0: oklch(70% 0.15 150);
+  --G1: oklch(75% 0.15 150);
+  --G2: oklch(80% 0.05 150);
+  --GB0: oklch(70% 0.05 120);
+  --GB1: oklch(45% 0.05 120);
 
-  --error-hole-fill: #ff00000a;
-  --menu-shadow: #77580255;
+  /* YELLOWS */
+  --Y0: oklch(93% 0.11 95);
+  --Y1: oklch(88% 0.15 90);
+  --Y2: oklch(71% 0.15 80);
 
-  --shard-exp-caret: #feddb3; /* EXP */
-  --exp-shadow-color: #b1a47f; /* EXP */
-  --other-accent: #e4d6a6;
-  --subdued-accent: #c7b480;
-  --string-lit-color: #cda56a;
+  /* TANS */
+  --T0: oklch(99% 0.012 90);
+  --T1: oklch(97% 0.025 90);
+  --T2: oklch(95% 0.025 90);
+  --T3: oklch(93% 0.025 90);
+  --T4: oklch(91% 0.037 90);
 
-  --menu-bkg: #f7ebc5;
-  --menu-item-hover-bkg: #fdf6e3;
-  --ci-icon-bkg: #857548;
-  --ui-text-accent: #6c5c2e;
+  /* BROWNS */
+  --BR0: oklch(0% 0.07 90);
+  --BR1: oklch(from var(--BR0) 90% c h);
+  --BR2: oklch(from var(--BR0) 75% c h);
+  --BR3: oklch(from var(--BR0) 60% c h);
+  --BR4: oklch(from var(--BR0) 50% c h);
 
-
-  --code-highlight-a: rgb(255 0 255 / 20%);
-  --code-highlight-b: rgb(0 255 255 / 40%);
-  --code-highlight-c: rgb(0 255 0 / 20%);
-
-  --token-pat: #169fdc;
-  --shard-pat: #b2e8ff;
-  --shard-caret-pat: #d7f3ff;
-  --shadow-pat: #13aed2;
-
-  --token-typ: #772cff;
-  --shard-typ: #f2ccff;
-  --shard-caret-typ: #f9e8ff;
-  --shadow-typ: #975dff;
-
-  --token-tpat: #16c8dc;
-  --shard-tpat: #b2fbff;
-  --shard-caret-tpat: #d7fff7;
-  --shadow-tpat: #13d2d2;
+  /* MISC */
+  --MISC0: oklch(52% 0.03 220); /* base-text-color */
+  --MISC1: oklch(72% 0.055 90); /* exp-shadow-color */
+  --MISC2: oklch(90% 0.065 74); /* shard-caret-exp*/
+  --MISC3: oklch(95% 0.05 90); /* menu-bkg */
 
   /* CODE BACKGROUND */
 
   --main-bkg: var(--T3);
-  --light-page-color: var(--menu-item-hover-bkg); /* TODO */
-  --cell-active: var(--T1);
-  --main-scroll-thumb: var(--other-accent);
+  --light-page-color: var(--menu-item-hover-bkg);
+  --cell-active: var(--T0);
+  --main-scroll-thumb: var(--BR2);
+  --main-scroll-track: #0000;
   --cell-selected-accent: var(--R1);
 
   /* CODE DECO */
@@ -82,38 +60,63 @@
 
   /* CODE TOKENS */
 
-  --token-buffer: var(--other-accent);
+  --token-buffer: var(--BR1);
   --token-secondary: var(--shard-exp);
+  --token-comment: var(--G2);
   --token-explicit-hole: var(--Y1);
+  --token-explicit-hole-shadow: black;
   --token-incomplete: var(--Y2);
-  --token-inconsistent: var(--exp-shadow-color);
+  --token-inconsistent: var(--MISC1);
+  --token-string-lit: oklch(75% 0.1 76);
 
-  --token-exp: var(--base-text-color); /* EXP */
   --token-rul: var(--token-exp);
-
   --token-nul: var(--R1);
   --token-any: var(--token-nul);
 
+  --token-exp: var(--MISC0);
+
+  --token-pat: oklch(60% 0.2 225);
+  --token-typ: oklch(60% 0.2 305);
+  --token-tpat: oklch(60% 0.2 180);
+
   /* CODE SHARDS */
 
+  --shard-caret-exp: var(--MISC2);
+  --exp-shadow-color: var(--MISC1);
+  --shard-exp: var(--T4);
+
+  --shard-caret-pat: oklch(90% 0.1 225);
+  --shard-pat: oklch(95% 0.05 225);
+  --shard-caret-typ: oklch(90% 0.1 305);
+  --shard-typ: oklch(95% 0.05 305);
+  --shard-caret-tpat: oklch(90% 0.1 180);
+  --shard-tpat: oklch(95% 0.05 180);
+
   --shard-selected: var(--Y0);
-
-  --shard-exp: var(--T4); /* EXP */
-
-  --shard-rul: var(--shard-exp);
-  --rul-shadow-color: var(--exp-shadow-color);
-
-  --shard-nul: var(--R0);
-  --shadow-nul: var(--R1);
-
-  --shard-any: var(--shard-nul);
-  --shadow-any: var(--shadow-nul);
-
   --shard-buffer: var(--light-page-color);
   --shard_projector: var(--T2);
 
-  --empty-hole-stroke: var(--other-accent);
-  --empty-hole-fill: var(--menu-bkg);
+  --shard-rul: var(--shard-exp);
+  --rul-shadow-color: var(--exp-shadow-color);
+  --shard-nul: var(--R0);
+  --shadow-nul: var(--R1);
+  --shard-any: var(--shard-nul);
+  --shadow-any: var(--shadow-nul);
+
+  /* EMPTY HOLE DECO */
+
+  --empty-hole-stroke: var(--BR1);
+  --empty-hole-fill: var(--MISC3);
+
+  /* ERROR HOLE DECO */
+
+  --error-hole-fill: oklch(63% 0.25 29 / 6%);
+
+  /* CODE HIGHLIGHTING */
+
+  --highlight-a: oklch(0.95 0.07 360);
+  --highlight-b: oklch(from var(--highlight-a) l c 240);
+  --highlight-c: oklch(from var(--highlight-a) l c 120);
 
   /* BACKPACK DECO */
 
@@ -123,48 +126,59 @@
   --backpack-selection-outline: var(--light-page-color);
   --backback-targets: var(--Y2);
 
-  /* Dynamics */
+  /* DYNAMICS UI */
 
-  --cell-result-text: var(--ui-text-accent);
-  --cell-result-border: var(--other-accent);
-  --cell-result-hidden: var(--other-accent); /* ?? */
+  --cell-result-text: var(--BR4);
+  --cell-result-border: var(--BR1);
+  --cell-result-hidden: var(--BR1); /* ?? */
   --eval-exception: var(--test-fail-active);
   --eval-exception-stroke: var(--R2);
-  --step-hole-color: var(--primary-accent);
+  --step-hole-color: var(--G0);
 
-  /* Non-code UI */
+  /* TOP-LEVEL UI */
 
-  --editor-mode-text: var(--ui-text-accent);
+  --select-text: var(--BR4);
+  --editor-mode-text: var(--BR4);
 
-  --menu-item-text: var(--base-text-color);
-  --menu-scroll-track: var(--other-accent);
-  --menu-scroll-thumb: var(--subdued-accent);
-  --menu-outline: var(--subdued-accent);
-  --menu-icon: var(--exp-shadow-color);
+  --primary-accent: var(--G0);
+  --nut-menu: var(--GB1);
+  --nut-menu-active: var(--GB0);
+
+  --menu-bkg: var(--MISC3);
+  --menu-item-hover-bkg: var(--T1);
+  --menu-item-text: var(--MISC0);
+  --menu-scroll-track: var(--BR1);
+  --menu-scroll-thumb: var(--BR2);
+  --menu-outline: var(--BR2);
+  --menu-icon: var(--MISC1);
+  --menu-group-name: var(--BR4);
+  --menu-divider: #0006;
+  --menu-shadow: oklch(50% 0.1 90 / 33%);
 
   --bottom-bar-bkg: var(--menu-bkg);
-  --ci-status-text: var(--ui-text-accent);
+  --ci-icon-bkg: var(--BR3);
+  --ci-status-text: var(--BR4);
   --ci-status-error-text: var(--R2);
   --ci-status-error-bkg: var(--test-fail-active);
-  --context-inspector-colon: var(--subdued-accent);
+  --context-inspector-colon: var(--BR2);
 
-  --explain-this-title: var(--exp-shadow-color);
-  --explain-this-expander: var(--exp-shadow-color);
+  --explain-this-title: var(--MISC1);
+  --explain-this-expander: var(--MISC1);
 
-  /* Non-code UI - Exercises Mode */
+  /* EXERCISE MODE UI */
 
-  --cell-caption: var(--exp-shadow-color);
+  --cell-caption: var(--MISC1);
   --cell-result: var(--T3);
-  --cell-exercises-border: var(--subdued-accent);
+  --cell-exercises-border: var(--BR2);
   --test-panel-bkg: var(--menu-bkg);
-  --test-percent-text: var(--T1);
+  --test-percent-text: var(--T0);
 
-  --test-pass: var(--primary-accent);
-  --test-pass-active: var(--primary-light);
+  --test-pass: var(--G0);
+  --test-pass-active: var(--G1);
   --test-fail: var(--R1);
   --test-fail-active: var(--R0);
-  --test-indet: var(--subdued-accent);
-  --test-indet-active: var(--other-accent);
+  --test-indet: var(--BR2);
+  --test-indet-active: var(--BR1);
 
   /* Z-STACK */
 

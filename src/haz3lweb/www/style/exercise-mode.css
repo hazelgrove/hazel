@@ -40,7 +40,7 @@
   gap: 1em;
   padding: 1em;
   background-color: var(--test-panel-bkg);
-  border-bottom: 0.5px solid var(--subdued-accent);
+  border-bottom: 0.5px solid var(--BR2);
 }
 
 .test-reports {
@@ -58,7 +58,7 @@
 }
 
 .test-report + .test-report {
-  border-top: 1px dotted var(--subdued-accent);
+  border-top: 1px dotted var(--BR2);
 }
 
 .test-report:hover {
@@ -147,7 +147,7 @@
   padding: 0 1em 0 1em;
   font-size: 0.7em;
   border-radius: 1.08em;
-  background-color: var(--subdued-accent);
+  background-color: var(--BR2);
   align-items: center;
 }
 

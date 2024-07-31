@@ -72,7 +72,7 @@
 
 #top-bar .submenu .group .name {
   padding: 0em 0.5em 0em 0.3em;
-  color: var(--ui-text-accent);
+  color: var(--menu-group-name);
   height: 2em;
   display: flex;
   align-items: center;
@@ -102,11 +102,6 @@
   cursor: pointer;
   gap: 0.5em;
 }
-
-/* #top-bar .nut-menu .top-menu-item:hover,
-#top-bar .nut-menu .top-menu-item:has(+ .submenu:hover) {
-  background-color: var(--nut-menu-hover);
-} */
 
 #top-bar .nut-menu .top-menu-item:hover > .submenu-icon > .icon > svg,
 #top-bar
@@ -197,7 +192,7 @@
 
 #top-bar .icon {
   cursor: pointer;
-  color: var(--subdued-accent);
+  color: var(--BR2);
   height: 20px;
 }
 #top-bar .icon:hover {
@@ -206,7 +201,7 @@
 }
 
 #top-bar .icon svg {
-  fill: var(--subdued-accent);
+  fill: var(--BR2);
 }
 
 #top-bar .icon.disabled {
@@ -236,9 +231,9 @@
   padding: 0 0.75em;
   border-radius: 0 0 1em 0;
   background-color: var(--shard-exp);
-  color: var(--subdued-accent);
-  border-right: 0.6px solid var(--subdued-accent);
-  border-bottom: 0.6px solid var(--subdued-accent);
+  color: var(--BR2);
+  border-right: 0.6px solid var(--BR2);
+  border-bottom: 0.6px solid var(--BR2);
 }
 
 #top-bar #editor-mode .icon {

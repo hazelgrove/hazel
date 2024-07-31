@@ -47,7 +47,7 @@
 }
 
 .code .token.mono.string-lit {
-  color: var(--string-lit-color);
+  color: var(--token-string-lit);
 }
 
 .code .token.in-buffer {
@@ -64,7 +64,7 @@
 
 .code .token.explicit-hole {
   color: var(--token-explicit-hole) !important;
-  text-shadow: 1px 1px 0px var(--explicit-hole-shadow);
+  text-shadow: 1px 1px 0px var(--token-explicit-hole-shadow);
 }
 
 .code .comment {
@@ -101,11 +101,11 @@ svg.shard.indicated.Exp > path {
   filter: url(#drop-shadow-Exp);
 }
 svg.shard.indicated.Pat > path {
-  fill: var(--shard-caret-pat);
+  fill: var(--shard-pat);
   filter: url(#drop-shadow-Pat);
 }
 svg.shard.indicated.Typ > path {
-  fill: var(--shard-caret-typ);
+  fill: var(--shard-typ);
   filter: url(#drop-shadow-Typ);
 }
 svg.shard.indicated.Rul > path {
@@ -113,21 +113,21 @@ svg.shard.indicated.Rul > path {
   filter: url(#drop-shadow-Rul);
 }
 svg.shard.indicated.TPat > path {
-  fill: var(--shard-caret-tpat);
+  fill: var(--shard-tpat);
   filter: url(#drop-shadow-TPat);
 }
 
 svg.shard.indicated.caret.Exp > path {
-  fill: var(--shard-exp-caret);
+  fill: var(--shard-caret-exp);
 }
 svg.shard.indicated.caret.Pat > path {
-  fill: var(--shard-pat);
+  fill: var(--shard-caret-pat);
 }
 svg.shard.indicated.caret.Typ > path {
-  fill: var(--shard-typ);
+  fill: var(--shard-caret-typ);
 }
 .svg.shard.indicated.caret.TPat > path {
-  fill: var(--shard-tpat);
+  fill: var(--shard-caret-tpat);
 }
 
 svg.shard.indicated {
@@ -177,16 +177,16 @@ svg.shard.error > path {
   flood-color: var(--exp-shadow-color);
 }
 #drop-shadow-Pat .tile-drop-shadow {
-  flood-color: var(--shadow-pat);
+  flood-color: var(--token-pat);
 }
 #drop-shadow-Typ .tile-drop-shadow {
-  flood-color: var(--shadow-typ);
+  flood-color: var(--token-typ);
 }
 #drop-shadow-Rul .tile-drop-shadow {
   flood-color: var(--rul-shadow-color);
 }
 #drop-shadow-TPat .tile-drop-shadow {
-  flood-color: var(--shadow-tpat);
+  flood-color: var(--token-tpat);
 }
 
 /* EMPTY HOLE DECO */
@@ -235,16 +235,16 @@ svg.shard.error > path {
   stroke: var(--exp-shadow-color);
 }
 .child-line.Pat {
-  stroke: var(--shadow-pat);
+  stroke: var(--token-pat);
 }
 .child-line.Typ {
-  stroke: var(--shadow-typ);
+  stroke: var(--token-typ);
 }
 .child-line.Rul {
   stroke: var(--rul-shadow-color);
 }
 .child-line.TPat {
-  stroke: var(--shadow-tpat);
+  stroke: var(--token-tpat);
 }
 
 /* BACKPACK DECO */
