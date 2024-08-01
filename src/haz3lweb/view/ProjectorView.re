@@ -245,7 +245,10 @@ module Panel = {
           @ (active ? ["active"] : [])
           @ (might_project ? [] : ["inactive"]),
         ),
-        Attr.on_click(_ => inject(toggle_projector(active, id, ci))),
+        Attr.on_mousedown(_ =>
+          might_project
+            ? inject(toggle_projector(active, id, ci)) : Effect.Ignore
+        ),
       ],
       [
         div(
