@@ -99,6 +99,6 @@
 (executable
  (name gradescope)
  (modules Gradescope)
- (libraries ppx_yojson_conv.expander haz3lcore haz3lweb)
+ (libraries ppx_yojson_conv.expander haz3lweb haz3lcore)
  (preprocess
   (pps ppx_yojson_conv ppx_let ppx_sexp_conv ppx_deriving.show)))

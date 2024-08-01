@@ -52,6 +52,19 @@ let elaborate = (~settings: CoreSettings.t, map, term): DHExp.t =>
     }
   };
 
+let eval_term =
+    (
+      ~settings: CoreSettings.t,
+      ~ctx_init: Ctx.t,
+      ~env_init: Environment.t,
+      term: Exp.t,
+    )
+    : ProgramResult.t(ProgramResult.inner) => {
+  let info_map = Statics.mk_map_ctx(settings, ctx_init, term);
+  let d = elaborate(~settings, info_map, term);
+  Evaluator.evaluate(~settings, ~env=env_init, d);
+};
+
 let eval_z =
     (
       ~settings: CoreSettings.t,
