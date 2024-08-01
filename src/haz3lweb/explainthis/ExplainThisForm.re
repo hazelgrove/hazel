@@ -1,4 +1,5 @@
-open Sexplib.Std;
+open Util;
+
 open Haz3lcore;
 
 // TODO Make unified way of using consistent metavariables for syntactic forms
@@ -10,6 +11,13 @@ type list_examples =
   | Tuple
   | Cons1
   | Cons2;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type typfun_examples =
+  | Basic
+  | EmptyHole
+  | MultiHole /* TODO: Maybe no good examples with Multihole? */
+  | Var;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type fun_examples =
@@ -72,12 +80,15 @@ type numeric_bin_op_examples =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type example_id =
+  | RecTyp
   | Deferral
   | List(list_examples)
+  | TypFun(typfun_examples)
   | Fun(fun_examples)
   | Tuple1
   | Tuple2
   | Let(let_examples)
+  | TypFunAp
   | FunAp
   | ConAp
   | DeferredAp
@@ -105,7 +116,9 @@ type example_id =
   | FilterEval
   | FilterHide
   | FilterDebug
-  | FilterSelector;
+  | FilterSelector
+  | Undefined1
+  | Undefined2;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type example = {
@@ -140,6 +153,7 @@ type form_id =
   | EmptyHoleExp
   | MultiHoleExp
   | TrivExp
+  | UndefinedExp
   | DeferralExp
   | BoolExp
   | IntExp
@@ -150,11 +164,13 @@ type form_id =
   | ListExp
   | ConsExp
   | ListConcatExp
+  | TypFunctionExp
   | FunctionExp(pat_sub_form_id)
   | TupleExp
   | Tuple2Exp
   | Tuple3Exp
   | LetExp(pat_sub_form_id)
+  | TypFunApExp
   | FunApExp
   | ConApExp
   | DeferredApExp
@@ -192,6 +208,8 @@ type form_id =
   | StrTyp
   | VarTyp
   | ListTyp
+  | ForallTyp
+  | RecTyp
   | ArrowTyp
   | Arrow3Typ
   | TupleTyp
@@ -227,6 +245,7 @@ type group_id =
   | EmptyHoleExp
   | MultiHoleExp
   | TrivExp
+  | UndefinedExp
   | DeferralExp
   | BoolExp
   | IntExp
@@ -237,11 +256,13 @@ type group_id =
   | ListExp
   | ConsExp
   | ListConcatExp
+  | TypFunctionExp
   | FunctionExp(pat_sub_form_id)
   | TupleExp
   | Tuple2Exp
   | Tuple3Exp
   | LetExp(pat_sub_form_id)
+  | TypFunApExp
   | FunApExp
   | ConApExp
   | DeferredApExp
@@ -280,6 +301,8 @@ type group_id =
   | StrTyp
   | VarTyp
   | ListTyp
+  | ForallTyp
+  | RecTyp
   | ArrowTyp
   | Arrow3Typ
   | TupleTyp

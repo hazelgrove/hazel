@@ -1,4 +1,5 @@
-open Sexplib.Std;
+open Util;
+
 open Mold;
 module P = Precedence;
 
@@ -60,6 +61,9 @@ let ds: expansion = (Delayed, Static);
 
 let mk_infix = (t: Token.t, sort: Sort.t, prec) =>
   mk(ss, [t], mk_bin(prec, sort, []));
+
+let mk_nul_infix = (t: Token.t, prec) =>
+  mk(ss, [t], mk_bin(~l=Any, ~r=Any, prec, Any, []));
 
 /* Token Recognition Predicates */
 
@@ -146,9 +150,12 @@ let is_float = str =>
 let is_bad_float = str => is_arbitary_float(str) && !is_float(str);
 let bools = ["true", "false"];
 let is_bool = regexp("^(" ++ String.concat("|", bools) ++ ")$");
+let undefined = "undefined";
+let is_undefined = regexp("^" ++ undefined ++ "$");
 
 let is_var = str =>
   !is_bool(str)
+  && !is_undefined(str)
   && str != "_"
   //&& !is_keyword(str)
   //&& !is_reserved(str)
@@ -160,7 +167,7 @@ let is_capitalized_name = regexp("^[A-Z][A-Za-z0-9_]*$");
 let is_ctr = is_capitalized_name;
 let base_typs = ["String", "Int", "Float", "Bool"];
 let is_base_typ = regexp("^(" ++ String.concat("|", base_typs) ++ ")$");
-let is_typ_var = is_capitalized_name;
+let is_typ_var = str => is_var(str) || is_capitalized_name(str);
 let wild = "_";
 let is_wild = regexp("^" ++ wild ++ "$");
 
@@ -198,7 +205,7 @@ let duomerges = (lbl: Label.t): option(Label.t) =>
 
 //TODO(andrew): refactor atomic_forms to seperate these out
 let const_mono_delims =
-  base_typs @ bools @ [wild, empty_list, empty_tuple, empty_string];
+  base_typs @ bools @ [undefined, wild, empty_list, empty_tuple, empty_string];
 
 let explicit_hole = "?";
 let is_explicit_hole = t => t == explicit_hole;
@@ -226,6 +233,7 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("int_lit", (is_int, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("float_lit", (is_float, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("bool_lit", (is_bool, [mk_op(Exp, []), mk_op(Pat, [])])),
+  ("undefined_lit", (is_undefined, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("empty_list", (is_empty_list, [mk_op(Exp, []), mk_op(Pat, [])])),
   (
     "empty_tuple",
@@ -299,9 +307,17 @@ let forms: list((string, t)) = [
   ("ap_exp", mk(ii, ["(", ")"], mk_post(P.ap, Exp, [Exp]))),
   ("ap_pat", mk(ii, ["(", ")"], mk_post(P.ap, Pat, [Pat]))),
   ("ap_typ", mk(ii, ["(", ")"], mk_post(P.ap, Typ, [Typ]))),
+  (
+    "ap_exp_typ",
+    mk((Instant, Static), ["@<", ">"], mk_post(P.ap, Exp, [Typ])),
+  ),
+  ("at_sign", mk_nul_infix("@", P.eqs)), // HACK: SUBSTRING REQ
   ("case", mk(ds, ["case", "end"], mk_op(Exp, [Rul]))),
   ("test", mk(ds, ["test", "end"], mk_op(Exp, [Exp]))),
   ("fun_", mk(ds, ["fun", "->"], mk_pre(P.fun_, Exp, [Pat]))),
+  ("typfun", mk(ds, ["typfun", "->"], mk_pre(P.fun_, Exp, [TPat]))),
+  ("forall", mk(ds, ["forall", "->"], mk_pre(P.fun_, Typ, [TPat]))),
+  ("rec", mk(ds, ["rec", "->"], mk_pre(P.fun_, Typ, [TPat]))),
   (
     "rule",
     mk(ds, ["|", "=>"], mk_bin'(P.rule_sep, Rul, Exp, [Pat], Exp)),

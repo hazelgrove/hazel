@@ -91,10 +91,6 @@ module Delim = {
 let mk_EmptyHole = (~selected=false, hc: HoleInstance.t) =>
   Delim.empty_hole(hc) |> Doc.annot(DHAnnot.EmptyHole(selected, hc));
 
-let mk_ExpandingKeyword = (hc, k) =>
-  Doc.text(ExpandingKeyword.to_string(k))
-  |> Doc.annot(DHAnnot.VarHole(ExpandingKeyword(k), hc));
-
 let mk_InvalidText = (t, hc) =>
   Doc.text(t) |> Doc.annot(DHAnnot.Invalid(hc));
 
@@ -134,10 +130,15 @@ let mk_comma_seq = (ld, rd, l) => {
 
 let mk_ListLit = l => mk_comma_seq("[", "]", l);
 
-let mk_Tuple = elts => mk_comma_seq("", "", elts);
+let mk_Tuple = elts => mk_comma_seq("(", ")", elts);
+
+let mk_TypAp = (doc1, doc2) =>
+  Doc.(hcats([doc1, text("@<"), doc2, text(">")]));
 
 let mk_Ap = (doc1, doc2) =>
   Doc.(hcats([doc1, text("("), doc2, text(")")]));
 
 let mk_Prj = (targ, n) =>
   Doc.hcats([targ, Delim.projection_dot, Doc.text(string_of_int(n))]);
+
+let mk_Undefined = () => Doc.text("undefined");

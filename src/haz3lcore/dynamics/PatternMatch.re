@@ -34,7 +34,6 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
   | (EmptyHole(_), _)
   | (NonEmptyHole(_), _) => IndetMatch
   | (Wild, _) => Matches(Environment.empty)
-  | (ExpandingKeyword(_), _) => DoesNotMatch
   | (InvalidText(_), _) => IndetMatch
   | (BadConstructor(_), _) => IndetMatch
   | (Var(x), _) =>
@@ -42,6 +41,7 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result =>
     Matches(env);
   | (_, EmptyHole(_)) => IndetMatch
   | (_, NonEmptyHole(_)) => IndetMatch
+  | (_, Undefined) => IndetMatch
   | (_, FailedCast(_)) => IndetMatch
   | (_, InvalidOperation(_)) => IndetMatch
   | (_, FreeVar(_)) => IndetMatch
@@ -237,9 +237,9 @@ and matches_cast_Sum =
   | Cast(d', Unknown(_), Sum(_) | Rec(_, Sum(_))) =>
     matches_cast_Sum(ctr, dp, d', castmaps)
   | FreeVar(_)
-  | ExpandingKeyword(_)
   | InvalidText(_)
   | Let(_)
+  | TypAp(_)
   | Ap(_)
   | ApBuiltin(_)
   | BinBoolOp(_)
@@ -255,10 +255,12 @@ and matches_cast_Sum =
   | ConsistentCase(_)
   | Prj(_)
   | IfThenElse(_)
+  | Undefined
   | BuiltinFun(_) => IndetMatch
   | Cast(_)
   | BoundVar(_)
   | FixF(_)
+  | TypFun(_)
   | Fun(_)
   | BoolLit(_)
   | IntLit(_)
@@ -331,12 +333,13 @@ and matches_cast_Tuple =
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_) => IndetMatch
   | InvalidText(_) => IndetMatch
-  | ExpandingKeyword(_) => IndetMatch
   | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
+  | TypFun(_, _, _) => DoesNotMatch
   | Fun(_, _, _, _) => DoesNotMatch
   | Closure(_, Fun(_)) => DoesNotMatch
   | Closure(_, _) => IndetMatch
+  | TypAp(_, _) => IndetMatch
   | Filter(_, _) => IndetMatch
   | Ap(_, _) => IndetMatch
   | ApBuiltin(_, _) => IndetMatch
@@ -363,6 +366,7 @@ and matches_cast_Tuple =
   | FailedCast(_, _, _) => IndetMatch
   | InvalidOperation(_) => IndetMatch
   | IfThenElse(_) => IndetMatch
+  | Undefined => IndetMatch
   }
 and matches_cast_Cons =
     (dp: DHPat.t, d: DHExp.t, elt_casts: list((Typ.t, Typ.t))): match_result =>
@@ -471,11 +475,12 @@ and matches_cast_Cons =
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_) => IndetMatch
   | InvalidText(_) => IndetMatch
-  | ExpandingKeyword(_) => IndetMatch
   | Let(_, _, _) => IndetMatch
   | FixF(_, _, _) => DoesNotMatch
+  | TypFun(_, _, _) => DoesNotMatch
   | Fun(_, _, _, _) => DoesNotMatch
   | Closure(_, d') => matches_cast_Cons(dp, d', elt_casts)
+  | TypAp(_, _) => IndetMatch
   | Filter(_, d') => matches_cast_Cons(dp, d', elt_casts)
   | Ap(_, _) => IndetMatch
   | ApBuiltin(_, _) => IndetMatch
@@ -501,4 +506,5 @@ and matches_cast_Cons =
   | FailedCast(_, _, _) => IndetMatch
   | InvalidOperation(_) => IndetMatch
   | IfThenElse(_) => IndetMatch
+  | Undefined => IndetMatch
   };

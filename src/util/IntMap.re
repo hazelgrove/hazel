@@ -1,5 +1,7 @@
 include Ptmap;
 open Sexplib.Std;
+open Ppx_yojson_conv_lib.Yojson_conv;
+
 module Sexp = Sexplib.Sexp;
 
 [@deriving (sexp, yojson)]

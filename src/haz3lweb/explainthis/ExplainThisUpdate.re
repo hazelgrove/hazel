@@ -1,7 +1,6 @@
-open Sexplib.Std;
+open Util;
 open ExplainThisForm;
 open ExplainThisModel;
-open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type update =

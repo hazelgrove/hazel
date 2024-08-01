@@ -1,4 +1,4 @@
-open Sexplib.Std;
+open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
@@ -7,6 +7,7 @@ type t =
   | FreeInvalidVar(Var.t)
   | BadPatternMatch
   | CastBVHoleGround(DHExp.t)
+  | InvalidBoxedTypFun(DHExp.t)
   | InvalidBoxedFun(DHExp.t)
   | InvalidBoxedBoolLit(DHExp.t)
   | InvalidBoxedIntLit(DHExp.t)

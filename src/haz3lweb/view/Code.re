@@ -21,8 +21,9 @@ let of_delim' =
       let label = is_in_buffer ? AssistantExpander.mark(label) : label;
       [
         span(
-          ~attr=
+          ~attrs=[
             Attr.classes(["token", cls, Sort.to_string(sort), plurality]),
+          ],
           [Node.text(List.nth(label, i))],
         ),
       ];
@@ -139,7 +140,7 @@ let simple_view =
     });
   let holes = holes(~map, ~font_metrics, unselected);
   div(
-    ~attr=Attr.class_("code"),
+    ~attrs=[Attr.class_("code")],
     [
       span_c("code-text", Text.of_segment([], false, Sort.Any, unselected)),
       ...holes,
@@ -172,5 +173,8 @@ let view =
     });
   let code = Text.of_segment(buffer_ids, false, sort, unselected);
   let holes = List.map(of_hole(~measured, ~font_metrics), holes);
-  div(~attr=Attr.class_("code"), [span_c("code-text", code), ...holes]);
+  div(
+    ~attrs=[Attr.class_("code")],
+    [span_c("code-text", code), ...holes],
+  );
 };

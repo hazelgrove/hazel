@@ -1,5 +1,5 @@
 open Haz3lcore;
-open Sexplib.Std;
+open Util;
 
 /*
   These are the syntax test functions used for the syntax validation
@@ -12,6 +12,29 @@ open Sexplib.Std;
 type syntax_result = {
   results: list(bool),
   percentage: float,
+};
+
+let rec find_var_upat = (name: string, upat: Term.UPat.t): bool => {
+  switch (upat.term) {
+  | Var(x) => x == name
+  | EmptyHole
+  | Wild
+  | Triv
+  | Invalid(_)
+  | MultiHole(_)
+  | Int(_)
+  | Float(_)
+  | Bool(_)
+  | String(_)
+  | Constructor(_) => false
+  | Cons(up1, up2) => find_var_upat(name, up1) || find_var_upat(name, up2)
+  | ListLit(l)
+  | Tuple(l) =>
+    List.fold_left((acc, up) => {acc || find_var_upat(name, up)}, false, l)
+  | Parens(up) => find_var_upat(name, up)
+  | Ap(up1, up2) => find_var_upat(name, up1) || find_var_upat(name, up2)
+  | TypeAnn(up, _) => find_var_upat(name, up)
+  };
 };
 
 /*
@@ -73,7 +96,9 @@ let rec find_fn =
   | ListLit(ul)
   | Tuple(ul) =>
     List.fold_left((acc, u1) => {find_fn(name, u1, acc)}, l, ul)
+  | TypFun(_, body)
   | Fun(_, body) => l |> find_fn(name, body)
+  | TypAp(u1, _)
   | Parens(u1)
   | UnOp(_, u1)
   | TyAlias(_, _, u1)
@@ -107,6 +132,7 @@ let rec find_fn =
   | Float(_)
   | String(_)
   | Constructor(_)
+  | Undefined
   | Var(_) => l
   };
 };
@@ -158,6 +184,7 @@ let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
   | Float(_)
   | String(_)
   | Constructor(_)
+  | Undefined
   | Deferral(_) => false
   | Fun(args, body) =>
     var_mention_upat(name, args) ? false : var_mention(name, body)
@@ -167,6 +194,8 @@ let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
   | Let(p, def, body) =>
     var_mention_upat(name, p)
       ? false : var_mention(name, def) || var_mention(name, body)
+  | TypFun(_, u)
+  | TypAp(u, _)
   | Test(u)
   | Parens(u)
   | UnOp(_, u)
@@ -211,6 +240,7 @@ let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
   | Float(_)
   | String(_)
   | Constructor(_)
+  | Undefined
   | Deferral(_) => false
   | Fun(args, body) =>
     var_mention_upat(name, args) ? false : var_applied(name, body)
@@ -220,11 +250,17 @@ let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
   | Let(p, def, body) =>
     var_mention_upat(name, p)
       ? false : var_applied(name, def) || var_applied(name, body)
+  | TypFun(_, u)
   | Test(u)
   | Parens(u)
   | UnOp(_, u)
   | TyAlias(_, _, u)
   | Filter(_, _, u) => var_applied(name, u)
+  | TypAp(u, _) =>
+    switch (u.term) {
+    | Var(x) => x == name ? true : false
+    | _ => var_applied(name, u)
+    }
   | Ap(u1, u2) =>
     switch (u1.term) {
     | Var(x) => x == name ? true : var_applied(name, u2)
@@ -292,6 +328,7 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   | Float(_)
   | String(_)
   | Constructor(_)
+  | Undefined
   | Var(_) => true
   | Fun(args, body) =>
     var_mention_upat(name, args) ? false : tail_check(name, body)
@@ -305,6 +342,8 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   | Test(_) => false
   | TyAlias(_, _, u)
   | Filter(_, _, u)
+  | TypFun(_, u)
+  | TypAp(u, _)
   | Parens(u) => tail_check(name, u)
   | UnOp(_, u) => !var_mention(name, u)
   | Ap(u1, u2) => var_mention(name, u2) ? false : tail_check(name, u1)

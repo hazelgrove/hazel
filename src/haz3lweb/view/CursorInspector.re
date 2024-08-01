@@ -6,11 +6,11 @@ open Haz3lcore;
 
 let errc = "error";
 let okc = "ok";
-let div_err = div(~attr=clss([errc]));
-let div_ok = div(~attr=clss([okc]));
+let div_err = div(~attrs=[clss([errc])]);
+let div_ok = div(~attrs=[clss([okc])]);
 
 let code_err = (code: string): Node.t =>
-  div(~attr=clss(["code"]), [text(code)]);
+  div(~attrs=[clss(["code"])], [text(code)]);
 
 let explain_this_toggle = (~inject, ~show_explain_this: bool): Node.t => {
   let tooltip = "Toggle language documentation";
@@ -20,35 +20,36 @@ let explain_this_toggle = (~inject, ~show_explain_this: bool): Node.t => {
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   div(
-    ~attr=clss(["explain-this-button"]),
+    ~attrs=[clss(["explain-this-button"])],
     [Widgets.toggle(~tooltip, "?", show_explain_this, toggle_explain_this)],
   );
 };
 
 let cls_view = (ci: Info.t): Node.t =>
   div(
-    ~attr=clss(["syntax-class"]),
+    ~attrs=[clss(["syntax-class"])],
     [text(ci |> Info.cls_of |> Term.Cls.show)],
   );
 
 let ctx_toggle = (~inject, context_inspector: bool): Node.t =>
   div(
-    ~attr=
-      Attr.many([
-        Attr.on_click(_ => inject(Update.Set(ContextInspector))),
-        clss(["gamma"] @ (context_inspector ? ["visible"] : [])),
-      ]),
+    ~attrs=[
+      Attr.on_click(_ => inject(Update.Set(ContextInspector))),
+      clss(["gamma"] @ (context_inspector ? ["visible"] : [])),
+    ],
     [text("Γ")],
   );
 
 let term_view = (~inject, ~settings: Settings.t, ci) => {
   let sort = ci |> Info.sort_of |> Sort.show;
   div(
-    ~attr=clss(["ci-header", sort] @ (Info.is_error(ci) ? [errc] : [])),
+    ~attrs=[
+      clss(["ci-header", sort] @ (Info.is_error(ci) ? [errc] : [])),
+    ],
     [
       ctx_toggle(~inject, settings.context_inspector),
       CtxInspector.view(~inject, ~settings, ci),
-      div(~attr=clss(["term-tag"]), [text(sort)]),
+      div(~attrs=[clss(["term-tag"])], [text(sort)]),
       explain_this_toggle(
         ~inject,
         ~show_explain_this=settings.explainThis.show,
@@ -140,14 +141,21 @@ let common_ok_view = (cls: Term.Cls.t, ok: Info.ok_pat) => {
 let typ_ok_view = (cls: Term.Cls.t, ok: Info.ok_typ) =>
   switch (ok) {
   | Type(_) when cls == Typ(EmptyHole) => [text("Fillable by any type")]
-  | Type(ty) => [Type.view(ty)]
+  | Type(ty) => [Type.view(ty), text("is a type")]
   | TypeAlias(name, ty_lookup) => [
       Type.view(Var(name)),
       text("is an alias for"),
       Type.view(ty_lookup),
     ]
-  | Variant(name, _sum_ty) => [Type.view(Var(name))]
-  | VariantIncomplete(_sum_ty) => [text("is incomplete")]
+  | Variant(name, sum_ty) => [
+      Type.view(Var(name)),
+      text("is a sum type constuctor of type"),
+      Type.view(sum_ty),
+    ]
+  | VariantIncomplete(sum_ty) => [
+      text("An incomplete sum type constuctor of type"),
+      Type.view(sum_ty),
+    ]
   };
 
 let typ_err_view = (ok: Info.error_typ) =>
@@ -166,10 +174,21 @@ let typ_err_view = (ok: Info.error_typ) =>
     ]
   };
 
-let exp_view = (cls: Term.Cls.t, status: Info.status_exp) =>
+let rec exp_view = (cls: Term.Cls.t, status: Info.status_exp) =>
   switch (status) {
   | InHole(FreeVariable(name)) =>
     div_err([code_err(name), text("not found")])
+  | InHole(InexhaustiveMatch(additional_err)) =>
+    let cls_str = Term.Cls.show(cls);
+    switch (additional_err) {
+    | None => div_err([text(cls_str ++ " is inexhaustive")])
+    | Some(err) =>
+      let cls_str = String.uncapitalize_ascii(cls_str);
+      div_err([
+        exp_view(cls, InHole(Common(err))),
+        text("; " ++ cls_str ++ " is inexhaustive"),
+      ]);
+    };
   | InHole(UnusedDeferral) =>
     div_err([text("Deferral must appear as a function argument")])
   | InHole(BadPartialAp(NoDeferredArgs)) =>
@@ -192,9 +211,15 @@ let exp_view = (cls: Term.Cls.t, status: Info.status_exp) =>
   | NotInHole(Common(ok)) => div_ok(common_ok_view(cls, ok))
   };
 
-let pat_view = (cls: Term.Cls.t, status: Info.status_pat) =>
+let rec pat_view = (cls: Term.Cls.t, status: Info.status_pat) =>
   switch (status) {
   | InHole(ExpectedConstructor) => div_err([text("Expected a constructor")])
+  | InHole(Redundant(additional_err)) =>
+    switch (additional_err) {
+    | None => div_err([text("Pattern is redundant")])
+    | Some(err) =>
+      div_err([pat_view(cls, InHole(err)), text("; pattern is redundant")])
+    }
   | InHole(Common(error)) => div_err(common_err_view(cls, error))
   | NotInHole(ok) => div_ok(common_ok_view(cls, ok))
   };
@@ -212,10 +237,15 @@ let tpat_view = (_: Term.Cls.t, status: Info.status_tpat) =>
   | InHole(NotAVar(NotCapitalized)) =>
     div_err([text("Must begin with a capital letter")])
   | InHole(NotAVar(_)) => div_err([text("Expected an alias")])
-  | InHole(ShadowsType(name)) when Form.is_base_typ(name) =>
+  | InHole(ShadowsType(name, BaseTyp)) =>
     div_err([text("Can't shadow base type"), Type.view(Var(name))])
-  | InHole(ShadowsType(name)) =>
+  | InHole(ShadowsType(name, TyAlias)) =>
     div_err([text("Can't shadow existing alias"), Type.view(Var(name))])
+  | InHole(ShadowsType(name, TyVar)) =>
+    div_err([
+      text("Can't shadow existing type variable"),
+      Type.view(Var(name)),
+    ])
   };
 
 let secondary_view = (cls: Term.Cls.t) =>
@@ -224,7 +254,7 @@ let secondary_view = (cls: Term.Cls.t) =>
 let view_of_info = (~inject, ~settings, ci): Node.t => {
   let wrapper = status_view =>
     div(
-      ~attr=clss(["info"]),
+      ~attrs=[clss(["info"])],
       [term_view(~inject, ~settings, ci), status_view],
     );
   switch (ci) {
@@ -238,17 +268,19 @@ let view_of_info = (~inject, ~settings, ci): Node.t => {
 
 let inspector_view = (~inject, ~settings, ci): Node.t =>
   div(
-    ~attr=clss(["cursor-inspector"] @ [Info.is_error(ci) ? errc : okc]),
+    ~attrs=[
+      clss(["cursor-inspector"] @ [Info.is_error(ci) ? errc : okc]),
+    ],
     [view_of_info(~inject, ~settings, ci)],
   );
 
 let view = (~inject, ~settings: Settings.t, cursor_info: option(Info.t)) => {
-  let bar_view = div(~attr=Attr.id("bottom-bar"));
+  let bar_view = div(~attrs=[Attr.id("bottom-bar")]);
   let err_view = err =>
     bar_view([
       div(
-        ~attr=clss(["cursor-inspector", "no-info"]),
-        [div(~attr=clss(["icon"]), [Icons.magnify]), text(err)],
+        ~attrs=[clss(["cursor-inspector", "no-info"])],
+        [div(~attrs=[clss(["icon"])], [Icons.magnify]), text(err)],
       ),
     ]);
   switch (cursor_info) {
@@ -258,7 +290,7 @@ let view = (~inject, ~settings: Settings.t, cursor_info: option(Info.t)) => {
     bar_view([
       inspector_view(~inject, ~settings, ci),
       div(
-        ~attr=clss(["id"]),
+        ~attrs=[clss(["id"])],
         [text(String.sub(Id.to_string(Info.id_of(ci)), 0, 4))],
       ),
     ])
