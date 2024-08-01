@@ -154,8 +154,7 @@ module Deco =
         };
       let range: option((Point.t, Point.t)) = {
         // if (Piece.has_ends(p)) {
-        let id =
-          Id.Map.find(Piece.id(p), M.meta.syntax.terms) |> Term.rep_id;
+        let id = Id.Map.find(Piece.id(p), M.meta.syntax.terms) |> Any.rep_id;
         switch (TermRanges.find_opt(id, M.meta.syntax.term_ranges)) {
         | None => None
         | Some((p_l, p_r)) =>
@@ -186,7 +185,7 @@ module Deco =
       | Some(range) =>
         let tiles =
           Id.Map.find(Piece.id(p), M.meta.syntax.terms)
-          |> Term.ids
+          |> Any.ids
           |> List.map(id => {
                let t = tile(id);
                (
@@ -360,7 +359,7 @@ module Deco =
       | None =>
         let tiles =
           Id.Map.find(id, M.meta.syntax.terms)
-          |> Term.ids
+          |> Term.Any.ids
           |> List.map(id => {
                let t = tile(id);
                let shards =

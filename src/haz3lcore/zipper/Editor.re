@@ -2,13 +2,13 @@ open Util;
 
 module CachedStatics = {
   type t = {
-    term: Term.UExp.t,
+    term: UExp.t,
     info_map: Statics.Map.t,
     error_ids: list(Id.t),
   };
 
   let empty: t = {
-    term: Term.UExp.{ids: [Id.invalid], term: Triv},
+    term: UExp.{ids: [Id.invalid], copied: false, term: Tuple([])},
     info_map: Id.Map.empty,
     error_ids: [],
   };
@@ -43,7 +43,20 @@ module CachedSyntax = {
     tiles: TileMap.t,
     holes: list(Grout.t),
     selection_ids: list(Id.t),
-    term: Term.UExp.t,
+    term: UExp.t,
+    /* This term, and the term-derived data structured below, may differ
+     * from the term used for semantics. These terms are identical when
+     * the backpack is empty. If the backpack is non-empty, then when we
+     * make the term for semantics, we attempt to empty the backpack
+     * according to some simple heuristics (~ try to empty it greedily
+     * while moving rightwards from the current caret position).
+     * this is currently necessary to have the cursorinfo/completion
+     * workwhen the backpack is nonempty.
+     *
+     * This is a brittle part of the current implementation. there are
+     * some other comments at some of the weakest joints; the biggest
+     * issue is that dropping the backpack can add/remove grout, causing
+     * certain ids to be present/non-present unexpectedly. */
     term_ranges: TermRanges.t,
     terms: TermMap.t,
     projectors: Id.Map.t(Base.projector),
@@ -103,7 +116,6 @@ module Meta = {
   let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
   let next = (~settings: CoreSettings.t, a: Action.t, z: Zipper.t, meta: t): t => {
-    //print_endline("Editor.next. Action:" ++ Action.show(a));
     let syntax = CachedSyntax.next(a, z, meta.statics.info_map, meta.syntax);
     let statics = CachedStatics.next(~settings, a, z, meta.statics);
     let col_target =

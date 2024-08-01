@@ -109,6 +109,7 @@ let typeann = () => mk_monotile(Form.get("typeann"));
 let mk_typfun = mk_tile(Form.get("typfun"));
 let mk_fun = mk_tile(Form.get("fun_"));
 let mk_ap_exp_typ = mk_tile(Form.get("ap_exp_typ"));
+let mk_fix = mk_tile(Form.get("fix"));
 let mk_ap_exp = mk_tile(Form.get("ap_exp"));
 let mk_ap_pat = mk_tile(Form.get("ap_pat"));
 let mk_let = mk_tile(Form.get("let_"));

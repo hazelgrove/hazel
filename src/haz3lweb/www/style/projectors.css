@@ -72,6 +72,7 @@
   margin: 0;
   filter: sepia(1);
   cursor: pointer;
+  outline: none;
 }
 .projector.check:not(.indicated):not(:hover) > svg {
   fill: #0000;
@@ -79,15 +80,16 @@
 
 /* PROJECTOR: SLIDERS (INT & FLOAT) */
 
-.projector.slide input,
-.projector.slidef input {
+.projector.slider input,
+.projector.sliderf input {
   margin: 0;
-  width: 90%;
   filter: sepia(1);
   cursor: pointer;
+  outline: none;
+  width: 90%;
 }
-.projector.slide:not(.indicated):not(:hover) > svg,
-.projector.slidef:not(.indicated):not(:hover) > svg {
+.projector.slider:not(.indicated):not(:hover) > svg,
+.projector.sliderf:not(.indicated):not(:hover) > svg {
   fill: #0000;
 }
 

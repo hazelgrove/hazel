@@ -88,18 +88,18 @@ let get_env_init = (~settings as _: Settings.t, editors: t): Environment.t =>
    Used in the Update module */
 let get_spliced_elabs =
     (~settings: CoreSettings.t, editors: t)
-    : list((ModelResults.key, DHExp.t)) =>
+    : list((ModelResults.key, Elaborator.Elaboration.t)) =>
   switch (editors) {
   | Scratch(idx, _) =>
     let key = ScratchSlide.scratch_key(idx |> string_of_int);
     let statics = get_editor(editors).state.meta.statics;
     let d = Interface.elaborate(~settings, statics.info_map, statics.term);
-    [(key, d)];
+    [(key, {d: d})];
   | Documentation(name, _) =>
     let key = ScratchSlide.scratch_key(name);
     let statics = get_editor(editors).state.meta.statics;
     let d = Interface.elaborate(~settings, statics.info_map, statics.term);
-    [(key, d)];
+    [(key, {d: d})];
   | Exercises(_, _, exercise) => Exercise.spliced_elabs(settings, exercise)
   };
 

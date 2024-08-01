@@ -28,7 +28,7 @@ let explain_this_toggle = (~inject, ~show_explain_this: bool): Node.t => {
 let cls_view = (ci: Info.t): Node.t =>
   div(
     ~attrs=[clss(["syntax-class"])],
-    [text(ci |> Info.cls_of |> Term.Cls.show)],
+    [text(ci |> Info.cls_of |> Cls.show)],
   );
 
 let ctx_toggle = (~inject, context_inspector: bool): Node.t =>
@@ -63,7 +63,7 @@ let term_view = (~inject, ~settings: Settings.t, ci) => {
   );
 };
 
-let elements_noun: Term.Cls.t => string =
+let elements_noun: Cls.t => string =
   fun
   | Exp(Match | If) => "Branches"
   | Exp(ListLit)
@@ -71,7 +71,7 @@ let elements_noun: Term.Cls.t => string =
   | Exp(ListConcat) => "Operands"
   | _ => failwith("elements_noun: Cls doesn't have elements");
 
-let common_err_view = (cls: Term.Cls.t, err: Info.error_common) =>
+let common_err_view = (cls: Cls.t, err: Info.error_common) =>
   switch (err) {
   | NoType(BadToken(token)) =>
     switch (Form.bad_token_cls(token)) {
@@ -82,7 +82,7 @@ let common_err_view = (cls: Term.Cls.t, err: Info.error_common) =>
       text("Function argument type"),
       Type.view(ty),
       text("inconsistent with"),
-      Type.view(Prod([])),
+      Type.view(Prod([]) |> Typ.fresh),
     ]
   | NoType(FreeConstructor(name)) => [code_err(name), text("not found")]
   | Inconsistent(WithArrow(typ)) => [
@@ -102,7 +102,7 @@ let common_err_view = (cls: Term.Cls.t, err: Info.error_common) =>
     ]
   };
 
-let common_ok_view = (cls: Term.Cls.t, ok: Info.ok_pat) => {
+let common_ok_view = (cls: Cls.t, ok: Info.ok_pat) => {
   switch (cls, ok) {
   | (Exp(MultiHole) | Pat(MultiHole), _) => [
       text("Expecting operator or delimiter"),
@@ -142,17 +142,17 @@ let common_ok_view = (cls: Term.Cls.t, ok: Info.ok_pat) => {
   };
 };
 
-let typ_ok_view = (cls: Term.Cls.t, ok: Info.ok_typ) =>
+let typ_ok_view = (cls: Cls.t, ok: Info.ok_typ) =>
   switch (ok) {
   | Type(_) when cls == Typ(EmptyHole) => [text("Fillable by any type")]
   | Type(ty) => [Type.view(ty), text("is a type")]
   | TypeAlias(name, ty_lookup) => [
-      Type.view(Var(name)),
+      Type.view(Var(name) |> Typ.fresh),
       text("is an alias for"),
       Type.view(ty_lookup),
     ]
   | Variant(name, sum_ty) => [
-      Type.view(Var(name)),
+      Type.view(Var(name) |> Typ.fresh),
       text("is a sum type constuctor of type"),
       Type.view(sum_ty),
     ]
@@ -164,7 +164,10 @@ let typ_ok_view = (cls: Term.Cls.t, ok: Info.ok_typ) =>
 
 let typ_err_view = (ok: Info.error_typ) =>
   switch (ok) {
-  | FreeTypeVariable(name) => [Type.view(Var(name)), text("not found")]
+  | FreeTypeVariable(name) => [
+      Type.view(Var(name) |> Typ.fresh),
+      text("not found"),
+    ]
   | BadToken(token) => [
       code_err(token),
       text("not a type or type operator"),
@@ -173,17 +176,17 @@ let typ_err_view = (ok: Info.error_typ) =>
   | WantConstructorFoundType(_) => [text("Expected a constructor")]
   | WantTypeFoundAp => [text("Must be part of a sum type")]
   | DuplicateConstructor(name) => [
-      Type.view(Var(name)),
+      Type.view(Var(name) |> Typ.fresh),
       text("already used in this sum"),
     ]
   };
 
-let rec exp_view = (cls: Term.Cls.t, status: Info.status_exp) =>
+let rec exp_view = (cls: Cls.t, status: Info.status_exp) =>
   switch (status) {
   | InHole(FreeVariable(name)) =>
     div_err([code_err(name), text("not found")])
   | InHole(InexhaustiveMatch(additional_err)) =>
-    let cls_str = Term.Cls.show(cls);
+    let cls_str = Cls.show(cls);
     switch (additional_err) {
     | None => div_err([text(cls_str ++ " is inexhaustive")])
     | Some(err) =>
@@ -215,7 +218,7 @@ let rec exp_view = (cls: Term.Cls.t, status: Info.status_exp) =>
   | NotInHole(Common(ok)) => div_ok(common_ok_view(cls, ok))
   };
 
-let rec pat_view = (cls: Term.Cls.t, status: Info.status_pat) =>
+let rec pat_view = (cls: Cls.t, status: Info.status_pat) =>
   switch (status) {
   | InHole(ExpectedConstructor) => div_err([text("Expected a constructor")])
   | InHole(Redundant(additional_err)) =>
@@ -228,13 +231,13 @@ let rec pat_view = (cls: Term.Cls.t, status: Info.status_pat) =>
   | NotInHole(ok) => div_ok(common_ok_view(cls, ok))
   };
 
-let typ_view = (cls: Term.Cls.t, status: Info.status_typ) =>
+let typ_view = (cls: Cls.t, status: Info.status_typ) =>
   switch (status) {
   | NotInHole(ok) => div_ok(typ_ok_view(cls, ok))
   | InHole(err) => div_err(typ_err_view(err))
   };
 
-let tpat_view = (_: Term.Cls.t, status: Info.status_tpat) =>
+let tpat_view = (_: Cls.t, status: Info.status_tpat) =>
   switch (status) {
   | NotInHole(Empty) => div_ok([text("Fillable with a new alias")])
   | NotInHole(Var(name)) => div_ok([Type.alias_view(name)])
@@ -242,18 +245,23 @@ let tpat_view = (_: Term.Cls.t, status: Info.status_tpat) =>
     div_err([text("Must begin with a capital letter")])
   | InHole(NotAVar(_)) => div_err([text("Expected an alias")])
   | InHole(ShadowsType(name, BaseTyp)) =>
-    div_err([text("Can't shadow base type"), Type.view(Var(name))])
+    div_err([
+      text("Can't shadow base type"),
+      Type.view(Var(name) |> Typ.fresh),
+    ])
   | InHole(ShadowsType(name, TyAlias)) =>
-    div_err([text("Can't shadow existing alias"), Type.view(Var(name))])
+    div_err([
+      text("Can't shadow existing alias"),
+      Type.view(Var(name) |> Typ.fresh),
+    ])
   | InHole(ShadowsType(name, TyVar)) =>
     div_err([
       text("Can't shadow existing type variable"),
-      Type.view(Var(name)),
+      Type.view(Var(name) |> Typ.fresh),
     ])
   };
 
-let secondary_view = (cls: Term.Cls.t) =>
-  div_ok([text(cls |> Term.Cls.show)]);
+let secondary_view = (cls: Cls.t) => div_ok([text(cls |> Cls.show)]);
 
 let view_of_info = (~inject, ~settings, ci): list(Node.t) => {
   let wrapper = status_view => [

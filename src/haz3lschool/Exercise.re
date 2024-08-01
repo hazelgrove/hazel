@@ -568,18 +568,25 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     hidden_tests: 'a,
   };
 
-  let wrap_filter = (act: FilterAction.action, term: Term.UExp.t): Term.UExp.t =>
-    TermBase.UExp.{
+  let wrap_filter = (act: FilterAction.action, term: UExp.t): UExp.t =>
+    Exp.{
       term:
-        TermBase.UExp.Filter(
-          FilterAction.(act, One),
-          {term: Constructor("$e"), ids: [Id.mk()]},
+        Exp.Filter(
+          Filter({
+            act: FilterAction.(act, One),
+            pat: {
+              term: Constructor("$e", Unknown(Internal) |> Typ.temp),
+              copied: false,
+              ids: [Id.mk()],
+            },
+          }),
           term,
         ),
+      copied: false,
       ids: [Id.mk()],
     };
 
-  let term_of = (editor: Editor.t): Term.UExp.t =>
+  let term_of = (editor: Editor.t): UExp.t =>
     MakeTerm.from_zip_for_sem(editor.state.zipper).term;
 
   let stitch3 = (ed1: Editor.t, ed2: Editor.t, ed3: Editor.t) =>
@@ -588,7 +595,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       term_of(ed3),
     );
 
-  let stitch_term = ({eds, _}: state): stitched(TermBase.UExp.t) => {
+  let stitch_term = ({eds, _}: state): stitched(UExp.t) => {
     let instructor =
       stitch3(eds.prelude, eds.correct_impl, eds.hidden_tests.tests);
     let user_impl_term = {
@@ -613,8 +620,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       instructor,
       hidden_bugs:
         List.map(
-          (t): TermBase.UExp.t =>
-            stitch3(eds.prelude, t.impl, eds.your_tests.tests),
+          (t): UExp.t => stitch3(eds.prelude, t.impl, eds.your_tests.tests),
           eds.hidden_bugs,
         ),
       hidden_tests: hidden_tests_term,
@@ -630,9 +636,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
      Stitching is necessary to concatenate terms
      from different editors, which are then typechecked. */
   let stitch_static =
-      (settings: CoreSettings.t, t: stitched(TermBase.UExp.t))
-      : stitched_statics => {
-    let mk = (term: TermBase.UExp.t): Editor.CachedStatics.t => {
+      (settings: CoreSettings.t, t: stitched(UExp.t)): stitched_statics => {
+    let mk = (term: UExp.t): Editor.CachedStatics.t => {
       let info_map = Statics.mk(settings, Builtins.ctx_init, term);
       {term, error_ids: Statics.Map.error_ids(info_map), info_map};
     };
@@ -671,7 +676,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   let spliced_elabs =
       (settings: CoreSettings.t, state: state)
-      : list((ModelResults.key, DHExp.t)) => {
+      : list((ModelResults.key, Elaborator.Elaboration.t)) => {
     let {
       test_validation,
       user_impl,
@@ -682,8 +687,9 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       hidden_tests,
     } =
       stitch_static(settings, stitch_term(state));
-    let elab = (s: Editor.CachedStatics.t) =>
-      Interface.elaborate(~settings, s.info_map, s.term);
+    let elab = (s: Editor.CachedStatics.t): Elaborator.Elaboration.t => {
+      d: Interface.elaborate(~settings, s.info_map, s.term),
+    };
     [
       (test_validation_key, elab(test_validation)),
       (user_impl_key, elab(user_impl)),
