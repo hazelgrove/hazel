@@ -26,6 +26,17 @@
   border-left: 1px solid #0000;
 }
 
+#main.Exercises .cell .cell-item:first-child {
+  border-top-left-radius: 0.4em;
+  border-top-right-radius: 0.4em;
+}
+
+#main.Exercises .cell .cell-item:last-child {
+  border-bottom-left-radius: 0.4em;
+  border-bottom-right-radius: 0.4em;
+}
+
+
 .test-panel,
 .test-reports,
 .test-summary,
