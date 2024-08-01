@@ -156,23 +156,17 @@ let indication = (z, id) =>
 
 /* Returns a div containing all projector UIs, intended to
  * be absolutely positioned atop a rendered editor UI */
-let all = (z, ~meta: Editor.Meta.t, ~inject, ~font_metrics) => {
-  // print_endline(
-  //   "cardinal: "
-  //   ++ (meta.projected.projectors |> Id.Map.cardinal |> string_of_int),
-  // );
+let all = (z, ~meta: Editor.Meta.t, ~inject, ~font_metrics) =>
   div_c(
     "projectors",
     List.filter_map(
       ((id, _)) => {
-        //TODO(andrew): cleanup
         let indication = indication(z, id);
         setup_view(id, ~meta, ~inject, ~font_metrics, ~indication);
       },
       Id.Map.bindings(meta.syntax.projectors) |> List.rev,
     ),
   );
-};
 
 /* When the caret is directly adjacent to a projector, keyboard commands
  * can be overidden here. Right now, trying to move into the projector,

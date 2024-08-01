@@ -1,27 +1,6 @@
 open Util;
 open Zipper;
 
-let is_write_action = (a: Action.t) => {
-  switch (a) {
-  | Project(_) => false //TODO(andrew): revisit
-  | Copy
-  | Move(_)
-  | Unselect(_)
-  | Jump(_)
-  | Select(_) => false
-  | Buffer(Set(_) | Accept | Clear)
-  | Cut
-  | Paste(_)
-  | Reparse
-  | Destruct(_)
-  | Insert(_)
-  | Pick_up
-  | Put_down
-  | RotateBackpack
-  | MoveToBackpackTarget(_) => true
-  };
-};
-
 let buffer_clear = (z: t): t =>
   switch (z.selection.mode) {
   | Buffer(_) => {...z, selection: Selection.mk([])}
@@ -267,17 +246,10 @@ let go_history =
     (~settings: CoreSettings.t, a: Action.t, ed: Editor.t)
     : Action.Result.t(Editor.t) => {
   open Result.Syntax;
-  /* This function is responsible for the action history */
+  /* This function records action history */
   let Editor.State.{zipper, meta} = ed.state;
-  //Effect.s_clear();
   let+ z = go_z(~settings, ~meta, a, zipper);
-  Editor.new_state(
-    /*~effects=Effect.s^,*/
-    ~settings,
-    a,
-    z,
-    ed,
-  );
+  Editor.new_state(~settings, a, z, ed);
 };
 
 let go =
@@ -287,7 +259,7 @@ let go =
    * then beginning any action (other than accepting a completion) clears
    * the completion buffer before performing the action. Conversely,
    * after any edit action, a new completion is set in the buffer */
-  if (ed.read_only && is_write_action(a)) {
+  if (ed.read_only && Action.prevent_in_read_only_editor(a)) {
     Ok(ed);
   } else if (settings.assist && settings.statics) {
     open Result.Syntax;
