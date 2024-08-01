@@ -743,6 +743,7 @@ select {
   margin: 0;
   filter: sepia(1);
   cursor: pointer;
+  outline: none;
 }
 .projector.check:not(.indicated):not(:hover) > svg {
   fill: #0000;
@@ -753,9 +754,10 @@ select {
 .projector.slider input,
 .projector.sliderf input {
   margin: 0;
-  width: 90%;
   filter: sepia(1);
   cursor: pointer;
+  outline: none;
+  width: 90%;
 }
 .projector.slider:not(.indicated):not(:hover) > svg,
 .projector.sliderf:not(.indicated):not(:hover) > svg {

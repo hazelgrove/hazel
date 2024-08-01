@@ -44,6 +44,12 @@ let key_handler = (id, ~parent, evt) => {
   | D("ArrowLeft" | "ArrowUp") when is_first_pos(id) =>
     JsUtil.get_elem_by_id(of_id(id))##blur;
     Many([parent(Escape(Left)), Stop_propagation]);
+  /* Defer to parent editor undo for now */
+  | D("z" | "Z" | "y" | "Y") when Key.ctrl_held(evt) || Key.meta_held(evt) =>
+    Many([Prevent_default])
+  | D("z" | "Z")
+      when Key.shift_held(evt) && (Key.ctrl_held(evt) || Key.meta_held(evt)) =>
+    Many([Prevent_default])
   | D("\"") =>
     /* Hide quotes from both the textarea and parent editor */
     Many([Prevent_default, Stop_propagation])
@@ -66,11 +72,13 @@ let textarea =
       Attr.on_copy(_ => Effect.Stop_propagation),
       Attr.on_cut(_ => Effect.Stop_propagation),
       Attr.on_paste(_ => Effect.Stop_propagation),
+      Attr.string_property("value", text),
     ],
-    [Node.text(text)],
+    [],
   );
 
 let view = (_, ~info, ~local as _, ~parent) => {
+  print_endline("TextAreaProj.view");
   let text = info.syntax |> get |> Form.strip_quotes;
   Node.div(
     ~attrs=[Attr.classes(["wrapper"])],

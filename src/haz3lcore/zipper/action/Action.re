@@ -107,8 +107,6 @@ module Result = {
 
 let is_edit: t => bool =
   fun
-  | Project(Focus(_) | Escape(_)) => false
-  | Project(_) => true //TODO(andrew): revisit
   | Paste(_)
   | Cut
   | Reparse
@@ -123,7 +121,17 @@ let is_edit: t => bool =
   | Select(_)
   | Unselect(_)
   | RotateBackpack
-  | MoveToBackpackTarget(_) => false;
+  | MoveToBackpackTarget(_) => false
+  | Project(p) =>
+    switch (p) {
+    | SetSyntax(_)
+    | SetModel(_)
+    | SetIndicated(_)
+    | ToggleIndicated(_)
+    | Remove(_) => true
+    | Focus(_)
+    | Escape(_) => false
+    };
 
 /* Determines whether undo/redo skips action */
 let is_historic: t => bool =
@@ -140,8 +148,17 @@ let is_historic: t => bool =
   | Buffer(Accept)
   | Paste(_)
   | Reparse
-  | Project(_)
   | Insert(_)
   | Destruct(_)
   | Pick_up
-  | Put_down => true;
+  | Put_down => true
+  | Project(p) =>
+    switch (p) {
+    | SetSyntax(_)
+    | SetModel(_)
+    | SetIndicated(_)
+    | ToggleIndicated(_)
+    | Remove(_) => true
+    | Focus(_)
+    | Escape(_) => false
+    };
