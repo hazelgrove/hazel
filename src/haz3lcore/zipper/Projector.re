@@ -6,12 +6,12 @@ open ProjectorBase;
  * are to be called; see `shape` below for an example */
 let to_module = (kind: Base.kind): (module Cooked) =>
   switch (kind) {
-  | Fold => (module Cook(FoldCore.M))
-  | Info => (module Cook(InfoCore.M))
-  | Slider => (module Cook(SliderCore.M))
-  | SliderF => (module Cook(SliderFCore.M))
-  | Checkbox => (module Cook(CheckboxCore.M))
-  | TextArea => (module Cook(TextAreaCore.M))
+  | Fold => (module Cook(FoldProj.M))
+  | Info => (module Cook(InfoProj.M))
+  | Slider => (module Cook(SliderProj.M))
+  | SliderF => (module Cook(SliderFProj.M))
+  | Checkbox => (module Cook(CheckboxProj.M))
+  | TextArea => (module Cook(TextAreaProj.M))
   };
 
 let shape = (p: Base.projector, info: info): shape => {

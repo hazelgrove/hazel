@@ -35,7 +35,19 @@ type info = {
   ci: option(Info.t),
 };
 
-/* To add a new projector, implement this module signature */
+/* To add a new projector:
+ * 1. Create a new module implementing Projector (e.g. FoldCore)
+ * 2. Add an entry for it in Base.projector_kind
+ * 3. Register the module in Projector.to_module
+ * 4. If you want to expose the projector via a keyboard
+ *    shortcut, see the existing entry for Fold in Keyboard
+ * 5. If you want to expose the projector in the projector
+ *    panel bottom bar UI, update ProjectorView.name,
+ *    ProjectorView.of_name, and ProjectorView.applicable_projectors
+ * 6. If you want to manually manage the projector as part of
+ *    the update cycle, see the implementations of the SetIndicated
+ *    and Remove actions in ProjectorPerform for how to manually
+ *    add/remove projectors from an editor */
 module type Projector = {
   /* The internal model type of the projector which will
    * be serialized and persisted. Use `unit` if you don't
@@ -92,32 +104,18 @@ module type Projector = {
   let focus: ((Id.t, option(Direction.t))) => unit;
 };
 
-/* Projector model and action are serialized so that
+/* A cooked projector is the same as the base module
+ * signature except model & action are serialized so
  * they may be used by the Editor without it having
  * specialized knowledge of projector internals */
-type serialized_model = string;
-type serialized_action = string;
-
-/* A cooked projector is the same as the base module
- * signature except model & action are serialized */
-module type Cooked = {
-  let init: serialized_model;
-  let can_project: Base.piece => bool;
-  let can_focus: bool;
-  let view:
-    (
-      serialized_model,
-      ~info: info,
-      ~local: serialized_action => Ui_effect.t(unit),
-      ~parent: external_action => Ui_effect.t(unit)
-    ) =>
-    Node.t;
-  let placeholder: (serialized_model, info) => shape;
-  let update: (serialized_model, serialized_action) => serialized_model;
-  let focus: ((Id.t, option(Direction.t))) => unit;
-};
+module type Cooked =
+  Projector with type model = string and type action = string;
 
 module Cook = (C: Projector) : Cooked => {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type model = string;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type action = string;
   let serialize_m = m => m |> C.sexp_of_model |> Sexplib.Sexp.to_string;
   let deserialize_m = s => s |> Sexplib.Sexp.of_string |> C.model_of_sexp;
   let serialize_a = a => a |> C.sexp_of_action |> Sexplib.Sexp.to_string;

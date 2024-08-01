@@ -35,6 +35,12 @@ type unsorted =
   | Post(t, tiles)
   | Bin(t, tiles, t);
 
+type t = {
+  term: UExp.t,
+  terms: TermMap.t,
+  projectors: Id.Map.t(Piece.projector),
+};
+
 let is_nary =
     (is_sort: Any.t => option('sort), delim: Token.t, (delims, kids): tiles)
     : option(list('sort)) =>
@@ -94,12 +100,6 @@ let kids_of_unsorted =
   | Post(l, tiles) => [l] @ kids_of_tiles(tiles)
   | Bin(l, tiles, r) => [l] @ kids_of_tiles(tiles) @ [r];
 
-type data = {
-  term: UExp.t,
-  terms: TermMap.t,
-  projectors: Id.Map.t(Piece.projector),
-};
-
 // Need this map to collect all structural terms,
 // not just the ones recognized in Statics.
 // TODO unhack
@@ -139,7 +139,7 @@ let mk_bad = (ctr, ids, value) => {
   };
 };
 
-let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): t =>
+let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
   switch (s) {
   | Pat => Pat(pat(unsorted(skel, seg)))
   | TPat => TPat(tpat(unsorted(skel, seg)))
@@ -518,7 +518,7 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
   /* Remove projectors. We do this here as opposed to removing
    * them in an external call to save a whole-syntax pass. */
   let seg = rm_and_log_projectors(seg);
-  let tile_kids = (p: Piece.t): list(t) =>
+  let tile_kids = (p: Piece.t): list(Term.Any.t) =>
     switch (p) {
     | Secondary(_)
     | Grout(_) => []
