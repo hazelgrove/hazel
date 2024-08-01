@@ -28,7 +28,7 @@ let get_step: t => int;
 
 let put_step: (int, t) => t;
 
-let add_test: (t, KeywordID.t, TestMap.instance_report) => t;
+let add_test: (t, Id.t, TestMap.instance_report) => t;
 
 let get_tests: t => TestMap.t;
 

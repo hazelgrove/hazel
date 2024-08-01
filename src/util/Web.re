@@ -22,7 +22,7 @@ let range = (~attrs=[], ~min="0", ~max="100", value) =>
     ~attrs=
       [
         Attr.create("type", "range"),
-        Attr.create("value", value),
+        Attr.string_property("value", value),
         Attr.create("max", max),
         Attr.create("min", min),
       ]

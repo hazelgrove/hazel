@@ -7,6 +7,13 @@ let dedup = xs =>
     [],
   );
 
+let dedup_f = (f, xs) =>
+  List.fold_right(
+    (x, deduped) => List.exists(f(x), deduped) ? deduped : [x, ...deduped],
+    xs,
+    [],
+  );
+
 let are_duplicates = xs =>
   List.length(List.sort_uniq(compare, xs)) == List.length(xs);
 
@@ -490,5 +497,32 @@ let rec unsnoc = (xs: list('a)): option(('a, list('a))) => {
     | Some((tail_last: 'a, tail_init: list('a))) =>
       Some((tail_last, [head, ...tail_init]))
     }
+  };
+};
+
+let rec rev_concat: (list('a), list('a)) => list('a) =
+  (ls, rs) => {
+    switch (ls) {
+    | [] => rs
+    | [hd, ...tl] => rev_concat(tl, [hd, ...rs])
+    };
+  };
+
+let rec map3 = (f, xs, ys, zs) =>
+  switch (xs, ys, zs) {
+  | ([], [], []) => []
+  | ([x, ...xs], [y, ...ys], [z, ...zs]) => [
+      f(x, y, z),
+      ...map3(f, xs, ys, zs),
+    ]
+  | _ => failwith("Lists are of unequal length")
+  };
+
+let rec unzip = (lst: list(('a, 'b))): (list('a), list('b)) => {
+  switch (lst) {
+  | [] => ([], [])
+  | [(a, b), ...tail] =>
+    let (_as, bs) = unzip(tail);
+    ([a, ..._as], [b, ...bs]);
   };
 };

@@ -17,8 +17,8 @@ let name = (p: kind): string =>
   | Fold => "fold"
   | Info => "type"
   | Checkbox => "check"
-  | Slider => "slide"
-  | SliderF => "slidef"
+  | Slider => "slider"
+  | SliderF => "sliderf"
   | TextArea => "text"
   };
 
@@ -30,8 +30,8 @@ let of_name = (p: string): kind =>
   | "fold" => Fold
   | "type" => Info
   | "check" => Checkbox
-  | "slide" => Slider
-  | "slidef" => SliderF
+  | "slider" => Slider
+  | "sliderf" => SliderF
   | "text" => TextArea
   | _ => failwith("Unknown projector kind")
   };
@@ -245,7 +245,10 @@ module Panel = {
           @ (active ? ["active"] : [])
           @ (might_project ? [] : ["inactive"]),
         ),
-        Attr.on_click(_ => inject(toggle_projector(active, id, ci))),
+        Attr.on_mousedown(_ =>
+          might_project
+            ? inject(toggle_projector(active, id, ci)) : Effect.Ignore
+        ),
       ],
       [
         div(
