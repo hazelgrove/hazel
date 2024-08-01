@@ -44,6 +44,9 @@ let key_handler = (id, ~parent, evt) => {
   | D("ArrowLeft" | "ArrowUp") when is_first_pos(id) =>
     JsUtil.get_elem_by_id(of_id(id))##blur;
     Many([parent(Escape(Left)), Stop_propagation]);
+  | D("\"") =>
+    /* Hide quotes from both the textarea and parent editor */
+    Many([Prevent_default, Stop_propagation])
   | _ => Stop_propagation
   };
 };
