@@ -40,7 +40,7 @@ release: setup-instructor
 	dune build @src/fmt --auto-promote src --profile release
 
 release-student: setup-student
-	dune build @src/fmt --auto-promote src --profile dev # Should this be dev?
+	dune build @src/fmt --auto-promote src --profile dev # Uses dev profile for performance reasons. It may be worth it to retest since the ocaml upgrade
 
 echo-html-dir:
 	@echo $(HTML_DIR)
