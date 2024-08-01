@@ -90,6 +90,7 @@
   margin-left: 0.17em;
   font-size: 64%;
   vertical-align: super;
+  z-index: 4;
 }
 
 .test-instance.Pass:before,

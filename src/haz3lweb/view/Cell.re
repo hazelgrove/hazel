@@ -94,15 +94,17 @@ let test_status_icon_view =
   };
 
 let test_result_layer =
-    (~font_metrics, ~measured: Measured.t, test_results: TestResults.t)
-    : list(t) =>
-  List.filter_map(
-    ((id, insts)) =>
-      switch (Id.Map.find_opt(id, measured.tiles)) {
-      | Some(ms) => test_status_icon_view(~font_metrics, insts, ms)
-      | None => None
-      },
-    test_results.test_map,
+    (~font_metrics, ~measured: Measured.t, test_results: TestResults.t): t =>
+  Web.div_c(
+    "test-decos",
+    List.filter_map(
+      ((id, insts)) =>
+        switch (Id.Map.find_opt(id, measured.tiles)) {
+        | Some(ms) => test_status_icon_view(~font_metrics, insts, ms)
+        | None => None
+        },
+      test_results.test_map,
+    ),
   );
 
 let deco =
@@ -136,11 +138,13 @@ let deco =
   | None => decos
   | Some(test_results) =>
     decos
-    @ test_result_layer(
+    @ [
+      test_result_layer(
         ~font_metrics=ui_state.font_metrics,
         ~measured=meta.syntax.measured,
         test_results,
-      ) // TODO move into decos
+      ),
+    ] // TODO move into decos
   };
 };
 
