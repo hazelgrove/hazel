@@ -17,8 +17,8 @@ let name = (p: kind): string =>
   | Fold => "fold"
   | Info => "type"
   | Checkbox => "check"
-  | Slider => "slide"
-  | SliderF => "slidef"
+  | Slider => "slider"
+  | SliderF => "sliderf"
   | TextArea => "text"
   };
 
@@ -30,8 +30,8 @@ let of_name = (p: string): kind =>
   | "fold" => Fold
   | "type" => Info
   | "check" => Checkbox
-  | "slide" => Slider
-  | "slidef" => SliderF
+  | "slider" => Slider
+  | "sliderf" => SliderF
   | "text" => TextArea
   | _ => failwith("Unknown projector kind")
   };

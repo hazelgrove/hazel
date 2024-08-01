@@ -44,6 +44,19 @@ module CachedSyntax = {
     holes: list(Grout.t),
     selection_ids: list(Id.t),
     term: UExp.t,
+    /* This term, and the term-derived data structured below, may differ
+     * from the term used for semantics. These terms are identical when
+     * the backpack is empty. If the backpack is non-empty, then when we
+     * make the term for semantics, we attempt to empty the backpack
+     * according to some simple heuristics (~ try to empty it greedily
+     * while moving rightwards from the current caret position).
+     * this is currently necessary to have the cursorinfo/completion
+     * workwhen the backpack is nonempty.
+     *
+     * This is a brittle part of the current implementation. there are
+     * some other comments at some of the weakest joints; the biggest
+     * issue is that dropping the backpack can add/remove grout, causing
+     * certain ids to be present/non-present unexpectedly. */
     term_ranges: TermRanges.t,
     terms: TermMap.t,
     projectors: Id.Map.t(Base.projector),
