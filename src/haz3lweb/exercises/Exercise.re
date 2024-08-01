@@ -354,7 +354,7 @@ let visible_in = (pos, ~instructor_mode) => {
   | Prelude => instructor_mode
   | CorrectImpl => instructor_mode
   | YourTestsValidation => true
-  | YourTestsTesting => false
+  | YourTestsTesting => true
   | YourImpl => true
   | HiddenBugs(_) => instructor_mode
   | HiddenTests => instructor_mode
