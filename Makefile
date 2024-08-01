@@ -25,7 +25,7 @@ dev-helper:
 
 dev: setup-instructor dev-helper
 
-dev-student: setup-student dev
+dev-student: setup-student dev-helper
 
 fmt:
 	dune fmt --auto-promote
@@ -40,7 +40,7 @@ release: setup-instructor
 	dune build @src/fmt --auto-promote src --profile release
 
 release-student: setup-student
-	dune build @src/fmt --auto-promote src --profile dev
+	dune build @src/fmt --auto-promote src --profile dev # Should this be dev?
 
 echo-html-dir:
 	@echo $(HTML_DIR)
