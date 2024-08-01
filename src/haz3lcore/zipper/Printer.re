@@ -99,7 +99,7 @@ let zipper_of_string =
     (~zipper_init=Zipper.init(), str: string): option(Zipper.t) => {
   let insert = (z: option(Zipper.t), c: string): option(Zipper.t) => {
     let* z = z;
-    try(c == "\r" ? Some(z) : Insert.go(c == "\n" ? Form.linebreak : c, z)) {
+    try(c == "\r" ? Some(z) : Insert.go(c, z)) {
     | exn =>
       print_endline("WARN: zipper_of_string: " ++ Printexc.to_string(exn));
       None;

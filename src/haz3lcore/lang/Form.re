@@ -65,11 +65,8 @@ let mk_nul_infix = (t: Token.t, prec) =>
 
 /* A. Secondary Notation (Comments, Whitespace, etc.)  */
 let space = " ";
-/* HACK(andrew): Using ⏎ char to represent linebreak to avoid regexp
-   issues with using \n. Someone who understands regexps better
-   should fix this. */
-let linebreak = "⏎";
-let comment_regexp = regexp("^#[^#⏎]*#$"); /* Multiline comments not supported */
+let linebreak = "\n";
+let comment_regexp = regexp("^#[^#\n]*#$"); /* Multiline comments not supported */
 let is_comment = t => match(comment_regexp, t) || t == "#";
 let is_comment_delim = t => t == "#";
 let is_secondary = t =>
@@ -79,7 +76,7 @@ let is_secondary = t =>
 
 /* is_string: last clause is a somewhat hacky way of making sure
    there are at most two quotes, in order to prevent merges */
-let string_regexp = regexp("^\"[^⏎]*\"$");
+let string_regexp = regexp("^\"[^\n]*\"$"); /* Multiline strings not supported */
 let is_string = t =>
   match(string_regexp, t) && List.length(String.split_on_char('"', t)) < 4;
 let string_delim = "\"";
@@ -119,7 +116,7 @@ let is_potential_operand = match(regexp("^[a-zA-Z0-9_'\\.?]+$"));
  *  delimiters, string delimiters, or the instant expanding paired
  *  delimiters: ()[]| */
 let potential_operator_regexp =
-  regexp("^[^a-zA-Z0-9_'?\"#⏎\\s\\[\\]\\(\\)]+$");
+  regexp("^[^a-zA-Z0-9_'?\"#\n\\s\\[\\]\\(\\)]+$"); /* Multiline operators not supported */
 let is_potential_operator = match(potential_operator_regexp);
 let is_potential_token = t =>
   is_potential_operand(t)

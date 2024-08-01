@@ -50,16 +50,6 @@
   background-color: var(--cell-active);
 }
 
-.cell-item:first-child {
-  border-top-left-radius: 0.4em;
-  border-top-right-radius: 0.4em;
-}
-
-.cell-item:last-child {
-  border-bottom-left-radius: 0.4em;
-  border-bottom-right-radius: 0.4em;
-}
-
 .title-cell {
   padding-left: 1em;
 }
