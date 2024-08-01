@@ -34,11 +34,7 @@ let cls_view = (ci: Info.t): Node.t =>
 let ctx_toggle = (~inject, context_inspector: bool): Node.t =>
   div(
     ~attrs=[
-      Attr.on_click(_ => {
-        print_endline("BOTTOMBAR");
-        inject(Update.Set(BottomBar));
-      }),
-      //Attr.on_click(_ => inject(Update.Set(ContextInspector))),
+      Attr.on_click(_ => inject(Update.Set(ContextInspector))),
       clss(["gamma"] @ (context_inspector ? ["visible"] : [])),
     ],
     [text("Γ")],
@@ -52,7 +48,6 @@ let term_view = (~inject, ~settings: Settings.t, ci) => {
     ],
     [
       ctx_toggle(~inject, settings.context_inspector),
-      CtxInspector.view(~inject, ~settings, ci),
       div(~attrs=[clss(["term-tag"])], [text(sort)]),
       explain_this_toggle(
         ~inject,

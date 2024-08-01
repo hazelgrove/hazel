@@ -151,20 +151,6 @@ let update_settings =
         captions: !settings.captions,
       },
     }
-  | TopBar => {
-      ...model,
-      settings: {
-        ...settings,
-        top_bar: !settings.top_bar,
-      },
-    }
-  | BottomBar => {
-      ...model,
-      settings: {
-        ...settings,
-        bottom_bar: !settings.bottom_bar,
-      },
-    }
   | SecondaryIcons => {
       ...model,
       settings: {

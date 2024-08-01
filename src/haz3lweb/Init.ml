@@ -30,8 +30,6 @@ let startup : PersistentData.t =
         explainThis =
           { show = true; show_feedback = false; highlight = NoHighlight };
         mode = Documentation;
-        top_bar = true;
-        bottom_bar = true;
       };
     scratch =
       ( 0,

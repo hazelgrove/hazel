@@ -190,6 +190,8 @@
   --caret-z: 14;
   --top-bar-z: 15;
   --test-panel-z: 20;
+  --context-inspector-z: 20;
+  --bottom-bar-z: 21;
   --modal-z: 10001;
   --modal-back-z: 10000;
 }

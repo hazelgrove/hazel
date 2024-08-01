@@ -38,18 +38,9 @@
   color: var(--light-page-color);
   height: 100%;
   mix-blend-mode: luminosity;
+  transition: all 0.1s ease-in;
 }
 
-#cursor-inspector .gamma:hover,
-#cursor-inspector .gamma.visible {
-  border-radius: 0;
-}
-
-#cursor-inspector .gamma:hover + .context-inspector,
-#cursor-inspector .gamma + .context-inspector:hover,
-.context-inspector.visible {
-  display: flex;
-}
 
 #cursor-inspector .ci-header {
   outline: 0.6px solid var(--BR2);
@@ -93,7 +84,7 @@
 }
 #cursor-inspector .ci-header.Rul {
   background-color: var(--shard-rul);
-  color: var(--token-rul);
+  color: var(--rul-shadow-color);
 }
 #cursor-inspector .ci-header.TPat {
   background-color: var(--shard-tpat);
@@ -124,9 +115,20 @@
   color: var(--ci-status-error-text);
 }
 
-#cursor-inspector .context-inspector {
+*:has(#cursor-inspector:hover) ~ .context-inspector,
+.context-inspector:hover,
+.context-inspector.visible {
+  display: flex;
+}
+
+#cursor-inspector .gamma.visible,
+#bottom-bar:has(~ .context-inspector:hover) .gamma {
+  border-radius: 0;
+}
+
+.context-inspector {
   position: absolute;
-  z-index: 20;
+  z-index: var(--context-inspector-z);
   bottom: 2em;
   min-width: 10em;
   max-height: 11.15em;
@@ -151,7 +153,7 @@
   }
 }
 
-#cursor-inspector .context-inspector .context-entry {
+.context-inspector .context-entry {
   scroll-snap-align: end;
   direction: ltr;
   width: 100%;
@@ -161,16 +163,16 @@
   border-bottom: 0.5px solid #0002;
 }
 
-#cursor-inspector .context-inspector .context-entry:hover {
+.context-inspector .context-entry:hover {
   max-width: 400em;
   background-color: var(--menu-item-hover-bkg);
 }
 
-#cursor-inspector .context-inspector .context-entry:hover .name {
+.context-inspector .context-entry:hover .name {
   filter: brightness(0);
 }
 
-#cursor-inspector .context-inspector::-webkit-scrollbar {
+.context-inspector::-webkit-scrollbar {
   background-color: var(--menu-scroll-track);
 }
 
