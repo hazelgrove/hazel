@@ -3155,6 +3155,5 @@ let exercise : Exercise.spec =
           };
         hints = [ "zero" ];
       };
-    syntax_tests =
-      [ ("odd is recursive", Haz3lschool.SyntaxTest.IsRecursive "odd") ];
+    syntax_tests = [ ("odd is recursive", SyntaxTest.IsRecursive "odd") ];
   }

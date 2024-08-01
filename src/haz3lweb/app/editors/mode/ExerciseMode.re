@@ -1,6 +1,5 @@
 open Haz3lcore;
 open Virtual_dom.Vdom;
-open Util;
 open Node;
 
 /* The exercises mode interface for a single exercise. Composed of multiple editors and results. */
@@ -8,7 +7,11 @@ open Node;
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    spec: Exercise.spec,
+    spec: Exercise.spec, // The spec that the model will be reset to on ResetExercise
+    /* We keep a separate editors field below (even though each cell technically also has its own editor)
+       for two reasons:
+          1. There are two synced cells that have the same internal `editor` model
+          2. The editors need to be `stitched` together before any cell calculations can be done */
     editors: Exercise.p(Editor.t),
     cells: Exercise.stitched(CellEditor.Model.t),
   };
@@ -30,7 +33,7 @@ module Model = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = list((Exercise.pos, PersistentZipper.t));
+  type persistent = Exercise.persistent_exercise_mode;
 
   let persist = (exercise: t, ~instructor_mode: bool) => {
     Exercise.positioned_editors(exercise.editors)
@@ -42,70 +45,10 @@ module Model = {
        );
   };
 
-  let unpersist =
-      (~instructor_mode, positioned_zippers, spec: Exercise.spec): t => {
-    open Exercise;
-    let lookup = (pos, default) =>
-      if (visible_in(pos, ~instructor_mode)) {
-        positioned_zippers
-        |> List.assoc_opt(pos)
-        |> Option.map(PersistentZipper.unpersist)
-        |> Option.value(~default);
-      } else {
-        default;
-      };
-    let prelude = lookup(Prelude, spec.prelude);
-    let correct_impl = lookup(CorrectImpl, spec.correct_impl);
-    let your_tests_tests = lookup(YourTestsValidation, spec.your_tests.tests);
-    let your_impl = lookup(YourImpl, spec.your_impl);
-    let (_, hidden_bugs) =
-      List.fold_left(
-        ((i, hidden_bugs: list(wrong_impl('a))), {impl, hint}) => {
-          let impl = lookup(HiddenBugs(i), impl);
-          (i + 1, hidden_bugs @ [{impl, hint}]);
-        },
-        (0, []),
-        spec.hidden_bugs,
-      );
-    let hidden_tests_tests = lookup(HiddenTests, spec.hidden_tests.tests);
-    {
-      title: spec.title,
-      version: spec.version,
-      module_name: spec.module_name,
-      prompt: spec.prompt,
-      point_distribution: spec.point_distribution,
-      prelude,
-      correct_impl,
-      your_tests: {
-        tests: your_tests_tests,
-        required: spec.your_tests.required,
-        provided: spec.your_tests.provided,
-      },
-      your_impl,
-      hidden_bugs,
-      hidden_tests: {
-        tests: hidden_tests_tests,
-        hints: spec.hidden_tests.hints,
-      },
-      syntax_tests: spec.syntax_tests,
-    }
-    |> of_spec(~instructor_mode);
+  let unpersist = (~instructor_mode, positioned_zippers, spec) => {
+    let spec = Exercise.unpersist(~instructor_mode, positioned_zippers, spec);
+    of_spec(~instructor_mode, spec);
   };
-};
-
-type vis_marked('a) =
-  | InstructorOnly(unit => 'a)
-  | Always('a);
-
-let render_cells = (settings: Settings.t, v: list(vis_marked(Node.t))) => {
-  List.filter_map(
-    vis =>
-      switch (vis) {
-      | InstructorOnly(f) => settings.instructor_mode ? Some(f()) : None
-      | Always(node) => Some(node)
-      },
-    v,
-  );
 };
 
 module Update = {
@@ -263,6 +206,21 @@ module Selection = {
 module View = {
   type event =
     | MakeActive(Selection.t);
+
+  type vis_marked('a) =
+    | InstructorOnly(unit => 'a)
+    | Always('a);
+
+  let render_cells = (settings: Settings.t, v: list(vis_marked(Node.t))) => {
+    List.filter_map(
+      vis =>
+        switch (vis) {
+        | InstructorOnly(f) => settings.instructor_mode ? Some(f()) : None
+        | Always(node) => Some(node)
+        },
+      v,
+    );
+  };
 
   let view =
       (
