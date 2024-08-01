@@ -78,7 +78,6 @@ let textarea =
   );
 
 let view = (_, ~info, ~local as _, ~parent) => {
-  print_endline("TextAreaProj.view");
   let text = info.syntax |> get |> Form.strip_quotes;
   Node.div(
     ~attrs=[Attr.classes(["wrapper"])],

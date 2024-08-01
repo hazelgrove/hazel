@@ -56,7 +56,6 @@ let perform_action =
       CoreSettings.on
     | _ => settings
     };
-  print_endline("ACT: " ++ Action.show(a));
   switch (Perform.go(~settings, a, get_editor(editors))) {
   | Error(err) => Error(FailedToPerform(err))
   | Ok(ed) => Ok(put_editor(ed, editors))

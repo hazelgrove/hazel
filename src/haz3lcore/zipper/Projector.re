@@ -35,13 +35,6 @@ let placeholder = (p: Base.projector, ci: option(Info.t)): string =>
 let minimum_projection_condition = (syntax: syntax): bool =>
   Piece.is_convex(syntax);
 
-/* Add a new projector, gated on the predicated on the syntax */
-let create = (kind: Base.kind, syntax: syntax): option((Base.kind, string)) => {
-  let (module P) = to_module(kind);
-  P.can_project(syntax) && minimum_projection_condition(syntax)
-    ? Some((kind, P.init)) : None;
-};
-
 /* Returns the projector at the caret, if any */
 let indicated = (z: ZipperBase.t) => {
   open Util.OptUtil.Syntax;
