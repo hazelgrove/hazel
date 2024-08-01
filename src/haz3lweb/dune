@@ -15,7 +15,6 @@
   util
   ppx_yojson_conv.expander
   haz3lcore
-  haz3lschool
   pretty
   omd)
  (js_of_ocaml
@@ -32,7 +31,7 @@
 (library
  (name haz3lweb)
  (modules
-  (:standard \ Main)
+  (:standard \ Main Gradescope)
   \
   Worker
   WorkerServer)
@@ -46,7 +45,6 @@
   util
   ppx_yojson_conv.expander
   haz3lcore
-  haz3lschool
   pretty
   omd)
  (js_of_ocaml
@@ -97,3 +95,10 @@
 
 (rule
  (write-file js-of-ocaml-flags-release "(:standard)"))
+
+(executable
+ (name gradescope)
+ (modules Gradescope)
+ (libraries ppx_yojson_conv.expander haz3lcore haz3lweb)
+ (preprocess
+  (pps ppx_yojson_conv ppx_let ppx_sexp_conv ppx_deriving.show)))
