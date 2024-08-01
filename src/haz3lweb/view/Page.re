@@ -70,15 +70,7 @@ let top_bar =
     [
       div(
         ~attrs=[Attr.class_("wrap")],
-        Attr.[
-          a(
-            ~attrs=[
-              clss(["nut-icon"]),
-              on_mousedown(_ => inject(Set(TopBar))),
-            ],
-            [Icons.hazelnut],
-          ),
-        ],
+        [a(~attrs=[clss(["nut-icon"])], [Icons.hazelnut])],
       ),
       NutMenu.view(~inject, ~settings, ~editors),
       div(
@@ -184,6 +176,7 @@ let main_view =
     ),
     sidebar,
     bottom_bar,
+    ContextInspector.view(~inject, ~settings, cursor_info),
   ];
 };
 
@@ -194,10 +187,6 @@ let view = (~inject: UpdateAction.t => Ui_effect.t(unit), model: Model.t) =>
   div(
     ~attrs=[
       Attr.id("page"),
-      Attr.classes(
-        (model.settings.top_bar ? [] : ["top-bar-hidden"])
-        @ (model.settings.bottom_bar ? [] : ["bottom-bar-hidden"]),
-      ),
       ...handlers(~inject, Editors.get_editor(model.editors)),
     ],
     [
