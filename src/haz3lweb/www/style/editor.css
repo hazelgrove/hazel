@@ -221,6 +221,7 @@ svg.shard.error > path {
 
 .child-line {
   stroke-width: 1;
+  stroke-linecap: round;
   fill: none;
   vector-effect: non-scaling-stroke;
 }
