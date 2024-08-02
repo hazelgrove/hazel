@@ -3,36 +3,60 @@ open Node;
 open Util;
 
 let tip_width = 0.32;
-let concave_adj = 0.15;
-let convex_adj = 0.;
 let shadow_adj = 0.015;
-
-let caret_adjust = (side: Direction.t, shape: option(Direction.t)) =>
-  switch (side, shape) {
-  | (_, None) => 0.
-  | (Left, Some(Left)) => concave_adj
-  | (Right, Some(Right)) => -. concave_adj
-  | (Left, Some(Right)) => convex_adj
-  | (Right, Some(Left)) => -. convex_adj
-  };
-
+let shadow_dy = 0.037;
+let shadow_dx = 0.08;
 let child_border_thickness = 0.05;
-
 let t = child_border_thickness /. 0.5;
+let short_tip_width = (1. -. t) *. tip_width;
 let short_tip_height = (1. -. t) *. 0.5;
 
-let stretch_dx = 0.15;
+let d_comp = (d1: Direction.t, d2: Direction.t): float =>
+  switch (d1, d2) {
+  | (Left, Left)
+  | (Right, Right) => 0.
+  | (Left, Right) => 1.0
+  | (Right, Left) => (-1.0)
+  };
 
-let raised_shadow_dx = "0.1";
-let raised_shadow_dy = "0.037";
-let shadow_dx = raised_shadow_dx;
-let shadow_dy = raised_shadow_dy;
+let shape_of_run = (shape: Direction.t): float =>
+  switch (shape) {
+  | Left => +. tip_width
+  | Right => -. tip_width
+  };
+
+let caret_run = (shape: option(Direction.t)) =>
+  switch (shape) {
+  | None => 0.
+  | Some(d2) => shape_of_run(d2)
+  };
+
+let caret_adjust = (side: Direction.t, shape: option(Direction.t)) =>
+  switch (shape) {
+  | None => 0.
+  | Some(d2) => d_comp(side, d2) *. tip_width
+  };
+
+let chevron' = (a: float, b: float, c: float): list(SvgUtil.Path.cmd) =>
+  SvgUtil.Path.[
+    H_({dx: -. a}),
+    L_({dx: -. b, dy: c}),
+    L_({dx: +. b, dy: c}),
+    H_({dx: +. a}),
+  ];
+
+let chevron =
+    (side: Direction.t, shape: option(Direction.t), drawing: Direction.t) => {
+  chevron'(
+    caret_adjust(side, shape),
+    caret_run(shape),
+    drawing == Left ? (-0.5) : 0.5,
+  );
+};
 
 let extra_tail = 0.;
 let jagged_edge_h = child_border_thickness /. 3.;
 let jagged_edge_w = child_border_thickness /. 1.;
-
-let short_tip_width = (1. -. t) *. tip_width;
 
 type dims = {
   width: int,
@@ -205,8 +229,8 @@ let drop_shadow_filter = (sort: Haz3lcore.Sort.t) => {
         "feDropShadow",
         ~attrs=[
           Attr.classes(["tile-drop-shadow"]),
-          Attr.create("dx", raised_shadow_dx),
-          Attr.create("dy", raised_shadow_dy),
+          Attr.create("dx", Printf.sprintf("%.3f", shadow_dx)),
+          Attr.create("dy", Printf.sprintf("%.3f", shadow_dy)),
           Attr.create("stdDeviation", "0"),
         ],
         [],
