@@ -166,7 +166,7 @@ let rec elaborate_pattern =
     | Parens(p)
     | Cast(p, _, _) =>
       let (p', ty) = elaborate_pattern(m, p);
-      p' |> cast_from(ty);
+      p' |> cast_from(ty |> Typ.normalize(ctx));
     | Constructor(c, _) =>
       let mode =
         switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {

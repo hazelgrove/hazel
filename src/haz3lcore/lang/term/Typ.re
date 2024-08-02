@@ -347,7 +347,7 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
   | Float
   | Bool
   | String => ty
-  | Parens(t) => t
+  | Parens(t) => Parens(normalize(ctx, t)) |> rewrap
   | List(t) => List(normalize(ctx, t)) |> rewrap
   | Ap(t1, t2) => Ap(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
   | Arrow(t1, t2) =>
