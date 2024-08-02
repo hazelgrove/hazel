@@ -166,8 +166,8 @@ let rec elaborate_pattern =
     | Parens(p)
     | Cast(p, _, _) =>
       let (p', ty) = elaborate_pattern(m, p);
-      p' |> cast_from(ty);
-    | Constructor(c) =>
+      p' |> cast_from(ty |> Typ.normalize(ctx));
+    | Constructor(c, _) =>
       let mode =
         switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
         | Some(Info.InfoPat({mode, _})) => mode
@@ -179,7 +179,8 @@ let rec elaborate_pattern =
         | (_, Some({typ: syn_ty, _})) => syn_ty
         | _ => Unknown(Internal) |> Typ.temp
         };
-      upat |> cast_from(t |> Typ.normalize(ctx));
+      let t = t |> Typ.normalize(ctx);
+      Constructor(c, t) |> rewrap |> cast_from(t);
     };
   (dpat, elaborated_type);
 };
@@ -211,6 +212,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
   let dhexp =
     switch (term) {
     | Invalid(_)
+    | Undefined
     | EmptyHole => uexp |> cast_from(Typ.temp(Typ.Unknown(Internal)))
     | MultiHole(stuff) =>
       Any.map_term(
@@ -247,7 +249,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
         |> Option.value(~default=Typ.temp(Typ.Unknown(Internal)));
       let ds' = List.map2((d, t) => fresh_cast(d, t, inner_type), ds, tys);
       Exp.ListLit(ds') |> rewrap |> cast_from(List(inner_type) |> Typ.temp);
-    | Constructor(c) =>
+    | Constructor(c, _) =>
       let mode =
         switch (Id.Map.find_opt(Exp.rep_id(uexp), m)) {
         | Some(Info.InfoExp({mode, _})) => mode
@@ -259,7 +261,8 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
         | (_, Some({typ: syn_ty, _})) => syn_ty
         | _ => Unknown(Internal) |> Typ.temp
         };
-      uexp |> cast_from(t |> Typ.normalize(ctx));
+      let t = t |> Typ.normalize(ctx);
+      Constructor(c, t) |> rewrap |> cast_from(t);
     | Fun(p, e, env, n) =>
       let (p', typ) = elaborate_pattern(m, p);
       let (e', tye) = elaborate(m, e);
@@ -419,8 +422,11 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       |> cast_from(List(ty_inner) |> Typ.temp);
     | UnOp(Meta(Unquote), e) =>
       switch (e.term) {
-      | Var("e") => Constructor("$e") |> rewrap
-      | Var("v") => Constructor("$v") |> rewrap
+      // TODO: confirm whether these types are correct
+      | Var("e") =>
+        Constructor("$e", Unknown(Internal) |> Typ.temp) |> rewrap
+      | Var("v") =>
+        Constructor("$v", Unknown(Internal) |> Typ.temp) |> rewrap
       | _ =>
         DHExp.EmptyHole
         |> rewrap

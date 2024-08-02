@@ -268,7 +268,7 @@ module Pat = {
 
   let ctr_name = (p: t): option(Constructor.t) =>
     switch (p.term) {
-    | Constructor(name) => Some(name)
+    | Constructor(name, _) => Some(name)
     | _ => None
     };
 };
@@ -285,6 +285,7 @@ module Exp = {
     | DynamicErrorHole
     | FailedCast
     | Deferral
+    | Undefined
     | Bool
     | Int
     | Float
@@ -335,6 +336,7 @@ module Exp = {
     | DynamicErrorHole(_) => DynamicErrorHole
     | FailedCast(_) => FailedCast
     | Deferral(_) => Deferral
+    | Undefined => Undefined
     | Bool(_) => Bool
     | Int(_) => Int
     | Float(_) => Float
@@ -374,6 +376,7 @@ module Exp = {
     | DynamicErrorHole => "Dynamic error hole"
     | FailedCast => "Failed cast"
     | Deferral => "Deferral"
+    | Undefined => "Undefined expression"
     | Bool => "Boolean literal"
     | Int => "Integer literal"
     | Float => "Float literal"
@@ -421,6 +424,7 @@ module Exp = {
     | DynamicErrorHole(_)
     | FailedCast(_)
     | Deferral(_)
+    | Undefined
     | Bool(_)
     | Int(_)
     | Float(_)
@@ -461,6 +465,7 @@ module Exp = {
       | DynamicErrorHole(_)
       | FailedCast(_)
       | Deferral(_)
+      | Undefined
       | Bool(_)
       | Int(_)
       | Float(_)
@@ -492,7 +497,7 @@ module Exp = {
 
   let ctr_name = (e: t): option(Constructor.t) =>
     switch (e.term) {
-    | Constructor(name) => Some(name)
+    | Constructor(name, _) => Some(name)
     | _ => None
     };
 
@@ -520,6 +525,7 @@ module Exp = {
       | BuiltinFun(_)
       | Cast(_)
       | Deferral(_)
+      | Undefined
       | Bool(_)
       | Int(_)
       | Float(_)

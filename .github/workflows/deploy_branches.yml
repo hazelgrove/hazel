@@ -26,39 +26,18 @@ jobs:
         run: |
           sudo apt --assume-yes install curl m4 opam
           export OPAMYES=1
-          opam init --compiler=ocaml-base-compiler.5.0.0
+          opam init --compiler=ocaml-base-compiler.5.2.0
       - name: Install dependencies
         run: |
           eval $(opam env)
           export OPAMYES=1
           make deps 
         working-directory: ./source
-      - name: Build Hazel
+      - name: Build Release
         run: |
           eval $(opam env)
           make release
         working-directory: ./source
-      - name: Run Tests
-        id: test
-        continue-on-error: true
-        run: |
-          eval $(opam env)
-          make test > test_output
-          if [ $? -eq 0 ]; then
-            echo "::set-output name=tests_passed::true"
-          else
-            echo "::set-output name=tests_passed::false"
-          fi
-        working-directory: ./source
-      - name: Test Report
-        uses: dorny/test-reporter@v1
-        continue-on-error: true
-        with:
-          name: Test Report
-          path: junit_tests*.xml
-          reporter: java-junit
-          fail-on-error: true
-          working-directory: ./source
       - name: Checkout the website build artifacts repo
         uses: actions/checkout@v2
         with:
@@ -79,3 +58,18 @@ jobs:
           git status
           git diff-index --quiet HEAD || (git commit -m "github-deploy-action-${BRANCH_NAME}"; git push)
         working-directory: ./server
+      - name: Run Tests
+        id: test
+        run: |
+          eval $(opam env)
+          make test
+        working-directory: ./source
+      - name: Test Report
+        uses: dorny/test-reporter@v1
+        with:
+          name: Test Report
+          path: junit_tests*.xml
+          reporter: java-junit
+          fail-on-error: true
+          fail-on-empty: true # Use an empty test report to detect when something failed with the test runner
+          working-directory: ./source

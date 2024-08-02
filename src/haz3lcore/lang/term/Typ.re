@@ -347,7 +347,7 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
   | Float
   | Bool
   | String => ty
-  | Parens(t) => t
+  | Parens(t) => Parens(normalize(ctx, t)) |> rewrap
   | List(t) => List(normalize(ctx, t)) |> rewrap
   | Ap(t1, t2) => Ap(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
   | Arrow(t1, t2) =>
@@ -365,40 +365,57 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
   };
 };
 
-let rec matched_arrow = (ctx, ty) =>
+let rec matched_arrow_strict = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
-  | Parens(ty) => matched_arrow(ctx, ty)
-  | Arrow(ty_in, ty_out) => (ty_in, ty_out)
-  | Unknown(SynSwitch) => (
-      Unknown(SynSwitch) |> temp,
-      Unknown(SynSwitch) |> temp,
-    )
-  | _ => (Unknown(Internal) |> temp, Unknown(Internal) |> temp)
+  | Parens(ty) => matched_arrow_strict(ctx, ty)
+  | Arrow(ty_in, ty_out) => Some((ty_in, ty_out))
+  | Unknown(SynSwitch) =>
+    Some((Unknown(SynSwitch) |> temp, Unknown(SynSwitch) |> temp))
+  | _ => None
   };
 
-let rec matched_forall = (ctx, ty) =>
+let matched_arrow = (ctx, ty) =>
+  matched_arrow_strict(ctx, ty)
+  |> Option.value(
+       ~default=(Unknown(Internal) |> temp, Unknown(Internal) |> temp),
+     );
+
+let rec matched_forall_strict = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
-  | Parens(ty) => matched_forall(ctx, ty)
-  | Forall(t, ty) => (Some(t), ty)
-  | Unknown(SynSwitch) => (None, Unknown(SynSwitch) |> temp)
-  | _ => (None, Unknown(Internal) |> temp)
+  | Parens(ty) => matched_forall_strict(ctx, ty)
+  | Forall(t, ty) => Some((Some(t), ty))
+  | Unknown(SynSwitch) => Some((None, Unknown(SynSwitch) |> temp))
+  | _ => None // (None, Unknown(Internal) |> temp)
   };
 
-let rec matched_prod = (ctx, length, ty) =>
+let matched_forall = (ctx, ty) =>
+  matched_forall_strict(ctx, ty)
+  |> Option.value(~default=(None, Unknown(Internal) |> temp));
+
+let rec matched_prod_strict = (ctx, length, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
-  | Parens(ty) => matched_prod(ctx, length, ty)
-  | Prod(tys) when List.length(tys) == length => tys
-  | Unknown(SynSwitch) => List.init(length, _ => Unknown(SynSwitch) |> temp)
-  | _ => List.init(length, _ => Unknown(Internal) |> temp)
+  | Parens(ty) => matched_prod_strict(ctx, length, ty)
+  | Prod(tys) when List.length(tys) == length => Some(tys)
+  | Unknown(SynSwitch) =>
+    Some(List.init(length, _ => Unknown(SynSwitch) |> temp))
+  | _ => None
   };
 
-let rec matched_list = (ctx, ty) =>
+let matched_prod = (ctx, length, ty) =>
+  matched_prod_strict(ctx, length, ty)
+  |> Option.value(~default=List.init(length, _ => Unknown(Internal) |> temp));
+
+let rec matched_list_strict = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
-  | Parens(ty) => matched_list(ctx, ty)
-  | List(ty) => ty
-  | Unknown(SynSwitch) => Unknown(SynSwitch) |> temp
-  | _ => Unknown(Internal) |> temp
+  | Parens(ty) => matched_list_strict(ctx, ty)
+  | List(ty) => Some(ty)
+  | Unknown(SynSwitch) => Some(Unknown(SynSwitch) |> temp)
+  | _ => None
   };
+
+let matched_list = (ctx, ty) =>
+  matched_list_strict(ctx, ty)
+  |> Option.value(~default=Unknown(Internal) |> temp);
 
 let rec matched_args = (ctx, default_arity, ty) => {
   let ty' = weak_head_normalize(ctx, ty);

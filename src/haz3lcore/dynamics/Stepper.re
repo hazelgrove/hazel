@@ -1,4 +1,3 @@
-open Sexplib.Std;
 open EvaluatorStep;
 open Transition;
 open Util;

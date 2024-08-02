@@ -15,8 +15,8 @@ let rec matches_exp =
     | (Parens(d), _) => matches_exp(d, f)
     | (_, Parens(f)) => matches_exp(d, f)
 
-    | (Constructor("$e"), _) => failwith("$e in matched expression")
-    | (Constructor("$v"), _) => failwith("$v in matched expression")
+    | (Constructor("$e", _), _) => failwith("$e in matched expression")
+    | (Constructor("$v", _), _) => failwith("$v in matched expression")
 
     // HACK[Matt]: ignore fixpoints in comparison, to allow pausing on fixpoint steps
     | (FixF(dp, dc, _), FixF(fp, fc, _)) =>
@@ -42,7 +42,7 @@ let rec matches_exp =
         fc,
       )
 
-    | (_, Constructor("$v")) =>
+    | (_, Constructor("$v", _)) =>
       switch (ValueChecker.check_value((), denv, d)) {
       | Indet
       | Value => true
@@ -50,7 +50,7 @@ let rec matches_exp =
       }
 
     | (_, EmptyHole)
-    | (_, Constructor("$e")) => true
+    | (_, Constructor("$e", _)) => true
 
     | (Cast(d, _, _), Cast(f, _, _)) => matches_exp(d, f)
     | (Closure(denv, d), Closure(fenv, f)) =>
@@ -169,7 +169,12 @@ let rec matches_exp =
     | (String(dv), String(fv)) => dv == fv
     | (String(_), _) => false
 
-    | (Constructor(dt), Constructor(ft)) => dt == ft
+    | (
+        Constructor(_),
+        Ap(_, {term: Constructor("~MVal", _), _}, {term: Tuple([]), _}),
+      ) =>
+      true
+    | (Constructor(dt, _), Constructor(ft, _)) => dt == ft
     | (Constructor(_), _) => false
 
     | (BuiltinFun(dn), BuiltinFun(fn)) => dn == fn
@@ -268,6 +273,8 @@ let rec matches_exp =
     | (Invalid(_), _) => false
     | (DynamicErrorHole(_), _) => false
 
+    | (Undefined, _) => false
+
     | (TyAlias(dtp, dut, dd), TyAlias(ftp, fut, fd)) =>
       dtp == ftp && dut == fut && matches_exp(dd, fd)
     | (TyAlias(_), _) => false
@@ -321,7 +328,7 @@ and matches_pat = (d: Pat.t, f: Pat.t): bool => {
     | res => res
     }
   | (ListLit(_), _) => false
-  | (Constructor(dt), Constructor(ft)) => dt == ft
+  | (Constructor(dt, _), Constructor(ft, _)) => dt == ft
   | (Constructor(_), _) => false
   | (Var(_), Var(_)) => true
   | (Var(_), _) => false

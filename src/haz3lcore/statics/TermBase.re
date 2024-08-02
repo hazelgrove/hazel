@@ -1,4 +1,4 @@
-open Sexplib.Std;
+open Util;
 
 let continue = x => x;
 let stop = (_, x) => x;
@@ -141,6 +141,7 @@ and Exp: {
     | DynamicErrorHole(t, InvalidOperationError.t) //TODO menhir - for the error message take the s exp serialization of the type and pass it in to the s expression parser
     | FailedCast(t, Typ.t, Typ.t) //e ?<ty1 => ty2>
     | Deferral(deferral_position) /*InAp _*/ /*OutAp _*/
+    | Undefined
     | Bool(bool) //false
     | Int(int) //1
     | Float(float) //1.0
@@ -183,7 +184,7 @@ and Exp: {
     /* INVARIANT: in dynamic expressions, casts must be between
        two consistent types. Both types should be normalized in
        dynamics for the cast calculus to work right. */
-    | Cast(t, Typ.t, Typ.t) //e1 <ty1 => ty2>
+    | Cast(t, Typ.t, Typ.t) //e1 <ty1 => ty2> (first Typ.t field is only meaningful in dynamic expressions)
   and t = IdTagged.t(term);
 
   let map_term:
@@ -211,17 +212,18 @@ and Exp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
     | Invalid(string)
-    | EmptyHole // Combine the problems into one construct
+    | EmptyHole
     | MultiHole(list(Any.t))
     | DynamicErrorHole(t, InvalidOperationError.t)
-    | FailedCast(t, Typ.t, Typ.t) // TODO: get rid of failedcast
+    | FailedCast(t, Typ.t, Typ.t)
     | Deferral(deferral_position)
+    | Undefined
     | Bool(bool)
     | Int(int)
     | Float(float)
     | String(string)
     | ListLit(list(t))
-    | Constructor(string)
+    | Constructor(string, Typ.t)
     | Fun(
         Pat.t,
         t,
@@ -394,7 +396,8 @@ and Exp: {
         | Constructor(_)
         | String(_)
         | Deferral(_)
-        | Var(_) => term
+        | Var(_)
+        | Undefined => term
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
         | DynamicErrorHole(e, err) => DynamicErrorHole(exp_map_term(e), err)
         | FailedCast(e, t1, t2) => FailedCast(exp_map_term(e), t1, t2)
@@ -447,6 +450,7 @@ and Exp: {
     | (_, DynamicErrorHole(x, _))
     | (_, Parens(x)) => fast_equal(e1, x)
     | (EmptyHole, EmptyHole) => true
+    | (Undefined, Undefined) => true
     | (Invalid(s1), Invalid(s2)) => s1 == s2
     | (MultiHole(xs), MultiHole(ys)) when List.length(xs) == List.length(ys) =>
       List.equal(Any.fast_equal, xs, ys)
@@ -461,7 +465,8 @@ and Exp: {
     | (String(s1), String(s2)) => s1 == s2
     | (ListLit(xs), ListLit(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
-    | (Constructor(c1), Constructor(c2)) => c1 == c2
+    | (Constructor(c1, ty1), Constructor(c2, ty2)) =>
+      c1 == c2 && Typ.fast_equal(ty1, ty2)
     | (Fun(p1, e1, env1, _), Fun(p2, e2, env2, _)) =>
       Pat.fast_equal(p1, p2)
       && fast_equal(e1, e2)
@@ -549,7 +554,8 @@ and Exp: {
     | (Match(_), _)
     | (Cast(_), _)
     | (MultiHole(_), _)
-    | (EmptyHole, _) => false
+    | (EmptyHole, _)
+    | (Undefined, _) => false
     };
 }
 and Pat: {
@@ -564,13 +570,13 @@ and Pat: {
     | Bool(bool)
     | String(string)
     | ListLit(list(t))
-    | Constructor(string)
+    | Constructor(string, Typ.t) // Typ.t field is only meaningful in dynamic patterns
     | Cons(t, t)
     | Var(Var.t)
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
-    | Cast(t, Typ.t, Typ.t) // The second one is hidden from the user
+    | Cast(t, Typ.t, Typ.t) // The second Typ.t field is only meaningful in dynamic patterns
   and t = IdTagged.t(term);
 
   let map_term:
@@ -601,7 +607,7 @@ and Pat: {
     | Bool(bool)
     | String(string)
     | ListLit(list(t))
-    | Constructor(string)
+    | Constructor(string, Typ.t)
     | Cons(t, t)
     | Var(Var.t)
     | Tuple(list(t))
@@ -690,7 +696,8 @@ and Pat: {
     | (Int(i1), Int(i2)) => i1 == i2
     | (Float(f1), Float(f2)) => f1 == f2
     | (String(s1), String(s2)) => s1 == s2
-    | (Constructor(c1), Constructor(c2)) => c1 == c2
+    | (Constructor(c1, t1), Constructor(c2, t2)) =>
+      c1 == c2 && Typ.fast_equal(t1, t2)
     | (Var(v1), Var(v2)) => v1 == v2
     | (ListLit(xs), ListLit(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
