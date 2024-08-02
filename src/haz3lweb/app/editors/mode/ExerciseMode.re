@@ -84,7 +84,14 @@ module Update = {
           ),
       };
     | Editor(pos, ResultAction(_) as action)
-        when Exercise.visible_in(pos, ~instructor_mode) =>
+        when
+          Exercise.visible_in(pos, ~instructor_mode)
+          || action
+          |> (
+            fun
+            | ResultAction(UpdateResult(_)) => true
+            | _ => false
+          ) =>
       let cell = Exercise.get_stitched(pos, model.cells);
       let* new_cell = CellEditor.Update.update(~settings, action, cell);
       {...model, cells: Exercise.put_stitched(pos, model.cells, new_cell)};
