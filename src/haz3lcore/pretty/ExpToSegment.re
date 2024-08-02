@@ -232,7 +232,7 @@ let rec exp_to_pretty = (~inline, exp: Exp.t): pretty => {
     let+ e1 = go(e1)
     and+ e2 = go(e2)
     and+ op = text_to_pretty(id, Sort.Exp, "|>");
-    e1 @ op @ e2;
+    e2 @ op @ e1;
   | TypAp(e, t) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
