@@ -8,6 +8,7 @@ let zwsp = "​";
 
 let typeArrowSym = "→"; // U+2192 "Rightwards Arrow"
 let castArrowSym = "⇨";
+let castBackArrowSym = "⇦";
 
 let ellipsis = "\xE2\x80\xA6";
 
