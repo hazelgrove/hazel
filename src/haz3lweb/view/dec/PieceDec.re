@@ -10,10 +10,10 @@ let shape_to_dir = (d: Direction.t, shape: Nib.Shape.t): Direction.t =>
   | Concave(_) => Direction.toggle(d)
   };
 
-let chevron = (side, shape: Nib.Shape.t): list(SvgUtil.Path.cmd) =>
-  DecUtil.chevron(side, Some(shape_to_dir(side, shape)), side);
+let chevron = (side, shape: option(Nib.Shape.t)): list(SvgUtil.Path.cmd) =>
+  DecUtil.chevron(side, Option.map(shape_to_dir(side), shape), side);
 
-let _simple_shard_path = ((l, r): Nibs.shapes, length: int): list(Path.cmd) =>
+let _simple_shard_path = ((l, r), length: int): list(Path.cmd) =>
   List.flatten(
     Path.[
       [m(~x=0, ~y=0), h(~x=length)],
@@ -23,8 +23,7 @@ let _simple_shard_path = ((l, r): Nibs.shapes, length: int): list(Path.cmd) =>
     ],
   );
 
-let chonky_shard_path =
-    ((l, r): Nibs.shapes, length: int, height: int): list(Path.cmd) =>
+let chonky_shard_path = ((l, r), length: int, height: int): list(Path.cmd) =>
   List.flatten(
     Path.[
       [m(~x=0, ~y=0), h(~x=length), v(~y=height)],
@@ -34,18 +33,16 @@ let chonky_shard_path =
     ],
   );
 
+type tip = option(Nib.Shape.t);
+
 type shard_dims = {
   font_metrics: FontMetrics.t,
-  shapes: Nibs.shapes,
   measurement: Measured.measurement,
+  tips: (tip, tip),
 };
 
 let simple_shard =
-    (
-      {font_metrics, shapes, measurement}: shard_dims,
-      ~absolute=true,
-      classes,
-    )
+    ({font_metrics, tips, measurement}: shard_dims, ~absolute=true, classes)
     : t =>
   DecUtil.code_svg_sized(
     ~font_metrics,
@@ -55,7 +52,7 @@ let simple_shard =
     //~fudge,
     ~absolute,
     chonky_shard_path(
-      shapes,
+      tips,
       measurement.last.col - measurement.origin.col,
       measurement.last.row - measurement.origin.row,
     ),
@@ -64,13 +61,22 @@ let simple_shard =
 let relative_shard = (shard_dims: shard_dims) =>
   simple_shard(~absolute=false, shard_dims, []);
 
+let tips_of_shapes = ((l, r): (Nib.Shape.t, Nib.Shape.t)): (tip, tip) => (
+  Some(l),
+  Some(r),
+);
+
 let simple_shards_indicated =
     (~font_metrics: FontMetrics.t, (id, mold, shards), ~caret: (Id.t, int))
     : list(t) =>
   List.map(
     ((index, measurement)) =>
       simple_shard(
-        {font_metrics, measurement, shapes: Mold.nib_shapes(~index, mold)},
+        {
+          font_metrics,
+          measurement,
+          tips: tips_of_shapes(Mold.nib_shapes(~index, mold)),
+        },
         ["indicated", Sort.to_string(mold.out)]
         @ (caret == (id, index) ? ["caret"] : []),
       ),
@@ -85,7 +91,11 @@ let simple_shards_selected =
   List.map(
     ((index, measurement)) =>
       simple_shard_selected(
-        {font_metrics, measurement, shapes: Mold.nib_shapes(~index, mold)},
+        {
+          font_metrics,
+          measurement,
+          tips: tips_of_shapes(Mold.nib_shapes(~index, mold)),
+        },
         buffer,
       ),
     shards,
@@ -99,7 +109,7 @@ let simple_shards_errors = (~font_metrics: FontMetrics.t, mold, shards) =>
       simple_shard_error({
         font_metrics,
         measurement,
-        shapes: Mold.nib_shapes(~index, mold),
+        tips: tips_of_shapes(Mold.nib_shapes(~index, mold)),
       }),
     shards,
   );
