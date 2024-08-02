@@ -7,6 +7,6 @@ type hole_sort =
 type val_ty = (hole_sort, Typ.t, Ctx.t);
 
 [@deriving sexp]
-type t = MetaVarMap.t(val_ty);
+type t = Id.Map.t(val_ty);
 
-let empty: t = (MetaVarMap.empty: t);
+let empty: t = (Id.Map.empty: t);

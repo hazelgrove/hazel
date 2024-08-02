@@ -174,7 +174,7 @@ let live_eval =
     switch (result.evaluation, result.previous) {
     | (ResultOk(res), _) => ProgramResult.get_dhexp(res)
     | (ResultPending, ResultOk(res)) => ProgramResult.get_dhexp(res)
-    | _ => result.elab
+    | _ => result.elab.d
     };
   let dhcode_view =
     DHCode.view(
@@ -185,6 +185,7 @@ let live_eval =
       ~font_metrics,
       ~width=80,
       ~result_key,
+      ~infomap=Id.Map.empty,
       dhexp,
     );
   let exn_view =
@@ -240,6 +241,7 @@ let footer =
       ~settings=settings.core.evaluation,
       ~font_metrics,
       ~result_key,
+      ~read_only=false,
       s,
     )
   };
@@ -393,12 +395,13 @@ let locked =
           statics.info_map,
           editor.state.meta.view_term,
         )
-      : DHExp.BoolLit(true);
+      : DHExp.Bool(true) |> DHExp.fresh;
+  let elab: Elaborator.Elaboration.t = {d: elab};
   let result: ModelResult.t =
     settings.core.dynamics
       ? Evaluation({
           elab,
-          evaluation: Interface.evaluate(~settings=settings.core, elab),
+          evaluation: Interface.evaluate(~settings=settings.core, elab.d),
           previous: ResultPending,
         })
       : NoElab;
