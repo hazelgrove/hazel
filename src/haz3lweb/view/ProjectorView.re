@@ -51,7 +51,7 @@ let backing_deco =
     PieceDec.relative_shard({
       font_metrics,
       measurement,
-      shapes: (Convex, Convex),
+      tips: (Some(Convex), Some(Convex)),
     })
   };
 

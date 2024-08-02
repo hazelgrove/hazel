@@ -6,10 +6,34 @@ open Haz3lcore;
 type shard_data = (Measured.measurement, Nibs.shapes);
 
 let sel_shard_svg =
-    (~index=?, ~start_shape, measurement: Measured.measurement, p)
-    : (Measured.measurement, Nibs.shapes) => (
+    (
+      ~index=?,
+      ~start_shape: PieceDec.tip,
+      measurement: Measured.measurement,
+      p: Piece.t,
+    )
+    : (Measured.measurement, (PieceDec.tip, PieceDec.tip)) => (
   measurement,
-  Mold.nib_shapes(~index?, Piece.mold_of(~shape=start_shape, p)),
+  switch (p) {
+  | Tile(t) => Mold.nib_shapes(~index?, t.mold) |> PieceDec.tips_of_shapes
+  | Grout(g) =>
+    Mold.nib_shapes(Mold.of_grout(g, Any)) |> PieceDec.tips_of_shapes
+  | Secondary(_) => (
+      Option.map(
+        (s: Nib.Shape.t) =>
+          switch (s) {
+          | Concave(_) => Nib.Shape.Convex
+          | Convex => Nib.Shape.Concave(0)
+          },
+        start_shape,
+      ),
+      None,
+    )
+  | Projector(p) =>
+    ProjectorBase.mold_of(p, Any)
+    |> Mold.nib_shapes
+    |> PieceDec.tips_of_shapes
+  },
 );
 module HighlightSegment =
        (
@@ -22,24 +46,31 @@ module HighlightSegment =
   let find_g = Measured.find_g(~msg="Highlight.of_piece", _, M.measured);
   let find_w = Measured.find_w(~msg="Highlight.of_piece", _, M.measured);
   let rec of_piece =
-          (start_shape: Nib.Shape.t, p: Piece.t)
-          : (Nib.Shape.t, list(option(shard_data))) => {
+          (start_shape: PieceDec.tip, p: Piece.t)
+          : (
+              PieceDec.tip,
+              list(
+                option(
+                  (Measured.measurement, (PieceDec.tip, PieceDec.tip)),
+                ),
+              ),
+            ) => {
     let shard_data =
       switch (p) {
       | Tile(t) => of_tile(~start_shape, t)
       | Projector(p) => of_projector(~start_shape, p)
       | Grout(g) => [Some(sel_shard_svg(~start_shape, find_g(g), p))]
       | Secondary(w) when Secondary.is_linebreak(w) => [None]
-      | Secondary(w) => [Some((find_w(w), (start_shape, start_shape)))]
+      | Secondary(w) => [Some((find_w(w), (None, None)))]
       };
     let start_shape =
       switch (Piece.nibs(p)) {
-      | None => start_shape
-      | Some((_, {shape, _})) => shape
+      | None => None
+      | Some((_, {shape, _})) => Some(shape)
       };
     (start_shape, shard_data);
   }
-  and of_tile = (~start_shape, t: Tile.t): list(option(shard_data)) => {
+  and of_tile = (~start_shape, t: Tile.t): list(option(_)) => {
     let tile_shards =
       Measured.find_shards(~msg="sel_of_tile", t, M.measured)
       |> List.filter(((i, _)) => List.mem(i, t.shards))
@@ -53,13 +84,13 @@ module HighlightSegment =
            | num_lb => List.init(num_lb, _ => None)
            };
          });
-    let shape_at = index => snd(Mold.nibs(~index, t.mold)).shape;
+    //TODO(andrew): Some below
+    let shape_at = index => Some(snd(Mold.nibs(~index, t.mold)).shape);
     let children_shards =
       t.children |> List.mapi(index => of_segment(shape_at(index)));
     ListUtil.interleave(tile_shards, children_shards) |> List.flatten;
   }
-  and of_projector =
-      (~start_shape, p: Base.projector): list(option(shard_data)) => {
+  and of_projector = (~start_shape, p: Base.projector): list(option(_)) => {
     let m =
       switch (Measured.find_pr_opt(p, M.measured)) {
       | None =>
@@ -77,13 +108,14 @@ module HighlightSegment =
     };
   }
   and of_segment =
-      (start_shape: Nib.Shape.t, seg: Segment.t): list(option(shard_data)) => {
+      (start_shape: PieceDec.tip, seg: Segment.t): list(option(_)) => {
     seg
     |> ListUtil.fold_left_map(of_piece, start_shape)
     |> snd
     |> List.flatten;
   }
-  and go = (segment: Segment.t, shape_init, classes): list(Node.t) =>
+  and go =
+      (segment: Segment.t, shape_init: PieceDec.tip, classes): list(Node.t) =>
     /* We draw a single deco per row by dividing partionining the shards
      * into linebreak-seperated segments, then combining the measurements
      * and shapes of the first and last shard of each segment. Ideally we
@@ -92,12 +124,12 @@ module HighlightSegment =
     of_segment(shape_init, segment)
     |> ListUtil.split_at_nones
     |> ListUtil.first_and_last
-    |> List.map((((m1, (l1, _)): shard_data, (m2, (_, r2)): shard_data)) =>
-         (({origin: m1.origin, last: m2.last}, (l1, r2)): shard_data)
+    |> List.map((((m1, (l1, _)), (m2, (_, r2)))) =>
+         (Measured.{origin: m1.origin, last: m2.last}, (l1, r2))
        )
-    |> List.map(((measurement, shapes)) =>
+    |> List.map(((measurement, tips)) =>
          PieceDec.simple_shard(
-           {font_metrics: M.font_metrics, measurement, shapes},
+           {font_metrics: M.font_metrics, measurement, tips},
            classes,
          )
        );
@@ -135,7 +167,7 @@ module Deco =
   let segment_selected = (z: Zipper.t) =>
     Highlight.go(
       z.selection.content,
-      fst(Siblings.shapes(z.relatives.siblings)),
+      Some(fst(Siblings.shapes(z.relatives.siblings))),
       ["selected"] @ (Selection.is_buffer(z.selection) ? ["buffer"] : []),
     );
 
@@ -354,7 +386,13 @@ module Deco =
         let measurement = Id.Map.find(id, M.meta.syntax.measured.projectors);
         div_c(
           "errors-piece",
-          [PieceDec.simple_shard_error({font_metrics, shapes, measurement})],
+          [
+            PieceDec.simple_shard_error({
+              font_metrics,
+              tips: PieceDec.tips_of_shapes(shapes),
+              measurement,
+            }),
+          ],
         );
       | None =>
         let tiles =
