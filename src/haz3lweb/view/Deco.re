@@ -30,7 +30,7 @@ module HighlightSegment =
       | Projector(p) => of_projector(~start_shape, p)
       | Grout(g) => [Some(sel_shard_svg(~start_shape, find_g(g), p))]
       | Secondary(w) when Secondary.is_linebreak(w) => [None]
-      | Secondary(w) => [Some(sel_shard_svg(~start_shape, find_w(w), p))]
+      | Secondary(w) => [Some((find_w(w), (start_shape, start_shape)))]
       };
     let start_shape =
       switch (Piece.nibs(p)) {
@@ -126,7 +126,7 @@ module Deco =
     let shape = Zipper.caret_direction(z);
     let side =
       switch (Indicated.piece(z)) {
-      | Some((_, side, _)) => side
+      | Some((_, side, _)) => Direction.toggle(side)
       | _ => Right
       };
     CaretDec.view(~font_metrics, ~profile={side, origin, shape});

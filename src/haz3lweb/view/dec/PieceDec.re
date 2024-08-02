@@ -4,36 +4,22 @@ open Virtual_dom.Vdom;
 open Node;
 open SvgUtil;
 
-let run: Nib.Shape.t => float =
-  fun
-  | Convex => +. DecUtil.short_tip_width
-  | Concave(_) => -. DecUtil.short_tip_width;
+let shape_to_dir = (d: Direction.t, shape: Nib.Shape.t): Direction.t =>
+  switch (shape) {
+  | Convex => d
+  | Concave(_) => Direction.toggle(d)
+  };
 
-let adj: Nib.Shape.t => float =
-  fun
-  | Convex => DecUtil.convex_adj
-  | Concave(_) => DecUtil.concave_adj;
-
-let chevron = (a: float, b: float, c: float): list(Path.cmd) => [
-  H_({dx: -. a}),
-  L_({dx: -. b, dy: c}),
-  L_({dx: +. b, dy: c}),
-  H_({dx: +. a}),
-];
-
-let left_chevron = (l: Nib.Shape.t): list(Path.cmd) =>
-  chevron(adj(l), run(l), -0.5);
-
-let right_chevron = (l: Nib.Shape.t): list(Path.cmd) =>
-  chevron(-. adj(l), -. run(l), 0.5);
+let chevron = (side, shape: Nib.Shape.t): list(SvgUtil.Path.cmd) =>
+  DecUtil.chevron(side, Some(shape_to_dir(side, shape)), side);
 
 let _simple_shard_path = ((l, r): Nibs.shapes, length: int): list(Path.cmd) =>
   List.flatten(
     Path.[
       [m(~x=0, ~y=0), h(~x=length)],
-      right_chevron(r),
+      chevron(Right, r),
       [h(~x=0)],
-      left_chevron(l),
+      chevron(Left, l),
     ],
   );
 
@@ -42,9 +28,9 @@ let chonky_shard_path =
   List.flatten(
     Path.[
       [m(~x=0, ~y=0), h(~x=length), v(~y=height)],
-      right_chevron(r),
+      chevron(Right, r),
       [h(~x=0), v(~y=1)],
-      left_chevron(l),
+      chevron(Left, l),
     ],
   );
 
