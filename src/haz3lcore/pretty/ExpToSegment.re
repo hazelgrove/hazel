@@ -693,7 +693,7 @@ let rec parenthesize = (exp: Exp.t): Exp.t => {
   | BuiltinFun(_)
   | Undefined => exp
 
-  // Forms that currently need to stripped before oututting
+  // Forms that currently need to stripped before outputting
   | Closure(_, x)
   | DynamicErrorHole(x, _)
   | Tuple([x])
@@ -830,7 +830,7 @@ let rec parenthesize = (exp: Exp.t): Exp.t => {
          ),
     )
     |> rewrap
-  | MultiHole(_) => exp // TODO: Parenthesize through multiholes
+  | MultiHole(xs) => MultiHole(List.map(parenthesize_any, xs)) |> rewrap
   };
 }
 and parenthesize_pat = (pat: Pat.t): Pat.t => {
@@ -876,7 +876,7 @@ and parenthesize_pat = (pat: Pat.t): Pat.t => {
       parenthesize_pat(p2) |> paren_pat_at(Precedence.min),
     )
     |> rewrap
-  | MultiHole(_) => pat // TODO: Parenthesize through multiholes
+  | MultiHole(xs) => MultiHole(List.map(parenthesize_any, xs)) |> rewrap
   | Cast(p, t1, t2) =>
     Cast(
       parenthesize_pat(p) |> paren_pat_assoc_at(Precedence.ann),
@@ -942,9 +942,51 @@ and parenthesize_typ = (typ: Typ.t): Typ.t => {
       ),
     )
     |> rewrap
-  | Unknown(Hole(MultiHole(_))) => typ // TODO: Parenthesize through multiholes
+  | Unknown(Hole(MultiHole(xs))) =>
+    Unknown(Hole(MultiHole(List.map(parenthesize_any, xs)))) |> rewrap // TODO: Parenthesize through multiholes
   };
-};
+}
+
+and parenthesize_tpat = (tpat: TPat.t): TPat.t => {
+  let (term, rewrap) = IdTagged.unwrap(tpat);
+  switch (term) {
+  // Indivisible forms dont' change
+  | Var(_)
+  | Invalid(_)
+  | EmptyHole => tpat
+
+  // Other forms
+  | MultiHole(xs) => TPat.MultiHole(List.map(parenthesize_any, xs)) |> rewrap
+  };
+}
+
+and parenthesize_rul = (rul: Rul.t): Rul.t => {
+  let (term, rewrap) = IdTagged.unwrap(rul);
+  switch (term) {
+  // Indivisible forms dont' change
+  | Invalid(_) => rul
+
+  // Other forms
+  | Rules(e, ps) =>
+    Rul.Rules(
+      parenthesize(e),
+      List.map(((p, e)) => (parenthesize_pat(p), parenthesize(e)), ps),
+    )
+    |> rewrap
+  | Hole(xs) => Rul.Hole(List.map(parenthesize_any, xs)) |> rewrap
+  };
+}
+
+and parenthesize_any = (any: Any.t): Any.t =>
+  switch (any) {
+  | Exp(e) => Exp(parenthesize(e))
+  | Pat(p) => Pat(parenthesize_pat(p))
+  | Typ(t) => Typ(parenthesize_typ(t))
+  | TPat(tp) => TPat(parenthesize_tpat(tp))
+  | Rul(r) => Rul(parenthesize_rul(r))
+  | Any(_) => any
+  | Nul(_) => any
+  };
 
 let exp_to_segment = (~inline, exp: Exp.t): Segment.t => {
   let exp =
