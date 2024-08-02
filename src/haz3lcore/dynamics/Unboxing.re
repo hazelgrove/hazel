@@ -101,7 +101,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
 
     /* Sum constructors can be either sum constructors, sum constructors
        applied to some value or sum casts */
-    | (SumNoArg(name1), Constructor(name2)) when name1 == name2 => Matches()
+    | (SumNoArg(name1), Constructor(name2, _)) when name1 == name2 =>
+      Matches()
     | (SumNoArg(_), Constructor(_)) => DoesNotMatch
     | (SumNoArg(_), Ap(_, {term: Constructor(_), _}, _)) => DoesNotMatch
     | (SumNoArg(name), Cast(d1, {term: Sum(_), _}, {term: Sum(s2), _}))
@@ -114,7 +115,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       IndetMatch
 
     | (SumWithArg(_), Constructor(_)) => DoesNotMatch
-    | (SumWithArg(name1), Ap(_, {term: Constructor(name2), _}, d3))
+    | (SumWithArg(name1), Ap(_, {term: Constructor(name2, _), _}, d3))
         when name1 == name2 =>
       Matches(d3)
     | (SumWithArg(_), Ap(_, {term: Constructor(_), _}, _)) => DoesNotMatch
@@ -173,7 +174,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     /* Forms that are not yet or will never be a value */
     | (
         _,
-        Invalid(_) | EmptyHole | MultiHole(_) | DynamicErrorHole(_) | Var(_) |
+        Invalid(_) | Undefined | EmptyHole | MultiHole(_) | DynamicErrorHole(_) |
+        Var(_) |
         Let(_) |
         Fun(_, _, _, None) |
         FixF(_) |

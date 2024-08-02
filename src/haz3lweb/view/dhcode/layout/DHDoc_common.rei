@@ -95,3 +95,5 @@ let mk_TypAp: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 let mk_Ap: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 
 let mk_rev_Ap: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
+
+let mk_Undefined: unit => Pretty.Doc.t('a);

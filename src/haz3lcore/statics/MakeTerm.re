@@ -161,12 +161,14 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       | ([t], []) when Form.is_wild(t) => ret(Deferral(OutsideAp))
       | ([t], []) when Form.is_empty_list(t) => ret(ListLit([]))
       | ([t], []) when Form.is_bool(t) => ret(Bool(bool_of_string(t)))
+      | ([t], []) when Form.is_undefined(t) => ret(Undefined)
       | ([t], []) when Form.is_int(t) => ret(Int(int_of_string(t)))
       | ([t], []) when Form.is_string(t) =>
         ret(String(Form.strip_quotes(t)))
       | ([t], []) when Form.is_float(t) => ret(Float(float_of_string(t)))
       | ([t], []) when Form.is_var(t) => ret(Var(t))
-      | ([t], []) when Form.is_ctr(t) => ret(Constructor(t))
+      | ([t], []) when Form.is_ctr(t) =>
+        ret(Constructor(t, Unknown(Internal) |> Typ.temp))
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
       | (["[", "]"], [Exp(body)]) =>
         switch (body) {
@@ -287,7 +289,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | ([";"], []) => Seq(l, r)
           | (["++"], []) => BinOp(String(Concat), l, r)
           | (["$=="], []) => BinOp(String(Equals), l, r)
-          | (["|>"], []) => Ap(Reverse, l, r)
+          | (["|>"], []) => Ap(Reverse, r, l)
           | (["@"], []) => ListConcat(l, r)
           | _ => hole(tm)
           },
@@ -322,7 +324,8 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
           String(s);
         | ([t], []) when Form.is_var(t) => Var(t)
         | ([t], []) when Form.is_wild(t) => Wild
-        | ([t], []) when Form.is_ctr(t) => Constructor(t)
+        | ([t], []) when Form.is_ctr(t) =>
+          Constructor(t, Unknown(Internal) |> Typ.fresh)
         | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
           Invalid(t)
         | (["(", ")"], [Pat(body)]) => Parens(body)

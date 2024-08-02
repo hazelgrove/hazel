@@ -62,6 +62,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Closure(_)
   | BuiltinFun(_)
   | Deferral(_)
+  | Undefined
   | Filter(_) => DHDoc_common.precedence_const
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_Ap : precedence'(d1)
@@ -307,11 +308,12 @@ let mk =
           }
         }
       | BuiltinFun(f) => text(f)
-      | Constructor(name) => DHDoc_common.mk_ConstructorLit(name)
+      | Constructor(name, _) => DHDoc_common.mk_ConstructorLit(name)
       | Bool(b) => DHDoc_common.mk_BoolLit(b)
       | Int(n) => DHDoc_common.mk_IntLit(n)
       | Float(f) => DHDoc_common.mk_FloatLit(f)
       | String(s) => DHDoc_common.mk_StringLit(s)
+      | Undefined => DHDoc_common.mk_Undefined()
       | Test(d) => DHDoc_common.mk_Test(go'(d))
       | Deferral(_) => text("_")
       | Seq(d1, d2) =>

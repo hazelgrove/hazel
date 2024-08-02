@@ -1,5 +1,5 @@
 open Haz3lcore;
-open Sexplib.Std;
+open Util;
 
 /*
   These are the syntax test functions used for the syntax validation
@@ -127,6 +127,7 @@ let rec find_fn =
   | Float(_)
   | String(_)
   | Constructor(_)
+  | Undefined
   | BuiltinFun(_)
   | Var(_) => l
   };
@@ -177,6 +178,7 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | Float(_)
   | String(_)
   | Constructor(_)
+  | Undefined
   | Deferral(_) => false
   | Fun(args, body, _, _) =>
     var_mention_upat(name, args) ? false : var_mention(name, body)
@@ -237,6 +239,7 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Float(_)
   | String(_)
   | Constructor(_)
+  | Undefined
   | Deferral(_) => false
   | Fun(args, body, _, _)
   | FixF(args, body, _) =>
@@ -327,6 +330,7 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | Float(_)
   | String(_)
   | Constructor(_)
+  | Undefined
   | Var(_)
   | BuiltinFun(_) => true
   | FixF(args, body, _)

@@ -236,6 +236,7 @@ and uexp_to_info_map =
   | EmptyHole => atomic(Just(Unknown(Internal) |> Typ.temp))
   | Deferral(position) =>
     add'(~self=IsDeferral(position), ~co_ctx=CoCtx.empty, m)
+  | Undefined => atomic(Just(Unknown(Hole(EmptyHole)) |> Typ.temp))
   | Bool(_) => atomic(Just(Bool |> Typ.temp))
   | Int(_) => atomic(Just(Int |> Typ.temp))
   | Float(_) => atomic(Just(Float |> Typ.temp))
@@ -285,8 +286,8 @@ and uexp_to_info_map =
       copied: false,
       term:
         switch (e.term) {
-        | Var("e") => UExp.Constructor("$e")
-        | Var("v") => UExp.Constructor("$v")
+        | Var("e") => UExp.Constructor("$e", Unknown(Internal) |> Typ.temp)
+        | Var("v") => UExp.Constructor("$v", Unknown(Internal) |> Typ.temp)
         | _ => e.term
         },
     };
@@ -335,7 +336,7 @@ and uexp_to_info_map =
     let (e1, m) = go(~mode=Syn, e1, m);
     let (e2, m) = go(~mode, e2, m);
     add(~self=Just(e2.ty), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
-  | Constructor(ctr) => atomic(Self.of_ctr(ctx, ctr))
+  | Constructor(ctr, _) => atomic(Self.of_ctr(ctx, ctr))
   | Ap(_, fn, arg) =>
     let fn_mode = Mode.of_ap(ctx, mode, UExp.ctr_name(fn));
     let (fn, m) = go(~mode=fn_mode, fn, m);
@@ -804,7 +805,7 @@ and upat_to_info_map =
   | Parens(p) =>
     let (p, m) = go(~ctx, ~mode, p, m);
     add(~self=Just(p.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
-  | Constructor(ctr) =>
+  | Constructor(ctr, _) =>
     let self = Self.of_ctr(ctx, ctr);
     atomic(self, Constraint.of_ctr(ctx, mode, ctr, self));
   | Ap(fn, arg) =>
