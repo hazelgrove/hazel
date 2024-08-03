@@ -304,13 +304,14 @@ let editor_view =
         locked ? "locked" : "unlocked",
       ]),
     [
+      div(~attr=Attr.class_("cell-item"), Option.to_list(caption)),
       div(
         ~attr=
           Attr.many([
-            Attr.classes(["cell-item"]),
+            Attr.class_("cell-item"),
             Attr.on_mousedown(on_mousedown),
           ]),
-        Option.to_list(caption) @ mousedown_overlay @ [code_view],
+        mousedown_overlay @ [code_view],
       ),
     ]
     @ (footer |> Option.to_list |> List.concat),
@@ -329,6 +330,95 @@ let panel = (~classes=[], content, ~footer: option(t)) => {
   simple_cell_view(
     [div(~attr=Attr.classes(["cell-item", "panel"] @ classes), content)]
     @ Option.to_list(footer),
+  );
+};
+
+let student_title_cell = (~title) => {
+  div(~attr=Attr.class_("title-text"), [text(title)]);
+};
+
+let update_title = (_, inject) => {
+  let new_title =
+    Obj.magic(Js_of_ocaml.Js.some(JsUtil.get_elem_by_id("title-input-box")))##.value;
+  let update_events = [
+    inject(UpdateAction.Set(EditingTitle)),
+    inject(UpdateAction.UpdateTitle(new_title)),
+  ];
+  Virtual_dom.Vdom.Effect.Many(update_events);
+};
+
+let editing_title_cell = (~inject, ~title) => {
+  div(
+    ~attr=Attr.class_("title-edit"),
+    [
+      input(
+        ~attr=
+          Attr.many([
+            Attr.class_("title-text"),
+            Attr.id("title-input-box"),
+            Attr.value(title),
+          ]),
+        [],
+      ),
+      div(
+        ~attr=Attr.class_("instructor-edit-icon"),
+        [
+          Widgets.button(
+            Icons.confirm,
+            update_title(_, inject),
+            ~tooltip="Confirm",
+          ),
+        ],
+      ),
+      div(
+        ~attr=Attr.class_("instructor-edit-icon"),
+        [
+          Widgets.button(
+            Icons.cancel,
+            _ => inject(UpdateAction.Set(EditingTitle)),
+            ~tooltip="Cancel",
+          ),
+        ],
+      ),
+    ],
+  );
+};
+
+let instructor_title_cell = (~inject, ~title) => {
+  div(
+    ~attr=Attr.class_("title-edit"),
+    [
+      text(title),
+      div(
+        ~attr=Attr.class_("instructor-edit-icon"),
+        [
+          Widgets.button(
+            Icons.pencil,
+            _ => inject(UpdateAction.Set(EditingTitle)),
+            ~tooltip="Edit Title",
+          ),
+        ],
+      ),
+    ],
+  );
+};
+
+let wrong_impl_caption = (~inject, sub: string, n: int) => {
+  div(
+    ~attr=Attr.class_("wrong-impl-cell-caption"),
+    [
+      caption("", ~rest=sub),
+      div(
+        ~attr=Attr.class_("instructor-edit-icon"),
+        [
+          Widgets.button(
+            Icons.delete,
+            _ => inject(UpdateAction.DeleteBuggyImplementation(n)),
+            ~tooltip="Delete Buggy Implementation",
+          ),
+        ],
+      ),
+    ],
   );
 };
 
