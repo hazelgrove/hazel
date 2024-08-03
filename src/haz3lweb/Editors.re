@@ -141,11 +141,7 @@ let update_exercise_title = (editors: t, new_title: string): t =>
   | Scratch(_)
   | Documentation(_) => editors
   | Exercises(n, specs, exercise) =>
-    Exercises(
-      n,
-      ListUtil.update_nth(n, specs, spec => {{...spec, title: new_title}}),
-      Exercise.update_exercise_title(exercise, new_title),
-    )
+    Exercises(n, specs, Exercise.update_exercise_title(exercise, new_title))
   };
 
 let reset_nth_slide = (n, slides) => {

@@ -269,14 +269,8 @@ let switch_scratch_slide =
   | Exercises(_, specs, _) when idx >= List.length(specs) => None
   | Exercises(_, specs, _) =>
     let spec = List.nth(specs, idx);
-    let key = Exercise.key_of(spec);
     let exercise =
-      Store.Exercise.load_exercise(
-        key,
-        spec,
-        ~instructor_mode,
-        ~editing_title,
-      );
+      Store.Exercise.load_exercise(spec, ~instructor_mode, ~editing_title);
     Some(Exercises(idx, specs, exercise));
   };
 
