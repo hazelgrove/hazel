@@ -296,7 +296,7 @@ let view =
       () =>
         Cell.simple_cell_view([
           Cell.simple_cell_item(
-            [Cell.caption("Mutation Testing Suite")]
+            [Cell.caption("Mutation Testing")]
             @ wrong_impl_views
             @ [add_wrong_impl_view],
           ),
