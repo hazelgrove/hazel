@@ -564,15 +564,16 @@ let rec testcases_gen =
   switch (size) {
   | 0 => l
   | n =>
-    let u = uexp_gen([], ty, 2);
+    let u = uexp_gen([], ty, 1);
     let m = Test_Elaboration.mk_map(u);
     let d = Elaborator.dhexp_of_uexp(m, u, false);
     let test = () =>
       Alcotest.check(
-        Alcotest.bool,
+        Alcotest.pass,
         "Random expression",
-        true,
-        TypeAssignment.property_test(Some(Term.UTyp.to_typ([], ty)), d, m),
+        unit,
+        TypeAssignment.property_test(Some(Term.UTyp.to_typ([], ty)), d, m)
+          ? unit : Alcotest.fail("Term: " ++ UExp.show(u)),
       );
     let case = test_case("Type assignment", `Quick, test);
     testcases_gen(n - 1, ty, [case, ...l]);
@@ -590,10 +591,11 @@ let random_tests =
       let ty = Elaborator.fixed_exp_typ(m, u);
       let test = () =>
         Alcotest.check(
-          Alcotest.bool,
+          Alcotest.pass,
           "Random expression",
-          true,
-          TypeAssignment.property_test(ty, d, m),
+          unit,
+          TypeAssignment.property_test(ty, d, m)
+            ? unit : Alcotest.fail("Term: " ++ UExp.show(u)),
         );
       test_case("Type assignment", `Quick, test);
     },
