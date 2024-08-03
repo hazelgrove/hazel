@@ -187,7 +187,7 @@ let view =
       (i, (Exercise.{impl, _}, di)) => {
         editor_view(
           HiddenBugs(i),
-          ~caption="Wrong Implementation " ++ string_of_int(i + 1),
+          ~caption="Mutant " ++ string_of_int(i + 1),
           ~editor=impl,
           ~di,
         )
@@ -296,7 +296,7 @@ let view =
       () =>
         Cell.simple_cell_view([
           Cell.simple_cell_item(
-            [Cell.caption("Wrong Implementations")]
+            [Cell.caption("Mutation Testing Suite")]
             @ wrong_impl_views
             @ [add_wrong_impl_view],
           ),

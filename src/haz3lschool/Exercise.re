@@ -69,6 +69,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     syntax_tests,
   };
 
+  type record = p(Zipper.t);
+
   let id_of = p => {
     p.id;
   };
@@ -550,17 +552,14 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     set_instructor_mode({pos: YourImpl, eds}, instructor_mode);
   };
 
-  let persistent_state_of_state =
-      ({pos, eds} as state: state, ~instructor_mode: bool) => {
+  let persistent_state_of_state = (state: state, ~instructor_mode: bool) => {
     let zippers =
       positioned_editors(state)
       |> List.filter(((pos, _)) => visible_in(pos, ~instructor_mode))
       |> List.map(((pos, editor)) => {
            (pos, PersistentZipper.persist(Editor.(editor.state.zipper)))
          });
-    print_string("Saved Title: ");
-    print_endline(eds.title);
-    (pos, zippers, eds.title);
+    (state.pos, zippers, state.eds.title);
   };
 
   let unpersist_state =
@@ -571,8 +570,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         ~editing_title: bool,
       )
       : state => {
-    print_string("Loaded Title: ");
-    print_endline(title);
     let lookup = (pos, default) =>
       if (visible_in(pos, ~instructor_mode)) {
         let persisted_zipper = List.assoc(pos, positioned_zippers);
@@ -581,6 +578,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       } else {
         editor_of_serialization(default);
       };
+    print_endline("Unpersisting State Now");
     let prelude = lookup(Prelude, spec.prelude);
     let correct_impl = lookup(CorrectImpl, spec.correct_impl);
     let your_tests_tests = lookup(YourTestsValidation, spec.your_tests.tests);
@@ -602,8 +600,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         {
           pos,
           eds: {
-            id: spec.id, // to-do: implement generation of id and update respective spec
-            // *Note: this is the only time we change the spec (upon page load)
+            id: spec.id,
             title,
             version: spec.version,
             module_name: spec.module_name,
@@ -1070,12 +1067,14 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   };
 
   let serialize_exercise = (exercise, ~instructor_mode) => {
+    print_endline("Serializing Exercise Now");
     persistent_state_of_state(exercise, ~instructor_mode)
     |> sexp_of_persistent_state
     |> Sexplib.Sexp.to_string;
   };
 
   let deserialize_exercise = (data, ~spec, ~instructor_mode, ~editing_title) => {
+    print_endline("Deserializing Exercise Now");
     data
     |> Sexplib.Sexp.of_string
     |> persistent_state_of_sexp

@@ -149,17 +149,7 @@ let add_buggy_impl = (editors: t) => {
   | Scratch(_)
   | Documentation(_) => editors
   | Exercises(n, specs, exercise) =>
-    let new_buggy_impl = {
-      Exercise.impl: Zipper.init(),
-      hint: "no hint available",
-    };
-    Exercises(
-      n,
-      ListUtil.update_nth(n, specs, spec => {
-        {...spec, hidden_bugs: spec.hidden_bugs @ [new_buggy_impl]}
-      }),
-      Exercise.add_buggy_impl(exercise),
-    );
+    Exercises(n, specs, Exercise.add_buggy_impl(exercise))
   };
 };
 
@@ -168,16 +158,7 @@ let delete_buggy_impl = (editors: t, index: int) => {
   | Scratch(_)
   | Documentation(_) => editors
   | Exercises(n, specs, exercise) =>
-    Exercises(
-      n,
-      ListUtil.update_nth(n, specs, spec => {
-        {
-          ...spec,
-          hidden_bugs: List.filteri((i, _) => i != index, spec.hidden_bugs),
-        }
-      }),
-      Exercise.delete_buggy_impl(exercise, index),
-    )
+    Exercises(n, specs, Exercise.delete_buggy_impl(exercise, index))
   };
 };
 
