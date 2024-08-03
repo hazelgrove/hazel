@@ -492,6 +492,47 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     },
   };
 
+  let add_buggy_impl = (state: state) => {
+    let new_buggy_impl = {
+      impl: Editor.init(Zipper.init()),
+      hint: "no hint available",
+    };
+    let new_state = {
+      pos: HiddenBugs(List.length(state.eds.hidden_bugs)),
+      eds: {
+        ...state.eds,
+        hidden_bugs: state.eds.hidden_bugs @ [new_buggy_impl],
+      },
+    };
+    put_editor(new_state, new_buggy_impl.impl);
+  };
+
+  let delete_buggy_impl = (state: state, index: int) => {
+    let length = List.length(state.eds.hidden_bugs);
+    let flag = length > 1;
+    let editor_on =
+      flag
+        ? List.nth(
+            state.eds.hidden_bugs,
+            index < length - 1 ? index + 1 : index - 1,
+          ).
+            impl
+        : state.eds.your_tests.tests;
+    let position =
+      flag
+        ? HiddenBugs(index < length - 1 ? index : index - 1)
+        : YourTestsValidation;
+    let new_state = {
+      pos: position,
+      eds: {
+        ...state.eds,
+        hidden_bugs:
+          List.filteri((i, _) => i != index, state.eds.hidden_bugs),
+      },
+    };
+    put_editor(new_state, editor_on);
+  };
+
   let visible_in = (pos, ~instructor_mode) => {
     switch (pos) {
     | Prelude => instructor_mode

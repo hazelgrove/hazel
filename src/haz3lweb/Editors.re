@@ -144,6 +144,43 @@ let update_exercise_title = (editors: t, new_title: string): t =>
     Exercises(n, specs, Exercise.update_exercise_title(exercise, new_title))
   };
 
+let add_buggy_impl = (editors: t) => {
+  switch (editors) {
+  | Scratch(_)
+  | Documentation(_) => editors
+  | Exercises(n, specs, exercise) =>
+    let new_buggy_impl = {
+      Exercise.impl: Zipper.init(),
+      hint: "no hint available",
+    };
+    Exercises(
+      n,
+      ListUtil.update_nth(n, specs, spec => {
+        {...spec, hidden_bugs: spec.hidden_bugs @ [new_buggy_impl]}
+      }),
+      Exercise.add_buggy_impl(exercise),
+    );
+  };
+};
+
+let delete_buggy_impl = (editors: t, index: int) => {
+  switch (editors) {
+  | Scratch(_)
+  | Documentation(_) => editors
+  | Exercises(n, specs, exercise) =>
+    Exercises(
+      n,
+      ListUtil.update_nth(n, specs, spec => {
+        {
+          ...spec,
+          hidden_bugs: List.filteri((i, _) => i != index, spec.hidden_bugs),
+        }
+      }),
+      Exercise.delete_buggy_impl(exercise, index),
+    )
+  };
+};
+
 let reset_nth_slide = (n, slides) => {
   let (_, init_editors, _) = Init.startup.scratch;
   let data = List.nth(init_editors, n);

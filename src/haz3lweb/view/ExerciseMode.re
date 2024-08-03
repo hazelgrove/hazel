@@ -66,7 +66,11 @@ let view =
       ~mousedown_updates=[SwitchEditor(this_pos)],
       ~settings,
       ~highlights,
-      ~caption=Cell.caption(caption, ~rest=?subcaption),
+      ~caption=
+        switch (this_pos) {
+        | HiddenBugs(n) => Cell.wrong_impl_caption(~inject, caption, n)
+        | _ => Cell.caption(caption, ~rest=?subcaption)
+        },
       ~target_id=Exercise.show_pos(this_pos),
       ~test_results=ModelResult.test_results(di.result),
       ~footer?,
@@ -74,66 +78,16 @@ let view =
     );
   };
 
-  let update_title = _ => {
-    let new_title =
-      Obj.magic(
-        Js_of_ocaml.Js.some(JsUtil.get_elem_by_id("title-input-box")),
-      )##.value;
-    let update_events = [
-      inject(Set(EditingTitle)),
-      inject(UpdateTitle(new_title)),
-    ];
-    Virtual_dom.Vdom.Effect.Many(update_events);
-  };
-
   let title_view = {
     Cell.simple_cell_view([
       div(
-        ~attr=Attr.many([Attr.class_("title-cell")]),
+        ~attr=Attr.class_("title-cell"),
         [
           settings.instructor_mode
             ? settings.editing_title
-                ? div(
-                    ~attr=Attr.many([Attr.class_("title-edit")]),
-                    [
-                      input(
-                        ~attr=
-                          Attr.many([
-                            Attr.class_("title-text"),
-                            Attr.id("title-input-box"),
-                            Attr.value(eds.title),
-                          ]),
-                        [],
-                      ),
-                      div(
-                        ~attr=Attr.class_("edit-icon"),
-                        [Widgets.button(Icons.confirm, update_title)],
-                      ),
-                      div(
-                        ~attr=Attr.class_("edit-icon"),
-                        [
-                          Widgets.button(Icons.cancel, _ =>
-                            inject(Set(EditingTitle))
-                          ),
-                        ],
-                      ),
-                    ],
-                  )
-                : div(
-                    ~attr=Attr.many([Attr.class_("title-edit")]),
-                    [
-                      text(eds.title),
-                      div(
-                        ~attr=Attr.class_("edit-icon"),
-                        [
-                          Widgets.button(Icons.pencil, _ =>
-                            inject(Set(EditingTitle))
-                          ),
-                        ],
-                      ),
-                    ],
-                  )
-            : div(~attr=Attr.class_("title-text"), [text(eds.title)]),
+                ? Cell.editing_title_cell(~inject, ~title=eds.title)
+                : Cell.instructor_title_cell(~inject, ~title=eds.title)
+            : Cell.student_title_cell(~title=eds.title),
         ],
       ),
     ]);
@@ -231,18 +185,40 @@ let view =
   let wrong_impl_views =
     List.mapi(
       (i, (Exercise.{impl, _}, di)) => {
-        InstructorOnly(
-          () =>
-            editor_view(
-              HiddenBugs(i),
-              ~caption="Wrong Implementation " ++ string_of_int(i + 1),
-              ~editor=impl,
-              ~di,
-            ),
+        editor_view(
+          HiddenBugs(i),
+          ~caption="Wrong Implementation " ++ string_of_int(i + 1),
+          ~editor=impl,
+          ~di,
         )
       },
       List.combine(eds.hidden_bugs, hidden_bugs),
     );
+
+  let add_wrong_impl_view =
+    Cell.simple_cell_view([
+      Cell.simple_cell_item([
+        div(
+          ~attr=Attr.many([Attr.class_("wrong-impl-cell-caption")]),
+          [
+            div(
+              ~attr=
+                Attr.many([
+                  Attr.class_("instructor-edit-icon"),
+                  Attr.id("add-icon"),
+                ]),
+              [
+                Widgets.button(
+                  Icons.add,
+                  _ => inject(UpdateAction.AddBuggyImplementation),
+                  ~tooltip="Add Buggy Implementation",
+                ),
+              ],
+            ),
+          ],
+        ),
+      ]),
+    ]);
 
   let mutation_testing_view =
     Always(
@@ -315,6 +291,18 @@ let view =
       ),
     );
 
+  let wrong_impl_views =
+    InstructorOnly(
+      () =>
+        Cell.simple_cell_view([
+          Cell.simple_cell_item(
+            [Cell.caption("Wrong Implementations")]
+            @ wrong_impl_views
+            @ [add_wrong_impl_view],
+          ),
+        ]),
+    );
+
   [score_view, title_view, prompt_view]
   @ render_cells(
       settings,
@@ -323,9 +311,7 @@ let view =
         correct_impl_view,
         correct_impl_ctx_view,
         your_tests_view,
-      ]
-      @ wrong_impl_views
-      @ [
+        wrong_impl_views,
         mutation_testing_view,
         your_impl_view,
         syntax_grading_view,
