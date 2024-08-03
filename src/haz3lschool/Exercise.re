@@ -53,6 +53,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type p('code) = {
+    id: Id.t,
     title: string,
     version: int,
     module_name: string,
@@ -68,15 +69,12 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     syntax_tests,
   };
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type key = (string, int);
-
-  let key_of = p => {
-    (p.title, p.version);
+  let id_of = p => {
+    p.id;
   };
 
-  let find_key_opt = (key, specs: list(p('code))) => {
-    specs |> Util.ListUtil.findi_opt(spec => key_of(spec) == key);
+  let find_id_opt = (id, specs: list(p('code))) => {
+    specs |> Util.ListUtil.findi_opt(spec => id_of(spec) == id);
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -97,6 +95,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   let map = (p: p('a), f: 'a => 'b): p('b) => {
     {
+      id: p.id,
       title: p.title,
       version: p.version,
       module_name: p.module_name,
@@ -135,10 +134,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     eds,
   };
 
-  let key_of_state = ({eds, _}) => key_of(eds);
-
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent_state = (pos, list((pos, PersistentZipper.t)));
+  type persistent_state = (pos, list((pos, PersistentZipper.t)), string);
 
   let editor_of_state: state => Editor.t =
     ({pos, eds, _}) =>
@@ -285,6 +282,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   let transition: transitionary_spec => spec =
     (
       {
+        id,
         title,
         version,
         module_name,
@@ -321,6 +319,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         {tests, hints};
       };
       {
+        id,
         title,
         version,
         module_name,
@@ -340,6 +339,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   let eds_of_spec: spec => eds =
     (
       {
+        id,
         title,
         version,
         module_name,
@@ -373,6 +373,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         {tests, hints};
       };
       {
+        id,
         title,
         version,
         module_name,
@@ -509,24 +510,28 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   };
 
   let persistent_state_of_state =
-      ({pos, _} as state: state, ~instructor_mode: bool) => {
+      ({pos, eds} as state: state, ~instructor_mode: bool) => {
     let zippers =
       positioned_editors(state)
       |> List.filter(((pos, _)) => visible_in(pos, ~instructor_mode))
       |> List.map(((pos, editor)) => {
            (pos, PersistentZipper.persist(Editor.(editor.state.zipper)))
          });
-    (pos, zippers);
+    print_string("Saved Title: ");
+    print_endline(eds.title);
+    (pos, zippers, eds.title);
   };
 
   let unpersist_state =
       (
-        (pos, positioned_zippers): persistent_state,
+        (pos, positioned_zippers, title): persistent_state,
         ~spec: spec,
         ~instructor_mode: bool,
         ~editing_title: bool,
       )
       : state => {
+    print_string("Loaded Title: ");
+    print_endline(title);
     let lookup = (pos, default) =>
       if (visible_in(pos, ~instructor_mode)) {
         let persisted_zipper = List.assoc(pos, positioned_zippers);
@@ -549,13 +554,16 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         spec.hidden_bugs,
       );
     let hidden_tests_tests = lookup(HiddenTests, spec.hidden_tests.tests);
-
+    print_string("Loaded Title: ");
+    print_endline(title);
     let state =
       set_instructor_mode(
         {
           pos,
           eds: {
-            title: spec.title,
+            id: spec.id, // to-do: implement generation of id and update respective spec
+            // *Note: this is the only time we change the spec (upon page load)
+            title,
             version: spec.version,
             module_name: spec.module_name,
             prompt: spec.prompt,
@@ -989,6 +997,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       );
     let hidden_tests_tests = Zipper.next_blank();
     {
+      id: Id.mk(),
       title,
       version: 1,
       module_name,
@@ -1015,8 +1024,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type exercise_export = {
-    cur_exercise: key,
-    exercise_data: list((key, persistent_state)),
+    cur_exercise: Id.t,
+    exercise_data: list((Id.t, persistent_state)),
   };
 
   let serialize_exercise = (exercise, ~instructor_mode) => {
