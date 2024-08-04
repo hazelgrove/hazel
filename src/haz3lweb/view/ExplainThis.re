@@ -1728,15 +1728,18 @@ let get_doc =
             ),
           TestExp.tests,
         );
-      | HintedTest(body, _hint) =>
+      | HintedTest(body, hint) =>
+        let hint_id = List.nth(hint.ids, 0);
         let body_id = List.nth(body.ids, 0);
         get_message(
-          ~colorings=HintedTestExp.hinted_test_exp_coloring_ids(~body_id),
+          ~colorings=
+            HintedTestExp.hinted_test_exp_coloring_ids(~body_id, ~hint_id),
           ~format=
             Some(
               msg =>
                 Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s"),
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(hint_id),
                   Id.to_string(body_id),
                 ),
             ),

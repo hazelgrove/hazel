@@ -14,14 +14,21 @@ let hinted_test_false_ex = {
 };
 let _exp_body = exp("e");
 let _hint = exp("h");
-let hinted_test_exp_coloring_ids = (~body_id: Id.t): list((Id.t, Id.t)) => [
+let hinted_test_exp_coloring_ids =
+    (~body_id: Id.t, ~hint_id: Id.t): list((Id.t, Id.t)) => [
   (Piece.id(_exp_body), body_id),
+  (Piece.id(_hint), hint_id),
 ];
 let hinted_test_exp: form = {
-  let explanation = "If the [*body*](%s) of the test evalutes to `true`, the test passes. Otherwise, the test fails. The hint is displayed in the \"Implementation Grading\" section.";
+  let explanation = "The [*hint*](%s) is displayed in the \"Implementation Grading\" section. If the [*body*](%s) of the test evalutes to `true`, the test passes. Otherwise, the test fails.";
   {
     id: HintedTestExp,
-    syntactic_form: [mk_hinted_test([[space(), _exp_body, space()]])],
+    syntactic_form: [
+      mk_hinted_test([
+        [space(), _hint, space()],
+        [space(), _exp_body, space()],
+      ]),
+    ],
     expandable_id: None,
     explanation,
     examples: [hinted_test_true_ex, hinted_test_false_ex],
