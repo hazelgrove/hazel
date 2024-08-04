@@ -18,22 +18,24 @@ let tr_bl =
       (),
     ) =>
   SvgUtil.Path.(
-    let (diag, junction) =
-      with_child_border
-        ? (
-          L_({dx: Float.neg(short_tip_width), dy: short_tip_height}),
-          H_({dx: Float.neg(0.5 -. short_tip_width)}),
-        )
-        : (
-          L_({dx: Float.neg(tip_width), dy: 0.5 +. stretch_y}),
-          H_({dx: Float.neg(stretch_x)}),
-        );
-    let path =
-      switch (hemi) {
-      | `North => [junction, diag]
-      | `South => [diag, junction]
-      };
-    scale(s, path)
+    {
+      let (diag, junction) =
+        with_child_border
+          ? (
+            L_({dx: Float.neg(short_tip_width), dy: short_tip_height}),
+            H_({dx: Float.neg(0.5 -. short_tip_width)}),
+          )
+          : (
+            L_({dx: Float.neg(tip_width), dy: 0.5 +. stretch_y}),
+            H_({dx: Float.neg(stretch_x)}),
+          );
+      let path =
+        switch (hemi) {
+        | `North => [junction, diag]
+        | `South => [diag, junction]
+        };
+      scale(s, path);
+    }
   );
 // bottom left to top right
 let bl_tr =
@@ -58,16 +60,18 @@ let tl_br =
       (),
     ) =>
   SvgUtil.Path.(
-    let (diag, junction) =
-      with_child_border
-        ? (
-          L_({dx: short_tip_width, dy: short_tip_height}),
-          H_({dx: 0.5 -. short_tip_width}),
-        )
-        : (L_({dx: tip_width, dy: 0.5 +. stretch_y}), H_({dx: stretch_x}));
-    switch (hemi) {
-    | `North => [junction, diag]
-    | `South => [diag, junction]
+    {
+      let (diag, junction) =
+        with_child_border
+          ? (
+            L_({dx: short_tip_width, dy: short_tip_height}),
+            H_({dx: 0.5 -. short_tip_width}),
+          )
+          : (L_({dx: tip_width, dy: 0.5 +. stretch_y}), H_({dx: stretch_x}));
+      switch (hemi) {
+      | `North => [junction, diag]
+      | `South => [diag, junction]
+      };
     }
   );
 // bottom right to top left
