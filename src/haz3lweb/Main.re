@@ -1,5 +1,4 @@
 open Js_of_ocaml;
-open Incr_dom;
 open Haz3lweb;
 
 let scroll_to_caret = ref(true);
@@ -35,7 +34,7 @@ let restart_caret_animation = () =>
   | _ => ()
   };
 
-let apply = (model, action, state, ~schedule_action): Model.t => {
+let _apply = (model, action, state, ~schedule_action): Model.t => {
   restart_caret_animation();
   if (UpdateAction.is_edit(action)) {
     last_edit_action := JsUtil.timestamp();
@@ -76,7 +75,7 @@ module App = {
   module Action = Update;
   module State = State;
 
-  let on_startup = (~schedule_action, m: Model.t) => {
+  let _on_startup = (~schedule_action, m: Model.t) => {
     let _ =
       observe_font_specimen("font-specimen", fm =>
         schedule_action(Haz3lweb.Update.SetMeta(FontMetrics(fm)))
@@ -98,46 +97,50 @@ module App = {
     Async_kernel.Deferred.return(state);
   };
 
-  let create =
-      (
-        model: Incr.t(Haz3lweb.Model.t),
-        ~old_model as _: Incr.t(Haz3lweb.Model.t),
-        ~inject,
-      ) => {
-    open Incr.Let_syntax;
-    let%map model = model;
-    /* Note: mapping over the old_model here may
-       trigger an additional redraw */
-    Component.create(
-      ~apply_action=apply(model),
-      model,
-      Haz3lweb.Page.view(~inject, model),
-      ~on_display=(_, ~schedule_action) => {
-        if (edit_action_applied^
-            && JsUtil.timestamp()
-            -. last_edit_action^ > 1000.0) {
-          /* If an edit action has been applied, but no other edit action
-             has been applied for 1 second, save the model. */
-          edit_action_applied := false;
-          print_endline("Saving...");
-          schedule_action(Update.Save);
-        };
-        if (scroll_to_caret.contents) {
-          scroll_to_caret := false;
-          JsUtil.scroll_cursor_into_view_if_needed();
-        };
-      },
-    );
-  };
-};
+  //   let create =
+  //       (
+  //         _model: Incr.t(Haz3lweb.Model.t),
+  //         ~old_model as _: Incr.t(Haz3lweb.Model.t),
+  //         ~inject as _,
+  //       ) => {
+  //     raise(
+  //       Exception("Hello"),
+  //       // let%map model = model;
+  //       /* Note: mapping over the old_model here may
+  //          trigger an additional redraw */
+  //       // Component.create(
+  //       //   ~apply_action=apply(model),
+  //       //   model,
+  //       //   Haz3lweb.Page.view(~inject, model),
+  //       //   ~on_display=(_, ~schedule_action) => {
+  //       //     if (edit_action_applied^
+  //       //         && JsUtil.timestamp()
+  //       //         -. last_edit_action^ > 1000.0) {
+  //       //       /* If an edit action has been applied, but no other edit action
+  //       //          has been applied for 1 second, save the model. */
+  //       //       edit_action_applied := false;
+  //       //       print_endline("Saving...");
+  //       //       schedule_action(Update.Save);
+  //       //     };
+  //       //     if (scroll_to_caret.contents) {
+  //       //       scroll_to_caret := false;
+  //       //       JsUtil.scroll_cursor_into_view_if_needed();
+  //       //     };
+  //       //   },
+  //       // );
+  //     );
+  //   };
+  // };
+  exception Exception(string);
 
-switch (JsUtil.Fragment.get_current()) {
-| Some("debug") => DebugMode.go()
-| _ =>
-  Incr_dom.Start_app.start(
-    (module App),
-    ~debug=false,
-    ~bind_to_element_with_id="container",
-    ~initial_model=Model.load(Model.blank),
-  )
+  raise(Exception("world"));
+  // switch (JsUtil.Fragment.get_current()) {
+  // | Some("debug") => DebugMode.go()
+  // | _ =>
+  //   Incr_dom.Start_app.start(
+  //     (module App),
+  //     ~debug=false,
+  //     ~bind_to_element_with_id="container",
+  //     ~initial_model=Model.load(Model.blank),
+  //   )
 };
