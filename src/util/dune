@@ -2,8 +2,7 @@
  (name util)
  (libraries re base ptmap incr_dom virtual_dom yojson)
  (js_of_ocaml
-  (flags
-   (:include js-of-ocaml-flags-%{profile})))
+  (flags :standard --debuginfo --noinline --dynlink --linkall --sourcemap))
  (preprocess
   (pps
    ppx_yojson_conv
