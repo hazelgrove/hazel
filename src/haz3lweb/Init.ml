@@ -171,177 +171,7 @@ let startup : PersistentData.t =
             backup_text = "     ";
           };
         ],
-        [
-          ( "scratch_0",
-            Stepper
-              {
-                elab =
-                  Sequence
-                    ( Test
-                        ( Option.get
-                            (Haz3lcore.Id.of_string
-                               "f83ccda8-abe1-4840-901f-4fbb4367130a"),
-                          BinIntOp
-                            ( ConsistentPolyEq,
-                              Equals,
-                              BinFloatOp (Plus, FloatLit 2., FloatLit 2.),
-                              FloatLit 4. ) ),
-                      EmptyHole
-                        ( Option.get
-                            (Haz3lcore.Id.of_string
-                               "3eab49cf-c190-4742-8bd5-0af1056a69bb"),
-                          0 ) );
-                previous =
-                  [
-                    {
-                      d =
-                        Sequence
-                          ( Tuple [],
-                            EmptyHole
-                              ( Option.get
-                                  (Haz3lcore.Id.of_string
-                                     "3eab49cf-c190-4742-8bd5-0af1056a69bb"),
-                                0 ) );
-                      state =
-                        {
-                          stats = { step = 0 };
-                          tests =
-                            [
-                              ( Option.get
-                                  (Haz3lcore.Id.of_string
-                                     "f83ccda8-abe1-4840-901f-4fbb4367130a"),
-                                [ (BoolLit true, Pass) ] );
-                            ];
-                        };
-                      d_loc =
-                        Sequence
-                          ( Tuple [],
-                            EmptyHole
-                              ( Option.get
-                                  (Haz3lcore.Id.of_string
-                                     "3eab49cf-c190-4742-8bd5-0af1056a69bb"),
-                                0 ) );
-                      ctx = Mark;
-                      knd = Sequence;
-                    };
-                    {
-                      d =
-                        Sequence
-                          ( Test
-                              ( Option.get
-                                  (Haz3lcore.Id.of_string
-                                     "f83ccda8-abe1-4840-901f-4fbb4367130a"),
-                                BoolLit true ),
-                            EmptyHole
-                              ( Option.get
-                                  (Haz3lcore.Id.of_string
-                                     "3eab49cf-c190-4742-8bd5-0af1056a69bb"),
-                                0 ) );
-                      state = { stats = { step = 0 }; tests = [] };
-                      d_loc =
-                        Test
-                          ( Option.get
-                              (Haz3lcore.Id.of_string
-                                 "f83ccda8-abe1-4840-901f-4fbb4367130a"),
-                            BoolLit true );
-                      ctx =
-                        Sequence1
-                          ( Mark,
-                            EmptyHole
-                              ( Option.get
-                                  (Haz3lcore.Id.of_string
-                                     "3eab49cf-c190-4742-8bd5-0af1056a69bb"),
-                                0 ) );
-                      knd = UpdateTest;
-                    };
-                    {
-                      d =
-                        Sequence
-                          ( Test
-                              ( Option.get
-                                  (Haz3lcore.Id.of_string
-                                     "f83ccda8-abe1-4840-901f-4fbb4367130a"),
-                                BinIntOp
-                                  ( ConsistentPolyEq,
-                                    Equals,
-                                    FloatLit 4.,
-                                    FloatLit 4. ) ),
-                            EmptyHole
-                              ( Option.get
-                                  (Haz3lcore.Id.of_string
-                                     "3eab49cf-c190-4742-8bd5-0af1056a69bb"),
-                                0 ) );
-                      state = { stats = { step = 0 }; tests = [] };
-                      d_loc =
-                        BinIntOp
-                          (ConsistentPolyEq, Equals, FloatLit 4., FloatLit 4.);
-                      ctx =
-                        Sequence1
-                          ( Test
-                              ( Option.get
-                                  (Haz3lcore.Id.of_string
-                                     "f83ccda8-abe1-4840-901f-4fbb4367130a"),
-                                Mark ),
-                            EmptyHole
-                              ( Option.get
-                                  (Haz3lcore.Id.of_string
-                                     "3eab49cf-c190-4742-8bd5-0af1056a69bb"),
-                                0 ) );
-                      knd = BinIntOp Equals;
-                    };
-                    {
-                      d =
-                        Sequence
-                          ( Test
-                              ( Option.get
-                                  (Haz3lcore.Id.of_string
-                                     "f83ccda8-abe1-4840-901f-4fbb4367130a"),
-                                BinIntOp
-                                  ( ConsistentPolyEq,
-                                    Equals,
-                                    BinFloatOp (Plus, FloatLit 2., FloatLit 2.),
-                                    FloatLit 4. ) ),
-                            EmptyHole
-                              ( Option.get
-                                  (Haz3lcore.Id.of_string
-                                     "3eab49cf-c190-4742-8bd5-0af1056a69bb"),
-                                0 ) );
-                      state = { stats = { step = 0 }; tests = [] };
-                      d_loc = BinFloatOp (Plus, FloatLit 2., FloatLit 2.);
-                      ctx =
-                        Sequence1
-                          ( Test
-                              ( Option.get
-                                  (Haz3lcore.Id.of_string
-                                     "f83ccda8-abe1-4840-901f-4fbb4367130a"),
-                                BinIntOp1 (Equals, Mark, FloatLit 4.) ),
-                            EmptyHole
-                              ( Option.get
-                                  (Haz3lcore.Id.of_string
-                                     "3eab49cf-c190-4742-8bd5-0af1056a69bb"),
-                                0 ) );
-                      knd = BinFloatOp Plus;
-                    };
-                  ];
-                current =
-                  StepperOK
-                    ( EmptyHole
-                        ( Option.get
-                            (Haz3lcore.Id.of_string
-                               "3eab49cf-c190-4742-8bd5-0af1056a69bb"),
-                          0 ),
-                      {
-                        stats = { step = 0 };
-                        tests =
-                          [
-                            ( Option.get
-                                (Haz3lcore.Id.of_string
-                                   "f83ccda8-abe1-4840-901f-4fbb4367130a"),
-                              [ (BoolLit true, Pass) ] );
-                          ];
-                      } );
-              } );
-        ] );
+        [ ("scratch_0", Evaluation) ] );
     documentation =
       ( "Casting",
         [
@@ -11263,8 +11093,8 @@ let startup : PersistentData.t =
                  # Floating Point Numbers #\n\
                  let float_lits : Float = 1.5 in\n\
                  let float_artih = 1. *. 2. +. 8. /. 4. in\n\
-                 let float_comparison = (10. ==. 10., 1. <. 2., 2. <=. 3., 3. \
-                 >. 2., 2. >=. 1.) in\n\n\
+                 let float_comparison = (10. ==.10., 1. <.2., 2. <=.3., 3. \
+                 >.2., 2. >=.1.) in\n\n\
                  # Booleans #\n\
                  let booleans : (Bool, Bool) = (true, false) in\n\
                  let conditionals =\n\
@@ -11342,17 +11172,6 @@ let startup : PersistentData.t =
                  test 2 + 2 == 4 end;\n\
                  test 3 + 3 == 6 end;\n\
                  test 2 + 2 == 5 end;\n\n\
-                 # Polymorphic equality and inequality#\n\
-                 test false == false end;\n\
-                 test 0. == .0 end;\n\
-                 type T = A+B in test A!= B end;\n\
-                 test \"Madoka\" == \"Madoka\" end;\n\
-                 test \"Madoka\" != \"Homura\" end;\n\
-                 test () == () end;\n\
-                 test (1, false) == (1, false) end;\n\
-                 test (1, false) != (2, true) end;\n\
-                 test [1,1,4,5] == [1,1,4,5] end;\n\
-                 test [1,1,4,5]!= [1,4] end;\n\n\
                  2 + 2";
             } );
           ( "Types & static errors",

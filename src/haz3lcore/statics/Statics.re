@@ -300,7 +300,7 @@ and uexp_to_info_map =
     let (e, m) = go(~mode=Ana(ty_in), e, m);
     add(~self=Just(ty_out), ~co_ctx=e.co_ctx, m);
   | BinOp(Int(Equals | NotEquals), e1, e2) =>
-    let ids = List.map(Term.UExp.rep_id, [e1, e2]);
+    let ids = List.map(UExp.rep_id, [e1, e2]);
     let (es, m) = map_m_go(m, [Syn, Syn], [e1, e2]);
     let tys = List.map(Info.exp_ty, es);
     add(

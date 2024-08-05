@@ -244,7 +244,7 @@ let rec matches_exp =
       d_op == f_op && matches_exp(d1, f1)
     | (UnOp(_), _) => false
 
-    | (BinOp(_, d_op, d1, d2), BinOp(_, f_op, f1, f2)) =>
+    | (BinOp(d_op, d1, d2), BinOp(f_op, f1, f2)) =>
       d_op == f_op && matches_exp(d1, f1) && matches_exp(d2, f2)
     | (BinOp(_), _) => false
 
