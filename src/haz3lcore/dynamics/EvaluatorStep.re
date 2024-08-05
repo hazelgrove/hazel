@@ -5,16 +5,10 @@ type step = {
   d: DHExp.t, // technically can be calculated from d_loc and ctx
   state: EvaluatorState.t,
   d_loc: DHExp.t, // the expression at the location given by ctx
+  d_loc': DHExp.t,
   ctx: EvalCtx.t,
   knd: step_kind,
 };
-
-let unwrap = (step, sel: EvalCtx.cls) =>
-  EvalCtx.unwrap(step.ctx, sel) |> Option.map(ctx => {...step, ctx});
-
-let unwrap_unsafe = (step, sel: EvalCtx.cls) =>
-  // TODO[Matt]: bring back "safe" version
-  EvalCtx.unwrap(step.ctx, sel) |> Option.map(ctx => {...step, ctx});
 
 module EvalObj = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -59,7 +53,7 @@ module Decompose = {
       EV_MODE with
         type result = Result.t and type state = ref(EvaluatorState.t);
   } = {
-    type state = ref(EvaluatorState.t); // TODO[Matt]: Make sure this gets passed around correctly
+    type state = ref(EvaluatorState.t);
     type requirement('a) = (Result.t, 'a);
     type requirements('a, 'b) = ('b, Result.t, ClosureEnvironment.t, 'a);
     type result = Result.t;
@@ -111,6 +105,17 @@ module Decompose = {
       );
     };
 
+    let req_final_or_value = (cont, wr, d) => {
+      switch (cont(d)) {
+      | Result.Indet => (Result.BoxedValue, (d, false))
+      | Result.BoxedValue => (Result.BoxedValue, (d, true))
+      | Result.Step(objs) => (
+          Result.Step(List.map(EvalObj.wrap(wr), objs)),
+          (d, false),
+        )
+      };
+    };
+
     let rec req_all_final' = (cont, wr, ds') =>
       fun
       | [] => (Result.BoxedValue, [])
@@ -133,6 +138,8 @@ module Decompose = {
           | Constructor => Result.BoxedValue
           | Indet => Result.Indet
           | Step(s) => Result.Step([EvalObj.mk(Mark, env, undo, s.kind)])
+          // TODO: Actually show these exceptions to the user!
+          | exception (EvaluatorError.Exception(_)) => Result.Indet
           }
         | (_, Result.Step(_) as r, _, _) => r
         };
@@ -172,9 +179,13 @@ module TakeStep = {
     let req_final = (_, _, d) => d;
     let req_all_final = (_, _, ds) => ds;
 
+    let req_final_or_value = (_, _, d) => (d, true);
+
     let (let.) = (rq: requirements('a, DHExp.t), rl: 'a => rule) =>
       switch (rl(rq)) {
-      | Step({apply, _}) => Some(apply())
+      | Step({expr, state_update, _}) =>
+        state_update();
+        Some(expr);
       | Constructor
       | Indet => None
       };
@@ -195,147 +206,7 @@ module TakeStep = {
 
 let take_step = TakeStep.take_step;
 
-let rec rev_concat: (list('a), list('a)) => list('a) =
-  (ls, rs) => {
-    switch (ls) {
-    | [] => rs
-    | [hd, ...tl] => rev_concat(tl, [hd, ...rs])
-    };
-  };
-
-let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
-  DHExp.(
-    switch (ctx) {
-    | Mark => d
-    | Closure(env, ctx) =>
-      let d = compose(ctx, d);
-      Closure(env, d);
-    | Filter(flt, ctx) =>
-      let d = compose(ctx, d);
-      Filter(flt, d);
-    | Sequence1(ctx, d2) =>
-      let d1 = compose(ctx, d);
-      Sequence(d1, d2);
-    | Sequence2(d1, ctx) =>
-      let d2 = compose(ctx, d);
-      Sequence(d1, d2);
-    | TypAp(ctx, typ) =>
-      let d1 = compose(ctx, d);
-      TypAp(d1, typ);
-    | Ap1(ctx, d2) =>
-      let d1 = compose(ctx, d);
-      Ap(d1, d2);
-    | Ap2(d1, ctx) =>
-      let d2 = compose(ctx, d);
-      Ap(d1, d2);
-    | ApBuiltin(s, ctx) =>
-      let d' = compose(ctx, d);
-      ApBuiltin(s, d');
-    | IfThenElse1(c, ctx, d2, d3) =>
-      let d' = compose(ctx, d);
-      IfThenElse(c, d', d2, d3);
-    | IfThenElse2(c, d1, ctx, d3) =>
-      let d' = compose(ctx, d);
-      IfThenElse(c, d1, d', d3);
-    | IfThenElse3(c, d1, d2, ctx) =>
-      let d' = compose(ctx, d);
-      IfThenElse(c, d1, d2, d');
-    | Test(lit, ctx) =>
-      let d1 = compose(ctx, d);
-      Test(lit, d1);
-    | BinBoolOp1(op, ctx, d2) =>
-      let d1 = compose(ctx, d);
-      BinBoolOp(op, d1, d2);
-    | BinBoolOp2(op, d1, ctx) =>
-      let d2 = compose(ctx, d);
-      BinBoolOp(op, d1, d2);
-    | BinIntOp1(op, ctx, d2) =>
-      let d1 = compose(ctx, d);
-      BinIntOp(ConsistentPolyEq, op, d1, d2);
-    | BinIntOp2(op, d1, ctx) =>
-      let d2 = compose(ctx, d);
-      BinIntOp(ConsistentPolyEq, op, d1, d2);
-    | BinFloatOp1(op, ctx, d2) =>
-      let d1 = compose(ctx, d);
-      BinFloatOp(op, d1, d2);
-    | BinFloatOp2(op, d1, ctx) =>
-      let d2 = compose(ctx, d);
-      BinFloatOp(op, d1, d2);
-    | BinStringOp1(op, ctx, d2) =>
-      let d1 = compose(ctx, d);
-      BinStringOp(op, d1, d2);
-    | BinStringOp2(op, d1, ctx) =>
-      let d2 = compose(ctx, d);
-      BinStringOp(op, d1, d2);
-    | Cons1(ctx, d2) =>
-      let d1 = compose(ctx, d);
-      Cons(d1, d2);
-    | Cons2(d1, ctx) =>
-      let d2 = compose(ctx, d);
-      Cons(d1, d2);
-    | ListConcat1(ctx, d2) =>
-      let d1 = compose(ctx, d);
-      ListConcat(d1, d2);
-    | ListConcat2(d1, ctx) =>
-      let d2 = compose(ctx, d);
-      ListConcat(d1, d2);
-    | Tuple(ctx, (ld, rd)) =>
-      let d = compose(ctx, d);
-      Tuple(rev_concat(ld, [d, ...rd]));
-    | ListLit(m, i, t, ctx, (ld, rd)) =>
-      let d = compose(ctx, d);
-      ListLit(m, i, t, rev_concat(ld, [d, ...rd]));
-    | Let1(dp, ctx, d2) =>
-      let d = compose(ctx, d);
-      Let(dp, d, d2);
-    | Let2(dp, d1, ctx) =>
-      let d = compose(ctx, d);
-      Let(dp, d1, d);
-    | Fun(dp, t, ctx, v) =>
-      let d = compose(ctx, d);
-      Fun(dp, t, d, v);
-    | FixF(v, t, ctx) =>
-      let d = compose(ctx, d);
-      FixF(v, t, d);
-    | Prj(ctx, n) =>
-      let d = compose(ctx, d);
-      Prj(d, n);
-    | Cast(ctx, ty1, ty2) =>
-      let d = compose(ctx, d);
-      Cast(d, ty1, ty2);
-    | FailedCast(ctx, ty1, ty2) =>
-      let d = compose(ctx, d);
-      FailedCast(d, ty1, ty2);
-    | InvalidOperation(ctx, err) =>
-      let d = compose(ctx, d);
-      InvalidOperation(d, err);
-    | NonEmptyHole(reason, u, i, ctx) =>
-      let d = compose(ctx, d);
-      NonEmptyHole(reason, u, i, d);
-    | ConsistentCase(Case(ctx, rule, n)) =>
-      let d = compose(ctx, d);
-      ConsistentCase(Case(d, rule, n));
-    | ConsistentCaseRule(scr, p, ctx, (lr, rr), n) =>
-      let d = compose(ctx, d);
-      ConsistentCase(
-        Case(scr, rev_concat(lr, [(Rule(p, d): DHExp.rule), ...rr]), n),
-      );
-    | InconsistentBranches(u, i, Case(ctx, rule, n)) =>
-      let d = compose(ctx, d);
-      InconsistentBranches(u, i, Case(d, rule, n));
-    | InconsistentBranchesRule(scr, mv, hi, p, ctx, (lr, rr), n) =>
-      let d = compose(ctx, d);
-      InconsistentBranches(
-        mv,
-        hi,
-        Case(scr, rev_concat(lr, [(Rule(p, d): DHExp.rule), ...rr]), n),
-      );
-    }
-  );
-};
-
-let decompose = (d: DHExp.t) => {
-  let es = EvaluatorState.init;
+let decompose = (d: DHExp.t, es: EvaluatorState.t) => {
   let env = ClosureEnvironment.of_environment(Builtins.env_init);
   let rs = Decompose.decompose(ref(es), env, d);
   Decompose.Result.unbox(rs);
@@ -351,158 +222,165 @@ let rec matches =
           idx: int,
         )
         : (FilterAction.t, int, EvalCtx.t) => {
-  let composed = compose(ctx, exp);
+  let composed = EvalCtx.compose(ctx, exp);
   let (pact, pidx) = (act, idx);
   let (mact, midx) = FilterMatcher.matches(~env, ~exp=composed, ~act, flt);
   let (act, idx) =
     switch (ctx) {
-    | Filter(_, _) => (pact, pidx)
+    | Term({term: Filter(_, _), _}) => (pact, pidx)
     | _ => midx > pidx ? (mact, midx) : (pact, pidx)
     };
   let map = ((a, i, c), f: EvalCtx.t => EvalCtx.t) => {
     (a, i, f(c));
   };
   let (let+) = map;
-  let (ract, ridx, rctx) =
+  let (ract, ridx, rctx) = {
+    let wrap_ids = (ids, ctx) => EvalCtx.Term({term: ctx, ids});
     switch (ctx) {
     | Mark => (act, idx, EvalCtx.Mark)
-    | Closure(env, ctx) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Closure(env, ctx);
-    | Filter(Filter(flt'), ctx) =>
-      let flt = flt |> FilterEnvironment.extends(flt');
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Filter(Filter(flt'), ctx);
-    | Filter(Residue(idx', act'), ctx) =>
-      let (ract, ridx, rctx) =
-        if (idx > idx') {
-          matches(env, flt, ctx, exp, act, idx);
+    | Term({term, ids}) =>
+      switch (term) {
+      | Closure(env, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Closure(env, ctx) |> wrap_ids(ids);
+      | Filter(Filter(flt'), ctx) =>
+        let flt = flt |> FilterEnvironment.extends(flt');
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Filter(Filter(flt'), ctx) |> wrap_ids(ids);
+      | Filter(Residue(idx', act'), ctx) =>
+        let (ract, ridx, rctx) =
+          if (idx > idx') {
+            matches(env, flt, ctx, exp, act, idx);
+          } else {
+            matches(env, flt, ctx, exp, act', idx');
+          };
+        if (act' |> snd == All) {
+          (
+            ract,
+            ridx,
+            Term({
+              term: Filter(Residue(idx', act'), rctx),
+              ids: [Id.mk()],
+            }),
+          );
         } else {
-          matches(env, flt, ctx, exp, act', idx');
+          (ract, ridx, rctx);
         };
-      if (act' |> snd == All) {
-        (ract, ridx, Filter(Residue(idx', act'), rctx));
-      } else {
-        (ract, ridx, rctx);
-      };
-    | Sequence1(ctx, d2) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Sequence1(ctx, d2);
-    | Sequence2(d1, ctx) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Sequence2(d1, ctx);
-    | Let1(d1, ctx, d3) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Let1(d1, ctx, d3);
-    | Let2(d1, d2, ctx) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Let2(d1, d2, ctx);
-    | Fun(dp, ty, ctx, name) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Fun(dp, ty, ctx, name);
-    | FixF(name, ty, ctx) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      FixF(name, ty, ctx);
-    | Ap1(ctx, d2) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Ap1(ctx, d2);
-    | Ap2(d1, ctx) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Ap2(d1, ctx);
-    | IfThenElse1(c, ctx, d2, d3) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      IfThenElse1(c, ctx, d2, d3);
-    | IfThenElse2(c, d1, ctx, d3) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      IfThenElse2(c, d1, ctx, d3);
-    | IfThenElse3(c, d1, d2, ctx) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      IfThenElse3(c, d1, d2, ctx);
-    | BinBoolOp1(op, ctx, d1) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      BinBoolOp1(op, ctx, d1);
-    | BinBoolOp2(op, d1, ctx) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      BinBoolOp2(op, d1, ctx);
-    | BinIntOp1(op, ctx, d2) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      BinIntOp1(op, ctx, d2);
-    | BinIntOp2(op, d1, ctx) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      BinIntOp2(op, d1, ctx);
-    | BinFloatOp1(op, ctx, d2) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      BinFloatOp1(op, ctx, d2);
-    | BinFloatOp2(op, d1, ctx) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      BinFloatOp2(op, d1, ctx);
-    | BinStringOp1(op, ctx, d2) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      BinStringOp1(op, ctx, d2);
-    | BinStringOp2(op, d1, ctx) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      BinStringOp2(op, d1, ctx);
-    | Tuple(ctx, ds) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Tuple(ctx, ds);
-    | ApBuiltin(name, ctx) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      ApBuiltin(name, ctx);
-    | Test(id, ctx) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Test(id, ctx);
-    | ListLit(u, i, ty, ctx, ds) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      ListLit(u, i, ty, ctx, ds);
-    | Cons1(ctx, d2) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Cons1(ctx, d2);
-    | Cons2(d1, ctx) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Cons2(d1, ctx);
-    | ListConcat1(ctx, d2) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      ListConcat1(ctx, d2);
-    | ListConcat2(d1, ctx) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      ListConcat2(d1, ctx);
-    | Prj(ctx, n) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Prj(ctx, n);
-    | NonEmptyHole(e, u, i, ctx) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      NonEmptyHole(e, u, i, ctx);
-    | Cast(ctx, ty, ty') =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Cast(ctx, ty, ty');
-    | FailedCast(ctx, ty, ty') =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      FailedCast(ctx, ty, ty');
-    | InvalidOperation(ctx, error) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      InvalidOperation(ctx, error);
-    | ConsistentCase(Case(ctx, rs, i)) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      ConsistentCase(Case(ctx, rs, i));
-    | ConsistentCaseRule(dexp, dpat, ctx, rs, i) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      ConsistentCaseRule(dexp, dpat, ctx, rs, i);
-    | InconsistentBranches(u, i, Case(ctx, rs, ri)) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      InconsistentBranches(u, i, Case(ctx, rs, ri));
-    | InconsistentBranchesRule(dexp, u, i, dpat, ctx, rs, ri) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      InconsistentBranchesRule(dexp, u, i, dpat, ctx, rs, ri);
-    | TypAp(ctx, ty) =>
-      let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      TypAp(ctx, ty);
+      | Seq1(ctx, d2) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Seq1(ctx, d2) |> wrap_ids(ids);
+      | Seq2(d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Seq2(d1, ctx) |> wrap_ids(ids);
+      | Let1(d1, ctx, d3) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Let1(d1, ctx, d3) |> wrap_ids(ids);
+      | Let2(d1, d2, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Let2(d1, d2, ctx) |> wrap_ids(ids);
+      | Fun(dp, ctx, env', name) =>
+        let+ ctx =
+          matches(
+            env' |> Option.value(~default=env),
+            flt,
+            ctx,
+            exp,
+            act,
+            idx,
+          );
+        Fun(dp, ctx, env', name) |> wrap_ids(ids);
+      | FixF(name, ctx, env') =>
+        let+ ctx =
+          matches(
+            env' |> Option.value(~default=env),
+            flt,
+            ctx,
+            exp,
+            act,
+            idx,
+          );
+        FixF(name, ctx, env') |> wrap_ids(ids);
+      | Ap1(dir, ctx, d2) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Ap1(dir, ctx, d2) |> wrap_ids(ids);
+      | Ap2(dir, d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Ap2(dir, d1, ctx) |> wrap_ids(ids);
+      | If1(ctx, d2, d3) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        If1(ctx, d2, d3) |> wrap_ids(ids);
+      | If2(d1, ctx, d3) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        If2(d1, ctx, d3) |> wrap_ids(ids);
+      | If3(d1, d2, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        If3(d1, d2, ctx) |> wrap_ids(ids);
+      | BinOp1(op, ctx, d1) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        BinOp1(op, ctx, d1) |> wrap_ids(ids);
+      | BinOp2(op, d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        BinOp2(op, d1, ctx) |> wrap_ids(ids);
+      | Test(ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Test(ctx) |> wrap_ids(ids);
+      | ListLit(ctx, ds) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        ListLit(ctx, ds) |> wrap_ids(ids);
+      | Tuple(ctx, ds) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Tuple(ctx, ds) |> wrap_ids(ids);
+      | MultiHole(ctx, ds) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        MultiHole(ctx, ds) |> wrap_ids(ids);
+      | Cons1(ctx, d2) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Cons1(ctx, d2) |> wrap_ids(ids);
+      | Cons2(d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Cons2(d1, ctx) |> wrap_ids(ids);
+      | ListConcat1(ctx, d2) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        ListConcat1(ctx, d2) |> wrap_ids(ids);
+      | ListConcat2(d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        ListConcat2(d1, ctx) |> wrap_ids(ids);
+      | Cast(ctx, ty, ty') =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Cast(ctx, ty, ty') |> wrap_ids(ids);
+      | FailedCast(ctx, ty, ty') =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        FailedCast(ctx, ty, ty') |> wrap_ids(ids);
+      | DynamicErrorHole(ctx, error) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        DynamicErrorHole(ctx, error) |> wrap_ids(ids);
+      | MatchScrut(ctx, rs) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        MatchScrut(ctx, rs) |> wrap_ids(ids);
+      | MatchRule(dexp, dpat, ctx, rs) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        MatchRule(dexp, dpat, ctx, rs) |> wrap_ids(ids);
+      | TypAp(ctx, ty) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        TypAp(ctx, ty) |> wrap_ids(ids);
+      | DeferredAp1(ctx, ds) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        DeferredAp1(ctx, ds) |> wrap_ids(ids);
+      | DeferredAp2(d1, ctx, ds) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        DeferredAp2(d1, ctx, ds) |> wrap_ids(ids);
+      | UnOp(op, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        UnOp(op, ctx) |> wrap_ids(ids);
+      }
     };
+  };
   switch (ctx) {
-  | Filter(_) => (ract, ridx, rctx)
+  | Term({term: Filter(_), _}) => (ract, ridx, rctx)
   | _ when midx > pidx && mact |> snd == All => (
       ract,
       ridx,
-      Filter(Residue(midx, mact), rctx),
+      Term({term: Filter(Residue(midx, mact), rctx), ids: [Id.mk()]}),
     )
   | _ => (ract, ridx, rctx)
   };
@@ -533,19 +411,19 @@ let should_hide_step = (~settings, x: step): (FilterAction.action, step) =>
     };
   };
 
-let decompose = (~settings, d) =>
-  d |> decompose |> List.map(should_hide_eval_obj(~settings));
+let decompose = (~settings, d, st) =>
+  decompose(d, st) |> List.map(should_hide_eval_obj(~settings));
 
 let evaluate_with_history = (~settings, d) => {
   let state = ref(EvaluatorState.init);
   let rec go = d =>
-    switch (decompose(~settings, d)) {
+    switch (decompose(~settings, d, state^)) {
     | [] => []
     | [(_, x), ..._] =>
       switch (take_step(state, x.env, x.d_loc)) {
       | None => []
       | Some(d) =>
-        let next = compose(x.ctx, d);
+        let next = EvalCtx.compose(x.ctx, d);
         [next, ...go(next)];
       }
     };
