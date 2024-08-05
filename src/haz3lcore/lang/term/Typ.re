@@ -102,6 +102,26 @@ let rec is_arrow = (typ: t) => {
   };
 };
 
+// TODO: This check is not exhaustive
+let rec has_arrow = (typ: t) => {
+  switch (typ.term) {
+  | Parens(typ) => has_arrow(typ)
+  | Arrow(_) => true
+  | Unknown(_)
+  | Int
+  | Float
+  | Bool
+  | String => false
+  | List(ty) => has_arrow(ty)
+  | Prod(tys) => List.exists(has_arrow, tys)
+  | Var(_)
+  | Ap(_)
+  | Sum(_) => false
+  | Forall(_) => true
+  | Rec(_) => false
+  };
+};
+
 let rec is_forall = (typ: t) => {
   switch (typ.term) {
   | Parens(typ) => is_forall(typ)
