@@ -139,29 +139,33 @@ module Update = {
         ~stitch=x => x,
         ed,
       );
-    WorkerClient.request(
-      worker_request^,
-      ~handler=
-        r =>
-          schedule_action(
-            CellAction(
-              ResultAction(
-                UpdateResult(
-                  switch (r |> List.hd |> snd) {
-                  | Ok((r, s)) =>
-                    Haz3lcore.ProgramResult.ResultOk({result: r, state: s})
-                  | Error(e) => Haz3lcore.ProgramResult.ResultFail(e)
-                  },
+    switch (worker_request^) {
+    | [] => ()
+    | _ =>
+      WorkerClient.request(
+        worker_request^,
+        ~handler=
+          r =>
+            schedule_action(
+              CellAction(
+                ResultAction(
+                  UpdateResult(
+                    switch (r |> List.hd |> snd) {
+                    | Ok((r, s)) =>
+                      Haz3lcore.ProgramResult.ResultOk({result: r, state: s})
+                    | Error(e) => Haz3lcore.ProgramResult.ResultFail(e)
+                    },
+                  ),
                 ),
               ),
             ),
-          ),
-      ~timeout=
-        _ =>
-          schedule_action(
-            CellAction(ResultAction(UpdateResult(ResultFail(Timeout)))),
-          ),
-    );
+        ~timeout=
+          _ =>
+            schedule_action(
+              CellAction(ResultAction(UpdateResult(ResultFail(Timeout)))),
+            ),
+      )
+    };
     let new_sp =
       ListUtil.put_nth(model.current, (key, new_ed), model.scratchpads);
     {...model, scratchpads: new_sp};
