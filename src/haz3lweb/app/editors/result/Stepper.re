@@ -210,6 +210,7 @@ module Update = {
   // let calculate_pending = (~settings, elab: Exp.t) => {};
 
   let calculate = (~settings, elab: Exp.t) => {
+    let elab = elab |> DHExp.repair_ids;
     full_calculate(~settings, elab);
   };
 };
