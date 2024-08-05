@@ -25,11 +25,15 @@
 
 #explain-this .example .cell {
   width: auto;
-  background-color: #f7ebd3;
+  background-color: var(--T2);
 }
 
 #explain-this .example .cell-result {
-  background-color: #ede0c6;
+  border-radius: 0 0 0.4em 0.4em;
+}
+
+#explain-this .example .cell-result .toggle-switch {
+  display: none;
 }
 
 #explain-this .explanation {

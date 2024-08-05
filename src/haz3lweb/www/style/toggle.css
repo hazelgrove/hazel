@@ -44,3 +44,18 @@
   margin-left: 0.9em;
   margin-right: 1px;
 }
+
+.submenu .toggle-switch {
+  height: 0.85em;
+  width: 1.5em;
+}
+
+.submenu .toggle-switch .toggle-knob {
+  width: 0.6em;
+  height: 0.6em;
+}
+
+.submenu .toggle-switch.active .toggle-knob {
+  margin-left: 0.7em;
+  margin-right: 1px;
+}

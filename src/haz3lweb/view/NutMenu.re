@@ -7,10 +7,8 @@ open Widgets;
 open Haz3lcore;
 
 let settings_group = (~inject, name: string, ts) => {
-  let toggle = ((icon, tooltip, bool, setting)) =>
-    toggle_named(icon, ~tooltip, bool, _ =>
-      inject(UpdateAction.Set(setting))
-    );
+  let toggle = ((_icon, tooltip, bool, setting)) =>
+    toggle_named("", ~tooltip, bool, _ => inject(UpdateAction.Set(setting)));
   div_c(
     "group",
     [
