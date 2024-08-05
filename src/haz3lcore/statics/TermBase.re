@@ -147,7 +147,7 @@ and Exp: {
     | Float(float) //1.0
     | String(string) //"hi"
     | ListLit(list(t)) //[e1, e2, ...]
-    | Constructor(string) /*capitalized ident*/ //X
+    | Constructor(string, Typ.t) /*capitalized ident*/ //X: ty
     | Fun(
         Pat.t,
         t,
@@ -201,8 +201,8 @@ and Exp: {
 
   let fast_equal: (t, t) => bool;
 
-  let term_of_menhir_ast: Haz3lmenhir.AST.exp => term;
-  let of_menhir_ast: Haz3lmenhir.AST.exp => t;
+  let term_of_menhir_ast: Haz3lmenhir.AST.exp => Exp.term;
+  let of_menhir_ast: Haz3lmenhir.AST.exp => Exp.t;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type deferral_position =
@@ -254,7 +254,7 @@ and Exp: {
     | Cast(t, Typ.t, Typ.t)
   and t = IdTagged.t(term);
 
-  let rec term_of_menhir_ast = (exp: Haz3lmenhir.AST.exp): term => {
+  let rec term_of_menhir_ast = (exp: Haz3lmenhir.AST.exp): Exp.term => {
     switch (exp) {
     | InvalidExp(s) => Invalid(s)
     | Int(i) => Int(i)
@@ -262,7 +262,7 @@ and Exp: {
     | String(s) => String(s)
     | Bool(b) => Bool(b)
     | Var(x) => Var(x)
-    | Constructor(x) => Constructor(x)
+    | Constructor(x, ty) => Constructor(x, Typ.of_menhir_ast(ty))
     | Deferral(pos) =>
       switch (pos) {
       | InAp => Deferral(InAp)
@@ -351,7 +351,7 @@ and Exp: {
     // | _ => raise(Invalid_argument("Menhir AST -> DHExp not yet implemented"))
     };
   }
-  and of_menhir_ast = (exp: Haz3lmenhir.AST.exp): t => {
+  and of_menhir_ast = (exp: Haz3lmenhir.AST.exp): Exp.t => {
     IdTagged.fresh(term_of_menhir_ast(exp));
   };
 
@@ -622,7 +622,7 @@ and Pat: {
     | IntPat(i) => Int(i)
     | FloatPat(f) => Float(f)
     | VarPat(x) => Var(x)
-    | ConstructorPat(x) => Constructor(x)
+    | ConstructorPat(x, ty) => Constructor(x, Typ.of_menhir_ast(ty))
     | StringPat(s) => String(s)
     | TuplePat(pats) => Tuple(List.map(of_menhir_ast, pats))
     | ApPat(pat1, pat2) => Ap(of_menhir_ast(pat1), of_menhir_ast(pat2))
@@ -634,6 +634,7 @@ and Pat: {
       MultiHole([Pat(p)]);
     | WildPat => Wild
     | ListPat(l) => ListLit(List.map(of_menhir_ast, l))
+    // | _ => raise(Invalid_argument("Menhir AST -> DHPat not yet implemented"))
     };
   }
   and of_menhir_ast = (pat: Haz3lmenhir.AST.pat): t => {
