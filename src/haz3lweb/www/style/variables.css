@@ -33,7 +33,6 @@
   --T1: oklch(97% 0.025 90); /* buffer shards */
   --T2: oklch(95% 0.025 90); /* projector shards */
   --T3: oklch(93% 0.025 90); /* main/result bkg */
-  --T4: oklch(91% 0.037 90); /* exp shards */
 
   /* BROWNS */
   --BR0: oklch(0% 0.07 90);
@@ -48,7 +47,7 @@
   --light-page-color: var(--menu-item-hover-bkg);
   --cell-active: var(--T0);
   --main-scroll-thumb: var(--BR2);
-  --main-scroll-track: #0000;
+  --main-scroll-track: var(--T0);
   --cell-selected-accent: var(--R1);
 
   /* CODE DECO */
@@ -81,7 +80,7 @@
 
   --shard-caret-exp: var(--T2); /*var(--BR1)*/
   --exp-shadow-color: var(--BR1);
-  --shard-exp: var(--T2); /*var(--T4)*/
+  --shard-exp: var(--T2);
 
   --shard-caret-pat: oklch(95% 0.05 225);
   --shard-pat: var(--shard-caret-pat);

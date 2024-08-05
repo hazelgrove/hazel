@@ -53,7 +53,7 @@ let of_secondary =
   Core.Memo.general(
     ~cache_size_bound=10000, ((content, secondary_icons, indent)) =>
     if (String.equal(Secondary.get_string(content), Form.linebreak)) {
-      let str = secondary_icons ? Form.linebreak : "";
+      let str = secondary_icons ? ">" : "";
       [
         span_c("linebreak", [text(str)]),
         Node.text("\n"),
