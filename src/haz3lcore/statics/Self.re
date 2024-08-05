@@ -76,7 +76,7 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
     fun
     | Just(typ) => Some(typ)
     | IsConstructor({syn_ty, _}) => syn_ty
-    | CompareArrow(_) => Some(Bool)
+    | CompareArrow(_) => Some(Bool |> Typ.fresh)
     | BadToken(_)
     | BadTrivAp(_)
     | IsMulti
@@ -158,8 +158,8 @@ let list_concat = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
   };
 
 let poly_eq = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
-  switch (Typ.join_all(~empty=Unknown(Internal), ctx, tys)) {
+  switch (Typ.join_all(~empty=Unknown(Internal)|> Typ.fresh, ctx, tys)) {
   | None => NoJoin(PolyEq, add_source(ids, tys))
   | Some(ty) when Typ.has_arrow(ctx, ty) => CompareArrow(ty)
-  | Some(_) => Just(Bool)
+  | Some(_) => Just(Bool|> Typ.fresh)
   };
