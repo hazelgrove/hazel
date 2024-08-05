@@ -11,7 +11,14 @@ type checkbox = unit;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type slider = {value: int};
 [@deriving (show({with_path: false}), sexp, yojson)]
-type derivearea = unit;
+type derivearea = {
+  inside: bool,
+  tree: option(Util.Tree.p(derive(Piece.segment))),
+}
+and derive('code) = {
+  jdmt: 'code,
+  rule: 'code,
+};
 [@deriving (show({with_path: false}), sexp, yojson)]
 type textarea = {inside: bool};
 
@@ -34,8 +41,7 @@ type textarea_action =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type shape =
   | Inline(int)
-  | Block(Measured.Point.t)
-  | Multi(list(shape));
+  | Block(Measured.Point.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type projector =
@@ -70,7 +76,6 @@ module type ProjectorCore = {
   let projector: projector;
   let model: model;
   let placeholder: unit => shape;
-  let children: list(Piece.segment);
   let can_project: Piece.t => bool;
   let auto_update: projector_info => projector;
   let update: string => projector;

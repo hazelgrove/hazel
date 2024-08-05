@@ -25,11 +25,6 @@ let rec mk_size_tree = (f, Node(vn, c)) => {
   let size =
     switch (vn) {
     | Leaf(s) => f(s)
-    // let lines = s |> String.split_on_char('\n');
-    // {
-    //   w: lines |> List.map(String.length) |> List.fold_left(max, 0),
-    //   h: lines |> List.length,
-    // };
     | Branch(fd, _) =>
       let get_acc_size = ({w, h}, Node({w: w', h: h'}, _)) =>
         switch (fd) {
@@ -40,6 +35,8 @@ let rec mk_size_tree = (f, Node(vn, c)) => {
     };
   Node(size, children_size);
 };
+
+let outer_size = (f, t) => mk_size_tree(f, t) |> value;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type loc = {
@@ -119,14 +116,3 @@ let flatloc2tiles = (f, t) => {
   |> fst
   |> (l => l @ [Inline(0)]);
 };
-
-// let print_tile = tile =>
-//   switch (tile) {
-//   | Text(str) => print_string(str)
-//   | Block({w, h}) =>
-//     let str = String.make(h, '\n') ++ String.make(w, ' ');
-//     print_string(str);
-//   | Inline(w) => print_string(String.make(w, ' '))
-//   };
-
-// let print_tiles = tiles => List.iter(print_tile, tiles);

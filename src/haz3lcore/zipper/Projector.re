@@ -8,7 +8,7 @@ module Map = ProjectorMap;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type info = ZipperBase.projector_info;
 
-let to_module = (syntax, p: projector): projector_core =>
+let to_module = (syntax: Piece.t, p: projector): projector_core =>
   switch ((p: projector)) {
   | Fold(model) => FoldCore.mk(model)
   | Infer(model) => InferCore.mk(model)
@@ -81,26 +81,20 @@ let shape = (p: t, syntax): shape => {
   P.placeholder();
 };
 
-let placeholder = (p: t, syntax: syntax): syntax => {
-  let rec mk_label =
-    fun
-    | Inline(width) => [String.make(width, ' ')]
-    | Block({row, col}) => [
-        String.make(row, '\n') ++ String.make(col, ' '),
-      ]
-    | Multi(shapes) => shapes |> List.map(mk_label) |> List.concat;
-  // TODO(zhiyao): simplify code
-  let (label, shards, children, mold) = {
-    let (module P) = to_module(syntax, p);
-    let label = shape(p, syntax) |> mk_label;
-    let children = P.children;
-    let shards = List.init(List.length(children) + 1, Fun.id);
-    let mold =
-      Mold.mk_op(Any, List.init(List.length(children), _ => Sort.Any));
-    (label, shards, children, mold);
-  };
-  Piece.Tile({id: Piece.id(syntax), label, mold, shards, children});
-};
+let placeholder = (p: t, syntax: syntax): syntax =>
+  Piece.Tile({
+    id: Piece.id(syntax),
+    label:
+      switch (shape(p, syntax)) {
+      | Inline(width) => [String.make(width, ' ')]
+      | Block({row, col}) => [
+          String.make(row, '\n') ++ String.make(col, ' '),
+        ]
+      },
+    mold: Mold.mk_op(Any, []),
+    shards: [0],
+    children: [],
+  });
 /* Currently projection is limited to convex pieces */
 let minimum_projection_condition = (syntax: syntax): bool =>
   Piece.is_convex(syntax);
@@ -111,7 +105,7 @@ let init = (f: kind, syntax): projector_core =>
   | Infer => InferCore.mk({expected_ty: None})
   | Checkbox => CheckboxCore.mk()
   | Slider => SliderCore.mk({value: 10})
-  | DeriveArea => DeriveAreaCore.mk(syntax, ())
+  | DeriveArea => DeriveAreaCore.mk(syntax, {inside: false, tree: None})
   | TextArea => TextAreaCore.mk(syntax, {inside: false})
   };
 
@@ -284,9 +278,6 @@ module Project = {
       {z, syntax_map: syntax_map^};
     } else {
       let z = MapPiece.go(placehold(z.projectors), z);
-      // print_endline(
-      //   "map card:" ++ string_of_int(Id.Map.cardinal(syntax_map^)),
-      // );
       {z, syntax_map: syntax_map^};
     };
   };

@@ -119,11 +119,11 @@ let proof_view =
       Js.string("style"),
       // This may still cause the content to overflow the window
       Js.string(
-        "top:"
-        ++ string_of_float(top)
-        ++ "px; left:"
-        ++ string_of_float(left)
-        ++ "px;",
+        Printf.sprintf(
+          "top: %fpx; left: %fpx;",
+          top,
+          left,
+        ),
       ),
     );
     Ui_effect.Ignore;

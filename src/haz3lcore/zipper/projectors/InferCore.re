@@ -34,7 +34,6 @@ let mk = (model: infer): projector_core =>
      let placeholder = () =>
        Inline((model.expected_ty |> display |> String.length) - 2);
 
-     let children = [];
      let auto_update = ({info, _}): projector => {
        print_endline("updating infer projector");
        Infer({expected_ty: Some(expected_ty(info))});

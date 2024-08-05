@@ -1,11 +1,6 @@
 open ZipperBase;
-open Util.StringDom;
+open Util.SimulDom;
 open Util.Tree;
-
-type derive('code) = {
-  jdmt: 'code,
-  rule: 'code,
-};
 
 let rec mk_virtual_node_tree = (Node({jdmt, rule}, c)) =>
   Node(
@@ -60,21 +55,6 @@ let size_of_segment = (seg: Piece.segment): size => {
   h: 1,
 };
 
-// TODO(zhiyao): Not a good way to verify projected syntax
-let verify_projected = (syntax: Piece.t): bool => {
-  let (tiles, _) = [syntax] |> split_tiles_of_segment;
-  let tiles = tiles |> List.map(tile_of_piece);
-  if (List.length(tiles) == 0) {
-    true;
-  } else {
-    let tile = tiles |> List.hd;
-    switch (tile.label) {
-    | ["from", "to", "by", "end"] => false
-    | _ => true
-    };
-  };
-};
-
 let rec mk_derive_tree =
         (seg: Piece.segment): (tree(derive(Piece.segment)), list(Piece.t)) => {
   let (tiles, others) = seg |> split_tiles_of_segment;
@@ -86,7 +66,6 @@ let rec mk_derive_tree =
     | l =>
       failwith("expect 1 tile, got " ++ (l |> List.length |> string_of_int))
     };
-  // assert(tile.label == ["from", "to", "by", "end"]);
   switch (tile.label) {
   | ["from", "to", "by", "end"] => ()
   | _ =>
@@ -98,14 +77,10 @@ let rec mk_derive_tree =
       ++ (tile |> Piece.show_tile),
     )
   };
-  // assert(List.length(tile.children) == 3);
   switch (List.length(tile.children)) {
   | 3 => ()
   | n => failwith("unexpected number of children: " ++ (n |> string_of_int))
   };
-  // let prems = List.nth(tile.children, 0);
-  // let jdmt = List.nth(tile.children, 1);
-  // let rule = List.nth(tile.children, 2);
   let (prems, jdmt, rule) =
     switch (tile.children) {
     | [prems, jdmt, rule] => (prems, jdmt, rule)
@@ -122,28 +97,16 @@ let rec mk_derive_tree =
         "expect 1 .premise, got" ++ (l |> List.length |> string_of_int),
       )
     };
-  // let get_only =
-  //   fun
-  //   | [x] => List.concat([x])
-  //   | _ => failwith("expect 1 child");
   let prems = prems.children |> List.concat;
   let rec get_as_of_aba =
     fun
-    | [a, _b, ...tl] => [[a], ...get_as_of_aba(tl)]
+    | [a, b, ...tl] => {
+        print_endline(Piece.show_piece(b));
+        [[a], ...get_as_of_aba(tl)];
+      }
     | [a] => [[a]]
     | [] => [];
   let prems = prems |> get_as_of_aba;
-  // let n = List.length(prems);
-  // TODO(zhiyao): handle n = 0
-  // let label = n == 0 ? ["[]"] : ["["] @ List.init(n - 1, _ => ",") @ ["]"];
-  // // assert(prems.label == label\);
-  // if (prems.label == label) {
-  //   ();
-  // } else {
-  //   failwith(
-  //     "unexpected label: [" ++ (prems.label |> String.concat(",")) ++ "]",
-  //   );
-  // };
   let (children_derive_tree, other_list) =
     List.map(mk_derive_tree, prems) |> List.split;
   // TODO: temp
@@ -151,23 +114,56 @@ let rec mk_derive_tree =
   (Node({jdmt, rule}, children_derive_tree), others);
 };
 
-let bind_ghost_tiles =
-    (others: list(Piece.t), seg: Piece.segment): Piece.segment => {
-  let mk_ghost_tile =
+// let mk_ghost_comma = (): Piece.t =>
+//   Piece.Tile({
+//     id: Id.mk(),
+//     label: [","],
+//     mold: Mold.mk_bin'(19, Exp, Exp, [], Exp),
+//     shards: [0],
+//     children: [],
+//   });
+
+let mk_ghost = (label, children): Piece.t =>
+  Piece.Tile({
+    id: Id.mk(),
+    label,
+    mold: Mold.mk_op(Exp, List.init(List.length(children), _ => Sort.Exp)),
+    shards: List.init(List.length(children) + 1, _ => 0),
+    children,
+  });
+
+let rec reduce_derive_tree =
+        (Node({jdmt, rule}, children): tree(derive(Piece.segment)))
+        : Piece.t => {
+  let prems = children |> List.map(reduce_derive_tree);
+  let rec put_as_to_aba =
     fun
-    | Piece.Tile({id, _}) =>
-      Piece.Tile({
-        id,
-        label: [""],
-        mold: Mold.mk_op(Any, []),
-        shards: [0],
-        children: [],
-      })
-    | _ as t => t;
-  others |> List.map(mk_ghost_tile) |> List.append(seg);
+    | [a] => [a]
+    | [a, ...tl] => [a, mk_ghost([","], []), ...put_as_to_aba(tl)]
+    | [] => [];
+  let prems = prems |> put_as_to_aba;
+  let prems = [mk_ghost(["[", "]"], [prems])];
+  let children = [prems, jdmt, rule];
+  mk_ghost(["from", "to", "by", "end"], children);
 };
 
-let mk = (syntax: Piece.t, _model): projector_core =>
+// let bind_ghost_tiles =
+//     (others: list(Piece.t), seg: Piece.segment): Piece.segment => {
+//   let mk_ghost_tile =
+//     fun
+//     | Piece.Tile({id, _}) =>
+//       Piece.Tile({
+//         id,
+//         label: [""],
+//         mold: Mold.mk_op(Any, []),
+//         shards: [0],
+//         children: [],
+//       })
+//     | _ as t => t;
+//   others |> List.map(mk_ghost_tile) |> List.append(seg);
+// };
+
+let mk = (syntax: Piece.t, model): projector_core =>
   try(
     (module
      {
@@ -175,53 +171,58 @@ let mk = (syntax: Piece.t, _model): projector_core =>
        type model = ZipperBase.derivearea;
        [@deriving (show({with_path: false}), sexp, yojson)]
        type action = ZipperBase.derivearea_action;
-       let model = ();
+       let model =
+         switch (model.tree) {
+         | Some(_) => model
+         | None => {...model, tree: Some(mk_derive_tree([syntax]) |> fst)}
+         };
+       let tree = model.tree |> Option.get;
+       //  let reduced = tree |> reduce_derive_tree;
+       //  print_endline(Piece.show(reduced));
        let projector = DeriveArea(model);
        let can_project = _ => true;
-       //TODO(andrew): cleanup
-       let verified = verify_projected(syntax);
-       let (children, placeholder) =
-         if (verified) {
-           ((syntax |> tile_of_piece).children, () => ZipperBase.Multi([]));
-         } else {
-           let (tree, _others) = mk_derive_tree([syntax]);
-           let virtual_node_tree = mk_virtual_node_tree(tree);
-           let loc_tiles =
-             virtual_node_tree
-             |> mk_loc_list({x: 0, y: 0}, size_of_segment)
-             |> flatloc2tiles(size_of_segment);
-           let placeholders =
-             loc_tiles
-             |> List.filter_map(
-                  fun
-                  | Inline(x) => Some(ZipperBase.Inline(x))
-                  | Block({w, h}) =>
-                    Some(ZipperBase.Block({col: w, row: h}))
-                  | _ => None,
-                );
-           let children =
-             loc_tiles
-             |> List.filter_map(
-                  fun
-                  | Inline(_) => None
-                  | Block(_) => None
-                  | Just(tile) => Some(tile),
-                );
-           //  let child =
-           //    switch (children) {
-           //    | [child, _] => child
-           //    | _ => failwith("expect at least one child")
-           //    };
-           //  let child = child |> bind_ghost_tiles(others);
-           //  let children = [child, ...List.tl(children)];
-           (children, () => ZipperBase.Multi(placeholders));
-         };
-       //  List.iter(
-       //    seg => List.iter(piece => piece |> Piece.show |> print_endline, seg),
-       //    children,
-       //  );
-       let auto_update = _: projector => DeriveArea();
-       let update = _action => DeriveArea();
+       let placeholder = () =>
+         tree
+         |> mk_virtual_node_tree
+         |> outer_size(size_of_segment)
+         |> (({w, h}) => ZipperBase.Block({col: w, row: h}));
+       //  let virtual_node_tree = mk_virtual_node_tree(tree);
+       //  let loc_tiles =
+       //    virtual_node_tree
+       //    |> mk_loc_list({x: 0, y: 0}, size_of_segment)
+       //    |> flatloc2tiles(size_of_segment);
+       //  let placeholders =
+       //    loc_tiles
+       //    |> List.filter_map(
+       //         fun
+       //         | Inline(x) => Some(ZipperBase.Inline(x))
+       //         | Block({w, h}) =>
+       //           Some(ZipperBase.Block({col: w, row: h}))
+       //         | _ => None,
+       //       );
+       //  let children =
+       //    loc_tiles
+       //    |> List.filter_map(
+       //         fun
+       //         | Inline(_) => None
+       //         | Block(_) => None
+       //         | Just(tile) => Some(tile),
+       //       );
+       //  let child =
+       //    switch (children) {
+       //    | [child, _] => child
+       //    | _ => failwith("expect at least one child")
+       //    };
+       //  let child = child |> bind_ghost_tiles(others);
+       //  let children = [child, ...List.tl(children)];
+       //  (children, () => ZipperBase.Multi(placeholders));
+       //  //  List.iter(
+       //  //    seg => List.iter(piece => piece |> Piece.show |> print_endline, seg),
+       //  //    children,
+       //  //  );
+       // let placeholder = () => ZipperBase.Multi([]);
+       let auto_update = _: projector => DeriveArea(model);
+       let update = _action => DeriveArea(model);
      })
   ) {
   | e => failwith("DeriveAreaCore: " ++ (e |> Printexc.to_string))

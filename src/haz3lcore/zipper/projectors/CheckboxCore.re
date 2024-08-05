@@ -34,7 +34,6 @@ let mk = (model): projector_core =>
      let projector = Checkbox(model);
      let can_project = p => state_of(p) != None;
      let placeholder = () => Inline(2);
-     let children = [];
      let auto_update = _: projector => Checkbox();
      let update = _action => Checkbox();
    });

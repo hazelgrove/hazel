@@ -116,8 +116,6 @@ let wrap = //TODO(andrew): cleanup params
       switch (Projector.shape(p, syntax)) {
       | Inline(_) => PieceDec.convex_shard(~font_metrics, ~measurement)
       | Block(_) => div([])
-      // TODO(zhiyao)
-      | Multi(_) => div([])
       },
     ],
   );
