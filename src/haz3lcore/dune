@@ -4,8 +4,7 @@
  (name haz3lcore)
  (libraries util re sexplib unionFind uuidm yojson core)
  (js_of_ocaml
-  (flags
-   (:include js-of-ocaml-flags-%{profile})))
+  (flags :standard --debuginfo --noinline --dynlink --linkall --sourcemap))
  (preprocess
   (pps
    ppx_yojson_conv
@@ -13,9 +12,6 @@
    ppx_let
    ppx_sexp_conv
    ppx_deriving.show)))
-
-(rule
- (write-file js-of-ocaml-flags-dev "(:standard --debuginfo --noinline)"))
 
 (rule
  (write-file js-of-ocaml-flags-release "(:standard)"))
