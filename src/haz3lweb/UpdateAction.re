@@ -1,5 +1,7 @@
 open Util;
 open Haz3lcore;
+// open Virtual_dom.Vdom;
+// open Node;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type evaluation_settings_action =
@@ -55,6 +57,11 @@ type benchmark_action =
   | Finish;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type prompt_action =
+  | Start
+  | Finish(string);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   /* meta */
   | Reset
@@ -89,7 +96,7 @@ type t =
   | ToggleStepper(ModelResults.Key.t)
   | StepperAction(ModelResults.Key.t, stepper_action)
   | UpdateResult(ModelResults.t)
-  | UpdatePrompt(string);
+  | UpdatePrompt(prompt_action);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]
