@@ -270,7 +270,12 @@ let rec exp_to_pretty = (~inline, exp: Exp.t): pretty => {
     let+ e1 = go(e1)
     and+ e2 = go(e2)
     and+ e3 = go(e3);
-    let e2 = inline ? e2 : [Secondary(Secondary.mk_newline(Id.mk()))] @ e2;
+    let e2 =
+      inline
+        ? e2
+        : [Secondary(Secondary.mk_newline(Id.mk()))]
+          @ e2
+          @ [Secondary(Secondary.mk_newline(Id.mk()))];
     let e3 = inline ? e3 : [Secondary(Secondary.mk_newline(Id.mk()))] @ e3;
     [mk_form("if_", id, [e1, e2])] @ e3;
   | Seq(e1, e2) =>
@@ -344,12 +349,18 @@ let rec exp_to_pretty = (~inline, exp: Exp.t): pretty => {
           e
           @ (
             List.map2(
-              (id, (p, e)) => [mk_form("rule", id, [p])] @ e,
+              (id, (p, e)) =>
+                inline
+                  ? []
+                  : [Secondary(Secondary.mk_newline(Id.mk()))]
+                    @ [mk_form("rule", id, [p])]
+                    @ e,
               ids,
               rs,
             )
             |> List.flatten
-          ),
+          )
+          @ (inline ? [] : [Secondary(Secondary.mk_newline(Id.mk()))]),
         ],
       ),
     ];
