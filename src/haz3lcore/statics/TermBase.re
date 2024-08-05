@@ -325,7 +325,8 @@ and Exp: {
               rls,
             ),
           )
-        | Cast(e, t1, t2) => Cast(exp_map_term(e), t1, t2)
+        | Cast(e, t1, t2) =>
+          Cast(exp_map_term(e), typ_map_term(t1), typ_map_term(t2))
         },
     };
     x |> f_exp(rec_call);

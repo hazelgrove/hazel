@@ -108,7 +108,11 @@ let rec exp_to_pretty = (~inline, exp: Exp.t): pretty => {
   | String(s) =>
     text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "\"" ++ s ++ "\"")
   // TODO: Make sure types are correct
-  | Constructor(c, _) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, c)
+  | Constructor(c, t) =>
+    let id = Id.mk();
+    let+ e = text_to_pretty(exp |> Exp.rep_id, Sort.Exp, c)
+    and+ t = typ_to_pretty(~inline, t);
+    e @ [mk_form("typeasc", id, [])] @ t;
   | ListLit([]) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "[]")
   | Deferral(_) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "deferral")
   | ListLit([x, ...xs]) =>
@@ -501,15 +505,15 @@ and typ_to_pretty = (~inline, typ: Typ.t): pretty => {
     let+ t = go_constructor(t);
     [mk_form("typ_sum_single", id, [])] @ t;
   | Sum([t, ...ts]) =>
+    let ids = typ.ids |> pad_ids(List.length(ts) + 1);
+    let id = List.hd(ids);
+    let ids = List.tl(ids);
     let+ t = go_constructor(t)
     and+ ts = ts |> List.map(go_constructor) |> all;
-    t
+    [mk_form("typ_sum_single", id, [])]
+    @ t
     @ List.flatten(
-        List.map2(
-          (id, t) => [mk_form("typ_plus", id, [])] @ t,
-          typ.ids |> pad_ids(List.length(ts)),
-          ts,
-        ),
+        List.map2((id, t) => [mk_form("typ_plus", id, [])] @ t, ids, ts),
       );
   };
 }
@@ -559,7 +563,6 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Float(_)
   | String(_)
   | EmptyHole
-  | Constructor(_)
   | Deferral(_)
   | BuiltinFun(_)
   | Undefined => Precedence.max
@@ -572,6 +575,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
 
   // Other forms
   | UnOp(Meta(Unquote), _) => Precedence.unquote
+  | Constructor(_) // Constructor is here because we currently always add a type annotation to constructors
   | Cast(_)
   | FailedCast(_) => Precedence.cast
   | Ap(Forward, _, _)
@@ -787,9 +791,9 @@ let rec parenthesize = (exp: Exp.t): Exp.t => {
     |> rewrap
   | Cast(e, t1, t2) =>
     Cast(
-      parenthesize(e) |> paren_at(Precedence.cast),
-      parenthesize_typ(t1) |> paren_typ_assoc_at(Precedence.max),
-      parenthesize_typ(t2) |> paren_typ_assoc_at(Precedence.max),
+      parenthesize(e) |> paren_assoc_at(Precedence.cast),
+      parenthesize_typ(t1) |> paren_typ_at(Precedence.cast),
+      parenthesize_typ(t2) |> paren_typ_at(Precedence.cast),
     )
     |> rewrap
   | FailedCast(e, t1, t2) =>

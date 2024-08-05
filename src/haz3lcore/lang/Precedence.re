@@ -75,7 +75,8 @@ let compare = (p1: t, p2: t): int =>
 
 let associativity_map: IntMap.t(Direction.t) =
   [
-    (mult, Direction.Left),
+    (cast, Direction.Left),
+    (mult, Left),
     (plus, Left),
     (power, Right),
     (cons, Right),
