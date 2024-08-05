@@ -52,7 +52,7 @@ type error_partial_ap =
 type exp =
   | Free(Var.t)
   | InexhaustiveMatch(exp)
-  | IsDeferral(Term.UExp.deferral_position)
+  | IsDeferral(Exp.deferral_position)
   | IsBadPartialAp(error_partial_ap)
   | Common(t);
 
@@ -64,8 +64,8 @@ type pat =
 let join_of = (j: join_type, ty: Typ.t): Typ.t =>
   switch (j) {
   | Id => ty
-  | List => List(ty)
   | PolyEq => ty
+  | List => List(ty) |> Typ.fresh
   };
 
 /* What the type would be if the position had been
@@ -123,22 +123,24 @@ let of_deferred_ap = (args, ty_ins: list(Typ.t), ty_out: Typ.t): exp => {
   let actual = List.length(args);
   if (expected != actual) {
     IsBadPartialAp(ArityMismatch({expected, actual}));
-  } else if (List.for_all(Term.UExp.is_deferral, args)) {
+  } else if (List.for_all(Exp.is_deferral, args)) {
     IsBadPartialAp(NoDeferredArgs);
   } else {
     let ty_ins =
       List.combine(args, ty_ins)
-      |> List.filter(((arg, _ty)) => Term.UExp.is_deferral(arg))
+      |> List.filter(((arg, _ty)) => Exp.is_deferral(arg))
       |> List.map(snd);
-    let ty_in = List.length(ty_ins) == 1 ? List.hd(ty_ins) : Prod(ty_ins);
-    Common(Just(Arrow(ty_in, ty_out)));
+    let ty_in =
+      List.length(ty_ins) == 1
+        ? List.hd(ty_ins) : Prod(ty_ins) |> Typ.fresh;
+    Common(Just(Arrow(ty_in, ty_out) |> Typ.fresh));
   };
 };
 
 let add_source = List.map2((id, ty) => Typ.{id, ty});
 
 let match = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
-  switch (Typ.join_all(~empty=Unknown(Internal), ctx, tys)) {
+  switch (Typ.join_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {
   | None => NoJoin(Id, add_source(ids, tys))
   | Some(ty) => Just(ty)
   };
@@ -146,11 +148,11 @@ let match = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
 let listlit = (~empty, ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
   switch (Typ.join_all(~empty, ctx, tys)) {
   | None => NoJoin(List, add_source(ids, tys))
-  | Some(ty) => Just(List(ty))
+  | Some(ty) => Just(List(ty) |> Typ.fresh)
   };
 
 let list_concat = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
-  switch (Typ.join_all(~empty=Unknown(Internal), ctx, tys)) {
+  switch (Typ.join_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {
   | None => NoJoin(List, add_source(ids, tys))
   | Some(ty) => Just(ty)
   };
