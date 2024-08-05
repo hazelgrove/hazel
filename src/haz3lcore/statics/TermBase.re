@@ -42,6 +42,10 @@ let stop = (_, x) => x;
      the id of the closure.
  */
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type col_name =
+  | Col(string);
+
 module rec Any: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -133,6 +137,7 @@ and Exp: {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
+    | Table(list(columns))
     | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
@@ -177,7 +182,8 @@ and Exp: {
        two consistent types. Both types should be normalized in
        dynamics for the cast calculus to work right. */
     | Cast(t, Typ.t, Typ.t) // first Typ.t field is only meaningful in dynamic expressions
-  and t = IdTagged.t(term);
+  and t = IdTagged.t(term)
+  and columns = (col_name, list(t));
 
   let map_term:
     (
@@ -200,6 +206,7 @@ and Exp: {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
+    | Table(list(columns))
     | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
@@ -241,7 +248,8 @@ and Exp: {
     | BuiltinFun(string) /// Doesn't currently have a distinguishable syntax
     | Match(t, list((Pat.t, t)))
     | Cast(t, Typ.t, Typ.t)
-  and t = IdTagged.t(term);
+  and t = IdTagged.t(term)
+  and columns = (col_name, list(t));
 
   let map_term =
       (
@@ -276,6 +284,13 @@ and Exp: {
       ...exp,
       term:
         switch (term) {
+        | Table(columns) =>
+          Table(
+            List.map(
+              ((col_name, ts)) => (col_name, List.map(exp_map_term, ts)),
+              columns,
+            ),
+          )
         | EmptyHole
         | Invalid(_)
         | Bool(_)
@@ -602,9 +617,9 @@ and Typ: {
     | SynSwitch
     | Hole(type_hole)
     | Internal;
-
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
+    | Table(list(col_binding))
     | Unknown(Typ.type_provenance)
     | Int
     | Float
@@ -619,7 +634,8 @@ and Typ: {
     | Ap(t, t)
     | Rec(TPat.t, t)
     | Forall(TPat.t, t)
-  and t = IdTagged.t(term);
+  and t = IdTagged.t(term)
+  and col_binding = (col_name, t);
 
   type sum_map = ConstructorMap.t(t);
 
@@ -657,6 +673,7 @@ and Typ: {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term =
+    | Table(list(col_binding))
     | Unknown(Typ.type_provenance)
     | Int
     | Float
@@ -671,7 +688,8 @@ and Typ: {
     | Ap(t, t)
     | Rec(TPat.t, t)
     | Forall(TPat.t, t)
-  and t = IdTagged.t(term);
+  and t = IdTagged.t(term)
+  and col_binding = (col_name, t);
 
   type sum_map = ConstructorMap.t(t);
 
