@@ -58,24 +58,22 @@ let go_z =
     | Buffer(Unparsed) =>
       switch (TyDi.get_buffer(z)) {
       | None => None
-      | Some(completion) when String.contains(completion, ' ') =>
-        /* Slightly hacky. We assume that if a completion string has
-         * spaces in it, that means it will have a hole in it. This
-         * is a non-essential invariant currently maintained in TyDi.
-         * In such a case, we insert the completion as normal by
-         * pasting, then return to the beginning and advance to the
-         * first hole. This should be revisited if completions are
-         * refactored to use a more structured buffer format. */
-        let start = Zipper.caret_point(M.measured, z);
+      | Some(completion)
+          when StringUtil.match(StringUtil.regexp(".*\\)::$"), completion) =>
+        /* Slightly hacky. There's currently only one genre of completion
+         * that creates more than one hole on intial expansion: when on eg
+         * 1 :: a|, we suggest "abs( )::" via lookahead. In such a case we
+         * want the caret to end up to the left of the first hole, whereas
+         * pasting would leave it to the left of the second. Thus we move
+         * left to the previous hole. */
         let z = {
           open OptUtil.Syntax;
           let* z = paste(z, completion);
-          let* z = Move.go(Goal(Point(start)), z);
-          let* z = Move.go(Goal(Piece(Grout, Right)), z);
+          let* z = Move.go(Goal(Piece(Grout, Left)), z);
           Move.go(Local(Left(ByToken)), z);
         };
         z;
-      | Some(completion) => paste(z, AssistantExpander.trim(completion))
+      | Some(completion) => paste(z, completion)
       }
     };
 

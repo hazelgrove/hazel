@@ -71,7 +71,7 @@ select {
   display: grid;
   grid-template: 2em minmax(0, 1fr) 2em / 1fr fit-content(18em);
   background-color: var(--light-page-color);
-  color: var(--MISC0);
+  color: var(--STONE);
   user-select: none;
 }
 

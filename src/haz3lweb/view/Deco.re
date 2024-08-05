@@ -163,7 +163,11 @@ module Deco =
     let shape = Zipper.caret_direction(z);
     let side =
       switch (Indicated.piece(z)) {
-      | _ when !Selection.is_empty(z.selection) => z.selection.focus
+      | _
+          when
+            !Selection.is_empty(z.selection)
+            && !Selection.is_buffer(z.selection) =>
+        z.selection.focus
       | Some((_, side, _)) => Direction.toggle(side)
       | _ => Right
       };
@@ -176,6 +180,29 @@ module Deco =
       Some(fst(Siblings.shapes(z.relatives.siblings))),
       ["selected"] @ (Selection.is_buffer(z.selection) ? ["buffer"] : []),
     );
+
+  let term_range = (p): option((Point.t, Point.t)) => {
+    let id = Any.rep_id(Id.Map.find(Piece.id(p), M.meta.syntax.terms));
+    switch (TermRanges.find_opt(id, M.meta.syntax.term_ranges)) {
+    | None => None
+    | Some((p_l, p_r)) =>
+      let l =
+        Measured.find_p(~msg="Dec.range", p_l, M.meta.syntax.measured).origin;
+      let r =
+        Measured.find_p(~msg="Dec.range", p_r, M.meta.syntax.measured).last;
+      Some((l, r));
+    };
+  };
+
+  let all_tiles = (p: Piece.t): list((Uuidm.t, Mold.t, Measured.Shards.t)) =>
+    Id.Map.find(Piece.id(p), M.meta.syntax.terms)
+    |> Any.ids
+    |> List.map(id => {
+         let t = tile(id);
+         let shards =
+           Measured.find_shards(~msg="all_tiles", t, M.meta.syntax.measured);
+         (id, t.mold, shards);
+       });
 
   let indicated_piece_deco = (z: Zipper.t): list(Node.t) => {
     switch (Indicated.piece(z)) {
@@ -190,29 +217,7 @@ module Deco =
         | None => Nib.Shape.Convex
         | Some(nib) => Nib.Shape.relative(nib, side)
         };
-      let range: option((Point.t, Point.t)) = {
-        // if (Piece.has_ends(p)) {
-        let id = Id.Map.find(Piece.id(p), M.meta.syntax.terms) |> Any.rep_id;
-        switch (TermRanges.find_opt(id, M.meta.syntax.term_ranges)) {
-        | None => None
-        | Some((p_l, p_r)) =>
-          let l =
-            Measured.find_p(
-              ~msg="Deco.indicated",
-              p_l,
-              M.meta.syntax.measured,
-            ).
-              origin;
-          let r =
-            Measured.find_p(
-              ~msg="Deco.indicated",
-              p_r,
-              M.meta.syntax.measured,
-            ).
-              last;
-          Some((l, r));
-        };
-      };
+      let range = term_range(p);
       let index =
         switch (Indicated.shard_index(z)) {
         | None => (-1)
@@ -221,21 +226,7 @@ module Deco =
       switch (range) {
       | None => []
       | Some(range) =>
-        let tiles =
-          Id.Map.find(Piece.id(p), M.meta.syntax.terms)
-          |> Any.ids
-          |> List.map(id => {
-               let t = tile(id);
-               (
-                 id,
-                 t.mold,
-                 Measured.find_shards(
-                   ~msg="Deco.indicated",
-                   t,
-                   M.meta.syntax.measured,
-                 ),
-               );
-             });
+        let tiles = all_tiles(p);
         PieceDec.indicated(
           ~font_metrics,
           ~rows=M.meta.syntax.measured.rows,
@@ -401,20 +392,24 @@ module Deco =
           ],
         );
       | None =>
-        let tiles =
-          Id.Map.find(id, M.meta.syntax.terms)
-          |> Term.Any.ids
-          |> List.map(id => {
-               let t = tile(id);
-               let shards =
-                 Measured.find_shards(
-                   ~msg="Deco.errors_of_tile",
-                   t,
-                   M.meta.syntax.measured,
-                 );
-               PieceDec.simple_shards_errors(~font_metrics, t.mold, shards);
-             });
-        div_c("errors-piece", List.flatten(tiles));
+        let p = Piece.Tile(tile(id));
+        let tiles = all_tiles(p);
+        let shard_decos =
+          tiles
+          |> List.map(((_, mold, shards)) =>
+               PieceDec.simple_shards_errors(~font_metrics, mold, shards)
+             )
+          |> List.flatten;
+        switch (term_range(p)) {
+        | Some(range) =>
+          let rows = M.meta.syntax.measured.rows;
+          let decos =
+            shard_decos
+            @ PieceDec.uni_lines(~font_metrics, ~rows, range, tiles)
+            @ PieceDec.bi_lines(~font_metrics, ~rows, tiles);
+          div_c("errors-piece", decos);
+        | None => div_c("errors-piece", shard_decos)
+        };
       }
     ) {
     | Not_found =>

@@ -116,9 +116,10 @@ module Make = (M: Editor.Meta.S) => {
 
   let do_towards =
       (
-        ~anchor: option(Point.t)=?,
+        ~anchor: option(Measured.Point.t)=?,
+        ~force_progress: bool=false,
         f: (Direction.t, t) => option(t),
-        goal: Point.t,
+        goal: Measured.Point.t,
         z: t,
       )
       : option(t) => {
@@ -140,34 +141,48 @@ module Make = (M: Editor.Meta.S) => {
       | (Exact, Exact) => curr
       /* If we've overshot, meaning the exact goal is inaccessible,
        * we choose between current and previous (undershot) positions */
-      | (Over, Over | Exact | Under)
-      | (Exact, Over) when anchor != None =>
-        /* If we're dragging to make a selection, decide whether or
-         * not to force progress based on the relative position of the
-         * anchor (the position where the drag was started) */
-        direction_to_from(goal, Option.get(anchor)) == d_to_goal
-          ? curr : prev
       | (Over, Over | Exact | Under) =>
-        /* Up/down kb movement works by setting a goal one row
-         * below the current. When adjacent to a multiline token,
-         * the nearest next caret position may be multiple lines down.
-         * We must allow this overshoot in order to make progress. */
-        caret_point(prev) == init ? curr : prev
-      | (Exact, Over)
-          when is_at_side_of_row(Direction.toggle(d_to_goal), curr) =>
-        /* If you're trying to (eg) move down at the end of a row
-         * but the first position of the next row is further right
-         * than the currentrow's end, we want to make progress
-         * regardless of whether thenew position would be closer
-         * or further from the goal */
-        curr
+        switch (force_progress) {
+        | false =>
+          /* Ideally we would use the same logic as from the below
+           * anchor case here; however that results in strange
+           * behavior when accidentally starting a drag at the end
+           * of a line, which triggers the (invisible) selection of
+           * a linebreak, making it appear that the caret has jumped
+           * to the next line. The downside of leaving this as-is is
+           * that multiline tokens (projectors) do not become part of
+           * the selection when dragging until you're all the way
+           * over them, which is slightly visually jarring */
+          prev
+        | true =>
+          /* Up/down kb movement works by setting a goal one row
+           * below the current. When adjacent to a multiline token,
+           * the nearest next caret position may be multiple lines down.
+           * We must allow this overshoot in order to make progress. */
+          caret_point(prev) == init ? curr : prev
+        }
       | (Exact, Over) =>
-        /* Otherwise, we try to just get as close as we can */
-        closer_to_prev(curr, prev, goal) ? prev : curr
+        switch (anchor) {
+        | None =>
+          /* If you're trying to (eg) move down at the end of a row
+           * but the first position of the next row is further right
+           * than the currentrow's end, we want to make progress
+           * regardless of whether the new position would be closer
+           * or further from the goal.  Otherwise, we try to just
+           * get as close as we can  */
+          is_at_side_of_row(Direction.toggle(d_to_goal), curr)
+            ? curr : closer_to_prev(curr, prev, goal) ? prev : curr
+        | Some(anchor) =>
+          /* If we're dragging to make a selection, decide whether or
+           * not to force progress based on the relative position of the
+           * anchor (the position where the drag was started) */
+          direction_to_from(goal, anchor) == d_to_goal ? curr : prev
+        }
       };
     };
     let res = go(z, z);
-    Point.equals(caret_point(res), init) ? None : Some(res);
+    Measured.Point.equals(caret_point(res), caret_point(z))
+      ? None : Some(res);
   };
   let do_vertical =
       (f: (Direction.t, t) => option(t), d: Direction.t, z: t): option(t) => {
@@ -177,7 +192,7 @@ module Make = (M: Editor.Meta.S) => {
     let cur_p = caret_point(z);
     let goal =
       Point.{col: M.col_target, row: cur_p.row + (d == Right ? 1 : (-1))};
-    do_towards(f, goal, z);
+    do_towards(~force_progress=true, f, goal, z);
   };
 
   let do_extreme =
