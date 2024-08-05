@@ -380,7 +380,8 @@ module TakeStep = {
   module TakeStepEV = Transition(TakeStepEVMode);
 
   let take_step = (state, env, d) =>
-    TakeStepEV.transition((_, _, _) => None, state, env, d);
+    TakeStepEV.transition((_, _, _) => None, state, env, d)
+    |> Option.map(DHExp.repair_ids);
 };
 
 let take_step = TakeStep.take_step;
