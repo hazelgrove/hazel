@@ -64,23 +64,39 @@ let mousedown_handler =
   | (false, 3 | _) => inject(PerformAction(Select(Smart)))
   };
 
-let narrative_cell = (~inject, content: Node.t) => {
-  let handle_input = (evt, _) => {
-    let event = [inject(UpdatePrompt(content))];
-    Virtual_dom.Vdom.Effect.Many(event);
+type prompt_model = {
+  content: Node.t,
+  editing: bool,
+};
+
+let narrative_cell = (~inject, ~model: prompt_model) => {
+  let handle_double_click = _ => {
+    inject(UpdatePrompt(Start));
+  };
+  let handle_input = (_, new_prompt) => {
+    inject(UpdatePrompt(Finish(new_prompt)));
   };
   div(
     ~attrs=[Attr.class_("cell")],
     [
-      input(
-        ~attr=
-          Attr.many([
-            Attr.class_("prompt-content"),
-            Attr.value(content),
-            Attr.on_input(handle_input),
-          ]),
-        [],
-      ),
+      model.editing
+        ? input(
+            ~attr=
+              Attr.many([
+                Attr.class_("prompt-content"),
+                Attr.value(model.content),
+                Attr.on_input(handle_input),
+              ]),
+            [],
+          )
+        : div(
+            ~attr=
+              Attr.many([
+                Attr.class_("prompt-content"),
+                Attr.on_double_click(handle_double_click),
+              ]),
+            [text(model.content)],
+          ),
     ],
   );
 };
