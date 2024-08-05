@@ -14,15 +14,17 @@ let mk = (ids, term): t => {
   {ids, copied: true, term};
 };
 
-// TODO: make this function emit a map of changes
-let replace_all_ids =
-  map_term(
-    ~f_exp=(continue, exp) => {...exp, ids: [Id.mk()]} |> continue,
-    ~f_pat=(continue, exp) => {...exp, ids: [Id.mk()]} |> continue,
-    ~f_typ=(continue, exp) => {...exp, ids: [Id.mk()]} |> continue,
-    ~f_tpat=(continue, exp) => {...exp, ids: [Id.mk()]} |> continue,
-    ~f_rul=(continue, exp) => {...exp, ids: [Id.mk()]} |> continue,
+let (replace_all_ids, replace_all_ids_typ) = {
+  let f:
+    'a.
+    (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
+   =
+    (continue, exp) => {...exp, ids: [Id.mk()]} |> continue;
+  (
+    map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
+    Typ.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
   );
+};
 
 // TODO: make this function emit a map of changes
 let repair_ids =
@@ -33,6 +35,33 @@ let repair_ids =
           replace_all_ids(exp);
         } else {
           continue(exp);
+        },
+    ~f_typ=
+      (continue, typ) =>
+        if (Typ.rep_id(typ) == Id.invalid) {
+          print_endline("HERE!!");
+          replace_all_ids_typ(typ);
+        } else {
+          continue(typ);
+        },
+    _,
+  );
+
+let repair_ids_typ =
+  Typ.map_term(
+    ~f_exp=
+      (continue, exp) =>
+        if (Exp.rep_id(exp) == Id.invalid) {
+          replace_all_ids(exp);
+        } else {
+          continue(exp);
+        },
+    ~f_typ=
+      (continue, typ) =>
+        if (typ.copied) {
+          replace_all_ids_typ(typ);
+        } else {
+          continue(typ);
         },
     _,
   );
