@@ -91,8 +91,6 @@ let rec exp_to_pretty = (~inline, exp: Exp.t): pretty => {
   switch (exp |> Exp.term_of) {
   // Assume these have been removed by the parenthesizer
   | DynamicErrorHole(_)
-  | Cast(_)
-  | FailedCast(_)
   | Filter(_) => failwith("printing these not implemented yet")
   // Forms which should be removed by substitute_closures
   | Closure(_) => failwith("closure not removed before printing")
@@ -315,6 +313,12 @@ let rec exp_to_pretty = (~inline, exp: Exp.t): pretty => {
      could have been overriden in this scope; worth fixing when we fix
      closures. */
   | BuiltinFun(f) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, f)
+  | FailedCast(e, _, t)
+  | Cast(e, _, t) =>
+    let id = exp |> Exp.rep_id;
+    let+ e = go(e)
+    and+ t = typ_to_pretty(~inline, t);
+    e @ [mk_form("typeasc", id, [])] @ t;
   | Match(e, rs) =>
     // TODO: Add newlines
     let+ e = go(e)
@@ -697,9 +701,7 @@ let rec parenthesize = (exp: Exp.t): Exp.t => {
   | Closure(_, x)
   | DynamicErrorHole(x, _)
   | Tuple([x])
-  | Filter(_, x)
-  | Cast(x, _, _)
-  | FailedCast(x, _, _) => x |> parenthesize
+  | Filter(_, x) => x |> parenthesize
 
   // Other forms
   | Fun(p, e, c, n) =>
@@ -781,6 +783,20 @@ let rec parenthesize = (exp: Exp.t): Exp.t => {
     Seq(
       parenthesize(e1) |> paren_at(Precedence.semi), // tempting to make this one assoc too
       parenthesize(e2) |> paren_assoc_at(Precedence.semi),
+    )
+    |> rewrap
+  | Cast(e, t1, t2) =>
+    Cast(
+      parenthesize(e) |> paren_at(Precedence.cast),
+      parenthesize_typ(t1) |> paren_typ_assoc_at(Precedence.max),
+      parenthesize_typ(t2) |> paren_typ_assoc_at(Precedence.max),
+    )
+    |> rewrap
+  | FailedCast(e, t1, t2) =>
+    FailedCast(
+      parenthesize(e) |> paren_at(Precedence.ann),
+      parenthesize_typ(t1) |> paren_typ_at(Precedence.ann),
+      parenthesize_typ(t2) |> paren_typ_at(Precedence.ann),
     )
     |> rewrap
   | Test(e) => Test(parenthesize(e) |> paren_at(Precedence.min)) |> rewrap

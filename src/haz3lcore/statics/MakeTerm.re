@@ -253,6 +253,12 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       }
     | _ => ret(hole(tm))
     }
+  | Bin(Exp(l), tiles, Typ(r)) as tm =>
+    switch (tiles) {
+    | ([(_id, ([":"], []))], []) =>
+      ret(Cast(l, Unknown(Internal) |> Typ.fresh, r))
+    | _ => ret(hole(tm))
+    }
   | Bin(Exp(l), tiles, Exp(r)) as tm =>
     switch (is_tuple_exp(tiles)) {
     | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
