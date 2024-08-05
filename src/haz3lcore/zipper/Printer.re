@@ -20,7 +20,7 @@ and of_piece = (~holes, p: Piece.t): string =>
   | Grout({shape: Convex, _}) => " "
   | Secondary(w) =>
     Secondary.is_linebreak(w) ? "\n" : Secondary.get_string(w.content)
-  | Projector(_) => ""
+  | Projector(p) => of_piece(~holes, p.syntax)
   }
 and of_tile = (~holes, t: Tile.t): string =>
   Aba.mk(t.shards, t.children)

@@ -37,10 +37,20 @@
   padding-right: 0.7em;
   color: var(--light-page-color);
   height: 100%;
-  mix-blend-mode: luminosity;
   transition: all 0.1s ease-in;
 }
-
+#cursor-inspector .Exp .gamma {
+  background-color: var(--ci-icon-bkg);
+}
+#cursor-inspector .Pat .gamma {
+  background-color: var(--token-pat);
+}
+#cursor-inspector .Typ .gamma {
+  background-color: var(--token-typ);
+}
+#cursor-inspector .TPat .gamma {
+  background-color: var(--token-tpat);
+}
 
 #cursor-inspector .ci-header {
   outline: 0.6px solid var(--BR2);
@@ -72,7 +82,7 @@
 }
 #cursor-inspector .ci-header.Exp {
   background-color: var(--shard-exp);
-  color: var(--exp-shadow-color);
+  color: var(--BR3);
 }
 #cursor-inspector .ci-header.Pat {
   background-color: var(--shard-pat);
