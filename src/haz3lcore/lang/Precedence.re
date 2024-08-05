@@ -13,11 +13,10 @@ open Util;
 type t = int;
 
 let max: t = 0;
-
 let unquote = 1;
-let cast = 2;
-let ap = 3;
+let ap = 2;
 // _____(x)
+let cast = 3;
 // - _____
 let neg = 4;
 // _____ ** 2
