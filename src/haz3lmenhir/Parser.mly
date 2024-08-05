@@ -163,7 +163,7 @@ pat:
     | WILD { WildPat }
     | QUESTION { EmptyHolePat }
     | OPEN_SQUARE_BRACKET; l = separated_list(COMMA, pat); CLOSE_SQUARE_BRACKET; { ListPat(l) }
-    | c = CONSTRUCTOR_IDENT { ConstructorPat(c) }
+    | c = CONSTRUCTOR_IDENT; COLON; t = typ;  { ConstructorPat(c, t) }
     | p = varPat {p}
     | t = patTuple { t }
     (* | t = typeAnn { t } *)
@@ -218,7 +218,7 @@ exp:
     | i = INT { Int i }
     | f = FLOAT { Float f }
     | v = IDENT { Var v }
-    | c = CONSTRUCTOR_IDENT { Constructor c }
+    | c = CONSTRUCTOR_IDENT; COLON; t = typ { Constructor(c, t) }
     | s = STRING { String s}
     | b = binExp { b }
     | OPEN_PAREN; e = exp; CLOSE_PAREN { e }
@@ -248,5 +248,5 @@ exp:
     | OUT_AP; WILD {Deferral(OutsideAp)}
     | e = exp; AT_SYMBOL; LESS_THAN; ty = typ; GREATER_THAN; {TypAp(e, ty)}
     | TYP; tp = tpat; SINGLE_EQUAL; ty = typ; IN; e = exp {TyAlias(tp, ty, e)}
-    | b = BUILTIN; OPEN_PAREN; a = exp; CLOSE_PAREN {BuiltinAp(b, a)}
+    (* | b = BUILTIN; OPEN_PAREN; a = exp; CLOSE_PAREN {BuiltinAp(b, a)} *)
     | u = unExp { u }

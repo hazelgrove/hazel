@@ -1,13 +1,13 @@
 open Sexplib.Std;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp)]
 type filter_action =
   | Pause
   | Debug
   | Hide
   | Eval;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp)]
 type op_bin_float =
   | Plus
   | Minus
@@ -21,12 +21,12 @@ type op_bin_float =
   | Equals
   | NotEquals;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp)]
 type op_bin_bool =
   | And
   | Or;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp)]
 type op_bin_int =
   | Plus
   | Minus
@@ -40,35 +40,35 @@ type op_bin_int =
   | Equals
   | NotEquals;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp)]
 type binOp =
   | IntOp(op_bin_int)
   | FloatOp(op_bin_float)
   | BoolOp(op_bin_bool);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp)]
 type op_un_meta =
   | Unquote;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp)]
 type op_un_int =
   | Minus;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp)]
 type op_un_bool =
   | Not;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp)]
 type op_un =
   | Meta(op_un_meta)
   | Int(op_un_int)
   | Bool(op_un_bool);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp)]
 type typ_provenance =
   | Internal;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp)]
 type typ =
   | IntType
   | StringType
@@ -81,7 +81,7 @@ type typ =
   | ArrowType(typ, typ)
   | InvalidTyp(string);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp)]
 type pat =
   | EmptyHolePat
   | WildPat
@@ -89,7 +89,7 @@ type pat =
   | IntPat(int)
   | FloatPat(float)
   | VarPat(string)
-  | ConstructorPat(string)
+  | ConstructorPat(string, typ)
   | StringPat(string)
   | TuplePat(list(pat))
   | BoolPat(bool)
@@ -98,29 +98,29 @@ type pat =
   | ApPat(pat, pat)
   | InvalidPat(string);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp)]
 type if_consistency =
   | Consistent
   | Inconsistent;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp)]
 type deferral_pos =
   | InAp
   | OutsideAp;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp)]
 type tpat =
   | InvalidTPat(string)
   | EmptyHoleTPat
   | MultiHoleTPat(tpat)
   | VarTPat(string);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp)]
 type exp =
   | Int(int)
   | Float(float)
   | Var(string)
-  | Constructor(string)
+  | Constructor(string, typ)
   | String(string)
   | ListExp(list(exp))
   | TupleExp(list(exp))
