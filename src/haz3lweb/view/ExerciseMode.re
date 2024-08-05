@@ -76,10 +76,9 @@ let view =
 
   let title_view = Cell.title_cell(eds.title);
 
-  let prompt_view =
-    Cell.narrative_cell(
-      div(~attrs=[Attr.class_("cell-prompt")], [eds.prompt]),
-    );
+  let init_model: Cell.prompt_model = {contet: eds.prompt, editing: true};
+
+  let prompt_view = Cell.narrative_cell(~inject, ~model=init_model);
 
   let prelude_view =
     Always(
