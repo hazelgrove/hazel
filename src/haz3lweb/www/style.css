@@ -1043,7 +1043,8 @@ svg.shard.indicated {
 svg.shard.selected {
   z-index: var(--tile-z);
 }
-svg.shard.error {
+svg.shard.error,
+.errors .errors-piece svg {
   z-index: var(--err-hole-z);
 }
 
@@ -1058,12 +1059,15 @@ svg.shard.selected.buffer > path {
   stroke: none;
   filter: none;
 }
-svg.shard.error > path {
-  fill: #ff00000a;
+svg.shard.error > path,
+.errors .errors-piece svg .child-line {
   stroke: #ff000087;
   stroke-width: 0.75px;
   stroke-dasharray: 1, 1;
   stroke-linecap: butt;
+}
+svg.shard.error > path {
+  fill: #ff00000a;
 }
 
 /* END SHARD DECORATIONS */
