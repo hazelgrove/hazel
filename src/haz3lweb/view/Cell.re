@@ -64,11 +64,26 @@ let mousedown_handler =
   | (false, 3 | _) => inject(PerformAction(Select(Smart)))
   };
 
-let narrative_cell = (content: Node.t) =>
+let narrative_cell = (~inject, content: Node.t) => {
+  let handle_input = (evt, _) => {
+    let event = [inject(UpdatePrompt(content))];
+    Virtual_dom.Vdom.Effect.Many(event);
+  };
   div(
     ~attrs=[Attr.class_("cell")],
-    [div(~attrs=[Attr.class_("cell-chapter")], [content])],
+    [
+      input(
+        ~attr=
+          Attr.many([
+            Attr.class_("prompt-content"),
+            Attr.value(content),
+            Attr.on_input(handle_input),
+          ]),
+        [],
+      ),
+    ],
   );
+};
 
 let simple_cell_item = (content: list(Node.t)) =>
   div(~attrs=[Attr.classes(["cell-item"])], content);
