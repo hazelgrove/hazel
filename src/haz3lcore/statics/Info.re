@@ -564,6 +564,7 @@ let fixed_typ_err_common: error_common => Typ.t =
   | NoType(_) => Unknown(Internal) |> Typ.temp
   | Inconsistent(Expectation({ana, _})) => ana
   | Inconsistent(Internal(_)) => Unknown(Internal) |> Typ.temp // Should this be some sort of meet?
+  | Inconsistent(CompareArrow(_)) => Bool |> Typ.temp
   | Inconsistent(WithArrow(_)) =>
     Arrow(Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp)
     |> Typ.temp;
