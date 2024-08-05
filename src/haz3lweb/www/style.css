@@ -704,7 +704,8 @@ select {
 }
 .projector.block.selected > svg > path {
   vector-effect: non-scaling-stroke;
-  filter: url(#raised-drop-shadow-Nul) !important;
+  stroke: #ffa000;
+  /* filter: url(#raised-drop-shadow-Nul) !important; */
 }
 .projector.selected > svg,
 .projector.selected.indicated > svg,
@@ -1054,6 +1055,8 @@ svg.shard.selected > path {
 }
 svg.shard.selected.buffer > path {
   fill: #fbf3de;
+  stroke: none;
+  filter: none;
 }
 svg.shard.error > path {
   fill: #ff00000a;

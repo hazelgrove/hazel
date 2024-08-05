@@ -17,7 +17,7 @@
 (rule
  (write-file
   js-of-ocaml-flags-dev
-  "(:standard --debug-info --no-inline --pretty --source-map)"))
+  "(:standard --debuginfo --noinline --dynlink --linkall --sourcemap)"))
 
 (rule
  (write-file js-of-ocaml-flags-release "(:standard)"))
