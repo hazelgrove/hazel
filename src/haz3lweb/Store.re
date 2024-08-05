@@ -253,8 +253,6 @@ module Exercise = {
   };
 
   let load_exercise = (spec, ~instructor_mode, ~editing_title): Exercise.state => {
-    print_string("ID at load: ");
-    print_endline(Id.to_string(spec.id));
     let keystring = Id.to_string(spec.id);
     switch (JsUtil.get_localstore(keystring)) {
     | Some(data) =>
