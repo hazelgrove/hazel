@@ -1,5 +1,10 @@
 /* PROJECTORS */
 
+:root {
+  --textarea-indicated: rgb(255, 249, 240);
+  --textarea-bkg: #8c7e62;
+  --textarea-shadow: #ff8ea88a;
+}
 /* Turn off caret when a block projector is focused */
 #caret:has(~ .projectors .projector.block *:focus) {
   display: none;
@@ -15,10 +20,10 @@
   color: var(--BR2);
 }
 .projector > *:not(svg) {
-  z-index: 12;
+  z-index: var(--projector-z);
 }
 .projector > svg {
-  z-index: 4;
+  z-index: var(--projector-backing-z);
   fill: var(--shard_projector);
 }
 .projector.block > svg {
@@ -33,7 +38,7 @@
 }
 .projector.block.selected > svg > path {
   vector-effect: non-scaling-stroke;
-  stroke: #ffa000;
+  stroke: var(--Y3);
   /* filter: url(#drop-shadow-Nul) !important; */
 }
 .projector.selected > svg,
@@ -64,7 +69,7 @@
   display: flex;
 }
 .projector.type:hover {
-  color: black;
+  color: var(--BLACK);
 }
 
 /* PROJECTOR: CHECKBOX */
@@ -76,7 +81,7 @@
   outline: none;
 }
 .projector.check:not(.indicated):not(:hover) > svg {
-  fill: #0000;
+  fill: var(--NONE);
 }
 
 /* PROJECTOR: SLIDERS (INT & FLOAT) */
@@ -91,7 +96,7 @@
 }
 .projector.slider:not(.indicated):not(:hover) > svg,
 .projector.sliderf:not(.indicated):not(:hover) > svg {
-  fill: #0000;
+  fill: var(--NONE);
 }
 
 /* PROJECTOR: TEXTAREA */
@@ -104,20 +109,19 @@
   height: 100%;
   width: 100%;
   border-radius: 0.1em;
-  border-left: 2px solid #0000;
-  border-right: 2px solid #0000;
+  border-left: 2px solid var(--NONE);
+  border-right: 2px solid var(--NONE);
   margin-left: -2px;
   margin-right: -2px;
 }
 
 .projector.text.indicated .cols,
 .projector.text:has(textarea:focus) .cols {
-  color: red;
+  color: var(--R1);
 }
 
 .projector.text.indicated > svg {
-  fill: rgb(255, 249, 240);
-  stroke: #868686;
+  fill: var(--textarea-indicated);
 }
 
 .projector.text .cols {
@@ -125,7 +129,7 @@
   width: 100%;
   display: flex;
   border-radius: 0 0.1em 0.1em 0.1em;
-  color: #fff;
+  color: var(--SAND);
   background: repeating-linear-gradient(
     #0000,
     #0000 1.41em,
@@ -155,9 +159,9 @@
   font-family: var(--code-font);
   font-size: inherit;
   border: none;
-  color: #8c7e62;
+  color: var(--textarea-bkg);
   background: none;
-  box-shadow: inset 1px 0 0 #ff8ea88a;
+  box-shadow: inset 1px 0 0 var(--textarea-shadow);
   overflow: hidden; /* hack: scrolls in chrome without this? */
 }
 

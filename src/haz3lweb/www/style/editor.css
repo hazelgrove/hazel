@@ -134,7 +134,7 @@ svg.shard.indicated {
   z-index: var(--tile-z);
 }
 svg.shard.selected {
-  z-index: var(--tile-z);
+  z-index: var(--select-z);
 }
 svg.shard.error,
 .errors .errors-piece svg {
@@ -163,6 +163,10 @@ svg.shard.error > path {
   fill: var(--error-hole-fill);
 }
 
+.errors svg:has(.child-line) {
+  z-index: var(--err-hole-arms-z);
+}
+
 /* SHARD DROP SHADOWS */
 
 #filters {
@@ -178,7 +182,7 @@ svg.shard.error > path {
   flood-color: var(--shadow-any);
 }
 #drop-shadow-Exp .tile-drop-shadow {
-  flood-color: var(--exp-shadow-color);
+  flood-color: var(--shard-lines-exp);
 }
 #drop-shadow-Pat .tile-drop-shadow {
   flood-color: var(--token-pat);
@@ -187,7 +191,7 @@ svg.shard.error > path {
   flood-color: var(--token-typ);
 }
 #drop-shadow-Rul .tile-drop-shadow {
-  flood-color: var(--rul-shadow-color);
+  flood-color: var(--shard-lines-rul);
 }
 #drop-shadow-TPat .tile-drop-shadow {
   flood-color: var(--token-tpat);
@@ -237,7 +241,7 @@ svg.shard.error > path {
   stroke: var(--shadow-any);
 }
 .child-line.Exp {
-  stroke: var(--exp-shadow-color);
+  stroke: var(--shard-lines-exp);
 }
 .child-line.Pat {
   stroke: var(--token-pat);
@@ -246,7 +250,7 @@ svg.shard.error > path {
   stroke: var(--token-typ);
 }
 .child-line.Rul {
-  stroke: var(--rul-shadow-color);
+  stroke: var(--shard-lines-rul);
 }
 .child-line.TPat {
   stroke: var(--token-tpat);
@@ -256,7 +260,7 @@ svg.shard.error > path {
 
 .backpack .code-text {
   position: relative;
-  z-index: 40;
+  z-index: var(--backpack-text);
 }
 
 .backpack.cant-put-down {

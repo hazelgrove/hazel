@@ -73,7 +73,7 @@
 }
 
 .test-report:hover {
-  background-color: var(--test-pass-active);
+  background-color: var(--SAND);
 }
 
 .test-id.Pass {
@@ -90,7 +90,7 @@
   margin-left: 0.17em;
   font-size: 64%;
   vertical-align: super;
-  z-index: 4;
+  z-index: var(-test-result-z);
 }
 
 .test-instance.Pass:before,
