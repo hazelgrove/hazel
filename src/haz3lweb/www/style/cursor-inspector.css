@@ -66,6 +66,15 @@
   background-color: var(--ci-status-error-bkg) !important;
   color: var(--ci-status-error-text) !important;
 }
+#cursor-inspector .ci-header.error .gamma {
+  background-color: var(--R2) !important;
+}
+#cursor-inspector .ci-header.error .toggle-switch {
+  background-color: var(--R2) !important;
+}
+#cursor-inspector .ci-header.error .toggle-switch .toggle-knob {
+  color: var(--R2) !important;
+}
 
 #cursor-inspector .ci-header .toggle-switch .toggle-knob {
   background-color: var(--SAND);

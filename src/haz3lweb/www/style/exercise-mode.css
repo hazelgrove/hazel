@@ -13,6 +13,7 @@
 
 #main.Exercises .cell {
   border-left: 1px solid var(--cell-exercises-border);
+  width: auto;
 }
 
 #main.Exercises .cell.selected {
