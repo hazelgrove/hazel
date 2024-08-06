@@ -229,10 +229,10 @@ and uexp_to_info_map =
   | MultiHole(tms) =>
     let (co_ctxs, m) = multi(~ctx, ~ancestors, m, tms);
     add(~self=IsMulti, ~co_ctx=CoCtx.union(co_ctxs), m);
-  | Cast(e, _t1, t2)
-  | FailedCast(e, _t1, t2) =>
+  | Cast(e, _, t2)
+  | FailedCast(e, _, t2) =>
     let (t, m) = go_typ(t2, ~expects=Info.TypeExpected, m);
-    let (e, m) = go(~mode=Ana(t.term), e, m);
+    let (e, m) = go'(~mode=Ana(t.term), ~ctx=t.ctx, e, m);
     add(~self=Just(t.term), ~co_ctx=e.co_ctx, m);
   | Invalid(token) => atomic(BadToken(token))
   | EmptyHole => atomic(Just(Unknown(Internal) |> Typ.temp))
