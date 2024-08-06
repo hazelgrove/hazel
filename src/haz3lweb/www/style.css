@@ -1357,11 +1357,15 @@ svg.tile-selected {
   color: #8c795b;
 }
 
-.cursor-inspector .error .code {
+.code-box-container {
   background-color: #f3d890;
   padding: 0 0.3em 0 0.3em;
   border-radius: 0.3em;
   border-bottom: 1px dashed red;
+}
+
+.code {
+  position: relative;
 }
 
 .cursor-inspector .info .ok,
