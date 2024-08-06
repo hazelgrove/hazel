@@ -260,7 +260,6 @@ svg.shard.error > path {
 
 .backpack .code-text {
   position: relative;
-  z-index: var(--backpack-text);
 }
 
 .backpack.cant-put-down {
@@ -296,7 +295,7 @@ svg.shard.error > path {
 /* BACKPACK TARGETS DECO */
 
 .backpack-target {
-  z-index: var(--caret-position-z);
+  z-index: var(--backpack-targets-z);
 }
 
 .caret-position-path {

@@ -64,16 +64,21 @@
 }
 
 #explain-this .header .close {
+  position: relative;
   cursor: pointer;
-  color: var(--BR2);
   display: flex;
   margin-left: auto;
   align-items: flex-start;
 }
 
-#explain-this .header .close:hover {
-  filter: saturate(0) invert();
-  scale: 1.8;
+#explain-this .header .close svg {
+  fill: var(--BR2);
+}
+
+#explain-this .header .close:hover svg {
+  animation: wobble 0.6s ease 0s 1 normal forwards;
+  transform: scale(130%);
+  filter: brightness(1.1);
 }
 
 #explain-this .section {

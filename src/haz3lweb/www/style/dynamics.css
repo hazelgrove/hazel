@@ -79,10 +79,6 @@
   background-color: var(--cell-result-hidden);
 }
 
-.cell-result .toggle-switch {
-  mix-blend-mode: luminosity;
-}
-
 .cell-result .equiv {
   font-family: var(--code-font);
 }
@@ -106,7 +102,7 @@
 
 .cell-item.cell-result .error-msg {
   padding: 0.25em;
-  color: black;
+  color: var(--BLACK);
 }
 
 .cell-result .icon:hover svg {
@@ -146,7 +142,7 @@
 }
 
 .DHCode svg.err-hole {
-  fill: #d001;
+  fill: var(--R0);
   stroke-dasharray: 1, 1;
   stroke: var(--R1);
   stroke-width: 1.2px;
@@ -157,14 +153,12 @@
 }
 
 .cell-result .DHCode .EmptyHole {
-  border-radius: 0.2em;
-  background-color: #d4c7a5;
-  color: #fdf6e3;
-  border-bottom: 1px solid #aa8926;
+  color: var(--token-explicit-hole);
+  text-shadow: 1px 1px 0px var(--token-explicit-hole-shadow);
 }
 
 .DHCode .Collapsed {
-  color: #493c15;
+  color: var(--BLACK);
 }
 
 .DHCode .Align {
@@ -180,17 +174,25 @@
   top: -10px;
 }
 
+.DHCode .FailedCastDecoration {
+  background-color: var(--R0);
+  color: var(--BLACK);
+}
+
 .DHCode .FailedCastDelim {
   color: var(--R1);
 }
 
 .DHCode .CastDecoration {
-  background-color: rgba(150, 0, 255, 0.2);
+  background-color: var(--shard-typ);
+  color: var(--BLACK);
 }
 
-.DHCode .FailedCastDecoration {
-  background-color: rgba(255, 0, 0, 0.2);
+.DHCode .CastDecoration .code-delim {
+  color: var(--token-typ);
 }
+
+
 
 /* STEPPER */
 
@@ -219,19 +221,19 @@
 .steppable,
 .steppable *:not(.DHCode .EmptyHole *, .DHCode .EmptyHole) {
   outline: 1px var(--step-hole-color);
-  background-color: rgb(232, 255, 196);
+  background-color: var(--shard-selected);
   cursor: pointer;
 }
 
 .stepped,
 .stepped *:not(.DHCode .EmptyHole *, .DHCode .EmptyHole) {
   border: 1px var(--step-hole-color);
-  background-color: #ddcda3;
+  background-color: var(--Y1);
 }
 
 .substituted {
   text-decoration: line-through;
-  color: #ac985e;
+  color: var(--STONE);
 }
 
 .settings-modal {
@@ -282,6 +284,8 @@
   cursor: pointer;
   color: var(--BR2);
   height: 20px;
+  left: 7px;
+  bottom: 7px;
 }
 
 .settings-modal .icon svg {

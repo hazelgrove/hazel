@@ -7,20 +7,23 @@
   /* Below is the base palette, which pulls out most colors
    * used across Hazel. These should be used for UI elements */
 
+  --NONE: #0000;
+  --BLACK: black;
+
   /* STONE */
-  --STONE: oklch(52% 0.03 220); /* base-text-color */
+  --STONE: oklch(52% 0.03 220); /* code text */
 
   /* SAND */
-  --SAND: oklch(99% 0.012 90); /* code bkg */
+  --SAND: oklch(99% 0.012 90); /* code background */
 
   /* CLAY */
   --T1: oklch(97% 0.025 90); /* buffer shards */
   --T2: oklch(from var(--T1) 95% c h); /* projector shards */
-  --T3: oklch(from var(--T1) 93% c h); /* main/result bkg */
+  --T3: oklch(from var(--T1) 93% c h); /* result background */
 
   /* ROCK */
   --BR1: oklch(85% 0.07 90); /* caret shard, token buffer*/
-  --BR2: oklch(from var(--BR1) 70% c h); /* exp-shadow-color */
+  --BR2: oklch(from var(--BR1) 70% c h); /* exp shard arms */
   --BR3: oklch(from var(--BR1) 60% c h);
   --BR4: oklch(from var(--BR1) 50% c h);
 
@@ -53,13 +56,16 @@
   --highlight-c: oklch(from var(--highlight-a) l c 120);
 
   /* MISC */
-  --STRINGLIT: oklch(75% 0.1 76);
-  --ERRHOLE: #ffeee6;
+
+  --ERRHOLE: #ffeee6; /* temporary due to child arms */
   --MENUDIV: #0006;
   --MENUSHADE: oklch(50% 0.1 90 / 33%);
-  --toggle-knob: #fefcf3;
-  --NONE: #0000;
-  --BLACK: black;
+  --textarea-indicated: rgb(255, 249, 240);
+  --textarea-bkg: #8c7e62;
+  --textarea-v-stripe: #ff8ea88a;
+  --textarea-selected: #c7b491;
+  --textarea-h-stripe: #add8ff;
+  --textarea-h-strip-selected: rgba(200, 138, 24, 0.3);
 
   /* CODE BACKGROUND */
 
@@ -81,13 +87,13 @@
   --token-pat: var(--PAT);
   --token-typ: var(--TYP);
   --token-tpat: var(--TPAT);
-  --token-string-lit: var(--STRINGLIT);
+  --token-string-lit: var(--Y3);
   --token-comment: var(--G2);
   --token-incomplete: var(--Y3);
   --token-inconsistent: var(--BR2);
   --token-buffer: var(--BR1);
   --token-explicit-hole: var(--Y2);
-  --token-explicit-hole-shadow: black;
+  --token-explicit-hole-shadow: var(--BLACK);
   --token-secondary: var(--shard-exp);
   --token-rul: var(--token-exp);
   --token-nul: var(--R2);
@@ -145,6 +151,8 @@
   --select-text: var(--BR4);
   --editor-mode-text: var(--BR4);
 
+  --toggle-knob: var(--SAND);
+
   --primary-accent: var(--G0);
   --nut-menu: var(--GB1);
   --nut-menu-active: var(--GB0);
@@ -187,24 +195,31 @@
 
   /* Z-STACK */
 
-  --tile-z: 2;
-  --empty-hole-z: 2;
-  --err-hole-arms-z: 3;
-  --err-hole-z: 4;
-  --test-result-z: 4; /* TODO */
-  --select-z: 5;
-  --projector-backing-z: 6;
+  /* BELOW CODE LEVEL */
+  --tile-z: 0;
+  --err-hole-arms-z: 1;
+  --err-hole-z: 2;
+  --select-z: 3;
+  --test-result-z: 4;
+  --projector-backing-z: 4;
+
+  /* AT CODE LEVEL */
   --code-text-z: 10;
+  --empty-hole-z: 10;
   --projector-z: 10;
-  --caret-position-z: 13;
-  --caret-z: 14;
-  --top-bar-z: 15;
-  --test-panel-z: 20;
-  --context-inspector-z: 20;
-  --bottom-bar-z: 21;
-  --backpack-text: 40;
-  --explainthis-expander-z: 40;
-  --overlay-z: 9999;
-  --modal-z: 10001;
-  --modal-back-z: 10000;
+
+  /* ABOVE CODE LEVEL */
+  --backpack-targets-z: 11;
+  --caret-z: 20;
+
+  /* TOP LEVEL UI */
+  --context-inspector-z: 19; /* keep below bottom bar */
+  --bottom-bar-z: 20;
+  --top-bar-z: 20;
+  --explainthis-expander-z: 20;
+
+  /* HACKS */
+  --overlay-z: 100;
+  --modal-back-z: 100;
+  --modal-z: 101;
 }
