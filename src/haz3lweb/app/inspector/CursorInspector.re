@@ -8,6 +8,8 @@ let errc = "error";
 let okc = "ok";
 let div_err = div(~attrs=[clss([errc])]);
 let div_ok = div(~attrs=[clss([okc])]);
+let code_box_container = x =>
+  div(~attrs=[clss(["code-box-container"])], [x]);
 
 let code_err = (code: string): Node.t =>
   div(~attrs=[clss(["code"])], [text(code)]);
@@ -74,7 +76,8 @@ let elements_noun: Cls.t => string =
   | _ => failwith("elements_noun: Cls doesn't have elements");
 
 let common_err_view = (~globals, cls: Cls.t, err: Info.error_common) => {
-  let view_type = CodeViewable.view_typ(~globals, ~inline=true);
+  let view_type = x =>
+    x |> CodeViewable.view_typ(~globals, ~inline=true) |> code_box_container;
   switch (err) {
   | NoType(BadToken(token)) =>
     switch (Form.bad_token_cls(token)) {
@@ -90,14 +93,14 @@ let common_err_view = (~globals, cls: Cls.t, err: Info.error_common) => {
   | NoType(FreeConstructor(name)) => [code_err(name), text("not found")]
   | Inconsistent(WithArrow(typ)) => [
       text(":"),
-      view_type(typ),
+      view_type(typ) |> code_box_container,
       text("inconsistent with arrow type"),
     ]
   | Inconsistent(Expectation({ana, syn})) => [
       text(":"),
-      view_type(syn),
+      view_type(syn) |> code_box_container,
       text("inconsistent with expected type"),
-      view_type(ana),
+      view_type(ana) |> code_box_container,
     ]
   | Inconsistent(Internal(tys)) => [
       text(elements_noun(cls) ++ " have inconsistent types:"),
@@ -173,7 +176,7 @@ let typ_err_view = (~globals, ok: Info.error_typ) => {
   let view_type = CodeViewable.view_typ(~globals, ~inline=true);
   switch (ok) {
   | FreeTypeVariable(name) => [
-      view_type(Var(name) |> Typ.fresh),
+      view_type(Var(name) |> Typ.fresh) |> code_box_container,
       text("not found"),
     ]
   | BadToken(token) => [
@@ -184,7 +187,7 @@ let typ_err_view = (~globals, ok: Info.error_typ) => {
   | WantConstructorFoundType(_) => [text("Expected a constructor")]
   | WantTypeFoundAp => [text("Must be part of a sum type")]
   | DuplicateConstructor(name) => [
-      view_type(Var(name) |> Typ.fresh),
+      view_type(Var(name) |> Typ.fresh) |> code_box_container,
       text("already used in this sum"),
     ]
   };
@@ -202,7 +205,7 @@ let rec exp_view = (~globals, cls: Cls.t, status: Info.status_exp) => {
     | Some(err) =>
       let cls_str = String.uncapitalize_ascii(cls_str);
       div_err([
-        exp_view(~globals, cls, InHole(Common(err))),
+        exp_view(~globals, cls, InHole(Common(err))) |> code_box_container,
         text("; " ++ cls_str ++ " is inexhaustive"),
       ]);
     };
@@ -237,7 +240,7 @@ let rec pat_view = (~globals, cls: Cls.t, status: Info.status_pat) =>
     | None => div_err([text("Pattern is redundant")])
     | Some(err) =>
       div_err([
-        pat_view(~globals, cls, InHole(err)),
+        pat_view(~globals, cls, InHole(err)) |> code_box_container,
         text("; pattern is redundant"),
       ])
     }
@@ -262,17 +265,17 @@ let tpat_view = (~globals, _: Cls.t, status: Info.status_tpat) => {
   | InHole(ShadowsType(name, BaseTyp)) =>
     div_err([
       text("Can't shadow base type"),
-      view_type(Var(name) |> Typ.fresh),
+      view_type(Var(name) |> Typ.fresh) |> code_box_container,
     ])
   | InHole(ShadowsType(name, TyAlias)) =>
     div_err([
       text("Can't shadow existing alias"),
-      view_type(Var(name) |> Typ.fresh),
+      view_type(Var(name) |> Typ.fresh) |> code_box_container,
     ])
   | InHole(ShadowsType(name, TyVar)) =>
     div_err([
       text("Can't shadow existing type variable"),
-      view_type(Var(name) |> Typ.fresh),
+      view_type(Var(name) |> Typ.fresh) |> code_box_container,
     ])
   };
 };
