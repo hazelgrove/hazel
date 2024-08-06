@@ -60,10 +60,9 @@
   --ERRHOLE: #ffeee6; /* temporary due to child arms */
   --MENUDIV: #0006;
   --MENUSHADE: oklch(50% 0.1 90 / 33%);
-  --textarea-indicated: rgb(255, 249, 240);
-  --textarea-bkg: #8c7e62;
+  --textarea-indicated: var(--SAND);
+  --textarea-text: var(--BR3);
   --textarea-v-stripe: #ff8ea88a;
-  --textarea-selected: #c7b491;
   --textarea-h-stripe: #add8ff;
   --textarea-h-strip-selected: rgba(200, 138, 24, 0.3);
 
