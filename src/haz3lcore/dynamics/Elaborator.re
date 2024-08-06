@@ -71,7 +71,7 @@ let elaborated_type = (m: Statics.Map.t, uexp: UExp.t): (Typ.t, Ctx.t, 'a) => {
     // We need to remove the synswitches from this type.
     | Ana(ana_ty) => Typ.match_synswitch(ana_ty, self_ty)
     };
-  (elab_ty |> Typ.normalize(ctx), ctx, co_ctx);
+  (elab_ty |> Typ.normalize(ctx) |> DHExp.replace_all_ids_typ, ctx, co_ctx);
 };
 
 let elaborated_pat_type = (m: Statics.Map.t, upat: UPat.t): (Typ.t, Ctx.t) => {
@@ -101,7 +101,7 @@ let elaborated_pat_type = (m: Statics.Map.t, upat: UPat.t): (Typ.t, Ctx.t) => {
       | Some(syn_ty) => Typ.match_synswitch(syn_ty, ana_ty)
       }
     };
-  (elab_ty |> Typ.normalize(ctx), ctx);
+  (elab_ty |> Typ.normalize(ctx) |> DHExp.replace_all_ids_typ, ctx);
 };
 
 let rec elaborate_pattern =
@@ -159,14 +159,16 @@ let rec elaborate_pattern =
       upat
       |> cast_from(
            Ctx.lookup_var(ctx, v)
-           |> Option.map((x: Ctx.var_entry) => x.typ |> Typ.normalize(ctx))
+           |> Option.map((x: Ctx.var_entry) =>
+                x.typ |> Typ.normalize(ctx) |> DHExp.replace_all_ids_typ
+              )
            |> Option.value(~default=Typ.temp(Unknown(Internal))),
          )
     // Type annotations should already appear
     | Parens(p)
     | Cast(p, _, _) =>
       let (p', ty) = elaborate_pattern(m, p);
-      p' |> cast_from(ty |> Typ.normalize(ctx));
+      p' |> cast_from(ty |> Typ.normalize(ctx) |> DHExp.replace_all_ids_typ);
     | Constructor(c, _) =>
       let mode =
         switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
@@ -261,7 +263,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
         | (_, Some({typ: syn_ty, _})) => syn_ty
         | _ => Unknown(Internal) |> Typ.temp
         };
-      let t = t |> Typ.normalize(ctx);
+      let t = t |> Typ.normalize(ctx) |> DHExp.replace_all_ids_typ;
       Constructor(c, t) |> rewrap |> cast_from(t);
     | Fun(p, e, env, n) =>
       let (p', typ) = elaborate_pattern(m, p);
@@ -281,7 +283,9 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       uexp
       |> cast_from(
            Ctx.lookup_var(ctx, v)
-           |> Option.map((x: Ctx.var_entry) => x.typ |> Typ.normalize(ctx))
+           |> Option.map((x: Ctx.var_entry) =>
+                x.typ |> Typ.normalize(ctx) |> DHExp.replace_all_ids_typ
+              )
            |> Option.value(~default=Typ.temp(Typ.Unknown(Internal))),
          )
     | Let(p, def, body) =>
