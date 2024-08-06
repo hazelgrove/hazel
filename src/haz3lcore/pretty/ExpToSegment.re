@@ -86,7 +86,7 @@ let (@) = (seg1: Segment.t, seg2: Segment.t): Segment.t =>
       that the expression has no DynamicErrorHoles, Casts, or FailedCasts
    */
 let rec exp_to_pretty = (~inline, exp: Exp.t): pretty => {
-  let exp = Exp.substitute_closures(ClosureEnvironment.empty, exp);
+  let exp = Exp.substitute_closures(Environment.empty, exp);
   let go = (~inline=inline) => exp_to_pretty(~inline);
   switch (exp |> Exp.term_of) {
   // Assume these have been removed by the parenthesizer
@@ -1022,12 +1022,7 @@ and parenthesize_any = (any: Any.t): Any.t =>
   };
 
 let exp_to_segment = (~inline, exp: Exp.t): Segment.t => {
-  let exp =
-    exp
-    |> Exp.substitute_closures(
-         Builtins.env_init |> ClosureEnvironment.of_environment,
-       )
-    |> parenthesize;
+  let exp = exp |> Exp.substitute_closures(Builtins.env_init) |> parenthesize;
   let p = exp_to_pretty(~inline, exp);
   p |> PrettySegment.select;
 };
