@@ -1,3 +1,4 @@
+open Ppx_yojson_conv_lib.Yojson_conv;
 module type OrderedShowType = {
   include Map.OrderedType;
 

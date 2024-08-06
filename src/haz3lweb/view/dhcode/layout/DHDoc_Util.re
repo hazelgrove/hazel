@@ -1,4 +1,3 @@
-open Util;
 open Haz3lcore;
 
 module Doc = Pretty.Doc;
@@ -46,8 +45,8 @@ module Delim = {
   let mk = (delim_text: string): t =>
     Doc.text(delim_text) |> Doc.annot(DHAnnot.Delim);
 
-  let empty_hole = ((u, i): HoleInstance.t): t => {
-    let lbl = StringUtil.cat([Id.to_string(u), ":", string_of_int(i + 1)]);
+  let empty_hole = (_env: ClosureEnvironment.t): t => {
+    let lbl = "-";
     Doc.text(lbl)
     |> Doc.annot(DHAnnot.HoleLabel)
     |> Doc.annot(DHAnnot.Delim);
@@ -85,9 +84,8 @@ module Delim = {
   let close_FailedCast = close_Cast |> Doc.annot(DHAnnot.FailedCastDelim);
 };
 
-let mk_EmptyHole = (~selected=false, (u, i)) =>
-  Delim.empty_hole((u, i))
-  |> Doc.annot(DHAnnot.EmptyHole(selected, (u, i)));
+let mk_EmptyHole = (~selected=false, env) =>
+  Delim.empty_hole(env) |> Doc.annot(DHAnnot.EmptyHole(selected, env));
 
 let mk_IntLit = n => Doc.text(string_of_int(n));
 

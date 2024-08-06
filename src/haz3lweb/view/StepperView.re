@@ -3,10 +3,10 @@ open Node;
 open Haz3lcore;
 
 let settings_modal = (~inject, settings: CoreSettings.Evaluation.t) => {
-  let modal = div(~attr=Attr.many([Attr.class_("settings-modal")]));
+  let modal = div(~attrs=[Attr.class_("settings-modal")]);
   let setting = (icon, name, current, action: UpdateAction.settings_action) =>
     div(
-      ~attr=Attr.many([Attr.class_("settings-toggle")]),
+      ~attrs=[Attr.class_("settings-toggle")],
       [
         Widgets.toggle(~tooltip=name, icon, current, _ =>
           inject(Update.Set(action))
@@ -17,7 +17,7 @@ let settings_modal = (~inject, settings: CoreSettings.Evaluation.t) => {
   [
     modal([
       div(
-        ~attr=Attr.many([Attr.class_("settings-modal-top")]),
+        ~attrs=[Attr.class_("settings-modal-top")],
         [
           Widgets.button(Icons.x, _ =>
             inject(Update.Set(Evaluation(ShowSettings)))
@@ -74,13 +74,12 @@ let settings_modal = (~inject, settings: CoreSettings.Evaluation.t) => {
       ),
     ]),
     div(
-      ~attr=
-        Attr.many([
-          Attr.class_("modal-back"),
-          Attr.on_mousedown(_ =>
-            inject(Update.Set(Evaluation(ShowSettings)))
-          ),
-        ]),
+      ~attrs=[
+        Attr.class_("modal-back"),
+        Attr.on_mousedown(_ =>
+          inject(Update.Set(Evaluation(ShowSettings)))
+        ),
+      ],
       [],
     ),
   ];
@@ -92,90 +91,16 @@ let stepper_view =
       ~settings: CoreSettings.Evaluation.t,
       ~font_metrics,
       ~result_key,
+      ~read_only: bool,
       stepper: Stepper.t,
     ) => {
-  let button_back =
-    Widgets.button_d(
-      Icons.undo,
-      inject(UpdateAction.StepperAction(result_key, StepBackward)),
-      ~disabled=Stepper.undo_point(~settings, stepper.previous) == None,
-      ~tooltip="Step Backwards",
-    );
-  let (hidden, previous) =
-    if (settings.stepper_history) {
-      Stepper.get_history(~settings, stepper);
-    } else {
-      ([], []);
-    };
-  let dh_code_previous = (step_with_previous: Stepper.step_with_previous) =>
-    div(
-      ~attr=Attr.classes(["result"]),
-      [
-        DHCode.view(
-          ~inject,
-          ~settings,
-          ~selected_hole_instance=None,
-          ~font_metrics,
-          ~width=80,
-          ~previous_step=step_with_previous.previous,
-          ~chosen_step=Some(step_with_previous.step),
-          ~hidden_steps=step_with_previous.hidden,
-          ~result_key,
-          step_with_previous.step.d,
-        ),
-      ],
-    );
-  let hide_stepper =
-    Widgets.toggle(~tooltip="Show Stepper", "s", true, _ =>
-      inject(UpdateAction.ToggleStepper(result_key))
-    );
-  let show_history =
-    Widgets.toggle(~tooltip="Show History", "h", settings.stepper_history, _ =>
-      inject(Set(Evaluation(ShowRecord)))
-    );
-  let eval_settings =
-    Widgets.button(Icons.gear, _ => inject(Set(Evaluation(ShowSettings))));
-
-  let rec previous_step =
-          (~hidden=false, step: Stepper.step_with_previous): list(Node.t) => {
-    [
-      div(
-        ~attr=
-          Attr.classes(
-            ["cell-item", "cell-result"] @ (hidden ? ["hidden"] : []),
-          ),
-        [
-          div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
-          dh_code_previous(step),
-          div(
-            ~attr=Attr.classes(["stepper-justification"]),
-            [
-              Node.text(
-                Stepper.get_justification(step.step.knd)
-                ++ (hidden ? " (hidden)" : ""),
-              ),
-            ],
-          ),
-        ],
-      ),
-    ]
-    @ (
+  let step_dh_code =
       (
-        settings.show_hidden_steps
-          ? List.map(
-              step =>
-                {step, previous: None, hidden: []}
-                |> previous_step(~hidden=true),
-              step.hidden,
-            )
-          : []
-      )
-      |> List.flatten
-    );
-  };
-  let dh_code_current = d =>
+        ~next_steps,
+        {previous_step, hidden_steps, chosen_step, d}: Stepper.step_info,
+      ) =>
     div(
-      ~attr=Attr.classes(["result"]),
+      ~attrs=[Attr.classes(["result"])],
       [
         DHCode.view(
           ~inject,
@@ -183,53 +108,114 @@ let stepper_view =
           ~selected_hole_instance=None,
           ~font_metrics,
           ~width=80,
-          ~previous_step=
-            previous
-            |> List.nth_opt(_, 0)
-            |> Option.map((x: Stepper.step_with_previous) => x.step),
-          ~next_steps=Stepper.get_next_steps(stepper) |> List.map(snd),
-          ~hidden_steps=hidden,
+          ~previous_step,
+          ~chosen_step,
+          ~hidden_steps,
           ~result_key,
+          ~next_steps,
+          ~infomap=Id.Map.empty,
           d,
         ),
       ],
     );
-
-  let current =
-    (
-      (
-        settings.show_hidden_steps
-          ? List.map(
-              step =>
-                {step, previous: None, hidden: []}
-                |> previous_step(~hidden=true),
-              hidden,
-            )
-          : []
-      )
-      |> List.flatten
-      |> List.rev
-    )
-    @ [
-      switch (stepper.current) {
-      | StepperOK(d, _) =>
-        div(
-          ~attr=Attr.classes(["cell-item", "cell-result"]),
-          [
-            div(~attr=Attr.class_("equiv"), [Node.text("≡")]),
-            dh_code_current(d),
+  let history = Stepper.get_history(~settings, stepper);
+  switch (history) {
+  | [] => []
+  | [hd, ...tl] =>
+    let button_back =
+      Widgets.button_d(
+        Icons.undo,
+        inject(UpdateAction.StepperAction(result_key, StepBackward)),
+        ~disabled=!Stepper.can_undo(~settings, stepper),
+        ~tooltip="Step Backwards",
+      );
+    let button_hide_stepper =
+      Widgets.toggle(~tooltip="Show Stepper", "s", true, _ =>
+        inject(UpdateAction.ToggleStepper(result_key))
+      );
+    let toggle_show_history =
+      Widgets.toggle(~tooltip="Show History", "h", settings.stepper_history, _ =>
+        inject(Set(Evaluation(ShowRecord)))
+      );
+    let eval_settings =
+      Widgets.button(Icons.gear, _ =>
+        inject(Set(Evaluation(ShowSettings)))
+      );
+    let current =
+      div(
+        ~attrs=[Attr.classes(["cell-item", "cell-result"])],
+        read_only
+          ? [
+            div(~attrs=[Attr.class_("equiv")], [Node.text("≡")]),
+            step_dh_code(~next_steps=[], hd),
+          ]
+          : [
+            div(~attrs=[Attr.class_("equiv")], [Node.text("≡")]),
+            step_dh_code(
+              ~next_steps=
+                List.mapi(
+                  (i, x: EvaluatorStep.EvalObj.t) =>
+                    (i, x.d_loc |> DHExp.rep_id),
+                  Stepper.get_next_steps(stepper),
+                ),
+              hd,
+            ),
             button_back,
             eval_settings,
-            show_history,
-            hide_stepper,
+            toggle_show_history,
+            button_hide_stepper,
           ],
-        )
-      // TODO[Matt]: show errors and waiting
-      | StepTimeout
-      | StepPending(_, _, _) => div([])
-      },
-    ];
-  let nodes_previous = List.map(previous_step, previous) |> List.flatten;
-  List.fold_left((x, y) => List.cons(y, x), current, nodes_previous)
-  @ (settings.show_settings ? settings_modal(~inject, settings) : []);
+      );
+    let dh_code_previous = step_dh_code;
+    let rec previous_step =
+            (~hidden: bool, step: Stepper.step_info): list(Node.t) => {
+      let hidden_steps =
+        settings.show_hidden_steps
+          ? Stepper.hidden_steps_of_info(step)
+            |> List.rev_map(previous_step(~hidden=true))
+            |> List.flatten
+          : [];
+      [
+        div(
+          ~attrs=[
+            Attr.classes(
+              ["cell-item", "cell-result"] @ (hidden ? ["hidden"] : []),
+            ),
+          ],
+          [
+            div(~attrs=[Attr.class_("equiv")], [Node.text("≡")]),
+            dh_code_previous(~next_steps=[], step),
+            div(
+              ~attrs=[Attr.classes(["stepper-justification"])],
+              step.chosen_step
+              |> Option.map((chosen_step: EvaluatorStep.step) =>
+                   chosen_step.knd |> Stepper.get_justification |> Node.text
+                 )
+              |> Option.to_list,
+            ),
+          ],
+        ),
+      ]
+      @ hidden_steps;
+    };
+    (
+      (
+        settings.stepper_history
+          ? List.map(previous_step(~hidden=false), tl)
+            |> List.flatten
+            |> List.rev_append(
+                 _,
+                 settings.show_hidden_steps
+                   ? hd
+                     |> Stepper.hidden_steps_of_info
+                     |> List.map(previous_step(~hidden=true))
+                     |> List.flatten
+                   : [],
+               )
+          : []
+      )
+      @ [current]
+    )
+    @ (settings.show_settings ? settings_modal(~inject, settings) : []);
+  };
 };

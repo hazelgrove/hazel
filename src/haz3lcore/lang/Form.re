@@ -1,4 +1,5 @@
-open Sexplib.Std;
+open Util;
+
 open Mold;
 module P = Precedence;
 
@@ -149,9 +150,12 @@ let is_float = str =>
 let is_bad_float = str => is_arbitary_float(str) && !is_float(str);
 let bools = ["true", "false"];
 let is_bool = regexp("^(" ++ String.concat("|", bools) ++ ")$");
+let undefined = "undefined";
+let is_undefined = regexp("^" ++ undefined ++ "$");
 
 let is_var = str =>
   !is_bool(str)
+  && !is_undefined(str)
   && str != "_"
   //&& !is_keyword(str)
   //&& !is_reserved(str)
@@ -201,7 +205,7 @@ let duomerges = (lbl: Label.t): option(Label.t) =>
 
 //TODO(andrew): refactor atomic_forms to seperate these out
 let const_mono_delims =
-  base_typs @ bools @ [wild, empty_list, empty_tuple, empty_string];
+  base_typs @ bools @ [undefined, wild, empty_list, empty_tuple, empty_string];
 
 let explicit_hole = "?";
 let is_explicit_hole = t => t == explicit_hole;
@@ -229,6 +233,7 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("int_lit", (is_int, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("float_lit", (is_float, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("bool_lit", (is_bool, [mk_op(Exp, []), mk_op(Pat, [])])),
+  ("undefined_lit", (is_undefined, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("empty_list", (is_empty_list, [mk_op(Exp, []), mk_op(Pat, [])])),
   (
     "empty_tuple",
@@ -247,9 +252,9 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
 
 let forms: list((string, t)) = [
   // INFIX OPERATORS
-  ("typ_plus", mk_infix("+", Typ, P.or_)),
-  ("type-arrow", mk_infix("->", Typ, 6)),
-  ("cell-join", mk_infix(";", Exp, 10)),
+  ("typ_plus", mk_infix("+", Typ, P.type_plus)),
+  ("type-arrow", mk_infix("->", Typ, P.type_arrow)),
+  ("cell-join", mk_infix(";", Exp, P.semi)),
   ("plus", mk_infix("+", Exp, P.plus)),
   ("minus", mk_infix("-", Exp, P.plus)),
   ("times", mk_infix("*", Exp, P.mult)),
@@ -282,14 +287,14 @@ let forms: list((string, t)) = [
   ("cons_pat", mk_infix("::", Pat, P.cons)),
   ("typeann", mk(ss, [":"], mk_bin'(P.ann, Pat, Pat, [], Typ))),
   // UNARY PREFIX OPERATORS
-  ("not", mk(ii, ["!"], mk_pre(5, Exp, []))), //TODO: precedence
+  ("not", mk(ii, ["!"], mk_pre(P.not_, Exp, []))),
   ("typ_sum_single", mk(ss, ["+"], mk_pre(P.or_, Typ, []))),
   ("unary_minus", mk(ss, ["-"], mk_pre(P.neg, Exp, []))),
   ("unquote", mk(ss, ["$"], mk_pre(P.unquote, Exp, []))),
   // N-ARY OPS (on the semantics level)
-  ("comma_exp", mk_infix(",", Exp, P.prod)),
-  ("comma_pat", mk_infix(",", Pat, P.prod)),
-  ("comma_typ", mk_infix(",", Typ, P.prod)),
+  ("comma_exp", mk_infix(",", Exp, P.comma)),
+  ("comma_pat", mk_infix(",", Pat, P.comma)),
+  ("comma_typ", mk_infix(",", Typ, P.type_prod)),
   // PAIRED DELIMITERS:
   ("list_lit_exp", mk(ii, ["[", "]"], mk_op(Exp, [Exp]))),
   ("list_lit_pat", mk(ii, ["[", "]"], mk_op(Pat, [Pat]))),
@@ -310,6 +315,7 @@ let forms: list((string, t)) = [
   ("case", mk(ds, ["case", "end"], mk_op(Exp, [Rul]))),
   ("test", mk(ds, ["test", "end"], mk_op(Exp, [Exp]))),
   ("fun_", mk(ds, ["fun", "->"], mk_pre(P.fun_, Exp, [Pat]))),
+  ("fix", mk(ds, ["fix", "->"], mk_pre(P.fun_, Exp, [Pat]))),
   ("typfun", mk(ds, ["typfun", "->"], mk_pre(P.fun_, Exp, [TPat]))),
   ("forall", mk(ds, ["forall", "->"], mk_pre(P.fun_, Typ, [TPat]))),
   ("rec", mk(ds, ["rec", "->"], mk_pre(P.fun_, Typ, [TPat]))),

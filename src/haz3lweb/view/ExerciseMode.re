@@ -141,7 +141,7 @@ let view =
 
   let prompt_view =
     Cell.narrative_cell(
-      div(~attr=Attr.class_("cell-prompt"), [eds.prompt]),
+      div(~attrs=[Attr.class_("cell-prompt")], [eds.prompt]),
     );
 
   let prelude_view =
