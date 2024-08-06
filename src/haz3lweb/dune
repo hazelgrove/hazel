@@ -46,9 +46,7 @@
   haz3lschool
   pretty
   omd)
- (js_of_ocaml
-  (flags
-   (:standard --debuginfo --noinline --dynlink --linkall --sourcemap)))
+ (js_of_ocaml)
  (preprocess
   (pps
    js_of_ocaml-ppx
@@ -79,15 +77,9 @@
   (pps js_of_ocaml-ppx)))
 
 (env
- (dev (js_of_ocaml))
+ (dev
+  (js_of_ocaml
+   (flags :standard --debuginfo --noinline --dynlink --linkall --sourcemap)))
  (release
   (js_of_ocaml
    (flags (:standard)))))
-
-(rule
- (write-file
-  js-of-ocaml-flags-dev
-  "(:standard --debuginfo --noinline --dynlink --linkall --sourcemap)"))
-
-(rule
- (write-file js-of-ocaml-flags-release "(:standard)"))
