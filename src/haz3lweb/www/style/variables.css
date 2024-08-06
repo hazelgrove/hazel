@@ -72,7 +72,7 @@
   --main-bkg: var(--T3);
   --light-page-color: var(--menu-item-hover-bkg);
   --cell-active: var(--SAND);
-  --main-scroll-thumb: var(--BR2);
+  --main-scroll-thumb: var(--BR1);
   --main-scroll-track: var(--SAND);
   --cell-selected-accent: var(--R1);
 
@@ -213,10 +213,10 @@
   --caret-z: 20;
 
   /* TOP LEVEL UI */
-  --context-inspector-z: 19; /* keep below bottom bar */
-  --bottom-bar-z: 20;
-  --top-bar-z: 20;
-  --explainthis-expander-z: 20;
+  --context-inspector-z: 29; /* keep below bottom bar */
+  --bottom-bar-z: 30;
+  --top-bar-z: 30;
+  --explainthis-expander-z: 30;
 
   /* HACKS */
   --overlay-z: 100;
