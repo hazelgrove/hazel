@@ -67,9 +67,32 @@
   color: var(--ci-status-error-text) !important;
 }
 
-#cursor-inspector .ci-header .toggle-switch {
-  mix-blend-mode: luminosity;
-  background-color: #ccc;
+#cursor-inspector .ci-header .toggle-switch .toggle-knob {
+  background-color: var(--SAND);
+}
+#cursor-inspector .ci-header.Exp .toggle-switch.active  {
+  background-color: var(--BR3);
+}
+#cursor-inspector .ci-header.Pat .toggle-switch.active  {
+  background-color: var(--token-pat);
+}
+#cursor-inspector .ci-header.Typ .toggle-switch.active  {
+  background-color: var(--token-typ);
+}
+#cursor-inspector .ci-header.TPat .toggle-switch.active  {
+  background-color: var(--token-tpat);
+}
+#cursor-inspector .ci-header.Exp .toggle-switch .toggle-knob  {
+  color: var(--BR3);
+}
+#cursor-inspector .ci-header.Pat .toggle-switch .toggle-knob{
+  color: var(--token-pat);
+}
+#cursor-inspector .ci-header.Typ .toggle-switch .toggle-knob {
+  color: var(--token-typ);
+}
+#cursor-inspector .ci-header.TPat .toggle-switch .toggle-knob {
+  color: var(--token-tpat);
 }
 
 #cursor-inspector .ci-header.Nul {
@@ -94,7 +117,7 @@
 }
 #cursor-inspector .ci-header.Rul {
   background-color: var(--shard-rul);
-  color: var(--rul-shadow-color);
+  color: var(--shard-lines-rul);
 }
 #cursor-inspector .ci-header.TPat {
   background-color: var(--shard-tpat);

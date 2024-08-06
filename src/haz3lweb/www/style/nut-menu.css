@@ -197,7 +197,6 @@
 }
 #top-bar .icon:hover {
   scale: 1.5;
-  z-index: 20;
 }
 
 #top-bar .icon svg {

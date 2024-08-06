@@ -101,7 +101,7 @@
 #explain-this div.expandable-target {
   display: flex;
   cursor: pointer;
-  z-index: 40;
+  z-index: var(--explainthis-expander-z);
 }
 
 #explain-this .clickable {
