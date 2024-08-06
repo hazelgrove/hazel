@@ -134,7 +134,6 @@
 }
 
 .projector.text.selected .cols {
-  color: var(--textarea-selected);
   background: repeating-linear-gradient(
     var(--NONE),
     var(--NONE) 1.41em,
@@ -154,7 +153,7 @@
   font-family: var(--code-font);
   font-size: inherit;
   border: none;
-  color: var(--textarea-bkg);
+  color: var(--textarea-text);
   background: none;
   box-shadow: inset 1px 0 0 var(--textarea-v-stripe);
   overflow: hidden; /* hack: scrolls in chrome without this? */
