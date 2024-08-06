@@ -6,7 +6,7 @@ homepage: "https://github.com/hazelgrove/hazel"
 bug-reports: "https://github.com/hazelgrove/hazel/issues"
 depends: [
   "abstract_algebra" {= "v0.16.0"}
-  "alcotest" {= "1.8.0"}
+  "alcotest" {= "1.8.0" & with-test}
   "angstrom" {= "0.16.0"}
   "astring" {= "0.8.5"}
   "async_js" {= "v0.16.0"}
@@ -47,7 +47,7 @@ depends: [
   "fiber" {= "3.7.0"}
   "fieldslib" {= "v0.16.0"}
   "fix" {= "20230505"}
-  "fmt" {= "0.9.0"}
+  "fmt" {= "0.9.0" & with-test}
   "fpath" {= "0.7.3"}
   "gen" {= "1.1"}
   "gen_js_api" {= "1.1.2"}
@@ -64,10 +64,12 @@ depends: [
   "js_of_ocaml-compiler" {= "5.8.2"}
   "js_of_ocaml-ppx" {= "5.8.2"}
   "js_of_ocaml_patches" {= "v0.16.0"}
+  "jsonrpc" {= "1.19.0"}
   "jst-config" {= "v0.16.0"}
-  "junit" {= "2.0.2"}
+  "junit" {= "2.0.2" & with-test}
   "junit_alcotest" {= "2.0.2" & with-test}
   "lambdasoup" {= "1.0.0"}
+  "lsp" {= "1.19.0"}
   "markup" {= "1.0.3"}
   "menhir" {= "20240715"}
   "menhirCST" {= "20240715"}
@@ -81,7 +83,7 @@ depends: [
   "ocaml-compiler-libs" {= "v0.17.0"}
   "ocaml-config" {= "3"}
   "ocaml-index" {= "1.0"}
-  "ocaml-lsp-server" {= "1.18.0~5.2preview"}
+  "ocaml-lsp-server" {= "1.19.0"}
   "ocaml-options-vanilla" {= "1"}
   "ocaml-syntax-shims" {= "1.0.0"}
   "ocaml-version" {= "3.6.7"}
@@ -139,7 +141,7 @@ depends: [
   "ppx_yojson_conv_lib" {= "v0.16.0"}
   "ppxlib" {= "0.33.0"}
   "protocol_version_header" {= "v0.16.0"}
-  "ptime" {= "1.1.0"}
+  "ptime" {= "1.1.0" & with-test}
   "ptmap" {= "2.0.5"}
   "re" {= "1.11.0"}
   "reason" {= "3.12.0"}
