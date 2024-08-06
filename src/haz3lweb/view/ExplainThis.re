@@ -2401,7 +2401,7 @@ let view =
                     inject(UpdateAction.Set(ExplainThis(ToggleShow)))
                   ),
                 ],
-                [text("x")],
+                [Icons.thin_x],
               ),
             ],
           ),

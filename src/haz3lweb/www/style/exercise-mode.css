@@ -45,7 +45,6 @@
 }
 
 .test-panel {
-  z-index: var(--test-panel-z);
   display: flex;
   flex-direction: column;
   gap: 1em;
@@ -90,7 +89,7 @@
   margin-left: 0.17em;
   font-size: 64%;
   vertical-align: super;
-  z-index: var(-test-result-z);
+  z-index: var(--test-result-z);
 }
 
 .test-instance.Pass:before,

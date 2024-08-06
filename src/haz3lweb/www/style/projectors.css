@@ -1,10 +1,5 @@
 /* PROJECTORS */
 
-:root {
-  --textarea-indicated: rgb(255, 249, 240);
-  --textarea-bkg: #8c7e62;
-  --textarea-shadow: #ff8ea88a;
-}
 /* Turn off caret when a block projector is focused */
 #caret:has(~ .projectors .projector.block *:focus) {
   display: none;
@@ -51,7 +46,7 @@
 
 .projector.fold:hover,
 .projector.indicated.fold {
-  color: black;
+  color: --var(BLACK);
 }
 .projector.fold {
   cursor: pointer;
@@ -131,20 +126,20 @@
   border-radius: 0 0.1em 0.1em 0.1em;
   color: var(--SAND);
   background: repeating-linear-gradient(
-    #0000,
-    #0000 1.41em,
-    #add8ff 1.41em,
-    #add8ff 1.45em /* line-height */
+    var(--NONE),
+    var(--NONE) 1.41em,
+    var(--textarea-h-stripe) 1.41em,
+    var(--textarea-h-stripe) 1.45em /* line-height */
   );
 }
 
 .projector.text.selected .cols {
-  color: #c7b491;
+  color: var(--textarea-selected);
   background: repeating-linear-gradient(
-    #0000,
-    #0000 1.41em,
-    rgba(200, 138, 24, 0.3) 1.41em,
-    rgba(200, 138, 24, 0.3) 1.45em /* line-height */
+    var(--NONE),
+    var(--NONE) 1.41em,
+    var(--textarea-h-strip-selected) 1.41em,
+    var(--textarea-h-strip-selected) 1.45em /* line-height */
   );
 }
 
@@ -161,11 +156,11 @@
   border: none;
   color: var(--textarea-bkg);
   background: none;
-  box-shadow: inset 1px 0 0 var(--textarea-shadow);
+  box-shadow: inset 1px 0 0 var(--textarea-v-stripe);
   overflow: hidden; /* hack: scrolls in chrome without this? */
 }
 
 .projector.text textarea::selection {
-  color: black;
+  color: var(--BLACK);
   background-color: var(--shard-selected);
 }
