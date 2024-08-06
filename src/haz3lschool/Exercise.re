@@ -1,4 +1,4 @@
-open Sexplib.Std;
+open Util;
 open Haz3lcore;
 
 module type ExerciseEnv = {
@@ -603,7 +603,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   module TermItem = {
     type t = {
-      term: TermBase.UExp.t,
+      term: Exp.t,
       term_ranges: TermRanges.t,
     };
   };
@@ -622,14 +622,21 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     hidden_tests: 'a,
   };
 
-  let wrap_filter = (act: FilterAction.action, term: Term.UExp.t): Term.UExp.t =>
-    TermBase.UExp.{
+  let wrap_filter = (act: FilterAction.action, term: UExp.t): UExp.t =>
+    Exp.{
       term:
-        TermBase.UExp.Filter(
-          FilterAction.(act, One),
-          {term: Constructor("$e"), ids: [Id.mk()]},
+        Exp.Filter(
+          Filter({
+            act: FilterAction.(act, One),
+            pat: {
+              term: Constructor("$e", Unknown(Internal) |> Typ.temp),
+              copied: false,
+              ids: [Id.mk()],
+            },
+          }),
           term,
         ),
+      copied: false,
       ids: [Id.mk()],
     };
 
@@ -638,8 +645,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     term_ranges: editor.state.meta.term_ranges,
   };
 
-  let term_of = (editor: Editor.t): Term.UExp.t =>
-    editor.state.meta.view_term;
+  let term_of = (editor: Editor.t): UExp.t => editor.state.meta.view_term;
 
   let stitch3 = (ed1: Editor.t, ed2: Editor.t, ed3: Editor.t) =>
     EditorUtil.append_exp(
@@ -751,7 +757,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   let spliced_elabs =
       (settings: CoreSettings.t, state: state)
-      : list((ModelResults.key, DHExp.t)) => {
+      : list((ModelResults.key, Elaborator.Elaboration.t)) => {
     let {
       test_validation,
       user_impl,
@@ -762,8 +768,9 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       hidden_tests,
     } =
       stitch_static(settings, stitch_term(state));
-    let elab = (s: CachedStatics.statics) =>
-      Interface.elaborate(~settings, s.info_map, s.term);
+    let elab = (s: CachedStatics.statics): Elaborator.Elaboration.t => {
+      d: Interface.elaborate(~settings, s.info_map, s.term),
+    };
     [
       (test_validation_key, elab(test_validation)),
       (user_impl_key, elab(user_impl)),
@@ -799,13 +806,14 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   module DynamicsItem = {
     type t = {
-      term: TermBase.UExp.t,
+      term: Exp.t,
       info_map: Statics.Map.t,
       result: ModelResult.t,
     };
     let empty: t = {
       term: {
         term: Tuple([]),
+        copied: false,
         ids: [Id.mk()],
       },
       info_map: Id.Map.empty,

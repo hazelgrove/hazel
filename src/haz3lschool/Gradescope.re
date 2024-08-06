@@ -1,5 +1,6 @@
 open Haz3lcore;
-// open Sexplib.Std;
+open Util;
+
 open Haz3lschool;
 open Core;
 
@@ -69,7 +70,6 @@ module Main = {
     let model_results =
       spliced_elabs(settings, exercise)
       |> ModelResults.init_eval
-      //TODO[Matt]: Make sure this times out correctly
       |> ModelResults.run_pending(~settings);
     let stitched_dynamics =
       stitch_dynamic(settings, exercise, Some(model_results));

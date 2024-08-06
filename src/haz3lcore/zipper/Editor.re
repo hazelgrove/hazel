@@ -1,4 +1,3 @@
-open Sexplib.Std;
 open Util;
 
 module Meta = {
@@ -9,7 +8,7 @@ module Meta = {
     term_ranges: TermRanges.t,
     unselected: Segment.t,
     segment: Segment.t,
-    view_term: Term.UExp.t,
+    view_term: UExp.t,
     terms: TermMap.t,
     tiles: TileMap.t,
     holes: list(Grout.t),
