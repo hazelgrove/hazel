@@ -69,3 +69,30 @@ and mk = seg =>
     Hashtbl.add(range_hash, seg, res);
     res;
   };
+
+type sgek = {
+  seg: Segment.t,
+  skel: Skel.t,
+};
+
+let rec go = (f: sgek => sgek, {skel, seg}): sgek => {
+  switch (skel) {
+  | Op(r) => f({skel: Op(root_of(f, r, seg)), seg})
+  | Pre(r, skel_r) =>
+    let skeg_r = go(f, {skel: skel_r, seg});
+    f({skel: Pre(root_of(f, r), skeg_r.skel), seg: skeg_r.seg});
+  | Post(skel_l, r) =>
+    let skeg_l = go(f, {skel: skel_l, seg});
+    f({skel: Post(skeg_l.skel, root_of(f, r)), seg: skeg_l.seg});
+  | Bin(skel_l, root, skel_r) =>
+    let skeg_l = go(f, {skel: skel_l, seg});
+    let skeg_r = go(f, {skel: skel_r, seg: skeg_l.seg});
+    f({
+      skel: Bin(skeg_l.skel, root_of(f, root), skeg_r.skel),
+      seg: skeg_r.seg,
+    });
+  };
+}
+and root_of = (f, r: Aba.t(int, Skel.t)): Skel.root => {
+  f({skel: Aba.get_as(r) |> List.nth, seg: Segment.children(f.seg)});
+};

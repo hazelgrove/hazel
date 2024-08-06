@@ -4,8 +4,8 @@ open ProjectorBase;
 /* Updates the underlying piece of syntax for a projector */
 module Update = {
   let update_piece =
-      (f: Base.projector => Base.projector, id: Id.t, syntax: syntax) =>
-    switch (syntax) {
+      (f: Base.projector => Base.projector, id: Id.t, piece: Piece.t) =>
+    switch (piece) {
     | Projector(pr) when pr.id == id => Base.Projector(f(pr))
     | x => x
     };

@@ -31,9 +31,8 @@ let placeholder = (p: Base.projector, ci: option(Info.t)): string =>
   | Block({row, col}) => String.make(row - 1, '\n') ++ String.make(col, ' ')
   };
 
-/* Currently projection is limited to convex pieces */
-let minimum_projection_condition = (syntax: syntax): bool =>
-  Piece.is_convex(syntax);
+/* TODO(andrew) Currently projection is limited to convex pieces */
+let minimum_projection_condition = (_syntax: syntax): bool => true;
 
 /* Returns the projector at the caret, if any */
 let indicated = (z: ZipperBase.t) => {

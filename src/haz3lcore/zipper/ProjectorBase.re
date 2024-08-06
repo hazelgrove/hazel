@@ -14,9 +14,9 @@ type shape =
   | Block(Point.t);
 
 /* The type of syntax which a projector can replace.
- * Right now projectors can replace a single piece */
+ * Right now projectors can replace a segment */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type syntax = Base.piece;
+type syntax = list(Base.piece);
 
 /* Global actions available to handlers in all projectors */
 type external_action =
@@ -65,7 +65,7 @@ module type Projector = {
    * syntax (currently limited to convex pieces) is
    * supported by this projector. This is used to gate
    * adding the projector */
-  let can_project: Base.piece => bool;
+  let can_project: list(Base.piece) => bool;
   /* Does this projector have internal position states,
    * overriding the editor caret & keyboard handlers?
    * If yes, the focus method will be called when this

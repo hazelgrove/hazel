@@ -114,13 +114,13 @@ let projectors: ref(Id.Map.t(Piece.projector)) = ref(Id.Map.empty);
 
 /* Strip a projector from a segment and log it in the map */
 let rm_and_log_projectors = (seg: Segment.t): Segment.t =>
-  List.map(
+  List.concat_map(
     fun
     | Piece.Projector(pr) => {
         projectors := Id.Map.add(pr.id, pr, projectors^);
         pr.syntax;
       }
-    | x => x,
+    | x => [x],
     seg,
   );
 

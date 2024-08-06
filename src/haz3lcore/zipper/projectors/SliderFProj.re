@@ -5,15 +5,20 @@ open ProjectorBase;
 /* Some decimal places necessary to avoid becoming an int */
 let float_of_float = s => s |> float_of_string |> Printf.sprintf("%.2f");
 
-let put = (s: string): Piece.t => s |> float_of_float |> Piece.mk_mono(Exp);
+let put = (s: string): Segment.t => [
+  s |> float_of_float |> Piece.mk_mono(Exp),
+];
 
-let get_opt = (piece: Piece.t): option(float) =>
-  piece |> Piece.of_mono |> Util.OptUtil.and_then(float_of_string_opt);
+let get_opt = (seg: Segment.t): option(float) =>
+  switch (seg) {
+  | [p] => p |> Piece.of_mono |> Util.OptUtil.and_then(float_of_string_opt)
+  | _ => None
+  };
 
-let get = (piece: Piece.t): float =>
-  switch (get_opt(piece)) {
+let get = (seg: Segment.t): string =>
+  switch (get_opt(seg)) {
   | None => failwith("ERROR: Slider: not float literal")
-  | Some(s) => s
+  | Some(s) => Printf.sprintf("%.2f", s)
   };
 
 module M: Projector = {
@@ -30,7 +35,7 @@ module M: Projector = {
       (_, ~info, ~local as _, ~parent: external_action => Ui_effect.t(unit)) =>
     Util.Web.range(
       ~attrs=[Attr.on_input((_, v) => parent(SetSyntax(put(v))))],
-      get(info.syntax) |> Printf.sprintf("%.2f"),
+      get(info.syntax),
     );
   let focus = _ => ();
 };
