@@ -480,6 +480,16 @@ module F = (ExerciseEnv: ExerciseEnv) => {
           provided: eds.your_tests.provided,
         };
       },
+      hidden_bugs:
+        eds.hidden_bugs
+        |> List.map(({impl, hint}) => {
+             let impl = Editor.set_read_only(impl, editing);
+             {impl, hint};
+           }),
+      hidden_tests: {
+        let tests = Editor.set_read_only(eds.hidden_tests.tests, editing);
+        {tests, hints: eds.hidden_tests.hints};
+      },
       your_impl: Editor.set_read_only(eds.your_impl, editing),
     },
   };
