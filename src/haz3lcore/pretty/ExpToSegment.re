@@ -707,7 +707,7 @@ let rec parenthesize = (exp: Exp.t): Exp.t => {
   | Float(_)
   | String(_)
   | EmptyHole
-  | Constructor(_)
+  //| Constructor(_) // Not indivisible because of the type annotation!
   | Deferral(_)
   | BuiltinFun(_)
   | Undefined => exp
@@ -719,6 +719,8 @@ let rec parenthesize = (exp: Exp.t): Exp.t => {
   | Filter(_, x) => x |> parenthesize
 
   // Other forms
+  | Constructor(c, t) =>
+    Constructor(c, paren_typ_at(Precedence.cast, t)) |> rewrap
   | Fun(p, e, c, n) =>
     Fun(
       parenthesize_pat(p) |> paren_pat_at(Precedence.min),
