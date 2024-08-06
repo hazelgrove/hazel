@@ -50,7 +50,11 @@ let mk_statics =
     : CachedStatics.statics => {
   let term = MakeTerm.from_zip_for_sem(editor.state.zipper) |> fst;
   let info_map = Interface.Statics.mk_map_ctx(settings.core, ctx_init, term);
-  let error_ids =
-    Statics.Map.error_ids(editor.state.meta.term_ranges, info_map);
-  {term, info_map, error_ids};
+  let error_and_warning_ids: (list(Id.t), list(Id.t)) =
+    Statics.Map.error_and_warning_ids(
+      editor.state.meta.term_ranges,
+      info_map,
+    );
+  let (error_ids, warning_ids) = error_and_warning_ids;
+  {term, info_map, error_ids, warning_ids};
 };

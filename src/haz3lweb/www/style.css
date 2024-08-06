@@ -62,6 +62,9 @@
   --err-color: red;
   --err-color-dark: #c00;
 
+  --warn-color: orange;
+  --warn-color-dark: #c96e00;
+
   --selection-color: #fae294;
   --selection-shadow-color: rosybrown;
 
@@ -143,6 +146,7 @@
   --empty-hole-z: 5;
   --tile-z: 4;
   --err-hole-z: 5;
+  --warn-hole-z: 5;
   --code-text-z: 6;
   --code-text-shards-z: 7;
   --bar-z: 0;
@@ -333,7 +337,7 @@ body {
   grid-row: 2;
   grid-column: 1 / span 1;
   overflow: auto;
-  
+
 }
 
 #main.Scratch,
@@ -1267,6 +1271,19 @@ svg.tile-selected {
   vector-effect: non-scaling-stroke;
 }
 
+.code-container svg.warn-hole {
+    fill: #d001;
+    stroke-dasharray: 1, 1;
+    stroke: var(--warn-color);
+    stroke-width: 1.2px;
+    /* mix-blend-mode: color; */
+    z-index: var(--warn-hole-z);
+}
+
+.code-container svg.warn-hole path {
+    vector-effect: non-scaling-stroke;
+}
+
 .typ-view {
   color: var(--typ-text-color);
   display: flex;
@@ -1313,6 +1330,12 @@ svg.tile-selected {
   /* HACK(andrew) */
 }
 
+.ci-header.warn {
+    background-color: var(--warn-color);
+    color: #ffaa0c !important;
+    /* HACK(liam copying andrew) */
+}
+
 .ci-header .toggle-switch {
   mix-blend-mode: luminosity;
   background-color: #ccc;
@@ -1343,6 +1366,10 @@ svg.tile-selected {
   border-color: var(--err-color);
 }
 
+.cursor-inspector.warn {
+    border-color: var(--warn-color);
+}
+
 .cursor-inspector .gamma:hover + .context-inspector,
 .context-inspector.visible {
   display: flex;
@@ -1362,8 +1389,16 @@ svg.tile-selected {
   border-bottom: 1px dashed red;
 }
 
+.cursor-inspector .warn .code {
+    background-color: #f3d890;
+    padding: 0 0.3em 0 0.3em;
+    border-radius: 0.3em;
+    border-bottom: 1px dashed orange;
+}
+
 .cursor-inspector .info .ok,
-.cursor-inspector .info .error {
+.cursor-inspector .info .error,
+.cursor-inspector .info .warn {
   display: flex;
   align-items: center;
   gap: 0.5em;
@@ -1372,6 +1407,10 @@ svg.tile-selected {
 
 .cursor-inspector .info .error {
   color: var(--err-color);
+}
+
+.cursor-inspector .info .warn {
+    color: var(--warn-color);
 }
 
 /* CONTEXT INSPECTOR */
@@ -1832,7 +1871,8 @@ svg.expandable path {
   background-color: #ffa2a2;
 }
 
-.cell-item.cell-result .error-msg {
+.cell-item.cell-result .error-msg,
+.cell-item.cell-result .warn-msg {
   padding: 0.25em;
   color: black;
 };

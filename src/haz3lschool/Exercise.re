@@ -651,11 +651,10 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       (settings: CoreSettings.t, t: stitched(TermItem.t)): stitched_statics => {
     let mk = ({term, term_ranges, _}: TermItem.t): StaticsItem.t => {
       let info_map = Interface.Statics.mk_map(settings, term);
-      {
-        term,
-        error_ids: Statics.Map.error_ids(term_ranges, info_map),
-        info_map,
-      };
+      let error_and_warning_ids: (list(Id.t), list(Id.t)) =
+        Statics.Map.error_and_warning_ids(term_ranges, info_map);
+      let (error_ids, warning_ids) = error_and_warning_ids;
+      {term, error_ids, warning_ids, info_map};
     };
     let instructor = mk(t.instructor);
     {

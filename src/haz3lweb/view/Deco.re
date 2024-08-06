@@ -11,6 +11,7 @@ module Deco =
            let terms: TermMap.t;
            let term_ranges: TermRanges.t;
            let error_ids: list(Id.t);
+           let warning_ids: list(Id.t);
            let tiles: TileMap.t;
          },
        ) => {
@@ -281,6 +282,9 @@ module Deco =
   let err_holes = (_z: Zipper.t) =>
     List.map(term_highlight(~clss=["err-hole"]), M.error_ids);
 
+  let warn_holes = (_z: Zipper.t) =>
+    List.map(term_highlight(~clss=["warn-hole"]), M.warning_ids);
+
   let all = (zipper, sel_seg) =>
     List.concat([
       caret(zipper),
@@ -289,5 +293,6 @@ module Deco =
       backpack(zipper),
       targets'(zipper.backpack, sel_seg),
       err_holes(zipper),
+      warn_holes(zipper),
     ]);
 };

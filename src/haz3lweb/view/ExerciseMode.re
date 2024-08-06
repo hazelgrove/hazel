@@ -57,10 +57,16 @@ let view =
         ~di: Exercise.DynamicsItem.t,
         this_pos,
       ) => {
+    let error_and_warning_ids: (list(Id.t), list(Id.t)) =
+      Statics.Map.error_and_warning_ids(
+        editor.state.meta.term_ranges,
+        di.info_map,
+      );
+    let (error_ids, warning_ids) = error_and_warning_ids;
     Cell.editor_view(
       ~selected=pos == this_pos,
-      ~error_ids=
-        Statics.Map.error_ids(editor.state.meta.term_ranges, di.info_map),
+      ~error_ids,
+      ~warning_ids,
       ~inject,
       ~ui_state,
       ~mousedown_updates=[SwitchEditor(this_pos)],

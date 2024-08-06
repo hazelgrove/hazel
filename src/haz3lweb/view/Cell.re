@@ -110,6 +110,7 @@ let deco =
       ~show_backpack_targets,
       ~selected,
       ~error_ids,
+      ~warning_ids,
       ~test_results: option(TestResults.t),
       ~highlights: option(ColorSteps.colorMap),
       {
@@ -131,6 +132,7 @@ let deco =
       let font_metrics = font_metrics;
       let show_backpack_targets = show_backpack_targets;
       let error_ids = error_ids;
+      let warning_ids = warning_ids;
     });
   let decos = selected ? Deco.all(zipper, segment) : Deco.err_holes(zipper);
   let decos =
@@ -262,6 +264,7 @@ let editor_view =
       ~highlights: option(ColorSteps.colorMap),
       ~overlayer: option(Node.t)=None,
       ~error_ids: list(Id.t),
+      ~warning_ids: list(Id.t),
       ~sort=Sort.root,
       editor: Editor.t,
     ) => {
@@ -272,6 +275,7 @@ let editor_view =
       ~show_backpack_targets,
       ~selected,
       ~error_ids,
+      ~warning_ids,
       ~test_results,
       ~highlights,
       editor,
@@ -366,6 +370,7 @@ let locked_no_statics =
     ~footer=[],
     ~test_results=None,
     ~error_ids=[],
+    ~warning_ids=[],
     ~overlayer=Some(expander_deco),
     ~sort,
     segment |> Zipper.unzip |> Editor.init(~read_only=true),
@@ -427,6 +432,7 @@ let locked =
     ~footer,
     ~test_results=ModelResult.test_results(result),
     ~error_ids=statics.error_ids,
+    ~warning_ids=statics.warning_ids,
     editor,
   );
 };
