@@ -294,8 +294,6 @@ module Pat = {
 };
 
 module Exp = {
-  include TermBase.Exp;
-
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Invalid
@@ -337,6 +335,8 @@ module Exp = {
     | Match
     | Cast
     | ListConcat;
+
+  include TermBase.Exp;
 
   let hole = (tms: list(TermBase.Any.t)): term =>
     switch (tms) {

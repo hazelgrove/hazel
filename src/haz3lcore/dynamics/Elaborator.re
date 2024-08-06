@@ -23,11 +23,11 @@ let fresh_cast = (d: DHExp.t, t1: Typ.t, t2: Typ.t): DHExp.t => {
     ? d
     : {
       let d' =
-        DHExp.Cast(d, t1, Typ.temp(Unknown(Internal)))
-        |> DHExp.fresh
+        Exp.Cast(d, t1, Typ.temp(Unknown(Internal)))
+        |> IdTagged.fresh_deterministic(DHExp.rep_id(d))
         |> Casts.transition_multiple;
       DHExp.Cast(d', Typ.temp(Unknown(Internal)), t2)
-      |> DHExp.fresh
+      |> IdTagged.fresh_deterministic(DHExp.rep_id(d'))
       |> Casts.transition_multiple;
     };
 };
@@ -314,11 +314,12 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
         |> cast_from(ty);
       } else {
         // TODO: Add names to mutually recursive functions
-        // TODO: Don't add fixpoint if there already is one
         let def = add_name(Option.map(s => s ++ "+", Pat.get_var(p)), def);
         let (def, ty2) = elaborate(m, def);
         let (body, ty) = elaborate(m, body);
-        let fixf = FixF(p, fresh_cast(def, ty2, ty1), None) |> DHExp.fresh;
+        let fixf =
+          Exp.FixF(p, fresh_cast(def, ty2, ty1), None)
+          |> IdTagged.fresh_deterministic(DHExp.rep_id(uexp));
         Exp.Let(p, fixf, body) |> rewrap |> cast_from(ty);
       };
     | FixF(p, e, env) =>

@@ -128,12 +128,7 @@ let next_step_indicated =
     ~shapes,
     ~path_cls,
     ~base_cls,
-    ~attr=[
-      Attr.on_mousedown(_ => {
-        print_endline("CLICK!");
-        inject();
-      }),
-    ],
+    ~attr=[Attr.on_mousedown(_ => {inject()})],
     measurement,
   );
 };

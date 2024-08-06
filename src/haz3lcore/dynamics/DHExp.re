@@ -39,7 +39,6 @@ let repair_ids =
     ~f_typ=
       (continue, typ) =>
         if (Typ.rep_id(typ) == Id.invalid) {
-          print_endline("HERE!!");
           replace_all_ids_typ(typ);
         } else {
           continue(typ);

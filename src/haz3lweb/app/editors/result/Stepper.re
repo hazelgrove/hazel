@@ -42,7 +42,9 @@ module Model = {
     |> Aba.hd
     |> (
       fun
-      | A({next_steps, _}) => next_steps
+      | A({next_steps, _}) => {
+          next_steps;
+        }
       | PendingStep => []
     );
 
@@ -191,6 +193,7 @@ module Update = {
               let& () = List.nth_opt(correct_id, 0);
               {...b, valid: false};
             };
+            print_endline(string_of_bool(b'.valid));
             switch (get_next_a(~settings, model.history, b'), b'.valid) {
             | (Some(a'), true) => Aba.cons(a', b', c)
             | (None, _)
@@ -209,9 +212,12 @@ module Update = {
   // TODO[Matt]: faster calculation
   // let calculate_pending = (~settings, elab: Exp.t) => {};
 
-  let calculate = (~settings, elab: Exp.t) => {
+  let calculate = (~settings, elab: Exp.t, model: Model.t) => {
+    print_endline(string_of_int(model.history |> Aba.get_as |> List.length));
     let elab = elab |> DHExp.repair_ids;
-    full_calculate(~settings, elab);
+    let m = full_calculate(~settings, elab, model);
+    print_endline(string_of_int(m.history |> Aba.get_as |> List.length));
+    m;
   };
 };
 
