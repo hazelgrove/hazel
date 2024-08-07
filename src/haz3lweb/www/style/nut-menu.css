@@ -110,7 +110,7 @@
   > .submenu-icon
   > .icon
   > svg {
-  fill: var(--light-page-color);
+  fill: var(--GB1);
 }
 
 #top-bar .nut-menu:hover,
@@ -148,7 +148,7 @@
 }
 
 #top-bar .nut-menu .top-menu-item:hover {
-  background-color: var(--nut-menu-active);
+  background-color: var(--menu-bkg);
 }
 
 #top-bar .nut-icon {
@@ -225,7 +225,6 @@
   display: flex;
   align-items: center;
   white-space: nowrap;
-  cursor: pointer;
   gap: 0.5em;
   padding: 0 0.75em;
   border-radius: 0 0 1em 0;
@@ -250,11 +249,6 @@
   fill: var(--editor-mode-text);
 }
 
-#top-bar #editor-mode .mode-name select:hover,
-#top-bar #editor-mode select:hover {
-  border-radius: 0.5em;
-}
-
 #top-bar #editor-mode .icon svg {
   height: 15px;
 }
@@ -268,9 +262,5 @@
 }
 
 #top-bar #editor-mode select {
-  background: none;
-  border: none;
-  padding: 0;
   text-transform: lowercase;
-  padding: 0 0.5em;
 }

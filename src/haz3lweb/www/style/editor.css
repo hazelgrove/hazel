@@ -63,7 +63,7 @@
 }
 
 .code .token.explicit-hole {
-  color: var(--token-explicit-hole) !important;
+  color: var(--token-explicit-hole);
   text-shadow: 1px 1px 0px var(--token-explicit-hole-shadow);
 }
 

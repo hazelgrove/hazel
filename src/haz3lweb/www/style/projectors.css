@@ -34,7 +34,6 @@
 .projector.block.selected > svg > path {
   vector-effect: non-scaling-stroke;
   stroke: var(--Y3);
-  /* filter: url(#drop-shadow-Nul) !important; */
 }
 .projector.selected > svg,
 .projector.selected.indicated > svg,
@@ -140,6 +139,9 @@
     var(--textarea-h-strip-selected) 1.41em,
     var(--textarea-h-strip-selected) 1.45em /* line-height */
   );
+}
+.projector.text.selected > svg {
+  z-index: 9;
 }
 
 .projector.text textarea {

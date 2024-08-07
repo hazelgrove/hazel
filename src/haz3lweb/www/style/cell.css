@@ -36,6 +36,7 @@
   border: none;
   border-radius: 0.4em;
   width: fit-content;
+  min-width: 100%;
 }
 
 .cell-item {

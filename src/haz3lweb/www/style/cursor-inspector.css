@@ -37,7 +37,7 @@
   padding-right: 0.7em;
   color: var(--light-page-color);
   height: 100%;
-  transition: all 0.1s ease-in;
+  transition: border-radius 0.2s ease-in;
 }
 #cursor-inspector .Exp .gamma {
   background-color: var(--ci-icon-bkg);
@@ -52,6 +52,21 @@
   background-color: var(--token-tpat);
 }
 
+#cursor-inspector .ci-header .gamma:hover,
+#cursor-inspector .ci-header.error .gamma:hover,
+#cursor-inspector .ci-header .gamma.visible,
+#cursor-inspector .ci-header.error  .gamma.visible,
+#bottom-bar:has(~ .context-inspector:hover) .gamma {
+  background-color: #dfcc99;
+  outline: 0.3px solid var(--BR3);
+  color: var(--BR4);
+}
+
+#cursor-inspector .gamma.visible,
+#bottom-bar:has(~ .context-inspector:hover) .gamma {
+  border-radius: 0;
+}
+
 #cursor-inspector .ci-header {
   outline: 0.6px solid var(--BR2);
   padding: 0em 0.6em 0em 0em;
@@ -63,72 +78,73 @@
 }
 
 #cursor-inspector .ci-header.error {
-  background-color: var(--ci-status-error-bkg) !important;
-  color: var(--ci-status-error-text) !important;
+  background-color: var(--ci-status-error-bkg);
+  color: var(--ci-status-error-text);
 }
 #cursor-inspector .ci-header.error .gamma {
-  background-color: var(--R2) !important;
+  background-color: var(--R2);
 }
 #cursor-inspector .ci-header.error .toggle-switch {
-  background-color: var(--R2) !important;
+  background-color: var(--R2);
+  border: none;
 }
 #cursor-inspector .ci-header.error .toggle-switch .toggle-knob {
-  color: var(--R2) !important;
+  color: var(--R2);
 }
 
-#cursor-inspector .ci-header .toggle-switch .toggle-knob {
+#cursor-inspector .ci-header.ok .toggle-switch .toggle-knob {
   background-color: var(--SAND);
 }
-#cursor-inspector .ci-header.Exp .toggle-switch.active  {
+#cursor-inspector .ci-header.ok.Exp .toggle-switch.active  {
   background-color: var(--BR3);
 }
-#cursor-inspector .ci-header.Pat .toggle-switch.active  {
+#cursor-inspector .ci-header.ok.Pat .toggle-switch.active  {
   background-color: var(--token-pat);
 }
-#cursor-inspector .ci-header.Typ .toggle-switch.active  {
+#cursor-inspector .ci-header.ok.Typ .toggle-switch.active  {
   background-color: var(--token-typ);
 }
-#cursor-inspector .ci-header.TPat .toggle-switch.active  {
+#cursor-inspector .ci-header.ok.TPat .toggle-switch.active  {
   background-color: var(--token-tpat);
 }
-#cursor-inspector .ci-header.Exp .toggle-switch .toggle-knob  {
+#cursor-inspector .ci-header.ok.Exp .toggle-switch .toggle-knob  {
   color: var(--BR3);
 }
-#cursor-inspector .ci-header.Pat .toggle-switch .toggle-knob{
+#cursor-inspector .ci-header.ok.Pat .toggle-switch .toggle-knob{
   color: var(--token-pat);
 }
-#cursor-inspector .ci-header.Typ .toggle-switch .toggle-knob {
+#cursor-inspector .ci-header.ok.Typ .toggle-switch .toggle-knob {
   color: var(--token-typ);
 }
-#cursor-inspector .ci-header.TPat .toggle-switch .toggle-knob {
+#cursor-inspector .ci-header.ok.TPat .toggle-switch .toggle-knob {
   color: var(--token-tpat);
 }
 
-#cursor-inspector .ci-header.Nul {
+#cursor-inspector .ci-header.ok.Nul {
   background-color: var(--shard-nul);
   color: var(--shadow-nul);
 }
-#cursor-inspector .ci-header.Any {
+#cursor-inspector .ci-header.ok.Any {
   background-color: var(--shard-any);
   color: var(--shadow-any);
 }
-#cursor-inspector .ci-header.Exp {
+#cursor-inspector .ci-header.ok.Exp {
   background-color: var(--shard-exp);
   color: var(--BR3);
 }
-#cursor-inspector .ci-header.Pat {
+#cursor-inspector .ci-header.ok.Pat {
   background-color: var(--shard-pat);
   color: var(--token-pat);
 }
-#cursor-inspector .ci-header.Typ {
+#cursor-inspector .ci-header.ok.Typ {
   background-color: var(--shard-typ);
   color: var(--token-typ);
 }
-#cursor-inspector .ci-header.Rul {
+#cursor-inspector .ci-header.ok.Rul {
   background-color: var(--shard-rul);
   color: var(--shard-lines-rul);
 }
-#cursor-inspector .ci-header.TPat {
+#cursor-inspector .ci-header.ok.TPat {
   background-color: var(--shard-tpat);
   color: var(--token-tpat);
 }
@@ -161,11 +177,6 @@
 .context-inspector:hover,
 .context-inspector.visible {
   display: flex;
-}
-
-#cursor-inspector .gamma.visible,
-#bottom-bar:has(~ .context-inspector:hover) .gamma {
-  border-radius: 0;
 }
 
 .context-inspector {

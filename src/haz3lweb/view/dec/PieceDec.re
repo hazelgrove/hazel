@@ -66,19 +66,25 @@ let tips_of_shapes = ((l, r): (Nib.Shape.t, Nib.Shape.t)): (tip, tip) => (
   Some(r),
 );
 
+let simple_shard_indicated = (shard_dims, ~sort: Sort.t, ~at_caret: bool): t =>
+  simple_shard(
+    shard_dims,
+    ["indicated", Sort.to_string(sort)] @ (at_caret ? ["caret"] : []),
+  );
+
 let simple_shards_indicated =
     (~font_metrics: FontMetrics.t, (id, mold, shards), ~caret: (Id.t, int))
     : list(t) =>
   List.map(
     ((index, measurement)) =>
-      simple_shard(
+      simple_shard_indicated(
         {
           font_metrics,
           measurement,
           tips: tips_of_shapes(Mold.nib_shapes(~index, mold)),
         },
-        ["indicated", Sort.to_string(mold.out)]
-        @ (caret == (id, index) ? ["caret"] : []),
+        ~sort=mold.out,
+        ~at_caret=caret == (id, index),
       ),
     shards,
   );

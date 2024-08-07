@@ -35,6 +35,32 @@ let sel_shard_svg =
     |> PieceDec.tips_of_shapes
   },
 );
+
+let multiline_shard =
+    (
+      num_lb: int,
+      {origin, last}: Measured.measurement,
+      tips: (option(Nib.Shape.t), option(Nib.Shape.t)),
+    ) =>
+  List.init(num_lb + 1, i =>
+    [
+      Some((
+        Measured.{
+          origin: {
+            row: origin.row + i,
+            col: origin.col,
+          },
+          last: {
+            row: origin.row + i,
+            col: last.col,
+          },
+        },
+        (i == 0 ? fst(tips) : None, i == num_lb ? snd(tips) : None),
+      )),
+      None,
+    ]
+  )
+  |> List.concat;
 module HighlightSegment =
        (
          M: {
@@ -83,35 +109,27 @@ module HighlightSegment =
            let token = List.nth(t.label, index);
            switch (StringUtil.num_linebreaks(token)) {
            | 0 => [Some(sel_shard_svg(~start_shape, ~index, m, Tile(t)))]
-           //TODO(andrew): clarify
-           /* Deco for multi-line tokens e.g. projector placeholders
-            * handled in ProjectorsView but need to leave some blank lines */
-           | num_lb => List.init(num_lb, _ => None)
+           | num_lb =>
+             multiline_shard(num_lb, m, (Some(Convex), Some(Convex)))
            };
          });
-    //TODO(andrew): Some below
     let shape_at = index => Some(snd(Mold.nibs(~index, t.mold)).shape);
     let children_shards =
       t.children |> List.mapi(index => of_segment(shape_at(index)));
     ListUtil.interleave(tile_shards, children_shards) |> List.flatten;
   }
-  and of_projector = (~start_shape, p: Base.projector): list(option(_)) => {
-    let m =
-      switch (Measured.find_pr_opt(p, M.measured)) {
-      | None =>
-        failwith("TODO(andrew): Deco.sel_of_projector: missing measurement")
-      | Some(m) => m
-      };
-    let ci = Id.Map.find_opt(p.id, M.info_map);
-    let token = Projector.placeholder(p, ci);
-    switch (StringUtil.num_linebreaks(token)) {
-    | 0 => [Some(sel_shard_svg(~start_shape, ~index=0, m, Projector(p)))]
-    //TODO(andrew): clarify
-    /* Deco for multi-line tokens e.g. projector placeholders
-     * handled in ProjectorsView but need to leave some blank lines */
-    | num_lb => List.init(num_lb, _ => None)
-    };
-  }
+  and of_projector = (~start_shape as _, p: Base.projector): list(option(_)) =>
+    switch (Measured.find_pr_opt(p, M.measured)) {
+    | None => failwith("Deco.of_projector: missing measurement")
+    | Some(m) =>
+      let ci = Id.Map.find_opt(p.id, M.info_map);
+      let token = Projector.placeholder(p, ci);
+      multiline_shard(
+        StringUtil.num_linebreaks(token),
+        m,
+        (Some(Convex), Some(Convex)),
+      );
+    }
   and of_segment =
       (start_shape: PieceDec.tip, seg: Segment.t): list(option(_)) => {
     seg
@@ -209,6 +227,21 @@ module Deco =
     | _ when z.selection.content != [] => []
     | None => []
     | Some((Grout(_), _, _)) => []
+    | Some((Projector(p), _, _)) =>
+      switch (Measured.find_pr_opt(p, M.meta.syntax.measured)) {
+      | Some(measurement) => [
+          PieceDec.simple_shard_indicated(
+            {
+              font_metrics,
+              measurement,
+              tips: p |> ProjectorBase.shapes |> PieceDec.tips_of_shapes,
+            },
+            ~sort=ProjectorBase.mold_of(p, Exp).out,
+            ~at_caret=true,
+          ),
+        ]
+      | None => []
+      }
     | Some((p, side, _)) =>
       // root_profile calculation assumes p is tile
       // TODO encode in types
@@ -424,10 +457,7 @@ module Deco =
     div_c("errors", List.map(error_view, M.meta.statics.error_ids));
 
   let indication = (z: Zipper.t) =>
-    switch (Projector.indicated(z)) {
-    | Some(_) => Node.div([]) /* projector indication handled internally */
-    | None => div_c("indication", indicated_piece_deco(z))
-    };
+    div_c("indication", indicated_piece_deco(z));
 
   let selection = (z: Zipper.t) => div_c("selects", segment_selected(z));
 
