@@ -232,21 +232,22 @@ let expander_deco =
       ~docs: ExplainThisModel.t,
       ~settings: Settings.t,
       ~inject,
-      ~ui_state as {font_metrics, _}: Model.ui_state,
+      ~ui_state: Model.ui_state,
       ~options: list((ExplainThisForm.form_id, Segment.t)),
       ~group: ExplainThisForm.group,
       ~doc: ExplainThisForm.form,
     ) => {
   module Deco =
     Deco.Deco({
-      let font_metrics = font_metrics;
-      let map = Measured.of_segment(doc.syntactic_form);
-      let show_backpack_targets = false;
-      let (_term, terms) = MakeTerm.go(doc.syntactic_form);
-      let term_ranges = TermRanges.mk(doc.syntactic_form);
-      let tiles = TileMap.mk(doc.syntactic_form);
-      let error_ids = [];
+      let ui_state = ui_state;
+      let meta =
+        Editor.Meta.init(
+          ~settings=CoreSettings.off,
+          Zipper.unzip(doc.syntactic_form),
+        );
+      let highlights: option(ColorSteps.colorMap) = None;
     });
+  let Model.{font_metrics, _} = ui_state;
   switch (doc.expandable_id, List.length(options)) {
   | (None, _)
   | (_, 0 | 1) => div([])
@@ -283,14 +284,8 @@ let expander_deco =
             ],
             List.map(
               ((id: ExplainThisForm.form_id, segment: Segment.t)): Node.t => {
-                let map = Measured.of_segment(segment);
                 let code_view =
-                  Code.simple_view(
-                    ~font_metrics,
-                    ~unselected=segment,
-                    ~map,
-                    ~settings,
-                  );
+                  Code.simple_view(~font_metrics, ~segment, ~settings);
                 let classes =
                   id == doc.id
                     ? ["selected"] @ get_clss(segment) : get_clss(segment);
