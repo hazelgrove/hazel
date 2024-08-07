@@ -331,7 +331,7 @@ let rec exp_to_pretty = (~inline, exp: Exp.t): pretty => {
   | Match(e, rs) =>
     // TODO: Add newlines
     let+ e = go(e)
-    and+ rs: list(list((Segment.t, Segment.t))) = {
+    and+ rs: list((Segment.t, Segment.t)) = {
       rs
       |> List.map(((p, e)) => (pat_to_pretty(~inline, p), go(e)))
       |> List.map(((x, y)) => ListUtil.cross(x, y))
