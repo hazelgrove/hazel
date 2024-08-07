@@ -197,10 +197,10 @@
   /* BELOW CODE LEVEL */
   --tile-z: 0;
   --err-hole-arms-z: 1;
+  --projector-backing-z: 1;
   --err-hole-z: 2;
-  --select-z: 3;
-  --test-result-z: 4;
-  --projector-backing-z: 4;
+  --select-z: 4;
+  --test-result-z: 5;
 
   /* AT CODE LEVEL */
   --code-text-z: 10;

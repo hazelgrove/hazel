@@ -44,7 +44,7 @@ let term_view = (~inject, ~settings: Settings.t, ci) => {
   let sort = ci |> Info.sort_of |> Sort.show;
   div(
     ~attrs=[
-      clss(["ci-header", sort] @ (Info.is_error(ci) ? [errc] : [])),
+      clss(["ci-header", sort] @ (Info.is_error(ci) ? [errc] : [okc])),
     ],
     [
       ctx_toggle(~inject, settings.context_inspector),

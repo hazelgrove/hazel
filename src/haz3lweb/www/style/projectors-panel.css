@@ -15,13 +15,6 @@
   width: 0.7em;
 }
 
-#projectors select {
-  background: none;
-  border: none;
-  padding: 0;
-  width: 4.5em;
-}
-
 #projectors option {
   font-size: 1em;
 }

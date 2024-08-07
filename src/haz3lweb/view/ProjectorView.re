@@ -284,27 +284,30 @@ module Panel = {
       | Some((p, _, _)) => minimum_projection_condition(p)
       | None => false
       };
+    let applicable_projectors = applicable_projectors(ci);
+    let should_show = might_project && applicable_projectors != [];
+    let select_view =
+      Node.select(
+        ~attrs=[
+          Attr.on_change((_, name) =>
+            inject(Action.SetIndicated(of_name(name)))
+          ),
+        ],
+        (might_project ? applicable_projectors : [])
+        |> List.map(name)
+        |> List.map(currently_selected(editor)),
+      );
+    let toggle_view =
+      toggle_view(
+        ~inject,
+        ci,
+        id(editor),
+        kind(editor) != None,
+        might_project,
+      );
     div(
       ~attrs=[Attr.id("projectors")],
-      [
-        toggle_view(
-          ~inject,
-          ci,
-          id(editor),
-          kind(editor) != None,
-          might_project,
-        ),
-        Node.select(
-          ~attrs=[
-            Attr.on_change((_, name) =>
-              inject(SetIndicated(of_name(name)))
-            ),
-          ],
-          (might_project ? applicable_projectors(ci) : [])
-          |> List.map(name)
-          |> List.map(currently_selected(editor)),
-        ),
-      ],
+      (should_show ? [select_view] : []) @ [toggle_view],
     );
   };
 };
