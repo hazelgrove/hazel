@@ -137,8 +137,8 @@ and Exp: {
   type term =
     | Invalid(string) //? s
     | EmptyHole //?
-    | MultiHole(list(Any.t)) //<<e>> TODO: not necessary for parser - cyrus
-    | DynamicErrorHole(t, InvalidOperationError.t) //TODO menhir - for the error message take the s exp serialization of the type and pass it in to the s expression parser
+    | MultiHole(list(Any.t)) //<<e>> //TODO: not necessary for parser - cyrus
+    | DynamicErrorHole(t, InvalidOperationError.t) //This exp takes in the Sexp serialization of the InvalidOperationError.t as a string (s); // <<e ? s>>
     | FailedCast(t, Typ.t, Typ.t) //e ?<ty1 => ty2>
     | Deferral(deferral_position) /*InAp _*/ /*OutAp _*/
     | Undefined
@@ -348,6 +348,11 @@ and Exp: {
     | TypAp(e, ty) => TypAp(of_menhir_ast(e), Typ.of_menhir_ast(ty))
     | UnOp(op, e) =>
       UnOp(Operators.op_un_of_menhir_ast(op), of_menhir_ast(e))
+    | DynamicErrorHole(e, s) =>
+      DynamicErrorHole(
+        of_menhir_ast(e),
+        InvalidOperationError.t_of_sexp(sexp_of_string(s)),
+      )
     // | _ => raise(Invalid_argument("Menhir AST -> DHExp not yet implemented"))
     };
   }

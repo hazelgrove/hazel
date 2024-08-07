@@ -236,7 +236,7 @@ exp:
     | FALSE { Bool false }    
     | FIX;  p = pat; DASH_ARROW; e = exp { FixF(p, e) }
     | TYP_FUN; t = tpat; DASH_ARROW; e = exp {TypFun(t, e)}
-    | OPEN_BRACKET; OPEN_BRACKET; e = exp; CLOSE_BRACKET; CLOSE_BRACKET {MultiHole e}
+    | LESS_THAN; LESS_THAN; e = exp; GREATER_THAN; GREATER_THAN {MultiHole e}
     | QUESTION { EmptyHole }
     | a = filterAction; cond = exp; body = exp { Filter(a, cond, body)}
     | TEST; e = exp; END { Test(e) }
@@ -248,5 +248,6 @@ exp:
     | OUT_AP; WILD {Deferral(OutsideAp)}
     | e = exp; AT_SYMBOL; LESS_THAN; ty = typ; GREATER_THAN; {TypAp(e, ty)}
     | TYP; tp = tpat; SINGLE_EQUAL; ty = typ; IN; e = exp {TyAlias(tp, ty, e)}
+    | LESS_THAN; LESS_THAN; e = exp; QUESTION; s = STRING; GREATER_THAN; GREATER_THAN {DynamicErrorHole(e, s)}
     (* | b = BUILTIN; OPEN_PAREN; a = exp; CLOSE_PAREN {BuiltinAp(b, a)} *)
     | u = unExp { u }

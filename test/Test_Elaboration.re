@@ -214,7 +214,64 @@ let let_exp_menhir = () =>
     let_exp_uexp,
   );
 
+let typ_ap_str = "(typfun x -> 4) @ <Int>";
+let typ_ap_uexp: Exp.t =
+  TypAp(
+    TypFun(Var("x") |> TPat.fresh, Int(4) |> Exp.fresh, None) |> Exp.fresh,
+    Int |> Typ.fresh,
+  )
+  |> Exp.fresh;
+let typ_ap_menhir = () =>
+  alco_check_menhir("Type ap test (menhir)", typ_ap_str, typ_ap_uexp);
+
+let failed_cast_str = "1 ?<Int => String>";
+let failed_cast_uexp: Exp.t =
+  FailedCast(Int(1) |> Exp.fresh, Int |> Typ.fresh, String |> Typ.fresh)
+  |> Exp.fresh;
+let failed_cast_menhir = () =>
+  alco_check_menhir(
+    "Failed cast test (menhir)",
+    failed_cast_str,
+    failed_cast_uexp,
+  );
+
+let constructor_str = "X: Unknown Internal";
+let constructor_uexp: Exp.t =
+  Constructor("X", Unknown(Internal) |> Typ.fresh) |> Exp.fresh;
+let constructor_menhir = () =>
+  alco_check_menhir(
+    "Constructor test (menhir)",
+    constructor_str,
+    constructor_uexp,
+  );
+
+
+//TODO: ask cyrus best way to demonstrate this
+// let ty_alias_str = "type x = Int in 4";
+// let ty_alias_uexp: Exp.t =
+//   TyAlias(
+//     Var("x") |> TPat.fresh,
+//     Int |> Typ.fresh,
+//     TypAp(
+//       TypFun(Var("y") |> TPat.fresh, Var("y") |> Exp.fresh, None)
+//       |> Exp.fresh,
+//       Var("x") |> Typ.fresh,
+//     )
+//     |> Exp.fresh,
+//   )
+//   |> Exp.fresh;
+// let ty_alias_menhir = () =>
+//   alco_check_menhir("Type alias test (menhir)", ty_alias_str, ty_alias_uexp);
+
+let 
+
+
+
 let elaboration_tests = [
+  // test_case("Type alias test (menhir)", `Quick, ty_alias_menhir),
+  test_case("Constructor test (menhir)", `Quick, constructor_menhir),
+  test_case("Failed cast test (menhir)", `Quick, failed_cast_menhir),
+  test_case("Type ap test (menhir)", `Quick, typ_ap_menhir),
   test_case("Let expression for a tuple (menhir)", `Quick, let_exp_menhir),
   test_case("Single integer (menhir)", `Quick, single_integer_menhir),
   test_case("Let expression for a function (menhir)", `Quick, let_fun_menhir),
