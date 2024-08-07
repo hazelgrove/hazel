@@ -138,24 +138,7 @@ let rec exp_to_pretty = (~inline, exp: Exp.t): pretty => {
             ),
         ],
       );
-    p_just([form(x, xs)])
-    |> p_orif(
-         !inline,
-         p_just(
-           {
-             let x = [Secondary(Secondary.mk_newline(Id.mk()))] @ x;
-             let xs =
-               xs
-               |> List.map(x =>
-                    [Secondary(Secondary.mk_newline(Id.mk()))] @ x
-                  )
-               |> ListUtil.map_last_only(x =>
-                    x @ [Secondary(Secondary.mk_newline(Id.mk()))]
-                  );
-             [form(x, xs)];
-           },
-         ),
-       );
+    p_just([form(x, xs)]);
   | Var(v) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, v)
   | BinOp(op, l, r) =>
     // TODO: Add optional newlines
@@ -331,10 +314,10 @@ let rec exp_to_pretty = (~inline, exp: Exp.t): pretty => {
   | Match(e, rs) =>
     // TODO: Add newlines
     let+ e = go(e)
-    and+ rs: list(list((Segment.t, Segment.t))) = {
+    and+ rs: list((Segment.t, Segment.t)) = {
       rs
       |> List.map(((p, e)) => (pat_to_pretty(~inline, p), go(e)))
-      |> List.map(((x, y)) => ListUtil.cross(x, y))
+      |> List.map(((x, y)) => (x, y))
       |> all;
     };
     let (id, ids) = (
@@ -449,7 +432,7 @@ and typ_to_pretty = (~inline, typ: Typ.t): pretty => {
     | Variant(c, ids, Some(x)) => {
         let+ constructor =
           text_to_pretty(List.hd(List.tl(ids)), Sort.Typ, c);
-        constructor @ [mk_form("ap_typ", List.hd(ids), go(x))];
+        constructor @ [mk_form("ap_typ", List.hd(ids), [go(x)])];
       }
     | BadEntry(x) => go(x);
   switch (typ |> Typ.term_of) {
