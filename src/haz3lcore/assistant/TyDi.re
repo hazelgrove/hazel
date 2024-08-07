@@ -67,17 +67,6 @@ let suffix_of = (candidate: Token.t, current: Token.t): option(Token.t) => {
   candidate_suffix == "" ? None : Some(candidate_suffix);
 };
 
-/* PERF: This is quite expensive */
-let z_to_ci = (~settings: CoreSettings.t, ~ctx: Ctx.t, z: Zipper.t) => {
-  let map =
-    z
-    |> MakeTerm.from_zip_for_sem
-    |> fst
-    |> Interface.Statics.mk_map_ctx(settings, ctx);
-  let* index = Indicated.index(z);
-  Id.Map.find_opt(index, map);
-};
-
 /* Returns the text content of the suggestion buffer */
 let get_buffer = (z: Zipper.t): option(Token.t) =>
   switch (z.selection.mode, z.selection.content) {
@@ -87,9 +76,10 @@ let get_buffer = (z: Zipper.t): option(Token.t) =>
   };
 
 /* Populates the suggestion buffer with a type-directed suggestion */
-let set_buffer = (~settings, ~ctx: Ctx.t, z: Zipper.t): option(Zipper.t) => {
+let set_buffer = (~info_map: Statics.Map.t, z: Zipper.t): option(Zipper.t) => {
   let* tok_to_left = token_to_left(z);
-  let* ci = z_to_ci(~settings, ~ctx, z);
+  let* index = Indicated.index(z);
+  let* ci = Id.Map.find_opt(index, info_map);
   let suggestions = suggest(ci, z);
   let suggestions =
     suggestions

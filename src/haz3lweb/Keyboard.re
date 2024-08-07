@@ -1,7 +1,8 @@
 open Haz3lcore;
+open Util;
 
-let is_digit = s => Re.Str.(string_match(regexp("^[0-9]$"), s, 0));
-let is_f_key = s => Re.Str.(string_match(regexp("^F[0-9][0-9]*$"), s, 0));
+let is_digit = s => StringUtil.(match(regexp("^[0-9]$"), s));
+let is_f_key = s => StringUtil.(match(regexp("^F[0-9][0-9]*$"), s));
 
 let handle_key_event = (k: Key.t): option(Update.t) => {
   let now = (a: Action.t): option(UpdateAction.t) =>
@@ -35,7 +36,7 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
     | (Up, "Escape") => now(Unselect(None))
     | (Up, "Tab") => Some(TAB)
     | (Up, "F12") => now(Jump(BindingSiteOfIndicatedVar))
-    | (Down, "Tab") => Some(MoveToNextHole(Left))
+    | (Down, "Tab") => now(Move(Goal(Piece(Grout, Left))))
     | (Down, "ArrowLeft") => now(Select(Resize(Local(Left(ByToken)))))
     | (Down, "ArrowRight") => now(Select(Resize(Local(Right(ByToken)))))
     | (Down, "ArrowUp") => now(Select(Resize(Local(Up))))
@@ -77,8 +78,8 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
     | "d" => now(Select(Term(Current)))
     | "p" => Some(PerformAction(Pick_up))
     | "a" => now(Select(All))
-    | "k" => Some(ReparseCurrentEditor)
-    | "/" => Some(Assistant(Prompt(TyDi)))
+    | "k" => Some(PerformAction(Reparse))
+    | "/" => Some(PerformAction(Buffer(Set(TyDi))))
     | "ArrowLeft" => now(Move(Extreme(Left(ByToken))))
     | "ArrowRight" => now(Move(Extreme(Right(ByToken))))
     | "ArrowUp" => now(Move(Extreme(Up)))
@@ -91,8 +92,8 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
     | "d" => now(Select(Term(Current)))
     | "p" => Some(PerformAction(Pick_up))
     | "a" => now(Select(All))
-    | "k" => Some(ReparseCurrentEditor)
-    | "/" => Some(Assistant(Prompt(TyDi)))
+    | "k" => Some(PerformAction(Reparse))
+    | "/" => Some(PerformAction(Buffer(Set(TyDi))))
     | "ArrowLeft" => now(Move(Local(Left(ByToken))))
     | "ArrowRight" => now(Move(Local(Right(ByToken))))
     | "Home" => now(Move(Extreme(Up)))
@@ -105,13 +106,18 @@ let handle_key_event = (k: Key.t): option(Update.t) => {
     | "e" => now(Move(Extreme(Right(ByToken))))
     | _ => None
     }
-  | {key: D(key), sys, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-    switch (sys, key) {
-    | (_, "ArrowLeft") => now(MoveToBackpackTarget(Left(ByToken)))
-    | (_, "ArrowRight") => now(MoveToBackpackTarget(Right(ByToken)))
-    | (_, "Alt") => Some(SetMeta(ShowBackpackTargets(true)))
-    | (_, "ArrowUp") => now(MoveToBackpackTarget(Up))
-    | (_, "ArrowDown") => now(MoveToBackpackTarget(Down))
+  | {key: D("f"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
+    Some(PerformAction(Project(ToggleIndicated(Fold))))
+  | {key: D("ƒ"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
+    /* Curly ƒ is what holding option turns f into on Mac */
+    Some(PerformAction(Project(ToggleIndicated(Fold))))
+  | {key: D(key), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
+    switch (key) {
+    | "ArrowLeft" => now(MoveToBackpackTarget(Left(ByToken)))
+    | "ArrowRight" => now(MoveToBackpackTarget(Right(ByToken)))
+    | "Alt" => Some(SetMeta(ShowBackpackTargets(true)))
+    | "ArrowUp" => now(MoveToBackpackTarget(Up))
+    | "ArrowDown" => now(MoveToBackpackTarget(Down))
     | _ => None
     }
   | _ => None

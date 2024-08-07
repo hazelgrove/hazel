@@ -22,7 +22,7 @@ module Make = (M: Editor.Meta.S) => {
   let range = (l: Id.t, r: Id.t, z: Zipper.t): option(Zipper.t) => {
     let* z = Move.jump_to_id(z, l);
     let* Measured.{last, _} = Measured.find_by_id(r, M.measured);
-    Move.do_towards(primary, last, z);
+    Move.do_towards(Zipper.select, last, z);
   };
 
   let term = (id: Id.t, z: Zipper.t): option(Zipper.t) => {
