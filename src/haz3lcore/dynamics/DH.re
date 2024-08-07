@@ -26,7 +26,7 @@ module rec DHExp: {
     | ApBuiltin(string, t)
     | BuiltinFun(string)
     | Test(KeywordID.t, t)
-    | HintedTest(KeywordID.t, t)
+    | HintedTest(KeywordID.t, t, string)
     | BoolLit(bool)
     | IntLit(int)
     | FloatLit(float)
@@ -88,7 +88,7 @@ module rec DHExp: {
     | ApBuiltin(string, t)
     | BuiltinFun(string)
     | Test(KeywordID.t, t)
-    | HintedTest(KeywordID.t, t)
+    | HintedTest(KeywordID.t, t, string)
     | BoolLit(bool)
     | IntLit(int)
     | FloatLit(float)
@@ -191,7 +191,7 @@ module rec DHExp: {
     | Ap(a, b) => Ap(strip_casts(a), strip_casts(b))
     | TypAp(a, b) => TypAp(strip_casts(a), b)
     | Test(id, a) => Test(id, strip_casts(a))
-    | HintedTest(id, a) => HintedTest(id, strip_casts(a))
+    | HintedTest(id, a, hint) => HintedTest(id, strip_casts(a), hint)
     | ApBuiltin(fn, args) => ApBuiltin(fn, strip_casts(args))
     | BuiltinFun(fn) => BuiltinFun(fn)
     | BinBoolOp(a, b, c) => BinBoolOp(a, strip_casts(b), strip_casts(c))
@@ -242,7 +242,7 @@ module rec DHExp: {
 
     /* Non-hole forms: recurse */
     | (Test(id1, d1), Test(id2, d2)) => id1 == id2 && fast_equal(d1, d2)
-    | (HintedTest(id1, d1), HintedTest(id2, d2)) =>
+    | (HintedTest(id1, d1, _hint1), HintedTest(id2, d2, _hint2)) =>
       id1 == id2 && fast_equal(d1, d2)
     | (Sequence(d11, d21), Sequence(d12, d22)) =>
       fast_equal(d11, d12) && fast_equal(d21, d22)
@@ -385,7 +385,7 @@ module rec DHExp: {
     | NonEmptyHole(errstat, mv, hid, t) =>
       NonEmptyHole(errstat, mv, hid, re(t))
     | Test(id, t) => Test(id, re(t))
-    | HintedTest(id, t) => HintedTest(id, re(t))
+    | HintedTest(id, t, hint) => HintedTest(id, re(t), hint)
     | InconsistentBranches(mv, hid, case) =>
       InconsistentBranches(mv, hid, ty_subst_case(s, x, case))
     | Closure(ce, t) => Closure(ce, re(t))

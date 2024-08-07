@@ -56,7 +56,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
   | ApBuiltin(ident, args) => ApBuiltin(ident, subst_var(d1, x, args))
   | BuiltinFun(ident) => BuiltinFun(ident)
   | Test(id, d3) => Test(id, subst_var(d1, x, d3))
-  | HintedTest(id, d3) => HintedTest(id, subst_var(d1, x, d3))
+  | HintedTest(id, d3, hint) => HintedTest(id, subst_var(d1, x, d3), hint)
   | BoolLit(_)
   | IntLit(_)
   | FloatLit(_)

@@ -260,34 +260,46 @@ module Transition = (EV: EV_MODE) => {
         apply: () =>
           switch (d') {
           | BoolLit(true) =>
-            update_test(state, id, (d', Pass));
+            update_test(
+              state,
+              id,
+              {exp: d', status: Pass, hint: "No hint available."},
+            );
             Tuple([]);
           | BoolLit(false) =>
-            update_test(state, id, (d', Fail));
+            update_test(
+              state,
+              id,
+              {exp: d', status: Fail, hint: "No hint available."},
+            );
             Tuple([]);
           /* Hack: assume if final and not Bool, then Indet; this won't catch errors in statics */
           | _ =>
-            update_test(state, id, (d', Indet));
+            update_test(
+              state,
+              id,
+              {exp: d', status: Indet, hint: "No hint available."},
+            );
             Tuple([]);
           },
         kind: UpdateTest,
         value: true,
       });
-    | HintedTest(id, d) =>
-      let. _ = otherwise(env, d => HintedTest(id, d))
-      and. d' = req_final(req(state, env), d => HintedTest(id, d), d);
+    | HintedTest(id, d, hint) =>
+      let. _ = otherwise(env, d => HintedTest(id, d, hint))
+      and. d' = req_final(req(state, env), d => HintedTest(id, d, hint), d);
       Step({
         apply: () =>
           switch (d') {
           | BoolLit(true) =>
-            update_test(state, id, (d', Pass));
+            update_test(state, id, {exp: d', status: Pass, hint});
             Tuple([]);
           | BoolLit(false) =>
-            update_test(state, id, (d', Fail));
+            update_test(state, id, {exp: d', status: Fail, hint});
             Tuple([]);
           /* Hack: assume if final and not Bool, then Indet; this won't catch errors in statics */
           | _ =>
-            update_test(state, id, (d', Indet));
+            update_test(state, id, {exp: d', status: Indet, hint});
             Tuple([]);
           },
         kind: UpdateTest,

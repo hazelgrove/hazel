@@ -8,7 +8,12 @@ module TestResults = Haz3lcore.TestResults;
 module Interface = Haz3lcore.Interface;
 
 let test_instance_view =
-    (~settings, ~inject, ~font_metrics, (d, status): TestMap.instance_report) =>
+    (
+      ~settings,
+      ~inject,
+      ~font_metrics,
+      {exp: d, status, hint: _hint}: TestMap.instance_report,
+    ) =>
   div(
     ~attr=
       Attr.many([clss(["test-instance", TestStatus.to_string(status)])]),

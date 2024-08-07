@@ -139,9 +139,9 @@ let rec matches =
     | Test(id, ctx) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       Test(id, ctx);
-    | HintedTest(id, ctx) =>
+    | HintedTest(id, ctx, hint) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      HintedTest(id, ctx);
+      HintedTest(id, ctx, hint);
     | ListLit(u, i, ty, ctx, ds) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       ListLit(u, i, ty, ctx, ds);

@@ -359,7 +359,7 @@ let mk =
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
       | StringLit(s) => DHDoc_common.mk_StringLit(s)
       | Test(_, d) => DHDoc_common.mk_Test(go'(d, Test))
-      | HintedTest(_, d) => DHDoc_common.mk_Test(go'(d, HintedTest))
+      | HintedTest(_, d, _) => DHDoc_common.mk_Test(go'(d, HintedTest))
       | Sequence(d1, d2) =>
         let (doc1, doc2) = (go'(d1, Sequence1), go'(d2, Sequence2));
         DHDoc_common.mk_Sequence(doc1, doc2);

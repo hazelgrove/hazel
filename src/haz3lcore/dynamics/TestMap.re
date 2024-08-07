@@ -2,16 +2,31 @@ open Sexplib.Std;
 
 /* FIXME: Make more obvious names. */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type instance_report = (DHExp.t, TestStatus.t);
+type instance_report = {
+  exp: DHExp.t,
+  status: TestStatus.t,
+  hint: string,
+};
+// type instance_report = (DHExp.t, TestStatus.t);
+let get_status: instance_report => TestStatus.t = report => report.status;
 
 let joint_status: list(instance_report) => TestStatus.t =
-  reports => TestStatus.join_all(List.map(snd, reports));
+  reports => TestStatus.join_all(List.map(get_status, reports));
+
+let get_hint: instance_report => string = report => report.hint;
+
+let joint_hints: list(instance_report) => list(string) =
+  reports => List.map(get_hint, reports);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type report = (KeywordID.t, list(instance_report));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = list(report);
+
+let hints: list(report) => list(string) =
+  reports => joint_hints(List.flatten(List.map(snd, reports)));
+
 let empty: t = [];
 
 let lookup = List.assoc_opt;

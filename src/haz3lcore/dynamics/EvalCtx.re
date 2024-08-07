@@ -77,7 +77,7 @@ type t =
   | Tuple(t, (list(DHExp.t), list(DHExp.t)))
   | ApBuiltin(string, t)
   | Test(KeywordID.t, t)
-  | HintedTest(KeywordID.t, t)
+  | HintedTest(KeywordID.t, t, string)
   | ListLit(
       MetaVar.t,
       MetaVarInst.t,
@@ -121,7 +121,7 @@ let rec fuzzy_mark =
   | Mark => true
   | Closure(_, x)
   | Test(_, x)
-  | HintedTest(_, x)
+  | HintedTest(_, x, _)
   | Cast(x, _, _)
   | FailedCast(x, _, _)
   | Filter(_, x) => fuzzy_mark(x)
@@ -197,7 +197,7 @@ let rec unwrap = (ctx: t, sel: cls): option(t) => {
   | (ListConcat1, ListConcat1(c, _))
   | (ListConcat2, ListConcat2(_, c))
   | (Test, Test(_, c))
-  | (HintedTest, HintedTest(_, c))
+  | (HintedTest, HintedTest(_, c, _))
   | (Prj, Prj(c, _)) => Some(c)
   | (ListLit(n), ListLit(_, _, _, c, (ld, _)))
   | (Tuple(n), Tuple(c, (ld, _))) =>

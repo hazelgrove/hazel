@@ -285,9 +285,9 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
     let+ d1' = pp_uneval(env, d1);
     Test(id, d1');
 
-  | HintedTest(id, d1) =>
+  | HintedTest(id, d1, hint) =>
     let+ d1' = pp_uneval(env, d1);
-    HintedTest(id, d1');
+    HintedTest(id, d1', hint);
 
   | Sequence(d1, d2) =>
     let* d1' = pp_uneval(env, d1);
@@ -478,7 +478,7 @@ let rec track_children_of_hole =
   | BuiltinFun(_)
   | BoundVar(_) => hii
   | Test(_, d)
-  | HintedTest(_, d)
+  | HintedTest(_, d, _)
   | FixF(_, _, d)
   | Fun(_, _, d, _)
   | TypFun(_, d, _)

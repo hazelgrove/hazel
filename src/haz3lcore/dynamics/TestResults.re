@@ -4,6 +4,7 @@ open Sexplib.Std;
 type t = {
   test_map: TestMap.t,
   statuses: list(TestStatus.t),
+  hints: list(string),
   descriptions: list(string),
   total: int,
   passing: int,
@@ -15,6 +16,7 @@ let mk_results = (~descriptions=[], test_map: TestMap.t): t => {
   test_map,
   statuses: test_map |> List.map(r => r |> snd |> TestMap.joint_status),
   descriptions,
+  hints: TestMap.hints(test_map),
   total: TestMap.count(test_map),
   passing: TestMap.count_status(Pass, test_map),
   failing: TestMap.count_status(Fail, test_map),
