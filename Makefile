@@ -55,8 +55,8 @@ repl:
 	dune utop src/haz3lcore
 
 test:
-	dune build @src/fmt @test/fmt --auto-promote src test --profile dev
-	node $(TEST_DIR)/haz3ltest.bc.js
+	dune fmt --auto-promote
+	dune build @src/fmt @test/fmt --auto-promote src test --profile dev; node $(TEST_DIR)/haz3ltest.bc.js
 
 clean:
 	dune clean

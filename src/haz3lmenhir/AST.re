@@ -147,4 +147,5 @@ type exp =
   | InvalidExp(string)
   | TypAp(exp, typ)
   | DeferredAp(exp, exp)
+  | DynamicErrorHole(exp, string)
   | TyAlias(tpat, typ, exp);
