@@ -1,4 +1,3 @@
-// open Util;
 include Base;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -53,14 +52,6 @@ let nib_sorts =
   );
 
 let sorted_children = get(_ => [], _ => [], Tile.sorted_children, _ => []);
-let children = p => sorted_children(p) |> List.split |> snd;
-
-// let is_balanced =
-//   fun
-//   | Shard(_) => false
-//   | Secondary(_)
-//   | Grout(_)
-//   | Tile(_) => true;
 
 let pop_l = (p: t): (t, segment) =>
   switch (p) {
@@ -84,13 +75,6 @@ let disassemble = (p: t): segment =>
   | Projector(_) => [p]
   | Tile(t) => Tile.disassemble(t)
   };
-
-// let remold = (p: t) =>
-//   switch (p) {
-//   | Grout(_)
-//   | Secondary(_) => [p]
-//   | Tile(t) => List.map(tile, Tile.remold(t))
-//   };
 
 let shapes =
   get(
@@ -138,21 +122,10 @@ let monotile: t => option(Token.t) =
     Some(Secondary.get_string(w.content))
   | _ => None;
 
-let has_ends = get(_ => true, _ => true, Tile.has_ends);
-
 let is_complete: t => bool =
   fun
   | Tile(t) => Tile.is_complete(t)
   | _ => true;
-
-let mold_of = (~shape=Nib.Shape.Convex, p: t) =>
-  // TODO(d) fix sorts
-  switch (p) {
-  | Tile(t) => t.mold
-  | Grout(g) => Mold.of_grout(g, Any)
-  | Secondary(_) => Mold.of_secondary({sort: Any, shape})
-  | Projector(p) => ProjectorBase.mold_of(p, Any)
-  };
 
 let replace_id = (id: Id.t, p: t): t =>
   switch (p) {

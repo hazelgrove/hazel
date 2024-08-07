@@ -239,8 +239,10 @@ let drop_shadow_filter = (sort: Haz3lcore.Sort.t) => {
   );
 };
 
+let svg = (attrs, children) => Node.create_svg("svg", ~attrs, children);
+
 let filters =
-  NodeUtil.svg(
+  svg(
     Attr.[id("filters")],
     List.map(drop_shadow_filter, Haz3lcore.Sort.all),
   );
