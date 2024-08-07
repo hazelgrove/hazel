@@ -186,6 +186,15 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
     };
   };
 
+  let rec join_spec_hinted =
+          (spec_hints: list(string), test_hints: list(string)) =>
+    switch (spec_hints, test_hints) {
+    | ([hd_s, ...tl_s], [_, ...tl_t]) =>
+      List.cons(hd_s, join_spec_hinted(tl_s, tl_t))
+    | ([], _) => test_hints
+    | (_, []) => spec_hints
+    };
+
   module ImplGradingReport = {
     type t = {
       hints: list(string),
@@ -198,7 +207,7 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
         switch (test_results) {
         | Some(test_results) =>
           let statuses = test_results.statuses;
-          let hints = test_results.hints;
+          let hints = join_spec_hinted(hints, test_results.hints);
           Util.ListUtil.zip_defaults(
             statuses,
             hints,
