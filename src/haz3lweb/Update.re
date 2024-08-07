@@ -539,7 +539,11 @@ let rec apply =
     | AddBuggyImplementation =>
       Model.save_and_return({
         ...model,
-        editors: Editors.add_buggy_impl(model.editors),
+        editors:
+          Editors.add_buggy_impl(
+            model.editors,
+            ~editing_title=model.settings.editing_title,
+          ),
       })
     | DeleteBuggyImplementation(index) =>
       Model.save_and_return({

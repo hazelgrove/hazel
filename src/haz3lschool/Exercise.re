@@ -136,8 +136,22 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     eds,
   };
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent_state = (pos, list((pos, PersistentZipper.t)), string);
+  // [@deriving (show({with_path: false}), sexp, yojson)]
+  /* type persistent_state = (
+    pos,
+    list((pos, PersistentZipper.t)),
+    string,
+    list(wrong_impl(Editor.t)),
+  ); */
+
+  type PersistentEditor = ;
+
+  type persistent_eds = p(PersistentEditor.t);
+
+  type persistent_state = {
+    pos,
+    persistent_eds,
+  };
 
   let editor_of_state: state => Editor.t =
     ({pos, eds, _}) =>
@@ -504,7 +518,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     },
   };
 
-  let add_buggy_impl = (state: state) => {
+  let add_buggy_impl = (state: state, ~editing_title) => {
     let new_buggy_impl = {
       impl: Editor.init(Zipper.init()),
       hint: "no hint available",
@@ -516,6 +530,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         hidden_bugs: state.eds.hidden_bugs @ [new_buggy_impl],
       },
     };
+    let new_state = set_editing_title(new_state, editing_title);
     put_editor(new_state, new_buggy_impl.impl);
   };
 
@@ -569,12 +584,24 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       |> List.map(((pos, editor)) => {
            (pos, PersistentZipper.persist(Editor.(editor.state.zipper)))
          });
-    (state.pos, zippers, state.eds.title);
+    let hints =
+      List.fold_right(
+        (
+          (i, hidden_bugs: list(wrong_impl(Editor.t))),
+          hints: list(string),
+        ) => {
+          let hint = List.nth(hidden_bugs, i).hint;
+          hints @ [hint];
+        },
+        [(0, state.eds.hidden_bugs)],
+        [],
+      );
+    (state.pos, zippers, state.eds.title, hints);
   };
 
   let unpersist_state =
       (
-        (pos, positioned_zippers, title): persistent_state,
+        (pos, positioned_zippers, title, hints): persistent_state,
         ~spec: spec,
         ~instructor_mode: bool,
         ~editing_title: bool,
@@ -595,12 +622,15 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     let your_impl = lookup(YourImpl, spec.your_impl);
     let (_, hidden_bugs) =
       List.fold_left(
-        ((i, hidden_bugs: list(wrong_impl(Editor.t))), {impl, hint}) => {
-          let impl = lookup(HiddenBugs(i), impl);
+        ((i, hidden_bugs: list(wrong_impl(Editor.t))), hint) => {
+          let persisted_zipper =
+            List.assoc(HiddenBugs(i), positioned_zippers);
+          let zipper = PersistentZipper.unpersist(persisted_zipper);
+          let impl = Editor.init(zipper);
           (i + 1, hidden_bugs @ [{impl, hint}]);
         },
         (0, []),
-        spec.hidden_bugs,
+        hints,
       );
     let hidden_tests_tests = lookup(HiddenTests, spec.hidden_tests.tests);
     print_string("Loaded Title: ");
