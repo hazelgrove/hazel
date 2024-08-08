@@ -8,15 +8,15 @@ open ExplainThisForm;
 //   (Piece.id(_pat), pat_id),
 //   (Piece.id(_typ), typ_id),
 // ];
-let label_pat: form = {
+let labeled_pat: form = {
   let explanation = "labeled pattern explanation";
   {
-    id: LabelPat,
-    syntactic_form: [pat("x"), label_pat(), pat("p")],
+    id: LabeledPat,
+    syntactic_form: [pat("x"), labeled_pat(), pat("p")],
     expandable_id: None,
     explanation,
     examples: [],
   };
 };
 
-let label_pat: group = {id: LabelPat, forms: [label_pat]};
+let labeled_pat: group = {id: LabeledPat, forms: [labeled_pat]};

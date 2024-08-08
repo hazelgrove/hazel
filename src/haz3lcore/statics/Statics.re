@@ -312,7 +312,7 @@ and uexp_to_info_map =
       m,
     );
   | Dot(e, s) =>
-    // TODO (Anthony): Fix this
+    // TODO (Anthony): Fix this, look at module pr
     let (e, m) = go(~mode=Syn, e, m);
     let element: option(Typ.t) =
       switch (e.ty) {
@@ -321,8 +321,8 @@ and uexp_to_info_map =
       | _ => None // TODO (Anthony): other exps
       };
     switch (element) {
-    | Some(Label(_, exp)) => add(~self=Just(exp), ~co_ctx=e.co_ctx, m)
-    | Some(exp) => add(~self=Just(exp), ~co_ctx=e.co_ctx, m)
+    | Some(Label(_, typ)) => add(~self=Just(typ), ~co_ctx=e.co_ctx, m)
+    | Some(typ) => add(~self=Just(typ), ~co_ctx=e.co_ctx, m)
     | None => add(~self=Just(Unknown(Internal)), ~co_ctx=e.co_ctx, m)
     };
   | Test(e) =>
