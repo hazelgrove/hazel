@@ -23,15 +23,29 @@ let _simple_shard_path = ((l, r), length: int): list(Path.cmd) =>
     ],
   );
 
-let chonky_shard_path = ((l, r), length: int, height: int): list(Path.cmd) =>
+let chonky_shard_path = ((l, r), length: int, height: int): list(Path.cmd) => {
+  let l_adj = DecUtil.caret_adjust(Left, Option.map(shape_to_dir(Left), l));
+  let t_adj =
+    l_adj -. DecUtil.caret_adjust(Right, Option.map(shape_to_dir(Right), r));
   List.flatten(
     Path.[
-      [m(~x=0, ~y=0), h(~x=length), v(~y=height)],
+      [
+        //m(~x=0, ~y=0),
+        M({x: -. l_adj, y: 0.}),
+        H_({dx: float_of_int(length) +. t_adj}),
+        //h(~x=length),
+        v(~y=height),
+      ],
       chevron(Right, r),
-      [h(~x=0), v(~y=1)],
+      [
+        H_({dx: -. float_of_int(length) -. t_adj}),
+        //h(~x=0),
+        v(~y=1),
+      ],
       chevron(Left, l),
     ],
   );
+};
 
 type tip = option(Nib.Shape.t);
 
