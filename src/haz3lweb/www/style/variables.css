@@ -195,8 +195,8 @@
   /* Z-STACK */
 
   /* BELOW CODE LEVEL */
-  --tile-z: 0;
-  --err-hole-arms-z: 1;
+  --err-hole-arms-z: 0;
+  --tile-z: 1;
   --projector-backing-z: 1;
   --err-hole-z: 2;
   --select-z: 4;
