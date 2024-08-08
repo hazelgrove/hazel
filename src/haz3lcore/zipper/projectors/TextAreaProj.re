@@ -29,9 +29,9 @@ let put = (str: string): external_action =>
   SetSyntax(str |> Form.string_quote |> put);
 
 let is_last_pos = id =>
-  JsUtil.TextArea.caret_at_end(JsUtil.TextArea.get(of_id(id)));
+  Web.TextArea.caret_at_end(Web.TextArea.get(of_id(id)));
 let is_first_pos = id =>
-  JsUtil.TextArea.caret_at_start(JsUtil.TextArea.get(of_id(id)));
+  Web.TextArea.caret_at_start(Web.TextArea.get(of_id(id)));
 
 let key_handler = (id, ~parent, evt) => {
   open Effect;
@@ -111,10 +111,11 @@ module M: Projector = {
   let focus = ((id: Id.t, d: option(Direction.t))) => {
     JsUtil.get_elem_by_id(of_id(id))##focus;
     switch (d) {
-    | None
-    | Some(Left) => ()
+    | None => ()
+    | Some(Left) =>
+      Web.TextArea.set_caret_to_start(JsUtil.TextArea.get(of_id(id)))
     | Some(Right) =>
-      JsUtil.TextArea.set_caret_to_end(JsUtil.TextArea.get(of_id(id)))
+      Web.TextArea.set_caret_to_end(JsUtil.TextArea.get(of_id(id)))
     };
   };
 };
