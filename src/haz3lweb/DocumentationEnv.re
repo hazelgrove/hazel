@@ -565,12 +565,10 @@ module F = (DocEnv: ExerciseEnv) => {
   let stitch_term = ({eds, _}: state): stitched(TermItem.t) => {
     // let instructor =
     //   stitch3(eds.hidden_tests.tests);
-    let user_impl_term = {
+    let user_impl_term =
       // let your_impl_term =
-      eds.your_impl |> term_of |> wrap_filter(FilterAction.Step)// let prelude_term =
-                                                                 ; //   eds.prelude |> term_of |> wrap_filter(FilterAction.Eval);
-                                                                 // EditorUtil.append_exp(your_impl_term);
-    };
+      eds.your_impl |> term_of |> wrap_filter(FilterAction.Step);
+    // };
     // let test_validation_term =
     //   stitch3(eds.prelude, eds.correct_impl, eds.your_tests.tests);
     // let user_tests_term =
