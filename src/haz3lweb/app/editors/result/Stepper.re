@@ -50,7 +50,7 @@ module Model = {
 
   let get_state = (model: Aba.t(a, b)): EvaluatorState.t =>
     model
-    |> Aba.last_a
+    |> Aba.hd
     |> (
       fun
       | A({state, _}) => state
@@ -59,7 +59,7 @@ module Model = {
 
   let get_previous_substitutions = (model: Aba.t(a, b)): list(Id.t) =>
     model
-    |> Aba.last_a
+    |> Aba.hd
     |> (
       fun
       | A({previous_substitutions, _}) => previous_substitutions
@@ -68,7 +68,7 @@ module Model = {
 
   let get_elaboration = (model: t): option(Exp.t) =>
     model.history
-    |> Aba.hd
+    |> Aba.last_a
     |> (
       fun
       | A({expr, _}) => Some(expr)
@@ -193,7 +193,6 @@ module Update = {
               let& () = List.nth_opt(correct_id, 0);
               {...b, valid: false};
             };
-            print_endline(string_of_bool(b'.valid));
             switch (
               old_a,
               get_next_a(~settings, model.history, b'),
@@ -201,15 +200,10 @@ module Update = {
             ) {
             | (A({expr, _}), Some(A({expr: expr', _})), true)
                 when {
-                  print_endline(expr |> Exp.show);
-                  print_endline(expr' |> Exp.show);
                   DHExp.fast_equal(expr, expr');
                 } =>
-              print_endline("X1!");
-              Aba.cons(old_a, b', c);
-            | (_, Some(a'), true) =>
-              print_endline("X2!");
-              Aba.cons(a', b', c);
+              Aba.cons(old_a, b', c)
+            | (_, Some(a'), true) => Aba.cons(a', b', c)
             | (_, None, _)
             | (_, _, false) => c
             };
@@ -223,11 +217,58 @@ module Update = {
     };
   };
 
+  /* fast_calculate is a bit hacky, and relies on that fact that steps are currently
+     only added, deleted, or the elbaoration of the whole thing is changed. If the user
+     were able to change the properties of some step, this code would break */
+
+  let fast_calculate = (~settings: CoreSettings.t, model: Model.t): Model.t => {
+    {
+      history:
+        Aba.fold_right(
+          fun
+          | (PendingStep: Model.a) => (
+              (b: Model.b, c) => {
+                let b' = {
+                  let (let&) = (x, y) => Util.OptUtil.get(y, x);
+                  let options = Model.get_next_steps(c);
+                  let correct_id =
+                    List.filter(
+                      (b': Model.b) => b'.step.d_loc.ids == b.step.d_loc.ids,
+                      options,
+                    );
+                  let& () = List.nth_opt(correct_id, 0);
+                  {...b, valid: false};
+                };
+                switch (get_next_a(~settings, model.history, b'), b'.valid) {
+                | (Some(a'), true) => Aba.cons(a', b', c)
+                | _ => c
+                };
+              }
+            )
+          | a => (
+              (b, c) => {
+                Aba.cons(a, b, c);
+              }
+            ),
+          a => Aba.singleton(a),
+          model.history,
+        )
+        |> take_hidden_steps(~settings),
+      cached_settings: Some(settings),
+    };
+  };
+
   let calculate = (~settings, elab: Exp.t, model: Model.t) => {
-    print_endline(string_of_int(model.history |> Aba.get_as |> List.length));
     let elab = elab |> DHExp.repair_ids;
-    let m = full_calculate(~settings, elab, model);
-    print_endline(string_of_int(m.history |> Aba.get_as |> List.length));
+    let elab_changed =
+      switch (Model.get_elaboration(model)) {
+      | None => true
+      | Some(e) => !DHExp.fast_equal(elab, e)
+      };
+    let m =
+      elab_changed
+        ? full_calculate(~settings, elab, model)
+        : fast_calculate(~settings, model);
     m;
   };
 };
