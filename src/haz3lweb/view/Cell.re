@@ -61,8 +61,7 @@ let mousedown_handler =
         ),
       ),
     );
-  | (false, 2) => inject(PerformAction(Select(Tile(Current))))
-  | (false, 3 | _) => inject(PerformAction(Select(Smart)))
+  | (false, n) => inject(PerformAction(Select(Smart(n))))
   };
 
 let narrative_cell = (content: Node.t) =>

@@ -40,6 +40,16 @@ let go_z =
       }
     };
 
+  let select_tile_current = z =>
+    switch (Indicated.index(z)) {
+    | None => Error(Action.Failure.Cant_select)
+    | Some(id) =>
+      switch (Select.tile(id, z)) {
+      | Some(z) => Ok(z)
+      | None => Error(Action.Failure.Cant_select)
+      }
+    };
+
   let paste = (z: Zipper.t, str: string): option(Zipper.t) => {
     open Util.OptUtil.Syntax;
     let* z = Printer.zipper_of_string(~zipper_init=z, str);
@@ -143,39 +153,69 @@ let go_z =
     | None => Error(Action.Failure.Cant_select)
     }
   | Select(Term(Current)) => select_term_current(z)
-  | Select(Smart) =>
-    /* If the current tile is not coincident with the term,
-       select the term. Otherwise, select the parent term. */
-    let tile_is_term =
-      switch (Indicated.index(z)) {
-      | None => false
-      | Some(id) => Select.tile(id, z) == Select.term(id, z)
-      };
-    if (!tile_is_term) {
-      select_term_current(z);
-    } else {
-      let statics = meta.statics.info_map;
-      let target =
-        switch (
-          Indicated.index(z)
-          |> OptUtil.and_then(idx => Id.Map.find_opt(idx, statics))
-        ) {
-        | Some(ci) =>
-          switch (Info.ancestors_of(ci)) {
-          | [] => None
-          | [parent, ..._] => Some(parent)
+  | Select(Smart(n)) =>
+    // let select_parent = z => {
+    //   let statics = meta.statics.info_map;
+    //   let target =
+    //     switch (
+    //       Indicated.index(z)
+    //       |> OptUtil.and_then(idx => Id.Map.find_opt(idx, statics))
+    //     ) {
+    //     | Some(ci) =>
+    //       switch (Info.ancestors_of(ci)) {
+    //       | [] => None
+    //       | [parent, ..._] => Some(parent)
+    //       }
+    //     | None => None
+    //     };
+    //   switch (target) {
+    //   | None => Error(Action.Failure.Cant_select)
+    //   | Some(id) =>
+    //     switch (Select.term(id, z)) {
+    //     | Some(z) => Ok(z)
+    //     | None => Error(Action.Failure.Cant_select)
+    //     }
+    //   };
+    // };
+    switch (n) {
+    | 2 =>
+      switch (Indicated.piece''(z)) {
+      | Some((_, Left, _)) when z.caret == Outer =>
+        /* This case is to avoid selecting spaces,
+         * which rarely seems like what you'd want. */
+        (
+          switch (Move.go(Local(Left(ByToken)), z)) {
+          | Some(z) => z
+          | None => z
           }
-        | None => None
-        };
-      switch (target) {
-      | None => Error(Action.Failure.Cant_select)
-      | Some(id) =>
-        switch (Select.term(id, z)) {
-        | Some(z) => Ok(z)
-        | None => Error(Action.Failure.Cant_select)
+        )
+        |> Select.go(Local(Right(ByToken)))
+        |> Result.of_option(~error=Action.Failure.Cant_select)
+      | _ =>
+        Select.go(Local(Right(ByToken)), z)
+        |> Result.of_option(~error=Action.Failure.Cant_select)
+      }
+    | 3 =>
+      switch (Indicated.piece''(z)) {
+      | Some((p, _, _)) =>
+        switch (p) {
+        | Secondary(_) => failwith("Perform.Select Smart impossible")
+        | Grout(_)
+        | Projector(_)
+        | Tile({
+            label: [_],
+            mold: {nibs: ({shape: Convex, _}, {shape: Convex, _}), _},
+            _,
+          }) =>
+          //select_parent(z)
+          Error(Action.Failure.Cant_select)
+        | Tile({label: ["let" | "type", ..._], _}) => select_tile_current(z)
+        | Tile(_) => select_term_current(z)
         }
-      };
-    };
+      | _ => Error(Action.Failure.Cant_select)
+      }
+    | _ => Error(Action.Failure.Cant_select)
+    }
   | Select(Term(Id(id, d))) =>
     switch (Select.term(id, z)) {
     | Some(z) =>
@@ -183,15 +223,7 @@ let go_z =
       Ok(z);
     | None => Error(Action.Failure.Cant_select)
     }
-  | Select(Tile(Current)) =>
-    switch (Indicated.index(z)) {
-    | None => Error(Action.Failure.Cant_select)
-    | Some(id) =>
-      switch (Select.tile(id, z)) {
-      | Some(z) => Ok(z)
-      | None => Error(Action.Failure.Cant_select)
-      }
-    }
+  | Select(Tile(Current)) => select_tile_current(z)
   | Select(Tile(Id(id, d))) =>
     switch (Select.tile(id, z)) {
     | Some(z) =>
