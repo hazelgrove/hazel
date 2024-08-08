@@ -11,6 +11,8 @@ type shortcut = {
   section: option(string),
 };
 
+let sys: Key.sys = Os.is_mac^ ? Mac : PC;
+
 let meta = (sys: Key.sys): string => {
   switch (sys) {
   | Mac => "cmd"

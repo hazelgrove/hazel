@@ -165,6 +165,15 @@ let view =
   div(
     ~attrs=[clss(["nut-menu"])],
     [
+      button(
+        Icons.command_palette_sparkle,
+        _ => {
+          NinjaKeys.open_command_palette();
+          Effect.Ignore;
+        },
+        ~tooltip=
+          "Command Palette (" ++ Keyboard.meta(Keyboard.sys) ++ " + k)",
+      ),
       submenu(
         ~tooltip="Settings",
         ~icon=Icons.gear,
