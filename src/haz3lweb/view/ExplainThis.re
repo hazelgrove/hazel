@@ -912,12 +912,12 @@ let get_doc =
             basic(FunctionExp.functions_var);
           }
         | TupLabel(_, p) =>
-          if (FunctionExp.function_label_exp.id
+          if (FunctionExp.function_labeled_exp.id
               == get_specificity_level(FunctionExp.functions_tuplabel)) {
             let p_id = List.nth(p.ids, 0);
             get_message(
               ~colorings=
-                FunctionExp.function_label_exp_coloring_ids(
+                FunctionExp.function_labeled_exp_coloring_ids(
                   ~pat_id,
                   ~body_id,
                 ),
@@ -1086,7 +1086,7 @@ let get_doc =
         | Parens(_) => default // Shouldn't get hit?
         | TypeAnn(_) => default // Shouldn't get hit?
         };
-      | TupLabel(_, _) => get_message(LabelExp.label_exp)
+      | TupLabel(_, _) => get_message(LabeledExp.labeled_exp)
       | Dot(_, _) => get_message(DotExp.dot_exp)
       | Tuple(terms) =>
         let basic = group_id =>
@@ -1458,12 +1458,16 @@ let get_doc =
             basic(LetExp.lets_var);
           }
         | TupLabel(s, p) =>
-          if (LetExp.let_label_exp.id
+          if (LetExp.let_labeled_exp.id
               == get_specificity_level(LetExp.lets_label)) {
             let p_id = List.nth(p.ids, 0);
             get_message(
               ~colorings=
-                LetExp.let_label_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
+                LetExp.let_labeled_exp_coloring_ids(
+                  ~pat_id,
+                  ~def_id,
+                  ~body_id,
+                ),
               ~format=
                 Some(
                   msg =>
@@ -2061,7 +2065,7 @@ let get_doc =
           ),
         TerminalPat.var(v),
       )
-    | TupLabel(_, _) => get_message(LabelPat.label_pat)
+    | TupLabel(_, _) => get_message(LabeledPat.labeled_pat)
     | Tuple(elements) =>
       let basic = group =>
         get_message(
@@ -2273,7 +2277,7 @@ let get_doc =
         }
       | _ => basic(ArrowTyp.arrow)
       };
-    | TupLabel(_, _) => get_message(LabelTyp.label_typ)
+    | TupLabel(_, _) => get_message(LabeledTyp.labeled_typ)
     | Tuple(elements) =>
       let basic = group =>
         get_message(

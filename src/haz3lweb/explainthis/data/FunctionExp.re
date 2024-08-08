@@ -317,14 +317,17 @@ let function_var_exp: form = {
   };
 };
 
-let _label_pat = label_pat();
+let _labeled_pat = labeled_pat();
 let _exp = exp("e");
-let function_label_exp_coloring_ids =
-  _pat_body_function_exp_coloring_ids(Piece.id(_label_pat), Piece.id(_exp));
-let function_label_exp: form = {
+let function_labeled_exp_coloring_ids =
+  _pat_body_function_exp_coloring_ids(
+    Piece.id(_labeled_pat),
+    Piece.id(_exp),
+  );
+let function_labeled_exp: form = {
   let explanation = "Any unlabeled value matches with the [*argument*]. Only labeled elements that match the [*name*](%s) 'x' are accepted, and evaluate using the [*value*](%s) 'y' to the function [*body*](%s).";
   let form = [
-    mk_fun([[space(), pat("x"), _label_pat, pat("y"), space()]]),
+    mk_fun([[space(), pat("x"), _labeled_pat, pat("y"), space()]]),
     space(),
     _exp,
   ];
@@ -332,7 +335,7 @@ let function_label_exp: form = {
     id: FunctionExp(TupLabel),
     syntactic_form: form,
     expandable_id:
-      Some((Piece.id(_label_pat), [pat("x"), label_pat(), pat("y")])),
+      Some((Piece.id(_labeled_pat), [pat("x"), labeled_pat(), pat("y")])),
     explanation,
     examples: [label_fun_ex],
   };
@@ -529,7 +532,7 @@ let functions_var = {
 
 let functions_tuplabel = {
   id: FunctionExp(TupLabel),
-  forms: [function_label_exp, function_exp],
+  forms: [function_labeled_exp, function_exp],
 };
 
 let functions_tuple = {

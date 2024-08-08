@@ -173,7 +173,7 @@ type form_id =
   | ListConcatExp
   | TypFunctionExp
   | FunctionExp(pat_sub_form_id)
-  | LabelExp
+  | LabeledExp
   | DotExp
   | TupleExp
   | Tuple2Exp
@@ -204,7 +204,7 @@ type form_id =
   | ListNilPat
   | ConsPat
   | Cons2Pat
-  | LabelPat
+  | LabeledPat
   | TuplePat
   | Tuple2Pat
   | Tuple3Pat
@@ -222,7 +222,7 @@ type form_id =
   | RecTyp
   | ArrowTyp
   | Arrow3Typ
-  | LabelTyp
+  | LabeledTyp
   | TupleTyp
   | Tuple0Typ
   | Tuple2Typ
@@ -234,6 +234,7 @@ type form_id =
   | MultiHoleTPat
   | VarTPat
   | PipelineExp
+  | Label
   | FilterPause
   | FilterEval
   | FilterDebug
@@ -269,7 +270,7 @@ type group_id =
   | ListConcatExp
   | TypFunctionExp
   | FunctionExp(pat_sub_form_id)
-  | LabelExp
+  | LabeledExp
   | DotExp
   | TupleExp
   | Tuple2Exp
@@ -301,7 +302,7 @@ type group_id =
   | ListNilPat
   | ConsPat
   | Cons2Pat
-  | LabelPat
+  | LabeledPat
   | TuplePat
   | Tuple2Pat
   | Tuple3Pat
@@ -319,7 +320,7 @@ type group_id =
   | RecTyp
   | ArrowTyp
   | Arrow3Typ
-  | LabelTyp
+  | LabeledTyp
   | TupleTyp
   | Tuple0Typ
   | Tuple2Typ
@@ -330,6 +331,7 @@ type group_id =
   | EmptyHoleTPat
   | MultiHoleTPat
   | VarTPat
+  | Label
   | FilterPause
   | FilterEval
   | FilterDebug
