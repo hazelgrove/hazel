@@ -174,7 +174,7 @@ let view =
           Effect.Ignore;
         },
         ~tooltip=
-          "Command Palette (" ++ Keyboard.meta(Keyboard.sys()) ++ " + k)",
+          "Command Palette (" ++ Keyboard.meta(JsUtil.is_mac() ? Mac : PC) ++ " + k)",
       ),
       submenu(
         ~tooltip="Settings",
