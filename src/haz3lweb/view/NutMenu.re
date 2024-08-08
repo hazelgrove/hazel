@@ -1,8 +1,10 @@
+open Util;
 open Virtual_dom.Vdom;
 open Js_of_ocaml;
 open Node;
 open Util.Web;
 open Widgets;
+open Haz3lcore;
 
 let export_persistent_data = (~inject: Update.t => 'a) =>
   button_named(
@@ -31,7 +33,7 @@ let reset_hazel =
 let reparse = (~inject: Update.t => 'a) =>
   button(
     Icons.backpack,
-    _ => inject(ReparseCurrentEditor),
+    _ => inject(PerformAction(Reparse)),
     ~tooltip="Reparse Current Editor",
   );
 

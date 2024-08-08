@@ -336,57 +336,59 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       };
     };
 
-  let editor_of_serialization = zipper => Editor.init(zipper);
-  let eds_of_spec: spec => eds =
-    (
-      {
-        title,
-        version,
-        module_name,
-        prompt,
-        point_distribution,
-        prelude,
-        correct_impl,
-        your_tests,
-        your_impl,
-        hidden_bugs,
-        hidden_tests,
-        syntax_tests,
-      },
-    ) => {
-      let prelude = editor_of_serialization(prelude);
-      let correct_impl = editor_of_serialization(correct_impl);
-      let your_tests = {
-        let tests = editor_of_serialization(your_tests.tests);
-        {tests, required: your_tests.required, provided: your_tests.provided};
-      };
-      let your_impl = editor_of_serialization(your_impl);
-      let hidden_bugs =
-        hidden_bugs
-        |> List.map(({impl, hint}) => {
-             let impl = editor_of_serialization(impl);
-             {impl, hint};
-           });
-      let hidden_tests = {
-        let {tests, hints} = hidden_tests;
-        let tests = editor_of_serialization(tests);
-        {tests, hints};
-      };
-      {
-        title,
-        version,
-        module_name,
-        prompt,
-        point_distribution,
-        prelude,
-        correct_impl,
-        your_tests,
-        your_impl,
-        hidden_bugs,
-        hidden_tests,
-        syntax_tests,
-      };
+  let eds_of_spec =
+      (
+        {
+          title,
+          version,
+          module_name,
+          prompt,
+          point_distribution,
+          prelude,
+          correct_impl,
+          your_tests,
+          your_impl,
+          hidden_bugs,
+          hidden_tests,
+          syntax_tests,
+        },
+        ~settings: CoreSettings.t,
+      )
+      : eds => {
+    let editor_of_serialization = Editor.init(~settings);
+    let prelude = editor_of_serialization(prelude);
+    let correct_impl = editor_of_serialization(correct_impl);
+    let your_tests = {
+      let tests = editor_of_serialization(your_tests.tests);
+      {tests, required: your_tests.required, provided: your_tests.provided};
     };
+    let your_impl = editor_of_serialization(your_impl);
+    let hidden_bugs =
+      hidden_bugs
+      |> List.map(({impl, hint}) => {
+           let impl = editor_of_serialization(impl);
+           {impl, hint};
+         });
+    let hidden_tests = {
+      let {tests, hints} = hidden_tests;
+      let tests = editor_of_serialization(tests);
+      {tests, hints};
+    };
+    {
+      title,
+      version,
+      module_name,
+      prompt,
+      point_distribution,
+      prelude,
+      correct_impl,
+      your_tests,
+      your_impl,
+      hidden_bugs,
+      hidden_tests,
+      syntax_tests,
+    };
+  };
 
   //
   // Old version of above that did string-based parsing, may be useful
@@ -477,8 +479,9 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     };
   };
 
-  let state_of_spec = (spec, ~instructor_mode: bool): state => {
-    let eds = eds_of_spec(spec);
+  let state_of_spec =
+      (spec, ~instructor_mode: bool, ~settings: CoreSettings.t): state => {
+    let eds = eds_of_spec(~settings, spec);
     set_instructor_mode({pos: YourImpl, eds}, instructor_mode);
   };
 
@@ -498,15 +501,16 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         (pos, positioned_zippers): persistent_state,
         ~spec: spec,
         ~instructor_mode: bool,
+        ~settings: CoreSettings.t,
       )
       : state => {
     let lookup = (pos, default) =>
       if (visible_in(pos, ~instructor_mode)) {
         let persisted_zipper = List.assoc(pos, positioned_zippers);
         let zipper = PersistentZipper.unpersist(persisted_zipper);
-        Editor.init(zipper);
+        Editor.init(zipper, ~settings);
       } else {
-        editor_of_serialization(default);
+        Editor.init(default, ~settings);
       };
     let prelude = lookup(Prelude, spec.prelude);
     let correct_impl = lookup(CorrectImpl, spec.correct_impl);
@@ -554,17 +558,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   // # Stitching
 
-  module TermItem = {
-    type t = {
-      term: TermBase.UExp.t,
-      term_ranges: TermRanges.t,
-    };
-  };
-
-  module StaticsItem = {
-    type t = CachedStatics.statics;
-  };
-
   type stitched('a) = {
     test_validation: 'a, // prelude + correct_impl + your_tests
     user_impl: 'a, // prelude + your_impl
@@ -575,24 +568,26 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     hidden_tests: 'a,
   };
 
-  let wrap_filter = (act: FilterAction.action, term: Term.UExp.t): Term.UExp.t =>
-    TermBase.UExp.{
+  let wrap_filter = (act: FilterAction.action, term: UExp.t): UExp.t =>
+    Exp.{
       term:
-        TermBase.UExp.Filter(
-          FilterAction.(act, One),
-          {term: Constructor("$e"), ids: [Id.mk()]},
+        Exp.Filter(
+          Filter({
+            act: FilterAction.(act, One),
+            pat: {
+              term: Constructor("$e", Unknown(Internal) |> Typ.temp),
+              copied: false,
+              ids: [Id.mk()],
+            },
+          }),
           term,
         ),
+      copied: false,
       ids: [Id.mk()],
     };
 
-  let wrap = (term, editor: Editor.t): TermItem.t => {
-    term,
-    term_ranges: editor.state.meta.term_ranges,
-  };
-
-  let term_of = (editor: Editor.t): Term.UExp.t =>
-    editor.state.meta.view_term;
+  let term_of = (editor: Editor.t): UExp.t =>
+    MakeTerm.from_zip_for_sem(editor.state.zipper).term;
 
   let stitch3 = (ed1: Editor.t, ed2: Editor.t, ed3: Editor.t) =>
     EditorUtil.append_exp(
@@ -600,7 +595,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       term_of(ed3),
     );
 
-  let stitch_term = ({eds, _}: state): stitched(TermItem.t) => {
+  let stitch_term = ({eds, _}: state): stitched(UExp.t) => {
     let instructor =
       stitch3(eds.prelude, eds.correct_impl, eds.hidden_tests.tests);
     let user_impl_term = {
@@ -617,24 +612,23 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     let hidden_tests_term =
       EditorUtil.append_exp(user_impl_term, term_of(eds.hidden_tests.tests));
     {
-      test_validation: wrap(test_validation_term, eds.your_tests.tests),
-      user_impl: wrap(user_impl_term, eds.your_impl),
-      user_tests: wrap(user_tests_term, eds.your_tests.tests),
+      test_validation: test_validation_term,
+      user_impl: user_impl_term,
+      user_tests: user_tests_term,
       // instructor works here as long as you don't shadow anything in the prelude
-      prelude: wrap(instructor, eds.prelude),
-      instructor: wrap(instructor, eds.correct_impl),
+      prelude: instructor,
+      instructor,
       hidden_bugs:
         List.map(
-          (t): TermItem.t =>
-            wrap(stitch3(eds.prelude, t.impl, eds.your_tests.tests), t.impl),
+          (t): UExp.t => stitch3(eds.prelude, t.impl, eds.your_tests.tests),
           eds.hidden_bugs,
         ),
-      hidden_tests: wrap(hidden_tests_term, eds.hidden_tests.tests),
+      hidden_tests: hidden_tests_term,
     };
   };
   let stitch_term = Core.Memo.general(stitch_term);
 
-  type stitched_statics = stitched(StaticsItem.t);
+  type stitched_statics = stitched(Editor.CachedStatics.t);
 
   /* Multiple stitchings are needed for each exercise
      (see comments in the stitched type above)
@@ -642,14 +636,10 @@ module F = (ExerciseEnv: ExerciseEnv) => {
      Stitching is necessary to concatenate terms
      from different editors, which are then typechecked. */
   let stitch_static =
-      (settings: CoreSettings.t, t: stitched(TermItem.t)): stitched_statics => {
-    let mk = ({term, term_ranges, _}: TermItem.t): StaticsItem.t => {
-      let info_map = Interface.Statics.mk_map(settings, term);
-      {
-        term,
-        error_ids: Statics.Map.error_ids(term_ranges, info_map),
-        info_map,
-      };
+      (settings: CoreSettings.t, t: stitched(UExp.t)): stitched_statics => {
+    let mk = (term: UExp.t): Editor.CachedStatics.t => {
+      let info_map = Statics.mk(settings, Builtins.ctx_init, term);
+      {term, error_ids: Statics.Map.error_ids(info_map), info_map};
     };
     let instructor = mk(t.instructor);
     {
@@ -664,24 +654,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   };
 
   let stitch_static = Core.Memo.general(stitch_static);
-
-  let statics_of_stiched =
-      (state: state, s: stitched(StaticsItem.t)): StaticsItem.t =>
-    switch (state.pos) {
-    | Prelude => s.prelude
-    | CorrectImpl => s.instructor
-    | YourTestsValidation => s.test_validation
-    | YourTestsTesting => s.user_tests
-    | YourImpl => s.user_impl
-    | HiddenBugs(idx) => List.nth(s.hidden_bugs, idx)
-    | HiddenTests => s.hidden_tests
-    };
-
-  let statics_of = (~settings, exercise: state): StaticsItem.t =>
-    exercise
-    |> stitch_term
-    |> stitch_static(settings)
-    |> statics_of_stiched(exercise);
 
   let prelude_key = "prelude";
   let test_validation_key = "test_validation";
@@ -704,7 +676,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
   let spliced_elabs =
       (settings: CoreSettings.t, state: state)
-      : list((ModelResults.key, DHExp.t)) => {
+      : list((ModelResults.key, Elaborator.Elaboration.t)) => {
     let {
       test_validation,
       user_impl,
@@ -715,8 +687,9 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       hidden_tests,
     } =
       stitch_static(settings, stitch_term(state));
-    let elab = (s: CachedStatics.statics) =>
-      Interface.elaborate(~settings, s.info_map, s.term);
+    let elab = (s: Editor.CachedStatics.t): Elaborator.Elaboration.t => {
+      d: Interface.elaborate(~settings, s.info_map, s.term),
+    };
     [
       (test_validation_key, elab(test_validation)),
       (user_impl_key, elab(user_impl)),
@@ -726,48 +699,35 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     ]
     @ (
       hidden_bugs
-      |> List.mapi((n, hidden_bug: StaticsItem.t) =>
+      |> List.mapi((n, hidden_bug: Editor.CachedStatics.t) =>
            (hidden_bugs_key(n), elab(hidden_bug))
          )
     );
   };
 
-  let mk_statics =
-      (settings: CoreSettings.t, state: state)
-      : list((ModelResults.key, StaticsItem.t)) => {
-    let stitched = stitch_static(settings, stitch_term(state));
-    [
-      (prelude_key, stitched.prelude),
-      (test_validation_key, stitched.test_validation),
-      (user_impl_key, stitched.user_impl),
-      (user_tests_key, stitched.user_tests),
-      (instructor_key, stitched.instructor),
-      (hidden_tests_key, stitched.hidden_tests),
-    ]
-    @ List.mapi(
-        (n, hidden_bug: StaticsItem.t) => (hidden_bugs_key(n), hidden_bug),
-        stitched.hidden_bugs,
-      );
-  };
-
   module DynamicsItem = {
     type t = {
-      term: TermBase.UExp.t,
-      info_map: Statics.Map.t,
+      statics: Editor.CachedStatics.t,
       result: ModelResult.t,
     };
-    let empty: t = {
-      term: {
-        term: Tuple([]),
-        ids: [Id.mk()],
-      },
-      info_map: Id.Map.empty,
+    let empty: t = {statics: Editor.CachedStatics.empty, result: NoElab};
+    let statics_only = (statics: Editor.CachedStatics.t): t => {
+      statics,
       result: NoElab,
     };
-    let statics_only = ({term, info_map, _}: StaticsItem.t): t => {
-      {term, info_map, result: NoElab};
-    };
   };
+
+  let statics_of_stiched_dynamics =
+      (state: state, s: stitched(DynamicsItem.t)): Editor.CachedStatics.t =>
+    switch (state.pos) {
+    | Prelude => s.prelude.statics
+    | CorrectImpl => s.instructor.statics
+    | YourTestsValidation => s.test_validation.statics
+    | YourTestsTesting => s.user_tests.statics
+    | YourImpl => s.user_impl.statics
+    | HiddenBugs(idx) => List.nth(s.hidden_bugs, idx).statics
+    | HiddenTests => s.hidden_tests.statics
+    };
 
   /* Given the evaluation results, collects the
      relevant information for producing dynamic
@@ -799,50 +759,27 @@ module F = (ExerciseEnv: ExerciseEnv) => {
 
     let test_validation =
       DynamicsItem.{
-        term: test_validation.term,
-        info_map: test_validation.info_map,
+        statics: test_validation,
         result: result_of(test_validation_key),
       };
 
     let user_impl =
-      DynamicsItem.{
-        term: user_impl.term,
-        info_map: user_impl.info_map,
-        result: result_of(user_impl_key),
-      };
+      DynamicsItem.{statics: user_impl, result: result_of(user_impl_key)};
 
     let user_tests =
-      DynamicsItem.{
-        term: user_tests.term,
-        info_map: user_tests.info_map,
-        result: result_of(user_tests_key),
-      };
-    let prelude =
-      DynamicsItem.{
-        term: prelude.term,
-        info_map: prelude.info_map,
-        result: NoElab,
-      };
+      DynamicsItem.{statics: user_tests, result: result_of(user_tests_key)};
+    let prelude = DynamicsItem.{statics: prelude, result: NoElab};
     let instructor =
-      DynamicsItem.{
-        term: instructor.term,
-        info_map: instructor.info_map,
-        result: result_of(instructor_key),
-      };
+      DynamicsItem.{statics: instructor, result: result_of(instructor_key)};
     let hidden_bugs =
       List.mapi(
-        (n, statics_item: StaticsItem.t) =>
-          DynamicsItem.{
-            term: statics_item.term,
-            info_map: statics_item.info_map,
-            result: result_of(hidden_bugs_key(n)),
-          },
+        (n, statics: Editor.CachedStatics.t) =>
+          DynamicsItem.{statics, result: result_of(hidden_bugs_key(n))},
         hidden_bugs,
       );
     let hidden_tests =
       DynamicsItem.{
-        term: hidden_tests.term,
-        info_map: hidden_tests.info_map,
+        statics: hidden_tests,
         result: result_of(hidden_tests_key),
       };
     {
