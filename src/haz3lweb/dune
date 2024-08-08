@@ -35,7 +35,8 @@
   (:standard \ Main)
   \
   Worker
-  WorkerServer)
+  WorkerServer
+  DocumentationEnv)
  (libraries
   ezjs_min
   ezjs_idb

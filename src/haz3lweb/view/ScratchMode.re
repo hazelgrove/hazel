@@ -1,4 +1,4 @@
-// open Sexplib.Std;
+// open Util;
 open Haz3lcore;
 
 type state = (Id.t, Editor.t);
@@ -11,7 +11,6 @@ let view =
       ~highlights,
       ~results: ModelResults.t,
       ~result_key,
-      ~statics as {error_ids, _}: CachedStatics.statics,
       editor: Editor.t,
     ) => {
   let result = ModelResults.lookup(results, result_key);
@@ -37,7 +36,6 @@ let view =
       ~ui_state,
       ~settings,
       ~target_id,
-      ~error_ids,
       ~test_results,
       ~footer?,
       ~highlights,

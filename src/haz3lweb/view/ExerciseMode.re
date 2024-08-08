@@ -44,6 +44,8 @@ let view =
   }:
     Exercise.stitched(Exercise.DynamicsItem.t) = stitched_dynamics;
 
+  // how does this impact the UI of Exercise mode?
+
   let grading_report = Grading.GradingReport.mk(eds, ~stitched_dynamics);
 
   let score_view = Grading.GradingReport.view_overall_score(grading_report);
