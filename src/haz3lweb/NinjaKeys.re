@@ -39,7 +39,7 @@ let options = (schedule_action: UpdateAction.t => unit) => {
   Array.of_list(
     List.map(
       from_shortcut(schedule_action),
-      Keyboard.shortcuts(Os.is_mac^ ? Mac : PC),
+      Keyboard.shortcuts(Keyboard.sys()),
     ),
   );
 };
