@@ -2155,21 +2155,27 @@ let get_doc =
         TypeTyp.type_typ,
       );
     | Forall(pat, typ) =>
-      let pat_id = List.nth(pat.ids, 0);
-      let tbody_id = List.nth(typ.ids, 0);
-      get_message(
-        ~colorings=ForallTyp.forall_typ_coloring_ids(~pat_id, ~tbody_id),
-        ~format=
-          Some(
-            msg =>
-              Printf.sprintf(
-                Scanf.format_from_string(msg, "%s%s"),
-                Id.to_string(pat_id),
-                Id.to_string(tbody_id),
-              ),
-          ),
-        ForallTyp.forall_typ,
-      );
+      message_single(
+        ForallTyp.single(
+          ~pat_id=UPat.rep_id(pat),
+          ~ty_arg_id=UTyp.rep_id(typ),
+        ),
+      )
+    // let pat_id = List.nth(pat.ids, 0);
+    // let tbody_id = List.nth(typ.ids, 0);
+    // get_message(
+    //   ~colorings=ForallTyp.forall_typ_coloring_ids(~pat_id, ~tbody_id),
+    //   ~format=
+    //     Some(
+    //       msg =>
+    //         Printf.sprintf(
+    //           Scanf.format_from_string(msg, "%s%s"),
+    //           Id.to_string(pat_id),
+    //           Id.to_string(tbody_id),
+    //         ),
+    //     ),
+    //   ForallTyp.single,
+    // );
     | Equals(e1, e2) =>
       let e1_id = List.nth(e1.ids, 0);
       let e2_id = List.nth(e2.ids, 2);
