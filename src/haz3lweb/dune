@@ -9,7 +9,6 @@
  (name workerServer)
  (modules WorkerServer)
  (libraries
-  str
   incr_dom
   virtual_dom.input_widgets
   util
@@ -93,7 +92,9 @@
    (flags (:standard)))))
 
 (rule
- (write-file js-of-ocaml-flags-dev "(:standard)"))
+ (write-file
+  js-of-ocaml-flags-dev
+  "(:standard --debuginfo --noinline --dynlink --linkall --sourcemap)"))
 
 (rule
  (write-file js-of-ocaml-flags-release "(:standard)"))

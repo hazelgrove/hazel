@@ -1,290 +1,328 @@
 open Util;
 open OptUtil.Syntax;
 
-let equal_typ_list = (l: list(Typ.t)): option(Typ.t) => {
-  switch (l) {
-  | [] => None
-  | [ty, ..._] =>
-    List.fold_left((acc, t) => {acc && Typ.eq(t, ty)}, true, l)
-      ? Some(ty) : None
-  };
-};
+// let equal_typ_list = (l: list(Typ.t)): option(Typ.t) => {
+//   switch (l) {
+//   | [] => None
+//   | [ty, ..._] =>
+//     List.fold_left((acc, t) => {acc && Typ.eq(t, ty)}, true, l)
+//       ? Some(ty) : None
+//   };
+// };
 
-let delta_ty = (id: MetaVar.t, m: Statics.Map.t): option(Typ.t) => {
-  switch (Id.Map.find_opt(id, m)) {
-  | Some(InfoExp({mode, ctx, _})) =>
-    switch (mode) {
-    | Syn
-    | SynTypFun
-    | SynFun => Some(Unknown(Internal))
-    | Ana(ana_ty) => Some(Typ.normalize(ctx, ana_ty))
-    }
-  | _ => None
-  };
-};
+// let delta_ty = (id: MetaVar.t, m: Statics.Map.t): option(Typ.t) => {
+//   switch (Id.Map.find_opt(id, m)) {
+//   | Some(InfoExp({mode, ctx, _})) =>
+//     switch (mode) {
+//     | Syn
+//     | SynTypFun
+//     | SynFun => Some(Unknown(Internal))
+//     | Ana(ana_ty) => Some(Typ.normalize(ctx, ana_ty))
+//     }
+//   | _ => None
+//   };
+// };
 
 let ground = (ty: Typ.t): bool => {
-  switch (Transition.CastHelpers.ground_cases_of(ty)) {
-  | Ground => true
+  switch (Casts.ground_cases_of(ty)) {
+  | Casts.Ground => true
   | _ => false
   };
 };
 
-let dhpat_extend_ctx =
-    (dhpat: DHPat.t, ty: Typ.t, m: Statics.Map.t, ctx: Ctx.t): option(Ctx.t) => {
+let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) => {
   let rec dhpat_var_entry =
           (dhpat: DHPat.t, ty: Typ.t): option(list(Ctx.entry)) => {
-    switch (dhpat) {
+    switch (dhpat |> Pat.term_of) {
     | Var(name) =>
       let entry = Ctx.VarEntry({name, id: Id.invalid, typ: ty});
       Some([entry]);
     | Tuple(l1) =>
-      switch (ty) {
-      | Prod(l2) when List.length(l1) == List.length(l2) =>
-        let* l =
-          List.map2((dhp, typ) => {dhpat_var_entry(dhp, typ)}, l1, l2)
-          |> OptUtil.sequence;
-        Some(List.concat(l));
-      | _ => None
-      }
+      let* ts = Typ.matched_prod_strict(ctx, List.length(l1), ty);
+      let* l =
+        List.map2((dhp, typ) => {dhpat_var_entry(dhp, typ)}, l1, ts)
+        |> OptUtil.sequence;
+      Some(List.concat(l));
     | Cons(dhp1, dhp2) =>
-      switch (ty) {
-      | List(typ) =>
-        let* l1 = dhpat_var_entry(dhp1, typ);
-        let* l2 = dhpat_var_entry(dhp2, List(typ));
-        Some(l1 @ l2);
-      | _ => None
-      }
-    | ListLit(typ1, l) =>
-      switch (ty) {
-      | List(typ2) when Typ.eq(typ1, typ2) =>
-        let* l =
-          List.map(dhp => {dhpat_var_entry(dhp, typ1)}, l)
-          |> OptUtil.sequence;
-        Some(List.concat(l));
-      | _ => None
-      }
-    | Ap(Constructor(_, typ), dhp) =>
-      let (ty1, ty2) = Typ.matched_arrow(ctx, typ);
+      let* t = Typ.matched_list_strict(ctx, ty);
+      let* l1 = dhpat_var_entry(dhp1, t);
+      let* l2 = dhpat_var_entry(dhp2, List(t) |> Typ.temp);
+      Some(l1 @ l2);
+    | ListLit(l) =>
+      let* t = Typ.matched_list_strict(ctx, ty);
+      let* l =
+        List.map(dhp => {dhpat_var_entry(dhp, t)}, l) |> OptUtil.sequence;
+      Some(List.concat(l));
+    | Ap({term: Constructor(name, _), _}, dhp) =>
+      // TODO: make this stricter
+      let* ctrs = Typ.get_sum_constructors(ctx, ty);
+      let* typ = ConstructorMap.get_entry(name, ctrs);
+      let* (ty1, ty2) = Typ.matched_arrow_strict(ctx, typ);
       Typ.eq(ty2, ty) ? dhpat_var_entry(dhp, ty1) : None;
-    | EmptyHole(id, _) =>
-      switch (delta_ty(id, m)) {
-      | None => None
-      | Some(_) => Some([])
-      }
-    | NonEmptyHole(_, id, _, dhp) =>
-      switch (delta_ty(id, m)) {
-      | None => None
-      | Some(_) => dhpat_var_entry(dhp, ty)
-      }
-    | Wild
-    | InvalidText(_)
-    | BadConstructor(_) => Some([])
     | Ap(_) => None
-    | IntLit(_) => Typ.eq(ty, Int) ? Some([]) : None
-    | FloatLit(_) => Typ.eq(ty, Float) ? Some([]) : None
-    | BoolLit(_) => Typ.eq(ty, Bool) ? Some([]) : None
-    | StringLit(_) => Typ.eq(ty, String) ? Some([]) : None
-    | Constructor(_, typ) => Typ.eq(ty, typ) ? Some([]) : None
+    | EmptyHole
+    | Wild
+    | Invalid(_)
+    | MultiHole(_) => Some([])
+    | Parens(dhp) => dhpat_var_entry(dhp, ty)
+    | Int(_) => Typ.eq(ty, Int |> Typ.temp) ? Some([]) : None
+    | Float(_) => Typ.eq(ty, Float |> Typ.temp) ? Some([]) : None
+    | Bool(_) => Typ.eq(ty, Bool |> Typ.temp) ? Some([]) : None
+    | String(_) => Typ.eq(ty, String |> Typ.temp) ? Some([]) : None
+    | Constructor(_) => Some([]) // TODO: make this stricter
+    | Cast(dhp, ty1, ty2) =>
+      Typ.eq(ty, ty2) ? dhpat_var_entry(dhp, ty1) : None
     };
   };
   let+ l = dhpat_var_entry(dhpat, ty);
   List.fold_left((ctx, entry) => Ctx.extend(ctx, entry), ctx, l);
 };
 
-let rec typ_of_dhexp =
-        (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) => {
-  switch (dh) {
-  | EmptyHole(id, _) => delta_ty(id, m)
-  | NonEmptyHole(_, id, _, d) =>
-    switch (typ_of_dhexp(ctx, m, d)) {
-    | None => None
-    | Some(_) => delta_ty(id, m)
-    }
-  | FreeVar(id, _, _) => delta_ty(id, m)
-  | InvalidText(_) => Some(Unknown(Internal))
-  | InconsistentBranches(_, _, Case(d_scrut, d_rules, _)) =>
-    let* ty' = typ_of_dhexp(ctx, m, d_scrut);
-    let* typ_cases =
-      d_rules
-      |> List.map((DHExp.Rule(dhp, de)) => {
-           let* ctx = dhpat_extend_ctx(dhp, ty', m, ctx);
-           typ_of_dhexp(ctx, m, de);
-         })
-      |> OptUtil.sequence;
+/* patterns in functions and fixpoints must have a synthesizable type */
+let rec dhpat_synthesize = (dhpat: DHPat.t, ctx: Ctx.t): option(Typ.t) => {
+  switch (dhpat |> Pat.term_of) {
+  | Var(_)
+  | Constructor(_)
+  | Ap(_) => None
+  | Tuple(dhs) =>
+    let* l = List.map(dhpat_synthesize(_, ctx), dhs) |> OptUtil.sequence;
+    Some(Prod(l) |> Typ.temp);
+  | Cons(dhp1, _) =>
+    let* t = dhpat_synthesize(dhp1, ctx);
+    Some(List(t) |> Typ.temp);
+  | ListLit([]) => Some(List(Unknown(Internal) |> Typ.temp) |> Typ.temp)
+  | ListLit([x, ..._]) =>
+    let* t_x = dhpat_synthesize(x, ctx);
+    Some(List(t_x) |> Typ.temp);
+  | EmptyHole => Some(Unknown(Internal) |> Typ.temp)
+  | Wild => Some(Unknown(Internal) |> Typ.temp)
+  | Invalid(_)
+  | MultiHole(_) => Some(Unknown(Internal) |> Typ.temp)
+  | Parens(dhp) => dhpat_synthesize(dhp, ctx)
+  | Int(_) => Some(Int |> Typ.temp)
+  | Float(_) => Some(Float |> Typ.temp)
+  | Bool(_) => Some(Bool |> Typ.temp)
+  | String(_) => Some(String |> Typ.temp)
+  | Cast(_, _, ty) => Some(ty)
+  };
+};
 
-    //Making sure that there at least one inconsistent branch
-    switch (equal_typ_list(typ_cases)) {
-    | None => Some(Typ.Unknown(Internal))
-    | Some(_) => None
-    };
+let rec env_extend_ctx =
+        (env: ClosureEnvironment.t, m: Statics.Map.t, ctx: Ctx.t)
+        : option(Ctx.t) => {
+  let+ l =
+    env
+    |> ClosureEnvironment.to_list
+    |> List.map(((name, de)) => {
+         let+ ty = typ_of_dhexp(ctx, m, de);
+         Ctx.VarEntry({name, id: Id.invalid, typ: ty});
+       })
+    |> OptUtil.sequence;
+  List.fold_left((ctx, var_entry) => Ctx.extend(ctx, var_entry), ctx, l);
+}
+
+and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) => {
+  switch (dh |> DHExp.term_of) {
+  | Invalid(_)
+  | MultiHole(_)
+  | EmptyHole
+  | Deferral(_)
+  | Undefined => Some(Unknown(Internal) |> Typ.temp)
+  | DynamicErrorHole(e, _) => typ_of_dhexp(ctx, m, e)
   | Closure(env, d) =>
-    let* l =
-      env
-      |> ClosureEnvironment.to_list
-      |> List.map(((name, de)) => {
-           let+ ty = typ_of_dhexp(ctx, m, de);
-           Ctx.VarEntry({name, id: Id.invalid, typ: ty});
-         })
-      |> OptUtil.sequence;
-    let ctx' =
-      List.fold_left(
-        (ctx, var_entry) => Ctx.extend(ctx, var_entry),
-        ctx,
-        l,
-      );
+    let* ctx' = env_extend_ctx(env, m, ctx);
     typ_of_dhexp(ctx', m, d);
   | Filter(_, d) => typ_of_dhexp(ctx, m, d)
-  | BoundVar(name) =>
+  | Var(name) =>
     let* var = Ctx.lookup_var(ctx, name);
     Some(var.typ);
-  | Sequence(d1, d2) =>
+  | Seq(d1, d2) =>
     let* _ = typ_of_dhexp(ctx, m, d1);
     typ_of_dhexp(ctx, m, d2);
   | Let(dhp, de, db) =>
     let* ty1 = typ_of_dhexp(ctx, m, de);
-    let* ctx = dhpat_extend_ctx(dhp, ty1, m, ctx);
+    let* ctx = dhpat_extend_ctx(dhp, ty1, ctx);
     typ_of_dhexp(ctx, m, db);
-  | FixF(name, ty1, d) =>
-    let entry = Ctx.VarEntry({name, id: Id.invalid, typ: ty1});
-    typ_of_dhexp(Ctx.extend(ctx, entry), m, d);
-  | Fun(dhp, ty1, d, _) =>
-    let* ctx = dhpat_extend_ctx(dhp, ty1, m, ctx);
+  | FixF(dhp, d, env) =>
+    let* ty_p = dhpat_synthesize(dhp, ctx);
+    let* ctx =
+      switch (env) {
+      | None => Some(ctx)
+      | Some(env) => env_extend_ctx(env, m, ctx)
+      };
+    let* ctx = dhpat_extend_ctx(dhp, ty_p, ctx);
+    typ_of_dhexp(ctx, m, d);
+  | Fun(dhp, d, env, _) =>
+    let* ty_p = dhpat_synthesize(dhp, ctx);
+    let* ctx =
+      switch (env) {
+      | None => Some(ctx)
+      | Some(env) => env_extend_ctx(env, m, ctx)
+      };
+    let* ctx = dhpat_extend_ctx(dhp, ty_p, ctx);
     let* ty2 = typ_of_dhexp(ctx, m, d);
-    Some(Typ.Arrow(ty1, ty2));
+    Some(Typ.Arrow(ty_p, ty2) |> Typ.temp);
   | TypFun({term: Var(name), _} as utpat, d, _)
       when !Ctx.shadows_typ(ctx, name) =>
     let ctx =
-      Ctx.extend_tvar(
-        ctx,
-        {name, id: Term.UTPat.rep_id(utpat), kind: Abstract},
-      );
+      Ctx.extend_tvar(ctx, {name, id: TPat.rep_id(utpat), kind: Abstract});
     let* ty = typ_of_dhexp(ctx, m, d);
-    Some(Typ.Forall(name, ty));
+    Some(Typ.Forall(utpat, ty) |> Typ.temp);
   | TypFun(_, d, _) =>
     let* ty = typ_of_dhexp(ctx, m, d);
-    Some(Typ.Forall("?", ty));
+    Some(Typ.Forall(Var("?") |> TPat.fresh, ty) |> Typ.temp);
   | TypAp(d, ty1) =>
     let* ty = typ_of_dhexp(ctx, m, d);
-    switch (ty) {
-    | Forall(name, ty2) => Some(Typ.subst(ty1, name, ty2))
-    | _ => None
+    let* (name, ty2) = Typ.matched_forall_strict(ctx, ty);
+    switch (name) {
+    | Some(name) => Some(Typ.subst(ty1, name, ty2))
+    | None => Some(ty2)
     };
-  | Ap(d1, d2) =>
+  | Ap(_, d1, d2) =>
     let* ty1 = typ_of_dhexp(ctx, m, d1);
     let* ty2 = typ_of_dhexp(ctx, m, d2);
-    switch (ty1) {
-    | Arrow(tyl, tyr) when Typ.eq(tyl, ty2) => Some(tyr)
-    | _ => None
+    let* (tyl, tyr) = Typ.matched_arrow_strict(ctx, ty1);
+    Typ.eq(tyl, ty2) ? Some(tyr) : None;
+  | DeferredAp(d1, d2s) =>
+    let* ty1 = typ_of_dhexp(ctx, m, d1);
+    let* tys = List.map(typ_of_dhexp(ctx, m), d2s) |> OptUtil.sequence;
+    let* (tyl, tyr) = Typ.matched_arrow_strict(ctx, ty1);
+    // TODO: make strict
+    let tyls = Typ.matched_args(ctx, List.length(tys), tyl);
+    let* combined = ListUtil.combine_opt(tyls, d2s);
+    let without_deferrals =
+      List.filter(((_, d)) => !DHExp.is_deferral(d), combined);
+    if (List.for_all(
+          ((t, d)) => {
+            let ty = typ_of_dhexp(ctx, m, d);
+            switch (ty) {
+            | Some(ty) => Typ.eq(t, ty)
+            | None => false
+            };
+          },
+          without_deferrals,
+        )) {
+      let with_deferrals =
+        List.filter(((_, d)) => DHExp.is_deferral(d), combined);
+      let* tys =
+        List.map(((_, d)) => typ_of_dhexp(ctx, m, d), with_deferrals)
+        |> OptUtil.sequence;
+      switch (tys) {
+      | [] => Some(tyr)
+      | [ty] => Some(Typ.Arrow(ty, tyr) |> Typ.temp)
+      | tys => Some(Typ.Arrow(Prod(tys) |> Typ.temp, tyr) |> Typ.temp)
+      };
+    } else {
+      None;
     };
-  | ApBuiltin(name, d) =>
-    let* var = Ctx.lookup_var(ctx, name);
-    let* ty = typ_of_dhexp(ctx, m, d);
-    switch (var.typ) {
-    | Arrow(tyl, tyr) when Typ.eq(tyl, ty) => Some(tyr)
-    | _ => None
-    };
+
   | BuiltinFun(name) =>
     let* var = Ctx.lookup_var(ctx, name);
     Some(var.typ);
-  | Test(_, dtest) =>
+  | Test(dtest) =>
     let* ty = typ_of_dhexp(ctx, m, dtest);
-    Typ.eq(ty, Bool) ? Some(Typ.Prod([])) : None;
-  | BoolLit(_) => Some(Bool)
-  | IntLit(_) => Some(Int)
-  | FloatLit(_) => Some(Float)
-  | StringLit(_) => Some(String)
-  | BinBoolOp(_, d1, d2) =>
+    Typ.eq(ty, Bool |> Typ.temp) ? Some(Typ.Prod([]) |> Typ.temp) : None;
+  | Bool(_) => Some(Bool |> Typ.temp)
+  | Int(_) => Some(Int |> Typ.temp)
+  | Float(_) => Some(Float |> Typ.temp)
+  | String(_) => Some(String |> Typ.temp)
+  | BinOp(Bool(_), d1, d2) =>
     let* ty1 = typ_of_dhexp(ctx, m, d1);
     let* ty2 = typ_of_dhexp(ctx, m, d2);
-    Typ.eq(ty1, Bool) && Typ.eq(ty2, Bool) ? Some(Typ.Bool) : None;
-  | BinIntOp(op, d1, d2) =>
+    Typ.eq(ty1, Bool |> Typ.temp) && Typ.eq(ty2, Bool |> Typ.temp)
+      ? Some(Bool |> Typ.temp) : None;
+  | BinOp(Int(op), d1, d2) =>
     let* ty1 = typ_of_dhexp(ctx, m, d1);
     let* ty2 = typ_of_dhexp(ctx, m, d2);
-    if (Typ.eq(ty1, Int) && Typ.eq(ty2, Int)) {
+    if (Typ.eq(ty1, Int |> Typ.temp) && Typ.eq(ty2, Int |> Typ.temp)) {
       switch (op) {
       | Minus
       | Plus
       | Times
       | Power
-      | Divide => Some(Typ.Int)
+      | Divide => Some(Int |> Typ.temp)
       | LessThan
       | LessThanOrEqual
       | GreaterThan
       | GreaterThanOrEqual
       | Equals
-      | NotEquals => Some(Typ.Bool)
+      | NotEquals => Some(Bool |> Typ.temp)
       };
     } else {
       None;
     };
-  | BinFloatOp(op, d1, d2) =>
+  | BinOp(Float(op), d1, d2) =>
     let* ty1 = typ_of_dhexp(ctx, m, d1);
     let* ty2 = typ_of_dhexp(ctx, m, d2);
-    if (Typ.eq(ty1, Float) && Typ.eq(ty2, Float)) {
+    if (Typ.eq(ty1, Float |> Typ.temp) && Typ.eq(ty2, Float |> Typ.temp)) {
       switch (op) {
       | Minus
       | Plus
       | Times
       | Power
-      | Divide => Some(Typ.Float)
+      | Divide => Some(Float |> Typ.temp)
       | LessThan
       | LessThanOrEqual
       | GreaterThan
       | GreaterThanOrEqual
       | Equals
-      | NotEquals => Some(Typ.Bool)
+      | NotEquals => Some(Bool |> Typ.temp)
       };
     } else {
       None;
     };
-  | BinStringOp(op, d1, d2) =>
+  | BinOp(String(op), d1, d2) =>
     let* ty1 = typ_of_dhexp(ctx, m, d1);
     let* ty2 = typ_of_dhexp(ctx, m, d2);
-    if (Typ.eq(ty1, String) && Typ.eq(ty2, String)) {
+    if (Typ.eq(ty1, String |> Typ.temp) && Typ.eq(ty2, String |> Typ.temp)) {
       switch (op) {
-      | Concat => Some(Typ.String)
-      | Equals => Some(Typ.Bool)
+      | Concat => Some(String |> Typ.temp)
+      | Equals => Some(Bool |> Typ.temp)
       };
     } else {
       None;
     };
-  | ListLit(_, _, ty, _) => Some(List(ty))
+  | UnOp(Int(Minus), d) =>
+    let* ty = typ_of_dhexp(ctx, m, d);
+    Typ.eq(ty, Int |> Typ.temp) ? Some(Int |> Typ.temp) : None;
+  | UnOp(Bool(Not), d) =>
+    let* ty = typ_of_dhexp(ctx, m, d);
+    Typ.eq(ty, Bool |> Typ.temp) ? Some(Bool |> Typ.temp) : None;
+  | UnOp(Meta(Unquote), d) =>
+    let* ty = typ_of_dhexp(ctx, m, d);
+    Some(ty);
+  | ListLit([]) => Some(List(Unknown(Internal) |> Typ.temp) |> Typ.temp)
+  | ListLit([x, ...xs]) =>
+    let* t_x = typ_of_dhexp(ctx, m, x);
+    let* t_xs = List.map(typ_of_dhexp(ctx, m), xs) |> OptUtil.sequence;
+    List.for_all(t => Typ.eq(t, t_x), t_xs)
+      ? Some(List(t_x) |> Typ.temp) : None;
   | Cons(d1, d2) =>
     let* ty1 = typ_of_dhexp(ctx, m, d1);
     let* ty2 = typ_of_dhexp(ctx, m, d2);
-    switch (ty2) {
-    | List(ty3) when Typ.eq(ty3, ty1) => Some(ty2)
-    | _ => None
-    };
+    let* ty3 = Typ.matched_list_strict(ctx, ty2);
+    Typ.eq(ty1, ty3) ? Some(ty2) : None;
   | ListConcat(d1, d2) =>
     let* ty1 = typ_of_dhexp(ctx, m, d1);
+    let* ty1l = Typ.matched_list_strict(ctx, ty1);
     let* ty2 = typ_of_dhexp(ctx, m, d2);
-    switch (ty1, ty2) {
-    | (List(ty1), List(ty2)) when Typ.eq(ty1, ty2) => Some(Typ.List(ty1))
-    | _ => None
-    };
+    let* ty2l = Typ.matched_list_strict(ctx, ty2);
+    Typ.eq(ty1l, ty2l) ? Some(ty1) : None;
   | Tuple(dhs) =>
     let+ typ_list =
       dhs |> List.map(typ_of_dhexp(ctx, m)) |> OptUtil.sequence;
-    Typ.Prod(typ_list);
-  | Prj(dh, i) =>
-    let* ty = typ_of_dhexp(ctx, m, dh);
-    switch (ty) {
-    | Prod(l) when List.length(l) > i => Some(List.nth(l, i))
-    | _ => None
-    };
-  | Constructor(_, typ) => Some(typ)
-  | ConsistentCase(Case(d_scrut, d_rules, _)) =>
+    Prod(typ_list) |> Typ.temp;
+  | Constructor(_) => None // Constructors should always be surrounded by casts
+  | Match(_, []) => Some(Unknown(Internal) |> Typ.temp)
+  | Match(d_scrut, [rule, ...rules]) =>
     let* ty' = typ_of_dhexp(ctx, m, d_scrut);
-    let* typ_cases: list(Typ.t) =
-      d_rules
-      |> List.map((DHExp.Rule(dhp, de)) => {
-           let* ctx = dhpat_extend_ctx(dhp, ty', m, ctx);
-           typ_of_dhexp(ctx, m, de);
-         })
-      |> OptUtil.sequence;
-    equal_typ_list(typ_cases);
+    let rule_to_ty = ((dhpat, dhexp): (Pat.t, Exp.t)) => {
+      let* ctx = dhpat_extend_ctx(dhpat, ty', ctx);
+      typ_of_dhexp(ctx, m, dhexp);
+    };
+    let* rule_ty = rule_to_ty(rule);
+    let* rules_ty = List.map(rule_to_ty, rules) |> OptUtil.sequence;
+    List.for_all(Typ.eq(rule_ty, _), rules_ty) ? Some(rule_ty) : None;
   | Cast(d, ty1, ty2) =>
     let* _ = Typ.join(~fix=true, ctx, ty1, ty2);
     let* tyd = typ_of_dhexp(ctx, m, d);
@@ -296,26 +334,17 @@ let rec typ_of_dhexp =
     } else {
       None;
     }
-  | InvalidOperation(d, _) => typ_of_dhexp(ctx, m, d)
-  | IfThenElse(ConsistentIf, d_scrut, d1, d2) =>
+  | If(d_scrut, d1, d2) =>
     let* ty = typ_of_dhexp(ctx, m, d_scrut);
-    if (Typ.eq(ty, Bool)) {
+    if (Typ.eq(ty, Bool |> Typ.temp)) {
       let* ty1 = typ_of_dhexp(ctx, m, d1);
       let* ty2 = typ_of_dhexp(ctx, m, d2);
-      equal_typ_list([ty1, ty2]);
+      Typ.eq(ty1, ty2) ? Some(ty1) : None;
     } else {
       None;
     };
-  | IfThenElse(InconsistentIf, d_scrut, d1, d2) =>
-    let* ty = typ_of_dhexp(ctx, m, d_scrut);
-    if (Typ.eq(ty, Bool)) {
-      let* ty1 = typ_of_dhexp(ctx, m, d1);
-      let* ty2 = typ_of_dhexp(ctx, m, d2);
-      Typ.eq(ty1, ty2) ? None : Some(Typ.Unknown(Internal));
-    } else {
-      None;
-    };
-  | Undefined => Some(Typ.Unknown(Internal))
+  | TyAlias(_, _, d) => typ_of_dhexp(ctx, m, d)
+  | Parens(d) => typ_of_dhexp(ctx, m, d)
   };
 };
 

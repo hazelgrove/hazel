@@ -1,6 +1,45 @@
 open Virtual_dom.Vdom;
 open Node;
 open Haz3lcore;
+open Util;
+
+/* Assume this doesn't contain projectors */
+let measured_of = seg => Measured.of_segment(seg, Id.Map.empty);
+
+let text_view = (seg: Segment.t): list(Node.t) => {
+  module Text =
+    Code.Text({
+      let map = measured_of(seg);
+      let settings = Init.startup.settings;
+      let info_map = Id.Map.empty; /* Assume this doesn't contain projectors */
+    });
+  Text.of_segment([], true, Any, seg);
+};
+
+let segment_origin = (seg: Segment.t): option(Point.t) =>
+  Option.map(
+    first => Measured.find_p(first, measured_of(seg)).origin,
+    ListUtil.hd_opt(seg),
+  );
+
+let segment_last = (seg: Segment.t): option(Point.t) =>
+  Option.map(
+    last => Measured.find_p(last, measured_of(seg)).last,
+    ListUtil.last_opt(seg),
+  );
+
+let segment_height = (seg: Segment.t) =>
+  switch (segment_last(seg), segment_origin(seg)) {
+  | (Some(last), Some(first)) => 1 + last.row - first.row
+  | _ => 0
+  };
+
+let segment_width = (seg: Segment.t): int =>
+  IntMap.fold(
+    (_, {max_col, _}: Measured.Rows.shape, acc) => max(max_col, acc),
+    measured_of(seg).rows,
+    0,
+  );
 
 let backpack_sel_view =
     (
@@ -10,11 +49,6 @@ let backpack_sel_view =
       opacity: float,
       {focus: _, content, _}: Selection.t,
     ) => {
-  module Text =
-    Code.Text({
-      let map = Measured.of_segment(content);
-      let settings = Init.startup.settings;
-    });
   // TODO(andrew): Maybe use init sort at caret to prime this
   div(
     ~attrs=[
@@ -31,14 +65,14 @@ let backpack_sel_view =
       ),
     ],
     // zwsp necessary for containing box to stretch to contain trailing newline
-    Text.of_segment([], true, Any, content) @ [text(Unicode.zwsp)],
+    text_view(content) @ [text(Unicode.zwsp)],
   );
 };
 
 let view =
     (
       ~font_metrics: FontMetrics.t,
-      ~origin: Measured.Point.t,
+      ~origin: Point.t,
       {backpack, _} as z: Zipper.t,
     )
     : Node.t => {
@@ -46,7 +80,7 @@ let view =
   let height_head =
     switch (backpack) {
     | [] => 0
-    | [hd, ..._] => Measured.segment_height(hd.content)
+    | [hd, ..._] => segment_height(hd.content)
     };
   let can_put_down =
     switch (Zipper.pop_backpack(z)) {
@@ -90,7 +124,7 @@ let view =
   let (_, _, _, selections) =
     List.fold_left(
       ((idx, y_offset, opacity, vs), s: Selection.t) => {
-        let base_height = Measured.segment_height(s.content);
+        let base_height = segment_height(s.content);
         let scale = scale_fn(idx);
         let x_offset = x_fn(idx);
         let new_y_offset = y_offset -. dy_fn(idx, base_height);
@@ -114,7 +148,7 @@ let view =
   let length =
     switch (backpack) {
     | [] => 0
-    | [hd, ..._] => Measured.segment_width(hd.content)
+    | [hd, ..._] => segment_width(hd.content)
     };
 
   let joiner_style =

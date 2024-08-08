@@ -45,6 +45,7 @@ type section = {
 type chapter = list(section);
 
 module Main = {
+  let settings = CoreSettings.on; /* Statics and Dynamics on */
   let name_to_exercise_export = path => {
     let yj = Yojson.Safe.from_file(path);
     switch (yj) {
@@ -61,16 +62,11 @@ module Main = {
   };
   let gen_grading_report = exercise => {
     let zipper_pp = zipper => {
-      Printer.pretty_print(
-        ~measured=Measured.of_segment(Zipper.seg_without_buffer(zipper)),
-        zipper,
-      );
+      Printer.pretty_print(zipper);
     };
-    let settings = CoreSettings.on;
     let model_results =
       spliced_elabs(settings, exercise)
       |> ModelResults.init_eval
-      //TODO[Matt]: Make sure this times out correctly
       |> ModelResults.run_pending(~settings);
     let stitched_dynamics =
       stitch_dynamic(settings, exercise, Some(model_results));
@@ -118,6 +114,7 @@ module Main = {
              let exercise =
                unpersist_state(
                  persistent_state,
+                 ~settings,
                  ~spec,
                  ~instructor_mode=true,
                );
