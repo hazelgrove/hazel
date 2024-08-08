@@ -181,7 +181,7 @@ module Update = {
     {
       history:
         Aba.fold_right(
-          (_, b: Model.b, c) => {
+          (old_a: Model.a, b: Model.b, c) => {
             let b' = {
               let (let&) = (x, y) => Util.OptUtil.get(y, x);
               let options = Model.get_next_steps(c);
@@ -194,10 +194,24 @@ module Update = {
               {...b, valid: false};
             };
             print_endline(string_of_bool(b'.valid));
-            switch (get_next_a(~settings, model.history, b'), b'.valid) {
-            | (Some(a'), true) => Aba.cons(a', b', c)
-            | (None, _)
-            | (_, false) => c
+            switch (
+              old_a,
+              get_next_a(~settings, model.history, b'),
+              b'.valid,
+            ) {
+            | (A({expr, _}), Some(A({expr: expr', _})), true)
+                when {
+                  print_endline(expr |> Exp.show);
+                  print_endline(expr' |> Exp.show);
+                  DHExp.fast_equal(expr, expr');
+                } =>
+              print_endline("X1!");
+              Aba.cons(old_a, b', c);
+            | (_, Some(a'), true) =>
+              print_endline("X2!");
+              Aba.cons(a', b', c);
+            | (_, None, _)
+            | (_, _, false) => c
             };
           },
           _ =>
@@ -208,9 +222,6 @@ module Update = {
       cached_settings: Some(settings),
     };
   };
-
-  // TODO[Matt]: faster calculation
-  // let calculate_pending = (~settings, elab: Exp.t) => {};
 
   let calculate = (~settings, elab: Exp.t, model: Model.t) => {
     print_endline(string_of_int(model.history |> Aba.get_as |> List.length));

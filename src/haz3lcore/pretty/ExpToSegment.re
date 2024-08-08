@@ -617,14 +617,14 @@ let external_precedence_pat = (dp: Pat.t) =>
   // Other forms
   | Cons(_) => Precedence.cons
   | Ap(_) => Precedence.ap
-  | Cast(_) => Precedence.ann
+  | Cast(_) => Precedence.cast
   | Tuple(_) => Precedence.prod
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
   | MultiHole(_) => Precedence.min
   };
 
-let exteral_precedence_typ = (tp: Typ.t) =>
+let external_precedence_typ = (tp: Typ.t) =>
   switch (Typ.term_of(tp)) {
   // Indivisible forms never need parentheses around them
   | Unknown(Hole(Invalid(_)))
@@ -642,10 +642,10 @@ let exteral_precedence_typ = (tp: Typ.t) =>
   | List(_) => Precedence.max
 
   // Other forms
-  | Prod(_) => Precedence.prod
-  | Ap(_) => Precedence.ap
-  | Arrow(_, _) => Precedence.power
-  | Sum(_) => Precedence.plus
+  | Prod(_) => Precedence.type_prod
+  | Ap(_) => Precedence.type_sum_ap
+  | Arrow(_, _) => Precedence.type_arrow
+  | Sum(_) => Precedence.type_plus
   | Rec(_, _) => Precedence.let_
   | Forall(_, _) => Precedence.let_
 
@@ -671,12 +671,12 @@ let paren_pat_assoc_at =
     ? Pat.fresh(Parens(pat)) : pat;
 
 let paren_typ_at = (internal_precedence: Precedence.t, typ: Typ.t): Typ.t =>
-  exteral_precedence_typ(typ) >= internal_precedence
+  external_precedence_typ(typ) >= internal_precedence
     ? Typ.fresh(Parens(typ)) : typ;
 
 let paren_typ_assoc_at =
     (internal_precedence: Precedence.t, typ: Typ.t): Typ.t =>
-  exteral_precedence_typ(typ) > internal_precedence
+  external_precedence_typ(typ) > internal_precedence
     ? Typ.fresh(Parens(typ)) : typ;
 
 let rec parenthesize = (exp: Exp.t): Exp.t => {
@@ -794,9 +794,9 @@ let rec parenthesize = (exp: Exp.t): Exp.t => {
     |> rewrap
   | FailedCast(e, t1, t2) =>
     FailedCast(
-      parenthesize(e) |> paren_at(Precedence.ann),
-      parenthesize_typ(t1) |> paren_typ_at(Precedence.ann),
-      parenthesize_typ(t2) |> paren_typ_at(Precedence.ann),
+      parenthesize(e) |> paren_at(Precedence.cast),
+      parenthesize_typ(t1) |> paren_typ_at(Precedence.cast),
+      parenthesize_typ(t2) |> paren_typ_at(Precedence.cast),
     )
     |> rewrap
   | Test(e) => Test(parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
@@ -895,7 +895,7 @@ and parenthesize_pat = (pat: Pat.t): Pat.t => {
   | MultiHole(xs) => MultiHole(List.map(parenthesize_any, xs)) |> rewrap
   | Cast(p, t1, t2) =>
     Cast(
-      parenthesize_pat(p) |> paren_pat_assoc_at(Precedence.ann),
+      parenthesize_pat(p) |> paren_pat_assoc_at(Precedence.cast),
       parenthesize_typ(t1) |> paren_typ_at(Precedence.max), // Hack[Matt]: always add parens to get the arrows right
       parenthesize_typ(t2) |> paren_typ_at(Precedence.max),
     )
@@ -926,25 +926,31 @@ and parenthesize_typ = (typ: Typ.t): Typ.t => {
     Prod(
       ts
       |> List.map(parenthesize_typ)
-      |> List.map(paren_typ_at(Precedence.prod)),
+      |> List.map(paren_typ_at(Precedence.type_prod)),
     )
     |> rewrap
   | Ap(t1, t2) =>
     Ap(
-      parenthesize_typ(t1) |> paren_typ_assoc_at(Precedence.ap),
+      parenthesize_typ(t1) |> paren_typ_assoc_at(Precedence.type_sum_ap),
       parenthesize_typ(t2) |> paren_typ_at(Precedence.min),
     )
     |> rewrap
   | Rec(tp, t) =>
-    Rec(tp, parenthesize_typ(t) |> paren_typ_assoc_at(Precedence.let_))
+    Rec(
+      tp,
+      parenthesize_typ(t) |> paren_typ_assoc_at(Precedence.type_binder),
+    )
     |> rewrap
   | Forall(tp, t) =>
-    Forall(tp, parenthesize_typ(t) |> paren_typ_assoc_at(Precedence.let_))
+    Forall(
+      tp,
+      parenthesize_typ(t) |> paren_typ_assoc_at(Precedence.type_binder),
+    )
     |> rewrap
   | Arrow(t1, t2) =>
     Arrow(
-      parenthesize_typ(t1) |> paren_typ_at(Precedence.power),
-      parenthesize_typ(t2) |> paren_typ_assoc_at(Precedence.power),
+      parenthesize_typ(t1) |> paren_typ_at(Precedence.type_arrow),
+      parenthesize_typ(t2) |> paren_typ_assoc_at(Precedence.type_arrow),
     )
     |> rewrap
   | Sum(ts) =>
@@ -953,13 +959,13 @@ and parenthesize_typ = (typ: Typ.t): Typ.t => {
         ts =>
           ts
           |> Option.map(parenthesize_typ)
-          |> Option.map(paren_typ_at(Precedence.min)),
+          |> Option.map(paren_typ_at(Precedence.type_plus)),
         ts,
       ),
     )
     |> rewrap
   | Unknown(Hole(MultiHole(xs))) =>
-    Unknown(Hole(MultiHole(List.map(parenthesize_any, xs)))) |> rewrap // TODO: Parenthesize through multiholes
+    Unknown(Hole(MultiHole(List.map(parenthesize_any, xs)))) |> rewrap
   };
 }
 
