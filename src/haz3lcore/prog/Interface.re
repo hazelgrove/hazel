@@ -1,39 +1,3 @@
-module CoreStatics = Statics;
-
-module Statics = {
-  let mk_map' =
-    Core.Memo.general(~cache_size_bound=1000, e => {
-      Statics.uexp_to_info_map(
-        ~ctx=Builtins.ctx_init,
-        ~ancestors=[],
-        e,
-        Id.Map.empty,
-      )
-      |> snd
-    });
-  let mk_map = (core: CoreSettings.t, exp) =>
-    core.statics ? mk_map'(exp) : Id.Map.empty;
-
-  let mk_map_and_info_ctx =
-    Core.Memo.general(~cache_size_bound=1000, (ctx, e) => {
-      Statics.uexp_to_info_map(~ctx, ~ancestors=[], e, Id.Map.empty)
-    });
-  let mk_map_and_info_ctx = (core: CoreSettings.t, ctx, exp) =>
-    core.statics
-      ? {
-        let (info, map) = mk_map_and_info_ctx(ctx, exp);
-        (Some(info), map);
-      }
-      : (None, Id.Map.empty);
-
-  let mk_map_ctx =
-    Core.Memo.general(~cache_size_bound=1000, (ctx, e) => {
-      Statics.uexp_to_info_map(~ctx, ~ancestors=[], e, Id.Map.empty) |> snd
-    });
-  let mk_map_ctx = (core: CoreSettings.t, ctx, exp) =>
-    core.statics ? mk_map_ctx(ctx, exp) : Id.Map.empty;
-};
-
 let dh_err = (error: string): DHExp.t => Var(error) |> DHExp.fresh;
 
 let elaborate =

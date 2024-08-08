@@ -5,38 +5,32 @@ open Haz3lcore;
    dependency on the model, which is technically against architecture */
 
 let print = (~settings: Settings.t, editor: Editor.t, key: string): unit => {
-  let z = editor.state.zipper;
-  let print = str => str |> print_endline;
-  let term = z => z |> MakeTerm.from_zip_for_view |> fst;
-  let ctx_init = Builtins.ctx_init;
+  let {state: {zipper, meta, _}, _}: Editor.t = editor;
+  let term = meta.statics.term;
+  let map = meta.statics.info_map;
+  let print = print_endline;
   switch (key) {
-  | "F1" => z |> Zipper.show |> print
-  | "F2" => z |> Zipper.unselect_and_zip |> Segment.show |> print
-  | "F3" => z |> term |> Exp.show |> print
-  | "F4" =>
-    z
-    |> term
-    |> Interface.Statics.mk_map_ctx(settings.core, ctx_init)
-    |> Statics.Map.show
-    |> print
+  | "F1" => zipper |> Zipper.show |> print
+  | "F2" => zipper |> Zipper.unselect_and_zip |> Segment.show |> print
+  | "F3" => term |> UExp.show |> print
+  | "F4" => map |> Statics.Map.show |> print
   | "F5" =>
-    let env_init = Builtins.env_init;
-    Interface.eval_z(~settings=settings.core, ~env_init, ~ctx_init, z)
-    |> ProgramResult.show(ProgramResult.pp_inner)
+    let env = Editors.get_env_init(~settings, editors);
+    Interface.elaborate(~settings=settings.core, map, term)
+    |> Interface.evaluate(~settings=settings.core, ~env)
+    |> ProgramResult.show
     |> print;
   | "F6" =>
-    let index = Indicated.index(z);
-    let map =
-      z |> term |> Interface.Statics.mk_map_ctx(settings.core, ctx_init);
+    let index = Indicated.index(zipper);
     switch (index) {
     | Some(index) =>
-      switch (Haz3lcore.Id.Map.find_opt(index, map)) {
+      print("id:" ++ Id.to_string(index));
+      switch (Id.Map.find_opt(index, map)) {
       | Some(ci) => print(Info.show(ci))
       | None => print("DEBUG: No CI found for index")
-      }
+      };
     | None => print("DEBUG: No indicated index")
     };
-
   | _ => print("DEBUG: No action for key: " ++ key)
   };
 };

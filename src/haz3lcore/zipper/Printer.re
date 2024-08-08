@@ -20,6 +20,7 @@ and of_piece = (~holes, p: Piece.t): string =>
   | Grout({shape: Convex, _}) => " "
   | Secondary(w) =>
     Secondary.is_linebreak(w) ? "\n" : Secondary.get_string(w.content)
+  | Projector(p) => of_piece(~holes, p.syntax)
   }
 and of_tile = (~holes, t: Tile.t): string =>
   Aba.mk(t.shards, t.children)
@@ -39,7 +40,7 @@ let to_rows =
     (
       ~holes: option(string),
       ~measured: Measured.t,
-      ~caret: option(Measured.Point.t),
+      ~caret: option(Point.t),
       ~indent: string,
       ~segment: Segment.t,
     )
@@ -60,68 +61,39 @@ let to_rows =
   };
 };
 
-let pretty_print = (~measured: Measured.t, z: Zipper.t): string =>
+let measured = z =>
+  z |> Zipper.seg_without_buffer |> Measured.of_segment(_, Id.Map.empty);
+
+let pretty_print = (~holes: option(string)=Some(""), z: Zipper.t): string =>
   to_rows(
-    ~holes=None,
-    ~measured,
+    ~holes,
+    ~measured=measured(z),
     ~caret=None,
     ~indent=" ",
     ~segment=seg_of_zip(z),
   )
   |> String.concat("\n");
 
-let to_string_editor =
-    (~holes: option(string)=Some(""), editor: Editor.t): string =>
+let zipper_to_string =
+    (~holes: option(string)=Some(""), z: Zipper.t): string =>
   to_rows(
     ~holes,
-    ~measured=editor.state.meta.measured,
+    ~measured=measured(z),
     ~caret=None,
     ~indent="",
-    ~segment=seg_of_zip(editor.state.zipper),
+    ~segment=seg_of_zip(z),
   )
   |> String.concat("\n");
 
 let to_string_selection = (editor: Editor.t): string =>
   to_rows(
-    ~measured=editor.state.meta.measured,
+    ~measured=measured(editor.state.zipper),
     ~caret=None,
     ~indent=" ",
     ~holes=None,
     ~segment=editor.state.zipper.selection.content,
   )
   |> String.concat("\n");
-
-let to_log = (~measured: Measured.t, z: Zipper.t): t => {
-  code:
-    to_rows(
-      ~holes=None,
-      ~measured,
-      ~caret=Some(Zipper.caret_point(measured, z)),
-      ~indent=" ",
-      ~segment=seg_of_zip(z),
-    ),
-  selection: z.selection.content |> of_segment(~holes=None) |> lines_to_list,
-  backpack:
-    List.map(
-      (s: Selection.t) =>
-        s.content |> of_segment(~holes=None) |> lines_to_list,
-      z.backpack,
-    ),
-};
-
-let to_log_flat = (~measured, z: Zipper.t): string => {
-  let {code, selection, backpack} = to_log(~measured, z);
-  Printf.sprintf(
-    "CODE:\n%s\nSELECTION:\n%s\n%s\n",
-    String.concat("\n", code),
-    String.concat("\n", selection),
-    backpack
-    |> List.mapi((i, b) =>
-         Printf.sprintf("BP(%d):\n %s\n", i, String.concat("\n", b))
-       )
-    |> String.concat(""),
-  );
-};
 
 let zipper_of_string =
     (~zipper_init=Zipper.init(), str: string): option(Zipper.t) => {
@@ -135,3 +107,9 @@ let zipper_of_string =
   };
   str |> Util.StringUtil.to_list |> List.fold_left(insert, Some(zipper_init));
 };
+
+/* This serializes the current editor to text, resets the current
+   editor, and then deserializes. It is intended as a (tactical)
+   nuclear option for weird backpack states */
+let reparse = z =>
+  zipper_of_string(~zipper_init=Zipper.init(), zipper_to_string(z));

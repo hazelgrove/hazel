@@ -38,6 +38,7 @@ type section = {
 [@deriving (sexp, yojson)]
 type chapter = list(section);
 module Main = {
+  let settings = CoreSettings.on; /* Statics and Dynamics on */
   let name_to_exercise_export = path => {
     let all = path |> Yojson.Safe.from_file |> Export.all_of_yojson;
     all.exercise
@@ -46,12 +47,8 @@ module Main = {
   };
   let gen_grading_report = (exercise): report => {
     let zipper_pp = zipper => {
-      Printer.pretty_print(
-        ~measured=Measured.of_segment(Zipper.seg_without_buffer(zipper)),
-        zipper,
-      );
+      Printer.pretty_print(zipper);
     };
-    let settings = CoreSettings.on;
     let terms =
       stitch_term(exercise.eds)
       |> map_stitched((_, {term, _}: TermItem.t) => term);

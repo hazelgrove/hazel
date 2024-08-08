@@ -1,5 +1,5 @@
 open Util;
-
+open StringUtil;
 open Mold;
 module P = Precedence;
 
@@ -11,10 +11,6 @@ module P = Precedence;
    table, for compound forms.
    The wrapping functions seen in both of those tables determine the
    shape, precedence, and expansion behavior of the form. */
-
-let regexp = (r, s) =>
-  Js_of_ocaml.Regexp.string_match(Js_of_ocaml.Regexp.regexp(r), s, 0)
-  |> Option.is_some;
 
 /* A label is the textual expression of a form's delimiters */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -73,19 +69,19 @@ let space = " ";
    issues with using \n. Someone who understands regexps better
    should fix this. */
 let linebreak = "⏎";
-let comment_regexp = "^#[^#⏎]*#$"; /* Multiline comments not supported */
-let is_comment = t => regexp(comment_regexp, t) || t == "#";
+let comment_regexp = regexp("^#[^#⏎]*#$"); /* Multiline comments not supported */
+let is_comment = t => match(comment_regexp, t) || t == "#";
 let is_comment_delim = t => t == "#";
 let is_secondary = t =>
-  List.mem(t, [space, linebreak]) || regexp(comment_regexp, t);
+  List.mem(t, [space, linebreak]) || match(comment_regexp, t);
 
 /* STRINGS: special-case syntax */
 
 /* is_string: last clause is a somewhat hacky way of making sure
    there are at most two quotes, in order to prevent merges */
+let string_regexp = regexp("^\"[^⏎]*\"$");
 let is_string = t =>
-  regexp("^\"[^⏎]*\"$", t)
-  && List.length(String.split_on_char('"', t)) < 4;
+  match(string_regexp, t) && List.length(String.split_on_char('"', t)) < 4;
 let string_delim = "\"";
 let empty_string = string_delim ++ string_delim;
 let is_string_delim = (==)(string_delim);
@@ -112,64 +108,66 @@ let keywords = [
   "else",
 ];
 let reserved_keywords = ["of", "when", "with", "switch", "match"];
-let is_keyword = regexp("^(" ++ String.concat("|", keywords) ++ ")$");
-let is_reserved_keyword =
-  regexp("^(" ++ String.concat("|", reserved_keywords) ++ ")$");
+let keyword_regexp = regexp("^(" ++ String.concat("|", keywords) ++ ")$");
+let is_keyword = match(keyword_regexp);
 
 /* Potential tokens: These are fallthrough classes which determine
  * the behavior when inserting a character in contact with a token */
-let is_potential_operand = regexp("^[a-zA-Z0-9_'\\.?]+$");
+let is_potential_operand = match(regexp("^[a-zA-Z0-9_'\\.?]+$"));
 /* Anything else is considered a potential operator, as long
  *  as it does not contain any whitespace, linebreaks, comment
  *  delimiters, string delimiters, or the instant expanding paired
  *  delimiters: ()[]| */
-let is_potential_operator = regexp("^[^a-zA-Z0-9_'?\"#⏎\\s\\[\\]\\(\\)]+$");
+let potential_operator_regexp =
+  regexp("^[^a-zA-Z0-9_'?\"#⏎\\s\\[\\]\\(\\)]+$");
+let is_potential_operator = match(potential_operator_regexp);
 let is_potential_token = t =>
   is_potential_operand(t)
   || is_potential_operator(t)
   || is_string(t)
   || is_comment(t);
 
-let is_arbitary_int = regexp("^-?\\d+[0-9_]*$");
-let is_arbitary_float = x =>
-  x != "." && x != "-" && regexp("^-?[0-9]*\\.?[0-9]*((e|E)-?[0-9]*)?$", x);
-let is_int = str => is_arbitary_int(str) && int_of_string_opt(str) != None;
+let int_regexp = regexp("^-?\\d+[0-9_]*$");
+let is_float = match(regexp("^-?[0-9]*\\.?[0-9]*((e|E)-?[0-9]*)?$"));
+let is_arbitary_float = x => x != "." && x != "-" && is_float(x);
+let is_int = str => match(int_regexp, str) && int_of_string_opt(str) != None;
 /* NOTE: The is_arbitary_int check is necessary to prevent
    minuses from being parsed as part of the int token. */
 
-let is_bad_int = str => is_arbitary_int(str) && !is_int(str);
+let is_bad_int = str => match(int_regexp, str) && !is_int(str);
 
 /* NOTE: As well as making is_float  disjoint from is_int,
    the is_arbitary_int  also prevents ints over int_max from being
    cast as floats. The is_arbitary_float check is necessary to prevent
    minuses from being parsed as part of the float token. */
 let is_float = str =>
-  !is_arbitary_int(str)
+  !match(int_regexp, str)
   && is_arbitary_float(str)
   && float_of_string_opt(str) != None;
 let is_bad_float = str => is_arbitary_float(str) && !is_float(str);
 let bools = ["true", "false"];
-let is_bool = regexp("^(" ++ String.concat("|", bools) ++ ")$");
+let is_bool = match(regexp("^(" ++ String.concat("|", bools) ++ ")$"));
 let undefined = "undefined";
-let is_undefined = regexp("^" ++ undefined ++ "$");
+let is_undefined = match(regexp("^" ++ undefined ++ "$"));
 
+let var_regexp =
+  regexp(
+    {|(^[a-z_][A-Za-z0-9_']*$)|(^[A-Z][A-Za-z0-9_']*\.[a-z][A-Za-z0-9_']*$)|},
+  );
 let is_var = str =>
   !is_bool(str)
   && !is_undefined(str)
   && str != "_"
   //&& !is_keyword(str)
-  //&& !is_reserved(str)
-  && regexp(
-       {|(^[a-z_][A-Za-z0-9_']*$)|(^[A-Z][A-Za-z0-9_']*\.[a-z][A-Za-z0-9_']*$)|},
-       str,
-     );
-let is_capitalized_name = regexp("^[A-Z][A-Za-z0-9_]*$");
-let is_ctr = is_capitalized_name;
+  && match(var_regexp, str);
+let capitalized_name_regexp = regexp("^[A-Z][A-Za-z0-9_]*$");
+let is_ctr = match(capitalized_name_regexp);
 let base_typs = ["String", "Int", "Float", "Bool"];
-let is_base_typ = regexp("^(" ++ String.concat("|", base_typs) ++ ")$");
-let is_typ_var = str => is_var(str) || is_capitalized_name(str);
+let is_base_typ =
+  match(regexp("^(" ++ String.concat("|", base_typs) ++ ")$"));
+let is_typ_var = str => is_var(str) || match(capitalized_name_regexp, str);
 let wild = "_";
-let is_wild = regexp("^" ++ wild ++ "$");
+let is_wild = match(regexp("^" ++ wild ++ "$"));
 
 /* List literals */
 let list_start = "[";
