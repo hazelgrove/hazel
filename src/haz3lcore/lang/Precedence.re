@@ -12,80 +12,94 @@ open Util;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = int;
 
+let associativity_map: ref(list((t, Direction.t))) = ref([]);
+let left_associative = (level: t) => {
+  associativity_map := [(level, Direction.Left), ...associativity_map^];
+  level;
+};
+let right_associative = (level: t) => {
+  associativity_map := [(level, Direction.Right), ...associativity_map^];
+  level;
+};
+
 let max: t = 0;
-let unquote = 1;
-let ap = 2;
+
+// ========== TYPES ==========
+let type_sum_ap = 10;
+// _____ (Int)
+// + T1 + _____
+let type_plus = 11;
+// _____ -> Int
+let type_arrow = 12 |> right_associative;
+// Int -> _____
+// String , _____ , String
+let type_prod = 13;
+let type_binder = 14;
+// forall t -> _____
+// rec t -> _____
+
+// ======== PATTERNS =========
+// ======= EXPRESSIONS =======
+
+let unquote = 21;
+// $_____
+let ap = 22;
 // _____(x)
-let cast = 3;
+// 5 : _____
+let cast = 23 |> left_associative;
+// _____ : T
 // - _____
-let neg = 4;
+let neg = 24;
 // _____ ** 2
-let power = 5;
+let power = 25 |> right_associative;
 // 2 ** _____
 // 6 / _____
-let mult = 6;
-let not_ = 6;
+let mult = 26 |> left_associative;
+let not_ = 26;
 // _____ / 6
 // 4 - _____
-let plus = 7;
+let plus = 27 |> left_associative;
 // _____ - 4
 // _____ :: []
-let cons = 8;
+let cons = 28 |> right_associative;
 // 1 :: _____
 // [1,2] @ _____
-let concat = 9;
+let concat = 29 |> right_associative;
 // _____ @ [1,2]
 // x == _____
-let eqs = 10;
+let eqs = 30 |> left_associative;
 // _____ == x
 // _____ && true
-let and_ = 11;
+let and_ = 31;
 // true && _____
 // _____ || false
-let or_ = 12;
+let or_ = 32;
 // false || _____
-let ann = 13;
-// _____ : T
-let if_ = 14;
-let fun_ = 15;
+let if_ = 34;
+let fun_ = 35;
 // fun x -> _____
-let prod = 16;
+let prod = 36;
 // a , _____ , x
 // _____ ; ()
-let semi = 17;
+let semi = 37 |> right_associative;
 // () ; _____
-let let_ = 18;
-let rule_arr = 19;
-let rule_pre = 20;
-let rule_sep = 21;
-let case_ = 22;
+let let_ = 38;
+// let x = 3 in _____
+let rule_arr = 39;
+let rule_pre = 40;
+let rule_sep = 41;
+let case_ = 42;
 
-let comma = 15;
+let comma = 45;
 
-let type_plus = 4;
-let type_arrow = 5;
-let type_prod = comma;
-
-let min = 26;
+let min = 46;
 
 let compare = (p1: t, p2: t): int =>
   (-1) * Int.compare((p1 :> int), (p2 :> int));
 // let min = (p1: t, p2: t): t => max(p1, p2);
 
 let associativity_map: IntMap.t(Direction.t) =
-  [
-    (cast, Direction.Left),
-    (mult, Left),
-    (plus, Left),
-    (power, Right),
-    (cons, Right),
-    (concat, Right),
-    (ann, Left),
-    (eqs, Left),
-    (type_arrow, Right),
-  ]
-  |> List.to_seq
-  |> IntMap.of_seq;
+  associativity_map^ |> List.to_seq |> IntMap.of_seq;
 
 let associativity = (p: t): option(Direction.t) =>
   IntMap.find_opt(p, associativity_map);
