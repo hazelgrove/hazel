@@ -1,15 +1,16 @@
+open Util;
 open Virtual_dom.Vdom;
 open Js_of_ocaml;
 open Node;
 open Util.Web;
 open Widgets;
 
-// let export_persistent_data = (~inject: Globals.Update.t => 'a) =>
-//   button_named(
-//     Icons.sprout,
-//     _ => inject(ExportPersistentData),
-//     ~tooltip="Export All Persistent Data",
-//   );
+let export_persistent_data = (~inject: Update.t => 'a) =>
+  button_named(
+    Icons.sprout,
+    _ => inject(ExportPersistentData),
+    ~tooltip="Export All Persistent Data",
+  );
 
 let reset_hazel =
   button(

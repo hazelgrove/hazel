@@ -73,6 +73,10 @@ let shape_affix =
         let (ws, wss) = ListUtil.split_first(wss);
         (([[w, ...ws], ...wss], gs), s, tl);
       | Grout(g) => (Aba.cons([], g, wgw), s, tl)
+      | Projector(p) =>
+        let (l, _) =
+          ProjectorBase.shapes(p) |> (d == Left ? TupleUtil.swap : Fun.id);
+        (empty_wgw, l, tl);
       | Tile(t) =>
         let (l, _) = Tile.shapes(t) |> (d == Left ? TupleUtil.swap : Fun.id);
         (empty_wgw, l, tl);
@@ -80,39 +84,6 @@ let shape_affix =
     };
   go((d == Left ? List.rev : Fun.id)(affix), r);
 };
-let shape = shape_affix(Right);
-
-let rec convex = seg => {
-  open OptUtil.Syntax;
-  let l =
-    fold_right(
-      (p: Piece.t, shape) => {
-        let* s = shape;
-        switch (p) {
-        | Secondary(_) => shape
-        | Grout(g) =>
-          Grout.fits_shape(g, s) ? Some(fst(Grout.shapes(g))) : None
-        | Tile(t) =>
-          let (l, r) = Tile.shapes(t);
-          List.for_all(convex, t.children) && Nib.Shape.fits(r, s)
-            ? Some(l) : None;
-        };
-      },
-      seg,
-      Some(Nib.Shape.concave()),
-    );
-  switch (l) {
-  | None => false
-  | Some(l) => Nib.Shape.fits(Nib.Shape.concave(), l)
-  };
-};
-
-let split_by_grout: t => Aba.t(t, Grout.t) =
-  Aba.split(
-    fun
-    | Piece.Grout(g) => Either.R(g)
-    | p => L(p),
-  );
 
 let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
   switch (s) {
@@ -143,10 +114,7 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
         let child =
           if (l
               + 1 == r
-              && (
-                List.nth(remolded.mold.in_, l) != List.nth(t.mold.in_, l)
-                || Effect.s_touched(remolded.id)
-              )) {
+              && List.nth(remolded.mold.in_, l) != List.nth(t.mold.in_, l)) {
             remold(child, List.nth(remolded.mold.in_, l));
           } else {
             child;
@@ -164,7 +132,8 @@ and remold_typ = (shape, seg: t): t =>
   | [hd, ...tl] =>
     switch (hd) {
     | Secondary(_)
-    | Grout(_) => [hd, ...remold_typ(shape, tl)]
+    | Grout(_)
+    | Projector(_) => [hd, ...remold_typ(shape, tl)]
     | Tile(t) =>
       switch (remold_tile(Typ, shape, t)) {
       | None => [Tile(t), ...remold_typ(snd(Tile.shapes(t)), tl)]
@@ -178,7 +147,8 @@ and remold_typ_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
   | [hd, ...tl] =>
     switch (hd) {
     | Secondary(_)
-    | Grout(_) =>
+    | Grout(_)
+    | Projector(_) =>
       let (remolded, shape, rest) = remold_typ_uni(shape, tl);
       ([hd, ...remolded], shape, rest);
     | Tile(t) =>
@@ -207,7 +177,8 @@ and remold_pat_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
   | [hd, ...tl] =>
     switch (hd) {
     | Secondary(_)
-    | Grout(_) =>
+    | Grout(_)
+    | Projector(_) =>
       let (remolded, shape, rest) = remold_pat_uni(shape, tl);
       ([hd, ...remolded], shape, rest);
     | Tile(t) =>
@@ -238,7 +209,8 @@ and remold_pat = (shape, seg: t): t =>
   | [hd, ...tl] =>
     switch (hd) {
     | Secondary(_)
-    | Grout(_) => [hd, ...remold_pat(shape, tl)]
+    | Grout(_)
+    | Projector(_) => [hd, ...remold_pat(shape, tl)]
     | Tile(t) =>
       switch (remold_tile(Pat, shape, t)) {
       | None => [Tile(t), ...remold_pat(snd(Tile.shapes(t)), tl)]
@@ -258,7 +230,8 @@ and remold_tpat_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
   | [hd, ...tl] =>
     switch (hd) {
     | Secondary(_)
-    | Grout(_) =>
+    | Grout(_)
+    | Projector(_) =>
       let (remolded, shape, rest) = remold_tpat_uni(shape, tl);
       ([hd, ...remolded], shape, rest);
     | Tile(t) =>
@@ -285,7 +258,8 @@ and remold_tpat = (shape, seg: t): t =>
   | [hd, ...tl] =>
     switch (hd) {
     | Secondary(_)
-    | Grout(_) => [hd, ...remold_tpat(shape, tl)]
+    | Grout(_)
+    | Projector(_) => [hd, ...remold_tpat(shape, tl)]
     | Tile(t) =>
       switch (remold_tile(TPat, shape, t)) {
       | None => [Tile(t), ...remold_tpat(snd(Tile.shapes(t)), tl)]
@@ -305,7 +279,8 @@ and remold_exp_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
   | [hd, ...tl] =>
     switch (hd) {
     | Secondary(_)
-    | Grout(_) =>
+    | Grout(_)
+    | Projector(_) =>
       let (remolded, shape, rest) = remold_exp_uni(shape, tl);
       ([hd, ...remolded], shape, rest);
     | Tile(t) =>
@@ -347,7 +322,8 @@ and remold_rul = (shape, seg: t): t =>
   | [hd, ...tl] =>
     switch (hd) {
     | Secondary(_)
-    | Grout(_) => [hd, ...remold_rul(shape, tl)]
+    | Grout(_)
+    | Projector(_) => [hd, ...remold_rul(shape, tl)]
     | Tile(t) =>
       switch (remold_tile(Rul, shape, t)) {
       | Some(t) =>
@@ -376,7 +352,8 @@ and remold_exp = (shape, seg: t): t =>
   | [hd, ...tl] =>
     switch (hd) {
     | Secondary(_)
-    | Grout(_) => [hd, ...remold_exp(shape, tl)]
+    | Grout(_)
+    | Projector(_) => [hd, ...remold_exp(shape, tl)]
     | Tile(t) =>
       switch (remold_tile(Exp, shape, t)) {
       | None => [Tile(t), ...remold_exp(snd(Tile.shapes(t)), tl)]
@@ -541,6 +518,12 @@ and regrout_affix =
         switch (p) {
         | Secondary(w) => (Trim.cons_w(w, trim), r, tl)
         | Grout(g) => (Trim.(merge(cons_g(g, trim))), r, tl)
+        | Projector(pr) =>
+          let p = Piece.Projector(pr);
+          let (l', r') =
+            ProjectorBase.shapes(pr) |> (d == Left ? TupleUtil.swap : Fun.id);
+          let trim = Trim.regrout(d, (r', r), trim);
+          (Trim.empty, l', [p, ...Trim.to_seg(trim)] @ tl);
         | Tile(t) =>
           let children =
             List.fold_right(
@@ -669,26 +652,6 @@ let edge_shape_of = (d: Direction.t, ps: t): option(Nib.Shape.t) => {
 let edge_direction_of = (d: Direction.t, ps: t): option(Direction.t) =>
   Option.map(Nib.Shape.absolute(d), edge_shape_of(d, ps));
 
-let rec serialize = (seg: t) =>
-  seg
-  |> List.concat_map(
-       fun
-       | (Piece.Secondary(_) | Grout(_) | Tile({shards: [_], _})) as p => [
-           p,
-         ]
-       | Tile(t) => {
-           let shards =
-             List.map(
-               Tile.to_piece,
-               Tile.split_shards(t.id, t.label, t.mold, t.shards),
-             );
-           let children = List.map(serialize, t.children);
-           Aba.mk(shards, children)
-           |> Aba.join(s => [s], Fun.id)
-           |> List.concat;
-         },
-     );
-
 let sameline_secondary =
   List.for_all(
     fun
@@ -728,7 +691,8 @@ let expected_sorts = (sort: Sort.t, seg: t): list((int, Sort.t)) => {
 let rec holes = (segment: t): list(Grout.t) =>
   List.concat_map(
     fun
-    | Piece.Secondary(_) => []
+    | Piece.Secondary(_)
+    | Projector(_) => []
     | Tile(t) => List.concat_map(holes, t.children)
     | Grout(g) => [g],
     segment,
@@ -754,6 +718,27 @@ let rec get_incomplete_ids = (seg: t): list(Id.t) =>
 
 let ids_of_incomplete_tiles_in_bidelimiteds = (seg: t): list(Id.t) =>
   get_childrens(seg) |> List.concat |> get_incomplete_ids;
+
+let push_right = ((ls: t, rs: t)): (t, t) =>
+  switch (List.rev(ls)) {
+  | [l, ...ls] => (List.rev(ls), [l, ...rs])
+  | [] => (ls, rs)
+  };
+
+let push_left = ((ls: t, rs: t)): (t, t) =>
+  switch (rs) {
+  | [r, ...rs] => (ls @ [r], rs)
+  | [] => (ls, rs)
+  };
+
+let rec ids = (s: t): list(Id.t) => List.concat_map(ids_of_piece, s)
+and ids_of_piece = (p: Piece.t): list(Id.t) =>
+  switch (p) {
+  | Tile(t) => [Piece.id(p), ...ids(List.concat(t.children))]
+  | Grout(_)
+  | Secondary(_)
+  | Projector(_) => [Piece.id(p)]
+  };
 
 let first_string =
   fun

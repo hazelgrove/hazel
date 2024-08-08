@@ -9,7 +9,7 @@ open Util.Web;
 let of_delim' =
   Core.Memo.general(
     ~cache_size_bound=10000,
-    ((label, is_in_buffer, sort, is_consistent, is_complete, i)) => {
+    ((label, is_in_buffer, sort, is_consistent, is_complete, indent, i)) => {
       let cls =
         switch (label) {
         | _ when is_in_buffer => "in-buffer"
@@ -21,24 +21,31 @@ let of_delim' =
         };
       let plurality = List.length(label) == 1 ? "mono" : "poly";
       let label = is_in_buffer ? AssistantExpander.mark(label) : label;
+      let token = List.nth(label, i);
+      /* Add indent to multiline tokens: */
+      let token =
+        StringUtil.num_linebreaks(token) == 0
+          ? token : token ++ StringUtil.repeat(indent, Unicode.nbsp);
       [
         span(
           ~attrs=[
             Attr.classes(["token", cls, Sort.to_string(sort), plurality]),
           ],
-          [Node.text(List.nth(label, i))],
+          [Node.text(token)],
         ),
       ];
     },
   );
 let of_delim =
-    (is_in_buffer, is_consistent, t: Piece.tile, i: int): list(Node.t) =>
+    (is_in_buffer, is_consistent, indent, t: Piece.tile, i: int)
+    : list(Node.t) =>
   of_delim'((
     t.label,
     is_in_buffer,
     t.mold.out,
     is_consistent,
     Tile.is_complete(t),
+    indent,
     i,
   ));
 
@@ -64,11 +71,26 @@ let of_secondary =
     }
   );
 
-module Text = (M: {
-                 let map: Measured.t;
-                 let settings: Settings.Model.t;
-               }) => {
-  let m = p => Measured.find_p(p, M.map);
+let of_projector = (p, expected_sort, indent, info_map) =>
+  of_delim'((
+    [Projector.placeholder(p, Id.Map.find_opt(p.id, info_map))],
+    false,
+    expected_sort,
+    true,
+    true,
+    indent,
+    0,
+  ));
+
+module Text =
+       (
+         M: {
+           let map: Measured.t;
+           let settings: Settings.Model.t;
+           let info_map: Statics.Map.t;
+         },
+       ) => {
+  let m = p => Measured.find_p(~msg="Text", p, M.map);
   let rec of_segment =
           (buffer_ids, no_sorts, sort, seg: Segment.t): list(Node.t) => {
     /* note: no_sorts flag is used for backpack view;
@@ -95,6 +117,8 @@ module Text = (M: {
     | Grout(_) => of_grout
     | Secondary({content, _}) =>
       of_secondary((content, M.settings.secondary_icons, m(p).last.col))
+    | Projector(p) =>
+      of_projector(p, expected_sort, m(Projector(p)).origin.col, M.info_map)
     };
   }
   and of_tile = (buffer_ids, expected_sort: Sort.t, t: Tile.t): list(Node.t) => {
@@ -108,19 +132,82 @@ module Text = (M: {
     let is_consistent = Sort.consistent(t.mold.out, expected_sort);
     let is_in_buffer = List.mem(t.id, buffer_ids);
     Aba.mk(t.shards, children_and_sorts)
-    |> Aba.join(of_delim(is_in_buffer, is_consistent, t), ((seg, sort)) =>
+    |> Aba.join(
+         of_delim(is_in_buffer, is_consistent, m(Tile(t)).origin.col, t),
+         ((seg, sort)) =>
          of_segment(buffer_ids, false, sort, seg)
        )
     |> List.concat;
   };
 };
 
-let of_hole = (~globals: Globals.t, ~measured, g: Grout.t) =>
+let rec holes =
+        (~font_metrics, ~map: Measured.t, seg: Segment.t): list(Node.t) =>
+  seg
+  |> List.concat_map(
+       fun
+       | Piece.Secondary(_) => []
+       | Projector(_) => []
+       | Tile(t) => List.concat_map(holes(~map, ~font_metrics), t.children)
+       | Grout(g) => [
+           EmptyHoleDec.view(
+             ~font_metrics, // TODO(d) fix sort
+             {
+               measurement: Measured.find_g(~msg="Code.holes", g, map),
+               mold: Mold.of_grout(g, Any),
+             },
+           ),
+         ],
+     );
+
+let simple_view = (~font_metrics, ~segment, ~settings: Settings.t): Node.t => {
+  let map = Measured.of_segment(segment, Id.Map.empty);
+  module Text =
+    Text({
+      let map = map;
+      let settings = settings;
+      let info_map = Id.Map.empty; /* Assume this doesn't contain projectors */
+    });
+  let holes = holes(~map, ~font_metrics, segment);
+  div(
+    ~attrs=[Attr.class_("code")],
+    [
+      span_c("code-text", Text.of_segment([], false, Sort.Any, segment)),
+      ...holes,
+    ],
+  );
+};
+
+let of_hole = (~font_metrics, ~measured, g: Grout.t) =>
   // TODO(d) fix sort
   EmptyHoleDec.view(
     ~font_metrics=globals.font_metrics,
     {
-      measurement: Measured.find_g(g, measured),
+      measurement: Measured.find_g(~msg="Code.of_hole", g, measured),
       mold: Mold.of_grout(g, Any),
     },
   );
+
+let view =
+    (
+      ~sort: Sort.t,
+      ~font_metrics,
+      ~settings: Settings.t,
+      z: Zipper.t,
+      {syntax: {measured, segment, holes, selection_ids, _}, statics, _}: Editor.Meta.t,
+    )
+    : Node.t => {
+  module Text =
+    Text({
+      let map = measured;
+      let settings = settings;
+      let info_map = statics.info_map;
+    });
+  let buffer_ids = Selection.is_buffer(z.selection) ? selection_ids : [];
+  let code = Text.of_segment(buffer_ids, false, sort, segment);
+  let holes = List.map(of_hole(~measured, ~font_metrics), holes);
+  div(
+    ~attrs=[Attr.class_("code")],
+    [span_c("code-text", code), ...holes],
+  );
+};
