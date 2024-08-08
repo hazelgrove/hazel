@@ -163,10 +163,6 @@ svg.shard.error > path {
   fill: var(--error-hole-fill);
 }
 
-.errors svg:has(.child-line) {
-  z-index: var(--err-hole-arms-z);
-}
-
 /* SHARD DROP SHADOWS */
 
 #filters {
@@ -232,6 +228,10 @@ svg.shard.error > path {
   stroke-linecap: round;
   fill: none;
   vector-effect: non-scaling-stroke;
+}
+
+svg:has(.child-line) {
+  z-index: var(--err-hole-arms-z);
 }
 
 .child-line.Nul {

@@ -154,29 +154,29 @@ let go_z =
     }
   | Select(Term(Current)) => select_term_current(z)
   | Select(Smart(n)) =>
-    // let select_parent = z => {
-    //   let statics = meta.statics.info_map;
-    //   let target =
-    //     switch (
-    //       Indicated.index(z)
-    //       |> OptUtil.and_then(idx => Id.Map.find_opt(idx, statics))
-    //     ) {
-    //     | Some(ci) =>
-    //       switch (Info.ancestors_of(ci)) {
-    //       | [] => None
-    //       | [parent, ..._] => Some(parent)
-    //       }
-    //     | None => None
-    //     };
-    //   switch (target) {
-    //   | None => Error(Action.Failure.Cant_select)
-    //   | Some(id) =>
-    //     switch (Select.term(id, z)) {
-    //     | Some(z) => Ok(z)
-    //     | None => Error(Action.Failure.Cant_select)
-    //     }
-    //   };
-    // };
+    let _select_parent = z => {
+      let statics = meta.statics.info_map;
+      let target =
+        switch (
+          Indicated.index(z)
+          |> OptUtil.and_then(idx => Id.Map.find_opt(idx, statics))
+        ) {
+        | Some(ci) =>
+          switch (Info.ancestors_of(ci)) {
+          | [] => None
+          | [parent, ..._] => Some(parent)
+          }
+        | None => None
+        };
+      switch (target) {
+      | None => Error(Action.Failure.Cant_select)
+      | Some(id) =>
+        switch (Select.term(id, z)) {
+        | Some(z) => Ok(z)
+        | None => Error(Action.Failure.Cant_select)
+        }
+      };
+    };
     switch (n) {
     | 2 =>
       switch (Indicated.piece''(z)) {
@@ -191,9 +191,13 @@ let go_z =
         )
         |> Select.go(Local(Right(ByToken)))
         |> Result.of_option(~error=Action.Failure.Cant_select)
-      | _ =>
+      | Some(_) =>
         Select.go(Local(Right(ByToken)), z)
         |> Result.of_option(~error=Action.Failure.Cant_select)
+      | None =>
+        // Don't select whitespace
+        // But this prevents selecting comments...
+        Error(Cant_select)
       }
     | 3 =>
       switch (Indicated.piece''(z)) {
@@ -208,14 +212,60 @@ let go_z =
             _,
           }) =>
           //select_parent(z)
-          Error(Action.Failure.Cant_select)
+          Error(Cant_select)
         | Tile({label: ["let" | "type", ..._], _}) => select_tile_current(z)
-        | Tile(_) => select_term_current(z)
+        | Tile({label: ["|", "=>"], _}) =>
+          /* Special case */
+          switch (select_tile_current(z)) {
+          | Ok(z) =>
+            switch (
+              Move.do_until(
+                Select.go(Local(Right(ByToken))),
+                p =>
+                  switch (p) {
+                  | Tile({label: ["case", "end"], _}) => true
+                  | Tile({label: ["|", "=>"], _}) => true
+                  | _ => false
+                  },
+                z,
+              )
+            ) {
+            | None => Error(Cant_select)
+            | Some(z) =>
+              switch (
+                Move.do_until(
+                  Select.go(Local(Left(ByToken))),
+                  p =>
+                    switch (p) {
+                    | Tile({label: ["case", "end"], _}) => false
+                    | Tile({label: ["|", "=>"], _}) => false
+                    | Secondary(_) => false
+                    | _ => true
+                    },
+                  z,
+                )
+              ) {
+              | Some(z) => Ok(z)
+              | None => Error(Cant_select)
+              }
+            }
+          | Error(_) => Error(Cant_select)
+          }
+        | Tile(t) =>
+          switch (t.label, Zipper.parent(z)) {
+          | ([","], Some(Tile({label: ["[", "]"], id, _}))) =>
+            //| (["|", "=>"], Some(Tile({label: ["case", "end"], id, _})))
+            switch (Select.term(id, z)) {
+            | Some(z) => Ok(z)
+            | None => Error(Cant_select)
+            }
+          | _ => select_term_current(z)
+          }
         }
-      | _ => Error(Action.Failure.Cant_select)
+      | _ => Error(Cant_select)
       }
-    | _ => Error(Action.Failure.Cant_select)
-    }
+    | _ => Error(Cant_select)
+    };
   | Select(Term(Id(id, d))) =>
     switch (Select.term(id, z)) {
     | Some(z) =>
