@@ -118,17 +118,36 @@ module HighlightSegment =
       t.children |> List.mapi(index => of_segment(shape_at(index)));
     ListUtil.interleave(tile_shards, children_shards) |> List.flatten;
   }
-  and of_projector = (~start_shape as _, p: Base.projector): list(option(_)) =>
+  and of_projector = (~start_shape, p: Base.projector): list(option(_)) =>
     switch (Measured.find_pr_opt(p, M.measured)) {
     | None => failwith("Deco.of_projector: missing measurement")
-    | Some(m) =>
+    | Some(_m) =>
       let ci = Id.Map.find_opt(p.id, M.info_map);
       let token = Projector.placeholder(p, ci);
-      multiline_shard(
-        StringUtil.num_linebreaks(token),
-        m,
-        (Some(Convex), Some(Convex)),
-      );
+      /* Handling this internal to ProjectorsView at the moment because the
+       * commented-out strategy doesn't work well, since the inserted str8-
+       * edged lines vertical edge placement doesn't account for whether
+       * the initial/final rows begin/end as concave/convex, and hence are
+       * of slightly different lengths than is desirable */
+      // multiline_shard(
+      //   StringUtil.num_linebreaks(token),
+      //   m,
+      //   (Some(Convex), Some(Convex)),
+      // );
+      let num_lb = StringUtil.num_linebreaks(token);
+      if (num_lb == 0) {
+        [
+          Some(
+            sel_shard_svg(
+              ~start_shape,
+              Measured.find_pr(p, M.measured),
+              Projector(p),
+            ),
+          ),
+        ];
+      } else {
+        List.init(num_lb + 1, _ => None);
+      };
     }
   and of_segment =
       (start_shape: PieceDec.tip, seg: Segment.t): list(option(_)) => {

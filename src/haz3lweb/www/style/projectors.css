@@ -103,10 +103,6 @@
   height: 100%;
   width: 100%;
   border-radius: 0.1em;
-  border-left: 2px solid var(--NONE);
-  border-right: 2px solid var(--NONE);
-  margin-left: -2px;
-  margin-right: -2px;
 }
 
 .projector.text.indicated .cols,
@@ -120,7 +116,8 @@
 
 .projector.text .cols {
   height: 100%;
-  width: 100%;
+  margin-left: 2px;
+  margin-right: 2px;
   display: flex;
   border-radius: 0 0.1em 0.1em 0.1em;
   color: var(--SAND);
@@ -128,7 +125,7 @@
     var(--NONE),
     var(--NONE) 1.41em,
     var(--textarea-h-stripe) 1.41em,
-    var(--textarea-h-stripe) 1.45em /* line-height */
+    var(--textarea-h-stripe) 1.47em /* line-height */
   );
 }
 
@@ -137,7 +134,7 @@
     var(--NONE),
     var(--NONE) 1.41em,
     var(--textarea-h-strip-selected) 1.41em,
-    var(--textarea-h-strip-selected) 1.45em /* line-height */
+    var(--textarea-h-strip-selected) 1.47em /* line-height */
   );
 }
 .projector.text.selected > svg {
@@ -151,6 +148,7 @@
   caret-color: var(--caret-color);
   padding: 0;
   margin: 0;
+  margin-left: -2px;
   line-height: var(--line-height);
   font-family: var(--code-font);
   font-size: inherit;

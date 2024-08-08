@@ -39,7 +39,7 @@ type rel =
 type select =
   | All
   | Resize(move)
-  | Smart
+  | Smart(int)
   | Tile(rel)
   | Term(rel);
 
