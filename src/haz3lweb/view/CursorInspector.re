@@ -282,7 +282,8 @@ let inspector_view = (~inject, ~settings, ci): Node.t =>
     [view_of_info(~inject, ~settings, ci)],
   );
 
-let view = (~inject, ~settings: Settings.t, cursor_info: option(Info.t)) => {
+let view =
+    (~inject, ~settings: Settings.t, editor, cursor_info: option(Info.t)) => {
   let bar_view = div(~attrs=[Attr.id("bottom-bar")]);
   let err_view = err =>
     bar_view([
@@ -297,9 +298,10 @@ let view = (~inject, ~settings: Settings.t, cursor_info: option(Info.t)) => {
   | Some(ci) =>
     bar_view([
       inspector_view(~inject, ~settings, ci),
-      div(
-        ~attrs=[clss(["id"])],
-        [text(String.sub(Id.to_string(Info.id_of(ci)), 0, 4))],
+      ProjectorView.Panel.view(
+        ~inject=a => inject(PerformAction(Project(a))),
+        editor,
+        ci,
       ),
     ])
   };
