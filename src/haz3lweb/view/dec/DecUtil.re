@@ -13,10 +13,10 @@ let short_tip_height = (1. -. t) *. 0.5;
 
 let d_comp = (d1: Direction.t, d2: Direction.t): float =>
   switch (d1, d2) {
-  | (Left, Left)
-  | (Right, Right) => 0.
-  | (Left, Right) => 1.0
-  | (Right, Left) => (-1.0)
+  | (Left, Left) => (-0.6)
+  | (Right, Right) => 0.6
+  | (Left, Right) => 0.8
+  | (Right, Left) => (-0.8)
   };
 
 let shape_of_run = (shape: Direction.t): float =>
@@ -34,16 +34,16 @@ let caret_run = (shape: option(Direction.t)) =>
 let caret_adjust = (side: Direction.t, shape: option(Direction.t)) =>
   switch (shape) {
   | None => 0.
-  | Some(d2) => d_comp(side, d2) *. tip_width
+  | Some(d2) => d_comp(side, d2) *. 0.32 //tip_width
   };
 
-let chevron' = (a: float, b: float, c: float): list(SvgUtil.Path.cmd) =>
+let chevron' = (_a: float, b: float, c: float): list(SvgUtil.Path.cmd) =>
   SvgUtil.Path.[
-    H_({dx: -. a}),
+    //H_({dx: -. a}),
     L_({dx: -. b, dy: c}),
     L_({dx: +. b, dy: c}),
-    H_({dx: +. a}),
   ];
+//H_({dx: +. a}),
 
 let chevron =
     (side: Direction.t, shape: option(Direction.t), drawing: Direction.t) => {
