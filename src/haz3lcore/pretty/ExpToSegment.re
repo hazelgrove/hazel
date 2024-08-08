@@ -501,7 +501,7 @@ and typ_to_pretty = (~inline, typ: Typ.t): pretty => {
     let id = typ |> Typ.rep_id;
     let+ e1 = exp_to_pretty(~inline, e1)
     and+ e2 = exp_to_pretty(~inline, e2);
-    [mk_form("equals", id, [e1, e2])];
+    [mk_form("pequals", id, [e1, e2])];
   | Arrow(t1, t2) =>
     let id = typ |> Typ.rep_id;
     let+ t1 = go(t1)

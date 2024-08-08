@@ -388,6 +388,7 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
         | (["String"], []) => String
         | ([t], []) when Form.is_typ_var(t) => Var(t)
         | (["(", ")"], [Typ(body)]) => Parens(body)
+        | (["{", "=", "}"], [Exp(e1), Exp(e2)]) => Equals(e1, e2)
         | (["[", "]"], [Typ(body)]) => List(body)
         | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
           Unknown(Hole(Invalid(t)))
@@ -406,10 +407,10 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
    * If this is below the case for sum, then it gets parsed as an invalid form. */
   | Pre(([(_id, (["type", "->"], [TPat(tpat)]))], []), Typ(t)) =>
     ret(Type(tpat, t))
-  // | Pre(([(_id, (["forall", "->"], [Pat(pat)]))], []), Typ(t)) =>
-  //   ret(Forall(pat, t))
   | Pre(([(_id, (["rec", "->"], [TPat(tpat)]))], []), Typ(t)) =>
     ret(Rec(tpat, t))
+  | Pre(([(_id, (["forall", "->"], [Pat(pat)]))], []), Typ(t)) =>
+    ret(Forall(pat, t))
   | Pre(tiles, Typ({term: Sum(t0), ids, _})) as tm =>
     /* Case for leading prefix + preceeding a sum */
     switch (tiles) {
