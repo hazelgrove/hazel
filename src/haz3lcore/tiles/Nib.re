@@ -1,3 +1,5 @@
+open Util;
+
 module Shape = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -26,15 +28,21 @@ module Shape = {
     | Convex => concave()
     | Concave(_) => Convex;
 
-  let absolute = (d: Util.Direction.t, s: t): Util.Direction.t =>
+  let absolute = (d: Direction.t, s: t): Direction.t =>
     /* The direction an s-shaped nib on the d-hand side is facing */
     switch (s) {
     | Convex => d
-    | Concave(_) => Util.Direction.toggle(d)
+    | Concave(_) => Direction.toggle(d)
     };
 
-  let relative = (nib: Util.Direction.t, side: Util.Direction.t): t =>
+  let relative = (nib: Direction.t, side: Direction.t): t =>
     nib == side ? Convex : concave();
+
+  let direction_of = (d: Direction.t, shape: t): Direction.t =>
+    switch (shape) {
+    | Convex => d
+    | Concave(_) => Direction.toggle(d)
+    };
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
