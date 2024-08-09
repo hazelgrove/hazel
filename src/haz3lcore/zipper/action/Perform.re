@@ -154,7 +154,7 @@ let go_z =
     }
   | Select(Term(Current)) => select_term_current(z)
   | Select(Smart(n)) =>
-    let _select_parent = z => {
+    let select_parent = z => {
       let statics = meta.statics.info_map;
       let target =
         switch (
@@ -171,9 +171,21 @@ let go_z =
       switch (target) {
       | None => Error(Action.Failure.Cant_select)
       | Some(id) =>
-        switch (Select.term(id, z)) {
-        | Some(z) => Ok(z)
+        switch (Id.Map.find_opt(id, statics)) {
         | None => Error(Action.Failure.Cant_select)
+        | Some(ci) =>
+          switch (Info.cls_of(ci)) {
+          | Exp(Let | TyAlias) =>
+            switch (Select.tile(id, z)) {
+            | Some(z) => Ok(z)
+            | None => Error(Action.Failure.Cant_select)
+            }
+          | _ =>
+            switch (Select.term(id, z)) {
+            | Some(z) => Ok(z)
+            | None => Error(Action.Failure.Cant_select)
+            }
+          }
         }
       };
     };
@@ -211,8 +223,8 @@ let go_z =
             mold: {nibs: ({shape: Convex, _}, {shape: Convex, _}), _},
             _,
           }) =>
-          //select_parent(z)
-          Error(Cant_select)
+          select_parent(z)
+        //Error(Cant_select)
         | Tile({label: ["let" | "type", ..._], _}) => select_tile_current(z)
         | Tile({label: ["|", "=>"], _}) =>
           /* Special case */
@@ -253,7 +265,8 @@ let go_z =
           }
         | Tile(t) =>
           switch (t.label, Zipper.parent(z)) {
-          | ([","], Some(Tile({label: ["[", "]"], id, _}))) =>
+          | ([","], Some(Tile({label: ["[", "]"], id, _})))
+          | ([","], Some(Tile({label: ["(", ")"], id, _}))) =>
             //| (["|", "=>"], Some(Tile({label: ["case", "end"], id, _})))
             switch (Select.term(id, z)) {
             | Some(z) => Ok(z)
