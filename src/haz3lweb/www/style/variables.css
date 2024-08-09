@@ -167,14 +167,14 @@
   --menu-divider: var(--MENUDIV);
   --menu-shadow: var(--MENUSHADE);
 
-  --bottom-bar-bkg: var(--menu-bkg);
+  --ui-bkg: var(--T1);
   --ci-icon-bkg: var(--BR3);
   --ci-status-text: var(--BR4);
   --ci-status-error-text: var(--R2);
   --ci-status-error-bkg: var(--test-fail-active);
   --context-inspector-colon: var(--BR2);
 
-  --explain-this-title: var(--BR3);
+  --ui-header-text: var(--BR3);
   --explain-this-expander: var(--BR3);
 
   /* EXERCISE MODE UI */

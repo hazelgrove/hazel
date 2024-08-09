@@ -95,7 +95,7 @@
 #explain-this .section .section-title {
   text-transform: uppercase;
   font-weight: bold;
-  color: var(--explain-this-title);
+  color: var(--ui-header-text);
   font-size: 0.8em;
 }
 

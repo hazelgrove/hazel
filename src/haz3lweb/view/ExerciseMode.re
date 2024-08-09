@@ -205,7 +205,7 @@ let view =
         YourTestsTesting,
         ~caption="Implementation Validation",
         ~subcaption=
-          ": Your Tests (code synchronized with Test Validation cell above) vs. Your Implementation",
+          ": Your Tests (synchronized with Test Validation above) vs. Your Implementation",
         ~editor=eds.your_tests.tests,
         ~di=user_tests,
         ~footer=[
