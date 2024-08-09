@@ -30,26 +30,6 @@ let go_z =
   module Move = Move.Make(M);
   module Select = Select.Make(M);
 
-  let select_term_current = z =>
-    switch (Indicated.index(z)) {
-    | None => Error(Action.Failure.Cant_select)
-    | Some(id) =>
-      switch (Select.term(id, z)) {
-      | Some(z) => Ok(z)
-      | None => Error(Action.Failure.Cant_select)
-      }
-    };
-
-  let select_tile_current = z =>
-    switch (Indicated.index(z)) {
-    | None => Error(Action.Failure.Cant_select)
-    | Some(id) =>
-      switch (Select.tile(id, z)) {
-      | Some(z) => Ok(z)
-      | None => Error(Action.Failure.Cant_select)
-      }
-    };
-
   let paste = (z: Zipper.t, str: string): option(Zipper.t) => {
     open Util.OptUtil.Syntax;
     let* z = Printer.zipper_of_string(~zipper_init=z, str);
@@ -86,6 +66,98 @@ let go_z =
       | Some(completion) => paste(z, completion)
       }
     };
+
+  let smart_select = (n, z): option(Zipper.t) => {
+    open OptUtil.Syntax;
+    let statics_of = Id.Map.find_opt(_, meta.statics.info_map);
+    let select_parent = z => {
+      let* ci = Indicated.index(z) |> OptUtil.and_then(statics_of);
+      let* id =
+        switch (Info.ancestors_of(ci)) {
+        | [] => None
+        | [parent, ..._] => Some(parent)
+        };
+      let* ci_parent = statics_of(id);
+      switch (Info.cls_of(ci_parent)) {
+      | Exp(Let | TyAlias) =>
+        /* For definition-type forms, don't select the body */
+        Select.tile(id, z)
+      | Exp(Match) =>
+        /* Case rules aren't terms in the syntax model,
+         * but here we pretend they are */
+        let* z = Move.left_until_case_or_rule(z);
+        switch (Indicated.piece''(z)) {
+        | Some((p, _, _)) =>
+          switch (p) {
+          | Tile({label: ["|", "=>"], _}) => Select.containing_rule(z)
+          | Tile({label: ["case", "end"], _}) => Select.term(id, z)
+          | _ => None
+          }
+        | _ => None
+        };
+      | _ =>
+        switch (Info.ancestors_of(ci_parent)) {
+        | [] => Select.term(id, z)
+        | [gp, ..._] =>
+          let* ci_gp = statics_of(gp);
+          switch (Info.cls_of(ci_parent), Info.cls_of(ci_gp)) {
+          | (
+              Exp(Tuple) | Pat(Tuple) | Typ(Prod),
+              Exp(Parens) | Pat(Parens) | Typ(Parens),
+            ) =>
+            /* If parent is tuple, check if it's in parens,
+             * and if so, select the parens as well */
+            Select.term(gp, z)
+          | _ => Select.term(id, z)
+          };
+        }
+      };
+    };
+    switch (n) {
+    | 2 =>
+      switch (Indicated.piece'(~no_ws=false, ~ign=Piece.is_secondary, z)) {
+      | Some((p, Left, _)) when !Piece.is_secondary(p) && z.caret == Outer =>
+        /* If we're on the far right side of something, we
+         * still want to select it versus secondary to the right */
+        let* z = Move.go(Local(Left(ByToken)), z);
+        Select.go(Local(Right(ByToken)), z);
+      | Some((p, _, _)) when !Piece.is_secondary(p) =>
+        Select.go(Local(Right(ByToken)), z)
+      | Some((Secondary(_), _, _)) =>
+        /* If there is secondary on both sides, select the
+         * largest contiguous run of non-linebreak secondary */
+        Select.containing_secondary_run(z)
+      | _ => None
+      }
+    | 3 =>
+      switch (Indicated.piece''(z)) {
+      | Some((p, _, _)) =>
+        switch (p) {
+        | Secondary(_) => failwith("Perform.Select Smart impossible")
+        | Grout(_)
+        | Projector(_)
+        | Tile({
+            label: [_],
+            mold: {nibs: ({shape: Convex, _}, {shape: Convex, _}), _},
+            _,
+          }) =>
+          /* For things where triple-clicking would otherwise have
+           * no additional effect, select the parent term instead */
+          select_parent(z)
+        | Tile({label: ["let" | "type", ..._], _}) => Select.current_tile(z)
+        | Tile({label: ["|", "=>"], _}) => Select.containing_rule(z)
+        | Tile(t) =>
+          switch (t.label, Zipper.parent(z)) {
+          | ([","], Some(Tile({label: ["[", "]"] | ["(", ")"], id, _}))) =>
+            Select.term(id, z)
+          | _ => Select.current_term(z)
+          }
+        }
+      | _ => None
+      }
+    | _ => None
+    };
+  };
 
   switch (a) {
   | Paste(clipboard) =>
@@ -152,133 +224,16 @@ let go_z =
       }
     | None => Error(Action.Failure.Cant_select)
     }
-  | Select(Term(Current)) => select_term_current(z)
+  | Select(Term(Current)) =>
+    switch (Select.current_term(z)) {
+    | None => Error(Cant_select)
+    | Some(z) => Ok(z)
+    }
   | Select(Smart(n)) =>
-    let select_parent = z => {
-      let statics = meta.statics.info_map;
-      let target =
-        switch (
-          Indicated.index(z)
-          |> OptUtil.and_then(idx => Id.Map.find_opt(idx, statics))
-        ) {
-        | Some(ci) =>
-          switch (Info.ancestors_of(ci)) {
-          | [] => None
-          | [parent, ..._] => Some(parent)
-          }
-        | None => None
-        };
-      switch (target) {
-      | None => Error(Action.Failure.Cant_select)
-      | Some(id) =>
-        switch (Id.Map.find_opt(id, statics)) {
-        | None => Error(Action.Failure.Cant_select)
-        | Some(ci) =>
-          switch (Info.cls_of(ci)) {
-          | Exp(Let | TyAlias) =>
-            switch (Select.tile(id, z)) {
-            | Some(z) => Ok(z)
-            | None => Error(Action.Failure.Cant_select)
-            }
-          | _ =>
-            switch (Select.term(id, z)) {
-            | Some(z) => Ok(z)
-            | None => Error(Action.Failure.Cant_select)
-            }
-          }
-        }
-      };
-    };
-    switch (n) {
-    | 2 =>
-      switch (Indicated.piece''(z)) {
-      | Some((_, Left, _)) when z.caret == Outer =>
-        /* This case is to avoid selecting spaces,
-         * which rarely seems like what you'd want. */
-        (
-          switch (Move.go(Local(Left(ByToken)), z)) {
-          | Some(z) => z
-          | None => z
-          }
-        )
-        |> Select.go(Local(Right(ByToken)))
-        |> Result.of_option(~error=Action.Failure.Cant_select)
-      | Some(_) =>
-        Select.go(Local(Right(ByToken)), z)
-        |> Result.of_option(~error=Action.Failure.Cant_select)
-      | None =>
-        // Don't select whitespace
-        // But this prevents selecting comments...
-        Error(Cant_select)
-      }
-    | 3 =>
-      switch (Indicated.piece''(z)) {
-      | Some((p, _, _)) =>
-        switch (p) {
-        | Secondary(_) => failwith("Perform.Select Smart impossible")
-        | Grout(_)
-        | Projector(_)
-        | Tile({
-            label: [_],
-            mold: {nibs: ({shape: Convex, _}, {shape: Convex, _}), _},
-            _,
-          }) =>
-          select_parent(z)
-        //Error(Cant_select)
-        | Tile({label: ["let" | "type", ..._], _}) => select_tile_current(z)
-        | Tile({label: ["|", "=>"], _}) =>
-          /* Special case */
-          switch (select_tile_current(z)) {
-          | Ok(z) =>
-            switch (
-              Move.do_until(
-                Select.go(Local(Right(ByToken))),
-                p =>
-                  switch (p) {
-                  | Tile({label: ["case", "end"], _}) => true
-                  | Tile({label: ["|", "=>"], _}) => true
-                  | _ => false
-                  },
-                z,
-              )
-            ) {
-            | None => Error(Cant_select)
-            | Some(z) =>
-              switch (
-                Move.do_until(
-                  Select.go(Local(Left(ByToken))),
-                  p =>
-                    switch (p) {
-                    | Tile({label: ["case", "end"], _}) => false
-                    | Tile({label: ["|", "=>"], _}) => false
-                    | Secondary(_) => false
-                    | _ => true
-                    },
-                  z,
-                )
-              ) {
-              | Some(z) => Ok(z)
-              | None => Error(Cant_select)
-              }
-            }
-          | Error(_) => Error(Cant_select)
-          }
-        | Tile(t) =>
-          switch (t.label, Zipper.parent(z)) {
-          | ([","], Some(Tile({label: ["[", "]"], id, _})))
-          | ([","], Some(Tile({label: ["(", ")"], id, _}))) =>
-            //| (["|", "=>"], Some(Tile({label: ["case", "end"], id, _})))
-            switch (Select.term(id, z)) {
-            | Some(z) => Ok(z)
-            | None => Error(Cant_select)
-            }
-          | _ => select_term_current(z)
-          }
-        }
-      | _ => Error(Cant_select)
-      }
-    | _ => Error(Cant_select)
-    };
+    switch (smart_select(n, z)) {
+    | None => Error(Cant_select)
+    | Some(z) => Ok(z)
+    }
   | Select(Term(Id(id, d))) =>
     switch (Select.term(id, z)) {
     | Some(z) =>
@@ -286,7 +241,11 @@ let go_z =
       Ok(z);
     | None => Error(Action.Failure.Cant_select)
     }
-  | Select(Tile(Current)) => select_tile_current(z)
+  | Select(Tile(Current)) =>
+    switch (Select.current_tile(z)) {
+    | None => Error(Cant_select)
+    | Some(z) => Ok(z)
+    }
   | Select(Tile(Id(id, d))) =>
     switch (Select.tile(id, z)) {
     | Some(z) =>

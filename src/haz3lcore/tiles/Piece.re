@@ -153,3 +153,22 @@ let of_mono = (syntax: t): option(string) =>
   | Tile({label: [l], _}) => Some(l)
   | _ => None
   };
+
+let is_case_or_rule = (p: t) =>
+  switch (p) {
+  | Tile({label: ["case", "end"], _}) => true
+  | Tile({label: ["|", "=>"], _}) => true
+  | _ => false
+  };
+let is_not_case_or_rule_or_space = (p: t) =>
+  switch (p) {
+  | Tile({label: ["case", "end"], _}) => false
+  | Tile({label: ["|", "=>"], _}) => false
+  | Secondary(_) => false
+  | _ => true
+  };
+let not_comment_or_space = (p: t) =>
+  switch (p) {
+  | Secondary(s) => Secondary.is_linebreak(s)
+  | _ => true
+  };

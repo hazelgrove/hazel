@@ -37,6 +37,16 @@ module Make = (M: Editor.Meta.S) => {
     Move.do_towards(primary, last, z);
   };
 
+  let current_term = z => {
+    let* id = Indicated.index(z);
+    term(id, z);
+  };
+
+  let current_tile = z => {
+    let* id = Indicated.index(z);
+    tile(id, z);
+  };
+
   let go = (d: Action.move, z: Zipper.t) =>
     switch (d) {
     | Goal(Piece(_)) => failwith("Select.go not implemented for Piece Goal")
@@ -53,4 +63,28 @@ module Make = (M: Editor.Meta.S) => {
       | Down => vertical(Right, z)
       }
     };
+
+  let grow_right_until_case_or_rule =
+    Move.do_until(go(Local(Right(ByToken))), Piece.is_case_or_rule);
+
+  let grow_right_until_not_comment_or_space =
+    Move.do_until(go(Local(Right(ByToken))), Piece.not_comment_or_space);
+
+  let shrink_left_until_not_case_or_rule_or_space =
+    Move.do_until(
+      go(Local(Left(ByToken))),
+      Piece.is_not_case_or_rule_or_space,
+    );
+
+  let containing_rule = z => {
+    let* z = current_tile(z);
+    let* z = grow_right_until_case_or_rule(z);
+    shrink_left_until_not_case_or_rule_or_space(z);
+  };
+
+  let containing_secondary_run = z => {
+    let* z = Move.left_until_not_comment_or_space(z);
+    let* z = grow_right_until_not_comment_or_space(z);
+    go(Local(Left(ByToken)), z);
+  };
 };
