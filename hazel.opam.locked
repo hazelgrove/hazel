@@ -1,6 +1,10 @@
+
 opam-version: "2.0"
 name: "hazel"
 version: "~dev"
+synopsis: "Hazel, a live functional programming environment with typed holes"
+maintainer: "Hazel Development Team"
+authors: "Hazel Development Team"
 license: "MIT"
 homepage: "https://github.com/hazelgrove/hazel"
 bug-reports: "https://github.com/hazelgrove/hazel/issues"
@@ -51,8 +55,6 @@ depends: [
   "fpath" {= "0.7.3"}
   "gen" {= "1.1"}
   "gen_js_api" {= "1.1.2"}
-  "host-arch-x86_64" {= "1"}
-  "host-system-other" {= "1"}
   "incr_dom" {= "v0.16.0"}
   "incr_map" {= "v0.16.0"}
   "incr_select" {= "v0.16.0"}
@@ -70,6 +72,7 @@ depends: [
   "junit_alcotest" {= "2.0.2" & with-test}
   "lambdasoup" {= "1.0.0"}
   "lsp" {= "1.19.0"}
+  "lwt" {= "5.7.0"}
   "markup" {= "1.0.3"}
   "menhir" {= "20240715"}
   "menhirCST" {= "20240715"}
@@ -94,6 +97,7 @@ depends: [
   "ocamlformat-lib" {= "0.26.2"}
   "ocamlformat-rpc-lib" {= "0.26.2"}
   "ocp-indent" {= "1.8.1"}
+  "ocplib-endian" {= "1.2"}
   "octavius" {= "1.2.2"}
   "ojs" {= "1.1.2"}
   "omd" {= "2.0.0~alpha4"}
@@ -193,6 +197,3 @@ build: [
   ]
 ]
 dev-repo: "git+https://github.com/hazelgrove/hazel.git"
-synopsis: "Hazel, a live functional programming environment with typed holes"
-maintainer: "Hazel Development Team"
-authors: "Hazel Development Team"

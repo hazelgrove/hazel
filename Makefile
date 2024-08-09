@@ -15,6 +15,7 @@ change-deps:
 	dune build hazel.opam
 	opam install ./hazel.opam --deps-only --with-test
 	opam lock .
+	sed -i'.old' '/host-/d' hazel.opam.locked  # remove host- lines which are arch-specific. Not using -i '' because of portability issues https://stackoverflow.com/questions/4247068/sed-command-with-i-option-failing-on-mac-but-works-on-linux
 
 setup-instructor:
 	cp src/haz3lweb/ExerciseSettings_instructor.re src/haz3lweb/ExerciseSettings.re
