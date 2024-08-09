@@ -282,6 +282,7 @@ let switch_exercise_editor =
    this between users. The former is a TODO, currently difficult
    due to the more complex architecture of Exercises. */
 let export_persistent_data = () => {
+  // TODO Is this parsing and reserializing?
   let settings = Store.Settings.load();
   let data: PersistentData.t = {
     documentation:
@@ -300,6 +301,52 @@ let export_persistent_data = () => {
     ~contents,
   );
   print_endline("INFO: Persistent data exported to Init.ml");
+};
+let export_scratch_slide = (editor: Editor.t): unit => {
+  let json_data = ScratchSlide.export(editor);
+  JsUtil.download_json("hazel-scratchpad", json_data);
+};
+
+let export_exercise_module = (exercise: Exercise.state): unit => {
+  let module_name = exercise.eds.module_name;
+  let filename = exercise.eds.module_name ++ ".ml";
+  let content_type = "text/plain";
+  let contents = Exercise.export_module(module_name, exercise);
+  JsUtil.download_string_file(~filename, ~content_type, ~contents);
+};
+
+let export_submission = (~instructor_mode) =>
+  Log.get_and(log => {
+    let data = Export.export_all(~instructor_mode, ~log);
+    JsUtil.download_json(ExerciseSettings.filename, data);
+  });
+
+let export_transitionary = (exercise: Exercise.state) => {
+  // .ml files because show uses OCaml syntax (dune handles seamlessly)
+  let module_name = exercise.eds.module_name;
+  let filename = exercise.eds.module_name ++ ".ml";
+  let content_type = "text/plain";
+  let contents = Exercise.export_transitionary_module(module_name, exercise);
+  JsUtil.download_string_file(~filename, ~content_type, ~contents);
+};
+
+let export_instructor_grading_report = (exercise: Exercise.state) => {
+  // .ml files because show uses OCaml syntax (dune handles seamlessly)
+  let module_name = exercise.eds.module_name;
+  let filename = exercise.eds.module_name ++ "_grading.ml";
+  let content_type = "text/plain";
+  let contents = Exercise.export_grading_module(module_name, exercise);
+  JsUtil.download_string_file(~filename, ~content_type, ~contents);
+};
+
+let instructor_exercise_update =
+    (model: Model.t, fn: Exercise.state => unit): Result.t(Model.t) => {
+  switch (model.editors) {
+  | Exercises(_, _, exercise) when model.settings.instructor_mode =>
+    fn(exercise);
+    Ok(model);
+  | _ => Error(InstructorOnly) // TODO Make command palette contextual and figure out how to represent that here
+  };
 };
 
 let ui_state_update =
@@ -371,9 +418,23 @@ let apply =
           data,
         );
       Model.save_and_return({...model, editors});
-    | ExportPersistentData =>
+    | Export(ExportPersistentData) =>
       export_persistent_data();
       Ok(model);
+    | Export(ExportScratchSlide) =>
+      let editor = Editors.get_editor(model.editors);
+      export_scratch_slide(editor);
+      Ok(model);
+    | Export(ExerciseModule) =>
+      instructor_exercise_update(model, export_exercise_module)
+    | Export(Submission) =>
+      export_submission(~instructor_mode=model.settings.instructor_mode);
+      Ok(model);
+
+    | Export(TransitionaryExerciseModule) =>
+      instructor_exercise_update(model, export_transitionary)
+    | Export(GradingExerciseModule) =>
+      instructor_exercise_update(model, export_instructor_grading_report)
     | ResetCurrentEditor =>
       let instructor_mode = model.settings.instructor_mode;
       let editors =
