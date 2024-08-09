@@ -93,8 +93,8 @@ let settings_menu = (~inject, ~settings: Settings.t) => {
 let export_persistent_data = (~inject: Update.t => 'a) =>
   button_named(
     Icons.export,
-    _ => inject(ExportPersistentData),
-    ~tooltip="All Persistent Data",
+    _ => inject(Export(ExportPersistentData)),
+    ~tooltip="Export All Persistent Data",
   );
 
 let reset_hazel =
@@ -125,11 +125,11 @@ let item_group = (~inject as _, name: string, ts) => {
   div_c("group", [div_c("name", [text(name)]), div_c("contents", ts)]);
 };
 
-let file_group_scratch = (~inject, ed) =>
+let file_group_scratch = (~inject) =>
   item_group(
     ~inject,
     "File",
-    [ScratchMode.export_button(ed), ScratchMode.import_button(inject)],
+    [ScratchMode.export_button(inject), ScratchMode.import_button(inject)],
   );
 
 let reset_group_scratch = (~inject) =>
@@ -139,12 +139,12 @@ let reset_group_scratch = (~inject) =>
     [ScratchMode.reset_button(inject), reparse(~inject), reset_hazel],
   );
 
-let file_group_exercises = (~inject, ~settings) =>
+let file_group_exercises = (~inject) =>
   item_group(
     ~inject,
     "File",
     [
-      ExerciseMode.export_submission(~settings),
+      ExerciseMode.export_submission(inject),
       ExerciseMode.import_submission(~inject),
     ],
   );
@@ -156,33 +156,35 @@ let reset_group_exercises = (~inject) =>
     [ExerciseMode.reset_button(inject), reparse(~inject), reset_hazel],
   );
 
-let dev_group_exercises = (~inject, ~exercise) =>
+let dev_group_exercises = (~inject) =>
   item_group(
     ~inject,
     "Developer Export",
     [
       export_persistent_data(~inject),
-      ExerciseMode.instructor_export(exercise),
-      ExerciseMode.instructor_transitionary_export(exercise),
-      ExerciseMode.instructor_grading_export(exercise),
+      ExerciseMode.instructor_export(inject),
+      ExerciseMode.instructor_transitionary_export(inject),
+      ExerciseMode.instructor_grading_export(inject),
     ],
   );
 
 let file_menu = (~inject, ~settings: Settings.t, editors: Editors.t) =>
   switch (editors) {
-  | Scratch(slide_idx, slides) =>
-    let ed = List.nth(slides, slide_idx);
-    [file_group_scratch(~inject, ed), reset_group_scratch(~inject)];
-  | Documentation(name, slides) =>
-    let ed = List.assoc(name, slides);
-    [file_group_scratch(~inject, ed), reset_group_scratch(~inject)];
-  | Exercises(_, _, exercise) when settings.instructor_mode => [
-      file_group_exercises(~inject, ~settings),
+  | Scratch(_) => [
+      file_group_scratch(~inject),
+      reset_group_scratch(~inject),
+    ]
+  | Documentation(_) => [
+      file_group_scratch(~inject),
+      reset_group_scratch(~inject),
+    ]
+  | Exercises(_) when settings.instructor_mode => [
+      file_group_exercises(~inject),
       reset_group_exercises(~inject),
-      dev_group_exercises(~inject, ~exercise),
+      dev_group_exercises(~inject),
     ]
   | Exercises(_) => [
-      file_group_exercises(~inject, ~settings),
+      file_group_exercises(~inject),
       reset_group_exercises(~inject),
     ]
   };
@@ -213,6 +215,17 @@ let view =
         ~tooltip="File",
         ~icon=Icons.disk,
         file_menu(~inject, ~settings, editors),
+      ),
+      button(
+        Icons.command_palette_sparkle,
+        _ => {
+          NinjaKeys.open_command_palette();
+          Effect.Ignore;
+        },
+        ~tooltip=
+          "Command Palette ("
+          ++ Keyboard.meta(JsUtil.is_mac() ? Mac : PC)
+          ++ " + k)",
       ),
       link(
         Icons.github,

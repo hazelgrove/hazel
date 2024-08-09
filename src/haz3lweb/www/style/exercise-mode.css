@@ -21,7 +21,7 @@
   background-color: var(--cell-active);
 }
 
-.cell-report {
+#main.Exercises .cell-report {
   padding: 1.2em;
   background-color: var(--test-panel-bkg);
   border-left: 1px solid #0000;
@@ -38,14 +38,14 @@
 }
 
 
-.test-panel,
+#main.Exercises .test-panel,
 .test-reports,
 .test-summary,
 .title-bar {
   font-size: 0.9rem;
 }
 
-.test-panel {
+#main.Exercises  .test-panel {
   display: flex;
   flex-direction: column;
   gap: 1em;
@@ -54,11 +54,11 @@
   border-bottom: 0.5px solid var(--BR2);
 }
 
-.test-reports {
+#main.Exercises  .test-reports {
   position: relative;
 }
 
-.test-report {
+#main.Exercises  .test-report {
   margin-right: 1em;
   display: flex;
   justify-content: space-between;
@@ -68,11 +68,11 @@
   cursor: pointer;
 }
 
-.test-report + .test-report {
+#main.Exercises  .test-report + .test-report {
   border-top: 1px dotted var(--BR2);
 }
 
-.test-report:hover {
+#main.Exercises  .test-report:hover {
   background-color: var(--SAND);
 }
 
@@ -120,40 +120,40 @@
   align-items: center;
 }
 
-.test-instances {
+#main.Exercises .test-instances {
   display: flex;
   flex-direction: row;
   gap: 0.2em;
   flex-grow: 1;
 }
 
-.test-instance {
+#main.Exercises .test-instance {
   display: flex;
   flex-grow: 1;
   flex-direction: row;
 }
 
-.test-summary {
+#main.Exercises .test-summary {
   display: flex;
   flex-direction: row;
   gap: 1em;
   justify-content: space-between;
 }
 
-.test-bar {
+#main.Exercises .test-bar {
   width: 16em;
   display: flex;
   align-items: center;
   gap: 1px;
 }
 
-.test-text {
+#main.Exercises .test-text {
   display: flex;
   gap: 0.5em;
   white-space: nowrap;
 }
 
-.test-percent {
+#main.Exercises .test-percent {
   height: 1.7em;
   display: flex;
   padding: 0 1em 0 1em;
@@ -163,61 +163,61 @@
   align-items: center;
 }
 
-#main > .test-percent {
+#main.Exercises > .test-percent {
   position: absolute;
   top: 0;
   right: 0;
   margin: 0.5em;
 }
 
-.test-percent.all-pass {
+#main.Exercises .test-percent.all-pass {
   background-color: var(--test-pass);
   color: var(--test-percent-text);
   animation: jello 1s ease 0s 1 normal none;
 }
 
-.test-percent.some-fail {
+#main.Exercises .test-percent.some-fail {
   color: var(--light-page-color);
 }
 
-.test-bar .segment:first-child {
+#main.Exercises .test-bar .segment:first-child {
   border-radius: 0.3em 0 0 0.3em;
 }
 
-.test-bar .segment:last-child {
+#main.Exercises .test-bar .segment:last-child {
   border-radius: 0 0.3em 0.3em 0;
 }
 
-.test-bar .segment:only-child {
+#main.Exercises .test-bar .segment:only-child {
   border-radius: 0.3em 0.3em 0.3em 0.3em;
 }
 
-.test-bar .segment {
+#main.Exercises .test-bar .segment {
   flex-grow: 1;
   height: 0.5em;
   cursor: pointer;
 }
 
-.test-bar .segment.Pass {
+#main.Exercises .test-bar .segment.Pass {
   background-color: var(--test-pass);
 }
 
-.test-bar .segment.Pass:hover {
+#main.Exercises .test-bar .segment.Pass:hover {
   background-color: var(--test-pass-active);
 }
 
-.test-bar .segment.Fail {
+#main.Exercises .test-bar .segment.Fail {
   background-color: var(--test-fail);
 }
 
-.test-bar .segment.Fail:hover {
+#main.Exercises .test-bar .segment.Fail:hover {
   background-color: var(--test-fail-active);
 }
 
-.test-bar .segment.Indet {
+#main.Exercises .test-bar .segment.Indet {
   background-color: var(--test-indet);
 }
 
-.test-bar .segment.Indet:hover {
+#main.Exercises .test-bar .segment.Indet:hover {
   background-color: var(--test-indet-active);
 }

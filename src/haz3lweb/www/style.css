@@ -125,3 +125,19 @@ select:hover {
   background-color: var(--bottom-bar-bkg);
   outline: 0.6px solid var(--BR2);
 }
+
+ninja-keys {
+  --ninja-group-text-color: var(--BR4);
+  --ninja-text-color: var(--STONE);
+  --ninja-accent-color: var(--G0);
+  --ninja-secondary-background-color: var(--T3);
+  --ninja-selected-background: var(--SAND);
+  --ninja-secondary-text-color: var(--BR3);
+  --ninja-modal-background: #fffcf3;
+  --ninja-font-family: var(--ui-font);
+  --ninja-footer-background: var(--T1);
+}
+
+.ninja-action {
+  padding: 0.3em 1em;
+}
