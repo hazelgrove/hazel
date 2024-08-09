@@ -9,15 +9,19 @@ let equals_typ_coloring_ids =
   (Piece.id(_e1), e1_id),
   (Piece.id(_e2), e2_id),
 ];
-let equals_typ: form = {
-  let explanation = "This equals type is the type of proofs that [*exp variable*](%s) equals [*exp variable*](%s).";
-  {
-    id: EqualsTyp,
-    syntactic_form: [mk_type([[space(), _e1, space()]]), _e2],
-    expandable_id: Some((Piece.id(_e1), [_e2])),
-    explanation,
-    examples: [],
-  };
-};
 
-let equals_typ: group = {id: EqualsTyp, forms: [equals_typ]};
+let single = (~e1_id: Id.t, ~e2_id: Id.t): Simple.t => {
+  group_id: EqualsTyp,
+  form_id: EqualsTyp,
+  abstract:
+    Simple.mk_2(("e1", e1_id), ("e2", e2_id), (e1', e2') =>
+      [mk_equals([[space(), e1', space()], [space(), e2', space()]])]
+    ),
+  explanation:
+    Printf.sprintf(
+      "This equals type is the type of proofs that expression [*e1*](%s) equals [*e2*](%s).",
+      e1_id |> Id.to_string,
+      e2_id |> Id.to_string,
+    ),
+  examples: [],
+};

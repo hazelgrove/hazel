@@ -2177,21 +2177,9 @@ let get_doc =
     //   ForallTyp.single,
     // );
     | Equals(e1, e2) =>
-      let e1_id = List.nth(e1.ids, 0);
-      let e2_id = List.nth(e2.ids, 2);
-      get_message(
-        ~colorings=EqualsTyp.equals_typ_coloring_ids(~e1_id, ~e2_id),
-        ~format=
-          Some(
-            msg =>
-              Printf.sprintf(
-                Scanf.format_from_string(msg, "%s%s"),
-                Id.to_string(e1_id),
-                Id.to_string(e2_id),
-              ),
-          ),
-        EqualsTyp.equals_typ,
-      );
+      message_single(
+        EqualsTyp.single(~e1_id=UExp.rep_id(e1), ~e2_id=UExp.rep_id(e2)),
+      )
     | Rec(tpat, typ) =>
       let tpat_id = List.nth(tpat.ids, 0);
       let tbody_id = List.nth(typ.ids, 0);

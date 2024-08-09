@@ -43,13 +43,13 @@ let single = (~pat_id: Id.t, ~ty_arg_id: Id.t): Simple.t => {
    * as to associate representative and concrete subterms ids for
    * syntax highlighting purposes. */
   abstract:
-    Simple.mk_2(("pat", pat_id), ("typ_arg", ty_arg_id), (pat', typ_arg') =>
-      [mk_type([[space(), pat', space()]]), typ_arg']
+    Simple.mk_2(("x", pat_id), ("t_body", ty_arg_id), (pat', typ_arg') =>
+      [mk_forall([[space(), pat', space()]]), space(), typ_arg']
     ),
   /* (D) The explanation which will appear in the sidebar below the abstract */
   explanation:
     Printf.sprintf(
-      "This forall type states that for every value [*type variable*](%s), the type [*instantiated type*](%s) is inhabited.",
+      "This forall type states that for every value [*x*](%s), the [*body*](%s) type is inhabited.",
       pat_id |> Id.to_string,
       ty_arg_id |> Id.to_string,
     ),

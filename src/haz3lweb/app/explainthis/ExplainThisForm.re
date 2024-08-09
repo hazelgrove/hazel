@@ -262,6 +262,7 @@ type group_id =
   | Tuple2Exp
   | Tuple3Exp
   | LetExp(pat_sub_form_id)
+  | Exp(pat_sub_form_id)
   | TypFunApExp
   | FixExp(pat_sub_form_id)
   | FunApExp
