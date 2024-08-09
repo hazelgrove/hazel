@@ -152,6 +152,13 @@ let scroll_cursor_into_view_if_needed = () =>
   | Assert_failure(_) => ()
   };
 
+let is_mac = () =>
+  {
+    Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
+      Js.string("MAC"),
+    );
+  }
+  >= 0;
 module Fragment = {
   let set_current = frag => {
     let frag =

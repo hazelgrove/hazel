@@ -8,7 +8,7 @@ let is_action_logged: UpdateAction.t => bool =
   | Save
   | InitImportAll(_)
   | InitImportScratchpad(_)
-  | ExportPersistentData
+  | Export(_)
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
   | Benchmark(_)
