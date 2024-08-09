@@ -8,12 +8,28 @@
   flex-direction: column;
   justify-content: space-between;
   gap: 1.2em;
-  background: none;
+  background-color: var(--ui-bkg);
+}
+
+#main.Exercises {
+  scrollbar-color: var(--main-scroll-thumb) var(--NONE);
 }
 
 #main.Exercises .cell {
-  border-left: 1px solid var(--cell-exercises-border);
   width: auto;
+}
+
+#main.Exercises .cell-caption {
+  color: var(--ui-header-text);
+  font-size: 0.8em;
+}
+
+#main.Exercises .cell-caption strong {
+  text-transform: uppercase;
+}
+
+#main.Exercises .cell.deselected {
+  border-left: 1px solid var(--cell-exercises-border);
 }
 
 #main.Exercises .cell.selected {
@@ -37,15 +53,7 @@
   border-bottom-right-radius: 0.4em;
 }
 
-
-#main.Exercises .test-panel,
-.test-reports,
-.test-summary,
-.title-bar {
-  font-size: 0.9rem;
-}
-
-#main.Exercises  .test-panel {
+#main.Exercises .test-panel {
   display: flex;
   flex-direction: column;
   gap: 1em;
@@ -54,11 +62,11 @@
   border-bottom: 0.5px solid var(--BR2);
 }
 
-#main.Exercises  .test-reports {
+#main.Exercises .test-reports {
   position: relative;
 }
 
-#main.Exercises  .test-report {
+#main.Exercises .test-report {
   margin-right: 1em;
   display: flex;
   justify-content: space-between;
@@ -68,11 +76,11 @@
   cursor: pointer;
 }
 
-#main.Exercises  .test-report + .test-report {
+#main.Exercises .test-report + .test-report {
   border-top: 1px dotted var(--BR2);
 }
 
-#main.Exercises  .test-report:hover {
+#main.Exercises .test-report:hover {
   background-color: var(--SAND);
 }
 
@@ -168,6 +176,7 @@
   top: 0;
   right: 0;
   margin: 0.5em;
+  z-index: 1000;
 }
 
 #main.Exercises .test-percent.all-pass {

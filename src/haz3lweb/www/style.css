@@ -102,6 +102,8 @@ select:hover {
   overflow-y: scroll;
   overflow-x: hidden;
   width: max-content;
+  background-color: var(--ui-bkg);
+  scrollbar-color: var(--main-scroll-thumb) var(--NONE);
 }
 
 #top-bar {
@@ -111,6 +113,7 @@ select:hover {
   display: flex;
   align-items: center;
   border-bottom: 0.6px solid var(--BR2);
+  background-color: var(--ui-bkg);
 }
 
 #bottom-bar {
@@ -122,7 +125,7 @@ select:hover {
   gap: 1em;
   justify-content: space-between;
   align-items: stretch;
-  background-color: var(--bottom-bar-bkg);
+  background-color: var(--ui-bkg);
   outline: 0.6px solid var(--BR2);
 }
 

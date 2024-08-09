@@ -66,10 +66,6 @@
   padding: 1em;
 }
 
-.cell-caption {
-  color: var(--cell-caption);
-}
-
 /* DOCUMENTATION SLIDES */
 
 .slide-img {
