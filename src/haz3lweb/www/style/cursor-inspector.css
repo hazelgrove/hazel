@@ -179,7 +179,7 @@
   display: flex;
 }
 
-#bottom-bar .context-inspector {
+#page > .context-inspector {
   position: absolute;
   z-index: var(--context-inspector-z);
   bottom: 2em;

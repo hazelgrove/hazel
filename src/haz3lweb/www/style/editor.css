@@ -136,8 +136,7 @@ svg.shard.indicated {
 svg.shard.selected {
   z-index: var(--select-z);
 }
-svg.shard.error,
-.errors .errors-piece svg {
+svg.shard.error {
   z-index: var(--err-hole-z);
 }
 

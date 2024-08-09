@@ -390,7 +390,10 @@ module Make = (M: Editor.Meta.S) => {
     | Goal(Piece(p, d)) => do_until_wrap(Action.of_piece_goal(p), d, z)
     | Goal(Point(goal)) =>
       let z = Zipper.unselect(z);
-      do_towards(primary(ByChar), goal, z);
+      switch (do_towards(primary(ByChar), goal, z)) {
+      | None => Some(z)
+      | Some(z) => Some(z)
+      };
     | Extreme(d) => do_extreme(primary(ByToken), d, z)
     | Local(d) =>
       z
@@ -403,4 +406,10 @@ module Make = (M: Editor.Meta.S) => {
         }
       )
     };
+
+  let left_until_case_or_rule =
+    do_until(go(Local(Left(ByToken))), Piece.is_case_or_rule);
+
+  let left_until_not_comment_or_space =
+    do_until(go(Local(Left(ByToken))), Piece.not_comment_or_space);
 };
