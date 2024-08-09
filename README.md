@@ -185,7 +185,18 @@ helper functions for printing and serializing this data. For a type named `t`, t
 for a type named something else like `q`, it will be `show_q`.
 
 #### Source Maps
-`js_of_ocaml` does support source maps and has some other flags that might be useful. If you experiment with those and get them to work, please update this README with some notes.
+Source maps for `js_of_ocaml` should be configured when making locally with the dev profile (`make`). This is configured using the env stanzas present in the `dune` files for each top-level directory:
+```dune
+(env
+ (dev
+  (js_of_ocaml
+   (flags :standard --debuginfo --noinline --dynlink --linkall --sourcemap)))
+ (release
+  (js_of_ocaml
+   (flags :standard))))
+```
+
+Since source maps are generated browser developer tools should show reason code in the debugger and source tree. Stack traces should also include reason line numbers.
 
 #### Debug Mode
 If Hazel is hanging on load or when you perform certain actions, you can load into Debug Mode by appending `#debug` to the URL and reloading. From there, you have some buttons that will change settings or reset local storage. Refresh without the `#debug` flag and hopefully you can resolve the situation from there.
