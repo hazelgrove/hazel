@@ -179,14 +179,13 @@
   display: flex;
 }
 
-.context-inspector {
+#bottom-bar .context-inspector {
   position: absolute;
   z-index: var(--context-inspector-z);
   bottom: 2em;
   min-width: 10em;
   max-height: 11.15em;
   overflow: auto;
-  display: none;
   flex-direction: column;
   align-items: flex-end;
   white-space: nowrap;
