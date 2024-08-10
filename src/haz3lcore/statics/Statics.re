@@ -849,6 +849,9 @@ and utyp_to_info_map =
     (info, add_info(ids, InfoTyp(info), m));
   };
   let ancestors = [UTyp.rep_id(utyp)] @ ancestors;
+  let go_exp' = uexp_to_info_map(~ancestors);
+  let go_exp = go_exp'(~ctx);
+  let go_pat = upat_to_info_map(~ctx, ~ancestors);
   let go' = utyp_to_info_map(~ctx, ~ancestors);
   let go = go'(~expects=TypeExpected);
   //TODO(andrew): make this return free, replacing Typ.free_vars
@@ -935,12 +938,24 @@ and utyp_to_info_map =
       |> snd;
     let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
     add(m); // TODO: check with andrew
-  | Forall(_, tbody) =>
+  | Forall(p, tbody) =>
+    let (p', _) =
+      go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~mode=Syn, p, m);
     let m =
-      utyp_to_info_map(tbody, ~ctx, ~ancestors, ~expects=TypeExpected, m)
+      utyp_to_info_map(
+        tbody,
+        ~ctx=p'.ctx,
+        ~ancestors,
+        ~expects=TypeExpected,
+        m,
+      )
       |> snd;
-    add(m); // TODO(theorem): what should the binding do?
-  | Equals(_) => add(m) // TODO(theorem): what should happen here?
+    add(m);
+  | Equals(e1, e2) =>
+    let (e1, m) = go_exp(~mode=Syn, e1, m);
+    let (_, m) = go_exp'(~ctx=e1.ctx, ~mode=Syn, e2, m);
+    // TODO: constrain synthesized types to be equal
+    add(m);
   };
 }
 and utpat_to_info_map =
