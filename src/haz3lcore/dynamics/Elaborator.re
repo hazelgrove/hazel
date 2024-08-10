@@ -281,6 +281,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
            |> Option.map((x: Ctx.var_entry) => x.typ |> Typ.normalize(ctx))
            |> Option.value(~default=Typ.temp(Typ.Unknown(Internal))),
          )
+    | Theorem(p, def, body)
     | Let(p, def, body) =>
       let add_name: (option(string), DHExp.t) => DHExp.t = (
         (name, exp) => {
@@ -381,38 +382,38 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       Test(fresh_cast(e', t, Bool |> Typ.temp))
       |> rewrap
       |> cast_from(Prod([]) |> Typ.temp);
-    | Theorem(p, def, body) =>
-      let add_name: (option(string), DHExp.t) => DHExp.t = (
-        (name, exp) => {
-          let (term, rewrap) = DHExp.unwrap(exp);
-          switch (term) {
-          | Fun(p, e, ctx, _) => Fun(p, e, ctx, name) |> rewrap
-          | _ => exp
-          };
-        }
-      );
-      let (p, ty1) = elaborate_pattern(m, p);
-      let is_recursive =
-        Statics.is_recursive(ctx, p, def, ty1)
-        && Pat.get_bindings(p)
-        |> Option.get
-        |> List.exists(f => VarMap.lookup(co_ctx, f) != None);
-      if (!is_recursive) {
-        let def = add_name(Pat.get_var(p), def);
-        let (def, ty2) = elaborate(m, def);
-        let (body, ty) = elaborate(m, body);
-        Exp.Let(p, fresh_cast(def, ty2, ty1), body)
-        |> rewrap
-        |> cast_from(ty);
-      } else {
-        // TODO: Add names to mutually recursive functions
-        // TODO: Don't add fixpoint if there already is one
-        let def = add_name(Option.map(s => s ++ "+", Pat.get_var(p)), def);
-        let (def, ty2) = elaborate(m, def);
-        let (body, ty) = elaborate(m, body);
-        let fixf = FixF(p, fresh_cast(def, ty2, ty1), None) |> DHExp.fresh;
-        Exp.Let(p, fixf, body) |> rewrap |> cast_from(ty);
-      };
+    // | Theorem(p, def, body) =>
+    //   let add_name: (option(string), DHExp.t) => DHExp.t = (
+    //     (name, exp) => {
+    //       let (term, rewrap) = DHExp.unwrap(exp);
+    //       switch (term) {
+    //       | Fun(p, e, ctx, _) => Fun(p, e, ctx, name) |> rewrap
+    //       | _ => exp
+    //       };
+    //     }
+    //   );
+    //   let (p, ty1) = elaborate_pattern(m, p);
+    //   let is_recursive =
+    //     Statics.is_recursive(ctx, p, def, ty1)
+    //     && Pat.get_bindings(p)
+    //     |> Option.get
+    //     |> List.exists(f => VarMap.lookup(co_ctx, f) != None);
+    //   if (!is_recursive) {
+    //     let def = add_name(Pat.get_var(p), def);
+    //     let (def, ty2) = elaborate(m, def);
+    //     let (body, ty) = elaborate(m, body);
+    //     Exp.Let(p, fresh_cast(def, ty2, ty1), body)
+    //     |> rewrap
+    //     |> cast_from(ty);
+    //   } else {
+    //     // TODO: Add names to mutually recursive functions
+    //     // TODO: Don't add fixpoint if there already is one
+    //     let def = add_name(Option.map(s => s ++ "+", Pat.get_var(p)), def);
+    //     let (def, ty2) = elaborate(m, def);
+    //     let (body, ty) = elaborate(m, body);
+    //     let fixf = FixF(p, fresh_cast(def, ty2, ty1), None) |> DHExp.fresh;
+    //     Exp.Let(p, fixf, body) |> rewrap |> cast_from(ty);
+    //   };
     | Filter(kind, e) =>
       let (e', t) = elaborate(m, e);
       let kind' =

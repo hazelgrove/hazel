@@ -1112,7 +1112,495 @@ let get_doc =
         | _ => basic(TupleExp.tuples)
         };
       | Var(n) => get_message(TerminalExp.var_exps(n))
-      | Theorem(pat, def, body)
+      | Theorem(pat, def, body) =>
+        let pat = bypass_parens_and_annot_pat(pat);
+        let pat_id = List.nth(pat.ids, 0);
+        let def_id = List.nth(def.ids, 0);
+        let body_id = List.nth(body.ids, 0);
+        let basic = group_id => {
+          get_message(
+            ~colorings=
+              TheoremExp.theorem_base_exp_coloring_ids(~pat_id, ~def_id),
+            ~format=
+              Some(
+                msg =>
+                  Printf.sprintf(
+                    Scanf.format_from_string(msg, "%s%s"),
+                    Id.to_string(def_id),
+                    Id.to_string(pat_id),
+                  ),
+              ),
+            group_id,
+          );
+        };
+        switch (pat.term) {
+        | EmptyHole =>
+          if (TheoremExp.theorem_empty_hole_exp.id
+              == get_specificity_level(TheoremExp.theorems_emptyhole)) {
+            get_message(
+              ~colorings=
+                TheoremExp.theorem_empty_hole_exp_coloring_ids(
+                  ~pat_id,
+                  ~def_id,
+                ),
+              ~format=
+                Some(
+                  msg =>
+                    Printf.sprintf(
+                      Scanf.format_from_string(msg, "%s%s%s"),
+                      Id.to_string(pat_id),
+                      Id.to_string(def_id),
+                      Id.to_string(pat_id),
+                    ),
+                ),
+              TheoremExp.theorems_emptyhole,
+            );
+          } else {
+            basic(TheoremExp.theorems_emptyhole);
+          }
+        | MultiHole(_) =>
+          if (TheoremExp.theorem_multi_hole_exp.id
+              == get_specificity_level(TheoremExp.theorems_mutlihole)) {
+            get_message(
+              ~colorings=
+                TheoremExp.theorem_multi_hole_exp_coloring_ids(
+                  ~pat_id,
+                  ~def_id,
+                ),
+              ~format=
+                Some(
+                  msg =>
+                    Printf.sprintf(
+                      Scanf.format_from_string(msg, "%s%s%s"),
+                      Id.to_string(pat_id),
+                      Id.to_string(def_id),
+                      Id.to_string(pat_id),
+                    ),
+                ),
+              TheoremExp.theorems_mutlihole,
+            );
+          } else {
+            basic(TheoremExp.theorems_mutlihole);
+          }
+        | Wild =>
+          if (TheoremExp.theorem_wild_exp.id
+              == get_specificity_level(TheoremExp.theorems_wild)) {
+            get_message(
+              ~colorings=
+                TheoremExp.theorem_wild_exp_coloring_ids(~def_id, ~body_id),
+              ~format=
+                Some(
+                  msg =>
+                    Printf.sprintf(
+                      Scanf.format_from_string(msg, "%s%s%s"),
+                      Id.to_string(def_id),
+                      Id.to_string(def_id),
+                      Id.to_string(body_id),
+                    ),
+                ),
+              TheoremExp.theorems_wild,
+            );
+          } else {
+            basic(TheoremExp.theorems_wild);
+          }
+        | Int(i) =>
+          if (TheoremExp.theorem_int_exp.id
+              == get_specificity_level(TheoremExp.theorems_int)) {
+            get_message(
+              ~colorings=
+                TheoremExp.theorem_int_exp_coloring_ids(
+                  ~pat_id,
+                  ~def_id,
+                  ~body_id,
+                ),
+              ~format=
+                Some(
+                  msg =>
+                    Printf.sprintf(
+                      Scanf.format_from_string(msg, "%s%s%s%s%s"),
+                      Id.to_string(def_id),
+                      Id.to_string(pat_id),
+                      string_of_int(i),
+                      Id.to_string(def_id),
+                      Id.to_string(body_id),
+                    ),
+                ),
+              TheoremExp.theorems_int,
+            );
+          } else {
+            /* TODO The coloring for the syntactic form is sometimes wrong here and some other places when switching between forms and specificity levels... maybe a Safari issue... */
+            basic(
+              TheoremExp.theorems_int,
+            );
+          }
+        | Float(f) =>
+          if (TheoremExp.theorem_float_exp.id
+              == get_specificity_level(TheoremExp.theorems_float)) {
+            // TODO Make sure everywhere printing the float literal print it prettier
+            get_message(
+              ~colorings=
+                TheoremExp.theorem_float_exp_coloring_ids(
+                  ~pat_id,
+                  ~def_id,
+                  ~body_id,
+                ),
+              ~format=
+                Some(
+                  msg =>
+                    Printf.sprintf(
+                      Scanf.format_from_string(msg, "%s%s%f%s%s"),
+                      Id.to_string(def_id),
+                      Id.to_string(pat_id),
+                      f,
+                      Id.to_string(def_id),
+                      Id.to_string(body_id),
+                    ),
+                ),
+              TheoremExp.theorems_float,
+            );
+          } else {
+            /* TODO The coloring for the syntactic form is sometimes wrong here... */
+            basic(
+              TheoremExp.theorems_float,
+            );
+          }
+        | Bool(b) =>
+          if (TheoremExp.theorem_bool_exp.id
+              == get_specificity_level(TheoremExp.theorems_bool)) {
+            get_message(
+              ~colorings=
+                TheoremExp.theorem_bool_exp_coloring_ids(
+                  ~pat_id,
+                  ~def_id,
+                  ~body_id,
+                ),
+              ~format=
+                Some(
+                  msg =>
+                    Printf.sprintf(
+                      Scanf.format_from_string(msg, "%s%s%b%s%s"),
+                      Id.to_string(def_id),
+                      Id.to_string(pat_id),
+                      b,
+                      Id.to_string(def_id),
+                      Id.to_string(body_id),
+                    ),
+                ),
+              TheoremExp.theorems_bool,
+            );
+          } else {
+            /* TODO The coloring for the syntactic form is sometimes wrong here... */
+            basic(
+              TheoremExp.theorems_bool,
+            );
+          }
+        | String(s) =>
+          if (TheoremExp.theorem_str_exp.id
+              == get_specificity_level(TheoremExp.theorems_str)) {
+            get_message(
+              ~colorings=
+                TheoremExp.theorem_str_exp_coloring_ids(
+                  ~pat_id,
+                  ~def_id,
+                  ~body_id,
+                ),
+              ~format=
+                Some(
+                  msg =>
+                    Printf.sprintf(
+                      Scanf.format_from_string(msg, "%s%s%s%s%s"),
+                      Id.to_string(def_id),
+                      Id.to_string(pat_id),
+                      s,
+                      Id.to_string(def_id),
+                      Id.to_string(body_id),
+                    ),
+                ),
+              TheoremExp.theorems_str,
+            );
+          } else {
+            /* TODO The coloring for the syntactic form is sometimes wrong here... */
+            basic(
+              TheoremExp.theorems_str,
+            );
+          }
+        | Tuple([]) =>
+          if (TheoremExp.theorem_triv_exp.id
+              == get_specificity_level(TheoremExp.theorems_triv)) {
+            get_message(
+              ~colorings=
+                TheoremExp.theorem_triv_exp_coloring_ids(
+                  ~pat_id,
+                  ~def_id,
+                  ~body_id,
+                ),
+              ~format=
+                Some(
+                  msg =>
+                    Printf.sprintf(
+                      Scanf.format_from_string(msg, "%s%s%s%s"),
+                      Id.to_string(def_id),
+                      Id.to_string(pat_id),
+                      Id.to_string(def_id),
+                      Id.to_string(body_id),
+                    ),
+                ),
+              TheoremExp.theorems_triv,
+            );
+          } else {
+            /* TODO The coloring for the syntactic form is sometimes wrong here and other places when switching syntactic specificities... seems like might be Safari issue... */
+            basic(
+              TheoremExp.theorems_triv,
+            );
+          }
+        | ListLit(elements) =>
+          if (List.length(elements) == 0) {
+            if (TheoremExp.theorem_listnil_exp.id
+                == get_specificity_level(TheoremExp.theorems_listnil)) {
+              get_message(
+                ~colorings=
+                  TheoremExp.theorem_listnil_exp_coloring_ids(
+                    ~pat_id,
+                    ~def_id,
+                    ~body_id,
+                  ),
+                ~format=
+                  Some(
+                    msg =>
+                      Printf.sprintf(
+                        Scanf.format_from_string(msg, "%s%s%s%s"),
+                        Id.to_string(def_id),
+                        Id.to_string(pat_id),
+                        Id.to_string(def_id),
+                        Id.to_string(body_id),
+                      ),
+                  ),
+                TheoremExp.theorems_listnil,
+              );
+            } else {
+              basic(TheoremExp.theorems_listnil);
+            };
+          } else if (TheoremExp.theorem_listlit_exp.id
+                     == get_specificity_level(TheoremExp.theorems_listlit)) {
+            get_message(
+              ~colorings=
+                TheoremExp.theorem_listlit_exp_coloring_ids(~pat_id, ~def_id),
+              ~format=
+                Some(
+                  msg =>
+                    Printf.sprintf(
+                      Scanf.format_from_string(msg, "%s%s%s"),
+                      Id.to_string(def_id),
+                      Id.to_string(pat_id),
+                      string_of_int(List.length(elements)),
+                    ),
+                ),
+              TheoremExp.theorems_listlit,
+            );
+          } else {
+            basic(TheoremExp.theorems_listlit);
+          }
+        | Cons(hd, tl) =>
+          if (TheoremExp.theorem_cons_exp.id
+              == get_specificity_level(TheoremExp.theorems_cons)) {
+            let hd_id = List.nth(hd.ids, 0);
+            let tl_id = List.nth(tl.ids, 0);
+            get_message(
+              ~colorings=
+                TheoremExp.theorem_cons_exp_coloring_ids(
+                  ~hd_id,
+                  ~tl_id,
+                  ~def_id,
+                ),
+              ~format=
+                Some(
+                  msg =>
+                    Printf.sprintf(
+                      Scanf.format_from_string(msg, "%s%s%s"),
+                      Id.to_string(def_id),
+                      Id.to_string(hd_id),
+                      Id.to_string(tl_id),
+                    ),
+                ),
+              TheoremExp.theorems_cons,
+            );
+          } else {
+            basic(TheoremExp.theorems_cons);
+          }
+        | Var(var) =>
+          if (TheoremExp.theorem_var_exp.id
+              == get_specificity_level(TheoremExp.theorems_var)) {
+            get_message(
+              ~colorings=
+                TheoremExp.theorem_var_exp_coloring_ids(
+                  ~pat_id,
+                  ~def_id,
+                  ~body_id,
+                ),
+              ~format=
+                Some(
+                  msg =>
+                    Printf.sprintf(
+                      Scanf.format_from_string(msg, "%s%s%s%s"),
+                      Id.to_string(def_id),
+                      Id.to_string(pat_id),
+                      var,
+                      Id.to_string(body_id),
+                    ),
+                ),
+              TheoremExp.theorems_var,
+            );
+          } else {
+            basic(TheoremExp.theorems_var);
+          }
+        | Tuple(elements) =>
+          let basic_tuple = group_id => {
+            get_message(
+              ~colorings=
+                TheoremExp.theorem_tuple_exp_coloring_ids(~pat_id, ~def_id),
+              ~format=
+                Some(
+                  msg =>
+                    Printf.sprintf(
+                      Scanf.format_from_string(msg, "%s%s%s"),
+                      Id.to_string(def_id),
+                      Id.to_string(pat_id),
+                      string_of_int(List.length(elements)),
+                    ),
+                ),
+              group_id,
+            );
+          };
+
+          switch (List.length(elements)) {
+          | 2 =>
+            let doc_id = get_specificity_level(TheoremExp.theorems_tuple2);
+            if (TheoremExp.theorem_tuple2_exp.id == doc_id) {
+              let pat1_id = List.nth(List.nth(elements, 0).ids, 0);
+              let pat2_id = List.nth(List.nth(elements, 1).ids, 0);
+              get_message(
+                ~colorings=
+                  TheoremExp.theorem_tuple2_exp_coloring_ids(
+                    ~pat1_id,
+                    ~pat2_id,
+                    ~def_id,
+                  ),
+                ~format=
+                  Some(
+                    msg =>
+                      Printf.sprintf(
+                        Scanf.format_from_string(msg, "%s%s%s"),
+                        Id.to_string(def_id),
+                        Id.to_string(pat1_id),
+                        Id.to_string(pat2_id),
+                      ),
+                  ),
+                TheoremExp.theorems_tuple2,
+              );
+            } else if (TheoremExp.theorem_tuple_exp.id == doc_id) {
+              basic_tuple(TheoremExp.theorems_tuple2);
+            } else {
+              basic(TheoremExp.theorems_tuple2);
+            };
+          | 3 =>
+            let doc_id = get_specificity_level(TheoremExp.theorems_tuple3);
+            // TODO Syntactic form can go off page - so can examples - but can scroll, just can't see bottom scroll bar
+            if (TheoremExp.theorem_tuple3_exp.id == doc_id) {
+              let pat1_id = List.nth(List.nth(elements, 0).ids, 0);
+              let pat2_id = List.nth(List.nth(elements, 1).ids, 0);
+              let pat3_id = List.nth(List.nth(elements, 2).ids, 0);
+              get_message(
+                ~colorings=
+                  TheoremExp.theorem_tuple3_exp_coloring_ids(
+                    ~pat1_id,
+                    ~pat2_id,
+                    ~pat3_id,
+                    ~def_id,
+                  ),
+                ~format=
+                  Some(
+                    msg =>
+                      Printf.sprintf(
+                        Scanf.format_from_string(msg, "%s%s%s%s"),
+                        Id.to_string(def_id),
+                        Id.to_string(pat1_id),
+                        Id.to_string(pat2_id),
+                        Id.to_string(pat3_id),
+                      ),
+                  ),
+                TheoremExp.theorems_tuple3,
+              );
+            } else if (TheoremExp.theorem_tuple_exp.id == doc_id) {
+              basic_tuple(TheoremExp.theorems_tuple3);
+            } else {
+              basic(TheoremExp.theorems_tuple3);
+            };
+          | _ =>
+            if (TheoremExp.theorem_tuple_exp.id
+                == get_specificity_level(TheoremExp.theorems_tuple)) {
+              basic_tuple(TheoremExp.theorems_tuple);
+            } else {
+              basic(TheoremExp.theorems_tuple);
+            }
+          };
+        | Ap(con, arg) =>
+          if (TheoremExp.theorem_ap_exp.id
+              == get_specificity_level(TheoremExp.theorems_ap)) {
+            let con_id = List.nth(con.ids, 0);
+            let arg_id = List.nth(arg.ids, 0);
+            get_message(
+              ~colorings=
+                TheoremExp.theorem_ap_exp_coloring_ids(
+                  ~con_id,
+                  ~arg_id,
+                  ~def_id,
+                ),
+              ~format=
+                Some(
+                  msg =>
+                    Printf.sprintf(
+                      Scanf.format_from_string(msg, "%s%s%s"),
+                      Id.to_string(def_id),
+                      Id.to_string(con_id),
+                      Id.to_string(arg_id),
+                    ),
+                ),
+              TheoremExp.theorems_ap,
+            );
+          } else {
+            basic(TheoremExp.theorems_ap);
+          }
+        | Constructor(v) =>
+          if (TheoremExp.theorem_ctr_exp.id
+              == get_specificity_level(TheoremExp.theorems_ctr)) {
+            get_message(
+              ~colorings=
+                TheoremExp.theorem_ctr_exp_coloring_ids(
+                  ~pat_id,
+                  ~def_id,
+                  ~body_id,
+                ),
+              ~format=
+                Some(
+                  msg =>
+                    Printf.sprintf(
+                      Scanf.format_from_string(msg, "%s%s%s%s%s"),
+                      Id.to_string(def_id),
+                      Id.to_string(pat_id),
+                      v,
+                      Id.to_string(def_id),
+                      Id.to_string(body_id),
+                    ),
+                ),
+              TheoremExp.theorems_ctr,
+            );
+          } else {
+            basic(TheoremExp.theorems_ctr);
+          }
+        | Invalid(_) => default // Shouldn't get hit
+        | Parens(_) => default // Shouldn't get hit?
+        | Cast(_) => default // Shouldn't get hit?
+        };
       | Let(pat, def, body) =>
         let pat = bypass_parens_and_annot_pat(pat);
         let pat_id = List.nth(pat.ids, 0);

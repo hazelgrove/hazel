@@ -124,6 +124,7 @@ let mk_fix = mk_tile(Form.get("fix"));
 let mk_ap_exp = mk_tile(Form.get("ap_exp"));
 let mk_ap_pat = mk_tile(Form.get("ap_pat"));
 let mk_let = mk_tile(Form.get("let_"));
+let mk_theorem = mk_tile(Form.get("theorem_"));
 let mk_tyalias = mk_tile(Form.get("type_alias"));
 let mk_if = mk_tile(Form.get("if_"));
 let mk_test = mk_tile(Form.get("test"));
