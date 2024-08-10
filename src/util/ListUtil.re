@@ -1,5 +1,6 @@
 let rev_if = (b: bool) => b ? List.rev : Fun.id;
 
+// TODO: Replace with dedup_f((==));
 let dedup = xs =>
   List.fold_right(
     (x, deduped) => List.mem(x, deduped) ? deduped : [x, ...deduped],
@@ -14,6 +15,7 @@ let dedup_f = (f, xs) =>
     [],
   );
 
+// TODO: Rename is_unique?
 let are_duplicates = xs =>
   List.length(List.sort_uniq(compare, xs)) == List.length(xs);
 
