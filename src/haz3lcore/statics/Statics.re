@@ -320,15 +320,14 @@ and uexp_to_info_map =
   | Test(e) =>
     let (e, m) = go(~mode=Ana(Bool |> Typ.temp), e, m);
     add(~self=Just(Prod([]) |> Typ.temp), ~co_ctx=e.co_ctx, m);
-  | Theorem(_, def, body) =>
-    let (def, m) = go(~mode=Syn, def, m);
-    let (body, m) = go(~mode, body, m);
-    add(
-      ~self=Just(body.ty),
-      ~co_ctx=CoCtx.union([def.co_ctx, body.co_ctx]),
-      m,
-    );
-
+  // | Theorem(_, def, body) =>
+  //   let (def, m) = go(~mode=Syn, def, m);
+  //   let (body, m) = go(~mode, body, m);
+  //   add(
+  //     ~self=Just(body.ty),
+  //     ~co_ctx=CoCtx.union([def.co_ctx, body.co_ctx]),
+  //     m,
+  //   );
   | Filter(Filter({pat: cond, _}), body) =>
     let (cond, m) = go(~mode=Syn, cond, m, ~is_in_filter=true);
     let (body, m) = go(~mode, body, m);
@@ -412,6 +411,7 @@ and uexp_to_info_map =
       ~co_ctx=body.co_ctx,
       m,
     );
+  | Theorem(p, def, body)
   | Let(p, def, body) =>
     let (p_syn, _) =
       go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~mode=Syn, p, m);
