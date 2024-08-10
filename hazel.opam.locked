@@ -27,14 +27,14 @@ depends: [
   "base_bigstring" {= "v0.16.0"}
   "base_quickcheck" {= "v0.16.0"}
   "bignum" {= "v0.16.0"}
-  "bigstringaf" {= "0.10.0"}
+  "bigstringaf" {= "0.9.1"}
   "bin_prot" {= "v0.16.0"}
+  "bisect_ppx" {= "2.8.3"}
   "camlp-streams" {= "5.0.1"}
   "chrome-trace" {= "3.16.0"}
   "cmdliner" {= "1.3.0"}
   "conf-bash" {= "1"}
   "conf-gmp" {= "4"}
-  "conf-pkg-config" {= "3"}
   "core" {= "v0.16.2"}
   "core_kernel" {= "v0.16.0"}
   "cppo" {= "1.6.9"}
@@ -74,13 +74,13 @@ depends: [
   "lsp" {= "1.19.0"}
   "lwt" {= "5.7.0"}
   "markup" {= "1.0.3"}
-  "menhir" {= "20240715"}
-  "menhirCST" {= "20240715"}
-  "menhirLib" {= "20240715"}
-  "menhirSdk" {= "20240715"}
+  "menhir" {= "20231231"}
+  "menhirCST" {= "20231231"}
+  "menhirLib" {= "20231231"}
+  "menhirSdk" {= "20231231"}
   "merlin-extend" {= "0.6.1"}
   "merlin-lib" {= "5.1-502"}
-  "num" {= "1.5-1"}
+  "num" {= "1.5"}
   "ocaml" {= "5.2.0"}
   "ocaml-base-compiler" {= "5.2.0"}
   "ocaml-compiler-libs" {= "v0.17.0"}
@@ -90,7 +90,7 @@ depends: [
   "ocaml-options-vanilla" {= "1"}
   "ocaml-syntax-shims" {= "1.0.0"}
   "ocaml-version" {= "3.6.7"}
-  "ocamlbuild" {= "0.15.0"}
+  "ocamlbuild" {= "0.14.3"}
   "ocamlc-loc" {= "3.16.0"}
   "ocamlfind" {= "1.9.6"}
   "ocamlformat" {= "0.26.2"}
@@ -143,7 +143,7 @@ depends: [
   "ppx_variants_conv" {= "v0.16.0"}
   "ppx_yojson_conv" {= "v0.16.0"}
   "ppx_yojson_conv_lib" {= "v0.16.0"}
-  "ppxlib" {= "0.33.0"}
+  "ppxlib" {= "0.32.1"}
   "protocol_version_header" {= "v0.16.0"}
   "ptime" {= "1.1.0" & with-test}
   "ptmap" {= "2.0.5"}
@@ -179,7 +179,7 @@ depends: [
   "virtual_dom" {= "v0.16.0"}
   "xdg" {= "3.16.0"}
   "yojson" {= "2.2.2"}
-  "zarith" {= "1.14"}
+  "zarith" {= "1.13"}
   "zarith_stubs_js" {= "v0.16.1"}
 ]
 build: [
