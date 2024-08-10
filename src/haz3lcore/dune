@@ -4,6 +4,8 @@
  (name haz3lcore)
  (libraries util sexplib unionFind uuidm virtual_dom yojson core)
  (js_of_ocaml)
+ (instrumentation
+  (backend bisect_ppx))
  (preprocess
   (pps
    ppx_yojson_conv

@@ -2,6 +2,8 @@
  (name util)
  (libraries re base ptmap incr_dom virtual_dom yojson)
  (js_of_ocaml)
+ (instrumentation
+  (backend bisect_ppx))
  (preprocess
   (pps
    ppx_yojson_conv
