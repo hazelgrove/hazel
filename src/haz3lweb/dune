@@ -17,9 +17,7 @@
   haz3lschool
   pretty
   omd)
- (js_of_ocaml
-  (flags
-   (:include js-of-ocaml-flags-%{profile})))
+ (js_of_ocaml)
  (preprocess
   (pps
    ppx_yojson_conv
@@ -48,9 +46,7 @@
   haz3lschool
   pretty
   omd)
- (js_of_ocaml
-  (flags
-   (:include js-of-ocaml-flags-%{profile})))
+ (js_of_ocaml)
  (preprocess
   (pps
    js_of_ocaml-ppx
@@ -64,9 +60,6 @@
  (modules Main)
  (libraries ppx_yojson_conv.expander haz3lweb)
  (modes js)
- (js_of_ocaml
-  (flags
-   (:include js-of-ocaml-flags-%{profile})))
  (preprocess
   (pps
    ppx_yojson_conv
@@ -86,15 +79,7 @@
 (env
  (dev
   (js_of_ocaml
-   (flags (:standard))))
+   (flags :standard --debuginfo --noinline --dynlink --linkall --sourcemap)))
  (release
   (js_of_ocaml
    (flags (:standard)))))
-
-(rule
- (write-file
-  js-of-ocaml-flags-dev
-  "(:standard --debuginfo --noinline --dynlink --linkall --sourcemap)"))
-
-(rule
- (write-file js-of-ocaml-flags-release "(:standard)"))
