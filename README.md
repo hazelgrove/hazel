@@ -185,16 +185,7 @@ helper functions for printing and serializing this data. For a type named `t`, t
 for a type named something else like `q`, it will be `show_q`.
 
 #### Source Maps
-Source maps for `js_of_ocaml` should be configured when making locally with the dev profile (`make`). This is configured using the env stanzas present in the `dune` files for each top-level directory:
-```dune
-(env
- (dev
-  (js_of_ocaml
-   (flags :standard --debuginfo --noinline --dynlink --linkall --sourcemap)))
- (release
-  (js_of_ocaml
-   (flags :standard))))
-```
+Source maps for `js_of_ocaml` should be configured when making locally with the dev profile (`make`). This is configured using the env stanzas present in the `dune` files for each top-level directory.
 
 Since source maps are generated browser developer tools should show reason code in the debugger and source tree. Stack traces should also include reason line numbers.
 
