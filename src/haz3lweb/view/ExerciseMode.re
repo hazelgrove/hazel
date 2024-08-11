@@ -79,7 +79,7 @@ let view =
   let prompt_view =
     Cell.narrative_cell([
       div(
-        ~attr=Attr.class_("prompt-cell"),
+        ~attrs=[Attr.class_("cell-prompt")],
         [
           settings.instructor_mode
             ? settings.editing_prompt
