@@ -66,8 +66,8 @@ let mousedown_handler =
 
 let narrative_cell = (content: Node.t) =>
   div(
-    ~attr=Attr.class_("cell"),
-    [div(~attr=Attr.class_("cell-chapter"), [content])],
+    ~attrs=[Attr.class_("cell")],
+    [div(~attrs=[Attr.class_("cell-chapter")], [content])],
   );
 
 let simple_cell_item = (content: list(Node.t)) =>
