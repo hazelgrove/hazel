@@ -416,7 +416,13 @@ and uexp_to_info_map =
               term: UPat.TypeAnn({ids, term: UPat.Var(f_name)}, f_type),
             };
             let (p_syn, _) =
-              go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~mode=Syn, p, m);
+              go_pat(
+                ~is_synswitch=true,
+                ~co_ctx=CoCtx.empty,
+                ~mode=Syn,
+                p,
+                m,
+              );
             (def, p, p_syn);
           | None => (def, p, p_syn) // Use the original code
           };

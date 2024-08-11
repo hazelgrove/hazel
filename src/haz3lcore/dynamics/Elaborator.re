@@ -247,13 +247,21 @@ let rec dhexp_of_uexp =
         let* ddef = dhexp_of_uexp(m, def);
         let* dbody = dhexp_of_uexp(m, body);
         let+ ty = fixed_pat_typ(m, p);
+        // print_endline("dp = " ++ DHPat.show(dp));
+        // print_endline("ddef = " ++ DHExp.show(ddef));
         if (!Statics.is_recursive(ctx, p, def, ty)) {
           /* not recursive */
-          DHExp.Let(
-            dp,
-            add_name(Term.UPat.get_var(p), ddef),
-            dbody,
-          );
+          let (dp, ddef) =
+            switch (dp) {
+            | DHPat.Ap(name, args) => (
+                name,
+                DHExp.Fun(args, ty, ddef, None),
+              )
+            | _ => (dp, ddef)
+            };
+          // print_endline("dp = " ++ DHPat.show(dp));
+          // print_endline("ddef = " ++ DHExp.show(ddef));
+          DHExp.Let(dp, add_name(Term.UPat.get_var(p), ddef), dbody);
         } else {
           switch (Term.UPat.get_bindings(p) |> Option.get) {
           | [f] =>
