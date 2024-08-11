@@ -64,36 +64,11 @@ let mousedown_handler =
   | (false, 3 | _) => inject(PerformAction(Select(Smart)))
   };
 
-type prompt_model = {
-  content: Node.t,
-  editing: bool,
-};
-
-let narrative_cell = (~inject: UpdateAction.t => 'a, ~content: Node.t, ~flag: bool) => {
-  let handle_input = (_, new_prompt) => {
-    inject(UpdatePrompt(content));
-  };
+let narrative_cell = (content: Node.t) =>
   div(
-    ~attrs=[Attr.class_("cell")],
-    [
-      flag
-        ? input(
-            ~attr=
-              Attr.many([
-                Attr.class_("prompt-content"),
-                Attr.value(content),
-                Attr.on_input(handle_input),
-              ]),
-            [],
-          )
-        : div(
-            ~attr=
-              ~attr=Attr.class_("prompt-content"),
-              [content],
-          ),
-    ],
+    ~attr=Attr.class_("cell"),
+    [div(~attr=Attr.class_("cell-chapter"), [content])],
   );
-};
 
 let simple_cell_item = (content: list(Node.t)) =>
   div(~attrs=[Attr.classes(["cell-item"])], content);

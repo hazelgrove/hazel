@@ -174,6 +174,13 @@ let update_settings =
         instructor_mode: !settings.instructor_mode,
       },
     };
+  | EditingPrompt => {
+      ...model,
+      settings: {
+        ...settings,
+        editing_prompt: !settings.editing_prompt,
+      },
+    }
   | Mode(mode) => {
       ...model,
       settings: {
@@ -508,7 +515,16 @@ let rec apply =
       let results =
         ModelResults.union((_, _a, b) => Some(b), model.results, results);
       Ok({...model, results});
-    | UpdatePrompt(_) => Ok({...model, editors: Exercises.})
+    | UpdatePrompt(new_prompt) =>
+      Model.save_and_return({
+        ...model,
+        editors:
+          Editors.update_exercise_prompt(
+            model.editors,
+            new_prompt,
+            model.settings.instructor_mode,
+          ),
+      })
     };
   m |> Result.map(~f=update_cached_data(~schedule_action, update));
 };

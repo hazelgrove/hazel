@@ -77,11 +77,49 @@ let view =
   let title_view = Cell.title_cell(eds.title);
 
   let prompt_view =
-    Cell.narrative_cell(
-      ~inject,
-      ~title=eds.title,
-      ~flag=settings.instructor_mode,
-    );
+    Cell.narrative_cell([
+      div(
+        ~attr=Attr.class_("prompt-cell"),
+        [
+          settings.instructor_mode
+            ? settings.editing_prompt
+                ? input(
+                    ~attr=
+                      Attr.many([
+                        Attr.class_("prompt-content"),
+                        Attr.value(eds.prompt),
+                        Attr.id("prompt-input"),
+                        Attr.on_keydown(evt =>
+                          if (evt##.keyCode === 13) {
+                            let new_prompt = Obj.magic(evt##.target)##.value;
+                            let update_events = [
+                              inject(Set(EditingPrompt)),
+                              inject(UpdatePrompt(new_prompt)),
+                            ];
+                            Virtual_dom.Vdom.Effect.Many(update_events);
+                          } else {
+                            // This is placeholder until I figure out how to "do nothing"
+                            inject(
+                              FinishImportAll(None),
+                            );
+                          }
+                        ),
+                      ]),
+                    [],
+                  )
+                : div(
+                    ~attr=
+                      Attr.many([
+                        Attr.class_("prompt-content"),
+                        Attr.on_double_click(_ => inject(Set(EditingPrompt))),
+                      ]),
+                    [eds.content],
+                  )
+            : div(~attr=Attr.class_("prompt-content"), [eds.content]),
+        ],
+      ),
+    ]);
+  };
 
   let prelude_view =
     Always(
