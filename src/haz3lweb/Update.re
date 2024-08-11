@@ -508,7 +508,7 @@ let rec apply =
       let results =
         ModelResults.union((_, _a, b) => Some(b), model.results, results);
       Ok({...model, results});
-    | UpdatePrompt(_) => Ok(model)
+    | UpdatePrompt(_) => Ok({...model, editors: Exercises.})
     };
   m |> Result.map(~f=update_cached_data(~schedule_action, update));
 };
