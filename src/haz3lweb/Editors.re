@@ -1,5 +1,7 @@
 open Util;
 open Haz3lcore;
+open Virtual_dom.Vdom;
+open Node;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type scratch = (int, list(ScratchSlide.state));
@@ -124,6 +126,22 @@ let set_instructor_mode = (editors: t, instructor_mode: bool): t =>
       n,
       specs,
       Exercise.set_instructor_mode(exercise, instructor_mode),
+    )
+  };
+
+let update_exercise_prompt =
+    (editors: t, new_title: Node.t, instructor_mode: bool): t =>
+  switch (editors) {
+  | Scratch(_)
+  | Documentation(_) => editors
+  | Exercises(n, specs, _) =>
+    Exercises(
+      n,
+      specs,
+      Exercise.state_of_spec(
+        {...List.nth(specs, n), prompt: new_prompt},
+        ~instructor_mode,
+      ),
     )
   };
 

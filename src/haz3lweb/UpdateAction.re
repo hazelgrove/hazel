@@ -26,6 +26,7 @@ type settings_action =
   | Benchmark
   | ContextInspector
   | InstructorMode
+  | EditingPrompt
   | Evaluation(evaluation_settings_action)
   | ExplainThis(ExplainThisModel.Settings.action)
   | Mode(Settings.mode);
@@ -55,6 +56,11 @@ type set_meta =
 type benchmark_action =
   | Start
   | Finish;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type edit_prompt =
+  | Prompt
+  | Model;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
@@ -128,6 +134,7 @@ let is_edit: t => bool =
     | Benchmark
     | ContextInspector
     | InstructorMode
+    | EditingPrompt
     | Evaluation(_) => false
     }
   | SetMeta(meta_action) =>
@@ -150,9 +157,9 @@ let is_edit: t => bool =
   | FinishImportScratchpad(_)
   | ResetCurrentEditor
   | Assistant(AcceptSuggestion)
+  | UpdatePrompt(_)
   | Reset => true
   | UpdateResult(_)
-  | UpdatePrompt(_)
   | SwitchEditor(_)
   | ExportPersistentData
   | Save
@@ -242,6 +249,7 @@ let should_scroll_to_caret =
     | Benchmark
     | ContextInspector
     | InstructorMode
+    | EditingPrompt
     | Evaluation(_) => false
     }
   | SetMeta(meta_action) =>
@@ -253,8 +261,8 @@ let should_scroll_to_caret =
     }
   | Assistant(Prompt(_))
   | UpdateResult(_)
-  | UpdatePrompt(_)
   | ToggleStepper(_)
+  UpdatePrompt(_)
   | StepperAction(_, StepBackward | StepForward(_)) => false
   | Assistant(AcceptSuggestion) => true
   | FinishImportScratchpad(_)
