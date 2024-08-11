@@ -452,12 +452,23 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       )
       |> rewrap
       |> cast_from(Int |> Typ.temp);
+    | BinOp(Int(Equals | NotEquals) as op, e1, e2) =>
+      // TODO(zhiyao): check functionality
+      let (e1', t1) = elaborate(m, e1);
+      let (e2', t2) = elaborate(m, e2);
+      (
+        switch (Typ.join(~fix=false, ctx, t1, t2)) {
+        | None =>
+          DynamicErrorHole(BinOp(op, e1', e2') |> rewrap, Inconsistent)
+        | Some(ty) when Typ.has_arrow(ctx, ty) =>
+          DynamicErrorHole(BinOp(op, e1', e2') |> rewrap, CompareArrow)
+        | Some(_) => BinOp(op, e1', e2')
+        }
+      )
+      |> rewrap
+      |> cast_from(Bool |> Typ.temp);
     | BinOp(
-        Int(
-          LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual |
-          Equals |
-          NotEquals,
-        ) as op,
+        Int(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual) as op,
         e1,
         e2,
       ) =>
