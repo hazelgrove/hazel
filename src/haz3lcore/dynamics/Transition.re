@@ -527,6 +527,51 @@ module Transition = (EV: EV_MODE) => {
         kind: BinBoolOp(Or),
         is_value: false,
       });
+    | BinOp(Int((Equals | NotEquals) as op), d1, d2) =>
+      let. _ = otherwise(env, (d1, d2) => BinOp(Int(op), d1, d2) |> rewrap)
+      and. d1' =
+        req_value(
+          req(state, env),
+          d1 => BinOp1(Int(op), d1, d2) |> wrap_ctx,
+          d1,
+        )
+      and. d2' =
+        req_value(
+          req(state, env),
+          d2 => BinOp2(Int(op), d1, d2) |> wrap_ctx,
+          d2,
+        );
+      // This is similar to `let-unbox`.
+      let d1' = DHExp.strip_casts(d1');
+      let d2' = DHExp.strip_casts(d2');
+      if (!DHExp.ty_comparable(d1') || !DHExp.ty_comparable(d2')) {
+        Indet;
+      } else {
+        Step({
+          expr:
+            (
+              switch (DHExp.poly_equal(d1', d2')) {
+              | Ok(b) => Bool(op == Equals ? b : !b)
+              // Dynamic Catched Inconsistent
+              | Inconsistent =>
+                DynamicErrorHole(
+                  BinOp(Int(op), d1', d2') |> rewrap,
+                  Inconsistent,
+                )
+              // Dynamic Catched Comparison of Arrow Types
+              | CompareArrow =>
+                DynamicErrorHole(
+                  BinOp(Int(op), d1', d2') |> rewrap,
+                  CompareArrow,
+                )
+              }
+            )
+            |> fresh,
+          state_update,
+          kind: BinIntOp(op),
+          is_value: false,
+        });
+      };
     | BinOp(Int(op), d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => BinOp(Int(op), d1, d2) |> rewrap)
       and. d1' =
