@@ -69,33 +69,27 @@ type prompt_model = {
   editing: bool,
 };
 
-let narrative_cell = (~inject, ~model: prompt_model) => {
-  let handle_double_click = _ => {
-    inject(UpdatePrompt(Start));
-  };
+let narrative_cell = (~inject: UpdateAction.t => 'a, ~content: Node.t, ~flag: bool) => {
   let handle_input = (_, new_prompt) => {
-    inject(UpdatePrompt(Finish(new_prompt)));
+    inject(UpdatePrompt(content));
   };
   div(
     ~attrs=[Attr.class_("cell")],
     [
-      model.editing
+      flag
         ? input(
             ~attr=
               Attr.many([
                 Attr.class_("prompt-content"),
-                Attr.value(model.content),
+                Attr.value(content),
                 Attr.on_input(handle_input),
               ]),
             [],
           )
         : div(
             ~attr=
-              Attr.many([
-                Attr.class_("prompt-content"),
-                Attr.on_double_click(handle_double_click),
-              ]),
-            [text(model.content)],
+              ~attr=Attr.class_("prompt-content"),
+              [content],
           ),
     ],
   );

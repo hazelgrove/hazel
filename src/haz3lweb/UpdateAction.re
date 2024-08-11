@@ -57,11 +57,6 @@ type benchmark_action =
   | Finish;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type prompt_action =
-  | Start
-  | Finish(string);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   /* meta */
   | Reset
@@ -96,7 +91,7 @@ type t =
   | ToggleStepper(ModelResults.Key.t)
   | StepperAction(ModelResults.Key.t, stepper_action)
   | UpdateResult(ModelResults.t)
-  | UpdatePrompt(prompt_action);
+  | UpdatePrompt(string);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]
