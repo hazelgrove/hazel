@@ -19,6 +19,7 @@ let dedup_f = (f, xs) =>
 let are_duplicates = xs =>
   List.length(List.sort_uniq(compare, xs)) == List.length(xs);
 
+// TODO Interesting that this reverses the list inside the groups
 let group_by = (key: 'x => 'k, xs: list('x)): list(('k, list('x))) =>
   List.fold_left(
     (grouped, x) => {
@@ -34,7 +35,7 @@ let group_by = (key: 'x => 'k, xs: list('x)): list(('k, list('x))) =>
     xs,
   );
 
-let rec range = (~lo=0, hi) =>
+let rec range = (~lo: int=0, hi: int) =>
   if (lo > hi) {
     raise(Invalid_argument("ListUtil.range"));
   } else if (lo == hi) {
