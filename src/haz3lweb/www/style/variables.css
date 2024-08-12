@@ -18,8 +18,8 @@
 
   /* CLAY */
   --T1: oklch(97% 0.025 90); /* buffer shards */
-  --T2: oklch(from var(--T1) 95% c h); /* projector shards */
-  --T3: oklch(from var(--T1) 93% c h); /* result background */
+  --T2: oklch(from var(--T1) 94% c h); /* projector shards */
+  --T3: oklch(from var(--T1) 91% c h); /* result background */
 
   /* ROCK */
   --BR1: oklch(85% 0.07 90); /* caret shard, token buffer*/
