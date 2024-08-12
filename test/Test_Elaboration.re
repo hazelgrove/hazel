@@ -272,7 +272,51 @@ let dynamic_error_hole_menhir = () =>
     dynamic_error_hole_uexp,
   );
 
+let builtin_fun_str = "infinity";
+let builtin_fun_uexp: Exp.t = {
+  ids: [id_at(0)],
+  term: BuiltinFun("infinity"),
+  copied: false,
+};
+let builtin_fun_menhir = () =>
+  alco_check_menhir(
+    "Builtin function test (menhir)",
+    builtin_fun_str,
+    builtin_fun_uexp,
+  );
+
+let undef_str = "undef";
+let undef_uexp: Exp.t = {ids: [id_at(0)], term: Undefined, copied: false};
+let undef_menhir = () =>
+  alco_check_menhir("Undef test (menhir)", undef_str, undef_uexp);
+
+let test_str = "test 1 ?<Int => Bool> end";
+let test_uexp: Exp.t = {
+  ids: [id_at(0)],
+  term: Test(Int(1) |> Exp.fresh),
+  copied: false,
+};
+let test_menhir = () =>
+  alco_check_menhir("Test failed (menhir)", test_str, test_uexp);
+
+let filter_str = "eval 1 0";
+let stepper_filter_kind =
+  TermBase.StepperFilterKind.Filter({
+    pat: Int(1) |> Exp.fresh,
+    act: (FilterAction.Eval, FilterAction.All),
+  });
+let filter_uexp: Exp.t = {
+  ids: [id_at(0)],
+  term: Filter(stepper_filter_kind, Int(0) |> Exp.fresh),
+  copied: false,
+};
+let filter_menhir = () =>
+  alco_check_menhir("Filter test (menhir)", filter_str, filter_uexp);
+
 let elaboration_tests = [
+  test_case("Filter test (menhir)", `Quick, filter_menhir),
+  test_case("Test failed (menhir)", `Quick, test_menhir),
+  test_case("Built-in function (menhir)", `Quick, builtin_fun_menhir),
   test_case("Dynamic error hole (menhir)", `Quick, dynamic_error_hole_menhir),
   test_case("Constructor test (menhir)", `Quick, constructor_menhir),
   test_case("Failed cast test (menhir)", `Quick, failed_cast_menhir),
