@@ -135,12 +135,11 @@ ninja-keys {
   --ninja-accent-color: var(--G0);
   --ninja-secondary-background-color: var(--T3);
   --ninja-selected-background: var(--SAND);
+  --ninja-selected-text-color: var(--G0);
   --ninja-secondary-text-color: var(--BR3);
-  --ninja-modal-background: #fffcf3;
+  --ninja-modal-background: var(--T1);
   --ninja-font-family: var(--ui-font);
-  --ninja-footer-background: var(--T1);
-}
-
-.ninja-action {
-  padding: 0.3em 1em;
+  --ninja-footer-background: var(--T2);
+  --ninja-modal-shadow: 0px 10px 20px var(--menu-shadow);
+  --ninja-overflow-background: none;
 }
