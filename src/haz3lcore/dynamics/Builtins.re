@@ -9,111 +9,153 @@ open DHExp;
    See the existing ones for reference.
  */
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp)]
 type builtin =
   | Const(Typ.t, DHExp.t)
   | Fn(Typ.t, Typ.t, DHExp.t => DHExp.t);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp)]
 type t = VarMap.t_(builtin);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp)]
 type forms = VarMap.t_(DHExp.t => DHExp.t);
 
 type result = Result.t(DHExp.t, EvaluatorError.t);
 
-let const = (name: Var.t, typ: Typ.t, v: DHExp.t, builtins: t): t =>
-  VarMap.extend(builtins, (name, Const(typ, v)));
+let const = (name: Var.t, typ: Typ.term, v: DHExp.t, builtins: t): t =>
+  VarMap.extend(builtins, (name, Const(typ |> Typ.fresh, v)));
 let fn =
-    (name: Var.t, t1: Typ.t, t2: Typ.t, impl: DHExp.t => DHExp.t, builtins: t)
+    (
+      name: Var.t,
+      t1: Typ.term,
+      t2: Typ.term,
+      impl: DHExp.t => DHExp.t,
+      builtins: t,
+    )
     : t =>
-  VarMap.extend(builtins, (name, Fn(t1, t2, impl)));
+  VarMap.extend(
+    builtins,
+    (name, Fn(t1 |> Typ.fresh, t2 |> Typ.fresh, impl)),
+  );
 
 module Pervasives = {
   module Impls = {
     /* constants */
-    let infinity = DHExp.FloatLit(Float.infinity);
-    let neg_infinity = DHExp.FloatLit(Float.neg_infinity);
-    let nan = DHExp.FloatLit(Float.nan);
-    let epsilon_float = DHExp.FloatLit(epsilon_float);
-    let pi = DHExp.FloatLit(Float.pi);
-    let max_int = DHExp.IntLit(Int.max_int);
-    let min_int = DHExp.IntLit(Int.min_int);
+    let infinity = DHExp.Float(Float.infinity) |> fresh;
+    let neg_infinity = DHExp.Float(Float.neg_infinity) |> fresh;
+    let nan = DHExp.Float(Float.nan) |> fresh;
+    let epsilon_float = DHExp.Float(epsilon_float) |> fresh;
+    let pi = DHExp.Float(Float.pi) |> fresh;
+    let max_int = DHExp.Int(Int.max_int) |> fresh;
+    let min_int = DHExp.Int(Int.min_int) |> fresh;
 
-    let unary = (f: DHExp.t => result, r: DHExp.t) =>
-      switch (f(r)) {
+    let unary = (f: DHExp.t => result, d: DHExp.t) => {
+      switch (f(d)) {
       | Ok(r') => r'
       | Error(e) => EvaluatorError.Exception(e) |> raise
       };
+    };
+
+    let binary = (f: (DHExp.t, DHExp.t) => result, d: DHExp.t) => {
+      switch (term_of(d)) {
+      | Tuple([d1, d2]) =>
+        switch (f(d1, d2)) {
+        | Ok(r) => r
+        | Error(e) => EvaluatorError.Exception(e) |> raise
+        }
+      | _ => raise(EvaluatorError.Exception(InvalidBoxedTuple(d)))
+      };
+    };
+
+    let ternary = (f: (DHExp.t, DHExp.t, DHExp.t) => result, d: DHExp.t) => {
+      switch (term_of(d)) {
+      | Tuple([d1, d2, d3]) =>
+        switch (f(d1, d2, d3)) {
+        | Ok(r) => r
+        | Error(e) => EvaluatorError.Exception(e) |> raise
+        }
+      | _ => raise(EvaluatorError.Exception(InvalidBoxedTuple(d)))
+      };
+    };
 
     let is_finite =
-      unary(
-        fun
-        | FloatLit(f) => Ok(BoolLit(Float.is_finite(f)))
-        | d => Error(InvalidBoxedFloatLit(d)),
+      unary(d =>
+        switch (term_of(d)) {
+        | Float(f) => Ok(fresh(Bool(Float.is_finite(f))))
+        | _ => Error(InvalidBoxedFloatLit(d))
+        }
       );
 
     let is_infinite =
-      unary(
-        fun
-        | FloatLit(f) => Ok(BoolLit(Float.is_infinite(f)))
-        | d => Error(InvalidBoxedFloatLit(d)),
+      unary(d =>
+        switch (term_of(d)) {
+        | Float(f) => Ok(fresh(Bool(Float.is_infinite(f))))
+        | _ => Error(InvalidBoxedFloatLit(d))
+        }
       );
 
     let is_nan =
-      unary(
-        fun
-        | FloatLit(f) => Ok(BoolLit(Float.is_nan(f)))
-        | d => Error(InvalidBoxedFloatLit(d)),
+      unary(d =>
+        switch (term_of(d)) {
+        | Float(f) => Ok(fresh(Bool(Float.is_nan(f))))
+        | _ => Error(InvalidBoxedFloatLit(d))
+        }
       );
 
     let string_of_int =
-      unary(
-        fun
-        | IntLit(n) => Ok(StringLit(string_of_int(n)))
-        | d => Error(InvalidBoxedIntLit(d)),
+      unary(d =>
+        switch (term_of(d)) {
+        | Int(n) => Ok(fresh(String(string_of_int(n))))
+        | _ => Error(InvalidBoxedIntLit(d))
+        }
       );
 
     let string_of_float =
-      unary(
-        fun
-        | FloatLit(f) => Ok(StringLit(string_of_float(f)))
-        | d => Error(InvalidBoxedFloatLit(d)),
+      unary(d =>
+        switch (term_of(d)) {
+        | Float(f) => Ok(fresh(String(string_of_float(f))))
+        | _ => Error(InvalidBoxedFloatLit(d))
+        }
       );
 
     let string_of_bool =
-      unary(
-        fun
-        | BoolLit(b) => Ok(StringLit(string_of_bool(b)))
-        | d => Error(InvalidBoxedBoolLit(d)),
+      unary(d =>
+        switch (term_of(d)) {
+        | Bool(b) => Ok(fresh(String(string_of_bool(b))))
+        | _ => Error(InvalidBoxedBoolLit(d))
+        }
       );
 
     let int_of_float =
-      unary(
-        fun
-        | FloatLit(f) => Ok(IntLit(int_of_float(f)))
-        | d => Error(InvalidBoxedFloatLit(d)),
+      unary(d =>
+        switch (term_of(d)) {
+        | Float(f) => Ok(fresh(Int(int_of_float(f))))
+        | _ => Error(InvalidBoxedFloatLit(d))
+        }
       );
 
     let float_of_int =
-      unary(
-        fun
-        | IntLit(n) => Ok(FloatLit(float_of_int(n)))
-        | d => Error(InvalidBoxedIntLit(d)),
+      unary(d =>
+        switch (term_of(d)) {
+        | Int(n) => Ok(fresh(Float(float_of_int(n))))
+        | _ => Error(InvalidBoxedIntLit(d))
+        }
       );
 
     let abs =
-      unary(
-        fun
-        | IntLit(n) => Ok(IntLit(abs(n)))
-        | d => Error(InvalidBoxedIntLit(d)),
+      unary(d =>
+        switch (term_of(d)) {
+        | Int(n) => Ok(fresh(Int(abs(n))))
+        | _ => Error(InvalidBoxedIntLit(d))
+        }
       );
 
     let float_op = fn =>
-      unary(
-        fun
-        | FloatLit(f) => Ok(FloatLit(fn(f)))
-        | d => Error(InvalidBoxedFloatLit(d)),
+      unary(d =>
+        switch (term_of(d)) {
+        | Float(f) => Ok(fresh(Float(fn(f))))
+        | _ => Error(InvalidBoxedFloatLit(d))
+        }
       );
 
     let abs_float = float_op(abs_float);
@@ -132,134 +174,172 @@ module Pervasives = {
 
     let of_string =
         (convert: string => option('a), wrap: 'a => DHExp.t, name: string) =>
-      unary(
-        fun
-        | StringLit(s) as d =>
+      unary(d =>
+        switch (term_of(d)) {
+        | String(s) =>
           switch (convert(s)) {
           | Some(n) => Ok(wrap(n))
           | None =>
-            let d' = DHExp.Ap(DHExp.BuiltinFun(name), d);
-            Ok(InvalidOperation(d', InvalidOfString));
+            let d' = DHExp.BuiltinFun(name) |> DHExp.fresh;
+            let d' = DHExp.Ap(Forward, d', d) |> DHExp.fresh;
+            let d' = DynamicErrorHole(d', InvalidOfString) |> DHExp.fresh;
+            Ok(d');
           }
-        | d => Error(InvalidBoxedStringLit(d)),
+        | _ => Error(InvalidBoxedStringLit(d))
+        }
       );
 
-    let int_of_string = of_string(int_of_string_opt, n => IntLit(n));
-    let float_of_string = of_string(float_of_string_opt, f => FloatLit(f));
-    let bool_of_string = of_string(bool_of_string_opt, b => BoolLit(b));
+    let int_of_string =
+      of_string(int_of_string_opt, n => Int(n) |> DHExp.fresh);
+    let float_of_string =
+      of_string(float_of_string_opt, f => Float(f) |> DHExp.fresh);
+    let bool_of_string =
+      of_string(bool_of_string_opt, b => Bool(b) |> DHExp.fresh);
 
     let int_mod = (name, d1) =>
-      switch (d1) {
-      | Tuple([IntLit(n), IntLit(m)]) =>
-        switch (m) {
-        | 0 =>
-          InvalidOperation(
-            DHExp.Ap(DHExp.BuiltinFun(name), d1),
-            DivideByZero,
-          )
-        | _ => IntLit(n mod m)
-        }
-      | d1 => raise(EvaluatorError.Exception(InvalidBoxedTuple(d1)))
-      };
+      binary(
+        (d1, d2) =>
+          switch (term_of(d1), term_of(d2)) {
+          | (Int(_), Int(0)) =>
+            Ok(
+              fresh(
+                DynamicErrorHole(
+                  DHExp.Ap(Forward, DHExp.BuiltinFun(name) |> fresh, d1)
+                  |> fresh,
+                  DivideByZero,
+                ),
+              ),
+            )
+          | (Int(n), Int(m)) => Ok(Int(n mod m) |> fresh)
+          | (Int(_), _) =>
+            raise(EvaluatorError.Exception(InvalidBoxedIntLit(d2)))
+          | (_, _) =>
+            raise(EvaluatorError.Exception(InvalidBoxedIntLit(d1)))
+          },
+        d1,
+      );
 
     let string_length =
-      unary(
-        fun
-        | StringLit(s) => Ok(IntLit(String.length(s)))
-        | d => Error(InvalidBoxedStringLit(d)),
+      unary(d =>
+        switch (term_of(d)) {
+        | String(s) => Ok(Int(String.length(s)) |> fresh)
+        | _ => Error(InvalidBoxedStringLit(d))
+        }
       );
 
     let string_compare =
-      unary(
-        fun
-        | Tuple([StringLit(s1), StringLit(s2)]) =>
-          Ok(IntLit(String.compare(s1, s2)))
-        | d => Error(InvalidBoxedTuple(d)),
+      binary((d1, d2) =>
+        switch (term_of(d1), term_of(d2)) {
+        | (String(s1), String(s2)) =>
+          Ok(Int(String.compare(s1, s2)) |> fresh)
+        | (String(_), _) => Error(InvalidBoxedStringLit(d2))
+        | (_, _) => Error(InvalidBoxedStringLit(d1))
+        }
       );
 
     let string_trim =
-      unary(
-        fun
-        | StringLit(s) => Ok(StringLit(String.trim(s)))
-        | d => Error(InvalidBoxedStringLit(d)),
+      unary(d =>
+        switch (term_of(d)) {
+        | String(s) => Ok(String(String.trim(s)) |> fresh)
+        | _ => Error(InvalidBoxedStringLit(d))
+        }
       );
 
     let string_of: DHExp.t => option(string) =
-      fun
-      | StringLit(s) => Some(s)
-      | _ => None;
+      d =>
+        switch (term_of(d)) {
+        | String(s) => Some(s)
+        | _ => None
+        };
 
     let string_concat =
-      unary(
-        fun
-        | Tuple([StringLit(s1), ListLit(_, _, _, xs)]) =>
+      binary((d1, d2) =>
+        switch (term_of(d1), term_of(d2)) {
+        | (String(s1), ListLit(xs)) =>
           switch (xs |> List.map(string_of) |> Util.OptUtil.sequence) {
           | None => Error(InvalidBoxedStringLit(List.hd(xs)))
-          | Some(xs) => Ok(StringLit(String.concat(s1, xs)))
+          | Some(xs) => Ok(String(String.concat(s1, xs)) |> fresh)
           }
-        | d => Error(InvalidBoxedTuple(d)),
+        | (String(_), _) => Error(InvalidBoxedListLit(d2))
+        | (_, _) => Error(InvalidBoxedStringLit(d1))
+        }
       );
 
-    let string_sub = name =>
-      unary(
-        fun
-        | Tuple([StringLit(s), IntLit(idx), IntLit(len)]) as d =>
-          try(Ok(StringLit(String.sub(s, idx, len)))) {
+    let string_sub = _ =>
+      ternary((d1, d2, d3) =>
+        switch (term_of(d1), term_of(d2), term_of(d3)) {
+        | (String(s), Int(idx), Int(len)) =>
+          try(Ok(String(String.sub(s, idx, len)) |> fresh)) {
           | _ =>
-            let d' = DHExp.Ap(DHExp.BuiltinFun(name), d);
-            Ok(InvalidOperation(d', IndexOutOfBounds));
+            // TODO: make it clear that the problem could be with d3 too
+            Ok(DynamicErrorHole(d2, IndexOutOfBounds) |> fresh)
           }
-        | d => Error(InvalidBoxedTuple(d)),
+        | (String(_), Int(_), _) => Error(InvalidBoxedIntLit(d3))
+        | (String(_), _, _) => Error(InvalidBoxedIntLit(d2))
+        | (_, _, _) => Error(InvalidBoxedIntLit(d1))
+        }
       );
 
     let atom =
-      unary(
-        fun
-        | StringLit(s) => Ok(PropLit(Atom(s)))
-        | d => Error(InvalidBoxedStringLit(d)),
+      unary(d =>
+        switch (term_of(d)) {
+        | String(s) => Ok(Prop(Atom(s)) |> fresh)
+        | _ => Error(InvalidBoxedStringLit(d))
+        }
       );
     let and_ =
-      unary(
-        fun
-        | Tuple([PropLit(p1), PropLit(p2)]) => Ok(PropLit(And(p1, p2)))
-        | d => Error(InvalidBoxedTuple(d)),
+      unary(d =>
+        switch (term_of(d)) {
+        | Tuple([{term: Prop(p1), _}, {term: Prop(p2), _}]) =>
+          Ok(Prop(And(p1, p2)) |> fresh)
+        | _ => Error(InvalidBoxedTuple(d))
+        }
       );
     let or_ =
-      unary(
-        fun
-        | Tuple([PropLit(p1), PropLit(p2)]) => Ok(PropLit(Or(p1, p2)))
-        | d => Error(InvalidBoxedTuple(d)),
+      unary(d =>
+        switch (term_of(d)) {
+        | Tuple([{term: Prop(p1), _}, {term: Prop(p2), _}]) =>
+          Ok(Prop(Or(p1, p2)) |> fresh)
+        | _ => Error(InvalidBoxedTuple(d))
+        }
       );
     let implies =
-      unary(
-        fun
-        | Tuple([PropLit(p1), PropLit(p2)]) => Ok(PropLit(Implies(p1, p2)))
-        | d => Error(InvalidBoxedTuple(d)),
+      unary(d =>
+        switch (term_of(d)) {
+        | Tuple([{term: Prop(p1), _}, {term: Prop(p2), _}]) =>
+          Ok(Prop(Implies(p1, p2)) |> fresh)
+        | _ => Error(InvalidBoxedTuple(d))
+        }
       );
     let prop_of: DHExp.t => option(Derivation.Prop.t) =
-      fun
-      | PropLit(p) => Some(p)
-      | _ => None;
+      d =>
+        switch (term_of(d)) {
+        | Prop(p) => Some(p)
+        | _ => None
+        };
     let entail =
-      unary(
-        fun
-        | Tuple([ListLit(_, _, Prop, ctx), PropLit(p)]) =>
+      unary(d =>
+        switch (term_of(d)) {
+        | Tuple([{term: ListLit(ctx), _}, {term: Prop(p), _}]) =>
           switch (ctx |> List.map(prop_of) |> Util.OptUtil.sequence) {
-          | Some(ctx) => Ok(JudgementLit(Wrong(Entail(ctx, p))))
+          | Some(ctx) => Ok(Judgement(Wrong(Entail(ctx, p))) |> fresh)
           | None => Error(InvalidBoxedListLit(List.hd(ctx)))
           }
-        | d => Error(InvalidBoxedTuple(d)),
+        | _ => Error(InvalidBoxedTuple(d))
+        }
       );
     let judgement_of: DHExp.t => option(Derivation.Judgement.t) =
-      fun
-      | JudgementLit(j) => Some(j)
-      | _ => None;
+      d =>
+        switch (term_of(d)) {
+        | Judgement(j) => Some(j)
+        | _ => None
+        };
     let rule = (_name, rule) =>
-      unary(
-        fun
+      unary(d =>
+        switch (term_of(d)) {
         | Tuple([
-            JudgementLit(conclusion),
-            ListLit(_, _, Judgement, premises),
+            {term: Judgement(conclusion), _},
+            {term: ListLit(premises), _},
           ]) =>
           switch (premises |> List.map(judgement_of) |> Util.OptUtil.sequence) {
           | Some(premises) =>
@@ -274,21 +354,21 @@ module Pervasives = {
                          | Derivation.Judgement.Verified(_) => false
                          | _ => true,
                        )) {
-                  JudgementLit(
-                    Partial(Derivation.Judgement.just(conclusion)),
-                  );
+                  Judgement(Partial(Derivation.Judgement.just(conclusion)))
+                  |> fresh;
                 } else {
-                  JudgementLit(
-                    Verified(Derivation.Judgement.just(conclusion)),
-                  );
+                  Judgement(Verified(Derivation.Judgement.just(conclusion)))
+                  |> fresh;
                 }
               | Error(_e) =>
-                JudgementLit(Wrong(Derivation.Judgement.just(conclusion)))
+                Judgement(Wrong(Derivation.Judgement.just(conclusion)))
+                |> fresh
               },
             )
           | None => Error(InvalidBoxedListLit(List.hd(premises)))
           }
-        | d => Error(InvalidBoxedTuple(d)),
+        | _ => Error(InvalidBoxedTuple(d))
+        }
       );
     let rule_Assumption = rule("rule_Assumption", Assumption);
     let rule_And_I = rule("rule_And_I", And_I);
@@ -306,7 +386,15 @@ module Pervasives = {
   open Impls;
 
   let rule = (name, func) =>
-    fn(name, Prod([Judgement, List(Judgement)]), Judgement, func);
+    fn(
+      name,
+      Prod([
+        Judgement |> Typ.fresh,
+        List(Judgement |> Typ.fresh) |> Typ.fresh,
+      ]),
+      Judgement,
+      func,
+    );
   let builtins =
     VarMap.empty
     |> const("infinity", Float, infinity)
@@ -346,29 +434,49 @@ module Pervasives = {
     |> fn("asin", Float, Float, asin)
     |> fn("acos", Float, Float, acos)
     |> fn("atan", Float, Float, atan)
-    |> fn("mod", Prod([Int, Int]), Int, int_mod("mod"))
+    |> fn(
+         "mod",
+         Prod([Int |> Typ.fresh, Int |> Typ.fresh]),
+         Int,
+         int_mod("mod"),
+       )
     |> fn("string_length", String, Int, string_length)
-    |> fn("string_compare", Prod([String, String]), Int, string_compare)
+    |> fn(
+         "string_compare",
+         Prod([String |> Typ.fresh, String |> Typ.fresh]),
+         Int,
+         string_compare,
+       )
     |> fn("string_trim", String, String, string_trim)
     |> fn(
          "string_concat",
-         Prod([String, List(String)]),
+         Prod([String |> Typ.fresh, List(String |> Typ.fresh) |> Typ.fresh]),
          String,
          string_concat,
        )
     |> fn(
          "string_sub",
-         Prod([String, Int, Int]),
+         Prod([String |> Typ.fresh, Int |> Typ.fresh, Int |> Typ.fresh]),
          String,
          string_sub("string_sub"),
        )
     |> fn("atom", String, Prop, atom)
-    |> fn("and", Prod([Prop, Prop]), Prop, and_)
-    |> fn("or", Prod([Prop, Prop]), Prop, or_)
-    |> fn("implies", Prod([Prop, Prop]), Prop, implies)
-    |> const("truth", Prop, PropLit(Truth))
-    |> const("falsity", Prop, PropLit(Falsity))
-    |> fn("entail", Prod([List(Prop), Prop]), Judgement, entail)
+    |> fn("and", Prod([Prop |> Typ.fresh, Prop |> Typ.fresh]), Prop, and_)
+    |> fn("or", Prod([Prop |> Typ.fresh, Prop |> Typ.fresh]), Prop, or_)
+    |> fn(
+         "implies",
+         Prod([Prop |> Typ.fresh, Prop |> Typ.fresh]),
+         Prop,
+         implies,
+       )
+    |> const("truth", Prop, Prop(Truth) |> fresh)
+    |> const("falsity", Prop, Prop(Falsity) |> fresh)
+    |> fn(
+         "entail",
+         Prod([List(Prop |> Typ.fresh) |> Typ.fresh, Prop |> Typ.fresh]),
+         Judgement,
+         entail,
+       )
     |> rule("rule_Assumption", rule_Assumption)
     |> rule("rule_And_I", rule_And_I)
     |> rule("rule_And_E_L", rule_And_E_L)
@@ -383,18 +491,21 @@ module Pervasives = {
 };
 
 let ctx_init: Ctx.t = {
-  let meta_cons_map = ConstructorMap.of_list([("$e", None), ("$v", None)]);
+  let meta_cons_map: ConstructorMap.t(Typ.t) = [
+    Variant("$e", [Id.mk()], None),
+    Variant("$v", [Id.mk()], None),
+  ];
   let meta =
     Ctx.TVarEntry({
       name: "$Meta",
       id: Id.invalid,
-      kind: Kind.Singleton(Sum(meta_cons_map)),
+      kind: Ctx.Singleton(Sum(meta_cons_map) |> Typ.fresh),
     });
   List.map(
     fun
     | (name, Const(typ, _)) => Ctx.VarEntry({name, typ, id: Id.invalid})
     | (name, Fn(t1, t2, _)) =>
-      Ctx.VarEntry({name, typ: Arrow(t1, t2), id: Id.invalid}),
+      Ctx.VarEntry({name, typ: Arrow(t1, t2) |> Typ.fresh, id: Id.invalid}),
     Pervasives.builtins,
   )
   |> Ctx.extend(_, meta)
@@ -414,7 +525,8 @@ let env_init: Environment.t =
     env =>
       fun
       | (name, Const(_, d)) => Environment.extend(env, (name, d))
-      | (name, Fn(_)) => Environment.extend(env, (name, BuiltinFun(name))),
+      | (name, Fn(_)) =>
+        Environment.extend(env, (name, BuiltinFun(name) |> fresh)),
     Environment.empty,
     Pervasives.builtins,
   );

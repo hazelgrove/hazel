@@ -1,4 +1,3 @@
-open Sexplib.Std;
 open Util;
 
 /**
@@ -14,6 +13,7 @@ let ap = 2;
 let neg = 3;
 let power = 4;
 let mult = 5;
+let not_ = 5;
 let plus = 6;
 let cons = 7;
 let concat = 8;
@@ -35,6 +35,12 @@ let rule_arr = 23;
 let rule_pre = 24;
 let rule_sep = 25;
 let case_ = 26;
+let comma = 15;
+
+let type_plus = 4;
+let type_arrow = 5;
+let type_prod = comma;
+
 let min = 27;
 
 let compare = (p1: t, p2: t): int =>
@@ -50,6 +56,7 @@ let associativity_map: IntMap.t(Direction.t) =
     (concat, Right),
     (ann, Left),
     (eqs, Left),
+    (type_arrow, Right),
   ]
   |> List.to_seq
   |> IntMap.of_seq;

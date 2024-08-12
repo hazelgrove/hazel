@@ -3,16 +3,7 @@ open Haz3lcore;
 let mk_secondary: string => Piece.t =
   content => Secondary({id: Id.mk(), content: Whitespace(content)});
 
-let mk_tile: (Form.t, list(list(Piece.t))) => Piece.t =
-  //TODO: asserts
-  (form, children) =>
-    Tile({
-      id: Id.mk(),
-      label: form.label,
-      mold: form.mold,
-      shards: List.mapi((i, _) => i, form.label),
-      children,
-    });
+let mk_tile = Piece.mk_tile;
 
 let mk_ancestor: (Form.t, (list(Segment.t), list(Segment.t))) => Ancestor.t =
   //TODO: asserts
@@ -122,6 +113,7 @@ let typeann = () => mk_monotile(Form.get("typeann"));
 let mk_typfun = mk_tile(Form.get("typfun"));
 let mk_fun = mk_tile(Form.get("fun_"));
 let mk_ap_exp_typ = mk_tile(Form.get("ap_exp_typ"));
+let mk_fix = mk_tile(Form.get("fix"));
 let mk_ap_exp = mk_tile(Form.get("ap_exp"));
 let mk_ap_pat = mk_tile(Form.get("ap_pat"));
 let mk_derive = mk_tile(Form.get("derive"));

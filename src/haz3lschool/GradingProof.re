@@ -1,5 +1,5 @@
 open Haz3lcore;
-open Sexplib.Std;
+open Util;
 
 module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
   open Exercise.F(ExerciseEnv);
@@ -26,7 +26,8 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
     let get_judgement = ({result, _}: DynamicsItem.t) =>
       switch (result) {
       | Evaluation({
-          evaluation: ResultOk({result: BoxedValue(JudgementLit(j)), _}),
+          evaluation:
+            ResultOk({result: BoxedValue({term: Judgement(j), _}), _}),
           _,
         }) =>
         Ok(j)
@@ -40,7 +41,8 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
     let get_judgement2 = ({result, _}: DynamicsItem.t) =>
       switch (result) {
       | Evaluation({
-          evaluation: ResultOk({result: BoxedValue(JudgementLit(j)), _}),
+          evaluation:
+            ResultOk({result: BoxedValue({term: Judgement(j), _}), _}),
           _,
         }) =>
         Some(j)

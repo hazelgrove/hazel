@@ -1,4 +1,3 @@
-open Sexplib.Std;
 open Util;
 open Haz3lcore;
 
@@ -35,15 +34,6 @@ type stepper_action =
   | StepBackward;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type agent =
-  | TyDi;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type agent_action =
-  | Prompt(agent)
-  | AcceptSuggestion;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type set_meta =
   | Mousedown
   | Mouseup
@@ -56,13 +46,22 @@ type benchmark_action =
   | Finish;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type export_action =
+  | ExportScratchSlide
+  | ExportPersistentData
+  | ExerciseModule
+  | Submission
+  | TransitionaryExerciseModule
+  | GradingExerciseModule;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   /* meta */
   | Reset
   | Set(settings_action)
   | SetMeta(set_meta)
   | UpdateExplainThisModel(ExplainThisUpdate.update)
-  | ExportPersistentData
+  | Export(export_action)
   | DebugConsole(string)
   /* editors */
   | ResetCurrentEditor
@@ -81,15 +80,9 @@ type t =
   | TAB
   | Save
   | PerformAction(Action.t)
-  | ReparseCurrentEditor
-  | Cut
-  | Copy
-  | Paste(string)
   | Undo
   | Redo
-  | MoveToNextHole(Direction.t)
   | Benchmark(benchmark_action)
-  | Assistant(agent_action)
   | ToggleStepper(ModelResults.Key.t)
   | StepperAction(ModelResults.Key.t, stepper_action)
   | UpdateResult(ModelResults.t);
@@ -99,12 +92,9 @@ module Failure = {
   type t =
     | CantUndo
     | CantRedo
-    | CantPaste
-    | CantReset
-    | CantSuggest
-    | FailedToLoad
     | FailedToSwitch
     | FailedToPerform(Action.Failure.t)
+    | InstructorOnly
     | Exception(string);
 };
 
@@ -138,46 +128,37 @@ let is_edit: t => bool =
     | ShowBackpackTargets(_)
     | FontMetrics(_) => false
     }
-  | Cut
   | Undo
   | Redo
-  | Paste(_)
   | SwitchScratchSlide(_)
   | SwitchDocumentationSlide(_)
   | ToggleStepper(_)
   | StepperAction(_)
-  | ReparseCurrentEditor
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
   | ResetCurrentEditor
-  | Assistant(AcceptSuggestion)
-  | Reset => true
+  | Reset
+  | TAB => true
   | UpdateResult(_)
   | SwitchEditor(_)
   | SwitchDerivationRule(_)
   | InsertPremise(_)
   | RemovePremise(_)
-  | ExportPersistentData
+  | Export(_)
   | Save
-  | Copy
   | UpdateExplainThisModel(_)
   | DebugConsole(_)
   | InitImportAll(_)
   | InitImportScratchpad(_)
-  | MoveToNextHole(_)
-  | Benchmark(_)
-  | TAB
-  | Assistant(Prompt(_)) => false;
+  | Benchmark(_) => false;
 
 let reevaluate_post_update: t => bool =
   fun
   | PerformAction(a) => Action.is_edit(a)
   | Set(s_action) =>
     switch (s_action) {
-    | Assist
     | Captions
     | SecondaryIcons
-    | Statics
     | ContextInspector
     | Benchmark
     | ExplainThis(_)
@@ -190,6 +171,8 @@ let reevaluate_post_update: t => bool =
       ) =>
       false
     | Elaborate
+    | Statics
+    | Assist
     | Dynamics
     | InstructorMode
     | Mode(_) => true
@@ -201,34 +184,27 @@ let reevaluate_post_update: t => bool =
     | ShowBackpackTargets(_)
     | FontMetrics(_) => false
     }
-  | Assistant(AcceptSuggestion) => true
-  | Assistant(Prompt(_)) => false
-  | MoveToNextHole(_)
   | Save
-  | Copy
   | InitImportAll(_)
   | InitImportScratchpad(_)
   | UpdateExplainThisModel(_)
-  | ExportPersistentData
+  | Export(_)
   | UpdateResult(_)
   | SwitchEditor(_)
   | SwitchDerivationRule(_)
   | InsertPremise(_)
   | RemovePremise(_)
   | DebugConsole(_)
-  | TAB
   | Benchmark(_) => false
+  | TAB
   | StepperAction(_, StepForward(_) | StepBackward)
   | ToggleStepper(_)
-  | ReparseCurrentEditor
   | FinishImportAll(_)
   | FinishImportScratchpad(_)
   | ResetCurrentEditor
   | SwitchScratchSlide(_)
   | SwitchDocumentationSlide(_)
   | Reset
-  | Cut
-  | Paste(_)
   | Undo
   | Redo => true;
 
@@ -256,11 +232,9 @@ let should_scroll_to_caret =
     | Mouseup
     | ShowBackpackTargets(_) => false
     }
-  | Assistant(Prompt(_))
   | UpdateResult(_)
   | ToggleStepper(_)
   | StepperAction(_, StepBackward | StepForward(_)) => false
-  | Assistant(AcceptSuggestion) => true
   | FinishImportScratchpad(_)
   | FinishImportAll(_)
   | ResetCurrentEditor
@@ -270,19 +244,13 @@ let should_scroll_to_caret =
   | RemovePremise(_)
   | SwitchScratchSlide(_)
   | SwitchDocumentationSlide(_)
-  | ReparseCurrentEditor
   | Reset
-  | Copy
-  | Paste(_)
-  | Cut
   | Undo
   | Redo
-  | MoveToNextHole(_)
   | TAB => true
   | PerformAction(a) =>
     switch (a) {
     | Move(_)
-    | MoveToNextHole(_)
     | Jump(_)
     | Select(Resize(_) | Term(_) | Smart | Tile(_))
     | Destruct(_)
@@ -290,7 +258,13 @@ let should_scroll_to_caret =
     | Pick_up
     | Put_down
     | RotateBackpack
-    | MoveToBackpackTarget(_) => true
+    | MoveToBackpackTarget(_)
+    | Buffer(Set(_) | Accept | Clear)
+    | Paste(_)
+    | Copy
+    | Cut
+    | Reparse => true
+    | Project(_)
     | Unselect(_)
     | Select(All) => false
     }
@@ -298,6 +272,6 @@ let should_scroll_to_caret =
   | InitImportAll(_)
   | InitImportScratchpad(_)
   | UpdateExplainThisModel(_)
-  | ExportPersistentData
+  | Export(_)
   | DebugConsole(_)
   | Benchmark(_) => false;

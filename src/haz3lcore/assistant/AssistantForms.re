@@ -4,47 +4,50 @@ open OptUtil.Syntax;
 /* This module generates TyDi suggestions which depend
  * neither on the typing context or the backpack */
 
-let leading_expander = " " ++ AssistantExpander.c;
+let leading_expander = " ";
 
 /* Specifies type information for syntactic forms. Could in principle be
  * derived by generating segments from Forms, parsing them to terms, and
  * running Statics, but for now, new forms e.g. operators must be added
  * below manually.  */
 module Typ = {
-  let unk: Typ.t = Unknown(Internal);
+  let unk: Typ.t = Unknown(Internal) |> Typ.fresh;
 
   let of_const_mono_delim: list((Token.t, Typ.t)) = [
-    ("true", Bool),
-    ("false", Bool),
+    ("true", Bool |> Typ.fresh),
+    ("false", Bool |> Typ.fresh),
     //("[]", List(unk)), / *NOTE: would need to refactor buffer for this to show up */
     //("()", Prod([])), /* NOTE: would need to refactor buffer for this to show up */
-    ("\"\"", String), /* NOTE: Irrelevent as second quote appears automatically */
+    ("\"\"", String |> Typ.fresh), /* NOTE: Irrelevent as second quote appears automatically */
     ("_", unk),
   ];
 
   let of_leading_delim: list((Token.t, Typ.t)) = [
     ("case" ++ leading_expander, unk),
-    ("fun" ++ leading_expander, Arrow(unk, unk)),
-    ("typfun" ++ leading_expander, Forall("", unk)),
+    ("fun" ++ leading_expander, Arrow(unk, unk) |> Typ.fresh),
+    (
+      "typfun" ++ leading_expander,
+      Forall(Var("") |> TPat.fresh, unk) |> Typ.fresh,
+    ),
     ("if" ++ leading_expander, unk),
     ("let" ++ leading_expander, unk),
-    ("test" ++ leading_expander, Prod([])),
+    ("test" ++ leading_expander, Prod([]) |> Typ.fresh),
     ("type" ++ leading_expander, unk),
-    ("from" ++ leading_expander, List(Judgement)),
+    ("from" ++ leading_expander, List(Judgement |> Typ.fresh) |> Typ.fresh),
   ];
 
-  let of_infix_delim: list((Token.t, Typ.t)) = [
-    ("|>", unk), /* */
+  let of_infix_delim: list((Token.t, Typ.term)) = [
+    //("|>", Unknown(Internal)), /* annoying during case rules */
     (",", Prod([unk, unk])), /* NOTE: Current approach doesn't work for this, but irrelevant as 1-char */
-    ("::", List(unk)),
+    ("::", List(unk)), /* annoying in patterns */
     ("@", List(unk)),
-    (";", unk),
+    (";", Unknown(Internal)),
     ("&&", Bool),
     ("||", Bool),
     ("$==", Bool),
     ("==.", Bool),
     ("==", Bool),
-    ("!", Bool), // maybe doesnt belong here? but blocks autocomplete of ! to !=
+    //("!", Bool), /* annoying as != is more common */
     ("!=", Bool),
     ("!=.", Bool),
     ("<", Bool),
@@ -76,7 +79,7 @@ module Typ = {
     fun
     | InfoExp({mode, _})
     | InfoPat({mode, _}) => Mode.ty_of(mode)
-    | _ => Unknown(Internal);
+    | _ => Unknown(Internal) |> Typ.fresh;
 
   let filter_by =
       (
@@ -198,7 +201,10 @@ let suggest_form = (ty_map, delims_of_sort, ci: Info.t): list(Suggestion.t) => {
 };
 
 let suggest_operator: Info.t => list(Suggestion.t) =
-  suggest_form(Typ.of_infix_delim, Delims.infix);
+  suggest_form(
+    List.map(((a, b)) => (a, IdTagged.fresh(b)), Typ.of_infix_delim),
+    Delims.infix,
+  );
 
 let suggest_operand: Info.t => list(Suggestion.t) =
   suggest_form(Typ.of_const_mono_delim, Delims.const_mono);

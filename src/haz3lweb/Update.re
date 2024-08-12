@@ -1,3 +1,4 @@
+open Util;
 open Haz3lcore;
 
 include UpdateAction; // to prevent circularity
@@ -186,11 +187,7 @@ let update_settings =
 let schedule_evaluation = (~schedule_action, model: Model.t): unit =>
   if (model.settings.core.dynamics) {
     let elabs =
-      Editors.get_spliced_elabs(
-        ~settings=model.settings,
-        model.statics,
-        model.editors,
-      );
+      Editors.get_spliced_elabs(~settings=model.settings.core, model.editors);
     let eval_rs = ModelResults.to_evaluate(model.results, elabs);
     if (!ModelResults.is_empty(eval_rs)) {
       schedule_action(UpdateResult(eval_rs));
@@ -217,12 +214,27 @@ let schedule_evaluation = (~schedule_action, model: Model.t): unit =>
   };
 
 let update_cached_data = (~schedule_action, update, m: Model.t): Model.t => {
-  let update_statics = is_edit(update) || reevaluate_post_update(update);
   let update_dynamics = reevaluate_post_update(update);
+  /* If we switch editors, or change settings which require statics
+   * when statics was previously off, we may need updated statics */
+  let non_edit_action_requiring_statics_refresh =
+    update_dynamics
+    && (
+      switch (update) {
+      | PerformAction(_) => false
+      | _ => true
+      }
+    );
   let m =
-    update_statics || update_dynamics && m.settings.core.statics
-      ? {...m, statics: Editors.mk_statics(~settings=m.settings, m.editors)}
-      : m;
+    if (non_edit_action_requiring_statics_refresh) {
+      {
+        ...m,
+        editors:
+          Editors.update_current_editor_statics(m.settings.core, m.editors),
+      };
+    } else {
+      m;
+    };
   if (update_dynamics && m.settings.core.dynamics) {
     schedule_evaluation(~schedule_action, m);
     m;
@@ -231,22 +243,9 @@ let update_cached_data = (~schedule_action, update, m: Model.t): Model.t => {
   };
 };
 
-let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
-  switch (
-    model.editors
-    |> Editors.get_editor
-    |> Haz3lcore.Perform.go(~settings=model.settings.core, a)
-  ) {
-  | Error(err) => Error(FailedToPerform(err))
-  | Ok(ed) =>
-    let model = {...model, editors: Editors.put_editor(ed, model.editors)};
-    /* Note: Not saving here as saving is costly to do each keystroke,
-       we wait a second after the last edit action (see Main.re) */
-    Ok(model);
-  };
-
 let switch_scratch_slide =
-    (editors: Editors.t, ~instructor_mode, idx: int): option(Editors.t) =>
+    (~settings, editors: Editors.t, ~instructor_mode, idx: int)
+    : option(Editors.t) =>
   switch (editors) {
   | Documentation(_) => None
   | Scratch(n, _) when n == idx => None
@@ -255,8 +254,9 @@ let switch_scratch_slide =
   | Exercises(_, specs, _) when idx >= List.length(specs) => None
   | Exercises(_, specs, _) =>
     let spec = List.nth(specs, idx);
-    let key = Exercise.key(spec);
-    let exercise = Store.Exercise.load_exercise(key, spec, ~instructor_mode);
+    let key = Exercise.key_of(spec);
+    let exercise =
+      Store.Exercise.load_exercise(key, spec, ~instructor_mode, ~settings);
     Some(Exercises(idx, specs, exercise));
   };
 
@@ -282,13 +282,14 @@ let switch_exercise_editor =
    this between users. The former is a TODO, currently difficult
    due to the more complex architecture of Exercises. */
 let export_persistent_data = () => {
+  // TODO Is this parsing and reserializing?
   let settings = Store.Settings.load();
   let data: PersistentData.t = {
     documentation:
-      Store.Documentation.load(~settings=settings.core.evaluation)
+      Store.Documentation.load(~settings=settings.core)
       |> Store.Documentation.to_persistent,
     scratch:
-      Store.Scratch.load(~settings=settings.core.evaluation)
+      Store.Scratch.load(~settings=settings.core)
       |> Store.Scratch.to_persistent,
     settings,
   };
@@ -300,6 +301,52 @@ let export_persistent_data = () => {
     ~contents,
   );
   print_endline("INFO: Persistent data exported to Init.ml");
+};
+let export_scratch_slide = (editor: Editor.t): unit => {
+  let json_data = ScratchSlide.export(editor);
+  JsUtil.download_json("hazel-scratchpad", json_data);
+};
+
+let export_exercise_module = (exercise: Exercise.state): unit => {
+  let module_name = exercise.header.module_name;
+  let filename = exercise.header.module_name ++ ".ml";
+  let content_type = "text/plain";
+  let contents = Exercise.export_module(module_name, exercise);
+  JsUtil.download_string_file(~filename, ~content_type, ~contents);
+};
+
+let export_submission = (~instructor_mode) =>
+  Log.get_and(log => {
+    let data = Export.export_all(~instructor_mode, ~log);
+    JsUtil.download_json(ExerciseSettings.filename, data);
+  });
+
+let export_transitionary = (exercise: Exercise.state) => {
+  // .ml files because show uses OCaml syntax (dune handles seamlessly)
+  let module_name = exercise.header.module_name;
+  let filename = exercise.header.module_name ++ ".ml";
+  let content_type = "text/plain";
+  let contents = Exercise.export_transitionary_module(module_name, exercise);
+  JsUtil.download_string_file(~filename, ~content_type, ~contents);
+};
+
+let export_instructor_grading_report = (exercise: Exercise.state) => {
+  // .ml files because show uses OCaml syntax (dune handles seamlessly)
+  let module_name = exercise.header.module_name;
+  let filename = exercise.header.module_name ++ "_grading.ml";
+  let content_type = "text/plain";
+  let contents = Exercise.export_grading_module(module_name, exercise);
+  JsUtil.download_string_file(~filename, ~content_type, ~contents);
+};
+
+let instructor_exercise_update =
+    (model: Model.t, fn: Exercise.state => unit): Result.t(Model.t) => {
+  switch (model.editors) {
+  | Exercises(_, _, exercise) when model.settings.instructor_mode =>
+    fn(exercise);
+    Ok(model);
+  | _ => Error(InstructorOnly) // TODO Make command palette contextual and figure out how to represent that here
+  };
 };
 
 let ui_state_update =
@@ -313,9 +360,17 @@ let ui_state_update =
   };
 };
 
-let rec apply =
-        (model: Model.t, update: t, state: State.t, ~schedule_action)
-        : Result.t(Model.t) => {
+let apply =
+    (model: Model.t, update: t, _state: State.t, ~schedule_action)
+    : Result.t(Model.t) => {
+  let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) => {
+    switch (
+      Editors.perform_action(~settings=model.settings.core, model.editors, a)
+    ) {
+    | Error(err) => Error(err)
+    | Ok(editors) => Ok({...model, editors})
+    };
+  };
   let m: Result.t(Model.t) =
     switch (update) {
     | Reset => Ok(Model.reset(model))
@@ -356,18 +411,49 @@ let rec apply =
       );
       Ok(model);
     | FinishImportScratchpad(data) =>
-      let editors = Editors.import_current(model.editors, data);
+      let editors =
+        Editors.import_current(
+          ~settings=model.settings.core,
+          model.editors,
+          data,
+        );
       Model.save_and_return({...model, editors});
-    | ExportPersistentData =>
+    | Export(ExportPersistentData) =>
       export_persistent_data();
       Ok(model);
+    | Export(ExportScratchSlide) =>
+      let editor = Editors.get_editor(model.editors);
+      export_scratch_slide(editor);
+      Ok(model);
+    | Export(ExerciseModule) =>
+      instructor_exercise_update(model, export_exercise_module)
+    | Export(Submission) =>
+      export_submission(~instructor_mode=model.settings.instructor_mode);
+      Ok(model);
+
+    | Export(TransitionaryExerciseModule) =>
+      instructor_exercise_update(model, export_transitionary)
+    | Export(GradingExerciseModule) =>
+      instructor_exercise_update(model, export_instructor_grading_report)
     | ResetCurrentEditor =>
       let instructor_mode = model.settings.instructor_mode;
-      let editors = Editors.reset_current(model.editors, ~instructor_mode);
+      let editors =
+        Editors.reset_current(
+          ~settings=model.settings.core,
+          model.editors,
+          ~instructor_mode,
+        );
       Model.save_and_return({...model, editors});
     | SwitchScratchSlide(n) =>
       let instructor_mode = model.settings.instructor_mode;
-      switch (switch_scratch_slide(model.editors, ~instructor_mode, n)) {
+      switch (
+        switch_scratch_slide(
+          ~settings=model.settings.core,
+          model.editors,
+          ~instructor_mode,
+          n,
+        )
+      ) {
       | None => Error(FailedToSwitch)
       | Some(editors) => Model.save_and_return({...model, editors})
       };
@@ -397,7 +483,13 @@ let rec apply =
       | Documentation(_)
       | Scratch(_) => Error(FailedToSwitch)
       | Exercises(m, specs, exercise) =>
-        let exercise = Exercise.add_premise(~pos, ~index, ~exercise);
+        let exercise =
+          Exercise.add_premise(
+            ~pos,
+            ~index,
+            ~exercise,
+            ~settings=model.settings.core,
+          );
         let editors = Editors.Exercises(m, specs, exercise);
         Ok({...model, editors});
       }
@@ -412,92 +504,31 @@ let rec apply =
       }
     | TAB =>
       /* Attempt to act intelligently when TAB is pressed.
-       * TODO(andrew): Consider more advanced TAB logic. Instead
+       * TODO: Consider more advanced TAB logic. Instead
        * of simply moving to next hole, if the backpack is non-empty
        * but can't immediately put down, move to next position of
        * interest, which is closet of: nearest position where can
        * put down, farthest position where can put down, next hole */
-      let z =
-        model.editors
-        |> Editors.get_editor
-        |> ((ed: Editor.t) => ed.state.zipper);
-      let a =
+      let z = Editors.get_editor(model.editors).state.zipper;
+      let action: Action.t =
         Selection.is_buffer(z.selection)
-          ? Assistant(AcceptSuggestion)
+          ? Buffer(Accept)
           : Zipper.can_put_down(z)
-              ? PerformAction(Put_down) : MoveToNextHole(Right);
-      apply(model, a, state, ~schedule_action);
-    | PerformAction(a)
-        when model.settings.core.assist && model.settings.core.statics =>
-      let model = UpdateAssistant.reset_buffer(model);
-      switch (perform_action(model, a)) {
-      | Ok(model) when Action.is_edit(a) =>
-        UpdateAssistant.apply(
-          model,
-          Prompt(TyDi),
-          ~schedule_action,
-          ~state,
-          ~main=apply,
-        )
-      | x => x
-      };
-    | PerformAction(a) => perform_action(model, a)
-    | ReparseCurrentEditor =>
-      /* This serializes the current editor to text, resets the current
-         editor, and then deserializes. It is intended as a (tactical)
-         nuclear option for weird backpack states */
-      let ed = Editors.get_editor(model.editors);
-      let zipper_init = Zipper.init();
-      let ed_str = Printer.to_string_editor(ed);
-      switch (Printer.zipper_of_string(~zipper_init, ed_str)) {
-      | None => Error(CantReset)
-      | Some(z) =>
-        //TODO: add correct action to history (Pick_up is wrong)
-        let editor = Haz3lcore.Editor.new_state(Pick_up, z, ed);
-        let editors = Editors.put_editor(editor, model.editors);
-        Ok({...model, editors});
-      };
-    | Cut =>
-      // system clipboard handling itself is done in Page.view handlers
-      perform_action(model, Destruct(Left))
-    | Copy =>
-      // system clipboard handling itself is done in Page.view handlers
-      // doesn't change the state but including as an action for logging purposes
-      Ok(model)
-    | Paste(clipboard) =>
-      let ed = Editors.get_editor(model.editors);
-      switch (Printer.paste_into_zip(ed.state.zipper, clipboard)) {
-      | None => Error(CantPaste)
-      | Some(z) =>
-        //HACK(andrew): below is not strictly a insert action...
-        let ed = Haz3lcore.Editor.new_state(Insert(clipboard), z, ed);
-        let editors = Editors.put_editor(ed, model.editors);
-        Ok({...model, editors});
-      };
+              ? Put_down : Move(Goal(Piece(Grout, Right)));
+      perform_action(model, action);
+    | PerformAction(a) =>
+      let r = perform_action(model, a);
+      r;
     | Undo =>
-      let ed = Editors.get_editor(model.editors);
-      switch (Haz3lcore.Editor.undo(ed)) {
+      switch (Editors.update_opt(model.editors, Editor.undo)) {
       | None => Error(CantUndo)
-      | Some(ed) =>
-        Ok({...model, editors: Editors.put_editor(ed, model.editors)})
-      };
+      | Some(editors) => Ok({...model, editors})
+      }
     | Redo =>
-      let ed = Editors.get_editor(model.editors);
-      switch (Haz3lcore.Editor.redo(ed)) {
+      switch (Editors.update_opt(model.editors, Editor.redo)) {
       | None => Error(CantRedo)
-      | Some(ed) =>
-        Ok({...model, editors: Editors.put_editor(ed, model.editors)})
-      };
-    | MoveToNextHole(d) =>
-      perform_action(model, Move(Goal(Piece(Grout, d))))
-    | Assistant(action) =>
-      UpdateAssistant.apply(
-        model,
-        action,
-        ~schedule_action,
-        ~state,
-        ~main=apply,
-      )
+      | Some(editors) => Ok({...model, editors})
+      }
     | Benchmark(Start) =>
       List.iter(schedule_action, Benchmark.actions_1);
       Benchmark.start();

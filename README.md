@@ -17,7 +17,7 @@ can also be accessed at:
 
 ### Short version
 
-If you already have `ocaml` version 5.0.0 and least version 2.0 of `opam`
+If you already have `ocaml` version 5.2.0 and at least version 2.0 of `opam`
 installed, you can build Hazel by running the following commands.
 
 - `git clone git@github.com:hazelgrove/hazel.git`
@@ -155,7 +155,7 @@ To obtain an clean build, you may need to:
 
   ```sh
   # opam switch remove ./
-  opam switch create ./ 5.0.0
+  opam switch create ./ 5.2.0
   eval $(opam env)
   make deps
   make
@@ -185,7 +185,9 @@ helper functions for printing and serializing this data. For a type named `t`, t
 for a type named something else like `q`, it will be `show_q`.
 
 #### Source Maps
-`js_of_ocaml` does support source maps and has some other flags that might be useful. If you experiment with those and get them to work, please update this README with some notes.
+Source maps for `js_of_ocaml` should be configured when making locally with the dev profile (`make`). This is configured using the env stanzas present in the `dune` files for each top-level directory.
+
+Since source maps are generated browser developer tools should show reason code in the debugger and source tree. Stack traces should also include reason line numbers.
 
 #### Debug Mode
 If Hazel is hanging on load or when you perform certain actions, you can load into Debug Mode by appending `#debug` to the URL and reloading. From there, you have some buttons that will change settings or reset local storage. Refresh without the `#debug` flag and hopefully you can resolve the situation from there.
@@ -205,3 +207,12 @@ that will build that branch (in `release` mode) and deploy it to the URL
 It usually takes about 2 minutes if the build environment cache hits, or 
 20+ minutes if not. You can view the status of the build in the [Actions 
 tab on Github](https://github.com/hazelgrove/hazel/actions).
+
+Builds prior to July 2024 are archived at `https://hazel.org/build/<branch name>`.
+
+Note: If another archive needs to be performed, make sure to redeploy the following
+branches manually since we refer to them in various public material (websites and
+published papers):
+
+  dev
+  livelits

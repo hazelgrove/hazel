@@ -1,6 +1,5 @@
-// open Sexplib.Std;
-open Haz3lcore;
-module Tree = Util.Tree;
+open Util;
+module Derivation = Haz3lcore.Derivation;
 
 module Model = {
   // Exercise Model Structure

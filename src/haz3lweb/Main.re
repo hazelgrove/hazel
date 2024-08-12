@@ -1,3 +1,4 @@
+open Util;
 open Js_of_ocaml;
 open Incr_dom;
 open Haz3lweb;
@@ -82,6 +83,7 @@ module App = {
         schedule_action(Haz3lweb.Update.SetMeta(FontMetrics(fm)))
       );
 
+    NinjaKeys.initialize(NinjaKeys.options(schedule_action));
     JsUtil.focus_clipboard_shim();
 
     /* initialize state. */

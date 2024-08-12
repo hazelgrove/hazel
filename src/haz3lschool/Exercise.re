@@ -1,4 +1,4 @@
-open Sexplib.Std;
+open Util;
 open Haz3lcore;
 
 module type ExerciseEnv = {
@@ -117,11 +117,11 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   let transition: transitionary_spec => spec =
     s => {...s, model: s.model |> ModelUtil.map(zipper_of_code)};
 
-  let editor_of_serialization: Zipper.t => Editor.t =
-    zipper => Editor.init(zipper);
+  let editor_of_serialization = (zipper: Zipper.t, ~settings: CoreSettings.t) =>
+    Editor.init(zipper, ~settings);
 
-  let eds_of_spec: spec => model(Editor.t) =
-    ({model, _}) => model |> ModelUtil.map(editor_of_serialization);
+  let eds_of_spec = (~settings: CoreSettings.t, {model, _}: spec) =>
+    model |> ModelUtil.map(editor_of_serialization(~settings));
 
   let switch_editor = (~pos: pos, instructor_mode, ~state: state) =>
     if (switch (pos) {
@@ -143,10 +143,16 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     };
 
   let add_premise =
-      (~pos: Util.Tree.pos, ~index: int, ~exercise: state): state =>
+      (
+        ~pos: Util.Tree.pos,
+        ~index: int,
+        ~exercise: state,
+        ~settings: CoreSettings.t,
+      )
+      : state =>
     switch (exercise.model) {
     | Proof(m) =>
-      let init = "" |> zipper_of_code |> Editor.init |> Fun.const;
+      let init = "" |> zipper_of_code |> Editor.init(~settings) |> Fun.const;
       let m = Proof.add_premise(~pos, ~index, ~m, ~init);
       {...exercise, pos: Proof(Derive(pos)), model: Proof(m)};
     | _ => exercise
@@ -183,8 +189,9 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     | Proof(pos) => Proof.visible_in(pos, instructor_mode)
     };
 
-  let state_of_spec = (spec: spec, ~instructor_mode: bool): state =>
-    {...spec, model: eds_of_spec(spec)}
+  let state_of_spec =
+      (spec: spec, ~instructor_mode: bool, ~settings: CoreSettings.t): state =>
+    {...spec, model: eds_of_spec(~settings, spec)}
     |> set_instructor_mode(~new_mode=instructor_mode);
 
   let persistent_state_of_state =
@@ -203,15 +210,16 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         (pos, positioned_zippers): persistent_state,
         ~spec: spec,
         ~instructor_mode: bool,
+        ~settings: CoreSettings.t,
       )
       : state => {
     let lookup = (pos, default) =>
       if (visible_in(pos, ~instructor_mode)) {
         let persisted_zipper = List.assoc(pos, positioned_zippers);
         let zipper = PersistentZipper.unpersist(persisted_zipper);
-        Editor.init(zipper);
+        Editor.init(zipper, ~settings);
       } else {
-        editor_of_serialization(default);
+        editor_of_serialization(default, ~settings);
       };
     set_instructor_mode(
       {
@@ -271,6 +279,10 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   type key = (string, int); // title, version
 
   let key: p('a) => key = ({header: h, _}) => (h.title, h.version);
+
+  let key_of_state = key;
+
+  let key_of = key;
 
   let find_key_opt = (k, specs: list(p('code))) =>
     specs |> Util.ListUtil.findi_opt(spec => key(spec) == k);
@@ -349,150 +361,131 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       };
   };
 
-  module TermItem = {
-    type t = {
-      term: TermBase.UExp.t,
-      term_ranges: TermRanges.t,
-    };
-  };
-
-  module StaticsItem = {
-    type t = CachedStatics.statics;
-  };
-
-  module DynamicsItem = {
-    type t = {
-      term: TermBase.UExp.t,
-      info_map: Statics.Map.t,
-      result: ModelResult.t,
-    };
-    let empty: t = {
-      term: {
-        term: Tuple([]),
-        ids: [Id.mk()],
-      },
-      info_map: Id.Map.empty,
-      result: NoElab,
-    };
-    let statics_only = ({term, info_map, _}: StaticsItem.t): t => {
-      {term, info_map, result: NoElab};
-    };
-  };
-
-  let stitch_term = ({model, _}: state): stitched(TermItem.t) => {
-    let term_of = (editor: Editor.t): Term.UExp.t =>
-      editor.state.meta.view_term;
+  let stitch_term = ({model, _}: state): stitched(UExp.t) => {
+    let term_of = (editor: Editor.t): UExp.t =>
+      MakeTerm.from_zip_for_sem(editor.state.zipper).term;
     let stitch2 = (ed1: Editor.t, ed2: Editor.t) =>
       EditorUtil.append_exp(term_of(ed1), term_of(ed2));
     let stitch3 = (ed1: Editor.t, ed2: Editor.t, ed3: Editor.t) =>
       EditorUtil.append_exp(stitch2(ed1, ed2), term_of(ed3));
-    let wrap_filter =
-        (act: FilterAction.action, term: Term.UExp.t): Term.UExp.t =>
-      TermBase.UExp.{
+    let wrap_filter = (act: FilterAction.action, term: UExp.t): UExp.t =>
+      Exp.{
         term:
-          TermBase.UExp.Filter(
-            FilterAction.(act, One),
-            {term: Constructor("$e"), ids: [Id.mk()]},
+          Exp.Filter(
+            Filter({
+              act: FilterAction.(act, One),
+              pat: {
+                term: Constructor("$e", Unknown(Internal) |> Typ.temp),
+                copied: false,
+                ids: [Id.mk()],
+              },
+            }),
             term,
           ),
+        copied: false,
         ids: [Id.mk()],
       };
-    let terms: stitched(TermBase.UExp.t) =
-      switch (model) {
-      | Proof(model) =>
-        let prelude_term =
-          model.prelude |> term_of |> wrap_filter(FilterAction.Eval);
-        Proof({
-          prelude: prelude_term,
-          derivation_tree:
-            model.derivation_tree
-            |> Util.Tree.map(({Proof.jdmt, _}) =>
-                 jdmt |> term_of |> EditorUtil.append_exp(prelude_term)
-               ),
-        });
-      | Programming(model) =>
-        let instructor_term =
-          stitch3(
-            model.prelude,
-            model.correct_impl,
-            model.hidden_tests.tests,
-          );
-        let your_impl_term =
-          model.your_impl |> term_of |> wrap_filter(FilterAction.Step);
-        let prelude_term =
-          model.prelude |> term_of |> wrap_filter(FilterAction.Eval);
-        let user_impl_term =
-          EditorUtil.append_exp(prelude_term, your_impl_term);
-        Programming({
-          test_validation:
-            stitch3(
-              model.prelude,
-              model.correct_impl,
-              model.your_tests.tests,
-            ),
-          user_impl: user_impl_term,
-          user_tests: stitch2(model.prelude, model.your_tests.tests),
-          prelude: instructor_term,
-          instructor: instructor_term,
-          hidden_bugs:
-            List.map(
-              (t: Programming.wrong_impl('a)) =>
-                stitch3(model.prelude, t.impl, model.your_tests.tests),
-              model.hidden_bugs,
-            ),
-          hidden_tests: stitch2(model.prelude, model.hidden_tests.tests),
-        });
-      };
-    let wrap = (term, editor: Editor.t): TermItem.t => {
-      term,
-      term_ranges: editor.state.meta.term_ranges,
+    switch (model) {
+    | Proof(model) =>
+      let prelude_term =
+        model.prelude |> term_of |> wrap_filter(FilterAction.Eval);
+      Proof({
+        prelude: prelude_term,
+        derivation_tree:
+          model.derivation_tree
+          |> Util.Tree.map(({Proof.jdmt, _}) =>
+               jdmt |> term_of |> EditorUtil.append_exp(prelude_term)
+             ),
+      });
+    | Programming(model) =>
+      let instructor_term =
+        stitch3(model.prelude, model.correct_impl, model.hidden_tests.tests);
+      let your_impl_term =
+        model.your_impl |> term_of |> wrap_filter(FilterAction.Step);
+      let prelude_term =
+        model.prelude |> term_of |> wrap_filter(FilterAction.Eval);
+      let user_impl_term =
+        EditorUtil.append_exp(prelude_term, your_impl_term);
+      Programming({
+        test_validation:
+          stitch3(model.prelude, model.correct_impl, model.your_tests.tests),
+        user_impl: user_impl_term,
+        user_tests: stitch2(model.prelude, model.your_tests.tests),
+        prelude: instructor_term,
+        instructor: instructor_term,
+        hidden_bugs:
+          List.map(
+            (t: Programming.wrong_impl('a)) =>
+              stitch3(model.prelude, t.impl, model.your_tests.tests),
+            model.hidden_bugs,
+          ),
+        hidden_tests: stitch2(model.prelude, model.hidden_tests.tests),
+      });
     };
-    terms |> StitchUtil.mapi((pos, t) => wrap(t, ModelUtil.nth(model, pos)));
   };
   let stitch_term = Core.Memo.general(stitch_term);
 
-  type stitched_statics = stitched(StaticsItem.t);
+  type stitched_statics = stitched(Editor.CachedStatics.t);
 
+  /* Multiple stitchings are needed for each exercise
+     (see comments in the stitched type above)
+
+     Stitching is necessary to concatenate terms
+     from different editors, which are then typechecked. */
   let stitch_static =
-      (settings: CoreSettings.t, t: stitched(TermItem.t)): stitched_statics => {
-    let mk = ({term, term_ranges, _}: TermItem.t): StaticsItem.t => {
-      let info_map = Interface.Statics.mk_map(settings, term);
-      {
-        term,
-        error_ids: Statics.Map.error_ids(term_ranges, info_map),
-        info_map,
-      };
+      (settings: CoreSettings.t, t: stitched(UExp.t)): stitched_statics => {
+    let mk = (term: UExp.t): Editor.CachedStatics.t => {
+      let info_map = Statics.mk(settings, Builtins.ctx_init, term);
+      {term, error_ids: Statics.Map.error_ids(info_map), info_map};
     };
     // Prelude should be `instructor`
+    // works as long as you don't shadow anything in the prelude
     StitchUtil.map(mk, t);
   };
   let stitch_static = Core.Memo.general(stitch_static);
 
-  let statics_of = (~settings, exercise: state): StaticsItem.t =>
-    StitchUtil.nth(
-      exercise |> stitch_term |> stitch_static(settings),
-      exercise.pos,
-    );
+  // let statics_of = (~settings, exercise: state): Editor.CachedStatics.t =>
+  //   StitchUtil.nth(
+  //     exercise |> stitch_term |> stitch_static(settings),
+  //     exercise.pos,
+  //   );
 
   let key_for_statics = (state: state): string => StitchUtil.key(state.pos);
 
   let spliced_elabs =
       (settings: CoreSettings.t, state: state)
-      : list((ModelResults.key, DHExp.t)) => {
-    let elab = (s: CachedStatics.statics) =>
-      Interface.elaborate(~settings, s.info_map, s.term);
+      : list((ModelResults.key, Elaborator.Elaboration.t)) => {
+    let elab = (s: Editor.CachedStatics.t): Elaborator.Elaboration.t => {
+      d: Interface.elaborate(~settings, s.info_map, s.term),
+    };
     // Note: prelude should be filtered
     stitch_static(settings, stitch_term(state))
     |> StitchUtil.mapi((pos, si) => (StitchUtil.key(pos), elab(si)))
     |> StitchUtil.flatten;
   };
 
-  let mk_statics =
-      (settings: CoreSettings.t, state: state)
-      : list((ModelResults.key, StaticsItem.t)) =>
-    stitch_static(settings, stitch_term(state))
-    |> StitchUtil.mapi((pos, si) => (StitchUtil.key(pos), si))
-    |> StitchUtil.flatten;
+  module DynamicsItem = {
+    type t = {
+      statics: Editor.CachedStatics.t,
+      result: ModelResult.t,
+    };
+    let empty: t = {statics: Editor.CachedStatics.empty, result: NoElab};
+    let statics_only = (statics: Editor.CachedStatics.t): t => {
+      statics,
+      result: NoElab,
+    };
+  };
+
+  let statics_of_stiched_dynamics =
+      (state: state, s: stitched(DynamicsItem.t)): Editor.CachedStatics.t =>
+    StitchUtil.nth(s, state.pos).statics;
+
+  // let mk_statics =
+  //     (settings: CoreSettings.t, state: state)
+  //     : list((ModelResults.key, Editor.CachedStatics.t)) =>
+  //   stitch_static(settings, stitch_term(state))
+  //   |> StitchUtil.mapi((pos, si) => (StitchUtil.key(pos), si))
+  //   |> StitchUtil.flatten;
 
   let stitch_dynamic =
       (
@@ -509,12 +502,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         |> Option.value(~default=ModelResult.NoElab)
       };
     stitch_static(settings, stitch_term(state))
-    |> StitchUtil.mapi((pos, si: StaticsItem.t) =>
-         DynamicsItem.{
-           term: si.term,
-           info_map: si.info_map,
-           result: result_of(StitchUtil.key(pos)),
-         }
+    |> StitchUtil.mapi((pos, statics: Editor.CachedStatics.t) =>
+         DynamicsItem.{statics, result: result_of(StitchUtil.key(pos))}
        );
     // Prelude should be NoElab
   };
@@ -533,7 +522,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       stitch_dynamic(settings, state, results);
     } else if (settings.statics) {
       stitch_static(settings, stitch_term(state))
-      |> StitchUtil.map((si: StaticsItem.t) => DynamicsItem.statics_only(si));
+      |> StitchUtil.map(statics => DynamicsItem.statics_only(statics));
     } else {
       StitchUtil.fill(state.model, DynamicsItem.empty |> Fun.const);
     };
