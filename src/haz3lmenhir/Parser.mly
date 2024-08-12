@@ -2,7 +2,7 @@
 open AST
 %}
 
-
+%token <string> SEXP_STRING
 %token DOLLAR_SIGN
 %token TYP
 %token TYP_FUN
@@ -248,6 +248,6 @@ exp:
     | OUT_AP; WILD {Deferral(OutsideAp)}
     | e = exp; AT_SYMBOL; LESS_THAN; ty = typ; GREATER_THAN; {TypAp(e, ty)}
     | TYP; tp = tpat; SINGLE_EQUAL; ty = typ; IN; e = exp {TyAlias(tp, ty, e)}
-    | LESS_THAN; LESS_THAN; e = exp; QUESTION; s = STRING; GREATER_THAN; GREATER_THAN {DynamicErrorHole(e, s)}
+    | LESS_THAN; LESS_THAN; e = exp; QUESTION; s = SEXP_STRING; GREATER_THAN; GREATER_THAN {DynamicErrorHole(e, s)}
     (* | b = BUILTIN; OPEN_PAREN; a = exp; CLOSE_PAREN {BuiltinAp(b, a)} *)
     | u = unExp { u }
