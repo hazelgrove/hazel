@@ -496,7 +496,7 @@ and matches_cast_Tuple =
       List.map2(List.cons, List.combine(tys, tys'), elt_casts),
     );
   | TupLabel(_, d') => matches_cast_Tuple(dps, d', elt_casts)
-  | Dot(_, _)
+  | Dot(_, _) => IndetMatch
   | Cast(_, _, _) => DoesNotMatch
   | BoundVar(_) => DoesNotMatch
   | FreeVar(_) => IndetMatch
@@ -666,7 +666,7 @@ and matches_cast_Cons =
   | FloatLit(_) => DoesNotMatch
   | StringLit(_) => DoesNotMatch
   | Tuple(_) => DoesNotMatch
-  | Dot(_, _) => DoesNotMatch
+  | Dot(_, _) => IndetMatch
   | Prj(_) => IndetMatch
   | Constructor(_) => DoesNotMatch
   | ConsistentCase(_)

@@ -5,13 +5,13 @@ open Example;
 let dot_example_1 = {
   sub_id: Dot1,
   term: mk_example("(x=1, y=2).x"),
-  message: "Gives the element in the tuple associated with the label 'x', which in this example is 1.",
+  message: "Retrieves the element in the tuple associated with the label 'x', which in this example is 1.",
 };
 let dot_exp: form = {
   let explanation = "Dot Operator explanation";
   {
     id: DotExp,
-    syntactic_form: [exp("(x=e)"), dot(), pat("x")],
+    syntactic_form: [exp("(x=e)"), dot_exp(), pat("x")],
     expandable_id: None,
     explanation,
     examples: [dot_example_1],

@@ -311,19 +311,49 @@ and uexp_to_info_map =
       ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es)),
       m,
     );
-  | Dot(e, s) =>
-    // TODO (Anthony): Fix this, look at module pr
-    let (e, m) = go(~mode=Syn, e, m);
-    let element: option(Typ.t) =
-      switch (e.ty) {
-      | Prod(ts) => LabeledTuple.find_label(Typ.get_label, ts, s)
-      // | Label(l, t) when LabeledTuple.compare(s, l) == 0 => Some(t)
-      | _ => None // TODO (Anthony): other exps
+  | Dot(e1, e2) =>
+    let (ty, m) = {
+      let (info_e1, m) = go(~mode=Syn, e1, m);
+      switch (e2.term, info_e1.ty) {
+      | (Var(name), Unknown(_))
+      | (Constructor(name), Unknown(_)) =>
+        let ty = Typ.Prod([Label(name, Unknown(Internal))]);
+        let (_, m) = go(~mode=Mode.Ana(ty), e1, m);
+        (ty, m);
+      | _ => (info_e1.ty, m)
       };
-    switch (element) {
-    | Some(Label(_, typ)) => add(~self=Just(typ), ~co_ctx=e.co_ctx, m)
-    | Some(typ) => add(~self=Just(typ), ~co_ctx=e.co_ctx, m)
-    | None => add(~self=Just(Unknown(Internal)), ~co_ctx=e.co_ctx, m)
+    };
+    switch (ty) {
+    | Prod(ts) =>
+      switch (e2.term) {
+      | Var(name) =>
+        let (body, m) = go'(~ctx=[], ~mode, e2, m);
+        let element: option(Typ.t) =
+          LabeledTuple.find_label(Typ.get_label, ts, name)
+        let m =
+          e2.ids
+          |> List.fold_left(
+              (m, id) =>
+                Id.Map.update(
+                  id,
+                  fun
+                  | Some(Info.InfoExp(exp)) =>
+                    Some(Info.InfoExp({...exp, ctx}))
+                  | _ as info => info,
+                  m,
+                ),
+              m,
+            );
+        switch (element) {
+        | Some(Label(_, typ)) => add(~self=Just(typ), ~co_ctx=body.co_ctx, m)
+        | Some(typ) => add(~self=Just(typ), ~co_ctx=body.co_ctx, m)
+        | None => add(~self=Just(Unknown(Internal)), ~co_ctx=body.co_ctx, m)
+        };
+      | _ => add(~self=Just(Unknown(Internal)), ~co_ctx=body.co_ctx, m)
+      };
+    | _ =>
+      let (body, m) = go'(~ctx=[], ~mode, e2, m);
+      add(~self=Just(body.ty), ~co_ctx=body.co_ctx, m);
     };
   | Test(e) =>
     let (e, m) = go(~mode=Ana(Bool), e, m);
@@ -878,6 +908,12 @@ and utyp_to_info_map =
         (m, []),
         variants,
       );
+    add(m);
+  | Dot(ty1, ty2) =>
+    // TODO: Fix this
+    let (_, m) =
+      utyp_to_info_map(~ctx, ~expects=TupleExpected, ~ancestors, ty1, m);
+    let m = go(ty2, m) |> snd;
     add(m);
   | Forall({term: Var(name), _} as utpat, tbody) =>
     let body_ctx =

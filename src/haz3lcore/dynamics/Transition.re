@@ -63,7 +63,7 @@ type step_kind =
   | BinIntOp(TermBase.UExp.op_bin_int)
   | BinFloatOp(TermBase.UExp.op_bin_float)
   | BinStringOp(TermBase.UExp.op_bin_string)
-  | Dot(LabeledTuple.t)
+  | Dot
   | Conditional(bool)
   | Projection
   | ListCons
@@ -560,27 +560,61 @@ module Transition = (EV: EV_MODE) => {
         kind: BinStringOp(op),
         value: true,
       });
-    | Dot(d, s) =>
-      let. _ = otherwise(env, d => Dot(d, s))
-      and. d' = req_final(req(state, env), d => Dot(d, s), d);
-      // print_endline("dot final");
-      // print_endline(DHExp.show(d'));
-      // TODO (Anthony): fix step if needed
-      Step({
-        apply: () =>
-          switch (d') {
-          | Tuple(ds) =>
-            let element = LabeledTuple.find_label(DHExp.get_label, ds, s);
+    | Dot(d1, d2) =>
+      let. _ = otherwise(env, d1 => Dot(d1, d2))
+      and. d1' = req_value(req(state, env), d1 => Dot1(d1, d2), d1);
+      switch (d1', d2) {
+      | (Tuple(ds), BoundVar(name)) =>
+        Step({
+          apply: () => {
+            let element = LabeledTuple.find_label(DHExp.get_label, ds, name);
             switch (element) {
             | Some(TupLabel(_, exp)) => exp
             | _ => raise(EvaluatorError.Exception(BadPatternMatch))
             };
-          | TupLabel(l, exp) when LabeledTuple.compare(s, l) == 0 => exp
-          | _ => raise(EvaluatorError.Exception(BadPatternMatch))
           },
-        kind: Dot(s),
-        value: false,
-      });
+          kind: Dot,
+          value: false,
+        })
+      | (_, Cast(d2', ty, ty')) =>
+        Step({
+          apply: () => Cast(Dot(d1, d2'), ty, ty'),
+          kind: CastAp,
+          value: false,
+        })
+      | (Cast(d3', Prod(ts), Prod(ts')), BoundVar(name)) =>
+        let ty =
+          switch (LabeledTuple.find_label(Typ.get_label, ts, name)) {
+          | Some(Label(_, ty)) => ty
+          | _ => Typ.Unknown(Internal)
+          };
+        let ty' =
+          switch (LabeledTuple.find_label(Typ.get_label, ts', name)) {
+          | Some(Label(_, ty)) => ty
+          | _ => Typ.Unknown(Internal)
+          };
+        Step({
+          apply: () => Cast(Dot(d3', d2), ty, ty'),
+          kind: CastAp,
+          value: false,
+        });
+      | _ => Indet
+      };
+    // Step({
+    //   apply: () =>
+    //     switch (d') {
+    //     | Tuple(ds) =>
+    //       let element = LabeledTuple.find_label(DHExp.get_label, ds, s);
+    //       switch (element) {
+    //       | Some(TupLabel(_, exp)) => exp
+    //       | _ => raise(EvaluatorError.Exception(BadPatternMatch))
+    //       };
+    //     | TupLabel(l, exp) when LabeledTuple.compare(s, l) == 0 => exp
+    //     | _ => raise(EvaluatorError.Exception(BadPatternMatch))
+    //     },
+    //   kind: Dot(s),
+    //   value: false,
+    // });
     | TupLabel(p, d1) =>
       // TODO (Anthony): Fix this if needed
       let. _ = otherwise(env, d1 => TupLabel(p, d1))
@@ -784,7 +818,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | BinIntOp(_)
   | BinFloatOp(_)
   | BinStringOp(_)
-  | Dot(_)
+  | Dot
   | ListCons
   | ListConcat
   | CaseApply

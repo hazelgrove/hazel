@@ -95,4 +95,6 @@ let mk_Ap: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 
 let mk_Prj: (Pretty.Doc.t(DHAnnot.t), int) => Pretty.Doc.t(DHAnnot.t);
 
+let mk_Dot: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
+
 let mk_Undefined: unit => Pretty.Doc.t('a);
