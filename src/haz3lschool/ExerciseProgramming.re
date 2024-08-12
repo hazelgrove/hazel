@@ -1,72 +1,72 @@
 open Util;
 // open Haz3lcore;
 
-module Model = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type wrong_impl('code) = {
-    impl: 'code,
-    hint: string,
-  };
+[@deriving (show({with_path: false}), sexp, yojson)]
+type wrong_impl('code) = {
+  impl: 'code,
+  hint: string,
+};
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type hidden_tests('code) = {
-    tests: 'code,
-    hints: list(string),
-  };
+[@deriving (show({with_path: false}), sexp, yojson)]
+type hidden_tests('code) = {
+  tests: 'code,
+  hints: list(string),
+};
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type hint = string;
+[@deriving (show({with_path: false}), sexp, yojson)]
+type hint = string;
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type syntax_test = (hint, SyntaxTest.predicate);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type syntax_test = (hint, SyntaxTest.predicate);
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type syntax_tests = list(syntax_test);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type syntax_tests = list(syntax_test);
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type your_tests('code) = {
-    tests: 'code,
-    required: int,
-    provided: int,
-  };
+[@deriving (show({with_path: false}), sexp, yojson)]
+type your_tests('code) = {
+  tests: 'code,
+  required: int,
+  provided: int,
+};
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type point_distribution = {
-    test_validation: int,
-    mutation_testing: int,
-    impl_grading: int,
-  };
+[@deriving (show({with_path: false}), sexp, yojson)]
+type point_distribution = {
+  test_validation: int,
+  mutation_testing: int,
+  impl_grading: int,
+};
 
-  let validate_point_distribution =
-      ({test_validation, mutation_testing, impl_grading}: point_distribution) =>
-    test_validation + mutation_testing + impl_grading == 100
-      ? () : failwith("Invalid point distribution in exercise.");
+let validate_point_distribution =
+    ({test_validation, mutation_testing, impl_grading}: point_distribution) =>
+  test_validation + mutation_testing + impl_grading == 100
+    ? () : failwith("Invalid point distribution in exercise.");
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type p('code) = {
-    point_distribution,
-    prelude: 'code,
-    correct_impl: 'code,
-    your_tests: your_tests('code),
-    your_impl: 'code,
-    hidden_bugs: list(wrong_impl('code)),
-    hidden_tests: hidden_tests('code),
-    syntax_tests,
-  };
+[@deriving (show({with_path: false}), sexp, yojson)]
+type model('code) = {
+  point_distribution,
+  prelude: 'code,
+  correct_impl: 'code,
+  your_tests: your_tests('code),
+  your_impl: 'code,
+  hidden_bugs: list(wrong_impl('code)),
+  hidden_tests: hidden_tests('code),
+  syntax_tests,
+};
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type pos =
-    | Prelude
-    | CorrectImpl
-    | YourTests(your_tests_form)
-    | YourImpl
-    | HiddenBugs(int)
-    | HiddenTests
-  and your_tests_form =
-    | Testing
-    | Validation;
+[@deriving (show({with_path: false}), sexp, yojson)]
+type pos =
+  | Prelude
+  | CorrectImpl
+  | YourTests(your_tests_form)
+  | YourImpl
+  | HiddenBugs(int)
+  | HiddenTests
+and your_tests_form =
+  | Testing
+  | Validation;
 
-  let map = (f: 'a => 'b, m: p('a)): p('b) => {
+module ModelUtil = {
+  let map = (f: 'a => 'b, m: model('a)): model('b) => {
     {
       ...m,
       prelude: m.prelude |> f,
@@ -85,7 +85,7 @@ module Model = {
     };
   };
 
-  let mapi = (f, m: p('a)): p('b) => {
+  let mapi = (f: (pos, 'a) => 'b, m: model('a)): model('b) => {
     {
       ...m,
       prelude: m.prelude |> f(Prelude),
@@ -107,7 +107,7 @@ module Model = {
     };
   };
 
-  let nth = (m: p('a), pos: pos): 'a =>
+  let nth = (m: model('a), pos: pos): 'a =>
     switch (pos) {
     | Prelude => m.prelude
     | CorrectImpl => m.correct_impl
@@ -117,7 +117,7 @@ module Model = {
     | HiddenTests => m.hidden_tests.tests
     };
 
-  let map_nth = (f: 'a => 'b, m: p('a), pos: pos): p('b) =>
+  let map_nth = (f: 'a => 'b, m: model('a), pos: pos): model('b) =>
     switch (pos) {
     | Prelude => {...m, prelude: m.prelude |> f}
     | CorrectImpl => {...m, correct_impl: m.correct_impl |> f}
@@ -178,7 +178,7 @@ module Model = {
     | HiddenTests => instructor_mode
     };
 
-  let init = (init: pos => 'a): p('a) => {
+  let init = (init: pos => 'a): model('a) => {
     point_distribution: {
       test_validation: 0,
       mutation_testing: 0,
@@ -200,7 +200,7 @@ module Model = {
     syntax_tests: [],
   };
 
-  let fill = (p: p('a), init: pos => 'b): p('b) => {
+  let fill = (p: model('a), init: pos => 'b): model('b) => {
     point_distribution: p.point_distribution,
     prelude: Prelude |> init,
     correct_impl: CorrectImpl |> init,
@@ -223,25 +223,25 @@ module Model = {
   };
 };
 
-module Stitch = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type p('a) = {
-    test_validation: 'a, // prelude + correct_impl + your_tests
-    user_impl: 'a, // prelude + your_impl
-    user_tests: 'a, // prelude + your_impl + your_tests
-    prelude: 'a, // prelude
-    instructor: 'a, // prelude + correct_impl + hidden_tests.tests // TODO only needs to run in instructor mode
-    hidden_bugs: list('a), // prelude + hidden_bugs[i].impl + your_tests,
-    hidden_tests: 'a,
-  };
+[@deriving (show({with_path: false}), sexp, yojson)]
+type stitched('a) = {
+  test_validation: 'a,
+  user_impl: 'a,
+  user_tests: 'a,
+  prelude: 'a,
+  instructor: 'a,
+  hidden_bugs: list('a),
+  hidden_tests: 'a,
+};
 
+module StitchUtil = {
   /* Multiple stitchings are needed for each exercise
      (see comments in the stitched type above)
 
      Stitching is necessary to concatenate terms
      from different editors, which are then typechecked. */
 
-  let key = (pos: Model.pos): string =>
+  let key = (pos: pos): string =>
     switch (pos) {
     | YourTests(Validation) => "test_validation"
     | YourImpl => "user_impl"
@@ -298,7 +298,7 @@ module Stitch = {
   //   };
   // };
 
-  let map = (f: 'a => 'b, m: p('a)): p('b) => {
+  let map = (f: 'a => 'b, m: stitched('a)): stitched('b) => {
     {
       test_validation: m.test_validation |> f,
       user_impl: m.user_impl |> f,
@@ -310,7 +310,7 @@ module Stitch = {
     };
   };
 
-  let mapi = (f: (Model.pos, 'a) => 'b, m: p('a)): p('b) => {
+  let mapi = (f: (pos, 'a) => 'b, m: stitched('a)): stitched('b) => {
     {
       test_validation: m.test_validation |> f(YourTests(Validation)),
       user_impl: m.user_impl |> f(YourImpl),
@@ -323,7 +323,7 @@ module Stitch = {
     };
   };
 
-  let nth = (m: p('a), pos: Model.pos): 'a =>
+  let nth = (m: stitched('a), pos: pos): 'a =>
     switch (pos) {
     | YourTests(Validation) => m.test_validation
     | YourImpl => m.user_impl
@@ -334,7 +334,7 @@ module Stitch = {
     | HiddenTests => m.hidden_tests
     };
 
-  let map_nth = (f: 'a => 'b, m: p('a), pos: Model.pos): p('b) =>
+  let map_nth = (f: 'a => 'b, m: stitched('a), pos: pos): stitched('b) =>
     switch (pos) {
     | YourTests(Validation) => {
         ...m,
@@ -356,7 +356,7 @@ module Stitch = {
     @ (m.hidden_bugs |> List.map(Fun.id))
     @ [m.hidden_tests];
 
-  let init = (init: Model.pos => 'a): p('a) => {
+  let init = (init: pos => 'a): stitched('a) => {
     test_validation: YourTests(Validation) |> init,
     user_impl: YourImpl |> init,
     user_tests: YourTests(Testing) |> init,
@@ -366,7 +366,7 @@ module Stitch = {
     hidden_tests: HiddenTests |> init,
   };
 
-  let fill = (p: Model.p('a), init: Model.pos => 'b): p('b) => {
+  let fill = (p: model('a), init: pos => 'b): stitched('b) => {
     test_validation: YourTests(Validation) |> init,
     user_impl: YourImpl |> init,
     user_tests: YourTests(Testing) |> init,

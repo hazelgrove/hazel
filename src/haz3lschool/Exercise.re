@@ -10,6 +10,29 @@ module type ExerciseEnv = {
 let output_header_grading = _module_name =>
   "module Exercise = GradePrelude.Exercise\n" ++ "let prompt = ()\n";
 
+module type ExerciseCore = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type model('a);
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type pos;
+  module ModelUtil: {
+    let map: ('a => 'b, model('a)) => model('b);
+    let mapi: ((pos, 'a) => 'b, model('a)) => model('b);
+    let nth: (model('a), pos) => 'a;
+    let map_nth: ('a => 'a, model('a), pos) => model('a);
+    let flatten: model('a) => list('a);
+  };
+  type stitched('a);
+  module StitchUtil: {
+    let map: ('a => 'b, stitched('a)) => stitched('b);
+    let mapi: ((pos, 'a) => 'b, stitched('a)) => stitched('b);
+    let nth: (stitched('a), pos) => 'a;
+    let flatten: stitched('a) => list('a);
+    let key: pos => string;
+    let fill: (model('a), pos => 'b) => stitched('b);
+  };
+};
+
 module F = (ExerciseEnv: ExerciseEnv) => {
   module Programming = ExerciseProgramming.Model;
   module Proof = ExerciseProof.Model;
