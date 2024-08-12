@@ -160,6 +160,7 @@ let rec ty_comparable = (exp: t): bool =>
   | DynamicErrorHole(_)
   | FailedCast(_)
   | Deferral(_)
+  | DeferredAp(_)
   | Undefined
   | Var(_)
   | Let(_)
@@ -178,8 +179,6 @@ let rec ty_comparable = (exp: t): bool =>
   | BinOp(_)
   | Match(_)
   | Cast(_) => false
-  // Note: Fun, TypFun, BuiltinFun are not comparable but will be handled elsewhere
-  | DeferredAp(_)
   | Fun(_)
   | TypFun(_)
   | BuiltinFun(_)
@@ -195,83 +194,70 @@ let rec ty_comparable = (exp: t): bool =>
   | Ap(_) => false
   };
 
-type poly_equal_result =
-  | Ok(bool)
-  | Inconsistent
-  | CompareArrow;
+let rec ty_consistent = (d1, d2) => {
+  // Note(zhiyao): This is a necessary condition for consistency, but not
+  // sufficient. For example, if for any reason an Arrow type escapes the type
+  // checker, we will not be able to check the inconsistency here, because
+  // the type is hidden and not elaborated to DHExp. But it will still be
+  // caught as CompareArrow later.
+  switch (term_of(d1), term_of(d2)) {
+  | (Int(_), Int(_))
+  | (Float(_), Float(_))
+  | (Bool(_), Bool(_))
+  | (String(_), String(_))
+  | (Fun(_) | BuiltinFun(_), Fun(_) | BuiltinFun(_))
+  | (TypFun(_), TypFun(_)) => true
+  | (ListLit(ds1), ListLit(ds2)) =>
+    let ds = ds1 @ ds2;
+    switch (ds) {
+    | [] => true
+    | [d, ..._] => List.for_all(ty_consistent(d), ds)
+    };
+  | (Tuple(ds1), Tuple(ds2)) =>
+    List.length(ds1) == List.length(ds2)
+    && List.for_all2(ty_consistent, ds1, ds2)
+  | (
+      Constructor(_, t1) |
+      Ap(_, {term: Constructor(_, {term: Arrow(_, t1), _}), _}, _),
+      Constructor(_, t2) |
+      Ap(_, {term: Constructor(_, {term: Arrow(_, t2), _}), _}, _),
+    ) =>
+    Typ.is_consistent([], t1, t2)
+  | _ => false
+  };
+};
+
+let rec ty_has_arrow = (d: t): bool =>
+  switch (term_of(d)) {
+  | Fun(_)
+  | BuiltinFun(_)
+  | TypFun(_) => true
+  | ListLit(ds)
+  | Tuple(ds) => List.exists(ty_has_arrow, ds)
+  | Constructor(_, t)
+  | Ap(_, {term: Constructor(_, {term: Arrow(_, t), _}), _}, _) =>
+    Typ.has_arrow([], t)
+  | _ => false
+  };
 
 let rec poly_equal = (d1, d2) => {
-  let d1 = term_of(d1);
-  let d2 = term_of(d2);
-  switch (d1, d2) {
-  // Note(zhiyao): if for any reason an Arrow type escapes the type checker,
-  // we will not be able to check consistency of two Arrow types, because
-  // Arrow type is not elaborated to DHExp. So we will just treat them as
-  // CompareArrow. Ideally, Inconsistent should be found prior to CompareArrow.
-  | (Fun(_) | BuiltinFun(_), Fun(_) | BuiltinFun(_))
-  | (TypFun(_), TypFun(_)) => CompareArrow
+  // With assumption that the types are consistent and have no arrow type
+  let (e1, e2) = (term_of(d1), term_of(d2));
+  switch (e1, e2) {
   | (Bool(_), Bool(_))
   | (Int(_), Int(_))
   | (Float(_), Float(_))
-  | (String(_), String(_)) => Ok(d1 == d2)
+  | (String(_), String(_)) => e1 == e2
   | (ListLit(ds1), ListLit(ds2))
   | (Tuple(ds1), Tuple(ds2)) =>
-    // Note(zhiyao): Notice there is a possibility to create a list of
-    // different types without static/dynamic error (is it intended?), e.g.
-    // ```hazel
-    // let a : ? = 1. in
-    // [1, a]
-    // ```
-    // I wrote is function with the assumption that the list should have the
-    // same type, but please be aware of this.
-    let rec combine_min = (l1, l2) =>
-      switch (l1, l2) {
-      | ([], _)
-      | (_, []) => []
-      | ([x, ...xs], [y, ...ys]) => [(x, y), ...combine_min(xs, ys)]
-      };
-    let merge_res = (r1, r2): poly_equal_result =>
-      switch (r1, r2) {
-      | (Ok(b1), Ok(b2)) => Ok(b1 && b2)
-      | (Inconsistent, _)
-      | (_, Inconsistent) => Inconsistent
-      | (CompareArrow, _)
-      | (_, CompareArrow) => CompareArrow
-      };
-    List.fold_left(
-      (acc, (d1, d2)) => merge_res(acc, poly_equal(d1, d2)),
-      Ok(List.length(ds1) == List.length(ds2)),
-      combine_min(ds1, ds2),
-    );
-  | (Constructor(c1, t1), Constructor(c2, t2)) =>
-    switch (Typ.join(~fix=false, [], t1, t2)) {
-    | None => Inconsistent
-    | Some(ty) when Typ.has_arrow([], ty) => CompareArrow
-    | Some(_) => Ok(String.equal(c1, c2))
-    }
+    List.length(ds1) == List.length(ds2)
+    && List.for_all2(poly_equal, ds1, ds2)
+  | (Constructor(c1, _), Constructor(c2, _)) => String.equal(c1, c2)
   | (
-      Ap(_, {term: Constructor(_, {term: Arrow(_, t1), _}), _}, _),
-      Constructor(_, t2),
-    )
-  | (
-      Constructor(_, t1),
-      Ap(_, {term: Constructor(_, {term: Arrow(_, t2), _}), _}, _),
+      Ap(_, {term: Constructor(c1, _), _}, d1),
+      Ap(_, {term: Constructor(c2, _), _}, d2),
     ) =>
-    switch (Typ.join(~fix=false, [], t1, t2)) {
-    | None => Inconsistent
-    | Some(ty) when Typ.has_arrow([], ty) => CompareArrow
-    | Some(_) => Ok(false)
-    }
-  | (
-      Ap(_, {term: Constructor(c1, {term: Arrow(_, t1), _}), _}, d1),
-      Ap(_, {term: Constructor(c2, {term: Arrow(_, t2), _}), _}, d2),
-    ) =>
-    switch (Typ.join(~fix=false, [], t1, t2)) {
-    | None => Inconsistent
-    | Some({term: Arrow(_, ty), _}) when Typ.has_arrow([], ty) =>
-      CompareArrow
-    | Some(_) => String.equal(c1, c2) ? poly_equal(d1, d2) : Ok(false)
-    }
-  | _ => Inconsistent
+    String.equal(c1, c2) && poly_equal(d1, d2)
+  | _ => false
   };
 };

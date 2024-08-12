@@ -541,29 +541,27 @@ module Transition = (EV: EV_MODE) => {
           d2 => BinOp2(Int(op), d1, d2) |> wrap_ctx,
           d2,
         );
-      // This is similar to `let-unbox`.
-      let d1' = DHExp.strip_casts(d1');
-      let d2' = DHExp.strip_casts(d2');
+      let (d1', d2') = (DHExp.strip_casts(d1'), DHExp.strip_casts(d2'));
+      // Note(zhiyao): detect either side contains a hole or intermediate type
       if (!DHExp.ty_comparable(d1') || !DHExp.ty_comparable(d2')) {
         Indet;
       } else {
         Step({
           expr:
             (
-              switch (DHExp.poly_equal(d1', d2')) {
-              | Ok(b) => Bool(op == Equals ? b : !b)
-              // Dynamic Catched Inconsistent
-              | Inconsistent =>
+              if (!DHExp.ty_consistent(d1', d2')) {
                 DynamicErrorHole(
                   BinOp(Int(op), d1', d2') |> rewrap,
                   Inconsistent,
-                )
-              // Dynamic Catched Comparison of Arrow Types
-              | CompareArrow =>
+                );
+              } else if (DHExp.ty_has_arrow(d1') || DHExp.ty_has_arrow(d2')) {
                 DynamicErrorHole(
                   BinOp(Int(op), d1', d2') |> rewrap,
                   CompareArrow,
-                )
+                );
+              } else {
+                let res = DHExp.poly_equal(d1', d2');
+                Bool(op == Equals ? res : !res);
               }
             )
             |> fresh,
@@ -611,6 +609,7 @@ module Transition = (EV: EV_MODE) => {
             | LessThanOrEqual => Bool(n1 <= n2)
             | GreaterThan => Bool(n1 > n2)
             | GreaterThanOrEqual => Bool(n1 >= n2)
+            // Note(zhiyao): never reached because of polymorphic comparison
             | Equals => Bool(n1 == n2)
             | NotEquals => Bool(n1 != n2)
             }
