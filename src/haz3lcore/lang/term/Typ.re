@@ -122,10 +122,8 @@ let rec has_arrow = (ctx: Ctx.t, typ: t) =>
   | Sum(sm) =>
     List.exists(
       fun
-      | ConstructorMap.Variant(_, _, None) => false
-      | Variant(_, _, Some(t)) => has_arrow(ctx, t)
-      // TODO(zhiyao): Idk if this is correct
-      | BadEntry(_) => false,
+      | ConstructorMap.Variant(_, _, Some(t)) => has_arrow(ctx, t)
+      | _ => false,
       sm,
     )
   // TODO(zhiyao): Idk if this is correct
