@@ -112,8 +112,8 @@ select:hover {
   z-index: var(--top-bar-z);
   display: flex;
   align-items: center;
-  border-bottom: 0.6px solid var(--BR2);
   background-color: var(--ui-bkg);
+  outline: 0.6px solid var(--BR2);
 }
 
 #bottom-bar {
