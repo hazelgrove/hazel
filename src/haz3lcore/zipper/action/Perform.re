@@ -68,93 +68,16 @@ let go_z =
     };
 
   let smart_select = (n, z): option(Zipper.t) => {
-    open OptUtil.Syntax;
-    let statics_of = Id.Map.find_opt(_, meta.statics.info_map);
-    let select_parent = z => {
-      let* ci = Indicated.index(z) |> OptUtil.and_then(statics_of);
-      let* id =
-        switch (Info.ancestors_of(ci)) {
-        | [] => None
-        | [parent, ..._] => Some(parent)
-        };
-      let* ci_parent = statics_of(id);
-      switch (Info.cls_of(ci_parent)) {
-      | Exp(Let | TyAlias) =>
-        /* For definition-type forms, don't select the body */
-        Select.tile(id, z)
-      | Exp(Match) =>
-        /* Case rules aren't terms in the syntax model,
-         * but here we pretend they are */
-        let* z = Move.left_until_case_or_rule(z);
-        switch (Indicated.piece''(z)) {
-        | Some((p, _, _)) =>
-          switch (p) {
-          | Tile({label: ["|", "=>"], _}) => Select.containing_rule(z)
-          | Tile({label: ["case", "end"], _}) => Select.term(id, z)
-          | _ => None
-          }
-        | _ => None
-        };
-      | _ =>
-        switch (Info.ancestors_of(ci_parent)) {
-        | [] => Select.term(id, z)
-        | [gp, ..._] =>
-          let* ci_gp = statics_of(gp);
-          switch (Info.cls_of(ci_parent), Info.cls_of(ci_gp)) {
-          | (
-              Exp(Tuple) | Pat(Tuple) | Typ(Prod),
-              Exp(Parens) | Pat(Parens) | Typ(Parens),
-            ) =>
-            /* If parent is tuple, check if it's in parens,
-             * and if so, select the parens as well */
-            Select.term(gp, z)
-          | _ => Select.term(id, z)
-          };
-        }
-      };
-    };
     switch (n) {
-    | 2 =>
-      switch (Indicated.piece'(~no_ws=false, ~ign=Piece.is_secondary, z)) {
-      | Some((p, Left, _)) when !Piece.is_secondary(p) && z.caret == Outer =>
-        /* If we're on the far right side of something, we
-         * still want to select it versus secondary to the right */
-        let* z = Move.go(Local(Left(ByToken)), z);
-        Select.go(Local(Right(ByToken)), z);
-      | Some((p, _, _)) when !Piece.is_secondary(p) =>
-        Select.go(Local(Right(ByToken)), z)
-      | Some((Secondary(_), _, _)) =>
-        /* If there is secondary on both sides, select the
-         * largest contiguous run of non-linebreak secondary */
-        Select.containing_secondary_run(z)
-      | _ => None
-      }
+    | 2 => Select.indicated_token(z)
     | 3 =>
-      switch (Indicated.piece''(z)) {
-      | Some((p, _, _)) =>
-        switch (p) {
-        | Secondary(_) => failwith("Perform.Select Smart impossible")
-        | Grout(_)
-        | Projector(_)
-        | Tile({
-            label: [_],
-            mold: {nibs: ({shape: Convex, _}, {shape: Convex, _}), _},
-            _,
-          }) =>
-          /* For things where triple-clicking would otherwise have
-           * no additional effect, select the parent term instead */
-          select_parent(z)
-        | Tile({label: ["let" | "type", ..._], _}) => Select.current_tile(z)
-        | Tile({label: ["|", "=>"], _}) => Select.containing_rule(z)
-        | Tile(t) =>
-          switch (t.label, Zipper.parent(z)) {
-          | ([","], Some(Tile({label: ["[", "]"] | ["(", ")"], id, _}))) =>
-            Select.term(id, z)
-          | _ => Select.current_term(z)
-          }
-        }
-      | _ => None
-      }
+      open OptUtil.Syntax;
+      /* For things where triple-clicking would otherwise have
+       * no additional effect, select the parent term instead */
+      let* (p, _, _) = Indicated.piece''(z);
+      Piece.is_term(p)
+        ? Select.parent_of_indicated(z, meta.statics.info_map)
+        : Select.nice_term(z);
     | _ => None
     };
   };
@@ -197,20 +120,18 @@ let go_z =
   | Move(d) =>
     Move.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move)
   | Jump(jump_target) =>
-    let idx = Indicated.index(z);
-    let statics = meta.statics.info_map;
     (
       switch (jump_target) {
       | BindingSiteOfIndicatedVar =>
         open OptUtil.Syntax;
-        let* idx = idx;
-        let* ci = Id.Map.find_opt(idx, statics);
+        let* idx = Indicated.index(z);
+        let* ci = Id.Map.find_opt(idx, meta.statics.info_map);
         let* binding_id = Info.get_binding_site(ci);
         Move.jump_to_id(z, binding_id);
       | TileId(id) => Move.jump_to_id(z, id)
       }
     )
-    |> Result.of_option(~error=Action.Failure.Cant_move);
+    |> Result.of_option(~error=Action.Failure.Cant_move)
   | Unselect(Some(d)) => Ok(Zipper.directional_unselect(d, z))
   | Unselect(None) =>
     let z = Zipper.directional_unselect(z.selection.focus, z);

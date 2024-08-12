@@ -410,6 +410,10 @@ module Make = (M: Editor.Meta.S) => {
   let left_until_case_or_rule =
     do_until(go(Local(Left(ByToken))), Piece.is_case_or_rule);
 
-  let left_until_not_comment_or_space =
-    do_until(go(Local(Left(ByToken))), Piece.not_comment_or_space);
+  let left_until_not_comment_or_space = (~move_first) =>
+    do_until(
+      ~move_first,
+      go(Local(Left(ByToken))),
+      Piece.not_comment_or_space,
+    );
 };

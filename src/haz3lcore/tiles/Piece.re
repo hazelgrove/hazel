@@ -172,3 +172,17 @@ let not_comment_or_space = (p: t) =>
   | Secondary(s) => Secondary.is_linebreak(s)
   | _ => true
   };
+
+let is_term = (p: t) =>
+  switch (p) {
+  | Grout(_)
+  | Projector(_)
+  | Tile({
+      label: [_],
+      mold: {nibs: ({shape: Convex, _}, {shape: Convex, _}), _},
+      _,
+    }) =>
+    true
+  | Secondary(_) => false // debatable
+  | _ => false
+  };
