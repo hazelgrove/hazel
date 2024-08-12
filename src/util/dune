@@ -1,9 +1,7 @@
 (library
  (name util)
  (libraries re base ptmap incr_dom virtual_dom yojson)
- (js_of_ocaml
-  (flags
-   (:include js-of-ocaml-flags-%{profile})))
+ (js_of_ocaml)
  (preprocess
   (pps
    ppx_yojson_conv
@@ -12,10 +10,10 @@
    ppx_sexp_conv
    ppx_deriving.show)))
 
-(rule
- (write-file
-  js-of-ocaml-flags-dev
-  "(:standard --debuginfo --noinline --dynlink --linkall --sourcemap)"))
-
-(rule
- (write-file js-of-ocaml-flags-release "(:standard)"))
+(env
+ (dev
+  (js_of_ocaml
+   (flags :standard --debuginfo --noinline --dynlink --linkall --sourcemap)))
+ (release
+  (js_of_ocaml
+   (flags :standard))))
