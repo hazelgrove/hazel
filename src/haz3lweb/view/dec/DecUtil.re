@@ -5,13 +5,13 @@ open Util;
 let caret_width = 0.2;
 
 let tip_width = 0.32;
-let concave_offset = 0.25; /* Tuned parameter in [0,1] */
-let convex_offset = 0.2; /* Tuned parameter in [0,1] */
+let concave_offset = 0.8 *. 0.32; /* Tuned parameter */
+let convex_offset = 0.6 *. 0.32; /* Tuned parameter  */
 
-let shadow_adj = 0.015;
 let shadow_dy = 0.037;
 let shadow_dx = 0.08;
-let child_border_thickness = 0.05;
+let child_border_thickness = 0.; //0.05;
+let shadow_adj = shadow_dy /. 2.;
 let t = child_border_thickness /. 0.5;
 let short_tip_width = (1. -. t) *. tip_width;
 let short_tip_height = (1. -. t) *. 0.5;
@@ -63,14 +63,19 @@ let caret_base_path = (side, shape): list(SvgUtil.Path.cmd) =>
     float_of_int(0),
   );
 
+let shard_length = (length, d_l, d_r) =>
+  float_of_int(length)
+  +. shape_adjust(Left, d_l)
+  -. shape_adjust(Right, d_r);
+
+let shard_offset = d_l => shape_adjust(Left, d_l);
+
 let shard_path =
     ((d_l, d_r), length: int, height: int): list(SvgUtil.Path.cmd) =>
   chonky_shard_path_base(
     (d_l, d_r),
-    shape_adjust(Left, d_l),
-    float_of_int(length)
-    +. shape_adjust(Left, d_l)
-    -. shape_adjust(Right, d_r),
+    shard_offset(d_l),
+    shard_length(length, d_l, d_r),
     float_of_int(height),
   );
 
