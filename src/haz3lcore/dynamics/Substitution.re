@@ -74,7 +74,10 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
     ListConcat(d3, d4);
   | TupLabel(p, d) => TupLabel(p, subst_var(d1, x, d))
   | Tuple(ds) => Tuple(List.map(subst_var(d1, x), ds))
-  | Dot(d, s) => Dot(subst_var(d1, x, d), s)
+  | Dot(d3, d4) =>
+    let d3 = subst_var(d1, x, d3);
+    let d4 = subst_var(d1, x, d4);
+    Dot(d3, d4);
   | Prj(d, n) => Prj(subst_var(d1, x, d), n)
   | BinBoolOp(op, d3, d4) =>
     let d3 = subst_var(d1, x, d3);

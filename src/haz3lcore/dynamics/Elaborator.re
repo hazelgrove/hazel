@@ -186,9 +186,10 @@ let rec dhexp_of_uexp =
       | Tuple(es) =>
         let+ ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
         DHExp.Tuple(ds);
-      | Dot(e, s) =>
-        let+ de = dhexp_of_uexp(m, e);
-        DHExp.Dot(de, s);
+      | Dot(e1, e2) =>
+        let* e1 = dhexp_of_uexp(m, e1);
+        let+ e2 = dhexp_of_uexp(m, e2);
+        DHExp.Dot(e1, e2);
       | Cons(e1, e2) =>
         let* dc1 = dhexp_of_uexp(m, e1);
         let+ dc2 = dhexp_of_uexp(m, e2);

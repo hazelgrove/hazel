@@ -283,15 +283,16 @@ let rec typ_of_dhexp =
     | Some(ty) => Some(Typ.Label(s, ty))
     | None => None
     };
-  | Dot(d, s) =>
-    switch (d) {
-    | Tuple(ds) =>
-      let element = LabeledTuple.find_label(DHExp.get_label, ds, s);
+  | Dot(d1, d2) =>
+    switch (d1, d2) {
+    | (Tuple(ds), BoundVar(name)) =>
+      let element = LabeledTuple.find_label(DHExp.get_label, ds, name);
       switch (element) {
       | Some(TupLabel(_, exp)) => typ_of_dhexp(ctx, m, exp)
       | _ => raise(EvaluatorError.Exception(BadPatternMatch))
       };
-    | TupLabel(l, exp) when LabeledTuple.compare(s, l) == 0 =>
+    | (TupLabel(l, exp), BoundVar(name))
+        when LabeledTuple.compare(name, l) == 0 =>
       typ_of_dhexp(ctx, m, exp)
     | _ => raise(EvaluatorError.Exception(BadPatternMatch))
     }

@@ -91,6 +91,7 @@ type example_id =
   | Label2
   | Dot1
   | Dot2
+  | DotTyp
   | Tuple1
   | Tuple2
   | Let(let_examples)
@@ -227,6 +228,7 @@ type form_id =
   | Tuple0Typ
   | Tuple2Typ
   | Tuple3Typ
+  | DotTyp
   | LabelledSumTyp
   | SumTypUnaryConstructorDef
   | SumTypNullaryConstructorDef
@@ -325,6 +327,7 @@ type group_id =
   | Tuple0Typ
   | Tuple2Typ
   | Tuple3Typ
+  | DotTyp
   | LabelledSumTyp
   | SumTypUnaryConstructorDef
   | SumTypNullaryConstructorDef

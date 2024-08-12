@@ -30,7 +30,8 @@ type cls =
   | IfThenElse3
   | TupLabel
   | Tuple(int)
-  | Dot
+  | Dot1
+  | Dot2
   | ListLit(int)
   | ApBuiltin
   | Test
@@ -78,7 +79,8 @@ type t =
   | BinStringOp2(TermBase.UExp.op_bin_string, DHExp.t, t)
   | TupLabel(LabeledTuple.t, t)
   | Tuple(t, (list(DHExp.t), list(DHExp.t)))
-  | Dot(t, LabeledTuple.t)
+  | Dot1(t, DHExp.t)
+  | Dot2(DHExp.t, t)
   | ApBuiltin(string, t)
   | Test(KeywordID.t, t)
   | ListLit(
@@ -147,7 +149,8 @@ let rec fuzzy_mark =
   | BinFloatOp2(_)
   | BinStringOp1(_)
   | BinStringOp2(_)
-  | Dot(_)
+  | Dot1(_)
+  | Dot2(_)
   | TupLabel(_)
   | Tuple(_)
   | ApBuiltin(_)
@@ -180,6 +183,8 @@ let rec unwrap = (ctx: t, sel: cls): option(t) => {
   | (Sequence2, Sequence2(_, c))
   | (Let1, Let1(_, c, _))
   | (Let2, Let2(_, _, c))
+  | (Dot1, Dot1(c, _))
+  | (Dot2, Dot2(_, c))
   | (Fun, Fun(_, _, c, _))
   | (FixF, FixF(_, _, c))
   | (TypAp, TypAp(c, _))
@@ -236,6 +241,9 @@ let rec unwrap = (ctx: t, sel: cls): option(t) => {
   | (IfThenElse3, IfThenElse2(_))
   | (Let1, Let2(_))
   | (Let2, Let1(_))
+  // | (TupLabel, TupLabel(_, _))
+  // | (Dot1, Dot1(_, _))
+  // | (Dot2, Dot2(_, _))
   | (BinBoolOp1, BinBoolOp2(_))
   | (BinBoolOp2, BinBoolOp1(_))
   | (BinIntOp1, BinIntOp2(_))

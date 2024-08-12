@@ -133,6 +133,7 @@ type status_variant =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type typ_expects =
   | TypeExpected
+  | TupleExpected
   | ConstructorExpected(status_variant, Typ.t)
   | VariantExpected(status_variant, Typ.t);
 
@@ -146,6 +147,7 @@ type error_typ =
   | FreeTypeVariable(TypVar.t) /* Free type variable */
   | DuplicateConstructor(Constructor.t) /* Duplicate ctr in same sum */
   | WantTypeFoundAp
+  | WantTuple
   | WantConstructorFoundType(Typ.t)
   | WantConstructorFoundAp;
 
@@ -456,6 +458,12 @@ let status_typ =
     | VariantExpected(Duplicate, _)
     | ConstructorExpected(Duplicate, _) =>
       InHole(DuplicateConstructor(name))
+    | TupleExpected =>
+      switch (Ctx.lookup_alias(ctx, name)) {
+      | Some(Prod(_)) =>
+        NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
+      | _ => InHole(WantTuple)
+      }
     | TypeExpected =>
       switch (Ctx.is_alias(ctx, name)) {
       | false =>
@@ -476,11 +484,22 @@ let status_typ =
       | _ => NotInHole(VariantIncomplete(Arrow(ty_in, ty_variant)))
       };
     | ConstructorExpected(_) => InHole(WantConstructorFoundAp)
+    | TupleExpected => InHole(WantTuple)
     | TypeExpected => InHole(WantTypeFoundAp)
+    }
+  | Dot(t1, _) =>
+    switch (expects, ty) {
+    | (TupleExpected, _) =>
+      switch (t1.term) {
+      | Tuple(_) => NotInHole(Type(ty))
+      | _ => InHole(WantTuple)
+      }
+    | _ => NotInHole(Type(ty))
     }
   | _ =>
     switch (expects) {
     | TypeExpected => NotInHole(Type(ty))
+    | TupleExpected => InHole(WantTuple)
     | ConstructorExpected(_)
     | VariantExpected(_) => InHole(WantConstructorFoundType(ty))
     }

@@ -282,9 +282,12 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
     | TupLabel(s, ctx) =>
       let d2 = compose(ctx, d);
       TupLabel(s, d2);
-    | Dot(ctx, s) =>
+    | Dot1(ctx, d2) =>
+      let d1 = compose(ctx, d);
+      Dot(d1, d2);
+    | Dot2(d1, ctx) =>
       let d2 = compose(ctx, d);
-      Dot(d2, s);
+      Dot(d1, d2);
     | Tuple(ctx, (ld, rd)) =>
       let d = compose(ctx, d);
       Tuple(rev_concat(ld, [d, ...rd]));
@@ -454,9 +457,12 @@ let rec matches =
     | TupLabel(s, ctx) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       TupLabel(s, ctx);
-    | Dot(ctx, s) =>
+    | Dot1(ctx, d2) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Dot(ctx, s);
+      Dot1(ctx, d2);
+    | Dot2(d1, ctx) =>
+      let+ ctx = matches(env, flt, ctx, exp, act, idx);
+      Dot2(d1, ctx);
     | ApBuiltin(name, ctx) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       ApBuiltin(name, ctx);

@@ -133,9 +133,10 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
          );
     Tuple(ds);
 
-  | Dot(d1, s) =>
+  | Dot(d1, d2) =>
     let* d1' = pp_eval(d1);
-    Dot(d1', s) |> return;
+    let* d2' = pp_eval(d2);
+    Dot(d1', d2') |> return;
 
   | Prj(d, n) =>
     let+ d = pp_eval(d);
@@ -399,9 +400,10 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
          );
     Tuple(ds);
 
-  | Dot(d, s) =>
-    let+ d = pp_uneval(env, d);
-    Dot(d, s);
+  | Dot(d1, d2) =>
+    let* d1' = pp_uneval(env, d1);
+    let* d2' = pp_uneval(env, d2);
+    Dot(d1', d2') |> return;
 
   | Prj(d, n) =>
     let+ d = pp_uneval(env, d);
@@ -500,7 +502,6 @@ let rec track_children_of_hole =
   | Cast(d, _, _)
   | FailedCast(d, _, _)
   | TupLabel(_, d)
-  | Dot(d, _)
   | InvalidOperation(d, _) => track_children_of_hole(hii, parent, d)
   | Sequence(d1, d2)
   | Let(_, d1, d2)
@@ -509,6 +510,7 @@ let rec track_children_of_hole =
   | BinIntOp(_, d1, d2)
   | BinFloatOp(_, d1, d2)
   | BinStringOp(_, d1, d2)
+  | Dot(d1, d2)
   | Cons(d1, d2) =>
     let hii = track_children_of_hole(hii, parent, d1);
     track_children_of_hole(hii, parent, d2);

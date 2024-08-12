@@ -74,6 +74,7 @@ module UTyp = {
     | Arrow
     | TupLabel
     | Tuple
+    | Dot
     | Sum
     | List
     | Var
@@ -111,6 +112,7 @@ module UTyp = {
     | Constructor(_) => Constructor
     | TupLabel(_) => TupLabel
     | Tuple(_) => Tuple
+    | Dot(_) => Dot
     | Parens(_) => Parens
     | Ap(_) => Ap
     | Sum(_) => Sum
@@ -132,11 +134,19 @@ module UTyp = {
     | Arrow => "Function type"
     | TupLabel => "Labeled Tuple Item type"
     | Tuple => "Product type"
+    | Dot => "Dot type"
     | Sum => "Sum type"
     | Parens => "Parenthesized type"
     | Ap => "Constructor application"
     | Forall => "Forall Type"
     | Rec => "Recursive Type";
+
+  let get_label: t => option((LabeledTuple.t, t)) =
+    ty =>
+      switch (ty.term) {
+      | TupLabel(s, ty') => Some((s, ty'))
+      | _ => None
+      };
 
   let rec is_arrow = (typ: t) => {
     switch (typ.term) {
@@ -152,6 +162,7 @@ module UTyp = {
     | String
     | List(_)
     | Tuple(_)
+    | Dot(_)
     | Var(_)
     | Constructor(_)
     | Ap(_)
@@ -176,6 +187,7 @@ module UTyp = {
     | Arrow(_)
     | List(_)
     | Tuple(_)
+    | Dot(_)
     | Var(_)
     | Constructor(_)
     | Ap(_)
@@ -203,6 +215,25 @@ module UTyp = {
       | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
       | TupLabel(s, ut) => Label(s, to_typ(ctx, ut))
       | Tuple(us) => Prod(List.map(to_typ(ctx), us))
+      | Dot(typ1, typ2) =>
+        // TODO: Fix this
+        switch (typ1.term) {
+        | Tuple(ts) =>
+          let element: option(t) =
+            switch (typ2.term) {
+            | Var(name) => LabeledTuple.find_label(get_label, ts, name)
+            | _ => None
+            };
+          switch (element) {
+          | Some(ut) =>
+            switch (ut.term) {
+            | TupLabel(_, ut') => to_typ(ctx, ut')
+            | _ => Unknown(Internal)
+            }
+          | None => Unknown(Internal)
+          };
+        | _ => Unknown(Internal)
+        }
       | Sum(uts) => Sum(to_ctr_map(ctx, uts))
       | List(u) => List(to_typ(ctx, u))
       | Parens(u) => to_typ(ctx, u)
@@ -752,10 +783,15 @@ module UExp = {
     | TupLabel(_, e) => is_fun(e)
     | TypFun(_)
     | Fun(_) => true
-    | Dot(e, s) =>
+    | Dot(e1, e2) =>
       let element: option(t) =
-        switch (e.term) {
-        | Tuple(ts) => LabeledTuple.find_label(get_label, ts, s)
+        switch (e1.term) {
+        | Tuple(ts) =>
+          switch (e2.term) {
+          | Var(name)
+          | Constructor(name) => LabeledTuple.find_label(get_label, ts, name)
+          | _ => None
+          }
         | _ => None // TODO (Anthony): other exps
         };
       switch (element) {
@@ -801,10 +837,16 @@ module UExp = {
       | Parens(e) => is_tuple_of_functions(e)
       | TupLabel(_, e) => is_tuple_of_functions(e)
       | Tuple(es) => es |> List.for_all(is_fun)
-      | Dot(e, s) =>
+      | Dot(e1, e2) =>
         let element: option(t) =
-          switch (e.term) {
-          | Tuple(ts) => LabeledTuple.find_label(get_label, ts, s)
+          switch (e1.term) {
+          | Tuple(ts) =>
+            switch (e2.term) {
+            | Var(name)
+            | Constructor(name) =>
+              LabeledTuple.find_label(get_label, ts, name)
+            | _ => None
+            }
           | _ => None // TODO (Anthony): other exps
           };
         switch (element) {

@@ -131,9 +131,12 @@ let rec matches =
     | BinStringOp2(op, d1, ctx) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       BinStringOp2(op, d1, ctx);
-    | Dot(ctx, s) =>
+    | Dot1(ctx, d2) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      Dot(ctx, s);
+      Dot1(ctx, d2);
+    | Dot2(d1, ctx) =>
+      let+ ctx = matches(env, flt, ctx, exp, act, idx);
+      Dot2(d1, ctx);
     | TupLabel(s, ctx) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       TupLabel(s, ctx);
@@ -402,7 +405,7 @@ let get_justification: step_kind => string =
   | BinStringOp(Equals) => "check equality"
   | BinStringOp(Concat) => "string manipulation"
   | BinBoolOp(_) => "boolean logic"
-  | Dot(_) => "dot operation"
+  | Dot => "dot operation"
   | Conditional(_) => "conditional"
   | ListCons => "list manipulation"
   | ListConcat => "list manipulation"

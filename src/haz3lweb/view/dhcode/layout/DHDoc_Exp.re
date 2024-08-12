@@ -157,7 +157,7 @@ let mk =
         | (BinIntOp(_), _)
         | (BinFloatOp(_), _)
         | (BinStringOp(_), _)
-        | (Dot(_), _)
+        | (Dot, _)
         | (Projection, _)
         | (ListCons, _)
         | (ListConcat, _)
@@ -446,14 +446,10 @@ let mk =
           DHDoc_common.Delim.mk("="),
           go'(d, TupLabel),
         ])
-      | Dot(d, s) =>
-        Doc.hcats([
-          DHDoc_common.Delim.open_Parenthesized,
-          go'(d, Dot),
-          DHDoc_common.Delim.close_Parenthesized,
-          DHDoc_common.Delim.mk("."),
-          Doc.text(s),
-        ])
+      | Dot(d1, d2) =>
+        let doc1 = go'(d1, Dot1);
+        let doc2 = go'(d2, Dot2);
+        DHDoc_common.mk_Dot(doc1, doc2);
       | Tuple([]) => DHDoc_common.Delim.triv
       | Tuple(ds) =>
         DHDoc_common.mk_Tuple(ds |> List.mapi((i, d) => go'(d, Tuple(i))))

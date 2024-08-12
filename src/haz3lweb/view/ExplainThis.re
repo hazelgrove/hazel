@@ -2278,6 +2278,7 @@ let get_doc =
       | _ => basic(ArrowTyp.arrow)
       };
     | TupLabel(_, _) => get_message(LabeledTyp.labeled_typ)
+    | Dot(_, _) => get_message(DotTyp.dot_typ)
     | Tuple(elements) =>
       let basic = group =>
         get_message(

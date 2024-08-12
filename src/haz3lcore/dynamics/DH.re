@@ -40,7 +40,7 @@ module rec DHExp: {
     | ListConcat(t, t)
     | TupLabel(LabeledTuple.t, t)
     | Tuple(list(t))
-    | Dot(t, LabeledTuple.t)
+    | Dot(t, t)
     | Prj(t, int)
     | Constructor(string, Typ.t)
     | ConsistentCase(case)
@@ -105,7 +105,7 @@ module rec DHExp: {
     | ListConcat(t, t)
     | TupLabel(LabeledTuple.t, t)
     | Tuple(list(t))
-    | Dot(t, LabeledTuple.t)
+    | Dot(t, t)
     | Prj(t, int)
     | Constructor(string, Typ.t)
     | ConsistentCase(case)
@@ -199,7 +199,7 @@ module rec DHExp: {
     | FailedCast(d, _, _) => strip_casts(d)
     | TupLabel(s, d) => TupLabel(s, strip_casts(d))
     | Tuple(ds) => Tuple(ds |> List.map(strip_casts))
-    | Dot(d, s) => Dot(strip_casts(d), s)
+    | Dot(a, b) => Dot(strip_casts(a), strip_casts(b))
     | Prj(d, n) => Prj(strip_casts(d), n)
     | Cons(d1, d2) => Cons(strip_casts(d1), strip_casts(d2))
     | ListConcat(d1, d2) => ListConcat(strip_casts(d1), strip_casts(d2))
@@ -306,8 +306,8 @@ module rec DHExp: {
            ds1,
            ds2,
          );
-    | (Dot(d1, s1), Dot(d2, s2)) =>
-      LabeledTuple.compare(s1, s2) == 0 && d1 == d2
+    | (Dot(d11, d21), Dot(d12, d22)) =>
+      fast_equal(d11, d12) && fast_equal(d21, d22)
     | (Prj(d1, n), Prj(d2, m)) => n == m && fast_equal(d1, d2)
     | (ApBuiltin(f1, d1), ApBuiltin(f2, d2)) => f1 == f2 && d1 == d2
     | (BuiltinFun(f1), BuiltinFun(f2)) => f1 == f2
@@ -443,7 +443,7 @@ module rec DHExp: {
     | ListConcat(t1, t2) => ListConcat(re(t1), re(t2))
     | Tuple(args) => Tuple(List.map(re, args))
     | TupLabel(s, t) => TupLabel(s, re(t))
-    | Dot(t, s) => Dot(re(t), s)
+    | Dot(t1, t2) => Dot(re(t1), re(t2))
     | Prj(t, n) => Prj(re(t), n)
     | ConsistentCase(case) => ConsistentCase(ty_subst_case(s, x, case))
     | InvalidOperation(t, err) => InvalidOperation(re(t), err)

@@ -221,8 +221,8 @@ let rec matches_exp =
          )
     | (ListLit(_), _) => false
 
-    // TODO (Anthony): Is this right
-    | (Dot(dv, _), Dot(fv, _)) => matches_exp(dv, fv)
+    | (Dot(d1, d2), Dot(f1, f2)) =>
+      matches_exp(d1, f1) && matches_exp(d2, f2)
     | (Dot(_), _) => false
 
     | (Tuple(dv), Tuple(fv)) =>
