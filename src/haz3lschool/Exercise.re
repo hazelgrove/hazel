@@ -21,9 +21,13 @@ module type ExerciseCore = {
     let nth: (model('a), pos) => 'a;
     let map_nth: ('a => 'a, model('a), pos) => model('a);
     let flatten: model('a) => list('a);
+    let switch_editor: (pos, bool) => bool;
+    let readonly_in: (pos, bool) => bool;
+    let visible_in: (pos, bool) => bool;
   };
   type stitched('a);
   module StitchUtil: {
+    let stitch: (('a, 'a) => 'a, model('a)) => stitched('a);
     let map: ('a => 'b, stitched('a)) => stitched('b);
     let mapi: ((pos, 'a) => 'b, stitched('a)) => stitched('b);
     let nth: (stitched('a), pos) => 'a;
@@ -33,9 +37,8 @@ module type ExerciseCore = {
   };
 };
 
-module F = (ExerciseEnv: ExerciseEnv) => {
-  module Programming = ExerciseProgramming.Model;
-  module Proof = ExerciseProof.Model;
+module F = (ExerciseEnv: ExerciseEnv, ExerciseCore: ExerciseCore) => {
+  open ExerciseCore;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type header = {
@@ -44,53 +47,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     module_name: string,
     prompt:
       [@printer (fmt, _) => Format.pp_print_string(fmt, "prompt")] [@opaque] ExerciseEnv.node,
-  };
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type model('code) =
-    | Programming(Programming.p('code))
-    | Proof(Proof.p('code));
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type pos =
-    | Programming(Programming.pos)
-    | Proof(Proof.pos);
-
-  module ModelUtil = {
-    let map = (f: 'a => 'b, m: model('a)): model('b) =>
-      switch (m) {
-      | Programming(m) => Programming(Programming.map(f, m))
-      | Proof(m) => Proof(Proof.map(f, m))
-      };
-
-    let mapi = (f: (pos, 'a) => 'b, m: model('a)): model('b) =>
-      switch (m) {
-      | Programming(m) =>
-        Programming(Programming.mapi(pos => Programming(pos) |> f, m))
-      | Proof(m) => Proof(Proof.mapi(pos => Proof(pos) |> f, m))
-      };
-
-    let nth = (m: model('a), pos: pos): 'a =>
-      switch (pos, m) {
-      | (Programming(pos), Programming(m)) => Programming.nth(m, pos)
-      | (Proof(pos), Proof(m)) => Proof.nth(m, pos)
-      | _ => failwith("Exercise(nth): mismatch")
-      };
-
-    let map_nth = (f: 'a => 'a, m: model('a), pos: pos): model('a) => {
-      switch (pos, m) {
-      | (Programming(pos), Programming(m)) =>
-        Programming(Programming.map_nth(f, m, pos))
-      | (Proof(pos), Proof(m)) => Proof(Proof.map_nth(f, m, pos))
-      | _ => failwith("Exercise(map_nth): position mismatch")
-      };
-    };
-
-    let flatten = (m: model('a)) =>
-      switch (m) {
-      | Programming(m) => Programming.flatten(m)
-      | Proof(m) => Proof.flatten(m)
-      };
   };
 
   // Exported Functions
@@ -147,10 +103,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     model |> ModelUtil.map(editor_of_serialization(~settings));
 
   let switch_editor = (~pos: pos, instructor_mode, ~state: state) =>
-    if (switch (pos) {
-        | Programming(pos) => Programming.switch_editor(~pos, instructor_mode)
-        | Proof(pos) => Proof.switch_editor(~pos, instructor_mode)
-        }) {
+    if (ModelUtil.switch_editor(pos, instructor_mode)) {
       {...state, pos};
     } else {
       state;
@@ -207,10 +160,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   };
 
   let visible_in = (pos, ~instructor_mode) =>
-    switch (pos) {
-    | Programming(pos) => Programming.visible_in(pos, instructor_mode)
-    | Proof(pos) => Proof.visible_in(pos, instructor_mode)
-    };
+    ModelUtil.visible_in(pos, instructor_mode);
 
   let state_of_spec =
       (spec: spec, ~instructor_mode: bool, ~settings: CoreSettings.t): state =>
@@ -331,120 +281,31 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     data |> Sexplib.Sexp.of_string |> exercise_export_of_sexp;
 
   // # Stitching
-  module ProgrammingStitch = ExerciseProgramming.Stitch;
-  module ProofStitch = ExerciseProof.Stitch;
-
-  type stitched('a) =
-    | Programming(ProgrammingStitch.p('a))
-    | Proof(ProofStitch.p('a));
-
-  module StitchUtil = {
-    let map = (f: 'a => 'b, s: stitched('a)): stitched('b) =>
-      switch (s) {
-      | Programming(s) => Programming(ProgrammingStitch.map(f, s))
-      | Proof(s) => Proof(ProofStitch.map(f, s))
-      };
-
-    let mapi = (f: (pos, 'a) => 'b, s: stitched('a)): stitched('b) =>
-      switch (s) {
-      | Programming(s) =>
-        Programming(
-          ProgrammingStitch.mapi((pos, x) => f(Programming(pos), x), s),
-        )
-      | Proof(s) =>
-        Proof(ProofStitch.mapi((pos, x) => f(Proof(pos), x), s))
-      };
-
-    let nth = (s: stitched('a), pos: pos): 'a =>
-      switch (pos, s) {
-      | (Programming(pos), Programming(s)) => ProgrammingStitch.nth(s, pos)
-      | (Proof(pos), Proof(s)) => ProofStitch.nth(s, pos)
-      | _ => failwith("Exercise(StitchUtil.nth): mismatch")
-      };
-
-    let flatten = (s: stitched('a)) =>
-      switch (s) {
-      | Programming(s) => ProgrammingStitch.flatten(s)
-      | Proof(s) => ProofStitch.flatten(s)
-      };
-
-    let key = (pos: pos): string =>
-      switch (pos) {
-      | Programming(pos) => ProgrammingStitch.key(pos)
-      | Proof(pos) => ProofStitch.key(pos)
-      };
-
-    let fill = (m: model('a), init: pos => 'b): stitched('b) =>
-      switch (m) {
-      | Programming(m) =>
-        Programming(
-          ProgrammingStitch.fill(m, pos => Programming(pos) |> init),
-        )
-      | Proof(m) => Proof(ProofStitch.fill(m, pos => Proof(pos) |> init))
-      };
-  };
 
   let stitch_term = ({model, _}: state): stitched(UExp.t) => {
     let term_of = (editor: Editor.t): UExp.t =>
       MakeTerm.from_zip_for_sem(editor.state.zipper).term;
-    let stitch2 = (ed1: Editor.t, ed2: Editor.t) =>
-      EditorUtil.append_exp(term_of(ed1), term_of(ed2));
-    let stitch3 = (ed1: Editor.t, ed2: Editor.t, ed3: Editor.t) =>
-      EditorUtil.append_exp(stitch2(ed1, ed2), term_of(ed3));
-    let wrap_filter = (act: FilterAction.action, term: UExp.t): UExp.t =>
-      Exp.{
-        term:
-          Exp.Filter(
-            Filter({
-              act: FilterAction.(act, One),
-              pat: {
-                term: Constructor("$e", Unknown(Internal) |> Typ.temp),
-                copied: false,
-                ids: [Id.mk()],
-              },
-            }),
-            term,
-          ),
-        copied: false,
-        ids: [Id.mk()],
-      };
-    switch (model) {
-    | Proof(model) =>
-      let prelude_term =
-        model.prelude |> term_of |> wrap_filter(FilterAction.Eval);
-      Proof({
-        prelude: prelude_term,
-        derivation_tree:
-          model.derivation_tree
-          |> Util.Tree.map(({Proof.jdmt, _}) =>
-               jdmt |> term_of |> EditorUtil.append_exp(prelude_term)
-             ),
-      });
-    | Programming(model) =>
-      let instructor_term =
-        stitch3(model.prelude, model.correct_impl, model.hidden_tests.tests);
-      let your_impl_term =
-        model.your_impl |> term_of |> wrap_filter(FilterAction.Step);
-      let prelude_term =
-        model.prelude |> term_of |> wrap_filter(FilterAction.Eval);
-      let user_impl_term =
-        EditorUtil.append_exp(prelude_term, your_impl_term);
-      Programming({
-        test_validation:
-          stitch3(model.prelude, model.correct_impl, model.your_tests.tests),
-        user_impl: user_impl_term,
-        user_tests: stitch2(model.prelude, model.your_tests.tests),
-        prelude: instructor_term,
-        instructor: instructor_term,
-        hidden_bugs:
-          List.map(
-            (t: Programming.wrong_impl('a)) =>
-              stitch3(model.prelude, t.impl, model.your_tests.tests),
-            model.hidden_bugs,
-          ),
-        hidden_tests: stitch2(model.prelude, model.hidden_tests.tests),
-      });
-    };
+    // let wrap_filter = (act: FilterAction.action, term: UExp.t): UExp.t =>
+    //   Exp.{
+    //     term:
+    //       Exp.Filter(
+    //         Filter({
+    //           act: FilterAction.(act, One),
+    //           pat: {
+    //             term: Constructor("$e", Unknown(Internal) |> Typ.temp),
+    //             copied: false,
+    //             ids: [Id.mk()],
+    //           },
+    //         }),
+    //         term,
+    //       ),
+    //     copied: false,
+    //     ids: [Id.mk()],
+    //   };
+    StitchUtil.stitch(
+      EditorUtil.append_exp,
+      model |> ModelUtil.map(term_of),
+    );
   };
   let stitch_term = Core.Memo.general(stitch_term);
 
