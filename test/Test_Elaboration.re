@@ -245,30 +245,35 @@ let constructor_menhir = () =>
     constructor_uexp,
   );
 
+/*
+ <<1 / 2 ? `a`>>
+     */
+print_endline("SEXP seiralization:");
+InvalidOperationError.DivideByZero
+|> InvalidOperationError.sexp_of_t
+|> Sexplib.Sexp.to_string
+|> print_endline;
 
-//TODO: ask cyrus best way to demonstrate this
-// let ty_alias_str = "type x = Int in 4";
-// let ty_alias_uexp: Exp.t =
-//   TyAlias(
-//     Var("x") |> TPat.fresh,
-//     Int |> Typ.fresh,
-//     TypAp(
-//       TypFun(Var("y") |> TPat.fresh, Var("y") |> Exp.fresh, None)
-//       |> Exp.fresh,
-//       Var("x") |> Typ.fresh,
-//     )
-//     |> Exp.fresh,
-//   )
-//   |> Exp.fresh;
-// let ty_alias_menhir = () =>
-//   alco_check_menhir("Type alias test (menhir)", ty_alias_str, ty_alias_uexp);
-
-let 
-
-
+let dynamic_error_hole_str = "<<(1/0) ? `DivideByZero`>> <Unknown Internal => Int>";
+let dynamic_error_hole_uexp: Exp.t = {
+  ids: [id_at(0)],
+  term:
+    DynamicErrorHole(
+      BinOp(Int(Divide), Int(1) |> Exp.fresh, Int(0) |> Exp.fresh)
+      |> Exp.fresh,
+      InvalidOperationError.DivideByZero,
+    ),
+  copied: false,
+};
+let dynamic_error_hole_menhir = () =>
+  alco_check_menhir(
+    "Dynamic error hole (menhir)",
+    dynamic_error_hole_str,
+    dynamic_error_hole_uexp,
+  );
 
 let elaboration_tests = [
-  // test_case("Type alias test (menhir)", `Quick, ty_alias_menhir),
+  test_case("Dynamic error hole (menhir)", `Quick, dynamic_error_hole_menhir),
   test_case("Constructor test (menhir)", `Quick, constructor_menhir),
   test_case("Failed cast test (menhir)", `Quick, failed_cast_menhir),
   test_case("Type ap test (menhir)", `Quick, typ_ap_menhir),

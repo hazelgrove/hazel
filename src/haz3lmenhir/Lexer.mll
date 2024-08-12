@@ -23,6 +23,7 @@ let whitespace = [' ' '\t']+
 
 let identifier = ['a'-'z' '_'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
 let constructor_ident = ['A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
+let sexp_string = '`' [^'`']* '`'
 
 (* let builtins = ["infinity", "neg_infinity", "nan", "epsilon_float", "pi", "max_int", "min_int", "is_finite", "is_infinite", "int_of_float", "float_of_int", "string_of_int", "string_of_float", "string_of_bool", "int_of_string", "float_of_string", "bool_of_string", "abs", "abs_float", "ceil", "floor", "exp", "log", "log10", "sqrt", "sin", "cos", "tan", "asin", "acos", "atan", "mod", "string_length", "string_compare", "string_trim", "string_concat", "string_sub"] *)
 
@@ -33,6 +34,7 @@ rule token =
     | int as i { INT (int_of_string i) }
     | float as f { FLOAT (float_of_string f )}
     | string as s { STRING (String.sub s 1 (String.length s - 2)) }
+    | sexp_string as s { SEXP_STRING (String.sub s 1 (String.length s - 2)) }
     | "true" { TRUE }
     | "false" { FALSE }
     | "let" { LET }
