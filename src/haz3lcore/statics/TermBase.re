@@ -141,7 +141,7 @@ and Exp: {
     | DynamicErrorHole(t, InvalidOperationError.t) //This exp takes in the Sexp serialization of the InvalidOperationError.t as a string (s); // <<e ? s>>
     | FailedCast(t, Typ.t, Typ.t) //e ?<ty1 => ty2>
     | Deferral(deferral_position) /*InAp _*/ /*OutAp _*/
-    | Undefined
+    | Undefined //undef
     | Bool(bool) //false
     | Int(int) //1
     | Float(float) //1.0
@@ -279,12 +279,14 @@ and Exp: {
       Let(Pat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
     | FixF(p, e) => FixF(Pat.of_menhir_ast(p), of_menhir_ast(e), None)
     | TypFun(t, e) => TypFun(TPat.of_menhir_ast(t), of_menhir_ast(e), None)
+    | Undefined => Undefined
     | TyAlias(tp, ty, e) =>
       TyAlias(
         TPat.of_menhir_ast(tp),
         Typ.of_menhir_ast(ty),
         of_menhir_ast(e),
       )
+    | BuiltinFun(s) => BuiltinFun(s)
     | DeferredAp(f, a) => DeferredAp(of_menhir_ast(f), [of_menhir_ast(a)])
     | Fun(p, e, name_opt) =>
       switch (name_opt) {

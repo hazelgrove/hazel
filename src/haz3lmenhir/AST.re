@@ -137,6 +137,8 @@ type exp =
   | MultiHole(exp)
   | EmptyHole
   | Filter(filter_action, exp, exp)
+  | BuiltinFun(string)
+  | Undefined
   | Seq(exp, exp)
   | Test(exp)
   | Deferral(deferral_pos)
