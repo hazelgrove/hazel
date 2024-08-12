@@ -10,7 +10,7 @@
 
 #top-bar .wrap:has(#title) {
   height: 100%;
-  background-color: var(--shard-exp);
+  background-color: var(--T3);
 }
 #top-bar .wrap:has(.nut-icon) {
   background-color: var(--primary-accent);
