@@ -17,6 +17,7 @@
 
 #main.Exercises .cell {
   width: auto;
+  min-width: auto;
 }
 
 #main.Exercises .cell-caption {

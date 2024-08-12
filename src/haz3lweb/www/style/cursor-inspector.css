@@ -86,7 +86,6 @@
 }
 #cursor-inspector .ci-header.error .toggle-switch {
   background-color: var(--R2);
-  border: none;
 }
 #cursor-inspector .ci-header.error .toggle-switch .toggle-knob {
   color: var(--R2);

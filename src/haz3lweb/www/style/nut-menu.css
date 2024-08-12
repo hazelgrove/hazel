@@ -98,7 +98,7 @@
 #top-bar .nut-menu .named-menu-item {
   display: flex;
   align-items: center;
-  color:  var(--menu-item-text);
+  color: var(--menu-item-text);
   cursor: pointer;
   gap: 0.5em;
 }
@@ -126,7 +126,7 @@
 
 #top-bar .nut-menu .icon > svg,
 #top-bar .nut-menu .icon > a > svg {
-  fill: var(--cell-active)
+  fill: var(--cell-active);
 }
 
 #top-bar .submenu .icon > svg,
@@ -212,6 +212,10 @@
   cursor: not-allowed;
 }
 
+#top-bar .nut-menu .toggle-switch {
+  border: solid 1px var(--BR1);
+}
+
 #top-bar .nut-menu .toggle-switch.active {
   background-color: var(--primary-accent);
   border: solid 1px transparent;
@@ -235,14 +239,20 @@
 }
 
 #top-bar #editor-mode .icon {
-  width: 15px;
-  height: 15px;
+  width: 20px;
+  height: 21px;
   display: flex;
   align-items: center;
 }
 
 #top-bar #editor-mode .icon:hover {
-  filter: brightness(0.45) sepia(1) hue-rotate(15deg) saturate(50);
+  scale: unset;
+  border-radius: 1em;
+  background-color: var(--SAND);
+}
+
+#top-bar #editor-mode .icon:hover svg {
+  transform: none;
 }
 
 #top-bar #editor-mode .icon svg {
