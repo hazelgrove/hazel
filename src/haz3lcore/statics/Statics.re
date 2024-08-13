@@ -939,7 +939,7 @@ and utyp_to_info_map =
     let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
     add(m); // TODO: check with andrew
   | Forall(p, tbody) =>
-    let (p', _) =
+    let (p', m) =
       go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~mode=Syn, p, m);
     let m =
       utyp_to_info_map(

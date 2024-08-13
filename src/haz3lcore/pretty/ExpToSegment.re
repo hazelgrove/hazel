@@ -212,7 +212,7 @@ let rec exp_to_pretty = (~inline, exp: Exp.t): pretty => {
     and+ e1 = go(e1)
     and+ e2 = go(e2);
     let e2 = inline ? e2 : [Secondary(Secondary.mk_newline(Id.mk()))] @ e2;
-    [mk_form("let_", id, [p, e1])] @ e2;
+    [mk_form("theorem_", id, [p, e1])] @ e2;
   | FixF(p, e, _) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
