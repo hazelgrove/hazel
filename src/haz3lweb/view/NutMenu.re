@@ -1,13 +1,15 @@
+open Util;
 open Virtual_dom.Vdom;
 open Js_of_ocaml;
 open Node;
 open Util.Web;
 open Widgets;
+open Haz3lcore;
 
 let export_persistent_data = (~inject: Update.t => 'a) =>
   button_named(
     Icons.sprout,
-    _ => inject(ExportPersistentData),
+    _ => inject(Export(ExportPersistentData)),
     ~tooltip="Export All Persistent Data",
   );
 
@@ -31,7 +33,7 @@ let reset_hazel =
 let reparse = (~inject: Update.t => 'a) =>
   button(
     Icons.backpack,
-    _ => inject(ReparseCurrentEditor),
+    _ => inject(PerformAction(Reparse)),
     ~tooltip="Reparse Current Editor",
   );
 
@@ -115,22 +117,23 @@ let settings_menu =
   ];
 };
 
-let export_menu = (~inject, ~settings: Settings.t, editors: Editors.t) =>
+let export_menu =
+    (
+      ~inject: UpdateAction.t => Ui_effect.t(unit),
+      ~settings: Settings.t,
+      editors: Editors.t,
+    ) =>
   switch (editors) {
-  | Scratch(slide_idx, slides) =>
-    let state = List.nth(slides, slide_idx);
-    [ScratchMode.export_button(state)];
-  | Documentation(name, slides) =>
-    let state = List.assoc(name, slides);
-    [ScratchMode.export_button(state)];
-  | Exercises(_, _, exercise) when settings.instructor_mode => [
+  | Scratch(_) => [ScratchMode.export_button(inject)]
+  | Documentation(_) => [ScratchMode.export_button(inject)]
+  | Exercises(_) when settings.instructor_mode => [
       export_persistent_data(~inject),
-      ExerciseMode.export_submission(~settings),
-      ExerciseMode.instructor_export(exercise),
-      ExerciseMode.instructor_transitionary_export(exercise),
-      ExerciseMode.instructor_grading_export(exercise),
+      ExerciseMode.export_submission(inject),
+      ExerciseMode.instructor_export(inject),
+      ExerciseMode.instructor_transitionary_export(inject),
+      ExerciseMode.instructor_grading_export(inject),
     ]
-  | Exercises(_) => [ExerciseMode.export_submission(~settings)]
+  | Exercises(_) => [ExerciseMode.export_submission(inject)]
   };
 
 let import_menu = (~inject, editors: Editors.t) =>
@@ -164,6 +167,17 @@ let view =
   div(
     ~attrs=[clss(["nut-menu"])],
     [
+      button(
+        Icons.command_palette_sparkle,
+        _ => {
+          NinjaKeys.open_command_palette();
+          Effect.Ignore;
+        },
+        ~tooltip=
+          "Command Palette ("
+          ++ Keyboard.meta(JsUtil.is_mac() ? Mac : PC)
+          ++ " + k)",
+      ),
       submenu(
         ~tooltip="Settings",
         ~icon=Icons.gear,

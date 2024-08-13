@@ -1,3 +1,4 @@
+open Util;
 open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
@@ -23,16 +24,10 @@ let view =
       ~ui_state: Model.ui_state,
       ~settings: Settings.t,
       ~exercise,
-      ~results,
+      ~stitched_dynamics,
       ~highlights,
     ) => {
   let Exercise.{eds, pos} = exercise;
-  let stitched_dynamics =
-    Exercise.stitch_dynamic(
-      settings.core,
-      exercise,
-      settings.core.dynamics ? Some(results) : None,
-    );
   let {
     test_validation,
     user_impl,
@@ -43,11 +38,8 @@ let view =
     hidden_tests: _,
   }:
     Exercise.stitched(Exercise.DynamicsItem.t) = stitched_dynamics;
-
   let grading_report = Grading.GradingReport.mk(eds, ~stitched_dynamics);
-
   let score_view = Grading.GradingReport.view_overall_score(grading_report);
-
   let editor_view =
       (
         ~editor: Editor.t,
@@ -57,16 +49,9 @@ let view =
         ~di: Exercise.DynamicsItem.t,
         this_pos,
       ) => {
-    let error_and_warning_ids: (list(Id.t), list(Id.t)) =
-      Statics.Map.error_and_warning_ids(
-        editor.state.meta.term_ranges,
-        di.info_map,
-      );
-    let (error_ids, warning_ids) = error_and_warning_ids;
     Cell.editor_view(
       ~selected=pos == this_pos,
-      ~error_ids,
-      ~warning_ids,
+      ~override_statics=di.statics,
       ~inject,
       ~ui_state,
       ~mousedown_updates=[SwitchEditor(this_pos)],
@@ -79,14 +64,12 @@ let view =
       editor,
     );
   };
-
   let title_view = Cell.title_cell(eds.title);
 
   let prompt_view =
     Cell.narrative_cell(
       div(~attrs=[Attr.class_("cell-prompt")], [eds.prompt]),
     );
-
   let prelude_view =
     Always(
       editor_view(
@@ -108,7 +91,6 @@ let view =
           ~di=instructor,
         ),
     );
-
   // determine trailing hole
   // TODO: module
   let correct_impl_ctx_view =
@@ -118,10 +100,13 @@ let view =
           let correct_impl_trailing_hole_ctx =
             Haz3lcore.Editor.trailing_hole_ctx(
               eds.correct_impl,
-              instructor.info_map,
+              instructor.statics.info_map,
             );
           let prelude_trailing_hole_ctx =
-            Haz3lcore.Editor.trailing_hole_ctx(eds.prelude, prelude.info_map);
+            Haz3lcore.Editor.trailing_hole_ctx(
+              eds.prelude,
+              prelude.statics.info_map,
+            );
           switch (correct_impl_trailing_hole_ctx, prelude_trailing_hole_ctx) {
           | (None, _) => Node.div([text("No context available (1)")])
           | (_, None) => Node.div([text("No context available (2)")]) // TODO show exercise configuration error
@@ -152,7 +137,6 @@ let view =
         ]);
       },
     );
-
   let your_tests_view =
     Always(
       editor_view(
@@ -170,7 +154,6 @@ let view =
         ],
       ),
     );
-
   let wrong_impl_views =
     List.mapi(
       (i, (Exercise.{impl, _}, di)) => {
@@ -186,7 +169,6 @@ let view =
       },
       List.combine(eds.hidden_bugs, hidden_bugs),
     );
-
   let mutation_testing_view =
     Always(
       Grading.MutationTestingReport.view(
@@ -195,7 +177,6 @@ let view =
         grading_report.point_distribution.mutation_testing,
       ),
     );
-
   let your_impl_view = {
     Always(
       editor_view(
@@ -215,7 +196,6 @@ let view =
       ),
     );
   };
-
   let syntax_grading_view =
     Always(Grading.SyntaxReport.view(grading_report.syntax_report));
 
@@ -257,7 +237,6 @@ let view =
         ~max_points=grading_report.point_distribution.impl_grading,
       ),
     );
-
   [score_view, title_view, prompt_view]
   @ render_cells(
       settings,
@@ -296,65 +275,32 @@ let reset_button = inject =>
     ~tooltip="Reset Exercise",
   );
 
-let instructor_export = (exercise: Exercise.state) =>
+let instructor_export = (inject: UpdateAction.t => Ui_effect.t(unit)) =>
   Widgets.button_named(
     Icons.star,
-    _ => {
-      // .ml files because show uses OCaml syntax (dune handles seamlessly)
-      let module_name = exercise.eds.module_name;
-      let filename = exercise.eds.module_name ++ ".ml";
-      let content_type = "text/plain";
-      let contents = Exercise.export_module(module_name, exercise);
-      JsUtil.download_string_file(~filename, ~content_type, ~contents);
-      Virtual_dom.Vdom.Effect.Ignore;
-    },
+    _ => inject(Export(ExerciseModule)),
     ~tooltip="Export Exercise Module",
   );
 
-let instructor_transitionary_export = (exercise: Exercise.state) =>
+let instructor_transitionary_export =
+    (inject: UpdateAction.t => Ui_effect.t(unit)) =>
   Widgets.button_named(
     Icons.star,
-    _ => {
-      // .ml files because show uses OCaml syntax (dune handles seamlessly)
-      let module_name = exercise.eds.module_name;
-      let filename = exercise.eds.module_name ++ ".ml";
-      let content_type = "text/plain";
-      let contents =
-        Exercise.export_transitionary_module(module_name, exercise);
-      JsUtil.download_string_file(~filename, ~content_type, ~contents);
-      Virtual_dom.Vdom.Effect.Ignore;
-    },
+    _ => {inject(Export(TransitionaryExerciseModule))},
     ~tooltip="Export Transitionary Exercise Module",
   );
 
-let instructor_grading_export = (exercise: Exercise.state) =>
+let instructor_grading_export = (inject: UpdateAction.t => Ui_effect.t(unit)) =>
   Widgets.button_named(
     Icons.star,
-    _ => {
-      // .ml files because show uses OCaml syntax (dune handles seamlessly)
-      let module_name = exercise.eds.module_name;
-      let filename = exercise.eds.module_name ++ "_grading.ml";
-      let content_type = "text/plain";
-      let contents = Exercise.export_grading_module(module_name, exercise);
-      JsUtil.download_string_file(~filename, ~content_type, ~contents);
-      Virtual_dom.Vdom.Effect.Ignore;
-    },
+    _ => {inject(Export(GradingExerciseModule))},
     ~tooltip="Export Grading Exercise Module",
   );
 
-let download_editor_state = (~instructor_mode) =>
-  Log.get_and(log => {
-    let data = Export.export_all(~instructor_mode, ~log);
-    JsUtil.download_json(ExerciseSettings.filename, data);
-  });
-
-let export_submission = (~settings: Settings.t) =>
+let export_submission = (inject: UpdateAction.t => Ui_effect.t(unit)) =>
   Widgets.button_named(
     Icons.star,
-    _ => {
-      download_editor_state(~instructor_mode=settings.instructor_mode);
-      Virtual_dom.Vdom.Effect.Ignore;
-    },
+    _ => inject(Export(Submission)),
     ~tooltip="Export Submission",
   );
 
