@@ -10,9 +10,9 @@ type t = {
 
 let seg_of_zip = Zipper.seg_without_buffer;
 
-let rec of_segment = (~holes, seg: Segment.t): string =>
+let rec of_segment = (~holes, seg: Segment.t('a)): string =>
   seg |> List.map(of_piece(~holes)) |> String.concat("")
-and of_piece = (~holes, p: Piece.t): string =>
+and of_piece = (~holes, p: Piece.t('a)): string =>
   switch (p) {
   | Tile(t) => of_tile(~holes, t)
   | Grout({shape: Concave, _}) => " "
@@ -22,11 +22,11 @@ and of_piece = (~holes, p: Piece.t): string =>
     Secondary.is_linebreak(w) ? "\n" : Secondary.get_string(w.content)
   | Projector(p) => of_piece(~holes, p.syntax)
   }
-and of_tile = (~holes, t: Tile.t): string =>
+and of_tile = (~holes, t: Tile.t('a)): string =>
   Aba.mk(t.shards, t.children)
   |> Aba.join(of_delim(t), of_segment(~holes))
   |> String.concat("")
-and of_delim = (t: Piece.tile, i: int): string => List.nth(t.label, i);
+and of_delim = (t: Piece.tile('a), i: int): string => List.nth(t.label, i);
 
 let to_string_basic = (z: Zipper.t): string => {
   z |> seg_of_zip |> of_segment(~holes=None);
@@ -42,7 +42,7 @@ let to_rows =
       ~measured: Measured.t,
       ~caret: option(Point.t),
       ~indent: string,
-      ~segment: Segment.t,
+      ~segment: Segment.t('a),
     )
     : list(string) => {
   let indent_of = i => Measured.Rows.find(i, measured.rows).indent;

@@ -13,12 +13,12 @@ type mode =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   focus: Direction.t,
-  content: Segment.t,
+  content: Segment.t(Id.t),
   mode,
 };
 
 /* NOTE: backpack no longer uses selection focus */
-let mk = (~mode=Normal, ~focus=Direction.Left, content: Segment.t) => {
+let mk = (~mode=Normal, ~focus=Direction.Left, content: Segment.t(Id.t)) => {
   focus,
   content,
   mode,
@@ -44,7 +44,7 @@ let toggle_focus = selection => {
 
 let is_empty = (selection: t) => selection.content == Segment.empty;
 
-let push = (p: Piece.t, {focus, content, mode}: t): t => {
+let push = (p: Piece.t(Id.t), {focus, content, mode}: t): t => {
   let content =
     Segment.reassemble(
       switch (focus) {
@@ -55,7 +55,7 @@ let push = (p: Piece.t, {focus, content, mode}: t): t => {
   {focus, content, mode};
 };
 
-let pop = (sel: t): option((Piece.t, t)) =>
+let pop = (sel: t): option((Piece.t(Id.t), t)) =>
   switch (sel.focus, sel.content, ListUtil.split_last_opt(sel.content)) {
   | (_, [], _)
   | (_, _, None) => None
@@ -67,4 +67,5 @@ let pop = (sel: t): option((Piece.t, t)) =>
     Some((p, {...sel, content: content @ rest}));
   };
 
-let split_piece = _: option((Piece.t, t)) => failwith("todo split_piece");
+let split_piece = _: option((Piece.t(Id.t), t)) =>
+  failwith("todo split_piece");

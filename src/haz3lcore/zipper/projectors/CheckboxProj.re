@@ -2,27 +2,28 @@ open Util;
 open ProjectorBase;
 open Virtual_dom.Vdom;
 
-let of_mono = (syntax: Piece.t): option(string) =>
+let of_mono = (syntax: Piece.t('a)): option(string) =>
   switch (syntax) {
   | Tile({label: [l], _}) => Some(l)
   | _ => None
   };
 
-let mk_mono = (sort: Sort.t, string: string): Piece.t =>
+let mk_mono = (sort: Sort.t, string: string): Piece.t('a) =>
   string |> Form.mk_atomic(sort) |> Piece.mk_tile(_, []);
 
-let state_of = (piece: Piece.t): option(bool) =>
+let state_of = (piece: Piece.t('a)): option(bool) =>
   piece |> of_mono |> Option.map(bool_of_string);
 
-let get = (piece: Piece.t): bool =>
+let get = (piece: Piece.t('a)): bool =>
   switch (piece |> of_mono |> Util.OptUtil.and_then(bool_of_string_opt)) {
   | None => failwith("Checkbox: not boolean literal")
   | Some(s) => s
   };
 
-let put = (bool: bool): Piece.t => bool |> string_of_bool |> mk_mono(Exp);
+let put = (bool: bool): Piece.t('a) =>
+  bool |> string_of_bool |> mk_mono(Exp);
 
-let toggle = (piece: Piece.t) => put(!get(piece));
+let toggle = (piece: Piece.t('a)) => put(!get(piece));
 
 let view =
     (_, ~info, ~local as _, ~parent: external_action => Ui_effect.t(unit)) =>

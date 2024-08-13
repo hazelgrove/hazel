@@ -6,8 +6,8 @@ type relation =
   | Sibling;
 
 let piece' =
-    (~no_ws: bool, ~ign: Piece.t => bool, z: ZipperBase.t)
-    : option((Piece.t, Direction.t, relation)) => {
+    (~no_ws: bool, ~ign: Piece.t(Id.t) => bool, z: ZipperBase.t)
+    : option((Piece.t(Id.t), Direction.t, relation)) => {
   /* Returns the piece currently indicated (if any) and which side of
      that piece the caret is on. We favor indicating the piece to the
      (R)ight, but may end up indicating the (P)arent or the (L)eft.

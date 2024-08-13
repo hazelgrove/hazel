@@ -2,12 +2,12 @@ open Util;
 open Virtual_dom.Vdom;
 open ProjectorBase;
 
-let put: string => Piece.t = Piece.mk_mono(Exp);
+let put: string => Piece.t(Id.t) = Piece.mk_mono(Exp);
 
-let get_opt = (piece: Piece.t): option(int) =>
+let get_opt = (piece: Piece.t(Id.t)): option(int) =>
   piece |> Piece.of_mono |> Util.OptUtil.and_then(int_of_string_opt);
 
-let get = (piece: Piece.t): string =>
+let get = (piece: Piece.t(Id.t)): string =>
   switch (get_opt(piece)) {
   | None => failwith("ERROR: Slider: not integer literal")
   | Some(s) => string_of_int(s)

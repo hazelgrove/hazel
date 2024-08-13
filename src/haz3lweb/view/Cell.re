@@ -388,7 +388,7 @@ let locked =
       ~settings: Settings.t,
       ~inject,
       ~target_id,
-      ~segment: Segment.t,
+      ~segment: Segment.t(Id.t),
     ) => {
   let editor =
     segment

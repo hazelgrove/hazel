@@ -5,25 +5,25 @@ open ProjectorBase;
 let of_id = (id: Id.t) =>
   "id" ++ (id |> Id.to_string |> String.sub(_, 0, 8));
 
-let of_mono = (syntax: Piece.t): option(string) =>
+let of_mono = (syntax: Piece.t('a)): option(string) =>
   switch (syntax) {
   | Tile({label: [l], _}) => Some(StringUtil.unescape_linebreaks(l))
   | _ => None
   };
 
-let mk_mono = (sort: Sort.t, string: string): Piece.t =>
+let mk_mono = (sort: Sort.t, string: string): Piece.t(Id.t) =>
   string
   |> StringUtil.escape_linebreaks
   |> Form.mk_atomic(sort)
   |> Piece.mk_tile(_, []);
 
-let get = (piece: Piece.t): string =>
+let get = (piece: Piece.t('a)): string =>
   switch (piece |> of_mono) {
   | None => failwith("TextArea: not string literal")
   | Some(s) => s
   };
 
-let put = (s: string): Piece.t => s |> mk_mono(Exp);
+let put = (s: string): Piece.t(Id.t) => s |> mk_mono(Exp);
 
 let put = (str: string): external_action =>
   SetSyntax(str |> Form.string_quote |> put);

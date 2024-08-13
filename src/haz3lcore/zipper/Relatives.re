@@ -8,17 +8,17 @@ type t = {
 
 let empty = {siblings: Siblings.empty, ancestors: Ancestors.empty};
 
-let push = (d: Direction.t, p: Piece.t, rs: t): t => {
+let push = (d: Direction.t, p: Piece.t(Id.t), rs: t): t => {
   ...rs,
   siblings: Siblings.push(d, p, rs.siblings),
 };
 
-let prepend = (d: Direction.t, seg: Segment.t, rs: t): t => {
+let prepend = (d: Direction.t, seg: Segment.t(Id.t), rs: t): t => {
   let siblings = Siblings.prepend(d, seg, rs.siblings);
   {...rs, siblings};
 };
 
-let pop = (d: Direction.t, rs: t): option((Piece.t, t)) =>
+let pop = (d: Direction.t, rs: t): option((Piece.t(Id.t), t)) =>
   switch (Siblings.pop(d, rs.siblings)) {
   | Some((p, siblings)) => Some((p, {...rs, siblings}))
   | None =>
@@ -49,7 +49,7 @@ let local_incomplete_tiles = ({siblings: (pre, suf), ancestors}: t) => {
 
 let parent =
     (~sel=Segment.empty, {siblings: (l_sibs, r_sibs), ancestors}: t)
-    : option(Piece.t) =>
+    : option(Piece.t(Id.t)) =>
   ancestors
   |> Ancestors.parent
   |> Option.map(p => Base.Tile(Ancestor.zip(l_sibs @ sel @ r_sibs, p)));
@@ -148,9 +148,9 @@ let reassemble_parent = (rs: t): t =>
       |> TupleUtil.map2(Aba.trim);
     let flatten_match =
       Aba.fold_right(
-        (t: Tile.t, kid, (shards, kids)) =>
+        (t: Tile.t(Id.t), kid, (shards, kids)) =>
           Aba.mk(t.shards @ shards, t.children @ [kid, ...kids]),
-        (t: Tile.t) => Aba.mk(t.shards, t.children),
+        (t: Tile.t(Id.t)) => Aba.mk(t.shards, t.children),
       );
     let (a, l) =
       switch (l) {
@@ -195,7 +195,7 @@ let reassemble = (rs: t): t => {
     | [t, ..._] =>
       switch (
         rs.siblings
-        |> Siblings.split_by_matching(t.id)
+        |> Siblings.split_by_matching(t.extra)
         |> TupleUtil.map2(Aba.trim)
       ) {
       | (_, None) => failwith("impossible")

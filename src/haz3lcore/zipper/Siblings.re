@@ -4,17 +4,17 @@ open Util;
 // module Suffix = Affix.Make(Orientation.R);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = (Segment.t, Segment.t);
+type t = (Segment.t(Id.t), Segment.t(Id.t));
 
 let empty = Segment.(empty, empty);
 
 let no_siblings: t => bool = s => s == empty;
 
-let unzip: (int, Segment.t) => t = ListUtil.split_n;
+let unzip: (int, Segment.t(Id.t)) => t = ListUtil.split_n;
 let zip = (~sel=Segment.empty, (pre, suf): t) =>
   Segment.concat([pre, sel, suf]);
 
-let prepend = (d: Direction.t, seg: Segment.t, (l, r): t): t =>
+let prepend = (d: Direction.t, seg: Segment.t(Id.t), (l, r): t): t =>
   switch (d) {
   | Left => (l @ seg, r)
   | Right => (l, seg @ r)
@@ -53,16 +53,16 @@ let is_mismatch = ((l, r): t): bool => {
   };
 };
 
-let contains_matching = (t: Tile.t, (pre, suf): t) =>
+let contains_matching = (t: Tile.t(Id.t), (pre, suf): t) =>
   Segment.(contains_matching(t, pre) || contains_matching(t, suf));
 
-let push = (onto: Direction.t, p: Piece.t, (pre, suf): t): t =>
+let push = (onto: Direction.t, p: Piece.t(Id.t), (pre, suf): t): t =>
   switch (onto) {
   | Left => (pre @ [p], suf)
   | Right => (pre, [p, ...suf])
   };
 
-let pop = (from: Direction.t, (pre, suf): t): option((Piece.t, t)) =>
+let pop = (from: Direction.t, (pre, suf): t): option((Piece.t(Id.t), t)) =>
   switch (from) {
   | Left =>
     ListUtil.split_last_opt(pre)
@@ -91,11 +91,13 @@ let regrout = ((pre, suf): t) => {
   ((pre, s_l, trim_l), suf);
 };
 
-let left_neighbor: t => option(Piece.t) = ((l, _)) => ListUtil.last_opt(l);
+let left_neighbor: t => option(Piece.t(Id.t)) =
+  ((l, _)) => ListUtil.last_opt(l);
 
-let right_neighbor: t => option(Piece.t) = ((_, r)) => ListUtil.hd_opt(r);
+let right_neighbor: t => option(Piece.t(Id.t)) =
+  ((_, r)) => ListUtil.hd_opt(r);
 
-let neighbors: t => (option(Piece.t), option(Piece.t)) =
+let neighbors: t => (option(Piece.t(Id.t)), option(Piece.t(Id.t))) =
   n => (left_neighbor(n), right_neighbor(n));
 
 let trim_secondary = ((l_sibs, r_sibs): t) => (
@@ -126,4 +128,4 @@ let mold_fitting_between = (sort: Sort.t, p: Precedence.t, sibs: t): Mold.t =>
   | None => Mold.mk_op(sort, [])
   };
 
-let sorted_children = TupleUtil.map2(Segment.sorted_children);
+let sorted_children = x => TupleUtil.map2(Segment.sorted_children, x);

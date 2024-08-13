@@ -38,7 +38,7 @@ module CachedStatics = {
 
 module CachedSyntax = {
   type t = {
-    segment: Segment.t,
+    segment: Segment.t(Id.t),
     measured: Measured.t,
     tiles: TileMap.t,
     holes: list(Grout.t),
@@ -59,7 +59,7 @@ module CachedSyntax = {
      * certain ids to be present/non-present unexpectedly. */
     term_ranges: TermRanges.t,
     terms: TermMap.t,
-    projectors: Id.Map.t(Base.projector),
+    projectors: Id.Map.t(Base.projector(Id.t)),
   };
 
   let init = (z, info_map): t => {

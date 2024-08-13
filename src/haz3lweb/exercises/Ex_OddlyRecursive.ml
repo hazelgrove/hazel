@@ -22,7 +22,7 @@ let exercise : Exercise.spec =
                     { id = Id.mk (); content = Whitespace "\226\143\142" };
                   Tile
                     {
-                      id = Id.mk ();
+                      extra = Id.mk ();
                       label = [ "fun"; "->" ];
                       mold =
                         {
@@ -40,7 +40,7 @@ let exercise : Exercise.spec =
                               { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = Id.mk ();
+                                extra = Id.mk ();
                                 label = [ "x" ];
                                 mold =
                                   {
@@ -62,7 +62,7 @@ let exercise : Exercise.spec =
                     { id = Id.mk (); content = Whitespace "\226\143\142" };
                   Tile
                     {
-                      id = Id.mk ();
+                      extra = Id.mk ();
                       label = [ "if"; "then"; "else" ];
                       mold =
                         {
@@ -80,7 +80,7 @@ let exercise : Exercise.spec =
                               { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = Id.mk ();
+                                extra = Id.mk ();
                                 label = [ "x" ];
                                 mold =
                                   {
@@ -101,7 +101,7 @@ let exercise : Exercise.spec =
                               { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = Id.mk ();
+                                extra = Id.mk ();
                                 label = [ "false" ];
                                 mold =
                                   {
@@ -122,7 +122,7 @@ let exercise : Exercise.spec =
                   Secondary { id = Id.mk (); content = Whitespace " " };
                   Tile
                     {
-                      id = Id.mk ();
+                      extra = Id.mk ();
                       label = [ "true" ];
                       mold =
                         {
@@ -160,7 +160,7 @@ let exercise : Exercise.spec =
                             Secondary { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = Id.mk ();
+                                extra = Id.mk ();
                                 label = [ "not" ];
                                 mold =
                                   {
@@ -177,7 +177,7 @@ let exercise : Exercise.spec =
                               { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = Id.mk ();
+                                extra = Id.mk ();
                                 label = [ ":" ];
                                 mold =
                                   {
@@ -194,7 +194,7 @@ let exercise : Exercise.spec =
                               { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = Id.mk ();
+                                extra = Id.mk ();
                                 label = [ "Bool" ];
                                 mold =
                                   {
@@ -211,7 +211,7 @@ let exercise : Exercise.spec =
                               { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = Id.mk ();
+                                extra = Id.mk ();
                                 label = [ "->" ];
                                 mold =
                                   {
@@ -228,7 +228,7 @@ let exercise : Exercise.spec =
                               { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = Id.mk ();
+                                extra = Id.mk ();
                                 label = [ "Bool" ];
                                 mold =
                                   {
@@ -268,7 +268,7 @@ let exercise : Exercise.spec =
                     { id = Id.mk (); content = Whitespace "\226\143\142" };
                   Tile
                     {
-                      id = Id.mk ();
+                      extra = Id.mk ();
                       label = [ "fun"; "->" ];
                       mold =
                         {
@@ -286,7 +286,7 @@ let exercise : Exercise.spec =
                               { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = Id.mk ();
+                                extra = Id.mk ();
                                 label = [ "x" ];
                                 mold =
                                   {
@@ -308,7 +308,7 @@ let exercise : Exercise.spec =
                     { id = Id.mk (); content = Whitespace "\226\143\142" };
                   Tile
                     {
-                      id = Id.mk ();
+                      extra = Id.mk ();
                       label = [ "if"; "then"; "else" ];
                       mold =
                         {
@@ -326,7 +326,7 @@ let exercise : Exercise.spec =
                               { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = Id.mk ();
+                                extra = Id.mk ();
                                 label = [ "x" ];
                                 mold =
                                   {
@@ -343,7 +343,7 @@ let exercise : Exercise.spec =
                               { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = Id.mk ();
+                                extra = Id.mk ();
                                 label = [ "<" ];
                                 mold =
                                   {
@@ -360,7 +360,7 @@ let exercise : Exercise.spec =
                               { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = Id.mk ();
+                                extra = Id.mk ();
                                 label = [ "0" ];
                                 mold =
                                   {
@@ -386,7 +386,7 @@ let exercise : Exercise.spec =
                               { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = Id.mk ();
+                                extra = Id.mk ();
                                 label = [ "odd" ];
                                 mold =
                                   {
@@ -401,7 +401,7 @@ let exercise : Exercise.spec =
                               };
                             Tile
                               {
-                                id = Id.mk ();
+                                extra = Id.mk ();
                                 label = [ "("; ")" ];
                                 mold =
                                   {
@@ -417,7 +417,7 @@ let exercise : Exercise.spec =
                                     [
                                       Tile
                                         {
-                                          id = Id.mk ();
+                                          extra = Id.mk ();
                                           label = [ "-" ];
                                           mold =
                                             {
@@ -435,7 +435,7 @@ let exercise : Exercise.spec =
                                         };
                                       Tile
                                         {
-                                          id = Id.mk ();
+                                          extra = Id.mk ();
                                           label = [ "x" ];
                                           mold =
                                             {
@@ -465,7 +465,7 @@ let exercise : Exercise.spec =
                   Secondary { id = Id.mk (); content = Whitespace " " };
                   Tile
                     {
-                      id = Id.mk ();
+                      extra = Id.mk ();
                       label = [ "if"; "then"; "else" ];
                       mold =
                         {
@@ -483,7 +483,7 @@ let exercise : Exercise.spec =
                               { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = Id.mk ();
+                                extra = Id.mk ();
                                 label = [ "x" ];
                                 mold =
                                   {
@@ -500,7 +500,7 @@ let exercise : Exercise.spec =
                               { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = Id.mk ();
+                                extra = Id.mk ();
                                 label = [ "==" ];
                                 mold =
                                   {
@@ -517,7 +517,7 @@ let exercise : Exercise.spec =
                               { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = Id.mk ();
+                                extra = Id.mk ();
                                 label = [ "0" ];
                                 mold =
                                   {
@@ -538,7 +538,7 @@ let exercise : Exercise.spec =
                               { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = Id.mk ();
+                                extra = Id.mk ();
                                 label = [ "false" ];
                                 mold =
                                   {
@@ -564,7 +564,7 @@ let exercise : Exercise.spec =
                   Secondary { id = Id.mk (); content = Whitespace " " };
                   Tile
                     {
-                      id = Id.mk ();
+                      extra = Id.mk ();
                       label = [ "not" ];
                       mold =
                         {
@@ -579,7 +579,7 @@ let exercise : Exercise.spec =
                     };
                   Tile
                     {
-                      id = Id.mk ();
+                      extra = Id.mk ();
                       label = [ "("; ")" ];
                       mold =
                         {
@@ -595,7 +595,7 @@ let exercise : Exercise.spec =
                           [
                             Tile
                               {
-                                id = Id.mk ();
+                                extra = Id.mk ();
                                 label = [ "odd" ];
                                 mold =
                                   {
@@ -610,7 +610,7 @@ let exercise : Exercise.spec =
                               };
                             Tile
                               {
-                                id = Id.mk ();
+                                extra = Id.mk ();
                                 label = [ "("; ")" ];
                                 mold =
                                   {
@@ -626,7 +626,7 @@ let exercise : Exercise.spec =
                                     [
                                       Tile
                                         {
-                                          id = Id.mk ();
+                                          extra = Id.mk ();
                                           label = [ "x" ];
                                           mold =
                                             {
@@ -642,7 +642,7 @@ let exercise : Exercise.spec =
                                         };
                                       Tile
                                         {
-                                          id = Id.mk ();
+                                          extra = Id.mk ();
                                           label = [ "-" ];
                                           mold =
                                             {
@@ -663,7 +663,7 @@ let exercise : Exercise.spec =
                                         };
                                       Tile
                                         {
-                                          id = Id.mk ();
+                                          extra = Id.mk ();
                                           label = [ "1" ];
                                           mold =
                                             {
@@ -708,7 +708,7 @@ let exercise : Exercise.spec =
                             Secondary { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = Id.mk ();
+                                extra = Id.mk ();
                                 label = [ "odd" ];
                                 mold =
                                   {
@@ -723,7 +723,7 @@ let exercise : Exercise.spec =
                               };
                             Tile
                               {
-                                id = Id.mk ();
+                                extra = Id.mk ();
                                 label = [ ":" ];
                                 mold =
                                   {
@@ -738,7 +738,7 @@ let exercise : Exercise.spec =
                               };
                             Tile
                               {
-                                id = Id.mk ();
+                                extra = Id.mk ();
                                 label = [ "Int" ];
                                 mold =
                                   {
@@ -753,7 +753,7 @@ let exercise : Exercise.spec =
                               };
                             Tile
                               {
-                                id = Id.mk ();
+                                extra = Id.mk ();
                                 label = [ "->" ];
                                 mold =
                                   {
@@ -768,7 +768,7 @@ let exercise : Exercise.spec =
                               };
                             Tile
                               {
-                                id = Id.mk ();
+                                extra = Id.mk ();
                                 label = [ "Bool" ];
                                 mold =
                                   {
@@ -808,7 +808,7 @@ let exercise : Exercise.spec =
                   ( [
                       Tile
                         {
-                          id = Id.mk ();
+                          extra = Id.mk ();
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -826,7 +826,7 @@ let exercise : Exercise.spec =
                                   { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
-                                    id = Id.mk ();
+                                    extra = Id.mk ();
                                     label = [ "not" ];
                                     mold =
                                       {
@@ -841,7 +841,7 @@ let exercise : Exercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = Id.mk ();
+                                    extra = Id.mk ();
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -857,7 +857,7 @@ let exercise : Exercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = Id.mk ();
+                                              extra = Id.mk ();
                                               label = [ "false" ];
                                               mold =
                                                 {
@@ -886,7 +886,7 @@ let exercise : Exercise.spec =
                         };
                       Tile
                         {
-                          id = Id.mk ();
+                          extra = Id.mk ();
                           label = [ ";" ];
                           mold =
                             {
@@ -903,7 +903,7 @@ let exercise : Exercise.spec =
                         { id = Id.mk (); content = Whitespace "\226\143\142" };
                       Tile
                         {
-                          id = Id.mk ();
+                          extra = Id.mk ();
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -921,7 +921,7 @@ let exercise : Exercise.spec =
                                   { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
-                                    id = Id.mk ();
+                                    extra = Id.mk ();
                                     label = [ "not" ];
                                     mold =
                                       {
@@ -936,7 +936,7 @@ let exercise : Exercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = Id.mk ();
+                                    extra = Id.mk ();
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -952,7 +952,7 @@ let exercise : Exercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = Id.mk ();
+                                              extra = Id.mk ();
                                               label = [ "not" ];
                                               mold =
                                                 {
@@ -973,7 +973,7 @@ let exercise : Exercise.spec =
                                             };
                                           Tile
                                             {
-                                              id = Id.mk ();
+                                              extra = Id.mk ();
                                               label = [ "("; ")" ];
                                               mold =
                                                 {
@@ -995,7 +995,7 @@ let exercise : Exercise.spec =
                                                   [
                                                     Tile
                                                       {
-                                                        id = Id.mk ();
+                                                        extra = Id.mk ();
                                                         label = [ "true" ];
                                                         mold =
                                                           {
@@ -1027,7 +1027,7 @@ let exercise : Exercise.spec =
                         };
                       Tile
                         {
-                          id = Id.mk ();
+                          extra = Id.mk ();
                           label = [ ";" ];
                           mold =
                             {
@@ -1062,7 +1062,7 @@ let exercise : Exercise.spec =
               ( [
                   Tile
                     {
-                      id = Id.mk ();
+                      extra = Id.mk ();
                       label = [ "let"; "="; "in" ];
                       mold =
                         {
@@ -1080,7 +1080,7 @@ let exercise : Exercise.spec =
                               { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = Id.mk ();
+                                extra = Id.mk ();
                                 label = [ "odd" ];
                                 mold =
                                   {
@@ -1095,7 +1095,7 @@ let exercise : Exercise.spec =
                               };
                             Tile
                               {
-                                id = Id.mk ();
+                                extra = Id.mk ();
                                 label = [ ":" ];
                                 mold =
                                   {
@@ -1112,7 +1112,7 @@ let exercise : Exercise.spec =
                               { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = Id.mk ();
+                                extra = Id.mk ();
                                 label = [ "Int" ];
                                 mold =
                                   {
@@ -1129,7 +1129,7 @@ let exercise : Exercise.spec =
                               { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = Id.mk ();
+                                extra = Id.mk ();
                                 label = [ "->" ];
                                 mold =
                                   {
@@ -1146,7 +1146,7 @@ let exercise : Exercise.spec =
                               { id = Id.mk (); content = Whitespace " " };
                             Tile
                               {
-                                id = Id.mk ();
+                                extra = Id.mk ();
                                 label = [ "Bool" ];
                                 mold =
                                   {
@@ -1170,7 +1170,7 @@ let exercise : Exercise.spec =
                               };
                             Tile
                               {
-                                id = Id.mk ();
+                                extra = Id.mk ();
                                 label = [ "fun"; "->" ];
                                 mold =
                                   {
@@ -1191,7 +1191,7 @@ let exercise : Exercise.spec =
                                         };
                                       Tile
                                         {
-                                          id = Id.mk ();
+                                          extra = Id.mk ();
                                           label = [ "n" ];
                                           mold =
                                             {
@@ -1246,7 +1246,7 @@ let exercise : Exercise.spec =
                     ( [
                         Tile
                           {
-                            id = Id.mk ();
+                            extra = Id.mk ();
                             label = [ "let"; "="; "in" ];
                             mold =
                               {
@@ -1264,7 +1264,7 @@ let exercise : Exercise.spec =
                                     { id = Id.mk (); content = Whitespace " " };
                                   Tile
                                     {
-                                      id = Id.mk ();
+                                      extra = Id.mk ();
                                       label = [ "odd" ];
                                       mold =
                                         {
@@ -1279,7 +1279,7 @@ let exercise : Exercise.spec =
                                     };
                                   Tile
                                     {
-                                      id = Id.mk ();
+                                      extra = Id.mk ();
                                       label = [ ":" ];
                                       mold =
                                         {
@@ -1297,7 +1297,7 @@ let exercise : Exercise.spec =
                                     { id = Id.mk (); content = Whitespace " " };
                                   Tile
                                     {
-                                      id = Id.mk ();
+                                      extra = Id.mk ();
                                       label = [ "Int" ];
                                       mold =
                                         {
@@ -1314,7 +1314,7 @@ let exercise : Exercise.spec =
                                     { id = Id.mk (); content = Whitespace " " };
                                   Tile
                                     {
-                                      id = Id.mk ();
+                                      extra = Id.mk ();
                                       label = [ "->" ];
                                       mold =
                                         {
@@ -1332,7 +1332,7 @@ let exercise : Exercise.spec =
                                     { id = Id.mk (); content = Whitespace " " };
                                   Tile
                                     {
-                                      id = Id.mk ();
+                                      extra = Id.mk ();
                                       label = [ "Bool" ];
                                       mold =
                                         {
@@ -1356,7 +1356,7 @@ let exercise : Exercise.spec =
                                     };
                                   Tile
                                     {
-                                      id = Id.mk ();
+                                      extra = Id.mk ();
                                       label = [ "fun"; "->" ];
                                       mold =
                                         {
@@ -1378,7 +1378,7 @@ let exercise : Exercise.spec =
                                               };
                                             Tile
                                               {
-                                                id = Id.mk ();
+                                                extra = Id.mk ();
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -1409,7 +1409,7 @@ let exercise : Exercise.spec =
                                     { id = Id.mk (); content = Whitespace " " };
                                   Tile
                                     {
-                                      id = Id.mk ();
+                                      extra = Id.mk ();
                                       label = [ "false" ];
                                       mold =
                                         {
@@ -1452,7 +1452,7 @@ let exercise : Exercise.spec =
                     ( [
                         Tile
                           {
-                            id = Id.mk ();
+                            extra = Id.mk ();
                             label = [ "let"; "="; "in" ];
                             mold =
                               {
@@ -1470,7 +1470,7 @@ let exercise : Exercise.spec =
                                     { id = Id.mk (); content = Whitespace " " };
                                   Tile
                                     {
-                                      id = Id.mk ();
+                                      extra = Id.mk ();
                                       label = [ "odd" ];
                                       mold =
                                         {
@@ -1485,7 +1485,7 @@ let exercise : Exercise.spec =
                                     };
                                   Tile
                                     {
-                                      id = Id.mk ();
+                                      extra = Id.mk ();
                                       label = [ ":" ];
                                       mold =
                                         {
@@ -1503,7 +1503,7 @@ let exercise : Exercise.spec =
                                     { id = Id.mk (); content = Whitespace " " };
                                   Tile
                                     {
-                                      id = Id.mk ();
+                                      extra = Id.mk ();
                                       label = [ "Int" ];
                                       mold =
                                         {
@@ -1520,7 +1520,7 @@ let exercise : Exercise.spec =
                                     { id = Id.mk (); content = Whitespace " " };
                                   Tile
                                     {
-                                      id = Id.mk ();
+                                      extra = Id.mk ();
                                       label = [ "->" ];
                                       mold =
                                         {
@@ -1538,7 +1538,7 @@ let exercise : Exercise.spec =
                                     { id = Id.mk (); content = Whitespace " " };
                                   Tile
                                     {
-                                      id = Id.mk ();
+                                      extra = Id.mk ();
                                       label = [ "Bool" ];
                                       mold =
                                         {
@@ -1562,7 +1562,7 @@ let exercise : Exercise.spec =
                                     };
                                   Tile
                                     {
-                                      id = Id.mk ();
+                                      extra = Id.mk ();
                                       label = [ "fun"; "->" ];
                                       mold =
                                         {
@@ -1584,7 +1584,7 @@ let exercise : Exercise.spec =
                                               };
                                             Tile
                                               {
-                                                id = Id.mk ();
+                                                extra = Id.mk ();
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -1615,7 +1615,7 @@ let exercise : Exercise.spec =
                                     { id = Id.mk (); content = Whitespace " " };
                                   Tile
                                     {
-                                      id = Id.mk ();
+                                      extra = Id.mk ();
                                       label = [ "true" ];
                                       mold =
                                         {
@@ -1658,7 +1658,7 @@ let exercise : Exercise.spec =
                     ( [
                         Tile
                           {
-                            id = Id.mk ();
+                            extra = Id.mk ();
                             label = [ "let"; "="; "in" ];
                             mold =
                               {
@@ -1676,7 +1676,7 @@ let exercise : Exercise.spec =
                                     { id = Id.mk (); content = Whitespace " " };
                                   Tile
                                     {
-                                      id = Id.mk ();
+                                      extra = Id.mk ();
                                       label = [ "odd" ];
                                       mold =
                                         {
@@ -1691,7 +1691,7 @@ let exercise : Exercise.spec =
                                     };
                                   Tile
                                     {
-                                      id = Id.mk ();
+                                      extra = Id.mk ();
                                       label = [ ":" ];
                                       mold =
                                         {
@@ -1709,7 +1709,7 @@ let exercise : Exercise.spec =
                                     { id = Id.mk (); content = Whitespace " " };
                                   Tile
                                     {
-                                      id = Id.mk ();
+                                      extra = Id.mk ();
                                       label = [ "Int" ];
                                       mold =
                                         {
@@ -1726,7 +1726,7 @@ let exercise : Exercise.spec =
                                     { id = Id.mk (); content = Whitespace " " };
                                   Tile
                                     {
-                                      id = Id.mk ();
+                                      extra = Id.mk ();
                                       label = [ "->" ];
                                       mold =
                                         {
@@ -1744,7 +1744,7 @@ let exercise : Exercise.spec =
                                     { id = Id.mk (); content = Whitespace " " };
                                   Tile
                                     {
-                                      id = Id.mk ();
+                                      extra = Id.mk ();
                                       label = [ "Bool" ];
                                       mold =
                                         {
@@ -1768,7 +1768,7 @@ let exercise : Exercise.spec =
                                     };
                                   Tile
                                     {
-                                      id = Id.mk ();
+                                      extra = Id.mk ();
                                       label = [ "fun"; "->" ];
                                       mold =
                                         {
@@ -1790,7 +1790,7 @@ let exercise : Exercise.spec =
                                               };
                                             Tile
                                               {
-                                                id = Id.mk ();
+                                                extra = Id.mk ();
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -1821,7 +1821,7 @@ let exercise : Exercise.spec =
                                     { id = Id.mk (); content = Whitespace " " };
                                   Tile
                                     {
-                                      id = Id.mk ();
+                                      extra = Id.mk ();
                                       label = [ "if"; "then"; "else" ];
                                       mold =
                                         {
@@ -1843,7 +1843,7 @@ let exercise : Exercise.spec =
                                               };
                                             Tile
                                               {
-                                                id = Id.mk ();
+                                                extra = Id.mk ();
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -1869,7 +1869,7 @@ let exercise : Exercise.spec =
                                               };
                                             Tile
                                               {
-                                                id = Id.mk ();
+                                                extra = Id.mk ();
                                                 label = [ "<" ];
                                                 mold =
                                                   {
@@ -1895,7 +1895,7 @@ let exercise : Exercise.spec =
                                               };
                                             Tile
                                               {
-                                                id = Id.mk ();
+                                                extra = Id.mk ();
                                                 label = [ "0" ];
                                                 mold =
                                                   {
@@ -1928,7 +1928,7 @@ let exercise : Exercise.spec =
                                               };
                                             Tile
                                               {
-                                                id = Id.mk ();
+                                                extra = Id.mk ();
                                                 label = [ "odd" ];
                                                 mold =
                                                   {
@@ -1949,7 +1949,7 @@ let exercise : Exercise.spec =
                                               };
                                             Tile
                                               {
-                                                id = Id.mk ();
+                                                extra = Id.mk ();
                                                 label = [ "("; ")" ];
                                                 mold =
                                                   {
@@ -1971,7 +1971,7 @@ let exercise : Exercise.spec =
                                                     [
                                                       Tile
                                                         {
-                                                          id = Id.mk ();
+                                                          extra = Id.mk ();
                                                           label = [ "-" ];
                                                           mold =
                                                             {
@@ -1994,7 +1994,7 @@ let exercise : Exercise.spec =
                                                         };
                                                       Tile
                                                         {
-                                                          id = Id.mk ();
+                                                          extra = Id.mk ();
                                                           label = [ "x" ];
                                                           mold =
                                                             {
@@ -2036,7 +2036,7 @@ let exercise : Exercise.spec =
                                     { id = Id.mk (); content = Whitespace " " };
                                   Tile
                                     {
-                                      id = Id.mk ();
+                                      extra = Id.mk ();
                                       label = [ "if"; "then"; "else" ];
                                       mold =
                                         {
@@ -2058,7 +2058,7 @@ let exercise : Exercise.spec =
                                               };
                                             Tile
                                               {
-                                                id = Id.mk ();
+                                                extra = Id.mk ();
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -2084,7 +2084,7 @@ let exercise : Exercise.spec =
                                               };
                                             Tile
                                               {
-                                                id = Id.mk ();
+                                                extra = Id.mk ();
                                                 label = [ "==" ];
                                                 mold =
                                                   {
@@ -2110,7 +2110,7 @@ let exercise : Exercise.spec =
                                               };
                                             Tile
                                               {
-                                                id = Id.mk ();
+                                                extra = Id.mk ();
                                                 label = [ "0" ];
                                                 mold =
                                                   {
@@ -2143,7 +2143,7 @@ let exercise : Exercise.spec =
                                               };
                                             Tile
                                               {
-                                                id = Id.mk ();
+                                                extra = Id.mk ();
                                                 label = [ "true" ];
                                                 mold =
                                                   {
@@ -2180,7 +2180,7 @@ let exercise : Exercise.spec =
                                     { id = Id.mk (); content = Whitespace " " };
                                   Tile
                                     {
-                                      id = Id.mk ();
+                                      extra = Id.mk ();
                                       label = [ "if"; "then"; "else" ];
                                       mold =
                                         {
@@ -2202,7 +2202,7 @@ let exercise : Exercise.spec =
                                               };
                                             Tile
                                               {
-                                                id = Id.mk ();
+                                                extra = Id.mk ();
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -2228,7 +2228,7 @@ let exercise : Exercise.spec =
                                               };
                                             Tile
                                               {
-                                                id = Id.mk ();
+                                                extra = Id.mk ();
                                                 label = [ "==" ];
                                                 mold =
                                                   {
@@ -2254,7 +2254,7 @@ let exercise : Exercise.spec =
                                               };
                                             Tile
                                               {
-                                                id = Id.mk ();
+                                                extra = Id.mk ();
                                                 label = [ "1" ];
                                                 mold =
                                                   {
@@ -2287,7 +2287,7 @@ let exercise : Exercise.spec =
                                               };
                                             Tile
                                               {
-                                                id = Id.mk ();
+                                                extra = Id.mk ();
                                                 label = [ "true" ];
                                                 mold =
                                                   {
@@ -2324,7 +2324,7 @@ let exercise : Exercise.spec =
                                     { id = Id.mk (); content = Whitespace " " };
                                   Tile
                                     {
-                                      id = Id.mk ();
+                                      extra = Id.mk ();
                                       label = [ "odd" ];
                                       mold =
                                         {
@@ -2339,7 +2339,7 @@ let exercise : Exercise.spec =
                                     };
                                   Tile
                                     {
-                                      id = Id.mk ();
+                                      extra = Id.mk ();
                                       label = [ "("; ")" ];
                                       mold =
                                         {
@@ -2355,7 +2355,7 @@ let exercise : Exercise.spec =
                                           [
                                             Tile
                                               {
-                                                id = Id.mk ();
+                                                extra = Id.mk ();
                                                 label = [ "x" ];
                                                 mold =
                                                   {
@@ -2381,7 +2381,7 @@ let exercise : Exercise.spec =
                                               };
                                             Tile
                                               {
-                                                id = Id.mk ();
+                                                extra = Id.mk ();
                                                 label = [ "-" ];
                                                 mold =
                                                   {
@@ -2407,7 +2407,7 @@ let exercise : Exercise.spec =
                                               };
                                             Tile
                                               {
-                                                id = Id.mk ();
+                                                extra = Id.mk ();
                                                 label = [ "1" ];
                                                 mold =
                                                   {
@@ -2457,7 +2457,7 @@ let exercise : Exercise.spec =
                   ( [
                       Tile
                         {
-                          id = Id.mk ();
+                          extra = Id.mk ();
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -2475,7 +2475,7 @@ let exercise : Exercise.spec =
                                   { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
-                                    id = Id.mk ();
+                                    extra = Id.mk ();
                                     label = [ "not" ];
                                     mold =
                                       {
@@ -2490,7 +2490,7 @@ let exercise : Exercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = Id.mk ();
+                                    extra = Id.mk ();
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -2506,7 +2506,7 @@ let exercise : Exercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = Id.mk ();
+                                              extra = Id.mk ();
                                               label = [ "odd" ];
                                               mold =
                                                 {
@@ -2527,7 +2527,7 @@ let exercise : Exercise.spec =
                                             };
                                           Tile
                                             {
-                                              id = Id.mk ();
+                                              extra = Id.mk ();
                                               label = [ "("; ")" ];
                                               mold =
                                                 {
@@ -2549,7 +2549,7 @@ let exercise : Exercise.spec =
                                                   [
                                                     Tile
                                                       {
-                                                        id = Id.mk ();
+                                                        extra = Id.mk ();
                                                         label = [ "0" ];
                                                         mold =
                                                           {
@@ -2581,7 +2581,7 @@ let exercise : Exercise.spec =
                         };
                       Tile
                         {
-                          id = Id.mk ();
+                          extra = Id.mk ();
                           label = [ ";" ];
                           mold =
                             {
@@ -2598,7 +2598,7 @@ let exercise : Exercise.spec =
                         { id = Id.mk (); content = Whitespace "\226\143\142" };
                       Tile
                         {
-                          id = Id.mk ();
+                          extra = Id.mk ();
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -2616,7 +2616,7 @@ let exercise : Exercise.spec =
                                   { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
-                                    id = Id.mk ();
+                                    extra = Id.mk ();
                                     label = [ "odd" ];
                                     mold =
                                       {
@@ -2631,7 +2631,7 @@ let exercise : Exercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = Id.mk ();
+                                    extra = Id.mk ();
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -2647,7 +2647,7 @@ let exercise : Exercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = Id.mk ();
+                                              extra = Id.mk ();
                                               label = [ "1" ];
                                               mold =
                                                 {
@@ -2676,7 +2676,7 @@ let exercise : Exercise.spec =
                         };
                       Tile
                         {
-                          id = Id.mk ();
+                          extra = Id.mk ();
                           label = [ ";" ];
                           mold =
                             {
@@ -2693,7 +2693,7 @@ let exercise : Exercise.spec =
                         { id = Id.mk (); content = Whitespace "\226\143\142" };
                       Tile
                         {
-                          id = Id.mk ();
+                          extra = Id.mk ();
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -2711,7 +2711,7 @@ let exercise : Exercise.spec =
                                   { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
-                                    id = Id.mk ();
+                                    extra = Id.mk ();
                                     label = [ "not" ];
                                     mold =
                                       {
@@ -2726,7 +2726,7 @@ let exercise : Exercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = Id.mk ();
+                                    extra = Id.mk ();
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -2742,7 +2742,7 @@ let exercise : Exercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = Id.mk ();
+                                              extra = Id.mk ();
                                               label = [ "odd" ];
                                               mold =
                                                 {
@@ -2763,7 +2763,7 @@ let exercise : Exercise.spec =
                                             };
                                           Tile
                                             {
-                                              id = Id.mk ();
+                                              extra = Id.mk ();
                                               label = [ "("; ")" ];
                                               mold =
                                                 {
@@ -2785,7 +2785,7 @@ let exercise : Exercise.spec =
                                                   [
                                                     Tile
                                                       {
-                                                        id = Id.mk ();
+                                                        extra = Id.mk ();
                                                         label = [ "2" ];
                                                         mold =
                                                           {
@@ -2817,7 +2817,7 @@ let exercise : Exercise.spec =
                         };
                       Tile
                         {
-                          id = Id.mk ();
+                          extra = Id.mk ();
                           label = [ ";" ];
                           mold =
                             {
@@ -2834,7 +2834,7 @@ let exercise : Exercise.spec =
                         { id = Id.mk (); content = Whitespace "\226\143\142" };
                       Tile
                         {
-                          id = Id.mk ();
+                          extra = Id.mk ();
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -2852,7 +2852,7 @@ let exercise : Exercise.spec =
                                   { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
-                                    id = Id.mk ();
+                                    extra = Id.mk ();
                                     label = [ "odd" ];
                                     mold =
                                       {
@@ -2867,7 +2867,7 @@ let exercise : Exercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = Id.mk ();
+                                    extra = Id.mk ();
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -2883,7 +2883,7 @@ let exercise : Exercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = Id.mk ();
+                                              extra = Id.mk ();
                                               label = [ "3" ];
                                               mold =
                                                 {
@@ -2912,7 +2912,7 @@ let exercise : Exercise.spec =
                         };
                       Tile
                         {
-                          id = Id.mk ();
+                          extra = Id.mk ();
                           label = [ ";" ];
                           mold =
                             {
@@ -2929,7 +2929,7 @@ let exercise : Exercise.spec =
                         { id = Id.mk (); content = Whitespace "\226\143\142" };
                       Tile
                         {
-                          id = Id.mk ();
+                          extra = Id.mk ();
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -2947,7 +2947,7 @@ let exercise : Exercise.spec =
                                   { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
-                                    id = Id.mk ();
+                                    extra = Id.mk ();
                                     label = [ "not" ];
                                     mold =
                                       {
@@ -2962,7 +2962,7 @@ let exercise : Exercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = Id.mk ();
+                                    extra = Id.mk ();
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -2978,7 +2978,7 @@ let exercise : Exercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = Id.mk ();
+                                              extra = Id.mk ();
                                               label = [ "odd" ];
                                               mold =
                                                 {
@@ -2999,7 +2999,7 @@ let exercise : Exercise.spec =
                                             };
                                           Tile
                                             {
-                                              id = Id.mk ();
+                                              extra = Id.mk ();
                                               label = [ "("; ")" ];
                                               mold =
                                                 {
@@ -3021,7 +3021,7 @@ let exercise : Exercise.spec =
                                                   [
                                                     Tile
                                                       {
-                                                        id = Id.mk ();
+                                                        extra = Id.mk ();
                                                         label = [ "42" ];
                                                         mold =
                                                           {
@@ -3053,7 +3053,7 @@ let exercise : Exercise.spec =
                         };
                       Tile
                         {
-                          id = Id.mk ();
+                          extra = Id.mk ();
                           label = [ ";" ];
                           mold =
                             {
@@ -3071,7 +3071,7 @@ let exercise : Exercise.spec =
                         { id = Id.mk (); content = Whitespace "\226\143\142" };
                       Tile
                         {
-                          id = Id.mk ();
+                          extra = Id.mk ();
                           label = [ "test"; "end" ];
                           mold =
                             {
@@ -3089,7 +3089,7 @@ let exercise : Exercise.spec =
                                   { id = Id.mk (); content = Whitespace " " };
                                 Tile
                                   {
-                                    id = Id.mk ();
+                                    extra = Id.mk ();
                                     label = [ "odd" ];
                                     mold =
                                       {
@@ -3104,7 +3104,7 @@ let exercise : Exercise.spec =
                                   };
                                 Tile
                                   {
-                                    id = Id.mk ();
+                                    extra = Id.mk ();
                                     label = [ "("; ")" ];
                                     mold =
                                       {
@@ -3120,7 +3120,7 @@ let exercise : Exercise.spec =
                                         [
                                           Tile
                                             {
-                                              id = Id.mk ();
+                                              extra = Id.mk ();
                                               label = [ "27" ];
                                               mold =
                                                 {

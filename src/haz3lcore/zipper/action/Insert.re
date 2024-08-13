@@ -38,7 +38,7 @@ let expand_or_barf_right_neighbor = (z as s: t): option(t) =>
   | _ => Some(s)
   };
 
-let get_duo_shard = ({label, shards, _}: Tile.t) =>
+let get_duo_shard = ({label, shards, _}: Tile.t('a)) =>
   if (List.length(label) == 2 && List.length(shards) == 1) {
     List.nth_opt(label, List.hd(shards));
   } else {

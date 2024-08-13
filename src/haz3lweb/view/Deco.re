@@ -22,7 +22,7 @@ module HighlightSegment =
   let find_g = Measured.find_g(~msg="Highlight.of_piece", _, M.measured);
   let find_w = Measured.find_w(~msg="Highlight.of_piece", _, M.measured);
   let rec of_piece =
-          (start_shape: Nib.Shape.t, p: Piece.t)
+          (start_shape: Nib.Shape.t, p: Piece.t(Id.t))
           : (Nib.Shape.t, list(option(shard_data))) => {
     let shard_data =
       switch (p) {
@@ -39,7 +39,7 @@ module HighlightSegment =
       };
     (start_shape, shard_data);
   }
-  and of_tile = (~start_shape, t: Tile.t): list(option(shard_data)) => {
+  and of_tile = (~start_shape, t: Tile.t(Id.t)): list(option(shard_data)) => {
     let tile_shards =
       Measured.find_shards(~msg="sel_of_tile", t, M.measured)
       |> List.filter(((i, _)) => List.mem(i, t.shards))
@@ -59,14 +59,14 @@ module HighlightSegment =
     ListUtil.interleave(tile_shards, children_shards) |> List.flatten;
   }
   and of_projector =
-      (~start_shape, p: Base.projector): list(option(shard_data)) => {
+      (~start_shape, p: Base.projector(Id.t)): list(option(shard_data)) => {
     let m =
       switch (Measured.find_pr_opt(p, M.measured)) {
       | None =>
         failwith("TODO(andrew): Deco.sel_of_projector: missing measurement")
       | Some(m) => m
       };
-    let ci = Id.Map.find_opt(p.id, M.info_map);
+    let ci = Id.Map.find_opt(p.extra, M.info_map);
     let token = Projector.placeholder(p, ci);
     switch (StringUtil.num_linebreaks(token)) {
     | 0 => [Some(sel_shard_svg(~start_shape, ~index=0, m, Projector(p)))]
@@ -77,13 +77,14 @@ module HighlightSegment =
     };
   }
   and of_segment =
-      (start_shape: Nib.Shape.t, seg: Segment.t): list(option(shard_data)) => {
+      (start_shape: Nib.Shape.t, seg: Segment.t(Id.t))
+      : list(option(shard_data)) => {
     seg
     |> ListUtil.fold_left_map(of_piece, start_shape)
     |> snd
     |> List.flatten;
   }
-  and go = (segment: Segment.t, shape_init, classes): list(Node.t) =>
+  and go = (segment: Segment.t(Id.t), shape_init, classes): list(Node.t) =>
     /* We draw a single deco per row by dividing partionining the shards
      * into linebreak-seperated segments, then combining the measurements
      * and shapes of the first and last shard of each segment. Ideally we
@@ -152,7 +153,8 @@ module Deco =
     };
   };
 
-  let all_tiles = (p: Piece.t): list((Uuidm.t, Mold.t, Measured.Shards.t)) =>
+  let all_tiles =
+      (p: Piece.t(Id.t)): list((Uuidm.t, Mold.t, Measured.Shards.t)) =>
     Id.Map.find(Piece.id(p), M.meta.syntax.terms)
     |> Any.ids
     |> List.map(id => {
@@ -196,7 +198,8 @@ module Deco =
     };
   };
 
-  let rec targets = (~container_shards=?, bp: Backpack.t, seg: Segment.t) => {
+  let rec targets =
+          (~container_shards=?, bp: Backpack.t, seg: Segment.t(Id.t)) => {
     let with_container_shards = ((pre, suf) as sibs) =>
       switch (container_shards) {
       | None => sibs
@@ -246,7 +249,7 @@ module Deco =
            | Piece.Tile(t) => Some(t)
            | _ => None,
          )
-      |> List.concat_map((t: Tile.t) => {
+      |> List.concat_map((t: Tile.t(Id.t)) => {
            // TODO(d): unify with Relatives.local_incomplete_tiles
            Tile.contained_children(t)
            |> List.concat_map(((l, seg, r)) =>

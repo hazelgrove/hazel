@@ -16,7 +16,7 @@ type shape =
 /* The type of syntax which a projector can replace.
  * Right now projectors can replace a single piece */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type syntax = Base.piece;
+type syntax = Base.piece(Id.t);
 
 /* Global actions available to handlers in all projectors */
 type external_action =
@@ -65,7 +65,7 @@ module type Projector = {
    * syntax (currently limited to convex pieces) is
    * supported by this projector. This is used to gate
    * adding the projector */
-  let can_project: Base.piece => bool;
+  let can_project: Base.piece(Id.t) => bool;
   /* Does this projector have internal position states,
    * overriding the editor caret & keyboard handlers?
    * If yes, the focus method will be called when this
@@ -138,7 +138,7 @@ module Cook = (C: Projector) : Cooked => {
 };
 
 /* Projectors currently are all convex */
-let shapes = (_: Base.projector) => Nib.Shape.(Convex, Convex);
+let shapes = (_: Base.projector('a)) => Nib.Shape.(Convex, Convex);
 
 /* Projectors currently have a unique molding */
 let mold_of = (p, sort: Sort.t): Mold.t => {

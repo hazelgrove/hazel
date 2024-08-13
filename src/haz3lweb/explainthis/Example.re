@@ -1,11 +1,12 @@
 open Haz3lcore;
 
-let mk_secondary: string => Piece.t =
+let mk_secondary: string => Piece.t(Id.t) =
   content => Secondary({id: Id.mk(), content: Whitespace(content)});
 
 let mk_tile = Piece.mk_tile;
 
-let mk_ancestor: (Form.t, (list(Segment.t), list(Segment.t))) => Ancestor.t =
+let mk_ancestor:
+  (Form.t, (list(Segment.t(Id.t)), list(Segment.t(Id.t)))) => Ancestor.t =
   //TODO: asserts
   (form, (l, _) as children) => {
     id: Id.mk(),
@@ -28,10 +29,18 @@ let mk_parens_ancestor = mk_ancestor(Form.get("parens_exp"));
 let mk_let_ancestor = mk_ancestor(Form.get("let_"));
 let plus = mk_monotile(Form.get("plus"));
 
-let l_sibling: Segment.t = [plus, Grout({id: Id.mk(), shape: Convex})];
-let r_sibling: Segment.t = [mk_parens_exp([[int("1"), plus, int("2")]])];
+let l_sibling: Segment.t(Id.t) = [
+  plus,
+  Grout({id: Id.mk(), shape: Convex}),
+];
+let r_sibling: Segment.t(Id.t) = [
+  mk_parens_exp([[int("1"), plus, int("2")]]),
+];
 
-let content: Segment.t = [exp("foo"), Grout({id: Id.mk(), shape: Concave})];
+let content: Segment.t(Id.t) = [
+  exp("foo"),
+  Grout({id: Id.mk(), shape: Concave}),
+];
 
 let ancestors: Ancestors.t = [
   (mk_parens_ancestor(([], [])), ([mk_fun([[pat("bar")]])], [])),

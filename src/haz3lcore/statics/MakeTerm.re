@@ -18,7 +18,7 @@ let tokens =
   Piece.get(
     _ => [],
     _ => [" "],
-    (t: Tile.t) => t.shards |> List.map(List.nth(t.label)),
+    (t: Tile.t('a)) => t.shards |> List.map(List.nth(t.label)),
     _ => [],
   );
 
@@ -38,7 +38,7 @@ type unsorted =
 type t = {
   term: UExp.t,
   terms: TermMap.t,
-  projectors: Id.Map.t(Piece.projector),
+  projectors: Id.Map.t(Piece.projector(Id.t)),
 };
 
 let is_nary =
@@ -110,14 +110,14 @@ let return = (wrap, ids, tm) => {
 };
 
 /* Map to collect projector ids */
-let projectors: ref(Id.Map.t(Piece.projector)) = ref(Id.Map.empty);
+let projectors: ref(Id.Map.t(Piece.projector(Id.t))) = ref(Id.Map.empty);
 
 /* Strip a projector from a segment and log it in the map */
-let rm_and_log_projectors = (seg: Segment.t): Segment.t =>
+let rm_and_log_projectors = (seg: Segment.t(Id.t)): Segment.t(Id.t) =>
   List.map(
     fun
     | Piece.Projector(pr) => {
-        projectors := Id.Map.add(pr.id, pr, projectors^);
+        projectors := Id.Map.add(pr.extra, pr, projectors^);
         pr.syntax;
       }
     | x => x,
@@ -139,7 +139,7 @@ let mk_bad = (ctr, ids, value) => {
   };
 };
 
-let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
+let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t(Id.t)): Term.Any.t =>
   switch (s) {
   | Pat => Pat(pat(unsorted(skel, seg)))
   | TPat => TPat(tpat(unsorted(skel, seg)))
@@ -514,11 +514,11 @@ and rul = (unsorted: unsorted): Rul.t => {
   };
 }
 
-and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
+and unsorted = (skel: Skel.t, seg: Segment.t(Id.t)): unsorted => {
   /* Remove projectors. We do this here as opposed to removing
    * them in an external call to save a whole-syntax pass. */
   let seg = rm_and_log_projectors(seg);
-  let tile_kids = (p: Piece.t): list(Term.Any.t) =>
+  let tile_kids = (p: Piece.t(Id.t)): list(Term.Any.t) =>
     switch (p) {
     | Secondary(_)
     | Grout(_) => []
@@ -531,7 +531,7 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
          })
     };
 
-  let root: Aba.t(Piece.t, Skel.t) =
+  let root: Aba.t(Piece.t(Id.t), Skel.t) =
     Skel.root(skel) |> Aba.map_a(List.nth(seg));
 
   // maintaining this alternating ordered structure

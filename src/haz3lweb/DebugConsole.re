@@ -11,7 +11,11 @@ let print = ({settings, editors, _}: Model.t, key: string): unit => {
   let print = print_endline;
   switch (key) {
   | "F1" => zipper |> Zipper.show |> print
-  | "F2" => zipper |> Zipper.unselect_and_zip |> Segment.show |> print
+  | "F2" =>
+    zipper
+    |> Zipper.unselect_and_zip
+    |> ((seg: Segment.t(Uuidm.t)) => [%derive.show: Segment.t(Id.t)](seg))
+    |> print
   | "F3" => term |> UExp.show |> print
   | "F4" => map |> Statics.Map.show |> print
   | "F5" =>

@@ -233,7 +233,7 @@ let expander_deco =
       ~settings: Settings.t,
       ~inject,
       ~ui_state: Model.ui_state,
-      ~options: list((ExplainThisForm.form_id, Segment.t)),
+      ~options: list((ExplainThisForm.form_id, Segment.t(Id.t))),
       ~group: ExplainThisForm.group,
       ~doc: ExplainThisForm.form,
     ) => {
@@ -283,7 +283,7 @@ let expander_deco =
               specificity_style,
             ],
             List.map(
-              ((id: ExplainThisForm.form_id, segment: Segment.t)): Node.t => {
+              ((id: ExplainThisForm.form_id, segment: Segment.t(Id.t))): Node.t => {
                 let code_view =
                   Code.simple_view(~font_metrics, ~segment, ~settings);
                 let classes =
