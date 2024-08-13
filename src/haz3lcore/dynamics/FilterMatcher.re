@@ -1,9 +1,9 @@
 let rec matches_exp =
         (
           ~denv: ClosureEnvironment.t,
-          d: DHExp.t,
+          d: DHExp.t(list(Id.t)),
           ~fenv: ClosureEnvironment.t,
-          f: DHExp.t,
+          f: DHExp.t(list(Id.t)),
         )
         : bool => {
   let matches_exp = (~denv=denv, ~fenv=fenv, d, f) =>
@@ -286,10 +286,10 @@ and matches_fun =
     (
       ~denv: ClosureEnvironment.t,
       dp: DHPat.t,
-      d: DHExp.t,
+      d: DHExp.t(list(Id.t)),
       ~fenv: ClosureEnvironment.t,
       fp: DHPat.t,
-      f: DHExp.t,
+      f: DHExp.t(list(Id.t)),
     ) => {
   matches_pat(dp, fp)
   && matches_exp(
@@ -366,7 +366,7 @@ and matches_utpat = (d: TPat.t, f: TPat.t): bool => {
 let matches =
     (
       ~env: ClosureEnvironment.t,
-      ~exp: DHExp.t,
+      ~exp: DHExp.t(list(Id.t)),
       ~flt: TermBase.StepperFilterKind.filter,
     )
     : option(FilterAction.t) =>
@@ -377,7 +377,12 @@ let matches =
   };
 
 let matches =
-    (~env: ClosureEnvironment.t, ~exp: DHExp.t, ~act: FilterAction.t, flt_env)
+    (
+      ~env: ClosureEnvironment.t,
+      ~exp: DHExp.t(list(Id.t)),
+      ~act: FilterAction.t,
+      flt_env,
+    )
     : (FilterAction.t, int) => {
   let len = List.length(flt_env);
   let rec matches' = (~env, ~exp, ~act, flt_env, idx) => {

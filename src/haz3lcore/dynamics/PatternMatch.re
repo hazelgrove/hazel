@@ -11,7 +11,7 @@ let combine_result = (r1: match_result, r2: match_result): match_result =>
     Matches(Environment.union(env1, env2))
   };
 
-let rec matches = (dp: Pat.t, d: DHExp.t): match_result =>
+let rec matches = (dp: Pat.t, d: DHExp.t(list(Id.t))): match_result =>
   switch (DHPat.term_of(dp)) {
   | Invalid(_)
   | EmptyHole

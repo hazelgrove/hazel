@@ -192,7 +192,7 @@ type status_tpat =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type exp = {
-  term: UExp.t, /* The term under consideration */
+  term: UExp.t(list(Id.t)), /* The term under consideration */
   ancestors, /* Ascending list of containing term ids */
   ctx: Ctx.t, /* Typing context for the term */
   mode: Mode.t, /* Parental type expectations  */
@@ -610,7 +610,8 @@ let fixed_typ_exp = (ctx, mode: Mode.t, self: Self.exp): Typ.t =>
 
 /* Add derivable attributes for expression terms */
 let derived_exp =
-    (~uexp: UExp.t, ~ctx, ~mode, ~ancestors, ~self, ~co_ctx): exp => {
+    (~uexp: UExp.t(list(Id.t)), ~ctx, ~mode, ~ancestors, ~self, ~co_ctx)
+    : exp => {
   let cls = Cls.Exp(UExp.cls_of_term(uexp.term));
   let status = status_exp(ctx, mode, self);
   let ty = fixed_typ_exp(ctx, mode, self);

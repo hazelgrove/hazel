@@ -172,7 +172,7 @@ and uexp_to_info_map =
       ~mode=Mode.Syn,
       ~is_in_filter=false,
       ~ancestors,
-      {ids, copied: _, term} as uexp: UExp.t,
+      {ids, copied: _, term} as uexp: UExp.t(list(Id.t)),
       m: Map.t,
     )
     : (Info.exp, Map.t) => {
@@ -195,7 +195,7 @@ and uexp_to_info_map =
         ~mode=Mode.Syn,
         ~is_in_filter=is_in_filter,
         ~ancestors=ancestors,
-        uexp: UExp.t,
+        uexp: UExp.t(list(Id.t)),
         m: Map.t,
       ) => {
     uexp_to_info_map(~ctx, ~mode, ~is_in_filter, ~ancestors, uexp, m);
@@ -271,7 +271,7 @@ and uexp_to_info_map =
     let (e, m) = go(~mode, e, m);
     add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
   | UnOp(Meta(Unquote), e) when is_in_filter =>
-    let e: UExp.t = {
+    let e: UExp.t(list(Id.t)) = {
       ids: e.ids,
       copied: false,
       term:

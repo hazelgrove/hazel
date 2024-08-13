@@ -36,7 +36,7 @@ type unsorted =
   | Bin(t, tiles, t);
 
 type t = {
-  term: UExp.t,
+  term: UExp.t(list(Id.t)),
   terms: TermMap.t,
   projectors: Id.Map.t(Piece.projector(Id.t)),
 };
@@ -58,7 +58,8 @@ let is_typ_bsum = is_nary(Any.is_typ, "+");
 let is_grout = tiles =>
   Aba.get_as(tiles) |> List.map(snd) |> List.for_all((==)(([" "], [])));
 
-let is_rules = ((ts, kids): tiles): option(Aba.t(UPat.t, UExp.t)) => {
+let is_rules =
+    ((ts, kids): tiles): option(Aba.t(UPat.t, UExp.t(list(Id.t)))) => {
   open OptUtil.Syntax;
   let+ ps =
     ts
@@ -170,8 +171,8 @@ and exp = unsorted => {
   let ids = ids(unsorted) @ inner_ids;
   return(e => Exp(e), ids, {ids, copied: false, term});
 }
-and exp_term: unsorted => (UExp.term, list(Id.t)) = {
-  let ret = (tm: UExp.term) => (tm, []);
+and exp_term: unsorted => (UExp.term(list(Id.t)), list(Id.t)) = {
+  let ret = (tm: UExp.term(list(Id.t))) => (tm, []);
   let hole = unsorted => UExp.hole(kids_of_unsorted(unsorted));
   fun
   | Op(tiles) as tm =>
@@ -250,7 +251,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           ),
         )
       | (["(", ")"], [Exp(arg)]) =>
-        let use_deferral = (arg: UExp.t): UExp.t => {
+        let use_deferral = (arg: UExp.t(list(Id.t))): UExp.t(list(Id.t)) => {
           ids: arg.ids,
           copied: false,
           term: Deferral(InAp),

@@ -19,7 +19,7 @@ let stop = (_, x) => x;
 
      map_term:
      (
-       ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
+       ~f_exp: (Exp.t('id) => Exp.t('id) , Exp.t('id) ) => Exp.t('id) =?,
        ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
        ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
        ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
@@ -45,7 +45,7 @@ let stop = (_, x) => x;
 module rec Any: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | Exp(Exp.t)
+    | Exp(Exp.t(list(Id.t)))
     | Pat(Pat.t)
     | Typ(Typ.t)
     | TPat(TPat.t)
@@ -55,7 +55,12 @@ module rec Any: {
 
   let map_term:
     (
-      ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
+      ~f_exp: (
+                Exp.t(list(Id.t)) => Exp.t(list(Id.t)),
+                Exp.t(list(Id.t))
+              ) =>
+              Exp.t(list(Id.t))
+                =?,
       ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
       ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
       ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
@@ -69,7 +74,7 @@ module rec Any: {
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | Exp(Exp.t)
+    | Exp(Exp.t(list(Id.t)))
     | Pat(Pat.t)
     | Typ(Typ.t)
     | TPat(TPat.t)
@@ -132,66 +137,71 @@ and Exp: {
     | OutsideAp;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type term =
+  type term('id) =
     | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
-    | DynamicErrorHole(t, InvalidOperationError.t)
-    | FailedCast(t, Typ.t, Typ.t)
+    | DynamicErrorHole(t('id), InvalidOperationError.t)
+    | FailedCast(t('id), Typ.t, Typ.t)
     | Deferral(deferral_position)
     | Undefined
     | Bool(bool)
     | Int(int)
     | Float(float)
     | String(string)
-    | ListLit(list(t))
+    | ListLit(list(t('id)))
     | Constructor(string, Typ.t) // Typ.t field is only meaningful in dynamic expressions
     | Fun(
         Pat.t,
-        t,
+        t('id),
         [@show.opaque] option(ClosureEnvironment.t),
         option(Var.t),
       )
-    | TypFun(TPat.t, t, option(Var.t))
-    | Tuple(list(t))
+    | TypFun(TPat.t, t('id), option(Var.t))
+    | Tuple(list(t('id)))
     | Var(Var.t)
-    | Let(Pat.t, t, t)
-    | FixF(Pat.t, t, option(ClosureEnvironment.t))
-    | TyAlias(TPat.t, Typ.t, t)
-    | Ap(Operators.ap_direction, t, t)
-    | TypAp(t, Typ.t)
-    | DeferredAp(t, list(t))
-    | If(t, t, t)
-    | Seq(t, t)
-    | Test(t)
-    | Filter(StepperFilterKind.t, t)
-    | Closure([@show.opaque] ClosureEnvironment.t, t)
-    | Parens(t) // (
-    | Cons(t, t)
-    | ListConcat(t, t)
-    | UnOp(Operators.op_un, t)
-    | BinOp(Operators.op_bin, t, t)
+    | Let(Pat.t, t('id), t('id))
+    | FixF(Pat.t, t('id), option(ClosureEnvironment.t))
+    | TyAlias(TPat.t, Typ.t, t('id))
+    | Ap(Operators.ap_direction, t('id), t('id))
+    | TypAp(t('id), Typ.t)
+    | DeferredAp(t('id), list(t('id)))
+    | If(t('id), t('id), t('id))
+    | Seq(t('id), t('id))
+    | Test(t('id))
+    | Filter(StepperFilterKind.t, t('id))
+    | Closure([@show.opaque] ClosureEnvironment.t, t('id))
+    | Parens(t('id)) // (
+    | Cons(t('id), t('id))
+    | ListConcat(t('id), t('id))
+    | UnOp(Operators.op_un, t('id))
+    | BinOp(Operators.op_bin, t('id), t('id))
     | BuiltinFun(string)
-    | Match(t, list((Pat.t, t)))
+    | Match(t('id), list((Pat.t, t('id))))
     /* INVARIANT: in dynamic expressions, casts must be between
        two consistent types. Both types should be normalized in
        dynamics for the cast calculus to work right. */
-    | Cast(t, Typ.t, Typ.t) // first Typ.t field is only meaningful in dynamic expressions
-  and t = IdTagged.t(term);
+    | Cast(t('id), Typ.t, Typ.t) // first Typ.t field is only meaningful in dynamic expressions
+  and t('id) = IdTagged.t(term('id), 'id);
 
   let map_term:
     (
-      ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
+      ~f_exp: (
+                Exp.t(list(Id.t)) => Exp.t(list(Id.t)),
+                Exp.t(list(Id.t))
+              ) =>
+              Exp.t(list(Id.t))
+                =?,
       ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
       ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
       ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
       ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
-      t
+      t(list(Id.t))
     ) =>
-    t;
+    t(list(Id.t));
 
-  let fast_equal: (t, t) => bool;
+  let fast_equal: (t('id), t('id)) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type deferral_position =
@@ -199,49 +209,52 @@ and Exp: {
     | OutsideAp;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type term =
+  type term('id) =
     | Invalid(string)
     | EmptyHole
     | MultiHole(list(Any.t))
-    | DynamicErrorHole(t, InvalidOperationError.t)
-    | FailedCast(t, Typ.t, Typ.t)
+    | DynamicErrorHole(t('id), InvalidOperationError.t)
+    | FailedCast(t('id), Typ.t, Typ.t)
     | Deferral(deferral_position)
     | Undefined
     | Bool(bool)
     | Int(int)
     | Float(float)
     | String(string)
-    | ListLit(list(t))
-    | Constructor(string, Typ.t)
+    | ListLit(list(t('id)))
+    | Constructor(string, Typ.t) // Typ.t field is only meaningful in dynamic expressions
     | Fun(
         Pat.t,
-        t,
+        t('id),
         [@show.opaque] option(ClosureEnvironment.t),
         option(Var.t),
       )
-    | TypFun(TPat.t, t, option(string))
-    | Tuple(list(t))
+    | TypFun(TPat.t, t('id), option(Var.t))
+    | Tuple(list(t('id)))
     | Var(Var.t)
-    | Let(Pat.t, t, t)
-    | FixF(Pat.t, t, [@show.opaque] option(ClosureEnvironment.t))
-    | TyAlias(TPat.t, Typ.t, t)
-    | Ap(Operators.ap_direction, t, t) // note: function is always first then argument; even in pipe mode
-    | TypAp(t, Typ.t)
-    | DeferredAp(t, list(t))
-    | If(t, t, t)
-    | Seq(t, t)
-    | Test(t)
-    | Filter(StepperFilterKind.t, t)
-    | Closure([@show.opaque] ClosureEnvironment.t, t)
-    | Parens(t)
-    | Cons(t, t)
-    | ListConcat(t, t)
-    | UnOp(Operators.op_un, t)
-    | BinOp(Operators.op_bin, t, t)
-    | BuiltinFun(string) /// Doesn't currently have a distinguishable syntax
-    | Match(t, list((Pat.t, t)))
-    | Cast(t, Typ.t, Typ.t)
-  and t = IdTagged.t(term);
+    | Let(Pat.t, t('id), t('id))
+    | FixF(Pat.t, t('id), option(ClosureEnvironment.t))
+    | TyAlias(TPat.t, Typ.t, t('id))
+    | Ap(Operators.ap_direction, t('id), t('id))
+    | TypAp(t('id), Typ.t)
+    | DeferredAp(t('id), list(t('id)))
+    | If(t('id), t('id), t('id))
+    | Seq(t('id), t('id))
+    | Test(t('id))
+    | Filter(StepperFilterKind.t, t('id))
+    | Closure([@show.opaque] ClosureEnvironment.t, t('id))
+    | Parens(t('id)) // (
+    | Cons(t('id), t('id))
+    | ListConcat(t('id), t('id))
+    | UnOp(Operators.op_un, t('id))
+    | BinOp(Operators.op_bin, t('id), t('id))
+    | BuiltinFun(string)
+    | Match(t('id), list((Pat.t, t('id))))
+    /* INVARIANT: in dynamic expressions, casts must be between
+       two consistent types. Both types should be normalized in
+       dynamics for the cast calculus to work right. */
+    | Cast(t('id), Typ.t, Typ.t) // first Typ.t field is only meaningful in dynamic expressions
+  and t('id) = IdTagged.t(term('id), 'id);
 
   let map_term =
       (
@@ -272,7 +285,7 @@ and Exp: {
         ~f_rul,
         ~f_any,
       );
-    let rec_call = ({term, _} as exp: t) => {
+    let rec_call = ({term, _} as exp: t(list(Id.t))) => {
       ...exp,
       term:
         switch (term) {
@@ -287,7 +300,9 @@ and Exp: {
         | Var(_)
         | Undefined => term
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
-        | DynamicErrorHole(e, err) => DynamicErrorHole(exp_map_term(e), err)
+        | DynamicErrorHole(e, err: InvalidOperationError.t) =>
+          let foo = exp_map_term(e);
+          DynamicErrorHole(foo, err);
         | FailedCast(e, t1, t2) => FailedCast(exp_map_term(e), t1, t2)
         | ListLit(ts) => ListLit(List.map(exp_map_term, ts))
         | Fun(p, e, env, f) =>
@@ -465,11 +480,16 @@ and Pat: {
     | Parens(t)
     | Ap(t, t)
     | Cast(t, Typ.t, Typ.t) // The second Typ.t field is only meaningful in dynamic patterns
-  and t = IdTagged.t(term);
+  and t = IdTagged.t(term, list(Id.t));
 
   let map_term:
     (
-      ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
+      ~f_exp: (
+                Exp.t(list(Id.t)) => Exp.t(list(Id.t)),
+                Exp.t(list(Id.t))
+              ) =>
+              Exp.t(list(Id.t))
+                =?,
       ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
       ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
       ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
@@ -499,7 +519,7 @@ and Pat: {
     | Parens(t)
     | Ap(t, t)
     | Cast(t, Typ.t, Typ.t) // The second one is hidden from the user
-  and t = IdTagged.t(term);
+  and t = IdTagged.t(term, list(Id.t));
 
   let map_term =
       (
@@ -619,13 +639,18 @@ and Typ: {
     | Ap(t, t)
     | Rec(TPat.t, t)
     | Forall(TPat.t, t)
-  and t = IdTagged.t(term);
+  and t = IdTagged.t(term, list(Id.t));
 
   type sum_map = ConstructorMap.t(t);
 
   let map_term:
     (
-      ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
+      ~f_exp: (
+                Exp.t(list(Id.t)) => Exp.t(list(Id.t)),
+                Exp.t(list(Id.t))
+              ) =>
+              Exp.t(list(Id.t))
+                =?,
       ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
       ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
       ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
@@ -671,7 +696,7 @@ and Typ: {
     | Ap(t, t)
     | Rec(TPat.t, t)
     | Forall(TPat.t, t)
-  and t = IdTagged.t(term);
+  and t = IdTagged.t(term, list(Id.t));
 
   type sum_map = ConstructorMap.t(t);
 
@@ -816,11 +841,16 @@ and TPat: {
     | EmptyHole
     | MultiHole(list(Any.t))
     | Var(string)
-  and t = IdTagged.t(term);
+  and t = IdTagged.t(term, list(Id.t));
 
   let map_term:
     (
-      ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
+      ~f_exp: (
+                Exp.t(list(Id.t)) => Exp.t(list(Id.t)),
+                Exp.t(list(Id.t))
+              ) =>
+              Exp.t(list(Id.t))
+                =?,
       ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
       ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
       ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
@@ -840,7 +870,7 @@ and TPat: {
     | EmptyHole
     | MultiHole(list(Any.t))
     | Var(string)
-  and t = IdTagged.t(term);
+  and t = IdTagged.t(term, list(Id.t));
 
   let map_term =
       (
@@ -892,12 +922,17 @@ and Rul: {
   type term =
     | Invalid(string)
     | Hole(list(Any.t))
-    | Rules(Exp.t, list((Pat.t, Exp.t)))
-  and t = IdTagged.t(term);
+    | Rules(Exp.t(list(Id.t)), list((Pat.t, Exp.t(list(Id.t)))))
+  and t = IdTagged.t(term, list(Id.t));
 
   let map_term:
     (
-      ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
+      ~f_exp: (
+                Exp.t(list(Id.t)) => Exp.t(list(Id.t)),
+                Exp.t(list(Id.t))
+              ) =>
+              Exp.t(list(Id.t))
+                =?,
       ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
       ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
       ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
@@ -913,8 +948,8 @@ and Rul: {
   type term =
     | Invalid(string)
     | Hole(list(Any.t))
-    | Rules(Exp.t, list((Pat.t, Exp.t)))
-  and t = IdTagged.t(term);
+    | Rules(Exp.t(list(Id.t)), list((Pat.t, Exp.t(list(Id.t)))))
+  and t = IdTagged.t(term, list(Id.t));
 
   let map_term =
       (
@@ -978,12 +1013,12 @@ and Environment: {
       type t_('a) = VarBstMap.Ordered.t_('a);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = t_(Exp.t);
+  type t = t_(Exp.t(list(Id.t)));
 } = {
   include VarBstMap.Ordered;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = t_(Exp.t);
+  type t = t_(Exp.t(list(Id.t)));
 }
 
 and ClosureEnvironment: {
@@ -995,7 +1030,7 @@ and ClosureEnvironment: {
   let id_of: t => Id.t;
   let map_of: t => Environment.t;
 
-  let to_list: t => list((Var.t, Exp.t));
+  let to_list: t => list((Var.t, Exp.t(list(Id.t))));
 
   let of_environment: Environment.t => t;
 
@@ -1005,19 +1040,20 @@ and ClosureEnvironment: {
   let is_empty: t => bool;
   let length: t => int;
 
-  let lookup: (t, Var.t) => option(Exp.t);
+  let lookup: (t, Var.t) => option(Exp.t(list(Id.t)));
   let contains: (t, Var.t) => bool;
   let update: (Environment.t => Environment.t, t) => t;
   let update_keep_id: (Environment.t => Environment.t, t) => t;
-  let extend: (t, (Var.t, Exp.t)) => t;
-  let extend_keep_id: (t, (Var.t, Exp.t)) => t;
+  let extend: (t, (Var.t, Exp.t(list(Id.t)))) => t;
+  let extend_keep_id: (t, (Var.t, Exp.t(list(Id.t)))) => t;
   let union: (t, t) => t;
   let union_keep_id: (t, t) => t;
-  let map: (((Var.t, Exp.t)) => Exp.t, t) => t;
-  let map_keep_id: (((Var.t, Exp.t)) => Exp.t, t) => t;
-  let filter: (((Var.t, Exp.t)) => bool, t) => t;
-  let filter_keep_id: (((Var.t, Exp.t)) => bool, t) => t;
-  let fold: (((Var.t, Exp.t), 'b) => 'b, 'b, t) => 'b;
+  let map: (((Var.t, Exp.t(list(Id.t)))) => Exp.t(list(Id.t)), t) => t;
+  let map_keep_id:
+    (((Var.t, Exp.t(list(Id.t)))) => Exp.t(list(Id.t)), t) => t;
+  let filter: (((Var.t, Exp.t(list(Id.t)))) => bool, t) => t;
+  let filter_keep_id: (((Var.t, Exp.t(list(Id.t)))) => bool, t) => t;
+  let fold: (((Var.t, Exp.t(list(Id.t))), 'b) => 'b, 'b, t) => 'b;
 
   let without_keys: (list(Var.t), t) => t;
 
@@ -1101,7 +1137,7 @@ and ClosureEnvironment: {
 and StepperFilterKind: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type filter = {
-    pat: Exp.t,
+    pat: Exp.t(list(Id.t)),
     act: FilterAction.t,
   };
 
@@ -1112,7 +1148,12 @@ and StepperFilterKind: {
 
   let map_term:
     (
-      ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
+      ~f_exp: (
+                Exp.t(list(Id.t)) => Exp.t(list(Id.t)),
+                Exp.t(list(Id.t))
+              ) =>
+              Exp.t(list(Id.t))
+                =?,
       ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
       ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
       ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
@@ -1122,13 +1163,13 @@ and StepperFilterKind: {
     ) =>
     t;
 
-  let map: (Exp.t => Exp.t, t) => t;
+  let map: (Exp.t(list(Id.t)) => Exp.t(list(Id.t)), t) => t;
 
   let fast_equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type filter = {
-    pat: Exp.t,
+    pat: Exp.t(list(Id.t)),
     act: FilterAction.t,
   };
 

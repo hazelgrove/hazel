@@ -7,10 +7,10 @@
 
 include Exp;
 
-let term_of: t => term = IdTagged.term_of;
-let fast_copy: (Id.t, t) => t = IdTagged.fast_copy;
+let term_of: t(list(Id.t)) => term(list(Id.t)) = IdTagged.term_of;
+let fast_copy: (Id.t, t(list(Id.t))) => t(list(Id.t)) = IdTagged.fast_copy;
 
-let mk = (ids, term): t => {
+let mk = (ids, term): t(list(Id.t)) => {
   {ids, copied: true, term};
 };
 
@@ -95,7 +95,7 @@ let assign_name_if_none = (t, name) => {
   };
 };
 
-let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
+let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t(list(Id.t))): t(list(Id.t)) => {
   switch (TPat.tyvar_of_utpat(tpat)) {
   | None => exp
   | Some(x) =>

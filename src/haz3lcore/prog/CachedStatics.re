@@ -2,7 +2,7 @@ open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type statics = {
-  term: UExp.t,
+  term: UExp.t(list(Id.t)),
   info_map: Statics.Map.t,
   error_ids: list(Id.t),
 };

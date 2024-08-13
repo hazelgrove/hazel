@@ -5,18 +5,18 @@ type t =
   | OutOfFuel
   | StepDoesNotMatch
   | BadPatternMatch
-  | CastBVHoleGround(DHExp.t)
-  | InvalidBoxedTypFun(DHExp.t)
-  | InvalidBoxedFun(DHExp.t)
-  | InvalidBoxedBoolLit(DHExp.t)
-  | InvalidBoxedIntLit(DHExp.t)
-  | InvalidBoxedFloatLit(DHExp.t)
-  | InvalidBoxedListLit(DHExp.t)
-  | InvalidBoxedStringLit(DHExp.t)
-  | InvalidBoxedSumConstructor(DHExp.t)
-  | InvalidBoxedTuple(DHExp.t)
+  | CastBVHoleGround(DHExp.t(list(Id.t)))
+  | InvalidBoxedTypFun(DHExp.t(list(Id.t)))
+  | InvalidBoxedFun(DHExp.t(list(Id.t)))
+  | InvalidBoxedBoolLit(DHExp.t(list(Id.t)))
+  | InvalidBoxedIntLit(DHExp.t(list(Id.t)))
+  | InvalidBoxedFloatLit(DHExp.t(list(Id.t)))
+  | InvalidBoxedListLit(DHExp.t(list(Id.t)))
+  | InvalidBoxedStringLit(DHExp.t(list(Id.t)))
+  | InvalidBoxedSumConstructor(DHExp.t(list(Id.t)))
+  | InvalidBoxedTuple(DHExp.t(list(Id.t)))
   | InvalidBuiltin(string)
-  | BadBuiltinAp(string, list(DHExp.t))
+  | BadBuiltinAp(string, list(DHExp.t(list(Id.t))))
   | InvalidProjection(int);
 
 exception Exception(t);

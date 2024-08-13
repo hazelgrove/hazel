@@ -2,7 +2,7 @@ open Util;
 
 module CachedStatics = {
   type t = {
-    term: UExp.t,
+    term: UExp.t(list(Id.t)),
     info_map: Statics.Map.t,
     error_ids: list(Id.t),
   };
@@ -43,7 +43,7 @@ module CachedSyntax = {
     tiles: TileMap.t,
     holes: list(Grout.t),
     selection_ids: list(Id.t),
-    term: UExp.t,
+    term: UExp.t(list(Id.t)),
     /* This term, and the term-derived data structured below, may differ
      * from the term used for semantics. These terms are identical when
      * the backpack is empty. If the backpack is non-empty, then when we

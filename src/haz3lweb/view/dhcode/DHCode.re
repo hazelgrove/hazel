@@ -135,7 +135,7 @@ let view =
       ~next_steps: list((int, Id.t))=[],
       ~result_key: string,
       ~infomap,
-      d: DHExp.t,
+      d: DHExp.t(list(Id.t)),
     )
     : Node.t => {
   DHDoc_Exp.mk(
