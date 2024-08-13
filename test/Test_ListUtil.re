@@ -228,5 +228,29 @@ let tests = (
         );
       },
     ),
+    test_case(
+      "combine_opt",
+      `Quick,
+      () => {
+        check(
+          option(list(pair(string, int))),
+          "Same size lists",
+          Some([("a", 1), ("b", 2), ("c", 3)]),
+          ListUtil.combine_opt(["a", "b", "c"], [1, 2, 3]),
+        );
+        check(
+          option(list(pair(string, int))),
+          "Empty Lists",
+          Some([]),
+          ListUtil.combine_opt([], []),
+        );
+        check(
+          option(list(pair(string, int))),
+          "Inconsistent size lists",
+          None,
+          ListUtil.combine_opt(["a"], [1, 2]),
+        );
+      },
+    ),
   ],
 );
