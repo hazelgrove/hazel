@@ -5,10 +5,13 @@ open Node;
 open Util.Web;
 open Widgets;
 
-let export_persistent_data = (~inject: Update.t => 'a) =>
+let export_persistent_data = (~globals: Globals.t) =>
   button_named(
     Icons.sprout,
-    _ => inject(ExportPersistentData),
+    _ => {
+      globals.export_persistent();
+      Ui_effect.Ignore;
+    },
     ~tooltip="Export All Persistent Data",
   );
 

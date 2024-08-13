@@ -32,7 +32,14 @@ module Model = {
        convenience to avoid having to pass it around everywhere. Can only
        be used in view functions. */
     get_log_and: (string => unit) => unit,
-    export_all: (~instructor_mode: bool, ~log: string) => Yojson.Safe.t,
+    export_all:
+      (
+        ~settings: Haz3lcore.CoreSettings.t,
+        ~instructor_mode: bool,
+        ~log: string
+      ) =>
+      Yojson.Safe.t,
+    export_persistent: unit => unit,
   };
 
   let load = () => {
@@ -49,8 +56,12 @@ module Model = {
         ),
       get_log_and: _ =>
         failwith("Cannot use get_log_and outside of the main view function!"),
-      export_all: (~instructor_mode as _, ~log as _) =>
+      export_all: (~settings as _, ~instructor_mode as _, ~log as _) =>
         failwith("Cannot use export_all outside of the main view function!"),
+      export_persistent: () =>
+        failwith(
+          "Cannot use export_persistent outside of the main view function!",
+        ),
     };
   };
 

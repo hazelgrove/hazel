@@ -178,7 +178,7 @@ let simple_view = (~font_metrics, ~segment, ~settings: Settings.t): Node.t => {
   );
 };
 
-let of_hole = (~font_metrics, ~measured, g: Grout.t) =>
+let of_hole = (~globals: Globals.t, ~measured, g: Grout.t) =>
   // TODO(d) fix sort
   EmptyHoleDec.view(
     ~font_metrics=globals.font_metrics,
@@ -190,8 +190,8 @@ let of_hole = (~font_metrics, ~measured, g: Grout.t) =>
 
 let view =
     (
+      ~globals: Globals.t,
       ~sort: Sort.t,
-      ~font_metrics,
       ~settings: Settings.t,
       z: Zipper.t,
       {syntax: {measured, segment, holes, selection_ids, _}, statics, _}: Editor.Meta.t,
@@ -205,7 +205,7 @@ let view =
     });
   let buffer_ids = Selection.is_buffer(z.selection) ? selection_ids : [];
   let code = Text.of_segment(buffer_ids, false, sort, segment);
-  let holes = List.map(of_hole(~measured, ~font_metrics), holes);
+  let holes = List.map(of_hole(~measured, ~globals), holes);
   div(
     ~attrs=[Attr.class_("code")],
     [span_c("code-text", code), ...holes],

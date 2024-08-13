@@ -19,17 +19,18 @@ type all_f22 = {
   log: string,
 };
 
-let mk_all = (~instructor_mode, ~log) => {
+let mk_all = (~core_settings, ~instructor_mode, ~log) => {
   let settings = Settings.Store.export();
   let explainThisModel = ExplainThisModel.Store.export();
   let scratch = ScratchMode.Store.export();
   let documentation = ScratchMode.StoreDocumentation.export();
-  let exercise = ExercisesMode.Store.export(~instructor_mode);
+  let exercise =
+    ExercisesMode.Store.export(~settings=core_settings, ~instructor_mode);
   {settings, explainThisModel, scratch, documentation, exercise, log};
 };
 
-let export_all = (~instructor_mode, ~log) => {
-  mk_all(~instructor_mode, ~log) |> yojson_of_all;
+let export_all = (~settings, ~instructor_mode, ~log) => {
+  mk_all(~core_settings=settings, ~instructor_mode, ~log) |> yojson_of_all;
 };
 
 let import_all = (~import_log: string => unit, data, ~specs) => {
@@ -51,6 +52,26 @@ let import_all = (~import_log: string => unit, data, ~specs) => {
   ExplainThisModel.Store.import(all.explainThisModel);
   let instructor_mode = settings.instructor_mode;
   ScratchMode.Store.import(all.scratch);
-  ExercisesMode.Store.import(all.exercise, ~specs, ~instructor_mode);
+  ExercisesMode.Store.import(
+    ~settings=settings.core,
+    all.exercise,
+    ~specs,
+    ~instructor_mode,
+  );
   import_log(all.log);
+};
+
+let export_persistent = () => {
+  let data: PersistentData.t = {
+    documentation: ScratchMode.StoreDocumentation.load(),
+    scratch: ScratchMode.Store.load(),
+  };
+  let contents =
+    "let startup : PersistentData.t = " ++ PersistentData.show(data);
+  JsUtil.download_string_file(
+    ~filename="Init.ml",
+    ~content_type="text/plain",
+    ~contents,
+  );
+  print_endline("INFO: Persistent data exported to Init.ml");
 };

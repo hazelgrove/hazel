@@ -285,57 +285,58 @@ let transition: transitionary_spec => spec =
     };
   };
 
-let editor_of_serialization = zipper => Editor.init(zipper);
-let eds_of_spec: spec => eds =
-  (
-    {
-      title,
-      version,
-      module_name,
-      prompt,
-      point_distribution,
-      prelude,
-      correct_impl,
-      your_tests,
-      your_impl,
-      hidden_bugs,
-      hidden_tests,
-      syntax_tests,
-    },
-  ) => {
-    let prelude = editor_of_serialization(prelude);
-    let correct_impl = editor_of_serialization(correct_impl);
-    let your_tests = {
-      let tests = editor_of_serialization(your_tests.tests);
-      {tests, required: your_tests.required, provided: your_tests.provided};
-    };
-    let your_impl = editor_of_serialization(your_impl);
-    let hidden_bugs =
-      hidden_bugs
-      |> List.map(({impl, hint}) => {
-           let impl = editor_of_serialization(impl);
-           {impl, hint};
-         });
-    let hidden_tests = {
-      let {tests, hints} = hidden_tests;
-      let tests = editor_of_serialization(tests);
-      {tests, hints};
-    };
-    {
-      title,
-      version,
-      module_name,
-      prompt,
-      point_distribution,
-      prelude,
-      correct_impl,
-      your_tests,
-      your_impl,
-      hidden_bugs,
-      hidden_tests,
-      syntax_tests,
-    };
+let eds_of_spec =
+    (
+      {
+        title,
+        version,
+        module_name,
+        prompt,
+        point_distribution,
+        prelude,
+        correct_impl,
+        your_tests,
+        your_impl,
+        hidden_bugs,
+        hidden_tests,
+        syntax_tests,
+      },
+      ~settings: CoreSettings.t,
+    ) => {
+  let editor_of_serialization = Editor.init(~settings);
+  let prelude = editor_of_serialization(prelude);
+  let correct_impl = editor_of_serialization(correct_impl);
+  let your_tests = {
+    let tests = editor_of_serialization(your_tests.tests);
+    {tests, required: your_tests.required, provided: your_tests.provided};
   };
+  let your_impl = editor_of_serialization(your_impl);
+  let hidden_bugs =
+    hidden_bugs
+    |> List.map(({impl, hint}) => {
+         let impl = editor_of_serialization(impl);
+         {impl, hint};
+       });
+  let hidden_tests = {
+    let {tests, hints} = hidden_tests;
+    let tests = editor_of_serialization(tests);
+    {tests, hints};
+  };
+  {
+    title,
+    version,
+    module_name,
+    prompt,
+    point_distribution,
+    prelude,
+    correct_impl,
+    your_tests,
+    your_impl,
+    hidden_bugs,
+    hidden_tests,
+    syntax_tests,
+  };
+};
 
 //
 // Old version of above that did string-based parsing, may be useful
@@ -445,7 +446,8 @@ let wrap_filter = (act: FilterAction.action, term: UExp.t): UExp.t =>
 
 let wrap = (term, editor: Editor.t): TermItem.t => {term, editor};
 
-let term_of = (editor: Editor.t): UExp.t => editor.state.meta.view_term;
+let term_of = (editor: Editor.t): UExp.t =>
+  MakeTerm.from_zip_for_sem(editor.state.zipper).term;
 
 let stitch3 = (ed1: Editor.t, ed2: Editor.t, ed3: Editor.t) =>
   EditorUtil.append_exp(

@@ -120,10 +120,9 @@ module Update = {
                 ({result: r, state: s}: Haz3lcore.ProgramResult.inner) =>
                   r
                   |> Haz3lcore.ProgramResult.Result.unbox
-                  |> CodeSelectable.Model.mk_from_exp
-                  |> CodeSelectable.Update.calculate(
-                       ~settings=settings.core, ~stitch=x =>
-                       x
+                  |> CodeSelectable.Model.mk_from_exp(
+                       ~inline=false,
+                       ~settings=settings.core,
                      )
                   |> (x => (x, s)),
                 update,
@@ -148,23 +147,7 @@ module Update = {
     | (Evaluation, Evaluation({elab: elab', result}))
         when Haz3lcore.Exp.fast_equal(elab, elab') => {
         ...model,
-        result:
-          Evaluation({
-            elab,
-            result:
-              Haz3lcore.ProgramResult.map(
-                ((res, state)) =>
-                  (
-                    CodeSelectable.Update.calculate(
-                      ~settings,
-                      ~stitch=x => x,
-                      res,
-                    ),
-                    state,
-                  ),
-                result,
-              ),
-          }),
+        result: Evaluation({elab, result}),
       }
     // If elab has changed, recalculate
     | (Evaluation, _) when settings.dynamics =>
@@ -180,9 +163,9 @@ module Update = {
                   Haz3lcore.ProgramResult.ResultOk(
                     r
                     |> Haz3lcore.ProgramResult.Result.unbox
-                    |> CodeSelectable.Model.mk_from_exp
-                    |> CodeSelectable.Update.calculate(~settings, ~stitch=x =>
-                         x
+                    |> CodeSelectable.Model.mk_from_exp(
+                         ~inline=false,
+                         ~settings,
                        )
                     |> (x => (x, s)),
                   )
@@ -279,7 +262,12 @@ module View = {
     let editor =
       switch (result) {
       | ResultOk((res, _)) => res
-      | _ => elab |> CodeSelectable.Model.mk_from_exp(~inline=false)
+      | _ =>
+        elab
+        |> CodeSelectable.Model.mk_from_exp(
+             ~inline=false,
+             ~settings=globals.settings.core,
+           )
       };
     let code_view =
       CodeSelectable.View.view(
@@ -424,7 +412,7 @@ module View = {
         | Some(result) =>
           test_result_layer(
             ~font_metrics=globals.font_metrics,
-            ~measured=editor.state.meta.measured,
+            ~measured=editor.state.meta.syntax.measured,
             result,
           )
         | None => []
@@ -436,7 +424,14 @@ module View = {
       let result = [
         text("Evaluation disabled, showing elaboration:"),
         switch (Model.get_elaboration(model)) {
-        | Some(elab) => CodeViewable.view_exp(~globals, ~inline=false, elab)
+        | Some(elab) =>
+          elab
+          |> Haz3lcore.ExpToSegment.exp_to_segment(~inline=false)
+          |> CodeViewable.view_segment(
+               ~globals,
+               ~sort=Exp,
+               ~info_map=Haz3lcore.Id.Map.empty,
+             )
         | None => text("No elaboration found")
         },
       ];
@@ -454,7 +449,7 @@ module View = {
         | Some(result) =>
           test_result_layer(
             ~font_metrics=globals.font_metrics,
-            ~measured=editor.state.meta.measured,
+            ~measured=editor.state.meta.syntax.measured,
             result,
           )
         | None => []

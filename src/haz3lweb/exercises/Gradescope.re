@@ -56,11 +56,7 @@ module Main = {
       map_stitched(
         (_, term) =>
           term
-          |> Interface.eval_term(
-               ~settings,
-               ~ctx_init=Builtins.ctx_init,
-               ~env_init=Builtins.env_init,
-             )
+          |> Interface.eval_term(~settings, ~env_init=Builtins.env_init)
           |> ProgramResult.map(x =>
                x
                |> ProgramResult.get_state
@@ -117,7 +113,9 @@ module Main = {
            | Some((_n, spec)) =>
              let spec =
                unpersist(persistent_state, spec, ~instructor_mode=true);
-             let report = {eds: spec |> eds_of_spec} |> gen_grading_report;
+             let report =
+               {eds: spec |> eds_of_spec(~settings=CoreSettings.on)}
+               |> gen_grading_report;
              {name, report};
            | None => failwith("Invalid spec")
            //  | None => (key |> yojson_of_key |> Yojson.Safe.to_string, "?")

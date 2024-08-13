@@ -127,8 +127,9 @@ let startup : PersistentData.t =
                Convex))))))(ancestors())))(caret Outer))";
             backup_text = " ";
           };
-        ],
-        [ ("scratch_0", Evaluation); ("scratch_1", Evaluation) ] );
+        ]
+        (* ,
+           [ ("scratch_0", Evaluation); ("scratch_1", Evaluation) ] *) );
     documentation =
       ( 2,
         [
@@ -17674,24 +17675,25 @@ let startup : PersistentData.t =
                  Convex))))))(ancestors())))(caret Outer))";
               backup_text = " ";
             } );
-        ] (* ,
-        [
-          ("scratch_ADT Dynamics", Evaluation);
-          ("scratch_ADT Statics", Evaluation);
-          ("scratch_Basic Reference", Evaluation);
-          ("scratch_Booleans and Types", Evaluation);
-          ("scratch_Casting", Evaluation);
-          ("scratch_Composing Arithmetic Expressions", Evaluation);
-          ("scratch_Compositionality", Evaluation);
-          ("scratch_Computing Equationally", Evaluation);
-          ("scratch_Conditional Expressions", Evaluation);
-          ("scratch_Functions", Evaluation);
-          ("scratch_Polymorphism", Evaluation);
-          ("scratch_Programming Expressively", Evaluation);
-          ("scratch_Projectors", Evaluation);
-          ("scratch_Scope", Evaluation);
-          ("scratch_Shadowing", Evaluation);
-          ("scratch_Types & static errors", Evaluation);
-          ("scratch_Variables", Evaluation);
-        ] *) );
+        ]
+        (* ,
+           [
+             ("scratch_ADT Dynamics", Evaluation);
+             ("scratch_ADT Statics", Evaluation);
+             ("scratch_Basic Reference", Evaluation);
+             ("scratch_Booleans and Types", Evaluation);
+             ("scratch_Casting", Evaluation);
+             ("scratch_Composing Arithmetic Expressions", Evaluation);
+             ("scratch_Compositionality", Evaluation);
+             ("scratch_Computing Equationally", Evaluation);
+             ("scratch_Conditional Expressions", Evaluation);
+             ("scratch_Functions", Evaluation);
+             ("scratch_Polymorphism", Evaluation);
+             ("scratch_Programming Expressively", Evaluation);
+             ("scratch_Projectors", Evaluation);
+             ("scratch_Scope", Evaluation);
+             ("scratch_Shadowing", Evaluation);
+             ("scratch_Types & static errors", Evaluation);
+             ("scratch_Variables", Evaluation);
+           ] *) );
   }

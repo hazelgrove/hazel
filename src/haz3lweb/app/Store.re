@@ -1,3 +1,4 @@
+open Util;
 // A generic key-value store for saving/loading data to/from local storage
 
 type key =

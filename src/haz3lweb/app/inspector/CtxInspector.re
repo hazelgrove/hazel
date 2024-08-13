@@ -23,7 +23,7 @@ let context_entry_view =
       [
         div_name([text(name)]),
         div(~attrs=[clss(["seperator"])], [text(":")]),
-        view_type(typ),
+        view_type(typ, ~info_map=Haz3lcore.Id.Map.empty),
       ],
     )
   | TVarEntry({name, kind, _}) =>

@@ -17,28 +17,7 @@ let elaborate = (~settings: CoreSettings.t, map, term): DHExp.t =>
   };
 
 let eval_term =
-    (
-      ~settings: CoreSettings.t,
-      ~ctx_init: Ctx.t,
-      ~env_init: Environment.t,
-      term: Exp.t,
-    )
+    (~settings: CoreSettings.t, ~env_init: Environment.t, term: Exp.t)
     : ProgramResult.t(ProgramResult.inner) => {
-  let info_map = Statics.mk_map_ctx(settings, ctx_init, term);
-  let d = elaborate(~settings, info_map, term);
-  Evaluator.evaluate(~settings, ~env=env_init, d);
-};
-
-let eval_z =
-    (
-      ~settings: CoreSettings.t,
-      ~ctx_init: Ctx.t,
-      ~env_init: Environment.t,
-      z: Zipper.t,
-    )
-    : ProgramResult.t(ProgramResult.inner) => {
-  let (term, _) = MakeTerm.from_zip_for_sem(z);
-  let info_map = Statics.mk_map_ctx(settings, ctx_init, term);
-  let d = elaborate(~settings, info_map, term);
-  Evaluator.evaluate(~settings, ~env=env_init, d);
+  Evaluator.evaluate(~settings, ~env=env_init, term);
 };

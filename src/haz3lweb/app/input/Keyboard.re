@@ -64,8 +64,8 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "d" => now(Select(Term(Current)))
     | "p" => now(Pick_up)
     | "a" => now(Select(All))
-    | "k" => Some(PerformAction(Reparse))
-    | "/" => Some(PerformAction(Buffer(Set(TyDi))))
+    | "k" => Some(Reparse)
+    | "/" => Some(Buffer(Set(TyDi)))
     | "ArrowLeft" => now(Move(Extreme(Left(ByToken))))
     | "ArrowRight" => now(Move(Extreme(Right(ByToken))))
     | "ArrowUp" => now(Move(Extreme(Up)))
@@ -77,8 +77,8 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "d" => now(Select(Term(Current)))
     | "p" => now(Pick_up)
     | "a" => now(Select(All))
-    | "k" => Some(PerformAction(Reparse))
-    | "/" => Some(PerformAction(Buffer(Set(TyDi))))
+    | "k" => Some(Reparse)
+    | "/" => Some(Buffer(Set(TyDi)))
     | "ArrowLeft" => now(Move(Local(Left(ByToken))))
     | "ArrowRight" => now(Move(Local(Right(ByToken))))
     | "Home" => now(Move(Extreme(Up)))
@@ -92,15 +92,14 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | _ => None
     }
   | {key: D("f"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-    Some(PerformAction(Project(ToggleIndicated(Fold))))
+    Some(Project(ToggleIndicated(Fold)))
   | {key: D("ƒ"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     /* Curly ƒ is what holding option turns f into on Mac */
-    Some(PerformAction(Project(ToggleIndicated(Fold))))
+    Some(Project(ToggleIndicated(Fold)))
   | {key: D(key), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     switch (key) {
     | "ArrowLeft" => now(MoveToBackpackTarget(Left(ByToken)))
     | "ArrowRight" => now(MoveToBackpackTarget(Right(ByToken)))
-    | "Alt" => Some(SetMeta(ShowBackpackTargets(true)))
     | "ArrowUp" => now(MoveToBackpackTarget(Up))
     | "ArrowDown" => now(MoveToBackpackTarget(Down))
     | _ => None

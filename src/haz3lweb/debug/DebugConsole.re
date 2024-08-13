@@ -15,10 +15,10 @@ let print = (~settings: Settings.t, editor: Editor.t, key: string): unit => {
   | "F3" => term |> UExp.show |> print
   | "F4" => map |> Statics.Map.show |> print
   | "F5" =>
-    let env = Editors.get_env_init(~settings, editors);
+    let env_init = Builtins.env_init;
     Interface.elaborate(~settings=settings.core, map, term)
-    |> Interface.evaluate(~settings=settings.core, ~env)
-    |> ProgramResult.show
+    |> Interface.eval_term(~settings=settings.core, ~env_init)
+    |> ProgramResult.show(ProgramResult.pp_inner)
     |> print;
   | "F6" =>
     let index = Indicated.index(zipper);

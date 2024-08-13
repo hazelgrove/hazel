@@ -10,7 +10,7 @@ module Model = {
 
   let get_spliced_elabs = model => {
     let (key, ed) = List.nth(model.scratchpads, model.current);
-    [(key, Elaborator.Elaboration.{d: ed.editor.statics.term})];
+    [(key, Elaborator.Elaboration.{d: ed.editor.state.meta.statics.term})];
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -21,11 +21,12 @@ module Model = {
     List.map(((_, m)) => CellEditor.Model.persist(m), model.scratchpads),
   );
 
-  let unpersist = ((current, slides)) => {
+  let unpersist = (~settings, (current, slides)) => {
     current,
     scratchpads:
       List.mapi(
-        (i, m) => (string_of_int(i), CellEditor.Model.unpersist(m)),
+        (i, m) =>
+          (string_of_int(i), CellEditor.Model.unpersist(~settings, m)),
         slides,
       ),
   };
@@ -38,10 +39,13 @@ module Model = {
     ),
   );
 
-  let unpersist_documentation = ((current, slides)) => {
+  let unpersist_documentation = (~settings, (current, slides)) => {
     current,
     scratchpads:
-      List.map(((s, m)) => (s, CellEditor.Model.unpersist(m)), slides),
+      List.map(
+        ((s, m)) => (s, CellEditor.Model.unpersist(~settings, m)),
+        slides,
+      ),
   };
 };
 
@@ -99,7 +103,7 @@ module Update = {
       let* data =
         List.nth(source, model.current)
         |> PersistentZipper.unpersist
-        |> Editor.init
+        |> Editor.init(~settings=settings.core)
         |> CellEditor.Model.mk
         |> Updated.return;
       {
@@ -119,7 +123,7 @@ module Update = {
         data
         |> Sexplib.Sexp.of_string
         |> CellEditor.Model.persistent_of_sexp
-        |> CellEditor.Model.unpersist;
+        |> CellEditor.Model.unpersist(~settings=settings.core);
 
       let scratchpads =
         ListUtil.put_nth(model.current, (key, new_data), model.scratchpads);

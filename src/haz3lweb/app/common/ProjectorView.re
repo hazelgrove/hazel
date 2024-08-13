@@ -77,7 +77,7 @@ let status = (indicated: option(Direction.t), selected: bool, shape: shape) =>
  * adding fallthrough handlers where appropriate*/
 let view_wrapper =
     (
-      ~inject: UpdateAction.t => Ui_effect.t(unit),
+      ~inject: Action.t => Ui_effect.t(unit),
       ~font_metrics: FontMetrics.t,
       ~measurement: Measured.measurement,
       ~info: info,
@@ -88,12 +88,7 @@ let view_wrapper =
     ) => {
   let shape = Projector.shape(p, info);
   let focus = (id, _) =>
-    Effect.(
-      Many([
-        Stop_propagation,
-        inject(PerformAction(Project(Focus(id, None)))),
-      ])
-    );
+    Effect.(Many([Stop_propagation, inject(Project(Focus(id, None)))]));
   div(
     ~attrs=[
       Attr.classes(
@@ -122,7 +117,7 @@ let setup_view =
     (
       id: Id.t,
       ~meta: Editor.Meta.t,
-      ~inject: UpdateAction.t => Ui_effect.t(unit),
+      ~inject: Action.t => Ui_effect.t(unit),
       ~font_metrics,
       ~indication: option(Direction.t),
     )
@@ -133,9 +128,8 @@ let setup_view =
   let info = {id, ci, syntax};
   let+ measurement = Measured.find_pr_opt(p, meta.syntax.measured);
   let (module P) = to_module(p.kind);
-  let parent = a => inject(PerformAction(Project(handle(id, a))));
-  let local = a =>
-    inject(PerformAction(Project(SetModel(id, P.update(p.model, a)))));
+  let parent = a => inject(Project(handle(id, a)));
+  let local = a => inject(Project(SetModel(id, P.update(p.model, a))));
   view_wrapper(
     ~inject,
     ~font_metrics,
@@ -198,119 +192,3 @@ let key_handoff = (editor: Editor.t, key: Key.t): option(Action.project) =>
     | _ => None
     };
   };
-
-/* The projector selection panel on the right of the bottom bar */
-module Panel = {
-  let option_view = (name, n) =>
-    option(
-      ~attrs=n == name ? [Attr.create("selected", "selected")] : [],
-      [text(n)],
-    );
-
-  /* Decide which projectors are applicable based on the cursor info.
-   * This is slightly inside-out as elsewhere it depends on the underlying
-   * syntax, which is not easily available here */
-  let applicable_projectors = (ci: Info.t): list(Base.kind) =>
-    (
-      switch (Info.cls_of(ci)) {
-      | Exp(Bool)
-      | Pat(Bool) => [Base.Checkbox]
-      | Exp(Int)
-      | Pat(Int) => [Slider]
-      | Exp(Float)
-      | Pat(Float) => [SliderF]
-      | Exp(String)
-      | Pat(String) => [TextArea]
-      | _ => []
-      }
-    )
-    @ [Base.Fold]
-    @ (
-      switch (ci) {
-      | InfoExp(_)
-      | InfoPat(_) => [(Info: Base.kind)]
-      | _ => []
-      }
-    );
-
-  let toggle_projector = (active, id, ci): Action.project =>
-    active || applicable_projectors(ci) == []
-      ? Remove(id) : SetIndicated(List.hd(applicable_projectors(ci)));
-
-  let toggle_view = (~inject, ci, id, active: bool, might_project) =>
-    div(
-      ~attrs=[
-        clss(
-          ["toggle-switch"]
-          @ (active ? ["active"] : [])
-          @ (might_project ? [] : ["inactive"]),
-        ),
-        Attr.on_mousedown(_ =>
-          might_project
-            ? inject(toggle_projector(active, id, ci)) : Effect.Ignore
-        ),
-      ],
-      [
-        div(
-          ~attrs=[clss(["toggle-knob"])],
-          [
-            Node.create(
-              "img",
-              ~attrs=[Attr.src("img/noun-fold-1593402.svg")],
-              [],
-            ),
-          ],
-        ),
-      ],
-    );
-
-  let kind = (editor: Editor.t) => {
-    let+ (_, p) = Editor.indicated_projector(editor);
-    p.kind;
-  };
-
-  let id = (editor: Editor.t) => {
-    switch (Editor.indicated_projector(editor)) {
-    | Some((id, _)) => id
-    | None => Id.invalid
-    };
-  };
-
-  let currently_selected = editor =>
-    option_view(
-      switch (kind(editor)) {
-      | None => "Fold"
-      | Some(k) => name(k)
-      },
-    );
-
-  let view = (~inject, editor: Editor.t, ci: Info.t) => {
-    let might_project =
-      switch (Indicated.piece''(editor.state.zipper)) {
-      | Some((p, _, _)) => minimum_projection_condition(p)
-      | None => false
-      };
-    div(
-      ~attrs=[Attr.id("projectors")],
-      [
-        toggle_view(
-          ~inject,
-          ci,
-          id(editor),
-          kind(editor) != None,
-          might_project,
-        ),
-        Node.select(
-          ~attrs=[
-            Attr.on_change((_, name) =>
-              inject(SetIndicated(of_name(name)))
-            ),
-          ],
-          (might_project ? applicable_projectors(ci) : [])
-          |> List.map(name)
-          |> List.map(currently_selected(editor)),
-        ),
-      ],
-    );
-  };
-};

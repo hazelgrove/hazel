@@ -10,35 +10,52 @@ let view =
       ~sort: Sort.t,
       ~measured,
       ~buffer_ids,
-      ~unselected,
+      ~segment,
       ~holes,
+      ~info_map,
     )
     : Node.t => {
   module Text =
     Code.Text({
       let map = measured;
       let settings = globals.settings;
+      let info_map = info_map;
     });
-  let code = Text.of_segment(buffer_ids, false, sort, unselected);
+  let code = Text.of_segment(buffer_ids, false, sort, segment);
   let holes = List.map(Code.of_hole(~measured, ~globals), holes);
   div_c("code", [span_c("code-text", code), ...holes]);
 };
 
-let view_editor =
-    (
-      ~globals: Globals.t,
-      ~sort: Sort.t,
-      {state: {meta: {measured, buffer_ids, unselected, holes, _}, _}, _}: Editor.t,
-    )
-    : Node.t => {
-  view(~globals, ~sort, ~measured, ~buffer_ids, ~unselected, ~holes);
-};
+// let view_editor =
+//     (
+//       ~globals: Globals.t,
+//       ~sort: Sort.t,
+//       {
+//         state:
+//           {
+//             meta: {syntax: {measured, selection_ids, segment, holes, _}, _},
+//             _,
+//           },
+//         _,
+//       }: Editor.t,
+//     )
+//     : Node.t => {
+//   view(
+//     ~globals,
+//     ~sort,
+//     ~measured,
+//     ~buffer_ids=selection_ids,
+//     ~segment,
+//     ~holes,
+//   );
+// };
 
-let view_segment = (~globals: Globals.t, ~sort: Sort.t, unselected: Segment.t) => {
-  let measured = Measured.of_segment(unselected);
+let view_segment =
+    (~globals: Globals.t, ~sort: Sort.t, ~info_map, segment: Segment.t) => {
+  let measured = Measured.of_segment(segment, info_map);
   let buffer_ids = [];
-  let holes = Segment.holes(unselected);
-  view(~globals, ~sort, ~measured, ~buffer_ids, ~holes, ~unselected);
+  let holes = Segment.holes(segment);
+  view(~globals, ~sort, ~measured, ~buffer_ids, ~holes, ~segment, ~info_map);
 };
 
 let view_exp = (~globals: Globals.t, ~inline: bool, exp: Exp.t) => {
