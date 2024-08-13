@@ -260,17 +260,34 @@ let switch_scratch_slide =
     Some(Exercises(idx, specs, exercise));
   };
 
-let switch_exercise_editor =
-    (editors: Editors.t, ~pos, ~instructor_mode): option(Editors.t) =>
+let map_exercise =
+    (editors: Editors.t, ~f: Exercise.state => Exercise.state)
+    : option(Editors.t) =>
   switch (editors) {
   | Documentation(_)
   | Scratch(_) => None
-  | Exercises(m, specs, state) =>
-    let state = Exercise.switch_editor(~pos, instructor_mode, ~state);
-    //Note: now saving after each edit (delayed by 1 second) so no need to save here
-    //Store.Exercise.save_exercise(exercise, ~instructor_mode);
-    Some(Exercises(m, specs, state));
+  | Exercises(m, specs, exercise) =>
+    let exercise = f(exercise);
+    Some(Exercises(m, specs, exercise));
   };
+
+// let switch_exercise_editor =
+//     (editors: Editors.t, ~pos, ~instructor_mode): option(Editors.t) =>
+//   switch (editors) {
+//   | Documentation(_)
+//   | Scratch(_) => None
+//   | Exercises(m, specs, state) =>
+//     let state = Exercise.switch_editor(~pos, instructor_mode, ~state);
+//     //Note: now saving after each edit (delayed by 1 second) so no need to save here
+//     //Store.Exercise.save_exercise(exercise, ~instructor_mode);
+//     Some(Exercises(m, specs, state));
+//   };
+
+let switch_exercise_editor =
+    (editors: Editors.t, ~pos, ~instructor_mode): option(Editors.t) =>
+  map_exercise(editors, ~f=state =>
+    Exercise.switch_editor(~pos, instructor_mode, ~state)
+  );
 
 /* This action saves a file which serializes all current editor
    settings, including the states of all Scratch and Example slides.
@@ -462,46 +479,17 @@ let apply =
       | None => Error(FailedToSwitch)
       | Some(editors) => Model.save_and_return({...model, editors})
       }
+    | MapExercise(f) =>
+      switch (map_exercise(model.editors, ~f)) {
+      | None => Error(FailedToSwitch)
+      | Some(editors) => Ok({...model, editors})
+      }
     | SwitchEditor(pos) =>
       let instructor_mode = model.settings.instructor_mode;
       switch (switch_exercise_editor(model.editors, ~pos, ~instructor_mode)) {
       | None => Error(FailedToSwitch)
       | Some(editors) => Ok({...model, editors})
       };
-    | SwitchDerivationRule(pos, rule) =>
-      switch (model.editors) {
-      | Documentation(_)
-      | Scratch(_) => Error(FailedToSwitch)
-      | Exercises(m, specs, exercise) =>
-        let exercise =
-          Exercise.switch_derivation_rule(~pos, ~rule, ~exercise);
-        let editors = Editors.Exercises(m, specs, exercise);
-        Ok({...model, editors});
-      }
-    | InsertPremise(pos, index) =>
-      switch (model.editors) {
-      | Documentation(_)
-      | Scratch(_) => Error(FailedToSwitch)
-      | Exercises(m, specs, exercise) =>
-        let exercise =
-          Exercise.add_premise(
-            ~pos,
-            ~index,
-            ~exercise,
-            ~settings=model.settings.core,
-          );
-        let editors = Editors.Exercises(m, specs, exercise);
-        Ok({...model, editors});
-      }
-    | RemovePremise(pos, index) =>
-      switch (model.editors) {
-      | Documentation(_)
-      | Scratch(_) => Error(FailedToSwitch)
-      | Exercises(m, specs, exercise) =>
-        let exercise = Exercise.del_premise(~pos, ~index, ~exercise);
-        let editors = Editors.Exercises(m, specs, exercise);
-        Ok({...model, editors});
-      }
     | TAB =>
       /* Attempt to act intelligently when TAB is pressed.
        * TODO: Consider more advanced TAB logic. Instead

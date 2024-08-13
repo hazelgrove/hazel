@@ -68,9 +68,7 @@ type t =
   | InitImportAll([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
   | FinishImportAll(option(string))
   | SwitchEditor(Exercise.pos) //exercisemode only
-  | SwitchDerivationRule(Tree.pos, Derivation.Rule.t) //exercisemode only
-  | InsertPremise(Tree.pos, int)
-  | RemovePremise(Tree.pos, int)
+  | MapExercise(Exercise.state => Exercise.state) //exercisemode only
   | SwitchDocumentationSlide(string) //examplemode only
   // editors: scratchmode only
   | InitImportScratchpad([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
@@ -141,9 +139,7 @@ let is_edit: t => bool =
   | TAB => true
   | UpdateResult(_)
   | SwitchEditor(_)
-  | SwitchDerivationRule(_)
-  | InsertPremise(_)
-  | RemovePremise(_)
+  | MapExercise(_)
   | Export(_)
   | Save
   | UpdateExplainThisModel(_)
@@ -191,9 +187,7 @@ let reevaluate_post_update: t => bool =
   | Export(_)
   | UpdateResult(_)
   | SwitchEditor(_)
-  | SwitchDerivationRule(_)
-  | InsertPremise(_)
-  | RemovePremise(_)
+  | MapExercise(_)
   | DebugConsole(_)
   | Benchmark(_) => false
   | TAB
@@ -239,9 +233,7 @@ let should_scroll_to_caret =
   | FinishImportAll(_)
   | ResetCurrentEditor
   | SwitchEditor(_)
-  | SwitchDerivationRule(_)
-  | InsertPremise(_)
-  | RemovePremise(_)
+  | MapExercise(_)
   | SwitchScratchSlide(_)
   | SwitchDocumentationSlide(_)
   | Reset

@@ -18,7 +18,7 @@ let exercise : Exercise.spec =
               "let a = atom(\"A\") in\n\
                let b = atom(\"B\") in\n\
                let gamma = [a /\\ b] in\n";
-            derivation_tree =
+            tree =
               Node
                 ( { jdmt = "gamma |- b /\\ a"; rule = And_I },
                   [

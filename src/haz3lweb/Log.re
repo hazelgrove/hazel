@@ -19,9 +19,7 @@ let is_action_logged: UpdateAction.t => bool =
   | SwitchScratchSlide(_)
   | SwitchDocumentationSlide(_)
   | SwitchEditor(_)
-  | SwitchDerivationRule(_)
-  | InsertPremise(_)
-  | RemovePremise(_)
+  | MapExercise(_)
   | ResetCurrentEditor
   | PerformAction(_)
   | Undo

@@ -38,11 +38,11 @@ let proof_view =
       ~settings: Settings.t,
       ~pos: Exercise.Proof.pos,
       ~header: Exercise.header,
-      ~eds: Exercise.Proof.p(Editor.t),
-      ~stitched_dynamics: Exercise.ProofStitch.p(Exercise.DynamicsItem.t),
+      ~eds: Exercise.Proof.model(Editor.t),
+      ~stitched_dynamics: Exercise.Proof.stitched(Exercise.DynamicsItem.t),
       ~highlights,
     ) => {
-  let Exercise.ProofStitch.{derivation_tree, prelude, _} = stitched_dynamics;
+  let Exercise.Proof.{tree, prelude, _} = stitched_dynamics;
 
   let title_view = Cell.title_cell(header.title);
 
@@ -51,22 +51,46 @@ let proof_view =
       div(~attrs=[Attr.class_("cell-prompt")], [header.prompt]),
     );
 
-  let dropdown_option_view = (~pos, ~rule) =>
+  let dropdown_option_view = (~pos': Util.Tree.pos, ~rule) =>
     div(
       ~attrs=[
         Attr.class_("rule-option"),
         Attr.on_click(_ =>
-          inject(UpdateAction.SwitchDerivationRule(pos, rule))
+          inject(
+            UpdateAction.MapExercise(
+              state =>
+                {
+                  ...state,
+                  model:
+                    Exercise.Proof(
+                      Exercise.Proof.ModelUtil.switch_derivation_rule(
+                        ~pos=pos',
+                        ~m=
+                          state.model
+                          |> (
+                            model =>
+                              switch (model) {
+                              | Exercise.Proof(m) => m
+                              | _ =>
+                                raise(Failure("Expected Exercise.Proof"))
+                              }
+                          ),
+                        ~rule,
+                      ),
+                    ),
+                },
+            ),
+          )
         ),
       ],
       [text(Derivation.Rule.repr(rule))],
     );
 
-  let dropdown_options_view = (~pos): t =>
+  let dropdown_options_view = (~pos'): t =>
     div(
       ~attrs=[Attr.class_("rule-option-container")],
       List.map(
-        rule => dropdown_option_view(~pos, ~rule),
+        rule => dropdown_option_view(~pos', ~rule),
         Derivation.Rule.for_each(Fun.id),
       ),
     );
@@ -89,18 +113,18 @@ let proof_view =
       ],
     );
 
-  let dropdown_view = (~pos, ~res): t =>
+  let dropdown_view = (~pos', ~res): t =>
     div(
       ~attrs=[
         Attr.class_("rule-block-content"),
         to_class(res),
-        Attr.id(Util.Tree.show_pos(pos) ++ "-content"),
+        Attr.id(Util.Tree.show_pos(pos') ++ "-content"),
       ],
-      [dropdown_res_view(~res), dropdown_options_view(~pos)],
+      [dropdown_res_view(~res), dropdown_options_view(~pos')],
     );
 
-  let rule_btn_on_mouseover_handler = (~pos) => {
-    let show_pos = Util.Tree.show_pos(pos);
+  let rule_btn_on_mouseover_handler = (~pos') => {
+    let show_pos = Util.Tree.show_pos(pos');
     let btn = Util.JsUtil.get_elem_by_id(show_pos ++ "-btn");
     let content = Util.JsUtil.get_elem_by_id(show_pos ++ "-content");
     let btn_rect = btn##getBoundingClientRect;
@@ -127,42 +151,99 @@ let proof_view =
     Ui_effect.Ignore;
   };
 
-  let rule_btn_view = (~pos, ~res, ~rule) =>
+  let rule_btn_view = (~pos', ~res, ~rule) =>
     div(
       ~attrs=[
         Attr.class_("rule-block-btn"),
         to_class(res),
-        Attr.id(Util.Tree.show_pos(pos) ++ "-btn"),
-        Attr.on_mousemove(_ => rule_btn_on_mouseover_handler(~pos)),
+        Attr.id(Util.Tree.show_pos(pos') ++ "-btn"),
+        Attr.on_mousemove(_ => rule_btn_on_mouseover_handler(~pos')),
       ],
       [text(Derivation.Rule.repr(rule))],
     );
 
-  let rule_block_view = (~pos, ~res, ~rule): t =>
+  let rule_block_view = (~pos', ~res, ~rule): t =>
     div(
       ~attrs=[Attr.class_("rule-block")],
-      [rule_btn_view(~pos, ~res, ~rule), dropdown_view(~pos, ~res)],
+      [rule_btn_view(~pos', ~res, ~rule), dropdown_view(~pos', ~res)],
     );
 
-  let add_premise_btn_view = (~pos, ~index) =>
+  let add_premise_btn_view = (~pos', ~index) =>
     div(
       ~attrs=[
         Attr.class_("add-premise-btn"),
-        Attr.on_click(_ => inject(UpdateAction.InsertPremise(pos, index))),
+        Attr.on_click(_ =>
+          inject(
+            UpdateAction.MapExercise(
+              state =>
+                {
+                  ...state,
+                  model:
+                    Exercise.Proof(
+                      Exercise.Proof.ModelUtil.add_premise(
+                        ~pos=pos',
+                        ~m=
+                          state.model
+                          |> (
+                            model =>
+                              switch (model) {
+                              | Exercise.Proof(m) => m
+                              | _ =>
+                                raise(Failure("Expected Exercise.Proof"))
+                              }
+                          ),
+                        ~index,
+                        ~init=
+                          ""
+                          |> Exercise.zipper_of_code
+                          |> Editor.init(~settings=settings.core)
+                          |> Fun.const,
+                      ),
+                    ),
+                },
+            ),
+          )
+        ),
       ],
       [text("+")],
     );
 
-  let del_premise_btn_view = (~pos, ~index) =>
+  let del_premise_btn_view = (~pos', ~index) =>
     div(
       ~attrs=[
         Attr.class_("add-premise-btn"),
-        Attr.on_click(_ => inject(UpdateAction.RemovePremise(pos, index))),
+        Attr.on_click(_ =>
+          inject(
+            UpdateAction.MapExercise(
+              state =>
+                {
+                  ...state,
+                  model:
+                    Exercise.Proof(
+                      Exercise.Proof.ModelUtil.del_premise(
+                        ~pos=pos',
+                        ~m=
+                          state.model
+                          |> (
+                            model =>
+                              switch (model) {
+                              | Exercise.Proof(m) => m
+                              | _ =>
+                                raise(Failure("Expected Exercise.Proof"))
+                              }
+                          ),
+                        ~index,
+                      ),
+                    ),
+                },
+            ),
+          )
+        ),
       ],
       [text("-")],
     );
 
-  let premises_view = (~children_node, ~pos, ~res, ~rule): t => {
+  let premises_view = (~children_node, ~pos', ~res, ~rule): t => {
     let n = List.length(children_node);
     div(
       ~attrs=[Attr.class_("derivation-premises"), to_class(res)],
@@ -170,16 +251,16 @@ let proof_view =
         children_node
         |> List.mapi((index, node) =>
              [
-               add_premise_btn_view(~pos, ~index),
+               add_premise_btn_view(~pos', ~index),
                node,
-               del_premise_btn_view(~pos, ~index),
+               del_premise_btn_view(~pos', ~index),
              ]
            )
         |> List.concat
       )
       @ [
-        add_premise_btn_view(~pos, ~index=n),
-        rule_block_view(~pos, ~res, ~rule),
+        add_premise_btn_view(~pos', ~index=n),
+        rule_block_view(~pos', ~res, ~rule),
       ],
     );
   };
@@ -204,7 +285,7 @@ let proof_view =
     );
 
   let single_derivation_view =
-      (({Exercise.Proof.jdmt: ed, rule}, (pos, di)), children) => {
+      (({Exercise.Proof.jdmt: ed, rule}, (pos', di)), children) => {
     let (children_node, children) = children |> List.split;
     let children_node = children_node |> List.concat;
     let (children_di, children_res) = children |> List.split;
@@ -220,8 +301,8 @@ let proof_view =
         div(
           ~attrs=[Attr.class_("derivation-block")],
           [
-            premises_view(~children_node, ~pos, ~res, ~rule),
-            conclusion_view(~editor=ed, ~di, Proof(Derive(pos))),
+            premises_view(~children_node, ~pos', ~res, ~rule),
+            conclusion_view(~editor=ed, ~di, Proof(Tree(pos'))),
           ],
         ),
       ],
@@ -232,8 +313,8 @@ let proof_view =
   // (ed * rule) * (pos * (di * res))
   let combined_tree =
     Util.Tree.combine((
-      eds.derivation_tree,
-      Util.Tree.mapi((pos, t) => (pos, t), derivation_tree),
+      eds.tree,
+      Util.Tree.mapi((pos, t) => (pos, t), tree),
     ));
 
   let derivation_view =

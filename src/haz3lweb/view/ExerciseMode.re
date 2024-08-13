@@ -25,12 +25,12 @@ let programming_view =
       ~settings: Settings.t,
       ~pos: Exercise.Programming.pos,
       ~header: Exercise.header,
-      ~eds: Exercise.Programming.p(Editor.t),
+      ~eds: Exercise.Programming.model(Editor.t),
       ~stitched_dynamics:
-         Exercise.ProgrammingStitch.p(Exercise.DynamicsItem.t),
+         Exercise.Programming.stitched(Exercise.DynamicsItem.t),
       ~highlights,
     ) => {
-  let Exercise.ProgrammingStitch.{
+  let Exercise.Programming.{
         test_validation,
         user_impl,
         user_tests,
@@ -194,7 +194,7 @@ let programming_view =
             ~inject,
             ~ui_state,
             ~result=user_impl.result,
-            ~result_key=Exercise.ProgrammingStitch.key(YourImpl),
+            ~result_key=Exercise.Programming.StitchUtil.key(YourImpl),
           ),
       ),
     );
