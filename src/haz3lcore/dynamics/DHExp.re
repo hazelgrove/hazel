@@ -196,10 +196,10 @@ let rec ty_comparable = (exp: t): bool =>
 
 let rec ty_consistent = (d1, d2) => {
   // Note(zhiyao): This is a necessary condition for consistency, but not
-  // sufficient. For example, if for any reason an Arrow type escapes the type
-  // checker, we will not be able to check the inconsistency here, because
-  // the type is hidden and not elaborated to DHExp. But it will still be
-  // caught as CompareArrow later.
+  // sufficient. If for any reason an Arrow type escapes the type checker,
+  // we will not be able to check the inconsistency here, because the type
+  // is hidden and not elaborated to DHExp, though it will still be caught as
+  // CompareArrow in later stage.
   switch (term_of(d1), term_of(d2)) {
   | (Int(_), Int(_))
   | (Float(_), Float(_))
@@ -216,6 +216,11 @@ let rec ty_consistent = (d1, d2) => {
   | (Tuple(ds1), Tuple(ds2)) =>
     List.length(ds1) == List.length(ds2)
     && List.for_all2(ty_consistent, ds1, ds2)
+  | (
+      Ap(_, {term: Constructor(_, {term: Arrow(_, t1), _}), _}, d1),
+      Ap(_, {term: Constructor(_, {term: Arrow(_, t2), _}), _}, d2),
+    ) =>
+    Typ.is_consistent([], t1, t2) && ty_consistent(d1, d2)
   | (
       Constructor(_, t1) |
       Ap(_, {term: Constructor(_, {term: Arrow(_, t1), _}), _}, _),
@@ -234,9 +239,11 @@ let rec ty_has_arrow = (d: t): bool =>
   | TypFun(_) => true
   | ListLit(ds)
   | Tuple(ds) => List.exists(ty_has_arrow, ds)
-  | Constructor(_, t)
-  | Ap(_, {term: Constructor(_, {term: Arrow(_, t), _}), _}, _) =>
-    Typ.has_arrow([], t)
+  | Constructor(_, t) => Typ.has_arrow([], t)
+  | Ap(_, {term: Constructor(_, {term: Arrow(_, t), _}), _}, d) =>
+    // Note(zhiyao): It's necessary to check the type of the argument because
+    // elaborated types may contain Hole.
+    Typ.has_arrow([], t) || ty_has_arrow(d)
   | _ => false
   };
 
