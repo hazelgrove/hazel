@@ -10,33 +10,31 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Move(Action.move)
-    | MoveToNextHole(Util.Direction.t)
     | Jump(Action.jump_target)
     | Select(Action.select)
-    | Unselect(option(Util.Direction.t));
+    | Unselect(option(Util.Direction.t))
+    | Copy;
 
   let update = (~settings, action: t, model: Model.t): Updated.t(Model.t) => {
     let action': CodeEditable.Update.t =
       switch (action) {
       | Move(move) => Perform(Move(move))
-      | MoveToNextHole(dir) => Perform(MoveToNextHole(dir))
       | Jump(target) => Perform(Jump(target))
       | Select(select) => Perform(Select(select))
       | Unselect(dir) => Perform(Unselect(dir))
+      | Copy => Perform(Copy)
       };
     CodeEditable.Update.update(~settings, action', model);
   };
-
-  let calculate = CodeEditable.Update.calculate;
 
   let convert_action: CodeEditable.Update.t => option(t) =
     fun
     // These actions are allowed in a CodeSelectable
     | Perform(Move(move)) => Some(Move(move))
-    | Perform(MoveToNextHole(dir)) => Some(MoveToNextHole(dir))
     | Perform(Jump(target)) => Some(Jump(target))
     | Perform(Select(select)) => Some(Select(select))
     | Perform(Unselect(dir)) => Some(Unselect(dir))
+    | Perform(Copy) => Some(Copy)
 
     // These actions are not allowed in a CodeSelectable
     | Perform(
@@ -44,13 +42,13 @@ module Update = {
         Pick_up |
         Put_down |
         Paste(_) |
-        Suggest(_) |
-        ResetSuggestion,
+        Reparse |
+        Cut |
+        Buffer(_) |
+        Project(_),
       )
     | Undo
     | Redo
-    | Reparse
-    | Assistant(_)
     | DebugConsole(_) => None;
 };
 

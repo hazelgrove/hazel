@@ -25,6 +25,22 @@ let get_elem_by_selector = selector => {
   );
 };
 
+let get_child_with_class = (element: Js.t(Dom_html.element), className) => {
+  let rec loop = (sibling: Js.t(Dom_html.element)) =>
+    if (Js.to_bool(sibling##.classList##contains(Js.string(className)))) {
+      Some(sibling);
+    } else {
+      loop(
+        Js.Opt.get(sibling##.nextSibling, () => failwith("no sibling"))
+        |> Js.Unsafe.coerce,
+      );
+    };
+  loop(
+    Js.Opt.get(element##.firstChild, () => failwith("no child"))
+    |> Js.Unsafe.coerce,
+  );
+};
+
 let date_now = () => {
   [%js new Js.date_now];
 };

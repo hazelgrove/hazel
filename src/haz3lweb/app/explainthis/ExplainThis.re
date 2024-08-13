@@ -273,7 +273,12 @@ let expander_deco =
             List.map(
               ((id: ExplainThisForm.form_id, segment: Segment.t)): Node.t => {
                 let code_view =
-                  CodeViewable.view_segment(~globals, ~sort=Exp, segment);
+                  CodeViewable.view_segment(
+                    ~globals,
+                    ~sort=Exp,
+                    ~info_map=Id.Map.empty,
+                    segment,
+                  );
                 let classes =
                   id == doc.id
                     ? ["selected"] @ get_clss(segment) : get_clss(segment);
@@ -365,7 +370,10 @@ let example_view =
                   {
                     term
                     |> Zipper.unzip
-                    |> Editor.init(~read_only=true)
+                    |> Editor.init(
+                         ~read_only=true,
+                         ~settings=globals.settings.core,
+                       )
                     |> CellEditor.Model.mk
                     |> CellEditor.Update.calculate(
                          ~settings=globals.settings.core,
@@ -431,6 +439,7 @@ let get_doc =
       mode: message_mode,
     )
     : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
+  let settings = globals.settings.core;
   let simple = msg => ([], ([text(msg)], (Id.Map.empty, 0)), []);
   let default = simple("No docs available");
   let get_specificity_level = group_id =>
@@ -478,7 +487,11 @@ let get_doc =
         |> Id.Map.of_seq
         |> Option.some;
       let editor =
-        Editor.init(~read_only=true, doc.syntactic_form |> Zipper.unzip);
+        Editor.init(
+          ~settings,
+          ~read_only=true,
+          doc.syntactic_form |> Zipper.unzip,
+        );
       let expander_deco =
         expander_deco(
           ~globals,
@@ -489,24 +502,20 @@ let get_doc =
           ~doc,
           editor,
         );
-      let highlight_deco =
-        switch (highlights) {
-        | Some(highlights) =>
-          module Deco =
-            Deco.Deco({
-              let editor = editor;
-              let globals = globals;
-            });
-          Deco.color_highlights(ColorSteps.to_list(highlights));
-        | None => []
-        };
-      let statics = CachedStatics.empty_statics;
+      let highlight_deco = {
+        module Deco =
+          Deco.Deco({
+            let editor = editor;
+            let globals = {...globals, color_highlights: highlights};
+          });
+        [Deco.color_highlights()];
+      };
       let syntactic_form_view =
         CodeWithStatics.View.view(
           ~globals,
           ~overlays=highlight_deco @ [expander_deco],
           ~sort,
-          {editor, statics},
+          editor,
         );
       let example_view =
         example_view(

@@ -742,17 +742,19 @@ and ids_of_piece = (p: Piece.t): list(Id.t) =>
 
 let first_string =
   fun
-  | [] => "FIRST"
+  | [] => "EMPTY"
   | [Piece.Secondary(w), ..._] => Secondary.get_string(w.content)
+  | [Piece.Projector(_), ..._] => "PROJECTOR"
   | [Piece.Grout(_), ..._] => "?"
   | [Piece.Tile(t), ..._] => t.label |> List.hd;
 
 let last_string =
   fun
-  | [] => "LAST"
+  | [] => "EMPTY"
   | xs =>
     switch (ListUtil.last(xs)) {
     | Piece.Secondary(w) => Secondary.get_string(w.content)
     | Piece.Grout(_) => "?"
+    | Piece.Projector(_) => "PROJECTOR"
     | Piece.Tile(t) => t.label |> ListUtil.last
     };

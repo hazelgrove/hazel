@@ -11,19 +11,14 @@ module Model = {
     result: EvalResult.Model.t,
   };
 
-  let mk = editor => {
-    editor: {
-      editor,
-      statics: CachedStatics.empty_statics,
-    },
-    result: EvalResult.Model.init,
-  };
+  let mk = editor => {editor, result: EvalResult.Model.init};
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = CodeEditable.Model.persistent;
 
   let persist = model => model.editor |> CodeEditable.Model.persist;
-  let unpersist = pz => pz |> PersistentZipper.unpersist |> Editor.init |> mk;
+  let unpersist = (~settings, pz) =>
+    pz |> PersistentZipper.unpersist |> Editor.init(~settings) |> mk;
 };
 
 module Update = {
@@ -46,9 +41,9 @@ module Update = {
     };
   };
 
-  let calculate = (~settings, ~queue_worker, ~stitch, model: Model.t): Model.t => {
-    let editor =
-      CodeEditable.Update.calculate(~settings, ~stitch, model.editor);
+  let calculate =
+      (~settings, ~queue_worker, ~stitch as _, model: Model.t): Model.t => {
+    let editor = model.editor;
     let result =
       EvalResult.Update.calculate(
         ~settings,
@@ -163,7 +158,7 @@ module View = {
               ? _ => Ui_effect.Ignore
               : (action => inject(MainEditor(action))),
           ~selected=selected == Some(MainEditor),
-          ~overlays=overlays(model.editor.editor),
+          ~overlays=overlays(model.editor),
           ~sort?,
           model.editor,
         ),

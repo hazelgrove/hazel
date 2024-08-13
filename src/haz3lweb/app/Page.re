@@ -1,6 +1,7 @@
 open Js_of_ocaml;
 open Virtual_dom.Vdom;
 open Node;
+open Util;
 
 /* The top-level UI component of Hazel */
 
@@ -22,7 +23,10 @@ module Store = {
   let load = (): Model.t => {
     let globals = Globals.Model.load();
     let editors =
-      Editors.Store.load(~instructor_mode=globals.settings.instructor_mode);
+      Editors.Store.load(
+        ~settings=globals.settings.core,
+        ~instructor_mode=globals.settings.instructor_mode,
+      );
     let explain_this = ExplainThisModel.Store.load();
     {
       editors,
@@ -213,9 +217,9 @@ module Selection = {
     };
   };
 
-  let get_cursor_info = (~selection: t, model: Model.t): cursor(Update.t) => {
-    let+ ci = Editors.Selection.get_cursor_info(~selection, model.editors);
-    Update.Editors(ci);
+  let get_cursor_info =
+      (~selection: t, model: Model.t): cursor(Editors.Update.t) => {
+    Editors.Selection.get_cursor_info(~selection, model.editors);
   };
 };
 
@@ -223,7 +227,7 @@ module View = {
   let handlers =
       (
         ~inject: Update.t => Ui_effect.t(unit),
-        ~cursor: Cursor.cursor(Update.t),
+        ~cursor: Cursor.cursor(Editors.Update.t),
         model: Model.t,
       ) => {
     let key_handler =
@@ -287,9 +291,9 @@ module View = {
           Js.to_string(evt##.clipboardData##getData(Js.string("text")))
           |> Str.global_replace(Str.regexp("\n[ ]*"), "\n");
         Dom.preventDefault(evt);
-        switch (cursor.paste(pasted_text)) {
+        switch (cursor.editor_action(Paste(pasted_text))) {
         | None => Effect.Ignore
-        | Some(action) => inject(action)
+        | Some(action) => inject(Editors(action))
         };
       }),
     ];
@@ -299,7 +303,7 @@ module View = {
       (
         ~get_log_and: (string => unit) => unit,
         ~inject: Update.t => Ui_effect.t(unit),
-        ~cursor: Cursor.cursor(Update.t),
+        ~cursor: Cursor.cursor(Editors.Update.t),
         {globals, editors, explain_this: explainThisModel, selection} as model: Model.t,
       ) => {
     let globals = {
@@ -327,7 +331,12 @@ module View = {
           ),
         ],
       );
-    let bottom_bar = CursorInspector.view(~globals, cursor.info);
+    let bottom_bar =
+      CursorInspector.view(
+        ~globals,
+        ~inject=a => inject(Editors(a)),
+        cursor,
+      );
     let sidebar =
       settings.explainThis.show && settings.core.statics
         ? ExplainThis.view(

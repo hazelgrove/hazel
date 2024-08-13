@@ -10,7 +10,7 @@ let text_view = (seg: Segment.t): list(Node.t) => {
   module Text =
     Code.Text({
       let map = measured_of(seg);
-      let settings = Init.startup.settings;
+      let settings = Settings.Model.init;
       let info_map = Id.Map.empty; /* Assume this doesn't contain projectors */
     });
   Text.of_segment([], true, Any, seg);

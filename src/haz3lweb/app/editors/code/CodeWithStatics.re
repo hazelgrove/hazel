@@ -7,15 +7,9 @@ open Haz3lcore;
 
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    // Updated:
-    editor: Editor.t,
-    // Calculated:
-    statics: CachedStatics.statics,
-  };
+  type t = Editor.t;
 
-  // Note: statics aren't calculated until `calculate` is run!
-  let mk = editor => {editor, statics: CachedStatics.empty_statics};
+  let mk = editor => editor;
 
   let mk_from_exp = (~inline=false, term: Exp.t) => {
     ExpToSegment.exp_to_segment(term, ~inline)
@@ -24,38 +18,19 @@ module Model = {
     |> mk;
   };
 
-  let get_term = model => model.statics.term;
+  let get_term = (model: t) => model.state.meta.statics.term;
 
-  let get_statics = model => model.statics.info_map;
+  let get_statics = (model: t) => model.state.meta.statics.info_map;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = PersistentZipper.t;
-  let persist = model => model.editor.state.zipper |> PersistentZipper.persist;
+  let persist = (model: t) => model.state.zipper |> PersistentZipper.persist;
   let unpersist = p => p |> PersistentZipper.unpersist |> Editor.init |> mk;
 };
 
 module Update = {
   // There are no events for a read-only editor
   type t;
-
-  /* Calculates the statics for the editor.
-     Interface.Statics.mk_map_ctx handles memoization */
-  let calculate = (~settings, ~stitch, model: Model.t): Model.t => {
-    let term =
-      MakeTerm.from_zip_for_sem(model.editor.state.zipper) |> fst |> stitch;
-    let info_map =
-      Interface.Statics.mk_map_ctx(settings, Builtins.ctx_init, term);
-    let error_ids =
-      Statics.Map.error_ids(model.editor.state.meta.term_ranges, info_map);
-    {
-      editor: model.editor,
-      statics: {
-        term,
-        info_map,
-        error_ids,
-      },
-    };
-  };
 };
 
 module View = {
@@ -64,15 +39,36 @@ module View = {
 
   let view =
       (~globals, ~overlays: list(Node.t)=[], ~sort=Sort.root, model: Model.t) => {
+    let {
+      state:
+        {
+          meta:
+            {
+              syntax: {measured, selection_ids, segment, holes, _},
+              statics: {info_map, _},
+              _,
+            },
+          _,
+        },
+      _,
+    }: Editor.t = model;
     let code_text_view =
-      CodeViewable.view_editor(~globals, ~sort, model.editor);
+      CodeViewable.view(
+        ~globals,
+        ~sort,
+        ~measured,
+        ~buffer_ids=selection_ids,
+        ~segment,
+        ~holes,
+        ~info_map,
+      );
     let statics_decos = {
       module Deco =
         Deco.Deco({
           let globals = globals;
-          let editor = model.editor;
+          let editor = model;
         });
-      Deco.statics(model.statics.error_ids);
+      Deco.statics();
     };
     div_c("code-container", [code_text_view] @ statics_decos @ overlays);
   };

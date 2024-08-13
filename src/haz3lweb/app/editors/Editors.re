@@ -27,20 +27,22 @@ module StoreMode =
   });
 
 module Store = {
-  let load = (~instructor_mode) => {
+  let load = (~settings, ~instructor_mode) => {
     let mode = StoreMode.load();
     switch (mode) {
     | Scratch =>
-      Model.Scratch(ScratchMode.Store.load() |> ScratchMode.Model.unpersist)
+      Model.Scratch(
+        ScratchMode.Store.load() |> ScratchMode.Model.unpersist(~settings),
+      )
     | Documentation =>
       Model.Documentation(
         ScratchMode.StoreDocumentation.load()
-        |> ScratchMode.Model.unpersist_documentation,
+        |> ScratchMode.Model.unpersist_documentation(~settings),
       )
     | Exercises =>
       Model.Exercises(
-        ExercisesMode.Store.load(~instructor_mode)
-        |> ExercisesMode.Model.unpersist(~instructor_mode),
+        ExercisesMode.Store.load(~settings, ~instructor_mode)
+        |> ExercisesMode.Model.unpersist(~settings, ~instructor_mode),
       )
     };
   };
@@ -111,18 +113,25 @@ module Update = {
     | (SwitchMode(Documentation), Documentation(_))
     | (SwitchMode(Exercises), Exercises(_)) => model |> return_quiet
     | (SwitchMode(Scratch), _) =>
-      Model.Scratch(ScratchMode.Store.load() |> ScratchMode.Model.unpersist)
+      Model.Scratch(
+        ScratchMode.Store.load()
+        |> ScratchMode.Model.unpersist(~settings=settings.core),
+      )
       |> return
     | (SwitchMode(Documentation), _) =>
       Model.Documentation(
         ScratchMode.StoreDocumentation.load()
-        |> ScratchMode.Model.unpersist_documentation,
+        |> ScratchMode.Model.unpersist_documentation(~settings=settings.core),
       )
       |> return
     | (SwitchMode(Exercises), _) =>
       Model.Exercises(
-        ExercisesMode.Store.load(~instructor_mode=settings.instructor_mode)
+        ExercisesMode.Store.load(
+          ~settings=settings.core,
+          ~instructor_mode=settings.instructor_mode,
+        )
         |> ExercisesMode.Model.unpersist(
+             ~settings=settings.core,
              ~instructor_mode=settings.instructor_mode,
            ),
       )

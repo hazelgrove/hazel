@@ -32,10 +32,10 @@ module Model = {
       ),
   };
 
-  let unpersist = (~instructor_mode, persistent: persistent) => {
+  let unpersist = (~settings, ~instructor_mode, persistent: persistent) => {
     let exercises =
       List.map2(
-        ExerciseMode.Model.unpersist(~instructor_mode),
+        ExerciseMode.Model.unpersist(~settings, ~instructor_mode),
         persistent.exercise_data |> List.map(snd),
         ExerciseSettings.exercises,
       );
@@ -79,23 +79,24 @@ module Store = {
     S.save(value);
   };
 
-  let init_exercise = (spec, ~instructor_mode) => {
+  let init_exercise = (~settings, spec, ~instructor_mode) => {
     let key = Exercise.key_of(spec);
-    let exercise = ExerciseMode.Model.of_spec(spec, ~instructor_mode);
+    let exercise =
+      ExerciseMode.Model.of_spec(spec, ~settings, ~instructor_mode);
     save_exercise(exercise, ~instructor_mode);
     StoreExerciseKey.save(key);
     exercise;
   };
 
   let load_exercise =
-      (key, spec, ~instructor_mode): ExerciseMode.Model.persistent => {
+      (~settings, key, spec, ~instructor_mode): ExerciseMode.Model.persistent => {
     module S =
       Store.F({
         [@deriving (show({with_path: false}), sexp, yojson)]
         type t = ExerciseMode.Model.persistent;
         let default = () =>
           spec
-          |> ExerciseMode.Model.of_spec(~instructor_mode)
+          |> ExerciseMode.Model.of_spec(~settings, ~instructor_mode)
           |> ExerciseMode.Model.persist(~instructor_mode);
         let key = Store.Exercise(key);
       });
@@ -112,27 +113,27 @@ module Store = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type exercise_export = Model.persistent;
 
-  let load = (~instructor_mode): Model.persistent => {
+  let load = (~settings, ~instructor_mode): Model.persistent => {
     let cur_exercise = StoreExerciseKey.load();
     let exercise_data =
       List.map(
         spec => {
           let key = Exercise.key_of(spec);
-          (key, load_exercise(key, spec, ~instructor_mode));
+          (key, load_exercise(~settings, key, spec, ~instructor_mode));
         },
         ExerciseSettings.exercises,
       );
     {cur_exercise, exercise_data};
   };
 
-  let export = (~instructor_mode) =>
+  let export = (~settings, ~instructor_mode) =>
     {
       cur_exercise: StoreExerciseKey.load(),
       exercise_data:
         List.map(
           spec => {
             let key = Exercise.key_of(spec);
-            (key, load_exercise(key, spec, ~instructor_mode));
+            (key, load_exercise(~settings, key, spec, ~instructor_mode));
           },
           ExerciseSettings.exercises,
         ),
@@ -140,7 +141,7 @@ module Store = {
     |> sexp_of_exercise_export
     |> Sexplib.Sexp.to_string;
 
-  let import = (data, ~specs, ~instructor_mode) => {
+  let import = (~settings, data, ~specs, ~instructor_mode) => {
     let exercise_export =
       data |> Sexplib.Sexp.of_string |> exercise_export_of_sexp;
     StoreExerciseKey.save(exercise_export.cur_exercise);
@@ -152,7 +153,13 @@ module Store = {
           |> fst;
         let spec = List.nth(specs, n);
         save_exercise(
-          value |> ExerciseMode.Model.unpersist(~instructor_mode, _, spec),
+          value
+          |> ExerciseMode.Model.unpersist(
+               ~settings,
+               ~instructor_mode,
+               _,
+               spec,
+             ),
           ~instructor_mode,
         );
       },

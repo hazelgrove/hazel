@@ -1,31 +1,6 @@
-open Virtual_dom.Vdom;
 open Util;
 open Util.Web;
 open Haz3lcore;
-
-module Deco = (M: {
-                 let globals: Globals.t;
-                 let editor: Editor.t;
-               }) => {
-  let font_metrics = M.globals.font_metrics;
-  let map = M.editor.state.meta.measured;
-  let show_backpack_targets = M.globals.show_backpack_targets;
-  let terms = M.editor.state.meta.terms;
-  let term_ranges = M.editor.state.meta.term_ranges;
-  let tiles = M.editor.state.meta.tiles;
-
-  let tile = id => Id.Map.find(id, tiles);
-
-  let caret = (z: Zipper.t): list(Node.t) => {
-    let origin = Zipper.caret_point(map, z);
-    let shape = Zipper.caret_direction(z);
-    let side =
-      switch (Indicated.piece(z)) {
-      | Some((_, side, _)) => side
-      | _ => Right
-      };
-    [CaretDec.view(~font_metrics, ~profile={side, origin, shape})];
-  };
 
 type shard_data = (Measured.measurement, Nibs.shapes);
 
@@ -35,6 +10,7 @@ let sel_shard_svg =
   measurement,
   Mold.nib_shapes(~index?, Piece.mold_of(~shape=start_shape, p)),
 );
+
 module HighlightSegment =
        (
          M: {
@@ -127,26 +103,27 @@ module HighlightSegment =
        );
 };
 
-module Deco =
-       (
-         M: {
-           let ui_state: Model.ui_state;
-           let meta: Editor.Meta.t;
-           let highlights: option(ColorSteps.colorMap);
-         },
-       ) => {
-  module Highlight =
-    HighlightSegment({
-      let measured = M.meta.syntax.measured;
-      let info_map = M.meta.statics.info_map;
-      let font_metrics = M.ui_state.font_metrics;
-    });
-  let font_metrics = M.ui_state.font_metrics;
+module Deco = (M: {
+                 let globals: Globals.t;
+                 let editor: Editor.t;
+               }) => {
+  let font_metrics = M.globals.font_metrics;
+  let map = M.editor.state.meta.syntax.measured;
+  let show_backpack_targets = M.globals.show_backpack_targets;
+  let terms = M.editor.state.meta.syntax.terms;
+  let term_ranges = M.editor.state.meta.syntax.term_ranges;
+  let tiles = M.editor.state.meta.syntax.tiles;
+  let measured = M.editor.state.meta.syntax.measured;
+  let rows = measured.rows;
+  let projectors = M.editor.state.meta.syntax.projectors;
+  let error_ids = M.editor.state.meta.statics.error_ids;
+  let color_highlights = M.globals.color_highlights;
+  let segment = M.editor.state.meta.syntax.segment;
 
-  let tile = id => Id.Map.find(id, M.meta.syntax.tiles);
+  let tile = id => Id.Map.find(id, tiles);
 
   let caret = (z: Zipper.t): Node.t => {
-    let origin = Zipper.caret_point(M.meta.syntax.measured, z);
+    let origin = Zipper.caret_point(map, z);
     let shape = Zipper.caret_direction(z);
     let side =
       switch (Indicated.piece(z)) {
@@ -155,6 +132,12 @@ module Deco =
       };
     CaretDec.view(~font_metrics, ~profile={side, origin, shape});
   };
+  module Highlight =
+    HighlightSegment({
+      let measured = M.editor.state.meta.syntax.measured;
+      let info_map = M.editor.state.meta.statics.info_map;
+      let font_metrics = font_metrics;
+    });
 
   let segment_selected = (z: Zipper.t) =>
     Highlight.go(
@@ -164,25 +147,22 @@ module Deco =
     );
 
   let term_range = (p): option((Point.t, Point.t)) => {
-    let id = Any.rep_id(Id.Map.find(Piece.id(p), M.meta.syntax.terms));
-    switch (TermRanges.find_opt(id, M.meta.syntax.term_ranges)) {
+    let id = Any.rep_id(Id.Map.find(Piece.id(p), terms));
+    switch (TermRanges.find_opt(id, term_ranges)) {
     | None => None
     | Some((p_l, p_r)) =>
-      let l =
-        Measured.find_p(~msg="Dec.range", p_l, M.meta.syntax.measured).origin;
-      let r =
-        Measured.find_p(~msg="Dec.range", p_r, M.meta.syntax.measured).last;
+      let l = Measured.find_p(~msg="Dec.range", p_l, measured).origin;
+      let r = Measured.find_p(~msg="Dec.range", p_r, measured).last;
       Some((l, r));
     };
   };
 
   let all_tiles = (p: Piece.t): list((Uuidm.t, Mold.t, Measured.Shards.t)) =>
-    Id.Map.find(Piece.id(p), M.meta.syntax.terms)
+    Id.Map.find(Piece.id(p), terms)
     |> Any.ids
     |> List.map(id => {
          let t = tile(id);
-         let shards =
-           Measured.find_shards(~msg="all_tiles", t, M.meta.syntax.measured);
+         let shards = Measured.find_shards(~msg="all_tiles", t, measured);
          (id, t.mold, shards);
        });
 
@@ -211,7 +191,7 @@ module Deco =
         let tiles = all_tiles(p);
         PieceDec.indicated(
           ~font_metrics,
-          ~rows=M.meta.syntax.measured.rows,
+          ~rows,
           ~caret=(Piece.id(p), index),
           ~tiles,
           range,
@@ -240,20 +220,10 @@ module Deco =
                switch (Siblings.neighbors((l, r))) {
                | (None, None) => failwith("impossible")
                | (_, Some(p)) =>
-                 let m =
-                   Measured.find_p(
-                     ~msg="Deco.targets",
-                     p,
-                     M.meta.syntax.measured,
-                   );
+                 let m = Measured.find_p(~msg="Deco.targets", p, measured);
                  Measured.{origin: m.origin, last: m.origin};
                | (Some(p), _) =>
-                 let m =
-                   Measured.find_p(
-                     ~msg="Deco.targets",
-                     p,
-                     M.meta.syntax.measured,
-                   );
+                 let m = Measured.find_p(~msg="Deco.targets", p, measured);
                  Measured.{origin: m.last, last: m.last};
                };
              let profile =
@@ -283,35 +253,33 @@ module Deco =
   let backpack = (z: Zipper.t): Node.t =>
     BackpackView.view(
       ~font_metrics,
-      ~origin=Zipper.caret_point(M.meta.syntax.measured, z),
+      ~origin=Zipper.caret_point(measured, z),
       z,
     );
 
   let backpack_targets = (backpack, seg) =>
     div_c(
       "backpack-targets",
-      M.ui_state.show_backpack_targets && Backpack.restricted(backpack)
+      show_backpack_targets && Backpack.restricted(backpack)
         ? targets(backpack, seg) : [],
     );
 
   let term_decoration =
       (~id: Id.t, deco: ((Point.t, Point.t, SvgUtil.Path.t)) => Node.t) => {
-    let (p_l, p_r) = TermRanges.find(id, M.meta.syntax.term_ranges);
-    let l =
-      Measured.find_p(~msg="Deco.term", p_l, M.meta.syntax.measured).origin;
-    let r =
-      Measured.find_p(~msg="Deco.term", p_r, M.meta.syntax.measured).last;
+    let (p_l, p_r) = TermRanges.find(id, term_ranges);
+    let l = Measured.find_p(~msg="Deco.term", p_l, measured).origin;
+    let r = Measured.find_p(~msg="Deco.term", p_r, measured).last;
     open SvgUtil.Path;
     let r_edge =
       ListUtil.range(~lo=l.row, r.row + 1)
       |> List.concat_map(i => {
-           let row = Measured.Rows.find(i, M.meta.syntax.measured.rows);
+           let row = Measured.Rows.find(i, measured.rows);
            [h(~x=i == r.row ? r.col : row.max_col), v_(~dy=1)];
          });
     let l_edge =
       ListUtil.range(~lo=l.row, r.row + 1)
       |> List.rev_map(i => {
-           let row = Measured.Rows.find(i, M.meta.syntax.measured.rows);
+           let row = Measured.Rows.find(i, measured.rows);
            [h(~x=i == l.row ? l.col : row.indent), v_(~dy=-1)];
          })
       |> List.concat;
@@ -350,7 +318,7 @@ module Deco =
       List.map(
         ((id, color)) =>
           term_highlight(~clss=["highlight-code-" ++ color], id),
-        switch (M.highlights) {
+        switch (color_highlights) {
         | Some(colorMap) => ColorSteps.to_list(colorMap)
         | _ => []
         },
@@ -359,11 +327,11 @@ module Deco =
 
   let error_view = (id: Id.t) =>
     try(
-      switch (Id.Map.find_opt(id, M.meta.syntax.projectors)) {
+      switch (Id.Map.find_opt(id, projectors)) {
       | Some(p) =>
         /* Special case for projectors as they are not in tile map */
         let shapes = ProjectorBase.shapes(p);
-        let measurement = Id.Map.find(id, M.meta.syntax.measured.projectors);
+        let measurement = Id.Map.find(id, measured.projectors);
         div_c(
           "errors-piece",
           [PieceDec.simple_shard_error({font_metrics, shapes, measurement})],
@@ -379,7 +347,7 @@ module Deco =
           |> List.flatten;
         switch (term_range(p)) {
         | Some(range) =>
-          let rows = M.meta.syntax.measured.rows;
+          let rows = measured.rows;
           let decos =
             shard_decos
             @ PieceDec.uni_lines(~font_metrics, ~rows, range, tiles)
@@ -397,8 +365,7 @@ module Deco =
       Node.div([])
     };
 
-  let errors = () =>
-    div_c("errors", List.map(error_view, M.meta.statics.error_ids));
+  let errors = () => div_c("errors", List.map(error_view, error_ids));
 
   let indication = (z: Zipper.t) =>
     switch (Projector.indicated(z)) {
@@ -432,7 +399,7 @@ module Deco =
           ~font_metrics,
           ~caret=(Id.invalid, 0),
           ~inject=() => inject(i),
-          ~rows=M.editor.state.meta.measured.rows,
+          ~rows=measured.rows,
           ~tiles=[(id, mold, shards)],
         )
         |> Option.map(_, range);
@@ -469,7 +436,7 @@ module Deco =
           ~font_metrics,
           ~caret=(Id.invalid, 0),
           ~tiles=[(id, mold, shards)],
-          ~rows=M.editor.state.meta.measured.rows,
+          ~rows=measured.rows,
         )
         |> Option.map(_, range);
       },
@@ -478,13 +445,17 @@ module Deco =
     |> List.flatten;
   };
 
-  let all = z => [
-    caret(z),
-    indication(z),
-    selection(z),
-    backpack(z),
-    backpack_targets(z.backpack, M.meta.syntax.segment),
-    errors(),
-    color_highlights(),
-  ];
+  let statics = () => [errors()];
+
+  let editor = (z, selected: bool) =>
+    selected
+      ? [
+        caret(z),
+        indication(z),
+        selection(z),
+        backpack(z),
+        backpack_targets(z.backpack, segment),
+        color_highlights(),
+      ]
+      : [];
 };

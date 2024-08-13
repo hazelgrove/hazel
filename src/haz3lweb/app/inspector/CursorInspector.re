@@ -77,7 +77,9 @@ let elements_noun: Cls.t => string =
 
 let common_err_view = (~globals, cls: Cls.t, err: Info.error_common) => {
   let view_type = x =>
-    x |> CodeViewable.view_typ(~globals, ~inline=true) |> code_box_container;
+    x
+    |> CodeViewable.view_typ(~globals, ~inline=true, ~info_map=Id.Map.empty)
+    |> code_box_container;
   switch (err) {
   | NoType(BadToken(token)) =>
     switch (Form.bad_token_cls(token)) {
@@ -110,7 +112,8 @@ let common_err_view = (~globals, cls: Cls.t, err: Info.error_common) => {
 };
 
 let common_ok_view = (~globals, cls: Cls.t, ok: Info.ok_pat) => {
-  let view_type = CodeViewable.view_typ(~globals, ~inline=true);
+  let view_type =
+    CodeViewable.view_typ(~globals, ~info_map=Id.Map.empty, ~inline=true);
   switch (cls, ok) {
   | (Exp(MultiHole) | Pat(MultiHole), _) => [
       text("Expecting operator or delimiter"),
@@ -151,7 +154,8 @@ let common_ok_view = (~globals, cls: Cls.t, ok: Info.ok_pat) => {
 };
 
 let typ_ok_view = (~globals, cls: Cls.t, ok: Info.ok_typ) => {
-  let view_type = CodeViewable.view_typ(~globals, ~inline=true);
+  let view_type =
+    CodeViewable.view_typ(~globals, ~inline=true, ~info_map=Id.Map.empty);
   switch (ok) {
   | Type(_) when cls == Typ(EmptyHole) => [text("Fillable by any type")]
   | Type(ty) => [view_type(ty), text("is a type")]
@@ -173,7 +177,8 @@ let typ_ok_view = (~globals, cls: Cls.t, ok: Info.ok_typ) => {
 };
 
 let typ_err_view = (~globals, ok: Info.error_typ) => {
-  let view_type = CodeViewable.view_typ(~globals, ~inline=true);
+  let view_type =
+    CodeViewable.view_typ(~globals, ~inline=true, ~info_map=Id.Map.empty);
   switch (ok) {
   | FreeTypeVariable(name) => [
       view_type(Var(name) |> Typ.fresh) |> code_box_container,
@@ -194,7 +199,8 @@ let typ_err_view = (~globals, ok: Info.error_typ) => {
 };
 
 let rec exp_view = (~globals, cls: Cls.t, status: Info.status_exp) => {
-  let view_type = CodeViewable.view_typ(~globals, ~inline=true);
+  let view_type =
+    CodeViewable.view_typ(~globals, ~inline=true, ~info_map=Id.Map.empty);
   switch (status) {
   | InHole(FreeVariable(name)) =>
     div_err([code_err(name), text("not found")])
@@ -255,7 +261,8 @@ let typ_view = (~globals, cls: Cls.t, status: Info.status_typ) =>
   };
 
 let tpat_view = (~globals, _: Cls.t, status: Info.status_tpat) => {
-  let view_type = CodeViewable.view_typ(~globals, ~inline=true);
+  let view_type =
+    CodeViewable.view_typ(~globals, ~inline=true, ~info_map=Id.Map.empty);
   switch (status) {
   | NotInHole(Empty) => div_ok([text("Fillable with a new alias")])
   | NotInHole(Var(name)) => div_ok([CtxInspector.alias_view(name)])
@@ -303,7 +310,11 @@ let inspector_view = (~globals, ci): Node.t =>
   );
 
 let view =
-    (~globals: Globals.t, editor, cursor_info: option(Info.t)) => {
+    (
+      ~globals: Globals.t,
+      ~inject: Editors.Update.t => 'a,
+      cursor: Cursor.cursor(Editors.Update.t),
+    ) => {
   let bar_view = div(~attrs=[Attr.id("bottom-bar")]);
   let err_view = err =>
     bar_view([
@@ -312,16 +323,19 @@ let view =
         [div(~attrs=[clss(["icon"])], [Icons.magnify]), text(err)],
       ),
     ]);
-  switch (cursor_info) {
+  switch (cursor.info) {
   | _ when !globals.settings.core.statics => div_empty
   | None => err_view("Whitespace or Comment")
   | Some(ci) =>
     bar_view([
       inspector_view(~globals, ci),
-      ProjectorView.Panel.view(
-        ~inject=a => inject(PerformAction(Project(a))),
-        editor,
-        ci,
+      ProjectorPanel.view(
+        ~inject=
+          a =>
+            cursor.editor_action(Project(a))
+            |> Option.map(inject)
+            |> Option.value(~default=Ui_effect.Ignore),
+        cursor,
       ),
     ])
   };

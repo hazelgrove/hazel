@@ -94,5 +94,6 @@ let set_buffer = (~info_map: Statics.Map.t, z: Zipper.t): option(Zipper.t) => {
       z.relatives.siblings,
       suggestion_suffix,
     );
-  Some(content);
+  let z = Zipper.set_buffer(z, ~content, ~mode=Unparsed);
+  Some(z);
 };

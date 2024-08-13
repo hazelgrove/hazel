@@ -1,6 +1,7 @@
 open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
+open Util;
 
 /* The exercises mode interface for a single exercise. Composed of multiple editors and results. */
 
@@ -16,12 +17,12 @@ module Model = {
     cells: Exercise.stitched(CellEditor.Model.t),
   };
 
-  let of_spec = (~instructor_mode: bool, spec) => {
+  let of_spec = (~settings, ~instructor_mode: bool, spec) => {
     let editors =
       Exercise.map(
         spec,
-        Editor.init,
-        Editor.init(~read_only=!instructor_mode),
+        Editor.init(~settings),
+        Editor.init(~settings, ~read_only=!instructor_mode),
       );
     let term_item_to_cell = (item: Exercise.TermItem.t): CellEditor.Model.t => {
       CellEditor.Model.mk(item.editor);
@@ -77,11 +78,7 @@ module Update = {
       {
         ...model,
         editors:
-          Exercise.put_main_editor(
-            ~selection=pos,
-            model.editors,
-            new_editor.editor,
-          ),
+          Exercise.put_main_editor(~selection=pos, model.editors, new_editor),
       };
     | Editor(pos, ResultAction(_) as action)
         when
@@ -99,7 +96,7 @@ module Update = {
       Updated.return_quiet(model) // TODO: better feedback
     | ResetEditor(pos) =>
       let spec = Exercise.main_editor_of_state(~selection=pos, model.spec);
-      let new_editor = Editor.init(spec);
+      let new_editor = Editor.init(~settings=settings.core, spec);
       {
         ...model,
         editors:
@@ -110,8 +107,11 @@ module Update = {
       let new_editors =
         Exercise.map(
           model.spec,
-          Editor.init,
-          Editor.init(~read_only=settings.instructor_mode),
+          Editor.init(~settings=settings.core),
+          Editor.init(
+            ~settings=settings.core,
+            ~read_only=settings.instructor_mode,
+          ),
         );
       {...model, editors: new_editors} |> Updated.return;
     };
@@ -127,13 +127,7 @@ module Update = {
     let cells =
       Exercise.map2_stitched(
         (pos, {term, editor}: Exercise.TermItem.t, cell: CellEditor.Model.t) =>
-          {
-            editor: {
-              editor,
-              statics: cell.editor.statics,
-            },
-            result: cell.result,
-          }
+          {editor, result: cell.result}
           |> CellEditor.Update.calculate(
                ~settings, ~queue_worker=Some(queue_worker(pos)), ~stitch=_ =>
                term
@@ -198,7 +192,7 @@ module Selection = {
       (~settings: Settings.t, tile, model: Model.t): option((Update.t, t)) => {
     Exercise.positioned_editors(model.editors)
     |> List.find_opt(((p, e: Editor.t)) =>
-         TileMap.find_opt(tile, e.state.meta.tiles) != None
+         TileMap.find_opt(tile, e.state.meta.syntax.tiles) != None
          && Exercise.visible_in(p, ~instructor_mode=settings.instructor_mode)
        )
     |> Option.map(((pos, _)) =>
@@ -326,12 +320,12 @@ module View = {
             let correct_impl_trailing_hole_ctx =
               Haz3lcore.Editor.trailing_hole_ctx(
                 eds.correct_impl,
-                instructor.editor.statics.info_map,
+                instructor.editor.state.meta.statics.info_map,
               );
             let prelude_trailing_hole_ctx =
               Haz3lcore.Editor.trailing_hole_ctx(
                 eds.prelude,
-                prelude.editor.statics.info_map,
+                prelude.editor.state.meta.statics.info_map,
               );
             switch (correct_impl_trailing_hole_ctx, prelude_trailing_hole_ctx) {
             | (None, _) => Node.div([text("No context available (1)")])
@@ -477,7 +471,12 @@ module View = {
   let export_menu = (~globals: Globals.t, model: Model.t) => {
     let download_editor_state = (~instructor_mode) =>
       globals.get_log_and(log => {
-        let data = globals.export_all(~instructor_mode, ~log);
+        let data =
+          globals.export_all(
+            ~settings=globals.settings.core,
+            ~instructor_mode,
+            ~log,
+          );
         JsUtil.download_json(ExerciseSettings.filename, data);
       });
 
