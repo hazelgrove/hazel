@@ -6,61 +6,63 @@
     <title>Hazel Palette</title>
     <style>
       :root {
-        /* REDS */
-        --R0: oklch(85% 0.15 21);
-        --R1: oklch(60% 0.3 29);
-        --R2: oklch(40% 0.15 29);
+        --NONE: oklch(0% 0 0 / 0%);
+        --BLACK: oklch(0% 0 0);
 
-        /* GREENS */
+        /* STONE */
+        --STONE: oklch(52% 0.03 220); /* code text */
+
+        /* SAND */
+        --SAND: oklch(99% 0.012 90); /* code background */
+
+        /* CLAY */
+        --T1: oklch(97% 0.025 90); /* buffer shards */
+        --T2: oklch(from var(--T1) 94% c h); /* projector shards */
+        --T3: oklch(from var(--T1) 91% c h); /* result background */
+
+        /* ROCK */
+        --BR1: oklch(85% 0.07 90); /* caret shard, token buffer*/
+        --BR2: oklch(from var(--BR1) 70% c h); /* exp shard arms */
+        --BR3: oklch(from var(--BR1) 60% c h);
+        --BR4: oklch(from var(--BR1) 50% c h);
+
+        /* MOLTEN */
+        --Y0: oklch(95% 0.05 90); /* menu-bkg */
+        --Y1: oklch(91% 0.11 95); /* selections */
+        --Y2: oklch(88% 0.2 95); /* explicit hole */
+        --Y3: oklch(71% 0.2 95); /* backpack shards */
+
+        /* MAGMA */
+        --R0: oklch(85% 0.1 30);
+        --R1: oklch(60% 0.3 30);
+        --R2: oklch(40% 0.3 30);
+
+        /* MOSS */
         --G0: oklch(70% 0.15 150);
-        --G1: oklch(75% 0.15 150);
+        --G1: oklch(85% 0.15 150);
         --G2: oklch(80% 0.05 150);
         --GB0: oklch(70% 0.05 120);
         --GB1: oklch(45% 0.05 120);
 
-        /* YELLOWS */
-        --Y0: oklch(95% 0.05 90);
-        --Y1: oklch(93% 0.11 95);
-        --Y2: oklch(88% 0.15 90);
-        --Y3: oklch(71% 0.15 90);
+        /* GLASS */
+        --PAT: oklch(60% 0.2 225);
+        --TYP: oklch(60% 0.2 305);
+        --TPAT: oklch(60% 0.2 180);
 
-        /* TANS */
-        --SAND: oklch(99% 0.012 90);
-        --T1: oklch(97% 0.025 90);
-        --T2: oklch(95% 0.025 90);
-        --T3: oklch(93% 0.025 90);
-        /* --T4: oklch(91% 0.037 90); */
-
-        /* BROWNS */
-        --BR0: oklch(0% 0.07 90);
-        --BR1: oklch(from var(--BR0) 90% c h);
-        --BR2: oklch(from var(--BR0) 75% c h);
-        --BR3: oklch(from var(--BR0) 60% c h);
-        --BR4: oklch(from var(--BR0) 50% c h);
-
-        /* MISC */
-        --STONE: oklch(52% 0.03 220);
-        --BR2: oklch(72% 0.055 90);
-
-        /* PATTERN BLUE */
-        --token-pat: oklch(60% 0.2 225);
-        /* --shard-caret-pat: oklch(90% 0.1 225); */
-        --shard-pat: oklch(95% 0.05 225);
-
-        /* TYPE PURPLE */
-        --token-typ: oklch(60% 0.2 305);
-        /* --shard-caret-typ: oklch(90% 0.1 305); */
-        --shard-typ: oklch(95% 0.05 305);
-
-        /* TYPE ALIAS SEAFOAM */
-        --token-tpat: oklch(60% 0.2 180);
-        /* --shard-caret-tpat: oklch(90% 0.1 180); */
-        --shard-tpat: oklch(95% 0.05 180);
-
-        /* CODE HIGHLIGHTS */
+        /* HIGHLIGHTS */
         --highlight-a: oklch(0.95 0.07 360);
         --highlight-b: oklch(from var(--highlight-a) l c 240);
         --highlight-c: oklch(from var(--highlight-a) l c 120);
+
+        /* MISC */
+        --ERRHOLE: oklch(96% 0.02 47); /* temporary due to child arms */
+        --CREASE: oklch(0% 0 0 / 40%);
+        --SHADOW: oklch(50% 0.1 90 / 33%);
+        --textarea-indicated: var(--SAND);
+        --textarea-text: var(--BR3);
+        --textarea-v-stripe: oklch(78% 0.14 6 / 55%);
+        --textarea-h-stripe: oklch(87% 0.07 246);
+        --textarea-h-strip-selected: oklch(68% 0.14 76 / 30%);
       }
 
       body {
@@ -120,30 +122,20 @@
     <div class="columns">
       <div class="column">
         <div class="color-group">
-          <h2>Hazel Greens</h2>
+          <h2>Base</h2>
           <div class="color-palette">
-            <div class="color-swatch" style="background-color: var(--G0)">G0</div>
-            <div class="color-swatch" style="background-color: var(--G1)">G1</div>
-            <div class="color-swatch" style="background-color: var(--G2)">G2</div>
+            <div class="color-swatch" style="background-color: var(--NONE)">NONE</div>
             &nbsp;&nbsp;
-            <div class="color-swatch" style="background-color: var(--GB0)">GB0</div>
-            <div class="color-swatch dark" style="background-color: var(--GB1)">GB1</div>
+            <div class="color-swatch" style="background-color: var(--SAND)">SAND</div>
+            &nbsp;&nbsp;
+            <div class="color-swatch dark" style="background-color: var(--STONE)">STONE</div>
+            &nbsp;&nbsp;
+            <div class="color-swatch dark" style="background-color: var(--BLACK)">BLACK</div>
           </div>
         </div>
 
         <div class="color-group">
-          <h2>Base Tans</h2>
-          <div class="color-palette">
-            <div class="color-swatch" style="background-color: var(--SAND)">T0</div>
-            <div class="color-swatch" style="background-color: var(--T1)">T1</div>
-            <div class="color-swatch" style="background-color: var(--T2)">T2</div>
-            <div class="color-swatch" style="background-color: var(--T3)">T3</div>
-            <!-- <div class="color-swatch" style="background-color: var(--T4)">T4</div> -->
-          </div>
-        </div>
-
-        <div class="color-group">
-          <h2>Base Brown</h2>
+          <h2>Shale</h2>
           <div class="color-palette">
             <div class="color-swatch" style="background-color: var(--BR1)">BR1</div>
             <div class="color-swatch" style="background-color: var(--BR2)">BR2</div>
@@ -153,68 +145,90 @@
         </div>
 
         <div class="color-group">
-          <h2>Affordance Oranges</h2>
+          <h2>Clay</h2>
+          <div class="color-palette">
+            <div class="color-swatch" style="background-color: var(--T1)">T1</div>
+            <div class="color-swatch" style="background-color: var(--T2)">T2</div>
+            <div class="color-swatch" style="background-color: var(--T3)">T3</div>
+          </div>
+        </div>
+
+        
+        <div class="color-group">
+          <h2>Molten</h2>
           <div class="color-palette">
             <div class="color-swatch" style="background-color: var(--Y0)">Y0</div>
+            &nbsp;&nbsp;
             <div class="color-swatch" style="background-color: var(--Y1)">Y1</div>
+            &nbsp;&nbsp;
             <div class="color-swatch" style="background-color: var(--Y2)">Y2</div>
             <div class="color-swatch" style="background-color: var(--Y3)">Y3</div>
           </div>
         </div>
 
         <div class="color-group">
-          <h2>Error Red</h2>
+          <h2>Glass</h2>
+          <div class="color-palette">
+            <div class="color-swatch dark" style="background-color: var(--PAT)">PAT</div>
+            <div class="color-swatch dark" style="background-color: var(--TYP)">TYP</div>
+            <div class="color-swatch dark" style="background-color: var(--TPAT)">TPAT</div>
+          </div>
+        </div>
+
+      </div>
+
+
+      <div class="column">
+
+        <div class="color-group">
+          <h2>Magma</h2>
           <div class="color-palette">
             <div class="color-swatch" style="background-color: var(--R0)">R0</div>
-            <div class="color-swatch" style="background-color: var(--R1)">R1</div>
+            &nbsp;&nbsp;
+            <div class="color-swatch dark" style="background-color: var(--R1)">R1</div>
             <div class="color-swatch dark" style="background-color: var(--R2)">R2</div>
           </div>
         </div>
-        
-      </div>
 
-      <div class="column">
-        
         <div class="color-group">
-          <h2>Stone</h2>
+          <h2>Moss</h2>
           <div class="color-palette">
-            <div class="color-swatch dark" style="background-color: var(--STONE)">STONE</div>
+            <div class="color-swatch" style="background-color: var(--G0)">G0</div>
+            <div class="color-swatch" style="background-color: var(--G1)">G1</div>
+            &nbsp;&nbsp;
+            <div class="color-swatch" style="background-color: var(--G2)">G2</div>
+            &nbsp;&nbsp;
+            <div class="color-swatch" style="background-color: var(--GB0)">GB0</div>
+            <div class="color-swatch dark" style="background-color: var(--GB1)">GB1</div>
           </div>
         </div>
 
         <div class="color-group">
-          <h2>Pattern Blue</h2>
-          <div class="color-palette">
-            <div class="color-swatch dark" style="background-color: var(--token-pat)">PAT-T</div>
-            <!-- <div class="color-swatch" style="background-color: var(--shard-caret-pat)">SC-PAT</div> -->
-            <div class="color-swatch" style="background-color: var(--shard-pat)">PAT-S</div>
-          </div>
-        </div>
-
-        <div class="color-group">
-          <h2>Type Tyrian</h2>
-          <div class="color-palette">
-            <div class="color-swatch dark" style="background-color: var(--token-typ)">TYP-T</div>
-            <!-- <div class="color-swatch" style="background-color: var(--shard-caret-typ)">SC-TYP</div> -->
-            <div class="color-swatch" style="background-color: var(--shard-typ)">TYP-S</div>
-          </div>
-        </div>
-
-        <div class="color-group">
-          <h2>Type Alias Seafoam</h2>
-          <div class="color-palette">
-            <div class="color-swatch dark" style="background-color: var(--token-tpat)">TPAT-T</div>
-            <!-- <div class="color-swatch" style="background-color: var(--shard-caret-tpat)">SC-TPAT</div> -->
-            <div class="color-swatch" style="background-color: var(--shard-tpat)">TPAT-S</div>
-          </div>
-        </div>
-
-        <div class="color-group">
-          <h2>Code Highlights</h2>
+          <h2>Aura</h2>
           <div class="color-palette">
             <div class="color-swatch" style="background-color: var(--highlight-a)">HL-A</div>
             <div class="color-swatch" style="background-color: var(--highlight-b)">HL-B</div>
             <div class="color-swatch" style="background-color: var(--highlight-c)">HL-C</div>
+          </div>
+        </div>
+
+        <div class="color-group">
+          <h2>Free Parking</h2>
+          <div class="color-palette">
+            <div class="color-swatch" style="background-color: var(--SHADOW)">SHADOW</div>
+            &nbsp;&nbsp;
+            <div class="color-swatch" style="background-color: var(--ERRHOLE)">ERRHOLE</div>
+            &nbsp;&nbsp;
+            <div class="color-swatch dark" style="background-color: var(--CREASE)">CREASE</div>
+          </div>
+          <div class="color-palette" style="padding-top: 9px;">
+            <div class="color-swatch" style="background-color: var(--textarea-h-strip-selected)">TA0</div>
+            &nbsp;&nbsp;
+            <div class="color-swatch" style="background-color: var(--textarea-v-stripe)">TA1</div>
+            &nbsp;&nbsp;
+            <div class="color-swatch" style="background-color: var(--textarea-h-stripe)">TA2</div>
+            
+            
           </div>
         </div>
       </div>
