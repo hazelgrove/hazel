@@ -2,8 +2,8 @@ open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type buffer =
-  | Unparsed
-  | Parsed;
+  //| Parsed
+  | Unparsed;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type mode =
@@ -31,13 +31,7 @@ let is_buffer: t => bool =
   | {mode: Buffer(_), _} => true
   | _ => false;
 
-let buffer_ids = (sel: t): list(Id.t) => {
-  /* Collect ids of tokens in buffer for styling purposes. This is
-   * currently necessary as the selection is not persisted through
-   * unzipping for display */
-  let buffer = is_buffer(sel) ? sel.content : [];
-  Id.Map.bindings(Measured.of_segment(buffer).tiles) |> List.map(fst);
-};
+let selection_ids = (sel: t): list(Id.t) => Segment.ids(sel.content);
 
 let empty = mk(Segment.empty);
 

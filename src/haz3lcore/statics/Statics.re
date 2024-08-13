@@ -34,43 +34,27 @@ module Map = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Id.Map.t(Info.t);
 
-  let error_ids = (term_ranges: TermRanges.t, info_map: t): list(Id.t) =>
+  let error_ids = (info_map: t): list(Id.t) =>
     Id.Map.fold(
       (id, info, acc) =>
-        /* Because of artefacts in Maketerm ID handling,
-         * there are be situations where ids appear in the
-         * info_map which do not occur in term_ranges. These
-         * ids should be purely duplicative, so skipping them
-         * when iterating over the info_map should have no
-         * effect, beyond supressing the resulting Not_found exs */
-        switch (Id.Map.find_opt(id, term_ranges)) {
-        | Some(_) when Info.is_error(info) && id == Info.id_of(info) => [
-            id,
-            ...acc,
-          ]
-        | _ => acc
-        },
+        /* Second clause is to eliminate non-representative ids,
+         * which will not be found in the measurements map */
+        Info.is_error(info) && id == Info.id_of(info) ? [id, ...acc] : acc,
       info_map,
       [],
     );
-
-  let error_and_warning_ids =
-      (term_ranges: TermRanges.t, info_map: t): (list(Id.t), list(Id.t)) => {
+  // Retrieve both the error and warning ids in a single pass
+  let error_and_warning_ids = (info_map: t): (list(Id.t), list(Id.t)) => {
     Id.Map.fold(
-      (id, info, acc) =>
-        switch (Id.Map.find_opt(id, term_ranges), acc) {
-        | (Some(_), (error_ids, warning_ids))
-            when Info.is_error(info) && id == Info.id_of(info) => (
-            [id, ...error_ids],
-            warning_ids,
+      (id, info, acc) => {
+        let (error_ids, warning_ids) = acc;
+        id == Info.id_of(info)
+          ? (
+            Info.is_error(info) ? [id, ...error_ids] : error_ids,
+            Info.is_warning(info) ? [id, ...warning_ids] : warning_ids,
           )
-        | (Some(_), (error_ids, warning_ids))
-            when Info.is_warning(info) && id == Info.id_of(info) => (
-            error_ids,
-            [id, ...warning_ids],
-          )
-        | _ => acc
-        },
+          : acc;
+      },
       info_map,
       ([], []),
     );
@@ -1058,6 +1042,14 @@ and variant_to_info_map =
     (m, [ctr, ...ctrs]);
   };
 };
+
+let mk =
+  Core.Memo.general(~cache_size_bound=1000, (ctx, e) => {
+    uexp_to_info_map(~ctx, ~ancestors=[], e, Id.Map.empty) |> snd
+  });
+
+let mk = (core: CoreSettings.t, ctx, exp) =>
+  core.statics ? mk(ctx, exp) : Id.Map.empty;
 
 let get_error_at = (info_map: Map.t, id: Id.t) => {
   id
