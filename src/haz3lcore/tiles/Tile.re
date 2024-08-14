@@ -1,16 +1,14 @@
 open Util;
 include Base;
-
 exception Ambiguous_molds;
 exception Invalid_mold;
 exception Empty_tile;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = tile;
+type t('a) = tile('a);
 
-let id = t => t.id;
-
-let is_complete = (t: t) => List.length(t.label) == List.length(t.shards);
+let is_complete = (t: t('a)) =>
+  List.length(t.label) == List.length(t.shards);
 
 let l_shard = t =>
   OptUtil.get_or_raise(Empty_tile, ListUtil.hd_opt(t.shards));
@@ -24,20 +22,20 @@ let has_end = (d: Direction.t, t) =>
   };
 let has_ends = t => has_end(Left, t) && has_end(Right, t);
 
-let nibs = (t: t) => {
+let nibs = (t: t('a)) => {
   let (l, _) = Mold.nibs(~index=l_shard(t), t.mold);
   let (_, r) = Mold.nibs(~index=r_shard(t), t.mold);
   (l, r);
 };
 
-let shapes = (t: t) => {
+let shapes = (t: t('a)) => {
   let (l, r) = nibs(t);
   (l.shape, r.shape);
 };
 
 let to_piece = t => Tile(t);
 
-let sorted_children = ({mold, shards, children, _}: t) =>
+let sorted_children = ({mold, shards, children, _}: t('a)) =>
   Aba.mk(shards, children)
   |> Aba.aba_triples
   |> List.map(((l, child, r)) => {
@@ -46,7 +44,8 @@ let sorted_children = ({mold, shards, children, _}: t) =>
        (l.sort == r.sort ? l.sort : Any, child);
      });
 
-let contained_children = (t: t): list((t, Base.segment, t)) =>
+let contained_children =
+    (t: t('a)): list((t('a), Base.segment('a), t('a))) =>
   Aba.mk(t.shards, t.children)
   |> Aba.aba_triples
   |> List.map(((l, child, r)) => {
@@ -55,25 +54,27 @@ let contained_children = (t: t): list((t, Base.segment, t)) =>
        (l, child, r);
      });
 
-// let remold = (t: t): list(t) =>
+// let remold = (t:t('a)): list(t) =>
 //   Molds.get(t.label) |> List.map(mold => {...t, mold});
 
-let split_shards = (id, label, mold, shards) =>
-  shards |> List.map(i => {id, label, mold, shards: [i], children: []});
+let split_shards = (extra, label, mold, shards) =>
+  shards |> List.map(i => {extra, label, mold, shards: [i], children: []});
 
 // postcond: output segment is nonempty
-let disassemble = ({id, label, mold, shards, children}: t): segment => {
-  let shards = split_shards(id, label, mold, shards);
+let disassemble =
+    ({extra, label, mold, shards, children}: t('a)): segment('a) => {
+  let shards = split_shards(extra, label, mold, shards);
   Aba.mk(shards, children)
   |> Aba.join(s => [to_piece(s)], Fun.id)
   |> List.concat;
 };
 
-let disintegrate = ({id, label, mold, shards, _}: t): list(tile) => {
-  split_shards(id, label, mold, shards);
+let disintegrate =
+    ({extra, label, mold, shards, _}: t('a)): list(tile('a)) => {
+  split_shards(extra, label, mold, shards);
 };
 
-let reassemble = (match: Aba.t(t, segment)): t => {
+let reassemble = (match: Aba.t(t('a), segment('a))): t('a) => {
   let t = Aba.hd(match);
   let (shards, children) =
     match
@@ -86,7 +87,7 @@ let reassemble = (match: Aba.t(t, segment)): t => {
   let _ = Aba.mk(shards, children);
   assert(List.sort(Int.compare, shards) == shards);
   {
-    id: t.id,
+    extra: t.extra,
     label: t.label,
     // note: this throws away molds on tiles other than hd.
     // in cases where those molds differ, reassembled tile
@@ -97,11 +98,11 @@ let reassemble = (match: Aba.t(t, segment)): t => {
   };
 };
 
-let pop_l = (tile: t): (piece, segment) =>
+let pop_l = (tile: t('a)): (piece('a), segment('a)) =>
   disassemble(tile)
   |> ListUtil.split_first_opt
   |> OptUtil.get_or_raise(Empty_tile);
-let pop_r = (tile: t): (segment, piece) =>
+let pop_r = (tile: t('a)): (segment('a), piece('a)) =>
   disassemble(tile)
   |> ListUtil.split_last_opt
   |> OptUtil.get_or_raise(Empty_tile);
@@ -115,16 +116,16 @@ let pop_r = (tile: t): (segment, piece) =>
 //     [@deriving (show({with_path: false}), sexp, yojson)]
 //     type t = Aba.t(Shard.t, segment);
 
-//     let id = (m: t) => Aba.hd(m).tile_id;
+//     let id = (m:t('a)) => Aba.hd(m).tile_id;
 
-//     let label = (m: t) => snd(Aba.hd(m).label);
+//     let label = (m:t('a)) => snd(Aba.hd(m).label);
 
 //     let shards: t => list(Shard.t) = Aba.get_as;
 //     // let children: t => list(segment) = Aba.get_bs;
 
-//     let length = (m: t) => List.length(shards(m));
+//     let length = (m:t('a)) => List.length(shards(m));
 
-//     let mold = (m: t) => {
+//     let mold = (m:t('a)) => {
 //       let molds =
 //         switch (Shard.consistent_molds(shards(m))) {
 //         | [] =>
@@ -140,10 +141,10 @@ let pop_r = (tile: t): (segment, piece) =>
 //     let children = m =>
 //       List.map(ListUtil.rev_if(O.d == Left), Aba.get_bs(m));
 
-//     let join = (m: t): segment =>
+//     let join = (m:t('a)): segment =>
 //       m |> Aba.join(s => [Shard.to_piece(s)], Fun.id) |> List.flatten;
 
-//     let complete = (m: t): option(tile) => {
+//     let complete = (m:t('a)): option(tile) => {
 //       let id = id(m);
 //       let label = label(m);
 //       let mold = mold(m);

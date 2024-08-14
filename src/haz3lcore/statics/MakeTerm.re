@@ -18,7 +18,7 @@ let tokens =
   Piece.get(
     _ => [],
     _ => [" "],
-    (t: Tile.t) => t.shards |> List.map(List.nth(t.label)),
+    (t: Tile.t('a)) => t.shards |> List.map(List.nth(t.label)),
     _ => [],
   );
 
@@ -36,9 +36,9 @@ type unsorted =
   | Bin(t, tiles, t);
 
 type t = {
-  term: UExp.t,
+  term: UExp.t(list(Id.t)),
   terms: TermMap.t,
-  projectors: Id.Map.t(Piece.projector),
+  projectors: Id.Map.t(Piece.projector(Id.t)),
 };
 
 let is_nary =
@@ -58,7 +58,8 @@ let is_typ_bsum = is_nary(Any.is_typ, "+");
 let is_grout = tiles =>
   Aba.get_as(tiles) |> List.map(snd) |> List.for_all((==)(([" "], [])));
 
-let is_rules = ((ts, kids): tiles): option(Aba.t(UPat.t, UExp.t)) => {
+let is_rules =
+    ((ts, kids): tiles): option(Aba.t(UPat.t, UExp.t(list(Id.t)))) => {
   open OptUtil.Syntax;
   let+ ps =
     ts
@@ -110,14 +111,14 @@ let return = (wrap, ids, tm) => {
 };
 
 /* Map to collect projector ids */
-let projectors: ref(Id.Map.t(Piece.projector)) = ref(Id.Map.empty);
+let projectors: ref(Id.Map.t(Piece.projector(Id.t))) = ref(Id.Map.empty);
 
 /* Strip a projector from a segment and log it in the map */
-let rm_and_log_projectors = (seg: Segment.t): Segment.t =>
+let rm_and_log_projectors = (seg: Segment.t(Id.t)): Segment.t(Id.t) =>
   List.map(
     fun
     | Piece.Projector(pr) => {
-        projectors := Id.Map.add(pr.id, pr, projectors^);
+        projectors := Id.Map.add(pr.extra, pr, projectors^);
         pr.syntax;
       }
     | x => x,
@@ -139,7 +140,7 @@ let mk_bad = (ctr, ids, value) => {
   };
 };
 
-let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
+let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t(Id.t)): Term.Any.t =>
   switch (s) {
   | Pat => Pat(pat(unsorted(skel, seg)))
   | TPat => TPat(tpat(unsorted(skel, seg)))
@@ -170,8 +171,8 @@ and exp = unsorted => {
   let ids = ids(unsorted) @ inner_ids;
   return(e => Exp(e), ids, {ids, copied: false, term});
 }
-and exp_term: unsorted => (UExp.term, list(Id.t)) = {
-  let ret = (tm: UExp.term) => (tm, []);
+and exp_term: unsorted => (UExp.term(list(Id.t)), list(Id.t)) = {
+  let ret = (tm: UExp.term(list(Id.t))) => (tm, []);
   let hole = unsorted => UExp.hole(kids_of_unsorted(unsorted));
   fun
   | Op(tiles) as tm =>
@@ -250,7 +251,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           ),
         )
       | (["(", ")"], [Exp(arg)]) =>
-        let use_deferral = (arg: UExp.t): UExp.t => {
+        let use_deferral = (arg: UExp.t(list(Id.t))): UExp.t(list(Id.t)) => {
           ids: arg.ids,
           copied: false,
           term: Deferral(InAp),
@@ -514,11 +515,11 @@ and rul = (unsorted: unsorted): Rul.t => {
   };
 }
 
-and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
+and unsorted = (skel: Skel.t, seg: Segment.t(Id.t)): unsorted => {
   /* Remove projectors. We do this here as opposed to removing
    * them in an external call to save a whole-syntax pass. */
   let seg = rm_and_log_projectors(seg);
-  let tile_kids = (p: Piece.t): list(Term.Any.t) =>
+  let tile_kids = (p: Piece.t(Id.t)): list(Term.Any.t) =>
     switch (p) {
     | Secondary(_)
     | Grout(_) => []
@@ -531,7 +532,7 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
          })
     };
 
-  let root: Aba.t(Piece.t, Skel.t) =
+  let root: Aba.t(Piece.t(Id.t), Skel.t) =
     Skel.root(skel) |> Aba.map_a(List.nth(seg));
 
   // maintaining this alternating ordered structure

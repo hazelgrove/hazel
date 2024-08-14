@@ -125,7 +125,7 @@ type example_id =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type example = {
   sub_id: example_id,
-  term: Segment.t,
+  term: Segment.t(Id.t),
   message: string,
 };
 
@@ -235,8 +235,8 @@ type form_id =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type form = {
   id: form_id,
-  syntactic_form: Segment.t,
-  expandable_id: option((Id.t, Segment.t)),
+  syntactic_form: Segment.t(Id.t),
+  expandable_id: option((Id.t, Segment.t(Id.t))),
   explanation: string,
   examples: list(example),
 };
@@ -336,7 +336,7 @@ module Simple = {
   type t = {
     group_id,
     form_id,
-    abstract: (Segment.t, list((Id.t, Id.t))),
+    abstract: (Segment.t(Id.t), list((Id.t, Id.t))),
     explanation: string,
     examples: list(example),
   };
@@ -368,8 +368,8 @@ module Simple = {
   );
 
   let mk_1 =
-      ((n: string, id: Id.t), mk_form: Piece.t => Segment.t)
-      : (Segment.t, list((Id.t, Id.t))) => {
+      ((n: string, id: Id.t), mk_form: Piece.t(Id.t) => Segment.t(Id.t))
+      : (Segment.t(Id.t), list((Id.t, Id.t))) => {
     let p = Example.exp(n);
     (mk_form(p), [(Piece.id(p), id)]);
   };
@@ -378,9 +378,9 @@ module Simple = {
       (
         (n1: string, id_1: Id.t),
         (n2: string, id_2: Id.t),
-        mk_form: (Piece.t, Piece.t) => Segment.t,
+        mk_form: (Piece.t(Id.t), Piece.t(Id.t)) => Segment.t(Id.t),
       )
-      : (Segment.t, list((Id.t, Id.t))) => {
+      : (Segment.t(Id.t), list((Id.t, Id.t))) => {
     let (p1, p2) = (Example.exp(n1), Example.exp(n2));
     (mk_form(p1, p2), [(Piece.id(p1), id_1), (Piece.id(p2), id_2)]);
   };
@@ -390,9 +390,10 @@ module Simple = {
         (n1: string, id_1: Id.t),
         (n2: string, id_2: Id.t),
         (n3: string, id_3: Id.t),
-        mk_form: (Piece.t, Piece.t, Piece.t) => Segment.t,
+        mk_form:
+          (Piece.t(Id.t), Piece.t(Id.t), Piece.t(Id.t)) => Segment.t(Id.t),
       )
-      : (Segment.t, list((Id.t, Id.t))) => {
+      : (Segment.t(Id.t), list((Id.t, Id.t))) => {
     let (p1, p2, p3) = (
       Example.exp(n1),
       Example.exp(n2),

@@ -5,12 +5,13 @@ open ProjectorBase;
 /* Some decimal places necessary to avoid becoming an int */
 let float_of_float = s => s |> float_of_string |> Printf.sprintf("%.2f");
 
-let put = (s: string): Piece.t => s |> float_of_float |> Piece.mk_mono(Exp);
+let put = (s: string): Piece.t(Id.t) =>
+  s |> float_of_float |> Piece.mk_mono(Exp);
 
-let get_opt = (piece: Piece.t): option(float) =>
+let get_opt = (piece: Piece.t(Id.t)): option(float) =>
   piece |> Piece.of_mono |> Util.OptUtil.and_then(float_of_string_opt);
 
-let get = (piece: Piece.t): float =>
+let get = (piece: Piece.t(Id.t)): float =>
   switch (get_opt(piece)) {
   | None => failwith("ERROR: Slider: not float literal")
   | Some(s) => s

@@ -85,12 +85,12 @@ let add_s = (id: Id.t, i: int, m, map) => {
 };
 
 // assumes tile is single shard
-let add_t = (t: Tile.t, m, map) => {
+let add_t = (t: Tile.t(Id.t), m, map) => {
   ...map,
   tiles:
     map.tiles
     |> Id.Map.update(
-         t.id,
+         t.extra,
          fun
          | None => Some([(Tile.l_shard(t), m)])
          | Some(ms) => Some([(Tile.l_shard(t), m), ...ms]),
@@ -104,11 +104,11 @@ let add_w = (w: Secondary.t, m, map) => {
   ...map,
   secondary: map.secondary |> Id.Map.add(w.id, m),
 };
-let add_pr = (p: Base.projector, m, map) => {
+let add_pr = (p: Base.projector(Id.t), m, map) => {
   ...map,
-  projectors: map.projectors |> Id.Map.add(p.id, m),
+  projectors: map.projectors |> Id.Map.add(p.extra, m),
 };
-let add_p = (p: Piece.t, m, map) =>
+let add_p = (p: Piece.t(Id.t), m, map) =>
   p
   |> Piece.get(
        w => add_w(w, m, map),
@@ -141,9 +141,10 @@ let singleton_g = (g, m) => empty |> add_g(g, m);
 let singleton_s = (id, shard, m) => empty |> add_s(id, shard, m);
 
 // TODO(d) rename
-let find_opt_shards = (t: Tile.t, map) => Id.Map.find_opt(t.id, map.tiles);
-let find_shards = (~msg="", t: Tile.t, map) =>
-  try(Id.Map.find(t.id, map.tiles)) {
+let find_opt_shards = (t: Tile.t(Id.t), map) =>
+  Id.Map.find_opt(t.extra, map.tiles);
+let find_shards = (~msg="", t: Tile.t(Id.t), map) =>
+  try(Id.Map.find(t.extra, map.tiles)) {
   | _ => failwith("find_shards: " ++ msg)
   };
 
@@ -163,15 +164,15 @@ let find_g = (~msg="", g: Grout.t, map): measurement =>
   try(Id.Map.find(g.id, map.grout)) {
   | _ => failwith("find_g: " ++ msg)
   };
-let find_pr = (~msg="", p: Base.projector, map): measurement =>
-  try(Id.Map.find(p.id, map.projectors)) {
+let find_pr = (~msg="", p: Base.projector(Id.t), map): measurement =>
+  try(Id.Map.find(p.extra, map.projectors)) {
   | _ => failwith("find_g: " ++ msg)
   };
-let find_pr_opt = (p: Base.projector, map): option(measurement) =>
-  Id.Map.find_opt(p.id, map.projectors);
+let find_pr_opt = (p: Base.projector(Id.t), map): option(measurement) =>
+  Id.Map.find_opt(p.extra, map.projectors);
 // returns the measurement spanning the whole tile
-let find_t = (t: Tile.t, map): measurement => {
-  let shards = Id.Map.find(t.id, map.tiles);
+let find_t = (t: Tile.t(Id.t), map): measurement => {
+  let shards = Id.Map.find(t.extra, map.tiles);
   let (first, last) =
     try({
       let first = ListUtil.assoc_err(Tile.l_shard(t), shards, "find_t");
@@ -182,7 +183,7 @@ let find_t = (t: Tile.t, map): measurement => {
     };
   {origin: first.origin, last: last.last};
 };
-let find_p = (~msg="", p: Piece.t, map): measurement =>
+let find_p = (~msg="", p: Piece.t(Id.t), map): measurement =>
   try(
     p
     |> Piece.get(
@@ -228,7 +229,7 @@ let find_by_id = (id: Id.t, map: t): option(measurement) => {
   };
 };
 
-let post_tile_indent = (t: Tile.t) => {
+let post_tile_indent = (t: Tile.t(Id.t)) => {
   // hack for indent following fun/if tiles.
   // proper fix involves updating mold datatype
   // to specify whether a right-facing concave
@@ -244,13 +245,13 @@ let post_tile_indent = (t: Tile.t) => {
   complete_fun || missing_right_extreme;
 };
 
-let missing_left_extreme = (t: Tile.t) => Tile.l_shard(t) > 0;
+let missing_left_extreme = (t: Tile.t(Id.t)) => Tile.l_shard(t) > 0;
 
-let is_indented_map = (seg: Segment.t) => {
-  let rec go = (~is_indented=false, ~map=Id.Map.empty, seg: Segment.t) =>
+let is_indented_map = (seg: Segment.t(Id.t)) => {
+  let rec go = (~is_indented=false, ~map=Id.Map.empty, seg: Segment.t(Id.t)) =>
     seg
     |> List.fold_left(
-         ((is_indented, map), p: Piece.t) =>
+         ((is_indented, map), p: Piece.t(Id.t)) =>
            switch (p) {
            | Secondary(w) when Secondary.is_linebreak(w) => (
                false,
@@ -282,7 +283,7 @@ let last_of_token = (token: string, origin: Point.t): Point.t =>
     row: origin.row + StringUtil.num_linebreaks(token),
   };
 
-let of_segment = (seg: Segment.t, info_map: Statics.Map.t): t => {
+let of_segment = (seg: Segment.t(Id.t), info_map: Statics.Map.t): t => {
   let is_indented = is_indented_map(seg);
 
   // recursive across seg's bidelimited containers
@@ -291,7 +292,7 @@ let of_segment = (seg: Segment.t, info_map: Statics.Map.t): t => {
             ~map,
             ~container_indent: abs_indent=0,
             ~origin=Point.zero,
-            seg: Segment.t,
+            seg: Segment.t(Id.t),
           )
           : (Point.t, t) => {
     // recursive across seg's list structure
@@ -300,7 +301,7 @@ let of_segment = (seg: Segment.t, info_map: Statics.Map.t): t => {
               ~map,
               ~contained_indent: rel_indent=0,
               ~origin: Point.t,
-              seg: Segment.t,
+              seg: Segment.t(Id.t),
             )
             : (Point.t, t) =>
       switch (seg) {
@@ -354,7 +355,7 @@ let of_segment = (seg: Segment.t, info_map: Statics.Map.t): t => {
             (contained_indent, last, map);
           | Projector(p) =>
             let token =
-              Projector.placeholder(p, Id.Map.find_opt(p.id, info_map));
+              Projector.placeholder(p, Id.Map.find_opt(p.extra, info_map));
             let last = last_of_token(token, origin);
             let map = extra_rows(token, origin, map);
             let map = add_pr(p, {origin, last}, map);
@@ -364,7 +365,7 @@ let of_segment = (seg: Segment.t, info_map: Statics.Map.t): t => {
               let token = List.nth(t.label, shard);
               let map = extra_rows(token, origin, map);
               let last = last_of_token(token, origin);
-              let map = add_s(t.id, shard, {origin, last}, map);
+              let map = add_s(t.extra, shard, {origin, last}, map);
               (last, map);
             };
             let (last, map) =
@@ -392,7 +393,7 @@ let of_segment = (seg: Segment.t, info_map: Statics.Map.t): t => {
   snd(go_nested(~map=empty, seg));
 };
 
-let length = (seg: Segment.t, map: t): int =>
+let length = (seg: Segment.t(Id.t), map: t): int =>
   switch (seg) {
   | [] => 0
   | [p] =>

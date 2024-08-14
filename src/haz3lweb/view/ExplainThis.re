@@ -233,7 +233,7 @@ let expander_deco =
       ~settings: Settings.t,
       ~inject,
       ~ui_state: Model.ui_state,
-      ~options: list((ExplainThisForm.form_id, Segment.t)),
+      ~options: list((ExplainThisForm.form_id, Segment.t(Id.t))),
       ~group: ExplainThisForm.group,
       ~doc: ExplainThisForm.form,
     ) => {
@@ -283,7 +283,7 @@ let expander_deco =
               specificity_style,
             ],
             List.map(
-              ((id: ExplainThisForm.form_id, segment: Segment.t)): Node.t => {
+              ((id: ExplainThisForm.form_id, segment: Segment.t(Id.t))): Node.t => {
                 let code_view =
                   Code.simple_view(~font_metrics, ~segment, ~settings);
                 let classes =
@@ -407,7 +407,7 @@ let rec bypass_parens_pat = (pat: Pat.t) => {
   };
 };
 
-let rec bypass_parens_exp = (exp: Exp.t) => {
+let rec bypass_parens_exp = (exp: Exp.t(list(Id.t))) => {
   switch (exp.term) {
   | Parens(e) => bypass_parens_exp(e)
   | _ => exp
@@ -532,7 +532,7 @@ let get_doc =
     let rec get_message_exp =
             (term)
             : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) =>
-      switch ((term: Exp.term)) {
+      switch ((term: Exp.term(list(Id.t)))) {
       | Exp.Invalid(_) => simple("Not a valid expression")
       | DynamicErrorHole(_)
       | FailedCast(_)
@@ -1663,7 +1663,7 @@ let get_doc =
           let color_fn = List.nth(ColorSteps.child_colors, 0);
           let color_supplied = List.nth(ColorSteps.child_colors, 1);
           let color_deferred = List.nth(ColorSteps.child_colors, 2);
-          let add = (mapping, arg: Exp.t) => {
+          let add = (mapping, arg: Exp.t(list(Id.t))) => {
             let arg_id = List.nth(arg.ids, 0);
             Haz3lcore.Id.Map.add(
               arg_id,

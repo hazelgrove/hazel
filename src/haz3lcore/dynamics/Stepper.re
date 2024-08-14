@@ -12,7 +12,7 @@ type stepper_state =
   | StepTimeout(EvalObj.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type history = Aba.t((DHExp.t, EvaluatorState.t), step);
+type history = Aba.t((DHExp.t(list(Id.t)), EvaluatorState.t), step);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
@@ -26,7 +26,7 @@ let rec matches =
           env: ClosureEnvironment.t,
           flt: FilterEnvironment.t,
           ctx: EvalCtx.t,
-          exp: DHExp.t,
+          exp: DHExp.t(list(Id.t)),
           act: FilterAction.t,
           idx: int,
         )
@@ -247,7 +247,7 @@ let rec evaluate_pending = (~settings, s: t) => {
         }
       )
       |> DHExp.repair_ids;
-    let _ = print_endline(d_loc' |> DHExp.show);
+    let _ = print_endline(d_loc' |> [%derive.show: DHExp.t(list(Id.t))]);
     let d' = EvalCtx.compose(eo.ctx, d_loc');
     let new_step = {
       d,
@@ -351,7 +351,7 @@ let get_justification: step_kind => string =
   | UnOp(Meta(Unquote)) => failwith("INVALID STEP");
 
 type step_info = {
-  d: DHExp.t,
+  d: DHExp.t(list(Id.t)),
   chosen_step: option(step), // The step that was taken next
   hidden_steps: list((step, Id.t)), // The hidden steps between previous_step and the current one (an Id in included because it may have changed since the step was taken)
   previous_step: option((step, Id.t)) // The step that will be displayed above this one (an Id in included because it may have changed since the step was taken)
@@ -376,7 +376,7 @@ let get_history = (~settings, stepper) => {
       (
         (
           chosen_step: option(step),
-          (d: DHExp.t, hidden_steps: list(step)),
+          (d: DHExp.t(list(Id.t)), hidden_steps: list(step)),
           previous_step: option(step),
         ),
       ) => {

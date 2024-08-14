@@ -2,7 +2,7 @@ open Util;
 
 /* FIXME: Make more obvious names. */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type instance_report = (DHExp.t, TestStatus.t);
+type instance_report = (DHExp.t(list(Id.t)), TestStatus.t);
 
 let joint_status: list(instance_report) => TestStatus.t =
   reports => TestStatus.join_all(List.map(((_, x)) => x, reports));

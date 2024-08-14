@@ -50,9 +50,9 @@ let token_to_left = (z: Zipper.t): option(string) =>
  * holds an unparsed string, which is parsed via the same mechanism as
  * Paste only when a suggestion is accepted. */
 let mk_unparsed_buffer =
-    (~sort: Sort.t, sibs: Siblings.t, t: Token.t): Segment.t => {
+    (~sort: Sort.t, sibs: Siblings.t, t: Token.t): Segment.t(Id.t) => {
   let mold = Siblings.mold_fitting_between(sort, Precedence.max, sibs);
-  [Tile({id: Id.mk(), label: [t], shards: [0], children: [], mold})];
+  [Tile({extra: Id.mk(), label: [t], shards: [0], children: [], mold})];
 };
 
 /* If 'current' is a proper prefix of 'candidate', return the

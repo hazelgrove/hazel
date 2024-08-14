@@ -11,7 +11,7 @@ type t = {
   label: Label.t,
   mold: Mold.t,
   shards: (list(int), list(int)),
-  children: (list(Segment.t), list(Segment.t)),
+  children: (list(Segment.t(Id.t)), list(Segment.t(Id.t))),
 };
 
 // TODO(d) revisit naming w.r.t. outer vs inner shards
@@ -31,8 +31,10 @@ let shapes = a => {
   (l.shape, r.shape);
 };
 
-let zip = (child: Segment.t, {id, label, mold, shards, children}: t): Tile.t => {
-  id,
+let zip =
+    (child: Segment.t(Id.t), {id, label, mold, shards, children}: t)
+    : Tile.t(Id.t) => {
+  extra: id,
   label,
   mold,
   shards: fst(shards) @ snd(shards),
@@ -81,7 +83,7 @@ let disassemble =
   (flatten(shards_l, kids_l), flatten(shards_r, kids_r));
 };
 
-let container_shards = (a: t): (Piece.t, Piece.t) => {
+let container_shards = (a: t): (Piece.t(Id.t), Piece.t(Id.t)) => {
   let (shards_l, shards_r) =
     a.shards
     |> TupleUtil.map2(Tile.split_shards(a.id, a.label, a.mold))
@@ -93,13 +95,14 @@ let container_shards = (a: t): (Piece.t, Piece.t) => {
   (l, r);
 };
 
-let reassemble = (match_l: Aba.t(Tile.t, Segment.t) as 'm, match_r: 'm): t => {
+let reassemble =
+    (match_l: Aba.t(Tile.t(Id.t), Segment.t(Id.t)) as 'm, match_r: 'm): t => {
   // TODO(d) bit hacky, need to do a flip/orientation pass
   // let match_l = Aba.map_b(Segment.rev, match_l);
   let (t_l, t_r) = Tile.(reassemble(match_l), reassemble(match_r));
-  assert(t_l.id == t_r.id);
+  assert(t_l.extra == t_r.extra);
   {
-    id: t_l.id,
+    id: t_l.extra,
     label: t_l.label,
     mold: t_l.mold,
     shards: (t_l.shards, t_r.shards),

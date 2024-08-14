@@ -18,9 +18,11 @@ let sort =
   | [] => Sort.root
   | [(a, _), ..._] => Ancestor.sort(a);
 
-let zip_gen = (seg: Segment.t, (a, (pre, suf)): generation): Segment.t =>
+let zip_gen =
+    (seg: Segment.t(Id.t), (a, (pre, suf)): generation): Segment.t(Id.t) =>
   pre @ [Piece.Tile(Ancestor.zip(seg, a)), ...suf];
-let zip = (seg: Segment.t, ancs: t) => ancs |> List.fold_left(zip_gen, seg);
+let zip = (seg: Segment.t(Id.t), ancs: t) =>
+  ancs |> List.fold_left(zip_gen, seg);
 
 let disassemble = ancs =>
   ancs
@@ -87,8 +89,8 @@ let regrout = (ancs: t) =>
     empty,
   );
 
-let parent_matches = (t: Tile.t, ancs: t) =>
+let parent_matches = (t: Tile.t(Id.t), ancs: t) =>
   switch (ancs) {
   | [] => false
-  | [(a, _), ..._] => a.id == t.id
+  | [(a, _), ..._] => a.id == t.extra
   };

@@ -35,7 +35,7 @@ let of_delim' =
     },
   );
 let of_delim =
-    (is_in_buffer, is_consistent, indent, t: Piece.tile, i: int)
+    (is_in_buffer, is_consistent, indent, t: Piece.tile('a), i: int)
     : list(Node.t) =>
   of_delim'((
     t.label,
@@ -71,7 +71,7 @@ let of_secondary =
 
 let of_projector = (p, expected_sort, indent, info_map) =>
   of_delim'((
-    [Projector.placeholder(p, Id.Map.find_opt(p.id, info_map))],
+    [Projector.placeholder(p, Id.Map.find_opt(p.extra, info_map))],
     false,
     expected_sort,
     true,
@@ -90,7 +90,7 @@ module Text =
        ) => {
   let m = p => Measured.find_p(~msg="Text", p, M.map);
   let rec of_segment =
-          (buffer_ids, no_sorts, sort, seg: Segment.t): list(Node.t) => {
+          (buffer_ids, no_sorts, sort, seg: Segment.t(Id.t)): list(Node.t) => {
     /* note: no_sorts flag is used for backpack view;
        otherwise Segment.expected_sorts call crashes for some reason */
     let expected_sorts =
@@ -109,7 +109,7 @@ module Text =
        );
   }
   and of_piece =
-      (buffer_ids, expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
+      (buffer_ids, expected_sort: Sort.t, p: Piece.t(Id.t)): list(Node.t) => {
     switch (p) {
     | Tile(t) => of_tile(buffer_ids, expected_sort, t)
     | Grout(_) => of_grout
@@ -119,7 +119,8 @@ module Text =
       of_projector(p, expected_sort, m(Projector(p)).origin.col, M.info_map)
     };
   }
-  and of_tile = (buffer_ids, expected_sort: Sort.t, t: Tile.t): list(Node.t) => {
+  and of_tile =
+      (buffer_ids, expected_sort: Sort.t, t: Tile.t(Id.t)): list(Node.t) => {
     let children_and_sorts =
       List.mapi(
         (i, (l, child, r)) =>
@@ -128,7 +129,7 @@ module Text =
         Aba.aba_triples(Aba.mk(t.shards, t.children)),
       );
     let is_consistent = Sort.consistent(t.mold.out, expected_sort);
-    let is_in_buffer = List.mem(t.id, buffer_ids);
+    let is_in_buffer = List.mem(t.extra, buffer_ids);
     Aba.mk(t.shards, children_and_sorts)
     |> Aba.join(
          of_delim(is_in_buffer, is_consistent, m(Tile(t)).origin.col, t),
@@ -140,7 +141,8 @@ module Text =
 };
 
 let rec holes =
-        (~font_metrics, ~map: Measured.t, seg: Segment.t): list(Node.t) =>
+        (~font_metrics, ~map: Measured.t, seg: Segment.t(Id.t))
+        : list(Node.t) =>
   seg
   |> List.concat_map(
        fun

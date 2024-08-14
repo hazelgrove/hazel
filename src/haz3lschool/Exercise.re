@@ -568,7 +568,9 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     hidden_tests: 'a,
   };
 
-  let wrap_filter = (act: FilterAction.action, term: UExp.t): UExp.t =>
+  let wrap_filter =
+      (act: FilterAction.action, term: UExp.t(list(Id.t)))
+      : UExp.t(list(Id.t)) =>
     Exp.{
       term:
         Exp.Filter(
@@ -586,7 +588,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       ids: [Id.mk()],
     };
 
-  let term_of = (editor: Editor.t): UExp.t =>
+  let term_of = (editor: Editor.t): UExp.t(list(Id.t)) =>
     MakeTerm.from_zip_for_sem(editor.state.zipper).term;
 
   let stitch3 = (ed1: Editor.t, ed2: Editor.t, ed3: Editor.t) =>
@@ -595,7 +597,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       term_of(ed3),
     );
 
-  let stitch_term = ({eds, _}: state): stitched(UExp.t) => {
+  let stitch_term = ({eds, _}: state): stitched(UExp.t(list(Id.t))) => {
     let instructor =
       stitch3(eds.prelude, eds.correct_impl, eds.hidden_tests.tests);
     let user_impl_term = {
@@ -620,7 +622,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       instructor,
       hidden_bugs:
         List.map(
-          (t): UExp.t => stitch3(eds.prelude, t.impl, eds.your_tests.tests),
+          (t): UExp.t(list(Id.t)) =>
+            stitch3(eds.prelude, t.impl, eds.your_tests.tests),
           eds.hidden_bugs,
         ),
       hidden_tests: hidden_tests_term,
@@ -636,8 +639,9 @@ module F = (ExerciseEnv: ExerciseEnv) => {
      Stitching is necessary to concatenate terms
      from different editors, which are then typechecked. */
   let stitch_static =
-      (settings: CoreSettings.t, t: stitched(UExp.t)): stitched_statics => {
-    let mk = (term: UExp.t): Editor.CachedStatics.t => {
+      (settings: CoreSettings.t, t: stitched(UExp.t(list(Id.t))))
+      : stitched_statics => {
+    let mk = (term: UExp.t(list(Id.t))): Editor.CachedStatics.t => {
       let info_map = Statics.mk(settings, Builtins.ctx_init, term);
       {term, error_ids: Statics.Map.error_ids(info_map), info_map};
     };

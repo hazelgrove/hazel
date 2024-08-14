@@ -177,7 +177,7 @@ let get_selected_option = (group: group, model: t): form => {
   };
 };
 
-let get_options = (group: group): list((form_id, Segment.t)) =>
+let get_options = (group: group): list((form_id, Segment.t(Id.t))) =>
   if (List.length(group.forms) < 2) {
     [];
   } else {
@@ -201,6 +201,6 @@ let get_options = (group: group): list((form_id, Segment.t)) =>
   };
 
 let get_form_and_options =
-    (group: group, model: t): (form, list((form_id, Segment.t))) => {
+    (group: group, model: t): (form, list((form_id, Segment.t(Id.t)))) => {
   (get_selected_option(group, model), get_options(group));
 };

@@ -1,7 +1,7 @@
 open Util;
 
 include Id.Map;
-type range = (Piece.t, Piece.t);
+type range = (Piece.t(Id.t), Piece.t(Id.t));
 type nonrec t = t(range);
 
 let union = union((_, range, _) => Some(range));
@@ -11,7 +11,7 @@ let union = union((_, range, _) => Some(range));
  * unmemoized traversal building a hashtbl avoiding unioning.
 
    TODO(andrew): Consider setting a limit for the hashtbl size */
-let range_hash: Hashtbl.t(Tile.segment, Id.Map.t(range)) =
+let range_hash: Hashtbl.t(Tile.segment(Id.t), Id.Map.t(range)) =
   Hashtbl.create(1000);
 
 // NOTE: this calculation is out of sync with
@@ -23,7 +23,7 @@ let range_hash: Hashtbl.t(Tile.segment, Id.Map.t(range)) =
 // TODO(d) fix or derive from other info
 //
 // tail-recursive in outer recursion
-let rec mk' = (seg: Segment.t) => {
+let rec mk' = (seg: Segment.t(Id.t)) => {
   let rec go = (skel: Skel.t): (range, t) => {
     let root = Skel.root(skel) |> Aba.map_a(List.nth(seg));
     let root_l = Aba.first_a(root);

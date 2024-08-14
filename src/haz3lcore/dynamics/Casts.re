@@ -90,7 +90,9 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
 /* Rules are taken from figure 12 of https://arxiv.org/pdf/1805.00155.pdf  */
 
 /* gives a transition step that can be taken by the cast calculus here if applicable. */
-let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
+let rec transition =
+        (~recursive=false, d: DHExp.t(list(Id.t)))
+        : option(DHExp.t(list(Id.t))) => {
   switch (DHExp.term_of(d)) {
   | Cast(d1, t1, t2) =>
     let d1 =
@@ -168,7 +170,8 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
   };
 };
 
-let rec transition_multiple = (d: DHExp.t): DHExp.t => {
+let rec transition_multiple =
+        (d: DHExp.t(list(Id.t))): DHExp.t(list(Id.t)) => {
   switch (transition(~recursive=true, d)) {
   | Some(d'') => transition_multiple(d'')
   | None => d
@@ -181,7 +184,7 @@ let hole = EmptyHole |> DHExp.fresh;
 // Hacky way to do transition_multiple on patterns by transferring
 // the cast to the expression and then back to the pattern.
 let pattern_fixup = (p: DHPat.t): DHPat.t => {
-  let rec unwrap_casts = (p: DHPat.t): (DHPat.t, DHExp.t) => {
+  let rec unwrap_casts = (p: DHPat.t): (DHPat.t, DHExp.t(list(Id.t))) => {
     switch (DHPat.term_of(p)) {
     | Cast(p1, t1, t2) =>
       let (p1, d1) = unwrap_casts(p1);
@@ -193,7 +196,7 @@ let pattern_fixup = (p: DHPat.t): DHPat.t => {
     | _ => (p, hole)
     };
   };
-  let rec rewrap_casts = ((p: DHPat.t, d: DHExp.t)): DHPat.t => {
+  let rec rewrap_casts = ((p: DHPat.t, d: DHExp.t(list(Id.t)))): DHPat.t => {
     switch (DHExp.term_of(d)) {
     | EmptyHole => p
     | Cast(d1, t1, t2) =>

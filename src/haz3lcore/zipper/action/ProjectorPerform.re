@@ -4,9 +4,13 @@ open ProjectorBase;
 /* Updates the underlying piece of syntax for a projector */
 module Update = {
   let update_piece =
-      (f: Base.projector => Base.projector, id: Id.t, syntax: syntax) =>
+      (
+        f: Base.projector(Id.t) => Base.projector(Id.t),
+        id: Id.t,
+        syntax: syntax,
+      ) =>
     switch (syntax) {
-    | Projector(pr) when pr.id == id => Base.Projector(f(pr))
+    | Projector(pr) when pr.extra == id => Base.Projector(f(pr))
     | x => x
     };
 
@@ -17,7 +21,8 @@ module Update = {
     let (module P) = to_module(kind);
     switch (P.can_project(syntax) && minimum_projection_condition(syntax)) {
     | false => syntax
-    | true => Projector({id: Piece.id(syntax), kind, model: P.init, syntax})
+    | true =>
+      Projector({extra: Piece.id(syntax), kind, model: P.init, syntax})
     };
   };
 
@@ -30,7 +35,7 @@ module Update = {
 
   let remove_projector = (id: Id.t, syntax: syntax) =>
     switch (syntax) {
-    | Projector(pr) when pr.id == id => pr.syntax
+    | Projector(pr) when pr.extra == id => pr.syntax
     | x => x
     };
 
@@ -48,7 +53,11 @@ module Update = {
     };
 
   let update =
-      (f: Base.projector => Base.projector, id: Id.t, z: ZipperBase.t)
+      (
+        f: Base.projector(Id.t) => Base.projector(Id.t),
+        id: Id.t,
+        z: ZipperBase.t,
+      )
       : ZipperBase.t =>
     ZipperBase.MapPiece.fast_local(update_piece(f, id), id, z);
 

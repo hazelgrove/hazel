@@ -2,7 +2,7 @@ open Util;
 
 module CachedStatics = {
   type t = {
-    term: UExp.t,
+    term: UExp.t(list(Id.t)),
     info_map: Statics.Map.t,
     error_ids: list(Id.t),
   };
@@ -38,12 +38,12 @@ module CachedStatics = {
 
 module CachedSyntax = {
   type t = {
-    segment: Segment.t,
+    segment: Segment.t(Id.t),
     measured: Measured.t,
     tiles: TileMap.t,
     holes: list(Grout.t),
     selection_ids: list(Id.t),
-    term: UExp.t,
+    term: UExp.t(list(Id.t)),
     /* This term, and the term-derived data structured below, may differ
      * from the term used for semantics. These terms are identical when
      * the backpack is empty. If the backpack is non-empty, then when we
@@ -59,7 +59,7 @@ module CachedSyntax = {
      * certain ids to be present/non-present unexpectedly. */
     term_ranges: TermRanges.t,
     terms: TermMap.t,
-    projectors: Id.Map.t(Base.projector),
+    projectors: Id.Map.t(Base.projector(Id.t)),
   };
 
   let init = (z, info_map): t => {

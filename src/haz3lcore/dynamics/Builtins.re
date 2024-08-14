@@ -1,4 +1,5 @@
 open DHExp;
+open Sexplib.Conv;
 
 /*
    Built-in functions for Hazel.
@@ -8,28 +9,30 @@ open DHExp;
 
    See the existing ones for reference.
  */
-
+[@deriving (show({with_path: false}), sexp)]
+type foo = DHExp.t(list(Id.t));
 [@deriving (show({with_path: false}), sexp)]
 type builtin =
-  | Const(Typ.t, DHExp.t)
-  | Fn(Typ.t, Typ.t, DHExp.t => DHExp.t);
+  | Const(Typ.t, foo)
+  | Fn(Typ.t, Typ.t, DHExp.t(list(Id.t)) => DHExp.t(list(Id.t)));
 
 [@deriving (show({with_path: false}), sexp)]
 type t = VarMap.t_(builtin);
 
 [@deriving (show({with_path: false}), sexp)]
-type forms = VarMap.t_(DHExp.t => DHExp.t);
+type forms = VarMap.t_(DHExp.t(list(Id.t)) => DHExp.t(list(Id.t)));
 
-type result = Result.t(DHExp.t, EvaluatorError.t);
+type result = Result.t(DHExp.t(list(Id.t)), EvaluatorError.t);
 
-let const = (name: Var.t, typ: Typ.term, v: DHExp.t, builtins: t): t =>
+let const =
+    (name: Var.t, typ: Typ.term, v: DHExp.t(list(Id.t)), builtins: t): t =>
   VarMap.extend(builtins, (name, Const(typ |> Typ.fresh, v)));
 let fn =
     (
       name: Var.t,
       t1: Typ.term,
       t2: Typ.term,
-      impl: DHExp.t => DHExp.t,
+      impl: DHExp.t(list(Id.t)) => DHExp.t(list(Id.t)),
       builtins: t,
     )
     : t =>
@@ -49,14 +52,18 @@ module Pervasives = {
     let max_int = DHExp.Int(Int.max_int) |> fresh;
     let min_int = DHExp.Int(Int.min_int) |> fresh;
 
-    let unary = (f: DHExp.t => result, d: DHExp.t) => {
+    let unary = (f: DHExp.t(list(Id.t)) => result, d: DHExp.t(list(Id.t))) => {
       switch (f(d)) {
       | Ok(r') => r'
       | Error(e) => EvaluatorError.Exception(e) |> raise
       };
     };
 
-    let binary = (f: (DHExp.t, DHExp.t) => result, d: DHExp.t) => {
+    let binary =
+        (
+          f: (DHExp.t(list(Id.t)), DHExp.t(list(Id.t))) => result,
+          d: DHExp.t(list(Id.t)),
+        ) => {
       switch (term_of(d)) {
       | Tuple([d1, d2]) =>
         switch (f(d1, d2)) {
@@ -67,7 +74,17 @@ module Pervasives = {
       };
     };
 
-    let ternary = (f: (DHExp.t, DHExp.t, DHExp.t) => result, d: DHExp.t) => {
+    let ternary =
+        (
+          f:
+            (
+              DHExp.t(list(Id.t)),
+              DHExp.t(list(Id.t)),
+              DHExp.t(list(Id.t))
+            ) =>
+            result,
+          d: DHExp.t(list(Id.t)),
+        ) => {
       switch (term_of(d)) {
       | Tuple([d1, d2, d3]) =>
         switch (f(d1, d2, d3)) {
@@ -173,7 +190,11 @@ module Pervasives = {
     let atan = float_op(atan);
 
     let of_string =
-        (convert: string => option('a), wrap: 'a => DHExp.t, name: string) =>
+        (
+          convert: string => option('a),
+          wrap: 'a => DHExp.t(list(Id.t)),
+          name: string,
+        ) =>
       unary(d =>
         switch (term_of(d)) {
         | String(s) =>
@@ -245,7 +266,7 @@ module Pervasives = {
         }
       );
 
-    let string_of: DHExp.t => option(string) =
+    let string_of: DHExp.t(list(Id.t)) => option(string) =
       d =>
         switch (term_of(d)) {
         | String(s) => Some(s)

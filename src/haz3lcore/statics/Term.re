@@ -318,17 +318,19 @@ module Exp = {
     | Cast
     | ListConcat;
 
-  let hole = (tms: list(TermBase.Any.t)): term =>
+  let hole = (tms: list(TermBase.Any.t)): term(list(Id.t)) =>
     switch (tms) {
     | [] => EmptyHole
     | [_, ..._] => MultiHole(tms)
     };
 
-  let rep_id: t => Id.t = IdTagged.rep_id;
-  let fresh: term => t = IdTagged.fresh;
-  let unwrap: t => (term, term => t) = IdTagged.unwrap;
+  let rep_id: t(list(Id.t)) => Id.t = IdTagged.rep_id;
+  let fresh: term(list(Id.t)) => t(list(Id.t)) = IdTagged.fresh;
+  let unwrap:
+    t(list(Id.t)) =>
+    (term(list(Id.t)), term(list(Id.t)) => t(list(Id.t))) = IdTagged.unwrap;
 
-  let cls_of_term: term => cls =
+  let cls_of_term: term(list(Id.t)) => cls =
     fun
     | Invalid(_) => Invalid
     | EmptyHole => EmptyHole
@@ -411,7 +413,7 @@ module Exp = {
 
   // Typfun should be treated as a function here as this is only used to
   // determine when to allow for recursive definitions in a let binding.
-  let rec is_fun = (e: t) => {
+  let rec is_fun = (e: t(list(Id.t))) => {
     switch (e.term) {
     | Parens(e) => is_fun(e)
     | Cast(e, _, _) => is_fun(e)
@@ -452,7 +454,7 @@ module Exp = {
     };
   };
 
-  let rec is_tuple_of_functions = (e: t) =>
+  let rec is_tuple_of_functions = (e: t(list(Id.t))) =>
     is_fun(e)
     || (
       switch (e.term) {
@@ -495,20 +497,20 @@ module Exp = {
       }
     );
 
-  let ctr_name = (e: t): option(Constructor.t) =>
+  let ctr_name = (e: t(list(Id.t))): option(Constructor.t) =>
     switch (e.term) {
     | Constructor(name, _) => Some(name)
     | _ => None
     };
 
-  let is_deferral = (e: t) => {
+  let is_deferral = (e: t(list(Id.t))) => {
     switch (e.term) {
     | Deferral(_) => true
     | _ => false
     };
   };
 
-  let rec get_num_of_functions = (e: t) =>
+  let rec get_num_of_functions = (e: t(list(Id.t))) =>
     if (is_fun(e)) {
       Some(1);
     } else {
@@ -584,7 +586,7 @@ module Rul = {
 module Any = {
   include TermBase.Any;
 
-  let is_exp: t => option(TermBase.Exp.t) =
+  let is_exp: t => option(TermBase.Exp.t(list(Id.t))) =
     fun
     | Exp(e) => Some(e)
     | _ => None;

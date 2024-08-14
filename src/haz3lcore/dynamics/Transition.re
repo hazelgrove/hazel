@@ -85,7 +85,7 @@ let evaluate_extend_env =
 
 type rule =
   | Step({
-      expr: DHExp.t,
+      expr: DHExp.t(list(Id.t)),
       state_update: unit => unit,
       kind: step_kind,
       is_value: bool,
@@ -107,30 +107,50 @@ module type EV_MODE = {
   type requirements('a, 'b);
 
   let req_value:
-    (DHExp.t => result, EvalCtx.t => EvalCtx.t, DHExp.t) =>
-    requirement(DHExp.t);
+    (
+      DHExp.t(list(Id.t)) => result,
+      EvalCtx.t => EvalCtx.t,
+      DHExp.t(list(Id.t))
+    ) =>
+    requirement(DHExp.t(list(Id.t)));
   let req_all_value:
     (
-      DHExp.t => result,
-      (EvalCtx.t, (list(DHExp.t), list(DHExp.t))) => EvalCtx.t,
-      list(DHExp.t)
+      DHExp.t(list(Id.t)) => result,
+      (
+        EvalCtx.t,
+        (list(DHExp.t(list(Id.t))), list(DHExp.t(list(Id.t))))
+      ) =>
+      EvalCtx.t,
+      list(DHExp.t(list(Id.t)))
     ) =>
-    requirement(list(DHExp.t));
+    requirement(list(DHExp.t(list(Id.t))));
   let req_final:
-    (DHExp.t => result, EvalCtx.t => EvalCtx.t, DHExp.t) =>
-    requirement(DHExp.t);
+    (
+      DHExp.t(list(Id.t)) => result,
+      EvalCtx.t => EvalCtx.t,
+      DHExp.t(list(Id.t))
+    ) =>
+    requirement(DHExp.t(list(Id.t)));
   let req_all_final:
     (
-      DHExp.t => result,
-      (EvalCtx.t, (list(DHExp.t), list(DHExp.t))) => EvalCtx.t,
-      list(DHExp.t)
+      DHExp.t(list(Id.t)) => result,
+      (
+        EvalCtx.t,
+        (list(DHExp.t(list(Id.t))), list(DHExp.t(list(Id.t))))
+      ) =>
+      EvalCtx.t,
+      list(DHExp.t(list(Id.t)))
     ) =>
-    requirement(list(DHExp.t));
+    requirement(list(DHExp.t(list(Id.t))));
   let req_final_or_value:
-    (DHExp.t => result, EvalCtx.t => EvalCtx.t, DHExp.t) =>
-    requirement((DHExp.t, bool));
+    (
+      DHExp.t(list(Id.t)) => result,
+      EvalCtx.t => EvalCtx.t,
+      DHExp.t(list(Id.t))
+    ) =>
+    requirement((DHExp.t(list(Id.t)), bool));
 
-  let (let.): (requirements('a, DHExp.t), 'a => rule) => result;
+  let (let.): (requirements('a, DHExp.t(list(Id.t))), 'a => rule) => result;
   let (and.):
     (requirements('a, 'c => 'b), requirement('c)) =>
     requirements(('a, 'c), 'b);
@@ -399,14 +419,14 @@ module Transition = (EV: EV_MODE) => {
             List.map(
               fun
               | {term: Deferral(_), _} => true
-              | _ => false: Exp.t => bool,
+              | _ => false: Exp.t(list(Id.t)) => bool,
               d4s,
             ),
           );
         let-unbox args = (Tuple(n_args), d2);
         let new_args = {
           let rec go = (deferred, args) =>
-            switch ((deferred: list(Exp.t))) {
+            switch ((deferred: list(Exp.t(list(Id.t))))) {
             | [] => []
             | [{term: Deferral(_), _}, ...deferred] =>
               /* I can use List.hd and List.tl here because let-unbox ensure that
@@ -425,8 +445,8 @@ module Transition = (EV: EV_MODE) => {
       | Cast(_)
       | FailedCast(_) => Indet
       | FixF(_) =>
-        print_endline(Exp.show(d1));
-        print_endline(Exp.show(d1'));
+        print_endline([%derive.show: Exp.t(list(Id.t))](d1));
+        print_endline([%derive.show: Exp.t(list(Id.t))](d1'));
         print_endline("FIXF");
         failwith("FixF in Ap");
       | _ =>

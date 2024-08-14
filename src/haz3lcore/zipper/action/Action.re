@@ -52,7 +52,7 @@ type project =
   | SetIndicated(Base.kind) /* Project syntax at caret */
   | ToggleIndicated(Base.kind) /* Un/Project syntax at caret */
   | Remove(Id.t) /* Remove projector at Id */
-  | SetSyntax(Id.t, Piece.t) /* Set underlying syntax */
+  | SetSyntax(Id.t, Piece.t(Id.t)) /* Set underlying syntax */
   | SetModel(Id.t, string) /* Set serialized projector model */
   | Focus(Id.t, option(Util.Direction.t)) /* Pass control to projector */
   | Escape(Id.t, Direction.t); /* Pass control to parent editor */

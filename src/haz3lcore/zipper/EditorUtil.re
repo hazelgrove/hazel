@@ -1,4 +1,6 @@
-let rec append_exp = (e1: Exp.t, e2: Exp.t): Exp.t => {
+let rec append_exp =
+        (e1: Exp.t(list(Id.t)), e2: Exp.t(list(Id.t)))
+        : Exp.t(list(Id.t)) => {
   Exp.(
     switch (e1.term) {
     | EmptyHole

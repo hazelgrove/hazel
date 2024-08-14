@@ -20,11 +20,11 @@ type unbox_request('a) =
   | Float: unbox_request(float)
   | Bool: unbox_request(bool)
   | String: unbox_request(string)
-  | Tuple(int): unbox_request(list(DHExp.t))
-  | List: unbox_request(list(DHExp.t))
-  | Cons: unbox_request((DHExp.t, DHExp.t))
+  | Tuple(int): unbox_request(list(DHExp.t(list(Id.t))))
+  | List: unbox_request(list(DHExp.t(list(Id.t))))
+  | Cons: unbox_request((DHExp.t(list(Id.t)), DHExp.t(list(Id.t))))
   | SumNoArg(string): unbox_request(unit)
-  | SumWithArg(string): unbox_request(DHExp.t);
+  | SumWithArg(string): unbox_request(DHExp.t(list(Id.t)));
 
 type unboxed('a) =
   | DoesNotMatch
@@ -45,7 +45,8 @@ let fixup_cast = Casts.transition_multiple;
    it avoids having to write a separate unbox function for each kind of request.
    */
 
-let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
+let rec unbox:
+  type a. (unbox_request(a), DHExp.t(list(Id.t))) => unboxed(a) =
   (request, expr) => {
     switch (request, DHExp.term_of(expr)) {
     /* Remove parentheses from casts */

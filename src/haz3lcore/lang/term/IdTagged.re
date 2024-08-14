@@ -1,9 +1,9 @@
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t('a) = {
+type t('a, 'id) = {
   [@show.opaque]
-  ids: list(Id.t),
+  ids: 'id,
   [@show.opaque]
   /* UExp invariant: copied should always be false, and the id should be unique
      DHExp invariant: if copied is true, then this term and its children may not

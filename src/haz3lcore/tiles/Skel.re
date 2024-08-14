@@ -57,14 +57,14 @@ exception Input_contains_secondary;
 exception Nonconvex_segment;
 
 [@deriving show({with_path: false})]
-type ip = (int, Piece.t);
+type ip('a) = (int, Piece.t('a));
 
 type rel =
   | Lt
   | Eq
   | Gt;
 
-let rel = (p1: Piece.t, p2: Piece.t): option(rel) =>
+let rel = (p1: Piece.t('a), p2: Piece.t('a)): option(rel) =>
   switch (p1, p2) {
   | (Secondary(_), _)
   | (_, Secondary(_)) => None
@@ -127,13 +127,14 @@ module Stacks = {
   [@deriving show({with_path: false})]
   type t = {
     output: list(skel),
-    shunted: list(ip),
+    shunted: list(ip(Id.t)),
   };
 
   let empty = {output: [], shunted: []};
 
   let rec pop_chain =
-          (~popped=[], shunted: list(ip)): (list(ip), list(ip)) =>
+          (~popped=[], shunted: list(ip(Id.t)))
+          : (list(ip(Id.t)), list(ip(Id.t))) =>
     switch (shunted) {
     | [] => (popped, shunted)
     | [hd, ...tl] =>
@@ -151,7 +152,7 @@ module Stacks = {
     Piece.shapes(p) |> OptUtil.get_or_raise(Input_contains_secondary);
 
   let shapes_of_chain =
-      (chain: list(ip)): option((Nib.Shape.t, Nib.Shape.t)) =>
+      (chain: list(ip(Id.t))): option((Nib.Shape.t, Nib.Shape.t)) =>
     switch (chain, ListUtil.split_last_opt(chain)) {
     | ([(_, first), ..._], Some((_, (_, last)))) =>
       let (l, _) = shapes(first);
@@ -200,7 +201,7 @@ module Stacks = {
     };
   };
 
-  let push_shunted = ((_, p) as ip: ip, stacks: t): t => {
+  let push_shunted = ((_, p) as ip: ip(Id.t), stacks: t): t => {
     let (l, _) = shapes(p);
     let stacks =
       switch (l) {
@@ -213,7 +214,7 @@ module Stacks = {
   let finish = stacks => push_output(stacks);
 };
 
-let mk = (seg: list(ip)): t => {
+let mk = (seg: list(ip(Id.t))): t => {
   let stacks =
     seg
     |> List.fold_left(Fun.flip(Stacks.push_shunted), Stacks.empty)

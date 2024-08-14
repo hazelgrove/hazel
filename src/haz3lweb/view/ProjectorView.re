@@ -83,7 +83,7 @@ let view_wrapper =
       ~info: info,
       ~indication: option(Direction.t),
       ~selected: bool,
-      p: Base.projector,
+      p: Base.projector(Id.t),
       view: Node.t,
     ) => {
   let shape = Projector.shape(p, info);

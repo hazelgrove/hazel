@@ -222,7 +222,7 @@ module Make = (M: Editor.Meta.S) => {
           (
             ~move_first=true,
             move_action: t => option(t),
-            piece_p: Piece.t => bool,
+            piece_p: Piece.t(Id.t) => bool,
             z: t,
           )
           : option(t) => {

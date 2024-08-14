@@ -40,7 +40,7 @@ module M: Projector = {
 
   let init = Expected;
 
-  let can_project = (p: Piece.t): bool => {
+  let can_project = (p: Piece.t(Id.t)): bool => {
     switch (Piece.sort(p)) {
     | (Exp | Pat, _) => true
     | _ when Piece.is_grout(p) => true /* Grout don't have sorts rn */

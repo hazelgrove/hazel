@@ -14,7 +14,7 @@ let to_module = (kind: Base.kind): (module Cooked) =>
   | TextArea => (module Cook(TextAreaProj.M))
   };
 
-let shape = (p: Base.projector, info: info): shape => {
+let shape = (p: Base.projector('a), info: info): shape => {
   let (module P) = to_module(p.kind);
   P.placeholder(p.model, info);
 };
@@ -25,8 +25,8 @@ let shape = (p: Base.projector, info: info): shape => {
  * in the zipper; a tile consisting of any number of whitespaces
  * is considered a placeholder. This could be made more principled.
  * Note that a placeholder retains the UUID of the underlying. */
-let placeholder = (p: Base.projector, ci: option(Info.t)): string =>
-  switch (shape(p, {id: p.id, syntax: p.syntax, ci})) {
+let placeholder = (p: Base.projector('a), ci: option(Info.t)): string =>
+  switch (shape(p, {id: p.extra, syntax: p.syntax, ci})) {
   | Inline(width) => String.make(width, ' ')
   | Block({row, col}) => String.make(row - 1, '\n') ++ String.make(col, ' ')
   };

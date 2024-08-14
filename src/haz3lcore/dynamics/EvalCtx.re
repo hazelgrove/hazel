@@ -4,40 +4,47 @@ open Util;
 type term =
   | Closure([@show.opaque] ClosureEnvironment.t, t)
   | Filter(TermBase.StepperFilterKind.t, t)
-  | Seq1(t, DHExp.t)
-  | Seq2(DHExp.t, t)
-  | Let1(Pat.t, t, DHExp.t)
-  | Let2(Pat.t, DHExp.t, t)
+  | Seq1(t, DHExp.t(list(Id.t)))
+  | Seq2(DHExp.t(list(Id.t)), t)
+  | Let1(Pat.t, t, DHExp.t(list(Id.t)))
+  | Let2(Pat.t, DHExp.t(list(Id.t)), t)
   | Fun(Pat.t, t, option(ClosureEnvironment.t), option(Var.t))
   | FixF(Pat.t, t, option(ClosureEnvironment.t))
   | TypAp(t, Typ.t)
-  | Ap1(Operators.ap_direction, t, DHExp.t)
-  | Ap2(Operators.ap_direction, DHExp.t, t)
-  | DeferredAp1(t, list(DHExp.t))
-  | DeferredAp2(DHExp.t, t, (list(DHExp.t), list(DHExp.t)))
-  | If1(t, DHExp.t, DHExp.t)
-  | If2(DHExp.t, t, DHExp.t)
-  | If3(DHExp.t, DHExp.t, t)
+  | Ap1(Operators.ap_direction, t, DHExp.t(list(Id.t)))
+  | Ap2(Operators.ap_direction, DHExp.t(list(Id.t)), t)
+  | DeferredAp1(t, list(DHExp.t(list(Id.t))))
+  | DeferredAp2(
+      DHExp.t(list(Id.t)),
+      t,
+      (list(DHExp.t(list(Id.t))), list(DHExp.t(list(Id.t)))),
+    )
+  | If1(t, DHExp.t(list(Id.t)), DHExp.t(list(Id.t)))
+  | If2(DHExp.t(list(Id.t)), t, DHExp.t(list(Id.t)))
+  | If3(DHExp.t(list(Id.t)), DHExp.t(list(Id.t)), t)
   | UnOp(Operators.op_un, t)
-  | BinOp1(Operators.op_bin, t, DHExp.t)
-  | BinOp2(Operators.op_bin, DHExp.t, t)
-  | Tuple(t, (list(DHExp.t), list(DHExp.t)))
+  | BinOp1(Operators.op_bin, t, DHExp.t(list(Id.t)))
+  | BinOp2(Operators.op_bin, DHExp.t(list(Id.t)), t)
+  | Tuple(t, (list(DHExp.t(list(Id.t))), list(DHExp.t(list(Id.t)))))
   | Test(t)
-  | ListLit(t, (list(DHExp.t), list(DHExp.t)))
+  | ListLit(t, (list(DHExp.t(list(Id.t))), list(DHExp.t(list(Id.t)))))
   | MultiHole(t, (list(Any.t), list(Any.t)))
-  | Cons1(t, DHExp.t)
-  | Cons2(DHExp.t, t)
-  | ListConcat1(t, DHExp.t)
-  | ListConcat2(DHExp.t, t)
+  | Cons1(t, DHExp.t(list(Id.t)))
+  | Cons2(DHExp.t(list(Id.t)), t)
+  | ListConcat1(t, DHExp.t(list(Id.t)))
+  | ListConcat2(DHExp.t(list(Id.t)), t)
   | Cast(t, Typ.t, Typ.t)
   | FailedCast(t, Typ.t, Typ.t)
   | DynamicErrorHole(t, InvalidOperationError.t)
-  | MatchScrut(t, list((UPat.t, DHExp.t)))
+  | MatchScrut(t, list((UPat.t, DHExp.t(list(Id.t)))))
   | MatchRule(
-      DHExp.t,
+      DHExp.t(list(Id.t)),
       UPat.t,
       t,
-      (list((UPat.t, DHExp.t)), list((UPat.t, DHExp.t))),
+      (
+        list((UPat.t, DHExp.t(list(Id.t)))),
+        list((UPat.t, DHExp.t(list(Id.t)))),
+      ),
     )
 and t =
   | Mark
@@ -46,7 +53,7 @@ and t =
       ids: list(Id.t),
     });
 
-let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
+let rec compose = (ctx: t, d: DHExp.t(list(Id.t))): DHExp.t(list(Id.t)) => {
   switch (ctx) {
   | Mark => d
   | Term({term, ids}) =>

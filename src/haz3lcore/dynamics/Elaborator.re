@@ -8,17 +8,18 @@ exception MissingTypeInfo;
 
 module Elaboration = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {d: DHExp.t};
+  type t = {d: DHExp.t(list(Id.t))};
 };
 
 module ElaborationResult = {
   [@deriving sexp]
   type t =
-    | Elaborates(DHExp.t, Typ.t, Delta.t)
+    | Elaborates(DHExp.t(list(Id.t)), Typ.t, Delta.t)
     | DoesNotElaborate;
 };
 
-let fresh_cast = (d: DHExp.t, t1: Typ.t, t2: Typ.t): DHExp.t => {
+let fresh_cast =
+    (d: DHExp.t(list(Id.t)), t1: Typ.t, t2: Typ.t): DHExp.t(list(Id.t)) => {
   Typ.eq(t1, t2)
     ? d
     : {
@@ -47,7 +48,8 @@ let fresh_pat_cast = (p: DHPat.t, t1: Typ.t, t2: Typ.t): DHPat.t => {
     };
 };
 
-let elaborated_type = (m: Statics.Map.t, uexp: UExp.t): (Typ.t, Ctx.t, 'a) => {
+let elaborated_type =
+    (m: Statics.Map.t, uexp: UExp.t(list(Id.t))): (Typ.t, Ctx.t, 'a) => {
   let (mode, self_ty, ctx, co_ctx) =
     switch (Id.Map.find_opt(Exp.rep_id(uexp), m)) {
     | Some(Info.InfoExp({mode, ty, ctx, co_ctx, _})) => (
@@ -205,7 +207,9 @@ let rec elaborate_pattern =
    [Matt] A lot of these fresh_cast calls are redundant, however if you
    want to remove one, I'd ask you instead comment it out and leave
    a comment explaining why it's redundant.  */
-let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
+let rec elaborate =
+        (m: Statics.Map.t, uexp: UExp.t(list(Id.t)))
+        : (DHExp.t(list(Id.t)), Typ.t) => {
   let (elaborated_type, ctx, co_ctx) = elaborated_type(m, uexp);
   let cast_from = (ty, exp) => fresh_cast(exp, ty, elaborated_type);
   let (term, rewrap) = UExp.unwrap(uexp);
@@ -285,7 +289,8 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
            |> Option.value(~default=Typ.temp(Typ.Unknown(Internal))),
          )
     | Let(p, def, body) =>
-      let add_name: (option(string), DHExp.t) => DHExp.t = (
+      let add_name:
+        (option(string), DHExp.t(list(Id.t))) => DHExp.t(list(Id.t)) = (
         (name, exp) => {
           let (term, rewrap) = DHExp.unwrap(exp);
           switch (term) {
@@ -568,7 +573,8 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
 let fix_typ_ids =
   Exp.map_term(~f_typ=(cont, e) => e |> IdTagged.new_ids |> cont);
 
-let uexp_elab = (m: Statics.Map.t, uexp: UExp.t): ElaborationResult.t =>
+let uexp_elab =
+    (m: Statics.Map.t, uexp: UExp.t(list(Id.t))): ElaborationResult.t =>
   switch (elaborate(m, uexp)) {
   | exception MissingTypeInfo => DoesNotElaborate
   | (d, ty) => Elaborates(d, ty, Delta.empty)

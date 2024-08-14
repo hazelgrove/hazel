@@ -121,7 +121,8 @@ let rec env_extend_ctx =
   List.fold_left((ctx, var_entry) => Ctx.extend(ctx, var_entry), ctx, l);
 }
 
-and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) => {
+and typ_of_dhexp =
+    (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t(list(Id.t))): option(Typ.t) => {
   switch (dh |> DHExp.term_of) {
   | Invalid(_)
   | MultiHole(_)
@@ -316,7 +317,7 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
   | Match(_, []) => Some(Unknown(Internal) |> Typ.temp)
   | Match(d_scrut, [rule, ...rules]) =>
     let* ty' = typ_of_dhexp(ctx, m, d_scrut);
-    let rule_to_ty = ((dhpat, dhexp): (Pat.t, Exp.t)) => {
+    let rule_to_ty = ((dhpat, dhexp): (Pat.t, Exp.t(list(Id.t)))) => {
       let* ctx = dhpat_extend_ctx(dhpat, ty', ctx);
       typ_of_dhexp(ctx, m, dhexp);
     };
@@ -348,7 +349,8 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
   };
 };
 
-let property_test = (uexp_typ: Typ.t, dhexp: DHExp.t, m: Statics.Map.t): bool => {
+let property_test =
+    (uexp_typ: Typ.t, dhexp: DHExp.t(list(Id.t)), m: Statics.Map.t): bool => {
   let dhexp_typ = typ_of_dhexp(Builtins.ctx_init, m, dhexp);
 
   switch (dhexp_typ) {

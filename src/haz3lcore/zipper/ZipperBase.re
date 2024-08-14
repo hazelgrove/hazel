@@ -37,7 +37,7 @@ let update_siblings: (Siblings.t => Siblings.t, t) => t =
 
 let put_siblings = (siblings, z: t): t => update_siblings(_ => siblings, z);
 
-let put_selection_content = (content: Segment.t, z): t => {
+let put_selection_content = (content: Segment.t(Id.t), z): t => {
   ...z,
   selection: {
     ...z.selection,
@@ -45,7 +45,7 @@ let put_selection_content = (content: Segment.t, z): t => {
   },
 };
 
-let parent = (z: t): option(Piece.t) =>
+let parent = (z: t): option(Piece.t(Id.t)) =>
   Relatives.parent(~sel=z.selection.content, z.relatives);
 
 let sibs_with_sel =
@@ -63,12 +63,12 @@ let sibs_with_sel =
   };
 
 module MapPiece = {
-  type updater = Piece.t => Piece.t;
+  type updater = Piece.t(Id.t) => Piece.t(Id.t);
 
-  let rec of_segment = (f: updater, seg: Segment.t): Segment.t => {
+  let rec of_segment = (f: updater, seg: Segment.t(Id.t)): Segment.t(Id.t) => {
     seg |> List.map(p => f(p)) |> List.map(of_piece(f));
   }
-  and of_piece = (f: updater, piece: Piece.t): Piece.t => {
+  and of_piece = (f: updater, piece: Piece.t(Id.t)): Piece.t(Id.t) => {
     switch (piece) {
     | Tile(t) => Tile(of_tile(f, t))
     | Grout(_)
@@ -76,7 +76,7 @@ module MapPiece = {
     | Secondary(_) => piece
     };
   }
-  and of_tile = (f: updater, t: Tile.t): Tile.t => {
+  and of_tile = (f: updater, t: Tile.t(Id.t)): Tile.t(Id.t) => {
     {...t, children: List.map(of_segment(f), t.children)};
   };
 
@@ -130,13 +130,13 @@ module MapPiece = {
 
   let right_sib_has_id = sib_has_id(Siblings.right_neighbor);
 
-  let update_left_sib = (f: Piece.t => Piece.t, z: t) => {
+  let update_left_sib = (f: Piece.t(Id.t) => Piece.t(Id.t), z: t) => {
     let (l, r) = z.relatives.siblings;
     let sibs = (List.map(f, l), List.map(f, r));
     put_siblings(sibs, z);
   };
 
-  let update_right_sib = (f: Piece.t => Piece.t, z: t) => {
+  let update_right_sib = (f: Piece.t(Id.t) => Piece.t(Id.t), z: t) => {
     let sibs =
       switch (z.relatives.siblings) {
       | (l, [hd, ...tl]) => (l, [f(hd), ...tl])
@@ -145,7 +145,7 @@ module MapPiece = {
     put_siblings(sibs, z);
   };
 
-  let fast_local = (f: Piece.t => Piece.t, id: Id.t, z: t): t =>
+  let fast_local = (f: Piece.t(Id.t) => Piece.t(Id.t), id: Id.t, z: t): t =>
     /* This applies the function to the piece in the zipper having id id, and
      * then replaces the id of the resulting piece with the idea of the old
      * piece, ensuring that the root id remains stable. This function assumes

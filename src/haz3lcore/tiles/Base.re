@@ -13,28 +13,28 @@ type kind =
   | TextArea;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type segment = list(piece)
-and piece =
-  | Tile(tile)
+type segment('a) = list(piece('a))
+and piece('a) =
+  | Tile(tile('a))
   | Grout(Grout.t)
   | Secondary(Secondary.t)
-  | Projector(projector)
-and tile = {
+  | Projector(projector('a))
+and tile('a) = {
   // invariants:
   // - length(mold.in_) + 1 == length(label)
   // - length(shards) <= length(label)
   // - length(shards) == length(children) + 1
   // - sort(shards) == shards
-  id: Id.t,
+  extra: 'a,
   label: Label.t,
   mold: Mold.t,
   shards: list(int),
-  children: list(segment),
+  children: list(segment('a)),
 }
-and projector = {
-  id: Id.t,
+and projector('a) = {
   kind,
-  syntax: piece,
+  extra: 'a,
+  syntax: piece('a),
   model: string,
 };
 

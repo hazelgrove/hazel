@@ -6,7 +6,7 @@ open Util;
 /* Assume this doesn't contain projectors */
 let measured_of = seg => Measured.of_segment(seg, Id.Map.empty);
 
-let text_view = (seg: Segment.t): list(Node.t) => {
+let text_view = (seg: Segment.t(Id.t)): list(Node.t) => {
   module Text =
     Code.Text({
       let map = measured_of(seg);
@@ -16,25 +16,25 @@ let text_view = (seg: Segment.t): list(Node.t) => {
   Text.of_segment([], true, Any, seg);
 };
 
-let segment_origin = (seg: Segment.t): option(Point.t) =>
+let segment_origin = (seg: Segment.t(Id.t)): option(Point.t) =>
   Option.map(
     first => Measured.find_p(first, measured_of(seg)).origin,
     ListUtil.hd_opt(seg),
   );
 
-let segment_last = (seg: Segment.t): option(Point.t) =>
+let segment_last = (seg: Segment.t(Id.t)): option(Point.t) =>
   Option.map(
     last => Measured.find_p(last, measured_of(seg)).last,
     ListUtil.last_opt(seg),
   );
 
-let segment_height = (seg: Segment.t) =>
+let segment_height = (seg: Segment.t(Id.t)) =>
   switch (segment_last(seg), segment_origin(seg)) {
   | (Some(last), Some(first)) => 1 + last.row - first.row
   | _ => 0
   };
 
-let segment_width = (seg: Segment.t): int =>
+let segment_width = (seg: Segment.t(Id.t)): int =>
   IntMap.fold(
     (_, {max_col, _}: Measured.Rows.shape, acc) => max(max_col, acc),
     measured_of(seg).rows,
