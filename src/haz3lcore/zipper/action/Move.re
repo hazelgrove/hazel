@@ -59,7 +59,13 @@ let neighbor_movability =
   (l, r);
 };
 
-module Make = (M: Editor.Meta.S) => {
+module type S = {
+  let measured: Measured.t;
+  let term_ranges: TermRanges.t;
+  let col_target: int;
+};
+
+module Make = (M: S) => {
   let caret_point = Zipper.caret_point(M.measured);
 
   let pop_out = z => Some(z |> Zipper.set_caret(Outer));

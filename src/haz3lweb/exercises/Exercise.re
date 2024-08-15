@@ -301,9 +301,9 @@ let eds_of_spec =
         hidden_tests,
         syntax_tests,
       },
-      ~settings: CoreSettings.t,
+      ~settings as _: CoreSettings.t,
     ) => {
-  let editor_of_serialization = Editor.init(~settings);
+  let editor_of_serialization = Editor.Model.mk;
   let prelude = editor_of_serialization(prelude);
   let correct_impl = editor_of_serialization(correct_impl);
   let your_tests = {
@@ -343,13 +343,6 @@ let eds_of_spec =
 // for transitions between zipper data structure versions (TODO)
 //
 
-let set_instructor_mode = ({eds}: state, new_mode: bool) => {
-  eds: {
-    ...eds,
-    prelude: Editor.set_read_only(eds.prelude, !new_mode),
-  },
-};
-
 let visible_in = (pos, ~instructor_mode) => {
   switch (pos) {
   | Prelude => instructor_mode
@@ -372,7 +365,7 @@ module TermItem = {
 };
 
 module StaticsItem = {
-  type t = CachedStatics.statics;
+  type t = CachedStatics.t;
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]

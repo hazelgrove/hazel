@@ -45,6 +45,11 @@ let apply =
     )
     : Page.Model.t => {
   restart_caret_animation();
+
+  /* This function is split into two phases, update and calculate.
+     The intention is that eventually, the calculate phase will be
+     done automatically by incremental calculation. */
+  // ---------- UPDATE PHASE ----------
   let updated: Updated.t(Page.Model.t) =
     try(
       Page.Update.update(
@@ -61,10 +66,13 @@ let apply =
       );
       model |> Updated.return_quiet;
     };
+  // ---------- CALCULATE PHASE ----------
   let model' =
     updated.recalculate
-      ? updated.model |> Page.Update.calculate(~schedule_action)
+      ? updated.model
+        |> Page.Update.calculate(~schedule_action, ~is_edited=updated.is_edit)
       : updated.model;
+
   if (updated.is_edit) {
     last_edit_action := JsUtil.timestamp();
     edit_action_applied := true;

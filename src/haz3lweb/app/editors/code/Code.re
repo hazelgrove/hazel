@@ -193,8 +193,9 @@ let view =
       ~globals: Globals.t,
       ~sort: Sort.t,
       ~settings: Settings.t,
+      ~statics: CachedStatics.t,
       z: Zipper.t,
-      {syntax: {measured, segment, holes, selection_ids, _}, statics, _}: Editor.Meta.t,
+      {syntax: {measured, segment, holes, selection_ids, _}, _}: Editor.t,
     )
     : Node.t => {
   module Text =

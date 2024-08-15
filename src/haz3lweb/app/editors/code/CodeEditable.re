@@ -21,10 +21,15 @@ module Update = {
   let update =
       (~settings: Settings.t, action: t, model: Model.t): Updated.t(Model.t) => {
     let perform = (action, model: Model.t) =>
-      Perform.go(~settings=settings.core, action, model)
+      Editor.Update.update(
+        ~settings=settings.core,
+        action,
+        model.statics,
+        model.editor,
+      )
       |> (
         fun
-        | Ok(editor) => editor
+        | Ok(editor) => Model.{editor, statics: model.statics}
         | Error(err) => raise(Action.Failure.Exception(err))
       );
     switch (action) {
@@ -56,13 +61,13 @@ module Update = {
            },
          )
     | Undo =>
-      switch (Editor.undo(model)) {
-      | Some(editor) => editor |> Updated.return
+      switch (Editor.Update.undo(model.editor)) {
+      | Some(editor) => Model.{...model, editor} |> Updated.return
       | None => model |> Updated.return_quiet
       }
     | Redo =>
-      switch (Editor.redo(model)) {
-      | Some(editor) => editor |> Updated.return
+      switch (Editor.Update.redo(model.editor)) {
+      | Some(editor) => Model.{...model, editor} |> Updated.return
       | None => model |> Updated.return_quiet
       }
     | DebugConsole(key) =>
@@ -70,6 +75,8 @@ module Update = {
       model |> Updated.return_quiet;
     };
   };
+
+  let calculate = CodeWithStatics.Update.calculate;
 };
 
 module Selection = {
@@ -80,11 +87,8 @@ module Selection = {
   type t = unit;
 
   let get_cursor_info = (~selection as (), model: Model.t): cursor(Update.t) => {
-    info:
-      Indicated.ci_of(model.state.zipper, model.state.meta.statics.info_map),
-    selected_text: Some(Printer.to_string_selection(model)),
-    editor: Some(model),
-    editor_action: x => Some(Update.Perform(x)),
+    CodeWithStatics.Model.get_cursor_info(model)
+    |> map(x => Update.Perform(x));
   };
 
   let handle_key_event =
@@ -117,7 +121,7 @@ module Selection = {
       Keyboard.handle_key_event(k) |> Option.map(x => Update.Perform(x));
 
   let jump_to_tile = (tile, model: Model.t) => {
-    switch (TileMap.find_opt(tile, model.state.meta.syntax.tiles)) {
+    switch (TileMap.find_opt(tile, model.editor.syntax.tiles)) {
     | Some(_) => Some(Update.Perform(Jump(TileId(tile))))
     | None => None
     };
@@ -209,15 +213,17 @@ module View = {
     let edit_decos = {
       module Deco =
         Deco.Deco({
-          let editor = model;
+          let editor = model.editor;
           let globals = globals;
+          let statics = model.statics;
         });
-      Deco.editor(model.state.zipper, selected);
+      Deco.editor(model.editor.state.zipper, selected);
     };
     let projectors =
       ProjectorView.all(
-        model.state.zipper,
-        ~meta=model.state.meta,
+        model.editor.state.zipper,
+        ~cached_statics=model.statics,
+        ~cached_syntax=model.editor.syntax,
         ~inject=x => inject(Perform(x)),
         ~font_metrics=globals.font_metrics,
       );

@@ -235,6 +235,7 @@ let expander_deco =
     Deco.Deco({
       let editor = editor;
       let globals = globals;
+      let statics = CachedStatics.empty;
     });
   switch (doc.expandable_id, List.length(options)) {
   | (None, _)
@@ -370,13 +371,11 @@ let example_view =
                   {
                     term
                     |> Zipper.unzip
-                    |> Editor.init(
-                         ~read_only=true,
-                         ~settings=globals.settings.core,
-                       )
+                    |> Editor.Model.mk
                     |> CellEditor.Model.mk
                     |> CellEditor.Update.calculate(
                          ~settings=globals.settings.core,
+                         ~is_edited=true,
                          ~stitch=x => x,
                          ~queue_worker=None,
                        );
@@ -439,7 +438,6 @@ let get_doc =
       mode: message_mode,
     )
     : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
-  let settings = globals.settings.core;
   let simple = msg => ([], ([text(msg)], (Id.Map.empty, 0)), []);
   let default = simple("No docs available");
   let get_specificity_level = group_id =>
@@ -486,12 +484,7 @@ let get_doc =
         |> List.to_seq
         |> Id.Map.of_seq
         |> Option.some;
-      let editor =
-        Editor.init(
-          ~settings,
-          ~read_only=true,
-          doc.syntactic_form |> Zipper.unzip,
-        );
+      let editor = Editor.Model.mk(doc.syntactic_form |> Zipper.unzip);
       let expander_deco =
         expander_deco(
           ~globals,
@@ -502,11 +495,13 @@ let get_doc =
           ~doc,
           editor,
         );
+      let statics = CachedStatics.empty;
       let highlight_deco = {
         module Deco =
           Deco.Deco({
             let editor = editor;
             let globals = {...globals, color_highlights: highlights};
+            let statics = statics;
           });
         [Deco.color_highlights()];
       };
@@ -515,7 +510,7 @@ let get_doc =
           ~globals,
           ~overlays=highlight_deco @ [expander_deco],
           ~sort,
-          editor,
+          {editor, statics},
         );
       let example_view =
         example_view(

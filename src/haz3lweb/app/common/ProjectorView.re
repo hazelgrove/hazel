@@ -116,17 +116,18 @@ let handle = (id, action: external_action): Action.project =>
 let setup_view =
     (
       id: Id.t,
-      ~meta: Editor.Meta.t,
+      ~cached_statics: CachedStatics.t,
+      ~cached_syntax: Editor.CachedSyntax.t,
       ~inject: Action.t => Ui_effect.t(unit),
       ~font_metrics,
       ~indication: option(Direction.t),
     )
     : option(Node.t) => {
-  let* p = Id.Map.find_opt(id, meta.syntax.projectors);
+  let* p = Id.Map.find_opt(id, cached_syntax.projectors);
   let* syntax = Some(p.syntax);
-  let ci = Id.Map.find_opt(id, meta.statics.info_map);
+  let ci = Id.Map.find_opt(id, cached_statics.info_map);
   let info = {id, ci, syntax};
-  let+ measurement = Measured.find_pr_opt(p, meta.syntax.measured);
+  let+ measurement = Measured.find_pr_opt(p, cached_syntax.measured);
   let (module P) = to_module(p.kind);
   let parent = a => inject(Project(handle(id, a)));
   let local = a => inject(Project(SetModel(id, P.update(p.model, a))));
@@ -136,7 +137,7 @@ let setup_view =
     ~measurement,
     ~indication,
     ~info,
-    ~selected=List.mem(id, meta.syntax.selection_ids),
+    ~selected=List.mem(id, cached_syntax.selection_ids),
     p,
     P.view(p.model, ~info, ~local, ~parent),
   );
@@ -150,7 +151,14 @@ let indication = (z, id) =>
 
 /* Returns a div containing all projector UIs, intended to
  * be absolutely positioned atop a rendered editor UI */
-let all = (z, ~meta: Editor.Meta.t, ~inject, ~font_metrics) => {
+let all =
+    (
+      z,
+      ~cached_statics: CachedStatics.t,
+      ~cached_syntax: Editor.CachedSyntax.t,
+      ~inject,
+      ~font_metrics,
+    ) => {
   // print_endline(
   //   "cardinal: "
   //   ++ (meta.projected.projectors |> Id.Map.cardinal |> string_of_int),
@@ -161,9 +169,16 @@ let all = (z, ~meta: Editor.Meta.t, ~inject, ~font_metrics) => {
       ((id, _)) => {
         //TODO(andrew): cleanup
         let indication = indication(z, id);
-        setup_view(id, ~meta, ~inject, ~font_metrics, ~indication);
+        setup_view(
+          id,
+          ~cached_statics,
+          ~cached_syntax,
+          ~inject,
+          ~font_metrics,
+          ~indication,
+        );
       },
-      Id.Map.bindings(meta.syntax.projectors) |> List.rev,
+      Id.Map.bindings(cached_syntax.projectors) |> List.rev,
     ),
   );
 };
@@ -177,7 +192,7 @@ let all = (z, ~meta: Editor.Meta.t, ~inject, ~font_metrics) => {
  * For example, without the modifiers check, this would break selection
  * around a projector. */
 let key_handoff = (editor: Editor.t, key: Key.t): option(Action.project) =>
-  switch (Editor.indicated_projector(editor)) {
+  switch (Editor.Model.indicated_projector(editor)) {
   | None => None
   | Some((id, p)) =>
     let* (_, d, _) = Indicated.piece(editor.state.zipper);

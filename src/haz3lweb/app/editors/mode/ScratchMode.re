@@ -10,7 +10,7 @@ module Model = {
 
   let get_spliced_elabs = model => {
     let (key, ed) = List.nth(model.scratchpads, model.current);
-    [(key, Elaborator.Elaboration.{d: ed.editor.state.meta.statics.term})];
+    [(key, Elaborator.Elaboration.{d: ed.editor.statics.term})];
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -103,7 +103,7 @@ module Update = {
       let* data =
         List.nth(source, model.current)
         |> PersistentZipper.unpersist
-        |> Editor.init(~settings=settings.core)
+        |> Editor.Model.mk
         |> CellEditor.Model.mk
         |> Updated.return;
       {
@@ -131,7 +131,8 @@ module Update = {
     };
   };
 
-  let calculate = (~settings, ~schedule_action, model: Model.t): Model.t => {
+  let calculate =
+      (~settings, ~schedule_action, ~is_edited, model: Model.t): Model.t => {
     let (key, ed) = List.nth(model.scratchpads, model.current);
     let worker_request = ref([]);
     let queue_worker =
@@ -139,6 +140,7 @@ module Update = {
     let new_ed =
       CellEditor.Update.calculate(
         ~settings,
+        ~is_edited,
         ~queue_worker,
         ~stitch=x => x,
         ed,
