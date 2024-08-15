@@ -18,6 +18,15 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
     let dbody = subst_var(m, d1, x, dbody);
     let filter = subst_var_filter(m, d1, x, filter);
     Filter(filter, dbody) |> rewrap;
+  | Theorem(dp, d3, d4) =>
+    let d3 = subst_var(m, d1, x, d3);
+    let d4 =
+      if (DHPat.binds_var(m, x, dp)) {
+        d4;
+      } else {
+        subst_var(m, d1, x, d4);
+      };
+    Theorem(dp, d3, d4) |> rewrap;
   | Let(dp, d3, d4) =>
     let d3 = subst_var(m, d1, x, d3);
     let d4 =

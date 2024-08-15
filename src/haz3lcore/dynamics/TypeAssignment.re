@@ -143,6 +143,10 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
     let* ty1 = typ_of_dhexp(ctx, m, de);
     let* ctx = dhpat_extend_ctx(dhp, ty1, ctx);
     typ_of_dhexp(ctx, m, db);
+  | Theorem(dhp, de, db) =>
+    let* ty1 = typ_of_dhexp(ctx, m, de);
+    let* ctx = dhpat_extend_ctx(dhp, ty1, ctx);
+    typ_of_dhexp(ctx, m, db);
   | FixF(dhp, d, env) =>
     let* ty_p = dhpat_synthesize(dhp, ctx);
     let* ctx =
@@ -167,13 +171,13 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
     let ctx =
       Ctx.extend_tvar(ctx, {name, id: TPat.rep_id(utpat), kind: Abstract});
     let* ty = typ_of_dhexp(ctx, m, d);
-    Some(Typ.Forall(utpat, ty) |> Typ.temp);
+    Some(Typ.Type(utpat, ty) |> Typ.temp);
   | TypFun(_, d, _) =>
     let* ty = typ_of_dhexp(ctx, m, d);
-    Some(Typ.Forall(Var("?") |> TPat.fresh, ty) |> Typ.temp);
+    Some(Typ.Type(Var("?") |> TPat.fresh, ty) |> Typ.temp);
   | TypAp(d, ty1) =>
     let* ty = typ_of_dhexp(ctx, m, d);
-    let* (name, ty2) = Typ.matched_forall_strict(ctx, ty);
+    let* (name, ty2) = Typ.matched_type_strict(ctx, ty);
     switch (name) {
     | Some(name) => Some(Typ.subst(ty1, name, ty2))
     | None => Some(ty2)

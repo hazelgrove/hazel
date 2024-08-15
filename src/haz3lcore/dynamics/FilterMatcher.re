@@ -198,6 +198,10 @@ let rec matches_exp =
       matches_pat(dp, fp) && matches_exp(d1, f1) && matches_exp(d2, f2)
     | (Let(_), _) => false
 
+    | (Theorem(dp, d1, d2), Theorem(fp, f1, f2)) =>
+      matches_pat(dp, fp) && matches_exp(d1, f1) && matches_exp(d2, f2)
+    | (Theorem(_), _) => false
+
     | (TypAp(d1, t1), TypAp(d2, t2)) =>
       matches_exp(d1, d2) && matches_typ(t1, t2)
     | (TypAp(_), _) => false

@@ -21,7 +21,9 @@ type cls =
   | Parens
   | Ap
   | Rec
-  | Forall;
+  | Type
+  | Forall
+  | Equals;
 
 include TermBase.Typ;
 
@@ -59,7 +61,9 @@ let cls_of_term: term => cls =
   | Ap(_) => Ap
   | Sum(_) => Sum
   | Rec(_) => Rec
-  | Forall(_) => Forall;
+  | Type(_) => Type
+  | Forall(_) => Forall
+  | Equals(_) => Equals;
 
 let show_cls: cls => string =
   fun
@@ -81,7 +85,9 @@ let show_cls: cls => string =
   | Parens => "Parenthesized type"
   | Ap => "Constructor application"
   | Rec => "Recursive type"
-  | Forall => "Forall type";
+  | Type => "Type type"
+  | Forall => "Forall type"
+  | Equals => "Equals type";
 
 let rec is_arrow = (typ: t) => {
   switch (typ.term) {
@@ -97,15 +103,17 @@ let rec is_arrow = (typ: t) => {
   | Var(_)
   | Ap(_)
   | Sum(_)
+  | Type(_)
   | Forall(_)
+  | Equals(_)
   | Rec(_) => false
   };
 };
 
-let rec is_forall = (typ: t) => {
+let rec is_type = (typ: t) => {
   switch (typ.term) {
-  | Parens(typ) => is_forall(typ)
-  | Forall(_) => true
+  | Parens(typ) => is_type(typ)
+  | Type(_) => true
   | Unknown(_)
   | Int
   | Float
@@ -117,6 +125,8 @@ let rec is_forall = (typ: t) => {
   | Var(_)
   | Ap(_)
   | Sum(_)
+  | Forall(_)
+  | Equals(_)
   | Rec(_) => false
   };
 };
@@ -155,7 +165,8 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Int
   | Float
   | Bool
-  | String => []
+  | String
+  | Equals(_) => []
   | Ap(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
   | Var(v) => List.mem(v, bound) ? [] : [v]
   | Parens(ty) => free_vars(~bound, ty)
@@ -164,8 +175,9 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Sum(sm) => ConstructorMap.free_variables(free_vars(~bound), sm)
   | Prod(tys) => ListUtil.flat_map(free_vars(~bound), tys)
   | Rec(x, ty)
-  | Forall(x, ty) =>
+  | Type(x, ty) =>
     free_vars(~bound=(x |> TPat.tyvar_of_utpat |> Option.to_list) @ bound, ty)
+  | Forall(_, ty) => free_vars(~bound, ty)
   };
 
 let var_count = ref(0);
@@ -232,7 +244,8 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
     let+ ty_body = join(~resolve, ~fix, ctx, ty1', ty2);
     Rec(tp1, ty_body) |> temp;
   | (Rec(_), _) => None
-  | (Forall(x1, ty1), Forall(x2, ty2)) =>
+  | (Type(x1, ty1), Type(x2, ty2)) =>
+    // Note(Thomas): should this ctx be extended with x2 instead?
     let ctx = Ctx.extend_dummy_tvar(ctx, x1);
     let ty1' =
       switch (TPat.tyvar_of_utpat(x2)) {
@@ -240,14 +253,22 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
       | None => ty1
       };
     let+ ty_body = join(~resolve, ~fix, ctx, ty1', ty2);
-    Forall(x1, ty_body) |> temp;
+    Type(x1, ty_body) |> temp;
   /* Note for above: there is no danger of free variable capture as
      subst itself performs capture avoiding substitution. However this
      may generate internal type variable names that in corner cases can
      be exposed to the user. We preserve the variable name of the
      second type to preserve synthesized type variable names, which
      come from user annotations. */
+  // TODO(theorem): allow for alpha variation and pattern joining
+  | (Forall(x1, ty1), Forall(x2, ty2)) when x1 == x2 =>
+    let+ ty_body = join(~resolve, ~fix, ctx, ty1, ty2);
+    Forall(x1, ty_body) |> temp;
+  | (Equals(e1, e2), Equals(e3, e4)) when e1 == e3 && e2 == e4 =>
+    Some(Equals(e1, e2) |> temp)
+  | (Type(_), _) => None
   | (Forall(_), _) => None
+  | (Equals(_), _) => None
   | (Int, Int) => Some(ty1)
   | (Int, _) => None
   | (Float, Float) => Some(ty1)
@@ -294,7 +315,10 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Var(_), _)
   | (Ap(_), _)
   | (Rec(_), _)
-  | (Forall(_), _) => t1
+  | (Forall(_), _)
+  | (Type(_), _)
+  // TODO(theorem): can this have a synswitch inside?
+  | (Equals(_), _) => t1
   // These might
   | (List(ty1), List(ty2)) => List(match_synswitch(ty1, ty2)) |> rewrap1
   | (List(_), _) => t1
@@ -360,8 +384,11 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
        as in current implementation Recs do not occur in the
        surface syntax, so we won't try to jump to them. */
     Rec(tpat, normalize(Ctx.extend_dummy_tvar(ctx, tpat), ty)) |> rewrap
-  | Forall(name, ty) =>
-    Forall(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
+  | Type(name, ty) =>
+    Type(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
+  /* NOTE(theorem): I don't think the ctx needs to be exteded with name */
+  | Forall(name, ty) => Forall(name, normalize(ctx, ty)) |> rewrap
+  | Equals(e1, e2) => Equals(e1, e2) |> rewrap
   };
 };
 
@@ -380,16 +407,16 @@ let matched_arrow = (ctx, ty) =>
        ~default=(Unknown(Internal) |> temp, Unknown(Internal) |> temp),
      );
 
-let rec matched_forall_strict = (ctx, ty) =>
+let rec matched_type_strict = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
-  | Parens(ty) => matched_forall_strict(ctx, ty)
-  | Forall(t, ty) => Some((Some(t), ty))
+  | Parens(ty) => matched_type_strict(ctx, ty)
+  | Type(t, ty) => Some((Some(t), ty))
   | Unknown(SynSwitch) => Some((None, Unknown(SynSwitch) |> temp))
   | _ => None // (None, Unknown(Internal) |> temp)
   };
 
-let matched_forall = (ctx, ty) =>
-  matched_forall_strict(ctx, ty)
+let matched_type = (ctx, ty) =>
+  matched_type_strict(ctx, ty)
   |> Option.value(~default=(None, Unknown(Internal) |> temp));
 
 let rec matched_prod_strict = (ctx, length, ty) =>
@@ -479,11 +506,29 @@ let rec needs_parens = (ty: t): bool =>
   | Bool
   | Var(_) => false
   | Rec(_, _)
-  | Forall(_, _) => true
+  | Forall(_, _)
+  | Type(_, _) => true
+  | Equals(_) /* is already wrapped in {} */
   | List(_) => false /* is already wrapped in [] */
   | Arrow(_, _) => true
   | Prod(_)
   | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
+  };
+
+let pretty_print_exp = (e: TermBase.Exp.t): string =>
+  switch (IdTagged.term_of(e)) {
+  | _ => failwith("Unimplemented: pretty printing expressions")
+  /* TODO(theorem): this function needs to be completed, and perhaps relocated */
+  };
+
+let pretty_print_pat = (v: TermBase.Pat.t): string =>
+  switch (IdTagged.term_of(v)) {
+  | Var(x) => x
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_) => "?"
+  | _ => failwith("Unimplemented: pretty printing patterns")
+  /* TODO(theorem): this function needs to be completed, and perhaps relocated */
   };
 
 let pretty_print_tvar = (tv: TPat.t): string =>
@@ -528,8 +573,12 @@ let rec pretty_print = (ty: t): string =>
        )
     ++ ")"
   | Rec(tv, t) => "rec " ++ pretty_print_tvar(tv) ++ "->" ++ pretty_print(t)
-  | Forall(tv, t) =>
-    "forall " ++ pretty_print_tvar(tv) ++ "->" ++ pretty_print(t)
+  | Type(tv, t) =>
+    "type " ++ pretty_print_tvar(tv) ++ "->" ++ pretty_print(t)
+  | Forall(v, t) =>
+    "forall " ++ pretty_print_pat(v) ++ ". " ++ pretty_print(t)
+  | Equals(e1, e2) =>
+    "{" ++ pretty_print_exp(e1) ++ " = " ++ pretty_print_exp(e2) ++ "}"
   }
 and ctr_pretty_print =
   fun

@@ -75,6 +75,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | TypFun(_)
   | Fun(_) => DHDoc_common.precedence_max
   | Let(_)
+  | Theorem(_)
   | TyAlias(_)
   | FixF(_)
   | Match(_) => DHDoc_common.precedence_max
@@ -419,6 +420,7 @@ let mk =
       | Cast(d, _, _) =>
         let doc = go'(d);
         doc;
+      | Theorem(dp, ddef, dbody)
       | Let(dp, ddef, dbody) =>
         if (enforce_inline) {
           fail();
