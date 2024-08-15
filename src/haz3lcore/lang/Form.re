@@ -346,7 +346,7 @@ let forms: list((string, t)) = [
 ];
 
 let get: String.t => t =
-  name => Util.ListUtil.assoc_err(name, forms, "Forms.get");
+  name => Util.ListUtil.assoc_err(name, forms, "Form.get: " ++ name);
 
 let delims: list(Token.t) =
   forms
