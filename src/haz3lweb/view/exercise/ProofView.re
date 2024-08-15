@@ -15,13 +15,13 @@ type verifyRes =
   | NotAJudgment;
 
 let to_verifyRes =
-    (res: result(unit, DerivationError.VerErr.t), children_res): verifyRes =>
+    (res: result(unit, DerivationError.t), children_res): verifyRes =>
   switch (res) {
   | Ok(_) =>
     children_res |> List.for_all(res => res == Correct) ? Correct : Partial
   | Error(External("E-252")) => NotAJudgment
   | Error(External(_)) => Pending
-  | Error(e) => Incorrect(DerivationError.VerErr.repr(e))
+  | Error(e) => Incorrect(DerivationError.repr(e))
   };
 
 let get_model = (state: Exercise.p('a)) =>

@@ -58,9 +58,8 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
       let concl = get_judgement(concl);
       let prems = List.map(get_judgement2, prems) |> List.filter_map(Fun.id);
       switch (concl, prems) {
-      | (Ok(concl), prems) =>
-        DerivationError.RuleVer.verify(rule, concl, prems)
-      | (Error(e), _) => Error(DerivationError.VerErr.External(e))
+      | (Ok(concl), prems) => DerivationError.verify(rule, concl, prems)
+      | (Error(e), _) => Error(DerivationError.External(e))
       };
     };
   };

@@ -17,7 +17,7 @@ type t =
   | FailedCastDecoration
   | CastDecoration
   | OperationError(InvalidOperationError.t)
-  | DerivationError(DerivationError.VerErr.t)
+  | DerivationError(DerivationError.t)
   | Steppable(int)
   | Stepped
   | Substituted;

@@ -1,191 +1,142 @@
 open Util;
 open Derivation;
 
-module Location: {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | Conclusion
-    | Premise(int);
-
-  let repr: t => string;
-} = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | Conclusion
-    | Premise(int);
-
-  let repr =
-    fun
-    | Conclusion => "Conclusion"
-    | Premise(i) => i |> Printf.sprintf("Premise %d");
-};
+[@deriving (show({with_path: false}), sexp, yojson)]
+type pos =
+  | Concl
+  | Prems(int);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type bind('a) = {
-  location: Location.t,
+  pos,
   value: 'a,
 };
 
-module MisMatchCommon: {
+let copy_pos = ({pos, _}, value) => {pos, value};
+
+let dupl_pos = (p, (a, b)) => (copy_pos(p, a), copy_pos(p, b));
+
+module DerivationError = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | Prop(Prop.cls, bind(Prop.t))
-    | Judgement(Judgement.cls, bind(Judgement.t));
-
-  let repr: t => string;
-} = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | Prop(Prop.cls, bind(Prop.t))
-    | Judgement(Judgement.cls, bind(Judgement.t));
-
-  let msg = Printf.sprintf("Expected %s %s, got %s [%s]");
-
-  let repr =
-    fun
-    | Prop(v, p) =>
-      msg(
-        "Prop",
-        Prop.show_cls(v),
-        Prop.repr(p.value),
-        Location.repr(p.location),
-      )
-    | Judgement(v, j) =>
-      msg(
-        "Judgement",
-        Judgement.show_cls(v),
-        Judgement.repr(j.value),
-        Location.repr(j.location),
-      );
-};
-
-module NotEqualCommon = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
+    | PremiseMismatch(int, int) /* expected, actual */
+    | NotInContext(bind(Prop.t), bind(Ctx.t))
+    | MisMatch(mismatch)
+    | NotEqual(notequal)
+    | CtxNotEqualAfterExtend(bind(Ctx.t), bind(Ctx.t), bind(Prop.t)) /* expected, actual, prop */
+    | External(string)
+  and mismatch =
+    | Prop(Prop.cls, bind(Prop.t)) /* expected, actual */
+    | Judgement(Judgement.cls, bind(Judgement.t))
+  and notequal =
     | Prop(bind(Prop.t), bind(Prop.t)) /* expected, actual */
     | Ctx(bind(Ctx.t), bind(Ctx.t))
     | Judgement(bind(Judgement.t), bind(Judgement.t));
 
-  let msg = Printf.sprintf("%s %s [%s] not equal to %s [%s]");
-
-  let repr =
+  let repr: t => string =
     fun
-    | Prop(a, b) =>
-      msg(
-        "Prop",
-        Prop.repr(a.value),
-        Location.repr(a.location),
-        Prop.repr(b.value),
-        Location.repr(b.location),
-      )
-    | Ctx(a, b) =>
-      msg(
-        "Ctx",
-        Ctx.repr(a.value),
-        Location.repr(a.location),
-        Ctx.repr(b.value),
-        Location.repr(b.location),
-      )
-    | Judgement(a, b) =>
-      msg(
-        "Judgement",
-        Judgement.repr(a.value),
-        Location.repr(a.location),
-        Judgement.repr(b.value),
-        Location.repr(b.location),
-      );
-};
-
-module VerErr: {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | PremiseMismatch(int, int) /* expected, actual */
-    | NotInContext(bind(Prop.t), bind(Ctx.t))
-    | MisMatch(MisMatchCommon.t)
-    | NotEqual(NotEqualCommon.t)
-    | CtxNotEqualAfterExtend(bind(Ctx.t), bind(Ctx.t), bind(Prop.t)) /* expected, actual, prop */
-    | External(string);
-
-  let repr: t => string;
-} = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | PremiseMismatch(int, int) /* expected, actual */
-    | NotInContext(bind(Prop.t), bind(Ctx.t))
-    | MisMatch(MisMatchCommon.t)
-    | NotEqual(NotEqualCommon.t)
-    | CtxNotEqualAfterExtend(bind(Ctx.t), bind(Ctx.t), bind(Prop.t)) /* expected, actual, prop */
-    | External(string);
-
-  let repr =
-    fun
-    | PremiseMismatch(e, a) =>
-      Printf.sprintf("Expected %d premises, got %d", e, a)
-    | NotInContext(p, c) =>
+    | PremiseMismatch(expect, got) =>
+      Printf.sprintf("Expected %d prems, got %d", expect, got)
+    | NotInContext(prop, ctx) =>
       Printf.sprintf(
         "Prop %s [%s] not in ctx %s [%s]",
-        Prop.repr(p.value),
-        Location.repr(p.location),
-        Ctx.repr(c.value),
-        Location.repr(c.location),
+        Prop.repr(prop.value),
+        show_pos(prop.pos),
+        Ctx.repr(ctx.value),
+        show_pos(ctx.pos),
       )
-    | MisMatch(m) => MisMatchCommon.repr(m)
-    | NotEqual(n) => NotEqualCommon.repr(n)
-    | CtxNotEqualAfterExtend(a, b, p) =>
+    | MisMatch(m) => {
+        let msg = Printf.sprintf("Expected %s %s, got %s [%s]");
+        switch (m) {
+        | Prop(cls, prop) =>
+          msg(
+            "Prop",
+            Prop.show_cls(cls),
+            Prop.repr(prop.value),
+            show_pos(prop.pos),
+          )
+        | Judgement(cls, jdmt) =>
+          msg(
+            "Judgement",
+            Judgement.show_cls(cls),
+            Judgement.repr(jdmt.value),
+            show_pos(jdmt.pos),
+          )
+        };
+      }
+    | NotEqual(n) => {
+        let msg = Printf.sprintf("%s %s [%s] not equal to %s [%s]");
+        switch (n) {
+        | Prop(a, b) =>
+          msg(
+            "Prop",
+            Prop.repr(a.value),
+            show_pos(a.pos),
+            Prop.repr(b.value),
+            show_pos(b.pos),
+          )
+        | Ctx(a, b) =>
+          msg(
+            "Ctx",
+            Ctx.repr(a.value),
+            show_pos(a.pos),
+            Ctx.repr(b.value),
+            show_pos(b.pos),
+          )
+        | Judgement(a, b) =>
+          msg(
+            "Judgement",
+            Judgement.repr(a.value),
+            show_pos(a.pos),
+            Judgement.repr(b.value),
+            show_pos(b.pos),
+          )
+        };
+      }
+    | CtxNotEqualAfterExtend(extended, original, prop) =>
       Printf.sprintf(
         "Ctx %s [%s] not equal to %s [%s] extended with %s[%s]",
-        Ctx.repr(a.value),
-        Location.repr(a.location),
-        Ctx.repr(b.value),
-        Location.repr(b.location),
-        Prop.repr(p.value),
-        Location.repr(p.location),
+        Ctx.repr(extended.value),
+        show_pos(extended.pos),
+        Ctx.repr(original.value),
+        show_pos(original.pos),
+        Prop.repr(prop.value),
+        show_pos(prop.pos),
       )
     | External(e) => e;
-
   let repr = (e: t): string => "Error: " ++ repr(e);
 };
 
-module PropVer = {
-  open Prop;
+module Prop = {
+  include Prop;
 
-  let expect = (v: cls, p): result(bind(t), VerErr.t) =>
-    if (cls_of(p.value) == v) {
-      Ok(p);
-    } else {
-      Error(MisMatch(Prop(v, p)));
+  type unbox_req('a) =
+    | And: unbox_req((bind(t), bind(t)))
+    | Or: unbox_req((bind(t), bind(t)))
+    | Implies: unbox_req((bind(t), bind(t)))
+    | Truth: unbox_req(unit)
+    | Falsity: unbox_req(unit);
+
+  let unbox: type a. (unbox_req(a), bind(t)) => result(a, DerivationError.t) =
+    (req, p) => {
+      let mk_error = (cls: cls): result(a, DerivationError.t) =>
+        Error(MisMatch(Prop(cls, p)));
+      let dupl_pos = dupl_pos(p);
+      switch (req, p.value) {
+      | (And, And(a, b)) => Ok((a, b) |> dupl_pos)
+      | (Or, Or(a, b)) => Ok((a, b) |> dupl_pos)
+      | (Implies, Implies(a, b)) => Ok((a, b) |> dupl_pos)
+      | (Truth, Truth) => Ok()
+      | (Falsity, Falsity) => Ok()
+      | (And, _) => mk_error(And)
+      | (Or, _) => mk_error(Or)
+      | (Implies, _) => mk_error(Implies)
+      | (Truth, _) => mk_error(Truth)
+      | (Falsity, _) => mk_error(Falsity)
+      };
     };
 
-  let bind_unit =
-    fun
-    | Ok(_) => Ok()
-    | Error(e) => Error(e);
-
-  let bind_unzip = (res: result(bind(t), VerErr.t)) =>
-    switch (res) {
-    | Ok(p) =>
-      Ok(
-        switch (p.value) {
-        | And(a, b)
-        | Or(a, b)
-        | Implies(a, b) => (
-            {location: p.location, value: a},
-            {location: p.location, value: b},
-          )
-        | _ => raise(UnReachable)
-        },
-      )
-    | Error(e) => Error(e)
-    };
-
-  let expect_Atom = p => expect(Atom, p);
-  let expect_And = p => expect(And, p) |> bind_unzip;
-  let expect_Or = p => expect(Or, p) |> bind_unzip;
-  let expect_Implies = p => expect(Implies, p) |> bind_unzip;
-  let expect_Truth = p => expect(Truth, p) |> bind_unit;
-  let expect_Falsity = p => expect(Falsity, p) |> bind_unit;
-
-  let expect_eq = (a: bind(t), b: bind(t)): result(unit, VerErr.t) =>
+  let expect_eq = (a: bind(t), b: bind(t)): result(unit, DerivationError.t) =>
     if (eq(a.value, b.value)) {
       Ok();
     } else {
@@ -193,17 +144,18 @@ module PropVer = {
     };
 };
 
-module CtxVer = {
-  open Ctx;
+module Ctx = {
+  include Ctx;
 
-  let expect_in_ctx = (p: bind(Prop.t), c: bind(t)): result(unit, VerErr.t) =>
+  let expect_in_ctx =
+      (p: bind(Prop.t), c: bind(t)): result(unit, DerivationError.t) =>
     if (List.mem(p.value, c.value)) {
       Ok();
     } else {
       Error(NotInContext(p, c));
     };
 
-  let expect_eq = (a: bind(t), b: bind(t)): result(unit, VerErr.t) =>
+  let expect_eq = (a: bind(t), b: bind(t)): result(unit, DerivationError.t) =>
     if (eq(a.value, b.value)) {
       Ok();
     } else {
@@ -211,7 +163,8 @@ module CtxVer = {
     };
 
   let expect_eq_after_extend =
-      (a: bind(t), b: bind(t), p: bind(Prop.t)): result(unit, VerErr.t) =>
+      (a: bind(t), b: bind(t), p: bind(Prop.t))
+      : result(unit, DerivationError.t) =>
     if (eq(extend(a.value, p.value), b.value)) {
       Ok();
     } else {
@@ -219,33 +172,21 @@ module CtxVer = {
     };
 };
 
-module JudgementVer = {
-  open Judgement;
+module Judgement = {
+  include Judgement;
 
-  let expect = (v: cls, j: bind(t)): result(bind(t), VerErr.t) =>
-    if (cls_of(j.value) == v) {
-      Ok(j);
-    } else {
-      Error(MisMatch(Judgement(v, j)));
+  type unbox_req('a) =
+    | Entail: unbox_req((bind(Ctx.t), bind(Prop.t)));
+
+  let unbox: type a. (unbox_req(a), bind(t)) => result(a, DerivationError.t) =
+    (req, p) => {
+      let dupl_pos = dupl_pos(p);
+      switch (req, p.value) {
+      | (Entail, Entail(c, p)) => Ok((c, p) |> dupl_pos)
+      };
     };
 
-  let bind_unzip = (res: result(bind(t), VerErr.t)) =>
-    switch (res) {
-    | Ok(j) =>
-      Ok(
-        switch (j.value) {
-        | Entail(c, p) => (
-            {location: j.location, value: c},
-            {location: j.location, value: p},
-          )
-        },
-      )
-    | Error(e) => Error(e)
-    };
-
-  let expect_Entail = j => expect(Entail, j) |> bind_unzip;
-
-  let expect_eq = (a: bind(t), b: bind(t)): result(unit, VerErr.t) =>
+  let expect_eq = (a: bind(t), b: bind(t)): result(unit, DerivationError.t) =>
     if (eq(a.value, b.value)) {
       Ok();
     } else {
@@ -253,125 +194,109 @@ module JudgementVer = {
     };
 };
 
-module PremiseVer = {
+module Premises = {
   open Judgement;
 
-  let expect_len =
-      (premises: list(t), n: int): result(int => bind(t), VerErr.t) =>
-    if (List.length(premises) == n) {
-      Ok(i => {location: Premise(i), value: List.nth(premises, i)});
+  let expect_num =
+      (n: int, prems: list(t)): result(int => bind(t), DerivationError.t) =>
+    if (List.length(prems) == n) {
+      Ok(i => {pos: Prems(i), value: List.nth(prems, i)});
     } else {
-      Error(PremiseMismatch(n, List.length(premises)));
+      Error(PremiseMismatch(n, List.length(prems)));
     };
 };
 
-module RuleVer: {
-  let verify:
-    (Rule.t, Judgement.t, list(Judgement.t)) => result(unit, VerErr.t);
-} = {
-  open Rule;
+let verify = (rule: Rule.t, concl: Judgement.t, prems: list(Judgement.t)) => {
   let (let$) = (x, f) =>
     switch (x) {
     | Ok(x) => f(x)
     | Error(e) => Error(e)
     };
-
-  let verify =
-      (rule: t, conclusion: Judgement.t, premises: list(Judgement.t)) => {
-    let conclusion = {location: Conclusion, value: conclusion};
-    switch (rule) {
-    | Assumption =>
-      let$ _ = PremiseVer.expect_len(premises, 0);
-      let$ (ctx, prop) = JudgementVer.expect_Entail(conclusion);
-      let$ () = CtxVer.expect_in_ctx(prop, ctx);
-      Ok();
-    | And_I =>
-      let$ p = PremiseVer.expect_len(premises, 2);
-      let$ (ctx, prop) = JudgementVer.expect_Entail(conclusion);
-      let$ (a, b) = PropVer.expect_And(prop);
-      let$ (ctx', a') = JudgementVer.expect_Entail(p(0));
-      let$ () = CtxVer.expect_eq(ctx, ctx');
-      let$ () = PropVer.expect_eq(a, a');
-      let$ (ctx', b') = JudgementVer.expect_Entail(p(1));
-      let$ () = CtxVer.expect_eq(ctx, ctx');
-      let$ () = PropVer.expect_eq(b, b');
-      Ok();
-    | And_E_L =>
-      let$ p = PremiseVer.expect_len(premises, 1);
-      let$ (ctx, a) = JudgementVer.expect_Entail(conclusion);
-      let$ (ctx', prop') = JudgementVer.expect_Entail(p(0));
-      let$ (a', _) = PropVer.expect_And(prop');
-      let$ () = CtxVer.expect_eq(ctx, ctx');
-      let$ () = PropVer.expect_eq(a, a');
-      Ok();
-    | And_E_R =>
-      let$ p = PremiseVer.expect_len(premises, 1);
-      let$ (ctx, b) = JudgementVer.expect_Entail(conclusion);
-      let$ (ctx', prop') = JudgementVer.expect_Entail(p(0));
-      let$ (_, b') = PropVer.expect_And(prop');
-      let$ () = CtxVer.expect_eq(ctx, ctx');
-      let$ () = PropVer.expect_eq(b, b');
-      Ok();
-    | Or_I_L =>
-      let$ p = PremiseVer.expect_len(premises, 1);
-      let$ (ctx, prop) = JudgementVer.expect_Entail(conclusion);
-      let$ (a, _) = PropVer.expect_Or(prop);
-      let$ (ctx', a') = JudgementVer.expect_Entail(p(0));
-      let$ () = CtxVer.expect_eq(ctx, ctx');
-      let$ () = PropVer.expect_eq(a, a');
-      Ok();
-    | Or_I_R =>
-      let$ p = PremiseVer.expect_len(premises, 1);
-      let$ (ctx, prop) = JudgementVer.expect_Entail(conclusion);
-      let$ (_, b) = PropVer.expect_Or(prop);
-      let$ (ctx', b') = JudgementVer.expect_Entail(p(0));
-      let$ () = CtxVer.expect_eq(ctx, ctx');
-      let$ () = PropVer.expect_eq(b, b');
-      Ok();
-    | Or_E =>
-      let$ p = PremiseVer.expect_len(premises, 3);
-      let$ (ctx, c) = JudgementVer.expect_Entail(conclusion);
-      let$ (ctx', prop) = JudgementVer.expect_Entail(p(0));
-      let$ (a, b) = PropVer.expect_Or(prop);
-      let$ () = CtxVer.expect_eq(ctx, ctx');
-      let$ (ctx_a', c') = JudgementVer.expect_Entail(p(1));
-      let$ () = CtxVer.expect_eq_after_extend(ctx, ctx_a', a);
-      let$ () = PropVer.expect_eq(c, c');
-      let$ (ctx_b', c') = JudgementVer.expect_Entail(p(2));
-      let$ () = CtxVer.expect_eq_after_extend(ctx, ctx_b', b);
-      let$ () = PropVer.expect_eq(c, c');
-      Ok();
-    | Implies_I =>
-      let$ p = PremiseVer.expect_len(premises, 1);
-      let$ (ctx, prop) = JudgementVer.expect_Entail(conclusion);
-      let$ (a, b) = PropVer.expect_Implies(prop);
-      let$ (ctx_a', b') = JudgementVer.expect_Entail(p(0));
-      let$ () = CtxVer.expect_eq_after_extend(ctx, ctx_a', a);
-      let$ () = PropVer.expect_eq(b, b');
-      Ok();
-    | Implies_E =>
-      let$ p = PremiseVer.expect_len(premises, 2);
-      let$ (ctx, b) = JudgementVer.expect_Entail(conclusion);
-      let$ (ctx', prop) = JudgementVer.expect_Entail(p(0));
-      let$ (a, b') = PropVer.expect_Implies(prop);
-      let$ () = CtxVer.expect_eq(ctx, ctx');
-      let$ () = PropVer.expect_eq(b, b');
-      let$ (ctx', a') = JudgementVer.expect_Entail(p(1));
-      let$ () = CtxVer.expect_eq(ctx, ctx');
-      let$ () = PropVer.expect_eq(a, a');
-      Ok();
-    | Truth_I =>
-      let$ _ = PremiseVer.expect_len(premises, 0);
-      let$ (_, prop) = JudgementVer.expect_Entail(conclusion);
-      let$ () = PropVer.expect_Truth(prop);
-      Ok();
-    | Falsity_E =>
-      let$ p = PremiseVer.expect_len(premises, 1);
-      let$ (ctx, _) = JudgementVer.expect_Entail(conclusion);
-      let$ (ctx', prop) = JudgementVer.expect_Entail(p(0));
-      let$ () = CtxVer.expect_eq(ctx, ctx');
-      let$ () = PropVer.expect_Falsity(prop);
-      Ok();
-    };
+  let$ concl = Ok({pos: Concl, value: concl});
+  let$ prems = Premises.expect_num(Rule.prems_num(rule), prems);
+  switch (rule) {
+  | Assumption =>
+    let$ (ctx, prop) = Judgement.unbox(Entail, concl);
+    let$ _ = Ctx.expect_in_ctx(prop, ctx);
+    Ok();
+  | And_I =>
+    let$ (ctx, prop) = Judgement.unbox(Entail, concl);
+    let$ (a, b) = Prop.unbox(And, prop);
+    let$ (ctx', a') = Judgement.unbox(Entail, prems(0));
+    let$ _ = Ctx.expect_eq(ctx, ctx');
+    let$ _ = Prop.expect_eq(a, a');
+    let$ (ctx', b') = Judgement.unbox(Entail, prems(1));
+    let$ _ = Ctx.expect_eq(ctx, ctx');
+    let$ _ = Prop.expect_eq(b, b');
+    Ok();
+  | And_E_L =>
+    let$ (ctx, a) = Judgement.unbox(Entail, concl);
+    let$ (ctx', prop') = Judgement.unbox(Entail, prems(0));
+    let$ (a', _) = Prop.unbox(And, prop');
+    let$ _ = Ctx.expect_eq(ctx, ctx');
+    let$ _ = Prop.expect_eq(a, a');
+    Ok();
+  | And_E_R =>
+    let$ (ctx, b) = Judgement.unbox(Entail, concl);
+    let$ (ctx', prop') = Judgement.unbox(Entail, prems(0));
+    let$ (_, b') = Prop.unbox(And, prop');
+    let$ _ = Ctx.expect_eq(ctx, ctx');
+    let$ _ = Prop.expect_eq(b, b');
+    Ok();
+  | Or_I_L =>
+    let$ (ctx, prop) = Judgement.unbox(Entail, concl);
+    let$ (a, _) = Prop.unbox(Or, prop);
+    let$ (ctx', a') = Judgement.unbox(Entail, prems(0));
+    let$ _ = Ctx.expect_eq(ctx, ctx');
+    let$ _ = Prop.expect_eq(a, a');
+    Ok();
+  | Or_I_R =>
+    let$ (ctx, prop) = Judgement.unbox(Entail, concl);
+    let$ (_, b) = Prop.unbox(Or, prop);
+    let$ (ctx', b') = Judgement.unbox(Entail, prems(0));
+    let$ _ = Ctx.expect_eq(ctx, ctx');
+    let$ _ = Prop.expect_eq(b, b');
+    Ok();
+  | Or_E =>
+    let$ (ctx, c) = Judgement.unbox(Entail, concl);
+    let$ (ctx', prop) = Judgement.unbox(Entail, prems(0));
+    let$ (a, b) = Prop.unbox(Or, prop);
+    let$ _ = Ctx.expect_eq(ctx, ctx');
+    let$ (ctx_a', c') = Judgement.unbox(Entail, prems(1));
+    let$ _ = Ctx.expect_eq_after_extend(ctx, ctx_a', a);
+    let$ _ = Prop.expect_eq(c, c');
+    let$ (ctx_b', c') = Judgement.unbox(Entail, prems(2));
+    let$ _ = Ctx.expect_eq_after_extend(ctx, ctx_b', b);
+    let$ _ = Prop.expect_eq(c, c');
+    Ok();
+  | Implies_I =>
+    let$ (ctx, prop) = Judgement.unbox(Entail, concl);
+    let$ (a, b) = Prop.unbox(Implies, prop);
+    let$ (ctx_a', b') = Judgement.unbox(Entail, prems(0));
+    let$ _ = Ctx.expect_eq_after_extend(ctx, ctx_a', a);
+    let$ _ = Prop.expect_eq(b, b');
+    Ok();
+  | Implies_E =>
+    let$ (ctx, b) = Judgement.unbox(Entail, concl);
+    let$ (ctx', prop) = Judgement.unbox(Entail, prems(0));
+    let$ (a, b') = Prop.unbox(Implies, prop);
+    let$ _ = Ctx.expect_eq(ctx, ctx');
+    let$ _ = Prop.expect_eq(b, b');
+    let$ (ctx', a') = Judgement.unbox(Entail, prems(1));
+    let$ _ = Ctx.expect_eq(ctx, ctx');
+    let$ _ = Prop.expect_eq(a, a');
+    Ok();
+  | Truth_I =>
+    let$ (_, prop) = Judgement.unbox(Entail, concl);
+    let$ _ = Prop.unbox(Truth, prop);
+    Ok();
+  | Falsity_E =>
+    let$ (ctx, _) = Judgement.unbox(Entail, concl);
+    let$ (ctx', prop) = Judgement.unbox(Entail, prems(0));
+    let$ _ = Ctx.expect_eq(ctx, ctx');
+    let$ _ = Prop.unbox(Truth, prop);
+    Ok();
   };
 };
+
+include DerivationError;

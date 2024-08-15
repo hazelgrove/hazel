@@ -146,6 +146,20 @@ module Rule = {
     | Truth_I => "⊤-I"
     | Falsity_E => "⊥-E";
 
+  let prems_num =
+    fun
+    | Assumption => 0
+    | And_I => 2
+    | And_E_L => 1
+    | And_E_R => 1
+    | Or_I_L => 1
+    | Or_I_R => 1
+    | Or_E => 3
+    | Implies_I => 1
+    | Implies_E => 2
+    | Truth_I => 0
+    | Falsity_E => 1;
+
   let for_each = f =>
     [
       Assumption,
