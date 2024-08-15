@@ -384,7 +384,6 @@ select {
   font-family: "Source Code Pro", monospace;
   font-weight: normal;
   font-size: 13pt;
-  pointer-events: none;
 }
 
 #editor-mode,
@@ -2606,4 +2605,8 @@ svg.expandable path {
 svg.tile-next-step {
   pointer-events: all;
   cursor: pointer;
+}
+
+.cell-result .code {
+  pointer-events: none;
 }
