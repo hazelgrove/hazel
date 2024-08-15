@@ -115,7 +115,6 @@ rule token =
     | "typfun" {TYP_FUN}
     | "type" {TYP}
     | "$" {DOLLAR_SIGN}
-    (* | builtins as b {BUILIN(b)} *)
     | identifier as i { IDENT(i) }
     | constructor_ident as i { CONSTRUCTOR_IDENT(i)}
     | eof { EOF }

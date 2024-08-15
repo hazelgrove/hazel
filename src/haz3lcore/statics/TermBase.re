@@ -137,7 +137,7 @@ and Exp: {
   type term =
     | Invalid(string) //? s
     | EmptyHole //?
-    | MultiHole(list(Any.t)) //<<e>> //TODO: not necessary for parser - cyrus
+    | MultiHole(list(Any.t)) //<<e>>
     | DynamicErrorHole(t, InvalidOperationError.t) //This exp takes in the Sexp serialization of the InvalidOperationError.t as a string (s); // <<e ? s>>
     | FailedCast(t, Typ.t, Typ.t) //e ?<ty1 => ty2>
     | Deferral(deferral_position) /*InAp _*/ /*OutAp _*/
@@ -294,20 +294,11 @@ and Exp: {
         Fun(
           Pat.of_menhir_ast(p),
           of_menhir_ast(e),
-          //TODO: closure environment
           None,
           Some(name_str ++ "+"),
         )
-      | None =>
-        Fun(
-          Pat.of_menhir_ast(p),
-          of_menhir_ast(e),
-          //TODO: closure environment
-          None,
-          None,
-        )
+      | None => Fun(Pat.of_menhir_ast(p), of_menhir_ast(e), None, None)
       }
-    //TODO: pass ap direction
     | ApExp(e1, e2) =>
       Ap(Operators.Forward, of_menhir_ast(e1), of_menhir_ast(e2))
     | BinExp(e1, op, e2) =>
@@ -355,7 +346,6 @@ and Exp: {
         of_menhir_ast(e),
         InvalidOperationError.t_of_sexp(sexp_of_string(s)),
       )
-    // | _ => raise(Invalid_argument("Menhir AST -> DHExp not yet implemented"))
     };
   }
   and of_menhir_ast = (exp: Haz3lmenhir.AST.exp): Exp.t => {
@@ -641,7 +631,6 @@ and Pat: {
       MultiHole([Pat(p)]);
     | WildPat => Wild
     | ListPat(l) => ListLit(List.map(of_menhir_ast, l))
-    // | _ => raise(Invalid_argument("Menhir AST -> DHPat not yet implemented"))
     };
   }
   and of_menhir_ast = (pat: Haz3lmenhir.AST.pat): t => {
@@ -840,7 +829,6 @@ and Typ: {
     | TupleType(ts) => Prod(List.map(of_menhir_ast, ts))
     | ArrayType(t) => List(of_menhir_ast(t))
     | ArrowType(t1, t2) => Arrow(of_menhir_ast(t1), of_menhir_ast(t2))
-    // | _ => raise(Invalid_argument("Menhir AST -> DHExp not yet implemented"))
     };
   };
 
