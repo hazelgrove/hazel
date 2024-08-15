@@ -62,7 +62,6 @@ module Update = {
         ~settings,
         ~queue_worker,
         editor |> CodeEditable.Model.get_statics,
-        editor |> CodeEditable.Model.get_term,
         result,
       );
     {editor, result};

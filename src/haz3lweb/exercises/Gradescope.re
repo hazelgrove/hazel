@@ -56,7 +56,9 @@ module Main = {
       map_stitched(
         (_, term) =>
           term
-          |> Interface.eval_term(~settings, ~env_init=Builtins.env_init)
+          |> CachedStatics.init_from_term(~settings)
+          |> ((x: CachedStatics.t) => x.elaborated)
+          |> Evaluator.evaluate(~settings, ~env=Builtins.env_init)
           |> ProgramResult.map(x =>
                x
                |> ProgramResult.get_state
