@@ -23,9 +23,7 @@ module Model = {
     |> mk;
   };
 
-  let get_term = (model: t) => model.statics.term;
-
-  let get_statics = (model: t) => model.statics.info_map;
+  let get_statics = (model: t) => model.statics;
 
   let get_cursor_info = (model: t): Cursor.cursor(Action.t) => {
     info: Indicated.ci_of(model.editor.state.zipper, model.statics.info_map),
@@ -47,8 +45,7 @@ module Update = {
   // There are no events for a read-only editor
   type t;
 
-  /* Calculates the statics for the editor.
-     Interface.Statics.mk_map_ctx handles memoization */
+  /* Calculates the statics for the editor. */
   let calculate =
       (~settings, ~is_edited, ~stitch, {editor, statics: _}: Model.t)
       : Model.t => {

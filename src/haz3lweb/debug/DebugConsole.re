@@ -18,8 +18,8 @@ let print =
   | "F4" => map |> Statics.Map.show |> print
   | "F5" =>
     let env_init = Builtins.env_init;
-    Interface.elaborate(~settings=settings.core, map, term)
-    |> Interface.eval_term(~settings=settings.core, ~env_init)
+    statics.elaborated
+    |> Evaluator.evaluate(~settings=settings.core, ~env=env_init)
     |> ProgramResult.show(ProgramResult.pp_inner)
     |> print;
   | "F6" =>
