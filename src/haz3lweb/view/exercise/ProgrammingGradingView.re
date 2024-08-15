@@ -1,7 +1,7 @@
 open Virtual_dom.Vdom;
 open Node;
 
-include Haz3lschool.GradingProgramming.F(Exercise.ExerciseEnv);
+include Haz3lschool.ProgrammingGrade.F(Exercise.ExerciseEnv);
 
 let score_view = ((earned: points, max: points)) => {
   div(
@@ -472,16 +472,4 @@ module ImplGradingReport = {
         ),
     );
   };
-};
-
-module GradingReport = {
-  include GradingReport;
-
-  let view_overall_score = (report: t) => {
-    score_view(overall_score(report));
-  };
-};
-
-module ProofReport = {
-  include Haz3lschool.GradingProof.F(Exercise.ExerciseEnv);
 };

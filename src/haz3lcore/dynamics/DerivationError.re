@@ -46,14 +46,14 @@ module MisMatchCommon: {
     | Prop(v, p) =>
       msg(
         "Prop",
-        Prop.cls_repr(v),
+        Prop.show_cls(v),
         Prop.repr(p.value),
         Location.repr(p.location),
       )
     | Judgement(v, j) =>
       msg(
         "Judgement",
-        Judgement.cls_repr(v),
+        Judgement.show_cls(v),
         Judgement.repr(j.value),
         Location.repr(j.location),
       );
@@ -150,7 +150,7 @@ module PropVer = {
   open Prop;
 
   let expect = (v: cls, p): result(bind(t), VerErr.t) =>
-    if (cls_match(v, p.value)) {
+    if (cls_of(p.value) == v) {
       Ok(p);
     } else {
       Error(MisMatch(Prop(v, p)));
@@ -178,12 +178,12 @@ module PropVer = {
     | Error(e) => Error(e)
     };
 
-  let expect_Atom = p => expect(Cls_Atom, p);
-  let expect_And = p => expect(Cls_And, p) |> bind_unzip;
-  let expect_Or = p => expect(Cls_Or, p) |> bind_unzip;
-  let expect_Implies = p => expect(Cls_Implies, p) |> bind_unzip;
-  let expect_Truth = p => expect(Cls_Truth, p) |> bind_unit;
-  let expect_Falsity = p => expect(Cls_Falsity, p) |> bind_unit;
+  let expect_Atom = p => expect(Atom, p);
+  let expect_And = p => expect(And, p) |> bind_unzip;
+  let expect_Or = p => expect(Or, p) |> bind_unzip;
+  let expect_Implies = p => expect(Implies, p) |> bind_unzip;
+  let expect_Truth = p => expect(Truth, p) |> bind_unit;
+  let expect_Falsity = p => expect(Falsity, p) |> bind_unit;
 
   let expect_eq = (a: bind(t), b: bind(t)): result(unit, VerErr.t) =>
     if (eq(a.value, b.value)) {
@@ -223,7 +223,7 @@ module JudgementVer = {
   open Judgement;
 
   let expect = (v: cls, j: bind(t)): result(bind(t), VerErr.t) =>
-    if (cls_match(v, j.value)) {
+    if (cls_of(j.value) == v) {
       Ok(j);
     } else {
       Error(MisMatch(Judgement(v, j)));
@@ -233,7 +233,7 @@ module JudgementVer = {
     switch (res) {
     | Ok(j) =>
       Ok(
-        switch (just(j.value)) {
+        switch (j.value) {
         | Entail(c, p) => (
             {location: j.location, value: c},
             {location: j.location, value: p},
@@ -243,7 +243,7 @@ module JudgementVer = {
     | Error(e) => Error(e)
     };
 
-  let expect_Entail = j => expect(Cls_Entail, j) |> bind_unzip;
+  let expect_Entail = j => expect(Entail, j) |> bind_unzip;
 
   let expect_eq = (a: bind(t), b: bind(t)): result(unit, VerErr.t) =>
     if (eq(a.value, b.value)) {

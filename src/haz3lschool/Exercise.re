@@ -113,8 +113,11 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent_state = (pos, list((pos, PersistentZipper.t)));
 
-  let editor_of_state = ({pos, model, _}: state): Editor.t =>
+  let editor_of_state = ({pos, model, _}: state): Editor.t => {
+    prerr_endline(model |> show_model(Editor.pp));
+    print_endline("pos: " ++ show_pos(pos));
     ModelUtil.nth(model, pos);
+  };
 
   let put_editor = ({pos, model, _} as state: state, editor: Editor.t): state => {
     ...state,
@@ -152,40 +155,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     } else {
       state;
     };
-
-  // let switch_derivation_rule =
-  //     (~pos: Util.Tree.pos, ~exercise: state, ~rule: Derivation.Rule.t): state =>
-  //   switch (exercise.model) {
-  //   | Proof(m) =>
-  //     let m = Proof.switch_derivation_rule(~pos, ~rule, ~m);
-  //     {...exercise, pos: Proof(Derive(pos)), model: Proof(m)};
-  //   | _ => exercise
-  //   };
-
-  // let add_premise =
-  //     (
-  //       ~pos: Util.Tree.pos,
-  //       ~index: int,
-  //       ~exercise: state,
-  //       ~settings: CoreSettings.t,
-  //     )
-  //     : state =>
-  //   switch (exercise.model) {
-  //   | Proof(m) =>
-  //     let init = "" |> zipper_of_code |> Editor.init(~settings) |> Fun.const;
-  //     let m = Proof.add_premise(~pos, ~index, ~m, ~init);
-  //     {...exercise, pos: Proof(Derive(pos)), model: Proof(m)};
-  //   | _ => exercise
-  //   };
-
-  // let del_premise =
-  //     (~pos: Util.Tree.pos, ~index: int, ~exercise: state): state =>
-  //   switch (exercise.model) {
-  //   | Proof(m) =>
-  //     let m = Proof.del_premise(~pos, ~index, ~m);
-  //     {...exercise, pos: Proof(Derive(pos)), model: Proof(m)};
-  //   | _ => exercise
-  //   };
 
   let set_instructor_mode = (exercise: state, ~new_mode: bool) => {
     ...exercise,
@@ -427,12 +396,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   };
   let stitch_static = Core.Memo.general(stitch_static);
 
-  // let statics_of = (~settings, exercise: state): Editor.CachedStatics.t =>
-  //   StitchUtil.nth(
-  //     exercise |> stitch_term |> stitch_static(settings),
-  //     exercise.pos,
-  //   );
-
   let key_for_statics = (state: state): string => StitchUtil.key(state.pos);
 
   let spliced_elabs =
@@ -462,13 +425,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   let statics_of_stiched_dynamics =
       (state: state, s: stitched(DynamicsItem.t)): Editor.CachedStatics.t =>
     StitchUtil.nth(s, state.pos).statics;
-
-  // let mk_statics =
-  //     (settings: CoreSettings.t, state: state)
-  //     : list((ModelResults.key, Editor.CachedStatics.t)) =>
-  //   stitch_static(settings, stitch_term(state))
-  //   |> StitchUtil.mapi((pos, si) => (StitchUtil.key(pos), si))
-  //   |> StitchUtil.flatten;
 
   let stitch_dynamic =
       (

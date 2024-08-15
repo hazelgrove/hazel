@@ -770,7 +770,7 @@ module Transition = (EV: EV_MODE) => {
       | None => Indet
       | Some(ctx) =>
         Step({
-          expr: Judgement(Wrong(Entail(ctx, d2'))) |> fresh,
+          expr: Judgement(Entail(ctx, d2')) |> fresh,
           state_update,
           kind: Entail,
           is_value: true,

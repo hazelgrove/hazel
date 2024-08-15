@@ -322,7 +322,7 @@ module Pervasives = {
         switch (term_of(d)) {
         | Tuple([{term: ListLit(ctx), _}, {term: Prop(p), _}]) =>
           switch (ctx |> List.map(prop_of) |> Util.OptUtil.sequence) {
-          | Some(ctx) => Ok(Judgement(Wrong(Entail(ctx, p))) |> fresh)
+          | Some(ctx) => Ok(Judgement(Entail(ctx, p)) |> fresh)
           | None => Error(InvalidBoxedListLit(List.hd(ctx)))
           }
         | _ => Error(InvalidBoxedTuple(d))
@@ -334,53 +334,53 @@ module Pervasives = {
         | Judgement(j) => Some(j)
         | _ => None
         };
-    let rule = (_name, rule) =>
-      unary(d =>
-        switch (term_of(d)) {
-        | Tuple([
-            {term: Judgement(conclusion), _},
-            {term: ListLit(premises), _},
-          ]) =>
-          switch (premises |> List.map(judgement_of) |> Util.OptUtil.sequence) {
-          | Some(premises) =>
-            Ok(
-              switch (
-                DerivationError.RuleVer.verify(rule, conclusion, premises)
-              ) {
-              | Ok(_) =>
-                if (premises
-                    |> List.exists(
-                         fun
-                         | Derivation.Judgement.Verified(_) => false
-                         | _ => true,
-                       )) {
-                  Judgement(Partial(Derivation.Judgement.just(conclusion)))
-                  |> fresh;
-                } else {
-                  Judgement(Verified(Derivation.Judgement.just(conclusion)))
-                  |> fresh;
-                }
-              | Error(_e) =>
-                Judgement(Wrong(Derivation.Judgement.just(conclusion)))
-                |> fresh
-              },
-            )
-          | None => Error(InvalidBoxedListLit(List.hd(premises)))
-          }
-        | _ => Error(InvalidBoxedTuple(d))
-        }
-      );
-    let rule_Assumption = rule("rule_Assumption", Assumption);
-    let rule_And_I = rule("rule_And_I", And_I);
-    let rule_And_E_L = rule("rule_And_E_L", And_E_L);
-    let rule_And_E_R = rule("rule_And_E_R", And_E_R);
-    let rule_Or_I_L = rule("rule_Or_I_L", Or_I_L);
-    let rule_Or_I_R = rule("rule_Or_I_R", Or_I_R);
-    let rule_Or_E = rule("rule_Or_E", Or_E);
-    let rule_Implies_I = rule("rule_Implies_I", Implies_I);
-    let rule_Implies_E = rule("rule_Implies_E", Implies_E);
-    let rule_Truth_I = rule("rule_Truth_I", Truth_I);
-    let rule_Falsity_E = rule("rule_Falsity_E", Falsity_E);
+    // let rule = (_name, rule) =>
+    //   unary(d =>
+    //     switch (term_of(d)) {
+    //     | Tuple([
+    //         {term: Judgement(conclusion), _},
+    //         {term: ListLit(premises), _},
+    //       ]) =>
+    //       switch (premises |> List.map(judgement_of) |> Util.OptUtil.sequence) {
+    //       | Some(premises) =>
+    //         Ok(
+    //           switch (
+    //             DerivationError.RuleVer.verify(rule, conclusion, premises)
+    //           ) {
+    //           | Ok(_) =>
+    //             if (premises
+    //                 |> List.exists(
+    //                      fun
+    //                      | Derivation.Judgement.Verified(_) => false
+    //                      | _ => true,
+    //                    )) {
+    //               Judgement(Partial(Derivation.Judgement.just(conclusion)))
+    //               |> fresh;
+    //             } else {
+    //               Judgement(Verified(Derivation.Judgement.just(conclusion)))
+    //               |> fresh;
+    //             }
+    //           | Error(_e) =>
+    //             Judgement(Wrong(Derivation.Judgement.just(conclusion)))
+    //             |> fresh
+    //           },
+    //         )
+    //       | None => Error(InvalidBoxedListLit(List.hd(premises)))
+    //       }
+    //     | _ => Error(InvalidBoxedTuple(d))
+    //     }
+    //   );
+    // let rule_Assumption = rule("rule_Assumption", Assumption);
+    // let rule_And_I = rule("rule_And_I", And_I);
+    // let rule_And_E_L = rule("rule_And_E_L", And_E_L);
+    // let rule_And_E_R = rule("rule_And_E_R", And_E_R);
+    // let rule_Or_I_L = rule("rule_Or_I_L", Or_I_L);
+    // let rule_Or_I_R = rule("rule_Or_I_R", Or_I_R);
+    // let rule_Or_E = rule("rule_Or_E", Or_E);
+    // let rule_Implies_I = rule("rule_Implies_I", Implies_I);
+    // let rule_Implies_E = rule("rule_Implies_E", Implies_E);
+    // let rule_Truth_I = rule("rule_Truth_I", Truth_I);
+    // let rule_Falsity_E = rule("rule_Falsity_E", Falsity_E);
   };
 
   open Impls;
@@ -476,18 +476,18 @@ module Pervasives = {
          Prod([List(Prop |> Typ.fresh) |> Typ.fresh, Prop |> Typ.fresh]),
          Judgement,
          entail,
-       )
-    |> rule("rule_Assumption", rule_Assumption)
-    |> rule("rule_And_I", rule_And_I)
-    |> rule("rule_And_E_L", rule_And_E_L)
-    |> rule("rule_And_E_R", rule_And_E_R)
-    |> rule("rule_Or_I_L", rule_Or_I_L)
-    |> rule("rule_Or_I_R", rule_Or_I_R)
-    |> rule("rule_Or_E", rule_Or_E)
-    |> rule("rule_Implies_I", rule_Implies_I)
-    |> rule("rule_Implies_E", rule_Implies_E)
-    |> rule("rule_Truth_I", rule_Truth_I)
-    |> rule("rule_Falsity_E", rule_Falsity_E);
+       );
+  // |> rule("rule_Assumption", rule_Assumption)
+  // |> rule("rule_And_I", rule_And_I)
+  // |> rule("rule_And_E_L", rule_And_E_L)
+  // |> rule("rule_And_E_R", rule_And_E_R)
+  // |> rule("rule_Or_I_L", rule_Or_I_L)
+  // |> rule("rule_Or_I_R", rule_Or_I_R)
+  // |> rule("rule_Or_E", rule_Or_E)
+  // |> rule("rule_Implies_I", rule_Implies_I)
+  // |> rule("rule_Implies_E", rule_Implies_E)
+  // |> rule("rule_Truth_I", rule_Truth_I)
+  // |> rule("rule_Falsity_E", rule_Falsity_E);
 };
 
 let ctx_init: Ctx.t = {

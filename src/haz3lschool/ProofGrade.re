@@ -68,12 +68,16 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
   module GradingReport = {
     type t = {derivation_report: DerivationReport.t};
 
-    let mk = (_eds: 'a, ~_stitched_dynamics: stitched(DynamicsItem.t)) => {
+    let mk = (eds: 'a, ~stitched_dynamics: Proof.stitched(DynamicsItem.t)) => {
       // derivation_report:
       //   DerivationReport.mk(~verify_results=stitched_dynamics);
-      derivation_report: {
-        verify_results: Util.Tree.init(Fun.const(true)),
-      },
+      ignore(eds);
+      ignore(stitched_dynamics);
+      {
+        derivation_report: {
+          verify_results: Util.Tree.init(Fun.const(true)),
+        },
+      };
     };
 
     let overall_score = (_: t): score => {

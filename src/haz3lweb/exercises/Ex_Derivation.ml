@@ -18,24 +18,34 @@ let exercise : Exercise.spec =
               "let a = atom(\"A\") in\n\
                let b = atom(\"B\") in\n\
                let gamma = [a /\\ b] in\n";
-            tree =
-              Node
-                ( { jdmt = "gamma |- b /\\ a"; rule = And_I },
-                  [
-                    Node
-                      ( { jdmt = "gamma |- b"; rule = And_E_R },
-                        [
-                          Node
-                            ( { jdmt = "gamma |- a /\\ b"; rule = Assumption },
-                              [] );
-                        ] );
-                    Node
-                      ( { jdmt = "gamma |- a"; rule = And_E_L },
-                        [
-                          Node
-                            ( { jdmt = "gamma |- a /\\ b"; rule = Assumption },
-                              [] );
-                        ] );
-                  ] );
+            trees =
+              [
+                Node
+                  ( Just { jdmt = "gamma |- b /\\ a"; rule = And_I },
+                    [
+                      Node
+                        ( Just { jdmt = "gamma |- b"; rule = And_E_R },
+                          [
+                            Node
+                              ( Just
+                                  {
+                                    jdmt = "gamma |- a /\\ b";
+                                    rule = Assumption;
+                                  },
+                                [] );
+                          ] );
+                      Node
+                        ( Just { jdmt = "gamma |- a"; rule = And_E_L },
+                          [
+                            Node
+                              ( Just
+                                  {
+                                    jdmt = "gamma |- a /\\ b";
+                                    rule = Assumption;
+                                  },
+                                [] );
+                          ] );
+                    ] );
+              ];
           };
     }

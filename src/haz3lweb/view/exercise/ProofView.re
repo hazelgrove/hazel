@@ -2,6 +2,10 @@ open Virtual_dom.Vdom;
 open Js_of_ocaml;
 open Haz3lcore;
 open Node;
+open Util;
+
+open Haz3lschool.ProofGrade.F(Exercise.ExerciseEnv);
+open Exercise.Proof;
 
 type verifyRes =
   | Correct
@@ -20,6 +24,12 @@ let to_verifyRes =
   | Error(e) => Incorrect(DerivationError.VerErr.repr(e))
   };
 
+let get_model = (state: Exercise.p('a)) =>
+  switch (state.model) {
+  | Exercise.Proof(m) => m
+  | _ => raise(Failure("Expected Exercise.Proof"))
+  };
+
 let to_class = res =>
   Attr.class_(
     switch (res) {
@@ -36,22 +46,18 @@ let proof_view =
       ~inject,
       ~ui_state: Model.ui_state,
       ~settings: Settings.t,
-      ~pos: Exercise.Proof.pos,
-      ~header: Exercise.header,
-      ~eds: Exercise.Proof.model(Editor.t),
-      ~stitched_dynamics: Exercise.Proof.stitched(Exercise.DynamicsItem.t),
+      ~pos: pos,
+      ~grading_report: GradingReport.t,
+      ~eds: model(Editor.t),
+      ~stitched_dynamics: stitched(Exercise.DynamicsItem.t),
       ~highlights,
     ) => {
-  let Exercise.Proof.{tree, prelude, _} = stitched_dynamics;
+  ignore(grading_report);
+  let {trees, prelude, _} = stitched_dynamics;
+  // TODO: Implement this
+  let tree = trees |> List.hd;
 
-  let title_view = Cell.title_cell(header.title);
-
-  let prompt_view =
-    Cell.narrative_cell(
-      div(~attrs=[Attr.class_("cell-prompt")], [header.prompt]),
-    );
-
-  let dropdown_option_view = (~pos': Util.Tree.pos, ~rule) =>
+  let dropdown_option_view = (~pos: pos, ~rule) =>
     div(
       ~attrs=[
         Attr.class_("rule-option"),
@@ -62,19 +68,10 @@ let proof_view =
                 {
                   ...state,
                   model:
-                    Exercise.Proof(
-                      Exercise.Proof.ModelUtil.switch_derivation_rule(
-                        ~pos=pos',
-                        ~m=
-                          state.model
-                          |> (
-                            model =>
-                              switch (model) {
-                              | Exercise.Proof(m) => m
-                              | _ =>
-                                raise(Failure("Expected Exercise.Proof"))
-                              }
-                          ),
+                    Proof(
+                      ModelUtil.switch_derivation_rule(
+                        ~pos,
+                        ~m=state |> get_model,
                         ~rule,
                       ),
                     ),
@@ -86,11 +83,11 @@ let proof_view =
       [text(Derivation.Rule.repr(rule))],
     );
 
-  let dropdown_options_view = (~pos'): t =>
+  let dropdown_options_view = (~pos): t =>
     div(
       ~attrs=[Attr.class_("rule-option-container")],
       List.map(
-        rule => dropdown_option_view(~pos', ~rule),
+        rule => dropdown_option_view(~pos, ~rule),
         Derivation.Rule.for_each(Fun.id),
       ),
     );
@@ -113,18 +110,18 @@ let proof_view =
       ],
     );
 
-  let dropdown_view = (~pos', ~res): t =>
+  let dropdown_view = (~pos, ~res): t =>
     div(
       ~attrs=[
         Attr.class_("rule-block-content"),
         to_class(res),
-        Attr.id(Util.Tree.show_pos(pos') ++ "-content"),
+        Attr.id(show_pos(pos) ++ "-content"),
       ],
-      [dropdown_res_view(~res), dropdown_options_view(~pos')],
+      [dropdown_res_view(~res), dropdown_options_view(~pos)],
     );
 
-  let rule_btn_on_mouseover_handler = (~pos') => {
-    let show_pos = Util.Tree.show_pos(pos');
+  let rule_btn_on_mouseover_handler = (~pos) => {
+    let show_pos = show_pos(pos);
     let btn = Util.JsUtil.get_elem_by_id(show_pos ++ "-btn");
     let content = Util.JsUtil.get_elem_by_id(show_pos ++ "-content");
     let btn_rect = btn##getBoundingClientRect;
@@ -151,24 +148,24 @@ let proof_view =
     Ui_effect.Ignore;
   };
 
-  let rule_btn_view = (~pos', ~res, ~rule) =>
+  let rule_btn_view = (~pos, ~res, ~rule) =>
     div(
       ~attrs=[
         Attr.class_("rule-block-btn"),
         to_class(res),
-        Attr.id(Util.Tree.show_pos(pos') ++ "-btn"),
-        Attr.on_mousemove(_ => rule_btn_on_mouseover_handler(~pos')),
+        Attr.id(show_pos(pos) ++ "-btn"),
+        Attr.on_mousemove(_ => rule_btn_on_mouseover_handler(~pos)),
       ],
       [text(Derivation.Rule.repr(rule))],
     );
 
-  let rule_block_view = (~pos', ~res, ~rule): t =>
+  let rule_block_view = (~pos, ~res, ~rule): t =>
     div(
       ~attrs=[Attr.class_("rule-block")],
-      [rule_btn_view(~pos', ~res, ~rule), dropdown_view(~pos', ~res)],
+      [rule_btn_view(~pos, ~res, ~rule), dropdown_view(~pos, ~res)],
     );
 
-  let add_premise_btn_view = (~pos', ~index) =>
+  let add_premise_btn_view = (~pos, ~index) =>
     div(
       ~attrs=[
         Attr.class_("add-premise-btn"),
@@ -180,18 +177,9 @@ let proof_view =
                   ...state,
                   model:
                     Exercise.Proof(
-                      Exercise.Proof.ModelUtil.add_premise(
-                        ~pos=pos',
-                        ~m=
-                          state.model
-                          |> (
-                            model =>
-                              switch (model) {
-                              | Exercise.Proof(m) => m
-                              | _ =>
-                                raise(Failure("Expected Exercise.Proof"))
-                              }
-                          ),
+                      ModelUtil.add_premise(
+                        ~pos,
+                        ~m=state |> get_model,
                         ~index,
                         ~init=
                           ""
@@ -208,7 +196,7 @@ let proof_view =
       [text("+")],
     );
 
-  let del_premise_btn_view = (~pos', ~index) =>
+  let del_premise_btn_view = (~pos, ~index) =>
     div(
       ~attrs=[
         Attr.class_("add-premise-btn"),
@@ -220,18 +208,9 @@ let proof_view =
                   ...state,
                   model:
                     Exercise.Proof(
-                      Exercise.Proof.ModelUtil.del_premise(
-                        ~pos=pos',
-                        ~m=
-                          state.model
-                          |> (
-                            model =>
-                              switch (model) {
-                              | Exercise.Proof(m) => m
-                              | _ =>
-                                raise(Failure("Expected Exercise.Proof"))
-                              }
-                          ),
+                      ModelUtil.del_premise(
+                        ~pos,
+                        ~m=state |> get_model,
                         ~index,
                       ),
                     ),
@@ -243,7 +222,7 @@ let proof_view =
       [text("-")],
     );
 
-  let premises_view = (~children_node, ~pos', ~res, ~rule): t => {
+  let premises_view = (~children_node, ~pos, ~res, ~rule): t => {
     let n = List.length(children_node);
     div(
       ~attrs=[Attr.class_("derivation-premises"), to_class(res)],
@@ -251,16 +230,16 @@ let proof_view =
         children_node
         |> List.mapi((index, node) =>
              [
-               add_premise_btn_view(~pos', ~index),
+               add_premise_btn_view(~pos, ~index),
                node,
-               del_premise_btn_view(~pos', ~index),
+               del_premise_btn_view(~pos, ~index),
              ]
            )
         |> List.concat
       )
       @ [
-        add_premise_btn_view(~pos', ~index=n),
-        rule_block_view(~pos', ~res, ~rule),
+        add_premise_btn_view(~pos, ~index=n),
+        rule_block_view(~pos, ~res, ~rule),
       ],
     );
   };
@@ -284,36 +263,42 @@ let proof_view =
       ],
     );
 
-  let single_derivation_view =
-      (({Exercise.Proof.jdmt: ed, rule}, (pos', di)), children) => {
-    let (children_node, children) = children |> List.split;
-    let children_node = children_node |> List.concat;
-    let (children_di, children_res) = children |> List.split;
-    let res =
-      Grading.ProofReport.DerivationReport.verify_single(
-        di,
-        rule,
-        children_di,
+  let single_derivation_view = ((d, (pos, di)), children) => {
+    let di = di |> Option.get;
+    switch (d) {
+    | Just({jdmt: ed, rule}) =>
+      let (children_node, children) = children |> List.split;
+      let children_node = children_node |> List.concat;
+      let (children_di, children_res) = children |> List.split;
+      // TODO: implement this
+      let res =
+        ProofGradingView.ProofReport.DerivationReport.verify_single(
+          di,
+          rule,
+          children_di,
+        );
+      let res = to_verifyRes(res, children_res);
+      (
+        [
+          div(
+            ~attrs=[Attr.class_("derivation-block")],
+            [
+              premises_view(~children_node, ~pos=Trees(0, pos), ~res, ~rule),
+              conclusion_view(~editor=ed, ~di, Proof(Trees(0, pos))),
+            ],
+          ),
+        ],
+        (di, res),
       );
-    let res = to_verifyRes(res, children_res);
-    (
-      [
-        div(
-          ~attrs=[Attr.class_("derivation-block")],
-          [
-            premises_view(~children_node, ~pos', ~res, ~rule),
-            conclusion_view(~editor=ed, ~di, Proof(Tree(pos'))),
-          ],
-        ),
-      ],
-      (di, res),
-    );
+    | Abbr(i) => ([text(string_of_int(i))], (di, Correct))
+    };
   };
 
   // (ed * rule) * (pos * (di * res))
   let combined_tree =
     Util.Tree.combine((
-      eds.tree,
+      // TODO: implement this
+      eds.trees |> List.hd,
       Util.Tree.mapi((pos, t) => (pos, t), tree),
     ));
 
@@ -323,7 +308,7 @@ let proof_view =
         Cell.caption("Derivation"),
         div(
           ~attrs=[Attr.class_("cell-derivation")],
-          fst(Util.Tree.fold_deep(single_derivation_view, combined_tree)),
+          fst(Tree.fold_deep(single_derivation_view, combined_tree)),
         ),
       ]),
     ]);
@@ -342,5 +327,5 @@ let proof_view =
       eds.prelude,
     );
 
-  [title_view, prompt_view, prelude_view, derivation_view];
+  [prelude_view, derivation_view];
 };
