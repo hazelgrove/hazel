@@ -36,18 +36,13 @@ let set_buffer = (info_map: Statics.Map.t, z: t): t =>
 
 let go_z =
     (
-      ~meta: option(Editor.Meta.t)=?,
-      ~settings: CoreSettings.t,
+      ~settings as _: CoreSettings.t,
+      statics: CachedStatics.t,
       a: Action.t,
+      module M: Move.S,
       z: Zipper.t,
     )
     : Action.Result.t(Zipper.t) => {
-  let meta =
-    switch (meta) {
-    | Some(m) => m
-    | None => Editor.Meta.init(z, ~settings)
-    };
-  module M = (val Editor.Meta.module_of_t(meta));
   module Move = Move.Make(M);
   module Select = Select.Make(M);
 
@@ -119,7 +114,7 @@ let go_z =
     | None => Error(CantReparse)
     | Some(z) => Ok(z)
     }
-  | Buffer(Set(TyDi)) => Ok(set_buffer(meta.statics.info_map, z))
+  | Buffer(Set(TyDi)) => Ok(set_buffer(statics.info_map, z))
   | Buffer(Accept) =>
     switch (buffer_accept(z)) {
     | None => Error(CantAccept)
@@ -137,7 +132,7 @@ let go_z =
     Move.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move)
   | Jump(jump_target) =>
     let idx = Indicated.index(z);
-    let statics = meta.statics.info_map;
+    let statics = statics.info_map;
     (
       switch (jump_target) {
       | BindingSiteOfIndicatedVar =>
@@ -175,7 +170,7 @@ let go_z =
     if (!tile_is_term) {
       select_term_current(z);
     } else {
-      let statics = meta.statics.info_map;
+      let statics = statics.info_map;
       let target =
         switch (
           Indicated.index(z)
@@ -260,53 +255,3 @@ let go_z =
     |> Result.of_option(~error=Action.Failure.Cant_move)
   };
 };
-
-let go_history =
-    (~settings: CoreSettings.t, a: Action.t, ed: Editor.t)
-    : Action.Result.t(Editor.t) => {
-  open Result.Syntax;
-  /* This function is responsible for the action history */
-  let Editor.State.{zipper, meta} = ed.state;
-  //Effect.s_clear();
-  let+ z = go_z(~settings, ~meta, a, zipper);
-  Editor.new_state(
-    /*~effects=Effect.s^,*/
-    ~settings,
-    a,
-    z,
-    ed,
-  );
-};
-
-let go =
-    (~settings: CoreSettings.t, a: Action.t, ed: Editor.t)
-    : Action.Result.t(Editor.t) =>
-  /* This function wraps assistant completions. If completions are enabled,
-   * then beginning any action (other than accepting a completion) clears
-   * the completion buffer before performing the action. Conversely,
-   * after any edit action, a new completion is set in the buffer */
-  if (ed.read_only && is_write_action(a)) {
-    Ok(ed);
-  } else if (settings.assist && settings.statics) {
-    open Result.Syntax;
-    let ed =
-      a == Buffer(Accept)
-        ? ed
-        : (
-          switch (go_history(~settings, Buffer(Clear), ed)) {
-          | Ok(ed) => ed
-          | Error(_) => ed
-          }
-        );
-    let* ed = go_history(~settings, a, ed);
-    Action.is_edit(a)
-      ? {
-        switch (go_history(~settings, Buffer(Set(TyDi)), ed)) {
-        | Error(err) => Error(err)
-        | Ok(ed) => Ok(ed)
-        };
-      }
-      : Ok(ed);
-  } else {
-    go_history(~settings, a, ed);
-  };

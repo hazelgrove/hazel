@@ -11,14 +11,19 @@ module Model = {
     result: EvalResult.Model.t,
   };
 
-  let mk = editor => {editor, result: EvalResult.Model.init};
-
+  let mk = editor => {
+    editor: {
+      editor,
+      statics: CachedStatics.empty,
+    },
+    result: EvalResult.Model.init,
+  };
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = CodeEditable.Model.persistent;
 
   let persist = model => model.editor |> CodeEditable.Model.persist;
-  let unpersist = (~settings, pz) =>
-    pz |> PersistentZipper.unpersist |> Editor.init(~settings) |> mk;
+  let unpersist = (~settings as _, pz) =>
+    pz |> PersistentZipper.unpersist |> Editor.Model.mk |> mk;
 };
 
 module Update = {
@@ -42,15 +47,23 @@ module Update = {
   };
 
   let calculate =
-      (~settings, ~queue_worker, ~stitch as _, model: Model.t): Model.t => {
-    let editor = model.editor;
+      (
+        ~settings,
+        ~is_edited,
+        ~queue_worker,
+        ~stitch,
+        {editor, result}: Model.t,
+      )
+      : Model.t => {
+    let editor =
+      CodeEditable.Update.calculate(~settings, ~is_edited, ~stitch, editor);
     let result =
       EvalResult.Update.calculate(
         ~settings,
         ~queue_worker,
         editor |> CodeEditable.Model.get_statics,
         editor |> CodeEditable.Model.get_term,
-        model.result,
+        result,
       );
     {editor, result};
   };
@@ -158,7 +171,7 @@ module View = {
               ? _ => Ui_effect.Ignore
               : (action => inject(MainEditor(action))),
           ~selected=selected == Some(MainEditor),
-          ~overlays=overlays(model.editor),
+          ~overlays=overlays(model.editor.editor),
           ~sort?,
           model.editor,
         ),

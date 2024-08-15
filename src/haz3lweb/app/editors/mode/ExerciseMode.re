@@ -17,13 +17,8 @@ module Model = {
     cells: Exercise.stitched(CellEditor.Model.t),
   };
 
-  let of_spec = (~settings, ~instructor_mode: bool, spec) => {
-    let editors =
-      Exercise.map(
-        spec,
-        Editor.init(~settings),
-        Editor.init(~settings, ~read_only=!instructor_mode),
-      );
+  let of_spec = (~settings as _, ~instructor_mode as _: bool, spec) => {
+    let editors = Exercise.map(spec, Editor.Model.mk, Editor.Model.mk);
     let term_item_to_cell = (item: Exercise.TermItem.t): CellEditor.Model.t => {
       CellEditor.Model.mk(item.editor);
     };
@@ -78,7 +73,11 @@ module Update = {
       {
         ...model,
         editors:
-          Exercise.put_main_editor(~selection=pos, model.editors, new_editor),
+          Exercise.put_main_editor(
+            ~selection=pos,
+            model.editors,
+            new_editor.editor,
+          ),
       };
     | Editor(pos, ResultAction(_) as action)
         when
@@ -96,7 +95,7 @@ module Update = {
       Updated.return_quiet(model) // TODO: better feedback
     | ResetEditor(pos) =>
       let spec = Exercise.main_editor_of_state(~selection=pos, model.spec);
-      let new_editor = Editor.init(~settings=settings.core, spec);
+      let new_editor = Editor.Model.mk(spec);
       {
         ...model,
         editors:
@@ -105,19 +104,13 @@ module Update = {
       |> Updated.return;
     | ResetExercise =>
       let new_editors =
-        Exercise.map(
-          model.spec,
-          Editor.init(~settings=settings.core),
-          Editor.init(
-            ~settings=settings.core,
-            ~read_only=settings.instructor_mode,
-          ),
-        );
+        Exercise.map(model.spec, Editor.Model.mk, Editor.Model.mk);
       {...model, editors: new_editors} |> Updated.return;
     };
   };
 
-  let calculate = (~settings, ~schedule_action, model: Model.t): Model.t => {
+  let calculate =
+      (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
     let stitched_elabs = Exercise.stitch_term(model.editors);
     let worker_request = ref([]);
     let queue_worker = (pos, expr) => {
@@ -127,9 +120,18 @@ module Update = {
     let cells =
       Exercise.map2_stitched(
         (pos, {term, editor}: Exercise.TermItem.t, cell: CellEditor.Model.t) =>
-          {editor, result: cell.result}
+          {
+            editor: {
+              editor,
+              statics: cell.editor.statics,
+            },
+            result: cell.result,
+          }
           |> CellEditor.Update.calculate(
-               ~settings, ~queue_worker=Some(queue_worker(pos)), ~stitch=_ =>
+               ~settings,
+               ~is_edited,
+               ~queue_worker=Some(queue_worker(pos)),
+               ~stitch=_ =>
                term
              ),
         stitched_elabs,
@@ -192,7 +194,7 @@ module Selection = {
       (~settings: Settings.t, tile, model: Model.t): option((Update.t, t)) => {
     Exercise.positioned_editors(model.editors)
     |> List.find_opt(((p, e: Editor.t)) =>
-         TileMap.find_opt(tile, e.state.meta.syntax.tiles) != None
+         TileMap.find_opt(tile, e.syntax.tiles) != None
          && Exercise.visible_in(p, ~instructor_mode=settings.instructor_mode)
        )
     |> Option.map(((pos, _)) =>
@@ -318,14 +320,14 @@ module View = {
         {
           let exp_ctx_view = {
             let correct_impl_trailing_hole_ctx =
-              Haz3lcore.Editor.trailing_hole_ctx(
+              Haz3lcore.Editor.Model.trailing_hole_ctx(
                 eds.correct_impl,
-                instructor.editor.state.meta.statics.info_map,
+                instructor.editor.statics.info_map,
               );
             let prelude_trailing_hole_ctx =
-              Haz3lcore.Editor.trailing_hole_ctx(
+              Haz3lcore.Editor.Model.trailing_hole_ctx(
                 eds.prelude,
-                prelude.editor.state.meta.statics.info_map,
+                prelude.editor.statics.info_map,
               );
             switch (correct_impl_trailing_hole_ctx, prelude_trailing_hole_ctx) {
             | (None, _) => Node.div([text("No context available (1)")])

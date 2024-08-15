@@ -103,22 +103,26 @@ module HighlightSegment =
        );
 };
 
-module Deco = (M: {
-                 let globals: Globals.t;
-                 let editor: Editor.t;
-               }) => {
+module Deco =
+       (
+         M: {
+           let globals: Globals.t;
+           let editor: Editor.t;
+           let statics: CachedStatics.t;
+         },
+       ) => {
   let font_metrics = M.globals.font_metrics;
-  let map = M.editor.state.meta.syntax.measured;
+  let map = M.editor.syntax.measured;
   let show_backpack_targets = M.globals.show_backpack_targets;
-  let terms = M.editor.state.meta.syntax.terms;
-  let term_ranges = M.editor.state.meta.syntax.term_ranges;
-  let tiles = M.editor.state.meta.syntax.tiles;
-  let measured = M.editor.state.meta.syntax.measured;
+  let terms = M.editor.syntax.terms;
+  let term_ranges = M.editor.syntax.term_ranges;
+  let tiles = M.editor.syntax.tiles;
+  let measured = M.editor.syntax.measured;
   let rows = measured.rows;
-  let projectors = M.editor.state.meta.syntax.projectors;
-  let error_ids = M.editor.state.meta.statics.error_ids;
+  let projectors = M.editor.syntax.projectors;
+  let error_ids = M.statics.error_ids;
   let color_highlights = M.globals.color_highlights;
-  let segment = M.editor.state.meta.syntax.segment;
+  let segment = M.editor.syntax.segment;
 
   let tile = id => Id.Map.find(id, tiles);
 
@@ -134,8 +138,8 @@ module Deco = (M: {
   };
   module Highlight =
     HighlightSegment({
-      let measured = M.editor.state.meta.syntax.measured;
-      let info_map = M.editor.state.meta.statics.info_map;
+      let measured = M.editor.syntax.measured;
+      let info_map = M.statics.info_map;
       let font_metrics = font_metrics;
     });
 

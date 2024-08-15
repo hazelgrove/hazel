@@ -122,7 +122,7 @@ module Update = {
 
   let calc_a =
       (~settings: CoreSettings.t, expr: Exp.t, state, previous_substitutions) => {
-    let editor = CodeWithStatics.Model.mk_from_exp(~settings, expr);
+    let editor = CodeWithStatics.Model.mk_from_exp(expr);
     let next_steps =
       EvaluatorStep.decompose(expr, state)
       |> List.map(

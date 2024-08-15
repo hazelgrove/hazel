@@ -12,8 +12,9 @@ module Stepped = {
     let overlays = {
       module Deco =
         Deco.Deco({
-          let editor = model.editor;
+          let editor = model.editor.editor;
           let globals = globals;
+          let statics = model.editor.statics;
         });
       overlays @ Deco.taken_step(model.step_id);
     };
@@ -40,8 +41,9 @@ module Steppable = {
     let overlays = {
       module Deco =
         Deco.Deco({
-          let editor = model.editor;
+          let editor = model.editor.editor;
           let globals = globals;
+          let statics = model.editor.statics;
         });
       overlays
       @ Deco.next_steps(model.next_steps, ~inject=x => signal(TakeStep(x)));

@@ -120,10 +120,7 @@ module Update = {
                 ({result: r, state: s}: Haz3lcore.ProgramResult.inner) =>
                   r
                   |> Haz3lcore.ProgramResult.Result.unbox
-                  |> CodeSelectable.Model.mk_from_exp(
-                       ~inline=false,
-                       ~settings=settings.core,
-                     )
+                  |> CodeSelectable.Model.mk_from_exp(~inline=false)
                   |> (x => (x, s)),
                 update,
               ),
@@ -163,10 +160,7 @@ module Update = {
                   Haz3lcore.ProgramResult.ResultOk(
                     r
                     |> Haz3lcore.ProgramResult.Result.unbox
-                    |> CodeSelectable.Model.mk_from_exp(
-                         ~inline=false,
-                         ~settings,
-                       )
+                    |> CodeSelectable.Model.mk_from_exp(~inline=false)
                     |> (x => (x, s)),
                   )
                 | Error(e) => Haz3lcore.ProgramResult.ResultFail(e)
@@ -262,12 +256,7 @@ module View = {
     let editor =
       switch (result) {
       | ResultOk((res, _)) => res
-      | _ =>
-        elab
-        |> CodeSelectable.Model.mk_from_exp(
-             ~inline=false,
-             ~settings=globals.settings.core,
-           )
+      | _ => elab |> CodeSelectable.Model.mk_from_exp(~inline=false)
       };
     let code_view =
       CodeSelectable.View.view(
@@ -412,7 +401,7 @@ module View = {
         | Some(result) =>
           test_result_layer(
             ~font_metrics=globals.font_metrics,
-            ~measured=editor.state.meta.syntax.measured,
+            ~measured=editor.syntax.measured,
             result,
           )
         | None => []
@@ -449,7 +438,7 @@ module View = {
         | Some(result) =>
           test_result_layer(
             ~font_metrics=globals.font_metrics,
-            ~measured=editor.state.meta.syntax.measured,
+            ~measured=editor.syntax.measured,
             result,
           )
         | None => []

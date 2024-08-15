@@ -174,11 +174,12 @@ module Update = {
     };
   };
 
-  let calculate = (~schedule_action, model: Model.t) => {
+  let calculate = (~schedule_action, ~is_edited, model: Model.t) => {
     let editors =
       Editors.Update.calculate(
         ~settings=model.globals.settings.core,
         ~schedule_action=a => schedule_action(Editors(a)),
+        ~is_edited,
         model.editors,
       );
     let cursor_info =
