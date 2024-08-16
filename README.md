@@ -197,6 +197,9 @@ You can run all of the unit tests located in `test` by running `make test`.
 
 Unit tests are written using the [Alcotest framework](https://github.com/mirage/alcotest).
 
+#### Coverage
+Code coverage is provided by [bisect_ppx](https://github.com/aantron/bisect_ppx). To collect coverage statistics from tests run `make coverage`. After coverage statistics are generated, running `make generate-coverage-html` will generate a local webpage at `_coverage/index.html` that can be viewed to see line coverage per module.
+
 ### Continuous Integration
 
 When you push your branch to the main `hazelgrove/hazel` repository, we 
