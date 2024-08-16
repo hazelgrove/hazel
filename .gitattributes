@@ -5,3 +5,4 @@
 
 *.ml linguist-generated
 *.md linguist-documentation
+docs/** linguist-documentation
