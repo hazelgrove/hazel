@@ -143,7 +143,9 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = Id.mk();
     let+ e = text_to_pretty(exp |> Exp.rep_id, Sort.Exp, c)
     and+ t = typ_to_pretty(~settings: Settings.t, t);
-    e @ [mk_form("typeasc", id, [])] @ t;
+    e
+    @ [mk_form("typeasc", id, [])]
+    @ (t |> fold_if(settings.fold_cast_types));
   | ListLit([]) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "[]")
   | Deferral(_) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "deferral")
   | ListLit([x, ...xs]) =>
@@ -350,7 +352,9 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let+ e = go(e)
     and+ t = typ_to_pretty(~settings: Settings.t, t);
-    e @ [mk_form("typeasc", id, [])] @ t;
+    e
+    @ [mk_form("typeasc", id, [])]
+    @ (t |> fold_if(settings.fold_cast_types));
   | Match(e, rs) =>
     // TODO: Add newlines
     let+ e = go(e)
