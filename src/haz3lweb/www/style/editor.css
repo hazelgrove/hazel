@@ -18,6 +18,13 @@
   white-space: pre;
 }
 
+/* This is a hack to compensating for default linebreak handling
+* preventing a trailing linebreak in code editors from leaving a
+* trailing blank line, as per https://stackoverflow.com/questions/43492826/ */
+.code-text:after {
+  content: " ";
+}
+
 /* TOKEN COLORS */
 
 .code .token.Nul {
