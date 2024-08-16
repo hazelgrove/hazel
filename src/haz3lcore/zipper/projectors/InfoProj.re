@@ -79,13 +79,13 @@ module M: Projector = {
   let view = (model, ~info, ~local, ~parent as _) =>
     div(
       ~attrs=[
-        Attr.class_("info"),
+        Attr.classes(["info", "code"]),
         Attr.on_mousedown(_ => local(ToggleDisplay)),
       ],
       [
         text("⋱ " ++ display_mode(model, info.ci) ++ " "),
         div(
-          ~attrs=[Attr.class_("type")],
+          ~attrs=[Attr.classes(["type"])],
           [text(display(model, info.ci))],
         ),
       ],

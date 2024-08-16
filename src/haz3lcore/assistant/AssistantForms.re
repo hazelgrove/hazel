@@ -47,9 +47,9 @@ module Typ = {
     ("$==", Bool),
     ("==.", Bool),
     ("==", Bool),
-    //("!", Bool), /* annoying as != is more common */
-    ("!=", Bool),
-    ("!=.", Bool),
+    ("!", Bool),
+    //("!=", Bool), /* annoying as != is more common */
+    //("!=.", Bool), /* annoying as != is more common */
     ("<", Bool),
     (">", Bool),
     ("<=", Bool),
