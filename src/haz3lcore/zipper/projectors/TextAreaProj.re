@@ -113,9 +113,9 @@ module M: Projector = {
     switch (d) {
     | None => ()
     | Some(Left) =>
-      Web.TextArea.set_caret_to_start(JsUtil.TextArea.get(of_id(id)))
+      Web.TextArea.set_caret_to_start(Web.TextArea.get(of_id(id)))
     | Some(Right) =>
-      Web.TextArea.set_caret_to_end(JsUtil.TextArea.get(of_id(id)))
+      Web.TextArea.set_caret_to_end(Web.TextArea.get(of_id(id)))
     };
   };
 };
