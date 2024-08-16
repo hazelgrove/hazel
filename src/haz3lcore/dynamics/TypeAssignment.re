@@ -289,12 +289,12 @@ let rec typ_of_dhexp =
       let element = LabeledTuple.find_label(DHExp.get_label, ds, name);
       switch (element) {
       | Some(TupLabel(_, exp)) => typ_of_dhexp(ctx, m, exp)
-      | _ => raise(EvaluatorError.Exception(BadPatternMatch))
+      | _ => None
       };
     | (TupLabel(l, exp), BoundVar(name))
         when LabeledTuple.compare(name, l) == 0 =>
       typ_of_dhexp(ctx, m, exp)
-    | _ => raise(EvaluatorError.Exception(BadPatternMatch))
+    | _ => None
     }
   | Tuple(dhs) =>
     let+ typ_list =

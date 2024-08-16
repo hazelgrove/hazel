@@ -297,11 +297,11 @@ and uexp_to_info_map =
   | TupLabel(s, e) when is_contained =>
     let mode = Mode.of_label(ctx, mode);
     let (e, m) = go(~mode, e, m);
-    // treating standalone labeled expressions as within a tuple of size 1
     add(~self=Just(Label(s, e.ty)), ~co_ctx=e.co_ctx, m);
   | TupLabel(s, e) =>
     let mode = Mode.of_label(ctx, mode);
     let (e, m) = go(~mode, e, m);
+    // treating standalone labeled expressions as within a tuple of size 1
     add(~self=Just(Prod([Label(s, e.ty)])), ~co_ctx=e.co_ctx, m);
   | Tuple(es) =>
     let modes = Mode.of_prod(ctx, mode, es, UExp.get_label);
@@ -312,14 +312,17 @@ and uexp_to_info_map =
       m,
     );
   | Dot(e1, e2) =>
+    let (info_e1, m) = go(~mode=Syn, e1, m);
     let (ty, m) = {
-      let (info_e1, m) = go(~mode=Syn, e1, m);
+      print_endline("e1 info");
+      print_endline(Info.show_exp(info_e1));
       switch (e2.term, info_e1.ty) {
       | (Var(name), Unknown(_))
       | (Constructor(name), Unknown(_)) =>
         let ty = Typ.Prod([Label(name, Unknown(Internal))]);
         let (_, m) = go(~mode=Mode.Ana(ty), e1, m);
         (ty, m);
+      | (_, Var(_)) => (Typ.weak_head_normalize(ctx, info_e1.ty), m)
       | _ => (info_e1.ty, m)
       };
     };
@@ -327,30 +330,41 @@ and uexp_to_info_map =
     | Prod(ts) =>
       switch (e2.term) {
       | Var(name) =>
-        let (body, m) = go'(~ctx=[], ~mode, e2, m);
         let element: option(Typ.t) =
-          LabeledTuple.find_label(Typ.get_label, ts, name)
+          LabeledTuple.find_label(Typ.get_label, ts, name);
         let m =
           e2.ids
           |> List.fold_left(
-              (m, id) =>
-                Id.Map.update(
-                  id,
-                  fun
-                  | Some(Info.InfoExp(exp)) =>
-                    Some(Info.InfoExp({...exp, ctx}))
-                  | _ as info => info,
-                  m,
-                ),
+               (m, id) =>
+                 Id.Map.update(
+                   id,
+                   fun
+                   | Some(Info.InfoExp(exp)) =>
+                     Some(Info.InfoExp({...exp, ctx}))
+                   | _ as info => info,
+                   m,
+                 ),
+               m,
+             );
+        switch (element) {
+        | Some(Label(_, typ))
+        | Some(typ) =>
+          let (body, m) =
+            go'(
+              ~ctx=[VarEntry({name, id: List.nth(e2.ids, 0), typ})],
+              ~mode,
+              e2,
               m,
             );
-        switch (element) {
-        | Some(Label(_, typ)) => add(~self=Just(typ), ~co_ctx=body.co_ctx, m)
-        | Some(typ) => add(~self=Just(typ), ~co_ctx=body.co_ctx, m)
-        | None => add(~self=Just(Unknown(Internal)), ~co_ctx=body.co_ctx, m)
+          add(~self=Just(typ), ~co_ctx=body.co_ctx, m);
+        | None =>
+          let (body, m) = go'(~ctx=[], ~mode, e2, m);
+          add(~self=Just(body.ty), ~co_ctx=body.co_ctx, m);
         };
-      | _ => add(~self=Just(Unknown(Internal)), ~co_ctx=body.co_ctx, m)
-      };
+      | _ =>
+        let (body, m) = go'(~ctx=[], ~mode, e2, m);
+        add(~self=Just(body.ty), ~co_ctx=body.co_ctx, m);
+      }
     | _ =>
       let (body, m) = go'(~ctx=[], ~mode, e2, m);
       add(~self=Just(body.ty), ~co_ctx=body.co_ctx, m);
