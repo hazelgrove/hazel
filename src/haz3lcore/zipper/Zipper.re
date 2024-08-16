@@ -275,19 +275,6 @@ let caret_direction = (z: t): option(Direction.t) =>
   | Inner(_) => None
   | Outer =>
     switch (Siblings.neighbors(sibs_with_sel(z))) {
-    //TODO(andrew): cleanup
-    // | (Some(l), _)
-    //     when
-    //       !Selection.is_empty(z.selection)
-    //       && Piece.is_secondary(l)
-    //       && z.selection.focus == Right =>
-    //   None
-    // | (_, Some(r))
-    //     when
-    //       !Selection.is_empty(z.selection)
-    //       && Piece.is_secondary(r)
-    //       && z.selection.focus == Left =>
-    //   None
     | (Some(l), Some(r))
         when
           Piece.is_secondary(l)
