@@ -3,4 +3,5 @@
 # checkin. When the file has been committed with CRLF, no conversion is done.
 * text=auto
 
+hazel.opam linguist-generated
 hazel.opam.locked linguist-generated
