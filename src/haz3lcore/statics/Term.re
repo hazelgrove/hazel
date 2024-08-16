@@ -730,6 +730,18 @@ module Exp = {
       _,
     );
   let substitute_closures = substitute_closures(_, [], []);
+
+  let unfix = (e: t, p: Pat.t) => {
+    switch (e.term) {
+    | FixF(p1, e1, _) =>
+      if (Pat.fast_equal(p, p1)) {
+        e1;
+      } else {
+        e;
+      }
+    | _ => e
+    };
+  };
 };
 
 module Rul = {

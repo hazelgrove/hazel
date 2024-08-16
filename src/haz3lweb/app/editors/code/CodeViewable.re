@@ -58,14 +58,14 @@ let view_segment =
   view(~globals, ~sort, ~measured, ~buffer_ids, ~holes, ~segment, ~info_map);
 };
 
-let view_exp = (~globals: Globals.t, ~inline: bool, exp: Exp.t) => {
+let view_exp = (~globals: Globals.t, ~settings, exp: Exp.t) => {
   exp
-  |> ExpToSegment.exp_to_segment(~inline)
+  |> ExpToSegment.exp_to_segment(~settings)
   |> view_segment(~globals, ~sort=Exp);
 };
 
-let view_typ = (~globals: Globals.t, ~inline: bool, typ: Typ.t) => {
+let view_typ = (~globals: Globals.t, ~settings, typ: Typ.t) => {
   typ
-  |> ExpToSegment.typ_to_segment(~inline)
+  |> ExpToSegment.typ_to_segment(~settings)
   |> view_segment(~globals, ~sort=Typ);
 };
