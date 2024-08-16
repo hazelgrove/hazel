@@ -41,9 +41,9 @@ let mousedown_handler =
       evt,
     ) =>
   switch (JsUtil.ctrl_held(evt), JsUtil.num_clicks(evt)) {
+  | _ when JsUtil.mouse_button(evt) != 0 => Effect.Ignore
   | (true, _) =>
     let goal = get_goal(~font_metrics, ~target_id, evt);
-
     let events = [
       inject(PerformAction(Move(Goal(Point(goal))))),
       inject(PerformAction(Jump(BindingSiteOfIndicatedVar))),

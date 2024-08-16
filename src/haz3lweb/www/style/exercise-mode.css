@@ -231,3 +231,7 @@
 #main.Exercises .test-bar .segment.Indet:hover {
   background-color: var(--test-indet-active);
 }
+
+#main.Exercises .context-entry {
+  max-width: fit-content; /* Correct implementation type sigs */
+}

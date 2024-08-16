@@ -224,7 +224,7 @@ let view =
         },
         ~tooltip=
           "Command Palette ("
-          ++ Keyboard.meta(JsUtil.is_mac() ? Mac : PC)
+          ++ Keyboard.meta(Os.is_mac^ ? Mac : PC)
           ++ " + k)",
       ),
       link(
