@@ -122,7 +122,7 @@ let view =
             switch (specific_ctx) {
             | None => Node.div([text("No context available")]) // TODO show exercise configuration error
             | Some(specific_ctx) =>
-              CtxInspector.ctx_view(~inject, specific_ctx)
+              ContextInspector.ctx_view(~inject, specific_ctx)
             };
           };
         };
@@ -205,7 +205,7 @@ let view =
         YourTestsTesting,
         ~caption="Implementation Validation",
         ~subcaption=
-          ": Your Tests (code synchronized with Test Validation cell above) vs. Your Implementation",
+          ": Your Tests (synchronized with Test Validation above) vs. Your Implementation",
         ~editor=eds.your_tests.tests,
         ~di=user_tests,
         ~footer=[
@@ -277,7 +277,7 @@ let reset_button = inject =>
 
 let instructor_export = (inject: UpdateAction.t => Ui_effect.t(unit)) =>
   Widgets.button_named(
-    Icons.star,
+    Icons.export,
     _ => inject(Export(ExerciseModule)),
     ~tooltip="Export Exercise Module",
   );
@@ -285,14 +285,14 @@ let instructor_export = (inject: UpdateAction.t => Ui_effect.t(unit)) =>
 let instructor_transitionary_export =
     (inject: UpdateAction.t => Ui_effect.t(unit)) =>
   Widgets.button_named(
-    Icons.star,
+    Icons.export,
     _ => {inject(Export(TransitionaryExerciseModule))},
     ~tooltip="Export Transitionary Exercise Module",
   );
 
 let instructor_grading_export = (inject: UpdateAction.t => Ui_effect.t(unit)) =>
   Widgets.button_named(
-    Icons.star,
+    Icons.export,
     _ => {inject(Export(GradingExerciseModule))},
     ~tooltip="Export Grading Exercise Module",
   );
@@ -307,7 +307,7 @@ let export_submission = (inject: UpdateAction.t => Ui_effect.t(unit)) =>
 let import_submission = (~inject) =>
   Widgets.file_select_button_named(
     "import-submission",
-    Icons.star,
+    Icons.import,
     file => {
       switch (file) {
       | None => Virtual_dom.Vdom.Effect.Ignore
