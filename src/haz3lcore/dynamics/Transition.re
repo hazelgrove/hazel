@@ -570,6 +570,7 @@ module Transition = (EV: EV_MODE) => {
             let element = LabeledTuple.find_label(DHExp.get_label, ds, name);
             switch (element) {
             | Some(TupLabel(_, exp)) => exp
+            // TODO (Anthony): operate on casts instead of the original tuple, like static checking.
             | _ => raise(EvaluatorError.Exception(BadPatternMatch))
             };
           },
