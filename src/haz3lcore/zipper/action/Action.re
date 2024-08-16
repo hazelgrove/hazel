@@ -39,7 +39,7 @@ type rel =
 type select =
   | All
   | Resize(move)
-  | Smart
+  | Smart(int)
   | Tile(rel)
   | Term(rel);
 
@@ -162,3 +162,33 @@ let is_historic: t => bool =
     | Focus(_)
     | Escape(_) => false
     };
+
+let prevent_in_read_only_editor = (a: t) => {
+  switch (a) {
+  | Copy
+  | Move(_)
+  | Unselect(_)
+  | Jump(_)
+  | Select(_) => false
+  | Buffer(Set(_) | Accept | Clear)
+  | Cut
+  | Paste(_)
+  | Reparse
+  | Destruct(_)
+  | Insert(_)
+  | Pick_up
+  | Put_down
+  | RotateBackpack
+  | MoveToBackpackTarget(_) => true
+  | Project(p) =>
+    switch (p) {
+    | SetSyntax(_) => true
+    | SetModel(_)
+    | SetIndicated(_)
+    | ToggleIndicated(_)
+    | Remove(_)
+    | Focus(_)
+    | Escape(_) => false
+    }
+  };
+};

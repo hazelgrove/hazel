@@ -9,7 +9,10 @@ let get_goal = (~font_metrics: FontMetrics.t, ~target_id, e) => {
   let goal_y = float_of_int(e##.clientY);
   Point.{
     row: Float.to_int((goal_y -. rect##.top) /. font_metrics.row_height),
-    col: Float.(to_int((goal_x -. rect##.left) /. font_metrics.col_width)),
+    col:
+      Float.(
+        to_int(round((goal_x -. rect##.left) /. font_metrics.col_width))
+      ),
   };
 };
 
@@ -40,7 +43,6 @@ let mousedown_handler =
   switch (JsUtil.ctrl_held(evt), JsUtil.num_clicks(evt)) {
   | (true, _) =>
     let goal = get_goal(~font_metrics, ~target_id, evt);
-
     let events = [
       inject(PerformAction(Move(Goal(Point(goal))))),
       inject(PerformAction(Jump(BindingSiteOfIndicatedVar))),
@@ -48,18 +50,19 @@ let mousedown_handler =
     Virtual_dom.Vdom.Effect.Many(events);
   | (false, 1) =>
     let goal = get_goal(~font_metrics, ~target_id, evt);
+    /* Note that we only trigger drag mode (set mousedown)
+     * when the left mouse button (aka button 0) is pressed */
     Virtual_dom.Vdom.Effect.Many(
       List.map(
         inject,
         Update.(
-          [SetMeta(Mousedown)]
+          (JsUtil.mouse_button(evt) == 0 ? [SetMeta(Mousedown)] : [])
           @ mousedown_updates
           @ [PerformAction(Move(Goal(Point(goal))))]
         ),
       ),
     );
-  | (false, 2) => inject(PerformAction(Select(Tile(Current))))
-  | (false, 3 | _) => inject(PerformAction(Select(Smart)))
+  | (false, n) => inject(PerformAction(Select(Smart(n))))
   };
 
 let narrative_cell = (content: Node.t) =>
@@ -91,15 +94,17 @@ let test_status_icon_view =
   };
 
 let test_result_layer =
-    (~font_metrics, ~measured: Measured.t, test_results: TestResults.t)
-    : list(t) =>
-  List.filter_map(
-    ((id, insts)) =>
-      switch (Id.Map.find_opt(id, measured.tiles)) {
-      | Some(ms) => test_status_icon_view(~font_metrics, insts, ms)
-      | None => None
-      },
-    test_results.test_map,
+    (~font_metrics, ~measured: Measured.t, test_results: TestResults.t): t =>
+  Web.div_c(
+    "test-decos",
+    List.filter_map(
+      ((id, insts)) =>
+        switch (Id.Map.find_opt(id, measured.tiles)) {
+        | Some(ms) => test_status_icon_view(~font_metrics, insts, ms)
+        | None => None
+        },
+      test_results.test_map,
+    ),
   );
 
 let deco =
@@ -133,11 +138,13 @@ let deco =
   | None => decos
   | Some(test_results) =>
     decos
-    @ test_result_layer(
+    @ [
+      test_result_layer(
         ~font_metrics=ui_state.font_metrics,
         ~measured=meta.syntax.measured,
         test_results,
-      ) // TODO move into decos
+      ),
+    ] // TODO move into decos
   };
 };
 
