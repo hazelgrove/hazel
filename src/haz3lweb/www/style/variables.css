@@ -39,7 +39,7 @@
   /* GLASS - sorts */
   --TYP: oklch(60% 0.2 300);
   --PAT: oklch(from var(--TYP) l c calc(h - 1 * 75));
-  --TPAT: oklch(from var(--TYP) l c calc(h - 2 * 75));
+  --TPAT: var(--PAT);
 
   /* AURA - docs highlighting */
   --highlight-a: oklch(0.95 0.07 360);
