@@ -142,7 +142,8 @@ module Make = (M: Editor.Meta.S) => {
 
   let parent_of_indicated = (z: Zipper.t, info_map) => {
     let statics_of = Id.Map.find_opt(_, info_map);
-    let* ci = Indicated.index(z) |> OptUtil.and_then(statics_of);
+    let* base_id = Indicated.index(z);
+    let* ci = statics_of(base_id);
     let* id =
       switch (Info.ancestors_of(ci)) {
       | [] => None
@@ -151,8 +152,19 @@ module Make = (M: Editor.Meta.S) => {
     let* ci_parent = statics_of(id);
     switch (Info.cls_of(ci_parent)) {
     | Exp(Let | TyAlias) =>
-      /* For definition-type forms, don't select the body */
-      tile(id, z)
+      /* For definition-type forms, don't select the body,
+       * unless the body is precisely what we're clicking on */
+      switch (ci_parent) {
+      | InfoExp({term: t, _}) =>
+        switch (IdTagged.term_of(t)) {
+        | Let(_, _, body)
+        | TyAlias(_, _, body) =>
+          let body_id = IdTagged.rep_id(body);
+          base_id == body_id ? term(id, z) : tile(id, z);
+        | _ => tile(id, z)
+        }
+      | _ => tile(id, z)
+      }
     | Exp(Match) =>
       /* Case rules aren't terms in the syntax model,
        * but here we pretend they are */
