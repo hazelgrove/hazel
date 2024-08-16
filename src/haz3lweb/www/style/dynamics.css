@@ -136,6 +136,11 @@
   position: relative;
 }
 
+.DHCode > .code {
+  z-index: 1;
+  position: relative;
+}
+
 .DHCode .decoration-container {
   position: absolute;
   pointer-events: none;
@@ -191,8 +196,6 @@
 .DHCode .CastDecoration .code-delim {
   color: var(--token-typ);
 }
-
-
 
 /* STEPPER */
 
