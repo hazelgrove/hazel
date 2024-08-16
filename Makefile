@@ -8,12 +8,12 @@ all: dev
 
 deps:
 	opam update
-	opam install ./hazel.opam.locked --deps-only --with-test
+	opam install ./hazel.opam.locked --deps-only --with-test --with-doc
 
 change-deps:
 	opam update
 	dune build hazel.opam
-	opam install ./hazel.opam --deps-only --with-test
+	opam install ./hazel.opam --deps-only --with-test --with-doc
 	opam lock .
 	sed -i'.old' '/host-/d' hazel.opam.locked  # remove host- lines which are arch-specific. Not using -i '' because of portability issues https://stackoverflow.com/questions/4247068/sed-command-with-i-option-failing-on-mac-but-works-on-linux
 
