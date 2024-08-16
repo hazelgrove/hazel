@@ -385,8 +385,7 @@ module Make = (M: Editor.Meta.S) => {
     };
   };
 
-  let go = (d: Action.move, z: Zipper.t): option(Zipper.t) => {
-    let z = Zipper.unselect(z);
+  let move_dispatch = (d: Action.move, z: Zipper.t): option(Zipper.t) =>
     switch (d) {
     | Goal(Piece(p, d)) => do_until_wrap(Action.of_piece_goal(p), d, z)
     | Goal(Point(goal)) =>
@@ -406,7 +405,19 @@ module Make = (M: Editor.Meta.S) => {
         }
       )
     };
-  };
+
+  let go = (d: Action.move, z: Zipper.t): option(Zipper.t) =>
+    if (Selection.is_empty(z.selection)) {
+      move_dispatch(d, z);
+    } else {
+      /* Always empty selection on move action,
+       * even if we don't actually move */
+      let z = Zipper.unselect(z);
+      switch (move_dispatch(d, z)) {
+      | Some(z) => Some(z)
+      | None => Some(z)
+      };
+    };
 
   let left_until_case_or_rule =
     do_until(go(Local(Left(ByToken))), Piece.is_case_or_rule);
