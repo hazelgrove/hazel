@@ -41,7 +41,6 @@ let mousedown_handler =
       evt,
     ) =>
   switch (JsUtil.ctrl_held(evt), JsUtil.num_clicks(evt)) {
-  | _ when JsUtil.mouse_button(evt) != 0 => Effect.Ignore
   | (true, _) =>
     let goal = get_goal(~font_metrics, ~target_id, evt);
     let events = [
@@ -51,11 +50,13 @@ let mousedown_handler =
     Virtual_dom.Vdom.Effect.Many(events);
   | (false, 1) =>
     let goal = get_goal(~font_metrics, ~target_id, evt);
+    /* Note that we only trigger drag mode (set mousedown)
+     * when the left mouse button (aka button 0) is pressed */
     Virtual_dom.Vdom.Effect.Many(
       List.map(
         inject,
         Update.(
-          [SetMeta(Mousedown)]
+          (JsUtil.mouse_button(evt) == 0 ? [SetMeta(Mousedown)] : [])
           @ mousedown_updates
           @ [PerformAction(Move(Goal(Point(goal))))]
         ),
