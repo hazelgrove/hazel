@@ -1,5 +1,4 @@
 open Util;
-open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
@@ -79,6 +78,8 @@ let rel = (p1: Piece.t, p2: Piece.t): option(rel) =>
     | Convex => Some(Lt)
     | Concave => Some(Gt)
     }
+  | (Projector(_), _) => None
+  | (_, Projector(_)) => None
   | (Tile(t1), Tile(t2)) =>
     open Labels;
     let lbl1 = (==)(t1.label);

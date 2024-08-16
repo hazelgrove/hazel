@@ -1,4 +1,5 @@
-open Sexplib.Std;
+open Util;
+open StringUtil;
 open Mold;
 module P = Precedence;
 
@@ -10,10 +11,6 @@ module P = Precedence;
    table, for compound forms.
    The wrapping functions seen in both of those tables determine the
    shape, precedence, and expansion behavior of the form. */
-
-let regexp = (r, s) =>
-  Js_of_ocaml.Regexp.string_match(Js_of_ocaml.Regexp.regexp(r), s, 0)
-  |> Option.is_some;
 
 /* A label is the textual expression of a form's delimiters */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -72,19 +69,19 @@ let space = " ";
    issues with using \n. Someone who understands regexps better
    should fix this. */
 let linebreak = "⏎";
-let comment_regexp = "^#[^#⏎]*#$"; /* Multiline comments not supported */
-let is_comment = t => regexp(comment_regexp, t) || t == "#";
+let comment_regexp = regexp("^#[^#⏎]*#$"); /* Multiline comments not supported */
+let is_comment = t => match(comment_regexp, t) || t == "#";
 let is_comment_delim = t => t == "#";
 let is_secondary = t =>
-  List.mem(t, [space, linebreak]) || regexp(comment_regexp, t);
+  List.mem(t, [space, linebreak]) || match(comment_regexp, t);
 
 /* STRINGS: special-case syntax */
 
 /* is_string: last clause is a somewhat hacky way of making sure
    there are at most two quotes, in order to prevent merges */
+let string_regexp = regexp("^\"[^⏎]*\"$");
 let is_string = t =>
-  regexp("^\"[^⏎]*\"$", t)
-  && List.length(String.split_on_char('"', t)) < 4;
+  match(string_regexp, t) && List.length(String.split_on_char('"', t)) < 4;
 let string_delim = "\"";
 let empty_string = string_delim ++ string_delim;
 let is_string_delim = (==)(string_delim);
@@ -112,61 +109,66 @@ let keywords = [
   "hint",
 ];
 let reserved_keywords = ["of", "when", "with", "switch", "match"];
-let is_keyword = regexp("^(" ++ String.concat("|", keywords) ++ ")$");
-let is_reserved_keyword =
-  regexp("^(" ++ String.concat("|", reserved_keywords) ++ ")$");
+let keyword_regexp = regexp("^(" ++ String.concat("|", keywords) ++ ")$");
+let is_keyword = match(keyword_regexp);
 
 /* Potential tokens: These are fallthrough classes which determine
  * the behavior when inserting a character in contact with a token */
-let is_potential_operand = regexp("^[a-zA-Z0-9_'\\.?]+$");
+let is_potential_operand = match(regexp("^[a-zA-Z0-9_'\\.?]+$"));
 /* Anything else is considered a potential operator, as long
  *  as it does not contain any whitespace, linebreaks, comment
  *  delimiters, string delimiters, or the instant expanding paired
  *  delimiters: ()[]| */
-let is_potential_operator = regexp("^[^a-zA-Z0-9_'?\"#⏎\\s\\[\\]\\(\\)]+$");
+let potential_operator_regexp =
+  regexp("^[^a-zA-Z0-9_'?\"#⏎\\s\\[\\]\\(\\)]+$");
+let is_potential_operator = match(potential_operator_regexp);
 let is_potential_token = t =>
   is_potential_operand(t)
   || is_potential_operator(t)
   || is_string(t)
   || is_comment(t);
 
-let is_arbitary_int = regexp("^-?\\d+[0-9_]*$");
-let is_arbitary_float = x =>
-  x != "." && x != "-" && regexp("^-?[0-9]*\\.?[0-9]*((e|E)-?[0-9]*)?$", x);
-let is_int = str => is_arbitary_int(str) && int_of_string_opt(str) != None;
+let int_regexp = regexp("^-?\\d+[0-9_]*$");
+let is_float = match(regexp("^-?[0-9]*\\.?[0-9]*((e|E)-?[0-9]*)?$"));
+let is_arbitary_float = x => x != "." && x != "-" && is_float(x);
+let is_int = str => match(int_regexp, str) && int_of_string_opt(str) != None;
 /* NOTE: The is_arbitary_int check is necessary to prevent
    minuses from being parsed as part of the int token. */
 
-let is_bad_int = str => is_arbitary_int(str) && !is_int(str);
+let is_bad_int = str => match(int_regexp, str) && !is_int(str);
 
 /* NOTE: As well as making is_float  disjoint from is_int,
    the is_arbitary_int  also prevents ints over int_max from being
    cast as floats. The is_arbitary_float check is necessary to prevent
    minuses from being parsed as part of the float token. */
 let is_float = str =>
-  !is_arbitary_int(str)
+  !match(int_regexp, str)
   && is_arbitary_float(str)
   && float_of_string_opt(str) != None;
 let is_bad_float = str => is_arbitary_float(str) && !is_float(str);
 let bools = ["true", "false"];
-let is_bool = regexp("^(" ++ String.concat("|", bools) ++ ")$");
+let is_bool = match(regexp("^(" ++ String.concat("|", bools) ++ ")$"));
+let undefined = "undefined";
+let is_undefined = match(regexp("^" ++ undefined ++ "$"));
 
+let var_regexp =
+  regexp(
+    {|(^[a-z_][A-Za-z0-9_']*$)|(^[A-Z][A-Za-z0-9_']*\.[a-z][A-Za-z0-9_']*$)|},
+  );
 let is_var = str =>
   !is_bool(str)
+  && !is_undefined(str)
   && str != "_"
   //&& !is_keyword(str)
-  //&& !is_reserved(str)
-  && regexp(
-       {|(^[a-z_][A-Za-z0-9_']*$)|(^[A-Z][A-Za-z0-9_']*\.[a-z][A-Za-z0-9_']*$)|},
-       str,
-     );
-let is_capitalized_name = regexp("^[A-Z][A-Za-z0-9_]*$");
-let is_ctr = is_capitalized_name;
+  && match(var_regexp, str);
+let capitalized_name_regexp = regexp("^[A-Z][A-Za-z0-9_]*$");
+let is_ctr = match(capitalized_name_regexp);
 let base_typs = ["String", "Int", "Float", "Bool"];
-let is_base_typ = regexp("^(" ++ String.concat("|", base_typs) ++ ")$");
-let is_typ_var = str => is_var(str) || is_capitalized_name(str);
+let is_base_typ =
+  match(regexp("^(" ++ String.concat("|", base_typs) ++ ")$"));
+let is_typ_var = str => is_var(str) || match(capitalized_name_regexp, str);
 let wild = "_";
-let is_wild = regexp("^" ++ wild ++ "$");
+let is_wild = match(regexp("^" ++ wild ++ "$"));
 
 /* List literals */
 let list_start = "[";
@@ -202,7 +204,7 @@ let duomerges = (lbl: Label.t): option(Label.t) =>
 
 //TODO(andrew): refactor atomic_forms to seperate these out
 let const_mono_delims =
-  base_typs @ bools @ [wild, empty_list, empty_tuple, empty_string];
+  base_typs @ bools @ [undefined, wild, empty_list, empty_tuple, empty_string];
 
 let explicit_hole = "?";
 let is_explicit_hole = t => t == explicit_hole;
@@ -230,6 +232,7 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
   ("int_lit", (is_int, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("float_lit", (is_float, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("bool_lit", (is_bool, [mk_op(Exp, []), mk_op(Pat, [])])),
+  ("undefined_lit", (is_undefined, [mk_op(Exp, []), mk_op(Pat, [])])),
   ("empty_list", (is_empty_list, [mk_op(Exp, []), mk_op(Pat, [])])),
   (
     "empty_tuple",
@@ -248,9 +251,9 @@ let atomic_forms: list((string, (string => bool, list(Mold.t)))) = [
 
 let forms: list((string, t)) = [
   // INFIX OPERATORS
-  ("typ_plus", mk_infix("+", Typ, P.or_)),
-  ("type-arrow", mk_infix("->", Typ, 6)),
-  ("cell-join", mk_infix(";", Exp, 10)),
+  ("typ_plus", mk_infix("+", Typ, P.type_plus)),
+  ("type-arrow", mk_infix("->", Typ, P.type_arrow)),
+  ("cell-join", mk_infix(";", Exp, P.semi)),
   ("plus", mk_infix("+", Exp, P.plus)),
   ("minus", mk_infix("-", Exp, P.plus)),
   ("times", mk_infix("*", Exp, P.mult)),
@@ -283,14 +286,14 @@ let forms: list((string, t)) = [
   ("cons_pat", mk_infix("::", Pat, P.cons)),
   ("typeann", mk(ss, [":"], mk_bin'(P.ann, Pat, Pat, [], Typ))),
   // UNARY PREFIX OPERATORS
-  ("not", mk(ii, ["!"], mk_pre(5, Exp, []))), //TODO: precedence
+  ("not", mk(ii, ["!"], mk_pre(P.not_, Exp, []))),
   ("typ_sum_single", mk(ss, ["+"], mk_pre(P.or_, Typ, []))),
   ("unary_minus", mk(ss, ["-"], mk_pre(P.neg, Exp, []))),
   ("unquote", mk(ss, ["$"], mk_pre(P.unquote, Exp, []))),
   // N-ARY OPS (on the semantics level)
-  ("comma_exp", mk_infix(",", Exp, P.prod)),
-  ("comma_pat", mk_infix(",", Pat, P.prod)),
-  ("comma_typ", mk_infix(",", Typ, P.prod)),
+  ("comma_exp", mk_infix(",", Exp, P.comma)),
+  ("comma_pat", mk_infix(",", Pat, P.comma)),
+  ("comma_typ", mk_infix(",", Typ, P.type_prod)),
   // PAIRED DELIMITERS:
   ("list_lit_exp", mk(ii, ["[", "]"], mk_op(Exp, [Exp]))),
   ("list_lit_pat", mk(ii, ["[", "]"], mk_op(Pat, [Pat]))),
@@ -312,6 +315,7 @@ let forms: list((string, t)) = [
   ("test", mk(ds, ["test", "end"], mk_op(Exp, [Exp]))),
   ("hintedtest", mk(ds, ["hint", "test", "end"], mk_op(Exp, [Exp, Exp]))),
   ("fun_", mk(ds, ["fun", "->"], mk_pre(P.fun_, Exp, [Pat]))),
+  ("fix", mk(ds, ["fix", "->"], mk_pre(P.fun_, Exp, [Pat]))),
   ("typfun", mk(ds, ["typfun", "->"], mk_pre(P.fun_, Exp, [TPat]))),
   ("forall", mk(ds, ["forall", "->"], mk_pre(P.fun_, Typ, [TPat]))),
   ("rec", mk(ds, ["rec", "->"], mk_pre(P.fun_, Typ, [TPat]))),

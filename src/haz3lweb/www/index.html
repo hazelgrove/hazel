@@ -9,6 +9,28 @@
     <title>hazel</title>
     <link rel="stylesheet" href="style.css">
     <link rel="icon" type="image/svg" href = "img/hazelnut.svg">
+    <link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin />
+    <link
+      rel="preload"
+      href="https://fonts.googleapis.com/css?family=Inter:300,400,500"
+      as="style"
+      type="text/css"
+    />
+    <link
+      href="https://fonts.googleapis.com/css?family=Material+Icons&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- The current version of lit-html is broken so this overwrites it for the ninja-keys import. -->
+    <script type="importmap">
+      {
+          "imports": {
+              "https://unpkg.com/lit-html@latest/directives/ref.js?module": "https://unpkg.com/lit-html@2.2.6/directives/ref.js?module"
+          }
+      }
+  </script>
+  <script type="module" src="ninja_module.js"></script>
+
   </head>
 
   <body spellcheck="false">
@@ -22,6 +44,7 @@
       </div>
     </div>
   </body>
+  <ninja-keys id="ninja-keys" placeholder="Find Action" hideBreadcrumbs></ninja-keys>
 
   <script src="hazel.js"></script>
 </html>

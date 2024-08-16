@@ -4,7 +4,7 @@ open Util;
 open Pretty;
 open Haz3lcore;
 
-let with_cls = cls => Node.span(~attr=Attr.classes([cls]));
+let with_cls = cls => Node.span(~attrs=[Attr.classes([cls])]);
 
 let view_of_layout =
     (~inject, ~font_metrics: FontMetrics.t, ~result_key, l: DHLayout.t)
@@ -17,7 +17,7 @@ let view_of_layout =
          ~text=(_, s) => ([Node.text(s)], []),
          ~align=
            (_, (txt, ds)) =>
-             ([Node.div(~attr=Attr.classes(["Align"]), txt)], ds),
+             ([Node.div(~attrs=[Attr.classes(["Align"])], txt)], ds),
          ~cat=(_, (txt1, ds1), (txt2, ds2)) => (txt1 @ txt2, ds1 @ ds2),
          ~annot=
            (~go, ~indent, ~start, annot: DHAnnot.t, m) => {
@@ -26,36 +26,28 @@ let view_of_layout =
              | Steppable(obj) => (
                  [
                    Node.span(
-                     ~attr=
-                       Attr.many([
-                         Attr.class_("steppable"),
-                         Attr.on_click(_ =>
-                           inject(
-                             UpdateAction.StepperAction(
-                               result_key,
-                               StepForward(obj),
-                             ),
-                           )
-                         ),
-                       ]),
+                     ~attrs=[
+                       Attr.class_("steppable"),
+                       Attr.on_click(_ =>
+                         inject(
+                           UpdateAction.StepperAction(
+                             result_key,
+                             StepForward(obj),
+                           ),
+                         )
+                       ),
+                     ],
                      txt,
                    ),
                  ],
                  ds,
                )
              | Stepped => (
-                 [
-                   Node.span(~attr=Attr.many([Attr.class_("stepped")]), txt),
-                 ],
+                 [Node.span(~attrs=[Attr.class_("stepped")], txt)],
                  ds,
                )
              | Substituted => (
-                 [
-                   Node.span(
-                     ~attr=Attr.many([Attr.class_("substituted")]),
-                     txt,
-                   ),
-                 ],
+                 [Node.span(~attrs=[Attr.class_("substituted")], txt)],
                  ds,
                )
              | Step(_)
@@ -66,19 +58,18 @@ let view_of_layout =
              | EmptyHole(selected, _inst) => (
                  [
                    Node.span(
-                     ~attr=
-                       Attr.many([
-                         Attr.classes([
-                           "EmptyHole",
-                           ...selected ? ["selected"] : [],
-                         ]),
-                         Attr.on_click(_ =>
-                           Vdom.Effect.Many([
-                             Vdom.Effect.Stop_propagation,
-                             //inject(ModelAction.SelectHoleInstance(inst)),
-                           ])
-                         ),
+                     ~attrs=[
+                       Attr.classes([
+                         "EmptyHole",
+                         ...selected ? ["selected"] : [],
                        ]),
+                       Attr.on_click(_ =>
+                         Vdom.Effect.Many([
+                           Vdom.Effect.Stop_propagation,
+                           //inject(ModelAction.SelectHoleInstance(inst)),
+                         ])
+                       ),
+                     ],
                      txt,
                    ),
                  ],
@@ -105,12 +96,9 @@ let view_of_layout =
                  ds,
                )
              | VarHole(_) => ([with_cls("InVarHole", txt)], ds)
-             | Invalid((_, (-666))) =>
-               /* Evaluation and Elaboration exceptions */
-               ([with_cls("exception", txt)], ds)
-             | NonEmptyHole(_)
+             | NonEmptyHole
              | InconsistentBranches(_)
-             | Invalid(_) =>
+             | Invalid =>
                let offset = start.col - indent;
                let decoration =
                  Decoration_common.container(
@@ -127,7 +115,7 @@ let view_of_layout =
            },
        );
   Node.div(
-    ~attr=Attr.classes(["DHCode"]),
+    ~attrs=[Attr.classes(["DHCode"])],
     [with_cls("code", text), ...decorations],
   );
 };
@@ -137,15 +125,16 @@ let view =
       ~locked as _=false, // NOTE: When we add mouse events to this, ignore them if locked
       ~inject,
       ~settings: CoreSettings.Evaluation.t,
-      ~selected_hole_instance: option(HoleInstance.t),
+      ~selected_hole_instance: option(Id.t),
       ~font_metrics: FontMetrics.t,
       ~width: int,
       ~pos=0,
-      ~previous_step: option(EvaluatorStep.step)=None, // The step that will be displayed above this one
-      ~hidden_steps: list(EvaluatorStep.step)=[], // The hidden steps between the above and the current one
+      ~previous_step: option((EvaluatorStep.step, Id.t))=None, // The step that will be displayed above this one
+      ~hidden_steps: list((EvaluatorStep.step, Id.t))=[], // The hidden steps between the above and the current one
       ~chosen_step: option(EvaluatorStep.step)=None, // The step that will be taken next
-      ~next_steps: list(EvaluatorStep.EvalObj.t)=[],
+      ~next_steps: list((int, Id.t))=[],
       ~result_key: string,
+      ~infomap,
       d: DHExp.t,
     )
     : Node.t => {
@@ -158,6 +147,7 @@ let view =
     ~settings,
     ~enforce_inline=false,
     ~selected_hole_instance,
+    ~infomap,
     d,
   )
   |> LayoutOfDoc.layout_of_doc(~width, ~pos)

@@ -6,6 +6,30 @@ type t = Doc.t(HTypAnnot.t);
 
 type formattable_child = (~enforce_inline: bool) => t;
 
+let precedence_Prod = 1;
+let precedence_Arrow = 2;
+let precedence_Sum = 3;
+let precedence_Ap = 4;
+let precedence_Const = 5;
+
+let precedence = (ty: Typ.t): int =>
+  switch (Typ.term_of(ty)) {
+  | Int
+  | Float
+  | Bool
+  | String
+  | Unknown(_)
+  | Var(_)
+  | Forall(_)
+  | Rec(_)
+  | Sum(_) => precedence_Sum
+  | List(_) => precedence_Const
+  | Prod(_) => precedence_Prod
+  | Arrow(_, _) => precedence_Arrow
+  | Parens(_) => precedence_Const
+  | Ap(_) => precedence_Ap
+  };
+
 let pad_child =
     (
       ~inline_padding as (l, r)=(Doc.empty(), Doc.empty()),
@@ -18,7 +42,7 @@ let pad_child =
     Doc.(
       hcats([
         linebreak(),
-        indent_and_align(child(~enforce_inline=false)),
+        indent_and_align(child(~enforce_inline)),
         linebreak(),
       ])
     );
@@ -33,15 +57,16 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
   let mk_right_associative_operands = (precedence_op, ty1, ty2) => (
     annot(
       HTypAnnot.Step(0),
-      mk'(~parenthesize=Typ.precedence(ty1) <= precedence_op, ty1),
+      mk'(~parenthesize=precedence(ty1) <= precedence_op, ty1),
     ),
     annot(
       HTypAnnot.Step(1),
-      mk'(~parenthesize=Typ.precedence(ty2) < precedence_op, ty2),
+      mk'(~parenthesize=precedence(ty2) < precedence_op, ty2),
     ),
   );
   let (doc, parenthesize) =
-    switch (ty) {
+    switch (Typ.term_of(ty)) {
+    | Parens(ty) => (mk(~parenthesize=true, ~enforce_inline, ty), false)
     | Unknown(_) => (
         annot(HTypAnnot.Delim, annot(HTypAnnot.HoleLabel, text("?"))),
         parenthesize,
@@ -65,7 +90,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
       )
     | Arrow(ty1, ty2) =>
       let (d1, d2) =
-        mk_right_associative_operands(TypBase.precedence_Arrow, ty1, ty2);
+        mk_right_associative_operands(precedence_Arrow, ty1, ty2);
       (
         hcats([
           d1,
@@ -83,20 +108,13 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
         [
           annot(
             HTypAnnot.Step(0),
-            mk'(
-              ~parenthesize=Typ.precedence(head) <= TypBase.precedence_Prod,
-              head,
-            ),
+            mk'(~parenthesize=precedence(head) <= precedence_Prod, head),
           ),
           ...List.mapi(
                (i, ty) =>
                  annot(
                    HTypAnnot.Step(i + 1),
-                   mk'(
-                     ~parenthesize=
-                       Typ.precedence(ty) <= TypBase.precedence_Prod,
-                     ty,
-                   ),
+                   mk'(~parenthesize=precedence(ty) <= precedence_Prod, ty),
                  ),
                tail,
              ),
@@ -108,7 +126,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
       (center, true);
     | Rec(name, ty) => (
         hcats([
-          text("rec " ++ name ++ "->{"),
+          text("rec " ++ Type.tpat_view(name) ++ "->{"),
           (
             (~enforce_inline) =>
               annot(HTypAnnot.Step(0), mk(~enforce_inline, ty))
@@ -120,7 +138,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
       )
     | Forall(name, ty) => (
         hcats([
-          text("forall " ++ name ++ "->{"),
+          text("forall " ++ Type.tpat_view(name) ++ "->{"),
           (
             (~enforce_inline) =>
               annot(HTypAnnot.Step(0), mk(~enforce_inline, ty))
@@ -133,15 +151,21 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
     | Sum(sum_map) =>
       let center =
         List.mapi(
-          (i, (ctr, ty)) =>
-            switch (ty) {
-            | None => annot(HTypAnnot.Step(i + 1), text(ctr))
-            | Some(ty) =>
-              annot(
-                HTypAnnot.Step(i + 1),
-                hcats([text(ctr ++ "("), mk'(ty), text(")")]),
-              )
-            },
+          (i, vr) => {
+            ConstructorMap.(
+              switch (vr) {
+              | Variant(ctr, _, None) =>
+                annot(HTypAnnot.Step(i + 1), text(ctr))
+              | Variant(ctr, _, Some(ty)) =>
+                annot(
+                  HTypAnnot.Step(i + 1),
+                  hcats([text(ctr ++ "("), mk'(ty), text(")")]),
+                )
+              | BadEntry(ty) =>
+                annot(HTypAnnot.Step(i + 1), hcats([mk'(ty)]))
+              }
+            )
+          },
           sum_map,
         )
         |> ListUtil.join(
@@ -149,6 +173,10 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
            )
         |> hcats;
       (center, true);
+    | Ap(t1, t2) => (
+        hcats([mk'(t1), text("("), mk'(t2), text(")")]),
+        parenthesize,
+      )
     };
   let doc = annot(HTypAnnot.Term, doc);
   parenthesize ? Doc.hcats([mk_delim("("), doc, mk_delim(")")]) : doc;

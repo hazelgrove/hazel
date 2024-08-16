@@ -3,8 +3,8 @@ open Node;
 open Util;
 
 let tip_width = 0.32;
-let concave_adj = 0.25;
-let convex_adj = (-0.13);
+let concave_adj = 0.15;
+let convex_adj = 0.;
 let shadow_adj = 0.015;
 
 let caret_adjust = (side: Direction.t, shape: option(Direction.t)) =>
@@ -59,30 +59,39 @@ let pos_str = (~d: dims, ~fudge: fdims=fzero, font_metrics: FontMetrics.t) =>
     Float.of_int(d.height) *. (font_metrics.row_height +. fudge.height),
   );
 
+let abs_dims = ({origin, last}: Haz3lcore.Measured.measurement): dims => {
+  left: origin.col,
+  top: origin.row,
+  width: abs(last.col - origin.col),
+  height: abs(last.row - origin.row + 1),
+};
+
+let abs_style = (~font_metrics, ~fudge: fdims=fzero, measurement): Attr.t =>
+  Attr.create(
+    "style",
+    pos_str(~d=abs_dims(measurement), ~fudge, font_metrics),
+  );
+
 let code_svg_sized =
     (
       ~font_metrics: FontMetrics.t,
-      ~measurement as {origin, last}: Haz3lcore.Measured.measurement,
+      ~absolute=true,
+      ~measurement: Haz3lcore.Measured.measurement,
       ~base_cls=[],
       ~path_cls=[],
       ~fudge: fdims=fzero,
       paths: list(SvgUtil.Path.cmd),
     ) => {
-  let (left, top) = (origin.col, origin.row);
-  let (width, height) = (
-    abs(last.col - origin.col),
-    abs(last.row - origin.row + 1),
-  );
-  let style = pos_str(~d={left, top, width, height}, ~fudge, font_metrics);
+  let d = abs_dims(measurement);
+  let d = absolute ? d : {left: 0, top: 0, width: d.width, height: d.height};
   create_svg(
     "svg",
-    ~attr=
-      Attr.many([
-        Attr.classes(base_cls),
-        Attr.create("style", style),
-        Attr.create("viewBox", Printf.sprintf("0 0 %d %d", width, height)),
-        Attr.create("preserveAspectRatio", "none"),
-      ]),
+    ~attrs=[
+      Attr.classes(base_cls),
+      Attr.create("style", pos_str(~d, ~fudge, font_metrics)),
+      Attr.create("viewBox", Printf.sprintf("0 0 %d %d", d.width, d.height)),
+      Attr.create("preserveAspectRatio", "none"),
+    ],
     [SvgUtil.Path.view(~attrs=[Attr.classes(path_cls)], paths)],
   );
 };
@@ -96,7 +105,7 @@ let position =
       ~height_fudge=0.0,
       ~scale=1.,
       ~font_metrics: FontMetrics.t,
-      origin: Haz3lcore.Measured.Point.t,
+      origin: Point.t,
     ) =>
   Attr.create(
     "style",
@@ -119,7 +128,7 @@ let abs_position =
       ~height_fudge=0.0,
       ~scale=1.,
       ~font_metrics: FontMetrics.t,
-      origin: Haz3lcore.Measured.Point.t,
+      origin: Point.t,
     ) => {
   position(
     ~style="position: absolute",
@@ -136,7 +145,7 @@ let abs_position =
 let code_svg =
     (
       ~font_metrics: FontMetrics.t,
-      ~origin: Haz3lcore.Measured.Point.t,
+      ~origin: Point.t,
       ~base_cls=[],
       ~path_cls=[],
       ~left_fudge=0.0,
@@ -152,38 +161,36 @@ let code_svg =
   // (https://bugs.chromium.org/p/chromium/issues/detail?id=424288) that
   // causes miaslignment between piece decorations and text.
   // Using a different viewBox size seems to fix this.
-  let scale = 2.;
+  let scale = 0.5;
   create_svg(
     "svg",
-    ~attr=
-      Attr.many(
-        (id == "" ? [] : [Attr.id(id)])
-        @ [
-          Attr.classes(base_cls),
-          abs_pos
-            ? abs_position(
-                ~font_metrics,
-                ~left_fudge,
-                ~top_fudge,
-                ~width_fudge,
-                ~height_fudge,
-                ~scale,
-                origin,
-              )
-            : position(
-                ~font_metrics,
-                ~left_fudge,
-                ~top_fudge,
-                ~width_fudge,
-                ~height_fudge,
-                ~scale,
-                origin,
-              ),
-          Attr.create("viewBox", Printf.sprintf("0 0 %f %f", scale, scale)),
-          Attr.create("preserveAspectRatio", "none"),
-        ]
-        @ attrs,
-      ),
+    ~attrs=
+      (id == "" ? [] : [Attr.id(id)])
+      @ [
+        Attr.classes(base_cls),
+        abs_pos
+          ? abs_position(
+              ~font_metrics,
+              ~left_fudge,
+              ~top_fudge,
+              ~width_fudge,
+              ~height_fudge,
+              ~scale,
+              origin,
+            )
+          : position(
+              ~font_metrics,
+              ~left_fudge,
+              ~top_fudge,
+              ~width_fudge,
+              ~height_fudge,
+              ~scale,
+              origin,
+            ),
+        Attr.create("viewBox", Printf.sprintf("0 0 %f %f", scale, scale)),
+        Attr.create("preserveAspectRatio", "none"),
+      ]
+      @ attrs,
     [SvgUtil.Path.view(~attrs=[Attr.classes(path_cls)], paths)],
   );
 };
@@ -192,17 +199,16 @@ let raised_shadow_filter = (sort: Haz3lcore.Sort.t) => {
   let s = Haz3lcore.Sort.to_string(sort);
   create_svg(
     "filter",
-    ~attr=Attr.id("raised-drop-shadow-" ++ s),
+    ~attrs=[Attr.id("raised-drop-shadow-" ++ s)],
     [
       create_svg(
         "feDropShadow",
-        ~attr=
-          Attr.many([
-            Attr.classes(["tile-drop-shadow"]),
-            Attr.create("dx", raised_shadow_dx),
-            Attr.create("dy", raised_shadow_dy),
-            Attr.create("stdDeviation", "0"),
-          ]),
+        ~attrs=[
+          Attr.classes(["tile-drop-shadow"]),
+          Attr.create("dx", raised_shadow_dx),
+          Attr.create("dy", raised_shadow_dy),
+          Attr.create("stdDeviation", "0"),
+        ],
         [],
       ),
     ],
@@ -213,17 +219,16 @@ let shadow_filter = (sort: Haz3lcore.Sort.t) => {
   let s = Haz3lcore.Sort.to_string(sort);
   create_svg(
     "filter",
-    ~attr=Attr.id("drop-shadow-" ++ s),
+    ~attrs=[Attr.id("drop-shadow-" ++ s)],
     [
       create_svg(
         "feDropShadow",
-        ~attr=
-          Attr.many([
-            Attr.classes(["tile-drop-shadow"]),
-            Attr.create("dx", shadow_dx),
-            Attr.create("dy", shadow_dy),
-            Attr.create("stdDeviation", "0"),
-          ]),
+        ~attrs=[
+          Attr.classes(["tile-drop-shadow"]),
+          Attr.create("dx", shadow_dx),
+          Attr.create("dy", shadow_dy),
+          Attr.create("stdDeviation", "0"),
+        ],
         [],
       ),
     ],

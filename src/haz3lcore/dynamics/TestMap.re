@@ -1,4 +1,4 @@
-open Sexplib.Std;
+open Util;
 
 /* FIXME: Make more obvious names. */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -19,7 +19,7 @@ let joint_hints: list(instance_report) => list(string) =
   reports => List.map(get_hint, reports);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type report = (KeywordID.t, list(instance_report));
+type report = (Id.t, list(instance_report));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = list(report);

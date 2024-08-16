@@ -8,23 +8,21 @@ open Haz3lcore;
 
 let feedback_view = (message, up_active, up_action, down_active, down_action) => {
   div(
-    ~attr=clss(["feedback"]),
+    ~attrs=[clss(["feedback"])],
     [
-      div(~attr=clss(["message"]), [text(message)]),
+      div(~attrs=[clss(["message"])], [text(message)]),
       div(
-        ~attr=
-          Attr.many([
-            clss(["option"] @ (up_active ? ["active"] : [])),
-            Attr.on_click(up_action),
-          ]),
+        ~attrs=[
+          clss(["option"] @ (up_active ? ["active"] : [])),
+          Attr.on_click(up_action),
+        ],
         [text("👍")],
       ),
       div(
-        ~attr=
-          Attr.many([
-            clss(["option"] @ (down_active ? ["active"] : [])),
-            Attr.on_click(down_action),
-          ]),
+        ~attrs=[
+          clss(["option"] @ (down_active ? ["active"] : [])),
+          Attr.on_click(down_action),
+        ],
         [text("👎")],
       ),
     ],
@@ -92,17 +90,17 @@ let example_feedback_view = (~inject, group_id, form_id, example_id, model) => {
   );
 };
 
-let code_node = text => Node.span(~attr=clss(["code"]), [Node.text(text)]);
+let code_node = text =>
+  Node.span(~attrs=[clss(["code"])], [Node.text(text)]);
 
 let highlight =
     (~inject, msg: list(Node.t), id: Id.t, mapping: ColorSteps.t)
     : (Node.t, ColorSteps.t) => {
   let (c, mapping) = ColorSteps.get_color(id, mapping);
   let classes = clss(["highlight-" ++ c, "clickable"]);
-  let attr =
+  let attrs =
     switch (inject) {
-    | Some(inject) =>
-      Attr.many([
+    | Some(inject) => [
         classes,
         Attr.on_mouseenter(_ =>
           inject(UpdateAction.Set(ExplainThis(SetHighlight(Hover(id)))))
@@ -113,10 +111,10 @@ let highlight =
         Attr.on_click(_ =>
           inject(UpdateAction.PerformAction(Select(Term(Id(id, Left)))))
         ),
-      ])
-    | None => classes
+      ]
+    | None => [classes]
     };
-  (Node.span(~attr, msg), mapping);
+  (Node.span(~attrs, msg), mapping);
 };
 
 /*
@@ -130,58 +128,83 @@ let highlight =
 let mk_translation = (~inject, text: string): (list(Node.t), ColorSteps.t) => {
   let omd = Omd.of_string(text);
   //print_markdown(omd);
-  let rec translate =
-          (doc: Omd.t, mapping: ColorSteps.t): (list(Node.t), ColorSteps.t) =>
+
+  let rec translate_inline =
+          (inline: Omd.inline(_), msg, mapping: ColorSteps.t, ~inject)
+          : (list(Node.t), ColorSteps.t) => {
+    switch (inline) {
+    | Omd.Concat(_, items) =>
+      let (nodes, mapping) =
+        List.fold_left(
+          ((msg, mapping), item) => {
+            let (translated_item, mapping) =
+              translate_inline(item, [], mapping, ~inject);
+            (List.concat([msg, translated_item]), mapping);
+          },
+          ([], mapping),
+          items,
+        );
+      (List.append(msg, nodes), mapping);
+    | Omd.Text(_, d) => (List.append(msg, [Node.text(d)]), mapping)
+    | Omd.Code(_, d) => (List.append(msg, [code_node(d)]), mapping)
+    | Omd.Link(_, {label, destination, _}) =>
+      let (d, mapping) = translate_inline(label, [], mapping, ~inject);
+      let id =
+        switch (Id.of_string(destination)) {
+        | Some(id) => id
+        | None => Id.invalid
+        };
+      let (inner_msg, mapping) = highlight(~inject, d, id, mapping);
+      (List.append(msg, [inner_msg]), mapping);
+    | Omd.Emph(_, d) =>
+      let (d, mapping) = translate_inline(d, [], mapping, ~inject);
+      (
+        List.append(
+          msg,
+          [
+            Node.span(
+              ~attrs=[
+                Attr.style(
+                  Css_gen.create(~field="font-style", ~value="italic"),
+                ),
+              ],
+              d,
+            ),
+          ],
+        ),
+        mapping,
+      );
+    | _ => (msg, mapping)
+    };
+  };
+
+  let rec translate_block =
+          (doc: Omd.doc, mapping: ColorSteps.t)
+          : (list(Node.t), ColorSteps.t) => {
     List.fold_left(
       ((msg, mapping), elem) => {
         switch (elem) {
-        | Omd.Paragraph(d) => translate(d, mapping)
-        | Text(t) => (List.append(msg, [Node.text(t)]), mapping)
-        | Ul(items) =>
+        | Omd.Paragraph(_, d) => translate_inline(d, msg, mapping, ~inject)
+        | Omd.List(_, _, _, items) =>
           let (bullets, mapping) =
             List.fold_left(
               ((nodes, mapping), d) => {
-                let (n, mapping) = translate(d, mapping);
+                let (n, mapping) = translate_block(d, mapping);
                 (List.append(nodes, [Node.li(n)]), mapping);
               },
               ([], mapping),
               items,
             );
           (List.append(msg, [Node.ul(bullets)]), mapping); /* TODO Hannah - Should this be an ordered list instead of an unordered list? */
-        | Code(_name, t) => (List.append(msg, [code_node(t)]), mapping)
-        | Url(id, d, _title) =>
-          let (d, mapping) = translate(d, mapping);
-          let id =
-            switch (Id.of_string(id)) {
-            | Some(id) => id
-            | None => Id.invalid
-            };
-          let (inner_msg, mapping) = highlight(~inject, d, id, mapping);
-          (List.append(msg, [inner_msg]), mapping);
-        | Emph(d) =>
-          let (d, mapping) = translate(d, mapping);
-          (
-            List.append(
-              msg,
-              [
-                Node.span(
-                  ~attr=
-                    Attr.style(
-                      Css_gen.create(~field="font-style", ~value="italic"),
-                    ),
-                  d,
-                ),
-              ],
-            ),
-            mapping,
-          );
         | _ => (msg, mapping)
         }
       },
       ([], mapping),
       doc,
     );
-  translate(omd, ColorSteps.empty);
+  };
+
+  translate_block(omd, ColorSteps.empty);
 };
 
 let mk_explanation =
@@ -199,7 +222,7 @@ let mk_explanation =
     settings.explainThis.show_feedback
       ? [explanation_feedback_view(~inject, group_id, form_id, model)] : [];
   (
-    div([div(~attr=clss(["explanation-contents"]), msg)] @ feedback),
+    div([div(~attrs=[clss(["explanation-contents"])], msg)] @ feedback),
     color_map,
   );
 };
@@ -209,21 +232,22 @@ let expander_deco =
       ~docs: ExplainThisModel.t,
       ~settings: Settings.t,
       ~inject,
-      ~ui_state as {font_metrics, _}: Model.ui_state,
+      ~ui_state: Model.ui_state,
       ~options: list((ExplainThisForm.form_id, Segment.t)),
       ~group: ExplainThisForm.group,
       ~doc: ExplainThisForm.form,
     ) => {
   module Deco =
     Deco.Deco({
-      let font_metrics = font_metrics;
-      let map = Measured.of_segment(doc.syntactic_form);
-      let show_backpack_targets = false;
-      let (_term, terms) = MakeTerm.go(doc.syntactic_form);
-      let term_ranges = TermRanges.mk(doc.syntactic_form);
-      let tiles = TileMap.mk(doc.syntactic_form);
-      let error_ids = [];
+      let ui_state = ui_state;
+      let meta =
+        Editor.Meta.init(
+          ~settings=CoreSettings.off,
+          Zipper.unzip(doc.syntactic_form),
+        );
+      let highlights: option(ColorSteps.colorMap) = None;
     });
+  let Model.{font_metrics, _} = ui_state;
   switch (doc.expandable_id, List.length(options)) {
   | (None, _)
   | (_, 0 | 1) => div([])
@@ -254,21 +278,14 @@ let expander_deco =
 
         let specificity_menu =
           Node.div(
-            ~attr=
-              Attr.many([
-                clss(["specificity-options-menu", "expandable"]),
-                specificity_style,
-              ]),
+            ~attrs=[
+              clss(["specificity-options-menu", "expandable"]),
+              specificity_style,
+            ],
             List.map(
               ((id: ExplainThisForm.form_id, segment: Segment.t)): Node.t => {
-                let map = Measured.of_segment(segment);
                 let code_view =
-                  Code.simple_view(
-                    ~font_metrics,
-                    ~unselected=segment,
-                    ~map,
-                    ~settings,
-                  );
+                  Code.simple_view(~font_metrics, ~segment, ~settings);
                 let classes =
                   id == doc.id
                     ? ["selected"] @ get_clss(segment) : get_clss(segment);
@@ -279,11 +296,10 @@ let expander_deco =
                     ),
                   );
                 Node.div(
-                  ~attr=
-                    Attr.many([
-                      clss(classes),
-                      Attr.on_click(update_group_selection),
-                    ]),
+                  ~attrs=[
+                    clss(classes),
+                    Attr.on_click(update_group_selection),
+                  ],
                   [code_view],
                 );
               },
@@ -293,10 +309,7 @@ let expander_deco =
 
         let expand_arrow_style = Attr.create("style", specificity_pos);
         let expand_arrow =
-          Node.div(
-            ~attr=Attr.many([clss(["arrow"]), expand_arrow_style]),
-            [],
-          );
+          Node.div(~attrs=[clss(["arrow"]), expand_arrow_style], []);
 
         let expandable_deco =
           DecUtil.code_svg(
@@ -308,18 +321,17 @@ let expander_deco =
           );
 
         Node.div(
-          ~attr=
-            Attr.many([
-              clss(["expandable-target"]),
-              DecUtil.abs_position(~font_metrics, origin),
-              Attr.on_click(_ => {
-                inject(
-                  UpdateAction.UpdateExplainThisModel(
-                    ExplainThisUpdate.SpecificityOpen(!docs.specificity_open),
-                  ),
-                )
-              }),
-            ]),
+          ~attrs=[
+            clss(["expandable-target"]),
+            DecUtil.abs_position(~font_metrics, origin),
+            Attr.on_click(_ => {
+              inject(
+                UpdateAction.UpdateExplainThisModel(
+                  ExplainThisUpdate.SpecificityOpen(!docs.specificity_open),
+                ),
+              )
+            }),
+          ],
           [expandable_deco, specificity_menu]
           @ (docs.specificity_open ? [] : [expand_arrow]),
         );
@@ -342,7 +354,7 @@ let example_view =
     ? []
     : [
       div(
-        ~attr=Attr.id("examples"),
+        ~attrs=[Attr.id("examples")],
         List.mapi(
           (idx, {term, message, sub_id, _}: ExplainThisForm.example) => {
             let feedback =
@@ -358,7 +370,7 @@ let example_view =
                 ]
                 : [];
             div(
-              ~attr=clss(["example"]),
+              ~attrs=[clss(["example"])],
               [
                 Cell.locked(
                   ~segment=term,
@@ -368,7 +380,7 @@ let example_view =
                   ~inject,
                 ),
                 div(
-                  ~attr=clss(["explanation"]),
+                  ~attrs=[clss(["explanation"])],
                   [text(message)] @ feedback,
                 ),
               ],
@@ -380,29 +392,29 @@ let example_view =
     ];
 };
 
-let rec bypass_parens_and_annot_pat = (pat: TermBase.UPat.t) => {
+let rec bypass_parens_and_annot_pat = (pat: Pat.t) => {
   switch (pat.term) {
   | Parens(p)
-  | TypeAnn(p, _) => bypass_parens_and_annot_pat(p)
+  | Cast(p, _, _) => bypass_parens_and_annot_pat(p)
   | _ => pat
   };
 };
 
-let rec bypass_parens_pat = (pat: TermBase.UPat.t) => {
+let rec bypass_parens_pat = (pat: Pat.t) => {
   switch (pat.term) {
   | Parens(p) => bypass_parens_pat(p)
   | _ => pat
   };
 };
 
-let rec bypass_parens_exp = (exp: TermBase.UExp.t) => {
+let rec bypass_parens_exp = (exp: Exp.t) => {
   switch (exp.term) {
   | Parens(e) => bypass_parens_exp(e)
   | _ => exp
   };
 };
 
-let rec bypass_parens_typ = (typ: TermBase.UTyp.t) => {
+let rec bypass_parens_typ = (typ: Typ.t) => {
   switch (typ.term) {
   | Parens(t) => bypass_parens_typ(t)
   | _ => typ
@@ -520,8 +532,13 @@ let get_doc =
     let rec get_message_exp =
             (term)
             : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) =>
-      switch (term) {
-      | TermBase.UExp.Invalid(_) => simple("Not a valid expression")
+      switch ((term: Exp.term)) {
+      | Exp.Invalid(_) => simple("Not a valid expression")
+      | DynamicErrorHole(_)
+      | FailedCast(_)
+      | Closure(_)
+      | Cast(_)
+      | BuiltinFun(_) => simple("Internal expression")
       | EmptyHole => get_message(HoleExp.empty_hole_exps)
       | MultiHole(_children) => get_message(HoleExp.multi_hole_exps)
       | TyAlias(ty_pat, ty_def, _body) =>
@@ -541,7 +558,7 @@ let get_doc =
             ),
           TyAliasExp.tyalias_exps,
         );
-      | Triv => get_message(TerminalExp.triv_exps)
+      | Undefined => get_message(UndefinedExp.undefined_exps)
       | Deferral(_) => get_message(TerminalExp.deferral_exps)
       | Bool(b) => get_message(TerminalExp.bool_exps(b))
       | Int(i) => get_message(TerminalExp.int_exps(i))
@@ -559,7 +576,7 @@ let get_doc =
             ),
           ListExp.listlits,
         )
-      | TypFun(tpat, body) =>
+      | TypFun(tpat, body, _) =>
         let basic = group_id => {
           let tpat_id = List.nth(tpat.ids, 0);
           let body_id = List.nth(body.ids, 0);
@@ -583,7 +600,7 @@ let get_doc =
         };
         /* TODO: More could be done here probably for different patterns. */
         basic(TypFunctionExp.type_functions_basic);
-      | Fun(pat, body) =>
+      | Fun(pat, body, _, _) =>
         let basic = group_id => {
           let pat_id = List.nth(pat.ids, 0);
           let body_id = List.nth(body.ids, 0);
@@ -772,7 +789,7 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_str);
           }
-        | Triv =>
+        | Tuple([]) =>
           if (FunctionExp.function_triv_exp.id
               == get_specificity_level(FunctionExp.functions_triv)) {
             get_message(
@@ -1014,7 +1031,7 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_ap);
           }
-        | Constructor(v) =>
+        | Constructor(v, _) =>
           if (FunctionExp.function_ctr_exp.id
               == get_specificity_level(FunctionExp.functions_ctr)) {
             let pat_id = List.nth(pat.ids, 0);
@@ -1040,7 +1057,7 @@ let get_doc =
           }
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_) => default // Shouldn't get hit?
-        | TypeAnn(_) => default // Shouldn't get hit?
+        | Cast(_) => default // Shouldn't get hit?
         };
       | Tuple(terms) =>
         let basic = group_id =>
@@ -1295,7 +1312,7 @@ let get_doc =
               LetExp.lets_str,
             );
           }
-        | Triv =>
+        | Tuple([]) =>
           if (LetExp.let_triv_exp.id
               == get_specificity_level(LetExp.lets_triv)) {
             get_message(
@@ -1522,7 +1539,7 @@ let get_doc =
           } else {
             basic(LetExp.lets_ap);
           }
-        | Constructor(v) =>
+        | Constructor(v, _) =>
           if (LetExp.let_ctr_exp.id == get_specificity_level(LetExp.lets_ctr)) {
             get_message(
               ~colorings=
@@ -1546,13 +1563,20 @@ let get_doc =
           }
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_) => default // Shouldn't get hit?
-        | TypeAnn(_) => default // Shouldn't get hit?
+        | Cast(_) => default // Shouldn't get hit?
         };
-      | Pipeline(arg, fn) =>
+      | FixF(pat, body, _) =>
+        message_single(
+          FixFExp.single(
+            ~pat_id=UPat.rep_id(pat),
+            ~body_id=UExp.rep_id(body),
+          ),
+        )
+      | Ap(Reverse, arg, fn) =>
         message_single(
           PipelineExp.single(
-            ~arg_id=Term.UExp.rep_id(arg),
-            ~fn_id=Term.UExp.rep_id(fn),
+            ~arg_id=UExp.rep_id(arg),
+            ~fn_id=UExp.rep_id(fn),
           ),
         )
       | TypAp(f, typ) =>
@@ -1576,7 +1600,7 @@ let get_doc =
           TypAppExp.typfunapp_exp_coloring_ids,
         );
 
-      | Ap(x, arg) =>
+      | Ap(Forward, x, arg) =>
         let x_id = List.nth(x.ids, 0);
         let arg_id = List.nth(arg.ids, 0);
         let basic = (group, format, coloring_ids) => {
@@ -1587,7 +1611,7 @@ let get_doc =
           );
         };
         switch (x.term) {
-        | Constructor(v) =>
+        | Constructor(v, _) =>
           basic(
             AppExp.conaps,
             msg =>
@@ -1615,7 +1639,7 @@ let get_doc =
         let x_id = List.nth(x.ids, 0);
         let supplied_id = Id.mk();
         let deferred_id = {
-          let deferral = List.find(Term.UExp.is_deferral, args);
+          let deferral = List.find(Exp.is_deferral, args);
           List.nth(deferral.ids, 0);
         };
         switch (mode) {
@@ -1639,11 +1663,11 @@ let get_doc =
           let color_fn = List.nth(ColorSteps.child_colors, 0);
           let color_supplied = List.nth(ColorSteps.child_colors, 1);
           let color_deferred = List.nth(ColorSteps.child_colors, 2);
-          let add = (mapping, arg: Term.UExp.t) => {
+          let add = (mapping, arg: Exp.t) => {
             let arg_id = List.nth(arg.ids, 0);
             Haz3lcore.Id.Map.add(
               arg_id,
-              Term.UExp.is_deferral(arg) ? color_deferred : color_supplied,
+              Exp.is_deferral(arg) ? color_deferred : color_supplied,
               mapping,
             );
           };
@@ -1686,34 +1710,35 @@ let get_doc =
             ),
           SeqExp.seqs,
         );
-      | Filter((Step, One), pat, body) =>
+      | Filter(Filter({act: (Step, One), pat}), body) =>
         message_single(
           FilterExp.filter_pause(
-            ~p_id=Term.UExp.rep_id(pat),
-            ~body_id=Term.UExp.rep_id(body),
+            ~p_id=UExp.rep_id(pat),
+            ~body_id=UExp.rep_id(body),
           ),
         )
-      | Filter((Step, All), pat, body) =>
+      | Filter(Filter({act: (Step, All), pat}), body) =>
         message_single(
           FilterExp.filter_debug(
-            ~p_id=Term.UExp.rep_id(pat),
-            ~body_id=Term.UExp.rep_id(body),
+            ~p_id=UExp.rep_id(pat),
+            ~body_id=UExp.rep_id(body),
           ),
         )
-      | Filter((Eval, All), pat, body) =>
+      | Filter(Filter({act: (Eval, All), pat}), body) =>
         message_single(
           FilterExp.filter_eval(
-            ~p_id=Term.UExp.rep_id(pat),
-            ~body_id=Term.UExp.rep_id(body),
+            ~p_id=UExp.rep_id(pat),
+            ~body_id=UExp.rep_id(body),
           ),
         )
-      | Filter((Eval, One), pat, body) =>
+      | Filter(Filter({act: (Eval, One), pat}), body) =>
         message_single(
           FilterExp.filter_hide(
-            ~p_id=Term.UExp.rep_id(pat),
-            ~body_id=Term.UExp.rep_id(body),
+            ~p_id=UExp.rep_id(pat),
+            ~body_id=UExp.rep_id(body),
           ),
         )
+      | Filter(_) => simple("Internal expression")
       | Test(body) =>
         let body_id = List.nth(body.ids, 0);
         get_message(
@@ -1809,7 +1834,7 @@ let get_doc =
             OpExp.int_un_minus,
           );
         | Meta(Unquote) =>
-          message_single(FilterExp.unquote(~sel_id=Term.UExp.rep_id(exp)))
+          message_single(FilterExp.unquote(~sel_id=UExp.rep_id(exp)))
         }
       | BinOp(op, left, right) =>
         open OpExp;
@@ -1886,7 +1911,7 @@ let get_doc =
             ),
           CaseExp.case,
         );
-      | Constructor(v) =>
+      | Constructor(v, _) =>
         get_message(
           ~format=
             Some(
@@ -1937,7 +1962,7 @@ let get_doc =
           ),
         TerminalPat.strlit(s),
       )
-    | Triv => get_message(TerminalPat.triv)
+    | Tuple([]) => get_message(TerminalPat.triv)
     | ListLit(elements) =>
       if (List.length(elements) == 0) {
         get_message(ListPat.listnil);
@@ -1972,7 +1997,7 @@ let get_doc =
           doc,
         );
       switch (tl.term) {
-      | TermBase.UPat.Cons(hd2, tl2) =>
+      | Pat.Cons(hd2, tl2) =>
         if (ListPat.cons2_pat.id == get_specificity_level(ListPat.cons2)) {
           let hd2_id = List.nth(hd2.ids, 0);
           let tl2_id = List.nth(tl2.ids, 0);
@@ -2090,7 +2115,7 @@ let get_doc =
           ),
         AppPat.ap,
       );
-    | Constructor(con) =>
+    | Constructor(con, _) =>
       get_message(
         ~format=
           Some(
@@ -2098,7 +2123,7 @@ let get_doc =
           ),
         TerminalPat.ctr(con),
       )
-    | TypeAnn(pat, typ) =>
+    | Cast(pat, typ, _) =>
       let pat_id = List.nth(pat.ids, 0);
       let typ_id = List.nth(typ.ids, 0);
       get_message(
@@ -2119,10 +2144,12 @@ let get_doc =
       // Shouldn't be hit?
       default
     }
-  | Some(InfoTyp({term, cls, _})) =>
+  | Some(InfoTyp({term, _} as typ_info)) =>
     switch (bypass_parens_typ(term).term) {
-    | EmptyHole => get_message(HoleTyp.empty_hole)
-    | MultiHole(_) => get_message(HoleTyp.multi_hole)
+    | Unknown(SynSwitch)
+    | Unknown(Internal)
+    | Unknown(Hole(EmptyHole)) => get_message(HoleTyp.empty_hole)
+    | Unknown(Hole(MultiHole(_))) => get_message(HoleTyp.multi_hole)
     | Int => get_message(TerminalTyp.int)
     | Float => get_message(TerminalTyp.float)
     | Bool => get_message(TerminalTyp.bool)
@@ -2191,7 +2218,7 @@ let get_doc =
           doc,
         );
       switch (result.term) {
-      | TermBase.UTyp.Arrow(arg2, result2) =>
+      | Typ.Arrow(arg2, result2) =>
         if (ArrowTyp.arrow3_typ.id == get_specificity_level(ArrowTyp.arrow3)) {
           let arg2_id = List.nth(arg2.ids, 0);
           let result2_id = List.nth(result2.ids, 0);
@@ -2219,7 +2246,7 @@ let get_doc =
         }
       | _ => basic(ArrowTyp.arrow)
       };
-    | Tuple(elements) =>
+    | Prod(elements) =>
       let basic = group =>
         get_message(
           ~format=
@@ -2292,9 +2319,7 @@ let get_doc =
         }
       | _ => basic(TupleTyp.tuple)
       };
-    | Constructor(c) =>
-      get_message(SumTyp.sum_typ_nullary_constructor_defs(c))
-    | Var(c) when cls == Typ(Constructor) =>
+    | Var(c) when Info.typ_is_constructor_expected(typ_info) =>
       get_message(SumTyp.sum_typ_nullary_constructor_defs(c))
     | Var(v) =>
       get_message(
@@ -2305,9 +2330,9 @@ let get_doc =
         TerminalTyp.var(v),
       )
     | Sum(_) => get_message(SumTyp.labelled_sum_typs)
-    | Ap({term: Constructor(c), _}, _) =>
+    | Ap({term: Var(c), _}, _) =>
       get_message(SumTyp.sum_typ_unary_constructor_defs(c))
-    | Invalid(_) => simple("Not a type or type operator")
+    | Unknown(Hole(Invalid(_))) => simple("Not a type or type operator")
     | Ap(_)
     | Parens(_) => default // Shouldn't be hit?
     }
@@ -2338,8 +2363,8 @@ let get_doc =
 
 let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
   div(
-    ~attr=clss(["section", section_clss]),
-    [div(~attr=clss(["section-title"]), [text(title)])] @ contents,
+    ~attrs=[clss(["section", section_clss])],
+    [div(~attrs=[clss(["section-title"])], [text(title)])] @ contents,
   );
 
 let get_color_map =
@@ -2371,13 +2396,13 @@ let view =
       MessageContent(inject, ui_state, settings),
     );
   div(
-    ~attr=Attr.id("side-bar"),
+    ~attrs=[Attr.id("side-bar")],
     [
       div(
-        ~attr=clss(["explain-this"]),
+        ~attrs=[clss(["explain-this"])],
         [
           div(
-            ~attr=clss(["top-bar"]),
+            ~attrs=[clss(["top-bar"])],
             [
               Widgets.toggle(
                 ~tooltip="Toggle highlighting",
@@ -2387,13 +2412,12 @@ let view =
                 inject(UpdateAction.Set(ExplainThis(SetHighlight(Toggle))))
               ),
               div(
-                ~attr=
-                  Attr.many([
-                    clss(["close"]),
-                    Attr.on_click(_ =>
-                      inject(UpdateAction.Set(ExplainThis(ToggleShow)))
-                    ),
-                  ]),
+                ~attrs=[
+                  clss(["close"]),
+                  Attr.on_click(_ =>
+                    inject(UpdateAction.Set(ExplainThis(ToggleShow)))
+                  ),
+                ],
                 [text("x")],
               ),
             ],
@@ -2405,7 +2429,7 @@ let view =
             ~title=
               switch (info) {
               | None => "Whitespace or Comment"
-              | Some(info) => Info.cls_of(info) |> Term.Cls.show
+              | Some(info) => Info.cls_of(info) |> Cls.show
               },
             syn_form @ explanation,
           ),
