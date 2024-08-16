@@ -10,7 +10,13 @@ let view = (~globals, kind: Haz3lcore.Ctx.kind): Node.t =>
       [
         CodeViewable.view_typ(
           ~globals,
-          ~inline=true,
+          ~settings={
+            inline: true,
+            fold_case_clauses: false,
+            fold_fn_bodies: false,
+            hide_fixpoints: false,
+            fold_cast_types: false,
+          },
           ~info_map=Haz3lcore.Id.Map.empty,
           ty,
         ),

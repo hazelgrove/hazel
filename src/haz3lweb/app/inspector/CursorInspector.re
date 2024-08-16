@@ -78,7 +78,17 @@ let elements_noun: Cls.t => string =
 let common_err_view = (~globals, cls: Cls.t, err: Info.error_common) => {
   let view_type = x =>
     x
-    |> CodeViewable.view_typ(~globals, ~inline=true, ~info_map=Id.Map.empty)
+    |> CodeViewable.view_typ(
+         ~globals,
+         ~settings={
+           inline: true,
+           fold_case_clauses: false,
+           fold_fn_bodies: false,
+           hide_fixpoints: false,
+           fold_cast_types: false,
+         },
+         ~info_map=Id.Map.empty,
+       )
     |> code_box_container;
   switch (err) {
   | NoType(BadToken(token)) =>
@@ -113,7 +123,17 @@ let common_err_view = (~globals, cls: Cls.t, err: Info.error_common) => {
 
 let common_ok_view = (~globals, cls: Cls.t, ok: Info.ok_pat) => {
   let view_type =
-    CodeViewable.view_typ(~globals, ~info_map=Id.Map.empty, ~inline=true);
+    CodeViewable.view_typ(
+      ~globals,
+      ~info_map=Id.Map.empty,
+      ~settings={
+        inline: true,
+        fold_case_clauses: false,
+        fold_fn_bodies: false,
+        hide_fixpoints: false,
+        fold_cast_types: false,
+      },
+    );
   switch (cls, ok) {
   | (Exp(MultiHole) | Pat(MultiHole), _) => [
       text("Expecting operator or delimiter"),
@@ -155,7 +175,17 @@ let common_ok_view = (~globals, cls: Cls.t, ok: Info.ok_pat) => {
 
 let typ_ok_view = (~globals, cls: Cls.t, ok: Info.ok_typ) => {
   let view_type =
-    CodeViewable.view_typ(~globals, ~inline=true, ~info_map=Id.Map.empty);
+    CodeViewable.view_typ(
+      ~globals,
+      ~settings={
+        inline: true,
+        fold_case_clauses: false,
+        fold_fn_bodies: false,
+        hide_fixpoints: false,
+        fold_cast_types: false,
+      },
+      ~info_map=Id.Map.empty,
+    );
   switch (ok) {
   | Type(_) when cls == Typ(EmptyHole) => [text("Fillable by any type")]
   | Type(ty) => [view_type(ty), text("is a type")]
@@ -178,7 +208,17 @@ let typ_ok_view = (~globals, cls: Cls.t, ok: Info.ok_typ) => {
 
 let typ_err_view = (~globals, ok: Info.error_typ) => {
   let view_type =
-    CodeViewable.view_typ(~globals, ~inline=true, ~info_map=Id.Map.empty);
+    CodeViewable.view_typ(
+      ~globals,
+      ~settings={
+        inline: true,
+        fold_case_clauses: false,
+        fold_fn_bodies: false,
+        hide_fixpoints: false,
+        fold_cast_types: false,
+      },
+      ~info_map=Id.Map.empty,
+    );
   switch (ok) {
   | FreeTypeVariable(name) => [
       view_type(Var(name) |> Typ.fresh) |> code_box_container,
@@ -200,7 +240,17 @@ let typ_err_view = (~globals, ok: Info.error_typ) => {
 
 let rec exp_view = (~globals, cls: Cls.t, status: Info.status_exp) => {
   let view_type =
-    CodeViewable.view_typ(~globals, ~inline=true, ~info_map=Id.Map.empty);
+    CodeViewable.view_typ(
+      ~globals,
+      ~settings={
+        inline: true,
+        fold_case_clauses: false,
+        fold_fn_bodies: false,
+        hide_fixpoints: false,
+        fold_cast_types: false,
+      },
+      ~info_map=Id.Map.empty,
+    );
   switch (status) {
   | InHole(FreeVariable(name)) =>
     div_err([code_err(name), text("not found")])
@@ -262,7 +312,17 @@ let typ_view = (~globals, cls: Cls.t, status: Info.status_typ) =>
 
 let tpat_view = (~globals, _: Cls.t, status: Info.status_tpat) => {
   let view_type =
-    CodeViewable.view_typ(~globals, ~inline=true, ~info_map=Id.Map.empty);
+    CodeViewable.view_typ(
+      ~globals,
+      ~settings={
+        inline: true,
+        fold_case_clauses: false,
+        fold_fn_bodies: false,
+        hide_fixpoints: false,
+        fold_cast_types: false,
+      },
+      ~info_map=Id.Map.empty,
+    );
   switch (status) {
   | NotInHole(Empty) => div_ok([text("Fillable with a new alias")])
   | NotInHole(Var(name)) => div_ok([CtxInspector.alias_view(name)])

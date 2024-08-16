@@ -120,7 +120,9 @@ module Update = {
                 ({result: r, state: s}: Haz3lcore.ProgramResult.inner) =>
                   r
                   |> Haz3lcore.ProgramResult.Result.unbox
-                  |> CodeSelectable.Model.mk_from_exp(~inline=false)
+                  |> CodeSelectable.Model.mk_from_exp(
+                       ~settings=settings.core,
+                     )
                   |> (x => (x, s)),
                 update,
               ),
@@ -159,7 +161,7 @@ module Update = {
                   Haz3lcore.ProgramResult.ResultOk(
                     r
                     |> Haz3lcore.ProgramResult.Result.unbox
-                    |> CodeSelectable.Model.mk_from_exp(~inline=false)
+                    |> CodeSelectable.Model.mk_from_exp(~settings)
                     |> (x => (x, s)),
                   )
                 | Error(e) => Haz3lcore.ProgramResult.ResultFail(e)
@@ -255,7 +257,9 @@ module View = {
     let editor =
       switch (result) {
       | ResultOk((res, _)) => res
-      | _ => elab |> CodeSelectable.Model.mk_from_exp(~inline=false)
+      | _ =>
+        elab
+        |> CodeSelectable.Model.mk_from_exp(~settings=globals.settings.core)
       };
     let code_view =
       CodeSelectable.View.view(
@@ -414,7 +418,12 @@ module View = {
         switch (Model.get_elaboration(model)) {
         | Some(elab) =>
           elab
-          |> Haz3lcore.ExpToSegment.exp_to_segment(~inline=false)
+          |> Haz3lcore.ExpToSegment.(
+               exp_to_segment(
+                 ~settings=
+                   Settings.of_core(~inline=false, globals.settings.core),
+               )
+             )
           |> CodeViewable.view_segment(
                ~globals,
                ~sort=Exp,

@@ -16,8 +16,11 @@ module Model = {
 
   let mk = editor => {editor, statics: CachedStatics.empty};
 
-  let mk_from_exp = (~inline=false, term: Exp.t) => {
-    ExpToSegment.exp_to_segment(term, ~inline)
+  let mk_from_exp = (~settings: CoreSettings.t, ~inline=false, term: Exp.t) => {
+    ExpToSegment.exp_to_segment(
+      term,
+      ~settings=ExpToSegment.Settings.of_core(~inline, settings),
+    )
     |> Zipper.unzip
     |> Editor.Model.mk
     |> mk;

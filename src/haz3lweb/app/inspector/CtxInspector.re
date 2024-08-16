@@ -10,7 +10,17 @@ let jump_to = entry =>
 
 let context_entry_view =
     (~globals, ~inject, entry: Haz3lcore.Ctx.entry): Node.t => {
-  let view_type = CodeViewable.view_typ(~globals, ~inline=true);
+  let view_type =
+    CodeViewable.view_typ(
+      ~globals,
+      ~settings={
+        inline: true,
+        fold_case_clauses: false,
+        fold_fn_bodies: false,
+        hide_fixpoints: false,
+        fold_cast_types: false,
+      },
+    );
   let div_name =
     div(
       ~attrs=[clss(["name"]), Attr.on_click(_ => inject(jump_to(entry)))],
