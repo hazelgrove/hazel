@@ -18,7 +18,7 @@ let of_delim' =
         | _ => Sort.to_string(sort)
         };
       let plurality = List.length(label) == 1 ? "mono" : "poly";
-      let label = is_in_buffer ? AssistantExpander.mark(label) : label;
+      //let label = is_in_buffer ? AssistantExpander.mark(label) : label;
       let token = List.nth(label, i);
       /* Add indent to multiline tokens: */
       let token =
