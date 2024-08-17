@@ -300,5 +300,325 @@ let tests = (
         check(list(int), "Empty list", [], ListUtil.flat_map(f, xs));
       },
     ),
+    test_case(
+      "join with empty list",
+      `Quick,
+      () => {
+        let xs = [];
+        check(list(string), "Empty list", ListUtil.join(",", xs), []);
+      },
+    ),
+    test_case(
+      "join with single element list",
+      `Quick,
+      () => {
+        let xs = ["a"];
+        check(list(string), "Single element list", ListUtil.join(",", xs), ["a"]);
+      },
+    ),
+    test_case(
+      "join with multiple element list",
+      `Quick,
+      () => {
+        let xs = ["a", "b", "c"];
+        check(
+          list(string),
+          "Multiple element list",
+          ListUtil.join(",", xs),
+          ["a", ",", "b", ",", "c"],
+        );
+      },
+    ),
+    test_case(
+      "hd_opt with empty list",
+      `Quick,
+      () => {
+        let xs = [];
+        check(option(int), "None", None, ListUtil.hd_opt(xs));
+      },
+    ),
+    test_case(
+      "hd_opt with non-empty list",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3];
+        check(option(int), "Some", Some(1), ListUtil.hd_opt(xs));
+      },
+    ),
+    test_case(
+      "nth_opt with empty list",
+      `Quick,
+      () => {
+        let xs = [];
+        check(option(int), "None", None, ListUtil.nth_opt(0, xs));
+      },
+    ),
+    test_case(
+      "nth_opt with non-empty list",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3];
+        check(option(int), "Some", Some(2), ListUtil.nth_opt(1, xs));
+      },
+    ),
+    test_case(
+      "nth_opt with out of bounds index",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3];
+        check(option(int), "None", None, ListUtil.nth_opt(3, xs));
+      },
+    ),
+    test_case(
+      "split_n_opt with empty list",
+      `Quick,
+      () => {
+        let xs = [];
+        check(
+          option(pair(list(int), list(int))),
+          "Empty list",
+          Some(([], [])),
+          ListUtil.split_n_opt(0, xs),
+        );
+      },
+    ),
+    test_case(
+      "split_n_opt with non-empty list",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3, 4, 5];
+        check(
+          option(pair(list(int), list(int))),
+          "Split list",
+          Some(([1, 2, 3], [4, 5])),
+          ListUtil.split_n_opt(3, xs),
+        );
+      },
+    ),
+    test_case(
+      "split_n_opt with out of bounds index",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3, 4, 5];
+        check(
+          option(pair(list(int), list(int))),
+          "None",
+          None,
+          ListUtil.split_n_opt(6, xs),
+        );
+      },
+    ),
+    test_case(
+      "split_n_opt with zero index",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3, 4, 5];
+        check(
+          option(pair(list(int), list(int))),
+          "Empty first part",
+          Some(([], xs)),
+          ListUtil.split_n_opt(0, xs),
+        );
+      },
+    ),
+    // split_n
+    test_case(
+      "split_n with empty list",
+      `Quick,
+      () => {
+        let xs = [];
+        check(
+          pair(list(int), list(int)),
+          "Empty list",
+          ([], []),
+          ListUtil.split_n(0, xs),
+        );
+      },
+    ),
+    test_case(
+      "split_n with non-empty list",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3, 4, 5];
+        check(
+          pair(list(int), list(int)),
+          "Split list",
+          ([1, 2, 3], [4, 5]),
+          ListUtil.split_n(3, xs),
+        );
+      },
+    ),
+    test_case(
+      "split_n with out of bounds index",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3, 4, 5];
+        check_raises(
+          "raises invalid argument",
+          Invalid_argument("ListUtil.split_n: 6"),
+          () => {
+            let _ = ListUtil.split_n(6, xs);
+            ();
+          },
+        );
+      },
+    ),
+    test_case(
+      "split_n with zero index",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3, 4, 5];
+        check(
+          pair(list(int), list(int)),
+          "Empty first part",
+          ([], xs),
+          ListUtil.split_n(0, xs),
+        );
+      },
+    ),
+    // split_sublist_opt 
+    test_case(
+      "split_sublist_opt with empty list",
+      `Quick,
+      () => {
+        let xs = [];
+        check(
+          option(triple(list(int), list(int), list(int))),
+          "Empty list",
+          Some(([], [], [])),
+          ListUtil.split_sublist_opt(0, 0, xs),
+        );
+      },
+    ),
+    test_case(
+      "split_sublist_opt with non-empty list",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3, 4, 5];
+        check(
+          option(triple(list(int), list(int), list(int))),
+          "Split list",
+          Some(([1, 2], [3, 4], [5])),
+          ListUtil.split_sublist_opt(2, 4, xs),
+        );
+      },
+    ),
+    test_case(
+      "split_sublist_opt with out of bounds index",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3, 4, 5];
+        check(
+          option(triple(list(int), list(int), list(int))),
+          "None",
+          None,
+          ListUtil.split_sublist_opt(6, 7, xs),
+        );
+      },
+    ),
+    test_case(
+      "split_sublist_opt with zero index",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3, 4, 5];
+        check(
+          option(triple(list(int), list(int), list(int))),
+          "Empty first part",
+          Some(([], [], xs)),
+          ListUtil.split_sublist_opt(0, 0, xs),
+        );
+      },
+    ),
+    test_case(
+      "split_sublist with empty list",
+      `Quick,
+      () => {
+        let xs = [];
+        check(
+          triple(list(int), list(int), list(int)),
+          "Empty list",
+          ([], [], []),
+          ListUtil.split_sublist(0, 0, xs),
+        );
+      },
+    ),
+    test_case(
+      "split_sublist with non-empty list",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3, 4, 5];
+        check(
+          triple(list(int), list(int), list(int)),
+          "Split list",
+          ([1, 2], [3, 4], [5]),
+          ListUtil.split_sublist(2, 4, xs),
+        );
+      },
+    ),
+    test_case(
+      "split_sublist with out of bounds index",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3, 4, 5];
+        check_raises(
+          "raises invalid argument",
+          Invalid_argument("ListUtil.split_sublist: 6, 7"),
+          () => {
+            let _ = ListUtil.split_sublist(6, 7, xs);
+            ();
+          },
+        );
+      },
+    ),
+    test_case(
+      "split_sublist with zero index",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3, 4, 5];
+        check(
+          triple(list(int), list(int), list(int)),
+          "Empty first part",
+          ([], [], xs),
+          ListUtil.split_sublist(0, 0, xs),
+        );
+      },
+    ),
+    //sublist 
+    test_case(
+      "sublist with empty list",
+      `Quick,
+      () => {
+        let xs = [];
+        check(list(int), "Empty list", [], ListUtil.sublist((0, 0), xs));
+      },
+    ),
+    test_case(
+      "sublist with non-empty list",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3, 4, 5];
+        check(
+          list(int),
+          "Sublist",
+          [2, 3, 4],
+          ListUtil.sublist((1, 4), xs),
+        );
+      },
+    ),
+    test_case(
+      "sublist with out of bounds index",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3, 4, 5];
+        check_raises(
+          "raises invalid argument",
+          Invalid_argument("ListUtil.split_sublist: 6, 7"),
+          () => {
+            let _ = ListUtil.sublist((6, 7), xs);
+            ();
+          },
+        );
+      },
+    ),
   ],
 );
