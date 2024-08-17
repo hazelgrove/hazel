@@ -3,5 +3,15 @@
 # checkin. When the file has been committed with CRLF, no conversion is done.
 * text=auto
 
+
+# Mark generated code and documentation as such to exclude them from PR diffs and stats.
+# More information: https://github.com/github-linguist/linguist/blob/master/docs/overrides.md#generated-code
+src/haz3lweb/Init.ml linguist-generated
+src/haz3lweb/exercises/**/*.ml linguist-generated
+
 hazel.opam linguist-generated
 hazel.opam.locked linguist-generated
+
+*.md linguist-documentation
+docs/** linguist-documentation
+
