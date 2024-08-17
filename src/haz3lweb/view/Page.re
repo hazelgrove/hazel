@@ -14,7 +14,7 @@ let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit), model) => {
       switch (Keyboard.handle_key_event(Key.mk(dir, evt))) {
       | None => Ignore
       | Some(action) =>
-        get_settings(model).editing_title
+        get_settings(model).editing_prompt
           ? Many([inject(action)])
           : Many([Prevent_default, Stop_propagation, inject(action)])
       }

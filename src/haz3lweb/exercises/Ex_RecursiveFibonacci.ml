@@ -7,7 +7,7 @@ let exercise : Exercise.spec =
     title = "Recursive Fibonacci";
     version = 1;
     module_name = "Ex_RecursiveFibonacci";
-    prompt = "";
+    prompt;
     point_distribution =
       { test_validation = 1; mutation_testing = 1; impl_grading = 2 };
     prelude =

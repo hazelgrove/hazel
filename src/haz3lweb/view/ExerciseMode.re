@@ -76,51 +76,51 @@ let view =
 
   let title_view = Cell.title_cell(eds.title);
 
-  let prompt_view =
-    Cell.simple_cell_item([
+  let prompt_view = {
+    let (msg, _) =
+      ExplainThis.mk_translation(~inject=Some(inject), eds.prompt);
+    print_endline(eds.prompt);
+    Cell.narrative_cell([
       div(
         ~attrs=[Attr.class_("cell-prompt")],
         [
           settings.instructor_mode
             ? settings.editing_prompt
                 ? input(
-                    ~attr=
-                      Attr.many([
-                        Attr.class_("prompt-content"),
-                        Attr.value(eds.prompt),
-                        Attr.id("prompt-input"),
-                        Attr.on_keydown(evt =>
-                          if (evt##.keyCode === 13) {
-                            let new_prompt = Obj.magic(evt##.target)##.value;
-                            let update_events = [
-                              inject(Set(EditingPrompt)),
-                              inject(UpdatePrompt(new_prompt)),
-                            ];
-                            Virtual_dom.Vdom.Effect.Many(update_events);
-                          } else {
-                            // This is placeholder until I figure out how to "do nothing"
-                            inject(
-                              FinishImportAll(None),
-                            );
-                          }
-                        ),
-                      ]),
-                    [],
+                    ~attrs=[
+                      Attr.class_("prompt-content"),
+                      Attr.value(eds.prompt),
+                      Attr.id("prompt-input"),
+                      Attr.on_keydown(evt =>
+                        if (evt##.keyCode === 13) {
+                          let new_prompt = Obj.magic(evt##.target)##.value;
+                          let update_events = [
+                            inject(Set(EditingPrompt)),
+                            inject(UpdatePrompt(new_prompt)),
+                          ];
+                          Virtual_dom.Vdom.Effect.Many(update_events);
+                        } else {
+                          // This is placeholder until I figure out how to "do nothing"
+                          inject(
+                            FinishImportAll(None),
+                          );
+                        }
+                      ),
+                    ],
+                    (),
                   )
                 : div(
-                    ~attr=
-                      Attr.many([
-                        Attr.class_("prompt-content"),
-                        Attr.on_double_click(_ =>
-                          inject(Set(EditingPrompt))
-                        ),
-                      ]),
-                    [eds.content],
+                    ~attrs=[
+                      Attr.class_("prompt-content"),
+                      Attr.on_double_click(_ => inject(Set(EditingPrompt))),
+                    ],
+                    msg,
                   )
-            : div(~attr=Attr.class_("prompt-content"), [eds.content]),
+            : div(~attrs=[Attr.class_("prompt-content")], msg),
         ],
       ),
     ]);
+  };
 
   let prelude_view =
     Always(
