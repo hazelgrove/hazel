@@ -313,7 +313,12 @@ let tests = (
       `Quick,
       () => {
         let xs = ["a"];
-        check(list(string), "Single element list", ListUtil.join(",", xs), ["a"]);
+        check(
+          list(string),
+          "Single element list",
+          ListUtil.join(",", xs),
+          ["a"],
+        );
       },
     ),
     test_case(
@@ -421,7 +426,6 @@ let tests = (
         );
       },
     ),
-    // split_n
     test_case(
       "split_n with empty list",
       `Quick,
@@ -476,7 +480,6 @@ let tests = (
         );
       },
     ),
-    // split_sublist_opt 
     test_case(
       "split_sublist_opt with empty list",
       `Quick,
@@ -583,7 +586,6 @@ let tests = (
         );
       },
     ),
-    //sublist 
     test_case(
       "sublist with empty list",
       `Quick,
