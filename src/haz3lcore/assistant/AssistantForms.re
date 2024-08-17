@@ -4,7 +4,7 @@ open OptUtil.Syntax;
 /* This module generates TyDi suggestions which depend
  * neither on the typing context or the backpack */
 
-let leading_expander = " " ++ AssistantExpander.c;
+let leading_expander = " ";
 
 /* Specifies type information for syntactic forms. Could in principle be
  * derived by generating segments from Forms, parsing them to terms, and
@@ -36,9 +36,9 @@ module Typ = {
   ];
 
   let of_infix_delim: list((Token.t, Typ.term)) = [
-    ("|>", Unknown(Internal)), /* */
+    //("|>", Unknown(Internal)), /* annoying during case rules */
     (",", Prod([unk, unk])), /* NOTE: Current approach doesn't work for this, but irrelevant as 1-char */
-    ("::", List(unk)),
+    ("::", List(unk)), /* annoying in patterns */
     ("@", List(unk)),
     (";", Unknown(Internal)),
     ("&&", Bool),
@@ -47,7 +47,7 @@ module Typ = {
     ("$==", Bool),
     ("==.", Bool),
     ("==", Bool),
-    ("!", Bool), // maybe doesnt belong here? but blocks autocomplete of ! to !=
+    //("!", Bool), /* annoying as != is more common */
     ("!=", Bool),
     ("!=.", Bool),
     ("<", Bool),

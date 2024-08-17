@@ -1,4 +1,5 @@
 open Haz3lcore;
+open Util;
 
 // A generic key-value store for saving/loading data to/from local storage
 module Generic = {
@@ -113,6 +114,9 @@ module Scratch = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = PersistentData.scratch;
 
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = (int, list(Editor.t), ModelResults.M.t(ModelResult.t));
+
   let to_persistent = ((idx, slides, results)): persistent => (
     idx,
     List.map(ScratchSlide.persist, slides),
@@ -121,36 +125,42 @@ module Scratch = {
     |> ModelResults.bindings,
   );
 
-  let of_persistent = (~settings, (idx, slides, results): persistent) => {
+  let of_persistent =
+      (~settings: CoreSettings.t, (idx, slides, results): persistent): t => {
     (
       idx,
-      List.map(ScratchSlide.unpersist, slides),
+      List.map(ScratchSlide.unpersist(~settings), slides),
       results
       |> List.to_seq
       |> ModelResults.of_seq
-      |> ModelResults.map(ModelResult.of_persistent(~settings)),
+      |> ModelResults.map(
+           ModelResult.of_persistent(~settings=settings.evaluation),
+         ),
     );
   };
 
-  let serialize = scratch => {
+  let serialize = (scratch: t): string => {
     scratch |> to_persistent |> sexp_of_persistent |> Sexplib.Sexp.to_string;
   };
 
-  let deserialize = data => {
-    data |> Sexplib.Sexp.of_string |> persistent_of_sexp |> of_persistent;
+  let deserialize = (data: string, ~settings: CoreSettings.t): t => {
+    data
+    |> Sexplib.Sexp.of_string
+    |> persistent_of_sexp
+    |> of_persistent(~settings);
   };
 
-  let save = (scratch): unit => {
+  let save = (scratch: t): unit => {
     JsUtil.set_localstore(save_scratch_key, serialize(scratch));
   };
 
-  let init = (~settings) => {
+  let init = (~settings: CoreSettings.t): t => {
     let scratch = of_persistent(~settings, Init.startup.scratch);
     save(scratch);
     scratch;
   };
 
-  let load = (~settings) =>
+  let load = (~settings: CoreSettings.t): t =>
     switch (JsUtil.get_localstore(save_scratch_key)) {
     | None => init(~settings)
     | Some(data) =>
@@ -159,8 +169,10 @@ module Scratch = {
       }
     };
 
-  let export = (~settings) => serialize(load(~settings));
-  let import = (~settings, data) => save(deserialize(~settings, data));
+  let export = (~settings: CoreSettings.t): string =>
+    serialize(load(~settings));
+  let import = (~settings: CoreSettings.t, data: string): unit =>
+    save(deserialize(~settings, data));
 };
 
 module Documentation = {
@@ -169,13 +181,20 @@ module Documentation = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = PersistentData.documentation;
 
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = (
+    string,
+    list((string, Editor.t)),
+    ModelResults.M.t(ModelResult.t),
+  );
+
   let persist = ((name, editor: Editor.t)) => {
     (name, PersistentZipper.persist(editor.state.zipper));
   };
 
-  let unpersist = ((name, zipper)) => {
+  let unpersist = ((name, zipper), ~settings: CoreSettings.t) => {
     let zipper = PersistentZipper.unpersist(zipper);
-    (name, Editor.init(zipper, ~read_only=false));
+    (name, Editor.init(zipper, ~read_only=false, ~settings));
   };
 
   let to_persistent = ((string, slides, results)): persistent => (
@@ -186,36 +205,42 @@ module Documentation = {
     |> ModelResults.bindings,
   );
 
-  let of_persistent = (~settings, (string, slides, results): persistent) => {
+  let of_persistent =
+      (~settings: CoreSettings.t, (string, slides, results): persistent): t => {
     (
       string,
-      List.map(unpersist, slides),
+      List.map(unpersist(~settings), slides),
       results
       |> List.to_seq
       |> ModelResults.of_seq
-      |> ModelResults.map(ModelResult.of_persistent(~settings)),
+      |> ModelResults.map(
+           ModelResult.of_persistent(~settings=settings.evaluation),
+         ),
     );
   };
 
-  let serialize = slides => {
+  let serialize = (slides: t): string => {
     slides |> to_persistent |> sexp_of_persistent |> Sexplib.Sexp.to_string;
   };
 
-  let deserialize = data => {
-    data |> Sexplib.Sexp.of_string |> persistent_of_sexp |> of_persistent;
+  let deserialize = (~settings: CoreSettings.t, data: string): t => {
+    data
+    |> Sexplib.Sexp.of_string
+    |> persistent_of_sexp
+    |> of_persistent(~settings);
   };
 
-  let save = (slides): unit => {
+  let save = (slides: t): unit => {
     JsUtil.set_localstore(save_documentation_key, serialize(slides));
   };
 
-  let init = (~settings) => {
+  let init = (~settings: CoreSettings.t): t => {
     let documentation = of_persistent(~settings, Init.startup.documentation);
     save(documentation);
     documentation;
   };
 
-  let load = (~settings) =>
+  let load = (~settings: CoreSettings.t): t =>
     switch (JsUtil.get_localstore(save_documentation_key)) {
     | None => init(~settings)
     | Some(data) =>
@@ -224,8 +249,10 @@ module Documentation = {
       }
     };
 
-  let export = (~settings) => serialize(load(~settings));
-  let import = (~settings, data) => save(deserialize(~settings, data));
+  let export = (~settings: CoreSettings.t): string =>
+    serialize(load(~settings));
+  let import = (~settings: CoreSettings.t, data: string): unit =>
+    save(deserialize(~settings, data));
 };
 
 module Exercise = {
@@ -237,59 +264,69 @@ module Exercise = {
     JsUtil.set_localstore(cur_exercise_key, Id.to_string(id));
   };
 
-  let save_exercise = (exercise, ~instructor_mode) => {
+  let save_exercise = (exercise, ~instructor_mode): unit => {
     let keystring = Id.to_string(exercise.eds.id);
     let data = Exercise.serialize_exercise(exercise, ~instructor_mode);
     JsUtil.set_localstore(keystring, data);
   };
 
-  let init_exercise = (spec, ~instructor_mode) => {
-    print_endline("Initing new exercise");
+  let init_exercise =
+      (~settings: CoreSettings.t, spec, ~instructor_mode): state => {
     let keystring = Id.to_string(spec.id);
-    let exercise = Exercise.state_of_spec(spec, ~instructor_mode);
+    let exercise = Exercise.state_of_spec(spec, ~instructor_mode, ~settings);
     save_exercise(exercise, ~instructor_mode);
     JsUtil.set_localstore(cur_exercise_key, keystring);
     exercise;
   };
 
-  let load_exercise = (spec, ~instructor_mode, ~editing_title): Exercise.state => {
-    print_string("ID at load: ");
-    print_endline(Id.to_string(spec.id));
+  let load_exercise =
+      (~settings: CoreSettings.t, spec, ~instructor_mode, ~editing_title)
+      : Exercise.state => {
     let keystring = Id.to_string(spec.id);
     switch (JsUtil.get_localstore(keystring)) {
     | Some(data) =>
       let exercise =
         try(
-          deserialize_exercise(data, ~spec, ~instructor_mode, ~editing_title)
+          Exercise.deserialize_exercise(
+            data,
+            ~spec,
+            ~instructor_mode,
+            ~editing_title,
+            ~settings,
+          )
         ) {
-        | _ => init_exercise(spec, ~instructor_mode)
+        | _ => init_exercise(spec, ~instructor_mode, ~settings)
         };
       JsUtil.set_localstore(cur_exercise_key, keystring);
       exercise;
-    | None => init_exercise(spec, ~instructor_mode)
+    | None => init_exercise(spec, ~instructor_mode, ~settings)
     };
   };
 
-  let save = ((n, specs, exercise), ~instructor_mode) => {
+  let save = ((n, specs, exercise), ~instructor_mode): unit => {
     let keystring = Id.to_string(List.nth(specs, n).id);
     save_exercise(exercise, ~instructor_mode);
     JsUtil.set_localstore(cur_exercise_key, keystring);
   };
 
-  let init = (~instructor_mode) => {
+  let init =
+      (~settings: CoreSettings.t, ~instructor_mode)
+      : (int, list(spec), state) => {
     let exercises = {
       (
         0,
         ExerciseSettings.exercises,
         List.nth(ExerciseSettings.exercises, 0)
-        |> Exercise.state_of_spec(~instructor_mode),
+        |> Exercise.state_of_spec(~instructor_mode, ~settings),
       );
     };
     save(exercises, ~instructor_mode);
     exercises;
   };
 
-  let load = (~specs, ~instructor_mode, ~editing_title) => {
+  let load =
+      (~settings: CoreSettings.t, ~specs, ~instructor_mode, ~editing_title)
+      : (int, list(p(ZipperBase.t)), state) => {
     switch (JsUtil.get_localstore(cur_exercise_key)) {
     | Some(keystring) =>
       switch (Id.of_string(keystring)) {
@@ -300,19 +337,21 @@ module Exercise = {
           | Some(data) =>
             let exercise =
               try(
-                Exercise.deserialize_exercise(
+                deserialize_exercise(
                   data,
                   ~spec,
                   ~instructor_mode,
                   ~editing_title,
+                  ~settings,
                 )
               ) {
-              | _ => init_exercise(spec, ~instructor_mode)
+              | _ => init_exercise(spec, ~instructor_mode, ~settings)
               };
             (n, specs, exercise);
           | None =>
             // initialize exercise from spec
-            let exercise = Exercise.state_of_spec(spec, ~instructor_mode);
+            let exercise =
+              Exercise.state_of_spec(spec, ~instructor_mode, ~settings);
             save_exercise(exercise, ~instructor_mode);
             (n, specs, exercise);
           }
@@ -322,16 +361,28 @@ module Exercise = {
           (
             0,
             specs,
-            load_exercise(first_spec, ~instructor_mode, ~editing_title),
+            load_exercise(
+              first_spec,
+              ~instructor_mode,
+              ~editing_title,
+              ~settings,
+            ),
           );
         }
       | None => failwith("parse error")
       }
-    | None => init(~instructor_mode)
+    | None => init(~instructor_mode, ~settings)
     };
   };
 
-  let prep_exercise_export = (~specs, ~instructor_mode, ~editing_title) => {
+  let prep_exercise_export =
+      (
+        ~specs,
+        ~instructor_mode: bool,
+        ~settings: CoreSettings.t,
+        ~editing_title,
+      )
+      : exercise_export => {
     {
       cur_exercise:
         Id.t_of_sexp(
@@ -344,15 +395,26 @@ module Exercise = {
         |> List.map(spec => {
              let key = spec.id;
              let exercise =
-               load_exercise(spec, ~instructor_mode, ~editing_title)
+               load_exercise(
+                 spec,
+                 ~instructor_mode,
+                 ~editing_title,
+                 ~settings,
+               )
                |> Exercise.persistent_state_of_state(~instructor_mode);
              (key, exercise);
            }),
     };
   };
 
-  let serialize_exercise_export = (~specs, ~instructor_mode) => {
-    prep_exercise_export(~specs, ~instructor_mode, ~editing_title=false)
+  let serialize_exercise_export =
+      (~specs, ~instructor_mode, ~settings: CoreSettings.t) => {
+    prep_exercise_export(
+      ~specs,
+      ~instructor_mode,
+      ~editing_title=false,
+      ~settings,
+    )
     |> sexp_of_exercise_export
     |> Sexplib.Sexp.to_string;
   };
@@ -361,7 +423,14 @@ module Exercise = {
     serialize_exercise_export(~specs, ~instructor_mode);
   };
 
-  let import = (data, ~specs, ~instructor_mode, ~editing_title) => {
+  let import =
+      (
+        data,
+        ~specs,
+        ~instructor_mode: bool,
+        ~editing_title: bool,
+        ~settings: CoreSettings.t,
+      ) => {
     let exercise_export = data |> deserialize_exercise_export;
     save_exercise_id(exercise_export.cur_exercise);
     exercise_export.exercise_data
@@ -377,6 +446,7 @@ module Exercise = {
                ~spec,
                ~instructor_mode,
                ~editing_title,
+               ~settings,
              ),
              ~instructor_mode,
            )
