@@ -64,6 +64,8 @@
  (libraries ppx_yojson_conv.expander haz3lweb)
  (link_flags -linkall)
  (modes js)
+ (js_of_ocaml
+  (flags :standard --toplevel --dynlink))
  (preprocess
   (pps
    ppx_yojson_conv
@@ -78,13 +80,15 @@
  (libraries workerServer)
  (modes js)
  (link_flags -linkall)
+ (js_of_ocaml
+  (flags :standard --toplevel --dynlink))
  (preprocess
   (pps js_of_ocaml-ppx)))
 
 (env
  (dev
   (js_of_ocaml
-   (flags :standard --debuginfo --noinline --dynlink --linkall --sourcemap)))
+   (flags (:standard))))
  (release
   (js_of_ocaml
    (flags (:standard)))))
