@@ -66,5 +66,3 @@ let pop = (sel: t): option((Piece.t, t)) =>
     let (rest, p) = Piece.pop_r(p);
     Some((p, {...sel, content: content @ rest}));
   };
-
-let split_piece = _: option((Piece.t, t)) => failwith("todo split_piece");

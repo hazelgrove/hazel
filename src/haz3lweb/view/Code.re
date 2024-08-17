@@ -15,10 +15,10 @@ let of_delim' =
         | _ when !is_complete => "incomplete"
         | [s] when s == Form.explicit_hole => "explicit-hole"
         | [s] when Form.is_string(s) => "string-lit"
-        | _ => "default"
+        | _ => Sort.to_string(sort)
         };
       let plurality = List.length(label) == 1 ? "mono" : "poly";
-      let label = is_in_buffer ? AssistantExpander.mark(label) : label;
+      //let label = is_in_buffer ? AssistantExpander.mark(label) : label;
       let token = List.nth(label, i);
       /* Add indent to multiline tokens: */
       let token =
@@ -26,9 +26,7 @@ let of_delim' =
           ? token : token ++ StringUtil.repeat(indent, Unicode.nbsp);
       [
         span(
-          ~attrs=[
-            Attr.classes(["token", cls, Sort.to_string(sort), plurality]),
-          ],
+          ~attrs=[Attr.classes(["token", cls, plurality])],
           [Node.text(token)],
         ),
       ];
@@ -47,21 +45,23 @@ let of_delim =
     i,
   ));
 
-let of_grout = [Node.text(Unicode.nbsp)];
+let space = " "; //Unicode.nbsp;
+
+let of_grout = [Node.text(space)];
 
 let of_secondary =
   Core.Memo.general(
     ~cache_size_bound=10000, ((content, secondary_icons, indent)) =>
     if (String.equal(Secondary.get_string(content), Form.linebreak)) {
-      let str = secondary_icons ? Form.linebreak : "";
+      let str = secondary_icons ? ">" : "";
       [
         span_c("linebreak", [text(str)]),
-        Node.br(),
-        Node.text(StringUtil.repeat(indent, Unicode.nbsp)),
+        Node.text("\n"),
+        Node.text(StringUtil.repeat(indent, space)),
       ];
     } else if (String.equal(Secondary.get_string(content), Form.space)) {
-      let str = secondary_icons ? "·" : Unicode.nbsp;
-      [span_c("secondary", [text(str)])];
+      let str = secondary_icons ? "·" : space;
+      [span_c("whitespace", [text(str)])];
     } else if (Secondary.content_is_comment(content)) {
       [span_c("comment", [Node.text(Secondary.get_string(content))])];
     } else {
@@ -123,7 +123,6 @@ module Text =
     let children_and_sorts =
       List.mapi(
         (i, (l, child, r)) =>
-          //TODO(andrew): more subtle logic about sort acceptability
           (child, l + 1 == r ? List.nth(t.mold.in_, i) : Sort.Any),
         Aba.aba_triples(Aba.mk(t.shards, t.children)),
       );

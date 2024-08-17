@@ -1,4 +1,5 @@
 open Util;
+open Web;
 open Js_of_ocaml;
 open Haz3lcore;
 open Virtual_dom.Vdom;
@@ -69,6 +70,31 @@ let handlers =
     ? attrs : attrs @ [Attr.on_keypress(_ => Effect.Prevent_default)];
 };
 
+let top_bar =
+    (
+      ~inject: UpdateAction.t => Ui_effect.t(unit),
+      ~settings: Settings.t,
+      ~editors,
+    ) =>
+  div(
+    ~attrs=[Attr.id("top-bar")],
+    [
+      div(
+        ~attrs=[Attr.class_("wrap")],
+        [a(~attrs=[clss(["nut-icon"])], [Icons.hazelnut])],
+      ),
+      NutMenu.view(~inject, ~settings, ~editors),
+      div(
+        ~attrs=[Attr.class_("wrap")],
+        [div(~attrs=[Attr.id("title")], [text("hazel")])],
+      ),
+      div(
+        ~attrs=[Attr.class_("wrap")],
+        [EditorModeView.view(~inject, ~settings, ~editors)],
+      ),
+    ],
+  );
+
 let main_view =
     (
       ~inject: UpdateAction.t => Ui_effect.t(unit),
@@ -137,13 +163,7 @@ let main_view =
         );
       (view, cursor_info);
     };
-  let top_bar =
-    div(
-      ~attrs=[Attr.id("top-bar")],
-      NutMenu.view(~inject, ~settings, ~editors)
-      @ [div(~attrs=[Attr.id("title")], [text("hazel")])]
-      @ [EditorModeView.view(~inject, ~settings, ~editors)],
-    );
+
   let bottom_bar =
     CursorInspector.view(~inject, ~settings, editor, cursor_info);
   let sidebar =
@@ -157,7 +177,7 @@ let main_view =
         )
       : div([]);
   [
-    top_bar,
+    top_bar(~inject, ~settings, ~editors),
     div(
       ~attrs=[
         Attr.id("main"),
@@ -167,6 +187,7 @@ let main_view =
     ),
     sidebar,
     bottom_bar,
+    ContextInspector.view(~inject, ~settings, cursor_info),
   ];
 };
 

@@ -1,7 +1,7 @@
 open Virtual_dom.Vdom;
 
 let code = (code: string) => {
-  Node.span(~attrs=[Attr.class_("exercise-code")], [Node.text(code)]);
+  Node.span(~attrs=[Attr.class_("code")], [Node.text(code)]);
 };
 
 let equiv =

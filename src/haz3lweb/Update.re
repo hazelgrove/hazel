@@ -442,22 +442,27 @@ let apply =
         );
       Model.save_and_return({...model, editors});
     | Export(ExportPersistentData) =>
+      Model.save(model);
       export_persistent_data();
       Ok(model);
     | Export(ExportScratchSlide) =>
+      Model.save(model);
       let editor = Editors.get_editor(model.editors);
       export_scratch_slide(editor);
       Ok(model);
     | Export(ExerciseModule) =>
-      instructor_exercise_update(model, export_exercise_module)
+      Model.save(model);
+      instructor_exercise_update(model, export_exercise_module);
     | Export(Submission) =>
+      Model.save(model);
       export_submission(~instructor_mode=model.settings.instructor_mode);
       Ok(model);
-
     | Export(TransitionaryExerciseModule) =>
-      instructor_exercise_update(model, export_transitionary)
+      Model.save(model);
+      instructor_exercise_update(model, export_transitionary);
     | Export(GradingExerciseModule) =>
-      instructor_exercise_update(model, export_instructor_grading_report)
+      Model.save(model);
+      instructor_exercise_update(model, export_instructor_grading_report);
     | ResetCurrentEditor =>
       let instructor_mode = model.settings.instructor_mode;
       let editors =
