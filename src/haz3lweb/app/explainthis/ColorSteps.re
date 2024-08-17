@@ -9,7 +9,7 @@ type t = (colorMap, int);
 /* TODO: Hannah - Pick 7 or so distinct colors from the different color generator thing (HSLuv)
    Make sure distinguishable for color blind or greyscale
    - think about related colors for related concepts*/
-let child_colors = ["blue", "pink", "teal", "orange", "purple", "yellow"];
+let child_colors = ["a", "b", "c"];
 
 let empty = (Haz3lcore.Id.Map.empty, 0);
 let get_color = (id: Haz3lcore.Id.t, (mapping, index): t): (string, t) =>

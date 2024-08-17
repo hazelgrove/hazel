@@ -13,13 +13,6 @@ let rev = List.rev;
 
 let of_tile = t => [Tile.to_piece(t)];
 
-let nibs = tiles =>
-  switch (tiles, ListUtil.split_last_opt(tiles)) {
-  | ([], _)
-  | (_, None) => None
-  | ([_first, ..._], Some((_, _last))) => failwith("todo Tiles.nibs")
-  };
-
 let incomplete_tiles =
   List.filter_map(
     fun
@@ -55,8 +48,6 @@ let remove_matching = (t: Tile.t) =>
   );
 
 let snoc = (tiles, tile) => tiles @ [tile];
-
-// let is_balanced = List.for_all(Piece.is_balanced);
 
 let shape_affix =
     (d: Direction.t, affix: t, r: Nib.Shape.t)
@@ -413,15 +404,7 @@ module Trim = {
       Aba.mk([ws, List.concat(wss)], [g]);
     };
   };
-  // same as merge but type encodes postcond
-  // let merged = (trim: t): (list(Secondary.t), option((Grout.t, list(Secondary.t)))) => {
-  //   let (wss, gs) = merge(trim);
-  //   let (ws, wss) = ListUtil.split_first(wss);
-  //   switch (gs) {
-  //   | [] => (ws, None)
-  //   | [g, ..._] => (ws, Some((g, List.concat(wss))))
-  //   };
-  // };
+
   let rec rm_up_to_one_space =
           (wss: list(list(Secondary.t))): list(list(Secondary.t)) =>
     switch (wss) {
@@ -548,14 +531,6 @@ and regrout_affix =
   d == Left ? (Trim.rev(trim), s, rev(affix)) : (trim, s, affix);
 };
 
-// for internal use when dealing with segments in reverse order (eg Affix.re)
-// let flip_nibs =
-//   List.map(
-//     fun
-//     | (Piece.Secondary(_) | Grout(_)) as p => p
-//     | Tile(t) => Tile({...t, mold: Mold.flip_nibs(t.mold)}),
-//   );
-
 let split_by_matching = (id: Id.t): (t => Aba.t(t, Tile.t)) =>
   Aba.split(
     fun
@@ -563,7 +538,6 @@ let split_by_matching = (id: Id.t): (t => Aba.t(t, Tile.t)) =>
     | p => L(p),
   );
 
-// module Match = Tile.Match.Make(Orientation.R);
 let rec reassemble = (seg: t): t =>
   switch (incomplete_tiles(seg)) {
   | [] => seg
@@ -595,33 +569,6 @@ let trim_secondary: (Direction.t, t) => t =
       | [Piece.Secondary(_), ...xs] => trim_l(xs)
       | [_, ..._] => xs
       };
-    trim_f(trim_l, d, ps);
-  };
-
-let trim_grout: (Direction.t, t) => t =
-  (d, ps) => {
-    /* Trims leading/trailing grout */
-    let rec trim_l: list(Base.piece) => list(Base.piece) =
-      xs =>
-        switch (xs) {
-        | [] => []
-        | [Grout(_), ...xs] => trim_l(xs)
-        | [_, ..._] => xs
-        };
-    trim_f(trim_l, d, ps);
-  };
-
-let trim_secondary_and_grout: (Direction.t, t) => t =
-  (d, ps) => {
-    /* Trims leading/trailing secondary, continuing
-       to trim around grout until first Tile is reached */
-    let rec trim_l: list(Base.piece) => list(Base.piece) =
-      xs =>
-        switch (xs) {
-        | [] => []
-        | [Secondary(_) | Grout(_), ...xs] => trim_l(xs)
-        | [_, ..._] => xs
-        };
     trim_f(trim_l, d, ps);
   };
 
@@ -718,18 +665,6 @@ let rec get_incomplete_ids = (seg: t): list(Id.t) =>
 
 let ids_of_incomplete_tiles_in_bidelimiteds = (seg: t): list(Id.t) =>
   get_childrens(seg) |> List.concat |> get_incomplete_ids;
-
-let push_right = ((ls: t, rs: t)): (t, t) =>
-  switch (List.rev(ls)) {
-  | [l, ...ls] => (List.rev(ls), [l, ...rs])
-  | [] => (ls, rs)
-  };
-
-let push_left = ((ls: t, rs: t)): (t, t) =>
-  switch (rs) {
-  | [r, ...rs] => (ls @ [r], rs)
-  | [] => (ls, rs)
-  };
 
 let rec ids = (s: t): list(Id.t) => List.concat_map(ids_of_piece, s)
 and ids_of_piece = (p: Piece.t): list(Id.t) =>
