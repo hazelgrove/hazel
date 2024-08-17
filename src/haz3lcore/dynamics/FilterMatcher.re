@@ -20,7 +20,7 @@ let rec matches_exp =
 
     // HACK[Matt]: ignore fixpoints in comparison, to allow pausing on fixpoint steps
     | (FixF(dp, dc, _), FixF(fp, fc, _)) =>
-      dp == fp
+      matches_pat(dp, fp)
       && matches_exp(
            ~denv=
              denv |> ClosureEnvironment.without_keys(dp |> DHPat.bound_vars),
@@ -33,14 +33,25 @@ let rec matches_exp =
       matches_exp(
         ~denv=denv |> ClosureEnvironment.without_keys(DHPat.bound_vars(dp)),
         dc,
+        ~fenv=fenv |> ClosureEnvironment.without_keys(DHPat.bound_vars(dp)),
         f,
       )
-    | (_, FixF(fp, fc, _)) =>
-      matches_exp(
-        d,
-        ~fenv=fenv |> ClosureEnvironment.without_keys(DHPat.bound_vars(fp)),
-        fc,
-      )
+    | (_, FixF(fp, fc, Some(env))) =>
+      let fenv =
+        switch (DHPat.get_var(fp)) {
+        | Some(fname) =>
+          env
+          |> ClosureEnvironment.map_of
+          |> Environment.union(
+               Environment.singleton((
+                 fname,
+                 {...f, term: TermBase.Exp.FixF(fp, fc, Some(env))},
+               )),
+             )
+          |> ClosureEnvironment.of_environment
+        | None => env
+        };
+      matches_exp(~denv, d, ~fenv, fc);
 
     | (_, Constructor("$v", _)) =>
       switch (ValueChecker.check_value((), denv, d)) {
@@ -65,74 +76,12 @@ let rec matches_exp =
     | (FailedCast(d, _, _), _) => matches_exp(d, f)
     | (Filter(Residue(_), d), _) => matches_exp(d, f)
 
-    | (Var(dx), Var(fx)) when String.starts_with(dx, ~prefix="__mutual__") =>
-      String.starts_with(fx, ~prefix="__mutual__") && dx == fx
     | (Var(dx), Var(fx)) =>
       switch (
-        ClosureEnvironment.lookup(denv, dx) |> Option.map(DHExp.term_of),
-        ClosureEnvironment.lookup(fenv, fx) |> Option.map(DHExp.term_of),
+        ClosureEnvironment.lookup(denv, dx),
+        ClosureEnvironment.lookup(fenv, fx),
       ) {
-      | (
-          Some(Fun(_, _, Some(denv), Some(dname)) as d),
-          Some(Fun(_, _, Some(fenv), Some(fname)) as f),
-        )
-          when
-            ClosureEnvironment.lookup(denv, dname)
-            |> Option.map(DHExp.term_of) == Some(d)
-            && ClosureEnvironment.lookup(fenv, fname)
-            |> Option.map(DHExp.term_of) == Some(f) =>
-        matches_exp(
-          ~denv=ClosureEnvironment.without_keys([dname], denv),
-          d |> Exp.fresh,
-          ~fenv=ClosureEnvironment.without_keys([fname], fenv),
-          f |> Exp.fresh,
-        )
-      | (
-          Some(Fun(_, _, Some(denv), Some(dname)) as d),
-          Some(Fun(_, _, _, Some(fname)) as f),
-        )
-          when
-            ClosureEnvironment.lookup(denv, dname)
-            |> Option.map(DHExp.term_of) == Some(d)
-            && ClosureEnvironment.lookup(fenv, fname)
-            |> Option.map(DHExp.term_of) == Some(f) =>
-        matches_exp(
-          ~denv=ClosureEnvironment.without_keys([dname], denv),
-          d |> DHExp.fresh,
-          ~fenv=ClosureEnvironment.without_keys([fname], fenv),
-          f |> DHExp.fresh,
-        )
-      | (
-          Some(Fun(_, _, _, Some(dname)) as d),
-          Some(Fun(_, _, _, Some(fname)) as f),
-        )
-          when
-            ClosureEnvironment.lookup(denv, dname)
-            |> Option.map(DHExp.term_of) == Some(d)
-            && ClosureEnvironment.lookup(fenv, fname)
-            |> Option.map(DHExp.term_of) == Some(f) =>
-        matches_exp(
-          ~denv=ClosureEnvironment.without_keys([dname], denv),
-          d |> DHExp.fresh,
-          ~fenv=ClosureEnvironment.without_keys([fname], fenv),
-          f |> DHExp.fresh,
-        )
-      | (
-          Some(Fun(_, _, _, Some(dname)) as d),
-          Some(Fun(_, _, _, Some(fname)) as f),
-        )
-          when
-            ClosureEnvironment.lookup(denv, dname)
-            |> Option.map(DHExp.term_of) == Some(d)
-            && ClosureEnvironment.lookup(fenv, fname)
-            |> Option.map(DHExp.term_of) == Some(f) =>
-        matches_exp(
-          ~denv=ClosureEnvironment.without_keys([dname], denv),
-          d |> DHExp.fresh,
-          ~fenv=ClosureEnvironment.without_keys([fname], denv),
-          f |> DHExp.fresh,
-        )
-      | (Some(d), Some(f)) => matches_exp(d |> Exp.fresh, f |> Exp.fresh)
+      | (Some(d), Some(f)) => matches_exp(d, f)
       | (Some(_), None) => false
       | (None, Some(_)) => false
       | (None, None) => true
@@ -330,7 +279,7 @@ and matches_pat = (d: Pat.t, f: Pat.t): bool => {
   | (ListLit(_), _) => false
   | (Constructor(dt, _), Constructor(ft, _)) => dt == ft
   | (Constructor(_), _) => false
-  | (Var(_), Var(_)) => true
+  | (Var(dx), Var(fx)) => String.equal(dx, fx)
   | (Var(_), _) => false
   | (Tuple(dl), Tuple(fl)) =>
     switch (
