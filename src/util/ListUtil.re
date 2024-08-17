@@ -174,7 +174,7 @@ let split_sublist_opt =
 let split_sublist =
     (i: int, j: int, xs: list('x)): (list('x), list('x), list('x)) =>
   switch (split_sublist_opt(i, j, xs)) {
-  | None => raise(Invalid_argument("ListUtil.split_sublist"))
+  | None => raise(Invalid_argument("ListUtil.split_sublist: " ++ string_of_int(i) ++ ", " ++ string_of_int(j)))
   | Some(r) => r
   };
 let sublist = ((i, j), xs: list('x)): list('x) => {
