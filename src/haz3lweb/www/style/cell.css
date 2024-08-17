@@ -62,6 +62,25 @@
   color: var(--BR4);
 }
 
+.title-edit .edit-icon {
+  margin-left: 0.5em;
+  cursor: pointer;
+  fill: #7a6219;
+}
+
+.title-cell .title-edit {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: var(--light-text-color);
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+}
+
+.title-edit .edit-icon:hover {
+  animation: wobble 0.6s ease 0s 1 normal forwards;
+}
+
 .cell-prompt {
   padding: 1em;
 }
