@@ -252,5 +252,53 @@ let tests = (
         );
       },
     ),
+    test_case(
+      "is_empty with empty list",
+      `Quick,
+      () => {
+        let xs = [];
+        check(bool, "Returns true", true, ListUtil.is_empty(xs));
+      },
+    ),
+    test_case(
+      "is_empty with non-empty list",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3];
+        check(bool, "Returns false", false, ListUtil.is_empty(xs));
+      },
+    ),
+    test_case(
+      "flat_map with empty list",
+      `Quick,
+      () => {
+        let xs = [];
+        let f = x => [x, x];
+        check(list(int), "Empty list", [], ListUtil.flat_map(f, xs));
+      },
+    ),
+    test_case(
+      "flat_map with non-empty list",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3];
+        let f = x => [x, x];
+        check(
+          list(int),
+          "Doubled list",
+          [1, 1, 2, 2, 3, 3],
+          ListUtil.flat_map(f, xs),
+        );
+      },
+    ),
+    test_case(
+      "flat_map with non-empty list and empty result",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3];
+        let f = _ => [];
+        check(list(int), "Empty list", [], ListUtil.flat_map(f, xs));
+      },
+    ),
   ],
 );
