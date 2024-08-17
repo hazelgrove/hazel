@@ -45,7 +45,6 @@ let str_to_inserts = (str: string): list(Editors.Update.t) =>
     String.length(str),
     i => {
       let c = String.sub(str, i, 1);
-      let c = c == "\n" ? Haz3lcore.Form.linebreak : c;
       Editors.Update.Scratch(CellAction(MainEditor(Perform(Insert(c)))));
     },
   );

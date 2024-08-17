@@ -1,8 +1,5 @@
 open Util;
 
-// module Prefix = Affix.Make(Orientation.L);
-// module Suffix = Affix.Make(Orientation.R);
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = (Segment.t, Segment.t);
 
@@ -27,13 +24,6 @@ let concat = (sibss: list(t)): t =>
   |> PairUtil.map_fst(List.concat)
   |> PairUtil.map_snd(List.concat);
 
-// let consistent_shards = ((pre, suf): t): bool => {
-//   let shards_pre = Prefix.shards(pre);
-//   let shards_suf = Suffix.shards(suf);
-//   ListUtil.group_by(Shard.id, shards_pre @ shards_suf)
-//   |> List.for_all(((_, shards)) => Shard.consistent_molds(shards) != []);
-// };
-
 let remold = ((pre, _) as sibs: t, s: Sort.t): t =>
   Segment.remold(zip(sibs), s) |> unzip(List.length(pre));
 
@@ -42,15 +32,6 @@ let shapes = ((pre, suf): t) => {
   let (_, l, _) = Segment.shape_affix(Left, pre, s);
   let (_, r, _) = Segment.shape_affix(Right, suf, s);
   (l, r);
-};
-
-let is_mismatch = ((l, r): t): bool => {
-  /* predicts if grout is neccessary between siblings */
-  switch (Segment.edge_shape_of(Left, r), Segment.edge_shape_of(Right, l)) {
-  | (None, _)
-  | (_, None) => false
-  | (s1, s2) => s1 == s2
-  };
 };
 
 let contains_matching = (t: Tile.t, (pre, suf): t) =>
@@ -103,16 +84,6 @@ let trim_secondary = ((l_sibs, r_sibs): t) => (
   Segment.trim_secondary(Left, r_sibs),
 );
 
-let trim_grout = ((l_sibs, r_sibs): t) => (
-  Segment.trim_grout(Right, l_sibs),
-  Segment.trim_grout(Left, r_sibs),
-);
-
-let trim_secondary_and_grout = ((l_sibs, r_sibs): t) => (
-  Segment.trim_secondary_and_grout(Right, l_sibs),
-  Segment.trim_secondary_and_grout(Left, r_sibs),
-);
-
 let direction_between = ((l, r): t): option(Direction.t) =>
   /* Facing direction of the shared nib between l & r */
   switch (Segment.edge_direction_of(Left, r)) {
@@ -125,5 +96,3 @@ let mold_fitting_between = (sort: Sort.t, p: Precedence.t, sibs: t): Mold.t =>
   | Some(d) => Mold.chevron(sort, p, d)
   | None => Mold.mk_op(sort, [])
   };
-
-let sorted_children = TupleUtil.map2(Segment.sorted_children);

@@ -4,19 +4,101 @@ open Js_of_ocaml;
 open Node;
 open Util.Web;
 open Widgets;
+open Haz3lcore;
+
+let settings_group = (~inject, name: string, ts) => {
+  let toggle = ((_icon, tooltip, bool, setting)) =>
+    toggle_named("", ~tooltip, bool, _ => inject(UpdateAction.Set(setting)));
+  div_c(
+    "group",
+    [
+      div_c("name", [text(name)]),
+      div_c("contents", List.map(toggle, ts)),
+    ],
+  );
+};
+
+let semantics_group = (~inject, ~settings: Settings.t) => {
+  settings_group(
+    ~inject,
+    "Semantics",
+    [
+      ("τ", "Types", settings.core.statics, Statics),
+      ("⇲", "Completion", settings.core.assist, Assist),
+      ("𝛿", "Evaluation", settings.core.dynamics, Dynamics),
+      ("?", "Docs", settings.explainThis.show, ExplainThis(ToggleShow)),
+      // (
+      //   "👍",
+      //   "Feedback",
+      //   settings.explainThis.show_feedback,
+      //   ExplainThis(ToggleShowFeedback),
+      // ),
+    ],
+  );
+};
+
+let values_group = (~inject, ~settings: Settings.t) => {
+  let s = settings.core.evaluation;
+  settings_group(
+    ~inject,
+    "Value Display",
+    [
+      ("λ", "Functions", s.show_fn_bodies, Evaluation(ShowFnBodies)),
+      ("|", "Cases", s.show_case_clauses, Evaluation(ShowCaseClauses)),
+      ("f", "Fixpoints", s.show_fixpoints, Evaluation(ShowFixpoints)),
+      (Unicode.castArrowSym, "Casts", s.show_casts, Evaluation(ShowCasts)),
+    ],
+  );
+};
+
+let stepper_group = (~inject, ~settings: Settings.t) => {
+  let s = settings.core.evaluation;
+  settings_group(
+    ~inject,
+    "Stepper",
+    [
+      ("🔍", "Show lookups", s.show_lookup_steps, Evaluation(ShowLookups)),
+      (
+        "🤫",
+        "Show hidden",
+        s.show_hidden_steps,
+        Evaluation(ShowHiddenSteps),
+      ),
+      ("⏯️", "Filters", s.show_stepper_filters, Evaluation(ShowFilters)),
+    ],
+  );
+};
+
+let dev_group = (~inject, ~settings: Settings.t) => {
+  settings_group(
+    ~inject,
+    "Developer",
+    [
+      ("✓", "Benchmarks", settings.benchmark, Benchmark),
+      ("𝑒", "Elaboration", settings.core.elaborate, Elaborate),
+      ("↵", "Whitespace", settings.secondary_icons, SecondaryIcons),
+    ],
+  );
+};
+
+let settings_menu = (~inject, ~settings: Settings.t) => {
+  [
+    semantics_group(~inject, ~settings),
+    values_group(~inject, ~settings),
+    stepper_group(~inject, ~settings),
+    dev_group(~inject, ~settings),
+  ];
+};
 
 let export_persistent_data = (~globals: Globals.t) =>
   button_named(
-    Icons.sprout,
-    _ => {
-      globals.export_persistent();
-      Ui_effect.Ignore;
-    },
+    Icons.export,
+    _ => inject(Export(ExportPersistentData)),
     ~tooltip="Export All Persistent Data",
   );
 
 let reset_hazel =
-  button(
+  button_named(
     Icons.bomb,
     _ => {
       let confirmed =
@@ -29,108 +111,83 @@ let reset_hazel =
       };
       Virtual_dom.Vdom.Effect.Ignore;
     },
-    ~tooltip="Clear Local Storage and Reload (LOSE ALL DATA)",
+    ~tooltip="Reset Hazel (LOSE ALL DATA)",
   );
 
-let reparse = (~inject_reparse: option(unit => 'a)) =>
-  switch (inject_reparse) {
-  | Some(inject_reparse) =>
-    button(
-      Icons.backpack,
-      _ => inject_reparse(),
-      ~tooltip="Reparse Current Editor",
-    )
-  | None =>
-    button_d(
-      Icons.backpack,
-      Effect.Ignore,
-      ~tooltip="Reparse Current Editor",
-      ~disabled=true,
-    )
-  };
+let reparse = (~inject: Update.t => 'a) =>
+  button_named(
+    Icons.backpack,
+    _ => inject(PerformAction(Reparse)),
+    ~tooltip="Reparse Editor",
+  );
 
-let settings_menu =
-    (
-      ~globals as
-        {
-          inject_global,
-          settings:
-            {
-              core: {evaluation, _} as core,
-              benchmark,
-              secondary_icons,
-              explainThis,
-              _,
-            },
-          _,
-        }: Globals.t,
-    ) => {
-  let toggle = (icon, tooltip, bool, setting) =>
-    toggle_named(icon, ~tooltip, bool, _ => inject_global(Set(setting)));
-  [
-    toggle("τ", "Toggle Statics", core.statics, Statics),
-    toggle("⇲", "Toggle Completion", core.assist, Assist),
-    toggle("↵", "Show Whitespace", secondary_icons, SecondaryIcons),
-    toggle("✓", "Print Benchmarks", benchmark, Benchmark),
-    toggle("𝛿", "Toggle Dynamics", core.dynamics, Dynamics),
-    toggle("𝑒", "Show Elaboration", core.elaborate, Elaborate),
-    toggle(
-      "λ",
-      "Show Function Bodies",
-      evaluation.show_fn_bodies,
-      Evaluation(ShowFnBodies),
-    ),
-    toggle(
-      "|",
-      "Show Case Clauses",
-      evaluation.show_case_clauses,
-      Evaluation(ShowCaseClauses),
-    ),
-    toggle(
-      "f",
-      "Show fixpoints",
-      evaluation.show_fixpoints,
-      Evaluation(ShowFixpoints),
-    ),
-    toggle(
-      Unicode.castArrowSym,
-      "Show casts",
-      evaluation.show_casts,
-      Evaluation(ShowCasts),
-    ),
-    // Disabled until we have a way to print closures
-    // toggle(
-    //   "🔍",
-    //   "Show Lookup Steps",
-    //   evaluation.show_lookup_steps,
-    //   Evaluation(ShowLookups),
-    // ),
-    toggle(
-      "⏯️",
-      "Show Stepper Filters",
-      evaluation.show_stepper_filters,
-      Evaluation(ShowFilters),
-    ),
-    toggle(
-      "🤫",
-      "Show Hidden Steps",
-      evaluation.show_hidden_steps,
-      Evaluation(ShowHiddenSteps),
-    ),
-    toggle(
-      "?",
-      "Show Docs Sidebar",
-      explainThis.show,
-      ExplainThis(ToggleShow),
-    ),
-    toggle(
-      "👍",
-      "Show Docs Feedback",
-      explainThis.show_feedback,
-      ExplainThis(ToggleShowFeedback),
-    ),
-  ];
+let item_group = (~inject as _, name: string, ts) => {
+  div_c("group", [div_c("name", [text(name)]), div_c("contents", ts)]);
 };
+
+let file_group_scratch = (~inject) =>
+  item_group(
+    ~inject,
+    "File",
+    [ScratchMode.export_button(inject), ScratchMode.import_button(inject)],
+  );
+
+let reset_group_scratch = (~inject) =>
+  item_group(
+    ~inject,
+    "Reset",
+    [ScratchMode.reset_button(inject), reparse(~inject), reset_hazel],
+  );
+
+let file_group_exercises = (~inject) =>
+  item_group(
+    ~inject,
+    "File",
+    [
+      ExerciseMode.export_submission(inject),
+      ExerciseMode.import_submission(~inject),
+    ],
+  );
+
+let reset_group_exercises = (~inject) =>
+  item_group(
+    ~inject,
+    "Reset",
+    [ExerciseMode.reset_button(inject), reparse(~inject), reset_hazel],
+  );
+
+let dev_group_exercises = (~inject) =>
+  item_group(
+    ~inject,
+    "Developer Export",
+    [
+      export_persistent_data(~inject),
+      ExerciseMode.instructor_export(inject),
+      ExerciseMode.instructor_transitionary_export(inject),
+      ExerciseMode.instructor_grading_export(inject),
+    ],
+  );
+
+let file_menu = (~inject, ~settings: Settings.t, editors: Editors.t) =>
+  switch (editors) {
+  | Scratch(_) => [
+      file_group_scratch(~inject),
+      reset_group_scratch(~inject),
+    ]
+  | Documentation(_) => [
+      file_group_scratch(~inject),
+      reset_group_scratch(~inject),
+    ]
+  | Exercises(_) when settings.instructor_mode => [
+      file_group_exercises(~inject),
+      reset_group_exercises(~inject),
+      dev_group_exercises(~inject),
+    ]
+  | Exercises(_) => [
+      file_group_exercises(~inject),
+      reset_group_exercises(~inject),
+    ]
+  };
 
 let submenu = (~tooltip, ~icon, menu) =>
   div(
@@ -150,41 +207,27 @@ let view =
       ~selection: option(Editors.Selection.t),
       ~inject: Editors.Update.t => 'a,
       ~editors: Editors.Model.t,
-    ) => [
-  a(~attrs=[clss(["nut-icon"])], [Icons.hazelnut]),
+    ) =>
   div(
     ~attrs=[clss(["nut-menu"])],
     [
       submenu(~tooltip="Settings", ~icon=Icons.gear, settings_menu(~globals)),
       submenu(
-        ~tooltip="Export",
-        ~icon=Icons.export,
-        Editors.View.export_menu(~globals, editors),
+        ~tooltip="File",
+        ~icon=Icons.disk,
+        file_menu(~inject, ~settings, editors),
       ),
-      submenu(
-        ~tooltip="Import",
-        ~icon=Icons.import,
-        Editors.View.import_menu(~globals, ~inject, editors),
-      ),
-      reparse(
-        ~inject_reparse={
-          let update =
-            Editors.Selection.handle_key_event(
-              ~selection,
-              ~event={
-                key: D("k"),
-                sys: PC,
-                shift: Up,
-                meta: Down,
-                ctrl: Down,
-                alt: Up,
-              },
-              editors,
-            );
-          Option.map((u, ()) => inject(u), update);
+      button(
+        Icons.command_palette_sparkle,
+        _ => {
+          NinjaKeys.open_command_palette();
+          Effect.Ignore;
         },
+        ~tooltip=
+          "Command Palette ("
+          ++ Keyboard.meta(Os.is_mac^ ? Mac : PC)
+          ++ " + k)",
       ),
-      reset_hazel,
       link(
         Icons.github,
         "https://github.com/hazelgrove/hazel",
@@ -192,5 +235,4 @@ let view =
       ),
       link(Icons.info, "https://hazel.org", ~tooltip="Hazel Homepage"),
     ],
-  ),
-];
+  );

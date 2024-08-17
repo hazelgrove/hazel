@@ -1,13 +1,6 @@
 open Util;
 open Util.OptUtil.Syntax;
 
-[@deriving (show({with_path: false}), yojson)]
-type t = {
-  code: list(string),
-  selection: list(string),
-  backpack: list(list(string)),
-};
-
 let seg_of_zip = Zipper.seg_without_buffer;
 
 let rec of_segment = (~holes, seg: Segment.t): string =>
@@ -99,7 +92,7 @@ let zipper_of_string =
     (~zipper_init=Zipper.init(), str: string): option(Zipper.t) => {
   let insert = (z: option(Zipper.t), c: string): option(Zipper.t) => {
     let* z = z;
-    try(c == "\r" ? Some(z) : Insert.go(c == "\n" ? Form.linebreak : c, z)) {
+    try(c == "\r" ? Some(z) : Insert.go(c, z)) {
     | exn =>
       print_endline("WARN: zipper_of_string: " ++ Printexc.to_string(exn));
       None;

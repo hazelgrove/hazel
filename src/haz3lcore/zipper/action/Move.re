@@ -391,12 +391,14 @@ module Make = (M: S) => {
     };
   };
 
-  let go = (d: Action.move, z: Zipper.t): option(Zipper.t) =>
+  let move_dispatch = (d: Action.move, z: Zipper.t): option(Zipper.t) =>
     switch (d) {
     | Goal(Piece(p, d)) => do_until_wrap(Action.of_piece_goal(p), d, z)
     | Goal(Point(goal)) =>
-      let z = Zipper.unselect(z);
-      do_towards(primary(ByChar), goal, z);
+      switch (do_towards(primary(ByChar), goal, z)) {
+      | None => Some(z)
+      | Some(z) => Some(z)
+      }
     | Extreme(d) => do_extreme(primary(ByToken), d, z)
     | Local(d) =>
       z
@@ -409,4 +411,27 @@ module Make = (M: S) => {
         }
       )
     };
+
+  let go = (d: Action.move, z: Zipper.t): option(Zipper.t) =>
+    if (Selection.is_empty(z.selection)) {
+      move_dispatch(d, z);
+    } else {
+      /* Always empty selection on move action,
+       * even if we don't actually move */
+      let z = Zipper.unselect(z);
+      switch (move_dispatch(d, z)) {
+      | Some(z) => Some(z)
+      | None => Some(z)
+      };
+    };
+
+  let left_until_case_or_rule =
+    do_until(go(Local(Left(ByToken))), Piece.is_case_or_rule);
+
+  let left_until_not_comment_or_space = (~move_first) =>
+    do_until(
+      ~move_first,
+      go(Local(Left(ByToken))),
+      Piece.not_comment_or_space,
+    );
 };

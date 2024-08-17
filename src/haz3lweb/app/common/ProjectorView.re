@@ -51,7 +51,7 @@ let backing_deco =
     PieceDec.relative_shard({
       font_metrics,
       measurement,
-      shapes: (Convex, Convex),
+      tips: (Some(Convex), Some(Convex)),
     })
   };
 
@@ -167,7 +167,6 @@ let all =
     "projectors",
     List.filter_map(
       ((id, _)) => {
-        //TODO(andrew): cleanup
         let indication = indication(z, id);
         setup_view(
           id,
@@ -181,7 +180,6 @@ let all =
       Id.Map.bindings(cached_syntax.projectors) |> List.rev,
     ),
   );
-};
 
 /* When the caret is directly adjacent to a projector, keyboard commands
  * can be overidden here. Right now, trying to move into the projector,

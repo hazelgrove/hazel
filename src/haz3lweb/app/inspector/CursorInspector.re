@@ -6,8 +6,8 @@ open Haz3lcore;
 
 let errc = "error";
 let okc = "ok";
-let div_err = div(~attrs=[clss([errc])]);
-let div_ok = div(~attrs=[clss([okc])]);
+let div_err = div(~attrs=[clss(["status", errc])]);
+let div_ok = div(~attrs=[clss(["status", okc])]);
 let code_box_container = x =>
   div(~attrs=[clss(["code-box-container"])], [x]);
 
@@ -55,11 +55,10 @@ let term_view = (~globals: Globals.t, ci) => {
   let sort = ci |> Info.sort_of |> Sort.show;
   div(
     ~attrs=[
-      clss(["ci-header", sort] @ (Info.is_error(ci) ? [errc] : [])),
+      clss(["ci-header", sort] @ (Info.is_error(ci) ? [errc] : [okc])),
     ],
     [
-      ctx_toggle(~globals),
-      CtxInspector.view(~globals, ci),
+      ctx_toggle(~inject, settings.context_inspector),
       div(~attrs=[clss(["term-tag"])], [text(sort)]),
       explain_this_toggle(~globals),
       cls_view(ci),
@@ -364,7 +363,8 @@ let view_of_info = (~globals, ci): Node.t => {
 let inspector_view = (~globals, ci): Node.t =>
   div(
     ~attrs=[
-      clss(["cursor-inspector"] @ [Info.is_error(ci) ? errc : okc]),
+      Attr.id("cursor-inspector"),
+      clss([Info.is_error(ci) ? errc : okc]),
     ],
     [view_of_info(~globals, ci)],
   );
@@ -379,7 +379,7 @@ let view =
   let err_view = err =>
     bar_view([
       div(
-        ~attrs=[clss(["cursor-inspector", "no-info"])],
+        ~attrs=[Attr.id("cursor-inspector"), clss(["no-info"])],
         [div(~attrs=[clss(["icon"])], [Icons.magnify]), text(err)],
       ),
     ]);

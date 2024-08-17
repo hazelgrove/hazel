@@ -123,6 +123,12 @@ module TextArea = {
     };
   };
 
+  let set_caret_to_start = (textarea: t): unit => {
+    textarea##focus;
+    textarea##.selectionStart := 0;
+    textarea##.selectionEnd := 0;
+  };
+
   let set_caret_to_end = (textarea: t): unit => {
     textarea##focus;
     let content_length = String.length(content(textarea));
