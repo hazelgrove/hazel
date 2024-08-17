@@ -175,11 +175,10 @@ let get_selection = (model: Model.t): string =>
 
 let view = (~inject: UpdateAction.t => Ui_effect.t(unit), model: Model.t) =>
   div(
-    ~attrs=
-      Attr.[
-        id("page"),
-        ...handlers(~inject, Editors.get_editor(model.editors), model),
-      ],
+    ~attrs=[
+      Attr.id("page"),
+      ...handlers(~inject, Editors.get_editor(model.editors), model),
+    ],
     [
       FontSpecimen.view("font-specimen"),
       DecUtil.filters,
