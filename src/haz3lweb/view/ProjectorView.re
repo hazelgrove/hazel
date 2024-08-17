@@ -51,7 +51,7 @@ let backing_deco =
     PieceDec.relative_shard({
       font_metrics,
       measurement,
-      shapes: (Convex, Convex),
+      tips: (Some(Convex), Some(Convex)),
     })
   };
 
@@ -156,23 +156,17 @@ let indication = (z, id) =>
 
 /* Returns a div containing all projector UIs, intended to
  * be absolutely positioned atop a rendered editor UI */
-let all = (z, ~meta: Editor.Meta.t, ~inject, ~font_metrics) => {
-  // print_endline(
-  //   "cardinal: "
-  //   ++ (meta.projected.projectors |> Id.Map.cardinal |> string_of_int),
-  // );
+let all = (z, ~meta: Editor.Meta.t, ~inject, ~font_metrics) =>
   div_c(
     "projectors",
     List.filter_map(
       ((id, _)) => {
-        //TODO(andrew): cleanup
         let indication = indication(z, id);
         setup_view(id, ~meta, ~inject, ~font_metrics, ~indication);
       },
       Id.Map.bindings(meta.syntax.projectors) |> List.rev,
     ),
   );
-};
 
 /* When the caret is directly adjacent to a projector, keyboard commands
  * can be overidden here. Right now, trying to move into the projector,
@@ -290,27 +284,30 @@ module Panel = {
       | Some((p, _, _)) => minimum_projection_condition(p)
       | None => false
       };
+    let applicable_projectors = applicable_projectors(ci);
+    let should_show = might_project && applicable_projectors != [];
+    let select_view =
+      Node.select(
+        ~attrs=[
+          Attr.on_change((_, name) =>
+            inject(Action.SetIndicated(of_name(name)))
+          ),
+        ],
+        (might_project ? applicable_projectors : [])
+        |> List.map(name)
+        |> List.map(currently_selected(editor)),
+      );
+    let toggle_view =
+      toggle_view(
+        ~inject,
+        ci,
+        id(editor),
+        kind(editor) != None,
+        might_project,
+      );
     div(
       ~attrs=[Attr.id("projectors")],
-      [
-        toggle_view(
-          ~inject,
-          ci,
-          id(editor),
-          kind(editor) != None,
-          might_project,
-        ),
-        Node.select(
-          ~attrs=[
-            Attr.on_change((_, name) =>
-              inject(SetIndicated(of_name(name)))
-            ),
-          ],
-          (might_project ? applicable_projectors(ci) : [])
-          |> List.map(name)
-          |> List.map(currently_selected(editor)),
-        ),
-      ],
+      (should_show ? [select_view] : []) @ [toggle_view],
     );
   };
 };

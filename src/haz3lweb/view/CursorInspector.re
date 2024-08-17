@@ -6,8 +6,8 @@ open Haz3lcore;
 
 let errc = "error";
 let okc = "ok";
-let div_err = div(~attrs=[clss([errc])]);
-let div_ok = div(~attrs=[clss([okc])]);
+let div_err = div(~attrs=[clss(["status", errc])]);
+let div_ok = div(~attrs=[clss(["status", okc])]);
 
 let code_err = (code: string): Node.t =>
   div(~attrs=[clss(["code"])], [text(code)]);
@@ -44,11 +44,10 @@ let term_view = (~inject, ~settings: Settings.t, ci) => {
   let sort = ci |> Info.sort_of |> Sort.show;
   div(
     ~attrs=[
-      clss(["ci-header", sort] @ (Info.is_error(ci) ? [errc] : [])),
+      clss(["ci-header", sort] @ (Info.is_error(ci) ? [errc] : [okc])),
     ],
     [
       ctx_toggle(~inject, settings.context_inspector),
-      CtxInspector.view(~inject, ~settings, ci),
       div(~attrs=[clss(["term-tag"])], [text(sort)]),
       explain_this_toggle(
         ~inject,
@@ -259,12 +258,11 @@ let tpat_view = (_: Cls.t, status: Info.status_tpat) =>
 
 let secondary_view = (cls: Cls.t) => div_ok([text(cls |> Cls.show)]);
 
-let view_of_info = (~inject, ~settings, ci): Node.t => {
-  let wrapper = status_view =>
-    div(
-      ~attrs=[clss(["info"])],
-      [term_view(~inject, ~settings, ci), status_view],
-    );
+let view_of_info = (~inject, ~settings, ci): list(Node.t) => {
+  let wrapper = status_view => [
+    term_view(~inject, ~settings, ci),
+    status_view,
+  ];
   switch (ci) {
   | Secondary(_) => wrapper(div([]))
   | InfoExp({cls, status, _}) => wrapper(exp_view(cls, status))
@@ -277,9 +275,10 @@ let view_of_info = (~inject, ~settings, ci): Node.t => {
 let inspector_view = (~inject, ~settings, ci): Node.t =>
   div(
     ~attrs=[
-      clss(["cursor-inspector"] @ [Info.is_error(ci) ? errc : okc]),
+      Attr.id("cursor-inspector"),
+      clss([Info.is_error(ci) ? errc : okc]),
     ],
-    [view_of_info(~inject, ~settings, ci)],
+    view_of_info(~inject, ~settings, ci),
   );
 
 let view =
@@ -288,7 +287,7 @@ let view =
   let err_view = err =>
     bar_view([
       div(
-        ~attrs=[clss(["cursor-inspector", "no-info"])],
+        ~attrs=[Attr.id("cursor-inspector"), clss(["no-info"])],
         [div(~attrs=[clss(["icon"])], [Icons.magnify]), text(err)],
       ),
     ]);

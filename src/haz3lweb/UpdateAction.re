@@ -240,7 +240,7 @@ let should_scroll_to_caret =
     switch (a) {
     | Move(_)
     | Jump(_)
-    | Select(Resize(_) | Term(_) | Smart | Tile(_))
+    | Select(Resize(_) | Term(_) | Smart(_) | Tile(_))
     | Destruct(_)
     | Insert(_)
     | Pick_up

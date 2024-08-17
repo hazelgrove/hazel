@@ -38,6 +38,7 @@ depends: [
   "core" {= "v0.16.2"}
   "core_kernel" {= "v0.16.0"}
   "cppo" {= "1.6.9"}
+  "crunch" {= "3.3.1" & with-doc}
   "csexp" {= "1.5.2"}
   "diffable" {= "v0.16.0"}
   "dune" {= "3.16.0"}
@@ -99,6 +100,8 @@ depends: [
   "ocp-indent" {= "1.8.1"}
   "ocplib-endian" {= "1.2"}
   "octavius" {= "1.2.2"}
+  "odoc" {= "2.4.2" & with-doc}
+  "odoc-parser" {= "2.4.2" & with-doc}
   "ojs" {= "1.1.2"}
   "omd" {= "2.0.0~alpha4"}
   "ordering" {= "3.16.0"}
