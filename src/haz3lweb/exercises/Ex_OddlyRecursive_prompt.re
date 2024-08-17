@@ -1,20 +1,5 @@
-open Virtual_dom.Vdom;
-open Node;
-open ExerciseUtil;
+// open Virtual_dom.Vdom;
+// open Node;
+// open ExerciseUtil;
 
-let prompt =
-  div([
-    p([
-      text(
-        "Write a recursive function that determines whether the given integer is odd. ",
-      ),
-    ]),
-    p([
-      code("odd(n)"),
-      equiv,
-      code("true"),
-      text(" iff "),
-      code("n"),
-      text(" is odd."),
-    ]),
-  ]);
+let prompt = "Write a recursive function that determines whether the given integer is odd. \n `odd(n)` is equivalent to `true` iff `n` is odd.";
