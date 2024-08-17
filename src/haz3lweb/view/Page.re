@@ -6,17 +6,20 @@ open Node;
 let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit), model) => {
   let get_selection = (model: Model.t): string =>
     model.editors |> Editors.get_editor |> Printer.to_string_selection;
+  let get_settings = (model: Model.t): Settings.t => model.settings;
   let key_handler =
       (~inject, ~dir: Key.dir, evt: Js.t(Dom_html.keyboardEvent))
       : Effect.t(unit) =>
     Effect.(
       switch (Keyboard.handle_key_event(Key.mk(dir, evt))) {
       | None => Ignore
-      | Some(action) => Many([inject(action)])
+      | Some(action) =>
+        get_settings(model).editing_title
+          ? Many([inject(action)])
+          : Many([Prevent_default, Stop_propagation, inject(action)])
       }
     );
-  [
-    // Attr.on_keypress(_ => Effect.Prevent_default),
+  let attrs = [
     Attr.on_keyup(key_handler(~inject, ~dir=KeyUp)),
     Attr.on_keydown(key_handler(~inject, ~dir=KeyDown)),
     /* safety handler in case mousedown overlay doesn't catch it */
@@ -45,6 +48,8 @@ let handlers = (~inject: UpdateAction.t => Ui_effect.t(unit), model) => {
       inject(UpdateAction.Paste(pasted_text));
     }),
   ];
+  model.settings.editing_prompt
+    ? attrs : attrs @ [Attr.on_keypress(_ => Effect.Prevent_default)];
 };
 
 let main_view =

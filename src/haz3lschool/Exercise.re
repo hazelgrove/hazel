@@ -56,8 +56,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     title: string,
     version: int,
     module_name: string,
-    prompt:
-      [@printer (fmt, _) => Format.pp_print_string(fmt, "prompt")] [@opaque] ExerciseEnv.node,
+    prompt: string,
     point_distribution,
     prelude: 'code,
     correct_impl: 'code,
@@ -462,6 +461,24 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     eds: {
       ...eds,
       prelude: Editor.set_read_only(eds.prelude, !new_mode),
+    },
+  };
+
+  let set_editing_prompt = ({eds, _} as state: state, editing: bool) => {
+    ...state,
+    eds: {
+      ...eds,
+      prelude: Editor.set_read_only(eds.prelude, editing),
+      correct_impl: Editor.set_read_only(eds.correct_impl, editing),
+      your_tests: {
+        let tests = Editor.set_read_only(eds.your_tests.tests, editing);
+        {
+          tests,
+          required: eds.your_tests.required,
+          provided: eds.your_tests.provided,
+        };
+      },
+      your_impl: Editor.set_read_only(eds.your_impl, editing),
     },
   };
 
@@ -971,7 +988,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       title,
       version: 1,
       module_name,
-      prompt: ExerciseEnv.default,
+      prompt: "",
       point_distribution,
       prelude,
       correct_impl,

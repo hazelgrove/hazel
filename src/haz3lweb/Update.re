@@ -174,13 +174,16 @@ let update_settings =
         instructor_mode: !settings.instructor_mode,
       },
     };
-  | EditingPrompt => {
+  | EditingPrompt =>
+    let editing = !settings.editing_prompt;
+    {
       ...model,
+      editors: Editors.set_editing_prompt(model.editors, editing),
       settings: {
         ...settings,
-        editing_prompt: !settings.editing_prompt,
+        editing_prompt: editing,
       },
-    }
+    };
   | Mode(mode) => {
       ...model,
       settings: {
