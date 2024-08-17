@@ -7,7 +7,7 @@ let exercise : Exercise.spec =
     title = "Oddly Recursive";
     version = 1;
     module_name = "Ex_OddlyRecursive";
-    prompt;
+    prompt = "";
     point_distribution =
       { test_validation = 1; mutation_testing = 1; impl_grading = 2 };
     prelude =

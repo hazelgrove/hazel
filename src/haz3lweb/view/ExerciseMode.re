@@ -77,7 +77,7 @@ let view =
   let title_view = Cell.title_cell(eds.title);
 
   let prompt_view =
-    Cell.narrative_cell([
+    Cell.simple_cell_item([
       div(
         ~attrs=[Attr.class_("cell-prompt")],
         [
@@ -111,7 +111,9 @@ let view =
                     ~attr=
                       Attr.many([
                         Attr.class_("prompt-content"),
-                        Attr.on_double_click(_ => inject(Set(EditingPrompt))),
+                        Attr.on_double_click(_ =>
+                          inject(Set(EditingPrompt))
+                        ),
                       ]),
                     [eds.content],
                   )
@@ -119,7 +121,6 @@ let view =
         ],
       ),
     ]);
-  };
 
   let prelude_view =
     Always(

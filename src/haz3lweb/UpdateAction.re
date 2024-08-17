@@ -1,7 +1,5 @@
 open Util;
 open Haz3lcore;
-// open Virtual_dom.Vdom;
-// open Node;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type evaluation_settings_action =
@@ -196,6 +194,7 @@ let reevaluate_post_update: t => bool =
     | Elaborate
     | Dynamics
     | InstructorMode
+    | EditingPrompt
     | Mode(_) => true
     }
   | SetMeta(meta_action) =>
@@ -262,7 +261,7 @@ let should_scroll_to_caret =
   | Assistant(Prompt(_))
   | UpdateResult(_)
   | ToggleStepper(_)
-  UpdatePrompt(_)
+  | UpdatePrompt(_)
   | StepperAction(_, StepBackward | StepForward(_)) => false
   | Assistant(AcceptSuggestion) => true
   | FinishImportScratchpad(_)
