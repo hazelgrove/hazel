@@ -7,39 +7,25 @@ open Util;
 open Haz3lschool.ProofGrade.F(Exercise.ExerciseEnv);
 open Exercise.Proof;
 
-type verifyRes =
-  | Correct
-  | Partial
-  | Pending
-  | Incorrect(string)
-  | NotAJudgment;
-
-let to_verifyRes =
-    (res: result(unit, DerivationError.t), children_res): verifyRes =>
-  switch (res) {
-  | Ok(_) =>
-    children_res |> List.for_all(res => res == Correct) ? Correct : Partial
-  | Error(External("E-252")) => NotAJudgment
-  | Error(External(_)) => Pending
-  | Error(e) => Incorrect(DerivationError.repr(e))
-  };
-
 let get_model = (state: Exercise.p('a)) =>
   switch (state.model) {
   | Exercise.Proof(m) => m
   | _ => raise(Failure("Expected Exercise.Proof"))
   };
 
-let to_class = res =>
+let to_class = (res: VerifiedTree.res) =>
   Attr.class_(
     switch (res) {
-    | Correct => "correct"
-    | Partial => "partial"
-    | NotAJudgment
-    | Pending => "pending"
-    | Incorrect(_) => "incorrect"
+    | Ok({err: Some(_), _}) => "incorrect"
+    | Ok(_) => "correct"
+    | Error(_) => "pending"
     },
   );
+
+type view_info = (pos, VerifiedTree.res, ed)
+and ed =
+  | Just(Derivation.Rule.t, Editor.t, Exercise.DynamicsItem.t)
+  | Abbr(index);
 
 let proof_view =
     (
@@ -52,10 +38,8 @@ let proof_view =
       ~stitched_dynamics: stitched(Exercise.DynamicsItem.t),
       ~highlights,
     ) => {
-  ignore(grading_report);
-  let {trees, prelude, _} = stitched_dynamics;
+  let {prelude, _} = stitched_dynamics;
   // TODO: Implement this
-  let tree = trees |> List.hd;
 
   let dropdown_option_view = (~pos: pos, ~rule) =>
     div(
@@ -88,7 +72,7 @@ let proof_view =
       ~attrs=[Attr.class_("rule-option-container")],
       List.map(
         rule => dropdown_option_view(~pos, ~rule),
-        Derivation.Rule.for_each(Fun.id),
+        Derivation.Rule.all,
       ),
     );
 
@@ -97,14 +81,13 @@ let proof_view =
       ~attrs=[Attr.class_("rule-block-info")],
       [
         text(
-          res
+          (res: VerifiedTree.res)
           |> (
             fun
-            | Correct => "✅"
-            | NotAJudgment => "❓"
-            | Partial => "✋"
-            | Pending => "⌛️"
-            | Incorrect(e) => "❌" ++ e
+            | Ok({err: Some(err), _}) =>
+              "❌" ++ (err |> DerivationError.repr)
+            | Ok(_) => "✅"
+            | Error(_) => "⌛️"
           ),
         ),
       ],
@@ -203,9 +186,26 @@ let proof_view =
         Attr.on_click(_ =>
           inject(
             UpdateAction.MapExercise(
-              state =>
+              (state): Exercise.state =>
                 {
                   ...state,
+                  pos: {
+                    // TODO(zhiyao): avoid direct to the deleted premise
+                    switch (pos, state.pos) {
+                    | (Trees(i, pos), Proof(pos'))
+                        when
+                          Trees(
+                            i,
+                            Tree.pos_concat(
+                              Tree.Children(index, Value),
+                              pos,
+                            ),
+                          )
+                          == pos' =>
+                      Proof(Trees(i, pos))
+                    | _ => state.pos
+                    };
+                  },
                   model:
                     Exercise.Proof(
                       ModelUtil.del_premise(
@@ -263,44 +263,40 @@ let proof_view =
       ],
     );
 
-  let single_derivation_view = ((d, (pos, di)), children) => {
-    let di = di |> Option.get;
-    switch (d) {
-    | Just({jdmt: ed, rule}) =>
-      let (children_node, children) = children |> List.split;
-      let children_node = children_node |> List.concat;
-      let (children_di, children_res) = children |> List.split;
-      // TODO: implement this
-      let res =
-        ProofGradingView.ProofReport.DerivationReport.verify_single(
-          di,
-          rule,
-          children_di,
-        );
-      let res = to_verifyRes(res, children_res);
-      (
+  let single_derivation_view = ((pos, res, ed), children_node: list(t)): t => {
+    switch (ed) {
+    | Just(rule, ed, di) =>
+      div(
+        ~attrs=[Attr.class_("derivation-block")],
         [
-          div(
-            ~attrs=[Attr.class_("derivation-block")],
-            [
-              premises_view(~children_node, ~pos=Trees(0, pos), ~res, ~rule),
-              conclusion_view(~editor=ed, ~di, Proof(Trees(0, pos))),
-            ],
-          ),
+          premises_view(~children_node, ~pos, ~res, ~rule),
+          conclusion_view(~editor=ed, ~di, Proof(pos)),
         ],
-        (di, res),
-      );
-    | Abbr(i) => ([text(string_of_int(i))], (di, Correct))
+      )
+    | Abbr(i) => text(string_of_int(i))
     };
   };
 
-  // (ed * rule) * (pos * (di * res))
-  let combined_tree =
-    Util.Tree.combine((
-      // TODO: implement this
-      eds.trees |> List.hd,
-      Util.Tree.mapi((pos, t) => (pos, t), tree),
-    ));
+  // type view_info = (Exercise.pos, VerifiedTree.res, ed)
+  // and ed =
+  //   | Just(Derivation.Rule.t, Editor.t, Exercise.DynamicsItem.t)
+  //   | Abbr(index);
+
+  let info_tree: list(Tree.p(view_info)) =
+    List.map2(Tree.combine, eds.trees, stitched_dynamics.trees)
+    |> List.map(
+         Tree.map(
+           fun
+           | (Exercise.Proof.Just({jdmt: ed, rule}), Some(di)) =>
+             Just(rule, ed, di)
+           | (Abbr(i), _) => Abbr(i)
+           | _ => raise(Failure("DerivationTree.mk: ed<>di inconsistent")),
+         ),
+       )
+    |> List.map2(Tree.combine, grading_report.proof_report.verified_tree)
+    |> List.mapi(i =>
+         Tree.mapi((pos, (res, ed)) => (Trees(i, pos), res, ed))
+       );
 
   let derivation_view =
     Cell.simple_cell_view([
@@ -308,7 +304,7 @@ let proof_view =
         Cell.caption("Derivation"),
         div(
           ~attrs=[Attr.class_("cell-derivation")],
-          fst(Tree.fold_deep(single_derivation_view, combined_tree)),
+          info_tree |> List.map(Tree.fold_deep(single_derivation_view)),
         ),
       ]),
     ]);

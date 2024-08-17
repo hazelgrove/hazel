@@ -114,8 +114,6 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   type persistent_state = (pos, list((pos, PersistentZipper.t)));
 
   let editor_of_state = ({pos, model, _}: state): Editor.t => {
-    prerr_endline(model |> show_model(Editor.pp));
-    print_endline("pos: " ++ show_pos(pos));
     ModelUtil.nth(model, pos);
   };
 

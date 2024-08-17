@@ -206,11 +206,13 @@ module Premises = {
     };
 };
 
-let verify = (rule: Rule.t, concl: Judgement.t, prems: list(Judgement.t)) => {
+let verify =
+    (rule: Rule.t, concl: Judgement.t, prems: list(Judgement.t))
+    : option(DerivationError.t) => {
   let (let$) = (x, f) =>
     switch (x) {
     | Ok(x) => f(x)
-    | Error(e) => Error(e)
+    | Error(e) => Some(e)
     };
   let$ concl = Ok({pos: Concl, value: concl});
   let$ prems = Premises.expect_num(Rule.prems_num(rule), prems);
@@ -218,7 +220,7 @@ let verify = (rule: Rule.t, concl: Judgement.t, prems: list(Judgement.t)) => {
   | Assumption =>
     let$ (ctx, prop) = Judgement.unbox(Entail, concl);
     let$ _ = Ctx.expect_in_ctx(prop, ctx);
-    Ok();
+    None;
   | And_I =>
     let$ (ctx, prop) = Judgement.unbox(Entail, concl);
     let$ (a, b) = Prop.unbox(And, prop);
@@ -228,35 +230,35 @@ let verify = (rule: Rule.t, concl: Judgement.t, prems: list(Judgement.t)) => {
     let$ (ctx', b') = Judgement.unbox(Entail, prems(1));
     let$ _ = Ctx.expect_eq(ctx, ctx');
     let$ _ = Prop.expect_eq(b, b');
-    Ok();
+    None;
   | And_E_L =>
     let$ (ctx, a) = Judgement.unbox(Entail, concl);
     let$ (ctx', prop') = Judgement.unbox(Entail, prems(0));
     let$ (a', _) = Prop.unbox(And, prop');
     let$ _ = Ctx.expect_eq(ctx, ctx');
     let$ _ = Prop.expect_eq(a, a');
-    Ok();
+    None;
   | And_E_R =>
     let$ (ctx, b) = Judgement.unbox(Entail, concl);
     let$ (ctx', prop') = Judgement.unbox(Entail, prems(0));
     let$ (_, b') = Prop.unbox(And, prop');
     let$ _ = Ctx.expect_eq(ctx, ctx');
     let$ _ = Prop.expect_eq(b, b');
-    Ok();
+    None;
   | Or_I_L =>
     let$ (ctx, prop) = Judgement.unbox(Entail, concl);
     let$ (a, _) = Prop.unbox(Or, prop);
     let$ (ctx', a') = Judgement.unbox(Entail, prems(0));
     let$ _ = Ctx.expect_eq(ctx, ctx');
     let$ _ = Prop.expect_eq(a, a');
-    Ok();
+    None;
   | Or_I_R =>
     let$ (ctx, prop) = Judgement.unbox(Entail, concl);
     let$ (_, b) = Prop.unbox(Or, prop);
     let$ (ctx', b') = Judgement.unbox(Entail, prems(0));
     let$ _ = Ctx.expect_eq(ctx, ctx');
     let$ _ = Prop.expect_eq(b, b');
-    Ok();
+    None;
   | Or_E =>
     let$ (ctx, c) = Judgement.unbox(Entail, concl);
     let$ (ctx', prop) = Judgement.unbox(Entail, prems(0));
@@ -268,14 +270,14 @@ let verify = (rule: Rule.t, concl: Judgement.t, prems: list(Judgement.t)) => {
     let$ (ctx_b', c') = Judgement.unbox(Entail, prems(2));
     let$ _ = Ctx.expect_eq_after_extend(ctx, ctx_b', b);
     let$ _ = Prop.expect_eq(c, c');
-    Ok();
+    None;
   | Implies_I =>
     let$ (ctx, prop) = Judgement.unbox(Entail, concl);
     let$ (a, b) = Prop.unbox(Implies, prop);
     let$ (ctx_a', b') = Judgement.unbox(Entail, prems(0));
     let$ _ = Ctx.expect_eq_after_extend(ctx, ctx_a', a);
     let$ _ = Prop.expect_eq(b, b');
-    Ok();
+    None;
   | Implies_E =>
     let$ (ctx, b) = Judgement.unbox(Entail, concl);
     let$ (ctx', prop) = Judgement.unbox(Entail, prems(0));
@@ -285,17 +287,17 @@ let verify = (rule: Rule.t, concl: Judgement.t, prems: list(Judgement.t)) => {
     let$ (ctx', a') = Judgement.unbox(Entail, prems(1));
     let$ _ = Ctx.expect_eq(ctx, ctx');
     let$ _ = Prop.expect_eq(a, a');
-    Ok();
+    None;
   | Truth_I =>
     let$ (_, prop) = Judgement.unbox(Entail, concl);
     let$ _ = Prop.unbox(Truth, prop);
-    Ok();
+    None;
   | Falsity_E =>
     let$ (ctx, _) = Judgement.unbox(Entail, concl);
     let$ (ctx', prop) = Judgement.unbox(Entail, prems(0));
     let$ _ = Ctx.expect_eq(ctx, ctx');
     let$ _ = Prop.unbox(Truth, prop);
-    Ok();
+    None;
   };
 };
 

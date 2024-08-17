@@ -2,15 +2,18 @@ open Util;
 module Derivation = Haz3lcore.Derivation;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type trees('a) = list(tree('a))
+and tree('a) = Tree.p(abbr('a))
+and abbr('a) =
+  | Just('a)
+  | Abbr(index)
+and index = int;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type model('code) = {
   prelude: 'code,
-  trees: list(tree('code)),
+  trees: trees(deduction('code)),
 }
-and tree('code) = Tree.p(deduction_abbr('code))
-and deduction_abbr('code) =
-  | Just(deduction('code))
-  | Abbr(index)
-and index = int
 and deduction('code) = {
   jdmt: 'code,
   rule: Derivation.Rule.t,
@@ -106,7 +109,7 @@ module ModelUtil = {
       {...m, trees: ListUtil.put_nth(i, tree, m.trees)};
     };
 
-  let derivation_init_wrapper = (init: unit => 'a): deduction_abbr('a) => {
+  let derivation_init_wrapper = (init: unit => 'a): abbr(deduction('a)) => {
     Just({jdmt: init(), rule: Derivation.Rule.Assumption});
   };
 

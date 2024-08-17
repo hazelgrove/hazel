@@ -10,6 +10,11 @@ type pos =
   | Value
   | Children(int, pos);
 
+let rec pos_concat = p =>
+  fun
+  | Value => p
+  | Children(i, p') => Children(i, pos_concat(p, p'));
+
 let value = (Node(v, _)) => v;
 
 let children = (Node(_, c)) => c;
@@ -64,8 +69,8 @@ let rec equal = (eq, Node(v1, c1), Node(v2, c2)) =>
 let equal_struct = (n1, n2) => equal((_, _) => true, n1, n2);
 
 // @raise `Invalid_argument` if the two trees have different structures
-let rec combine = ((Node(v1, c1), Node(v2, c2))) =>
-  Node((v1, v2), List.combine(c1, c2) |> List.map(combine));
+let rec combine = (Node(v1, c1), Node(v2, c2)) =>
+  Node((v1, v2), List.map2(combine, c1, c2));
 
 /* Iterators */
 

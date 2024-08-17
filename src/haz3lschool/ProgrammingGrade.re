@@ -3,6 +3,7 @@ open Util;
 
 module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
   open Exercise.F(ExerciseEnv);
+  open ProgrammingCore;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type percentage = float;
@@ -23,11 +24,7 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
       provided: int,
     };
 
-    let mk =
-        (
-          eds: ProgrammingCore.model(Editor.t),
-          test_results: option(TestResults.t),
-        ) => {
+    let mk = (eds: model(Editor.t), test_results: option(TestResults.t)) => {
       test_results,
       required: eds.your_tests.required,
       provided: eds.your_tests.provided,
@@ -122,7 +119,7 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
     let mk =
         (
           ~test_validation: DynamicsItem.t,
-          ~hidden_bugs_state: list(ProgrammingCore.wrong_impl(Editor.t)),
+          ~hidden_bugs_state: list(wrong_impl(Editor.t)),
           ~hidden_bugs: list(DynamicsItem.t),
         )
         : t => {
@@ -130,8 +127,7 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
         List.map(hidden_bug_status(test_validation), hidden_bugs);
       let hints =
         List.map(
-          (wrong_impl: ProgrammingCore.wrong_impl(Editor.t)) =>
-            wrong_impl.hint,
+          (wrong_impl: wrong_impl(Editor.t)) => wrong_impl.hint,
           hidden_bugs_state,
         );
       let results = List.combine(results, hints);
@@ -169,11 +165,11 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
 
   module SyntaxReport = {
     type t = {
-      hinted_results: list((bool, ProgrammingCore.hint)),
+      hinted_results: list((bool, hint)),
       percentage,
     };
 
-    let mk = (~your_impl: Editor.t, ~tests: ProgrammingCore.syntax_tests): t => {
+    let mk = (~your_impl: Editor.t, ~tests: syntax_tests): t => {
       let user_impl_term =
         MakeTerm.from_zip_for_sem(your_impl.state.zipper).term;
 
@@ -248,7 +244,7 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
 
   module GradingReport = {
     type t = {
-      point_distribution: ProgrammingCore.point_distribution,
+      point_distribution,
       test_validation_report: TestValidationReport.t,
       mutation_testing_report: MutationTestingReport.t,
       syntax_report: SyntaxReport.t,
@@ -256,10 +252,7 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
     };
 
     let mk =
-        (
-          eds: ProgrammingCore.model(Editor.t),
-          ~stitched_dynamics: ProgrammingCore.stitched(DynamicsItem.t),
-        ) => {
+        (eds: model(Editor.t), ~stitched_dynamics: stitched(DynamicsItem.t)) => {
       point_distribution: eds.point_distribution,
       test_validation_report:
         TestValidationReport.mk(

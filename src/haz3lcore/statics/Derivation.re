@@ -51,15 +51,6 @@ module Prop = {
     aux(0);
   };
 
-  let cls_of: t => cls =
-    fun
-    | Atom(_) => Atom
-    | And(_) => And
-    | Or(_) => Or
-    | Implies(_) => Implies
-    | Truth => Truth
-    | Falsity => Falsity;
-
   let eq: (t, t) => bool = (a, b) => a == b;
 };
 
@@ -110,10 +101,6 @@ module Judgement = {
     | Entail(ctx, prop) =>
       Printf.sprintf("%s ⊢ %s", Ctx.repr(ctx), Prop.repr(prop));
 
-  let cls_of: t => cls =
-    fun
-    | Entail(_, _) => Entail;
-
   let eq: (t, t) => bool = (a, b) => a == b;
 };
 
@@ -160,19 +147,17 @@ module Rule = {
     | Truth_I => 0
     | Falsity_E => 1;
 
-  let for_each = f =>
-    [
-      Assumption,
-      And_I,
-      And_E_L,
-      And_E_R,
-      Or_I_L,
-      Or_I_R,
-      Or_E,
-      Implies_I,
-      Implies_E,
-      Truth_I,
-      Falsity_E,
-    ]
-    |> List.map(f);
+  let all = [
+    Assumption,
+    And_I,
+    And_E_L,
+    And_E_R,
+    Or_I_L,
+    Or_I_R,
+    Or_E,
+    Implies_I,
+    Implies_E,
+    Truth_I,
+    Falsity_E,
+  ];
 };
