@@ -1,3 +1,58 @@
+let evaluate_extend_env =
+    (new_bindings: Environment.t, to_extend: ClosureEnvironment.t)
+    : ClosureEnvironment.t => {
+  to_extend
+  |> ClosureEnvironment.map_of
+  |> Environment.union(new_bindings)
+  |> ClosureEnvironment.of_environment;
+};
+
+let evaluate_extend_env_with_pat =
+    (
+      ids: list(Uuidm.t),
+      copied: bool,
+      pat: DHPat.t,
+      exp: DHExp.t,
+      to_extend: ClosureEnvironment.t,
+    )
+    : ClosureEnvironment.t => {
+  switch (DHPat.get_var(pat)) {
+  | Some(fname) =>
+    evaluate_extend_env(
+      Environment.singleton((
+        fname,
+        {
+          ids,
+          copied,
+          IdTagged.term: TermBase.Exp.FixF(pat, exp, Some(to_extend)),
+        },
+      )),
+      to_extend,
+    )
+  | None =>
+    let bindings = DHPat.bound_vars(pat);
+    let substitutions =
+      List.map(
+        binding =>
+          (
+            binding,
+            TermBase.Exp.Let(
+              pat,
+              {
+                ids,
+                copied,
+                term: TermBase.Exp.FixF(pat, exp, Some(to_extend)),
+              },
+              TermBase.Exp.Var(binding) |> IdTagged.fresh,
+            )
+            |> IdTagged.fresh,
+          ),
+        bindings,
+      );
+    evaluate_extend_env(Environment.of_list(substitutions), to_extend);
+  };
+};
+
 let rec matches_exp =
         (
           ~denv: ClosureEnvironment.t,
@@ -29,28 +84,17 @@ let rec matches_exp =
              fenv |> ClosureEnvironment.without_keys(fp |> DHPat.bound_vars),
            fc,
          )
-    | (FixF(dp, dc, _), _) =>
-      matches_exp(
-        ~denv=denv |> ClosureEnvironment.without_keys(DHPat.bound_vars(dp)),
-        dc,
-        ~fenv=fenv |> ClosureEnvironment.without_keys(DHPat.bound_vars(dp)),
-        f,
-      )
-    | (_, FixF(fp, fc, Some(env))) =>
-      let fenv =
-        switch (DHPat.get_var(fp)) {
-        | Some(fname) =>
-          env
-          |> ClosureEnvironment.map_of
-          |> Environment.union(
-               Environment.singleton((
-                 fname,
-                 {...f, term: TermBase.Exp.FixF(fp, fc, Some(env))},
-               )),
-             )
-          |> ClosureEnvironment.of_environment
-        | None => env
-        };
+    | (FixF(dp, dc, None), _) =>
+      let denv = evaluate_extend_env_with_pat(d.ids, d.copied, dp, dc, denv);
+      matches_exp(~denv, dc, ~fenv, f);
+    | (FixF(dp, dc, Some(denv)), _) =>
+      let denv = evaluate_extend_env_with_pat(d.ids, d.copied, dp, dc, denv);
+      matches_exp(~denv, dc, ~fenv, f);
+    | (_, FixF(fp, fc, None)) =>
+      let fenv = evaluate_extend_env_with_pat(f.ids, f.copied, fp, fc, fenv);
+      matches_exp(~denv, d, ~fenv, fc);
+    | (_, FixF(fp, fc, Some(fenv))) =>
+      let fenv = evaluate_extend_env_with_pat(f.ids, f.copied, fp, fc, fenv);
       matches_exp(~denv, d, ~fenv, fc);
 
     | (_, Constructor("$v", _)) =>
