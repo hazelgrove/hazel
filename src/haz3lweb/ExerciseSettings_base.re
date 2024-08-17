@@ -4,4 +4,5 @@ let exercises: list(Exercise.spec) = [
   Ex_OddlyRecursive.exercise,
   Ex_RecursiveFibonacci.exercise,
   Ex_Derivation.exercise,
+  Ex_Abbr.exercise,
 ];
