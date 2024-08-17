@@ -30,8 +30,7 @@ let exercise : Exercise.spec =
             siblings =
               ( [
                   Secondary { id = Id.mk (); content = Whitespace " " };
-                  Secondary
-                    { id = Id.mk (); content = Whitespace "\226\143\142" };
+                  Secondary { id = Id.mk (); content = Whitespace "\n" };
                   Tile
                     {
                       id = Id.mk ();
@@ -71,8 +70,7 @@ let exercise : Exercise.spec =
                         ];
                     };
                   Secondary { id = Id.mk (); content = Whitespace " " };
-                  Secondary
-                    { id = Id.mk (); content = Whitespace "\226\143\142" };
+                  Secondary { id = Id.mk (); content = Whitespace "\n" };
                   Tile
                     {
                       id = Id.mk ();
@@ -164,10 +162,7 @@ let exercise : Exercise.spec =
                             Secondary
                               { id = Id.mk (); content = Whitespace " " };
                             Secondary
-                              {
-                                id = Id.mk ();
-                                content = Whitespace "\226\143\142";
-                              };
+                              { id = Id.mk (); content = Whitespace "\n" };
                           ];
                         ];
                     };
@@ -357,10 +352,7 @@ let exercise : Exercise.spec =
                     };
                   Secondary { id = Id.mk (); content = Whitespace " " };
                 ],
-                [
-                  Secondary
-                    { id = Id.mk (); content = Whitespace "\226\143\142" };
-                ] );
+                [ Secondary { id = Id.mk (); content = Whitespace "\n" } ] );
             ancestors =
               [
                 ( {
@@ -607,10 +599,7 @@ let exercise : Exercise.spec =
                             Secondary
                               { id = Id.mk (); content = Whitespace " " };
                             Secondary
-                              {
-                                id = Id.mk ();
-                                content = Whitespace "\226\143\142";
-                              };
+                              { id = Id.mk (); content = Whitespace "\n" };
                             Tile
                               {
                                 id = Id.mk ();
@@ -660,10 +649,7 @@ let exercise : Exercise.spec =
                               { id = Id.mk (); content = Whitespace " " };
                             Grout { id = Id.mk (); shape = Convex };
                             Secondary
-                              {
-                                id = Id.mk ();
-                                content = Whitespace "\226\143\142";
-                              };
+                              { id = Id.mk (); content = Whitespace "\n" };
                           ];
                         ];
                     };
@@ -794,10 +780,7 @@ let exercise : Exercise.spec =
                                   Secondary
                                     { id = Id.mk (); content = Whitespace " " };
                                   Secondary
-                                    {
-                                      id = Id.mk ();
-                                      content = Whitespace "\226\143\142";
-                                    };
+                                    { id = Id.mk (); content = Whitespace "\n" };
                                   Tile
                                     {
                                       id = Id.mk ();
@@ -852,10 +835,7 @@ let exercise : Exercise.spec =
                                   Secondary
                                     { id = Id.mk (); content = Whitespace " " };
                                   Secondary
-                                    {
-                                      id = Id.mk ();
-                                      content = Whitespace "\226\143\142";
-                                    };
+                                    { id = Id.mk (); content = Whitespace "\n" };
                                   Tile
                                     {
                                       id = Id.mk ();
@@ -992,8 +972,7 @@ let exercise : Exercise.spec =
                                             Secondary
                                               {
                                                 id = Id.mk ();
-                                                content =
-                                                  Whitespace "\226\143\142";
+                                                content = Whitespace "\n";
                                               };
                                           ];
                                         ];
@@ -1136,8 +1115,7 @@ let exercise : Exercise.spec =
                                             Secondary
                                               {
                                                 id = Id.mk ();
-                                                content =
-                                                  Whitespace "\226\143\142";
+                                                content = Whitespace "\n";
                                               };
                                           ];
                                         ];
@@ -1383,10 +1361,7 @@ let exercise : Exercise.spec =
                                   Secondary
                                     { id = Id.mk (); content = Whitespace " " };
                                   Secondary
-                                    {
-                                      id = Id.mk ();
-                                      content = Whitespace "\226\143\142";
-                                    };
+                                    { id = Id.mk (); content = Whitespace "\n" };
                                 ];
                               ];
                           };
@@ -1516,10 +1491,7 @@ let exercise : Exercise.spec =
                                   Secondary
                                     { id = Id.mk (); content = Whitespace " " };
                                   Secondary
-                                    {
-                                      id = Id.mk ();
-                                      content = Whitespace "\226\143\142";
-                                    };
+                                    { id = Id.mk (); content = Whitespace "\n" };
                                   Tile
                                     {
                                       id = Id.mk ();
@@ -1574,10 +1546,7 @@ let exercise : Exercise.spec =
                                   Secondary
                                     { id = Id.mk (); content = Whitespace " " };
                                   Secondary
-                                    {
-                                      id = Id.mk ();
-                                      content = Whitespace "\226\143\142";
-                                    };
+                                    { id = Id.mk (); content = Whitespace "\n" };
                                   Tile
                                     {
                                       id = Id.mk ();
@@ -1719,8 +1688,7 @@ let exercise : Exercise.spec =
                                             Secondary
                                               {
                                                 id = Id.mk ();
-                                                content =
-                                                  Whitespace "\226\143\142";
+                                                content = Whitespace "\n";
                                               };
                                           ];
                                         ];
@@ -1964,10 +1932,7 @@ let exercise : Exercise.spec =
                                   Secondary
                                     { id = Id.mk (); content = Whitespace " " };
                                   Secondary
-                                    {
-                                      id = Id.mk ();
-                                      content = Whitespace "\226\143\142";
-                                    };
+                                    { id = Id.mk (); content = Whitespace "\n" };
                                 ];
                               ];
                           };
@@ -2118,8 +2083,7 @@ let exercise : Exercise.spec =
                           shards = [ 0 ];
                           children = [];
                         };
-                      Secondary
-                        { id = Id.mk (); content = Whitespace "\226\143\142" };
+                      Secondary { id = Id.mk (); content = Whitespace "\n" };
                       Tile
                         {
                           id = Id.mk ();
@@ -2247,8 +2211,7 @@ let exercise : Exercise.spec =
                           shards = [ 0 ];
                           children = [];
                         };
-                      Secondary
-                        { id = Id.mk (); content = Whitespace "\226\143\142" };
+                      Secondary { id = Id.mk (); content = Whitespace "\n" };
                       Tile
                         {
                           id = Id.mk ();
@@ -2376,8 +2339,7 @@ let exercise : Exercise.spec =
                           shards = [ 0 ];
                           children = [];
                         };
-                      Secondary
-                        { id = Id.mk (); content = Whitespace "\226\143\142" };
+                      Secondary { id = Id.mk (); content = Whitespace "\n" };
                       Tile
                         {
                           id = Id.mk ();
@@ -2505,8 +2467,7 @@ let exercise : Exercise.spec =
                           shards = [ 0 ];
                           children = [];
                         };
-                      Secondary
-                        { id = Id.mk (); content = Whitespace "\226\143\142" };
+                      Secondary { id = Id.mk (); content = Whitespace "\n" };
                       Tile
                         {
                           id = Id.mk ();
@@ -2634,8 +2595,7 @@ let exercise : Exercise.spec =
                           shards = [ 0 ];
                           children = [];
                         };
-                      Secondary
-                        { id = Id.mk (); content = Whitespace "\226\143\142" };
+                      Secondary { id = Id.mk (); content = Whitespace "\n" };
                       Tile
                         {
                           id = Id.mk ();
@@ -2763,8 +2723,7 @@ let exercise : Exercise.spec =
                           shards = [ 0 ];
                           children = [];
                         };
-                      Secondary
-                        { id = Id.mk (); content = Whitespace "\226\143\142" };
+                      Secondary { id = Id.mk (); content = Whitespace "\n" };
                       Tile
                         {
                           id = Id.mk ();
@@ -2892,8 +2851,7 @@ let exercise : Exercise.spec =
                           shards = [ 0 ];
                           children = [];
                         };
-                      Secondary
-                        { id = Id.mk (); content = Whitespace "\226\143\142" };
+                      Secondary { id = Id.mk (); content = Whitespace "\n" };
                       Tile
                         {
                           id = Id.mk ();
@@ -3021,8 +2979,7 @@ let exercise : Exercise.spec =
                           shards = [ 0 ];
                           children = [];
                         };
-                      Secondary
-                        { id = Id.mk (); content = Whitespace "\226\143\142" };
+                      Secondary { id = Id.mk (); content = Whitespace "\n" };
                       Tile
                         {
                           id = Id.mk ();
@@ -3150,8 +3107,7 @@ let exercise : Exercise.spec =
                           shards = [ 0 ];
                           children = [];
                         };
-                      Secondary
-                        { id = Id.mk (); content = Whitespace "\226\143\142" };
+                      Secondary { id = Id.mk (); content = Whitespace "\n" };
                     ],
                     [ Grout { id = Id.mk (); shape = Convex } ] );
                 ancestors = [];
