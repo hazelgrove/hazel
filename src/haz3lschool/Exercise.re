@@ -68,6 +68,8 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     syntax_tests,
   };
 
+  type record = p(Zipper.t);
+
   let id_of = p => {
     p.id;
   };
@@ -132,8 +134,25 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     eds,
   };
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent_state = (pos, list((pos, PersistentZipper.t)), string);
+  // [@deriving (show({with_path: false}), sexp, yojson)]
+  type persistent_state = (
+    pos,
+    list((pos, PersistentZipper.t)),
+    string,
+    list(wrong_impl(Editor.t)),
+  );
+
+  /*
+
+  type PersistentEditor = ;
+
+  type persistent_eds = p(PersistentEditor.t);
+
+  type persistent_state = {
+    pos,
+    persistent_eds,
+  };
+  */
 
   let editor_of_state: state => Editor.t =
     ({pos, eds, _}) =>
@@ -498,6 +517,48 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     },
   };
 
+  let add_buggy_impl = (state: state, ~editing_title) => {
+    let new_buggy_impl = {
+      impl: Editor.init(Zipper.init()),
+      hint: "no hint available",
+    };
+    let new_state = {
+      pos: HiddenBugs(List.length(state.eds.hidden_bugs)),
+      eds: {
+        ...state.eds,
+        hidden_bugs: state.eds.hidden_bugs @ [new_buggy_impl],
+      },
+    };
+    let new_state = set_editing_title(new_state, editing_title);
+    put_editor(new_state, new_buggy_impl.impl);
+  };
+
+  let delete_buggy_impl = (state: state, index: int) => {
+    let length = List.length(state.eds.hidden_bugs);
+    let flag = length > 1;
+    let editor_on =
+      flag
+        ? List.nth(
+            state.eds.hidden_bugs,
+            index < length - 1 ? index + 1 : index - 1,
+          ).
+            impl
+        : state.eds.your_tests.tests;
+    let position =
+      flag
+        ? HiddenBugs(index < length - 1 ? index : index - 1)
+        : YourTestsValidation;
+    let new_state = {
+      pos: position,
+      eds: {
+        ...state.eds,
+        hidden_bugs:
+          List.filteri((i, _) => i != index, state.eds.hidden_bugs),
+      },
+    };
+    put_editor(new_state, editor_on);
+  };
+
   let visible_in = (pos, ~instructor_mode) => {
     switch (pos) {
     | Prelude => instructor_mode
@@ -516,20 +577,19 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     set_instructor_mode({pos: YourImpl, eds}, instructor_mode);
   };
 
-  let persistent_state_of_state =
-      ({pos, eds} as state: state, ~instructor_mode: bool) => {
+  let persistent_state_of_state = (state: state, ~instructor_mode: bool) => {
     let zippers =
       positioned_editors(state)
       |> List.filter(((pos, _)) => visible_in(pos, ~instructor_mode))
       |> List.map(((pos, editor)) => {
            (pos, PersistentZipper.persist(Editor.(editor.state.zipper)))
          });
-    (pos, zippers, eds.title);
+    (state.pos, zippers, state.eds.title);
   };
 
   let unpersist_state =
       (
-        (pos, positioned_zippers, title): persistent_state,
+        (pos, positioned_zippers, title, hints): persistent_state,
         ~spec: spec,
         ~instructor_mode: bool,
         ~editing_title: bool,
@@ -544,18 +604,22 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       } else {
         Editor.init(default, ~settings);
       };
+    print_endline("Unpersisting State Now");
     let prelude = lookup(Prelude, spec.prelude);
     let correct_impl = lookup(CorrectImpl, spec.correct_impl);
     let your_tests_tests = lookup(YourTestsValidation, spec.your_tests.tests);
     let your_impl = lookup(YourImpl, spec.your_impl);
     let (_, hidden_bugs) =
       List.fold_left(
-        ((i, hidden_bugs: list(wrong_impl(Editor.t))), {impl, hint}) => {
-          let impl = lookup(HiddenBugs(i), impl);
+        ((i, hidden_bugs: list(wrong_impl(Editor.t))), hint) => {
+          let persisted_zipper =
+            List.assoc(HiddenBugs(i), positioned_zippers);
+          let zipper = PersistentZipper.unpersist(persisted_zipper);
+          let impl = Editor.init(zipper);
           (i + 1, hidden_bugs @ [{impl, hint}]);
         },
         (0, []),
-        spec.hidden_bugs,
+        hints,
       );
     let hidden_tests_tests = lookup(HiddenTests, spec.hidden_tests.tests);
     let state =
@@ -563,8 +627,7 @@ module F = (ExerciseEnv: ExerciseEnv) => {
         {
           pos,
           eds: {
-            id: spec.id, // to-do: implement generation of id and update respective spec
-            // *Note: this is the only time we change the spec (upon page load)
+            id: spec.id,
             title,
             module_name: spec.module_name,
             prompt: spec.prompt,
@@ -962,12 +1025,14 @@ module F = (ExerciseEnv: ExerciseEnv) => {
   };
 
   let serialize_exercise = (exercise, ~instructor_mode) => {
+    print_endline("Serializing Exercise Now");
     persistent_state_of_state(exercise, ~instructor_mode)
     |> sexp_of_persistent_state
     |> Sexplib.Sexp.to_string;
   };
 
   let deserialize_exercise = (data, ~spec, ~instructor_mode, ~editing_title) => {
+    print_endline("Deserializing Exercise Now");
     data
     |> Sexplib.Sexp.of_string
     |> persistent_state_of_sexp

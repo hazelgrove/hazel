@@ -569,6 +569,20 @@ let apply =
         ...model,
         editors: Editors.update_exercise_title(model.editors, new_title),
       })
+    | AddBuggyImplementation =>
+      Model.save_and_return({
+        ...model,
+        editors:
+          Editors.add_buggy_impl(
+            model.editors,
+            ~editing_title=model.settings.editing_title,
+          ),
+      })
+    | DeleteBuggyImplementation(index) =>
+      Model.save_and_return({
+        ...model,
+        editors: Editors.delete_buggy_impl(model.editors, index),
+      })
     };
   m |> Result.map(~f=update_cached_data(~schedule_action, update));
 };

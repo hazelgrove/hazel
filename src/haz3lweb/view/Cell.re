@@ -316,6 +316,7 @@ let editor_view =
       ]),
     ],
     [
+      div(~attr=Attr.class_("cell-item"), Option.to_list(caption)),
       div(
         ~attrs=[
           Attr.classes(["cell-item"]),
