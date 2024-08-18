@@ -53,6 +53,8 @@ let evaluate_extend_env_with_pat =
   };
 };
 
+let alpha_magic = "__alpha_id__";
+
 let rec matches_exp =
         (
           ~denv: ClosureEnvironment.t,
@@ -75,15 +77,33 @@ let rec matches_exp =
 
     // HACK[Matt]: ignore fixpoints in comparison, to allow pausing on fixpoint steps
     | (FixF(dp, dc, _), FixF(fp, fc, _)) =>
-      matches_pat(dp, fp)
-      && matches_exp(
-           ~denv=
-             denv |> ClosureEnvironment.without_keys(dp |> DHPat.bound_vars),
-           dc,
-           ~fenv=
-             fenv |> ClosureEnvironment.without_keys(fp |> DHPat.bound_vars),
-           fc,
-         )
+      let dvars = DHPat.bound_vars(dp);
+      let fvars = DHPat.bound_vars(fp);
+      if (List.length(dvars) != List.length(fvars)) {
+        false;
+      } else {
+        let ids =
+          Array.init(List.length(dvars), _ => {
+            alpha_magic ++ Uuidm.to_string(Uuidm.v(`V4))
+          });
+        let denv_subst: list((string, 'a)) =
+          List.mapi(
+            (i, binding) =>
+              (binding, TermBase.Exp.Var(ids[i]) |> IdTagged.fresh),
+            dvars,
+          );
+        let fenv_subst: list((string, 'a)) =
+          List.mapi(
+            (i, binding) =>
+              (binding, TermBase.Exp.Var(ids[i]) |> IdTagged.fresh),
+            fvars,
+          );
+        let denv =
+          evaluate_extend_env(Environment.of_list(denv_subst), denv);
+        let fenv =
+          evaluate_extend_env(Environment.of_list(fenv_subst), fenv);
+        matches_exp(~denv, dc, ~fenv, fc);
+      };
     | (FixF(dp, dc, None), _) =>
       let denv = evaluate_extend_env_with_pat(d.ids, d.copied, dp, dc, denv);
       matches_exp(~denv, dc, ~fenv, f);
@@ -121,14 +141,19 @@ let rec matches_exp =
     | (Filter(Residue(_), d), _) => matches_exp(d, f)
 
     | (Var(dx), Var(fx)) =>
-      switch (
-        ClosureEnvironment.lookup(denv, dx),
-        ClosureEnvironment.lookup(fenv, fx),
-      ) {
-      | (Some(d), Some(f)) => matches_exp(d, f)
-      | (Some(_), None) => false
-      | (None, Some(_)) => false
-      | (None, None) => true
+      if (String.starts_with(~prefix=alpha_magic, dx)
+          && String.starts_with(~prefix=alpha_magic, fx)) {
+        String.equal(dx, fx);
+      } else {
+        switch (
+          ClosureEnvironment.lookup(denv, dx),
+          ClosureEnvironment.lookup(fenv, fx),
+        ) {
+        | (Some(d), Some(f)) => matches_exp(d, f)
+        | (Some(_), None) => false
+        | (None, Some(_)) => false
+        | (None, None) => true
+        };
       }
     | (Var(dx), _) =>
       switch (ClosureEnvironment.lookup(denv, dx)) {
@@ -284,13 +309,31 @@ and matches_fun =
       fp: DHPat.t,
       f: DHExp.t,
     ) => {
-  matches_pat(dp, fp)
-  && matches_exp(
-       ~denv=ClosureEnvironment.without_keys(DHPat.bound_vars(dp), denv),
-       d,
-       ~fenv=ClosureEnvironment.without_keys(DHPat.bound_vars(fp), fenv),
-       f,
-     );
+  let dvars = DHPat.bound_vars(dp);
+  let fvars = DHPat.bound_vars(fp);
+  if (List.length(dvars) != List.length(fvars)) {
+    false;
+  } else {
+    let ids =
+      Array.init(List.length(dvars), _ => {
+        alpha_magic ++ Uuidm.to_string(Uuidm.v(`V4))
+      });
+    let denv_subst: list((string, 'a)) =
+      List.mapi(
+        (i, binding) =>
+          (binding, TermBase.Exp.Var(ids[i]) |> IdTagged.fresh),
+        dvars,
+      );
+    let fenv_subst: list((string, 'a)) =
+      List.mapi(
+        (i, binding) =>
+          (binding, TermBase.Exp.Var(ids[i]) |> IdTagged.fresh),
+        fvars,
+      );
+    let denv = evaluate_extend_env(Environment.of_list(denv_subst), denv);
+    let fenv = evaluate_extend_env(Environment.of_list(fenv_subst), fenv);
+    matches_exp(~denv, d, ~fenv, f);
+  };
 }
 
 and matches_pat = (d: Pat.t, f: Pat.t): bool => {
