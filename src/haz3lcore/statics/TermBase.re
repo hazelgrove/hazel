@@ -977,8 +977,6 @@ and TPat: {
     | Var(string)
   and t = IdTagged.t(term);
 
-  // let term_of_menhir: Haz3lmenhir.AST.TPat
-
   let map_term:
     (
       ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
