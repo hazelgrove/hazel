@@ -157,7 +157,7 @@ let proof_view =
     Ui_effect.Ignore;
   };
 
-  let label_view = (~pos, ~res, ~rule) =>
+  let label_view = (~pos, ~res, ~label) =>
     div(
       ~attrs=[
         Attr.class_("deduction-label"),
@@ -165,14 +165,13 @@ let proof_view =
         Attr.id(show_pos(pos) ++ "-label"),
         Attr.on_mousemove(_ => label_on_mouseover(~pos)),
       ],
-      [text(Derivation.Rule.repr(rule))],
+      [text(label)],
     );
 
-  let label_view = (~pos, ~res, ~rule): t =>
+  let label_view = (~pos, ~res, ~label): t =>
     div(
-      ~attrs=[],
-      // ~attrs=[Attr.class_("rule-block")],
-      [label_view(~pos, ~res, ~rule), dropdown_view(~pos, ~res)],
+      ~attrs=[Attr.class_("deduction-label-container")],
+      [label_view(~pos, ~res, ~label), dropdown_view(~pos, ~res)],
     );
 
   let add_premise = (m: model(Editor.t), ~pos, ~index): model(Editor.t) =>
@@ -241,6 +240,7 @@ let proof_view =
 
   let premises_view = (~children_node, ~pos, ~res, ~rule) => {
     let n = List.length(children_node);
+    let label = Derivation.Rule.repr(rule);
     div(
       ~attrs=[
         Attr.class_("deduction-prems"),
@@ -259,7 +259,7 @@ let proof_view =
       )
       @ [
         add_premise_btn_view(~pos, ~index=n),
-        label_view(~pos, ~res, ~rule),
+        label_view(~pos, ~res, ~label),
       ],
     );
   };
@@ -268,6 +268,7 @@ let proof_view =
       (this_pos, ~editor, ~di: Exercise.DynamicsItem.t, ~caption) =>
     Cell.editor_view(
       ~selected=(Proof(pos): Exercise.pos) == this_pos,
+      ~override_statics=di.statics,
       ~inject,
       ~ui_state,
       ~mousedown_updates=[SwitchEditor(this_pos)],
@@ -294,23 +295,160 @@ let proof_view =
       ],
     );
 
-  let abbreviation_view = (~res, ~index) =>
+  // TODO: Refactor this
+  let abbreviation_view = (~pos, ~res, ~index) =>
     div(
       ~attrs=[Attr.class_("deduction-abbr")],
-      [text(string_of_int(index) ++ ": " ++ dropdown_result(res))],
+      [
+        div(
+          ~attrs=[
+            Attr.class_("deduction-prems"),
+            Attr.class_(class_of_result(res)),
+          ],
+          [label_view(~pos, ~res, ~label="")],
+        ),
+        div(
+          ~attrs=[Attr.class_("deduction-concl")],
+          [
+            div(
+              ~attrs=[Attr.class_("code")],
+              [
+                span(
+                  ~attrs=[Attr.class_("code-text")],
+                  [
+                    span(
+                      ~attrs=[Attr.class_("token default Pat poly")],
+                      [text("d" ++ string_of_int(index))],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
     );
 
   let deduction_view = ((pos, res, ed): view_info, children_node: list(t)) =>
     switch (ed) {
     | Just(rule, editor, di) =>
       deduction_view(~children_node, ~pos, ~res, ~rule, ~editor, ~di)
-    | Abbr(index) => abbreviation_view(~res, ~index)
+    | Abbr(index) => abbreviation_view(~pos, ~res, ~index)
     };
+
+  let abbreviation_wrapper = (i, t) => {
+    let token_wrapper = (cls, s) =>
+      span(~attrs=[Attr.class_(cls)], [text(s)]);
+    let span_exp = token_wrapper("token default Exp poly");
+    let span_pat = token_wrapper("token default Pat mono");
+    let span_secondary = token_wrapper("secondary");
+    let code_wrapper = code =>
+      div(
+        ~attrs=[Attr.class_("code")],
+        [span(~attrs=[Attr.class_("code-text")], code)],
+      );
+    let upper_code =
+      [
+        span_exp("let"),
+        span_secondary(" "),
+        span_pat("d" ++ string_of_int(i)),
+        span_secondary(" "),
+        span_exp("="),
+      ]
+      |> code_wrapper;
+    let lower_code = [span_exp("in")] |> code_wrapper;
+    div(~attrs=[], [upper_code, t, lower_code]);
+  };
+
+  let add_abbr = (m: model(Editor.t), ~index): model(Editor.t) => {
+    let trees =
+      m.trees
+      |> List.mapi(j =>
+           if (j >= index) {
+             Tree.map(
+               fun
+               | Exercise.Proof.Just(_) as j => j
+               | Abbr(i) => i >= index ? Abbr(i + 1) : Abbr(i),
+             );
+           } else {
+             Fun.id;
+           }
+         );
+    {...m, trees};
+  };
+
+  let add_abbr_btn_view = (~index) =>
+    div(
+      ~attrs=[
+        Attr.class_("add-abbr-btn"),
+        Attr.on_click(_ =>
+          inject(UpdateAction.MapExercise(map_model(add_abbr(~index))))
+        ),
+      ],
+      [text("+")],
+    );
+  ignore(add_abbr_btn_view);
+
+  let del_abbr = (m: model(Editor.t), ~index): model(Editor.t) => {
+    let trees =
+      m.trees
+      |> List.mapi(j =>
+           if (j >= index) {
+             Tree.map(
+               fun
+               | Exercise.Proof.Just(_) as j => j
+               | Abbr(i) => {
+                   // TODO: consider when it refer to the deleted abbr
+                   i > index
+                     ? Abbr(i - 1) : Abbr(i);
+                 },
+             );
+           } else {
+             Fun.id;
+           }
+         );
+    {...m, trees};
+  };
+
+  // TODO: implement del_abbr_pos_check
+  let del_abbr_pos_check = (state: Exercise.state, ~index) => {
+    ...state,
+    pos: {
+      ignore(index);
+      state.pos;
+    },
+  };
+
+  let del_abbr_btn_view = (~index) =>
+    div(
+      ~attrs=[
+        Attr.class_("del-abbr-btn"),
+        Attr.on_click(_ =>
+          inject(
+            UpdateAction.MapExercise(
+              state =>
+                state
+                |> map_model(del_abbr(~index))
+                |> del_abbr_pos_check(~index),
+            ),
+          )
+        ),
+      ],
+      [text("-")],
+    );
+  ignore(del_abbr_btn_view);
 
   // type view_info = (Exercise.pos, VerifiedTree.res, ed)
   // and ed =
   //   | Just(Derivation.Rule.t, Editor.t, Exercise.DynamicsItem.t)
   //   | Abbr(index);
+
+  let derivation_wrapper = l =>
+    switch (List.rev(l)) {
+    | [] => failwith("derivation_wrapper: empty list")
+    | [hd, ...tl] =>
+      (tl |> List.rev |> List.mapi(abbreviation_wrapper)) @ [hd]
+    };
 
   let info_tree =
     List.map2(Tree.combine, eds.trees, stitched_dynamics.trees)
@@ -334,7 +472,12 @@ let proof_view =
         Cell.caption("Derivation"),
         div(
           ~attrs=[Attr.class_("cell-derivation")],
-          List.map(Tree.fold_deep(deduction_view), info_tree),
+          info_tree
+          |> List.map(Tree.fold_deep(deduction_view))
+          |> List.map(t =>
+               div(~attrs=[Attr.class_("deduction-tree")], [t])
+             )
+          |> derivation_wrapper,
         ),
       ]),
     ]);
