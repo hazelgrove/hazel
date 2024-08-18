@@ -8,23 +8,6 @@ let dhexp_typ = testable(Fmt.using(Exp.show, Fmt.string), DHExp.fast_equal);
 let ids = List.init(12, _ => Id.mk());
 let id_at = x => x |> List.nth(ids);
 
-//Starts at 0
-let get_id_menhir_closure = (id_index: int) => {
-  let id_index = ref(id_index - 1);
-  (inc: bool) => {
-    print_endline(
-      "get id inc: "
-      ++ string_of_bool(inc)
-      ++ " "
-      ++ string_of_int(id_index^),
-    );
-    if (inc) {
-      id_index := id_index^ + 1;
-    };
-    id_at(id_index^);
-  };
-};
-
 let mk_map = CoreSettings.on |> Interface.Statics.mk_map;
 let dhexp_of_uexp = u => Elaborator.elaborate(mk_map(u), u) |> fst;
 let alco_check = dhexp_typ |> Alcotest.check;
