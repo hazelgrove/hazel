@@ -1,3 +1,4 @@
+open Util;
 open Virtual_dom.Vdom;
 open Haz3lcore;
 open Node;
@@ -6,7 +7,7 @@ let get_goal = (~font_metrics: FontMetrics.t, ~target_id, e) => {
   let rect = JsUtil.get_elem_by_id(target_id)##getBoundingClientRect;
   let goal_x = float_of_int(e##.clientX);
   let goal_y = float_of_int(e##.clientY);
-  Measured.Point.{
+  Point.{
     row: Float.to_int((goal_y -. rect##.top) /. font_metrics.row_height),
     col:
       Float.(
@@ -42,7 +43,6 @@ let mousedown_handler =
   switch (JsUtil.ctrl_held(evt), JsUtil.num_clicks(evt)) {
   | (true, _) =>
     let goal = get_goal(~font_metrics, ~target_id, evt);
-
     let events = [
       inject(PerformAction(Move(Goal(Point(goal))))),
       inject(PerformAction(Jump(BindingSiteOfIndicatedVar))),
@@ -50,18 +50,19 @@ let mousedown_handler =
     Virtual_dom.Vdom.Effect.Many(events);
   | (false, 1) =>
     let goal = get_goal(~font_metrics, ~target_id, evt);
+    /* Note that we only trigger drag mode (set mousedown)
+     * when the left mouse button (aka button 0) is pressed */
     Virtual_dom.Vdom.Effect.Many(
       List.map(
         inject,
         Update.(
-          [SetMeta(Mousedown)]
+          (JsUtil.mouse_button(evt) == 0 ? [SetMeta(Mousedown)] : [])
           @ mousedown_updates
           @ [PerformAction(Move(Goal(Point(goal))))]
         ),
       ),
     );
-  | (false, 2) => inject(PerformAction(Select(Tile(Current))))
-  | (false, 3 | _) => inject(PerformAction(Select(Smart)))
+  | (false, n) => inject(PerformAction(Select(Smart(n))))
   };
 
 let narrative_cell = (content: Node.t) =>
@@ -93,56 +94,57 @@ let test_status_icon_view =
   };
 
 let test_result_layer =
-    (~font_metrics, ~measured: Measured.t, test_results: TestResults.t)
-    : list(t) =>
-  List.filter_map(
-    ((id, insts)) =>
-      switch (Id.Map.find_opt(id, measured.tiles)) {
-      | Some(ms) => test_status_icon_view(~font_metrics, insts, ms)
-      | None => None
-      },
-    test_results.test_map,
+    (~font_metrics, ~measured: Measured.t, test_results: TestResults.t): t =>
+  Web.div_c(
+    "test-decos",
+    List.filter_map(
+      ((id, insts)) =>
+        switch (Id.Map.find_opt(id, measured.tiles)) {
+        | Some(ms) => test_status_icon_view(~font_metrics, insts, ms)
+        | None => None
+        },
+      test_results.test_map,
+    ),
   );
 
 let deco =
     (
-      ~font_metrics,
-      ~show_backpack_targets,
+      ~inject,
+      ~ui_state,
       ~selected,
-      ~error_ids,
       ~test_results: option(TestResults.t),
       ~highlights: option(ColorSteps.colorMap),
-      {
-        state:
-          {
-            zipper,
-            meta: {term_ranges, segment, measured, terms, tiles, _},
-            _,
-          },
-        _,
-      }: Editor.t,
+      z,
+      meta: Editor.Meta.t,
     ) => {
   module Deco =
     Deco.Deco({
-      let map = measured;
-      let terms = terms;
-      let term_ranges = term_ranges;
-      let tiles = tiles;
-      let font_metrics = font_metrics;
-      let show_backpack_targets = show_backpack_targets;
-      let error_ids = error_ids;
+      let ui_state = ui_state;
+      let meta = meta;
+      let highlights = highlights;
     });
-  let decos = selected ? Deco.all(zipper, segment) : Deco.err_holes(zipper);
+  let decos = selected ? Deco.all(z) : Deco.always();
   let decos =
-    switch (test_results) {
-    | None => decos
-    | Some(test_results) =>
-      decos @ test_result_layer(~font_metrics, ~measured, test_results) // TODO move into decos
-    };
-  switch (highlights) {
-  | Some(colorMap) =>
-    decos @ Deco.color_highlights(ColorSteps.to_list(colorMap))
-  | _ => decos
+    decos
+    @ [
+      ProjectorView.all(
+        z,
+        ~meta,
+        ~inject,
+        ~font_metrics=ui_state.font_metrics,
+      ),
+    ];
+  switch (test_results) {
+  | None => decos
+  | Some(test_results) =>
+    decos
+    @ [
+      test_result_layer(
+        ~font_metrics=ui_state.font_metrics,
+        ~measured=meta.syntax.measured,
+        test_results,
+      ),
+    ] // TODO move into decos
   };
 };
 
@@ -248,9 +250,8 @@ let footer =
 
 let editor_view =
     (
-      ~inject,
-      ~ui_state as
-        {font_metrics, show_backpack_targets, mousedown, _}: Model.ui_state,
+      ~inject: UpdateAction.t => Ui_effect.t(unit),
+      ~ui_state: Model.ui_state,
       ~settings: Settings.t,
       ~target_id: string,
       ~mousedown_updates: list(Update.t)=[],
@@ -261,29 +262,41 @@ let editor_view =
       ~footer: option(list(Node.t))=?,
       ~highlights: option(ColorSteps.colorMap),
       ~overlayer: option(Node.t)=None,
-      ~error_ids: list(Id.t),
       ~sort=Sort.root,
+      ~override_statics: option(Editor.CachedStatics.t)=?,
       editor: Editor.t,
     ) => {
-  let code_text_view = Code.view(~sort, ~font_metrics, ~settings, editor);
-  let deco_view =
-    deco(
-      ~font_metrics,
-      ~show_backpack_targets,
-      ~selected,
-      ~error_ids,
-      ~test_results,
-      ~highlights,
-      editor,
-    );
-  let code_view =
-    div(
-      ~attrs=[Attr.id(target_id), Attr.classes(["code-container"])],
-      [code_text_view] @ deco_view @ Option.to_list(overlayer),
-    );
+  let Model.{font_metrics, mousedown, _} = ui_state;
+  let meta =
+    /* For exercises modes */
+    switch (override_statics) {
+    | None => editor.state.meta
+    | Some(statics) => {...editor.state.meta, statics}
+    };
   let mousedown_overlay =
     selected && mousedown
       ? [mousedown_overlay(~inject, ~font_metrics, ~target_id)] : [];
+  let code_text_view =
+    Code.view(~sort, ~font_metrics, ~settings, editor.state.zipper, meta);
+  let deco_view =
+    deco(
+      ~inject,
+      ~ui_state,
+      ~selected,
+      ~test_results,
+      ~highlights,
+      editor.state.zipper,
+      meta,
+    );
+
+  let code_view =
+    div(
+      ~attrs=[Attr.id(target_id), Attr.classes(["code-container"])],
+      [code_text_view]
+      @ deco_view
+      @ Option.to_list(overlayer)
+      @ mousedown_overlay,
+    );
   let on_mousedown =
     locked
       ? _ =>
@@ -308,7 +321,7 @@ let editor_view =
           Attr.classes(["cell-item"]),
           Attr.on_mousedown(on_mousedown),
         ],
-        Option.to_list(caption) @ mousedown_overlay @ [code_view],
+        Option.to_list(caption) @ [code_view],
       ),
     ]
     @ (footer |> Option.to_list |> List.concat),
@@ -365,10 +378,11 @@ let locked_no_statics =
     ~target_id,
     ~footer=[],
     ~test_results=None,
-    ~error_ids=[],
     ~overlayer=Some(expander_deco),
     ~sort,
-    segment |> Zipper.unzip |> Editor.init(~read_only=true),
+    segment
+    |> Zipper.unzip
+    |> Editor.init(~settings=CoreSettings.off, ~read_only=true),
   ),
 ];
 
@@ -383,17 +397,17 @@ let locked =
       ~target_id,
       ~segment: Segment.t,
     ) => {
-  let editor = segment |> Zipper.unzip |> Editor.init(~read_only=true);
-  let statics =
-    settings.core.statics
-      ? ScratchSlide.mk_statics(~settings, editor, Builtins.ctx_init)
-      : CachedStatics.empty_statics;
+  let editor =
+    segment
+    |> Zipper.unzip
+    |> Editor.init(~settings=settings.core, ~read_only=true);
+  let statics = editor.state.meta.statics;
   let elab =
     settings.core.elaborate || settings.core.dynamics
       ? Interface.elaborate(
           ~settings=settings.core,
           statics.info_map,
-          editor.state.meta.view_term,
+          statics.term,
         )
       : DHExp.Bool(true) |> DHExp.fresh;
   let elab: Elaborator.Elaboration.t = {d: elab};
@@ -426,7 +440,6 @@ let locked =
     ~target_id,
     ~footer,
     ~test_results=ModelResult.test_results(result),
-    ~error_ids=statics.error_ids,
     editor,
   );
 };
