@@ -132,6 +132,24 @@ let update_exercise_title = (editors: t, new_title: string): t =>
     Exercises(n, specs, Exercise.update_exercise_title(exercise, new_title))
   };
 
+let add_buggy_impl = (editors: t, ~editing_title) => {
+  switch (editors) {
+  | Scratch(_)
+  | Documentation(_) => editors
+  | Exercises(n, specs, exercise) =>
+    Exercises(n, specs, Exercise.add_buggy_impl(exercise, ~editing_title))
+  };
+};
+
+let delete_buggy_impl = (editors: t, index: int) => {
+  switch (editors) {
+  | Scratch(_)
+  | Documentation(_) => editors
+  | Exercises(n, specs, exercise) =>
+    Exercises(n, specs, Exercise.delete_buggy_impl(exercise, index))
+  };
+};
+
 let reset_nth_slide = (~settings: CoreSettings.t, n, slides): list(Editor.t) => {
   let (_, init_editors, _) = Init.startup.scratch;
   let data = List.nth(init_editors, n);
