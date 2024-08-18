@@ -16,27 +16,33 @@ jobs:
           path: source
       - name: Add the name of the current branch to the environment as BRANCH_NAME
         uses: nelonoel/branch-name@v1.0.1
-      - name: Retrieve the build environment if cached
-        id: opam-cache
-        uses: actions/cache@v2
-        with:
-          path: '/home/runner/.opam/'
-          key: ${{ runner.os }}-modules-${{ hashFiles('./source/opam.export') }}
       - name: Set-up OCaml
-        run: |
-          sudo apt --assume-yes install curl m4 opam
-          export OPAMYES=1
-          opam init --compiler=ocaml-base-compiler.5.2.0
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: 5.2.0
+          dune-cache: true
+      - name: Retrieve the switch environment if cached
+        id: opam-cache-switch
+        uses: actions/cache@v4
+        with:
+          path: '_opam'
+          key: ${{ runner.os }}-modules-${{ hashFiles('./source/hazel.opam.locked') }}
       - name: Install dependencies
         run: |
           eval $(opam env)
           export OPAMYES=1
-          make deps 
+          export DUNE_CACHE=enabled
+          opam install . --deps-only --with-test --locked
         working-directory: ./source
-      - name: Build Release
+      - name: Clean opam switch
         run: |
           eval $(opam env)
-          make release
+          export OPAMYES=1
+          opam clean --all-switches --download-cache --logs --repo-cache --unused-repositories
+      - name: Build Release
+        run: |
+          export DUNE_CACHE=enabled
+          opam exec -- dune build @src/fmt --auto-promote src --profile release
         working-directory: ./source
       - name: Checkout the website build artifacts repo
         uses: actions/checkout@v2

@@ -19,6 +19,7 @@ let tokens =
     _ => [],
     _ => [" "],
     (t: Tile.t) => t.shards |> List.map(List.nth(t.label)),
+    _ => [],
   );
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -33,6 +34,12 @@ type unsorted =
   | Pre(tiles, t)
   | Post(t, tiles)
   | Bin(t, tiles, t);
+
+type t = {
+  term: UExp.t,
+  terms: TermMap.t,
+  projectors: Id.Map.t(Piece.projector),
+};
 
 let is_nary =
     (is_sort: Any.t => option('sort), delim: Token.t, (delims, kids): tiles)
@@ -102,6 +109,21 @@ let return = (wrap, ids, tm) => {
   tm;
 };
 
+/* Map to collect projector ids */
+let projectors: ref(Id.Map.t(Piece.projector)) = ref(Id.Map.empty);
+
+/* Strip a projector from a segment and log it in the map */
+let rm_and_log_projectors = (seg: Segment.t): Segment.t =>
+  List.map(
+    fun
+    | Piece.Projector(pr) => {
+        projectors := Id.Map.add(pr.id, pr, projectors^);
+        pr.syntax;
+      }
+    | x => x,
+    seg,
+  );
+
 let parse_sum_term: UTyp.t => ConstructorMap.variant(UTyp.t) =
   fun
   | {term: Var(ctr), ids, _} => Variant(ctr, ids, None)
@@ -117,7 +139,7 @@ let mk_bad = (ctr, ids, value) => {
   };
 };
 
-let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): t =>
+let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
   switch (s) {
   | Pat => Pat(pat(unsorted(skel, seg)))
   | TPat => TPat(tpat(unsorted(skel, seg)))
@@ -318,10 +340,7 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
         | ([t], []) when Form.is_bool(t) => Bool(bool_of_string(t))
         | ([t], []) when Form.is_float(t) => Float(float_of_string(t))
         | ([t], []) when Form.is_int(t) => Int(int_of_string(t))
-        | ([t], []) when Form.is_string(t) =>
-          let s = Re.Str.string_after(t, 1);
-          let s = Re.Str.string_before(s, String.length(s) - 1);
-          String(s);
+        | ([t], []) when Form.is_string(t) => String(Form.strip_quotes(t))
         | ([t], []) when Form.is_var(t) => Var(t)
         | ([t], []) when Form.is_wild(t) => Wild
         | ([t], []) when Form.is_ctr(t) =>
@@ -496,10 +515,14 @@ and rul = (unsorted: unsorted): Rul.t => {
 }
 
 and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
-  let tile_kids = (p: Piece.t): list(t) =>
+  /* Remove projectors. We do this here as opposed to removing
+   * them in an external call to save a whole-syntax pass. */
+  let seg = rm_and_log_projectors(seg);
+  let tile_kids = (p: Piece.t): list(Term.Any.t) =>
     switch (p) {
     | Secondary(_)
     | Grout(_) => []
+    | Projector(_) => []
     | Tile({mold, shards, children, _}) =>
       Aba.aba_triples(Aba.mk(shards, children))
       |> List.map(((l, kid, r)) => {
@@ -547,24 +570,20 @@ let go =
     ~cache_size_bound=1000,
     seg => {
       map := TermMap.empty;
-      let e = exp(unsorted(Segment.skel(seg), seg));
-      (e, map^);
+      projectors := Id.Map.empty;
+      let term = exp(unsorted(Segment.skel(seg), seg));
+      {term, terms: map^, projectors: projectors^};
     },
   );
 
-let from_zip = (~dump_backpack: bool, ~erase_buffer: bool, z: Zipper.t) => {
+let from_zip_for_sem =
+    (~dump_backpack: bool, ~erase_buffer: bool, z: Zipper.t) => {
   let seg = Zipper.smart_seg(~dump_backpack, ~erase_buffer, z);
   go(seg);
 };
 
-let from_zip_for_view =
-  Core.Memo.general(
-    ~cache_size_bound=1000,
-    from_zip(~dump_backpack=false, ~erase_buffer=true),
-  );
-
 let from_zip_for_sem =
   Core.Memo.general(
     ~cache_size_bound=1000,
-    from_zip(~dump_backpack=true, ~erase_buffer=true),
+    from_zip_for_sem(~dump_backpack=true, ~erase_buffer=true),
   );
