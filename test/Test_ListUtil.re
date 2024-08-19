@@ -59,7 +59,7 @@ let tests = (
       `Quick,
       () => {
         let xs = [1, 2, 3];
-        check(bool, "Returns true", true, ListUtil.are_duplicates(xs)); // TODO: Interesting the order here is messed up because of fold_right
+        check(bool, "Returns true", true, ListUtil.are_duplicates(xs));
       },
     ),
     test_case(
