@@ -16,7 +16,7 @@ let are_duplicates = xs =>
   Groups elements of a list by a specified key.
 
  {b Note: The groups are not guaranteed to preserve the order of elements from the original list. }
- 
+
   @param key
   The key function used to determine the grouping key.
 
