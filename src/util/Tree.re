@@ -10,10 +10,50 @@ type pos =
   | Value
   | Children(int, pos);
 
+// Example:
+// Input: Children(1, Value), Children(2, Value)
+// Output: Children(2, Children(1, Value))
 let rec pos_concat = p =>
   fun
   | Value => p
   | Children(i, p') => Children(i, pos_concat(p, p'));
+
+// Example:
+// Input: Children(2, Children(1, Value))
+// Output: 1, Children(2, Value)
+let rec pos_split_last =
+  fun
+  | Value => failwith("Tree.pos_split: cannot split")
+  | Children(i, Value) => (i, Value)
+  | Children(i, p) => {
+      let (i', p) = pos_split_last(p);
+      (i', Children(i, p));
+    };
+
+// @return true if p1 is p2 or a child position of p2
+// Example:
+// Input: Children(2, Children(1, Value)), Children(2, Value)
+// Output: true
+let rec is_children = p =>
+  fun
+  | Value => true
+  | Children(i', p') =>
+    switch (p) {
+    | Value => false
+    | Children(i, p) => i == i' && is_children(p, p')
+    };
+
+// @return the farthest position of the given position to explore in the
+// tree, if the position exists, the return is itself, otherwise it is
+// shorter than the given one.
+// Example:
+// Input: Node("", [Node("", [])]), Children(0, Children(1, Value))
+// Output: Children(0, Value)
+let rec farthest = (Node(_, c)) =>
+  fun
+  | Children(i, pos) when i < List.length(c) =>
+    Children(i, pos |> farthest(List.nth(c, i)))
+  | _ => Value;
 
 let value = (Node(v, _)) => v;
 

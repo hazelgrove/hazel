@@ -1,11 +1,24 @@
 open Virtual_dom.Vdom;
-open Js_of_ocaml;
+// open Js_of_ocaml;
 open Haz3lcore;
 open Node;
 open Util;
 
 open Haz3lschool.ProofGrade.F(Exercise.ExerciseEnv);
 open Exercise.Proof;
+
+module FakeCode = {
+  let token_wrapper = (cls, s) =>
+    span(~attrs=[Attr.class_(cls)], [text(s)]);
+  let span_exp = token_wrapper("token default Exp poly");
+  let span_pat = token_wrapper("token default Pat mono");
+  let span_secondary = token_wrapper("secondary");
+  let code_wrapper = code =>
+    div(
+      ~attrs=[Attr.class_("code")],
+      [span(~attrs=[Attr.class_("code-text")], code)],
+    );
+};
 
 type view_info = (pos, VerifiedTree.res, ed)
 and ed =
@@ -34,6 +47,53 @@ let proof_view =
       | _ => raise(Failure("Expected Exercise.Proof"))
       },
   };
+
+  let add_premise = (m: model(Editor.t), ~pos, ~index): model(Editor.t) =>
+    switch (pos) {
+    | Prelude => failwith("ProofAction.add_premise: Prelude")
+    | Trees(i, pos) =>
+      let jdmt =
+        Exercise.Proof.Just({
+          jdmt: init_editor(),
+          rule: Derivation.Rule.Assumption,
+        });
+      let tree = Tree.insert(jdmt, index, List.nth(m.trees, i), pos);
+      {...m, trees: ListUtil.put_nth(i, tree, m.trees)};
+    };
+
+  let add_premise_btn_view = (~pos, ~index) =>
+    div(
+      ~attrs=[
+        Attr.class_("add-premise-btn"),
+        Attr.on_click(_ =>
+          inject(
+            UpdateAction.MapExercise(map_model(add_premise(~pos, ~index))),
+          )
+        ),
+      ],
+      [text("•")],
+    );
+
+  let del_premise = (m: model(Editor.t), ~pos): model(Editor.t) =>
+    switch (pos) {
+    | Prelude => failwith("ProofAction.del_premise: Prelude")
+    | Trees(i, pos) =>
+      let (index, pos) = Tree.pos_split_last(pos);
+      let (_, tree) = Tree.remove(index, List.nth(m.trees, i), pos);
+      {...m, trees: ListUtil.put_nth(i, tree, m.trees)};
+    };
+
+  let del_premise_btn_view = (~pos) =>
+    div(
+      ~attrs=[
+        Attr.class_("del-premise-btn"),
+        Attr.id(show_pos(pos) ++ "-del-btn"),
+        Attr.on_click(_ =>
+          inject(UpdateAction.MapExercise(map_model(del_premise(~pos))))
+        ),
+      ],
+      [text("x")],
+    );
 
   let switch_rule =
       (m: model(Editor.t), ~pos: pos, ~rule: Derivation.Rule.t)
@@ -92,7 +152,11 @@ let proof_view =
           )
         ),
       ],
-      [text(string_of_int(index))],
+      [
+        FakeCode.code_wrapper([
+          FakeCode.span_exp("d" ++ string_of_int(index)),
+        ]),
+      ],
     );
 
   let abbr_num: pos => index =
@@ -100,17 +164,22 @@ let proof_view =
     | Prelude => failwith("ProofView.abbr_num: Prelude")
     | Trees(i, _) => i;
 
-  let dropdown_option_container_view = (~pos): t =>
+  let dropdown_option_rule_container_view = (~pos): t =>
     div(
-      ~attrs=[Attr.class_("dropdown-option-container")],
+      ~attrs=[Attr.class_("dropdown-option-container rule")],
       List.map(
         rule => dropdown_option_rule_view(~pos, ~rule),
         Derivation.Rule.all,
-      )
-      @ List.map(
-          index => dropdown_option_abbr_view(~pos, ~index),
-          List.init(abbr_num(pos), Fun.id),
-        ),
+      ),
+    );
+
+  let dropdown_option_abbr_container_view = (~pos): t =>
+    div(
+      ~attrs=[Attr.class_("dropdown-option-container")],
+      List.map(
+        index => dropdown_option_abbr_view(~pos, ~index),
+        List.init(abbr_num(pos), Fun.id),
+      ),
     );
 
   let dropdown_result: VerifiedTree.res => string =
@@ -138,24 +207,28 @@ let proof_view =
         Attr.id(show_pos(pos) ++ "-content"),
         Attr.class_(class_of_result(res)),
       ],
-      [dropdown_result_view(~res), dropdown_option_container_view(~pos)],
+      [
+        dropdown_result_view(~res),
+        dropdown_option_rule_container_view(~pos),
+        dropdown_option_abbr_container_view(~pos),
+      ],
     );
 
-  let label_on_mouseover = (~pos) => {
-    let show_pos = show_pos(pos);
-    let label = Util.JsUtil.get_elem_by_id(show_pos ++ "-label");
-    let content = Util.JsUtil.get_elem_by_id(show_pos ++ "-content");
-    let label_rect = label##getBoundingClientRect;
-    let content_rect = content##getBoundingClientRect;
-    let content_height = Js.Optdef.get(content_rect##.height, Fun.const(0.));
-    let content_width = Js.Optdef.get(content_rect##.width, Fun.const(0.));
-    let window_width = float_of_int(Dom_html.window##.innerWidth);
-    let top = label_rect##.top -. content_height;
-    let left = min(label_rect##.left, window_width -. content_width);
-    let style = Js.string(Printf.sprintf("top:%fpx; left:%fpx;", top, left));
-    content##setAttribute(Js.string("style"), style); // This may still cause the content to overflow the window
-    Ui_effect.Ignore;
-  };
+  // let label_on_mouseover = (~pos) => {
+  //   let show_pos = show_pos(pos);
+  //   let label = Util.JsUtil.get_elem_by_id(show_pos ++ "-label");
+  //   let content = Util.JsUtil.get_elem_by_id(show_pos ++ "-content");
+  //   let label_rect = label##getBoundingClientRect;
+  //   let content_rect = content##getBoundingClientRect;
+  //   let content_height = Js.Optdef.get(content_rect##.height, Fun.const(0.));
+  //   let content_width = Js.Optdef.get(content_rect##.width, Fun.const(0.));
+  //   let window_width = float_of_int(Dom_html.window##.innerWidth);
+  //   let top = 0. -. content_height;
+  //   let left = min(0., window_width -. content_width -. label_rect##.left);
+  //   let style = Js.string(Printf.sprintf("top:%fpx; left:%fpx;", top, left));
+  //   content##setAttribute(Js.string("style"), style); // This may still cause the content to overflow the window
+  //   Ui_effect.Ignore;
+  // };
 
   let label_view = (~pos, ~res, ~label) =>
     div(
@@ -163,7 +236,7 @@ let proof_view =
         Attr.class_("deduction-label"),
         Attr.class_(class_of_result(res)),
         Attr.id(show_pos(pos) ++ "-label"),
-        Attr.on_mousemove(_ => label_on_mouseover(~pos)),
+        // Attr.on_mousemove(_ => label_on_mouseover(~pos)),
       ],
       [text(label)],
     );
@@ -171,71 +244,11 @@ let proof_view =
   let label_view = (~pos, ~res, ~label): t =>
     div(
       ~attrs=[Attr.class_("deduction-label-container")],
-      [label_view(~pos, ~res, ~label), dropdown_view(~pos, ~res)],
-    );
-
-  let add_premise = (m: model(Editor.t), ~pos, ~index): model(Editor.t) =>
-    switch (pos) {
-    | Prelude => failwith("ProofAction.add_premise: Prelude")
-    | Trees(i, pos) =>
-      let jdmt =
-        Exercise.Proof.Just({
-          jdmt: init_editor(),
-          rule: Derivation.Rule.Assumption,
-        });
-      let tree = Tree.insert(jdmt, index, List.nth(m.trees, i), pos);
-      {...m, trees: ListUtil.put_nth(i, tree, m.trees)};
-    };
-
-  let add_premise_btn_view = (~pos, ~index) =>
-    div(
-      ~attrs=[
-        Attr.class_("add-premise-btn"),
-        Attr.on_click(_ =>
-          inject(
-            UpdateAction.MapExercise(map_model(add_premise(~pos, ~index))),
-          )
-        ),
+      [
+        label_view(~pos, ~res, ~label),
+        del_premise_btn_view(~pos),
+        dropdown_view(~pos, ~res),
       ],
-      [text("+")],
-    );
-
-  let del_premise = (m: model(Editor.t), ~pos, ~index): model(Editor.t) =>
-    switch (pos) {
-    | Prelude => failwith("ProofAction.del_premise: Prelude")
-    | Trees(i, pos) =>
-      let (_, tree) = Tree.remove(index, List.nth(m.trees, i), pos);
-      {...m, trees: ListUtil.put_nth(i, tree, m.trees)};
-    };
-
-  let del_premise_pos_check = (state: Exercise.state, ~pos, ~index) => {
-    ...state,
-    pos:
-      switch (pos) {
-      | Prelude => state.pos // unreachable
-      | Trees(i, pos) =>
-        let pos': Exercise.pos =
-          Proof(Trees(i, Tree.pos_concat(Children(index, Value), pos)));
-        pos' == state.pos ? Proof(Trees(i, pos)) : state.pos;
-      },
-  };
-
-  let del_premise_btn_view = (~pos, ~index) =>
-    div(
-      ~attrs=[
-        Attr.class_("add-premise-btn"),
-        Attr.on_click(_ =>
-          inject(
-            UpdateAction.MapExercise(
-              state =>
-                state
-                |> map_model(del_premise(~pos, ~index))
-                |> del_premise_pos_check(~pos, ~index),
-            ),
-          )
-        ),
-      ],
-      [text("-")],
     );
 
   let premises_view = (~children_node, ~pos, ~res, ~rule) => {
@@ -243,24 +256,18 @@ let proof_view =
     let label = Derivation.Rule.repr(rule);
     div(
       ~attrs=[
-        Attr.class_("deduction-prems"),
+        Attr.class_("deduction-prems-label"),
         Attr.class_(class_of_result(res)),
       ],
-      (
-        children_node
-        |> List.mapi((index, node) =>
-             [
-               add_premise_btn_view(~pos, ~index),
-               node,
-               del_premise_btn_view(~pos, ~index),
-             ]
-           )
-        |> List.concat
-      )
-      @ [
-        add_premise_btn_view(~pos, ~index=n),
-        label_view(~pos, ~res, ~label),
-      ],
+      [
+        div(
+          ~attrs=[Attr.class_("deduction-prems")],
+          List.init(n + 1, add_premise_btn_view(~pos, ~index=_))
+          |> Aba.mk(_, children_node)
+          |> Aba.join(Fun.id, Fun.id),
+        ),
+      ]
+      @ [label_view(~pos, ~res, ~label)],
     );
   };
 
@@ -305,25 +312,13 @@ let proof_view =
             Attr.class_("deduction-prems"),
             Attr.class_(class_of_result(res)),
           ],
-          [label_view(~pos, ~res, ~label="")],
+          [label_view(~pos, ~res, ~label="•")],
         ),
         div(
           ~attrs=[Attr.class_("deduction-concl")],
           [
-            div(
-              ~attrs=[Attr.class_("code")],
-              [
-                span(
-                  ~attrs=[Attr.class_("code-text")],
-                  [
-                    span(
-                      ~attrs=[Attr.class_("token default Pat poly")],
-                      [text("d" ++ string_of_int(index))],
-                    ),
-                  ],
-                ),
-              ],
-            ),
+            [FakeCode.span_pat("d" ++ string_of_int(index))]
+            |> FakeCode.code_wrapper,
           ],
         ),
       ],
@@ -337,16 +332,7 @@ let proof_view =
     };
 
   let abbreviation_wrapper = (i, t) => {
-    let token_wrapper = (cls, s) =>
-      span(~attrs=[Attr.class_(cls)], [text(s)]);
-    let span_exp = token_wrapper("token default Exp poly");
-    let span_pat = token_wrapper("token default Pat mono");
-    let span_secondary = token_wrapper("secondary");
-    let code_wrapper = code =>
-      div(
-        ~attrs=[Attr.class_("code")],
-        [span(~attrs=[Attr.class_("code-text")], code)],
-      );
+    open FakeCode;
     let upper_code =
       [
         span_exp("let"),
@@ -410,28 +396,12 @@ let proof_view =
     {...m, trees};
   };
 
-  // TODO: implement del_abbr_pos_check
-  let del_abbr_pos_check = (state: Exercise.state, ~index) => {
-    ...state,
-    pos: {
-      ignore(index);
-      state.pos;
-    },
-  };
-
   let del_abbr_btn_view = (~index) =>
     div(
       ~attrs=[
         Attr.class_("del-abbr-btn"),
         Attr.on_click(_ =>
-          inject(
-            UpdateAction.MapExercise(
-              state =>
-                state
-                |> map_model(del_abbr(~index))
-                |> del_abbr_pos_check(~index),
-            ),
-          )
+          inject(UpdateAction.MapExercise(map_model(del_abbr(~index))))
         ),
       ],
       [text("-")],
@@ -474,9 +444,6 @@ let proof_view =
           ~attrs=[Attr.class_("cell-derivation")],
           info_tree
           |> List.map(Tree.fold_deep(deduction_view))
-          |> List.map(t =>
-               div(~attrs=[Attr.class_("deduction-tree")], [t])
-             )
           |> derivation_wrapper,
         ),
       ]),

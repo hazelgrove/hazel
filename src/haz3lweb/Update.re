@@ -260,6 +260,18 @@ let switch_scratch_slide =
     Some(Exercises(idx, specs, exercise));
   };
 
+let exercise_pos_check: Exercise.state => Exercise.state =
+  state => {
+    ...state,
+    pos:
+      switch (state.model, state.pos) {
+      | (Proof({trees, _}), Proof(Trees(i, pos)))
+          when i < List.length(trees) =>
+        Proof(Trees(i, Tree.farthest(List.nth(trees, i), pos)))
+      | _ => state.pos
+      },
+  };
+
 let map_exercise =
     (editors: Editors.t, ~f: Exercise.state => Exercise.state)
     : option(Editors.t) =>
@@ -267,7 +279,7 @@ let map_exercise =
   | Documentation(_)
   | Scratch(_) => None
   | Exercises(m, specs, exercise) =>
-    let exercise = f(exercise);
+    let exercise = f(exercise) |> exercise_pos_check;
     Some(Exercises(m, specs, exercise));
   };
 
