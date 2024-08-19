@@ -68,6 +68,8 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
   | Var(_)
   | Rec(_)
   | Type(_, {term: Unknown(_), _})
+  | Forall(_, {term: Unknown(_), _})
+  | Equals({term: EmptyHole, _}, {term: EmptyHole, _})
   | Arrow({term: Unknown(_), _}, {term: Unknown(_), _})
   | List({term: Unknown(_), _}) => Ground
   | Parens(ty) => ground_cases_of(ty)
