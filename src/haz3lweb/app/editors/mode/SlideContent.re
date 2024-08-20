@@ -22,7 +22,7 @@ let em = content => span(~attrs=[Attr.class_("em")], [text(content)]);
 
 let get_content =
   fun
-  | Documentation("Expressive Programming", _) =>
+  | "Expressive Programming" =>
     Some(
       slide(
         "Expressive Programming",
@@ -50,7 +50,7 @@ let get_content =
         ],
       ),
     )
-  | Documentation("Composing Expressions", _) =>
+  | "Composing Expressions" =>
     Some(
       slide(
         "Composing Expressions",

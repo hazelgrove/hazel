@@ -27,7 +27,7 @@
   position: relative;
 }
 
-#main .code-container {
+#main .code-editor {
   /* Only code in primary editor is selectable atm */
   cursor: text;
 }

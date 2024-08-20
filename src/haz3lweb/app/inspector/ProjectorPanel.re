@@ -106,29 +106,30 @@ let currently_selected = editor =>
   );
 
 let view = (~inject, cursor: Cursor.cursor(Editors.Update.t)) => {
+  let applicable_projectors = applicable_projectors(cursor.info);
+  let should_show =
+    might_project(cursor.editor) && applicable_projectors != [];
+  let select_view =
+    Node.select(
+      ~attrs=[
+        Attr.on_change((_, name) =>
+          inject(Action.SetIndicated(ProjectorView.of_name(name)))
+        ),
+      ],
+      (might_project(cursor.editor) ? applicable_projectors : [])
+      |> List.map(ProjectorView.name)
+      |> List.map(currently_selected(cursor.editor)),
+    );
+  let toggle_view =
+    toggle_view(
+      ~inject,
+      cursor.info,
+      id(cursor.editor),
+      kind(cursor.editor) != None,
+      might_project(cursor.editor),
+    );
   div(
     ~attrs=[Attr.id("projectors")],
-    [
-      toggle_view(
-        ~inject,
-        cursor.info,
-        id(cursor.editor),
-        kind(cursor.editor) != None,
-        might_project(cursor.editor),
-      ),
-      Node.select(
-        ~attrs=[
-          Attr.on_change((_, name) =>
-            inject(SetIndicated(ProjectorView.of_name(name)))
-          ),
-        ],
-        (
-          might_project(cursor.editor)
-            ? applicable_projectors(cursor.info) : []
-        )
-        |> List.map(ProjectorView.name)
-        |> List.map(currently_selected(cursor.editor)),
-      ),
-    ],
+    (should_show ? [select_view] : []) @ [toggle_view],
   );
 };

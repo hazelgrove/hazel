@@ -254,7 +254,7 @@ module Deco =
     | None => []
     | Some((Grout(_), _, _)) => []
     | Some((Projector(p), _, _)) =>
-      switch (Measured.find_pr_opt(p, M.meta.syntax.measured)) {
+      switch (Measured.find_pr_opt(p, M.editor.syntax.measured)) {
       | Some(measurement) => [
           PieceDec.simple_shard_indicated(
             {

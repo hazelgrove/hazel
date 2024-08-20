@@ -13,7 +13,11 @@ module Action = {
     | Set(Settings.Update.t)
     | JumpToTile(Haz3lcore.Id.t) // Perform(Select(Term(Id(id, Left))))
     | InitImportAll([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
-    | FinishImportAll(option(string));
+    | FinishImportAll(option(string))
+    | ExportPersistentData
+    | ActiveEditor(Haz3lcore.Action.t)
+    | Undo // These two currently happen at the editor level, and are just
+    | Redo; // global actions so they can be accessed by the command palette
 };
 
 module Model = {

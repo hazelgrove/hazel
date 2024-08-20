@@ -97,7 +97,7 @@ module App = {
         schedule_action(Haz3lweb.Page.Update.Globals(SetFontMetrics(fm)))
       );
 
-    NinjaKeys.initialize(NinjaKeys.options(schedule_action));
+    NinjaKeys.initialize(Shortcut.options(schedule_action));
     JsUtil.focus_clipboard_shim();
 
     Js.Unsafe.set(

@@ -1,5 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
+open Util;
 
 module type Model = {
   type t;
@@ -369,14 +370,17 @@ module View = {
         ~measured: Haz3lcore.Measured.t,
         test_results: Haz3lcore.TestResults.t,
       )
-      : list(Node.t) =>
-    List.filter_map(
-      ((id, insts)) =>
-        switch (Haz3lcore.Id.Map.find_opt(id, measured.tiles)) {
-        | Some(ms) => test_status_icon_view(~font_metrics, insts, ms)
-        | None => None
-        },
-      test_results.test_map,
+      : Web.Node.t =>
+    Web.div_c(
+      "test-decos",
+      List.filter_map(
+        ((id, insts)) =>
+          switch (Haz3lcore.Id.Map.find_opt(id, measured.tiles)) {
+          | Some(ms) => test_status_icon_view(~font_metrics, insts, ms)
+          | None => None
+          },
+        test_results.test_map,
+      ),
     );
 
   type result_kind =
@@ -401,12 +405,13 @@ module View = {
         footer(~globals, ~signal, ~inject, ~result=model, ~selected, ~locked);
       let test_overlay = (editor: Haz3lcore.Editor.t) =>
         switch (Model.test_results(model)) {
-        | Some(result) =>
-          test_result_layer(
-            ~font_metrics=globals.font_metrics,
-            ~measured=editor.syntax.measured,
-            result,
-          )
+        | Some(result) => [
+            test_result_layer(
+              ~font_metrics=globals.font_metrics,
+              ~measured=editor.syntax.measured,
+              result,
+            ),
+          ]
         | None => []
         };
       (result, test_overlay);
@@ -443,12 +448,13 @@ module View = {
       let test_results = Model.test_results(model);
       let test_overlay = (editor: Haz3lcore.Editor.t) =>
         switch (Model.test_results(model)) {
-        | Some(result) =>
-          test_result_layer(
-            ~font_metrics=globals.font_metrics,
-            ~measured=editor.syntax.measured,
-            result,
-          )
+        | Some(result) => [
+            test_result_layer(
+              ~font_metrics=globals.font_metrics,
+              ~measured=editor.syntax.measured,
+              result,
+            ),
+          ]
         | None => []
         };
       (

@@ -73,7 +73,18 @@ module Update = {
     | SwitchSlide(int)
     | ResetCurrent
     | InitImportScratchpad([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
-    | FinishImportScratchpad(option(string));
+    | FinishImportScratchpad(option(string))
+    | Export;
+
+  let export_scratch_slide = (model: Model.t): unit => {
+    Store.save(model |> Model.persist);
+    let data = Store.export();
+    JsUtil.download_string_file(
+      ~filename="hazel-scratchpad",
+      ~content_type="text/plain",
+      ~contents=data,
+    );
+  };
 
   let update =
       (
@@ -128,6 +139,9 @@ module Update = {
       let scratchpads =
         ListUtil.put_nth(model.current, (key, new_data), model.scratchpads);
       {...model, scratchpads} |> Updated.return;
+    | Export =>
+      export_scratch_slide(model);
+      model |> Updated.return_quiet;
     };
   };
 
@@ -248,57 +262,80 @@ module View = {
     ];
   };
 
-  let export_button = (model: Model.t) =>
-    Widgets.button_named(
-      Icons.star,
-      _ => {
-        let json_data =
-          List.nth(model.scratchpads, model.current)
-          |> snd
-          |> CellEditor.Model.persist
-          |> CellEditor.Model.yojson_of_persistent;
-        JsUtil.download_json("hazel-scratchpad", json_data);
-        Virtual_dom.Vdom.Effect.Ignore;
-      },
-      ~tooltip="Export Scratchpad",
-    );
+  let file_menu = (~globals: Globals.t, ~inject: Update.t => 'a, _: Model.t) => {
+    let export_button =
+      Widgets.button_named(
+        Icons.export,
+        _ => inject(Export),
+        ~tooltip="Export Scratchpad",
+      );
 
-  let export_menu = (model: Model.t) => [export_button(model)];
+    let import_button =
+      Widgets.file_select_button_named(
+        "import-scratchpad",
+        Icons.import,
+        file => {
+          switch (file) {
+          | None => Virtual_dom.Vdom.Effect.Ignore
+          | Some(file) => inject(InitImportScratchpad(file))
+          }
+        },
+        ~tooltip="Import Scratchpad",
+      );
 
-  let import_button = (inject: Update.t => 'a) =>
-    Widgets.file_select_button_named(
-      "import-scratchpad",
-      Icons.star,
-      file => {
-        switch (file) {
-        | None => Virtual_dom.Vdom.Effect.Ignore
-        | Some(file) => inject(InitImportScratchpad(file))
-        }
-      },
-      ~tooltip="Import Scratchpad",
-    );
+    let file_group_scratch =
+      NutMenu.item_group(~inject, "File", [export_button, import_button]);
 
-  let reset_button = (inject: Update.t => 'a) =>
-    Widgets.button_named(
-      Icons.trash,
-      _ => {
-        let confirmed =
-          JsUtil.confirm(
-            "Are you SURE you want to reset this scratchpad? You will lose any existing code.",
-          );
-        if (confirmed) {
-          inject(ResetCurrent);
-        } else {
+    let reset_button =
+      Widgets.button_named(
+        Icons.trash,
+        _ => {
+          let confirmed =
+            JsUtil.confirm(
+              "Are you SURE you want to reset this scratchpad? You will lose any existing code.",
+            );
+          if (confirmed) {
+            inject(ResetCurrent);
+          } else {
+            Virtual_dom.Vdom.Effect.Ignore;
+          };
+        },
+        ~tooltip="Reset Editor",
+      );
+
+    let reparse =
+      Widgets.button_named(
+        Icons.backpack,
+        _ => globals.inject_global(ActiveEditor(Reparse)),
+        ~tooltip="Reparse Editor",
+      );
+
+    let reset_hazel =
+      Widgets.button_named(
+        Icons.bomb,
+        _ => {
+          let confirmed =
+            JsUtil.confirm(
+              "Are you SURE you want to reset Hazel to its initial state? You will lose any existing code that you have written, and course staff have no way to restore it!",
+            );
+          if (confirmed) {
+            JsUtil.clear_localstore();
+            Js_of_ocaml.Dom_html.window##.location##reload;
+          };
           Virtual_dom.Vdom.Effect.Ignore;
-        };
-      },
-      ~tooltip="Reset Scratchpad",
-    );
+        },
+        ~tooltip="Reset Hazel (LOSE ALL DATA)",
+      );
 
-  let import_menu = (~inject: Update.t => 'a) => [
-    import_button(inject),
-    reset_button(inject),
-  ];
+    let reset_group_scratch =
+      NutMenu.item_group(
+        ~inject,
+        "Reset",
+        [reset_button, reparse, reset_hazel],
+      );
+
+    [file_group_scratch, reset_group_scratch];
+  };
 
   let top_bar =
       (

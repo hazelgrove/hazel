@@ -303,3 +303,20 @@
   transform: scale(100%);
   cursor: not-allowed;
 }
+
+.tile-next-step .tile-path.Exp.indicated {
+  fill: #8aeda6;
+}
+
+.tile-taken-step .tile-path.Exp.indicated {
+  fill: #ddcda3;
+}
+
+svg.tile-next-step {
+  pointer-events: all;
+  cursor: pointer;
+}
+
+.cell-result .code {
+  pointer-events: none;
+}

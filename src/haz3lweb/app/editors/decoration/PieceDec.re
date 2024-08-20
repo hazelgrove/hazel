@@ -100,11 +100,11 @@ let simple_shards_errors = (~font_metrics: FontMetrics.t, mold, shards) =>
   );
 
 let next_step_indicated =
-    (~inject, ~font_metrics, ~shapes, ~measurement: Measured.measurement): t => {
+    (~inject, ~font_metrics, ~tips, ~measurement: Measured.measurement): t => {
   let base_cls = ["tile-next-step"];
   simple_shard(
     ~attr=[Attr.on_mousedown(_ => {inject()})],
-    {font_metrics, shapes, measurement},
+    {font_metrics, tips, measurement},
     base_cls,
   );
 };
@@ -122,16 +122,18 @@ let next_step_shards_indicated =
       next_step_indicated(
         ~inject,
         ~font_metrics,
-        ~shapes=Mold.nib_shapes(~index, mold),
+        ~tips=
+          Mold.nib_shapes(~index, mold)
+          |> (((x, y)) => (Some(x), Some(y))),
         ~measurement,
       ),
     shards,
   );
 
 let taken_step_indicated =
-    (~font_metrics, ~shapes, ~measurement: Measured.measurement): t => {
+    (~font_metrics, ~tips, ~measurement: Measured.measurement): t => {
   let base_cls = ["tile-taken-step"];
-  simple_shard({font_metrics, shapes, measurement}, base_cls);
+  simple_shard({font_metrics, tips, measurement}, base_cls);
 };
 
 let taken_step_shards_indicated =
@@ -145,7 +147,9 @@ let taken_step_shards_indicated =
     ((index, measurement)) =>
       taken_step_indicated(
         ~font_metrics,
-        ~shapes=Mold.nib_shapes(~index, mold),
+        ~tips=
+          Mold.nib_shapes(~index, mold)
+          |> (((x, y)) => (Some(x), Some(y))),
         ~measurement,
       ),
     shards,

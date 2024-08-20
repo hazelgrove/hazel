@@ -20,7 +20,9 @@ let view =
     modal([
       div(
         ~attrs=[Attr.class_("settings-modal-top")],
-        [Widgets.button(Icons.x, _ => inject(Evaluation(ShowSettings)))],
+        [
+          Widgets.button(Icons.thin_x, _ => inject(Evaluation(ShowSettings))),
+        ],
       ),
       setting(
         "h",

@@ -180,6 +180,7 @@ let all =
       Id.Map.bindings(cached_syntax.projectors) |> List.rev,
     ),
   );
+};
 
 /* When the caret is directly adjacent to a projector, keyboard commands
  * can be overidden here. Right now, trying to move into the projector,

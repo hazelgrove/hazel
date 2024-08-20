@@ -1,7 +1,6 @@
 open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
-open Util;
 
 /* The exercises mode interface for a single exercise. Composed of multiple editors and results. */
 
@@ -344,11 +343,7 @@ module View = {
               switch (specific_ctx) {
               | None => Node.div([text("No context available")]) // TODO show exercise configuration error
               | Some(specific_ctx) =>
-                CtxInspector.ctx_view(
-                  ~globals,
-                  ~inject=globals.inject_global,
-                  specific_ctx,
-                )
+                CtxInspector.ctx_view(~globals, specific_ctx)
               };
             };
           };
@@ -466,129 +461,5 @@ module View = {
           impl_grading_view,
         ],
       );
-  };
-
-  // NUT MENU ITEMS
-
-  let export_menu = (~globals: Globals.t, model: Model.t) => {
-    let download_editor_state = (~instructor_mode) =>
-      globals.get_log_and(log => {
-        let data =
-          globals.export_all(
-            ~settings=globals.settings.core,
-            ~instructor_mode,
-            ~log,
-          );
-        JsUtil.download_json(ExerciseSettings.filename, data);
-      });
-
-    let export_submission = () =>
-      Widgets.button_named(
-        Icons.star,
-        _ => {
-          download_editor_state(
-            ~instructor_mode=globals.settings.instructor_mode,
-          );
-          Virtual_dom.Vdom.Effect.Ignore;
-        },
-        ~tooltip="Export Submission",
-      );
-
-    let instructor_export = () =>
-      Widgets.button_named(
-        Icons.star,
-        _ => {
-          // .ml files because show uses OCaml syntax (dune handles seamlessly)
-          let module_name = model.editors.module_name;
-          let filename = model.editors.module_name ++ ".ml";
-          let content_type = "text/plain";
-          let contents =
-            Exercise.export_module(module_name, {eds: model.editors});
-          JsUtil.download_string_file(~filename, ~content_type, ~contents);
-          Virtual_dom.Vdom.Effect.Ignore;
-        },
-        ~tooltip="Export Exercise Module",
-      );
-
-    let instructor_transitionary_export = () =>
-      Widgets.button_named(
-        Icons.star,
-        _ => {
-          // .ml files because show uses OCaml syntax (dune handles seamlessly)
-          let module_name = model.editors.module_name;
-          let filename = model.editors.module_name ++ ".ml";
-          let content_type = "text/plain";
-          let contents =
-            Exercise.export_transitionary_module(
-              module_name,
-              {eds: model.editors},
-            );
-          JsUtil.download_string_file(~filename, ~content_type, ~contents);
-          Virtual_dom.Vdom.Effect.Ignore;
-        },
-        ~tooltip="Export Transitionary Exercise Module",
-      );
-
-    let instructor_grading_export = () =>
-      Widgets.button_named(
-        Icons.star,
-        _ => {
-          // .ml files because show uses OCaml syntax (dune handles seamlessly)
-          let module_name = model.editors.module_name;
-          let filename = model.editors.module_name ++ "_grading.ml";
-          let content_type = "text/plain";
-          let contents =
-            Exercise.export_grading_module(
-              module_name,
-              {eds: model.editors},
-            );
-          JsUtil.download_string_file(~filename, ~content_type, ~contents);
-          Virtual_dom.Vdom.Effect.Ignore;
-        },
-        ~tooltip="Export Grading Exercise Module",
-      );
-
-    globals.settings.instructor_mode
-      ? [
-        export_submission(),
-        instructor_export(),
-        instructor_transitionary_export(),
-        instructor_grading_export(),
-      ]
-      : [export_submission()];
-  };
-
-  let import_menu = (~globals: Globals.t, ~inject: Update.t => 'b) => {
-    let import_submission =
-      Widgets.file_select_button_named(
-        "import-submission",
-        Icons.star,
-        file => {
-          switch (file) {
-          | None => Virtual_dom.Vdom.Effect.Ignore
-          | Some(file) => globals.inject_global(InitImportAll(file))
-          }
-        },
-        ~tooltip="Import Submission",
-      );
-
-    let reset_button =
-      Widgets.button_named(
-        Icons.trash,
-        _ => {
-          let confirmed =
-            JsUtil.confirm(
-              "Are you SURE you want to reset this exercise? You will lose any existing code that you have written, and course staff have no way to restore it!",
-            );
-          if (confirmed) {
-            inject(Update.ResetExercise);
-          } else {
-            Virtual_dom.Vdom.Effect.Ignore;
-          };
-        },
-        ~tooltip="Reset Exercise",
-      );
-
-    [import_submission, reset_button];
   };
 };
