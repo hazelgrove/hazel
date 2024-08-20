@@ -51,7 +51,7 @@ jobs:
           token: ${{ secrets.ACCESS_TOKEN }}
           path: server
           sparse-checkout: |
-            ${BRANCH_NAME}
+            ${{ env.BRANCH_NAME }}
       - name: Clear any old build of this branch
         run: if [ -d "${BRANCH_NAME}" ] ; then rm -rf "${BRANCH_NAME}" ; fi 
         working-directory: ./server
