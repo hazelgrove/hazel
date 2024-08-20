@@ -265,9 +265,15 @@ let exercise_pos_check: Exercise.state => Exercise.state =
     ...state,
     pos:
       switch (state.model, state.pos) {
-      | (Proof({trees, _}), Proof(Trees(i, pos)))
-          when i < List.length(trees) =>
-        Proof(Trees(i, Tree.farthest(List.nth(trees, i), pos)))
+      | (Proof({trees, _}), Proof(Trees(i, pos))) =>
+        let len = List.length(trees);
+        if (i < len) {
+          Proof(Trees(i, Tree.farthest(List.nth(trees, i), pos)));
+        } else if (len > 0) {
+          Proof(Trees(len - 1, Value));
+        } else {
+          Proof(Prelude);
+        };
       | _ => state.pos
       },
   };

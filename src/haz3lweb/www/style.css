@@ -1224,6 +1224,7 @@ svg.shard.error>path {
   align-items: flex-end;
 }
 
+.add-abbr-btn,
 .add-premise-btn {
   cursor: pointer;
   color: var(--top_bar_icon_fill);
@@ -1236,6 +1237,13 @@ svg.shard.error>path {
   justify-content: center;
 }
 
+
+.add-abbr-btn {
+  height: 1.4rem;
+  padding-right: 12rem;
+}
+
+.add-abbr-btn:hover,
 .add-premise-btn:hover {
   color: var(--light-page-color);
   background: var(--top_bar_icon_fill);

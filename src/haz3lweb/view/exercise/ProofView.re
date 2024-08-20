@@ -22,8 +22,8 @@ module FakeCode = {
 
 type view_info = (pos, VerifiedTree.res, ed)
 and ed =
-  | Just(Derivation.Rule.t, Editor.t, Exercise.DynamicsItem.t)
-  | Abbr(index);
+  | Just(option(Derivation.Rule.t), Editor.t, Exercise.DynamicsItem.t)
+  | Abbr(option(index));
 
 let proof_view =
     (
@@ -52,11 +52,7 @@ let proof_view =
     switch (pos) {
     | Prelude => failwith("ProofAction.add_premise: Prelude")
     | Trees(i, pos) =>
-      let jdmt =
-        Exercise.Proof.Just({
-          jdmt: init_editor(),
-          rule: Derivation.Rule.Assumption,
-        });
+      let jdmt = Exercise.Proof.Just({jdmt: init_editor(), rule: None});
       let tree = Tree.insert(jdmt, index, List.nth(m.trees, i), pos);
       {...m, trees: ListUtil.put_nth(i, tree, m.trees)};
     };
@@ -77,10 +73,34 @@ let proof_view =
   let del_premise = (m: model(Editor.t), ~pos): model(Editor.t) =>
     switch (pos) {
     | Prelude => failwith("ProofAction.del_premise: Prelude")
-    | Trees(i, pos) =>
-      let (index, pos) = Tree.pos_split_last(pos);
-      let (_, tree) = Tree.remove(index, List.nth(m.trees, i), pos);
-      {...m, trees: ListUtil.put_nth(i, tree, m.trees)};
+    | Trees(i', pos) => {
+        ...m,
+        trees:
+          switch (pos) {
+          | Value =>
+            let trees =
+              m.trees
+              |> List.map(
+                   Tree.map(
+                     fun
+                     | Exercise.Proof.Abbr(Some(i)) =>
+                       if (i > i') {
+                         Exercise.Proof.Abbr(Some(i - 1));
+                       } else if (i == i') {
+                         Abbr(None);
+                       } else {
+                         Abbr(Some(i));
+                       }
+                     | _ as j => j,
+                   ),
+                 );
+            ListUtil.remove(trees, i');
+          | _ =>
+            let (index, pos) = Tree.pos_split_last(pos);
+            let (_, tree) = Tree.remove(index, List.nth(m.trees, i'), pos);
+            ListUtil.put_nth(i', tree, m.trees);
+          },
+      }
     };
 
   let del_premise_btn_view = (~pos) =>
@@ -96,7 +116,7 @@ let proof_view =
     );
 
   let switch_rule =
-      (m: model(Editor.t), ~pos: pos, ~rule: Derivation.Rule.t)
+      (m: model(Editor.t), ~pos: pos, ~rule: option(Derivation.Rule.t))
       : model(Editor.t) =>
     switch (pos) {
     | Prelude => failwith("ProofAction.switch_rule: Prelude")
@@ -117,7 +137,8 @@ let proof_view =
       {...m, trees};
     };
 
-  let dropdown_option_rule_view = (~pos: pos, ~rule: Derivation.Rule.t) =>
+  let dropdown_option_rule_view =
+      (~pos: pos, ~rule: option(Derivation.Rule.t)) =>
     div(
       ~attrs=[
         Attr.class_("dropdown-option"),
@@ -128,10 +149,17 @@ let proof_view =
           )
         ),
       ],
-      [text(Derivation.Rule.repr(rule))],
+      [
+        text(
+          switch (rule) {
+          | Some(rule) => Derivation.Rule.repr(rule)
+          | None => "?"
+          },
+        ),
+      ],
     );
 
-  let switch_abbr = (m: model(Editor.t), ~pos: pos, ~index: index) =>
+  let switch_abbr = (m: model(Editor.t), ~pos: pos, ~index: option(index)) =>
     switch (pos) {
     | Prelude => failwith("ProofAction.switch_abbr: Prelude")
     | Trees(i, pos) =>
@@ -141,7 +169,7 @@ let proof_view =
       {...m, trees};
     };
 
-  let dropdown_option_abbr_view = (~pos: pos, ~index: index) =>
+  let dropdown_option_abbr_view = (~pos: pos, ~index: option(index)) =>
     div(
       ~attrs=[
         Attr.class_("dropdown-option"),
@@ -153,9 +181,13 @@ let proof_view =
         ),
       ],
       [
-        FakeCode.code_wrapper([
-          FakeCode.span_exp("d" ++ string_of_int(index)),
-        ]),
+        switch (index) {
+        | Some(index) =>
+          FakeCode.code_wrapper([
+            FakeCode.span_exp("d" ++ string_of_int(index)),
+          ])
+        | None => text("?")
+        },
       ],
     );
 
@@ -169,7 +201,7 @@ let proof_view =
       ~attrs=[Attr.class_("dropdown-option-container rule")],
       List.map(
         rule => dropdown_option_rule_view(~pos, ~rule),
-        Derivation.Rule.all,
+        [Option.None] @ (Derivation.Rule.all |> List.map(rule => Some(rule))),
       ),
     );
 
@@ -178,7 +210,7 @@ let proof_view =
       ~attrs=[Attr.class_("dropdown-option-container")],
       List.map(
         index => dropdown_option_abbr_view(~pos, ~index),
-        List.init(abbr_num(pos), Fun.id),
+        [Option.None] @ List.init(abbr_num(pos), i => Option.Some(i)),
       ),
     );
 
@@ -253,7 +285,11 @@ let proof_view =
 
   let premises_view = (~children_node, ~pos, ~res, ~rule) => {
     let n = List.length(children_node);
-    let label = Derivation.Rule.repr(rule);
+    let label =
+      switch (rule) {
+      | Some(rule) => Derivation.Rule.repr(rule)
+      | None => "?"
+      };
     div(
       ~attrs=[
         Attr.class_("deduction-prems-label"),
@@ -317,8 +353,12 @@ let proof_view =
         div(
           ~attrs=[Attr.class_("deduction-concl")],
           [
-            [FakeCode.span_pat("d" ++ string_of_int(index))]
-            |> FakeCode.code_wrapper,
+            switch (index) {
+            | Some(index) =>
+              [FakeCode.span_pat("d" ++ string_of_int(index))]
+              |> FakeCode.code_wrapper
+            | None => text("?")
+            },
           ],
         ),
       ],
@@ -349,17 +389,24 @@ let proof_view =
   let add_abbr = (m: model(Editor.t), ~index): model(Editor.t) => {
     let trees =
       m.trees
-      |> List.mapi(j =>
-           if (j >= index) {
-             Tree.map(
-               fun
-               | Exercise.Proof.Just(_) as j => j
-               | Abbr(i) => i >= index ? Abbr(i + 1) : Abbr(i),
-             );
-           } else {
-             Fun.id;
-           }
+      |> List.map(
+           Tree.map(
+             fun
+             | Exercise.Proof.Abbr(Some(i)) =>
+               i >= index
+                 ? Exercise.Proof.Abbr(Some(i + 1)) : Abbr(Some(i))
+             | _ as j => j,
+           ),
          );
+    let trees =
+      ListUtil.insert(
+        Tree.Node(
+          Exercise.Proof.Just({jdmt: init_editor(), rule: None}),
+          [],
+        ),
+        trees,
+        index,
+      );
     {...m, trees};
   };
 
@@ -371,42 +418,8 @@ let proof_view =
           inject(UpdateAction.MapExercise(map_model(add_abbr(~index))))
         ),
       ],
-      [text("+")],
+      [text("•")],
     );
-  ignore(add_abbr_btn_view);
-
-  let del_abbr = (m: model(Editor.t), ~index): model(Editor.t) => {
-    let trees =
-      m.trees
-      |> List.mapi(j =>
-           if (j >= index) {
-             Tree.map(
-               fun
-               | Exercise.Proof.Just(_) as j => j
-               | Abbr(i) => {
-                   // TODO: consider when it refer to the deleted abbr
-                   i > index
-                     ? Abbr(i - 1) : Abbr(i);
-                 },
-             );
-           } else {
-             Fun.id;
-           }
-         );
-    {...m, trees};
-  };
-
-  let del_abbr_btn_view = (~index) =>
-    div(
-      ~attrs=[
-        Attr.class_("del-abbr-btn"),
-        Attr.on_click(_ =>
-          inject(UpdateAction.MapExercise(map_model(del_abbr(~index))))
-        ),
-      ],
-      [text("-")],
-    );
-  ignore(del_abbr_btn_view);
 
   // type view_info = (Exercise.pos, VerifiedTree.res, ed)
   // and ed =
@@ -415,10 +428,15 @@ let proof_view =
 
   let derivation_wrapper = l =>
     switch (List.rev(l)) {
-    | [] => failwith("derivation_wrapper: empty list")
+    | [] => []
     | [hd, ...tl] =>
       (tl |> List.rev |> List.mapi(abbreviation_wrapper)) @ [hd]
     };
+
+  let add_abbr_btn_wrapper = l => {
+    let btns = List.init(List.length(l) + 1, add_abbr_btn_view(~index=_));
+    Aba.mk(btns, l) |> Aba.join(Fun.id, Fun.id);
+  };
 
   let info_tree =
     List.map2(Tree.combine, eds.trees, stitched_dynamics.trees)
@@ -444,7 +462,8 @@ let proof_view =
           ~attrs=[Attr.class_("cell-derivation")],
           info_tree
           |> List.map(Tree.fold_deep(deduction_view))
-          |> derivation_wrapper,
+          |> derivation_wrapper
+          |> add_abbr_btn_wrapper,
         ),
       ]),
     ]);

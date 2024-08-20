@@ -20,7 +20,8 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
 
   module ExternalError = {
     type t =
-      | PremiseError
+      | NoRule
+      | NoAbbr
       | NotAJudgment
       | EvalOff
       | EvalFail
@@ -36,7 +37,7 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
     type t = list(tree(res))
     and res = result(deduction(Judgement.t), ExternalError.t);
 
-    let res_of_di = ({result, _}: DynamicsItem.t, rule: Rule.t): res =>
+    let res_of_di = ({result, _}: DynamicsItem.t, rule): res =>
       switch (result) {
       | Evaluation({evaluation, _}) =>
         switch (evaluation) {
@@ -94,9 +95,12 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
         switch (concl) {
         // TODO: Implement this
         // assert(List.length(prems) == 0);
-        | Abbr(i) => List.nth(acc, i) |> Tree.value
+        | Abbr(Some(i)) => List.nth(acc, i) |> Tree.value
+        | Abbr(None) => Error(NoAbbr)
         | Just(Error(exn)) => Error(exn)
-        | Just(Ok({jdmt: concl, rule})) =>
+        | Just(Ok({jdmt: concl, rule: None})) =>
+          Ok({concl, err: Some(External("NoRule"))})
+        | Just(Ok({jdmt: concl, rule: Some(rule)})) =>
           let err =
             switch (strip_prems(prems)) {
             | Some(prems) => DerivationError.verify(rule, concl, prems)
@@ -134,7 +138,8 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
               (value: abbr('a), children: list(Tree.p('a))) =>
                 switch (value) {
                 | Just(v) => Tree.Node(v, children)
-                | Abbr(i) => List.nth(acc, i)
+                | Abbr(None) => Tree.Node(Error(ExternalError.NoAbbr), [])
+                | Abbr(Some(i)) => List.nth(acc, i)
                 },
               tree,
             ),
@@ -168,8 +173,12 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
                | (Abbr(i), _) => Abbr(i),
              ),
            );
-      let tree = strip_abbr(combined_tree) |> List.rev |> List.hd;
-      let grade = grade_tree(tree);
+      let stripped_trees = strip_abbr(combined_tree);
+      let grade =
+        switch (stripped_trees) {
+        | [] => 100.
+        | _ => stripped_trees |> List.rev |> List.hd |> grade_tree
+        };
       {verified_tree, grade};
     };
   };

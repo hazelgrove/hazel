@@ -21,27 +21,27 @@ let exercise : Exercise.spec =
             trees =
               [
                 Node
-                  ( Just { jdmt = "gamma |- b /\\ a"; rule = And_I },
+                  ( Just { jdmt = "gamma |- b /\\ a"; rule = Some And_I },
                     [
                       Node
-                        ( Just { jdmt = "gamma |- b"; rule = And_E_R },
+                        ( Just { jdmt = "gamma |- b"; rule = Some And_E_R },
                           [
                             Node
                               ( Just
                                   {
                                     jdmt = "gamma |- a /\\ b";
-                                    rule = Assumption;
+                                    rule = Some Assumption;
                                   },
                                 [] );
                           ] );
                       Node
-                        ( Just { jdmt = "gamma |- a"; rule = And_E_L },
+                        ( Just { jdmt = "gamma |- a"; rule = Some And_E_L },
                           [
                             Node
                               ( Just
                                   {
                                     jdmt = "gamma |- a /\\ b";
-                                    rule = Assumption;
+                                    rule = Some Assumption;
                                   },
                                 [] );
                           ] );

@@ -20,16 +20,18 @@ let exercise : Exercise.spec =
                let gamma = [a /\\ b] in\n";
             trees =
               [
-                Node (Just { jdmt = "gamma |- a /\\ b"; rule = Assumption }, []);
                 Node
-                  ( Just { jdmt = "gamma |- b /\\ a"; rule = And_I },
+                  ( Just { jdmt = "gamma |- a /\\ b"; rule = Some Assumption },
+                    [] );
+                Node
+                  ( Just { jdmt = "gamma |- b /\\ a"; rule = Some And_I },
                     [
                       Node
-                        ( Just { jdmt = "gamma |- b"; rule = And_E_R },
-                          [ Node (Abbr 0, []) ] );
+                        ( Just { jdmt = "gamma |- b"; rule = Some And_E_R },
+                          [ Node (Abbr (Some 0), []) ] );
                       Node
-                        ( Just { jdmt = "gamma |- a"; rule = And_E_L },
-                          [ Node (Abbr 0, []) ] );
+                        ( Just { jdmt = "gamma |- a"; rule = Some And_E_L },
+                          [ Node (Abbr (Some 0), []) ] );
                     ] );
               ];
           };

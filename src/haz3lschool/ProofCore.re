@@ -6,7 +6,7 @@ type trees('a) = list(tree('a))
 and tree('a) = Tree.p(abbr('a))
 and abbr('a) =
   | Just('a)
-  | Abbr(index)
+  | Abbr(option(index))
 and index = int;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -16,7 +16,7 @@ type model('code) = {
 }
 and deduction('code) = {
   jdmt: 'code,
-  rule: Derivation.Rule.t,
+  rule: option(Derivation.Rule.t),
 };
 
 let map_jdmt = f =>
@@ -98,39 +98,8 @@ module ModelUtil = {
     true;
   };
 
-  let switch_derivation_rule =
-      (~pos: pos, ~m: model('a), ~rule: Derivation.Rule.t): model('a) =>
-    switch (pos) {
-    | Prelude => m // Prelude is not editable
-    | Trees(i, pos) =>
-      let jdmt = nth(m, Trees(i, pos));
-      let tree =
-        Tree.put_nth(Just({jdmt, rule}), List.nth(m.trees, i), pos);
-      {...m, trees: ListUtil.put_nth(i, tree, m.trees)};
-    };
-
   let derivation_init_wrapper = (init: unit => 'a): abbr(deduction('a)) => {
-    Just({jdmt: init(), rule: Derivation.Rule.Assumption});
-  };
-
-  let add_premise =
-      (~pos: pos, ~m: model('a), ~index: int, ~init): model('a) => {
-    switch (pos) {
-    | Prelude => m // Prelude is not editable
-    | Trees(i, pos) =>
-      let init = derivation_init_wrapper(init);
-      let tree = Tree.insert(init, index, List.nth(m.trees, i), pos);
-      {...m, trees: ListUtil.put_nth(i, tree, m.trees)};
-    };
-  };
-
-  let del_premise = (~pos: pos, ~m: model('a), ~index: int): model('a) => {
-    switch (pos) {
-    | Prelude => m // Prelude is not editable
-    | Trees(i, pos) =>
-      let (_, tree) = Tree.remove(index, List.nth(m.trees, i), pos);
-      {...m, trees: ListUtil.put_nth(i, tree, m.trees)};
-    };
+    Just({jdmt: init(), rule: None});
   };
 
   let init = (init: pos => 'a): model('a) => {
