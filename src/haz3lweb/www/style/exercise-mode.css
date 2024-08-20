@@ -29,11 +29,11 @@
   text-transform: uppercase;
 }
 
-#main.Exercises .cell.deselected {
+#main.Exercises .cell {
   border-left: 1px solid var(--cell-exercises-border);
 }
 
-#main.Exercises .cell.selected {
+#main.Exercises .cell:has(.code-editor.selected) {
   border-left: 1px solid var(--cell-selected-accent);
   background-color: var(--cell-active);
 }

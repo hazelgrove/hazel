@@ -348,9 +348,8 @@ let tpat_view = (~globals, _: Cls.t, status: Info.status_tpat) => {
 
 let secondary_view = (cls: Cls.t) => div_ok([text(cls |> Cls.show)]);
 
-let view_of_info = (~globals, ci): Node.t => {
-  let wrapper = status_view =>
-    div(~attrs=[clss(["info"])], [term_view(~globals, ci), status_view]);
+let view_of_info = (~globals, ci): list(Node.t) => {
+  let wrapper = status_view => [term_view(~globals, ci), status_view];
   switch (ci) {
   | Secondary(_) => wrapper(div([]))
   | InfoExp({cls, status, _}) => wrapper(exp_view(~globals, cls, status))
@@ -366,7 +365,7 @@ let inspector_view = (~globals, ci): Node.t =>
       Attr.id("cursor-inspector"),
       clss([Info.is_error(ci) ? errc : okc]),
     ],
-    [view_of_info(~globals, ci)],
+    view_of_info(~globals, ci),
   );
 
 let view =

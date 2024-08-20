@@ -249,8 +249,9 @@ module View = {
       mousedown_handler(~globals, ~signal, ~inject=x => inject(Perform(x)));
     Node.div(
       ~attrs=[
-        Attr.classes(["cell-item"]),
-        Attr.classes(["code-editor"]),
+        Attr.classes(
+          ["cell-item", "code-editor"] @ (selected ? ["selected"] : []),
+        ),
         Attr.on_mousedown(on_mousedown),
       ],
       mousedown_overlay @ [code_view],

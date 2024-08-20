@@ -149,13 +149,7 @@ module View = {
         model.result,
       );
     div(
-      ~attrs=[
-        Attr.classes([
-          "cell",
-          Option.is_some(selected) ? "selected" : "deselected",
-          locked ? "locked" : "unlocked",
-        ]),
-      ],
+      ~attrs=[Attr.classes(["cell", locked ? "locked" : "unlocked"])],
       Option.to_list(caption)
       @ [
         CodeEditable.View.view(

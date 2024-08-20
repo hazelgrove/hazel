@@ -48,8 +48,16 @@
   padding-left: 1.2em;
 }
 
-.cell.selected .cell-item:first-child {
+.code-editor.selected{
   background-color: var(--cell-active);
+}
+
+.result .cell-item {
+  padding: 0em
+}
+
+.result .code-editor.selected{
+  background-color: var(--cell-result);
 }
 
 .title-cell {
