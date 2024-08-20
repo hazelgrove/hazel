@@ -213,7 +213,33 @@ let rec matches_exp =
     | (Fun(_), _) => false
 
     | (Let(dp, d1, d2), Let(fp, f1, f2)) =>
-      matches_pat(dp, fp) && matches_exp(d1, f1) && matches_exp(d2, f2)
+      let dvars = DHPat.bound_vars(dp);
+      let fvars = DHPat.bound_vars(fp);
+      if (List.length(dvars) != List.length(fvars)) {
+        false;
+      } else {
+        let ids =
+          Array.init(List.length(dvars), _ => {
+            alpha_magic ++ Uuidm.to_string(Uuidm.v(`V4))
+          });
+        let denv_subst: list((string, 'a)) =
+          List.mapi(
+            (i, binding) =>
+              (binding, TermBase.Exp.Var(ids[i]) |> IdTagged.fresh),
+            dvars,
+          );
+        let fenv_subst: list((string, 'a)) =
+          List.mapi(
+            (i, binding) =>
+              (binding, TermBase.Exp.Var(ids[i]) |> IdTagged.fresh),
+            fvars,
+          );
+        let denv =
+          evaluate_extend_env(Environment.of_list(denv_subst), denv);
+        let fenv =
+          evaluate_extend_env(Environment.of_list(fenv_subst), fenv);
+        matches_exp(d1, f1) && matches_exp(~denv, d2, ~fenv, f2);
+      };
     | (Let(_), _) => false
 
     | (TypAp(d1, t1), TypAp(d2, t2)) =>
