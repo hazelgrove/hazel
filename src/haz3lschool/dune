@@ -16,8 +16,12 @@
 
 (env
  (dev
+  (flags
+   (:standard -warn-error -A))
   (js_of_ocaml
    (flags :standard --debuginfo --noinline --dynlink --linkall --sourcemap)))
  (release
+  (flags
+   (:standard -warn-error +A))
   (js_of_ocaml
    (flags :standard))))
