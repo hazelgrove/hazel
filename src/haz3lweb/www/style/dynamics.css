@@ -13,10 +13,6 @@
   padding-left: 1.2em;
 }
 
-.selected .cell-result {
-  background-color: var(--cell-result);
-}
-
 .cell-result .status {
   position: relative;
   display: flex;
@@ -81,10 +77,6 @@
 
 .cell-result .equiv {
   font-family: var(--code-font);
-}
-
-.cell.selected + .cell-item {
-  border-left: 1px solid var(--cell-selected-accent);
 }
 
 .result {

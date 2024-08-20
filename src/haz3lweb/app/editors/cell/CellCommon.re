@@ -14,7 +14,7 @@ let simple_cell_item = (content: list(Node.t)) =>
 
 let caption = (~rest: option(string)=?, bolded: string) =>
   div(
-    ~attrs=[Attr.classes(["cell-caption"])],
+    ~attrs=[Attr.classes(["cell-caption", "cell-item"])],
     [strong([text(bolded)])] @ (rest |> Option.map(text) |> Option.to_list),
   );
 
