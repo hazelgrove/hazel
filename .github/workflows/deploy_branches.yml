@@ -57,9 +57,6 @@ jobs:
         working-directory: ./server
       - name: Copy in the newly built source
         run: mkdir "./server/${BRANCH_NAME}" && cp -r "./source/_build/default/src/haz3lweb/www"/* "./server/${BRANCH_NAME}"
-      - name: See the status of the git repo
-        run: git status
-        working-directory: ./server
       - name : Commit to the website aka deploy
         run: |
           git config user.name github-deploy-action
