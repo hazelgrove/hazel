@@ -58,7 +58,7 @@ let term_view = (~globals: Globals.t, ci) => {
       clss(["ci-header", sort] @ (Info.is_error(ci) ? [errc] : [okc])),
     ],
     [
-      ctx_toggle(~inject, settings.context_inspector),
+      ctx_toggle(~globals),
       div(~attrs=[clss(["term-tag"])], [text(sort)]),
       explain_this_toggle(~globals),
       cls_view(ci),

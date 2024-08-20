@@ -8,8 +8,7 @@ let alias_view = (s: string): Node.t =>
 let jump_to = entry =>
   Globals.Update.JumpToTile(Haz3lcore.Ctx.get_id(entry));
 
-let context_entry_view =
-    (~globals, ~inject, entry: Haz3lcore.Ctx.entry): Node.t => {
+let context_entry_view = (~globals, entry: Haz3lcore.Ctx.entry): Node.t => {
   let view_type =
     CodeViewable.view_typ(
       ~globals,
@@ -21,15 +20,15 @@ let context_entry_view =
         fold_cast_types: false,
       },
     );
-  let div_name =
-    div(
-      ~attrs=[clss(["name"]), Attr.on_click(_ => inject(jump_to(entry)))],
-    );
+  let div_name = div(~attrs=[clss(["name"])]);
   switch (entry) {
   | VarEntry({name, typ, _})
   | ConstructorEntry({name, typ, _}) =>
-    div_c(
-      "context-entry",
+    div(
+      ~attrs=[
+        Attr.on_click(_ => globals.inject_global(jump_to(entry))),
+        clss(["context-entry", "code"]),
+      ],
       [
         div_name([text(name)]),
         div(~attrs=[clss(["seperator"])], [text(":")]),
@@ -37,8 +36,11 @@ let context_entry_view =
       ],
     )
   | TVarEntry({name, kind, _}) =>
-    div_c(
-      "context-entry",
+    div(
+      ~attrs=[
+        Attr.on_click(_ => globals.inject_global(jump_to(entry))),
+        clss(["context-entry", "code"]),
+      ],
       [
         div_name([alias_view(name)]),
         div(~attrs=[clss(["seperator"])], [text("::")]),
@@ -48,29 +50,31 @@ let context_entry_view =
   };
 };
 
-let ctx_view = (~globals, ~inject, ctx: Haz3lcore.Ctx.t): Node.t =>
+let ctx_view = (~globals, ctx: Haz3lcore.Ctx.t): Node.t =>
   div(
-    ~attrs=[clss(["context-entries"])],
+    ~attrs=[clss(["context-inspector"])],
     List.map(
-      context_entry_view(~globals, ~inject),
+      context_entry_view(~globals),
       ctx |> Haz3lcore.Ctx.filter_duplicates |> List.rev,
     ),
   );
 
-let ctx_sorts_view = (~globals, ~inject, ci: Haz3lcore.Statics.Info.t) =>
+let ctx_sorts_view = (~globals, ci: Haz3lcore.Statics.Info.t) =>
   Haz3lcore.Info.ctx_of(ci)
   |> Haz3lcore.Ctx.filter_duplicates
   |> List.rev
-  |> List.map(context_entry_view(~globals, ~inject));
+  |> List.map(context_entry_view(~globals));
 
-let view = (~globals: Globals.t, ci: Haz3lcore.Statics.Info.t): Node.t => {
+let view =
+    (~globals: Globals.t, ci: option(Haz3lcore.Statics.Info.t)): Node.t => {
   let clss =
     clss(
       ["context-inspector"]
       @ (globals.settings.context_inspector ? ["visible"] : []),
     );
-  div(
-    ~attrs=[clss],
-    ctx_sorts_view(~globals, ~inject=globals.inject_global, ci),
-  );
+  switch (ci) {
+  | Some(ci) when globals.settings.context_inspector =>
+    div(~attrs=[clss], ctx_sorts_view(~globals, ci))
+  | _ => div([])
+  };
 };

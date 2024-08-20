@@ -34,6 +34,8 @@ module Model = {
       Some(Printer.to_string_selection(model.editor.state.zipper)),
     editor: Some(model.editor),
     editor_action: x => Some(x),
+    undo_action: None,
+    redo_action: None,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]

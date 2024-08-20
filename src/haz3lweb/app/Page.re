@@ -68,6 +68,7 @@ module Update = {
       (
         ~import_log,
         ~schedule_action,
+        ~globals: Globals.Model.t,
         action: Globals.Update.t,
         model: Model.t,
       ) => {
@@ -121,8 +122,8 @@ module Update = {
       | Some((action, selection)) =>
         let* editors =
           Editors.Update.update(
+            ~globals,
             ~schedule_action=a => schedule_action(Editors(a)),
-            ~settings=model.globals.settings,
             action,
             model.editors,
           );
@@ -137,19 +138,78 @@ module Update = {
     | FinishImportAll(Some(data)) =>
       Export.import_all(~import_log, data, ~specs=ExerciseSettings.exercises);
       Store.load() |> return;
+    | ExportPersistentData =>
+      Store.save(model);
+      Export.export_persistent();
+      model |> return_quiet;
+    | ActiveEditor(action) =>
+      let cursor_info =
+        Editors.Selection.get_cursor_info(
+          ~selection=model.selection,
+          model.editors,
+        );
+      switch (cursor_info.editor_action(action)) {
+      | None => model |> return_quiet
+      | Some(action) =>
+        let* editors =
+          Editors.Update.update(
+            ~globals=model.globals,
+            ~schedule_action=a => schedule_action(Editors(a)),
+            action,
+            model.editors,
+          );
+        {...model, editors};
+      };
+    | Undo =>
+      let cursor_info =
+        Editors.Selection.get_cursor_info(
+          ~selection=model.selection,
+          model.editors,
+        );
+      switch (cursor_info.undo_action) {
+      | None => model |> return_quiet
+      | Some(action) =>
+        let* editors =
+          Editors.Update.update(
+            ~globals=model.globals,
+            ~schedule_action=a => schedule_action(Editors(a)),
+            action,
+            model.editors,
+          );
+        {...model, editors};
+      };
+    | Redo =>
+      let cursor_info =
+        Editors.Selection.get_cursor_info(
+          ~selection=model.selection,
+          model.editors,
+        );
+      switch (cursor_info.redo_action) {
+      | None => model |> return_quiet
+      | Some(action) =>
+        let* editors =
+          Editors.Update.update(
+            ~globals=model.globals,
+            ~schedule_action=a => schedule_action(Editors(a)),
+            action,
+            model.editors,
+          );
+        {...model, editors};
+      };
     };
   };
 
   let update =
       (~import_log, ~schedule_action: t => unit, action: t, model: Model.t) => {
+    let globals = {...model.globals, export_all: Export.export_all};
     switch (action) {
     | Globals(action) =>
-      update_global(~import_log, ~schedule_action, action, model)
+      update_global(~globals, ~import_log, ~schedule_action, action, model)
     | Editors(action) =>
       let* editors =
         Editors.Update.update(
+          ~globals=model.globals,
           ~schedule_action=a => schedule_action(Editors(a)),
-          ~settings=model.globals.settings,
           action,
           model.editors,
         );
@@ -300,6 +360,76 @@ module View = {
     ];
   };
 
+  let nut_menu =
+      (
+        ~globals: Globals.t,
+        ~inject: Editors.Update.t => 'a,
+        ~editors: Editors.Model.t,
+      ) => {
+    NutMenu.(
+      Widgets.(
+        div(
+          ~attrs=[Attr.class_("nut-menu")],
+          [
+            submenu(
+              ~tooltip="Settings",
+              ~icon=Icons.gear,
+              NutMenu.settings_menu(~globals),
+            ),
+            submenu(
+              ~tooltip="File",
+              ~icon=Icons.disk,
+              Editors.View.file_menu(~globals, ~inject, editors),
+            ),
+            button(
+              Icons.command_palette_sparkle,
+              _ => {
+                NinjaKeys.open_command_palette();
+                Effect.Ignore;
+              },
+              ~tooltip=
+                "Command Palette ("
+                ++ Keyboard.meta(Os.is_mac^ ? Mac : PC)
+                ++ " + k)",
+            ),
+            link(
+              Icons.github,
+              "https://github.com/hazelgrove/hazel",
+              ~tooltip="Hazel on GitHub",
+            ),
+            link(Icons.info, "https://hazel.org", ~tooltip="Hazel Homepage"),
+          ],
+        )
+      )
+    );
+  };
+
+  let top_bar = (~globals, ~inject: Update.t => Ui_effect.t(unit), ~editors) =>
+    div(
+      ~attrs=[Attr.id("top-bar")],
+      [
+        div(
+          ~attrs=[Attr.class_("wrap")],
+          [a(~attrs=[Attr.class_("nut-icon")], [Icons.hazelnut])],
+        ),
+        nut_menu(~globals, ~inject=a => inject(Editors(a)), ~editors),
+        div(
+          ~attrs=[Attr.class_("wrap")],
+          [div(~attrs=[Attr.id("title")], [text("hazel")])],
+        ),
+        div(
+          ~attrs=[Attr.class_("wrap")],
+          [
+            Editors.View.top_bar(
+              ~globals,
+              ~inject=a => inject(Editors(a)),
+              ~editors,
+            ),
+          ],
+        ),
+      ],
+    );
+
   let main_view =
       (
         ~get_log_and: (string => unit) => unit,
@@ -313,25 +443,6 @@ module View = {
       get_log_and,
       export_all: Export.export_all,
     };
-    let settings = globals.settings;
-    let top_bar =
-      div(
-        ~attrs=[Attr.id("top-bar")],
-        NutMenu.view(
-          ~globals,
-          ~selection=Some(selection),
-          ~inject=a => inject(Editors(a)),
-          ~editors,
-        )
-        @ [div(~attrs=[Attr.id("title")], [text("hazel")])]
-        @ [
-          Editors.View.top_bar(
-            ~globals,
-            ~inject=a => inject(Editors(a)),
-            ~editors,
-          ),
-        ],
-      );
     let bottom_bar =
       CursorInspector.view(
         ~globals,
@@ -339,7 +450,7 @@ module View = {
         cursor,
       );
     let sidebar =
-      settings.explainThis.show && settings.core.statics
+      globals.settings.explainThis.show && globals.settings.core.statics
         ? ExplainThis.view(
             ~globals,
             ~inject=a => inject(ExplainThis(a)),
@@ -358,7 +469,7 @@ module View = {
         model.editors,
       );
     [
-      top_bar,
+      top_bar(~globals, ~inject, ~editors),
       div(
         ~attrs=[
           Attr.id("main"),
@@ -368,6 +479,7 @@ module View = {
       ),
       sidebar,
       bottom_bar,
+      CtxInspector.view(~globals, cursor.info),
     ];
   };
 
@@ -375,7 +487,7 @@ module View = {
       (~get_log_and, ~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
     let cursor = Selection.get_cursor_info(~selection=model.selection, model);
     div(
-      ~attrs=Attr.[id("page"), ...handlers(~cursor, ~inject, model)],
+      ~attrs=[Attr.id("page"), ...handlers(~cursor, ~inject, model)],
       [
         FontSpecimen.view("font-specimen"),
         DecUtil.filters,

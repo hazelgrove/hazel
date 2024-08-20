@@ -42,7 +42,7 @@ module Update = {
              switch (action) {
              | Move(_)
              | Jump(_)
-             | Select(Resize(_) | Term(_) | Smart | Tile(_))
+             | Select(Resize(_) | Term(_) | Smart(_) | Tile(_))
              | Destruct(_)
              | Insert(_)
              | Pick_up
@@ -87,8 +87,13 @@ module Selection = {
   type t = unit;
 
   let get_cursor_info = (~selection as (), model: Model.t): cursor(Update.t) => {
-    CodeWithStatics.Model.get_cursor_info(model)
-    |> map(x => Update.Perform(x));
+    {
+      ...
+        CodeWithStatics.Model.get_cursor_info(model)
+        |> map(x => Update.Perform(x)),
+      undo_action: Some(Update.Undo),
+      redo_action: Some(Update.Redo),
+    };
   };
 
   let handle_key_event =
@@ -143,7 +148,10 @@ module View = {
     let goal_y = float_of_int(e##.clientY);
     Point.{
       row: Float.to_int((goal_y -. rect##.top) /. font_metrics.row_height),
-      col: Float.(to_int((goal_x -. rect##.left) /. font_metrics.col_width)),
+      col:
+        Float.(
+          to_int(round((goal_x -. rect##.left) /. font_metrics.col_width))
+        ),
     };
   };
 
@@ -190,13 +198,16 @@ module View = {
         inject(Action.Jump(BindingSiteOfIndicatedVar)),
       ])
     | (false, 1) =>
-      Effect.Many([
-        globals.inject_global(SetMousedown(true)),
-        signal(MakeActive),
-        inject(Action.Move(Goal(Point(goal)))),
-      ])
-    | (false, 2) => inject(Action.Select(Tile(Current)))
-    | (false, 3 | _) => inject(Action.Select(Smart))
+      /* Note that we only trigger drag mode (set mousedown)
+       * when the left mouse button (aka button 0) is pressed */
+      Effect.Many(
+        (
+          JsUtil.mouse_button(evt) == 0
+            ? [globals.inject_global(SetMousedown(true))] : []
+        )
+        @ [signal(MakeActive), inject(Action.Move(Goal(Point(goal))))],
+      )
+    | (false, n) => inject(Action.Select(Smart(n)))
     };
   };
 

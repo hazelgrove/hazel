@@ -71,7 +71,7 @@ let go_z =
        * no additional effect, select the parent term instead */
       let* (p, _, _) = Indicated.piece''(z);
       Piece.is_term(p)
-        ? Select.parent_of_indicated(z, meta.statics.info_map)
+        ? Select.parent_of_indicated(z, statics.info_map)
         : Select.nice_term(z);
     | _ => None
     };
@@ -120,7 +120,7 @@ let go_z =
       | BindingSiteOfIndicatedVar =>
         open OptUtil.Syntax;
         let* idx = Indicated.index(z);
-        let* ci = Id.Map.find_opt(idx, meta.statics.info_map);
+        let* ci = Id.Map.find_opt(idx, statics.info_map);
         let* binding_id = Info.get_binding_site(ci);
         Move.jump_to_id(z, binding_id);
       | TileId(id) => Move.jump_to_id(z, id)
@@ -209,46 +209,3 @@ let go_z =
     |> Result.of_option(~error=Action.Failure.Cant_move)
   };
 };
-
-let go_history =
-    (~settings: CoreSettings.t, a: Action.t, ed: Editor.t)
-    : Action.Result.t(Editor.t) => {
-  open Result.Syntax;
-  /* This function records action history */
-  let Editor.State.{zipper, meta} = ed.state;
-  let+ z = go_z(~settings, ~meta, a, zipper);
-  Editor.new_state(~settings, a, z, ed);
-};
-
-let go =
-    (~settings: CoreSettings.t, a: Action.t, ed: Editor.t)
-    : Action.Result.t(Editor.t) =>
-  /* This function wraps assistant completions. If completions are enabled,
-   * then beginning any action (other than accepting a completion) clears
-   * the completion buffer before performing the action. Conversely,
-   * after any edit action, a new completion is set in the buffer */
-  if (ed.read_only && Action.prevent_in_read_only_editor(a)) {
-    Ok(ed);
-  } else if (settings.assist && settings.statics) {
-    open Result.Syntax;
-    let ed =
-      a == Buffer(Accept)
-        ? ed
-        : (
-          switch (go_history(~settings, Buffer(Clear), ed)) {
-          | Ok(ed) => ed
-          | Error(_) => ed
-          }
-        );
-    let* ed = go_history(~settings, a, ed);
-    Action.is_edit(a)
-      ? {
-        switch (go_history(~settings, Buffer(Set(TyDi)), ed)) {
-        | Error(err) => Error(err)
-        | Ok(ed) => Ok(ed)
-        };
-      }
-      : Ok(ed);
-  } else {
-    go_history(~settings, a, ed);
-  };

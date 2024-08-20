@@ -75,14 +75,14 @@ module Update = {
     // Exercises
     | Exercises(ExercisesMode.Update.t);
 
-  let update = (~schedule_action, ~settings, action, model: Model.t) => {
+  let update = (~globals: Globals.t, ~schedule_action, action, model: Model.t) => {
     switch (action, model) {
     | (Scratch(action), Scratch(m)) =>
       let* scratch =
         ScratchMode.Update.update(
           ~schedule_action=a => schedule_action(Scratch(a)),
           ~is_documentation=false,
-          ~settings,
+          ~settings=globals.settings,
           action,
           m,
         );
@@ -90,9 +90,9 @@ module Update = {
     | (Scratch(action), Documentation(m)) =>
       let* scratch =
         ScratchMode.Update.update(
+          ~settings=globals.settings,
           ~schedule_action=a => schedule_action(Scratch(a)),
           ~is_documentation=true,
-          ~settings,
           action,
           m,
         );
@@ -100,8 +100,8 @@ module Update = {
     | (Exercises(action), Exercises(m)) =>
       let* exercises =
         ExercisesMode.Update.update(
+          ~globals,
           ~schedule_action=a => schedule_action(Exercises(a)),
-          ~settings,
           action,
           m,
         );
@@ -115,24 +115,26 @@ module Update = {
     | (SwitchMode(Scratch), _) =>
       Model.Scratch(
         ScratchMode.Store.load()
-        |> ScratchMode.Model.unpersist(~settings=settings.core),
+        |> ScratchMode.Model.unpersist(~settings=globals.settings.core),
       )
       |> return
     | (SwitchMode(Documentation), _) =>
       Model.Documentation(
         ScratchMode.StoreDocumentation.load()
-        |> ScratchMode.Model.unpersist_documentation(~settings=settings.core),
+        |> ScratchMode.Model.unpersist_documentation(
+             ~settings=globals.settings.core,
+           ),
       )
       |> return
     | (SwitchMode(Exercises), _) =>
       Model.Exercises(
         ExercisesMode.Store.load(
-          ~settings=settings.core,
-          ~instructor_mode=settings.instructor_mode,
+          ~settings=globals.settings.core,
+          ~instructor_mode=globals.settings.instructor_mode,
         )
         |> ExercisesMode.Model.unpersist(
-             ~settings=settings.core,
-             ~instructor_mode=settings.instructor_mode,
+             ~settings=globals.settings.core,
+             ~instructor_mode=globals.settings.instructor_mode,
            ),
       )
       |> return
@@ -296,22 +298,20 @@ module View = {
       )
     };
 
-  let export_menu = (~globals, editors: Model.t) =>
+  let file_menu = (~globals, ~inject, editors: Model.t) =>
     switch (editors) {
-    | Scratch(s) => ScratchMode.View.export_menu(s)
-    | Documentation(s) => ScratchMode.View.export_menu(s)
-    | Exercises(e) => ExercisesMode.View.export_menu(~globals, e)
-    };
-
-  let import_menu = (~globals, ~inject, editors: Model.t) =>
-    switch (editors) {
-    | Scratch(_) =>
-      ScratchMode.View.import_menu(~inject=a => Update.Scratch(a) |> inject)
-    | Documentation(_) =>
-      ScratchMode.View.import_menu(~inject=a => Update.Scratch(a) |> inject)
-    | Exercises(_) =>
-      ExercisesMode.View.import_menu(~globals, ~inject=a =>
-        Update.Exercises(a) |> inject
+    | Scratch(s)
+    | Documentation(s) =>
+      ScratchMode.View.file_menu(
+        ~globals,
+        ~inject=x => inject(Update.Scratch(x)),
+        s,
+      )
+    | Exercises(e) =>
+      ExercisesMode.View.file_menu(
+        ~globals,
+        ~inject=x => inject(Update.Exercises(x)),
+        e,
       )
     };
 
@@ -368,6 +368,9 @@ module View = {
           m,
         )
       };
-    div(~attrs=[Attr.id("editor-mode")], [mode_menu] @ contents);
+    div(
+      ~attrs=[Attr.id("editor-mode")],
+      [text("/"), mode_menu, text("/")] @ contents,
+    );
   };
 };
