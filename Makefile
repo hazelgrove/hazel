@@ -23,7 +23,8 @@ setup-instructor:
 setup-student: 
 	cp src/haz3lweb/ExerciseSettings_student.re src/haz3lweb/ExerciseSettings.re
 
-dev-helper: 
+dev-helper:
+	dune fmt --auto-promote || true
 	dune build @src/fmt --auto-promote src --profile dev
 
 dev: setup-instructor dev-helper
@@ -58,6 +59,7 @@ repl:
 	dune utop src/haz3lcore
 
 test:
+	dune fmt --auto-promote || true
 	dune build @src/fmt @test/fmt --auto-promote src test --profile dev
 	node $(TEST_DIR)/haz3ltest.bc.js
 
