@@ -287,6 +287,7 @@ module Deco =
       | Some(range) =>
         let tiles = all_tiles(p);
         PieceDec.indicated(
+          ~line_clss=[],
           ~font_metrics,
           ~rows,
           ~caret=(Piece.id(p), index),
@@ -452,8 +453,14 @@ module Deco =
           let rows = measured.rows;
           let decos =
             shard_decos
-            @ PieceDec.uni_lines(~font_metrics, ~rows, range, tiles)
-            @ PieceDec.bi_lines(~font_metrics, ~rows, tiles);
+            @ PieceDec.uni_lines(
+                ~font_metrics,
+                ~rows,
+                range,
+                tiles,
+                ~line_clss=[],
+              )
+            @ PieceDec.bi_lines(~font_metrics, ~rows, tiles, ~line_clss=[]);
           div_c("errors-piece", decos);
         | None => div_c("errors-piece", shard_decos)
         };

@@ -213,17 +213,25 @@
   content: "←";
 }
 
-.steppable,
-.steppable *:not(.DHCode .EmptyHole *, .DHCode .EmptyHole) {
+.tile-next-step path,
+.tile-next-step path *:not(.DHCode .EmptyHole *, .DHCode .EmptyHole) {
   outline: 1px var(--step-hole-color);
-  background-color: var(--shard-selected);
+  fill: var(--G1);
   cursor: pointer;
 }
 
-.stepped,
-.stepped *:not(.DHCode .EmptyHole *, .DHCode .EmptyHole) {
+.tile-taken-step path,
+.tile-taken-step path *:not(.DHCode .EmptyHole *, .DHCode .EmptyHole) {
   border: 1px var(--step-hole-color);
-  background-color: var(--Y1);
+  fill: var(--BR1);
+}
+
+.next-step-line {
+  stroke: var(--G1);
+}
+
+.taken-step-line {
+  stroke: var(--BR1);
 }
 
 .substituted {
