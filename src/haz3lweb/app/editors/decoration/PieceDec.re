@@ -180,6 +180,7 @@ let bi_lines =
     (
       ~font_metrics: FontMetrics.t,
       ~rows: Measured.Rows.t,
+      ~line_clss: list(string),
       tiles: list((Id.t, Mold.t, Measured.Shards.t)),
     )
     : list(t) => {
@@ -237,7 +238,7 @@ let bi_lines =
     | [] => failwith("empty tile")
     | [(_, mold, _), ..._] => mold.out
     };
-  let clss = ["child-line", Sort.to_string(s)];
+  let clss = ["child-line", Sort.to_string(s)] @ line_clss;
   intra_lines
   @ inter_lines
   |> List.map(((origin, path)) =>
@@ -249,6 +250,7 @@ let uni_lines =
     (
       ~font_metrics: FontMetrics.t,
       ~rows: Measured.Rows.t,
+      ~line_clss: list(string),
       (l: Measured.Point.t, r: Measured.Point.t),
       tiles: list((Id.t, Mold.t, Measured.Shards.t)),
     ) => {
@@ -373,7 +375,7 @@ let uni_lines =
     | [] => failwith("empty tile")
     | [(_, mold, _), ..._] => mold.out
     };
-  let clss = ["child-line", Sort.to_string(s)];
+  let clss = ["child-line", Sort.to_string(s)] @ line_clss;
   l_line
   @ r_line
   |> List.map(((origin, path)) =>
@@ -388,16 +390,23 @@ let indicated =
       ~rows: Measured.Rows.t,
       ~caret,
       ~tiles,
+      ~line_clss: list(string),
       range,
     )
     : list(Node.t) => {
   List.concat_map(simple_shards(~font_metrics, ~caret), tiles)
-  @ uni_lines(~font_metrics, ~rows, range, tiles)
-  @ bi_lines(~font_metrics, ~rows, tiles);
+  @ uni_lines(~line_clss, ~font_metrics, ~rows, range, tiles)
+  @ bi_lines(~line_clss, ~font_metrics, ~rows, tiles);
 };
 
 let next_step_indicated = (~inject) =>
-  indicated(~simple_shards=next_step_shards_indicated(~inject));
+  indicated(
+    ~simple_shards=next_step_shards_indicated(~inject),
+    ~line_clss=["next-step-line"],
+  );
 let taken_step_indicated =
-  indicated(~simple_shards=taken_step_shards_indicated);
+  indicated(
+    ~simple_shards=taken_step_shards_indicated,
+    ~line_clss=["taken-step-line"],
+  );
 let indicated = indicated(~simple_shards=simple_shards_indicated);
