@@ -124,6 +124,10 @@ module Update = {
                   |> CodeSelectable.Model.mk_from_exp(
                        ~settings=settings.core,
                      )
+                  |> CodeSelectable.Update.calculate(
+                       ~is_edited=true, ~settings=settings.core, ~stitch=x =>
+                       x
+                     )
                   |> (x => (x, s)),
                 update,
               ),
