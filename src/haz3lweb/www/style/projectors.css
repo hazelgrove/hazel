@@ -51,6 +51,10 @@
   cursor: pointer;
 }
 
+.result .projector.fold {
+  cursor: default;
+}
+
 /* PROJECTOR: INFO */
 
 .projector.type .type {
