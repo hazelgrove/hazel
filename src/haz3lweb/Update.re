@@ -394,6 +394,12 @@ let rec apply =
       | None => Error(FailedToSwitch)
       | Some(editors) => Ok({...model, editors})
       };
+    | SwitchEditorDoc(_) => Ok(model) // TEMPORARY
+    // let instructor_mode = model.settings.instructor_mode;
+    // switch (switch_exercise_editor(model.editors, ~pos, ~instructor_mode)) {
+    // | None => Error(FailedToSwitch)
+    // | Some(editors) => Ok({...model, editors})
+    // };
     | TAB =>
       /* Attempt to act intelligently when TAB is pressed.
        * TODO(andrew): Consider more advanced TAB logic. Instead
