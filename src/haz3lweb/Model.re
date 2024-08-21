@@ -74,10 +74,35 @@ let load_editors =
     (Scratch(idx, slides), results);
   | Documentation =>
     let (name, slides, results) = Store.Documentation.load(~settings);
-    let for_tuple = ((str: string, editor: Editor.t)) => {
-      (str, fromEditor(editor));
+    //   let toEditor = (state: DocumentationEnv.state): Editor.t => {
+    //   switch (state) {
+    //   | s => s.eds.hidden_tests.tests
+    //   };
+    // };
+    // let from_tup = ((word: string, status: DocumentationEnv.state)) => (
+    //   word,
+    //   toEditor(status),
+    // );
+    // let slides = List.map(from_tup, slides);
+    // let slides = reset_named_slide(name, slides);
+    let fromEditor = (editor: Editor.t): DocumentationEnv.state => {
+      pos: DocumentationEnv.YourImpl,
+      eds: {
+        title: "",
+        description: "",
+        your_impl: editor,
+        hidden_tests: {
+          tests: editor,
+          hints: [],
+        },
+      },
     };
-    let slides = List.map(for_tuple, slides);
+    let to_tup = ((word: string, editor: Editor.t)) => (
+      word,
+      fromEditor(editor),
+    );
+    let slides = List.map(to_tup, slides);
+
     (Documentation(name, slides), results);
   | Exercises =>
     let (n, specs, exercise) =
@@ -97,14 +122,16 @@ let save_editors =
     let slides = List.map(ScratchSlide.deserialize, slides);
     Store.Scratch.save((n, slides, results));
   | Documentation(name, slides) =>
-    let ser_tuple = ((str: string, state: ScratchSlide.state)) => {
-      (str, ScratchSlide.serialize(state));
+    let toEditor = (state: DocumentationEnv.state): Editor.t => {
+      switch (state) {
+      | s => s.eds.hidden_tests.tests
+      };
     };
-    let deser_tuple = ((str: string, stri: string)) => {
-      (str, ScratchSlide.deserialize(stri));
-    };
-    let slides = List.map(ser_tuple, slides);
-    let slides = List.map(deser_tuple, slides);
+    let from_tup = ((word: string, status: DocumentationEnv.state)) => (
+      word,
+      toEditor(status),
+    );
+    let slides = List.map(from_tup, slides);
     Store.Documentation.save((name, slides, results));
   | Exercises(n, specs, exercise) =>
     Store.Exercise.save((n, specs, exercise), ~instructor_mode)

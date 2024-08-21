@@ -292,46 +292,47 @@ let reset_button = inject =>
     ~tooltip="Reset Exercise",
   );
 
-let instructor_export = (exercise: Exercise.state) =>
+let instructor_export = (exercise: DocumentationEnv.state) =>
   Widgets.button_named(
     Icons.star,
     _ => {
       // .ml files because show uses OCaml syntax (dune handles seamlessly)
-      let module_name = exercise.eds.module_name;
-      let filename = exercise.eds.module_name ++ ".ml";
+      let module_name = exercise.eds.title;
+      let filename = exercise.eds.title ++ ".ml";
       let content_type = "text/plain";
-      let contents = Exercise.export_module(module_name, exercise);
+      let contents = DocumentationEnv.export_module(module_name, exercise);
       JsUtil.download_string_file(~filename, ~content_type, ~contents);
       Virtual_dom.Vdom.Effect.Ignore;
     },
     ~tooltip="Export Exercise Module",
   );
 
-let instructor_transitionary_export = (exercise: Exercise.state) =>
+let instructor_transitionary_export = (exercise: DocumentationEnv.state) =>
   Widgets.button_named(
     Icons.star,
     _ => {
       // .ml files because show uses OCaml syntax (dune handles seamlessly)
-      let module_name = exercise.eds.module_name;
-      let filename = exercise.eds.module_name ++ ".ml";
+      let module_name = exercise.eds.title;
+      let filename = exercise.eds.title ++ ".ml";
       let content_type = "text/plain";
       let contents =
-        Exercise.export_transitionary_module(module_name, exercise);
+        DocumentationEnv.export_transitionary_module(module_name, exercise);
       JsUtil.download_string_file(~filename, ~content_type, ~contents);
       Virtual_dom.Vdom.Effect.Ignore;
     },
     ~tooltip="Export Transitionary Exercise Module",
   );
 
-let instructor_grading_export = (exercise: Exercise.state) =>
+let instructor_grading_export = (exercise: DocumentationEnv.state) =>
   Widgets.button_named(
     Icons.star,
     _ => {
       // .ml files because show uses OCaml syntax (dune handles seamlessly)
-      let module_name = exercise.eds.module_name;
-      let filename = exercise.eds.module_name ++ "_grading.ml";
+      let module_name = exercise.eds.title;
+      let filename = exercise.eds.title ++ "_grading.ml";
       let content_type = "text/plain";
-      let contents = Exercise.export_grading_module(module_name, exercise);
+      let contents =
+        DocumentationEnv.export_grading_module(module_name, exercise);
       JsUtil.download_string_file(~filename, ~content_type, ~contents);
       Virtual_dom.Vdom.Effect.Ignore;
     },
@@ -366,3 +367,14 @@ let import_submission = (~inject) =>
     },
     ~tooltip="Import Submission",
   );
+
+// let export_button = state =>
+//   Widgets.button_named(
+//     Icons.star,
+//     _ => {
+//       let json_data = DocumentationEnv.export(state);
+//       JsUtil.download_json("hazel-scratchpad", json_data);
+//       Virtual_dom.Vdom.Effect.Ignore;
+//     },
+//     ~tooltip="Export Scratchpad",
+//   );

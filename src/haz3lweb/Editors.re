@@ -1,6 +1,6 @@
 open Sexplib.Std;
 open Haz3lcore;
-open Util;
+// open Util;
 // open Init;
 open ScratchSlide;
 
@@ -18,7 +18,7 @@ type exercises = (int, list(Exercise.spec), Exercise.state);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Scratch(int, list(ScratchSlide.state))
-  | Documentation(string, list((string, ScratchSlide.state)))
+  | Documentation(string, list((string, DocumentationEnv.state)))
   | Exercises(int, list(Exercise.spec), Exercise.state);
 
 let get_editor = (editors: t): Editor.t =>
@@ -28,7 +28,7 @@ let get_editor = (editors: t): Editor.t =>
     List.nth(slides, n).hidden_tests.tests;
   | Documentation(name, slides) =>
     assert(List.mem_assoc(name, slides));
-    List.assoc(name, slides).hidden_tests.tests;
+    List.assoc(name, slides).eds.hidden_tests.tests;
   | Exercises(_, _, exercise) => Exercise.editor_of_state(exercise)
   };
 
@@ -39,7 +39,39 @@ let put_editor = (ed: ScratchSlide.state, eds: t): t =>
     Scratch(n, Util.ListUtil.put_nth(n, ed, slides));
   | Documentation(name, slides) =>
     assert(List.mem_assoc(name, slides));
-    Documentation(name, slides |> ListUtil.update_assoc((name, ed)));
+
+    // coversion to DocEnv state -> for tutorial mode
+    let convert_hidden_tests =
+        (ht: ScratchSlide.hidden_tests(Editor.t))
+        : DocumentationEnv.hidden_tests(Editor.t) => {
+      {tests: ht.tests, hints: ht.hints};
+    };
+    let convert_scratch_p_to_doc_p =
+        (scratch: ScratchSlide.p(Editor.t)): DocumentationEnv.eds => {
+      {
+        title: scratch.title,
+        description: scratch.description,
+        your_impl: scratch.hidden_tests.tests,
+        hidden_tests: convert_hidden_tests(scratch.hidden_tests),
+      };
+    };
+
+    let convert_scratch_state_to_doc_state =
+        (scratch: ScratchSlide.state): DocumentationEnv.state => {
+      {
+        pos: DocumentationEnv.YourImpl,
+        eds: convert_scratch_p_to_doc_p(scratch),
+      };
+    };
+    //
+
+    let update_assoc = ((k: hint, v: DocumentationEnv.state)) =>
+      List.map(((k', v')) => k == k' ? (k, v) : (k', v'));
+    Documentation(
+      name,
+      slides |> update_assoc((name, convert_scratch_state_to_doc_state(ed))),
+    );
+
   | Exercises(n, specs, exercise) =>
     Exercises(n, specs, Exercise.put_editor(exercise, ed.hidden_tests.tests))
   };
@@ -170,12 +202,29 @@ let reset_current = (editors: t, ~instructor_mode: bool): t =>
     Scratch(n, editorList);
 
   | Documentation(name, slides) =>
-    let from_tup = ((word: string, status: state)) => (
+    let toEditor = (state: DocumentationEnv.state): Editor.t => {
+      switch (state) {
+      | s => s.eds.hidden_tests.tests
+      };
+    };
+    let from_tup = ((word: string, status: DocumentationEnv.state)) => (
       word,
       toEditor(status),
     );
     let slides = List.map(from_tup, slides);
     let slides = reset_named_slide(name, slides);
+    let fromEditor = (editor: Editor.t): DocumentationEnv.state => {
+      pos: DocumentationEnv.YourImpl,
+      eds: {
+        title: "",
+        description: "",
+        your_impl: editor,
+        hidden_tests: {
+          tests: editor,
+          hints: [],
+        },
+      },
+    };
     let to_tup = ((word: string, editor: Editor.t)) => (
       word,
       fromEditor(editor),

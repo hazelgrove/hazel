@@ -1,4 +1,3 @@
-// open Util;
 open Js_of_ocaml;
 open Haz3lcore;
 open Virtual_dom.Vdom;
@@ -112,25 +111,27 @@ let main_view =
     //     editor,
     //   );
     // (view, cursor_info);
-    | Documentation(name, _) =>
-      let result_key = ScratchSlide.scratch_key(name);
+    | Documentation(_, slides) =>
       let info =
         SlideContent.get_content(editors)
         |> Option.map(i => div(~attr=Attr.id("slide"), [i]))
         |> Option.to_list;
-      info
-      @ ScratchMode.view(
-          // let view =
-          //   ScratchMode.view(
-          ~inject,
-          ~ui_state,
-          ~settings,
-          ~highlights,
-          ~results,
-          ~result_key,
-          ~statics,
-          editor,
+
+      let results =
+        List.map(
+          ((_, tutorial_state)) =>
+            DocumentationMode.view(
+              ~inject,
+              ~ui_state,
+              ~settings,
+              ~tutorial=tutorial_state,
+              ~results,
+              ~highlights,
+            ),
+          slides,
         );
+
+      info @ List.flatten(results);
     // let info =
     //   SlideContent.get_content(editors)
     //   |> Option.map(i => div(~attrs=[Attr.id("slide")], [i]))
