@@ -283,7 +283,7 @@ let forms: list((string, t)) = [
   ("typ_plus", mk_infix("+", Typ, P.type_plus)),
   // UNARY PREFIX OPERATORS
   ("not", mk(ii, ["!"], mk_pre(P.not_, Exp, []))),
-  ("typ_sum_single", mk(ss, ["+"], mk_pre(P.type_sum_ap, Typ, []))),
+  ("typ_sum_single", mk(ss, ["+"], mk_pre(P.or_, Typ, []))),
   ("unary_minus", mk(ss, ["-"], mk_pre(P.neg, Exp, []))),
   ("unquote", mk(ss, ["$"], mk_pre(P.unquote, Exp, []))),
   // N-ARY OPS (on the semantics level)
