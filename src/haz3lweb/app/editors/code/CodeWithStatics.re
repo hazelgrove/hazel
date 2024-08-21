@@ -69,7 +69,12 @@ module View = {
       (~globals, ~overlays: list(Node.t)=[], ~sort=Sort.root, model: Model.t) => {
     let {
       statics: {info_map, _},
-      editor: {syntax: {measured, selection_ids, segment, holes, _}, _},
+      editor:
+        {
+          syntax: {measured, selection_ids, segment, holes, _},
+          state: {zipper: z, _},
+          _,
+        },
       _,
     }: Model.t = model;
     let code_text_view =
@@ -77,7 +82,7 @@ module View = {
         ~globals,
         ~sort,
         ~measured,
-        ~buffer_ids=selection_ids,
+        ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],
         ~segment,
         ~holes,
         ~info_map,
