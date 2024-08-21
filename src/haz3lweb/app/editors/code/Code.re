@@ -186,28 +186,3 @@ let of_hole = (~globals: Globals.t, ~measured, g: Grout.t) =>
       mold: Mold.of_grout(g, Any),
     },
   );
-
-let view =
-    (
-      ~globals: Globals.t,
-      ~sort: Sort.t,
-      ~settings: Settings.t,
-      ~statics: CachedStatics.t,
-      z: Zipper.t,
-      {syntax: {measured, segment, holes, selection_ids, _}, _}: Editor.t,
-    )
-    : Node.t => {
-  module Text =
-    Text({
-      let map = measured;
-      let settings = settings;
-      let info_map = statics.info_map;
-    });
-  let buffer_ids = Selection.is_buffer(z.selection) ? selection_ids : [];
-  let code = Text.of_segment(buffer_ids, false, sort, segment);
-  let holes = List.map(of_hole(~measured, ~globals), holes);
-  div(
-    ~attrs=[Attr.class_("code")],
-    [span_c("code-text", code), ...holes],
-  );
-};
