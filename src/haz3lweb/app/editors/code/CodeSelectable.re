@@ -50,6 +50,8 @@ module Update = {
     | Undo
     | Redo
     | DebugConsole(_) => None;
+
+  let calculate = CodeEditable.Update.calculate;
 };
 
 module Selection = {
