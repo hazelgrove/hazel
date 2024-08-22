@@ -78,6 +78,27 @@ module Update = {
             new_editor.editor,
           ),
       };
+    | Editor(pos, MainEditor(action)) =>
+      switch (CodeSelectable.Update.convert_action(action)) {
+      | Some(action) =>
+        let editor =
+          Exercise.main_editor_of_state(~selection=pos, model.editors);
+        let* new_editor =
+          // Hack[Matt]: put Editor.t into a CodeSelectable.t to use its update function
+          editor
+          |> CodeSelectable.Model.mk
+          |> CodeSelectable.Update.update(~settings, action);
+        {
+          ...model,
+          editors:
+            Exercise.put_main_editor(
+              ~selection=pos,
+              model.editors,
+              new_editor.editor,
+            ),
+        };
+      | None => Updated.return_quiet(model)
+      }
     | Editor(pos, ResultAction(_) as action)
         when
           Exercise.visible_in(pos, ~instructor_mode)
@@ -90,8 +111,7 @@ module Update = {
       let cell = Exercise.get_stitched(pos, model.cells);
       let* new_cell = CellEditor.Update.update(~settings, action, cell);
       {...model, cells: Exercise.put_stitched(pos, model.cells, new_cell)};
-    | Editor(_, MainEditor(_) | ResultAction(_)) =>
-      Updated.return_quiet(model) // TODO: better feedback
+    | Editor(_, ResultAction(_)) => Updated.return_quiet(model) // TODO: I think this case should never happen
     | ResetEditor(pos) =>
       let spec = Exercise.main_editor_of_state(~selection=pos, model.spec);
       let new_editor = Editor.Model.mk(spec);
@@ -245,8 +265,6 @@ module View = {
       Exercise.stitched('a) =
       model.cells;
 
-    let instructor_mode = globals.settings.instructor_mode;
-
     let stitched_tests =
       Exercise.map_stitched(
         (_, cell_editor: CellEditor.Model.t) =>
@@ -270,9 +288,7 @@ module View = {
         ~globals,
         ~signal=
           fun
-          | MakeActive(a) =>
-            Exercise.visible_in(this_pos, ~instructor_mode)
-              ? signal(MakeActive((this_pos, a))) : Effect.Ignore,
+          | MakeActive(a) => signal(MakeActive((this_pos, a))),
         ~selected=
           switch (selection) {
           | Some((pos, s)) when pos == this_pos => Some(s)
