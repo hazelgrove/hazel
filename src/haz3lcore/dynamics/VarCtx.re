@@ -1,3 +1,3 @@
 [@deriving sexp]
-type t = VarMap.t_(Typ.t);
+type t('a) = VarMap.t_(Typ.t('a));
 include VarMap;

@@ -1,11 +1,10 @@
-let dh_err = (error: string): DHExp.t(list(Id.t)) =>
-  Var(error) |> DHExp.fresh;
+let dh_err = (error: string): DHExp.t(IdTag.t) => Var(error) |> DHExp.fresh;
 
 let elaborate =
   Core.Memo.general(~cache_size_bound=1000, Elaborator.uexp_elab);
 
 exception DoesNotElaborate;
-let elaborate = (~settings: CoreSettings.t, map, term): DHExp.t(list(Id.t)) =>
+let elaborate = (~settings: CoreSettings.t, map, term): DHExp.t(IdTag.t) =>
   switch () {
   | _ when !settings.statics => dh_err("Statics disabled")
   | _ when !settings.dynamics && !settings.elaborate =>
@@ -21,7 +20,7 @@ let evaluate =
     (
       ~settings: CoreSettings.t,
       ~env=Builtins.env_init,
-      elab: DHExp.t(list(Id.t)),
+      elab: DHExp.t(IdTag.t),
     )
     : ProgramResult.t =>
   switch () {

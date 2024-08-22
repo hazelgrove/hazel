@@ -7,7 +7,7 @@ include Pat;
 /**
  * Whether dp contains the variable x outside of a hole.
  */
-let rec binds_var = (m: Statics.Map.t, x: Var.t, dp: t): bool =>
+let rec binds_var = (m: Statics.Map.t, x: Var.t, dp: t('a)): bool =>
   switch (Statics.get_pat_error_at(m, rep_id(dp))) {
   | Some(_) => false
   | None =>
@@ -33,7 +33,7 @@ let rec binds_var = (m: Statics.Map.t, x: Var.t, dp: t): bool =>
     }
   };
 
-let rec bound_vars = (dp: t): list(Var.t) =>
+let rec bound_vars = (dp: t('a)): list(Var.t) =>
   switch (dp |> term_of) {
   | EmptyHole
   | MultiHole(_)

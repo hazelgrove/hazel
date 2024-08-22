@@ -1,12 +1,12 @@
 open Transition;
-open Sexplib.Conv;
-open Ppx_yojson_conv_lib.Yojson_conv;
+// open Sexplib.Conv;
+// open Ppx_yojson_conv_lib.Yojson_conv;
 
 module Result = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | BoxedValue(DHExp.t(list(Id.t)))
-    | Indet(DHExp.t(list(Id.t)));
+    | BoxedValue(DHExp.t(IdTag.t))
+    | Indet(DHExp.t(IdTag.t));
 
   let unbox =
     fun
@@ -32,14 +32,14 @@ module EvaluatorEVMode: {
   include
     EV_MODE with
       type state = ref(EvaluatorState.t) and
-      type result = (status, DHExp.t(list(Id.t)));
+      type result = (status, DHExp.t(IdTag.t));
 } = {
   type status =
     | BoxedValue
     | Indet
     | Uneval;
 
-  type result = (status, DHExp.t(list(Id.t)));
+  type result = (status, DHExp.t(IdTag.t));
 
   type reqstate =
     | BoxedReady

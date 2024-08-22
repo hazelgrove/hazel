@@ -20,24 +20,25 @@ module Pat = {
 
   include TermBase.Pat;
 
-  let rep_id = ({ids, _}: t) => {
+  let rep_id = (t: t(IdTag.t)) => {
+    let ids = t.annotation.ids;
     assert(ids != []);
     List.hd(ids);
   };
 
-  let term_of: t => TermBase.Pat.term = IdTagged.term_of;
+  let term_of: t('a) => TermBase.Pat.term('a) = Annotated.term_of;
 
-  let unwrap: t => (term, term => t) = IdTagged.unwrap;
+  let unwrap: t('a) => (term('a), term('a) => t('a)) = Annotated.unwrap;
 
-  let fresh: term => t = IdTagged.fresh;
+  let fresh: term(IdTag.t) => t(IdTag.t) = Annotated.fresh;
 
-  let hole = (tms: list(TermBase.Any.t)) =>
+  let hole = (tms: list(TermBase.Any.t('a))) =>
     switch (tms) {
     | [] => EmptyHole
     | [_, ..._] => MultiHole(tms)
     };
 
-  let cls_of_term: term => cls =
+  let cls_of_term: term('a) => cls =
     fun
     | Invalid(_) => Invalid
     | EmptyHole => EmptyHole
@@ -75,7 +76,7 @@ module Pat = {
     | Ap => "Constructor application"
     | Cast => "Annotation";
 
-  let rec is_var = (pat: t) => {
+  let rec is_var = (pat: t('a)) => {
     switch (pat.term) {
     | Parens(pat)
     | Cast(pat, _, _) => is_var(pat)
@@ -96,7 +97,7 @@ module Pat = {
     };
   };
 
-  let rec is_fun_var = (pat: t) => {
+  let rec is_fun_var = (pat: t('a)) => {
     switch (pat.term) {
     | Parens(pat) => is_fun_var(pat)
     | Cast(pat, typ, _) =>
@@ -118,7 +119,7 @@ module Pat = {
     };
   };
 
-  let rec is_tuple_of_arrows = (pat: t) =>
+  let rec is_tuple_of_arrows = (pat: t('a)) =>
     is_fun_var(pat)
     || (
       switch (pat.term) {
@@ -141,7 +142,7 @@ module Pat = {
       }
     );
 
-  let rec is_tuple_of_vars = (pat: t) =>
+  let rec is_tuple_of_vars = (pat: t('a)) =>
     is_var(pat)
     || (
       switch (pat.term) {
@@ -164,7 +165,7 @@ module Pat = {
       }
     );
 
-  let rec get_var = (pat: t) => {
+  let rec get_var = (pat: t('a)) => {
     switch (pat.term) {
     | Parens(pat) => get_var(pat)
     | Var(x) => Some(x)
@@ -185,7 +186,7 @@ module Pat = {
     };
   };
 
-  let rec get_fun_var = (pat: t) => {
+  let rec get_fun_var = (pat: t('a)) => {
     switch (pat.term) {
     | Parens(pat) => get_fun_var(pat)
     | Cast(pat, t1, _) =>
@@ -211,7 +212,7 @@ module Pat = {
     };
   };
 
-  let rec get_bindings = (pat: t) =>
+  let rec get_bindings = (pat: t('a)) =>
     switch (get_var(pat)) {
     | Some(x) => Some([x])
     | None =>
@@ -241,7 +242,7 @@ module Pat = {
       }
     };
 
-  let rec get_num_of_vars = (pat: t) =>
+  let rec get_num_of_vars = (pat: t('a)) =>
     if (is_var(pat)) {
       Some(1);
     } else {
@@ -266,7 +267,7 @@ module Pat = {
       };
     };
 
-  let ctr_name = (p: t): option(Constructor.t) =>
+  let ctr_name = (p: t('a)): option(Constructor.t) =>
     switch (p.term) {
     | Constructor(name, _) => Some(name)
     | _ => None
@@ -318,19 +319,17 @@ module Exp = {
     | Cast
     | ListConcat;
 
-  let hole = (tms: list(TermBase.Any.t)): term(list(Id.t)) =>
+  let hole = (tms: list(TermBase.Any.t('a))): term('a) =>
     switch (tms) {
     | [] => EmptyHole
     | [_, ..._] => MultiHole(tms)
     };
 
-  let rep_id: t(list(Id.t)) => Id.t = IdTagged.rep_id;
-  let fresh: term(list(Id.t)) => t(list(Id.t)) = IdTagged.fresh;
-  let unwrap:
-    t(list(Id.t)) =>
-    (term(list(Id.t)), term(list(Id.t)) => t(list(Id.t))) = IdTagged.unwrap;
+  let rep_id: t(IdTag.t) => Id.t = Annotated.rep_id;
+  let fresh: term(IdTag.t) => t(IdTag.t) = Annotated.fresh;
+  let unwrap: t(IdTag.t) => (term(IdTag.t), term(IdTag.t) => t(IdTag.t)) = Annotated.unwrap;
 
-  let cls_of_term: term(list(Id.t)) => cls =
+  let cls_of_term: term(IdTag.t) => cls =
     fun
     | Invalid(_) => Invalid
     | EmptyHole => EmptyHole
@@ -413,7 +412,7 @@ module Exp = {
 
   // Typfun should be treated as a function here as this is only used to
   // determine when to allow for recursive definitions in a let binding.
-  let rec is_fun = (e: t(list(Id.t))) => {
+  let rec is_fun = (e: t('a)) => {
     switch (e.term) {
     | Parens(e) => is_fun(e)
     | Cast(e, _, _) => is_fun(e)
@@ -454,7 +453,7 @@ module Exp = {
     };
   };
 
-  let rec is_tuple_of_functions = (e: t(list(Id.t))) =>
+  let rec is_tuple_of_functions = (e: t('a)) =>
     is_fun(e)
     || (
       switch (e.term) {
@@ -497,20 +496,20 @@ module Exp = {
       }
     );
 
-  let ctr_name = (e: t(list(Id.t))): option(Constructor.t) =>
+  let ctr_name = (e: t('a)): option(Constructor.t) =>
     switch (e.term) {
     | Constructor(name, _) => Some(name)
     | _ => None
     };
 
-  let is_deferral = (e: t(list(Id.t))) => {
+  let is_deferral = (e: t('a)) => {
     switch (e.term) {
     | Deferral(_) => true
     | _ => false
     };
   };
 
-  let rec get_num_of_functions = (e: t(list(Id.t))) =>
+  let rec get_num_of_functions = (e: t('a)) =>
     if (is_fun(e)) {
       Some(1);
     } else {
@@ -565,13 +564,13 @@ module Rul = {
   // example of awkwardness induced by having forms like rules
   // that may have a different-sorted child with no delimiters
   // (eg scrut with no rules)
-  let ids = (~any_ids, {ids, term, _}: t) =>
-    switch (ids) {
-    | [_, ..._] => ids
+  let ids = (~any_ids, t: t(IdTag.t)) =>
+    switch (t.annotation.ids) {
+    | [_, ..._] => t.annotation.ids
     | [] =>
-      switch (term) {
+      switch (t.term) {
       | Hole([tm, ..._]) => any_ids(tm)
-      | Rules(scrut, []) => scrut.ids
+      | Rules(scrut, []) => scrut.annotation.ids
       | _ => []
       }
     };
@@ -586,25 +585,25 @@ module Rul = {
 module Any = {
   include TermBase.Any;
 
-  let is_exp: t => option(TermBase.Exp.t(list(Id.t))) =
+  let is_exp: t('a) => option(TermBase.Exp.t('a)) =
     fun
     | Exp(e) => Some(e)
     | _ => None;
-  let is_pat: t => option(TermBase.Pat.t) =
+  let is_pat: t('a) => option(TermBase.Pat.t('a)) =
     fun
     | Pat(p) => Some(p)
     | _ => None;
-  let is_typ: t => option(TermBase.Typ.t) =
+  let is_typ: t('a) => option(TermBase.Typ.t('a)) =
     fun
     | Typ(t) => Some(t)
     | _ => None;
 
-  let rec ids =
+  let rec ids: t(IdTag.t) => list(Id.t) =
     fun
-    | Exp(tm) => tm.ids
-    | Pat(tm) => tm.ids
-    | Typ(tm) => tm.ids
-    | TPat(tm) => tm.ids
+    | Exp(tm) => tm.annotation.ids
+    | Pat(tm) => tm.annotation.ids
+    | Typ(tm) => tm.annotation.ids
+    | TPat(tm) => tm.annotation.ids
     | Rul(tm) => Rul.ids(~any_ids=ids, tm)
     | Nul ()
     | Any () => [];

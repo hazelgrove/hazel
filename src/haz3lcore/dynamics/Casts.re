@@ -25,7 +25,7 @@ open Util;
 type ground_cases =
   | Hole
   | Ground
-  | NotGroundOrHole(Typ.t) /* the argument is the corresponding ground type */;
+  | NotGroundOrHole(Typ.t(IdTag.t)) /* the argument is the corresponding ground type */;
 
 let grounded_Arrow =
   NotGroundOrHole(
@@ -34,7 +34,10 @@ let grounded_Arrow =
   );
 let grounded_Forall =
   NotGroundOrHole(
-    Forall(EmptyHole |> TPat.fresh, Unknown(Internal) |> Typ.temp)
+    Forall(
+      (EmptyHole: TPat.term(IdTag.t)) |> TPat.fresh,
+      Unknown(Internal) |> Typ.temp,
+    )
     |> Typ.temp,
   );
 let grounded_Prod = length =>
@@ -42,13 +45,13 @@ let grounded_Prod = length =>
     Prod(ListUtil.replicate(length, Typ.Unknown(Internal) |> Typ.temp))
     |> Typ.temp,
   );
-let grounded_Sum: unit => Typ.sum_map =
+let grounded_Sum: unit => Typ.sum_map(IdTag.t) =
   () => [BadEntry(Typ.temp(Unknown(Internal)))];
 let grounded_List =
   NotGroundOrHole(List(Unknown(Internal) |> Typ.temp) |> Typ.temp);
 
-let rec ground_cases_of = (ty: Typ.t): ground_cases => {
-  let is_hole: Typ.t => bool =
+let rec ground_cases_of = (ty: Typ.t('a)): ground_cases => {
+  let is_hole: Typ.t(IdTag.t) => bool =
     fun
     | {term: Typ.Unknown(_), _} => true
     | _ => false;
@@ -67,7 +70,7 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
   | Prod(tys) =>
     if (List.for_all(
           fun
-          | ({term: Typ.Unknown(_), _}: Typ.t) => true
+          | ({term: Typ.Unknown(_), _}: Typ.t('a)) => true
           | _ => false,
           tys,
         )) {
@@ -91,8 +94,7 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
 
 /* gives a transition step that can be taken by the cast calculus here if applicable. */
 let rec transition =
-        (~recursive=false, d: DHExp.t(list(Id.t)))
-        : option(DHExp.t(list(Id.t))) => {
+        (~recursive=false, d: DHExp.t(IdTag.t)): option(DHExp.t(IdTag.t)) => {
   switch (DHExp.term_of(d)) {
   | Cast(d1, t1, t2) =>
     let d1 =
@@ -170,8 +172,7 @@ let rec transition =
   };
 };
 
-let rec transition_multiple =
-        (d: DHExp.t(list(Id.t))): DHExp.t(list(Id.t)) => {
+let rec transition_multiple = (d: DHExp.t(IdTag.t)): DHExp.t(IdTag.t) => {
   switch (transition(~recursive=true, d)) {
   | Some(d'') => transition_multiple(d'')
   | None => d
@@ -183,25 +184,39 @@ let hole = EmptyHole |> DHExp.fresh;
 
 // Hacky way to do transition_multiple on patterns by transferring
 // the cast to the expression and then back to the pattern.
-let pattern_fixup = (p: DHPat.t): DHPat.t => {
-  let rec unwrap_casts = (p: DHPat.t): (DHPat.t, DHExp.t(list(Id.t))) => {
+let pattern_fixup = (p: DHPat.t(IdTag.t)): DHPat.t(IdTag.t) => {
+  let rec unwrap_casts =
+          (p: DHPat.t(IdTag.t)): (DHPat.t(IdTag.t), DHExp.t(IdTag.t)) => {
     switch (DHPat.term_of(p)) {
     | Cast(p1, t1, t2) =>
       let (p1, d1) = unwrap_casts(p1);
       (
         p1,
-        {term: DHExp.Cast(d1, t1, t2), copied: p.copied, ids: p.ids}
+        {
+          term: DHExp.Cast(d1, t1, t2),
+          annotation: {
+            copied: p.annotation.copied,
+            ids: p.annotation.ids,
+          },
+        }
         |> transition_multiple,
       );
     | _ => (p, hole)
     };
   };
-  let rec rewrap_casts = ((p: DHPat.t, d: DHExp.t(list(Id.t)))): DHPat.t => {
+  let rec rewrap_casts =
+          ((p: DHPat.t(IdTag.t), d: DHExp.t(IdTag.t))): DHPat.t(IdTag.t) => {
     switch (DHExp.term_of(d)) {
     | EmptyHole => p
     | Cast(d1, t1, t2) =>
       let p1 = rewrap_casts((p, d1));
-      {term: DHPat.Cast(p1, t1, t2), copied: d.copied, ids: d.ids};
+      {
+        term: DHPat.Cast(p1, t1, t2),
+        annotation: {
+          copied: d.annotation.copied,
+          ids: d.annotation.ids,
+        },
+      };
     | FailedCast(d1, t1, t2) =>
       let p1 = rewrap_casts((p, d1));
       {
@@ -211,8 +226,10 @@ let pattern_fixup = (p: DHPat.t): DHPat.t => {
             Typ.fresh(Unknown(Internal)),
             t2,
           ),
-        copied: d.copied,
-        ids: d.ids,
+        annotation: {
+          copied: d.annotation.copied,
+          ids: d.annotation.ids,
+        },
       };
     | _ => failwith("unexpected term in rewrap_casts")
     };

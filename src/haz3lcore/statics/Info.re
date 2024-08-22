@@ -36,20 +36,20 @@ type ancestors = list(Id.t);
 type error_inconsistent =
   /* Self type (syn) inconsistent with expected type (ana) */
   | Expectation({
-      ana: Typ.t,
-      syn: Typ.t,
+      ana: Typ.t(IdTag.t),
+      syn: Typ.t(IdTag.t),
     })
   /* Inconsistent match or listlit */
-  | Internal(list(Typ.t))
+  | Internal(list(Typ.t(IdTag.t)))
   /* Bad function position */
-  | WithArrow(Typ.t);
+  | WithArrow(Typ.t(IdTag.t));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_no_type =
   /* Invalid expression token, treated as hole */
   | BadToken(Token.t)
   /* Empty application of function with inconsistent type */
-  | BadTrivAp(Typ.t)
+  | BadTrivAp(Typ.t(IdTag.t))
   /* Sum constructor neiter bound nor in ana type */
   | FreeConstructor(Constructor.t);
 
@@ -80,27 +80,27 @@ type ok_ana =
   /* The expected (ana) type and the self (syn) type are
      consistent, as witnessed by their joint type (join) */
   | Consistent({
-      ana: Typ.t,
-      syn: Typ.t,
-      join: Typ.t,
+      ana: Typ.t(IdTag.t),
+      syn: Typ.t(IdTag.t),
+      join: Typ.t(IdTag.t),
     })
   /* A match expression or list literal which, in synthetic position,
      would be marked as internally inconsistent, but is considered
      fine as the expected type provides a consistent lower bound
      (often Unknown) for the types of the branches/elements */
   | InternallyInconsistent({
-      ana: Typ.t,
-      nojoin: list(Typ.t),
+      ana: Typ.t(IdTag.t),
+      nojoin: list(Typ.t(IdTag.t)),
     });
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type ok_common =
-  | Syn(Typ.t)
+  | Syn(Typ.t(IdTag.t))
   | Ana(ok_ana);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type ok_exp =
-  | AnaDeferralConsistent(Typ.t)
+  | AnaDeferralConsistent(Typ.t(IdTag.t))
   | Common(ok_common);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -132,8 +132,8 @@ type status_variant =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type typ_expects =
   | TypeExpected
-  | ConstructorExpected(status_variant, Typ.t)
-  | VariantExpected(status_variant, Typ.t);
+  | ConstructorExpected(status_variant, Typ.t(IdTag.t))
+  | VariantExpected(status_variant, Typ.t(IdTag.t));
 
 /* Type term errors
    TODO: The three additional errors statuses
@@ -145,16 +145,16 @@ type error_typ =
   | FreeTypeVariable(string) /* Free type variable */
   | DuplicateConstructor(Constructor.t) /* Duplicate ctr in same sum */
   | WantTypeFoundAp
-  | WantConstructorFoundType(Typ.t)
+  | WantConstructorFoundType(Typ.t(IdTag.t))
   | WantConstructorFoundAp;
 
 /* Type ok statuses for cursor inspector */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type ok_typ =
-  | Variant(Constructor.t, Typ.t)
-  | VariantIncomplete(Typ.t)
-  | TypeAlias(string, Typ.t)
-  | Type(Typ.t);
+  | Variant(Constructor.t, Typ.t(IdTag.t))
+  | VariantIncomplete(Typ.t(IdTag.t))
+  | TypeAlias(string, Typ.t(IdTag.t))
+  | Type(Typ.t(IdTag.t));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type status_typ =
@@ -192,37 +192,37 @@ type status_tpat =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type exp = {
-  term: UExp.t(list(Id.t)), /* The term under consideration */
+  term: UExp.t(IdTag.t), /* The term under consideration */
   ancestors, /* Ascending list of containing term ids */
-  ctx: Ctx.t, /* Typing context for the term */
+  ctx: Ctx.t(IdTag.t), /* Typing context for the term */
   mode: Mode.t, /* Parental type expectations  */
   self: Self.exp, /* Expectation-independent type info */
-  co_ctx: CoCtx.t, /* Locally free variables */
+  co_ctx: CoCtx.t(IdTag.t), /* Locally free variables */
   cls: Cls.t, /* DERIVED: Syntax class (i.e. form name) */
   status: status_exp, /* DERIVED: Ok/Error statuses for display */
-  ty: Typ.t /* DERIVED: Type after nonempty hole fixing */
+  ty: Typ.t(IdTag.t) /* DERIVED: Type after nonempty hole fixing */
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pat = {
-  term: UPat.t,
+  term: UPat.t(IdTag.t),
   ancestors,
-  ctx: Ctx.t,
-  co_ctx: CoCtx.t,
-  prev_synswitch: option(Typ.t), // If a pattern is first synthesized, then analysed, the initial syn is stored here.
+  ctx: Ctx.t(IdTag.t),
+  co_ctx: CoCtx.t(IdTag.t),
+  prev_synswitch: option(Typ.t(IdTag.t)), // If a pattern is first synthesized, then analysed, the initial syn is stored here.
   mode: Mode.t,
   self: Self.pat,
   cls: Cls.t,
   status: status_pat,
-  ty: Typ.t,
+  ty: Typ.t(IdTag.t),
   constraint_: Constraint.t,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type typ = {
-  term: Typ.t,
+  term: Typ.t(IdTag.t),
   ancestors,
-  ctx: Ctx.t,
+  ctx: Ctx.t(IdTag.t),
   expects: typ_expects,
   cls: Cls.t,
   status: status_typ,
@@ -230,9 +230,9 @@ type typ = {
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type tpat = {
-  term: TPat.t,
+  term: TPat.t(IdTag.t),
   ancestors,
-  ctx: Ctx.t,
+  ctx: Ctx.t(IdTag.t),
   cls: Cls.t,
   status: status_tpat,
 };
@@ -242,7 +242,7 @@ type secondary = {
   id: Id.t, // Id of term static info is sourced from
   cls: Cls.t, // Cls of secondary, not source term
   sort: Sort.t, // from source term
-  ctx: Ctx.t // from source term
+  ctx: Ctx.t(IdTag.t) // from source term
 };
 
 /* The static information collated for each term */
@@ -277,7 +277,7 @@ let cls_of: t => Cls.t =
   | InfoTPat({cls, _})
   | Secondary({cls, _}) => cls;
 
-let ctx_of: t => Ctx.t =
+let ctx_of: t => Ctx.t(IdTag.t) =
   fun
   | InfoExp({ctx, _})
   | InfoPat({ctx, _})
@@ -313,14 +313,14 @@ let error_of: t => option(error) =
   | InfoTPat({status: InHole(err), _}) => Some(TPat(err))
   | Secondary(_) => None;
 
-let exp_co_ctx: exp => CoCtx.t = ({co_ctx, _}) => co_ctx;
-let exp_ty: exp => Typ.t = ({ty, _}) => ty;
-let pat_ctx: pat => Ctx.t = ({ctx, _}) => ctx;
-let pat_ty: pat => Typ.t = ({ty, _}) => ty;
+let exp_co_ctx: exp => CoCtx.t(IdTag.t) = ({co_ctx, _}) => co_ctx;
+let exp_ty: exp => Typ.t(IdTag.t) = ({ty, _}) => ty;
+let pat_ctx: pat => Ctx.t(IdTag.t) = ({ctx, _}) => ctx;
+let pat_ty: pat => Typ.t(IdTag.t) = ({ty, _}) => ty;
 let pat_constraint: pat => Constraint.t = ({constraint_, _}) => constraint_;
 
 let rec status_common =
-        (ctx: Ctx.t, mode: Mode.t, self: Self.t): status_common =>
+        (ctx: Ctx.t(IdTag.t), mode: Mode.t, self: Self.t): status_common =>
   switch (self, mode) {
   | (Just(ty), Syn) => NotInHole(Syn(ty))
   | (Just(ty), SynFun) =>
@@ -339,7 +339,10 @@ let rec status_common =
     switch (
       Typ.join_fix(
         ctx,
-        Forall(Var("?") |> TPat.fresh, Unknown(Internal) |> Typ.temp)
+        Forall(
+          (Var("?"): TPat.term(IdTag.t)) |> TPat.fresh,
+          Unknown(Internal) |> Typ.temp,
+        )
         |> Typ.temp,
         ty,
       )
@@ -372,7 +375,8 @@ let rec status_common =
   | (BadTrivAp(ty), _) => InHole(NoType(BadTrivAp(ty)))
   | (IsMulti, _) => NotInHole(Syn(Unknown(Internal) |> Typ.temp))
   | (NoJoin(wrap, tys), Ana(ana)) =>
-    let syn: Typ.t = Self.join_of(wrap, Unknown(Internal) |> Typ.temp);
+    let syn: Typ.t(IdTag.t) =
+      Self.join_of(wrap, Unknown(Internal) |> Typ.temp);
     switch (Typ.join_fix(ctx, ana, syn)) {
     | None => InHole(Inconsistent(Expectation({ana, syn})))
     | Some(_) =>
@@ -384,7 +388,8 @@ let rec status_common =
     InHole(Inconsistent(Internal(Typ.of_source(tys))))
   };
 
-let rec status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
+let rec status_pat =
+        (ctx: Ctx.t(IdTag.t), mode: Mode.t, self: Self.pat): status_pat =>
   switch (mode, self) {
   | (_, Redundant(self)) =>
     let additional_err =
@@ -417,7 +422,8 @@ let rec status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
    depending on the mode, which represents the expectations of the
    surrounding syntactic context, and the self which represents the
    makeup of the expression / pattern itself. */
-let rec status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
+let rec status_exp =
+        (ctx: Ctx.t(IdTag.t), mode: Mode.t, self: Self.exp): status_exp =>
   switch (self, mode) {
   | (Free(name), _) => InHole(FreeVariable(name))
   | (InexhaustiveMatch(self), _) =>
@@ -452,7 +458,9 @@ let rec status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
    separate sort. It also determines semantic properties
    such as whether or not a type variable reference is
    free, and whether a ctr name is a dupe. */
-let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
+let status_typ =
+    (ctx: Ctx.t(IdTag.t), expects: typ_expects, ty: Typ.t(IdTag.t))
+    : status_typ =>
   switch (ty.term) {
   | Unknown(Hole(Invalid(token))) => InHole(BadToken(token))
   | Unknown(Hole(EmptyHole)) => NotInHole(Type(ty))
@@ -494,7 +502,7 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
     }
   };
 
-let status_tpat = (ctx: Ctx.t, utpat: TPat.t): status_tpat =>
+let status_tpat = (ctx: Ctx.t(IdTag.t), utpat: TPat.t(IdTag.t)): status_tpat =>
   switch (utpat.term) {
   | EmptyHole => NotInHole(Empty)
   | Var(name) when Ctx.shadows_typ(ctx, name) =>
@@ -541,13 +549,13 @@ let is_error = (ci: t): bool => {
 /* Determined the type of an expression or pattern 'after hole fixing';
    that is, some ill-typed terms are considered to be 'wrapped in
    non-empty holes', i.e. assigned Unknown type. */
-let fixed_typ_ok: ok_pat => Typ.t =
+let fixed_typ_ok: ok_pat => Typ.t(IdTag.t) =
   fun
   | Syn(syn) => syn
   | Ana(Consistent({join, _})) => join
   | Ana(InternallyInconsistent({ana, _})) => ana;
 
-let fixed_typ_err_common: error_common => Typ.t =
+let fixed_typ_err_common: error_common => Typ.t(IdTag.t) =
   fun
   | NoType(_) => Unknown(Internal) |> Typ.temp
   | Inconsistent(Expectation({ana, _})) => ana
@@ -556,7 +564,7 @@ let fixed_typ_err_common: error_common => Typ.t =
     Arrow(Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp)
     |> Typ.temp;
 
-let fixed_typ_err: error_exp => Typ.t =
+let fixed_typ_err: error_exp => Typ.t(IdTag.t) =
   fun
   | FreeVariable(_) => Unknown(Internal) |> Typ.temp
   | UnusedDeferral => Unknown(Internal) |> Typ.temp
@@ -564,13 +572,13 @@ let fixed_typ_err: error_exp => Typ.t =
   | InexhaustiveMatch(_) => Unknown(Internal) |> Typ.temp
   | Common(err) => fixed_typ_err_common(err);
 
-let fixed_typ_err_pat: error_pat => Typ.t =
+let fixed_typ_err_pat: error_pat => Typ.t(IdTag.t) =
   fun
   | ExpectedConstructor => Unknown(Internal) |> Typ.temp
   | Redundant(_) => Unknown(Internal) |> Typ.temp
   | Common(err) => fixed_typ_err_common(err);
 
-let fixed_typ_pat = (ctx, mode: Mode.t, self: Self.pat): Typ.t => {
+let fixed_typ_pat = (ctx, mode: Mode.t, self: Self.pat): Typ.t(IdTag.t) => {
   // TODO: get rid of unwrapping (probably by changing the implementation of error_exp.Redundant)
   let self =
     switch (self) {
@@ -585,7 +593,7 @@ let fixed_typ_pat = (ctx, mode: Mode.t, self: Self.pat): Typ.t => {
 
 let fixed_constraint_pat =
     (
-      upat: UPat.t,
+      upat: UPat.t(IdTag.t),
       ctx,
       mode: Mode.t,
       self: Self.pat,
@@ -601,7 +609,7 @@ let fixed_constraint_pat =
     }
   };
 
-let fixed_typ_exp = (ctx, mode: Mode.t, self: Self.exp): Typ.t =>
+let fixed_typ_exp = (ctx, mode: Mode.t, self: Self.exp): Typ.t(IdTag.t) =>
   switch (status_exp(ctx, mode, self)) {
   | InHole(err) => fixed_typ_err(err)
   | NotInHole(AnaDeferralConsistent(ana)) => ana
@@ -610,8 +618,7 @@ let fixed_typ_exp = (ctx, mode: Mode.t, self: Self.exp): Typ.t =>
 
 /* Add derivable attributes for expression terms */
 let derived_exp =
-    (~uexp: UExp.t(list(Id.t)), ~ctx, ~mode, ~ancestors, ~self, ~co_ctx)
-    : exp => {
+    (~uexp: UExp.t(IdTag.t), ~ctx, ~mode, ~ancestors, ~self, ~co_ctx): exp => {
   let cls = Cls.Exp(UExp.cls_of_term(uexp.term));
   let status = status_exp(ctx, mode, self);
   let ty = fixed_typ_exp(ctx, mode, self);
@@ -621,7 +628,7 @@ let derived_exp =
 /* Add derivable attributes for pattern terms */
 let derived_pat =
     (
-      ~upat: UPat.t,
+      ~upat: UPat.t(IdTag.t),
       ~ctx,
       ~co_ctx,
       ~prev_synswitch,
@@ -651,7 +658,7 @@ let derived_pat =
 };
 
 /* Add derivable attributes for types */
-let derived_typ = (~utyp: UTyp.t, ~ctx, ~ancestors, ~expects): typ => {
+let derived_typ = (~utyp: UTyp.t(IdTag.t), ~ctx, ~ancestors, ~expects): typ => {
   let cls: Cls.t =
     /* Hack to improve CI display */
     switch (expects, UTyp.cls_of_term(utyp.term)) {
@@ -664,7 +671,7 @@ let derived_typ = (~utyp: UTyp.t, ~ctx, ~ancestors, ~expects): typ => {
 };
 
 /* Add derivable attributes for type patterns */
-let derived_tpat = (~utpat: TPat.t, ~ctx, ~ancestors): tpat => {
+let derived_tpat = (~utpat: TPat.t(IdTag.t), ~ctx, ~ancestors): tpat => {
   let cls = Cls.TPat(TPat.cls_of_term(utpat.term));
   let status = status_tpat(ctx, utpat);
   {cls, ancestors, status, ctx, term: utpat};

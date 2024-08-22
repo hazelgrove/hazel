@@ -3,7 +3,12 @@ open Suggestion;
 /* For suggestions in patterns, suggest variables which
  * occur free in that pattern's scope. */
 let free_variables =
-    (expected_ty: Typ.t, ctx: Ctx.t, co_ctx: CoCtx.t): list(Suggestion.t) => {
+    (
+      expected_ty: Typ.t(IdTag.t),
+      ctx: Ctx.t(IdTag.t),
+      co_ctx: CoCtx.t(IdTag.t),
+    )
+    : list(Suggestion.t) => {
   List.filter_map(
     ((name, entries)) =>
       switch (Ctx.lookup_var(ctx, name)) {
@@ -21,7 +26,8 @@ let free_variables =
 };
 
 /* For suggestsions in expressions, suggest variables from the ctx */
-let bound_variables = (ty_expect: Typ.t, ctx: Ctx.t): list(Suggestion.t) =>
+let bound_variables =
+    (ty_expect: Typ.t(IdTag.t), ctx: Ctx.t(IdTag.t)): list(Suggestion.t) =>
   List.filter_map(
     fun
     | Ctx.VarEntry({typ, name, _})
@@ -32,7 +38,11 @@ let bound_variables = (ty_expect: Typ.t, ctx: Ctx.t): list(Suggestion.t) =>
   );
 
 let bound_constructors =
-    (wrap: strategy_common => strategy, ty: Typ.t, ctx: Ctx.t)
+    (
+      wrap: strategy_common => strategy,
+      ty: Typ.t(IdTag.t),
+      ctx: Ctx.t(IdTag.t),
+    )
     : list(Suggestion.t) =>
   /* get names of all constructor entries consistent with ty */
   List.filter_map(
@@ -45,7 +55,8 @@ let bound_constructors =
   );
 
 /* Suggest applying a function from the ctx which returns an appropriate type */
-let bound_aps = (ty_expect: Typ.t, ctx: Ctx.t): list(Suggestion.t) =>
+let bound_aps =
+    (ty_expect: Typ.t(IdTag.t), ctx: Ctx.t(IdTag.t)): list(Suggestion.t) =>
   List.filter_map(
     fun
     | Ctx.VarEntry({typ: {term: Arrow(_, ty_out), _} as ty_arr, name, _})
@@ -61,7 +72,8 @@ let bound_aps = (ty_expect: Typ.t, ctx: Ctx.t): list(Suggestion.t) =>
     ctx,
   );
 
-let bound_constructor_aps = (wrap, ty: Typ.t, ctx: Ctx.t): list(Suggestion.t) =>
+let bound_constructor_aps =
+    (wrap, ty: Typ.t(IdTag.t), ctx: Ctx.t(IdTag.t)): list(Suggestion.t) =>
   List.filter_map(
     fun
     | Ctx.ConstructorEntry({
@@ -78,7 +90,7 @@ let bound_constructor_aps = (wrap, ty: Typ.t, ctx: Ctx.t): list(Suggestion.t) =>
   );
 
 /* Suggest bound type aliases in type annotations or definitions */
-let typ_context_entries = (ctx: Ctx.t): list(Suggestion.t) =>
+let typ_context_entries = (ctx: Ctx.t(IdTag.t)): list(Suggestion.t) =>
   List.filter_map(
     fun
     | Ctx.TVarEntry({kind: Singleton(_), name, _}) =>

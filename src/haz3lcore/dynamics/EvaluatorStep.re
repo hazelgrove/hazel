@@ -1,13 +1,13 @@
 open Transition;
 open Sexplib.Conv;
-open Ppx_yojson_conv_lib.Yojson_conv;
+// open Ppx_yojson_conv_lib.Yojson_conv;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type step = {
-  d: DHExp.t(list(Id.t)), // technically can be calculated from d_loc and ctx
+  d: DHExp.t(IdTag.t), // technically can be calculated from d_loc and ctx
   state: EvaluatorState.t,
-  d_loc: DHExp.t(list(Id.t)), // the expression at the location given by ctx
-  d_loc': DHExp.t(list(Id.t)),
+  d_loc: DHExp.t(IdTag.t), // the expression at the location given by ctx
+  d_loc': DHExp.t(IdTag.t),
   ctx: EvalCtx.t,
   knd: step_kind,
 };
@@ -16,7 +16,7 @@ module EvalObj = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     env: ClosureEnvironment.t, // technically can be calculated from ctx
-    d_loc: DHExp.t(list(Id.t)),
+    d_loc: DHExp.t(IdTag.t),
     ctx: EvalCtx.t,
     knd: step_kind,
   };
@@ -131,8 +131,7 @@ module Decompose = {
       req_all_final'(cont, wr, [], ds);
     };
 
-    let (let.):
-      (requirements('a, DHExp.t(list(Id.t))), 'a => rule) => result =
+    let (let.): (requirements('a, DHExp.t(IdTag.t)), 'a => rule) => result =
       (rq, rl) =>
         switch (rq) {
         | (_, Result.Indet, _, _) => Result.Indet
@@ -169,13 +168,13 @@ module TakeStep = {
   module TakeStepEVMode: {
     include
       EV_MODE with
-        type result = option(DHExp.t(list(Id.t))) and
+        type result = option(DHExp.t(IdTag.t)) and
         type state = ref(EvaluatorState.t);
   } = {
     type state = ref(EvaluatorState.t);
     type requirement('a) = 'a;
     type requirements('a, 'b) = 'a;
-    type result = option(DHExp.t(list(Id.t)));
+    type result = option(DHExp.t(IdTag.t));
 
     // Assume that everything is either value or final as required.
     let req_value = (_, _, d) => d;
@@ -185,8 +184,7 @@ module TakeStep = {
 
     let req_final_or_value = (_, _, d) => (d, true);
 
-    let (let.) =
-        (rq: requirements('a, DHExp.t(list(Id.t))), rl: 'a => rule) =>
+    let (let.) = (rq: requirements('a, DHExp.t(IdTag.t)), rl: 'a => rule) =>
       switch (rl(rq)) {
       | Step({expr, state_update, _}) =>
         state_update();
@@ -211,7 +209,7 @@ module TakeStep = {
 
 let take_step = TakeStep.take_step;
 
-let decompose = (d: DHExp.t(list(Id.t)), es: EvaluatorState.t) => {
+let decompose = (d: DHExp.t(IdTag.t), es: EvaluatorState.t) => {
   let env = ClosureEnvironment.of_environment(Builtins.env_init);
   let rs = Decompose.decompose(ref(es), env, d);
   Decompose.Result.unbox(rs);
@@ -220,9 +218,9 @@ let decompose = (d: DHExp.t(list(Id.t)), es: EvaluatorState.t) => {
 let rec matches =
         (
           env: ClosureEnvironment.t,
-          flt: FilterEnvironment.t,
+          flt: FilterEnvironment.t(IdTag.t),
           ctx: EvalCtx.t,
-          exp: DHExp.t(list(Id.t)),
+          exp: DHExp.t(IdTag.t),
           act: FilterAction.t,
           idx: int,
         )

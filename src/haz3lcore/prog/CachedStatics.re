@@ -2,13 +2,20 @@ open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type statics = {
-  term: UExp.t(list(Id.t)),
+  term: UExp.t(IdTag.t),
   info_map: Statics.Map.t,
   error_ids: list(Id.t),
 };
 
 let empty_statics: statics = {
-  term: UExp.{ids: [Id.invalid], copied: false, term: Tuple([])},
+  term:
+    UExp.{
+      annotation: {
+        ids: [Id.invalid],
+        copied: false,
+      },
+      term: Tuple([]),
+    },
   info_map: Id.Map.empty,
   error_ids: [],
 };

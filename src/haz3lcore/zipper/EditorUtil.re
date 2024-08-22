@@ -1,6 +1,5 @@
 let rec append_exp =
-        (e1: Exp.t(list(Id.t)), e2: Exp.t(list(Id.t)))
-        : Exp.t(list(Id.t)) => {
+        (e1: Exp.t(IdTag.t), e2: Exp.t(IdTag.t)): Exp.t(IdTag.t) => {
   Exp.(
     switch (e1.term) {
     | EmptyHole
@@ -34,19 +33,50 @@ let rec append_exp =
     | BinOp(_)
     | BuiltinFun(_)
     | Cast(_)
-    | Match(_) => Exp.{ids: [Id.mk()], copied: false, term: Seq(e1, e2)}
+    | Match(_) =>
+      Exp.{
+        annotation: {
+          ids: [Id.mk()],
+          copied: false,
+        },
+        term: Seq(e1, e2),
+      }
     | Seq(e11, e12) =>
       let e12' = append_exp(e12, e2);
-      {ids: e1.ids, copied: false, term: Seq(e11, e12')};
+      {
+        annotation: {
+          ids: e1.annotation.ids,
+          copied: false,
+        },
+        term: Seq(e11, e12'),
+      };
     | Filter(kind, ebody) =>
       let ebody' = append_exp(ebody, e2);
-      {ids: e1.ids, copied: false, term: Filter(kind, ebody')};
+      {
+        annotation: {
+          ids: e1.annotation.ids,
+          copied: false,
+        },
+        term: Filter(kind, ebody'),
+      };
     | Let(p, edef, ebody) =>
       let ebody' = append_exp(ebody, e2);
-      {ids: e1.ids, copied: false, term: Let(p, edef, ebody')};
+      {
+        annotation: {
+          ids: e1.annotation.ids,
+          copied: false,
+        },
+        term: Let(p, edef, ebody'),
+      };
     | TyAlias(tp, tdef, ebody) =>
       let ebody' = append_exp(ebody, e2);
-      {ids: e1.ids, copied: false, term: TyAlias(tp, tdef, ebody')};
+      {
+        annotation: {
+          ids: e1.annotation.ids,
+          copied: false,
+        },
+        term: TyAlias(tp, tdef, ebody'),
+      };
     }
   );
 };

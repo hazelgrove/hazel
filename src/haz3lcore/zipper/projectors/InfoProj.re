@@ -9,20 +9,20 @@ let mode = (info: option(Info.t)): option(Mode.t) =>
   | _ => None
   };
 
-let expected_ty = (info: option(Info.t)): option(Typ.t) =>
+let expected_ty = (info: option(Info.t)): option(Typ.t(IdTag.t)) =>
   switch (mode(info)) {
   | Some(mode) => Some(Mode.ty_of(mode))
   | _ => None
   };
 
-let self_ty = (info: option(Info.t)): option(Typ.t) =>
+let self_ty = (info: option(Info.t)): option(Typ.t(IdTag.t)) =>
   switch (info) {
   | Some(InfoExp({self, ctx, _})) => Self.typ_of_exp(ctx, self)
   | Some(InfoPat({self, ctx, _})) => Self.typ_of_pat(ctx, self)
   | _ => None
   };
 
-let totalize_ty = (expected_ty: option(Typ.t)): Typ.t =>
+let totalize_ty = (expected_ty: option(Typ.t(IdTag.t))): Typ.t(IdTag.t) =>
   switch (expected_ty) {
   | Some(expected_ty) => expected_ty
   | None => Typ.fresh(Unknown(Internal))

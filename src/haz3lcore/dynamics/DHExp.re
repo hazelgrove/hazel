@@ -7,29 +7,82 @@
 
 include Exp;
 
-let term_of: t(list(Id.t)) => term(list(Id.t)) = IdTagged.term_of;
-let fast_copy: (Id.t, t(list(Id.t))) => t(list(Id.t)) = IdTagged.fast_copy;
+let term_of: t(IdTag.t) => term(IdTag.t) = Annotated.term_of;
+let fast_copy: (Id.t, t(IdTag.t)) => t(IdTag.t) = Annotated.fast_copy;
 
-let mk = (ids, term): t(list(Id.t)) => {
-  {ids, copied: true, term};
+let mk = (ids: list(Id.t), term): t(IdTag.t) => {
+  {
+    term,
+    annotation: {
+      ids,
+      copied: true,
+    },
+  };
 };
 
 // TODO: make this function emit a map of changes
-let replace_all_ids =
+let replace_all_ids = (x: t(IdTag.t)): t(IdTag.t) =>
   map_term(
-    ~f_exp=(continue, exp) => {...exp, ids: [Id.mk()]} |> continue,
-    ~f_pat=(continue, exp) => {...exp, ids: [Id.mk()]} |> continue,
-    ~f_typ=(continue, exp) => {...exp, ids: [Id.mk()]} |> continue,
-    ~f_tpat=(continue, exp) => {...exp, ids: [Id.mk()]} |> continue,
-    ~f_rul=(continue, exp) => {...exp, ids: [Id.mk()]} |> continue,
+    ~f_exp=
+      (continue, exp: TermBase.Exp.t(IdTag.t)) => {
+        {
+          ...exp,
+          annotation: {
+            ...exp.annotation,
+            ids: [Id.mk()],
+          },
+        }
+        |> continue
+      },
+    ~f_pat=
+      (continue, exp) =>
+        {
+          ...exp,
+          annotation: {
+            ...exp.annotation,
+            ids: [Id.mk()],
+          },
+        }
+        |> continue,
+    ~f_typ=
+      (continue, exp) =>
+        {
+          ...exp,
+          annotation: {
+            ...exp.annotation,
+            ids: [Id.mk()],
+          },
+        }
+        |> continue,
+    ~f_tpat=
+      (continue, exp) =>
+        {
+          ...exp,
+          annotation: {
+            ...exp.annotation,
+            ids: [Id.mk()],
+          },
+        }
+        |> continue,
+    ~f_rul=
+      (continue, exp) =>
+        {
+          ...exp,
+          annotation: {
+            ...exp.annotation,
+            ids: [Id.mk()],
+          },
+        }
+        |> continue,
+    x,
   );
 
 // TODO: make this function emit a map of changes
 let repair_ids =
   map_term(
     ~f_exp=
-      (continue, exp) =>
-        if (exp.copied) {
+      (continue, exp: TermBase.Exp.t(IdTag.t)) =>
+        if (exp.annotation.copied) {
           replace_all_ids(exp);
         } else {
           continue(exp);
@@ -95,7 +148,9 @@ let assign_name_if_none = (t, name) => {
   };
 };
 
-let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t(list(Id.t))): t(list(Id.t)) => {
+let ty_subst =
+    (s: Typ.t(IdTag.t), tpat: TPat.t(IdTag.t), exp: t(IdTag.t))
+    : t(IdTag.t) => {
   switch (TPat.tyvar_of_utpat(tpat)) {
   | None => exp
   | Some(x) =>

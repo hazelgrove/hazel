@@ -23,26 +23,30 @@ let tokens =
   );
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type tile = (Id.t, Aba.t(Token.t, t));
+type tile = (Id.t, Aba.t(Token.t, t(IdTag.t)));
 [@deriving (show({with_path: false}), sexp, yojson)]
-type tiles = Aba.t(tile, t);
+type tiles = Aba.t(tile, t(IdTag.t));
 let single = (id, subst) => ([(id, subst)], []);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type unsorted =
   | Op(tiles)
-  | Pre(tiles, t)
-  | Post(t, tiles)
-  | Bin(t, tiles, t);
+  | Pre(tiles, t(IdTag.t))
+  | Post(t(IdTag.t), tiles)
+  | Bin(t(IdTag.t), tiles, t(IdTag.t));
 
 type t = {
-  term: UExp.t(list(Id.t)),
+  term: UExp.t(IdTag.t),
   terms: TermMap.t,
   projectors: Id.Map.t(Piece.projector(Id.t)),
 };
 
 let is_nary =
-    (is_sort: Any.t => option('sort), delim: Token.t, (delims, kids): tiles)
+    (
+      is_sort: Any.t(IdTag.t) => option('sort),
+      delim: Token.t,
+      (delims, kids): tiles,
+    )
     : option(list('sort)) =>
   if (delims |> List.map(snd) |> List.for_all((==)(([delim], [])))) {
     kids |> List.map(is_sort) |> OptUtil.sequence;
@@ -59,7 +63,7 @@ let is_grout = tiles =>
   Aba.get_as(tiles) |> List.map(snd) |> List.for_all((==)(([" "], [])));
 
 let is_rules =
-    ((ts, kids): tiles): option(Aba.t(UPat.t, UExp.t(list(Id.t)))) => {
+    ((ts, kids): tiles): option(Aba.t(UPat.t(IdTag.t), UExp.t(IdTag.t))) => {
   open OptUtil.Syntax;
   let+ ps =
     ts
@@ -125,22 +129,34 @@ let rm_and_log_projectors = (seg: Segment.t(Id.t)): Segment.t(Id.t) =>
     seg,
   );
 
-let parse_sum_term: UTyp.t => ConstructorMap.variant(UTyp.t) =
+let parse_sum_term:
+  UTyp.t(IdTag.t) => ConstructorMap.variant(UTyp.t(IdTag.t)) =
   fun
-  | {term: Var(ctr), ids, _} => Variant(ctr, ids, None)
-  | {term: Ap({term: Var(ctr), ids: ids_ctr, _}, u), ids: ids_ap, _} =>
+  | {term: Var(ctr), annotation: {ids, _}, _} => Variant(ctr, ids, None)
+  | {
+      term: Ap({term: Var(ctr), annotation: {ids: ids_ctr, _}, _}, u),
+      annotation: {ids: ids_ap, _},
+      _,
+    } =>
     Variant(ctr, ids_ctr @ ids_ap, Some(u))
   | t => BadEntry(t);
 
 let mk_bad = (ctr, ids, value) => {
-  let t: Typ.t = {ids, copied: false, term: Var(ctr)};
+  let t: Typ.t(IdTag.t) = {
+    annotation: {
+      ids,
+      copied: false,
+    },
+    term: Var(ctr),
+  };
   switch (value) {
   | None => t
   | Some(u) => Ap(t, u) |> Typ.fresh
   };
 };
 
-let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t(Id.t)): Term.Any.t =>
+let rec go_s =
+        (s: Sort.t, skel: Skel.t, seg: Segment.t(Id.t)): Term.Any.t(IdTag.t) =>
   switch (s) {
   | Pat => Pat(pat(unsorted(skel, seg)))
   | TPat => TPat(tpat(unsorted(skel, seg)))
@@ -169,10 +185,16 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t(Id.t)): Term.Any.t =>
 and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  return(e => Exp(e), ids, {ids, copied: false, term});
+  return(e => Exp(e), ids, {
+                              annotation: {
+                                ids,
+                                copied: false,
+                              },
+                              term,
+                            });
 }
-and exp_term: unsorted => (UExp.term(list(Id.t)), list(Id.t)) = {
-  let ret = (tm: UExp.term(list(Id.t))) => (tm, []);
+and exp_term: unsorted => (UExp.term(IdTag.t), list(Id.t)) = {
+  let ret = (tm: UExp.term(IdTag.t)) => (tm, []);
   let hole = unsorted => UExp.hole(kids_of_unsorted(unsorted));
   fun
   | Op(tiles) as tm =>
@@ -195,11 +217,17 @@ and exp_term: unsorted => (UExp.term(list(Id.t)), list(Id.t)) = {
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
       | (["[", "]"], [Exp(body)]) =>
         switch (body) {
-        | {ids, copied: false, term: Tuple(es)} => (ListLit(es), ids)
+        | {annotation: {ids, copied: false}, term: Tuple(es)} => (
+            ListLit(es),
+            ids,
+          )
         | term => ret(ListLit([term]))
         }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
-      | (["case", "end"], [Rul({ids, term: Rules(scrut, rules), _})]) => (
+      | (
+          ["case", "end"],
+          [Rul({annotation: {ids, _}, term: Rules(scrut, rules), _})],
+        ) => (
           Match(scrut, rules),
           ids,
         )
@@ -247,13 +275,21 @@ and exp_term: unsorted => (UExp.term(list(Id.t)), list(Id.t)) = {
           Ap(
             Forward,
             l,
-            {ids: [Id.nullary_ap_flag], copied: false, term: Tuple([])},
+            {
+              annotation: {
+                ids: [Id.nullary_ap_flag],
+                copied: false,
+              },
+              term: Tuple([]),
+            },
           ),
         )
       | (["(", ")"], [Exp(arg)]) =>
-        let use_deferral = (arg: UExp.t(list(Id.t))): UExp.t(list(Id.t)) => {
-          ids: arg.ids,
-          copied: false,
+        let use_deferral = (arg: UExp.t(IdTag.t)): UExp.t(IdTag.t) => {
+          annotation: {
+            ids: arg.annotation.ids,
+            copied: false,
+          },
           term: Deferral(InAp),
         };
         switch (arg.term) {
@@ -267,7 +303,7 @@ and exp_term: unsorted => (UExp.term(list(Id.t)), list(Id.t)) = {
                 es,
               ),
             ),
-            arg.ids,
+            arg.annotation.ids,
           )
         | _ => ret(Ap(Forward, l, arg))
         };
@@ -325,10 +361,16 @@ and exp_term: unsorted => (UExp.term(list(Id.t)), list(Id.t)) = {
 and pat = unsorted => {
   let (term, inner_ids) = pat_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  return(p => Pat(p), ids, {ids, term, copied: false});
+  return(p => Pat(p), ids, {
+                              term,
+                              annotation: {
+                                ids,
+                                copied: false,
+                              },
+                            });
 }
-and pat_term: unsorted => (UPat.term, list(Id.t)) = {
-  let ret = (term: UPat.term) => (term, []);
+and pat_term: unsorted => (UPat.term(IdTag.t), list(Id.t)) = {
+  let ret = (term: UPat.term(IdTag.t)) => (term, []);
   let hole = unsorted => UPat.hole(kids_of_unsorted(unsorted));
   fun
   | Op(tiles) as tm =>
@@ -391,10 +433,16 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
 and typ = unsorted => {
   let (term, inner_ids) = typ_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  return(ty => Typ(ty), ids, {ids, term, copied: false});
+  return(ty => Typ(ty), ids, {
+                                term,
+                                annotation: {
+                                  ids,
+                                  copied: false,
+                                },
+                              });
 }
-and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
-  let ret = (term: UTyp.term) => (term, []);
+and typ_term: unsorted => (UTyp.term(IdTag.t), list(Id.t)) = {
+  let ret = (term: UTyp.term(IdTag.t)) => (term, []);
   let hole = unsorted => UTyp.hole(kids_of_unsorted(unsorted));
   fun
   | Op(tiles) as tm =>
@@ -429,7 +477,7 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
     ret(Forall(tpat, t))
   | Pre(([(_id, (["rec", "->"], [TPat(tpat)]))], []), Typ(t)) =>
     ret(Rec(tpat, t))
-  | Pre(tiles, Typ({term: Sum(t0), ids, _})) as tm =>
+  | Pre(tiles, Typ({term: Sum(t0), annotation: {ids, _}})) as tm =>
     /* Case for leading prefix + preceeding a sum */
     switch (tiles) {
     | ([(_, (["+"], []))], []) => (Sum(t0), ids)
@@ -466,10 +514,16 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
 and tpat = unsorted => {
   let term = tpat_term(unsorted);
   let ids = ids(unsorted);
-  return(ty => TPat(ty), ids, {ids, term, copied: false});
+  return(ty => TPat(ty), ids, {
+                                 term,
+                                 annotation: {
+                                   copied: false,
+                                   ids,
+                                 },
+                               });
 }
-and tpat_term: unsorted => TPat.term = {
-  let ret = (term: TPat.term) => term;
+and tpat_term: unsorted => TPat.term(IdTag.t) = {
+  let ret = (term: TPat.term(IdTag.t)) => term;
   let hole = unsorted => TPat.hole(kids_of_unsorted(unsorted));
   fun
   | Op(tiles) as tm =>
@@ -494,7 +548,7 @@ and tpat_term: unsorted => TPat.term = {
 //   let ids = ids(unsorted);
 //   return(r => Rul(r), ids, {ids, term});
 // }
-and rul = (unsorted: unsorted): Rul.t => {
+and rul = (unsorted: unsorted): Rul.t(IdTag.t) => {
   let hole = Rul.Hole(kids_of_unsorted(unsorted));
   switch (exp(unsorted)) {
   | {term: MultiHole(_), _} =>
@@ -502,16 +556,37 @@ and rul = (unsorted: unsorted): Rul.t => {
     | Bin(Exp(scrut), tiles, Exp(last_clause)) =>
       switch (is_rules(tiles)) {
       | Some((ps, leading_clauses)) => {
-          ids: ids(unsorted),
           term:
             Rules(scrut, List.combine(ps, leading_clauses @ [last_clause])),
-          copied: false,
+          annotation: {
+            ids: ids(unsorted),
+
+            copied: false,
+          },
         }
-      | None => {ids: ids(unsorted), term: hole, copied: false}
+      | None => {
+          term: hole,
+          annotation: {
+            ids: ids(unsorted),
+            copied: false,
+          },
+        }
       }
-    | _ => {ids: ids(unsorted), term: hole, copied: false}
+    | _ => {
+        term: hole,
+        annotation: {
+          ids: ids(unsorted),
+          copied: false,
+        },
+      }
     }
-  | e => {ids: [], term: Rules(e, []), copied: false}
+  | e => {
+      term: Rules(e, []),
+      annotation: {
+        ids: [],
+        copied: false,
+      },
+    }
   };
 }
 
@@ -519,7 +594,7 @@ and unsorted = (skel: Skel.t, seg: Segment.t(Id.t)): unsorted => {
   /* Remove projectors. We do this here as opposed to removing
    * them in an external call to save a whole-syntax pass. */
   let seg = rm_and_log_projectors(seg);
-  let tile_kids = (p: Piece.t(Id.t)): list(Term.Any.t) =>
+  let tile_kids = (p: Piece.t(Id.t)): list(Term.Any.t(IdTag.t)) =>
     switch (p) {
     | Secondary(_)
     | Grout(_) => []

@@ -22,23 +22,27 @@ type t =
   | SynFun /* Used only in function position of applications */
   | SynTypFun
   | Syn
-  | Ana(Typ.t);
+  | Ana(Typ.t(IdTag.t));
 
-let ana: Typ.t => t = ty => Ana(ty);
+let ana: Typ.t(IdTag.t) => t = ty => Ana(ty);
 
 /* The expected type imposed by a mode */
-let ty_of: t => Typ.t =
+let ty_of: t => Typ.t(IdTag.t) =
   fun
   | Ana(ty) => ty
   | Syn => Unknown(SynSwitch) |> Typ.temp
   | SynFun =>
     Arrow(Unknown(SynSwitch) |> Typ.temp, Unknown(SynSwitch) |> Typ.temp)
     |> Typ.temp
-  | SynTypFun =>
-    Forall(Var("syntypfun") |> TPat.fresh, Unknown(SynSwitch) |> Typ.temp)
-    |> Typ.temp; /* TODO: naming the type variable? */
+  | SynTypFun => {
+      Forall(
+        TPat.fresh(Var("syntypfun"): TPat.term(IdTag.t)),
+        Unknown(SynSwitch) |> Typ.temp,
+      )
+      |> Typ.temp /* TODO: naming the type variable? */;
+    };
 
-let of_arrow = (ctx: Ctx.t, mode: t): (t, t) =>
+let of_arrow = (ctx: Ctx.t(IdTag.t), mode: t): (t, t) =>
   switch (mode) {
   | Syn
   | SynFun
@@ -46,7 +50,7 @@ let of_arrow = (ctx: Ctx.t, mode: t): (t, t) =>
   | Ana(ty) => ty |> Typ.matched_arrow(ctx) |> TupleUtil.map2(ana)
   };
 
-let of_forall = (ctx: Ctx.t, name_opt: option(string), mode: t): t =>
+let of_forall = (ctx: Ctx.t(IdTag.t), name_opt: option(string), mode: t): t =>
   switch (mode) {
   | Syn
   | SynFun
@@ -60,7 +64,7 @@ let of_forall = (ctx: Ctx.t, name_opt: option(string), mode: t): t =>
     };
   };
 
-let of_prod = (ctx: Ctx.t, mode: t, length): list(t) =>
+let of_prod = (ctx: Ctx.t(IdTag.t), mode: t, length): list(t) =>
   switch (mode) {
   | Syn
   | SynFun
@@ -68,7 +72,7 @@ let of_prod = (ctx: Ctx.t, mode: t, length): list(t) =>
   | Ana(ty) => ty |> Typ.matched_prod(ctx, length) |> List.map(ana)
   };
 
-let of_cons_hd = (ctx: Ctx.t, mode: t): t =>
+let of_cons_hd = (ctx: Ctx.t(IdTag.t), mode: t): t =>
   switch (mode) {
   | Syn
   | SynFun
@@ -76,7 +80,7 @@ let of_cons_hd = (ctx: Ctx.t, mode: t): t =>
   | Ana(ty) => Ana(Typ.matched_list(ctx, ty))
   };
 
-let of_cons_tl = (ctx: Ctx.t, mode: t, hd_ty: Typ.t): t =>
+let of_cons_tl = (ctx: Ctx.t(IdTag.t), mode: t, hd_ty: Typ.t(IdTag.t)): t =>
   switch (mode) {
   | Syn
   | SynFun
@@ -84,7 +88,7 @@ let of_cons_tl = (ctx: Ctx.t, mode: t, hd_ty: Typ.t): t =>
   | Ana(ty) => Ana(List(Typ.matched_list(ctx, ty)) |> Typ.temp)
   };
 
-let of_list = (ctx: Ctx.t, mode: t): t =>
+let of_list = (ctx: Ctx.t(IdTag.t), mode: t): t =>
   switch (mode) {
   | Syn
   | SynFun
@@ -92,7 +96,7 @@ let of_list = (ctx: Ctx.t, mode: t): t =>
   | Ana(ty) => Ana(Typ.matched_list(ctx, ty))
   };
 
-let of_list_concat = (ctx: Ctx.t, mode: t): t =>
+let of_list_concat = (ctx: Ctx.t(IdTag.t), mode: t): t =>
   switch (mode) {
   | Syn
   | SynFun
@@ -100,10 +104,12 @@ let of_list_concat = (ctx: Ctx.t, mode: t): t =>
   | Ana(ty) => Ana(List(Typ.matched_list(ctx, ty)) |> Typ.temp)
   };
 
-let of_list_lit = (ctx: Ctx.t, length, mode: t): list(t) =>
+let of_list_lit = (ctx: Ctx.t(IdTag.t), length, mode: t): list(t) =>
   List.init(length, _ => of_list(ctx, mode));
 
-let ctr_ana_typ = (ctx: Ctx.t, mode: t, ctr: Constructor.t): option(Typ.t) => {
+let ctr_ana_typ =
+    (ctx: Ctx.t(IdTag.t), mode: t, ctr: Constructor.t)
+    : option(Typ.t(IdTag.t)) => {
   /* If a ctr is being analyzed against (an arrow type returning)
      a sum type having that ctr as a variant, we consider the
      ctr's type to be determined by the sum type */
@@ -120,7 +126,8 @@ let ctr_ana_typ = (ctx: Ctx.t, mode: t, ctr: Constructor.t): option(Typ.t) => {
   };
 };
 
-let of_ctr_in_ap = (ctx: Ctx.t, mode: t, ctr: Constructor.t): option(t) =>
+let of_ctr_in_ap =
+    (ctx: Ctx.t(IdTag.t), mode: t, ctr: Constructor.t): option(t) =>
   switch (ctr_ana_typ(ctx, mode, ctr)) {
   | Some({term: Arrow(_), _} as ty_ana) => Some(Ana(ty_ana))
   | Some(ty_ana) =>
@@ -149,7 +156,8 @@ let of_ap = (ctx, mode, ctr: option(Constructor.t)): t =>
 
 let typap_mode: t = SynTypFun;
 
-let of_deferred_ap_args = (length: int, ty_ins: list(Typ.t)): list(t) =>
+let of_deferred_ap_args =
+    (length: int, ty_ins: list(Typ.t(IdTag.t))): list(t) =>
   (
     List.length(ty_ins) == length
       ? ty_ins : List.init(length, _ => Typ.Unknown(Internal) |> Typ.temp)

@@ -55,7 +55,7 @@ let map_m = (f, xs, m: Map.t) =>
 let add_info = (ids: list(Id.t), info: Info.t, m: Map.t): Map.t =>
   ids |> List.fold_left((m, id) => Id.Map.add(id, info, m), m);
 
-let rec is_arrow_like = (t: Typ.t) => {
+let rec is_arrow_like = (t: Typ.t(IdTag.t)) => {
   switch (t |> Typ.term_of) {
   | Unknown(_) => true
   | Arrow(_) => true
@@ -64,7 +64,7 @@ let rec is_arrow_like = (t: Typ.t) => {
   };
 };
 
-let is_recursive = (ctx, p, def, syn: Typ.t) => {
+let is_recursive = (ctx, p, def, syn: Typ.t(IdTag.t)) => {
   switch (Pat.get_num_of_vars(p), Exp.get_num_of_functions(def)) {
   | (Some(num_vars), Some(num_fns))
       when num_vars != 0 && num_vars == num_fns =>
@@ -79,7 +79,7 @@ let is_recursive = (ctx, p, def, syn: Typ.t) => {
   };
 };
 
-let typ_exp_binop_bin_int: Operators.op_bin_int => Typ.t =
+let typ_exp_binop_bin_int: Operators.op_bin_int => Typ.t(IdTag.t) =
   fun
   | (Plus | Minus | Times | Power | Divide) as _op => Int |> Typ.temp
   | (
@@ -88,7 +88,7 @@ let typ_exp_binop_bin_int: Operators.op_bin_int => Typ.t =
     ) as _op =>
     Bool |> Typ.temp;
 
-let typ_exp_binop_bin_float: Operators.op_bin_float => Typ.t =
+let typ_exp_binop_bin_float: Operators.op_bin_float => Typ.t(IdTag.t) =
   fun
   | (Plus | Minus | Times | Power | Divide) as _op => Float |> Typ.temp
   | (
@@ -97,12 +97,13 @@ let typ_exp_binop_bin_float: Operators.op_bin_float => Typ.t =
     ) as _op =>
     Bool |> Typ.temp;
 
-let typ_exp_binop_bin_string: Operators.op_bin_string => Typ.t =
+let typ_exp_binop_bin_string: Operators.op_bin_string => Typ.t(IdTag.t) =
   fun
   | Concat => String |> Typ.temp
   | Equals => Bool |> Typ.temp;
 
-let typ_exp_binop: Operators.op_bin => (Typ.t, Typ.t, Typ.t) =
+let typ_exp_binop:
+  Operators.op_bin => (Typ.t(IdTag.t), Typ.t(IdTag.t), Typ.t(IdTag.t)) =
   fun
   | Bool(And | Or) => (Bool |> Typ.temp, Bool |> Typ.temp, Bool |> Typ.temp)
   | Int(op) => (Int |> Typ.temp, Int |> Typ.temp, typ_exp_binop_bin_int(op))
@@ -117,7 +118,7 @@ let typ_exp_binop: Operators.op_bin => (Typ.t, Typ.t, Typ.t) =
       typ_exp_binop_bin_string(op),
     );
 
-let typ_exp_unop: Operators.op_un => (Typ.t, Typ.t) =
+let typ_exp_unop: Operators.op_un => (Typ.t(IdTag.t), Typ.t(IdTag.t)) =
   fun
   | Meta(Unquote) => (
       Var("$Meta") |> Typ.temp,
@@ -127,7 +128,8 @@ let typ_exp_unop: Operators.op_un => (Typ.t, Typ.t) =
   | Int(Minus) => (Int |> Typ.temp, Int |> Typ.temp);
 
 let rec any_to_info_map =
-        (~ctx: Ctx.t, ~ancestors, any: Any.t, m: Map.t): (CoCtx.t, Map.t) =>
+        (~ctx: Ctx.t(IdTag.t), ~ancestors, any: Any.t(IdTag.t), m: Map.t)
+        : (CoCtx.t(IdTag.t), Map.t) =>
   switch (any) {
   | Exp(e) =>
     let ({co_ctx, _}: Info.exp, m) =
@@ -168,11 +170,11 @@ and multi = (~ctx, ~ancestors, m, tms) =>
   )
 and uexp_to_info_map =
     (
-      ~ctx: Ctx.t,
+      ~ctx: Ctx.t(IdTag.t),
       ~mode=Mode.Syn,
       ~is_in_filter=false,
       ~ancestors,
-      {ids, copied: _, term} as uexp: UExp.t(list(Id.t)),
+      {annotation: {ids, copied: _}, term} as uexp: UExp.t(IdTag.t),
       m: Map.t,
     )
     : (Info.exp, Map.t) => {
@@ -195,7 +197,7 @@ and uexp_to_info_map =
         ~mode=Mode.Syn,
         ~is_in_filter=is_in_filter,
         ~ancestors=ancestors,
-        uexp: UExp.t(list(Id.t)),
+        uexp: UExp.t(IdTag.t),
         m: Map.t,
       ) => {
     uexp_to_info_map(~ctx, ~mode, ~is_in_filter, ~ancestors, uexp, m);
@@ -271,9 +273,11 @@ and uexp_to_info_map =
     let (e, m) = go(~mode, e, m);
     add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
   | UnOp(Meta(Unquote), e) when is_in_filter =>
-    let e: UExp.t(list(Id.t)) = {
-      ids: e.ids,
-      copied: false,
+    let e: UExp.t(IdTag.t) = {
+      annotation: {
+        ids: e.annotation.ids,
+        copied: false,
+      },
       term:
         switch (e.term) {
         | Var("e") => UExp.Constructor("$e", Unknown(Internal) |> Typ.temp)
@@ -333,7 +337,7 @@ and uexp_to_info_map =
     let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
     let (arg, m) = go(~mode=Ana(ty_in), arg, m);
     let self: Self.t =
-      Id.is_nullary_ap_flag(arg.term.ids)
+      Id.is_nullary_ap_flag(arg.term.annotation.ids)
       && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.temp)
         ? BadTrivAp(ty_in) : Just(ty_out);
     add(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
@@ -526,7 +530,7 @@ and uexp_to_info_map =
     let (self, m) =
       switch (constraint_ty) {
       | Some(constraint_ty) =>
-        let pats_to_info_map = (ps: list(UPat.t), m) => {
+        let pats_to_info_map = (ps: list(UPat.t(IdTag.t)), m) => {
           /* Add co-ctxs to patterns */
           List.fold_left(
             ((m, acc_constraint), (p, co_ctx)) => {
@@ -566,7 +570,7 @@ and uexp_to_info_map =
                 );
               (
                 // Override the info for the single upat
-                add_info(p.term.ids, InfoPat(info), m),
+                add_info(p.term.annotation.ids, InfoPat(info), m),
                 is_redundant
                   ? acc_constraint  // Redundant patterns are ignored
                   : Constraint.Or(p_constraint, acc_constraint),
@@ -616,7 +620,7 @@ and uexp_to_info_map =
              use a different name than the alias for the recursive parameter */
           //let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
           let ty_rec =
-            Typ.Rec(TPat.Var(name) |> IdTagged.fresh, utyp) |> Typ.temp;
+            Typ.Rec(TPat.Var(name) |> Annotated.fresh, utyp) |> Typ.temp;
           let ctx_def =
             Ctx.extend_alias(ctx, name, TPat.rep_id(typat), ty_rec);
           (ty_rec, ctx_def, ctx_def);
@@ -669,7 +673,7 @@ and upat_to_info_map =
       ~co_ctx,
       ~ancestors: Info.ancestors,
       ~mode: Mode.t=Mode.Syn,
-      {ids, term, _} as upat: UPat.t,
+      {annotation: {ids, _}, term, _} as upat: UPat.t(IdTag.t),
       m: Map.t,
     )
     : (Info.pat, Map.t) => {
@@ -698,7 +702,7 @@ and upat_to_info_map =
   let ancestors = [UPat.rep_id(upat)] @ ancestors;
   let go = upat_to_info_map(~is_synswitch, ~ancestors, ~co_ctx);
   let unknown = Typ.Unknown(is_synswitch ? SynSwitch : Internal) |> Typ.temp;
-  let ctx_fold = (ctx: Ctx.t, m) =>
+  let ctx_fold = (ctx: Ctx.t(IdTag.t), m) =>
     List.fold_left2(
       ((ctx, tys, cons, m), e, mode) =>
         go(~ctx, ~mode, e, m)
@@ -822,7 +826,7 @@ and utyp_to_info_map =
       ~ctx,
       ~expects=Info.TypeExpected,
       ~ancestors,
-      {ids, term, _} as utyp: UTyp.t,
+      {annotation: {ids, _}, term, _} as utyp: UTyp.t(IdTag.t),
       m: Map.t,
     )
     : (Info.typ, Map.t) => {
@@ -920,7 +924,12 @@ and utyp_to_info_map =
   };
 }
 and utpat_to_info_map =
-    (~ctx, ~ancestors, {ids, term, _} as utpat: TPat.t, m: Map.t)
+    (
+      ~ctx,
+      ~ancestors,
+      {annotation: {ids, _}, term, _} as utpat: TPat.t(IdTag.t),
+      m: Map.t,
+    )
     : (Info.tpat, Map.t) => {
   let add = m => {
     let info = Info.derived_tpat(~utpat, ~ctx, ~ancestors);
@@ -942,7 +951,7 @@ and variant_to_info_map =
       ~ancestors,
       ~ty_sum,
       (m, ctrs),
-      uty: ConstructorMap.variant(UTyp.t),
+      uty: ConstructorMap.variant(UTyp.t(IdTag.t)),
     ) => {
   let go = expects => utyp_to_info_map(~ctx, ~ancestors, ~expects);
   switch (uty) {
@@ -956,7 +965,13 @@ and variant_to_info_map =
           List.mem(ctr, ctrs) ? Duplicate : Unique,
           ty_sum,
         ),
-        {term: Var(ctr), ids, copied: false},
+        {
+          term: Var(ctr),
+          annotation: {
+            ids,
+            copied: false,
+          },
+        },
         m,
       )
       |> snd;

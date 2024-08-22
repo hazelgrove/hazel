@@ -27,14 +27,14 @@ type join_type =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
-  | Just(Typ.t) /* Just a regular type */
+  | Just(Typ.t(IdTag.t)) /* Just a regular type */
   | NoJoin(join_type, list(Typ.source)) /* Inconsistent types for e.g match, listlits */
   | BadToken(Token.t) /* Invalid expression token, treated as hole */
-  | BadTrivAp(Typ.t) /* Trivial (nullary) ap on function that doesn't take triv */
+  | BadTrivAp(Typ.t(IdTag.t)) /* Trivial (nullary) ap on function that doesn't take triv */
   | IsMulti /* Multihole, treated as hole */
   | IsConstructor({
       name: Constructor.t,
-      syn_ty: option(Typ.t),
+      syn_ty: option(Typ.t(IdTag.t)),
     }); /* Constructors have special ana logic */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -59,7 +59,7 @@ type pat =
   | Redundant(pat)
   | Common(t);
 
-let join_of = (j: join_type, ty: Typ.t): Typ.t =>
+let join_of = (j: join_type, ty: Typ.t('a)): Typ.t('a) =>
   switch (j) {
   | Id => ty
   | List => List(ty) |> Typ.fresh
@@ -68,7 +68,7 @@ let join_of = (j: join_type, ty: Typ.t): Typ.t =>
 /* What the type would be if the position had been
    synthetic, so no hole fixing. Returns none if
    there's no applicable synthetic rule. */
-let typ_of: (Ctx.t, t) => option(Typ.t) =
+let typ_of: (Ctx.t('a), t) => option(Typ.t('a)) =
   _ctx =>
     fun
     | Just(typ) => Some(typ)
@@ -78,7 +78,7 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
     | IsMulti
     | NoJoin(_) => None;
 
-let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
+let typ_of_exp: (Ctx.t('a), exp) => option(Typ.t('a)) =
   ctx =>
     fun
     | Free(_)
@@ -87,7 +87,7 @@ let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
     | IsBadPartialAp(_) => None
     | Common(self) => typ_of(ctx, self);
 
-let rec typ_of_pat: (Ctx.t, pat) => option(Typ.t) =
+let rec typ_of_pat: (Ctx.t('a), pat) => option(Typ.t('a)) =
   ctx =>
     fun
     | Redundant(pat) => typ_of_pat(ctx, pat)
@@ -95,7 +95,7 @@ let rec typ_of_pat: (Ctx.t, pat) => option(Typ.t) =
 
 /* The self of a var depends on the ctx; if the
    lookup fails, it is a free variable */
-let of_exp_var = (ctx: Ctx.t, name: Var.t): exp =>
+let of_exp_var = (ctx: Ctx.t('a), name: Var.t): exp =>
   switch (Ctx.lookup_var(ctx, name)) {
   | None => Free(name)
   | Some(var) => Common(Just(var.typ))
@@ -104,7 +104,7 @@ let of_exp_var = (ctx: Ctx.t, name: Var.t): exp =>
 /* The self of a ctr depends on the ctx, but a
    lookup failure doesn't necessarily means its
    free; it may be given a type analytically */
-let of_ctr = (ctx: Ctx.t, name: Constructor.t): t =>
+let of_ctr = (ctx: Ctx.t('a), name: Constructor.t): t =>
   IsConstructor({
     name,
     syn_ty:
@@ -114,7 +114,8 @@ let of_ctr = (ctx: Ctx.t, name: Constructor.t): t =>
       },
   });
 
-let of_deferred_ap = (args, ty_ins: list(Typ.t), ty_out: Typ.t): exp => {
+let of_deferred_ap =
+    (args, ty_ins: list(Typ.t('a)), ty_out: Typ.t('a)): exp => {
   let expected = List.length(ty_ins);
   let actual = List.length(args);
   if (expected != actual) {
@@ -135,19 +136,21 @@ let of_deferred_ap = (args, ty_ins: list(Typ.t), ty_out: Typ.t): exp => {
 
 let add_source = List.map2((id, ty) => Typ.{id, ty});
 
-let match = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
+let match = (ctx: Ctx.t('a), tys: list(Typ.t('a)), ids: list(Id.t)): t =>
   switch (Typ.join_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {
   | None => NoJoin(Id, add_source(ids, tys))
   | Some(ty) => Just(ty)
   };
 
-let listlit = (~empty, ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
+let listlit =
+    (~empty, ctx: Ctx.t('a), tys: list(Typ.t('a)), ids: list(Id.t)): t =>
   switch (Typ.join_all(~empty, ctx, tys)) {
   | None => NoJoin(List, add_source(ids, tys))
   | Some(ty) => Just(List(ty) |> Typ.fresh)
   };
 
-let list_concat = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
+let list_concat =
+    (ctx: Ctx.t('a), tys: list(Typ.t('a)), ids: list(Id.t)): t =>
   switch (Typ.join_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {
   | None => NoJoin(List, add_source(ids, tys))
   | Some(ty) => Just(ty)

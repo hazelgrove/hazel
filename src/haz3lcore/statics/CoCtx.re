@@ -28,19 +28,19 @@ open Util;
    */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type entry = {
+type entry('a) = {
   id: Id.t,
-  expected_ty: Typ.t,
+  expected_ty: Typ.t('a),
 };
 
 /* Each co-context entry is a list of the uses of a variable
    within some scope, including their type demands */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = VarMap.t_(list(entry));
+type t('a) = VarMap.t_(list(entry('a)));
 
-let empty: t = VarMap.empty;
+let empty: t('a) = VarMap.empty;
 
-let mk = (ctx_before: Ctx.t, ctx_after, co_ctx: t): t => {
+let mk = (ctx_before: Ctx.t('a), ctx_after, co_ctx: t('a)): t('a) => {
   let added_bindings = Ctx.added_bindings(ctx_after, ctx_before);
   VarMap.filter(
     ((name, _)) =>
@@ -53,14 +53,14 @@ let mk = (ctx_before: Ctx.t, ctx_after, co_ctx: t): t => {
 };
 
 /* Note: this currently shadows in the case of duplicates */
-let union: list(t) => t =
-  List.fold_left((co_ctx1, co_ctx2) => co_ctx1 @ co_ctx2, []);
+let union: list(t('a)) => t('a) =
+  xs => List.fold_left((co_ctx1, co_ctx2) => co_ctx1 @ co_ctx2, [], xs);
 
-let singleton = (name, id, expected_ty): t => [
+let singleton = (name, id, expected_ty): t(IdTag.t) => [
   (name, [{id, expected_ty}]),
 ];
 
-let join: (Ctx.t, list(entry)) => Typ.t =
+let join: (Ctx.t('a), list(entry('a))) => Typ.t('a) =
   (ctx, entries) => {
     let expected_tys = List.map(entry => entry.expected_ty, entries);
     switch (

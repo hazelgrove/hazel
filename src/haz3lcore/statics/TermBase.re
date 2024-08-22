@@ -177,7 +177,7 @@ and Exp: {
        two consistent types. Both types should be normalized in
        dynamics for the cast calculus to work right. */
     | Cast(t('a), Typ.t('a), Typ.t('a)) // first Typ.t field is only meaningful in dynamic expressions
-  and t('a) = Annotated.t(term('a), IdTag.t);
+  and t('a) = Annotated.t(term('a), 'a);
 
   let map_term:
     (
@@ -244,7 +244,7 @@ and Exp: {
        two consistent types. Both types should be normalized in
        dynamics for the cast calculus to work right. */
     | Cast(t('a), Typ.t('a), Typ.t('a)) // first Typ.t field is only meaningful in dynamic expressions
-  and t('a) = Annotated.t(term('a), IdTag.t);
+  and t('a) = Annotated.t(term('a), 'a);
 
   let map_term =
       (
@@ -470,7 +470,7 @@ and Pat: {
     | Parens(t('a))
     | Ap(t('a), t('a))
     | Cast(t('a), Typ.t('a), Typ.t('a)) // The second Typ.t field is only meaningful in dynamic patterns
-  and t('a) = Annotated.t(term('a), IdTag.t);
+  and t('a) = Annotated.t(term('a), 'a);
 
   let map_term:
     (
@@ -504,7 +504,7 @@ and Pat: {
     | Parens(t('a))
     | Ap(t('a), t('a))
     | Cast(t('a), Typ.t('a), Typ.t('a)) // The second one is hidden from the user
-  and t('a) = Annotated.t(term('a), IdTag.t);
+  and t('a) = Annotated.t(term('a), 'a);
 
   let map_term =
       (
@@ -624,7 +624,7 @@ and Typ: {
     | Ap(t('a), t('a))
     | Rec(TPat.t('a), t('a))
     | Forall(TPat.t('a), t('a))
-  and t('a) = Annotated.t(term('a), IdTag.t);
+  and t('a) = Annotated.t(term('a), 'a);
 
   type sum_map('a) = ConstructorMap.t(t('a));
 
@@ -676,7 +676,7 @@ and Typ: {
     | Ap(t('a), t('a))
     | Rec(TPat.t('a), t('a))
     | Forall(TPat.t('a), t('a))
-  and t('a) = Annotated.t(term('a), IdTag.t);
+  and t('a) = Annotated.t(term('a), 'a);
 
   type sum_map('a) = ConstructorMap.t(t('a));
 
@@ -820,7 +820,7 @@ and TPat: {
     | EmptyHole
     | MultiHole(list(Any.t('a)))
     | Var(string)
-  and t('a) = Annotated.t(term('a), IdTag.t);
+  and t('a) = Annotated.t(term('a), 'a);
 
   let map_term:
     (
@@ -844,7 +844,7 @@ and TPat: {
     | EmptyHole
     | MultiHole(list(Any.t('a)))
     | Var(string)
-  and t('a) = Annotated.t(term('a), IdTag.t);
+  and t('a) = Annotated.t(term('a), 'a);
 
   let map_term =
       (
@@ -897,7 +897,7 @@ and Rul: {
     | Invalid(string)
     | Hole(list(Any.t('a)))
     | Rules(Exp.t('a), list((Pat.t('a), Exp.t('a))))
-  and t('a) = Annotated.t(term('a), IdTag.t);
+  and t('a) = Annotated.t(term('a), 'a);
 
   let map_term:
     (
@@ -918,7 +918,7 @@ and Rul: {
     | Invalid(string)
     | Hole(list(Any.t('a)))
     | Rules(Exp.t('a), list((Pat.t('a), Exp.t('a))))
-  and t('a) = Annotated.t(term('a), IdTag.t);
+  and t('a) = Annotated.t(term('a), 'a);
 
   let map_term =
       (
@@ -982,12 +982,12 @@ and Environment: {
       type t_('a) = VarBstMap.Ordered.t_('a);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = t_(Exp.t(list(Id.t)));
+  type t = t_(Exp.t(IdTag.t));
 } = {
   include VarBstMap.Ordered;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = t_(Exp.t(list(Id.t)));
+  type t = t_(Exp.t(IdTag.t));
 }
 
 and ClosureEnvironment: {
@@ -999,7 +999,7 @@ and ClosureEnvironment: {
   let id_of: t => Id.t;
   let map_of: t => Environment.t;
 
-  let to_list: t => list((Var.t, Exp.t(list(Id.t))));
+  let to_list: t => list((Var.t, Exp.t(IdTag.t)));
 
   let of_environment: Environment.t => t;
 
@@ -1009,20 +1009,19 @@ and ClosureEnvironment: {
   let is_empty: t => bool;
   let length: t => int;
 
-  let lookup: (t, Var.t) => option(Exp.t(list(Id.t)));
+  let lookup: (t, Var.t) => option(Exp.t(IdTag.t));
   let contains: (t, Var.t) => bool;
   let update: (Environment.t => Environment.t, t) => t;
   let update_keep_id: (Environment.t => Environment.t, t) => t;
-  let extend: (t, (Var.t, Exp.t(list(Id.t)))) => t;
-  let extend_keep_id: (t, (Var.t, Exp.t(list(Id.t)))) => t;
+  let extend: (t, (Var.t, Exp.t(IdTag.t))) => t;
+  let extend_keep_id: (t, (Var.t, Exp.t(IdTag.t))) => t;
   let union: (t, t) => t;
   let union_keep_id: (t, t) => t;
-  let map: (((Var.t, Exp.t(list(Id.t)))) => Exp.t(list(Id.t)), t) => t;
-  let map_keep_id:
-    (((Var.t, Exp.t(list(Id.t)))) => Exp.t(list(Id.t)), t) => t;
-  let filter: (((Var.t, Exp.t(list(Id.t)))) => bool, t) => t;
-  let filter_keep_id: (((Var.t, Exp.t(list(Id.t)))) => bool, t) => t;
-  let fold: (((Var.t, Exp.t(list(Id.t))), 'b) => 'b, 'b, t) => 'b;
+  let map: (((Var.t, Exp.t(IdTag.t))) => Exp.t(IdTag.t), t) => t;
+  let map_keep_id: (((Var.t, Exp.t(IdTag.t))) => Exp.t(IdTag.t), t) => t;
+  let filter: (((Var.t, Exp.t(IdTag.t))) => bool, t) => t;
+  let filter_keep_id: (((Var.t, Exp.t(IdTag.t))) => bool, t) => t;
+  let fold: (((Var.t, Exp.t(IdTag.t)), 'b) => 'b, 'b, t) => 'b;
 
   let without_keys: (list(Var.t), t) => t;
 

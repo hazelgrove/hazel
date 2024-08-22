@@ -11,9 +11,9 @@ let leading_expander = " ";
  * running Statics, but for now, new forms e.g. operators must be added
  * below manually.  */
 module Typ = {
-  let unk: Typ.t = Unknown(Internal) |> Typ.fresh;
+  let unk: Typ.t(IdTag.t) = Unknown(Internal) |> Typ.fresh;
 
-  let of_const_mono_delim: list((Token.t, Typ.t)) = [
+  let of_const_mono_delim: list((Token.t, Typ.t(IdTag.t))) = [
     ("true", Bool |> Typ.fresh),
     ("false", Bool |> Typ.fresh),
     //("[]", List(unk)), / *NOTE: would need to refactor buffer for this to show up */
@@ -22,12 +22,12 @@ module Typ = {
     ("_", unk),
   ];
 
-  let of_leading_delim: list((Token.t, Typ.t)) = [
+  let of_leading_delim: list((Token.t, Typ.t(IdTag.t))) = [
     ("case" ++ leading_expander, unk),
     ("fun" ++ leading_expander, Arrow(unk, unk) |> Typ.fresh),
     (
       "typfun" ++ leading_expander,
-      Forall(Var("") |> TPat.fresh, unk) |> Typ.fresh,
+      Forall((Var(""): TPat.term(IdTag.t)) |> TPat.fresh, unk) |> Typ.fresh,
     ),
     ("if" ++ leading_expander, unk),
     ("let" ++ leading_expander, unk),
@@ -35,7 +35,7 @@ module Typ = {
     ("type" ++ leading_expander, unk),
   ];
 
-  let of_infix_delim: list((Token.t, Typ.term)) = [
+  let of_infix_delim: list((Token.t, Typ.term(IdTag.t))) = [
     //("|>", Unknown(Internal)), /* annoying during case rules */
     (",", Prod([unk, unk])), /* NOTE: Current approach doesn't work for this, but irrelevant as 1-char */
     ("::", List(unk)), /* annoying in patterns */
@@ -71,7 +71,7 @@ module Typ = {
     ("++", String),
   ];
 
-  let expected: Info.t => Typ.t =
+  let expected: Info.t => Typ.t(IdTag.t) =
     fun
     | InfoExp({mode, _})
     | InfoPat({mode, _}) => Mode.ty_of(mode)
@@ -79,12 +79,12 @@ module Typ = {
 
   let filter_by =
       (
-        ctx: Ctx.t,
-        expected_ty: Typ.t,
-        self_tys: list((Token.t, Typ.t)),
+        ctx: Ctx.t(IdTag.t),
+        expected_ty: Typ.t(IdTag.t),
+        self_tys: list((Token.t, Typ.t(IdTag.t))),
         delims: list(string),
       )
-      : list((Token.t, Typ.t)) =>
+      : list((Token.t, Typ.t(IdTag.t))) =>
     List.filter_map(
       delim => {
         let* self_ty = List.assoc_opt(delim, self_tys);
@@ -198,7 +198,7 @@ let suggest_form = (ty_map, delims_of_sort, ci: Info.t): list(Suggestion.t) => {
 
 let suggest_operator: Info.t => list(Suggestion.t) =
   suggest_form(
-    List.map(((a, b)) => (a, IdTagged.fresh(b)), Typ.of_infix_delim),
+    List.map(((a, b)) => (a, Annotated.fresh(b)), Typ.of_infix_delim),
     Delims.infix,
   );
 

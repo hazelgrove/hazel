@@ -1,9 +1,9 @@
 let rec matches_exp =
         (
           ~denv: ClosureEnvironment.t,
-          d: DHExp.t(list(Id.t)),
+          d: DHExp.t(IdTag.t),
           ~fenv: ClosureEnvironment.t,
-          f: DHExp.t(list(Id.t)),
+          f: DHExp.t(IdTag.t),
         )
         : bool => {
   let matches_exp = (~denv=denv, ~fenv=fenv, d, f) =>
@@ -285,11 +285,11 @@ let rec matches_exp =
 and matches_fun =
     (
       ~denv: ClosureEnvironment.t,
-      dp: DHPat.t,
-      d: DHExp.t(list(Id.t)),
+      dp: DHPat.t(IdTag.t),
+      d: DHExp.t(IdTag.t),
       ~fenv: ClosureEnvironment.t,
-      fp: DHPat.t,
-      f: DHExp.t(list(Id.t)),
+      fp: DHPat.t(IdTag.t),
+      f: DHExp.t(IdTag.t),
     ) => {
   matches_pat(dp, fp)
   && matches_exp(
@@ -300,7 +300,7 @@ and matches_fun =
      );
 }
 
-and matches_pat = (d: Pat.t, f: Pat.t): bool => {
+and matches_pat = (d: Pat.t(IdTag.t), f: Pat.t(IdTag.t)): bool => {
   switch (d |> DHPat.term_of, f |> DHPat.term_of) {
   // Matt: I'm not sure what the exact semantics of matching should be here.
   | (Parens(x), _) => matches_pat(x, f)
@@ -349,10 +349,10 @@ and matches_pat = (d: Pat.t, f: Pat.t): bool => {
   | (Invalid(_), _) => false
   };
 }
-and matches_typ = (d: Typ.t, f: Typ.t) => {
+and matches_typ = (d: Typ.t(IdTag.t), f: Typ.t(IdTag.t)) => {
   Typ.eq(d, f);
 }
-and matches_utpat = (d: TPat.t, f: TPat.t): bool => {
+and matches_utpat = (d: TPat.t(IdTag.t), f: TPat.t(IdTag.t)): bool => {
   switch (d.term, f.term) {
   | (Invalid(_), _) => false
   | (_, Invalid(_)) => false
@@ -366,8 +366,8 @@ and matches_utpat = (d: TPat.t, f: TPat.t): bool => {
 let matches =
     (
       ~env: ClosureEnvironment.t,
-      ~exp: DHExp.t(list(Id.t)),
-      ~flt: TermBase.StepperFilterKind.filter,
+      ~exp: DHExp.t(IdTag.t),
+      ~flt: TermBase.StepperFilterKind.filter(IdTag.t),
     )
     : option(FilterAction.t) =>
   if (matches_exp(~denv=env, exp, ~fenv=env, flt.pat)) {
@@ -379,7 +379,7 @@ let matches =
 let matches =
     (
       ~env: ClosureEnvironment.t,
-      ~exp: DHExp.t(list(Id.t)),
+      ~exp: DHExp.t(IdTag.t),
       ~act: FilterAction.t,
       flt_env,
     )

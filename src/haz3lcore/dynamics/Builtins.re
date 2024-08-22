@@ -1,5 +1,5 @@
 open DHExp;
-open Sexplib.Conv;
+// open Sexplib.Conv;
 
 /*
    Built-in functions for Hazel.
@@ -10,29 +10,32 @@ open Sexplib.Conv;
    See the existing ones for reference.
  */
 [@deriving (show({with_path: false}), sexp)]
-type foo = DHExp.t(list(Id.t));
-[@deriving (show({with_path: false}), sexp)]
 type builtin =
-  | Const(Typ.t, foo)
-  | Fn(Typ.t, Typ.t, DHExp.t(list(Id.t)) => DHExp.t(list(Id.t)));
+  | Const(Typ.t(IdTag.t), DHExp.t(IdTag.t))
+  | Fn(
+      Typ.t(IdTag.t),
+      Typ.t(IdTag.t),
+      DHExp.t(IdTag.t) => DHExp.t(IdTag.t),
+    );
 
 [@deriving (show({with_path: false}), sexp)]
 type t = VarMap.t_(builtin);
 
 [@deriving (show({with_path: false}), sexp)]
-type forms = VarMap.t_(DHExp.t(list(Id.t)) => DHExp.t(list(Id.t)));
+type forms = VarMap.t_(DHExp.t(IdTag.t) => DHExp.t(IdTag.t));
 
-type result = Result.t(DHExp.t(list(Id.t)), EvaluatorError.t);
+type result = Result.t(DHExp.t(IdTag.t), EvaluatorError.t);
 
 let const =
-    (name: Var.t, typ: Typ.term, v: DHExp.t(list(Id.t)), builtins: t): t =>
+    (name: Var.t, typ: Typ.term(IdTag.t), v: DHExp.t(IdTag.t), builtins: t)
+    : t =>
   VarMap.extend(builtins, (name, Const(typ |> Typ.fresh, v)));
 let fn =
     (
       name: Var.t,
-      t1: Typ.term,
-      t2: Typ.term,
-      impl: DHExp.t(list(Id.t)) => DHExp.t(list(Id.t)),
+      t1: Typ.term(IdTag.t),
+      t2: Typ.term(IdTag.t),
+      impl: DHExp.t(IdTag.t) => DHExp.t(IdTag.t),
       builtins: t,
     )
     : t =>
@@ -52,7 +55,7 @@ module Pervasives = {
     let max_int = DHExp.Int(Int.max_int) |> fresh;
     let min_int = DHExp.Int(Int.min_int) |> fresh;
 
-    let unary = (f: DHExp.t(list(Id.t)) => result, d: DHExp.t(list(Id.t))) => {
+    let unary = (f: DHExp.t(IdTag.t) => result, d: DHExp.t(IdTag.t)) => {
       switch (f(d)) {
       | Ok(r') => r'
       | Error(e) => EvaluatorError.Exception(e) |> raise
@@ -61,8 +64,8 @@ module Pervasives = {
 
     let binary =
         (
-          f: (DHExp.t(list(Id.t)), DHExp.t(list(Id.t))) => result,
-          d: DHExp.t(list(Id.t)),
+          f: (DHExp.t(IdTag.t), DHExp.t(IdTag.t)) => result,
+          d: DHExp.t(IdTag.t),
         ) => {
       switch (term_of(d)) {
       | Tuple([d1, d2]) =>
@@ -77,13 +80,8 @@ module Pervasives = {
     let ternary =
         (
           f:
-            (
-              DHExp.t(list(Id.t)),
-              DHExp.t(list(Id.t)),
-              DHExp.t(list(Id.t))
-            ) =>
-            result,
-          d: DHExp.t(list(Id.t)),
+            (DHExp.t(IdTag.t), DHExp.t(IdTag.t), DHExp.t(IdTag.t)) => result,
+          d: DHExp.t(IdTag.t),
         ) => {
       switch (term_of(d)) {
       | Tuple([d1, d2, d3]) =>
@@ -192,7 +190,7 @@ module Pervasives = {
     let of_string =
         (
           convert: string => option('a),
-          wrap: 'a => DHExp.t(list(Id.t)),
+          wrap: 'a => DHExp.t(IdTag.t),
           name: string,
         ) =>
       unary(d =>
@@ -266,7 +264,7 @@ module Pervasives = {
         }
       );
 
-    let string_of: DHExp.t(list(Id.t)) => option(string) =
+    let string_of: DHExp.t(IdTag.t) => option(string) =
       d =>
         switch (term_of(d)) {
         | String(s) => Some(s)
@@ -370,8 +368,8 @@ module Pervasives = {
        );
 };
 
-let ctx_init: Ctx.t = {
-  let meta_cons_map: ConstructorMap.t(Typ.t) = [
+let ctx_init: Ctx.t(IdTag.t) = {
+  let meta_cons_map: ConstructorMap.t(Typ.t(IdTag.t)) = [
     Variant("$e", [Id.mk()], None),
     Variant("$v", [Id.mk()], None),
   ];

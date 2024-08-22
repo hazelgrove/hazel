@@ -37,9 +37,9 @@ type strategy_all =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type strategy_common =
-  | NewForm(Typ.t)
-  | FromCtx(Typ.t)
-  | FromCtxAp(Typ.t);
+  | NewForm(Typ.t(IdTag.t))
+  | FromCtx(Typ.t(IdTag.t))
+  | FromCtxAp(Typ.t(IdTag.t));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type strategy_exp =
@@ -48,7 +48,7 @@ type strategy_exp =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type strategy_pat =
   | Common(strategy_common)
-  | FromCoCtx(Typ.t);
+  | FromCoCtx(Typ.t(IdTag.t));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type strategy_typ =

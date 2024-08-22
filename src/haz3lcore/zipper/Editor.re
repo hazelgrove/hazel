@@ -2,13 +2,20 @@ open Util;
 
 module CachedStatics = {
   type t = {
-    term: UExp.t(list(Id.t)),
+    term: UExp.t(IdTag.t),
     info_map: Statics.Map.t,
     error_ids: list(Id.t),
   };
 
   let empty: t = {
-    term: UExp.{ids: [Id.invalid], copied: false, term: Tuple([])},
+    term:
+      UExp.{
+        annotation: {
+          ids: [Id.invalid],
+          copied: false,
+        },
+        term: Tuple([]),
+      },
     info_map: Id.Map.empty,
     error_ids: [],
   };
@@ -43,7 +50,7 @@ module CachedSyntax = {
     tiles: TileMap.t,
     holes: list(Grout.t),
     selection_ids: list(Id.t),
-    term: UExp.t(list(Id.t)),
+    term: UExp.t(IdTag.t),
     /* This term, and the term-derived data structured below, may differ
      * from the term used for semantics. These terms are identical when
      * the backpack is empty. If the backpack is non-empty, then when we

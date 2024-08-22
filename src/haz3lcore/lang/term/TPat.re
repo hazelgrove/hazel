@@ -7,16 +7,16 @@ type cls =
 
 include TermBase.TPat;
 
-let rep_id: t => Id.t = IdTagged.rep_id;
-let fresh: term => t = IdTagged.fresh;
+let rep_id = (x: t(IdTag.t)) => Annotated.rep_id(x);
+let fresh = Annotated.fresh;
 
-let hole = (tms: list(TermBase.Any.t)) =>
+let hole = (tms: list(TermBase.Any.t('a))) =>
   switch (tms) {
   | [] => EmptyHole
   | [_, ..._] => MultiHole(tms)
   };
 
-let cls_of_term: term => cls =
+let cls_of_term: term('a) => cls =
   fun
   | Invalid(_) => Invalid
   | EmptyHole => EmptyHole

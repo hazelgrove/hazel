@@ -4,7 +4,7 @@ type hole_sort =
   | PatternHole;
 
 [@deriving sexp]
-type val_ty = (hole_sort, Typ.t, Ctx.t);
+type val_ty = (hole_sort, Typ.t(IdTag.t), Ctx.t(IdTag.t));
 
 [@deriving sexp]
 type t = Id.Map.t(val_ty);

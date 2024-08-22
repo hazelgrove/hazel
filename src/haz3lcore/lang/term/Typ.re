@@ -25,22 +25,29 @@ type cls =
 
 include TermBase.Typ;
 
-let term_of: t => term = IdTagged.term_of;
-let unwrap: t => (term, term => t) = IdTagged.unwrap;
-let fresh: term => t = IdTagged.fresh;
+let term_of: t('a) => term('a) = Annotated.term_of;
+let unwrap: t('a) => (term('a), term('a) => t('a)) = Annotated.unwrap;
+let fresh: term('a) => t('a) = Annotated.fresh;
 /* fresh assigns a random id, whereas temp assigns Id.invalid, which
    is a lot faster, and since we so often make types and throw them away
    shortly after, it makes sense to use it. */
-let temp: term => t = term => {term, ids: [Id.invalid], copied: false};
-let rep_id: t => Id.t = IdTagged.rep_id;
+let temp: term('a) => t(IdTag.t) =
+  term => {
+    term,
+    annotation: {
+      ids: [Id.invalid],
+      copied: false,
+    },
+  };
+let rep_id: t('a) => Id.t = Annotated.rep_id;
 
-let hole = (tms: list(TermBase.Any.t)) =>
+let hole = (tms: list(TermBase.Any.t('a))) =>
   switch (tms) {
   | [] => Unknown(Hole(EmptyHole))
   | [_, ..._] => Unknown(Hole(MultiHole(tms)))
   };
 
-let cls_of_term: term => cls =
+let cls_of_term: term('a) => cls =
   fun
   | Unknown(Hole(Invalid(_))) => Invalid
   | Unknown(Hole(EmptyHole)) => EmptyHole
@@ -83,7 +90,7 @@ let show_cls: cls => string =
   | Rec => "Recursive type"
   | Forall => "Forall type";
 
-let rec is_arrow = (typ: t) => {
+let rec is_arrow = (typ: t('a)) => {
   switch (typ.term) {
   | Parens(typ) => is_arrow(typ)
   | Arrow(_) => true
@@ -102,7 +109,7 @@ let rec is_arrow = (typ: t) => {
   };
 };
 
-let rec is_forall = (typ: t) => {
+let rec is_forall = (typ: t('a)) => {
   switch (typ.term) {
   | Parens(typ) => is_forall(typ)
   | Forall(_) => true
@@ -126,18 +133,18 @@ let rec is_forall = (typ: t) => {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type source = {
   id: Id.t,
-  ty: t,
+  ty: t(IdTag.t),
 };
 
 /* Strip location information from a list of sources */
-let of_source = List.map((source: source) => source.ty);
+let of_source = x => List.map((source: source) => source.ty, x);
 
 /* How type provenance information should be collated when
    joining unknown types. This probably requires more thought,
    but right now TypeHole strictly predominates over Internal
    which strictly predominates over SynSwitch. */
 let join_type_provenance =
-    (p1: type_provenance, p2: type_provenance): type_provenance =>
+    (p1: type_provenance('a), p2: type_provenance('a)): type_provenance('a) =>
   switch (p1, p2) {
   | (Hole(h1), Hole(h2)) when h1 == h2 => Hole(h1)
   | (Hole(EmptyHole), Hole(EmptyHole) | SynSwitch)
@@ -149,7 +156,7 @@ let join_type_provenance =
   | (SynSwitch, SynSwitch) => SynSwitch
   };
 
-let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
+let rec free_vars = (~bound=[], ty: t('a)): list(Var.t) =>
   switch (term_of(ty)) {
   | Unknown(_)
   | Int
@@ -175,7 +182,7 @@ let fresh_var = (var_name: string) => {
   var_name ++ "_α" ++ string_of_int(x);
 };
 
-let unroll = (ty: t): t =>
+let unroll = (ty: t('a)): t('a) =>
   switch (term_of(ty)) {
   | Rec(tp, ty_body) => subst(ty, tp, ty_body)
   | _ => ty
@@ -183,14 +190,16 @@ let unroll = (ty: t): t =>
 
 /* Type Equality: This coincides with alpha equivalence for normalized types.
    Other types may be equivalent but this will not detect so if they are not normalized. */
-let eq = (t1: t, t2: t): bool => fast_equal(t1, t2);
+let eq = (t1: t('a), t2: t('a)): bool => fast_equal(t1, t2);
 
 /* Lattice join on types. This is a LUB join in the hazel2
    sense in that any type dominates Unknown. The optional
    resolve parameter specifies whether, in the case of a type
    variable and a succesful join, to return the resolved join type,
    or to return the (first) type variable for readability */
-let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
+let rec join =
+        (~resolve=false, ~fix, ctx: Ctx.t('a), ty1: t('a), ty2: t('a))
+        : option(t('a)) => {
   let join' = join(~resolve, ~fix, ctx);
   switch (term_of(ty1), term_of(ty2)) {
   | (_, Parens(ty2)) => join'(ty1, ty2)
@@ -280,7 +289,7 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
 
 /* REQUIRES NORMALIZED TYPES
    Remove synswitches from t1 by matching against t2 */
-let rec match_synswitch = (t1: t, t2: t) => {
+let rec match_synswitch = (t1: t('a), t2: t('a)) => {
   let (term1, rewrap1) = unwrap(t1);
   switch (term1, term_of(t2)) {
   | (Parens(t1), _) => Parens(match_synswitch(t1, t2)) |> rewrap1
@@ -314,17 +323,18 @@ let rec match_synswitch = (t1: t, t2: t) => {
 
 let join_fix = join(~fix=true);
 
-let join_all = (~empty: t, ctx: Ctx.t, ts: list(t)): option(t) =>
+let join_all =
+    (~empty: t('a), ctx: Ctx.t('a), ts: list(t('a))): option(t('a)) =>
   List.fold_left(
     (acc, ty) => OptUtil.and_then(join(~fix=false, ctx, ty), acc),
     Some(empty),
     ts,
   );
 
-let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
+let is_consistent = (ctx: Ctx.t('a), ty1: t('a), ty2: t('a)): bool =>
   join(~fix=false, ctx, ty1, ty2) != None;
 
-let rec weak_head_normalize = (ctx: Ctx.t, ty: t): t =>
+let rec weak_head_normalize = (ctx: Ctx.t('a), ty: t('a)): t('a) =>
   switch (term_of(ty)) {
   | Var(x) =>
     switch (Ctx.lookup_alias(ctx, x)) {
@@ -334,7 +344,7 @@ let rec weak_head_normalize = (ctx: Ctx.t, ty: t): t =>
   | _ => ty
   };
 
-let rec normalize = (ctx: Ctx.t, ty: t): t => {
+let rec normalize = (ctx: Ctx.t('a), ty: t('a)): t('a) => {
   let (term, rewrap) = unwrap(ty);
   switch (term) {
   | Var(x) =>
@@ -427,7 +437,8 @@ let rec matched_args = (ctx, default_arity, ty) => {
   };
 };
 
-let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
+let rec get_sum_constructors =
+        (ctx: Ctx.t('a), ty: t('a)): option(sum_map('a)) => {
   let ty = weak_head_normalize(ctx, ty);
   switch (term_of(ty)) {
   | Parens(ty) => get_sum_constructors(ctx, ty)
@@ -460,7 +471,7 @@ let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
   };
 };
 
-let rec is_unknown = (ty: t): bool =>
+let rec is_unknown = (ty: t('a)): bool =>
   switch (ty |> term_of) {
   | Parens(x) => is_unknown(x)
   | Unknown(_) => true
@@ -468,7 +479,7 @@ let rec is_unknown = (ty: t): bool =>
   };
 
 /* Does the type require parentheses when on the left of an arrow for printing? */
-let rec needs_parens = (ty: t): bool =>
+let rec needs_parens = (ty: t('a)): bool =>
   switch (term_of(ty)) {
   | Parens(ty) => needs_parens(ty)
   | Ap(_)
@@ -486,8 +497,8 @@ let rec needs_parens = (ty: t): bool =>
   | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
   };
 
-let pretty_print_tvar = (tv: TPat.t): string =>
-  switch (IdTagged.term_of(tv)) {
+let pretty_print_tvar = (tv: TPat.t('a)): string =>
+  switch (Annotated.term_of(tv)) {
   | Var(x) => x
   | Invalid(_)
   | EmptyHole
@@ -495,7 +506,7 @@ let pretty_print_tvar = (tv: TPat.t): string =>
   };
 
 /* Essentially recreates haz3lweb/view/Type.re's view_ty but with string output */
-let rec pretty_print = (ty: t): string =>
+let rec pretty_print = (ty: t('a)): string =>
   switch (term_of(ty)) {
   | Parens(ty) => pretty_print(ty)
   | Ap(_)

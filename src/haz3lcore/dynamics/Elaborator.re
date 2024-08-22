@@ -8,18 +8,19 @@ exception MissingTypeInfo;
 
 module Elaboration = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {d: DHExp.t(list(Id.t))};
+  type t = {d: DHExp.t(IdTag.t)};
 };
 
 module ElaborationResult = {
   [@deriving sexp]
   type t =
-    | Elaborates(DHExp.t(list(Id.t)), Typ.t, Delta.t)
+    | Elaborates(DHExp.t(IdTag.t), Typ.t(IdTag.t), Delta.t)
     | DoesNotElaborate;
 };
 
 let fresh_cast =
-    (d: DHExp.t(list(Id.t)), t1: Typ.t, t2: Typ.t): DHExp.t(list(Id.t)) => {
+    (d: DHExp.t(IdTag.t), t1: Typ.t(IdTag.t), t2: Typ.t(IdTag.t))
+    : DHExp.t(IdTag.t) => {
   Typ.eq(t1, t2)
     ? d
     : {
@@ -33,7 +34,9 @@ let fresh_cast =
     };
 };
 
-let fresh_pat_cast = (p: DHPat.t, t1: Typ.t, t2: Typ.t): DHPat.t => {
+let fresh_pat_cast =
+    (p: DHPat.t(IdTag.t), t1: Typ.t(IdTag.t), t2: Typ.t(IdTag.t))
+    : DHPat.t(IdTag.t) => {
   Typ.eq(t1, t2)
     ? p
     : {
@@ -49,7 +52,8 @@ let fresh_pat_cast = (p: DHPat.t, t1: Typ.t, t2: Typ.t): DHPat.t => {
 };
 
 let elaborated_type =
-    (m: Statics.Map.t, uexp: UExp.t(list(Id.t))): (Typ.t, Ctx.t, 'a) => {
+    (m: Statics.Map.t, uexp: UExp.t(IdTag.t))
+    : (Typ.t(IdTag.t), Ctx.t(IdTag.t), 'a) => {
   let (mode, self_ty, ctx, co_ctx) =
     switch (Id.Map.find_opt(Exp.rep_id(uexp), m)) {
     | Some(Info.InfoExp({mode, ty, ctx, co_ctx, _})) => (
@@ -68,7 +72,11 @@ let elaborated_type =
       Typ.Arrow(ty1, ty2) |> Typ.temp;
     | SynTypFun =>
       let (tpat, ty) = Typ.matched_forall(ctx, self_ty);
-      let tpat = Option.value(tpat, ~default=TPat.fresh(EmptyHole));
+      let tpat =
+        Option.value(
+          tpat,
+          ~default=TPat.fresh(EmptyHole: TPat.term(IdTag.t)),
+        );
       Typ.Forall(tpat, ty) |> Typ.temp;
     // We need to remove the synswitches from this type.
     | Ana(ana_ty) => Typ.match_synswitch(ana_ty, self_ty)
@@ -76,7 +84,9 @@ let elaborated_type =
   (elab_ty |> Typ.normalize(ctx), ctx, co_ctx);
 };
 
-let elaborated_pat_type = (m: Statics.Map.t, upat: UPat.t): (Typ.t, Ctx.t) => {
+let elaborated_pat_type =
+    (m: Statics.Map.t, upat: UPat.t(IdTag.t))
+    : (Typ.t(IdTag.t), Ctx.t(IdTag.t)) => {
   let (mode, self_ty, ctx, prev_synswitch) =
     switch (Id.Map.find_opt(UPat.rep_id(upat), m)) {
     | Some(Info.InfoPat({mode, ty, ctx, prev_synswitch, _})) => (
@@ -95,7 +105,11 @@ let elaborated_pat_type = (m: Statics.Map.t, upat: UPat.t): (Typ.t, Ctx.t) => {
       Typ.Arrow(ty1, ty2) |> Typ.temp;
     | SynTypFun =>
       let (tpat, ty) = Typ.matched_forall(ctx, self_ty);
-      let tpat = Option.value(tpat, ~default=TPat.fresh(EmptyHole));
+      let tpat =
+        Option.value(
+          tpat,
+          ~default=TPat.fresh(EmptyHole: TPat.term(IdTag.t)),
+        );
       Typ.Forall(tpat, ty) |> Typ.temp;
     | Ana(ana_ty) =>
       switch (prev_synswitch) {
@@ -107,7 +121,8 @@ let elaborated_pat_type = (m: Statics.Map.t, upat: UPat.t): (Typ.t, Ctx.t) => {
 };
 
 let rec elaborate_pattern =
-        (m: Statics.Map.t, upat: UPat.t): (DHPat.t, Typ.t) => {
+        (m: Statics.Map.t, upat: UPat.t(IdTag.t))
+        : (DHPat.t(IdTag.t), Typ.t(IdTag.t)) => {
   let (elaborated_type, ctx) = elaborated_pat_type(m, upat);
   let cast_from = (ty, exp) => fresh_pat_cast(exp, ty, elaborated_type);
   let (term, rewrap) = UPat.unwrap(upat);
@@ -161,7 +176,9 @@ let rec elaborate_pattern =
       upat
       |> cast_from(
            Ctx.lookup_var(ctx, v)
-           |> Option.map((x: Ctx.var_entry) => x.typ |> Typ.normalize(ctx))
+           |> Option.map((x: Ctx.var_entry(IdTag.t)) =>
+                x.typ |> Typ.normalize(ctx)
+              )
            |> Option.value(~default=Typ.temp(Unknown(Internal))),
          )
     // Type annotations should already appear
@@ -208,8 +225,8 @@ let rec elaborate_pattern =
    want to remove one, I'd ask you instead comment it out and leave
    a comment explaining why it's redundant.  */
 let rec elaborate =
-        (m: Statics.Map.t, uexp: UExp.t(list(Id.t)))
-        : (DHExp.t(list(Id.t)), Typ.t) => {
+        (m: Statics.Map.t, uexp: UExp.t(IdTag.t))
+        : (DHExp.t(IdTag.t), Typ.t(IdTag.t)) => {
   let (elaborated_type, ctx, co_ctx) = elaborated_type(m, uexp);
   let cast_from = (ty, exp) => fresh_cast(exp, ty, elaborated_type);
   let (term, rewrap) = UExp.unwrap(uexp);
@@ -285,12 +302,13 @@ let rec elaborate =
       uexp
       |> cast_from(
            Ctx.lookup_var(ctx, v)
-           |> Option.map((x: Ctx.var_entry) => x.typ |> Typ.normalize(ctx))
+           |> Option.map((x: Ctx.var_entry(IdTag.t)) =>
+                x.typ |> Typ.normalize(ctx)
+              )
            |> Option.value(~default=Typ.temp(Typ.Unknown(Internal))),
          )
     | Let(p, def, body) =>
-      let add_name:
-        (option(string), DHExp.t(list(Id.t))) => DHExp.t(list(Id.t)) = (
+      let add_name: (option(string), DHExp.t(IdTag.t)) => DHExp.t(IdTag.t) = (
         (name, exp) => {
           let (term, rewrap) = DHExp.unwrap(exp);
           switch (term) {
@@ -366,7 +384,10 @@ let rec elaborate =
       let tye'' =
         Typ.subst(
           ut',
-          tpat |> Option.value(~default=TPat.fresh(EmptyHole)),
+          tpat
+          |> Option.value(
+               ~default=TPat.fresh(EmptyHole: TPat.term(IdTag.t)),
+             ),
           tye',
         );
       TypAp(e', ut) |> rewrap |> cast_from(tye'');
@@ -537,7 +558,7 @@ let rec elaborate =
       uexp
       |> cast_from(
            Ctx.lookup_var(Builtins.ctx_init, fn)
-           |> Option.map((x: Ctx.var_entry) => x.typ)
+           |> Option.map((x: Ctx.var_entry(IdTag.t)) => x.typ)
            |> Option.value(~default=Typ.temp(Typ.Unknown(Internal))),
          )
     | Match(e, cases) =>
@@ -571,10 +592,9 @@ let rec elaborate =
    all the invalid ids we added to prevent generating
    too many new ids */
 let fix_typ_ids =
-  Exp.map_term(~f_typ=(cont, e) => e |> IdTagged.new_ids |> cont);
+  Exp.map_term(~f_typ=(cont, e) => e |> Annotated.new_ids |> cont);
 
-let uexp_elab =
-    (m: Statics.Map.t, uexp: UExp.t(list(Id.t))): ElaborationResult.t =>
+let uexp_elab = (m: Statics.Map.t, uexp: UExp.t('a)): ElaborationResult.t =>
   switch (elaborate(m, uexp)) {
   | exception MissingTypeInfo => DoesNotElaborate
   | (d, ty) => Elaborates(d, ty, Delta.empty)

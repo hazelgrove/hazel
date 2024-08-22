@@ -23,16 +23,19 @@ open OptUtil.Syntax;
 //   };
 // };
 
-let ground = (ty: Typ.t): bool => {
+let ground = (ty: Typ.t(IdTag.t)): bool => {
   switch (Casts.ground_cases_of(ty)) {
   | Casts.Ground => true
   | _ => false
   };
 };
 
-let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) => {
+let dhpat_extend_ctx =
+    (dhpat: DHPat.t(IdTag.t), ty: Typ.t(IdTag.t), ctx: Ctx.t(IdTag.t))
+    : option(Ctx.t(IdTag.t)) => {
   let rec dhpat_var_entry =
-          (dhpat: DHPat.t, ty: Typ.t): option(list(Ctx.entry)) => {
+          (dhpat: DHPat.t(IdTag.t), ty: Typ.t(IdTag.t))
+          : option(list(Ctx.entry(IdTag.t))) => {
     switch (dhpat |> Pat.term_of) {
     | Var(name) =>
       let entry = Ctx.VarEntry({name, id: Id.invalid, typ: ty});
@@ -79,7 +82,9 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
 };
 
 /* patterns in functions and fixpoints must have a synthesizable type */
-let rec dhpat_synthesize = (dhpat: DHPat.t, ctx: Ctx.t): option(Typ.t) => {
+let rec dhpat_synthesize =
+        (dhpat: DHPat.t(IdTag.t), ctx: Ctx.t(IdTag.t))
+        : option(Typ.t(IdTag.t)) => {
   switch (dhpat |> Pat.term_of) {
   | Var(_)
   | Constructor(_)
@@ -108,8 +113,8 @@ let rec dhpat_synthesize = (dhpat: DHPat.t, ctx: Ctx.t): option(Typ.t) => {
 };
 
 let rec env_extend_ctx =
-        (env: ClosureEnvironment.t, m: Statics.Map.t, ctx: Ctx.t)
-        : option(Ctx.t) => {
+        (env: ClosureEnvironment.t, m: Statics.Map.t, ctx: Ctx.t(IdTag.t))
+        : option(Ctx.t(IdTag.t)) => {
   let+ l =
     env
     |> ClosureEnvironment.to_list
@@ -122,7 +127,8 @@ let rec env_extend_ctx =
 }
 
 and typ_of_dhexp =
-    (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t(list(Id.t))): option(Typ.t) => {
+    (ctx: Ctx.t(IdTag.t), m: Statics.Map.t, dh: DHExp.t(IdTag.t))
+    : option(Typ.t(IdTag.t)) => {
   switch (dh |> DHExp.term_of) {
   | Invalid(_)
   | MultiHole(_)
@@ -171,7 +177,10 @@ and typ_of_dhexp =
     Some(Typ.Forall(utpat, ty) |> Typ.temp);
   | TypFun(_, d, _) =>
     let* ty = typ_of_dhexp(ctx, m, d);
-    Some(Typ.Forall(Var("?") |> TPat.fresh, ty) |> Typ.temp);
+    Some(
+      Typ.Forall((Var("?"): TPat.term(IdTag.t)) |> TPat.fresh, ty)
+      |> Typ.temp,
+    );
   | TypAp(d, ty1) =>
     let* ty = typ_of_dhexp(ctx, m, d);
     let* (name, ty2) = Typ.matched_forall_strict(ctx, ty);
@@ -317,7 +326,7 @@ and typ_of_dhexp =
   | Match(_, []) => Some(Unknown(Internal) |> Typ.temp)
   | Match(d_scrut, [rule, ...rules]) =>
     let* ty' = typ_of_dhexp(ctx, m, d_scrut);
-    let rule_to_ty = ((dhpat, dhexp): (Pat.t, Exp.t(list(Id.t)))) => {
+    let rule_to_ty = ((dhpat, dhexp): (Pat.t(IdTag.t), Exp.t(IdTag.t))) => {
       let* ctx = dhpat_extend_ctx(dhpat, ty', ctx);
       typ_of_dhexp(ctx, m, dhexp);
     };
@@ -350,7 +359,8 @@ and typ_of_dhexp =
 };
 
 let property_test =
-    (uexp_typ: Typ.t, dhexp: DHExp.t(list(Id.t)), m: Statics.Map.t): bool => {
+    (uexp_typ: Typ.t(IdTag.t), dhexp: DHExp.t(IdTag.t), m: Statics.Map.t)
+    : bool => {
   let dhexp_typ = typ_of_dhexp(Builtins.ctx_init, m, dhexp);
 
   switch (dhexp_typ) {
