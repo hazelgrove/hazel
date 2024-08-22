@@ -177,10 +177,7 @@ and Exp: {
        two consistent types. Both types should be normalized in
        dynamics for the cast calculus to work right. */
     | Cast(t('a), Typ.t('a), Typ.t('a)) // first Typ.t field is only meaningful in dynamic expressions
-  and t('a) = {
-    term: term('a),
-    annotation: 'a,
-  };
+  and t('a) = Annotated.t(term('a), IdTag.t);
 
   let map_term:
     (
@@ -247,10 +244,7 @@ and Exp: {
        two consistent types. Both types should be normalized in
        dynamics for the cast calculus to work right. */
     | Cast(t('a), Typ.t('a), Typ.t('a)) // first Typ.t field is only meaningful in dynamic expressions
-  and t('a) = {
-    term: term('a),
-    annotation: 'a,
-  };
+  and t('a) = Annotated.t(term('a), IdTag.t);
 
   let map_term =
       (
@@ -342,7 +336,7 @@ and Exp: {
     x |> f_exp(rec_call);
   };
 
-  let rec fast_equal = (e1, e2) =>
+  let rec fast_equal = (e1: t('a), e2: t('a)) =>
     switch (e1.term, e2.term) {
     | (DynamicErrorHole(x, _), _)
     | (Parens(x), _) => fast_equal(x, e2)
@@ -476,10 +470,7 @@ and Pat: {
     | Parens(t('a))
     | Ap(t('a), t('a))
     | Cast(t('a), Typ.t('a), Typ.t('a)) // The second Typ.t field is only meaningful in dynamic patterns
-  and t('a) = {
-    term: term('a),
-    annotation: 'a,
-  };
+  and t('a) = Annotated.t(term('a), IdTag.t);
 
   let map_term:
     (
@@ -513,10 +504,7 @@ and Pat: {
     | Parens(t('a))
     | Ap(t('a), t('a))
     | Cast(t('a), Typ.t('a), Typ.t('a)) // The second one is hidden from the user
-  and t('a) = {
-    term: term('a),
-    annotation: 'a,
-  };
+  and t('a) = Annotated.t(term('a), IdTag.t);
 
   let map_term =
       (
@@ -560,7 +548,7 @@ and Pat: {
     x |> f_pat(rec_call);
   };
 
-  let rec fast_equal = (p1, p2) =>
+  let rec fast_equal = (p1: t('a), p2: t('a)) =>
     switch (p1.term, p2.term) {
     | (Parens(x), _) => fast_equal(x, p2)
     | (_, Parens(x)) => fast_equal(p1, x)
@@ -636,10 +624,7 @@ and Typ: {
     | Ap(t('a), t('a))
     | Rec(TPat.t('a), t('a))
     | Forall(TPat.t('a), t('a))
-  and t('a) = {
-    term: term('a),
-    annotation: 'a,
-  };
+  and t('a) = Annotated.t(term('a), IdTag.t);
 
   type sum_map('a) = ConstructorMap.t(t('a));
 
@@ -691,10 +676,7 @@ and Typ: {
     | Ap(t('a), t('a))
     | Rec(TPat.t('a), t('a))
     | Forall(TPat.t('a), t('a))
-  and t('a) = {
-    term: term('a),
-    annotation: 'a,
-  };
+  and t('a) = Annotated.t(term('a), IdTag.t);
 
   type sum_map('a) = ConstructorMap.t(t('a));
 
@@ -752,17 +734,10 @@ and Typ: {
     x |> f_typ(rec_call);
   };
 
-  let rec subst = (s, x, ty) => {
+  let rec subst = (s, x, ty: t('a)) => {
     switch (TPat.tyvar_of_utpat(x)) {
     | Some(str) =>
-      let (term, rewrap) = (
-        ty.term,
-        (
-          (term': term('a)) => (
-            {term: term', annotation: ty.annotation}: t('a)
-          )
-        ),
-      );
+      let (term, rewrap) = Annotated.unwrap(ty);
       switch (term) {
       | Int => Int |> rewrap
       | Float => Float |> rewrap
@@ -845,10 +820,7 @@ and TPat: {
     | EmptyHole
     | MultiHole(list(Any.t('a)))
     | Var(string)
-  and t('a) = {
-    term: term('a),
-    annotation: 'a,
-  };
+  and t('a) = Annotated.t(term('a), IdTag.t);
 
   let map_term:
     (
@@ -872,10 +844,7 @@ and TPat: {
     | EmptyHole
     | MultiHole(list(Any.t('a)))
     | Var(string)
-  and t('a) = {
-    term: term('a),
-    annotation: 'a,
-  };
+  and t('a) = Annotated.t(term('a), IdTag.t);
 
   let map_term =
       (
@@ -889,7 +858,7 @@ and TPat: {
       ) => {
     let any_map_term =
       Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
-    let rec_call = exp => {
+    let rec_call = (exp: t('a)) => {
       ...exp,
       term:
         switch (exp.term) {
@@ -928,10 +897,7 @@ and Rul: {
     | Invalid(string)
     | Hole(list(Any.t('a)))
     | Rules(Exp.t('a), list((Pat.t('a), Exp.t('a))))
-  and t('a) = {
-    term: term('a),
-    annotation: 'a,
-  };
+  and t('a) = Annotated.t(term('a), IdTag.t);
 
   let map_term:
     (
@@ -952,10 +918,7 @@ and Rul: {
     | Invalid(string)
     | Hole(list(Any.t('a)))
     | Rules(Exp.t('a), list((Pat.t('a), Exp.t('a))))
-  and t('a) = {
-    term: term('a),
-    annotation: 'a,
-  };
+  and t('a) = Annotated.t(term('a), IdTag.t);
 
   let map_term =
       (
