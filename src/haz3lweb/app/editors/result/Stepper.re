@@ -338,7 +338,9 @@ module View = {
                        editor: a.editor,
                        step_id: Some(b.step.d_loc |> Exp.rep_id),
                      },
-                   ),
+                   )
+                   |> (x => [x])
+                   |> Web.div_c("result"),
                    div(
                      ~attrs=[Attr.classes(["stepper-justification"])],
                      [
@@ -378,7 +380,9 @@ module View = {
                       model.next_steps,
                     ),
                 },
-              ),
+              )
+              |> (x => [x])
+              |> Web.div_c("result"),
             ]
           | PendingStep => [
               div(~attrs=[Attr.class_("cell-item")], [text("...")]),
