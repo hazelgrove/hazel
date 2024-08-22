@@ -382,7 +382,21 @@ module View = {
           test_validation,
           ~caption="Test Validation",
           ~subcaption=": Your Tests vs. Correct Implementation",
-          ~result_kind=TestResults,
+          ~result_kind=
+            Custom(
+              Grading.TestValidationReport.view(
+                ~signal_jump=
+                  id =>
+                    inject(
+                      Editor(
+                        YourTestsValidation,
+                        MainEditor(Perform(Jump(TileId(id)))),
+                      ),
+                    ),
+                grading_report.test_validation_report,
+                grading_report.point_distribution.test_validation,
+              ),
+            ),
         ),
       );
 
