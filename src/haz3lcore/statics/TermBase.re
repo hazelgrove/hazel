@@ -19,7 +19,7 @@ let stop = (_, x) => x;
 
      map_term:
      (
-       ~f_exp: (Exp.t('id) => Exp.t('id) , Exp.t('id) ) => Exp.t('id) =?,
+       ~f_exp: (Exp.t('a) => Exp.t('a) , Exp.t('a) ) => Exp.t('a) =?,
        ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
        ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
        ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
@@ -44,41 +44,36 @@ let stop = (_, x) => x;
 
 module rec Any: {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | Exp(Exp.t(list(Id.t)))
-    | Pat(Pat.t)
-    | Typ(Typ.t)
-    | TPat(TPat.t)
-    | Rul(Rul.t)
+  type t('a) =
+    | Exp(Exp.t('a))
+    | Pat(Pat.t('a))
+    | Typ(Typ.t('a))
+    | TPat(TPat.t('a))
+    | Rul(Rul.t('a))
     | Nul(unit)
     | Any(unit);
 
   let map_term:
     (
-      ~f_exp: (
-                Exp.t(list(Id.t)) => Exp.t(list(Id.t)),
-                Exp.t(list(Id.t))
-              ) =>
-              Exp.t(list(Id.t))
-                =?,
-      ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
-      ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
-      ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
-      ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
-      ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
-      t
+      ~f_exp: (Exp.t('a) => Exp.t('a), Exp.t('a)) => Exp.t('a)=?,
+      ~f_pat: (Pat.t('a) => Pat.t('a), Pat.t('a)) => Pat.t('a)=?,
+      ~f_typ: (Typ.t('a) => Typ.t('a), Typ.t('a)) => Typ.t('a)=?,
+      ~f_tpat: (TPat.t('a) => TPat.t('a), TPat.t('a)) => TPat.t('a)=?,
+      ~f_rul: (Rul.t('a) => Rul.t('a), Rul.t('a)) => Rul.t('a)=?,
+      ~f_any: (Any.t('a) => Any.t('a), Any.t('a)) => Any.t('a)=?,
+      t('a)
     ) =>
-    t;
+    t('a);
 
-  let fast_equal: (t, t) => bool;
+  let fast_equal: (t('a), t('a)) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | Exp(Exp.t(list(Id.t)))
-    | Pat(Pat.t)
-    | Typ(Typ.t)
-    | TPat(TPat.t)
-    | Rul(Rul.t)
+  type t('a) =
+    | Exp(Exp.t('a))
+    | Pat(Pat.t('a))
+    | Typ(Typ.t('a))
+    | TPat(TPat.t('a))
+    | Rul(Rul.t('a))
     | Nul(unit)
     | Any(unit);
 
@@ -137,71 +132,69 @@ and Exp: {
     | OutsideAp;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type term('id) =
+  type term('a) =
     | Invalid(string)
     | EmptyHole
-    | MultiHole(list(Any.t))
-    | DynamicErrorHole(t('id), InvalidOperationError.t)
-    | FailedCast(t('id), Typ.t, Typ.t)
+    | MultiHole(list(Any.t('a)))
+    | DynamicErrorHole(t('a), InvalidOperationError.t)
+    | FailedCast(t('a), Typ.t('a), Typ.t('a))
     | Deferral(deferral_position)
     | Undefined
     | Bool(bool)
     | Int(int)
     | Float(float)
     | String(string)
-    | ListLit(list(t('id)))
-    | Constructor(string, Typ.t) // Typ.t field is only meaningful in dynamic expressions
+    | ListLit(list(t('a)))
+    | Constructor(string, Typ.t('a)) // Typ.t field is only meaningful in dynamic expressions
     | Fun(
-        Pat.t,
-        t('id),
+        Pat.t('a),
+        t('a),
         [@show.opaque] option(ClosureEnvironment.t),
         option(Var.t),
       )
-    | TypFun(TPat.t, t('id), option(Var.t))
-    | Tuple(list(t('id)))
+    | TypFun(TPat.t('a), t('a), option(Var.t))
+    | Tuple(list(t('a)))
     | Var(Var.t)
-    | Let(Pat.t, t('id), t('id))
-    | FixF(Pat.t, t('id), option(ClosureEnvironment.t))
-    | TyAlias(TPat.t, Typ.t, t('id))
-    | Ap(Operators.ap_direction, t('id), t('id))
-    | TypAp(t('id), Typ.t)
-    | DeferredAp(t('id), list(t('id)))
-    | If(t('id), t('id), t('id))
-    | Seq(t('id), t('id))
-    | Test(t('id))
-    | Filter(StepperFilterKind.t, t('id))
-    | Closure([@show.opaque] ClosureEnvironment.t, t('id))
-    | Parens(t('id)) // (
-    | Cons(t('id), t('id))
-    | ListConcat(t('id), t('id))
-    | UnOp(Operators.op_un, t('id))
-    | BinOp(Operators.op_bin, t('id), t('id))
+    | Let(Pat.t('a), t('a), t('a))
+    | FixF(Pat.t('a), t('a), option(ClosureEnvironment.t))
+    | TyAlias(TPat.t('a), Typ.t('a), t('a))
+    | Ap(Operators.ap_direction, t('a), t('a))
+    | TypAp(t('a), Typ.t('a))
+    | DeferredAp(t('a), list(t('a)))
+    | If(t('a), t('a), t('a))
+    | Seq(t('a), t('a))
+    | Test(t('a))
+    | Filter(StepperFilterKind.t('a), t('a))
+    | Closure([@show.opaque] ClosureEnvironment.t, t('a))
+    | Parens(t('a)) // (
+    | Cons(t('a), t('a))
+    | ListConcat(t('a), t('a))
+    | UnOp(Operators.op_un, t('a))
+    | BinOp(Operators.op_bin, t('a), t('a))
     | BuiltinFun(string)
-    | Match(t('id), list((Pat.t, t('id))))
+    | Match(t('a), list((Pat.t('a), t('a))))
     /* INVARIANT: in dynamic expressions, casts must be between
        two consistent types. Both types should be normalized in
        dynamics for the cast calculus to work right. */
-    | Cast(t('id), Typ.t, Typ.t) // first Typ.t field is only meaningful in dynamic expressions
-  and t('id) = IdTagged.t(term('id), 'id);
+    | Cast(t('a), Typ.t('a), Typ.t('a)) // first Typ.t field is only meaningful in dynamic expressions
+  and t('a) = {
+    term: term('a),
+    annotation: 'a,
+  };
 
   let map_term:
     (
-      ~f_exp: (
-                Exp.t(list(Id.t)) => Exp.t(list(Id.t)),
-                Exp.t(list(Id.t))
-              ) =>
-              Exp.t(list(Id.t))
-                =?,
-      ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
-      ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
-      ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
-      ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
-      ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
-      t(list(Id.t))
+      ~f_exp: (Exp.t('a) => Exp.t('a), Exp.t('a)) => Exp.t('a)=?,
+      ~f_pat: (Pat.t('a) => Pat.t('a), Pat.t('a)) => Pat.t('a)=?,
+      ~f_typ: (Typ.t('a) => Typ.t('a), Typ.t('a)) => Typ.t('a)=?,
+      ~f_tpat: (TPat.t('a) => TPat.t('a), TPat.t('a)) => TPat.t('a)=?,
+      ~f_rul: (Rul.t('a) => Rul.t('a), Rul.t('a)) => Rul.t('a)=?,
+      ~f_any: (Any.t('a) => Any.t('a), Any.t('a)) => Any.t('a)=?,
+      t('a)
     ) =>
-    t(list(Id.t));
+    t('a);
 
-  let fast_equal: (t('id), t('id)) => bool;
+  let fast_equal: (t('a), t('a)) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type deferral_position =
@@ -209,52 +202,55 @@ and Exp: {
     | OutsideAp;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type term('id) =
+  type term('a) =
     | Invalid(string)
     | EmptyHole
-    | MultiHole(list(Any.t))
-    | DynamicErrorHole(t('id), InvalidOperationError.t)
-    | FailedCast(t('id), Typ.t, Typ.t)
+    | MultiHole(list(Any.t('a)))
+    | DynamicErrorHole(t('a), InvalidOperationError.t)
+    | FailedCast(t('a), Typ.t('a), Typ.t('a))
     | Deferral(deferral_position)
     | Undefined
     | Bool(bool)
     | Int(int)
     | Float(float)
     | String(string)
-    | ListLit(list(t('id)))
-    | Constructor(string, Typ.t) // Typ.t field is only meaningful in dynamic expressions
+    | ListLit(list(t('a)))
+    | Constructor(string, Typ.t('a)) // Typ.t field is only meaningful in dynamic expressions
     | Fun(
-        Pat.t,
-        t('id),
+        Pat.t('a),
+        t('a),
         [@show.opaque] option(ClosureEnvironment.t),
         option(Var.t),
       )
-    | TypFun(TPat.t, t('id), option(Var.t))
-    | Tuple(list(t('id)))
+    | TypFun(TPat.t('a), t('a), option(Var.t))
+    | Tuple(list(t('a)))
     | Var(Var.t)
-    | Let(Pat.t, t('id), t('id))
-    | FixF(Pat.t, t('id), option(ClosureEnvironment.t))
-    | TyAlias(TPat.t, Typ.t, t('id))
-    | Ap(Operators.ap_direction, t('id), t('id))
-    | TypAp(t('id), Typ.t)
-    | DeferredAp(t('id), list(t('id)))
-    | If(t('id), t('id), t('id))
-    | Seq(t('id), t('id))
-    | Test(t('id))
-    | Filter(StepperFilterKind.t, t('id))
-    | Closure([@show.opaque] ClosureEnvironment.t, t('id))
-    | Parens(t('id)) // (
-    | Cons(t('id), t('id))
-    | ListConcat(t('id), t('id))
-    | UnOp(Operators.op_un, t('id))
-    | BinOp(Operators.op_bin, t('id), t('id))
+    | Let(Pat.t('a), t('a), t('a))
+    | FixF(Pat.t('a), t('a), option(ClosureEnvironment.t))
+    | TyAlias(TPat.t('a), Typ.t('a), t('a))
+    | Ap(Operators.ap_direction, t('a), t('a))
+    | TypAp(t('a), Typ.t('a))
+    | DeferredAp(t('a), list(t('a)))
+    | If(t('a), t('a), t('a))
+    | Seq(t('a), t('a))
+    | Test(t('a))
+    | Filter(StepperFilterKind.t('a), t('a))
+    | Closure([@show.opaque] ClosureEnvironment.t, t('a))
+    | Parens(t('a)) // (
+    | Cons(t('a), t('a))
+    | ListConcat(t('a), t('a))
+    | UnOp(Operators.op_un, t('a))
+    | BinOp(Operators.op_bin, t('a), t('a))
     | BuiltinFun(string)
-    | Match(t('id), list((Pat.t, t('id))))
+    | Match(t('a), list((Pat.t('a), t('a))))
     /* INVARIANT: in dynamic expressions, casts must be between
        two consistent types. Both types should be normalized in
        dynamics for the cast calculus to work right. */
-    | Cast(t('id), Typ.t, Typ.t) // first Typ.t field is only meaningful in dynamic expressions
-  and t('id) = IdTagged.t(term('id), 'id);
+    | Cast(t('a), Typ.t('a), Typ.t('a)) // first Typ.t field is only meaningful in dynamic expressions
+  and t('a) = {
+    term: term('a),
+    annotation: 'a,
+  };
 
   let map_term =
       (
@@ -285,7 +281,7 @@ and Exp: {
         ~f_rul,
         ~f_any,
       );
-    let rec_call = ({term, _} as exp: t(list(Id.t))) => {
+    let rec_call = ({term, _} as exp: t('a)) => {
       ...exp,
       term:
         switch (term) {
@@ -347,7 +343,7 @@ and Exp: {
   };
 
   let rec fast_equal = (e1, e2) =>
-    switch (e1 |> IdTagged.term_of, e2 |> IdTagged.term_of) {
+    switch (e1.term, e2.term) {
     | (DynamicErrorHole(x, _), _)
     | (Parens(x), _) => fast_equal(x, e2)
     | (_, DynamicErrorHole(x, _))
@@ -463,63 +459,64 @@ and Exp: {
 }
 and Pat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type term =
+  type term('a) =
     | Invalid(string)
     | EmptyHole
-    | MultiHole(list(Any.t))
+    | MultiHole(list(Any.t('a)))
     | Wild
     | Int(int)
     | Float(float)
     | Bool(bool)
     | String(string)
-    | ListLit(list(t))
-    | Constructor(string, Typ.t) // Typ.t field is only meaningful in dynamic patterns
-    | Cons(t, t)
+    | ListLit(list(t('a)))
+    | Constructor(string, Typ.t('a)) // Typ.t field is only meaningful in dynamic patterns
+    | Cons(t('a), t('a))
     | Var(Var.t)
-    | Tuple(list(t))
-    | Parens(t)
-    | Ap(t, t)
-    | Cast(t, Typ.t, Typ.t) // The second Typ.t field is only meaningful in dynamic patterns
-  and t = IdTagged.t(term, list(Id.t));
+    | Tuple(list(t('a)))
+    | Parens(t('a))
+    | Ap(t('a), t('a))
+    | Cast(t('a), Typ.t('a), Typ.t('a)) // The second Typ.t field is only meaningful in dynamic patterns
+  and t('a) = {
+    term: term('a),
+    annotation: 'a,
+  };
 
   let map_term:
     (
-      ~f_exp: (
-                Exp.t(list(Id.t)) => Exp.t(list(Id.t)),
-                Exp.t(list(Id.t))
-              ) =>
-              Exp.t(list(Id.t))
-                =?,
-      ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
-      ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
-      ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
-      ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
-      ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
-      t
+      ~f_exp: (Exp.t('a) => Exp.t('a), Exp.t('a)) => Exp.t('a)=?,
+      ~f_pat: (Pat.t('a) => Pat.t('a), Pat.t('a)) => Pat.t('a)=?,
+      ~f_typ: (Typ.t('a) => Typ.t('a), Typ.t('a)) => Typ.t('a)=?,
+      ~f_tpat: (TPat.t('a) => TPat.t('a), TPat.t('a)) => TPat.t('a)=?,
+      ~f_rul: (Rul.t('a) => Rul.t('a), Rul.t('a)) => Rul.t('a)=?,
+      ~f_any: (Any.t('a) => Any.t('a), Any.t('a)) => Any.t('a)=?,
+      t('a)
     ) =>
-    t;
+    t('a);
 
-  let fast_equal: (t, t) => bool;
+  let fast_equal: (t('a), t('a)) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type term =
+  type term('a) =
     | Invalid(string)
     | EmptyHole
-    | MultiHole(list(Any.t))
+    | MultiHole(list(Any.t('a)))
     | Wild
     | Int(int)
     | Float(float)
     | Bool(bool)
     | String(string)
-    | ListLit(list(t))
-    | Constructor(string, Typ.t)
-    | Cons(t, t)
+    | ListLit(list(t('a)))
+    | Constructor(string, Typ.t('a))
+    | Cons(t('a), t('a))
     | Var(Var.t)
-    | Tuple(list(t))
-    | Parens(t)
-    | Ap(t, t)
-    | Cast(t, Typ.t, Typ.t) // The second one is hidden from the user
-  and t = IdTagged.t(term, list(Id.t));
+    | Tuple(list(t('a)))
+    | Parens(t('a))
+    | Ap(t('a), t('a))
+    | Cast(t('a), Typ.t('a), Typ.t('a)) // The second one is hidden from the user
+  and t('a) = {
+    term: term('a),
+    annotation: 'a,
+  };
 
   let map_term =
       (
@@ -537,7 +534,7 @@ and Pat: {
       Typ.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let any_map_term =
       Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
-    let rec_call = ({term, _} as exp: t) => {
+    let rec_call = ({term, _} as exp: t('a)) => {
       ...exp,
       term:
         switch (term) {
@@ -564,7 +561,7 @@ and Pat: {
   };
 
   let rec fast_equal = (p1, p2) =>
-    switch (p1 |> IdTagged.term_of, p2 |> IdTagged.term_of) {
+    switch (p1.term, p2.term) {
     | (Parens(x), _) => fast_equal(x, p2)
     | (_, Parens(x)) => fast_equal(p1, x)
     | (EmptyHole, EmptyHole) => true
@@ -608,97 +605,98 @@ and Pat: {
 }
 and Typ: {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type type_hole =
+  type type_hole('a) =
     | Invalid(string)
     | EmptyHole
-    | MultiHole(list(Any.t));
+    | MultiHole(list(Any.t('a)));
 
   /* TYPE_PROVENANCE: From whence does an unknown type originate?
      Is it generated from an unannotated pattern variable (SynSwitch),
      a pattern variable annotated with a type hole (TypeHole), or
      generated by an internal judgement (Internal)? */
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type type_provenance =
+  type type_provenance('a) =
     | SynSwitch
-    | Hole(type_hole)
+    | Hole(type_hole('a))
     | Internal;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type term =
-    | Unknown(Typ.type_provenance)
+  type term('a) =
+    | Unknown(Typ.type_provenance('a))
     | Int
     | Float
     | Bool
     | String
     | Var(string)
-    | List(t)
-    | Arrow(t, t)
-    | Sum(ConstructorMap.t(t))
-    | Prod(list(t))
-    | Parens(t)
-    | Ap(t, t)
-    | Rec(TPat.t, t)
-    | Forall(TPat.t, t)
-  and t = IdTagged.t(term, list(Id.t));
+    | List(t('a))
+    | Arrow(t('a), t('a))
+    | Sum(ConstructorMap.t(t('a)))
+    | Prod(list(t('a)))
+    | Parens(t('a))
+    | Ap(t('a), t('a))
+    | Rec(TPat.t('a), t('a))
+    | Forall(TPat.t('a), t('a))
+  and t('a) = {
+    term: term('a),
+    annotation: 'a,
+  };
 
-  type sum_map = ConstructorMap.t(t);
+  type sum_map('a) = ConstructorMap.t(t('a));
 
   let map_term:
     (
-      ~f_exp: (
-                Exp.t(list(Id.t)) => Exp.t(list(Id.t)),
-                Exp.t(list(Id.t))
-              ) =>
-              Exp.t(list(Id.t))
-                =?,
-      ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
-      ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
-      ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
-      ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
-      ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
-      t
+      ~f_exp: (Exp.t('a) => Exp.t('a), Exp.t('a)) => Exp.t('a)=?,
+      ~f_pat: (Pat.t('a) => Pat.t('a), Pat.t('a)) => Pat.t('a)=?,
+      ~f_typ: (Typ.t('a) => Typ.t('a), Typ.t('a)) => Typ.t('a)=?,
+      ~f_tpat: (TPat.t('a) => TPat.t('a), TPat.t('a)) => TPat.t('a)=?,
+      ~f_rul: (Rul.t('a) => Rul.t('a), Rul.t('a)) => Rul.t('a)=?,
+      ~f_any: (Any.t('a) => Any.t('a), Any.t('a)) => Any.t('a)=?,
+      t('a)
     ) =>
-    t;
+    t('a);
 
-  let subst: (t, TPat.t, t) => t;
+  let subst: (t('a), TPat.t('a), t('a)) => t('a);
 
-  let fast_equal: (t, t) => bool;
+  let fast_equal: (t('a), t('a)) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type type_hole =
+  type type_hole('a) =
     | Invalid(string)
     | EmptyHole
-    | MultiHole(list(Any.t));
+    | MultiHole(list(Any.t('a)));
 
   /* TYPE_PROVENANCE: From whence does an unknown type originate?
      Is it generated from an unannotated pattern variable (SynSwitch),
      a pattern variable annotated with a type hole (TypeHole), or
      generated by an internal judgement (Internal)? */
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type type_provenance =
+  type type_provenance('a) =
     | SynSwitch
-    | Hole(type_hole)
+    | Hole(type_hole('a))
     | Internal;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type term =
-    | Unknown(Typ.type_provenance)
+  type term('a) =
+    | Unknown(Typ.type_provenance('a))
     | Int
     | Float
     | Bool
     | String
     | Var(string)
-    | List(t)
-    | Arrow(t, t)
-    | Sum(ConstructorMap.t(t))
-    | Prod(list(t))
-    | Parens(t)
-    | Ap(t, t)
-    | Rec(TPat.t, t)
-    | Forall(TPat.t, t)
-  and t = IdTagged.t(term, list(Id.t));
+    | List(t('a))
+    | Arrow(t('a), t('a))
+    | Sum(ConstructorMap.t(t('a)))
+    | Prod(list(t('a)))
+    | Parens(t('a))
+    | Ap(t('a), t('a))
+    | Rec(TPat.t('a), t('a))
+    | Forall(TPat.t('a), t('a))
+  and t('a) = {
+    term: term('a),
+    annotation: 'a,
+  };
 
-  type sum_map = ConstructorMap.t(t);
+  type sum_map('a) = ConstructorMap.t(t('a));
 
   let map_term =
       (
@@ -716,7 +714,7 @@ and Typ: {
       Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let tpat_map_term =
       TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
-    let rec_call = ({term, _} as exp: t) => {
+    let rec_call = ({term, _} as exp: t('a)) => {
       ...exp,
       term:
         switch (term) {
@@ -754,10 +752,17 @@ and Typ: {
     x |> f_typ(rec_call);
   };
 
-  let rec subst = (s: t, x: TPat.t, ty: t) => {
+  let rec subst = (s, x, ty) => {
     switch (TPat.tyvar_of_utpat(x)) {
     | Some(str) =>
-      let (term, rewrap) = IdTagged.unwrap(ty);
+      let (term, rewrap) = (
+        ty.term,
+        (
+          (term': term('a)) => (
+            {term: term', annotation: ty.annotation}: t('a)
+          )
+        ),
+      );
       switch (term) {
       | Int => Int |> rewrap
       | Float => Float |> rewrap
@@ -788,18 +793,17 @@ and Typ: {
   /* Type Equality: This coincides with alpha equivalence for normalized types.
      Other types may be equivalent but this will not detect so if they are not normalized. */
 
-  let rec eq_internal = (n: int, t1: t, t2: t) => {
-    switch (IdTagged.term_of(t1), IdTagged.term_of(t2)) {
+  let rec eq_internal = (n: int, t1: t('a), t2: t('a)): bool => {
+    switch (t1.term, t2.term) {
     | (Parens(t1), _) => eq_internal(n, t1, t2)
     | (_, Parens(t2)) => eq_internal(n, t1, t2)
     | (Rec(x1, t1), Rec(x2, t2))
     | (Forall(x1, t1), Forall(x2, t2)) =>
-      let alpha_subst =
-        subst({
-          term: Var("=" ++ string_of_int(n)),
-          copied: false,
-          ids: [Id.invalid],
-        });
+      let foo: t('a) = {
+        term: Var("=" ++ string_of_int(n)),
+        annotation: t1.annotation // TODO I don't think this matters in this case. I'd like to just pass unit
+      };
+      let alpha_subst = subst(foo);
       eq_internal(n + 1, alpha_subst(x1, t1), alpha_subst(x2, t2));
     | (Rec(_), _) => false
     | (Forall(_), _) => false
@@ -832,45 +836,46 @@ and Typ: {
     };
   };
 
-  let fast_equal = eq_internal(0);
+  let fast_equal = (x, y) => eq_internal(0, x, y);
 }
 and TPat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type term =
+  type term('a) =
     | Invalid(string)
     | EmptyHole
-    | MultiHole(list(Any.t))
+    | MultiHole(list(Any.t('a)))
     | Var(string)
-  and t = IdTagged.t(term, list(Id.t));
+  and t('a) = {
+    term: term('a),
+    annotation: 'a,
+  };
 
   let map_term:
     (
-      ~f_exp: (
-                Exp.t(list(Id.t)) => Exp.t(list(Id.t)),
-                Exp.t(list(Id.t))
-              ) =>
-              Exp.t(list(Id.t))
-                =?,
-      ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
-      ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
-      ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
-      ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
-      ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
-      t
+      ~f_exp: (Exp.t('a) => Exp.t('a), Exp.t('a)) => Exp.t('a)=?,
+      ~f_pat: (Pat.t('a) => Pat.t('a), Pat.t('a)) => Pat.t('a)=?,
+      ~f_typ: (Typ.t('a) => Typ.t('a), Typ.t('a)) => Typ.t('a)=?,
+      ~f_tpat: (TPat.t('a) => TPat.t('a), TPat.t('a)) => TPat.t('a)=?,
+      ~f_rul: (Rul.t('a) => Rul.t('a), Rul.t('a)) => Rul.t('a)=?,
+      ~f_any: (Any.t('a) => Any.t('a), Any.t('a)) => Any.t('a)=?,
+      t('a)
     ) =>
-    t;
+    t('a);
 
-  let tyvar_of_utpat: t => option(string);
+  let tyvar_of_utpat: t('a) => option(string);
 
-  let fast_equal: (t, t) => bool;
+  let fast_equal: (t('a), t('a)) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type term =
+  type term('a) =
     | Invalid(string)
     | EmptyHole
-    | MultiHole(list(Any.t))
+    | MultiHole(list(Any.t('a)))
     | Var(string)
-  and t = IdTagged.t(term, list(Id.t));
+  and t('a) = {
+    term: term('a),
+    annotation: 'a,
+  };
 
   let map_term =
       (
@@ -884,27 +889,27 @@ and TPat: {
       ) => {
     let any_map_term =
       Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
-    let rec_call = ({term, _} as exp: t) => {
+    let rec_call = exp => {
       ...exp,
       term:
-        switch (term) {
+        switch (exp.term) {
         | EmptyHole
         | Invalid(_)
-        | Var(_) => term
+        | Var(_) => exp.term
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
         },
     };
     x |> f_tpat(rec_call);
   };
 
-  let tyvar_of_utpat = ({term, _}: t) =>
+  let tyvar_of_utpat = ({term, _}: t('a)) =>
     switch (term) {
     | Var(x) => Some(x)
     | _ => None
     };
 
-  let fast_equal = (tp1: t, tp2: t) =>
-    switch (tp1 |> IdTagged.term_of, tp2 |> IdTagged.term_of) {
+  let fast_equal = (tp1: t('a), tp2: t('a)) =>
+    switch (tp1.term, tp2.term) {
     | (EmptyHole, EmptyHole) => true
     | (Invalid(s1), Invalid(s2)) => s1 == s2
     | (MultiHole(xs), MultiHole(ys)) =>
@@ -919,37 +924,38 @@ and TPat: {
 }
 and Rul: {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type term =
+  type term('a) =
     | Invalid(string)
-    | Hole(list(Any.t))
-    | Rules(Exp.t(list(Id.t)), list((Pat.t, Exp.t(list(Id.t)))))
-  and t = IdTagged.t(term, list(Id.t));
+    | Hole(list(Any.t('a)))
+    | Rules(Exp.t('a), list((Pat.t('a), Exp.t('a))))
+  and t('a) = {
+    term: term('a),
+    annotation: 'a,
+  };
 
   let map_term:
     (
-      ~f_exp: (
-                Exp.t(list(Id.t)) => Exp.t(list(Id.t)),
-                Exp.t(list(Id.t))
-              ) =>
-              Exp.t(list(Id.t))
-                =?,
-      ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
-      ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
-      ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
-      ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
-      ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
-      t
+      ~f_exp: (Exp.t('a) => Exp.t('a), Exp.t('a)) => Exp.t('a)=?,
+      ~f_pat: (Pat.t('a) => Pat.t('a), Pat.t('a)) => Pat.t('a)=?,
+      ~f_typ: (Typ.t('a) => Typ.t('a), Typ.t('a)) => Typ.t('a)=?,
+      ~f_tpat: (TPat.t('a) => TPat.t('a), TPat.t('a)) => TPat.t('a)=?,
+      ~f_rul: (Rul.t('a) => Rul.t('a), Rul.t('a)) => Rul.t('a)=?,
+      ~f_any: (Any.t('a) => Any.t('a), Any.t('a)) => Any.t('a)=?,
+      t('a)
     ) =>
-    t;
+    t('a);
 
-  let fast_equal: (t, t) => bool;
+  let fast_equal: (t('a), t('a)) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type term =
+  type term('a) =
     | Invalid(string)
-    | Hole(list(Any.t))
-    | Rules(Exp.t(list(Id.t)), list((Pat.t, Exp.t(list(Id.t)))))
-  and t = IdTagged.t(term, list(Id.t));
+    | Hole(list(Any.t('a)))
+    | Rules(Exp.t('a), list((Pat.t('a), Exp.t('a))))
+  and t('a) = {
+    term: term('a),
+    annotation: 'a,
+  };
 
   let map_term =
       (
@@ -967,7 +973,7 @@ and Rul: {
       Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let any_map_term =
       Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
-    let rec_call = ({term, _} as exp: t) => {
+    let rec_call = ({term, _} as exp: t('a)) => {
       ...exp,
       term:
         switch (term) {
@@ -986,8 +992,8 @@ and Rul: {
     x |> f_rul(rec_call);
   };
 
-  let fast_equal = (r1: t, r2: t) =>
-    switch (r1 |> IdTagged.term_of, r2 |> IdTagged.term_of) {
+  let fast_equal = (r1: t('a), r2: t('a)) =>
+    switch (r1.term, r2.term) {
     | (Invalid(s1), Invalid(s2)) => s1 == s2
     | (Hole(xs), Hole(ys)) =>
       List.length(xs) == List.length(ys)
@@ -1136,46 +1142,41 @@ and ClosureEnvironment: {
 }
 and StepperFilterKind: {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type filter = {
-    pat: Exp.t(list(Id.t)),
+  type filter('a) = {
+    pat: Exp.t('a),
     act: FilterAction.t,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | Filter(filter)
+  type t('a) =
+    | Filter(filter('a))
     | Residue(int, FilterAction.t);
 
   let map_term:
     (
-      ~f_exp: (
-                Exp.t(list(Id.t)) => Exp.t(list(Id.t)),
-                Exp.t(list(Id.t))
-              ) =>
-              Exp.t(list(Id.t))
-                =?,
-      ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
-      ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
-      ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
-      ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
-      ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
-      t
+      ~f_exp: (Exp.t('a) => Exp.t('a), Exp.t('a)) => Exp.t('a)=?,
+      ~f_pat: (Pat.t('a) => Pat.t('a), Pat.t('a)) => Pat.t('a)=?,
+      ~f_typ: (Typ.t('a) => Typ.t('a), Typ.t('a)) => Typ.t('a)=?,
+      ~f_tpat: (TPat.t('a) => TPat.t('a), TPat.t('a)) => TPat.t('a)=?,
+      ~f_rul: (Rul.t('a) => Rul.t('a), Rul.t('a)) => Rul.t('a)=?,
+      ~f_any: (Any.t('a) => Any.t('a), Any.t('a)) => Any.t('a)=?,
+      t('a)
     ) =>
-    t;
+    t('a);
 
-  let map: (Exp.t(list(Id.t)) => Exp.t(list(Id.t)), t) => t;
+  let map: (Exp.t('a) => Exp.t('a), t('a)) => t('a);
 
-  let fast_equal: (t, t) => bool;
+  let fast_equal: (t('a), t('a)) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type filter = {
-    pat: Exp.t(list(Id.t)),
+  type filter('a) = {
+    pat: Exp.t('a),
     act: FilterAction.t,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | Filter(filter)
+  type t('a) =
+    | Filter(filter('a))
     | Residue(int, FilterAction.t);
 
   let map = (mapper, filter) => {
