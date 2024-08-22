@@ -390,7 +390,8 @@ module View = {
   type result_kind =
     | NoResults
     | TestResults
-    | EvalResults;
+    | EvalResults
+    | Custom(Node.t);
 
   let view =
       (
@@ -446,6 +447,23 @@ module View = {
     // Not showing any results:
     | EvalResults
     | NoResults => ([], (_ => []))
+
+    | Custom(node) => (
+        [node],
+        (
+          (editor: Haz3lcore.Editor.t) =>
+            switch (Model.test_results(model)) {
+            | Some(result) => [
+                test_result_layer(
+                  ~font_metrics=globals.font_metrics,
+                  ~measured=editor.syntax.measured,
+                  result,
+                ),
+              ]
+            | None => []
+            }
+        ),
+      )
 
     // Just showing test results (school mode)
     | TestResults =>
