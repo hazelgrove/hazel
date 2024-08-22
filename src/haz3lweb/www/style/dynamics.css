@@ -226,8 +226,8 @@
   fill: var(--BR1);
 }
 
-.next-step-line {
-  stroke: var(--G1);
+.child-line.Exp.next-step-line {
+  stroke: var(--G2);
 }
 
 .taken-step-line {
