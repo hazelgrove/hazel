@@ -39,13 +39,16 @@
   min-width: 100%;
 }
 
+.cell > * {
+  padding-left: 1em;
+  padding: 1em;
+  padding-left: 1.2em;
+}
+
 .cell-item {
   display: flex;
   flex-direction: column;
   gap: 1em;
-  padding-left: 1em;
-  padding: 1em;
-  padding-left: 1.2em;
 }
 
 .code-editor.selected{
@@ -68,10 +71,6 @@
   font-size: 1.5rem;
   font-weight: bold;
   color: var(--BR4);
-}
-
-.cell-prompt {
-  padding: 1em;
 }
 
 /* DOCUMENTATION SLIDES */
