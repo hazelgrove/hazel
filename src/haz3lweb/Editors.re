@@ -66,7 +66,7 @@ let perform_action =
 let update_current_editor_statics = settings =>
   update(Editor.update_statics(~settings));
 
-let get_ctx_init = (~settings as _: Settings.t, editors: t): Ctx.t =>
+let get_ctx_init = (~settings as _: Settings.t, editors: t): Ctx.t(IdTag.t) =>
   switch (editors) {
   | Scratch(_)
   | Exercises(_)

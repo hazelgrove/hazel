@@ -12,7 +12,7 @@ let precedence_Sum = 3;
 let precedence_Ap = 4;
 let precedence_Const = 5;
 
-let precedence = (ty: Typ.t): int =>
+let precedence = (ty: Typ.t(IdTag.t)): int =>
   switch (Typ.term_of(ty)) {
   | Int
   | Float
@@ -51,7 +51,8 @@ let pad_child =
 
 let mk_delim = s => Doc.(annot(HTypAnnot.Delim, text(s)));
 
-let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
+let rec mk =
+        (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t(IdTag.t)): t => {
   open Doc;
   let mk' = mk(~enforce_inline);
   let mk_right_associative_operands = (precedence_op, ty1, ty2) => (

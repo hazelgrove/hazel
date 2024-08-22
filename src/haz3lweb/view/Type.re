@@ -3,7 +3,7 @@ open Node;
 open Util.Web;
 open Haz3lcore;
 
-let tpat_view = (tpat: Haz3lcore.TPat.t): string =>
+let tpat_view = (tpat: Haz3lcore.TPat.t('a)): string =>
   switch (tpat.term) {
   | Var(x) => x
   | _ => "?"
@@ -15,13 +15,14 @@ let ty_view = (cls: string, s: string): Node.t =>
 let alias_view = (s: string): Node.t =>
   div(~attrs=[clss(["typ-alias-view"])], [text(s)]);
 
-let rec view_ty = (~strip_outer_parens=false, ty: Haz3lcore.Typ.t): Node.t =>
+let rec view_ty =
+        (~strip_outer_parens=false, ty: Haz3lcore.Typ.t(IdTag.t)): Node.t =>
   switch (Typ.term_of(ty)) {
   | Unknown(prov) =>
     div(
       ~attrs=[
         clss(["typ-view", "atom", "unknown"]),
-        Attr.title(Typ.show_type_provenance(prov)),
+        Attr.title([%derive.show: Typ.type_provenance(IdTag.t)](prov)),
       ],
       [text("?") /*, prov_view(prov)*/],
     )
@@ -98,7 +99,7 @@ let rec view_ty = (~strip_outer_parens=false, ty: Haz3lcore.Typ.t): Node.t =>
     div(
       ~attrs=[
         clss(["typ-view", "atom", "unknown"]),
-        Attr.title(Typ.show_type_provenance(Internal)),
+        Attr.title([%derive.show: Typ.type_provenance(IdTag.t)](Internal)),
       ],
       [text("?") /*, prov_view(prov)*/],
     )
@@ -120,5 +121,5 @@ and paren_view = typ =>
     [view_ty(typ)];
   };
 
-let view = (ty: Haz3lcore.Typ.t): Node.t =>
+let view = (ty: Haz3lcore.Typ.t(IdTag.t)): Node.t =>
   div_c("typ-wrapper", [view_ty(ty)]);

@@ -5,7 +5,8 @@ open Util.Web;
 let jump_to = entry =>
   UpdateAction.PerformAction(Jump(TileId(Haz3lcore.Ctx.get_id(entry))));
 
-let context_entry_view = (~inject, entry: Haz3lcore.Ctx.entry): Node.t => {
+let context_entry_view =
+    (~inject, entry: Haz3lcore.Ctx.entry(Haz3lcore.IdTag.t)): Node.t => {
   let div_name =
     div(
       ~attrs=[clss(["name"]), Attr.on_click(_ => inject(jump_to(entry)))],
@@ -33,7 +34,7 @@ let context_entry_view = (~inject, entry: Haz3lcore.Ctx.entry): Node.t => {
   };
 };
 
-let ctx_view = (~inject, ctx: Haz3lcore.Ctx.t): Node.t =>
+let ctx_view = (~inject, ctx: Haz3lcore.Ctx.t(Haz3lcore.IdTag.t)): Node.t =>
   div(
     ~attrs=[clss(["context-entries"])],
     List.map(

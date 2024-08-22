@@ -42,7 +42,7 @@ let precedence_bin_string_op = (bso: Operators.op_bin_string) =>
   | Concat => DHDoc_common.precedence_Plus
   | Equals => DHDoc_common.precedence_Equals
   };
-let rec precedence = (~show_casts: bool, d: DHExp.t(list(Id.t))) => {
+let rec precedence = (~show_casts: bool, d: DHExp.t(IdTag.t)) => {
   let precedence' = precedence(~show_casts);
   switch (DHExp.term_of(d)) {
   | Var(_)
@@ -114,13 +114,13 @@ let mk =
       ~next_steps: list((int, Id.t)), // The options for the next step, if it hasn't been chosen yet
       ~env: ClosureEnvironment.t,
       ~infomap: Statics.Map.t,
-      d: DHExp.t(list(Id.t)),
+      d: DHExp.t(IdTag.t),
     )
     : DHDoc.t => {
   let precedence = precedence(~show_casts=settings.show_casts);
   let rec go =
           (
-            d: DHExp.t(list(Id.t)),
+            d: DHExp.t(IdTag.t),
             env: ClosureEnvironment.t,
             enforce_inline: bool,
             recent_subst: list(Var.t),
