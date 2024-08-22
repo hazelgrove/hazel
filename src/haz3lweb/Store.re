@@ -201,15 +201,9 @@ module Documentation = {
   // };
 
   let pzipper_to_pstate =
-      (slide: PersistentZipper.t): ScratchSlide.persistent_state => {
-    // {
-    title: "",
-    description: "",
-    hidden_tests: {
-      tests: slide,
-      hints: [],
-    },
-    // };
+      (slide: PersistentZipper.t): DocumentationEnv.persistent_state => {
+    let position = DocumentationEnv.YourImpl;
+    (position, [(position, slide)]);
   };
 
   let to_persistent = ((string, slides, results)): persistent => {
@@ -230,10 +224,22 @@ module Documentation = {
 
   let of_persistent = (~settings, (string, slides, results): persistent) => {
     let state_to_zipper =
-        ((str: string, status: ScratchSlide.persistent_state)) => {
-      (str, ScratchSlide.unpersist(status));
+        ((str: string, status: DocumentationEnv.persistent_state)) => {
+      let (initial_pos, zippers) = status;
+      let unpersisted_zippers = List.map(unpersist, zippers); // Apply `unpersist` to each zipper in the list
+      (str, (initial_pos, unpersisted_zippers));
     };
     let slides = List.map(state_to_zipper, slides);
+    let slides =
+      List.map(
+        slide => {
+          let (name, (_, editors)) = slide; // Extract `name` and the list of editors
+          let first_editor = List.hd(editors); // Get the first `(pos, editor)` pair from the list
+          let (_, editor) = first_editor; // Extract the `Editor.t` from the pair
+          (name, editor);
+        }, // Return the simplified tuple `(name, editor)`
+        slides,
+      );
     let slides = List.map(persist, slides);
     (
       string,

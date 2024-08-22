@@ -11,7 +11,7 @@ type scratch = (
 [@deriving (show({with_path: false}), sexp, yojson)]
 type documentation = (
   string,
-  list((string, ScratchSlide.persistent_state)),
+  list((string, DocumentationEnv.spec)),
   [@default []] list((string, ModelResult.persistent)),
 );
 

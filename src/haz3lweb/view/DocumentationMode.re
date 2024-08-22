@@ -38,7 +38,7 @@ let view =
     user_impl,
     // user_tests,
     // prelude,
-    // instructor,
+    instructor,
     // hidden_bugs,
     hidden_tests: _,
   }:
@@ -57,7 +57,7 @@ let view =
         ~subcaption: option(string)=?,
         ~footer=?,
         ~di: DocumentationEnv.DynamicsItem.t,
-        this_pos: DocumentationEnv.pos,
+        this_pos,
       ) => {
     Cell.editor_view(
       ~selected=pos == this_pos,
@@ -107,47 +107,47 @@ let view =
 
   // determine trailing hole
   // TODO: module
-  let correct_impl_ctx_view =
-    Always(
-      {
-        // let exp_ctx_view = {
-        // let correct_impl_trailing_hole_ctx =
-        //   Haz3lcore.Editor.trailing_hole_ctx(
-        //     eds.correct_impl,
-        //     instructor.info_map,
-        //   );
-        //   let prelude_trailing_hole_ctx =
-        //     Haz3lcore.Editor.trailing_hole_ctx(eds.prelude, prelude.info_map);
-        //   switch (correct_impl_trailing_hole_ctx, prelude_trailing_hole_ctx) {
-        //   | (None, _) => Node.div([text("No context available (1)")])
-        //   | (_, None) => Node.div([text("No context available (2)")]) // TODO show exercise configuration error
-        //   | (
-        //       Some(correct_impl_trailing_hole_ctx),
-        //       Some(prelude_trailing_hole_ctx),
-        //     ) =>
-        //     let specific_ctx =
-        //       Haz3lcore.Ctx.subtract_prefix(
-        //         correct_impl_trailing_hole_ctx,
-        //         prelude_trailing_hole_ctx,
-        //       );
-        //     switch (specific_ctx) {
-        //     | None => Node.div([text("No context available")]) // TODO show exercise configuration error
-        //     | Some(specific_ctx) =>
-        //       CtxInspector.ctx_view(~inject, specific_ctx)
-        //     };
-        //   };
-        // };
-        Cell.simple_cell_view([
-          Cell.simple_cell_item([
-            Cell.caption(
-              "Correct Implementation",
-              ~rest=" (Type Signatures Only)",
-            ),
-            // exp_ctx_view,
-          ]),
-        ]);
-      },
-    );
+  // let correct_impl_ctx_view =
+  //   Always(
+  //     {
+  //       // let exp_ctx_view = {
+  //       // let correct_impl_trailing_hole_ctx =
+  //       //   Haz3lcore.Editor.trailing_hole_ctx(
+  //       //     eds.correct_impl,
+  //       //     instructor.info_map,
+  //       //   );
+  //       //   let prelude_trailing_hole_ctx =
+  //       //     Haz3lcore.Editor.trailing_hole_ctx(eds.prelude, prelude.info_map);
+  //       //   switch (correct_impl_trailing_hole_ctx, prelude_trailing_hole_ctx) {
+  //       //   | (None, _) => Node.div([text("No context available (1)")])
+  //       //   | (_, None) => Node.div([text("No context available (2)")]) // TODO show exercise configuration error
+  //       //   | (
+  //       //       Some(correct_impl_trailing_hole_ctx),
+  //       //       Some(prelude_trailing_hole_ctx),
+  //       //     ) =>
+  //       //     let specific_ctx =
+  //       //       Haz3lcore.Ctx.subtract_prefix(
+  //       //         correct_impl_trailing_hole_ctx,
+  //       //         prelude_trailing_hole_ctx,
+  //       //       );
+  //       //     switch (specific_ctx) {
+  //       //     | None => Node.div([text("No context available")]) // TODO show exercise configuration error
+  //       //     | Some(specific_ctx) =>
+  //       //       CtxInspector.ctx_view(~inject, specific_ctx)
+  //       //     };
+  //       //   };
+  //       // };
+  //       Cell.simple_cell_view([
+  //         Cell.simple_cell_item([
+  //           Cell.caption(
+  //             "Correct Implementation",
+  //             ~rest=" (Type Signatures Only)",
+  //           ),
+  //           // exp_ctx_view,
+  //         ]),
+  //       ]);
+  //     },
+  //   );
 
   // let your_tests_view =
   //   Always(
@@ -206,7 +206,7 @@ let view =
             ~inject,
             ~ui_state,
             ~result=user_impl.result,
-            ~result_key=Exercise.user_impl_key,
+            ~result_key=DocumentationEnv.user_impl_key,
           ),
       ),
     );
@@ -233,16 +233,16 @@ let view =
   //     ),
   //   );
 
-  // let hidden_tests_view =
-  //   InstructorOnly(
-  //     () =>
-  //       editor_view(
-  //         HiddenTests,
-  //         ~caption="Hidden Tests",
-  //         ~editor=eds.hidden_tests.tests,
-  //         // ~di=instructor,
-  //       ),
-  //   );
+  let hidden_tests_view =
+    InstructorOnly(
+      () =>
+        editor_view(
+          HiddenTests,
+          ~caption="Hidden Tests",
+          ~editor=eds.hidden_tests.tests,
+          ~di=instructor,
+        ),
+    );
 
   // let impl_grading_view =
   //   Always(
@@ -257,19 +257,18 @@ let view =
   [title_view]
   @ render_cells(
       settings,
-      [
-        // prelude_view,
-        // correct_impl_view,
-        correct_impl_ctx_view,
-        // your_tests_view,
-      ]
+      // prelude_view,
+      // correct_impl_view,
+      // correct_impl_ctx_view,
+      // your_tests_view,
+      [your_impl_view]
       // @ wrong_impl_views
       @ [
         // mutation_testing_view,
-        your_impl_view,
+        // your_impl_view,
         // syntax_grading_view,
         // impl_validation_view,
-        // hidden_tests_view,
+        hidden_tests_view,
         // impl_grading_view,
       ],
     );
@@ -323,21 +322,20 @@ let instructor_transitionary_export = (exercise: DocumentationEnv.state) =>
     ~tooltip="Export Transitionary Exercise Module",
   );
 
-let instructor_grading_export = (exercise: DocumentationEnv.state) =>
-  Widgets.button_named(
-    Icons.star,
-    _ => {
-      // .ml files because show uses OCaml syntax (dune handles seamlessly)
-      let module_name = exercise.eds.title;
-      let filename = exercise.eds.title ++ "_grading.ml";
-      let content_type = "text/plain";
-      let contents =
-        DocumentationEnv.export_grading_module(module_name, exercise);
-      JsUtil.download_string_file(~filename, ~content_type, ~contents);
-      Virtual_dom.Vdom.Effect.Ignore;
-    },
-    ~tooltip="Export Grading Exercise Module",
-  );
+// let instructor_grading_export = (exercise: DocumentationEnv.state) =>
+//   Widgets.button_named(
+//     Icons.star,
+//     _ => {
+//       // .ml files because show uses OCaml syntax (dune handles seamlessly)
+//       let module_name = exercise.eds.title;
+//       let filename = exercise.eds.title ++ "_grading.ml";
+//       let content_type = "text/plain";
+//       let contents = DocumentationEnv.export_grading_module(module_name, exercise);
+//       JsUtil.download_string_file(~filename, ~content_type, ~contents);
+//       Virtual_dom.Vdom.Effect.Ignore;
+//     },
+//     ~tooltip="Export Grading Exercise Module",
+//   );
 
 let download_editor_state = (~instructor_mode) =>
   Log.get_and(log => {

@@ -127,10 +127,10 @@ let main_view =
               ~tutorial=tutorial_state,
               ~results,
               ~highlights,
+              // ~editor,
             ),
           slides,
         );
-
       info @ List.flatten(results);
     // let info =
     //   SlideContent.get_content(editors)

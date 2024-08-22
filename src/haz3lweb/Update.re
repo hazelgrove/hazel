@@ -284,6 +284,31 @@ let switch_exercise_editor =
     Some(Exercises(m, specs, exercise));
   };
 
+let switch_doc_editor =
+    (editors: Editors.t, ~pos, ~instructor_mode): option(Editors.t) =>
+  switch (editors) {
+  | Documentation(name, slides) =>
+    let tutorial_states =
+      List.map(
+        ((name, tutorial_state)) => {
+          let updated_state =
+            DocumentationEnv.switch_editor(
+              ~pos,
+              instructor_mode,
+              ~documentation=tutorial_state,
+            );
+          (name, updated_state);
+        },
+        slides,
+      );
+
+    Some(Documentation(name, tutorial_states));
+
+  // Some(Documentation(name, tutorial_states));
+  | Scratch(_) => None
+  | Exercises(_) => None
+  };
+
 /* This action saves a file which serializes all current editor
    settings, including the states of all Scratch and Example slides.
    This saved file can directly replace Haz3lweb/Init.ml, allowing
@@ -394,12 +419,12 @@ let rec apply =
       | None => Error(FailedToSwitch)
       | Some(editors) => Ok({...model, editors})
       };
-    | SwitchEditorDoc(_) => Ok(model) // TEMPORARY
-    // let instructor_mode = model.settings.instructor_mode;
-    // switch (switch_exercise_editor(model.editors, ~pos, ~instructor_mode)) {
-    // | None => Error(FailedToSwitch)
-    // | Some(editors) => Ok({...model, editors})
-    // };
+    | SwitchEditorDoc(pos) =>
+      let instructor_mode = model.settings.instructor_mode;
+      switch (switch_doc_editor(model.editors, ~pos, ~instructor_mode)) {
+      | None => Error(FailedToSwitch)
+      | Some(editors) => Ok({...model, editors})
+      };
     | TAB =>
       /* Attempt to act intelligently when TAB is pressed.
        * TODO(andrew): Consider more advanced TAB logic. Instead

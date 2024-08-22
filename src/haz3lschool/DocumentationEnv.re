@@ -402,7 +402,7 @@ module D = (DocEnv: DocEnv) => {
   //   ...state,
   //   eds: {
   //     ...eds,
-  //     prelude: Editor.set_read_only(eds.prelude, !new_mode),
+  //     hint: Editor.set_read_only(eds.title, !new_mode),
   //   },
   // };
   let set_instructor_mode = ({eds, _} as state: state, new_mode: bool) => {
@@ -526,7 +526,7 @@ module D = (DocEnv: DocEnv) => {
     user_impl: 'a, // prelude + your_impl
     // user_tests: 'a, // prelude + your_impl + your_tests
     // prelude: 'a, // prelude
-    // instructor: 'a, // prelude + correct_impl + hidden_tests.tests // TODO only needs to run in instructor mode
+    instructor: 'a, // prelude + correct_impl + hidden_tests.tests // TODO only needs to run in instructor mode
     // hidden_bugs: list('a), // prelude + hidden_bugs[i].impl + your_tests,
     hidden_tests: 'a,
   };
@@ -563,8 +563,7 @@ module D = (DocEnv: DocEnv) => {
   // );
 
   let stitch_term = ({eds, _}: state): stitched(TermItem.t) => {
-    // let instructor =
-    //   stitch3(eds.hidden_tests.tests);
+    let instructor = eds.hidden_tests.tests |> term_of;
     let user_impl_term = {
       // let your_impl_term =
       eds.your_impl |> term_of |> wrap_filter(FilterAction.Step); // let prelude_term =
@@ -582,7 +581,7 @@ module D = (DocEnv: DocEnv) => {
       // user_tests: wrap(user_tests_term, eds.your_tests.tests),
       // instructor works here as long as you don't shadow anything in the prelude
       // prelude: wrap(instructor, eds.prelude),
-      // instructor: wrap(instructor, eds.correct_impl),
+      instructor: wrap(instructor, eds.your_impl),
       // hidden_bugs:
       //   List.map(
       //     (t): TermItem.t =>
@@ -612,13 +611,13 @@ module D = (DocEnv: DocEnv) => {
         info_map,
       };
     };
-    // let instructor = mk(t.instructor);
+    let instructor = mk(t.instructor);
     {
       // test_validation: mk(t.test_validation),
       user_impl: mk(t.user_impl),
       // user_tests: mk(t.user_tests),
       // prelude: instructor, // works as long as you don't shadow anything in the prelude
-      // instructor,
+      instructor,
       // hidden_bugs: List.map(mk, t.hidden_bugs),
       hidden_tests: mk(t.hidden_tests),
     };
@@ -671,7 +670,7 @@ module D = (DocEnv: DocEnv) => {
       user_impl,
       // user_tests,
       // prelude: _,
-      // instructor,
+      instructor,
       // hidden_bugs,
       hidden_tests,
     } =
@@ -682,7 +681,7 @@ module D = (DocEnv: DocEnv) => {
       // (test_validation_key, elab(test_validation)),
       (user_impl_key, elab(user_impl)),
       // (user_tests_key, elab(user_tests)),
-      // (instructor_key, elab(instructor)),
+      (instructor_key, elab(instructor)),
       (hidden_tests_key, elab(hidden_tests)),
     ];
     // @ (
@@ -702,7 +701,7 @@ module D = (DocEnv: DocEnv) => {
       // (test_validation_key, stitched.test_validation),
       (user_impl_key, stitched.user_impl),
       // (user_tests_key, stitched.user_tests),
-      // (instructor_key, stitched.instructor),
+      (instructor_key, stitched.instructor),
       (hidden_tests_key, stitched.hidden_tests),
     ];
     // @ List.mapi(
@@ -745,7 +744,7 @@ module D = (DocEnv: DocEnv) => {
       user_impl,
       // user_tests,
       // prelude,
-      // instructor,
+      instructor,
       // hidden_bugs,
       hidden_tests,
     } =
@@ -784,12 +783,12 @@ module D = (DocEnv: DocEnv) => {
     //     info_map: prelude.info_map,
     //     result: NoElab,
     //   };
-    // let instructor =
-    //   DynamicsItem.{
-    //     term: instructor.term,
-    //     info_map: instructor.info_map,
-    //     result: result_of(instructor_key),
-    //   };
+    let instructor =
+      DynamicsItem.{
+        term: instructor.term,
+        info_map: instructor.info_map,
+        result: result_of(instructor_key),
+      };
     // let hidden_bugs =
     //   List.mapi(
     //     (n, statics_item: StaticsItem.t) =>
@@ -810,7 +809,7 @@ module D = (DocEnv: DocEnv) => {
       // test_validation,
       user_impl,
       // user_tests,
-      // instructor,
+      instructor,
       // prelude,
       // hidden_bugs,
       hidden_tests,
@@ -832,7 +831,7 @@ module D = (DocEnv: DocEnv) => {
         // test_validation: DynamicsItem.statics_only(t.test_validation),
         user_impl: DynamicsItem.statics_only(t.user_impl),
         // user_tests: DynamicsItem.statics_only(t.user_tests),
-        // instructor: DynamicsItem.statics_only(t.instructor),
+        instructor: DynamicsItem.statics_only(t.instructor),
         // prelude: DynamicsItem.statics_only(t.prelude),
         // hidden_bugs: List.map(DynamicsItem.statics_only, t.hidden_bugs),
         hidden_tests: DynamicsItem.statics_only(t.hidden_tests),
@@ -842,7 +841,7 @@ module D = (DocEnv: DocEnv) => {
         // test_validation: DynamicsItem.empty,
         user_impl: DynamicsItem.empty,
         // user_tests: DynamicsItem.empty,
-        // instructor: DynamicsItem.empty,
+        instructor: DynamicsItem.empty,
         // prelude: DynamicsItem.empty,
         // hidden_bugs:
         //   List.init(List.length(state.eds.hidden_bugs), _ =>
@@ -867,7 +866,7 @@ module D = (DocEnv: DocEnv) => {
       "let prompt = "
       ++ module_name
       ++ "_prompt.prompt\n"
-      ++ "let exercise: Exercise.spec = ";
+      ++ "let exercise: DocumentationEnv.spec = ";
     let record = show_p(editor_pp, eds);
     let data = prefix ++ record ++ "\n";
     data;
@@ -884,7 +883,7 @@ module D = (DocEnv: DocEnv) => {
       "let prompt = "
       ++ module_name
       ++ "_prompt.prompt\n"
-      ++ "let exercise: Exercise.spec = Exercise.transition(";
+      ++ "let exercise: DocumentationEnv.spec = DocumentationEnv.transition(";
     let record = show_p(transitionary_editor_pp, eds);
     let data = prefix ++ record ++ ")\n";
     data;
@@ -892,7 +891,7 @@ module D = (DocEnv: DocEnv) => {
 
   let export_grading_module = (module_name, {eds, _}: state) => {
     let header = output_header_grading(module_name);
-    let prefix = "let exercise: Exercise.spec = ";
+    let prefix = "let exercise: DocumentationEnv.spec = ";
     let record = show_p(editor_pp, eds);
     let data = header ++ prefix ++ record ++ "\n";
     data;
