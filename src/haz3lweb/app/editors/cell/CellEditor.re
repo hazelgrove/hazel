@@ -61,6 +61,7 @@ module Update = {
       EvalResult.Update.calculate(
         ~settings,
         ~queue_worker,
+        ~is_edited,
         editor |> CodeEditable.Model.get_statics,
         result,
       );
