@@ -3,7 +3,7 @@ open ExplainThisForm;
 // open Haz3lcore;
 
 let labeled_typ: form = {
-  let explanation = "label type explanation";
+  let explanation = "Assigns a label (name) to a type within a tuple. Labeled types cannot exist outside of a tuple; by default, labeled pattens that are not contained within a tuple are implied to be in a singleton tuple.";
   {
     id: LabeledTyp,
     syntactic_form: [pat("x"), labeled_typ(), typ("t")],
@@ -13,4 +13,4 @@ let labeled_typ: form = {
   };
 };
 
-let labeled_typ: group = {id: LabeledTyp, forms: [labeled_typ]};
+let labeled_typs: group = {id: LabeledTyp, forms: [labeled_typ]};

@@ -46,6 +46,7 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
   | IntLit(_)
   | FloatLit(_)
   | StringLit(_)
+  | Label(_)
   | Undefined
   | Constructor(_) => d |> return
 
@@ -116,9 +117,9 @@ let rec pp_eval = (d: DHExp.t): m(DHExp.t) =>
          );
     ListLit(a, b, c, ds);
 
-  | TupLabel(dp, d1) =>
-    let* d1' = pp_eval(d1);
-    TupLabel(dp, d1') |> return;
+  | TupLabel(dlab, d) =>
+    let* d' = pp_eval(d);
+    TupLabel(dlab, d') |> return;
 
   | Tuple(ds) =>
     let+ ds =
@@ -288,6 +289,7 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
   | IntLit(_)
   | FloatLit(_)
   | StringLit(_)
+  | Label(_)
   | Undefined
   | Constructor(_) => d |> return
 
@@ -383,9 +385,9 @@ and pp_uneval = (env: ClosureEnvironment.t, d: DHExp.t): m(DHExp.t) =>
          );
     ListLit(a, b, c, ds);
 
-  | TupLabel(dp, d1) =>
-    let* d1' = pp_uneval(env, d1);
-    TupLabel(dp, d1') |> return;
+  | TupLabel(dlab, d) =>
+    let* d' = pp_uneval(env, d);
+    TupLabel(dlab, d') |> return;
 
   | Tuple(ds) =>
     let+ ds =
@@ -490,6 +492,7 @@ let rec track_children_of_hole =
   | IntLit(_)
   | FloatLit(_)
   | StringLit(_)
+  | Label(_)
   | BuiltinFun(_)
   | Undefined
   | BoundVar(_) => hii

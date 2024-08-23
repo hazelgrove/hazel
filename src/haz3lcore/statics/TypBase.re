@@ -32,7 +32,8 @@ module rec Typ: {
     | Sum(sum_map)
     | Prod(list(t))
     | Rec(TypVar.t, t)
-    | Label(string, t)
+    | Label(string)
+    | TupLabel(t, t)
     | Forall(TypVar.t, t)
   and sum_map = ConstructorMap.t(option(t));
 
@@ -98,7 +99,8 @@ module rec Typ: {
     | Sum(sum_map)
     | Prod(list(t))
     | Rec(TypVar.t, t)
-    | Label(string, t)
+    | Label(string)
+    | TupLabel(t, t)
     | Forall(TypVar.t, t)
   and sum_map = ConstructorMap.t(option(t));
 
@@ -140,7 +142,8 @@ module rec Typ: {
     | Unknown(_)
     | Var(_)
     | Rec(_)
-    | Label(_, _)
+    | Label(_)
+    | TupLabel(_, _)
     | Forall(_)
     | Sum(_) => precedence_Sum
     | List(_) => precedence_Const
@@ -154,6 +157,7 @@ module rec Typ: {
     | Int
     | Float
     | Bool
+    | Label(_)
     | String => []
     | Var(v) => List.mem(v, bound) ? [] : [v]
     | List(ty) => free_vars(~bound, ty)
@@ -167,7 +171,7 @@ module rec Typ: {
       )
     | Prod(tys) => ListUtil.flat_map(free_vars(~bound), tys)
     | Rec(x, ty) => free_vars(~bound=[x, ...bound], ty)
-    | Label(_, ty) => free_vars(~bound, ty)
+    | TupLabel(_, ty) => free_vars(~bound, ty)
     | Forall(x, ty) => free_vars(~bound=[x, ...bound], ty)
     };
 
@@ -184,6 +188,7 @@ module rec Typ: {
     | Float => Float
     | Bool => Bool
     | String => String
+    | Label(name) => Label(name)
     | Unknown(prov) => Unknown(prov)
     | Arrow(ty1, ty2) => Arrow(subst(s, x, ty1), subst(s, x, ty2))
     | Prod(tys) => Prod(List.map(subst(s, x), tys))
@@ -200,7 +205,7 @@ module rec Typ: {
     | Forall(y, ty) => Forall(y, subst(s, x, ty))
     | List(ty) => List(subst(s, x, ty))
     | Var(y) => TypVar.eq(x, y) ? s : Var(y)
-    | Label(st, ty) => Label(st, subst(s, x, ty))
+    | TupLabel(tlab, ty) => TupLabel(tlab, subst(s, x, ty))
     };
   };
 
@@ -211,17 +216,18 @@ module rec Typ: {
     };
   let get_label: t => option((LabeledTuple.t, t)) =
     fun
-    | Label(s, t') => Some((s, t'))
+    | TupLabel(Label(name), t') => Some((name, t'))
     | _ => None;
 
   /* Type Equality: This coincides with alpha equivalence for normalized types.
      Other types may be equivalent but this will not detect so if they are not normalized. */
   let rec eq_internal = (n: int, t1: t, t2: t) => {
     switch (t1, t2) {
-    | (Label(s1, t1), Label(s2, t2)) =>
-      compare(s1, s2) == 0 && eq_internal(n, t1, t2)
-    | (Label(_, t1), t2) => eq_internal(n, t1, t2)
-    | (t1, Label(_, t2)) => eq_internal(n, t1, t2)
+    | (TupLabel(_, t1'), TupLabel(_, t2')) =>
+      LabeledTuple.equal(get_label(t1), get_label(t2))
+      && eq_internal(n, t1', t2')
+    | (TupLabel(_, t1), t2) => eq_internal(n, t1, t2)
+    | (t1, TupLabel(_, t2)) => eq_internal(n, t1, t2)
     | (Rec(x1, t1), Rec(x2, t2))
     | (Forall(x1, t1), Forall(x2, t2)) =>
       eq_internal(
@@ -239,6 +245,8 @@ module rec Typ: {
     | (Bool, _) => false
     | (String, String) => true
     | (String, _) => false
+    | (Label(name1), Label(name2)) => String.equal(name1, name2)
+    | (Label(_), _) => false
     | (Unknown(_), Unknown(_)) => true
     | (Unknown(_), _) => false
     | (Arrow(t1, t2), Arrow(t1', t2')) =>
@@ -321,15 +329,15 @@ module rec Typ: {
       !resolve && eq(ty_name, ty_join) ? Var(name) : ty_join;
     /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
     /* Labels have special rules. TODO (Anthony): Fix them */
-    | (Label(s1, ty1), Label(s2, ty2)) =>
-      if (compare(s1, s2) == 0) {
-        let+ ty = join'(ty1, ty2);
-        Label(s2, ty);
+    | (TupLabel(_, ty1'), TupLabel(lab2, ty2')) =>
+      if (LabeledTuple.equal(get_label(ty1), get_label(ty2))) {
+        let+ ty = join'(ty1', ty2');
+        TupLabel(lab2, ty);
       } else {
         None;
       }
-    | (Label(_, ty1), ty) => join'(ty1, ty)
-    | (ty, Label(_, ty2)) => join'(ty, ty2)
+    | (TupLabel(_, ty1), ty) => join'(ty1, ty)
+    | (ty, TupLabel(_, ty2)) => join'(ty, ty2)
     | (Rec(x1, ty1), Rec(x2, ty2)) =>
       let ctx = Ctx.extend_dummy_tvar(ctx, x1);
       let+ ty_body =
@@ -356,6 +364,9 @@ module rec Typ: {
     | (Bool, _) => None
     | (String, String) => Some(String)
     | (String, _) => None
+    | (Label(name1), Label(name2)) when String.equal(name1, name2) =>
+      Some(Label(name1))
+    | (Label(_), _) => None
     | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
       let* ty1 = join'(ty1, ty1');
       let+ ty2 = join'(ty2, ty2');
@@ -372,7 +383,7 @@ module rec Typ: {
       } else {
         let tys2 =
           LabeledTuple.rearrange(get_label, get_label, tys1, tys2, (t, b) =>
-            Label(t, b)
+            TupLabel(Label(t), b)
           );
         let* tys = ListUtil.map2_opt(join', tys1, tys2);
         let+ tys = OptUtil.sequence(tys);
@@ -450,7 +461,8 @@ module rec Typ: {
     | Int
     | Float
     | Bool
-    | String => ty
+    | String
+    | Label(_) => ty
     | List(t) => List(normalize(ctx, t))
     | Arrow(t1, t2) => Arrow(normalize(ctx, t1), normalize(ctx, t2))
     | Prod(ts) => Prod(List.map(normalize(ctx), ts))
@@ -460,7 +472,7 @@ module rec Typ: {
          as in current implementation Recs do not occur in the
          surface syntax, so we won't try to jump to them. */
       Rec(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty))
-    | Label(s, t) => Label(s, normalize(ctx, t))
+    | TupLabel(label, t) => TupLabel(label, normalize(ctx, t))
     | Forall(name, ty) =>
       Forall(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty))
     };
@@ -482,9 +494,9 @@ module rec Typ: {
 
   let matched_label = (ctx, ty) =>
     switch (weak_head_normalize(ctx, ty)) {
-    | Label(_, ty) => ty
+    | TupLabel(_, ty) => ty
     | Unknown(SynSwitch) => Unknown(SynSwitch)
-    | _ => Unknown(Internal)
+    | _ => ty
     };
 
   let matched_prod = (ctx, ts, get_label_ts, ty) => {
@@ -498,8 +510,8 @@ module rec Typ: {
       if (!l1_valid || !l2_valid || List.length(ts) != List.length(tys)) {
         List.init(List.length(ts), _ => Unknown(Internal));
       } else {
-        LabeledTuple.rearrange(get_label_ts, get_label, ts, tys, (t, b) =>
-          Label(t, b)
+        LabeledTuple.rearrange(get_label_ts, get_label, ts, tys, (name, b) =>
+          TupLabel(Label(name), b)
         );
       };
     | Unknown(SynSwitch) =>
@@ -577,6 +589,7 @@ module rec Typ: {
     | String
     | Bool
     | Label(_)
+    | TupLabel(_)
     | Var(_) => false
     | Rec(_, _)
     | Forall(_, _) => true
@@ -594,6 +607,7 @@ module rec Typ: {
     | Float => "Float"
     | Bool => "Bool"
     | String => "String"
+    | Label(name) => name
     | Var(tvar) => tvar
     | List(t) => "[" ++ pretty_print(t) ++ "]"
     | Arrow(t1, t2) => paren_pretty_print(t1) ++ "->" ++ pretty_print(t2)
@@ -608,7 +622,8 @@ module rec Typ: {
           ts,
         )
       }
-    | Label(s, t) => s ++ "=" ++ pretty_print(t)
+    | TupLabel(Label(name), t) => name ++ "=" ++ pretty_print(t)
+    | TupLabel(_, t) => "[Unk]=" ++ pretty_print(t)
     | Prod([]) => "()"
     | Prod([t0, ...ts]) =>
       "("

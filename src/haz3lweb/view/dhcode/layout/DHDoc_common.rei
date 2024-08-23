@@ -81,6 +81,8 @@ let mk_ConstructorLit: string => Pretty.Doc.t('a);
 
 let mk_StringLit: string => Pretty.Doc.t('a);
 
+let mk_Label: string => Pretty.Doc.t('a);
+
 let mk_Cons: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 
 let mk_ListConcat: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);

@@ -9,7 +9,7 @@ open ExplainThisForm;
 //   (Piece.id(_typ), typ_id),
 // ];
 let labeled_pat: form = {
-  let explanation = "labeled pattern explanation";
+  let explanation = "Assigns a label (name) to a pattern within a tuple. Labeled patterns cannot exist outside of a tuple; by default, labeled pattens that are not contained within a tuple are implied to be in a singleton tuple.";
   {
     id: LabeledPat,
     syntactic_form: [pat("x"), labeled_pat(), pat("p")],
@@ -19,4 +19,4 @@ let labeled_pat: form = {
   };
 };
 
-let labeled_pat: group = {id: LabeledPat, forms: [labeled_pat]};
+let labeled_pats: group = {id: LabeledPat, forms: [labeled_pat]};

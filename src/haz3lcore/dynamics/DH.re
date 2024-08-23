@@ -38,7 +38,8 @@ module rec DHExp: {
     | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t))
     | Cons(t, t)
     | ListConcat(t, t)
-    | TupLabel(LabeledTuple.t, t)
+    | Label(string)
+    | TupLabel(t, t)
     | Tuple(list(t))
     | Dot(t, t)
     | Prj(t, int)
@@ -103,7 +104,8 @@ module rec DHExp: {
     | ListLit(MetaVar.t, MetaVarInst.t, Typ.t, list(t))
     | Cons(t, t)
     | ListConcat(t, t)
-    | TupLabel(LabeledTuple.t, t)
+    | Label(string)
+    | TupLabel(t, t)
     | Tuple(list(t))
     | Dot(t, t)
     | Prj(t, int)
@@ -149,6 +151,7 @@ module rec DHExp: {
     | ListLit(_) => "ListLit"
     | Cons(_, _) => "Cons"
     | ListConcat(_, _) => "ListConcat"
+    | Label(_) => "Label"
     | TupLabel(_) => "Labeled Tuple Item"
     | Tuple(_) => "Tuple"
     | Dot(_) => "DotOp"
@@ -170,20 +173,20 @@ module rec DHExp: {
 
   let get_label: t => option((LabeledTuple.t, t)) =
     fun
-    | TupLabel(s, t') => Some((s, t'))
+    | TupLabel(Label(name), t') => Some((name, t'))
     | _ => None;
 
   let cast = (d: t, t1: Typ.t, t2: Typ.t): t => {
-    // TODO (Anthony): Other cases for label casting?
-    let (islabel, lab) =
+    // TODO (Anthony): Other cases for tuplabel casting?
+    let (islabel, name) =
       switch (t2) {
-      | Label(s, Unknown(SynSwitch)) => (true, s)
+      | TupLabel(Label(name), Unknown(SynSwitch)) => (true, name)
       | _ => (false, "")
       };
     if (Typ.eq(t1, t2) || t2 == Unknown(SynSwitch)) {
       d;
     } else if (islabel) {
-      TupLabel(lab, d);
+      TupLabel(Label(name), d);
     } else {
       Cast(d, t1, t2);
     };
@@ -197,7 +200,7 @@ module rec DHExp: {
     | Closure(ei, d) => Closure(ei, strip_casts(d))
     | Cast(d, _, _) => strip_casts(d)
     | FailedCast(d, _, _) => strip_casts(d)
-    | TupLabel(s, d) => TupLabel(s, strip_casts(d))
+    | TupLabel(a, b) => TupLabel(strip_casts(a), strip_casts(b))
     | Tuple(ds) => Tuple(ds |> List.map(strip_casts))
     | Dot(a, b) => Dot(strip_casts(a), strip_casts(b))
     | Prj(d, n) => Prj(strip_casts(d), n)
@@ -240,6 +243,7 @@ module rec DHExp: {
     | IntLit(_) as d
     | FloatLit(_) as d
     | StringLit(_) as d
+    | Label(_) as d
     | Constructor(_) as d
     | InvalidOperation(_) as d => d
     | IfThenElse(consistent, c, d1, d2) =>
@@ -254,8 +258,9 @@ module rec DHExp: {
   let rec fast_equal = (d1: t, d2: t): bool => {
     switch (d1, d2) {
     /* TODO: Labels are a special case, but should they be?*/
-    | (TupLabel(s1, d1), TupLabel(s2, d2)) =>
-      LabeledTuple.compare(s1, s2) == 0 && fast_equal(d1, d2)
+    | (TupLabel(_, d1'), TupLabel(_, d2')) =>
+      LabeledTuple.equal(get_label(d1), get_label(d2))
+      && fast_equal(d1', d2')
     | (TupLabel(_, d1), _) => fast_equal(d1, d2)
     | (_, TupLabel(_, d2)) => fast_equal(d1, d2)
     | (Undefined, _)
@@ -268,6 +273,8 @@ module rec DHExp: {
     | (Constructor(_), _) => d1 == d2
     | (StringLit(s1), StringLit(s2)) => String.equal(s1, s2)
     | (StringLit(_), _) => false
+    | (Label(name1), Label(name2)) => String.equal(name1, name2)
+    | (Label(_), _) => false
 
     /* Non-hole forms: recurse */
     | (Test(id1, d1), Test(id2, d2)) => id1 == id2 && fast_equal(d1, d2)
@@ -442,7 +449,7 @@ module rec DHExp: {
     | Cons(t1, t2) => Cons(re(t1), re(t2))
     | ListConcat(t1, t2) => ListConcat(re(t1), re(t2))
     | Tuple(args) => Tuple(List.map(re, args))
-    | TupLabel(s, t) => TupLabel(s, re(t))
+    | TupLabel(t1, t2) => TupLabel(re(t1), re(t2))
     | Dot(t1, t2) => Dot(re(t1), re(t2))
     | Prj(t, n) => Prj(re(t), n)
     | ConsistentCase(case) => ConsistentCase(ty_subst_case(s, x, case))
@@ -462,6 +469,7 @@ module rec DHExp: {
     | IntLit(_)
     | FloatLit(_)
     | StringLit(_)
+    | Label(_)
     | FailedCast(_, _, _) => exp
     };
   }

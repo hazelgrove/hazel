@@ -32,9 +32,10 @@ let rec view_ty = (~strip_outer_parens=false, ty: Haz3lcore.Typ.t): Node.t =>
   | Int => ty_view("Int", "Int")
   | Float => ty_view("Float", "Float")
   | String => ty_view("String", "String")
+  | Label(name) => ty_view("Label", name)
   | Bool => ty_view("Bool", "Bool")
   | Var(name) => ty_view("Var", name)
-  | Label(_, ty) => view_ty(ty) // TODO (Anthony): What to do here?
+  | TupLabel(_, ty) => view_ty(ty) // TODO (Anthony): What to do here?
   | Rec(name, t) =>
     div(
       ~attrs=[clss(["typ-view", "Rec"])],

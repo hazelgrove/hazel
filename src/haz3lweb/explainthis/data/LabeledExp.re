@@ -5,7 +5,7 @@ open Example;
 let labeled_example_1 = {
   sub_id: Label1,
   term: mk_example("(x=1)"),
-  message: "A labeled expression within a singleton tuple, where the element 1 is assigned the label 'x'. ",
+  message: "A labeled expression within a singleton tuple, where the element 1 is assigned the label 'x'.",
 };
 let labeled_example_2 = {
   sub_id: Label2,
@@ -13,7 +13,7 @@ let labeled_example_2 = {
   message: "A tuple with first element 1, second element 2, and third element 3 with the label 'y'.",
 };
 let labeled_exp: form = {
-  let explanation = "Labeled Expession explanation";
+  let explanation = "Assigns a label (name) to an expression within a tuple. Labeled expressions cannot exist outside of a tuple; by default, labeled expressions that are not contained within a tuple are implied to be in a singleton tuple.";
   {
     id: LabeledExp,
     syntactic_form: [exp("x"), labeled_exp(), exp("e")],
@@ -29,4 +29,4 @@ let labeled_exp: form = {
 //   [(Piece.id(_exp1), exp1_id), (Piece.id(_exp2), exp2_id)];
 // }
 
-let labeled_exp: group = {id: LabeledExp, forms: [labeled_exp]};
+let labeled_exps: group = {id: LabeledExp, forms: [labeled_exp]};

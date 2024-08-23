@@ -26,6 +26,7 @@ let rec find_var_upat = (name: string, upat: Term.UPat.t): bool => {
   | Float(_)
   | Bool(_)
   | String(_)
+  | Label(_)
   | Constructor(_) => false
   | Cons(up1, up2) => find_var_upat(name, up1) || find_var_upat(name, up2)
   | TupLabel(_, up) => find_var_upat(name, up)
@@ -78,6 +79,7 @@ let rec find_in_let =
       EmptyHole | Wild | Triv | Invalid(_) | MultiHole(_) | Int(_) | Float(_) |
       Bool(_) |
       String(_) |
+      Label(_) |
       ListLit(_) |
       Constructor(_) |
       Cons(_, _) |
@@ -136,6 +138,7 @@ let rec find_fn =
   | Int(_)
   | Float(_)
   | String(_)
+  | Label(_)
   | Constructor(_)
   | Undefined
   | Var(_) => l
@@ -157,6 +160,7 @@ let rec var_mention_upat = (name: string, upat: Term.UPat.t): bool => {
   | Float(_)
   | Bool(_)
   | String(_)
+  | Label(_)
   | Constructor(_) => false
   | Cons(up1, up2) =>
     var_mention_upat(name, up1) || var_mention_upat(name, up2)
@@ -189,6 +193,7 @@ let rec var_mention = (name: string, uexp: Term.UExp.t): bool => {
   | Int(_)
   | Float(_)
   | String(_)
+  | Label(_)
   | Constructor(_)
   | Undefined
   | Deferral(_) => false
@@ -247,6 +252,7 @@ let rec var_applied = (name: string, uexp: Term.UExp.t): bool => {
   | Int(_)
   | Float(_)
   | String(_)
+  | Label(_)
   | Constructor(_)
   | Undefined
   | Deferral(_) => false
@@ -337,6 +343,7 @@ let rec tail_check = (name: string, uexp: Term.UExp.t): bool => {
   | Int(_)
   | Float(_)
   | String(_)
+  | Label(_)
   | Constructor(_)
   | Undefined
   | Var(_) => true

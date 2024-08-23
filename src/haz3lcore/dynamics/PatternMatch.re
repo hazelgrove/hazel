@@ -38,32 +38,33 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result => {
   | (InvalidText(_), _) => IndetMatch
   | (BadConstructor(_), _) => IndetMatch
   /* Labels are a special case */
-  | (TupLabel(s1, dp), TupLabel(s2, d)) =>
-    if (LabeledTuple.compare(s1, s2) == 0) {
-      matches(dp, d);
+  | (TupLabel(_, dp'), TupLabel(_, d')) =>
+    if (LabeledTuple.equal(DHPat.get_label(dp), DHExp.get_label(d))) {
+      matches(dp', d');
     } else {
       DoesNotMatch;
     }
-  | (Var(x), TupLabel(s, d)) when LabeledTuple.compare(x, s) == 0 =>
-    let env = Environment.extend(Environment.empty, (x, d));
+  | (Var(x), TupLabel(_, d'))
+      when LabeledTuple.equal(Some((x, dp)), DHExp.get_label(d)) =>
+    let env = Environment.extend(Environment.empty, (x, d'));
     Matches(env);
   // TODO: Label casting need fixing?
-  | (TupLabel(_), Cast(d, Label(_, _), Unknown(_))) =>
+  | (TupLabel(_), Cast(d, TupLabel(_, _), Unknown(_))) =>
     switch (d) {
     | TupLabel(_, d) => matches(dp, d)
     | _ => matches(dp, d)
     }
-  | (TupLabel(_), Cast(d, Unknown(_), Label(s2, _))) =>
+  | (TupLabel(_), Cast(d, Unknown(_), TupLabel(Typ.Label(tlab), _))) =>
     switch (d) {
-    | TupLabel(_, d) => matches(dp, TupLabel(s2, d))
-    | _ => matches(dp, TupLabel(s2, d))
+    | TupLabel(_, d) => matches(dp, TupLabel(DHExp.Label(tlab), d))
+    | _ => matches(dp, TupLabel(DHExp.Label(tlab), d))
     }
-  | (_, Cast(d, Label(_, ty1), ty2)) =>
+  | (_, Cast(d, TupLabel(_, ty1), ty2)) =>
     switch (d) {
     | TupLabel(_, d) => matches(dp, Cast(d, ty1, ty2))
     | _ => matches(dp, Cast(d, ty1, ty2))
     }
-  | (_, Cast(d, ty1, Label(_, ty2))) =>
+  | (_, Cast(d, ty1, TupLabel(_, ty2))) =>
     switch (d) {
     | TupLabel(_, d) => matches(dp, Cast(d, ty1, ty2)) // shouldn't happen?
     | _ => matches(dp, Cast(d, ty1, ty2))
@@ -129,6 +130,18 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result => {
   | (StringLit(_), Cast(d, String, Unknown(_))) => matches(dp, d)
   | (StringLit(_), Cast(d, Unknown(_), String)) => matches(dp, d)
   | (StringLit(_), _) => DoesNotMatch
+
+  | (Label(s1), Label(s2)) =>
+    if (s1 == s2) {
+      Matches(Environment.empty);
+    } else {
+      DoesNotMatch;
+    }
+  | (Label(name), Cast(d, Label(name'), Unknown(_))) when name == name' =>
+    matches(dp, d)
+  | (Label(name), Cast(d, Unknown(_), Label(name'))) when name == name' =>
+    matches(dp, d)
+  | (Label(_), _) => DoesNotMatch
 
   | (Ap(dp1, dp2), Ap(d1, d2)) =>
     switch (matches(dp1, d1)) {
@@ -233,21 +246,21 @@ let rec matches = (dp: DHPat.t, d: DHExp.t): match_result => {
       let ds =
         LabeledTuple.rearrange(
           Typ.get_label, DHExp.get_label, tys, ds, (s, e) =>
-          TupLabel(s, e)
+          TupLabel(DHExp.Label(s), e)
         );
       let d_typ_pairs = List.combine(ds, tys);
       let get_label_pair:
         ((DHExp.t, Typ.t)) => option((LabeledTuple.t, (DHExp.t, Typ.t))) = (
         ((d, t)) =>
           switch (t) {
-          | Label(s, t') => Some((s, (d, t')))
+          | TupLabel(Label(name), t') => Some((name, (d, t')))
           | _ => None
           }
       );
       let d_typ_pairs =
         LabeledTuple.rearrange(
           Typ.get_label, get_label_pair, tys', d_typ_pairs, (s, (d, t)) =>
-          (TupLabel(s, d), Label(s, t))
+          (TupLabel(Label(s), d), TupLabel(Label(s), t))
         );
       let (ds, tys) = List.split(d_typ_pairs);
       matches_cast_Tuple(
@@ -361,6 +374,7 @@ and matches_cast_Sum =
   | IntLit(_)
   | FloatLit(_)
   | StringLit(_)
+  | Label(_)
   | ListLit(_)
   | Tuple(_)
   | Dot(_, _)
@@ -386,7 +400,7 @@ and matches_cast_Tuple =
       let filt2: ((DHExp.t, 'a)) => option((LabeledTuple.t, (DHExp.t, 'a))) = (
         ((d, c)) =>
           switch (d) {
-          | TupLabel(s, d') => Some((s, (d', c)))
+          | TupLabel(DHExp.Label(name), d') => Some((name, (d', c)))
           | _ => None
           }
       );
@@ -451,21 +465,21 @@ and matches_cast_Tuple =
         let ds =
           LabeledTuple.rearrange(
             Typ.get_label, DHExp.get_label, tys, ds, (s, e) =>
-            TupLabel(s, e)
+            TupLabel(DHExp.Label(s), e)
           );
         let d_typ_pairs = List.combine(ds, tys);
         let get_label_pair:
           ((DHExp.t, Typ.t)) => option((LabeledTuple.t, (DHExp.t, Typ.t))) = (
           ((d, t)) =>
             switch (t) {
-            | Label(s, t') => Some((s, (d, t')))
+            | TupLabel(Label(name), t') => Some((name, (d, t')))
             | _ => None
             }
         );
         let d_typ_pairs =
           LabeledTuple.rearrange(
             Typ.get_label, get_label_pair, tys', d_typ_pairs, (s, (d, t)) =>
-            (TupLabel(s, d), Label(s, t))
+            (TupLabel(DHExp.Label(s), d), TupLabel(Typ.Label(s), t))
           );
         let (ds, tys) = List.split(d_typ_pairs);
         matches_cast_Tuple(
@@ -522,6 +536,7 @@ and matches_cast_Tuple =
   | Test(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
   | StringLit(_) => DoesNotMatch
+  | Label(_) => DoesNotMatch
   | ListLit(_) => DoesNotMatch
   | Cons(_, _) => DoesNotMatch
   | ListConcat(_) => DoesNotMatch
@@ -665,6 +680,7 @@ and matches_cast_Cons =
   | Test(_) => DoesNotMatch
   | FloatLit(_) => DoesNotMatch
   | StringLit(_) => DoesNotMatch
+  | Label(_) => DoesNotMatch
   | Tuple(_) => DoesNotMatch
   | Dot(_, _) => IndetMatch
   | Prj(_) => IndetMatch

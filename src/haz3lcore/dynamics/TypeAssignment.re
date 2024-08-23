@@ -37,15 +37,17 @@ let dhpat_extend_ctx =
     let ty' = ty;
     let ty =
       switch (ty) {
-      | Label(_, ty) => ty
+      | TupLabel(_, ty) => ty
       | _ => ty
       };
     switch (dhpat) {
-    | TupLabel(s1, dp1) =>
+    | TupLabel(_, dp1) =>
       switch (ty') {
-      | Label(s2, ty2) when LabeledTuple.compare(s1, s2) == 0 =>
+      | TupLabel(_, ty2)
+          when
+            LabeledTuple.equal(DHPat.get_label(dhpat), Typ.get_label(ty')) =>
         dhpat_var_entry(dp1, ty2)
-      | Label(_, _) => None
+      | TupLabel(_, _) => None
       | _ => dhpat_var_entry(dp1, ty)
       }
     | Var(name) =>
@@ -98,6 +100,7 @@ let dhpat_extend_ctx =
     | FloatLit(_) => Typ.eq(ty, Float) ? Some([]) : None
     | BoolLit(_) => Typ.eq(ty, Bool) ? Some([]) : None
     | StringLit(_) => Typ.eq(ty, String) ? Some([]) : None
+    | Label(name) => Typ.eq(ty, Label(name)) ? Some([]) : None
     | Constructor(_, typ) => Typ.eq(ty, typ) ? Some([]) : None
     };
   };
@@ -207,6 +210,7 @@ let rec typ_of_dhexp =
   | IntLit(_) => Some(Int)
   | FloatLit(_) => Some(Float)
   | StringLit(_) => Some(String)
+  | Label(name) => Some(Label(name))
   | BinBoolOp(_, d1, d2) =>
     let* ty1 = typ_of_dhexp(ctx, m, d1);
     let* ty2 = typ_of_dhexp(ctx, m, d2);
@@ -277,12 +281,10 @@ let rec typ_of_dhexp =
     | (List(ty1), List(ty2)) when Typ.eq(ty1, ty2) => Some(Typ.List(ty1))
     | _ => None
     };
-  | TupLabel(s, d) =>
-    let ty = typ_of_dhexp(ctx, m, d);
-    switch (ty) {
-    | Some(ty) => Some(Typ.Label(s, ty))
-    | None => None
-    };
+  | TupLabel(dlab, d) =>
+    let* tlab = typ_of_dhexp(ctx, m, dlab);
+    let* ty = typ_of_dhexp(ctx, m, d);
+    Some(Typ.TupLabel(tlab, ty));
   | Dot(d1, d2) =>
     switch (d1, d2) {
     | (Tuple(ds), BoundVar(name)) =>
@@ -291,9 +293,9 @@ let rec typ_of_dhexp =
       | Some(TupLabel(_, exp)) => typ_of_dhexp(ctx, m, exp)
       | _ => None
       };
-    | (TupLabel(l, exp), BoundVar(name))
-        when LabeledTuple.compare(name, l) == 0 =>
-      typ_of_dhexp(ctx, m, exp)
+    | (TupLabel(_, de), BoundVar(name))
+        when LabeledTuple.equal(DHExp.get_label(d1), Some((name, d2))) =>
+      typ_of_dhexp(ctx, m, de)
     | _ => None
     }
   | Tuple(dhs) =>

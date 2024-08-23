@@ -14,7 +14,8 @@ type t =
   | StringLit(string)
   | ListLit(Typ.t, list(t))
   | Cons(t, t)
-  | TupLabel(LabeledTuple.t, t)
+  | Label(string)
+  | TupLabel(t, t)
   | Tuple(list(t))
   | Constructor(string, Typ.t)
   | Ap(t, t);
@@ -39,6 +40,7 @@ let rec binds_var = (x: Var.t, dp: t): bool =>
   | FloatLit(_)
   | BoolLit(_)
   | StringLit(_)
+  | Label(_)
   | Constructor(_) => false
   | Var(y) => Var.eq(x, y)
   | TupLabel(_, dp) => binds_var(x, dp)
@@ -61,6 +63,7 @@ let rec bound_vars = (dp: t): list(Var.t) =>
   | FloatLit(_)
   | BoolLit(_)
   | StringLit(_)
+  | Label(_)
   | Constructor(_) => []
   | Var(y) => [y]
   | TupLabel(_, dp) => bound_vars(dp)
@@ -72,5 +75,5 @@ let rec bound_vars = (dp: t): list(Var.t) =>
 
 let get_label: t => option((LabeledTuple.t, t)) =
   fun
-  | TupLabel(s, t') => Some((s, t'))
+  | TupLabel(Label(name), t') => Some((name, t'))
   | _ => None;

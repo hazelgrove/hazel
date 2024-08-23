@@ -13,6 +13,7 @@ let precedence = (dp: DHPat.t) =>
   | FloatLit(_)
   | BoolLit(_)
   | StringLit(_)
+  | Label(_)
   | ListLit(_)
   | Constructor(_) => DHDoc_common.precedence_const
   | TupLabel(_, _) => DHDoc_common.precedence_Comma
@@ -46,6 +47,7 @@ let rec mk =
     | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
     | BoolLit(b) => DHDoc_common.mk_BoolLit(b)
     | StringLit(s) => DHDoc_common.mk_StringLit(s)
+    | Label(name) => DHDoc_common.mk_Label(name)
     | ListLit(_, d_list) =>
       let ol = List.map(mk', d_list);
       DHDoc_common.mk_ListLit(ol);
@@ -54,8 +56,8 @@ let rec mk =
         mk_right_associative_operands(DHDoc_common.precedence_Cons, dp1, dp2);
       DHDoc_common.mk_Cons(doc1, doc2);
     // TODO (Anthony): What to do for Tuplabel?
-    | TupLabel(s, d) =>
-      Doc.hcats([Doc.text(s), DHDoc_common.Delim.mk("="), mk'(d)])
+    | TupLabel(l, d) =>
+      Doc.hcats([mk'(l), DHDoc_common.Delim.mk("="), mk'(d)])
     | Tuple([]) => DHDoc_common.Delim.triv
     | Tuple(ds) => DHDoc_common.mk_Tuple(List.map(mk', ds))
     | Ap(dp1, dp2) =>
