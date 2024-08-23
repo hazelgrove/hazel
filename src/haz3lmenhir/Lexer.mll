@@ -45,7 +45,6 @@ rule token =
     | "if" { IF }
     | "then" { THEN }
     | "else" { ELSE }
-    | "as" { AS }
     | "{" { OPEN_BRACKET }
     | "}" { CLOSE_BRACKET }
     | "[" { OPEN_SQUARE_BRACKET }
@@ -83,7 +82,6 @@ rule token =
     | "&&" { L_AND }
     | "||" { L_OR }
     | "!" { L_NOT }
-    | "&" { B_AND }
     | "|" { TURNSTILE }
     | "," { COMMA }
     | ":" { COLON }
@@ -108,7 +106,6 @@ rule token =
     | "@" {AT_SYMBOL}
     | "?" {QUESTION}
     | "_" {WILD}
-    | "_BAD" {BAD_CONSTRUCTOR}
     | "fix" {FIX}
     | "_InAp" {IN_AP}
     | "_OutAp" {OUT_AP}
