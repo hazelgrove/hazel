@@ -11,5 +11,5 @@ let exercise : Exercise.spec =
           prompt;
         };
       pos = Proof Prelude;
-      model = Proof { prelude = ""; trees = [] };
+      model = Proof { prelude = ""; setup = ""; trees = [] };
     }

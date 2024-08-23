@@ -160,11 +160,13 @@ module ModelUtil = {
     | _ => true
     };
 
-  let readonly_in = (pos: pos, instructor_mode: bool): bool =>
+  let readonly_in = (pos: pos, instructor_mode: bool, model: model('a)): bool => {
+    ignore(model);
     switch (pos) {
     | Prelude => !instructor_mode
     | _ => false
     };
+  };
 
   let visible_in = (pos: pos, instructor_mode: bool): bool =>
     switch (pos) {

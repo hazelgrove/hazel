@@ -1268,6 +1268,7 @@ svg.shard.error>path {
   text-wrap: nowrap;
   background-color: var(--top_bar_icon_fill);
   transform: translateY(0.05rem);
+  cursor: grab;
 }
 
 .del-premise-btn {
@@ -1298,7 +1299,7 @@ svg.shard.error>path {
   bottom: 1rem;
   left: 0;
   background-color: var(--light-page-color);
-  max-width: 12em;
+  max-width: 15em;
   border: var(--top_bar_icon_fill) 0.1rem solid;
   border-radius: 0.4em;
   z-index: var(--top-bar-z);

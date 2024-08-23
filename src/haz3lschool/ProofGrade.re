@@ -19,9 +19,11 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
   };
 
   module ExternalError = {
+    [@deriving (show({with_path: false}), sexp, yojson)]
     type t =
       | NoRule
       | NoAbbr
+      | PremiseNotReady
       | NotAJudgment
       | EvalOff
       | EvalFail
@@ -29,12 +31,20 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
       | EvalIndet
       | Stepper
       | NoElab;
+
+    let repr =
+      fun
+      | NoRule => "Rule not specified"
+      | NoAbbr => "Abbreviation not specified"
+      | PremiseNotReady => "Premise(s) not ready"
+      | NotAJudgment => "Conclusion not a judgement"
+      | _ as a => show(a);
   };
 
   module ProofTree = {
     open ExternalError;
 
-    type t = list(tree(res))
+    type t = list(Tree.p(abbr(res)))
     and res = result(deduction(Judgement.t), ExternalError.t);
 
     let res_of_di = ({result, _}: DynamicsItem.t, rule): res =>
@@ -61,7 +71,8 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
       |> List.map(
            Tree.map(
              fun
-             | (Some(di), Just({rule, _})) => Just(res_of_di(di, rule))
+             | (Some(di), Abbr.Just({rule, _})) =>
+               Abbr.Just(res_of_di(di, rule))
              | (None, Abbr(i)) => Abbr(i)
              | _ => failwith("DerivationTree.mk: ed<>di inconsistent"),
            ),
@@ -70,53 +81,55 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
   };
   module VerifiedTree = {
     type t = list(Tree.p(res))
-    and res = result(verified, ExternalError.t)
-    and verified = {
-      concl: Judgement.t,
-      err: option(DerivationError.t),
-    };
+    and res =
+      | Correct
+      | Incorrect(DerivationError.t)
+      | Pending(ExternalError.t);
 
-    let strip_prems =
-        (prems: list(Tree.p(res))): option(list(Judgement.t)) => {
-      let prems' =
-        prems
-        |> List.map(Tree.value)
-        |> List.filter_map(
-             fun
-             | Ok(v) => Some(v.concl)
-             | _ => None,
-           );
-      List.length(prems') == List.length(prems) ? Some(prems') : None;
-    };
+    let show_res: res => string =
+      fun
+      | Correct => "✅"
+      | Pending(err) => "⌛️ " ++ ExternalError.show(err)
+      | Incorrect(err) => "❌ " ++ DerivationError.repr(err);
 
     let verify_single =
-        (acc: t, concl: abbr(ProofTree.res), prems: list(Tree.p(res))) => {
+        (
+          acc: list((tree(res), option(Judgement.t))),
+          concl: abbr(ProofTree.res),
+          prems: list((tree(res), option(Judgement.t))),
+        ) => {
+      let (sub_trees, prems) = List.split(prems);
+      let are_prems_ready = List.for_all(Option.is_some, prems);
+      let res =
+        switch (concl) {
+        | Abbr(Some(i)) => List.nth(acc, i) |> fst |> Tree.value
+        | Abbr(None) => Pending(NoAbbr)
+        | Just(Error(exn)) => Pending(exn)
+        | Just(Ok({rule: None, _})) => Pending(NoRule)
+        | Just(Ok(_)) when !are_prems_ready => Pending(PremiseNotReady)
+        | Just(Ok({jdmt: concl, rule: Some(rule)})) =>
+          let prems = prems |> List.map(Option.get);
+          switch (DerivationError.verify(rule, concl, prems)) {
+          | Some(err) => Incorrect(err)
+          | None => Correct
+          };
+        };
       let concl =
         switch (concl) {
-        // TODO: Implement this
-        // assert(List.length(prems) == 0);
-        | Abbr(Some(i)) => List.nth(acc, i) |> Tree.value
-        | Abbr(None) => Error(NoAbbr)
-        | Just(Error(exn)) => Error(exn)
-        | Just(Ok({jdmt: concl, rule: None})) =>
-          Ok({concl, err: Some(External("NoRule"))})
-        | Just(Ok({jdmt: concl, rule: Some(rule)})) =>
-          let err =
-            switch (strip_prems(prems)) {
-            | Some(prems) => DerivationError.verify(rule, concl, prems)
-            | None => Some(External("PremiseError"))
-            };
-          Ok({concl, err});
+        | Abbr(Some(i)) => List.nth(acc, i) |> snd
+        | Just(Ok({jdmt, _})) => Some(jdmt)
+        | _ => None
         };
-      Tree.Node(concl, prems);
+      (Tree.Node(res, sub_trees), concl);
     };
 
-    let verify: ProofTree.t => t =
+    let verify =
       List.fold_left(
-        (acc: t, tree: tree(ProofTree.res)) =>
-          acc @ [Tree.fold_deep(verify_single(acc), tree)],
+        (acc, tree) => acc @ [Tree.fold_deep(verify_single(acc), tree)],
         [],
       );
+
+    let verify = ts => ts |> verify |> List.map(fst);
   };
 
   module ProofReport = {
@@ -129,16 +142,16 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
     //   - all the abbreviation can be resolved
     //   - the abbreviation is not cyclic (only refer to previous nodes)
     //   - the abbreviation node is leaf (otherwise, children will be lost)
-    let strip_abbr: list(tree('a)) => list(Tree.p('a)) =
+    let strip_abbr: list(Tree.p(abbr('a))) => list(Tree.p('a)) =
       List.fold_left(
-        (acc: list(Tree.p('a)), tree: tree('a)) =>
+        (acc: list(Tree.p('a)), tree: Tree.p(abbr('a))) =>
           acc
           @ [
             Tree.fold_deep(
               (value: abbr('a), children: list(Tree.p('a))) =>
                 switch (value) {
                 | Just(v) => Tree.Node(v, children)
-                | Abbr(None) => Tree.Node(Error(ExternalError.NoAbbr), [])
+                | Abbr(None) => Tree.Node(VerifiedTree.Pending(NoAbbr), [])
                 | Abbr(Some(i)) => List.nth(acc, i)
                 },
               tree,
@@ -150,8 +163,8 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
     let grade_tree: Tree.p(VerifiedTree.res) => percentage =
       Tree.fold_deep((value: VerifiedTree.res, children: list(percentage)) =>
         switch (value, children) {
-        | (Ok({err: None, _}), []) => 1.
-        | (Ok({err: None, _}), _) =>
+        | (Correct, []) => 1.
+        | (Correct, _) =>
           List.fold_left((acc, x) => acc +. x, 0., children)
           /. float_of_int(List.length(children))
           *. 0.5
@@ -169,7 +182,7 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
         |> List.map(
              Tree.map(
                fun
-               | (Just(_), b) => Just(b)
+               | (Abbr.Just(_), b) => Abbr.Just(b)
                | (Abbr(i), _) => Abbr(i),
              ),
            );

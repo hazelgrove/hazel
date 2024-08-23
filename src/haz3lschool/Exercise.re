@@ -78,11 +78,14 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       | Proof(pos) => Proof.ModelUtil.switch_editor(pos, instructor_mode)
       };
 
-    let readonly_in = (pos: pos, instructor_mode: bool): bool =>
-      switch (pos) {
-      | Programming(pos) =>
-        Programming.ModelUtil.readonly_in(pos, instructor_mode)
-      | Proof(pos) => Proof.ModelUtil.readonly_in(pos, instructor_mode)
+    let readonly_in =
+        (pos: pos, instructor_mode: bool, model: model('a)): bool =>
+      switch (pos, model) {
+      | (Programming(pos), Programming(m)) =>
+        Programming.ModelUtil.readonly_in(pos, instructor_mode, m)
+      | (Proof(pos), Proof(m)) =>
+        Proof.ModelUtil.readonly_in(pos, instructor_mode, m)
+      | _ => failwith("Exercise(readonly_in): position mismatch")
       };
 
     let visible_in = (pos: pos, instructor_mode: bool): bool =>
@@ -159,7 +162,10 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     model:
       ModelUtil.mapi(
         (pos, editor) =>
-          Editor.set_read_only(editor, ModelUtil.readonly_in(pos, new_mode)),
+          Editor.set_read_only(
+            editor,
+            ModelUtil.readonly_in(pos, new_mode, exercise.model),
+          ),
         exercise.model,
       ),
   };

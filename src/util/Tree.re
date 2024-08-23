@@ -95,7 +95,7 @@ let nth_opt = (t, pos) =>
   | Failure(_) => None
   };
 
-let init = f => Node(f(), []);
+let empty = v => Node(v, []);
 
 let rec flatten = (Node(v, c)) =>
   [v] @ (c |> List.map(flatten) |> List.concat);
@@ -178,8 +178,7 @@ let rec split_n = (f, Node(v, c)) =>
     };
 
 // Add a new child to the node at the given position
-let add = v' =>
-  map_nth_node((Node(v, c)) => Node(v, [init(Fun.const(v')), ...c]));
+let add = v' => map_nth_node((Node(v, c)) => Node(v, [empty(v'), ...c]));
 
 // Remove a child from the node at the given position
 // @raise `Failure` if children is empty
@@ -193,9 +192,7 @@ let del_opt = (t, pos) =>
 
 // Insert a new child at the given position
 let insert = (v', i) =>
-  map_nth_node((Node(v, c)) =>
-    Node(v, ListUtil.insert(init(Fun.const(v')), c, i))
-  );
+  map_nth_node((Node(v, c)) => Node(v, ListUtil.insert(empty(v'), c, i)));
 
 let remove = i =>
   split_n((Node(v, c)) =>

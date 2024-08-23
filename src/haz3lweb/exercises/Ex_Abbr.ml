@@ -18,6 +18,7 @@ let exercise : Exercise.spec =
               "let a = atom(\"A\") in\n\
                let b = atom(\"B\") in\n\
                let gamma = [a /\\ b] in\n";
+            setup = "";
             trees =
               [
                 Node
