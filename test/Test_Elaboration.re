@@ -15,7 +15,7 @@ let alco_check = dhexp_typ |> Alcotest.check;
 let alco_check_menhir = (name: string, dhexp: string, uexp: Term.Exp.t) =>
   alco_check(
     name,
-    Haz3lcore.TermBase.Exp.of_menhir_ast(
+    Haz3lmenhir.Conversion.Exp.of_menhir_ast(
       Haz3lmenhir.Interface.parse_program(dhexp),
     ),
     dhexp_of_uexp(uexp),
@@ -75,7 +75,7 @@ let free_var_uexp: Exp.t = {
 let free_var_menhir = () =>
   alco_check(
     "Nonempty hole with free variable (menhir)",
-    Haz3lcore.TermBase.Exp.of_menhir_ast(
+    Haz3lmenhir.Conversion.Exp.of_menhir_ast(
       Haz3lmenhir.Interface.parse_program("y"),
     ),
     dhexp_of_uexp(free_var_uexp),
@@ -91,7 +91,7 @@ let bin_op_str = "false?<Bool => Int> + y<Unknown Internal => Int>";
 let bin_op_menhir = () =>
   alco_check(
     "Inconsistent binary integer operation (plus)",
-    Haz3lcore.DHExp.of_menhir_ast(
+    Haz3lmenhir.Conversion.Exp.of_menhir_ast(
       Haz3lmenhir.Interface.parse_program(bin_op_str),
     ),
     dhexp_of_uexp(bin_op_uexp),
@@ -143,7 +143,7 @@ let ap_fun_str = "
 let ap_fun_menhir = () =>
   alco_check(
     "Application of a function (menhir)",
-    Haz3lcore.DHExp.of_menhir_ast(
+    Haz3lmenhir.Conversion.Exp.of_menhir_ast(
       Haz3lmenhir.Interface.parse_program(ap_fun_str),
     ),
     dhexp_of_uexp(ap_fun_uexp),
@@ -160,7 +160,7 @@ let consistent_if_str = "
 let consistent_if_menhir = () =>
   alco_check(
     "Consistent case with rules (BoolLit(true), IntLit(8)) and (BoolLit(false), IntLit(6))",
-    Haz3lcore.DHExp.of_menhir_ast(
+    Haz3lmenhir.Conversion.Exp.of_menhir_ast(
       Haz3lmenhir.Interface.parse_program(consistent_if_str),
     ),
     dhexp_of_uexp(consistent_if_uexp),

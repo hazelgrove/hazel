@@ -19,12 +19,3 @@ let string_of_t = v => {
   | (Eval, All) => "eval"
   };
 };
-
-let of_menhir_ast = (a: Haz3lmenhir.AST.filter_action): t => {
-  switch (a) {
-  | Eval => (Eval, All)
-  | Pause => (Step, One)
-  | Debug => (Step, All)
-  | Hide => (Eval, One)
-  };
-};

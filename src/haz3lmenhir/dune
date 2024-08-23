@@ -1,6 +1,7 @@
 (library
  (name haz3lmenhir)
- (libraries util re sexplib unionFind)
+ (libraries util re sexplib unionFind haz3lcore)
+ (modules AST Conversion Interface Lexer Parser)
  (preprocess
   (pps ppx_let ppx_sexp_conv ppx_deriving.show ppx_yojson_conv)))
 

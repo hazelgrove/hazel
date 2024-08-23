@@ -18,7 +18,7 @@ let elaborate = (~settings: CoreSettings.t, map, term): DHExp.t =>
 
 let evaluate =
     (~settings: CoreSettings.t, ~env=Builtins.env_init, elab: DHExp.t)
-    : ProgramResult.t =>
+    : ProgramResult.t => {
   switch () {
   | _ when !settings.dynamics => Off({d: elab})
   | _ =>
@@ -32,3 +32,4 @@ let evaluate =
     | (state, result) => ResultOk({result, state})
     }
   };
+};

@@ -54,89 +54,12 @@ type op_un =
   | Int(op_un_int)
   | Bool(op_un_bool);
 
-let op_un_meta_of_menhir_ast = (op: Haz3lmenhir.AST.op_un_meta) => {
-  switch (op) {
-  | Unquote => Unquote
-  };
-};
-
-let op_un_int_of_menhir_ast = (op: Haz3lmenhir.AST.op_un_int): op_un_int => {
-  switch (op) {
-  | Minus => Minus
-  };
-};
-
-let op_un_bool_of_menhir_ast = (op: Haz3lmenhir.AST.op_un_bool): op_un_bool => {
-  switch (op) {
-  | Not => Not
-  };
-};
-
-let op_un_of_menhir_ast = (op: Haz3lmenhir.AST.op_un): op_un => {
-  switch (op) {
-  | Meta(meta) => Meta(op_un_meta_of_menhir_ast(meta))
-  | Int(i) => Int(op_un_int_of_menhir_ast(i))
-  | Bool(b) => Bool(op_un_bool_of_menhir_ast(b))
-  };
-};
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type op_bin =
   | Int(op_bin_int)
   | Float(op_bin_float)
   | Bool(op_bin_bool)
   | String(op_bin_string);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-let float_op_of_menhir_ast = (op: Haz3lmenhir.AST.op_bin_float): op_bin_float => {
-  switch (op) {
-  | Plus => Plus
-  | Minus => Minus
-  | Times => Times
-  | Power => Power
-  | Divide => Divide
-  | LessThan => LessThan
-  | LessThanOrEqual => LessThanOrEqual
-  | GreaterThan => GreaterThan
-  | GreaterThanOrEqual => GreaterThanOrEqual
-  | Equals => Equals
-  | NotEquals => NotEquals
-  };
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-let bool_op_of_menhir_ast = (op: Haz3lmenhir.AST.op_bin_bool): op_bin_bool => {
-  switch (op) {
-  | And => And
-  | Or => Or
-  };
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-let int_op_of_menhir_ast = (op: Haz3lmenhir.AST.op_bin_int): op_bin_int => {
-  switch (op) {
-  | Plus => Plus
-  | Minus => Minus
-  | Times => Times
-  | Power => Power
-  | Divide => Divide
-  | LessThan => LessThan
-  | LessThanOrEqual => LessThanOrEqual
-  | GreaterThan => GreaterThan
-  | GreaterThanOrEqual => GreaterThanOrEqual
-  | Equals => Equals
-  | NotEquals => NotEquals
-  };
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-let of_menhir_ast = (op: Haz3lmenhir.AST.binOp): op_bin => {
-  switch (op) {
-  | IntOp(op_int) => Int(int_op_of_menhir_ast(op_int))
-  | FloatOp(op_float) => Float(float_op_of_menhir_ast(op_float))
-  | BoolOp(op_bool) => Bool(bool_op_of_menhir_ast(op_bool))
-  };
-};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type ap_direction =

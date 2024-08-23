@@ -11,7 +11,6 @@ open AST
 %token IN_AP
 %token OUT_AP
 %token FIX
-%token BAD_CONSTRUCTOR
 %token WILD
 %token QUESTION
 %token AT_SYMBOL
@@ -32,7 +31,6 @@ open AST
 %token LET
 %token FUN
 %token CASE
-%token AS
 %token OPEN_BRACKET
 %token CLOSE_BRACKET
 %token OPEN_SQUARE_BRACKET
@@ -73,8 +71,6 @@ open AST
 %token L_OR
 %token L_NOT
 (*bitwise ops*)
-%token B_AND
-
 %token COMMA
 %token COLON
 %token EOF
@@ -93,6 +89,8 @@ open AST
 %token IF
 %token THEN
 %token ELSE
+
+
 
 %token SEMI_COLON
 
