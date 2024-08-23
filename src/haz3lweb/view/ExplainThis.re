@@ -2424,10 +2424,10 @@ let view =
     ~attrs=[Attr.id("side-bar")],
     [
       div(
-        ~attrs=[clss(["explain-this"])],
+        ~attrs=[Attr.id("explain-this")],
         [
           div(
-            ~attrs=[clss(["top-bar"])],
+            ~attrs=[clss(["header"])],
             [
               Widgets.toggle(
                 ~tooltip="Toggle highlighting",
@@ -2443,7 +2443,7 @@ let view =
                     inject(UpdateAction.Set(ExplainThis(ToggleShow)))
                   ),
                 ],
-                [text("x")],
+                [Icons.thin_x],
               ),
             ],
           ),

@@ -16,7 +16,7 @@ module FakeCode = {
   let span_explicit_hole = token_wrapper("token explicit-hole Exp mono");
   let code_wrapper = code =>
     div(
-      ~attrs=[Attr.class_("code")],
+      ~attrs=[Attr.class_("code fakecode")],
       [span(~attrs=[Attr.class_("code-text")], code)],
     );
 };
@@ -345,18 +345,21 @@ let proof_view =
        );
 
   let derivation_view =
-    Cell.simple_cell_view([
-      Cell.simple_cell_item([
-        Cell.caption("Derivation"),
-        div(
-          ~attrs=[Attr.class_("cell-derivation")],
-          info_tree
-          |> List.map(Tree.fold_deep(deduction_view))
-          |> derivation_wrapper
-          |> add_abbr_btn_wrapper,
-        ),
-      ]),
-    ]);
+    div(
+      ~attrs=[Attr.classes(["cell deselected unlocked"])],
+      [
+        Cell.simple_cell_item([
+          Cell.caption("Derivation"),
+          div(
+            ~attrs=[Attr.class_("cell-derivation")],
+            info_tree
+            |> List.map(Tree.fold_deep(deduction_view))
+            |> derivation_wrapper
+            |> add_abbr_btn_wrapper,
+          ),
+        ]),
+      ],
+    );
 
   let prelude_view =
     editor_view(

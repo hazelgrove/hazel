@@ -1,0 +1,448 @@
+/* Exercise mode styles. This may also contain
+ * some styling around test decorations which
+ * could be factored out */
+
+#main.Exercises {
+  padding: 1em;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1.2em;
+  background-color: var(--ui-bkg);
+}
+
+#main.Exercises {
+  scrollbar-color: var(--main-scroll-thumb) var(--NONE);
+}
+
+#main.Exercises .cell {
+  width: auto;
+  min-width: auto;
+}
+
+#main.Exercises .cell-caption {
+  color: var(--ui-header-text);
+  font-size: 0.8em;
+}
+
+#main.Exercises .cell-caption strong {
+  text-transform: uppercase;
+}
+
+#main.Exercises .cell.deselected {
+  border-left: 1px solid var(--cell-exercises-border);
+}
+
+#main.Exercises .cell.selected {
+  border-left: 1px solid var(--cell-selected-accent);
+  background-color: var(--cell-active);
+}
+
+#main.Exercises .cell-report {
+  padding: 1.2em;
+  background-color: var(--test-panel-bkg);
+  border-left: 1px solid #0000;
+}
+
+#main.Exercises .cell .cell-item:first-child {
+  border-top-left-radius: 0.4em;
+  border-top-right-radius: 0.4em;
+}
+
+#main.Exercises .cell .cell-item:last-child {
+  border-bottom-left-radius: 0.4em;
+  border-bottom-right-radius: 0.4em;
+}
+
+#main.Exercises .test-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1em;
+  padding: 1em;
+  background-color: var(--test-panel-bkg);
+  border-bottom: 0.5px solid var(--BR2);
+}
+
+#main.Exercises .test-reports {
+  position: relative;
+}
+
+#main.Exercises .test-report {
+  margin-right: 1em;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1em;
+  padding: 0.3em;
+  cursor: pointer;
+}
+
+#main.Exercises .test-report+.test-report {
+  border-top: 1px dotted var(--BR2);
+}
+
+#main.Exercises .test-report:hover {
+  background-color: var(--SAND);
+}
+
+.test-id.Pass {
+  color: var(--test-pass);
+}
+
+.test-id.Fail {
+  color: var(--test-fail);
+}
+
+.test-result:after {
+  position: relative;
+  bottom: 0.15em;
+  margin-left: 0.17em;
+  font-size: 64%;
+  vertical-align: super;
+  z-index: var(--test-result-z);
+}
+
+.test-instance.Pass:before,
+.test-result.Pass:after {
+  content: "✔";
+  color: var(--test-pass);
+}
+
+.test-instance.Fail:before,
+.test-result.Fail:after {
+  content: "✘";
+  color: var(--test-fail);
+}
+
+.test-instance.Indet:before,
+.test-result.Indet:after {
+  content: "?";
+  color: var(--test-indet);
+}
+
+.test-instance:before {
+  position: relative;
+  margin-top: 0.2em;
+  margin-right: 1em;
+  font-size: 64%;
+  display: flex;
+  align-items: center;
+}
+
+#main.Exercises .test-instances {
+  display: flex;
+  flex-direction: row;
+  gap: 0.2em;
+  flex-grow: 1;
+}
+
+#main.Exercises .test-instance {
+  display: flex;
+  flex-grow: 1;
+  flex-direction: row;
+}
+
+#main.Exercises .test-summary {
+  display: flex;
+  flex-direction: row;
+  gap: 1em;
+  justify-content: space-between;
+}
+
+#main.Exercises .test-bar {
+  width: 16em;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+#main.Exercises .test-text {
+  display: flex;
+  gap: 0.5em;
+  white-space: nowrap;
+}
+
+#main.Exercises .test-percent {
+  height: 1.7em;
+  display: flex;
+  padding: 0 1em 0 1em;
+  font-size: 0.7em;
+  border-radius: 1.08em;
+  background-color: var(--BR2);
+  align-items: center;
+}
+
+#main.Exercises>.test-percent {
+  position: absolute;
+  top: 0;
+  right: 0;
+  margin: 0.5em;
+  z-index: 1000;
+}
+
+#main.Exercises .test-percent.all-pass {
+  background-color: var(--test-pass);
+  color: var(--test-percent-text);
+  animation: jello 1s ease 0s 1 normal none;
+}
+
+#main.Exercises .test-percent.some-fail {
+  color: var(--light-page-color);
+}
+
+#main.Exercises .test-bar .segment:first-child {
+  border-radius: 0.3em 0 0 0.3em;
+}
+
+#main.Exercises .test-bar .segment:last-child {
+  border-radius: 0 0.3em 0.3em 0;
+}
+
+#main.Exercises .test-bar .segment:only-child {
+  border-radius: 0.3em 0.3em 0.3em 0.3em;
+}
+
+#main.Exercises .test-bar .segment {
+  flex-grow: 1;
+  height: 0.5em;
+  cursor: pointer;
+}
+
+#main.Exercises .test-bar .segment.Pass {
+  background-color: var(--test-pass);
+}
+
+#main.Exercises .test-bar .segment.Pass:hover {
+  background-color: var(--test-pass-active);
+}
+
+#main.Exercises .test-bar .segment.Fail {
+  background-color: var(--test-fail);
+}
+
+#main.Exercises .test-bar .segment.Fail:hover {
+  background-color: var(--test-fail-active);
+}
+
+#main.Exercises .test-bar .segment.Indet {
+  background-color: var(--test-indet);
+}
+
+#main.Exercises .test-bar .segment.Indet:hover {
+  background-color: var(--test-indet-active);
+}
+
+#main.Exercises .context-entry {
+  max-width: fit-content;
+  /* Correct implementation type sigs */
+}
+
+
+/* DERIVATION */
+
+.cell-derivation {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.code-text:after {
+  content: "";
+}
+
+.code.fakecode {
+  display: flex;
+  align-items: center;
+  height: 2.2rem;
+}
+
+.deduction-concl {
+  display: flex;
+  justify-content: center;
+}
+
+.deduction-concl .cell {
+  border-left: none !important;
+}
+
+.deduction-concl .cell-item {
+  padding: 0.3em 0.5em;
+}
+
+.deduction-concl .cell-item:hover {
+  background-color: var(--cell-active)
+}
+
+.deduction-prems-label {
+  display: flex;
+  flex-wrap: nowrap;
+  /* This is neccessary? */
+  align-items: flex-end;
+  justify-content: space-between;
+  border-bottom: var(--BR2) 0.1em solid;
+  border-bottom-right-radius: 0.4em;
+}
+
+.deduction-prems {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+}
+
+.add-abbr-btn,
+.add-premise-btn {
+  cursor: pointer;
+  color: var(--BR2);
+  border-radius: 0.4em;
+  margin: 0.2em 0.2em;
+  width: 1.4em;
+  height: 1.8em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+
+.add-abbr-btn {
+  height: 1.4rem;
+  padding-right: 12rem;
+}
+
+.add-abbr-btn:hover,
+.add-premise-btn:hover {
+  color: var(--ui-bkg);
+  background: var(--BR2);
+}
+
+.deduction-label-container {
+  position: relative;
+  display: flex;
+}
+
+/* Dropdown button */
+.deduction-label {
+  color: var(--ui-bkg);
+  padding: 0 0.3rem;
+  font-size: 0.7rem;
+  height: 1rem;
+  min-width: 0.4rem;
+  border-radius: 0.4rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-wrap: nowrap;
+  background-color: var(--BR2);
+  transform: translateY(0.05rem);
+  cursor: grab;
+}
+
+.del-premise-btn {
+  display: none;
+  position: absolute;
+  top: 0;
+  right: -1rem;
+  padding: 0 0.3rem;
+  font-size: 0.7rem;
+  height: 1.05rem;
+  min-width: 0.4rem;
+  border-radius: 0.4rem;
+  background-color: var(--BR2);
+  color: var(--test-fail);
+  z-index: var(--top-bar-z);
+  transform: translateY(0.05rem);
+}
+
+.del-premise-btn:hover {
+  background-color: var(--test-fail);
+  color: var(--ui-bkg);
+}
+
+/* Dropdown content (hidden by default) */
+.dropdown {
+  display: none;
+  position: absolute;
+  bottom: 1rem;
+  left: 0;
+  background-color: var(--ui-bkg);
+  max-width: 12em;
+  border: var(--BR2) 0.1rem solid;
+  border-radius: 0.4em;
+  z-index: var(--top-bar-z);
+  transform: translateY(0.05rem);
+}
+
+.dropdown-result {
+  padding: 0.5em;
+  text-align: center;
+  font-size: 0.7em;
+  border-bottom: var(--BR2) 0.1em solid;
+}
+
+.dropdown.correct,
+.deduction-prems-label.correct {
+  border-color: var(--test-pass);
+}
+
+.deduction-label.correct {
+  background-color: var(--test-pass);
+}
+
+.dropdown.incorrect,
+.deduction-prems-label.incorrect {
+  border-color: var(--test-fail);
+}
+
+.deduction-label.incorrect {
+  background-color: var(--test-fail);
+}
+
+/* Links inside the dropdown */
+.dropdown-option-container {
+  padding: 0.4rem;
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  text-align: left;
+  min-width: 10rem;
+  border-bottom: var(--BR2) 0.1em solid;
+}
+
+/* Show the dropdown menu on hover */
+.deduction-label-container:hover .dropdown {
+  display: block;
+}
+
+.deduction-label-container:hover .del-premise-btn {
+  display: inline-flex;
+}
+
+.dropdown-option {
+  color: var(--ui-bkg);
+  height: 1rem;
+  display: flex;
+  padding: 0 0.3rem;
+  font-size: 0.7em;
+  border-radius: 0.4em;
+  background-color: var(--BR2);
+  align-items: center;
+  box-sizing: border-box;
+  color: var(--token-exp);
+  background-color: var(--ui-bkg);
+  border: var(--token-exp) 0.1rem solid;
+}
+
+.dropdown-option.abbr {
+  height: 1.5rem;
+}
+
+.dropdown-option.default {
+  color: var(--token-explicit-hole);
+  text-shadow: 1px 1px 0px var(--token-explicit-hole-shadow);
+}
+
+/* Add a grey background color to dropdown links on hover */
+.dropdown-option:hover {
+  cursor: pointer;
+  text-decoration: strong;
+}
