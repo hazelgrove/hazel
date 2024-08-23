@@ -1,0 +1,94 @@
+/* CELL: This is an ill-defined category at the moment;
+ * ~ everything below the main panel, but above the code
+ * display in the hierarchy */
+
+#mousedown-overlay {
+  cursor: text;
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+  background-color: transparent;
+  z-index: var(--overlay-z);
+}
+
+#clipboard-shim {
+  /* probably overkill for hiding it... */
+  position: fixed;
+  opacity: 0.01;
+  width: 1em;
+  height: 1em;
+  top: -1em;
+  left: -1em;
+}
+
+.code-container {
+  position: relative;
+}
+
+#main .code-container {
+  /* Only code in primary editor is selectable atm */
+  cursor: text;
+}
+
+.cell {
+  border: none;
+  border-radius: 0.4em;
+  width: fit-content;
+  min-width: 100%;
+}
+
+.cell-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1em;
+  padding-left: 1em;
+  padding: 1em;
+  padding-left: 1.2em;
+}
+
+.cell.selected .cell-item:first-child {
+  background-color: var(--cell-active);
+}
+
+.title-cell {
+  padding-left: 1em;
+}
+
+.title-cell .title-text {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: var(--BR4);
+}
+
+.cell-prompt {
+  padding: 1em;
+}
+
+/* DOCUMENTATION SLIDES */
+
+.slide-img {
+  border-radius: 0.4em;
+  margin-bottom: 1em;
+}
+
+#slide {
+  background-color: var(--cell-active);
+  padding: 1em;
+}
+
+.slide h1 {
+  margin-top: 0;
+  color: var(--BR4);
+}
+
+.em {
+  font-style: italic;
+}
+
+/* ??? */
+
+.file-select-button {
+  display: none;
+}

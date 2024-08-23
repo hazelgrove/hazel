@@ -19,7 +19,7 @@ let settings_modal = (~inject, settings: CoreSettings.Evaluation.t) => {
       div(
         ~attrs=[Attr.class_("settings-modal-top")],
         [
-          Widgets.button(Icons.x, _ =>
+          Widgets.button(Icons.thin_x, _ =>
             inject(Update.Set(Evaluation(ShowSettings)))
           ),
         ],

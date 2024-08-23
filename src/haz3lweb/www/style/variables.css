@@ -1,0 +1,234 @@
+:root {
+  /* Code and UI font */
+
+  --line-height: 1.45;
+  --base-font-size: 13pt;
+  --code-font: "Source Code Pro", monospace;
+  --ui-font: "Helvetica Neue";
+
+  /* This palette pulls out most colors used across Hazel */
+
+  /* BASE */
+  --NONE: oklch(0% 0 0 / 0%); /* transparent */
+  --SAND: oklch(99% 0.012 90); /* code background */
+  --STONE: oklch(52% 0.03 220); /* code text */
+  --BLACK: oklch(0% 0 0); /* use sparingly */
+
+  /* SHALE - focal syntax and top level ui */
+  --BR1: oklch(85% 0.07 90); /* caret shard, token buffer*/
+  --BR2: oklch(from var(--BR1) 70% c h); /* exp shard arms */
+  --BR3: oklch(from var(--BR1) 60% c h); /* top ui accent */
+  --BR4: oklch(from var(--BR1) 50% c h); /* top ui accent */
+
+  /* CLAY - peripheral syntax */
+  --T1: oklch(97% 0.025 90); /* buffer shards */
+  --T2: oklch(from var(--T1) 94% c h); /* projector shards */
+  --T3: oklch(from var(--T1) 91% c h); /* result background */
+
+  /* MOLTEN - under construction */
+  --Y0: oklch(95% 0.05 90); /* menu fill */
+  --Y1: oklch(91% 0.11 95); /* selections */
+  --Y2: oklch(88% 0.2 95); /* explicit hole */
+  --Y3: oklch(71% 0.2 95); /* incomplete shards */
+
+  --OR1: oklch(86.76% 0.12 83.6); /* peach orange */
+  --OR2: oklch(73.49% 0.161 58.77); /* darker orange  */
+
+  /* MAGMA - opportunities */
+  --R0: oklch(85% 0.1 30); /* broken shard fill */
+  --R1: oklch(60% 0.3 30); /* caret, error stroke */
+  --R2: oklch(40% 0.3 30); /* error text, broken shard text
+
+  /* GLASS - sorts */
+  --TYP: oklch(60% 0.2 300);
+  --PAT: oklch(from var(--TYP) l c calc(h - 1 * 75));
+  --TPAT: var(--PAT);
+
+  /* AURA - docs highlighting */
+  --highlight-a: oklch(0.95 0.07 360);
+  --highlight-b: oklch(from var(--highlight-a) l c calc(h - 1 * 120));
+  --highlight-c: oklch(from var(--highlight-a) l c calc(h - 2 * 120));
+
+  /* MOSS - affirmations */
+  --G0: oklch(70% 0.15 150); /* page title, passing tests */
+  --G1: oklch(85% 0.15 150); /* ! passing tests hover */
+  --G2: oklch(80% 0.05 150); /* ! comments */
+  --GB0: oklch(70% 0.05 120); /* ! nut menu active */
+  --GB1: oklch(45% 0.05 120); /* ! nut menu fill */
+
+  /* FREE PARKING - ??? */
+
+  --textarea-v-stripe: oklch(78% 0.14 6 / 55%);
+  --textarea-h-stripe: oklch(87% 0.07 246);
+  --textarea-h-strip-selected: oklch(68% 0.14 76 / 30%);
+  --SHADOW: oklch(50% 0.1 90 / 33%);
+  --ERRHOLE: oklch(96% 0.02 47); /* temporary due to child arms */
+  --WARNINGHOLE: oklch(96% 0.02 47); /* temporary due to child arms */
+  --CREASE: oklch(0% 0 0 / 40%);
+
+  /* CODE BACKGROUND */
+
+  --main-bkg: var(--T3);
+  --light-page-color: var(--menu-item-hover-bkg);
+  --cell-active: var(--SAND);
+  --main-scroll-thumb: var(--BR1);
+  --main-scroll-track: var(--SAND);
+  --cell-selected-accent: var(--R1);
+
+  /* CODE DECO */
+
+  --caret-color: var(--R1);
+  --error-hole-stroke: var(--R1);
+  --warning-hole-stroke: var(--OR2);
+
+  /* CODE TOKENS */
+
+  --token-exp: var(--STONE);
+  --token-pat: var(--PAT);
+  --token-typ: var(--TYP);
+  --token-tpat: var(--TPAT);
+  --token-string-lit: var(--Y3);
+  --token-comment: var(--G2);
+  --token-incomplete: var(--Y3);
+  --token-inconsistent: var(--BR2);
+  --token-buffer: var(--BR1);
+  --token-explicit-hole: var(--Y2);
+  --token-explicit-hole-shadow: var(--BLACK);
+  --token-secondary: var(--shard-exp);
+  --token-rul: var(--token-exp);
+  --token-nul: var(--R2);
+  --token-any: var(--token-nul);
+
+  /* CODE SHARDS */
+
+  --shard-caret-exp: var(--T2);
+  --shard-lines-exp: var(--BR1);
+  --shard-exp: var(--T2);
+  --shard-caret-pat: oklch(from var(--token-pat) 95% calc(c/4) h);
+  --shard-caret-typ: oklch(from var(--token-typ) 95% calc(c/4) h);
+  --shard-caret-tpat: oklch(from var(--token-tpat) 95% calc(c/4) h);
+  --shard-pat: var(--shard-caret-pat);
+  --shard-typ: var(--shard-caret-typ);
+  --shard-tpat: var(--shard-caret-tpat);
+  --shard-selected: var(--Y1);
+  --shard-buffer: var(--T1);
+  --shard_projector: var(--T2);
+  --shard-rul: var(--shard-exp);
+  --shard-lines-rul: var(--shard-lines-exp);
+  --shard-nul: var(--R0);
+  --shadow-nul: var(--R0);
+  --shard-any: var(--shard-nul);
+  --shadow-any: var(--shadow-nul);
+
+  /* EMPTY HOLE DECO */
+
+  --empty-hole-stroke: var(--BR1);
+  --empty-hole-fill: var(--Y0);
+
+  /* ERROR HOLE DECO */
+
+  --error-hole-fill: var(--ERRHOLE);
+  --warning-hole-fill: var(--WARNINGHOLE);
+
+  /* BACKPACK DECO */
+
+  --backpack-selection: var(--shard-selected);
+  --backpack-joiner: var(--backpack-selection);
+  --backpack-genie: var(--backpack-selection);
+  --backpack-selection-outline: var(--light-page-color);
+  --backback-targets: var(--Y3);
+
+  /* PROJECTORS */
+  --textarea-indicated: var(--SAND);
+  --textarea-text: var(--BR3);
+
+  /* DYNAMICS UI */
+
+  --cell-result-text: var(--BR4);
+  --cell-result-border: var(--BR1);
+  --cell-result-hidden: var(--BR1); /* ?? */
+  --eval-exception: var(--test-fail-active);
+  --eval-exception-stroke: var(--R2);
+  --step-hole-color: var(--G0);
+
+  /* TOP-LEVEL UI */
+
+  --select-text: var(--BR4);
+  --editor-mode-text: var(--BR4);
+
+  --toggle-knob: var(--SAND);
+
+  --primary-accent: var(--G0);
+  --nut-menu: var(--GB1);
+  --nut-menu-active: var(--GB0);
+
+  --menu-bkg: var(--Y0);
+  --menu-item-hover-bkg: var(--SAND);
+  --menu-item-text: var(--STONE);
+  --menu-scroll-track: var(--BR1);
+  --menu-scroll-thumb: var(--BR2);
+  --menu-outline: var(--BR2);
+  --menu-icon: var(--BR2);
+  --menu-group-name: var(--BR4);
+  --menu-divider: var(--CREASE);
+  --menu-shadow: var(--SHADOW);
+
+  --ui-bkg: var(--T1);
+  --ci-icon-bkg: var(--BR3);
+  --ci-status-text: var(--BR4);
+  --ci-status-error-text: var(--R2);
+  --ci-status-error-bkg: var(--test-fail-active);
+  --ci-status-warning-text: var(--OR2);
+  --ci-status-warning-bkg: var(--OR1);
+
+  --context-inspector-colon: var(--BR2);
+
+  --ui-header-text: var(--BR3);
+  --explain-this-expander: var(--BR3);
+
+  /* EXERCISE MODE UI */
+
+  --cell-caption: var(--BR2);
+  --cell-result: var(--T3);
+  --cell-exercises-border: var(--BR2);
+  --test-panel-bkg: var(--menu-bkg);
+  --test-percent-text: var(--SAND);
+
+  --test-pass: var(--G0);
+  --test-pass-active: var(--G1);
+  --test-fail: var(--R1);
+  --test-fail-active: var(--R0);
+  --test-indet: var(--BR2);
+  --test-indet-active: var(--BR1);
+
+  /* Z-STACK */
+
+  /* BELOW CODE LEVEL */
+  --err-hole-arms-z: 0;
+  --tile-z: 1;
+  --projector-backing-z: 1;
+  --err-hole-z: 2;
+  --warning-hole-z: 2;
+  --select-z: 4;
+  --test-result-z: 5;
+
+  /* AT CODE LEVEL */
+  --code-text-z: 10;
+  --empty-hole-z: 10;
+  --projector-z: 10;
+
+  /* ABOVE CODE LEVEL */
+  --backpack-targets-z: 11;
+  --caret-z: 20;
+
+  /* TOP LEVEL UI */
+  --context-inspector-z: 29; /* keep below bottom bar */
+  --bottom-bar-z: 30;
+  --top-bar-z: 30;
+  --explainthis-expander-z: 30;
+
+  /* HACKS */
+  --overlay-z: 100;
+  --modal-back-z: 100;
+  --modal-z: 101;
+}

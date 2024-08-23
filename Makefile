@@ -8,11 +8,14 @@ all: dev
 
 deps:
 	opam update
-	opam switch import opam.export
+	opam install ./hazel.opam.locked --deps-only --with-test --with-doc
 
 change-deps:
-	opam switch export opam.export
-	sed -i '' '/host-/d' opam.export # remove host- lines which are arch-specific
+	opam update
+	dune build hazel.opam
+	opam install ./hazel.opam --deps-only --with-test --with-doc
+	opam lock .
+	sed -i'.old' '/host-/d' hazel.opam.locked  # remove host- lines which are arch-specific. Not using -i '' because of portability issues https://stackoverflow.com/questions/4247068/sed-command-with-i-option-failing-on-mac-but-works-on-linux
 
 setup-instructor:
 	cp src/haz3lweb/ExerciseSettings_instructor.re src/haz3lweb/ExerciseSettings.re
@@ -20,7 +23,8 @@ setup-instructor:
 setup-student: 
 	cp src/haz3lweb/ExerciseSettings_student.re src/haz3lweb/ExerciseSettings.re
 
-dev-helper: 
+dev-helper:
+	dune fmt --auto-promote || true
 	dune build @src/fmt --auto-promote src --profile dev
 
 dev: setup-instructor dev-helper
@@ -55,8 +59,12 @@ repl:
 	dune utop src/haz3lcore
 
 test:
+	dune fmt --auto-promote || true
 	dune build @src/fmt @test/fmt --auto-promote src test --profile dev
 	node $(TEST_DIR)/haz3ltest.bc.js
+
+watch-test:
+	dune build @fmt @runtest --auto-promote --watch
 
 clean:
 	dune clean

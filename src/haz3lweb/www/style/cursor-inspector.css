@@ -1,0 +1,290 @@
+/* CURSOR INSPECTOR */
+
+#cursor-inspector {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5em;
+}
+
+#cursor-inspector.no-info {
+  align-items: center;
+}
+
+#cursor-inspector.error {
+  border-color: var(--R1);
+}
+
+#cursor-inspector.warning {
+  border-color: var(--Y4);
+}
+
+#cursor-inspector .icon {
+  display: flex;
+  padding: 0.2em;
+  mix-blend-mode: luminosity;
+}
+
+#cursor-inspector .syntax-class {
+  display: flex;
+  align-items: center;
+}
+
+#cursor-inspector .gamma {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  font-family: math;
+  font-weight: normal;
+  background-color: var(--ci-icon-bkg);
+  border-radius: 0 1.1em 0 0;
+  padding-left: 0.5em;
+  padding-right: 0.7em;
+  color: var(--light-page-color);
+  height: 100%;
+  transition: border-radius 0.2s ease-in;
+}
+#cursor-inspector .Exp .gamma {
+  background-color: var(--ci-icon-bkg);
+}
+#cursor-inspector .Pat .gamma {
+  background-color: var(--token-pat);
+}
+#cursor-inspector .Typ .gamma {
+  background-color: var(--token-typ);
+}
+#cursor-inspector .TPat .gamma {
+  background-color: var(--token-tpat);
+}
+
+#cursor-inspector .ci-header .gamma:hover,
+#cursor-inspector .ci-header.error .gamma:hover,
+#cursor-inspector .ci-header .gamma.visible,
+#cursor-inspector .ci-header.error  .gamma.visible,
+#bottom-bar:has(~ .context-inspector:hover) .gamma {
+  background-color: #dfcc99;
+  outline: 0.3px solid var(--BR3);
+  color: var(--BR4);
+}
+
+#cursor-inspector .ci-header .gamma:hover,
+#cursor-inspector .ci-header.warning .gamma:hover,
+#cursor-inspector .ci-header .gamma.visible,
+#cursor-inspector .ci-header.warning .gamma.visible,
+#bottom-bar:has(~ .context-inspector:hover) .gamma {
+    background-color: #dfcc99;
+    outline: 0.3px solid var(--O2);
+    color: var(--O1);
+}
+
+#cursor-inspector .gamma.visible,
+#bottom-bar:has(~ .context-inspector:hover) .gamma {
+  border-radius: 0;
+}
+
+#cursor-inspector .ci-header {
+  outline: 0.6px solid var(--BR2);
+  padding: 0em 0.6em 0em 0em;
+  border-radius: 0 1.1em 0 0;
+  display: flex;
+  gap: 0.5em;
+  align-items: center;
+  white-space: nowrap;
+}
+
+#cursor-inspector .ci-header.error {
+  background-color: var(--ci-status-error-bkg);
+  color: var(--ci-status-error-text);
+}
+#cursor-inspector .ci-header.error .gamma {
+  background-color: var(--R2);
+}
+#cursor-inspector .ci-header.error .toggle-switch {
+  background-color: var(--R2);
+}
+#cursor-inspector .ci-header.error .toggle-switch .toggle-knob {
+  color: var(--R2);
+}
+
+#cursor-inspector .ci-header.warning {
+    background-color: var(--ci-status-warning-bkg);
+    color: var(--ci-status-warning-text);
+}
+
+#cursor-inspector .ci-header.warning .gamma {
+    background-color: var(--O1);
+}
+
+#cursor-inspector .ci-header.warning .toggle-switch {
+    background-color: var(--O2);
+}
+
+#cursor-inspector .ci-header.warning .toggle-switch .toggle-knob {
+    color: var(--Y4);
+}
+
+#cursor-inspector .ci-header.ok .toggle-switch .toggle-knob {
+  background-color: var(--SAND);
+}
+#cursor-inspector .ci-header.ok.Exp .toggle-switch.active  {
+  background-color: var(--BR3);
+}
+#cursor-inspector .ci-header.ok.Pat .toggle-switch.active  {
+  background-color: var(--token-pat);
+}
+#cursor-inspector .ci-header.ok.Typ .toggle-switch.active  {
+  background-color: var(--token-typ);
+}
+#cursor-inspector .ci-header.ok.TPat .toggle-switch.active  {
+  background-color: var(--token-tpat);
+}
+#cursor-inspector .ci-header.ok.Exp .toggle-switch .toggle-knob  {
+  color: var(--BR3);
+}
+#cursor-inspector .ci-header.ok.Pat .toggle-switch .toggle-knob{
+  color: var(--token-pat);
+}
+#cursor-inspector .ci-header.ok.Typ .toggle-switch .toggle-knob {
+  color: var(--token-typ);
+}
+#cursor-inspector .ci-header.ok.TPat .toggle-switch .toggle-knob {
+  color: var(--token-tpat);
+}
+
+#cursor-inspector .ci-header.ok.Nul {
+  background-color: var(--shard-nul);
+  color: var(--shadow-nul);
+}
+#cursor-inspector .ci-header.ok.Any {
+  background-color: var(--shard-any);
+  color: var(--shadow-any);
+}
+#cursor-inspector .ci-header.ok.Exp {
+  background-color: var(--shard-exp);
+  color: var(--BR3);
+}
+#cursor-inspector .ci-header.ok.Pat {
+  background-color: var(--shard-pat);
+  color: var(--token-pat);
+}
+#cursor-inspector .ci-header.ok.Typ {
+  background-color: var(--shard-typ);
+  color: var(--token-typ);
+}
+#cursor-inspector .ci-header.ok.Rul {
+  background-color: var(--shard-rul);
+  color: var(--shard-lines-rul);
+}
+#cursor-inspector .ci-header.ok.TPat {
+  background-color: var(--shard-tpat);
+  color: var(--token-tpat);
+}
+
+#cursor-inspector .term-tag {
+  font-weight: bolder;
+  text-transform: uppercase;
+}
+
+#cursor-inspector .status.error .code {
+  padding: 0 0.3em 0 0.3em;
+  border-radius: 0.2em;
+  border-bottom: 1px solid var(--ci-status-error-text);
+}
+
+#cursor-inspector .status.ok,
+#cursor-inspector .status.error {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  white-space: nowrap;
+  color: var(--ci-status-text);
+}
+
+#cursor-inspector .status.error {
+  color: var(--ci-status-error-text);
+}
+
+#cursor-inspector .status.warning .code {
+    padding: 0 0.3em 0 0.3em;
+    border-radius: 0.2em;
+    border-bottom: 1px solid var(--ci-status-warning-text);
+}
+
+#cursor-inspector .status.ok,
+#cursor-inspector .status.warning {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    white-space: nowrap;
+    color: var(--ci-status-text);
+}
+
+#cursor-inspector .status.warning {
+    color: var(--ci-status-warning-text);
+}
+
+
+#page > .context-inspector {
+  position: absolute;
+  z-index: var(--context-inspector-z);
+  bottom: 2em;
+  min-width: 10em;
+  max-height: 11.15em;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  white-space: nowrap;
+  border-radius: 0 0.2em 0em 0;
+  outline: 0.6px solid var(--menu-outline);
+  background-color: var(--menu-bkg);
+  box-shadow: 0px 20px 20px var(--menu-shadow);
+  scrollbar-color: var(--menu-scroll-thumb) var(--menu-scroll-track);
+  scrollbar-width: thin;
+  /* below triggers chrome jank bug */
+  /* scroll-snap-type: y mandatory; */
+  direction: rtl;
+}
+@supports (-moz-appearance: none) {
+  .context-inspector {
+    scroll-snap-type: y mandatory;
+  }
+}
+
+.context-inspector .context-entry {
+  scroll-snap-align: end;
+  direction: ltr;
+  width: 100%;
+  max-width: 18em;
+  padding-left: 0.3em;
+  padding-right: 0.9em;
+  border-bottom: 0.5px solid #0002;
+}
+
+.context-inspector .context-entry:hover {
+  max-width: 400em;
+  background-color: var(--menu-item-hover-bkg);
+}
+
+.context-inspector .context-entry:hover .name {
+  filter: brightness(0);
+}
+
+.context-inspector::-webkit-scrollbar {
+  background-color: var(--menu-scroll-track);
+}
+
+/* Un-namespaced for exercise mode display */
+
+.context-inspector .context-entry {
+  display: flex;
+  gap: 0.5em;
+  cursor: pointer;
+}
+
+.context-inspector .context-entry .name {
+  color: var(--menu-item-text);
+}
+
+.context-inspector .context-entry .seperator {
+  color: var(--context-inspector-colon);
+}

@@ -1,0 +1,325 @@
+/* Code text and decoration style */
+
+/* Use this style for all text that should
+ * be formatted like code, even if it's not
+ * going to be inside an editor. For example,
+ * this is used for CI type displays */
+.code {
+  line-height: var(--line-height);
+  white-space: pre;
+  font-family: var(--code-font);
+  font-weight: normal;
+  font-size: var(--base-font-size);
+}
+
+.code-text {
+  position: relative;
+  z-index: var(--code-text-z);
+  white-space: pre;
+}
+
+/* This is a hack to compensating for default linebreak handling
+* preventing a trailing linebreak in code editors from leaving a
+* trailing blank line, as per https://stackoverflow.com/questions/43492826/ */
+.code-text:after {
+  content: " ";
+}
+
+/* TOKEN COLORS */
+
+.code .token.Nul {
+  color: var(--token-nul);
+}
+.code .token.Any {
+  color: var(--token-any);
+}
+.code .token.Exp {
+  color: var(--token-exp);
+}
+.code .token.Pat {
+  color: var(--token-pat);
+}
+.code .token.Typ {
+  color: var(--token-typ);
+}
+.code .token.Rul {
+  color: var(--token-rul);
+}
+.code .token.TPat {
+  color: var(--token-tpat);
+}
+
+.code .token.poly {
+  font-weight: bold;
+}
+
+.code .token.mono.string-lit {
+  color: var(--token-string-lit);
+}
+
+.code .token.in-buffer {
+  color: var(--token-buffer);
+}
+
+.code .token.sort-inconsistent {
+  color: var(--token-inconsistent);
+}
+
+.code .token.incomplete {
+  color: var(--token-incomplete);
+}
+
+.code .token.explicit-hole {
+  color: var(--token-explicit-hole);
+  text-shadow: 1px 1px 0px var(--token-explicit-hole-shadow);
+}
+
+.code .comment {
+  color: var(--token-comment);
+}
+
+.code .whitespace {
+  color: var(--token-secondary);
+}
+
+.code .linebreak {
+  color: var(--token-secondary);
+  font-family: system-ui;
+  vertical-align: middle;
+  font-size: 0.59em;
+}
+
+/* TOKEN BACKING DECOS */
+
+svg.shard > path {
+  vector-effect: non-scaling-stroke;
+}
+
+svg.shard.indicated.Nul > path {
+  fill: var(--shard-nul);
+  filter: url(#drop-shadow-Nul);
+}
+svg.shard.indicated.Any > path {
+  fill: var(--shard-any);
+  filter: url(#drop-shadow-Any);
+}
+svg.shard.indicated.Exp > path {
+  fill: var(--shard-exp);
+  filter: url(#drop-shadow-Exp);
+}
+svg.shard.indicated.Pat > path {
+  fill: var(--shard-pat);
+  filter: url(#drop-shadow-Pat);
+}
+svg.shard.indicated.Typ > path {
+  fill: var(--shard-typ);
+  filter: url(#drop-shadow-Typ);
+}
+svg.shard.indicated.Rul > path {
+  fill: var(--shard-rul);
+  filter: url(#drop-shadow-Rul);
+}
+svg.shard.indicated.TPat > path {
+  fill: var(--shard-tpat);
+  filter: url(#drop-shadow-TPat);
+}
+
+svg.shard.indicated.caret.Exp > path {
+  fill: var(--shard-caret-exp);
+}
+svg.shard.indicated.caret.Pat > path {
+  fill: var(--shard-caret-pat);
+}
+svg.shard.indicated.caret.Typ > path {
+  fill: var(--shard-caret-typ);
+}
+.svg.shard.indicated.caret.TPat > path {
+  fill: var(--shard-caret-tpat);
+}
+
+svg.shard.indicated {
+  z-index: var(--tile-z);
+}
+svg.shard.selected {
+  z-index: var(--select-z);
+}
+svg.shard.error {
+  z-index: var(--err-hole-z);
+}
+
+svg.shard.warning {
+    z-index: var(--warning-hole-z);
+}
+
+svg.shard.selected > path {
+  fill: var(--shard-selected);
+  stroke-width: 0.5px;
+  stroke: var(--shard-selected);
+  filter: url(#drop-shadow-Nul);
+}
+svg.shard.selected.buffer > path {
+  fill: var(--shard-buffer);
+  stroke-width: 0;
+  filter: none;
+}
+svg.shard.error > path,
+.errors .errors-piece svg .child-line {
+  stroke: var(--error-hole-stroke);
+  stroke-width: 0.75px;
+  stroke-dasharray: 1, 1;
+  stroke-linecap: butt;
+}
+svg.shard.error > path {
+  fill: var(--error-hole-fill);
+}
+
+svg.shard.warning>path,
+.warnings .warnings-piece svg .child-line {
+    stroke: var(--warning-hole-stroke);
+    stroke-width: 0.75px;
+    stroke-dasharray: 1, 1;
+    stroke-linecap: butt;
+}
+
+svg.shard.warning>path {
+    fill: var(--warning-hole-fill);
+}
+
+/* SHARD DROP SHADOWS */
+
+#filters {
+  position: fixed;
+  height: 0;
+  width: 0;
+}
+
+#drop-shadow-Nul .tile-drop-shadow {
+  flood-color: var(--shadow-nul);
+}
+#drop-shadow-Any .tile-drop-shadow {
+  flood-color: var(--shadow-any);
+}
+#drop-shadow-Exp .tile-drop-shadow {
+  flood-color: var(--shard-lines-exp);
+}
+#drop-shadow-Pat .tile-drop-shadow {
+  flood-color: var(--token-pat);
+}
+#drop-shadow-Typ .tile-drop-shadow {
+  flood-color: var(--token-typ);
+}
+#drop-shadow-Rul .tile-drop-shadow {
+  flood-color: var(--shard-lines-rul);
+}
+#drop-shadow-TPat .tile-drop-shadow {
+  flood-color: var(--token-tpat);
+}
+
+/* EMPTY HOLE DECO */
+
+.empty-hole {
+  z-index: var(--empty-hole-z);
+}
+
+.empty-hole-path {
+  fill: var(--empty-hole-fill);
+  stroke: var(--empty-hole-stroke);
+  stroke-width: 0.75px;
+  vector-effect: non-scaling-stroke;
+}
+
+/* CARET DECO */
+
+#caret {
+  z-index: var(--caret-z);
+}
+
+#caret.blink {
+  animation: 1s blink step-end infinite;
+}
+
+.caret-path {
+  fill: var(--caret-color);
+  stroke: none;
+}
+
+/* TERM INDICATION DECO */
+
+.child-line {
+  stroke-width: 1;
+  stroke-linecap: round;
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+svg:has(.child-line) {
+  z-index: var(--err-hole-arms-z);
+}
+
+.child-line.Nul {
+  stroke: var(--shadow-nul);
+}
+.child-line.Any {
+  stroke: var(--shadow-any);
+}
+.child-line.Exp {
+  stroke: var(--shard-lines-exp);
+}
+.child-line.Pat {
+  stroke: var(--token-pat);
+}
+.child-line.Typ {
+  stroke: var(--token-typ);
+}
+.child-line.Rul {
+  stroke: var(--shard-lines-rul);
+}
+.child-line.TPat {
+  stroke: var(--token-tpat);
+}
+
+/* BACKPACK DECO */
+
+.backpack .code-text {
+  position: relative;
+}
+
+.backpack.cant-put-down {
+  opacity: 40%;
+}
+
+.backpack-joiner {
+  opacity: 40%;
+}
+
+.backpack-selection {
+  white-space: nowrap;
+  border-radius: 0.2em 0.2em 0.2em 0em;
+  padding: 0 0.2em 0 0.2em;
+  line-height: var(--line-height);
+  width: fit-content;
+  background-color: var(--backpack-selection);
+  outline: 1px solid var(--backpack-selection-outline);
+}
+
+.backpack-joiner {
+  border-radius: 2px;
+  width: 2px;
+  background-color: var(--backpack-joiner);
+}
+
+.backpack-genie {
+  stroke-width: 0;
+  fill: var(--backpack-genie);
+  vector-effect: non-scaling-stroke;
+}
+
+/* BACKPACK TARGETS DECO */
+
+.backpack-target {
+  z-index: var(--backpack-targets-z);
+}
+
+.caret-position-path {
+  fill: var(--backback-targets);
+}

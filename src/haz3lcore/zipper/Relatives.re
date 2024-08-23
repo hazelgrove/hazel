@@ -64,9 +64,6 @@ let delete_parent = ({siblings, ancestors}: t): t => {
   };
 };
 
-let disassemble = ({siblings, ancestors}: t): Siblings.t =>
-  Siblings.concat([siblings, Ancestors.disassemble(ancestors)]);
-
 let remold = ({siblings, ancestors}: t): t => {
   let s = Ancestors.sort(ancestors);
   let siblings = Siblings.remold(siblings, s);
@@ -119,24 +116,6 @@ let regrout = (d: Direction.t, {siblings, ancestors}: t): t => {
   };
   {siblings, ancestors};
 };
-
-let prepend_generation = ((a, sibs): Ancestors.generation, rs: t): t => {
-  siblings: Siblings.empty,
-  ancestors: [(a, Siblings.concat([sibs, rs.siblings])), ...rs.ancestors],
-};
-let prepend_siblings = (sibs: Siblings.t, rs: t): t => {
-  ...rs,
-  siblings: Siblings.concat([sibs, rs.siblings]),
-};
-
-let concat = (rss: list(t)): t =>
-  List.fold_right(
-    (rs: t, cat: t) =>
-      List.fold_right(prepend_generation, rs.ancestors, cat)
-      |> prepend_siblings(rs.siblings),
-    rss,
-    empty,
-  );
 
 let reassemble_parent = (rs: t): t =>
   switch (rs.ancestors) {
@@ -220,58 +199,3 @@ let reassemble = (rs: t): t => {
     };
   rs |> reassemble_siblings |> reassemble_parent |> go;
 };
-
-// let rec reassemble = (rs: t): t => {
-//   let siblings = Siblings.reassemble(rs.siblings);
-//   switch (Siblings.incomplete_tiles(siblings)) {
-//   | ([], _)
-//   | (_, []) => {...rs, siblings}
-//   | ([_, ..._], [t, ..._]) =>
-//     switch (
-//       siblings
-//       |> Siblings.split_by_matching(t.id)
-//       |> TupleUtil.map2(Aba.trim)
-//     ) {
-//     | (None, None) => {...rs, siblings}
-//     | (None, Some((inner_r, match_r, outer_r))) =>
-//       let {siblings: (l, r), ancestors} =
-//         reassemble({...rs, siblings: (fst(siblings), outer_r)});
-//       {
-//         siblings: (
-//           l,
-//           Segment.concat([inner_r, Ancestor.Match.Suffix.join(match_r), r]),
-//         ),
-//         ancestors,
-//       };
-//     | (Some((inner_l, match_l, outer_l)), None) =>
-//       let {siblings: (l, r), ancestors} =
-//         reassemble({...rs, siblings: (outer_l, snd(rs.siblings))});
-//       {
-//         siblings: (
-//           Segment.concat([inner_l, Ancestor.Match.Suffix.join(match_l), l]),
-//           r,
-//         ),
-//         ancestors,
-//       };
-//     | (Some((inner_l, match_l, outer_l)), Some((inner_r, match_r, outer_r))) =>
-//       let match = (match_l, match_r);
-//       let rs_inner =
-//         switch (Ancestor.Match.complete(match)) {
-//         | None => {
-//             siblings:
-//               Siblings.concat([
-//                 (inner_l, inner_r),
-//                 Ancestor.Match.join(match),
-//               ]),
-//             ancestors: Ancestors.empty,
-//           }
-//         | Some(a) => {
-//             siblings: (inner_l, inner_r),
-//             ancestors: [(a, Siblings.empty)],
-//           }
-//         };
-//       let rs_outer = reassemble({...rs, siblings: (outer_l, outer_r)});
-//       concat([rs_inner, rs_outer]);
-//     }
-//   };
-// };
