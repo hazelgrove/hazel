@@ -9,9 +9,6 @@ let dedup_f = (f, xs) =>
 
 let dedup = xs => dedup_f((==), xs);
 
-let are_duplicates = xs =>
-  List.length(List.sort_uniq(compare, xs)) == List.length(xs);
-
 /**
   Groups elements of a list by a specified key.
 

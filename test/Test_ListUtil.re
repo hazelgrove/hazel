@@ -47,22 +47,6 @@ let tests = (
       },
     ),
     test_case(
-      "are_duplicates has duplicates",
-      `Quick,
-      () => {
-        let xs = [1, 2, 3, 2];
-        check(bool, "Returns false", false, ListUtil.are_duplicates(xs)); // TODO: Interesting the order here is messed up because of fold_right
-      },
-    ),
-    test_case(
-      "are_duplicates has no duplicates",
-      `Quick,
-      () => {
-        let xs = [1, 2, 3];
-        check(bool, "Returns true", true, ListUtil.are_duplicates(xs));
-      },
-    ),
-    test_case(
       "group_by with constant function preserves list",
       `Quick,
       () => {
