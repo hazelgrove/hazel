@@ -791,6 +791,25 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_str);
           }
+        | Label(name) =>
+          if (FunctionExp.function_label.id
+              == get_specificity_level(FunctionExp.functions_label)) {
+            get_message(
+              ~colorings=
+                FunctionExp.function_label_coloring_ids(~pat_id, ~body_id),
+              ~format=
+                Some(
+                  msg =>
+                    Printf.sprintf(
+                      Scanf.format_from_string(msg, "%s"),
+                      name,
+                    ),
+                ),
+              FunctionExp.functions_label,
+            );
+          } else {
+            basic(FunctionExp.functions_label);
+          }
         | Triv =>
           if (FunctionExp.function_triv_exp.id
               == get_specificity_level(FunctionExp.functions_triv)) {
@@ -1086,7 +1105,16 @@ let get_doc =
         | Parens(_) => default // Shouldn't get hit?
         | TypeAnn(_) => default // Shouldn't get hit?
         };
-      | TupLabel(_, _) => get_message(LabeledExp.labeled_exp)
+      | Label(name) =>
+        get_message(
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(Scanf.format_from_string(msg, "%s"), name),
+            ),
+          LabelTerm.labels(name),
+        )
+      | TupLabel(_, _) => get_message(LabeledExp.labeled_exps)
       | Dot(_, _) => get_message(DotExp.dot_exp)
       | Tuple(terms) =>
         let basic = group_id =>
@@ -1341,6 +1369,27 @@ let get_doc =
               LetExp.lets_str,
             );
           }
+        | Label(name) =>
+          if (LetExp.let_label.id == get_specificity_level(LetExp.lets_label)) {
+            get_message(
+              ~colorings=
+                LetExp.let_label_coloring_ids(~pat_id, ~def_id, ~body_id),
+              ~format=
+                Some(
+                  msg =>
+                    Printf.sprintf(
+                      Scanf.format_from_string(msg, "%s"),
+                      name,
+                    ),
+                ),
+              LetExp.lets_label,
+            );
+          } else {
+            /* TODO The coloring for the syntactic form is sometimes wrong here... */
+            basic(
+              LetExp.lets_label,
+            );
+          }
         | Triv =>
           if (LetExp.let_triv_exp.id
               == get_specificity_level(LetExp.lets_triv)) {
@@ -1457,9 +1506,9 @@ let get_doc =
           } else {
             basic(LetExp.lets_var);
           }
-        | TupLabel(s, p) =>
+        | TupLabel(_, p) =>
           if (LetExp.let_labeled_exp.id
-              == get_specificity_level(LetExp.lets_label)) {
+              == get_specificity_level(LetExp.lets_tuplabel)) {
             let p_id = List.nth(p.ids, 0);
             get_message(
               ~colorings=
@@ -1475,15 +1524,15 @@ let get_doc =
                       Scanf.format_from_string(msg, "%s%s%s%s%s"),
                       Id.to_string(def_id),
                       Id.to_string(pat_id),
-                      s,
+                      "[label placeholder]",
                       Id.to_string(body_id),
                       Id.to_string(p_id),
                     ),
                 ),
-              LetExp.lets_label,
+              LetExp.lets_tuplabel,
             );
           } else {
-            basic(LetExp.lets_label);
+            basic(LetExp.lets_tuplabel);
           }
         | Tuple(elements) =>
           let basic_tuple = group_id => {
@@ -2065,7 +2114,15 @@ let get_doc =
           ),
         TerminalPat.var(v),
       )
-    | TupLabel(_, _) => get_message(LabeledPat.labeled_pat)
+    | Label(name) =>
+      get_message(
+        ~format=
+          Some(
+            msg => Printf.sprintf(Scanf.format_from_string(msg, "%s"), name),
+          ),
+        LabelTerm.labels(name),
+      )
+    | TupLabel(_, _) => get_message(LabeledPat.labeled_pats)
     | Tuple(elements) =>
       let basic = group =>
         get_message(
@@ -2277,7 +2334,15 @@ let get_doc =
         }
       | _ => basic(ArrowTyp.arrow)
       };
-    | TupLabel(_, _) => get_message(LabeledTyp.labeled_typ)
+    | Label(name) =>
+      get_message(
+        ~format=
+          Some(
+            msg => Printf.sprintf(Scanf.format_from_string(msg, "%s"), name),
+          ),
+        LabelTerm.labels(name),
+      )
+    | TupLabel(_, _) => get_message(LabeledTyp.labeled_typs)
     | Dot(_, _) => get_message(DotTyp.dot_typ)
     | Tuple(elements) =>
       let basic = group =>

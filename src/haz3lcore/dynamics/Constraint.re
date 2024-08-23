@@ -15,7 +15,7 @@ type t =
   | Or(t, t)
   | InjL(t)
   | InjR(t)
-  | TupLabel(LabeledTuple.t, t)
+  | TupLabel(t, t)
   | Pair(t, t);
 
 let rec dual = (c: t): t =>
@@ -33,7 +33,7 @@ let rec dual = (c: t): t =>
   | Or(c1, c2) => And(dual(c1), dual(c2))
   | InjL(c1) => Or(InjL(dual(c1)), InjR(Truth))
   | InjR(c2) => Or(InjR(dual(c2)), InjL(Truth))
-  | TupLabel(s, c) => TupLabel(s, dual(c))
+  | TupLabel(c1, c2) => TupLabel(dual(c1), dual(c2))
   | Pair(c1, c2) =>
     Or(
       Pair(c1, dual(c2)),
@@ -57,7 +57,7 @@ let rec truify = (c: t): t =>
   | Or(c1, c2) => Or(truify(c1), truify(c2))
   | InjL(c) => InjL(truify(c))
   | InjR(c) => InjR(truify(c))
-  | TupLabel(s, c) => TupLabel(s, truify(c))
+  | TupLabel(c1, c2) => TupLabel(truify(c1), truify(c2))
   | Pair(c1, c2) => Pair(truify(c1), truify(c2))
   };
 
@@ -77,7 +77,7 @@ let rec falsify = (c: t): t =>
   | Or(c1, c2) => Or(falsify(c1), falsify(c2))
   | InjL(c) => InjL(falsify(c))
   | InjR(c) => InjR(falsify(c))
-  | TupLabel(s, c) => TupLabel(s, falsify(c))
+  | TupLabel(c1, c2) => TupLabel(falsify(c1), falsify(c2))
   | Pair(c1, c2) => Pair(falsify(c1), falsify(c2))
   };
 

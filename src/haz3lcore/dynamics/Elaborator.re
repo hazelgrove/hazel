@@ -114,6 +114,7 @@ let cast = (ctx: Ctx.t, mode: Mode.t, self_ty: Typ.t, d: DHExp.t) =>
     | IntLit(_)
     | FloatLit(_)
     | StringLit(_)
+    | Label(_)
     | BinBoolOp(_)
     | BinIntOp(_)
     | BinFloatOp(_)
@@ -166,6 +167,7 @@ let rec dhexp_of_uexp =
       | Int(n) => Some(IntLit(n))
       | Float(n) => Some(FloatLit(n))
       | String(s) => Some(StringLit(s))
+      | Label(name) => Some(Label(name))
       | ListLit(es) =>
         let* ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
         let+ ty = fixed_exp_typ(m, uexp);
@@ -180,9 +182,10 @@ let rec dhexp_of_uexp =
       | TypFun(tpat, body) =>
         let+ d1 = dhexp_of_uexp(m, body);
         DHExp.TypFun(tpat, d1, None);
-      | TupLabel(s, e) =>
+      | TupLabel(label, e) =>
+        let* dlab = dhexp_of_uexp(m, label);
         let+ de = dhexp_of_uexp(m, e);
-        DHExp.TupLabel(s, de);
+        DHExp.TupLabel(dlab, de);
       | Tuple(es) =>
         let+ ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
         DHExp.Tuple(ds);
@@ -455,6 +458,7 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
     | Int(n) => wrap(IntLit(n))
     | Float(n) => wrap(FloatLit(n))
     | String(s) => wrap(StringLit(s))
+    | Label(name) => wrap(Label(name))
     | Triv => wrap(Tuple([]))
     | ListLit(ps) =>
       let* ds = ps |> List.map(dhpat_of_upat(m)) |> OptUtil.sequence;
@@ -482,9 +486,10 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
       let* d_hd = dhpat_of_upat(m, hd);
       let* d_tl = dhpat_of_upat(m, tl);
       wrap(Cons(d_hd, d_tl));
-    | TupLabel(s, dp) =>
-      let* dp2 = dhpat_of_upat(m, dp);
-      wrap(TupLabel(s, dp2));
+    | TupLabel(lab, p) =>
+      let* dlab = dhpat_of_upat(m, lab);
+      let* dp = dhpat_of_upat(m, p);
+      wrap(TupLabel(dlab, dp));
     | Tuple(ps) =>
       let* ds = ps |> List.map(dhpat_of_upat(m)) |> OptUtil.sequence;
       wrap(Tuple(ds));

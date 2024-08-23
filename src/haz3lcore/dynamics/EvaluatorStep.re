@@ -279,9 +279,9 @@ let rec compose = (ctx: EvalCtx.t, d: DHExp.t): DHExp.t => {
     | ListConcat2(d1, ctx) =>
       let d2 = compose(ctx, d);
       ListConcat(d1, d2);
-    | TupLabel(s, ctx) =>
-      let d2 = compose(ctx, d);
-      TupLabel(s, d2);
+    | TupLabel(label, ctx) =>
+      let d = compose(ctx, d);
+      TupLabel(label, d);
     | Dot1(ctx, d2) =>
       let d1 = compose(ctx, d);
       Dot(d1, d2);
@@ -454,9 +454,9 @@ let rec matches =
     | Tuple(ctx, ds) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       Tuple(ctx, ds);
-    | TupLabel(s, ctx) =>
+    | TupLabel(label, ctx) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
-      TupLabel(s, ctx);
+      TupLabel(label, ctx);
     | Dot1(ctx, d2) =>
       let+ ctx = matches(env, flt, ctx, exp, act, idx);
       Dot1(ctx, d2);

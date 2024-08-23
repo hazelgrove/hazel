@@ -5,7 +5,13 @@ exception Exception;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = string;
 
-let eq = String.equal;
+let equal: (option((t, 'a)), option((t, 'b))) => bool =
+  (left, right) => {
+    switch (left, right) {
+    | (Some((s1, _)), Some((s2, _))) => String.equal(s1, s2)
+    | (_, _) => false
+    };
+  };
 
 let length = String.length;
 

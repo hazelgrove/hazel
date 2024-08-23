@@ -72,6 +72,7 @@ module UTyp = {
     | Bool
     | String
     | Arrow
+    | Label
     | TupLabel
     | Tuple
     | Dot
@@ -110,6 +111,7 @@ module UTyp = {
     | Arrow(_) => Arrow
     | Var(_) => Var
     | Constructor(_) => Constructor
+    | Label(_) => Label
     | TupLabel(_) => TupLabel
     | Tuple(_) => Tuple
     | Dot(_) => Dot
@@ -132,6 +134,7 @@ module UTyp = {
     | Constructor => "Sum constructor"
     | List => "List type"
     | Arrow => "Function type"
+    | Label => "Label type"
     | TupLabel => "Labeled Tuple Item type"
     | Tuple => "Product type"
     | Dot => "Dot type"
@@ -144,7 +147,11 @@ module UTyp = {
   let get_label: t => option((LabeledTuple.t, t)) =
     ty =>
       switch (ty.term) {
-      | TupLabel(s, ty') => Some((s, ty'))
+      | TupLabel(tlab, ty') =>
+        switch (tlab.term) {
+        | Label(name) => Some((name, ty'))
+        | _ => None
+        }
       | _ => None
       };
 
@@ -160,6 +167,7 @@ module UTyp = {
     | Float
     | Bool
     | String
+    | Label(_)
     | List(_)
     | Tuple(_)
     | Dot(_)
@@ -184,6 +192,7 @@ module UTyp = {
     | Float
     | Bool
     | String
+    | Label(_)
     | Arrow(_)
     | List(_)
     | Tuple(_)
@@ -207,13 +216,14 @@ module UTyp = {
       | Int => Int
       | Float => Float
       | String => String
+      | Label(name) => Label(name)
       | Var(name) =>
         switch (Ctx.lookup_tvar(ctx, name)) {
         | Some(_) => Var(name)
         | None => Unknown(Free(name))
         }
       | Arrow(u1, u2) => Arrow(to_typ(ctx, u1), to_typ(ctx, u2))
-      | TupLabel(s, ut) => Label(s, to_typ(ctx, ut))
+      | TupLabel(ut1, ut2) => TupLabel(to_typ(ctx, ut1), to_typ(ctx, ut2))
       | Tuple(us) => Prod(List.map(to_typ(ctx), us))
       | Dot(typ1, typ2) =>
         // TODO: Fix this
@@ -296,6 +306,7 @@ module UPat = {
     | Constructor
     | Cons
     | Var
+    | Label
     | TupLabel
     | Tuple
     | Parens
@@ -330,6 +341,7 @@ module UPat = {
     | Constructor(_) => Constructor
     | Cons(_) => Cons
     | Var(_) => Var
+    | Label(_) => Label
     | TupLabel(_) => TupLabel
     | Tuple(_) => Tuple
     | Parens(_) => Parens
@@ -351,6 +363,7 @@ module UPat = {
     | Constructor => "Constructor"
     | Cons => "Cons"
     | Var => "Variable binding"
+    | Label => "Label"
     | TupLabel => "Labeled Tuple Item pattern"
     | Tuple => "Tuple"
     | Parens => "Parenthesized pattern"
@@ -371,6 +384,7 @@ module UPat = {
     | Float(_)
     | Bool(_)
     | String(_)
+    | Label(_)
     | Triv
     | ListLit(_)
     | Cons(_, _)
@@ -394,6 +408,7 @@ module UPat = {
     | Float(_)
     | Bool(_)
     | String(_)
+    | Label(_)
     | Triv
     | ListLit(_)
     | Cons(_, _)
@@ -419,6 +434,7 @@ module UPat = {
       | Float(_)
       | Bool(_)
       | String(_)
+      | Label(_)
       | Triv
       | ListLit(_)
       | Cons(_, _)
@@ -445,6 +461,7 @@ module UPat = {
       | Float(_)
       | Bool(_)
       | String(_)
+      | Label(_)
       | Triv
       | ListLit(_)
       | Cons(_, _)
@@ -468,6 +485,7 @@ module UPat = {
     | Float(_)
     | Bool(_)
     | String(_)
+    | Label(_)
     | Triv
     | ListLit(_)
     | Cons(_, _)
@@ -495,6 +513,7 @@ module UPat = {
     | Float(_)
     | Bool(_)
     | String(_)
+    | Label(_)
     | Triv
     | ListLit(_)
     | Cons(_, _)
@@ -523,6 +542,7 @@ module UPat = {
       | Float(_)
       | Bool(_)
       | String(_)
+      | Label(_)
       | Triv
       | ListLit(_)
       | Cons(_, _)
@@ -555,6 +575,7 @@ module UPat = {
       | Float(_)
       | Bool(_)
       | String(_)
+      | Label(_)
       | Triv
       | ListLit(_)
       | Cons(_, _)
@@ -573,7 +594,11 @@ module UPat = {
   let get_label: t => option((LabeledTuple.t, t)) =
     p =>
       switch (p.term) {
-      | TupLabel(s, p') => Some((s, p'))
+      | TupLabel(plab, p') =>
+        switch (plab.term) {
+        | Label(name) => Some((name, p'))
+        | _ => None
+        }
       | _ => None
       };
 };
@@ -596,6 +621,7 @@ module UExp = {
     | ListLit
     | Constructor
     | Fun
+    | Label
     | TupLabel
     | TypFun
     | Tuple
@@ -645,6 +671,7 @@ module UExp = {
     | ListLit(_) => ListLit
     | Constructor(_) => Constructor
     | Fun(_) => Fun
+    | Label(_) => Label
     | TupLabel(_, _) => TupLabel
     | TypFun(_) => TypFun
     | Tuple(_) => Tuple
@@ -745,6 +772,7 @@ module UExp = {
     | ListLit => "List literal"
     | Constructor => "Constructor"
     | Fun => "Function literal"
+    | Label => "Label"
     | TupLabel => "Labeled Tuple Item literal"
     | TypFun => "Type Function Literal"
     | Tuple => "Tuple literal"
@@ -771,7 +799,11 @@ module UExp = {
   let get_label: t => option((LabeledTuple.t, t)) =
     e =>
       switch (e.term) {
-      | TupLabel(s, e') => Some((s, e'))
+      | TupLabel(elab, e') =>
+        switch (elab.term) {
+        | Label(name) => Some((name, e'))
+        | _ => None
+        }
       | _ => None
       };
 
@@ -808,6 +840,7 @@ module UExp = {
     | Int(_)
     | Float(_)
     | String(_)
+    | Label(_)
     | ListLit(_)
     | Tuple(_)
     | Var(_)
@@ -863,6 +896,7 @@ module UExp = {
       | Int(_)
       | Float(_)
       | String(_)
+      | Label(_)
       | ListLit(_)
       | Fun(_)
       | TypFun(_)
@@ -918,6 +952,7 @@ module UExp = {
       | Int(_)
       | Float(_)
       | String(_)
+      | Label(_)
       | ListLit(_)
       | Fun(_)
       | TypFun(_)

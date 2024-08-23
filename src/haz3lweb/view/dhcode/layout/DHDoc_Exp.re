@@ -54,6 +54,7 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Test(_)
   | FloatLit(_)
   | StringLit(_)
+  | Label(_)
   | ListLit(_)
   | Prj(_)
   | EmptyHole(_)
@@ -362,6 +363,7 @@ let mk =
       | IntLit(n) => DHDoc_common.mk_IntLit(n)
       | FloatLit(f) => DHDoc_common.mk_FloatLit(f)
       | StringLit(s) => DHDoc_common.mk_StringLit(s)
+      | Label(name) => DHDoc_common.mk_Label(name)
       | Undefined => DHDoc_common.mk_Undefined()
       | Test(_, d) => DHDoc_common.mk_Test(go'(d, Test))
       | Sequence(d1, d2) =>
@@ -440,9 +442,9 @@ let mk =
           );
         hseps([doc1, mk_bin_bool_op(op), doc2]);
       // TODO(Anthony): what to do here?
-      | TupLabel(s, d) =>
+      | TupLabel(l, d) =>
         Doc.hcats([
-          Doc.text(s),
+          go'(l, TupLabel),
           DHDoc_common.Delim.mk("="),
           go'(d, TupLabel),
         ])

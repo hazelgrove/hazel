@@ -234,6 +234,7 @@ and uexp_to_info_map =
   | Int(_) => atomic(Just(Int))
   | Float(_) => atomic(Just(Float))
   | String(_) => atomic(Just(String))
+  | Label(name) => atomic(Just(Label(name)))
   | ListLit(es) =>
     let ids = List.map(UExp.rep_id, es);
     let modes = Mode.of_list_lit(ctx, List.length(es), mode);
@@ -294,15 +295,25 @@ and uexp_to_info_map =
     let (e1, m) = go(~mode=Ana(ty1), e1, m);
     let (e2, m) = go(~mode=Ana(ty2), e2, m);
     add(~self=Just(ty_out), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
-  | TupLabel(s, e) when is_contained =>
+  | TupLabel(label, e) when is_contained =>
     let mode = Mode.of_label(ctx, mode);
+    let (lab, m) = go(~mode=Syn, label, m);
     let (e, m) = go(~mode, e, m);
-    add(~self=Just(Label(s, e.ty)), ~co_ctx=e.co_ctx, m);
-  | TupLabel(s, e) =>
+    add(
+      ~self=Just(TupLabel(lab.ty, e.ty)),
+      ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]),
+      m,
+    );
+  | TupLabel(label, e) =>
     let mode = Mode.of_label(ctx, mode);
+    let (lab, m) = go(~mode=Syn, label, m);
     let (e, m) = go(~mode, e, m);
     // treating standalone labeled expressions as within a tuple of size 1
-    add(~self=Just(Prod([Label(s, e.ty)])), ~co_ctx=e.co_ctx, m);
+    add(
+      ~self=Just(Prod([TupLabel(lab.ty, e.ty)])),
+      ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]),
+      m,
+    );
   | Tuple(es) =>
     let modes = Mode.of_prod(ctx, mode, es, UExp.get_label);
     let (es, m) = map_m_go(m, modes, es);
@@ -314,12 +325,10 @@ and uexp_to_info_map =
   | Dot(e1, e2) =>
     let (info_e1, m) = go(~mode=Syn, e1, m);
     let (ty, m) = {
-      print_endline("e1 info");
-      print_endline(Info.show_exp(info_e1));
       switch (e2.term, info_e1.ty) {
       | (Var(name), Unknown(_))
       | (Constructor(name), Unknown(_)) =>
-        let ty = Typ.Prod([Label(name, Unknown(Internal))]);
+        let ty = Typ.Prod([TupLabel(Var(name), Unknown(Internal))]);
         let (_, m) = go(~mode=Mode.Ana(ty), e1, m);
         (ty, m);
       | (_, Var(_)) => (Typ.weak_head_normalize(ctx, info_e1.ty), m)
@@ -332,22 +341,22 @@ and uexp_to_info_map =
       | Var(name) =>
         let element: option(Typ.t) =
           LabeledTuple.find_label(Typ.get_label, ts, name);
-        let m =
-          e2.ids
-          |> List.fold_left(
-               (m, id) =>
-                 Id.Map.update(
-                   id,
-                   fun
-                   | Some(Info.InfoExp(exp)) =>
-                     Some(Info.InfoExp({...exp, ctx}))
-                   | _ as info => info,
-                   m,
-                 ),
-               m,
-             );
+        // let m =
+        //   e2.ids
+        //   |> List.fold_left(
+        //        (m, id) =>
+        //          Id.Map.update(
+        //            id,
+        //            fun
+        //            | Some(Info.InfoExp(exp)) =>
+        //              Some(Info.InfoExp({...exp, ctx}))
+        //            | _ as info => info,
+        //            m,
+        //          ),
+        //        m,
+        //      );
         switch (element) {
-        | Some(Label(_, typ))
+        | Some(TupLabel(_, typ))
         | Some(typ) =>
           let (body, m) =
             go'(
@@ -428,7 +437,7 @@ and uexp_to_info_map =
       go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~mode=mode_pat, p, m);
     let rec get_var = (p1: UPat.t, p2) =>
       switch (p1.term) {
-      | UPat.Var(s) => Typ.Label(s, p2)
+      | UPat.Var(s) => Typ.TupLabel(Label(s), p2)
       | TypeAnn(s, _) => get_var(s, p2)
       | _ => p2
       };
@@ -771,6 +780,7 @@ and upat_to_info_map =
         : Constraint.InjR(Constraint.Truth),
     )
   | String(string) => atomic(Just(String), Constraint.String(string))
+  | Label(name) => atomic(Just(Label(name)), Constraint.Truth)
   | ListLit(ps) =>
     let ids = List.map(UPat.rep_id, ps);
     let modes = Mode.of_list_lit(ctx, List.length(ps), mode);
@@ -812,14 +822,14 @@ and upat_to_info_map =
       ~constraint_=Constraint.Truth,
       m,
     );
-  | TupLabel(s, p) =>
+  | TupLabel(label, p) =>
     let mode = Mode.of_label(ctx, mode);
+    let (lab, m) = go(~ctx, ~mode=Syn, label, m);
     let (p, m) = go(~ctx, ~mode, p, m);
-    //TODO: Add label to contraint
     add(
-      ~self=Just(Label(s, p.ty)),
+      ~self=Just(TupLabel(lab.ty, p.ty)),
       ~ctx=p.ctx,
-      ~constraint_=Constraint.TupLabel(s, p.constraint_),
+      ~constraint_=Constraint.TupLabel(lab.constraint_, p.constraint_),
       m,
     );
   | Tuple(ps) =>
@@ -889,16 +899,20 @@ and utyp_to_info_map =
   | Float
   | Bool
   | String => add(m)
+  | Label(_) => add(m)
   | Var(_)
   | Constructor(_) =>
     /* Names are resolved in Info.status_typ */
     add(m)
   | List(t)
-  | TupLabel(_, t)
   | Parens(t) => add(go(t, m) |> snd)
   | Arrow(t1, t2) =>
     let m = go(t1, m) |> snd;
     let m = go(t2, m) |> snd;
+    add(m);
+  | TupLabel(label, t) =>
+    let m = go(label, m) |> snd;
+    let m = go(t, m) |> snd;
     add(m);
   | Tuple(ts) =>
     let m = map_m(go, ts, m) |> snd;

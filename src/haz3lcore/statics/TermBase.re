@@ -116,6 +116,7 @@ and UExp: {
     | ListLit
     | Constructor
     | Fun
+    | Label
     | TupLabel
     | TypFun
     | Tuple
@@ -156,7 +157,8 @@ and UExp: {
     | ListLit(list(t))
     | Constructor(string)
     | Fun(UPat.t, t)
-    | TupLabel(LabeledTuple.t, t)
+    | Label(string)
+    | TupLabel(t, t)
     | TypFun(UTPat.t, t)
     | Tuple(list(t))
     | Dot(t, t)
@@ -265,6 +267,7 @@ and UExp: {
     | ListLit
     | Constructor
     | Fun
+    | Label
     | TupLabel
     | TypFun
     | Tuple
@@ -305,7 +308,8 @@ and UExp: {
     | ListLit(list(t))
     | Constructor(string)
     | Fun(UPat.t, t)
-    | TupLabel(LabeledTuple.t, t)
+    | Label(string)
+    | TupLabel(t, t)
     | TypFun(UTPat.t, t)
     | Tuple(list(t))
     | Dot(t, t)
@@ -394,7 +398,8 @@ and UPat: {
     | Constructor(string)
     | Cons(t, t)
     | Var(Var.t)
-    | TupLabel(LabeledTuple.t, t)
+    | Label(string)
+    | TupLabel(t, t)
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
@@ -419,7 +424,8 @@ and UPat: {
     | Constructor(string)
     | Cons(t, t)
     | Var(Var.t)
-    | TupLabel(LabeledTuple.t, t)
+    | Label(string)
+    | TupLabel(t, t)
     | Tuple(list(t))
     | Parens(t)
     | Ap(t, t)
@@ -443,7 +449,8 @@ and UTyp: {
     | Var(string)
     | Constructor(string)
     | Arrow(t, t)
-    | TupLabel(LabeledTuple.t, t)
+    | Label(string)
+    | TupLabel(t, t)
     | Tuple(list(t))
     | Dot(t, t)
     | Parens(t)
@@ -472,7 +479,8 @@ and UTyp: {
     | Var(string)
     | Constructor(string)
     | Arrow(t, t)
-    | TupLabel(LabeledTuple.t, t)
+    | Label(string)
+    | TupLabel(t, t)
     | Tuple(list(t))
     | Dot(t, t)
     | Parens(t)

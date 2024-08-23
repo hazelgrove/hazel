@@ -236,15 +236,6 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       }
     | _ => ret(hole(tm))
     }
-  | Bin(Pat(p), tiles, Exp(e)) as tm =>
-    switch (tiles) {
-    | ([(_id, (["="], []))], []) =>
-      switch (p.term) {
-      | Var(s) => ret(TupLabel(s, e))
-      | _ => ret(hole(tm))
-      }
-    | _ => ret(hole(tm))
-    }
   | Bin(Exp(l), tiles, Exp(r)) as tm =>
     switch (is_tuple_exp(tiles)) {
     | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
@@ -281,6 +272,13 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | ([";"], []) => Seq(l, r)
           | (["++"], []) => BinOp(String(Concat), l, r)
           | (["$=="], []) => BinOp(String(Equals), l, r)
+          | (["="], []) =>
+            // TODO (Anthony): Other cases to convert to string
+            switch (l.term) {
+            | String(name)
+            | Var(name) => TupLabel({ids: l.ids, term: Label(name)}, r)
+            | _ => TupLabel(l, r)
+            }
           | (["."], []) => Dot(l, r)
           | (["|>"], []) => Pipeline(l, r)
           | (["@"], []) => ListConcat(l, r)
@@ -354,9 +352,11 @@ and pat_term: unsorted => (UPat.term, list(Id.t)) = {
     | None =>
       switch (tiles) {
       | ([(_id, (["="], []))], []) =>
+        // TODO (Anthony): Other cases to convert to string
         switch (l.term) {
-        | Var(s) => ret(TupLabel(s, r))
-        | _ => ret(hole(tm))
+        | String(name)
+        | Var(name) => ret(TupLabel({ids: l.ids, term: Label(name)}, r))
+        | _ => ret(TupLabel(l, r))
         }
       | ([(_id, (["::"], []))], []) => ret(Cons(l, r))
       | _ => ret(hole(tm))
@@ -422,21 +422,18 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
       ret(Sum(List.map(parse_sum_term, [t1] @ between_kids @ [t2])))
     | None => ret(hole(tm))
     }
-  | Bin(Pat(p), tiles, Typ(t)) as tm =>
-    switch (tiles) {
-    | ([(_id, (["="], []))], []) =>
-      switch (p.term) {
-      | Var(s) => ret(TupLabel(s, t))
-      | _ => ret(hole(tm))
-      }
-    | _ => ret(hole(tm))
-    }
   | Bin(Typ(l), tiles, Typ(r)) as tm =>
     switch (is_tuple_typ(tiles)) {
     | Some(between_kids) => ret(Tuple([l] @ between_kids @ [r]))
     | None =>
       switch (tiles) {
       | ([(_id, (["->"], []))], []) => ret(Arrow(l, r))
+      | ([(_id, (["="], []))], []) =>
+        // TODO (Anthony): Other cases to convert to string
+        switch (l.term) {
+        | Var(name) => ret(TupLabel({ids: l.ids, term: Label(name)}, r))
+        | _ => ret(TupLabel(l, r))
+        }
       | ([(_id, (["."], []))], []) => ret(Dot(l, r))
       | _ => ret(hole(tm))
       }

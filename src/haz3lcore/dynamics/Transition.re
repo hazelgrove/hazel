@@ -111,11 +111,12 @@ module CastHelpers = {
     | Int
     | Float
     | String
+    | Label(_)
     | Var(_)
     | Rec(_)
     | Forall(_, Unknown(_))
     | Arrow(Unknown(_), Unknown(_))
-    | Label(_, Unknown(_))
+    | TupLabel(_, Unknown(_))
     | List(Unknown(_)) => Ground
     | Prod(tys) =>
       if (List.for_all(
@@ -134,8 +135,8 @@ module CastHelpers = {
     | Arrow(_, _) => grounded_Arrow
     | Forall(_) => grounded_Forall
     | List(_) => grounded_List
-    | Label(_, _) => NotGroundOrHole(Unknown(Internal))
-    // | Label(_, ty) => ground_cases_of(ty)
+    | TupLabel(_, _) => NotGroundOrHole(Unknown(Internal))
+    // | TupLabel(_, ty) => ground_cases_of(ty)
     };
   };
 };
@@ -350,7 +351,7 @@ module Transition = (EV: EV_MODE) => {
               List.map(
                 (p): DHPat.t =>
                   switch (p) {
-                  | DHPat.Var(s) => TupLabel(s, p)
+                  | DHPat.Var(name) => TupLabel(DHPat.Label(name), p)
                   | _ => p
                   },
                 args,
@@ -407,6 +408,7 @@ module Transition = (EV: EV_MODE) => {
     | IntLit(_)
     | FloatLit(_)
     | StringLit(_)
+    | Label(_)
     | Constructor(_)
     | BuiltinFun(_) =>
       let. _ = otherwise(env, d);
@@ -586,12 +588,12 @@ module Transition = (EV: EV_MODE) => {
       | (Cast(d3', Prod(ts), Prod(ts')), BoundVar(name)) =>
         let ty =
           switch (LabeledTuple.find_label(Typ.get_label, ts, name)) {
-          | Some(Label(_, ty)) => ty
+          | Some(TupLabel(_, ty)) => ty
           | _ => Typ.Unknown(Internal)
           };
         let ty' =
           switch (LabeledTuple.find_label(Typ.get_label, ts', name)) {
-          | Some(Label(_, ty)) => ty
+          | Some(TupLabel(_, ty)) => ty
           | _ => Typ.Unknown(Internal)
           };
         Step({
@@ -616,10 +618,10 @@ module Transition = (EV: EV_MODE) => {
     //   kind: Dot(s),
     //   value: false,
     // });
-    | TupLabel(p, d1) =>
+    | TupLabel(label, d1) =>
       // TODO (Anthony): Fix this if needed
-      let. _ = otherwise(env, d1 => TupLabel(p, d1))
-      and. _ = req_final(req(state, env), d1 => TupLabel(p, d1), d1);
+      let. _ = otherwise(env, d1 => TupLabel(label, d1))
+      and. _ = req_final(req(state, env), d1 => TupLabel(label, d1), d1);
       Constructor;
     | Tuple(ds) =>
       let. _ = otherwise(env, ds => Tuple(ds))

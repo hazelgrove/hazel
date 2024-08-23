@@ -77,7 +77,7 @@ type t =
   | BinFloatOp2(TermBase.UExp.op_bin_float, DHExp.t, t)
   | BinStringOp1(TermBase.UExp.op_bin_string, t, DHExp.t)
   | BinStringOp2(TermBase.UExp.op_bin_string, DHExp.t, t)
-  | TupLabel(LabeledTuple.t, t)
+  | TupLabel(DHExp.t, t)
   | Tuple(t, (list(DHExp.t), list(DHExp.t)))
   | Dot1(t, DHExp.t)
   | Dot2(DHExp.t, t)

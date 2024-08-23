@@ -282,6 +282,30 @@ let let_str_exp: form = {
     examples: [let_str_ex],
   };
 };
+let _pat = pat("Label");
+let _exp_def = exp("e_def");
+let _exp_body = exp("e_body");
+let let_label_coloring_ids =
+  _pat_def_body_let_exp_coloring_ids(
+    Piece.id(_pat),
+    Piece.id(_exp_def),
+    Piece.id(_exp_body),
+  );
+let let_label: form = {
+  let explanation = "[TODO: Label docs] %s";
+  let form = [
+    mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
+    linebreak(),
+    _exp_body,
+  ];
+  {
+    id: LetExp(Label),
+    syntactic_form: form,
+    expandable_id: Some((Piece.id(_pat), [pat("Label")])),
+    explanation,
+    examples: [],
+  };
+};
 let _pat = pat("()");
 let _exp_def = exp("e_def");
 let _exp_body = exp("e_body");
@@ -615,6 +639,11 @@ let lets_str: group = {
   forms: [let_str_exp, let_base_exp],
 };
 
+let lets_label: group = {
+  id: LetExp(Label),
+  forms: [let_label, let_base_exp],
+};
+
 let lets_triv: group = {
   id: LetExp(Triv),
   forms: [let_triv_exp, let_base_exp],
@@ -637,7 +666,7 @@ let lets_cons: group = {
 
 let lets_var: group = {id: LetExp(Var), forms: [let_var_exp, let_base_exp]};
 
-let lets_label: group = {
+let lets_tuplabel: group = {
   id: LetExp(TupLabel),
   forms: [let_labeled_exp, let_base_exp],
 };

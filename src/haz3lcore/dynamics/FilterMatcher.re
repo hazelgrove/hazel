@@ -17,7 +17,8 @@ let rec matches_exp =
 
     // TODO (Anthony): Is this right?
     /* Labels are a special case*/
-    | (TupLabel(_, dv), TupLabel(_, fv)) => matches_exp(dv, fv)
+    | (TupLabel(dl, dv), TupLabel(fl, fv)) =>
+      matches_exp(dl, fl) && matches_exp(dv, fv)
     | (TupLabel(_, dv), _) => matches_exp(dv, f)
     | (_, TupLabel(_, fv)) => matches_exp(d, fv)
 
@@ -152,6 +153,9 @@ let rec matches_exp =
 
     | (StringLit(dv), StringLit(fv)) => dv == fv
     | (StringLit(_), _) => false
+
+    | (Label(dv), Label(fv)) => dv == fv
+    | (Label(_), _) => false
 
     | (Constructor(_), Ap(Constructor("~MVal", _), Tuple([]))) => true
     | (Constructor(dt, _), Constructor(ft, _)) => dt == ft
@@ -309,8 +313,9 @@ and matches_fun =
 and matches_pat = (d: DHPat.t, f: DHPat.t): bool => {
   switch (d, f) {
   /* Labels are a special case*/
-  | (TupLabel(s1, dx), TupLabel(s2, fx)) =>
-    LabeledTuple.compare(s1, s2) == 0 && matches_pat(dx, fx)
+  | (TupLabel(_, dx), TupLabel(_, fx)) =>
+    LabeledTuple.equal(DHPat.get_label(d), DHPat.get_label(f))
+    && matches_pat(dx, fx)
   | (TupLabel(_, dx), _) => matches_pat(dx, f)
   | (_, TupLabel(_, fx)) => matches_pat(d, fx)
   | (_, EmptyHole(_)) => true
@@ -324,6 +329,8 @@ and matches_pat = (d: DHPat.t, f: DHPat.t): bool => {
   | (BoolLit(_), _) => false
   | (StringLit(dv), StringLit(fv)) => dv == fv
   | (StringLit(_), _) => false
+  | (Label(dv), Label(fv)) => dv == fv
+  | (Label(_), _) => false
   | (ListLit(dty1, dl), ListLit(fty1, fl)) =>
     switch (
       List.fold_left2((res, d, f) => res && matches_pat(d, f), true, dl, fl)

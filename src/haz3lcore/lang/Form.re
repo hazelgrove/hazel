@@ -287,9 +287,9 @@ let forms: list((string, t)) = [
   ("cons_exp", mk_infix("::", Exp, P.cons)),
   ("cons_pat", mk_infix("::", Pat, P.cons)),
   ("typeann", mk(ss, [":"], mk_bin'(P.ann, Pat, Pat, [], Typ))),
-  ("tuple_labeled_exp", mk(ss, ["="], mk_bin'(P.lab, Exp, Pat, [], Exp))),
-  ("tuple_labeled_pat", mk(ss, ["="], mk_bin'(P.lab, Pat, Pat, [], Pat))),
-  ("tuple_labeled_typ", mk(ss, ["="], mk_bin'(P.lab, Typ, Pat, [], Typ))),
+  ("tuple_labeled_exp", mk_infix("=", Exp, P.lab)),
+  ("tuple_labeled_pat", mk_infix("=", Pat, P.lab)),
+  ("tuple_labeled_typ", mk_infix("=", Typ, P.lab)),
   ("dot_exp", mk_infix(".", Exp, P.dot)),
   ("dot_typ", mk_infix(".", Typ, P.dot)),
   // UNARY PREFIX OPERATORS
