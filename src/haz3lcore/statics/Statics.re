@@ -648,6 +648,7 @@ and uexp_to_info_map =
     add'(~self, ~co_ctx=CoCtx.union([scrut.co_ctx] @ e_co_ctxs), m);
   | TyAlias(typat, utyp, body) =>
     let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;
+    print_endline(Map.show(m));
     switch (typat.term) {
     | Var(name) when !Ctx.shadows_typ(ctx, name) =>
       /* Currently we disallow all type shadowing */
