@@ -1,7 +1,5 @@
 open Util;
 
-exception UnReachable;
-
 module Prop = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =

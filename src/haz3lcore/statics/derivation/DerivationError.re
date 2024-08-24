@@ -1,20 +1,6 @@
 open Util;
 open Derivation;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type pos =
-  | Concl
-  | Prems(int);
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type bind('a) = {
-  pos,
-  value: 'a,
-};
-
-let copy_pos = ({pos, _}, value) => {pos, value};
-
-let dupl_pos = (p, (a, b)) => (copy_pos(p, a), copy_pos(p, b));
+open ErrorCommon;
 
 module DerivationError = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -24,14 +10,12 @@ module DerivationError = {
     | MisMatch(mismatch)
     | NotEqual(notequal)
     | CtxNotEqualAfterExtend(bind(Ctx.t), bind(Ctx.t), bind(Prop.t)) /* expected, actual, prop */
-    | External(string)
   and mismatch =
     | Prop(Prop.cls, bind(Prop.t)) /* expected, actual */
     | Judgement(Judgement.cls, bind(Judgement.t))
   and notequal =
     | Prop(bind(Prop.t), bind(Prop.t)) /* expected, actual */
-    | Ctx(bind(Ctx.t), bind(Ctx.t))
-    | Judgement(bind(Judgement.t), bind(Judgement.t));
+    | Ctx(bind(Ctx.t), bind(Ctx.t));
 
   let repr: t => string =
     fun
@@ -83,14 +67,6 @@ module DerivationError = {
             Ctx.repr(b.value),
             show_pos(b.pos),
           )
-        | Judgement(a, b) =>
-          msg(
-            "Judgement",
-            Judgement.repr(a.value),
-            show_pos(a.pos),
-            Judgement.repr(b.value),
-            show_pos(b.pos),
-          )
         };
       }
     | CtxNotEqualAfterExtend(extended, original, prop) =>
@@ -102,8 +78,7 @@ module DerivationError = {
         show_pos(original.pos),
         Prop.repr(prop.value),
         show_pos(prop.pos),
-      )
-    | External(e) => e;
+      );
   let repr = (e: t): string => "Error: " ++ repr(e);
 };
 
@@ -121,11 +96,11 @@ module Prop = {
     (req, p) => {
       let mk_error = (cls: cls): result(a, DerivationError.t) =>
         Error(MisMatch(Prop(cls, p)));
-      let dupl_pos = dupl_pos(p);
+      let copy_pos2 = copy_pos2(p);
       switch (req, p.value) {
-      | (And, And(a, b)) => Ok((a, b) |> dupl_pos)
-      | (Or, Or(a, b)) => Ok((a, b) |> dupl_pos)
-      | (Implies, Implies(a, b)) => Ok((a, b) |> dupl_pos)
+      | (And, And(a, b)) => Ok((a, b) |> copy_pos2)
+      | (Or, Or(a, b)) => Ok((a, b) |> copy_pos2)
+      | (Implies, Implies(a, b)) => Ok((a, b) |> copy_pos2)
       | (Truth, Truth) => Ok()
       | (Falsity, Falsity) => Ok()
       | (And, _) => mk_error(And)
@@ -180,17 +155,10 @@ module Judgement = {
 
   let unbox: type a. (unbox_req(a), bind(t)) => result(a, DerivationError.t) =
     (req, p) => {
-      let dupl_pos = dupl_pos(p);
+      let copy_pos2 = copy_pos2(p);
       switch (req, p.value) {
-      | (Entail, Entail(c, p)) => Ok((c, p) |> dupl_pos)
+      | (Entail, Entail(c, p)) => Ok((c, p) |> copy_pos2)
       };
-    };
-
-  let expect_eq = (a: bind(t), b: bind(t)): result(unit, DerivationError.t) =>
-    if (eq(a.value, b.value)) {
-      Ok();
-    } else {
-      Error(NotEqual(Judgement(a, b)));
     };
 };
 
