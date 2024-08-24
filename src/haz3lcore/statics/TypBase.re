@@ -495,6 +495,7 @@ module rec Typ: {
   let matched_label = (ctx, ty) =>
     switch (weak_head_normalize(ctx, ty)) {
     | TupLabel(_, ty) => ty
+    | Prod([ty]) => ty
     | Unknown(SynSwitch) => Unknown(SynSwitch)
     | _ => ty
     };

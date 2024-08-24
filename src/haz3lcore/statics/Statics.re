@@ -212,13 +212,13 @@ and uexp_to_info_map =
   };
   let go' = uexp_to_info_map(~ancestors);
   let go = go'(~ctx);
-  let map_m_go = m =>
+  let map_m_go = (m, ~is_contained=false) =>
     List.fold_left2(
       ((es, m), mode, e) =>
-        go(~mode, e, m, ~is_contained=true) |> (((e, m)) => (es @ [e], m)),
+        go(~mode, e, m, ~is_contained) |> (((e, m)) => (es @ [e], m)),
       ([], m),
     );
-  let go_pat = upat_to_info_map(~ctx, ~ancestors);
+  let go_pat = upat_to_info_map(~ctx, ~ancestors, ~is_contained=false);
   let atomic = self => add(~self, ~co_ctx=CoCtx.empty, m);
   switch (term) {
   | MultiHole(tms) =>
@@ -295,28 +295,26 @@ and uexp_to_info_map =
     let (e1, m) = go(~mode=Ana(ty1), e1, m);
     let (e2, m) = go(~mode=Ana(ty2), e2, m);
     add(~self=Just(ty_out), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
-  | TupLabel(label, e) when is_contained =>
-    let mode = Mode.of_label(ctx, mode);
-    let (lab, m) = go(~mode=Syn, label, m);
-    let (e, m) = go(~mode, e, m);
-    add(
-      ~self=Just(TupLabel(lab.ty, e.ty)),
-      ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]),
-      m,
-    );
   | TupLabel(label, e) =>
     let mode = Mode.of_label(ctx, mode);
     let (lab, m) = go(~mode=Syn, label, m);
     let (e, m) = go(~mode, e, m);
-    // treating standalone labeled expressions as within a tuple of size 1
-    add(
-      ~self=Just(Prod([TupLabel(lab.ty, e.ty)])),
-      ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]),
-      m,
-    );
+    if (is_contained) {
+      add(
+        ~self=Just(TupLabel(lab.ty, e.ty)),
+        ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]),
+        m,
+      );
+    } else {
+      add(
+        ~self=Just(Prod([TupLabel(lab.ty, e.ty)])),
+        ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]),
+        m,
+      );
+    };
   | Tuple(es) =>
     let modes = Mode.of_prod(ctx, mode, es, UExp.get_label);
-    let (es, m) = map_m_go(m, modes, es);
+    let (es, m) = map_m_go(m, modes, es, ~is_contained=true);
     add(
       ~self=Just(Prod(List.map(Info.exp_ty, es))),
       ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es)),
@@ -727,6 +725,7 @@ and upat_to_info_map =
       ~co_ctx,
       ~ancestors: Info.ancestors,
       ~mode: Mode.t=Mode.Syn,
+      ~is_contained=false,
       {ids, term} as upat: UPat.t,
       m: Map.t,
     )
@@ -744,14 +743,36 @@ and upat_to_info_map =
       );
     (info, add_info(ids, InfoPat(info), m));
   };
+  let upat_to_info_map =
+      (
+        ~is_synswitch,
+        ~ctx,
+        ~co_ctx,
+        ~ancestors,
+        ~mode,
+        ~is_contained=false,
+        upat: UPat.t,
+        m: Map.t,
+      ) => {
+    upat_to_info_map(
+      ~is_synswitch,
+      ~ctx,
+      ~co_ctx,
+      ~ancestors,
+      ~mode,
+      ~is_contained,
+      upat,
+      m: Map.t,
+    );
+  };
   let atomic = (self, constraint_) => add(~self, ~ctx, ~constraint_, m);
   let ancestors = [UPat.rep_id(upat)] @ ancestors;
   let go = upat_to_info_map(~is_synswitch, ~ancestors, ~co_ctx);
   let unknown = Typ.Unknown(is_synswitch ? SynSwitch : Internal);
-  let ctx_fold = (ctx: Ctx.t, m) =>
+  let ctx_fold = (ctx: Ctx.t, m, ~is_contained=false) =>
     List.fold_left2(
       ((ctx, tys, cons, m), e, mode) =>
-        go(~ctx, ~mode, e, m)
+        go(~ctx, ~mode, ~is_contained, e, m)
         |> (
           ((info, m)) => (
             info.ctx,
@@ -826,15 +847,25 @@ and upat_to_info_map =
     let mode = Mode.of_label(ctx, mode);
     let (lab, m) = go(~ctx, ~mode=Syn, label, m);
     let (p, m) = go(~ctx, ~mode, p, m);
-    add(
-      ~self=Just(TupLabel(lab.ty, p.ty)),
-      ~ctx=p.ctx,
-      ~constraint_=Constraint.TupLabel(lab.constraint_, p.constraint_),
-      m,
-    );
+    if (is_contained) {
+      add(
+        ~self=Just(TupLabel(lab.ty, p.ty)),
+        ~ctx=p.ctx,
+        ~constraint_=Constraint.TupLabel(lab.constraint_, p.constraint_),
+        m,
+      );
+    } else {
+      add(
+        ~self=Just(Prod([TupLabel(lab.ty, p.ty)])),
+        ~ctx=p.ctx,
+        ~constraint_=Constraint.TupLabel(lab.constraint_, p.constraint_),
+        m,
+      );
+    };
   | Tuple(ps) =>
     let modes = Mode.of_prod(ctx, mode, ps, UPat.get_label);
-    let (ctx, tys, cons, m) = ctx_fold(ctx, m, ps, modes);
+    let (ctx, tys, cons, m) =
+      ctx_fold(ctx, m, ps, modes, ~is_contained=true);
     let rec cons_fold_tuple = cs =>
       switch (cs) {
       | [] => Constraint.Truth

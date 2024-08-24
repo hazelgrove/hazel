@@ -142,10 +142,15 @@ let wrap = (ctx: Ctx.t, u: Id.t, mode: Mode.t, self, d: DHExp.t): DHExp.t =>
   };
 
 let rec dhexp_of_uexp =
-        (m: Statics.Map.t, uexp: Term.UExp.t, in_filter: bool)
+        (
+          m: Statics.Map.t,
+          uexp: Term.UExp.t,
+          in_filter: bool,
+          in_container: bool,
+        )
         : option(DHExp.t) => {
-  let dhexp_of_uexp = (~in_filter=in_filter, m, uexp) => {
-    dhexp_of_uexp(m, uexp, in_filter);
+  let dhexp_of_uexp = (~in_filter=in_filter, ~in_container=false, m, uexp) => {
+    dhexp_of_uexp(m, uexp, in_filter, in_container);
   };
   switch (Id.Map.find_opt(Term.UExp.rep_id(uexp), m)) {
   | Some(InfoExp({mode, self, ctx, ancestors, co_ctx, _})) =>
@@ -174,7 +179,7 @@ let rec dhexp_of_uexp =
         let ty = Typ.matched_list(ctx, ty);
         DHExp.ListLit(id, 0, ty, ds);
       | Fun(p, body) =>
-        let* dp = dhpat_of_upat(m, p);
+        let* dp = dhpat_of_upat(m, p, false);
         let* d1 = dhexp_of_uexp(m, body);
         let+ ty = fixed_pat_typ(m, p);
         let ty = Typ.normalize(ctx, ty);
@@ -185,9 +190,16 @@ let rec dhexp_of_uexp =
       | TupLabel(label, e) =>
         let* dlab = dhexp_of_uexp(m, label);
         let+ de = dhexp_of_uexp(m, e);
-        DHExp.TupLabel(dlab, de);
+        if (in_container) {
+          DHExp.TupLabel(dlab, de);
+        } else {
+          DHExp.Tuple([DHExp.TupLabel(dlab, de)]);
+        };
       | Tuple(es) =>
-        let+ ds = es |> List.map(dhexp_of_uexp(m)) |> OptUtil.sequence;
+        let+ ds =
+          es
+          |> List.map(dhexp_of_uexp(m, ~in_container=true))
+          |> OptUtil.sequence;
         DHExp.Tuple(ds);
       | Dot(e1, e2) =>
         let* e1 = dhexp_of_uexp(m, e1);
@@ -271,7 +283,7 @@ let rec dhexp_of_uexp =
             | TypFun(tpat, e, _) => DHExp.TypFun(tpat, e, name)
             | d => d
         );
-        let* dp = dhpat_of_upat(m, p);
+        let* dp = dhpat_of_upat(m, p, false);
         let* ddef = dhexp_of_uexp(m, def);
         let* dbody = dhexp_of_uexp(m, body);
         let+ ty = fixed_pat_typ(m, p);
@@ -401,7 +413,7 @@ let rec dhexp_of_uexp =
         let+ d_rules =
           List.map(
             ((p, e)) => {
-              let* d_p = dhpat_of_upat(m, p);
+              let* d_p = dhpat_of_upat(m, p, false);
               let+ d_e = dhexp_of_uexp(m, e);
               DHExp.Rule(d_p, d_e);
             },
@@ -425,7 +437,12 @@ let rec dhexp_of_uexp =
   | None => None
   };
 }
-and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
+and dhpat_of_upat =
+    (m: Statics.Map.t, upat: Term.UPat.t, in_container: bool)
+    : option(DHPat.t) => {
+  let dhpat_of_upat = (~in_container=false, m, upat) => {
+    dhpat_of_upat(m, upat, in_container);
+  };
   switch (Id.Map.find_opt(Term.UPat.rep_id(upat), m)) {
   | Some(InfoPat({mode, self, ctx, _})) =>
     // NOTE: for the current implementation, redundancy is considered a static error
@@ -489,9 +506,16 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
     | TupLabel(lab, p) =>
       let* dlab = dhpat_of_upat(m, lab);
       let* dp = dhpat_of_upat(m, p);
-      wrap(TupLabel(dlab, dp));
+      if (in_container) {
+        wrap(TupLabel(dlab, dp));
+      } else {
+        wrap(Tuple([TupLabel(dlab, dp)]));
+      };
     | Tuple(ps) =>
-      let* ds = ps |> List.map(dhpat_of_upat(m)) |> OptUtil.sequence;
+      let* ds =
+        ps
+        |> List.map(dhpat_of_upat(m, ~in_container=true))
+        |> OptUtil.sequence;
       wrap(Tuple(ds));
     | Var(name) => Some(Var(name))
     | Parens(p) => dhpat_of_upat(m, p)
@@ -511,7 +535,7 @@ and dhpat_of_upat = (m: Statics.Map.t, upat: Term.UPat.t): option(DHPat.t) => {
 //let dhexp_of_uexp = Core.Memo.general(~cache_size_bound=1000, dhexp_of_uexp);
 
 let uexp_elab = (m: Statics.Map.t, uexp: Term.UExp.t): ElaborationResult.t =>
-  switch (dhexp_of_uexp(m, uexp, false)) {
+  switch (dhexp_of_uexp(m, uexp, false, false)) {
   | None => DoesNotElaborate
   | Some(d) =>
     //let d = uexp_elab_wrap_builtins(d);
