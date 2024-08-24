@@ -217,7 +217,6 @@ module Transition = (EV: EV_MODE) => {
     };
 
   let transition = (req, state, env, d): 'a => {
-    // print_endline(DHExp.show(d));
     switch (d) {
     | BoundVar(x) =>
       let. _ = otherwise(env, BoundVar(x));
@@ -603,21 +602,6 @@ module Transition = (EV: EV_MODE) => {
         });
       | _ => Indet
       };
-    // Step({
-    //   apply: () =>
-    //     switch (d') {
-    //     | Tuple(ds) =>
-    //       let element = LabeledTuple.find_label(DHExp.get_label, ds, s);
-    //       switch (element) {
-    //       | Some(TupLabel(_, exp)) => exp
-    //       | _ => raise(EvaluatorError.Exception(BadPatternMatch))
-    //       };
-    //     | TupLabel(l, exp) when LabeledTuple.compare(s, l) == 0 => exp
-    //     | _ => raise(EvaluatorError.Exception(BadPatternMatch))
-    //     },
-    //   kind: Dot(s),
-    //   value: false,
-    // });
     | TupLabel(label, d1) =>
       // TODO (Anthony): Fix this if needed
       let. _ = otherwise(env, d1 => TupLabel(label, d1))
@@ -736,8 +720,6 @@ module Transition = (EV: EV_MODE) => {
       open CastHelpers; /* Cast calculus */
       let. _ = otherwise(env, d => Cast(d, t1, t2))
       and. d' = req_final(req(state, env), d => Cast(d, t1, t2), d);
-      // print_endline("cast final");
-      // print_endline(DHExp.show(d'));
       switch (ground_cases_of(t1), ground_cases_of(t2)) {
       | (Hole, Hole)
       | (Ground, Ground) =>
