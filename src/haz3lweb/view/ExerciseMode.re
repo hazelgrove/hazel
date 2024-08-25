@@ -80,7 +80,13 @@ let view =
     let (msg, _) =
       ExplainThis.mk_translation(~inject=Some(inject), eds.prompt);
     let msg =
-      msg @ [Widgets.button(Icons.pencil, _ => inject(Set(EditingPrompt)))];
+      msg
+      @ [
+        div(
+          ~attrs=[Attr.class_("pencil-icon")],
+          [Widgets.button(Icons.pencil, _ => inject(Set(EditingPrompt)))],
+        ),
+      ];
     Cell.narrative_cell([
       div(
         ~attrs=[Attr.class_("cell-prompt")],
@@ -91,7 +97,6 @@ let view =
                     ~attrs=[
                       Attr.class_("prompt-content"),
                       Attr.value(eds.prompt),
-                      Attr.id("prompt-input"),
                       Attr.on_keydown(evt =>
                         if (evt##.keyCode === 13) {
                           let new_prompt = Obj.magic(evt##.target)##.value;
