@@ -377,9 +377,11 @@ let rec apply =
       Model.save_and_return({...model, editors});
     | SwitchScratchSlide(n) =>
       let instructor_mode = model.settings.instructor_mode;
-      switch (switch_scratch_slide(model.editors, ~instructor_mode, n)) {
+      let editors = Editors.set_editing_prompt(model.editors, false);
+      let settings = {...model.settings, editing_prompt: false};
+      switch (switch_scratch_slide(editors, ~instructor_mode, n)) {
       | None => Error(FailedToSwitch)
-      | Some(editors) => Model.save_and_return({...model, editors})
+      | Some(editors) => Model.save_and_return({...model, editors, settings})
       };
     | SwitchDocumentationSlide(name) =>
       switch (Editors.switch_example_slide(model.editors, name)) {
