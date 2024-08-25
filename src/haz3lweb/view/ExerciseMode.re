@@ -79,7 +79,8 @@ let view =
   let prompt_view = {
     let (msg, _) =
       ExplainThis.mk_translation(~inject=Some(inject), eds.prompt);
-    print_endline(eds.prompt);
+    let msg =
+      msg @ [Widgets.button(Icons.pencil, _ => inject(Set(EditingPrompt)))];
     Cell.narrative_cell([
       div(
         ~attrs=[Attr.class_("cell-prompt")],
@@ -109,13 +110,7 @@ let view =
                     ],
                     (),
                   )
-                : div(
-                    ~attrs=[
-                      Attr.class_("prompt-content"),
-                      Attr.on_double_click(_ => inject(Set(EditingPrompt))),
-                    ],
-                    msg,
-                  )
+                : div(~attrs=[Attr.class_("prompt-content")], msg)
             : div(~attrs=[Attr.class_("prompt-content")], msg),
         ],
       ),
