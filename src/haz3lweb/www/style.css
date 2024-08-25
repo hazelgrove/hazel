@@ -220,6 +220,7 @@ svg {
 }
 
 @keyframes wobble {
+
   0%,
   100% {
     transform: translateX(0%);
@@ -311,17 +312,21 @@ body {
 :root::-webkit-scrollbar {
   width: 0.8em;
 }
+
 :root::-webkit-scrollbar:horizontal {
   height: 0.8em;
 }
+
 :root::-webkit-scrollbar-track {
   background-color: #fdf6e300;
 }
+
 :root::-webkit-scrollbar-thumb {
   background-color: #e1d1a6;
   border-radius: 1em;
   border: 0.2em solid #fdf6e3;
 }
+
 /* set button(top and bottom of the scrollbar) */
 :root::-webkit-scrollbar-button,
 :root::-webkit-scrollbar-corner {
@@ -333,13 +338,14 @@ body {
   grid-row: 2;
   grid-column: 1 / span 1;
   overflow: auto;
-  
+
 }
 
 #main.Scratch,
 #main.Documentation {
   padding: 0.8em;
 }
+
 #main.Exercises {
   padding: 1.2em 0.8em 1.2em 0.8em;
   display: flex;
@@ -347,6 +353,7 @@ body {
   justify-content: space-between;
   gap: 1.2em;
 }
+
 #main.Exercises .editor {
   /* TODO deprecate */
   display: flex;
@@ -354,10 +361,12 @@ body {
   justify-content: space-between;
   gap: 1.2em;
 }
+
 #main.Scratch .cell,
 #main.Documentation .cell {
   min-width: 30em;
 }
+
 #main.Exercises .cell {
   width: auto;
 }
@@ -444,8 +453,9 @@ select {
   background-color: #bba874;
   border-radius: 0 0 1.3em 0;
 }
-#top-bar .nut-menu .submenu-icon:hover + .submenu,
-#top-bar .nut-menu .submenu-icon + .submenu:hover {
+
+#top-bar .nut-menu .submenu-icon:hover+.submenu,
+#top-bar .nut-menu .submenu-icon+.submenu:hover {
   display: flex;
 }
 
@@ -465,13 +475,16 @@ select {
   cursor: pointer;
   padding-right: 1em;
 }
+
 #top-bar .nut-menu .named-menu-item:last-child {
   border-radius: 0 0 1.3em 0;
 }
+
 #top-bar .nut-menu .named-menu-item:hover {
   background-color: #c7b480;
   color: white;
 }
+
 #top-bar .nut-menu .named-menu-item .toggle-switch {
   margin-left: 0.5em;
   margin-right: 0.5em;
@@ -479,15 +492,17 @@ select {
 
 #top-bar .nut-menu .top-menu-item:hover,
 #top-bar .nut-menu .top-menu-item:has(+ .submenu:hover) {
-  background-color: #bba874; /*c7b480*/
+  background-color: #bba874;
+  /*c7b480*/
 }
+
 #top-bar .nut-menu .top-menu-item:hover svg,
 #top-bar .nut-menu .top-menu-item:has(+ .submenu:hover) svg {
   fill: var(--light-page-color);
 }
 
 #top-bar .nut-menu:hover,
-#top-bar .nut-icon:hover + .nut-menu {
+#top-bar .nut-icon:hover+.nut-menu {
   transform: scaleY(1);
   display: flex;
   border-radius: 0 0 1.3em 0;
@@ -496,6 +511,7 @@ select {
 #top-bar .nut-menu .top-menu-item {
   position: relative;
 }
+
 #top-bar .nut-menu .icon,
 #top-bar .nut-menu .link {
   display: flex;
@@ -504,9 +520,11 @@ select {
   align-items: center;
   justify-content: center;
 }
+
 #top-bar .nut-menu .top-menu-item:last-child {
   border-radius: 0 0 1.3em 0;
 }
+
 #top-bar .nut-menu .top-menu-item:hover {
   background-color: #bba874;
   color: white;
@@ -514,7 +532,8 @@ select {
 
 #top-bar .nut-icon {
   width: 2.75em;
-  min-width: 2.75em; /* Seems to be necessary at high zooms? */
+  min-width: 2.75em;
+  /* Seems to be necessary at high zooms? */
   height: 2.75em;
   display: flex;
   justify-content: center;
@@ -577,6 +596,7 @@ select {
   background-color: #4fad66;
   border: solid 1px transparent;
 }
+
 #top-bar .nut-menu .toggle-switch.active .toggle-knob {
   color: #4fad66;
 }
@@ -725,6 +745,16 @@ select {
 .cell-prompt {
   padding: 1em;
   font-size: 1rem;
+}
+
+.cell-prompt .pencil-icon {
+  margin-left: 0.5em;
+  cursor: pointer;
+  fill: #7a6219;
+}
+
+.cell-prompt .pencil-icon:hover {
+  animation: wobble 0.6s ease 0s 1 normal forwards;
 }
 
 .cell-caption {
@@ -918,21 +948,27 @@ svg.tile-selected {
 .code .token.Nul {
   color: var(--nul-text-color);
 }
+
 .code .token.Any {
   color: var(--any-text-color);
 }
+
 .code .token.Exp {
   color: var(--exp-text-color);
 }
+
 .code .token.Pat {
   color: var(--pat-text-color);
 }
+
 .code .token.Typ {
   color: var(--typ-text-color);
 }
+
 .code .token.Rul {
   color: var(--rul-text-color);
 }
+
 .code .token.TPat {
   color: var(--tpat-text-color);
 }
@@ -940,21 +976,27 @@ svg.tile-selected {
 .tile-path.Nul {
   filter: url(#drop-shadow-Nul);
 }
+
 .tile-path.Any {
   filter: url(#drop-shadow-Any);
 }
+
 .tile-path.Exp {
   filter: url(#drop-shadow-Exp);
 }
+
 .tile-path.Pat {
   filter: url(#drop-shadow-Pat);
 }
+
 .tile-path.Typ {
   filter: url(#drop-shadow-Typ);
 }
+
 .tile-path.Rul {
   filter: url(#drop-shadow-Rul);
 }
+
 .tile-path.TPat {
   filter: url(#drop-shadow-TPat);
 }
@@ -962,21 +1004,27 @@ svg.tile-selected {
 .tile-path.Nul.indicated {
   fill: var(--nul-bg-color);
 }
+
 .tile-path.Any.indicated {
   fill: var(--any-bg-color);
 }
+
 .tile-path.Exp.indicated {
   fill: var(--exp-bg-color);
 }
+
 .tile-path.Pat.indicated {
   fill: var(--pat-bg-off-color);
 }
+
 .tile-path.Typ.indicated {
   fill: var(--typ-bg-off-color);
 }
+
 .tile-path.Rul.indicated {
   fill: var(--rul-bg-color);
 }
+
 .tile-path.TPat.indicated {
   fill: var(--tpat-bg-off-color);
 }
@@ -984,21 +1032,27 @@ svg.tile-selected {
 .tile-path.Nul.indicated-caret {
   fill: var(--nul-bg-color);
 }
+
 .tile-path.Any.indicated-caret {
   fill: var(--any-bg-color);
 }
+
 .tile-path.Exp.indicated-caret {
   fill: var(--exp-bg-off-color);
 }
+
 .tile-path.Pat.indicated-caret {
   fill: var(--pat-bg-color);
 }
+
 .tile-path.Typ.indicated-caret {
   fill: var(--typ-bg-color);
 }
+
 .tile-path.Rul.indicated-caret {
   fill: var(--rul-bg-color);
 }
+
 .tile-path.TPat.indicated-caret {
   fill: var(--tpat-bg-color);
 }
@@ -1006,21 +1060,27 @@ svg.tile-selected {
 .tile-path.Nul.raised {
   filter: url(#raised-drop-shadow-Nul);
 }
+
 .tile-path.Any.raised {
   filter: url(#raised-drop-shadow-Any);
 }
+
 .tile-path.Exp.raised {
   filter: url(#raised-drop-shadow-Exp);
 }
+
 .tile-path.Pat.raised {
   filter: url(#raised-drop-shadow-Pat);
 }
+
 .tile-path.Typ.raised {
   filter: url(#raised-drop-shadow-Typ);
 }
+
 .tile-path.Rul.raised {
   filter: url(#raised-drop-shadow-Rul);
 }
+
 .tile-path.TPat.raised {
   filter: url(#raised-drop-shadow-TPat);
 }
@@ -1028,21 +1088,27 @@ svg.tile-selected {
 .child-line.Nul {
   stroke: var(--nul-shadow-color);
 }
+
 .child-line.Any {
   stroke: var(--any-shadow-color);
 }
+
 .child-line.Exp {
   stroke: var(--exp-shadow-color);
 }
+
 .child-line.Pat {
   stroke: var(--pat-shadow-color);
 }
+
 .child-line.Typ {
   stroke: var(--typ-shadow-color);
 }
+
 .child-line.Rul {
   stroke: var(--rul-shadow-color);
 }
+
 .child-line.TPat {
   stroke: var(--tpat-shadow-color);
 }
@@ -1050,21 +1116,27 @@ svg.tile-selected {
 #drop-shadow-Nul .tile-drop-shadow {
   flood-color: var(--nul-shadow-color);
 }
+
 #drop-shadow-Any .tile-drop-shadow {
   flood-color: var(--any-shadow-color);
 }
+
 #drop-shadow-Exp .tile-drop-shadow {
   flood-color: var(--exp-shadow-color);
 }
+
 #drop-shadow-Pat .tile-drop-shadow {
   flood-color: var(--pat-shadow-color);
 }
+
 #drop-shadow-Typ .tile-drop-shadow {
   flood-color: var(--typ-shadow-color);
 }
+
 #drop-shadow-Rul .tile-drop-shadow {
   flood-color: var(--rul-shadow-color);
 }
+
 #drop-shadow-TPat .tile-drop-shadow {
   flood-color: var(--tpat-shadow-color);
 }
@@ -1072,21 +1144,27 @@ svg.tile-selected {
 #raised-drop-shadow-Nul .tile-drop-shadow {
   flood-color: var(--nul-shadow-color);
 }
+
 #raised-drop-shadow-Any .tile-drop-shadow {
   flood-color: var(--any-shadow-color);
 }
+
 #raised-drop-shadow-Exp .tile-drop-shadow {
   flood-color: var(--exp-shadow-color);
 }
+
 #raised-drop-shadow-Pat .tile-drop-shadow {
   flood-color: var(--pat-shadow-color);
 }
+
 #raised-drop-shadow-Typ .tile-drop-shadow {
   flood-color: var(--typ-shadow-color);
 }
+
 #raised-drop-shadow-Rul .tile-drop-shadow {
   flood-color: var(--rul-shadow-color);
 }
+
 #raised-drop-shadow-TPat .tile-drop-shadow {
   flood-color: var(--tpat-shadow-color);
 }
@@ -1097,26 +1175,32 @@ svg.tile-selected {
   background-color: var(--nul-bg-color);
   color: var(--nul-off-color);
 }
+
 .ci-header.Any {
   background-color: var(--any-bg-color);
   color: var(--any-off-color);
 }
+
 .ci-header.Exp {
   background-color: var(--exp-bg-color);
   color: var(--exp-off-color);
 }
+
 .ci-header.Pat {
   background-color: var(--pat-bg-color);
   color: var(--pat-off-color);
 }
+
 .ci-header.Typ {
   background-color: var(--typ-bg-color);
   color: var(--typ-off-color);
 }
+
 .ci-header.Rul {
   background-color: var(--rul-bg-color);
   color: var(--rul-off-color);
 }
+
 .ci-header.TPat {
   background-color: var(--tpat-bg-color);
   color: var(--tpat-off-color);
@@ -1128,11 +1212,13 @@ svg.tile-selected {
   stroke: var(--exp-text-color);
   fill: var(--exp-text-color);
 }
+
 .caret-position-path.Pat.sibling,
 .caret-position-path.Pat.inner-cousin {
   stroke: var(--pat-text-color);
   fill: var(--pat-text-color);
 }
+
 .caret-position-path.Typ.sibling,
 .caret-position-path.Typ.inner-cousin {
   stroke: var(--typ-text-color);
@@ -1145,11 +1231,13 @@ svg.tile-selected {
   stroke: var(--exp-shadow-color);
   fill: var(--exp-shadow-color);
 }
+
 .caret-position-path.Pat.anchor,
 .caret-position-path.Pat.current-caret-pos {
   stroke: var(--pat-text-color);
   fill: var(--pat-text-color);
 }
+
 .caret-position-path.Typ.anchor,
 .caret-position-path.Typ.current-caret-pos {
   stroke: var(--typ-text-color);
@@ -1242,6 +1330,7 @@ svg.tile-selected {
 }
 
 @keyframes blink {
+
   from,
   to {
     opacity: 100%;
@@ -1287,6 +1376,7 @@ svg.tile-selected {
   /* to advertise provenance display on-hover */
   cursor: help;
 }
+
 .typ-alias-view {
   color: var(--tpat-text-color);
   display: flex;
@@ -1343,7 +1433,7 @@ svg.tile-selected {
   border-color: var(--err-color);
 }
 
-.cursor-inspector .gamma:hover + .context-inspector,
+.cursor-inspector .gamma:hover+.context-inspector,
 .context-inspector.visible {
   display: flex;
 }
@@ -1401,6 +1491,7 @@ svg.tile-selected {
   scrollbar-color: #c7b480 #e4d6a6;
   scrollbar-width: thin;
 }
+
 @supports (-moz-appearance: none) {
   .context-inspector {
     scroll-snap-type: y mandatory;
@@ -1485,7 +1576,8 @@ svg.tile-selected {
 
 .bottom-bar .id-and-class .syntax-class {
   color: var(--top_bar_icon_fill);
-  color: #392f10; /*#fdf6e3;*/
+  color: #392f10;
+  /*#fdf6e3;*/
 }
 
 .bottom-bar .id-and-class .id {
@@ -1554,7 +1646,7 @@ svg.tile-selected {
   gap: 0.75em;
 }
 
-.explain-this .example + .example {
+.explain-this .example+.example {
   border-top: 1px dotted #c7b480;
   padding-top: 0.75em;
 }
@@ -1741,6 +1833,7 @@ svg.expandable path {
   padding: 0.5em;
   padding-left: 1.2em;
 }
+
 .selected .cell-result {
   background-color: #efe7d6;
 }
@@ -1755,6 +1848,7 @@ svg.expandable path {
   white-space: nowrap;
   font-family: "Source Code Pro", monospace;
 }
+
 .cell-result .status .spinner {
   height: 50%;
   width: 60%;
@@ -1764,15 +1858,18 @@ svg.expandable path {
   opacity: 0;
   transition: opacity 0.2s linear;
 }
+
 .cell-result .status.pending .spinner {
   opacity: 0.5;
   transition: all 0.2s linear;
 }
+
 .cell-result .status .eq {
   position: absolute;
   opacity: 1;
   transition: opacity 0.6s cubic-bezier(0.65, 0, 0.35, 1);
 }
+
 .cell-result .status.pending .eq {
   opacity: 0;
   transition: opacity 0.6s cubic-bezier(0.65, 0, 0.35, 1);
@@ -1786,10 +1883,12 @@ svg.expandable path {
   overflow-x: auto; */
   transition: opacity 0.2s linear;
 }
+
 .cell-result .result.pending {
   opacity: 0.3;
   transition: opacity 0.6s cubic-bezier(0.65, 0, 0.35, 1);
 }
+
 .cell-result .result .exception {
   background-color: #ffa2a2;
   color: #7d0000;
@@ -1806,6 +1905,7 @@ svg.expandable path {
 .cell-result .toggle-switch {
   mix-blend-mode: luminosity;
 }
+
 .cell-result .equiv {
   font-family: 'Source Code Pro';
 }
@@ -1816,14 +1916,15 @@ svg.expandable path {
   border-left: 1px solid rgba(0, 0, 0, 0);
 }
 
-.cell.selected + .cell-item {
+.cell.selected+.cell-item {
   border-left: 1px solid var(--cell-selected-accent);
 }
 
 .result {
   width: 100%;
 }
-.cell.deselected + .cell-item {
+
+.cell.deselected+.cell-item {
   border-left: 1px solid var(--top_bar_icon_fill);
 }
 
@@ -1835,7 +1936,9 @@ svg.expandable path {
 .cell-item.cell-result .error-msg {
   padding: 0.25em;
   color: black;
-};
+}
+
+;
 
 .cell-result .icon:hover svg {
   animation: wobble 0.6s ease 0s 1 normal forwards;
@@ -2105,9 +2208,10 @@ svg.expandable path {
   background-color: #c7b480;
   align-items: center;
 }
-#main > .test-percent,
+
+#main>.test-percent,
 /* TODO deprecate .editor */
-#main > .editor > .test-percent {
+#main>.editor>.test-percent {
   position: absolute;
   top: 0;
   right: 0;
@@ -2166,8 +2270,7 @@ svg.expandable path {
   background-color: rgb(255, 199, 125);
 }
 
-.test-inspector {
-}
+.test-inspector {}
 
 .test-inspector .test-instance.Pass .DHCode {
   color: green;
@@ -2222,6 +2325,7 @@ svg.expandable path {
   background-color: #c7b480;
   border: solid 1px transparent;
 }
+
 .toggle-switch.active .toggle-knob {
   margin-left: 0.9em;
   margin-right: 1px;
@@ -2349,6 +2453,7 @@ svg.expandable path {
   transform: scale(100%);
   cursor: not-allowed;
 }
+
 .slide-img {
   border-radius: 0.4em;
   margin-bottom: 1em;
