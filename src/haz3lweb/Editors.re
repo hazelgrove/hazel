@@ -136,19 +136,15 @@ let set_editing_prompt = (editors: t, editing: bool): t =>
     Exercises(n, specs, Exercise.set_editing_prompt(exercise, editing))
   };
 
-let update_exercise_prompt =
-    (editors: t, new_prompt: string, instructor_mode: bool): t =>
+let update_exercise_prompt = (editors: t, new_prompt: string): t =>
   switch (editors) {
   | Scratch(_)
   | Documentation(_) => editors
-  | Exercises(n, specs, _) =>
+  | Exercises(n, specs, exercise) =>
     Exercises(
       n,
-      specs,
-      Exercise.state_of_spec(
-        {...List.nth(specs, n), prompt: new_prompt},
-        ~instructor_mode,
-      ),
+      ListUtil.update_nth(n, specs, spec => {{...spec, prompt: new_prompt}}),
+      Exercise.update_exercise_prompt(exercise, new_prompt),
     )
   };
 

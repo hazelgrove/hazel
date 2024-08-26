@@ -76,6 +76,18 @@ let view =
 
   let title_view = Cell.title_cell(eds.title);
 
+  let update_prompt = _ => {
+    let new_prompt =
+      Obj.magic(
+        Js_of_ocaml.Js.some(JsUtil.get_elem_by_id("prompt-input-box")),
+      )##.value;
+    let update_events = [
+      inject(Set(EditingPrompt)),
+      inject(UpdatePrompt(new_prompt)),
+    ];
+    Virtual_dom.Vdom.Effect.Many(update_events);
+  };
+
   let prompt_view = {
     let (msg, _) =
       ExplainThis.mk_translation(~inject=Some(inject), eds.prompt);
@@ -83,7 +95,7 @@ let view =
       msg
       @ [
         div(
-          ~attrs=[Attr.class_("pencil-icon")],
+          ~attrs=[Attr.class_("edit-icon")],
           [Widgets.button(Icons.pencil, _ => inject(Set(EditingPrompt)))],
         ),
       ];
@@ -93,29 +105,32 @@ let view =
         [
           settings.instructor_mode
             ? settings.editing_prompt
-                ? input(
-                    ~attrs=[
-                      Attr.class_("prompt-content"),
-                      Attr.value(eds.prompt),
-                      Attr.on_keydown(evt =>
-                        if (evt##.keyCode === 13) {
-                          let new_prompt = Obj.magic(evt##.target)##.value;
-                          let update_events = [
-                            inject(Set(EditingPrompt)),
-                            inject(UpdatePrompt(new_prompt)),
-                          ];
-                          Virtual_dom.Vdom.Effect.Many(update_events);
-                        } else {
-                          // This is placeholder until I figure out how to "do nothing"
-                          inject(
-                            FinishImportAll(None),
-                          );
-                        }
+                ? div(
+                    ~attrs=[Attr.class_("prompt-edit")],
+                    [
+                      input(
+                        ~attrs=[
+                          Attr.class_("prompt-text"),
+                          Attr.id("prompt-input-box"),
+                          Attr.value(eds.prompt),
+                        ],
+                        (),
+                      ),
+                      div(
+                        ~attrs=[Attr.class_("edit-icon")],
+                        [Widgets.button(Icons.confirm, update_prompt)],
+                      ),
+                      div(
+                        ~attrs=[Attr.class_("edit-icon")],
+                        [
+                          Widgets.button(Icons.cancel, _ =>
+                            inject(Set(EditingPrompt))
+                          ),
+                        ],
                       ),
                     ],
-                    (),
                   )
-                : div(~attrs=[Attr.class_("prompt-content")], msg)
+                : div(~attrs=[Attr.class_("prompt-edit")], msg)
             : div(~attrs=[Attr.class_("prompt-content")], msg),
         ],
       ),

@@ -166,12 +166,15 @@ let update_settings =
     }
   | InstructorMode =>
     let new_mode = !settings.instructor_mode;
+    let editors = Editors.set_editing_prompt(model.editors, false);
+    let editors = Editors.set_instructor_mode(editors, new_mode);
     {
       ...model,
-      editors: Editors.set_instructor_mode(model.editors, new_mode),
+      editors,
       settings: {
         ...settings,
         instructor_mode: !settings.instructor_mode,
+        editing_prompt: false,
       },
     };
   | EditingPrompt =>
@@ -523,12 +526,7 @@ let rec apply =
     | UpdatePrompt(new_prompt) =>
       Model.save_and_return({
         ...model,
-        editors:
-          Editors.update_exercise_prompt(
-            model.editors,
-            new_prompt,
-            model.settings.instructor_mode,
-          ),
+        editors: Editors.update_exercise_prompt(model.editors, new_prompt),
       })
     };
   m |> Result.map(~f=update_cached_data(~schedule_action, update));
