@@ -482,6 +482,14 @@ module F = (ExerciseEnv: ExerciseEnv) => {
     },
   };
 
+  let update_exercise_prompt = ({eds, _} as state: state, new_prompt: string) => {
+    ...state,
+    eds: {
+      ...eds,
+      prompt: new_prompt,
+    },
+  };
+
   let visible_in = (pos, ~instructor_mode) => {
     switch (pos) {
     | Prelude => instructor_mode
