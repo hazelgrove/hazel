@@ -7,6 +7,7 @@ let (suite, _) =
     [
       ("Elaboration", Test_Elaboration.elaboration_tests),
       Test_ListUtil.tests,
+      Test_Printer.tests,
     ],
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
