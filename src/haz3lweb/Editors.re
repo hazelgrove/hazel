@@ -143,7 +143,7 @@ let update_exercise_prompt = (editors: t, new_prompt: string): t =>
   | Exercises(n, specs, exercise) =>
     Exercises(
       n,
-      ListUtil.update_nth(n, specs, spec => {{...spec, prompt: new_prompt}}),
+      specs,
       Exercise.update_exercise_prompt(exercise, new_prompt),
     )
   };
