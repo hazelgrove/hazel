@@ -56,12 +56,14 @@ let of_forall = (ctx: Ctx.t, name_opt: option(TypVar.t), mode: t): t =>
     };
   };
 
-let of_label = (ctx: Ctx.t, mode: t): t =>
+let of_label = (ctx: Ctx.t, mode: t): (t, t) =>
   switch (mode) {
   | Syn
   | SynFun
-  | SynTypFun => Syn
-  | Ana(ty) => Typ.matched_label(ctx, ty) |> ana
+  | SynTypFun => (Syn, Syn)
+  | Ana(ty) =>
+    let (ty1, ty2) = Typ.matched_label(ctx, ty);
+    (ana(ty1), ana(ty2));
   };
 
 let of_prod = (ctx: Ctx.t, mode: t, ts: list('a), filt): list(t) =>

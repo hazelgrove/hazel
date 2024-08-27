@@ -296,8 +296,8 @@ and uexp_to_info_map =
     let (e2, m) = go(~mode=Ana(ty2), e2, m);
     add(~self=Just(ty_out), ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]), m);
   | TupLabel(label, e) =>
-    let mode = Mode.of_label(ctx, mode);
-    let (lab, m) = go(~mode=Syn, label, m);
+    let (labmode, mode) = Mode.of_label(ctx, mode);
+    let (lab, m) = go(~mode=labmode, label, m);
     let (e, m) = go(~mode, e, m);
     if (is_contained) {
       add(
@@ -855,8 +855,8 @@ and upat_to_info_map =
       m,
     );
   | TupLabel(label, p) =>
-    let mode = Mode.of_label(ctx, mode);
-    let (lab, m) = go(~ctx, ~mode=Syn, label, m);
+    let (labmode, mode) = Mode.of_label(ctx, mode);
+    let (lab, m) = go(~ctx, ~mode=labmode, label, m);
     let (p, m) = go(~ctx, ~mode, p, m);
     if (is_contained) {
       add(
