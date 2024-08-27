@@ -55,7 +55,7 @@ module rec Typ: {
     (type_provenance, type_provenance) => type_provenance;
   let matched_arrow: (Ctx.t, t) => (t, t);
   let matched_forall: (Ctx.t, t) => (option(string), t);
-  let matched_label: (Ctx.t, t) => t;
+  let matched_label: (Ctx.t, t) => (t, t);
   let matched_prod:
     (Ctx.t, list('a), 'a => option((LabeledTuple.t, 'a)), t) => list(t);
   let matched_list: (Ctx.t, t) => t;
@@ -498,10 +498,10 @@ module rec Typ: {
 
   let matched_label = (ctx, ty) =>
     switch (weak_head_normalize(ctx, ty)) {
-    | TupLabel(_, ty) => ty
-    | Prod([ty]) => ty
-    | Unknown(SynSwitch) => Unknown(SynSwitch)
-    | _ => ty
+    | TupLabel(lab, ty) => (lab, ty)
+    | Prod([TupLabel(lab, ty)]) => (lab, ty)
+    | Unknown(SynSwitch) => (Unknown(SynSwitch), Unknown(SynSwitch))
+    | _ => (Unknown(Internal), ty)
     };
 
   let matched_prod = (ctx, ts, get_label_ts, ty) => {
