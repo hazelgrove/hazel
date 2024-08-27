@@ -4,6 +4,7 @@ let prompt = Ex_RecursiveFibonacci_prompt.prompt
 
 let exercise : Exercise.spec =
   {
+    id = Option.get (Id.of_string "12f5e34d-d211-4332-91e2-815e9e183885");
     title = "Recursive Fibonacci";
     version = 1;
     module_name = "Ex_RecursiveFibonacci";

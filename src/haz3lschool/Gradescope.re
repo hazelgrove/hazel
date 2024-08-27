@@ -37,7 +37,7 @@ type report = {
 };
 [@deriving (sexp, yojson)]
 type section = {
-  name: string,
+  id: Id.t,
   report,
 };
 
@@ -111,17 +111,18 @@ module Main = {
     let hw = name_to_exercise_export(hw_path);
     let export_chapter =
       hw.exercise_data
-      |> List.map(~f=(((name, _) as key, persistent_state)) => {
-           switch (find_key_opt(key, specs)) {
+      |> List.map(~f=((id, persistent_state)) => {
+           switch (find_id_opt(id, specs)) {
            | Some((_n, spec)) =>
              let exercise =
                unpersist_state(
                  persistent_state,
                  ~spec,
                  ~instructor_mode=true,
+                 ~editing_prompt=false,
                );
              let report = exercise |> gen_grading_report;
-             {name, report};
+             {id, report};
            | None => failwith("Invalid spec")
            //  | None => (key |> yojson_of_key |> Yojson.Safe.to_string, "?")
            }

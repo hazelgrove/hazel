@@ -259,7 +259,8 @@ let perform_action = (model: Model.t, a: Action.t): Result.t(Model.t) =>
   };
 
 let switch_scratch_slide =
-    (editors: Editors.t, ~instructor_mode, idx: int): option(Editors.t) =>
+    (editors: Editors.t, ~instructor_mode, ~editing_prompt, idx: int)
+    : option(Editors.t) =>
   switch (editors) {
   | Documentation(_) => None
   | Scratch(n, _) when n == idx => None
@@ -268,8 +269,8 @@ let switch_scratch_slide =
   | Exercises(_, specs, _) when idx >= List.length(specs) => None
   | Exercises(_, specs, _) =>
     let spec = List.nth(specs, idx);
-    let key = Exercise.key_of(spec);
-    let exercise = Store.Exercise.load_exercise(key, spec, ~instructor_mode);
+    let exercise =
+      Store.Exercise.load_exercise(spec, ~instructor_mode, ~editing_prompt);
     Some(Exercises(idx, specs, exercise));
   };
 
@@ -382,7 +383,14 @@ let rec apply =
       let instructor_mode = model.settings.instructor_mode;
       let editors = Editors.set_editing_prompt(model.editors, false);
       let settings = {...model.settings, editing_prompt: false};
-      switch (switch_scratch_slide(editors, ~instructor_mode, n)) {
+      switch (
+        switch_scratch_slide(
+          editors,
+          ~instructor_mode,
+          ~editing_prompt=false,
+          n,
+        )
+      ) {
       | None => Error(FailedToSwitch)
       | Some(editors) => Model.save_and_return({...model, editors, settings})
       };
