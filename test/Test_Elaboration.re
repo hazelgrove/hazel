@@ -5,7 +5,7 @@ open Haz3lcore;
   an equal function (dhexp_eq) and a print function (dhexp_print) */
 let dhexp_typ =
   testable(
-    Fmt.using([%derive.show: Exp.t(list(Id.t))], Fmt.string),
+    Fmt.using([%derive.show: Exp.t(IdTag.t)], Fmt.string),
     DHExp.fast_equal,
   );
 
@@ -15,30 +15,43 @@ let mk_map = Statics.mk(CoreSettings.on, Builtins.ctx_init);
 let dhexp_of_uexp = u => Elaborator.elaborate(mk_map(u), u) |> fst;
 let alco_check = dhexp_typ |> Alcotest.check;
 
-let u1: Exp.t(list(Id.t)) = {
-  ids: [id_at(0)],
+let u1: Exp.t(IdTag.t) = {
   term: Int(8),
-  copied: false,
+  annotation: {
+    ids: [id_at(0)],
+    copied: false,
+  },
 };
 let single_integer = () =>
   alco_check("Integer literal 8", u1, dhexp_of_uexp(u1));
 
-let u2: Exp.t(list(Id.t)) = {
-  ids: [id_at(0)],
+let u2: Exp.t(IdTag.t) = {
   term: EmptyHole,
-  copied: false,
+  annotation: {
+    ids: [id_at(0)],
+    copied: false,
+  },
 };
 let empty_hole = () => alco_check("Empty hole", u2, dhexp_of_uexp(u2));
 
-let u3: Exp.t(list(Id.t)) = {
-  ids: [id_at(0)],
-  term: Parens({ids: [id_at(1)], term: Var("y"), copied: false}),
-  copied: false,
+let u3: Exp.t(IdTag.t) = {
+  annotation: {
+    ids: [id_at(0)],
+    copied: false,
+  },
+  term:
+    Parens({
+      term: Var("y"),
+      annotation: {
+        ids: [id_at(1)],
+        copied: false,
+      },
+    }),
 };
 
 let free_var = () => alco_check("free variable", u3, dhexp_of_uexp(u3));
 
-let u4: Exp.t(list(Id.t)) =
+let u4: Exp.t(IdTag.t) =
   Let(
     Tuple([Var("a") |> Pat.fresh, Var("b") |> Pat.fresh]) |> Pat.fresh,
     Tuple([Int(4) |> Exp.fresh, Int(6) |> Exp.fresh]) |> Exp.fresh,
@@ -75,7 +88,7 @@ let bin_op = () =>
     dhexp_of_uexp(u5),
   );
 
-let u6: Exp.t(list(Id.t)) =
+let u6: Exp.t(IdTag.t) =
   If(Bool(false) |> Exp.fresh, Int(8) |> Exp.fresh, Int(6) |> Exp.fresh)
   |> Exp.fresh;
 
@@ -86,7 +99,7 @@ let consistent_if = () =>
     dhexp_of_uexp(u6),
   );
 
-let u7: Exp.t(list(Id.t)) =
+let u7: Exp.t(IdTag.t) =
   Ap(
     Forward,
     Fun(
@@ -104,7 +117,7 @@ let u7: Exp.t(list(Id.t)) =
 let ap_fun = () =>
   alco_check("Application of a function", u7, dhexp_of_uexp(u7));
 
-let u8: Exp.t(list(Id.t)) =
+let u8: Exp.t(IdTag.t) =
   Match(
     BinOp(Int(Equals), Int(4) |> Exp.fresh, Int(3) |> Exp.fresh)
     |> Exp.fresh,
@@ -115,7 +128,7 @@ let u8: Exp.t(list(Id.t)) =
   )
   |> Exp.fresh;
 
-let d8: Exp.t(list(Id.t)) =
+let d8: Exp.t(IdTag.t) =
   Match(
     BinOp(Int(Equals), Int(4) |> Exp.fresh, Int(3) |> Exp.fresh)
     |> Exp.fresh,
@@ -149,7 +162,7 @@ let inconsistent_case = () =>
     dhexp_of_uexp(u8),
   );
 
-let u9: Exp.t(list(Id.t)) =
+let u9: Exp.t(IdTag.t) =
   Let(
     Cast(
       Var("f") |> Pat.fresh,
@@ -169,7 +182,7 @@ let u9: Exp.t(list(Id.t)) =
   )
   |> Exp.fresh;
 
-let d9: Exp.t(list(Id.t)) =
+let d9: Exp.t(IdTag.t) =
   Let(
     Var("f") |> Pat.fresh,
     Fun(
