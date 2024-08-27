@@ -480,6 +480,10 @@ module rec Typ: {
 
   let matched_arrow = (ctx, ty) =>
     switch (weak_head_normalize(ctx, ty)) {
+    | Arrow(TupLabel(name, ty_in), ty_out) => (
+        Prod([TupLabel(name, ty_in)]),
+        ty_out,
+      )
     | Arrow(ty_in, ty_out) => (ty_in, ty_out)
     | Unknown(SynSwitch) => (Unknown(SynSwitch), Unknown(SynSwitch))
     | _ => (Unknown(Internal), Unknown(Internal))

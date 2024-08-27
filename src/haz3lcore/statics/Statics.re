@@ -397,6 +397,14 @@ and uexp_to_info_map =
     let fn_mode = Mode.of_ap(ctx, mode, UExp.ctr_name(fn));
     let (fn, m) = go(~mode=fn_mode, fn, m);
     let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
+    // In case of singleton tuple for fun ty_in, implicitly convert arg if necessary
+    // TODO: Is needed for TypAp or Deferred Ap?
+    let arg =
+      switch (arg.term, ty_in) {
+      | (Tuple(_), Prod(_)) => arg
+      | (_, Prod([TupLabel(_)])) => {UExp.ids: arg.ids, term: Tuple([arg])}
+      | (_, _) => arg
+      };
     let (arg, m) = go(~mode=Ana(ty_in), arg, m);
     let self: Self.t =
       Id.is_nullary_ap_flag(arg.term.ids)
@@ -433,19 +441,22 @@ and uexp_to_info_map =
     /* add co_ctx to pattern */
     let (p'', m) =
       go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~mode=mode_pat, p, m);
+    // convert variables into labeled expressions if needed
     let rec get_var = (p1: UPat.t, p2) =>
       switch (p1.term) {
       | UPat.Var(s) => Typ.TupLabel(Label(s), p2)
       | TypeAnn(s, _) => get_var(s, p2)
       | _ => p2
       };
-    let pty: Typ.t =
-      switch (p.term, p''.ty) {
+    let rec get_typ = (p: UPat.t, t: Typ.t): Typ.t =>
+      switch (p.term, t) {
       | (Tuple(l1), Prod(l2)) =>
         let pt: list(Typ.t) = List.map2(get_var, l1, l2);
         Prod(pt);
-      | _ => p''.ty
+      | (TypeAnn(s, _), t) => get_typ(s, t)
+      | _ => t
       };
+    let pty = get_typ(p, p''.ty);
     // TODO: factor out code
     let unwrapped_self: Self.exp = Common(Just(Arrow(pty, e.ty)));
     let is_exhaustive = p'' |> Info.pat_constraint |> Incon.is_exhaustive;

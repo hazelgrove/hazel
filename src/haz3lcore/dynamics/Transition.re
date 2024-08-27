@@ -343,10 +343,11 @@ module Transition = (EV: EV_MODE) => {
       | Constructor(_) => Constructor
       | Fun(dp, _, Closure(env', d3), _) =>
         // Wrap the arguments into labels for label rearrangement
+        // And implicitly wrap args into singleton tuples if necessary
         let dp: DHPat.t =
           switch (dp) {
           | Tuple(args) =>
-            Tuple(
+            let labeled_args =
               List.map(
                 (p): DHPat.t =>
                   switch (p) {
@@ -354,9 +355,21 @@ module Transition = (EV: EV_MODE) => {
                   | _ => p
                   },
                 args,
-              ),
-            )
+              );
+            Tuple(labeled_args);
           | _ => dp
+          };
+        // TODO: Probably not the right way to deal with casts
+        let d2' =
+          switch (d2', dp) {
+          | (Tuple(_), Tuple(_)) => d2'
+          | (Cast(Tuple(_), _, Prod(_)), Tuple(_)) => d2'
+          | (Cast(d, Prod(t1), Prod(t2)), Tuple(_)) =>
+            Cast(Tuple([d]), Prod(t1), Prod(t2))
+          | (Cast(d, t1, Prod(t2)), Tuple(_)) =>
+            Cast(Tuple([d]), Prod([t1]), Prod(t2))
+          | (_, Tuple([TupLabel(_)])) => Tuple([d2'])
+          | (_, _) => d2'
           };
         let.match env'' = (env', matches(dp, d2'));
         Step({apply: () => Closure(env'', d3), kind: FunAp, value: false});
