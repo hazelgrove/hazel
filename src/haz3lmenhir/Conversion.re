@@ -183,7 +183,6 @@ module rec Exp: {
         Haz3lcore.TermBase.StepperFilterKind.Filter({pat: dcond, act}),
         dbody,
       );
-    | MultiHole(e) => MultiHole([Exp(of_menhir_ast(e))])
     | TypAp(e, ty) => TypAp(of_menhir_ast(e), Typ.of_menhir_ast(ty))
     | UnOp(op, e) =>
       UnOp(Operators.op_un_of_menhir_ast(op), of_menhir_ast(e))
@@ -230,7 +229,6 @@ and TPat: {
     switch (tpat) {
     | InvalidTPat(s) => Invalid(s)
     | EmptyHoleTPat => EmptyHole
-    | MultiHoleTPat(t) => MultiHole([TPat(of_menhir_ast(t))])
     | VarTPat(s) => Var(s)
     };
   }
@@ -255,9 +253,6 @@ and Pat: {
     | ConsPat(p1, p2) => Cons(of_menhir_ast(p1), of_menhir_ast(p2))
     | BoolPat(b) => Bool(b)
     | EmptyHolePat => EmptyHole
-    | MultiHolePat(p) =>
-      let p = of_menhir_ast(p);
-      MultiHole([Pat(p)]);
     | WildPat => Wild
     | ListPat(l) => ListLit(List.map(of_menhir_ast, l))
     };
