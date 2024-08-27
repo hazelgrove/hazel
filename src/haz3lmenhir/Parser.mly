@@ -3,6 +3,7 @@ open AST
 %}
 
 
+
 %token UNDEF
 %token <string> SEXP_STRING
 %token DOLLAR_SIGN
@@ -31,8 +32,6 @@ open AST
 %token LET
 %token FUN
 %token CASE
-%token OPEN_BRACKET
-%token CLOSE_BRACKET
 %token OPEN_SQUARE_BRACKET
 %token CLOSE_SQUARE_BRACKET
 %token OPEN_PAREN
@@ -159,7 +158,6 @@ varPat:
 
 pat: 
     | QUESTION; s = STRING { InvalidPat(s) }
-    | OPEN_BRACKET; OPEN_BRACKET; p = pat; CLOSE_BRACKET; CLOSE_BRACKET; {MultiHolePat p}
     | WILD { WildPat }
     | QUESTION { EmptyHolePat }
     | OPEN_SQUARE_BRACKET; l = separated_list(COMMA, pat); CLOSE_SQUARE_BRACKET; { ListPat(l) }
@@ -206,7 +204,6 @@ filterAction:
 tpat:
     | QUESTION; s = STRING {InvalidTPat(s)}
     | QUESTION {EmptyHoleTPat}
-    | OPEN_BRACKET; OPEN_BRACKET; t = tpat; CLOSE_BRACKET; CLOSE_BRACKET; {MultiHoleTPat t}
     | v = IDENT {VarTPat v}
 
 unExp:
@@ -236,7 +233,6 @@ exp:
     | FALSE { Bool false }    
     | FIX;  p = pat; DASH_ARROW; e = exp { FixF(p, e) }
     | TYP_FUN; t = tpat; DASH_ARROW; e = exp {TypFun(t, e)}
-    | LESS_THAN; LESS_THAN; e = exp; GREATER_THAN; GREATER_THAN {MultiHole e}
     | QUESTION { EmptyHole }
     | a = filterAction; cond = exp; body = exp { Filter(a, cond, body)}
     | TEST; e = exp; END { Test(e) }

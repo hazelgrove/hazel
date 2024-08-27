@@ -45,8 +45,6 @@ rule token =
     | "if" { IF }
     | "then" { THEN }
     | "else" { ELSE }
-    | "{" { OPEN_BRACKET }
-    | "}" { CLOSE_BRACKET }
     | "[" { OPEN_SQUARE_BRACKET }
     | "]" { CLOSE_SQUARE_BRACKET }
     | "(" { OPEN_PAREN }

@@ -85,7 +85,6 @@ type typ =
 type pat =
   | EmptyHolePat
   | WildPat
-  | MultiHolePat(pat)
   | IntPat(int)
   | FloatPat(float)
   | VarPat(string)
@@ -112,7 +111,6 @@ type deferral_pos =
 type tpat =
   | InvalidTPat(string)
   | EmptyHoleTPat
-  | MultiHoleTPat(tpat)
   | VarTPat(string);
 
 [@deriving (show({with_path: false}), sexp)]
@@ -134,7 +132,6 @@ type exp =
   | Bool(bool)
   | Cast(exp, typ, typ)
   | FailedCast(exp, typ, typ)
-  | MultiHole(exp)
   | EmptyHole
   | Filter(filter_action, exp, exp)
   | BuiltinFun(string)
