@@ -573,9 +573,10 @@ let rec pretty_print = (ty: t): string =>
          ts,
        )
     ++ ")"
-  | Rec(tv, t) => "rec " ++ pretty_print_tvar(tv) ++ "->" ++ pretty_print(t)
+  | Rec(tv, t) =>
+    "rec " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
   | Type(tv, t) =>
-    "type " ++ pretty_print_tvar(tv) ++ "->" ++ pretty_print(t)
+    "type " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
   | Forall(v, t) =>
     "forall " ++ pretty_print_pat(v) ++ ". " ++ pretty_print(t)
   | Equals(e1, e2) =>
