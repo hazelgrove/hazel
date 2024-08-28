@@ -186,7 +186,59 @@ module Update = {
         ();
       },
     );
-    {spec: model.spec, editors: model.editors, cells};
+    /* The following section pulls statics back from cells into the editors
+       There are many ad-hoc things about this code, including the fact that
+       one of the editors is shown in two cells, so we arbitrarily choose which
+       statics to take */
+    let editors: Exercise.p('a) = {
+      let calculate = Editor.Update.calculate(~settings, ~is_edited);
+      {
+        title: model.editors.title,
+        version: model.editors.version,
+        module_name: model.editors.module_name,
+        prompt: model.editors.prompt,
+        point_distribution: model.editors.point_distribution,
+        prelude:
+          calculate(cells.prelude.editor.statics, model.editors.prelude),
+        correct_impl:
+          calculate(
+            cells.test_validation.editor.statics,
+            model.editors.correct_impl,
+          ),
+        your_tests: {
+          tests:
+            calculate(
+              cells.user_tests.editor.statics,
+              model.editors.your_tests.tests,
+            ),
+          required: model.editors.your_tests.required,
+          provided: model.editors.your_tests.provided,
+        },
+        your_impl:
+          calculate(cells.user_impl.editor.statics, model.editors.your_impl),
+        hidden_bugs:
+          List.map2(
+            (cell: CellEditor.Model.t, editor: Exercise.wrong_impl('a)):
+              Exercise.wrong_impl('a) =>
+              {
+                impl: calculate(cell.editor.statics, editor.impl),
+                hint: editor.hint,
+              },
+            cells.hidden_bugs,
+            model.editors.hidden_bugs,
+          ),
+        hidden_tests: {
+          tests:
+            calculate(
+              cells.hidden_tests.editor.statics,
+              model.editors.hidden_tests.tests,
+            ),
+          hints: model.editors.hidden_tests.hints,
+        },
+        syntax_tests: model.editors.syntax_tests,
+      };
+    };
+    {spec: model.spec, editors, cells};
   };
 };
 
