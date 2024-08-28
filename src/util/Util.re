@@ -23,3 +23,4 @@ module Point = Point;
 // Used by [@deriving sexp, yojson)]
 include Sexplib.Std;
 include Ppx_yojson_conv_lib.Yojson_conv.Primitives;
+exception NotYetImplemented(string);

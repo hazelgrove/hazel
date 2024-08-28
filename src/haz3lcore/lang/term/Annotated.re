@@ -2,7 +2,7 @@
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t('term, 'a) = {
-  [@show.opaque]
+  // [@show.opaque]
   annotation: 'a,
   term: 'term,
 };
@@ -36,3 +36,9 @@ let new_ids =
     copied,
   },
 };
+
+let map_annotation = (f, {term, annotation}: t('term, 'a)) => {
+  {term, annotation: f(annotation)};
+};
+
+let unannotated = term => {term, annotation: ()};
