@@ -1,5 +1,3 @@
-open Haz3lcore
-
 let startup : PersistentData.t =
   {
     settings =
@@ -218,7 +216,6 @@ let startup : PersistentData.t =
             {
               title = "";
               description = "";
-              your_impl = Zipper.init ();
               hidden_tests =
                 {
                   tests =

@@ -111,27 +111,31 @@ let main_view =
     //     editor,
     //   );
     // (view, cursor_info);
-    | Documentation(_, slides) =>
+    | Documentation(name, slides) =>
       let info =
         SlideContent.get_content(editors)
         |> Option.map(i => div(~attr=Attr.id("slide"), [i]))
         |> Option.to_list;
 
-      let results =
-        List.map(
-          ((_, tutorial_state)) =>
-            DocumentationMode.view(
-              ~inject,
-              ~ui_state,
-              ~settings,
-              ~tutorial=tutorial_state,
-              ~results,
-              ~highlights,
-              // ~editor,
-            ),
-          slides,
-        );
-      info @ List.flatten(results);
+      let matching_slide =
+        List.find_opt(((slide_name, _)) => slide_name == name, slides);
+
+      let result =
+        switch (matching_slide) {
+        | None => []
+        | Some((_, tutorial_state)) =>
+          DocumentationMode.view(
+            ~inject,
+            ~ui_state,
+            ~settings,
+            ~tutorial=tutorial_state,
+            ~results,
+            ~highlights,
+            // ~editor,
+          )
+        };
+
+      info @ result;
     // let info =
     //   SlideContent.get_content(editors)
     //   |> Option.map(i => div(~attrs=[Attr.id("slide")], [i]))

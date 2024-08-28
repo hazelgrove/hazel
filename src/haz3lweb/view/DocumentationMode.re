@@ -24,8 +24,12 @@ let view =
       ~settings: Settings.t,
       ~tutorial,
       ~results,
+      // ~result_key,
       ~highlights,
     ) => {
+  // editor : Editor.t,
+
+  // let result = ModelResults.lookup(results, result_key);
   let DocumentationEnv.{eds, pos} = tutorial;
   let stitched_dynamics =
     DocumentationEnv.stitch_dynamic(

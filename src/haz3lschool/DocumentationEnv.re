@@ -72,6 +72,10 @@ module D = (DocEnv: DocEnv) => {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type key = (string, int);
 
+  let key_of_string = (p): string => {
+    p.title;
+  };
+
   let key_of = p => {
     p.title;
   };
@@ -141,6 +145,12 @@ module D = (DocEnv: DocEnv) => {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent_state = (pos, list((pos, PersistentZipper.t)));
+  // type persistent_state = {
+  //     title : string,
+  //     description : string,
+  //     pos : pos,
+  //     tutorial : list((pos, PersistentZipper.t)),
+  // };
 
   let editor_of_state: state => Editor.t =
     ({pos, eds, _}) =>
