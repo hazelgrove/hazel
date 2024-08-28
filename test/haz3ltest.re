@@ -4,6 +4,9 @@ let (suite, _) =
   run_and_report(
     ~and_exit=false,
     "Dynamics",
-    [("Elaboration", Test_Elaboration.elaboration_tests)],
+    [
+      ("Elaboration", Test_Elaboration.elaboration_tests),
+      Test_Statics.tests,
+    ],
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");

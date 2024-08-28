@@ -179,6 +179,8 @@ and Exp: {
     | Cast(t('a), Typ.t('a), Typ.t('a)) // first Typ.t field is only meaningful in dynamic expressions
   and t('a) = Annotated.t(term('a), 'a);
 
+  let map_annotation: ('b => 'c, t('b)) => t('c);
+
   let map_term:
     (
       ~f_exp: (Exp.t('a) => Exp.t('a), Exp.t('a)) => Exp.t('a)=?,
@@ -246,6 +248,20 @@ and Exp: {
     | Cast(t('a), Typ.t('a), Typ.t('a)) // first Typ.t field is only meaningful in dynamic expressions
   and t('a) = Annotated.t(term('a), 'a);
 
+  let map_annotation: 'a 'b. ('a => 'b, t('a)) => t('b) =
+    (f, {term, annotation}) => {
+      {
+        term:
+          switch (term) {
+          | Invalid(str) => Invalid(str)
+          | EmptyHole => EmptyHole
+          | Int(i) => Int(i)
+          | Bool(b) => Bool(b)
+          | _ => raise(NotYetImplemented("Exp"))
+          },
+        annotation: f(annotation),
+      };
+    };
   let map_term =
       (
         ~f_exp=continue,
@@ -471,7 +487,7 @@ and Pat: {
     | Ap(t('a), t('a))
     | Cast(t('a), Typ.t('a), Typ.t('a)) // The second Typ.t field is only meaningful in dynamic patterns
   and t('a) = Annotated.t(term('a), 'a);
-
+  let map_annotation: ('b => 'c, t('b)) => t('c);
   let map_term:
     (
       ~f_exp: (Exp.t('a) => Exp.t('a), Exp.t('a)) => Exp.t('a)=?,
@@ -505,6 +521,24 @@ and Pat: {
     | Ap(t('a), t('a))
     | Cast(t('a), Typ.t('a), Typ.t('a)) // The second one is hidden from the user
   and t('a) = Annotated.t(term('a), 'a);
+  let map_annotation: 'a 'b. ('a => 'b, t('a)) => t('b) =
+    (f, {term, annotation}) => {
+      {
+        term:
+          switch (term) {
+          | Invalid(s) => Invalid(s)
+          | EmptyHole => EmptyHole
+          | Wild => Wild
+          | Int(i) => Int(i)
+          | Float(f) => Float(f)
+          | Bool(b) => Bool(b)
+          | String(s) => String(s)
+          | Var(v) => Var(v)
+          | _ => raise(NotYetImplemented("Pat"))
+          },
+        annotation: f(annotation),
+      };
+    };
 
   let map_term =
       (
@@ -627,7 +661,7 @@ and Typ: {
   and t('a) = Annotated.t(term('a), 'a);
 
   type sum_map('a) = ConstructorMap.t(t('a));
-
+  let map_annotation: ('b => 'c, t('b)) => t('c);
   let map_term:
     (
       ~f_exp: (Exp.t('a) => Exp.t('a), Exp.t('a)) => Exp.t('a)=?,
@@ -679,7 +713,20 @@ and Typ: {
   and t('a) = Annotated.t(term('a), 'a);
 
   type sum_map('a) = ConstructorMap.t(t('a));
-
+  let map_annotation: 'b 'c. ('b => 'c, t('b)) => t('c) =
+    (f, {term, annotation}) => {
+      {
+        term:
+          switch (term) {
+          | Int => Int
+          | Float => Float
+          | Bool => Bool
+          | String => String
+          | _ => raise(NotYetImplemented("Typ"))
+          },
+        annotation: f(annotation),
+      };
+    };
   let map_term =
       (
         ~f_exp=continue,
