@@ -286,7 +286,21 @@ let rec dhexp_of_uexp =
         let* dp = dhpat_of_upat(m, p, false);
         let* ddef = dhexp_of_uexp(m, def);
         let* dbody = dhexp_of_uexp(m, body);
-        let+ ty = fixed_pat_typ(m, p);
+        let* ty = fixed_pat_typ(m, p);
+        // attach labels if needed for labeled tuples
+        let+ ddef =
+          switch (ddef, Typ.normalize(ctx, ty)) {
+          | (Tuple(ds), Prod(tys)) =>
+            Some(
+              DHExp.Tuple(
+                LabeledTuple.rearrange(
+                  Typ.get_label, DHExp.get_label, tys, ds, (t, b) =>
+                  TupLabel(Label(t), b)
+                ),
+              ),
+            )
+          | (ddef, _) => Some(ddef)
+          };
         let is_recursive =
           Statics.is_recursive(ctx, p, def, ty)
           && Term.UPat.get_bindings(p)
