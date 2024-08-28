@@ -135,4 +135,4 @@ and paren_view = typ =>
   };
 
 let view = (ty: Haz3lcore.Typ.t): Node.t =>
-  div_c("typ-wrapper", [view_ty(ty)]);
+  div(~attrs=[clss(["type", "code"])], [view_ty(ty)]);

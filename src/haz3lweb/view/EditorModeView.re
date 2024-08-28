@@ -37,7 +37,7 @@ let slide_select = (~inject, ~cur_slide, ~num_slides) => {
 };
 
 let scratch_view = (~inject, ~cur_slide, ~slides) =>
-  [mode_menu(~inject, ~mode=Scratch)]
+  [text("/"), mode_menu(~inject, ~mode=Scratch), text("/")]
   @ slide_select(~inject, ~cur_slide, ~num_slides=List.length(slides));
 
 let documentation_view = (~inject, ~name, ~editors) => {
@@ -53,7 +53,7 @@ let documentation_view = (~inject, ~name, ~editors) => {
     | [x, y, z, ..._] when name == y => (Some(x), Some(z))
     | [_, ...ys] => find_prev_next(ys);
   let (prev, next) = find_prev_next(editor_names);
-  let prev =
+  let _prev =
     prev
     |> Option.map(s =>
          button(Icons.back, _ => inject(Update.SwitchDocumentationSlide(s)))
@@ -66,7 +66,7 @@ let documentation_view = (~inject, ~name, ~editors) => {
              ~disabled=true,
            ),
        );
-  let next =
+  let _next =
     next
     |> Option.map(s =>
          button(Icons.forward, _ =>
@@ -82,8 +82,9 @@ let documentation_view = (~inject, ~name, ~editors) => {
            ),
        );
   [
+    text("/"),
     mode_menu(~inject, ~mode=Documentation),
-    prev,
+    text("/"),
     select(
       ~attrs=[
         Attr.on_change((_, name) =>
@@ -92,7 +93,6 @@ let documentation_view = (~inject, ~name, ~editors) => {
       ],
       List.map(option_view(name), editor_names),
     ),
-    next,
   ];
 };
 
@@ -106,8 +106,9 @@ let instructor_toggle = (~inject, ~instructor_mode) =>
     : [];
 
 let exercises_view = (~inject, ~cur_slide, ~specs, ~instructor_mode) => {
-  [mode_menu(~inject, ~mode=Exercises)]
+  [text("/"), mode_menu(~inject, ~mode=Exercises), text("/")]
   @ instructor_toggle(~inject, ~instructor_mode)
+  @ [text("/")]
   @ slide_select(~inject, ~cur_slide, ~num_slides=List.length(specs));
 };
 

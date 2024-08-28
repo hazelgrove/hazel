@@ -42,8 +42,8 @@ let precedence_bin_string_op = (bso: Operators.op_bin_string) =>
   | Concat => DHDoc_common.precedence_Plus
   | Equals => DHDoc_common.precedence_Equals
   };
-let rec precedence = (~show_casts: bool, d: DHExp.t) => {
-  let precedence' = precedence(~show_casts);
+let rec precedence = (~show_function_bodies, ~show_casts: bool, d: DHExp.t) => {
+  let precedence' = precedence(~show_function_bodies, ~show_casts);
   switch (DHExp.term_of(d)) {
   | Var(_)
   | Invalid(_)
@@ -72,6 +72,8 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Cons(_) => DHDoc_common.precedence_Cons
   | ListConcat(_) => DHDoc_common.precedence_Plus
   | Tuple(_) => DHDoc_common.precedence_Comma
+  | TypFun(_)
+  | Fun(_) when !show_function_bodies => DHDoc_common.precedence_const
   | TypFun(_)
   | Fun(_) => DHDoc_common.precedence_max
   | Let(_)
@@ -118,7 +120,11 @@ let mk =
       d: DHExp.t,
     )
     : DHDoc.t => {
-  let precedence = precedence(~show_casts=settings.show_casts);
+  let precedence =
+    precedence(
+      ~show_casts=settings.show_casts,
+      ~show_function_bodies=settings.show_fn_bodies,
+    );
   let rec go =
           (
             d: DHExp.t,

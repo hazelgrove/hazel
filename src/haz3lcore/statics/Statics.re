@@ -837,7 +837,6 @@ and utyp_to_info_map =
   let go_pat = upat_to_info_map(~ctx, ~ancestors);
   let go' = utyp_to_info_map(~ctx, ~ancestors);
   let go = go'(~expects=TypeExpected);
-  //TODO(andrew): make this return free, replacing Typ.free_vars
   switch (term) {
   | Unknown(Hole(MultiHole(tms))) =>
     let (_, m) = multi(~ctx, ~ancestors, m, tms);
