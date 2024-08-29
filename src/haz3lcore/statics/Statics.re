@@ -311,6 +311,14 @@ and uexp_to_info_map =
   | Test(e) =>
     let (e, m) = go(~mode=Ana(Bool |> Typ.temp), e, m);
     add(~self=Just(Prod([]) |> Typ.temp), ~co_ctx=e.co_ctx, m);
+  | HintedTest(e, h) =>
+    let (e1, m) = go(~mode=Ana(Bool |> Typ.temp), e, m);
+    let (e2, m) = go(~mode=Ana(String |> Typ.temp), h, m);
+    add(
+      ~self=Just(Prod([]) |> Typ.temp),
+      ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
+      m,
+    );
   | Filter(Filter({pat: cond, _}), body) =>
     let (cond, m) = go(~mode=Syn, cond, m, ~is_in_filter=true);
     let (body, m) = go(~mode, body, m);

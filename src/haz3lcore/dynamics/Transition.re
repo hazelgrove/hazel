@@ -272,7 +272,46 @@ module Transition = (EV: EV_MODE) => {
       Step({
         expr: Tuple([]) |> fresh,
         state_update: () =>
-          update_test(state, DHExp.rep_id(d), (d', result)),
+          update_test(
+            state,
+            DHExp.rep_id(d),
+            {exp: d, status: result, hint: "No hint available."},
+          ),
+        // update_test(state, DHExp.rep_id(d), (d', result)),
+        kind: UpdateTest,
+        is_value: true,
+      });
+    | HintedTest(d'', h) =>
+      let. _ = otherwise(env, ((d, _)) => HintedTest(d, h) |> rewrap)
+      and. (d', is_value) =
+        req_final_or_value(
+          req(state, env),
+          d => HintedTest(d, h) |> wrap_ctx,
+          d'',
+        );
+      let result: TestStatus.t =
+        if (is_value) {
+          switch (Unboxing.unbox(Bool, d')) {
+          | DoesNotMatch
+          | IndetMatch => Indet
+          | Matches(b) => b ? Pass : Fail
+          };
+        } else {
+          Indet;
+        };
+      let h: string =
+        switch (h.term) {
+        | String(s) => s
+        | _ => "No hint available."
+        };
+      Step({
+        expr: Tuple([]) |> fresh,
+        state_update: () =>
+          update_test(
+            state,
+            DHExp.rep_id(d),
+            {exp: d, status: result, hint: h},
+          ),
         kind: UpdateTest,
         is_value: true,
       });

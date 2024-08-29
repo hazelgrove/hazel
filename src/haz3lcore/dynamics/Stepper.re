@@ -127,6 +127,9 @@ let rec matches =
       | Test(ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Test(ctx) |> rewrap;
+      | HintedTest(ctx, h) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        HintedTest(ctx, h) |> rewrap;
       | ListLit(ctx, ds) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         ListLit(ctx, ds) |> rewrap;

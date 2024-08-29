@@ -385,6 +385,11 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       Test(fresh_cast(e', t, Bool |> Typ.temp))
       |> rewrap
       |> cast_from(Prod([]) |> Typ.temp);
+    | HintedTest(e, h) =>
+      let (e', t) = elaborate(m, e);
+      HintedTest(fresh_cast(e', t, Bool |> Typ.temp), h)
+      |> rewrap
+      |> cast_from(Prod([]) |> Typ.temp);
     | Filter(kind, e) =>
       let (e', t) = elaborate(m, e);
       let kind' =

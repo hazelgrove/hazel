@@ -60,6 +60,7 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
     Ap(dir, d3, d4) |> rewrap;
   | BuiltinFun(_) => d2
   | Test(d3) => Test(subst_var(m, d1, x, d3)) |> rewrap
+  | HintedTest(d3, h) => HintedTest(subst_var(m, d1, x, d3), h) |> rewrap
   | Bool(_)
   | Int(_)
   | Float(_)

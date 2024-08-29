@@ -13,7 +13,7 @@ let test_instance_view =
       ~inject,
       ~font_metrics,
       ~infomap,
-      (d, status): TestMap.instance_report,
+      {exp: d, status, hint: _hint}: TestMap.instance_report,
     ) =>
   div(
     ~attrs=[clss(["test-instance", TestStatus.to_string(status)])],

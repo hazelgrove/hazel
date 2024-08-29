@@ -222,6 +222,9 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
   | Test(dtest) =>
     let* ty = typ_of_dhexp(ctx, m, dtest);
     Typ.eq(ty, Bool |> Typ.temp) ? Some(Typ.Prod([]) |> Typ.temp) : None;
+  | HintedTest(dtest, _) =>
+    let* ty = typ_of_dhexp(ctx, m, dtest);
+    Typ.eq(ty, Bool |> Typ.temp) ? Some(Typ.Prod([]) |> Typ.temp) : None;
   | Bool(_) => Some(Bool |> Typ.temp)
   | Int(_) => Some(Int |> Typ.temp)
   | Float(_) => Some(Float |> Typ.temp)

@@ -324,6 +324,9 @@ let rec matches =
       | Test(ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Test(ctx) |> wrap_ids(ids);
+      | HintedTest(ctx, h) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        HintedTest(ctx, h) |> wrap_ids(ids);
       | ListLit(ctx, ds) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         ListLit(ctx, ds) |> wrap_ids(ids);

@@ -51,6 +51,7 @@ let rec precedence = (~show_function_bodies, ~show_casts: bool, d: DHExp.t) => {
   | Int(_)
   | Seq(_)
   | Test(_)
+  | HintedTest(_)
   | Float(_)
   | String(_)
   | ListLit(_)
@@ -322,6 +323,7 @@ let mk =
       | Undefined => DHDoc_common.mk_Undefined()
       | Test(d) => DHDoc_common.mk_Test(go'(d))
       | Deferral(_) => text("_")
+      | HintedTest(d, _) => DHDoc_common.mk_Test(go'(d))
       | Seq(d1, d2) =>
         let (doc1, doc2) = (go'(d1), go'(d2));
         DHDoc_common.mk_Sequence(doc1, doc2);
