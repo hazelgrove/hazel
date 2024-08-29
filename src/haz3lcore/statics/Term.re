@@ -342,7 +342,6 @@ module Exp = {
     | Int(_) => Int
     | Float(_) => Float
     | String(_) => String
-    | Prop(_) => Prop
     | ListLit(_) => ListLit
     | Constructor(_) => Constructor
     | Fun(_) => Fun
@@ -432,7 +431,6 @@ module Exp = {
     | Int(_)
     | Float(_)
     | String(_)
-    | Prop(_)
     | ListLit(_)
     | Tuple(_)
     | Var(_)
@@ -474,7 +472,6 @@ module Exp = {
       | Int(_)
       | Float(_)
       | String(_)
-      | Prop(_)
       | ListLit(_)
       | Fun(_)
       | TypFun(_)
@@ -535,7 +532,6 @@ module Exp = {
       | Int(_)
       | Float(_)
       | String(_)
-      | Prop(_)
       | ListLit(_)
       | Fun(_)
       | TypFun(_)

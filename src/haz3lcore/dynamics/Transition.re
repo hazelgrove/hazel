@@ -161,7 +161,6 @@ module Transition = (EV: EV_MODE) => {
     // Split DHExp into term and id information
     let (term, rewrap) = DHExp.unwrap(d);
     let wrap_ctx = (term): EvalCtx.t => Term({term, ids: [rep_id(d)]});
-    print_endline(DHExp.show_term(term));
 
     // Transition rules
     switch (term) {
@@ -344,23 +343,23 @@ module Transition = (EV: EV_MODE) => {
           d2,
         );
       switch (DHExp.term_of(d1')) {
-      | Constructor(ctr, ty)
-          when
-            ctr
-            |> BuiltinsDerivation.to_term
-            |> Option.is_some
-            && Typ.matched_arrow([], ty)
-            |> snd
-            |> Typ.term_of == Typ.Prop =>
-        let term = ctr |> BuiltinsDerivation.to_term |> Option.get;
-        let expr = BuiltinsDerivation.transit(term, Some(d2'));
-        Step({
-          expr,
-          state_update,
-          // TODO(zhiyao): add new kind
-          kind: BuiltinAp(ctr),
-          is_value: false // Not necessarily a value because of InvalidOperations
-        });
+      // | Constructor(ctr, ty)
+      //     when
+      //       ctr
+      //       |> BuiltinsDerivation.to_term
+      //       |> Option.is_some
+      //       && Typ.matched_arrow([], ty)
+      //       |> snd
+      //       |> Typ.term_of == Typ.Prop =>
+      //   let term = ctr |> BuiltinsDerivation.to_term |> Option.get;
+      //   let expr = BuiltinsDerivation.transit(term, Some(d2'));
+      //   Step({
+      //     expr,
+      //     state_update,
+      //     // TODO(zhiyao): add new kind
+      //     kind: BuiltinAp(ctr),
+      //     is_value: false // Not necessarily a value because of InvalidOperations
+      //   });
       | Constructor(_) => Constructor
       | Fun(dp, d3, Some(env'), _) =>
         let.match env'' = (env', matches(dp, d2'));
@@ -460,28 +459,27 @@ module Transition = (EV: EV_MODE) => {
     | Deferral(_) =>
       let. _ = otherwise(env, d);
       Indet;
-    | Constructor(ctr, ty)
-        when
-          ctr
-          |> BuiltinsDerivation.to_term
-          |> Option.is_some
-          && ty
-          |> Typ.term_of == Typ.Prop =>
-      let. _ = otherwise(env, d);
-      let term = ctr |> BuiltinsDerivation.to_term |> Option.get;
-      let expr = BuiltinsDerivation.transit(term, None);
-      Step({
-        expr,
-        state_update,
-        // TODO(zhiyao): add new kind
-        kind: BuiltinAp(ctr),
-        is_value: false // Not necessarily a value because of InvalidOperations
-      });
+    // | Constructor(ctr, ty)
+    //     when
+    //       ctr
+    //       |> BuiltinsDerivation.to_term
+    //       |> Option.is_some
+    //       && ty
+    //       |> Typ.term_of == Typ.Prop =>
+    //   let. _ = otherwise(env, d);
+    //   let term = ctr |> BuiltinsDerivation.to_term |> Option.get;
+    //   let expr = BuiltinsDerivation.transit(term, None);
+    //   Step({
+    //     expr,
+    //     state_update,
+    //     // TODO(zhiyao): add new kind
+    //     kind: BuiltinAp(ctr),
+    //     is_value: false // Not necessarily a value because of InvalidOperations
+    //   });
     | Bool(_)
     | Int(_)
     | Float(_)
     | String(_)
-    | Prop(_)
     | Constructor(_)
     | BuiltinFun(_) =>
       let. _ = otherwise(env, d);

@@ -95,10 +95,6 @@ let view_of_layout =
                  [with_cls("OperationError", txt)],
                  ds,
                )
-             | DerivationError(_) => (
-                 [with_cls("DerivationError", txt)],
-                 ds,
-               )
              | VarHole(_) => ([with_cls("InVarHole", txt)], ds)
              | NonEmptyHole
              | InconsistentBranches(_)

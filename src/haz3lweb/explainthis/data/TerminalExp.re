@@ -1,4 +1,3 @@
-open Haz3lcore;
 open ExplainThisForm;
 open Example;
 
@@ -70,17 +69,17 @@ let string_exps = (s: string): group => {
   forms: [string_exp(s)],
 };
 
-let prop_exp = (p: Derivation.Syntax.t): form => {
-  id: PropExp,
-  syntactic_form: [p |> Derivation.Syntax.repr |> exp],
-  expandable_id: None,
-  explanation: "A proposition literal.",
-  examples: [],
-};
-let prop_exps = (p: Derivation.Syntax.t): group => {
-  id: PropExp,
-  forms: [prop_exp(p)],
-};
+// let prop_exp = (p: Derivation.Syntax.t): form => {
+//   id: PropExp,
+//   syntactic_form: [p |> Derivation.Syntax.repr |> exp],
+//   expandable_id: None,
+//   explanation: "A proposition literal.",
+//   examples: [],
+// };
+// let prop_exps = (p: Derivation.Syntax.t): group => {
+//   id: PropExp,
+//   forms: [prop_exp(p)],
+// };
 
 let var_exp = (n: string): form => {
   id: VarExp,

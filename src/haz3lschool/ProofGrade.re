@@ -45,7 +45,7 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
     open ExternalError;
 
     type t = list(Tree.p(abbr(res)))
-    and res = result(deduction(Judgement.t), ExternalError.t);
+    and res = result(deduction(Prop.t), ExternalError.t);
 
     let res_of_di = ({result, _}: DynamicsItem.t, rule): res =>
       switch (result) {
@@ -53,10 +53,8 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
         switch (evaluation) {
         | ResultOk({result, _}) =>
           switch (result) {
-          | BoxedValue({term: Prop(Judgement(jdmt)), _}) =>
-            Ok({jdmt, rule})
-          // TODO(zhiyao): check it
-          | BoxedValue(_) => Error(NotAJudgment)
+          | BoxedValue(d) =>
+            Ok({jdmt: BuiltinsDerivation.prop_of_dhexp(d), rule})
           | Indet(_) => Error(EvalIndet)
           }
         | Off(_) => Error(EvalOff)
@@ -85,20 +83,21 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
     type t = list(Tree.p(res))
     and res =
       | Correct
-      | Incorrect(DerivationError.t)
+      | Incorrect(Derivation.DeductionVerified.failure)
       | Pending(ExternalError.t);
 
     let show_res: res => string =
       fun
       | Correct => "✅"
       | Pending(err) => "⌛️ " ++ ExternalError.show(err)
-      | Incorrect(err) => "❌ " ++ DerivationError.repr(err);
+      | Incorrect(err) =>
+        "❌ " ++ Derivation.DeductionVerified.show_failure(err);
 
     let verify_single =
         (
-          acc: list((tree(res), option(Judgement.t))),
+          acc: list((tree(res), option(Prop.t))),
           concl: abbr(ProofTree.res),
-          prems: list((tree(res), option(Judgement.t))),
+          prems: list((tree(res), option(Prop.t))),
         ) => {
       let (sub_trees, prems) = List.split(prems);
       let are_prems_ready = List.for_all(Option.is_some, prems);
@@ -111,8 +110,9 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
         | Just(Ok(_)) when !are_prems_ready => Pending(PremiseNotReady)
         | Just(Ok({jdmt: concl, rule: Some(rule)})) =>
           let prems = prems |> List.map(Option.get);
-          switch (DerivationError.verify(rule, concl, prems)) {
-          | Some(err) => Incorrect(err)
+          let deduction = Derivation.Deduction.{concl, prems};
+          switch (Derivation.DProp.verify(rule, deduction).failure) {
+          | Some(failure) => Incorrect(failure)
           | None => Correct
           };
         };

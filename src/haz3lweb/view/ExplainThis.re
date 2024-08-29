@@ -564,7 +564,6 @@ let get_doc =
       | Int(i) => get_message(TerminalExp.int_exps(i))
       | Float(f) => get_message(TerminalExp.float_exps(f))
       | String(s) => get_message(TerminalExp.string_exps(s))
-      | Prop(p) => get_message(TerminalExp.prop_exps(p))
       | ListLit(terms) =>
         get_message(
           ~format=

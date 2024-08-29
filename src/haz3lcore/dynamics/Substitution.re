@@ -64,7 +64,6 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
   | Int(_)
   | Float(_)
   | String(_)
-  | Prop(_)
   | Constructor(_) => d2
   | ListLit(ds) => ListLit(List.map(subst_var(m, d1, x), ds)) |> rewrap
   | Cons(d3, d4) =>

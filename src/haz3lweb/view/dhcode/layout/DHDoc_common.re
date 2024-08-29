@@ -102,9 +102,7 @@ let mk_IntLit = n => Doc.text(string_of_int(n));
 
 let mk_StringLit = s => Doc.text(Form.string_quote(s));
 
-let mk_PropLit = p => Doc.text(Derivation.Syntax.repr(p));
-
-let mk_JudgementLit = j => Doc.text(Derivation.Judgement.repr(j));
+// let mk_PropLit = p => Doc.text(Derivation.Syntax.repr(p));
 
 let mk_Test = t => Doc.(hcats([text("Test"), t, text("End")]));
 

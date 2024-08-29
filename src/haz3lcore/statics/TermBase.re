@@ -144,7 +144,6 @@ and Exp: {
     | Int(int)
     | Float(float)
     | String(string)
-    | Prop(Derivation.Syntax.t)
     | ListLit(list(t))
     | Constructor(string, Typ.t) // Typ.t field is only meaningful in dynamic expressions
     | Fun(
@@ -212,7 +211,6 @@ and Exp: {
     | Int(int)
     | Float(float)
     | String(string)
-    | Prop(Derivation.Syntax.t)
     | ListLit(list(t))
     | Constructor(string, Typ.t)
     | Fun(
@@ -285,7 +283,6 @@ and Exp: {
         | Float(_)
         | Constructor(_)
         | String(_)
-        | Prop(_)
         | Deferral(_)
         | Var(_)
         | Undefined => term
@@ -354,7 +351,6 @@ and Exp: {
     | (Int(i1), Int(i2)) => i1 == i2
     | (Float(f1), Float(f2)) => f1 == f2
     | (String(s1), String(s2)) => s1 == s2
-    | (Prop(p1), Prop(p2)) => p1 == p2
     | (ListLit(xs), ListLit(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
     | (Constructor(c1, ty1), Constructor(c2, ty2)) =>
@@ -421,7 +417,6 @@ and Exp: {
     | (Int(_), _)
     | (Float(_), _)
     | (String(_), _)
-    | (Prop(_), _)
     | (ListLit(_), _)
     | (Constructor(_), _)
     | (Fun(_), _)

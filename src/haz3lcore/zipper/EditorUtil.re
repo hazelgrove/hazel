@@ -12,7 +12,6 @@ let rec append_exp = (e1: Exp.t, e2: Exp.t): Exp.t => {
     | Int(_)
     | Float(_)
     | String(_)
-    | Prop(_)
     | ListLit(_)
     | Constructor(_)
     | Closure(_)

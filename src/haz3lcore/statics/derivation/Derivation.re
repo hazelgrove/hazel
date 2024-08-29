@@ -225,6 +225,7 @@ module Rule = {
 };
 
 module Deduction = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     prems: list(Prop.t),
     concl: Prop.t,
@@ -245,6 +246,7 @@ module Deduction = {
 };
 
 module DeductionVerified = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     deduction: Deduction.t,
     failure: option(failure),
@@ -267,6 +269,7 @@ module DeductionVerified = {
 };
 
 module DProp = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     now: Prop.t,
     ctr: Prop.t => Deduction.t,

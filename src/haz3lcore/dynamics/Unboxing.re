@@ -20,7 +20,6 @@ type unbox_request('a) =
   | Float: unbox_request(float)
   | Bool: unbox_request(bool)
   | String: unbox_request(string)
-  | Prop: unbox_request(Derivation.Syntax.t)
   | Tuple(int): unbox_request(list(DHExp.t))
   | List: unbox_request(list(DHExp.t))
   | Cons: unbox_request((DHExp.t, DHExp.t))
@@ -59,7 +58,6 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (Int, Int(i)) => Matches(i)
     | (Float, Float(f)) => Matches(f)
     | (String, String(s)) => Matches(s)
-    | (Prop, Prop(p)) => Matches(p)
 
     /* Lists can be either lists or list casts */
     | (List, ListLit(l)) => Matches(l)
@@ -147,7 +145,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
        in elaboration or in the cast calculus. */
     | (
         _,
-        Bool(_) | Int(_) | Float(_) | String(_) | Prop(_) | Constructor(_) |
+        Bool(_) | Int(_) | Float(_) | String(_) | Constructor(_) |
         BuiltinFun(_) |
         Deferral(_) |
         DeferredAp(_) |
@@ -165,7 +163,6 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       | Float => raise(EvaluatorError.Exception(InvalidBoxedFloatLit(expr)))
       | String =>
         raise(EvaluatorError.Exception(InvalidBoxedStringLit(expr)))
-      | Prop => raise(EvaluatorError.Exception(InvalidBoxedPropLit(expr)))
       | Tuple(_) => raise(EvaluatorError.Exception(InvalidBoxedTuple(expr)))
       | List
       | Cons => raise(EvaluatorError.Exception(InvalidBoxedListLit(expr)))
