@@ -19,7 +19,6 @@ let precedence = (ty: Typ.t): int =>
   | Bool
   | String
   | Prop
-  | Judgement
   | Unknown(_)
   | Var(_)
   | Forall(_)
@@ -78,7 +77,6 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: Typ.t): t => {
     | Bool => (text("Bool"), parenthesize)
     | String => (text("String"), parenthesize)
     | Prop => (text("Prop"), parenthesize)
-    | Judgement => (text("Judgement"), parenthesize)
     | Var(name) => (text(name), parenthesize)
     | List(ty) => (
         hcats([

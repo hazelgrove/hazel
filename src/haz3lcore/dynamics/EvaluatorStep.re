@@ -306,15 +306,6 @@ let rec matches =
       | Ap2(dir, d1, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Ap2(dir, d1, ctx) |> wrap_ids(ids);
-      | Derive1(ctx, d2, d3) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Derive1(ctx, d2, d3) |> wrap_ids(ids);
-      | Derive2(d1, ctx, d3) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Derive2(d1, ctx, d3) |> wrap_ids(ids);
-      | Derive3(d1, d2, ctx) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Derive3(d1, d2, ctx) |> wrap_ids(ids);
       | If1(ctx, d2, d3) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         If1(ctx, d2, d3) |> wrap_ids(ids);
@@ -354,12 +345,6 @@ let rec matches =
       | ListConcat2(d1, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         ListConcat2(d1, ctx) |> wrap_ids(ids);
-      | Entail1(ctx, d2) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Entail1(ctx, d2) |> wrap_ids(ids);
-      | Entail2(d1, ctx) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Entail2(d1, ctx) |> wrap_ids(ids);
       | Cast(ctx, ty, ty') =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Cast(ctx, ty, ty') |> wrap_ids(ids);

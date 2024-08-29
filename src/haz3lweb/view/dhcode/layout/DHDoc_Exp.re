@@ -60,7 +60,6 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Float(_)
   | String(_)
   | Prop(_)
-  | Judgement(_)
   | ListLit(_)
   | EmptyHole
   | Constructor(_)
@@ -75,12 +74,10 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | Cast(d1, _, _) =>
     show_casts ? DHDoc_common.precedence_Ap : precedence'(d1)
   | DeferredAp(_)
-  | Ap(_)
-  | Derive(_, _, _) => DHDoc_common.precedence_Ap
+  | Ap(_) => DHDoc_common.precedence_Ap
   | TypAp(_) => DHDoc_common.precedence_Ap
   | Cons(_) => DHDoc_common.precedence_Cons
   | ListConcat(_) => DHDoc_common.precedence_Plus
-  | Entail(_) => DHDoc_common.precedence_Entail
   | Tuple(_) => DHDoc_common.precedence_Comma
   | TypFun(_)
   | Fun(_) => DHDoc_common.precedence_max
@@ -95,7 +92,6 @@ let rec precedence = (~show_casts: bool, d: DHExp.t) => {
   | BinOp(Int(op), _, _) => precedence_bin_int_op(op)
   | BinOp(Float(op), _, _) => precedence_bin_float_op(op)
   | BinOp(String(op), _, _) => precedence_bin_string_op(op)
-  | BinOp(Prop(op), _, _) => precedence_bin_prop_op(op)
   | MultiHole(_) => DHDoc_common.precedence_max
   | Parens(d) => precedence'(d)
   };
@@ -112,9 +108,6 @@ let mk_bin_float_op = (op: Operators.op_bin_float): DHDoc.t =>
 
 let mk_bin_string_op = (op: Operators.op_bin_string): DHDoc.t =>
   Doc.text(Operators.string_op_to_string(op));
-
-let mk_bin_prop_op = (op: Operators.op_bin_prop): DHDoc.t =>
-  Doc.text(Operators.prop_op_to_string(op));
 
 let mk =
     (
@@ -172,11 +165,9 @@ let mk =
         | (BinIntOp(_), _)
         | (BinFloatOp(_), _)
         | (BinStringOp(_), _)
-        | (BinPropOp(_), _)
         | (Projection, _)
         | (ListCons, _)
         | (ListConcat, _)
-        | (Entail, _)
         | (CaseApply, _)
         | (CompleteClosure, _)
         | (CompleteFilter, _)
@@ -330,7 +321,6 @@ let mk =
       | Float(f) => DHDoc_common.mk_FloatLit(f)
       | String(s) => DHDoc_common.mk_StringLit(s)
       | Prop(p) => DHDoc_common.mk_PropLit(p)
-      | Judgement(j) => DHDoc_common.mk_JudgementLit(j)
       | Undefined => DHDoc_common.mk_Undefined()
       | Test(d) => DHDoc_common.mk_Test(go'(d))
       | Deferral(_) => text("_")
@@ -354,10 +344,6 @@ let mk =
           go'(Tuple(d2) |> DHExp.fresh),
         );
         DHDoc_common.mk_Ap(doc1, doc2);
-      | Derive(d1, d2, d3) =>
-        // TODO(zhiyao): check functionality
-        let (doc1, doc2, doc3) = (go'(d1), go'(d2), go'(d3));
-        DHDoc_common.mk_Derive(doc1, doc2, doc3);
       | TypAp(d1, ty) =>
         let doc1 = go'(d1);
         let doc2 = DHDoc_Typ.mk(~enforce_inline=true, ty);
@@ -402,10 +388,6 @@ let mk =
         let (doc1, doc2) =
           mk_left_associative_operands(precedence_bin_string_op(op), d1, d2);
         hseps([doc1, mk_bin_string_op(op), doc2]);
-      | BinOp(Prop(op), d1, d2) =>
-        let (doc1, doc2) =
-          mk_left_associative_operands(precedence_bin_prop_op(op), d1, d2);
-        hseps([doc1, mk_bin_prop_op(op), doc2]);
       | Cons(d1, d2) =>
         let (doc1, doc2) =
           mk_right_associative_operands(DHDoc_common.precedence_Cons, d1, d2);
@@ -414,14 +396,6 @@ let mk =
         let (doc1, doc2) =
           mk_right_associative_operands(DHDoc_common.precedence_Plus, d1, d2);
         DHDoc_common.mk_ListConcat(doc1, doc2);
-      | Entail(d1, d2) =>
-        let (doc1, doc2) =
-          mk_right_associative_operands(
-            DHDoc_common.precedence_Entail,
-            d1,
-            d2,
-          );
-        DHDoc_common.mk_Entail(doc1, doc2);
       | BinOp(Bool(op), d1, d2) =>
         let (doc1, doc2) =
           mk_right_associative_operands(precedence_bin_bool_op(op), d1, d2);

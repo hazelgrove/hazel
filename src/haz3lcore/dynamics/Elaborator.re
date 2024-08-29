@@ -243,7 +243,6 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
     | Float(_) => uexp |> cast_from(Float |> Typ.temp)
     | String(_) => uexp |> cast_from(String |> Typ.temp)
     | Prop(_) => uexp |> cast_from(Prop |> Typ.temp)
-    | Judgement(_) => uexp |> cast_from(Judgement |> Typ.temp)
     | ListLit(es) =>
       let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
       let inner_type =
@@ -335,28 +334,6 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       let f'' = fresh_cast(f', tyf, Arrow(tyf1, tyf2) |> Typ.temp);
       let a'' = fresh_cast(a', tya, tyf1);
       Exp.Ap(dir, f'', a'') |> rewrap |> cast_from(tyf2);
-    | Derive(e1, e2, e3) =>
-      let (e1', t1) = elaborate(m, e1);
-      let (e2', t2) = elaborate(m, e2);
-      let (e3', t3) = elaborate(m, e3);
-      let e1'' =
-        fresh_cast(e1', t1, List(Judgement |> Typ.temp) |> Typ.temp);
-      let e2'' = fresh_cast(e2', t2, Judgement |> Typ.temp);
-      let e3'' =
-        fresh_cast(
-          e3',
-          t3,
-          Arrow(
-            Prod([
-              Judgement |> Typ.temp,
-              List(Judgement |> Typ.temp) |> Typ.temp,
-            ])
-            |> Typ.temp,
-            Judgement |> Typ.temp,
-          )
-          |> Typ.temp,
-        );
-      Derive(e1'', e2'', e3'') |> rewrap |> cast_from(Judgement |> Typ.temp);
     | DeferredAp(f, args) =>
       let (f', tyf) = elaborate(m, f);
       let (args', tys) = List.map(elaborate(m), args) |> ListUtil.unzip;
@@ -444,12 +421,6 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       ListConcat(e1'', e2'')
       |> rewrap
       |> cast_from(List(ty_inner) |> Typ.temp);
-    | Entail(e1, e2) =>
-      let (e1', t1) = elaborate(m, e1);
-      let (e2', t2) = elaborate(m, e2);
-      let e1'' = fresh_cast(e1', t1, List(Prop |> Typ.temp) |> Typ.temp);
-      let e2'' = fresh_cast(e2', t2, Prop |> Typ.temp);
-      Entail(e1'', e2'') |> rewrap |> cast_from(Judgement |> Typ.temp);
     | UnOp(Meta(Unquote), e) =>
       switch (e.term) {
       // TODO: confirm whether these types are correct
@@ -558,16 +529,6 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       )
       |> rewrap
       |> cast_from(Bool |> Typ.temp);
-    | BinOp(Prop(And | Or | Implies) as op, e1, e2) =>
-      let (e1', t1) = elaborate(m, e1);
-      let (e2', t2) = elaborate(m, e2);
-      BinOp(
-        op,
-        fresh_cast(e1', t1, Prop |> Typ.temp),
-        fresh_cast(e2', t2, Prop |> Typ.temp),
-      )
-      |> rewrap
-      |> cast_from(Prop |> Typ.temp);
     | BuiltinFun(fn) =>
       uexp
       |> cast_from(

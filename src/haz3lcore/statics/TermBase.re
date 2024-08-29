@@ -144,8 +144,7 @@ and Exp: {
     | Int(int)
     | Float(float)
     | String(string)
-    | Prop(Derivation.Prop.t)
-    | Judgement(Derivation.Judgement.t)
+    | Prop(Derivation.Syntax.t)
     | ListLit(list(t))
     | Constructor(string, Typ.t) // Typ.t field is only meaningful in dynamic expressions
     | Fun(
@@ -161,7 +160,6 @@ and Exp: {
     | FixF(Pat.t, t, option(ClosureEnvironment.t))
     | TyAlias(TPat.t, Typ.t, t)
     | Ap(Operators.ap_direction, t, t)
-    | Derive(t, t, t)
     | TypAp(t, Typ.t)
     | DeferredAp(t, list(t))
     | If(t, t, t)
@@ -172,7 +170,6 @@ and Exp: {
     | Parens(t) // (
     | Cons(t, t)
     | ListConcat(t, t)
-    | Entail(t, t)
     | UnOp(Operators.op_un, t)
     | BinOp(Operators.op_bin, t, t)
     | BuiltinFun(string)
@@ -215,8 +212,7 @@ and Exp: {
     | Int(int)
     | Float(float)
     | String(string)
-    | Prop(Derivation.Prop.t)
-    | Judgement(Derivation.Judgement.t)
+    | Prop(Derivation.Syntax.t)
     | ListLit(list(t))
     | Constructor(string, Typ.t)
     | Fun(
@@ -232,7 +228,6 @@ and Exp: {
     | FixF(Pat.t, t, [@show.opaque] option(ClosureEnvironment.t))
     | TyAlias(TPat.t, Typ.t, t)
     | Ap(Operators.ap_direction, t, t) // note: function is always first then argument; even in pipe mode
-    | Derive(t, t, t)
     | TypAp(t, Typ.t)
     | DeferredAp(t, list(t))
     | If(t, t, t)
@@ -243,7 +238,6 @@ and Exp: {
     | Parens(t)
     | Cons(t, t)
     | ListConcat(t, t)
-    | Entail(t, t)
     | UnOp(Operators.op_un, t)
     | BinOp(Operators.op_bin, t, t)
     | BuiltinFun(string) /// Doesn't currently have a distinguishable syntax
@@ -292,7 +286,6 @@ and Exp: {
         | Constructor(_)
         | String(_)
         | Prop(_)
-        | Judgement(_)
         | Deferral(_)
         | Var(_)
         | Undefined => term
@@ -310,8 +303,6 @@ and Exp: {
         | TyAlias(tp, t, e) =>
           TyAlias(tpat_map_term(tp), typ_map_term(t), exp_map_term(e))
         | Ap(op, e1, e2) => Ap(op, exp_map_term(e1), exp_map_term(e2))
-        | Derive(e1, e2, e3) =>
-          Derive(exp_map_term(e1), exp_map_term(e2), exp_map_term(e3))
         | TypAp(e, t) => TypAp(exp_map_term(e), typ_map_term(t))
         | DeferredAp(e, es) =>
           DeferredAp(exp_map_term(e), List.map(exp_map_term, es))
@@ -325,7 +316,6 @@ and Exp: {
         | Cons(e1, e2) => Cons(exp_map_term(e1), exp_map_term(e2))
         | ListConcat(e1, e2) =>
           ListConcat(exp_map_term(e1), exp_map_term(e2))
-        | Entail(e1, e2) => Entail(exp_map_term(e1), exp_map_term(e2))
         | UnOp(op, e) => UnOp(op, exp_map_term(e))
         | BinOp(op, e1, e2) =>
           BinOp(op, exp_map_term(e1), exp_map_term(e2))
@@ -365,7 +355,6 @@ and Exp: {
     | (Float(f1), Float(f2)) => f1 == f2
     | (String(s1), String(s2)) => s1 == s2
     | (Prop(p1), Prop(p2)) => p1 == p2
-    | (Judgement(j1), Judgement(j2)) => j1 == j2
     | (ListLit(xs), ListLit(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
     | (Constructor(c1, ty1), Constructor(c2, ty2)) =>
@@ -391,8 +380,6 @@ and Exp: {
       && fast_equal(e1, e2)
     | (Ap(d1, e1, e2), Ap(d2, e3, e4)) =>
       d1 == d2 && fast_equal(e1, e3) && fast_equal(e2, e4)
-    | (Derive(e1, e2, e3), Derive(e4, e5, e6)) =>
-      fast_equal(e1, e4) && fast_equal(e2, e5) && fast_equal(e3, e6)
     | (TypAp(e1, t1), TypAp(e2, t2)) =>
       fast_equal(e1, e2) && Typ.fast_equal(t1, t2)
     | (DeferredAp(e1, es1), DeferredAp(e2, es2)) =>
@@ -411,8 +398,6 @@ and Exp: {
     | (Cons(e1, e2), Cons(e3, e4)) =>
       fast_equal(e1, e3) && fast_equal(e2, e4)
     | (ListConcat(e1, e2), ListConcat(e3, e4)) =>
-      fast_equal(e1, e3) && fast_equal(e2, e4)
-    | (Entail(e1, e2), Entail(e3, e4)) =>
       fast_equal(e1, e3) && fast_equal(e2, e4)
     | (UnOp(o1, e1), UnOp(o2, e2)) => o1 == o2 && fast_equal(e1, e2)
     | (BinOp(o1, e1, e2), BinOp(o2, e3, e4)) =>
@@ -437,7 +422,6 @@ and Exp: {
     | (Float(_), _)
     | (String(_), _)
     | (Prop(_), _)
-    | (Judgement(_), _)
     | (ListLit(_), _)
     | (Constructor(_), _)
     | (Fun(_), _)
@@ -448,7 +432,6 @@ and Exp: {
     | (FixF(_), _)
     | (TyAlias(_), _)
     | (Ap(_), _)
-    | (Derive(_), _)
     | (TypAp(_), _)
     | (DeferredAp(_), _)
     | (If(_), _)
@@ -458,7 +441,6 @@ and Exp: {
     | (Closure(_), _)
     | (Cons(_), _)
     | (ListConcat(_), _)
-    | (Entail(_), _)
     | (UnOp(_), _)
     | (BinOp(_), _)
     | (BuiltinFun(_), _)
@@ -634,7 +616,6 @@ and Typ: {
     | Bool
     | String
     | Prop
-    | Judgement
     | Var(string)
     | List(t)
     | Arrow(t, t)
@@ -688,7 +669,6 @@ and Typ: {
     | Bool
     | String
     | Prop
-    | Judgement
     | Var(string)
     | List(t)
     | Arrow(t, t)
@@ -731,7 +711,6 @@ and Typ: {
         | Float
         | String
         | Prop
-        | Judgement
         | Var(_) => term
         | List(t) => List(typ_map_term(t))
         | Unknown(Hole(MultiHole(things))) =>
@@ -768,7 +747,6 @@ and Typ: {
       | Bool => Bool |> rewrap
       | String => String |> rewrap
       | Prop => Prop |> rewrap
-      | Judgement => Judgement |> rewrap
       | Unknown(prov) => Unknown(prov) |> rewrap
       | Arrow(ty1, ty2) =>
         Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
@@ -819,8 +797,6 @@ and Typ: {
     | (String, _) => false
     | (Prop, Prop) => true
     | (Prop, _) => false
-    | (Judgement, Judgement) => true
-    | (Judgement, _) => false
     | (Ap(t1, t2), Ap(t1', t2')) =>
       eq_internal(n, t1, t1') && eq_internal(n, t2, t2')
     | (Ap(_), _) => false

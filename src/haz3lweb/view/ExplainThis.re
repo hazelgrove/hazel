@@ -565,7 +565,6 @@ let get_doc =
       | Float(f) => get_message(TerminalExp.float_exps(f))
       | String(s) => get_message(TerminalExp.string_exps(s))
       | Prop(p) => get_message(TerminalExp.prop_exps(p))
-      | Judgement(j) => get_message(TerminalExp.judgement_exps(j))
       | ListLit(terms) =>
         get_message(
           ~format=
@@ -1678,25 +1677,6 @@ let get_doc =
           let color_map = (mapping, List.length(args) + 1);
           ([], ([], color_map), []);
         };
-      | Derive(prems, concl, rule) =>
-        let prems_id = List.nth(prems.ids, 0);
-        let concl_id = List.nth(concl.ids, 0);
-        let rule_id = List.nth(rule.ids, 0);
-        get_message(
-          ~colorings=
-            DeriveExp.derive_exp_coloring_ids(~prems_id, ~concl_id, ~rule_id),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s%s%s"),
-                  Id.to_string(prems_id),
-                  Id.to_string(concl_id),
-                  Id.to_string(rule_id),
-                ),
-            ),
-          DeriveExp.derives,
-        );
       | If(cond, then_, else_) =>
         let cond_id = List.nth(cond.ids, 0);
         let then_id = List.nth(then_.ids, 0);
@@ -1807,22 +1787,6 @@ let get_doc =
             ),
           ListExp.listconcats,
         );
-      | Entail(ctx, prop) =>
-        let ctx_id = List.nth(ctx.ids, 0);
-        let prop_id = List.nth(prop.ids, 0);
-        get_message(
-          ~colorings=OpExp.entail_exp_coloring_ids(~ctx_id, ~prop_id),
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s%s"),
-                  Id.to_string(ctx_id),
-                  Id.to_string(prop_id),
-                ),
-            ),
-          OpExp.entail,
-        );
       | UnOp(op, exp) =>
         switch (op) {
         | Bool(Not) =>
@@ -1901,9 +1865,6 @@ let get_doc =
           | Bool(Or) => (bool_or, bool_or_exp_coloring_ids)
           | String(Equals) => (string_equal, str_eq_exp_coloring_ids)
           | String(Concat) => (string_concat, str_concat_exp_coloring_ids)
-          | Prop(And) => (prop_and, prop_and_exp_coloring_ids)
-          | Prop(Or) => (prop_or, prop_or_exp_coloring_ids)
-          | Prop(Implies) => (prop_implies, prop_implies_exp_coloring_ids)
           };
         let left_id = List.nth(left.ids, 0);
         let right_id = List.nth(right.ids, 0);
@@ -2178,7 +2139,6 @@ let get_doc =
     | Bool => get_message(TerminalTyp.bool)
     | String => get_message(TerminalTyp.str)
     | Prop => get_message(TerminalTyp.prop)
-    | Judgement => get_message(TerminalTyp.judgement)
     | List(elem) =>
       let elem_id = List.nth(elem.ids, 0);
       get_message(

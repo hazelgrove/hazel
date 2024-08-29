@@ -291,7 +291,6 @@ module Exp = {
     | Float
     | String
     | Prop
-    | Judgement
     | ListLit
     | Constructor
     | Fun
@@ -303,7 +302,6 @@ module Exp = {
     | FixF
     | TyAlias
     | Ap
-    | Derive
     | TypAp
     | DeferredAp
     | Pipeline
@@ -319,8 +317,7 @@ module Exp = {
     | BuiltinFun
     | Match
     | Cast
-    | ListConcat
-    | Entail;
+    | ListConcat;
 
   let hole = (tms: list(TermBase.Any.t)): term =>
     switch (tms) {
@@ -346,8 +343,6 @@ module Exp = {
     | Float(_) => Float
     | String(_) => String
     | Prop(_) => Prop
-
-    | Judgement(_) => Judgement
     | ListLit(_) => ListLit
     | Constructor(_) => Constructor
     | Fun(_) => Fun
@@ -358,7 +353,6 @@ module Exp = {
     | FixF(_) => FixF
     | TyAlias(_) => TyAlias
     | Ap(_) => Ap
-    | Derive(_) => Derive
     | TypAp(_) => TypAp
     | DeferredAp(_) => DeferredAp
     | If(_) => If
@@ -369,7 +363,6 @@ module Exp = {
     | Parens(_) => Parens
     | Cons(_) => Cons
     | ListConcat(_) => ListConcat
-    | Entail(_) => Entail
     | UnOp(op, _) => UnOp(op)
     | BinOp(op, _, _) => BinOp(op)
     | BuiltinFun(_) => BuiltinFun
@@ -391,7 +384,6 @@ module Exp = {
     | Float => "Float literal"
     | String => "String literal"
     | Prop => "Proposition"
-    | Judgement => "Judgement"
     | ListLit => "List literal"
     | Constructor => "Constructor"
     | Fun => "Function literal"
@@ -403,7 +395,6 @@ module Exp = {
     | FixF => "Fixpoint operator"
     | TyAlias => "Type Alias definition"
     | Ap => "Application"
-    | Derive => "Derivation"
     | TypAp => "Type application"
     | DeferredAp => "Partial Application"
     | Pipeline => "Pipeline expression"
@@ -415,7 +406,6 @@ module Exp = {
     | Parens => "Parenthesized expression"
     | Cons => "Cons"
     | ListConcat => "List Concatenation"
-    | Entail => "Entailment"
     | BinOp(op) => Operators.show_binop(op)
     | UnOp(op) => Operators.show_unop(op)
     | BuiltinFun => "Built-in Function"
@@ -443,7 +433,6 @@ module Exp = {
     | Float(_)
     | String(_)
     | Prop(_)
-    | Judgement(_)
     | ListLit(_)
     | Tuple(_)
     | Var(_)
@@ -451,7 +440,6 @@ module Exp = {
     | FixF(_)
     | TyAlias(_)
     | Ap(_)
-    | Derive(_)
     | TypAp(_)
     | DeferredAp(_)
     | If(_)
@@ -461,7 +449,6 @@ module Exp = {
     | Cons(_)
     | ListConcat(_)
     | Closure(_)
-    | Entail(_)
     | UnOp(_)
     | BinOp(_)
     | Match(_)
@@ -488,7 +475,6 @@ module Exp = {
       | Float(_)
       | String(_)
       | Prop(_)
-      | Judgement(_)
       | ListLit(_)
       | Fun(_)
       | TypFun(_)
@@ -499,7 +485,6 @@ module Exp = {
       | FixF(_)
       | TyAlias(_)
       | Ap(_)
-      | Derive(_)
       | TypAp(_)
       | DeferredAp(_)
       | If(_)
@@ -508,7 +493,6 @@ module Exp = {
       | Filter(_)
       | Cons(_)
       | ListConcat(_)
-      | Entail(_)
       | UnOp(_)
       | BinOp(_)
       | Match(_)
@@ -552,7 +536,6 @@ module Exp = {
       | Float(_)
       | String(_)
       | Prop(_)
-      | Judgement(_)
       | ListLit(_)
       | Fun(_)
       | TypFun(_)
@@ -561,7 +544,6 @@ module Exp = {
       | Filter(_)
       | TyAlias(_)
       | Ap(_)
-      | Derive(_)
       | TypAp(_)
       | DeferredAp(_)
       | If(_)
@@ -569,7 +551,6 @@ module Exp = {
       | Test(_)
       | Cons(_)
       | ListConcat(_)
-      | Entail(_)
       | UnOp(_)
       | BinOp(_)
       | Match(_)

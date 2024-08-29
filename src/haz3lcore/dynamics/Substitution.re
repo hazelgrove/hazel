@@ -65,13 +65,7 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
   | Float(_)
   | String(_)
   | Prop(_)
-  | Judgement(_)
   | Constructor(_) => d2
-  | Derive(d3, d4, d5) =>
-    let d3 = subst_var(m, d1, x, d3);
-    let d4 = subst_var(m, d1, x, d4);
-    let d5 = subst_var(m, d1, x, d5);
-    Derive(d3, d4, d5) |> rewrap;
   | ListLit(ds) => ListLit(List.map(subst_var(m, d1, x), ds)) |> rewrap
   | Cons(d3, d4) =>
     let d3 = subst_var(m, d1, x, d3);
@@ -81,10 +75,6 @@ let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
     let d3 = subst_var(m, d1, x, d3);
     let d4 = subst_var(m, d1, x, d4);
     ListConcat(d3, d4) |> rewrap;
-  | Entail(d3, d4) =>
-    let d3 = subst_var(m, d1, x, d3);
-    let d4 = subst_var(m, d1, x, d4);
-    Entail(d3, d4) |> rewrap;
   | Tuple(ds) => Tuple(List.map(subst_var(m, d1, x), ds)) |> rewrap
   | UnOp(op, d3) =>
     let d3 = subst_var(m, d1, x, d3);

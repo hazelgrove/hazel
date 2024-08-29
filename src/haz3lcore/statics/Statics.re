@@ -121,11 +121,6 @@ let typ_exp_binop: Operators.op_bin => (Typ.t, Typ.t, Typ.t) =
       String |> Typ.temp,
       String |> Typ.temp,
       typ_exp_binop_bin_string(op),
-    )
-  | Prop(op) => (
-      Prop |> Typ.temp,
-      Prop |> Typ.temp,
-      typ_exp_binop_bin_prop(op),
     );
 
 let typ_exp_unop: Operators.op_un => (Typ.t, Typ.t) =
@@ -243,7 +238,6 @@ and uexp_to_info_map =
   | Float(_) => atomic(Just(Float |> Typ.temp))
   | String(_) => atomic(Just(String |> Typ.temp))
   | Prop(_) => atomic(Just(Prop |> Typ.temp))
-  | Judgement(_) => atomic(Just(Judgement |> Typ.temp))
   | ListLit(es) =>
     let ids = List.map(UExp.rep_id, es);
     let modes = Mode.of_list_lit(ctx, List.length(es), mode);
@@ -270,15 +264,6 @@ and uexp_to_info_map =
     let (e2, m) = go(~mode, e2, m);
     add(
       ~self=Self.list_concat(ctx, [e1.ty, e2.ty], ids),
-      ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
-      m,
-    );
-  | Entail(e1, e2) =>
-    let ids = List.map(UExp.rep_id, [e1, e2]);
-    let (e1, m) = go(~mode=Ana(List(Prop |> Typ.temp) |> Typ.temp), e1, m);
-    let (e2, m) = go(~mode=Ana(Prop |> Typ.temp), e2, m);
-    add(
-      ~self=Self.entail(e1.ty, e2.ty, ids),
       ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
       m,
     );
@@ -359,32 +344,6 @@ and uexp_to_info_map =
       && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.temp)
         ? BadTrivAp(ty_in) : Just(ty_out);
     add(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
-  | Derive(prems, concl, rule) =>
-    let (rule, m) =
-      go(
-        ~mode=
-          Ana(
-            Arrow(
-              Prod([
-                Judgement |> Typ.temp,
-                List(Judgement |> Typ.temp) |> Typ.temp,
-              ])
-              |> Typ.temp,
-              Judgement |> Typ.temp,
-            )
-            |> Typ.temp,
-          ),
-        rule,
-        m,
-      );
-    let (prems, m) =
-      go(~mode=Ana(List(Judgement |> Typ.temp) |> Typ.temp), prems, m);
-    let (concl, m) = go(~mode=Ana(Judgement |> Typ.temp), concl, m);
-    add(
-      ~self=Just(Judgement |> Typ.temp),
-      ~co_ctx=CoCtx.union([rule.co_ctx, prems.co_ctx, concl.co_ctx]),
-      m,
-    );
   | TypAp(fn, utyp) =>
     let typfn_mode = Mode.typap_mode;
     let (fn, m) = go(~mode=typfn_mode, fn, m);
@@ -891,7 +850,6 @@ and utyp_to_info_map =
   | Float
   | Bool
   | Prop
-  | Judgement
   | String => add(m)
   | Var(_) =>
     /* Names are resolved in Info.status_typ */

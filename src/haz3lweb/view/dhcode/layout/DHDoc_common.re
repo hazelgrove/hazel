@@ -102,7 +102,7 @@ let mk_IntLit = n => Doc.text(string_of_int(n));
 
 let mk_StringLit = s => Doc.text(Form.string_quote(s));
 
-let mk_PropLit = p => Doc.text(Derivation.Prop.repr(p));
+let mk_PropLit = p => Doc.text(Derivation.Syntax.repr(p));
 
 let mk_JudgementLit = j => Doc.text(Derivation.Judgement.repr(j));
 
@@ -143,9 +143,6 @@ let mk_TypAp = (doc1, doc2) =>
 
 let mk_Ap = (doc1, doc2) =>
   Doc.(hcats([doc1, text("("), doc2, text(")")]));
-
-let mk_Derive = (doc1, doc2, doc3) =>
-  Doc.(hcats([doc1, text("=>"), doc2, text("<"), doc3, text(">")]));
 
 let mk_rev_Ap = (doc1, doc2) => Doc.(hcats([doc1, text(" |> "), doc2]));
 

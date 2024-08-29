@@ -279,61 +279,60 @@ module Pervasives = {
         | (_, _, _) => Error(InvalidBoxedIntLit(d1))
         }
       );
-
-    let atom =
-      unary(d =>
-        switch (term_of(d)) {
-        | String(s) => Ok(Prop(Atom(s)) |> fresh)
-        | _ => Error(InvalidBoxedStringLit(d))
-        }
-      );
-    let and_ =
-      unary(d =>
-        switch (term_of(d)) {
-        | Tuple([{term: Prop(p1), _}, {term: Prop(p2), _}]) =>
-          Ok(Prop(And(p1, p2)) |> fresh)
-        | _ => Error(InvalidBoxedTuple(d))
-        }
-      );
-    let or_ =
-      unary(d =>
-        switch (term_of(d)) {
-        | Tuple([{term: Prop(p1), _}, {term: Prop(p2), _}]) =>
-          Ok(Prop(Or(p1, p2)) |> fresh)
-        | _ => Error(InvalidBoxedTuple(d))
-        }
-      );
-    let implies =
-      unary(d =>
-        switch (term_of(d)) {
-        | Tuple([{term: Prop(p1), _}, {term: Prop(p2), _}]) =>
-          Ok(Prop(Implies(p1, p2)) |> fresh)
-        | _ => Error(InvalidBoxedTuple(d))
-        }
-      );
-    let prop_of: DHExp.t => option(Derivation.Prop.t) =
-      d =>
-        switch (term_of(d)) {
-        | Prop(p) => Some(p)
-        | _ => None
-        };
-    let entail =
-      unary(d =>
-        switch (term_of(d)) {
-        | Tuple([{term: ListLit(ctx), _}, {term: Prop(p), _}]) =>
-          switch (ctx |> List.map(prop_of) |> Util.OptUtil.sequence) {
-          | Some(ctx) => Ok(Judgement(Entail(ctx, p)) |> fresh)
-          | None => Error(InvalidBoxedListLit(List.hd(ctx)))
-          }
-        | _ => Error(InvalidBoxedTuple(d))
-        }
-      );
-    let judgement_of: DHExp.t => option(Derivation.Judgement.t) =
-      d =>
-        switch (term_of(d)) {
-        | Judgement(j) => Some(j)
-        | _ => None
-        };
+    // let atom =
+    //   unary(d =>
+    //     switch (term_of(d)) {
+    //     | String(s) => Ok(Prop(Atom(s)) |> fresh)
+    //     | _ => Error(InvalidBoxedStringLit(d))
+    //     }
+    //   );
+    // let and_ =
+    //   unary(d =>
+    //     switch (term_of(d)) {
+    //     | Tuple([{term: Prop(p1), _}, {term: Prop(p2), _}]) =>
+    //       Ok(Prop(And(p1, p2)) |> fresh)
+    //     | _ => Error(InvalidBoxedTuple(d))
+    //     }
+    //   );
+    // let or_ =
+    //   unary(d =>
+    //     switch (term_of(d)) {
+    //     | Tuple([{term: Prop(p1), _}, {term: Prop(p2), _}]) =>
+    //       Ok(Prop(Or(p1, p2)) |> fresh)
+    //     | _ => Error(InvalidBoxedTuple(d))
+    //     }
+    //   );
+    // let implies =
+    //   unary(d =>
+    //     switch (term_of(d)) {
+    //     | Tuple([{term: Prop(p1), _}, {term: Prop(p2), _}]) =>
+    //       Ok(Prop(Implies(p1, p2)) |> fresh)
+    //     | _ => Error(InvalidBoxedTuple(d))
+    //     }
+    //   );
+    // let prop_of: DHExp.t => option(Derivation.Syntax.t) =
+    //   d =>
+    //     switch (term_of(d)) {
+    //     | Prop(p) => Some(p)
+    //     | _ => None
+    //     };
+    // let entail =
+    //   unary(d =>
+    //     switch (term_of(d)) {
+    //     | Tuple([{term: ListLit(ctx), _}, {term: Prop(p), _}]) =>
+    //       switch (ctx |> List.map(prop_of) |> Util.OptUtil.sequence) {
+    //       | Some(ctx) => Ok(Judgement(Entail(ctx, p)) |> fresh)
+    //       | None => Error(InvalidBoxedListLit(List.hd(ctx)))
+    //       }
+    //     | _ => Error(InvalidBoxedTuple(d))
+    //     }
+    //   );
+    // let judgement_of: DHExp.t => option(Derivation.Judgement.t) =
+    //   d =>
+    //     switch (term_of(d)) {
+    //     | Judgement(j) => Some(j)
+    //     | _ => None
+    //     };
     // let rule = (_name, rule) =>
     //   unary(d =>
     //     switch (term_of(d)) {
@@ -385,16 +384,16 @@ module Pervasives = {
 
   open Impls;
 
-  let rule = (name, func) =>
-    fn(
-      name,
-      Prod([
-        Judgement |> Typ.fresh,
-        List(Judgement |> Typ.fresh) |> Typ.fresh,
-      ]),
-      Judgement,
-      func,
-    );
+  // let rule = (name, func) =>
+  //   fn(
+  //     name,
+  //     Prod([
+  //       Judgement |> Typ.fresh,
+  //       List(Judgement |> Typ.fresh) |> Typ.fresh,
+  //     ]),
+  //     Judgement,
+  //     func,
+  //   );
   let builtins =
     VarMap.empty
     |> const("infinity", Float, infinity)
@@ -459,24 +458,24 @@ module Pervasives = {
          Prod([String |> Typ.fresh, Int |> Typ.fresh, Int |> Typ.fresh]),
          String,
          string_sub("string_sub"),
-       )
-    |> fn("atom", String, Prop, atom)
-    |> fn("and", Prod([Prop |> Typ.fresh, Prop |> Typ.fresh]), Prop, and_)
-    |> fn("or", Prod([Prop |> Typ.fresh, Prop |> Typ.fresh]), Prop, or_)
-    |> fn(
-         "implies",
-         Prod([Prop |> Typ.fresh, Prop |> Typ.fresh]),
-         Prop,
-         implies,
-       )
-    |> const("truth", Prop, Prop(Truth) |> fresh)
-    |> const("falsity", Prop, Prop(Falsity) |> fresh)
-    |> fn(
-         "entail",
-         Prod([List(Prop |> Typ.fresh) |> Typ.fresh, Prop |> Typ.fresh]),
-         Judgement,
-         entail,
        );
+  // |> fn("atom", String, Prop, atom)
+  // |> fn("and", Prod([Prop |> Typ.fresh, Prop |> Typ.fresh]), Prop, and_)
+  // |> fn("or", Prod([Prop |> Typ.fresh, Prop |> Typ.fresh]), Prop, or_)
+  // |> fn(
+  //      "implies",
+  //      Prod([Prop |> Typ.fresh, Prop |> Typ.fresh]),
+  //      Prop,
+  //      implies,
+  //    )
+  // |> const("truth", Prop, Prop(Truth) |> fresh)
+  // |> const("falsity", Prop, Prop(Falsity) |> fresh)
+  // |> fn(
+  //      "entail",
+  //      Prod([List(Prop |> Typ.fresh) |> Typ.fresh, Prop |> Typ.fresh]),
+  //      Judgement,
+  //      entail,
+  //    );
   // |> rule("rule_Assumption", rule_Assumption)
   // |> rule("rule_And_I", rule_And_I)
   // |> rule("rule_And_E_L", rule_And_E_L)

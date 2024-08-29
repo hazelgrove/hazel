@@ -33,7 +33,6 @@ module Typ = {
     ("let" ++ leading_expander, unk),
     ("test" ++ leading_expander, Prod([]) |> Typ.fresh),
     ("type" ++ leading_expander, unk),
-    ("from" ++ leading_expander, List(Judgement |> Typ.fresh) |> Typ.fresh),
   ];
 
   let of_infix_delim: list((Token.t, Typ.term)) = [

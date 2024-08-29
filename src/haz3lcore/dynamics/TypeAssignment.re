@@ -183,8 +183,6 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
     let* ty2 = typ_of_dhexp(ctx, m, d2);
     let* (tyl, tyr) = Typ.matched_arrow_strict(ctx, ty1);
     Typ.eq(tyl, ty2) ? Some(tyr) : None;
-  // TODO(zhiyao): check if this is correct
-  | Derive(_) => Some(Judgement |> Typ.temp)
   | DeferredAp(d1, d2s) =>
     let* ty1 = typ_of_dhexp(ctx, m, d1);
     let* tys = List.map(typ_of_dhexp(ctx, m), d2s) |> OptUtil.sequence;
@@ -229,7 +227,6 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
   | Float(_) => Some(Float |> Typ.temp)
   | String(_) => Some(String |> Typ.temp)
   | Prop(_) => Some(Prop |> Typ.temp)
-  | Judgement(_) => Some(Judgement |> Typ.temp)
   | BinOp(Bool(_), d1, d2) =>
     let* ty1 = typ_of_dhexp(ctx, m, d1);
     let* ty2 = typ_of_dhexp(ctx, m, d2);
@@ -286,18 +283,6 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
     } else {
       None;
     };
-  | BinOp(Prop(op), d1, d2) =>
-    let* ty1 = typ_of_dhexp(ctx, m, d1);
-    let* ty2 = typ_of_dhexp(ctx, m, d2);
-    if (Typ.eq(ty1, Prop |> Typ.temp) && Typ.eq(ty2, Prop |> Typ.temp)) {
-      switch (op) {
-      | And
-      | Or
-      | Implies => Some(Prop |> Typ.temp)
-      };
-    } else {
-      None;
-    };
   | UnOp(Int(Minus), d) =>
     let* ty = typ_of_dhexp(ctx, m, d);
     Typ.eq(ty, Int |> Typ.temp) ? Some(Int |> Typ.temp) : None;
@@ -324,12 +309,6 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
     let* ty2 = typ_of_dhexp(ctx, m, d2);
     let* ty2l = Typ.matched_list_strict(ctx, ty2);
     Typ.eq(ty1l, ty2l) ? Some(ty1) : None;
-  | Entail(d1, d2) =>
-    let* ty1 = typ_of_dhexp(ctx, m, d1);
-    let* ty2 = typ_of_dhexp(ctx, m, d2);
-    Typ.eq(ty1, List(Prop |> Typ.temp) |> Typ.temp)
-    && Typ.eq(ty2, Prop |> Typ.temp)
-      ? Some(Judgement |> Typ.temp) : None;
   | Tuple(dhs) =>
     let+ typ_list =
       dhs |> List.map(typ_of_dhexp(ctx, m)) |> OptUtil.sequence;

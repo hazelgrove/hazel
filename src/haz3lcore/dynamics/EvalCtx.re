@@ -13,9 +13,6 @@ type term =
   | TypAp(t, Typ.t)
   | Ap1(Operators.ap_direction, t, DHExp.t)
   | Ap2(Operators.ap_direction, DHExp.t, t)
-  | Derive1(t, DHExp.t, DHExp.t)
-  | Derive2(DHExp.t, t, DHExp.t)
-  | Derive3(DHExp.t, DHExp.t, t)
   | DeferredAp1(t, list(DHExp.t))
   | DeferredAp2(DHExp.t, t, (list(DHExp.t), list(DHExp.t)))
   | If1(t, DHExp.t, DHExp.t)
@@ -32,8 +29,6 @@ type term =
   | Cons2(DHExp.t, t)
   | ListConcat1(t, DHExp.t)
   | ListConcat2(DHExp.t, t)
-  | Entail1(t, DHExp.t)
-  | Entail2(DHExp.t, t)
   | Cast(t, Typ.t, Typ.t)
   | FailedCast(t, Typ.t, Typ.t)
   | DynamicErrorHole(t, InvalidOperationError.t)
@@ -76,15 +71,6 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
       | Ap2(dir, d1, ctx) =>
         let d2 = compose(ctx, d);
         Ap(dir, d1, d2) |> wrap;
-      | Derive1(ctx, d2, d3) =>
-        let d1 = compose(ctx, d);
-        Derive(d1, d2, d3) |> wrap;
-      | Derive2(d1, ctx, d3) =>
-        let d2 = compose(ctx, d);
-        Derive(d1, d2, d3) |> wrap;
-      | Derive3(d1, d2, ctx) =>
-        let d3 = compose(ctx, d);
-        Derive(d1, d2, d3) |> wrap;
       | DeferredAp1(ctx, d2s) =>
         let d1 = compose(ctx, d);
         DeferredAp(d1, d2s) |> wrap;
@@ -124,12 +110,6 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
       | ListConcat2(d1, ctx) =>
         let d2 = compose(ctx, d);
         ListConcat(d1, d2) |> wrap;
-      | Entail1(ctx, d2) =>
-        let d1 = compose(ctx, d);
-        Entail(d1, d2) |> wrap;
-      | Entail2(d1, ctx) =>
-        let d2 = compose(ctx, d);
-        Entail(d1, d2) |> wrap;
       | Tuple(ctx, (ld, rd)) =>
         let d = compose(ctx, d);
         Tuple(ListUtil.rev_concat(ld, [d, ...rd])) |> wrap;

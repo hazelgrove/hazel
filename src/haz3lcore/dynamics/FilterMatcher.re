@@ -169,11 +169,9 @@ let rec matches_exp =
     | (String(dv), String(fv)) => dv == fv
     | (String(_), _) => false
 
-    | (Prop(dv), Prop(fv)) => Derivation.Prop.eq(dv, fv)
+    // TODO(zhiyao): check if it is correct
+    | (Prop(dv), Prop(fv)) => dv == fv
     | (Prop(_), _) => false
-
-    | (Judgement(dv), Judgement(fv)) => Derivation.Judgement.eq(dv, fv)
-    | (Judgement(_), _) => false
 
     | (
         Constructor(_),
@@ -212,10 +210,6 @@ let rec matches_exp =
     | (Ap(_, d1, d2), Ap(_, f1, f2)) =>
       matches_exp(d1, f1) && matches_exp(d2, f2)
     | (Ap(_), _) => false
-
-    | (Derive(d1, d2, d3), Derive(f1, f2, f3)) =>
-      matches_exp(d1, f1) && matches_exp(d2, f2) && matches_exp(d3, f3)
-    | (Derive(_), _) => false
 
     | (DeferredAp(d1, d2), DeferredAp(f1, f2)) =>
       matches_exp(d1, f1)
@@ -262,9 +256,6 @@ let rec matches_exp =
       matches_exp(d1, f1) && matches_exp(d2, f2)
     | (ListConcat(_), _) => false
 
-    | (Entail(dctx, dprop), Entail(fctx, fprop)) =>
-      matches_exp(dctx, fctx) && matches_exp(dprop, fprop)
-    | (Entail(_), _) => false
     | (Match(dscrut, drule), Match(fscrut, frule)) =>
       matches_exp(dscrut, fscrut)
       && (

@@ -70,28 +70,16 @@ let string_exps = (s: string): group => {
   forms: [string_exp(s)],
 };
 
-let prop_exp = (p: Derivation.Prop.t): form => {
+let prop_exp = (p: Derivation.Syntax.t): form => {
   id: PropExp,
-  syntactic_form: [p |> Derivation.Prop.repr |> exp],
+  syntactic_form: [p |> Derivation.Syntax.repr |> exp],
   expandable_id: None,
   explanation: "A proposition literal.",
   examples: [],
 };
-let prop_exps = (p: Derivation.Prop.t): group => {
+let prop_exps = (p: Derivation.Syntax.t): group => {
   id: PropExp,
   forms: [prop_exp(p)],
-};
-
-let judgement_exp = (j: Derivation.Judgement.t): form => {
-  id: JudgementExp,
-  syntactic_form: [j |> Derivation.Judgement.repr |> exp],
-  expandable_id: None,
-  explanation: "A judgement literal.",
-  examples: [],
-};
-let judgement_exps = (j: Derivation.Judgement.t): group => {
-  id: JudgementExp,
-  forms: [judgement_exp(j)],
 };
 
 let var_exp = (n: string): form => {

@@ -94,15 +94,6 @@ let rec matches =
       | Ap2(dir, d1, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Ap2(dir, d1, ctx) |> rewrap;
-      | Derive1(ctx, d2, d3) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Derive1(ctx, d2, d3) |> rewrap;
-      | Derive2(d1, ctx, d3) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Derive2(d1, ctx, d3) |> rewrap;
-      | Derive3(d1, d2, ctx) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Derive3(d1, d2, ctx) |> rewrap;
       | TypAp(ctx, ty) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         TypAp(ctx, ty) |> rewrap;
@@ -151,12 +142,6 @@ let rec matches =
       | ListConcat2(d1, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         ListConcat2(d1, ctx) |> rewrap;
-      | Entail1(ctx, d2) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Entail1(ctx, d2) |> rewrap;
-      | Entail2(d1, ctx) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Entail2(d1, ctx) |> rewrap;
       | MultiHole(ctx, (dl, dr)) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         MultiHole(ctx, (dl, dr)) |> rewrap;
@@ -345,13 +330,11 @@ let get_justification: step_kind => string =
   | BinFloatOp(Equals | NotEquals)
   | BinStringOp(Equals) => "check equality"
   | BinStringOp(Concat) => "string manipulation"
-  | BinPropOp(And | Or | Implies) => "propositional logic"
   | UnOp(Bool(Not))
   | BinBoolOp(_) => "boolean logic"
   | Conditional(_) => "conditional"
   | ListCons => "list manipulation"
   | ListConcat => "list manipulation"
-  | Entail => "entailment"
   | CaseApply => "case selection"
   | Projection => "projection" // TODO(Matt): We don't want to show projection to the user
   | InvalidStep => "error"

@@ -13,7 +13,6 @@ type cls =
   | Bool
   | String
   | Prop
-  | Judgement
   | Arrow
   | Prod
   | Sum
@@ -54,7 +53,6 @@ let cls_of_term: term => cls =
   | Bool => Bool
   | String => String
   | Prop => Prop
-  | Judgement => Judgement
   | List(_) => List
   | Arrow(_) => Arrow
   | Var(_) => Var
@@ -76,7 +74,6 @@ let show_cls: cls => string =
   | Float
   | String
   | Prop
-  | Judgement
   | Bool => "Base type"
   | Var => "Type variable"
   | Constructor => "Sum constructor"
@@ -99,7 +96,6 @@ let rec is_arrow = (typ: t) => {
   | Bool
   | String
   | Prop
-  | Judgement
   | List(_)
   | Prod(_)
   | Var(_)
@@ -120,7 +116,6 @@ let rec is_forall = (typ: t) => {
   | Bool
   | String
   | Prop
-  | Judgement
   | Arrow(_)
   | List(_)
   | Prod(_)
@@ -166,7 +161,6 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Float
   | Bool
   | Prop
-  | Judgement
   | String => []
   | Ap(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
   | Var(v) => List.mem(v, bound) ? [] : [v]
@@ -270,8 +264,6 @@ let rec join = (~resolve=false, ~fix, ctx: Ctx.t, ty1: t, ty2: t): option(t) => 
   | (String, _) => None
   | (Prop, Prop) => Some(ty1)
   | (Prop, _) => None
-  | (Judgement, Judgement) => Some(ty1)
-  | (Judgement, _) => None
   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
     let* ty1 = join'(ty1, ty1');
     let+ ty2 = join'(ty2, ty2');
@@ -308,7 +300,6 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Bool, _)
   | (String, _)
   | (Prop, _)
-  | (Judgement, _)
   | (Var(_), _)
   | (Ap(_), _)
   | (Rec(_), _)
@@ -365,7 +356,6 @@ let rec normalize = (ctx: Ctx.t, ty: t): t => {
   | Float
   | Bool
   | Prop
-  | Judgement
   | String => ty
   | Parens(t) => Parens(normalize(ctx, t)) |> rewrap
   | List(t) => List(normalize(ctx, t)) |> rewrap
@@ -498,7 +488,6 @@ let rec needs_parens = (ty: t): bool =>
   | String
   | Bool
   | Prop
-  | Judgement
   | Var(_) => false
   | Rec(_, _)
   | Forall(_, _) => true
@@ -527,7 +516,6 @@ let rec pretty_print = (ty: t): string =>
   | Bool => "Bool"
   | String => "String"
   | Prop => "Prop"
-  | Judgement => "Judgement"
   | Var(tvar) => tvar
   | List(t) => "[" ++ pretty_print(t) ++ "]"
   | Arrow(t1, t2) => paren_pretty_print(t1) ++ " -> " ++ pretty_print(t2)

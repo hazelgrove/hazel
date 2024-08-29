@@ -116,7 +116,6 @@ let mk_ap_exp_typ = mk_tile(Form.get("ap_exp_typ"));
 let mk_fix = mk_tile(Form.get("fix"));
 let mk_ap_exp = mk_tile(Form.get("ap_exp"));
 let mk_ap_pat = mk_tile(Form.get("ap_pat"));
-let mk_derive = mk_tile(Form.get("derive"));
 let mk_let = mk_tile(Form.get("let_"));
 let mk_tyalias = mk_tile(Form.get("type_alias"));
 let mk_if = mk_tile(Form.get("if_"));

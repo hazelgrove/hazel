@@ -56,17 +56,6 @@ let prop_typ: form = {
   };
 };
 
-let judgement_typ: form = {
-  let explanation = "The `Judgement` type classifies judgements.";
-  {
-    id: JudgementTyp,
-    syntactic_form: [typ("Judgement")],
-    expandable_id: None,
-    explanation,
-    examples: [],
-  };
-};
-
 let var_typ = (name: string): form => {
   let explanation = "`%s` is a type variable.";
   {
@@ -87,7 +76,5 @@ let bool: group = {id: BoolTyp, forms: [bool_typ]};
 let str: group = {id: StrTyp, forms: [str_typ]};
 
 let prop: group = {id: PropTyp, forms: [prop_typ]};
-
-let judgement: group = {id: JudgementTyp, forms: [judgement_typ]};
 
 let var = (name: string): group => {id: VarTyp, forms: [var_typ(name)]};

@@ -86,7 +86,7 @@ let mk_ConstructorLit: string => Pretty.Doc.t('a);
 
 let mk_StringLit: string => Pretty.Doc.t('a);
 
-let mk_PropLit: Derivation.Prop.t => Pretty.Doc.t('a);
+let mk_PropLit: Derivation.Syntax.t => Pretty.Doc.t('a);
 
 let mk_JudgementLit: Derivation.Judgement.t => Pretty.Doc.t('a);
 
@@ -103,10 +103,6 @@ let mk_Tuple: list(Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 let mk_TypAp: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 
 let mk_Ap: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
-
-let mk_Derive:
-  (Pretty.Doc.t('a), Pretty.Doc.t('a), Pretty.Doc.t('a)) =>
-  Pretty.Doc.t('a);
 
 let mk_rev_Ap: (Pretty.Doc.t('a), Pretty.Doc.t('a)) => Pretty.Doc.t('a);
 

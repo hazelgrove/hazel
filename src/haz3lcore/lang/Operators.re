@@ -65,8 +65,7 @@ type op_bin =
   | Int(op_bin_int)
   | Float(op_bin_float)
   | Bool(op_bin_bool)
-  | String(op_bin_string)
-  | Prop(op_bin_prop);
+  | String(op_bin_string);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type ap_direction =
@@ -135,8 +134,7 @@ let show_binop: op_bin => string =
   | Int(op) => show_op_bin_int(op)
   | Float(op) => show_op_bin_float(op)
   | Bool(op) => show_op_bin_bool(op)
-  | String(op) => show_op_bin_string(op)
-  | Prop(op) => show_op_bin_prop(op);
+  | String(op) => show_op_bin_string(op);
 
 let bool_op_to_string = (op: op_bin_bool): string => {
   switch (op) {
@@ -181,13 +179,5 @@ let string_op_to_string = (op: op_bin_string): string => {
   switch (op) {
   | Concat => "++"
   | Equals => "$=="
-  };
-};
-
-let prop_op_to_string = (op: op_bin_prop): string => {
-  switch (op) {
-  | And => "/\\"
-  | Or => "\\/"
-  | Implies => "==>"
   };
 };

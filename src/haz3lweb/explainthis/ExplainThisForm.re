@@ -93,7 +93,6 @@ type example_id =
   | TypFunAp
   | FunAp
   | ConAp
-  | Derive
   | DeferredAp
   | IfTrue
   | IfFalse
@@ -163,13 +162,11 @@ type form_id =
   | FloatExp
   | StringExp
   | PropExp
-  | JudgementExp
   | VarExp
   | CtrExp
   | ListExp
   | ConsExp
   | ListConcatExp
-  | EntailExp
   | TypFunctionExp
   | FunctionExp(pat_sub_form_id)
   | TupleExp
@@ -180,7 +177,6 @@ type form_id =
   | TypFunApExp
   | FunApExp
   | ConApExp
-  | DeriveExp
   | DeferredApExp
   | IfExp
   | SeqExp
@@ -215,7 +211,6 @@ type form_id =
   | BoolTyp
   | StrTyp
   | PropTyp
-  | JudgementTyp
   | VarTyp
   | ListTyp
   | ForallTyp
@@ -262,13 +257,11 @@ type group_id =
   | FloatExp
   | StringExp
   | PropExp
-  | JudgementExp
   | VarExp
   | CtrExp
   | ListExp
   | ConsExp
   | ListConcatExp
-  | EntailExp
   | TypFunctionExp
   | FunctionExp(pat_sub_form_id)
   | TupleExp
@@ -279,7 +272,6 @@ type group_id =
   | FixExp(pat_sub_form_id)
   | FunApExp
   | ConApExp
-  | DeriveExp
   | DeferredApExp
   | IfExp
   | SeqExp
@@ -315,7 +307,6 @@ type group_id =
   | BoolTyp
   | StrTyp
   | PropTyp
-  | JudgementTyp
   | VarTyp
   | ListTyp
   | ForallTyp

@@ -20,8 +20,7 @@ type unbox_request('a) =
   | Float: unbox_request(float)
   | Bool: unbox_request(bool)
   | String: unbox_request(string)
-  | Prop: unbox_request(Derivation.Prop.t)
-  | Judgement: unbox_request(Derivation.Judgement.t)
+  | Prop: unbox_request(Derivation.Syntax.t)
   | Tuple(int): unbox_request(list(DHExp.t))
   | List: unbox_request(list(DHExp.t))
   | Cons: unbox_request((DHExp.t, DHExp.t))
@@ -61,7 +60,6 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (Float, Float(f)) => Matches(f)
     | (String, String(s)) => Matches(s)
     | (Prop, Prop(p)) => Matches(p)
-    | (Judgement, Judgement(j)) => Matches(j)
 
     /* Lists can be either lists or list casts */
     | (List, ListLit(l)) => Matches(l)
@@ -149,8 +147,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
        in elaboration or in the cast calculus. */
     | (
         _,
-        Bool(_) | Int(_) | Float(_) | String(_) | Prop(_) | Judgement(_) |
-        Constructor(_) |
+        Bool(_) | Int(_) | Float(_) | String(_) | Prop(_) | Constructor(_) |
         BuiltinFun(_) |
         Deferral(_) |
         DeferredAp(_) |
@@ -169,8 +166,6 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       | String =>
         raise(EvaluatorError.Exception(InvalidBoxedStringLit(expr)))
       | Prop => raise(EvaluatorError.Exception(InvalidBoxedPropLit(expr)))
-      | Judgement =>
-        raise(EvaluatorError.Exception(InvalidBoxedJudgementLit(expr)))
       | Tuple(_) => raise(EvaluatorError.Exception(InvalidBoxedTuple(expr)))
       | List
       | Cons => raise(EvaluatorError.Exception(InvalidBoxedListLit(expr)))
@@ -189,7 +184,6 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         FixF(_) |
         TyAlias(_) |
         Ap(_) |
-        Entail(_) |
         If(_) |
         Seq(_) |
         Test(_) |
@@ -198,7 +192,6 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Parens(_) |
         Cons(_) |
         ListConcat(_) |
-        Derive(_) |
         UnOp(_) |
         BinOp(_) |
         Match(_),

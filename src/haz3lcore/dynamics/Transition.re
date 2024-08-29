@@ -64,12 +64,10 @@ type step_kind =
   | BinIntOp(Operators.op_bin_int)
   | BinFloatOp(Operators.op_bin_float)
   | BinStringOp(Operators.op_bin_string)
-  | BinPropOp(Operators.op_bin_prop)
   | Conditional(bool)
   | Projection
   | ListCons
   | ListConcat
-  | Entail
   | CaseApply
   | CompleteClosure
   | CompleteFilter
@@ -163,6 +161,7 @@ module Transition = (EV: EV_MODE) => {
     // Split DHExp into term and id information
     let (term, rewrap) = DHExp.unwrap(d);
     let wrap_ctx = (term): EvalCtx.t => Term({term, ids: [rep_id(d)]});
+    print_endline(DHExp.show_term(term));
 
     // Transition rules
     switch (term) {
@@ -345,6 +344,23 @@ module Transition = (EV: EV_MODE) => {
           d2,
         );
       switch (DHExp.term_of(d1')) {
+      | Constructor(ctr, ty)
+          when
+            ctr
+            |> BuiltinsDerivation.to_term
+            |> Option.is_some
+            && Typ.matched_arrow([], ty)
+            |> snd
+            |> Typ.term_of == Typ.Prop =>
+        let term = ctr |> BuiltinsDerivation.to_term |> Option.get;
+        let expr = BuiltinsDerivation.transit(term, Some(d2'));
+        Step({
+          expr,
+          state_update,
+          // TODO(zhiyao): add new kind
+          kind: BuiltinAp(ctr),
+          is_value: false // Not necessarily a value because of InvalidOperations
+        });
       | Constructor(_) => Constructor
       | Fun(dp, d3, Some(env'), _) =>
         let.match env'' = (env', matches(dp, d2'));
@@ -441,49 +457,31 @@ module Transition = (EV: EV_MODE) => {
           is_value: true,
         })
       };
-    | Derive(prems, concl, rule) =>
-      let. _ =
-        otherwise(env, (prems, concl, rule) =>
-          Derive(prems, concl, rule) |> rewrap
-        )
-      and. prems' =
-        req_final(
-          req(state, env),
-          prems => Derive1(prems, concl, rule) |> wrap_ctx,
-          prems,
-        )
-      and. concl' =
-        req_final(
-          req(state, env),
-          concl => Derive2(prems, concl, rule) |> wrap_ctx,
-          concl,
-        )
-      and. rule' =
-        req_final(
-          req(state, env),
-          rule => Derive3(prems, concl, rule) |> wrap_ctx,
-          rule,
-        );
-      switch (DHExp.term_of(rule')) {
-      | BuiltinFun(ident) =>
-        Step({
-          expr:
-            Ap(Forward, rule', Tuple([prems', concl']) |> fresh) |> fresh,
-          state_update,
-          kind: BuiltinAp(ident),
-          is_value: false,
-        })
-      | _ => Indet
-      };
     | Deferral(_) =>
       let. _ = otherwise(env, d);
       Indet;
+    | Constructor(ctr, ty)
+        when
+          ctr
+          |> BuiltinsDerivation.to_term
+          |> Option.is_some
+          && ty
+          |> Typ.term_of == Typ.Prop =>
+      let. _ = otherwise(env, d);
+      let term = ctr |> BuiltinsDerivation.to_term |> Option.get;
+      let expr = BuiltinsDerivation.transit(term, None);
+      Step({
+        expr,
+        state_update,
+        // TODO(zhiyao): add new kind
+        kind: BuiltinAp(ctr),
+        is_value: false // Not necessarily a value because of InvalidOperations
+      });
     | Bool(_)
     | Int(_)
     | Float(_)
     | String(_)
     | Prop(_)
-    | Judgement(_)
     | Constructor(_)
     | BuiltinFun(_) =>
       let. _ = otherwise(env, d);
@@ -680,36 +678,6 @@ module Transition = (EV: EV_MODE) => {
         kind: BinStringOp(op),
         is_value: true,
       });
-    | BinOp(Prop(op), d1, d2) =>
-      let. _ = otherwise(env, (d1, d2) => BinOp(Prop(op), d1, d2) |> rewrap)
-      and. d1' =
-        req_value(
-          req(state, env),
-          d1 => BinOp1(Prop(op), d1, d2) |> wrap_ctx,
-          d1,
-        )
-      and. d2' =
-        req_value(
-          req(state, env),
-          d2 => BinOp2(Prop(op), d1, d2) |> wrap_ctx,
-          d2,
-        );
-      let-unbox p1 = (Prop, d1');
-      let-unbox p2 = (Prop, d2');
-      Step({
-        expr:
-          (
-            switch (op) {
-            | And => Prop(And(p1, p2))
-            | Or => Prop(Or(p1, p2))
-            | Implies => Prop(Implies(p1, p2))
-            }
-          )
-          |> fresh,
-        state_update,
-        kind: BinPropOp(op),
-        is_value: true,
-      });
     | Tuple(ds) =>
       let. _ = otherwise(env, ds => Tuple(ds) |> rewrap)
       and. _ =
@@ -754,28 +722,6 @@ module Transition = (EV: EV_MODE) => {
         kind: ListConcat,
         is_value: true,
       });
-    | Entail(d1, d2) =>
-      let. _ = otherwise(env, (d1, d2) => Entail(d1, d2) |> rewrap)
-      and. d1' =
-        req_final(req(state, env), d1 => Entail1(d1, d2) |> wrap_ctx, d1)
-      and. d2' =
-        req_final(req(state, env), d2 => Entail2(d1, d2) |> wrap_ctx, d2);
-      let-unbox d1' = (List, d1');
-      let-unbox d2' = (Prop, d2');
-      switch (
-        d1'
-        |> List.map(Builtins.Pervasives.Impls.prop_of)
-        |> Util.OptUtil.sequence
-      ) {
-      | None => Indet
-      | Some(ctx) =>
-        Step({
-          expr: Judgement(Entail(ctx, d2')) |> fresh,
-          state_update,
-          kind: Entail,
-          is_value: true,
-        })
-      };
     | ListLit(ds) =>
       let. _ = otherwise(env, ds => ListLit(ds) |> rewrap)
       and. _ =
@@ -880,11 +826,9 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | BinIntOp(_)
   | BinFloatOp(_)
   | BinStringOp(_)
-  | BinPropOp(_)
   | UnOp(_)
   | ListCons
   | ListConcat
-  | Entail
   | CaseApply
   | Projection // TODO(Matt): We don't want to show projection to the user
   | Conditional(_)

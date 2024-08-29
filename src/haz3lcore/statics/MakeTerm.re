@@ -198,11 +198,6 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         | term => ret(ListLit([term]))
         }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
-      | (
-          ["from", "to", "by", "end"],
-          [Exp(prems), Exp(concl), Exp(rule)],
-        ) =>
-        ret(Derive(prems, concl, rule))
       | (["case", "end"], [Rul({ids, term: Rules(scrut, rules), _})]) => (
           Match(scrut, rules),
           ids,
@@ -316,12 +311,35 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | ([";"], []) => Seq(l, r)
           | (["++"], []) => BinOp(String(Concat), l, r)
           | (["$=="], []) => BinOp(String(Equals), l, r)
-          | (["/\\"], []) => BinOp(Prop(And), l, r)
-          | (["\\/"], []) => BinOp(Prop(Or), l, r)
-          | (["==>"], []) => BinOp(Prop(Implies), l, r)
+          | (["/\\"], []) =>
+            Ap(
+              Forward,
+              Constructor("And", Unknown(Internal) |> Typ.fresh)
+              |> UExp.fresh,
+              Tuple([l, r]) |> UExp.fresh,
+            )
+          | (["\\/"], []) =>
+            Ap(
+              Forward,
+              Constructor("Or", Unknown(Internal) |> Typ.fresh) |> UExp.fresh,
+              Tuple([l, r]) |> UExp.fresh,
+            )
+          | (["==>"], []) =>
+            Ap(
+              Forward,
+              Constructor("Implies", Unknown(Internal) |> Typ.fresh)
+              |> UExp.fresh,
+              Tuple([l, r]) |> UExp.fresh,
+            )
           | (["|>"], []) => Ap(Reverse, r, l)
           | (["@"], []) => ListConcat(l, r)
-          | (["|-"], []) => Entail(l, r)
+          | (["|-"], []) =>
+            Ap(
+              Forward,
+              Constructor("Entail", Unknown(Internal) |> Typ.fresh)
+              |> UExp.fresh,
+              Tuple([l, r]) |> UExp.fresh,
+            )
           | _ => hole(tm)
           },
         )
@@ -416,7 +434,6 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
         | (["Float"], []) => Float
         | (["String"], []) => String
         | (["Prop"], []) => Prop
-        | (["Judgement"], []) => Judgement
         | ([t], []) when Form.is_typ_var(t) => Var(t)
         | (["(", ")"], [Typ(body)]) => Parens(body)
         | (["[", "]"], [Typ(body)]) => List(body)

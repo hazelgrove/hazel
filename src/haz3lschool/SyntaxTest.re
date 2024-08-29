@@ -103,9 +103,7 @@ let rec find_fn =
   | Seq(u1, u2)
   | Cons(u1, u2)
   | ListConcat(u1, u2)
-  | Entail(u1, u2)
   | BinOp(_, u1, u2) => l |> find_fn(name, u1) |> find_fn(name, u2)
-  | Derive(u1, u2, u3)
   | If(u1, u2, u3) =>
     l |> find_fn(name, u1) |> find_fn(name, u2) |> find_fn(name, u3)
   | DeferredAp(fn, args) =>
@@ -129,7 +127,6 @@ let rec find_fn =
   | Float(_)
   | String(_)
   | Prop(_)
-  | Judgement(_)
   | Constructor(_)
   | Undefined
   | BuiltinFun(_)
@@ -182,7 +179,6 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | Float(_)
   | String(_)
   | Prop(_)
-  | Judgement(_)
   | Constructor(_)
   | Undefined
   | Deferral(_) => false
@@ -212,11 +208,9 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | Seq(u1, u2)
   | Cons(u1, u2)
   | ListConcat(u1, u2)
-  | Entail(u1, u2)
   | BinOp(_, u1, u2) => var_mention(name, u1) || var_mention(name, u2)
   | DeferredAp(u1, us) =>
     var_mention(name, u1) || List.exists(var_mention(name), us)
-  | Derive(u1, u2, u3)
   | If(u1, u2, u3) =>
     var_mention(name, u1) || var_mention(name, u2) || var_mention(name, u3)
   | Match(g, l) =>
@@ -247,7 +241,6 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Float(_)
   | String(_)
   | Prop(_)
-  | Judgement(_)
   | Constructor(_)
   | Undefined
   | Deferral(_) => false
@@ -282,10 +275,6 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
     | Var(x) => x == name ? true : var_applied(name, u2)
     | _ => var_applied(name, u1) || var_applied(name, u2)
     }
-  | Derive(prems, concl, rule) =>
-    var_applied(name, prems)
-    || var_applied(name, concl)
-    || var_applied(name, rule)
   | DeferredAp(u1, us) =>
     switch (u1.term) {
     | Var(x) => x == name ? true : List.exists(var_applied(name), us)
@@ -294,7 +283,6 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Cons(u1, u2)
   | Seq(u1, u2)
   | ListConcat(u1, u2)
-  | Entail(u1, u2)
   | BinOp(_, u1, u2) => var_applied(name, u1) || var_applied(name, u2)
   | If(u1, u2, u3) =>
     var_applied(name, u1) || var_applied(name, u2) || var_applied(name, u3)
@@ -345,7 +333,6 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | Float(_)
   | String(_)
   | Prop(_)
-  | Judgement(_)
   | Constructor(_)
   | Undefined
   | Var(_)
@@ -370,16 +357,11 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | Parens(u) => tail_check(name, u)
   | UnOp(_, u) => !var_mention(name, u)
   | Ap(_, u1, u2) => var_mention(name, u2) ? false : tail_check(name, u1)
-  | Derive(prems, concl, rule) =>
-    var_mention(name, prems)
-    || var_mention(name, concl)
-    || var_mention(name, rule)
   | DeferredAp(fn, args) =>
     tail_check(name, Ap(Forward, fn, Tuple(args) |> Exp.fresh) |> Exp.fresh)
   | Seq(u1, u2) => var_mention(name, u1) ? false : tail_check(name, u2)
   | Cons(u1, u2)
   | ListConcat(u1, u2)
-  | Entail(u1, u2)
   | BinOp(_, u1, u2) => !(var_mention(name, u1) || var_mention(name, u2))
   | If(u1, u2, u3) =>
     var_mention(name, u1)

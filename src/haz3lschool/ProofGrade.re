@@ -53,7 +53,9 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
         switch (evaluation) {
         | ResultOk({result, _}) =>
           switch (result) {
-          | BoxedValue({term: Judgement(jdmt), _}) => Ok({jdmt, rule})
+          | BoxedValue({term: Prop(Judgement(jdmt)), _}) =>
+            Ok({jdmt, rule})
+          // TODO(zhiyao): check it
           | BoxedValue(_) => Error(NotAJudgment)
           | Indet(_) => Error(EvalIndet)
           }
