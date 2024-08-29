@@ -1,13 +1,37 @@
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type buffer =
+  //| Parsed
+  | Unparsed;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type mode =
+  | Normal
+  | Buffer(buffer);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   focus: Direction.t,
   content: Segment.t,
+  mode,
 };
 
 /* NOTE: backpack no longer uses selection focus */
-let mk = content => {focus: Left, content};
+let mk = (~mode=Normal, ~focus=Direction.Left, content: Segment.t) => {
+  focus,
+  content,
+  mode,
+};
+
+let mk_buffer = buffer => mk(~mode=Buffer(buffer), ~focus=Direction.Left);
+
+let is_buffer: t => bool =
+  fun
+  | {mode: Buffer(_), _} => true
+  | _ => false;
+
+let selection_ids = (sel: t): list(Id.t) => Segment.ids(sel.content);
 
 let empty = mk(Segment.empty);
 
@@ -18,13 +42,9 @@ let toggle_focus = selection => {
   focus: Util.Direction.toggle(selection.focus),
 };
 
-// let is_balanced = sel => Segment.is_balanced(sel.content);
-
 let is_empty = (selection: t) => selection.content == Segment.empty;
 
-let clear = (selection: t) => {...selection, content: Segment.empty};
-
-let push = (p: Piece.t, {focus, content}: t): t => {
+let push = (p: Piece.t, {focus, content, mode}: t): t => {
   let content =
     Segment.reassemble(
       switch (focus) {
@@ -32,7 +52,7 @@ let push = (p: Piece.t, {focus, content}: t): t => {
       | Right => Segment.snoc(content, p)
       },
     );
-  {focus, content};
+  {focus, content, mode};
 };
 
 let pop = (sel: t): option((Piece.t, t)) =>

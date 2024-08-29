@@ -1,4 +1,3 @@
-open Sexplib.Std;
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -25,9 +24,36 @@ let get = (label: Label.t): list(Mold.t) =>
     Form.atomic_molds(t) @ molds
   | ([t], None) when Form.atomic_molds(t) != [] => Form.atomic_molds(t)
   | (_, Some(molds)) => molds
+  | ([t], None) =>
+    /* For tokens which are not assigned molds by the language definition,
+       assing a default 'Any' mold, which is either convex or concave
+       depending on the first character. This is a heuristic at the
+       moment as we don't currently rigorously divide token classes
+       for operators vs operands, but is somewhat load-bearing in that
+       remolding as one is typing in a multi-character operator can cause
+       jank, which is alleviated if we correctly guess that it will
+       become an operator. Alternatively, this could be based on
+       logic which checks if the token is the prefix of whatever. */
+    switch (Form.is_potential_operand(t), Form.is_potential_operator(t)) {
+    | (true, false) => [Mold.mk_op(Any, [])]
+    | (false, true) => [Mold.mk_bin(Precedence.max, Any, [])]
+    | (true, true) =>
+      Printf.printf(
+        "Warning: Molds.get: can't decide if operand or operator: '%s'\n",
+        t,
+      );
+      [Mold.mk_op(Any, [])];
+    | (false, false) =>
+      //TODO(andrew): this is triggered in all instant expand cases ([]()|, etc)
+      //Printf.printf("Warning: Molds.get: unhandled mono: '%s'\n", t);
+      [Mold.mk_op(Any, [])]
+    }
   | (lbl, None) =>
-    Printf.printf("MOLD NOT FOUND: %s\n", Label.show(lbl));
-    [];
+    Printf.printf(
+      "Warning: Molds.get: unhandled label: '%s'\n",
+      String.concat(" ", lbl),
+    );
+    [Mold.mk_op(Any, [])];
   };
 
 let delayed_expansions: expansions =
@@ -86,4 +112,14 @@ let instant_expansion: Token.t => (list(Token.t), Direction.t) =
 
 let is_delayed = kw => List.length(delayed_expansion(kw) |> fst) > 1;
 
-let is_instant = kw => List.length(instant_expansion(kw) |> fst) > 1;
+let allow_merge = (l: Token.t, r: Token.t): bool =>
+  Form.is_potential_token(l ++ r);
+
+let allow_append_right = (t: Token.t, char: string): bool =>
+  Form.is_potential_token(t ++ char);
+
+let allow_append_left = (char: string, t: Token.t): bool =>
+  Form.is_potential_token(t ++ char);
+
+let allow_insertion = (_char: string, _t: Token.t, new_t: Token.t): bool =>
+  Form.is_potential_token(new_t);

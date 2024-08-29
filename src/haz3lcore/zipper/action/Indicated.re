@@ -1,12 +1,12 @@
 open Util;
-open Zipper;
+open OptUtil.Syntax;
 
 type relation =
   | Parent
   | Sibling;
 
 let piece' =
-    (~no_ws: bool, ~ign: Piece.t => bool, z: Zipper.t)
+    (~no_ws: bool, ~ign: Piece.t => bool, z: ZipperBase.t)
     : option((Piece.t, Direction.t, relation)) => {
   /* Returns the piece currently indicated (if any) and which side of
      that piece the caret is on. We favor indicating the piece to the
@@ -14,9 +14,10 @@ let piece' =
      We don't indicate secondary tiles. This function ignores whether
      or not there is a selection so this can be used to get the caret
      direction, but the caller shouldn't indicate if there's a selection */
-  switch (Siblings.neighbors(sibs_with_sel(z)), parent(z)) {
-  /* Non-empty selection => no indication */
-  //| _ when z.selection.content != [] => None
+  switch (
+    Siblings.neighbors(ZipperBase.sibs_with_sel(z)),
+    ZipperBase.parent(z),
+  ) {
   /* Empty syntax => no indication */
   | ((None, None), None) => None
   /* L not secondary, R is secondary => indicate L */
@@ -53,7 +54,7 @@ let piece' =
 let piece =
   piece'(~no_ws=true, ~ign=p => Piece.(is_secondary(p) || is_grout(p)));
 
-let shard_index = (z: Zipper.t): option(int) =>
+let shard_index = (z: ZipperBase.t): option(int) =>
   switch (piece(z)) {
   | None => None
   | Some((p, side, relation)) =>
@@ -71,7 +72,8 @@ let shard_index = (z: Zipper.t): option(int) =>
     | Sibling =>
       switch (p) {
       | Secondary(_)
-      | Grout(_) => Some(0)
+      | Grout(_)
+      | Projector(_) => Some(0) //TODO(andrew): ???
       | Tile(t) =>
         switch (side) {
         | Left => Some(List.length(t.children))
@@ -81,13 +83,52 @@ let shard_index = (z: Zipper.t): option(int) =>
     }
   };
 
-let index = (z: Zipper.t): option(int) =>
-  switch (piece'(~no_ws=false, ~ign=Piece.is_secondary, z)) {
+let for_index = piece'(~no_ws=false, ~ign=Piece.is_secondary);
+
+let index = (z: ZipperBase.t): option(Id.t) =>
+  switch (for_index(z)) {
   | None => None
-  | Some((p, _, _)) =>
-    switch (p) {
-    | Secondary({id, _}) => Some(id)
-    | Grout({id, _}) => Some(id)
-    | Tile({id, _}) => Some(id)
-    }
+  | Some((p, _, _)) => Some(Piece.id(p))
+  };
+
+let piece'' = piece'(~no_ws=true, ~ign=Piece.is_secondary);
+
+let ci_of =
+    (z: ZipperBase.t, info_map: Statics.Map.t): option(Statics.Info.t) =>
+  /* This version takes into accounts Secondary, while accounting for the
+   * fact that Secondary is not currently added to the info_map. First we
+   * try the basic indication function, specifying that we do not want
+   * Secondary. But if this doesn't succeed, then we create a 'virtual'
+   * info map entry representing the Secondary notation, which takes on
+   * some of the semantic context of a nearby 'proxy' term */
+  switch (piece''(z)) {
+  | Some((p, _, _)) => Id.Map.find_opt(Piece.id(p), info_map)
+  | None =>
+    let sibs = ZipperBase.sibs_with_sel(z);
+    let* cls =
+      switch (Siblings.neighbors(sibs)) {
+      /* If on side of comment, say we're on comment */
+      | (Some(Secondary(sl)), Some(Secondary(_)))
+          when Secondary.is_comment(sl) =>
+        Some(Secondary.cls_of(sl))
+      | (Some(Secondary(_)), Some(Secondary(sr)))
+          when Secondary.is_comment(sr) =>
+        Some(Secondary.cls_of(sr))
+      | (_, Some(Secondary(s)))
+      | (Some(Secondary(s)), _) => Some(Secondary.cls_of(s))
+      | _ => None
+      };
+    let* proxy_id =
+      switch (Siblings.neighbors(Siblings.trim_secondary(sibs))) {
+      | (_, Some(p))
+      | (Some(p), _) => Some(Piece.id(p))
+      | _ => None
+      };
+    let+ ci = Id.Map.find_opt(proxy_id, info_map);
+    Info.Secondary({
+      id: proxy_id,
+      cls: Secondary(cls),
+      sort: Info.sort_of(ci),
+      ctx: Info.ctx_of(ci),
+    });
   };

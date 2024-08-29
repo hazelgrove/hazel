@@ -24,7 +24,7 @@ let view_log_entries = (replay: Replay.t) => {
       } else {
         "other-update";
       };
-    div(~attr=clss([cur_clss]), [element]);
+    div(~attrs=[clss([cur_clss])], [element]);
   };
   let viewable_indices = {
     // Try to view 10 actions on either side (past/future) of current one
@@ -44,10 +44,10 @@ let view_log_entries = (replay: Replay.t) => {
 
 let view = (~inject, replay: Replay.t) => {
   div(
-    ~attr=clss(["replay-control"]),
+    ~attrs=[clss(["replay-control"])],
     [
       div(
-        ~attr=clss(["top-bar"]),
+        ~attrs=[clss(["top-bar"])],
         [
           button_d(
             Icons.undo,
@@ -75,7 +75,7 @@ let view = (~inject, replay: Replay.t) => {
       ),
       div(view_log_entries(replay)),
       div(
-        ~attr=clss(["help-text"]),
+        ~attrs=[clss(["help-text"])],
         /*
          There are a number of tricky-to-resolve issues with replay functionality.
 

@@ -1,58 +1,52 @@
 open Haz3lcore;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type state = (Id.t, Editor.t);
+type state = Editor.t;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type persistent_state = (Id.t, PersistentZipper.t);
+type persistent_state = PersistentZipper.t;
 
-let editor_of_state = ((_, editor): state) => editor;
+let scratch_key = n => "scratch_" ++ n;
 
-let id_of_state = ((id, _): state) => id;
-
-let put_editor_and_id = ((_, _): state, id, editor) => (id, editor);
-
-let scratch_key = "scratch";
-let spliced_elabs = ((_, editor)) => {
-  let seg = Editor.get_seg(editor);
-  let (term, _) = MakeTerm.go(seg);
-  let info_map = Statics.mk_map(term);
-  [(scratch_key, Interface.elaborate(info_map, term))];
+let persist = (editor: Editor.t): persistent_state => {
+  PersistentZipper.persist(editor.state.zipper);
 };
 
-let persist = ((id, editor: Editor.t)) => {
-  (id, PersistentZipper.persist(editor.state.zipper));
+let unpersist = (zipper: persistent_state, ~settings: CoreSettings.t): state => {
+  let zipper = PersistentZipper.unpersist(zipper);
+  Editor.init(zipper, ~read_only=false, ~settings);
 };
 
-let unpersist = ((id, zipper): persistent_state) => {
-  let (id, zipper) = PersistentZipper.unpersist(zipper, id);
-  (id, Editor.init(zipper, ~read_only=false));
-};
-
-let serialize = (state: state) => {
+let serialize = (state: state): string => {
   persist(state) |> sexp_of_persistent_state |> Sexplib.Sexp.to_string;
 };
 
-let deserialize = (data: string) => {
-  Sexplib.Sexp.of_string(data) |> persistent_state_of_sexp |> unpersist;
+let deserialize = (data: string, ~settings: CoreSettings.t): state => {
+  Sexplib.Sexp.of_string(data)
+  |> persistent_state_of_sexp
+  |> unpersist(~settings);
 };
 
-let deserialize_opt = (data: string) => {
+let deserialize_opt =
+    (data: string, ~settings: CoreSettings.t): option(state) => {
   let sexp =
     try(Some(Sexplib.Sexp.of_string(data) |> persistent_state_of_sexp)) {
     | _ => None
     };
-  sexp |> Option.map(sexp => sexp |> unpersist);
+  sexp |> Option.map(sexp => sexp |> unpersist(~settings));
 };
 
-let export = (state: state) => {
+let export = (state: state): Yojson.Safe.t => {
   state |> persist |> yojson_of_persistent_state;
 };
 
-let import = (data: string) => {
-  data |> Yojson.Safe.from_string |> persistent_state_of_yojson |> unpersist;
+let import = (data: string, ~settings: CoreSettings.t): state => {
+  data
+  |> Yojson.Safe.from_string
+  |> persistent_state_of_yojson
+  |> unpersist(~settings);
 };
 
-let export_init = (state: state) => {
+let export_init = (state: state): string => {
   state |> persist |> show_persistent_state;
 };

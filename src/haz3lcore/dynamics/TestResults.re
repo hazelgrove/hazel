@@ -1,7 +1,7 @@
-open Sexplib.Std;
+open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type test_results = {
+type t = {
   test_map: TestMap.t,
   statuses: list(TestStatus.t),
   descriptions: list(string),
@@ -11,7 +11,7 @@ type test_results = {
   unfinished: int,
 };
 
-let mk_results = (~descriptions=[], test_map: TestMap.t): test_results => {
+let mk_results = (~descriptions=[], test_map: TestMap.t): t => {
   test_map,
   statuses: test_map |> List.map(r => r |> snd |> TestMap.joint_status),
   descriptions,
@@ -48,36 +48,7 @@ let result_summary_str =
   };
 };
 
-/*
- let test_summary_str = (~test_map: TestMap.t): string => {
-   let total = TestMap.count(test_map);
-   let failing = TestMap.count_status(Fail, test_map);
-   let unfinished = TestMap.count_status(Indet, test_map);
-   let one_failing = "one is failing ";
-   let one_unfinished = "one is unfinished ";
-   let mny_failing = Printf.sprintf("%d are failing ", failing);
-   let mny_unfinished = Printf.sprintf("%d are unfinished ", unfinished);
-   let of_n_tests = Printf.sprintf("Out of %d tests, ", total);
-   switch (total, failing, unfinished) {
-   | (_, 0, 0) => "All tests passing! "
-   | (n, _, c) when n == c => "All tests unfinished "
-   | (n, f, _) when n == f => "All tests failing "
-   | (1, 0, 1) => "One test unfinished "
-   | (1, 1, 0) => "One test failing "
-   | (2, 1, 1) => "One test failing and one unfinished "
-   | (_, 0, 1) => of_n_tests ++ one_unfinished
-   | (_, 1, 0) => of_n_tests ++ one_failing
-   | (_, 1, 1) => of_n_tests ++ one_failing ++ "and " ++ one_unfinished
-   | (_, 1, _) => of_n_tests ++ one_failing ++ "and " ++ mny_unfinished
-   | (_, _, 1) => of_n_tests ++ mny_failing ++ "and " ++ one_unfinished
-   | (_, 0, _) => of_n_tests ++ mny_unfinished
-   | (_, _, 0) => of_n_tests ++ mny_failing
-   | (_, _, _) => of_n_tests ++ mny_failing ++ "and " ++ mny_unfinished
-   };
- };
- */
-
-let test_summary_str = (test_results: test_results): string =>
+let test_summary_str = (test_results: t): string =>
   result_summary_str(
     ~n=test_results.total,
     ~p=test_results.failing,
@@ -88,14 +59,3 @@ let test_summary_str = (test_results: test_results): string =>
     ~q_str="indeterminate",
     ~r_str="passing",
   );
-
-type simple_data = {
-  eval_result: DHExp.t,
-  test_results,
-};
-
-type simple = option(simple_data);
-
-let unwrap_test_results = (simple: simple): option(test_results) => {
-  Option.map(simple_data => simple_data.test_results, simple);
-};

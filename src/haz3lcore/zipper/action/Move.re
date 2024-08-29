@@ -1,7 +1,6 @@
 open Zipper;
 open Util;
 open OptUtil.Syntax;
-open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type movability =
@@ -44,8 +43,8 @@ let neighbor_movability =
         Unicode.length(content_string) - 1,
         Unicode.length(content_string) - 2,
       );
-    | Some(_) => CanPass
-    | _ => supernhbr_l
+    | Some(Secondary(_) | Grout(_) | Projector(_)) => CanPass
+    | None => supernhbr_l
     };
   let r =
     switch (r_nhbr) {
@@ -54,8 +53,8 @@ let neighbor_movability =
       // Comments are always length >= 2
       let content_string = Secondary.get_string(w.content);
       CanEnter(0, Unicode.length(content_string) - 2);
-    | Some(_) => CanPass
-    | _ => supernhbr_r
+    | Some(Secondary(_) | Grout(_) | Projector(_)) => CanPass
+    | None => supernhbr_r
     };
   (l, r);
 };
@@ -93,56 +92,98 @@ module Make = (M: Editor.Meta.S) => {
     };
   };
 
+  let is_at_side_of_row = (d: Direction.t, z: Zipper.t) => {
+    let Point.{row, col} = caret_point(z);
+    switch (Zipper.move(d, z)) {
+    | None => true
+    | Some(z) =>
+      let Point.{row: rowp, col: colp} = caret_point(z);
+      row != rowp || col == colp;
+    };
+  };
+
+  let direction_to_from = (p1: Point.t, p2: Point.t): Direction.t => {
+    let before_row = p1.row < p2.row;
+    let at_row = p1.row == p2.row;
+    let before_col = p1.col < p2.col;
+    before_row || at_row && before_col ? Left : Right;
+  };
+
+  let closer_to_prev = (curr, prev, goal: Point.t) =>
+    /* Default to true if equal */
+    abs(caret_point(prev).col - goal.col)
+    < abs(caret_point(curr).col - goal.col);
+
   let do_towards =
       (
         ~anchor: option(Measured.Point.t)=?,
+        ~force_progress: bool=false,
         f: (Direction.t, t) => option(t),
         goal: Measured.Point.t,
         z: t,
       )
       : option(t) => {
     let init = caret_point(z);
-    let d =
-      goal.row < init.row || goal.row == init.row && goal.col < init.col
-        ? Direction.Left : Right;
-
+    let d_to_goal = direction_to_from(goal, init);
     let rec go = (prev: t, curr: t) => {
       let curr_p = caret_point(curr);
-      switch (
-        Measured.Point.dcomp(d, curr_p.col, goal.col),
-        Measured.Point.dcomp(d, curr_p.row, goal.row),
-      ) {
-      | (Exact, Exact) => curr
-      | (_, Over) => prev
-      | (_, Under)
-      | (Under, Exact) =>
-        switch (f(d, curr)) {
-        | None => curr
+      let x_progress = Point.dcomp(d_to_goal, curr_p.col, goal.col);
+      let y_progress = Point.dcomp(d_to_goal, curr_p.row, goal.row);
+      switch (y_progress, x_progress) {
+      /* If we're not there yet, keep going */
+      | (Under, Over | Exact | Under)
+      | (Exact, Under) =>
+        switch (f(d_to_goal, curr)) {
         | Some(next) => go(curr, next)
+        | None => curr /* Should only occur at start/end of program */
         }
-      | (Over, Exact) =>
+      /* If we're there, stop */
+      | (Exact, Exact) => curr
+      /* If we've overshot, meaning the exact goal is inaccessible,
+       * we choose between current and previous (undershot) positions */
+      | (Over, Over | Exact | Under) =>
+        switch (force_progress) {
+        | false =>
+          /* Ideally we would use the same logic as from the below
+           * anchor case here; however that results in strange
+           * behavior when accidentally starting a drag at the end
+           * of a line, which triggers the (invisible) selection of
+           * a linebreak, making it appear that the caret has jumped
+           * to the next line. The downside of leaving this as-is is
+           * that multiline tokens (projectors) do not become part of
+           * the selection when dragging until you're all the way
+           * over them, which is slightly visually jarring */
+          prev
+        | true =>
+          /* Up/down kb movement works by setting a goal one row
+           * below the current. When adjacent to a multiline token,
+           * the nearest next caret position may be multiple lines down.
+           * We must allow this overshoot in order to make progress. */
+          caret_point(prev) == init ? curr : prev
+        }
+      | (Exact, Over) =>
         switch (anchor) {
         | None =>
-          let d_curr = abs(curr_p.col - goal.col);
-          let d_prev = abs(caret_point(prev).col - goal.col);
-          // default to going over when equal
-          d_prev < d_curr ? prev : curr;
+          /* If you're trying to (eg) move down at the end of a row
+           * but the first position of the next row is further right
+           * than the currentrow's end, we want to make progress
+           * regardless of whether the new position would be closer
+           * or further from the goal.  Otherwise, we try to just
+           * get as close as we can  */
+          is_at_side_of_row(Direction.toggle(d_to_goal), curr)
+            ? curr : closer_to_prev(curr, prev, goal) ? prev : curr
         | Some(anchor) =>
-          let anchor_d =
-            goal.row < anchor.row
-            || goal.row == anchor.row
-            && goal.col < anchor.col
-              ? Direction.Left : Right;
-          anchor_d == d ? curr : prev;
+          /* If we're dragging to make a selection, decide whether or
+           * not to force progress based on the relative position of the
+           * anchor (the position where the drag was started) */
+          direction_to_from(goal, anchor) == d_to_goal ? curr : prev
         }
       };
     };
-
     let res = go(z, z);
     Measured.Point.equals(caret_point(res), caret_point(z))
       ? None : Some(res);
   };
-
   let do_vertical =
       (f: (Direction.t, t) => option(t), d: Direction.t, z: t): option(t) => {
     /* Here f should be a function which results in strict d-wards
@@ -150,17 +191,14 @@ module Make = (M: Editor.Meta.S) => {
        caret position to a target derived from the initial position */
     let cur_p = caret_point(z);
     let goal =
-      Measured.Point.{
-        col: M.col_target,
-        row: cur_p.row + (d == Right ? 1 : (-1)),
-      };
-    do_towards(f, goal, z);
+      Point.{col: M.col_target, row: cur_p.row + (d == Right ? 1 : (-1))};
+    do_towards(~force_progress=true, f, goal, z);
   };
 
   let do_extreme =
       (f: (Direction.t, t) => option(t), d: planar, z: t): option(t) => {
     let cur_p = caret_point(z);
-    let goal: Measured.Point.t =
+    let goal: Point.t =
       switch (d) {
       | Right(_) => {col: Int.max_int, row: cur_p.row}
       | Left(_) => {col: 0, row: cur_p.row}
@@ -171,7 +209,52 @@ module Make = (M: Editor.Meta.S) => {
   };
 
   let to_start = do_extreme(primary(ByToken), Up);
+  let to_end = do_extreme(primary(ByToken), Down);
 
+  let to_edge: (Direction.t, t) => option(t) =
+    fun
+    | Left => to_start
+    | Right => to_end;
+
+  /* Do move_action until the indicated piece is such that piece_p is true.
+     If no such piece is found, don't move. */
+  let rec do_until =
+          (
+            ~move_first=true,
+            move_action: t => option(t),
+            piece_p: Piece.t => bool,
+            z: t,
+          )
+          : option(t) => {
+    let* z = move_first ? move_action(z) : Some(z);
+    let* (piece, _, _) = Indicated.piece'(~no_ws=false, ~ign=_ => false, z);
+    if (piece_p(piece)) {
+      Some(z);
+    } else {
+      let* z = move_first ? Some(z) : move_action(z);
+      do_until(~move_first, move_action, piece_p, z);
+    };
+  };
+
+  /* Do move_action until the indicated piece is such that piece_p is true,
+     restarting from the beginning/end if not found in forward direction.
+     If no such piece is found, don't move. */
+  let do_until_wrap = (p, d, z) =>
+    switch (do_until(primary(ByToken, d), p, z)) {
+    | None =>
+      let* z = to_edge(Direction.toggle(d), z);
+      do_until(primary(ByToken, d), p, z);
+    | Some(z) => Some(z)
+    };
+
+  /* Jump to id moves the caret to the leftmost edge of
+   * the piece with the target id. Note that this may not
+   * mean that the piece at that id will be considered
+   * indicate from the point of view of the code decorations
+   * and cursor info display, since for example in the
+   * expression with (caret "|") "true && !|flag", the
+   * caret is at the leftmost edge of flag, but the not
+   * operator ("!") is indicated */
   let jump_to_id = (z: t, id: Id.t): option(t) => {
     let* {origin, _} = Measured.find_by_id(id, M.measured);
     let z =
@@ -182,6 +265,47 @@ module Make = (M: Editor.Meta.S) => {
     switch (do_towards(primary(ByChar), origin, z)) {
     | None => Some(z)
     | Some(z) => Some(z)
+    };
+  };
+
+  let jump_to_side_of_id = (d: Direction.t, z, id) => {
+    let z =
+      switch (jump_to_id(z, id)) {
+      | Some(z) => z /* Move to left of id */
+      | None => z
+      };
+    switch (d) {
+    | Left => z
+    | Right =>
+      switch (primary(ByToken, Right, z)) {
+      | Some(z) => z
+      | None => z
+      }
+    };
+  };
+
+  /* Same as jump to id, but if the end position doesn't
+   * indicate the target id, move one token to the right.
+   * This is an approximate solution (that I believe works
+   * for all current cases) */
+  let jump_to_id_indicated = (z: t, id: Id.t): option(t) => {
+    let* {origin, _} = Measured.find_by_id(id, M.measured);
+    let z =
+      switch (to_start(z)) {
+      | None => z
+      | Some(z) => z
+      };
+    switch (do_towards(primary(ByChar), origin, z)) {
+    | None => Some(z)
+    | Some(z) =>
+      switch (Indicated.index(z)) {
+      | Some(indicated_id) when id == indicated_id => Some(z)
+      | _ =>
+        switch (primary(ByToken, Right, z)) {
+        | Some(z) => Some(z)
+        | None => Some(z)
+        }
+      }
     };
   };
 
@@ -263,7 +387,8 @@ module Make = (M: Editor.Meta.S) => {
 
   let go = (d: Action.move, z: Zipper.t): option(Zipper.t) =>
     switch (d) {
-    | Goal(goal) =>
+    | Goal(Piece(p, d)) => do_until_wrap(Action.of_piece_goal(p), d, z)
+    | Goal(Point(goal)) =>
       let z = Zipper.unselect(z);
       do_towards(primary(ByChar), goal, z);
     | Extreme(d) => do_extreme(primary(ByToken), d, z)

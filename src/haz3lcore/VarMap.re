@@ -1,4 +1,4 @@
-open Sexplib.Std;
+open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t_('a) = list((Token.t, 'a));
@@ -30,3 +30,14 @@ let length = List.length;
 let to_list = ctx => ctx;
 
 let find_map = List.find_map;
+
+let rec update = (ctx: t_('a), name: string, f: 'a => 'a): t_('a) =>
+  switch (ctx) {
+  | [] => []
+  | [(k, v), ...ctx] =>
+    if (name == k) {
+      [(k, f(v)), ...ctx];
+    } else {
+      [(k, v), ...update(ctx, name, f)];
+    }
+  };

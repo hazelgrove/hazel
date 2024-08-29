@@ -6,13 +6,9 @@
   (source_tree www)))
 
 (library
- (name haz3lweb)
- (modules
-  (:standard \ Main)
-  \
-  Worker)
+ (name workerServer)
+ (modules WorkerServer)
  (libraries
-  str
   incr_dom
   virtual_dom.input_widgets
   util
@@ -20,12 +16,8 @@
   haz3lcore
   haz3lschool
   pretty
-  lwt
-  lwtutil
   omd)
- (js_of_ocaml
-  (flags
-   (:include js-of-ocaml-flags-%{profile})))
+ (js_of_ocaml)
  (preprocess
   (pps
    ppx_yojson_conv
@@ -34,14 +26,40 @@
    ppx_sexp_conv
    ppx_deriving.show)))
 
+(library
+ (name haz3lweb)
+ (modules
+  (:standard \ Main)
+  \
+  Worker
+  WorkerServer)
+ (libraries
+  ezjs_min
+  ezjs_idb
+  workerServer
+  str
+  incr_dom
+  virtual_dom.input_widgets
+  util
+  ppx_yojson_conv.expander
+  haz3lcore
+  haz3lschool
+  pretty
+  omd)
+ (js_of_ocaml)
+ (preprocess
+  (pps
+   js_of_ocaml-ppx
+   ppx_let
+   ppx_sexp_conv
+   ppx_deriving.show
+   ppx_yojson_conv)))
+
 (executable
  (name main)
  (modules Main)
  (libraries ppx_yojson_conv.expander haz3lweb)
  (modes js)
- (js_of_ocaml
-  (flags
-   (:include js-of-ocaml-flags-%{profile})))
  (preprocess
   (pps
    ppx_yojson_conv
@@ -53,7 +71,7 @@
 (executable
  (name worker)
  (modules Worker)
- (libraries haz3lweb)
+ (libraries workerServer)
  (modes js)
  (preprocess
   (pps js_of_ocaml-ppx)))
@@ -61,13 +79,7 @@
 (env
  (dev
   (js_of_ocaml
-   (flags (:standard))))
+   (flags :standard --debuginfo --noinline --dynlink --linkall --sourcemap)))
  (release
   (js_of_ocaml
    (flags (:standard)))))
-
-(rule
- (write-file js-of-ocaml-flags-dev "(:standard)"))
-
-(rule
- (write-file js-of-ocaml-flags-release "(:standard)"))

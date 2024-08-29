@@ -1,128 +1,137 @@
 /* closed substitution [d1/x]d2 */
-let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t =>
-  switch (d2) {
-  | BoundVar(y) =>
+let rec subst_var = (m, d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
+  let (term, rewrap) = DHExp.unwrap(d2);
+  switch (term) {
+  | Var(y) =>
     if (Var.eq(x, y)) {
       d1;
     } else {
       d2;
     }
-  | FreeVar(_) => d2
-  | InvalidText(_) => d2
-  | ExpandingKeyword(_) => d2
-  | Sequence(d3, d4) =>
-    let d3 = subst_var(d1, x, d3);
-    let d4 = subst_var(d1, x, d4);
-    Sequence(d3, d4);
+  | Invalid(_) => d2
+  | Undefined => d2
+  | Seq(d3, d4) =>
+    let d3 = subst_var(m, d1, x, d3);
+    let d4 = subst_var(m, d1, x, d4);
+    Seq(d3, d4) |> rewrap;
+  | Filter(filter, dbody) =>
+    let dbody = subst_var(m, d1, x, dbody);
+    let filter = subst_var_filter(m, d1, x, filter);
+    Filter(filter, dbody) |> rewrap;
   | Let(dp, d3, d4) =>
-    let d3 = subst_var(d1, x, d3);
+    let d3 = subst_var(m, d1, x, d3);
     let d4 =
-      if (DHPat.binds_var(x, dp)) {
+      if (DHPat.binds_var(m, x, dp)) {
         d4;
       } else {
-        subst_var(d1, x, d4);
+        subst_var(m, d1, x, d4);
       };
-    Let(dp, d3, d4);
-  | FixF(y, ty, d3) =>
+    Let(dp, d3, d4) |> rewrap;
+  | FixF(y, d3, env) =>
+    let env' = Option.map(subst_var_env(m, d1, x), env);
     let d3 =
-      if (Var.eq(x, y)) {
+      if (DHPat.binds_var(m, x, y)) {
         d3;
       } else {
-        subst_var(d1, x, d3);
+        subst_var(m, d1, x, d3);
       };
-    FixF(y, ty, d3);
-  | Fun(dp, ty, d3, s) =>
-    if (DHPat.binds_var(x, dp)) {
-      Fun(dp, ty, d3, s);
+    FixF(y, d3, env') |> rewrap;
+  | Fun(dp, d3, env, s) =>
+    /* Function closure shouldn't appear during substitution
+       (which only is called from elaboration currently) */
+    let env' = Option.map(subst_var_env(m, d1, x), env);
+    if (DHPat.binds_var(m, x, dp)) {
+      Fun(dp, d3, env', s) |> rewrap;
     } else {
-      let d3 = subst_var(d1, x, d3);
-      Fun(dp, ty, d3, s);
-    }
+      let d3 = subst_var(m, d1, x, d3);
+      Fun(dp, d3, env', s) |> rewrap;
+    };
+  | TypFun(tpat, d3, s) =>
+    TypFun(tpat, subst_var(m, d1, x, d3), s) |> rewrap
   | Closure(env, d3) =>
     /* Closure shouldn't appear during substitution (which
        only is called from elaboration currently) */
-    let env' = subst_var_env(d1, x, env);
-    let d3' = subst_var(d1, x, d3);
-    Closure(env', d3');
-  | Ap(d3, d4) =>
-    let d3 = subst_var(d1, x, d3);
-    let d4 = subst_var(d1, x, d4);
-    Ap(d3, d4);
-  | ApBuiltin(ident, args) =>
-    let args = List.map(subst_var(d1, x), args);
-    ApBuiltin(ident, args);
-  | TestLit(_)
-  | BoolLit(_)
-  | IntLit(_)
-  | FloatLit(_)
-  | StringLit(_)
-  | Tag(_) => d2
-  | ListLit(a, b, c, d, ds) =>
-    ListLit(a, b, c, d, List.map(subst_var(d1, x), ds))
+    let env' = subst_var_env(m, d1, x, env);
+    let d3' = subst_var(m, d1, x, d3);
+    Closure(env', d3') |> rewrap;
+  | Ap(dir, d3, d4) =>
+    let d3 = subst_var(m, d1, x, d3);
+    let d4 = subst_var(m, d1, x, d4);
+    Ap(dir, d3, d4) |> rewrap;
+  | BuiltinFun(_) => d2
+  | Test(d3) => Test(subst_var(m, d1, x, d3)) |> rewrap
+  | Bool(_)
+  | Int(_)
+  | Float(_)
+  | String(_)
+  | Constructor(_) => d2
+  | ListLit(ds) => ListLit(List.map(subst_var(m, d1, x), ds)) |> rewrap
   | Cons(d3, d4) =>
-    let d3 = subst_var(d1, x, d3);
-    let d4 = subst_var(d1, x, d4);
-    Cons(d3, d4);
-  | Tuple(ds) => Tuple(List.map(subst_var(d1, x), ds))
-  | Prj(d, n) => Prj(subst_var(d1, x, d), n)
-  | BinBoolOp(op, d3, d4) =>
-    let d3 = subst_var(d1, x, d3);
-    let d4 = subst_var(d1, x, d4);
-    BinBoolOp(op, d3, d4);
-  | BinIntOp(op, d3, d4) =>
-    let d3 = subst_var(d1, x, d3);
-    let d4 = subst_var(d1, x, d4);
-    BinIntOp(op, d3, d4);
-  | BinFloatOp(op, d3, d4) =>
-    let d3 = subst_var(d1, x, d3);
-    let d4 = subst_var(d1, x, d4);
-    BinFloatOp(op, d3, d4);
-  | BinStringOp(op, d3, d4) =>
-    let d3 = subst_var(d1, x, d3);
-    let d4 = subst_var(d1, x, d4);
-    BinStringOp(op, d3, d4);
-  | Inj(ty, side, d3) =>
-    let d3 = subst_var(d1, x, d3);
-    Inj(ty, side, d3);
-  | ConsistentCase(Case(d3, rules, n)) =>
-    let d3 = subst_var(d1, x, d3);
-    let rules = subst_var_rules(d1, x, rules);
-    ConsistentCase(Case(d3, rules, n));
-  | InconsistentBranches(u, i, Case(d3, rules, n)) =>
-    let d3 = subst_var(d1, x, d3);
-    let rules = subst_var_rules(d1, x, rules);
-    InconsistentBranches(u, i, Case(d3, rules, n));
-  | EmptyHole(u, i) => EmptyHole(u, i)
-  | NonEmptyHole(reason, u, i, d3) =>
-    let d3' = subst_var(d1, x, d3);
-    NonEmptyHole(reason, u, i, d3');
+    let d3 = subst_var(m, d1, x, d3);
+    let d4 = subst_var(m, d1, x, d4);
+    Cons(d3, d4) |> rewrap;
+  | ListConcat(d3, d4) =>
+    let d3 = subst_var(m, d1, x, d3);
+    let d4 = subst_var(m, d1, x, d4);
+    ListConcat(d3, d4) |> rewrap;
+  | Tuple(ds) => Tuple(List.map(subst_var(m, d1, x), ds)) |> rewrap
+  | UnOp(op, d3) =>
+    let d3 = subst_var(m, d1, x, d3);
+    UnOp(op, d3) |> rewrap;
+  | BinOp(op, d3, d4) =>
+    let d3 = subst_var(m, d1, x, d3);
+    let d4 = subst_var(m, d1, x, d4);
+    BinOp(op, d3, d4) |> rewrap;
+  | Match(ds, rules) =>
+    let ds = subst_var(m, d1, x, ds);
+    let rules =
+      List.map(
+        ((p, v)) =>
+          if (DHPat.binds_var(m, x, p)) {
+            (p, v);
+          } else {
+            (p, subst_var(m, d1, x, v));
+          },
+        rules,
+      );
+    Match(ds, rules) |> rewrap;
+  | EmptyHole => EmptyHole |> rewrap
+  // TODO: handle multihole
+  | MultiHole(_d2) => d2 //MultiHole(List.map(subst_var(m, d1, x), ds)) |> rewrap
   | Cast(d, ty1, ty2) =>
-    let d' = subst_var(d1, x, d);
-    Cast(d', ty1, ty2);
+    let d' = subst_var(m, d1, x, d);
+    Cast(d', ty1, ty2) |> rewrap;
   | FailedCast(d, ty1, ty2) =>
-    let d' = subst_var(d1, x, d);
-    FailedCast(d', ty1, ty2);
-  | InvalidOperation(d, err) =>
-    let d' = subst_var(d1, x, d);
-    InvalidOperation(d', err);
-  }
-
-and subst_var_rules =
-    (d1: DHExp.t, x: Var.t, rules: list(DHExp.rule)): list(DHExp.rule) =>
-  rules
-  |> List.map((r: DHExp.rule) =>
-       switch (r) {
-       | Rule(dp, d2) =>
-         if (DHPat.binds_var(x, dp)) {
-           r;
-         } else {
-           Rule(dp, subst_var(d1, x, d2));
-         }
-       }
-     )
+    let d' = subst_var(m, d1, x, d);
+    FailedCast(d', ty1, ty2) |> rewrap;
+  | DynamicErrorHole(d, err) =>
+    let d' = subst_var(m, d1, x, d);
+    DynamicErrorHole(d', err) |> rewrap;
+  | If(d4, d5, d6) =>
+    let d4' = subst_var(m, d1, x, d4);
+    let d5' = subst_var(m, d1, x, d5);
+    let d6' = subst_var(m, d1, x, d6);
+    If(d4', d5', d6') |> rewrap;
+  | TyAlias(tp, ut, d4) =>
+    let d4' = subst_var(m, d1, x, d4);
+    TyAlias(tp, ut, d4') |> rewrap;
+  | Parens(d4) =>
+    let d4' = subst_var(m, d1, x, d4);
+    Parens(d4') |> rewrap;
+  | Deferral(_) => d2
+  | DeferredAp(d3, d4s) =>
+    let d3 = subst_var(m, d1, x, d3);
+    let d4s = List.map(subst_var(m, d1, x), d4s);
+    DeferredAp(d3, d4s) |> rewrap;
+  | TypAp(d3, ut) =>
+    let d3 = subst_var(m, d1, x, d3);
+    TypAp(d3, ut) |> rewrap;
+  };
+}
 
 and subst_var_env =
-    (d1: DHExp.t, x: Var.t, env: ClosureEnvironment.t): ClosureEnvironment.t => {
+    (m, d1: DHExp.t, x: Var.t, env: ClosureEnvironment.t)
+    : ClosureEnvironment.t => {
   let id = env |> ClosureEnvironment.id_of;
   let map =
     env
@@ -130,34 +139,40 @@ and subst_var_env =
     |> Environment.foldo(
          ((x', d': DHExp.t), map) => {
            let d' =
-             switch (d') {
+             switch (DHExp.term_of(d')) {
              /* Substitute each previously substituted binding into the
               * fixpoint. */
-             | FixF(_) as d =>
+             | FixF(_) =>
                map
                |> Environment.foldo(
-                    ((x'', d''), d) => subst_var(d'', x'', d),
-                    d,
+                    ((x'', d''), d) => subst_var(m, d'', x'', d),
+                    d',
                   )
-             | d => d
+             | _ => d'
              };
 
            /* Substitute. */
-           let d' = subst_var(d1, x, d');
+           let d' = subst_var(m, d1, x, d');
            Environment.extend(map, (x', d'));
          },
          Environment.empty,
        );
 
   ClosureEnvironment.wrap(id, map);
+}
+
+and subst_var_filter =
+    (m, d1: DHExp.t, x: Var.t, flt: TermBase.StepperFilterKind.t)
+    : TermBase.StepperFilterKind.t => {
+  flt |> TermBase.StepperFilterKind.map(subst_var(m, d1, x));
 };
 
-let subst = (env: Environment.t, d: DHExp.t): DHExp.t =>
+let subst = (m, env: Environment.t, d: DHExp.t): DHExp.t =>
   env
   |> Environment.foldo(
        (xd: (Var.t, DHExp.t), d2) => {
          let (x, d1) = xd;
-         subst_var(d1, x, d2);
+         subst_var(m, d1, x, d2);
        },
        d,
      );

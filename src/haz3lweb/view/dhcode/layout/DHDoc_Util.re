@@ -1,4 +1,3 @@
-open Util;
 open Haz3lcore;
 
 module Doc = Pretty.Doc;
@@ -46,9 +45,8 @@ module Delim = {
   let mk = (delim_text: string): t =>
     Doc.text(delim_text) |> Doc.annot(DHAnnot.Delim);
 
-  let empty_hole = ((u, i): HoleInstance.t): t => {
-    let lbl =
-      StringUtil.cat([string_of_int(u + 1), ":", string_of_int(i + 1)]);
+  let empty_hole = (_env: ClosureEnvironment.t): t => {
+    let lbl = "-";
     Doc.text(lbl)
     |> Doc.annot(DHAnnot.HoleLabel)
     |> Doc.annot(DHAnnot.Delim);
@@ -70,11 +68,6 @@ module Delim = {
   let colon_FixF = mk(":");
   let open_FixF = mk(".{");
   let close_FixF = mk("}");
-
-  let open_Inj = (inj_side: InjSide.t) =>
-    mk(StringUtil.cat([InjSide.to_string(inj_side), "("]));
-  let close_Inj = mk(")");
-
   let open_Case = mk("case");
   let close_Case = mk("end");
 
@@ -91,13 +84,8 @@ module Delim = {
   let close_FailedCast = close_Cast |> Doc.annot(DHAnnot.FailedCastDelim);
 };
 
-let mk_EmptyHole = (~selected=false, (u, i)) =>
-  Delim.empty_hole((u, i))
-  |> Doc.annot(DHAnnot.EmptyHole(selected, (u, i)));
-
-let mk_Keyword = (u, i, k) =>
-  Doc.text(ExpandingKeyword.to_string(k))
-  |> Doc.annot(DHAnnot.VarHole(ExpandingKeyword(k), (u, i)));
+let mk_EmptyHole = (~selected=false, env) =>
+  Delim.empty_hole(env) |> Doc.annot(DHAnnot.EmptyHole(selected, env));
 
 let mk_IntLit = n => Doc.text(string_of_int(n));
 
@@ -111,9 +99,6 @@ let mk_FloatLit = (f: float) =>
   };
 
 let mk_BoolLit = b => Doc.text(string_of_bool(b));
-
-let mk_Inj = (inj_side, padded_child) =>
-  Doc.hcats([Delim.open_Inj(inj_side), padded_child, Delim.close_Inj]);
 
 let mk_Cons = (hd, tl) => Doc.(hcats([hd, text("::"), tl]));
 

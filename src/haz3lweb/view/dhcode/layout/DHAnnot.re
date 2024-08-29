@@ -1,4 +1,4 @@
-open Sexplib.Std;
+open Util;
 open Haz3lcore;
 
 [@deriving sexp]
@@ -8,12 +8,15 @@ type t =
   | Term
   | HoleLabel
   | Delim
-  | EmptyHole(bool, HoleInstance.t)
-  | NonEmptyHole(ErrStatus.HoleReason.t, HoleInstance.t)
-  | VarHole(VarErrStatus.HoleReason.t, HoleInstance.t)
-  | InconsistentBranches(HoleInstance.t)
-  | Invalid(HoleInstance.t)
+  | EmptyHole(bool, ClosureEnvironment.t)
+  | NonEmptyHole
+  | VarHole(VarErrStatus.HoleReason.t, Id.t)
+  | InconsistentBranches(Id.t)
+  | Invalid
   | FailedCastDelim
   | FailedCastDecoration
   | CastDecoration
-  | OperationError(InvalidOperationError.t);
+  | OperationError(InvalidOperationError.t)
+  | Steppable(int)
+  | Stepped
+  | Substituted;

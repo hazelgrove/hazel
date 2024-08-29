@@ -1,6 +1,45 @@
 open Virtual_dom.Vdom;
 open Node;
 open Haz3lcore;
+open Util;
+
+/* Assume this doesn't contain projectors */
+let measured_of = seg => Measured.of_segment(seg, Id.Map.empty);
+
+let text_view = (seg: Segment.t): list(Node.t) => {
+  module Text =
+    Code.Text({
+      let map = measured_of(seg);
+      let settings = Init.startup.settings;
+      let info_map = Id.Map.empty; /* Assume this doesn't contain projectors */
+    });
+  Text.of_segment([], true, Any, seg);
+};
+
+let segment_origin = (seg: Segment.t): option(Point.t) =>
+  Option.map(
+    first => Measured.find_p(first, measured_of(seg)).origin,
+    ListUtil.hd_opt(seg),
+  );
+
+let segment_last = (seg: Segment.t): option(Point.t) =>
+  Option.map(
+    last => Measured.find_p(last, measured_of(seg)).last,
+    ListUtil.last_opt(seg),
+  );
+
+let segment_height = (seg: Segment.t) =>
+  switch (segment_last(seg), segment_origin(seg)) {
+  | (Some(last), Some(first)) => 1 + last.row - first.row
+  | _ => 0
+  };
+
+let segment_width = (seg: Segment.t): int =>
+  IntMap.fold(
+    (_, {max_col, _}: Measured.Rows.shape, acc) => max(max_col, acc),
+    measured_of(seg).rows,
+    0,
+  );
 
 let backpack_sel_view =
     (
@@ -8,38 +47,32 @@ let backpack_sel_view =
       y_off: float,
       scale: float,
       opacity: float,
-      {focus: _, content}: Selection.t,
+      {focus: _, content, _}: Selection.t,
     ) => {
-  module Text =
-    Code.Text({
-      let map = Measured.of_segment(content);
-      let settings = ModelSettings.init;
-    });
   // TODO(andrew): Maybe use init sort at caret to prime this
   div(
-    ~attr=
-      Attr.many([
-        Attr.classes(["code-text", "backpack-selection"]),
-        Attr.create(
-          "style",
-          Printf.sprintf(
-            "position: absolute; transform-origin: bottom left; transform: translate(%fpx, %fpx) scale(%f); opacity: %f%%;",
-            x_off,
-            y_off,
-            scale,
-            opacity,
-          ),
+    ~attrs=[
+      Attr.classes(["code-text", "backpack-selection"]),
+      Attr.create(
+        "style",
+        Printf.sprintf(
+          "position: absolute; transform-origin: bottom left; transform: translate(%fpx, %fpx) scale(%f); opacity: %f%%;",
+          x_off,
+          y_off,
+          scale,
+          opacity,
         ),
-      ]),
+      ),
+    ],
     // zwsp necessary for containing box to stretch to contain trailing newline
-    Text.of_segment(~no_sorts=true, content) @ [text(Unicode.zwsp)],
+    text_view(content) @ [text(Unicode.zwsp)],
   );
 };
 
 let view =
     (
       ~font_metrics: FontMetrics.t,
-      ~origin: Measured.Point.t,
+      ~origin: Point.t,
       {backpack, _} as z: Zipper.t,
     )
     : Node.t => {
@@ -47,7 +80,7 @@ let view =
   let height_head =
     switch (backpack) {
     | [] => 0
-    | [hd, ..._] => Measured.segment_height(hd.content)
+    | [hd, ..._] => segment_height(hd.content)
     };
   let can_put_down =
     switch (Zipper.pop_backpack(z)) {
@@ -91,7 +124,7 @@ let view =
   let (_, _, _, selections) =
     List.fold_left(
       ((idx, y_offset, opacity, vs), s: Selection.t) => {
-        let base_height = Measured.segment_height(s.content);
+        let base_height = segment_height(s.content);
         let scale = scale_fn(idx);
         let x_offset = x_fn(idx);
         let new_y_offset = y_offset -. dy_fn(idx, base_height);
@@ -106,17 +139,16 @@ let view =
     );
   let selections_view =
     div(
-      ~attr=
-        Attr.many([
-          Attr.create("style", selections_style),
-          Attr.classes(["backpack"]),
-        ]),
+      ~attrs=[
+        Attr.create("style", selections_style),
+        Attr.classes(["backpack"]),
+      ],
       selections,
     );
   let length =
     switch (backpack) {
     | [] => 0
-    | [hd, ..._] => Measured.segment_width(hd.content)
+    | [hd, ..._] => segment_width(hd.content)
     };
 
   let joiner_style =
@@ -130,11 +162,10 @@ let view =
     );
   let joiner =
     div(
-      ~attr=
-        Attr.many([
-          Attr.create("style", joiner_style),
-          Attr.classes(["backpack-joiner"]),
-        ]),
+      ~attrs=[
+        Attr.create("style", joiner_style),
+        Attr.classes(["backpack-joiner"]),
+      ],
       [],
     );
   //TODO(andrew): break out backpack decoration into its own module
@@ -161,15 +192,12 @@ let view =
       +. 1.,
     );
   div(
-    ~attr=
-      Attr.many([
-        Attr.classes(
-          ["backpack"] @ (can_put_down ? [] : ["cant-put-down"]),
-        ),
-      ]),
+    ~attrs=[
+      Attr.classes(["backpack"] @ (can_put_down ? [] : ["cant-put-down"])),
+    ],
     [
       selections_view,
-      div(~attr=Attr.create("style", genie_style), [genie_view]),
+      div(~attrs=[Attr.create("style", genie_style)], [genie_view]),
     ]
     @ (backpack != [] ? [joiner] : []),
   );

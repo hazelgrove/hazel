@@ -1,4 +1,3 @@
-open Sexplib.Std;
 open Util;
 
 module ShardInfo = {
@@ -217,6 +216,11 @@ let shard_info = (bp: t) => {
   info;
 };
 
+/* PERF: This becomes very costly when there are a lot of things
+   in the backpack; e.g. if you open 23 parens, it's almost 100%
+   of the keystoke cost, for a 55x total slowdown  */
+let shard_info = Core.Memo.general(~cache_size_bound=1000, shard_info);
+
 let push = sel => Selection.is_empty(sel) ? Fun.id : List.cons(sel);
 
 let push_s: (list(Selection.t), t) => t = List.fold_right(push);
@@ -282,3 +286,17 @@ let will_barf = (t: Token.t, bp: t): bool =>
     }
   | _ => false
   };
+
+let remove_uni_tiles_with_deep_matches = (bp: t, sel: Selection.t): t => {
+  /* This is a hack to prevent incomplete tiles inside selection tiles
+   * from being orphaned on deletion, e.g. if you delete segment "([)"
+   * with "]" in the backpack.  */
+  let ids = Segment.ids_of_incomplete_tiles_in_bidelimiteds(sel.content);
+  List.filter_map(
+    fun
+    | Selection.{content: [Piece.Tile({id, _})], _} when List.mem(id, ids) =>
+      None
+    | x => Some(x),
+    bp,
+  );
+};

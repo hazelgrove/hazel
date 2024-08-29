@@ -7,6 +7,7 @@
    In any case, that's a good reference. */
 
 module type MONAD_BASIC = {
+  [@deriving sexp]
   type t('a);
   let return: 'a => t('a);
   let bind: (t('a), 'a => t('b)) => t('b);
@@ -74,4 +75,4 @@ module Make_Monad_Z = (M: MONAD_ZIP) => {
 };
 
 module Make_Monad_B = (M: MONAD_BASIC) =>
-  Make_Monad_Z((Make_Zip((Make_Functor(M)))));
+  Make_Monad_Z(Make_Zip(Make_Functor(M)));

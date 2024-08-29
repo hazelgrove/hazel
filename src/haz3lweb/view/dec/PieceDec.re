@@ -4,21 +4,6 @@ open Virtual_dom.Vdom;
 open Node;
 open SvgUtil;
 
-module Profile = {
-  type shard = (Id.t, int);
-  type tiles = list((Id.t, Mold.t, Measured.Shards.t));
-
-  type style =
-    | Root(Measured.Point.t, Measured.Point.t)
-    | Selected(shard, shard);
-
-  type t = {
-    style,
-    caret: shard,
-    tiles,
-  };
-};
-
 let run: Nib.Shape.t => float =
   fun
   | Convex => +. DecUtil.short_tip_width
@@ -29,135 +14,109 @@ let adj: Nib.Shape.t => float =
   | Convex => DecUtil.convex_adj
   | Concave(_) => DecUtil.concave_adj;
 
-let l_hook = (l: Nib.Shape.t): list(Path.cmd) => [
-  H_({dx: -. adj(l)}),
-  L_({dx: -. run(l), dy: (-0.5)}),
-  L_({dx: +. run(l), dy: (-0.5)}),
-  H_({dx: +. adj(l)}),
+let chevron = (a: float, b: float, c: float): list(Path.cmd) => [
+  H_({dx: -. a}),
+  L_({dx: -. b, dy: c}),
+  L_({dx: +. b, dy: c}),
+  H_({dx: +. a}),
 ];
 
-let r_hook = (r: Nib.Shape.t): list(Path.cmd) => [
-  H_({dx: +. adj(r)}),
-  L_({dx: +. run(r), dy: 0.5}),
-  L_({dx: -. run(r), dy: 0.5}),
-  H_({dx: -. adj(r)}),
-];
+let left_chevron = (l: Nib.Shape.t): list(Path.cmd) =>
+  chevron(adj(l), run(l), -0.5);
 
-let simple_shard_path = ((l, r): Nibs.shapes, length: int): list(Path.cmd) =>
+let right_chevron = (l: Nib.Shape.t): list(Path.cmd) =>
+  chevron(-. adj(l), -. run(l), 0.5);
+
+let _simple_shard_path = ((l, r): Nibs.shapes, length: int): list(Path.cmd) =>
   List.flatten(
     Path.[
       [m(~x=0, ~y=0), h(~x=length)],
-      r_hook(r),
+      right_chevron(r),
       [h(~x=0)],
-      l_hook(l),
+      left_chevron(l),
     ],
   );
 
-let chunky_shard_path =
-    (
-      {origin, last}: Measured.measurement,
-      (l, r): Nibs.shapes,
-      indent_col: int,
-      max_col: int,
-    )
-    : list(Path.cmd) =>
+let chonky_shard_path =
+    ((l, r): Nibs.shapes, length: int, height: int): list(Path.cmd) =>
   List.flatten(
     Path.[
-      [
-        m(~x=0, ~y=0),
-        h(~x=max_col - origin.col + 1),
-        v(~y=last.row - origin.row),
-        h(~x=last.col - origin.col),
-      ],
-      r_hook(r),
-      [h(~x=indent_col - origin.col), v(~y=1), h(~x=0)],
-      l_hook(l),
+      [m(~x=0, ~y=0), h(~x=length), v(~y=height)],
+      right_chevron(r),
+      [h(~x=0), v(~y=1)],
+      left_chevron(l),
     ],
   );
+
+type shard_dims = {
+  font_metrics: FontMetrics.t,
+  shapes: Nibs.shapes,
+  measurement: Measured.measurement,
+};
 
 let simple_shard =
     (
-      ~font_metrics,
-      ~has_caret,
-      ~shapes,
-      ~sort,
-      ~measurement as {origin, last}: Measured.measurement,
+      {font_metrics, shapes, measurement}: shard_dims,
+      ~absolute=true,
+      classes,
     )
-    : t => {
-  let path = simple_shard_path(shapes, last.col - origin.col);
-  let path_cls =
-    ["tile-path", "raised", Sort.to_string(sort)]
-    @ (has_caret ? ["indicated-caret"] : ["indicated"]);
-  let base_cls = ["tile-indicated"];
-  DecUtil.code_svg(~font_metrics, ~origin, ~base_cls, ~path_cls, path);
-};
+    : t =>
+  DecUtil.code_svg_sized(
+    ~font_metrics,
+    ~measurement,
+    ~base_cls=["shard"] @ classes,
+    ~path_cls=[],
+    //~fudge,
+    ~absolute,
+    chonky_shard_path(
+      shapes,
+      measurement.last.col - measurement.origin.col,
+      measurement.last.row - measurement.origin.row,
+    ),
+  );
 
-let simple_shards =
-    (~font_metrics: FontMetrics.t, ~caret: (Id.t, int), (id, mold, shards))
+let relative_shard = (shard_dims: shard_dims) =>
+  simple_shard(~absolute=false, shard_dims, []);
+
+let simple_shards_indicated =
+    (~font_metrics: FontMetrics.t, (id, mold, shards), ~caret: (Id.t, int))
     : list(t) =>
   List.map(
     ((index, measurement)) =>
       simple_shard(
-        ~font_metrics,
-        ~has_caret=caret == (id, index),
-        ~shapes=Mold.nib_shapes(~index, mold),
-        ~sort=mold.out,
-        ~measurement,
+        {font_metrics, measurement, shapes: Mold.nib_shapes(~index, mold)},
+        ["indicated", Sort.to_string(mold.out)]
+        @ (caret == (id, index) ? ["caret"] : []),
       ),
     shards,
   );
 
-let simple_shard_child =
-    (
-      ~font_metrics: FontMetrics.t,
-      (mold: Mold.t, {origin, last}: Measured.measurement),
-    )
-    : t => {
-  let nib_shapes = Mold.nib_shapes(mold);
-  let path = simple_shard_path(nib_shapes, last.col - origin.col);
-  let clss = ["indicated-child", Sort.to_string(mold.out)];
-  DecUtil.code_svg(
-    ~font_metrics,
-    ~origin,
-    ~path_cls=clss,
-    ~base_cls=["child-backing"],
-    path,
-  );
-};
+let simple_shard_selected = (shard_dims, buffer): t =>
+  simple_shard(shard_dims, ["selected"] @ (buffer ? ["buffer"] : []));
 
-let chunky_shard =
-    (
-      ~font_metrics: FontMetrics.t,
-      ~rows: Measured.Rows.t,
-      (i, j): (Profile.shard, Profile.shard),
-      tiles: Profile.tiles,
-    ) => {
-  let (nib_l, origin) = {
-    let (id, index) = i;
-    let (_, mold, shards) = List.find(((id', _, _)) => id' == id, tiles);
-    (fst(Mold.nib_shapes(~index, mold)), List.assoc(index, shards).origin);
-  };
-  let (nib_r, last) = {
-    let (id, index) = j;
-    let (_, mold, shards) = List.find(((id', _, _)) => id' == id, tiles);
-    (snd(Mold.nib_shapes(~index, mold)), List.assoc(index, shards).last);
-  };
-  let indent_col = Measured.Rows.find(origin.row, rows).indent;
-  let max_col =
-    ListUtil.range(~lo=origin.row, last.row + 1)
-    |> List.map(r => Measured.Rows.find(r, rows).max_col)
-    |> List.fold_left(max, 0);
-  let path =
-    chunky_shard_path({origin, last}, (nib_l, nib_r), indent_col, max_col);
-  let clss = ["tile-path", "selected", "raised"];
-  DecUtil.code_svg(
-    ~font_metrics,
-    ~origin,
-    ~base_cls=["tile-selected"],
-    ~path_cls=clss,
-    path,
+let simple_shards_selected =
+    (~font_metrics: FontMetrics.t, mold, buffer, shards) =>
+  List.map(
+    ((index, measurement)) =>
+      simple_shard_selected(
+        {font_metrics, measurement, shapes: Mold.nib_shapes(~index, mold)},
+        buffer,
+      ),
+    shards,
   );
-};
+
+let simple_shard_error = simple_shard(_, ["error"]);
+
+let simple_shards_errors = (~font_metrics: FontMetrics.t, mold, shards) =>
+  List.map(
+    ((index, measurement)) =>
+      simple_shard_error({
+        font_metrics,
+        measurement,
+        shapes: Mold.nib_shapes(~index, mold),
+      }),
+    shards,
+  );
 
 let shadowfudge = Path.cmdfudge(~y=DecUtil.shadow_adj);
 
@@ -173,7 +132,7 @@ let bi_lines =
     (
       ~font_metrics: FontMetrics.t,
       ~rows: Measured.Rows.t,
-      tiles: Profile.tiles,
+      tiles: list((Id.t, Mold.t, Measured.Shards.t)),
     )
     : list(t) => {
   let shards = shards_of_tiles(tiles);
@@ -375,19 +334,16 @@ let uni_lines =
      );
 };
 
-let view =
+let indicated =
     (
       ~font_metrics: FontMetrics.t,
       ~rows: Measured.Rows.t,
-      ~segs: list((Mold.t, Measured.measurement))=[],
-      {style, caret, tiles}: Profile.t,
+      ~caret,
+      ~tiles,
+      range,
     )
-    : list(Node.t) =>
-  switch (style) {
-  | Selected(i, j) => [chunky_shard(~font_metrics, ~rows, (i, j), tiles)]
-  | Root(l, r) =>
-    List.concat_map(simple_shards(~font_metrics, ~caret), tiles)
-    @ List.map(simple_shard_child(~font_metrics), segs)
-    @ uni_lines(~font_metrics, ~rows, (l, r), tiles)
-    @ bi_lines(~font_metrics, ~rows, tiles)
-  };
+    : list(Node.t) => {
+  List.concat_map(simple_shards_indicated(~font_metrics, ~caret), tiles)
+  @ uni_lines(~font_metrics, ~rows, range, tiles)
+  @ bi_lines(~font_metrics, ~rows, tiles);
+};

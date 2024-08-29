@@ -1,16 +1,29 @@
 open Virtual_dom.Vdom;
 open Node;
 
-include Haz3lschool.Grading.F(SchoolExercise.ExerciseEnv);
+include Haz3lschool.Grading.F(Exercise.ExerciseEnv);
 
 let score_view = ((earned: points, max: points)) => {
   div(
-    ~attr=
+    ~attrs=[
       Attr.classes([
         "test-percent",
         Float.equal(earned, max) ? "all-pass" : "some-fail",
       ]),
+    ],
     [text(Printf.sprintf("%.1f / %.1f pts", earned, max))],
+  );
+};
+
+let percentage_view = (p: percentage) => {
+  div(
+    ~attrs=[
+      Attr.classes([
+        "test-percent",
+        Float.equal(p, 1.) ? "all-pass" : "some-fail",
+      ]),
+    ],
+    [text(Printf.sprintf("%.0f%%", 100. *. p))],
   );
 };
 
@@ -43,10 +56,10 @@ module TestValidationReport = {
   let view = (~inject, report: t, max_points: int) => {
     Cell.report_footer_view([
       div(
-        ~attr=Attr.classes(["test-summary"]),
+        ~attrs=[Attr.classes(["test-summary"])],
         [
           div(
-            ~attr=Attr.class_("test-text"),
+            ~attrs=[Attr.class_("test-text")],
             [score_view(score_of_percent(percentage(report), max_points))]
             @ textual_summary(report),
           ),
@@ -54,7 +67,11 @@ module TestValidationReport = {
         @ Option.to_list(
             report.test_results
             |> Option.map(test_results =>
-                 TestView.test_bar(~inject, ~test_results)
+                 TestView.test_bar(
+                   ~inject,
+                   ~test_results,
+                   YourTestsValidation,
+                 )
                ),
           ),
       ),
@@ -68,17 +85,23 @@ module MutationTestingReport = {
 
   let summary_message = (~score, ~total, ~found): Node.t =>
     div(
-      ~attr=Attr.classes(["test-text"]),
+      ~attrs=[Attr.classes(["test-text"])],
       [score_view(score), text(summary_str(~total, ~found))],
     );
 
-  let bar = (~inject as _, instances) =>
+  let bar = (~inject, instances) =>
     div(
-      ~attr=Attr.classes(["test-bar"]),
-      List.map(
-        ((status, _)) =>
+      ~attrs=[Attr.classes(["test-bar"])],
+      List.mapi(
+        (id, (status, _)) =>
           div(
-            ~attr=Attr.classes(["segment", TestStatus.to_string(status)]),
+            ~attrs=[
+              Attr.classes(["segment", TestStatus.to_string(status)]),
+              Attr.on_click(
+                //TODO: wire up test ids
+                TestView.jump_to_test(~inject, HiddenBugs(id), Id.invalid),
+              ),
+            ],
             [],
           ),
         instances,
@@ -93,13 +116,14 @@ module MutationTestingReport = {
       );
     let status_class = total == found ? "Pass" : "Fail";
     div(
-      ~attr=
+      ~attrs=[
         Attr.classes([
           "cell-item",
           "test-summary",
           "cell-report",
           status_class,
         ]),
+      ],
       [
         summary_message(
           ~score=score_of_percent(percentage(report), max_points),
@@ -111,33 +135,37 @@ module MutationTestingReport = {
     );
   };
 
-  let individual_report = (i, ~inject, ~hint: string, ~status) =>
+  let individual_report = (id, ~inject, ~hint: string, ~status: TestStatus.t) =>
     div(
-      ~attr=
-        Attr.many([
-          Attr.classes(["test-report"]),
-          Attr.on_click(TestView.jump_to_test(~inject)),
-        ]),
+      ~attrs=[
+        Attr.classes(["test-report"]),
+        //TODO: wire up test ids
+        Attr.on_click(
+          TestView.jump_to_test(~inject, HiddenBugs(id), Id.invalid),
+        ),
+      ],
       [
         div(
-          ~attr=
+          ~attrs=[
             Attr.classes([
               "test-id",
               "Test" ++ TestStatus.to_string(status),
             ]),
+          ],
           /* NOTE: prints lexical index, not unique id */
-          [text(string_of_int(i + 1))],
+          [text(string_of_int(id + 1))],
         ),
         // TestView.test_instance_view(~font_metrics, instance),
       ]
       @ [
         div(
-          ~attr=
+          ~attrs=[
             Attr.classes([
               "test-hint",
               "test-instance",
               TestStatus.to_string(status),
             ]),
+          ],
           [text(hint)],
         ),
       ],
@@ -187,7 +215,7 @@ module MutationTestingReport = {
   //   |> Zipper.zip
   //   |> MakeTerm.go
   //   |> fst
-  //   |> Term.UExp.show
+  //   |> UExp.show
   //   |> print_endline
   //   |> (_ => Virtual_dom.Vdom.Effect.Ignore);
 
@@ -215,7 +243,7 @@ module MutationTestingReport = {
       Cell.panel(
         ~classes=["test-panel"],
         [
-          Cell.bolded_caption(
+          Cell.caption(
             "Mutation Testing",
             ~rest=": Your Tests vs. Buggy Implementations (hidden)",
           ),
@@ -224,6 +252,73 @@ module MutationTestingReport = {
         ~footer=Some(summary(~inject, ~report, ~max_points)),
       );
     };
+};
+
+module SyntaxReport = {
+  include SyntaxReport;
+  let individual_report = (i: int, hint: string, status: bool) => {
+    let result_string = status ? "Pass" : "Indet";
+
+    div(
+      ~attrs=[Attr.classes(["test-report"])],
+      [
+        div(
+          ~attrs=[Attr.classes(["test-id", "Test" ++ result_string])],
+          [text(string_of_int(i + 1))],
+        ),
+      ]
+      @ [
+        div(
+          ~attrs=[
+            Attr.classes(["test-hint", "test-instance", result_string]),
+          ],
+          [text(hint)],
+        ),
+      ],
+    );
+  };
+
+  let individual_reports = (hinted_results: list((bool, string))) => {
+    div(
+      hinted_results
+      |> List.mapi((i, (status, hint)) =>
+           individual_report(i, hint, status)
+         ),
+    );
+  };
+
+  let view = (syntax_report: t) => {
+    Cell.panel(
+      ~classes=["test-panel"],
+      [
+        Cell.caption(
+          "Syntax Validation",
+          ~rest=
+            ": Does your implementation satisfy the syntactic requirements?",
+        ),
+        individual_reports(syntax_report.hinted_results),
+      ],
+      ~footer=
+        Some(
+          Cell.report_footer_view([
+            div(
+              ~attrs=[Attr.classes(["test-summary"])],
+              [
+                div(
+                  ~attrs=[Attr.class_("test-text")],
+                  [
+                    percentage_view(syntax_report.percentage),
+                    text(
+                      " of the Implementation Validation points will be earned",
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ]),
+        ),
+    );
+  };
 };
 
 module ImplGradingReport = {
@@ -247,7 +342,7 @@ module ImplGradingReport = {
   //   let num_passed = num_passed(report);
   //   let status_class = total == num_passed ? "Pass" : "Fail";
   //   div(
-  //     ~attr=
+  //     ~attrs=
   //       Attr.classes([
   //         "cell-item",
   //         "test-summary",
@@ -265,20 +360,20 @@ module ImplGradingReport = {
   //   );
   // };
 
-  let individual_report = (i, ~inject, ~hint: string, ~status) =>
+  let individual_report = (i, ~inject, ~hint: string, ~status, (id, _)) =>
     div(
-      ~attr=
-        Attr.many([
-          Attr.classes(["test-report"]),
-          Attr.on_click(TestView.jump_to_test(~inject)),
-        ]),
+      ~attrs=[
+        Attr.classes(["test-report"]),
+        Attr.on_click(TestView.jump_to_test(~inject, HiddenTests, id)),
+      ],
       [
         div(
-          ~attr=
+          ~attrs=[
             Attr.classes([
               "test-id",
               "Test" ++ TestStatus.to_string(status),
             ]),
+          ],
           /* NOTE: prints lexical index, not unique id */
           [text(string_of_int(i + 1))],
         ),
@@ -286,46 +381,67 @@ module ImplGradingReport = {
       ]
       @ [
         div(
-          ~attr=
+          ~attrs=[
             Attr.classes([
               "test-hint",
               "test-instance",
               TestStatus.to_string(status),
             ]),
+          ],
           [text(hint)],
         ),
       ],
     );
 
-  let individual_reports = (~inject, ~hinted_results) =>
-    div(
-      hinted_results
-      |> List.mapi((i, (status, hint)) =>
-           individual_report(i, ~inject, ~hint, ~status)
-         ),
-    );
+  let individual_reports = (~inject, ~report) => {
+    switch (report.test_results) {
+    | Some(test_results)
+        when
+          List.length(test_results.test_map)
+          == List.length(report.hinted_results) =>
+      /* NOTE: This condition will be false when evaluation crashes,
+       * for example due to a stack overflow, which may occur in normal operation  */
+      div(
+        report.hinted_results
+        |> List.mapi((i, (status, hint)) =>
+             individual_report(
+               i,
+               ~inject,
+               ~hint,
+               ~status,
+               List.nth(test_results.test_map, i),
+             )
+           ),
+      )
+    | _ => div([])
+    };
+  };
 
-  let view = (~inject, ~report: t, ~max_points: int) => {
+  let view =
+      (~inject, ~report: t, ~syntax_report: SyntaxReport.t, ~max_points: int) => {
     Cell.panel(
       ~classes=["cell-item", "panel", "test-panel"],
       [
-        Cell.bolded_caption(
+        Cell.caption(
           "Implementation Grading",
           ~rest=": Hidden Tests vs. Your Implementation",
         ),
-        individual_reports(~inject, ~hinted_results=report.hinted_results),
+        individual_reports(~inject, ~report),
       ],
       ~footer=
         Some(
           Cell.report_footer_view([
             div(
-              ~attr=Attr.classes(["test-summary"]),
+              ~attrs=[Attr.classes(["test-summary"])],
               [
                 div(
-                  ~attr=Attr.class_("test-text"),
+                  ~attrs=[Attr.class_("test-text")],
                   [
                     score_view(
-                      score_of_percent(percentage(report), max_points),
+                      score_of_percent(
+                        percentage(report, syntax_report),
+                        max_points,
+                      ),
                     ),
                   ]
                   @ textual_summary(report),
@@ -334,7 +450,7 @@ module ImplGradingReport = {
               @ Option.to_list(
                   report.test_results
                   |> Option.map(test_results =>
-                       TestView.test_bar(~inject, ~test_results)
+                       TestView.test_bar(~inject, ~test_results, HiddenTests)
                      ),
                 ),
             ),

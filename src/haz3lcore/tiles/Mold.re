@@ -1,4 +1,3 @@
-open Sexplib.Std;
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -105,3 +104,15 @@ let consistent_shapes = (ms: list(t)) =>
   |> List.map(nib_shapes)
   |> List.split
   |> TupleUtil.map2(ListUtil.single_elem);
+
+let is_infix_op = (mold: t): bool =>
+  switch (mold.nibs, mold.in_) {
+  | (({shape: Concave(_), _}, {shape: Concave(_), _}), []) => true
+  | _ => false
+  };
+
+let chevron = (sort: Sort.t, p: Precedence.t, d: Util.Direction.t): t =>
+  switch (d) {
+  | Right => mk_post(p, sort, [])
+  | Left => mk_pre(p, sort, [])
+  };

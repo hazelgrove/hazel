@@ -1,10 +1,11 @@
 open Haz3lcore;
-// open Sexplib.Std;
+open Util;
+
 open Haz3lschool;
 open Core;
 
 open Specs;
-open GradePrelude.SchoolExercise;
+open GradePrelude.Exercise;
 open GradePrelude.Grading;
 
 [@deriving (sexp, yojson)]
@@ -44,15 +45,16 @@ type section = {
 type chapter = list(section);
 
 module Main = {
-  let name_to_school_export = path => {
+  let settings = CoreSettings.on; /* Statics and Dynamics on */
+  let name_to_exercise_export = path => {
     let yj = Yojson.Safe.from_file(path);
     switch (yj) {
     | `Assoc(l) =>
       let sch = List.Assoc.find_exn(~equal=String.(==), l, "school");
       switch (sch) {
       | `String(sch) =>
-        let school_export = sch |> deserialize_school_export;
-        school_export;
+        let exercise_export = sch |> deserialize_exercise_export;
+        exercise_export;
       | _ => failwith("School is not a string")
       };
     | _ => failwith("Json without school key")
@@ -60,13 +62,14 @@ module Main = {
   };
   let gen_grading_report = exercise => {
     let zipper_pp = zipper => {
-      Printer.pretty_print(
-        ~measured=Measured.of_segment(Zipper.unselect_and_zip(zipper)),
-        zipper,
-      );
+      Printer.pretty_print(zipper);
     };
-    let model_results = ModelResults.init(spliced_elabs(exercise));
-    let stitched_dynamics = stitch_dynamic(exercise, Some(model_results));
+    let model_results =
+      spliced_elabs(settings, exercise)
+      |> ModelResults.init_eval
+      |> ModelResults.run_pending(~settings);
+    let stitched_dynamics =
+      stitch_dynamic(settings, exercise, Some(model_results));
     let grading_report = exercise.eds |> GradingReport.mk(~stitched_dynamics);
     let details = grading_report;
     let point_distribution = details.point_distribution;
@@ -85,7 +88,11 @@ module Main = {
     let impl_grading = {
       max: point_distribution.impl_grading,
       src: exercise.eds.your_impl.state.zipper |> zipper_pp,
-      percentage: details.impl_grading_report |> ImplGradingReport.percentage,
+      percentage:
+        ImplGradingReport.percentage(
+          details.impl_grading_report,
+          details.syntax_report,
+        ),
     };
     let overall = grading_report |> GradingReport.overall_score;
     let (a, b) = overall;
@@ -98,7 +105,7 @@ module Main = {
   };
   let run = () => {
     let hw_path = Sys.get_argv()[1];
-    let hw = name_to_school_export(hw_path);
+    let hw = name_to_exercise_export(hw_path);
     let export_chapter =
       hw.exercise_data
       |> List.map(~f=(((name, _) as key, persistent_state)) => {
@@ -107,6 +114,7 @@ module Main = {
              let exercise =
                unpersist_state(
                  persistent_state,
+                 ~settings,
                  ~spec,
                  ~instructor_mode=true,
                );

@@ -1,26 +1,102 @@
-open Sexplib.Std;
 open Util;
 
-module Meta = {
+module CachedStatics = {
   type t = {
-    touched: Touched.t,
-    measured: Measured.t,
-    term_ranges: TermRanges.t,
-    col_target: int,
+    term: UExp.t,
+    info_map: Statics.Map.t,
+    error_ids: list(Id.t),
   };
 
-  let init = (z: Zipper.t) => {
-    let unselected = Zipper.unselect_and_zip(z);
+  let empty: t = {
+    term: UExp.{ids: [Id.invalid], copied: false, term: Tuple([])},
+    info_map: Id.Map.empty,
+    error_ids: [],
+  };
+
+  let init = (~settings: CoreSettings.t, z: Zipper.t): t => {
+    // Modify here to allow passing in an initial context
+    let ctx_init = Builtins.ctx_init;
+    let term = MakeTerm.from_zip_for_sem(z).term;
+    let info_map = Statics.mk(settings, ctx_init, term);
+    let error_ids = Statics.Map.error_ids(info_map);
+    {term, info_map, error_ids};
+  };
+
+  let init = (~settings: CoreSettings.t, z: Zipper.t) =>
+    settings.statics ? init(~settings, z) : empty;
+
+  let next =
+      (~settings: CoreSettings.t, a: Action.t, z: Zipper.t, old_statics: t): t =>
+    if (!settings.statics) {
+      empty;
+    } else if (!Action.is_edit(a)) {
+      old_statics;
+    } else {
+      init(~settings, z);
+    };
+};
+
+module CachedSyntax = {
+  type t = {
+    segment: Segment.t,
+    measured: Measured.t,
+    tiles: TileMap.t,
+    holes: list(Grout.t),
+    selection_ids: list(Id.t),
+    term: UExp.t,
+    /* This term, and the term-derived data structured below, may differ
+     * from the term used for semantics. These terms are identical when
+     * the backpack is empty. If the backpack is non-empty, then when we
+     * make the term for semantics, we attempt to empty the backpack
+     * according to some simple heuristics (~ try to empty it greedily
+     * while moving rightwards from the current caret position).
+     * this is currently necessary to have the cursorinfo/completion
+     * workwhen the backpack is nonempty.
+     *
+     * This is a brittle part of the current implementation. there are
+     * some other comments at some of the weakest joints; the biggest
+     * issue is that dropping the backpack can add/remove grout, causing
+     * certain ids to be present/non-present unexpectedly. */
+    term_ranges: TermRanges.t,
+    terms: TermMap.t,
+    projectors: Id.Map.t(Base.projector),
+  };
+
+  let init = (z, info_map): t => {
+    let segment = Zipper.unselect_and_zip(z);
+    let MakeTerm.{term, terms, projectors} = MakeTerm.go(segment);
     {
-      touched: Touched.empty,
-      measured: Measured.of_segment(unselected),
-      term_ranges: TermRanges.mk(unselected),
-      col_target: 0,
+      segment,
+      term_ranges: TermRanges.mk(segment),
+      tiles: TileMap.mk(segment),
+      holes: Segment.holes(segment),
+      measured: Measured.of_segment(segment, info_map),
+      selection_ids: Selection.selection_ids(z.selection),
+      term,
+      terms,
+      projectors,
     };
   };
 
+  let next = (a: Action.t, z: Zipper.t, info_map, old: t) =>
+    Action.is_edit(a)
+      ? init(z, info_map)
+      : {...old, selection_ids: Selection.selection_ids(z.selection)};
+};
+
+module Meta = {
+  type t = {
+    col_target: int,
+    statics: CachedStatics.t,
+    syntax: CachedSyntax.t,
+  };
+
+  let init = (~settings: CoreSettings.t, z: Zipper.t) => {
+    let statics = CachedStatics.init(~settings, z);
+    {col_target: 0, statics, syntax: CachedSyntax.init(z, statics.info_map)};
+  };
+
   module type S = {
-    let touched: Touched.t;
     let measured: Measured.t;
     let term_ranges: TermRanges.t;
     let col_target: int;
@@ -28,9 +104,8 @@ module Meta = {
   let module_of_t = (m: t): (module S) =>
     (module
      {
-       let touched = m.touched;
-       let measured = m.measured;
-       let term_ranges = m.term_ranges;
+       let measured = m.syntax.measured;
+       let term_ranges = m.syntax.term_ranges;
        let col_target = m.col_target;
      });
 
@@ -40,20 +115,16 @@ module Meta = {
   let yojson_of_t = _ => failwith("Editor.Meta.yojson_of_t");
   let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
-  let next =
-      (~effects: list(Effect.t)=[], a: Action.t, z: Zipper.t, meta: t): t => {
-    let {touched, measured, col_target, _} = meta;
-    let touched = Touched.update(Time.tick(), effects, touched);
-    let unselected = Zipper.unselect_and_zip(z);
-    let measured = Measured.of_segment(~touched, ~old=measured, unselected);
-    let term_ranges = TermRanges.mk(unselected);
+  let next = (~settings: CoreSettings.t, a: Action.t, z: Zipper.t, meta: t): t => {
+    let syntax = CachedSyntax.next(a, z, meta.statics.info_map, meta.syntax);
+    let statics = CachedStatics.next(~settings, a, z, meta.statics);
     let col_target =
       switch (a) {
       | Move(Local(Up | Down))
-      | Select(Resize(Local(Up | Down))) => col_target
-      | _ => Zipper.caret_point(measured, z).col
+      | Select(Resize(Local(Up | Down))) => meta.col_target
+      | _ => (Zipper.caret_point(syntax.measured))(. z).col
       };
-    {touched, measured, term_ranges, col_target};
+    {col_target, syntax, statics};
   };
 };
 
@@ -65,11 +136,14 @@ module State = {
     meta: Meta.t,
   };
 
-  let init = zipper => {zipper, meta: Meta.init(zipper)};
+  let init = (zipper, ~settings: CoreSettings.t) => {
+    zipper,
+    meta: Meta.init(zipper, ~settings),
+  };
 
-  let next = (~effects: list(Effect.t)=[], a: Action.t, z: Zipper.t, state) => {
+  let next = (~settings: CoreSettings.t, a: Action.t, z: Zipper.t, state) => {
     zipper: z,
-    meta: Meta.next(~effects, a, z, state.meta),
+    meta: Meta.next(~settings, a, z, state.meta),
   };
 };
 
@@ -94,40 +168,35 @@ type t = {
   read_only: bool,
 };
 
-let init = (~read_only=false, z) => {
-  state: State.init(z),
+let init = (~read_only=false, z, ~settings: CoreSettings.t) => {
+  state: State.init(z, ~settings),
   history: History.empty,
   read_only,
 };
-let empty = id => init(~read_only=false, Zipper.init(id));
-
-let get_seg = (ed: t) => Zipper.unselect_and_zip(ed.state.zipper);
-
-let update_z = (f: Zipper.t => Zipper.t, ed: t) => {
-  ...ed,
-  state: {
-    ...ed.state,
-    zipper: f(ed.state.zipper),
-  },
-};
-let put_z = (z: Zipper.t) => update_z(_ => z);
-
-let update_z_opt = (f: Zipper.t => option(Zipper.t), ed: t) => {
-  open OptUtil.Syntax;
-  let+ z = f(ed.state.zipper);
-  put_z(z, ed);
-};
 
 let new_state =
-    (~effects: list(Effect.t)=[], a: Action.t, z: Zipper.t, ed: t): t => {
-  let state = State.next(~effects, a, z, ed.state);
-  let history = History.add(a, ed.state, ed.history);
+    (~settings: CoreSettings.t, a: Action.t, z: Zipper.t, ed: t): t => {
+  let state = State.next(~settings, a, z, ed.state);
+  let history =
+    Action.is_historic(a)
+      ? History.add(a, ed.state, ed.history) : ed.history;
   {state, history, read_only: ed.read_only};
 };
 
-let caret_point = (ed: t): Measured.Point.t => {
-  let State.{zipper, meta} = ed.state;
-  Zipper.caret_point(meta.measured, zipper);
+let update_statics = (~settings: CoreSettings.t, ed: t): t => {
+  /* Use this function to force a statics update when (for example)
+   * changing the statics settings */
+  let statics = CachedStatics.init(~settings, ed.state.zipper);
+  {
+    ...ed,
+    state: {
+      ...ed.state,
+      meta: {
+        ...ed.state.meta,
+        statics,
+      },
+    },
+  };
 };
 
 let undo = (ed: t) =>
@@ -156,7 +225,7 @@ let can_redo = ed => Option.is_some(redo(ed));
 
 let set_read_only = (ed, read_only) => {...ed, read_only};
 
-let trailing_hole_ctx = (ed: t, info_map: Statics.map) => {
+let trailing_hole_ctx = (ed: t, info_map: Statics.Map.t) => {
   let segment = Zipper.unselect_and_zip(ed.state.zipper);
   let convex_grout = Segment.convex_grout(segment);
   // print_endline(String.concat("; ", List.map(Grout.show, convex_grout)));
@@ -167,8 +236,11 @@ let trailing_hole_ctx = (ed: t, info_map: Statics.map) => {
     let id = grout.id;
     let info = Id.Map.find_opt(id, info_map);
     switch (info) {
-    | Some(InfoExp(info_exp)) => Some(info_exp.ctx)
+    | Some(info) => Some(Info.ctx_of(info))
     | _ => None
     };
   };
 };
+
+let indicated_projector = (editor: t) =>
+  Projector.indicated(editor.state.zipper);

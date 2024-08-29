@@ -1,306 +1,178 @@
-open Virtual_dom.Vdom;
+open Util;
 open Js_of_ocaml;
-open Node;
-open Util.Web;
 open Haz3lcore;
-open Widgets;
+open Virtual_dom.Vdom;
+open Node;
 
-let next_slide = (~inject: Update.t => 'a, cur_slide, num_slides, _) => {
-  let next_ed = (cur_slide + 1) mod num_slides;
-  inject(SwitchSlide(next_ed));
+let key_handler =
+    (
+      ~inject: UpdateAction.t => Ui_effect.t(unit),
+      ~dir: Key.dir,
+      editor: Editor.t,
+      evt: Js.t(Dom_html.keyboardEvent),
+    )
+    : Effect.t(unit) => {
+  open Effect;
+  let key = Key.mk(dir, evt);
+  switch (ProjectorView.key_handoff(editor, key)) {
+  | Some(action) =>
+    Many([Prevent_default, inject(PerformAction(Project(action)))])
+  | None =>
+    switch (Keyboard.handle_key_event(key)) {
+    | None => Ignore
+    | Some(action) => Many([Prevent_default, inject(action)])
+    }
+  };
 };
 
-let download_editor_state = (~instructor_mode) => {
-  let data = Export.export_all(~instructor_mode);
-  JsUtil.download_json(SchoolSettings.filename, data);
+let handlers =
+    (~inject: UpdateAction.t => Ui_effect.t(unit), editor: Editor.t) => {
+  [
+    Attr.on_keyup(key_handler(~inject, editor, ~dir=KeyUp)),
+    Attr.on_keydown(key_handler(~inject, editor, ~dir=KeyDown)),
+    /* safety handler in case mousedown overlay doesn't catch it */
+    Attr.on_mouseup(_ => inject(SetMeta(Mouseup))),
+    Attr.on_blur(_ => {
+      JsUtil.focus_clipboard_shim();
+      Effect.Ignore;
+    }),
+    Attr.on_focus(_ => {
+      JsUtil.focus_clipboard_shim();
+      Effect.Ignore;
+    }),
+    Attr.on_copy(_ => {
+      JsUtil.copy(Printer.to_string_selection(editor));
+      Effect.Ignore;
+    }),
+    Attr.on_cut(_ => {
+      JsUtil.copy(Printer.to_string_selection(editor));
+      inject(UpdateAction.PerformAction(Destruct(Left)));
+    }),
+    Attr.on_paste(evt => {
+      let pasted_text =
+        Js.to_string(evt##.clipboardData##getData(Js.string("text")))
+        |> Util.StringUtil.trim_leading;
+      Dom.preventDefault(evt);
+      inject(PerformAction(Paste(pasted_text)));
+    }),
+  ];
 };
 
-let prev_slide = (~inject: Update.t => 'a, cur_slide, num_slides, _) => {
-  let prev_ed = Util.IntUtil.modulo(cur_slide - 1, num_slides);
-  inject(SwitchSlide(prev_ed));
-};
-
-let slide_toggle_view = (~inject, ~model: Model.t, ~caption, ~control) => {
-  let id = Attr.id("editor-mode");
-  let tooltip = Attr.title("Toggle Mode");
-  let toggle_mode = Attr.on_mousedown(_ => inject(Update.ToggleMode));
-  let cur_slide = Editors.cur_slide(model.editors);
-  let num_slides = Editors.num_slides(model.editors);
-  let cur_slide_text = Printf.sprintf("%d / %d", cur_slide + 1, num_slides);
-  div(
-    ~attr=id,
-    [
-      div(~attr=Attr.many([toggle_mode, tooltip]), [text(caption)]),
-      button(Icons.back, prev_slide(~inject, cur_slide, num_slides)),
-      text(cur_slide_text),
-      button(Icons.forward, next_slide(~inject, cur_slide, num_slides)),
-    ]
-    @ Option.to_list(control),
-  );
-};
-
-let editor_mode_toggle_view = (~inject: Update.t => 'a, ~model: Model.t) => {
-  switch (model.editors) {
-  | DebugLoad => failwith("impossible")
-  | Scratch(_) =>
-    slide_toggle_view(~inject, ~model, ~caption="Scratch", ~control=None)
-  | School(_) =>
-    let control =
-      if (SchoolSettings.show_instructor) {
-        Some(
-          toggle(
-            "🎓",
-            ~tooltip="Toggle Instructor Mode",
-            model.settings.instructor_mode,
-            _ =>
-            inject(Set(InstructorMode))
-          ),
+let main_view =
+    (
+      ~inject: UpdateAction.t => Ui_effect.t(unit),
+      {settings, editors, explainThisModel, results, ui_state, _}: Model.t,
+    ) => {
+  let editor = Editors.get_editor(editors);
+  let cursor_info =
+    Indicated.ci_of(editor.state.zipper, editor.state.meta.statics.info_map);
+  let highlights =
+    ExplainThis.get_color_map(~settings, ~explainThisModel, cursor_info);
+  let (editors_view, cursor_info) =
+    switch (editors) {
+    | Scratch(idx, _) =>
+      let result_key = ScratchSlide.scratch_key(string_of_int(idx));
+      let view =
+        ScratchMode.view(
+          ~inject,
+          ~ui_state,
+          ~settings,
+          ~highlights,
+          ~results,
+          ~result_key,
+          editor,
         );
-      } else {
-        None;
-      };
-    slide_toggle_view(~inject, ~model, ~caption="Exercises", ~control);
-  };
-};
-
-let menu_icon =
-  div(
-    ~attr=clss(["menu-icon"]),
-    [
-      div(
-        ~attr=clss(["icon", "menu-icon-inner"]),
-        [
-          a(
-            ~attr=
-              Attr.many(
-                Attr.[
-                  href("https://hazel.org"),
-                  title("Hazel"),
-                  create("target", "_blank"),
-                ],
-              ),
-            [Icons.hazelnut],
-          ),
-        ],
-      ),
-    ],
-  );
-
-let top_bar_view =
-    (
-      ~inject: Update.t => 'a,
-      ~toolbar_buttons: list(Node.t),
-      ~top_right: option(Node.t)=?,
-      model: Model.t,
-    ) => {
-  let ed = Editors.get_editor(model.editors);
-  let can_undo = Editor.can_undo(ed);
-  let can_redo = Editor.can_redo(ed);
-  let top_left_bar =
+      (view, cursor_info);
+    | Documentation(name, _) =>
+      let result_key = ScratchSlide.scratch_key(name);
+      let view =
+        ScratchMode.view(
+          ~inject,
+          ~ui_state,
+          ~settings,
+          ~highlights,
+          ~results,
+          ~result_key,
+          editor,
+        );
+      let info =
+        SlideContent.get_content(editors)
+        |> Option.map(i => div(~attrs=[Attr.id("slide")], [i]))
+        |> Option.to_list;
+      (info @ view, cursor_info);
+    | Exercises(_, _, exercise) =>
+      /* Note the exercises mode uses a seperate path to calculate
+       * statics and dynamics via stitching together multiple editors */
+      let stitched_dynamics =
+        Exercise.stitch_dynamic(
+          settings.core,
+          exercise,
+          settings.core.dynamics ? Some(results) : None,
+        );
+      let statics =
+        Exercise.statics_of_stiched_dynamics(exercise, stitched_dynamics);
+      let cursor_info =
+        Indicated.ci_of(editor.state.zipper, statics.info_map);
+      let highlights =
+        ExplainThis.get_color_map(~settings, ~explainThisModel, cursor_info);
+      let view =
+        ExerciseMode.view(
+          ~inject,
+          ~ui_state,
+          ~settings,
+          ~highlights,
+          ~stitched_dynamics,
+          ~exercise,
+        );
+      (view, cursor_info);
+    };
+  let top_bar =
     div(
-      ~attr=Attr.id("top-left-bar"),
-      [
-        menu_icon,
-        div(
-          ~attr=clss(["menu"]),
-          [
-            toggle("τ", ~tooltip="Toggle Statics", model.settings.statics, _ =>
-              inject(Set(Statics))
-            ),
-            toggle(
-              "𝛿", ~tooltip="Toggle Dynamics", model.settings.dynamics, _ =>
-              inject(Set(Dynamics))
-            ),
-            toggle(
-              "b",
-              ~tooltip="Toggle Performance Benchmark",
-              model.settings.benchmark,
-              _ =>
-              inject(Set(Benchmark))
-            ),
-            button(
-              Icons.export,
-              _ => {
-                download_editor_state(
-                  ~instructor_mode=model.settings.instructor_mode,
-                );
-                Virtual_dom.Vdom.Effect.Ignore;
-              },
-              ~tooltip="Export Submission",
-            ),
-            file_select_button(
-              "import-submission",
-              Icons.import,
-              file => {
-                switch (file) {
-                | None => Virtual_dom.Vdom.Effect.Ignore
-                | Some(file) => inject(InitImportAll(file))
-                }
-              },
-              ~tooltip="Import Submission",
-            ),
-            file_select_button(
-              "replay-submission",
-              Icons.import,
-              file => {
-                switch (file) {
-                | None => Virtual_dom.Vdom.Effect.Ignore
-                | Some(file) => inject(ReplayAction(LoadReplay(file)))
-                }
-              },
-              ~tooltip="Replay Submission",
-            ),
-            button(
-              Icons.eye,
-              _ => inject(Set(SecondaryIcons)),
-              ~tooltip="Toggle Visible Secondary",
-            ),
-            link(
-              Icons.github,
-              "https://github.com/hazelgrove/hazel",
-              ~tooltip="Hazel on GitHub",
-            ),
-          ],
-        ),
-        button_d(
-          Icons.undo,
-          inject(Undo),
-          ~disabled=!can_undo,
-          ~tooltip="Undo",
-        ),
-        button_d(
-          Icons.redo,
-          inject(Redo),
-          ~disabled=!can_redo,
-          ~tooltip="Redo",
-        ),
-        editor_mode_toggle_view(~inject, ~model),
-      ]
-      @ toolbar_buttons,
+      ~attrs=[Attr.id("top-bar")],
+      NutMenu.view(~inject, ~settings, ~editors)
+      @ [div(~attrs=[Attr.id("title")], [text("hazel")])]
+      @ [EditorModeView.view(~inject, ~settings, ~editors)],
     );
-  let top_right_bar =
-    div(~attr=Attr.id("top-right-bar"), Option.to_list(top_right));
-  div(
-    ~attr=Attr.id("top-bar"),
-    [div(~attr=Attr.id("top-bar-content"), [top_left_bar, top_right_bar])],
-  );
+  let bottom_bar =
+    CursorInspector.view(~inject, ~settings, editor, cursor_info);
+  let sidebar =
+    settings.explainThis.show && settings.core.statics
+      ? ExplainThis.view(
+          ~inject,
+          ~ui_state,
+          ~settings,
+          ~explainThisModel,
+          cursor_info,
+        )
+      : div([]);
+  [
+    top_bar,
+    div(
+      ~attrs=[
+        Attr.id("main"),
+        Attr.classes([Settings.show_mode(settings.mode)]),
+      ],
+      editors_view,
+    ),
+    sidebar,
+    bottom_bar,
+  ];
 };
-
-let main_ui_view =
-    (
-      ~inject,
-      {
-        editors,
-        font_metrics,
-        show_backpack_targets,
-        settings,
-        mousedown,
-        results,
-        langDocMessages,
-        replay,
-        _,
-      } as model: Model.t,
-    ) => {
-  switch (editors) {
-  | DebugLoad => [DebugMode.view(~inject)]
-  | Scratch(idx, slides) =>
-    let toolbar_buttons =
-      ScratchMode.toolbar_buttons(~inject, List.nth(slides, idx));
-    let top_bar_view = top_bar_view(~inject, ~toolbar_buttons, model);
-    let result_key = ScratchSlide.scratch_key;
-    let editor = Editors.get_editor(editors);
-    let result =
-      settings.dynamics
-        ? ModelResult.get_simple(ModelResults.lookup(results, result_key))
-        : None;
-    [
-      top_bar_view,
-      ScratchMode.view(
-        ~inject,
-        ~font_metrics,
-        ~mousedown,
-        ~show_backpack_targets,
-        ~settings,
-        ~langDocMessages,
-        ~editor,
-        ~replay,
-        ~result,
-      ),
-    ];
-  | School(_, _, exercise) =>
-    let toolbar_buttons =
-      SchoolMode.toolbar_buttons(~inject, ~settings, editors);
-    let results = settings.dynamics ? Some(results) : None;
-    let school_mode =
-      SchoolMode.mk(~settings, ~exercise, ~results, ~langDocMessages);
-    let grading_report = school_mode.grading_report;
-    let overall_score =
-      Grading.GradingReport.view_overall_score(grading_report);
-    let top_bar_view =
-      top_bar_view(
-        ~inject,
-        model,
-        ~toolbar_buttons,
-        ~top_right=overall_score,
-      );
-    [
-      top_bar_view,
-      SchoolMode.view(
-        ~inject,
-        ~font_metrics,
-        ~mousedown,
-        ~show_backpack_targets,
-        school_mode,
-      ),
-    ];
-  };
-};
-
-let page_id = "page";
 
 let get_selection = (model: Model.t): string =>
   model.editors |> Editors.get_editor |> Printer.to_string_selection;
 
-let view = (~inject, ~handlers, model: Model.t) => {
-  let main_ui = main_ui_view(~inject, model);
+let view = (~inject: UpdateAction.t => Ui_effect.t(unit), model: Model.t) =>
   div(
-    ~attr=
-      Attr.many(
-        Attr.[
-          id(page_id),
-          // safety handler in case mousedown overlay doesn't catch it
-          on_mouseup(_ => inject(Update.Mouseup)),
-          on_blur(_ => {
-            JsUtil.focus_clipboard_shim();
-            Virtual_dom.Vdom.Effect.Ignore;
-          }),
-          on_focus(_ => {
-            JsUtil.focus_clipboard_shim();
-            Virtual_dom.Vdom.Effect.Ignore;
-          }),
-          on_copy(_ => {
-            JsUtil.copy(get_selection(model));
-            Virtual_dom.Vdom.Effect.Ignore;
-          }),
-          on_cut(_ => {
-            JsUtil.copy(get_selection(model));
-            inject(UpdateAction.PerformAction(Destruct(Left)));
-          }),
-          on_paste(evt => {
-            let pasted_text =
-              Js.to_string(evt##.clipboardData##getData(Js.string("text")))
-              |> Str.global_replace(Str.regexp("\n[ ]*"), "\n");
-            Dom.preventDefault(evt);
-            inject(UpdateAction.Paste(pasted_text));
-          }),
-          ...handlers(~inject, ~model),
-        ],
-      ),
+    ~attrs=
+      Attr.[
+        id("page"),
+        ...handlers(~inject, Editors.get_editor(model.editors)),
+      ],
     [
       FontSpecimen.view("font-specimen"),
       DecUtil.filters,
       JsUtil.clipboard_shim,
     ]
-    @ main_ui,
+    @ main_view(~inject, model),
   );
-};

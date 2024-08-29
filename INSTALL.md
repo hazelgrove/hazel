@@ -31,7 +31,7 @@ follow these instructions instead of the shorter instructions in the
 
 - If you are on MacOS, make sure you have [Homebrew](https://brew.sh/) installed.
 
-- Make sure `gcc`, `git`, `make`, and `m4` are installed.
+- Make sure `gcc`, `git`, `make`, `nodejs`, and `m4` are installed.
 
   - If you are on Ubuntu or Windows, you can do this by running the following
     commands:
@@ -41,12 +41,12 @@ follow these instructions instead of the shorter instructions in the
     ```
 
     ```sh
-    sudo apt install gcc git make m4 pkg-config
+    sudo apt install gcc git make m4 nodejs pkg-config
     ```
 
   - If you are on MacOS, we recommend using the built-in `m4` (i.e., not the one from Homebrew).
 
-    You can install the remaining programs (i.e., `gcc`, `git`, and `make`) by
+    You can install the remaining programs (i.e., `gcc`, `git`, `node`, and `make`) by
     running the following commands:
 
     ```sh
@@ -54,7 +54,7 @@ follow these instructions instead of the shorter instructions in the
     ```
 
     ```sh
-    brew install gcc git make pkg-config
+    brew install gcc git make node pkg-config
     ```
 
 ## Install and Initialize `opam`
@@ -119,14 +119,17 @@ follow these instructions instead of the shorter instructions in the
   opam update
   ```
 
-- Install OCaml 4.14.0 (some older versions may also work, but see the
-  ["Current version" section of `Updating.md`](UPDATING.md#current-version) for
-  why we do not use newer versions).
+- Install OCaml 5.2.0 (some older versions may also work; see the
+  ["Current version" section of `Updating.md`](docs/Updating-OCaml-Version.md) for
+  why we may not use the newest version of OCaml).
 
   ```sh
-   opam switch create 4.14 ocaml-base-compiler.4.14.0
+   opam switch create 5.2.0 ocaml-base-compiler.5.2.0
   ```
-
+- Update the current switch environment
+  ```sh
+  eval $(opam env --switch=5.2.0)
+  ```
 ## Clone the Source Code
 
 - Pick a directory that you want to be the parent of the directory that contains
@@ -197,46 +200,17 @@ follow these instructions instead of the shorter instructions in the
 If the build fails, it sometimes helps to do a `make clean`.
 
 ## Run Hazel
+To view Hazel, you have to serve it, on localhost for development (you can't
+run it from a `file:///` URL due to browser restrictions on e.g. web workers.) 
 
-- Once Hazel is compiled, you can see it in action by running one of the
-  following commands.
+If you have `python3` on your path, you can use the Python server via 
+`make serve`, then navigate to `http://0.0.0.0:8000/` in your browser.
 
-  - If you are on Linux, you can launch Hazel with `BROWSER $(make
-    echo-html)` where (depending on your installed operating system and browser)
-    `BROWSER` is probably one of:
-
-    - `firefox`,
-    - `chrome`,
-    - `chrome-browser`,
-    - `chromium`, or
-    - `chromium-browser`.
-
-    As a convenience, we have provided the following shorthand make targets:
-
-    - `make firefox`
-    - `make chrome`
-    - `make chrome-browser`
-    - `make chromium`
-    - `make chromium-browser`
-
-    On some setups, you can also use `xdg-open` to open your default browser.
-    The `make xdg-open` shorthand invokes `xdg-open $(make echo-html)`.
-
-  - If you are on MacOS, you can use the above or you can launch Hazel with 
-    `open $(make echo-html)` or `make open` more concisely.
-
-  - If you are on Windows, the path to the browser may not be so easy to type, so you
-    can use the following commands to launch Hazel in your browser:
-    - `make win-firefox`
-    - `make win-chrome`
-
-You can also launch Hazel directly by opening
-`_build/default/src/hazelweb/www/index.html` in your browser.  The command `make
-echo-html` echos that path to the terminal, so that you don't have to remember
-it.
+Otherwise, run `make echo-html-dir` which will echo the directory that needs 
+to be served using some other server of your choice.
 
 You can also run `make repl` to get a REPL in which you can play with the definitions
-in `hazelcore`. The definitions in `hazelweb` cannot be used in the REPL because that
+in `haz3lcore`. The definitions in `haz3lweb` cannot be used in the REPL because that
 package needs a browser environment to run.
 
 
