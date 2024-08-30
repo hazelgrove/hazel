@@ -113,7 +113,7 @@ let view =
                           Attr.class_("prompt-text"),
                           Attr.id("prompt-input-box"),
                         ],
-                        msg,
+                        [text(eds.prompt)],
                       ),
                       div(
                         ~attrs=[Attr.class_("edit-icon")],
@@ -129,8 +129,8 @@ let view =
                       ),
                     ],
                   )
-                : div(~attrs=[Attr.class_("prompt-edit")], msg)
-            : div(~attrs=[Attr.class_("prompt-edit")], msg),
+                : div(~attrs=[Attr.class_("prompt-content")], msg)
+            : div(~attrs=[Attr.class_("prompt-content")], msg),
         ],
       ),
     ]);

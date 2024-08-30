@@ -745,6 +745,7 @@ select {
 .cell-prompt {
   padding: 1em;
   font-size: 1rem;
+  line-height: 1.6;
 }
 
 .prompt-edit .prompt-text {
@@ -754,7 +755,6 @@ select {
   font-size: 16px;
 
   white-space: pre-wrap;
-  overflow-wrap: break-word;
   word-wrap: break-word;
 }
 
@@ -765,15 +765,23 @@ select {
   display: flex;
 }
 
-.prompt-edit .edit-icon {
+.prompt-content {
+  display: flex;
+}
+
+.prompt-content .code {
+  margin-left: 0.25em;
+  margin-right: 0.25em;
+}
+
+.edit-icon {
   margin-left: 0.5em;
   cursor: pointer;
   fill: #7a6219;
 }
 
-.prompt-edit .edit-icon:hover {
+.prompt-content .edit-icon:hover {
   animation: wobble 0.6s ease 0s 1 normal forwards;
-  display: flex;
 }
 
 .cell-caption {
