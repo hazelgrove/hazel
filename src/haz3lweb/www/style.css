@@ -747,10 +747,22 @@ select {
   font-size: 1rem;
 }
 
+.prompt-edit .prompt-text {
+  width: 500px;
+  height: 300px;
+  padding: 10px;
+  font-size: 16px;
+
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+}
+
 .cell-prompt .prompt-edit {
   padding: 1em;
   font-size: 1rem;
   color: var(--light-text-color);
+  display: flex;
 }
 
 .prompt-edit .edit-icon {
@@ -761,6 +773,7 @@ select {
 
 .prompt-edit .edit-icon:hover {
   animation: wobble 0.6s ease 0s 1 normal forwards;
+  display: flex;
 }
 
 .cell-caption {

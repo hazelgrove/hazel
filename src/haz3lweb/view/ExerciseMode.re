@@ -108,13 +108,12 @@ let view =
                 ? div(
                     ~attrs=[Attr.class_("prompt-edit")],
                     [
-                      input(
+                      textarea(
                         ~attrs=[
                           Attr.class_("prompt-text"),
                           Attr.id("prompt-input-box"),
-                          Attr.value(eds.prompt),
                         ],
-                        (),
+                        msg,
                       ),
                       div(
                         ~attrs=[Attr.class_("edit-icon")],
@@ -131,7 +130,7 @@ let view =
                     ],
                   )
                 : div(~attrs=[Attr.class_("prompt-edit")], msg)
-            : div(~attrs=[Attr.class_("prompt-content")], msg),
+            : div(~attrs=[Attr.class_("prompt-edit")], msg),
         ],
       ),
     ]);
