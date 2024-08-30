@@ -762,25 +762,18 @@ select {
   padding: 1em;
   font-size: 1rem;
   color: var(--light-text-color);
-  display: flex;
 }
 
-.prompt-content {
-  display: flex;
-}
-
-.prompt-content .code {
-  margin-left: 0.25em;
-  margin-right: 0.25em;
-}
 
 .edit-icon {
   margin-left: 0.5em;
   cursor: pointer;
   fill: #7a6219;
+  display: inline-flex;
+  vertical-align: top;
 }
 
-.prompt-content .edit-icon:hover {
+.edit-icon:hover {
   animation: wobble 0.6s ease 0s 1 normal forwards;
 }
 
