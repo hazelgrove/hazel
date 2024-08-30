@@ -157,7 +157,6 @@ let mk_translation = (~inject, text: string): (list(Node.t), ColorSteps.t) => {
       let (inner_msg, mapping) = highlight(~inject, d, id, mapping);
       (List.append(msg, [inner_msg]), mapping);
     | Omd.Emph(_, d) =>
-      print_endline("empth");
       let (d, mapping) = translate_inline(d, [], mapping, ~inject);
       (
         List.append(
@@ -176,7 +175,6 @@ let mk_translation = (~inject, text: string): (list(Node.t), ColorSteps.t) => {
         mapping,
       );
     | Omd.Soft_break(_) =>
-      print_endline("break");
       (List.append(msg, [Node.br()]), mapping);
     | _ => (msg, mapping)
     };
