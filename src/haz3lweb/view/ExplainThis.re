@@ -174,8 +174,7 @@ let mk_translation = (~inject, text: string): (list(Node.t), ColorSteps.t) => {
         ),
         mapping,
       );
-    | Omd.Soft_break(_) =>
-      (List.append(msg, [Node.br()]), mapping);
+    | Omd.Soft_break(_) => (List.append(msg, [Node.br()]), mapping)
     | _ => (msg, mapping)
     };
   };
