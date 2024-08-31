@@ -71,7 +71,7 @@ module Rule = {
   let prems_num =
     fun
     | V_NumLit => 0
-    | E_NumLit => 0
+    | E_NumLit => 1
     | E_Neg => 1
     | E_Plus => 2
     | E_Minus => 2

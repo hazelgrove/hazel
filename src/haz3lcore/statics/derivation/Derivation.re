@@ -14,10 +14,16 @@ module Prop = {
     | FailUnbox(int) // Cannot unbox {0}
     | NotEqual(int) // {0} does not equal to {1}
     | NotInCtx(int) // {0} does not in {1}
-    | FailCtxExtend(int); // {0} does not equal to {1} extended by {2}
+    | FailCtxExtend(int) // {0} does not equal to {1} extended by {2}
+    | UnOpArithError(int) // {0} does not equal to [unop]{1}
+    | BinOpArithError(int); // {0} does not equal to {1}[binop]{2}
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
+    | Hole(string)
+    // When DHExp.t not convertable, convert by `e => Hole(DHExp.show(e))`
+    | Fail(t, failure)
+    // When verifying the deduction and find an locatable error.
     | Atom(string)
     | And(t, t)
     | Or(t, t)
@@ -26,10 +32,15 @@ module Prop = {
     | Falsity
     | Ctx(list(t))
     | Entail(t, t)
-    // When DHExp.t not convertable, convert by `e => Hole(DHExp.show(e))`
-    | Hole(string)
-    // When verifying the deduction and find an locatable error.
-    | Fail(t, failure)
+    | NumLit(int)
+    | Val(t)
+    | UnOp(t, t)
+    | BinOp(t, t, t)
+    | OpNeg
+    | OpPlus
+    | OpMinus
+    | OpTimes
+    | Eval(t, t)
 
   and cls =
     | Atom
@@ -39,10 +50,21 @@ module Prop = {
     | Truth
     | Falsity
     | Ctx
-    | Entail;
+    | Entail
+    | NumLit
+    | Val
+    | UnOp
+    | BinOp
+    | OpNeg
+    | OpPlus
+    | OpMinus
+    | OpTimes
+    | Eval;
 
   let of_cls: t => cls =
     fun
+    | Hole(_) => failwith("No cls for Hole")
+    | Fail(_) => failwith("No cls for Fail")
     | Atom(_) => Atom
     | And(_) => And
     | Or(_) => Or
@@ -51,18 +73,35 @@ module Prop = {
     | Falsity => Falsity
     | Ctx(_) => Ctx
     | Entail(_) => Entail
-    | Hole(_) => failwith("No cls for Hole")
-    | Fail(_) => failwith("No cls for Fail");
+
+    | NumLit(_) => NumLit
+    | Val(_) => Val
+    | UnOp(_) => UnOp
+    | BinOp(_) => BinOp
+    | OpNeg => OpNeg
+    | OpPlus => OpPlus
+    | OpMinus => OpMinus
+    | OpTimes => OpTimes
+    | Eval(_) => Eval;
 
   let repr: t => string = {
     let precedence: t => int =
       fun
+      | Hole(_)
+      | Fail(_)
       | Atom(_)
       | Truth
       | Falsity
       | Ctx(_)
-      | Hole(_)
-      | Fail(_)
+      | NumLit(_)
+      | Val(_)
+      | UnOp(_)
+      | BinOp(_)
+      | OpNeg
+      | OpPlus
+      | OpMinus
+      | OpTimes
+      | Eval(_)
       | Entail(_) => Precedence.entail
       | And(_) => Precedence.prop_and
       | Or(_) => Precedence.prop_or
@@ -76,6 +115,9 @@ module Prop = {
         Printf.sprintf("%s%s", op, aux(a));
       (
         switch (prop) {
+        | Hole(s) => s
+        // TODO(zhiyao): make it colorful
+        | Fail(_) => ""
         | Atom(s) => s
         | And(a, b) => print_binop("∧", a, b)
         | Or(a, b) => print_binop("∨", a, b)
@@ -93,9 +135,16 @@ module Prop = {
             |> Printf.sprintf("[%s]");
           }
         | Entail(a, b) => print_binop("⊢", a, b)
-        | Hole(s) => s
-        // TODO(zhiyao): make it colorful
-        | Fail(_) => ""
+
+        | NumLit(i) => "_" ++ string_of_int(i) ++ "_"
+        | Val(a) => aux(a) ++ " val"
+        | UnOp(op, a) => print_unop(aux(op), a)
+        | BinOp(op, a, b) => print_binop(aux(op), a, b)
+        | OpNeg => "-"
+        | OpPlus => "+"
+        | OpMinus => "-"
+        | OpTimes => "*"
+        | Eval(_) => "=>"
         }
       )
       |> (p < p' ? Printf.sprintf("(%s)") : Fun.id);
@@ -106,6 +155,9 @@ module Prop = {
   let eq: (t, t) => bool =
     (a, b) =>
       switch (a, b) {
+      | (Hole(_), _) => false
+      | (Fail(_), _) => failwith("Prop.eq: impossible")
+
       | (Atom(_), _)
       | (And(_), _)
       | (Or(_), _)
@@ -114,8 +166,16 @@ module Prop = {
       | (Falsity, _)
       | (Ctx(_), _)
       | (Entail(_), _) => a == b
-      | (Hole(_), _) => false
-      | (Fail(_), _) => failwith("Prop.eq: impossible")
+
+      | (NumLit(_), _)
+      | (Val(_), _)
+      | (UnOp(_), _)
+      | (BinOp(_), _)
+      | (OpNeg, _)
+      | (OpPlus, _)
+      | (OpMinus, _)
+      | (OpTimes, _)
+      | (Eval(_), _) => a == b
       };
 
   // This function is used when we find an failure, we will wrap DProp.t back
@@ -129,6 +189,8 @@ module Prop = {
       switch (a, b) {
       | (Fail(a, f), b) => Fail(merge(a, b), f)
       | (a, Fail(b, f)) => Fail(merge(a, b), f)
+      | (Hole(_), _) => failwith("DProp.merge: impossible")
+      // Hole(_) will always be wrapped with Fail(_)
       | (Atom(_), _) => a
       | (And(a1, a2), And(b1, b2)) => And(merge(a1, b1), merge(a2, b2))
       | (Or(a1, a2), Or(b1, b2)) => Or(merge(a1, b1), merge(a2, b2))
@@ -143,9 +205,24 @@ module Prop = {
       | (Or(_), _)
       | (Implies(_), _)
       | (Ctx(_), _)
-      | (Entail(_), _)
-      | (Hole(_), _) => failwith("DProp.merge: impossible")
-      // Hole(_) will always be wrapped with Fail(_)
+      | (Entail(_), _) => failwith("DProp.merge: impossible")
+
+      | (NumLit(_), _) => a
+      | (Val(a), Val(b)) => Val(merge(a, b))
+      | (UnOp(a1, a2), UnOp(b1, b2)) =>
+        UnOp(merge(a1, b1), merge(a2, b2))
+      | (BinOp(a1, a2, a3), BinOp(b1, b2, b3)) =>
+        BinOp(merge(a1, b1), merge(a2, b2), merge(a3, b3))
+      | (OpNeg, _) => OpNeg
+      | (OpPlus, _) => OpPlus
+      | (OpMinus, _) => OpMinus
+      | (OpTimes, _) => OpTimes
+      | (Eval(a1, a2), Eval(b1, b2)) =>
+        Eval(merge(a1, b1), merge(a2, b2))
+      | (Val(_), _)
+      | (UnOp(_), _)
+      | (BinOp(_), _)
+      | (Eval(_), _) => failwith("DProp.merge: impossible")
       };
 
   let extend_ctx = (ctx: list(t), prop: t) =>
@@ -179,7 +256,13 @@ module Rule = {
     | Implies_I
     | Implies_E
     | Truth_I
-    | Falsity_E;
+    | Falsity_E
+    | V_NumLit
+    | E_NumLit
+    | E_Neg
+    | E_Plus
+    | E_Minus
+    | E_Times;
 
   let repr =
     fun
@@ -193,7 +276,14 @@ module Rule = {
     | Implies_I => "⊃-I"
     | Implies_E => "⊃-E"
     | Truth_I => "⊤-I"
-    | Falsity_E => "⊥-E";
+    | Falsity_E => "⊥-E"
+
+    | V_NumLit => "V-NumLit"
+    | E_NumLit => "E-NumLit"
+    | E_Neg => "E-Neg"
+    | E_Plus => "E-Plus"
+    | E_Minus => "E-Minus"
+    | E_Times => "E-Times";
 
   let prems_num =
     fun
@@ -207,21 +297,30 @@ module Rule = {
     | Implies_I => 1
     | Implies_E => 2
     | Truth_I => 0
-    | Falsity_E => 1;
+    | Falsity_E => 1
 
-  let all = [
-    Assumption,
-    And_I,
-    And_E_L,
-    And_E_R,
-    Or_I_L,
-    Or_I_R,
-    Or_E,
-    Implies_I,
-    Implies_E,
-    Truth_I,
-    Falsity_E,
-  ];
+    | V_NumLit => 0
+    | E_NumLit => 0
+    | E_Neg => 1
+    | E_Plus => 2
+    | E_Minus => 2
+    | E_Times => 2;
+
+  let all =
+    [
+      Assumption,
+      And_I,
+      And_E_L,
+      And_E_R,
+      Or_I_L,
+      Or_I_R,
+      Or_E,
+      Implies_I,
+      Implies_E,
+      Truth_I,
+      Falsity_E,
+    ]
+    @ [V_NumLit, E_NumLit, E_Neg, E_Plus, E_Minus, E_Times];
 };
 
 module Deduction = {
@@ -256,7 +355,9 @@ module DeductionVerified = {
     | FailUnbox(Prop.cls)
     | NotEqual(Prop.cls)
     | NotInCtx
-    | FailCtxExtend;
+    | FailCtxExtend
+    | UnOpArithError(Prop.cls)
+    | BinOpArithError(Prop.cls);
 
   let to_prop_failure: (int, failure) => Prop.failure =
     i =>
@@ -265,7 +366,9 @@ module DeductionVerified = {
       | FailUnbox(_) => FailUnbox(i)
       | NotEqual(_) => NotEqual(i)
       | NotInCtx => NotInCtx(i)
-      | FailCtxExtend => FailCtxExtend(i);
+      | FailCtxExtend => FailCtxExtend(i)
+      | UnOpArithError(_) => UnOpArithError(i)
+      | BinOpArithError(_) => BinOpArithError(i);
 };
 
 module DProp = {
@@ -307,7 +410,16 @@ module DProp = {
     | Truth: unbox_req(unit)
     | Falsity: unbox_req(unit)
     | Entail: unbox_req((t, t))
-    | Ctx: unbox_req(list(t));
+    | Ctx: unbox_req(list(t))
+    | NumLit: unbox_req(int)
+    | Val: unbox_req(t)
+    | UnOp: unbox_req((t, t))
+    | BinOp: unbox_req((t, t, t))
+    | OpNeg: unbox_req(unit)
+    | OpPlus: unbox_req(unit)
+    | OpMinus: unbox_req(unit)
+    | OpTimes: unbox_req(unit)
+    | Eval: unbox_req((t, t));
 
   let of_cls: type a. unbox_req(a) => Prop.cls =
     fun
@@ -317,7 +429,17 @@ module DProp = {
     | Truth => Truth
     | Falsity => Falsity
     | Entail => Entail
-    | Ctx => Ctx;
+    | Ctx => Ctx
+
+    | NumLit => NumLit
+    | Val => Val
+    | UnOp => UnOp
+    | BinOp => BinOp
+    | OpNeg => OpNeg
+    | OpPlus => OpPlus
+    | OpMinus => OpMinus
+    | OpTimes => OpTimes
+    | Eval => Eval;
 
   let unbox: type a. (unbox_req(a), t) => result(a, DeductionVerified.t) =
     (req, {now, ctr} as dp) => {
@@ -352,13 +474,46 @@ module DProp = {
             ctx,
           ),
         )
+
+      | (NumLit, NumLit(i)) => Ok(i)
+      | (Val, Val(a)) => Ok({now: a, ctr: x => Val(x) |> ctr})
+      | (UnOp, UnOp(op, a)) =>
+        Ok((
+          {now: op, ctr: x => UnOp(x, a) |> ctr},
+          {now: a, ctr: x => UnOp(op, x) |> ctr},
+        ))
+      | (BinOp, BinOp(op, a, b)) =>
+        Ok((
+          {now: op, ctr: x => BinOp(x, a, b) |> ctr},
+          {now: a, ctr: x => BinOp(op, x, b) |> ctr},
+          {now: b, ctr: x => BinOp(op, a, x) |> ctr},
+        ))
+      | (OpNeg, OpNeg) => Ok()
+      | (OpPlus, OpPlus) => Ok()
+      | (OpMinus, OpMinus) => Ok()
+      | (OpTimes, OpTimes) => Ok()
+      | (Eval, Eval(e, v)) =>
+        Ok((
+          {now: e, ctr: x => Eval(x, v) |> ctr},
+          {now: v, ctr: x => Eval(e, x) |> ctr},
+        ))
+
       | (And, _)
       | (Or, _)
       | (Implies, _)
       | (Truth, _)
       | (Falsity, _)
       | (Entail, _)
-      | (Ctx, _) => Error(mk_error([dp], FailUnbox(of_cls(req))))
+      | (Ctx, _)
+      | (NumLit, _)
+      | (Val, _)
+      | (UnOp, _)
+      | (BinOp, _)
+      | (OpNeg, _)
+      | (OpPlus, _)
+      | (OpMinus, _)
+      | (OpTimes, _)
+      | (Eval, _) => Error(mk_error([dp], FailUnbox(of_cls(req))))
       };
     };
 
@@ -398,6 +553,30 @@ module DProp = {
         Ok();
       } else {
         Error(mk_error([ctx_a, ctx, a], FailCtxExtend));
+      };
+    };
+
+  let expect_unop_arith: (Prop.cls, t, t) => result(unit, DeductionVerified.t) =
+    (op, v', v) => {
+      let$ n = unbox(NumLit, v);
+      let$ n' = unbox(NumLit, v');
+      switch (op) {
+      | OpNeg when n' == - n => Ok()
+      | _ => Error(mk_error([v', v], UnOpArithError(op)))
+      };
+    };
+
+  let expect_binop_arith:
+    (Prop.cls, t, t, t) => result(unit, DeductionVerified.t) =
+    (op, v', v1, v2) => {
+      let$ n1 = unbox(NumLit, v1);
+      let$ n2 = unbox(NumLit, v2);
+      let$ n' = unbox(NumLit, v');
+      switch (op) {
+      | OpPlus when n' == n1 + n2 => Ok()
+      | OpMinus when n' == n1 - n2 => Ok()
+      | OpTimes when n' == n1 * n2 => Ok()
+      | _ => Error(mk_error([v', v1, v2], UnOpArithError(op)))
       };
     };
 
@@ -485,6 +664,56 @@ module DProp = {
       let$ (ctx', prop) = unbox(Entail, prems(0));
       let$ _ = expect_eq(ctx', ctx);
       let$ _ = unbox(Truth, prop);
+      Ok();
+
+    | V_NumLit =>
+      let$ nl = unbox(Val, concl);
+      let$ _ = unbox(NumLit, nl);
+      Ok();
+    | E_NumLit =>
+      // TODO(zhiyao): check
+      let$ (e, v') = unbox(Eval, concl);
+      let$ v = unbox(Val, prems(0));
+      let$ _ = expect_eq(v, e);
+      let$ _ = expect_eq(v', v);
+      Ok();
+    | E_Neg =>
+      let$ (e, v') = unbox(Eval, concl);
+      let$ (op, e) = unbox(UnOp, e);
+      let$ _ = unbox(OpNeg, op);
+      let$ (e', v) = unbox(Eval, prems(0));
+      let$ _ = expect_eq(e', e);
+      let$ _ = expect_unop_arith(OpNeg, v', v);
+      Ok();
+    | E_Plus =>
+      let$ (e, v') = unbox(Eval, concl);
+      let$ (op, e1, e2) = unbox(BinOp, e);
+      let$ _ = unbox(OpPlus, op);
+      let$ (e1', v1) = unbox(Eval, prems(0));
+      let$ _ = expect_eq(e1', e1);
+      let$ (e2', v2) = unbox(Eval, prems(1));
+      let$ _ = expect_eq(e2', e2);
+      let$ _ = expect_binop_arith(OpPlus, v', v1, v2);
+      Ok();
+    | E_Minus =>
+      let$ (e, v') = unbox(Eval, concl);
+      let$ (op, e1, e2) = unbox(BinOp, e);
+      let$ _ = unbox(OpMinus, op);
+      let$ (e1', v1) = unbox(Eval, prems(0));
+      let$ _ = expect_eq(e1', e1);
+      let$ (e2', v2) = unbox(Eval, prems(1));
+      let$ _ = expect_eq(e2', e2);
+      let$ _ = expect_binop_arith(OpMinus, v', v1, v2);
+      Ok();
+    | E_Times =>
+      let$ (e, v') = unbox(Eval, concl);
+      let$ (op, e1, e2) = unbox(BinOp, e);
+      let$ _ = unbox(OpTimes, op);
+      let$ (e1', v1) = unbox(Eval, prems(0));
+      let$ _ = expect_eq(e1', e1);
+      let$ (e2', v2) = unbox(Eval, prems(1));
+      let$ _ = expect_eq(e2', e2);
+      let$ _ = expect_binop_arith(OpTimes, v', v1, v2);
       Ok();
     };
   };
