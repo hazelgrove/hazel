@@ -494,8 +494,6 @@ let ctx_init: Ctx.t = {
     Variant("$e", [Id.mk()], None),
     Variant("$v", [Id.mk()], None),
   ];
-  let derivation_builtins = BuiltinsDerivation.ctr_entries;
-  ignore(derivation_builtins);
   let meta =
     Ctx.TVarEntry({
       name: "$Meta",
@@ -510,13 +508,9 @@ let ctx_init: Ctx.t = {
     Pervasives.builtins,
   )
   |> Ctx.extend(_, meta)
-  // |> List.fold_left(
-  //      (ctx, entry) => Ctx.extend(ctx, Ctx.ConstructorEntry(entry)),
-  //      _,
-  //      derivation_builtins,
-  //    )
   // |> Ctx.extend(_, BuiltinsDerivation.tvar_entries)
-  |> List.fold_left(Ctx.extend, _, BuiltinsDerivation.tvar_entries)
+  // |> List.fold_left(Ctx.extend, _, BuiltinsDerivation.tvar_entries)
+  |> BuiltinsDerivation.add_tvar_entries
   |> Ctx.add_ctrs(_, "$Meta", Id.invalid, meta_cons_map);
 };
 

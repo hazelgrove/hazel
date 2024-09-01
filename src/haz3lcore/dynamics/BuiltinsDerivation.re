@@ -127,14 +127,6 @@ let all: list(cls) = [
   Entail,
 ];
 
-let to_term = s =>
-  List.fold_left(
-    (acc, ctr) =>
-      Option.is_none(acc) && show_cls(ctr) == s ? Some(ctr) : acc,
-    None,
-    all,
-  );
-
 let mk_ctr_entry: cls => Ctx.var_entry =
   term => {name: show_cls(term), id: Id.mk(), typ: cls_to_typ(term)};
 
@@ -145,7 +137,7 @@ let mk_variant: cls => ConstructorMap.variant(Typ.t) =
     Variant(show_cls(term), [Id.mk()], cls_to_arg_typ(term));
   };
 
-let tvar_entries = {
+let add_tvar_entries = ctx => {
   let rec add_to_list = (map, cls) => {
     let alias = cls_to_alias(cls);
     switch (map) {
@@ -160,47 +152,44 @@ let tvar_entries = {
   let map =
     List.fold_left(
       add_to_list,
-      // [(Judgement, []), (Prop, []), (Expr, []), (BinOp, []), (UnOp, [])],
       [],
       all,
     );
-  // ignore(map);
-  // let map: list((alias, list(cls))) = [
-  //   (Judgement, [Entail]),
-  //   (Prop, [Atom, And, Or, Implies, Truth, Falsity]),
-  // ];
-  // ignore(map);
-  // let map = [];
-  print_endline(
-    map
-    |> List.map(((alias, cls)) =>
-         show_alias(alias)
-         ++ ": "
-         ++ (cls |> List.map(show_cls) |> String.concat(", "))
-       )
-    |> String.concat(";\n"),
-  );
-  List.map(
-    ((alias, cls)) =>
-      Ctx.TVarEntry({
-        name: show_alias(alias),
-        id: Id.invalid,
-        kind: Ctx.Singleton(Sum(cls |> List.map(mk_variant)) |> Typ.fresh),
-      }),
+  List.fold_left(
+    (ctx, (alias, cls)) => {
+      let name = show_alias(alias);
+      let ty = Sum(cls |> List.map(mk_variant)) |> Typ.fresh;
+      let ty =
+        switch (ty.term) {
+        | Sum(_) when List.mem(name, Typ.free_vars(ty)) =>
+          Typ.Rec(TPat.Var(name) |> IdTagged.fresh, ty) |> Typ.temp
+        | _ => ty
+        };
+      let ctx = Ctx.extend_alias(ctx, name, Id.invalid, ty);
+      switch (Typ.get_sum_constructors(ctx, ty)) {
+      | Some(sm) => Ctx.add_ctrs(ctx, name, UTyp.rep_id(ty), sm)
+      | None => ctx
+      };
+    },
+    ctx,
     map,
   );
 };
+
+let to_term: string => option(cls) =
+  s =>
+    List.fold_left(
+      (acc, ctr) =>
+        Option.is_none(acc) && show_cls(ctr) == s ? Some(ctr) : acc,
+      None,
+      all,
+    );
 
 let term_of_dhexp: DHExp.t => option(cls) =
   d =>
     switch (DHExp.term_of(d)) {
     | Constructor(ctr, _) => ctr |> to_term
     | _ => None
-    // Need check?
-    // Cons: ty |> Typ.term_of == Typ.Prop
-    // Ap:    Typ.matched_arrow([], ty)
-    //       |> snd
-    //       |> Typ.term_of == Typ.Prop
     };
 
 let rec prop_of_dhexp: DHExp.t => t =
@@ -211,33 +200,81 @@ let rec prop_of_dhexp: DHExp.t => t =
       | _ => (d, None)
       };
     switch (term_of_dhexp(fn)) {
-    | None =>
-      print_endline("Cls not found: " ++ DHExp.show(d));
-      Hole("Cls not found") |> Derivation.Prop.fresh;
-    | Some(ctr) =>
-      switch (ctr, arg) {
-      | (Atom, Some({term: String(atom), _})) =>
-        Atom(atom) |> Derivation.Prop.fresh
-      | (And | Or | Implies, Some({term: Tuple([d1, d2]), _})) =>
-        let (p1, p2) = (prop_of_dhexp(d1), prop_of_dhexp(d2));
-        (
-          switch (ctr) {
-          | And => And(p1, p2)
-          | Or => Or(p1, p2)
-          | Implies => Implies(p1, p2)
-          | _ => failwith("Impossible")
-          }
-        )
-        |> Derivation.Prop.fresh;
-      | (Truth, None) => Truth |> Derivation.Prop.fresh
-      | (Falsity, None) => Falsity |> Derivation.Prop.fresh
-      | (Entail, Some({term: Tuple([{term: ListLit(l), _}, d]), _})) =>
-        let ctx = List.map(prop_of_dhexp, l);
-        let p = prop_of_dhexp(d);
-        Entail(Ctx(ctx) |> Derivation.Prop.fresh, p) |> Derivation.Prop.fresh;
-      | _ =>
-        print_endline("Argument Error: " ++ DHExp.show(d));
-        Hole("Argument Error") |> Derivation.Prop.fresh;
+    | None => Hole("Cls not found") |> fresh
+    | Some(ctr) => match_dhexp(ctr, arg)
+    };
+  }
+
+and match_dhexp: (cls, option(DHExp.t)) => t =
+  (ctr, arg) => {
+    let (let.) = (x, f) =>
+      switch (x) {
+      | Some(x) => f(x)
+      | None => Hole("Argument Error") |> fresh
+      };
+    let arg =
+      switch (arg) {
+      | None => []
+      | Some(arg) =>
+        switch (DHExp.term_of(arg)) {
+        | Tuple(args) => args
+        | _ => [arg]
+        }
+      };
+    switch (ctr, arg) {
+    | (NumLit, [d]) =>
+      let. n = switch (DHExp.term_of(d)) {
+      | Int(n) => Some(n)
+      | _ => None
       }
+      NumLit(n) |> fresh;
+    | (Val, [d]) => 
+      Val(prop_of_dhexp(d)) |> fresh
+    | (UnOp,[d1, d2]) =>
+      let (op, e) = (prop_of_dhexp(d1), prop_of_dhexp(d2));
+      UnOp(op, e) |> fresh;
+    | (BinOp, [d1, d2, d3]) =>
+      let (op, e1, e2) = (
+        prop_of_dhexp(d1),
+        prop_of_dhexp(d2),
+        prop_of_dhexp(d3),
+      );
+      BinOp(op, e1, e2) |> fresh;
+    | (OpNeg, []) => OpNeg |> fresh
+    | (OpPlus, []) => OpPlus |> fresh
+    | (OpMinus, []) => OpMinus |> fresh
+    | (OpTimes, []) => OpTimes |> fresh
+    | (Eval, [d1, d2]) =>
+      let (e1, e2) = (prop_of_dhexp(d1), prop_of_dhexp(d2));
+      Eval(e1, e2) |> fresh;
+
+    | (Atom, [d]) => 
+      let. atom = switch (DHExp.term_of(d)) {
+      | String(atom) => Some(atom)
+      | _ => None
+      }
+      Atom(atom) |> fresh
+    | (And, [d1, d2]) =>
+      let (p1, p2) = (prop_of_dhexp(d1), prop_of_dhexp(d2));
+      And(p1, p2) |> fresh;
+    | (Or, [d1, d2]) =>
+      let (p1, p2) = (prop_of_dhexp(d1), prop_of_dhexp(d2));
+      Or(p1, p2) |> fresh;
+    | (Implies, [d1, d2]) =>
+      let (p1, p2) = (prop_of_dhexp(d1), prop_of_dhexp(d2));
+      Implies(p1, p2) |> fresh;
+    | (Truth, []) => Truth |> fresh
+    | (Falsity, []) => Falsity |> fresh
+    | (Entail, [d1, d2]) =>
+      let. ctx = switch (DHExp.term_of(d1)) {
+        | ListLit(l) => Some(l)
+        | _ => None
+      }
+      let ctx = List.map(prop_of_dhexp, ctx);
+      let p = prop_of_dhexp(d2);
+      Entail(Ctx(ctx) |> fresh, p) |> fresh;
+    | _ =>
+      // print_endline("Argument Error: " ++ DHExp.show(d));
+      Hole("Argument Error") |> fresh
     };
   };

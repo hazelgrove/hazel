@@ -450,7 +450,55 @@ module Verify = {
   let verify =
       (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => {
     let$ prems = expect_prems_num(rule, prems);
+    print_endline("concl: " ++ show(concl));
     switch (rule) {
+    | V_NumLit =>
+      let$ nl = unbox(Val, concl);
+      let$ _ = unbox(NumLit, nl);
+      Ok();
+    | E_NumLit =>
+      let$ (e, v') = unbox(Eval, concl);
+      let$ _ = expect_eq(v', e);
+      Ok();
+    | E_Neg =>
+      let$ (e, v') = unbox(Eval, concl);
+      let$ (op, e) = unbox(UnOp, e);
+      let$ _ = unbox(OpNeg, op);
+      let$ (e', v) = unbox(Eval, prems(0));
+      let$ _ = expect_eq(e', e);
+      let$ _ = expect_unop_arith(OpNeg, v', v);
+      Ok();
+    | E_Plus =>
+      let$ (e, v') = unbox(Eval, concl);
+      let$ (op, e1, e2) = unbox(BinOp, e);
+      let$ _ = unbox(OpPlus, op);
+      let$ (e1', v1) = unbox(Eval, prems(0));
+      let$ _ = expect_eq(e1', e1);
+      let$ (e2', v2) = unbox(Eval, prems(1));
+      let$ _ = expect_eq(e2', e2);
+      let$ _ = expect_binop_arith(OpPlus, v', v1, v2);
+      Ok();
+    | E_Minus =>
+      let$ (e, v') = unbox(Eval, concl);
+      let$ (op, e1, e2) = unbox(BinOp, e);
+      let$ _ = unbox(OpMinus, op);
+      let$ (e1', v1) = unbox(Eval, prems(0));
+      let$ _ = expect_eq(e1', e1);
+      let$ (e2', v2) = unbox(Eval, prems(1));
+      let$ _ = expect_eq(e2', e2);
+      let$ _ = expect_binop_arith(OpMinus, v', v1, v2);
+      Ok();
+    | E_Times =>
+      let$ (e, v') = unbox(Eval, concl);
+      let$ (op, e1, e2) = unbox(BinOp, e);
+      let$ _ = unbox(OpTimes, op);
+      let$ (e1', v1) = unbox(Eval, prems(0));
+      let$ _ = expect_eq(e1', e1);
+      let$ (e2', v2) = unbox(Eval, prems(1));
+      let$ _ = expect_eq(e2', e2);
+      let$ _ = expect_binop_arith(OpTimes, v', v1, v2);
+      Ok();
+
     | Assumption =>
       let$ (ctx, prop) = unbox(Entail, concl);
       let$ _ = expect_in_ctx(prop, ctx);
@@ -531,56 +579,6 @@ module Verify = {
       let$ (ctx', prop) = unbox(Entail, prems(0));
       let$ _ = expect_eq(ctx', ctx);
       let$ _ = unbox(Truth, prop);
-      Ok();
-
-    | V_NumLit =>
-      let$ nl = unbox(Val, concl);
-      let$ _ = unbox(NumLit, nl);
-      Ok();
-    | E_NumLit =>
-      // TODO(zhiyao): check
-      let$ (e, v') = unbox(Eval, concl);
-      let$ v = unbox(Val, prems(0));
-      let$ _ = expect_eq(v, e);
-      let$ _ = expect_eq(v', v);
-      Ok();
-    | E_Neg =>
-      let$ (e, v') = unbox(Eval, concl);
-      let$ (op, e) = unbox(UnOp, e);
-      let$ _ = unbox(OpNeg, op);
-      let$ (e', v) = unbox(Eval, prems(0));
-      let$ _ = expect_eq(e', e);
-      let$ _ = expect_unop_arith(OpNeg, v', v);
-      Ok();
-    | E_Plus =>
-      let$ (e, v') = unbox(Eval, concl);
-      let$ (op, e1, e2) = unbox(BinOp, e);
-      let$ _ = unbox(OpPlus, op);
-      let$ (e1', v1) = unbox(Eval, prems(0));
-      let$ _ = expect_eq(e1', e1);
-      let$ (e2', v2) = unbox(Eval, prems(1));
-      let$ _ = expect_eq(e2', e2);
-      let$ _ = expect_binop_arith(OpPlus, v', v1, v2);
-      Ok();
-    | E_Minus =>
-      let$ (e, v') = unbox(Eval, concl);
-      let$ (op, e1, e2) = unbox(BinOp, e);
-      let$ _ = unbox(OpMinus, op);
-      let$ (e1', v1) = unbox(Eval, prems(0));
-      let$ _ = expect_eq(e1', e1);
-      let$ (e2', v2) = unbox(Eval, prems(1));
-      let$ _ = expect_eq(e2', e2);
-      let$ _ = expect_binop_arith(OpMinus, v', v1, v2);
-      Ok();
-    | E_Times =>
-      let$ (e, v') = unbox(Eval, concl);
-      let$ (op, e1, e2) = unbox(BinOp, e);
-      let$ _ = unbox(OpTimes, op);
-      let$ (e1', v1) = unbox(Eval, prems(0));
-      let$ _ = expect_eq(e1', e1);
-      let$ (e2', v2) = unbox(Eval, prems(1));
-      let$ _ = expect_eq(e2', e2);
-      let$ _ = expect_binop_arith(OpTimes, v', v1, v2);
       Ok();
     };
   };
