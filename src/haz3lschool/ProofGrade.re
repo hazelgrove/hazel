@@ -83,15 +83,14 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
     type t = list(Tree.p(res))
     and res =
       | Correct
-      | Incorrect(Derivation.DeductionVerified.failure)
+      | Incorrect(Derivation.Verify.failure)
       | Pending(ExternalError.t);
 
     let show_res: res => string =
       fun
       | Correct => "✅"
       | Pending(err) => "⌛️ " ++ ExternalError.show(err)
-      | Incorrect(err) =>
-        "❌ " ++ Derivation.DeductionVerified.show_failure(err);
+      | Incorrect(err) => "❌ " ++ Derivation.Verify.show_failure(err);
 
     let verify_single =
         (
@@ -110,10 +109,9 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
         | Just(Ok(_)) when !are_prems_ready => Pending(PremiseNotReady)
         | Just(Ok({jdmt: concl, rule: Some(rule)})) =>
           let prems = prems |> List.map(Option.get);
-          let deduction = Derivation.Deduction.{concl, prems};
-          switch (Derivation.DProp.verify(rule, deduction).failure) {
-          | Some(failure) => Incorrect(failure)
-          | None => Correct
+          switch (Derivation.Verify.verify(rule, prems, concl)) {
+          | Ok(_) => Correct
+          | Error(err) => Incorrect(err)
           };
         };
       let concl =
