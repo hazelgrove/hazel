@@ -8,7 +8,7 @@ module P = Precedence;
 let precedence_const = P.max;
 let precedence_Ap = P.ap;
 let precedence_Power = P.power;
-
+let precedence_Not = P.not_;
 let precedence_Times = P.mult;
 let precedence_Divide = P.mult;
 let precedence_Plus = P.plus;
@@ -19,7 +19,7 @@ let precedence_LessThan = P.eqs;
 let precedence_GreaterThan = P.eqs;
 let precedence_And = P.and_;
 let precedence_Or = P.or_;
-let precedence_Comma = P.prod;
+let precedence_Comma = P.comma;
 let precedence_max = P.min;
 
 let pad_child =
@@ -45,7 +45,7 @@ module Delim = {
   let mk = (delim_text: string): t =>
     Doc.text(delim_text) |> Doc.annot(DHAnnot.Delim);
 
-  let empty_hole = ((_u, _i): HoleInstance.t): t => {
+  let empty_hole = (_env: ClosureEnvironment.t): t => {
     let lbl =
       //StringUtil.cat([string_of_int(u + 1), ":", string_of_int(i + 1)]);
       "?";
@@ -70,8 +70,6 @@ module Delim = {
   let arrow_FixF = mk("->");
   let colon_FixF = mk(":");
 
-  let projection_dot = mk(".");
-
   let open_Case = mk("case");
   let close_Case = mk("end");
 
@@ -80,6 +78,7 @@ module Delim = {
 
   let open_Cast = mk("<");
   let arrow_Cast = mk(Unicode.castArrowSym);
+  let back_arrow_Cast = mk(Unicode.castBackArrowSym);
   let close_Cast = mk(">");
 
   let open_FailedCast = open_Cast |> Doc.annot(DHAnnot.FailedCastDelim);
@@ -88,11 +87,10 @@ module Delim = {
   let close_FailedCast = close_Cast |> Doc.annot(DHAnnot.FailedCastDelim);
 };
 
-let mk_EmptyHole = (~selected=false, hc: HoleInstance.t) =>
-  Delim.empty_hole(hc) |> Doc.annot(DHAnnot.EmptyHole(selected, hc));
+let mk_EmptyHole = (~selected=false, env: ClosureEnvironment.t) =>
+  Delim.empty_hole(env) |> Doc.annot(DHAnnot.EmptyHole(selected, env));
 
-let mk_InvalidText = (t, hc) =>
-  Doc.text(t) |> Doc.annot(DHAnnot.Invalid(hc));
+let mk_InvalidText = t => Doc.text(t) |> Doc.annot(DHAnnot.Invalid);
 
 let mk_Sequence = (doc1, doc2) => Doc.(hcats([doc1, linebreak(), doc2]));
 
@@ -138,5 +136,6 @@ let mk_TypAp = (doc1, doc2) =>
 let mk_Ap = (doc1, doc2) =>
   Doc.(hcats([doc1, text("("), doc2, text(")")]));
 
-let mk_Prj = (targ, n) =>
-  Doc.hcats([targ, Delim.projection_dot, Doc.text(string_of_int(n))]);
+let mk_rev_Ap = (doc1, doc2) => Doc.(hcats([doc1, text(" |> "), doc2]));
+
+let mk_Undefined = () => Doc.text("undefined");

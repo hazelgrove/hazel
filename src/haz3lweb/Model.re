@@ -1,4 +1,5 @@
-open Sexplib.Std;
+open Util;
+
 open Haz3lcore;
 
 /* MODEL:
@@ -36,38 +37,36 @@ type t = {
   editors: Editors.t,
   settings: Settings.t,
   results: ModelResults.t,
-  statics: CachedStatics.t,
   explainThisModel: ExplainThisModel.t,
   ui_state,
 };
 
 let cutoff = (===);
 
-let mk = (editors, results, statics) => {
+let mk = (editors, results) => {
   editors,
   settings: Init.startup.settings,
   results,
-  statics,
   explainThisModel: ExplainThisModel.init,
   ui_state: ui_state_init,
 };
 
-let blank =
-  mk(Editors.Scratch(0, []), ModelResults.empty, CachedStatics.empty);
+let blank = mk(Editors.Scratch(0, []), ModelResults.empty);
 
 let load_editors =
-    (~mode: Settings.mode, ~instructor_mode: bool)
+    (~settings, ~mode: Settings.mode, ~instructor_mode: bool)
     : (Editors.t, ModelResults.t) =>
   switch (mode) {
   | Scratch =>
-    let (idx, slides, results) = Store.Scratch.load();
+    let (idx, slides, results) = Store.Scratch.load(~settings);
     (Scratch(idx, slides), results);
   | Documentation =>
-    let (name, slides, results) = Store.Documentation.load();
+    let (name, slides, results) = Store.Documentation.load(~settings);
     (Documentation(name, slides), results);
   | Exercises =>
     let (n, specs, exercise) =
       Store.Exercise.load(
+        ~settings,
         ~specs=ExerciseSettings.exercises,
         ~instructor_mode,
       );
@@ -90,12 +89,12 @@ let load = (init_model: t): t => {
   let explainThisModel = Store.ExplainThisModel.load();
   let (editors, results) =
     load_editors(
+      ~settings=settings.core,
       ~mode=settings.mode,
       ~instructor_mode=settings.instructor_mode,
     );
   let ui_state = init_model.ui_state;
-  let statics = Editors.mk_statics(~settings, editors);
-  {editors, settings, results, statics, explainThisModel, ui_state};
+  {editors, settings, results, explainThisModel, ui_state};
 };
 
 let save = ({editors, settings, explainThisModel, results, _}: t) => {
@@ -108,15 +107,16 @@ let save_and_return = (model: t) => {
   save(model);
   Ok(model);
 };
+
 let reset = (model: t): t => {
   /* Reset model to default, including in localstorage,
      but don't otherwise erase localstorage, allowing
      e.g. api keys to persist */
-  ignore(Store.Settings.init());
+  let settings = Store.Settings.init().core;
   ignore(Store.ExplainThisModel.init());
-  ignore(Store.Scratch.init());
-  ignore(Store.Documentation.init());
-  ignore(Store.Exercise.init(~instructor_mode=true));
+  ignore(Store.Scratch.init(~settings));
+  ignore(Store.Documentation.init(~settings));
+  ignore(Store.Exercise.init(~settings, ~instructor_mode=true));
   let new_model = load(blank);
   {
     ...new_model,

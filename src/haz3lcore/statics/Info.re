@@ -1,7 +1,5 @@
-open Sexplib.Std;
 open Util;
 open OptUtil.Syntax;
-open Term;
 
 /* INFO.re
 
@@ -66,6 +64,7 @@ type error_common =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_exp =
   | FreeVariable(Var.t) /* Unbound variable (not in typing context) */
+  | InexhaustiveMatch(option(error_common))
   | UnusedDeferral
   | BadPartialAp(Self.error_partial_ap)
   | Common(error_common);
@@ -73,6 +72,7 @@ type error_exp =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_pat =
   | ExpectedConstructor /* Only construtors can be applied */
+  | Redundant(option(error_pat))
   | Common(error_common);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -142,7 +142,7 @@ type typ_expects =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_typ =
   | BadToken(Token.t) /* Invalid token, treated as type hole */
-  | FreeTypeVariable(TypVar.t) /* Free type variable */
+  | FreeTypeVariable(string) /* Free type variable */
   | DuplicateConstructor(Constructor.t) /* Duplicate ctr in same sum */
   | WantTypeFoundAp
   | WantConstructorFoundType(Typ.t)
@@ -153,7 +153,7 @@ type error_typ =
 type ok_typ =
   | Variant(Constructor.t, Typ.t)
   | VariantIncomplete(Typ.t)
-  | TypeAlias(TypVar.t, Typ.t)
+  | TypeAlias(string, Typ.t)
   | Type(Typ.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -176,14 +176,14 @@ type shadow_src =
 /* Type pattern term errors */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type error_tpat =
-  | ShadowsType(TypVar.t, shadow_src)
+  | ShadowsType(string, shadow_src)
   | NotAVar(type_var_err);
 
 /* Type pattern ok statuses for cursor inspector */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type ok_tpat =
   | Empty
-  | Var(TypVar.t);
+  | Var(string);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type status_tpat =
@@ -198,7 +198,7 @@ type exp = {
   mode: Mode.t, /* Parental type expectations  */
   self: Self.exp, /* Expectation-independent type info */
   co_ctx: CoCtx.t, /* Locally free variables */
-  cls: Term.Cls.t, /* DERIVED: Syntax class (i.e. form name) */
+  cls: Cls.t, /* DERIVED: Syntax class (i.e. form name) */
   status: status_exp, /* DERIVED: Ok/Error statuses for display */
   ty: Typ.t /* DERIVED: Type after nonempty hole fixing */
 };
@@ -209,37 +209,38 @@ type pat = {
   ancestors,
   ctx: Ctx.t,
   co_ctx: CoCtx.t,
+  prev_synswitch: option(Typ.t), // If a pattern is first synthesized, then analysed, the initial syn is stored here.
   mode: Mode.t,
   self: Self.pat,
-  cls: Term.Cls.t,
+  cls: Cls.t,
   status: status_pat,
   ty: Typ.t,
+  constraint_: Constraint.t,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type typ = {
-  term: UTyp.t,
+  term: Typ.t,
   ancestors,
   ctx: Ctx.t,
   expects: typ_expects,
-  cls: Term.Cls.t,
+  cls: Cls.t,
   status: status_typ,
-  ty: Typ.t,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type tpat = {
-  term: UTPat.t,
+  term: TPat.t,
   ancestors,
   ctx: Ctx.t,
-  cls: Term.Cls.t,
+  cls: Cls.t,
   status: status_tpat,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type secondary = {
   id: Id.t, // Id of term static info is sourced from
-  cls: Term.Cls.t, // Cls of secondary, not source term
+  cls: Cls.t, // Cls of secondary, not source term
   sort: Sort.t, // from source term
   ctx: Ctx.t // from source term
 };
@@ -294,10 +295,10 @@ let ancestors_of: t => ancestors =
 
 let id_of: t => Id.t =
   fun
-  | InfoExp(i) => Term.UExp.rep_id(i.term)
-  | InfoPat(i) => Term.UPat.rep_id(i.term)
-  | InfoTyp(i) => Term.UTyp.rep_id(i.term)
-  | InfoTPat(i) => Term.UTPat.rep_id(i.term)
+  | InfoExp(i) => Exp.rep_id(i.term)
+  | InfoPat(i) => Pat.rep_id(i.term)
+  | InfoTyp(i) => Typ.rep_id(i.term)
+  | InfoTPat(i) => TPat.rep_id(i.term)
   | Secondary(s) => s.id;
 
 let error_of: t => option(error) =
@@ -316,6 +317,7 @@ let exp_co_ctx: exp => CoCtx.t = ({co_ctx, _}) => co_ctx;
 let exp_ty: exp => Typ.t = ({ty, _}) => ty;
 let pat_ctx: pat => Ctx.t = ({ctx, _}) => ctx;
 let pat_ty: pat => Typ.t = ({ty, _}) => ty;
+let pat_constraint: pat => Constraint.t = ({constraint_, _}) => constraint_;
 
 let rec status_common =
         (ctx: Ctx.t, mode: Mode.t, self: Self.t): status_common =>
@@ -323,13 +325,25 @@ let rec status_common =
   | (Just(ty), Syn) => NotInHole(Syn(ty))
   | (Just(ty), SynFun) =>
     switch (
-      Typ.join_fix(ctx, Arrow(Unknown(Internal), Unknown(Internal)), ty)
+      Typ.join_fix(
+        ctx,
+        Arrow(Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp)
+        |> Typ.temp,
+        ty,
+      )
     ) {
     | Some(_) => NotInHole(Syn(ty))
     | None => InHole(Inconsistent(WithArrow(ty)))
     }
   | (Just(ty), SynTypFun) =>
-    switch (Typ.join_fix(ctx, Forall("?", Unknown(Internal)), ty)) {
+    switch (
+      Typ.join_fix(
+        ctx,
+        Forall(Var("?") |> TPat.fresh, Unknown(Internal) |> Typ.temp)
+        |> Typ.temp,
+        ty,
+      )
+    ) {
     | Some(_) => NotInHole(Syn(ty))
     | None => InHole(Inconsistent(WithArrow(ty)))
     }
@@ -356,9 +370,9 @@ let rec status_common =
     }
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
   | (BadTrivAp(ty), _) => InHole(NoType(BadTrivAp(ty)))
-  | (IsMulti, _) => NotInHole(Syn(Unknown(Internal)))
+  | (IsMulti, _) => NotInHole(Syn(Unknown(Internal) |> Typ.temp))
   | (NoJoin(wrap, tys), Ana(ana)) =>
-    let syn: Typ.t = Self.join_of(wrap, Unknown(Internal));
+    let syn: Typ.t = Self.join_of(wrap, Unknown(Internal) |> Typ.temp);
     switch (Typ.join_fix(ctx, ana, syn)) {
     | None => InHole(Inconsistent(Expectation({ana, syn})))
     | Some(_) =>
@@ -370,8 +384,20 @@ let rec status_common =
     InHole(Inconsistent(Internal(Typ.of_source(tys))))
   };
 
-let status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
+let rec status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
   switch (mode, self) {
+  | (_, Redundant(self)) =>
+    let additional_err =
+      switch (status_pat(ctx, mode, self)) {
+      | InHole(Common(Inconsistent(Internal(_) | Expectation(_))) as err)
+      | InHole(Common(NoType(_)) as err) => Some(err)
+      | NotInHole(_) => None
+      | InHole(Common(Inconsistent(WithArrow(_))))
+      | InHole(ExpectedConstructor | Redundant(_)) =>
+        // ExpectedConstructor cannot be a reason to hole-wrap the entire pattern
+        failwith("InHole(Redundant(impossible_err))")
+      };
+    InHole(Redundant(additional_err));
   | (Syn | SynTypFun | Ana(_), Common(self_pat))
   | (SynFun, Common(IsConstructor(_) as self_pat)) =>
     /* Little bit of a hack. Anything other than a bound ctr will, in
@@ -391,9 +417,24 @@ let status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
    depending on the mode, which represents the expectations of the
    surrounding syntactic context, and the self which represents the
    makeup of the expression / pattern itself. */
-let status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
+let rec status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
   switch (self, mode) {
   | (Free(name), _) => InHole(FreeVariable(name))
+  | (InexhaustiveMatch(self), _) =>
+    let additional_err =
+      switch (status_exp(ctx, mode, self)) {
+      | InHole(Common(Inconsistent(Internal(_)) as inconsistent_err)) =>
+        Some(inconsistent_err)
+      | NotInHole(_)
+      | InHole(Common(Inconsistent(Expectation(_) | WithArrow(_)))) => None /* Type checking should fail and these errors would be nullified */
+      | InHole(Common(NoType(_)))
+      | InHole(
+          FreeVariable(_) | InexhaustiveMatch(_) | UnusedDeferral |
+          BadPartialAp(_),
+        ) =>
+        failwith("InHole(InexhaustiveMatch(impossible_err))")
+      };
+    InHole(InexhaustiveMatch(additional_err));
   | (IsDeferral(InAp), Ana(ana)) => NotInHole(AnaDeferralConsistent(ana))
   | (IsDeferral(_), _) => InHole(UnusedDeferral)
   | (IsBadPartialAp(_ as info), _) => InHole(BadPartialAp(info))
@@ -411,14 +452,11 @@ let status_exp = (ctx: Ctx.t, mode: Mode.t, self: Self.exp): status_exp =>
    separate sort. It also determines semantic properties
    such as whether or not a type variable reference is
    free, and whether a ctr name is a dupe. */
-let status_typ =
-    (ctx: Ctx.t, expects: typ_expects, term: TermBase.UTyp.t, ty: Typ.t)
-    : status_typ =>
-  switch (term.term) {
-  | Invalid(token) => InHole(BadToken(token))
-  | EmptyHole => NotInHole(Type(ty))
-  | Var(name)
-  | Constructor(name) =>
+let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
+  switch (ty.term) {
+  | Unknown(Hole(Invalid(token))) => InHole(BadToken(token))
+  | Unknown(Hole(EmptyHole)) => NotInHole(Type(ty))
+  | Var(name) =>
     switch (expects) {
     | VariantExpected(Unique, sum_ty)
     | ConstructorExpected(Unique, sum_ty) =>
@@ -431,20 +469,20 @@ let status_typ =
       | false =>
         switch (Ctx.is_abstract(ctx, name)) {
         | false => InHole(FreeTypeVariable(name))
-        | true => NotInHole(Type(Var(name)))
+        | true => NotInHole(Type(Var(name) |> Typ.temp))
         }
       | true => NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
       }
     }
-  | Ap(t1, t2) =>
+  | Ap(t1, ty_in) =>
     switch (expects) {
     | VariantExpected(status_variant, ty_variant) =>
-      let ty_in = UTyp.to_typ(ctx, t2);
       switch (status_variant, t1.term) {
-      | (Unique, Var(name) | Constructor(name)) =>
-        NotInHole(Variant(name, Arrow(ty_in, ty_variant)))
-      | _ => NotInHole(VariantIncomplete(Arrow(ty_in, ty_variant)))
-      };
+      | (Unique, Var(name)) =>
+        NotInHole(Variant(name, Arrow(ty_in, ty_variant) |> Typ.temp))
+      | _ =>
+        NotInHole(VariantIncomplete(Arrow(ty_in, ty_variant) |> Typ.temp))
+      }
     | ConstructorExpected(_) => InHole(WantConstructorFoundAp)
     | TypeExpected => InHole(WantTypeFoundAp)
     }
@@ -456,7 +494,7 @@ let status_typ =
     }
   };
 
-let status_tpat = (ctx: Ctx.t, utpat: UTPat.t): status_tpat =>
+let status_tpat = (ctx: Ctx.t, utpat: TPat.t): status_tpat =>
   switch (utpat.term) {
   | EmptyHole => NotInHole(Empty)
   | Var(name) when Ctx.shadows_typ(ctx, name) =>
@@ -486,8 +524,8 @@ let is_error = (ci: t): bool => {
     | InHole(_) => true
     | NotInHole(_) => false
     }
-  | InfoTyp({expects, ctx, term, ty, _}) =>
-    switch (status_typ(ctx, expects, term, ty)) {
+  | InfoTyp({expects, ctx, term, _}) =>
+    switch (status_typ(ctx, expects, term)) {
     | InHole(_) => true
     | NotInHole(_) => false
     }
@@ -501,7 +539,7 @@ let is_error = (ci: t): bool => {
 };
 
 /* Determined the type of an expression or pattern 'after hole fixing';
-   that is, all ill-typed terms are considered to be 'wrapped in
+   that is, some ill-typed terms are considered to be 'wrapped in
    non-empty holes', i.e. assigned Unknown type. */
 let fixed_typ_ok: ok_pat => Typ.t =
   fun
@@ -509,15 +547,63 @@ let fixed_typ_ok: ok_pat => Typ.t =
   | Ana(Consistent({join, _})) => join
   | Ana(InternallyInconsistent({ana, _})) => ana;
 
-let fixed_typ_pat = (ctx, mode: Mode.t, self: Self.pat): Typ.t =>
+let fixed_typ_err_common: error_common => Typ.t =
+  fun
+  | NoType(_) => Unknown(Internal) |> Typ.temp
+  | Inconsistent(Expectation({ana, _})) => ana
+  | Inconsistent(Internal(_)) => Unknown(Internal) |> Typ.temp // Should this be some sort of meet?
+  | Inconsistent(WithArrow(_)) =>
+    Arrow(Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp)
+    |> Typ.temp;
+
+let fixed_typ_err: error_exp => Typ.t =
+  fun
+  | FreeVariable(_) => Unknown(Internal) |> Typ.temp
+  | UnusedDeferral => Unknown(Internal) |> Typ.temp
+  | BadPartialAp(_) => Unknown(Internal) |> Typ.temp
+  | InexhaustiveMatch(_) => Unknown(Internal) |> Typ.temp
+  | Common(err) => fixed_typ_err_common(err);
+
+let fixed_typ_err_pat: error_pat => Typ.t =
+  fun
+  | ExpectedConstructor => Unknown(Internal) |> Typ.temp
+  | Redundant(_) => Unknown(Internal) |> Typ.temp
+  | Common(err) => fixed_typ_err_common(err);
+
+let fixed_typ_pat = (ctx, mode: Mode.t, self: Self.pat): Typ.t => {
+  // TODO: get rid of unwrapping (probably by changing the implementation of error_exp.Redundant)
+  let self =
+    switch (self) {
+    | Redundant(self) => self
+    | _ => self
+    };
   switch (status_pat(ctx, mode, self)) {
-  | InHole(_) => Unknown(Internal)
+  | InHole(err) => fixed_typ_err_pat(err)
   | NotInHole(ok) => fixed_typ_ok(ok)
+  };
+};
+
+let fixed_constraint_pat =
+    (
+      upat: UPat.t,
+      ctx,
+      mode: Mode.t,
+      self: Self.pat,
+      constraint_: Constraint.t,
+    )
+    : Constraint.t =>
+  switch (upat.term) {
+  | Cast(_) => constraint_
+  | _ =>
+    switch (fixed_typ_pat(ctx, mode, self) |> Typ.term_of) {
+    | Unknown(_) => Constraint.Hole
+    | _ => constraint_
+    }
   };
 
 let fixed_typ_exp = (ctx, mode: Mode.t, self: Self.exp): Typ.t =>
   switch (status_exp(ctx, mode, self)) {
-  | InHole(_) => Unknown(Internal)
+  | InHole(err) => fixed_typ_err(err)
   | NotInHole(AnaDeferralConsistent(ana)) => ana
   | NotInHole(Common(ok)) => fixed_typ_ok(ok)
   };
@@ -533,11 +619,34 @@ let derived_exp =
 
 /* Add derivable attributes for pattern terms */
 let derived_pat =
-    (~upat: UPat.t, ~ctx, ~co_ctx, ~mode, ~ancestors, ~self): pat => {
+    (
+      ~upat: UPat.t,
+      ~ctx,
+      ~co_ctx,
+      ~prev_synswitch,
+      ~mode,
+      ~ancestors,
+      ~self,
+      ~constraint_,
+    )
+    : pat => {
   let cls = Cls.Pat(UPat.cls_of_term(upat.term));
   let status = status_pat(ctx, mode, self);
   let ty = fixed_typ_pat(ctx, mode, self);
-  {cls, self, mode, ty, status, ctx, co_ctx, ancestors, term: upat};
+  let constraint_ = fixed_constraint_pat(upat, ctx, mode, self, constraint_);
+  {
+    cls,
+    self,
+    prev_synswitch,
+    mode,
+    ty,
+    status,
+    ctx,
+    co_ctx,
+    ancestors,
+    term: upat,
+    constraint_,
+  };
 };
 
 /* Add derivable attributes for types */
@@ -545,17 +654,17 @@ let derived_typ = (~utyp: UTyp.t, ~ctx, ~ancestors, ~expects): typ => {
   let cls: Cls.t =
     /* Hack to improve CI display */
     switch (expects, UTyp.cls_of_term(utyp.term)) {
-    | (VariantExpected(_), Var) => Cls.Typ(Constructor)
+    | (VariantExpected(_) | ConstructorExpected(_), Var) =>
+      Cls.Typ(Constructor)
     | (_, cls) => Cls.Typ(cls)
     };
-  let ty = UTyp.to_typ(ctx, utyp);
-  let status = status_typ(ctx, expects, utyp, ty);
-  {cls, ctx, ancestors, status, expects, ty, term: utyp};
+  let status = status_typ(ctx, expects, utyp);
+  {cls, ctx, ancestors, status, expects, term: utyp};
 };
 
 /* Add derivable attributes for type patterns */
-let derived_tpat = (~utpat: UTPat.t, ~ctx, ~ancestors): tpat => {
-  let cls = Cls.TPat(UTPat.cls_of_term(utpat.term));
+let derived_tpat = (~utpat: TPat.t, ~ctx, ~ancestors): tpat => {
+  let cls = Cls.TPat(TPat.cls_of_term(utpat.term));
   let status = status_tpat(ctx, utpat);
   {cls, ancestors, status, ctx, term: utpat};
 };
@@ -567,13 +676,18 @@ let get_binding_site = (info: t): option(Id.t) => {
   | InfoExp({term: {term: Var(name), _}, ctx, _}) =>
     let+ entry = Ctx.lookup_var(ctx, name);
     entry.id;
-  | InfoExp({term: {term: Constructor(name), _}, ctx, _})
-  | InfoPat({term: {term: Constructor(name), _}, ctx, _}) =>
+  | InfoExp({term: {term: Constructor(name, _), _}, ctx, _})
+  | InfoPat({term: {term: Constructor(name, _), _}, ctx, _}) =>
     let+ entry = Ctx.lookup_ctr(ctx, name);
     entry.id;
   | InfoTyp({term: {term: Var(name), _}, ctx, _}) =>
-    let+ entry = Ctx.lookup_tvar(ctx, name);
-    entry.id;
+    Ctx.lookup_tvar_id(ctx, name)
   | _ => None
   };
 };
+
+let typ_is_constructor_expected = t =>
+  switch (t) {
+  | {expects: ConstructorExpected(_) | VariantExpected(_), _} => true
+  | _ => false
+  };

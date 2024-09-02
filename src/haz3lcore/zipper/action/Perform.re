@@ -1,21 +1,17 @@
 open Util;
 open Zipper;
 
-let is_write_action = (a: Action.t) => {
-  switch (a) {
-  | Move(_)
-  | MoveToNextHole(_)
-  | Unselect(_)
-  | Jump(_)
-  | Select(_) => false
-  | Destruct(_)
-  | Insert(_)
-  | Pick_up
-  | Put_down
-  | RotateBackpack
-  | MoveToBackpackTarget(_) => true
+let buffer_clear = (z: t): t =>
+  switch (z.selection.mode) {
+  | Buffer(_) => {...z, selection: Selection.mk([])}
+  | _ => z
   };
-};
+
+let set_buffer = (info_map: Statics.Map.t, z: t): t =>
+  switch (TyDi.set_buffer(~info_map, z)) {
+  | None => z
+  | Some(z) => z
+  };
 
 let go_z =
     (
@@ -28,49 +24,114 @@ let go_z =
   let meta =
     switch (meta) {
     | Some(m) => m
-    | None => Editor.Meta.init(z)
+    | None => Editor.Meta.init(z, ~settings)
     };
   module M = (val Editor.Meta.module_of_t(meta));
   module Move = Move.Make(M);
   module Select = Select.Make(M);
 
-  let select_term_current = z =>
-    switch (Indicated.index(z)) {
-    | None => Error(Action.Failure.Cant_select)
-    | Some(id) =>
-      switch (Select.term(id, z)) {
-      | Some(z) => Ok(z)
-      | None => Error(Action.Failure.Cant_select)
+  let paste = (z: Zipper.t, str: string): option(Zipper.t) => {
+    open Util.OptUtil.Syntax;
+    let* z = Printer.zipper_of_string(~zipper_init=z, str);
+    /* HACK(andrew): Insert/Destruct below is a hack to deal
+       with the fact that pasting something like "let a = b in"
+       won't trigger the barfing of the "in"; to trigger this,
+       we insert a space, and then we immediately delete it */
+    let* z = Insert.go(" ", z);
+    let+ z = Destruct.go(Left, z);
+    remold_regrout(Left, z);
+  };
+
+  let buffer_accept = (z): option(Zipper.t) =>
+    switch (z.selection.mode) {
+    | Normal => None
+    | Buffer(Unparsed) =>
+      switch (TyDi.get_buffer(z)) {
+      | None => None
+      | Some(completion)
+          when StringUtil.match(StringUtil.regexp(".*\\)::$"), completion) =>
+        /* Slightly hacky. There's currently only one genre of completion
+         * that creates more than one hole on intial expansion: when on eg
+         * 1 :: a|, we suggest "abs( )::" via lookahead. In such a case we
+         * want the caret to end up to the left of the first hole, whereas
+         * pasting would leave it to the left of the second. Thus we move
+         * left to the previous hole. */
+        let z = {
+          open OptUtil.Syntax;
+          let* z = paste(z, completion);
+          let* z = Move.go(Goal(Piece(Grout, Left)), z);
+          Move.go(Local(Left(ByToken)), z);
+        };
+        z;
+      | Some(completion) => paste(z, completion)
       }
     };
 
+  let smart_select = (n, z): option(Zipper.t) => {
+    switch (n) {
+    | 2 => Select.indicated_token(z)
+    | 3 =>
+      open OptUtil.Syntax;
+      /* For things where triple-clicking would otherwise have
+       * no additional effect, select the parent term instead */
+      let* (p, _, _) = Indicated.piece''(z);
+      Piece.is_term(p)
+        ? Select.parent_of_indicated(z, meta.statics.info_map)
+        : Select.nice_term(z);
+    | _ => None
+    };
+  };
+
   switch (a) {
+  | Paste(clipboard) =>
+    switch (paste(z, clipboard)) {
+    | None => Error(CantPaste)
+    | Some(z) => Ok(z)
+    }
+  | Cut =>
+    /* System clipboard handling is done in Page.view handlers */
+    switch (Destruct.go(Left, z)) {
+    | None => Error(Cant_destruct)
+    | Some(z) => Ok(z)
+    }
+  | Copy =>
+    /* System clipboard handling itself is done in Page.view handlers.
+     * This doesn't change state but is included here for logging purposes */
+    Ok(z)
+  | Reparse =>
+    switch (Printer.reparse(z)) {
+    | None => Error(CantReparse)
+    | Some(z) => Ok(z)
+    }
+  | Buffer(Set(TyDi)) => Ok(set_buffer(meta.statics.info_map, z))
+  | Buffer(Accept) =>
+    switch (buffer_accept(z)) {
+    | None => Error(CantAccept)
+    | Some(z) => Ok(z)
+    }
+  | Buffer(Clear) => Ok(buffer_clear(z))
+  | Project(a) =>
+    ProjectorPerform.go(
+      Move.jump_to_id_indicated,
+      Move.jump_to_side_of_id,
+      a,
+      z,
+    )
   | Move(d) =>
     Move.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move)
-  | MoveToNextHole(d) =>
-    Move.go(Goal(Piece(Grout, d)), z)
-    |> Result.of_option(~error=Action.Failure.Cant_move)
   | Jump(jump_target) =>
-    open OptUtil.Syntax;
-
-    let idx = Indicated.index(z);
-    let (term, _) =
-      Util.TimeUtil.measure_time("Perform.go_z => MakeTerm.from_zip", true, () =>
-        MakeTerm.from_zip_for_view(z)
-      );
-    let statics = Interface.Statics.mk_map(settings, term);
-
     (
       switch (jump_target) {
       | BindingSiteOfIndicatedVar =>
-        let* idx = idx;
-        let* ci = Id.Map.find_opt(idx, statics);
+        open OptUtil.Syntax;
+        let* idx = Indicated.index(z);
+        let* ci = Id.Map.find_opt(idx, meta.statics.info_map);
         let* binding_id = Info.get_binding_site(ci);
         Move.jump_to_id(z, binding_id);
       | TileId(id) => Move.jump_to_id(z, id)
       }
     )
-    |> Result.of_option(~error=Action.Failure.Cant_move);
+    |> Result.of_option(~error=Action.Failure.Cant_move)
   | Unselect(Some(d)) => Ok(Zipper.directional_unselect(d, z))
   | Unselect(None) =>
     let z = Zipper.directional_unselect(z.selection.focus, z);
@@ -84,42 +145,16 @@ let go_z =
       }
     | None => Error(Action.Failure.Cant_select)
     }
-  | Select(Term(Current)) => select_term_current(z)
-  | Select(Smart) =>
-    /* If the current tile is not coincident with the term,
-       select the term. Otherwise, select the parent term. */
-    let tile_is_term =
-      switch (Indicated.index(z)) {
-      | None => false
-      | Some(id) => Select.tile(id, z) == Select.term(id, z)
-      };
-    if (!tile_is_term) {
-      select_term_current(z);
-    } else {
-      //PERF: this is expensive
-      let (term, _) = MakeTerm.from_zip_for_view(z);
-      let statics = Interface.Statics.mk_map(settings, term);
-      let target =
-        switch (
-          Indicated.index(z)
-          |> OptUtil.and_then(idx => Id.Map.find_opt(idx, statics))
-        ) {
-        | Some(ci) =>
-          switch (Info.ancestors_of(ci)) {
-          | [] => None
-          | [parent, ..._] => Some(parent)
-          }
-        | None => None
-        };
-      switch (target) {
-      | None => Error(Action.Failure.Cant_select)
-      | Some(id) =>
-        switch (Select.term(id, z)) {
-        | Some(z) => Ok(z)
-        | None => Error(Action.Failure.Cant_select)
-        }
-      };
-    };
+  | Select(Term(Current)) =>
+    switch (Select.current_term(z)) {
+    | None => Error(Cant_select)
+    | Some(z) => Ok(z)
+    }
+  | Select(Smart(n)) =>
+    switch (smart_select(n, z)) {
+    | None => Error(Cant_select)
+    | Some(z) => Ok(z)
+    }
   | Select(Term(Id(id, d))) =>
     switch (Select.term(id, z)) {
     | Some(z) =>
@@ -128,13 +163,9 @@ let go_z =
     | None => Error(Action.Failure.Cant_select)
     }
   | Select(Tile(Current)) =>
-    switch (Indicated.index(z)) {
-    | None => Error(Action.Failure.Cant_select)
-    | Some(id) =>
-      switch (Select.tile(id, z)) {
-      | Some(z) => Ok(z)
-      | None => Error(Action.Failure.Cant_select)
-      }
+    switch (Select.current_tile(z)) {
+    | None => Error(Cant_select)
+    | Some(z) => Ok(z)
     }
   | Select(Tile(Id(id, d))) =>
     switch (Select.tile(id, z)) {
@@ -184,15 +215,45 @@ let go_z =
   };
 };
 
+let go_history =
+    (~settings: CoreSettings.t, a: Action.t, ed: Editor.t)
+    : Action.Result.t(Editor.t) => {
+  open Result.Syntax;
+  /* This function records action history */
+  let Editor.State.{zipper, meta} = ed.state;
+  let+ z = go_z(~settings, ~meta, a, zipper);
+  Editor.new_state(~settings, a, z, ed);
+};
+
 let go =
     (~settings: CoreSettings.t, a: Action.t, ed: Editor.t)
     : Action.Result.t(Editor.t) =>
-  if (ed.read_only && is_write_action(a)) {
-    Result.Ok(ed);
-  } else {
+  /* This function wraps assistant completions. If completions are enabled,
+   * then beginning any action (other than accepting a completion) clears
+   * the completion buffer before performing the action. Conversely,
+   * after any edit action, a new completion is set in the buffer */
+  if (ed.read_only && Action.prevent_in_read_only_editor(a)) {
+    Ok(ed);
+  } else if (settings.assist && settings.statics) {
     open Result.Syntax;
-    let Editor.State.{zipper, meta} = ed.state;
-    Effect.s_clear();
-    let+ z = go_z(~settings, ~meta, a, zipper);
-    Editor.new_state(~effects=Effect.s^, a, z, ed);
+    let ed =
+      a == Buffer(Accept)
+        ? ed
+        : (
+          switch (go_history(~settings, Buffer(Clear), ed)) {
+          | Ok(ed) => ed
+          | Error(_) => ed
+          }
+        );
+    let* ed = go_history(~settings, a, ed);
+    Action.is_edit(a)
+      ? {
+        switch (go_history(~settings, Buffer(Set(TyDi)), ed)) {
+        | Error(err) => Error(err)
+        | Ok(ed) => Ok(ed)
+        };
+      }
+      : Ok(ed);
+  } else {
+    go_history(~settings, a, ed);
   };

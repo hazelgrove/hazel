@@ -1,4 +1,5 @@
-open Sexplib.Std;
+open Util;
+
 open Haz3lcore;
 
 // TODO Make unified way of using consistent metavariables for syntactic forms
@@ -84,6 +85,8 @@ type example_id =
   | List(list_examples)
   | TypFun(typfun_examples)
   | Fun(fun_examples)
+  | Fix1
+  | Fix2
   | Tuple1
   | Tuple2
   | Let(let_examples)
@@ -115,7 +118,9 @@ type example_id =
   | FilterEval
   | FilterHide
   | FilterDebug
-  | FilterSelector;
+  | FilterSelector
+  | Undefined1
+  | Undefined2;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type example = {
@@ -150,6 +155,7 @@ type form_id =
   | EmptyHoleExp
   | MultiHoleExp
   | TrivExp
+  | UndefinedExp
   | DeferralExp
   | BoolExp
   | IntExp
@@ -166,6 +172,7 @@ type form_id =
   | Tuple2Exp
   | Tuple3Exp
   | LetExp(pat_sub_form_id)
+  | FixExp(pat_sub_form_id)
   | TypFunApExp
   | FunApExp
   | ConApExp
@@ -173,8 +180,8 @@ type form_id =
   | IfExp
   | SeqExp
   | TestExp
-  | UnOpExp(Term.UExp.op_un)
-  | BinOpExp(Term.UExp.op_bin)
+  | UnOpExp(Operators.op_un)
+  | BinOpExp(Operators.op_bin)
   | CaseExp
   | TyAliasExp
   | EmptyHolePat
@@ -241,6 +248,7 @@ type group_id =
   | EmptyHoleExp
   | MultiHoleExp
   | TrivExp
+  | UndefinedExp
   | DeferralExp
   | BoolExp
   | IntExp
@@ -258,14 +266,15 @@ type group_id =
   | Tuple3Exp
   | LetExp(pat_sub_form_id)
   | TypFunApExp
+  | FixExp(pat_sub_form_id)
   | FunApExp
   | ConApExp
   | DeferredApExp
   | IfExp
   | SeqExp
   | TestExp
-  | UnOpExp(Term.UExp.op_un)
-  | BinOpExp(Term.UExp.op_bin)
+  | UnOpExp(Operators.op_un)
+  | BinOpExp(Operators.op_bin)
   | CaseExp
   | TyAliasExp
   | PipelineExp

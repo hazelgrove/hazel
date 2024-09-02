@@ -1,4 +1,4 @@
-open Sexplib.Std;
+open Util;
 
 /**
   The result of a program evaluation. Includes the {!type:EvaluatorResult.t},
@@ -7,7 +7,7 @@ open Sexplib.Std;
  */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type inner = {
-  result: EvaluatorResult.t,
+  result: Evaluator.Result.t,
   state: EvaluatorState.t,
 };
 
@@ -19,10 +19,10 @@ type error =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
-  | Off(DHExp.t) //elab
+  | Off(Elaborator.Elaboration.t)
   | ResultOk(inner)
   | ResultFail(error)
   | ResultPending;
 
-let get_dhexp = (r: inner) => EvaluatorResult.unbox(r.result);
+let get_dhexp = (r: inner) => Evaluator.Result.unbox(r.result);
 let get_state = (r: inner) => r.state;

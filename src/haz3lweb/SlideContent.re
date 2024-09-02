@@ -6,23 +6,27 @@ let img = create("img");
 let slide = (header, content) =>
   div(
     ~key="slide",
-    ~attr=Attr.class_("slide"),
+    ~attrs=[Attr.class_("slide")],
     [
-      h1(~key="header", ~attr=Attr.class_("slide-header"), [text(header)]),
-      div(~key="content", ~attr=Attr.class_("slide-content"), content),
+      h1(
+        ~key="header",
+        ~attrs=[Attr.class_("slide-header")],
+        [text(header)],
+      ),
+      div(~key="content", ~attrs=[Attr.class_("slide-content")], content),
     ],
   );
 
-let code = content => span(~attr=Attr.class_("code"), [text(content)]);
+let code = content => span(~attrs=[Attr.class_("code")], [text(content)]);
 
-let em = content => span(~attr=Attr.class_("em"), [text(content)]);
+let em = content => span(~attrs=[Attr.class_("em")], [text(content)]);
 
 let get_content =
   fun
-  | Documentation("Programming Expressively", _) =>
+  | Documentation("Expressive Programming", _) =>
     Some(
       slide(
-        "Programming Expressively",
+        "Expressive Programming",
         [
           p([
             text(
@@ -47,10 +51,10 @@ let get_content =
         ],
       ),
     )
-  | Documentation("Composing Arithmetic Expressions", _) =>
+  | Documentation("Composing Expressions", _) =>
     Some(
       slide(
-        "Composing Arithmetic Expressions",
+        "Composing Expressions",
         [
           p([
             text("Arithmetic expressions are constructed "),

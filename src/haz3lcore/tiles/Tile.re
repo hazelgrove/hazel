@@ -22,7 +22,6 @@ let has_end = (d: Direction.t, t) =>
   | Left => l_shard(t) == 0
   | Right => r_shard(t) == List.length(t.label) - 1
   };
-let has_ends = t => has_end(Left, t) && has_end(Right, t);
 
 let nibs = (t: t) => {
   let (l, _) = Mold.nibs(~index=l_shard(t), t.mold);
@@ -54,9 +53,6 @@ let contained_children = (t: t): list((t, Base.segment, t)) =>
        let r = {...t, shards: [r], children: []};
        (l, child, r);
      });
-
-// let remold = (t: t): list(t) =>
-//   Molds.get(t.label) |> List.map(mold => {...t, mold});
 
 let split_shards = (id, label, mold, shards) =>
   shards |> List.map(i => {id, label, mold, shards: [i], children: []});
@@ -105,54 +101,3 @@ let pop_r = (tile: t): (segment, piece) =>
   disassemble(tile)
   |> ListUtil.split_last_opt
   |> OptUtil.get_or_raise(Empty_tile);
-
-// let unique_mold = _ => failwith("todo unique_mold");
-
-// module Match = {
-//   type tile = t;
-
-//   module Make = (O: Orientation.S) => {
-//     [@deriving (show({with_path: false}), sexp, yojson)]
-//     type t = Aba.t(Shard.t, segment);
-
-//     let id = (m: t) => Aba.hd(m).tile_id;
-
-//     let label = (m: t) => snd(Aba.hd(m).label);
-
-//     let shards: t => list(Shard.t) = Aba.get_as;
-//     // let children: t => list(segment) = Aba.get_bs;
-
-//     let length = (m: t) => List.length(shards(m));
-
-//     let mold = (m: t) => {
-//       let molds =
-//         switch (Shard.consistent_molds(shards(m))) {
-//         | [] =>
-//           // this should only happen upon construct/destruct,
-//           // in which case everything will be subsequently remolded
-//           Molds.get(label(m))
-//         | [_, ..._] as molds => molds
-//         };
-//       assert(molds != []);
-//       List.hd(molds);
-//     };
-
-//     let children = m =>
-//       List.map(ListUtil.rev_if(O.d == Left), Aba.get_bs(m));
-
-//     let join = (m: t): segment =>
-//       m |> Aba.join(s => [Shard.to_piece(s)], Fun.id) |> List.flatten;
-
-//     let complete = (m: t): option(tile) => {
-//       let id = id(m);
-//       let label = label(m);
-//       let mold = mold(m);
-//       length(m) == Label.length(label)
-//         ? {
-//           let children = ListUtil.rev_if(O.d == Left, children(m));
-//           Some(Base.Tile.{id, label, mold, children});
-//         }
-//         : None;
-//     };
-//   };
-// };

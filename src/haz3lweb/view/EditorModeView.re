@@ -4,19 +4,20 @@ open Widgets;
 
 let option_view = (name, n) =>
   option(
-    ~attr=n == name ? Attr.create("selected", "selected") : Attr.many([]),
+    ~attrs=n == name ? [Attr.create("selected", "selected")] : [],
     [text(n)],
   );
 
 let mode_menu = (~inject: Update.t => 'a, ~mode: Settings.mode) =>
   div(
-    ~attr=Attr.many([Attr.class_("mode-name"), Attr.title("Toggle Mode")]),
+    ~attrs=[Attr.class_("mode-name"), Attr.title("Toggle Mode")],
     [
       select(
-        ~attr=
+        ~attrs=[
           Attr.on_change((_, name) =>
             inject(Set(Mode(Settings.mode_of_string(name))))
           ),
+        ],
         List.map(
           option_view(Settings.show_mode(mode)),
           ["Scratch", "Documentation", "Exercises"],
@@ -36,7 +37,7 @@ let slide_select = (~inject, ~cur_slide, ~num_slides) => {
 };
 
 let scratch_view = (~inject, ~cur_slide, ~slides) =>
-  [mode_menu(~inject, ~mode=Scratch)]
+  [text("/"), mode_menu(~inject, ~mode=Scratch), text("/")]
   @ slide_select(~inject, ~cur_slide, ~num_slides=List.length(slides));
 
 let documentation_view = (~inject, ~name, ~editors) => {
@@ -52,7 +53,7 @@ let documentation_view = (~inject, ~name, ~editors) => {
     | [x, y, z, ..._] when name == y => (Some(x), Some(z))
     | [_, ...ys] => find_prev_next(ys);
   let (prev, next) = find_prev_next(editor_names);
-  let prev =
+  let _prev =
     prev
     |> Option.map(s =>
          button(Icons.back, _ => inject(Update.SwitchDocumentationSlide(s)))
@@ -65,7 +66,7 @@ let documentation_view = (~inject, ~name, ~editors) => {
              ~disabled=true,
            ),
        );
-  let next =
+  let _next =
     next
     |> Option.map(s =>
          button(Icons.forward, _ =>
@@ -81,16 +82,17 @@ let documentation_view = (~inject, ~name, ~editors) => {
            ),
        );
   [
+    text("/"),
     mode_menu(~inject, ~mode=Documentation),
-    prev,
+    text("/"),
     select(
-      ~attr=
+      ~attrs=[
         Attr.on_change((_, name) =>
           inject(Update.SwitchDocumentationSlide(name))
         ),
+      ],
       List.map(option_view(name), editor_names),
     ),
-    next,
   ];
 };
 
@@ -104,8 +106,9 @@ let instructor_toggle = (~inject, ~instructor_mode) =>
     : [];
 
 let exercises_view = (~inject, ~cur_slide, ~specs, ~instructor_mode) => {
-  [mode_menu(~inject, ~mode=Exercises)]
+  [text("/"), mode_menu(~inject, ~mode=Exercises), text("/")]
   @ instructor_toggle(~inject, ~instructor_mode)
+  @ [text("/")]
   @ slide_select(~inject, ~cur_slide, ~num_slides=List.length(specs));
 };
 
@@ -125,5 +128,5 @@ let view =
     | Exercises(cur_slide, specs, _) =>
       exercises_view(~cur_slide, ~specs, ~inject, ~instructor_mode)
     };
-  div(~attr=Attr.id("editor-mode"), contents);
+  div(~attrs=[Attr.id("editor-mode")], contents);
 };

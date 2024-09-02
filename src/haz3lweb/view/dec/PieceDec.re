@@ -4,106 +4,96 @@ open Virtual_dom.Vdom;
 open Node;
 open SvgUtil;
 
-let run: Nib.Shape.t => float =
-  fun
-  | Convex => +. DecUtil.short_tip_width
-  | Concave(_) => -. DecUtil.short_tip_width;
+type tip = option(Nib.Shape.t);
 
-let adj: Nib.Shape.t => float =
-  fun
-  | Convex => DecUtil.convex_adj
-  | Concave(_) => DecUtil.concave_adj;
-
-let l_hook = (l: Nib.Shape.t): list(Path.cmd) => [
-  H_({dx: -. adj(l)}),
-  L_({dx: -. run(l), dy: (-0.5)}),
-  L_({dx: +. run(l), dy: (-0.5)}),
-  H_({dx: +. adj(l)}),
-];
-
-let r_hook = (r: Nib.Shape.t): list(Path.cmd) => [
-  H_({dx: +. adj(r)}),
-  L_({dx: +. run(r), dy: 0.5}),
-  L_({dx: -. run(r), dy: 0.5}),
-  H_({dx: -. adj(r)}),
-];
-
-let simple_shard_path = ((l, r): Nibs.shapes, length: int): list(Path.cmd) =>
-  List.flatten(
-    Path.[
-      [m(~x=0, ~y=0), h(~x=length)],
-      r_hook(r),
-      [h(~x=0)],
-      l_hook(l),
-    ],
-  );
+type shard_dims = {
+  font_metrics: FontMetrics.t,
+  measurement: Measured.measurement,
+  tips: (option(Nib.Shape.t), option(Nib.Shape.t)),
+};
 
 let simple_shard =
     (
-      ~font_metrics,
-      ~shapes,
-      ~path_cls,
-      ~base_cls,
-      ~fudge=DecUtil.fzero,
-      measurement: Measured.measurement,
+      {font_metrics, tips: (l, r), measurement}: shard_dims,
+      ~absolute=true,
+      classes,
     )
     : t =>
   DecUtil.code_svg_sized(
     ~font_metrics,
     ~measurement,
-    ~base_cls,
-    ~path_cls,
-    ~fudge,
-    simple_shard_path(shapes, measurement.last.col - measurement.origin.col),
+    ~base_cls=["shard"] @ classes,
+    ~path_cls=[],
+    ~absolute,
+    DecUtil.shard_path(
+      (
+        Option.map(Nib.Shape.direction_of(Left), l),
+        Option.map(Nib.Shape.direction_of(Right), r),
+      ),
+      measurement.last.col - measurement.origin.col,
+      measurement.last.row - measurement.origin.row,
+    ),
   );
 
-let simple_shard_selected =
-    (~font_metrics, ~shapes, ~measurement: Measured.measurement, ~buffer): t => {
-  let path_cls = [
-    "tile-path",
-    "raised",
-    buffer ? "selected-buffer" : "selected",
-  ];
-  let base_cls = ["tile-selected"];
+let relative_shard = (shard_dims: shard_dims) =>
+  simple_shard(~absolute=false, shard_dims, []);
+
+let tips_of_shapes = ((l, r): (Nib.Shape.t, Nib.Shape.t)): (tip, tip) => (
+  Some(l),
+  Some(r),
+);
+
+let simple_shard_indicated = (shard_dims, ~sort: Sort.t, ~at_caret: bool): t =>
   simple_shard(
-    /* Increase height slightly to avoid leaving spaces between selected lines */
-    ~fudge={height: 0.3, top: 0., width: 0., left: 0.},
-    ~font_metrics,
-    ~shapes,
-    ~path_cls,
-    ~base_cls,
-    measurement,
+    shard_dims,
+    ["indicated", Sort.to_string(sort)] @ (at_caret ? ["caret"] : []),
   );
-};
-
-let simple_shard_indicated =
-    (
-      ~font_metrics,
-      ~has_caret,
-      ~shapes,
-      ~sort,
-      ~measurement: Measured.measurement,
-    )
-    : t => {
-  let path_cls =
-    ["tile-path", "raised", Sort.to_string(sort)]
-    @ (has_caret ? ["indicated-caret"] : ["indicated"]);
-  let base_cls = ["tile-indicated"];
-  simple_shard(~font_metrics, ~shapes, ~path_cls, ~base_cls, measurement);
-};
 
 let simple_shards_indicated =
-    (~font_metrics: FontMetrics.t, ~caret: (Id.t, int), (id, mold, shards))
+    (~font_metrics: FontMetrics.t, (id, mold, shards), ~caret: (Id.t, int))
     : list(t) =>
   List.map(
     ((index, measurement)) =>
       simple_shard_indicated(
-        ~font_metrics,
-        ~has_caret=caret == (id, index),
-        ~shapes=Mold.nib_shapes(~index, mold),
+        {
+          font_metrics,
+          measurement,
+          tips: tips_of_shapes(Mold.nib_shapes(~index, mold)),
+        },
         ~sort=mold.out,
-        ~measurement,
+        ~at_caret=caret == (id, index),
       ),
+    shards,
+  );
+
+let simple_shard_selected = (shard_dims, buffer): t =>
+  simple_shard(shard_dims, ["selected"] @ (buffer ? ["buffer"] : []));
+
+let simple_shards_selected =
+    (~font_metrics: FontMetrics.t, mold, buffer, shards) =>
+  List.map(
+    ((index, measurement)) =>
+      simple_shard_selected(
+        {
+          font_metrics,
+          measurement,
+          tips: tips_of_shapes(Mold.nib_shapes(~index, mold)),
+        },
+        buffer,
+      ),
+    shards,
+  );
+
+let simple_shard_error = simple_shard(_, ["error"]);
+
+let simple_shards_errors = (~font_metrics: FontMetrics.t, mold, shards) =>
+  List.map(
+    ((index, measurement)) =>
+      simple_shard_error({
+        font_metrics,
+        measurement,
+        tips: tips_of_shapes(Mold.nib_shapes(~index, mold)),
+      }),
     shards,
   );
 
@@ -117,6 +107,17 @@ let shards_of_tiles = tiles =>
        Measured.Point.compare(m1.origin, m2.origin)
      );
 
+let rep_tips = (tiles: list((Id.t, Mold.t, Measured.Shards.t))) => {
+  assert(tiles != []);
+  let (_, rep_mold, _) = List.hd(tiles);
+  let (l, r) = rep_mold.nibs;
+  let (l, r) = tips_of_shapes((l.shape, r.shape));
+  (
+    Option.map(Nib.Shape.direction_of(Left), l),
+    Option.map(Nib.Shape.direction_of(Right), r),
+  );
+};
+
 let bi_lines =
     (
       ~font_metrics: FontMetrics.t,
@@ -124,37 +125,48 @@ let bi_lines =
       tiles: list((Id.t, Mold.t, Measured.Shards.t)),
     )
     : list(t) => {
+  let (dl, dr) = rep_tips(tiles);
   let shards = shards_of_tiles(tiles);
   let shard_rows = Measured.Shards.split_by_row(shards);
   let intra_lines =
     shard_rows
     |> List.map(ListUtil.neighbors)
     |> List.concat_map(
-         List.map(
-           (((_, l: Measured.measurement), (_, r: Measured.measurement))) =>
+         List.mapi(
+           (
+             i,
+             ((_, l: Measured.measurement), (_, r: Measured.measurement)),
+           ) => {
+           let offset = i == 0 ? -. DecUtil.shard_offset(dl) : 0.;
+           let length =
+             i == 0
+               ? DecUtil.shard_length(r.origin.col - l.origin.col, dl, dr)
+                 +. 0.2
+               : float_of_int(r.origin.col - l.origin.col) +. 0.2;
            (
              l.origin,
              SvgUtil.Path.[
-               shadowfudge(m(~x=0, ~y=1)),
-               h(~x=r.last.col - l.origin.col),
+               shadowfudge(M({x: offset, y: 1.0})),
+               H({x: length}),
              ],
-           )
-         ),
+           );
+         }),
        );
   let inter_lines =
     ListUtil.neighbors(shard_rows)
-    |> List.map(
-         ((row_shards: Measured.Shards.t, row_shards': Measured.Shards.t)) => {
+    |> List.mapi(
+         (i, (row_shards: Measured.Shards.t, row_shards': Measured.Shards.t)) => {
          assert(row_shards != []);
          assert(row_shards' != []);
          let origin = snd(List.hd(row_shards)).origin;
          let origin' = snd(List.hd(row_shards')).origin;
          let indent = Measured.Rows.find(origin.row, rows).indent;
          let v_delta = origin'.col == indent ? (-1) : 0;
+         let offset = i == 0 ? -. DecUtil.shard_offset(dl) : 0.;
          (
            origin,
            SvgUtil.Path.[
-             shadowfudge(m(~x=0, ~y=1)),
+             shadowfudge(M({x: offset, y: 1.0})),
              h_(~dx=indent - origin.col),
              shadowfudge(v_(~dy=origin'.row - origin.row + v_delta)),
              h_(~dx=origin'.col - indent),
@@ -184,6 +196,10 @@ let uni_lines =
     ) => {
   open SvgUtil.Path;
   let shards = shards_of_tiles(tiles);
+  let (dl, _) = rep_tips(tiles);
+  let offset = -. DecUtil.shard_offset(dl);
+  let hook_dx = DecUtil.short_tip_width /. 2.;
+  let hook_dy = DecUtil.short_tip_height /. 4.;
   let l_line = {
     let (_, m_first) = List.hd(shards);
     let (_, m_last_of_first) = {
@@ -206,16 +222,9 @@ let uni_lines =
           ? (
             m_first.origin,
             [
-              shadowfudge(m(~x=0, ~y=1)),
+              shadowfudge(M({x: 0., y: 1.0})),
               h(~x=l.col - m_first.origin.col),
-              L_({
-                dx: -. DecUtil.short_tip_width,
-                dy: -. DecUtil.short_tip_height /. 2. //hack
-              }),
-              //L_({
-              //  dx: DecUtil.short_tip_width,
-              //  dy: -. DecUtil.short_tip_height,
-              //}),
+              L_({dx: -. hook_dx, dy: -. hook_dy}),
             ],
           )
           : (
@@ -229,7 +238,7 @@ let uni_lines =
                   shadowfudge(v(~y=l.row - m_last_of_first.origin.row)),
                 ]
                 : [
-                  shadowfudge(m(~x=0, ~y=1)),
+                  shadowfudge(M({x: offset, y: 1.0})),
                   h(~x=indent - m_first.origin.col),
                   shadowfudge(v(~y=l.row + 1 - m_first.origin.row)),
                   h(~x=max_col - m_first.origin.col),
@@ -238,11 +247,7 @@ let uni_lines =
             )
             @ [
               h(~x=l.col - m_first.origin.col),
-              L_({
-                dx: -. DecUtil.short_tip_width,
-                dy: DecUtil.short_tip_height /. 2. //hack
-              }),
-              //L_({dx: DecUtil.short_tip_width, dy: DecUtil.short_tip_height}),
+              L_({dx: -. hook_dx, dy: hook_dy}),
             ],
           ),
       ];
@@ -252,13 +257,7 @@ let uni_lines =
   };
   let r_line = {
     let (_, m_last) = ListUtil.last(shards);
-    let hook = [
-      L_({
-        dx: DecUtil.short_tip_width,
-        dy: -. DecUtil.short_tip_height /. 2. //hack
-      }),
-      //L_({dx: -. DecUtil.short_tip_width, dy: -. DecUtil.short_tip_height}),
-    ];
+    let hook = [L_({dx: hook_dx, dy: -. hook_dy})];
     if (r.row == m_last.last.row && r.col > m_last.last.col) {
       [
         (
@@ -282,7 +281,6 @@ let uni_lines =
           rows,
         )
         |> min(m_last.last.col);
-      // let r_indent = Measured.Rows.find(r.row, rows).indent;
       let (_, m_flast) = {
         let shard_rows = Measured.Shards.split_by_row(shards);
         assert(shard_rows != []);
@@ -290,13 +288,15 @@ let uni_lines =
         assert(row != []);
         List.hd(row);
       };
-      // let flast_indent = Measured.Rows.find(m_flast.origin.row, rows).indent;
       [
         (
           m_flast.origin,
           [
             shadowfudge(
-              m(~x=0, ~y=m_flast.last.row - m_flast.origin.row + 1),
+              M({
+                x: offset,
+                y: float_of_int(m_flast.last.row - m_flast.origin.row + 1),
+              }),
             ),
             h(~x=min_col - m_flast.origin.col),
             shadowfudge(v(~y=r.row - m_flast.origin.row + 1)),

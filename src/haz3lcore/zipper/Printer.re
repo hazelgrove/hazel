@@ -1,13 +1,6 @@
 open Util;
 open Util.OptUtil.Syntax;
 
-[@deriving (show({with_path: false}), yojson)]
-type t = {
-  code: list(string),
-  selection: list(string),
-  backpack: list(list(string)),
-};
-
 let seg_of_zip = Zipper.seg_without_buffer;
 
 let rec of_segment = (~holes, seg: Segment.t): string =>
@@ -20,6 +13,7 @@ and of_piece = (~holes, p: Piece.t): string =>
   | Grout({shape: Convex, _}) => " "
   | Secondary(w) =>
     Secondary.is_linebreak(w) ? "\n" : Secondary.get_string(w.content)
+  | Projector(p) => of_piece(~holes, p.syntax)
   }
 and of_tile = (~holes, t: Tile.t): string =>
   Aba.mk(t.shards, t.children)
@@ -39,7 +33,7 @@ let to_rows =
     (
       ~holes: option(string),
       ~measured: Measured.t,
-      ~caret: option(Measured.Point.t),
+      ~caret: option(Point.t),
       ~indent: string,
       ~segment: Segment.t,
     )
@@ -60,30 +54,33 @@ let to_rows =
   };
 };
 
-let pretty_print = (~measured: Measured.t, z: Zipper.t): string =>
+let measured = z =>
+  z |> Zipper.seg_without_buffer |> Measured.of_segment(_, Id.Map.empty);
+
+let pretty_print = (~holes: option(string)=Some(""), z: Zipper.t): string =>
   to_rows(
-    ~holes=None,
-    ~measured,
+    ~holes,
+    ~measured=measured(z),
     ~caret=None,
     ~indent=" ",
     ~segment=seg_of_zip(z),
   )
   |> String.concat("\n");
 
-let to_string_editor =
-    (~holes: option(string)=Some(""), editor: Editor.t): string =>
+let zipper_to_string =
+    (~holes: option(string)=Some(""), z: Zipper.t): string =>
   to_rows(
     ~holes,
-    ~measured=editor.state.meta.measured,
+    ~measured=measured(z),
     ~caret=None,
     ~indent="",
-    ~segment=seg_of_zip(editor.state.zipper),
+    ~segment=seg_of_zip(z),
   )
   |> String.concat("\n");
 
 let to_string_selection = (editor: Editor.t): string =>
   to_rows(
-    ~measured=editor.state.meta.measured,
+    ~measured=measured(editor.state.zipper),
     ~caret=None,
     ~indent=" ",
     ~holes=None,
@@ -91,43 +88,11 @@ let to_string_selection = (editor: Editor.t): string =>
   )
   |> String.concat("\n");
 
-let to_log = (~measured: Measured.t, z: Zipper.t): t => {
-  code:
-    to_rows(
-      ~holes=None,
-      ~measured,
-      ~caret=Some(Zipper.caret_point(measured, z)),
-      ~indent=" ",
-      ~segment=seg_of_zip(z),
-    ),
-  selection: z.selection.content |> of_segment(~holes=None) |> lines_to_list,
-  backpack:
-    List.map(
-      (s: Selection.t) =>
-        s.content |> of_segment(~holes=None) |> lines_to_list,
-      z.backpack,
-    ),
-};
-
-let to_log_flat = (~measured, z: Zipper.t): string => {
-  let {code, selection, backpack} = to_log(~measured, z);
-  Printf.sprintf(
-    "CODE:\n%s\nSELECTION:\n%s\n%s\n",
-    String.concat("\n", code),
-    String.concat("\n", selection),
-    backpack
-    |> List.mapi((i, b) =>
-         Printf.sprintf("BP(%d):\n %s\n", i, String.concat("\n", b))
-       )
-    |> String.concat(""),
-  );
-};
-
 let zipper_of_string =
     (~zipper_init=Zipper.init(), str: string): option(Zipper.t) => {
   let insert = (z: option(Zipper.t), c: string): option(Zipper.t) => {
     let* z = z;
-    try(c == "\r" ? Some(z) : Insert.go(c == "\n" ? Form.linebreak : c, z)) {
+    try(c == "\r" ? Some(z) : Insert.go(c, z)) {
     | exn =>
       print_endline("WARN: zipper_of_string: " ++ Printexc.to_string(exn));
       None;
@@ -136,19 +101,8 @@ let zipper_of_string =
   str |> Util.StringUtil.to_list |> List.fold_left(insert, Some(zipper_init));
 };
 
-let paste_into_zip = (z: Zipper.t, str: string): option(Zipper.t) => {
-  /* HACK(andrew): These two perform calls are a hack to
-     deal with the fact that pasting something like "let a = b in"
-     won't trigger the barfing of the "in"; to trigger this, we
-     insert a space, and then we immediately delete it. */
-  let settings = CoreSettings.off;
-  let* z = zipper_of_string(~zipper_init=z, str);
-  switch (Perform.go_z(~settings, Insert(" "), z)) {
-  | Error(_) => None
-  | Ok(z) =>
-    switch (Perform.go_z(~settings, Destruct(Left), z)) {
-    | Error(_) => None
-    | Ok(z) => Some(z)
-    }
-  };
-};
+/* This serializes the current editor to text, resets the current
+   editor, and then deserializes. It is intended as a (tactical)
+   nuclear option for weird backpack states */
+let reparse = z =>
+  zipper_of_string(~zipper_init=Zipper.init(), zipper_to_string(z));

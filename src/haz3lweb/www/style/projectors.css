@@ -1,0 +1,165 @@
+/* PROJECTORS */
+
+/* Turn off caret when a block projector is focused */
+#caret:has(~ .projectors .projector.block *:focus) {
+  display: none;
+}
+
+/* Default projector styles */
+
+.projector {
+  position: absolute;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: var(--BR2);
+}
+.projector > *:not(svg) {
+  z-index: var(--projector-z);
+}
+.projector > svg {
+  z-index: var(--projector-backing-z);
+  fill: var(--shard_projector);
+}
+.projector.block > svg {
+  stroke-width: 0.5px;
+  stroke: var(--BR2);
+}
+.projector.indicated > svg {
+  fill: var(--shard-caret-exp);
+}
+.projector > svg > path {
+  vector-effect: non-scaling-stroke;
+}
+.projector.block.selected > svg > path {
+  vector-effect: non-scaling-stroke;
+  stroke: var(--Y3);
+}
+.projector.selected > svg,
+.projector.selected.indicated > svg,
+.projector.block.selected.indicated > svg {
+  fill: var(--shard-selected);
+}
+
+/* PROJECTOR: FOLD */
+
+.projector.fold:hover,
+.projector.indicated.fold {
+  color: --var(BLACK);
+}
+.projector.fold {
+  cursor: pointer;
+}
+
+/* PROJECTOR: INFO */
+
+.projector.type .type {
+  color: var(--token-typ);
+}
+.projector.type {
+  cursor: pointer;
+}
+.projector.type .info {
+  display: flex;
+}
+.projector.type:hover {
+  color: var(--BLACK);
+}
+
+/* PROJECTOR: CHECKBOX */
+
+.projector.check input {
+  margin: 0;
+  filter: sepia(1);
+  cursor: pointer;
+  outline: none;
+}
+.projector.check:not(.indicated):not(:hover) > svg {
+  fill: var(--NONE);
+}
+
+/* PROJECTOR: SLIDERS (INT & FLOAT) */
+
+.projector.slider input,
+.projector.sliderf input {
+  margin: 0;
+  filter: sepia(1);
+  cursor: pointer;
+  outline: none;
+  width: 90%;
+}
+.projector.slider:not(.indicated):not(:hover) > svg,
+.projector.sliderf:not(.indicated):not(:hover) > svg {
+  fill: var(--NONE);
+}
+
+/* PROJECTOR: TEXTAREA */
+
+.projector.text {
+  cursor: default;
+}
+
+.projector.text .wrapper {
+  height: 100%;
+  width: 100%;
+  border-radius: 0.1em;
+}
+
+.projector.text.indicated .cols,
+.projector.text:has(textarea:focus) .cols {
+  color: var(--R1);
+}
+
+.projector.text.indicated > svg {
+  fill: var(--textarea-indicated);
+}
+
+.projector.text .cols {
+  height: 100%;
+  margin-left: 2px;
+  margin-right: 2px;
+  display: flex;
+  border-radius: 0 0.1em 0.1em 0.1em;
+  color: var(--SAND);
+  background: repeating-linear-gradient(
+    var(--NONE),
+    var(--NONE) 1.41em,
+    var(--textarea-h-stripe) 1.41em,
+    var(--textarea-h-stripe) 1.47em /* line-height */
+  );
+}
+
+.projector.text.selected .cols {
+  background: repeating-linear-gradient(
+    var(--NONE),
+    var(--NONE) 1.41em,
+    var(--textarea-h-strip-selected) 1.41em,
+    var(--textarea-h-strip-selected) 1.47em /* line-height */
+  );
+}
+.projector.text.selected > svg {
+  z-index: 9;
+}
+
+.projector.text textarea {
+  outline: none;
+  resize: none;
+  width: 100%;
+  caret-color: var(--caret-color);
+  padding: 0;
+  margin: 0;
+  margin-left: -2px;
+  line-height: var(--line-height);
+  font-family: var(--code-font);
+  font-size: inherit;
+  border: none;
+  color: var(--textarea-text);
+  background: none;
+  box-shadow: inset 1px 0 0 var(--textarea-v-stripe);
+  overflow: hidden; /* hack: scrolls in chrome without this? */
+}
+
+.projector.text textarea::selection {
+  color: var(--BLACK);
+  background-color: var(--shard-selected);
+}
