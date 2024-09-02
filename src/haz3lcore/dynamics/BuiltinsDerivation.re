@@ -5,29 +5,40 @@ open Derivation.Prop;
 // typeclass for Prop.t. Note that the typeclass is not used anywhere. It is
 // just for reference.
 
-// ALFp logic
+// ALFA logic
 type typ =
   | Num
   | Bool
   | Arrow(typ, typ)
   | Prod(typ, typ)
-  | Unit;
+  | Unit
+  | Sum(typ, typ)
+  | TVar(string)
+  | Rec(tpat, typ)
+and tpat =
+  | TPat(string);
 type expr =
   | NumLit(int)
-  | True
-  | False
   | UnOp(unop, expr)
   | BinOp(binop, expr, expr)
+  | True
+  | False
   | If(expr, expr, expr)
   | Var(string)
   | Let(pat, expr, expr)
+  | Fix(pat, expr)
   | Fun(pat, expr)
   | Ap(expr, expr)
   | Pair(expr, expr)
-  | LetPair(pat, pat, expr, expr)
+  | Triv
   | PrjL(expr)
   | PrjR(expr)
-  | Triv
+  | LetPair(pat, pat, expr, expr)
+  | InjL(expr)
+  | InjR(expr)
+  | Case(expr, pat, expr, pat, expr)
+  | Roll(expr)
+  | Unroll(expr)
 and pat =
   | Pat(string)
   | PatAnn(string, typ)
@@ -44,6 +55,8 @@ and binop =
 type prop =
   // ALFp exclusive
   | HasType(expr, typ)
+  | Syn(expr, typ)
+  | Ana(expr, typ)
   // Propositional logic
   | Atom(string)
   | And(prop, prop)
@@ -93,7 +106,6 @@ let cls_to_arg_typ: cls => list(Typ.t) =
   | Triv => []
   | Pat => [String |> Typ.fresh]
   | PatAnn => [String |> Typ.fresh, Type |> alias_fresh]
-  | HasType => [Expr |> alias_fresh, Type |> alias_fresh]
   // ALF
   | NumLit => [Int |> Typ.fresh]
   | True
@@ -113,6 +125,9 @@ let cls_to_arg_typ: cls => list(Typ.t) =
   | OpMinus
   | OpTimes => []
   // Propositional logic
+  | HasType => [Expr |> alias_fresh, Type |> alias_fresh]
+  | Syn => [Expr |> alias_fresh, Type |> alias_fresh]
+  | Ana => [Expr |> alias_fresh, Type |> alias_fresh]
   | Atom => [String |> Typ.fresh]
   | And
   | Or
@@ -167,6 +182,8 @@ let cls_to_alias: cls => alias =
   | OpMinus
   | OpTimes => BinOp
   | HasType
+  | Syn
+  | Ana
   | Atom
   | And
   | Or
@@ -426,6 +443,12 @@ and match_dhexp: (cls, option(DHExp.t)) => t =
     | (OpPlus, []) => OpPlus |> fresh
     | (OpMinus, []) => OpMinus |> fresh
     | (OpTimes, []) => OpTimes |> fresh
+    | (Syn, [d1, d2]) =>
+      let (e, ty) = (prop_of_dhexp(d1), prop_of_dhexp(d2));
+      Syn(e, ty) |> fresh;
+    | (Ana, [d1, d2]) =>
+      let (e, ty) = (prop_of_dhexp(d1), prop_of_dhexp(d2));
+      Ana(e, ty) |> fresh;
     | (Val, [d]) => Val(prop_of_dhexp(d)) |> fresh
     | (Eval, [d1, d2]) =>
       let (e1, e2) = (prop_of_dhexp(d1), prop_of_dhexp(d2));
@@ -461,6 +484,8 @@ and match_dhexp: (cls, option(DHExp.t)) => t =
     | (OpPlus, _)
     | (OpMinus, _)
     | (OpTimes, _)
+    | (Syn, _)
+    | (Ana, _)
     | (Val, _)
     | (Eval, _) => Hole("Argument Error") |> fresh
 
