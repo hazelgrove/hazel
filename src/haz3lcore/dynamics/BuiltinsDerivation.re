@@ -5,6 +5,28 @@ open Derivation.Prop;
 // typeclass for Prop.t. Note that the typeclass is not used anywhere. It is
 // just for reference.
 
+// ALF logic
+type expr =
+  | NumLit(int)
+  | True
+  | False
+  | UnOp(unop, expr)
+  | BinOp(binop, expr, expr)
+  | If(expr, expr, expr)
+  | Var(string)
+  | Let(string, expr, expr)
+  | Fun(string, expr)
+  | Ap(expr, expr)
+and unop =
+  | OpNeg
+and binop =
+  | OpLt
+  | OpGt
+  | OpEq
+  | OpPlus
+  | OpMinus
+  | OpTimes;
+
 // Propositional logic
 type prop =
   | Atom(string)
@@ -14,23 +36,11 @@ type prop =
   | Truth
   | Falsity;
 
-// AL logic
-type expr =
-  | NumLit(int)
-  | UnOp(unop, expr)
-  | BinOp(binop, expr, expr)
-and unop =
-  | OpNeg
-and binop =
-  | OpPlus
-  | OpMinus
-  | OpTimes;
-
 // Judgements (the outermost layer of this syntax)
 type judgement =
-  | Entail(list(prop), prop)
   | Val(expr)
-  | Eval(expr, expr);
+  | Eval(expr, expr)
+  | Entail(list(prop), prop);
 
 // The following code is the implementation of the typeclass for Prop.t.
 
@@ -49,23 +59,34 @@ let cls_to_arg_typ: cls => list(Typ.t) =
   | Hole => failwith("impossible")
 
   | NumLit => [Int |> Typ.fresh]
-  | Val => [Expr |> alias_fresh]
+  | True
+  | False => []
+  | If => [Expr |> alias_fresh, Expr |> alias_fresh, Expr |> alias_fresh]
+  | Var => [String |> Typ.fresh]
+  | Let => [String |> Typ.fresh, Expr |> alias_fresh, Expr |> alias_fresh]
+  | Fun => [String |> Typ.fresh, Expr |> alias_fresh]
+  | Ap => [Expr |> alias_fresh, Expr |> alias_fresh]
   | UnOp => [UnOp |> alias_fresh, Expr |> alias_fresh]
   | BinOp => [BinOp |> alias_fresh, Expr |> alias_fresh, Expr |> alias_fresh]
   | OpNeg
+  | OpLt
+  | OpGt
+  | OpEq
   | OpPlus
   | OpMinus
   | OpTimes => []
-  | Eval => [Expr |> alias_fresh, Expr |> alias_fresh]
-
+  // Propositional logic
   | Atom => [String |> Typ.fresh]
   | And
   | Or
   | Implies => [Prop |> alias_fresh, Prop |> alias_fresh]
   | Truth
   | Falsity => []
-  | Entail => [List(Prop |> alias_fresh) |> Typ.fresh, Prop |> alias_fresh]
-  | Ctx => failwith("impossible");
+  | Ctx => failwith("impossible")
+  // Judgements
+  | Val => [Expr |> alias_fresh]
+  | Eval => [Expr |> alias_fresh, Expr |> alias_fresh]
+  | Entail => [List(Prop |> alias_fresh) |> Typ.fresh, Prop |> alias_fresh];
 
 let cls_to_arg_typ: cls => option(Typ.t) =
   cls =>
@@ -80,9 +101,19 @@ let cls_to_alias: cls => alias =
   | Hole => failwith("impossible")
 
   | NumLit
+  | True
+  | False
+  | If
+  | Var
+  | Let
+  | Fun
+  | Ap
   | UnOp
   | BinOp => Expr
   | OpNeg => UnOp
+  | OpLt
+  | OpGt
+  | OpEq
   | OpPlus
   | OpMinus
   | OpTimes => BinOp
@@ -110,14 +141,26 @@ let cls_to_typ: cls => Typ.t =
 
 let all: list(cls) = [
   NumLit,
-  Val,
+  True,
+  False,
+  If,
+  Var,
+  Let,
+  Fun,
+  Ap,
   UnOp,
   BinOp,
   OpNeg,
+  OpLt,
+  OpGt,
+  OpEq,
   OpPlus,
   OpMinus,
   OpTimes,
+  // ALFA outer syntax
+  Val,
   Eval,
+  // Propositional logic
   Atom,
   And,
   Or,
@@ -149,12 +192,7 @@ let add_tvar_entries = ctx => {
     | [pair, ...rest] => [pair, ...add_to_list(rest, cls)]
     };
   };
-  let map =
-    List.fold_left(
-      add_to_list,
-      [],
-      all,
-    );
+  let map = List.fold_left(add_to_list, [], all);
   List.fold_left(
     (ctx, (alias, cls)) => {
       let name = show_alias(alias);
@@ -222,15 +260,52 @@ and match_dhexp: (cls, option(DHExp.t)) => t =
         }
       };
     switch (ctr, arg) {
+    | (Hole, _)
+    | (Ctx, _) => Hole("Unexpected Ctr") |> fresh
+    // ALF logic
     | (NumLit, [d]) =>
-      let. n = switch (DHExp.term_of(d)) {
-      | Int(n) => Some(n)
-      | _ => None
-      }
+      let. n =
+        switch (DHExp.term_of(d)) {
+        | Int(n) => Some(n)
+        | _ => None
+        };
       NumLit(n) |> fresh;
-    | (Val, [d]) => 
-      Val(prop_of_dhexp(d)) |> fresh
-    | (UnOp,[d1, d2]) =>
+    | (True, []) => True |> fresh
+    | (False, []) => False |> fresh
+    | (If, [d1, d2, d3]) =>
+      let (e1, e2, e3) = (
+        prop_of_dhexp(d1),
+        prop_of_dhexp(d2),
+        prop_of_dhexp(d3),
+      );
+      If(e1, e2, e3) |> fresh;
+    | (Var, [d]) =>
+      let. var =
+        switch (DHExp.term_of(d)) {
+        | String(var) => Some(var)
+        | _ => None
+        };
+      Var(var) |> fresh;
+    | (Let, [d1, d2, d3]) =>
+      let. var =
+        switch (DHExp.term_of(d1)) {
+        | String(var) => Some(var)
+        | _ => None
+        };
+      let (e1, e2) = (prop_of_dhexp(d2), prop_of_dhexp(d3));
+      Let(var, e1, e2) |> fresh;
+    | (Fun, [d1, d2]) =>
+      let. var =
+        switch (DHExp.term_of(d1)) {
+        | String(var) => Some(var)
+        | _ => None
+        };
+      let e = prop_of_dhexp(d2);
+      Fun(var, e) |> fresh;
+    | (Ap, [d1, d2]) =>
+      let (e1, e2) = (prop_of_dhexp(d1), prop_of_dhexp(d2));
+      Ap(e1, e2) |> fresh;
+    | (UnOp, [d1, d2]) =>
       let (op, e) = (prop_of_dhexp(d1), prop_of_dhexp(d2));
       UnOp(op, e) |> fresh;
     | (BinOp, [d1, d2, d3]) =>
@@ -241,19 +316,44 @@ and match_dhexp: (cls, option(DHExp.t)) => t =
       );
       BinOp(op, e1, e2) |> fresh;
     | (OpNeg, []) => OpNeg |> fresh
+    | (OpLt, []) => OpLt |> fresh
+    | (OpGt, []) => OpGt |> fresh
+    | (OpEq, []) => OpEq |> fresh
     | (OpPlus, []) => OpPlus |> fresh
     | (OpMinus, []) => OpMinus |> fresh
     | (OpTimes, []) => OpTimes |> fresh
+    | (Val, [d]) => Val(prop_of_dhexp(d)) |> fresh
     | (Eval, [d1, d2]) =>
       let (e1, e2) = (prop_of_dhexp(d1), prop_of_dhexp(d2));
       Eval(e1, e2) |> fresh;
 
-    | (Atom, [d]) => 
-      let. atom = switch (DHExp.term_of(d)) {
-      | String(atom) => Some(atom)
-      | _ => None
-      }
-      Atom(atom) |> fresh
+    | (NumLit, _)
+    | (True, _)
+    | (False, _)
+    | (If, _)
+    | (Var, _)
+    | (Let, _)
+    | (Fun, _)
+    | (Ap, _)
+    | (UnOp, _)
+    | (BinOp, _)
+    | (OpNeg, _)
+    | (OpLt, _)
+    | (OpGt, _)
+    | (OpEq, _)
+    | (OpPlus, _)
+    | (OpMinus, _)
+    | (OpTimes, _)
+    | (Val, _)
+    | (Eval, _) => Hole("Argument Error") |> fresh
+
+    | (Atom, [d]) =>
+      let. atom =
+        switch (DHExp.term_of(d)) {
+        | String(atom) => Some(atom)
+        | _ => None
+        };
+      Atom(atom) |> fresh;
     | (And, [d1, d2]) =>
       let (p1, p2) = (prop_of_dhexp(d1), prop_of_dhexp(d2));
       And(p1, p2) |> fresh;
@@ -266,15 +366,20 @@ and match_dhexp: (cls, option(DHExp.t)) => t =
     | (Truth, []) => Truth |> fresh
     | (Falsity, []) => Falsity |> fresh
     | (Entail, [d1, d2]) =>
-      let. ctx = switch (DHExp.term_of(d1)) {
+      let. ctx =
+        switch (DHExp.term_of(d1)) {
         | ListLit(l) => Some(l)
         | _ => None
-      }
+        };
       let ctx = List.map(prop_of_dhexp, ctx);
       let p = prop_of_dhexp(d2);
       Entail(Ctx(ctx) |> fresh, p) |> fresh;
-    | _ =>
-      // print_endline("Argument Error: " ++ DHExp.show(d));
-      Hole("Argument Error") |> fresh
+    | (Atom, _)
+    | (And, _)
+    | (Or, _)
+    | (Implies, _)
+    | (Truth, _)
+    | (Falsity, _)
+    | (Entail, _) => Hole("Argument Error") |> fresh
     };
   };
