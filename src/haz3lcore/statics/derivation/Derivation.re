@@ -61,16 +61,16 @@ module Prop = {
     | Hole(string)
     // When DHExp.t not convertable, convert by `e => Hole(DHExp.show(e))`
     // ALFA
-    // | Sum(t, t)
-    // | TVar(string)
-    // | Rec(t, t)
-    // | TPat(string)
-    // | Fix(t, t)
-    // | InjL(t)
-    // | InjR(t)
-    // | Case(t, t, t, t, t)
-    // | Roll(t)
-    // | Unroll(t)
+    | Sum(t, t)
+    | TVar(string)
+    | Rec(t, t)
+    | TPat(string)
+    | Fix(t, t)
+    | InjL(t)
+    | InjR(t)
+    | Case(t, t, t, t, t)
+    | Roll(t)
+    | Unroll(t)
     // ALFp
     | Num
     | Bool
@@ -126,16 +126,16 @@ module Prop = {
   type cls =
     | Hole
     // ALFA
-    // | Sum
-    // | TVar
-    // | Rec
-    // | TPat
-    // | Fix
-    // | InjL
-    // | InjR
-    // | Case
-    // | Roll
-    // | Unroll
+    | Sum
+    | TVar
+    | Rec
+    | TPat
+    | Fix
+    | InjL
+    | InjR
+    | Case
+    | Roll
+    | Unroll
     // ALFp
     | Num
     | Bool
@@ -189,16 +189,16 @@ module Prop = {
       switch (IdTagged.term_of(t)) {
       | Hole(_) => Hole
       // ALFA
-      // | Sum(_) => Sum
-      // | TVar(_) => TVar
-      // | Rec(_) => Rec
-      // | TPat(_) => TPat
-      // | Fix(_) => Fix
-      // | InjL(_) => InjL
-      // | InjR(_) => InjR
-      // | Case(_) => Case
-      // | Roll(_) => Roll
-      // | Unroll(_) => Unroll
+      | Sum(_) => Sum
+      | TVar(_) => TVar
+      | Rec(_) => Rec
+      | TPat(_) => TPat
+      | Fix(_) => Fix
+      | InjL(_) => InjL
+      | InjR(_) => InjR
+      | Case(_) => Case
+      | Roll(_) => Roll
+      | Unroll(_) => Unroll
       // ALFp
       | Num => Num
       | Bool => Bool
@@ -321,27 +321,27 @@ module Prop = {
       switch (IdTagged.term_of(a), IdTagged.term_of(b)) {
       | (Hole(_), _) => false
       // ALFA
-      // | (Sum(a1, a2), Sum(b1, b2)) => eq(a1, b1) && eq(a2, b2)
-      // | (TVar(a), TVar(b)) => String.equal(a, b)
-      // | (Rec(a1, a2), Rec(b1, b2)) => eq(a1, b1) && eq(a2, b2)
-      // | (TPat(a), TPat(b)) => String.equal(a, b)
-      // | (Fix(a1, a2), Fix(b1, b2)) => eq(a1, b1) && eq(a2, b2)
-      // | (InjL(a), InjL(b))
-      // | (InjR(a), InjR(b)) => eq(a, b)
-      // | (Case(a1, a2, a3, a4, a5), Case(b1, b2, b3, b4, b5)) =>
-      //   eq(a1, b1) && eq(a2, b2) && eq(a3, b3) && eq(a4, b4) && eq(a5, b5)
-      // | (Roll(a), Roll(b))
-      // | (Unroll(a), Unroll(b)) => eq(a, b)
-      // | (Sum(_), _)
-      // | (TVar(_), _)
-      // | (Rec(_), _)
-      // | (TPat(_), _)
-      // | (Fix(_), _)
-      // | (InjL(_), _)
-      // | (InjR(_), _)
-      // | (Case(_), _)
-      // | (Roll(_), _)
-      // | (Unroll(_), _) => false
+      | (Sum(a1, a2), Sum(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+      | (TVar(a), TVar(b)) => String.equal(a, b)
+      | (Rec(a1, a2), Rec(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+      | (TPat(a), TPat(b)) => String.equal(a, b)
+      | (Fix(a1, a2), Fix(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+      | (InjL(a), InjL(b))
+      | (InjR(a), InjR(b)) => eq(a, b)
+      | (Case(a1, a2, a3, a4, a5), Case(b1, b2, b3, b4, b5)) =>
+        eq(a1, b1) && eq(a2, b2) && eq(a3, b3) && eq(a4, b4) && eq(a5, b5)
+      | (Roll(a), Roll(b))
+      | (Unroll(a), Unroll(b)) => eq(a, b)
+      | (Sum(_), _)
+      | (TVar(_), _)
+      | (Rec(_), _)
+      | (TPat(_), _)
+      | (Fix(_), _)
+      | (InjL(_), _)
+      | (InjR(_), _)
+      | (Case(_), _)
+      | (Roll(_), _)
+      | (Unroll(_), _) => false
       // ALFp
       | (Num, Num)
       | (Bool, Bool) => true
@@ -452,17 +452,17 @@ module Prop = {
       switch (term) {
       | Hole(_) => e
       // ALFA
-      // | Sum(_)
-      // | TVar(_)
-      // | Rec(_)
-      // | TPat(_) => e
-      // | Fix(x', e1) => Fix(x', subst'(x', e1)) |> rewrap
-      // | InjL(e1) => InjL(subst(e1)) |> rewrap
-      // | InjR(e1) => InjR(subst(e1)) |> rewrap
-      // | Case(e1, x1, e2, x2, e3) =>
-      //   Case(subst(e1), x1, subst'(x1, e2), x2, subst'(x2, e3)) |> rewrap
-      // | Roll(e1) => Roll(subst(e1)) |> rewrap
-      // | Unroll(e1) => Unroll(subst(e1)) |> rewrap
+      | Sum(_)
+      | TVar(_)
+      | Rec(_)
+      | TPat(_) => e
+      | Fix(x', e1) => Fix(x', subst'(x', e1)) |> rewrap
+      | InjL(e1) => InjL(subst(e1)) |> rewrap
+      | InjR(e1) => InjR(subst(e1)) |> rewrap
+      | Case(e1, x1, e2, x2, e3) =>
+        Case(subst(e1), x1, subst'(x1, e2), x2, subst'(x2, e3)) |> rewrap
+      | Roll(e1) => Roll(subst(e1)) |> rewrap
+      | Unroll(e1) => Unroll(subst(e1)) |> rewrap
       // ALFp
       | Num
       | Bool
@@ -520,6 +520,92 @@ module Prop = {
       };
     };
 
+  let rec subst_ty: (t, string, t) => t =
+    (v, x, e) => {
+      let (term, rewrap: term => t) = IdTagged.unwrap(e);
+      let subst_ty = subst_ty(v, x);
+      let is_shadow = (p: t) =>
+        switch (IdTagged.term_of(p)) {
+        | TPat(x') => String.equal(x', x)
+        | _ => false
+        };
+      let subst_ty' = p => is_shadow(p) ? Fun.id : subst_ty;
+      switch (term) {
+      | Hole(_) => e
+      // ALFA
+      | Sum(t1, t2) => Sum(subst_ty(t1), subst_ty(t2)) |> rewrap
+      | TVar(x') => String.equal(x', x) ? v : e
+      | Rec(tp1, t1) => Rec(tp1, subst_ty'(tp1, t1)) |> rewrap
+      | TPat(_) => e
+      | Fix(p1, e1) => Fix(subst_ty(p1), subst_ty(e1)) |> rewrap
+      | InjL(e1) => InjL(subst_ty(e1)) |> rewrap
+      | InjR(e1) => InjR(subst_ty(e1)) |> rewrap
+      | Case(e1, p1, e2, p2, e3) =>
+        Case(
+          subst_ty(e1),
+          subst_ty(p1),
+          subst_ty(e2),
+          subst_ty(p2),
+          subst_ty(e3),
+        )
+        |> rewrap
+      | Roll(e1) => Roll(subst_ty(e1)) |> rewrap
+      | Unroll(e1) => Unroll(subst_ty(e1)) |> rewrap
+      // ALFp
+      | Num
+      | Bool => e
+      | Arrow(t1, t2) => Arrow(subst_ty(t1), subst_ty(t2)) |> rewrap
+      | Prod(t1, t2) => Prod(subst_ty(t1), subst_ty(t2)) |> rewrap
+      | Unit => e
+      | Pair(e1, e2) => Pair(subst_ty(e1), subst_ty(e2)) |> rewrap
+      | LetPair(p1, p2, e1, e2) =>
+        LetPair(subst_ty(p1), subst_ty(p2), subst_ty(e1), subst_ty(e2))
+        |> rewrap
+      | PrjL(e1) => PrjL(subst_ty(e1)) |> rewrap
+      | PrjR(e1) => PrjR(subst_ty(e1)) |> rewrap
+      | Triv => e
+      | Pat(_) => e
+      | PatAnn(x', t1) => PatAnn(x', subst_ty(t1)) |> rewrap
+      // ALF
+      | True
+      | False => e
+      | If(e1, e2, e3) =>
+        If(subst_ty(e1), subst_ty(e2), subst_ty(e3)) |> rewrap
+      | Var(_) => e
+      | Let(p1, e1, e2) =>
+        Let(subst_ty(p1), subst_ty(e1), subst_ty(e2)) |> rewrap
+      | Fun(p1, e1) => Fun(subst_ty(p1), subst_ty(e1)) |> rewrap
+      | Ap(e1, e2) => Ap(subst_ty(e1), subst_ty(e2)) |> rewrap
+      | OpLt
+      | OpGt
+      | OpEq => e
+      // AL
+      | NumLit(_) => e
+      | UnOp(op, e1) => UnOp(op, subst_ty(e1)) |> rewrap
+      | BinOp(op, e1, e2) =>
+        BinOp(op, subst_ty(e1), subst_ty(e2)) |> rewrap
+      | OpNeg
+      | OpPlus
+      | OpMinus
+      | OpTimes => e
+      // ALFA outers (not supported)
+      | HasType(_)
+      | Syn(_)
+      | Ana(_)
+      | Val(_)
+      | Eval(_) => e
+      // Propositional logic (not supported)
+      | Atom(_)
+      | And(_)
+      | Or(_)
+      | Implies(_)
+      | Truth
+      | Falsity
+      | Ctx(_)
+      | Entail(_) => e
+      };
+    };
+
   let in_ctx = (ctx: list(t), prop: t) => {
     List.exists(eq(prop), ctx);
   };
@@ -545,7 +631,22 @@ module Prop = {
 module Rule = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
+    // (future) ALFA + Type Validation + Type Equivalence
+    // (future) ALFA + Type Validation
     // ALFA
+    | A_InjL
+    | A_InjR
+    | E_InjL
+    | E_InjR
+    | A_Case
+    | S_Case
+    | E_Case_L
+    | E_Case_R
+    | E_Fix
+    | T_Roll
+    | T_Unroll
+    | E_Roll
+    | E_Unroll
     // Bidirectional Type System
     | S_Num
     | S_True
@@ -644,6 +745,19 @@ module Rule = {
   let repr =
     fun
     // ALFA
+    | A_InjL => "A-InjL"
+    | A_InjR => "A-InjR"
+    | E_InjL => "E-InjL"
+    | E_InjR => "E-InjR"
+    | A_Case => "A-Case"
+    | S_Case => "S-Case"
+    | E_Case_L => "E-Case-L"
+    | E_Case_R => "E-Case-R"
+    | E_Fix => "E-Fix"
+    | T_Roll => "T-Roll"
+    | T_Unroll => "T-Unroll"
+    | E_Roll => "E-Roll"
+    | E_Unroll => "E-Unroll"
     // Bidirectional Type System
     | S_Num => "S-Num"
     | S_True => "S-True"
@@ -742,6 +856,19 @@ module Rule = {
   let prems_num =
     fun
     // ALFA
+    | A_InjL => 1
+    | A_InjR => 1
+    | E_InjL => 1
+    | E_InjR => 1
+    | A_Case => 3
+    | S_Case => 3
+    | E_Case_L => 2
+    | E_Case_R => 2
+    | E_Fix => 1
+    | T_Roll => 1
+    | T_Unroll => 1
+    | E_Roll => 1
+    | E_Unroll => 1
     // Bidirectional Type System
     | S_Num => 0
     | S_True => 0
@@ -839,6 +966,21 @@ module Rule = {
 
   let all =
     [
+      A_InjL,
+      A_InjR,
+      E_InjL,
+      E_InjR,
+      A_Case,
+      S_Case,
+      E_Case_L,
+      E_Case_R,
+      E_Fix,
+      T_Roll,
+      T_Unroll,
+      E_Roll,
+      E_Unroll,
+    ]
+    @ [
       T_Var,
       T_Let,
       T_LetAnn,
@@ -928,6 +1070,17 @@ module Verify = {
   let rep_ids = List.map(IdTagged.rep_id);
 
   type unbox_req('a) =
+    // ALFA
+    | Sum: unbox_req((t, t))
+    | TVar: unbox_req(string)
+    | Rec: unbox_req((t, t))
+    | TPat: unbox_req(string)
+    | Fix: unbox_req((t, t))
+    | InjL: unbox_req(t)
+    | InjR: unbox_req(t)
+    | Case: unbox_req((t, t, t, t, t))
+    | Roll: unbox_req(t)
+    | Unroll: unbox_req(t)
     // ALFp
     | Num: unbox_req(unit)
     | Bool: unbox_req(unit)
@@ -977,6 +1130,17 @@ module Verify = {
 
   let cls_of_req: type a. unbox_req(a) => Prop.cls =
     fun
+    // ALFA
+    | Sum => Sum
+    | TVar => TVar
+    | Rec => Rec
+    | TPat => TPat
+    | Fix => Fix
+    | InjL => InjL
+    | InjR => InjR
+    | Case => Case
+    | Roll => Roll
+    | Unroll => Unroll
     // ALFp
     | Num => Num
     | Bool => Bool
@@ -1027,6 +1191,17 @@ module Verify = {
   let unbox: type a. (unbox_req(a), t) => result(a, failure) =
     (req, p) => {
       switch (req, IdTagged.term_of(p)) {
+      // ALFA
+      | (Sum, Sum(a, b)) => Ok((a, b))
+      | (TVar, TVar(a)) => Ok(a)
+      | (Rec, Rec(a, b)) => Ok((a, b))
+      | (TPat, TPat(a)) => Ok(a)
+      | (Fix, Fix(a, b)) => Ok((a, b))
+      | (InjL, InjL(a)) => Ok(a)
+      | (InjR, InjR(a)) => Ok(a)
+      | (Case, Case(a, b, c, d, e)) => Ok((a, b, c, d, e))
+      | (Roll, Roll(a)) => Ok(a)
+      | (Unroll, Unroll(a)) => Ok(a)
       // ALFp
       | (Num, Num) => Ok()
       | (Bool, Bool) => Ok()
@@ -1075,6 +1250,16 @@ module Verify = {
       | (Entail, Entail(a, b)) => Ok((a, b))
       | (Ctx, Ctx(a)) => Ok(a)
 
+      | (Sum, _)
+      | (TVar, _)
+      | (Rec, _)
+      | (TPat, _)
+      | (Fix, _)
+      | (InjL, _)
+      | (InjR, _)
+      | (Case, _)
+      | (Roll, _)
+      | (Unroll, _)
       | (Num, _)
       | (Bool, _)
       | (Arrow, _)
@@ -1161,6 +1346,178 @@ module Verify = {
     let$ prems = expect_prems_num(rule, prems);
     switch (rule) {
     // ALFA
+    | A_InjL =>
+      let$ (ctx, p) = unbox(Entail, concl);
+      let$ (el, t) = unbox(Ana, p);
+      let$ e = unbox(InjL, el);
+      let$ (_, tr) = unbox(Sum, t);
+      let$ (ctx', p) = unbox(Entail, prems(0));
+      let$ _ = expect_eq(ctx', ctx);
+      let$ (e', tr') = unbox(Syn, p);
+      let$ _ = expect_eq(e', e);
+      let$ _ = expect_eq(tr', tr);
+      Ok();
+    | A_InjR =>
+      let$ (ctx, p) = unbox(Entail, concl);
+      let$ (er, t) = unbox(Ana, p);
+      let$ e = unbox(InjR, er);
+      let$ (tl, _) = unbox(Sum, t);
+      let$ (ctx', p) = unbox(Entail, prems(0));
+      let$ _ = expect_eq(ctx', ctx);
+      let$ (e', tl') = unbox(Syn, p);
+      let$ _ = expect_eq(e', e);
+      let$ _ = expect_eq(tl', tl);
+      Ok();
+    | E_InjL =>
+      let$ (el, vl') = unbox(Eval, concl);
+      let$ e = unbox(InjL, el);
+      let$ v' = unbox(InjL, vl');
+      let$ (e', v) = unbox(Eval, prems(0));
+      let$ _ = expect_eq(e', e);
+      let$ _ = expect_eq(v', v);
+      Ok();
+    | E_InjR =>
+      let$ (er, vr') = unbox(Eval, concl);
+      let$ e = unbox(InjR, er);
+      let$ v' = unbox(InjR, vr');
+      let$ (e', v) = unbox(Eval, prems(0));
+      let$ _ = expect_eq(e', e);
+      let$ _ = expect_eq(v', v);
+      Ok();
+    | A_Case =>
+      let$ (ctx, p) = unbox(Entail, concl);
+      let$ (e, t) = unbox(Ana, p);
+      let$ (e_scrut, px, el, py, er) = unbox(Case, e);
+      let$ x = unbox(Pat, px);
+      let$ y = unbox(Pat, py);
+      let$ (ctx', p) = unbox(Entail, prems(0));
+      let$ _ = expect_eq(ctx', ctx);
+      let$ (e_scrut', ts) = unbox(Syn, p);
+      let$ _ = expect_eq(e_scrut', e_scrut);
+      let$ (tl, tr) = unbox(Sum, ts);
+      let$ (ctx_x', p) = unbox(Entail, prems(1));
+      let$ _ =
+        expect_eq_after_extend(
+          ctx_x',
+          ctx,
+          HasType(Var(x) |> fresh, tl) |> fresh,
+        );
+      let$ (el', t') = unbox(Ana, p);
+      let$ _ = expect_eq(el', el);
+      let$ _ = expect_eq(t', t);
+      let$ (ctx_y', p) = unbox(Entail, prems(2));
+      let$ _ =
+        expect_eq_after_extend(
+          ctx_y',
+          ctx,
+          HasType(Var(y) |> fresh, tr) |> fresh,
+        );
+      let$ (er', t') = unbox(Ana, p);
+      let$ _ = expect_eq(er', er);
+      let$ _ = expect_eq(t', t);
+      Ok();
+    | S_Case =>
+      let$ (ctx, p) = unbox(Entail, concl);
+      let$ (e, t) = unbox(Syn, p);
+      let$ (e_scrut, px, el, py, er) = unbox(Case, e);
+      let$ x = unbox(Pat, px);
+      let$ y = unbox(Pat, py);
+      let$ (ctx', p) = unbox(Entail, prems(0));
+      let$ _ = expect_eq(ctx', ctx);
+      let$ (e_scrut', ts) = unbox(Syn, p);
+      let$ _ = expect_eq(e_scrut', e_scrut);
+      let$ (tl, tr) = unbox(Sum, ts);
+      let$ (ctx_x', p) = unbox(Entail, prems(1));
+      let$ _ =
+        expect_eq_after_extend(
+          ctx_x',
+          ctx,
+          HasType(Var(x) |> fresh, tl) |> fresh,
+        );
+      let$ (el', t') = unbox(Syn, p);
+      let$ _ = expect_eq(el', el);
+      let$ _ = expect_eq(t', t);
+      let$ (ctx_y', p) = unbox(Entail, prems(2));
+      let$ _ =
+        expect_eq_after_extend(
+          ctx_y',
+          ctx,
+          HasType(Var(y) |> fresh, tr) |> fresh,
+        );
+      let$ (er', t') = unbox(Syn, p);
+      let$ _ = expect_eq(er', er);
+      let$ _ = expect_eq(t', t);
+      Ok();
+    | E_Case_L =>
+      let$ (e, v') = unbox(Eval, concl);
+      let$ (e_scrut, px, el, _py, _er) = unbox(Case, e);
+      let$ x = unbox(Pat, px);
+      let$ (e_scrut', vl) = unbox(Eval, prems(0));
+      let$ _ = expect_eq(e_scrut', e_scrut);
+      let$ v_data = unbox(InjL, vl);
+      let$ (el', v) = unbox(Eval, prems(1));
+      let$ _ = expect_eq(el', subst(v_data, x, el));
+      let$ _ = expect_eq(v', v);
+      Ok();
+    | E_Case_R =>
+      let$ (e, v') = unbox(Eval, concl);
+      let$ (e_scrut, _px, _el, py, er) = unbox(Case, e);
+      let$ y = unbox(Pat, py);
+      let$ (e_scrut', vr) = unbox(Eval, prems(0));
+      let$ _ = expect_eq(e_scrut', e_scrut);
+      let$ v_data = unbox(InjR, vr);
+      let$ (er', v) = unbox(Eval, prems(1));
+      let$ _ = expect_eq(er', subst(v_data, y, er));
+      let$ _ = expect_eq(v', v);
+      Ok();
+    | E_Fix =>
+      let$ (e, v') = unbox(Eval, concl);
+      let$ (pat, e_body) = unbox(Fix, e);
+      let$ x = unbox(Pat, pat);
+      let$ (e_body', v) = unbox(Eval, prems(0));
+      let$ _ = expect_eq(e_body', subst(e, x, e_body));
+      let$ _ = expect_eq(v', v);
+      Ok();
+    | T_Roll =>
+      let$ (ctx, p) = unbox(Entail, concl);
+      let$ (e, t) = unbox(HasType, p);
+      let$ e_body = unbox(Roll, e);
+      let$ (tpat, t_body) = unbox(Rec, t);
+      let$ a = unbox(TPat, tpat);
+      let$ (ctx', p) = unbox(Entail, prems(0));
+      let$ _ = expect_eq(ctx', ctx);
+      let$ (e_body', t_body') = unbox(HasType, p);
+      let$ _ = expect_eq(e_body', e_body);
+      let$ _ = expect_eq(t_body', subst_ty(t, a, t_body));
+      Ok();
+    | T_Unroll =>
+      let$ (ctx, p) = unbox(Entail, concl);
+      let$ (e, t_body') = unbox(HasType, p);
+      let$ e = unbox(Unroll, e);
+      let$ (ctx', p) = unbox(Entail, prems(0));
+      let$ _ = expect_eq(ctx', ctx);
+      let$ (e', t) = unbox(HasType, p);
+      let$ _ = expect_eq(e', e);
+      let$ (tpat, t_body) = unbox(Rec, t);
+      let$ a = unbox(TPat, tpat);
+      let$ _ = expect_eq(t_body', subst_ty(t, a, t_body));
+      Ok();
+    | E_Roll =>
+      let$ (e, v') = unbox(Eval, concl);
+      let$ e = unbox(Roll, e);
+      let$ v' = unbox(Roll, v');
+      let$ (e', v) = unbox(Eval, prems(0));
+      let$ _ = expect_eq(e', e);
+      let$ _ = expect_eq(v', v);
+      Ok();
+    | E_Unroll =>
+      let$ (e, v') = unbox(Eval, concl);
+      let$ e = unbox(Unroll, e);
+      let$ (e', v) = unbox(Eval, prems(0));
+      let$ _ = expect_eq(e', e);
+      let$ v = unbox(Roll, v);
+      let$ _ = expect_eq(v', v);
+      Ok();
     // Bidirectional Type System
     | S_Num =>
       let$ (_, p) = unbox(Entail, concl);
