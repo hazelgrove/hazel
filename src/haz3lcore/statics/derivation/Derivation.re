@@ -8,7 +8,13 @@ open Util;
 
  */
 
-// // ALF logic
+// // ALFp logic
+// type typ =
+//   | Num
+//   | Bool
+//   | Arrow(typ, typ)
+//   | Prod(typ, typ)
+//   | Unit;
 // type expr =
 //   | NumLit(int)
 //   | True
@@ -16,12 +22,18 @@ open Util;
 //   | UnOp(unop, expr)
 //   | BinOp(binop, expr, expr)
 //   | If(expr, expr, expr)
-//   | Var(pat)
+//   | Var(string)
 //   | Let(pat, expr, expr)
 //   | Fun(pat, expr)
 //   | Ap(expr, expr)
+//   | Pair(expr, expr)
+//   | LetPair(pat, pat, expr, expr)
+//   | PrjL(expr)
+//   | PrjR(expr)
+//   | Triv
 // and pat =
-//   | PVar(string)
+//   | Just(string)
+//   | Typed(string, typ)
 // and unop =
 //   | OpNeg
 // and binop =
@@ -37,13 +49,26 @@ module Prop = {
   type term =
     | Hole(string)
     // When DHExp.t not convertable, convert by `e => Hole(DHExp.show(e))`
+    // ALFp
+    | Num
+    | Bool
+    | Arrow(t, t)
+    | Prod(t, t)
+    | Unit
+    | Pair(t, t)
+    | LetPair(t, t, t, t)
+    | PrjL(t)
+    | PrjR(t)
+    | Triv
+    | Pat(string)
+    | PatAnn(string, t)
     // ALF
     | True
     | False
     | If(t, t, t)
     | Var(string)
-    | Let(string, t, t)
-    | Fun(string, t)
+    | Let(t, t, t)
+    | Fun(t, t)
     | Ap(t, t)
     | OpLt
     | OpGt
@@ -57,6 +82,7 @@ module Prop = {
     | OpMinus
     | OpTimes
     // ALFA outers
+    | HasType(t, t)
     | Val(t)
     | Eval(t, t)
     // Propositional logic
@@ -75,6 +101,19 @@ module Prop = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Hole
+    // ALFp
+    | Num
+    | Bool
+    | Arrow
+    | Prod
+    | Unit
+    | Pair
+    | LetPair
+    | PrjL
+    | PrjR
+    | Triv
+    | Pat
+    | PatAnn
     // ALF
     | True
     | False
@@ -94,6 +133,8 @@ module Prop = {
     | OpPlus
     | OpMinus
     | OpTimes
+    // ALFA outers
+    | HasType
     | Val
     | Eval
     // Propositional logic
@@ -110,6 +151,19 @@ module Prop = {
     t =>
       switch (IdTagged.term_of(t)) {
       | Hole(_) => Hole
+      // ALFp
+      | Num => Num
+      | Bool => Bool
+      | Arrow(_) => Arrow
+      | Prod(_) => Prod
+      | Unit => Unit
+      | Pair(_) => Pair
+      | LetPair(_) => LetPair
+      | PrjL(_) => PrjL
+      | PrjR(_) => PrjR
+      | Triv => Triv
+      | Pat(_) => Pat
+      | PatAnn(_) => PatAnn
       // ALF
       | True => True
       | False => False
@@ -129,6 +183,8 @@ module Prop = {
       | OpPlus => OpPlus
       | OpMinus => OpMinus
       | OpTimes => OpTimes
+      // ALFA outers
+      | HasType(_) => HasType
       | Val(_) => Val
       | Eval(_) => Eval
       // Propositional logic
@@ -214,6 +270,33 @@ module Prop = {
     (a, b) =>
       switch (IdTagged.term_of(a), IdTagged.term_of(b)) {
       | (Hole(_), _) => false
+      // ALFp
+      | (Num, Num)
+      | (Bool, Bool) => true
+      | (Arrow(a1, a2), Arrow(b1, b2))
+      | (Prod(a1, a2), Prod(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+      | (Unit, Unit) => true
+      | (Pair(a1, a2), Pair(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+      | (LetPair(a1, a2, a3, a4), LetPair(b1, b2, b3, b4)) =>
+        eq(a1, b1) && eq(a2, b2) && eq(a3, b3) && eq(a4, b4)
+      | (PrjL(a), PrjL(b))
+      | (PrjR(a), PrjR(b)) => eq(a, b)
+      | (Triv, Triv) => true
+      | (Pat(a), Pat(b)) => String.equal(a, b)
+      | (PatAnn(a1, a2), PatAnn(b1, b2)) =>
+        String.equal(a1, b1) && eq(a2, b2)
+      | (Num, _)
+      | (Bool, _)
+      | (Arrow(_), _)
+      | (Prod(_), _)
+      | (Unit, _)
+      | (Pair(_), _)
+      | (LetPair(_), _)
+      | (PrjL(_), _)
+      | (PrjR(_), _)
+      | (Triv, _)
+      | (Pat(_), _)
+      | (PatAnn(_), _) => false
       // ALF
       | (True, True)
       | (False, False) => true
@@ -221,8 +304,8 @@ module Prop = {
         eq(a1, b1) && eq(a2, b2) && eq(a3, b3)
       | (Var(a), Var(b)) => String.equal(a, b)
       | (Let(a1, a2, a3), Let(b1, b2, b3)) =>
-        String.equal(a1, b1) && eq(a2, b2) && eq(a3, b3)
-      | (Fun(a1, a2), Fun(b1, b2)) => String.equal(a1, b1) && eq(a2, b2)
+        eq(a1, b1) && eq(a2, b2) && eq(a3, b3)
+      | (Fun(a1, a2), Fun(b1, b2)) => eq(a1, b1) && eq(a2, b2)
       | (Ap(a1, a2), Ap(b1, b2)) => eq(a1, b1) && eq(a2, b2)
       | (OpLt, OpLt)
       | (OpGt, OpGt)
@@ -254,7 +337,10 @@ module Prop = {
       | (OpNeg, _)
       | (OpPlus, _)
       | (OpMinus, _)
-      | (OpTimes, _)
+      | (OpTimes, _) => false
+      // ALFA outers
+      | (HasType(a1, a2), HasType(b1, b2)) => eq(a1, b1) && eq(a2, b2)
+      | (HasType(_), _)
       | (Val(_), _)
       | (Eval(_), _) => false
       // Propositional logic
@@ -280,18 +366,42 @@ module Prop = {
     (v, x, e) => {
       let (term, rewrap: term => t) = IdTagged.unwrap(e);
       let subst = subst(v, x);
-      // let subst_shadow = x' => (x' == x ? Fun.id : subst);
+      let is_shadow = (p: t) =>
+        switch (IdTagged.term_of(p)) {
+        | Pat(x')
+        | PatAnn(x', _) => String.equal(x', x)
+        | _ => false
+        };
+      let subst' = p => is_shadow(p) ? Fun.id : subst;
       switch (term) {
       | Hole(_) => e
+      // ALFp
+      | Num
+      | Bool
+      | Arrow(_)
+      | Prod(_)
+      | Unit => e
+      | Pair(e1, e2) => Pair(subst(e1), subst(e2)) |> rewrap
+      | LetPair(x1, x2, e1, e2) =>
+        LetPair(
+          x1,
+          x2,
+          subst(e1),
+          is_shadow(x1) || is_shadow(x2) ? e2 : subst(e2),
+        )
+        |> rewrap
+      | PrjL(e1) => PrjL(subst(e1)) |> rewrap
+      | PrjR(e1) => PrjR(subst(e1)) |> rewrap
+      | Triv
+      | Pat(_)
+      | PatAnn(_) => e
       // ALF
       | True
       | False => e
       | If(e1, e2, e3) => If(subst(e1), subst(e2), subst(e3)) |> rewrap
       | Var(x') => String.equal(x', x) ? v : e
-      | Let(x', e1, e2) =>
-        Let(x', subst(e1), String.equal(x', x) ? e2 : subst(e2)) |> rewrap
-      | Fun(x', e1) =>
-        Fun(x', String.equal(x', x) ? e1 : subst(e1)) |> rewrap
+      | Let(x', e1, e2) => Let(x', subst(e1), subst'(x', e2)) |> rewrap
+      | Fun(x', e1) => Fun(x', subst'(x', e1)) |> rewrap
       | Ap(e1, e2) => Ap(subst(e1), subst(e2)) |> rewrap
       | OpLt
       | OpGt
@@ -305,6 +415,7 @@ module Prop = {
       | OpMinus
       | OpTimes => e
       // ALFA outers (not supported)
+      | HasType(_)
       | Val(_)
       | Eval(_) => e
       // Propositional logic (not supported)
@@ -344,6 +455,35 @@ module Prop = {
 module Rule = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
+    // ALFp
+    | T_Var
+    | T_Let
+    | T_LetAnn
+    | T_Num
+    | T_True
+    | T_False
+    | T_Neg
+    | T_Plus
+    | T_Minus
+    | T_Times
+    | T_Lt
+    | T_Gt
+    | T_Eq
+    | T_If
+    | T_Fun
+    | T_FunAnn
+    | T_Ap
+    | E_Pair
+    | V_Pair
+    | T_Pair
+    | E_PrjL
+    | E_PrjR
+    | T_PrjL
+    | T_PrjR
+    | E_LetPair
+    | T_LetPair
+    | V_Triv
+    | T_Triv
     // ALF
     | V_Num
     | V_True
@@ -382,6 +522,36 @@ module Rule = {
 
   let repr =
     fun
+    // ALFp
+    | T_Var => "T-Var"
+    | T_Let => "T-Let"
+    | T_LetAnn => "T-LetAnn"
+    | T_Num => "T-Num"
+    | T_True => "T-True"
+    | T_False => "T-False"
+    | T_Neg => "T-Neg"
+    | T_Plus => "T-Plus"
+    | T_Minus => "T-Minus"
+    | T_Times => "T-Times"
+    | T_Lt => "T-Lt"
+    | T_Gt => "T-Gt"
+    | T_Eq => "T-Eq"
+    | T_If => "T-If"
+    | T_Fun => "T-Fun"
+    | T_FunAnn => "T-FunAnn"
+    | T_Ap => "T-Ap"
+    | E_Pair => "E-Pair"
+    | V_Pair => "V-Pair"
+    | T_Pair => "T-Pair"
+    | E_PrjL => "E-PrjL"
+    | E_PrjR => "E-PrjR"
+    | T_PrjL => "T-PrjL"
+    | T_PrjR => "T-PrjR"
+    | E_LetPair => "E-LetPair"
+    | T_LetPair => "T-LetPair"
+    | V_Triv => "V-Triv"
+    | T_Triv => "T-Triv"
+    // ALF
     | V_Num => "V-Num"
     | V_True => "V-True"
     | V_False => "V-False"
@@ -397,14 +567,14 @@ module Rule = {
     | E_If_F => "E-If-F"
     | E_Let => "E-Let"
     | E_Ap => "E-Ap"
-
+    // AL
     // | V_NumLit => "V-NumLit"
     // | E_NumLit => "E-NumLit"
     | E_Neg => "E-Neg"
     | E_Plus => "E-Plus"
     | E_Minus => "E-Minus"
     | E_Times => "E-Times"
-
+    // Propositional logic
     | Assumption => "Asm."
     | And_I => "∧-I"
     | And_E_L => "∧-E-L"
@@ -419,6 +589,36 @@ module Rule = {
 
   let prems_num =
     fun
+    // ALFp
+    | T_Var => 0
+    | T_Let => 2
+    | T_LetAnn => 2
+    | T_Num => 0
+    | T_True => 0
+    | T_False => 0
+    | T_Neg => 1
+    | T_Plus => 2
+    | T_Minus => 2
+    | T_Times => 2
+    | T_Lt => 2
+    | T_Gt => 2
+    | T_Eq => 2
+    | T_If => 3
+    | T_Fun => 1
+    | T_FunAnn => 1
+    | T_Ap => 2
+    | E_Pair => 2
+    | V_Pair => 2
+    | T_Pair => 2
+    | E_PrjL => 1
+    | E_PrjR => 1
+    | T_PrjL => 1
+    | T_PrjR => 1
+    | E_LetPair => 2
+    | T_LetPair => 2
+    | V_Triv => 0
+    | T_Triv => 0
+    // ALF
     | V_Num => 0
     | V_True => 0
     | V_False => 0
@@ -434,14 +634,14 @@ module Rule = {
     | E_If_F => 2
     | E_Let => 2
     | E_Ap => 3
-
+    // AL
     // | V_NumLit => 0
     // | E_NumLit => 0
     | E_Neg => 1
     | E_Plus => 2
     | E_Minus => 2
     | E_Times => 2
-
+    // Propositional logic
     | Assumption => 0
     | And_I => 2
     | And_E_L => 1
@@ -456,6 +656,36 @@ module Rule = {
 
   let all =
     [
+      T_Var,
+      T_Let,
+      T_LetAnn,
+      T_Num,
+      T_True,
+      T_False,
+      T_Neg,
+      T_Plus,
+      T_Minus,
+      T_Times,
+      T_Lt,
+      T_Gt,
+      T_Eq,
+      T_If,
+      T_Fun,
+      T_FunAnn,
+      T_Ap,
+      E_Pair,
+      V_Pair,
+      T_Pair,
+      E_PrjL,
+      E_PrjR,
+      T_PrjL,
+      T_PrjR,
+      E_LetPair,
+      T_LetPair,
+      V_Triv,
+      T_Triv,
+    ]
+    @ [
       V_Num,
       V_True,
       V_False,
@@ -515,13 +745,26 @@ module Verify = {
   let rep_ids = List.map(IdTagged.rep_id);
 
   type unbox_req('a) =
+    // ALFp
+    | Num: unbox_req(unit)
+    | Bool: unbox_req(unit)
+    | Arrow: unbox_req((t, t))
+    | Prod: unbox_req((t, t))
+    | Unit: unbox_req(unit)
+    | Pair: unbox_req((t, t))
+    | LetPair: unbox_req((t, t, t, t))
+    | PrjL: unbox_req(t)
+    | PrjR: unbox_req(t)
+    | Triv: unbox_req(unit)
+    | Pat: unbox_req(string)
+    | PatAnn: unbox_req((string, t))
     // ALF
     | True: unbox_req(unit)
     | False: unbox_req(unit)
     | If: unbox_req((t, t, t))
     | Var: unbox_req(string)
-    | Let: unbox_req((string, t, t))
-    | Fun: unbox_req((string, t))
+    | Let: unbox_req((t, t, t))
+    | Fun: unbox_req((t, t))
     | Ap: unbox_req((t, t))
     | OpLt: unbox_req(unit)
     | OpGt: unbox_req(unit)
@@ -534,6 +777,8 @@ module Verify = {
     | OpPlus: unbox_req(unit)
     | OpMinus: unbox_req(unit)
     | OpTimes: unbox_req(unit)
+    // ALFA outers
+    | HasType: unbox_req((t, t))
     | Val: unbox_req(t)
     | Eval: unbox_req((t, t))
     // Propositional logic
@@ -547,6 +792,19 @@ module Verify = {
 
   let cls_of_req: type a. unbox_req(a) => Prop.cls =
     fun
+    // ALFp
+    | Num => Num
+    | Bool => Bool
+    | Arrow => Arrow
+    | Prod => Prod
+    | Unit => Unit
+    | Pair => Pair
+    | LetPair => LetPair
+    | PrjL => PrjL
+    | PrjR => PrjR
+    | Triv => Triv
+    | Pat => Pat
+    | PatAnn => PatAnn
     // ALF
     | True => True
     | False => False
@@ -560,13 +818,15 @@ module Verify = {
     | OpEq => OpEq
     // AL
     | NumLit => NumLit
-    | Val => Val
     | UnOp => UnOp
     | BinOp => BinOp
     | OpNeg => OpNeg
     | OpPlus => OpPlus
     | OpMinus => OpMinus
     | OpTimes => OpTimes
+    // ALFA outers
+    | HasType => HasType
+    | Val => Val
     | Eval => Eval
     // Propositional logic
     | And => And
@@ -580,6 +840,20 @@ module Verify = {
   let unbox: type a. (unbox_req(a), t) => result(a, failure) =
     (req, p) => {
       switch (req, IdTagged.term_of(p)) {
+      // ALFp
+      | (Num, Num) => Ok()
+      | (Bool, Bool) => Ok()
+      | (Arrow, Arrow(a, b)) => Ok((a, b))
+      | (Prod, Prod(a, b)) => Ok((a, b))
+      | (Unit, Unit) => Ok()
+      | (Pair, Pair(a, b)) => Ok((a, b))
+      | (LetPair, LetPair(a, b, c, d)) => Ok((a, b, c, d))
+      | (PrjL, PrjL(a)) => Ok(a)
+      | (PrjR, PrjR(a)) => Ok(a)
+      | (Triv, Triv) => Ok()
+      | (Pat, Pat(a)) => Ok(a)
+      | (Pat, PatAnn(a, _)) => Ok(a) // PatAnn is a subtype of Pat
+      | (PatAnn, PatAnn(a, b)) => Ok((a, b))
       // ALF
       | (True, True) => Ok()
       | (False, False) => Ok()
@@ -593,13 +867,15 @@ module Verify = {
       | (OpEq, OpEq) => Ok()
       // AL
       | (NumLit, NumLit(a)) => Ok(a)
-      | (Val, Val(a)) => Ok(a)
       | (UnOp, UnOp(a, b)) => Ok((a, b))
       | (BinOp, BinOp(a, b, c)) => Ok((a, b, c))
       | (OpNeg, OpNeg) => Ok()
       | (OpPlus, OpPlus) => Ok()
       | (OpMinus, OpMinus) => Ok()
       | (OpTimes, OpTimes) => Ok()
+      // ALFA outers
+      | (HasType, HasType(a, b)) => Ok((a, b))
+      | (Val, Val(a)) => Ok(a)
       | (Eval, Eval(a, b)) => Ok((a, b))
       // Propositional logic
       | (And, And(a, b)) => Ok((a, b))
@@ -610,6 +886,18 @@ module Verify = {
       | (Entail, Entail(a, b)) => Ok((a, b))
       | (Ctx, Ctx(a)) => Ok(a)
 
+      | (Num, _)
+      | (Bool, _)
+      | (Arrow, _)
+      | (Prod, _)
+      | (Unit, _)
+      | (Pair, _)
+      | (LetPair, _)
+      | (PrjL, _)
+      | (PrjR, _)
+      | (Triv, _)
+      | (Pat, _)
+      | (PatAnn, _)
       | (True, _)
       | (False, _)
       | (If, _)
@@ -627,6 +915,7 @@ module Verify = {
       | (OpPlus, _)
       | (OpMinus, _)
       | (OpTimes, _)
+      | (HasType, _)
       | (Val, _)
       | (Eval, _)
       | (And, _)
@@ -667,42 +956,6 @@ module Verify = {
         ? Ok() : Error((FailCtxExtend, rep_ids([ctx_a, ctx, a])));
     };
 
-  let expect_unop_arith: (cls, t, t) => result(unit, failure) =
-    (op, v', v) => {
-      let$ n = unbox(NumLit, v);
-      let$ n' = unbox(NumLit, v');
-      switch (op) {
-      | OpNeg when n' == - n => Ok()
-      | _ => Error((UnOpArithError(op), rep_ids([v', v])))
-      };
-    };
-
-  let expect_binop_arith: (Prop.cls, t, t, t) => result(unit, failure) =
-    (op, v', v1, v2) => {
-      let$ n1 = unbox(NumLit, v1);
-      let$ n2 = unbox(NumLit, v2);
-      let$ n' = unbox(NumLit, v');
-      switch (op) {
-      | OpPlus when n' == n1 + n2 => Ok()
-      | OpMinus when n' == n1 - n2 => Ok()
-      | OpTimes when n' == n1 * n2 => Ok()
-      | _ => Error((BinOpArithError(op), rep_ids([v', v1, v2])))
-      };
-    };
-
-  let expect_compare: (Prop.cls, bool, t, t) => result(unit, failure) =
-    (op, res, v1, v2) => {
-      let$ n1 = unbox(NumLit, v1);
-      let$ n2 = unbox(NumLit, v2);
-      switch (op) {
-      | OpLt when n1 < n2 == res => Ok()
-      | OpGt when n1 > n2 == res => Ok()
-      | OpEq when n1 == n2 == res => Ok()
-      // TODO(zhiyao): add inspect to Bool
-      | _ => Error((BinOpArithError(op), rep_ids([v1, v2])))
-      };
-    };
-
   let expect_prems_num: (Rule.t, list(Prop.t)) => result(int => t, failure) =
     (rule, prems) => {
       let got = List.length(prems);
@@ -715,8 +968,317 @@ module Verify = {
   let verify =
       (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => {
     let$ prems = expect_prems_num(rule, prems);
-    print_endline("concl: " ++ show(concl));
     switch (rule) {
+    // ALFp
+    | T_Var =>
+      // The same as rule Assumption
+      let$ (ctx, p) = unbox(Entail, concl);
+      let$ _ = expect_in_ctx(p, ctx);
+      Ok();
+    | T_Let =>
+      let$ (ctx, p) = unbox(Entail, concl);
+      let$ (e, t2') = unbox(HasType, p);
+      let$ (pat, e1, e2) = unbox(Let, e);
+      let$ x = unbox(Pat, pat);
+      let$ (ctx', p1) = unbox(Entail, prems(0));
+      let$ _ = expect_eq(ctx', ctx);
+      let$ (e1', t1) = unbox(HasType, p1);
+      let$ _ = expect_eq(e1', e1);
+      let$ (ctx_x', p2) = unbox(Entail, prems(1));
+      let$ _ =
+        expect_eq_after_extend(
+          ctx_x',
+          ctx,
+          HasType(Pat(x) |> fresh, t1) |> fresh,
+        ); // handle fresh term
+      let$ (e2', t2) = unbox(HasType, p2);
+      let$ _ = expect_eq(e2', e2);
+      let$ _ = expect_eq(t2', t2);
+      Ok();
+    | T_LetAnn =>
+      let$ (ctx, p) = unbox(Entail, concl);
+      let$ (e, t2') = unbox(HasType, p);
+      let$ (pat, e1, e2) = unbox(Let, e);
+      let$ (x, t1) = unbox(PatAnn, pat);
+      let$ (ctx', p1) = unbox(Entail, prems(0));
+      let$ _ = expect_eq(ctx', ctx);
+      let$ (e1', t1') = unbox(HasType, p1);
+      let$ _ = expect_eq(e1', e1);
+      let$ _ = expect_eq(t1', t1);
+      let$ (ctx_x', p2) = unbox(Entail, prems(1));
+      let$ _ =
+        expect_eq_after_extend(
+          ctx_x',
+          ctx,
+          HasType(Pat(x) |> fresh, t1) |> fresh,
+        ); // handle fresh term
+      let$ (e2', t2) = unbox(HasType, p2);
+      let$ _ = expect_eq(e2', e2);
+      let$ _ = expect_eq(t2', t2);
+      Ok();
+    | T_Num =>
+      let$ (_, p) = unbox(Entail, concl);
+      let$ (e, t) = unbox(HasType, p);
+      let$ _ = unbox(NumLit, e);
+      let$ _ = unbox(Num, t);
+      Ok();
+    | T_True =>
+      let$ (_, p) = unbox(Entail, concl);
+      let$ (e, t) = unbox(HasType, p);
+      let$ _ = unbox(True, e);
+      let$ _ = unbox(Bool, t);
+      Ok();
+    | T_False =>
+      let$ (_, p) = unbox(Entail, concl);
+      let$ (e, t) = unbox(HasType, p);
+      let$ _ = unbox(False, e);
+      let$ _ = unbox(Bool, t);
+      Ok();
+    | T_Neg =>
+      let$ (ctx, p) = unbox(Entail, concl);
+      let$ (e, t) = unbox(HasType, p);
+      let$ (op, e1) = unbox(UnOp, e);
+      let$ _ = unbox(OpNeg, op);
+      let$ _ = unbox(Num, t);
+      let$ (ctx', p) = unbox(Entail, prems(0));
+      let$ _ = expect_eq(ctx', ctx);
+      let$ (e1', t) = unbox(HasType, p);
+      let$ _ = expect_eq(e1', e1);
+      let$ _ = unbox(Num, t);
+      Ok();
+    | T_Plus
+    | T_Minus
+    | T_Times
+    | T_Lt
+    | T_Gt
+    | T_Eq =>
+      let req_op =
+        switch (rule) {
+        | T_Plus => OpPlus
+        | T_Minus => OpMinus
+        | T_Times => OpTimes
+        | T_Lt => OpLt
+        | T_Gt => OpGt
+        | T_Eq => OpEq
+        | _ => failwith("impossible")
+        };
+      let req_ty =
+        switch (rule) {
+        | T_Plus
+        | T_Minus
+        | T_Times => Num
+        | T_Lt
+        | T_Gt
+        | T_Eq => Bool
+        | _ => failwith("impossible")
+        };
+      let$ (ctx, p) = unbox(Entail, concl);
+      let$ (e, t) = unbox(HasType, p);
+      let$ (op, e1, e2) = unbox(BinOp, e);
+      let$ _ = unbox(req_op, op);
+      let$ _ = unbox(req_ty, t);
+      let$ (ctx', p) = unbox(Entail, prems(0));
+      let$ _ = expect_eq(ctx', ctx);
+      let$ (e1', t) = unbox(HasType, p);
+      let$ _ = expect_eq(e1', e1);
+      let$ _ = unbox(Num, t);
+      let$ (ctx', p) = unbox(Entail, prems(1));
+      let$ _ = expect_eq(ctx', ctx);
+      let$ (e2', t) = unbox(HasType, p);
+      let$ _ = expect_eq(e2', e2);
+      let$ _ = unbox(Num, t);
+      Ok();
+    | T_If =>
+      let$ (ctx, p) = unbox(Entail, concl);
+      let$ (e, t) = unbox(HasType, p);
+      let$ (e1, e2, e3) = unbox(If, e);
+      let$ (ctx', p) = unbox(Entail, prems(0));
+      let$ _ = expect_eq(ctx', ctx);
+      let$ (e1', t1) = unbox(HasType, p);
+      let$ _ = expect_eq(e1', e1);
+      let$ _ = unbox(Bool, t1);
+      let$ (ctx', p) = unbox(Entail, prems(1));
+      let$ _ = expect_eq(ctx', ctx);
+      let$ (e2', t') = unbox(HasType, p);
+      let$ _ = expect_eq(e2', e2);
+      let$ _ = expect_eq(t', t);
+      let$ (ctx', p) = unbox(Entail, prems(2));
+      let$ _ = expect_eq(ctx', ctx);
+      let$ (e3', t') = unbox(HasType, p);
+      let$ _ = expect_eq(e3', e3);
+      let$ _ = expect_eq(t', t);
+      Ok();
+    | T_Fun =>
+      let$ (ctx, p) = unbox(Entail, concl);
+      let$ (e, t) = unbox(HasType, p);
+      let$ (pat, e) = unbox(Fun, e);
+      let$ x = unbox(Pat, pat);
+      let$ (t_in, t_out) = unbox(Arrow, t);
+      let$ (ctx_x', p) = unbox(Entail, prems(0));
+      let$ _ =
+        expect_eq_after_extend(
+          ctx_x',
+          ctx,
+          HasType(Var(x) |> fresh, t_in) |> fresh,
+        ); // handle fresh term
+      let$ (e', t_out') = unbox(HasType, p);
+      let$ _ = expect_eq(e', e);
+      let$ _ = expect_eq(t_out', t_out);
+      Ok();
+    | T_FunAnn =>
+      let$ (ctx, p) = unbox(Entail, concl);
+      let$ (e, t) = unbox(HasType, p);
+      let$ (pat, e) = unbox(Fun, e);
+      let$ (x, t_in) = unbox(PatAnn, pat);
+      let$ (t_in', t_out) = unbox(Arrow, t);
+      let$ _ = expect_eq(t_in', t_in);
+      let$ (ctx_x', p) = unbox(Entail, prems(0));
+      let$ _ =
+        expect_eq_after_extend(
+          ctx_x',
+          ctx,
+          HasType(Var(x) |> fresh, t_in) |> fresh,
+        ); // handle fresh term
+      let$ (e', t_out') = unbox(HasType, p);
+      let$ _ = expect_eq(e', e);
+      let$ _ = expect_eq(t_out', t_out);
+      Ok();
+    | T_Ap =>
+      let$ (ctx, p) = unbox(Entail, concl);
+      let$ (e, t_out) = unbox(HasType, p);
+      let$ (e1, e2) = unbox(Ap, e);
+      let$ (ctx', p) = unbox(Entail, prems(0));
+      let$ _ = expect_eq(ctx', ctx);
+      let$ (e1', t') = unbox(HasType, p);
+      let$ _ = expect_eq(e1', e1);
+      let$ (t_in, t_out') = unbox(Arrow, t');
+      let$ _ = expect_eq(t_out', t_out);
+      let$ (ctx', p) = unbox(Entail, prems(1));
+      let$ _ = expect_eq(ctx', ctx);
+      let$ (e2', t_in') = unbox(HasType, p);
+      let$ _ = expect_eq(e2', e2);
+      let$ _ = expect_eq(t_in', t_in);
+      Ok();
+    | E_Pair =>
+      let$ (e, v') = unbox(Eval, concl);
+      let$ (e1, e2) = unbox(Pair, e);
+      let$ (v1', v2') = unbox(Pair, v');
+      let$ (e1', v1) = unbox(Eval, prems(0));
+      let$ _ = expect_eq(e1', e1);
+      let$ _ = expect_eq(v1', v1);
+      let$ (e2', v2) = unbox(Eval, prems(1));
+      let$ _ = expect_eq(e2', e2);
+      let$ _ = expect_eq(v2', v2);
+      Ok();
+    | V_Pair =>
+      let$ e = unbox(Val, concl);
+      let$ (v1, v2) = unbox(Pair, e);
+      let$ v1' = unbox(Val, prems(0));
+      let$ _ = expect_eq(v1', v1);
+      let$ v2' = unbox(Val, prems(1));
+      let$ _ = expect_eq(v2', v2);
+      Ok();
+    | T_Pair =>
+      let$ (ctx, p) = unbox(Entail, concl);
+      let$ (e, t) = unbox(HasType, p);
+      let$ (e1, e2) = unbox(Pair, e);
+      let$ (t1, t2) = unbox(Prod, t);
+      let$ (ctx', p) = unbox(Entail, prems(0));
+      let$ _ = expect_eq(ctx', ctx);
+      let$ (e1', t1') = unbox(HasType, p);
+      let$ _ = expect_eq(e1', e1);
+      let$ _ = expect_eq(t1', t1);
+      let$ (ctx', p) = unbox(Entail, prems(1));
+      let$ _ = expect_eq(ctx', ctx);
+      let$ (e2', t2') = unbox(HasType, p);
+      let$ _ = expect_eq(e2', e2);
+      let$ _ = expect_eq(t2', t2);
+      Ok();
+    | E_PrjL =>
+      let$ (e, v1') = unbox(Eval, concl);
+      let$ e = unbox(PrjL, e);
+      let$ (e', v) = unbox(Eval, prems(0));
+      let$ _ = expect_eq(e', e);
+      let$ (v1, _) = unbox(Pair, v);
+      let$ _ = expect_eq(v1', v1);
+      Ok();
+    | E_PrjR =>
+      let$ (e, v2') = unbox(Eval, concl);
+      let$ e = unbox(PrjR, e);
+      let$ (e', v) = unbox(Eval, prems(0));
+      let$ _ = expect_eq(e', e);
+      let$ (_, v2) = unbox(Pair, v);
+      let$ _ = expect_eq(v2', v2);
+      Ok();
+    | T_PrjL =>
+      let$ (ctx, p) = unbox(Entail, concl);
+      let$ (e, t1) = unbox(HasType, p);
+      let$ e = unbox(PrjL, e);
+      let$ (ctx', p) = unbox(Entail, prems(0));
+      let$ _ = expect_eq(ctx', ctx);
+      let$ (e', t) = unbox(HasType, p);
+      let$ _ = expect_eq(e', e);
+      let$ (t1', _) = unbox(Prod, t);
+      let$ _ = expect_eq(t1', t1);
+      Ok();
+    | T_PrjR =>
+      let$ (ctx, p) = unbox(Entail, concl);
+      let$ (e, t2) = unbox(HasType, p);
+      let$ e = unbox(PrjR, e);
+      let$ (ctx', p) = unbox(Entail, prems(0));
+      let$ _ = expect_eq(ctx', ctx);
+      let$ (e', t) = unbox(HasType, p);
+      let$ _ = expect_eq(e', e);
+      let$ (_, t2') = unbox(Prod, t);
+      let$ _ = expect_eq(t2', t2);
+      Ok();
+    | E_LetPair =>
+      let$ (e, v') = unbox(Eval, concl);
+      let$ (px, py, e1, e2) = unbox(LetPair, e);
+      let$ x = unbox(Pat, px);
+      let$ y = unbox(Pat, py);
+      let$ (e1', v1) = unbox(Eval, prems(0));
+      let$ _ = expect_eq(e1', e1);
+      let$ (vx, vy) = unbox(Pair, v1);
+      let$ (e2', v) = unbox(Eval, prems(1));
+      let$ _ = expect_eq(e2', subst(vx, x, subst(vy, y, e2)));
+      let$ _ = expect_eq(v', v);
+      Ok();
+    | T_LetPair =>
+      let$ (ctx, p) = unbox(Entail, concl);
+      let$ (e, t) = unbox(HasType, p);
+      let$ (px, py, e1, e2) = unbox(LetPair, e);
+      let$ x = unbox(Pat, px);
+      let$ y = unbox(Pat, py);
+      let$ (ctx', p) = unbox(Entail, prems(0));
+      let$ _ = expect_eq(ctx', ctx);
+      let$ (e1', t1) = unbox(HasType, p);
+      let$ _ = expect_eq(e1', e1);
+      let$ (tx, ty) = unbox(Prod, t1);
+      let$ (ctx_x_y', p) = unbox(Entail, prems(1));
+      // TODO: we need double extend_ctx
+      ignore((y, ty));
+      let$ _ =
+        expect_eq_after_extend(
+          ctx_x_y',
+          ctx,
+          HasType(Pat(x) |> fresh, tx) |> fresh,
+        );
+      let$ (e2', t') = unbox(HasType, p);
+      let$ _ = expect_eq(e2', e2);
+      let$ _ = expect_eq(t', t);
+      Ok();
+    | V_Triv =>
+      let$ e = unbox(Val, concl);
+      let$ _ = unbox(Triv, e);
+      Ok();
+    | T_Triv =>
+      let$ (_, p) = unbox(Entail, concl);
+      let$ (e, t) = unbox(HasType, p);
+      let$ _ = unbox(Triv, e);
+      let$ _ = unbox(Unit, t);
+      Ok();
+    // ALF
     | V_Num =>
       let$ e = unbox(Val, concl);
       let$ _ = unbox(NumLit, e);
@@ -796,7 +1358,8 @@ module Verify = {
       Ok();
     | E_Let =>
       let$ (e, v2') = unbox(Eval, concl);
-      let$ (x, e1, e2) = unbox(Let, e);
+      let$ (p, e1, e2) = unbox(Let, e);
+      let$ x = unbox(Pat, p);
       let$ (e1', v1) = unbox(Eval, prems(0));
       let$ _ = expect_eq(e1', e1);
       let$ (e2', v2) = unbox(Eval, prems(1));
@@ -809,7 +1372,8 @@ module Verify = {
       let$ (e1, e2) = unbox(Ap, e);
       let$ (e1', vf) = unbox(Eval, prems(0));
       let$ _ = expect_eq(e1', e1);
-      let$ (x, e_body) = unbox(Fun, vf);
+      let$ (p, e_body) = unbox(Fun, vf);
+      let$ x = unbox(Pat, p);
       let$ (e2', v2) = unbox(Eval, prems(1));
       let$ _ = expect_eq(e2', e2);
       let$ (e_body', v) = unbox(Eval, prems(2));
@@ -825,13 +1389,22 @@ module Verify = {
     //   let$ _ = expect_eq(v', e);
     //   Ok();
     | E_Neg =>
+      let req_op =
+        switch (rule) {
+        | E_Neg => OpNeg
+        | _ => failwith("impossible")
+        };
       let$ (e, v') = unbox(Eval, concl);
+      let$ n' = unbox(NumLit, v');
       let$ (op, e) = unbox(UnOp, e);
-      let$ _ = unbox(OpNeg, op);
+      let$ _ = unbox(req_op, op);
       let$ (e', v) = unbox(Eval, prems(0));
       let$ _ = expect_eq(e', e);
-      let$ _ = expect_unop_arith(OpNeg, v', v);
-      Ok();
+      let$ n = unbox(NumLit, v);
+      switch (rule) {
+      | E_Neg when n' == - n => Ok()
+      | _ => Error((UnOpArithError(of_cls(op)), rep_ids([v', v])))
+      };
     | E_Plus
     | E_Minus
     | E_Times =>

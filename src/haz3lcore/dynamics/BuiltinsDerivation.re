@@ -5,7 +5,13 @@ open Derivation.Prop;
 // typeclass for Prop.t. Note that the typeclass is not used anywhere. It is
 // just for reference.
 
-// ALF logic
+// ALFp logic
+type typ =
+  | Num
+  | Bool
+  | Arrow(typ, typ)
+  | Prod(typ, typ)
+  | Unit;
 type expr =
   | NumLit(int)
   | True
@@ -14,9 +20,17 @@ type expr =
   | BinOp(binop, expr, expr)
   | If(expr, expr, expr)
   | Var(string)
-  | Let(string, expr, expr)
-  | Fun(string, expr)
+  | Let(pat, expr, expr)
+  | Fun(pat, expr)
   | Ap(expr, expr)
+  | Pair(expr, expr)
+  | LetPair(pat, pat, expr, expr)
+  | PrjL(expr)
+  | PrjR(expr)
+  | Triv
+and pat =
+  | Pat(string)
+  | PatAnn(string, typ)
 and unop =
   | OpNeg
 and binop =
@@ -27,8 +41,10 @@ and binop =
   | OpMinus
   | OpTimes;
 
-// Propositional logic
 type prop =
+  // ALFp exclusive
+  | HasType(expr, typ)
+  // Propositional logic
   | Atom(string)
   | And(prop, prop)
   | Or(prop, prop)
@@ -47,6 +63,8 @@ type judgement =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type alias =
   | Judgement
+  | Type
+  | Pat
   | Expr
   | UnOp
   | BinOp
@@ -57,14 +75,33 @@ let alias_fresh: alias => Typ.t = alia => Var(show_alias(alia)) |> Typ.fresh;
 let cls_to_arg_typ: cls => list(Typ.t) =
   fun
   | Hole => failwith("impossible")
-
+  // ALFp
+  | Num
+  | Bool => []
+  | Arrow
+  | Prod => [Type |> alias_fresh, Type |> alias_fresh]
+  | Unit => []
+  | Pair => [Expr |> alias_fresh, Expr |> alias_fresh]
+  | LetPair => [
+      Pat |> alias_fresh,
+      Pat |> alias_fresh,
+      Expr |> alias_fresh,
+      Expr |> alias_fresh,
+    ]
+  | PrjL
+  | PrjR => [Expr |> alias_fresh]
+  | Triv => []
+  | Pat => [String |> Typ.fresh]
+  | PatAnn => [String |> Typ.fresh, Type |> alias_fresh]
+  | HasType => [Expr |> alias_fresh, Type |> alias_fresh]
+  // ALF
   | NumLit => [Int |> Typ.fresh]
   | True
   | False => []
   | If => [Expr |> alias_fresh, Expr |> alias_fresh, Expr |> alias_fresh]
   | Var => [String |> Typ.fresh]
-  | Let => [String |> Typ.fresh, Expr |> alias_fresh, Expr |> alias_fresh]
-  | Fun => [String |> Typ.fresh, Expr |> alias_fresh]
+  | Let => [Pat |> alias_fresh, Expr |> alias_fresh, Expr |> alias_fresh]
+  | Fun => [Pat |> alias_fresh, Expr |> alias_fresh]
   | Ap => [Expr |> alias_fresh, Expr |> alias_fresh]
   | UnOp => [UnOp |> alias_fresh, Expr |> alias_fresh]
   | BinOp => [BinOp |> alias_fresh, Expr |> alias_fresh, Expr |> alias_fresh]
@@ -100,16 +137,28 @@ let cls_to_alias: cls => alias =
   fun
   | Hole => failwith("impossible")
 
+  | Num
+  | Bool
+  | Arrow
+  | Prod
+  | Unit => Type
   | NumLit
   | True
   | False
+  | UnOp
+  | BinOp
   | If
   | Var
   | Let
   | Fun
   | Ap
-  | UnOp
-  | BinOp => Expr
+  | Pair
+  | LetPair
+  | PrjL
+  | PrjR
+  | Triv => Expr
+  | Pat
+  | PatAnn => Pat
   | OpNeg => UnOp
   | OpLt
   | OpGt
@@ -117,7 +166,7 @@ let cls_to_alias: cls => alias =
   | OpPlus
   | OpMinus
   | OpTimes => BinOp
-
+  | HasType
   | Atom
   | And
   | Or
@@ -125,7 +174,6 @@ let cls_to_alias: cls => alias =
   | Truth
   | Falsity => Prop
   | Ctx => failwith("impossible")
-
   | Val
   | Eval
   | Entail => Judgement;
@@ -140,6 +188,21 @@ let cls_to_typ: cls => Typ.t =
   };
 
 let all: list(cls) = [
+  // ALFp logic
+  Num,
+  Bool,
+  Arrow,
+  Prod,
+  Unit,
+  Pair,
+  LetPair,
+  PrjL,
+  PrjR,
+  Triv,
+  Pat,
+  PatAnn,
+  HasType,
+  // ALF logic
   NumLit,
   True,
   False,
@@ -232,6 +295,7 @@ let term_of_dhexp: DHExp.t => option(cls) =
 
 let rec prop_of_dhexp: DHExp.t => t =
   d => {
+    let d = DHExp.strip_casts(d);
     let (fn, arg) =
       switch (DHExp.term_of(d)) {
       | Ap(_, fn, arg) => (fn, Some(arg))
@@ -262,6 +326,52 @@ and match_dhexp: (cls, option(DHExp.t)) => t =
     switch (ctr, arg) {
     | (Hole, _)
     | (Ctx, _) => Hole("Unexpected Ctr") |> fresh
+    // ALFp logic
+    | (Num, []) => Num |> fresh
+    | (Bool, []) => Bool |> fresh
+    | (Arrow, [d1, d2]) =>
+      let (e1, e2) = (prop_of_dhexp(d1), prop_of_dhexp(d2));
+      Arrow(e1, e2) |> fresh;
+    | (Prod, [d1, d2]) =>
+      let (e1, e2) = (prop_of_dhexp(d1), prop_of_dhexp(d2));
+      Prod(e1, e2) |> fresh;
+    | (Unit, []) => Unit |> fresh
+    | (Pair, [d1, d2]) =>
+      let (e1, e2) = (prop_of_dhexp(d1), prop_of_dhexp(d2));
+      Pair(e1, e2) |> fresh;
+    | (LetPair, [d1, d2, d3, d4]) =>
+      let (pat1, pat2, e1, e2) = (
+        prop_of_dhexp(d1),
+        prop_of_dhexp(d2),
+        prop_of_dhexp(d3),
+        prop_of_dhexp(d4),
+      );
+      LetPair(pat1, pat2, e1, e2) |> fresh;
+    | (PrjL, [d]) =>
+      let e = prop_of_dhexp(d);
+      PrjL(e) |> fresh;
+    | (PrjR, [d]) =>
+      let e = prop_of_dhexp(d);
+      PrjR(e) |> fresh;
+    | (Triv, []) => Triv |> fresh
+    | (Pat, [d]) =>
+      let. pat =
+        switch (DHExp.term_of(d)) {
+        | String(pat) => Some(pat)
+        | _ => None
+        };
+      Pat(pat) |> fresh;
+    | (PatAnn, [d1, d2]) =>
+      let. pat =
+        switch (DHExp.term_of(d1)) {
+        | String(pat) => Some(pat)
+        | _ => None
+        };
+      let ty = prop_of_dhexp(d2);
+      PatAnn(pat, ty) |> fresh;
+    | (HasType, [d1, d2]) =>
+      let (e, ty) = (prop_of_dhexp(d1), prop_of_dhexp(d2));
+      HasType(e, ty) |> fresh;
     // ALF logic
     | (NumLit, [d]) =>
       let. n =
@@ -287,21 +397,15 @@ and match_dhexp: (cls, option(DHExp.t)) => t =
         };
       Var(var) |> fresh;
     | (Let, [d1, d2, d3]) =>
-      let. var =
-        switch (DHExp.term_of(d1)) {
-        | String(var) => Some(var)
-        | _ => None
-        };
-      let (e1, e2) = (prop_of_dhexp(d2), prop_of_dhexp(d3));
-      Let(var, e1, e2) |> fresh;
+      let (pat, e1, e2) = (
+        prop_of_dhexp(d1),
+        prop_of_dhexp(d2),
+        prop_of_dhexp(d3),
+      );
+      Let(pat, e1, e2) |> fresh;
     | (Fun, [d1, d2]) =>
-      let. var =
-        switch (DHExp.term_of(d1)) {
-        | String(var) => Some(var)
-        | _ => None
-        };
-      let e = prop_of_dhexp(d2);
-      Fun(var, e) |> fresh;
+      let (pat, e) = (prop_of_dhexp(d1), prop_of_dhexp(d2));
+      Fun(pat, e) |> fresh;
     | (Ap, [d1, d2]) =>
       let (e1, e2) = (prop_of_dhexp(d1), prop_of_dhexp(d2));
       Ap(e1, e2) |> fresh;
@@ -327,6 +431,19 @@ and match_dhexp: (cls, option(DHExp.t)) => t =
       let (e1, e2) = (prop_of_dhexp(d1), prop_of_dhexp(d2));
       Eval(e1, e2) |> fresh;
 
+    | (Num, _)
+    | (Bool, _)
+    | (Arrow, _)
+    | (Prod, _)
+    | (Unit, _)
+    | (Pair, _)
+    | (LetPair, _)
+    | (PrjL, _)
+    | (PrjR, _)
+    | (Triv, _)
+    | (Pat, _)
+    | (PatAnn, _)
+    | (HasType, _)
     | (NumLit, _)
     | (True, _)
     | (False, _)
