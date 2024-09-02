@@ -122,6 +122,9 @@ module Prop = {
 
   let fresh = (term: term) => IdTagged.fresh(term);
 
+  let temp = (term: term) =>
+    IdTagged.{term, ids: [Id.invalid], copied: false};
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cls =
     | Hole
@@ -610,22 +613,19 @@ module Prop = {
     List.exists(eq(prop), ctx);
   };
 
-  let extend_ctx = (ctx: list(t), prop: t) =>
-    if (in_ctx(ctx, prop)) {
-      ctx;
-    } else {
-      let rec insert = (ctx, prop) =>
-        switch (ctx) {
-        | [] => [prop]
-        | [hd, ...tl] =>
-          if (show(hd) <= show(prop)) {
-            [prop, ...ctx];
-          } else {
-            [hd, ...insert(tl, prop)];
-          }
-        };
-      insert(ctx, prop);
-    };
+  let extend_ctx = (ctx: list(t), prop: t) => {
+    let rec insert = (ctx, prop) =>
+      switch (ctx) {
+      | [] => [prop]
+      | [hd, ...tl] =>
+        if (show(hd) <= show(prop)) {
+          [prop, ...ctx];
+        } else {
+          [hd, ...insert(tl, prop)];
+        }
+      };
+    insert(ctx, prop);
+  };
 };
 
 module Rule = {
@@ -1054,20 +1054,30 @@ module Verify = {
   open Prop;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type failure = (term, list(Id.t))
-  and term =
-    // Common
-    | PremiseMismatch(int, int) /* expected, actual */
-    | FailUnbox(Prop.cls)
-    | NotEqual(Prop.cls)
-    // AL
-    | UnOpArithError(Prop.cls)
-    | BinOpArithError(Prop.cls)
-    // Propositional logic (might be removed)
-    | NotInCtx
-    | FailCtxExtend;
+  type t_op =
+    | Just(t)
+    | UnOp(unop, t)
+    | BinOp(binop, t, t)
+    | Subst(t, t, t_op) // [v/x]e
+    | SubstTy(t, t, t_op) // [t/a]e
+    | VarHasType(t, t) // e : t
+    | ExtendCtx(t_op, t_op) // Γ, e
+  and unop =
+    | Neg // -n
+  and binop =
+    | Plus // n1 + n2
+    | Minus // n1 - n2
+    | Times // n1 * n2
+    | Lt // n1 < n2
+    | Gt // n1 > n2
+    | Eq; // n1 == n2
 
-  let rep_ids = List.map(IdTagged.rep_id);
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type failure =
+    | PremiseMismatch(int, int) /* expected, actual */
+    | FailUnbox(Prop.cls, t)
+    | NotEqual(Prop.cls, t, t_op)
+    | NotInCtx(t_op, t); // in rear case, the element go under operation (S-Var)
 
   type unbox_req('a) =
     // ALFA
@@ -1300,7 +1310,7 @@ module Verify = {
       | (Truth, _)
       | (Falsity, _)
       | (Entail, _)
-      | (Ctx, _) => Error((FailUnbox(cls_of_req(req)), rep_ids([p])))
+      | (Ctx, _) => Error(FailUnbox(cls_of_req(req), p))
       };
     };
 
@@ -1310,35 +1320,71 @@ module Verify = {
     | Error(e) => Error(e)
     };
 
+  let rec go: t_op => result(t, failure) =
+    a =>
+      switch (a) {
+      | Just(p) => Ok(p)
+      | UnOp(op, e) =>
+        let$ n = unbox(NumLit, e);
+        switch (op) {
+        | Neg => Ok(NumLit(- n) |> temp)
+        };
+      | BinOp(op, e1, e2) =>
+        let$ n1 = unbox(NumLit, e1);
+        let$ n2 = unbox(NumLit, e2);
+        switch (op) {
+        | Plus => Ok(NumLit(n1 + n2) |> temp)
+        | Minus => Ok(NumLit(n1 - n2) |> temp)
+        | Times => Ok(NumLit(n1 * n2) |> temp)
+        | Lt => Ok((n1 < n2 ? True : False) |> temp)
+        | Gt => Ok((n1 > n2 ? True : False) |> temp)
+        | Eq => Ok((n1 == n2 ? True : False) |> temp)
+        };
+      | Subst(v, x, e) =>
+        let$ x = unbox(Pat, x);
+        let$ e = go(e);
+        Ok(subst(v, x, e));
+      | SubstTy(t, a, e) =>
+        let$ a = unbox(TPat, a);
+        let$ e = go(e);
+        Ok(subst_ty(t, a, e));
+      | ExtendCtx(ctx, e) =>
+        let$ ctx = go(ctx);
+        let$ ctx = unbox(Ctx, ctx);
+        let$ e = go(e);
+        Ok(Ctx(extend_ctx(ctx, e)) |> temp);
+      | VarHasType(pat, t) =>
+        let$ x = unbox(Pat, pat);
+        Ok(HasType(Var(x) |> temp, t) |> temp);
+      };
+
   // NotEqual
+  let expect_eq_op: (t, t_op) => result(unit, failure) =
+    (a, b_op) => {
+      let$ b = go(b_op);
+      eq(a, b) ? Ok() : Error(NotEqual(of_cls(a), a, b_op));
+    };
+
   let expect_eq: (t, t) => result(unit, failure) =
-    (a, b) =>
-      eq(a, b) ? Ok() : Error((NotEqual(of_cls(a)), rep_ids([a, b])));
+    (a, b) => expect_eq_op(a, Just(b));
+
+  let expect_in_ctx_op: (t_op, t) => result(unit, failure) =
+    (p_op, ctx) => {
+      let$ p = go(p_op);
+      let$ pl = unbox(Ctx, ctx);
+      in_ctx(pl, p) ? Ok() : Error(NotInCtx(p_op, ctx));
+    };
 
   // NotInCtx
   let expect_in_ctx: (t, t) => result(unit, failure) =
-    (p, ctx) => {
-      let$ pl = unbox(Ctx, ctx);
-      in_ctx(pl, p) ? Ok() : Error((NotInCtx, rep_ids([p, ctx])));
-    };
-
-  // FailCtxExtend
-  let expect_eq_after_extend: (t, t, t) => result(unit, failure) =
-    (ctx_a, ctx, a) => {
-      let$ pl_a = unbox(Ctx, ctx_a);
-      let$ pl = unbox(Ctx, ctx);
-      let ctx_a_expected = extend_ctx(pl, a);
-      List.for_all2(eq, ctx_a_expected, pl_a)
-        ? Ok() : Error((FailCtxExtend, rep_ids([ctx_a, ctx, a])));
-    };
+    (p, ctx) => expect_in_ctx_op(Just(p), ctx);
 
   let expect_prems_num: (Rule.t, list(Prop.t)) => result(int => t, failure) =
     (rule, prems) => {
       let got = List.length(prems);
       let expect = Rule.prems_num(rule);
       expect == got
-        ? Ok(x => List.nth(prems, x))
-        : Error((PremiseMismatch(expect, got), []));
+        ? Ok(x => List.nth(prems, x)) : Error(PremiseMismatch(expect, got));
     };
 
   let verify =
@@ -1388,30 +1434,20 @@ module Verify = {
       let$ (ctx, p) = unbox(Entail, concl);
       let$ (e, t) = unbox(Ana, p);
       let$ (e_scrut, px, el, py, er) = unbox(Case, e);
-      let$ x = unbox(Pat, px);
-      let$ y = unbox(Pat, py);
       let$ (ctx', p) = unbox(Entail, prems(0));
       let$ _ = expect_eq(ctx', ctx);
       let$ (e_scrut', ts) = unbox(Syn, p);
       let$ _ = expect_eq(e_scrut', e_scrut);
       let$ (tl, tr) = unbox(Sum, ts);
       let$ (ctx_x', p) = unbox(Entail, prems(1));
-      let$ _ =
-        expect_eq_after_extend(
-          ctx_x',
-          ctx,
-          HasType(Var(x) |> fresh, tl) |> fresh,
-        );
+      let ctx_x = ExtendCtx(Just(ctx), VarHasType(px, tl));
+      let$ _ = expect_eq_op(ctx_x', ctx_x);
       let$ (el', t') = unbox(Ana, p);
       let$ _ = expect_eq(el', el);
       let$ _ = expect_eq(t', t);
       let$ (ctx_y', p) = unbox(Entail, prems(2));
-      let$ _ =
-        expect_eq_after_extend(
-          ctx_y',
-          ctx,
-          HasType(Var(y) |> fresh, tr) |> fresh,
-        );
+      let ctx_y = ExtendCtx(Just(ctx), VarHasType(py, tr));
+      let$ _ = expect_eq_op(ctx_y', ctx_y);
       let$ (er', t') = unbox(Ana, p);
       let$ _ = expect_eq(er', er);
       let$ _ = expect_eq(t', t);
@@ -1420,30 +1456,20 @@ module Verify = {
       let$ (ctx, p) = unbox(Entail, concl);
       let$ (e, t) = unbox(Syn, p);
       let$ (e_scrut, px, el, py, er) = unbox(Case, e);
-      let$ x = unbox(Pat, px);
-      let$ y = unbox(Pat, py);
       let$ (ctx', p) = unbox(Entail, prems(0));
       let$ _ = expect_eq(ctx', ctx);
       let$ (e_scrut', ts) = unbox(Syn, p);
       let$ _ = expect_eq(e_scrut', e_scrut);
       let$ (tl, tr) = unbox(Sum, ts);
       let$ (ctx_x', p) = unbox(Entail, prems(1));
-      let$ _ =
-        expect_eq_after_extend(
-          ctx_x',
-          ctx,
-          HasType(Var(x) |> fresh, tl) |> fresh,
-        );
+      let ctx_x = ExtendCtx(Just(ctx), VarHasType(px, tl));
+      let$ _ = expect_eq_op(ctx_x', ctx_x);
       let$ (el', t') = unbox(Syn, p);
       let$ _ = expect_eq(el', el);
       let$ _ = expect_eq(t', t);
       let$ (ctx_y', p) = unbox(Entail, prems(2));
-      let$ _ =
-        expect_eq_after_extend(
-          ctx_y',
-          ctx,
-          HasType(Var(y) |> fresh, tr) |> fresh,
-        );
+      let ctx_y = ExtendCtx(Just(ctx), VarHasType(py, tr));
+      let$ _ = expect_eq_op(ctx_y', ctx_y);
       let$ (er', t') = unbox(Syn, p);
       let$ _ = expect_eq(er', er);
       let$ _ = expect_eq(t', t);
@@ -1462,20 +1488,20 @@ module Verify = {
     | E_Case_R =>
       let$ (e, v') = unbox(Eval, concl);
       let$ (e_scrut, _px, _el, py, er) = unbox(Case, e);
-      let$ y = unbox(Pat, py);
       let$ (e_scrut', vr) = unbox(Eval, prems(0));
       let$ _ = expect_eq(e_scrut', e_scrut);
       let$ v_data = unbox(InjR, vr);
       let$ (er', v) = unbox(Eval, prems(1));
-      let$ _ = expect_eq(er', subst(v_data, y, er));
+      let er = Subst(v_data, py, Just(er));
+      let$ _ = expect_eq_op(er', er);
       let$ _ = expect_eq(v', v);
       Ok();
     | E_Fix =>
       let$ (e, v') = unbox(Eval, concl);
       let$ (pat, e_body) = unbox(Fix, e);
-      let$ x = unbox(Pat, pat);
       let$ (e_body', v) = unbox(Eval, prems(0));
-      let$ _ = expect_eq(e_body', subst(e, x, e_body));
+      let e_body = Subst(e, pat, Just(e_body));
+      let$ _ = expect_eq_op(e_body', e_body);
       let$ _ = expect_eq(v', v);
       Ok();
     | T_Roll =>
@@ -1483,12 +1509,12 @@ module Verify = {
       let$ (e, t) = unbox(HasType, p);
       let$ e_body = unbox(Roll, e);
       let$ (tpat, t_body) = unbox(Rec, t);
-      let$ a = unbox(TPat, tpat);
       let$ (ctx', p) = unbox(Entail, prems(0));
       let$ _ = expect_eq(ctx', ctx);
       let$ (e_body', t_body') = unbox(HasType, p);
       let$ _ = expect_eq(e_body', e_body);
-      let$ _ = expect_eq(t_body', subst_ty(t, a, t_body));
+      let t_body = SubstTy(t, tpat, Just(t_body));
+      let$ _ = expect_eq_op(t_body', t_body);
       Ok();
     | T_Unroll =>
       let$ (ctx, p) = unbox(Entail, concl);
@@ -1499,8 +1525,8 @@ module Verify = {
       let$ (e', t) = unbox(HasType, p);
       let$ _ = expect_eq(e', e);
       let$ (tpat, t_body) = unbox(Rec, t);
-      let$ a = unbox(TPat, tpat);
-      let$ _ = expect_eq(t_body', subst_ty(t, a, t_body));
+      let t_body = SubstTy(t, tpat, Just(t_body));
+      let$ _ = expect_eq_op(t_body', t_body);
       Ok();
     | E_Roll =>
       let$ (e, v') = unbox(Eval, concl);
@@ -1550,22 +1576,18 @@ module Verify = {
       let$ (ctx, p) = unbox(Entail, concl);
       let$ (x, t) = unbox(Syn, p);
       // The same as rule Assumption
-      // TODO: check if this is correct
-      let$ _ = expect_in_ctx(HasType(x, t) |> fresh, ctx);
+      // Note: this is a rare usage of `expect_in_ctx_op`
+      let p = VarHasType(x, t);
+      let$ _ = expect_in_ctx_op(p, ctx);
       Ok();
     | A_Fun =>
       let$ (ctx, p) = unbox(Entail, concl);
       let$ (e, t) = unbox(Ana, p);
       let$ (pat, e_body) = unbox(Fun, e);
-      let$ x = unbox(Pat, pat);
       let$ (t_in, t_out) = unbox(Arrow, t);
       let$ (ctx_x', p) = unbox(Entail, prems(0));
-      let$ _ =
-        expect_eq_after_extend(
-          ctx_x',
-          ctx,
-          HasType(Var(x) |> fresh, t_in) |> fresh,
-        );
+      let ctx_x = ExtendCtx(Just(ctx), VarHasType(pat, t_in));
+      let$ _ = expect_eq_op(ctx_x', ctx_x);
       let$ (e_body', t_out') = unbox(Ana, p);
       let$ _ = expect_eq(e_body', e_body);
       let$ _ = expect_eq(t_out', t_out);
@@ -1574,16 +1596,12 @@ module Verify = {
       let$ (ctx, p) = unbox(Entail, concl);
       let$ (e, t) = unbox(Syn, p);
       let$ (pat, e_body) = unbox(Fun, e);
-      let$ (x, t_in) = unbox(PatAnn, pat);
+      let$ (_, t_in) = unbox(PatAnn, pat);
       let$ (t_in', t_out) = unbox(Arrow, t);
       let$ _ = expect_eq(t_in', t_in);
       let$ (ctx_x', p) = unbox(Entail, prems(0));
-      let$ _ =
-        expect_eq_after_extend(
-          ctx_x',
-          ctx,
-          HasType(Var(x) |> fresh, t_in) |> fresh,
-        );
+      let ctx_x = ExtendCtx(Just(ctx), VarHasType(pat, t_in));
+      let$ _ = expect_eq_op(ctx_x', ctx_x);
       let$ (e_body', t_out') = unbox(Syn, p);
       let$ _ = expect_eq(e_body', e_body);
       let$ _ = expect_eq(t_out', t_out);
@@ -1592,16 +1610,12 @@ module Verify = {
       let$ (ctx, p) = unbox(Entail, concl);
       let$ (e, t) = unbox(Ana, p);
       let$ (pat, e_body) = unbox(Fun, e);
-      let$ (x, t_in) = unbox(PatAnn, pat);
+      let$ (_, t_in) = unbox(PatAnn, pat);
       let$ (t_in', t_out) = unbox(Arrow, t);
       let$ _ = expect_eq(t_in', t_in);
       let$ (ctx_x', p) = unbox(Entail, prems(0));
-      let$ _ =
-        expect_eq_after_extend(
-          ctx_x',
-          ctx,
-          HasType(Var(x) |> fresh, t_in) |> fresh,
-        );
+      let ctx_x = ExtendCtx(Just(ctx), VarHasType(pat, t_in));
+      let$ _ = expect_eq_op(ctx_x', ctx_x);
       let$ (e_body', t_out') = unbox(Ana, p);
       let$ _ = expect_eq(e_body', e_body);
       let$ _ = expect_eq(t_out', t_out);
@@ -1680,19 +1694,15 @@ module Verify = {
       let$ (ctx, p) = unbox(Entail, concl);
       let$ (e, t2') = unbox(Syn, p);
       let$ (pat, e1, e2) = unbox(Let, e);
-      let$ (x, t1) = unbox(PatAnn, pat);
+      let$ (_, t1) = unbox(PatAnn, pat);
       let$ (ctx', p1) = unbox(Entail, prems(0));
       let$ _ = expect_eq(ctx', ctx);
       let$ (e1', t1') = unbox(Ana, p1);
       let$ _ = expect_eq(e1', e1);
       let$ _ = expect_eq(t1', t1);
       let$ (ctx_x', p2) = unbox(Entail, prems(1));
-      let$ _ =
-        expect_eq_after_extend(
-          ctx_x',
-          ctx,
-          HasType(Var(x) |> fresh, t1) |> fresh,
-        ); // handle fresh term
+      let ctx_x = ExtendCtx(Just(ctx), VarHasType(pat, t1));
+      let$ _ = expect_eq_op(ctx_x', ctx_x);
       let$ (e2', t2) = unbox(Syn, p2);
       let$ _ = expect_eq(e2', e2);
       let$ _ = expect_eq(t2', t2);
@@ -1701,19 +1711,15 @@ module Verify = {
       let$ (ctx, p) = unbox(Entail, concl);
       let$ (e, t2') = unbox(Ana, p);
       let$ (pat, e1, e2) = unbox(Let, e);
-      let$ (x, t1) = unbox(PatAnn, pat);
+      let$ (_, t1) = unbox(PatAnn, pat);
       let$ (ctx', p1) = unbox(Entail, prems(0));
       let$ _ = expect_eq(ctx', ctx);
       let$ (e1', t1') = unbox(Ana, p1);
       let$ _ = expect_eq(e1', e1);
       let$ _ = expect_eq(t1', t1);
       let$ (ctx_x', p2) = unbox(Entail, prems(1));
-      let$ _ =
-        expect_eq_after_extend(
-          ctx_x',
-          ctx,
-          HasType(Var(x) |> fresh, t1) |> fresh,
-        ); // handle fresh term
+      let ctx_x = ExtendCtx(Just(ctx), VarHasType(pat, t1));
+      let$ _ = expect_eq_op(ctx_x', ctx_x);
       let$ (e2', t2) = unbox(Ana, p2);
       let$ _ = expect_eq(e2', e2);
       let$ _ = expect_eq(t2', t2);
@@ -1722,18 +1728,13 @@ module Verify = {
       let$ (ctx, p) = unbox(Entail, concl);
       let$ (e, t2') = unbox(Syn, p);
       let$ (pat, e1, e2) = unbox(Let, e);
-      let$ x = unbox(Pat, pat);
       let$ (ctx', p1) = unbox(Entail, prems(0));
       let$ _ = expect_eq(ctx', ctx);
       let$ (e1', t1) = unbox(Syn, p1);
       let$ _ = expect_eq(e1', e1);
       let$ (ctx_x', p2) = unbox(Entail, prems(1));
-      let$ _ =
-        expect_eq_after_extend(
-          ctx_x',
-          ctx,
-          HasType(Var(x) |> fresh, t1) |> fresh,
-        ); // handle fresh term
+      let ctx_x = ExtendCtx(Just(ctx), VarHasType(pat, t1));
+      let$ _ = expect_eq_op(ctx_x', ctx_x);
       let$ (e2', t2) = unbox(Syn, p2);
       let$ _ = expect_eq(e2', e2);
       let$ _ = expect_eq(t2', t2);
@@ -1742,18 +1743,13 @@ module Verify = {
       let$ (ctx, p) = unbox(Entail, concl);
       let$ (e, t2') = unbox(Ana, p);
       let$ (pat, e1, e2) = unbox(Let, e);
-      let$ x = unbox(Pat, pat);
       let$ (ctx', p1) = unbox(Entail, prems(0));
       let$ _ = expect_eq(ctx', ctx);
       let$ (e1', t1) = unbox(Syn, p1);
       let$ _ = expect_eq(e1', e1);
       let$ (ctx_x', p2) = unbox(Entail, prems(1));
-      let$ _ =
-        expect_eq_after_extend(
-          ctx_x',
-          ctx,
-          HasType(Var(x) |> fresh, t1) |> fresh,
-        ); // handle fresh term
+      let ctx_x = ExtendCtx(Just(ctx), VarHasType(pat, t1));
+      let$ _ = expect_eq_op(ctx_x', ctx_x);
       let$ (e2', t2) = unbox(Ana, p2);
       let$ _ = expect_eq(e2', e2);
       let$ _ = expect_eq(t2', t2);
@@ -1794,22 +1790,15 @@ module Verify = {
       let$ (ctx, p) = unbox(Entail, concl);
       let$ (e, t) = unbox(Syn, p);
       let$ (px, py, e1, e2) = unbox(LetPair, e);
-      let$ x = unbox(Pat, px);
-      let$ y = unbox(Pat, py);
       let$ (ctx', p) = unbox(Entail, prems(0));
       let$ _ = expect_eq(ctx', ctx);
       let$ (e1', t1) = unbox(Syn, p);
       let$ _ = expect_eq(e1', e1);
       let$ (tx, ty) = unbox(Prod, t1);
       let$ (ctx_x_y', p) = unbox(Entail, prems(1));
-      // TODO: we need double extend_ctx
-      ignore((y, ty));
-      let$ _ =
-        expect_eq_after_extend(
-          ctx_x_y',
-          ctx,
-          HasType(Var(x) |> fresh, tx) |> fresh,
-        );
+      let ctx_x = ExtendCtx(Just(ctx), VarHasType(px, tx));
+      let ctx_x_y = ExtendCtx(ctx_x, VarHasType(py, ty));
+      let$ _ = expect_eq_op(ctx_x_y', ctx_x_y);
       let$ (e2', t') = unbox(Syn, p);
       let$ _ = expect_eq(e2', e2);
       let$ _ = expect_eq(t', t);
@@ -1818,22 +1807,15 @@ module Verify = {
       let$ (ctx, p) = unbox(Entail, concl);
       let$ (e, t) = unbox(Syn, p);
       let$ (px, py, e1, e2) = unbox(LetPair, e);
-      let$ x = unbox(Pat, px);
-      let$ y = unbox(Pat, py);
       let$ (ctx', p) = unbox(Entail, prems(0));
       let$ _ = expect_eq(ctx', ctx);
       let$ (e1', t1) = unbox(Ana, p);
       let$ _ = expect_eq(e1', e1);
       let$ (tx, ty) = unbox(Prod, t1);
       let$ (ctx_x_y', p) = unbox(Entail, prems(1));
-      // TODO: we need double extend_ctx
-      ignore((y, ty));
-      let$ _ =
-        expect_eq_after_extend(
-          ctx_x_y',
-          ctx,
-          HasType(Var(x) |> fresh, tx) |> fresh,
-        );
+      let ctx_x = ExtendCtx(Just(ctx), VarHasType(px, tx));
+      let ctx_x_y = ExtendCtx(ctx_x, VarHasType(py, ty));
+      let$ _ = expect_eq_op(ctx_x_y', ctx_x_y);
       let$ (e2', t') = unbox(Syn, p);
       let$ _ = expect_eq(e2', e2);
       let$ _ = expect_eq(t', t);
@@ -1910,24 +1892,20 @@ module Verify = {
     | T_Var =>
       // The same as rule Assumption
       let$ (ctx, p) = unbox(Entail, concl);
+      let$ (_, _) = unbox(HasType, p);
       let$ _ = expect_in_ctx(p, ctx);
       Ok();
     | T_Let =>
       let$ (ctx, p) = unbox(Entail, concl);
       let$ (e, t2') = unbox(HasType, p);
       let$ (pat, e1, e2) = unbox(Let, e);
-      let$ x = unbox(Pat, pat);
       let$ (ctx', p1) = unbox(Entail, prems(0));
       let$ _ = expect_eq(ctx', ctx);
       let$ (e1', t1) = unbox(HasType, p1);
       let$ _ = expect_eq(e1', e1);
       let$ (ctx_x', p2) = unbox(Entail, prems(1));
-      let$ _ =
-        expect_eq_after_extend(
-          ctx_x',
-          ctx,
-          HasType(Var(x) |> fresh, t1) |> fresh,
-        ); // handle fresh term
+      let ctx_x = ExtendCtx(Just(ctx), VarHasType(pat, t1));
+      let$ _ = expect_eq_op(ctx_x', ctx_x);
       let$ (e2', t2) = unbox(HasType, p2);
       let$ _ = expect_eq(e2', e2);
       let$ _ = expect_eq(t2', t2);
@@ -1936,19 +1914,15 @@ module Verify = {
       let$ (ctx, p) = unbox(Entail, concl);
       let$ (e, t2') = unbox(HasType, p);
       let$ (pat, e1, e2) = unbox(Let, e);
-      let$ (x, t1) = unbox(PatAnn, pat);
+      let$ (_, t1) = unbox(PatAnn, pat);
       let$ (ctx', p1) = unbox(Entail, prems(0));
       let$ _ = expect_eq(ctx', ctx);
       let$ (e1', t1') = unbox(HasType, p1);
       let$ _ = expect_eq(e1', e1);
       let$ _ = expect_eq(t1', t1);
       let$ (ctx_x', p2) = unbox(Entail, prems(1));
-      let$ _ =
-        expect_eq_after_extend(
-          ctx_x',
-          ctx,
-          HasType(Var(x) |> fresh, t1) |> fresh,
-        ); // handle fresh term
+      let ctx_x = ExtendCtx(Just(ctx), VarHasType(pat, t1));
+      let$ _ = expect_eq_op(ctx_x', ctx_x);
       let$ (e2', t2) = unbox(HasType, p2);
       let$ _ = expect_eq(e2', e2);
       let$ _ = expect_eq(t2', t2);
@@ -2049,15 +2023,10 @@ module Verify = {
       let$ (ctx, p) = unbox(Entail, concl);
       let$ (e, t) = unbox(HasType, p);
       let$ (pat, e) = unbox(Fun, e);
-      let$ x = unbox(Pat, pat);
       let$ (t_in, t_out) = unbox(Arrow, t);
       let$ (ctx_x', p) = unbox(Entail, prems(0));
-      let$ _ =
-        expect_eq_after_extend(
-          ctx_x',
-          ctx,
-          HasType(Var(x) |> fresh, t_in) |> fresh,
-        ); // handle fresh term
+      let ctx_x = ExtendCtx(Just(ctx), VarHasType(pat, t_in));
+      let$ _ = expect_eq_op(ctx_x', ctx_x);
       let$ (e', t_out') = unbox(HasType, p);
       let$ _ = expect_eq(e', e);
       let$ _ = expect_eq(t_out', t_out);
@@ -2066,16 +2035,12 @@ module Verify = {
       let$ (ctx, p) = unbox(Entail, concl);
       let$ (e, t) = unbox(HasType, p);
       let$ (pat, e) = unbox(Fun, e);
-      let$ (x, t_in) = unbox(PatAnn, pat);
+      let$ (_, t_in) = unbox(PatAnn, pat);
       let$ (t_in', t_out) = unbox(Arrow, t);
       let$ _ = expect_eq(t_in', t_in);
       let$ (ctx_x', p) = unbox(Entail, prems(0));
-      let$ _ =
-        expect_eq_after_extend(
-          ctx_x',
-          ctx,
-          HasType(Var(x) |> fresh, t_in) |> fresh,
-        ); // handle fresh term
+      let ctx_x = ExtendCtx(Just(ctx), VarHasType(pat, t_in));
+      let$ _ = expect_eq_op(ctx_x', ctx_x);
       let$ (e', t_out') = unbox(HasType, p);
       let$ _ = expect_eq(e', e);
       let$ _ = expect_eq(t_out', t_out);
@@ -2172,35 +2137,28 @@ module Verify = {
     | E_LetPair =>
       let$ (e, v') = unbox(Eval, concl);
       let$ (px, py, e1, e2) = unbox(LetPair, e);
-      let$ x = unbox(Pat, px);
-      let$ y = unbox(Pat, py);
       let$ (e1', v1) = unbox(Eval, prems(0));
       let$ _ = expect_eq(e1', e1);
       let$ (vx, vy) = unbox(Pair, v1);
       let$ (e2', v) = unbox(Eval, prems(1));
-      let$ _ = expect_eq(e2', subst(vx, x, subst(vy, y, e2)));
+      let e2 = Subst(vy, py, Just(e2));
+      let e2 = Subst(vx, px, e2);
+      let$ _ = expect_eq_op(e2', e2);
       let$ _ = expect_eq(v', v);
       Ok();
     | T_LetPair =>
       let$ (ctx, p) = unbox(Entail, concl);
       let$ (e, t) = unbox(HasType, p);
       let$ (px, py, e1, e2) = unbox(LetPair, e);
-      let$ x = unbox(Pat, px);
-      let$ y = unbox(Pat, py);
       let$ (ctx', p) = unbox(Entail, prems(0));
       let$ _ = expect_eq(ctx', ctx);
       let$ (e1', t1) = unbox(HasType, p);
       let$ _ = expect_eq(e1', e1);
       let$ (tx, ty) = unbox(Prod, t1);
       let$ (ctx_x_y', p) = unbox(Entail, prems(1));
-      // TODO: we need double extend_ctx
-      ignore((y, ty));
-      let$ _ =
-        expect_eq_after_extend(
-          ctx_x_y',
-          ctx,
-          HasType(Var(x) |> fresh, tx) |> fresh,
-        );
+      let ctx_x = ExtendCtx(Just(ctx), VarHasType(px, tx));
+      let ctx_x_y = ExtendCtx(ctx_x, VarHasType(py, ty));
+      let$ _ = expect_eq_op(ctx_x_y', ctx_x_y);
       let$ (e2', t') = unbox(HasType, p);
       let$ _ = expect_eq(e2', e2);
       let$ _ = expect_eq(t', t);
@@ -2244,14 +2202,14 @@ module Verify = {
     | E_Gt_F
     | E_Eq_T
     | E_Eq_F =>
-      let (req_bool, req_op) =
+      let (req_bool, req_op, binop) =
         switch (rule) {
-        | E_Lt_T => (True, OpLt)
-        | E_Lt_F => (False, OpLt)
-        | E_Gt_T => (True, OpGt)
-        | E_Gt_F => (False, OpGt)
-        | E_Eq_T => (True, OpEq)
-        | E_Eq_F => (False, OpEq)
+        | E_Lt_T => (True, OpLt, Lt)
+        | E_Lt_F => (False, OpLt, Lt)
+        | E_Gt_T => (True, OpGt, Gt)
+        | E_Gt_F => (False, OpGt, Gt)
+        | E_Eq_T => (True, OpEq, Eq)
+        | E_Eq_F => (False, OpEq, Eq)
         | _ => failwith("impossible")
         };
       let$ (e, v') = unbox(Eval, concl);
@@ -2260,19 +2218,11 @@ module Verify = {
       let$ _ = unbox(req_op, op);
       let$ (e1', v1) = unbox(Eval, prems(0));
       let$ _ = expect_eq(e1', e1);
-      let$ n1 = unbox(NumLit, v1);
       let$ (e2', v2) = unbox(Eval, prems(1));
       let$ _ = expect_eq(e2', e2);
-      let$ n2 = unbox(NumLit, v2);
-      switch (rule) {
-      | E_Lt_T when n1 < n2 => Ok()
-      | E_Gt_T when n1 > n2 => Ok()
-      | E_Eq_T when n1 == n2 => Ok()
-      | E_Lt_F when !(n1 < n2) => Ok()
-      | E_Gt_F when !(n1 > n2) => Ok()
-      | E_Eq_F when !(n1 == n2) => Ok()
-      | _ => Error((BinOpArithError(of_cls(op)), rep_ids([v', v1, v2])))
-      };
+      let v: t_op = BinOp(binop, v1, v2);
+      let$ _ = expect_eq_op(v', v);
+      Ok();
     | E_If_T =>
       let$ (e, v2') = unbox(Eval, concl);
       let$ (e1, e2, _e3) = unbox(If, e);
@@ -2296,12 +2246,11 @@ module Verify = {
     | E_Let =>
       let$ (e, v2') = unbox(Eval, concl);
       let$ (p, e1, e2) = unbox(Let, e);
-      let$ x = unbox(Pat, p);
       let$ (e1', v1) = unbox(Eval, prems(0));
       let$ _ = expect_eq(e1', e1);
       let$ (e2', v2) = unbox(Eval, prems(1));
-      // TODO(zhiyao): implement subst
-      let$ _ = expect_eq(e2', subst(v1, x, e2));
+      let e2 = Subst(v1, p, Just(e2));
+      let$ _ = expect_eq_op(e2', e2);
       let$ _ = expect_eq(v2', v2);
       Ok();
     | E_Ap =>
@@ -2310,11 +2259,11 @@ module Verify = {
       let$ (e1', vf) = unbox(Eval, prems(0));
       let$ _ = expect_eq(e1', e1);
       let$ (p, e_body) = unbox(Fun, vf);
-      let$ x = unbox(Pat, p);
       let$ (e2', v2) = unbox(Eval, prems(1));
       let$ _ = expect_eq(e2', e2);
       let$ (e_body', v) = unbox(Eval, prems(2));
-      let$ _ = expect_eq(e_body', subst(v2, x, e_body));
+      let e_body = Subst(v2, p, Just(e_body));
+      let$ _ = expect_eq_op(e_body', e_body);
       let$ _ = expect_eq(v', v);
       Ok();
     // | V_NumLit =>
@@ -2326,49 +2275,39 @@ module Verify = {
     //   let$ _ = expect_eq(v', e);
     //   Ok();
     | E_Neg =>
-      let req_op =
+      let (req_op, unop) =
         switch (rule) {
-        | E_Neg => OpNeg
+        | E_Neg => (OpNeg, Neg)
         | _ => failwith("impossible")
         };
       let$ (e, v') = unbox(Eval, concl);
-      let$ n' = unbox(NumLit, v');
       let$ (op, e) = unbox(UnOp, e);
       let$ _ = unbox(req_op, op);
       let$ (e', v) = unbox(Eval, prems(0));
       let$ _ = expect_eq(e', e);
-      let$ n = unbox(NumLit, v);
-      switch (rule) {
-      | E_Neg when n' == - n => Ok()
-      | _ => Error((UnOpArithError(of_cls(op)), rep_ids([v', v])))
-      };
+      let v: t_op = UnOp(unop, v);
+      let$ _ = expect_eq_op(v', v);
+      Ok();
     | E_Plus
     | E_Minus
     | E_Times =>
-      let req_op =
+      let (req_op, binop) =
         switch (rule) {
-        | E_Plus => OpPlus
-        | E_Minus => OpMinus
-        | E_Times => OpTimes
+        | E_Plus => (OpPlus, Plus)
+        | E_Minus => (OpMinus, Minus)
+        | E_Times => (OpTimes, Times)
         | _ => failwith("impossible")
         };
       let$ (e, v') = unbox(Eval, concl);
-      let$ n' = unbox(NumLit, v');
       let$ (op, e1, e2) = unbox(BinOp, e);
       let$ _ = unbox(req_op, op);
       let$ (e1', v1) = unbox(Eval, prems(0));
       let$ _ = expect_eq(e1', e1);
-      let$ n1 = unbox(NumLit, v1);
       let$ (e2', v2) = unbox(Eval, prems(1));
       let$ _ = expect_eq(e2', e2);
-      let$ n2 = unbox(NumLit, v2);
-      switch (rule) {
-      | E_Plus when n' == n1 + n2 => Ok()
-      | E_Minus when n' == n1 - n2 => Ok()
-      | E_Times when n' == n1 * n2 => Ok()
-      | _ => Error((BinOpArithError(of_cls(op)), rep_ids([v', v1, v2])))
-      };
-
+      let v: t_op = BinOp(binop, v1, v2);
+      let$ _ = expect_eq_op(v', v);
+      Ok();
     | Assumption =>
       let$ (ctx, prop) = unbox(Entail, concl);
       let$ _ = expect_in_ctx(prop, ctx);
@@ -2417,17 +2356,20 @@ module Verify = {
       let$ (a, b) = unbox(Or, prop);
       let$ _ = expect_eq(ctx, ctx');
       let$ (ctx_a', c') = unbox(Entail, prems(1));
-      let$ _ = expect_eq_after_extend(ctx_a', ctx, a);
+      let ctx_a = ExtendCtx(Just(ctx), Just(a));
+      let$ _ = expect_eq_op(ctx_a', ctx_a);
       let$ _ = expect_eq(c', c);
       let$ (ctx_b', c') = unbox(Entail, prems(2));
-      let$ _ = expect_eq_after_extend(ctx_b', ctx, b);
+      let ctx_b = ExtendCtx(Just(ctx), Just(b));
+      let$ _ = expect_eq_op(ctx_b', ctx_b);
       let$ _ = expect_eq(c', c);
       Ok();
     | Implies_I =>
       let$ (ctx, prop) = unbox(Entail, concl);
       let$ (a, b) = unbox(Implies, prop);
       let$ (ctx_a', b') = unbox(Entail, prems(0));
-      let$ _ = expect_eq_after_extend(ctx_a', ctx, a);
+      let ctx_a = ExtendCtx(Just(ctx), Just(a));
+      let$ _ = expect_eq_op(ctx_a', ctx_a);
       let$ _ = expect_eq(b', b);
       Ok();
     | Implies_E =>
