@@ -41,7 +41,7 @@ type expr =
   | Unroll(expr)
 and pat =
   | Pat(string)
-  | PatAnn(string, typ)
+  | Ann(pat, typ)
 and unop =
   | OpNeg
 and binop =
@@ -123,7 +123,7 @@ let cls_to_arg_typ: cls => list(Typ.t) =
   | PrjR => [Expr |> alias_fresh]
   | Triv => []
   | Pat => [String |> Typ.fresh]
-  | PatAnn => [String |> Typ.fresh, Type |> alias_fresh]
+  | Ann => [String |> Typ.fresh, Type |> alias_fresh]
   // ALF
   | NumLit => [Int |> Typ.fresh]
   | True
@@ -201,7 +201,7 @@ let cls_to_alias: cls => alias =
   | Unroll => Expr
   | TPat => TPat
   | Pat
-  | PatAnn => Pat
+  | Ann => Pat
   | OpNeg => UnOp
   | OpLt
   | OpGt
@@ -256,7 +256,7 @@ let all: list(cls) = [
   PrjR,
   Triv,
   Pat,
-  PatAnn,
+  Ann,
   HasType,
   // ALF logic
   NumLit,
@@ -462,14 +462,14 @@ and match_dhexp: (cls, option(DHExp.t)) => t =
         | _ => None
         };
       Pat(pat) |> fresh;
-    | (PatAnn, [d1, d2]) =>
+    | (Ann, [d1, d2]) =>
       let. pat =
         switch (DHExp.term_of(d1)) {
         | String(pat) => Some(pat)
         | _ => None
         };
       let ty = prop_of_dhexp(d2);
-      PatAnn(pat, ty) |> fresh;
+      Ann(Pat(pat) |> fresh, ty) |> fresh;
     | (HasType, [d1, d2]) =>
       let (e, ty) = (prop_of_dhexp(d1), prop_of_dhexp(d2));
       HasType(e, ty) |> fresh;
@@ -559,7 +559,7 @@ and match_dhexp: (cls, option(DHExp.t)) => t =
     | (PrjR, _)
     | (Triv, _)
     | (Pat, _)
-    | (PatAnn, _)
+    | (Ann, _)
     | (HasType, _)
     | (NumLit, _)
     | (True, _)

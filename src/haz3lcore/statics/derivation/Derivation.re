@@ -83,7 +83,7 @@ module Prop = {
     | PrjR(t)
     | Triv
     | Pat(string)
-    | PatAnn(string, t)
+    | Ann(t, t) // PatAnn(string, typ)
     // ALF
     | True
     | False
@@ -151,7 +151,7 @@ module Prop = {
     | PrjR
     | Triv
     | Pat
-    | PatAnn
+    | Ann
     // ALF
     | True
     | False
@@ -214,7 +214,7 @@ module Prop = {
       | PrjR(_) => PrjR
       | Triv => Triv
       | Pat(_) => Pat
-      | PatAnn(_) => PatAnn
+      | Ann(_) => Ann
       // ALF
       | True => True
       | False => False
@@ -358,8 +358,7 @@ module Prop = {
       | (PrjR(a), PrjR(b)) => eq(a, b)
       | (Triv, Triv) => true
       | (Pat(a), Pat(b)) => String.equal(a, b)
-      | (PatAnn(a1, a2), PatAnn(b1, b2)) =>
-        String.equal(a1, b1) && eq(a2, b2)
+      | (Ann(a1, a2), Ann(b1, b2)) => eq(a1, b1) && eq(a2, b2)
       | (Num, _)
       | (Bool, _)
       | (Arrow(_), _)
@@ -371,7 +370,7 @@ module Prop = {
       | (PrjR(_), _)
       | (Triv, _)
       | (Pat(_), _)
-      | (PatAnn(_), _) => false
+      | (Ann(_), _) => false
       // ALF
       | (True, True)
       | (False, False) => true
@@ -447,8 +446,7 @@ module Prop = {
       let subst = subst(v, x);
       let is_shadow = (p: t) =>
         switch (IdTagged.term_of(p)) {
-        | Pat(x')
-        | PatAnn(x', _) => String.equal(x', x)
+        | Pat(x') => String.equal(x', x)
         | _ => false
         };
       let subst' = p => is_shadow(p) ? Fun.id : subst;
@@ -484,8 +482,8 @@ module Prop = {
       | PrjL(e1) => PrjL(subst(e1)) |> rewrap
       | PrjR(e1) => PrjR(subst(e1)) |> rewrap
       | Triv
-      | Pat(_)
-      | PatAnn(_) => e
+      | Pat(_) => e
+      | Ann(e1, t) => Ann(subst(e1), t) |> rewrap
       // ALF
       | True
       | False => e
@@ -568,7 +566,7 @@ module Prop = {
       | PrjR(e1) => PrjR(subst_ty(e1)) |> rewrap
       | Triv => e
       | Pat(_) => e
-      | PatAnn(x', t1) => PatAnn(x', subst_ty(t1)) |> rewrap
+      | Ann(e1, t1) => Ann(subst_ty(e1), subst_ty(t1)) |> rewrap
       // ALF
       | True
       | False => e
@@ -1079,240 +1077,129 @@ module Verify = {
     | NotEqual(Prop.cls, t, t_op)
     | NotInCtx(t_op, t); // in rear case, the element go under operation (S-Var)
 
-  type unbox_req('a) =
+  type req('a) =
+    | T: req(t)
+    | Ctx: req(list(t))
     // ALFA
-    | Sum: unbox_req((t, t))
-    | TVar: unbox_req(string)
-    | Rec: unbox_req((t, t))
-    | TPat: unbox_req(string)
-    | Fix: unbox_req((t, t))
-    | InjL: unbox_req(t)
-    | InjR: unbox_req(t)
-    | Case: unbox_req((t, t, t, t, t))
-    | Roll: unbox_req(t)
-    | Unroll: unbox_req(t)
+    | Sum(req('a), req('b)): req(('a, 'b))
+    | TVar: req(string)
+    | Rec(req('a), req('b)): req(('a, 'b))
+    | TPat: req(string)
+    | Fix(req('a), req('b)): req(('a, 'b))
+    | InjL(req('a)): req('a)
+    | InjR(req('a)): req('a)
+    | Case(req('a), req('b), req('c), req('d), req('e))
+      : req(('a, 'b, 'c, 'd, 'e))
+    | Roll(req('a)): req('a)
+    | Unroll(req('a)): req('a)
     // ALFp
-    | Num: unbox_req(unit)
-    | Bool: unbox_req(unit)
-    | Arrow: unbox_req((t, t))
-    | Prod: unbox_req((t, t))
-    | Unit: unbox_req(unit)
-    | Pair: unbox_req((t, t))
-    | LetPair: unbox_req((t, t, t, t))
-    | PrjL: unbox_req(t)
-    | PrjR: unbox_req(t)
-    | Triv: unbox_req(unit)
-    | Pat: unbox_req(string)
-    | PatAnn: unbox_req((string, t))
+    | Num: req(unit)
+    | Bool: req(unit)
+    | Arrow(req('a), req('b)): req(('a, 'b))
+    | Prod(req('a), req('b)): req(('a, 'b))
+    | Unit: req(unit)
+    | Pair(req('a), req('b)): req(('a, 'b))
+    | LetPair(req('a), req('b), req('c), req('d)): req(('a, 'b, 'c, 'd))
+    | PrjL(req('a)): req('a)
+    | PrjR(req('a)): req('a)
+    | Triv: req(unit)
+    | Pat: req(string)
+    | Ann(req('a), req('b)): req(('a, 'b))
     // ALF
-    | True: unbox_req(unit)
-    | False: unbox_req(unit)
-    | If: unbox_req((t, t, t))
-    | Var: unbox_req(string)
-    | Let: unbox_req((t, t, t))
-    | Fun: unbox_req((t, t))
-    | Ap: unbox_req((t, t))
-    | OpLt: unbox_req(unit)
-    | OpGt: unbox_req(unit)
-    | OpEq: unbox_req(unit)
+    | True: req(unit)
+    | False: req(unit)
+    | If(req('a), req('b), req('c)): req(('a, 'b, 'c))
+    | Var: req(string)
+    | Let(req('a), req('b), req('c)): req(('a, 'b, 'c))
+    | Fun(req('a), req('b)): req(('a, 'b))
+    | Ap(req('a), req('b)): req(('a, 'b))
+    | OpLt: req(unit)
+    | OpGt: req(unit)
+    | OpEq: req(unit)
     // AL
-    | NumLit: unbox_req(int)
-    | UnOp: unbox_req((t, t))
-    | BinOp: unbox_req((t, t, t))
-    | OpNeg: unbox_req(unit)
-    | OpPlus: unbox_req(unit)
-    | OpMinus: unbox_req(unit)
-    | OpTimes: unbox_req(unit)
-    // ALFA outers
-    | HasType: unbox_req((t, t))
-    | Syn: unbox_req((t, t))
-    | Ana: unbox_req((t, t))
-    | Val: unbox_req(t)
-    | Eval: unbox_req((t, t))
+    | NumLit: req(int)
+    | UnOp(req('a), req('b)): req(('a, 'b))
+    | BinOp(req('a), req('b), req('c)): req(('a, 'b, 'c))
+    | OpNeg: req(unit)
+    | OpPlus: req(unit)
+    | OpMinus: req(unit)
+    | OpTimes: req(unit)
+    // ALFA proposition
+    | HasType(req('a), req('b)): req(('a, 'b))
+    | Syn(req('a), req('b)): req(('a, 'b))
+    | Ana(req('a), req('b)): req(('a, 'b))
     // Propositional logic
-    | And: unbox_req((t, t))
-    | Or: unbox_req((t, t))
-    | Implies: unbox_req((t, t))
-    | Truth: unbox_req(unit)
-    | Falsity: unbox_req(unit)
-    | Entail: unbox_req((t, t))
-    | Ctx: unbox_req(list(t));
+    | And(req('a), req('b)): req(('a, 'b))
+    | Or(req('a), req('b)): req(('a, 'b))
+    | Implies(req('a), req('b)): req(('a, 'b))
+    | Truth: req(unit)
+    | Falsity: req(unit)
+    // Judgments
+    | Val(req('a)): req('a)
+    | Eval(req('a), req('b)): req(('a, 'b))
+    | Entail(req('a), req('b)): req(('a, 'b));
 
-  let cls_of_req: type a. unbox_req(a) => Prop.cls =
+  let cls_of_req: type a. req(a) => Prop.cls =
     fun
+    | T => failwith("cls_of_req: T")
+    | Ctx => Ctx
     // ALFA
-    | Sum => Sum
+    | Sum(_) => Sum
     | TVar => TVar
-    | Rec => Rec
+    | Rec(_) => Rec
     | TPat => TPat
-    | Fix => Fix
-    | InjL => InjL
-    | InjR => InjR
-    | Case => Case
-    | Roll => Roll
-    | Unroll => Unroll
+    | Fix(_) => Fix
+    | InjL(_) => InjL
+    | InjR(_) => InjR
+    | Case(_) => Case
+    | Roll(_) => Roll
+    | Unroll(_) => Unroll
     // ALFp
     | Num => Num
     | Bool => Bool
-    | Arrow => Arrow
-    | Prod => Prod
+    | Arrow(_) => Arrow
+    | Prod(_) => Prod
     | Unit => Unit
-    | Pair => Pair
-    | LetPair => LetPair
-    | PrjL => PrjL
-    | PrjR => PrjR
+    | Pair(_) => Pair
+    | LetPair(_) => LetPair
+    | PrjL(_) => PrjL
+    | PrjR(_) => PrjR
     | Triv => Triv
     | Pat => Pat
-    | PatAnn => PatAnn
+    | Ann(_) => Ann
     // ALF
     | True => True
     | False => False
-    | If => If
+    | If(_) => If
     | Var => Var
-    | Let => Let
-    | Fun => Fun
-    | Ap => Ap
+    | Let(_) => Let
+    | Fun(_) => Fun
+    | Ap(_) => Ap
     | OpLt => OpLt
     | OpGt => OpGt
     | OpEq => OpEq
     // AL
     | NumLit => NumLit
-    | UnOp => UnOp
-    | BinOp => BinOp
+    | UnOp(_) => UnOp
+    | BinOp(_) => BinOp
     | OpNeg => OpNeg
     | OpPlus => OpPlus
     | OpMinus => OpMinus
     | OpTimes => OpTimes
-    // ALFA outers
-    | HasType => HasType
-    | Syn => Syn
-    | Ana => Ana
-    | Val => Val
-    | Eval => Eval
+    // ALFA proposition
+    | HasType(_) => HasType
+    | Syn(_) => Syn
+    | Ana(_) => Ana
     // Propositional logic
-    | And => And
-    | Or => Or
-    | Implies => Implies
+    | And(_) => And
+    | Or(_) => Or
+    | Implies(_) => Implies
     | Truth => Truth
     | Falsity => Falsity
-    | Entail => Entail
-    | Ctx => Ctx;
-
-  let unbox: type a. (unbox_req(a), t) => result(a, failure) =
-    (req, p) => {
-      switch (req, IdTagged.term_of(p)) {
-      // ALFA
-      | (Sum, Sum(a, b)) => Ok((a, b))
-      | (TVar, TVar(a)) => Ok(a)
-      | (Rec, Rec(a, b)) => Ok((a, b))
-      | (TPat, TPat(a)) => Ok(a)
-      | (Fix, Fix(a, b)) => Ok((a, b))
-      | (InjL, InjL(a)) => Ok(a)
-      | (InjR, InjR(a)) => Ok(a)
-      | (Case, Case(a, b, c, d, e)) => Ok((a, b, c, d, e))
-      | (Roll, Roll(a)) => Ok(a)
-      | (Unroll, Unroll(a)) => Ok(a)
-      // ALFp
-      | (Num, Num) => Ok()
-      | (Bool, Bool) => Ok()
-      | (Arrow, Arrow(a, b)) => Ok((a, b))
-      | (Prod, Prod(a, b)) => Ok((a, b))
-      | (Unit, Unit) => Ok()
-      | (Pair, Pair(a, b)) => Ok((a, b))
-      | (LetPair, LetPair(a, b, c, d)) => Ok((a, b, c, d))
-      | (PrjL, PrjL(a)) => Ok(a)
-      | (PrjR, PrjR(a)) => Ok(a)
-      | (Triv, Triv) => Ok()
-      | (Pat, Pat(a)) => Ok(a)
-      | (Pat, PatAnn(a, _)) => Ok(a) // PatAnn is a subtype of Pat
-      | (PatAnn, PatAnn(a, b)) => Ok((a, b))
-      // ALF
-      | (True, True) => Ok()
-      | (False, False) => Ok()
-      | (If, If(a, b, c)) => Ok((a, b, c))
-      | (Var, Var(a)) => Ok(a)
-      | (Let, Let(a, b, c)) => Ok((a, b, c))
-      | (Fun, Fun(a, b)) => Ok((a, b))
-      | (Ap, Ap(a, b)) => Ok((a, b))
-      | (OpLt, OpLt) => Ok()
-      | (OpGt, OpGt) => Ok()
-      | (OpEq, OpEq) => Ok()
-      // AL
-      | (NumLit, NumLit(a)) => Ok(a)
-      | (UnOp, UnOp(a, b)) => Ok((a, b))
-      | (BinOp, BinOp(a, b, c)) => Ok((a, b, c))
-      | (OpNeg, OpNeg) => Ok()
-      | (OpPlus, OpPlus) => Ok()
-      | (OpMinus, OpMinus) => Ok()
-      | (OpTimes, OpTimes) => Ok()
-      // ALFA outers
-      | (HasType, HasType(a, b)) => Ok((a, b))
-      | (Syn, Syn(a, b)) => Ok((a, b))
-      | (Ana, Ana(a, b)) => Ok((a, b))
-      | (Val, Val(a)) => Ok(a)
-      | (Eval, Eval(a, b)) => Ok((a, b))
-      // Propositional logic
-      | (And, And(a, b)) => Ok((a, b))
-      | (Or, Or(a, b)) => Ok((a, b))
-      | (Implies, Implies(a, b)) => Ok((a, b))
-      | (Truth, Truth) => Ok()
-      | (Falsity, Falsity) => Ok()
-      | (Entail, Entail(a, b)) => Ok((a, b))
-      | (Ctx, Ctx(a)) => Ok(a)
-
-      | (Sum, _)
-      | (TVar, _)
-      | (Rec, _)
-      | (TPat, _)
-      | (Fix, _)
-      | (InjL, _)
-      | (InjR, _)
-      | (Case, _)
-      | (Roll, _)
-      | (Unroll, _)
-      | (Num, _)
-      | (Bool, _)
-      | (Arrow, _)
-      | (Prod, _)
-      | (Unit, _)
-      | (Pair, _)
-      | (LetPair, _)
-      | (PrjL, _)
-      | (PrjR, _)
-      | (Triv, _)
-      | (Pat, _)
-      | (PatAnn, _)
-      | (True, _)
-      | (False, _)
-      | (If, _)
-      | (Var, _)
-      | (Let, _)
-      | (Fun, _)
-      | (Ap, _)
-      | (OpLt, _)
-      | (OpGt, _)
-      | (OpEq, _)
-      | (NumLit, _)
-      | (UnOp, _)
-      | (BinOp, _)
-      | (OpNeg, _)
-      | (OpPlus, _)
-      | (OpMinus, _)
-      | (OpTimes, _)
-      | (HasType, _)
-      | (Syn, _)
-      | (Ana, _)
-      | (Val, _)
-      | (Eval, _)
-      | (And, _)
-      | (Or, _)
-      | (Implies, _)
-      | (Truth, _)
-      | (Falsity, _)
-      | (Entail, _)
-      | (Ctx, _) => Error(FailUnbox(cls_of_req(req), p))
-      };
-    };
+    // Judgments
+    | Val(_) => Val
+    | Eval(_) => Eval
+    | Entail(_) => Entail;
 
   let (let$) = (x, f) =>
     switch (x) {
@@ -1320,18 +1207,225 @@ module Verify = {
     | Error(e) => Error(e)
     };
 
+  let rec unbox: type a. (t, req(a)) => result(a, failure) =
+    (p, req) => {
+      switch (req, IdTagged.term_of(p)) {
+      | (T, _) => Ok(p)
+      | (Ctx, Ctx(l)) => Ok(l)
+      | (Ctx, _) => Error(FailUnbox(Ctx, p))
+      // ALFA
+      | (Sum(ra, rb), Sum(a, b)) =>
+        let$ a = unbox(a, ra);
+        let$ b = unbox(b, rb);
+        Ok((a, b));
+      | (Sum(_), _) => Error(FailUnbox(Sum, p))
+      | (TVar, TVar(s)) => Ok(s)
+      | (TVar, _) => Error(FailUnbox(TVar, p))
+      | (Rec(ra, rb), Rec(a, b)) =>
+        let$ a = unbox(a, ra);
+        let$ b = unbox(b, rb);
+        Ok((a, b));
+      | (Rec(_), _) => Error(FailUnbox(Rec, p))
+      | (TPat, TPat(s)) => Ok(s)
+      | (TPat, _) => Error(FailUnbox(TPat, p))
+      | (Fix(ra, rb), Fix(a, b)) =>
+        let$ a = unbox(a, ra);
+        let$ b = unbox(b, rb);
+        Ok((a, b));
+      | (Fix(_), _) => Error(FailUnbox(Fix, p))
+      | (InjL(ra), InjL(a)) =>
+        let$ a = unbox(a, ra);
+        Ok(a);
+      | (InjL(_), _) => Error(FailUnbox(InjL, p))
+      | (InjR(ra), InjR(a)) =>
+        let$ a = unbox(a, ra);
+        Ok(a);
+      | (InjR(_), _) => Error(FailUnbox(InjR, p))
+      | (Case(ra, rb, rc, rd, re), Case(a, b, c, d, e)) =>
+        let$ a = unbox(a, ra);
+        let$ b = unbox(b, rb);
+        let$ c = unbox(c, rc);
+        let$ d = unbox(d, rd);
+        let$ e = unbox(e, re);
+        Ok((a, b, c, d, e));
+      | (Case(_), _) => Error(FailUnbox(Case, p))
+      | (Roll(ra), Roll(a)) =>
+        let$ a = unbox(a, ra);
+        Ok(a);
+      | (Roll(_), _) => Error(FailUnbox(Roll, p))
+      | (Unroll(ra), Unroll(a)) =>
+        let$ a = unbox(a, ra);
+        Ok(a);
+      | (Unroll(_), _) => Error(FailUnbox(Unroll, p))
+      // ALFp
+      | (Num, Num) => Ok()
+      | (Num, _) => Error(FailUnbox(Num, p))
+      | (Bool, Bool) => Ok()
+      | (Bool, _) => Error(FailUnbox(Bool, p))
+      | (Arrow(ra, rb), Arrow(a, b)) =>
+        let$ a = unbox(a, ra);
+        let$ b = unbox(b, rb);
+        Ok((a, b));
+      | (Arrow(_), _) => Error(FailUnbox(Arrow, p))
+      | (Prod(ra, rb), Prod(a, b)) =>
+        let$ a = unbox(a, ra);
+        let$ b = unbox(b, rb);
+        Ok((a, b));
+      | (Prod(_), _) => Error(FailUnbox(Prod, p))
+      | (Unit, Unit) => Ok()
+      | (Unit, _) => Error(FailUnbox(Unit, p))
+      | (Pair(ra, rb), Pair(a, b)) =>
+        let$ a = unbox(a, ra);
+        let$ b = unbox(b, rb);
+        Ok((a, b));
+      | (Pair(_), _) => Error(FailUnbox(Pair, p))
+      | (LetPair(ra, rb, rc, rd), LetPair(a, b, c, d)) =>
+        let$ a = unbox(a, ra);
+        let$ b = unbox(b, rb);
+        let$ c = unbox(c, rc);
+        let$ d = unbox(d, rd);
+        Ok((a, b, c, d));
+      | (LetPair(_), _) => Error(FailUnbox(LetPair, p))
+      | (PrjL(ra), PrjL(a)) =>
+        let$ a = unbox(a, ra);
+        Ok(a);
+      | (PrjL(_), _) => Error(FailUnbox(PrjL, p))
+      | (PrjR(ra), PrjR(a)) =>
+        let$ a = unbox(a, ra);
+        Ok(a);
+      | (PrjR(_), _) => Error(FailUnbox(PrjR, p))
+      | (Triv, Triv) => Ok()
+      | (Triv, _) => Error(FailUnbox(Triv, p))
+      | (Pat, Pat(s)) => Ok(s)
+      | (Pat, _) => Error(FailUnbox(Pat, p))
+      | (Ann(ra, rb), Ann(a, b)) =>
+        let$ a = unbox(a, ra);
+        let$ b = unbox(b, rb);
+        Ok((a, b));
+      | (Ann(_), _) => Error(FailUnbox(Ann, p))
+      // ALF
+      | (True, True) => Ok()
+      | (True, _) => Error(FailUnbox(True, p))
+      | (False, False) => Ok()
+      | (False, _) => Error(FailUnbox(False, p))
+      | (If(ra, rb, rc), If(a, b, c)) =>
+        let$ a = unbox(a, ra);
+        let$ b = unbox(b, rb);
+        let$ c = unbox(c, rc);
+        Ok((a, b, c));
+      | (If(_), _) => Error(FailUnbox(If, p))
+      | (Var, Var(s)) => Ok(s)
+      | (Var, _) => Error(FailUnbox(Var, p))
+      | (Let(ra, rb, rc), Let(a, b, c)) =>
+        let$ a = unbox(a, ra);
+        let$ b = unbox(b, rb);
+        let$ c = unbox(c, rc);
+        Ok((a, b, c));
+      | (Let(_), _) => Error(FailUnbox(Let, p))
+      | (Fun(ra, rb), Fun(a, b)) =>
+        let$ a = unbox(a, ra);
+        let$ b = unbox(b, rb);
+        Ok((a, b));
+      | (Fun(_), _) => Error(FailUnbox(Fun, p))
+      | (Ap(ra, rb), Ap(a, b)) =>
+        let$ a = unbox(a, ra);
+        let$ b = unbox(b, rb);
+        Ok((a, b));
+      | (Ap(_), _) => Error(FailUnbox(Ap, p))
+      | (OpLt, OpLt) => Ok()
+      | (OpLt, _) => Error(FailUnbox(OpLt, p))
+      | (OpGt, OpGt) => Ok()
+      | (OpGt, _) => Error(FailUnbox(OpGt, p))
+      | (OpEq, OpEq) => Ok()
+      | (OpEq, _) => Error(FailUnbox(OpEq, p))
+      // AL
+      | (NumLit, NumLit(n)) => Ok(n)
+      | (NumLit, _) => Error(FailUnbox(NumLit, p))
+      | (UnOp(ra, rb), UnOp(a, b)) =>
+        let$ a = unbox(a, ra);
+        let$ b = unbox(b, rb);
+        Ok((a, b));
+      | (UnOp(_), _) => Error(FailUnbox(UnOp, p))
+      | (BinOp(ra, rb, rc), BinOp(a, b, c)) =>
+        let$ a = unbox(a, ra);
+        let$ b = unbox(b, rb);
+        let$ c = unbox(c, rc);
+        Ok((a, b, c));
+      | (BinOp(_), _) => Error(FailUnbox(BinOp, p))
+      | (OpNeg, OpNeg) => Ok()
+      | (OpNeg, _) => Error(FailUnbox(OpNeg, p))
+      | (OpPlus, OpPlus) => Ok()
+      | (OpPlus, _) => Error(FailUnbox(OpPlus, p))
+      | (OpMinus, OpMinus) => Ok()
+      | (OpMinus, _) => Error(FailUnbox(OpMinus, p))
+      | (OpTimes, OpTimes) => Ok()
+      | (OpTimes, _) => Error(FailUnbox(OpTimes, p))
+      // ALFA proposition
+      | (HasType(ra, rb), HasType(a, b)) =>
+        let$ a = unbox(a, ra);
+        let$ b = unbox(b, rb);
+        Ok((a, b));
+      | (HasType(_), _) => Error(FailUnbox(HasType, p))
+      | (Syn(ra, rb), Syn(a, b)) =>
+        let$ a = unbox(a, ra);
+        let$ b = unbox(b, rb);
+        Ok((a, b));
+      | (Syn(_), _) => Error(FailUnbox(Syn, p))
+      | (Ana(ra, rb), Ana(a, b)) =>
+        let$ a = unbox(a, ra);
+        let$ b = unbox(b, rb);
+        Ok((a, b));
+      | (Ana(_), _) => Error(FailUnbox(Ana, p))
+      // Propositional logic
+      | (And(ra, rb), And(a, b)) =>
+        let$ a = unbox(a, ra);
+        let$ b = unbox(b, rb);
+        Ok((a, b));
+      | (And(_), _) => Error(FailUnbox(And, p))
+      | (Or(ra, rb), Or(a, b)) =>
+        let$ a = unbox(a, ra);
+        let$ b = unbox(b, rb);
+        Ok((a, b));
+      | (Or(_), _) => Error(FailUnbox(Or, p))
+      | (Implies(ra, rb), Implies(a, b)) =>
+        let$ a = unbox(a, ra);
+        let$ b = unbox(b, rb);
+        Ok((a, b));
+      | (Implies(_), _) => Error(FailUnbox(Implies, p))
+      | (Truth, Truth) => Ok()
+      | (Truth, _) => Error(FailUnbox(Truth, p))
+      | (Falsity, Falsity) => Ok()
+      | (Falsity, _) => Error(FailUnbox(Falsity, p))
+      // Judgments
+      | (Val(ra), Val(a)) =>
+        let$ a = unbox(a, ra);
+        Ok(a);
+      | (Val(_), _) => Error(FailUnbox(Val, p))
+      | (Eval(ra, rb), Eval(a, b)) =>
+        let$ a = unbox(a, ra);
+        let$ b = unbox(b, rb);
+        Ok((a, b));
+      | (Eval(_), _) => Error(FailUnbox(Eval, p))
+      | (Entail(ra, rb), Entail(a, b)) =>
+        let$ a = unbox(a, ra);
+        let$ b = unbox(b, rb);
+        Ok((a, b));
+      | (Entail(_), _) => Error(FailUnbox(Entail, p))
+      };
+    };
+
   let rec go: t_op => result(t, failure) =
     a =>
       switch (a) {
       | Just(p) => Ok(p)
       | UnOp(op, e) =>
-        let$ n = unbox(NumLit, e);
+        let$ n = unbox(e, NumLit);
         switch (op) {
         | Neg => Ok(NumLit(- n) |> temp)
         };
       | BinOp(op, e1, e2) =>
-        let$ n1 = unbox(NumLit, e1);
-        let$ n2 = unbox(NumLit, e2);
+        let$ n1 = unbox(e1, NumLit);
+        let$ n2 = unbox(e2, NumLit);
         switch (op) {
         | Plus => Ok(NumLit(n1 + n2) |> temp)
         | Minus => Ok(NumLit(n1 - n2) |> temp)
@@ -1341,20 +1435,20 @@ module Verify = {
         | Eq => Ok((n1 == n2 ? True : False) |> temp)
         };
       | Subst(v, x, e) =>
-        let$ x = unbox(Pat, x);
+        let$ x = unbox(x, Pat);
         let$ e = go(e);
         Ok(subst(v, x, e));
       | SubstTy(t, a, e) =>
-        let$ a = unbox(TPat, a);
+        let$ a = unbox(a, TPat);
         let$ e = go(e);
         Ok(subst_ty(t, a, e));
       | ExtendCtx(ctx, e) =>
         let$ ctx = go(ctx);
-        let$ ctx = unbox(Ctx, ctx);
+        let$ ctx = unbox(ctx, Ctx);
         let$ e = go(e);
         Ok(Ctx(extend_ctx(ctx, e)) |> temp);
       | VarHasType(pat, t) =>
-        let$ x = unbox(Pat, pat);
+        let$ x = unbox(pat, Pat);
         Ok(HasType(Var(x) |> temp, t) |> temp);
       };
 
@@ -1368,10 +1462,19 @@ module Verify = {
   let expect_eq: (t, t) => result(unit, failure) =
     (a, b) => expect_eq_op(a, Just(b));
 
+  let expect_eq_batch: (list(t), list(t)) => result(unit, failure) =
+    List.fold_left2(
+      (acc, a, b) => {
+        let$ _ = acc;
+        expect_eq(a, b);
+      },
+      Ok(),
+    );
+
   let expect_in_ctx_op: (t_op, t) => result(unit, failure) =
     (p_op, ctx) => {
       let$ p = go(p_op);
-      let$ pl = unbox(Ctx, ctx);
+      let$ pl = unbox(ctx, Ctx);
       in_ctx(pl, p) ? Ok() : Error(NotInCtx(p_op, ctx));
     };
 
@@ -1390,263 +1493,179 @@ module Verify = {
   let verify =
       (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => {
     let$ prems = expect_prems_num(rule, prems);
+    let concl = unbox(concl, _);
+    let prems = i => unbox(prems(i));
     switch (rule) {
     // ALFA
     | A_InjL =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (el, t) = unbox(Ana, p);
-      let$ e = unbox(InjL, el);
-      let$ (_, tr) = unbox(Sum, t);
-      let$ (ctx', p) = unbox(Entail, prems(0));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e', tr') = unbox(Syn, p);
-      let$ _ = expect_eq(e', e);
-      let$ _ = expect_eq(tr', tr);
+      let$ (ctx, (e, (tl, _tr))) =
+        Sum(T, Ana(InjL(T), Sum(T, T))) |> concl;
+      let$ (ctx', (e', tl')) = Entail(T, Ana(T, T)) |> prems(0);
+      let$ _ = expect_eq_batch([ctx, e, tl], [ctx', e', tl']);
       Ok();
     | A_InjR =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (er, t) = unbox(Ana, p);
-      let$ e = unbox(InjR, er);
-      let$ (tl, _) = unbox(Sum, t);
-      let$ (ctx', p) = unbox(Entail, prems(0));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e', tl') = unbox(Syn, p);
-      let$ _ = expect_eq(e', e);
-      let$ _ = expect_eq(tl', tl);
+      let$ (ctx, (e, (_tl, tr))) =
+        Sum(T, Ana(InjR(T), Sum(T, T))) |> concl;
+      let$ (ctx', (e', tr')) = Entail(T, Ana(T, T)) |> prems(0);
+      let$ _ = expect_eq_batch([ctx, e, tr], [ctx', e', tr']);
       Ok();
     | E_InjL =>
-      let$ (el, vl') = unbox(Eval, concl);
-      let$ e = unbox(InjL, el);
-      let$ v' = unbox(InjL, vl');
-      let$ (e', v) = unbox(Eval, prems(0));
-      let$ _ = expect_eq(e', e);
-      let$ _ = expect_eq(v', v);
+      let$ (e, v') = Eval(InjL(T), InjL(T)) |> concl;
+      let$ (e', v) = Eval(T, T) |> prems(0);
+      let$ _ = expect_eq_batch([e, v], [e', v']);
       Ok();
     | E_InjR =>
-      let$ (er, vr') = unbox(Eval, concl);
-      let$ e = unbox(InjR, er);
-      let$ v' = unbox(InjR, vr');
-      let$ (e', v) = unbox(Eval, prems(0));
-      let$ _ = expect_eq(e', e);
-      let$ _ = expect_eq(v', v);
+      let$ (e, v') = Eval(InjR(T), InjR(T)) |> concl;
+      let$ (e', v) = Eval(T, T) |> prems(0);
+      let$ _ = expect_eq_batch([e, v], [e', v']);
       Ok();
     | A_Case =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (e, t) = unbox(Ana, p);
-      let$ (e_scrut, px, el, py, er) = unbox(Case, e);
-      let$ (ctx', p) = unbox(Entail, prems(0));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e_scrut', ts) = unbox(Syn, p);
-      let$ _ = expect_eq(e_scrut', e_scrut);
-      let$ (tl, tr) = unbox(Sum, ts);
-      let$ (ctx_x', p) = unbox(Entail, prems(1));
-      let ctx_x = ExtendCtx(Just(ctx), VarHasType(px, tl));
+      let$ (ctx, ((e_scrut, x, el, y, er), t)) =
+        Entail(T, Ana(Case(T, T, T, T, T), T)) |> concl;
+      let$ (ctx', (e_scrut', (tl, tr))) =
+        Entail(T, Syn(T, Sum(T, T))) |> prems(0);
+      let$ _ = expect_eq_batch([ctx, e_scrut], [ctx', e_scrut']);
+      let$ (ctx_x', (el', t')) = Entail(T, Ana(T, T)) |> prems(1);
+      let ctx_x = ExtendCtx(Just(ctx), VarHasType(x, tl));
       let$ _ = expect_eq_op(ctx_x', ctx_x);
-      let$ (el', t') = unbox(Ana, p);
-      let$ _ = expect_eq(el', el);
-      let$ _ = expect_eq(t', t);
-      let$ (ctx_y', p) = unbox(Entail, prems(2));
-      let ctx_y = ExtendCtx(Just(ctx), VarHasType(py, tr));
+      let$ _ = expect_eq_batch([el, t], [el', t']);
+      let$ (ctx_y', (er', t')) = Entail(T, Ana(T, T)) |> prems(2);
+      let ctx_y = ExtendCtx(Just(ctx), VarHasType(y, tr));
       let$ _ = expect_eq_op(ctx_y', ctx_y);
-      let$ (er', t') = unbox(Ana, p);
-      let$ _ = expect_eq(er', er);
-      let$ _ = expect_eq(t', t);
+      let$ _ = expect_eq_batch([er, t], [er', t']);
       Ok();
     | S_Case =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (e, t) = unbox(Syn, p);
-      let$ (e_scrut, px, el, py, er) = unbox(Case, e);
-      let$ (ctx', p) = unbox(Entail, prems(0));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e_scrut', ts) = unbox(Syn, p);
-      let$ _ = expect_eq(e_scrut', e_scrut);
-      let$ (tl, tr) = unbox(Sum, ts);
-      let$ (ctx_x', p) = unbox(Entail, prems(1));
-      let ctx_x = ExtendCtx(Just(ctx), VarHasType(px, tl));
+      let$ (ctx, ((e_scrut, x, el, y, er), t)) =
+        Entail(T, Syn(Case(T, T, T, T, T), T)) |> concl;
+      let$ (ctx', (e_scrut', (tl, tr))) =
+        Entail(T, Syn(T, Sum(T, T))) |> prems(0);
+      let$ _ = expect_eq_batch([ctx, e_scrut], [ctx', e_scrut']);
+      let$ (ctx_x', (el', t')) = Entail(T, Syn(T, T)) |> prems(1);
+      let ctx_x = ExtendCtx(Just(ctx), VarHasType(x, tl));
       let$ _ = expect_eq_op(ctx_x', ctx_x);
-      let$ (el', t') = unbox(Syn, p);
-      let$ _ = expect_eq(el', el);
-      let$ _ = expect_eq(t', t);
-      let$ (ctx_y', p) = unbox(Entail, prems(2));
-      let ctx_y = ExtendCtx(Just(ctx), VarHasType(py, tr));
+      let$ _ = expect_eq_batch([el, t], [el', t']);
+      let$ (ctx_y', (er', t')) = Entail(T, Syn(T, T)) |> prems(2);
+      let ctx_y = ExtendCtx(Just(ctx), VarHasType(y, tr));
       let$ _ = expect_eq_op(ctx_y', ctx_y);
-      let$ (er', t') = unbox(Syn, p);
-      let$ _ = expect_eq(er', er);
-      let$ _ = expect_eq(t', t);
+      let$ _ = expect_eq_batch([er, t], [er', t']);
       Ok();
     | E_Case_L =>
-      let$ (e, v') = unbox(Eval, concl);
-      let$ (e_scrut, px, el, _py, _er) = unbox(Case, e);
-      let$ x = unbox(Pat, px);
-      let$ (e_scrut', vl) = unbox(Eval, prems(0));
+      let$ ((e_scrut, x, el, _y, _er), v') =
+        Eval(Case(T, T, T, T, T), T) |> concl;
+      let$ (e_scrut', v_data) = Eval(T, InjL(T)) |> prems(0);
       let$ _ = expect_eq(e_scrut', e_scrut);
-      let$ v_data = unbox(InjL, vl);
-      let$ (el', v) = unbox(Eval, prems(1));
-      let$ _ = expect_eq(el', subst(v_data, x, el));
+      let el = Subst(v_data, x, Just(el));
+      let$ (el', v) = Eval(T, T) |> prems(1);
+      let$ _ = expect_eq_op(el', el);
       let$ _ = expect_eq(v', v);
       Ok();
     | E_Case_R =>
-      let$ (e, v') = unbox(Eval, concl);
-      let$ (e_scrut, _px, _el, py, er) = unbox(Case, e);
-      let$ (e_scrut', vr) = unbox(Eval, prems(0));
+      let$ ((e_scrut, _x, _el, y, er), v') =
+        Eval(Case(T, T, T, T, T), T) |> concl;
+      let$ (e_scrut', v_data) = Eval(T, InjR(T)) |> prems(0);
       let$ _ = expect_eq(e_scrut', e_scrut);
-      let$ v_data = unbox(InjR, vr);
-      let$ (er', v) = unbox(Eval, prems(1));
-      let er = Subst(v_data, py, Just(er));
+      let er = Subst(v_data, y, Just(er));
+      let$ (er', v) = Eval(T, T) |> prems(1);
       let$ _ = expect_eq_op(er', er);
       let$ _ = expect_eq(v', v);
       Ok();
     | E_Fix =>
-      let$ (e, v') = unbox(Eval, concl);
-      let$ (pat, e_body) = unbox(Fix, e);
-      let$ (e_body', v) = unbox(Eval, prems(0));
-      let e_body = Subst(e, pat, Just(e_body));
+      let$ (e, v') = Eval(T, T) |> concl;
+      let$ (x, e_body) = Fix(T, T) |> unbox(e);
+      let e_body = Subst(e, x, Just(e_body));
+      let$ (e_body', v) = Eval(T, T) |> prems(0);
       let$ _ = expect_eq_op(e_body', e_body);
       let$ _ = expect_eq(v', v);
       Ok();
     | T_Roll =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (e, t) = unbox(HasType, p);
-      let$ e_body = unbox(Roll, e);
-      let$ (tpat, t_body) = unbox(Rec, t);
-      let$ (ctx', p) = unbox(Entail, prems(0));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e_body', t_body') = unbox(HasType, p);
-      let$ _ = expect_eq(e_body', e_body);
-      let t_body = SubstTy(t, tpat, Just(t_body));
+      let$ (ctx, (e_body, t)) = Entail(T, HasType(Roll(T), T)) |> concl;
+      let$ (a, t_body) = Rec(T, T) |> unbox(t);
+      let t_body = SubstTy(t, a, Just(t_body));
+      let$ (ctx', (e_body', t_body')) =
+        Entail(T, HasType(T, T)) |> prems(0);
+      let$ _ = expect_eq_batch([ctx, e_body], [ctx', e_body']);
       let$ _ = expect_eq_op(t_body', t_body);
       Ok();
     | T_Unroll =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (e, t_body') = unbox(HasType, p);
-      let$ e = unbox(Unroll, e);
-      let$ (ctx', p) = unbox(Entail, prems(0));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e', t) = unbox(HasType, p);
-      let$ _ = expect_eq(e', e);
-      let$ (tpat, t_body) = unbox(Rec, t);
-      let t_body = SubstTy(t, tpat, Just(t_body));
+      let$ (ctx, (e, t_body')) =
+        Entail(T, HasType(Unroll(T), T)) |> concl;
+      let$ (ctx', (e', t)) = Entail(T, HasType(T, T)) |> prems(0);
+      let$ _ = expect_eq_batch([ctx, e], [ctx', e']);
+      let$ (a, t_body) = Rec(T, T) |> unbox(t);
+      let t_body = SubstTy(t, a, Just(t_body));
       let$ _ = expect_eq_op(t_body', t_body);
       Ok();
     | E_Roll =>
-      let$ (e, v') = unbox(Eval, concl);
-      let$ e = unbox(Roll, e);
-      let$ v' = unbox(Roll, v');
-      let$ (e', v) = unbox(Eval, prems(0));
-      let$ _ = expect_eq(e', e);
-      let$ _ = expect_eq(v', v);
+      let$ (e, v') = Eval(Roll(T), Roll(T)) |> concl;
+      let$ (e', v) = Eval(T, T) |> prems(0);
+      let$ _ = expect_eq_batch([e, v], [e', v']);
       Ok();
     | E_Unroll =>
-      let$ (e, v') = unbox(Eval, concl);
-      let$ e = unbox(Unroll, e);
-      let$ (e', v) = unbox(Eval, prems(0));
-      let$ _ = expect_eq(e', e);
-      let$ v = unbox(Roll, v);
-      let$ _ = expect_eq(v', v);
+      let$ (e, v') = Eval(Unroll(T), T) |> concl;
+      let$ (e', v) = Eval(T, Roll(T)) |> prems(0);
+      let$ _ = expect_eq_batch([e, v], [e', v']);
       Ok();
     // Bidirectional Type System
     | S_Num =>
-      let$ (_, p) = unbox(Entail, concl);
-      let$ (e, t) = unbox(Syn, p);
-      let$ _ = unbox(NumLit, e);
-      let$ _ = unbox(Num, t);
+      let$ _ = Entail(T, Syn(NumLit, Num)) |> concl;
       Ok();
     | S_True =>
-      let$ (_, p) = unbox(Entail, concl);
-      let$ (e, t) = unbox(Syn, p);
-      let$ _ = unbox(True, e);
-      let$ _ = unbox(Bool, t);
+      let$ _ = Entail(T, Syn(True, Bool)) |> concl;
       Ok();
     | S_False =>
-      let$ (_, p) = unbox(Entail, concl);
-      let$ (e, t) = unbox(Syn, p);
-      let$ _ = unbox(False, e);
-      let$ _ = unbox(Bool, t);
+      let$ _ = Entail(T, Syn(False, Bool)) |> concl;
       Ok();
     | A_Subsumption =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (e, t) = unbox(Ana, p);
-      let$ (ctx', p) = unbox(Entail, prems(0));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e', t') = unbox(Syn, p);
-      let$ _ = expect_eq(e', e);
-      let$ _ = expect_eq(t', t);
+      let$ (ctx, (e, t)) = Entail(T, Ana(T, T)) |> concl;
+      let$ (ctx', (e', t')) = Entail(T, Syn(T, T)) |> prems(0);
+      let$ _ = expect_eq_batch([ctx, e, t], [ctx', e', t']);
       Ok();
     | S_Var =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (x, t) = unbox(Syn, p);
-      // The same as rule Assumption
-      // Note: this is a rare usage of `expect_in_ctx_op`
+      let$ (ctx, (x, t)) = Entail(T, Syn(T, T)) |> concl;
+      // TODO: This is not correct
       let p = VarHasType(x, t);
       let$ _ = expect_in_ctx_op(p, ctx);
       Ok();
     | A_Fun =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (e, t) = unbox(Ana, p);
-      let$ (pat, e_body) = unbox(Fun, e);
-      let$ (t_in, t_out) = unbox(Arrow, t);
-      let$ (ctx_x', p) = unbox(Entail, prems(0));
-      let ctx_x = ExtendCtx(Just(ctx), VarHasType(pat, t_in));
+      let$ (ctx, ((x, e_body), (t_in, t_out))) =
+        Entail(T, Ana(Fun(T, T), Arrow(T, T))) |> concl;
+      let ctx_x = ExtendCtx(Just(ctx), VarHasType(x, t_in));
+      let$ (ctx_x', (e_body', t_out')) = Entail(T, Ana(T, T)) |> prems(0);
       let$ _ = expect_eq_op(ctx_x', ctx_x);
-      let$ (e_body', t_out') = unbox(Ana, p);
-      let$ _ = expect_eq(e_body', e_body);
-      let$ _ = expect_eq(t_out', t_out);
+      let$ _ = expect_eq_batch([e_body, t_out], [e_body', t_out']);
       Ok();
     | S_FunAnn =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (e, t) = unbox(Syn, p);
-      let$ (pat, e_body) = unbox(Fun, e);
-      let$ (_, t_in) = unbox(PatAnn, pat);
-      let$ (t_in', t_out) = unbox(Arrow, t);
+      let$ (ctx, (((x, t_in), e_body), (t_in', t_out))) =
+        Entail(T, Syn(Fun(Ann(T, T), T), Arrow(T, T))) |> concl;
       let$ _ = expect_eq(t_in', t_in);
-      let$ (ctx_x', p) = unbox(Entail, prems(0));
-      let ctx_x = ExtendCtx(Just(ctx), VarHasType(pat, t_in));
+      let ctx_x = ExtendCtx(Just(ctx), VarHasType(x, t_in));
+      let$ (ctx_x', (e_body', t_out')) = Entail(T, Syn(T, T)) |> prems(0);
       let$ _ = expect_eq_op(ctx_x', ctx_x);
-      let$ (e_body', t_out') = unbox(Syn, p);
-      let$ _ = expect_eq(e_body', e_body);
-      let$ _ = expect_eq(t_out', t_out);
+      let$ _ = expect_eq_batch([e_body, t_out], [e_body', t_out']);
       Ok();
     | A_FunAnn =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (e, t) = unbox(Ana, p);
-      let$ (pat, e_body) = unbox(Fun, e);
-      let$ (_, t_in) = unbox(PatAnn, pat);
-      let$ (t_in', t_out) = unbox(Arrow, t);
+      let$ (ctx, (((x, t_in), e_body), (t_in', t_out))) =
+        Entail(T, Ana(Fun(Ann(T, T), T), Arrow(T, T))) |> concl;
       let$ _ = expect_eq(t_in', t_in);
-      let$ (ctx_x', p) = unbox(Entail, prems(0));
-      let ctx_x = ExtendCtx(Just(ctx), VarHasType(pat, t_in));
+      let ctx_x = ExtendCtx(Just(ctx), VarHasType(x, t_in));
+      let$ (ctx_x', (e_body', t_out')) = Entail(T, Ana(T, T)) |> prems(0);
       let$ _ = expect_eq_op(ctx_x', ctx_x);
-      let$ (e_body', t_out') = unbox(Ana, p);
-      let$ _ = expect_eq(e_body', e_body);
-      let$ _ = expect_eq(t_out', t_out);
+      let$ _ = expect_eq_batch([e_body, t_out], [e_body', t_out']);
       Ok();
     | S_Ap =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (e, t_out) = unbox(Syn, p);
-      let$ (e_fun, e_arg) = unbox(Ap, e);
-      let$ (ctx', p) = unbox(Entail, prems(0));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e_fun', t') = unbox(Syn, p);
-      let$ _ = expect_eq(e_fun', e_fun);
-      let$ (t_in, t_out') = unbox(Arrow, t');
-      let$ _ = expect_eq(t_out', t_out);
-      let$ (ctx', p) = unbox(Entail, prems(1));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e_arg', t_in') = unbox(Ana, p);
-      let$ _ = expect_eq(e_arg', e_arg);
-      let$ _ = expect_eq(t_in', t_in);
+      let$ (ctx, ((e_fun, e_arg), t_out)) =
+        Entail(T, Syn(Ap(T, T), T)) |> concl;
+      let$ (ctx', (e_fun', (t_in, t_out'))) =
+        Entail(T, Syn(T, Arrow(T, T))) |> prems(0);
+      let$ _ = expect_eq_batch([ctx, e_fun, t_out], [ctx', e_fun', t_out']);
+      let$ (ctx', (e_arg', t_in')) = Entail(T, Ana(T, T)) |> prems(1);
+      let$ _ = expect_eq_batch([ctx, e_arg, t_in], [ctx', e_arg', t_in']);
       Ok();
     | S_Neg =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (e, t) = unbox(Syn, p);
-      let$ (op, e1) = unbox(UnOp, e);
-      let$ _ = unbox(OpNeg, op);
-      let$ _ = unbox(Num, t);
-      let$ (ctx', p) = unbox(Entail, prems(0));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e1', t) = unbox(Ana, p);
-      let$ _ = expect_eq(e1', e1);
-      let$ _ = unbox(Num, t);
+      let$ (ctx, ((_, e), _)) =
+        Entail(T, Syn(UnOp(OpNeg, T), Num)) |> concl;
+      let$ (ctx', (e', _)) = Entail(T, Ana(T, Num)) |> prems(0);
+      let$ _ = expect_eq_batch([ctx, e], [ctx', e']);
       Ok();
     | S_Plus
     | S_Minus
@@ -1674,288 +1693,170 @@ module Verify = {
         | S_Eq => Bool
         | _ => failwith("impossible")
         };
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (e, t) = unbox(Syn, p);
-      let$ (op, e1, e2) = unbox(BinOp, e);
-      let$ _ = unbox(req_op, op);
-      let$ _ = unbox(req_ty, t);
-      let$ (ctx', p) = unbox(Entail, prems(0));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e1', t) = unbox(Ana, p);
-      let$ _ = expect_eq(e1', e1);
-      let$ _ = unbox(Num, t);
-      let$ (ctx', p) = unbox(Entail, prems(1));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e2', t) = unbox(Ana, p);
-      let$ _ = expect_eq(e2', e2);
-      let$ _ = unbox(Num, t);
+      let$ (ctx, ((_, el, er), _)) =
+        Entail(T, Syn(BinOp(req_op, T, T), req_ty)) |> concl;
+      let$ (ctx', (el', _)) = Entail(T, Ana(T, Num)) |> prems(0);
+      let$ _ = expect_eq_batch([ctx, el], [ctx', el']);
+      let$ (ctx', (er', _)) = Entail(T, Ana(T, Num)) |> prems(1);
+      let$ _ = expect_eq_batch([ctx, er], [ctx', er']);
       Ok();
     | S_LetAnn =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (e, t2') = unbox(Syn, p);
-      let$ (pat, e1, e2) = unbox(Let, e);
-      let$ (_, t1) = unbox(PatAnn, pat);
-      let$ (ctx', p1) = unbox(Entail, prems(0));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e1', t1') = unbox(Ana, p1);
-      let$ _ = expect_eq(e1', e1);
-      let$ _ = expect_eq(t1', t1);
-      let$ (ctx_x', p2) = unbox(Entail, prems(1));
-      let ctx_x = ExtendCtx(Just(ctx), VarHasType(pat, t1));
+      let$ (ctx, (((x, t_def), e_def, e_body), t)) =
+        Entail(T, Syn(Let(Ann(T, T), T, T), T)) |> concl;
+      let ctx_x = ExtendCtx(Just(ctx), VarHasType(x, t_def));
+      let$ (ctx', (e_def', t_def')) = Entail(T, Ana(T, T)) |> prems(0);
+      let$ _ = expect_eq_batch([ctx, e_def, t], [ctx', e_def', t_def']);
+      let$ (ctx_x', (e_body', t')) = Entail(T, Syn(T, T)) |> prems(1);
       let$ _ = expect_eq_op(ctx_x', ctx_x);
-      let$ (e2', t2) = unbox(Syn, p2);
-      let$ _ = expect_eq(e2', e2);
-      let$ _ = expect_eq(t2', t2);
+      let$ _ = expect_eq_batch([e_body, t], [e_body', t']);
       Ok();
     | A_LetAnn =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (e, t2') = unbox(Ana, p);
-      let$ (pat, e1, e2) = unbox(Let, e);
-      let$ (_, t1) = unbox(PatAnn, pat);
-      let$ (ctx', p1) = unbox(Entail, prems(0));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e1', t1') = unbox(Ana, p1);
-      let$ _ = expect_eq(e1', e1);
-      let$ _ = expect_eq(t1', t1);
-      let$ (ctx_x', p2) = unbox(Entail, prems(1));
-      let ctx_x = ExtendCtx(Just(ctx), VarHasType(pat, t1));
+      let$ (ctx, (((x, t_def), e_def, e_body), t)) =
+        Entail(T, Ana(Let(Ann(T, T), T, T), T)) |> concl;
+      let ctx_x = ExtendCtx(Just(ctx), VarHasType(x, t_def));
+      let$ (ctx', (e_def', t_def')) = Entail(T, Ana(T, T)) |> prems(0);
+      let$ _ = expect_eq_batch([ctx, e_def, t_def], [ctx', e_def', t_def']);
+      let$ (ctx_x', (e_body', t')) = Entail(T, Ana(T, T)) |> prems(1);
       let$ _ = expect_eq_op(ctx_x', ctx_x);
-      let$ (e2', t2) = unbox(Ana, p2);
-      let$ _ = expect_eq(e2', e2);
-      let$ _ = expect_eq(t2', t2);
+      let$ _ = expect_eq_batch([e_body, t], [e_body', t']);
       Ok();
     | S_Let =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (e, t2') = unbox(Syn, p);
-      let$ (pat, e1, e2) = unbox(Let, e);
-      let$ (ctx', p1) = unbox(Entail, prems(0));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e1', t1) = unbox(Syn, p1);
-      let$ _ = expect_eq(e1', e1);
-      let$ (ctx_x', p2) = unbox(Entail, prems(1));
-      let ctx_x = ExtendCtx(Just(ctx), VarHasType(pat, t1));
+      let$ (ctx, ((x, e_def, e_body), t)) =
+        Entail(T, Syn(Let(T, T, T), T)) |> concl;
+      let$ (ctx', (e_def', t_def)) = Entail(T, Syn(T, T)) |> prems(0);
+      let ctx_x = ExtendCtx(Just(ctx), VarHasType(x, t_def));
+      let$ _ = expect_eq_batch([ctx, e_def], [ctx', e_def']);
+      let$ (ctx_x', (e_body', t')) = Entail(T, Syn(T, T)) |> prems(1);
       let$ _ = expect_eq_op(ctx_x', ctx_x);
-      let$ (e2', t2) = unbox(Syn, p2);
-      let$ _ = expect_eq(e2', e2);
-      let$ _ = expect_eq(t2', t2);
+      let$ _ = expect_eq_batch([e_body, t], [e_body', t']);
       Ok();
     | A_Let =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (e, t2') = unbox(Ana, p);
-      let$ (pat, e1, e2) = unbox(Let, e);
-      let$ (ctx', p1) = unbox(Entail, prems(0));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e1', t1) = unbox(Syn, p1);
-      let$ _ = expect_eq(e1', e1);
-      let$ (ctx_x', p2) = unbox(Entail, prems(1));
-      let ctx_x = ExtendCtx(Just(ctx), VarHasType(pat, t1));
+      let$ (ctx, ((x, e_def, e_body), t)) =
+        Entail(T, Ana(Let(T, T, T), T)) |> concl;
+      let$ (ctx', (e_def', t_def)) = Entail(T, Syn(T, T)) |> prems(0);
+      let ctx_x = ExtendCtx(Just(ctx), VarHasType(x, t_def));
+      let$ _ = expect_eq_batch([ctx, e_def], [ctx', e_def']);
+      let$ (ctx_x', (e_body', t')) = Entail(T, Ana(T, T)) |> prems(1);
       let$ _ = expect_eq_op(ctx_x', ctx_x);
-      let$ (e2', t2) = unbox(Ana, p2);
-      let$ _ = expect_eq(e2', e2);
-      let$ _ = expect_eq(t2', t2);
+      let$ _ = expect_eq_batch([e_body, t], [e_body', t']);
       Ok();
     | S_Pair =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (e, t) = unbox(Syn, p);
-      let$ (e1, e2) = unbox(Pair, e);
-      let$ (t1, t2) = unbox(Prod, t);
-      let$ (ctx', p) = unbox(Entail, prems(0));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e1', t1') = unbox(Syn, p);
-      let$ _ = expect_eq(e1', e1);
-      let$ _ = expect_eq(t1', t1);
-      let$ (ctx', p) = unbox(Entail, prems(1));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e2', t2') = unbox(Syn, p);
-      let$ _ = expect_eq(e2', e2);
-      let$ _ = expect_eq(t2', t2);
+      let$ (ctx, ((el, er), (tl, tr))) =
+        Entail(T, Syn(Pair(T, T), Prod(T, T))) |> concl;
+      let$ (ctx', (el', tl')) = Entail(T, Syn(T, T)) |> prems(0);
+      let$ _ = expect_eq_batch([ctx, el, tl], [ctx', el', tl']);
+      let$ (ctx', (er', tr')) = Entail(T, Syn(T, T)) |> prems(1);
+      let$ _ = expect_eq_batch([ctx, er, tr], [ctx', er', tr']);
       Ok();
     | A_Pair =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (e, t) = unbox(Ana, p);
-      let$ (e1, e2) = unbox(Pair, e);
-      let$ (t1, t2) = unbox(Prod, t);
-      let$ (ctx', p) = unbox(Entail, prems(0));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e1', t1') = unbox(Ana, p);
-      let$ _ = expect_eq(e1', e1);
-      let$ _ = expect_eq(t1', t1);
-      let$ (ctx', p) = unbox(Entail, prems(1));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e2', t2') = unbox(Ana, p);
-      let$ _ = expect_eq(e2', e2);
-      let$ _ = expect_eq(t2', t2);
+      let$ (ctx, ((el, er), (tl, tr))) =
+        Entail(T, Ana(Pair(T, T), Prod(T, T))) |> concl;
+      let$ (ctx', (el', tl')) = Entail(T, Ana(T, T)) |> prems(0);
+      let$ _ = expect_eq_batch([ctx, el, tl], [ctx', el', tl']);
+      let$ (ctx', (er', tr')) = Entail(T, Ana(T, T)) |> prems(1);
+      let$ _ = expect_eq_batch([ctx, er, tr], [ctx', er', tr']);
       Ok();
     | S_LetPair =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (e, t) = unbox(Syn, p);
-      let$ (px, py, e1, e2) = unbox(LetPair, e);
-      let$ (ctx', p) = unbox(Entail, prems(0));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e1', t1) = unbox(Syn, p);
-      let$ _ = expect_eq(e1', e1);
-      let$ (tx, ty) = unbox(Prod, t1);
-      let$ (ctx_x_y', p) = unbox(Entail, prems(1));
-      let ctx_x = ExtendCtx(Just(ctx), VarHasType(px, tx));
-      let ctx_x_y = ExtendCtx(ctx_x, VarHasType(py, ty));
+      let$ (ctx, ((x, y, e_def, e_body), t)) =
+        Entail(T, Syn(LetPair(T, T, T, T), T)) |> concl;
+      let$ (ctx', (e_def', (tl, tr))) =
+        Entail(T, Syn(T, Prod(T, T))) |> prems(0);
+      let$ _ = expect_eq_batch([ctx, e_def], [ctx', e_def']);
+      let ctx_x = ExtendCtx(Just(ctx), VarHasType(x, tl));
+      let ctx_x_y = ExtendCtx(ctx_x, VarHasType(y, tr));
+      let$ (ctx_x_y', (e_body', t')) = Entail(T, Syn(T, T)) |> prems(1);
       let$ _ = expect_eq_op(ctx_x_y', ctx_x_y);
-      let$ (e2', t') = unbox(Syn, p);
-      let$ _ = expect_eq(e2', e2);
-      let$ _ = expect_eq(t', t);
+      let$ _ = expect_eq_batch([e_body, t], [e_body', t']);
       Ok();
     | A_LetPair =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (e, t) = unbox(Syn, p);
-      let$ (px, py, e1, e2) = unbox(LetPair, e);
-      let$ (ctx', p) = unbox(Entail, prems(0));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e1', t1) = unbox(Ana, p);
-      let$ _ = expect_eq(e1', e1);
-      let$ (tx, ty) = unbox(Prod, t1);
-      let$ (ctx_x_y', p) = unbox(Entail, prems(1));
-      let ctx_x = ExtendCtx(Just(ctx), VarHasType(px, tx));
-      let ctx_x_y = ExtendCtx(ctx_x, VarHasType(py, ty));
+      let$ (ctx, ((x, y, e_def, e_body), t)) =
+        Entail(T, Ana(LetPair(T, T, T, T), T)) |> concl;
+      let$ (ctx', (e_def', (tl, tr))) =
+        Entail(T, Syn(T, Prod(T, T))) |> prems(0);
+      let$ _ = expect_eq_batch([ctx, e_def], [ctx', e_def']);
+      let ctx_x = ExtendCtx(Just(ctx), VarHasType(x, tl));
+      let ctx_x_y = ExtendCtx(ctx_x, VarHasType(y, tr));
+      let$ (ctx_x_y', (e_body', t')) = Entail(T, Ana(T, T)) |> prems(1);
       let$ _ = expect_eq_op(ctx_x_y', ctx_x_y);
-      let$ (e2', t') = unbox(Syn, p);
-      let$ _ = expect_eq(e2', e2);
-      let$ _ = expect_eq(t', t);
+      let$ _ = expect_eq_batch([e_body, t], [e_body', t']);
       Ok();
     | S_PrjL =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (e, t1) = unbox(Syn, p);
-      let$ e = unbox(PrjL, e);
-      let$ (ctx', p) = unbox(Entail, prems(0));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e', t) = unbox(Syn, p);
-      let$ _ = expect_eq(e', e);
-      let$ (t1', _) = unbox(Prod, t);
-      let$ _ = expect_eq(t1', t1);
+      let$ (ctx, (e, tl)) = Entail(T, Syn(PrjL(T), T)) |> concl;
+      let$ (ctx', (e', (tl', _tr))) =
+        Entail(T, Syn(T, Prod(T, T))) |> prems(0);
+      let$ _ = expect_eq_batch([ctx, e, tl], [ctx', e', tl']);
       Ok();
     | S_PrjR =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (e, t2) = unbox(Syn, p);
-      let$ e = unbox(PrjR, e);
-      let$ (ctx', p) = unbox(Entail, prems(0));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e', t) = unbox(Syn, p);
-      let$ _ = expect_eq(e', e);
-      let$ (_, t2') = unbox(Prod, t);
-      let$ _ = expect_eq(t2', t2);
+      let$ (ctx, (e, tr)) = Entail(T, Syn(PrjR(T), T)) |> concl;
+      let$ (ctx', (e', (_tl, tr'))) =
+        Entail(T, Syn(T, Prod(T, T))) |> prems(0);
+      let$ _ = expect_eq_batch([ctx, e, tr], [ctx', e', tr']);
       Ok();
     | S_Triv =>
-      let$ (_, p) = unbox(Entail, concl);
-      let$ (e, t) = unbox(Syn, p);
-      let$ _ = unbox(Triv, e);
-      let$ _ = unbox(Unit, t);
+      let$ _ = Entail(T, Syn(Triv, Unit)) |> concl;
       Ok();
     | A_If =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (e, t) = unbox(Ana, p);
-      let$ (e1, e2, e3) = unbox(If, e);
-      let$ (ctx', p) = unbox(Entail, prems(0));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e1', t1) = unbox(Ana, p);
-      let$ _ = expect_eq(e1', e1);
-      let$ _ = unbox(Bool, t1);
-      let$ (ctx', p) = unbox(Entail, prems(1));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e2', t') = unbox(Ana, p);
-      let$ _ = expect_eq(e2', e2);
-      let$ _ = expect_eq(t', t);
-      let$ (ctx', p) = unbox(Entail, prems(2));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e3', t') = unbox(Ana, p);
-      let$ _ = expect_eq(e3', e3);
-      let$ _ = expect_eq(t', t);
+      let$ (ctx, ((e_cond, e_then, e_else), t)) =
+        Entail(T, Ana(If(T, T, T), T)) |> concl;
+      let$ (ctx', (e_cond', _)) = Entail(T, Ana(T, Bool)) |> prems(0);
+      let$ _ = expect_eq_batch([ctx, e_cond], [ctx', e_cond']);
+      let$ (ctx', (e_then', t')) = Entail(T, Ana(T, T)) |> prems(1);
+      let$ _ = expect_eq_batch([ctx, e_then, t], [ctx', e_then', t']);
+      let$ (ctx', (e_else', t')) = Entail(T, Ana(T, T)) |> prems(2);
+      let$ _ = expect_eq_batch([ctx, e_else, t], [ctx', e_else', t']);
       Ok();
     | S_If =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (e, t) = unbox(Syn, p);
-      let$ (e1, e2, e3) = unbox(If, e);
-      let$ (ctx', p) = unbox(Entail, prems(0));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e1', t1) = unbox(Ana, p);
-      let$ _ = expect_eq(e1', e1);
-      let$ _ = unbox(Bool, t1);
-      let$ (ctx', p) = unbox(Entail, prems(1));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e2', t') = unbox(Syn, p);
-      let$ _ = expect_eq(e2', e2);
-      let$ _ = expect_eq(t', t);
-      let$ (ctx', p) = unbox(Entail, prems(2));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e3', t') = unbox(Syn, p);
-      let$ _ = expect_eq(e3', e3);
-      let$ _ = expect_eq(t', t);
+      let$ (ctx, ((e_cond, e_then, e_else), t)) =
+        Entail(T, Syn(If(T, T, T), T)) |> concl;
+      let$ (ctx', (e_cond', _)) = Entail(T, Ana(T, Bool)) |> prems(0);
+      let$ _ = expect_eq_batch([ctx, e_cond], [ctx', e_cond']);
+      let$ (ctx', (e_then', t')) = Entail(T, Syn(T, T)) |> prems(1);
+      let$ _ = expect_eq_batch([ctx, e_then, t], [ctx', e_then', t']);
+      let$ (ctx', (e_else', t')) = Entail(T, Syn(T, T)) |> prems(2);
+      let$ _ = expect_eq_batch([ctx, e_else, t], [ctx', e_else', t']);
       Ok();
     // ALFp
     | T_Var =>
-      // The same as rule Assumption
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (_, _) = unbox(HasType, p);
+      // TODO: The same as rule Assumption
+      let$ (ctx, p) = Entail(T, T) |> concl;
+      let$ _ = HasType(T, T) |> unbox(p);
       let$ _ = expect_in_ctx(p, ctx);
       Ok();
     | T_Let =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (e, t2') = unbox(HasType, p);
-      let$ (pat, e1, e2) = unbox(Let, e);
-      let$ (ctx', p1) = unbox(Entail, prems(0));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e1', t1) = unbox(HasType, p1);
-      let$ _ = expect_eq(e1', e1);
-      let$ (ctx_x', p2) = unbox(Entail, prems(1));
-      let ctx_x = ExtendCtx(Just(ctx), VarHasType(pat, t1));
+      let$ (ctx, ((x, e_def, e_body), t)) =
+        Entail(T, HasType(Let(T, T, T), T)) |> concl;
+      let$ (ctx', (e_def', t_def)) = Entail(T, HasType(T, T)) |> prems(0);
+      let ctx_x = ExtendCtx(Just(ctx), VarHasType(x, t_def));
+      let$ _ = expect_eq_batch([ctx, e_def], [ctx', e_def']);
+      let$ (ctx_x', (e_body', t')) = Entail(T, HasType(T, T)) |> prems(1);
       let$ _ = expect_eq_op(ctx_x', ctx_x);
-      let$ (e2', t2) = unbox(HasType, p2);
-      let$ _ = expect_eq(e2', e2);
-      let$ _ = expect_eq(t2', t2);
+      let$ _ = expect_eq_batch([e_body, t], [e_body', t']);
       Ok();
     | T_LetAnn =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (e, t2') = unbox(HasType, p);
-      let$ (pat, e1, e2) = unbox(Let, e);
-      let$ (_, t1) = unbox(PatAnn, pat);
-      let$ (ctx', p1) = unbox(Entail, prems(0));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e1', t1') = unbox(HasType, p1);
-      let$ _ = expect_eq(e1', e1);
-      let$ _ = expect_eq(t1', t1);
-      let$ (ctx_x', p2) = unbox(Entail, prems(1));
-      let ctx_x = ExtendCtx(Just(ctx), VarHasType(pat, t1));
+      let$ (ctx, (((x, t_def), e_def, e_body), t)) =
+        Entail(T, HasType(Let(Ann(T, T), T, T), T)) |> concl;
+      let ctx_x = ExtendCtx(Just(ctx), VarHasType(x, t_def));
+      let$ (ctx', (e_def', t_def')) =
+        Entail(T, HasType(T, T)) |> prems(0);
+      let$ _ = expect_eq_batch([ctx, e_def, t], [ctx', e_def', t_def']);
+      let$ (ctx_x', (e_body', t')) = Entail(T, HasType(T, T)) |> prems(1);
       let$ _ = expect_eq_op(ctx_x', ctx_x);
-      let$ (e2', t2) = unbox(HasType, p2);
-      let$ _ = expect_eq(e2', e2);
-      let$ _ = expect_eq(t2', t2);
+      let$ _ = expect_eq_batch([e_body, t], [e_body', t']);
       Ok();
     | T_Num =>
-      let$ (_, p) = unbox(Entail, concl);
-      let$ (e, t) = unbox(HasType, p);
-      let$ _ = unbox(NumLit, e);
-      let$ _ = unbox(Num, t);
+      let$ _ = Entail(T, HasType(NumLit, Num)) |> concl;
       Ok();
     | T_True =>
-      let$ (_, p) = unbox(Entail, concl);
-      let$ (e, t) = unbox(HasType, p);
-      let$ _ = unbox(True, e);
-      let$ _ = unbox(Bool, t);
+      let$ _ = Entail(T, HasType(True, Bool)) |> concl;
       Ok();
     | T_False =>
-      let$ (_, p) = unbox(Entail, concl);
-      let$ (e, t) = unbox(HasType, p);
-      let$ _ = unbox(False, e);
-      let$ _ = unbox(Bool, t);
+      let$ _ = Entail(T, HasType(False, Bool)) |> concl;
       Ok();
     | T_Neg =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (e, t) = unbox(HasType, p);
-      let$ (op, e1) = unbox(UnOp, e);
-      let$ _ = unbox(OpNeg, op);
-      let$ _ = unbox(Num, t);
-      let$ (ctx', p) = unbox(Entail, prems(0));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e1', t) = unbox(HasType, p);
-      let$ _ = expect_eq(e1', e1);
-      let$ _ = unbox(Num, t);
+      let$ (ctx, ((_, e), _)) =
+        Entail(T, HasType(UnOp(OpNeg, T), Num)) |> concl;
+      let$ (ctx', (e', _)) = Entail(T, HasType(T, Num)) |> prems(0);
+      let$ _ = expect_eq_batch([ctx, e], [ctx', e']);
       Ok();
     | T_Plus
     | T_Minus
@@ -1983,218 +1884,142 @@ module Verify = {
         | T_Eq => Bool
         | _ => failwith("impossible")
         };
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (e, t) = unbox(HasType, p);
-      let$ (op, e1, e2) = unbox(BinOp, e);
-      let$ _ = unbox(req_op, op);
-      let$ _ = unbox(req_ty, t);
-      let$ (ctx', p) = unbox(Entail, prems(0));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e1', t) = unbox(HasType, p);
-      let$ _ = expect_eq(e1', e1);
-      let$ _ = unbox(Num, t);
-      let$ (ctx', p) = unbox(Entail, prems(1));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e2', t) = unbox(HasType, p);
-      let$ _ = expect_eq(e2', e2);
-      let$ _ = unbox(Num, t);
+      let$ (ctx, ((_, el, er), _)) =
+        Entail(T, HasType(BinOp(req_op, T, T), req_ty)) |> concl;
+      let$ (ctx', (el', _)) = Entail(T, HasType(T, Num)) |> prems(0);
+      let$ _ = expect_eq_batch([ctx, el], [ctx', el']);
+      let$ (ctx', (er', _)) = Entail(T, HasType(T, Num)) |> prems(1);
+      let$ _ = expect_eq_batch([ctx, er], [ctx', er']);
       Ok();
     | T_If =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (e, t) = unbox(HasType, p);
-      let$ (e1, e2, e3) = unbox(If, e);
-      let$ (ctx', p) = unbox(Entail, prems(0));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e1', t1) = unbox(HasType, p);
-      let$ _ = expect_eq(e1', e1);
-      let$ _ = unbox(Bool, t1);
-      let$ (ctx', p) = unbox(Entail, prems(1));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e2', t') = unbox(HasType, p);
-      let$ _ = expect_eq(e2', e2);
-      let$ _ = expect_eq(t', t);
-      let$ (ctx', p) = unbox(Entail, prems(2));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e3', t') = unbox(HasType, p);
-      let$ _ = expect_eq(e3', e3);
-      let$ _ = expect_eq(t', t);
+      let$ (ctx, ((e_cond, e_then, e_else), t)) =
+        Entail(T, HasType(If(T, T, T), T)) |> concl;
+      let$ (ctx', (e_cond', _)) = Entail(T, HasType(T, Bool)) |> prems(0);
+      let$ _ = expect_eq_batch([ctx, e_cond], [ctx', e_cond']);
+      let$ (ctx', (e_then', t')) = Entail(T, HasType(T, T)) |> prems(1);
+      let$ _ = expect_eq_batch([ctx, e_then, t], [ctx', e_then', t']);
+      let$ (ctx', (e_else', t')) = Entail(T, HasType(T, T)) |> prems(2);
+      let$ _ = expect_eq_batch([ctx, e_else, t], [ctx', e_else', t']);
       Ok();
     | T_Fun =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (e, t) = unbox(HasType, p);
-      let$ (pat, e) = unbox(Fun, e);
-      let$ (t_in, t_out) = unbox(Arrow, t);
-      let$ (ctx_x', p) = unbox(Entail, prems(0));
-      let ctx_x = ExtendCtx(Just(ctx), VarHasType(pat, t_in));
+      let$ (ctx, ((x, e_body), (t_in, t_out))) =
+        Entail(T, HasType(Fun(T, T), Arrow(T, T))) |> concl;
+      let ctx_x = ExtendCtx(Just(ctx), VarHasType(x, t_in));
+      let$ (ctx_x', (e_body', t_out')) =
+        Entail(T, HasType(T, T)) |> prems(0);
       let$ _ = expect_eq_op(ctx_x', ctx_x);
-      let$ (e', t_out') = unbox(HasType, p);
-      let$ _ = expect_eq(e', e);
-      let$ _ = expect_eq(t_out', t_out);
+      let$ _ = expect_eq_batch([e_body, t_out], [e_body', t_out']);
       Ok();
     | T_FunAnn =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (e, t) = unbox(HasType, p);
-      let$ (pat, e) = unbox(Fun, e);
-      let$ (_, t_in) = unbox(PatAnn, pat);
-      let$ (t_in', t_out) = unbox(Arrow, t);
+      let$ (ctx, (((x, t_in), e_body), (t_in', t_out))) =
+        Entail(T, HasType(Fun(Ann(T, T), T), Arrow(T, T))) |> concl;
       let$ _ = expect_eq(t_in', t_in);
-      let$ (ctx_x', p) = unbox(Entail, prems(0));
-      let ctx_x = ExtendCtx(Just(ctx), VarHasType(pat, t_in));
+      let ctx_x = ExtendCtx(Just(ctx), VarHasType(x, t_in));
+      let$ (ctx_x', (e_body', t_out')) =
+        Entail(T, HasType(T, T)) |> prems(0);
       let$ _ = expect_eq_op(ctx_x', ctx_x);
-      let$ (e', t_out') = unbox(HasType, p);
-      let$ _ = expect_eq(e', e);
-      let$ _ = expect_eq(t_out', t_out);
+      let$ _ = expect_eq_batch([e_body, t_out], [e_body', t_out']);
       Ok();
     | T_Ap =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (e, t_out) = unbox(HasType, p);
-      let$ (e1, e2) = unbox(Ap, e);
-      let$ (ctx', p) = unbox(Entail, prems(0));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e1', t') = unbox(HasType, p);
-      let$ _ = expect_eq(e1', e1);
-      let$ (t_in, t_out') = unbox(Arrow, t');
-      let$ _ = expect_eq(t_out', t_out);
-      let$ (ctx', p) = unbox(Entail, prems(1));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e2', t_in') = unbox(HasType, p);
-      let$ _ = expect_eq(e2', e2);
-      let$ _ = expect_eq(t_in', t_in);
+      let$ (ctx, ((e_fun, e_arg), t_out)) =
+        Entail(T, HasType(Ap(T, T), T)) |> concl;
+      let$ (ctx', (e_fun', (t_in, t_out'))) =
+        Entail(T, HasType(T, Arrow(T, T))) |> prems(0);
+      let$ _ = expect_eq_batch([ctx, e_fun, t_out], [ctx', e_fun', t_out']);
+      let$ (ctx', (e_arg', t_in')) = Entail(T, HasType(T, T)) |> prems(1);
+      let$ _ = expect_eq_batch([ctx, e_arg, t_in], [ctx', e_arg', t_in']);
       Ok();
     | E_Pair =>
-      let$ (e, v') = unbox(Eval, concl);
-      let$ (e1, e2) = unbox(Pair, e);
-      let$ (v1', v2') = unbox(Pair, v');
-      let$ (e1', v1) = unbox(Eval, prems(0));
-      let$ _ = expect_eq(e1', e1);
-      let$ _ = expect_eq(v1', v1);
-      let$ (e2', v2) = unbox(Eval, prems(1));
-      let$ _ = expect_eq(e2', e2);
-      let$ _ = expect_eq(v2', v2);
+      let$ ((el, er), (v1', v2')) =
+        Eval(Pair(T, T), Pair(T, T)) |> concl;
+      let$ (el', v1) = Eval(T, T) |> prems(0);
+      let$ _ = expect_eq_batch([el, v1'], [el', v1]);
+      let$ (er', v2) = Eval(T, T) |> prems(1);
+      let$ _ = expect_eq_batch([er, v2'], [er', v2]);
       Ok();
     | V_Pair =>
-      let$ e = unbox(Val, concl);
-      let$ (v1, v2) = unbox(Pair, e);
-      let$ v1' = unbox(Val, prems(0));
-      let$ _ = expect_eq(v1', v1);
-      let$ v2' = unbox(Val, prems(1));
-      let$ _ = expect_eq(v2', v2);
+      let$ (v1, v2) = Val(Pair(T, T)) |> concl;
+      let$ v1' = Val(T) |> prems(0);
+      let$ _ = expect_eq(v1, v1');
+      let$ v2' = Val(T) |> prems(1);
+      let$ _ = expect_eq(v2, v2');
       Ok();
     | T_Pair =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (e, t) = unbox(HasType, p);
-      let$ (e1, e2) = unbox(Pair, e);
-      let$ (t1, t2) = unbox(Prod, t);
-      let$ (ctx', p) = unbox(Entail, prems(0));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e1', t1') = unbox(HasType, p);
-      let$ _ = expect_eq(e1', e1);
-      let$ _ = expect_eq(t1', t1);
-      let$ (ctx', p) = unbox(Entail, prems(1));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e2', t2') = unbox(HasType, p);
-      let$ _ = expect_eq(e2', e2);
-      let$ _ = expect_eq(t2', t2);
+      let$ (ctx, ((el, er), (tl, tr))) =
+        Entail(T, HasType(Pair(T, T), Prod(T, T))) |> concl;
+      let$ (ctx', (el', tl')) = Entail(T, HasType(T, T)) |> prems(0);
+      let$ _ = expect_eq_batch([ctx, el, tl], [ctx', el', tl']);
+      let$ (ctx', (er', tr')) = Entail(T, HasType(T, T)) |> prems(1);
+      let$ _ = expect_eq_batch([ctx, er, tr], [ctx', er', tr']);
       Ok();
     | E_PrjL =>
-      let$ (e, v1') = unbox(Eval, concl);
-      let$ e = unbox(PrjL, e);
-      let$ (e', v) = unbox(Eval, prems(0));
-      let$ _ = expect_eq(e', e);
-      let$ (v1, _) = unbox(Pair, v);
-      let$ _ = expect_eq(v1', v1);
+      let$ (e, vl') = Eval(PrjL(T), T) |> concl;
+      let$ (e', (vl, _vr)) = Eval(T, Pair(T, T)) |> prems(0);
+      let$ _ = expect_eq_batch([e, vl'], [e', vl]);
       Ok();
     | E_PrjR =>
-      let$ (e, v2') = unbox(Eval, concl);
-      let$ e = unbox(PrjR, e);
-      let$ (e', v) = unbox(Eval, prems(0));
-      let$ _ = expect_eq(e', e);
-      let$ (_, v2) = unbox(Pair, v);
-      let$ _ = expect_eq(v2', v2);
+      let$ (e, vr') = Eval(PrjR(T), T) |> concl;
+      let$ (e', (_vl, vr)) = Eval(T, Pair(T, T)) |> prems(0);
+      let$ _ = expect_eq_batch([e, vr'], [e', vr]);
       Ok();
     | T_PrjL =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (e, t1) = unbox(HasType, p);
-      let$ e = unbox(PrjL, e);
-      let$ (ctx', p) = unbox(Entail, prems(0));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e', t) = unbox(HasType, p);
-      let$ _ = expect_eq(e', e);
-      let$ (t1', _) = unbox(Prod, t);
-      let$ _ = expect_eq(t1', t1);
+      let$ (ctx, (e, tl)) = Entail(T, HasType(PrjL(T), T)) |> concl;
+      let$ (ctx', (e', (tl', _tr))) =
+        Entail(T, HasType(T, Prod(T, T))) |> prems(0);
+      let$ _ = expect_eq_batch([ctx, e, tl], [ctx', e', tl']);
       Ok();
     | T_PrjR =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (e, t2) = unbox(HasType, p);
-      let$ e = unbox(PrjR, e);
-      let$ (ctx', p) = unbox(Entail, prems(0));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e', t) = unbox(HasType, p);
-      let$ _ = expect_eq(e', e);
-      let$ (_, t2') = unbox(Prod, t);
-      let$ _ = expect_eq(t2', t2);
+      let$ (ctx, (e, tr)) = Entail(T, HasType(PrjR(T), T)) |> concl;
+      let$ (ctx', (e', (_tl, tr'))) =
+        Entail(T, HasType(T, Prod(T, T))) |> prems(0);
+      let$ _ = expect_eq_batch([ctx, e, tr], [ctx', e', tr']);
       Ok();
     | E_LetPair =>
-      let$ (e, v') = unbox(Eval, concl);
-      let$ (px, py, e1, e2) = unbox(LetPair, e);
-      let$ (e1', v1) = unbox(Eval, prems(0));
-      let$ _ = expect_eq(e1', e1);
-      let$ (vx, vy) = unbox(Pair, v1);
-      let$ (e2', v) = unbox(Eval, prems(1));
-      let e2 = Subst(vy, py, Just(e2));
-      let e2 = Subst(vx, px, e2);
-      let$ _ = expect_eq_op(e2', e2);
+      let$ ((x, y, e_def, e_body), v') =
+        Eval(LetPair(T, T, T, T), T) |> concl;
+      let$ (e_def', (vl, vr)) = Eval(T, Pair(T, T)) |> prems(0);
+      let$ _ = expect_eq(e_def', e_def);
+      let e_body = Subst(vr, y, Subst(vl, x, Just(e_body)));
+      let$ (e_body', v) = Eval(T, T) |> prems(1);
+      let$ _ = expect_eq_op(e_body', e_body);
       let$ _ = expect_eq(v', v);
       Ok();
     | T_LetPair =>
-      let$ (ctx, p) = unbox(Entail, concl);
-      let$ (e, t) = unbox(HasType, p);
-      let$ (px, py, e1, e2) = unbox(LetPair, e);
-      let$ (ctx', p) = unbox(Entail, prems(0));
-      let$ _ = expect_eq(ctx', ctx);
-      let$ (e1', t1) = unbox(HasType, p);
-      let$ _ = expect_eq(e1', e1);
-      let$ (tx, ty) = unbox(Prod, t1);
-      let$ (ctx_x_y', p) = unbox(Entail, prems(1));
-      let ctx_x = ExtendCtx(Just(ctx), VarHasType(px, tx));
-      let ctx_x_y = ExtendCtx(ctx_x, VarHasType(py, ty));
+      let$ (ctx, ((x, y, e_def, e_body), t)) =
+        Entail(T, HasType(LetPair(T, T, T, T), T)) |> concl;
+      let$ (ctx', (e_def', (tl, tr))) =
+        Entail(T, HasType(T, Prod(T, T))) |> prems(0);
+      let$ _ = expect_eq_batch([ctx, e_def], [ctx', e_def']);
+      let ctx_x = ExtendCtx(Just(ctx), VarHasType(x, tl));
+      let ctx_x_y = ExtendCtx(ctx_x, VarHasType(y, tr));
+      let$ (ctx_x_y', (e_body', t')) =
+        Entail(T, HasType(T, T)) |> prems(1);
       let$ _ = expect_eq_op(ctx_x_y', ctx_x_y);
-      let$ (e2', t') = unbox(HasType, p);
-      let$ _ = expect_eq(e2', e2);
-      let$ _ = expect_eq(t', t);
+      let$ _ = expect_eq_batch([e_body, t], [e_body', t']);
       Ok();
     | V_Triv =>
-      let$ e = unbox(Val, concl);
-      let$ _ = unbox(Triv, e);
+      let$ _ = Val(Triv) |> concl;
       Ok();
     | T_Triv =>
-      let$ (_, p) = unbox(Entail, concl);
-      let$ (e, t) = unbox(HasType, p);
-      let$ _ = unbox(Triv, e);
-      let$ _ = unbox(Unit, t);
+      let$ _ = Entail(T, HasType(Triv, Unit)) |> concl;
       Ok();
     // ALF
     | V_Num =>
-      let$ e = unbox(Val, concl);
-      let$ _ = unbox(NumLit, e);
+      let$ _ = Val(NumLit) |> concl;
       Ok();
     | V_True =>
-      let$ e = unbox(Val, concl);
-      let$ _ = unbox(True, e);
+      let$ _ = Val(True) |> concl;
       Ok();
     | V_False =>
-      let$ e = unbox(Val, concl);
-      let$ _ = unbox(False, e);
+      let$ _ = Val(False) |> concl;
       Ok();
     | V_Fun =>
-      let$ e = unbox(Val, concl);
-      let$ _ = unbox(Fun, e);
+      let$ _ = Val(Fun(T, T)) |> concl;
       Ok();
     | E_Val =>
-      let$ (e, v') = unbox(Eval, concl);
-      let$ v = unbox(Val, prems(0));
-      let$ _ = expect_eq(v, e);
-      let$ _ = expect_eq(v', v);
+      let$ (e, v') = Eval(T, T) |> concl;
+      let$ v = Val(T) |> prems(0);
+      let$ _ = expect_eq_batch([e, v], [v, v']);
       Ok();
     | E_Lt_T
     | E_Lt_F
@@ -2212,60 +2037,52 @@ module Verify = {
         | E_Eq_F => (False, OpEq, Eq)
         | _ => failwith("impossible")
         };
-      let$ (e, v') = unbox(Eval, concl);
-      let$ _ = unbox(req_bool, v');
-      let$ (op, e1, e2) = unbox(BinOp, e);
-      let$ _ = unbox(req_op, op);
-      let$ (e1', v1) = unbox(Eval, prems(0));
+      let$ ((_, e1, e2), _) = Eval(BinOp(req_op, T, T), req_bool) |> concl;
+      let$ (e1', v1) = Eval(T, T) |> prems(0);
       let$ _ = expect_eq(e1', e1);
-      let$ (e2', v2) = unbox(Eval, prems(1));
+      let$ (e2', v2) = Eval(T, T) |> prems(1);
       let$ _ = expect_eq(e2', e2);
-      let v: t_op = BinOp(binop, v1, v2);
-      let$ _ = expect_eq_op(v', v);
+      let _v: t_op = BinOp(binop, v1, v2);
+      // TODO: Check if the result is correct
+      // let$ _ = expect_eq_op(v', v);
       Ok();
     | E_If_T =>
-      let$ (e, v2') = unbox(Eval, concl);
-      let$ (e1, e2, _e3) = unbox(If, e);
-      let$ (e1', vt) = unbox(Eval, prems(0));
-      let$ _ = expect_eq(e1', e1);
-      let$ _ = unbox(True, vt);
-      let$ (e2', v2) = unbox(Eval, prems(1));
-      let$ _ = expect_eq(e2', e2);
-      let$ _ = expect_eq(v2', v2);
+      let$ ((e_cond, e_then, _e_else), v') = Eval(If(T, T, T), T) |> concl;
+      let$ (e_cond', _) = Eval(T, True) |> prems(0);
+      let$ _ = expect_eq(e_cond', e_cond);
+      let$ (e_then', v) = Eval(T, T) |> prems(1);
+      let$ _ = expect_eq(e_then', e_then);
+      let$ _ = expect_eq(v', v);
       Ok();
     | E_If_F =>
-      let$ (e, v3') = unbox(Eval, concl);
-      let$ (e1, _e2, e3) = unbox(If, e);
-      let$ (e1', vf) = unbox(Eval, prems(0));
-      let$ _ = expect_eq(e1', e1);
-      let$ _ = unbox(False, vf);
-      let$ (e3', v3) = unbox(Eval, prems(1));
-      let$ _ = expect_eq(e3', e3);
-      let$ _ = expect_eq(v3', v3);
+      let$ ((e_cond, _e_then, e_else), v') = Eval(If(T, T, T), T) |> concl;
+      let$ (e_cond', _) = Eval(T, False) |> prems(0);
+      let$ _ = expect_eq(e_cond', e_cond);
+      let$ (e_else', v) = Eval(T, T) |> prems(1);
+      let$ _ = expect_eq(e_else', e_else);
+      let$ _ = expect_eq(v', v);
       Ok();
     | E_Let =>
-      let$ (e, v2') = unbox(Eval, concl);
-      let$ (p, e1, e2) = unbox(Let, e);
-      let$ (e1', v1) = unbox(Eval, prems(0));
-      let$ _ = expect_eq(e1', e1);
-      let$ (e2', v2) = unbox(Eval, prems(1));
-      let e2 = Subst(v1, p, Just(e2));
-      let$ _ = expect_eq_op(e2', e2);
-      let$ _ = expect_eq(v2', v2);
-      Ok();
-    | E_Ap =>
-      let$ (e, v') = unbox(Eval, concl);
-      let$ (e1, e2) = unbox(Ap, e);
-      let$ (e1', vf) = unbox(Eval, prems(0));
-      let$ _ = expect_eq(e1', e1);
-      let$ (p, e_body) = unbox(Fun, vf);
-      let$ (e2', v2) = unbox(Eval, prems(1));
-      let$ _ = expect_eq(e2', e2);
-      let$ (e_body', v) = unbox(Eval, prems(2));
-      let e_body = Subst(v2, p, Just(e_body));
+      let$ ((x, e_def, e_body), v') = Eval(Let(T, T, T), T) |> concl;
+      let$ (e_def', v_def) = Eval(T, T) |> prems(0);
+      let$ _ = expect_eq(e_def', e_def);
+      let e_body = Subst(v_def, x, Just(e_body));
+      let$ (e_body', v) = Eval(T, T) |> prems(1);
       let$ _ = expect_eq_op(e_body', e_body);
       let$ _ = expect_eq(v', v);
       Ok();
+    | E_Ap =>
+      let$ ((e_fun, e_arg), v') = Eval(Ap(T, T), T) |> concl;
+      let$ (e_fun', (x, e_body)) = Eval(T, Fun(T, T)) |> prems(0);
+      let$ _ = expect_eq(e_fun', e_fun);
+      let$ (e_arg', v_arg) = Eval(T, T) |> prems(1);
+      let$ _ = expect_eq(e_arg', e_arg);
+      let e_body = Subst(v_arg, x, Just(e_body));
+      let$ (e_body', v) = Eval(T, T) |> prems(2);
+      let$ _ = expect_eq_op(e_body', e_body);
+      let$ _ = expect_eq(v', v);
+      Ok();
+    // AL
     // | V_NumLit =>
     //   let$ nl = unbox(Val, concl);
     //   let$ _ = unbox(NumLit, nl);
@@ -2280,10 +2097,8 @@ module Verify = {
         | E_Neg => (OpNeg, Neg)
         | _ => failwith("impossible")
         };
-      let$ (e, v') = unbox(Eval, concl);
-      let$ (op, e) = unbox(UnOp, e);
-      let$ _ = unbox(req_op, op);
-      let$ (e', v) = unbox(Eval, prems(0));
+      let$ ((_, e), v') = Eval(UnOp(req_op, T), T) |> concl;
+      let$ (e', v) = Eval(T, T) |> prems(0);
       let$ _ = expect_eq(e', e);
       let v: t_op = UnOp(unop, v);
       let$ _ = expect_eq_op(v', v);
@@ -2298,99 +2113,87 @@ module Verify = {
         | E_Times => (OpTimes, Times)
         | _ => failwith("impossible")
         };
-      let$ (e, v') = unbox(Eval, concl);
-      let$ (op, e1, e2) = unbox(BinOp, e);
-      let$ _ = unbox(req_op, op);
-      let$ (e1', v1) = unbox(Eval, prems(0));
+      let$ ((_, e1, e2), v') = Eval(BinOp(req_op, T, T), T) |> concl;
+      let$ (e1', v1) = Eval(T, T) |> prems(0);
       let$ _ = expect_eq(e1', e1);
-      let$ (e2', v2) = unbox(Eval, prems(1));
+      let$ (e2', v2) = Eval(T, T) |> prems(1);
       let$ _ = expect_eq(e2', e2);
       let v: t_op = BinOp(binop, v1, v2);
       let$ _ = expect_eq_op(v', v);
       Ok();
     | Assumption =>
-      let$ (ctx, prop) = unbox(Entail, concl);
-      let$ _ = expect_in_ctx(prop, ctx);
+      let$ (ctx, p) = Entail(T, T) |> concl;
+      let$ _ = expect_in_ctx(p, ctx);
       Ok();
     | And_I =>
-      let$ (ctx, prop) = unbox(Entail, concl);
-      let$ (a, b) = unbox(And, prop);
-      let$ (ctx', a') = unbox(Entail, prems(0));
+      let$ (ctx, (a, b)) = Entail(T, And(T, T)) |> concl;
+      let$ (ctx', a') = Entail(T, T) |> prems(0);
       let$ _ = expect_eq(ctx', ctx);
       let$ _ = expect_eq(a', a);
-      let$ (ctx', b') = unbox(Entail, prems(1));
+      let$ (ctx', b') = Entail(T, T) |> prems(1);
       let$ _ = expect_eq(ctx', ctx);
       let$ _ = expect_eq(b', b);
       Ok();
     | And_E_L =>
-      let$ (ctx, a) = unbox(Entail, concl);
-      let$ (ctx', p) = unbox(Entail, prems(0));
-      let$ (a', _) = unbox(And, p);
+      let$ (ctx, a) = Entail(T, T) |> concl;
+      let$ (ctx', (a', _)) = Entail(T, And(T, T)) |> prems(0);
       let$ _ = expect_eq(ctx', ctx);
       let$ _ = expect_eq(a', a);
       Ok();
     | And_E_R =>
-      let$ (ctx, b) = unbox(Entail, concl);
-      let$ (ctx', p) = unbox(Entail, prems(0));
-      let$ (_, b') = unbox(And, p);
+      let$ (ctx, b) = Entail(T, T) |> concl;
+      let$ (ctx', (_, b')) = Entail(T, And(T, T)) |> prems(0);
       let$ _ = expect_eq(ctx', ctx);
       let$ _ = expect_eq(b', b);
       Ok();
     | Or_I_L =>
-      let$ (ctx, prop) = unbox(Entail, concl);
-      let$ (a, _) = unbox(Or, prop);
-      let$ (ctx', a') = unbox(Entail, prems(0));
+      let$ (ctx, (a, _)) = Entail(T, Or(T, T)) |> concl;
+      let$ (ctx', a') = Entail(T, T) |> prems(0);
       let$ _ = expect_eq(ctx', ctx);
       let$ _ = expect_eq(a', a);
       Ok();
     | Or_I_R =>
-      let$ (ctx, prop) = unbox(Entail, concl);
-      let$ (_, b) = unbox(Or, prop);
-      let$ (ctx', b') = unbox(Entail, prems(0));
+      let$ (ctx, (_, b)) = Entail(T, Or(T, T)) |> concl;
+      let$ (ctx', b') = Entail(T, T) |> prems(0);
       let$ _ = expect_eq(ctx', ctx);
       let$ _ = expect_eq(b', b);
       Ok();
     | Or_E =>
-      let$ (ctx, c) = unbox(Entail, concl);
-      let$ (ctx', prop) = unbox(Entail, prems(0));
-      let$ (a, b) = unbox(Or, prop);
+      let$ (ctx, c) = Entail(T, T) |> concl;
+      let$ (ctx', (a, b)) = Entail(T, Or(T, T)) |> prems(0);
       let$ _ = expect_eq(ctx, ctx');
-      let$ (ctx_a', c') = unbox(Entail, prems(1));
+      let$ (ctx_a', c') = Entail(T, T) |> prems(1);
       let ctx_a = ExtendCtx(Just(ctx), Just(a));
       let$ _ = expect_eq_op(ctx_a', ctx_a);
       let$ _ = expect_eq(c', c);
-      let$ (ctx_b', c') = unbox(Entail, prems(2));
+      let$ (ctx_b', c') = Entail(T, T) |> prems(2);
       let ctx_b = ExtendCtx(Just(ctx), Just(b));
       let$ _ = expect_eq_op(ctx_b', ctx_b);
       let$ _ = expect_eq(c', c);
       Ok();
     | Implies_I =>
-      let$ (ctx, prop) = unbox(Entail, concl);
-      let$ (a, b) = unbox(Implies, prop);
-      let$ (ctx_a', b') = unbox(Entail, prems(0));
+      let$ (ctx, (a, b)) = Entail(T, Implies(T, T)) |> concl;
+      let$ (ctx_a', b') = Entail(T, T) |> prems(0);
       let ctx_a = ExtendCtx(Just(ctx), Just(a));
       let$ _ = expect_eq_op(ctx_a', ctx_a);
       let$ _ = expect_eq(b', b);
       Ok();
     | Implies_E =>
-      let$ (ctx, b) = unbox(Entail, concl);
-      let$ (ctx', prop) = unbox(Entail, prems(0));
-      let$ (a, b') = unbox(Implies, prop);
+      let$ (ctx, b) = Entail(T, T) |> concl;
+      let$ (ctx', (a, b')) = Entail(T, Implies(T, T)) |> prems(0);
       let$ _ = expect_eq(ctx', ctx);
       let$ _ = expect_eq(b', b);
-      let$ (ctx', a') = unbox(Entail, prems(1));
+      let$ (ctx', a') = Entail(T, T) |> prems(1);
       let$ _ = expect_eq(ctx', ctx);
       let$ _ = expect_eq(a', a);
       Ok();
     | Truth_I =>
-      let$ (_, prop) = unbox(Entail, concl);
-      let$ _ = unbox(Truth, prop);
+      let$ _ = Entail(T, Truth) |> concl;
       Ok();
     | Falsity_E =>
-      let$ (ctx, _) = unbox(Entail, concl);
-      let$ (ctx', prop) = unbox(Entail, prems(0));
+      let$ (ctx, _) = Entail(T, T) |> concl;
+      let$ (ctx', _) = Entail(T, Falsity) |> prems(0);
       let$ _ = expect_eq(ctx', ctx);
-      let$ _ = unbox(Falsity, prop);
       Ok();
     };
   };
