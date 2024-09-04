@@ -139,6 +139,23 @@ let mk_bad = (ctr, ids, value) => {
   };
 };
 
+let make_ctr_term: (string, list(Exp.t)) => UExp.term =
+  (ctr, l) => {
+    let ctr: UExp.term = Constructor(ctr, Unknown(Internal) |> Typ.fresh);
+    switch (l) {
+    | [] => ctr
+    | [e] => Ap(Forward, ctr |> UExp.fresh, e)
+    | _ => Ap(Forward, ctr |> UExp.fresh, Tuple(l) |> Exp.fresh)
+    };
+  };
+
+let parse_pat_term: Pat.t => UExp.term =
+  pat =>
+    switch (Pat.get_var(pat)) {
+    | Some(v) => make_ctr_term("Pat", [String(v) |> Exp.fresh])
+    | None => make_ctr_term("Hole", [String("Not a variable") |> Exp.fresh])
+    };
+
 let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
   switch (s) {
   | Pat => Pat(pat(unsorted(skel, seg)))
@@ -217,9 +234,13 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         | (["-"], []) => UnOp(Int(Minus), r)
         | (["!"], []) => UnOp(Bool(Not), r)
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r, None, None)
+        | (["fun_", "->"], [Pat(pat)]) =>
+          make_ctr_term("Fun", [parse_pat_term(pat) |> Exp.fresh, r])
         | (["fix", "->"], [Pat(pat)]) => FixF(pat, r, None)
         | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r, None)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
+        | (["let_", "be", "in"], [Pat(pat), Exp(def)]) =>
+          make_ctr_term("Let", [parse_pat_term(pat) |> Exp.fresh, def, r])
         | (["hide", "in"], [Exp(filter)]) =>
           Filter(Filter({act: (Eval, One), pat: filter}), r)
         | (["eval", "in"], [Exp(filter)]) =>
@@ -232,6 +253,8 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           TyAlias(tpat, def, r)
         | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
           If(cond, conseq, r)
+        | (["if_", "then", "else"], [Exp(cond), Exp(conseq)]) =>
+          make_ctr_term("If", [cond, conseq, r])
         | _ => hole(tm)
         },
       )
@@ -249,6 +272,8 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
             {ids: [Id.nullary_ap_flag], copied: false, term: Tuple([])},
           ),
         )
+      | ([".fst"], []) => ret(make_ctr_term("PrjL", [l]))
+      | ([".snd"], []) => ret(make_ctr_term("PrjR", [l]))
       | (["(", ")"], [Exp(arg)]) =>
         let use_deferral = (arg: UExp.t): UExp.t => {
           ids: arg.ids,
@@ -283,7 +308,15 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       | ([(_id, t)], []) =>
         ret(
           switch (t) {
-          | (["+"], []) => BinOp(Int(Plus), l, r)
+          | (["+"], []) =>
+            switch (IdTagged.term_of(l)) {
+            | Constructor(_) =>
+              make_ctr_term(
+                "BinOp",
+                [make_ctr_term("OpPlus", []) |> UExp.fresh, l, r],
+              )
+            | _ => BinOp(Int(Plus), l, r)
+            }
           | (["-"], []) => BinOp(Int(Minus), l, r)
           | (["*"], []) => BinOp(Int(Times), l, r)
           | (["**"], []) => BinOp(Int(Power), l, r)
@@ -311,35 +344,15 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | ([";"], []) => Seq(l, r)
           | (["++"], []) => BinOp(String(Concat), l, r)
           | (["$=="], []) => BinOp(String(Equals), l, r)
-          | (["/\\"], []) =>
-            Ap(
-              Forward,
-              Constructor("And", Unknown(Internal) |> Typ.fresh)
-              |> UExp.fresh,
-              Tuple([l, r]) |> UExp.fresh,
-            )
-          | (["\\/"], []) =>
-            Ap(
-              Forward,
-              Constructor("Or", Unknown(Internal) |> Typ.fresh) |> UExp.fresh,
-              Tuple([l, r]) |> UExp.fresh,
-            )
-          | (["==>"], []) =>
-            Ap(
-              Forward,
-              Constructor("Implies", Unknown(Internal) |> Typ.fresh)
-              |> UExp.fresh,
-              Tuple([l, r]) |> UExp.fresh,
-            )
+          | (["/\\"], []) => make_ctr_term("And", [l, r])
+          | (["\\/"], []) => make_ctr_term("Or", [l, r])
+          | (["==>"], []) => make_ctr_term("Implies", [l, r])
           | (["|>"], []) => Ap(Reverse, r, l)
           | (["@"], []) => ListConcat(l, r)
-          | (["|-"], []) =>
-            Ap(
-              Forward,
-              Constructor("Entail", Unknown(Internal) |> Typ.fresh)
-              |> UExp.fresh,
-              Tuple([l, r]) |> UExp.fresh,
-            )
+          | (["|-"], []) => make_ctr_term("Entail", [l, r])
+          | ([":="], []) => make_ctr_term("HasTy", [l, r])
+          | ([":<"], []) => make_ctr_term("Ana", [l, r])
+          | ([":>"], []) => make_ctr_term("Syn", [l, r])
           | _ => hole(tm)
           },
         )

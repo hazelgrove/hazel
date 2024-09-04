@@ -1259,6 +1259,8 @@ module Verify = {
   let verify =
       (rule: Rule.t, prems: list(t), concl: t): result(unit, failure) => {
     let$ prems = expect_prems_num(rule, prems);
+    // The following symbols / operators are defined for convenience just
+    // under this function.
     let __ = Get;
     let (!) = x => TestEq(x);
     let (!!) = x => Test(x);

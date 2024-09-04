@@ -287,6 +287,9 @@ let forms: list((string, t)) = [
   ("cons_exp", mk_infix("::", Exp, P.cons)),
   ("cons_pat", mk_infix("::", Pat, P.cons)),
   ("typeann", mk(ss, [":"], mk_bin'(P.ann, Pat, Pat, [], Typ))),
+  ("alfa_hasty", mk(ss, [":="], mk_bin'(P.ann, Exp, Exp, [], Typ))),
+  ("alfa_ana", mk(ss, [":<"], mk_bin'(P.ann, Exp, Exp, [], Typ))),
+  ("alfa_syn", mk(ss, [":>"], mk_bin'(P.ann, Exp, Exp, [], Typ))),
   // UNARY PREFIX OPERATORS
   ("not", mk(ii, ["!"], mk_pre(P.not_, Exp, []))),
   ("typ_sum_single", mk(ss, ["+"], mk_pre(P.or_, Typ, []))),
@@ -312,10 +315,13 @@ let forms: list((string, t)) = [
     "ap_exp_typ",
     mk((Instant, Static), ["@<", ">"], mk_post(P.ap, Exp, [Typ])),
   ),
+  ("alfa_prjl", mk(ii, [".fst"], mk_post(P.ap, Exp, []))),
+  ("alfa_prjr", mk(ii, [".snd"], mk_post(P.ap, Exp, []))),
   ("at_sign", mk_nul_infix("@", P.eqs)), // HACK: SUBSTRING REQ
   ("case", mk(ds, ["case", "end"], mk_op(Exp, [Rul]))),
   ("test", mk(ds, ["test", "end"], mk_op(Exp, [Exp]))),
   ("fun_", mk(ds, ["fun", "->"], mk_pre(P.fun_, Exp, [Pat]))),
+  ("alfa_fun", mk(ds, ["fun_", "->"], mk_pre(P.fun_, Exp, [Pat]))),
   ("fix", mk(ds, ["fix", "->"], mk_pre(P.fun_, Exp, [Pat]))),
   ("typfun", mk(ds, ["typfun", "->"], mk_pre(P.fun_, Exp, [TPat]))),
   ("forall", mk(ds, ["forall", "->"], mk_pre(P.fun_, Typ, [TPat]))),
@@ -332,6 +338,10 @@ let forms: list((string, t)) = [
   ("filter_debug", mk(ds, ["debug", "in"], mk_pre(P.let_, Exp, [Exp]))),
   // TRIPLE DELIMITERS
   ("let_", mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))),
+  (
+    "alfa_let",
+    mk(ds, ["let_", "be", "in"], mk_pre(P.let_, Exp, [Pat, Exp])),
+  ),
   (
     "type_alias",
     mk(ds, ["type", "=", "in"], mk_pre(P.let_, Exp, [TPat, Typ])),
