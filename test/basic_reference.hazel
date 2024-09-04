@@ -1,0 +1,87 @@
+let empty_hole =  ? in
+let non_empty_hole = true in 
+let bool = true in
+let operators = !true && false || true in
+let conditional = if !true then 1 else 2 in
+let num = 1 in
+let arithmetic = -num*1 + 2/3 - 4**5 in
+let comparison =
+  (0 == 0, 0 < 1, 1 <= 1, 2 > 1, 1 >= 1) 
+in
+let float = 0.1 in
+let artihmetic = 0. *. 1. +. 2. /. 3. -. 4. **. 5. in
+let comparison =
+  (0. ==. 0., 0. <. 1., 1. <=. 1., 2. >. 1., 1. >=. 1.) 
+in
+let string = "Hello, world!" in 
+let concatenation  = string ++ " Goodbye." in
+let comparison = string$== "Hello, world!" in
+let tuple =
+(1, true, (false, 3)) in
+let (a, b, (c, d)) = tuple in
+let y  -> Int =
+fun (m, x, b) -> m * x + b in
+let double_recursively =
+  fun n ->
+    if n == 0 
+    then 0   
+    else double_recursively(n - 1) + 2 
+in
+let (even : Int -> Bool, odd : Int -> Bool) = 
+  (fun n -> if n == 0 then true else odd(n - 1),
+  fun n -> if n == 0 then false else even(n - 1)) 
+in
+let empty_list : [Int] = [] in
+let non_empty_list : [Int] = 1::2::3::[] in
+let list_literals : [Int] = [1, 2, 3] in
+let length : [Int] -> Int =
+  fun xs ->
+    case xs
+      | [] => 0
+      | hd::tl => 1 + length(tl) 
+    end 
+in
+let has_at_least_two_elements : [Int] -> Bool =
+  fun xs ->
+    case xs
+      | [] => false
+      | hd::[] => false
+      | a::b::[] => true 
+    end 
+in
+type Exp =
+  + Var(String)
+  + Lam(String, Exp)
++ Ap(Exp, Exp) in
+let exp_equal: (Exp, Exp) -> Bool =
+  fun es ->
+    case es
+      | Var(x), Var(y) => x$== y
+      | Lam(x1, e1), Lam(x2, e2) =>
+      x1$== x2 && exp_equal(e1, e2)
+      | Ap(e1, e2), Ap(e3, e4) =>
+      exp_equal(e1, e3) && exp_equal(e2, e4)
+      | _ => false 
+    end 
+in
+let poly_id: forall a -> a -> a =
+  typfun a -> fun x : a -> x 
+in
+let apply_both:
+forall a -> forall b -> (forall c -> c -> c) -> ((a, b) -> (a, b)) =
+  typfun a -> typfun b ->
+    fun f : forall c -> (c -> c) ->
+      fun (x, y) : (a, b) -> (f@<a>(x), f@<b>(y)) 
+in
+let list_length: forall a -> [a] -> Int =
+  typfun a -> fun l : [a] ->
+    case l
+      | [] => 0
+      | hd::tl => 1 + list_length@<a>(tl)    
+    end    
+in
+test 2 + 2 == 4 end;
+test 3 + 3 == 6 end;
+test 2 + 2 == 5 end;
+
+2 + 2

@@ -10,3 +10,4 @@ let (suite, _) =
     ],
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
+Bisect.Runtime.write_coverage_data();

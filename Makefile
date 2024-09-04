@@ -66,5 +66,13 @@ test:
 watch-test:
 	dune build @fmt @runtest --auto-promote --watch
 
+coverage:
+	dune build @src/fmt @test/fmt --auto-promote src test --profile dev
+	dune runtest --instrument-with bisect_ppx --force
+	bisect-ppx-report summary
+
+generate-coverage-html:
+	bisect-ppx-report html
+
 clean:
 	dune clean

@@ -8,6 +8,8 @@
 (library
  (name workerServer)
  (modules WorkerServer)
+ (instrumentation
+  (backend bisect_ppx))
  (libraries
   incr_dom
   virtual_dom.input_widgets
@@ -28,6 +30,8 @@
 
 (library
  (name haz3lweb)
+ (instrumentation
+  (backend bisect_ppx))
  (modules
   (:standard \ Main)
   \

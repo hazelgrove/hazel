@@ -29,6 +29,7 @@ depends: [
   "bignum" {= "v0.16.0"}
   "bigstringaf" {= "0.9.1"}
   "bin_prot" {= "v0.16.0"}
+  "bisect_ppx" {= "2.8.3"}
   "camlp-streams" {= "5.0.1"}
   "chrome-trace" {= "3.16.0"}
   "cmdliner" {= "1.3.0"}

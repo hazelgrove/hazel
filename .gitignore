@@ -56,3 +56,6 @@ setup.log
 
 # Backup of opam lock file
 hazel.opam.locked.old
+
+# Code coverage
+_coverage/
