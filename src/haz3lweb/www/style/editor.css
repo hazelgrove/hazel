@@ -147,6 +147,10 @@ svg.shard.error {
   z-index: var(--err-hole-z);
 }
 
+svg.shard.warning {
+    z-index: var(--warning-hole-z);
+}
+
 svg.shard.selected > path {
   fill: var(--shard-selected);
   stroke-width: 0.5px;
@@ -167,6 +171,18 @@ svg.shard.error > path,
 }
 svg.shard.error > path {
   fill: var(--error-hole-fill);
+}
+
+svg.shard.warning>path,
+.warnings .warnings-piece svg .child-line {
+    stroke: var(--warning-hole-stroke);
+    stroke-width: 0.75px;
+    stroke-dasharray: 1, 1;
+    stroke-linecap: butt;
+}
+
+svg.shard.warning>path {
+    fill: var(--warning-hole-fill);
 }
 
 /* SHARD DROP SHADOWS */

@@ -639,7 +639,10 @@ module F = (ExerciseEnv: ExerciseEnv) => {
       (settings: CoreSettings.t, t: stitched(UExp.t)): stitched_statics => {
     let mk = (term: UExp.t): Editor.CachedStatics.t => {
       let info_map = Statics.mk(settings, Builtins.ctx_init, term);
-      {term, error_ids: Statics.Map.error_ids(info_map), info_map};
+      let error_and_warning_ids: (list(Id.t), list(Id.t)) =
+        Statics.Map.error_and_warning_ids(info_map);
+      let (error_ids, warning_ids) = error_and_warning_ids;
+      {term, error_ids, warning_ids, info_map};
     };
     let instructor = mk(t.instructor);
     {

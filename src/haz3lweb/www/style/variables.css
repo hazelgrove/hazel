@@ -31,6 +31,9 @@
   --Y2: oklch(88% 0.2 95); /* explicit hole */
   --Y3: oklch(71% 0.2 95); /* incomplete shards */
 
+  --OR1: oklch(86.76% 0.12 83.6); /* peach orange */
+  --OR2: oklch(73.49% 0.161 58.77); /* darker orange  */
+
   /* MAGMA - opportunities */
   --R0: oklch(85% 0.1 30); /* broken shard fill */
   --R1: oklch(60% 0.3 30); /* caret, error stroke */
@@ -60,6 +63,7 @@
   --textarea-h-strip-selected: oklch(68% 0.14 76 / 30%);
   --SHADOW: oklch(50% 0.1 90 / 33%);
   --ERRHOLE: oklch(96% 0.02 47); /* temporary due to child arms */
+  --WARNINGHOLE: oklch(96% 0.02 47); /* temporary due to child arms */
   --CREASE: oklch(0% 0 0 / 40%);
 
   /* CODE BACKGROUND */
@@ -75,6 +79,7 @@
 
   --caret-color: var(--R1);
   --error-hole-stroke: var(--R1);
+  --warning-hole-stroke: var(--OR2);
 
   /* CODE TOKENS */
 
@@ -123,6 +128,7 @@
   /* ERROR HOLE DECO */
 
   --error-hole-fill: var(--ERRHOLE);
+  --warning-hole-fill: var(--WARNINGHOLE);
 
   /* BACKPACK DECO */
 
@@ -172,6 +178,9 @@
   --ci-status-text: var(--BR4);
   --ci-status-error-text: var(--R2);
   --ci-status-error-bkg: var(--test-fail-active);
+  --ci-status-warning-text: var(--OR2);
+  --ci-status-warning-bkg: var(--OR1);
+
   --context-inspector-colon: var(--BR2);
 
   --ui-header-text: var(--BR3);
@@ -199,6 +208,7 @@
   --tile-z: 1;
   --projector-backing-z: 1;
   --err-hole-z: 2;
+  --warning-hole-z: 2;
   --select-z: 4;
   --test-result-z: 5;
 

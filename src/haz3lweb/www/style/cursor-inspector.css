@@ -14,6 +14,10 @@
   border-color: var(--R1);
 }
 
+#cursor-inspector.warning {
+  border-color: var(--Y4);
+}
+
 #cursor-inspector .icon {
   display: flex;
   padding: 0.2em;
@@ -62,6 +66,16 @@
   color: var(--BR4);
 }
 
+#cursor-inspector .ci-header .gamma:hover,
+#cursor-inspector .ci-header.warning .gamma:hover,
+#cursor-inspector .ci-header .gamma.visible,
+#cursor-inspector .ci-header.warning .gamma.visible,
+#bottom-bar:has(~ .context-inspector:hover) .gamma {
+    background-color: #dfcc99;
+    outline: 0.3px solid var(--O2);
+    color: var(--O1);
+}
+
 #cursor-inspector .gamma.visible,
 #bottom-bar:has(~ .context-inspector:hover) .gamma {
   border-radius: 0;
@@ -89,6 +103,23 @@
 }
 #cursor-inspector .ci-header.error .toggle-switch .toggle-knob {
   color: var(--R2);
+}
+
+#cursor-inspector .ci-header.warning {
+    background-color: var(--ci-status-warning-bkg);
+    color: var(--ci-status-warning-text);
+}
+
+#cursor-inspector .ci-header.warning .gamma {
+    background-color: var(--O1);
+}
+
+#cursor-inspector .ci-header.warning .toggle-switch {
+    background-color: var(--O2);
+}
+
+#cursor-inspector .ci-header.warning .toggle-switch .toggle-knob {
+    color: var(--Y4);
 }
 
 #cursor-inspector .ci-header.ok .toggle-switch .toggle-knob {
@@ -170,6 +201,25 @@
 
 #cursor-inspector .status.error {
   color: var(--ci-status-error-text);
+}
+
+#cursor-inspector .status.warning .code {
+    padding: 0 0.3em 0 0.3em;
+    border-radius: 0.2em;
+    border-bottom: 1px solid var(--ci-status-warning-text);
+}
+
+#cursor-inspector .status.ok,
+#cursor-inspector .status.warning {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    white-space: nowrap;
+    color: var(--ci-status-text);
+}
+
+#cursor-inspector .status.warning {
+    color: var(--ci-status-warning-text);
 }
 
 

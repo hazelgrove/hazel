@@ -43,6 +43,22 @@ module Map = {
       info_map,
       [],
     );
+  // Retrieve both the error and warning ids in a single pass
+  let error_and_warning_ids = (info_map: t): (list(Id.t), list(Id.t)) => {
+    Id.Map.fold(
+      (id, info, acc) => {
+        let (error_ids, warning_ids) = acc;
+        id == Info.id_of(info)
+          ? (
+            Info.is_error(info) ? [id, ...error_ids] : error_ids,
+            Info.is_warning(info) ? [id, ...warning_ids] : warning_ids,
+          )
+          : acc;
+      },
+      info_map,
+      ([], []),
+    );
+  };
 };
 
 let map_m = (f, xs, m: Map.t) =>
@@ -182,12 +198,21 @@ and uexp_to_info_map =
     | Ana({term: Unknown(SynSwitch), _}) => Mode.Syn
     | _ => mode
     };
-  let add' = (~self, ~co_ctx, m) => {
+  let add' = (~self, ~co_ctx, ~warning: option(Info.warning_exp), m) => {
     let info =
-      Info.derived_exp(~uexp, ~ctx, ~mode, ~ancestors, ~self, ~co_ctx);
+      Info.derived_exp(
+        ~uexp,
+        ~ctx,
+        ~mode,
+        ~ancestors,
+        ~self,
+        ~co_ctx,
+        ~warning,
+      );
     (info, add_info(ids, InfoExp(info), m));
   };
-  let add = (~self, ~co_ctx, m) => add'(~self=Common(self), ~co_ctx, m);
+  let add = (~self, ~co_ctx, ~warning: option(Info.warning_exp)=None, m) =>
+    add'(~self=Common(self), ~co_ctx, ~warning, m);
   let ancestors = [UExp.rep_id(uexp)] @ ancestors;
   let uexp_to_info_map =
       (
@@ -209,7 +234,16 @@ and uexp_to_info_map =
       ([], m),
     );
   let go_pat = upat_to_info_map(~ctx, ~ancestors);
-  let atomic = self => add(~self, ~co_ctx=CoCtx.empty, m);
+  // Track if the current term has a hole, and add this information to the co_ctx
+  let hole_co_ctx =
+    switch (term) {
+    | MultiHole(_)
+    | EmptyHole
+    | Invalid(_) =>
+      CoCtx.singleton("__hole__", UExp.rep_id(uexp), Mode.ty_of(mode))
+    | _ => CoCtx.empty
+    };
+  let atomic = self => add(~self, ~co_ctx=hole_co_ctx, m);
   switch (term) {
   | Closure(_) =>
     failwith(
@@ -225,7 +259,7 @@ and uexp_to_info_map =
   | Invalid(token) => atomic(BadToken(token))
   | EmptyHole => atomic(Just(Unknown(Internal) |> Typ.temp))
   | Deferral(position) =>
-    add'(~self=IsDeferral(position), ~co_ctx=CoCtx.empty, m)
+    add'(~self=IsDeferral(position), ~co_ctx=CoCtx.empty, ~warning=None, m)
   | Undefined => atomic(Just(Unknown(Hole(EmptyHole)) |> Typ.temp))
   | Bool(_) => atomic(Just(Bool |> Typ.temp))
   | Int(_) => atomic(Just(Int |> Typ.temp))
@@ -264,6 +298,7 @@ and uexp_to_info_map =
     add'(
       ~self=Self.of_exp_var(ctx, name),
       ~co_ctx=CoCtx.singleton(name, UExp.rep_id(uexp), Mode.ty_of(mode)),
+      ~warning=None,
       m,
     )
   | DynamicErrorHole(e, _)
@@ -298,6 +333,7 @@ and uexp_to_info_map =
     add'(
       ~self=Self.of_exp_var(Builtins.ctx_init, string),
       ~co_ctx=CoCtx.empty,
+      ~warning=None,
       m,
     )
   | Tuple(es) =>
@@ -357,7 +393,12 @@ and uexp_to_info_map =
     let modes = Mode.of_deferred_ap_args(num_args, ty_ins);
     let (args, m) = map_m_go(m, modes, args);
     let arg_co_ctx = CoCtx.union(List.map(Info.exp_co_ctx, args));
-    add'(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg_co_ctx]), m);
+    add'(
+      ~self,
+      ~co_ctx=CoCtx.union([fn.co_ctx, arg_co_ctx]),
+      ~warning=None,
+      m,
+    );
   | Fun(p, e, _, _) =>
     let (mode_pat, mode_body) = Mode.of_arrow(ctx, mode);
     let (p', _) =
@@ -372,7 +413,7 @@ and uexp_to_info_map =
     let is_exhaustive = p |> Info.pat_constraint |> Incon.is_exhaustive;
     let self =
       is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
-    add'(~self, ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx), m);
+    add'(~self, ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx), ~warning=None, m);
   | TypFun({term: Var(name), _} as utpat, body, _)
       when !Ctx.shadows_typ(ctx, name) =>
     let mode_body = Mode.of_forall(ctx, Some(name), mode);
@@ -463,6 +504,7 @@ and uexp_to_info_map =
       ~self,
       ~co_ctx=
         CoCtx.union([def.co_ctx, CoCtx.mk(ctx, p_ana.ctx, body.co_ctx)]),
+      ~warning=None,
       m,
     );
   | FixF(p, e, _) =>
@@ -510,8 +552,17 @@ and uexp_to_info_map =
         p_ctxs,
       );
     let e_tys = List.map(Info.exp_ty, es);
-    let e_co_ctxs =
+    let e_co_ctxs = List.map(Info.exp_co_ctx, es);
+    let filtered_co_ctxs =
       List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es));
+    /* Create overall match's co_context */
+    let (_, m) =
+      map_m(
+        ((p, co_ctx)) =>
+          go_pat(~is_synswitch=false, ~co_ctx, ~mode=Mode.Ana(scrut.ty), p),
+        List.combine(ps, filtered_co_ctxs),
+        m,
+      );
     let unwrapped_self: Self.exp =
       Common(Self.match(ctx, e_tys, branch_ids));
     let constraint_ty =
@@ -560,6 +611,7 @@ and uexp_to_info_map =
                   ~ancestors=p.ancestors,
                   ~prev_synswitch=None,
                   ~self,
+                  ~warning=p.warning,
                   // Mark patterns as redundant at the top level
                   // because redundancy doesn't make sense in a smaller context
                   ~constraint_=p_constraint,
@@ -597,7 +649,12 @@ and uexp_to_info_map =
           );
         (unwrapped_self, m);
       };
-    add'(~self, ~co_ctx=CoCtx.union([scrut.co_ctx] @ e_co_ctxs), m);
+    add'(
+      ~self,
+      ~co_ctx=CoCtx.union([scrut.co_ctx] @ filtered_co_ctxs),
+      ~warning=None,
+      m,
+    );
   | TyAlias(typat, utyp, body) =>
     let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;
     switch (typat.term) {
@@ -673,7 +730,8 @@ and upat_to_info_map =
       m: Map.t,
     )
     : (Info.pat, Map.t) => {
-  let add = (~self, ~ctx, ~constraint_, m) => {
+  let add =
+      (~self, ~ctx, ~constraint_, ~warning: option(Info.warning_pat)=None, m) => {
     let prev_synswitch =
       switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
       | Some(Info.InfoPat({mode: Syn | SynFun, ty, _})) => Some(ty)
@@ -690,11 +748,13 @@ and upat_to_info_map =
         ~mode,
         ~ancestors,
         ~self=Common(self),
+        ~warning,
         ~constraint_,
       );
     (info, add_info(ids, InfoPat(info), m));
   };
-  let atomic = (self, constraint_) => add(~self, ~ctx, ~constraint_, m);
+  let atomic = (self, constraint_) =>
+    add(~self, ~ctx, ~constraint_, ~warning=None, m);
   let ancestors = [UPat.rep_id(upat)] @ ancestors;
   let go = upat_to_info_map(~is_synswitch, ~ancestors, ~co_ctx);
   let unknown = Typ.Unknown(is_synswitch ? SynSwitch : Internal) |> Typ.temp;
@@ -716,7 +776,7 @@ and upat_to_info_map =
   switch (term) {
   | MultiHole(tms) =>
     let (_, m) = multi(~ctx, ~ancestors, m, tms);
-    add(~self=IsMulti, ~ctx, ~constraint_=Constraint.Hole, m);
+    add(~self=IsMulti, ~ctx, ~constraint_=Constraint.Hole, ~warning=None, m);
   | Invalid(token) => hole(BadToken(token))
   | EmptyHole => hole(Just(unknown))
   | Int(int) => atomic(Just(Int |> Typ.temp), Constraint.Int(int))
@@ -757,6 +817,7 @@ and upat_to_info_map =
       ~ctx=tl.ctx,
       ~constraint_=
         Constraint.InjR(Constraint.Pair(hd.constraint_, tl.constraint_)),
+      ~warning=None,
       m,
     );
   | Wild => atomic(Just(unknown), Constraint.Truth)
@@ -770,11 +831,23 @@ and upat_to_info_map =
         mode,
         Common(Just(Unknown(Internal) |> Typ.temp)),
       );
+    let var_is_unused = (co_ctx, name): option(Info.warning_pat) =>
+      if (String.starts_with(~prefix="_", name)
+          || CoCtx.contains_hole(co_ctx)) {
+        None;
+      } else {
+        switch (VarMap.lookup(co_ctx, name)) {
+        | None => Some(UnusedVariable(name))
+        | Some(_) => None
+        };
+      };
+    let warning_pat: option(Info.warning_pat) = var_is_unused(co_ctx, name);
     let entry = Ctx.VarEntry({name, id: UPat.rep_id(upat), typ: ctx_typ});
     add(
       ~self=Just(unknown),
       ~ctx=Ctx.extend(ctx, entry),
       ~constraint_=Constraint.Truth,
+      ~warning=warning_pat,
       m,
     );
   | Tuple(ps) =>
@@ -790,6 +863,7 @@ and upat_to_info_map =
       ~self=Just(Prod(tys) |> Typ.temp),
       ~ctx,
       ~constraint_=cons_fold_tuple(cons),
+      ~warning=None,
       m,
     );
   | Parens(p) =>

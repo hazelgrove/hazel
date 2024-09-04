@@ -472,6 +472,50 @@ module Deco =
       Node.div([])
     };
 
+  let warning_view = (id: Id.t) =>
+    try(
+      switch (Id.Map.find_opt(id, M.meta.syntax.projectors)) {
+      | Some(p) =>
+        /* Special case for projectors as they are not in tile map */
+        let shapes = ProjectorBase.shapes(p);
+        let measurement = Id.Map.find(id, M.meta.syntax.measured.projectors);
+        div_c(
+          "warnings-piece",
+          [
+            PieceDec.simple_shard_warning({
+              font_metrics,
+              tips: PieceDec.tips_of_shapes(shapes),
+              measurement,
+            }),
+          ],
+        );
+      | None =>
+        let p = Piece.Tile(tile(id));
+        let tiles = all_tiles(p);
+        let shard_decos =
+          tiles
+          |> List.map(((_, mold, shards)) =>
+               PieceDec.simple_shards_warnings(~font_metrics, mold, shards)
+             )
+          |> List.flatten;
+        switch (term_range(p)) {
+        | Some(range) =>
+          let rows = M.meta.syntax.measured.rows;
+          let decos =
+            shard_decos
+            @ PieceDec.uni_lines(~font_metrics, ~rows, range, tiles)
+            @ PieceDec.bi_lines(~font_metrics, ~rows, tiles);
+          div_c("warnings-piece", decos);
+        | None => div_c("warnings-piece", shard_decos)
+        };
+      }
+    ) {
+    | Not_found => Node.div([])
+    };
+
+  let warnings = () =>
+    div_c("warnings", List.map(warning_view, M.meta.statics.warning_ids));
+
   let errors = () =>
     div_c("errors", List.map(error_view, M.meta.statics.error_ids));
 
@@ -480,7 +524,7 @@ module Deco =
 
   let selection = (z: Zipper.t) => div_c("selects", segment_selected(z));
 
-  let always = () => [errors()];
+  let always = () => [errors(), warnings()];
 
   let all = z => [
     caret(z),
@@ -489,6 +533,7 @@ module Deco =
     backpack(z),
     backpack_targets(z.backpack, M.meta.syntax.segment),
     errors(),
+    warnings(),
     color_highlights(),
   ];
 };

@@ -76,6 +76,21 @@ type error_pat =
   | Common(error_common);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type warning_pat =
+  | UnusedVariable(string)
+  | Placeholder;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type warning_exp =
+  | Placeholder1
+  | Placeholder2;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type warning_common =
+  | WarningExp(warning_exp)
+  | WarningPat(warning_pat);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type ok_ana =
   /* The expected (ana) type and the self (syn) type are
      consistent, as witnessed by their joint type (join) */
@@ -200,7 +215,8 @@ type exp = {
   co_ctx: CoCtx.t, /* Locally free variables */
   cls: Cls.t, /* DERIVED: Syntax class (i.e. form name) */
   status: status_exp, /* DERIVED: Ok/Error statuses for display */
-  ty: Typ.t /* DERIVED: Type after nonempty hole fixing */
+  ty: Typ.t, /* DERIVED: Type after nonempty hole fixing */
+  warning: option(warning_exp),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -216,6 +232,7 @@ type pat = {
   status: status_pat,
   ty: Typ.t,
   constraint_: Constraint.t,
+  warning: option(warning_pat),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -311,6 +328,22 @@ let error_of: t => option(error) =
   | InfoPat({status: InHole(err), _}) => Some(Pat(err))
   | InfoTyp({status: InHole(err), _}) => Some(Typ(err))
   | InfoTPat({status: InHole(err), _}) => Some(TPat(err))
+  | Secondary(_) => None;
+
+let warning_of: t => option(warning_common) =
+  fun
+  | InfoExp({warning, _}) =>
+    switch (warning) {
+    | Some(warning) => Some(WarningExp(warning))
+    | None => None
+    }
+  | InfoPat({warning, _}) =>
+    switch (warning) {
+    | Some(warning) => Some(WarningPat(warning))
+    | None => None
+    }
+  | InfoTyp(_)
+  | InfoTPat(_)
   | Secondary(_) => None;
 
 let exp_co_ctx: exp => CoCtx.t = ({co_ctx, _}) => co_ctx;
@@ -538,6 +571,23 @@ let is_error = (ci: t): bool => {
   };
 };
 
+let is_warning = (ci: t): bool => {
+  switch (ci) {
+  | InfoExp({warning, _}) =>
+    switch (warning) {
+    | Some(_) => true
+    | None => false
+    }
+  | InfoPat({warning, _}) =>
+    switch (warning) {
+    | Some(_) => true
+    | None => false
+    }
+  | InfoTyp(_)
+  | InfoTPat(_)
+  | Secondary(_) => false
+  };
+};
 /* Determined the type of an expression or pattern 'after hole fixing';
    that is, some ill-typed terms are considered to be 'wrapped in
    non-empty holes', i.e. assigned Unknown type. */
@@ -610,11 +660,11 @@ let fixed_typ_exp = (ctx, mode: Mode.t, self: Self.exp): Typ.t =>
 
 /* Add derivable attributes for expression terms */
 let derived_exp =
-    (~uexp: UExp.t, ~ctx, ~mode, ~ancestors, ~self, ~co_ctx): exp => {
+    (~uexp: UExp.t, ~ctx, ~mode, ~ancestors, ~self, ~co_ctx, ~warning): exp => {
   let cls = Cls.Exp(UExp.cls_of_term(uexp.term));
   let status = status_exp(ctx, mode, self);
   let ty = fixed_typ_exp(ctx, mode, self);
-  {cls, self, ty, mode, status, ctx, co_ctx, ancestors, term: uexp};
+  {cls, self, ty, mode, status, ctx, co_ctx, ancestors, term: uexp, warning};
 };
 
 /* Add derivable attributes for pattern terms */
@@ -628,6 +678,7 @@ let derived_pat =
       ~ancestors,
       ~self,
       ~constraint_,
+      ~warning,
     )
     : pat => {
   let cls = Cls.Pat(UPat.cls_of_term(upat.term));
@@ -646,6 +697,7 @@ let derived_pat =
     ancestors,
     term: upat,
     constraint_,
+    warning,
   };
 };
 

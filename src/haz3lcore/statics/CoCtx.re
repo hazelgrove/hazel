@@ -70,3 +70,13 @@ let join: (Ctx.t, list(entry)) => Typ.t =
     | Some(ty) => ty
     };
   };
+
+let contains_hole = (co_ctx: t): bool =>
+  /*
+    NOTE: currently, any hole expression will add a
+     "__hole__" entry to the co_ctx. This is a hack,
+     and should be replaced with a different mechanism,
+     such as a separate record in the CoCtx.t type.
+     - liam
+   */
+  VarMap.lookup(co_ctx, "__hole__") !== None;

@@ -105,6 +105,11 @@
   color: var(--BLACK);
 }
 
+.cell-item.cell-result .warning-msg {
+    padding: 0.25em;
+    color: var(--BLACK);
+}
+
 .cell-result .icon:hover svg {
   animation: wobble 0.6s ease 0s 1 normal forwards;
   transform: scale(130%);

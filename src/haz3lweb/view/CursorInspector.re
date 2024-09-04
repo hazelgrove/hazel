@@ -6,10 +6,15 @@ open Haz3lcore;
 
 let errc = "error";
 let okc = "ok";
+let warnc = "warning";
+let div_warn = div(~attrs=[clss(["status", warnc])]);
 let div_err = div(~attrs=[clss(["status", errc])]);
 let div_ok = div(~attrs=[clss(["status", okc])]);
 
 let code_err = (code: string): Node.t =>
+  div(~attrs=[clss(["code"])], [text(code)]);
+
+let code_warn = (code: string): Node.t =>
   div(~attrs=[clss(["code"])], [text(code)]);
 
 let explain_this_toggle = (~inject, ~show_explain_this: bool): Node.t => {
@@ -44,7 +49,13 @@ let term_view = (~inject, ~settings: Settings.t, ci) => {
   let sort = ci |> Info.sort_of |> Sort.show;
   div(
     ~attrs=[
-      clss(["ci-header", sort] @ (Info.is_error(ci) ? [errc] : [okc])),
+      clss(
+        ["ci-header", sort]
+        @ (
+          Info.is_error(ci)
+            ? [errc] : Info.is_warning(ci) ? [warnc] : [okc]
+        ),
+      ),
     ],
     [
       ctx_toggle(~inject, settings.context_inspector),
@@ -137,6 +148,28 @@ let common_ok_view = (cls: Cls.t, ok: Info.ok_pat) => {
   };
 };
 
+let common_warn_view =
+    (cls: Cls.t, ok: Info.ok_pat, warning: option(Info.warning_common)) => {
+  common_ok_view(cls, ok)
+  @ (
+    switch (warning) {
+    | Some(w) =>
+      switch (w) {
+      | WarningPat(w') =>
+        switch (w') {
+        | UnusedVariable(name) => [
+            text("Unused Variable: "),
+            code_warn(name),
+          ]
+        | _ => []
+        }
+      | _ => []
+      }
+    | None => []
+    }
+  );
+};
+
 let typ_ok_view = (cls: Cls.t, ok: Info.ok_typ) =>
   switch (ok) {
   | Type(_) when cls == Typ(EmptyHole) => [text("Fillable by any type")]
@@ -176,7 +209,12 @@ let typ_err_view = (ok: Info.error_typ) =>
     ]
   };
 
-let rec exp_view = (cls: Cls.t, status: Info.status_exp) =>
+let rec exp_view =
+        (
+          cls: Cls.t,
+          status: Info.status_exp,
+          warning: option(Info.warning_exp),
+        ) =>
   switch (status) {
   | InHole(FreeVariable(name)) =>
     div_err([code_err(name), text("not found")])
@@ -187,7 +225,7 @@ let rec exp_view = (cls: Cls.t, status: Info.status_exp) =>
     | Some(err) =>
       let cls_str = String.uncapitalize_ascii(cls_str);
       div_err([
-        exp_view(cls, InHole(Common(err))),
+        exp_view(cls, InHole(Common(err)), None),
         text("; " ++ cls_str ++ " is inexhaustive"),
       ]);
     };
@@ -210,20 +248,36 @@ let rec exp_view = (cls: Cls.t, status: Info.status_exp) =>
   | InHole(Common(error)) => div_err(common_err_view(cls, error))
   | NotInHole(AnaDeferralConsistent(ana)) =>
     div_ok([text("Expecting type"), Type.view(ana)])
-  | NotInHole(Common(ok)) => div_ok(common_ok_view(cls, ok))
+  | NotInHole(Common(ok)) =>
+    switch (warning) {
+    | Some(w) => div_warn(common_warn_view(cls, ok, Some(WarningExp(w))))
+    | None => div_ok(common_ok_view(cls, ok))
+    }
   };
 
-let rec pat_view = (cls: Cls.t, status: Info.status_pat) =>
+let rec pat_view =
+        (
+          cls: Cls.t,
+          status: Info.status_pat,
+          warning: option(Info.warning_pat),
+        ) =>
   switch (status) {
   | InHole(ExpectedConstructor) => div_err([text("Expected a constructor")])
   | InHole(Redundant(additional_err)) =>
     switch (additional_err) {
     | None => div_err([text("Pattern is redundant")])
     | Some(err) =>
-      div_err([pat_view(cls, InHole(err)), text("; pattern is redundant")])
+      div_err([
+        pat_view(cls, InHole(err), None),
+        text("; pattern is redundant"),
+      ])
     }
   | InHole(Common(error)) => div_err(common_err_view(cls, error))
-  | NotInHole(ok) => div_ok(common_ok_view(cls, ok))
+  | NotInHole(ok) =>
+    switch (warning) {
+    | Some(w) => div_warn(common_warn_view(cls, ok, Some(WarningPat(w))))
+    | None => div_ok(common_ok_view(cls, ok))
+    }
   };
 
 let typ_view = (cls: Cls.t, status: Info.status_typ) =>
@@ -265,8 +319,10 @@ let view_of_info = (~inject, ~settings, ci): list(Node.t) => {
   ];
   switch (ci) {
   | Secondary(_) => wrapper(div([]))
-  | InfoExp({cls, status, _}) => wrapper(exp_view(cls, status))
-  | InfoPat({cls, status, _}) => wrapper(pat_view(cls, status))
+  | InfoExp({cls, status, warning, _}) =>
+    wrapper(exp_view(cls, status, warning))
+  | InfoPat({cls, status, warning, _}) =>
+    wrapper(pat_view(cls, status, warning))
   | InfoTyp({cls, status, _}) => wrapper(typ_view(cls, status))
   | InfoTPat({cls, status, _}) => wrapper(tpat_view(cls, status))
   };
@@ -276,7 +332,7 @@ let inspector_view = (~inject, ~settings, ci): Node.t =>
   div(
     ~attrs=[
       Attr.id("cursor-inspector"),
-      clss([Info.is_error(ci) ? errc : okc]),
+      clss([Info.is_error(ci) ? errc : Info.is_warning(ci) ? warnc : okc]),
     ],
     view_of_info(~inject, ~settings, ci),
   );

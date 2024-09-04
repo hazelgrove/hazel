@@ -5,12 +5,14 @@ module CachedStatics = {
     term: UExp.t,
     info_map: Statics.Map.t,
     error_ids: list(Id.t),
+    warning_ids: list(Id.t),
   };
 
   let empty: t = {
     term: UExp.{ids: [Id.invalid], copied: false, term: Tuple([])},
     info_map: Id.Map.empty,
     error_ids: [],
+    warning_ids: [],
   };
 
   let init = (~settings: CoreSettings.t, z: Zipper.t): t => {
@@ -18,8 +20,9 @@ module CachedStatics = {
     let ctx_init = Builtins.ctx_init;
     let term = MakeTerm.from_zip_for_sem(z).term;
     let info_map = Statics.mk(settings, ctx_init, term);
-    let error_ids = Statics.Map.error_ids(info_map);
-    {term, info_map, error_ids};
+    let e_and_w_ids = Statics.Map.error_and_warning_ids(info_map);
+    let (error_ids, warning_ids) = e_and_w_ids;
+    {term, info_map, error_ids, warning_ids};
   };
 
   let init = (~settings: CoreSettings.t, z: Zipper.t) =>
