@@ -41,7 +41,7 @@ type expr =
   | Unroll(expr)
 and pat =
   | Pat(string)
-  | Ann(pat, typ)
+  | PatAnn(pat, typ)
 and unop =
   | OpNeg
 and binop =
@@ -54,7 +54,7 @@ and binop =
 
 type prop =
   // ALFp exclusive
-  | HasType(expr, typ)
+  | HasTy(expr, typ)
   | Syn(expr, typ)
   | Ana(expr, typ)
   // Propositional logic
@@ -123,7 +123,7 @@ let cls_to_arg_typ: cls => list(Typ.t) =
   | PrjR => [Expr |> alias_fresh]
   | Triv => []
   | Pat => [String |> Typ.fresh]
-  | Ann => [String |> Typ.fresh, Type |> alias_fresh]
+  | PatAnn => [String |> Typ.fresh, Type |> alias_fresh]
   // ALF
   | NumLit => [Int |> Typ.fresh]
   | True
@@ -143,7 +143,7 @@ let cls_to_arg_typ: cls => list(Typ.t) =
   | OpMinus
   | OpTimes => []
   // Propositional logic
-  | HasType => [Expr |> alias_fresh, Type |> alias_fresh]
+  | HasTy => [Expr |> alias_fresh, Type |> alias_fresh]
   | Syn => [Expr |> alias_fresh, Type |> alias_fresh]
   | Ana => [Expr |> alias_fresh, Type |> alias_fresh]
   | Atom => [String |> Typ.fresh]
@@ -201,7 +201,7 @@ let cls_to_alias: cls => alias =
   | Unroll => Expr
   | TPat => TPat
   | Pat
-  | Ann => Pat
+  | PatAnn => Pat
   | OpNeg => UnOp
   | OpLt
   | OpGt
@@ -209,7 +209,7 @@ let cls_to_alias: cls => alias =
   | OpPlus
   | OpMinus
   | OpTimes => BinOp
-  | HasType
+  | HasTy
   | Syn
   | Ana
   | Atom
@@ -256,8 +256,8 @@ let all: list(cls) = [
   PrjR,
   Triv,
   Pat,
-  Ann,
-  HasType,
+  PatAnn,
+  HasTy,
   // ALF logic
   NumLit,
   True,
@@ -462,17 +462,17 @@ and match_dhexp: (cls, option(DHExp.t)) => t =
         | _ => None
         };
       Pat(pat) |> fresh;
-    | (Ann, [d1, d2]) =>
+    | (PatAnn, [d1, d2]) =>
       let. pat =
         switch (DHExp.term_of(d1)) {
         | String(pat) => Some(pat)
         | _ => None
         };
       let ty = prop_of_dhexp(d2);
-      Ann(Pat(pat) |> fresh, ty) |> fresh;
-    | (HasType, [d1, d2]) =>
+      PatAnn(Pat(pat) |> fresh, ty) |> fresh;
+    | (HasTy, [d1, d2]) =>
       let (e, ty) = (prop_of_dhexp(d1), prop_of_dhexp(d2));
-      HasType(e, ty) |> fresh;
+      HasTy(e, ty) |> fresh;
     // ALF logic
     | (NumLit, [d]) =>
       let. n =
@@ -559,8 +559,8 @@ and match_dhexp: (cls, option(DHExp.t)) => t =
     | (PrjR, _)
     | (Triv, _)
     | (Pat, _)
-    | (Ann, _)
-    | (HasType, _)
+    | (PatAnn, _)
+    | (HasTy, _)
     | (NumLit, _)
     | (True, _)
     | (False, _)

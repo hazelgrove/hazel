@@ -247,7 +247,7 @@ let switch_abbr = (m: model('a), ~pos: pos, ~index): model('a) => {
 };
 
 let bind_none = l => [Option.none] @ (l |> List.map(Option.some));
-let all_rules = Derivation.Rule.all |> bind_none;
+let all_rules = Haz3lcore.RulesCollection.rules_all |> bind_none;
 let all_abbrs = pos =>
   pos |> get_trees_pos |> fst |> List.init(_, Fun.id) |> bind_none;
 
