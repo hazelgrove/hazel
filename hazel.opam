@@ -15,7 +15,7 @@ depends: [
   "ppx_yojson_conv_lib"
   "ppx_yojson_conv"
   "incr_dom"
-  "bisect_ppx"
+  "bisect_ppx" {with-test}
   "omd" {>= "2.0.0~alpha4"}
   "ezjs_idb"
   "virtual_dom"
@@ -26,6 +26,7 @@ depends: [
   "ocamlformat"
   "junit_alcotest" {with-test}
   "ocaml-lsp-server"
+  "qcheck-alcotest" {with-test}
   "odoc" {with-doc}
 ]
 build: [
