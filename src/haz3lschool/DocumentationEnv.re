@@ -70,7 +70,7 @@ module D = (DocEnv: DocEnv) => {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type key = (string, int);
+  type key = string;
 
   let key_of_string = (p): string => {
     p.title;
@@ -591,7 +591,7 @@ module D = (DocEnv: DocEnv) => {
       // user_tests: wrap(user_tests_term, eds.your_tests.tests),
       // instructor works here as long as you don't shadow anything in the prelude
       // prelude: wrap(instructor, eds.prelude),
-      instructor: wrap(instructor, eds.your_impl),
+      instructor: wrap(instructor, eds.hidden_tests.tests),
       // hidden_bugs:
       //   List.map(
       //     (t): TermItem.t =>
@@ -653,12 +653,12 @@ module D = (DocEnv: DocEnv) => {
     |> stitch_static(settings)
     |> statics_of_stiched(documentation);
 
-  let prelude_key = "prelude";
-  let test_validation_key = "test_validation";
+  // let prelude_key = "prelude";
+  // let test_validation_key = "test_validation";
   let user_impl_key = "user_impl";
-  let user_tests_key = "user_tests";
+  // let user_tests_key = "user_tests";
   let instructor_key = "instructor";
-  let hidden_bugs_key = n => "hidden_bugs_" ++ string_of_int(n);
+  // let hidden_bugs_key = n => "hidden_bugs_" ++ string_of_int(n);
   let hidden_tests_key = "hidden_tests";
 
   let key_for_statics = (state: state): string =>

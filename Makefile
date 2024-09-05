@@ -1,6 +1,6 @@
 TEST_DIR="$(shell pwd)/_build/default/test"
 HTML_DIR="$(shell pwd)/_build/default/src/haz3lweb/www"
-SERVER="http://0.0.0.0:8000/"
+SERVER="http://0.0.0.0:8080/"
 
 .PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student echo-html-dir serve serve2 repl test clean
 

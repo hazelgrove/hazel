@@ -100,17 +100,7 @@ let main_view =
         ~statics,
         editor,
       );
-    // let view =
-    //   ScratchMode.view(
-    //     ~inject,
-    //     ~ui_state,
-    //     ~settings,
-    //     ~highlights,
-    //     ~results,
-    //     ~result_key,
-    //     editor,
-    //   );
-    // (view, cursor_info);
+
     | Documentation(name, slides) =>
       let info =
         SlideContent.get_content(editors)
@@ -128,9 +118,11 @@ let main_view =
             ~inject,
             ~ui_state,
             ~settings,
-            ~tutorial=tutorial_state,
-            ~results,
             ~highlights,
+            ~results,
+            ~tutorial=tutorial_state,
+            // ~results,
+            // ~highlights,
             // ~editor,
           )
         };

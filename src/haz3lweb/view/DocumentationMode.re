@@ -24,7 +24,6 @@ let view =
       ~settings: Settings.t,
       ~tutorial,
       ~results,
-      // ~result_key,
       ~highlights,
     ) => {
   // editor : Editor.t,
@@ -47,12 +46,6 @@ let view =
     hidden_tests: _,
   }:
     DocumentationEnv.stitched(DocumentationEnv.DynamicsItem.t) = stitched_dynamics;
-
-  // how does this impact the UI of Exercise mode?
-
-  // let grading_report = Grading.GradingReport.mk(eds, ~stitched_dynamics);
-
-  // let score_view = Grading.GradingReport.view_overall_score(grading_report);
 
   let editor_view =
       (
@@ -265,16 +258,16 @@ let view =
       // correct_impl_view,
       // correct_impl_ctx_view,
       // your_tests_view,
-      [your_impl_view]
+      [your_impl_view, hidden_tests_view],
       // @ wrong_impl_views
-      @ [
-        // mutation_testing_view,
-        // your_impl_view,
-        // syntax_grading_view,
-        // impl_validation_view,
-        hidden_tests_view,
-        // impl_grading_view,
-      ],
+      // @ [
+      //   // mutation_testing_view,
+      //   // your_impl_view,
+      //   // syntax_grading_view,
+      //   // impl_validation_view,
+      //   hidden_tests_view,
+      //   // impl_grading_view,
+      // ],
     );
 };
 
