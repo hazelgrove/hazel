@@ -2137,7 +2137,7 @@ let get_doc =
     | Float => get_message(TerminalTyp.float)
     | Bool => get_message(TerminalTyp.bool)
     | String => get_message(TerminalTyp.str)
-    | Prop => get_message(TerminalTyp.prop)
+    | Prop(_) => get_message(TerminalTyp.prop) // TODO: Add prop to TerminalTyp
     | List(elem) =>
       let elem_id = List.nth(elem.ids, 0);
       get_message(

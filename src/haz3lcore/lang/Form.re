@@ -251,22 +251,32 @@ let forms: list((string, t)) = [
   // INFIX OPERATORS
   ("typ_plus", mk_infix("+", Typ, P.type_plus)),
   ("type-arrow", mk_infix("->", Typ, P.type_arrow)),
+  // ALFA
+  ("alfa_type-prod", mk_infix("*", Typ, P.type_arrow)),
   ("cell-join", mk_infix(";", Exp, P.semi)),
   ("plus", mk_infix("+", Exp, P.plus)),
+  ("alfa_plus", mk_infix("~+", Exp, P.plus)),
   ("minus", mk_infix("-", Exp, P.plus)),
+  ("alfa_minus", mk_infix("~-", Exp, P.plus)),
   ("times", mk_infix("*", Exp, P.mult)),
+  ("alfa_times", mk_infix("~*", Exp, P.plus)),
   ("power", mk_infix("**", Exp, P.power)),
   ("fpower", mk_infix("**.", Exp, P.power)),
   ("divide", mk_infix("/", Exp, P.mult)),
   ("equals", mk_infix("==", Exp, P.eqs)),
+  ("alfa_equals", mk_infix("~==", Exp, P.plus)),
   ("string_equals", mk_infix("$==", Exp, P.eqs)),
   ("string_concat", mk_infix("++", Exp, P.plus)),
+  // ALFA
   ("prop_and", mk_infix("/\\", Exp, P.prop_and)),
   ("prop_or", mk_infix("\\/", Exp, P.prop_or)),
   ("prop_implies", mk_infix("==>", Exp, P.prop_implies)),
-  ("entail", mk_infix("|-", Exp, P.entail)),
+  ("alfa_entail", mk_infix("|-", Exp, P.entail)),
+  ("alfa_eval", mk_infix("$>", Exp, P.entail)),
   ("lt", mk_infix("<", Exp, P.eqs)),
+  ("alfa_lt", mk_infix("~<", Exp, P.plus)),
   ("gt", mk_infix(">", Exp, P.eqs)),
+  ("alfa_gt", mk_infix("~>", Exp, P.plus)),
   ("not_equals", mk_infix("!=", Exp, P.eqs)),
   ("gte", mk_infix(">=", Exp, P.eqs)),
   ("lte", mk_infix("<=", Exp, P.eqs)),
@@ -287,13 +297,16 @@ let forms: list((string, t)) = [
   ("cons_exp", mk_infix("::", Exp, P.cons)),
   ("cons_pat", mk_infix("::", Pat, P.cons)),
   ("typeann", mk(ss, [":"], mk_bin'(P.ann, Pat, Pat, [], Typ))),
-  ("alfa_hasty", mk(ss, [":="], mk_bin'(P.ann, Exp, Exp, [], Typ))),
+  // ALFA
+  ("alfa_hasty", mk(ss, [":"], mk_bin'(P.ann, Exp, Exp, [], Typ))),
   ("alfa_ana", mk(ss, [":<"], mk_bin'(P.ann, Exp, Exp, [], Typ))),
   ("alfa_syn", mk(ss, [":>"], mk_bin'(P.ann, Exp, Exp, [], Typ))),
   // UNARY PREFIX OPERATORS
   ("not", mk(ii, ["!"], mk_pre(P.not_, Exp, []))),
+  ("alfa_numlit", mk(ii, ["~"], mk_pre(P.max, Exp, []))),
   ("typ_sum_single", mk(ss, ["+"], mk_pre(P.or_, Typ, []))),
   ("unary_minus", mk(ss, ["-"], mk_pre(P.neg, Exp, []))),
+  ("alfa_unary_minus", mk_infix("~-", Exp, P.plus)),
   ("unquote", mk(ss, ["$"], mk_pre(P.unquote, Exp, []))),
   // N-ARY OPS (on the semantics level)
   ("comma_exp", mk_infix(",", Exp, P.comma)),
@@ -315,14 +328,19 @@ let forms: list((string, t)) = [
     "ap_exp_typ",
     mk((Instant, Static), ["@<", ">"], mk_post(P.ap, Exp, [Typ])),
   ),
+  // ALFA
   ("alfa_prjl", mk(ii, [".fst"], mk_post(P.ap, Exp, []))),
   ("alfa_prjr", mk(ii, [".snd"], mk_post(P.ap, Exp, []))),
+  ("alfa_val", mk(ii, ["val"], mk_post(P.ap, Exp, []))),
   ("at_sign", mk_nul_infix("@", P.eqs)), // HACK: SUBSTRING REQ
   ("case", mk(ds, ["case", "end"], mk_op(Exp, [Rul]))),
   ("test", mk(ds, ["test", "end"], mk_op(Exp, [Exp]))),
   ("fun_", mk(ds, ["fun", "->"], mk_pre(P.fun_, Exp, [Pat]))),
+  // ALFA
   ("alfa_fun", mk(ds, ["fun_", "->"], mk_pre(P.fun_, Exp, [Pat]))),
   ("fix", mk(ds, ["fix", "->"], mk_pre(P.fun_, Exp, [Pat]))),
+  // ALFA
+  ("alfa_fix", mk(ds, ["fix_", "->"], mk_pre(P.fun_, Exp, [Pat]))),
   ("typfun", mk(ds, ["typfun", "->"], mk_pre(P.fun_, Exp, [TPat]))),
   ("forall", mk(ds, ["forall", "->"], mk_pre(P.fun_, Typ, [TPat]))),
   ("rec", mk(ds, ["rec", "->"], mk_pre(P.fun_, Typ, [TPat]))),
@@ -338,6 +356,7 @@ let forms: list((string, t)) = [
   ("filter_debug", mk(ds, ["debug", "in"], mk_pre(P.let_, Exp, [Exp]))),
   // TRIPLE DELIMITERS
   ("let_", mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))),
+  // ALFA
   (
     "alfa_let",
     mk(ds, ["let_", "be", "in"], mk_pre(P.let_, Exp, [Pat, Exp])),
@@ -347,6 +366,20 @@ let forms: list((string, t)) = [
     mk(ds, ["type", "=", "in"], mk_pre(P.let_, Exp, [TPat, Typ])),
   ),
   ("if_", mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))),
+  // ALFA
+  (
+    "alfa_if",
+    mk(ds, ["if_", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp])),
+  ),
+  // ALFA
+  (
+    "alfa_case",
+    mk(
+      ds,
+      ["case_", "of_L", "->", "else_R", "->"],
+      mk_pre(P.case_, Exp, [Exp, Pat, Exp, Pat]),
+    ),
+  ),
 ];
 
 let get: String.t => t =

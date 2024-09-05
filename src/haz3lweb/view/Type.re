@@ -30,7 +30,7 @@ let rec view_ty = (~strip_outer_parens=false, ty: Haz3lcore.Typ.t): Node.t =>
   | Float => ty_view("Float", "Float")
   | String => ty_view("String", "String")
   | Bool => ty_view("Bool", "Bool")
-  | Prop => ty_view("Prop", "Prop")
+  | Prop(a) => ty_view("Prop", DerivationBase.show_alias(a))
   | Var(name) => ty_view("Var", name)
   | Rec(name, t) =>
     div(

@@ -100,23 +100,6 @@ let proof_view =
     | Some(rule) => Derivation.Rule.repr(rule)
     | None => "?";
 
-  let dropdown_option_rule_view =
-      (~pos: pos, ~rule: option(Derivation.Rule.t)) =>
-    div(
-      ~attrs=[
-        Attr.class_("dropdown-option"),
-        Attr.class_("rule"),
-        Attr.on_click(_ =>
-          inject(
-            UpdateAction.MapExercise(
-              map_model(Exercise.Proof.switch_rule(~pos, ~rule, ~init)),
-            ),
-          )
-        ),
-      ],
-      [text(rule_to_label(rule))],
-    );
-
   let abbr_to_label = index =>
     FakeCode.code_wrapper([
       switch (index) {
@@ -139,13 +122,6 @@ let proof_view =
         ),
       ],
       [abbr_to_label(index)],
-    );
-
-  let dropdown_option_rule_container_view = (~pos): t =>
-    div(
-      ~attrs=[Attr.class_("dropdown-option-container rule")],
-      Exercise.Proof.all_rules
-      |> List.map(dropdown_option_rule_view(~pos, ~rule=_)),
     );
 
   let dropdown_option_abbr_container_view = (~pos): t =>
@@ -172,16 +148,30 @@ let proof_view =
       ~attrs=[Attr.class_("dropdown"), Attr.class_(class_of_result(res))],
       [
         dropdown_result_view(~res),
-        dropdown_option_rule_container_view(~pos),
         dropdown_option_abbr_container_view(~pos),
       ],
     );
 
-  let label_view = (~res, ~label) =>
+  let label_view = (~pos, ~res, ~label) =>
     div(
       ~attrs=[
         Attr.class_("deduction-label"),
         Attr.class_(class_of_result(res)),
+        Attr.on_click(_ => {
+          NinjaKeysRules.pos := pos;
+          // let nj = JsUtil.get_elem_by_id("ninja-keys-rules");
+          // let em =
+          //   nj##getElementsByTagName(Js_of_ocaml.Js.string("ninja-action"));
+          // Js_of_ocaml.Dom.list_of_nodeList(em)
+          // |> List.iter(e =>
+          //      e##setAttribute(
+          //        Js_of_ocaml.Js.string("style"),
+          //        Js_of_ocaml.Js.string("display: none;"),
+          //      )
+          //    );
+          NinjaKeysRules.open_command_palette();
+          Effect.Ignore;
+        }),
         // Attr.draggable(true),
         // Attr.on_dragstart(drag_event => {
         //   print_endline("drag_start");
@@ -200,7 +190,7 @@ let proof_view =
     div(
       ~attrs=[Attr.class_("deduction-label-container")],
       [
-        label_view(~res, ~label),
+        label_view(~pos, ~res, ~label),
         del_premise_btn_view(~pos),
         dropdown_view(~pos, ~res),
       ],

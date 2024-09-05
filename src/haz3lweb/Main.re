@@ -82,6 +82,7 @@ module App = {
       );
 
     NinjaKeys.initialize(NinjaKeys.options(schedule_action));
+    NinjaKeysRules.initialize(NinjaKeysRules.options(schedule_action));
     JsUtil.focus_clipboard_shim();
 
     /* initialize state. */

@@ -1,0 +1,68 @@
+Constructor Form,Sort / Type,Term Form,Precedence
+,Typ,Num,atom
+,Typ,Bool,atom
+,Typ,Typ -> Typ,r s. 1
+,Typ,Typ * Typ,r s. 3
+,Typ,"(Typ, Typ)",param
+,Typ,Unit,atom
+,Typ,(),atom
+,Typ,Typ + Typ,r s. 2
+,Typ,[Typ: Type variable],atom
+,Typ,rec TPat -> Typ,pre. 0
+Num,PT - short for Exp:Prop(Typ),-,-
+Bool,PT,-,-
+"Arrow(PT, PT)",PT,-,-
+"Prod(PT, PT)",PT,-,-
+Unit,PT,-,-
+"Sum(PT, PT)",PT,-,-
+TVar(String),PT,-,-
+"Rec(PTP, PT)",PT,-,-
+TPat(String),PTP - short for Exp:Prop(TPat),-,-
+NumLit(Int),PE - short for Exp:Prop(Exp),~ Int,pre. 7
+Neg(PE),PE,- PE,pre. 6
+"Plus(PE, PE)",PE,PE + PE,l s. 3
+"Minus(PE, PE)",PE,PE - PE,l s. 3
+"Times(PE, PE)",PE,PE * PE,l s. 4
+"Eq(PE, PE)",PE,PE =? PE,l s. 2
+"Lt(PE, PE)",PE,PE < PE,l s. 2
+"Gt(PE, PE)",PE,PE > PE,l s. 2
+True,PE,-,-
+False,PE,-,-
+"IF(PE, PE, PE)",PE,if_ PE then PE else PE,pre. 0
+Var(String),PE,[Exp: Variable reference],atom
+"Let(PP, PE, PE)",PE,-,-
+"Let(Pat(String), PE, PE)",PE,let_ [Pat] be PE in PE,pre. 0
+"Let(PatAnn(String, PT), PE, PE)",PE,let_ [Pat] : [Typ] be PE in PE,pre. 0
+"Fix(PP, PE)",PE,-,-
+"Fix(Pat(String), PE)",PE,fix_ [Pat] -> PE,pre. 0
+"Fix(PatAnn(String, PT), PE, PE)",PE,fix_ [Pat] : [Typ] -> PE,pre. 0
+"Fun(PP, PE)",PE,-,-
+"Fun(Pat(String), PE)",PE,fun_ [Pat] -> PE,pre. 0
+"Fun(PatAnn(String, PT), PE, PE)",PE,fun_ [Pat] : [Typ] -> PE,pre. 0
+"Ap(PE, PE)",PE,-,-
+"Pair(PE, PE)",PE,-,-
+PrjL(PE),PE,PE .fst,post. 7
+PrjR(PE),PE,PE .snd,post. 7
+"LetPair(PP, PP, PE, PE)",PE,let_ [Pat: Tuple] be PE in PE,pre. 0
+InjL(PE),PE,L PE,pre. 5
+InjR(PE),PE,R PE,pre. 5
+"Case(PE, PP, PE, PP, PE)",PE,case_ PE of_L [Pat] -> PE else_R [Pat] -> PE,pre. 0
+Roll,PE,-,-
+Unroll,PE,-,-
+Pat(String),PP - short for Exp:Prop(Pat),-,-
+"PatAnn(String, PT)",PP,-,-
+"HasTy(PE, PT)",PPP - short for Exp:Prop(Prop),PE := [Typ],l s. 1
+"Syn(PE, PT)",PPP,PE :> [Typ],l s. 1
+"Ana(PE, PT)",PPP,PE :< [Typ],l s. 1
+Atom(String),PPP,-,-
+"And(PPP, PPP)",PPP,PPP /\ PPP,l s. 3
+"Or(PPP, PPP)",PPP,PPP \/ PPP,l s. 2
+"Implies(PPP, PPP)",PPP,PPP ==> PPP,l s. 1
+Truth,PPP,T,atom
+Falsity,PPP,F,atom
+Val(PE),PJ - short for Exp:Prop(Judgement),PE val,post. 9
+"Eval(PE, PE)",PJ,PE $> PE,l s. 0
+"Entail(List(PPP), PPP)",PJ,List(PPP) |- PPP,l s. 0
+,,,
+,,,
+,,,

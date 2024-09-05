@@ -4,7 +4,6 @@ open Util;
 module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
   open Exercise.F(ExerciseEnv);
   open ProofCore;
-  open Derivation;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type percentage = float;
@@ -83,14 +82,14 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
     type t = list(Tree.p(res))
     and res =
       | Correct
-      | Incorrect(Derivation.Verify.failure)
+      | Incorrect(Verify.failure)
       | Pending(ExternalError.t);
 
     let show_res: res => string =
       fun
       | Correct => "✅"
       | Pending(err) => "⌛️ " ++ ExternalError.show(err)
-      | Incorrect(err) => "❌ " ++ Derivation.Verify.show_failure(err);
+      | Incorrect(err) => "❌ " ++ Verify.show_failure(err);
 
     let verify_single =
         (
@@ -109,7 +108,7 @@ module F = (ExerciseEnv: Exercise.ExerciseEnv) => {
         | Just(Ok(_)) when !are_prems_ready => Pending(PremiseNotReady)
         | Just(Ok({jdmt: concl, rule: Some(rule)})) =>
           let prems = prems |> List.map(Option.get);
-          switch (Derivation.Verify.verify(rule, prems, concl)) {
+          switch (Verify.verify(rule, prems, concl)) {
           | Ok(_) => Correct
           | Error(err) => Incorrect(err)
           };

@@ -1,94 +1,16 @@
-open Derivation.Prop;
+open Prop;
+open DerivationBase;
 
 // The internal representation of Prop.t does not seperate the types. However,
 // we could implement rules for frontend usage. The following code is a
 // typeclass for Prop.t. Note that the typeclass is not used anywhere. It is
 // just for reference.
 
-// ALFA logic
-type typ =
-  | Num
-  | Bool
-  | Arrow(typ, typ)
-  | Prod(typ, typ)
-  | Unit
-  | Sum(typ, typ)
-  | TVar(string)
-  | Rec(tpat, typ)
-and tpat =
-  | TPat(string);
-type expr =
-  | NumLit(int)
-  | UnOp(unop, expr)
-  | BinOp(binop, expr, expr)
-  | True
-  | False
-  | If(expr, expr, expr)
-  | Var(string)
-  | Let(pat, expr, expr)
-  | Fix(pat, expr)
-  | Fun(pat, expr)
-  | Ap(expr, expr)
-  | Pair(expr, expr)
-  | Triv
-  | PrjL(expr)
-  | PrjR(expr)
-  | LetPair(pat, pat, expr, expr)
-  | InjL(expr)
-  | InjR(expr)
-  | Case(expr, pat, expr, pat, expr)
-  | Roll(expr)
-  | Unroll(expr)
-and pat =
-  | Pat(string)
-  | PatAnn(pat, typ)
-and unop =
-  | OpNeg
-and binop =
-  | OpLt
-  | OpGt
-  | OpEq
-  | OpPlus
-  | OpMinus
-  | OpTimes;
-
-type prop =
-  // ALFp exclusive
-  | HasTy(expr, typ)
-  | Syn(expr, typ)
-  | Ana(expr, typ)
-  // Propositional logic
-  | Atom(string)
-  | And(prop, prop)
-  | Or(prop, prop)
-  | Implies(prop, prop)
-  | Truth
-  | Falsity;
-
-// Judgements (the outermost layer of this syntax)
-type judgement =
-  | Val(expr)
-  | Eval(expr, expr)
-  | Entail(list(prop), prop);
-
-// The following code is the implementation of the typeclass for Prop.t.
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type alias =
-  | Judgement
-  | Type
-  | TPat
-  | Expr
-  | Pat
-  | UnOp
-  | BinOp
-  | Prop;
-
-let alias_fresh: alias => Typ.t = alia => Var(show_alias(alia)) |> Typ.fresh;
+let alias_fresh: alias => Typ.t = alia => Prop(alia) |> Typ.fresh;
 
 let cls_to_arg_typ: cls => list(Typ.t) =
   fun
-  | Hole => failwith("impossible")
+  | Hole => []
   // ALFA
   | Sum => [Type |> alias_fresh, Type |> alias_fresh]
   | TVar => [String |> Typ.fresh]
@@ -123,7 +45,7 @@ let cls_to_arg_typ: cls => list(Typ.t) =
   | PrjR => [Expr |> alias_fresh]
   | Triv => []
   | Pat => [String |> Typ.fresh]
-  | PatAnn => [String |> Typ.fresh, Type |> alias_fresh]
+  | PatAnn => [Pat |> alias_fresh, Type |> alias_fresh]
   // ALF
   | NumLit => [Int |> Typ.fresh]
   | True
@@ -152,7 +74,7 @@ let cls_to_arg_typ: cls => list(Typ.t) =
   | Implies => [Prop |> alias_fresh, Prop |> alias_fresh]
   | Truth
   | Falsity => []
-  | Ctx => failwith("impossible")
+  | Ctx => failwith("cls_to_arg_typ: Ctx")
   // Judgements
   | Val => [Expr |> alias_fresh]
   | Eval => [Expr |> alias_fresh, Expr |> alias_fresh]
@@ -168,8 +90,7 @@ let cls_to_arg_typ: cls => option(Typ.t) =
 
 let cls_to_alias: cls => alias =
   fun
-  | Hole => failwith("impossible")
-
+  | Hole => Hole
   | Num
   | Bool
   | Arrow
@@ -292,46 +213,53 @@ let all: list(cls) = [
 let mk_ctr_entry: cls => Ctx.var_entry =
   term => {name: show_cls(term), id: Id.mk(), typ: cls_to_typ(term)};
 
-let ctr_entries = all |> List.map(mk_ctr_entry);
+let ctr_entries =
+  all |> List.map(x => Ctx.ConstructorEntry(mk_ctr_entry(x)));
 
-let mk_variant: cls => ConstructorMap.variant(Typ.t) =
-  term => {
-    Variant(show_cls(term), [Id.mk()], cls_to_arg_typ(term));
-  };
+let mk_tvar_entry: cls => Ctx.tvar_entry =
+  term => {name: show_cls(term), id: Id.mk(), kind: Ctx.Abstract};
 
-let add_tvar_entries = ctx => {
-  let rec add_to_list = (map, cls) => {
-    let alias = cls_to_alias(cls);
-    switch (map) {
-    | [] => [(alias, [cls])]
-    | [(alias', cls'), ...rest] when alias == alias' => [
-        (alias, [cls, ...cls']),
-        ...rest,
-      ]
-    | [pair, ...rest] => [pair, ...add_to_list(rest, cls)]
-    };
-  };
-  let map = List.fold_left(add_to_list, [], all);
-  List.fold_left(
-    (ctx, (alias, cls)) => {
-      let name = show_alias(alias);
-      let ty = Sum(cls |> List.map(mk_variant)) |> Typ.fresh;
-      let ty =
-        switch (ty.term) {
-        | Sum(_) when List.mem(name, Typ.free_vars(ty)) =>
-          Typ.Rec(TPat.Var(name) |> IdTagged.fresh, ty) |> Typ.temp
-        | _ => ty
-        };
-      let ctx = Ctx.extend_alias(ctx, name, Id.invalid, ty);
-      switch (Typ.get_sum_constructors(ctx, ty)) {
-      | Some(sm) => Ctx.add_ctrs(ctx, name, UTyp.rep_id(ty), sm)
-      | None => ctx
-      };
-    },
-    ctx,
-    map,
-  );
-};
+let tvar_entries =
+  [Num, Unit] |> List.map(x => Ctx.TVarEntry(mk_tvar_entry(x)));
+
+// let mk_variant: cls => ConstructorMap.variant(Typ.t) =
+//   term => {
+//     Variant(show_cls(term), [Id.mk()], cls_to_arg_typ(term));
+//   };
+
+// let add_tvar_entries = ctx => {
+//   let rec add_to_list = (map, cls) => {
+//     let alias = cls_to_alias(cls);
+//     switch (map) {
+//     | [] => [(alias, [cls])]
+//     | [(alias', cls'), ...rest] when alias == alias' => [
+//         (alias, [cls, ...cls']),
+//         ...rest,
+//       ]
+//     | [pair, ...rest] => [pair, ...add_to_list(rest, cls)]
+//     };
+//   };
+//   let map = List.fold_left(add_to_list, [], all);
+//   List.fold_left(
+//     (ctx, (alias, cls)) => {
+//       let name = show_alias(alias);
+//       let ty = Sum(cls |> List.map(mk_variant)) |> Typ.fresh;
+//       let ty =
+//         switch (ty.term) {
+//         | Sum(_) when List.mem(name, Typ.free_vars(ty)) =>
+//           Typ.Rec(TPat.Var(name) |> IdTagged.fresh, ty) |> Typ.temp
+//         | _ => ty
+//         };
+//       let ctx = Ctx.extend_alias(ctx, name, Id.invalid, ty);
+//       switch (Typ.get_sum_constructors(ctx, ty)) {
+//       | Some(sm) => Ctx.add_ctrs(ctx, name, UTyp.rep_id(ty), sm)
+//       | None => ctx
+//       };
+//     },
+//     ctx,
+//     map,
+//   );
+// };
 
 let to_term: string => option(cls) =
   s =>
@@ -463,13 +391,8 @@ and match_dhexp: (cls, option(DHExp.t)) => t =
         };
       Pat(pat) |> fresh;
     | (PatAnn, [d1, d2]) =>
-      let. pat =
-        switch (DHExp.term_of(d1)) {
-        | String(pat) => Some(pat)
-        | _ => None
-        };
-      let ty = prop_of_dhexp(d2);
-      PatAnn(Pat(pat) |> fresh, ty) |> fresh;
+      let (pat, ty) = (prop_of_dhexp(d1), prop_of_dhexp(d2));
+      PatAnn(pat, ty) |> fresh;
     | (HasTy, [d1, d2]) =>
       let (e, ty) = (prop_of_dhexp(d1), prop_of_dhexp(d2));
       HasTy(e, ty) |> fresh;

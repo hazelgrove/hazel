@@ -365,7 +365,6 @@
   bottom: 1rem;
   left: 0;
   background-color: var(--ui-bkg);
-  max-width: 12em;
   border: var(--BR2) 0.1rem solid;
   border-radius: 0.4em;
   z-index: var(--top-bar-z);
@@ -404,7 +403,7 @@
   gap: 0.4rem;
   flex-wrap: wrap;
   text-align: left;
-  min-width: 10rem;
+  min-width: 28rem;
   border-bottom: var(--BR2) 0.1em solid;
 }
 
@@ -445,4 +444,9 @@
 .dropdown-option:hover {
   cursor: pointer;
   text-decoration: strong;
+}
+
+#ninja-keys-rules::part(actions-list) {
+  display: flex;
+  flex-wrap: wrap;
 }

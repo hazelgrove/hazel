@@ -610,7 +610,7 @@ and Typ: {
     | Float
     | Bool
     | String
-    | Prop
+    | Prop(DerivationBase.alias)
     | Var(string)
     | List(t)
     | Arrow(t, t)
@@ -663,7 +663,7 @@ and Typ: {
     | Float
     | Bool
     | String
-    | Prop
+    | Prop(DerivationBase.alias)
     | Var(string)
     | List(t)
     | Arrow(t, t)
@@ -705,7 +705,7 @@ and Typ: {
         | Int
         | Float
         | String
-        | Prop
+        | Prop(_)
         | Var(_) => term
         | List(t) => List(typ_map_term(t))
         | Unknown(Hole(MultiHole(things))) =>
@@ -741,7 +741,7 @@ and Typ: {
       | Float => Float |> rewrap
       | Bool => Bool |> rewrap
       | String => String |> rewrap
-      | Prop => Prop |> rewrap
+      | Prop(t) => Prop(t) |> rewrap
       | Unknown(prov) => Unknown(prov) |> rewrap
       | Arrow(ty1, ty2) =>
         Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
@@ -790,8 +790,8 @@ and Typ: {
     | (Bool, _) => false
     | (String, String) => true
     | (String, _) => false
-    | (Prop, Prop) => true
-    | (Prop, _) => false
+    | (Prop(a1), Prop(a2)) => a1 == a2
+    | (Prop(_), _) => false
     | (Ap(t1, t2), Ap(t1', t2')) =>
       eq_internal(n, t1, t1') && eq_internal(n, t2, t2')
     | (Ap(_), _) => false

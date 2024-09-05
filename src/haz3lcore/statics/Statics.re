@@ -106,7 +106,7 @@ let typ_exp_binop_bin_prop: Operators.op_bin_prop => Typ.t =
   fun
   | And
   | Or
-  | Implies => Prop |> Typ.temp;
+  | Implies => Prop(Expr) |> Typ.temp; // TODO(zhiyao): check this
 
 let typ_exp_binop: Operators.op_bin => (Typ.t, Typ.t, Typ.t) =
   fun
@@ -847,7 +847,7 @@ and utyp_to_info_map =
   | Int
   | Float
   | Bool
-  | Prop
+  | Prop(_)
   | String => add(m)
   | Var(_) =>
     /* Names are resolved in Info.status_typ */

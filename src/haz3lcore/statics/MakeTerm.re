@@ -149,12 +149,108 @@ let make_ctr_term: (string, list(Exp.t)) => UExp.term =
     };
   };
 
-let parse_pat_term: Pat.t => UExp.term =
-  pat =>
-    switch (Pat.get_var(pat)) {
-    | Some(v) => make_ctr_term("Pat", [String(v) |> Exp.fresh])
-    | None => make_ctr_term("Hole", [String("Not a variable") |> Exp.fresh])
-    };
+let make_unop_term: (string, Exp.t) => UExp.term =
+  (op, r) =>
+    make_ctr_term("UnOp", [make_ctr_term(op, []) |> UExp.fresh, r]);
+
+let make_binop_term: (string, Exp.t, Exp.t) => UExp.term =
+  (op, l, r) =>
+    make_ctr_term("BinOp", [make_ctr_term(op, []) |> UExp.fresh, l, r]);
+
+let parse_tpat_term: TPat.t => UExp.t =
+  tpat =>
+    (
+      switch (IdTagged.term_of(tpat)) {
+      | Var(v) => make_ctr_term("TPat", [String(v) |> Exp.fresh])
+      | _ => make_ctr_term("Hole", [String("Not a variable") |> Exp.fresh])
+      }
+    )
+    |> UExp.fresh;
+
+let rec parse_typ_term: Typ.t => UExp.t =
+  typ => {
+    let rec parse_typ = typ =>
+      switch (IdTagged.term_of(typ)) {
+      | Typ.Parens(t) => parse_typ(t)
+      | Var("Num") => make_ctr_term("Num", [])
+      | Var("Unit") => make_ctr_term("Unit", [])
+      | Var(v) => make_ctr_term("TVar", [String(v) |> Exp.fresh])
+      | Bool => make_ctr_term("Bool", [])
+      | Arrow(t1, t2) =>
+        make_ctr_term("Arrow", [t1 |> parse_typ_term, t2 |> parse_typ_term])
+      | Sum([e1, e2]) =>
+        let get_ty = (
+          fun
+          | ConstructorMap.Variant("Num", _, _) =>
+            make_ctr_term("Num", []) |> UExp.fresh
+          | Variant("Unit", _, _) => make_ctr_term("Unit", []) |> UExp.fresh
+          | Variant(ctr, _, _) =>
+            make_ctr_term("TVar", [String(ctr) |> Exp.fresh]) |> UExp.fresh
+          | BadEntry(ty) => parse_typ(ty) |> UExp.fresh
+        );
+        make_ctr_term("Sum", [get_ty(e1), get_ty(e2)]);
+      | Prod([t1, t2]) =>
+        make_ctr_term("Tuple", [t1 |> parse_typ_term, t2 |> parse_typ_term])
+      | Prod([]) => make_ctr_term("Unit", [])
+      | Rec(tpat, body) =>
+        make_ctr_term(
+          "Rec",
+          [tpat |> parse_tpat_term, body |> parse_typ_term],
+        )
+      | Sum(_)
+      | Int
+      | Float
+      | String
+      | Prod(_)
+      | Ap(_, _)
+      | Forall(_, _)
+      | Unknown(_)
+      | Prop(_)
+      | List(_) =>
+        make_ctr_term(
+          "Hole",
+          [String("Unknown type" ++ Typ.show(typ)) |> Exp.fresh],
+        )
+      };
+    parse_typ(typ) |> UExp.fresh;
+  };
+
+let rec parse_pat_term: Pat.t => UExp.t =
+  pat => {
+    let rec parse_pat = pat =>
+      switch (IdTagged.term_of(pat)) {
+      | Pat.Parens(p) => parse_pat(p)
+      | Var(v) => make_ctr_term("Pat", [String(v) |> Exp.fresh])
+      | Cast(p, t, _) =>
+        make_ctr_term("PatAnn", [p |> parse_pat_term, t |> parse_typ_term])
+      | _ => make_ctr_term("Hole", [String("Not a variable") |> Exp.fresh])
+      };
+
+    parse_pat(pat) |> UExp.fresh;
+  };
+
+let parse_pat_term_pair: Pat.t => option((UExp.t, UExp.t)) =
+  pat => {
+    let rec parse_pat = pat =>
+      switch (IdTagged.term_of(pat)) {
+      | Pat.Parens(p) => parse_pat(p)
+      | Tuple([v1, v2]) => Some((v1 |> parse_pat_term, v2 |> parse_pat_term))
+      | _ => None
+      };
+    parse_pat(pat);
+  };
+
+// TODO(zhiyao): this function is useless, change it
+// let typ_of_exp_is_prop: Exp.t => bool =
+//   exp => {
+//     print_endline("exp: " ++ Exp.show(exp));
+//     switch (IdTagged.term_of(exp)) {
+//     | Constructor(s, _)
+//     | Ap(_, {term: Constructor(s, _), _}, _) =>
+//       BuiltinsDerivation.to_term(s) |> Option.is_some
+//     | _ => false
+//     };
+//   };
 
 let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
   switch (s) {
@@ -231,16 +327,23 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       ret(
         switch (t) {
         | (["$"], []) => UnOp(Meta(Unquote), r)
+        | (["~-"], []) => make_unop_term("OpNeg", r)
         | (["-"], []) => UnOp(Int(Minus), r)
+        | (["~"], []) => make_ctr_term("NumLit", [r])
         | (["!"], []) => UnOp(Bool(Not), r)
-        | (["fun", "->"], [Pat(pat)]) => Fun(pat, r, None, None)
         | (["fun_", "->"], [Pat(pat)]) =>
-          make_ctr_term("Fun", [parse_pat_term(pat) |> Exp.fresh, r])
+          make_ctr_term("Fun", [parse_pat_term(pat), r])
+        | (["fun", "->"], [Pat(pat)]) => Fun(pat, r, None, None)
+        | (["fix_", "->"], [Pat(pat)]) =>
+          make_ctr_term("Fix", [parse_pat_term(pat), r])
         | (["fix", "->"], [Pat(pat)]) => FixF(pat, r, None)
         | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r, None)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
         | (["let_", "be", "in"], [Pat(pat), Exp(def)]) =>
-          make_ctr_term("Let", [parse_pat_term(pat) |> Exp.fresh, def, r])
+          switch (parse_pat_term_pair(pat)) {
+          | Some((x1, x2)) => make_ctr_term("LetPair", [x1, x2, def, r])
+          | None => make_ctr_term("Let", [parse_pat_term(pat), def, r])
+          }
         | (["hide", "in"], [Exp(filter)]) =>
           Filter(Filter({act: (Eval, One), pat: filter}), r)
         | (["eval", "in"], [Exp(filter)]) =>
@@ -251,10 +354,18 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           Filter(Filter({act: (Step, All), pat: filter}), r)
         | (["type", "=", "in"], [TPat(tpat), Typ(def)]) =>
           TyAlias(tpat, def, r)
-        | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
-          If(cond, conseq, r)
         | (["if_", "then", "else"], [Exp(cond), Exp(conseq)]) =>
           make_ctr_term("If", [cond, conseq, r])
+        | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
+          If(cond, conseq, r)
+        | (
+            ["case_", "of_L", "->", "else_R", "->"],
+            [Exp(e), Pat(x1), Exp(l), Pat(x2)],
+          ) =>
+          make_ctr_term(
+            "Case",
+            [e, parse_pat_term(x1), l, parse_pat_term(x2), r],
+          )
         | _ => hole(tm)
         },
       )
@@ -274,6 +385,7 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
         )
       | ([".fst"], []) => ret(make_ctr_term("PrjL", [l]))
       | ([".snd"], []) => ret(make_ctr_term("PrjR", [l]))
+      | (["val"], []) => ret(make_ctr_term("Val", [l]))
       | (["(", ")"], [Exp(arg)]) =>
         let use_deferral = (arg: UExp.t): UExp.t => {
           ids: arg.ids,
@@ -308,23 +420,21 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
       | ([(_id, t)], []) =>
         ret(
           switch (t) {
-          | (["+"], []) =>
-            switch (IdTagged.term_of(l)) {
-            | Constructor(_) =>
-              make_ctr_term(
-                "BinOp",
-                [make_ctr_term("OpPlus", []) |> UExp.fresh, l, r],
-              )
-            | _ => BinOp(Int(Plus), l, r)
-            }
+          | (["~+"], []) => make_binop_term("OpPlus", l, r)
+          | (["+"], []) => BinOp(Int(Plus), l, r)
+          | (["~-"], []) => make_binop_term("OpMinus", l, r)
           | (["-"], []) => BinOp(Int(Minus), l, r)
+          | (["~*"], []) => make_binop_term("OpTimes", l, r)
           | (["*"], []) => BinOp(Int(Times), l, r)
           | (["**"], []) => BinOp(Int(Power), l, r)
           | (["/"], []) => BinOp(Int(Divide), l, r)
+          | (["~<"], []) => make_binop_term("OpLt", l, r)
           | (["<"], []) => BinOp(Int(LessThan), l, r)
+          | (["~>"], []) => make_binop_term("OpGt", l, r)
           | ([">"], []) => BinOp(Int(GreaterThan), l, r)
           | (["<="], []) => BinOp(Int(LessThanOrEqual), l, r)
           | ([">="], []) => BinOp(Int(GreaterThanOrEqual), l, r)
+          | (["~=="], []) => make_binop_term("OpEq", l, r)
           | (["=="], []) => BinOp(Int(Equals), l, r)
           | (["!="], []) => BinOp(Int(NotEquals), l, r)
           | (["+."], []) => BinOp(Float(Plus), l, r)
@@ -350,14 +460,25 @@ and exp_term: unsorted => (UExp.term, list(Id.t)) = {
           | (["|>"], []) => Ap(Reverse, r, l)
           | (["@"], []) => ListConcat(l, r)
           | (["|-"], []) => make_ctr_term("Entail", [l, r])
-          | ([":="], []) => make_ctr_term("HasTy", [l, r])
-          | ([":<"], []) => make_ctr_term("Ana", [l, r])
-          | ([":>"], []) => make_ctr_term("Syn", [l, r])
+          | (["$>"], []) => make_ctr_term("Eval", [l, r])
           | _ => hole(tm)
           },
         )
       | _ => ret(hole(tm))
       }
+    }
+  | Bin(Exp(l), tiles, Typ(ty)) as tm =>
+    switch (tiles) {
+    | ([(_id, t)], []) =>
+      ret(
+        switch (t) {
+        | ([":"], []) => make_ctr_term("HasTy", [l, parse_typ_term(ty)])
+        | ([":<"], []) => make_ctr_term("Ana", [l, parse_typ_term(ty)])
+        | ([":>"], []) => make_ctr_term("Syn", [l, parse_typ_term(ty)])
+        | _ => hole(tm)
+        },
+      )
+    | _ => ret(hole(tm))
     }
   | tm => ret(hole(tm));
 }
@@ -446,7 +567,6 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
         | (["Int"], []) => Int
         | (["Float"], []) => Float
         | (["String"], []) => String
-        | (["Prop"], []) => Prop
         | ([t], []) when Form.is_typ_var(t) => Var(t)
         | (["(", ")"], [Typ(body)]) => Parens(body)
         | (["[", "]"], [Typ(body)]) => List(body)
@@ -498,6 +618,8 @@ and typ_term: unsorted => (UTyp.term, list(Id.t)) = {
     | None =>
       switch (tiles) {
       | ([(_id, (["->"], []))], []) => ret(Arrow(l, r))
+      // Note: ALFA
+      | ([(_id, (["*"], []))], []) => ret(Prod([l, r]))
       | _ => ret(hole(tm))
       }
     }
