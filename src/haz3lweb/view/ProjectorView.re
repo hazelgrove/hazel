@@ -286,8 +286,8 @@ module Panel = {
 
   let view = (~inject, editor: Editor.t, ci: Info.t) => {
     let might_project =
-      switch (Indicated.piece''(editor.state.zipper)) {
-      | Some((p, _, _)) => minimum_projection_condition(p)
+      switch (Indicated.subsegment(editor.state.zipper)) {
+      | Some(subseg) => minimum_projection_condition(subseg)
       | None => false
       };
     div(

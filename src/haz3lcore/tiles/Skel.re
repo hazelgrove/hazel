@@ -220,3 +220,18 @@ let mk = (seg: list(ip)): t => {
     |> Stacks.finish;
   ListUtil.hd_opt(stacks.output) |> OptUtil.get_or_raise(Nonconvex_segment);
 };
+
+let rec bounds = (skel: t): (int, int) =>
+  switch (skel) {
+  | Op(root) => (Aba.first_a(root), Aba.last_a(root))
+  | Pre(root, skel_r) =>
+    let (_, last) = bounds(skel_r);
+    (Aba.first_a(root), last);
+  | Post(skel_l, root) =>
+    let (first, _) = bounds(skel_l);
+    (first, Aba.last_a(root));
+  | Bin(skel_l, _, skel_r) =>
+    let (first, _) = bounds(skel_l);
+    let (_, last) = bounds(skel_r);
+    (first, last);
+  };

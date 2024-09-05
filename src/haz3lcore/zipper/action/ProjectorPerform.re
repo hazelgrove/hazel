@@ -10,59 +10,65 @@ module Update = {
     | x => x
     };
 
-  let init = (kind: t, syntax: syntax): syntax => {
-    /* We set the projector id equal to the Piece id for convienence
+  let init = (id, kind: t, syntax: syntax): syntax => {
+    /* We set the projector id equal to the root piece id for convienence
      * including cursor-info association. We maintain this invariant
      * when we update a projector's contained syntax */
     let (module P) = to_module(kind);
     switch (P.can_project(syntax) && minimum_projection_condition(syntax)) {
     | false => syntax
-    | true => Projector({id: Piece.id(syntax), kind, model: P.init, syntax})
+    | true => [Projector({id, kind, model: P.init, syntax})]
     };
   };
 
-  let add_projector = (kind: Base.kind, id: Id.t, syntax: syntax) =>
-    switch (syntax) {
-    | Projector(pr) when Piece.id(syntax) == id => init(kind, pr.syntax)
-    | syntax when Piece.id(syntax) == id => init(kind, syntax)
-    | x => x
+  let add_projector = (kind: Base.kind, id: Id.t, seg: syntax) => {
+    print_endline("AAA");
+    switch (Segment.term_partitions(seg, id)) {
+    | None => seg
+    | Some((l, m, r)) => l @ init(id, kind, m) @ r
     };
+  };
 
-  let remove_projector = (id: Id.t, syntax: syntax) =>
-    switch (syntax) {
-    | Projector(pr) when pr.id == id => pr.syntax
-    | x => x
-    };
+  // subseg => piece
+  let add = (k: Base.kind, id: Id.t, z: ZipperBase.t): ZipperBase.t =>
+    ZipperBase.MapSegment.fast_local(add_projector(k, id), id, z);
 
-  let add_or_remove_projector = (kind: Base.kind, id: Id.t, syntax: syntax) =>
-    switch (syntax) {
-    | Projector(pr) when Piece.id(syntax) == id => pr.syntax
-    | syntax when Piece.id(syntax) == id => init(kind, syntax)
-    | x => x
-    };
+  // let remove_projector = (id: Id.t, syntax: syntax) =>
+  //   switch (syntax) {
+  //   | Projector(pr) when pr.id == id => pr.syntax
+  //   | x => x
+  //   };
 
-  let remove_any_projector = (syntax: syntax) =>
-    switch (syntax) {
-    | Projector(pr) => pr.syntax
-    | x => x
-    };
+  // let add_or_remove_projector = (kind: Base.kind, id: Id.t, syntax: syntax) =>
+  //   switch (syntax) {
+  //   | Projector(pr) when Piece.id(syntax) == id => pr.syntax
+  //   | syntax when Piece.id(syntax) == id => init(kind, syntax)
+  //   | x => x
+  //   };
 
+  // let remove_any_projector = (syntax: syntax) =>
+  //   switch (syntax) {
+  //   | Projector(pr) => pr.syntax
+  //   | x => x
+  //   };
+
+  // piece => piece
   let update =
       (f: Base.projector => Base.projector, id: Id.t, z: ZipperBase.t)
       : ZipperBase.t =>
     ZipperBase.MapPiece.fast_local(update_piece(f, id), id, z);
 
-  let add = (k: Base.kind, id: Id.t, z: ZipperBase.t): ZipperBase.t =>
-    ZipperBase.MapPiece.fast_local(add_projector(k, id), id, z);
+  let add_or_remove =
+      (_k: Base.kind, _id: Id.t, z: ZipperBase.t): ZipperBase.t => z;
+  //  ZipperBase.MapPiece.fast_local(add_or_remove_projector(k, id), id, z);
 
-  let add_or_remove = (k: Base.kind, id: Id.t, z: ZipperBase.t): ZipperBase.t =>
-    ZipperBase.MapPiece.fast_local(add_or_remove_projector(k, id), id, z);
+  // TODO(andrew): piece => subseg
+  let remove = (_id: Id.t, z: ZipperBase.t): ZipperBase.t => z;
+  // ZipperBase.MapPiece.fast_local(remove_projector(id), id, z);
 
-  let remove = (id: Id.t, z: ZipperBase.t): ZipperBase.t =>
-    ZipperBase.MapPiece.fast_local(remove_projector(id), id, z);
-
-  let remove_all = (z: ZipperBase.t): ZipperBase.t =>
-    ZipperBase.MapPiece.go(remove_any_projector, z);
+  // TODO(andrew): piece => subseg
+  let remove_all = (z: ZipperBase.t): ZipperBase.t => z;
+  // ZipperBase.MapPiece.go(remove_any_projector, z);
 };
 
 /* If the caret is inside the indicated piece, move it out
@@ -101,9 +107,19 @@ let go =
   | SetSyntax(id, syntax) =>
     /* Note we update piece id to keep in sync with projector id;
      * See intial id setting in Update.init */
+    //TODO(andrew): verify new replacement logic works
     Ok(
       Update.update(
-        p => {...p, syntax: Piece.replace_id(id, syntax)},
+        pr =>
+          {
+            ...pr,
+            syntax:
+              List.map(
+                (p: Piece.t) =>
+                  pr.id == Piece.id(p) ? Piece.replace_id(id, p) : p,
+                syntax,
+              ),
+          },
         id,
         z,
       ),

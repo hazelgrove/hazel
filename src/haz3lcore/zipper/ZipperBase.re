@@ -62,6 +62,17 @@ let sibs_with_sel =
   | Right => (l_sibs @ content, r_sibs)
   };
 
+let focal_segment =
+    (
+      {
+        selection: {content, _},
+        relatives: {siblings: (l_sibs, r_sibs), _},
+        _,
+      }: t,
+    )
+    : Segment.t =>
+  l_sibs @ content @ r_sibs;
+
 module MapPiece = {
   type updater = Piece.t => Piece.t;
 
@@ -156,6 +167,73 @@ module MapPiece = {
       update_left_sib(f, z);
     } else if (right_sib_has_id(z, id)) {
       update_right_sib(f, z);
+    } else {
+      go(f, z);
+    };
+};
+
+module MapSegment = {
+  type updater = Segment.t => Segment.t;
+
+  let rec of_segment = (f: updater, seg: Segment.t): Segment.t => {
+    seg |> List.map(of_piece(f)) |> f;
+  }
+  and of_piece = (f: updater, piece: Piece.t): Piece.t => {
+    switch (piece) {
+    | Tile(t) => Tile(of_tile(f, t))
+    | Grout(_)
+    | Projector(_)
+    | Secondary(_) => piece
+    };
+  }
+  and of_tile = (f: updater, t: Tile.t): Tile.t => {
+    {...t, children: List.map(of_segment(f), t.children)};
+  };
+
+  let of_siblings = (f: updater, sibs: Siblings.t): Siblings.t => (
+    of_segment(f, fst(sibs)),
+    of_segment(f, snd(sibs)),
+  );
+
+  let of_ancestor = (f: updater, ancestor: Ancestor.t): Ancestor.t => {
+    {
+      ...ancestor,
+      children: (
+        List.map(of_segment(f), fst(ancestor.children)),
+        List.map(of_segment(f), snd(ancestor.children)),
+      ),
+    };
+  };
+
+  let of_generation =
+      (f: updater, generation: Ancestors.generation): Ancestors.generation => (
+    of_ancestor(f, fst(generation)),
+    of_siblings(f, snd(generation)),
+  );
+
+  let of_ancestors = (f: updater, ancestors: Ancestors.t): Ancestors.t =>
+    List.map(of_generation(f), ancestors);
+
+  let of_selection = (f: updater, selection: Selection.t): Selection.t => {
+    {...selection, content: of_segment(f, selection.content)};
+  };
+
+  let go = (f: updater, z: t): t => {
+    ...z,
+    selection: of_selection(f, z.selection),
+    relatives: {
+      ancestors: of_ancestors(f, z.relatives.ancestors),
+      siblings: of_siblings(f, z.relatives.siblings),
+    },
+  };
+
+  let fast_local = (f: updater, id: Id.t, z: t): t =>
+    //TODO(andrew): cleanup, doc
+    if (List.exists(p => Piece.id(p) == id, z.relatives.siblings |> fst)
+        || List.exists(p => Piece.id(p) == id, z.relatives.siblings |> fst)) {
+      let (l, r) = z.relatives.siblings;
+      let sibs = (f(l), f(r));
+      put_siblings(sibs, z);
     } else {
       go(f, z);
     };
