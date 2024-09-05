@@ -46,13 +46,22 @@ type benchmark_action =
   | Finish;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type export_action =
+  | ExportScratchSlide
+  | ExportPersistentData
+  | ExerciseModule
+  | Submission
+  | TransitionaryExerciseModule
+  | GradingExerciseModule;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   /* meta */
   | Reset
   | Set(settings_action)
   | SetMeta(set_meta)
   | UpdateExplainThisModel(ExplainThisUpdate.update)
-  | ExportPersistentData
+  | Export(export_action)
   | DebugConsole(string)
   /* editors */
   | ResetCurrentEditor
@@ -82,6 +91,7 @@ module Failure = {
     | CantRedo
     | FailedToSwitch
     | FailedToPerform(Action.Failure.t)
+    | InstructorOnly
     | Exception(string);
 };
 
@@ -128,7 +138,7 @@ let is_edit: t => bool =
   | TAB => true
   | UpdateResult(_)
   | SwitchEditor(_)
-  | ExportPersistentData
+  | Export(_)
   | Save
   | UpdateExplainThisModel(_)
   | DebugConsole(_)
@@ -172,7 +182,7 @@ let reevaluate_post_update: t => bool =
   | InitImportAll(_)
   | InitImportScratchpad(_)
   | UpdateExplainThisModel(_)
-  | ExportPersistentData
+  | Export(_)
   | UpdateResult(_)
   | SwitchEditor(_)
   | DebugConsole(_)
@@ -230,7 +240,7 @@ let should_scroll_to_caret =
     switch (a) {
     | Move(_)
     | Jump(_)
-    | Select(Resize(_) | Term(_) | Smart | Tile(_))
+    | Select(Resize(_) | Term(_) | Smart(_) | Tile(_))
     | Destruct(_)
     | Insert(_)
     | Pick_up
@@ -250,6 +260,6 @@ let should_scroll_to_caret =
   | InitImportAll(_)
   | InitImportScratchpad(_)
   | UpdateExplainThisModel(_)
-  | ExportPersistentData
+  | Export(_)
   | DebugConsole(_)
   | Benchmark(_) => false;

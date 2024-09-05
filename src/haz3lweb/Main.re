@@ -62,9 +62,7 @@ let apply = (model, action, state, ~schedule_action): Model.t => {
   ) {
   | Ok(model) => model
   | Error(FailedToPerform(err)) =>
-    // TODO(andrew): reinstate this history functionality
     print_endline(Update.Failure.show(FailedToPerform(err)));
-    //{...model, history: ActionHistory.failure(err, model.history)};
     model;
   | Error(err) =>
     print_endline(Update.Failure.show(err));
@@ -83,6 +81,7 @@ module App = {
         schedule_action(Haz3lweb.Update.SetMeta(FontMetrics(fm)))
       );
 
+    NinjaKeys.initialize(NinjaKeys.options(schedule_action));
     JsUtil.focus_clipboard_shim();
 
     /* initialize state. */

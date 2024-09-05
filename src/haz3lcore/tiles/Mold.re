@@ -66,12 +66,6 @@ let nib_shapes = (~index=?, mold: t): Nibs.shapes => {
   (nib_l.shape, nib_r.shape);
 };
 
-module Map = {
-  type mold = t;
-  include Id.Map;
-  type nonrec t = Id.Map.t(list(mold));
-};
-
 let of_grout: (Grout.t, Sort.t) => t =
   (g, sort) => {
     nibs:
@@ -93,17 +87,6 @@ let of_secondary = (l: Nib.t) => {
   out: l.sort,
   in_: [],
 };
-
-let fits_shape = (d: Direction.t, s: Nib.Shape.t, m: t): bool => {
-  let s' = Direction.choose(d, nib_shapes(m));
-  Nib.Shape.fits(s, s');
-};
-
-let consistent_shapes = (ms: list(t)) =>
-  ms
-  |> List.map(nib_shapes)
-  |> List.split
-  |> TupleUtil.map2(ListUtil.single_elem);
 
 let is_infix_op = (mold: t): bool =>
   switch (mold.nibs, mold.in_) {

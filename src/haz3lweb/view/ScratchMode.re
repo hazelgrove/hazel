@@ -44,20 +44,16 @@ let view =
   ];
 };
 
-let export_button = state =>
+let export_button = (inject: Update.t => Ui_effect.t(unit)) =>
   Widgets.button_named(
-    Icons.star,
-    _ => {
-      let json_data = ScratchSlide.export(state);
-      JsUtil.download_json("hazel-scratchpad", json_data);
-      Virtual_dom.Vdom.Effect.Ignore;
-    },
+    Icons.export,
+    _ => inject(Export(ExportScratchSlide)),
     ~tooltip="Export Scratchpad",
   );
 let import_button = inject =>
   Widgets.file_select_button_named(
     "import-scratchpad",
-    Icons.star,
+    Icons.import,
     file => {
       switch (file) {
       | None => Virtual_dom.Vdom.Effect.Ignore
@@ -81,5 +77,5 @@ let reset_button = inject =>
         Virtual_dom.Vdom.Effect.Ignore;
       };
     },
-    ~tooltip="Reset Scratchpad",
+    ~tooltip="Reset Editor",
   );
