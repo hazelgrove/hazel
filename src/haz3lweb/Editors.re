@@ -28,7 +28,9 @@ let get_editor = (editors: t): Editor.t =>
     List.nth(slides, n).hidden_tests.tests;
   | Documentation(name, slides) =>
     assert(List.mem_assoc(name, slides));
-    List.assoc(name, slides).eds.hidden_tests.tests;
+    let slide_state = List.assoc(name, slides);
+    // List.assoc(name, slides).eds.your_impl;
+    DocumentationEnv.editor_of_state(slide_state);
   | Exercises(_, _, exercise) => Exercise.editor_of_state(exercise)
   };
 
@@ -40,49 +42,25 @@ let put_editor = (ed: ScratchSlide.state, eds: t): t =>
   | Documentation(name, slides) =>
     assert(List.mem_assoc(name, slides));
 
-    // coversion to DocEnv state -> for tutorial mode
-    let convert_hidden_tests =
-        (ht: ScratchSlide.hidden_tests(Editor.t))
-        : DocumentationEnv.hidden_tests(Editor.t) => {
-      {tests: ht.tests, hints: ht.hints};
+    // NEW //
+    let update_slide =
+        (hint: string, state: DocumentationEnv.state)
+        : (string, DocumentationEnv.state) => {
+      let updatedState =
+        DocumentationEnv.put_editor(state, ed.hidden_tests.tests);
+      (hint, updatedState);
     };
-    let convert_scratch_p_to_doc_p =
-        (scratch: ScratchSlide.p(Editor.t)): DocumentationEnv.eds => {
-      {
-        title: scratch.title,
-        description: scratch.description,
-        your_impl: scratch.hidden_tests.tests,
-        hidden_tests: convert_hidden_tests(scratch.hidden_tests),
-      };
-    };
+    let updatedSlides =
+      List.map(
+        slide => {
+          let (hint, state) = slide;
+          update_slide(hint, state);
+        },
+        slides,
+      );
 
-    let convert_scratch_state_to_doc_state =
-        (scratch: ScratchSlide.state): DocumentationEnv.state => {
-      {
-        pos: DocumentationEnv.YourImpl,
-        eds: convert_scratch_p_to_doc_p(scratch),
-      };
-    };
-    //
-
-    let update_assoc = ((k: hint, v: DocumentationEnv.state)) =>
-      List.map(((k', v')) => k == k' ? (k, v) : (k', v'));
-    Documentation(
-      name,
-      slides |> update_assoc((name, convert_scratch_state_to_doc_state(ed))),
-    );
-
-  // let update_hidden_tests =
-  //     ((hint: string, state: DocumentationEnv.state))
-  //     : (string, DocumentationEnv.state) => {
-  //   let updatedState =
-  //     DocumentationEnv.put_editor(state, state.eds.hidden_tests.tests);
-  //   (hint, updatedState);
-  // };
-
-  // let updatedSlides = List.map(update_hidden_tests, slides);
-
-  // Documentation(name, updatedSlides);
+    Documentation(name, updatedSlides);
+  // //
 
   | Exercises(n, specs, exercise) =>
     Exercises(n, specs, Exercise.put_editor(exercise, ed.hidden_tests.tests))
@@ -224,19 +202,18 @@ let reset_current = (editors: t, ~instructor_mode: bool): t =>
     let from_tup = ((word: string, status: DocumentationEnv.state)) => {
       // word,
       // toEditor(status),
+
       // let editor = toEditor(status); // Get the editor state
       let your_impl_zipper = status.eds.your_impl.state.zipper;
       let hidden_tests_zipper = status.eds.hidden_tests.tests.state.zipper;
-      // let newState = DocumentationEnv.state_of_spec(editor.state.zipper, ~instructor_mode=true);  // Apply the state_of_spec function
-
       let spec: DocumentationEnv.spec = {
-        title: status.eds.title, // Assuming title is stored in editor's state
-        description: status.eds.description, // Same for description
+        title: status.eds.title,
+        description: status.eds.description,
         your_impl: your_impl_zipper,
         hidden_tests: {
           tests: hidden_tests_zipper,
           hints: status.eds.hidden_tests.hints,
-        } // Assuming hints are stored like this
+        },
       };
 
       (word, DocumentationEnv.state_of_spec(spec, ~instructor_mode));
@@ -244,24 +221,6 @@ let reset_current = (editors: t, ~instructor_mode: bool): t =>
 
     let slides = List.map(from_tup, slides);
 
-    // let slides = reset_named_slide(name, slides);
-    // let fromEditor = (editor: Editor.t): DocumentationEnv.state => {
-    //   pos: DocumentationEnv.YourImpl,
-    //   eds: {
-    //     title: "",
-    //     description: "",
-    //     your_impl: editor,
-    //     hidden_tests: {
-    //       tests: editor,
-    //       hints: [],
-    //     },
-    //   },
-    // };
-    // let to_tup = ((word: string, editor: Editor.t)) => (
-    //   word,
-    //   fromEditor(editor),
-    // );
-    // let slides = List.map(to_tup, slides);
     Documentation(name, slides);
 
   | Exercises(n, specs, _) =>
