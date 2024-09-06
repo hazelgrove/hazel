@@ -14,6 +14,7 @@ module Update = {
     | Perform(Action.t)
     | Undo
     | Redo
+    | TAB
     | DebugConsole(string);
 
   exception CantReset;
@@ -31,10 +32,7 @@ module Update = {
         fun
         | Ok(editor) => Model.{editor, statics: model.statics}
         | Error(err) => raise(Action.Failure.Exception(err))
-      );
-    switch (action) {
-    | Perform(action) =>
-      perform(action, model)
+      )
       |> Updated.return(
            ~is_edit=Action.is_edit(action),
            ~recalculate=true,
@@ -59,7 +57,9 @@ module Update = {
              | Select(All) => false
              };
            },
-         )
+         );
+    switch (action) {
+    | Perform(action) => perform(action, model)
     | Undo =>
       switch (Editor.Update.undo(model.editor)) {
       | Some(editor) => Model.{...model, editor} |> Updated.return
@@ -73,6 +73,20 @@ module Update = {
     | DebugConsole(key) =>
       DebugConsole.print(~settings, model, key);
       model |> Updated.return_quiet;
+    | TAB =>
+      /* Attempt to act intelligently when TAB is pressed.
+       * TODO: Consider more advanced TAB logic. Instead
+       * of simply moving to next hole, if the backpack is non-empty
+       * but can't immediately put down, move to next position of
+       * interest, which is closet of: nearest position where can
+       * put down, farthest position where can put down, next hole */
+      let z = model.editor.state.zipper;
+      let action: Action.t =
+        Selection.is_buffer(z.selection)
+          ? Buffer(Accept)
+          : Zipper.can_put_down(z)
+              ? Put_down : Move(Goal(Piece(Grout, Right)));
+      perform(action, model);
     };
   };
 
@@ -116,6 +130,8 @@ module Selection = {
         alt: Up,
       } =>
       Some(Update.Redo)
+    | {key: D("Tab"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up} =>
+      Some(Update.TAB)
     | {key: D("Z" | "z"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
     | {key: D("Z" | "z"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
       Some(Update.Undo)
