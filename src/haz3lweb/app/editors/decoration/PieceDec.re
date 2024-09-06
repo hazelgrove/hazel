@@ -45,18 +45,35 @@ let tips_of_shapes = ((l, r): (Nib.Shape.t, Nib.Shape.t)): (tip, tip) => (
   Some(r),
 );
 
-let simple_shard_indicated = (shard_dims, ~sort: Sort.t, ~at_caret: bool): t =>
+let simple_shard_indicated =
+    (
+      ~attr=?,
+      ~base_cls="indicated",
+      shard_dims,
+      ~sort: Sort.t,
+      ~at_caret: bool,
+    )
+    : t =>
   simple_shard(
+    ~attr?,
     shard_dims,
-    ["indicated", Sort.to_string(sort)] @ (at_caret ? ["caret"] : []),
+    [base_cls, Sort.to_string(sort)] @ (at_caret ? ["caret"] : []),
   );
 
 let simple_shards_indicated =
-    (~font_metrics: FontMetrics.t, ~caret: (Id.t, int), (id, mold, shards))
+    (
+      ~attr: option(list(Attr.t))=?,
+      ~base_cls=?,
+      ~font_metrics: FontMetrics.t,
+      ~caret: (Id.t, int),
+      (id, mold, shards),
+    )
     : list(t) =>
   List.map(
-    ((index, measurement)) =>
+    ((index, measurement)) => {
       simple_shard_indicated(
+        ~attr?,
+        ~base_cls?,
         {
           font_metrics,
           measurement,
@@ -64,7 +81,8 @@ let simple_shards_indicated =
         },
         ~sort=mold.out,
         ~at_caret=caret == (id, index),
-      ),
+      )
+    },
     shards,
   );
 
@@ -96,62 +114,6 @@ let simple_shards_errors = (~font_metrics: FontMetrics.t, mold, shards) =>
         measurement,
         tips: tips_of_shapes(Mold.nib_shapes(~index, mold)),
       }),
-    shards,
-  );
-
-let next_step_indicated =
-    (~inject, ~font_metrics, ~tips, ~measurement: Measured.measurement): t => {
-  let base_cls = ["tile-next-step"];
-  simple_shard(
-    ~attr=[Attr.on_mousedown(_ => {inject()})],
-    {font_metrics, tips, measurement},
-    base_cls,
-  );
-};
-
-let next_step_shards_indicated =
-    (
-      ~inject,
-      ~font_metrics: FontMetrics.t,
-      ~caret as _: (Id.t, int),
-      (_, mold, shards),
-    )
-    : list(t) =>
-  List.map(
-    ((index, measurement)) =>
-      next_step_indicated(
-        ~inject,
-        ~font_metrics,
-        ~tips=
-          Mold.nib_shapes(~index, mold)
-          |> (((x, y)) => (Some(x), Some(y))),
-        ~measurement,
-      ),
-    shards,
-  );
-
-let taken_step_indicated =
-    (~font_metrics, ~tips, ~measurement: Measured.measurement): t => {
-  let base_cls = ["tile-taken-step"];
-  simple_shard({font_metrics, tips, measurement}, base_cls);
-};
-
-let taken_step_shards_indicated =
-    (
-      ~font_metrics: FontMetrics.t,
-      ~caret as _: (Id.t, int),
-      (_, mold, shards),
-    )
-    : list(t) =>
-  List.map(
-    ((index, measurement)) =>
-      taken_step_indicated(
-        ~font_metrics,
-        ~tips=
-          Mold.nib_shapes(~index, mold)
-          |> (((x, y)) => (Some(x), Some(y))),
-        ~measurement,
-      ),
     shards,
   );
 
@@ -385,28 +347,25 @@ let uni_lines =
 
 let indicated =
     (
-      ~simple_shards,
+      ~attr=?,
       ~font_metrics: FontMetrics.t,
       ~rows: Measured.Rows.t,
       ~caret,
       ~tiles,
       ~line_clss: list(string),
+      ~base_clss=?,
       range,
     )
     : list(Node.t) => {
-  List.concat_map(simple_shards(~font_metrics, ~caret), tiles)
+  List.concat_map(
+    simple_shards_indicated(
+      ~attr?,
+      ~font_metrics,
+      ~caret,
+      ~base_cls=?base_clss,
+    ),
+    tiles,
+  )
   @ uni_lines(~line_clss, ~font_metrics, ~rows, range, tiles)
   @ bi_lines(~line_clss, ~font_metrics, ~rows, tiles);
 };
-
-let next_step_indicated = (~inject) =>
-  indicated(
-    ~simple_shards=next_step_shards_indicated(~inject),
-    ~line_clss=["next-step-line"],
-  );
-let taken_step_indicated =
-  indicated(
-    ~simple_shards=taken_step_shards_indicated,
-    ~line_clss=["taken-step-line"],
-  );
-let indicated = indicated(~simple_shards=simple_shards_indicated);

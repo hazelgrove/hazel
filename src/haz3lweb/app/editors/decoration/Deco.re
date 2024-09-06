@@ -501,10 +501,12 @@ module Deco =
             Some((l, r));
           };
         };
-        PieceDec.next_step_indicated(
+        PieceDec.indicated(
+          ~base_clss="tile-next-step",
+          ~attr=[Virtual_dom.Vdom.Attr.on_mousedown(_ => {inject(i)})],
+          ~line_clss=["next-step-line"],
           ~font_metrics,
           ~caret=(Id.invalid, 0),
-          ~inject=() => inject(i),
           ~rows=measured.rows,
           ~tiles=[(id, mold, shards)],
         )
@@ -516,14 +518,10 @@ module Deco =
     |> List.flatten;
   };
 
-  let taken_step = taken_step => {
-    let tiles =
-      List.filter_map(
-        TileMap.find_opt(_, tiles),
-        taken_step |> Option.to_list,
-      );
-    List.filter_map(
-      (t: Tile.t) => {
+  let taken_steps = taken_steps => {
+    let tiles = List.filter_map(TileMap.find_opt(_, tiles), taken_steps);
+    List.mapi(
+      (_, t: Tile.t) => {
         let id = Tile.id(t);
         let mold = t.mold;
         let shards = Measured.find_shards(t, map);
@@ -538,16 +536,19 @@ module Deco =
             Some((l, r));
           };
         };
-        PieceDec.taken_step_indicated(
+        PieceDec.indicated(
+          ~base_clss="tile-taken-step",
+          ~line_clss=["next-step-line"],
           ~font_metrics,
           ~caret=(Id.invalid, 0),
-          ~tiles=[(id, mold, shards)],
           ~rows=measured.rows,
+          ~tiles=[(id, mold, shards)],
         )
         |> Option.map(_, range);
       },
       tiles,
     )
+    |> List.filter_map(x => x)
     |> List.flatten;
   };
 

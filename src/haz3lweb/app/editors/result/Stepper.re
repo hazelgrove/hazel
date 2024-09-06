@@ -85,10 +85,11 @@ module Model = {
 module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
+    | StepperEditor(int, StepperEditor.Update.t)
     | StepForward(int)
     | StepBackward;
 
-  let update = (action: t, model: Model.t): Updated.t(Model.t) => {
+  let update = (~settings, action: t, model: Model.t): Updated.t(Model.t) => {
     switch (action) {
     | StepForward(idx) =>
       {
@@ -117,6 +118,29 @@ module Update = {
         },
       }
       |> Updated.return
+    | StepperEditor(idx, x) =>
+      {
+        ...model,
+        history:
+          model.history
+          |> Aba.get_as
+          |> List.mapi((i, a: Model.a) =>
+               if (i == idx) {
+                 switch (a) {
+                 | A(a) =>
+                   let editor =
+                     CodeSelectable.Update.update(~settings, x, a.editor)
+                     |> ((u: Updated.t('a)) => u.model);
+                   Model.A({...a, editor});
+                 | PendingStep => PendingStep
+                 };
+               } else {
+                 a;
+               }
+             )
+          |> Aba.mk(_, model.history |> Aba.get_bs),
+      }
+      |> Updated.return(~is_edit=false)
     };
   };
 
@@ -272,19 +296,27 @@ module Update = {
   };
 };
 
+module Selection = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | A(int, StepperEditor.Selection.t);
+};
+
 module View = {
   open Virtual_dom.Vdom;
   open Node;
 
   type event =
     | HideStepper
-    | JumpTo(Haz3lcore.Id.t);
+    | JumpTo(Haz3lcore.Id.t)
+    | MakeActive(Selection.t);
 
   let view =
       (
         ~globals as {settings, inject_global, _} as globals: Globals.t,
         ~signal: event => Ui_effect.t(unit),
         ~inject: Update.t => Ui_effect.t(unit),
+        ~selection: option(Selection.t),
         ~read_only: bool,
         stepper: Model.t,
       ) => {
@@ -319,7 +351,7 @@ module View = {
         settings.core.evaluation.show_hidden_steps
           ? x => x : List.filter(((_, b: Model.b, _)) => !b.hidden)
       )
-      |> List.map(((_, b: Model.b, a: Model.a)) =>
+      |> List.mapi((i, (_, b: Model.b, a: Model.a)) =>
            switch (a) {
            | A(a) => [
                div(
@@ -331,12 +363,21 @@ module View = {
                  ],
                  [
                    div(~attrs=[Attr.class_("equiv")], [Node.text("≡")]),
-                   StepperEditor.Stepped.view(
+                   StepperEditor.View.view(
                      ~globals,
                      ~overlays=[],
+                     ~selected=selection == Some(A(i, ())),
+                     ~inject=
+                       (x: StepperEditor.Update.t) =>
+                         inject(StepperEditor(i, x)),
+                     ~signal=
+                       fun
+                       | TakeStep(_) => Ui_effect.Ignore
+                       | MakeActive => signal(MakeActive(A(i, ()))),
                      {
                        editor: a.editor,
-                       step_id: Some(b.step.d_loc |> Exp.rep_id),
+                       next_steps: [],
+                       taken_steps: [b.step.d_loc |> Exp.rep_id],
                      },
                    )
                    |> (x => [x])
@@ -362,15 +403,23 @@ module View = {
     };
     let current_step = {
       let model = stepper.history |> Aba.hd;
+      let current_n = stepper.history |> Aba.get_bs |> List.length;
       div(
         ~attrs=[Attr.classes(["cell-item", "cell-result"])],
         (
           switch (model) {
           | A(model) => [
               div(~attrs=[Attr.class_("equiv")], [Node.text("≡")]),
-              StepperEditor.Steppable.view(
+              StepperEditor.View.view(
                 ~globals,
-                ~signal=(TakeStep(x)) => inject(Update.StepForward(x)),
+                ~selected=selection == Some(A(current_n, ())),
+                ~inject=
+                  (x: StepperEditor.Update.t) =>
+                    inject(StepperEditor(current_n, x)),
+                ~signal=
+                  fun
+                  | TakeStep(x) => inject(Update.StepForward(x))
+                  | MakeActive => signal(MakeActive(A(current_n, ()))),
                 ~overlays=[],
                 {
                   editor: model.editor,
@@ -379,6 +428,7 @@ module View = {
                       (option: Model.b) => option.step.d_loc |> Exp.rep_id,
                       model.next_steps,
                     ),
+                  taken_steps: [],
                 },
               )
               |> (x => [x])
