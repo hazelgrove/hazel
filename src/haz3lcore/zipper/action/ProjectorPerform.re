@@ -112,11 +112,36 @@ let go =
     (
       jump_to_id_indicated,
       jump_to_side_of_id,
+      move_primary,
+      do_until_wrap,
       select_term,
       a: Action.project,
       z: Zipper.t,
     )
     : result(ZipperBase.t, Action.Failure.t) => {
+  let move_to_id = (d: Util.Direction.t, id: Id.t, z: ZipperBase.t) => {
+    //TODO(andrew):
+    /* This approach is suboptimal in that it sometimes
+       eg for apps doesnt leave cursor at an indication position */
+    let z_init =
+      do_until_wrap((p: Piece.t) => Piece.id(p) == id, d, z)
+      |> Option.value(~default=z)
+      |> move_primary(
+           Zipper.ByToken,
+           d == Right ? Util.Direction.Left : Right,
+         )
+      |> Option.value(~default=z);
+    if (Indicated.index(z_init) == Some(id)) {
+      z_init;
+    } else {
+      z_init
+      |> move_primary(
+           Zipper.ByToken,
+           d == Right ? Util.Direction.Right : Left,
+         )
+      |> Option.value(~default=z);
+    };
+  };
   switch (a) {
   | SetIndicated(p) =>
     switch (Indicated.for_index(z)) {
@@ -146,11 +171,15 @@ let go =
         //move_out_of_piece(d, rel, z)
         select_term(z)
         |> Option.value(~default=z)
-        |> Update.add_or_remove(p, Piece.id(piece)),
+        |> Update.add_or_remove(p, Piece.id(piece))
+        |> move_to_id(Right, Piece.id(piece)),
       )
-    //TODO(andrew): reinstate direction
     }
-  | Remove(id) => Ok(Update.remove(id, z))
+  | Remove(id) =>
+    switch (Indicated.for_index(z)) {
+    | None => Error(Cant_project)
+    | Some((_, d, _rel)) => Ok(Update.remove(id, z) |> move_to_id(d, id))
+    }
   | SetSyntax(id, syntax) =>
     /* Note we update piece id to keep in sync with projector id;
      * See intial id setting in Update.init */
