@@ -106,7 +106,7 @@ module Update = {
     | (ToggleStepper, {kind: Evaluation, _}) =>
       {...model, kind: Stepper} |> Updated.return
     | (StepperAction(a), {result: Stepper(s), _}) =>
-      let* stepper = Stepper.Update.update(a, s);
+      let* stepper = Stepper.Update.update(~settings, a, s);
       {...model, result: Stepper(stepper)};
     | (StepperAction(_), _) => model |> Updated.return_quiet
     | (
@@ -230,7 +230,8 @@ module Selection = {
   open Cursor;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | Evaluation(CodeSelectable.Selection.t);
+    | Evaluation(CodeSelectable.Selection.t)
+    | Stepper(Stepper.Selection.t);
   // TODO: Selection in stepper
 
   let get_cursor_info = (~selection: t, mr: Model.t): cursor(Update.t) =>
@@ -374,10 +375,16 @@ module View = {
     | Stepper(s) =>
       Stepper.View.view(
         ~globals,
+        ~selection=
+          switch (selected) {
+          | Some(Stepper(s)) => Some(s)
+          | _ => None
+          },
         ~signal=
           fun
           | HideStepper => inject(ToggleStepper)
-          | JumpTo(id) => signal(JumpTo(id)),
+          | JumpTo(id) => signal(JumpTo(id))
+          | MakeActive(s) => signal(MakeActive(Stepper(s))),
         ~inject=x => inject(StepperAction(x)),
         ~read_only=locked,
         s,
