@@ -110,6 +110,14 @@ let go =
     switch (Indicated.for_index(z)) {
     | None => Error(Cant_project)
     | Some((piece, d, rel)) =>
+      /* new strategy:
+         1. call select term
+         2. add_or_remove only acts on the selection,
+            which will be only the projector piece (if projected)
+            or a complete term segment (if not)
+            We'll have guaranteed locality, so no need to map thru
+            the zipper for this one.
+          */
       Ok(
         move_out_of_piece(d, rel, z)
         |> Update.add_or_remove(p, Piece.id(piece)),

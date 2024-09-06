@@ -709,7 +709,6 @@ let term_partitions = (seg: t, id: Id.t): option((t, t, t)) => {
   let* _ = trim_secondary(Left, seg) == [] ? None : Some();
   print_endline("term_partitions:");
   print_endline(show(seg));
-
   print_endline("CCC");
   let* skel =
     try(Some(skel(seg))) {
