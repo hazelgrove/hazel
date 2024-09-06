@@ -26,6 +26,7 @@ module Model = {
     | NoElab
     | Evaluation({
         elab: Haz3lcore.Exp.t,
+        result_updated: bool,
         result: Haz3lcore.ProgramResult.t(evaluated_result),
       })
     | Stepper(Stepper.Model.t);
@@ -112,7 +113,12 @@ module Update = {
     | (
         EvalEditorAction(a),
         {
-          result: Evaluation({elab, result: ResultOk({editor, state, exp})}),
+          result:
+            Evaluation({
+              elab,
+              result: ResultOk({editor, state, exp}),
+              result_updated: false,
+            }),
           _,
         },
       ) =>
@@ -120,7 +126,11 @@ module Update = {
       {
         ...model,
         result:
-          Evaluation({elab, result: ResultOk({editor: ed', state, exp})}),
+          Evaluation({
+            elab,
+            result: ResultOk({editor: ed', state, exp}),
+            result_updated: false,
+          }),
       };
     | (EvalEditorAction(_), _) => model |> Updated.return_quiet
     | (UpdateResult(update), {result: Evaluation({elab, _}), _}) =>
@@ -142,6 +152,7 @@ module Update = {
                 },
                 update,
               ),
+            result_updated: true,
           }),
       }
       |> Updated.return
@@ -160,10 +171,10 @@ module Update = {
     let model =
       switch (model.kind, model.result) {
       // If elab hasn't changed, don't recalculate
-      | (Evaluation, Evaluation({elab: elab', result}))
+      | (Evaluation, Evaluation({elab: elab', result, result_updated}))
           when Haz3lcore.Exp.fast_equal(elab, elab') => {
           ...model,
-          result: Evaluation({elab, result}),
+          result: Evaluation({elab, result, result_updated}),
         }
       // If elab has changed, recalculate
       | (Evaluation, _) when settings.dynamics =>
@@ -183,6 +194,7 @@ module Update = {
                   | Error(e) => Haz3lcore.ProgramResult.ResultFail(e)
                   };
                 },
+                result_updated: false,
               }),
           }
 
@@ -194,6 +206,7 @@ module Update = {
               Evaluation({
                 elab,
                 result: Haz3lcore.ProgramResult.ResultPending,
+                result_updated: false,
               }),
           };
         }
@@ -208,7 +221,11 @@ module Update = {
       };
     // Calculate evaluation editor
     switch (model.result) {
-    | Evaluation({elab, result: ResultOk({state, exp, _})}) =>
+    | Evaluation({
+        elab,
+        result: ResultOk({state, exp, _}),
+        result_updated: true,
+      }) =>
       let editor = CodeSelectable.Model.mk_from_exp(~settings, exp);
       let editor =
         CodeSelectable.Update.calculate(
@@ -219,7 +236,12 @@ module Update = {
         );
       {
         ...model,
-        result: Evaluation({elab, result: ResultOk({editor, state, exp})}),
+        result:
+          Evaluation({
+            elab,
+            result: ResultOk({editor, state, exp}),
+            result_updated: false,
+          }),
       };
     | _ => model
     };
@@ -361,7 +383,7 @@ module View = {
     switch (result.result) {
     | _ when !globals.settings.core.dynamics => []
     | NoElab => []
-    | Evaluation({elab, result}) => [
+    | Evaluation({elab, result, _}) => [
         live_eval(
           ~globals,
           ~signal,
