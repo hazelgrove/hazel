@@ -517,6 +517,7 @@ and rul = (unsorted: unsorted): Rul.t => {
 and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
   /* Remove projectors. We do this here as opposed to removing
    * them in an external call to save a whole-syntax pass. */
+  //TODO(andrew): check this one call is actually necessary
   let seg = rm_and_log_projectors(seg);
   let tile_kids = (p: Piece.t): list(Term.Any.t) =>
     switch (p) {
@@ -527,6 +528,9 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
       Aba.aba_triples(Aba.mk(shards, children))
       |> List.map(((l, kid, r)) => {
            let s = l + 1 == r ? List.nth(mold.in_, l) : Sort.Any;
+           /* Remove projectors. We do this here as opposed to removing
+            * them in an external call to save a whole-syntax pass. */
+           let kid = rm_and_log_projectors(kid);
            go_s(s, Segment.skel(kid), kid);
          })
     };
@@ -571,6 +575,20 @@ let go =
     seg => {
       map := TermMap.empty;
       projectors := Id.Map.empty;
+      //TODO(andrew): cleanup
+      //need to remove holistically now or skel calc gets fucked up
+      // let remove_projector_always = (piece: Piece.t): Segment.t =>
+      //   switch (piece) {
+      //   | Projector(pr) =>
+      //     projectors := Id.Map.add(pr.id, pr, projectors^);
+      //     pr.syntax;
+      //   | x => [x]
+      //   };
+      // let ff = (seg: Segment.t) => {
+      //   List.concat(List.map(p => remove_projector_always(p), seg));
+      // };
+      // let seg = ZipperBase.MapSegment.of_segment(ff, seg);
+      let seg = rm_and_log_projectors(seg);
       let term = exp(unsorted(Segment.skel(seg), seg));
       {term, terms: map^, projectors: projectors^};
     },

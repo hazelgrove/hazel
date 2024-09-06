@@ -229,9 +229,13 @@ module MapSegment = {
 
   let fast_local = (f: updater, id: Id.t, z: t): t =>
     //TODO(andrew): cleanup, doc
+    //TODO(andrew): reinstate fast path
+    //go(f, z);
     if (List.exists(p => Piece.id(p) == id, z.relatives.siblings |> fst)
         || List.exists(p => Piece.id(p) == id, z.relatives.siblings |> fst)) {
       let (l, r) = z.relatives.siblings;
+      //this doesn't work as siblings may have incomplete term (or just whitespace)
+      // which will crash skel
       let sibs = (f(l), f(r));
       put_siblings(sibs, z);
     } else {

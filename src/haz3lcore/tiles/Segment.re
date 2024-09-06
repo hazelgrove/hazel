@@ -676,13 +676,12 @@ and ids_of_piece = (p: Piece.t): list(Id.t) =>
   | Projector(_) => [Piece.id(p)]
   };
 
-let term_bounds = (seg: t, id: Id.t): option((int, int)) => {
+let term_bounds = (skel, seg: t, id: Id.t): option((int, int)) => {
   let is_root_id = (root: Aba.t(int, Skel.t)): bool => {
-    let index = Aba.first_a(root); // TODO(andrew): this assumes singleton
+    let index = Aba.first_a(root); // TODO(andrew): this assumes singleton maybe?
     let piece = List.nth(seg, index);
     Piece.id(piece) == id;
   };
-  let skel = skel(seg);
   let rec go = (seg: t, skel: Skel.t): option((int, int)) => {
     switch (skel) {
     | Op(root) => is_root_id(root) ? Some(Skel.bounds(skel)) : None
@@ -706,12 +705,18 @@ let term_bounds = (seg: t, id: Id.t): option((int, int)) => {
 
 let term_partitions = (seg: t, id: Id.t): option((t, t, t)) => {
   open OptUtil.Syntax;
-  let* _ = seg == [] ? None : Some();
+  // eliminate segs that have no term and hence will crash skel
+  let* _ = trim_secondary(Left, seg) == [] ? None : Some();
   print_endline("term_partitions:");
   print_endline(show(seg));
 
   print_endline("CCC");
-  let* (l, r) = term_bounds(seg, id);
+  let* skel =
+    try(Some(skel(seg))) {
+    | _ => None
+    };
   print_endline("DDD");
+  let* (l, r) = term_bounds(skel, seg, id);
+  print_endline("EEE");
   ListUtil.split_sublist_opt(l, r + 1, seg);
 };

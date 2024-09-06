@@ -22,7 +22,7 @@ module Update = {
   };
 
   let add_projector = (kind: Base.kind, id: Id.t, seg: syntax) => {
-    print_endline("AAA");
+    print_endline("term_partitions add_projector");
     switch (Segment.term_partitions(seg, id)) {
     | None => seg
     | Some((l, m, r)) => l @ init(id, kind, m) @ r
@@ -33,24 +33,45 @@ module Update = {
   let add = (k: Base.kind, id: Id.t, z: ZipperBase.t): ZipperBase.t =>
     ZipperBase.MapSegment.fast_local(add_projector(k, id), id, z);
 
-  // let remove_projector = (id: Id.t, syntax: syntax) =>
-  //   switch (syntax) {
-  //   | Projector(pr) when pr.id == id => pr.syntax
-  //   | x => x
-  //   };
+  let remove_projector_p_cond = (id: Id.t, piece: Piece.t): Segment.t =>
+    switch (piece) {
+    | Projector(pr) when pr.id == id => pr.syntax
+    | x => [x]
+    };
 
-  // let add_or_remove_projector = (kind: Base.kind, id: Id.t, syntax: syntax) =>
-  //   switch (syntax) {
-  //   | Projector(pr) when Piece.id(syntax) == id => pr.syntax
-  //   | syntax when Piece.id(syntax) == id => init(kind, syntax)
-  //   | x => x
-  //   };
+  let remove_projector = (id: Id.t, syntax: syntax) =>
+    List.concat(List.map(p => remove_projector_p_cond(id, p), syntax));
 
-  // let remove_any_projector = (syntax: syntax) =>
-  //   switch (syntax) {
-  //   | Projector(pr) => pr.syntax
-  //   | x => x
-  //   };
+  // TODO(andrew): piece => subseg
+  let remove = (id: Id.t, z: ZipperBase.t): ZipperBase.t =>
+    ZipperBase.MapSegment.fast_local(remove_projector(id), id, z);
+
+  let remove_projector_always = (piece: Piece.t): Segment.t =>
+    switch (piece) {
+    | Projector(pr) => pr.syntax
+    | x => [x]
+    };
+
+  let remove_all' = (syntax: syntax) =>
+    List.concat(List.map(p => remove_projector_always(p), syntax));
+
+  let remove_all = (z: ZipperBase.t): ZipperBase.t =>
+    ZipperBase.MapSegment.go(remove_all', z);
+
+  let is_projector_of = (id: Id.t, seg: Segment.t): bool =>
+    List.exists(
+      (p: Piece.t) =>
+        switch (p) {
+        | Projector(pr) => pr.id == id
+        | _ => false
+        },
+      seg,
+    );
+
+  let add_or_remove_projector = (kind: Base.kind, id: Id.t, seg: Segment.t) => {
+    is_projector_of(id, seg)
+      ? remove_projector(id, seg) : add_projector(kind, id, seg);
+  };
 
   // piece => piece
   let update =
@@ -58,17 +79,8 @@ module Update = {
       : ZipperBase.t =>
     ZipperBase.MapPiece.fast_local(update_piece(f, id), id, z);
 
-  let add_or_remove =
-      (_k: Base.kind, _id: Id.t, z: ZipperBase.t): ZipperBase.t => z;
-  //  ZipperBase.MapPiece.fast_local(add_or_remove_projector(k, id), id, z);
-
-  // TODO(andrew): piece => subseg
-  let remove = (_id: Id.t, z: ZipperBase.t): ZipperBase.t => z;
-  // ZipperBase.MapPiece.fast_local(remove_projector(id), id, z);
-
-  // TODO(andrew): piece => subseg
-  let remove_all = (z: ZipperBase.t): ZipperBase.t => z;
-  // ZipperBase.MapPiece.go(remove_any_projector, z);
+  let add_or_remove = (k: Base.kind, id: Id.t, z: ZipperBase.t): ZipperBase.t =>
+    ZipperBase.MapSegment.fast_local(add_or_remove_projector(k, id), id, z);
 };
 
 /* If the caret is inside the indicated piece, move it out
