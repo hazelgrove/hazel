@@ -114,6 +114,7 @@ let go_z =
     ProjectorPerform.go(
       Move.jump_to_id_indicated,
       Move.jump_to_side_of_id,
+      Select.nice_term,
       a,
       z,
     )

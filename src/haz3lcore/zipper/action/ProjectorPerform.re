@@ -30,8 +30,20 @@ module Update = {
   };
 
   // subseg => piece
-  let add = (k: Base.kind, id: Id.t, z: ZipperBase.t): ZipperBase.t =>
-    ZipperBase.MapSegment.fast_local(add_projector(k, id), id, z);
+  // let add = (k: Base.kind, id: Id.t, z: ZipperBase.t): ZipperBase.t =>
+  //   ZipperBase.MapSegment.fast_local(add_projector(k, id), id, z);
+
+  let add = (k: Base.kind, id: Id.t, z: ZipperBase.t): ZipperBase.t => {
+    let content = init(id, k, z.selection.content);
+    let z = {
+      ...z,
+      selection: {
+        ...z.selection,
+        content,
+      },
+    };
+    Zipper.unselect(z);
+  };
 
   let remove_projector_p_cond = (id: Id.t, piece: Piece.t): Segment.t =>
     switch (piece) {
@@ -97,19 +109,31 @@ let move_out_of_piece =
   };
 
 let go =
-    (jump_to_id_indicated, jump_to_side_of_id, a: Action.project, z: Zipper.t)
+    (
+      jump_to_id_indicated,
+      jump_to_side_of_id,
+      select_term,
+      a: Action.project,
+      z: Zipper.t,
+    )
     : result(ZipperBase.t, Action.Failure.t) => {
   switch (a) {
   | SetIndicated(p) =>
     switch (Indicated.for_index(z)) {
     | None => Error(Cant_project)
-    | Some((piece, d, rel)) =>
-      Ok(move_out_of_piece(d, rel, z) |> Update.add(p, Piece.id(piece)))
+    | Some((piece, _d, _rel)) =>
+      //TODO(andrew): reinstate direction
+      Ok(
+        select_term(z)
+        |> Option.value(~default=z)
+        //move_out_of_piece(d, rel, z)
+        |> Update.add(p, Piece.id(piece)),
+      )
     }
   | ToggleIndicated(p) =>
     switch (Indicated.for_index(z)) {
     | None => Error(Cant_project)
-    | Some((piece, d, rel)) =>
+    | Some((piece, _d, _rel)) =>
       /* new strategy:
          1. call select term
          2. add_or_remove only acts on the selection,
@@ -119,9 +143,12 @@ let go =
             the zipper for this one.
           */
       Ok(
-        move_out_of_piece(d, rel, z)
+        //move_out_of_piece(d, rel, z)
+        select_term(z)
+        |> Option.value(~default=z)
         |> Update.add_or_remove(p, Piece.id(piece)),
       )
+    //TODO(andrew): reinstate direction
     }
   | Remove(id) => Ok(Update.remove(id, z))
   | SetSyntax(id, syntax) =>
