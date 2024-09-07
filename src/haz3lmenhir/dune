@@ -8,4 +8,5 @@
 (ocamllex Lexer)
 
 (menhir
- (modules Parser))
+ (modules Parser)
+ (flags --explain --dump))

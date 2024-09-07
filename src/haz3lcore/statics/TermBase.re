@@ -162,7 +162,7 @@ and Exp: {
     | TyAlias(TPat.t, Typ.t, t) //type tp = ty in e
     | Ap(Operators.ap_direction, t, t) //e1(e2)
     | TypAp(t, Typ.t) /*e @ <ty> */
-    | DeferredAp(t, list(t)) //_e1(e2)
+    | DeferredAp(t, list(t)) //e1(_e2)
     | If(t, t, t) //if e1 then e2 else e3
     | Seq(t, t) //e1;e2
     | Test(t) //test e end
